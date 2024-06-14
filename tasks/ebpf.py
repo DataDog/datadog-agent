@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import shutil
 
+from tasks.kmt import download_complexity_data
 from tasks.libs.common.git import get_commit_sha, get_current_branch
 from tasks.libs.types.arch import Arch
 
@@ -16,10 +17,11 @@ import os
 import re
 import sys
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from invoke.context import Context
 from invoke.exceptions import Exit
+from invoke.runners import Result
 from invoke.tasks import task
 
 if TYPE_CHECKING:
@@ -99,9 +101,21 @@ def write_verifier_stats(verifier_stats, f, jsonfmt):
         print(tabulate_stats(verifier_stats), file=f)
 
 
+class ComplexitySummaryEntry(TypedDict):
+    stack_usage: int  # noqa: F841
+    instruction_processed: int  # noqa: F841
+    limit: int  # noqa: F841
+    max_states_per_insn: int  # noqa: F841
+    peak_states: int  # noqa: F841
+    total_states: int  # noqa: F841
+
+
+ComplexitySummary = dict[str, ComplexitySummaryEntry]
+
+
 # the go program return stats in the form {func_name: {stat_name: {Value: X}}}.
 # convert this to {func_name: {stat_name: X}}
-def format_verifier_stats(verifier_stats):
+def format_verifier_stats(verifier_stats) -> ComplexitySummary:
     filtered = {}
     for func in verifier_stats:
         filtered[func] = {}
@@ -657,3 +671,121 @@ def generate_html_report(ctx: Context, dest_folder: str | Path):
     for file in static_files.glob("*"):
         print(f"Copying static {file} to {dest_folder}")
         shutil.copy(file, dest_folder)
+
+
+@task
+def generate_complexity_summary_for_pr(ctx: Context):
+    """Task meant to run in CI. Generates a summary of the complexity data for the current PR"""
+    if tabulate is None:
+        raise Exit("tabulate is required to print the complexity summary")
+
+    # First, ensure we have the complexity data for our current branch
+    current_branch_artifacts_path = os.getenv("DD_AGENT_TESTING_DIR")
+    if current_branch_artifacts_path is None:
+        raise Exit("DD_AGENT_TESTING_DIR is not set, cannot find the complexity data")
+
+    current_branch_artifacts_path = Path(current_branch_artifacts_path)
+    complexity_files = list(current_branch_artifacts_path.glob("verifier-complexity-*.tar.gz"))
+    if len(complexity_files) == 0:
+        raise Exit(f"No complexity data found for the current branch at {current_branch_artifacts_path}")
+
+    # We have files, now get files for the main branch
+    common_ancestor = cast(Result, ctx.run("git merge-base HEAD origin/main", hide=True)).stdout.strip()
+    main_branch_complexity_path = Path("/tmp/verifier-complexity-main")
+    print(f"Downloading complexity data for main branch (commit {common_ancestor})...")
+    download_complexity_data(ctx, common_ancestor, main_branch_complexity_path)
+
+    main_complexity_files = list(main_branch_complexity_path.glob("verifier-complexity-*"))
+    if len(main_complexity_files) == 0:
+        raise Exit(f"No complexity data found for the main branch at {main_branch_complexity_path}")
+
+    # Uncompress all local complexity files, and store the results
+    program_complexity = collections.defaultdict(list)  # Map each program to a list of
+    for file in complexity_files:
+        folder_name = file.name.replace('.tar.gz', '')
+        target_dir = current_branch_artifacts_path / folder_name
+        ctx.run(f"mkdir -p {target_dir}")
+        ctx.run(f"tar -xzf {file} -C {target_dir}")
+
+        main_data_path = main_branch_complexity_path / folder_name / "verifier_stats.json"
+        if not main_data_path.exists():
+            print(f"Error: Main branch data not found for {main_data_path}, skipping")
+            continue
+
+        branch_data_path = target_dir / "verifier_stats.json"
+        if not branch_data_path.exists():
+            print(f"Error: Branch data not found for {branch_data_path}, skipping")
+            continue
+
+        name_parts = folder_name.split('-')
+        if len(name_parts) != 5:
+            print(f"Error: Invalid folder name {folder_name}, skipping")
+            continue
+
+        arch = name_parts[2]
+        distro = name_parts[3]
+
+        try:
+            main_data = format_verifier_stats(json.loads(main_data_path.read_text()))
+        except Exception as e:
+            print(f"Error: Could not load data for {main_data_path}: {e}")
+            continue
+
+        try:
+            branch_data = format_verifier_stats(json.loads(branch_data_path.read_text()))
+        except Exception as e:
+            print(f"Error: Could not load data for {branch_data_path}: {e}")
+            continue
+
+        for program, stats in branch_data.items():
+            if program not in main_data:
+                print(f"Warn: Program {program} not found in main data for {folder_name}, skipping")
+                continue
+
+            program_complexity[program].append(
+                (arch, distro, stats["instruction_processed"], main_data[program]["instruction_processed"])
+            )
+
+    summarized_complexity_changes = []
+    for program, entries in program_complexity.items():
+        avg_new_complexity, avg_old_complexity = 0, 0
+        highest_new_complexity, highest_old_complexity = 1e9, 1e9  # instruction limit is always < 1e9
+        lowest_new_complexity, lowest_old_complexity = 0, 0
+        highest_complexity_platform, lowest_complexity_platform = "", ""
+
+        for arch, distro, new_complexity, old_complexity in entries:
+            avg_new_complexity += new_complexity
+            avg_old_complexity += old_complexity
+
+            if new_complexity > highest_new_complexity:
+                highest_new_complexity = new_complexity
+                highest_old_complexity = old_complexity
+                highest_complexity_platform = f"{distro}/{arch}"
+
+            if new_complexity < lowest_new_complexity:
+                lowest_new_complexity = new_complexity
+                lowest_old_complexity = old_complexity
+                lowest_complexity_platform = f"{distro}/{arch}"
+
+        avg_new_complexity /= len(entries)
+        avg_old_complexity /= len(entries)
+
+        row = [
+            program,
+            _format_change(avg_new_complexity, avg_old_complexity),
+            f"{highest_complexity_platform}: {_format_change(highest_new_complexity, highest_old_complexity)}",
+            f"{lowest_complexity_platform}: {_format_change(lowest_new_complexity, lowest_old_complexity)}",
+        ]
+        summarized_complexity_changes.append(row)
+
+    headers = ["Program", "Avg. complexity", "Distro with highest complexity", "Distro with lowest complexity"]
+
+    table_summary = tabulate(summarized_complexity_changes, headers=headers, tablefmt="github")
+    print(table_summary)
+
+
+def _format_change(new: float, old: float):
+    change_abs = new - old
+    change_rel = change_abs / old
+
+    return f"{new} ({change_abs:+}, {change_rel * 100:+.2%}%)"
