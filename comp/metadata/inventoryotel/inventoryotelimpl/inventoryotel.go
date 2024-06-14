@@ -8,6 +8,7 @@ package inventoryotelimpl
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -99,6 +100,11 @@ type provides struct {
 
 func newInventoryOtelProvider(deps dependencies) (provides, error) {
 	hname, _ := hostname.Get(context.Background())
+	// HTTP client need not verify otel-agent cert since it's self-signed
+	// at start-up. TLS used for encryption not authentication.
+	tr := &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	}
 	i := &inventoryotel{
 		conf:      deps.Config,
 		log:       deps.Log,
@@ -106,7 +112,8 @@ func newInventoryOtelProvider(deps dependencies) (provides, error) {
 		data:      make(otelMetadata),
 		authToken: deps.AuthToken,
 		httpClient: &http.Client{
-			Timeout: httpTO,
+			Transport: tr,
+			Timeout:   httpTO,
 		},
 	}
 
