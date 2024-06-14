@@ -103,7 +103,7 @@ func (s *packageInstallerSuite) TestReInstall() {
 func (s *packageInstallerSuite) TestUpdateInstallerOCI() {
 	// Install prod
 	err := s.RunInstallScriptProdOci(
-		envForceVersion("datadog-installer", "7.55.0-installer-0.2.1\n"),
+		envForceVersion("datadog-installer", "7.55.0-installer-0.2.1-1"),
 	)
 	defer s.Purge()
 	assert.NoError(s.T(), err)
