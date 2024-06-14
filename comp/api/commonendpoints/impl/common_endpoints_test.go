@@ -25,7 +25,7 @@ func TestGetHostname(t *testing.T) {
 	require.NoError(t, err)
 
 	rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(GetHostname)
+	handler := http.HandlerFunc(getHostname)
 	handler.ServeHTTP(rr, req)
 
 	require.Equal(t, http.StatusOK, rr.Code)
@@ -58,7 +58,7 @@ func TestStopAgent(t *testing.T) {
 	require.NoError(t, err)
 
 	rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(StopAgent)
+	handler := http.HandlerFunc(stopAgent)
 	handler.ServeHTTP(rr, req)
 
 	require.NoError(t, <-stopCh)

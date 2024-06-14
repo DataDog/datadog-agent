@@ -10,13 +10,31 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
+	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// GetHostname returns the hostname as a JSON response.
-func GetHostname(w http.ResponseWriter, r *http.Request) {
+// Provider provides the common Agent API endpoints
+type Provider struct {
+	VersionEndpoint  api.AgentEndpointProvider
+	HostnameEndpoint api.AgentEndpointProvider
+	StopEndpoint     api.AgentEndpointProvider
+}
+
+// CommonEndpointProvider return a filled Provider struct
+func CommonEndpointProvider() Provider {
+	return Provider{
+		VersionEndpoint:  api.NewAgentEndpointProvider(common.GetVersion, "/version", "GET"),
+		HostnameEndpoint: api.NewAgentEndpointProvider(getHostname, "/hostname", "GET"),
+		StopEndpoint:     api.NewAgentEndpointProvider(stopAgent, "/stop", "POST"),
+	}
+}
+
+// getHostname returns the hostname as a JSON response.
+func getHostname(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	hname, err := hostname.Get(r.Context())
 	if err != nil {
@@ -28,7 +46,7 @@ func GetHostname(w http.ResponseWriter, r *http.Request) {
 }
 
 // StopAgent stops the agent by sending a signal to the stopper channel.
-func StopAgent(w http.ResponseWriter, _ *http.Request) {
+func stopAgent(w http.ResponseWriter, _ *http.Request) {
 	signals.Stopper <- true
 	w.Header().Set("Content-Type", "application/json")
 	j, _ := json.Marshal("")
