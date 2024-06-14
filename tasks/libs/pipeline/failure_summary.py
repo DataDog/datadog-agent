@@ -28,7 +28,7 @@ class SummaryData:
         """
         Returns all the file ids of the summaries
         """
-        ids = [SummaryData.get_id(filename) for filename in list_files(ctx)]
+        ids = [SummaryData.get_id(filename) for filename in sorted(list_files(ctx))]
 
         if before:
             ids = [id for id in ids if id < before]
@@ -202,12 +202,14 @@ def fetch_summaries(ctx: Context, period: timedelta) -> SummaryData:
     return summary
 
 
-def upload_summary(ctx: Context, pipeline_id: int):
+def upload_summary(ctx: Context, pipeline_id: int) -> SummaryData:
     """
     Creates and uploads a summary for a given pipeline
     """
     summary = fetch_jobs(ctx, pipeline_id)
     summary.write()
+
+    return summary
 
 
 def clean_summaries(ctx: Context, period: timedelta):
