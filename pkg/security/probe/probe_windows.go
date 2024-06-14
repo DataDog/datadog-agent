@@ -500,15 +500,6 @@ func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 					}
 				}
 
-			case idSetInformation:
-				if si, err := p.parseInformationArgs(e); err == nil {
-					log.Tracef("Received SetInformation event %d %s\n", e.EventHeader.EventDescriptor.ID, si)
-					ecb(si, e.EventHeader.ProcessID)
-					p.stats.fpnLock.Lock()
-					p.stats.fileProcessedNotifications[e.EventHeader.EventDescriptor.ID]++
-					p.stats.fpnLock.Unlock()
-				}
-
 			case idSetDelete:
 				if p.isDeleteEnabled {
 					if sd, err := p.parseSetDeleteArgs(e); err == nil {
