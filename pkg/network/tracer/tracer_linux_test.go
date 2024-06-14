@@ -2402,6 +2402,96 @@ func (s *TracerSuite) TestTCPFailureConnectionTimeout() {
 	}, 3*time.Second, 1000*time.Millisecond, "Failed connection not recorded properly")
 }
 
+func (s *TracerSuite) TestTCPFailurePostEstablishmentTimeout() {
+	t := s.T()
+	t.Skip("Skipping test as it's broken right now")
+	if _, ok := failedConnectionsBuildModes[ebpftest.GetBuildMode()]; !ok {
+		t.Skip("Skipping test on unsupported build mode: ", ebpftest.GetBuildMode())
+	}
+	// TODO: remove this check when we fix this test on kernels < 4.19
+	if kv < kernel.VersionCode(4, 19, 0) {
+		t.Skip("Skipping test on kernels < 4.19")
+	}
+	cfg := testConfig()
+	cfg.TCPFailedConnectionsEnabled = true
+	tr := setupTracer(t, cfg)
+
+	srvAddr := "127.0.0.1:10000"
+
+	// Start a simple TCP server
+	ln, err := net.Listen("tcp", srvAddr)
+	require.NoError(t, err)
+	defer ln.Close()
+
+	go func() {
+		for {
+			conn, err := ln.Accept()
+			if err != nil {
+				return // Server closed
+			}
+			go func(c net.Conn) {
+				defer c.Close()
+				buf := make([]byte, 1024)
+				for {
+					_, err := c.Read(buf)
+					if err != nil {
+						return // Connection closed
+					}
+				}
+			}(conn)
+		}
+	}()
+
+	ipString, portString, err := net.SplitHostPort(srvAddr)
+	require.NoError(t, err)
+	ip := netip.MustParseAddr(ipString)
+	port, err := strconv.Atoi(portString)
+	require.NoError(t, err)
+
+	addr := syscall.SockaddrInet4{
+		Port: port,
+		Addr: ip.As4(),
+	}
+	sfd, err := syscall.Socket(syscall.AF_INET, syscall.SOCK_STREAM, syscall.IPPROTO_TCP)
+	require.NoError(t, err)
+	t.Cleanup(func() { syscall.Close(sfd) })
+
+	err = syscall.Connect(sfd, &addr)
+	require.NoError(t, err)
+
+	f := os.NewFile(uintptr(sfd), "")
+	defer f.Close()
+	c, err := net.FileConn(f)
+	require.NoError(t, err)
+	port = c.LocalAddr().(*net.TCPAddr).Port
+	// the addr here is 0.0.0.0, but the tracer sees it as 127.0.0.1
+	localAddr := fmt.Sprintf("127.0.0.1:%d", port)
+
+	setupDropTrafficRule(t)
+
+	// Set a low timeout for sending data to simulate a post-establishment timeout
+	err = syscall.SetsockoptInt(sfd, syscall.IPPROTO_TCP, 18, 500)
+	require.NoError(t, err)
+
+	// Simulate data transmission after establishing connection
+	_, err = c.Write([]byte("test data"))
+	if err != nil {
+		var errno syscall.Errno
+		if errors.As(err, &errno) && errors.Is(err, syscall.ETIMEDOUT) {
+			t.Log("Data transmission timed out as expected")
+		} else {
+			require.NoError(t, err, "could not write to server: ", err)
+		}
+	}
+
+	// Check if the connection was recorded as failed due to timeout
+	require.Eventually(t, func() bool {
+		conns := getConnections(t, tr)
+		// 110 is the errno for ETIMEDOUT
+		return findFailedConnection(t, localAddr, srvAddr, conns, 110)
+	}, 3*time.Second, 1000*time.Millisecond, "Failed connection not recorded properly")
+}
+
 func (s *TracerSuite) TestTCPFailureConnectionRefused() {
 	t := s.T()
 	if _, ok := failedConnectionsBuildModes[ebpftest.GetBuildMode()]; !ok {

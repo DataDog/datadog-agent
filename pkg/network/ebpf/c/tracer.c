@@ -221,10 +221,12 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_done, struct sock *sk) {
 
     // connection timeouts will have 0 pids as they are cleaned up by an idle process.
     // get the pid from the ongoing failure map in this case, as it should have been set in connect().
-    if (pid_tgid == 0) {
-        failed_conn_pid = bpf_map_lookup_elem(&tcp_ongoing_connect_pid, &sk);
-    }
+    failed_conn_pid = bpf_map_lookup_elem(&tcp_ongoing_connect_pid, &sk);
     if (failed_conn_pid) {
+        if (*failed_conn_pid != pid_tgid) {
+            log_debug("kprobe/tcp_done: pid mismatch: %llu, %llu", pid_tgid, *failed_conn_pid);
+            increment_telemetry_count(tcp_done_pid_mismatch);
+        }
         bpf_probe_read_kernel_with_telemetry(&pid_tgid, sizeof(pid_tgid), failed_conn_pid);
         t.pid = pid_tgid >> 32;
     }

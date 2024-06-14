@@ -24,6 +24,7 @@ enum telemetry_counter {
     double_flush_attempts_close,
     unsupported_tcp_failures,
     skipped_new_conn_create,
+    tcp_done_pid_mismatch,
 };
 
 static __always_inline void increment_telemetry_count(enum telemetry_counter counter_name) {
@@ -61,6 +62,9 @@ static __always_inline void increment_telemetry_count(enum telemetry_counter cou
         break;
     case skipped_new_conn_create:
         __sync_fetch_and_add(&val->skip_new_conn_create, 1);
+        break;
+    case tcp_done_pid_mismatch:
+        __sync_fetch_and_add(&val->tcp_done_pid_mismatch, 1);
         break;
     }
 }
