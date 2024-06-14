@@ -9,8 +9,6 @@ package model
 import (
 	"crypto/sha256"
 	"fmt"
-	"sort"
-	"strings"
 	"sync"
 	"syscall"
 
@@ -330,28 +328,12 @@ var (
 )
 
 var (
-	openFlagsStrings          = map[int]string{}
-	fileModeStrings           = map[int]string{}
-	inodeModeStrings          = map[int]string{}
-	unlinkFlagsStrings        = map[int]string{}
-	kernelCapabilitiesStrings = map[uint64]string{}
-	bpfCmdStrings             = map[uint32]string{}
-	bpfHelperFuncStrings      = map[uint32]string{}
-	bpfMapTypeStrings         = map[uint32]string{}
-	bpfProgramTypeStrings     = map[uint32]string{}
-	bpfAttachTypeStrings      = map[uint32]string{}
-	ptraceFlagsStrings        = map[uint32]string{}
-	vmStrings                 = map[uint64]string{}
-	protStrings               = map[uint64]string{}
-	mmapFlagStrings           = map[uint64]string{}
-	signalStrings             = map[int]string{}
-	pipeBufFlagStrings        = map[int]string{}
-	dnsQTypeStrings           = map[uint32]string{}
-	dnsQClassStrings          = map[uint32]string{}
-	l3ProtocolStrings         = map[L3Protocol]string{}
-	l4ProtocolStrings         = map[L4Protocol]string{}
-	addressFamilyStrings      = map[uint16]string{}
-	exitCauseStrings          = map[ExitCause]string{}
+	dnsQTypeStrings      = map[uint32]string{}
+	dnsQClassStrings     = map[uint32]string{}
+	l3ProtocolStrings    = map[L3Protocol]string{}
+	l4ProtocolStrings    = map[L4Protocol]string{}
+	addressFamilyStrings = map[uint16]string{}
+	exitCauseStrings     = map[ExitCause]string{}
 )
 
 // File flags
@@ -444,60 +426,6 @@ func initConstants() {
 	initExitCauseConstants()
 	initBPFMapNamesConstants()
 	usersession.InitUserSessionTypes()
-}
-
-func bitmaskToStringArray(bitmask int, intToStrMap map[int]string) []string {
-	var strs []string
-	var result int
-
-	for v, s := range intToStrMap {
-		if v == 0 {
-			continue
-		}
-
-		if bitmask&v == v {
-			strs = append(strs, s)
-			result |= v
-		}
-	}
-
-	if result != bitmask {
-		strs = append(strs, fmt.Sprintf("%d", bitmask&^result))
-	}
-
-	sort.Strings(strs)
-	return strs
-}
-
-func bitmaskToString(bitmask int, intToStrMap map[int]string) string {
-	return strings.Join(bitmaskToStringArray(bitmask, intToStrMap), " | ")
-}
-
-func bitmaskU64ToStringArray(bitmask uint64, intToStrMap map[uint64]string) []string {
-	var strs []string
-	var result uint64
-
-	for v, s := range intToStrMap {
-		if v == 0 {
-			continue
-		}
-
-		if bitmask&v == v {
-			strs = append(strs, s)
-			result |= v
-		}
-	}
-
-	if result != bitmask {
-		strs = append(strs, fmt.Sprintf("%d", bitmask&^result))
-	}
-
-	sort.Strings(strs)
-	return strs
-}
-
-func bitmaskU64ToString(bitmask uint64, intToStrMap map[uint64]string) string {
-	return strings.Join(bitmaskU64ToStringArray(bitmask, intToStrMap), " | ")
 }
 
 // RetValError represents a syscall return error value
