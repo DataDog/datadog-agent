@@ -83,6 +83,7 @@ static __always_inline void cleanup_conn(void *ctx, conn_tuple_t *tup, struct so
             return; // nothing to report
         }
         if (skip_new_conn_create) {
+            increment_telemetry_count(skipped_new_conn_create);
             return;
         }
         // we don't have any stats for the connection,

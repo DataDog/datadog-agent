@@ -124,11 +124,9 @@ var ConnTracerTelemetry = struct {
 	unsupportedTcpFailures *prometheus.Desc
 	//nolint:revive // TODO(NET) Fix revive linter
 	skippedNewConnCreate *prometheus.Desc
-	//nolint:revive // TODO(NET) Fix revive linter
-	tcpStatsDeleteFailure *prometheus.Desc
-	PidCollisions         *telemetry.StatCounterWrapper
-	iterationDups         telemetry.Counter
-	iterationAborts       telemetry.Counter
+	PidCollisions        *telemetry.StatCounterWrapper
+	iterationDups        telemetry.Counter
+	iterationAborts      telemetry.Counter
 
 	//nolint:revive // TODO(NET) Fix revive linter
 	lastTcpFailedConnects *atomic.Int64
@@ -150,8 +148,6 @@ var ConnTracerTelemetry = struct {
 	lastUnsupportedTcpFailures *atomic.Int64
 	//nolint:revive // TODO(NET) Fix revive linter
 	lastSkippedNewConnCreate *atomic.Int64
-	//nolint:revive // TODO(NET) Fix revive linter
-	lastTcpStatsDeleteFailure *atomic.Int64
 }{
 	telemetry.NewGauge(connTracerModuleName, "connections", []string{"ip_proto", "family"}, "Gauge measuring the number of active connections in the EBPF map"),
 	prometheus.NewDesc(connTracerModuleName+"__tcp_failed_connects", "Counter measuring the number of failed TCP connections in the EBPF map", nil, nil),
@@ -164,11 +160,9 @@ var ConnTracerTelemetry = struct {
 	prometheus.NewDesc(connTracerModuleName+"__double_flush_attempts_close", "Counter measuring the number of attempts to flush a closed connection twice from tcp_done", nil, nil),
 	prometheus.NewDesc(connTracerModuleName+"__unsupported_tcp_failures", "Counter measuring the number of attempts to flush a TCP failure that is not supported", nil, nil),
 	prometheus.NewDesc(connTracerModuleName+"__skipped_new_conn_create", "Counter measuring the number of skipped new connection creations", nil, nil),
-	prometheus.NewDesc(connTracerModuleName+"__tcp_stats_delete_failure", "Counter measuring the number of failed deletions from the TCP stats map", nil, nil),
 	telemetry.NewStatCounterWrapper(connTracerModuleName, "pid_collisions", []string{}, "Counter measuring number of process collisions"),
 	telemetry.NewCounter(connTracerModuleName, "iteration_dups", []string{}, "Counter measuring the number of connections iterated more than once"),
 	telemetry.NewCounter(connTracerModuleName, "iteration_aborts", []string{}, "Counter measuring how many times ebpf iteration of connection map was aborted"),
-	atomic.NewInt64(0),
 	atomic.NewInt64(0),
 	atomic.NewInt64(0),
 	atomic.NewInt64(0),
@@ -582,7 +576,6 @@ func (t *tracer) Describe(ch chan<- *prometheus.Desc) {
 	ch <- ConnTracerTelemetry.doubleFlushAttemptsClose
 	ch <- ConnTracerTelemetry.unsupportedTcpFailures
 	ch <- ConnTracerTelemetry.skippedNewConnCreate
-	ch <- ConnTracerTelemetry.tcpStatsDeleteFailure
 }
 
 // Collect returns the current state of all metrics of the collector
@@ -631,9 +624,6 @@ func (t *tracer) Collect(ch chan<- prometheus.Metric) {
 	ConnTracerTelemetry.lastSkippedNewConnCreate.Store(int64(ebpfTelemetry.Skip_new_conn_create))
 	ch <- prometheus.MustNewConstMetric(ConnTracerTelemetry.skippedNewConnCreate, prometheus.CounterValue, float64(delta))
 
-	delta = int64(ebpfTelemetry.Tcp_stats_delete_failure) - ConnTracerTelemetry.lastTcpStatsDeleteFailure.Load()
-	ConnTracerTelemetry.lastTcpStatsDeleteFailure.Store(int64(ebpfTelemetry.Tcp_stats_delete_failure))
-	ch <- prometheus.MustNewConstMetric(ConnTracerTelemetry.tcpStatsDeleteFailure, prometheus.CounterValue, float64(delta))
 }
 
 // DumpMaps (for debugging purpose) returns all maps content by default or selected maps from maps parameter.
