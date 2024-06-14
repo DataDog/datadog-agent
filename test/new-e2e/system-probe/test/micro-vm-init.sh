@@ -35,13 +35,15 @@ tar -C /ci-visibility/junit -czvf /ci-visibility/junit.tar.gz .
 if [ "${COLLECT_COMPLEXITY:-}" = "yes" ]; then
     echo "Collecting complexity data..."
     mkdir -p /verifier-complexity
+    export DD_SYSTEM_PROBE_BPF_DIR="/opt/datadog-agent/embedded/share/system-probe/ebpf"
+    
     if /opt/testing-tools/verifier-calculator -line-complexity -complexity-data-dir /verifier-complexity/complexity-data  -summary-output /verifier-complexity/verifier_stats.json &> /verifier-complexity/calculator.log ; then
         echo "Data collected, creating tarball at /verifier-complexity.tar.gz"
         tar -C /verifier-complexity -czf /verifier-complexity.tar.gz . || echo "Failed to created verifier-complexity.tar.gz"
-    else 
+    else
         echo "Failed to collect complexity data"
         echo "Calculator log:"
-        cat /verifier-complexity/calculator.log 
+        cat /verifier-complexity/calculator.log
     fi
 fi
 
