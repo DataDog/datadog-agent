@@ -228,9 +228,9 @@ func (a *Agent) loop() {
 		a.obfuscator,
 		a.DebugServer,
 	} {
-		log.Info("Entering stopper %d", i)
+		log.Info("Entering stopper:", i)
 		stopper.Stop()
-		log.Info("Stopper %d done", i)
+		log.Info("Stopper done:", i)
 	}
 	log.Info("all stoppers done. loop exit")
 }

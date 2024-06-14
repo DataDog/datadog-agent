@@ -207,6 +207,10 @@ func handleSignal(shutdowner fx.Shutdowner, statsd ddgostatsd.ClientInterface) {
 		case syscall.SIGINT, syscall.SIGTERM:
 			log.Infof("Received signal %d (%v)", signo, signo)
 			_ = shutdowner.Shutdown()
+			log.Infof("Shutdown complete")
+			buf := make([]byte, 1<<16)
+			runtime.Stack(buf, true)
+			fmt.Printf("%s", buf)
 			return
 		case syscall.SIGPIPE:
 			// By default systemd redirects the stdout to journald. When journald is stopped or crashes we receive a SIGPIPE signal.
