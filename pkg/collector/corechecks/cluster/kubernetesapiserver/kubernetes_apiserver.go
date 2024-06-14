@@ -78,7 +78,7 @@ type KubeASConfig struct {
 	EventCollectionTimeoutMs int  `yaml:"kubernetes_event_read_timeout_ms"`
 	ResyncPeriodEvents       int  `yaml:"kubernetes_event_resync_period_s"`
 	UnbundleEvents           bool `yaml:"unbundle_events"`
-	BundleUnspecifedEvents   bool `yaml:"bundle_unspecifed_events"`
+	BundleUnspecifedEvents   bool `yaml:"bundle_unspecified_events"`
 
 	// FilteredEventTypes is a slice of kubernetes field selectors that
 	// works as a deny list of events to filter out.
