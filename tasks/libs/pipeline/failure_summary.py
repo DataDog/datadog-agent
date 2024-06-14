@@ -13,6 +13,7 @@ from slack_sdk import WebClient
 from tasks.github_tasks import ALL_TEAMS, GITHUB_SLACK_MAP
 from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
 from tasks.libs.pipeline.data import get_infra_failure_info
+from tasks.notify import AWS_S3_LS_CMD
 from tasks.owners import make_partition
 
 """
@@ -21,6 +22,11 @@ At the end of each pipeline, a summary is created and uploaded to a file in an s
 Every week day, a summary is created for all the pipelines of the last 24 hours (send_summary_messages) out of the summaries on the s3 bucket.
 Once a week, a failure summary with allow to fail jobs is sent to the teams (send_summary_messages).
 """
+
+FAILURE_SUMMARY_S3_BUCKET_URL = "s3://dd-ci-persistent-artefacts-build-stable/datadog-agent/failure_summary"
+FAILURE_SUMMARY_S3_BUCKET = FAILURE_SUMMARY_S3_BUCKET_URL.split('/')[2]
+FAILURE_SUMMARY_S3_PREFIX = '/'.join(FAILURE_SUMMARY_S3_BUCKET_URL.split('/')[3:])
+FAILURE_SUMMARY_TMP_FILE = "/tmp/failure_summary.json"
 
 
 class SummaryData:
@@ -141,23 +147,45 @@ class SummaryStats:
         return team_stats
 
 
-# TODO : s3
 def write_file(ctx: Context, name: str, data: str):
-    with open('/tmp/summary/' + name, 'w') as f:
+    from tasks.notify import AWS_S3_CP_CMD
+
+    with open(FAILURE_SUMMARY_TMP_FILE, 'w') as f:
         f.write(data)
+
+    ctx.run(
+        f"{AWS_S3_CP_CMD} {FAILURE_SUMMARY_TMP_FILE} {FAILURE_SUMMARY_S3_BUCKET_URL}/{name}",
+        hide="stdout"
+    )
 
 
 def read_file(ctx: Context, name: str) -> str:
-    with open('/tmp/summary/' + name) as f:
-        return f.read()
+    from tasks.notify import AWS_S3_CP_CMD
+
+    ctx.run(
+        f"{AWS_S3_CP_CMD} {FAILURE_SUMMARY_S3_BUCKET_URL}/{name} {FAILURE_SUMMARY_TMP_FILE}",
+        hide="stdout"
+    )
+
+    with open(FAILURE_SUMMARY_TMP_FILE) as f:
+        data = f.read()
+
+    return data
 
 
 def remove_files(ctx: Context, names: list[str]):
+    # TODO : useless
     os.system(f'rm -f /tmp/summary/{{{",".join(names)}}}')
 
 
 def list_files(ctx: Context) -> list[str]:
-    return os.listdir('/tmp/summary')
+    # TODO : Explicit try catch
+    listing = ctx.run(AWS_S3_LS_CMD.format(bucket=FAILURE_SUMMARY_S3_BUCKET, prefix=FAILURE_SUMMARY_S3_PREFIX), hide="stdout").stdout
+    listing = json.loads(listing)
+    listing = [item['Key'].removeprefix(FAILURE_SUMMARY_S3_PREFIX) for item in listing]
+    listing = [item for item in listing if item.endswith('.json')]
+
+    return listing
 
 
 def is_valid_job(repo: Project, job: ProjectPipelineJob) -> bool:
@@ -257,8 +285,7 @@ def send_summary_slack_message(channel: str, stats: list[dict], allow_failure: b
     timestamp_start = int((datetime.now() - delta).timestamp() * 1000)
     timestamp_end = int(datetime.now().timestamp() * 1000)
 
-    # TODO header = f'{period} Job Failure Report'
-    header = f'{period} Job Failure Report (TO: {channel})'
+    header = f'{period} Job Failure Report'
     description = f'These jobs{you_own} had the most failures in the last {duration}:'
 
     footer = (

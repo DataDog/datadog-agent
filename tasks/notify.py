@@ -41,6 +41,7 @@ Please check for typos in the JOBOWNERS file and/or add them to the Github <-> S
 PROJECT_NAME = "DataDog/datadog-agent"
 PROJECT_TITLE = PROJECT_NAME.removeprefix("DataDog/")
 AWS_S3_CP_CMD = "aws s3 cp --only-show-errors --region us-east-1 --sse AES256"
+AWS_S3_LS_CMD = "aws s3api list-objects-v2 --bucket '{bucket}' --prefix {prefix}/ --delimiter /"
 S3_CI_BUCKET_URL = "s3://dd-ci-artefacts-build-stable/datadog-agent/failed_jobs"
 CONSECUTIVE_THRESHOLD = 3
 CUMULATIVE_THRESHOLD = 5
