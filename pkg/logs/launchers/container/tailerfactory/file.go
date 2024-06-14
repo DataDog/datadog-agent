@@ -124,6 +124,7 @@ func (tf *factory) makeDockerFileSource(source *sources.LogSource) (*sources.Log
 	// New file source that inherits most of its parent's properties
 	fileSource := sources.NewLogSource(source.Name, &config.LogsConfig{
 		Type:                        config.FileType,
+		TailingMode:                 source.Config.TailingMode,
 		Identifier:                  containerID,
 		Path:                        path,
 		Service:                     serviceName,
@@ -208,12 +209,12 @@ func (tf *factory) makeK8sFileSource(source *sources.LogSource) (*sources.LogSou
 	// kubernetes-launcher behavior.
 
 	sourceName, serviceName := tf.defaultSourceAndService(source, containersorpods.LogPods)
-
 	// New file source that inherits most of its parent's properties
 	fileSource := sources.NewLogSource(
 		fmt.Sprintf("%s/%s/%s", pod.Namespace, pod.Name, container.Name),
 		&config.LogsConfig{
 			Type:                        config.FileType,
+			TailingMode:                 source.Config.TailingMode,
 			Identifier:                  containerID,
 			Path:                        path,
 			Service:                     serviceName,
