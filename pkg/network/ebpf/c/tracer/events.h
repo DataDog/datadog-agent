@@ -58,10 +58,7 @@ static __always_inline void cleanup_conn(void *ctx, conn_tuple_t *tup, struct so
         tst = bpf_map_lookup_elem(&tcp_stats, &(conn.tup));
         if (tst) {
             conn.tcp_stats = *tst;
-            int ret = bpf_map_delete_elem(&tcp_stats, &(conn.tup));
-            if (ret != 0) {
-                increment_telemetry_count(tcp_stats_delete_failure);
-            }
+            bpf_map_delete_elem(&tcp_stats, &(conn.tup));
         }
 
         conn.tup.pid = 0;
@@ -86,7 +83,6 @@ static __always_inline void cleanup_conn(void *ctx, conn_tuple_t *tup, struct so
             return; // nothing to report
         }
         if (skip_new_conn_create) {
-            increment_telemetry_count(skip_new_conn_create);
             return;
         }
         // we don't have any stats for the connection,

@@ -225,13 +225,16 @@ int kprobe__tcp_done(struct pt_regs *ctx) {
     // connection timeouts will have 0 pids as they are cleaned up by an idle process.
     // get the pid from the ongoing failure map in this case, as it should have been set in connect().
     if (pid_tgid == 0) {
+        log_debug("adamk kprobe__tcp_done: pid_tgid is 0, looking up failed_conn_pid");
         failed_conn_pid = bpf_map_lookup_elem(&tcp_ongoing_connect_pid, &sk);
     }
     if (failed_conn_pid) {
         bpf_probe_read_kernel_with_telemetry(&pid_tgid, sizeof(pid_tgid), failed_conn_pid);
         t.pid = pid_tgid >> 32;
     }
+    log_debug("adamk kprobe__tcp_done: pid_tgid: %d", t.pid);
     if (t.pid == 0) {
+        log_debug("adamk kprobe__tcp_done: pid is 0, skipping cleanup");
         return 0;
     }
 
@@ -241,7 +244,6 @@ int kprobe__tcp_done(struct pt_regs *ctx) {
     // mark this connection as already flushed
     __u64 timestamp = bpf_ktime_get_ns();
     bpf_map_update_with_telemetry(conn_close_flushed, &sk, &timestamp, BPF_ANY);
-
     return 0;
 }
 
@@ -257,7 +259,6 @@ int kprobe__tcp_close(struct pt_regs *ctx) {
     conn_tuple_t t = {};
     u64 pid_tgid = bpf_get_current_pid_tgid();
     sk = (struct sock *)PT_REGS_PARM1(ctx);
-    bool skip_new_conn_create = false;
 
     // increment telemetry for connections that were never established
     if (bpf_map_delete_elem(&tcp_ongoing_connect_pid, &sk) == 0) {
@@ -280,10 +281,22 @@ int kprobe__tcp_close(struct pt_regs *ctx) {
     // check if this connection was already flushed and ensure we don't flush again
     if (tcp_failed_connections_enabled() && (bpf_map_delete_elem(&conn_close_flushed, &sk) == 0)) {
         increment_telemetry_count(double_flush_attempts_close);
-        skip_new_conn_create = true;
+        tcp_stats_t *tst = bpf_map_lookup_elem(&tcp_stats, &t);
+        if (tst) {
+            log_debug("adamk kprobe/tcp_close: double flush attempt + tcp_stats found, deleting");
+            increment_telemetry_count(tcp_stats_delete_failure);
+            bpf_map_delete_elem(&tcp_stats, &t);
+        }
+        conn_stats_ts_t *cst = bpf_map_lookup_elem(&conn_stats, &t);
+        if (cst) {
+            increment_telemetry_count(skipped_new_conn_create);
+            log_debug("adamk kprobe/tcp_close: double flush attempt + conn_stats found, deleting");
+            bpf_map_delete_elem(&conn_stats, &t);
+        }
+        return 0;
     }
 
-    cleanup_conn(ctx, &t, sk, skip_new_conn_create);
+    cleanup_conn(ctx, &t, sk, false);
 
     return 0;
 }
@@ -966,7 +979,7 @@ int kretprobe__tcp_retransmit_skb(struct pt_regs *ctx) {
 SEC("kprobe/tcp_connect")
 int kprobe__tcp_connect(struct pt_regs *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    log_debug("kprobe/tcp_connect: tgid: %llu, pid: %llu", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
+    log_debug("adamk kprobe/tcp_connect: tgid: %llu, pid: %llu", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
     struct sock *skp = (struct sock *)PT_REGS_PARM1(ctx);
 
     bpf_map_update_with_telemetry(tcp_ongoing_connect_pid, &skp, &pid_tgid, BPF_ANY);

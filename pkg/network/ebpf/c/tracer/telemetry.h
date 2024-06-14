@@ -23,7 +23,7 @@ enum telemetry_counter {
     udp_dropped_conns,
     double_flush_attempts_close,
     unsupported_tcp_failures,
-    skip_new_conn_create,
+    skipped_new_conn_create,
     tcp_stats_delete_failure,
 };
 
@@ -60,7 +60,7 @@ static __always_inline void increment_telemetry_count(enum telemetry_counter cou
     case unsupported_tcp_failures:
         __sync_fetch_and_add(&val->unsupported_tcp_failures, 1);
         break;
-    case skip_new_conn_create:
+    case skipped_new_conn_create:
         __sync_fetch_and_add(&val->skip_new_conn_create, 1);
         break;
     case tcp_stats_delete_failure:
