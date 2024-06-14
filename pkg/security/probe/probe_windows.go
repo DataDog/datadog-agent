@@ -474,16 +474,6 @@ func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 
 					ecb(ca, e.EventHeader.ProcessID)
 				}
-			case idCleanup:
-				if ca, err := p.parseCleanupArgs(e); err == nil {
-					log.Tracef("Received cleanup event %d %s\n", e.EventHeader.EventDescriptor.ID, ca)
-
-					p.stats.fpnLock.Lock()
-					p.stats.fileProcessedNotifications[e.EventHeader.EventDescriptor.ID]++
-					p.stats.fpnLock.Unlock()
-
-					ecb(ca, e.EventHeader.ProcessID)
-				}
 			case idClose:
 				if ca, err := p.parseCloseArgs(e); err == nil {
 					log.Tracef("Received Close event %d %s\n", e.EventHeader.EventDescriptor.ID, ca)
@@ -496,15 +486,6 @@ func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 					// lru is thread safe, has its own locking
 					p.discardedFileHandles.Remove(ca.fileObject)
 					p.filePathResolver.Remove(ca.fileObject)
-				}
-			case idFlush:
-				if fa, err := p.parseFlushArgs(e); err == nil {
-
-					p.stats.fpnLock.Lock()
-					p.stats.fileProcessedNotifications[e.EventHeader.EventDescriptor.ID]++
-					p.stats.fpnLock.Unlock()
-
-					ecb(fa, e.EventHeader.ProcessID)
 				}
 
 			case idWrite:

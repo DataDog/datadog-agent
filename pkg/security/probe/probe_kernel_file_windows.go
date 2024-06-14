@@ -413,9 +413,6 @@ type cleanupArgs struct {
 // nolint: unused
 type closeArgs cleanupArgs
 
-// nolint: unused
-type flushArgs cleanupArgs
-
 func (wp *WindowsProbe) parseCleanupArgs(e *etw.DDEventRecord) (*cleanupArgs, error) {
 	ca := &cleanupArgs{
 		DDEventHeader: e.EventHeader,
@@ -458,15 +455,6 @@ func (wp *WindowsProbe) parseCloseArgs(e *etw.DDEventRecord) (*closeArgs, error)
 }
 
 // nolint: unused
-func (wp *WindowsProbe) parseFlushArgs(e *etw.DDEventRecord) (*flushArgs, error) {
-	ca, err := wp.parseCleanupArgs(e)
-	if err != nil {
-		return nil, err
-	}
-	return (*flushArgs)(ca), nil
-}
-
-// nolint: unused
 func (ca *cleanupArgs) string(t string) string {
 	var output strings.Builder
 
@@ -486,11 +474,6 @@ func (ca *cleanupArgs) String() string {
 // nolint: unused
 func (ca *closeArgs) String() string {
 	return (*cleanupArgs)(ca).string("CLOSE")
-}
-
-// nolint: unused
-func (fa *flushArgs) String() string {
-	return (*cleanupArgs)(fa).string("FLUSH")
 }
 
 type readArgs struct {
