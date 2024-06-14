@@ -38,7 +38,7 @@ const (
 type storeGenerator func(context.Context, workloadmeta.Component, kubernetes.Interface) (*cache.Reflector, *reflectorStore)
 
 func storeGenerators(cfg model.Reader) []storeGenerator {
-	generators := []storeGenerator{newNodeStore}
+	var generators []storeGenerator
 
 	if cfg.GetBool("cluster_agent.collect_kubernetes_tags") || cfg.GetBool("autoscaling.workload.enabled") {
 		generators = append(generators, newPodStore)
@@ -69,7 +69,7 @@ func resourcesWithMetadataCollectionEnabled(cfg model.Reader) []string {
 // resourcesWithRequiredMetadataCollection returns the list of resources that we
 // need to collect metadata from in order to make other enabled features work
 func resourcesWithRequiredMetadataCollection(cfg model.Reader) []string {
-	var res []string
+	res := []string{"nodes"} // nodes are always needed
 
 	namespaceLabelsAsTagsEnabled := len(cfg.GetStringMapString("kubernetes_namespace_labels_as_tags")) > 0
 	namespaceAnnotationsAsTagsEnabled := len(cfg.GetStringMapString("kubernetes_namespace_annotations_as_tags")) > 0
