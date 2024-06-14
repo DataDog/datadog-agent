@@ -5,7 +5,7 @@ go 1.21.0
 replace github.com/DataDog/datadog-agent/pkg/util/scrubber => ../scrubber
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.55.0-rc.5
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.55.0-rc.6
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575
 	github.com/stretchr/testify v1.9.0
 	go.uber.org/atomic v1.11.0
