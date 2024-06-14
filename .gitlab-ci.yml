@@ -934,15 +934,7 @@ workflow:
     when: on_success
 
 .on_installer_or_e2e_changes:
-  - <<: *if_disable_e2e_tests
-    when: never
-  - !reference [.except_mergequeue]
-  - <<: *if_main_branch
-    when: on_success
-  - <<: *if_release_branch
-    when: on_success
-  - if: $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$/
-    when: on_success
+  - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
         - .gitlab/**/*
@@ -951,7 +943,6 @@ workflow:
         - cmd/installer/**/*
         - test/new-e2e/tests/installer/**/*
         - tasks/installer.py
-        - test/new-e2e/go.mod
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
     when: on_success
 
