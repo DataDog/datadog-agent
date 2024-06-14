@@ -140,7 +140,6 @@ func (ext *ddExtension) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 		ext.debug,
 		getEnvironmentAsMap(),
 	}
-	ext.telemetry.Logger.Info("Logging response", zap.String("response", fmt.Sprintf("%v", resp)))
 
 	j, err := json.MarshalIndent(resp, "", "  ")
 	if err != nil {

@@ -150,15 +150,21 @@ func newInventoryOtelProvider(deps dependencies) (provides, error) {
 }
 
 func (i *inventoryotel) parseResponseFromJSON(body []byte) (otelMetadata, error) {
-	var conf interface{}
+	var c interface{}
 
-	err := json.Unmarshal(body, &conf)
+	err := json.Unmarshal(body, &c)
 	if err != nil {
 		i.log.Errorf("Error unmarshaling the response:", err)
 		return nil, err
 	}
 
-	return conf.(otelMetadata), nil
+	conf := c.(otelMetadata)
+
+	// Sources and environment are not relevant for the metadata payload
+	delete(conf, "sources")
+	delete(conf, "environment")
+
+	return conf, nil
 }
 
 func (i *inventoryotel) fetchRemoteOtelConfig(u *url.URL) (otelMetadata, error) {
