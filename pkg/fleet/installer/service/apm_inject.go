@@ -99,6 +99,9 @@ func (a *apmInjectorInstaller) Finish(err error) {
 	if err != nil {
 		// Run rollbacks in reverse order
 		for i := len(a.rollbacks) - 1; i >= 0; i-- {
+			if a.rollbacks[i] == nil {
+				continue
+			}
 			if rollbackErr := a.rollbacks[i](); rollbackErr != nil {
 				log.Warnf("rollback failed: %v", rollbackErr)
 			}
@@ -107,6 +110,9 @@ func (a *apmInjectorInstaller) Finish(err error) {
 
 	// Run cleanups in reverse order
 	for i := len(a.cleanups) - 1; i >= 0; i-- {
+		if a.cleanups[i] == nil {
+			continue
+		}
 		a.cleanups[i]()
 	}
 }

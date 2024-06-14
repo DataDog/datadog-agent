@@ -9,6 +9,8 @@ package process
 import (
 	_ "embed"
 	"encoding/json"
+	"fmt"
+	"strings"
 	"testing"
 
 	agentmodel "github.com/DataDog/agent-payload/v5/process"
@@ -16,7 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
 )
 
 //go:embed config/process_check.yaml
@@ -34,22 +36,44 @@ var systemProbeConfigStr string
 //go:embed config/npm.yaml
 var systemProbeNPMConfigStr string
 
-// assertRunningChecks asserts that the given process agent checks are running on the given VM
-func assertRunningChecks(t *assert.CollectT, vm *components.RemoteHost, checks []string, withSystemProbe bool, command string) {
+//go:embed compose/fake-process-compose.yaml
+var fakeProcessCompose string
 
-	status := vm.MustExecute(command)
-	var statusMap struct {
-		ProcessAgentStatus struct {
-			Expvars struct {
-				Map struct {
-					EnabledChecks                []string `json:"enabled_checks"`
-					SysProbeProcessModuleEnabled bool     `json:"system_probe_process_module_enabled"`
-				} `json:"process_agent"`
-			} `json:"expvars"`
-		} `json:"processAgentStatus"`
-	}
-	err := json.Unmarshal([]byte(status), &statusMap)
+// AgentStatus is a subset of the agent's status response for asserting the process-agent runtime
+type AgentStatus struct {
+	ProcessAgentStatus struct {
+		Expvars struct {
+			Map struct {
+				EnabledChecks                []string `json:"enabled_checks"`
+				SysProbeProcessModuleEnabled bool     `json:"system_probe_process_module_enabled"`
+			} `json:"process_agent"`
+		} `json:"expvars"`
+		Error string `json:"error"`
+	} `json:"processAgentStatus"`
+	ProcessComponentStatus struct {
+		Expvars struct {
+			Map struct {
+				EnabledChecks                []string `json:"enabled_checks"`
+				SysProbeProcessModuleEnabled bool     `json:"system_probe_process_module_enabled"`
+			} `json:"process_agent"`
+		} `json:"expvars"`
+	} `json:"processComponentStatus"`
+}
+
+func getAgentStatus(t *assert.CollectT, client agentclient.Agent) AgentStatus {
+	status := client.Status(agentclient.WithArgs([]string{"--json"}))
+	assert.NotNil(t, status, "failed to get agent status")
+
+	var statusMap AgentStatus
+	err := json.Unmarshal([]byte(status.Content), &statusMap)
 	assert.NoError(t, err, "failed to unmarshal agent status")
+
+	return statusMap
+}
+
+// assertRunningChecks asserts that the given process agent checks are running on the given VM
+func assertRunningChecks(t *assert.CollectT, client agentclient.Agent, checks []string, withSystemProbe bool) {
+	statusMap := getAgentStatus(t, client)
 
 	assert.ElementsMatch(t, checks, statusMap.ProcessAgentStatus.Expvars.Map.EnabledChecks)
 
@@ -172,9 +196,43 @@ func processDiscoveryHasData(disc *agentmodel.ProcessDiscovery) bool {
 	return disc.Pid != 0 && disc.Command.Ppid != 0 && len(disc.User.Name) > 0
 }
 
+// assertContainersCollected asserts that the given containers are collected
+func assertContainersCollected(t *testing.T, payloads []*aggregator.ProcessPayload, expectedContainers []string) {
+	defer func() {
+		if t.Failed() {
+			t.Logf("Payloads:\n%+v\n", payloads)
+		}
+	}()
+
+	for _, container := range expectedContainers {
+		var found bool
+		for _, payload := range payloads {
+			if findContainer(container, payload.Containers) {
+				found = true
+				break
+			}
+		}
+		assert.True(t, found, "%s container not found", container)
+	}
+}
+
+// findContainer returns whether the container with the given name exists in the given list of
+// container and whether it has the expected data populated
+func findContainer(name string, containers []*agentmodel.Container) bool {
+	containerNameTag := fmt.Sprintf("container_name:%s", name)
+	for _, container := range containers {
+		for _, tag := range container.Tags {
+			if strings.HasSuffix(tag, containerNameTag) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // assertManualProcessCheck asserts that the given process is collected and reported in the output
 // of the manual process check
-func assertManualProcessCheck(t *testing.T, check string, withIOStats bool, process string) {
+func assertManualProcessCheck(t *testing.T, check string, withIOStats bool, process string, expectedContainers ...string) {
 	defer func() {
 		if t.Failed() {
 			t.Logf("Check output:\n%s\n", check)
@@ -182,8 +240,10 @@ func assertManualProcessCheck(t *testing.T, check string, withIOStats bool, proc
 	}()
 
 	var checkOutput struct {
-		Processes []*agentmodel.Process `json:"processes"`
+		Processes  []*agentmodel.Process   `json:"processes"`
+		Containers []*agentmodel.Container `json:"containers"`
 	}
+
 	err := json.Unmarshal([]byte(check), &checkOutput)
 	require.NoError(t, err, "failed to unmarshal process check output")
 
@@ -191,6 +251,10 @@ func assertManualProcessCheck(t *testing.T, check string, withIOStats bool, proc
 
 	require.True(t, found, "%s process not found", process)
 	assert.True(t, populated, "no %s process had all data populated", process)
+
+	for _, container := range expectedContainers {
+		assert.True(t, findContainer(container, checkOutput.Containers), "%s container not found", container)
+	}
 }
 
 // assertManualProcessDiscoveryCheck asserts that the given process is collected and reported in
