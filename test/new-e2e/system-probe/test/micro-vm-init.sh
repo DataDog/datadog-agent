@@ -39,7 +39,9 @@ if [ "${COLLECT_COMPLEXITY:-}" = "yes" ]; then
     if [[ "${arch}" == "aarch64" ]]; then
         arch="arm64"
     fi
-    export DD_SYSTEM_PROBE_BPF_DIR="/opt/${TEST_COMPONENT}-tests/pkg/ebpf/bytecode/build/${arch}"
+    
+    test_root=$(echo "$@" | sed 's/.*-test-root \([^ ]*\).*/\1/')
+    export DD_SYSTEM_PROBE_BPF_DIR="${test_root}/pkg/ebpf/bytecode/build/${arch}"
     
     if /opt/testing-tools/verifier-calculator -line-complexity -complexity-data-dir /verifier-complexity/complexity-data  -summary-output /verifier-complexity/verifier_stats.json &> /verifier-complexity/calculator.log ; then
         echo "Data collected, creating tarball at /verifier-complexity.tar.gz"
