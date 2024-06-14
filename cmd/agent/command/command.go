@@ -77,7 +77,10 @@ monitoring and performance data.`,
 	}
 
 	agentCmd.PersistentFlags().StringVarP(&globalParams.ConfFilePath, "cfgpath", "c", "", "path to directory containing datadog.yaml")
-	agentCmd.PersistentFlags().StringArrayVarP(&globalParams.ExtraConfFilePath, "extracfgpath", "E", []string{}, "path for additional configuration files (this flag can be used multiple times)")
+	agentCmd.PersistentFlags().StringArrayVarP(&globalParams.ExtraConfFilePath, "extracfgpath", "E", []string{},
+		`Specify additional configuration files to use with the main datadog.yaml.
+Files are merged sequentially. Existing keys are overridden if types match.
+Nested configurations are merged recursively.`)
 	agentCmd.PersistentFlags().StringVarP(&globalParams.SysProbeConfFilePath, "sysprobecfgpath", "", "", "path to directory containing system-probe.yaml")
 
 	// github.com/fatih/color sets its global color.NoColor to a default value based on
