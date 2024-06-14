@@ -16,7 +16,7 @@
 package trace
 
 import (
-	"github.com/DataDog/datadog-agent/comp/trace/agent"
+	traceagentfx "github.com/DataDog/datadog-agent/comp/trace/agent/fx"
 	"github.com/DataDog/datadog-agent/comp/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -27,5 +27,5 @@ import (
 func MockBundle() fxutil.BundleOptions {
 	return fxutil.Bundle(
 		config.MockModule(),
-		agent.MockModule())
+		traceagentfx.MockModule())
 }

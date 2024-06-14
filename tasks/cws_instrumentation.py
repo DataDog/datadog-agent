@@ -8,12 +8,11 @@ from invoke import task
 from invoke.exceptions import Exit
 
 from tasks.build_tags import get_default_build_tags
-from tasks.libs.common.git import get_current_branch
+from tasks.libs.common.git import get_commit_sha, get_current_branch
 from tasks.libs.common.utils import (
     REPO_PATH,
     bin_name,
     get_build_flags,
-    get_git_commit,
     get_go_version,
     get_version,
 )
@@ -48,7 +47,7 @@ def build(
         "Version": get_version(ctx, major_version=major_version),
         "GoVersion": get_go_version(),
         "GitBranch": get_current_branch(ctx),
-        "GitCommit": get_git_commit(),
+        "GitCommit": get_commit_sha(ctx, short=True),
         "BuildDate": datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
     }
 

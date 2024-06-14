@@ -392,6 +392,7 @@ def _save_release_json(release_json):
     with open("release.json", "w") as release_json_stream:
         # Note, no space after the comma
         json.dump(release_json, release_json_stream, indent=4, sort_keys=False, separators=(',', ': '))
+        release_json_stream.write('\n')
 
 
 ##
@@ -1539,12 +1540,27 @@ def unfreeze(ctx, base_directory="~/dd", major_versions="6,7", upstream="origin"
     # Step 2 - Create PRs with new settings in datadog-agent repository
 
     with ctx.cd(f"{base_directory}/{UNFREEZE_REPO_AGENT}"):
+        # Step 2.0 - Create milestone update
+        milestone_branch = "release_milestone"
+        ctx.run(f"git switch -c {milestone_branch}")
+        rj = _load_release_json()
+        next.devel = False
+        rj["current_milestone"] = f"{next}"
+        _save_release_json(rj)
+        create_pr(
+            f"[release] Update current milestone to {next}",
+            "main",
+            milestone_branch,
+            current,
+        )
+        next.devel = True
+
+        # Step 2.1 - Update release.json
         update_branch = f"{release_branch}-updates"
 
         ctx.run(f"git checkout {release_branch}")
         ctx.run(f"git checkout -b {update_branch}")
 
-        # Step 2.1 - Update release.json
         rj = _load_release_json()
 
         rj["base_branch"] = release_branch
@@ -1743,6 +1759,7 @@ def _create_build_links_patterns(current_version, new_version):
     patterns[current_minor_version] = new_minor_version
     patterns[current_minor_version.replace("rc.", "rc-")] = new_minor_version.replace("rc.", "rc-")
     patterns[current_minor_version.replace("-rc", "~rc")] = new_minor_version.replace("-rc", "~rc")
+    patterns[current_minor_version[1:].replace("-rc", "~rc")] = new_minor_version[1:].replace("-rc", "~rc")
 
     return patterns
 

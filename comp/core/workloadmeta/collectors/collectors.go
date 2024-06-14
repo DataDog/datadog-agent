@@ -62,13 +62,7 @@ func remoteWorkloadmetaParams() fx.Option {
 
 	// Security Agent is only interested in containers
 	if flavor.GetFlavor() == flavor.SecurityAgent {
-		filter = workloadmeta.NewFilter(
-			&workloadmeta.FilterParams{
-				Kinds:     []workloadmeta.Kind{workloadmeta.KindContainer},
-				Source:    workloadmeta.SourceAll,
-				EventType: workloadmeta.EventTypeAll,
-			},
-		)
+		filter = workloadmeta.NewFilterBuilder().AddKind(workloadmeta.KindContainer).Build()
 	}
 
 	return fx.Provide(func() remoteworkloadmeta.Params {

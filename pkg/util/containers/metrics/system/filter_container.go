@@ -40,13 +40,9 @@ func (cf *containerFilter) start() {
 	if cf.wlm == nil {
 		return
 	}
-	evBundle := cf.wlm.Subscribe("cid-mapper", workloadmeta.NormalPriority, workloadmeta.NewFilter(
-		&workloadmeta.FilterParams{
-			Kinds:     []workloadmeta.Kind{workloadmeta.KindContainer},
-			Source:    workloadmeta.SourceAll,
-			EventType: workloadmeta.EventTypeAll,
-		},
-	))
+	filter := workloadmeta.NewFilterBuilder().AddKind(workloadmeta.KindContainer).Build()
+
+	evBundle := cf.wlm.Subscribe("cid-mapper", workloadmeta.NormalPriority, filter)
 	for evs := range evBundle {
 		evs.Acknowledge()
 		cf.mutex.Lock()

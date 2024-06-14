@@ -12,7 +12,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -385,9 +384,9 @@ func TestResolveTemplate(t *testing.T) {
 	}
 	// there are no template vars but it's ok
 	ac.processNewService(ctx, &service) // processNewService applies changes
-	clk := clock.NewMock()
-	clk.Add(2000 * time.Millisecond)
-	assert.Equal(t, sch.scheduledSize(), 1)
+	assert.Eventually(t, func() bool {
+		return sch.scheduledSize() == 1
+	}, 5*time.Second, 10*time.Millisecond)
 }
 
 func countLoadedConfigs(ac *AutoConfig) int {

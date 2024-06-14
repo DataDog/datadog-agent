@@ -36,15 +36,15 @@ func (c *collector) startSBOMCollection(ctx context.Context) error {
 		return fmt.Errorf("error retrieving global SBOM scanner")
 	}
 
-	filterParams := workloadmeta.FilterParams{
-		Kinds:     []workloadmeta.Kind{workloadmeta.KindContainerImageMetadata},
-		Source:    workloadmeta.SourceAll,
-		EventType: workloadmeta.EventTypeSet,
-	}
+	filter := workloadmeta.NewFilterBuilder().
+		SetEventType(workloadmeta.EventTypeSet).
+		AddKind(workloadmeta.KindContainerImageMetadata).
+		Build()
+
 	imgEventsCh := c.store.Subscribe(
 		"SBOM collector",
 		workloadmeta.NormalPriority,
-		workloadmeta.NewFilter(&filterParams),
+		filter,
 	)
 	scanner := collectors.GetContainerdScanner()
 	if scanner == nil {

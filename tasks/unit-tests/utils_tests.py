@@ -92,7 +92,8 @@ class TestQueryVersion(unittest.TestCase):
         major_version = "7"
         c = MockContext(
             run={
-                rf"git tag --list | grep -E '^{major_version}\.[0-9]+\.[0-9]+(-rc.*|-devel.*)?$' | sort -rV | head -1": Result(
+                "git rev-parse --abbrev-ref HEAD": Result("main"),
+                rf"git tag --list --merged main | grep -E '^{major_version}\.[0-9]+\.[0-9]+(-rc.*|-devel.*)?$' | sort -rV | head -1": Result(
                     "7.55.0-devel"
                 ),
                 'git describe --tags --candidates=50 --match "7.55.0-devel" --abbrev=7': Result(
@@ -110,7 +111,8 @@ class TestQueryVersion(unittest.TestCase):
         major_version = "7"
         c = MockContext(
             run={
-                rf"git tag --list | grep -E '^{major_version}\.[0-9]+\.[0-9]+(-rc.*|-devel.*)?$' | sort -rV | head -1": Result(
+                "git rev-parse --abbrev-ref HEAD": Result("7.55.x"),
+                rf"git tag --list --merged 7.55.x | grep -E '^{major_version}\.[0-9]+\.[0-9]+(-rc.*|-devel.*)?$' | sort -rV | head -1": Result(
                     "7.55.0-devel"
                 ),
                 'git describe --tags --candidates=50 --match "7.55.0-devel" --abbrev=7': Result(

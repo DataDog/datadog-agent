@@ -23,6 +23,7 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 
+	telemetryComp "github.com/DataDog/datadog-agent/comp/core/telemetry"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	ebpfkernel "github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 
@@ -88,7 +89,7 @@ var ebpfConntrackerRCCreator func(cfg *config.Config) (*manager.Manager, error) 
 var ebpfConntrackerPrebuiltCreator func(cfg *config.Config) (*manager.Manager, error) = getPrebuiltConntracker
 
 // NewEBPFConntracker creates a netlink.Conntracker that monitor conntrack NAT entries via eBPF
-func NewEBPFConntracker(cfg *config.Config) (netlink.Conntracker, error) {
+func NewEBPFConntracker(cfg *config.Config, telemetrycomp telemetryComp.Component) (netlink.Conntracker, error) {
 	allowRC := cfg.EnableRuntimeCompiler
 	var m *manager.Manager
 	var err error
@@ -162,7 +163,7 @@ func NewEBPFConntracker(cfg *config.Config) (netlink.Conntracker, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), cfg.ConntrackInitTimeout)
 	defer cancel()
 
-	err = e.dumpInitialTables(ctx, cfg)
+	err = e.dumpInitialTables(ctx, cfg, telemetrycomp)
 	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
 			return nil, fmt.Errorf("could not initialize conntrack after %s", cfg.ConntrackInitTimeout)
@@ -173,9 +174,9 @@ func NewEBPFConntracker(cfg *config.Config) (netlink.Conntracker, error) {
 	return e, nil
 }
 
-func (e *ebpfConntracker) dumpInitialTables(ctx context.Context, cfg *config.Config) error {
+func (e *ebpfConntracker) dumpInitialTables(ctx context.Context, cfg *config.Config, telemetrycomp telemetryComp.Component) error {
 	var err error
-	e.consumer, err = netlink.NewConsumer(cfg)
+	e.consumer, err = netlink.NewConsumer(cfg, telemetrycomp)
 	if err != nil {
 		return err
 	}
@@ -447,6 +448,7 @@ func getManager(cfg *config.Config, buf io.ReaderAt, opts manager.Options) (*man
 		opts.MapEditors = make(map[string]*ebpf.Map)
 	}
 	opts.VerifierOptions.Programs.LogSize = 10 * 1024 * 1024
+	opts.BypassEnabled = cfg.BypassEnabled
 
 	if err := features.HaveMapType(ebpf.LRUHash); err == nil {
 		me := opts.MapSpecEditors[probes.ConntrackMap]

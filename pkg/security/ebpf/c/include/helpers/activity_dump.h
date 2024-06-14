@@ -148,12 +148,10 @@ __attribute__((always_inline)) u64 should_trace_new_process_comm(void *ctx, u64 
 __attribute__((always_inline)) u64 should_trace_new_process_cgroup(void *ctx, u64 now, u32 pid, char cgroup[CONTAINER_ID_LEN]) {
     // should we start tracing this cgroup ?
     if (is_cgroup_activity_dumps_enabled() && cgroup[0] != 0) {
-
         // is this cgroup traced ?
         u64 *cookie = bpf_map_lookup_elem(&traced_cgroups, &cgroup[0]);
 
         if (cookie) {
-
             u64 cookie_val = *cookie;
             struct activity_dump_config *config = bpf_map_lookup_elem(&activity_dumps_config, &cookie_val);
             if (config == NULL) {
@@ -185,11 +183,9 @@ __attribute__((always_inline)) u64 should_trace_new_process_cgroup(void *ctx, u6
             return cookie_val;
 
         } else {
-
             // have we seen this cgroup before ?
             u64 *wait_timeout = bpf_map_lookup_elem(&cgroup_wait_list, &cgroup[0]);
             if (wait_timeout) {
-
                 if (now > *wait_timeout) {
                     // delete expired wait_list entry
                     bpf_map_delete_elem(&cgroup_wait_list, &cgroup[0]);
@@ -217,7 +213,7 @@ union container_id_comm_combo {
     char comm[TASK_COMM_LEN];
 };
 
-__attribute__((always_inline)) u64 should_trace_new_process(void *ctx, u64 now, u32 pid, char* cgroup_p, char* comm_p) {
+__attribute__((always_inline)) u64 should_trace_new_process(void *ctx, u64 now, u32 pid, char *cgroup_p, char *comm_p) {
     // prepare comm and cgroup (for compatibility with old kernels)
     union container_id_comm_combo buffer = {};
 
@@ -232,7 +228,7 @@ __attribute__((always_inline)) u64 should_trace_new_process(void *ctx, u64 now, 
     return cookie;
 }
 
-__attribute__((always_inline)) void inherit_traced_state(void *ctx, u32 ppid, u32 pid, char* cgroup_p, char* comm_p) {
+__attribute__((always_inline)) void inherit_traced_state(void *ctx, u32 ppid, u32 pid, char *cgroup_p, char *comm_p) {
     u64 now = bpf_ktime_get_ns();
 
     // check if the parent is traced, update the child timeout if need be
@@ -277,7 +273,8 @@ __attribute__((always_inline)) void cleanup_traced_state(u32 pid) {
     bpf_map_delete_elem(&traced_pids, &pid);
 }
 
-enum rate_limiter_algo_ids {
+enum rate_limiter_algo_ids
+{
     RL_ALGO_BASIC = 0,
     RL_ALGO_BASIC_HALF,
     RL_ALGO_DECREASING_DROPRATE,
@@ -285,7 +282,7 @@ enum rate_limiter_algo_ids {
     RL_ALGO_TOTAL_NUMBER,
 };
 
-__attribute__((always_inline)) u8 activity_dump_rate_limiter_reset_period(u64 now, struct activity_dump_rate_limiter_ctx* rate_ctx_p) {
+__attribute__((always_inline)) u8 activity_dump_rate_limiter_reset_period(u64 now, struct activity_dump_rate_limiter_ctx *rate_ctx_p) {
     rate_ctx_p->current_period = now;
     rate_ctx_p->counter = 0;
 #ifndef __BALOUM__ // do not change algo during unit tests
@@ -294,7 +291,7 @@ __attribute__((always_inline)) u8 activity_dump_rate_limiter_reset_period(u64 no
     return 1;
 }
 
-__attribute__((always_inline)) u8 activity_dump_rate_limiter_allow_basic(struct activity_dump_config *config, u64 now, struct activity_dump_rate_limiter_ctx* rate_ctx_p, u64 delta) {
+__attribute__((always_inline)) u8 activity_dump_rate_limiter_allow_basic(struct activity_dump_config *config, u64 now, struct activity_dump_rate_limiter_ctx *rate_ctx_p, u64 delta) {
     if (delta > 1000000000) { // if more than 1 sec ellapsed we reset the period
         return activity_dump_rate_limiter_reset_period(now, rate_ctx_p);
     }
@@ -306,7 +303,7 @@ __attribute__((always_inline)) u8 activity_dump_rate_limiter_allow_basic(struct 
     }
 }
 
-__attribute__((always_inline)) u8 activity_dump_rate_limiter_allow_basic_half(struct activity_dump_config *config, u64 now, struct activity_dump_rate_limiter_ctx* rate_ctx_p, u64 delta) {
+__attribute__((always_inline)) u8 activity_dump_rate_limiter_allow_basic_half(struct activity_dump_config *config, u64 now, struct activity_dump_rate_limiter_ctx *rate_ctx_p, u64 delta) {
     if (delta > 1000000000 / 2) { // if more than 0.5 sec ellapsed we reset the period
         return activity_dump_rate_limiter_reset_period(now, rate_ctx_p);
     }
@@ -318,7 +315,7 @@ __attribute__((always_inline)) u8 activity_dump_rate_limiter_allow_basic_half(st
     }
 }
 
-__attribute__((always_inline)) u8 activity_dump_rate_limiter_allow_decreasing_droprate(struct activity_dump_config *config, u64 now, struct activity_dump_rate_limiter_ctx* rate_ctx_p, u64 delta) {
+__attribute__((always_inline)) u8 activity_dump_rate_limiter_allow_decreasing_droprate(struct activity_dump_config *config, u64 now, struct activity_dump_rate_limiter_ctx *rate_ctx_p, u64 delta) {
     if (delta > 1000000000) { // if more than 1 sec ellapsed we reset the period
         return activity_dump_rate_limiter_reset_period(now, rate_ctx_p);
     }
@@ -337,7 +334,7 @@ __attribute__((always_inline)) u8 activity_dump_rate_limiter_allow_decreasing_dr
     return 0;
 }
 
-__attribute__((always_inline)) u8 activity_dump_rate_limiter_allow_increasing_droprate(struct activity_dump_config *config, u64 now, struct activity_dump_rate_limiter_ctx* rate_ctx_p, u64 delta) {
+__attribute__((always_inline)) u8 activity_dump_rate_limiter_allow_increasing_droprate(struct activity_dump_config *config, u64 now, struct activity_dump_rate_limiter_ctx *rate_ctx_p, u64 delta) {
     if (delta > 1000000000) { // if more than 1 sec ellapsed we reset the period
         return activity_dump_rate_limiter_reset_period(now, rate_ctx_p);
     }
@@ -357,7 +354,7 @@ __attribute__((always_inline)) u8 activity_dump_rate_limiter_allow_increasing_dr
 }
 
 __attribute__((always_inline)) u8 activity_dump_rate_limiter_allow(struct activity_dump_config *config, u64 cookie, u64 now, u8 should_count) {
-    struct activity_dump_rate_limiter_ctx* rate_ctx_p = bpf_map_lookup_elem(&activity_dump_rate_limiters, &cookie);
+    struct activity_dump_rate_limiter_ctx *rate_ctx_p = bpf_map_lookup_elem(&activity_dump_rate_limiters, &cookie);
     if (rate_ctx_p == NULL) {
         struct activity_dump_rate_limiter_ctx rate_ctx = {
             .current_period = now,
