@@ -9,7 +9,6 @@ package kubeapiserver
 
 import (
 	"context"
-	"fmt"
 	"regexp"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -19,6 +18,7 @@ import (
 	"k8s.io/client-go/metadata"
 	"k8s.io/client-go/tools/cache"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -71,16 +71,9 @@ func newMetadataParser(gvr schema.GroupVersionResource, annotationsExclude []str
 	return metadataParser{gvr: gvr, annotationsFilter: filters}, nil
 }
 
-// generateEntityID generates and returns a unique entity id for KubernetesMetadata entity
-// for namespaced objects, the id will have the format {resourceType}/{namespace}/{name} (e.g. deployments/default/app )
-// for cluster scoped objects, the id will have the format {resourceType}//{name} (e.g. node//master-node)
-func (p metadataParser) generateEntityID(resource, namespace, name string) string {
-	return fmt.Sprintf("%s/%s/%s", resource, namespace, name)
-}
-
 func (p metadataParser) Parse(obj interface{}) workloadmeta.Entity {
 	partialObjectMetadata := obj.(*metav1.PartialObjectMetadata)
-	id := p.generateEntityID(p.gvr.Resource, partialObjectMetadata.Namespace, partialObjectMetadata.Name)
+	id := util.GenerateKubeMetadataEntityID(p.gvr.Resource, partialObjectMetadata.Namespace, partialObjectMetadata.Name)
 
 	return &workloadmeta.KubernetesMetadata{
 		EntityID: workloadmeta.EntityID{

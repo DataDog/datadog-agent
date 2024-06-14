@@ -15,6 +15,7 @@ import (
 	"github.com/gorilla/mux"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/api"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -67,7 +68,8 @@ func getNodeMetadata(w http.ResponseWriter, r *http.Request, wmeta workloadmeta.
 	var dataBytes []byte
 	nodeName := vars["nodeName"]
 
-	nodeMetadata, err := wmeta.GetKubernetesMetadata(fmt.Sprintf("nodes//%s", nodeName))
+	entityID := util.GenerateKubeMetadataEntityID("nodes", "", nodeName)
+	nodeMetadata, err := wmeta.GetKubernetesMetadata(entityID)
 	if err != nil {
 		log.Errorf("Could not retrieve the node %s of %s: %v", what, nodeName, err.Error()) //nolint:errcheck
 		http.Error(w, err.Error(), http.StatusInternalServerError)
