@@ -46,23 +46,6 @@ func (c *ddConverter) Convert(ctx context.Context, conf *confmap.Conf) error {
 	return nil
 }
 
-func enhanceConfig(conf *confmap.Conf) {
-	// extensions
-	for _, component := range extensions {
-		if ExtensionIsInServicePipeline(conf, component) {
-			continue
-		}
-		addComponentToConfig(conf, component)
-		addExtensionToPipeline(conf, component)
-	}
-
-	// infra attributes processor
-	addProcessorToPipelinesWithDDExporter(conf, infraAttributesProcessor)
-
-	// prometheus receiver
-	addPrometheusReceiver(conf, prometheusReceiver)
-}
-
 // nolint: deadcode, unused
 func (c *ddConverter) addProvidedConf(conf *confmap.Conf) error {
 	bytesConf, err := confToString(conf)

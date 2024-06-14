@@ -21,6 +21,23 @@ type component struct {
 	Config       any
 }
 
+func enhanceConfig(conf *confmap.Conf) {
+	// extensions
+	for _, component := range extensions {
+		if ExtensionIsInServicePipeline(conf, component) {
+			continue
+		}
+		addComponentToConfig(conf, component)
+		addExtensionToPipeline(conf, component)
+	}
+
+	// infra attributes processor
+	addProcessorToPipelinesWithDDExporter(conf, infraAttributesProcessor)
+
+	// prometheus receiver
+	addPrometheusReceiver(conf, prometheusReceiver)
+}
+
 func componentName(fullName string) string {
 	parts := strings.SplitN(fullName, "/", 2)
 	return parts[0]

@@ -14,9 +14,9 @@ exporters:
         key: 12345
 
 extensions:
-  pprof/dd-autoconfigured:
-  health_check/dd-autoconfigured:
-  zpages/dd-autoconfigured:
+  pprof/user-defined:
+  health_check/user-defined:
+  zpages/user-defined:
     endpoint: "localhost:55679"
     
 processors:
@@ -24,7 +24,7 @@ processors:
   k8sattributes:
 
 service:
-    extensions: [pprof/dd-autoconfigured, zpages/dd-autoconfigured, health_check/dd-autoconfigured]
+    extensions: [pprof/user-defined, zpages/user-defined, health_check/user-defined]
     pipelines:
         traces:
             receivers: [nop]
