@@ -6,7 +6,7 @@ from unittest import TestCase
 from unittest.mock import MagicMock, patch
 
 from gitlab.v4.objects import ProjectManager, ProjectPipeline, ProjectPipelineJob
-from invoke import Context
+from invoke.context import Context, MockContext
 
 from tasks.github_tasks import ALL_TEAMS
 from tasks.libs.pipeline.notifications import load_and_validate
@@ -17,6 +17,11 @@ TEST_DIR = '/tmp/summary'
 
 
 class FailureSummaryTest(TestCase):
+    def __init__(self, methodName: str = "runTest") -> None:
+        super().__init__(methodName)
+
+        self.github_slack_map = load_and_validate("tasks/unit-tests/testdata/github_slack_map.yaml", "DEFAULT_SLACK_CHANNEL", '#agent-developer-experience', relpath=False)
+
     def setUp(self) -> None:
         os.makedirs(TEST_DIR, exist_ok=True)
 
@@ -25,6 +30,7 @@ class FailureSummaryTest(TestCase):
             patch('tasks.libs.pipeline.failure_summary.read_file', self.read_file),
             patch('tasks.libs.pipeline.failure_summary.remove_files', self.remove_files),
             patch('tasks.libs.pipeline.failure_summary.list_files', self.list_files),
+            patch('tasks.owners.GITHUB_SLACK_MAP', self.github_slack_map),
         ]
         self.mocks = [patch.start() for patch in self.patches]
 
@@ -128,22 +134,6 @@ class SummaryDataTest(FailureSummaryTest):
 
 
 class SummaryStatsTest(FailureSummaryTest):
-    def __init__(self, methodName: str = "runTest") -> None:
-        super().__init__(methodName)
-
-        self.github_slack_map = load_and_validate("tasks/unit-tests/testdata/github_slack_map.yaml", "DEFAULT_SLACK_CHANNEL", '#agent-developer-experience', relpath=False)
-
-    def setUp(self) -> None:
-        super().setUp()
-
-        self.patch_slack_map = patch('tasks.owners.GITHUB_SLACK_MAP', self.github_slack_map)
-        self.patch_slack_map.start()
-
-    def tearDown(self) -> None:
-        self.patch_slack_map.stop()
-
-        super().tearDown()
-
     def test_make_stats(self):
         data = self.get_dummy_summary_data(
             [
@@ -158,7 +148,7 @@ class SummaryStatsTest(FailureSummaryTest):
         stats = SummaryStats(data, allow_failure=False)
         results = stats.make_stats(max_length=1000, jobowners='tasks/unit-tests/testdata/jobowners.txt')
         results = {channel: sorted(result, key=lambda d: d['name']) for channel, result in results.items()}
-        result = results[ALL_TEAMS]
+        result = results[self.github_slack_map[ALL_TEAMS]]
 
         self.assertEqual(len(result), 2)
         self.assertEqual(result[0], {'name': 'job1', 'failures': 2, 'runs': 3})
@@ -182,7 +172,7 @@ class SummaryStatsTest(FailureSummaryTest):
         stats = SummaryStats(data, allow_failure=False)
         results = stats.make_stats(max_length=1000, jobowners='tasks/unit-tests/testdata/jobowners.txt')
         results = {channel: sorted(result, key=lambda d: d['name']) for channel, result in results.items()}
-        result = results[ALL_TEAMS]
+        result = results[self.github_slack_map[ALL_TEAMS]]
 
         self.assertEqual(len(result), 2)
         self.assertEqual(result[0], {'name': 'job1', 'failures': 2, 'runs': 3})
@@ -191,7 +181,7 @@ class SummaryStatsTest(FailureSummaryTest):
         stats = SummaryStats(data, allow_failure=True)
         results = stats.make_stats(max_length=1000, jobowners='tasks/unit-tests/testdata/jobowners.txt')
         results = {channel: sorted(result, key=lambda d: d['name']) for channel, result in results.items()}
-        result = results[ALL_TEAMS]
+        result = results[self.github_slack_map[ALL_TEAMS]]
 
         self.assertEqual(len(result), 1)
         self.assertEqual(result[0], {'name': 'job3', 'failures': 1, 'runs': 2})
@@ -210,14 +200,25 @@ class SummaryStatsTest(FailureSummaryTest):
         results = stats.make_stats(max_length=1000, jobowners='tasks/unit-tests/testdata/jobowners.txt')
         results = {channel: sorted(result, key=lambda d: d['name']) for channel, result in results.items()}
 
-        self.assertSetEqual(set(results), {'#agent-developer-experience', '#ebpf-platform-ops', '#agent-build-and-releases', ALL_TEAMS})
+        self.assertSetEqual(set(results), {'#agent-developer-experience', '#ebpf-platform-ops', '#agent-build-and-releases', self.github_slack_map[ALL_TEAMS]})
         self.assertEqual(len(results['#agent-developer-experience']), 1)
         self.assertEqual(len(results['#ebpf-platform-ops']), 2)
         self.assertEqual(len(results['#agent-build-and-releases']), 1)
-        self.assertEqual(len(results[ALL_TEAMS]), 4)
+        self.assertEqual(len(results[self.github_slack_map[ALL_TEAMS]]), 4)
 
 
 class ModuleTest(FailureSummaryTest):
+    def make_dummy_summaries(self):
+        days = [2, 4, 6, 8, 10]
+        summaries = []
+        for day in days:
+            id = int(datetime(2042, 1, day, tzinfo=UTC).timestamp())
+            summary = SummaryData(MagicMock(), id, jobs=[ProjectPipelineJob(manager=MagicMock(), attrs={'id': day})])
+            summary.write()
+            summaries.append(summary)
+
+        return summaries
+
     def test_is_valid_job_infra(self):
         repo = MagicMock()
         repo.jobs.get.return_value.trace.return_value = b'Docker runner job start script failed'
@@ -262,14 +263,7 @@ class ModuleTest(FailureSummaryTest):
     def test_clean_summaries(self, mock):
         mock.now.return_value = datetime(2042, 1, 16, tzinfo=UTC)
 
-        days = [2, 4, 6, 8, 10]
-        summaries = []
-        for day in days:
-            id = int(datetime(2042, 1, day, tzinfo=UTC).timestamp())
-            summary = SummaryData(MagicMock(), id, jobs=[ProjectPipelineJob(manager=MagicMock(), attrs={'id': day})])
-            summary.write()
-            summaries.append(summary)
-
+        summaries = self.make_dummy_summaries()
         ids = [s.id for s in summaries]
 
         failure_summary.clean_summaries(MagicMock(), period=timedelta(days=10))
@@ -278,3 +272,42 @@ class ModuleTest(FailureSummaryTest):
 
         # 6, 8, 10
         self.assertEqual(new_ids, ids[2:])
+
+    @patch("os.environ", new=MagicMock())
+    @patch("tasks.libs.pipeline.failure_summary.send_summary_slack_message")
+    def test_send_summary_messages(self, mock_slack: MagicMock):
+        # Verify that we send the right number of jobs per channel
+        expected_team_njobs = {
+            '#agent-build-and-releases': 2,
+            '#agent-developer-experience': 4,
+            '#security-and-compliance-agent-ops': 1,
+            self.github_slack_map[ALL_TEAMS]: 5,
+        }
+
+        summary = SummaryData(MagicMock(), 42, jobs=[
+            # agent-ci-experience
+            *[ProjectPipelineJob(manager=MagicMock(), attrs={'name': 'hello', 'status': 'failed', 'allow_failure': False}) for _ in range(20)],
+            # agent-ci-experience
+            *[ProjectPipelineJob(manager=MagicMock(), attrs={'name': 'world', 'status': 'failed', 'allow_failure': False}) for _ in range(12)],
+            # agent-security
+            *[ProjectPipelineJob(manager=MagicMock(), attrs={'name': 'security_go_generate_check', 'status': 'failed', 'allow_failure': False}) for _ in range(10)],
+            # agent-ci-experience, agent-build-and-releases
+            *[ProjectPipelineJob(manager=MagicMock(), attrs={'name': 'tests_release', 'status': 'failed', 'allow_failure': False}) for _ in range(5)],
+            # agent-ci-experience, agent-build-and-releases
+            *[ProjectPipelineJob(manager=MagicMock(), attrs={'name': 'tests_release2', 'status': 'failed', 'allow_failure': False}) for _ in range(2)]
+        ])
+
+        with patch('tasks.libs.pipeline.failure_summary.fetch_summaries', return_value=summary):
+            failure_summary.send_summary_messages(
+                MockContext(), allow_failure=False, jobowners="tasks/unit-tests/testdata/jobowners.txt", max_length=1000, period=timedelta(weeks=10)
+            )
+
+        # Verify called once for each channel
+        self.assertEqual(len(mock_slack.call_args_list), len(expected_team_njobs))
+
+        for call_args in mock_slack.call_args_list:
+            channel = call_args.kwargs['channel']
+            stats = call_args.kwargs['stats']
+            njobs = len(stats)
+            self.assertEqual(expected_team_njobs.get(channel, None), njobs, 'Failure for channel: ' + channel)
+

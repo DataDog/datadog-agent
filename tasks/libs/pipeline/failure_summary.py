@@ -4,18 +4,22 @@ import json
 import os
 from collections import Counter
 from dataclasses import dataclass
-from datetime import datetime, timedelta, UTC
+from datetime import UTC, datetime, timedelta
 
 from gitlab.v4.objects import Project, ProjectPipeline, ProjectPipelineJob
 from invoke import Context
+from slack_sdk import WebClient
 
-from tasks.github_tasks import ALL_TEAMS
+from tasks.github_tasks import ALL_TEAMS, GITHUB_SLACK_MAP
 from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
 from tasks.libs.pipeline.data import get_infra_failure_info
 from tasks.owners import make_partition
 
 """
 A summary contains a list of jobs from gitlab pipelines.
+At the end of each pipeline, a summary is created and uploaded to a file in an s3 bucket (upload_summary).
+Every week day, a summary is created for all the pipelines of the last 24 hours (send_summary_messages) out of the summaries on the s3 bucket.
+Once a week, a failure summary with allow to fail jobs is sent to the teams (send_summary_messages).
 """
 
 
@@ -118,16 +122,6 @@ class SummaryStats:
         # Sort by failures
         self.stats = sorted(self.stats, key=lambda x: x['failures'], reverse=True)
 
-    def make_message(self, stats: list[dict]) -> str | None:
-        """
-        Creates a message from the stats that are already processed
-        """
-        if not stats:
-            return
-
-        # TODO : Format etc...
-        return '\n'.join(f'- {s["name"]}: {s["failures"]}/{s["runs"]}' for s in stats)
-
     def make_stats(self, max_length: int = 8, jobowners: str = '.gitlab/JOBOWNERS') -> dict[str, list[dict]]:
         """
         Process stats given self.stats
@@ -142,7 +136,7 @@ class SummaryStats:
             team_stats[channel] = [s for s in self.stats if s['name'] in partition[channel]]
             team_stats[channel] = team_stats[channel][:max_length]
 
-        team_stats[ALL_TEAMS] = self.stats[:max_length]
+        team_stats[GITHUB_SLACK_MAP[ALL_TEAMS]] = self.stats[:max_length]
 
         return team_stats
 
@@ -230,51 +224,92 @@ def clean_summaries(ctx: Context, period: timedelta):
     remove_files(ctx, [SummaryData.filename(id) for id in ids])
 
 
+def send_summary_slack_message(channel: str, stats: list[dict], allow_failure: bool = False):
+    """
+    Send the summary to channel with these job stats
+    - stats: Item of the dict returned by SummaryStats.make_stats
+    """
+    # Avoid circular dependency
+    from tasks.notify import get_ci_visibility_job_url, NOTIFICATION_DISCLAIMER
+
+    # Create message
+    not_allowed_query = '-' if not allow_failure else ''
+    period = 'Daily' if not allow_failure else 'Weekly'
+    duration = '24 hours' if not allow_failure else 'week'
+    delta = timedelta(days=1) if not allow_failure else timedelta(weeks=1)
+    you_own = ' you own' if channel != '#agent-platform-ops' else ''
+    flaky_tests = (
+        ''
+        if allow_failure
+        else ' In case of tests, you can <https://datadoghq.atlassian.net/wiki/spaces/ADX/pages/3405611398/Flaky+tests+in+go+introducing+flake.Mark|mark them as flaky>.'
+    )
+    expected_to_fail = 'They are allowed to fail' if allow_failure else 'They are not expected to fail'
+
+    message = []
+    for name, fail in stats:
+        link = get_ci_visibility_job_url(
+            name, prefix=False, extra_flags=['status:error', '-@error.domain:provider']
+        )
+        message.append(f"- <{link}|{name}>: *{fail} failures*")
+
+    timestamp_start = int((datetime.now() - delta).timestamp() * 1000)
+    timestamp_end = int(datetime.now().timestamp() * 1000)
+
+    # TODO header = f'{period} Job Failure Report'
+    header = f'{period} Job Failure Report (TO: {channel})'
+    description = f'These jobs{you_own} had the most failures in the last {duration}:'
+
+    footer = (
+        f'{expected_to_fail}. Click <https://app.datadoghq.com/ci/pipeline-executions?query=ci_level%3Ajob%20env%3Aprod%20%40git.repository.id%3A%22gitlab.ddbuild.io%2FDataDog%2Fdatadog-agent%22%20%40ci.pipeline.name%3A%22DataDog%2Fdatadog-agent%22%20%40ci.provider.instance%3Agitlab-ci%20%40git.branch%3Amain%20%40ci.status%3Aerror%20%40gitlab.pipeline_source%3A%28push%20OR%20schedule%29%20{not_allowed_query}%40ci.allowed_to_fail%3Atrue&agg_m=count&agg_m_source=base&agg_q=%40ci.job.name&start={timestamp_start}&end={timestamp_end}&agg_q_source=base&agg_t=count&fromUser=false&index=cipipeline&sort_m=count&sort_m_source=base&sort_t=count&top_n=25&top_o=top&viz=toplist&x_missing=true&paused=false|here> for more details.{flaky_tests}\n'
+        + NOTIFICATION_DISCLAIMER
+    )
+
+    body = '\n'.join(message)
+    # Rarely the body may be bigger than 3K characters, split into two messages in this case
+    if len(body) >= 3000:
+        body = ['\n'.join(message[: len(message) // 2]), '\n'.join(message[len(message) // 2 :])]
+    else:
+        body = [body]
+
+    blocks = [
+        {'type': 'header', 'text': {'type': 'plain_text', 'text': header}},
+        {'type': 'section', 'text': {'type': 'mrkdwn', 'text': description}},
+        *[{'type': 'section', 'text': {'type': 'mrkdwn', 'text': text}} for text in body],
+        {'type': 'context', 'elements': [{'type': 'mrkdwn', 'text': ':information_source: ' + footer}]},
+    ]
+
+    # Send message
+    client = WebClient(os.environ["SLACK_API_TOKEN"])
+    # TODO
+    # client.chat_postMessage(channel=channel, blocks=blocks)
+    client.chat_postMessage(channel='#celian-tests', blocks=blocks)
+
+
 def send_summary_messages(ctx: Context, allow_failure: bool, max_length: int, period: timedelta, jobowners: str = '.gitlab/JOBOWNERS'):
     """
     Fetches the summaries for the period and sends messages to all teams having these jobs
     """
     summary = fetch_summaries(ctx, period)
     stats = SummaryStats(summary, allow_failure)
+    print('Made stats')
 
-    # TODO : Send
-    # TODO : Dispatch to teams (rm team=None)
-    team = None
-    team_stats = stats.make_stats(max_length, team=team)
-    msg = stats.make_message(team_stats)
-
-    print()
-    print('* TO:', team)
-    print(msg)
-
-    # Partition by channels as some teams share the same slack channel (avoid duplicate messages)
-    partition = make_partition([name for name, _ in stats], jobowners, get_channels=True)
-
-    # team_stats[team] = [(job_name, failure_count), ...]
-    team_stats = {}
-    for channel in partition:
-        team_stats[channel] = [(name, stat) for (name, stat) in stats if name in partition[channel]]
-        team_stats[channel] = team_stats[channel][:list_max_len]
-
+    team_stats = stats.make_stats(max_length, jobowners=jobowners)
     for channel, stat in team_stats.items():
-        send_summary(channel, stat)
-
-    # Send full message to #agent-platform-ops
-    send_summary('#agent-platform-ops', stats[:list_max_len])
+        # print()
+        # print('* TO:', channel)
+        # TODO : Send
+        # TODO : try catch
+        send_summary_slack_message(channel=channel, stats=stat, allow_failure=allow_failure)
 
     print('Messages sent')
 
 
-
-
-
-
-
 # TODO : rm
 def test(ctx: Context):
-    s = fetch_summaries(ctx, timedelta(days=999))
-    stats = SummaryStats(s, allow_failure=True)
-    print(stats.make_message(stats.make_stats(16)))
+    send_summary_messages(ctx, allow_failure=False, max_length=8, period=timedelta(days=1))
+    # s = fetch_summaries(ctx, timedelta(days=999))
+    # stats = SummaryStats(s, allow_failure=True)
+    # print(stats.make_message(stats.make_stats(16)))
 
     return
 
