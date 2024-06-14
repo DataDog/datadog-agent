@@ -1,6 +1,9 @@
 {
     "pkg/network/tracer": {
-        "run-only": ["^TestUSMSuite$"]
+        "exclude": true
+    },
+    "pkg/network/usm": {
+        "exclude": true
     },
     "*": {
         "exclude": false
