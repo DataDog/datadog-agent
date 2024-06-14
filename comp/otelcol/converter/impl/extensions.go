@@ -49,7 +49,7 @@ var (
 	}
 )
 
-func ExtensionIsInServicePipeline(conf *confmap.Conf, comp component) bool {
+func extensionIsInServicePipeline(conf *confmap.Conf, comp component) bool {
 	pipelineExtensions := conf.Get("service::extensions")
 	if pipelineExtensions == nil {
 		return false

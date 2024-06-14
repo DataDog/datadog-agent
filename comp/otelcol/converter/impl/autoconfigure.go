@@ -24,7 +24,7 @@ type component struct {
 func enhanceConfig(conf *confmap.Conf) {
 	// extensions
 	for _, extension := range extensions {
-		if ExtensionIsInServicePipeline(conf, extension) {
+		if extensionIsInServicePipeline(conf, extension) {
 			continue
 		}
 		addComponentToConfig(conf, extension)

@@ -37,7 +37,8 @@ func NewConverter() (converter.Component, error) {
 	}, nil
 }
 
-func (c *ddConverter) Convert(ctx context.Context, conf *confmap.Conf) error {
+// Convert autoconfigures conf and stores both the provided and enhanced conf.
+func (c *ddConverter) Convert(_ context.Context, conf *confmap.Conf) error {
 	// c.addProvidedConf(conf)
 
 	enhanceConfig(conf)

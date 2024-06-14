@@ -127,7 +127,7 @@ func addPrometheusReceiver(conf *confmap.Conf, comp component) {
 	}
 	addComponentToConfig(conf, comp)
 
-	for ddExporterName, _ := range datadogExportersMap {
+	for ddExporterName := range datadogExportersMap {
 		pipelineName := "metrics" + "/" + ddAutoconfiguredSuffix + "/" + ddExporterName
 		addComponentToPipeline(conf, comp, pipelineName)
 		addComponentToPipeline(conf, component{
