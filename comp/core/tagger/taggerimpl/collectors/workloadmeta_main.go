@@ -28,12 +28,12 @@ const (
 
 	staticSource         = workloadmetaCollectorName + "-static"
 	podSource            = workloadmetaCollectorName + "-" + string(workloadmeta.KindKubernetesPod)
-	nodeSource           = workloadmetaCollectorName + "-" + string(workloadmeta.KindKubernetesNode)
 	taskSource           = workloadmetaCollectorName + "-" + string(workloadmeta.KindECSTask)
 	containerSource      = workloadmetaCollectorName + "-" + string(workloadmeta.KindContainer)
 	containerImageSource = workloadmetaCollectorName + "-" + string(workloadmeta.KindContainerImageMetadata)
 	processSource        = workloadmetaCollectorName + "-" + string(workloadmeta.KindProcess)
 	hostSource           = workloadmetaCollectorName + "-" + string(workloadmeta.KindHost)
+	kubeMetadataSource   = workloadmetaCollectorName + "-" + string(workloadmeta.KindKubernetesMetadata)
 
 	clusterTagNamePrefix = "kube_cluster_name"
 )

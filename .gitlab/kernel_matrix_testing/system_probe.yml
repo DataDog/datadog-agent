@@ -85,7 +85,7 @@ pull_test_dockers_arm64:
     - !reference [.tag_kmt_ci_job]
   variables:
     DEPENDENCIES: $CI_PROJECT_DIR/kmt-deps/ci/$ARCH/btfs
-    BTF_DIR: opt/kmt-ramfs/system-probe-tests/pkg/ebpf/bytecode/build/co-re/btf
+    BTF_DIR: opt/kmt-ramfs/system-probe-tests/pkg/ebpf/bytecode/build/${ARCH}/co-re/btf
     AWS_EC2_SSH_KEY_FILE: $CI_PROJECT_DIR/ssh_key
 
 upload_minimized_btfs_sysprobe_x64:

@@ -42,8 +42,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	demultiplexerendpointfx "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexerendpoint/fx"
-	internalAPI "github.com/DataDog/datadog-agent/comp/api/api"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl"
+	internalAPI "github.com/DataDog/datadog-agent/comp/api/api/def"
 	authtokenimpl "github.com/DataDog/datadog-agent/comp/api/authtoken/createandfetchimpl"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/collector/collector/collectorimpl"
@@ -101,6 +101,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
+	"github.com/DataDog/datadog-agent/comp/metadata/inventoryotel"
 	"github.com/DataDog/datadog-agent/comp/metadata/packagesigning"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner"
 	securityagentmetadata "github.com/DataDog/datadog-agent/comp/metadata/securityagent/def"
@@ -229,6 +230,7 @@ func run(log log.Component,
 	_ host.Component,
 	_ inventoryagent.Component,
 	_ inventoryhost.Component,
+	_ inventoryotel.Component,
 	_ secrets.Component,
 	invChecks inventorychecks.Component,
 	_ netflowServer.Component,
@@ -556,9 +558,7 @@ func startAgent(
 	}
 
 	// start the cmd HTTP server
-	if err = agentAPI.StartServer(
-		demultiplexer,
-	); err != nil {
+	if err = agentAPI.StartServer(); err != nil {
 		return log.Errorf("Error while starting api server, exiting: %v", err)
 	}
 

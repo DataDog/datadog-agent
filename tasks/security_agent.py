@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import datetime
 import errno
 import glob
@@ -8,8 +10,8 @@ import sys
 import tempfile
 from subprocess import check_output
 
-from invoke import task
 from invoke.exceptions import Exit
+from invoke.tasks import task
 
 from tasks.agent import build as agent_build
 from tasks.agent import generate_config
@@ -26,11 +28,13 @@ from tasks.libs.common.utils import (
     get_gopath,
     get_version,
 )
+from tasks.libs.types.arch import ARCH_AMD64, Arch
 from tasks.process_agent import TempDir
 from tasks.system_probe import (
     CURRENT_ARCH,
     build_cws_object_files,
     check_for_ninja,
+    copy_ebpf_and_related_files,
     ninja_define_ebpf_compiler,
     ninja_define_exe_compiler,
 )
@@ -153,13 +157,7 @@ def build_dev_image(ctx, image=None, push=False, base_image="datadog/agent:lates
             ctx.run(f"touch {docker_context}/agent")
             core_agent_dest = "/dev/null"
 
-        ctx.run(f"cp pkg/ebpf/bytecode/build/*.o {docker_context}")
-        ctx.run(f"mkdir {docker_context}/co-re")
-        ctx.run(f"cp pkg/ebpf/bytecode/build/co-re/*.o {docker_context}/co-re/")
-        ctx.run(f"cp pkg/ebpf/bytecode/build/runtime/*.c {docker_context}")
-        ctx.run(f"chmod 0444 {docker_context}/*.o {docker_context}/*.c {docker_context}/co-re/*.o")
-        ctx.run(f"cp /opt/datadog-agent/embedded/bin/clang-bpf {docker_context}")
-        ctx.run(f"cp /opt/datadog-agent/embedded/bin/llc-bpf {docker_context}")
+        copy_ebpf_and_related_files(ctx, docker_context, copy_usm_jar=False)
 
         with ctx.cd(docker_context):
             # --pull in the build will force docker to grab the latest base image
@@ -327,7 +325,8 @@ def create_dir_if_needed(dir):
 
 
 @task
-def build_embed_syscall_tester(ctx, arch=CURRENT_ARCH, static=True):
+def build_embed_syscall_tester(ctx, arch: str | Arch = CURRENT_ARCH, static=True):
+    arch = Arch.from_str(arch)
     check_for_ninja(ctx)
     build_dir = os.path.join("pkg", "security", "tests", "syscall_tester", "bin")
     go_dir = os.path.join("pkg", "security", "tests", "syscall_tester", "go")
@@ -336,11 +335,11 @@ def build_embed_syscall_tester(ctx, arch=CURRENT_ARCH, static=True):
     nf_path = os.path.join(ctx.cwd, 'syscall-tester.ninja')
     with open(nf_path, 'w') as ninja_file:
         nw = NinjaWriter(ninja_file, width=120)
-        ninja_define_ebpf_compiler(nw)
+        ninja_define_ebpf_compiler(nw, arch=arch)
         ninja_define_exe_compiler(nw)
 
         ninja_syscall_tester(nw, build_dir, static=static)
-        if arch == "x64":
+        if arch == ARCH_AMD64:
             ninja_syscall_x86_tester(nw, build_dir, static=static)
         ninja_ebpf_probe_syscall_tester(nw, go_dir)
 
@@ -353,6 +352,7 @@ def build_functional_tests(
     ctx,
     output='pkg/security/tests/testsuite',
     srcpath='pkg/security/tests',
+    arch: str | Arch = CURRENT_ARCH,
     major_version='7',
     build_tags='functionaltests',
     build_flags='',
@@ -369,12 +369,15 @@ def build_functional_tests(
             build_cws_object_files(
                 ctx,
                 major_version=major_version,
+                arch=arch,
                 kernel_release=kernel_release,
                 debug=debug,
+                bundle_ebpf=bundle_ebpf,
             )
         build_embed_syscall_tester(ctx)
 
-    ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, static=static)
+    arch = Arch.from_str(arch)
+    ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, static=static, arch=arch)
 
     env["CGO_ENABLED"] = "1"
 
@@ -860,10 +863,7 @@ def kitchen_prepare(ctx, skip_linters=False):
 @task
 def run_ebpf_unit_tests(ctx, verbose=False, trace=False):
     build_cws_object_files(
-        ctx,
-        major_version='7',
-        kernel_release=None,
-        with_unit_test=True,
+        ctx, major_version='7', kernel_release=None, with_unit_test=True, bundle_ebpf=True, arch=CURRENT_ARCH
     )
 
     flags = '-tags ebpf_bindata'

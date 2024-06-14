@@ -445,31 +445,36 @@ func NewVariables() *Variables {
 // GetBool returns the boolean value of the specified variable
 func (v *Variables) GetBool(name string) bool {
 	value, _ := v.lru.Get(name)
-	return value.(bool)
+	bval, _ := value.(bool)
+	return bval
 }
 
 // GetInt returns the integer value of the specified variable
 func (v *Variables) GetInt(name string) int {
 	value, _ := v.lru.Get(name)
-	return value.(int)
+	ival, _ := value.(int)
+	return ival
 }
 
 // GetString returns the string value of the specified variable
 func (v *Variables) GetString(name string) string {
 	value, _ := v.lru.Get(name)
-	return value.(string)
+	sval, _ := value.(string)
+	return sval
 }
 
 // GetStringArray returns the string array value of the specified variable
 func (v *Variables) GetStringArray(name string) []string {
 	value, _ := v.lru.Get(name)
-	return value.([]string)
+	slval, _ := value.([]string)
+	return slval
 }
 
 // GetIntArray returns the integer array value of the specified variable
 func (v *Variables) GetIntArray(name string) []int {
 	value, _ := v.lru.Get(name)
-	return value.([]int)
+	ilval, _ := value.([]int)
+	return ilval
 }
 
 const defaultMaxVariables = 100

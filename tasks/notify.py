@@ -43,21 +43,23 @@ S3_CI_BUCKET_URL = "s3://dd-ci-artefacts-build-stable/datadog-agent/failed_jobs"
 CONSECUTIVE_THRESHOLD = 3
 CUMULATIVE_THRESHOLD = 5
 CUMULATIVE_LENGTH = 10
-CI_VISIBILITY_JOB_URL = 'https://app.datadoghq.com/ci/pipeline-executions?query=ci_level%3Ajob%20%40ci.pipeline.name%3ADataDog%2Fdatadog-agent%20%40git.branch%3Amain%20%40ci.job.name%3A{}&agg_m=count'
+CI_VISIBILITY_JOB_URL = 'https://app.datadoghq.com/ci/pipeline-executions?query=ci_level%3Ajob%20%40ci.pipeline.name%3ADataDog%2Fdatadog-agent%20%40git.branch%3Amain%20%40ci.job.name%3A{name}{extra_flags}&agg_m=count'
 NOTIFICATION_DISCLAIMER = "If there is something wrong with the notification please contact #agent-developer-experience"
 
 
-def get_ci_visibility_job_url(name: str, prefix=True) -> str:
+def get_ci_visibility_job_url(name: str, prefix=True, extra_flags: list[str] | str = "") -> str:
     # Escape (https://docs.datadoghq.com/logs/explorer/search_syntax/#escape-special-characters-and-spaces)
-    name = re.sub(r"([-+=&|><!(){}[\]^\"“”~*?:\\ ])", r"\\\1", name)
-
     if prefix:
-        name += '*'
+        # Cannot escape using double quotes for glob syntax
+        name = re.sub(r"([-+=&|><!(){}[\]^\"“”~*?:\\ ])", r"\\\1", name) + '*'
+        name = quote(name)
+    else:
+        name = quote(f'"{name}"')
 
-    # URL Quote
-    name = quote(name)
+    if isinstance(extra_flags, list):
+        extra_flags = quote(''.join(' ' + flag for flag in extra_flags))
 
-    return CI_VISIBILITY_JOB_URL.format(name)
+    return CI_VISIBILITY_JOB_URL.format(name=name, extra_flags=extra_flags)
 
 
 @dataclass
@@ -74,7 +76,7 @@ class ExecutionsJobInfo:
 
     @staticmethod
     def ci_visibility_url(name):
-        return get_ci_visibility_job_url(name)
+        return get_ci_visibility_job_url(name, extra_flags=['status:error', '-@error.domain:provider'])
 
     @staticmethod
     def from_dict(data):
@@ -524,7 +526,9 @@ def send_failure_summary_notification(
 
         message = []
         for name, fail in stats:
-            link = CI_VISIBILITY_JOB_URL.format(quote(name))
+            link = get_ci_visibility_job_url(
+                name, prefix=False, extra_flags=['status:error', '-@error.domain:provider']
+            )
             message.append(f"- <{link}|{name}>: *{fail} failures*")
 
         timestamp_start = int((datetime.now() - delta).timestamp() * 1000)
