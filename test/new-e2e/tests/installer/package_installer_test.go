@@ -103,13 +103,13 @@ func (s *packageInstallerSuite) TestReInstall() {
 func (s *packageInstallerSuite) TestUpdateInstallerOCI() {
 	// Install prod
 	err := s.RunInstallScriptProdOci(
-		envForceVersion("datadog-installer", "7.55.0-installer-0.2.1-1"),
+		envForceVersion("datadog-installer", "7.55.0-installer-0.2.1\n"),
 	)
 	defer s.Purge()
 	assert.NoError(s.T(), err)
 
 	version := s.Env().RemoteHost.MustExecute("/opt/datadog-packages/datadog-installer/stable/bin/installer/installer version")
-	assert.Equal(s.T(), "7.55.0-installer-0.2.1-1", version)
+	assert.Equal(s.T(), "7.55.0-installer-0.2.1\n", version)
 	s.host.WaitForUnitActive("datadog-installer.service")
 
 	// Install from QA registry
