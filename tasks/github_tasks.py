@@ -6,7 +6,9 @@ import time
 from collections import Counter
 from functools import lru_cache
 
-from invoke import Exit, task
+from invoke.context import Context
+from invoke.exceptions import Exit
+from invoke.tasks import task
 
 from tasks.libs.ciproviders.github_actions_tools import (
     download_artifacts,
@@ -305,6 +307,9 @@ def handle_community_pr(_, repo='', pr_id=-1, labels=''):
     teams = _get_teams(gh.get_pr_files(pr_id)) or [ALL_TEAMS]
     channels = [GITHUB_SLACK_MAP[team.lower()] for team in teams if team if team.lower() in GITHUB_SLACK_MAP]
 
+    # Remove duplicates
+    channels = list(set(channels))
+
     # Update labels
     for label in labels.split(','):
         if label:
@@ -322,3 +327,31 @@ def handle_community_pr(_, repo='', pr_id=-1, labels=''):
     client = WebClient(os.environ['SLACK_API_TOKEN'])
     for channel in channels:
         client.chat_postMessage(channel=channel, text=message)
+
+
+@task
+def milestone_pr_team_stats(_: Context, milestone: str, team: str):
+    """
+    This task prints statistics about the PRs opened by a given team and
+    merged in the given milestone.
+    """
+    from tasks.libs.ciproviders.github_api import GithubAPI
+
+    gh = GithubAPI()
+    team_members = gh.get_team_members(team)
+    authors = ' '.join("author:" + member.login for member in team_members)
+    common_query = f'repo:DataDog/datadog-agent is:pr is:merged milestone:{milestone} {authors}'
+
+    no_code_changes_query = common_query + ' label:qa/no-code-change'
+    no_code_changes = gh.search_issues(no_code_changes_query).totalCount
+
+    qa_done_query = common_query + ' -label:qa/no-code-change label:qa/done'
+    qa_done = gh.search_issues(qa_done_query).totalCount
+
+    with_qa_query = common_query + ' -label:qa/no-code-change -label:qa/done'
+    with_qa = gh.search_issues(with_qa_query).totalCount
+
+    print("no code changes :", no_code_changes)
+    print("qa done :", qa_done)
+    print("with qa :", with_qa)
+    print("proportion of PRs with code changes and QA done :", 100 * qa_done / (qa_done + with_qa), "%")

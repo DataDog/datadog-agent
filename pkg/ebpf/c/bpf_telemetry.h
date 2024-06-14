@@ -118,8 +118,4 @@ static void *(*bpf_telemetry_update_patch)(unsigned long, ...) = (void *)PATCH_T
 #define bpf_perf_event_output_with_telemetry(...) \
     helper_with_telemetry(bpf_perf_event_output, __VA_ARGS__)
 
-#ifdef INSTRUMENTATION_ENABLED
-char _instrumentation[] SEC(".build.instrumentation") = "enabled";
-#endif
-
 #endif // BPF_TELEMETRY_H
