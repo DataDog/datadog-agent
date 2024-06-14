@@ -65,7 +65,7 @@
   - mkdir -p "$CI_PROJECT_DIR/pcaps" && scp -r "metal_instance:/home/ubuntu/test_pcaps-${ARCH}-${TAG}-${TEST_SET}" "$CI_PROJECT_DIR/pcaps/test_pcaps-${ARCH}-${TAG}-${TEST_SET}" || true
   # Retrieve complexity data
   - |
-    if [ "${TEST_SET}" = "only_tracersuite" ] || [ "${TEST_SET}" = "all_tests" ];
+    if [ "${TEST_SET}" = "only_tracersuite" ] || [ "${TEST_SET}" = "all_tests" ]; then
       ssh metal_instance "scp ${MICRO_VM_IP}:/verifier-complexity /home/ubuntu/verifier-complexity-${ARCH}-${TAG}-${TEST_SET}.tar.gz" || true
       scp "/home/ubuntu/verifier-complexity-${ARCH}-${TAG}-${TEST_SET}.tar.gz" $DD_AGENT_TESTING_DIR/ || true
     fi
