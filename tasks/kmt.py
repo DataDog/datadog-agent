@@ -510,6 +510,21 @@ def ninja_build_dependencies(ctx: Context, nw: NinjaWriter, kmt_paths: KMTPaths,
         variables={"mode": "-m744"},
     )
 
+    verifier_files = glob("pkg/ebpf/verifier/**/*.go")
+    nw.build(
+        rule="gobin",
+        pool="gobuild",
+        inputs=["./pkg/ebpf/verifier/calculator/main.go"],
+        outputs=[os.fspath(kmt_paths.dependencies / "verifier-calculator")],
+        implicit=verifier_files,
+        variables={
+            "go": go_path,
+            "chdir": "true",
+            "env": env_str,
+            "tags": f"-tags=\"{','.join(get_sysprobe_buildtags(False, False))}\"",
+        },
+    )
+
 
 def ninja_copy_ebpf_files(
     nw: NinjaWriter,
