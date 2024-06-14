@@ -97,7 +97,7 @@ func TestOTelExtFlareBuilder(t *testing.T) {
 			"crawl": false
 		},
 		{
-			"name": "healthcheck",
+			"name": "health_check",
 			"url": "{{.url}}/three",
 			"crawl": true
 		},
@@ -150,7 +150,7 @@ func TestOTelExtFlareBuilder(t *testing.T) {
 
 	f.AssertFileContent("data-source-1", "otel/otel-flare/prometheus.dat")
 	f.AssertFileContent("data-source-2", "otel/otel-flare/zpages.dat")
-	f.AssertFileContent(fmt.Sprintf(pageTmpl, localServerURL), "otel/otel-flare/healthcheck.dat")
+	f.AssertFileContent(fmt.Sprintf(pageTmpl, localServerURL), "otel/otel-flare/health_check.dat")
 	f.AssertFileContent("data-source-4", "otel/otel-flare/pprof.dat")
 
 	f.AssertFileContent(toJSON(startupConfig), "otel/otel-flare/startup.cfg")
