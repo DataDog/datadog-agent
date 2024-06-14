@@ -743,17 +743,27 @@ def generate_complexity_summary_for_pr(ctx: Context):
                 continue
 
             program_complexity[program].append(
-                (arch, distro, stats["instruction_processed"], main_data[program]["instruction_processed"])
+                (
+                    arch,
+                    distro,
+                    stats["instruction_processed"],
+                    main_data[program]["instruction_processed"],
+                    stats["limit"],
+                )
             )
 
     summarized_complexity_changes = []
-    for program, entries in program_complexity.items():
+    max_complexity_rel_change = 0
+    max_complexity_abs_change = 0
+    threshold_for_max_limit = 0.85
+    programs_now_below_limit, programs_now_above_limit = 0, 0
+    for program, entries in sorted(program_complexity.items(), key=lambda x: max(e[2] for e in x[1])):
         avg_new_complexity, avg_old_complexity = 0, 0
         highest_new_complexity, highest_old_complexity = 1e9, 1e9  # instruction limit is always < 1e9
         lowest_new_complexity, lowest_old_complexity = 0, 0
         highest_complexity_platform, lowest_complexity_platform = "", ""
 
-        for arch, distro, new_complexity, old_complexity in entries:
+        for arch, distro, new_complexity, old_complexity, limit in entries:
             avg_new_complexity += new_complexity
             avg_old_complexity += old_complexity
 
@@ -766,6 +776,18 @@ def generate_complexity_summary_for_pr(ctx: Context):
                 lowest_new_complexity = new_complexity
                 lowest_old_complexity = old_complexity
                 lowest_complexity_platform = f"{distro}/{arch}"
+
+            new_threshold = new_complexity / limit
+            old_threshold = old_complexity / limit
+
+            if new_threshold < threshold_for_max_limit and old_threshold >= threshold_for_max_limit:
+                programs_now_below_limit += 1
+            elif new_threshold >= threshold_for_max_limit and old_threshold < threshold_for_max_limit:
+                programs_now_above_limit += 1
+
+            abs_change = new_complexity - old_complexity
+            max_complexity_rel_change = max(abs_change / old_complexity)
+            max_complexity_abs_change = max(max_complexity_abs_change, abs_change)
 
         avg_new_complexity /= len(entries)
         avg_old_complexity /= len(entries)
@@ -781,7 +803,28 @@ def generate_complexity_summary_for_pr(ctx: Context):
     headers = ["Program", "Avg. complexity", "Distro with highest complexity", "Distro with lowest complexity"]
 
     table_summary = tabulate(summarized_complexity_changes, headers=headers, tablefmt="github")
-    print(table_summary)
+
+    if max_complexity_rel_change < 0 and max_complexity_abs_change < 0 and programs_now_above_limit == 0:
+        state = "🎉 - improved"
+    elif max_complexity_rel_change < 0.05 and max_complexity_abs_change < 100 and programs_now_above_limit == 0:
+        state = "✅ - stable"
+    elif max_complexity_rel_change < 0.15 or max_complexity_abs_change < 1000 and programs_now_above_limit == 0:
+        state = "❔ - needs attention"
+    else:
+        state = "❗ - significant complexity increases"
+
+    msg = f"# eBPF complexity summary | {state}\n\n"
+    msg += "## Summary\n\n"
+    msg += f"* Highest complexity change (%): {max_complexity_rel_change * 100:+.2f}%\n"
+    msg += f"* Highest complexity change (abs.): {max_complexity_abs_change:+} instructions\n"
+    msg += f"* Programs that were above the {threshold_for_max_limit * 100}% limit of instructions and are now below: {programs_now_below_limit}\n"
+    msg += f"* Programs that were below the {threshold_for_max_limit * 100}% limit of instructions and are now above: {programs_now_above_limit}\n"
+    msg += "\n\n"
+    msg += "<details><summary>Table of complexity changes</summary>\n\n"
+    msg += table_summary
+    msg += "</details>\n"
+
+    print(msg)
 
 
 def _format_change(new: float, old: float):
