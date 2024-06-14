@@ -4,3 +4,37 @@ lading:
 target:
   cpu_allotment: 8
   memory_allotment: 30g
+
+# Link templates for reports.
+#
+# Values may be removed to disable corresponding links in reports.
+#
+# Links that may be set:
+# - `metrics_dashboard`: link to a metrics dashboard
+# - `profiles`: link to profiles
+# - `per_experiment_logs`: link to logs, for each experiment
+#
+# Additionally, arbitrary links may be added to experiment configuration files.
+# These should be added as a list of key-value pairs in a 'report_links'
+# section. For example:
+# ```
+# report_links:
+#   - text: Link Text
+#     link: "link template"
+# ```
+#
+# Available variables:
+# - `job_id`: the job ID
+# - `start_time_ms`: start time of the job's metrics data, in ms
+# - `end_time_ms`: end time of the job's metrics data, in ms
+# - `filter_start`: arbitrary time before this job's replicates were run,
+#   suitable for filtering logs and profiles by job ID.
+# - `filter_end`: arbitrary time after this job's replicates were run and logs
+#   were uploaded, suitable for filtering logs and profiles by job ID.
+#
+# Additional variables for per-experiment links:
+# - `experiment`: the name of the experiment
+report:
+  metrics_dashboard: "https://app.datadoghq.com/dashboard/ykh-ua8-vcu/SMP-Regression-Detector-Metrics?fromUser=true&refresh_mode=paused&tpl_var_run-id%5B0%5D={{ job_id }}&view=spans&from_ts={{ start_time_ms }}&to_ts={{ end_time_ms }}&live=false"
+  profiles: "https://app.datadoghq.com/profiling/explorer?query=env%3Asingle-machine-performance%20service%3Adatadog-agent%20job_id%3A{{ job_id }}&agg_m=count&agg_m_source=base&agg_t=count&fromUser=false&viz=stream&start={{ filter_start }}&end={{ filter_end }}&paused=true"
+  per_experiment_logs: "https://app.datadoghq.com/logs?query=experiment%3A{{ experiment }}%20run_id%3A{{ job_id }}&agg_m=count&agg_m_source=base&agg_q=%40span.url&agg_q_source=base&agg_t=count&fromUser=true&index=single-machine-performance-target-logs&messageDisplay=inline&refresh_mode=paused&storage=hot&stream_sort=time%2Cdesc&top_n=100&top_o=top&viz=stream&x_missing=true&from_ts={{ filter_start }}&to_ts={{ filter_end }}&live=false"

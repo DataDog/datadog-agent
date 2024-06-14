@@ -18,6 +18,7 @@ import (
 	"go.uber.org/fx"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/informers"
@@ -27,7 +28,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
+	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	apiv1 "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
@@ -72,13 +75,17 @@ func TestMetadataControllerSyncEndpoints(t *testing.T) {
 			"metadata-controller",
 			workloadmeta.Event{
 				Type: workloadmeta.EventTypeSet,
-				Entity: &workloadmeta.KubernetesNode{
+				Entity: &workloadmeta.KubernetesMetadata{
 					EntityID: workloadmeta.EntityID{
-						Kind: workloadmeta.KindKubernetesNode,
+						Kind: workloadmeta.KindKubernetesMetadata,
 						ID:   nodeName,
 					},
 					EntityMeta: workloadmeta.EntityMeta{
 						Name: nodeName,
+					},
+					GVR: schema.GroupVersionResource{
+						Version:  "v1",
+						Resource: "nodes",
 					},
 				},
 			},
@@ -88,7 +95,7 @@ func TestMetadataControllerSyncEndpoints(t *testing.T) {
 
 	// Wait until the workloadmeta events have been processed
 	require.Eventually(t, func() bool {
-		return len(metaController.wmeta.ListKubernetesNodes()) == 3
+		return len(metaController.wmeta.ListKubernetesMetadata(workloadmeta.IsNodeMetadata)) == 3
 	}, 5*time.Second, 100*time.Millisecond)
 
 	tests := []struct {
@@ -480,13 +487,13 @@ func TestMetadataController(t *testing.T) {
 }
 
 func newMockWorkloadMeta(t *testing.T) workloadmeta.Component {
-	return fxutil.Test[workloadmeta.Mock](
+	return fxutil.Test[workloadmetamock.Mock](
 		t,
 		fx.Options(
 			logimpl.MockModule(),
 			config.MockModule(),
 			fx.Supply(workloadmeta.NewParams()),
-			workloadmeta.MockModuleV2(),
+			workloadmetafxmock.MockModuleV2(),
 		),
 	)
 }

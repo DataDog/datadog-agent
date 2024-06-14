@@ -61,10 +61,10 @@ struct tracepoint_io_uring_io_uring_create_t {
     int common_pid;
 
     int fd;
-	void *ctx;
-	u32 sq_entries;
-	u32 cq_entries;
-	u32 flags;
+    void *ctx;
+    u32 sq_entries;
+    u32 cq_entries;
+    u32 flags;
 };
 
 struct _tracepoint_raw_syscalls_sys_enter {

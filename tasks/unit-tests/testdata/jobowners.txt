@@ -5,3 +5,5 @@
 tests_*                              @DataDog/multiple
 tests_ebpf*                          @DataDog/ebpf-platform
 security_go_generate_check           @DataDog/agent-security
+
+tests_release*                           @DataDog/agent-build-and-releases @DataDog/agent-ci-experience @DataDog/agent-developer-tools

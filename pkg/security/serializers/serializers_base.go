@@ -360,19 +360,22 @@ func newVariablesContext(e *model.Event, opts *eval.Opts, prefix string) (variab
 					variables = Variables{}
 				}
 				if value != nil {
+					trimmedName := strings.TrimPrefix(name, prefix)
 					switch value := value.(type) {
 					case []string:
-						for _, value := range value {
-							if scrubbed, err := scrubber.ScrubString(value); err == nil {
-								variables[strings.TrimPrefix(name, prefix)] = scrubbed
+						scrubbedValues := make([]string, 0, len(value))
+						for _, elem := range value {
+							if scrubbed, err := scrubber.ScrubString(elem); err == nil {
+								scrubbedValues = append(scrubbedValues, scrubbed)
 							}
 						}
+						variables[trimmedName] = scrubbedValues
 					case string:
 						if scrubbed, err := scrubber.ScrubString(value); err == nil {
-							variables[strings.TrimPrefix(name, prefix)] = scrubbed
+							variables[trimmedName] = scrubbed
 						}
 					default:
-						variables[strings.TrimPrefix(name, prefix)] = value
+						variables[trimmedName] = value
 					}
 				}
 			}

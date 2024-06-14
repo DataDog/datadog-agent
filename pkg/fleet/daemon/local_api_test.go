@@ -65,6 +65,11 @@ func (m *testDaemon) GetState() (map[string]repository.State, error) {
 	return args.Get(0).(map[string]repository.State), args.Error(1)
 }
 
+func (m *testDaemon) GetAPMInjectionStatus() (APMInjectionStatus, error) {
+	args := m.Called()
+	return args.Get(0).(APMInjectionStatus), args.Error(1)
+}
+
 type testLocalAPI struct {
 	i *testDaemon
 	s *localAPIImpl
@@ -103,6 +108,7 @@ func TestAPIStatus(t *testing.T) {
 		},
 	}
 	api.i.On("GetState").Return(installerState, nil)
+	api.i.On("GetAPMInjectionStatus").Return(APMInjectionStatus{}, nil)
 
 	resp, err := api.c.Status()
 

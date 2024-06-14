@@ -31,12 +31,6 @@ var (
 
 	// KubePodTaggerEntityPrefix is the tagger entity prefix for Kubernetes pods
 	KubePodTaggerEntityPrefix = KubePodTaggerEntityName + containers.EntitySeparator
-
-	// KubeNodeTaggerEntityName is the tagger entity name for Kubernetes nodes
-	KubeNodeTaggerEntityName = "kubernetes_node_uid"
-
-	// KubeNodeTaggerEntityPrefix is the tagger entity prefix for Kubernetes pods
-	KubeNodeTaggerEntityPrefix = KubeNodeTaggerEntityName + containers.EntitySeparator
 )
 
 // PodUIDToEntityName returns a prefixed entity name from a pod UID
@@ -53,14 +47,6 @@ func PodUIDToTaggerEntityName(uid string) string {
 		return ""
 	}
 	return KubePodTaggerEntityPrefix + uid
-}
-
-// NodeUIDToTaggerEntityName returns a prefixed tagger entity name from a node UID
-func NodeUIDToTaggerEntityName(uid string) string {
-	if uid == "" {
-		return ""
-	}
-	return KubeNodeTaggerEntityPrefix + uid
 }
 
 // ParseMetricFromRaw parses a metric from raw prometheus text

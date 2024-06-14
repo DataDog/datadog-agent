@@ -16,6 +16,8 @@ const (
 	APMInstrumentationEnabledDocker = "docker"
 	// APMInstrumentationEnabledHost enables APM instrumentation for the host.
 	APMInstrumentationEnabledHost = "host"
+	// APMInstrumentationNotSet is the default value when the environment variable is not set.
+	APMInstrumentationNotSet = "not_set"
 )
 
 // InstallScriptEnv contains the environment variables for the install script.
@@ -25,6 +27,7 @@ type InstallScriptEnv struct {
 
 func installScriptEnvFromEnv() InstallScriptEnv {
 	return InstallScriptEnv{
-		APMInstrumentationEnabled: getEnvOrDefault(envApmInstrumentationEnabled, ""),
+		// defaults to all if not set
+		APMInstrumentationEnabled: getEnvOrDefault(envApmInstrumentationEnabled, APMInstrumentationNotSet),
 	}
 }

@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/inventoryagentimpl"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks/inventorychecksimpl"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost/inventoryhostimpl"
+	"github.com/DataDog/datadog-agent/comp/metadata/inventoryotel/inventoryotelimpl"
 	"github.com/DataDog/datadog-agent/comp/metadata/packagesigning/packagesigningimpl"
 	"github.com/DataDog/datadog-agent/comp/metadata/resources/resourcesimpl"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
@@ -31,6 +32,7 @@ func Bundle() fxutil.BundleOptions {
 		inventoryagentimpl.Module(),
 		inventoryhostimpl.Module(),
 		inventorychecksimpl.Module(),
+		inventoryotelimpl.Module(),
 		packagesigningimpl.Module(),
 		systemprobe.Module(),
 		securityagent.Module(),
