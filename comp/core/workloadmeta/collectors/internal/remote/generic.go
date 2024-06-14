@@ -237,6 +237,7 @@ func (c *GenericCollector) Run() {
 		}
 
 		if c.resyncNeeded {
+			log.Warn("OPERATING RESYNC CLIENT SIDE")
 			c.StreamHandler.HandleResync(c.store, collectorEvents)
 			c.resyncNeeded = false
 		}
