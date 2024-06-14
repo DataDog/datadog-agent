@@ -21,6 +21,8 @@ whitelist_file "embedded/lib/python2.7/site-packages/pymqi"
 
 source git: 'https://github.com/DataDog/integrations-core.git'
 
+always_build true
+
 integrations_core_version = ENV['INTEGRATIONS_CORE_VERSION']
 if integrations_core_version.nil? || integrations_core_version.empty?
   integrations_core_version = 'master'
@@ -118,53 +120,16 @@ build do
     cached_wheels_dir = "#{wheel_build_dir}/.cached"
   end
 
-  checks_to_install = Array.new
-
-  block "Collect integrations to install" do
-    # Go through every integration package in `integrations-core`, build and install
-    Dir.glob("#{project_dir}/*").each do |check_dir|
-      check = check_dir.split('/').last
-
-      # do not install excluded integrations
-      next if !File.directory?("#{check_dir}") || excluded_folders.include?(check)
-
-      # If there is no manifest file, then we should assume the folder does not
-      # contain a working check and move onto the next
-      manifest_file_path = "#{check_dir}/manifest.json"
-
-      # If there is no manifest file, then we should assume the folder does not
-      # contain a working check and move onto the next
-      File.exist?(manifest_file_path) || next
-
-      manifest = JSON.parse(File.read(manifest_file_path))
-      if manifest.key?("supported_os")
-        manifest["supported_os"].include?(os) || next
-      else
-        if os == "mac_os"
-          tag = "Supported OS::macOS"
-        else
-          tag = "Supported OS::#{os.capitalize}"
-        end
-
-        manifest["tile"]["classifier_tags"].include?(tag) || next
-      end
-
-      File.file?("#{check_dir}/setup.py") || File.file?("#{check_dir}/pyproject.toml") || next
-      # Check if it supports Python 2.
-      support = `inv agent.check-supports-python-version #{check_dir} 2`
-      if support == "False"
-        log.info(log_key) { "Skipping '#{check}' since it does not support Python 2." }
-        next
-      end
-
-      checks_to_install.push(check)
-    end
-  end
-
-  installed_list = Array.new
-  cache_bucket = ENV.fetch('INTEGRATION_WHEELS_CACHE_BUCKET', '')
   block "Install integrations" do
     tasks_dir_in = windows_safe_path(Dir.pwd)
+    # Collect integrations to install
+    checks_to_install = (
+      shellout! "inv agent.collect-integrations #{project_dir} 2 #{os} #{excluded_folders.join(',')}",
+                :cwd => tasks_dir_in
+    ).stdout.split()
+
+    # Retrieving integrations from cache
+    cache_bucket = ENV.fetch('INTEGRATION_WHEELS_CACHE_BUCKET', '')
     cache_branch = (shellout! "inv release.get-release-json-value base_branch", cwd: File.expand_path('..', tasks_dir_in)).stdout.strip
     # On windows, `aws` actually executes Ruby's AWS SDK, but we want the Python one
     awscli = if windows_target? then '"c:\Program files\python311\scripts\aws"' else 'aws' end
@@ -184,18 +149,15 @@ build do
         shellout! "#{python} -m pip install --no-deps --no-index " \
                   "--find-links #{windows_safe_path(cached_wheels_dir)} -r #{windows_safe_path(cached_wheels_dir)}\\found.txt"
       else
-        shellout! "#{pip} install --no-deps --no-index " \
-                  " --find-links #{cached_wheels_dir} -r #{cached_wheels_dir}/found.txt"
+        shellout! "#{python} -m pip install --no-deps --no-index " \
+                  "--find-links #{cached_wheels_dir} -r #{cached_wheels_dir}/found.txt"
       end
     end
 
     # get list of integration wheels already installed from cache
+    installed_list = Array.new
     if cache_bucket != ''
-      if windows_target?
-        installed_out = (shellout! "#{python} -m pip list --format json").stdout
-      else
-        installed_out = (shellout! "#{pip} list --format json").stdout
-      end
+      installed_out = `#{python} -m pip list --format json`
       if $?.exitstatus == 0
         installed = JSON.parse(installed_out)
         installed.each do |package|

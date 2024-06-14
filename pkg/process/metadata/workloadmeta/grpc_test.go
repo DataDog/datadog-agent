@@ -18,6 +18,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
@@ -49,7 +50,7 @@ func TestGetGRPCStreamPort(t *testing.T) {
 
 func TestStartStop(t *testing.T) {
 	cfg := config.Mock(t)
-	fxutil.Test[telemetry.Mock](t, telemetry.MockModule()).Reset()
+	fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule()).Reset()
 
 	extractor := NewWorkloadMetaExtractor(cfg)
 
@@ -83,7 +84,7 @@ func TestStreamServer(t *testing.T) {
 	)
 
 	cfg := config.Mock(t)
-	fxutil.Test[telemetry.Mock](t, telemetry.MockModule()).Reset()
+	fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule()).Reset()
 	extractor := NewWorkloadMetaExtractor(cfg)
 
 	port := testutil.FreeTCPPort(t)
@@ -100,7 +101,7 @@ func TestStreamServer(t *testing.T) {
 	// Drop first cache diff before gRPC connection is created
 	<-extractor.ProcessCacheDiff()
 
-	cc, err := grpc.Dial(srv.addr.String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
+	cc, err := grpc.Dial(srv.addr.String(), grpc.WithTransportCredentials(insecure.NewCredentials())) //nolint:staticcheck // TODO (ASC) fix grpc.Dial is deprecated
 	require.NoError(t, err)
 	defer cc.Close()
 	streamClient := pbgo.NewProcessEntityStreamClient(cc)
@@ -163,7 +164,7 @@ func TestStreamServerDropRedundantCacheDiff(t *testing.T) {
 	)
 
 	cfg := config.Mock(t)
-	fxutil.Test[telemetry.Mock](t, telemetry.MockModule()).Reset()
+	fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule()).Reset()
 	extractor := NewWorkloadMetaExtractor(cfg)
 
 	port := testutil.FreeTCPPort(t)
@@ -178,7 +179,7 @@ func TestStreamServerDropRedundantCacheDiff(t *testing.T) {
 		Pid2: proc2,
 	})
 
-	cc, err := grpc.Dial(srv.addr.String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
+	cc, err := grpc.Dial(srv.addr.String(), grpc.WithTransportCredentials(insecure.NewCredentials())) //nolint:staticcheck // TODO (ASC) fix grpc.Dial is deprecated
 	require.NoError(t, err)
 	defer cc.Close()
 	streamClient := pbgo.NewProcessEntityStreamClient(cc)
@@ -306,7 +307,6 @@ func TestSingleStream(t *testing.T) {
 	ext.diffChan <- &ProcessCacheDiff{cacheVersion: 1}
 	_, err = newStream.Recv()
 	assert.NoError(t, err)
-
 }
 
 func assertEqualStreamEntitiesResponse(t *testing.T, expected, actual *pbgo.ProcessStreamResponse) {
@@ -369,7 +369,7 @@ func setupGRPCTest(t *testing.T) (*WorkloadMetaExtractor, *GRPCServer, *grpc.Cli
 	port, err := testutil.FindTCPPort()
 	require.NoError(t, err)
 	cfg.SetWithoutSource("process_config.language_detection.grpc_port", port)
-	fxutil.Test[telemetry.Mock](t, telemetry.MockModule()).Reset()
+	fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule()).Reset()
 	extractor := NewWorkloadMetaExtractor(cfg)
 
 	grpcServer := NewGRPCServer(cfg, extractor)
@@ -377,7 +377,7 @@ func setupGRPCTest(t *testing.T) (*WorkloadMetaExtractor, *GRPCServer, *grpc.Cli
 	require.NoError(t, err)
 	t.Cleanup(grpcServer.Stop)
 
-	cc, err := grpc.Dial(grpcServer.addr.String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
+	cc, err := grpc.Dial(grpcServer.addr.String(), grpc.WithTransportCredentials(insecure.NewCredentials())) //nolint:staticcheck // TODO (ASC) fix grpc.Dial is deprecated
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		_ = cc.Close()

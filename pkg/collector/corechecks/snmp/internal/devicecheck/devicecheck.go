@@ -7,8 +7,10 @@
 package devicecheck
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
 	"runtime"
 	"strings"
 	"time"
@@ -16,9 +18,9 @@ import (
 	"github.com/cihub/seelog"
 	"go.uber.org/atomic"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/externalhost"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
-	"github.com/DataDog/datadog-agent/pkg/metadata/externalhost"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -38,6 +40,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/valuestore"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/diagnoses"
+	"github.com/DataDog/datadog-agent/pkg/persistentcache"
 	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
 )
 
@@ -68,7 +71,10 @@ type DeviceCheck struct {
 	nextAutodetectMetrics   time.Time
 	diagnoses               *diagnoses.Diagnoses
 	interfaceBandwidthState report.InterfaceBandwidthState
+	cacheKey                string
 }
+
+const cacheKeyPrefix = "snmp-tags"
 
 // NewDeviceCheck returns a new DeviceCheck
 func NewDeviceCheck(config *checkconfig.CheckConfig, ipAddress string, sessionFactory session.Factory) (*DeviceCheck, error) {
@@ -87,7 +93,10 @@ func NewDeviceCheck(config *checkconfig.CheckConfig, ipAddress string, sessionFa
 		}
 	}
 
-	return &DeviceCheck{
+	configHash := newConfig.DeviceDigest(newConfig.IPAddress)
+	cacheKey := fmt.Sprintf("%s:%s", cacheKeyPrefix, configHash)
+
+	d := DeviceCheck{
 		config:                  newConfig,
 		session:                 sess,
 		devicePinger:            devicePinger,
@@ -95,7 +104,12 @@ func NewDeviceCheck(config *checkconfig.CheckConfig, ipAddress string, sessionFa
 		nextAutodetectMetrics:   timeNow(),
 		diagnoses:               diagnoses.NewDeviceDiagnoses(newConfig.DeviceID),
 		interfaceBandwidthState: report.MakeInterfaceBandwidthState(),
-	}, nil
+		cacheKey:                cacheKey,
+	}
+
+	d.readTagsFromCache()
+
+	return &d, nil
 }
 
 // SetSender sets the current sender
@@ -152,15 +166,21 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 	var pingStatus metadata.DeviceStatus
 
 	deviceReachable, dynamicTags, values, checkErr := d.getValuesAndTags()
+
 	tags := utils.CopyStrings(staticTags)
 	if checkErr != nil {
 		tags = append(tags, d.savedDynamicTags...)
 		d.sender.ServiceCheck(serviceCheckName, servicecheck.ServiceCheckCritical, tags, checkErr.Error())
 	} else {
-		d.savedDynamicTags = dynamicTags
+		if !reflect.DeepEqual(d.savedDynamicTags, dynamicTags) {
+			d.savedDynamicTags = dynamicTags
+			d.writeTagsInCache()
+		}
+
 		tags = append(tags, dynamicTags...)
 		d.sender.ServiceCheck(serviceCheckName, servicecheck.ServiceCheckOK, tags, "")
 	}
+
 	d.sender.Gauge(deviceReachableMetric, utils.BoolToFloat64(deviceReachable), tags)
 	d.sender.Gauge(deviceUnreachableMetric, utils.BoolToFloat64(!deviceReachable), tags)
 
@@ -229,7 +249,7 @@ func (d *DeviceCheck) setDeviceHostExternalTags() {
 	if deviceHostname == "" || err != nil {
 		return
 	}
-	agentTags := configUtils.GetConfiguredTags(config.Datadog, false)
+	agentTags := configUtils.GetConfiguredTags(config.Datadog(), false)
 	log.Debugf("Set external tags for device host, host=`%s`, agentTags=`%v`", deviceHostname, agentTags)
 	externalhost.SetExternalTags(deviceHostname, common.SnmpExternalTagsSourceType, agentTags)
 }
@@ -427,4 +447,33 @@ func (d *DeviceCheck) submitPingMetrics(pingResult *pinger.Result, tags []string
 	d.sender.Gauge(pingReachableMetric, utils.BoolToFloat64(pingResult.CanConnect), tags)
 	d.sender.Gauge(pingUnreachableMetric, utils.BoolToFloat64(!pingResult.CanConnect), tags)
 	d.sender.Gauge(pingPacketLoss, pingResult.PacketLoss, tags)
+}
+
+func (d *DeviceCheck) readTagsFromCache() {
+	cacheValue, err := persistentcache.Read(d.cacheKey)
+	if err != nil {
+		log.Errorf("couldn't read cache for %s: %s", d.cacheKey, err)
+	}
+	if cacheValue == "" {
+		d.savedDynamicTags = []string{}
+		return
+	}
+	var tags []string
+	if err = json.Unmarshal([]byte(cacheValue), &tags); err != nil {
+		log.Errorf("couldn't unmarshal cache for %s: %s", d.cacheKey, err)
+		return
+	}
+	d.savedDynamicTags = tags
+}
+
+func (d *DeviceCheck) writeTagsInCache() {
+	cacheValue, err := json.Marshal(d.savedDynamicTags)
+	if err != nil {
+		log.Errorf("SNMP tags %s: Couldn't marshal cache: %s", d.config.Network, err)
+		return
+	}
+
+	if err = persistentcache.Write(d.cacheKey, string(cacheValue)); err != nil {
+		log.Errorf("SNMP tags %s: Couldn't write cache: %s", d.config.Network, err)
+	}
 }

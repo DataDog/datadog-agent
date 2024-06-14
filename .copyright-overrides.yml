@@ -20,6 +20,7 @@ github.com/GoogleCloudPlatform/docker-credential-gcr: Copyright 2016 Google, Inc
 github.com/aws/aws-lambda-go: Copyright 2017 Amazon.com, Inc. or its affiliates. All Rights Reserved.
 github.com/aws/aws-sdk-go: ["Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved.", "Copyright 2014-2015 Stripe, Inc."]
 github.com/aws/aws-sdk-go-v2: ["Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved.", "Copyright 2014-2015 Stripe, Inc."]
+github.com/awslabs/amazon-ecr-credential-helper/*: "Copyright 2016 Amazon.com, Inc. or its affiliates. All Rights Reserved."
 github.com/containerd/*: Copyright 2012-2015 Docker, Inc.
 github.com/coreos/*: Copyright 2017 CoreOS, Inc
 github.com/docker/*: Copyright 2012-2017 Docker, Inc.
@@ -83,6 +84,36 @@ github.com/shibumi/go-pathspec: Copyright (c) 2012 The Go Authors. All rights re
 
 # https://github.com/acomagu/bufpipe/blob/master/LICENSE
 github.com/acomagu/bufpipe: Copyright (c) 2019 acomagu
+
+# https://github.com/GoogleCloudPlatform/opentelemetry-operations-go/doc.go
+github.com/GoogleCloudPlatform/opentelemetry-operations-go: Copyright 2020 Google LLC
+
+# https://github.com/ardielle/ardielle-go/README.md
+github.com/ardielle/ardielle-go: Copyright 2015 Yahoo Inc.
+
+# https://bitbucket.org/atlassian/go-asap/src/master/LICENSE.txt
+bitbucket.org/atlassian/go-asap/v2: Copyright 2015 Atlassian Pty Ltd
+
+# https://github.com/jcmturner/gokrb5/NOTICE
+github.com/jcmturner/*: Copyright 2016, Jonathan Turner <jt@jtnet.co.uk>
+
+# https://github.com/signalfx/com_signalfx_metrics_protobuf/README.md
+github.com/signalfx/com_signalfx_metrics_protobuf/*: Copyright © 2015-2017 SignalFx
+
+# https://github.com/SAP/go-hdb/blob/main/.reuse/dep5
+github.com/SAP/go-hdb/*: Copyright 2014-2024 SAP SE or an SAP affiliate company and go-hdb contributors
+
+# https://github.com/golang-sql/civil/blob/master/civil.go
+github.com/golang-sql/civil: Copyright 2016 Google LLC
+
+# https://github.com/grafana/loki/blob/main/clients/cmd/fluentd/README.md
+github.com/grafana/loki: Copyright 2018- Grafana Labs
+
+# https://github.com/hamba/avro/blob/109ccdab2a7032d09b1d6a04aeb6ea214217fbd5/LICENCE
+github.com/hamba/avro/v2: Copyright (c) 2024 Nicholas Wiersma
+
+# https://github.com/scalyr/dataset-go/blob/main/README.md
+github.com/scalyr/dataset-go: Copyright 2023 SentinelOne, Inc.
 
 # For Apache projects, copyright is typically in individual source files and
 # not scanned automatically.
@@ -161,6 +192,7 @@ github.com/dgraph-io/badger:
  - "Copyright 2021 Dgraph Labs, Inc. and Contributors"
 github.com/mostynb/go-grpc-compression: "Copyright 2023 Mostyn Bramley-Moore."
 github.com/stormcat24/protodep: "Copyright Akinori Yamada"
+go4.org/mem: "Copyright 2020 The Go4 AUTHORS"
 
 # These have large AUTHORS/CONTRIBUTORS files but attribute copyright as a group
 github.com/aptly-dev/aptly: Copyright 2013-2015 aptly authors. All rights reserved.
@@ -211,7 +243,7 @@ github.com/anchore/go-struct-converter: Copyright (c) 2022-2023 Anchore, Inc.
 github.com/bitnami/go-version/pkg/version: Copyright (c) 2023-2024 Carlos Rodríguez Hernández
 github.com/kylelemons/godebug: Copyright (c) 2013-2020 Kyle Lemons
 github.com/santhosh-tekuri/jsonschema: Copyright (c) 2017-2024 Santhosh Kumar Tekuri
-
+github.com/chrusty/protoc-gen-jsonschema: Copyright (c) 2017 The Authors
 
 # The Copyright information is not contained in the LICENSE file, but it can be found in other
 # files in the package, such as:
@@ -307,12 +339,29 @@ github.com/aquasecurity/trivy-policies/pkg/spec: Copyright (c) 2024 Aqua Securit
 github.com/aquasecurity/trivy-policies/rules/specs: Copyright (c) 2024 Aqua Security
 github.com/pjbgf/sha1cd: Copyright 2023 pjbgf
 github.com/go-errors/errors: Copyright (c) 2015 Conrad Irwin <conrad@bugsnag.com>
+github.com/apache/arrow/*: Copyright (C) 1995-1998 Eric Young (eay@cryptsoft.com)
+github.com/tailscale/tailscale: Copyright (c) 2020 Tailscale Inc & AUTHORS.
 
 # Copyright information is in the source headers
 github.com/csaf-poc/csaf_distribution: Copyright 2021-2023 German Federal Office for Information Security (BSI) <https://www.bsi.bund.de>
 github.com/google/btree: Copyright 2014-2022 Google Inc.
 github.com/google/shlex: Copyright 2012 Google Inc. All Rights Reserved.
+github.com/facebook/time/*: Copyright (c) Facebook, Inc. and its affiliates.
+github.com/grobie/gomemcache/memcache: Copyright 2011 Google Inc.
+github.com/lightstep/go-expohisto/*: Copyright The OpenTelemetry Authors
+github.com/envoyproxy/go-control-plane/*: Copyright 2020 Envoyproxy Authors
+github.com/envoyproxy/protoc-gen-validate/validate:  Copyright 2020 Envoyproxy Authors
+github.com/cncf/xds: Copyright 2020 Envoyproxy Authors
+github.com/mwitkow/go-conntrack: Copyright 2016 Michal Witkowski. All Rights Reserved.
+github.com/pquerna/cachecontrol/cacheobject: Copyright 2015 Paul Querna
+github.com/signalfx/sapm-proto/*: Copyright 2019 Splunk, Inc.
+go.mongodb.org/atlas/mongodbatlas: Copyright 2022 MongoDB Inc
+github.com/go-jose/go-jose/v4: Copyright 2014 Square Inc.
 
 github.com/vibrantbyte/go-antpath/antpath: vibrantbyte <codingrun@163.com>|suchao <suchao@renrenche.com>
 github.com/vibrantbyte/go-antpath/extend: vibrantbyte <codingrun@163.com>|suchao <suchao@renrenche.com>
 
+# https://github.com/GoogleCloudPlatform/grpc-gcp-go/blob/main/LICENSE
+github.com/GoogleCloudPlatform/grpc-gcp-go/grpcgcp: Copyright 2024 gRPC authors.
+github.com/GoogleCloudPlatform/grpc-gcp-go/grpcgcp/grpc_gcp: Copyright 2024 gRPC authors.
+github.com/GoogleCloudPlatform/grpc-gcp-go/grpcgcp/multiendpoint: Copyright 2024 gRPC authors.

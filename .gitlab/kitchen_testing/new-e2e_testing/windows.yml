@@ -4,7 +4,7 @@
   variables:
     TARGETS: ./tests/windows/install-test
     TEAM: windows-agent
-    EXTRA_PARAMS: --run "TestMSI/Agent/$E2E_MSI_TEST$"
+    EXTRA_PARAMS: --run "$E2E_MSI_TEST$"
   extends:
     - .new_e2e_template
   before_script:
@@ -38,7 +38,11 @@
       - E2E_MSI_TEST: TestRepair
       - E2E_MSI_TEST: TestUpgrade
       - E2E_MSI_TEST: TestUpgradeRollback
-      - E2E_MSI_TEST: TestAgentUser
+      - E2E_MSI_TEST: TestAgentUser/user_only
+      - E2E_MSI_TEST: TestAgentUser/dotslash_user
+      - E2E_MSI_TEST: TestAgentUser/hostname_user
+      - E2E_MSI_TEST: TestAgentUser/LocalSystem
+      - E2E_MSI_TEST: TestAgentUser/SYSTEM
       - E2E_MSI_TEST: TestInstallOpts
       - E2E_MSI_TEST: TestSubServicesOpts/all-subservices
       - E2E_MSI_TEST: TestSubServicesOpts/no-subservices

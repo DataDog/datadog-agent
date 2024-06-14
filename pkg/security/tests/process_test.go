@@ -23,7 +23,6 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
-	"sync"
 	"syscall"
 	"testing"
 	"time"
@@ -31,6 +30,7 @@ import (
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/constantfetch"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 
 	"github.com/avast/retry-go/v4"
 	"github.com/oliveagle/jsonpath"
@@ -40,7 +40,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
-	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 func TestProcess(t *testing.T) {
@@ -115,7 +114,7 @@ func TestProcessEBPFLess(t *testing.T) {
 			}
 			return nil
 		}, retry.Delay(200*time.Millisecond), retry.Attempts(10))
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 	})
 }
 
@@ -486,8 +485,8 @@ func TestProcessContext(t *testing.T) {
 					assert.Equal(t, args[i], argv[i], "expected arg not found")
 				}
 			} else {
-				assert.Equal(t, 459, len(argv), "incorrect number of args: %s", argv)
-				for i := 0; i != 459; i++ {
+				assert.Equal(t, 439, len(argv), "incorrect number of args: %s", argv)
+				for i := 0; i != 439; i++ {
 					assert.Equal(t, args[i], argv[i], "expected arg not found")
 				}
 			}
@@ -540,8 +539,8 @@ func TestProcessContext(t *testing.T) {
 					assert.Equal(t, expected, argv[i], "expected arg not found")
 				}
 			} else {
-				assert.Equal(t, 474, len(argv), "incorrect number of args: %s", argv)
-				for i := 0; i != 474; i++ {
+				assert.Equal(t, 457, len(argv), "incorrect number of args: %s", argv)
+				for i := 0; i != 457; i++ {
 					expected := args[i]
 					if len(expected) > model.MaxArgEnvSize {
 						expected = args[i][:model.MaxArgEnvSize-4] + "..." // 4 is the size number of the string
@@ -651,8 +650,8 @@ func TestProcessContext(t *testing.T) {
 					assert.Equal(t, envs[i], envp[i], "expected env not found")
 				}
 			} else {
-				assert.Equal(t, 736, len(envp), "incorrect number of envs: %s", envp)
-				for i := 0; i != 736; i++ {
+				assert.Equal(t, 704, len(envp), "incorrect number of envs: %s", envp)
+				for i := 0; i != 704; i++ {
 					assert.Equal(t, envs[i], envp[i], "expected env not found")
 				}
 			}
@@ -717,8 +716,8 @@ func TestProcessContext(t *testing.T) {
 					assert.Equal(t, expected, envp[i], "expected env not found")
 				}
 			} else {
-				assert.Equal(t, 895, len(envp), "incorrect number of envs: %s", envp)
-				for i := 0; i != 895; i++ {
+				assert.Equal(t, 863, len(envp), "incorrect number of envs: %s", envp)
+				for i := 0; i != 863; i++ {
 					expected := envs[i]
 					if len(expected) > model.MaxArgEnvSize {
 						expected = envs[i][:model.MaxArgEnvSize-4] + "..." // 4 is the size number of the string
@@ -741,6 +740,44 @@ func TestProcessContext(t *testing.T) {
 		}
 	})
 
+	t.Run("args-envs-empty-strings", func(t *testing.T) {
+		test.WaitSignal(t, func() error {
+			args := []string{"-al", ""}
+			envs := []string{"LD_LIBRARY_PATH=/tmp/lib"}
+			cmd := exec.Command("ls", args...)
+			cmd.Env = envs
+			_ = cmd.Run()
+			return nil
+		}, test.validateExecEvent(t, noWrapperType, func(event *model.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_rule_args_envs")
+
+			args, err := event.GetFieldValue("exec.args")
+			if err != nil || len(args.(string)) == 0 {
+				t.Error("not able to get args")
+			}
+			assert.Contains(t, args.(string), "-al", "arg not found")
+
+			// envs
+			envs, err := event.GetFieldValue("exec.envs")
+			if err != nil || len(envs.([]string)) == 0 {
+				t.Error("not able to get envs")
+			}
+
+			contains := func(s string) bool {
+				for _, env := range envs.([]string) {
+					if strings.Contains(env, s) {
+						return true
+					}
+				}
+				return false
+			}
+			assert.True(t, contains("LD_LIBRARY_PATH"), "env not found")
+
+			assert.False(t, event.Exec.ArgsTruncated, "args should not be truncated")
+			assert.False(t, event.Exec.EnvsTruncated, "envs should not be truncated")
+		}))
+	})
+
 	t.Run("tty", func(t *testing.T) {
 		testFile, _, err := test.Path("test-process-tty")
 		if err != nil {
@@ -757,47 +794,18 @@ func TestProcessContext(t *testing.T) {
 		}
 		defer os.Remove(testFile)
 
-		executable := which(t, "tail")
-
 		test.WaitSignal(t, func() error {
-			var wg sync.WaitGroup
-
-			errChan := make(chan error, 1)
-
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-
-				time.Sleep(2 * time.Second)
-				cmd := exec.Command("script", "/dev/null", "-c", executable+" -f "+testFile)
-				if err := cmd.Start(); err != nil {
-					errChan <- err
-					return
-				}
-				time.Sleep(2 * time.Second)
-
-				cmd.Process.Kill()
-				cmd.Wait()
-			}()
-
-			wg.Wait()
-
-			select {
-			case err = <-errChan:
-				return err
-			default:
-			}
-			return nil
-
+			cmd := exec.Command("script", "/dev/null", "-c", fmt.Sprintf("%s slow-cat 4 %s", syscallTester, testFile))
+			return cmd.Run()
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_tty")
-			assertFieldEqual(t, event, "process.file.path", executable)
+			assertFieldEqual(t, event, "process.file.path", syscallTester)
 
 			if name, _ := event.GetFieldValue("process.tty_name"); !strings.HasPrefix(name.(string), "pts") {
 				t.Errorf("not able to get a tty name: %s\n", name)
 			}
 
-			assertInode(t, event.ProcessContext.FileEvent.Inode, getInode(t, executable))
+			assertInode(t, event.ProcessContext.FileEvent.Inode, getInode(t, syscallTester))
 
 			str, err := test.marshalEvent(event)
 			if err != nil {
@@ -1330,6 +1338,8 @@ func TestProcessExec(t *testing.T) {
 			assertFieldEqual(t, event, "exec.file.path", executable)
 			assertFieldIsOneOf(t, event, "process.parent.file.name", []string{"sh", "bash", "dash"}, "wrong process parent file name")
 			assertFieldStringArrayIndexedOneOf(t, event, "process.ancestors.file.name", 0, []string{"sh", "bash", "dash"})
+
+			validateSyscallContext(t, event, "$.syscall.exec.path")
 		}))
 	})
 
@@ -1398,16 +1408,16 @@ func TestProcessMetadata(t *testing.T) {
 
 	t.Run("credentials", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
-			attr := &syscall.ProcAttr{
-				Sys: &syscall.SysProcAttr{
-					Credential: &syscall.Credential{
-						Uid: 1001,
-						Gid: 2001,
-					},
+			attr := &syscall.SysProcAttr{
+				Credential: &syscall.Credential{
+					Uid: 1001,
+					Gid: 2001,
 				},
 			}
-			_, err := syscall.ForkExec(testFile, []string{}, attr)
-			return err
+
+			cmd := exec.Command(testFile)
+			cmd.SysProcAttr = attr
+			return cmd.Run()
 		}, test.validateExecEvent(t, noWrapperType, func(event *model.Event, rule *rules.Rule) {
 			assert.Equal(t, "exec", event.GetType(), "wrong event type")
 			assert.Equal(t, 1001, int(event.Exec.Credentials.UID), "wrong uid")
@@ -1842,6 +1852,8 @@ func TestProcessExit(t *testing.T) {
 	})
 
 	t.Run("exit-signaled", func(t *testing.T) {
+		SkipIfNotAvailable(t)
+
 		test.WaitSignal(t, func() error {
 			args := []string{"--preserve-status", "--signal=SIGKILL", "2", sleepExec, "9"}
 			envp := []string{envpExitSleep}
@@ -2193,14 +2205,12 @@ func TestProcessResolution(t *testing.T) {
 	var cmd *exec.Cmd
 	var stdin io.WriteCloser
 	defer func() {
-		if cmd != nil {
-			if stdin != nil {
-				stdin.Close()
-			}
+		if stdin != nil {
+			stdin.Close()
+		}
 
-			if err := cmd.Wait(); err != nil {
-				t.Fatal(err)
-			}
+		if err := cmd.Wait(); err != nil {
+			t.Fatal(err)
 		}
 	}()
 
@@ -2211,7 +2221,7 @@ func TestProcessResolution(t *testing.T) {
 			"getchar", ";",
 			"open", "/tmp/test-process-resolution"}
 
-		cmd := exec.Command(syscallTester, args...)
+		cmd = exec.Command(syscallTester, args...)
 		stdin, err = cmd.StdinPipe()
 		if err != nil {
 			return err

@@ -85,8 +85,6 @@ linters-settings:
         files:
           - $all
         deny:
-          - pkg: "sync/atomic"
-            desc: "Use go.uber.org/atomic instead; see docs/dev/atomics.md"
           - pkg: "io/ioutil"
             desc: "Deprecated since Go 1.16. Use package io or os instead."
           - pkg: "github.com/golang/glog"

@@ -1,9 +1,8 @@
-import os
 import sys
 
 from invoke import Exit, task
 
-from tasks.libs.common.utils import color_message, environ
+from tasks.libs.common.utils import collapsed_section, environ
 
 TOOL_LIST = [
     'github.com/frapposelli/wwhrd',
@@ -43,26 +42,12 @@ def download_tools(ctx):
 @task
 def install_tools(ctx):
     """Install all Go tools for testing."""
-    if os.path.isfile("go.work") or os.path.isfile("go.work.sum"):
-        # Someone reported issues with this command when using a go.work but other people
-        # use a go.work and don't have any issue, so the root cause is unclear.
-        # Printing a warning because it might help someone but not enforcing anything.
-
-        # The issue which was reported was that `go install` would fail with the following error:
-        ### no required module provides package <package>; to add it:
-        ### go get <package>
-        print(
-            color_message(
-                "WARNING: In case of issue, you might want to try disabling go workspaces by setting the environment variable GOWORK=off, or even deleting go.work and go.work.sum",
-                "orange",
-            )
-        )
-
-    with environ({'GO111MODULE': 'on'}):
-        for path, tools in TOOLS.items():
-            with ctx.cd(path):
-                for tool in tools:
-                    ctx.run(f"go install {tool}")
+    with collapsed_section("Installing Go tools"):
+        with environ({'GO111MODULE': 'on'}):
+            for path, tools in TOOLS.items():
+                with ctx.cd(path):
+                    for tool in tools:
+                        ctx.run(f"go install {tool}")
 
 
 @task
@@ -85,3 +70,11 @@ def install_shellcheck(ctx, version="0.8.0", destination="/usr/local/bin"):
     )
     ctx.run(f"cp \"/tmp/shellcheck-v{version}/shellcheck\" {destination}")
     ctx.run(f"rm -rf \"/tmp/shellcheck-v{version}\"")
+
+
+@task
+def install_devcontainer_cli(ctx):
+    """
+    Install the devcontainer CLI
+    """
+    ctx.run("npm install -g @devcontainers/cli")

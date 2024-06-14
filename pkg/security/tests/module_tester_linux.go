@@ -34,7 +34,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/sys/unix"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
@@ -79,6 +79,8 @@ event_monitoring_config:
     - "*custom*"
   network:
     enabled: true
+    ingress:
+      enabled: {{ .NetworkIngressEnabled }}
   flush_discarder_window: 0
 {{if .DisableFilters}}
   enable_kernel_filters: false
@@ -173,6 +175,8 @@ runtime_security_config:
   {{end}}
   ebpfless:
     enabled: {{.EBPFLessEnabled}}
+  hash_resolver:
+    enabled: true
 `
 
 const testPolicy = `---
@@ -191,6 +195,7 @@ rules:
     version: {{$Rule.Version}}
     expression: >-
       {{$Rule.Expression}}
+    disabled: {{$Rule.Disabled}}
     tags:
 {{- range $Tag, $Val := .Tags}}
       {{$Tag}}: {{$Val}}
@@ -540,6 +545,32 @@ func checkProcessContextFieldsForBlankValues(tb testing.TB, event *model.Event, 
 }
 
 //nolint:deadcode,unused
+func validateSyscallContext(tb testing.TB, event *model.Event, jsonPath string) {
+	if ebpfLessEnabled {
+		return
+	}
+
+	eventJSON, err := serializers.MarshalEvent(event, nil)
+	if err != nil {
+		tb.Errorf("failed to marshal event: %v", err)
+		return
+	}
+
+	var data interface{}
+	if err := json.Unmarshal(eventJSON, &data); err != nil {
+		tb.Error(err)
+		tb.Error(string(eventJSON))
+		return
+	}
+
+	json, err := jsonpath.JsonPathLookup(data, jsonPath)
+	if err != nil {
+		tb.Errorf("should have a syscall context, got %+v (%s)", json, spew.Sdump(data))
+		tb.Error(string(eventJSON))
+	}
+}
+
+//nolint:deadcode,unused
 func validateProcessContext(tb testing.TB, event *model.Event) {
 	if event.ProcessContext.IsKworker {
 		return
@@ -611,6 +642,14 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		return nil, err
 	}
 
+	if opts.staticOpts.disableBundledRules {
+		ruleDefs = append(ruleDefs, &rules.RuleDefinition{
+			ID:       events.NeedRefreshSBOMRuleID,
+			Disabled: true,
+			Combine:  rules.OverridePolicy,
+		})
+	}
+
 	st, err := newSimpleTest(t, macroDefs, ruleDefs, opts.dynamicOpts.testDir)
 	if err != nil {
 		return nil, err
@@ -651,7 +690,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		}
 		return testMod, nil
 
-	} else if testMod != nil && opts.staticOpts.Equal(testMod.opts.staticOpts) {
+	} else if !opts.forceReload && testMod != nil && opts.staticOpts.Equal(testMod.opts.staticOpts) {
 		testMod.st = st
 		testMod.cmdWrapper = cmdWrapper
 		testMod.t = t
@@ -747,7 +786,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 	}
 
 	// listen to probe event
-	if err := testMod.probe.AddFullAccessEventHandler(testMod); err != nil {
+	if err := testMod.probe.AddEventHandler(testMod); err != nil {
 		return nil, err
 	}
 
@@ -1044,23 +1083,48 @@ func ifSyscallSupported(syscall string, test func(t *testing.T, syscallNB uintpt
 	}
 }
 
+// eventKeyValueFilter is used to filter events in `waitForProbeEvent`
+type eventKeyValueFilter struct {
+	key   string
+	value interface{}
+}
+
 // waitForProbeEvent returns the first open event with the provided filename.
 // WARNING: this function may yield a "fatal error: concurrent map writes" error if the ruleset of testModule does not
 // contain a rule on "open.file.path"
 //
 //nolint:deadcode,unused
-func waitForProbeEvent(test *testModule, action func() error, key string, value interface{}, eventType model.EventType) error {
+func waitForProbeEvent(test *testModule, action func() error, eventType model.EventType, filters ...eventKeyValueFilter) error {
 	return test.GetProbeEvent(action, func(event *model.Event) bool {
-		if v, _ := event.GetFieldValue(key); v == value {
-			return true
+		for _, filter := range filters {
+			if v, _ := event.GetFieldValue(filter.key); v != filter.value {
+				return false
+			}
 		}
-		return false
+		return true
 	}, getEventTimeout, eventType)
 }
 
 //nolint:deadcode,unused
 func waitForOpenProbeEvent(test *testModule, action func() error, filename string) error {
-	return waitForProbeEvent(test, action, "open.file.path", filename, model.FileOpenEventType)
+	return waitForProbeEvent(test, action, model.FileOpenEventType, eventKeyValueFilter{
+		key:   "open.file.path",
+		value: filename,
+	})
+}
+
+//nolint:deadcode,unused
+func waitForIMDSResponseProbeEvent(test *testModule, action func() error, processFileName string) error {
+	return waitForProbeEvent(test, action, model.IMDSEventType, []eventKeyValueFilter{
+		{
+			key:   "process.file.name",
+			value: processFileName,
+		},
+		{
+			key:   "imds.type",
+			value: "response",
+		},
+	}...)
 }
 
 //nolint:deadcode,unused
@@ -1246,12 +1310,10 @@ func (tm *testModule) StartADocker() (*dockerCmdWrapper, error) {
 func (tm *testModule) GetDumpFromDocker(dockerInstance *dockerCmdWrapper) (*activityDumpIdentifier, error) {
 	dumps, err := tm.ListActivityDumps()
 	if err != nil {
-		_, _ = dockerInstance.stop()
 		return nil, err
 	}
 	dump := findLearningContainerID(dumps, dockerInstance.containerID)
 	if dump == nil {
-		_, _ = dockerInstance.stop()
 		return nil, errors.New("ContainerID not found on activity dump list")
 	}
 	return dump, nil
@@ -1264,6 +1326,7 @@ func (tm *testModule) StartADockerGetDump() (*dockerCmdWrapper, *activityDumpIde
 	}
 	dump, err := tm.GetDumpFromDocker(dockerInstance)
 	if err != nil {
+		_, _ = dockerInstance.stop()
 		return nil, nil, err
 	}
 	return dockerInstance, dump, nil
@@ -1313,7 +1376,7 @@ func (tm *testModule) findCgroupDump(id *activityDumpIdentifier) *activityDumpId
 }
 
 //nolint:deadcode,unused
-func (tm *testModule) addAllEventTypesOnDump(dockerInstance *dockerCmdWrapper, syscallTester string) {
+func (tm *testModule) addAllEventTypesOnDump(dockerInstance *dockerCmdWrapper, syscallTester string, goSyscallTester string) {
 	// open
 	cmd := dockerInstance.Command("touch", []string{filepath.Join(tm.Root(), "open")}, []string{})
 	_, _ = cmd.CombinedOutput()
@@ -1327,6 +1390,10 @@ func (tm *testModule) addAllEventTypesOnDump(dockerInstance *dockerCmdWrapper, s
 	_, _ = cmd.CombinedOutput()
 
 	// syscalls should be added with previous events
+
+	// imds
+	cmd = dockerInstance.Command(goSyscallTester, []string{"-run-imds-test"}, []string{})
+	_, _ = cmd.CombinedOutput()
 }
 
 //nolint:deadcode,unused
@@ -1399,6 +1466,16 @@ func searchForOpen(ad *dump.ActivityDump) bool {
 func searchForDNS(ad *dump.ActivityDump) bool {
 	for _, node := range ad.ActivityTree.ProcessNodes {
 		if len(node.DNSNames) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+//nolint:deadcode,unused
+func searchForIMDS(ad *dump.ActivityDump) bool {
+	for _, node := range ad.ActivityTree.ProcessNodes {
+		if len(node.IMDSEvents) > 0 {
 			return true
 		}
 	}
@@ -1497,6 +1574,9 @@ func (tm *testModule) extractAllDumpEventTypes(id *activityDumpIdentifier) ([]st
 	}
 	if searchForOpen(ad) {
 		res = append(res, "open")
+	}
+	if searchForIMDS(ad) {
+		res = append(res, "imds")
 	}
 	return res, nil
 }
@@ -1679,7 +1759,7 @@ func (tm *testModule) ListAllProfiles() {
 	spm.ListAllProfileStates()
 }
 
-func (tm *testModule) SetProfileVersionState(selector *cgroupModel.WorkloadSelector, imageTag string, state profile.EventFilteringProfileState) error {
+func (tm *testModule) SetProfileVersionState(selector *cgroupModel.WorkloadSelector, imageTag string, state model.EventFilteringProfileState) error {
 	p, ok := tm.probe.PlatformProbe.(*sprobe.EBPFProbe)
 	if !ok {
 		return errors.New("no ebpf probe")

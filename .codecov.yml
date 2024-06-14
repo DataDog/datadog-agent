@@ -1,14 +1,30 @@
-comment: off
+# See https://docs.codecov.com/docs/pull-request-comments
+# Codecov is still inaccurate for Go code coverage, so we disable comments for now.
+comment: false
 
+# See https://docs.codecov.com/docs/coverage-configuration
 coverage:
   range: 20..100
   round: down
   precision: 2
 
+# See https://docs.codecov.com/docs/commit-status
   status:
     project: off
-    patch: off
+    # patch = enable measures on lines adjusted in the PR only.
+    patch:
+      default:
+        # target = choose a minimum coverage ratio that the commit must meet to be considered a success.
+        # target: auto = compare against the coverage of the PR parent commit.
+        target: auto
+        # threshold = Allow the coverage to drop by <number>%, and posting a success status.
+        threshold: 0%
+        # Will set the status to success even if the CI fails.
+        if_ci_failed: success
+        # Expose Codecov information to other developers without gating PRs based on that information.
+        informational: true
 
+# See https://docs.codecov.com/docs/ignoring-paths
 ignore:
   - "pkg/trace/testutil"  # code only used in tests
   - "pkg/trace/log"       # logging utilities with no customer facing impact. Nothing to test.

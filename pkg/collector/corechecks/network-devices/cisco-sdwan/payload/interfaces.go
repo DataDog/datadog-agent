@@ -16,9 +16,9 @@ type CiscoInterface interface {
 	// ID returns an unique interface ID
 	ID() string
 	// Index returns the interface index
-	Index() (int, error)
+	Index() (int32, error)
 	// GetSpeedMbps returns the interface speed in megabits per second
-	GetSpeedMbps() int
+	GetSpeedMbps() float64
 	// OperStatus returns the interface oper status
 	OperStatus() devicemetadata.IfOperStatus
 	// AdminStatus returns the interface admin status

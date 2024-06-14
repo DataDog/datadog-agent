@@ -14,7 +14,7 @@
               "_dd.base_service": "integration-tests-service",
               "_dd.compute_stats": "1",
               "_dd.origin": "lambda",
-              "_dd.p.dm": "-0",
+              "_dd.p.dm": "null",
               "account_id": "############",
               "architecture": "XXX",
               "aws_account": "############",
@@ -100,7 +100,9 @@
             "type": ""
           }
         ],
-        "tags": null
+        "tags": {
+          "_dd.p.dm": "null"
+        }
       }
     ],
     "container_id": "",
@@ -127,7 +129,7 @@
               "_dd.base_service": "integration-tests-service",
               "_dd.compute_stats": "1",
               "_dd.origin": "lambda",
-              "_dd.p.dm": "-0",
+              "_dd.p.dm": "null",
               "account_id": "############",
               "architecture": "XXX",
               "aws_account": "############",
@@ -212,7 +214,9 @@
             "type": ""
           }
         ],
-        "tags": null
+        "tags": {
+          "_dd.p.dm": "null"
+        }
       }
     ],
     "container_id": "",

@@ -33,6 +33,9 @@ upload_dependencies_sysprobe_arm64:
     # Pull base images
     - mkdir $KMT_DOCKERS
     - inv -e system-probe.save-test-dockers --use-crane --output-dir $KMT_DOCKERS --arch $ARCH
+  after_script:
+    - export DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $API_KEY_ORG2_SSM_NAME)
+    - !reference [.tag_kmt_ci_job]
   artifacts:
     expire_in: 1 day
     paths:
@@ -62,10 +65,11 @@ pull_test_dockers_arm64:
     # download and copy btf files
     - mkdir -p $BTF_DIR
     - cp $CI_PROJECT_DIR/minimized-btfs.tar.xz $BTF_DIR/minimized-btfs.tar.xz
+    - popd
     # package all the dependencies
     - ls -la $DEPENDENCIES
-    - pushd $DD_AGENT_TESTING_DIR/$ARCH
-    - tar czvf ../$ARCHIVE_NAME btfs
+    - pushd $CI_PROJECT_DIR/kmt-deps/ci/$ARCH
+    - tar czvf $ARCHIVE_NAME btfs
     - popd
     # upload tests
     # Switch to new profile after the btfs have been downloaded. Switching before
@@ -75,10 +79,13 @@ pull_test_dockers_arm64:
     - !reference [.wait_for_instance]
     - !reference [.get_instance_ip_by_type]
     - !reference [.setup_ssh_config]
-    - scp $DD_AGENT_TESTING_DIR/$ARCHIVE_NAME metal_instance:/opt/kernel-version-testing/
+    - scp $CI_PROJECT_DIR/kmt-deps/ci/$ARCH/$ARCHIVE_NAME metal_instance:/opt/kernel-version-testing/
+  after_script:
+    - export DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $API_KEY_ORG2_SSM_NAME)
+    - !reference [.tag_kmt_ci_job]
   variables:
-    DEPENDENCIES: $DD_AGENT_TESTING_DIR/$ARCH/btfs
-    BTF_DIR: system-probe-tests/pkg/ebpf/bytecode/build/co-re/btf
+    DEPENDENCIES: $CI_PROJECT_DIR/kmt-deps/ci/$ARCH/btfs
+    BTF_DIR: opt/kmt-ramfs/system-probe-tests/pkg/ebpf/bytecode/build/${ARCH}/co-re/btf
     AWS_EC2_SSH_KEY_FILE: $CI_PROJECT_DIR/ssh_key
 
 upload_minimized_btfs_sysprobe_x64:
@@ -137,39 +144,26 @@ kmt_setup_env_sysprobe_x64:
     - !reference [.kmt_new_profile]
     - !reference [.write_ssh_key_file]
   script:
-    - !reference [.prepare_common_dependency_upload]
     # copy system probe tests
-    - mkdir -p $SYSTEM_PROBE_TESTS
-    - cp -R $KITCHEN_TESTS $SYSTEM_PROBE_TESTS
-    - pushd $DD_AGENT_TESTING_DIR/$ARCH
-    - tar czvf ../$TEST_ARCHIVE_NAME tests
+    - pushd $CI_PROJECT_DIR/kmt-deps/ci/$ARCH
+    - tar czvf $TEST_ARCHIVE_NAME opt
     - popd
     # upload tests
     - !reference [.wait_for_instance]
     - !reference [.get_instance_ip_by_type]
     - !reference [.setup_ssh_config]
-    - scp $DD_AGENT_TESTING_DIR/$ARCHIVE_NAME metal_instance:/opt/kernel-version-testing/
-    - scp $DD_AGENT_TESTING_DIR/$TEST_ARCHIVE_NAME metal_instance:/opt/kernel-version-testing/
-    - ssh metal_instance "tar xzf /opt/kernel-version-testing/${TEST_ARCHIVE_NAME} -C /opt/kernel-version-testing"
+    - scp $CI_PROJECT_DIR/kmt-deps/ci/$ARCH/$TEST_ARCHIVE_NAME metal_instance:/opt/kernel-version-testing/
     # build connector
     - pushd $CI_PROJECT_DIR/test/new-e2e
     - go build -o $CI_PROJECT_DIR/connector-${ARCH} $CI_PROJECT_DIR/test/new-e2e/system-probe/connector/main.go
     - popd
     # upload connector to metal instance
     - scp $CI_PROJECT_DIR/connector-${ARCH} metal_instance:/home/ubuntu/connector
+  after_script:
+    - export DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $API_KEY_ORG2_SSM_NAME)
+    - !reference [.tag_kmt_ci_job]
   variables:
-    DEPENDENCIES: $DD_AGENT_TESTING_DIR/$ARCH/dependencies
-    EMBEDDED_BIN: opt/datadog-agent/embedded/bin
-    EMBEDDED_INC: opt/datadog-agent/embedded/include
-    CLANG_BPF: $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/default/clang-bpf
-    LLC_BPF: $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/default/llc-bpf
-    GO_BIN: go/bin
-    GOTESTSUM: $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/default/gotestsum
-    TEST2JSON: $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/default/test2json
-    SYSTEM_PROBE_TESTS: $DD_AGENT_TESTING_DIR/$ARCH/tests/system-probe-tests
-    KITCHEN_TESTS: $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/default/tests/pkg
     AWS_EC2_SSH_KEY_FILE: $CI_PROJECT_DIR/ssh_key
-    ARCHIVE_NAME: dependencies-$ARCH.tar.gz
     TEST_COMPONENT: system-probe
     TEST_ARCHIVE_NAME: tests-$ARCH.tar.gz
   artifacts:
@@ -180,7 +174,7 @@ kmt_setup_env_sysprobe_x64:
 upload_sysprobe_tests_x64:
   extends:
     - .upload_sysprobe_tests
-  needs: ["go_deps", "prepare_ebpf_functional_tests_x64", "tests_ebpf_x64"]
+  needs: ["go_deps", "prepare_sysprobe_ebpf_functional_tests_x64", "tests_ebpf_x64"]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
   tags: ["arch:amd64"]
   variables:
@@ -190,7 +184,7 @@ upload_sysprobe_tests_x64:
 upload_sysprobe_tests_arm64:
   extends:
     - .upload_sysprobe_tests
-  needs: ["go_deps", "prepare_ebpf_functional_tests_arm64", "tests_ebpf_arm64"]
+  needs: ["go_deps", "prepare_sysprobe_ebpf_functional_tests_arm64", "tests_ebpf_arm64"]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_arm64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
   tags: ["arch:arm64"]
   variables:
@@ -201,6 +195,7 @@ upload_sysprobe_tests_arm64:
   extends: .kmt_run_tests
   stage: kernel_matrix_testing_system_probe
   rules: !reference [.on_system_probe_or_e2e_changes_or_manual]
+  timeout: 1h 30m
   variables:
     TEST_COMPONENT: system-probe
 
@@ -214,7 +209,6 @@ kmt_run_sysprobe_tests_x64:
     - upload_dependencies_sysprobe_x64
     - upload_sysprobe_tests_x64
     - upload_minimized_btfs_sysprobe_x64
-  timeout: 3h
   variables:
     ARCH: "x86_64"
   parallel:
@@ -225,15 +219,17 @@ kmt_run_sysprobe_tests_x64:
           - "ubuntu_20.04"
           - "ubuntu_22.04"
           - "ubuntu_23.10"
-          - "amzn_4.14"
-          - "amzn_5.4"
-          - "amzn_5.10"
+          - "amazon_4.14"
+          - "amazon_5.4"
+          - "amazon_5.10"
+          - "amazon_2023"
           - "fedora_37"
           - "fedora_38"
+          - "debian_9"
           - "debian_10"
           - "debian_11"
           - "debian_12"
-          - "centos_79"
+          - "centos_7.9"
           - "centos_8"
         TEST_SET: ["no_tracersuite", "only_tracersuite"]
   after_script:
@@ -250,7 +246,6 @@ kmt_run_sysprobe_tests_arm64:
     - upload_dependencies_sysprobe_arm64
     - upload_sysprobe_tests_arm64
     - upload_minimized_btfs_sysprobe_arm64
-  timeout: 3h
   variables:
     ARCH: "arm64"
   parallel:
@@ -260,15 +255,16 @@ kmt_run_sysprobe_tests_arm64:
           - "ubuntu_20.04"
           - "ubuntu_22.04"
           - "ubuntu_23.10"
-          - "amzn_4.14"
-          - "amzn_5.4"
-          - "amzn_5.10"
+          - "amazon_4.14"
+          - "amazon_5.4"
+          - "amazon_5.10"
+          - "amazon_2023"
           - "fedora_37"
           - "fedora_38"
           - "debian_10"
           - "debian_11"
           - "debian_12"
-          - "centos_79"
+          - "centos_7.9"
           - "centos_8"
         TEST_SET: ["no_tracersuite", "only_tracersuite"]
   after_script:
@@ -282,6 +278,7 @@ kmt_run_sysprobe_tests_arm64:
     TEST_COMPONENT: system-probe
 
 kmt_sysprobe_cleanup_arm64:
+  when: always
   extends:
     - .kmt_sysprobe_cleanup
   needs:
@@ -292,11 +289,29 @@ kmt_sysprobe_cleanup_arm64:
     INSTANCE_TYPE: "m6gd.metal"
 
 kmt_sysprobe_cleanup_x64:
+  when: always
   extends:
     - .kmt_sysprobe_cleanup
   needs:
     - kmt_setup_env_sysprobe_x64
     - kmt_run_sysprobe_tests_x64
+  variables:
+    ARCH: x86_64
+    INSTANCE_TYPE: "m5d.metal"
+
+
+kmt_sysprobe_cleanup_arm64_manual:
+  extends:
+    - .kmt_sysprobe_cleanup
+    - .kmt_cleanup_manual
+  variables:
+    ARCH: arm64
+    INSTANCE_TYPE: "m6gd.metal"
+
+kmt_sysprobe_cleanup_x64_manual:
+  extends:
+    - .kmt_sysprobe_cleanup
+    - .kmt_cleanup_manual
   variables:
     ARCH: x86_64
     INSTANCE_TYPE: "m5d.metal"

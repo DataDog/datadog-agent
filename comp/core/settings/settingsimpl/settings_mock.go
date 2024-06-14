@@ -12,8 +12,8 @@ import (
 
 	"go.uber.org/fx"
 
+	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -25,15 +25,38 @@ func MockModule() fxutil.Module {
 	)
 }
 
+// MockProvides is the mock component output
+type MockProvides struct {
+	fx.Out
+
+	Comp         settings.Component
+	FullEndpoint api.AgentEndpointProvider
+	ListEndpoint api.AgentEndpointProvider
+	GetEndpoint  api.AgentEndpointProvider
+	SetEndpoint  api.AgentEndpointProvider
+}
+
 type mock struct{}
 
-func newMock() settings.Component {
-	return mock{}
+func newMock() MockProvides {
+	m := mock{}
+	return MockProvides{
+		Comp:         m,
+		FullEndpoint: api.NewAgentEndpointProvider(m.handlerFunc, "/config", "GET"),
+		ListEndpoint: api.NewAgentEndpointProvider(m.handlerFunc, "/config/list-runtime", "GET"),
+		GetEndpoint:  api.NewAgentEndpointProvider(m.handlerFunc, "/config/{setting}", "GET"),
+		SetEndpoint:  api.NewAgentEndpointProvider(m.handlerFunc, "/config/{setting}", "POST"),
+	}
+}
+
+// ServeHTTP is a simple mocked http.Handler function
+func (m mock) handlerFunc(w http.ResponseWriter, _ *http.Request) {
+	w.Write([]byte("OK"))
 }
 
 // RuntimeSettings returns all runtime configurable settings
-func (m mock) RuntimeSettings() settings.Settings {
-	return settings.Settings{}
+func (m mock) RuntimeSettings() map[string]settings.RuntimeSetting {
+	return map[string]settings.RuntimeSetting{}
 }
 
 // GetRuntimeSetting returns the value of a runtime configurable setting
@@ -47,15 +70,20 @@ func (m mock) SetRuntimeSetting(string, interface{}, model.Source) error {
 }
 
 // GetFullConfig returns the full config
-func (m mock) GetFullConfig(config.Config, ...string) http.HandlerFunc {
+func (m mock) GetFullConfig(...string) http.HandlerFunc {
+	return func(http.ResponseWriter, *http.Request) {}
+}
+
+// GetFullConfigBySource returns the full config by sources
+func (m mock) GetFullConfigBySource() http.HandlerFunc {
 	return func(http.ResponseWriter, *http.Request) {}
 }
 
 // GetValue allows to retrieve the runtime setting
-func (m mock) GetValue(string, http.ResponseWriter, *http.Request) {}
+func (m mock) GetValue(http.ResponseWriter, *http.Request) {}
 
 // SetValue allows to modify the runtime setting
-func (m mock) SetValue(string, http.ResponseWriter, *http.Request) {}
+func (m mock) SetValue(http.ResponseWriter, *http.Request) {}
 
 // ListConfigurable returns the list of configurable setting at runtime
 func (m mock) ListConfigurable(http.ResponseWriter, *http.Request) {}

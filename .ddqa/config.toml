@@ -121,7 +121,7 @@ github_labels = ["team/remote-config"]
 jira_project = "FA"
 jira_issue_type = "QA"
 jira_statuses = ["To Do", "In Progress", "Done"]
-github_team = "fleet-automation"
+github_team = "Fleet"
 github_labels = ["team/fleet-automation"]
 
 [teams."Container Integrations"]
@@ -130,6 +130,15 @@ jira_issue_type = "Task"
 jira_statuses = ["To Do", "In Progress", "Done"]
 github_team = "container-integrations"
 github_labels = ["team/containers"]
+exclude_members = ["clamoriniere"]
+
+[teams."Container Platform"]
+jira_project = "CONTP"
+jira_issue_type = "Task"
+jira_statuses = ["To Do", "In Progress", "Done"]
+github_team = "container-platform"
+github_labels = ["team/container-platform"]
+exclude_members = ["clamoriniere"]
 
 [teams."Container Ecosystems"]
 jira_project = "CECO"

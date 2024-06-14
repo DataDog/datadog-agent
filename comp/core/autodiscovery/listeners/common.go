@@ -102,7 +102,7 @@ func (f *containerFilters) IsExcluded(filter containers.FilterType, annotations 
 // getPrometheusIncludeAnnotations returns the Prometheus AD include annotations based on the Prometheus config
 func getPrometheusIncludeAnnotations() types.PrometheusAnnotations {
 	annotations := types.PrometheusAnnotations{}
-	tmpConfigString := config.Datadog.GetString("prometheus_scrape.checks")
+	tmpConfigString := config.Datadog().GetString("prometheus_scrape.checks")
 
 	var checks []*types.PrometheusCheck
 	if len(tmpConfigString) > 0 {
@@ -120,7 +120,7 @@ func getPrometheusIncludeAnnotations() types.PrometheusAnnotations {
 	}
 
 	for _, check := range checks {
-		if err := check.Init(config.Datadog.GetInt("prometheus_scrape.version")); err != nil {
+		if err := check.Init(config.Datadog().GetInt("prometheus_scrape.version")); err != nil {
 			log.Errorf("Couldn't init check configuration: %v", err)
 			continue
 		}

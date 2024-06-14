@@ -40,7 +40,7 @@ func CreateDefaultDemultiplexer() *aggregator.AgentDemultiplexer {
 	opts.FlushInterval = 1 * time.Hour
 	opts.DontStartForwarders = true
 	log := logimpl.NewTemporaryLoggerWithoutInit()
-	sharedForwarder := forwarder.NewDefaultForwarder(config.Datadog, log, forwarder.NewOptions(config.Datadog, log, nil))
+	sharedForwarder := forwarder.NewDefaultForwarder(config.Datadog(), log, forwarder.NewOptions(config.Datadog(), log, nil))
 	orchestratorForwarder := optional.NewOption[defaultforwarder.Forwarder](defaultforwarder.NoopForwarder{})
 	eventPlatformForwarder := optional.NewOptionPtr[eventplatform.Forwarder](eventplatformimpl.NewNoopEventPlatformForwarder(hostnameimpl.NewHostnameService()))
 	return aggregator.InitAndStartAgentDemultiplexer(log, sharedForwarder, &orchestratorForwarder, opts, eventPlatformForwarder, compressionimpl.NewMockCompressor(), "")
@@ -127,7 +127,7 @@ func (m *MockSender) SetupAcceptAll() {
 	m.On("SetCheckCustomTags", mock.AnythingOfType("[]string")).Return()
 	m.On("SetCheckService", mock.AnythingOfType("string")).Return()
 	m.On("FinalizeCheckServiceTag").Return()
-	m.On("SetNoIndex").Return()
+	m.On("SetNoIndex", mock.AnythingOfType("bool")).Return()
 	m.On("Commit").Return()
 	m.On("OrchestratorMetadata",
 		mock.AnythingOfType("[]process.MessageBody"),

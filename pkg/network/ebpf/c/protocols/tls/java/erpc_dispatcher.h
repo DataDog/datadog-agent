@@ -31,7 +31,7 @@ static void __always_inline handle_erpc_request(struct pt_regs *ctx) {
 
     u8 op = 0;
     if (0 != bpf_probe_read_user(&op, sizeof(op), req)){
-        log_debug("[java_tls_handle_erpc_request] failed to parse opcode of java tls erpc request for: pid %d", pid);
+        log_debug("[java_tls_handle_erpc_request] failed to parse opcode of java tls erpc request for: pid %llu", pid);
         return;
     }
 
@@ -39,7 +39,7 @@ static void __always_inline handle_erpc_request(struct pt_regs *ctx) {
     #ifdef DEBUG
         log_debug("[java_tls_handle_erpc_request] received %d op", op);
         if (op >= MAX_MESSAGE_TYPE){
-            log_debug("[java_tls_handle_erpc_request] got unsupported erpc request %x for: pid %d",op, pid);
+            log_debug("[java_tls_handle_erpc_request] got unsupported erpc request %x for: pid %llu",op, pid);
         }
     #endif
 
@@ -47,7 +47,7 @@ static void __always_inline handle_erpc_request(struct pt_regs *ctx) {
 }
 
 SEC("kprobe/do_vfs_ioctl")
-int kprobe__do_vfs_ioctl(struct pt_regs *ctx) {
+int BPF_BYPASSABLE_KPROBE(kprobe__do_vfs_ioctl) {
     if (is_usm_erpc_request(ctx)) {
         handle_erpc_request(ctx);
     }

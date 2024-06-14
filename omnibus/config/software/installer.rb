@@ -32,69 +32,15 @@ build do
   env = with_embedded_path(env)
 
   if linux_target?
-    command "invoke installer.build --rebuild --install-path=#{install_dir}", env: env
+    command "invoke installer.build --rebuild --run-path=/var/run/datadog-installer --install-path=#{install_dir}", env: env
     mkdir "#{install_dir}/bin"
-    mkdir "#{install_dir}/run/"
-    mkdir "#{install_dir}/systemd/"
-
-
-    # Config
-    mkdir "/etc/datadog-agent"
-    mkdir "/etc/init"
-    mkdir "/var/log/datadog"
-    mkdir "/var/run/datadog-packages"
-
-    # Packages
-    mkdir "/opt/datadog-packages"
-
     copy 'bin/installer', "#{install_dir}/bin/"
-
-    # Add installer units
-    systemdPath = "/lib/systemd/system/"
-    if not debian_target?
-      mkdir "/usr/lib/systemd/system/"
-      systemdPath = "/usr/lib/systemd/system/"
-    end
-    erb source: "datadog-installer.service.erb",
-       dest: systemdPath + "datadog-installer.service",
-       mode: 0644,
-       vars: { install_dir: install_dir, etc_dir: etc_dir}
-
-
-    systemdPath = "#{install_dir}/systemd/"
-    # Add stable agent units
-    templateToFile = {
-      "datadog-agent.service.erb" => "datadog-agent.service",
-      "datadog-agent-trace.service.erb" => "datadog-agent-trace.service",
-      "datadog-agent-process.service.erb" => "datadog-agent-process.service",
-      "datadog-agent-security.service.erb" => "datadog-agent-security.service",
-      "datadog-agent-sysprobe.service.erb" => "datadog-agent-sysprobe.service",
-      "datadog-installer.service.erb" => "datadog-installer.service",
-    }
-    templateToFile.each do |template, file|
-      agent_dir = "/opt/datadog-packages/datadog-agent/stable"
-      erb source: template,
-         dest: systemdPath + file,
-         mode: 0644,
-         vars: { install_dir: install_dir, etc_dir: etc_dir, agent_dir: agent_dir }
-    end
-    # Add experiment agent units
-    expTemplateToFile = {
-      "datadog-agent-exp.service.erb" => "datadog-agent-exp.service",
-      "datadog-agent-trace-exp.service.erb" => "datadog-agent-trace-exp.service",
-      "datadog-agent-process-exp.service.erb" => "datadog-agent-process-exp.service",
-      "datadog-agent-security-exp.service.erb" => "datadog-agent-security-exp.service",
-      "datadog-agent-sysprobe-exp.service.erb" => "datadog-agent-sysprobe-exp.service",
-    }
-    expTemplateToFile.each do |template, file|
-      agent_dir = "/opt/datadog-packages/datadog-agent/experiment"
-      erb source: template,
-         dest: systemdPath + file,
-         mode: 0644,
-         vars: { etc_dir: etc_dir, agent_dir: agent_dir }
-    end
-
   end
+
+  # Remove empty/unneeded folders
+  delete "#{install_dir}/embedded/bin"
+  delete "#{install_dir}/embedded/lib"
+  delete "#{install_dir}/embedded/"
 
   # The file below is touched by software builds that don't put anything in the installation
   # directory (libgcc right now) so that the git_cache gets updated let's remove it from the

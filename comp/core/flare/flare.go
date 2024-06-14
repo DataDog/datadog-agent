@@ -6,14 +6,20 @@
 package flare
 
 import (
+	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 	"path/filepath"
 	"reflect"
 	"runtime"
+	"time"
 
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
+	api "github.com/DataDog/datadog-agent/comp/api/api/def"
+	apiutils "github.com/DataDog/datadog-agent/comp/api/api/utils"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -21,7 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	rcclienttypes "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/diagnose"
@@ -47,6 +53,13 @@ type dependencies struct {
 	AC                    optional.Option[autodiscovery.Component]
 }
 
+type provides struct {
+	fx.Out
+
+	Comp     Component
+	Endpoint api.AgentEndpointProvider
+}
+
 type flare struct {
 	log          log.Component
 	config       config.Component
@@ -55,7 +68,7 @@ type flare struct {
 	diagnoseDeps diagnose.SuitesDeps
 }
 
-func newFlare(deps dependencies) (Component, rcclienttypes.TaskListenerProvider) {
+func newFlare(deps dependencies) (provides, rcclienttypes.TaskListenerProvider) {
 	diagnoseDeps := diagnose.NewSuitesDeps(deps.Diagnosesendermanager, deps.Collector, deps.Secrets, deps.WMeta, deps.AC)
 	f := &flare{
 		log:          deps.Log,
@@ -65,7 +78,12 @@ func newFlare(deps dependencies) (Component, rcclienttypes.TaskListenerProvider)
 		diagnoseDeps: diagnoseDeps,
 	}
 
-	return f, rcclienttypes.NewTaskListener(f.onAgentTaskEvent)
+	p := provides{
+		Comp:     f,
+		Endpoint: api.NewAgentEndpointProvider(f.createAndReturnFlarePath, "/flare", "POST"),
+	}
+
+	return p, rcclienttypes.NewTaskListener(f.onAgentTaskEvent)
 }
 
 func (f *flare) onAgentTaskEvent(taskType rcclienttypes.TaskType, task rcclienttypes.AgentTaskConfig) (bool, error) {
@@ -92,6 +110,42 @@ func (f *flare) onAgentTaskEvent(taskType rcclienttypes.TaskType, task rcclientt
 	return true, err
 }
 
+func (f *flare) createAndReturnFlarePath(w http.ResponseWriter, r *http.Request) {
+	var profile ProfileData
+
+	if r.Body != http.NoBody {
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			http.Error(w, f.log.Errorf("Error while reading HTTP request body: %s", err).Error(), 500)
+			return
+		}
+
+		if err := json.Unmarshal(body, &profile); err != nil {
+			http.Error(w, f.log.Errorf("Error while unmarshaling JSON from request body: %s", err).Error(), 500)
+			return
+		}
+	}
+
+	// Reset the `server_timeout` deadline for this connection as creating a flare can take some time
+	conn := apiutils.GetConnection(r)
+	_ = conn.SetDeadline(time.Time{})
+
+	var filePath string
+	var err error
+	f.log.Infof("Making a flare")
+	filePath, err = f.Create(profile, nil)
+
+	if err != nil || filePath == "" {
+		if err != nil {
+			f.log.Errorf("The flare failed to be created: %s", err)
+		} else {
+			f.log.Warnf("The flare failed to be created")
+		}
+		http.Error(w, err.Error(), 500)
+	}
+	w.Write([]byte(filePath))
+}
+
 // Send sends a flare archive to Datadog
 func (f *flare) Send(flarePath string, caseID string, email string, source helpers.FlareSource) (string, error) {
 	// For now this is a wrapper around helpers.SendFlare since some code hasn't migrated to FX yet.
@@ -113,11 +167,11 @@ func (f *flare) Create(pdata ProfileData, ipcError error) (string, error) {
 		if ipcError != nil {
 			msg = []byte(fmt.Sprintf("unable to contact the agent to retrieve flare: %s", ipcError))
 		}
-		fb.AddFile("local", msg)
+		fb.AddFile("local", msg) //nolint:errcheck
 	}
 
 	for name, data := range pdata {
-		fb.AddFileWithoutScrubbing(filepath.Join("profiles", name), data)
+		fb.AddFileWithoutScrubbing(filepath.Join("profiles", name), data) //nolint:errcheck
 	}
 
 	// Adding legacy and internal providers. Registering then as Provider through FX create cycle dependencies.

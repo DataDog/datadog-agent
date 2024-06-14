@@ -1,9 +1,10 @@
 module github.com/DataDog/datadog-agent/pkg/config/remote
 
-go 1.21.9
+go 1.21.0
 
 replace (
 	github.com/DataDog/datadog-agent/comp/core/telemetry => ../../../comp/core/telemetry
+	github.com/DataDog/datadog-agent/comp/def => ../../../comp/def
 	github.com/DataDog/datadog-agent/pkg/config/model => ../model
 	github.com/DataDog/datadog-agent/pkg/proto => ../../proto
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state => ../../remoteconfig/state
@@ -19,14 +20,14 @@ replace (
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/config/model v0.53.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/proto v0.53.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.53.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/util/backoff v0.53.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/util/grpc v0.53.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/util/http v0.53.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/util/log v0.53.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/util/uuid v0.53.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/config/model v0.55.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/proto v0.55.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.55.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/backoff v0.55.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/grpc v0.55.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/http v0.55.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/log v0.55.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/uuid v0.55.0-rc.3
 	github.com/Masterminds/semver v1.5.0
 	github.com/benbjohnson/clock v1.3.0
 	github.com/pkg/errors v0.9.1
@@ -38,10 +39,11 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/cache v0.53.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/cache v0.55.0-rc.3 // indirect
 	github.com/go-ole/go-ole v1.2.6 // indirect
 	github.com/kr/pretty v0.3.1 // indirect
 	github.com/lufia/plan9stats v0.0.0-20211012122336-39d0f177ccd0 // indirect
+	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826 // indirect
 	github.com/patrickmn/go-cache v2.1.0+incompatible // indirect
 	github.com/power-devops/perfstat v0.0.0-20210106213030-5aafc221ea8c // indirect
 	github.com/rogpeppe/go-internal v1.10.0 // indirect
@@ -54,9 +56,9 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.53.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.55.0-rc.3 // indirect
 	github.com/DataDog/go-tuf v1.1.0-0.5.2
-	github.com/DataDog/viper v1.13.0 // indirect
+	github.com/DataDog/viper v1.13.5 // indirect
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/fsnotify/fsnotify v1.4.7 // indirect
@@ -75,8 +77,8 @@ require (
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/stretchr/objx v0.5.2 // indirect
 	github.com/tinylib/msgp v1.1.8 // indirect
-	golang.org/x/net v0.19.0 // indirect
-	golang.org/x/sys v0.16.0 // indirect
+	golang.org/x/net v0.24.0 // indirect
+	golang.org/x/sys v0.19.0 // indirect
 	golang.org/x/text v0.14.0 // indirect
 	google.golang.org/genproto v0.0.0-20230822172742-b8732ec3820d // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20230822172742-b8732ec3820d // indirect

@@ -5,7 +5,6 @@ on:
     branches:
       - main
       - "[0-9]+.[0-9]+.x"
-      - mq-working-branch-*
   pull_request:
     branches:
       - main
@@ -20,12 +19,12 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
         with:
           fetch-depth: 0
 
       - name: Setup Python3
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@82c7e631bb3cdc910f68e0081d67478d79c6982d # v5.1.0
         with:
           python-version: "3.11.8"
           cache: "pip"
@@ -38,12 +37,12 @@ jobs:
           echo "CGO_LDFLAGS= -L${GITHUB_WORKSPACE}/rtloader/build/rtloader -ldl " >> $GITHUB_ENV
           echo "CGO_CFLAGS= -I${GITHUB_WORKSPACE}/rtloader/include  -I${GITHUB_WORKSPACE}/rtloader/common " >> $GITHUB_ENV
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491 # v5.0.0
         with:
           go-version-file: ".go-version"
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
+        uses: github/codeql-action/init@4355270be187e1b672a7a1c7c7bae5afdc1ab94a # v3.24.10
         with:
           languages: ${{ matrix.language }}
           setup-python-dependencies: false
@@ -62,4 +61,4 @@ jobs:
           invoke agent.build --build-exclude=systemd
 
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v3
+        uses: github/codeql-action/analyze@4355270be187e1b672a7a1c7c7bae5afdc1ab94a # v3.24.10

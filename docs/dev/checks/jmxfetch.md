@@ -12,7 +12,7 @@ version of JMXFetch, follow the instructions below:
 1. Download the `-jar-with-dependencies.jar` build of the latest version of JMXFetch from
    [`maven`](https://repo1.maven.org/maven2/com/datadoghq/jmxfetch/)
 2. Copy the jar file and rename it to `$GOPATH/src/github.com/DataDog/datadog-agent/dev/dist/jmx/jmxfetch.jar`.
-3. Run `inv agent.run`.
+3. Run `deva agent.run`.
 4. Validate that the JMXFetch section appears in `agent status`.
 
 If you have a JMX-based integration configured to run, it automatically
@@ -22,7 +22,7 @@ runs in your local JMXFetch instance.
 ## Custom Build of JMXFetch
 1. [Build JMXFetch](https://github.com/DataDog/jmxfetch/#building-from-source).
 2. Copy the resulting jar into `$GOPATH/src/github.com/DataDog/datadog-agent/dev/dist/jmx/jmxfetch.jar`.
-3. Run `inv agent.run`.
+3. Run `deva agent.run`.
 4. Validate that the JMXFetch section appears in `agent status`.
 
 If you have a JMX-based integration configured to run, it should automatically
@@ -36,5 +36,5 @@ be run in your local JMXFetch instance.
    - An example for the above test server can be found
    [in the jmxfetch repo](https://github.com/DataDog/jmxfetch/blob/master/tools/misbehaving-jmx-server/misbehaving-jmxfetch-conf.yaml).
    - This config should live in `dev/dist/conf.d/jmx-test-server.d/conf.yaml`.
-3. Run `inv agent.run`.
+3. Run `deva agent.run`.
 4. Validate that the check appears as scheduled in `agent status`.

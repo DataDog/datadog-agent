@@ -8,7 +8,7 @@
     - TAG_SUFFIX=${TAG_SUFFIX:-}
     - BUILD_ARG=${BUILD_ARG:-}
     - |
-      if [[ "$BUCKET_BRANCH" == "nightly" && ( "$IMAGE" =~ "ci/datadog-agent/agent" || "$IMAGE" =~ "ci/datadog-agent/cluster-agent" ) ]]; then
+      if [[ "$BUCKET_BRANCH" == "nightly" && ( "$IMAGE" =~ "ci/datadog-agent/agent" || "$IMAGE" =~ "ci/datadog-agent/cluster-agent" || "$IMAGE" =~ "ci/datadog-agent/cws-instrumentation" ) ]]; then
         export ECR_RELEASE_SUFFIX="-nightly"
       else
         export ECR_RELEASE_SUFFIX=${CI_COMMIT_TAG+-release}
@@ -18,7 +18,7 @@
     - DOCKER_REGISTRY_LOGIN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $DOCKER_REGISTRY_LOGIN_SSM_KEY)
     - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $DOCKER_REGISTRY_PWD_SSM_KEY | docker login --username "$DOCKER_REGISTRY_LOGIN" --password-stdin "$DOCKER_REGISTRY_URL"
     # Build image
-    - docker buildx build --no-cache --push --pull --platform linux/$ARCH --build-arg CIBUILD=true --build-arg GENERAL_ARTIFACTS_CACHE_BUCKET_URL=${GENERAL_ARTIFACTS_CACHE_BUCKET_URL} $BUILD_ARG --file $BUILD_CONTEXT/Dockerfile --tag ${TARGET_TAG} $BUILD_CONTEXT
+    - docker buildx build --no-cache --push --pull --platform linux/$ARCH --build-arg CIBUILD=true --build-arg GENERAL_ARTIFACTS_CACHE_BUCKET_URL=${GENERAL_ARTIFACTS_CACHE_BUCKET_URL} $BUILD_ARG --file $BUILD_CONTEXT/Dockerfile --tag ${TARGET_TAG} --label "org.opencontainers.image.created=$(date --rfc-3339=seconds)" --label "org.opencontainers.image.authors=Datadog <package@datadoghq.com>" --label "org.opencontainers.image.source=https://github.com/DataDog/datadog-agent" --label "org.opencontainers.image.version=$(inv agent.version)" --label "org.opencontainers.image.revision=${CI_COMMIT_SHA}" --label "org.opencontainers.image.vendor=Datadog, Inc." $BUILD_CONTEXT
     # Squash image
     - crane flatten -t ${TARGET_TAG} ${TARGET_TAG}
   # Workaround for temporary network failures
@@ -189,6 +189,10 @@ docker_build_cluster_agent_amd64:
   needs:
     - job: cluster_agent-build_amd64
       artifacts: false
+    - job: cws_instrumentation-build_amd64
+      artifacts: false
+    - job: cws_instrumentation-build_arm64
+      artifacts: false
   variables:
     IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/cluster-agent
     BUILD_CONTEXT: Dockerfiles/cluster-agent
@@ -200,6 +204,10 @@ docker_build_cluster_agent_arm64:
   rules: !reference [.on_tag_or_a7]
   needs:
     - job: cluster_agent-build_arm64
+      artifacts: false
+    - job: cws_instrumentation-build_amd64
+      artifacts: false
+    - job: cws_instrumentation-build_arm64
       artifacts: false
   variables:
     IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/cluster-agent

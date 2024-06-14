@@ -24,6 +24,7 @@ const (
 	netNS                        = "network_config"
 	smNS                         = "service_monitoring_config"
 	evNS                         = "event_monitoring_config"
+	ccmNS                        = "ccm_network_config"
 	smjtNS                       = smNS + ".tls.java"
 	diNS                         = "dynamic_instrumentation"
 	wcdNS                        = "windows_crash_detection"
@@ -127,6 +128,8 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault(join(spNS, "internal_profiling.mutex_profile_fraction"), 0)
 	cfg.BindEnvAndSetDefault(join(spNS, "internal_profiling.block_profile_rate"), 0)
 	cfg.BindEnvAndSetDefault(join(spNS, "internal_profiling.enable_goroutine_stacktraces"), false)
+	cfg.BindEnvAndSetDefault(join(spNS, "internal_profiling.enable_block_profiling"), false)
+	cfg.BindEnvAndSetDefault(join(spNS, "internal_profiling.enable_mutex_profiling"), false)
 	cfg.BindEnvAndSetDefault(join(spNS, "internal_profiling.delta_profiles"), true)
 	cfg.BindEnvAndSetDefault(join(spNS, "internal_profiling.custom_attributes"), []string{"module", "rule_id"})
 	cfg.BindEnvAndSetDefault(join(spNS, "internal_profiling.unix_socket"), "")
@@ -229,6 +232,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 
 	cfg.BindEnvAndSetDefault(join(smNS, "enable_http2_monitoring"), false)
 	cfg.BindEnvAndSetDefault(join(smNS, "enable_kafka_monitoring"), false)
+	cfg.BindEnv(join(smNS, "enable_postgres_monitoring"))
 	cfg.BindEnvAndSetDefault(join(smNS, "tls", "istio", "enabled"), false)
 	cfg.BindEnv(join(smNS, "tls", "nodejs", "enabled"))
 	cfg.BindEnvAndSetDefault(join(smjtNS, "enabled"), false)
@@ -244,10 +248,12 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnv(join(netNS, "max_http_stats_buffered"), "DD_SYSTEM_PROBE_NETWORK_MAX_HTTP_STATS_BUFFERED")
 	cfg.BindEnv(join(smNS, "max_http_stats_buffered"))
 	cfg.BindEnvAndSetDefault(join(smNS, "max_kafka_stats_buffered"), 100000)
+	cfg.BindEnv(join(smNS, "max_postgres_stats_buffered"))
 	cfg.BindEnv(join(smNS, "max_concurrent_requests"))
 	cfg.BindEnv(join(smNS, "enable_quantization"))
 	cfg.BindEnv(join(smNS, "enable_connection_rollup"))
 	cfg.BindEnv(join(smNS, "enable_ring_buffers"))
+	cfg.BindEnv(join(smNS, "enable_event_stream"))
 
 	oldHTTPRules := join(netNS, "http_replace_rules")
 	newHTTPRules := join(smNS, "http_replace_rules")
@@ -349,6 +355,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "runtime_compilation.enabled"), false)
 	eventMonitorBindEnv(cfg, join(evNS, "runtime_compilation.compiled_constants_enabled"))
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "network.enabled"), true)
+	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "network.ingress.enabled"), false)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "events_stats.polling_interval"), 20)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "syscalls_monitor.enabled"), false)
 	cfg.BindEnvAndSetDefault(join(evNS, "socket"), defaultEventMonitorAddress)
@@ -368,6 +375,9 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 
 	// Traceroute
 	cfg.BindEnvAndSetDefault(join(tracerouteNS, "enabled"), false)
+
+	// CCM config
+	cfg.BindEnvAndSetDefault(join(ccmNS, "enabled"), false)
 
 	initCWSSystemProbeConfig(cfg)
 }

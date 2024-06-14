@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build test
-
 package setup
 
 import (
@@ -18,11 +16,14 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/fx"
 	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
+	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
@@ -428,10 +429,13 @@ func TestProxy(t *testing.T) {
 
 			path := t.TempDir()
 			configPath := filepath.Join(path, "empty_conf.yaml")
-			os.WriteFile(configPath, nil, 0600)
+			os.WriteFile(configPath, nil, 0o600)
 			config.SetConfigFile(configPath)
 
-			resolver := secretsimpl.NewMock()
+			resolver := fxutil.Test[secrets.Component](t, fx.Options(
+				secretsimpl.MockModule(),
+				nooptelemetry.Module(),
+			))
 			if c.setup != nil {
 				c.setup(t, config)
 			}
@@ -467,19 +471,22 @@ func TestDatabaseMonitoringAurora(t *testing.T) {
 				assert.Equal(t, config.GetInt("database_monitoring.autodiscovery.aurora.discovery_interval"), 300)
 				assert.Equal(t, config.GetInt("database_monitoring.autodiscovery.aurora.query_timeout"), 10)
 				assert.Equal(t, config.Get("database_monitoring.autodiscovery.aurora.tags"), []string{"datadoghq.com/scrape:true"})
+				assert.Equal(t, config.GetString("database_monitoring.autodiscovery.aurora.region"), "")
 			},
 		},
 		{
-			name: "auto discovery query timeout and discovery interval are set from DD env vars",
+			name: "auto discovery query timeout, region and discovery interval are set from DD env vars",
 			setup: func(t *testing.T, config pkgconfigmodel.Config) {
 				t.Setenv("DD_DATABASE_MONITORING_AUTODISCOVERY_AURORA_ENABLED", "true")
 				t.Setenv("DD_DATABASE_MONITORING_AUTODISCOVERY_AURORA_DISCOVERY_INTERVAL", "15")
 				t.Setenv("DD_DATABASE_MONITORING_AUTODISCOVERY_AURORA_QUERY_TIMEOUT", "1")
+				t.Setenv("DD_DATABASE_MONITORING_AUTODISCOVERY_AURORA_REGION", "us-west-2")
 			},
 			tests: func(t *testing.T, config pkgconfigmodel.Config) {
 				assert.True(t, config.GetBool("database_monitoring.autodiscovery.aurora.enabled"))
 				assert.Equal(t, config.GetInt("database_monitoring.autodiscovery.aurora.discovery_interval"), 15)
 				assert.Equal(t, config.GetInt("database_monitoring.autodiscovery.aurora.query_timeout"), 1)
+				assert.Equal(t, config.GetString("database_monitoring.autodiscovery.aurora.region"), "us-west-2")
 				assert.Equal(t, config.Get("database_monitoring.autodiscovery.aurora.tags"), []string{"datadoghq.com/scrape:true"})
 			},
 		},
@@ -530,10 +537,13 @@ func TestDatabaseMonitoringAurora(t *testing.T) {
 
 			path := t.TempDir()
 			configPath := filepath.Join(path, "empty_conf.yaml")
-			os.WriteFile(configPath, nil, 0600)
+			os.WriteFile(configPath, nil, 0o600)
 			config.SetConfigFile(configPath)
 
-			resolver := secretsimpl.NewMock()
+			resolver := fxutil.Test[secrets.Component](t, fx.Options(
+				secretsimpl.MockModule(),
+				nooptelemetry.Module(),
+			))
 			if c.setup != nil {
 				c.setup(t, config)
 			}
@@ -544,7 +554,6 @@ func TestDatabaseMonitoringAurora(t *testing.T) {
 			c.tests(t, config)
 		})
 	}
-
 }
 
 func TestSanitizeAPIKeyConfig(t *testing.T) {
@@ -956,6 +965,26 @@ fips:
 	require.Error(t, err)
 }
 
+func TestEnablePeerServiceStatsAggregationYAML(t *testing.T) {
+	datadogYaml := `
+apm_config:
+  peer_service_aggregation: true
+`
+	testConfig := ConfFromYAML(datadogYaml)
+	err := setupFipsEndpoints(testConfig)
+	require.NoError(t, err)
+	require.True(t, testConfig.GetBool("apm_config.peer_service_aggregation"))
+
+	datadogYaml = `
+apm_config:
+  peer_service_aggregation: false
+`
+	testConfig = ConfFromYAML(datadogYaml)
+	err = setupFipsEndpoints(testConfig)
+	require.NoError(t, err)
+	require.False(t, testConfig.GetBool("apm_config.peer_service_aggregation"))
+}
+
 func TestEnablePeerTagsAggregationYAML(t *testing.T) {
 	datadogYaml := `
 apm_config:
@@ -974,6 +1003,15 @@ apm_config:
 	err = setupFipsEndpoints(testConfig)
 	require.NoError(t, err)
 	require.False(t, testConfig.GetBool("apm_config.peer_tags_aggregation"))
+}
+
+func TestEnablePeerServiceStatsAggregationEnv(t *testing.T) {
+	t.Setenv("DD_APM_PEER_SERVICE_AGGREGATION", "true")
+	testConfig := ConfFromYAML("")
+	require.True(t, testConfig.GetBool("apm_config.peer_service_aggregation"))
+	t.Setenv("DD_APM_PEER_SERVICE_AGGREGATION", "false")
+	testConfig = ConfFromYAML("")
+	require.False(t, testConfig.GetBool("apm_config.peer_service_aggregation"))
 }
 
 func TestEnablePeerTagsAggregationEnv(t *testing.T) {
@@ -1150,7 +1188,7 @@ func TestProxyLoadedFromConfigFile(t *testing.T) {
 
 	tempDir := t.TempDir()
 	configTest := path.Join(tempDir, "datadog.yaml")
-	os.WriteFile(configTest, []byte("proxy:\n  http: \"http://localhost:1234\"\n  https: \"https://localhost:1234\""), 0644)
+	os.WriteFile(configTest, []byte("proxy:\n  http: \"http://localhost:1234\"\n  https: \"https://localhost:1234\""), 0o644)
 
 	conf.AddConfigPath(tempDir)
 	LoadWithoutSecret(conf, []string{})
@@ -1173,7 +1211,7 @@ func TestProxyLoadedFromConfigFileAndEnvVars(t *testing.T) {
 
 	tempDir := t.TempDir()
 	configTest := path.Join(tempDir, "datadog.yaml")
-	os.WriteFile(configTest, []byte("proxy:\n  http: \"http://localhost:5678\"\n  https: \"http://localhost:5678\""), 0644)
+	os.WriteFile(configTest, []byte("proxy:\n  http: \"http://localhost:5678\"\n  https: \"http://localhost:5678\""), 0o644)
 
 	conf.AddConfigPath(tempDir)
 	LoadWithoutSecret(conf, []string{})
@@ -1209,7 +1247,7 @@ func TestConfigAssignAtPath(t *testing.T) {
 	config := Conf()
 	config.SetWithoutSource("use_proxy_for_cloud_metadata", true)
 	configPath := filepath.Join(t.TempDir(), "datadog.yaml")
-	os.WriteFile(configPath, testExampleConf, 0600)
+	os.WriteFile(configPath, testExampleConf, 0o600)
 	config.SetConfigFile(configPath)
 
 	_, err := LoadCustom(config, "unit_test", optional.NewNoneOption[secrets.Component](), nil)
@@ -1254,6 +1292,41 @@ use_proxy_for_cloud_metadata: true
 	assert.Equal(t, err.Error(), "index out of range 5 >= 2")
 }
 
+func TestConfigAssignAtPathWorksWithGet(t *testing.T) {
+	// CircleCI sets NO_PROXY, so unset it for this test
+	unsetEnvForTest(t, "NO_PROXY")
+
+	config := Conf()
+	config.SetWithoutSource("use_proxy_for_cloud_metadata", true)
+	configPath := filepath.Join(t.TempDir(), "datadog.yaml")
+	os.WriteFile(configPath, testExampleConf, 0o600)
+	config.SetConfigFile(configPath)
+
+	_, err := LoadCustom(config, "unit_test", optional.NewNoneOption[secrets.Component](), nil)
+	assert.NoError(t, err)
+
+	err = configAssignAtPath(config, []string{"secret_backend_command"}, "different")
+	assert.NoError(t, err)
+
+	err = configAssignAtPath(config, []string{"additional_endpoints", "https://url1.com", "1"}, "changed")
+	assert.NoError(t, err)
+
+	err = configAssignAtPath(config, []string{"process_config", "additional_endpoints", "https://url2.eu", "0"}, "modified")
+	assert.NoError(t, err)
+
+	var expected interface{} = `different`
+	res := config.Get("secret_backend_command")
+	require.Equal(t, expected, res)
+
+	expected = []interface{}([]interface{}{"first", "changed"})
+	res = config.Get("additional_endpoints.https://url1.com")
+	require.Equal(t, expected, res)
+
+	expected = []interface{}([]interface{}{"modified"})
+	res = config.Get("process_config.additional_endpoints.https://url2.eu")
+	require.Equal(t, expected, res)
+}
+
 var testSimpleConf = []byte(`secret_backend_command: some command
 secret_backend_arguments:
 - ENC[pass1]
@@ -1266,7 +1339,7 @@ func TestConfigAssignAtPathSimple(t *testing.T) {
 	config := Conf()
 	config.SetWithoutSource("use_proxy_for_cloud_metadata", true)
 	configPath := filepath.Join(t.TempDir(), "datadog.yaml")
-	os.WriteFile(configPath, testSimpleConf, 0600)
+	os.WriteFile(configPath, testSimpleConf, 0o600)
 	config.SetConfigFile(configPath)
 
 	_, err := LoadCustom(config, "unit_test", optional.NewNoneOption[secrets.Component](), nil)
@@ -1315,12 +1388,17 @@ use_proxy_for_cloud_metadata: true
 
 	config := Conf()
 	configPath := filepath.Join(t.TempDir(), "datadog.yaml")
-	os.WriteFile(configPath, testMinimalConf, 0600)
+	os.WriteFile(configPath, testMinimalConf, 0o600)
 	config.SetConfigFile(configPath)
 
-	resolver := secretsimpl.NewMock()
-	resolver.SetBackendCommand("command")
-	resolver.SetFetchHookFunc(func(handles []string) (map[string]string, error) {
+	resolver := fxutil.Test[secrets.Component](t, fx.Options(
+		secretsimpl.MockModule(),
+		nooptelemetry.Module(),
+	))
+
+	mockresolver := resolver.(secrets.Mock)
+	mockresolver.SetBackendCommand("command")
+	mockresolver.SetFetchHookFunc(func(handles []string) (map[string]string, error) {
 		return map[string]string{
 			"some_url": "first_value",
 			"diff_url": "second_value",
@@ -1361,7 +1439,7 @@ func TestConfigAssignAtPathForIntMapKeys(t *testing.T) {
 
 	// Even if a map is using keys that looks like stringified ints, calling
 	// configAssignAtPath will still work correctly
-	var testIntKeysConf = []byte(`
+	testIntKeysConf := []byte(`
 additional_endpoints:
   0: apple
   1: banana
@@ -1370,7 +1448,7 @@ additional_endpoints:
 	config := Conf()
 	config.SetWithoutSource("use_proxy_for_cloud_metadata", true)
 	configPath := filepath.Join(t.TempDir(), "datadog.yaml")
-	os.WriteFile(configPath, testIntKeysConf, 0600)
+	os.WriteFile(configPath, testIntKeysConf, 0o600)
 	config.SetConfigFile(configPath)
 
 	_, err := LoadCustom(config, "unit_test", optional.NewNoneOption[secrets.Component](), nil)
@@ -1389,4 +1467,35 @@ use_proxy_for_cloud_metadata: true
 	assert.NoError(t, err)
 	yamlText := string(yamlConf)
 	assert.Equal(t, expectedYaml, yamlText)
+}
+
+func TestServerlessConfigNumComponents(t *testing.T) {
+	// Enforce the number of config "components" reachable by the serverless agent
+	// to avoid accidentally adding entire components if it's not needed
+	require.Len(t, serverlessConfigComponents, 22)
+}
+
+func TestServerlessConfigInit(t *testing.T) {
+	conf := pkgconfigmodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+
+	initCommonWithServerless(conf)
+
+	// ensure some core configs are declared
+	assert.True(t, conf.IsKnown("api_key"))
+	assert.True(t, conf.IsKnown("use_dogstatsd"))
+	assert.True(t, conf.IsKnown("forwarder_timeout"))
+
+	// ensure some non-serverless configs are not declared
+	assert.False(t, conf.IsKnown("sbom.enabled"))
+	assert.False(t, conf.IsKnown("inventories_enabled"))
+}
+
+func TestAgentConfigInit(t *testing.T) {
+	conf := Conf()
+
+	assert.True(t, conf.IsKnown("api_key"))
+	assert.True(t, conf.IsKnown("use_dogstatsd"))
+	assert.True(t, conf.IsKnown("forwarder_timeout"))
+	assert.True(t, conf.IsKnown("sbom.enabled"))
+	assert.True(t, conf.IsKnown("inventories_enabled"))
 }

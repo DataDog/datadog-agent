@@ -41,6 +41,7 @@ type cliParams struct {
 	prettyPrintJSON bool
 	statusFilePath  string
 	verbose         bool
+	list            bool
 }
 
 // Commands returns a slice of subcommands for the 'agent' command.
@@ -49,9 +50,12 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		GlobalParams: globalParams,
 	}
 	cmd := &cobra.Command{
-		Use:   "status [component [name]]",
-		Short: "Print the current status",
-		Long:  ``,
+		Use:   "status [section]",
+		Short: "Display the current status",
+		Long: `Display the current status.
+If no section is specified, this command will display all status sections. 
+If a specific section is provided, such as 'collector', it will only display the status of that section.
+The --list flag can be used to list all available status sections.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cliParams.args = args
 
@@ -71,34 +75,11 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			)
 		},
 	}
-	cmd.Flags().BoolVarP(&cliParams.jsonStatus, "json", "j", false, "print out raw json")
-	cmd.Flags().BoolVarP(&cliParams.prettyPrintJSON, "pretty-json", "p", false, "pretty print JSON")
-	cmd.Flags().StringVarP(&cliParams.statusFilePath, "file", "o", "", "Output the status command to a file")
-	cmd.Flags().BoolVarP(&cliParams.verbose, "verbose", "v", false, "print out verbose status")
-
-	componentCmd := &cobra.Command{
-		Use:   "component",
-		Short: "Print the component status",
-		Long:  ``,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			cliParams.args = args
-
-			// Prevent autoconfig to run when running status as it logs before logger
-			// is setup.  Cannot rely on config.Override as env detection is run before
-			// overrides are set.  TODO: This should eventually be handled with a
-			// BundleParams field for AD.
-			os.Setenv("DD_AUTOCONFIG_FROM_ENVIRONMENT", "false")
-
-			return fxutil.OneShot(componentStatusCmd,
-				fx.Supply(cliParams),
-				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
-				core.Bundle(),
-			)
-		},
-	}
-	componentCmd.Flags().BoolVarP(&cliParams.prettyPrintJSON, "pretty-json", "p", false, "pretty print JSON")
-	componentCmd.Flags().StringVarP(&cliParams.statusFilePath, "file", "o", "", "Output the status command to a file")
-	cmd.AddCommand(componentCmd)
+	cmd.PersistentFlags().BoolVarP(&cliParams.jsonStatus, "json", "j", false, "print out raw json")
+	cmd.PersistentFlags().BoolVarP(&cliParams.prettyPrintJSON, "pretty-json", "p", false, "pretty print JSON")
+	cmd.PersistentFlags().StringVarP(&cliParams.statusFilePath, "file", "o", "", "Output the status command to a file")
+	cmd.PersistentFlags().BoolVarP(&cliParams.verbose, "verbose", "v", false, "print out verbose status")
+	cmd.PersistentFlags().BoolVarP(&cliParams.list, "list", "l", false, "list all available status sections")
 
 	return []*cobra.Command{cmd}
 }
@@ -128,17 +109,19 @@ func redactError(unscrubbedError error) error {
 	return scrubbedError
 }
 
-func statusCmd(_ log.Component, config config.Component, _ sysprobeconfig.Component, cliParams *cliParams) error {
-	return redactError(requestStatus(config, cliParams))
-}
-
-func requestStatus(config config.Component, cliParams *cliParams) error {
-	var s string
-
-	if !cliParams.prettyPrintJSON && !cliParams.jsonStatus {
-		fmt.Printf("Getting the status from the agent.\n\n")
+func statusCmd(logger log.Component, config config.Component, _ sysprobeconfig.Component, cliParams *cliParams) error {
+	if cliParams.list {
+		return redactError(requestSections(config))
 	}
 
+	if len(cliParams.args) < 1 {
+		return redactError(requestStatus(config, cliParams))
+	}
+
+	return componentStatusCmd(logger, config, cliParams)
+}
+
+func setIpcURL(cliParams *cliParams) url.Values {
 	v := url.Values{}
 	if cliParams.verbose {
 		v.Set("verbose", "true")
@@ -150,15 +133,11 @@ func requestStatus(config config.Component, cliParams *cliParams) error {
 		v.Set("format", "text")
 	}
 
-	endpoint, err := apiutil.NewIPCEndpoint(config, "/agent/status")
-	if err != nil {
-		return err
-	}
+	return v
+}
 
-	res, err := endpoint.DoGet(apiutil.WithValues(v))
-	if err != nil {
-		return err
-	}
+func renderResponse(res []byte, cliParams *cliParams) error {
+	var s string
 
 	// The rendering is done in the client so that the agent has less work to do
 	if cliParams.prettyPrintJSON {
@@ -172,47 +151,88 @@ func requestStatus(config config.Component, cliParams *cliParams) error {
 	}
 
 	if cliParams.statusFilePath != "" {
-		os.WriteFile(cliParams.statusFilePath, []byte(s), 0644) //nolint:errcheck
-	} else {
-		fmt.Println(s)
+		return os.WriteFile(cliParams.statusFilePath, []byte(s), 0644)
+	}
+	fmt.Println(s)
+	return nil
+}
+
+func requestStatus(config config.Component, cliParams *cliParams) error {
+
+	if !cliParams.prettyPrintJSON && !cliParams.jsonStatus {
+		fmt.Printf("Getting the status from the agent.\n\n")
+	}
+
+	v := setIpcURL(cliParams)
+
+	endpoint, err := apiutil.NewIPCEndpoint(config, "/agent/status")
+	if err != nil {
+		return err
+	}
+
+	res, err := endpoint.DoGet(apiutil.WithValues(v))
+	if err != nil {
+		return err
+	}
+
+	// The rendering is done in the client so that the agent has less work to do
+	err = renderResponse(res, cliParams)
+	if err != nil {
+		return err
 	}
 
 	return nil
 }
 
 func componentStatusCmd(_ log.Component, config config.Component, cliParams *cliParams) error {
-	if len(cliParams.args) != 1 {
-		return fmt.Errorf("a component name must be specified")
+	if len(cliParams.args) > 1 {
+		return fmt.Errorf("only one section must be specified")
 	}
 
 	return redactError(componentStatus(config, cliParams, cliParams.args[0]))
 }
 
 func componentStatus(config config.Component, cliParams *cliParams, component string) error {
-	var s string
+
+	v := setIpcURL(cliParams)
 
 	endpoint, err := apiutil.NewIPCEndpoint(config, fmt.Sprintf("/agent/%s/status", component))
 	if err != nil {
 		return err
 	}
-	res, err := endpoint.DoGet()
+	res, err := endpoint.DoGet(apiutil.WithValues(v))
 	if err != nil {
 		return err
 	}
 
 	// The rendering is done in the client so that the agent has less work to do
-	if cliParams.prettyPrintJSON {
-		var prettyJSON bytes.Buffer
-		json.Indent(&prettyJSON, res, "", "  ") //nolint:errcheck
-		s = prettyJSON.String()
-	} else {
-		s = scrubMessage(string(res))
+	err = renderResponse(res, cliParams)
+	if err != nil {
+		return err
 	}
 
-	if cliParams.statusFilePath != "" {
-		os.WriteFile(cliParams.statusFilePath, []byte(s), 0644) //nolint:errcheck
-	} else {
-		fmt.Println(s)
+	return nil
+}
+
+func requestSections(config config.Component) error {
+	endpoint, err := apiutil.NewIPCEndpoint(config, "/agent/status/sections")
+	if err != nil {
+		return err
+	}
+
+	res, err := endpoint.DoGet()
+	if err != nil {
+		return err
+	}
+
+	var sections []string
+	err = json.Unmarshal(res, &sections)
+	if err != nil {
+		return err
+	}
+
+	for _, section := range sections {
+		fmt.Printf("- \"%s\"\n", section)
 	}
 
 	return nil

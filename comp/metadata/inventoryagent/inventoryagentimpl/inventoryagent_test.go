@@ -118,6 +118,7 @@ func TestInitData(t *testing.T) {
 		"service_monitoring_config.tls.java.enabled":                 true,
 		"service_monitoring_config.enable_http2_monitoring":          true,
 		"service_monitoring_config.enable_kafka_monitoring":          true,
+		"service_monitoring_config.enable_postgres_monitoring":       true,
 		"service_monitoring_config.tls.istio.enabled":                true,
 		"service_monitoring_config.enable_http_stats_by_status_code": true,
 		"service_monitoring_config.tls.go.enabled":                   true,
@@ -151,6 +152,7 @@ func TestInitData(t *testing.T) {
 		"proxy.http":                       "http://name:sekrit@proxy.example.com/",
 		"proxy.https":                      "https://name:sekrit@proxy.example.com/",
 		"site":                             "test",
+		"eks_fargate":                      true,
 
 		"fips.enabled":                                true,
 		"logs_enabled":                                true,
@@ -181,6 +183,7 @@ func TestInitData(t *testing.T) {
 		"config_process_dd_url":            "http://name:********@someintake.example.com/",
 		"config_proxy_http":                "http://name:********@proxy.example.com/",
 		"config_proxy_https":               "https://name:********@proxy.example.com/",
+		"config_eks_fargate":               true,
 
 		"feature_process_language_detection_enabled": true,
 		"feature_fips_enabled":                       true,
@@ -206,6 +209,7 @@ func TestInitData(t *testing.T) {
 		"feature_networks_https_enabled":               true,
 		"feature_usm_enabled":                          true,
 		"feature_usm_kafka_enabled":                    true,
+		"feature_usm_postgres_enabled":                 true,
 		"feature_usm_java_tls_enabled":                 true,
 		"feature_usm_http2_enabled":                    true,
 		"feature_usm_istio_enabled":                    true,
@@ -263,7 +267,7 @@ func TestConfigRefresh(t *testing.T) {
 	ia := getTestInventoryPayload(t, nil, nil)
 
 	assert.False(t, ia.RefreshTriggered())
-	pkgconfig.Datadog.Set("inventories_max_interval", 10*60, pkgconfigmodel.SourceAgentRuntime)
+	pkgconfig.Datadog().Set("inventories_max_interval", 10*60, pkgconfigmodel.SourceAgentRuntime)
 	assert.True(t, ia.RefreshTriggered())
 }
 
@@ -477,6 +481,7 @@ func TestFetchSystemProbeAgent(t *testing.T) {
 	assert.False(t, ia.data["feature_networks_https_enabled"].(bool))
 	assert.False(t, ia.data["feature_usm_enabled"].(bool))
 	assert.False(t, ia.data["feature_usm_kafka_enabled"].(bool))
+	assert.False(t, ia.data["feature_usm_postgres_enabled"].(bool))
 	assert.False(t, ia.data["feature_usm_java_tls_enabled"].(bool))
 	assert.False(t, ia.data["feature_usm_http2_enabled"].(bool))
 	assert.False(t, ia.data["feature_usm_istio_enabled"].(bool))
@@ -528,6 +533,7 @@ func TestFetchSystemProbeAgent(t *testing.T) {
 	assert.False(t, ia.data["feature_networks_https_enabled"].(bool))
 	assert.False(t, ia.data["feature_usm_enabled"].(bool))
 	assert.False(t, ia.data["feature_usm_kafka_enabled"].(bool))
+	assert.False(t, ia.data["feature_usm_postgres_enabled"].(bool))
 	assert.False(t, ia.data["feature_usm_java_tls_enabled"].(bool))
 	assert.False(t, ia.data["feature_usm_http2_enabled"].(bool))
 	assert.False(t, ia.data["feature_usm_istio_enabled"].(bool))
@@ -588,6 +594,7 @@ service_monitoring_config:
       enabled: true
   enabled: true
   enable_kafka_monitoring: true
+  enable_postgres_monitoring: true
   enable_http2_monitoring: true
   enable_http_stats_by_status_code: true
 
@@ -621,6 +628,7 @@ dynamic_instrumentation:
 	assert.True(t, ia.data["feature_networks_https_enabled"].(bool))
 	assert.True(t, ia.data["feature_usm_enabled"].(bool))
 	assert.True(t, ia.data["feature_usm_kafka_enabled"].(bool))
+	assert.True(t, ia.data["feature_usm_postgres_enabled"].(bool))
 	assert.True(t, ia.data["feature_usm_java_tls_enabled"].(bool))
 	assert.True(t, ia.data["feature_usm_http2_enabled"].(bool))
 	assert.True(t, ia.data["feature_usm_istio_enabled"].(bool))
@@ -643,4 +651,40 @@ dynamic_instrumentation:
 	assert.True(t, ia.data["system_probe_gateway_lookup_enabled"].(bool))
 	assert.True(t, ia.data["system_probe_root_namespace_enabled"].(bool))
 	assert.True(t, ia.data["feature_dynamic_instrumentation_enabled"].(bool))
+}
+
+func TestGetProvidedConfigurationDisable(t *testing.T) {
+	ia := getTestInventoryPayload(t, map[string]any{
+		"inventories_configuration_enabled": false,
+	}, nil)
+
+	payload := ia.getPayload().(*Payload)
+
+	// No configuration should be in the payload
+	assert.NotContains(t, payload.Metadata, "full_configuration")
+	assert.NotContains(t, payload.Metadata, "provided_configuration")
+	assert.NotContains(t, payload.Metadata, "file_configuration")
+	assert.NotContains(t, payload.Metadata, "environment_variable_configuration")
+	assert.NotContains(t, payload.Metadata, "agent_runtime_configuration")
+	assert.NotContains(t, payload.Metadata, "remote_configuration")
+	assert.NotContains(t, payload.Metadata, "cli_configuration")
+	assert.NotContains(t, payload.Metadata, "source_local_configuration")
+}
+
+func TestGetProvidedConfiguration(t *testing.T) {
+	ia := getTestInventoryPayload(t, map[string]any{
+		"inventories_configuration_enabled": true,
+	}, nil)
+
+	payload := ia.getPayload().(*Payload)
+
+	// All configuration level should be in the payload
+	assert.Contains(t, payload.Metadata, "full_configuration")
+	assert.Contains(t, payload.Metadata, "provided_configuration")
+	assert.Contains(t, payload.Metadata, "file_configuration")
+	assert.Contains(t, payload.Metadata, "environment_variable_configuration")
+	assert.Contains(t, payload.Metadata, "agent_runtime_configuration")
+	assert.Contains(t, payload.Metadata, "remote_configuration")
+	assert.Contains(t, payload.Metadata, "cli_configuration")
+	assert.Contains(t, payload.Metadata, "source_local_configuration")
 }

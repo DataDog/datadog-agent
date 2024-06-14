@@ -286,14 +286,13 @@ func TestGetMoreEntriesMaxPages(t *testing.T) {
 	// Set max pages to 20 for testing
 	client.maxPages = 20
 
-	params := make(map[string]string)
 	pageInfo := PageInfo{
 		StartID:     "1",
 		EndID:       "15",
 		MoreEntries: true,
 	}
 
-	_, err = getMoreEntries[Device](client, "/dataservice/device", params, pageInfo)
+	_, err = getMoreEntries[Device](client, "/dataservice/device", pageInfo)
 	require.ErrorContains(t, err, "max number of page reached")
 
 	// Ensure endpoint has been called 20 times
@@ -306,14 +305,14 @@ func TestGetMoreEntriesIndexPagination(t *testing.T) {
 	handler := newHandler(func(w http.ResponseWriter, r *http.Request, calls int32) {
 		startID := r.URL.Query().Get("startId")
 		if calls == 1 {
-			// First call, expect startId to be 16
+			// First call, expect startId to be 15
 
-			require.Equal(t, "16", startID, "startId should be correct")
+			require.Equal(t, "15", startID, "startId should be correct")
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte(`
 				{
   					"pageInfo": {
-        				"startId": "16",
+        				"startId": "15",
 						"endId": "30",
         				"moreEntries": true,
         				"count": 14
@@ -324,12 +323,12 @@ func TestGetMoreEntriesIndexPagination(t *testing.T) {
 		}
 
 		// Second call, expect startId to be 31
-		require.Equal(t, "31", startID, "startId should be correct")
+		require.Equal(t, "30", startID, "startId should be correct")
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`
 			{
   				"pageInfo": {
-       	 			"startId": "31",
+       	 			"startId": "30",
         			"endId": "35",
         			"moreEntries": false,
         			"count": 4
@@ -346,14 +345,13 @@ func TestGetMoreEntriesIndexPagination(t *testing.T) {
 	client, err := testClient(server)
 	require.NoError(t, err)
 
-	params := make(map[string]string)
 	pageInfo := PageInfo{
 		StartID:     "1",
 		EndID:       "15",
 		MoreEntries: true,
 	}
 
-	_, err = getMoreEntries[Device](client, "/dataservice/device", params, pageInfo)
+	_, err = getMoreEntries[Device](client, "/dataservice/device", pageInfo)
 	require.NoError(t, err)
 
 	// Ensure endpoint has been called 2 times
@@ -365,10 +363,19 @@ func TestGetMoreEntriesScrollPagination(t *testing.T) {
 
 	handler := newHandler(func(w http.ResponseWriter, r *http.Request, calls int32) {
 		scrollID := r.URL.Query().Get("scrollId")
+		startDate := r.URL.Query().Get("startDate")
+		endDate := r.URL.Query().Get("endDate")
+		timeZone := r.URL.Query().Get("timeZone")
+		count := r.URL.Query().Get("count")
+
 		if calls == 1 {
-			// First call, expect scrollId to be "test"
+			// First call, expect scrollId to be "test", and no other params
 
 			require.Equal(t, "test", scrollID, "scrollId should be correct")
+			require.Empty(t, startDate)
+			require.Empty(t, endDate)
+			require.Empty(t, timeZone)
+			require.Empty(t, count)
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte(`
 				{
@@ -402,38 +409,40 @@ func TestGetMoreEntriesScrollPagination(t *testing.T) {
 	client, err := testClient(server)
 	require.NoError(t, err)
 
-	params := make(map[string]string)
 	pageInfo := PageInfo{
 		ScrollID:    "test",
 		HasMoreData: true,
 	}
 
-	_, err = getMoreEntries[Device](client, "/dataservice/device", params, pageInfo)
+	_, err = getMoreEntries[Device](client, "/dataservice/device", pageInfo)
 	require.NoError(t, err)
 
 	// Ensure endpoint has been called 2 times
 	require.Equal(t, 2, handler.numberOfCalls())
 }
 
-func TestUpdatePaginationParams(t *testing.T) {
+func TestGetNextPaginationParams(t *testing.T) {
 	tests := []struct {
 		name           string
 		pageInfo       PageInfo
+		count          string
 		expectedParams map[string]string
 		expectedError  string
 	}{
 		{
-			name: "index based pagination",
+			name:  "index based pagination",
+			count: "1000",
 			pageInfo: PageInfo{
 				StartID:     "0",
 				EndID:       "10",
 				MoreEntries: true,
 				Count:       10,
 			},
-			expectedParams: map[string]string{"startId": "11"},
+			expectedParams: map[string]string{"count": "1000", "startId": "10"},
 		},
 		{
-			name: "scroll based pagination",
+			name:  "scroll based pagination",
+			count: "1000",
 			pageInfo: PageInfo{
 				HasMoreData: true,
 				ScrollID:    "test",
@@ -442,30 +451,20 @@ func TestUpdatePaginationParams(t *testing.T) {
 			expectedParams: map[string]string{"scrollId": "test"},
 		},
 		{
-			name: "index based pagination with invalid end id",
-			pageInfo: PageInfo{
-				StartID:     "0",
-				EndID:       "invalid id",
-				MoreEntries: true,
-				Count:       10,
-			},
-			expectedError:  "invalid syntax",
-			expectedParams: make(map[string]string),
-		},
-		{
 			name:           "invalid page info",
+			count:          "1000",
 			pageInfo:       PageInfo{},
-			expectedParams: make(map[string]string),
+			expectedError:  "could not build next page params",
+			expectedParams: nil,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			params := make(map[string]string)
-			err := updatePaginationParams(tt.pageInfo, params)
+			nextParams, err := getNextPaginationParams(tt.pageInfo, tt.count)
 			if tt.expectedError != "" {
 				require.ErrorContains(t, err, tt.expectedError)
 			}
-			require.Equal(t, tt.expectedParams, params)
+			require.Equal(t, tt.expectedParams, nextParams)
 		})
 	}
 }

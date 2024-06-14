@@ -7,13 +7,15 @@
 package diagnose
 
 import (
+	"slices"
 	"testing"
+
+	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 	svcmanager "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/svc-manager"
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
-	"github.com/stretchr/testify/assert"
 )
 
 type linuxDiagnoseSuite struct {
@@ -29,7 +31,7 @@ func (v *linuxDiagnoseSuite) TestDiagnoseOtherCmdPort() {
 	v.UpdateEnv(awshost.Provisioner(awshost.WithAgentOptions(params)))
 
 	diagnose := getDiagnoseOutput(&v.baseDiagnoseSuite)
-	assert.NotContains(v.T(), diagnose, "FAIL")
+	v.AssertOutputNotError(diagnose)
 }
 
 func (v *linuxDiagnoseSuite) TestDiagnoseLocalFallback() {
@@ -38,7 +40,21 @@ func (v *linuxDiagnoseSuite) TestDiagnoseLocalFallback() {
 
 	diagnose := getDiagnoseOutput(&v.baseDiagnoseSuite)
 	assert.Contains(v.T(), diagnose, "Running diagnose command locally", "Expected diagnose command to fallback to local diagnosis when the Agent is stopped, but it did not.")
-	assert.NotContains(v.T(), diagnose, "FAIL")
+	v.AssertOutputNotError(diagnose)
 
 	svcManager.Start("datadog-agent")
+}
+
+func (v *linuxDiagnoseSuite) TestDiagnoseInclude() {
+	if !slices.Contains(allSuites, "port-conflict") {
+		allSuites = append(allSuites, "port-conflict")
+	}
+	v.AssertDiagnoseInclude()
+}
+
+func (v *linuxDiagnoseSuite) TestDiagnoseExclude() {
+	if !slices.Contains(allSuites, "port-conflict") {
+		allSuites = append(allSuites, "port-conflict")
+	}
+	v.AssertDiagnoseInclude()
 }

@@ -24,7 +24,7 @@ const (
 	defaultMaxAttempts = 3
 	defaultMaxPages    = 100
 	defaultMaxCount    = "2000"
-	defaultLookback    = 20 * time.Minute
+	defaultLookback    = 10 * time.Minute
 	defaultHTTPTimeout = 10
 	defaultHTTPScheme  = "https"
 )
@@ -310,6 +310,20 @@ func (client *Client) GetBFDSessionsState() ([]BFDSession, error) {
 	}
 
 	return bfdSessions.Data, nil
+}
+
+// GetHardwareStates gets hardware states
+func (client *Client) GetHardwareStates() ([]HardwareEnvironment, error) {
+	params := map[string]string{
+		"count": client.maxCount,
+	}
+
+	hardwareStates, err := getAllEntries[HardwareEnvironment](client, "/dataservice/data/device/state/HardwareEnvironment", params)
+	if err != nil {
+		return nil, err
+	}
+
+	return hardwareStates.Data, nil
 }
 
 func (client *Client) statisticsTimeRange() (string, string) {

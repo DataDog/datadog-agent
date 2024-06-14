@@ -783,8 +783,8 @@ var (
 
 func TestOTLPHelpers(t *testing.T) {
 	t.Run("byteArrayToUint64", func(t *testing.T) {
-		assert.Equal(t, uint64(0x240031ead750e5f3), traceIDToUint64([16]byte(otlpTestTraceID)))
-		assert.Equal(t, uint64(0x240031ead750e5f3), spanIDToUint64([8]byte(otlpTestSpanID)))
+		assert.Equal(t, uint64(0x240031ead750e5f3), traceutil.OTelTraceIDToUint64([16]byte(otlpTestTraceID)))
+		assert.Equal(t, uint64(0x240031ead750e5f3), traceutil.OTelSpanIDToUint64([8]byte(otlpTestSpanID)))
 	})
 
 	t.Run("spanKindNames", func(t *testing.T) {
@@ -795,9 +795,9 @@ func TestOTLPHelpers(t *testing.T) {
 			ptrace.SpanKindClient:      "client",
 			ptrace.SpanKindProducer:    "producer",
 			ptrace.SpanKindConsumer:    "consumer",
-			99:                         "unknown",
+			99:                         "unspecified",
 		} {
-			assert.Equal(t, out, spanKindName(in))
+			assert.Equal(t, out, traceutil.OTelSpanKindName(in))
 		}
 	})
 
@@ -1383,6 +1383,179 @@ func TestOTLPConvertSpan(t *testing.T) {
 				"approx":                               1.2,
 				"count":                                2,
 				sampler.KeySamplingRateEventExtraction: 1,
+			},
+		},
+		{
+			rattr: map[string]string{
+				"env":          "staging",
+				"service.name": "document-uploader",
+			},
+			libname: "ddtracer",
+			libver:  "v2",
+			// Modified version of:
+			// https://opentelemetry.io/docs/specs/semconv/http/http-spans/#http-server-call-connection-dropped-before-response-body-was-sent
+			in: testutil.NewOTLPSpan(&testutil.OTLPSpan{
+				Name:       "POST /uploads/:document_id",
+				Start:      now,
+				End:        now + 200000000,
+				StatusCode: ptrace.StatusCodeError,
+				Attributes: map[string]interface{}{
+					"operation.name":            "ddtracer.server",
+					"http.request.method":       "POST",
+					"url.path":                  "/uploads/4",
+					"url.scheme":                "https",
+					"http.route":                "/uploads/:document_id",
+					"http.response.status_code": "201",
+					"error.type":                "WebSocketDisconnect",
+				},
+			}),
+			out: &pb.Span{
+				Service:  "document-uploader",
+				Name:     "ddtracer.server",
+				Resource: "POST /uploads/:document_id",
+				TraceID:  2594128270069917171,
+				SpanID:   2594128270069917171,
+				ParentID: 0,
+				Start:    int64(now),
+				Duration: 200000000,
+				Error:    1,
+				Meta: map[string]string{
+					"env":                       "staging",
+					"otel.library.name":         "ddtracer",
+					"otel.library.version":      "v2",
+					"otel.status_code":          "Error",
+					"error.msg":                 "201",
+					"http.request.method":       "POST",
+					"http.method":               "POST",
+					"url.path":                  "/uploads/4",
+					"url.scheme":                "https",
+					"http.route":                "/uploads/:document_id",
+					"http.response.status_code": "201",
+					"http.status_code":          "201",
+					"error.type":                "WebSocketDisconnect",
+					"otel.trace_id":             "72df520af2bde7a5240031ead750e5f3",
+					"span.kind":                 "unspecified",
+				},
+				Type: "custom",
+			},
+			topLevelOutMetrics: map[string]float64{
+				"_top_level": 1,
+			},
+		},
+		{
+			rattr: map[string]string{
+				"env":          "staging",
+				"service.name": "document-uploader",
+			},
+			libname: "ddtracer",
+			libver:  "v2",
+			// Modified version of:
+			// https://opentelemetry.io/docs/specs/semconv/http/http-spans/#http-server-call-connection-dropped-before-response-body-was-sent
+			// Using both old and new semantic conventions.
+			in: testutil.NewOTLPSpan(&testutil.OTLPSpan{
+				Name:       "POST /uploads/:document_id",
+				Start:      now,
+				End:        now + 200000000,
+				StatusCode: ptrace.StatusCodeError,
+				Attributes: map[string]interface{}{
+					"operation.name":            "ddtracer.server",
+					"http.request.method":       "POST",
+					"http.method":               "SHOULD NOT BE USED FOR RESOURCE NAME",
+					"url.path":                  "/uploads/4",
+					"url.scheme":                "https",
+					"http.route":                "/uploads/:document_id",
+					"http.response.status_code": "201",
+					"http.status_code":          "SHOULD NOT BE USED FOR ERROR.MSG",
+					"error.type":                "WebSocketDisconnect",
+				},
+			}),
+			out: &pb.Span{
+				Service:  "document-uploader",
+				Name:     "ddtracer.server",
+				Resource: "POST /uploads/:document_id",
+				TraceID:  2594128270069917171,
+				SpanID:   2594128270069917171,
+				ParentID: 0,
+				Start:    int64(now),
+				Duration: 200000000,
+				Error:    1,
+				Meta: map[string]string{
+					"env":                       "staging",
+					"otel.library.name":         "ddtracer",
+					"otel.library.version":      "v2",
+					"otel.status_code":          "Error",
+					"error.msg":                 "201",
+					"http.request.method":       "POST",
+					"http.method":               "POST",
+					"url.path":                  "/uploads/4",
+					"url.scheme":                "https",
+					"http.route":                "/uploads/:document_id",
+					"http.response.status_code": "201",
+					"http.status_code":          "201",
+					"error.type":                "WebSocketDisconnect",
+					"otel.trace_id":             "72df520af2bde7a5240031ead750e5f3",
+					"span.kind":                 "unspecified",
+				},
+				Type: "custom",
+			},
+			topLevelOutMetrics: map[string]float64{
+				"_top_level": 1,
+			},
+		},
+		{
+			rattr: map[string]string{
+				"env":          "staging",
+				"service.name": "document-uploader",
+			},
+			libname: "ddtracer",
+			libver:  "v2",
+			// Modified version of:
+			// https://opentelemetry.io/docs/specs/semconv/http/http-spans/#http-server-call-connection-dropped-before-response-body-was-sent
+			// Using old semantic conventions.
+			in: testutil.NewOTLPSpan(&testutil.OTLPSpan{
+				Name:       "POST /uploads/:document_id",
+				Start:      now,
+				End:        now + 200000000,
+				StatusCode: ptrace.StatusCodeError,
+				Attributes: map[string]interface{}{
+					"operation.name":   "ddtracer.server",
+					"http.method":      "POST",
+					"url.path":         "/uploads/4",
+					"url.scheme":       "https",
+					"http.route":       "/uploads/:document_id",
+					"http.status_code": "201",
+					"error.type":       "WebSocketDisconnect",
+				},
+			}),
+			out: &pb.Span{
+				Service:  "document-uploader",
+				Name:     "ddtracer.server",
+				Resource: "POST /uploads/:document_id",
+				TraceID:  2594128270069917171,
+				SpanID:   2594128270069917171,
+				ParentID: 0,
+				Start:    int64(now),
+				Duration: 200000000,
+				Error:    1,
+				Meta: map[string]string{
+					"env":                  "staging",
+					"otel.library.name":    "ddtracer",
+					"otel.library.version": "v2",
+					"otel.status_code":     "Error",
+					"error.msg":            "201",
+					"http.method":          "POST",
+					"url.path":             "/uploads/4",
+					"url.scheme":           "https",
+					"http.route":           "/uploads/:document_id",
+					"http.status_code":     "201",
+					"error.type":           "WebSocketDisconnect",
+					"otel.trace_id":        "72df520af2bde7a5240031ead750e5f3",
+					"span.kind":            "unspecified",
+				},
+				Type: "custom",
+			},
+			topLevelOutMetrics: map[string]float64{
+				"_top_level": 1,
 			},
 		},
 	} {

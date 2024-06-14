@@ -83,20 +83,16 @@ func TestMetadataProvider(t *testing.T) {
 	i := getTestInventoryPayload(t, nil)
 
 	i.Enabled = true
-	cb := i.MetadataProvider().Callback
-	_, ok := cb.Get()
-	assert.True(t, ok)
+	assert.NotNil(t, i.MetadataProvider().Callback)
 
 	i.Enabled = false
-	cb = i.MetadataProvider().Callback
-	_, ok = cb.Get()
-	assert.False(t, ok)
+	assert.Nil(t, i.MetadataProvider().Callback)
 }
 
 func TestFlareProvider(t *testing.T) {
 	i := getTestInventoryPayload(t, nil)
 
-	assert.NotNil(t, i.FlareProvider().Provider)
+	assert.NotNil(t, i.FlareProvider().Callback)
 }
 
 func TestGetAsJSON(t *testing.T) {

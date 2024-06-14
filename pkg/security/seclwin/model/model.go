@@ -87,10 +87,11 @@ type ContainerContext struct {
 
 // SecurityProfileContext holds the security context of the profile
 type SecurityProfileContext struct {
-	Name       string      `field:"name"`        // SECLDoc[name] Definition:`Name of the security profile`
-	Version    string      `field:"version"`     // SECLDoc[version] Definition:`Version of the security profile`
-	Tags       []string    `field:"tags"`        // SECLDoc[tags] Definition:`Tags of the security profile`
-	EventTypes []EventType `field:"event_types"` // SECLDoc[event_types] Definition:`Event types enabled for the security profile`
+	Name           string                     `field:"name"`        // SECLDoc[name] Definition:`Name of the security profile`
+	Version        string                     `field:"version"`     // SECLDoc[version] Definition:`Version of the security profile`
+	Tags           []string                   `field:"tags"`        // SECLDoc[tags] Definition:`Tags of the security profile`
+	EventTypes     []EventType                `field:"event_types"` // SECLDoc[event_types] Definition:`Event types enabled for the security profile`
+	EventTypeState EventFilteringProfileState `field:"-"`           // State of the event type in this profile
 }
 
 // IPPortContext is used to hold an IP and Port
@@ -220,11 +221,6 @@ func (e *Event) HasActiveActivityDump() bool {
 // IsAnomalyDetectionEvent returns true if the current event is an anomaly detection event (kernel or user space)
 func (e *Event) IsAnomalyDetectionEvent() bool {
 	return e.Flags&EventFlagsAnomalyDetectionEvent > 0
-}
-
-// IsKernelSpaceAnomalyDetectionEvent returns true if the event is a kernel space anomaly detection event
-func (e *Event) IsKernelSpaceAnomalyDetectionEvent() bool {
-	return AnomalyDetectionSyscallEventType == e.GetEventType()
 }
 
 // AddToFlags adds a flag to the event
@@ -537,6 +533,41 @@ type DNSEvent struct {
 	Class uint16 `field:"question.class"`                                                  // SECLDoc[question.class] Definition:`the class looked up by the DNS question` Constants:`DNS qclasses`
 	Size  uint16 `field:"question.length"`                                                 // SECLDoc[question.length] Definition:`the total DNS request size in bytes`
 	Count uint16 `field:"question.count"`                                                  // SECLDoc[question.count] Definition:`the total count of questions in the DNS request`
+}
+
+// Matches returns true if the two DNS events matches
+func (de *DNSEvent) Matches(new *DNSEvent) bool {
+	return de.Name == new.Name && de.Type == new.Type && de.Class == new.Class
+}
+
+// IMDSEvent represents an IMDS event
+type IMDSEvent struct {
+	Type          string `field:"type"`           // SECLDoc[type] Definition:`the type of IMDS event`
+	CloudProvider string `field:"cloud_provider"` // SECLDoc[cloud_provider] Definition:`the intended cloud provider of the IMDS event`
+	URL           string `field:"url"`            // SECLDoc[url] Definition:`the queried IMDS URL`
+	Host          string `field:"host"`           // SECLDoc[host] Definition:`the host of the HTTP protocol`
+	UserAgent     string `field:"user_agent"`     // SECLDoc[user_agent] Definition:`the user agent of the HTTP client`
+	Server        string `field:"server"`         // SECLDoc[server] Definition:`the server header of a response`
+
+	// The fields below are optional and cloud specific fields
+	AWS AWSIMDSEvent `field:"aws"` // SECLDoc[aws] Definition:`the AWS specific data parsed from the IMDS event`
+}
+
+// AWSIMDSEvent holds data from an AWS IMDS event
+type AWSIMDSEvent struct {
+	IsIMDSv2            bool                   `field:"is_imds_v2"`           // SECLDoc[is_imds_v2] Definition:`a boolean which specifies if the IMDS event follows IMDSv1 or IMDSv2 conventions`
+	SecurityCredentials AWSSecurityCredentials `field:"security_credentials"` // SECLDoc[credentials] Definition:`the security credentials in the IMDS answer`
+}
+
+// AWSSecurityCredentials is used to parse the fields that are none to be free of credentials or secrets
+type AWSSecurityCredentials struct {
+	Code        string    `field:"-" json:"Code"`
+	Type        string    `field:"type" json:"Type"` // SECLDoc[type] Definition:`the security credentials type`
+	AccessKeyID string    `field:"-" json:"AccessKeyId"`
+	LastUpdated string    `field:"-" json:"LastUpdated"`
+	Expiration  time.Time `field:"-"`
+
+	ExpirationRaw string `field:"-" json:"Expiration"`
 }
 
 // BaseExtraFieldHandlers handlers not hold by any field

@@ -11,8 +11,8 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	queue "github.com/DataDog/datadog-agent/pkg/util/aggregatingqueue"
@@ -74,7 +74,7 @@ func (p *processor) processRefresh(allImages []*workloadmeta.ContainerImageMetad
 }
 
 func (p *processor) processImage(img *workloadmeta.ContainerImageMetadata) {
-	ddTags, err := tagger.Tag("container_image_metadata://"+img.ID, collectors.HighCardinality)
+	ddTags, err := tagger.Tag("container_image_metadata://"+img.ID, types.HighCardinality)
 	if err != nil {
 		log.Errorf("Could not retrieve tags for container image %s: %v", img.ID, err)
 	}

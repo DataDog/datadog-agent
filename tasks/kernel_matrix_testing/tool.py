@@ -1,23 +1,27 @@
 from __future__ import annotations
 
 import os
-import platform
-from typing import TYPE_CHECKING, Optional
+import sys
+from typing import TYPE_CHECKING
 
 import invoke.exceptions as ie
 from invoke.context import Context
 
-from tasks.kernel_matrix_testing.vars import arch_mapping
+from tasks.libs.types.arch import Arch
 
 if TYPE_CHECKING:
-    from tasks.kernel_matrix_testing.types import Arch
+    from tasks.kernel_matrix_testing.types import KMTArchName, KMTArchNameOrLocal, PathOrStr
 
 try:
     from termcolor import colored
 except ImportError:
 
-    def colored(text: str, color: Optional[str]) -> str:  # noqa: U100
+    def colored(text: str, color: str | None) -> str:  # noqa: U100
         return text
+
+
+def _logprint(msg: str):
+    print(msg, flush=True, file=sys.stderr)
 
 
 def ask(question: str) -> str:
@@ -25,19 +29,19 @@ def ask(question: str) -> str:
 
 
 def debug(msg: str):
-    print(colored(msg, "white"))
+    _logprint(colored(msg, "white"))
 
 
 def info(msg: str):
-    print(colored(msg, "green"))
+    _logprint(colored(msg, "green"))
 
 
 def warn(msg: str):
-    print(colored(msg, "yellow"))
+    _logprint(colored(msg, "yellow"))
 
 
 def error(msg: str):
-    print(colored(msg, "red"))
+    _logprint(colored(msg, "red"))
 
 
 def Exit(msg: str):
@@ -54,13 +58,7 @@ def is_root():
     return os.getuid() == 0
 
 
-def full_arch(arch: str):
-    if arch == "local":
-        return arch_mapping[platform.machine()]
-    return arch_mapping[arch]
-
-
-def get_binary_target_arch(ctx: Context, file: str) -> Optional[Arch]:
+def get_binary_target_arch(ctx: Context, file: PathOrStr) -> Arch | None:
     res = ctx.run(f"file {file}")
     if res is None or not res.ok:
         return None
@@ -70,10 +68,18 @@ def get_binary_target_arch(ctx: Context, file: str) -> Optional[Arch]:
         return None
 
     # Second field of the file output is the architecture, get a standard
-    # value if possible
-    binary_arch = res.stdout.split(",")[1].strip()
-    for word in binary_arch.split(" "):
-        if word in arch_mapping:
-            return arch_mapping[word]
+    # Get a standard value if possible
+    words = [x.strip(",.") for x in res.stdout.split(" ")]
+    for word in words:
+        try:
+            return Arch.from_str(word)
+        except KeyError:
+            pass
 
     return None
+
+
+def convert_kmt_arch_or_local(arch: KMTArchNameOrLocal) -> KMTArchName:
+    if arch == "local":
+        return Arch.local().kmt_arch
+    return arch

@@ -118,8 +118,8 @@ func NewAgentGRPCConfigFetcher(ipcAddress string, cmdPort string, authTokenFetch
 	}, nil
 }
 
-// NewHAAgentGRPCConfigFetcher returns a gRPC config fetcher using the secure agent HA client
-func NewHAAgentGRPCConfigFetcher(ipcAddress string, cmdPort string, authTokenFetcher TokenFetcher) (ConfigFetcher, error) {
+// NewMRFAgentGRPCConfigFetcher returns a gRPC config fetcher using the secure agent MRF client
+func NewMRFAgentGRPCConfigFetcher(ipcAddress string, cmdPort string, authTokenFetcher TokenFetcher) (ConfigFetcher, error) {
 	c, err := newAgentGRPCClient(ipcAddress, cmdPort)
 	if err != nil {
 		return nil, err
@@ -178,9 +178,9 @@ func NewGRPCClient(ipcAddress string, cmdPort string, authTokenFetcher TokenFetc
 	return newClient(grpcClient, opts...)
 }
 
-// NewUnverifiedHAGRPCClient creates a new client that does not perform any TUF verification and gets failover configs via grpc
-func NewUnverifiedHAGRPCClient(ipcAddress string, cmdPort string, authTokenFetcher TokenFetcher, opts ...func(o *Options)) (*Client, error) {
-	grpcClient, err := NewHAAgentGRPCConfigFetcher(ipcAddress, cmdPort, authTokenFetcher)
+// NewUnverifiedMRFGRPCClient creates a new client that does not perform any TUF verification and gets failover configs via gRPC
+func NewUnverifiedMRFGRPCClient(ipcAddress string, cmdPort string, authTokenFetcher TokenFetcher, opts ...func(o *Options)) (*Client, error) {
+	grpcClient, err := NewMRFAgentGRPCConfigFetcher(ipcAddress, cmdPort, authTokenFetcher)
 	if err != nil {
 		return nil, err
 	}
@@ -424,13 +424,13 @@ func (c *Client) pollLoop() {
 					}
 				} else {
 					c.lastUpdateError = err
-					c.backoffPolicy.IncError(c.backoffErrorCount)
+					c.backoffErrorCount = c.backoffPolicy.IncError(c.backoffErrorCount)
 					log.Errorf("could not update remote-config state: %v", c.lastUpdateError)
 				}
 			} else {
 				c.lastUpdateError = nil
 				successfulFirstRun = true
-				c.backoffPolicy.DecError(c.backoffErrorCount)
+				c.backoffErrorCount = c.backoffPolicy.DecError(c.backoffErrorCount)
 			}
 		}
 	}
@@ -535,6 +535,7 @@ func (c *Client) newUpdateRequest() (*pbgo.ClientGetConfigsRequest, error) {
 			Version:    f.Version,
 			Product:    f.Product,
 			ApplyState: uint64(f.ApplyStatus.State),
+			ApplyError: f.ApplyStatus.Error,
 		})
 	}
 

@@ -25,6 +25,7 @@ const UnstructuredProcessingMetricName = "datadog.logs_agent.tailer.unstructured
 // A Processor updates messages from an inputChan and pushes
 // in an outputChan.
 type Processor struct {
+	pipelineID int
 	inputChan  chan *message.Message
 	outputChan chan *message.Message // strategy input
 	// ReconfigChan transports rules to use in order to reconfigure
@@ -41,10 +42,12 @@ type Processor struct {
 }
 
 // New returns an initialized Processor.
-func New(inputChan, outputChan chan *message.Message, processingRules []*config.ProcessingRule, encoder Encoder, diagnosticMessageReceiver diagnostic.MessageReceiver, hostname hostnameinterface.Component) *Processor {
-	sdsScanner := sds.CreateScanner()
+func New(inputChan, outputChan chan *message.Message, processingRules []*config.ProcessingRule, encoder Encoder,
+	diagnosticMessageReceiver diagnostic.MessageReceiver, hostname hostnameinterface.Component, pipelineID int) *Processor {
+	sdsScanner := sds.CreateScanner(pipelineID)
 
 	return &Processor{
+		pipelineID:                pipelineID,
 		inputChan:                 inputChan,
 		outputChan:                outputChan, // strategy input
 		ReconfigChan:              make(chan sds.ReconfigureOrder),
@@ -65,12 +68,14 @@ func (p *Processor) Start() {
 // Stop stops the Processor,
 // this call blocks until inputChan is flushed
 func (p *Processor) Stop() {
+	close(p.inputChan)
+	<-p.done
+	// once the processor mainloop is not running, it's safe
+	// to delete the sds scanner instance.
 	if p.sds != nil {
 		p.sds.Delete()
 		p.sds = nil
 	}
-	close(p.inputChan)
-	<-p.done
 }
 
 // Flush processes synchronously the messages that this processor has to process.
@@ -180,11 +185,11 @@ func (p *Processor) applyRedactingRules(msg *message.Message) bool {
 
 	// Global SDS scanner, applied on all log sources
 	if p.sds.IsReady() {
-		matched, processed, err := p.sds.Scan(content, msg)
+		mutated, evtProcessed, err := p.sds.Scan(content, msg)
 		if err != nil {
 			log.Error("while using SDS to scan the log:", err)
-		} else if matched {
-			content = processed
+		} else if mutated {
+			content = evtProcessed
 		}
 	}
 

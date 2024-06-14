@@ -21,7 +21,7 @@ type linuxHostnameSuite struct {
 	baseHostnameSuite
 }
 
-func TestLinuxHostnameEC2Suite(t *testing.T) {
+func TestLinuxHostnameSuite(t *testing.T) {
 	osOption := awshost.WithEC2InstanceOptions(ec2.WithOS(os.UbuntuDefault))
 	e2e.Run(t, &linuxHostnameSuite{baseHostnameSuite: baseHostnameSuite{osOption: osOption}}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake()))
 }
@@ -37,7 +37,7 @@ func (v *linuxHostnameSuite) TestAgentConfigHostnameFileOverride() {
 func (v *linuxHostnameSuite) TestAgentConfigPreferImdsv2() {
 	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(v.GetOs(), awshost.WithAgentOptions(agentparams.WithAgentConfig("ec2_prefer_imdsv2: true"))))
 	// e2e metadata provider already uses IMDSv2
-	metadata := client.NewEC2Metadata(v.Env().RemoteHost)
+	metadata := client.NewEC2Metadata(v.T(), v.Env().RemoteHost.Host, v.Env().RemoteHost.OSFamily)
 
 	hostname := v.Env().Agent.Client.Hostname()
 	resourceID := metadata.Get("instance-id")
@@ -48,7 +48,7 @@ func (v *linuxHostnameSuite) TestAgentConfigPreferImdsv2() {
 func (v *linuxHostnameSuite) TestAgentHostnameDefaultsToResourceId() {
 	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(v.GetOs(), awshost.WithAgentOptions(agentparams.WithAgentConfig(""))))
 
-	metadata := client.NewEC2Metadata(v.Env().RemoteHost)
+	metadata := client.NewEC2Metadata(v.T(), v.Env().RemoteHost.Host, v.Env().RemoteHost.OSFamily)
 	hostname := v.Env().Agent.Client.Hostname()
 
 	// Default configuration of hostname for EC2 instances is the resource-id

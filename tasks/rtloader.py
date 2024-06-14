@@ -1,6 +1,7 @@
 """
 RtLoader namespaced tasks
 """
+
 import errno
 import os
 import shutil
@@ -8,6 +9,8 @@ import sys
 
 from invoke import task
 from invoke.exceptions import Exit
+
+from tasks.libs.common.utils import collapsed_section
 
 
 def get_rtloader_path():
@@ -25,7 +28,7 @@ def get_dev_path():
 
 
 def run_make_command(ctx, command=""):
-    ctx.run(f"make -C {get_rtloader_build_path()} {command}")
+    ctx.run(f"make -C {get_rtloader_build_path()} {command}", err_stream=sys.stdout)
 
 
 def get_cmake_cache_path(rtloader_path):
@@ -54,7 +57,7 @@ def clear_cmake_cache(rtloader_path, settings):
 
 
 @task
-def make(ctx, install_prefix=None, python_runtimes='3', cmake_options='', arch="x64"):
+def make(ctx, install_prefix=None, python_runtimes='3', cmake_options=''):
     dev_path = get_dev_path()
 
     if cmake_options.find("-G") == -1:
@@ -81,9 +84,6 @@ def make(ctx, install_prefix=None, python_runtimes='3', cmake_options='', arch="
     for option, value in settings.items():
         cmake_args += f" -D{option}={value} "
 
-    if arch == "x86":
-        cmake_args += " -DARCH_I386=ON"
-
     if sys.platform == 'darwin':
         cmake_args += " -DCMAKE_OSX_DEPLOYMENT_TARGET=10.13"
 
@@ -96,8 +96,9 @@ def make(ctx, install_prefix=None, python_runtimes='3', cmake_options='', arch="
         else:
             raise
 
-    ctx.run(f"cd {rtloader_build_path} && cmake {cmake_args} {get_rtloader_path()}")
-    run_make_command(ctx)
+    with collapsed_section("Build rtloader"):
+        ctx.run(f"cd {rtloader_build_path} && cmake {cmake_args} {get_rtloader_path()}", err_stream=sys.stdout)
+        run_make_command(ctx)
 
 
 @task
@@ -121,17 +122,20 @@ def clean(_):
 
 @task
 def install(ctx):
-    run_make_command(ctx, "install")
+    with collapsed_section("Install rtloader"):
+        run_make_command(ctx, "install")
 
 
 @task
 def test(ctx):
-    ctx.run(f"make -C {get_rtloader_build_path()}/test run")
+    with collapsed_section("Run rtloader tests"):
+        ctx.run(f"make -C {get_rtloader_build_path()}/test run", err_stream=sys.stdout)
 
 
 @task
 def format(ctx, raise_if_changed=False):
-    run_make_command(ctx, "clang-format")
+    with collapsed_section("Run clang-format on rtloader"):
+        run_make_command(ctx, "clang-format")
 
     if raise_if_changed:
         changed_files = [line for line in ctx.run("git ls-files -m rtloader").stdout.strip().split("\n") if line]
@@ -160,7 +164,8 @@ def generate_doc(ctx):
 
     # doxygen puts both errors and warnings in stderr
     result = ctx.run(
-        "doxygen '{0}/doxygen/Doxyfile' 2>'{0}/doxygen/errors.log'".format(rtloader_path), warn=True  # noqa: FS002
+        "doxygen '{0}/doxygen/Doxyfile' 2>'{0}/doxygen/errors.log'".format(rtloader_path),  # noqa: UP032
+        warn=True,
     )
 
     if result.exited != 0:

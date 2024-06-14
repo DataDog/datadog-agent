@@ -26,6 +26,7 @@ def trigger_macos_workflow(
     version_cache_file_content=None,
     concurrency_key=None,
     fast_tests=None,
+    test_washer=False,
     integrations_core_ref=None,
 ):
     """
@@ -62,6 +63,9 @@ def trigger_macos_workflow(
 
     if integrations_core_ref is not None:
         inputs["integrations_core_ref"] = integrations_core_ref
+
+    if test_washer:
+        inputs["test_washer"] = "true"
 
     # Test-only input, only to be passed to the test workflow
     if "GO_TEST_SKIP_FLAKE" in os.environ and workflow_name == "test.yaml":
@@ -109,7 +113,7 @@ def trigger_macos_workflow(
                     if recent_run.id in might_be_waiting:
                         might_be_waiting.remove(recent_run.id)
                     for job in jobs:
-                        if any([step.name == workflow_id for step in job.steps]):
+                        if any(step.name == workflow_id for step in job.steps):
                             return recent_run
                 else:
                     might_be_waiting.add(recent_run.id)
@@ -232,7 +236,7 @@ def parse_log_file(log_file):
 
     error_regex = re.compile(r'\[error\]|(Linter|Test) failures|Traceback')
 
-    with open(log_file, 'r') as f:
+    with open(log_file) as f:
         lines = f.readlines()
         for line_number, line in enumerate(lines):
             if error_regex.search(line):

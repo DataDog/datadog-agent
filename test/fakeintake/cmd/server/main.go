@@ -26,7 +26,11 @@ func main() {
 
 	log.Println("⌛️ Starting fake intake")
 	ready := make(chan bool, 1)
-	fi := fakeintake.NewServer(fakeintake.WithPort(*portPtr), fakeintake.WithReadyChannel(ready))
+	fi := fakeintake.NewServer(
+		fakeintake.WithPort(*portPtr),
+		fakeintake.WithReadyChannel(ready),
+		fakeintake.WithStoreDriver(os.Getenv("STORAGE_DRIVER")),
+	)
 	fi.Start()
 	timeout := time.NewTimer(5 * time.Second)
 
@@ -43,7 +47,6 @@ func main() {
 	timeout.Stop()
 
 	log.Printf("🏃 Fake intake running at %s", fi.URL())
-
 	<-sigs
 	log.Println("Stopping fake intake")
 	err := fi.Stop()
@@ -53,4 +56,5 @@ func main() {
 
 	log.Println("Fake intake is stopped")
 	log.Println("👋 Bye bye")
+
 }

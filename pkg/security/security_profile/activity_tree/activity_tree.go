@@ -15,7 +15,6 @@ import (
 	"slices"
 	"sort"
 	"strings"
-	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/hashicorp/golang-lru/v2/simplelru"
@@ -258,7 +257,7 @@ func (at *ActivityTree) isEventValid(event *model.Event, dryRun bool) (bool, err
 	// check event type
 	if !at.validator.IsEventTypeValid(event.GetEventType()) {
 		if !dryRun {
-			at.Stats.droppedCount[event.GetEventType()][eventTypeReason].Inc()
+			at.Stats.counts[event.GetEventType()].droppedCount[eventTypeReason].Inc()
 		}
 		return false, untracedEventError{eventType: event.GetEventType()}
 	}
@@ -269,9 +268,18 @@ func (at *ActivityTree) isEventValid(event *model.Event, dryRun bool) (bool, err
 		// ignore non IPv4 / IPv6 bind events for now
 		if event.Bind.AddrFamily != unix.AF_INET && event.Bind.AddrFamily != unix.AF_INET6 {
 			if !dryRun {
-				at.Stats.droppedCount[model.BindEventType][bindFamilyReason].Inc()
+				at.Stats.counts[model.BindEventType].droppedCount[bindFamilyReason].Inc()
 			}
 			return false, errors.New("invalid event: invalid bind family")
+		}
+	case model.IMDSEventType:
+		// ignore IMDS answers without AccessKeyIDS
+		if event.IMDS.Type == model.IMDSResponseType && len(event.IMDS.AWS.SecurityCredentials.AccessKeyID) == 0 {
+			return false, fmt.Errorf("untraced event: IMDS response without credentials")
+		}
+		// ignore IMDS requests without URLs
+		if event.IMDS.Type == model.IMDSRequestType && len(event.IMDS.URL) == 0 {
+			return false, fmt.Errorf("invalid event: IMDS request without any URL")
 		}
 	}
 	return true, nil
@@ -282,7 +290,7 @@ func (at *ActivityTree) Insert(event *model.Event, insertMissingProcesses bool, 
 	newEntry, err := at.insertEvent(event, false /* !dryRun */, insertMissingProcesses, imageTag, generationType, resolvers)
 	if newEntry {
 		// this doesn't count the exec events which are counted separately
-		at.Stats.addedCount[event.GetEventType()][generationType].Inc()
+		at.Stats.counts[event.GetEventType()].addedCount[generationType].Inc()
 	}
 	return newEntry, err
 }
@@ -323,13 +331,13 @@ func (at *ActivityTree) insertEvent(event *model.Event, dryRun bool, insertMissi
 
 	// ignore events with an error
 	if event.Error != nil {
-		at.Stats.droppedCount[event.GetEventType()][brokenEventReason].Inc()
+		at.Stats.counts[event.GetEventType()].droppedCount[brokenEventReason].Inc()
 		return false, event.Error
 	}
 
 	// the count of processed events is the count of events that matched the activity dump selector = the events for
 	// which we successfully found a process activity node
-	at.Stats.processedCount[event.GetEventType()].Inc()
+	at.Stats.counts[event.GetEventType()].processedCount.Inc()
 
 	// insert the event based on its type
 	switch event.GetEventType() {
@@ -341,6 +349,8 @@ func (at *ActivityTree) insertEvent(event *model.Event, dryRun bool, insertMissi
 		return node.InsertFileEvent(&event.Open.File, event, imageTag, generationType, at.Stats, dryRun, at.pathsReducer, resolvers), nil
 	case model.DNSEventType:
 		return node.InsertDNSEvent(event, imageTag, generationType, at.Stats, at.DNSNames, dryRun, at.DNSMatchMaxDepth), nil
+	case model.IMDSEventType:
+		return node.InsertIMDSEvent(event, imageTag, generationType, at.Stats, dryRun), nil
 	case model.BindEventType:
 		return node.InsertBindEvent(event, imageTag, generationType, at.Stats, dryRun), nil
 	case model.SyscallsEventType:
@@ -529,7 +539,7 @@ func (at *ActivityTree) insertBranch(parent ProcessNodeParent, branchToInsert []
 			parent.AppendChild(matchingNode)
 
 			// insert the new node in the list of children
-			at.Stats.addedCount[model.ExecEventType][generationType].Inc()
+			at.Stats.counts[model.ExecEventType].addedCount[generationType].Inc()
 			at.Stats.ProcessNodes++
 
 			parent = matchingNode
@@ -659,7 +669,7 @@ func (at *ActivityTree) rebaseTree(parent ProcessNodeParent, childIndexToRebase 
 			childrenCursor.AppendChild(n)
 		}
 		at.Stats.ProcessNodes++
-		at.Stats.addedCount[model.ExecEventType][generationType].Inc()
+		at.Stats.counts[model.ExecEventType].addedCount[generationType].Inc()
 
 		childrenCursor = n
 	}
@@ -766,8 +776,6 @@ func (at *ActivityTree) FindMatchingRootNodes(arg0 string) []*ProcessNode {
 func (at *ActivityTree) Snapshot(newEvent func() *model.Event) {
 	for _, pn := range at.ProcessNodes {
 		pn.snapshot(at.validator, at.Stats, newEvent, at.pathsReducer)
-		// iterate slowly
-		time.Sleep(50 * time.Millisecond)
 	}
 }
 

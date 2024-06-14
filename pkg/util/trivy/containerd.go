@@ -15,7 +15,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aquasecurity/trivy/pkg/fanal/types"
 	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/content"
 	"github.com/containerd/containerd/images/archive"
@@ -30,7 +29,7 @@ import (
 	"github.com/samber/lo"
 	"golang.org/x/xerrors"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 )
 
 // ContainerdCollector defines the conttainerd collector name
@@ -74,7 +73,7 @@ func imageWriter(client *containerd.Client, img containerd.Image) imageSave {
 }
 
 // Custom code based on https://github.com/aquasecurity/trivy/blob/2206e008ea6e5f4e5c1aa7bc8fc77dae7041de6a/pkg/fanal/image/daemon/containerd.go `ContainerdImage`
-func convertContainerdImage(ctx context.Context, client *containerd.Client, imgMeta *workloadmeta.ContainerImageMetadata, img containerd.Image) (types.Image, func(), error) {
+func convertContainerdImage(ctx context.Context, client *containerd.Client, imgMeta *workloadmeta.ContainerImageMetadata, img containerd.Image) (*image, func(), error) {
 	ctx = namespaces.WithNamespace(ctx, imgMeta.Namespace)
 	cleanup := func() {}
 

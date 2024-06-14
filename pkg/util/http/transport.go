@@ -17,9 +17,10 @@ import (
 	"sync"
 	"time"
 
+	"golang.org/x/net/http/httpproxy"
+
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"golang.org/x/net/http/httpproxy"
 )
 
 var (
@@ -88,6 +89,14 @@ func CreateHTTPTransport(cfg pkgconfigmodel.Reader) *http.Transport {
 	// desirable side-effect of disabling http/2; if removing those fields then
 	// consider the implication of the protocol switch for intakes and other http
 	// servers. See ForceAttemptHTTP2 in https://pkg.go.dev/net/http#Transport.
+
+	var tlsHandshakeTimeout time.Duration
+	if cfg.IsSet("tls_handshake_timeout") {
+		tlsHandshakeTimeout = cfg.GetDuration("tls_handshake_timeout")
+	} else {
+		tlsHandshakeTimeout = 10 * time.Second
+	}
+
 	transport := &http.Transport{
 		TLSClientConfig: tlsConfig,
 		DialContext: (&net.Dialer{
@@ -101,7 +110,7 @@ func CreateHTTPTransport(cfg pkgconfigmodel.Reader) *http.Transport {
 		MaxIdleConnsPerHost: 5,
 		// This parameter is set to avoid connections sitting idle in the pool indefinitely
 		IdleConnTimeout:       45 * time.Second,
-		TLSHandshakeTimeout:   10 * time.Second,
+		TLSHandshakeTimeout:   tlsHandshakeTimeout,
 		ExpectContinueTimeout: 1 * time.Second,
 	}
 

@@ -18,7 +18,7 @@ import (
 
 	"github.com/hashicorp/go-multierror"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
@@ -288,7 +288,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 	}
 
 	// listen to probe event
-	if err := testMod.probe.AddFullAccessEventHandler(testMod); err != nil {
+	if err := testMod.probe.AddEventHandler(testMod); err != nil {
 		return nil, err
 	}
 

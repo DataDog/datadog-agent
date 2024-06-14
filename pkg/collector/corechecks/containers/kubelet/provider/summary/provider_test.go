@@ -20,8 +20,10 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
 	configcomp "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
+	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common"
@@ -330,7 +332,7 @@ func TestProvider_Provide(t *testing.T) {
 			mockSender := mocksender.NewMockSender(checkid.ID(t.Name()))
 			mockSender.SetupAcceptAll()
 
-			fakeTagger := tagger.SetupFakeTagger(t)
+			fakeTagger := taggerimpl.SetupFakeTagger(t)
 			defer fakeTagger.ResetTagger()
 			for entity, tags := range entityTags {
 				fakeTagger.SetTags(entity, "foo", tags, nil, nil, nil)
@@ -378,13 +380,13 @@ func TestProvider_Provide(t *testing.T) {
 	}
 }
 
-func creatFakeStore(t *testing.T) workloadmeta.Mock {
-	store := fxutil.Test[workloadmeta.Mock](t, fx.Options(
+func creatFakeStore(t *testing.T) workloadmetamock.Mock {
+	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		logimpl.MockModule(),
 		configcomp.MockModule(),
 		fx.Supply(context.Background()),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.MockModuleV2(),
+		workloadmetafxmock.MockModuleV2(),
 	))
 
 	podEntityID := workloadmeta.EntityID{

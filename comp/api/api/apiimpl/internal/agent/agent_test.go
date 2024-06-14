@@ -7,7 +7,6 @@ package agent
 
 import (
 	"context"
-	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -19,22 +18,23 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
+	demultiplexerendpointmock "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexerendpoint/fx-mock"
+	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/flare/flareimpl"
-	"github.com/DataDog/datadog-agent/comp/core/gui"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
+
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
-	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	dogstatsddebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/serverdebugimpl"
@@ -56,7 +56,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
-	"github.com/DataDog/datadog-agent/pkg/version"
 
 	// third-party dependencies
 	"github.com/gorilla/mux"
@@ -66,34 +65,29 @@ import (
 type handlerdeps struct {
 	fx.In
 
-	FlareComp             flare.Component
 	Server                dogstatsdServer.Component
 	ServerDebug           dogstatsddebug.Component
 	Wmeta                 workloadmeta.Component
 	LogsAgent             optional.Option[logsAgent.Component]
 	HostMetadata          host.Component
 	InvAgent              inventoryagent.Component
+	SecretResolver        secrets.Component
 	Demux                 demultiplexer.Component
 	InvHost               inventoryhost.Component
-	SecretResolver        secrets.Component
 	InvChecks             inventorychecks.Component
 	PkgSigning            packagesigning.Component
 	StatusComponent       status.Mock
 	Collector             optional.Option[collector.Component]
 	EventPlatformReceiver eventplatformreceiver.Component
 	Ac                    autodiscovery.Mock
-	Gui                   optional.Option[gui.Component]
-	Settings              settings.Component
+	Tagger                tagger.Mock
+	EndpointProviders     []api.EndpointProvider `group:"agent_endpoint"`
 }
 
 func getComponentDeps(t *testing.T) handlerdeps {
 	return fxutil.Test[handlerdeps](
 		t,
-		logimpl.MockModule(),
-		config.MockModule(),
-		fx.Supply(workloadmeta.NewParams()),
 		fx.Supply(context.Background()),
-		workloadmeta.MockModule(),
 		hostnameinterface.MockModule(),
 		flareimpl.MockModule(),
 		dogstatsdServer.MockModule(),
@@ -104,12 +98,10 @@ func getComponentDeps(t *testing.T) handlerdeps {
 		hostimpl.MockModule(),
 		inventoryagentimpl.MockModule(),
 		demultiplexerimpl.MockModule(),
+		demultiplexerendpointmock.MockModule(),
 		inventoryhostimpl.MockModule(),
 		secretsimpl.MockModule(),
-		fx.Provide(func(secretMock secrets.Mock) secrets.Component {
-			component := secretMock.(secrets.Component)
-			return component
-		}),
+		nooptelemetry.Module(),
 		inventorychecksimpl.MockModule(),
 		packagesigningimpl.MockModule(),
 		statusimpl.MockModule(),
@@ -117,11 +109,11 @@ func getComponentDeps(t *testing.T) handlerdeps {
 			return optional.NewNoneOption[collector.Component]()
 		}),
 		eventplatformreceiverimpl.MockModule(),
+		taggerimpl.MockModule(),
 		fx.Options(
 			fx.Supply(autodiscoveryimpl.MockParams{Scheduler: nil}),
 			autodiscoveryimpl.MockModule(),
 		),
-		fx.Supply(optional.NewNoneOption[gui.Component]()),
 		settingsimpl.MockModule(),
 	)
 }
@@ -133,46 +125,139 @@ func setupRoutes(t *testing.T) *mux.Router {
 	router := mux.NewRouter()
 	SetupHandlers(
 		router,
-		deps.FlareComp,
-		deps.Server,
-		deps.ServerDebug,
 		deps.Wmeta,
 		deps.LogsAgent,
 		sender,
-		deps.HostMetadata,
-		deps.InvAgent,
-		deps.Demux,
-		deps.InvHost,
 		deps.SecretResolver,
-		deps.InvChecks,
-		deps.PkgSigning,
 		deps.StatusComponent,
 		deps.Collector,
-		deps.EventPlatformReceiver,
 		deps.Ac,
-		deps.Gui,
-		deps.Settings,
+		deps.EndpointProviders,
 	)
 
 	return router
 }
 
 func TestSetupHandlers(t *testing.T) {
+	testcases := []struct {
+		route    string
+		method   string
+		wantCode int
+	}{
+		{
+			route:    "/version",
+			method:   "GET",
+			wantCode: 200,
+		},
+		{
+			route:    "/flare",
+			method:   "POST",
+			wantCode: 200,
+		},
+		{
+			route:    "/stream-event-platform",
+			method:   "POST",
+			wantCode: 200,
+		},
+		{
+			route:    "/dogstatsd-contexts-dump",
+			method:   "POST",
+			wantCode: 200,
+		},
+		{
+			route:    "/dogstatsd-stats",
+			method:   "GET",
+			wantCode: 200,
+		},
+		{
+			route:    "/config",
+			method:   "GET",
+			wantCode: 200,
+		},
+		{
+			route:    "/config/list-runtime",
+			method:   "GET",
+			wantCode: 200,
+		},
+		{
+			route:    "/config/log_level",
+			method:   "GET",
+			wantCode: 200,
+		},
+		{
+			route:    "/config/log_level",
+			method:   "POST",
+			wantCode: 200,
+		},
+		{
+			route:    "/secrets",
+			method:   "GET",
+			wantCode: 200,
+		},
+		{
+			route:    "/secret/refresh",
+			method:   "GET",
+			wantCode: 200,
+		},
+		{
+			route:    "/config-check",
+			method:   "GET",
+			wantCode: 200,
+		},
+		{
+			route:    "/tagger-list",
+			method:   "GET",
+			wantCode: 200,
+		},
+		{
+			route:    "/workload-list",
+			method:   "GET",
+			wantCode: 200,
+		},
+		{
+			route:    "/metadata/v5",
+			method:   "GET",
+			wantCode: 200,
+		},
+		{
+			route:    "/metadata/gohai",
+			method:   "GET",
+			wantCode: 200,
+		},
+		{
+			route:    "/metadata/inventory-agent",
+			method:   "GET",
+			wantCode: 200,
+		},
+		{
+			route:    "/metadata/inventory-host",
+			method:   "GET",
+			wantCode: 200,
+		},
+		{
+			route:    "/metadata/inventory-checks",
+			method:   "GET",
+			wantCode: 200,
+		},
+		{
+			route:    "/metadata/package-signing",
+			method:   "GET",
+			wantCode: 200,
+		},
+	}
 	router := setupRoutes(t)
 	ts := httptest.NewServer(router)
 	defer ts.Close()
 
-	res, err := http.Get(ts.URL + "/version")
-	require.NoError(t, err)
+	for _, tc := range testcases {
+		req, err := http.NewRequest(tc.method, ts.URL+tc.route, nil)
+		require.NoError(t, err)
 
-	want, err := version.Agent()
-	require.NoError(t, err)
+		resp, err := ts.Client().Do(req)
+		require.NoError(t, err)
+		io.Copy(io.Discard, resp.Body)
+		resp.Body.Close()
 
-	defer res.Body.Close()
-	body, err := io.ReadAll(res.Body)
-	require.NoError(t, err)
-
-	wantjson, _ := json.Marshal(want)
-
-	assert.Equal(t, string(wantjson), string(body))
+		assert.Equal(t, tc.wantCode, resp.StatusCode, "%s %s failed with a %d, want %d", tc.method, tc.route, resp.StatusCode, tc.wantCode)
+	}
 }

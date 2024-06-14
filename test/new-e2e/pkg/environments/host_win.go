@@ -6,10 +6,10 @@
 package environments
 
 import (
+	"github.com/DataDog/test-infra-definitions/resources/aws"
+
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
-	"github.com/DataDog/test-infra-definitions/resources/aws"
 )
 
 // WindowsHost is an environment based on environments.Host but that is specific to Windows.
@@ -25,14 +25,6 @@ type WindowsHost struct {
 var _ e2e.Initializable = &WindowsHost{}
 
 // Init initializes the environment
-func (e *WindowsHost) Init(ctx e2e.Context) error {
-	if e.Agent != nil {
-		agent, err := client.NewHostAgentClient(ctx.T(), e.RemoteHost, true)
-		if err != nil {
-			return err
-		}
-		e.Agent.Client = agent
-	}
-
+func (e *WindowsHost) Init(_ e2e.Context) error {
 	return nil
 }

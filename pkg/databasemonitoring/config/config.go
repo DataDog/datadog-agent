@@ -30,9 +30,10 @@ type AuroraConfig struct {
 func NewAuroraAutodiscoveryConfig() (AuroraConfig, error) {
 	var discoveryConfigs AuroraConfig
 	// defaults for all values are set in the config package
-	discoveryConfigs.Enabled = coreconfig.Datadog.GetBool(autoDiscoveryAuroraConfigKey + ".enabled")
-	discoveryConfigs.QueryTimeout = coreconfig.Datadog.GetInt(autoDiscoveryAuroraConfigKey + ".query_timeout")
-	discoveryConfigs.DiscoveryInterval = coreconfig.Datadog.GetInt(autoDiscoveryAuroraConfigKey + ".discovery_interval")
-	discoveryConfigs.Tags = coreconfig.Datadog.GetStringSlice(autoDiscoveryAuroraConfigKey + ".tags")
+	discoveryConfigs.Enabled = coreconfig.Datadog().GetBool(autoDiscoveryAuroraConfigKey + ".enabled")
+	discoveryConfigs.QueryTimeout = coreconfig.Datadog().GetInt(autoDiscoveryAuroraConfigKey + ".query_timeout")
+	discoveryConfigs.DiscoveryInterval = coreconfig.Datadog().GetInt(autoDiscoveryAuroraConfigKey + ".discovery_interval")
+	discoveryConfigs.Tags = coreconfig.Datadog().GetStringSlice(autoDiscoveryAuroraConfigKey + ".tags")
+	discoveryConfigs.Region = coreconfig.Datadog().GetString(autoDiscoveryAuroraConfigKey + ".region")
 	return discoveryConfigs, nil
 }

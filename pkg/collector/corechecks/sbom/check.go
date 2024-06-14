@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
-//go:build trivy
+//go:build trivy || (windows && wmi)
 
 package sbom
 
@@ -14,11 +14,11 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	ddConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -111,27 +111,29 @@ type Check struct {
 	processor         *processor
 	sender            sender.Sender
 	stopCh            chan struct{}
+	cfg               config.Component
 }
 
 // Factory returns a new check factory
-func Factory(store workloadmeta.Component) optional.Option[func() check.Check] {
+func Factory(store workloadmeta.Component, cfg config.Component) optional.Option[func() check.Check] {
 	return optional.NewOption(func() check.Check {
 		return core.NewLongRunningCheckWrapper(&Check{
 			CheckBase:         core.NewCheckBase(CheckName),
 			workloadmetaStore: store,
 			instance:          &Config{},
 			stopCh:            make(chan struct{}),
+			cfg:               cfg,
 		})
 	})
 }
 
 // Configure parses the check configuration and initializes the sbom check
-func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
-	if !ddConfig.Datadog.GetBool("sbom.enabled") {
+func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, initConfig integration.Data, source string) error {
+	if !c.cfg.GetBool("sbom.enabled") {
 		return errors.New("collection of SBOM is disabled")
 	}
 
-	if err := c.CommonConfigure(senderManager, integrationConfigDigest, initConfig, config, source); err != nil {
+	if err := c.CommonConfigure(senderManager, initConfig, config, source); err != nil {
 		return err
 	}
 
@@ -152,7 +154,7 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 		sender,
 		c.instance.ChunkSize,
 		time.Duration(c.instance.NewSBOMMaxLatencySeconds)*time.Second,
-		ddConfig.Datadog.GetBool("sbom.host.enabled"),
+		c.cfg.GetBool("sbom.host.enabled"),
 		time.Duration(c.instance.HostHeartbeatValiditySeconds)*time.Second); err != nil {
 		return err
 	}
@@ -165,19 +167,15 @@ func (c *Check) Run() error {
 	log.Infof("Starting long-running check %q", c.ID())
 	defer log.Infof("Shutting down long-running check %q", c.ID())
 
-	filterParams := workloadmeta.FilterParams{
-		Kinds: []workloadmeta.Kind{
-			workloadmeta.KindContainerImageMetadata,
-			workloadmeta.KindContainer,
-		},
-		Source:    workloadmeta.SourceAll,
-		EventType: workloadmeta.EventTypeAll,
-	}
+	filter := workloadmeta.NewFilterBuilder().
+		AddKind(workloadmeta.KindContainer).
+		AddKind(workloadmeta.KindContainerImageMetadata).
+		Build()
 
 	imgEventsCh := c.workloadmetaStore.Subscribe(
 		CheckName,
 		workloadmeta.NormalPriority,
-		workloadmeta.NewFilter(&filterParams),
+		filter,
 	)
 
 	// Trigger an initial scan on host. This channel is buffered to avoid blocking the scanner
@@ -229,7 +227,7 @@ func (c *Check) Run() error {
 func (c *Check) sendUsageMetrics() {
 	c.sender.Count("datadog.agent.sbom.container_images.running", 1.0, "", nil)
 
-	if ddConfig.Datadog.GetBool("sbom.host.enabled") {
+	if c.cfg.GetBool("sbom.host.enabled") {
 		c.sender.Count("datadog.agent.sbom.hosts.running", 1.0, "", nil)
 	}
 

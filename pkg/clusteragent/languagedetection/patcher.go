@@ -11,17 +11,22 @@ package languagedetection
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
 
+	"k8s.io/apimachinery/pkg/api/validation"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/util/retry"
+	"k8s.io/client-go/util/workqueue"
 
 	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	langUtil "github.com/DataDog/datadog-agent/pkg/languagedetection/util"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
@@ -43,6 +48,7 @@ type languagePatcher struct {
 	k8sClient dynamic.Interface
 	store     workloadmeta.Component
 	logger    log.Component
+	queue     workqueue.RateLimitingInterface
 }
 
 // NewLanguagePatcher initializes and returns a new patcher with a dynamic k8s client
@@ -51,12 +57,23 @@ func newLanguagePatcher(ctx context.Context, store workloadmeta.Component, logge
 	ctx, cancel := context.WithCancel(ctx)
 
 	k8sClient := apiCl.DynamicCl
+
 	return &languagePatcher{
 		ctx:       ctx,
 		cancel:    cancel,
 		k8sClient: k8sClient,
 		store:     store,
 		logger:    logger,
+		queue: workqueue.NewRateLimitingQueueWithConfig(
+			workqueue.NewItemExponentialFailureRateLimiter(
+				config.Datadog().GetDuration("cluster_agent.language_detection.patcher.base_backoff"),
+				config.Datadog().GetDuration("cluster_agent.language_detection.patcher.max_backoff"),
+			),
+			workqueue.RateLimitingQueueConfig{
+				Name:            subsystem,
+				MetricsProvider: queueMetricsProvider,
+			},
+		),
 	}
 }
 
@@ -85,7 +102,7 @@ func Start(ctx context.Context, store workloadmeta.Component, logger log.Compone
 	languagePatcherOnce.Do(func() {
 		logger.Info("Starting language detection patcher")
 		patcher = newLanguagePatcher(ctx, store, logger, apiCl)
-		go patcher.run()
+		go patcher.run(ctx)
 	})
 
 	return nil
@@ -99,23 +116,21 @@ func Stop() {
 	}
 }
 
-func (lp *languagePatcher) run() {
+func (lp *languagePatcher) run(ctx context.Context) {
 	defer lp.logger.Info("Shutting down language detection patcher")
 
+	lp.startProcessingPatchingRequests(ctx)
+
 	// Capture all set events
-	filterParams := workloadmeta.FilterParams{
-		Kinds: []workloadmeta.Kind{
-			// Currently only deployments are supported
-			workloadmeta.KindKubernetesDeployment,
-		},
-		Source:    workloadmeta.SourceLanguageDetectionServer,
-		EventType: workloadmeta.EventTypeAll,
-	}
+	filter := workloadmeta.NewFilterBuilder().
+		SetSource(workloadmeta.SourceLanguageDetectionServer).
+		AddKind(workloadmeta.KindKubernetesDeployment).
+		Build()
 
 	eventCh := lp.store.Subscribe(
 		subscriber,
 		workloadmeta.NormalPriority,
-		workloadmeta.NewFilter(&filterParams),
+		filter,
 	)
 	defer lp.store.Unsubscribe(eventCh)
 
@@ -134,9 +149,125 @@ func (lp *languagePatcher) run() {
 			if !ok {
 				return
 			}
-			lp.handleEvent(eventBundle)
+			eventBundle.Acknowledge()
+			lp.handleEvents(eventBundle.Events)
 		}
 	}
+}
+
+// handleEvents handles events from workloadmeta
+func (lp *languagePatcher) handleEvents(events []workloadmeta.Event) {
+	lp.logger.Tracef("Processing %d events", len(events))
+
+	for _, event := range events {
+		owner, err := lp.extractOwnerFromEvent(event)
+
+		if err != nil {
+			lp.logger.Errorf("failed to handle event: %v", err)
+		}
+
+		lp.queue.Add(*owner)
+	}
+}
+
+func (lp *languagePatcher) extractOwnerFromEvent(event workloadmeta.Event) (*langUtil.NamespacedOwnerReference, error) {
+	entityKind := event.Entity.GetID().Kind
+
+	switch entityKind {
+	case workloadmeta.KindKubernetesDeployment:
+		// Case of deployment
+		deploymentID := event.Entity.(*workloadmeta.KubernetesDeployment).ID
+
+		// extract deployment name and namespace from entity id
+		deploymentIds := strings.Split(deploymentID, "/")
+		namespace := deploymentIds[0]
+		deploymentName := deploymentIds[1]
+
+		// construct namespaced owner reference
+		owner := langUtil.NewNamespacedOwnerReference(
+			"apps/v1",
+			langUtil.KindDeployment,
+			deploymentName,
+			namespace,
+		)
+
+		return &owner, nil
+	default:
+		return nil, fmt.Errorf("Unsupported entity kind: %v", entityKind)
+	}
+}
+
+func (lp *languagePatcher) startProcessingPatchingRequests(ctx context.Context) {
+	go func() {
+		<-ctx.Done()
+		lp.queue.ShutDown()
+	}()
+	go func() {
+		for {
+			obj, shutdown := lp.queue.Get()
+			if shutdown {
+				break
+			}
+
+			owner, ok := obj.(langUtil.NamespacedOwnerReference)
+			if !ok {
+				// The item in the queue was not of the expected type. This should not happen.
+				lp.logger.Errorf("The item in the queue is not of the expected type (i.e. NamespacedOwnerReference). This should not have happened.")
+				lp.queue.Forget(obj)
+				continue
+			}
+
+			err := lp.processOwner(ctx, owner)
+			if err != nil {
+				lp.logger.Errorf("Failed processing %s: %s/%s. It will be retried later: %v", owner.Kind, owner.Namespace, owner.Name, err)
+				Patches.Inc(owner.Kind, owner.Name, owner.Namespace, statusError)
+				lp.queue.AddRateLimited(owner)
+			} else {
+				lp.queue.Forget(obj)
+			}
+
+			lp.queue.Done(obj)
+		}
+	}()
+}
+
+func (lp *languagePatcher) processOwner(ctx context.Context, owner langUtil.NamespacedOwnerReference) error {
+	lp.logger.Tracef("Processing %s: %s/%s", owner.Kind, owner.Namespace, owner.Name)
+
+	var err error
+
+	switch owner.Kind {
+	case langUtil.KindDeployment:
+		err = lp.handleDeployment(ctx, owner)
+	}
+
+	return err
+}
+
+func (lp *languagePatcher) handleDeployment(ctx context.Context, owner langUtil.NamespacedOwnerReference) error {
+	deploymentID := fmt.Sprintf("%s/%s", owner.Namespace, owner.Name)
+
+	// get the complete entity
+	deployment, err := lp.store.GetKubernetesDeployment(deploymentID)
+
+	if err != nil {
+		lp.logger.Info("Didn't find deployment in store, skipping")
+		// skip if not in store
+		return nil
+	}
+
+	detectedLanguages := deployment.DetectedLanguages
+	injectableLanguages := deployment.InjectableLanguages
+
+	// Calculate annotations patch
+	annotationsPatch := lp.generateAnnotationsPatch(injectableLanguages, detectedLanguages)
+	if len(annotationsPatch) > 0 {
+		err = lp.patchOwner(ctx, &owner, annotationsPatch)
+	} else {
+		Patches.Inc(owner.Kind, owner.Name, owner.Namespace, statusSkip)
+	}
+
+	return err
 }
 
 func (lp *languagePatcher) generateAnnotationsPatch(currentLangs, newLangs langUtil.ContainersLanguages) map[string]interface{} {
@@ -162,78 +293,25 @@ func (lp *languagePatcher) generateAnnotationsPatch(currentLangs, newLangs langU
 	return annotationsPatch
 }
 
-// handleEvent handles events from workloadmeta
-func (lp *languagePatcher) handleEvent(eventBundle workloadmeta.EventBundle) {
-	eventBundle.Acknowledge()
-	lp.logger.Tracef("Processing %d events", len(eventBundle.Events))
-
-	for _, event := range eventBundle.Events {
-		switch event.Entity.GetID().Kind {
-		case workloadmeta.KindKubernetesDeployment:
-			lp.handleDeploymentEvent(event)
-		}
-	}
-}
-
-func (lp *languagePatcher) handleDeploymentEvent(event workloadmeta.Event) {
-	deploymentID := event.Entity.(*workloadmeta.KubernetesDeployment).ID
-
-	// extract deployment name and namespace from entity id
-	deploymentIds := strings.Split(deploymentID, "/")
-	namespace := deploymentIds[0]
-	deploymentName := deploymentIds[1]
-
-	// get the complete entity
-	deployment, err := lp.store.GetKubernetesDeployment(deploymentID)
-
-	if err != nil {
-		lp.logger.Info("Didn't find deployment in store, skipping")
-		// skip if not in store
-		return
-	}
-
-	// construct namespaced owner reference
-	owner := langUtil.NewNamespacedOwnerReference(
-		"apps/v1",
-		langUtil.KindDeployment,
-		deploymentName,
-		namespace,
-	)
-
-	if event.Type == workloadmeta.EventTypeUnset {
-		// In case of unset event, we should clear language detection annotations if they are still present
-		// If they aren't present, then the resource has been deleted, so we should skip
-
-		if len(deployment.InjectableLanguages) > 0 {
-			// If some annotations still exist, remove them
-			annotationsPatch := lp.generateAnnotationsPatch(deployment.InjectableLanguages, langUtil.ContainersLanguages{})
-			lp.patchOwner(&owner, annotationsPatch)
-			return
-		}
-
-		Patches.Inc(owner.Kind, owner.Name, owner.Namespace, statusSkip)
-	} else if event.Type == workloadmeta.EventTypeSet {
-		detectedLanguages := deployment.DetectedLanguages
-		injectableLanguages := deployment.InjectableLanguages
-
-		// Calculate annotations patch
-		annotationsPatch := lp.generateAnnotationsPatch(injectableLanguages, detectedLanguages)
-		if len(annotationsPatch) > 0 {
-			lp.patchOwner(&owner, annotationsPatch)
-		} else {
-			Patches.Inc(owner.Kind, owner.Name, owner.Namespace, statusSkip)
-		}
-
-	}
-}
-
 // patches the owner with the corresponding language annotations
-func (lp *languagePatcher) patchOwner(namespacedOwnerRef *langUtil.NamespacedOwnerReference, annotationsPatch map[string]interface{}) {
+func (lp *languagePatcher) patchOwner(ctx context.Context, namespacedOwnerRef *langUtil.NamespacedOwnerReference, annotationsPatch map[string]interface{}) error {
+
+	setAnnotations := map[string]string{}
+	for k, v := range annotationsPatch {
+		if v != nil {
+			setAnnotations[k] = fmt.Sprintf("%v", v)
+		}
+	}
+
+	errs := validation.ValidateAnnotations(setAnnotations, field.NewPath("annotations"))
+
+	if len(errs) > 0 {
+		return errors.New(errs.ToAggregate().Error())
+	}
+
 	ownerGVR, err := langUtil.GetGVR(namespacedOwnerRef)
 	if err != nil {
-		lp.logger.Errorf("failed to update owner: %v", err)
-		Patches.Inc(namespacedOwnerRef.Kind, namespacedOwnerRef.Name, namespacedOwnerRef.Namespace, statusError)
-		return
+		return err
 	}
 
 	retryErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
@@ -247,7 +325,7 @@ func (lp *languagePatcher) patchOwner(namespacedOwnerRef *langUtil.NamespacedOwn
 			return err
 		}
 
-		_, err = lp.k8sClient.Resource(ownerGVR).Namespace(namespacedOwnerRef.Namespace).Patch(context.TODO(), namespacedOwnerRef.Name, types.MergePatchType, patchData, metav1.PatchOptions{})
+		_, err = lp.k8sClient.Resource(ownerGVR).Namespace(namespacedOwnerRef.Namespace).Patch(ctx, namespacedOwnerRef.Name, types.MergePatchType, patchData, metav1.PatchOptions{})
 		if err != nil {
 			Patches.Inc(namespacedOwnerRef.Kind, namespacedOwnerRef.Name, namespacedOwnerRef.Namespace, statusRetry)
 		}
@@ -256,10 +334,9 @@ func (lp *languagePatcher) patchOwner(namespacedOwnerRef *langUtil.NamespacedOwn
 	})
 
 	if retryErr != nil {
-		Patches.Inc(namespacedOwnerRef.Kind, namespacedOwnerRef.Name, namespacedOwnerRef.Namespace, statusError)
-		lp.logger.Errorf("failed to update owner: %v", retryErr)
-		return
+		return retryErr
 	}
 
 	Patches.Inc(namespacedOwnerRef.Kind, namespacedOwnerRef.Name, namespacedOwnerRef.Namespace, statusSuccess)
+	return nil
 }

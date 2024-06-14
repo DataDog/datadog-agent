@@ -71,7 +71,7 @@ func NewDBMAuroraListener(Config) (ServiceListener, error) {
 	if err != nil {
 		return nil, err
 	}
-	client, region, err := aws.NewRDSClient()
+	client, region, err := aws.NewRDSClient(config.Region)
 	if err != nil {
 		return nil, err
 	}

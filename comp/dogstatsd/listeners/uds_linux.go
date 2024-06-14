@@ -14,13 +14,13 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
+	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
-	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
@@ -129,7 +129,7 @@ func entityForPID(pid int32, capture bool, wmeta optional.Option[workloadmeta.Co
 		return state.ContainerIDForPID(pid)
 	}
 
-	cID, err := metrics.GetProvider(wmeta).GetMetaCollector().GetContainerIDForPID(int(pid), pidToEntityCacheDuration)
+	cID, err := provider.GetProvider(wmeta).GetMetaCollector().GetContainerIDForPID(int(pid), pidToEntityCacheDuration)
 	if err != nil {
 		return "", err
 	}

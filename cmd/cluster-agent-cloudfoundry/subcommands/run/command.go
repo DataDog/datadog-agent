@@ -33,8 +33,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/healthprobe"
-	"github.com/DataDog/datadog-agent/comp/core/healthprobe/healthprobeimpl"
+	healthprobe "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
+	healthprobefx "github.com/DataDog/datadog-agent/comp/core/healthprobe/fx"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
@@ -42,8 +42,10 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
@@ -54,6 +56,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/cloudfoundry"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -95,17 +98,20 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(workloadmeta.Params{
 					InitHelper: common.GetWorkloadmetaInit(),
 				}), // TODO(components): check what this must be for cluster-agent-cloudfoundry
-				workloadmeta.Module(),
+				workloadmetafx.Module(),
 				fx.Provide(tagger.NewTaggerParams),
-				tagger.Module(),
+				taggerimpl.Module(),
 				collectorimpl.Module(),
+				fx.Provide(func() optional.Option[serializer.MetricSerializer] {
+					return optional.NewNoneOption[serializer.MetricSerializer]()
+				}),
 				// The cluster-agent-cloudfoundry agent do not have a status command
 				// so there is no need to initialize the status component
 				fx.Provide(func() status.Component { return nil }),
 				// The cluster-agent-cloudfoundry agent do not have settings that change are runtime
 				// still, we need to pass it to ensure the API server is proprely initialized
 				settingsimpl.Module(),
-				fx.Supply(settings.Settings{}),
+				fx.Supply(settings.Params{}),
 				autodiscoveryimpl.Module(),
 				fx.Provide(func(config config.Component) healthprobe.Options {
 					return healthprobe.Options{
@@ -113,7 +119,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 						LogsGoroutines: config.GetBool("log_all_goroutines_when_unhealthy"),
 					}
 				}),
-				healthprobeimpl.Module(),
+				healthprobefx.Module(),
 			)
 		},
 	}
@@ -121,7 +127,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{startCmd}
 }
 
-func run(log log.Component,
+func run(
+	config config.Component,
+	log log.Component,
 	taggerComp tagger.Component,
 	demultiplexer demultiplexer.Component,
 	wmeta workloadmeta.Component,
@@ -135,7 +143,7 @@ func run(log log.Component,
 	mainCtx, mainCtxCancel := context.WithCancel(context.Background())
 	defer mainCtxCancel() // Calling cancel twice is safe
 
-	if !pkgconfig.Datadog.IsSet("api_key") {
+	if !pkgconfig.Datadog().IsSet("api_key") {
 		pkglog.Critical("no API key configured, exiting")
 		return nil
 	}
@@ -165,7 +173,7 @@ func run(log log.Component,
 		return err
 	}
 
-	common.LoadComponents(secretResolver, wmeta, ac, pkgconfig.Datadog.GetString("confd_path"))
+	common.LoadComponents(secretResolver, wmeta, ac, pkgconfig.Datadog().GetString("confd_path"))
 
 	// Set up check collector
 	ac.AddScheduler("check", pkgcollector.InitCheckScheduler(optional.NewOption(collector), demultiplexer), true)
@@ -173,7 +181,7 @@ func run(log log.Component,
 	// start the autoconfig, this will immediately run any configured check
 	ac.LoadAndRun(mainCtx)
 
-	if err = api.StartServer(wmeta, taggerComp, ac, demultiplexer, optional.NewOption(collector), statusComponent, secretResolver, settings); err != nil {
+	if err = api.StartServer(mainCtx, wmeta, taggerComp, ac, statusComponent, settings, config); err != nil {
 		return log.Errorf("Error while starting agent API, exiting: %v", err)
 	}
 
@@ -208,19 +216,19 @@ func run(log log.Component,
 }
 
 func initializeCCCache(ctx context.Context) error {
-	pollInterval := time.Second * time.Duration(pkgconfig.Datadog.GetInt("cloud_foundry_cc.poll_interval"))
+	pollInterval := time.Second * time.Duration(pkgconfig.Datadog().GetInt("cloud_foundry_cc.poll_interval"))
 	_, err := cloudfoundry.ConfigureGlobalCCCache(
 		ctx,
-		pkgconfig.Datadog.GetString("cloud_foundry_cc.url"),
-		pkgconfig.Datadog.GetString("cloud_foundry_cc.client_id"),
-		pkgconfig.Datadog.GetString("cloud_foundry_cc.client_secret"),
-		pkgconfig.Datadog.GetBool("cloud_foundry_cc.skip_ssl_validation"),
+		pkgconfig.Datadog().GetString("cloud_foundry_cc.url"),
+		pkgconfig.Datadog().GetString("cloud_foundry_cc.client_id"),
+		pkgconfig.Datadog().GetString("cloud_foundry_cc.client_secret"),
+		pkgconfig.Datadog().GetBool("cloud_foundry_cc.skip_ssl_validation"),
 		pollInterval,
-		pkgconfig.Datadog.GetInt("cloud_foundry_cc.apps_batch_size"),
-		pkgconfig.Datadog.GetBool("cluster_agent.refresh_on_cache_miss"),
-		pkgconfig.Datadog.GetBool("cluster_agent.serve_nozzle_data"),
-		pkgconfig.Datadog.GetBool("cluster_agent.sidecars_tags"),
-		pkgconfig.Datadog.GetBool("cluster_agent.isolation_segments_tags"),
+		pkgconfig.Datadog().GetInt("cloud_foundry_cc.apps_batch_size"),
+		pkgconfig.Datadog().GetBool("cluster_agent.refresh_on_cache_miss"),
+		pkgconfig.Datadog().GetBool("cluster_agent.serve_nozzle_data"),
+		pkgconfig.Datadog().GetBool("cluster_agent.sidecars_tags"),
+		pkgconfig.Datadog().GetBool("cluster_agent.isolation_segments_tags"),
 		nil,
 	)
 	if err != nil {
@@ -230,11 +238,11 @@ func initializeCCCache(ctx context.Context) error {
 }
 
 func initializeBBSCache(ctx context.Context) error {
-	pollInterval := time.Second * time.Duration(pkgconfig.Datadog.GetInt("cloud_foundry_bbs.poll_interval"))
+	pollInterval := time.Second * time.Duration(pkgconfig.Datadog().GetInt("cloud_foundry_bbs.poll_interval"))
 	// NOTE: we can't use GetPollInterval in ConfigureGlobalBBSCache, as that causes import cycle
 
-	includeListString := pkgconfig.Datadog.GetStringSlice("cloud_foundry_bbs.env_include")
-	excludeListString := pkgconfig.Datadog.GetStringSlice("cloud_foundry_bbs.env_exclude")
+	includeListString := pkgconfig.Datadog().GetStringSlice("cloud_foundry_bbs.env_include")
+	excludeListString := pkgconfig.Datadog().GetStringSlice("cloud_foundry_bbs.env_exclude")
 
 	includeList := make([]*regexp.Regexp, len(includeListString))
 	excludeList := make([]*regexp.Regexp, len(excludeListString))
@@ -257,10 +265,10 @@ func initializeBBSCache(ctx context.Context) error {
 
 	bc, err := cloudfoundry.ConfigureGlobalBBSCache(
 		ctx,
-		pkgconfig.Datadog.GetString("cloud_foundry_bbs.url"),
-		pkgconfig.Datadog.GetString("cloud_foundry_bbs.ca_file"),
-		pkgconfig.Datadog.GetString("cloud_foundry_bbs.cert_file"),
-		pkgconfig.Datadog.GetString("cloud_foundry_bbs.key_file"),
+		pkgconfig.Datadog().GetString("cloud_foundry_bbs.url"),
+		pkgconfig.Datadog().GetString("cloud_foundry_bbs.ca_file"),
+		pkgconfig.Datadog().GetString("cloud_foundry_bbs.cert_file"),
+		pkgconfig.Datadog().GetString("cloud_foundry_bbs.key_file"),
 		pollInterval,
 		includeList,
 		excludeList,

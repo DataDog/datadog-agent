@@ -18,6 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/serverless/random"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace/inferredspan"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
@@ -76,18 +77,29 @@ func (lp *LifecycleProcessor) startExecutionSpan(event interface{}, rawPayload [
 // It should be called at the end of the invocation.
 func (lp *LifecycleProcessor) endExecutionSpan(endDetails *InvocationEndDetails) *pb.Span {
 	executionContext := lp.GetExecutionInfo()
-	duration := endDetails.EndTime.UnixNano() - executionContext.startTime.UnixNano()
+	start := executionContext.startTime.UnixNano()
+
+	traceID := executionContext.TraceID
+	spanID := executionContext.SpanID
+	// If we fail to receive the trace and span IDs from the tracer during a timeout we create it ourselves
+	if endDetails.IsTimeout && traceID == 0 {
+		traceID = random.Random.Uint64()
+		lp.requestHandler.executionInfo.TraceID = traceID
+	}
+	if endDetails.IsTimeout && spanID == 0 {
+		spanID = random.Random.Uint64()
+	}
 
 	executionSpan := &pb.Span{
 		Service:  "aws.lambda", // will be replaced by the span processor
 		Name:     "aws.lambda",
 		Resource: os.Getenv(functionNameEnvVar),
 		Type:     "serverless",
-		TraceID:  executionContext.TraceID,
-		SpanID:   executionContext.SpanID,
+		TraceID:  traceID,
+		SpanID:   spanID,
 		ParentID: executionContext.parentID,
-		Start:    executionContext.startTime.UnixNano(),
-		Duration: duration,
+		Start:    start,
+		Duration: endDetails.EndTime.UnixNano() - start,
 		Meta:     lp.requestHandler.triggerTags,
 		Metrics:  lp.requestHandler.triggerMetrics,
 	}
@@ -100,9 +112,9 @@ func (lp *LifecycleProcessor) endExecutionSpan(endDetails *InvocationEndDetails)
 	if len(langMatches) >= 2 {
 		executionSpan.Meta["language"] = langMatches[1]
 	}
-	captureLambdaPayloadEnabled := config.Datadog.GetBool("capture_lambda_payload")
+	captureLambdaPayloadEnabled := config.Datadog().GetBool("capture_lambda_payload")
 	if captureLambdaPayloadEnabled {
-		capturePayloadMaxDepth := config.Datadog.GetInt("capture_lambda_payload_max_depth")
+		capturePayloadMaxDepth := config.Datadog().GetInt("capture_lambda_payload_max_depth")
 		requestPayloadJSON := make(map[string]interface{})
 		if err := json.Unmarshal(executionContext.requestPayload, &requestPayloadJSON); err != nil {
 			log.Debugf("[lifecycle] Failed to parse request payload: %v", err)
@@ -110,17 +122,19 @@ func (lp *LifecycleProcessor) endExecutionSpan(endDetails *InvocationEndDetails)
 		} else {
 			capturePayloadAsTags(requestPayloadJSON, executionSpan, "function.request", 0, capturePayloadMaxDepth)
 		}
-		responsePayloadJSON := make(map[string]interface{})
-		if err := json.Unmarshal(endDetails.ResponseRawPayload, &responsePayloadJSON); err != nil {
-			log.Debugf("[lifecycle] Failed to parse response payload: %v", err)
-			executionSpan.Meta["function.response"] = string(endDetails.ResponseRawPayload)
-		} else {
-			capturePayloadAsTags(responsePayloadJSON, executionSpan, "function.response", 0, capturePayloadMaxDepth)
+		if endDetails.ResponseRawPayload != nil {
+			responsePayloadJSON := make(map[string]interface{})
+			if err := json.Unmarshal(endDetails.ResponseRawPayload, &responsePayloadJSON); err != nil {
+				log.Debugf("[lifecycle] Failed to parse response payload: %v", err)
+				executionSpan.Meta["function.response"] = string(endDetails.ResponseRawPayload)
+			} else {
+				capturePayloadAsTags(responsePayloadJSON, executionSpan, "function.response", 0, capturePayloadMaxDepth)
+			}
 		}
 	}
-
 	if endDetails.IsError {
 		executionSpan.Error = 1
+
 		if len(endDetails.ErrorMsg) > 0 {
 			executionSpan.Meta["error.msg"] = endDetails.ErrorMsg
 		}
@@ -129,6 +143,11 @@ func (lp *LifecycleProcessor) endExecutionSpan(endDetails *InvocationEndDetails)
 		}
 		if len(endDetails.ErrorStack) > 0 {
 			executionSpan.Meta["error.stack"] = endDetails.ErrorStack
+		}
+
+		if endDetails.IsTimeout {
+			executionSpan.Meta["error.type"] = "Impending Timeout"
+			executionSpan.Meta["error.msg"] = "Datadog detected an Impending Timeout"
 		}
 	}
 

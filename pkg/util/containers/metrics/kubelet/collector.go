@@ -14,7 +14,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	pkgerrors "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
@@ -77,8 +77,9 @@ func newKubeletCollector(_ *provider.Cache, wmeta workloadmeta.Component) (provi
 	}
 
 	collectors := &provider.Collectors{
-		Stats:   provider.MakeRef[provider.ContainerStatsGetter](collector, collectorPriority),
-		Network: provider.MakeRef[provider.ContainerNetworkStatsGetter](collector, collectorPriority),
+		Stats:                           provider.MakeRef[provider.ContainerStatsGetter](collector, collectorPriority),
+		Network:                         provider.MakeRef[provider.ContainerNetworkStatsGetter](collector, collectorPriority),
+		ContainerIDForPodUIDAndContName: provider.MakeRef[provider.ContainerIDForPodUIDAndContNameRetriever](collector, collectorPriority),
 	}
 
 	return provider.CollectorMetadata{

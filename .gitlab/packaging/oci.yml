@@ -14,6 +14,8 @@
     KUBERNETES_MEMORY_REQUEST: "32Gi"
     KUBERNETES_MEMORY_LIMIT: "32Gi"
   script:
+    - rm -f $OMNIBUS_PACKAGE_DIR/*-dbg-*.tar.xz
+    - ls -l $OMNIBUS_PACKAGE_DIR
     - python3 -m pip install -r tasks/libs/requirements-github.txt
     - export GITHUB_KEY_B64=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.platform-github-app-key)
     - export GITHUB_APP_ID=682216
@@ -21,14 +23,21 @@
     - export GH_TOKEN=$(inv -e github.get-token-from-app --app-id-env=GITHUB_APP_ID --pkey-env=GITHUB_KEY_B64)
     - git config --global credential.helper '!f() { echo username=x-access-token; echo "password=$GH_TOKEN"; };f'
     - cd /tmp/
-    - for i in $(seq 1 5); do git clone --depth=1 https://github.com/DataDog/datadog-packages && break; done
+    - ${CI_PROJECT_DIR}/tools/ci/retry.sh git clone --depth=1 https://github.com/DataDog/datadog-packages
     - cd datadog-packages/cmd/datadog-package
     - go build .
     - OUTPUT_DIR="/tmp/oci_output"
     - mkdir -p ${OUTPUT_DIR}
+    - ls $OMNIBUS_PACKAGE_DIR
+    # Copy existing OCI (like the Windows one) to the output dir directly to be merged.
+    - |
+      if [ $(ls $OMNIBUS_PACKAGE_DIR/*.oci.tar 2> /dev/null | wc -l) -ge 1 ]; then
+        echo "Copying already built images to output dir"
+        cp $OMNIBUS_PACKAGE_DIR/*.oci.tar ${OUTPUT_DIR}
+      fi
     - |
       for ARCH in "amd64" "arm64"; do
-        INPUT_FILE="$OMNIBUS_PACKAGE_DIR/${OCI_PRODUCT}-*${ARCH}.tar.xz"
+        INPUT_FILE="${OMNIBUS_PACKAGE_DIR}${OCI_PRODUCT}-*${ARCH}.tar.xz"
         OUTPUT_FILE="$(basename -a -s .xz ${INPUT_FILE})"
         MERGED_FILE=$(basename -a $OMNIBUS_PACKAGE_DIR/*.tar.xz | head -n 1 | sed "s/-${ARCH}.tar.xz//").oci.tar
         export MERGED_FILE
@@ -38,12 +47,16 @@
         echo "Extracting to temporary input dir $INPUT_FILE -> $INPUT_DIR"
         tar xJf ${INPUT_FILE} -C ${INPUT_DIR}
         echo "Creating OCI layer -> ${OUTPUT_DIR}/${OUTPUT_FILE}"
+        if [ "${OCI_PRODUCT}" = "datadog-agent" ]; then
+          EXTRA_FLAGS="--configs ${INPUT_DIR}/etc/datadog-agent"
+        fi
         ./datadog-package create \
           --version ${PACKAGE_VERSION} \
           --package ${OCI_PRODUCT} \
           --os linux \
           --arch ${ARCH} \
           --archive --archive-path "${OUTPUT_DIR}/${OUTPUT_FILE}" \
+          ${EXTRA_FLAGS} \
           ${INPUT_DIR}/${INSTALL_DIR}/
         rm -f ${INPUT_FILE}
       done
@@ -60,7 +73,7 @@
 
 agent_oci:
   extends: .package_oci
-  needs: ["datadog-agent-oci-x64-a7", "datadog-agent-oci-arm64-a7"]
+  needs: ["datadog-agent-oci-x64-a7", "datadog-agent-oci-arm64-a7", "windows_msi_and_bosh_zip_x64-a7"]
   variables:
     OCI_PRODUCT: "datadog-agent"
 

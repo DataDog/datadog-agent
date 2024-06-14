@@ -79,6 +79,10 @@ const (
 	K8sHorizontalPodAutoscaler = pkgorchestratormodel.K8sHorizontalPodAutoscaler
 	// K8sNetworkPolicy alias for pkgorchestratormodel.K8sNetworkPolicy
 	K8sNetworkPolicy = pkgorchestratormodel.K8sNetworkPolicy
+	// K8sLimitRange alias for pkgorchestratormodel.K8sLimitRange
+	K8sLimitRange = pkgorchestratormodel.K8sLimitRange
+	// K8sStorageClass alias for pkgorchestratormodel.K8sStorageClass
+	K8sStorageClass = pkgorchestratormodel.K8sStorageClass
 	// ECSTask alias for pkgorchestratormodel.ECSTask
 	ECSTask = pkgorchestratormodel.ECSTask
 )

@@ -9,6 +9,7 @@ include:
   - .gitlab/choco_build/choco_build.yml
   - .gitlab/choco_deploy/choco_deploy.yml
   - .gitlab/common/shared.yml
+  - .gitlab/common/skip_ci_check.yml
   - .gitlab/common/pr_commenter.yml
   - .gitlab/common/test_infra_version.yml
   - .gitlab/container_build/include.yml
@@ -40,7 +41,6 @@ include:
   - .gitlab/pkg_metrics/pkg_metrics.yml
   - .gitlab/post_rc_build/post_rc_tasks.yml
   - .gitlab/setup/setup.yml
-  - .gitlab/software_composition_analysis/software_composition_analysis.yml
   - .gitlab/source_test/include.yml
   - .gitlab/trigger_release/trigger_release.yml
 
@@ -74,10 +74,9 @@ stages:
   - integration_test
   - benchmarks
   - package_build
-  - pkg_metrics
   - packaging
+  - pkg_metrics
   - kitchen_deploy
-  - e2e_pre_test
   - kitchen_testing
   - container_build
   - container_scan
@@ -92,10 +91,10 @@ stages:
   - choco_deploy
   - internal_image_deploy
   - install_script_testing
+  - e2e_pre_test
   - e2e
   - kitchen_cleanup
   - functional_test
-  - functional_test_sysprobe
   - functional_test_cleanup
   - junit_upload
   - internal_kubernetes_deploy
@@ -121,7 +120,6 @@ variables:
   DD_AGENT_TESTING_DIR: $CI_PROJECT_DIR/test/kitchen
   STATIC_BINARIES_DIR: bin/static
   DOGSTATSD_BINARIES_DIR: bin/dogstatsd
-  AGENTLESS_SCANNER_BINARIES_DIR: bin/agentless-scanner
   AGENT_BINARIES_DIR: bin/agent
   CLUSTER_AGENT_BINARIES_DIR: bin/datadog-cluster-agent
   CWS_INSTRUMENTATION_BINARIES_DIR: bin/cws-instrumentation
@@ -142,18 +140,21 @@ variables:
   S3_CP_OPTIONS: --no-progress --region us-east-1 --sse AES256
   S3_CP_CMD: aws s3 cp $S3_CP_OPTIONS
   S3_ARTIFACTS_URI: s3://dd-ci-artefacts-build-stable/$CI_PROJECT_NAME/$CI_PIPELINE_ID
+  S3_PROJECT_ARTIFACTS_URI: s3://dd-ci-artefacts-build-stable/$CI_PROJECT_NAME
   S3_PERMANENT_ARTIFACTS_URI: s3://dd-ci-persistent-artefacts-build-stable/$CI_PROJECT_NAME
   S3_SBOM_STORAGE_URI: s3://sbom-root-us1-ddbuild-io/$CI_PROJECT_NAME/$CI_PIPELINE_ID
   S3_RELEASE_ARTIFACTS_URI: s3://dd-release-artifacts/$CI_PROJECT_NAME/$CI_PIPELINE_ID
+  S3_RELEASE_INSTALLER_ARTIFACTS_URI: s3://dd-release-artifacts/datadog-installer/$CI_PIPELINE_ID
   ## comment out both lines below (S3_OMNIBUS_CACHE_BUCKET and USE_S3_CACHING) to allow
   ## build to succeed with S3 caching disabled.
   S3_OMNIBUS_CACHE_BUCKET: dd-ci-datadog-agent-omnibus-cache-build-stable
   USE_S3_CACHING: --omnibus-s3-cache
+  OMNIBUS_GIT_CACHE_DIR: /tmp/omnibus-git-cache
   ## comment out the line below to disable integration wheels cache
   INTEGRATION_WHEELS_CACHE_BUCKET: dd-agent-omnibus
   S3_DD_AGENT_OMNIBUS_LLVM_URI: s3://dd-agent-omnibus/llvm
   S3_DD_AGENT_OMNIBUS_BTFS_URI: s3://dd-agent-omnibus/btfs
-  BTFHUB_ARCHIVE_BRANCH: no-kmod
+  BTFHUB_ARCHIVE_BRANCH: main
   GENERAL_ARTIFACTS_CACHE_BUCKET_URL: https://dd-agent-omnibus.s3.amazonaws.com
   S3_DSD6_URI: s3://dsd6-staging
   RELEASE_VERSION_6: nightly
@@ -163,25 +164,20 @@ variables:
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to _test_only
   DATADOG_AGENT_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BUILDIMAGES: v31694071-c6e811e7
+  DATADOG_AGENT_BUILDIMAGES: v35901572-a9447181
   DATADOG_AGENT_WINBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_WINBUILDIMAGES: v31694071-c6e811e7
+  DATADOG_AGENT_WINBUILDIMAGES: v35901572-a9447181
   DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_ARMBUILDIMAGES: v31694071-c6e811e7
+  DATADOG_AGENT_ARMBUILDIMAGES: v35901572-a9447181
   DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v31694071-c6e811e7
-  DATADOG_AGENT_KERNEL_MATRIX_TESTING_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_KERNEL_MATRIX_TESTING_BUILDIMAGES: v31694071-c6e811e7
-  DATADOG_AGENT_NIKOS_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_NIKOS_BUILDIMAGES: v31694071-c6e811e7
+  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v35901572-a9447181
   DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v31694071-c6e811e7
-  DATADOG_AGENT_BUILDERS: v28719426-b6a4fd9
+  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v35901572-a9447181
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
-  DEB_GPG_KEY_ID: ad9589b7
-  DEB_GPG_KEY_NAME: "Datadog, Inc. Master key"
-  RPM_GPG_KEY_ID: fd4bf915
+  DEB_GPG_KEY_ID: c0962c7d
+  DEB_GPG_KEY_NAME: "Datadog, Inc. APT key"
+  RPM_GPG_KEY_ID: b01082d3
   RPM_GPG_KEY_NAME: "Datadog, Inc. RPM key"
   DOCKER_REGISTRY_URL: docker.io
   KITCHEN_INFRASTRUCTURE_FLAKES_RETRY: 2
@@ -202,14 +198,15 @@ variables:
   # They must be defined as environment variables in the GitLab CI/CD settings, to ease rotation if needed
   AGENT_QA_PROFILE_SSM_NAME: ci.datadog-agent.agent-qa-profile  # agent-ci-experience
   API_KEY_ORG2_SSM_NAME: ci.datadog-agent.datadog_api_key_org2  # agent-ci-experience
-  API_KEY_SSM_NAME: ci.datadog-agent.datadog_api_key  # agent-ci-experience
+  API_KEY_DDDEV_SSM_NAME: ci.datadog-agent.datadog_api_key  # agent-ci-experience
   APP_KEY_ORG2_SSM_NAME: ci.datadog-agent.datadog_app_key_org2  # agent-ci-experience
   ARTIFACTORY_TOKEN_SSM_NAME: ci.datadog-agent.artifactory_token  # agent-ci-experience
   ARTIFACTORY_BYPASS_SSM_NAME: ci.datadog-agent.artifactory_bypass  # agent-ci-experience
   CHANGELOG_COMMIT_SHA_SSM_NAME: ci.datadog-agent.gitlab_changelog_commit_sha  # agent-ci-experience
   CHOCOLATEY_API_KEY_SSM_NAME: ci.datadog-agent.chocolatey_api_key  # windows-agent
-  DEB_GPG_KEY_SSM_NAME: ci.datadog-agent.deb_signing_private_key_v2_${DEB_GPG_KEY_ID}  # agent-build-and-releases
-  DEB_SIGNING_PASSPHRASE_SSM_NAME: ci.datadog-agent.deb_signing_key_passphrase_v2_${DEB_GPG_KEY_ID}  # agent-build-and-releases
+  CODECOV_TOKEN_SSM_NAME: ci.datadog-agent.codecov_token  # agent-ci-experience
+  DEB_GPG_KEY_SSM_NAME: ci.datadog-agent.deb_signing_private_key_${DEB_GPG_KEY_ID}  # agent-build-and-releases
+  DEB_SIGNING_PASSPHRASE_SSM_NAME: ci.datadog-agent.deb_signing_key_passphrase_${DEB_GPG_KEY_ID}  # agent-build-and-releases
   DOCKER_REGISTRY_LOGIN_SSM_KEY: ci.datadog-agent.docker_hub_login  # agent-ci-experience
   DOCKER_REGISTRY_PWD_SSM_KEY: ci.datadog-agent.docker_hub_pwd  # agent-ci-experience
   E2E_TESTS_API_KEY_SSM_NAME: ci.datadog-agent.e2e_tests_api_key  # agent-developer-tools
@@ -227,8 +224,11 @@ variables:
   MACOS_GITHUB_APP_ID_SSM_NAME: ci.datadog-agent.macos_github_app_id  # agent-ci-experience
   MACOS_GITHUB_INSTALLATION_ID_SSM_NAME: ci.datadog-agent.macos_github_installation_id  # agent-ci-experience
   MACOS_GITHUB_KEY_SSM_NAME: ci.datadog-agent.macos_github_key_b64  # agent-ci-experience
-  RPM_GPG_KEY_SSM_NAME: ci.datadog-agent.rpm_signing_private_key_v2_${RPM_GPG_KEY_ID}  # agent-build-and-releases
-  RPM_SIGNING_PASSPHRASE_SSM_NAME: ci.datadog-agent.rpm_signing_key_passphrase_v2_${RPM_GPG_KEY_ID}  # agent-build-and-releases
+  MACOS_GITHUB_APP_ID_2_SSM_NAME: ci.datadog-agent.macos_github_app_id_2  # agent-ci-experience
+  MACOS_GITHUB_INSTALLATION_ID_2_SSM_NAME: ci.datadog-agent.macos_github_installation_id_2  # agent-ci-experience
+  MACOS_GITHUB_KEY_2_SSM_NAME: ci.datadog-agent.macos_github_key_b64_2  # agent-ci-experience
+  RPM_GPG_KEY_SSM_NAME: ci.datadog-agent.rpm_signing_private_key_${RPM_GPG_KEY_ID}  # agent-build-and-releases
+  RPM_SIGNING_PASSPHRASE_SSM_NAME: ci.datadog-agent.rpm_signing_key_passphrase_${RPM_GPG_KEY_ID}  # agent-build-and-releases
   SMP_ACCOUNT_ID_SSM_NAME: ci.datadog-agent.single-machine-performance-account-id  # single-machine-performance
   SMP_AGENT_TEAM_ID_SSM_NAME: ci.datadog-agent.single-machine-performance-agent-team-id  # single-machine-performance
   SMP_API_SSM_NAME: ci.datadog-agent.single-machine-performance-api  # single-machine-performance
@@ -240,6 +240,7 @@ variables:
   VCPKG_BLOB_SAS_URL_SSM_NAME: ci.datadog-agent-buildimages.vcpkg_blob_sas_url  # windows-agent
   WINGET_PAT_SSM_NAME: ci.datadog-agent.winget_pat  # windows-agent
 
+  DD_PKG_VERSION: "latest"
 
   # Job stage attempts (see https://docs.gitlab.com/ee/ci/runners/configure_runners.html#job-stages-attempts)
   ARTIFACT_DOWNLOAD_ATTEMPTS: 2
@@ -271,10 +272,10 @@ variables:
   if: $RELEASE_VERSION_7 == ""
 
 .if_deploy: &if_deploy
-  if: $DEPLOY_AGENT == "true"
+  if: $DEPLOY_AGENT == "true" || $DDR_WORKFLOW_ID != null
 
 .if_not_deploy: &if_not_deploy
-  if: $DEPLOY_AGENT != "true"
+  if: $DEPLOY_AGENT != "true" && $DDR_WORKFLOW_ID == null
 
 .if_tagged_commit: &if_tagged_commit
   if: $CI_COMMIT_TAG != null
@@ -301,10 +302,10 @@ variables:
 # RUN_ALL_BUILDS has no effect on main/deploy pipelines: they always run all builds (as some jobs
 # on main and deploy pipelines depend on jobs that are only run if we run all builds).
 .if_run_all_builds: &if_run_all_builds
-  if: $CI_COMMIT_BRANCH == "main" || $DEPLOY_AGENT == "true" || $RUN_ALL_BUILDS == "true"
+  if: $CI_COMMIT_BRANCH == "main" || $DEPLOY_AGENT == "true" || $RUN_ALL_BUILDS == "true" || $DDR_WORKFLOW_ID != null
 
 .if_not_run_all_builds: &if_not_run_all_builds
-  if: $CI_COMMIT_BRANCH != "main" && $DEPLOY_AGENT != "true" && $RUN_ALL_BUILDS != "true"
+  if: $CI_COMMIT_BRANCH != "main" && $DEPLOY_AGENT != "true" && $RUN_ALL_BUILDS != "true" && $DDR_WORKFLOW_ID == null
 
 # Rule to trigger test setup, run, and cleanup.
 # By default:
@@ -313,7 +314,7 @@ variables:
 # RUN_E2E_TESTS can be set to on to force all the installer tests to be run on a branch pipeline.
 # RUN_E2E_TESTS can be set to false to force installer tests to not run on main/deploy pipelines.
 .if_installer_tests: &if_installer_tests
-  if: ($CI_COMMIT_BRANCH == "main"  || $DEPLOY_AGENT == "true" || $RUN_E2E_TESTS == "on") && $RUN_E2E_TESTS != "off"
+  if: ($CI_COMMIT_BRANCH == "main"  || $DEPLOY_AGENT == "true" || $RUN_E2E_TESTS == "on" || $DDR_WORKFLOW_ID != null) && $RUN_E2E_TESTS != "off"
 
 .if_testing_cleanup: &if_testing_cleanup
   if: $TESTING_CLEANUP == "true"
@@ -342,7 +343,7 @@ variables:
   if: $RUN_UNIT_TESTS == "on"
 
 .if_deploy_on_beta_repo_branch: &if_deploy_on_beta_repo_branch
-  if: $DEPLOY_AGENT == "true" && $BUCKET_BRANCH == "beta"
+  if: ($DEPLOY_AGENT == "true" || $DDR_WORKFLOW_ID != null) && $BUCKET_BRANCH == "beta"
 
 # Rule to trigger jobs only when a tag matches a given pattern (for RCs)
 # on the beta branch.
@@ -350,7 +351,7 @@ variables:
 # need to check again if the pipeline is a deploy pipeline, but it doesn't hurt
 # to explicitly add it.
 .if_deploy_on_rc_tag_on_beta_repo_branch: &if_deploy_on_rc_tag_on_beta_repo_branch
-  if: $DEPLOY_AGENT == "true" && $BUCKET_BRANCH == "beta" && $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$/
+  if: ($DEPLOY_AGENT == "true" || $DDR_WORKFLOW_ID != null) && $BUCKET_BRANCH == "beta" && $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$/
 
 .if_scheduled_main: &if_scheduled_main
   if: $CI_PIPELINE_SOURCE == "schedule" && $CI_COMMIT_BRANCH == "main"
@@ -358,6 +359,15 @@ variables:
 # Rule to trigger jobs only when a branch matches the mergequeue pattern.
 .if_mergequeue: &if_mergequeue
   if: $CI_COMMIT_BRANCH =~ /^mq-working-branch-/
+
+.fakeintake_changes: &fakeintake_changes
+  changes:
+    paths:
+      - "test/fakeintake/**/*"
+      - .gitlab/binary_build/fakeintake.yml
+      - .gitlab/container_build/fakeintake.yml
+      - .gitlab/dev_container_deploy/fakeintake.yml
+    compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
 
 #
 # Workflow rules
@@ -398,6 +408,10 @@ workflow:
 .except_mergequeue:
   - <<: *if_mergequeue
     when: never
+
+.on_mergequeue:
+  - <<: *if_mergequeue
+    when: on_success
 
 .manual:
   - !reference [.except_mergequeue]
@@ -580,18 +594,24 @@ workflow:
   - when: on_success
 
 .except_no_tests_no_deploy:
-  - if: $DEPLOY_AGENT == "false" && $RUN_E2E_TESTS == "off"
+  - if: $DEPLOY_AGENT == "false" && $DDR_WORKFLOW_ID == null && $RUN_E2E_TESTS == "off"
     when: never
 
 .on_main_or_release_branch:
   - <<: *if_main_branch
   - <<: *if_release_branch
 
-.on_main_or_release_branch_or_all_builds:
+.on_main_or_release_branch_or_all_builds_or_pkg_installer_changes:
   - <<: *if_main_branch
   - <<: *if_release_branch
   - <<: *if_run_all_builds
   - <<: *if_run_all_unit_tests
+  - changes:
+      paths:
+        - pkg/fleet/**/*
+      compare_to: main
+    variables:
+      FAST_TESTS: "true"
 
 .except_main_or_release_branch:
   - <<: *if_main_branch
@@ -623,9 +643,7 @@ workflow:
   - <<: *if_installer_tests
     when: always
 
-.on_all_new_e2e_tests:
-  - <<: *if_not_run_all_builds
-    when: never
+.on_all_install_script_tests:
   - <<: *if_installer_tests
 
 # Default kitchen tests are also run on dev branches
@@ -724,10 +742,8 @@ workflow:
   - pkg/process/monitor/*
   - pkg/util/kernel/**/*
   - test/kitchen/site-cookbooks/dd-system-probe-check/**/*
-  - test/kitchen/test/integration/system-probe-test/**/*
   - test/kitchen/test/integration/win-sysprobe-test/**/*
   - .gitlab/functional_test/system_probe_windows.yml
-  - .gitlab/functional_test_sysprobe/system_probe.yml
   - .gitlab/kernel_matrix_testing/system_probe.yml
   - .gitlab/kernel_matrix_testing/common.yml
   - test/new-e2e/system-probe/**/*
@@ -746,8 +762,6 @@ workflow:
   - changes:
       paths: *system_probe_change_paths
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
-  - when: manual
-    allow_failure: true
 
 .on_e2e_changes_or_manual:
   - <<: *if_main_branch
@@ -763,6 +777,23 @@ workflow:
     allow_failure: true
 
 # New E2E related rules
+
+.on_e2e_or_fakeintake_changes_or_manual:
+  - <<: *if_main_branch
+  - !reference [.except_mergequeue]
+  - <<: *fakeintake_changes
+    variables:
+      FAKEINTAKE_IMAGE_OVERRIDE: "public.ecr.aws/datadog/fakeintake:v$CI_COMMIT_SHORT_SHA"
+    when: on_success
+  - changes:
+      paths:
+        - test/new-e2e/pkg/**/*
+        - test/new-e2e/test-infra-definition/*
+        - test/new-e2e/go.mod
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+    when: on_success
+  - when: manual
+    allow_failure: true
 
 
 .on_e2e_main_release_or_rc: # This rule is used as a base for all new-e2e rules
@@ -783,7 +814,7 @@ workflow:
         - test/new-e2e/go.mod
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
 
-.on_container_or_e2e_changes_or_manual:
+.on_container_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
@@ -791,12 +822,14 @@ workflow:
         - comp/core/workloadmeta/**/*
         - comp/core/autodiscovery/listeners/**/*
         - comp/core/autodiscovery/providers/**/*
+        - comp/languagedetection/**/*
         - pkg/collector/corechecks/cluster/**/*
         - pkg/collector/corechecks/containers/**/*
         - pkg/collector/corechecks/containerimage/**/*
         - pkg/collector/corechecks/containerlifecycle/**/*
         - pkg/collector/corechecks/kubernetes/**/*
         - pkg/collector/corechecks/sbom/**/*
+        - pkg/sbom/**/*
         - pkg/util/clusteragent/**/*
         - pkg/util/containerd/**/*
         - pkg/util/containers/**/*
@@ -804,14 +837,13 @@ workflow:
         - pkg/util/ecs/**/*
         - pkg/util/kubernetes/**/*
         - pkg/util/cgroups/**/*
+        - pkg/util/trivy/**/*
         - test/new-e2e/tests/containers/**/*
         - test/new-e2e/go.mod
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
     when: on_success
-  - when: manual
-    allow_failure: true
 
-.on_rc_or_e2e_changes_or_manual:
+.on_rc_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
@@ -819,20 +851,16 @@ workflow:
         - comp/remote-config/**/*
         - test/new-e2e/tests/remote-config/**/*
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
-  - when: manual
-    allow_failure: true
 
-.on_asc_or_e2e_changes_or_manual:
+.on_asc_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
         # TODO: Add paths that should trigger tests for ASC
         - test/new-e2e/tests/agent-shared-components/**/*
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
-  - when: manual
-    allow_failure: true
 
-.on_subcommands_or_e2e_changes_or_manual:
+.on_subcommands_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
@@ -841,70 +869,59 @@ workflow:
         - comp/**/*
         - test/new-e2e/tests/agent-subcommands/**/*
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
-  - when: manual
-    allow_failure: true
 
-.on_language-detection_or_e2e_changes_or_manual:
+.on_language-detection_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
         # TODO: Add paths that should trigger tests for language detection
         - test/new-e2e/tests/language-detection/**/*
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
-  - when: manual
-    allow_failure: true
 
-.on_npm_or_e2e_changes_or_manual:
+.on_npm_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
         # TODO: Add paths that should trigger tests for npm
         - test/new-e2e/tests/npm/**/*
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
-  - when: manual
-    allow_failure: true
 
-.on_aml_or_e2e_changes_or_manual:
+.on_aml_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
         # TODO: Add paths that should trigger tests for AML
         - test/new-e2e/tests/agent-metrics-logs/**/*
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
-  - when: manual
-    allow_failure: true
 
-.on_cws_or_e2e_changes_or_manual:
+.on_cws_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
         # TODO: Add paths that should trigger tests for CWS
         - test/new-e2e/tests/cws/**/*
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
-  - when: manual
-    allow_failure: true
 
-.on_process_or_e2e_changes_or_manual:
+.on_process_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
-        # TODO: Add paths that should trigger tests for process
         - test/new-e2e/tests/process/**/*
+        - cmd/process-agent/**/*
+        - comp/process/**/*
+        - pkg/process/**/*
+        - pkg/config/setup/process.go
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
-  - when: manual
-    allow_failure: true
 
-.on_orchestrator_or_e2e_changes_or_manual:
+.on_orchestrator_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
         # TODO: Add paths that should trigger tests for orchestrator
         - test/new-e2e/tests/orchestrator/**/*
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
-  - when: manual
-    allow_failure: true
 
-.on_apm_or_e2e_changes_or_manual:
+.on_apm_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
@@ -915,10 +932,8 @@ workflow:
         - test/new-e2e/go.mod
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
     when: on_success
-  - when: manual
-    allow_failure: true
 
-.on_updater_or_e2e_changes_or_manual:
+.on_installer_or_e2e_changes:
   - <<: *if_disable_e2e_tests
     when: never
   - !reference [.except_mergequeue]
@@ -932,10 +947,30 @@ workflow:
       paths:
         - .gitlab/**/*
         - omnibus/config/**/*
-        - pkg/updater/**/*
-        - cmd/updater/**/*
-        - test/new-e2e/tests/updater/**/*
-        - tasks/updater.py
+        - pkg/fleet/**/*
+        - cmd/installer/**/*
+        - test/new-e2e/tests/installer/**/*
+        - tasks/installer.py
+        - test/new-e2e/go.mod
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+    when: on_success
+
+.on_ndm_netflow_or_e2e_changes:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        - comp/netflow/**/*
+        - test/new-e2e/tests/ndm/netflow/**/*
+        - test/new-e2e/go.mod
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+    when: on_success
+
+.on_ndm_snmp_or_e2e_changes:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        - pkg/collector/corechecks/snmp/**/*
+        - test/new-e2e/tests/ndm/snmp/**/*
         - test/new-e2e/go.mod
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
     when: on_success
@@ -976,6 +1011,13 @@ workflow:
   - <<: *if_disable_unit_tests
     when: never
 
+.on_macos_gui_change:
+  - !reference [.except_mergequeue] # The prerequisites are not run in the mergequeue pipeline so we need to skip this rule
+  - changes:
+      paths:
+        - comp/core/gui/guiimpl/systray/**/*
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+
 .on_packaging_change:
   - !reference [.except_mergequeue] # The prerequisites are not run in the mergequeue pipeline so we need to skip this rule
   - changes:
@@ -994,23 +1036,12 @@ workflow:
         - .go-version
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
 
-.on_fakeintake_changes: &on_fakeintake_changes
-  changes:
-    - "test/fakeintake/**/*"
-    - .gitlab/binary_build/fakeintake.yml
-    - .gitlab/container_build/fakeintake.yml
-    - .gitlab/dev_container_deploy/fakeintake.yml
-
-.on_fakeintake_changes_on_main_or_manual:
-  - <<: *on_fakeintake_changes
-    if: $CI_COMMIT_BRANCH == "main"
-  - <<: *on_fakeintake_changes
-    when: manual
-    allow_failure: true
+.on_fakeintake_changes:
+  - <<: *fakeintake_changes
 
 .on_fakeintake_changes_on_main:
-  - <<: *on_fakeintake_changes
-    if: $CI_COMMIT_BRANCH == "main"
+  - <<: *fakeintake_changes
+    <<: *if_main_branch
 
 .fast_on_dev_branch_only:
   - <<: *if_main_branch
@@ -1038,4 +1069,17 @@ workflow:
         - .gitlab-ci.yml
         - .gitlab/**/*
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
-    
+
+.on_invoke_tasks_changes:
+  - <<: *if_main_branch
+  - changes:
+      paths:
+        - tasks/**/*
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+
+.on_kitchen_invoke_tasks_changes:
+  - <<: *if_main_branch
+  - changes:
+      paths:
+        - test/kitchen/tasks/**/*
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916

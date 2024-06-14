@@ -8,8 +8,12 @@ extensions:
     conductor:
       slack: "datadog-agent-pipelines"
       schedule: "0 3 * * 1-5"
-      parameterized_deployment:
-        workflow_generator: ""
-      env:
+      options:
+        disable_bia: true
+      targets:
         - name: "staging"
-          branch: "chouquette/conductor"
+          ci_pipeline: "//fake_placeholder:fake_placeholder"
+          branch: "main"
+  datadoghq.com/change-detection:
+    source_patterns:
+      - service.datadog.yaml

@@ -1,0 +1,83 @@
+## This file is overwritten upon Agent upgrade.
+## To make modifications to the check configuration, please copy this file
+## to `conf.yaml` and make your changes on that file.
+
+## This integration is currently in beta.
+
+instances:
+
+  -
+    ## @param vmanage_endpoint - string
+    ## The IP address/endpoint of the Cisco Manager instance.
+    #
+    # vmanage_endpoint: <VMANAGE_ENDPOINT>
+
+    ## @param username - string
+    ## Username to authenticate to the Cisco Manager instance.
+    ## This user should have the "Device monitoring" permission group.
+    #
+    # username: <VMANAGE_USERNAME>
+
+    ## @param password - string
+    ## Password to authenticate to the Cisco Manager instance.
+    #
+    # password: <VMANAGE_PASSWORD>
+
+    ## @param namespace - string - optional - default: cisco-sdwan
+    ## Namespace can be used to disambiguate devices with the same IP.
+    #
+    # namespace: cisco-sdwan
+
+    ## @param max_attempts - integer - optional - default: 3
+    ## Max number of retries to apply when polling Cisco Manager API.
+    #
+    # max_attempts: 3
+
+    ## @param max_pages - integer - optional - default: 100
+    ## Max number of page to request when polling Cisco Manager API.
+    #
+    # max_pages: 100
+
+    ## @param max_count - integer - optional - default: 2000
+    ## Max number of resources to query per request when polling Cisco Manager API.
+    ## Maximum is 10000.
+    #
+    # max_count: 2000
+
+    ## @param lookback_time_window_minutes - integer - optional - default: 10
+    ## The time window to query when polling Cisco Manager metrics.
+    #
+    # lookback_time_window_minutes: 10
+
+    ## @param use_http - boolean - optional - default: false
+    ## Use HTTP instead of HTTPS when polling Cisco Manager.
+    #
+    # use_http: false
+
+    ## @param insecure - boolean - optional - default: false
+    ## Skip server certificate verification when polling Cisco Manager.
+    #
+    # insecure: false
+
+    ## @param ca_file - string - optional
+    ## Use custom certificate authority when polling Cisco Manager.
+    #
+    # ca_file: <PATH_TO_CA_FILE>
+
+    ## @param min_collection_interval - number - optional - default: 60
+    ## This changes the collection interval of the check. For more information, see:
+    ## https://docs.datadoghq.com/developers/write_agent_check/#collection-interval
+    #
+    # min_collection_interval: 60
+
+    ## @param collect_bfd_session_status - boolean - optional - default: false
+    ## This enable collecting BFD session status metrics.
+    ## Enabling this may significantly impact the check run duration, as well as adding load
+    ## on the Cisco Manager instance.
+    #
+    # collect_bfd_session_status: false
+
+    ## @param collect_hardware_status - boolean - optional - default: false
+    ## This enable collecting hardware status metrics.
+    #
+    # collect_hardware_status: true

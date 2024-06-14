@@ -22,20 +22,20 @@ import (
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	authtokenimpl "github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/healthprobe"
+	healthprobe "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
+	healthprobefx "github.com/DataDog/datadog-agent/comp/core/healthprobe/fx"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
-	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
-
-	//nolint:revive // TODO(AML) Fix revive linter
-	"github.com/DataDog/datadog-agent/comp/core/healthprobe/healthprobeimpl"
 	logComponent "github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
+	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
@@ -53,6 +53,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/resources/resourcesimpl"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner"
 	metadatarunnerimpl "github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -95,7 +96,7 @@ func MakeCommand(defaultLogFile string) *cobra.Command {
 
 	var socketPath string
 	startCmd.Flags().StringVarP(&socketPath, "socket", "s", "", "listen to this socket instead of UDP")
-	pkgconfig.Datadog.BindPFlag("dogstatsd_socket", startCmd.Flags().Lookup("socket")) //nolint:errcheck
+	pkgconfig.Datadog().BindPFlag("dogstatsd_socket", startCmd.Flags().Lookup("socket")) //nolint:errcheck
 
 	return startCmd
 }
@@ -121,6 +122,7 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 			return optional.NewOption[secrets.Component](comp)
 		}),
 		fx.Supply(secrets.NewEnabledParams()),
+		telemetryimpl.Module(),
 		fx.Supply(logComponent.ForDaemon(string(loggerName), "log_file", params.DefaultLogFile)),
 		config.Module(),
 		logComponent.Module(),
@@ -142,7 +144,7 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 				NoInstance: !instantiate,
 			}
 		}),
-		workloadmeta.Module(),
+		workloadmetafx.Module(),
 		compressionimpl.Module(),
 		demultiplexerimpl.Module(),
 		secretsimpl.Module(),
@@ -152,7 +154,7 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 		eventplatformreceiverimpl.Module(),
 		hostnameimpl.Module(),
 		fx.Supply(eventplatformimpl.NewDisabledParams()),
-		tagger.OptionalModule(),
+		taggerimpl.OptionalModule(),
 		// injecting the shared Serializer to FX until we migrate it to a prpoper component. This allows other
 		// already migrated components to request it.
 		fx.Provide(func(demuxInstance demultiplexer.Component) serializer.MetricSerializer {
@@ -179,7 +181,7 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 				LogsGoroutines: config.GetBool("log_all_goroutines_when_unhealthy"),
 			}
 		}),
-		healthprobeimpl.Module(),
+		healthprobefx.Module(),
 	)
 }
 

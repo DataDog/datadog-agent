@@ -104,7 +104,7 @@ func newCheck() check.Check {
 func (hc *HelmCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
 	hc.BuildID(integrationConfigDigest, config, initConfig)
 
-	err := hc.CommonConfigure(senderManager, integrationConfigDigest, initConfig, config, source)
+	err := hc.CommonConfigure(senderManager, initConfig, config, source)
 	if err != nil {
 		return err
 	}
@@ -456,7 +456,7 @@ func isManagedByHelm(object metav1.Object) bool {
 }
 
 func isLeader() (bool, error) {
-	if !config.Datadog.GetBool("leader_election") {
+	if !config.Datadog().GetBool("leader_election") {
 		return false, errors.New("leader election not enabled. The check will not run")
 	}
 

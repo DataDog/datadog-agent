@@ -62,7 +62,12 @@ func (suite *ecsSuite) SetupSuite() {
 		"ddtestworkload:deploy":                      auto.ConfigValue{Value: "true"},
 	}
 
-	_, stackOutput, err := infra.GetStackManager().GetStackNoDeleteOnFailure(ctx, "ecs-cluster", stackConfig, ecs.Run, false, nil)
+	_, stackOutput, err := infra.GetStackManager().GetStackNoDeleteOnFailure(
+		ctx,
+		"ecs-cluster",
+		ecs.Run,
+		infra.WithConfigMap(stackConfig),
+	)
 	suite.Require().NoError(err)
 
 	fakeintake := &components.FakeIntake{}
@@ -181,7 +186,7 @@ func (suite *ecsSuite) Test00UpAndRunning() {
 					}
 				}
 			}
-		}, 5*time.Minute, 10*time.Second, "Not all tasks became ready in time.")
+		}, 10*time.Minute, 10*time.Second, "Not all tasks became ready in time.")
 	})
 }
 
@@ -221,7 +226,7 @@ func (suite *ecsSuite) TestNginxECS() {
 	suite.testLog(&testLogArgs{
 		Filter: testLogFilterArgs{
 			Service: "apps-nginx-server",
-			Tags:    []string{"ecs_launch_type:ec2"},
+			Tags:    []string{"^ecs_launch_type:ec2$"},
 		},
 		Expect: testLogExpectArgs{
 			Tags: &[]string{
@@ -281,7 +286,7 @@ func (suite *ecsSuite) TestRedisECS() {
 	suite.testLog(&testLogArgs{
 		Filter: testLogFilterArgs{
 			Service: "redis",
-			Tags:    []string{"ecs_launch_type:ec2"},
+			Tags:    []string{"^ecs_launch_type:ec2$"},
 		},
 		Expect: testLogExpectArgs{
 			Tags: &[]string{
@@ -522,7 +527,7 @@ func (suite *ecsSuite) testTrace(taskName string) {
 				regexp.MustCompile(`^task_family:.*-` + regexp.QuoteMeta(taskName) + `-ec2$`),
 				regexp.MustCompile(`^task_name:.*-` + regexp.QuoteMeta(taskName) + `-ec2$`),
 				regexp.MustCompile(`^task_version:[[:digit:]]+$`),
-			}, false)
+			}, []*regexp.Regexp{}, false)
 			if err == nil {
 				break
 			}

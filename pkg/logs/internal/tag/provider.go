@@ -12,7 +12,7 @@ import (
 	"github.com/benbjohnson/clock"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -41,7 +41,7 @@ func NewProvider(entityID string) Provider {
 func newProviderWithClock(entityID string, clock clock.Clock) Provider {
 	p := &provider{
 		entityID:             entityID,
-		taggerWarmupDuration: config.TaggerWarmupDuration(pkgConfig.Datadog),
+		taggerWarmupDuration: config.TaggerWarmupDuration(pkgConfig.Datadog()),
 		localTagProvider:     newLocalProviderWithClock([]string{}, clock),
 		clock:                clock,
 	}
@@ -58,7 +58,7 @@ func (p *provider) GetTags() []string {
 		p.clock.Sleep(p.taggerWarmupDuration)
 	})
 
-	tags, err := tagger.Tag(p.entityID, collectors.HighCardinality)
+	tags, err := tagger.Tag(p.entityID, types.HighCardinality)
 	if err != nil {
 		log.Warnf("Cannot tag container %s: %v", p.entityID, err)
 		return []string{}

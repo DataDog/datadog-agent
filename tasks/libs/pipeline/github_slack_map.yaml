@@ -6,6 +6,7 @@
 '@datadog/agent-platform': DEFAULT_SLACK_CHANNEL
 '@datadog/documentation': DEFAULT_SLACK_CHANNEL
 '@datadog/container-integrations': '#container-integrations'
+'@datadog/container-platform': '#container-platform'
 '@datadog/container-ecosystems': '#container-ecosystems'
 '@datadog/platform-integrations': '#platform-integrations-ops'
 '@datadog/agent-security': '#security-and-compliance-agent-ops'
@@ -19,7 +20,7 @@
 '@datadog/metrics-aggregation': '#metrics-aggregation'
 '@datadog/serverless': '#serverless-agent'
 '@datadog/remote-config': '#remote-config-monitoring'
-'@datadog/fleet': '#fleet-automation'
+'@datadog/fleet': '#fleet-automation-monitoring'
 '@datadog/agent-all': '#datadog-agent-pipelines'
 '@datadog/ebpf-platform': '#ebpf-platform-ops'
 '@datadog/networks': '#network-performance-monitoring'
@@ -27,7 +28,7 @@
 '@datadog/windows-agent': '#windows-agent-ops'
 '@datadog/windows-kernel-integrations': '#windows-kernel-integrations-ops'
 '@datadog/opentelemetry': '#opentelemetry-ops'
-'@datadog/agent-e2e-testing': '#agent-testing-and-qa'
+'@datadog/agent-e2e-testing': '#agent-developer-tools-ops'
 '@datadog/software-integrity-and-trust': '#sit'
 '@datadog/single-machine-performance': '#single-machine-performance'
 '@datadog/agent-integrations': '#agent-integrations'
@@ -39,3 +40,4 @@
 '@datadog/agent-build-and-releases': '#agent-build-and-releases'
 '@datadog/agent-ci-experience': '#agent-developer-experience'
 '@datadog/agent-developer-tools': '#agent-developer-experience'
+'@datadog/apm-onboarding': '#apm-onboarding'

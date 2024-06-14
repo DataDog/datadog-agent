@@ -40,7 +40,7 @@ func newSettingsClient() (settings.Client, error) {
 
 	apiConfigURL := fmt.Sprintf(
 		"https://localhost:%v/config",
-		pkgconfig.Datadog.GetInt("cluster_agent.cmd_port"),
+		pkgconfig.Datadog().GetInt("cluster_agent.cmd_port"),
 	)
 
 	return settingshttp.NewClient(c, apiConfigURL, "datadog-cluster-agent", settingshttp.NewHTTPClientOptions(util.LeaveConnectionOpen)), nil

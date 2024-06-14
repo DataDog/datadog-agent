@@ -15,8 +15,9 @@ package obfuscate
 import (
 	"bytes"
 
-	"github.com/DataDog/datadog-go/v5/statsd"
 	"go.uber.org/atomic"
+
+	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 // Obfuscator quantizes and obfuscates spans. The obfuscator is not safe for
@@ -24,9 +25,11 @@ import (
 type Obfuscator struct {
 	opts                 *Config
 	es                   *jsonObfuscator // nil if disabled
+	openSearch           *jsonObfuscator // nil if disabled
 	mongo                *jsonObfuscator // nil if disabled
 	sqlExecPlan          *jsonObfuscator // nil if disabled
 	sqlExecPlanNormalize *jsonObfuscator // nil if disabled
+	ccObfuscator         *creditCard     // nil if disabled
 	// sqlLiteralEscapes reports whether we should treat escape characters literally or as escape characters.
 	// Different SQL engines behave in different ways and the tokenizer needs to be generic.
 	sqlLiteralEscapes *atomic.Bool
@@ -69,6 +72,9 @@ type Config struct {
 	// ES holds the obfuscation configuration for ElasticSearch bodies.
 	ES JSONConfig
 
+	// OpenSearch holds the obfuscation configuration for OpenSearch bodies.
+	OpenSearch JSONConfig
+
 	// Mongo holds the obfuscation configuration for MongoDB queries.
 	Mongo JSONConfig
 
@@ -87,6 +93,9 @@ type Config struct {
 
 	// Memcached holds the obfuscation settings for Memcached commands.
 	Memcached MemcachedConfig
+
+	// Memcached holds the obfuscation settings for obfuscation of CC numbers in meta.
+	CreditCard CreditCardsConfig
 
 	// Statsd specifies the statsd client to use for reporting metrics.
 	Statsd StatsClient
@@ -240,6 +249,18 @@ type JSONConfig struct {
 	ObfuscateSQLValues []string `mapstructure:"obfuscate_sql_values"`
 }
 
+// CreditCardsConfig holds the configuration for credit card obfuscation in
+// (Meta) tags.
+type CreditCardsConfig struct {
+	// Enabled specifies whether this feature should be enabled.
+	Enabled bool `mapstructure:"enabled"`
+
+	// Luhn specifies whether Luhn checksum validation should be enabled.
+	// https://dev.to/shiraazm/goluhn-a-simple-library-for-generating-calculating-and-verifying-luhn-numbers-588j
+	// It reduces false positives, but increases the CPU time X3.
+	Luhn bool `mapstructure:"luhn"`
+}
+
 // NewObfuscator creates a new obfuscator
 func NewObfuscator(cfg Config) *Obfuscator {
 	if cfg.Logger == nil {
@@ -254,6 +275,9 @@ func NewObfuscator(cfg Config) *Obfuscator {
 	if cfg.ES.Enabled {
 		o.es = newJSONObfuscator(&cfg.ES, &o)
 	}
+	if cfg.OpenSearch.Enabled {
+		o.openSearch = newJSONObfuscator(&cfg.OpenSearch, &o)
+	}
 	if cfg.Mongo.Enabled {
 		o.mongo = newJSONObfuscator(&cfg.Mongo, &o)
 	}
@@ -262,6 +286,9 @@ func NewObfuscator(cfg Config) *Obfuscator {
 	}
 	if cfg.SQLExecPlanNormalize.Enabled {
 		o.sqlExecPlanNormalize = newJSONObfuscator(&cfg.SQLExecPlanNormalize, &o)
+	}
+	if cfg.CreditCard.Enabled {
+		o.ccObfuscator = newCCObfuscator(&cfg.CreditCard)
 	}
 	if cfg.Statsd == nil {
 		cfg.Statsd = &statsd.NoOpClient{}

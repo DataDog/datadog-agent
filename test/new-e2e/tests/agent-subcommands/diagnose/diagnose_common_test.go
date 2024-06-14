@@ -45,17 +45,18 @@ func getDiagnoseOutput(v *baseDiagnoseSuite, commandArgs ...agentclient.AgentArg
 		assert.NoError(c, v.Env().FakeIntake.Client().GetServerHealth())
 	}, 5*time.Minute, 20*time.Second, "timedout waiting for fakeintake to be healthy")
 
-	return v.Env().Agent.Client.Diagnose(commandArgs...)
+	diagnose := v.Env().Agent.Client.Diagnose(commandArgs...)
+	return diagnose
 }
 
 func (v *baseDiagnoseSuite) TestDiagnoseDefaultConfig() {
 	diagnose := getDiagnoseOutput(v)
-	assert.NotContains(v.T(), diagnose, "FAIL")
+	v.AssertOutputNotError(diagnose)
 }
 
 func (v *baseDiagnoseSuite) TestDiagnoseLocal() {
 	diagnose := getDiagnoseOutput(v, agentclient.WithArgs([]string{"--local"}))
-	assert.NotContains(v.T(), diagnose, "FAIL")
+	v.AssertOutputNotError(diagnose)
 }
 
 func (v *baseDiagnoseSuite) TestDiagnoseList() {
@@ -65,10 +66,9 @@ func (v *baseDiagnoseSuite) TestDiagnoseList() {
 	}
 }
 
-func (v *baseDiagnoseSuite) TestDiagnoseInclude() {
+func (v *baseDiagnoseSuite) AssertDiagnoseInclude() {
 	diagnose := getDiagnoseOutput(v)
 	diagnoseSummary := getDiagnoseSummary(diagnose)
-
 	for _, suite := range allSuites {
 		diagnoseInclude := getDiagnoseOutput(v, agentclient.WithArgs([]string{"--include", suite}))
 		resultInclude := getDiagnoseSummary(diagnoseInclude)
@@ -87,7 +87,7 @@ func (v *baseDiagnoseSuite) TestDiagnoseInclude() {
 	assert.Equal(v.T(), diagnoseIncludeEverySuiteSummary, diagnoseSummary)
 }
 
-func (v *baseDiagnoseSuite) TestDiagnoseExclude() {
+func (v *baseDiagnoseSuite) AssertDiagnoseExclude() {
 	for _, suite := range allSuites {
 		diagnoseExclude := getDiagnoseOutput(v, agentclient.WithArgs([]string{"--exclude", suite}))
 		resultExclude := getDiagnoseSummary(diagnoseExclude)
@@ -115,6 +115,11 @@ func (v *baseDiagnoseSuite) TestDiagnoseVerbose() {
 	// Verify that verbose mode display extra information such 'PASS' for successful checks
 	assert.Equal(v.T(), len(matches), summary.total, "Expected to have the same number of 'PASS' as the number of checks (%v), but was %v", summary.total, len(matches))
 	assert.Contains(v.T(), diagnose, "connectivity-datadog-core-endpoints")
+}
+
+func (v *baseDiagnoseSuite) AssertOutputNotError(diagnose string) {
+	assert.NotContains(v.T(), diagnose, "FAIL")
+	assert.NotContains(v.T(), diagnose, "UNEXPECTED ERROR")
 }
 
 var summaryRE = createSummaryRegex()

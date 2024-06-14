@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/pkg/util/system
 
-go 1.21.9
+go 1.21.0
 
 replace (
 	github.com/DataDog/datadog-agent/pkg/util/filesystem => ../filesystem
@@ -12,19 +12,19 @@ replace (
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.53.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/util/log v0.53.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/util/pointer v0.53.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/util/testutil v0.53.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/util/winutil v0.53.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.55.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/log v0.55.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/pointer v0.55.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/testutil v0.55.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/winutil v0.55.0-rc.3
 	github.com/shirou/gopsutil/v3 v3.23.12
 	github.com/stretchr/testify v1.9.0
 	go.uber.org/atomic v1.11.0
-	golang.org/x/sys v0.16.0
+	golang.org/x/sys v0.19.0
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.53.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.55.0-rc.3 // indirect
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/go-ole/go-ole v1.2.6 // indirect

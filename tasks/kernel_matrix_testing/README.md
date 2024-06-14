@@ -23,17 +23,7 @@ A `stack` may be:
 
 ## Dependencies
 
-1. Review and run `tasks/kernel_matrix_testing/env-setup.sh`
-
-2. Download [test-infra-definitions](https://github.com/DataDog/test-infra-definitions) repository.
-   From within the repository execute the following commands:
-
-```bash
-go mod download
-export PULUMI_CONFIG_PASSPHRASE=dummy
-pulumi --non-interactive plugin install
-pulumi --non-interactive plugin ls
-```
+All dependencies are installed by the `kmt.init` command, as defined [below](#initializing-the-environment).
 
 > For macOS users: Internet Sharing might need to be enabled for the networking to work properly. Enable it in System Settings -> General -> Sharing if you find problems with the VM networks. It does not matter which interface you enable it on, as long as it is enabled and the connection being shared is the one you use for Internet connection. We'd also appreciate it if you reported it to the eBPF platform team, as it's not clear still whether Internet Sharing needs to be enabled at some point or not.
 
@@ -43,7 +33,7 @@ A straightforward flow to setup a collections of VMs is as follows:
 
 ### Initializing the environment
 
-This will download all the resources required to launch the VMs. This will not download the dependencies. See [above](#Dependencies) for that.
+This will download all the resources required to launch the VMs, and install all the system dependencies.
 
 > This step should be done only once.
 
@@ -142,6 +132,12 @@ Then connect to the VM as follows
 ```bash
 ssh -i /home/kernel-version-testing/ddvm_rsa -o StrictHostKeyChecking=no root@<ip>
 ```
+
+#### Connecting to all VMs with tmux
+
+You can connect to all VMs at once using the `kmt.tmux` task. It will automatically create a new session for your stack (deleting it if it already exists), will open a new window for each instance, and a new panel for each VM in the window.
+
+A useful command for tmux in these cases is `:set synchronize-panes on`, which will send the same command to all panes at once. This is useful for running the same command in all VMs at once, specially running system-probe all at once.
 
 ### Destroy stack
 

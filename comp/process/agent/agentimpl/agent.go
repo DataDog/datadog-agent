@@ -10,12 +10,21 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
+	statusComponent "github.com/DataDog/datadog-agent/comp/core/status"
+	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
+	statsdComp "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	"github.com/DataDog/datadog-agent/comp/process/agent"
+	expvars "github.com/DataDog/datadog-agent/comp/process/expvars/expvarsimpl"
+	"github.com/DataDog/datadog-agent/comp/process/hostinfo"
 	"github.com/DataDog/datadog-agent/comp/process/runner"
 	submitterComp "github.com/DataDog/datadog-agent/comp/process/submitter"
 	"github.com/DataDog/datadog-agent/comp/process/types"
+	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
+	processStatsd "github.com/DataDog/datadog-agent/pkg/process/statsd"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -35,32 +44,46 @@ func Module() fxutil.Module {
 		fx.Provide(newProcessAgent))
 }
 
-type processAgentParams struct {
+type dependencies struct {
 	fx.In
 
-	Lc        fx.Lifecycle
-	Log       logComponent.Component
-	Config    config.Component
-	Checks    []types.CheckComponent `group:"check"`
-	Runner    runner.Component
-	Submitter submitterComp.Component
+	Lc             fx.Lifecycle
+	Log            logComponent.Component
+	Config         config.Component
+	Checks         []types.CheckComponent `group:"check"`
+	Runner         runner.Component
+	Submitter      submitterComp.Component
+	SysProbeConfig sysprobeconfig.Component
+	HostInfo       hostinfo.Component
+	Statsd         statsdComp.Component
 }
 
 type processAgent struct {
-	enabled bool
-	Checks  []checks.Check
-	Log     logComponent.Component
+	enabled     bool
+	Checks      []checks.Check
+	Log         logComponent.Component
+	flarehelper *agent.FlareHelper
 }
 
-func newProcessAgent(p processAgentParams) agent.Component {
-	if !agent.Enabled(p.Config, p.Checks, p.Log) {
-		return processAgent{
-			enabled: false,
-		}
+type provides struct {
+	fx.Out
+
+	Comp           agent.Component
+	StatusProvider statusComponent.InformationProvider
+	FlareProvider  flaretypes.Provider
+}
+
+func newProcessAgent(deps dependencies) (provides, error) {
+	if !agent.Enabled(deps.Config, deps.Checks, deps.Log) {
+		return provides{
+			Comp: processAgent{
+				enabled: false,
+			},
+		}, nil
 	}
 
-	enabledChecks := make([]checks.Check, 0, len(p.Checks))
-	for _, c := range fxutil.GetAndFilterGroup(p.Checks) {
+	enabledChecks := make([]checks.Check, 0, len(deps.Checks))
+	for _, c := range fxutil.GetAndFilterGroup(deps.Checks) {
 		check := c.Object()
 		if check.IsEnabled() {
 			enabledChecks = append(enabledChecks, check)
@@ -69,19 +92,45 @@ func newProcessAgent(p processAgentParams) agent.Component {
 
 	// Look to see if any checks are enabled, if not, return since the agent doesn't need to be enabled.
 	if len(enabledChecks) == 0 {
-		p.Log.Info(agentDisabledMessage)
-		return processAgent{
-			enabled: false,
-		}
+		deps.Log.Info(agentDisabledMessage)
+		return provides{
+			Comp: processAgent{
+				enabled: false,
+			},
+		}, nil
+	}
+
+	if err := processStatsd.Configure(ddconfig.GetBindHost(), deps.Config.GetInt("dogstatsd_port"), deps.Statsd.CreateForHostPort); err != nil {
+		deps.Log.Criticalf("Error configuring statsd for process-agent: %s", err)
+		return provides{
+			Comp: processAgent{
+				enabled: false,
+			},
+		}, err
 	}
 
 	processAgentComponent := processAgent{
-		enabled: true,
-		Checks:  enabledChecks,
-		Log:     p.Log,
+		enabled:     true,
+		Checks:      enabledChecks,
+		Log:         deps.Log,
+		flarehelper: agent.NewFlareHelper(enabledChecks),
 	}
 
-	return processAgentComponent
+	if flavor.GetFlavor() != flavor.ProcessAgent {
+		// We return a status provider when the component is used outside of the process agent
+		// as the component status is unique from the typical agent status in this case.
+		err := expvars.InitProcessStatus(deps.Config, deps.SysProbeConfig, deps.HostInfo, deps.Log)
+		if err != nil {
+			_ = deps.Log.Critical("Failed to initialize process status server:", err)
+		}
+		return provides{
+			Comp:           processAgentComponent,
+			StatusProvider: statusComponent.NewInformationProvider(agent.NewStatusProvider(deps.Config)),
+			FlareProvider:  flaretypes.NewProvider(processAgentComponent.flarehelper.FillFlare),
+		}, nil
+	}
+
+	return provides{Comp: processAgentComponent}, nil
 }
 
 // Enabled determines whether the process agent is enabled based on the configuration.

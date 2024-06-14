@@ -25,7 +25,7 @@ import (
 
 const (
 	// CheckName is the name of the check
-	CheckName            = "ciscosdwan"
+	CheckName            = "cisco_sdwan"
 	defaultCheckInterval = 1 * time.Minute
 )
 
@@ -44,6 +44,8 @@ type checkCfg struct {
 	CAFile                    string `yaml:"ca_file"`
 	SendNDMMetadata           *bool  `yaml:"send_ndm_metadata"`
 	MinCollectionInterval     int    `yaml:"min_collection_interval"`
+	CollectBFDSessionStatus   bool   `yaml:"collect_bfd_session_status"`
+	CollectHardwareStatus     bool   `yaml:"collect_hardware_status"`
 }
 
 // CiscoSdwanCheck contains the field for the CiscoSdwanCheck
@@ -99,10 +101,6 @@ func (c *CiscoSdwanCheck) Run() error {
 	if err != nil {
 		log.Warnf("Error getting OMP peer states from Cisco SD-WAN API: %s", err)
 	}
-	bfdSessionsState, err := client.GetBFDSessionsState()
-	if err != nil {
-		log.Warnf("Error getting BFD session states from Cisco SD-WAN API: %s", err)
-	}
 	deviceCounters, err := client.GetDevicesCounters()
 	if err != nil {
 		log.Warnf("Error getting device counters from Cisco SD-WAN API: %s", err)
@@ -111,6 +109,7 @@ func (c *CiscoSdwanCheck) Run() error {
 	devicesMetadata := payload.GetDevicesMetadata(c.config.Namespace, devices)
 	deviceTags := payload.GetDevicesTags(c.config.Namespace, devices)
 	uptimes := payload.GetDevicesUptime(devices)
+	deviceStatus := payload.GetDevicesStatus(devices)
 
 	interfaces := payload.ConvertInterfaces(vEdgeInterfaces, cEdgeInterfaces)
 	interfacesMetadata, interfacesMap := payload.GetInterfacesMetadata(c.config.Namespace, interfaces)
@@ -127,8 +126,25 @@ func (c *CiscoSdwanCheck) Run() error {
 	c.metricsSender.SendAppRouteMetrics(appRouteStats)
 	c.metricsSender.SendControlConnectionMetrics(controlConnectionsState)
 	c.metricsSender.SendOMPPeerMetrics(ompPeersState)
-	c.metricsSender.SendBFDSessionMetrics(bfdSessionsState)
 	c.metricsSender.SendDeviceCountersMetrics(deviceCounters)
+	c.metricsSender.SendDeviceStatusMetrics(deviceStatus)
+
+	// Configurable metrics
+	if c.config.CollectBFDSessionStatus {
+		bfdSessionsState, err := client.GetBFDSessionsState()
+		if err != nil {
+			log.Warnf("Error getting BFD session states from Cisco SD-WAN API: %s", err)
+		}
+		c.metricsSender.SendBFDSessionMetrics(bfdSessionsState)
+	}
+
+	if c.config.CollectHardwareStatus {
+		hardwareStates, err := client.GetHardwareStates()
+		if err != nil {
+			log.Warnf("Error getting hardware states from Cisco SD-WAN API: %s", err)
+		}
+		c.metricsSender.SendHardwareMetrics(hardwareStates)
+	}
 
 	// Commit
 	c.metricsSender.Commit()
@@ -141,7 +157,7 @@ func (c *CiscoSdwanCheck) Configure(senderManager sender.SenderManager, integrat
 	// Must be called before c.CommonConfigure
 	c.BuildID(integrationConfigDigest, rawInstance, rawInitConfig)
 
-	err := c.CommonConfigure(senderManager, integrationConfigDigest, rawInitConfig, rawInstance, source)
+	err := c.CommonConfigure(senderManager, rawInitConfig, rawInstance, source)
 	if err != nil {
 		return err
 	}
@@ -159,7 +175,7 @@ func (c *CiscoSdwanCheck) Configure(senderManager sender.SenderManager, integrat
 	c.config = instanceConfig
 
 	if c.config.Namespace == "" {
-		c.config.Namespace = "cisco-sdwan"
+		c.config.Namespace = "default"
 	} else {
 		namespace, err := utils.NormalizeNamespace(c.config.Namespace)
 		if err != nil {

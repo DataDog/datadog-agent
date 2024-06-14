@@ -17,6 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/pkg/util/tmplvar"
 )
 
@@ -176,6 +177,16 @@ func (c *Config) String() string {
 	}
 
 	return string(buffer)
+}
+
+// ScrubbedString returns the YAML representation of the config with secrets scrubbed
+func (c *Config) ScrubbedString() string {
+	scrubbed, err := scrubber.ScrubYaml([]byte(c.String()))
+	if err != nil {
+		log.Errorf("error scrubbing config: %s", err)
+		return ""
+	}
+	return string(scrubbed)
 }
 
 // IsTemplate returns if the config has AD identifiers

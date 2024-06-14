@@ -1,11 +1,12 @@
+from __future__ import annotations
+
 import re
-from typing import List, Tuple
 
 from invoke import exceptions
 from invoke.context import Context
 from invoke.tasks import task
 
-from tasks.go import tidy_all
+from tasks.go import tidy
 from tasks.libs.common.color import color_message
 from tasks.modules import DEFAULT_MODULES
 from tasks.pipeline import update_circleci_config, update_gitlab_config
@@ -17,7 +18,7 @@ GO_VERSION_FILE = "./.go-version"
 # - path is the path of the file to update
 # - pre_pattern and post_pattern delimit the version to update
 # - is_bugfix is True if the version in the match is a bugfix version, False if it's a minor
-GO_VERSION_REFERENCES: List[Tuple[str, str, str, bool]] = [
+GO_VERSION_REFERENCES: list[tuple[str, str, str, bool]] = [
     (GO_VERSION_FILE, "", "", True),  # the version is the only content of the file
     ("./tools/gdb/Dockerfile", "https://go.dev/dl/go", ".linux-amd64.tar.gz", True),
     ("./test/fakeintake/Dockerfile", "FROM golang:", "-alpine", True),
@@ -97,11 +98,11 @@ def update_go(
     # check the installed go version before running `tidy_all`
     res = ctx.run("go version")
     if res.stdout.startswith(f"go version go{version} "):
-        tidy_all(ctx)
+        tidy(ctx)
     else:
         print(
             color_message(
-                "WARNING: did not run `inv tidy-all` as the version of your `go` binary doesn't match the requested version",
+                "WARNING: did not run `inv tidy` as the version of your `go` binary doesn't match the requested version",
                 "orange",
             )
         )
@@ -130,7 +131,7 @@ def _update_file(warn: bool, path: str, pattern: str, replace: str, expected_mat
     # newline='' keeps the file's newline character(s)
     # meaning it keeps '\n' for most files and '\r\n' for windows specific files
 
-    with open(path, "r", newline='', encoding='utf-8') as reader:
+    with open(path, newline='', encoding='utf-8') as reader:
         content = reader.read()
 
     if dry_run:
@@ -153,7 +154,7 @@ def _update_file(warn: bool, path: str, pattern: str, replace: str, expected_mat
 
 # returns the current go version
 def _get_repo_go_version() -> str:
-    with open(GO_VERSION_FILE, "r") as reader:
+    with open(GO_VERSION_FILE) as reader:
         version = reader.read()
     return version.strip()
 
@@ -191,14 +192,16 @@ def _update_go_mods(warn: bool, version: str, include_otel_modules: bool, dry_ru
             # to allow them to keep using the modules
             continue
         mod_file = f"./{path}/go.mod"
-
+        major_minor = _get_major_minor_version(version)
         if module.legacy_go_mod_version:
-            major_minor = _get_major_minor_version(version)
             # $ only matches \n, not \r\n, so we need to use \r?$ to make it work on Windows
             _update_file(warn, mod_file, f"^go {PATTERN_MAJOR_MINOR}\r?$", f"go {major_minor}", dry_run=dry_run)
         else:
+            major_minor_zero = f"{major_minor}.0"
             # $ only matches \n, not \r\n, so we need to use \r?$ to make it work on Windows
-            _update_file(warn, mod_file, f"^go {PATTERN_MAJOR_MINOR_BUGFIX}\r?$", f"go {version}", dry_run=dry_run)
+            _update_file(
+                warn, mod_file, f"^go {PATTERN_MAJOR_MINOR_BUGFIX}\r?$", f"go {major_minor_zero}", dry_run=dry_run
+            )
 
 
 def _create_releasenote(ctx: Context, version: str):

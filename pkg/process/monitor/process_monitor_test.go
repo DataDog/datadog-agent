@@ -15,12 +15,16 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/suite"
 	"github.com/vishvananda/netns"
 	"go.uber.org/atomic"
 
+	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
+	eventmonitortestutil "github.com/DataDog/datadog-agent/pkg/eventmonitor/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func getProcessMonitor(t *testing.T) *ProcessMonitor {
@@ -32,8 +36,17 @@ func getProcessMonitor(t *testing.T) *ProcessMonitor {
 	return pm
 }
 
-func initializePM(t *testing.T, pm *ProcessMonitor) {
-	require.NoError(t, pm.Initialize())
+func initializePM(t *testing.T, pm *ProcessMonitor, useEventStream bool) {
+	require.NoError(t, pm.Initialize(useEventStream))
+	if useEventStream {
+		eventmonitortestutil.StartEventMonitor(t, func(t *testing.T, evm *eventmonitor.EventMonitor) {
+			// Can't use the implementation in procmontestutil due to import cycles
+			procmonconsumer, err := NewProcessMonitorEventConsumer(evm)
+			require.NoError(t, err)
+			evm.RegisterEventConsumer(procmonconsumer)
+			log.Info("process monitoring test consumer initialized")
+		})
+	}
 	time.Sleep(time.Millisecond * 500)
 }
 
@@ -66,18 +79,28 @@ func TestProcessMonitorSingleton(t *testing.T) {
 	require.Equal(t, pm, pm2)
 }
 
-func TestProcessMonitorSanity(t *testing.T) {
+type processMonitorSuite struct {
+	suite.Suite
+	useEventStream bool
+}
+
+func (s *processMonitorSuite) TestProcessMonitorSanity() {
+	t := s.T()
 	pm := getProcessMonitor(t)
 	numberOfExecs := atomic.Int32{}
 	testBinaryPath := getTestBinaryPath(t)
 	callback := func(pid uint32) { numberOfExecs.Inc() }
 	registerCallback(t, pm, true, (*ProcessCallback)(&callback))
 
-	initializePM(t, pm)
+	numberOfExits := atomic.Int32{}
+	exitCallback := func(pid uint32) { numberOfExits.Inc() }
+	registerCallback(t, pm, false, (*ProcessCallback)(&exitCallback))
+
+	initializePM(t, pm, s.useEventStream)
 	require.NoError(t, exec.Command(testBinaryPath, "test").Run())
 	require.Eventuallyf(t, func() bool {
-		return numberOfExecs.Load() > 1
-	}, time.Second, time.Millisecond*200, "didn't capture exec events %d", numberOfExecs.Load())
+		return numberOfExecs.Load() > 1 && numberOfExits.Load() > 0
+	}, time.Second, time.Millisecond*200, "didn't capture exec/exit events %d", numberOfExecs.Load())
 
 	require.GreaterOrEqual(t, pm.tel.events.Get(), pm.tel.exec.Get(), "events is not >= than exec")
 	require.GreaterOrEqual(t, pm.tel.events.Get(), pm.tel.exit.Get(), "events is not >= than exit")
@@ -89,7 +112,17 @@ func TestProcessMonitorSanity(t *testing.T) {
 	require.GreaterOrEqual(t, pm.tel.callbackExecuted.Get(), int64(1), "callback_executed")
 }
 
-func TestProcessRegisterMultipleExecCallbacks(t *testing.T) {
+func TestProcessMonitor(t *testing.T) {
+	t.Run("netlink", func(t *testing.T) {
+		suite.Run(t, &processMonitorSuite{useEventStream: false})
+	})
+	t.Run("event stream", func(t *testing.T) {
+		suite.Run(t, &processMonitorSuite{useEventStream: true})
+	})
+}
+
+func (s *processMonitorSuite) TestProcessRegisterMultipleExecCallbacks() {
+	t := s.T()
 	pm := getProcessMonitor(t)
 
 	const iterations = 10
@@ -101,7 +134,7 @@ func TestProcessRegisterMultipleExecCallbacks(t *testing.T) {
 		registerCallback(t, pm, true, (*ProcessCallback)(&callback))
 	}
 
-	initializePM(t, pm)
+	initializePM(t, pm, s.useEventStream)
 	require.NoError(t, exec.Command("/bin/echo").Run())
 	require.Eventuallyf(t, func() bool {
 		for i := 0; i < iterations; i++ {
@@ -114,25 +147,37 @@ func TestProcessRegisterMultipleExecCallbacks(t *testing.T) {
 	}, time.Second, time.Millisecond*200, "at least of the callbacks didn't capture events")
 }
 
-func TestProcessRegisterMultipleExitCallbacks(t *testing.T) {
+func (s *processMonitorSuite) TestProcessRegisterMultipleExitCallbacks() {
+	t := s.T()
 	pm := getProcessMonitor(t)
 
 	const iterations = 10
 	counters := make([]*atomic.Int32, iterations)
+	exitCounters := make([]*atomic.Int32, iterations)
 	for i := 0; i < iterations; i++ {
 		counters[i] = &atomic.Int32{}
 		c := counters[i]
 		// Sanity subscribing a callback.
 		callback := func(pid uint32) { c.Inc() }
 		registerCallback(t, pm, true, (*ProcessCallback)(&callback))
+
+		exitCounters[i] = &atomic.Int32{}
+		exitc := exitCounters[i]
+		// Sanity subscribing a callback.
+		exitCallback := func(pid uint32) { exitc.Inc() }
+		registerCallback(t, pm, false, (*ProcessCallback)(&exitCallback))
 	}
 
-	initializePM(t, pm)
+	initializePM(t, pm, s.useEventStream)
 	require.NoError(t, exec.Command("/bin/echo").Run())
 	require.Eventuallyf(t, func() bool {
 		for i := 0; i < iterations; i++ {
 			if counters[i].Load() <= int32(0) {
-				t.Logf("iter %d didn't capture event", i)
+				t.Logf("iter %d didn't capture exec event", i)
+				return false
+			}
+			if exitCounters[i].Load() <= int32(0) {
+				t.Logf("iter %d didn't capture exit event", i)
 				return false
 			}
 		}
@@ -163,30 +208,40 @@ func TestProcessMonitorRefcount(t *testing.T) {
 	}
 }
 
-func TestProcessMonitorInNamespace(t *testing.T) {
+func (s *processMonitorSuite) TestProcessMonitorInNamespace() {
+	t := s.T()
 	execSet := sync.Map{}
+	exitSet := sync.Map{}
 
 	pm := getProcessMonitor(t)
 
 	callback := func(pid uint32) { execSet.Store(pid, struct{}{}) }
 	registerCallback(t, pm, true, (*ProcessCallback)(&callback))
 
+	exitCallback := func(pid uint32) { exitSet.Store(pid, struct{}{}) }
+	registerCallback(t, pm, false, (*ProcessCallback)(&exitCallback))
+
 	monNs, err := netns.New()
 	require.NoError(t, err, "could not create network namespace for process monitor")
 	t.Cleanup(func() { monNs.Close() })
 
-	require.NoError(t, kernel.WithNS(monNs, pm.Initialize), "could not start process monitor in netNS")
+	require.NoError(t, kernel.WithNS(monNs, func() error {
+		initializePM(t, pm, s.useEventStream)
+		return nil
+	}), "could not start process monitor in netNS")
 	t.Cleanup(pm.Stop)
 
 	time.Sleep(500 * time.Millisecond)
 	// Process in root NS
 	cmd := exec.Command("/bin/echo")
 	require.NoError(t, cmd.Run(), "could not run process in root namespace")
+	pid := uint32(cmd.ProcessState.Pid())
 
 	require.Eventually(t, func() bool {
-		_, captured := execSet.Load(cmd.ProcessState.Pid())
-		return captured
-	}, time.Second, time.Millisecond*200, "did not capture process EXEC from root namespace")
+		_, capturedExec := execSet.Load(pid)
+		_, capturedExit := exitSet.Load(pid)
+		return capturedExec && capturedExit
+	}, time.Second, time.Millisecond*200, "did not capture process EXEC/EXIT from root namespace")
 
 	// Process in another NS
 	cmdNs, err := netns.New()
@@ -195,11 +250,13 @@ func TestProcessMonitorInNamespace(t *testing.T) {
 
 	cmd = exec.Command("/bin/echo")
 	require.NoError(t, kernel.WithNS(cmdNs, cmd.Run), "could not run process in other network namespace")
+	pid = uint32(cmd.ProcessState.Pid())
 
 	require.Eventually(t, func() bool {
-		_, captured := execSet.Load(cmd.ProcessState.Pid())
-		return captured
-	}, time.Second, 200*time.Millisecond, "did not capture process EXEC from other namespace")
+		_, capturedExec := execSet.Load(pid)
+		_, capturedExit := exitSet.Load(pid)
+		return capturedExec && capturedExit
+	}, time.Second, 200*time.Millisecond, "did not capture process EXEC/EXIT from other namespace")
 
 	require.GreaterOrEqual(t, pm.tel.events.Get(), pm.tel.exec.Get(), "events is not >= than exec")
 	require.GreaterOrEqual(t, pm.tel.events.Get(), pm.tel.exit.Get(), "events is not >= than exit")

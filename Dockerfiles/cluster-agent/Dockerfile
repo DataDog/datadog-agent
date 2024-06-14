@@ -1,14 +1,16 @@
 ########################################
 # Preparation stage: layout and chmods #
 ########################################
-ARG BASE_IMAGE_UBUNTU_VERSION=23.10
-ARG BASE_IMAGE_UBUNTU_NAME=mantic
+ARG BASE_IMAGE_UBUNTU_VERSION=24.04
+ARG BASE_IMAGE_UBUNTU_NAME=noble
 FROM ubuntu:$BASE_IMAGE_UBUNTU_VERSION as builder
 ARG TARGETARCH
+ARG BASE_IMAGE_UBUNTU_VERSION
+ARG BASE_IMAGE_UBUNTU_NAME
 LABEL baseimage.os "ubuntu ${BASE_IMAGE_UBUNTU_NAME}"
 LABEL baseimage.name "ubuntu:${BASE_IMAGE_UBUNTU_VERSION}"
-# Can be used by Dependabot
-LABEL org.opencontainers.image.source "https://github.com/DataDog/datadog-agent"
+LABEL org.opencontainers.image.base.name "ubuntu:${BASE_IMAGE_UBUNTU_VERSION}"
+LABEL org.opencontainers.image.title "Datadog Cluster Agent"
 
 WORKDIR /output
 
@@ -19,6 +21,9 @@ COPY ./security-agent-policies/compliance/containers/ etc/datadog-agent/complian
 COPY ./install_info etc/datadog-agent/install_info
 COPY entrypoint.sh .
 COPY readsecret.sh readsecret_multiple_providers.sh ./
+
+# CWS Instrumentation
+COPY --chmod=0755 ./datadog-cws-instrumentation/ opt/datadog-agent/bin/datadog-cws-instrumentation/
 
 RUN apt-get update \
     && apt-get install --no-install-recommends -y adduser \

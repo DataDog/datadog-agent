@@ -20,6 +20,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"go.uber.org/atomic"
 
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/constants"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
@@ -97,7 +98,7 @@ func NewRuleEngine(evm *eventmonitor.EventMonitor, config *config.RuntimeSecurit
 	})
 
 	// register as event handler
-	if err := probe.AddFullAccessEventHandler(engine); err != nil {
+	if err := probe.AddEventHandler(engine); err != nil {
 		return nil, err
 	}
 
@@ -189,6 +190,7 @@ func (e *RuleEngine) Start(ctx context.Context, reloadChan <-chan struct{}, wg *
 				tags := []string{
 					fmt.Sprintf("version:%s", version.AgentVersion),
 					fmt.Sprintf("os:%s", runtime.GOOS),
+					constants.CardinalityTagPrefix + "none",
 				}
 
 				if os.Getenv("ECS_FARGATE") == "true" || os.Getenv("DD_ECS_FARGATE") == "true" {
@@ -365,7 +367,7 @@ func (e *RuleEngine) gatherDefaultPolicyProviders() []rules.PolicyProvider {
 
 	// add remote config as config provider if enabled.
 	if e.config.RemoteConfigurationEnabled {
-		rcPolicyProvider, err := rconfig.NewRCPolicyProvider()
+		rcPolicyProvider, err := rconfig.NewRCPolicyProvider(e.config.RemoteConfigurationDumpPolicies)
 		if err != nil {
 			seclog.Errorf("will be unable to load remote policies: %s", err)
 		} else {
@@ -395,11 +397,6 @@ func (e *RuleEngine) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, fi
 // RuleMatch is called by the ruleset when a rule matches
 func (e *RuleEngine) RuleMatch(rule *rules.Rule, event eval.Event) bool {
 	ev := event.(*model.Event)
-
-	// do not send broken event
-	if ev.Error != nil {
-		return false
-	}
 
 	// add matched rules before any auto suppression check to ensure that this information is available in activity dumps
 	if ev.ContainerContext.ID != "" && (e.config.ActivityDumpTagRulesEnabled || e.config.AnomalyDetectionTagRulesEnabled) {

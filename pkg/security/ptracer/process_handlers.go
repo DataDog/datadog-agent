@@ -34,13 +34,13 @@ func registerProcessHandlers(handlers map[int]syscallHandler) []string {
 		{
 			IDs:        []syscallID{{ID: ChdirNr, Name: "chdir"}},
 			Func:       handleChdir,
-			ShouldSend: nil,
+			ShouldSend: isAcceptedRetval,
 			RetFunc:    handleChdirRet,
 		},
 		{
 			IDs:        []syscallID{{ID: FchdirNr, Name: "fchdir"}},
 			Func:       handleFchdir,
-			ShouldSend: nil,
+			ShouldSend: isAcceptedRetval,
 			RetFunc:    handleChdirRet,
 		},
 		{
@@ -217,8 +217,7 @@ func handleExecve(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, re
 	return fillFileMetadata(tracer, filename, &msg.Exec.File, disableStats)
 }
 
-func handleChdir(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, _ bool) error {
-	// using msg to temporary store arg0, as it will be erased by the return value on ARM64
+func handleChdir(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, disableStats bool) error {
 	dirname, err := tracer.ReadArgString(process.Pid, regs, 0)
 	if err != nil {
 		return err
@@ -230,13 +229,16 @@ func handleChdir(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, reg
 		return err
 	}
 
-	msg.Chdir = &ebpfless.ChdirSyscallFakeMsg{
-		Path: dirname,
+	msg.Type = ebpfless.SyscallTypeChdir
+	msg.Chdir = &ebpfless.ChdirSyscallMsg{
+		Dir: ebpfless.FileSyscallMsg{
+			Filename: dirname,
+		},
 	}
-	return nil
+	return fillFileMetadata(tracer, dirname, &msg.Chdir.Dir, disableStats)
 }
 
-func handleFchdir(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, _ bool) error {
+func handleFchdir(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, disableStats bool) error {
 	fd := tracer.ReadArgInt32(regs, 0)
 	dirname, ok := process.Res.Fd[fd]
 	if !ok {
@@ -244,11 +246,13 @@ func handleFchdir(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, re
 		return nil
 	}
 
-	// using msg to temporary store arg0, as it will be erased by the return value on ARM64
-	msg.Chdir = &ebpfless.ChdirSyscallFakeMsg{
-		Path: dirname,
+	msg.Type = ebpfless.SyscallTypeChdir
+	msg.Chdir = &ebpfless.ChdirSyscallMsg{
+		Dir: ebpfless.FileSyscallMsg{
+			Filename: dirname,
+		},
 	}
-	return nil
+	return fillFileMetadata(tracer, dirname, &msg.Chdir.Dir, disableStats)
 }
 
 func handleSetuid(tracer *Tracer, _ *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, disableStats bool) error {
@@ -430,7 +434,7 @@ func handleDeleteModule(tracer *Tracer, process *Process, msg *ebpfless.SyscallM
 
 func handleChdirRet(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, _ bool) error {
 	if ret := tracer.ReadRet(regs); msg.Chdir != nil && ret >= 0 {
-		process.Res.Cwd = msg.Chdir.Path
+		process.Res.Cwd = msg.Chdir.Dir.Filename
 	}
 	return nil
 }

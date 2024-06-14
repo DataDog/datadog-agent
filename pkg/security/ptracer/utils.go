@@ -74,8 +74,8 @@ func getProcControlGroupsFromFile(path string) ([]controlGroup, error) {
 
 }
 
-func getCurrentProcContainerID() (string, error) {
-	cgroups, err := getProcControlGroupsFromFile("/proc/self/cgroup")
+func getContainerIDFromProcFS(cgroupPath string) (string, error) {
+	cgroups, err := getProcControlGroupsFromFile(cgroupPath)
 	if err != nil {
 		return "", err
 	}
@@ -87,6 +87,14 @@ func getCurrentProcContainerID() (string, error) {
 		}
 	}
 	return "", nil
+}
+
+func getCurrentProcContainerID() (string, error) {
+	return getContainerIDFromProcFS("/proc/self/cgroup")
+}
+
+func getProcContainerID(pid int) (string, error) {
+	return getContainerIDFromProcFS(fmt.Sprintf("/proc/%d/cgroup", pid))
 }
 
 func getNSID() uint64 {
@@ -297,6 +305,7 @@ func fillFileMetadata(tracer *Tracer, filepath string, fileMsg *ebpfless.FileSys
 	stat := fileInfo.Sys().(*syscall.Stat_t)
 	fileMsg.MTime = uint64(stat.Mtim.Nano())
 	fileMsg.CTime = uint64(stat.Ctim.Nano())
+	fileMsg.Inode = stat.Ino
 	fileMsg.Credentials = &ebpfless.Credentials{
 		UID:   stat.Uid,
 		User:  getUserFromUID(tracer, int32(stat.Uid)),
@@ -477,5 +486,6 @@ func getModuleNameFromFile(filename string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	defer file.Close()
 	return getModuleName(file)
 }

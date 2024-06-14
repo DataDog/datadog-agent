@@ -1,26 +1,29 @@
+from __future__ import annotations
+
 import json
 import os
 import pathlib
 import re
 import subprocess
 from collections import defaultdict
-from typing import Dict
 
+import gitlab
 import yaml
+from gitlab.v4.objects import ProjectJob
 from invoke.context import Context
 
-from tasks.libs.ciproviders.gitlab import Gitlab, get_gitlab_token
+from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
 from tasks.libs.owners.parsing import read_owners
 from tasks.libs.types.types import FailedJobReason, FailedJobs, Test
 
 
-def load_and_validate(file_name: str, default_placeholder: str, default_value: str) -> Dict[str, str]:
+def load_and_validate(file_name: str, default_placeholder: str, default_value: str) -> dict[str, str]:
     p = pathlib.Path(os.path.realpath(__file__)).parent.joinpath(file_name)
 
-    result: Dict[str, str] = {}
+    result: dict[str, str] = {}
     with p.open(encoding='utf-8') as file_stream:
         for key, value in yaml.safe_load(file_stream).items():
-            if not (type(key) is str and type(value) is str):
+            if not (isinstance(key, str) and isinstance(value, str)):
                 raise ValueError(f"File {file_name} contains a non-string key or value. Key: {key}, Value: {value}")
             result[key] = default_value if value == default_placeholder else value
     return result
@@ -51,13 +54,16 @@ def check_for_missing_owners_slack_and_jira(print_missing_teams=True, owners_fil
     return error
 
 
-def get_failed_tests(project_name, job, owners_file=".github/CODEOWNERS"):
-    gitlab = Gitlab(project_name=project_name, api_token=get_gitlab_token())
+def get_failed_tests(project_name, job: ProjectJob, owners_file=".github/CODEOWNERS"):
+    repo = get_gitlab_repo(project_name)
     owners = read_owners(owners_file)
-    test_output = gitlab.artifact(job["id"], "test_output.json", ignore_not_found=True)
+    try:
+        test_output = str(repo.jobs.get(job.id, lazy=True).artifact('test_output.json'), 'utf-8')
+    except gitlab.exceptions.GitlabGetError:
+        test_output = ''
     failed_tests = {}  # type: dict[tuple[str, str], Test]
     if test_output:
-        for line in test_output.iter_lines():
+        for line in test_output.splitlines():
             json_test = json.loads(line)
             if 'Test' in json_test:
                 name = json_test['Test']
@@ -80,17 +86,16 @@ def get_failed_tests(project_name, job, owners_file=".github/CODEOWNERS"):
     return failed_tests.values()
 
 
-def find_job_owners(failed_jobs: FailedJobs, owners_file: str = ".gitlab/JOBOWNERS") -> Dict[str, FailedJobs]:
+def find_job_owners(failed_jobs: FailedJobs, owners_file: str = ".gitlab/JOBOWNERS") -> dict[str, FailedJobs]:
     owners = read_owners(owners_file)
     owners_to_notify = defaultdict(FailedJobs)
-
     # For e2e test infrastructure errors, notify the agent-e2e-testing team
     for job in failed_jobs.mandatory_infra_job_failures:
-        if job["failure_type"] == FailedJobReason.E2E_INFRA_FAILURE:
-            owners_to_notify["@datadog/agent-e2e-testing"].add_failed_job(job)
+        if job.failure_reason == FailedJobReason.E2E_INFRA_FAILURE:
+            owners_to_notify["@DataDog/agent-e2e-testing"].add_failed_job(job)
 
     for job in failed_jobs.all_non_infra_failures():
-        job_owners = owners.of(job["name"])
+        job_owners = owners.of(job.name)
         # job_owners is a list of tuples containing the type of owner (eg. USERNAME, TEAM) and the name of the owner
         # eg. [('TEAM', '@DataDog/agent-ci-experience')]
 
@@ -99,6 +104,16 @@ def find_job_owners(failed_jobs: FailedJobs, owners_file: str = ".gitlab/JOBOWNE
                 owners_to_notify[owner].add_failed_job(job)
 
     return owners_to_notify
+
+
+def get_pr_from_commit(commit_title, project_title) -> tuple[str, str] | None:
+    parsed_pr_id_found = re.search(r'.*\(#([0-9]*)\)$', commit_title)
+    if not parsed_pr_id_found:
+        return None
+
+    parsed_pr_id = parsed_pr_id_found.group(1)
+
+    return parsed_pr_id, f"{DATADOG_AGENT_GITHUB_ORG_URL}/{project_title}/pull/{parsed_pr_id}"
 
 
 def base_message(header, state):
@@ -114,11 +129,10 @@ def base_message(header, state):
     author = get_git_author()
 
     # Try to find a PR id (e.g #12345) in the commit title and add a link to it in the message if found.
-    parsed_pr_id_found = re.search(r'.*\(#([0-9]*)\)$', commit_title)
+    pr_info = get_pr_from_commit(commit_title, project_title)
     enhanced_commit_title = commit_title
-    if parsed_pr_id_found:
-        parsed_pr_id = parsed_pr_id_found.group(1)
-        pr_url_github = f"{DATADOG_AGENT_GITHUB_ORG_URL}/{project_title}/pull/{parsed_pr_id}"
+    if pr_info:
+        parsed_pr_id, pr_url_github = pr_info
         enhanced_commit_title = enhanced_commit_title.replace(f"#{parsed_pr_id}", f"<{pr_url_github}|#{parsed_pr_id}>")
 
     return f"""{header} pipeline <{pipeline_url}|{pipeline_id}> for {commit_ref_name} {state}.

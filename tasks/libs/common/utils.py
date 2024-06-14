@@ -2,19 +2,29 @@
 Miscellaneous functions, no tasks here
 """
 
+from __future__ import annotations
 
 import json
 import os
+import platform
 import re
 import sys
 import time
+import traceback
+from collections import Counter
 from contextlib import contextmanager
+from functools import wraps
+from pathlib import Path
 from subprocess import CalledProcessError, check_output
 from types import SimpleNamespace
 
+from invoke.context import Context
 from invoke.exceptions import Exit
 
-from tasks.libs.common.color import color_message
+from tasks.libs.common.color import Color, color_message
+from tasks.libs.common.git import check_local_branch, check_uncommitted_changes, get_commit_sha, get_current_branch
+from tasks.libs.owners.parsing import search_owners
+from tasks.libs.types.arch import Arch
 
 # constants
 DEFAULT_BRANCH = "main"
@@ -60,6 +70,18 @@ def running_in_circleci():
     return os.environ.get("CIRCLECI") == "true"
 
 
+def running_in_ci():
+    return running_in_circleci() or running_in_github_actions() or running_in_gitlab_ci()
+
+
+def running_in_pyapp():
+    return os.environ.get("PYAPP") == "1"
+
+
+def running_in_pre_commit():
+    return os.environ.get("PRE_COMMIT") == "1"
+
+
 def bin_name(name):
     """
     Generate platform dependent names for binaries
@@ -67,6 +89,22 @@ def bin_name(name):
     if sys.platform == 'win32':
         return f"{name}.exe"
     return name
+
+
+def get_distro():
+    """
+    Get the distro name. Windows and Darwin stays the same.
+    Linux is the only one that needs to be determined using the /etc/os-release file.
+    """
+    system = platform.system()
+    arch = platform.machine()
+    if system == 'Linux' and os.path.isfile('/etc/os-release'):
+        with open('/etc/os-release', encoding="utf-8") as f:
+            for line in f:
+                if line.startswith('ID='):
+                    system = line.strip()[3:]
+                    break
+    return f"{system}_{arch}".lower()
 
 
 def get_goenv(ctx, var):
@@ -122,18 +160,17 @@ def get_win_py_runtime_var(python_runtimes):
 
 
 def get_embedded_path(ctx):
-    embedded_path = ""
     base = os.path.dirname(os.path.abspath(__file__))
-    task_repo_root = os.path.abspath(os.path.join(base, ".."))
+    task_repo_root = os.path.abspath(os.path.join(base, "..", ".."))
     git_repo_root = get_root()
     gopath_root = f"{get_gopath(ctx)}/src/github.com/DataDog/datadog-agent"
 
     for root_candidate in [task_repo_root, git_repo_root, gopath_root]:
         test_embedded_path = os.path.join(root_candidate, "dev")
         if os.path.exists(test_embedded_path):
-            embedded_path = test_embedded_path
+            return test_embedded_path
 
-    return embedded_path
+    return None
 
 
 def get_xcode_version(ctx):
@@ -147,7 +184,7 @@ def get_xcode_version(ctx):
         xcode_version = ctx.run("pkgutil --pkg-info=com.apple.pkg.CLTools_Executables", hide=True).stdout.strip()
         xcode_version = re.search(r"version: ([0-9.]+)", xcode_version).group(1)
         xcode_version = re.search(r"([0-9]+.[0-9]+)", xcode_version).group(1)
-    elif xcode_path.startswith("/Applications/Xcode.app"):
+    elif xcode_path.startswith("/Applications/Xcode"):
         xcode_version = ctx.run(
             "xcodebuild -version | grep -Eo 'Xcode [0-9.]+' | awk '{print $2}'", hide=True
         ).stdout.strip()
@@ -157,10 +194,10 @@ def get_xcode_version(ctx):
 
 
 def get_build_flags(
-    ctx,
+    ctx: Context,
     static=False,
-    prefix=None,
     install_path=None,
+    run_path=None,
     embedded_path=None,
     rtloader_root=None,
     python_home_2=None,
@@ -168,6 +205,7 @@ def get_build_flags(
     major_version='7',
     python_runtimes='3',
     headless_mode=False,
+    arch: Arch | None = None,
 ):
     """
     Build the common value for both ldflags and gcflags, and return an env accordingly.
@@ -176,7 +214,7 @@ def get_build_flags(
     Context object.
     """
     gcflags = ""
-    ldflags = get_version_ldflags(ctx, prefix, major_version=major_version, install_path=install_path)
+    ldflags = get_version_ldflags(ctx, major_version=major_version, install_path=install_path)
     # External linker flags; needs to be handled separately to avoid overrides
     extldflags = ""
     env = {"GO111MODULE": "on"}
@@ -197,6 +235,10 @@ def get_build_flags(
     # setting the install path, allowing the agent to be installed in a custom location
     if sys.platform.startswith('linux') and install_path:
         ldflags += f"-X {REPO_PATH}/pkg/config/setup.InstallPath={install_path} "
+
+    # setting the run path
+    if sys.platform.startswith('linux') and run_path:
+        ldflags += f"-X {REPO_PATH}/pkg/config/setup.defaultRunPath={run_path} "
 
     # setting python homes in the code
     if python_home_2:
@@ -264,9 +306,18 @@ def get_build_flags(
                 extldflags += ",-no_warn_duplicate_libraries "
         except ValueError:
             print(
-                "Could not determine XCode version, not adding -no_warn_duplicate_libraries to extldflags",
+                color_message(
+                    "Warning: Could not determine XCode version, not adding -no_warn_duplicate_libraries to extldflags",
+                    Color.ORANGE,
+                ),
                 file=sys.stderr,
             )
+
+    if arch and arch.is_cross_compiling():
+        # For cross-compilation we need to be explicit about certain Go settings
+        env["GOARCH"] = arch.go_arch
+        env["CGO_ENABLED"] = "1"  # If we're cross-compiling, CGO is disabled by default. Ensure it's always enabled
+        env["CC"] = arch.gcc_compiler()
 
     if extldflags:
         ldflags += f"'-extldflags={extldflags}' "
@@ -309,16 +360,18 @@ def get_payload_version():
     raise Exception("Could not find valid version for agent-payload in go.mod file")
 
 
-def get_version_ldflags(ctx, prefix=None, major_version='7', install_path=None):
+def get_version_ldflags(ctx, major_version='7', install_path=None):
     """
     Compute the version from the git tags, and set the appropriate compiler
     flags
     """
     payload_v = get_payload_version()
-    commit = get_git_commit()
+    commit = get_commit_sha(ctx, short=True)
 
     ldflags = f"-X {REPO_PATH}/pkg/version.Commit={commit} "
-    ldflags += f"-X {REPO_PATH}/pkg/version.AgentVersion={get_version(ctx, include_git=True, prefix=prefix, major_version=major_version)} "
+    ldflags += (
+        f"-X {REPO_PATH}/pkg/version.AgentVersion={get_version(ctx, include_git=True, major_version=major_version)} "
+    )
     ldflags += f"-X {REPO_PATH}/pkg/serializer.AgentPayloadVersion={payload_v} "
     if install_path:
         package_version = os.path.basename(install_path)
@@ -326,13 +379,6 @@ def get_version_ldflags(ctx, prefix=None, major_version='7', install_path=None):
             ldflags += f"-X {REPO_PATH}/pkg/version.AgentPackageVersion={package_version} "
 
     return ldflags
-
-
-def get_git_commit():
-    """
-    Get the current commit
-    """
-    return check_output(['git', 'rev-parse', '--short', 'HEAD']).decode('utf-8').strip()
 
 
 def get_default_python(python_runtimes):
@@ -391,18 +437,14 @@ def get_git_pretty_ref():
         return current_branch
 
 
-def query_version(ctx, git_sha_length=7, prefix=None, major_version_hint=None):
-    # The string that's passed in will look something like this: 6.0.0-beta.0-1-g4f19118
-    # if the tag is 6.0.0-beta.0, it has been one commit since the tag and that commit hash is g4f19118
-    cmd = "git describe --tags --candidates=50"
-    if prefix and type(prefix) == str:
-        cmd += f" --match \"{prefix}-*\""
-    else:
-        if major_version_hint:
-            cmd += r' --match "{}\.*"'.format(major_version_hint)  # noqa: FS002
-        else:
-            cmd += " --match \"[0-9]*\""
-    if git_sha_length and type(git_sha_length) == int:
+def query_version(ctx, major_version, git_sha_length=7, release=False):
+    # The describe string format is <tag>-<number of commits since the tag>-g<commit hash>
+    # e.g. 6.0.0-beta.0-1-g4f19118
+    #   - tag is 6.0.0-beta.0
+    #   - it has been one commit since the tag creation
+    #   - that commit hash is g4f19118
+    cmd = rf'git describe --tags --candidates=50 --match "{get_matching_pattern(ctx, major_version, release=release)}"'
+    if git_sha_length and isinstance(git_sha_length, int):
         cmd += f" --abbrev={git_sha_length}"
     described_version = ctx.run(cmd, hide=True).stdout.strip()
 
@@ -412,11 +454,7 @@ def query_version(ctx, git_sha_length=7, prefix=None, major_version_hint=None):
     if commit_number_match:
         commit_number = int(commit_number_match.group('commit_number'))
 
-    version_re = r"v?(?P<version>\d+\.\d+\.\d+)(?:(?:-|\.)(?P<pre>[0-9A-Za-z.-]+))?"
-    if prefix and type(prefix) == str:
-        version_re = r"^(?:{}-)?".format(prefix) + version_re  # noqa: FS002
-    else:
-        version_re = r"^" + version_re
+    version_re = r"^v?(?P<version>\d+\.\d+\.\d+)(?:(?:-|\.)(?P<pre>[0-9A-Za-z.-]+))?"
     if commit_number == 0:
         version_re += r"(?P<git_sha>)$"
     else:
@@ -437,24 +475,36 @@ def query_version(ctx, git_sha_length=7, prefix=None, major_version_hint=None):
     # When we're on a tag, `git describe --tags --candidates=50` doesn't include a commit sha.
     # We need it, so we fetch it another way.
     if not git_sha:
-        cmd = "git rev-parse HEAD"
         # The git sha shown by `git describe --tags --candidates=50` is the first 7 characters of the sha,
         # therefore we keep the same number of characters.
-        git_sha = ctx.run(cmd, hide=True).stdout.strip()[:7]
+        git_sha = get_commit_sha(ctx)[:7]
 
     pipeline_id = os.getenv("CI_PIPELINE_ID", None)
 
     return version, pre, commit_number, git_sha, pipeline_id
 
 
-def cache_version(ctx, git_sha_length=7, prefix=None):
+def get_matching_pattern(ctx, major_version, release=False):
+    """
+    We need to used specific patterns (official release tags) for nightly builds as they are used to install agent versions.
+    """
+    pattern = rf"{major_version}\.*"
+    if release or is_allowed_repo_nightly_branch(os.getenv("BUCKET_BRANCH")):
+        pattern = ctx.run(
+            rf"git tag --list --merged {get_current_branch(ctx)} | grep -E '^{major_version}\.[0-9]+\.[0-9]+(-rc.*|-devel.*)?$' | sort -rV | head -1",
+            hide=True,
+        ).stdout.strip()
+    return pattern
+
+
+def create_version_json(ctx, git_sha_length=7):
     """
     Generate a json cache file containing all needed variables used by get_version.
     """
     packed_data = {}
     for maj_version in ['6', '7']:
         version, pre, commits_since_version, git_sha, pipeline_id = query_version(
-            ctx, git_sha_length, prefix, major_version_hint=maj_version
+            ctx, maj_version, git_sha_length=git_sha_length
         )
         packed_data[maj_version] = [version, pre, commits_since_version, git_sha, pipeline_id]
     bucket_branch = os.getenv("BUCKET_BRANCH")
@@ -468,12 +518,12 @@ def get_version(
     ctx,
     url_safe=False,
     git_sha_length=7,
-    prefix=None,
     major_version='7',
     include_pipeline_id=False,
     pipeline_id=None,
     include_git=False,
     include_pre=True,
+    release=False,
 ):
     version = ""
     if pipeline_id is None:
@@ -491,7 +541,7 @@ def get_version(
                 agent_version_cache_file_exist = True
 
         if agent_version_cache_file_exist:
-            with open(AGENT_VERSION_CACHE_NAME, "r") as file:
+            with open(AGENT_VERSION_CACHE_NAME) as file:
                 cache_data = json.load(file)
 
             version, pre, commits_since_version, git_sha, pipeline_id = cache_data[major_version]
@@ -500,7 +550,7 @@ def get_version(
 
             if pre and include_pre:
                 version = f"{version}-{pre}"
-    except (IOError, json.JSONDecodeError, IndexError) as e:
+    except (OSError, json.JSONDecodeError, IndexError) as e:
         # If a cache file is found but corrupted we ignore it.
         print(f"Error while recovering the version from {AGENT_VERSION_CACHE_NAME}: {e}", file=sys.stderr)
         version = ""
@@ -511,7 +561,7 @@ def get_version(
             print("[WARN] Agent version cache file hasn't been loaded !", file=sys.stderr)
         # we only need the git info for the non omnibus builds, omnibus includes all this information by default
         version, pre, commits_since_version, git_sha, pipeline_id = query_version(
-            ctx, git_sha_length, prefix, major_version_hint=major_version
+            ctx, major_version, git_sha_length=git_sha_length, release=release
         )
         # Dev's versions behave the same as nightly
         bucket_branch = os.getenv("BUCKET_BRANCH")
@@ -551,21 +601,21 @@ def get_version_numeric_only(ctx, major_version='7'):
                     hide="stdout",
                 )
 
-            with open(AGENT_VERSION_CACHE_NAME, "r") as file:
+            with open(AGENT_VERSION_CACHE_NAME) as file:
                 cache_data = json.load(file)
 
             version, *_ = cache_data[major_version]
-        except (IOError, json.JSONDecodeError, IndexError) as e:
+        except (OSError, json.JSONDecodeError, IndexError) as e:
             # If a cache file is found but corrupted we ignore it.
             print(f"Error while recovering the version from {AGENT_VERSION_CACHE_NAME}: {e}")
             version = ""
     if not version:
-        version, *_ = query_version(ctx, major_version_hint=major_version)
+        version, *_ = query_version(ctx, major_version)
     return version
 
 
 def load_release_versions(_, target_version):
-    with open("release.json", "r") as f:
+    with open("release.json") as f:
         versions = json.load(f)
         if target_version in versions:
             # windows runners don't accepts anything else than strings in the
@@ -621,26 +671,6 @@ def check_clean_branch_state(ctx, github, branch):
         )
 
 
-def check_uncommitted_changes(ctx):
-    """
-    Checks if there are uncommitted changes in the local git repository.
-    """
-    modified_files = ctx.run("git --no-pager diff --name-only HEAD | wc -l", hide=True).stdout.strip()
-
-    # Return True if at least one file has uncommitted changes.
-    return modified_files != "0"
-
-
-def check_local_branch(ctx, branch):
-    """
-    Checks if the given branch exists locally
-    """
-    matching_branch = ctx.run(f"git --no-pager branch --list {branch} | wc -l", hide=True).stdout.strip()
-
-    # Return True if a branch is returned by git branch --list
-    return matching_branch != "0"
-
-
 @contextmanager
 def timed(name="", quiet=False):
     """Context manager that prints how long it took"""
@@ -691,3 +721,190 @@ def environ(env):
             os.environ[var] = original_environ[var]
         else:
             os.environ.pop(var)
+
+
+def is_pr_context(branch, pr_id, test_name):
+    if branch == DEFAULT_BRANCH:
+        print(f"Running on {DEFAULT_BRANCH}, skipping check for {test_name}.")
+        return False
+    if not pr_id:
+        print(f"PR not found, skipping check for {test_name}.")
+        return False
+    return True
+
+
+@contextmanager
+def collapsed_section(section_name):
+    section_id = section_name.replace(" ", "_").replace("/", "_")
+    in_ci = running_in_gitlab_ci()
+    try:
+        if in_ci:
+            print(
+                f"\033[0Ksection_start:{int(time.time())}:{section_id}[collapsed=true]\r\033[0K{section_name + '...'}"
+            )
+        yield
+    finally:
+        if in_ci:
+            print(f"\033[0Ksection_end:{int(time.time())}:{section_id}\r\033[0K")
+
+
+def retry_function(action_name_fmt, max_retries=2, retry_delay=1):
+    """
+    Decorator to retry a function in case of failure and print its traceback.
+    - action_name_fmt: String that will be formatted with the function arguments to describe the action (for example: "Running {0}" will display "Running arg1" if the function is called with arg1 and "Refresh {0.id}" will display "Refresh 123" if the function is called with an object with an id of 123)
+    """
+
+    def decorator(f):
+        @wraps(f)
+        def wrapper(*args, **kwargs):
+            action_name = action_name_fmt.format(*args)
+
+            for i in range(max_retries + 1):
+                try:
+                    res = f(*args, **kwargs)
+                    if i != 0:
+                        print(color_message(f'Note: {action_name} successful after {i} retries', 'green'))
+
+                    # Action ok
+                    return res
+                except KeyboardInterrupt:
+                    # Let the user interrupt without retries
+                    raise
+                except Exception:
+                    if i == max_retries:
+                        print(
+                            color_message(f'Error: {action_name} failed after {max_retries} retries', 'red'),
+                            file=sys.stderr,
+                        )
+                        # The stack trace is not printed here but the error is raised if we
+                        # want to catch it above
+                        raise
+                    else:
+                        print(
+                            color_message(
+                                f'Warning: {action_name} failed (retry {i + 1}/{max_retries}), retrying in {retry_delay}s',
+                                'orange',
+                            ),
+                            file=sys.stderr,
+                        )
+                        with collapsed_section(f"Retry {i + 1}/{max_retries} {action_name}"):
+                            traceback.print_exc()
+                        time.sleep(retry_delay)
+                        print(color_message(f'Retrying {action_name}', 'blue'))
+
+        return wrapper
+
+    return decorator
+
+
+def parse_kernel_version(version: str) -> tuple[int, int, int, int]:
+    """
+    Parse a kernel version contained in the given string and return a
+    tuple with kernel version, major and minor revision and patch number
+    """
+    kernel_version_regex = re.compile(r'(\d+)\.(\d+)(\.(\d+))?(-(\d+))?')
+    match = kernel_version_regex.search(version)
+    if match is None:
+        raise ValueError(f"Cannot parse kernel version from {version}")
+
+    return (int(match.group(1)), int(match.group(2)), int(match.group(4) or "0"), int(match.group(6) or "0"))
+
+
+def guess_from_labels(issue):
+    for label in issue.labels:
+        if label.name.startswith("team/") and "triage" not in label.name:
+            return label.name.split("/")[-1]
+    return 'triage'
+
+
+def guess_from_keywords(issue):
+    text = f"{issue.title} {issue.body}".casefold().split()
+    c = Counter(text)
+    for word in c.most_common():
+        team = simple_match(word[0])
+        if team:
+            return team
+        team = file_match(word[0])
+        if team:
+            return team
+    return "triage"
+
+
+def simple_match(word):
+    pattern_matching = {
+        "agent-apm": ['apm', 'java', 'dotnet', 'ruby', 'trace'],
+        "containers": [
+            'container',
+            'pod',
+            'kubernetes',
+            'orchestrator',
+            'docker',
+            'k8s',
+            'kube',
+            'cluster',
+            'kubelet',
+            'helm',
+        ],
+        "agent-metrics-logs": ['logs', 'metric', 'log-ag', 'statsd', 'tags', 'hostnam'],
+        "agent-build-and-releases": ['omnibus', 'packaging', 'script'],
+        "remote-config": ['installer', 'oci'],
+        "agent-cspm": ['cspm'],
+        "ebpf-platform": ['ebpf', 'system-prob', 'sys-prob'],
+        "agent-security": ['security', 'vuln', 'security-agent'],
+        "agent-shared-components": ['fips', 'inventory', 'payload', 'jmx', 'intak', 'gohai'],
+        "fleet": ['fleet', 'fleet-automation'],
+        "opentelemetry": ['otel', 'opentelemetry'],
+        "windows-agent": ['windows', 'sys32', 'powershell'],
+        "networks": ['tcp', 'udp', 'socket', 'network'],
+        "serverless": ['serverless'],
+        "integrations": ['integration', 'python', 'checks'],
+    }
+    for team, words in pattern_matching.items():
+        if any(w in word for w in words):
+            return team
+    return None
+
+
+def file_match(word):
+    dd_folders = [
+        'chocolatey',
+        'cmd',
+        'comp',
+        'dev',
+        'devenv',
+        'docs',
+        'internal',
+        'omnibus',
+        'pkg',
+        'pkg-config',
+        'rtloader',
+        'tasks',
+        'test',
+        'tools',
+    ]
+    p = Path(word)
+    if len(p.parts) > 1 and p.suffix:
+        path_folder = next((f for f in dd_folders if f in p.parts), None)
+        if path_folder:
+            file = '/'.join(p.parts[p.parts.index(path_folder) :])
+            return (
+                search_owners(file, ".github/CODEOWNERS")[0].casefold().replace("@datadog/", "")
+            )  # only return the first owner
+    return None
+
+
+def team_to_label(team):
+    dico = {
+        'apm-core-reliability-and-performance': "agent-apm",
+        'universal-service-monitoring': "usm",
+        'software-integrity-and-trust': "agent-security",
+        'agent-all': "triage",
+        'telemetry-and-analytics': "agent-apm",
+        'fleet': "fleet-automation",
+        'debugger': "dynamic-intrumentation",
+        'container-integrations': "containers",
+        'agent-e2e-testing': "agent-e2e-test",
+        'agent-integrations': "integrations",
+        'asm-go': "agent-security",
+    }
+    return dico.get(team, team)

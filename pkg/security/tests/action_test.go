@@ -93,6 +93,8 @@ func TestActionKill(t *testing.T) {
 				timeoutCtx, t, syscallTester,
 				"set-signal-handler", ";",
 				"open", testFile, ";",
+				"sleep", "1", ";",
+				"open", testFile, ";",
 				"wait-signal", ";",
 				"signal", "sigusr1", strconv.Itoa(int(os.Getpid())), ";",
 				"sleep", "1",
@@ -128,7 +130,7 @@ func TestActionKill(t *testing.T) {
 
 			return nil
 		}, retry.Delay(200*time.Millisecond), retry.Attempts(30), retry.DelayType(retry.FixedDelay))
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 	})
 
 	t.Run("kill-action-kill", func(t *testing.T) {
@@ -145,7 +147,7 @@ func TestActionKill(t *testing.T) {
 				timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 				defer cancel()
 
-				cmd := exec.CommandContext(timeoutCtx, syscallTester, "open", testFile, ";", "sleep", "5")
+				cmd := exec.CommandContext(timeoutCtx, syscallTester, "open", testFile, ";", "sleep", "1", ";", "open", testFile, ";", "sleep", "5")
 				_ = cmd.Run()
 
 				ch <- true
@@ -183,6 +185,6 @@ func TestActionKill(t *testing.T) {
 
 			return nil
 		}, retry.Delay(200*time.Millisecond), retry.Attempts(30), retry.DelayType(retry.FixedDelay))
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 	})
 }

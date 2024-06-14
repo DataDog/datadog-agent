@@ -14,7 +14,8 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common/misconfig"
-	"github.com/DataDog/datadog-agent/cmd/manager"
+	"github.com/DataDog/datadog-agent/comp/agent/autoexit"
+	"github.com/DataDog/datadog-agent/comp/agent/autoexit/autoexitimpl"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -31,10 +32,15 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	compstatsd "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
+	"github.com/DataDog/datadog-agent/comp/networkpath"
 	"github.com/DataDog/datadog-agent/comp/process"
 	"github.com/DataDog/datadog-agent/comp/process/agent"
 	"github.com/DataDog/datadog-agent/comp/process/apiserver"
@@ -49,7 +55,6 @@ import (
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata/workloadmeta/collector"
-	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	ddutil "github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -131,14 +136,24 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 		// Provide process agent bundle so fx knows where to find components
 		process.Bundle(),
 
+		// Provide ep forwarder bundle so fx knows where to find components
+		fx.Provide(func() eventplatformimpl.Params {
+			return eventplatformimpl.NewDefaultParams()
+		}),
+		eventplatformreceiverimpl.Module(),
+		eventplatformimpl.Module(),
+
+		// Provide network path bundle
+		networkpath.Bundle(),
+
 		// Provide remote config client bundle
 		remoteconfig.Bundle(),
 
 		// Provide workloadmeta module
-		workloadmeta.Module(),
+		workloadmetafx.Module(),
 
 		// Provide tagger module
-		tagger.Module(),
+		taggerimpl.Module(),
 
 		// Provide status modules
 		statusimpl.Module(),
@@ -152,6 +167,9 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 
 		// Provide configsync module
 		configsyncimpl.OptionalModule(),
+
+		// Provide autoexit module
+		autoexitimpl.Module(),
 
 		// Provide the corresponding workloadmeta Params to configure the catalog
 		collectors.GetCatalog(),
@@ -198,21 +216,25 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 			_ tagger.Component,
 			_ pid.Component,
 			processAgent agent.Component,
+			_ autoexit.Component,
 		) error {
 			if !processAgent.Enabled() {
 				return errAgentDisabled
 			}
 			return nil
 		}),
-		fx.Supply(
-			settings.Settings{
-				"log_level":                      commonsettings.NewLogLevelRuntimeSetting(),
-				"runtime_mutex_profile_fraction": commonsettings.NewRuntimeMutexProfileFraction(),
-				"runtime_block_profile_rate":     commonsettings.NewRuntimeBlockProfileRate(),
-				"internal_profiling_goroutines":  commonsettings.NewProfilingGoroutines(),
-				"internal_profiling":             commonsettings.NewProfilingRuntimeSetting("internal_profiling", "process-agent"),
-			},
-		),
+		fx.Provide(func(c config.Component) settings.Params {
+			return settings.Params{
+				Settings: map[string]settings.RuntimeSetting{
+					"log_level":                      commonsettings.NewLogLevelRuntimeSetting(),
+					"runtime_mutex_profile_fraction": commonsettings.NewRuntimeMutexProfileFraction(),
+					"runtime_block_profile_rate":     commonsettings.NewRuntimeBlockProfileRate(),
+					"internal_profiling_goroutines":  commonsettings.NewProfilingGoroutines(),
+					"internal_profiling":             commonsettings.NewProfilingRuntimeSetting("internal_profiling", "process-agent"),
+				},
+				Config: c,
+			}
+		}),
 		settingsimpl.Module(),
 	)
 
@@ -281,7 +303,6 @@ type miscDeps struct {
 	Lc fx.Lifecycle
 
 	Config       config.Component
-	Statsd       compstatsd.Component
 	Syscfg       sysprobeconfig.Component
 	HostInfo     hostinfo.Component
 	WorkloadMeta workloadmeta.Component
@@ -289,13 +310,9 @@ type miscDeps struct {
 }
 
 // initMisc initializes modules that cannot, or have not yet been componetized.
-// Todo: (Components) WorkloadMeta, remoteTagger, statsd
+// Todo: (Components) WorkloadMeta, remoteTagger
 // Todo: move metadata/workloadmeta/collector to workloadmeta
 func initMisc(deps miscDeps) error {
-	if err := statsd.Configure(ddconfig.GetBindHost(), deps.Config.GetInt("dogstatsd_port"), deps.Statsd.CreateForHostPort); err != nil {
-		deps.Logger.Criticalf("Error configuring statsd: %s", err)
-		return err
-	}
 
 	if err := ddutil.SetupCoreDump(deps.Config); err != nil {
 		deps.Logger.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
@@ -308,13 +325,7 @@ func initMisc(deps miscDeps) error {
 	// appCtx is a context that cancels when the OnStop hook is called
 	appCtx, stopApp := context.WithCancel(context.Background())
 	deps.Lc.Append(fx.Hook{
-		OnStart: func(startCtx context.Context) error {
-
-			err := manager.ConfigureAutoExit(startCtx, deps.Config)
-			if err != nil {
-				deps.Logger.Criticalf("Unable to configure auto-exit, err: %w", err)
-				return err
-			}
+		OnStart: func(_ context.Context) error {
 
 			if collector.Enabled(deps.Config) {
 				err := processCollectionServer.Start(appCtx, deps.WorkloadMeta)
@@ -325,7 +336,7 @@ func initMisc(deps miscDeps) error {
 
 			return nil
 		},
-		OnStop: func(ctx context.Context) error {
+		OnStop: func(_ context.Context) error {
 			stopApp()
 
 			return nil

@@ -22,8 +22,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	clientComp "github.com/DataDog/datadog-agent/comp/languagedetection/client"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
@@ -54,10 +55,10 @@ func newTestClient(t *testing.T) (*client, chan *pbgo.ParentLanguageAnnotationRe
 			"cluster_agent.enabled":                      "true",
 			"language_detection.reporting.buffer_period": "50ms",
 		}}),
-		telemetry.MockModule(),
+		telemetryimpl.MockModule(),
 		logimpl.MockModule(),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.MockModuleV2(),
+		workloadmetafxmock.MockModuleV2(),
 	))
 
 	optComponent := newClient(deps).(optional.Option[clientComp.Component])
@@ -94,18 +95,19 @@ func TestClientEnabled(t *testing.T) {
 			func(t *testing.T) {
 				deps := fxutil.Test[dependencies](t, fx.Options(
 					config.MockModule(),
-					fx.Provide(func() optional.Option[secrets.Component] {
-						return optional.NewOption[secrets.Component](secretsimpl.NewMock())
+					fx.Provide(func(secretResolver secrets.Component) optional.Option[secrets.Component] {
+						return optional.NewOption[secrets.Component](secretResolver)
 					}),
 					fx.Replace(config.MockParams{Overrides: map[string]interface{}{
 						"language_detection.enabled":           testCase.languageDetectionEnabled,
 						"language_detection.reporting.enabled": testCase.languageDetectionReportingEnabled,
 						"cluster_agent.enabled":                testCase.clusterAgentEnabled,
 					}}),
-					telemetry.MockModule(),
+					secretsimpl.MockModule(),
+					telemetryimpl.MockModule(),
 					logimpl.MockModule(),
 					fx.Supply(workloadmeta.NewParams()),
-					workloadmeta.MockModuleV2(),
+					workloadmetafxmock.MockModuleV2(),
 				))
 
 				optionalCl := newClient(deps).(optional.Option[clientComp.Component])

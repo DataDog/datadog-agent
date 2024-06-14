@@ -4,7 +4,7 @@ import glob
 import json
 import os
 from pathlib import Path
-from typing import TYPE_CHECKING, Dict, List, Optional
+from typing import TYPE_CHECKING
 
 from invoke.context import Context
 
@@ -13,7 +13,7 @@ from tasks.kernel_matrix_testing.kmt_os import get_kmt_os
 from tasks.kernel_matrix_testing.tool import Exit, ask, error, info
 
 if TYPE_CHECKING:
-    from tasks.kernel_matrix_testing.types import ArchOrLocal, PathOrStr, SSHKey, StackOutput
+    from tasks.kernel_matrix_testing.types import KMTArchNameOrLocal, PathOrStr, SSHKey, StackOutput
 
 # Common SSH options for all SSH commands
 SSH_OPTIONS = {
@@ -26,7 +26,7 @@ SSH_OPTIONS = {
 }
 
 
-def ssh_options_command(extra_opts: Optional[Dict[str, str]] = None):
+def ssh_options_command(extra_opts: dict[str, str] | None = None):
     opts = SSH_OPTIONS.copy()
     if extra_opts is not None:
         opts.update(extra_opts)
@@ -36,7 +36,7 @@ def ssh_options_command(extra_opts: Optional[Dict[str, str]] = None):
 
 class LocalCommandRunner:
     @staticmethod
-    def run_cmd(ctx: Context, _: 'HostInstance', cmd: str, allow_fail: bool, verbose: bool):
+    def run_cmd(ctx: Context, _: HostInstance, cmd: str, allow_fail: bool, verbose: bool):
         res = ctx.run(cmd.format(proxy_cmd=""), hide=(not verbose), warn=allow_fail)
         if res is not None and res.ok:
             return True
@@ -48,25 +48,11 @@ class LocalCommandRunner:
             print_failed(res.stderr)
         raise Exit("command failed")
 
-    @staticmethod
-    def move_to_shared_directory(
-        ctx: Context, _: 'HostInstance', source: PathOrStr, subdir: Optional[PathOrStr] = None
-    ):
-        recursive = ""
-        if os.path.isdir(source):
-            recursive = "-R"
-
-        full_target = get_kmt_os().shared_dir
-        if subdir is not None:
-            full_target = os.path.join(get_kmt_os().shared_dir, subdir)
-            ctx.run(f"mkdir -p {full_target}")
-        ctx.run(f"cp {recursive} {source} {full_target}")
-
 
 class RemoteCommandRunner:
     @staticmethod
-    def run_cmd(ctx: Context, instance: 'HostInstance', cmd: str, allow_fail: bool, verbose: bool):
-        ssh_key_arg = f"-i {instance.ssh_key_path}" if instance.ssh_key_path is not None else ""
+    def run_cmd(ctx: Context, instance: HostInstance, cmd: str, allow_fail: bool, verbose: bool):
+        ssh_key_arg = f"-o IdentitiesOnly=yes -i {instance.ssh_key_path}" if instance.ssh_key_path is not None else ""
         res = ctx.run(
             cmd.format(
                 proxy_cmd=f"-o ProxyCommand='ssh {ssh_options_command()} {ssh_key_arg} -W %h:%p ubuntu@{instance.ip}'"
@@ -84,22 +70,8 @@ class RemoteCommandRunner:
             print_failed(res.stderr)
         raise Exit("command failed")
 
-    @staticmethod
-    def move_to_shared_directory(
-        ctx: Context, instance: 'HostInstance', source: PathOrStr, subdir: Optional[PathOrStr] = None
-    ):
-        full_target = get_kmt_os().shared_dir
-        if subdir is not None:
-            full_target = os.path.join(get_kmt_os().shared_dir, subdir)
-            RemoteCommandRunner.run_cmd(ctx, instance, f"mkdir -p {full_target}", False, False)
 
-        ssh_key_arg = f"-i {instance.ssh_key_path}" if instance.ssh_key_path is not None else ""
-        ctx.run(
-            f"rsync -e \"ssh {ssh_options_command()} {ssh_key_arg}\" -p -rt --exclude='.git*' --filter=':- .gitignore' {source} ubuntu@{instance.ip}:{full_target}"
-        )
-
-
-def get_instance_runner(arch: ArchOrLocal):
+def get_instance_runner(arch: KMTArchNameOrLocal):
     if arch == "local":
         return LocalCommandRunner
     else:
@@ -119,9 +91,9 @@ class LibvirtDomain:
         ip: str,
         domain_id: str,
         tag: str,
-        vmset_tags: List[str],
-        ssh_key_path: Optional[str],
-        instance: 'HostInstance',
+        vmset_tags: list[str],
+        ssh_key_path: str | None,
+        instance: HostInstance,
     ):
         self.ip = ip
         self.name = domain_id
@@ -136,12 +108,40 @@ class LibvirtDomain:
         else:
             extra_opts = None
 
-        run = f"ssh {ssh_options_command(extra_opts)} -i {self.ssh_key} root@{self.ip} {{proxy_cmd}} '{cmd}'"
+        run = f"ssh {ssh_options_command(extra_opts)} -o IdentitiesOnly=yes -i {self.ssh_key} root@{self.ip} {{proxy_cmd}} '{cmd}'"
         return self.instance.runner.run_cmd(ctx, self.instance, run, allow_fail, verbose)
 
-    def copy(self, ctx: Context, source: PathOrStr, target: PathOrStr):
-        run = f"rsync -e \"ssh {ssh_options_command()} {{proxy_cmd}} -i {self.ssh_key}\" -p -rt --exclude='.git*' --filter=':- .gitignore' {source} root@{self.ip}:{target}"
-        return self.instance.runner.run_cmd(ctx, self.instance, run, False, False)
+    def _get_rsync_base(self, exclude: PathOrStr | None) -> str:
+        exclude_arg = ""
+        if exclude is not None:
+            exclude_arg = f"--exclude '{exclude}'"
+
+        return f"rsync -e \"ssh {ssh_options_command({'IdentitiesOnly': 'yes'})} {{proxy_cmd}} -i {self.ssh_key}\" -p -rt --exclude='.git*' {exclude_arg} --filter=':- .gitignore'"
+
+    def copy(
+        self,
+        ctx: Context,
+        source: PathOrStr,
+        target: PathOrStr,
+        exclude: PathOrStr | None = None,
+        verbose: bool = False,
+    ):
+        # Always ensure that the parent directory exists, rsync creates the rest
+        self.run_cmd(ctx, f"mkdir -p {os.path.dirname(target)}", verbose=verbose)
+
+        run = self._get_rsync_base(exclude) + f" {source} root@{self.ip}:{target}"
+        return self.instance.runner.run_cmd(ctx, self.instance, run, False, verbose)
+
+    def download(
+        self,
+        ctx: Context,
+        source: PathOrStr,
+        target: PathOrStr,
+        exclude: PathOrStr | None = None,
+        verbose: bool = False,
+    ):
+        run = self._get_rsync_base(exclude) + f" root@{self.ip}:{source} {target}"
+        return self.instance.runner.run_cmd(ctx, self.instance, run, False, verbose)
 
     def __repr__(self):
         return f"<LibvirtDomain> {self.name} {self.ip}"
@@ -151,35 +151,32 @@ class LibvirtDomain:
 
 
 class HostInstance:
-    def __init__(self, ip: str, arch: ArchOrLocal, ssh_key_path: Optional[str]):
+    def __init__(self, ip: str, arch: KMTArchNameOrLocal, ssh_key_path: str | None):
         self.ip: str = ip
-        self.arch: ArchOrLocal = arch
-        self.ssh_key_path: Optional[str] = ssh_key_path
-        self.microvms: List[LibvirtDomain] = []
+        self.arch: KMTArchNameOrLocal = arch
+        self.ssh_key_path: str | None = ssh_key_path
+        self.microvms: list[LibvirtDomain] = []
         self.runner = get_instance_runner(arch)
 
     def add_microvm(self, domain: LibvirtDomain):
         self.microvms.append(domain)
 
-    def copy_to_all_vms(self, ctx: Context, path: PathOrStr, subdir: Optional[PathOrStr] = None):
-        self.runner.move_to_shared_directory(ctx, self, path, subdir)
-
     def __repr__(self):
         return f"<HostInstance> {self.ip} {self.arch}"
 
 
-def build_infrastructure(stack: str, ssh_key_obj: Optional[SSHKey] = None):
+def build_infrastructure(stack: str, ssh_key_obj: SSHKey | None = None):
     stack_output = os.path.join(get_kmt_os().stacks_dir, stack, "stack.output")
     if not os.path.exists(stack_output):
         raise Exit(f"no stack.output file present at {stack_output}")
 
-    with open(stack_output, 'r') as f:
+    with open(stack_output) as f:
         try:
             infra_map: StackOutput = json.load(f)
         except json.decoder.JSONDecodeError:
             raise Exit(f"{stack_output} file is not a valid json file")
 
-    infra: Dict[ArchOrLocal, HostInstance] = dict()
+    infra: dict[KMTArchNameOrLocal, HostInstance] = dict()
     for arch in infra_map:
         key = ssh_key_obj['path'] if ssh_key_obj is not None else None
         instance = HostInstance(infra_map[arch]["ip"], arch, key)
@@ -207,14 +204,14 @@ def ask_for_ssh() -> bool:
     )
 
 
-def get_ssh_key_name(pubkey: Path) -> Optional[str]:
+def get_ssh_key_name(pubkey: Path) -> str | None:
     parts = pubkey.read_text().split()
     if len(parts) != 3:
         return None
     return parts[2]
 
 
-def get_ssh_agent_key_names(ctx: Context) -> List[str]:
+def get_ssh_agent_key_names(ctx: Context) -> list[str]:
     """Return the key names found in the SSH agent"""
     agent_output = ctx.run("ssh-add -l")
     if agent_output is None or not agent_output.ok:
@@ -223,15 +220,16 @@ def get_ssh_agent_key_names(ctx: Context) -> List[str]:
     return [parts[2] for parts in output_parts if len(parts) >= 3]
 
 
-def try_get_ssh_key(ctx: Context, key_hint: Optional[str]) -> Optional[SSHKey]:
+def try_get_ssh_key(ctx: Context, key_hint: str | None) -> SSHKey | None:
     """Return a SSHKey object, either using the hint provided
     or using the configuration.
 
     The hint can either be a file path, a key name or a name of a file in ~/.ssh
     """
     if key_hint is not None:
-        checked_paths: List[str] = []
-        possible_paths = map(Path, [key_hint, f"~/.ssh/{key_hint}", f"~/.ssh/{key_hint}.pem"])
+        checked_paths: list[str] = []
+        home = Path.home()
+        possible_paths = map(Path, [key_hint, f"{home}/.ssh/{key_hint}", f"{home}/.ssh/{key_hint}.pem"])
         for path in possible_paths:
             checked_paths.append(os.fspath(path))
             if not path.is_file():
@@ -266,7 +264,7 @@ def try_get_ssh_key(ctx: Context, key_hint: Optional[str]) -> Optional[SSHKey]:
             return {'path': None, 'name': key_hint, 'aws_key_name': key_hint}
 
         raise Exit(
-            f"Could not find file for ssh key {key_hint}. Looked in {possible_paths}, it's not a path, not a file name nor a key name"
+            f"Could not find file for ssh key {key_hint}. Looked in {list(possible_paths)}, it's not a path, not a file name nor a key name"
         )
 
     cm = ConfigManager()
@@ -275,7 +273,7 @@ def try_get_ssh_key(ctx: Context, key_hint: Optional[str]) -> Optional[SSHKey]:
 
 def ensure_key_in_agent(ctx: Context, key: SSHKey):
     info(f"[+] Checking that key {key} is in the SSH agent...")
-    res = ctx.run(f"ssh-add -l | grep {key['name']}")
+    res = ctx.run(f"ssh-add -l | grep {key['name']}", warn=True)
     if res is None or not res.ok:
         if key['path'] is None:
             raise Exit(f"Key {key} not found in the agent and no path provided to add it")

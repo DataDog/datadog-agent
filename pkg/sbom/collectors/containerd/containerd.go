@@ -13,8 +13,10 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/containerd/containerd"
+
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors"
 	cutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
@@ -33,6 +35,8 @@ type scanRequest struct {
 	imageID string
 }
 
+type scannerFunc func(ctx context.Context, imgMeta *workloadmeta.ContainerImageMetadata, img containerd.Image, client cutil.ContainerdItf, scanOptions sbom.ScanOptions) (sbom.Report, error)
+
 // NewScanRequest creates a new scan request
 func NewScanRequest(imageID string) sbom.ScanRequest {
 	return scanRequest{imageID: imageID}
@@ -44,8 +48,8 @@ func (r scanRequest) Collector() string {
 }
 
 // Type returns the scan request type
-func (r scanRequest) Type() string {
-	if config.Datadog.GetBool("sbom.container_image.use_mount") {
+func (r scanRequest) Type(opts sbom.ScanOptions) string {
+	if opts.UseMount {
 		return sbom.ScanFilesystemType
 	}
 	return sbom.ScanDaemonType
@@ -64,8 +68,7 @@ type Collector struct {
 	containerdClient cutil.ContainerdItf
 	wmeta            optional.Option[workloadmeta.Component]
 
-	fromFileSystem bool
-	closed         bool
+	closed bool
 }
 
 // CleanCache cleans the cache
@@ -74,15 +77,14 @@ func (c *Collector) CleanCache() error {
 }
 
 // Init initializes the collector
-func (c *Collector) Init(cfg config.Config, wmeta optional.Option[workloadmeta.Component]) error {
+func (c *Collector) Init(cfg config.Component, wmeta optional.Option[workloadmeta.Component]) error {
 	trivyCollector, err := trivy.GetGlobalCollector(cfg, wmeta)
 	if err != nil {
 		return err
 	}
 	c.wmeta = wmeta
 	c.trivyCollector = trivyCollector
-	c.fromFileSystem = cfg.GetBool("sbom.container_image.use_mount")
-	c.opts = sbom.ScanOptionsFromConfig(config.Datadog, true)
+	c.opts = sbom.ScanOptionsFromConfig(cfg, true)
 	return nil
 }
 
@@ -117,23 +119,15 @@ func (c *Collector) Scan(ctx context.Context, request sbom.ScanRequest) sbom.Sca
 	}
 
 	var report sbom.Report
-	if c.fromFileSystem {
-		report, err = c.trivyCollector.ScanContainerdImageFromFilesystem(
-			ctx,
-			imageMeta,
-			image,
-			c.containerdClient,
-			c.opts,
-		)
+	var scanner scannerFunc
+	if c.opts.UseMount {
+		scanner = c.trivyCollector.ScanContainerdImageFromFilesystem
+	} else if c.opts.OverlayFsScan {
+		scanner = c.trivyCollector.ScanContainerdImageFromSnapshotter
 	} else {
-		report, err = c.trivyCollector.ScanContainerdImage(
-			ctx,
-			imageMeta,
-			image,
-			c.containerdClient,
-			c.opts,
-		)
+		scanner = c.trivyCollector.ScanContainerdImage
 	}
+	report, err = scanner(ctx, imageMeta, image, c.containerdClient, c.opts)
 	scanResult := sbom.ScanResult{
 		Error:   err,
 		Report:  report,

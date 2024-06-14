@@ -24,6 +24,9 @@ func setupAPM(config pkgconfigmodel.Config) {
 	config.BindEnv("apm_config.obfuscation.elasticsearch.enabled", "DD_APM_OBFUSCATION_ELASTICSEARCH_ENABLED")
 	config.BindEnv("apm_config.obfuscation.elasticsearch.keep_values", "DD_APM_OBFUSCATION_ELASTICSEARCH_KEEP_VALUES")
 	config.BindEnv("apm_config.obfuscation.elasticsearch.obfuscate_sql_values", "DD_APM_OBFUSCATION_ELASTICSEARCH_OBFUSCATE_SQL_VALUES")
+	config.BindEnv("apm_config.obfuscation.opensearch.enabled", "DD_APM_OBFUSCATION_OPENSEARCH_ENABLED")
+	config.BindEnv("apm_config.obfuscation.opensearch.keep_values", "DD_APM_OBFUSCATION_OPENSEARCH_KEEP_VALUES")
+	config.BindEnv("apm_config.obfuscation.opensearch.obfuscate_sql_values", "DD_APM_OBFUSCATION_OPENSEARCH_OBFUSCATE_SQL_VALUES")
 	config.BindEnv("apm_config.obfuscation.mongodb.enabled", "DD_APM_OBFUSCATION_MONGODB_ENABLED")
 	config.BindEnv("apm_config.obfuscation.mongodb.keep_values", "DD_APM_OBFUSCATION_MONGODB_KEEP_VALUES")
 	config.BindEnv("apm_config.obfuscation.mongodb.obfuscate_sql_values", "DD_APM_OBFUSCATION_MONGODB_OBFUSCATE_SQL_VALUES")
@@ -73,6 +76,7 @@ func setupAPM(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("apm_config.windows_pipe_buffer_size", 1_000_000, "DD_APM_WINDOWS_PIPE_BUFFER_SIZE")                          //nolint:errcheck
 	config.BindEnvAndSetDefault("apm_config.windows_pipe_security_descriptor", "D:AI(A;;GA;;;WD)", "DD_APM_WINDOWS_PIPE_SECURITY_DESCRIPTOR") //nolint:errcheck
 	config.BindEnvAndSetDefault("apm_config.remote_tagger", true, "DD_APM_REMOTE_TAGGER")                                                     //nolint:errcheck
+	config.BindEnvAndSetDefault("apm_config.peer_service_aggregation", false, "DD_APM_PEER_SERVICE_AGGREGATION")                              //nolint:errcheck
 	config.BindEnvAndSetDefault("apm_config.peer_tags_aggregation", false, "DD_APM_PEER_TAGS_AGGREGATION")                                    //nolint:errcheck
 	config.BindEnvAndSetDefault("apm_config.compute_stats_by_span_kind", false, "DD_APM_COMPUTE_STATS_BY_SPAN_KIND")                          //nolint:errcheck
 	config.BindEnvAndSetDefault("apm_config.instrumentation.enabled", false, "DD_APM_INSTRUMENTATION_ENABLED")
@@ -89,11 +93,15 @@ func setupAPM(config pkgconfigmodel.Config) {
 	config.BindEnv("apm_config.decoder_timeout", "DD_APM_DECODER_TIMEOUT")
 	config.BindEnv("apm_config.log_file", "DD_APM_LOG_FILE")
 	config.BindEnv("apm_config.max_events_per_second", "DD_APM_MAX_EPS", "DD_MAX_EPS")
-	config.BindEnv("apm_config.max_traces_per_second", "DD_APM_MAX_TPS", "DD_MAX_TPS")
+	config.BindEnv("apm_config.max_traces_per_second", "DD_APM_MAX_TPS", "DD_MAX_TPS") // deprecated
+	config.BindEnv("apm_config.target_traces_per_second", "DD_APM_TARGET_TPS")
 	config.BindEnv("apm_config.errors_per_second", "DD_APM_ERROR_TPS")
 	config.BindEnv("apm_config.enable_rare_sampler", "DD_APM_ENABLE_RARE_SAMPLER")
 	config.BindEnv("apm_config.disable_rare_sampler", "DD_APM_DISABLE_RARE_SAMPLER") //Deprecated
 	config.BindEnv("apm_config.max_remote_traces_per_second", "DD_APM_MAX_REMOTE_TPS")
+	config.BindEnv("apm_config.probabilistic_sampler.enabled", "DD_APM_PROBABILISTIC_SAMPLER_ENABLED")
+	config.BindEnv("apm_config.probabilistic_sampler.sampling_percentage", "DD_APM_PROBABILISTIC_SAMPLER_SAMPLING_PERCENTAGE")
+	config.BindEnv("apm_config.probabilistic_sampler.hash_seed", "DD_APM_PROBABILISTIC_SAMPLER_HASH_SEED")
 
 	config.BindEnv("apm_config.max_memory", "DD_APM_MAX_MEMORY")
 	config.BindEnv("apm_config.max_cpu_percent", "DD_APM_MAX_CPU_PERCENT")

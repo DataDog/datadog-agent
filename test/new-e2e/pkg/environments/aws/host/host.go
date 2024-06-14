@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclientparams"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/optional"
 
 	"github.com/DataDog/test-infra-definitions/common/utils"
@@ -35,22 +36,24 @@ const (
 type ProvisionerParams struct {
 	name string
 
-	instanceOptions   []ec2.VMOption
-	agentOptions      []agentparams.Option
-	fakeintakeOptions []fakeintake.Option
-	extraConfigParams runner.ConfigMap
-	installDocker     bool
-	installUpdater    bool
+	instanceOptions    []ec2.VMOption
+	agentOptions       []agentparams.Option
+	agentClientOptions []agentclientparams.Option
+	fakeintakeOptions  []fakeintake.Option
+	extraConfigParams  runner.ConfigMap
+	installDocker      bool
+	installUpdater     bool
 }
 
 func newProvisionerParams() *ProvisionerParams {
 	// We use nil arrays to decide if we should create or not
 	return &ProvisionerParams{
-		name:              defaultVMName,
-		instanceOptions:   []ec2.VMOption{},
-		agentOptions:      []agentparams.Option{},
-		fakeintakeOptions: []fakeintake.Option{},
-		extraConfigParams: runner.ConfigMap{},
+		name:               defaultVMName,
+		instanceOptions:    []ec2.VMOption{},
+		agentOptions:       []agentparams.Option{},
+		agentClientOptions: []agentclientparams.Option{},
+		fakeintakeOptions:  []fakeintake.Option{},
+		extraConfigParams:  runner.ConfigMap{},
 	}
 }
 
@@ -87,6 +90,14 @@ func WithEC2InstanceOptions(opts ...ec2.VMOption) ProvisionerOption {
 func WithAgentOptions(opts ...agentparams.Option) ProvisionerOption {
 	return func(params *ProvisionerParams) error {
 		params.agentOptions = append(params.agentOptions, opts...)
+		return nil
+	}
+}
+
+// WithAgentClientOptions adds options to the Agent client.
+func WithAgentClientOptions(opts ...agentclientparams.Option) ProvisionerOption {
+	return func(params *ProvisionerParams) error {
+		params.agentClientOptions = append(params.agentClientOptions, opts...)
 		return nil
 	}
 }
@@ -157,19 +168,26 @@ func ProvisionerNoFakeIntake(opts ...ProvisionerOption) e2e.TypedProvisioner[env
 	return Provisioner(mergedOpts...)
 }
 
+// RunParams is a set of parameters for the Run function.
+type RunParams struct {
+	Environment       *aws.Environment
+	ProvisionerParams *ProvisionerParams
+}
+
 // Run deploys a environment given a pulumi.Context
-func Run(ctx *pulumi.Context, env *environments.Host, params *ProvisionerParams) error {
+func Run(ctx *pulumi.Context, env *environments.Host, runParams RunParams) error {
 	var awsEnv aws.Environment
-	var err error
-	if env.AwsEnvironment != nil {
-		awsEnv = *env.AwsEnvironment
-	} else {
+	if runParams.Environment == nil {
+		var err error
 		awsEnv, err = aws.NewEnvironment(ctx)
 		if err != nil {
 			return err
 		}
+	} else {
+		awsEnv = *runParams.Environment
 	}
 
+	params := runParams.ProvisionerParams
 	host, err := ec2.NewVM(awsEnv, params.name, params.instanceOptions...)
 	if err != nil {
 		return err
@@ -180,7 +198,7 @@ func Run(ctx *pulumi.Context, env *environments.Host, params *ProvisionerParams)
 	}
 
 	if params.installDocker {
-		_, dockerRes, err := docker.NewManager(*awsEnv.CommonEnvironment, host)
+		dockerManager, err := docker.NewManager(&awsEnv, host)
 		if err != nil {
 			return err
 		}
@@ -191,7 +209,7 @@ func Run(ctx *pulumi.Context, env *environments.Host, params *ProvisionerParams)
 			// at the same time.
 			params.agentOptions = append(params.agentOptions,
 				agentparams.WithPulumiResourceOptions(
-					utils.PulumiDependsOn(dockerRes)))
+					utils.PulumiDependsOn(dockerManager)))
 		}
 	}
 
@@ -223,7 +241,7 @@ func Run(ctx *pulumi.Context, env *environments.Host, params *ProvisionerParams)
 
 	// Create Agent if required
 	if params.installUpdater && params.agentOptions != nil {
-		updater, err := updater.NewHostUpdater(awsEnv.CommonEnvironment, host, params.agentOptions...)
+		updater, err := updater.NewHostUpdater(&awsEnv, host, params.agentOptions...)
 		if err != nil {
 			return err
 		}
@@ -235,7 +253,7 @@ func Run(ctx *pulumi.Context, env *environments.Host, params *ProvisionerParams)
 		// todo: add agent once updater installs agent on bootstrap
 		env.Agent = nil
 	} else if params.agentOptions != nil {
-		agent, err := agent.NewHostAgent(awsEnv.CommonEnvironment, host, params.agentOptions...)
+		agent, err := agent.NewHostAgent(&awsEnv, host, params.agentOptions...)
 		if err != nil {
 			return err
 		}
@@ -244,6 +262,8 @@ func Run(ctx *pulumi.Context, env *environments.Host, params *ProvisionerParams)
 		if err != nil {
 			return err
 		}
+
+		env.Agent.ClientOptions = params.agentClientOptions
 	} else {
 		// Suite inits all fields by default, so we need to explicitly set it to nil
 		env.Agent = nil
@@ -262,7 +282,7 @@ func Provisioner(opts ...ProvisionerOption) e2e.TypedProvisioner[environments.Ho
 		// We ALWAYS need to make a deep copy of `params`, as the provisioner can be called multiple times.
 		// and it's easy to forget about it, leading to hard to debug issues.
 		params := GetProvisionerParams(opts...)
-		return Run(ctx, env, params)
+		return Run(ctx, env, RunParams{ProvisionerParams: params})
 	}, params.extraConfigParams)
 
 	return provisioner

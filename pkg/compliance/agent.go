@@ -23,7 +23,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/compliance/aptconfig"
 	"github.com/DataDog/datadog-agent/pkg/compliance/dbconfig"
 	"github.com/DataDog/datadog-agent/pkg/compliance/k8sconfig"
@@ -128,7 +128,7 @@ type Agent struct {
 }
 
 func xccdfEnabled() bool {
-	return config.Datadog.GetBool("compliance_config.xccdf.enabled") || config.Datadog.GetBool("compliance_config.host_benchmarks.enabled")
+	return config.Datadog().GetBool("compliance_config.xccdf.enabled") || config.Datadog().GetBool("compliance_config.host_benchmarks.enabled")
 }
 
 // DefaultRuleFilter implements the default filtering of benchmarks' rules. It

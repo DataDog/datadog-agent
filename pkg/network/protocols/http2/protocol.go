@@ -106,6 +106,24 @@ var Spec = &protocols.ProtocolSpec{
 		{
 			Name: "http2_ctx_heap",
 		},
+		{
+			Name: "http2_batch_events",
+		},
+		{
+			Name: "http2_batch_state",
+		},
+		{
+			Name: "http2_batches",
+		},
+		{
+			Name: "terminated_http2_batch_events",
+		},
+		{
+			Name: "terminated_http2_batch_state",
+		},
+		{
+			Name: "terminated_http2_batches",
+		},
 	},
 	TailCalls: []manager.TailCallRoute{
 		{
@@ -291,25 +309,14 @@ func (p *Protocol) PostStart(mgr *manager.Manager) error {
 	return p.dynamicTable.postStart(mgr, p.cfg)
 }
 
-func getMap(mgr *manager.Manager, name string) (*ebpf.Map, error) {
-	m, _, err := mgr.GetMap(name)
-	if err != nil {
-		return nil, fmt.Errorf("error getting %q map: %s", name, err)
-	}
-	if m == nil {
-		return nil, fmt.Errorf("%q map is nil", name)
-	}
-	return m, nil
-}
-
 func (p *Protocol) updateKernelTelemetry(mgr *manager.Manager) {
-	mp, err := getMap(mgr, TelemetryMap)
+	mp, err := protocols.GetMap(mgr, TelemetryMap)
 	if err != nil {
 		log.Warn(err)
 		return
 	}
 
-	tlsMap, err := getMap(mgr, TLSTelemetryMap)
+	tlsMap, err := protocols.GetMap(mgr, TLSTelemetryMap)
 	if err != nil {
 		log.Warn(err)
 		return

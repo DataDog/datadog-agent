@@ -15,6 +15,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/etw"
 	etwimpl "github.com/DataDog/datadog-agent/comp/etw/impl"
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
+	"github.com/DataDog/datadog-agent/pkg/util/winutil"
+
+	"golang.org/x/sys/windows"
 )
 
 const (
@@ -76,6 +80,7 @@ type createHandleArgs struct {
 	createAttributes uint32
 	shareAccess      uint32
 	fileName         string
+	userFileName     string
 }
 
 /*
@@ -158,21 +163,45 @@ func (wp *WindowsProbe) parseCreateHandleArgs(e *etw.DDEventRecord) (*createHand
 		return nil, fmt.Errorf("unknown version %v", e.EventHeader.EventDescriptor.Version)
 	}
 
+	// not amazing to double compute the basename..
+	basename := filepath.Base(ca.fileName)
+
+	if !wp.approveFimBasename(basename) {
+		wp.discardedFileHandles.Add(fileObjectPointer(ca.fileObject), struct{}{})
+		wp.stats.createFileApproverRejects++
+		return nil, errDiscardedPath
+	}
+	ca.userFileName = wp.mustConvertDrivePath(ca.fileName)
+
 	if _, ok := wp.discardedPaths.Get(ca.fileName); ok {
+		wp.discardedFileHandles.Add(fileObjectPointer(ca.fileObject), struct{}{})
 		wp.stats.fileCreateSkippedDiscardedPaths++
 		return nil, errDiscardedPath
 	}
 
-	// not amazing to double compute the basename..
-	basename := filepath.Base(ca.fileName)
+	ca.userFileName = wp.mustConvertDrivePath(ca.fileName)
+	if _, ok := wp.discardedUserPaths.Get(ca.userFileName); ok {
+		wp.stats.fileCreateSkippedDiscardedPaths++
+		return nil, errDiscardedPath
+	}
+
 	if _, ok := wp.discardedBasenames.Get(basename); ok {
+		wp.discardedFileHandles.Add(fileObjectPointer(ca.fileObject), struct{}{})
 		wp.stats.fileCreateSkippedDiscardedBasenames++
 		return nil, errDiscardedPath
 	}
 
-	wp.filePathResolverLock.Lock()
-	defer wp.filePathResolverLock.Unlock()
-	wp.filePathResolver[ca.fileObject] = ca.fileName
+	// lru is thread safe, has its own locking
+	fc := fileCache{
+		fileName:     ca.fileName,
+		userFileName: ca.userFileName,
+	}
+	if wp.filePathResolver.Add(ca.fileObject, fc) {
+		wp.stats.fileNameCacheEvictions++
+	}
+	// if we get here, we have a new file handle.  Remove it from the discarder cache in case
+	// we missed the close notification
+	wp.discardedFileHandles.Remove(fileObjectPointer(ca.fileObject))
 
 	return ca, nil
 }
@@ -186,19 +215,25 @@ func (wp *WindowsProbe) parseCreateNewFileArgs(e *etw.DDEventRecord) (*createNew
 }
 
 // nolint: unused
-func (ca *createHandleArgs) String() string {
+func (ca *createHandleArgs) string(t string) string {
 	var output strings.Builder
 
-	output.WriteString("  Create PID: " + strconv.Itoa(int(ca.ProcessID)) + "\n")
+	output.WriteString(t + " PID: " + strconv.Itoa(int(ca.ProcessID)) + "\n")
 	output.WriteString("         Name: " + ca.fileName + "\n")
 	output.WriteString("         Opts: " + strconv.FormatUint(uint64(ca.createOptions), 16) + " Share: " + strconv.FormatUint(uint64(ca.shareAccess), 16) + "\n")
 	output.WriteString("         OBJ:  " + strconv.FormatUint(uint64(ca.fileObject), 16) + "\n")
+
 	return output.String()
 }
 
 // nolint: unused
+func (ca *createHandleArgs) String() string {
+	return ca.string("CREATE")
+}
+
+// nolint: unused
 func (ca *createNewFileArgs) String() string {
-	return (*createHandleArgs)(ca).String()
+	return (*createHandleArgs)(ca).string("CREATE_NEW_FILE")
 }
 
 /*
@@ -223,14 +258,19 @@ func (ca *createNewFileArgs) String() string {
 // nolint: unused
 type setInformationArgs struct {
 	etw.DDEventHeader
-	irp        uint64
-	threadID   uint64
-	fileObject fileObjectPointer
-	fileKey    uint64
-	extraInfo  uint64
-	infoClass  uint32
-	fileName   string
+	irp          uint64
+	threadID     uint64
+	fileObject   fileObjectPointer
+	fileKey      uint64
+	extraInfo    uint64
+	infoClass    uint32
+	fileName     string
+	userFileName string
 }
+type setDeleteArgs setInformationArgs
+type renameArgs setInformationArgs
+type rename29Args setInformationArgs
+type fsctlArgs setInformationArgs
 
 // nolint: unused
 func (wp *WindowsProbe) parseInformationArgs(e *etw.DDEventRecord) (*setInformationArgs, error) {
@@ -257,24 +297,91 @@ func (wp *WindowsProbe) parseInformationArgs(e *etw.DDEventRecord) (*setInformat
 		return nil, fmt.Errorf("unknown version number %v", e.EventHeader.EventDescriptor.Version)
 	}
 
-	wp.filePathResolverLock.Lock()
-	defer wp.filePathResolverLock.Unlock()
-	if s, ok := wp.filePathResolver[fileObjectPointer(sia.fileObject)]; ok {
-		sia.fileName = s
+	if _, ok := wp.discardedFileHandles.Get(fileObjectPointer(sia.fileObject)); ok {
+		return nil, errDiscardedPath
+	}
+	// lru is thread safe, has its own locking
+	if s, ok := wp.filePathResolver.Get(fileObjectPointer(sia.fileObject)); ok {
+		sia.fileName = s.fileName
+		sia.userFileName = s.userFileName
 	}
 
 	return sia, nil
 }
 
 // nolint: unused
-func (sia *setInformationArgs) String() string {
+func (sia *setInformationArgs) string(t string) string {
 	var output strings.Builder
 
-	output.WriteString("  SIA TID: " + strconv.Itoa(int(sia.threadID)) + "\n")
+	output.WriteString(t + " TID: " + strconv.Itoa(int(sia.threadID)) + "\n")
 	output.WriteString("      Name: " + sia.fileName + "\n")
 	output.WriteString("      InfoClass: " + strconv.FormatUint(uint64(sia.infoClass), 16) + "\n")
+	output.WriteString("         OBJ:  " + strconv.FormatUint(uint64(sia.fileObject), 16) + "\n")
+	output.WriteString("         KEY:  " + strconv.FormatUint(uint64(sia.fileKey), 16) + "\n")
+
 	return output.String()
 
+}
+
+// nolint: unused
+func (sia *setInformationArgs) String() string {
+	return sia.string("SET_INFORMATION")
+}
+
+// nolint: unused
+func (wp *WindowsProbe) parseSetDeleteArgs(e *etw.DDEventRecord) (*setDeleteArgs, error) {
+	sda, err := wp.parseInformationArgs(e)
+	if err != nil {
+		return nil, err
+	}
+	return (*setDeleteArgs)(sda), nil
+}
+
+// nolint: unused
+func (sda *setDeleteArgs) String() string {
+	return (*setInformationArgs)(sda).string("SET_DELETE")
+}
+
+// nolint: unused
+func (wp *WindowsProbe) parseRenameArgs(e *etw.DDEventRecord) (*renameArgs, error) {
+	ra, err := wp.parseInformationArgs(e)
+	if err != nil {
+		return nil, err
+	}
+	return (*renameArgs)(ra), nil
+}
+
+// nolint: unused
+func (ra *renameArgs) String() string {
+	return (*setInformationArgs)(ra).string("RENAME")
+}
+
+// nolint: unused
+func (wp *WindowsProbe) parseRename29Args(e *etw.DDEventRecord) (*rename29Args, error) {
+	ra, err := wp.parseInformationArgs(e)
+	if err != nil {
+		return nil, err
+	}
+	return (*rename29Args)(ra), nil
+}
+
+// nolint: unused
+func (ra *rename29Args) String() string {
+	return (*setInformationArgs)(ra).string("RENAME29")
+}
+
+// nolint: unused
+func (wp *WindowsProbe) parseFsctlArgs(e *etw.DDEventRecord) (*fsctlArgs, error) {
+	fa, err := wp.parseInformationArgs(e)
+	if err != nil {
+		return nil, err
+	}
+	return (*fsctlArgs)(fa), nil
+}
+
+// nolint: unused
+func (fa *fsctlArgs) String() string {
+	return (*setInformationArgs)(fa).string("FSCTL")
 }
 
 /*
@@ -295,11 +402,12 @@ func (sia *setInformationArgs) String() string {
 
 type cleanupArgs struct {
 	etw.DDEventHeader
-	irp        uint64
-	threadID   uint64
-	fileObject fileObjectPointer
-	fileKey    uint64
-	fileName   string
+	irp          uint64
+	threadID     uint64
+	fileObject   fileObjectPointer
+	fileKey      uint64
+	fileName     string
+	userFileName string
 }
 
 // nolint: unused
@@ -328,10 +436,13 @@ func (wp *WindowsProbe) parseCleanupArgs(e *etw.DDEventRecord) (*cleanupArgs, er
 		return nil, fmt.Errorf("unknown version number %v", e.EventHeader.EventDescriptor.Version)
 	}
 
-	wp.filePathResolverLock.Lock()
-	defer wp.filePathResolverLock.Unlock()
-	if s, ok := wp.filePathResolver[ca.fileObject]; ok {
-		ca.fileName = s
+	if _, ok := wp.discardedFileHandles.Get(fileObjectPointer(ca.fileObject)); ok {
+		return nil, errDiscardedPath
+	}
+	// lru is thread safe, has its own locking
+	if s, ok := wp.filePathResolver.Get(fileObjectPointer(ca.fileObject)); ok {
+		ca.fileName = s.fileName
+		ca.userFileName = s.userFileName
 	}
 
 	return ca, nil
@@ -356,22 +467,363 @@ func (wp *WindowsProbe) parseFlushArgs(e *etw.DDEventRecord) (*flushArgs, error)
 }
 
 // nolint: unused
-func (ca *cleanupArgs) String() string {
+func (ca *cleanupArgs) string(t string) string {
 	var output strings.Builder
 
-	output.WriteString("  CLEANUP: TID: " + strconv.Itoa(int(ca.threadID)) + "\n")
+	output.WriteString(t + ": TID: " + strconv.Itoa(int(ca.threadID)) + "\n")
 	output.WriteString("           Name: " + ca.fileName + "\n")
 	output.WriteString("         OBJ:  " + strconv.FormatUint(uint64(ca.fileObject), 16) + "\n")
+	output.WriteString("         KEY:  " + strconv.FormatUint(uint64(ca.fileKey), 16) + "\n")
 	return output.String()
 
 }
 
 // nolint: unused
+func (ca *cleanupArgs) String() string {
+	return ca.string("CLEANUP")
+}
+
+// nolint: unused
 func (ca *closeArgs) String() string {
-	return (*cleanupArgs)(ca).String()
+	return (*cleanupArgs)(ca).string("CLOSE")
 }
 
 // nolint: unused
 func (fa *flushArgs) String() string {
-	return (*cleanupArgs)(fa).String()
+	return (*cleanupArgs)(fa).string("FLUSH")
+}
+
+type readArgs struct {
+	etw.DDEventHeader
+	ByteOffset   uint64
+	irp          uint64
+	threadID     uint64
+	fileObject   fileObjectPointer
+	fileKey      fileObjectPointer
+	IOSize       uint32
+	IOFlags      uint32
+	extraFlags   uint32 // zero if version 0, as they're not supplied
+	fileName     string
+	userFileName string
+}
+type writeArgs readArgs
+
+func (wp *WindowsProbe) parseReadArgs(e *etw.DDEventRecord) (*readArgs, error) {
+	ra := &readArgs{
+		DDEventHeader: e.EventHeader,
+	}
+	data := etwimpl.GetUserData(e)
+	if e.EventHeader.EventDescriptor.Version == 0 {
+		ra.ByteOffset = data.GetUint64(0)
+		ra.irp = data.GetUint64(8)
+		ra.threadID = data.GetUint64(16)
+		ra.fileObject = fileObjectPointer(data.GetUint64(24))
+		ra.fileKey = fileObjectPointer(data.GetUint64(32))
+		ra.IOSize = data.GetUint32(40)
+		ra.IOFlags = data.GetUint32(44)
+	} else if e.EventHeader.EventDescriptor.Version == 1 {
+		ra.ByteOffset = data.GetUint64(0)
+		ra.irp = data.GetUint64(8)
+		ra.fileObject = fileObjectPointer(data.GetUint64(16))
+		ra.fileKey = fileObjectPointer(data.GetUint64(24))
+		ra.threadID = uint64(data.GetUint32(32))
+		ra.IOSize = data.GetUint32(36)
+		ra.IOFlags = data.GetUint32(40)
+		ra.extraFlags = data.GetUint32(44)
+	} else {
+		return nil, fmt.Errorf("unknown version number %v", e.EventHeader.EventDescriptor.Version)
+	}
+	if _, ok := wp.discardedFileHandles.Get(fileObjectPointer(ra.fileObject)); ok {
+		return nil, errDiscardedPath
+	}
+	// lru is thread safe, has its own locking
+	if s, ok := wp.filePathResolver.Get(fileObjectPointer(ra.fileObject)); ok {
+		ra.fileName = s.fileName
+		ra.userFileName = s.userFileName
+	}
+	return ra, nil
+}
+
+// nolint: unused
+func (ra *readArgs) string(t string) string {
+	var output strings.Builder
+
+	output.WriteString(t + ": PID: " + strconv.Itoa(int(ra.DDEventHeader.ProcessID)) + "\n")
+	output.WriteString("        fo: " + strconv.FormatUint(uint64(ra.fileObject), 16) + "\n")
+	output.WriteString("        fk: " + strconv.FormatUint(uint64(ra.fileKey), 16) + "\n")
+	output.WriteString("        Name: " + ra.fileName + "\n")
+	output.WriteString("        Size: " + strconv.FormatUint(uint64(ra.IOSize), 16) + "\n")
+	return output.String()
+
+}
+
+// nolint: unused
+func (ra *readArgs) String() string {
+	return ra.string("READ")
+}
+
+func (wp *WindowsProbe) parseWriteArgs(e *etw.DDEventRecord) (*writeArgs, error) {
+	wa, err := wp.parseReadArgs(e)
+	if err != nil {
+		return nil, err
+	}
+	return (*writeArgs)(wa), nil
+}
+
+func (wa *writeArgs) String() string {
+	return (*readArgs)(wa).string("WRITE")
+}
+
+/*
+	     <template tid="DeletePathArgs">
+	      <data name="Irp" inType="win:Pointer"/>
+	      <data name="ThreadId" inType="win:Pointer"/>
+	      <data name="FileObject" inType="win:Pointer"/>
+	      <data name="FileKey" inType="win:Pointer"/>
+	      <data name="ExtraInformation" inType="win:Pointer"/>
+	      <data name="InfoClass" inType="win:UInt32"/>
+	      <data name="FilePath" inType="win:UnicodeString"/>
+	     </template>
+		      <template tid="DeletePathArgs_V1">
+	      <data name="Irp" inType="win:Pointer"/>
+	      <data name="FileObject" inType="win:Pointer"/>
+	      <data name="FileKey" inType="win:Pointer"/>
+	      <data name="ExtraInformation" inType="win:Pointer"/>
+	      <data name="IssuingThreadId" inType="win:UInt32"/>
+	      <data name="InfoClass" inType="win:UInt32"/>
+	      <data name="FilePath" inType="win:UnicodeString"/>
+	     </template>
+*/
+type deletePathArgs struct {
+	etw.DDEventHeader
+	irp              uint64
+	threadID         uint64
+	fileObject       fileObjectPointer
+	fileKey          fileObjectPointer
+	extraInformation uint64
+	infoClass        uint32
+	filePath         string
+	userFilePath     string
+	oldPath          string
+	oldUserPath      string
+}
+
+// nolint: unused
+type renamePath deletePathArgs
+
+// nolint: unused
+type setLinkPath deletePathArgs
+
+func (wp *WindowsProbe) parseDeletePathArgs(e *etw.DDEventRecord) (*deletePathArgs, error) {
+	dpa := &deletePathArgs{
+		DDEventHeader: e.EventHeader,
+	}
+	data := etwimpl.GetUserData(e)
+	if e.EventHeader.EventDescriptor.Version == 0 {
+		dpa.irp = data.GetUint64(0)
+		dpa.threadID = data.GetUint64(8)
+		dpa.fileObject = fileObjectPointer(data.GetUint64(16))
+		dpa.fileKey = fileObjectPointer(data.GetUint64(24))
+		dpa.extraInformation = data.GetUint64(32)
+		dpa.infoClass = data.GetUint32(40)
+		dpa.filePath, _, _, _ = data.ParseUnicodeString(44)
+	} else if e.EventHeader.EventDescriptor.Version == 1 {
+		dpa.irp = data.GetUint64(0)
+		dpa.fileObject = fileObjectPointer(data.GetUint64(8))
+		dpa.fileKey = fileObjectPointer(data.GetUint64(16))
+		dpa.extraInformation = data.GetUint64(24)
+		dpa.threadID = uint64(data.GetUint32(32))
+		dpa.infoClass = data.GetUint32(36)
+		dpa.filePath, _, _, _ = data.ParseUnicodeString(40)
+	}
+	dpa.userFilePath = wp.mustConvertDrivePath(dpa.filePath)
+
+	if _, ok := wp.discardedFileHandles.Get(fileObjectPointer(dpa.fileObject)); ok {
+		return nil, errDiscardedPath
+	}
+	// lru is thread safe, has its own locking
+	if s, ok := wp.filePathResolver.Get(fileObjectPointer(dpa.fileObject)); ok {
+		dpa.oldPath = s.fileName
+		dpa.oldUserPath = s.userFileName
+		// question, should we reset the filePathResolver here?
+	}
+	return dpa, nil
+}
+
+// nolint: unused
+func (dpa *deletePathArgs) string(t string) string {
+	var output strings.Builder
+
+	output.WriteString(t + ": PID: " + strconv.Itoa(int(dpa.ProcessID)) + "\n")
+	output.WriteString("        Name: " + dpa.filePath + "\n")
+	output.WriteString("        OBJ: " + strconv.FormatUint(uint64(dpa.fileObject), 16) + "\n")
+	output.WriteString("        KEY: " + strconv.FormatUint(uint64(dpa.fileKey), 16) + "\n")
+	return output.String()
+
+}
+
+// nolint: unused
+func (dpa *deletePathArgs) String() string {
+	return dpa.string("DELETE_PATH")
+}
+
+// nolint: unused
+func (wp *WindowsProbe) parseRenamePathArgs(e *etw.DDEventRecord) (*renamePath, error) {
+	rpa, err := wp.parseDeletePathArgs(e)
+	if err != nil {
+		return nil, err
+	}
+	return (*renamePath)(rpa), nil
+}
+
+// nolint: unused
+func (rpa *renamePath) String() string {
+	return (*deletePathArgs)(rpa).string("RENAME_PATH")
+}
+
+// nolint: unused
+func (wp *WindowsProbe) parseSetLinkPathArgs(e *etw.DDEventRecord) (*setLinkPath, error) {
+	sla, err := wp.parseDeletePathArgs(e)
+	if err != nil {
+		return nil, err
+	}
+	return (*setLinkPath)(sla), nil
+}
+
+// nolint: unused
+func (sla *setLinkPath) String() string {
+	return (*deletePathArgs)(sla).string("SET_LINK_PATH")
+}
+
+type nameCreateArgs struct {
+	etw.DDEventHeader
+	fileKey      fileObjectPointer
+	fileName     string
+	userFileName string
+}
+
+type nameDeleteArgs nameCreateArgs
+
+func (wp *WindowsProbe) parseNameCreateArgs(e *etw.DDEventRecord) (*nameCreateArgs, error) {
+	ca := &nameCreateArgs{
+		DDEventHeader: e.EventHeader,
+	}
+	data := etwimpl.GetUserData(e)
+	if e.EventHeader.EventDescriptor.Version == 0 {
+		ca.fileKey = fileObjectPointer(data.GetUint64(0))
+		ca.fileName, _, _, _ = data.ParseUnicodeString(8)
+	} else if e.EventHeader.EventDescriptor.Version == 1 {
+		ca.fileKey = fileObjectPointer(data.GetUint64(0))
+		ca.fileName, _, _, _ = data.ParseUnicodeString(8)
+	} else {
+		return nil, fmt.Errorf("unknown version number %v", e.EventHeader.EventDescriptor.Version)
+	}
+	ca.userFileName = wp.mustConvertDrivePath(ca.fileName)
+
+	return ca, nil
+}
+
+// nolint: unused
+func (ca *nameCreateArgs) string(t string) string {
+	var output strings.Builder
+
+	output.WriteString(t + ": KEY: " + strconv.FormatUint(uint64(ca.fileKey), 16) + "\n")
+	output.WriteString("        Name: " + ca.fileName + "\n")
+	return output.String()
+
+}
+
+// nolint: unused
+func (ca *nameCreateArgs) String() string {
+	return ca.string("NAME_CREATE")
+}
+
+// nolint: unused
+func (nd *nameDeleteArgs) String() string {
+	return (*nameCreateArgs)(nd).string("NAME_DELETE")
+}
+
+func (wp *WindowsProbe) parseNameDeleteArgs(e *etw.DDEventRecord) (*nameDeleteArgs, error) {
+	ca, err := wp.parseNameCreateArgs(e)
+	if err != nil {
+		return nil, err
+	}
+	return (*nameDeleteArgs)(ca), nil
+}
+
+// nolint: unused
+func (wp *WindowsProbe) convertDrivePath(devicefilename string) (string, error) {
+	// filepath doesn't seem to like the \Device\HarddiskVolume1 format
+	pathchunks := strings.Split(devicefilename, "\\")
+	if len(pathchunks) > 2 {
+		if strings.EqualFold(pathchunks[1], "device") {
+			pathchunks[2] = wp.volumeMap[strings.ToLower(pathchunks[2])]
+			return filepath.Join(pathchunks[2:]...), nil
+		}
+	}
+	return "", fmt.Errorf("Unable to parse path %v", devicefilename)
+}
+
+func (wp *WindowsProbe) mustConvertDrivePath(devicefilename string) string {
+	userPath, err := wp.convertDrivePath(devicefilename)
+	if err != nil {
+		seclog.Errorf("failed to convert drive path: %v", err)
+		return devicefilename
+	}
+	return userPath
+}
+
+func (wp *WindowsProbe) initializeVolumeMap() error {
+
+	buf := make([]uint16, 1024)
+	bufferLength := uint32(len(buf))
+
+	_, err := windows.GetLogicalDriveStrings(bufferLength, &buf[0])
+	if err != nil {
+		return err
+	}
+	drives := winutil.ConvertWindowsStringList(buf)
+	for _, drive := range drives {
+		t := windows.GetDriveType(windows.StringToUTF16Ptr(drive[:3]))
+		/*
+			DRIVE_UNKNOWN
+			0
+			The drive type cannot be determined.
+			DRIVE_NO_ROOT_DIR
+			1
+			The root path is invalid; for example, there is no volume mounted at the specified path.
+			DRIVE_REMOVABLE
+			2
+			The drive has removable media; for example, a floppy drive, thumb drive, or flash card reader.
+			DRIVE_FIXED
+			3
+			The drive has fixed media; for example, a hard disk drive or flash drive.
+			DRIVE_REMOTE
+			4
+			The drive is a remote (network) drive.
+			DRIVE_CDROM
+			5
+			The drive is a CD-ROM drive.
+			DRIVE_RAMDISK
+			6
+			The drive is a RAM disk.
+		*/
+		if t == windows.DRIVE_FIXED {
+			volpath := make([]uint16, 1024)
+			vollen := uint32(len(volpath))
+			_, err = windows.QueryDosDevice(windows.StringToUTF16Ptr(drive[:2]), &volpath[0], vollen)
+			if err == nil {
+				devname := windows.UTF16PtrToString(&volpath[0])
+				paths := strings.Split(devname, "\\") // apparently, filepath.split doesn't like volume names
+
+				if len(paths) > 2 {
+					// the \Device leads to the first entry being empty
+					if strings.EqualFold(paths[1], "device") {
+						wp.volumeMap[strings.ToLower(paths[2])] = drive
+					}
+				}
+			}
+		}
+	}
+	return nil
 }

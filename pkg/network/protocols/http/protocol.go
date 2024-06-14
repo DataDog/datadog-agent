@@ -48,7 +48,21 @@ const (
 var Spec = &protocols.ProtocolSpec{
 	Factory: newHTTPProtocol,
 	Maps: []*manager.Map{
-		{Name: inFlightMap},
+		{
+			Name: inFlightMap,
+		},
+		{
+			Name: "http_scratch_buffer",
+		},
+		{
+			Name: "http_batch_events",
+		},
+		{
+			Name: "http_batch_state",
+		},
+		{
+			Name: "http_batches",
+		},
 	},
 	TailCalls: []manager.TailCallRoute{
 		{
@@ -98,6 +112,7 @@ func newHTTPProtocol(cfg *config.Config) (protocols.Protocol, error) {
 	}, nil
 }
 
+// Name return the program's name.
 func (p *protocol) Name() string {
 	return "HTTP"
 }

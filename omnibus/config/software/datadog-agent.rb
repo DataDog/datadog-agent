@@ -8,15 +8,21 @@ require 'pathname'
 
 name 'datadog-agent'
 
+# creates required build directories
+dependency 'datadog-agent-prepare'
+
 dependency "python2" if with_python_runtime? "2"
 dependency "python3" if with_python_runtime? "3"
 
 dependency "openscap" if linux_target? and !arm7l_target? and !heroku_target? # Security-agent dependency, not needed for Heroku
 
+dependency 'agent-dependencies'
 dependency 'datadog-agent-dependencies'
 
 source path: '..'
 relative_path 'src/github.com/DataDog/datadog-agent'
+
+always_build true
 
 build do
   license :project_license
@@ -28,7 +34,6 @@ build do
 
   # set GOPATH on the omnibus source dir for this software
   gopath = Pathname.new(project_dir) + '../../../..'
-  etc_dir = "/etc/datadog-agent"
   if windows_target?
     env = {
         'GOPATH' => gopath.to_path,
@@ -71,16 +76,22 @@ build do
       do_windows_sysprobe = "--windows-sysprobe"
     end
     command "inv -e rtloader.clean"
-    command "inv -e rtloader.make --python-runtimes #{py_runtimes_arg} --install-prefix \"#{windows_safe_path(python_2_embedded)}\" --cmake-options \"-G \\\"Unix Makefiles\\\"\" --arch #{platform}", :env => env
+    command "inv -e rtloader.make --python-runtimes #{py_runtimes_arg} --install-prefix \"#{windows_safe_path(python_2_embedded)}\" --cmake-options \"-G \\\"Unix Makefiles\\\"\"", :env => env
     command "mv rtloader/bin/*.dll  #{install_dir}/bin/agent/"
-    command "inv -e agent.build --exclude-rtloader --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg} --rebuild --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded --arch #{platform} #{do_windows_sysprobe} --flavor #{flavor_arg}", env: env
-    command "inv -e systray.build --major-version #{major_version_arg} --rebuild --arch #{platform}", env: env
+    command "inv -e agent.build --exclude-rtloader --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg} --rebuild --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded #{do_windows_sysprobe} --flavor #{flavor_arg}", env: env
+    command "inv -e systray.build --major-version #{major_version_arg} --rebuild", env: env
   else
     command "inv -e rtloader.clean"
     command "inv -e rtloader.make --python-runtimes #{py_runtimes_arg} --install-prefix \"#{install_dir}/embedded\" --cmake-options '-DCMAKE_CXX_FLAGS:=\"-D_GLIBCXX_USE_CXX11_ABI=0 -I#{install_dir}/embedded/include\" -DCMAKE_C_FLAGS:=\"-I#{install_dir}/embedded/include\" -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_FIND_FRAMEWORK:STRING=NEVER'", :env => env
     command "inv -e rtloader.install"
     bundle_arg = bundled_agents ? bundled_agents.map { |k| "--bundle #{k}" }.join(" ") : "--bundle agent"
-    command "inv -e agent.build --exclude-rtloader --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg} --rebuild --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded --python-home-2=#{install_dir}/embedded --python-home-3=#{install_dir}/embedded --flavor #{flavor_arg} #{bundle_arg}", env: env
+
+    include_sds = ""
+    if linux_target?
+        include_sds = "--include-sds" # we only support SDS on Linux targets for now
+    end
+    command "inv -e agent.build --exclude-rtloader #{include_sds} --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg} --rebuild --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded --python-home-2=#{install_dir}/embedded --python-home-3=#{install_dir}/embedded --flavor #{flavor_arg} #{bundle_arg}", env: env
+
     if heroku_target?
       command "inv -e agent.build --exclude-rtloader --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg} --rebuild --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded --python-home-2=#{install_dir}/embedded --python-home-3=#{install_dir}/embedded --flavor #{flavor_arg} --agent-bin=bin/agent/core-agent --bundle agent", env: env
     end
@@ -113,7 +124,7 @@ build do
 
   if not bundled_agents.include? "trace-agent"
     platform = windows_arch_i386? ? "x86" : "x64"
-    command "invoke trace-agent.build --python-runtimes #{py_runtimes_arg} --install-path=#{install_dir} --major-version #{major_version_arg} --arch #{platform} --flavor #{flavor_arg}", :env => env
+    command "invoke trace-agent.build --python-runtimes #{py_runtimes_arg} --install-path=#{install_dir} --major-version #{major_version_arg} --flavor #{flavor_arg}", :env => env
   end
 
   if windows_target?
@@ -122,12 +133,9 @@ build do
     copy 'bin/trace-agent/trace-agent', "#{install_dir}/embedded/bin"
   end
 
-  # Build the process-agent with the correct go version for windows
-  arch_arg = windows_target? ? "--arch " + (windows_arch_i386? ? "x86" : "x64") : ""
-
   # Process agent
   if not bundled_agents.include? "process-agent"
-    command "invoke -e process-agent.build --python-runtimes #{py_runtimes_arg} --install-path=#{install_dir} --major-version #{major_version_arg} --flavor #{flavor_arg} #{arch_arg} --no-bundle", :env => env
+    command "invoke -e process-agent.build --python-runtimes #{py_runtimes_arg} --install-path=#{install_dir} --major-version #{major_version_arg} --flavor #{flavor_arg} --no-bundle", :env => env
   end
 
   if windows_target?
@@ -182,90 +190,6 @@ build do
       command "inv agent.generate-config --build-type apm-injection --output-file ./bin/agent/dist/apm-inject.yaml", :env => env
       move 'bin/agent/dist/apm-inject.yaml', "#{conf_dir}/apm-inject.yaml.example"
     end
-  end
-  if linux_target?
-    if debian_target?
-      erb source: "upstart_debian.conf.erb",
-          dest: "#{install_dir}/scripts/datadog-agent.conf",
-          mode: 0644,
-          vars: { install_dir: install_dir, etc_dir: etc_dir }
-      erb source: "upstart_debian.process.conf.erb",
-          dest: "#{install_dir}/scripts/datadog-agent-process.conf",
-          mode: 0644,
-          vars: { install_dir: install_dir, etc_dir: etc_dir }
-      erb source: "upstart_debian.sysprobe.conf.erb",
-          dest: "#{install_dir}/scripts/datadog-agent-sysprobe.conf",
-          mode: 0644,
-          vars: { install_dir: install_dir, etc_dir: etc_dir }
-      erb source: "upstart_debian.trace.conf.erb",
-          dest: "#{install_dir}/scripts/datadog-agent-trace.conf",
-          mode: 0644,
-          vars: { install_dir: install_dir, etc_dir: etc_dir }
-      erb source: "upstart_debian.security.conf.erb",
-          dest: "#{install_dir}/scripts/datadog-agent-security.conf",
-          mode: 0644,
-          vars: { install_dir: install_dir, etc_dir: etc_dir }
-      erb source: "sysvinit_debian.erb",
-          dest: "#{install_dir}/scripts/datadog-agent",
-          mode: 0755,
-          vars: { install_dir: install_dir, etc_dir: etc_dir }
-      erb source: "sysvinit_debian.process.erb",
-          dest: "#{install_dir}/scripts/datadog-agent-process",
-          mode: 0755,
-          vars: { install_dir: install_dir, etc_dir: etc_dir }
-      erb source: "sysvinit_debian.trace.erb",
-          dest: "#{install_dir}/scripts/datadog-agent-trace",
-          mode: 0755,
-          vars: { install_dir: install_dir, etc_dir: etc_dir }
-      erb source: "sysvinit_debian.security.erb",
-          dest: "#{install_dir}/scripts/datadog-agent-security",
-          mode: 0755,
-          vars: { install_dir: install_dir, etc_dir: etc_dir }
-    elsif redhat_target? || suse_target?
-      # Ship a different upstart job definition on RHEL to accommodate the old
-      # version of upstart (0.6.5) that RHEL 6 provides.
-      erb source: "upstart_redhat.conf.erb",
-          dest: "#{install_dir}/scripts/datadog-agent.conf",
-          mode: 0644,
-          vars: { install_dir: install_dir, etc_dir: etc_dir }
-      erb source: "upstart_redhat.process.conf.erb",
-          dest: "#{install_dir}/scripts/datadog-agent-process.conf",
-          mode: 0644,
-          vars: { install_dir: install_dir, etc_dir: etc_dir }
-      erb source: "upstart_redhat.sysprobe.conf.erb",
-          dest: "#{install_dir}/scripts/datadog-agent-sysprobe.conf",
-          mode: 0644,
-          vars: { install_dir: install_dir, etc_dir: etc_dir }
-      erb source: "upstart_redhat.trace.conf.erb",
-          dest: "#{install_dir}/scripts/datadog-agent-trace.conf",
-          mode: 0644,
-          vars: { install_dir: install_dir, etc_dir: etc_dir }
-      erb source: "upstart_redhat.security.conf.erb",
-          dest: "#{install_dir}/scripts/datadog-agent-security.conf",
-          mode: 0644,
-          vars: { install_dir: install_dir, etc_dir: etc_dir }
-    end
-
-    erb source: "systemd.service.erb",
-        dest: "#{install_dir}/scripts/datadog-agent.service",
-        mode: 0644,
-        vars: { install_dir: install_dir, etc_dir: etc_dir }
-    erb source: "systemd.process.service.erb",
-        dest: "#{install_dir}/scripts/datadog-agent-process.service",
-        mode: 0644,
-        vars: { install_dir: install_dir, etc_dir: etc_dir }
-    erb source: "systemd.sysprobe.service.erb",
-        dest: "#{install_dir}/scripts/datadog-agent-sysprobe.service",
-        mode: 0644,
-        vars: { install_dir: install_dir, etc_dir: etc_dir }
-    erb source: "systemd.trace.service.erb",
-        dest: "#{install_dir}/scripts/datadog-agent-trace.service",
-        mode: 0644,
-        vars: { install_dir: install_dir, etc_dir: etc_dir }
-    erb source: "systemd.security.service.erb",
-        dest: "#{install_dir}/scripts/datadog-agent-security.service",
-        mode: 0644,
-        vars: { install_dir: install_dir, etc_dir: etc_dir }
   end
 
   if osx_target?

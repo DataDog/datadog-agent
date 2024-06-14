@@ -76,10 +76,40 @@ func TestShowMetadataInventoryChecksCommand(t *testing.T) {
 		})
 }
 
+func TestShowMetadataInventoryOtelCommand(t *testing.T) {
+	fxutil.TestOneShotSubcommand(t,
+		Commands(&command.GlobalParams{}),
+		[]string{"diagnose", "show-metadata", "inventory-otel"},
+		printPayload,
+		func(coreParams core.BundleParams, secretParams secrets.Params) {
+			require.Equal(t, false, secretParams.Enabled)
+		})
+}
+
 func TestShowMetadataPkgSigningCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
 		Commands(&command.GlobalParams{}),
 		[]string{"diagnose", "show-metadata", "package-signing"},
+		printPayload,
+		func(coreParams core.BundleParams, secretParams secrets.Params) {
+			require.Equal(t, false, secretParams.Enabled)
+		})
+}
+
+func TestShowMetadataSystemProbeCommand(t *testing.T) {
+	fxutil.TestOneShotSubcommand(t,
+		Commands(&command.GlobalParams{}),
+		[]string{"diagnose", "show-metadata", "system-probe"},
+		printPayload,
+		func(coreParams core.BundleParams, secretParams secrets.Params) {
+			require.Equal(t, false, secretParams.Enabled)
+		})
+}
+
+func TestShowMetadataSecurityAgentCommand(t *testing.T) {
+	fxutil.TestOneShotSubcommand(t,
+		Commands(&command.GlobalParams{}),
+		[]string{"diagnose", "show-metadata", "security-agent"},
 		printPayload,
 		func(coreParams core.BundleParams, secretParams secrets.Params) {
 			require.Equal(t, false, secretParams.Enabled)

@@ -55,8 +55,9 @@ var allowedEnvvarNames = []string{
 	"DD_APM_IGNORE_RESOURCES",
 	"DD_MAX_EPS ", // deprecated
 	"DD_APM_MAX_EPS",
-	"DD_APM_TPS", //deprecated
-	"DD_APM_MAX_TPS",
+	"DD_APM_TPS",     //deprecated
+	"DD_APM_MAX_TPS", // deprecated
+	"DD_APM_TARGET_TPS",
 	"DD_APM_ERROR_TPS",
 	"DD_APM_ENABLE_RARE_SAMPLER",
 	"DD_APM_DISABLE_RARE_SAMPLER", // deprecated
@@ -69,6 +70,7 @@ var allowedEnvvarNames = []string{
 	"DD_APM_PROFILING_DD_URL",
 	"DD_APM_WINDOWS_PIPE_BUFFER_SIZE",
 	"DD_APM_REMOTE_TAGGER",
+	"DD_APM_PEER_SERVICE_AGGREGATION",
 	"DD_APM_COMPUTE_STATS_BY_SPAN_KIND",
 	"DD_APM_PEER_TAGS_AGGREGATION",
 	"DD_APM_PEER_TAGS",
@@ -136,7 +138,7 @@ var allowedEnvvarNames = []string{
 
 func getAllowedEnvvars() []string {
 	allowed := allowedEnvvarNames
-	allowed = append(allowed, config.Datadog.GetEnvVars()...)
+	allowed = append(allowed, config.Datadog().GetEnvVars()...)
 	var found []string
 	for _, envvar := range os.Environ() {
 		parts := strings.SplitN(envvar, "=", 2)

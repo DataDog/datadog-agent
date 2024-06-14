@@ -142,7 +142,7 @@ func (i *InventoryPayload) MetadataProvider() runnerimpl.Provider {
 	if i.Enabled {
 		return runnerimpl.NewProvider(i.collect)
 	}
-	return runnerimpl.NewEmptyProvider()
+	return runnerimpl.NewProvider(nil)
 }
 
 // collect is the callback expected by the metadata runner.Provider. It will send a new payload and return the next
@@ -212,10 +212,10 @@ func (i *InventoryPayload) GetAsJSON() ([]byte, error) {
 func (i *InventoryPayload) fillFlare(fb flaretypes.FlareBuilder) error {
 	path := filepath.Join("metadata", "inventory", i.FlareFileName)
 	if !i.Enabled {
-		fb.AddFile(path, []byte("inventory metadata is disabled"))
+		fb.AddFile(path, []byte("inventory metadata is disabled")) //nolint:errcheck
 		return nil
 	}
 
-	fb.AddFileFromFunc(path, i.GetAsJSON)
+	fb.AddFileFromFunc(path, i.GetAsJSON) //nolint:errcheck
 	return nil
 }

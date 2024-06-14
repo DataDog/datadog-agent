@@ -22,26 +22,26 @@ func BenchmarkStatKeeperSameTX(b *testing.B) {
 	topicName := []byte("foobar")
 	topicNameSize := len(topicName)
 
-	tx := new(EbpfTx)
+	tx := new(KafkaTransaction)
 	copy(tx.Topic_name[:], topicName)
-	tx.Topic_name_size = uint16(topicNameSize)
+	tx.Topic_name_size = uint8(topicNameSize)
 
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		sk.Process(tx)
+		sk.Process(&EbpfTx{Transaction: *tx})
 	}
 }
 
 func TestStatKeeper_extractTopicName(t *testing.T) {
 	tests := []struct {
 		name string
-		tx   *EbpfTx
+		tx   *KafkaTransaction
 		want string
 	}{
 		{
 			name: "slice bigger then Topic_name",
-			tx: &EbpfTx{
+			tx: &KafkaTransaction{
 				Topic_name:      [80]byte{},
 				Topic_name_size: 85,
 			},
@@ -49,7 +49,7 @@ func TestStatKeeper_extractTopicName(t *testing.T) {
 		},
 		{
 			name: "slice smaller then Topic_name",
-			tx: &EbpfTx{
+			tx: &KafkaTransaction{
 				Topic_name:      [80]byte{},
 				Topic_name_size: 60,
 			},

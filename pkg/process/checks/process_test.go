@@ -20,8 +20,10 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core"
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
+	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata/parser"
@@ -78,14 +80,14 @@ func mockContainerProvider(t *testing.T) proccontainers.ContainerProvider {
 	metricsProvider.RegisterConcreteCollector(provider.NewRuntimeMetadata(string(provider.RuntimeNameGarden), ""), metricsCollector)
 
 	// Workload meta + tagger
-	metadataProvider := fxutil.Test[workloadmeta.Mock](t, fx.Options(
+	metadataProvider := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		core.MockBundle(),
 		fx.Supply(context.Background()),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.MockModule(),
+		workloadmetafxmock.MockModule(),
 	))
 
-	fakeTagger := tagger.SetupFakeTagger(t)
+	fakeTagger := taggerimpl.SetupFakeTagger(t)
 	defer fakeTagger.ResetTagger()
 
 	// Finally, container provider

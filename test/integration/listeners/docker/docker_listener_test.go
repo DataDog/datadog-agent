@@ -25,8 +25,10 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
 	compcfg "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
@@ -80,8 +82,8 @@ func (suite *DockerListenerTestSuite) SetupSuite() {
 		}),
 		fx.Supply(workloadmeta.NewParams()),
 		collectors.GetCatalog(),
-		workloadmeta.Module(),
-		tagger.Module(),
+		workloadmetafx.Module(),
+		taggerimpl.Module(),
 		fx.Supply(tagger.NewTaggerParams()),
 	))
 	suite.wmeta = deps.WMeta

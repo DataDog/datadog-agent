@@ -10,16 +10,18 @@ import (
 	"os"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core"
-	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
-	"github.com/DataDog/datadog-agent/comp/trace/agent"
+	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
+	traceagentimpl "github.com/DataDog/datadog-agent/comp/trace/agent/impl"
 	"github.com/DataDog/datadog-agent/comp/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -33,13 +35,12 @@ func TestBundleDependencies(t *testing.T) {
 		fx.Supply(core.BundleParams{}),
 		core.Bundle(),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.Module(),
+		workloadmetafx.Module(),
 		statsd.Module(),
 		fx.Provide(func(cfg config.Component) telemetry.TelemetryCollector { return telemetry.NewCollector(cfg.Object()) }),
-		secretsimpl.MockModule(),
 		fx.Supply(tagger.NewFakeTaggerParams()),
-		tagger.Module(),
-		fx.Supply(&agent.Params{}),
+		taggerimpl.Module(),
+		fx.Supply(&traceagentimpl.Params{}),
 	)
 }
 
@@ -59,14 +60,14 @@ func TestMockBundleDependencies(t *testing.T) {
 		fx.Supply(core.BundleParams{}),
 		traceMockBundle,
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.Module(),
+		workloadmetafx.Module(),
 		fx.Invoke(func(_ config.Component) {}),
 		fx.Provide(func(cfg config.Component) telemetry.TelemetryCollector { return telemetry.NewCollector(cfg.Object()) }),
 		statsd.MockModule(),
-		fx.Supply(&agent.Params{}),
-		fx.Invoke(func(_ agent.Component) {}),
+		fx.Supply(&traceagentimpl.Params{}),
+		fx.Invoke(func(_ traceagent.Component) {}),
 		MockBundle(),
-		tagger.Module(),
+		taggerimpl.Module(),
 		fx.Supply(tagger.NewTaggerParams()),
 	))
 

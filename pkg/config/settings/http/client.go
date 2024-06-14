@@ -13,6 +13,7 @@ import (
 	"html"
 	"net/http"
 
+	settingsComponent "github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 )
@@ -29,35 +30,46 @@ func NewClient(c *http.Client, baseURL string, targetProcessName string, clientO
 	return &runtimeSettingsHTTPClient{c, baseURL, targetProcessName, clientOptions}
 }
 
-func (rc *runtimeSettingsHTTPClient) FullConfig() (string, error) {
-	r, err := util.DoGet(rc.c, rc.baseURL, rc.clientOptions.CloseConnection)
+func (rc *runtimeSettingsHTTPClient) doGet(url string, formatError bool) (string, error) {
+	r, err := util.DoGet(rc.c, url, rc.clientOptions.CloseConnection)
 	if err != nil {
-		var errMap = make(map[string]string)
+		errMap := make(map[string]string)
 		_ = json.Unmarshal(r, &errMap)
 		// If the error has been marshalled into a json object, check it and return it properly
 		if e, found := errMap["error"]; found {
 			return "", fmt.Errorf(e)
 		}
-
-		return "", fmt.Errorf("Could not reach %s: %v \nMake sure the %s is running before requesting the runtime configuration and contact support if you continue having issues", rc.targetProcessName, err, rc.targetProcessName)
+		if formatError {
+			return "", fmt.Errorf("Could not reach %s: %v \nMake sure the %s is running before requesting the runtime configuration and contact support if you continue having issues", rc.targetProcessName, err, rc.targetProcessName)
+		}
+		return "", err
 	}
-
 	return string(r), nil
 }
 
-func (rc *runtimeSettingsHTTPClient) List() (map[string]settings.RuntimeSettingResponse, error) {
-	r, err := util.DoGet(rc.c, fmt.Sprintf("%s/%s", rc.baseURL, "list-runtime"), rc.clientOptions.CloseConnection)
+func (rc *runtimeSettingsHTTPClient) FullConfig() (string, error) {
+	r, err := rc.doGet(rc.baseURL, true)
 	if err != nil {
-		var errMap = make(map[string]string)
-		_ = json.Unmarshal(r, &errMap)
-		// If the error has been marshalled into a json object, check it and return it properly
-		if e, found := errMap["error"]; found {
-			return nil, fmt.Errorf(e)
-		}
+		return "", err
+	}
+	return string(r), nil
+}
+
+func (rc *runtimeSettingsHTTPClient) FullConfigBySource() (string, error) {
+	r, err := rc.doGet(fmt.Sprintf("%s/by-source", rc.baseURL), true)
+	if err != nil {
+		return "", err
+	}
+	return string(r), nil
+}
+
+func (rc *runtimeSettingsHTTPClient) List() (map[string]settingsComponent.RuntimeSettingResponse, error) {
+	r, err := rc.doGet(fmt.Sprintf("%s/list-runtime", rc.baseURL), false)
+	if err != nil {
 		return nil, err
 	}
-	var settingsList = make(map[string]settings.RuntimeSettingResponse)
-	err = json.Unmarshal(r, &settingsList)
+	settingsList := make(map[string]settingsComponent.RuntimeSettingResponse)
+	err = json.Unmarshal([]byte(r), &settingsList)
 	if err != nil {
 		return nil, err
 	}
@@ -66,19 +78,13 @@ func (rc *runtimeSettingsHTTPClient) List() (map[string]settings.RuntimeSettingR
 }
 
 func (rc *runtimeSettingsHTTPClient) Get(key string) (interface{}, error) {
-	r, err := util.DoGet(rc.c, fmt.Sprintf("%s/%s", rc.baseURL, key), rc.clientOptions.CloseConnection)
+	r, err := rc.doGet(fmt.Sprintf("%s/%s", rc.baseURL, key), false)
 	if err != nil {
-		var errMap = make(map[string]string)
-		_ = json.Unmarshal(r, &errMap)
-		// If the error has been marshalled into a json object, check it and return it properly
-		if e, found := errMap["error"]; found {
-			return nil, fmt.Errorf(e)
-		}
 		return nil, err
 	}
 
-	var setting = make(map[string]interface{})
-	err = json.Unmarshal(r, &setting)
+	setting := make(map[string]interface{})
+	err = json.Unmarshal([]byte(r), &setting)
 	if err != nil {
 		return nil, err
 	}
@@ -89,19 +95,13 @@ func (rc *runtimeSettingsHTTPClient) Get(key string) (interface{}, error) {
 }
 
 func (rc *runtimeSettingsHTTPClient) GetWithSources(key string) (map[string]interface{}, error) {
-	r, err := util.DoGet(rc.c, fmt.Sprintf("%s/%s?sources=true", rc.baseURL, key), rc.clientOptions.CloseConnection)
+	r, err := rc.doGet(fmt.Sprintf("%s/%s?sources=true", rc.baseURL, key), false)
 	if err != nil {
-		var errMap = make(map[string]string)
-		_ = json.Unmarshal(r, &errMap)
-		// If the error has been marshalled into a json object, check it and return it properly
-		if e, found := errMap["error"]; found {
-			return nil, fmt.Errorf("%s", e)
-		}
 		return nil, err
 	}
 
-	var setting = make(map[string]interface{})
-	err = json.Unmarshal(r, &setting)
+	setting := make(map[string]interface{})
+	err = json.Unmarshal([]byte(r), &setting)
 	if err != nil {
 		return nil, err
 	}
@@ -126,7 +126,7 @@ func (rc *runtimeSettingsHTTPClient) Set(key string, value string) (bool, error)
 	body := fmt.Sprintf("value=%s", html.EscapeString(value))
 	r, err := util.DoPost(rc.c, fmt.Sprintf("%s/%s", rc.baseURL, key), "application/x-www-form-urlencoded", bytes.NewBuffer([]byte(body)))
 	if err != nil {
-		var errMap = make(map[string]string)
+		errMap := make(map[string]string)
 		_ = json.Unmarshal(r, &errMap)
 		// If the error has been marshalled into a json object, check it and return it properly
 		if e, found := errMap["error"]; found {

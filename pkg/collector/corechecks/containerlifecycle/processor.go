@@ -12,7 +12,7 @@ import (
 
 	"github.com/DataDog/agent-payload/v5/contlcycle"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	types "github.com/DataDog/datadog-agent/pkg/containerlifecycle"
@@ -124,6 +124,8 @@ func (p *processor) processContainer(container *workloadmeta.Container, sources 
 			switch c.Owner.Kind {
 			case workloadmeta.KindKubernetesPod:
 				event.withOwnerType(types.ObjectKindPod)
+			case workloadmeta.KindECSTask:
+				event.withOwnerType(types.ObjectKindTask)
 			default:
 				log.Tracef("Cannot handle owner for container %q with type %q", container.ID, c.Owner.Kind)
 			}

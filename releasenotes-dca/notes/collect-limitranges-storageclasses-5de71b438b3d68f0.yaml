@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Add `LimitRange` and `StorageClass` collection in the orchestrator check.

@@ -6,6 +6,7 @@ require 'yaml'
 require 'find'
 require 'tempfile'
 require 'fileutils'
+require 'set'
 
 #
 # this enables RSpec output so that individual tests ("it behaves like...") are
@@ -370,17 +371,6 @@ def dogstatsd_processes_running?
   false
 end
 
-def expect_windows_cws?
-  if os == :windows && get_agent_flavor == 'datadog-agent'
-    cws = parse_dna().fetch('dd-agent-rspec').fetch('cws_included')
-    if cws == "testsigned" || cws == "release-signed" || cws == "attestation-signed"
-      return true
-    end
-  end
-  return false
-  
-end
-
 def deploy_cws?
   os != :windows &&
   get_agent_flavor == 'datadog-agent' &&
@@ -459,14 +449,16 @@ end
 def is_file_signed(fullpath)
   puts "checking file #{fullpath}"
   expect(File).to exist(fullpath)
+  
   output = `powershell -command "(get-authenticodesignature -FilePath '#{fullpath}').SignerCertificate.Thumbprint"`
-  ## signature below is for new cert acquired May 2023 using new hsm-backed signing method
-  signature_hash = "B03F29CC07566505A718583E9270A6EE17678742"
-  if output.upcase.strip == signature_hash.upcase.strip
-    return true
-  end
+  signature_hashes = Set[
+    ## signature below is for new cert acquired May 2023 using new hsm-backed signing method
+    "B03F29CC07566505A718583E9270A6EE17678742".upcase.strip,
+  ]
 
-  puts("expected hash = #{signature_hash}, actual hash = #{output}")
+  return true if signature_hashes.include?(output.upcase.strip)
+  
+  puts("Acceptable hashes: #{signature_hashes.keys}, actual hash = #{output.upcase.strip}")
   return false
 end
 
