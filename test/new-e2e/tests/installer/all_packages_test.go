@@ -103,10 +103,6 @@ func TestPackages(t *testing.T) {
 				if flavor.Flavor == e2eos.Fedora {
 					flake.Mark(t)
 				}
-				// TODO(baptiste): Fix this, systemd flakes on centos & suse
-				if flavor.Flavor == e2eos.CentOS || flavor.Flavor == e2eos.Suse {
-					flake.Mark(t)
-				}
 				opts := []awshost.ProvisionerOption{
 					awshost.WithEC2InstanceOptions(ec2.WithOSArch(flavor, flavor.Architecture)),
 					awshost.WithoutAgent(),
