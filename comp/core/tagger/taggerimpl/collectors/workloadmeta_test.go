@@ -11,7 +11,10 @@ import (
 	"sort"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
@@ -22,9 +25,6 @@ import (
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
-
-	"github.com/google/go-cmp/cmp"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestHandleKubePod(t *testing.T) {
@@ -749,6 +749,10 @@ func TestHandleKubeMetadata(t *testing.T) {
 						"ns_tier":            "some_tier",
 						"namespace_security": "critical",
 					},
+				},
+				GVR: schema.GroupVersionResource{
+					Version:  "v1",
+					Resource: "namespaces",
 				},
 			},
 			expected: []*types.TagInfo{

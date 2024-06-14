@@ -5,7 +5,7 @@
 
 //go:build test
 
-package def
+package api
 
 // Mock implements mock-specific methods.
 type Mock interface {

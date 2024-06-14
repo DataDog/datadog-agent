@@ -246,11 +246,11 @@ func TestEntityIDsFromAttributes(t *testing.T) {
 			attrs: func() pcommon.Map {
 				attributes := pcommon.NewMap()
 				attributes.FromRaw(map[string]interface{}{
-					conventions.AttributeK8SNodeUID: "k8s_node_uid_goes_here",
+					conventions.AttributeK8SNodeName: "k8s_node_name_goes_here",
 				})
 				return attributes
 			}(),
-			entityIDs: []string{"kubernetes_node_uid://k8s_node_uid_goes_here"},
+			entityIDs: []string{"kubernetes_metadata://nodes//k8s_node_name_goes_here"},
 		},
 		{
 			name: "only process pid",
