@@ -133,7 +133,6 @@
 /.gitlab/benchmarks/benchmarks.yml                   @DataDog/agent-apm
 
 /.gitlab/functional_test/regression_detector.yml     @DataDog/single-machine-performance
-/.gitlab/functional_test/workload_checks.yml         @DataDog/single-machine-performance
 
 /.gitlab/software_composition_analysis/              @DataDog/software-integrity-and-trust
 
