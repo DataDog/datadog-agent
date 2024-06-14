@@ -26,6 +26,7 @@ type InstallAgentParams struct {
 	WixFailWhenDeferred      string `installer_arg:"WIXFAILWHENDEFERRED"`
 	ProjectLocation          string `installer_arg:"PROJECTLOCATION"`
 	ApplicationDataDirectory string `installer_arg:"APPLICATIONDATADIRECTORY"`
+	AddLocal                 string `installer_arg:"ADDLOCAL"`
 	// Installer parameters for agent config
 	APIKey                  string `installer_arg:"APIKEY"`
 	Tags                    string `installer_arg:"TAGS"`
@@ -285,6 +286,14 @@ func WithApplicationDataDirectory(applicationDataDirectory string) InstallAgentO
 func WithProjectLocation(projectLocation string) InstallAgentOption {
 	return func(i *InstallAgentParams) error {
 		i.ProjectLocation = projectLocation
+		return nil
+	}
+}
+
+// WithAddLocal specifies the ADDLOCAL parameter.
+func WithAddLocal(addLocal string) InstallAgentOption {
+	return func(i *InstallAgentParams) error {
+		i.AddLocal = addLocal
 		return nil
 	}
 }
