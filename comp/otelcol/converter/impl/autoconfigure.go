@@ -23,12 +23,12 @@ type component struct {
 
 func enhanceConfig(conf *confmap.Conf) {
 	// extensions
-	for _, component := range extensions {
-		if ExtensionIsInServicePipeline(conf, component) {
+	for _, extension := range extensions {
+		if ExtensionIsInServicePipeline(conf, extension) {
 			continue
 		}
-		addComponentToConfig(conf, component)
-		addExtensionToPipeline(conf, component)
+		addComponentToConfig(conf, extension)
+		addExtensionToPipeline(conf, extension)
 	}
 
 	// infra attributes processor
@@ -43,8 +43,8 @@ func componentName(fullName string) string {
 	return parts[0]
 }
 
-// addComponentToPipeline adds comp collector config. It supports receivers, processors,
-// exporters and extensions.
+// addComponentToPipeline adds comp to the collector config. It supports receivers,
+// processors, exporters and extensions.
 func addComponentToConfig(conf *confmap.Conf, comp component) {
 	stringMapConf := conf.ToStringMap()
 
@@ -57,6 +57,7 @@ func addComponentToConfig(conf *confmap.Conf, comp component) {
 			comp.EnhancedName: comp.Config,
 		}
 	}
+
 	*conf = *confmap.NewFromStringMap(stringMapConf)
 }
 
@@ -73,14 +74,14 @@ func addComponentToPipeline(conf *confmap.Conf, comp component, pipelineName str
 						// create pipeline
 						pipelinesMap[pipelineName] = map[string]any{}
 					}
-					if pipeline, ok := pipelinesMap[pipelineName].(map[string]any); ok {
-						_, ok := pipeline[comp.Type]
+					if pipelineMap, ok := pipelinesMap[pipelineName].(map[string]any); ok {
+						_, ok := pipelineMap[comp.Type]
 						if !ok {
-							pipeline[comp.Type] = []any{}
+							pipelineMap[comp.Type] = []any{}
 						}
-						if pipelineTypeSlice, ok := pipeline[comp.Type].([]any); ok {
-							pipelineTypeSlice = append(pipelineTypeSlice, comp.EnhancedName)
-							pipeline[comp.Type] = pipelineTypeSlice
+						if pipelineOfTypeSlice, ok := pipelineMap[comp.Type].([]any); ok {
+							pipelineOfTypeSlice = append(pipelineOfTypeSlice, comp.EnhancedName)
+							pipelineMap[comp.Type] = pipelineOfTypeSlice
 						}
 					}
 				}

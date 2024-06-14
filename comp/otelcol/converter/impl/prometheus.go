@@ -37,7 +37,7 @@ var (
 	}
 )
 
-// addPrometheusReceiver ensures that each datadogexporter is configured with a prometheus collector
+// addPrometheusReceiver ensures that each datadogexporter is configured with a prometheus receiver
 // which points to the collectors internal telemetry metrics. In cases where this is not true, it adds
 // a pipeline with the prometheus exporter and datadog exporter.
 // todo(mackjmr): in the case where there are two datadog exporters with the same API key, we may not
@@ -102,7 +102,7 @@ func addPrometheusReceiver(conf *confmap.Conf, comp component) {
 	if len(datadogExportersMap) == 0 {
 		return
 	}
-	
+
 	// update default prometheus config based on service telemetry address.
 	if prometheusConfigMap, ok := comp.Config.(map[string]any); ok {
 		if config, ok := prometheusConfigMap["config"]; ok {

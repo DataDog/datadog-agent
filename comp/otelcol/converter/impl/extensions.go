@@ -71,13 +71,13 @@ func addExtensionToPipeline(conf *confmap.Conf, comp component) {
 	stringMapConf := conf.ToStringMap()
 	if service, ok := stringMapConf["service"]; ok {
 		if serviceMap, ok := service.(map[string]any); ok {
-			if extensions, ok := serviceMap["extensions"]; ok {
-				if extensionsSlice, ok := extensions.([]any); ok {
-					extensionsSlice = append(extensionsSlice, comp.EnhancedName)
-					serviceMap["extensions"] = extensionsSlice
-				}
-			} else {
-				serviceMap["extensions"] = []any{comp.EnhancedName}
+			_, ok := serviceMap["extensions"]
+			if !ok {
+				serviceMap["extensions"] = []any{}
+			}
+			if extensionsSlice, ok := serviceMap["extensions"].([]any); ok {
+				extensionsSlice = append(extensionsSlice, comp.EnhancedName)
+				serviceMap["extensions"] = extensionsSlice
 			}
 		}
 	}
