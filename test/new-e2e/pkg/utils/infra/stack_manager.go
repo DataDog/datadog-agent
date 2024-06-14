@@ -303,7 +303,7 @@ func (sm *StackManager) getLoggingOptions() (debug.LoggingOptions, error) {
 }
 
 func (sm *StackManager) getProgressStreamsOnUp(logger io.Writer) optup.Option {
-	progressStreams, err := runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.PulumiVerboseProgressStreams, false)
+	progressStreams, err := runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.PulumiVerboseProgressStreams, true)
 	if err != nil {
 		return optup.ErrorProgressStreams(logger)
 	}
