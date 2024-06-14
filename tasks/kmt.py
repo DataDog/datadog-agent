@@ -656,13 +656,14 @@ def prepare(
 
         # Copy the binaries to the target directory, CI will take them from those
         # paths as artifacts
-        copy_executables = {
+        copy_static_files = {
             gotestsum_path: paths.dependencies / "go/bin/gotestsum",
             clang_path: paths.arch_dir / "opt/datadog-agent/embedded/bin/clang-bpf",
             llc_path: paths.arch_dir / "opt/datadog-agent/embedded/bin/llc-bpf",
+            "flakes.yaml": paths.dependencies / "flakes.yaml",
         }
 
-        for src, dst in copy_executables.items():
+        for src, dst in copy_static_files.items():
             ctx.run(f"install -D {src} {dst}")
     else:
         gotestsum_path = paths.dependencies / "go/bin/gotestsum"
