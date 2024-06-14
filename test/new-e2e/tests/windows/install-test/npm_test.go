@@ -36,17 +36,16 @@ type testNPMUpgradeToNPMSuite struct {
 }
 
 func (s *testNPMUpgradeToNPMSuite) TestNPMUgpradeToNPM() {
-	// s.installPreviousAgentVersion(s.Env().RemoteHost)
-	// s.Require().False(s.isNPMInstalled(), "NPM should not be installed")
+	s.installPreviousAgentVersion(s.Env().RemoteHost)
+	s.Require().False(s.isNPMInstalled(), "NPM should not be installed")
 
 	// // upgrade to the new version
-	// s.upgradeAgent(s.Env().RemoteHost, s.AgentPackage)
+	s.upgradeAgent(s.Env().RemoteHost, s.AgentPackage)
 
 	// run tests
-	// s.Require().True(s.isNPMInstalled(), "NPM should be installed")
-	// s.enableNPM()
+	s.Require().True(s.isNPMInstalled(), "NPM should be installed")
+	s.enableNPM()
 	s.testNPMFunctional()
-	s.T().FailNow()
 }
 
 // TestNPMUpgradeNPMToNPM tests the latest installer can successfully upgrade
