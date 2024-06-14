@@ -40,16 +40,7 @@ func (s *testNPMUpgradeToNPMSuite) TestNPMUgpradeToNPM() {
 	s.Require().False(s.isNPMInstalled(), "NPM should not be installed")
 
 	// upgrade to the new version
-	if !s.Run(fmt.Sprintf("upgrade to %s", s.AgentPackage.AgentVersion()), func() {
-		_, err := s.InstallAgent(s.Env().RemoteHost,
-			windowsAgent.WithPackage(s.AgentPackage),
-			windowsAgent.WithInstallLogFile(filepath.Join(s.OutputDir, "upgrade.log")),
-		)
-		s.Require().NoError(err, "should upgrade to agent %s", s.AgentPackage.AgentVersion())
-		s.testRunningExpectedVersion(s.AgentPackage)
-	}) {
-		s.T().FailNow()
-	}
+	s.upgradeAgent(s.Env().RemoteHost, s.AgentPackage)
 
 	// run tests
 	s.Require().True(s.isNPMInstalled(), "NPM should be installed")
@@ -79,16 +70,7 @@ func (s *testNPMUpgradeNPMToNPMSuite) TestNPMUpgradeNPMToNPM() {
 	s.Require().True(s.isNPMInstalled(), "NPM should be installed")
 
 	// upgrade to the new version
-	if !s.Run(fmt.Sprintf("upgrade to %s", s.AgentPackage.AgentVersion()), func() {
-		_, err := s.InstallAgent(s.Env().RemoteHost,
-			windowsAgent.WithPackage(s.AgentPackage),
-			windowsAgent.WithInstallLogFile(filepath.Join(s.OutputDir, "upgrade.log")),
-		)
-		s.Require().NoError(err, "should upgrade to agent %s", s.AgentPackage.AgentVersion())
-		s.testRunningExpectedVersion(s.AgentPackage)
-	}) {
-		s.T().FailNow()
-	}
+	s.upgradeAgent(s.Env().RemoteHost, s.AgentPackage)
 
 	// run tests
 	s.Require().True(s.isNPMInstalled(), "NPM should be installed")
@@ -142,16 +124,7 @@ func (s *testNPMUpgradeFromBeta) TestNPMUpgradeFromBeta() {
 	s.Require().True(s.isNPMInstalled(), "NPM should be installed")
 
 	// upgrade to the new version
-	if !s.Run(fmt.Sprintf("upgrade to %s", s.AgentPackage.AgentVersion()), func() {
-		_, err := s.InstallAgent(s.Env().RemoteHost,
-			windowsAgent.WithPackage(s.AgentPackage),
-			windowsAgent.WithInstallLogFile(filepath.Join(s.OutputDir, "upgrade.log")),
-		)
-		s.Require().NoError(err, "should upgrade to agent %s", s.AgentPackage.AgentVersion())
-		s.testRunningExpectedVersion(s.AgentPackage)
-	}) {
-		s.T().FailNow()
-	}
+	s.upgradeAgent(s.Env().RemoteHost, s.AgentPackage)
 
 	// run tests
 	s.Require().True(s.isNPMInstalled(), "NPM should be installed")
@@ -233,6 +206,21 @@ func (s *testNPMInstallSuite) testRunningExpectedVersion(pkg *windowsAgent.Packa
 		installedVersion, err := client.GetAgentVersion()
 		s.Require().NoError(err, "should get agent version")
 		windowsAgent.TestAgentVersion(s.T(), pkg.AgentVersion(), installedVersion)
+	}) {
+		s.T().FailNow()
+	}
+}
+
+func (s *testNPMInstallSuite) upgradeAgent(vm *components.RemoteHost, agentPackage *windowsAgent.Package, options ...windowsAgent.InstallAgentOption) {
+	installOpts := []windowsAgent.InstallAgentOption{
+		windowsAgent.WithPackage(agentPackage),
+		windowsAgent.WithInstallLogFile(filepath.Join(s.OutputDir, "upgrade.log")),
+	}
+	installOpts = append(installOpts, options...)
+	if !s.Run(fmt.Sprintf("upgrade to %s", agentPackage.AgentVersion()), func() {
+		_, err := s.InstallAgent(vm, installOpts...)
+		s.Require().NoError(err, "should upgrade to agent %s", agentPackage.AgentVersion())
+		s.testRunningExpectedVersion(agentPackage)
 	}) {
 		s.T().FailNow()
 	}
