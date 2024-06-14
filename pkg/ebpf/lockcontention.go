@@ -111,6 +111,10 @@ type LockContentionCollector struct {
 	cpus                 uint32
 	ranges               uint32
 
+	// buffers used in Collect operation
+	lockRanges []LockRange
+	contention []ContentionData
+
 	initialized bool
 }
 
@@ -225,15 +229,25 @@ func (l *LockContentionCollector) Collect(metrics chan<- prometheus.Metric) {
 	}
 
 	var cursor ebpf.MapBatchCursor
-	lockRanges := make([]LockRange, l.ranges)
-	contention := make([]ContentionData, l.ranges)
-	if _, err := l.objects.LockStats.BatchLookup(&cursor, lockRanges, contention, nil); !errors.Is(err, ebpf.ErrKeyNotExist) {
+
+	// reset buffers
+	l.lockRanges[0] = LockRange{}
+	for i := 1; i < len(l.lockRanges); i *= 2 {
+		copy(l.lockRanges[i:], l.lockRanges[:i])
+	}
+
+	l.contention[0] = ContentionData{}
+	for i := 1; i < len(l.contention); i *= 2 {
+		copy(l.contention[i:], l.contention[:i])
+	}
+
+	if _, err := l.objects.LockStats.BatchLookup(&cursor, l.lockRanges, l.contention, nil); !errors.Is(err, ebpf.ErrKeyNotExist) {
 		log.Errorf("failed to perform batch lookup for lock stats: %v", err)
 		return
 	}
 
-	for i, data := range contention {
-		lr := lockRanges[i]
+	for i, data := range l.contention {
+		lr := l.lockRanges[i]
 		if lr.Start == 0 {
 			continue
 		}
@@ -258,6 +272,7 @@ func (l *LockContentionCollector) Collect(metrics chan<- prometheus.Metric) {
 
 	l.maxContention.Collect(metrics)
 	l.avgContention.Collect(metrics)
+	l.totalContention.Collect(metrics)
 }
 
 // Initialize will collect all the memory ranges we wish to monitor in our lock stats eBPF programs
@@ -451,6 +466,10 @@ func (l *LockContentionCollector) Initialize(trackAllResources bool) error {
 	if _, err := l.objects.Ranges.BatchUpdate(keys, values, nil); err != nil {
 		return fmt.Errorf("unable to perform batch update on per cpu array map: %w", err)
 	}
+
+	// initialize buffers used in Collect
+	l.lockRanges = make([]LockRange, l.ranges)
+	l.contention = make([]ContentionData, l.ranges)
 
 	return nil
 }
