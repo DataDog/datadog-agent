@@ -49,8 +49,8 @@ func addComponentToConfig(conf *confmap.Conf, comp component) {
 	stringMapConf := conf.ToStringMap()
 
 	if components, ok := stringMapConf[comp.Type]; ok {
-		if componentMap, ok := components.(map[string]any); ok {
-			componentMap[comp.EnhancedName] = comp.Config
+		if componentsMap, ok := components.(map[string]any); ok {
+			componentsMap[comp.EnhancedName] = comp.Config
 		}
 	} else {
 		stringMapConf[comp.Type] = map[string]any{

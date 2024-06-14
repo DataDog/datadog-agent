@@ -40,6 +40,11 @@ var (
 // addPrometheusReceiver ensures that each datadogexporter is configured with a prometheus collector
 // which points to the collectors internal telemetry metrics. In cases where this is not true, it adds
 // a pipeline with the prometheus exporter and datadog exporter.
+// todo(mackjmr): in the case where there are two datadog exporters with the same API key, we may not
+// want to configure two pipelines with the prometheus receiver for each exporter, as this will lead
+// to shipping the health metrics twice to the same org. If there are two datadog exporters with
+// different API keys, there is no way to know if these are from the same org, so there is a risk
+// of double shipping.
 func addPrometheusReceiver(conf *confmap.Conf, comp component) {
 	datadogExportersMap := getDatadogExporters(conf)
 	internalMetricsAddress := conf.Get("service::telemetry::metrics::address")
@@ -97,12 +102,7 @@ func addPrometheusReceiver(conf *confmap.Conf, comp component) {
 	if len(datadogExportersMap) == 0 {
 		return
 	}
-
-	_, ok := stringMapConf["receivers"]
-	if !ok {
-		stringMapConf["receivers"] = map[string]any{}
-	}
-
+	
 	// update default prometheus config based on service telemetry address.
 	if prometheusConfigMap, ok := comp.Config.(map[string]any); ok {
 		if config, ok := prometheusConfigMap["config"]; ok {

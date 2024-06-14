@@ -77,6 +77,11 @@ func TestConvert(t *testing.T) {
 			expectedResult: "processors/other-processors/config-result.yaml",
 		},
 		{
+			name:           "processors/no-processor-in-some-pipelines",
+			provided:       "processors/no-processor-in-some-pipelines/config.yaml",
+			expectedResult: "processors/no-processor-in-some-pipelines/config-result.yaml",
+		},
+		{
 			name:           "processors/no-changes",
 			provided:       "processors/no-changes/config.yaml",
 			expectedResult: "processors/no-changes/config.yaml",

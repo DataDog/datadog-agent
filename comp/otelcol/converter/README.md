@@ -1,12 +1,12 @@
 # Converter Component
 
-The converter contains two main responsibilities:
+The converter has two main responsibilities:
 - Taking in a user provided configuration, and enhancing the config
 - Providing an API which returns the provided and enhanced config
 
 ## Autoconfigure logic
 
-The autoconfigure logic takes is applied within the `Convert` function. It takes in a `*confmap.Conf` and will modify it based on the logic described below.
+The autoconfigure logic is applied within the `Convert` function. It takes in a `*confmap.Conf` and will modify it based on the logic described below.
 
 ### Extensions
 
