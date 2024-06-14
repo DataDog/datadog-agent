@@ -1758,7 +1758,7 @@ func testRedisProtocolClassificationInner(t *testing.T, tr *Tracer, clientHost, 
 				require.NoError(t, err)
 				_, err = conn.Write([]byte("+dummy\r\n"))
 				require.NoError(t, err)
-				_, err = conn.Read(make([]byte, 128))
+				_, err = conn.Read(make([]byte, 1))
 				require.NoError(t, err)
 			},
 			validation: validateProtocolConnection(expectedStack),
