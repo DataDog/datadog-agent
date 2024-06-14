@@ -474,12 +474,12 @@ namespace Datadog.CustomActions.Native
             out IntPtr pDOMAIN_CONTROLLER_INFO
         );
 
-        [DllImport("msi.dll", CharSet=CharSet.Unicode)]
+        [DllImport("msi.dll", CharSet = CharSet.Unicode)]
         static extern Int32 MsiGetProductInfo
         (
-            string product, 
-            string property, 
-            [Out] StringBuilder valueBuf, 
+            string product,
+            string property,
+            [Out] StringBuilder valueBuf,
             ref Int32 len
         );
 
@@ -928,7 +928,7 @@ namespace Datadog.CustomActions.Native
             var len = 512;
             var builder = new System.Text.StringBuilder(len);
 
-            MsiGetProductInfo(product, "VersionString", builder , ref len);
+            MsiGetProductInfo(product, "VersionString", builder, ref len);
 
             return builder.ToString();
         }
