@@ -12,10 +12,10 @@ int __attribute__((always_inline)) trace__sys_execveat(ctx_t *ctx, const char *p
         .type = EVENT_EXEC,
         .exec = {
             .args = {
-                .id = rand32(),
+                .id = id64(),
             },
             .envs = {
-                .id = rand32(),
+                .id = id64(),
             } }
     };
     collect_syscall_ctx(&syscall, SYSCALL_CTX_ARG_STR(0), (void *)path, NULL, NULL);
