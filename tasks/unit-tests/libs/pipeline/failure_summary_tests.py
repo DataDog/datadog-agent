@@ -8,7 +8,7 @@ from gitlab.v4.objects import ProjectPipelineJob, ProjectPipeline, ProjectManage
 from invoke import Context
 
 from tasks.libs.pipeline import failure_summary
-from tasks.libs.pipeline.failure_summary import SummaryData
+from tasks.libs.pipeline.failure_summary import SummaryData, SummaryStats
 
 TEST_DIR = '/tmp/summary'
 
@@ -42,14 +42,19 @@ class FailureSummaryTest(TestCase):
     def list_files(self, ctx: Context) -> list[str]:
         return os.listdir(TEST_DIR)
 
-    def get_dummy_summary_data(self, job_ids: list[int], id=618) -> SummaryData:
-        jobs = [ProjectPipelineJob(manager=MagicMock(), attrs={'id': id}) for id in job_ids]
+    def get_dummy_summary_data(self, jobs: list[dict], id=618) -> SummaryData:
+        jobs = [ProjectPipelineJob(manager=MagicMock(), attrs=attr) for attr in jobs]
 
         return SummaryData(MagicMock(), id, jobs=jobs, pipeline=ProjectPipeline(manager=MagicMock(), attrs={'id': 42}))
 
+    def get_dummy_summary_data_ids(self, job_ids: list[int], id=618) -> SummaryData:
+        return self.get_dummy_summary_data([{'id': i} for i in job_ids], id=id)
+
     @contextmanager
     def patch_fetch_jobs(self, job_ids: list[int]):
-        p = patch('tasks.libs.pipeline.failure_summary.fetch_jobs', return_value=self.get_dummy_summary_data(job_ids))
+        p = patch(
+            'tasks.libs.pipeline.failure_summary.fetch_jobs', return_value=self.get_dummy_summary_data_ids(job_ids)
+        )
         mock = p.start()
 
         try:
@@ -67,7 +72,7 @@ class FailureSummaryTest(TestCase):
 
 class SummaryDataTest(FailureSummaryTest):
     def test_read_write_summaries(self):
-        data = self.get_dummy_summary_data([1, 2, 3], id=618)
+        data = self.get_dummy_summary_data_ids([1, 2, 3], id=618)
         data.write()
 
         data = SummaryData.read(MagicMock(), MagicMock(), 618)
@@ -77,8 +82,8 @@ class SummaryDataTest(FailureSummaryTest):
         self.assertEqual(data.jobs[2].id, 3)
 
     def test_list_write_summaries(self):
-        self.get_dummy_summary_data([1, 2, 3], id=314).write()
-        self.get_dummy_summary_data([4, 5, 6], id=618).write()
+        self.get_dummy_summary_data_ids([1, 2, 3], id=314).write()
+        self.get_dummy_summary_data_ids([4, 5, 6], id=618).write()
 
         summaries = SummaryData.list_summaries(MagicMock())
 
@@ -87,8 +92,8 @@ class SummaryDataTest(FailureSummaryTest):
         self.assertEqual(summaries[1], 618)
 
     def test_list_write_summaries_before(self):
-        self.get_dummy_summary_data([1, 2, 3], id=314).write()
-        self.get_dummy_summary_data([4, 5, 6], id=618).write()
+        self.get_dummy_summary_data_ids([1, 2, 3], id=314).write()
+        self.get_dummy_summary_data_ids([4, 5, 6], id=618).write()
 
         summaries = SummaryData.list_summaries(MagicMock(), before=500)
 
@@ -96,8 +101,8 @@ class SummaryDataTest(FailureSummaryTest):
         self.assertEqual(summaries[0], 314)
 
     def test_list_write_summaries_after(self):
-        self.get_dummy_summary_data([1, 2, 3], id=314).write()
-        self.get_dummy_summary_data([4, 5, 6], id=618).write()
+        self.get_dummy_summary_data_ids([1, 2, 3], id=314).write()
+        self.get_dummy_summary_data_ids([4, 5, 6], id=618).write()
 
         summaries = SummaryData.list_summaries(MagicMock(), after=500)
 
@@ -105,13 +110,66 @@ class SummaryDataTest(FailureSummaryTest):
         self.assertEqual(summaries[0], 618)
 
     def test_merge_summaries(self):
-        summary = SummaryData.merge([
-            self.get_dummy_summary_data([1, 2, 3], id=314),
-            self.get_dummy_summary_data([4, 5, 6], id=618),
-            self.get_dummy_summary_data([7, 8], id=1618),
-        ])
+        summary = SummaryData.merge(
+            [
+                self.get_dummy_summary_data_ids([1, 2, 3], id=314),
+                self.get_dummy_summary_data_ids([4, 5, 6], id=618),
+                self.get_dummy_summary_data_ids([7, 8], id=1618),
+            ]
+        )
         self.assertEqual(len(summary.jobs), 8)
         self.assertEqual(summary.id, None)
+
+
+class SummaryStatsTest(FailureSummaryTest):
+    def test_make_stats(self):
+        data = self.get_dummy_summary_data(
+            [
+                {'name': 'Job1', 'status': 'success', 'allow_failure': False},
+                {'name': 'Job2', 'status': 'failed', 'allow_failure': False},
+                {'name': 'Job1', 'status': 'failed', 'allow_failure': False},
+                {'name': 'Job2', 'status': 'success', 'allow_failure': False},
+                {'name': 'Job1', 'status': 'failed', 'allow_failure': False},
+            ]
+        )
+
+        stats = SummaryStats(data, allow_failure=False)
+        result = stats.make_stats(max_length=1000, team=None)
+        result = sorted(result, key=lambda d: d['name'])
+
+        self.assertEqual(len(result), 2)
+        self.assertEqual(result[0], {'name': 'Job1', 'failures': 2, 'runs': 3})
+        self.assertEqual(result[1], {'name': 'Job2', 'failures': 1, 'runs': 2})
+
+    def test_make_stats_allow_failure(self):
+        data = self.get_dummy_summary_data(
+            [
+                {'name': 'Job1', 'status': 'success', 'allow_failure': False},
+                {'name': 'Job2', 'status': 'failed', 'allow_failure': False},
+                {'name': 'Job1', 'status': 'failed', 'allow_failure': False},
+                {'name': 'Job2', 'status': 'success', 'allow_failure': False},
+                {'name': 'Job1', 'status': 'failed', 'allow_failure': False},
+                {'name': 'Job3', 'status': 'failed', 'allow_failure': True},
+                {'name': 'Job4', 'status': 'success', 'allow_failure': True},
+                {'name': 'Job3', 'status': 'success', 'allow_failure': True},
+                {'name': 'Job4', 'status': 'success', 'allow_failure': True},
+            ]
+        )
+
+        stats = SummaryStats(data, allow_failure=False)
+        result = stats.make_stats(max_length=1000, team=None)
+        result = sorted(result, key=lambda d: d['name'])
+
+        self.assertEqual(len(result), 2)
+        self.assertEqual(result[0], {'name': 'Job1', 'failures': 2, 'runs': 3})
+        self.assertEqual(result[1], {'name': 'Job2', 'failures': 1, 'runs': 2})
+
+        stats = SummaryStats(data, allow_failure=True)
+        result = stats.make_stats(max_length=1000, team=None)
+        result = sorted(result, key=lambda d: d['name'])
+
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0], {'name': 'Job3', 'failures': 1, 'runs': 2})
 
 
 class HighLevelTest(FailureSummaryTest):
@@ -124,4 +182,3 @@ class HighLevelTest(FailureSummaryTest):
             self.assertEqual(len(summary.jobs), 2)
             self.assertEqual(summary.jobs[0].id, 1)
             self.assertEqual(summary.jobs[1].id, 2)
-
