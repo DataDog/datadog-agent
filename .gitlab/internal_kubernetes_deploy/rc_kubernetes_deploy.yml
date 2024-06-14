@@ -27,6 +27,5 @@ rc_kubernetes_deploy:
     - "inv pipeline.trigger-child-pipeline --project-name DataDog/k8s-datadog-agent-ops --git-ref main
       --variable OPTION_AUTOMATIC_ROLLOUT
       --variable EXPLICIT_WORKFLOWS
-      --variable OPTION_PRE_SCRIPT
       --variable SKIP_PLAN_CHECK
       --variable AGENT_IMAGE_TAG"
