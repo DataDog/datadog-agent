@@ -6,7 +6,10 @@
 package client
 
 import (
+	"errors"
 	"fmt"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -40,7 +43,7 @@ func NewHostAgentClient(context e2e.Context, hostOutput remote.HostOutput, waitF
 	commandRunner := newAgentCommandRunner(context.T(), ae)
 
 	if params.ShouldWaitForReady {
-		if err := commandRunner.waitForReadyTimeout(agentReadyTimeout); err != nil {
+		if err := waitForReadyTimeout(context.T(), host, commandRunner, agentReadyTimeout); err != nil {
 			return nil, err
 		}
 	}
@@ -61,7 +64,7 @@ func NewHostAgentClientWithParams(context e2e.Context, hostOutput remote.HostOut
 	commandRunner := newAgentCommandRunner(context.T(), ae)
 
 	if params.ShouldWaitForReady {
-		if err := commandRunner.waitForReadyTimeout(agentReadyTimeout); err != nil {
+		if err := waitForReadyTimeout(context.T(), host, commandRunner, agentReadyTimeout); err != nil {
 			return nil, err
 		}
 	}
@@ -127,7 +130,7 @@ func ensureAuthToken(params *agentclientparams.Params, _ osComp.Family, host *Ho
 	if err != nil {
 		return fmt.Errorf("could not read auth token file: %v", err)
 	}
-	params.AuthToken = strings.TrimSpace(string(authToken))
+	params.AuthToken = strings.TrimSpace(authToken)
 
 	return nil
 }
@@ -168,4 +171,98 @@ func curlCommand(endpoint string, authToken string) string {
 		authToken,
 		endpoint,
 	)
+}
+
+func waitForReadyTimeout(t *testing.T, host *Host, commandRunner *agentCommandRunner, timeout time.Duration) error {
+	err := commandRunner.waitForReadyTimeout(timeout)
+
+	//if err != nil {
+	// Propagate the original error if we have another error here
+	localErr := generateAndDownloadFlare(t, commandRunner, host)
+
+	if localErr != nil {
+		t.Errorf("Could not generate flare: %v", localErr)
+	}
+	//}
+
+	return err
+}
+
+func generateAndDownloadFlare(t *testing.T, commandRunner *agentCommandRunner, host *Host) error {
+	profile := runner.GetProfile()
+	outputDir, err := profile.GetOutputDir()
+	//flareFound := false
+
+	if err != nil {
+		return errors.New(fmt.Sprintf("Could not get output directory: %v", err))
+	}
+
+	_, err = commandRunner.FlareWithError(agentclient.WithArgs([]string{"--email", "e2e@test.com", "--send", "--local"}))
+	if err != nil {
+		t.Errorf("Error while generating the flare: %v.", err)
+		// Do not return now, the flare may be generated locally but was not uploaded because there's no fake intake
+	}
+
+	flareRegex, err := regexp.Compile(`datadog-agent-.*\.zip`)
+	if err != nil {
+		return errors.New(fmt.Sprintf("could not compile regex: %v", err))
+	}
+
+	tmpFolder, err := host.GetTmpFolder()
+	if err != nil {
+		return errors.New(fmt.Sprintf("Could not get tmp folder: %v", err))
+	}
+
+	entries, err := host.ReadDir(tmpFolder)
+	if err != nil {
+		return errors.New(fmt.Sprintf("Could not read directory: %v", err))
+	}
+
+	for _, entry := range entries {
+		if flareRegex.MatchString(entry.Name()) {
+			t.Logf("Found flare file: %s", entry.Name())
+
+			if host.osFamily != osComp.WindowsFamily {
+				_, err = host.Execute(fmt.Sprintf("sudo chmod 744 %s/%s", tmpFolder, entry.Name()))
+				if err != nil {
+					return errors.New(fmt.Sprintf("Could update permission of flare file %s/%s : %v", tmpFolder, entry.Name(), err))
+				}
+			}
+
+			t.Logf("Downloading flare file in: %s", outputDir)
+			err = host.GetFile(fmt.Sprintf("%s/%s", tmpFolder, entry.Name()), fmt.Sprintf("%s/%s", outputDir, entry.Name()))
+
+			if err != nil {
+				return errors.New(fmt.Sprintf("Could not download flare file from %s/%s : %v", tmpFolder, entry.Name(), err))
+			}
+
+			//flareFound = true
+		}
+	}
+
+	//if !flareFound {
+	t.Errorf("Could not find a flare. Retrieving logs directly instead...")
+
+	logsFolder, err := host.GetLogsFolder()
+	if err != nil {
+		return errors.New(fmt.Sprintf("Could not get logs folder: %v", err))
+	}
+
+	entries, err = host.ReadDir(logsFolder)
+
+	if err != nil {
+		return errors.New(fmt.Sprintf("Could not read directory: %v", err))
+	}
+
+	for _, entry := range entries {
+		t.Logf("Found log file: %s. Downloading file in: %s", entry.Name(), outputDir)
+
+		err = host.GetFile(fmt.Sprintf("%s/%s", logsFolder, entry.Name()), fmt.Sprintf("%s/%s", outputDir, entry.Name()))
+		if err != nil {
+			return errors.New(fmt.Sprintf("Could not download log file from %s/%s : %v", logsFolder, entry.Name(), err))
+		}
+	}
+	//}
+
+	return nil
 }
