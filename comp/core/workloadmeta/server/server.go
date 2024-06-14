@@ -87,6 +87,7 @@ func (s *Server) StreamEntities(in *pb.WorkloadmetaStreamRequest, out pb.AgentSe
 				ticker.Reset(workloadmetaKeepAliveInterval)
 			}
 		case <-out.Context().Done():
+			log.Warnf("CONTEXT DONE SERVER SIDE")
 			return nil
 
 		// The remote workloadmeta client has a timeout that closes the
@@ -96,6 +97,7 @@ func (s *Server) StreamEntities(in *pb.WorkloadmetaStreamRequest, out pb.AgentSe
 		// goal is only to keep the connection alive without losing the
 		// protection against “half” closed connections brought by the timeout.
 		case <-ticker.C:
+			log.Warnf("SENDING KEEP ALIVE SERVER SIDE")
 			err = grpc.DoWithTimeout(func() error {
 				return out.Send(&pb.WorkloadmetaStreamResponse{
 					Events: []*pb.WorkloadmetaEvent{},
