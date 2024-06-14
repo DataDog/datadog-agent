@@ -76,7 +76,7 @@ func (e *EBPFErrorsCollector) Collect(ch chan<- prometheus.Metric) {
 				}
 				delta := float64(errCount - e.lastValues[key])
 				if delta > 0 {
-					ch <- prometheus.MustNewConstMetric(e.ebpfMapOpsErrors, prometheus.CounterValue, delta, index.value, errStr)
+					ch <- prometheus.MustNewConstMetric(e.ebpfMapOpsErrors, prometheus.CounterValue, delta, index.name, errStr)
 				}
 				e.lastValues[key] = errCount
 			}
@@ -96,7 +96,7 @@ func (e *EBPFErrorsCollector) Collect(ch chan<- prometheus.Metric) {
 					}
 					delta := float64(errCount - e.lastValues[key])
 					if delta > 0 {
-						ch <- prometheus.MustNewConstMetric(e.ebpfHelperErrors, prometheus.CounterValue, delta, helperName, index.value, errStr)
+						ch <- prometheus.MustNewConstMetric(e.ebpfHelperErrors, prometheus.CounterValue, delta, helperName, index.name, errStr)
 					}
 					e.lastValues[key] = errCount
 				}
