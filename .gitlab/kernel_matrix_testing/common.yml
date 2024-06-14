@@ -66,7 +66,7 @@
   # Retrieve complexity data
   - |
     if [ "${TEST_SET}" = "only_tracersuite" ] || [ "${TEST_SET}" = "all_tests" ]; then
-      ssh metal_instance "scp ${MICRO_VM_IP}:/verifier-complexity /home/ubuntu/verifier-complexity-${ARCH}-${TAG}-${TEST_COMPONENT}.tar.gz" || true
+      ssh metal_instance "scp ${MICRO_VM_IP}:/verifier-complexity.tar.gz /home/ubuntu/verifier-complexity-${ARCH}-${TAG}-${TEST_COMPONENT}.tar.gz" || true
       scp "/home/ubuntu/verifier-complexity-${ARCH}-${TAG}-${TEST_COMPONENT}.tar.gz" $DD_AGENT_TESTING_DIR/ || true
     fi
   - !reference [.tag_kmt_ci_job]
@@ -253,6 +253,7 @@
     paths:
       - $DD_AGENT_TESTING_DIR/junit-$ARCH-$TAG-$TEST_SET.tar.gz
       - $DD_AGENT_TESTING_DIR/testjson-$ARCH-$TAG-$TEST_SET.tar.gz
+      - $DD_AGENT_TESTING_DIR/verifier-complexity-$ARCH-$TAG-${TEST_COMPONENT}.tar.gz
       - $CI_PROJECT_DIR/logs
       - $CI_PROJECT_DIR/pcaps
     reports:
