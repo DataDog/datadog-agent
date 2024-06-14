@@ -237,7 +237,7 @@ def send_summary_slack_message(channel: str, stats: list[dict], allow_failure: b
     period = 'Daily' if not allow_failure else 'Weekly'
     duration = '24 hours' if not allow_failure else 'week'
     delta = timedelta(days=1) if not allow_failure else timedelta(weeks=1)
-    you_own = ' you own' if channel != '#agent-platform-ops' else ''
+    you_own = ' you own' if channel != GITHUB_SLACK_MAP[ALL_TEAMS] else ''
     flaky_tests = (
         ''
         if allow_failure
@@ -246,7 +246,9 @@ def send_summary_slack_message(channel: str, stats: list[dict], allow_failure: b
     expected_to_fail = 'They are allowed to fail' if allow_failure else 'They are not expected to fail'
 
     message = []
-    for name, fail in stats:
+    for stat in stats:
+        name = stat['name']
+        fail = stat['failures']
         link = get_ci_visibility_job_url(
             name, prefix=False, extra_flags=['status:error', '-@error.domain:provider']
         )
@@ -280,9 +282,7 @@ def send_summary_slack_message(channel: str, stats: list[dict], allow_failure: b
 
     # Send message
     client = WebClient(os.environ["SLACK_API_TOKEN"])
-    # TODO
-    # client.chat_postMessage(channel=channel, blocks=blocks)
-    client.chat_postMessage(channel='#celian-tests', blocks=blocks)
+    client.chat_postMessage(channel=channel, blocks=blocks)
 
 
 def send_summary_messages(ctx: Context, allow_failure: bool, max_length: int, period: timedelta, jobowners: str = '.gitlab/JOBOWNERS'):
@@ -291,13 +291,9 @@ def send_summary_messages(ctx: Context, allow_failure: bool, max_length: int, pe
     """
     summary = fetch_summaries(ctx, period)
     stats = SummaryStats(summary, allow_failure)
-    print('Made stats')
 
     team_stats = stats.make_stats(max_length, jobowners=jobowners)
     for channel, stat in team_stats.items():
-        # print()
-        # print('* TO:', channel)
-        # TODO : Send
         # TODO : try catch
         send_summary_slack_message(channel=channel, stats=stat, allow_failure=allow_failure)
 

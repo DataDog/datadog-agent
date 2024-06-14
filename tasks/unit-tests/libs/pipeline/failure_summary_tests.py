@@ -273,9 +273,8 @@ class ModuleTest(FailureSummaryTest):
         # 6, 8, 10
         self.assertEqual(new_ids, ids[2:])
 
-    @patch("os.environ", new=MagicMock())
     @patch("tasks.libs.pipeline.failure_summary.send_summary_slack_message")
-    def test_send_summary_messages(self, mock_slack: MagicMock):
+    def test_send_summary_messages(self, mock_slack: MagicMock = None):
         # Verify that we send the right number of jobs per channel
         expected_team_njobs = {
             '#agent-build-and-releases': 2,
