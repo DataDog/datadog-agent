@@ -1387,7 +1387,7 @@ def update_platform_info(
                 keyvals = {line.split("=")[0]: line.split("=")[1].strip().strip('"') for line in options}
 
             try:
-                arch = Arch.from_str(keyvals['ARCH'])
+                arch = Arch.from_str(keyvals['ARCH']).kmt_arch
                 image_name = keyvals['IMAGE_NAME']
                 image_filename = keyvals['IMAGE_FILENAME']
             except KeyError:
@@ -1412,9 +1412,9 @@ def update_platform_info(
                 'VERSION_ID': 'os_version',
             }
 
-            if image_name not in platforms[arch.kmt_arch]:
-                platforms[arch.kmt_arch][image_name] = {}
-            img_data = platforms[arch.kmt_arch][image_name]
+            if image_name not in platforms[arch]:
+                platforms[arch][image_name] = {}
+            img_data = platforms[arch][image_name]
 
             for mkey, pkey in manifest_to_platinfo_keys.items():
                 if mkey in keyvals:
