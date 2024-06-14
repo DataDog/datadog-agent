@@ -68,7 +68,7 @@ int BPF_PROG(raw_tracepoint__net__netif_receive_skb) {
 }
 
 SEC("tracepoint/net/netif_receive_skb")
-int BPF_PROG(tracepoint__net__netif_receive_skb) {
+int tracepoint__net__netif_receive_skb(void *ctx) {
     CHECK_BPF_PROGRAM_BYPASSED()
     log_debug("tracepoint/net/netif_receive_skb");
     return flush(ctx);
