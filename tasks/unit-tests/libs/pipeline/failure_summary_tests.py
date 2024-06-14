@@ -172,7 +172,37 @@ class SummaryStatsTest(FailureSummaryTest):
         self.assertEqual(result[0], {'name': 'Job3', 'failures': 1, 'runs': 2})
 
 
-class HighLevelTest(FailureSummaryTest):
+class ModuleTest(FailureSummaryTest):
+    def test_is_valid_job_infra(self):
+        repo = MagicMock()
+        repo.jobs.get.return_value.trace.return_value = b'Docker runner job start script failed'
+        job = MagicMock()
+        job.status = 'failed'
+
+        self.assertFalse(failure_summary.is_valid_job(repo, job))
+
+    def test_is_valid_job_failed(self):
+        repo = MagicMock()
+        repo.jobs.get.return_value.trace.return_value = b'Python error'
+        job = MagicMock()
+        job.status = 'failed'
+
+        self.assertTrue(failure_summary.is_valid_job(repo, job))
+
+    def test_is_valid_job_not_finished(self):
+        repo = MagicMock()
+        job = MagicMock()
+        job.status = 'running'
+
+        self.assertFalse(failure_summary.is_valid_job(repo, job))
+
+    def test_is_valid_job_success(self):
+        repo = MagicMock()
+        job = MagicMock()
+        job.status = 'success'
+
+        self.assertTrue(failure_summary.is_valid_job(repo, job))
+
     def test_upload_summary(self):
         # Upload summary then retrieve the summary and expect 2 jobs
         with self.patch_fetch_jobs([1, 2]):
