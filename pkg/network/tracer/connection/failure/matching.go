@@ -13,19 +13,27 @@ import (
 	"sync"
 	"time"
 
+	manager "github.com/DataDog/ebpf-manager"
+
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-var allowListErrs = map[uint32]struct{}{
-	ebpf.TCPFailureConnReset:   {}, // Connection reset by peer
-	ebpf.TCPFailureConnTimeout: {}, // Connection timed out
-	ebpf.TCPFailureConnRefused: {}, // Connection refused
-}
+var (
+	allowListErrs = map[uint32]struct{}{
+		ebpf.TCPFailureConnReset:   {}, // Connection reset by peer
+		ebpf.TCPFailureConnTimeout: {}, // Connection timed out
+		ebpf.TCPFailureConnRefused: {}, // Connection refused
+	}
 
-var telemetryModuleName = "network_tracer__tcp_failure"
+	telemetryModuleName = "network_tracer__tcp_failure"
+	mapTTL              = 60 * time.Second.Nanoseconds()
+)
 
 var failureTelemetry = struct {
 	failedConnOrphans telemetry.Counter
@@ -54,14 +62,17 @@ type FailedConnMap map[ebpf.ConnTuple]*FailedConnStats
 // FailedConns is a struct to hold failed connections
 type FailedConns struct {
 	FailedConnMap map[ebpf.ConnTuple]*FailedConnStats
+	mapCleaner    *ddebpf.MapCleaner[uint64, int64]
 	sync.RWMutex
 }
 
 // NewFailedConns returns a new FailedConns struct
-func NewFailedConns() *FailedConns {
-	return &FailedConns{
+func NewFailedConns(m *manager.Manager) *FailedConns {
+	fc := &FailedConns{
 		FailedConnMap: make(map[ebpf.ConnTuple]*FailedConnStats),
 	}
+	fc.setupMapCleaner(m)
+	return fc
 }
 
 // upsertConn adds or updates the failed connection in the failed connection map
@@ -155,4 +166,23 @@ func connStatsToTuple(c *network.ConnectionStats) ebpf.ConnTuple {
 		tup.Daddr_l, tup.Daddr_h = util.ToLowHigh(c.Dest)
 	}
 	return tup
+}
+
+func (fc *FailedConns) setupMapCleaner(m *manager.Manager) {
+	connCloseFlushMap, _, err := m.GetMap(probes.ConnCloseFlushed)
+	if err != nil {
+		log.Errorf("error getting %v map: %s", probes.ConnCloseFlushed, err)
+		return
+	}
+	mapCleaner, err := ddebpf.NewMapCleaner[uint64, int64](connCloseFlushMap, 1024)
+	if err != nil {
+		log.Errorf("error creating map cleaner: %s", err)
+		return
+	}
+
+	mapCleaner.Clean(time.Minute*5, nil, nil, func(now int64, _key uint64, val int64) bool {
+		return val > 0 && now-val > mapTTL
+	})
+
+	fc.mapCleaner = mapCleaner
 }

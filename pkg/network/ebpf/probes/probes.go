@@ -84,6 +84,8 @@ const (
 	TCPClose ProbeFuncName = "kprobe__tcp_close"
 	// TCPDone traces the tcp_done() system call
 	TCPDone ProbeFuncName = "kprobe__tcp_done"
+	// TCPDoneFlushReturn traces the return of the tcp_done() system call
+	TCPDoneFlushReturn ProbeFuncName = "kretprobe__tcp_done_flush"
 	// TCPCloseCleanProtocolsReturn traces the return of tcp_close() system call
 	TCPCloseCleanProtocolsReturn ProbeFuncName = "kretprobe__tcp_close_clean_protocols"
 	// TCPCloseFlushReturn traces the return of tcp_close() system call
@@ -192,8 +194,8 @@ const (
 	TCPRetransmitsMap BPFMapName = "tcp_retransmits"
 	// TCPConnectSockPidMap is the map storing the PIDs of ongoing TCP connections
 	TCPConnectSockPidMap BPFMapName = "tcp_ongoing_connect_pid"
-	// ClosedConnFlushed is the map storing closed connections that were already flushed
-	ClosedConnFlushed BPFMapName = "conn_close_flushed"
+	// ConnCloseFlushed is the map storing closed connections that were already flushed
+	ConnCloseFlushed BPFMapName = "conn_close_flushed"
 	// ConnCloseEventMap is the map storing connection close events
 	ConnCloseEventMap BPFMapName = "conn_close_event"
 	// FailedConnEventMap is the map for storing failed connection events
