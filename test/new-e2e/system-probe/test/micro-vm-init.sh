@@ -35,6 +35,7 @@ tar -C /ci-visibility/junit -czvf /ci-visibility/junit.tar.gz .
 if [ "${COLLECT_COMPLEXITY:-}" = "yes" ]; then
     mkdir -p /verifier-complexity
     /opt/testing-tools/verifier-calculator -line-complexity -complexity-data-dir /verifier-complexity/complexity-data  -summary-output /verifier-complexity/verifier_stats.json &> ebpf-calculator/calculator.log || true
+    tar -C /verifier-complexity -czf /verifier-complexity.tar.gz .
 fi
 
 exit ${code}
