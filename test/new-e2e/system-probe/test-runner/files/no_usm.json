@@ -1,7 +1,4 @@
 {
-    "pkg/network/tracer": {
-        "exclude": true
-    },
     "pkg/network/usm": {
         "exclude": true
     },

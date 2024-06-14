@@ -1,5 +1,0 @@
-{
-    "pkg/network/tracer": {
-        "exclude": false
-    }
-}
