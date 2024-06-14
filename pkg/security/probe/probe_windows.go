@@ -454,28 +454,6 @@ func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 			p.stats.fnLock.Unlock()
 
 			switch e.EventHeader.EventDescriptor.ID {
-			case idNameCreate:
-				if ca, err := p.parseNameCreateArgs(e); err == nil {
-					log.Tracef("Received nameCreate event %d %s\n", e.EventHeader.EventDescriptor.ID, ca)
-
-					p.stats.fpnLock.Lock()
-					p.stats.fileProcessedNotifications[e.EventHeader.EventDescriptor.ID]++
-					p.stats.fpnLock.Unlock()
-
-					ecb(ca, e.EventHeader.ProcessID)
-				}
-
-			case idNameDelete:
-				if ca, err := p.parseNameDeleteArgs(e); err == nil {
-					log.Tracef("Received nameDelete event %d %s\n", e.EventHeader.EventDescriptor.ID, ca)
-
-					p.stats.fpnLock.Lock()
-					p.stats.fileProcessedNotifications[e.EventHeader.EventDescriptor.ID]++
-					p.stats.fpnLock.Unlock()
-
-					ecb(ca, e.EventHeader.ProcessID)
-				}
-
 			case idCreate:
 				if ca, err := p.parseCreateHandleArgs(e); err == nil {
 					log.Tracef("Received idCreate event %d %s\n", e.EventHeader.EventDescriptor.ID, ca)

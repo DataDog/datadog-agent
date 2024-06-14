@@ -695,62 +695,6 @@ func (sla *setLinkPath) String() string {
 	return (*deletePathArgs)(sla).string("SET_LINK_PATH")
 }
 
-type nameCreateArgs struct {
-	etw.DDEventHeader
-	fileKey      fileObjectPointer
-	fileName     string
-	userFileName string
-}
-
-type nameDeleteArgs nameCreateArgs
-
-func (wp *WindowsProbe) parseNameCreateArgs(e *etw.DDEventRecord) (*nameCreateArgs, error) {
-	ca := &nameCreateArgs{
-		DDEventHeader: e.EventHeader,
-	}
-	data := etwimpl.GetUserData(e)
-	if e.EventHeader.EventDescriptor.Version == 0 {
-		ca.fileKey = fileObjectPointer(data.GetUint64(0))
-		ca.fileName, _, _, _ = data.ParseUnicodeString(8)
-	} else if e.EventHeader.EventDescriptor.Version == 1 {
-		ca.fileKey = fileObjectPointer(data.GetUint64(0))
-		ca.fileName, _, _, _ = data.ParseUnicodeString(8)
-	} else {
-		return nil, fmt.Errorf("unknown version number %v", e.EventHeader.EventDescriptor.Version)
-	}
-	ca.userFileName = wp.mustConvertDrivePath(ca.fileName)
-
-	return ca, nil
-}
-
-// nolint: unused
-func (ca *nameCreateArgs) string(t string) string {
-	var output strings.Builder
-
-	output.WriteString(t + ": KEY: " + strconv.FormatUint(uint64(ca.fileKey), 16) + "\n")
-	output.WriteString("        Name: " + ca.fileName + "\n")
-	return output.String()
-
-}
-
-// nolint: unused
-func (ca *nameCreateArgs) String() string {
-	return ca.string("NAME_CREATE")
-}
-
-// nolint: unused
-func (nd *nameDeleteArgs) String() string {
-	return (*nameCreateArgs)(nd).string("NAME_DELETE")
-}
-
-func (wp *WindowsProbe) parseNameDeleteArgs(e *etw.DDEventRecord) (*nameDeleteArgs, error) {
-	ca, err := wp.parseNameCreateArgs(e)
-	if err != nil {
-		return nil, err
-	}
-	return (*nameDeleteArgs)(ca), nil
-}
-
 // nolint: unused
 func (wp *WindowsProbe) convertDrivePath(devicefilename string) (string, error) {
 	// filepath doesn't seem to like the \Device\HarddiskVolume1 format
