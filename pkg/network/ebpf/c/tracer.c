@@ -6,6 +6,7 @@
 #include "bpf_builtins.h"
 #include "bpf_tracing.h"
 #include "bpf_endian.h"
+#include "bpf_metadata.h"
 #include "bpf_bypass.h"
 
 #ifdef COMPILE_PREBUILT

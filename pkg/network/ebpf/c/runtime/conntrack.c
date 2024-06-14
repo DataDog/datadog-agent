@@ -1,4 +1,5 @@
 #include "ktypes.h"
+#include "bpf_metadata.h"
 #ifdef COMPILE_RUNTIME
 #include "kconfig.h"
 #endif

@@ -518,6 +518,7 @@
 /tasks/ebpf.py                          @DataDog/ebpf-platform
 /tasks/kmt.py                           @DataDog/ebpf-platform
 /tasks/kernel_matrix_testing/           @DataDog/ebpf-platform
+/tasks/ebpf_verifier/                   @DataDog/ebpf-platform
 /tasks/trace_agent.py                   @DataDog/agent-apm
 /tasks/rtloader.py                      @DataDog/agent-metrics-logs
 /tasks/security_agent.py                @DataDog/agent-security

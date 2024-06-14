@@ -348,7 +348,7 @@ func (i *installerImpl) stopExperiment(ctx context.Context, pkg string) error {
 	switch pkg {
 	case packageDatadogAgent:
 		return service.StopAgentExperiment(ctx)
-	case packageAPMInjector:
+	case packageDatadogInstaller:
 		return service.StopInstallerExperiment(ctx)
 	default:
 		return nil
