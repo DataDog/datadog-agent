@@ -47,6 +47,9 @@ type factory struct {
 	traceagentcmp traceagent.Component
 }
 
+// setupTraceAgentCmp sets up the trace agent component.
+// It is needed in trace exporter to send trace and in metrics exporter to send apm stats.
+// The set up happens only once, subsequent calls are no-op.
 func (f *factory) setupTraceAgentCmp(set component.TelemetrySettings) error {
 	f.onceSetupTraceAgentCmp.Do(func() {
 		var attributesTranslator *attributes.Translator
@@ -189,7 +192,7 @@ func (f *factory) createTracesExporter(
 
 	err := f.setupTraceAgentCmp(set.TelemetrySettings)
 	if err != nil {
-		return nil, fmt.Errorf("failed to build attributes translator: %w", err)
+		return nil, fmt.Errorf("failed to set up trace agent component: %w", err)
 	}
 
 	if cfg.OnlyMetadata {
@@ -218,6 +221,9 @@ func (f *factory) createMetricsExporter(
 	c component.Config,
 ) (exporter.Metrics, error) {
 	cfg := checkAndCastConfig(c, set.Logger)
+	if err := f.setupTraceAgentCmp(set.TelemetrySettings); err != nil {
+		return nil, fmt.Errorf("failed to set up trace agent component: %w", err)
+	}
 	var wg sync.WaitGroup // waits for consumeStatsPayload to exit
 	statsIn := make(chan []byte, 1000)
 	statsv := set.BuildInfo.Command + set.BuildInfo.Version

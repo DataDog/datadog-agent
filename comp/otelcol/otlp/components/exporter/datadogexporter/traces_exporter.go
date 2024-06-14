@@ -40,6 +40,7 @@ var _ consumer.ConsumeTracesFunc = (*traceExporter)(nil).consumeTraces
 // have already been computed for a payload.
 const headerComputedStats = "Datadog-Client-Computed-Stats"
 
+// consumeTraces implements the consumer.ConsumeTracesFunc interface
 func (exp *traceExporter) consumeTraces(
 	ctx context.Context,
 	td ptrace.Traces,

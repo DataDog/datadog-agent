@@ -64,29 +64,25 @@ type dependencies struct {
 	Tagger             tagger.Component
 }
 
-type component struct {
-	*agent
-}
-
 var _ traceagent.Component = (*component)(nil)
 
 func (c component) SetStatsdClient(mclient ddgostatsd.ClientInterface) {
-	c.agent.Agent.Statsd = mclient
+	c.Agent.Statsd = mclient
 }
 
 func (c component) SetOTelAttributeTranslator(attrstrans *attributes.Translator) {
-	c.agent.Agent.OTLPReceiver.SetOTelAttributeTranslator(attrstrans)
+	c.Agent.OTLPReceiver.SetOTelAttributeTranslator(attrstrans)
 }
 
 func (c component) ReceiveOTLPSpans(ctx context.Context, rspans ptrace.ResourceSpans, httpHeader http.Header) source.Source {
-	return c.agent.Agent.OTLPReceiver.ReceiveResourceSpans(ctx, rspans, httpHeader)
+	return c.Agent.OTLPReceiver.ReceiveResourceSpans(ctx, rspans, httpHeader)
 }
 
 func (c component) SendStatsPayload(p *pb.StatsPayload) {
-	c.agent.Agent.StatsWriter.SendPayload(p)
+	c.Agent.StatsWriter.SendPayload(p)
 }
 
-type agent struct {
+type component struct {
 	*pkgagent.Agent
 
 	cancel             context.CancelFunc
@@ -95,7 +91,7 @@ type agent struct {
 	tagger             tagger.Component
 	telemetryCollector telemetry.TelemetryCollector
 	workloadmeta       workloadmeta.Component
-	wg                 sync.WaitGroup
+	wg                 *sync.WaitGroup
 }
 
 // NewAgent creates a new Agent component.
@@ -110,37 +106,37 @@ func NewAgent(deps dependencies) (traceagent.Component, error) {
 		return c, nil
 	}
 	ctx, cancel := context.WithCancel(deps.Context) // Several related non-components require a shared context to gracefully stop.
-	c.agent = &agent{
+	c = component{
 		cancel:             cancel,
 		config:             deps.Config,
 		params:             deps.Params,
 		workloadmeta:       deps.Workloadmeta,
 		telemetryCollector: deps.TelemetryCollector,
 		tagger:             deps.Tagger,
-		wg:                 sync.WaitGroup{},
+		wg:                 &sync.WaitGroup{},
 	}
-	statsdCl, err := setupMetrics(deps.Statsd, c.agent.config, c.agent.telemetryCollector)
+	statsdCl, err := setupMetrics(deps.Statsd, c.config, c.telemetryCollector)
 	if err != nil {
 		return nil, err
 	}
 	setupShutdown(ctx, deps.Shutdowner, statsdCl)
-	c.agent.Agent = pkgagent.NewAgent(
+	c.Agent = pkgagent.NewAgent(
 		ctx,
-		c.agent.config.Object(),
-		c.agent.telemetryCollector,
+		c.config.Object(),
+		c.telemetryCollector,
 		statsdCl,
 	)
 
 	deps.Lc.Append(fx.Hook{
 		// Provided contexts have a timeout, so it can't be used for gracefully stopping long-running components.
 		// These contexts are cancelled on a deadline, so they would have side effects on the agent.
-		OnStart: func(_ context.Context) error { return start(c.agent) },
-		OnStop:  func(_ context.Context) error { return stop(c.agent) },
+		OnStart: func(_ context.Context) error { return start(c) },
+		OnStop:  func(_ context.Context) error { return stop(c) },
 	})
 	return c, nil
 }
 
-func start(ag *agent) error {
+func start(ag component) error {
 	if ag.params.CPUProfile != "" {
 		f, err := os.Create(ag.params.CPUProfile)
 		if err != nil {
@@ -188,7 +184,7 @@ func setupMetrics(statsd statsd.Component, cfg config.Component, telemetryCollec
 	return client, nil
 }
 
-func stop(ag *agent) error {
+func stop(ag component) error {
 	ag.cancel()
 	ag.wg.Wait()
 	if err := ag.Statsd.Flush(); err != nil {
