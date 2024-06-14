@@ -8,6 +8,8 @@ from unittest.mock import MagicMock, patch
 from gitlab.v4.objects import ProjectManager, ProjectPipeline, ProjectPipelineJob
 from invoke import Context
 
+from tasks.github_tasks import ALL_TEAMS
+from tasks.libs.pipeline.notifications import load_and_validate
 from tasks.libs.pipeline import failure_summary
 from tasks.libs.pipeline.failure_summary import SummaryData, SummaryStats
 
@@ -20,6 +22,9 @@ class FailureSummaryTest(TestCase):
 
         self.patches = [
             patch('tasks.libs.pipeline.failure_summary.write_file', self.write_file),
+            patch('tasks.libs.pipeline.failure_summary.read_file', self.read_file),
+            patch('tasks.libs.pipeline.failure_summary.remove_files', self.remove_files),
+            patch('tasks.libs.pipeline.failure_summary.list_files', self.list_files),
         ]
         self.mocks = [patch.start() for patch in self.patches]
 
@@ -123,54 +128,93 @@ class SummaryDataTest(FailureSummaryTest):
 
 
 class SummaryStatsTest(FailureSummaryTest):
+    def __init__(self, methodName: str = "runTest") -> None:
+        super().__init__(methodName)
+
+        self.github_slack_map = load_and_validate("tasks/unit-tests/testdata/github_slack_map.yaml", "DEFAULT_SLACK_CHANNEL", '#agent-developer-experience', relpath=False)
+
+    def setUp(self) -> None:
+        super().setUp()
+
+        self.patch_slack_map = patch('tasks.owners.GITHUB_SLACK_MAP', self.github_slack_map)
+        self.patch_slack_map.start()
+
+    def tearDown(self) -> None:
+        self.patch_slack_map.stop()
+
+        super().tearDown()
+
     def test_make_stats(self):
         data = self.get_dummy_summary_data(
             [
-                {'name': 'Job1', 'status': 'success', 'allow_failure': False},
-                {'name': 'Job2', 'status': 'failed', 'allow_failure': False},
-                {'name': 'Job1', 'status': 'failed', 'allow_failure': False},
-                {'name': 'Job2', 'status': 'success', 'allow_failure': False},
-                {'name': 'Job1', 'status': 'failed', 'allow_failure': False},
+                {'name': 'job1', 'status': 'success', 'allow_failure': False},
+                {'name': 'job2', 'status': 'failed', 'allow_failure': False},
+                {'name': 'job1', 'status': 'failed', 'allow_failure': False},
+                {'name': 'job2', 'status': 'success', 'allow_failure': False},
+                {'name': 'job1', 'status': 'failed', 'allow_failure': False},
             ]
         )
 
         stats = SummaryStats(data, allow_failure=False)
-        result = stats.make_stats(max_length=1000, team=None)
-        result = sorted(result, key=lambda d: d['name'])
+        results = stats.make_stats(max_length=1000, jobowners='tasks/unit-tests/testdata/jobowners.txt')
+        results = {channel: sorted(result, key=lambda d: d['name']) for channel, result in results.items()}
+        result = results[ALL_TEAMS]
 
         self.assertEqual(len(result), 2)
-        self.assertEqual(result[0], {'name': 'Job1', 'failures': 2, 'runs': 3})
-        self.assertEqual(result[1], {'name': 'Job2', 'failures': 1, 'runs': 2})
+        self.assertEqual(result[0], {'name': 'job1', 'failures': 2, 'runs': 3})
+        self.assertEqual(result[1], {'name': 'job2', 'failures': 1, 'runs': 2})
 
     def test_make_stats_allow_failure(self):
         data = self.get_dummy_summary_data(
             [
-                {'name': 'Job1', 'status': 'success', 'allow_failure': False},
-                {'name': 'Job2', 'status': 'failed', 'allow_failure': False},
-                {'name': 'Job1', 'status': 'failed', 'allow_failure': False},
-                {'name': 'Job2', 'status': 'success', 'allow_failure': False},
-                {'name': 'Job1', 'status': 'failed', 'allow_failure': False},
-                {'name': 'Job3', 'status': 'failed', 'allow_failure': True},
-                {'name': 'Job4', 'status': 'success', 'allow_failure': True},
-                {'name': 'Job3', 'status': 'success', 'allow_failure': True},
-                {'name': 'Job4', 'status': 'success', 'allow_failure': True},
+                {'name': 'job1', 'status': 'success', 'allow_failure': False},
+                {'name': 'job2', 'status': 'failed', 'allow_failure': False},
+                {'name': 'job1', 'status': 'failed', 'allow_failure': False},
+                {'name': 'job2', 'status': 'success', 'allow_failure': False},
+                {'name': 'job1', 'status': 'failed', 'allow_failure': False},
+                {'name': 'job3', 'status': 'failed', 'allow_failure': True},
+                {'name': 'job4', 'status': 'success', 'allow_failure': True},
+                {'name': 'job3', 'status': 'success', 'allow_failure': True},
+                {'name': 'job4', 'status': 'success', 'allow_failure': True},
             ]
         )
 
         stats = SummaryStats(data, allow_failure=False)
-        result = stats.make_stats(max_length=1000, team=None)
-        result = sorted(result, key=lambda d: d['name'])
+        results = stats.make_stats(max_length=1000, jobowners='tasks/unit-tests/testdata/jobowners.txt')
+        results = {channel: sorted(result, key=lambda d: d['name']) for channel, result in results.items()}
+        result = results[ALL_TEAMS]
 
         self.assertEqual(len(result), 2)
-        self.assertEqual(result[0], {'name': 'Job1', 'failures': 2, 'runs': 3})
-        self.assertEqual(result[1], {'name': 'Job2', 'failures': 1, 'runs': 2})
+        self.assertEqual(result[0], {'name': 'job1', 'failures': 2, 'runs': 3})
+        self.assertEqual(result[1], {'name': 'job2', 'failures': 1, 'runs': 2})
 
         stats = SummaryStats(data, allow_failure=True)
-        result = stats.make_stats(max_length=1000, team=None)
-        result = sorted(result, key=lambda d: d['name'])
+        results = stats.make_stats(max_length=1000, jobowners='tasks/unit-tests/testdata/jobowners.txt')
+        results = {channel: sorted(result, key=lambda d: d['name']) for channel, result in results.items()}
+        result = results[ALL_TEAMS]
 
         self.assertEqual(len(result), 1)
-        self.assertEqual(result[0], {'name': 'Job3', 'failures': 1, 'runs': 2})
+        self.assertEqual(result[0], {'name': 'job3', 'failures': 1, 'runs': 2})
+
+    def test_make_stats_channels(self):
+        data = self.get_dummy_summary_data(
+            [
+                {'name': 'tests_hello', 'status': 'failed', 'allow_failure': False},
+                {'name': 'tests_ebpf1', 'status': 'failed', 'allow_failure': False},
+                {'name': 'tests_ebpf2', 'status': 'failed', 'allow_failure': False},
+                {'name': 'tests_release', 'status': 'failed', 'allow_failure': False},
+            ]
+        )
+
+        stats = SummaryStats(data, allow_failure=False)
+        results = stats.make_stats(max_length=1000, jobowners='tasks/unit-tests/testdata/jobowners.txt')
+        results = {channel: sorted(result, key=lambda d: d['name']) for channel, result in results.items()}
+
+        self.assertSetEqual(set(results), {'#agent-developer-experience', '#ebpf-platform-ops', '#agent-build-and-releases', ALL_TEAMS})
+        self.assertEqual(len(results['#agent-developer-experience']), 1)
+        self.assertEqual(len(results['#ebpf-platform-ops']), 2)
+        self.assertEqual(len(results['#agent-build-and-releases']), 1)
+        self.assertEqual(len(results[ALL_TEAMS]), 4)
 
 
 class ModuleTest(FailureSummaryTest):

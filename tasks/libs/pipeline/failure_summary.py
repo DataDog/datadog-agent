@@ -9,8 +9,10 @@ from datetime import datetime, timedelta, UTC
 from gitlab.v4.objects import Project, ProjectPipeline, ProjectPipelineJob
 from invoke import Context
 
+from tasks.github_tasks import ALL_TEAMS
 from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
 from tasks.libs.pipeline.data import get_infra_failure_info
+from tasks.owners import make_partition
 
 """
 A summary contains a list of jobs from gitlab pipelines.
@@ -113,6 +115,8 @@ class SummaryStats:
             for name in total_counter.keys()
             if failure_counter[name] > 0
         ]
+        # Sort by failures
+        self.stats = sorted(self.stats, key=lambda x: x['failures'], reverse=True)
 
     def make_message(self, stats: list[dict]) -> str | None:
         """
@@ -124,18 +128,23 @@ class SummaryStats:
         # TODO : Format etc...
         return '\n'.join(f'- {s["name"]}: {s["failures"]}/{s["runs"]}' for s in stats)
 
-    def make_stats(self, max_length: int = 8, team: str | None = None) -> list[dict]:
+    def make_stats(self, max_length: int = 8, jobowners: str = '.gitlab/JOBOWNERS') -> dict[str, list[dict]]:
         """
         Process stats given self.stats
+        Returns dict[team name, list[job stats]]
         """
+        # Partition by channels as some teams share the same slack channel (avoid duplicate messages)
+        partition = make_partition([s['name'] for s in self.stats], jobowners, get_channels=True)
 
-        # TODO : Filter by team
+        # team_stats[channel] = [(job_name, failure_count, total_runs), ...]
+        team_stats = {}
+        for channel in partition:
+            team_stats[channel] = [s for s in self.stats if s['name'] in partition[channel]]
+            team_stats[channel] = team_stats[channel][:max_length]
 
-        # Sort by failures
-        stats = sorted(self.stats, key=lambda x: x['failures'], reverse=True)
-        stats = stats[:max_length]
+        team_stats[ALL_TEAMS] = self.stats[:max_length]
 
-        return stats
+        return team_stats
 
 
 # TODO : s3
@@ -221,7 +230,7 @@ def clean_summaries(ctx: Context, period: timedelta):
     remove_files(ctx, [SummaryData.filename(id) for id in ids])
 
 
-def send_summary_messages(ctx: Context, allow_failure: bool, max_length: int, period: timedelta):
+def send_summary_messages(ctx: Context, allow_failure: bool, max_length: int, period: timedelta, jobowners: str = '.gitlab/JOBOWNERS'):
     """
     Fetches the summaries for the period and sends messages to all teams having these jobs
     """
@@ -237,6 +246,28 @@ def send_summary_messages(ctx: Context, allow_failure: bool, max_length: int, pe
     print()
     print('* TO:', team)
     print(msg)
+
+    # Partition by channels as some teams share the same slack channel (avoid duplicate messages)
+    partition = make_partition([name for name, _ in stats], jobowners, get_channels=True)
+
+    # team_stats[team] = [(job_name, failure_count), ...]
+    team_stats = {}
+    for channel in partition:
+        team_stats[channel] = [(name, stat) for (name, stat) in stats if name in partition[channel]]
+        team_stats[channel] = team_stats[channel][:list_max_len]
+
+    for channel, stat in team_stats.items():
+        send_summary(channel, stat)
+
+    # Send full message to #agent-platform-ops
+    send_summary('#agent-platform-ops', stats[:list_max_len])
+
+    print('Messages sent')
+
+
+
+
+
 
 
 # TODO : rm
