@@ -605,7 +605,7 @@ func (c *safeConfig) ReadInConfig() error {
 	for _, path := range c.extraConfigFilePaths {
 		b, err := os.ReadFile(path)
 		if err != nil {
-			return fmt.Errorf("could not read extra config file '%s': %s", path, err)
+			return fmt.Errorf("could not read extra config file '%s': %w", path, err)
 		}
 		extraConfContents = append(extraConfContents, extraConf{path: path, content: b})
 	}
@@ -616,6 +616,7 @@ func (c *safeConfig) ReadInConfig() error {
 		if err != nil {
 			return fmt.Errorf("error merging %s config file: %w", confFile.path, err)
 		}
+		log.Infof("extra configuration file %s was loaded successfully", confFile.path)
 	}
 	return nil
 }
@@ -703,34 +704,8 @@ func (c *safeConfig) AddConfigPath(in string) {
 
 // AddExtraConfigPaths allows adding additional configuration files
 // which will be merged into the main configuration during the ReadInConfig call.
-// The algorithm used to merge the source configuration into the target configuration is as follows:
-// The function iterates over every key in the source (src):
-// - If the key does not exist in the target (tgt), it is added.
-// - If the key exists in the target and its value is a map, the function is called recursively.
-// - If the key exists in the target and its value is not a map, it is not merged.
-// Note: A special case occurs if a key is set but its value is nil; it will not be overwritten.
-//
-// --- Example 1 ---
-// === SRC ===
-// api_key: abcdef
-// site: datadoghq.eu
-// proxy:
-//
-//	https: https:proxyserver1
-//
-// === TGT ===
-// api_key:
-// proxy:
-//
-//	http: http:proxyserver2
-//
-// === MERGED ===
-// api_key:
-// site: datadoghq.eu
-// proxy:
-//
-//	https: http:proxyserver1
-//	http: http:proxyserver2
+// Configuration files are merged sequentially. If a key already exists and the foreign value type matches the existing one, the foreign value overrides it.
+// If both the existing value and the new value are nested configurations, they are merged recursively following the same principles.
 func (c *safeConfig) AddExtraConfigPaths(ins []string) error {
 	if len(ins) == 0 {
 		return nil
