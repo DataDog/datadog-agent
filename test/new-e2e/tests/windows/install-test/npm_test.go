@@ -36,16 +36,17 @@ type testNPMUpgradeToNPMSuite struct {
 }
 
 func (s *testNPMUpgradeToNPMSuite) TestNPMUgpradeToNPM() {
-	s.installPreviousAgentVersion(s.Env().RemoteHost)
-	s.Require().False(s.isNPMInstalled(), "NPM should not be installed")
+	// s.installPreviousAgentVersion(s.Env().RemoteHost)
+	// s.Require().False(s.isNPMInstalled(), "NPM should not be installed")
 
-	// upgrade to the new version
-	s.upgradeAgent(s.Env().RemoteHost, s.AgentPackage)
+	// // upgrade to the new version
+	// s.upgradeAgent(s.Env().RemoteHost, s.AgentPackage)
 
 	// run tests
-	s.Require().True(s.isNPMInstalled(), "NPM should be installed")
-	s.enableNPM()
-	s.testNPMRunning()
+	// s.Require().True(s.isNPMInstalled(), "NPM should be installed")
+	// s.enableNPM()
+	s.testNPMFunctional()
+	s.T().FailNow()
 }
 
 // TestNPMUpgradeNPMToNPM tests the latest installer can successfully upgrade
@@ -75,7 +76,7 @@ func (s *testNPMUpgradeNPMToNPMSuite) TestNPMUpgradeNPMToNPM() {
 	// run tests
 	s.Require().True(s.isNPMInstalled(), "NPM should be installed")
 	s.enableNPM()
-	s.testNPMRunning()
+	s.testNPMFunctional()
 }
 
 // TestNPMInstallWithAddLocal tests the latest installer can successfully install
@@ -101,7 +102,7 @@ func (s *testNPMInstallWithAddLocalSuite) TestNPMInstallWithAddLocal() {
 	// run tests
 	s.Require().True(s.isNPMInstalled(), "NPM should be installed")
 	s.enableNPM()
-	s.testNPMRunning()
+	s.testNPMFunctional()
 }
 
 // TestNPMUpgradeNPMToNPM tests the latest installer can successfully upgrade
@@ -129,7 +130,7 @@ func (s *testNPMUpgradeFromBeta) TestNPMUpgradeFromBeta() {
 	// run tests
 	s.Require().True(s.isNPMInstalled(), "NPM should be installed")
 	s.enableNPM()
-	s.testNPMRunning()
+	s.testNPMFunctional()
 }
 
 type testNPMInstallSuite struct {
@@ -186,41 +187,54 @@ func (s *testNPMInstallSuite) enableNPM() {
 	s.T().Log("Agent restarted")
 }
 
-func (s *testNPMInstallSuite) testNPMRunning() {
+func (s *testNPMInstallSuite) testNPMFunctional() {
 	host := s.Env().RemoteHost
 	s.Run("npm running", func() {
+		// services are running
 		expectedServices := []string{"datadog-system-probe", "ddnpm"}
 		for _, serviceName := range expectedServices {
 			s.Assert().EventuallyWithT(func(c *assert.CollectT) {
 				status, err := windowsCommon.GetServiceStatus(host, serviceName)
 				require.NoError(c, err)
 				assert.Equal(c, "Running", status, "%s should be running", serviceName)
-			}, 1*time.Minute, 1*time.Second, "%s should be in the expected state", serviceName)
+			}, 1*time.Minute, 1*time.Second, "%s should be running", serviceName)
 		}
+	})
+	s.Run("agent npm status", func() {
+		client := s.NewTestClientForHost(host)
+		status, err := client.GetJSONStatus()
+		s.Require().NoError(err)
+		s.Require().Contains(status, "systemProbeStats", "agent status should contain systemProbeStats")
+		systemProbeStats := status["systemProbeStats"].(map[string]interface{})
+		s.Require().NotContains(systemProbeStats, "Errors", "system probe status should not contain Errors")
 	})
 }
 
-func (s *testNPMInstallSuite) testRunningExpectedVersion(pkg *windowsAgent.Package) {
-	if !s.Run("running expected agent version", func() {
-		client := s.NewTestClientForHost(s.Env().RemoteHost)
-		installedVersion, err := client.GetAgentVersion()
-		s.Require().NoError(err, "should get agent version")
-		windowsAgent.TestAgentVersion(s.T(), pkg.AgentVersion(), installedVersion)
-	}) {
-		s.T().FailNow()
-	}
-}
-
-func (s *testNPMInstallSuite) upgradeAgent(vm *components.RemoteHost, agentPackage *windowsAgent.Package, options ...windowsAgent.InstallAgentOption) {
+func (s *testNPMInstallSuite) upgradeAgent(host *components.RemoteHost, agentPackage *windowsAgent.Package, options ...windowsAgent.InstallAgentOption) {
 	installOpts := []windowsAgent.InstallAgentOption{
 		windowsAgent.WithPackage(agentPackage),
 		windowsAgent.WithInstallLogFile(filepath.Join(s.OutputDir, "upgrade.log")),
 	}
 	installOpts = append(installOpts, options...)
 	if !s.Run(fmt.Sprintf("upgrade to %s", agentPackage.AgentVersion()), func() {
-		_, err := s.InstallAgent(vm, installOpts...)
+		_, err := s.InstallAgent(host, installOpts...)
 		s.Require().NoError(err, "should upgrade to agent %s", agentPackage.AgentVersion())
-		s.testRunningExpectedVersion(agentPackage)
+	}) {
+		s.T().FailNow()
+	}
+
+	if !s.Run(fmt.Sprintf("test %s", agentPackage.AgentVersion()), func() {
+		// check version
+		client := s.NewTestClientForHost(host)
+		if !s.Run("running expected agent version", func() {
+			installedVersion, err := client.GetAgentVersion()
+			s.Require().NoError(err, "should get agent version")
+			windowsAgent.TestAgentVersion(s.T(), agentPackage.AgentVersion(), installedVersion)
+		}) {
+			s.T().FailNow()
+		}
+		// check no errors
+		RequireAgentRunningWithNoErrors(s.T(), client)
 	}) {
 		s.T().FailNow()
 	}
