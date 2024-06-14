@@ -120,7 +120,7 @@ func TestGetExternalMetrics(t *testing.T) {
 			},
 			queryMetricName:         "datadogmetric@ns:metric0",
 			expectedExternalMetrics: nil,
-			expectedError:           fmt.Errorf("DatadogMetric is stale, last updated: %v", defaultUpdateTime.Add(-time.Hour)),
+			expectedError:           fmt.Errorf("DatadogMetric is stale, last updated: %v. Check datadog-cluster-agent logs for errors", defaultUpdateTime.Add(-time.Hour)),
 		},
 		{
 			desc: "Test DatadogMetric is invalid",
