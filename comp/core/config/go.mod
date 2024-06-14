@@ -46,8 +46,6 @@ require (
 
 require (
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.55.0-rc.3 // indirect
-	github.com/DataDog/datadog-agent/comp/core/telemetry v0.55.0-rc.3 // indirect
-	github.com/DataDog/datadog-agent/comp/core/flare/types v0.55.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/comp/def v0.55.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.55.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.55.0-rc.3 // indirect
