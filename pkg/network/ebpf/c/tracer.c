@@ -1027,12 +1027,6 @@ static __always_inline struct sock* sk_buff_sk(struct sk_buff *skb) {
     return sk;
 }
 
-#if defined(COMPILE_RUNTIME) && LINUX_VERSION_CODE < KERNEL_VERSION(4, 17, 0)
-struct bpf_raw_tracepoint_args {
-    __u64 args[0];
-};
-#endif
-
 static __always_inline int handle_net_dev_queue(struct sk_buff *skb) {
     struct sock* sk = sk_buff_sk(skb);
     if (!sk) {
@@ -1067,9 +1061,8 @@ static __always_inline int handle_net_dev_queue(struct sk_buff *skb) {
 }
 
 SEC("raw_tracepoint/net/net_dev_queue")
-int raw_tracepoint__net__net_dev_queue(struct bpf_raw_tracepoint_args *ctx) {
+int BPF_PROG(raw_tracepoint__net__net_dev_queue, struct sk_buff *skb) {
     CHECK_BPF_PROGRAM_BYPASSED()
-    struct sk_buff* skb = (struct sk_buff *)ctx->args;
     if (!skb) {
         return 0;
     }
