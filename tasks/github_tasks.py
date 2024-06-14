@@ -307,6 +307,9 @@ def handle_community_pr(_, repo='', pr_id=-1, labels=''):
     teams = _get_teams(gh.get_pr_files(pr_id)) or [ALL_TEAMS]
     channels = [GITHUB_SLACK_MAP[team.lower()] for team in teams if team if team.lower() in GITHUB_SLACK_MAP]
 
+    # Remove duplicates
+    channels = list(set(channels))
+
     # Update labels
     for label in labels.split(','):
         if label:

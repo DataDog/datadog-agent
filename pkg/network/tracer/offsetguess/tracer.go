@@ -44,6 +44,12 @@ const (
 	tcpGetSockOptKProbeNotCalled uint64 = 0
 	tcpGetSockOptKProbeCalled    uint64 = 1
 	netNsDefaultOffsetBytes             = 48
+
+	// sizeof(struct inet_connection_sock) in kernel 4.4.0-2
+	// the offset for RTT (and RTTvar) should be greater than this
+	// since the rtt fields are deep in struct tcp_sock; tcp_sock
+	// nests inet_connection_sock
+	rttDefaultOffsetBytes = 1280
 )
 
 var tcpKprobeCalledString = map[uint64]string{
@@ -753,6 +759,7 @@ func (t *tracerOffsetGuesser) Guess(cfg *config.Config) ([]manager.ConstantEdito
 		Proc:         Proc{Comm: cProcName},
 		What:         uint64(GuessSAddr),
 		Offset_netns: netNsDefaultOffsetBytes,
+		Offset_rtt:   rttDefaultOffsetBytes,
 	}
 
 	// if we already have the offsets, just return
