@@ -35,7 +35,7 @@ type ddExtension struct {
 	server      *http.Server
 	tlsListener net.Listener
 	info        component.BuildInfo
-	debug       DebugSourceResponse
+	debug       extensionDef.DebugSourceResponse
 }
 
 var _ extension.Extension = (*ddExtension)(nil)
@@ -46,8 +46,8 @@ func NewExtension(_ context.Context, cfg *Config, telemetry component.TelemetryS
 		cfg:       cfg,
 		telemetry: telemetry,
 		info:      info,
-		debug: DebugSourceResponse{
-			Sources: map[string]OTelFlareSource{},
+		debug: extensionDef.DebugSourceResponse{
+			Sources: map[string]extensionDef.OTelFlareSource{},
 		},
 	}
 
@@ -89,7 +89,7 @@ func (ext *ddExtension) Start(_ context.Context, host component.Host) error {
 			ext.telemetry.Logger.Info("Unavailable debug extension for", zap.String("extension", extension.String()))
 		} else {
 			ext.telemetry.Logger.Info("Found debug extension at", zap.String("uri", uri))
-			ext.debug.Sources[extension.String()] = OTelFlareSource{
+			ext.debug.Sources[extension.String()] = extensionDef.OTelFlareSource{
 				URL:   uri,
 				Crawl: crawl,
 			}
@@ -127,13 +127,13 @@ func (ext *ddExtension) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 	customer, _ := provider.GetProvidedConfAsString()
 	enhanced, _ := provider.GetEnhancedConfAsString()
 
-	resp := Response{
-		BuildInfoResponse{
+	resp := extensionDef.Response{
+		extensionDef.BuildInfoResponse{
 			AgentVersion: ext.info.Version,
 			AgentCommand: ext.info.Command,
 			AgentDesc:    ext.info.Description,
 		},
-		ConfigResponse{
+		extensionDef.ConfigResponse{
 			CustomerConfig: customer,
 			RuntimeConfig:  enhanced,
 		},

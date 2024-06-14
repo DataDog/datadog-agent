@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-// Package impl defines the OpenTelemetry Extension implementation.
-package impl
+// Package extension defines the OpenTelemetry Extension component.
+package extension
 
 // BuildInfoResponse is the response struct for BuildInfo
 type BuildInfoResponse struct {
