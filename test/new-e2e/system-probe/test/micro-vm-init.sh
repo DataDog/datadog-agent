@@ -8,7 +8,7 @@ docker_dir=/kmt-dockers
 ## Start docker if available, some images (e.g. SUSE arm64 for CWS) do not have it installed
 if command -v docker ; then
     systemctl start docker
-
+    
     ## Load docker images
     if [[ -d "${docker_dir}" ]]; then
         find "${docker_dir}" -maxdepth 1 -type f -exec docker load -i {} \;
@@ -31,5 +31,10 @@ fi
 
 tar -C /ci-visibility/testjson -czvf /ci-visibility/testjson.tar.gz .
 tar -C /ci-visibility/junit -czvf /ci-visibility/junit.tar.gz .
+
+if [ "${COLLECT_COMPLEXITY:-}" = "yes" ]; then
+    mkdir -p /verifier-complexity
+    /opt/testing-tools/verifier-calculator -line-complexity -complexity-data-dir /verifier-complexity/complexity-data  -summary-output /verifier-complexity/verifier_stats.json &> ebpf-calculator/calculator.log || true
+fi
 
 exit ${code}
