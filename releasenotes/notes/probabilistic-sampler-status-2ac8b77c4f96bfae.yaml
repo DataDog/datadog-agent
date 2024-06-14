@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    APM: Show probabilistic sampling configuration in agent status when enabled.
+    APM: Show probabilistic sampling configuration in Agent status when enabled.
