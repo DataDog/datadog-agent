@@ -96,45 +96,48 @@ static __always_inline void cleanup_conn(void *ctx, conn_tuple_t *tup, struct so
     // if we added another field
     conn.conn_stats.duration = bpf_ktime_get_ns() - conn.conn_stats.duration;
 
-    // Batch TCP closed connections before generating a perf event
-    batch_t *batch_ptr = bpf_map_lookup_elem(&conn_close_batch, &cpu);
-    if (batch_ptr == NULL) {
-        return;
-    }
-
-    // TODO: Can we turn this into a macro based on TCP_CLOSED_BATCH_SIZE?
-    switch (batch_ptr->len) {
-    case 0:
-        batch_ptr->c0 = conn;
-        batch_ptr->len++;
-        return;
-    case 1:
-        batch_ptr->c1 = conn;
-        batch_ptr->len++;
-        return;
-    case 2:
-        batch_ptr->c2 = conn;
-        batch_ptr->len++;
-        return;
-    case 3:
-        batch_ptr->c3 = conn;
-        batch_ptr->len++;
-        // In this case the batch is ready to be flushed, which we defer to kretprobe/tcp_close
-        // in order to cope with the eBPF stack limitation of 512 bytes.
-        return;
-    }
-
-    // If we hit this section it means we had one or more interleaved tcp_close calls.
-    // We send the connection outside of a batch anyway. This is likely not as
-    // frequent of a case to cause performance issues and avoid cases where
-    // we drop whole connections, which impacts things USM connection matching.
     submit_event(ctx, cpu, &conn, sizeof(conn_t));
-    if (is_tcp) {
-        increment_telemetry_count(unbatched_tcp_close);
-    }
-    if (is_udp) {
-        increment_telemetry_count(unbatched_udp_close);
-    }
+    return;
+
+    // Batch TCP closed connections before generating a perf event
+    // batch_t *batch_ptr = bpf_map_lookup_elem(&conn_close_batch, &cpu);
+    // if (batch_ptr == NULL) {
+    //     return;
+    // }
+
+    // // TODO: Can we turn this into a macro based on TCP_CLOSED_BATCH_SIZE?
+    // switch (batch_ptr->len) {
+    // case 0:
+    //     batch_ptr->c0 = conn;
+    //     batch_ptr->len++;
+    //     return;
+    // case 1:
+    //     batch_ptr->c1 = conn;
+    //     batch_ptr->len++;
+    //     return;
+    // case 2:
+    //     batch_ptr->c2 = conn;
+    //     batch_ptr->len++;
+    //     return;
+    // case 3:
+    //     batch_ptr->c3 = conn;
+    //     batch_ptr->len++;
+    //     // In this case the batch is ready to be flushed, which we defer to kretprobe/tcp_close
+    //     // in order to cope with the eBPF stack limitation of 512 bytes.
+    //     return;
+    // }
+
+    // // If we hit this section it means we had one or more interleaved tcp_close calls.
+    // // We send the connection outside of a batch anyway. This is likely not as
+    // // frequent of a case to cause performance issues and avoid cases where
+    // // we drop whole connections, which impacts things USM connection matching.
+    // submit_event(ctx, cpu, &conn, sizeof(conn_t));
+    // if (is_tcp) {
+    //     increment_telemetry_count(unbatched_tcp_close);
+    // }
+    // if (is_udp) {
+    //     increment_telemetry_count(unbatched_udp_close);
+    // }
 }
 
 
