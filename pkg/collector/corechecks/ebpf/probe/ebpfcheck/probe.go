@@ -21,6 +21,9 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/asm"
+	"github.com/cilium/ebpf/btf"
+	"github.com/cilium/ebpf/features"
 	"github.com/cilium/ebpf/link"
 	"github.com/cilium/ebpf/rlimit"
 	"golang.org/x/sys/unix"
@@ -894,7 +897,9 @@ func hashMapNumberOfEntries(mp *ebpf.Map, buffers *entryCountBuffers, maxRestart
 
 	var numElements int64
 	var err error
-	if ddmaps.BatchAPISupported() && mp.Type() != ebpf.HashOfMaps { // HashOfMaps doesn't work with batch API
+	if isForEachElemHelperAvailable() && mp.Type() != ebpf.HashOfMaps {
+		numElements, err = hashMapNumberOfEntriesWithHelper(mp)
+	} else if ddmaps.BatchAPISupported() && mp.Type() != ebpf.HashOfMaps { // HashOfMaps doesn't work with batch API
 		numElements, err = hashMapNumberOfEntriesWithBatch(mp, buffers, maxRestarts)
 	} else {
 		numElements, err = hashMapNumberOfEntriesWithIteration(mp, buffers, maxRestarts)
@@ -905,4 +910,115 @@ func hashMapNumberOfEntries(mp *ebpf.Map, buffers *entryCountBuffers, maxRestart
 	}
 
 	return numElements
+}
+
+func isForEachElemHelperAvailable() bool {
+	return features.HaveProgramHelper(ebpf.SocketFilter, asm.FnForEachMapElem) == nil
+}
+
+func hashMapNumberOfEntriesWithHelper(mp *ebpf.Map) (int64, error) {
+	entryBtf := &btf.Func{
+		Name: "entry",
+		Type: &btf.FuncProto{
+			Return: &btf.Int{
+				Name:     "int",
+				Size:     4,
+				Encoding: btf.Signed,
+			},
+		},
+	}
+
+	u64Btf := &btf.Int{
+		Name:     "long",
+		Size:     8,
+		Encoding: btf.Unsigned,
+	}
+
+	callbackBtf := &btf.Func{
+		Name: "callback",
+		Type: &btf.FuncProto{
+			Return: u64Btf,
+			Params: []btf.FuncParam{
+				{
+					Name: "map",
+					Type: u64Btf,
+				},
+				{
+					Name: "key",
+					Type: u64Btf,
+				},
+				{
+					Name: "value",
+					Type: u64Btf,
+				},
+				{
+					Name: "ctx",
+					Type: u64Btf,
+				},
+			},
+		},
+	}
+
+	/*
+		equivalent to the following C code, based on the fact that `for_each_map_elem`
+		returns the amount of entries visited, so visiting all the entries ensures we
+		get the amount of entries in the map.
+
+		int callback(struct bpf_map* map, const void* key, void* value, void * ctx) {
+			return 0;
+		}
+
+		int entry() {
+			return bpf_for_each_map_elem(fd, callback, NULL, 0);
+		}
+	*/
+
+	spec := &ebpf.ProgramSpec{
+		Type: ebpf.SocketFilter,
+		Instructions: asm.Instructions{
+			// entry
+			btf.WithFuncMetadata(
+				asm.LoadMapPtr(asm.R1, mp.FD()), // map fd
+				entryBtf,
+			),
+			asm.Instruction{
+				OpCode:   asm.LoadImmOp(asm.DWord),
+				Src:      asm.PseudoFunc,
+				Dst:      asm.R2,
+				Constant: -1,
+			}.WithReference("callback"),
+			asm.LoadImm(asm.R3, 0, asm.DWord), // callback ctx
+			asm.LoadImm(asm.R4, 0, asm.DWord), // flags
+			asm.FnForEachMapElem.Call(),
+
+			asm.Instruction{
+				OpCode: asm.Exit.Op(asm.ImmSource),
+			},
+
+			// callback
+			btf.WithFuncMetadata(
+				asm.LoadImm(asm.R0, 0, asm.DWord).WithSymbol("callback"),
+				callbackBtf,
+			),
+			asm.Instruction{
+				OpCode: asm.Exit.Op(asm.ImmSource),
+			},
+		},
+		License: "GPL",
+	}
+
+	prog, err := ebpf.NewProgramWithOptions(spec, ebpf.ProgramOptions{
+		LogDisabled: true,
+	})
+	if err != nil {
+		return 0, err
+	}
+	defer prog.Close()
+
+	res, _, err := prog.Test(make([]byte, 32))
+	if err != nil {
+		return 0, err
+	}
+
+	return int64(res), nil
 }
