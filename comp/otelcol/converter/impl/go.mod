@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/comp/otelcol/converter/impl
 
-go 1.21.0
+go 1.21.9
 
 replace github.com/DataDog/datadog-agent/comp/otelcol/converter/def => ../def
 

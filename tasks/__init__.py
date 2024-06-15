@@ -79,6 +79,7 @@ from tasks.gotest import (
     get_modified_packages,
     integration_tests,
     lint_go,
+    otel_integration_test,
     send_unit_tests_stats,
     test,
 )
@@ -127,6 +128,7 @@ ns.add_task(check_mod_tidy)
 ns.add_task(check_go_mod_replaces)
 ns.add_task(check_otel_build)
 ns.add_task(check_otel_module_versions)
+ns.add_task(otel_integration_test)
 ns.add_task(tidy)
 ns.add_task(tidy_all)
 ns.add_task(internal_deps_checker)
