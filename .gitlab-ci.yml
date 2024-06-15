@@ -164,15 +164,15 @@ variables:
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to _test_only
   DATADOG_AGENT_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BUILDIMAGES: v35901572-a9447181
+  DATADOG_AGENT_BUILDIMAGES: v36675054-482032aa
   DATADOG_AGENT_WINBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_WINBUILDIMAGES: v35901572-a9447181
+  DATADOG_AGENT_WINBUILDIMAGES: v36675054-482032aa
   DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_ARMBUILDIMAGES: v35901572-a9447181
+  DATADOG_AGENT_ARMBUILDIMAGES: v36675054-482032aa
   DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v35901572-a9447181
+  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v36675054-482032aa
   DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v35901572-a9447181
+  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v36675054-482032aa
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
   DEB_GPG_KEY_ID: c0962c7d
@@ -934,15 +934,7 @@ workflow:
     when: on_success
 
 .on_installer_or_e2e_changes:
-  - <<: *if_disable_e2e_tests
-    when: never
-  - !reference [.except_mergequeue]
-  - <<: *if_main_branch
-    when: on_success
-  - <<: *if_release_branch
-    when: on_success
-  - if: $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$/
-    when: on_success
+  - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
         - .gitlab/**/*
@@ -951,7 +943,6 @@ workflow:
         - cmd/installer/**/*
         - test/new-e2e/tests/installer/**/*
         - tasks/installer.py
-        - test/new-e2e/go.mod
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
     when: on_success
 

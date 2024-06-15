@@ -295,6 +295,28 @@ func (s *packageApmInjectSuite) TestInstrument() {
 	s.assertDockerdInstrumented(injectOCIPath)
 }
 
+func (s *packageApmInjectSuite) TestPackagePinning() {
+	// Deb install using today's defaults
+	err := s.RunInstallScriptWithError(
+		"DD_APM_INSTRUMENTATION_ENABLED=all",
+		"DD_APM_INSTRUMENTATION_LIBRARIES=python:2.8.2-dev,dotnet",
+		envForceInstall("datadog-apm-inject"),
+		envForceInstall("datadog-apm-library-python"),
+		envForceInstall("datadog-apm-library-dotnet"),
+		envForceInstall("datadog-agent"),
+	)
+	defer s.Purge()
+	defer s.purgeInjectorDebInstall()
+	assert.NoError(s.T(), err)
+
+	s.assertLDPreloadInstrumented(injectOCIPath)
+	s.assertSocketPath("/var/run/datadog-installer/apm.socket")
+	s.assertDockerdInstrumented(injectOCIPath)
+
+	s.host.AssertPackageInstalledByInstaller("datadog-apm-library-python", "datadog-apm-library-dotnet")
+	s.host.AssertPackageVersion("datadog-apm-library-python", "2.8.2-dev")
+}
+
 func (s *packageApmInjectSuite) TestUninstrument() {
 	s.host.InstallDocker()
 	s.RunInstallScriptWithError(
