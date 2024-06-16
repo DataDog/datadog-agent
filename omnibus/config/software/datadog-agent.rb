@@ -184,7 +184,8 @@ build do
   end
 
   # OTel agent - can never be bundled
-  if flavor_arg.eql?("ua")
+  command "echo \"#{flavor_arg}\""
+  if flavor_arg.eql? "ua"
     unless windows_target?
       command "invoke -e otel-agent.build", :env => env
       copy 'bin/otel-agent/otel-agent', "#{install_dir}/embedded/bin"
