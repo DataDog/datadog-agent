@@ -11,7 +11,7 @@
 #define STRINGIFY(a) #a
 
 // The method is used to read the data buffer from the TCP segment data up to `total_size` bytes.
-#define READ_INTO_BUFFER(name, total_size, blk_size)                                                                \
+#define READ_INTO_BUFFER_INTERNAL(name, total_size, blk_size, fn)                                                   \
     static __always_inline void read_into_buffer_##name(char *buffer, struct __sk_buff *skb, u32 offset) {          \
         const u32 end = (total_size) < (skb->len - offset) ? offset + (total_size) : skb->len;                      \
         unsigned i = 0;                                                                                             \
@@ -20,7 +20,7 @@
         for (; i < ((total_size) / (blk_size)); i++) {                                                              \
             if (offset + (blk_size) - 1 >= end) { break; }                                                          \
                                                                                                                     \
-            bpf_skb_load_bytes_with_telemetry(skb, offset, buffer, (blk_size));                                     \
+            fn(skb, offset, buffer, (blk_size));                                                                    \
             offset += (blk_size);                                                                                   \
             buffer += (blk_size);                                                                                   \
         }                                                                                                           \
@@ -41,10 +41,13 @@
         /* verifier so it can be assured we are not exceeding the memory limits. */                                 \
         const s64 left_buffer = (s64)(total_size) < (s64)(i*(blk_size)) ? 0 : total_size - i*(blk_size);            \
         if (read_size <= left_buffer) {                                                                             \
-            bpf_skb_load_bytes_with_telemetry(skb, offset, buffer, read_size);                                      \
+            fn(skb, offset, buffer, read_size);                                                                     \
         }                                                                                                           \
         return;                                                                                                     \
     }
+
+#define READ_INTO_BUFFER(name, total_size, blk_size) READ_INTO_BUFFER_INTERNAL(name, total_size, blk_size, bpf_skb_load_bytes_with_telemetry)
+#define READ_INTO_BUFFER_WITHOUT_TELEMETRY(name, total_size, blk_size) READ_INTO_BUFFER_INTERNAL(name, total_size, blk_size, bpf_skb_load_bytes)
 
 #define PAGESIZE 4096
 
