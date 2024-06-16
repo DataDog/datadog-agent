@@ -184,8 +184,8 @@ build do
     move 'bin/agent/dist/security-agent.yaml', "#{conf_dir}/security-agent.yaml.example"
   end
 
-  # OTel agent
-  if (not bundled_agents.include?("otel-agent")) && flavor_arg.eql?("ua")
+  # OTel agent - can never be bundled
+  if flavor_arg.eql?("ua")
     unless windows_target?
       command "invoke -e otel-agent.build", :env => env
       copy 'bin/otel-agent/otel-agent', "#{install_dir}/embedded/bin"
