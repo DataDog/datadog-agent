@@ -1,6 +1,5 @@
 ---
 title: CSM Threats Events Formats
-kind: documentation
 description: JSON schema documentation of the CSM Threats backend event
 disable_edit: true
 ---

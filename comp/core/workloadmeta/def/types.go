@@ -42,10 +42,8 @@ type Kind string
 const (
 	KindContainer              Kind = "container"
 	KindKubernetesPod          Kind = "kubernetes_pod"
-	KindKubernetesNode         Kind = "kubernetes_node"
 	KindKubernetesMetadata     Kind = "kubernetes_metadata"
 	KindKubernetesDeployment   Kind = "kubernetes_deployment"
-	KindKubernetesNamespace    Kind = "kubernetes_namespace"
 	KindECSTask                Kind = "ecs_task"
 	KindContainerImageMetadata Kind = "container_image_metadata"
 	KindProcess                Kind = "process"
@@ -655,14 +653,8 @@ type SeccompProfile struct {
 
 var _ Entity = &Container{}
 
-// ContainerFilterFunc is a function used to filter containers.
-type ContainerFilterFunc func(container *Container) bool
-
-// ProcessFilterFunc is a function used to filter processes.
-type ProcessFilterFunc func(process *Process) bool
-
 // GetRunningContainers is a function that evaluates to true for running containers.
-var GetRunningContainers ContainerFilterFunc = func(container *Container) bool { return container.State.Running }
+var GetRunningContainers EntityFilterFunc[*Container] = func(container *Container) bool { return container.State.Running }
 
 // KubernetesPod is an Entity representing a Kubernetes Pod.
 type KubernetesPod struct {
@@ -827,54 +819,13 @@ func (m *KubernetesMetadata) String(verbose bool) string {
 
 	if verbose {
 		_, _ = fmt.Fprintln(&sb, "----------- Resource -----------")
-		_, _ = fmt.Fprint(&sb, m.GVR.String())
+		_, _ = fmt.Fprintln(&sb, m.GVR.String())
 	}
 
 	return sb.String()
 }
 
 var _ Entity = &KubernetesMetadata{}
-
-// KubernetesNode is an Entity representing a Kubernetes Node.
-type KubernetesNode struct {
-	EntityID
-	EntityMeta
-}
-
-// GetID implements Entity#GetID.
-func (n *KubernetesNode) GetID() EntityID {
-	return n.EntityID
-}
-
-// Merge implements Entity#Merge.
-func (n *KubernetesNode) Merge(e Entity) error {
-	nn, ok := e.(*KubernetesNode)
-	if !ok {
-		return fmt.Errorf("cannot merge KubernetesNode with different kind %T", e)
-	}
-
-	return merge(n, nn)
-}
-
-// DeepCopy implements Entity#DeepCopy.
-func (n KubernetesNode) DeepCopy() Entity {
-	cn := deepcopy.Copy(n).(KubernetesNode)
-	return &cn
-}
-
-// String implements Entity#String
-func (n KubernetesNode) String(verbose bool) string {
-	var sb strings.Builder
-	_, _ = fmt.Fprintln(&sb, "----------- Entity ID -----------")
-	_, _ = fmt.Fprintln(&sb, n.EntityID.String(verbose))
-
-	_, _ = fmt.Fprintln(&sb, "----------- Entity Meta -----------")
-	_, _ = fmt.Fprint(&sb, n.EntityMeta.String(verbose))
-
-	return sb.String()
-}
-
-var _ Entity = &KubernetesNode{}
 
 // KubernetesDeployment is an Entity representing a Kubernetes Deployment.
 type KubernetesDeployment struct {
@@ -962,47 +913,6 @@ func (d KubernetesDeployment) String(verbose bool) string {
 }
 
 var _ Entity = &KubernetesDeployment{}
-
-// KubernetesNamespace is an Entity representing a Kubernetes Namespace.
-type KubernetesNamespace struct {
-	EntityID
-	EntityMeta
-}
-
-// GetID implements Entity#GetID.
-func (n *KubernetesNamespace) GetID() EntityID {
-	return n.EntityID
-}
-
-// Merge implements Entity#Merge.
-func (n *KubernetesNamespace) Merge(e Entity) error {
-	nn, ok := e.(*KubernetesNamespace)
-	if !ok {
-		return fmt.Errorf("cannot merge KubernetesNamespace with different kind %T", e)
-	}
-
-	return merge(n, nn)
-}
-
-// DeepCopy implements Entity#DeepCopy.
-func (n KubernetesNamespace) DeepCopy() Entity {
-	cn := deepcopy.Copy(n).(KubernetesNamespace)
-	return &cn
-}
-
-// String implements Entity#String
-func (n KubernetesNamespace) String(verbose bool) string {
-	var sb strings.Builder
-	_, _ = fmt.Fprintln(&sb, "----------- Entity ID -----------")
-	_, _ = fmt.Fprintln(&sb, n.EntityID.String(verbose))
-
-	_, _ = fmt.Fprintln(&sb, "----------- Entity Meta -----------")
-	_, _ = fmt.Fprint(&sb, n.EntityMeta.String(verbose))
-
-	return sb.String()
-}
-
-var _ Entity = &KubernetesNamespace{}
 
 // ECSTaskKnownStatusStopped is the known status of an ECS task that has stopped.
 const ECSTaskKnownStatusStopped = "STOPPED"

@@ -86,7 +86,7 @@
 /.gitlab/kitchen_testing/windows.yml                 @DataDog/agent-build-and-releases @DataDog/windows-agent
 /.gitlab/kitchen_testing/new-e2e_testing/windows.yml @DataDog/agent-build-and-releases @DataDog/windows-agent
 
-/.gitlab/common/                                     @DataDog/container-integrations @DataDog/agent-ci-experience
+/.gitlab/common/                                     @DataDog/agent-ci-experience
 /.gitlab/common/test_infra_version.yml               @DataDog/agent-developer-tools @DataDog/agent-ci-experience
 
 /.gitlab/e2e/e2e.yml                                 @DataDog/container-integrations @DataDog/agent-developer-tools
@@ -133,7 +133,6 @@
 /.gitlab/benchmarks/benchmarks.yml                   @DataDog/agent-apm
 
 /.gitlab/functional_test/regression_detector.yml     @DataDog/single-machine-performance
-/.gitlab/functional_test/workload_checks.yml         @DataDog/single-machine-performance
 
 /.gitlab/software_composition_analysis/              @DataDog/software-integrity-and-trust
 
@@ -518,6 +517,7 @@
 /tasks/ebpf.py                          @DataDog/ebpf-platform
 /tasks/kmt.py                           @DataDog/ebpf-platform
 /tasks/kernel_matrix_testing/           @DataDog/ebpf-platform
+/tasks/ebpf_verifier/                   @DataDog/ebpf-platform
 /tasks/trace_agent.py                   @DataDog/agent-apm
 /tasks/rtloader.py                      @DataDog/agent-metrics-logs
 /tasks/security_agent.py                @DataDog/agent-security
