@@ -531,10 +531,12 @@ static __always_inline bool pktbuf_find_relevant_frames(pktbuf_t pkt, http2_tail
     bool is_headers_or_rst_frame, is_data_end_of_stream;
     http2_frame_t current_frame = {};
 
+    __u32 current_offset = pktbuf_data_offset(pkt);
     // if we already processed part of the packet, we should start from the last offset we processed.
     if (iteration_value->filter_iterations != 0) {
-        pktbuf_set_offset(pkt, iteration_value->data_off);
+        current_offset = iteration_value->data_off;
     }
+    pktbuf_set_offset(pkt, current_offset);
 
    // If we have found enough interesting frames, we should not process any new frame.
    // The value of iteration_value->frames_count may potentially be greater than 0.
