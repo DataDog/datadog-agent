@@ -8,6 +8,7 @@ package strategy
 
 import (
 	"bytes"
+	"log"
 
 	"github.com/DataDog/datadog-agent/comp/serializer/compression"
 	"github.com/DataDog/zstd"
@@ -34,8 +35,9 @@ func (s *ZstdStrategy) Compress(src []byte) ([]byte, error) {
 	bound := zstd.CompressBound(len(src))
 
 	if cap(s.output) < bound {
-		// We need to reallocate the buffer to accomadate the larger size
+		// We need to reallocate the buffer to accomodate the larger size
 		s.output = make([]byte, bound)
+		log.Debugf("Reallocating zstd buffer to %d bytes", bound)
 	}
 
 	return s.ctx.CompressLevel(s.output, src, s.level)
