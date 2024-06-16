@@ -199,20 +199,30 @@ PKTBUF_READ_BIG_ENDIAN(s32)
 PKTBUF_READ_BIG_ENDIAN(s16)
 PKTBUF_READ_BIG_ENDIAN(s8)
 
-#define PKTBUF_READ_INTO_BUFFER(name, total_size, blk_size)                                              \
-    READ_INTO_USER_BUFFER(name, total_size)                                                              \
-    READ_INTO_BUFFER(name, total_size, blk_size)                                                         \
-    static __always_inline void pktbuf_read_into_buffer_##name(char *buffer, pktbuf_t pkt, u32 offset) { \
-        switch (pkt.type) {                                                                              \
-        case PKTBUF_SKB:                                                                                 \
-            read_into_buffer_##name(buffer, pkt.skb, offset);                                            \
-            return;                                                                                      \
-        case PKTBUF_TLS:                                                                                 \
-            read_into_user_buffer_##name(buffer, pkt.tls->buffer_ptr + offset);                          \
-            return;                                                                                      \
-        }                                                                                                \
-        pktbuf_invalid_operation();                                                                      \
+#define PKTBUF_READ_INTO_BUFFER_INTERNAL(name, total_size, blk_size)                                        \
+    static __always_inline void pktbuf_read_into_buffer_##name(char *buffer, pktbuf_t pkt, u32 offset) {    \
+        switch (pkt.type) {                                                                                 \
+        case PKTBUF_SKB:                                                                                    \
+            read_into_buffer_##name(buffer, pkt.skb, offset);                                               \
+            return;                                                                                         \
+        case PKTBUF_TLS:                                                                                    \
+            read_into_user_buffer_##name(buffer, pkt.tls->buffer_ptr + offset);                             \
+            return;                                                                                         \
+        }                                                                                                   \
+        pktbuf_invalid_operation();                                                                         \
     }
+
+#define PKTBUF_READ_INTO_BUFFER(name, total_size, blk_size)         \
+    READ_INTO_USER_BUFFER(name, total_size)                         \
+    READ_INTO_BUFFER(name, total_size, blk_size)                    \
+    PKTBUF_READ_INTO_BUFFER_INTERNAL(name, total_size, blk_size)
+
+
+#define PKTBUF_READ_INTO_BUFFER_WITHOUT_TELEMETRY(name, total_size, blk_size)   \
+    READ_INTO_USER_BUFFER_WITHOUT_TELEMETRY(name, total_size)                   \
+    READ_INTO_BUFFER_WITHOUT_TELEMETRY(name, total_size, blk_size)              \
+    PKTBUF_READ_INTO_BUFFER_INTERNAL(name, total_size, blk_size)
+
 
 // Wraps the mechanism of reading big-endian number (s16 or s32) from the packet, and increasing the offset.
 #define PKTBUF_READ_BIG_ENDIAN_WRAPPER(type, name, pkt, offset) \
