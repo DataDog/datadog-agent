@@ -34,6 +34,7 @@ build do
 
   # set GOPATH on the omnibus source dir for this software
   gopath = Pathname.new(project_dir) + '../../../..'
+  flavor_arg = ENV['AGENT_FLAVOR']
   if windows_target?
     env = {
         'GOPATH' => gopath.to_path,
@@ -44,7 +45,6 @@ build do
     }
     major_version_arg = "%MAJOR_VERSION%"
     py_runtimes_arg = "%PY_RUNTIMES%"
-    flavor_arg = "%AGENT_FLAVOR%"
   else
     env = {
         'GOPATH' => gopath.to_path,
@@ -57,7 +57,6 @@ build do
     }
     major_version_arg = "$MAJOR_VERSION"
     py_runtimes_arg = "$PY_RUNTIMES"
-    flavor_arg = "$AGENT_FLAVOR"
   end
 
   unless ENV["OMNIBUS_GOMODCACHE"].nil? || ENV["OMNIBUS_GOMODCACHE"].empty?
