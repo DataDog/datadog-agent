@@ -214,7 +214,7 @@ func (f *factory) createTracesExporter(
 	)
 }
 
-// createTracesExporter creates a trace exporter based on this config.
+// createMetricsExporter creates a metrics exporter based on this config.
 func (f *factory) createMetricsExporter(
 	ctx context.Context,
 	set exporter.CreateSettings,
