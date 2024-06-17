@@ -18,6 +18,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/listeners/ratelimit"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
@@ -68,6 +69,8 @@ type UDSListener struct {
 
 	listenWg *sync.WaitGroup
 
+	// telemetry
+	telemetry             telemetry.Component
 	telemetryStore        *TelemetryStore
 	packetsTelemetryStore *packets.TelemetryStore
 }
@@ -135,7 +138,7 @@ func NewUDSOobPoolManager() *packets.PoolManager {
 }
 
 // NewUDSListener returns an idle UDS Statsd listener
-func NewUDSListener(packetOut chan packets.Packets, sharedPacketPoolManager *packets.PoolManager, sharedOobPacketPoolManager *packets.PoolManager, cfg config.Reader, capture replay.Component, transport string, wmeta optional.Option[workloadmeta.Component], pidMap pidmap.Component, telemetryStore *TelemetryStore, packetsTelemetryStore *packets.TelemetryStore) (*UDSListener, error) {
+func NewUDSListener(packetOut chan packets.Packets, sharedPacketPoolManager *packets.PoolManager, sharedOobPacketPoolManager *packets.PoolManager, cfg config.Reader, capture replay.Component, transport string, wmeta optional.Option[workloadmeta.Component], pidMap pidmap.Component, telemetryStore *TelemetryStore, packetsTelemetryStore *packets.TelemetryStore, telemetry telemetry.Component) (*UDSListener, error) {
 	originDetection := cfg.GetBool("dogstatsd_origin_detection")
 
 	listener := &UDSListener{
@@ -154,6 +157,7 @@ func NewUDSListener(packetOut chan packets.Packets, sharedPacketPoolManager *pac
 		wmeta:                        wmeta,
 		telemetryStore:               telemetryStore,
 		packetsTelemetryStore:        packetsTelemetryStore,
+		telemetry:                    telemetry,
 	}
 
 	// Init the oob buffer pool if origin detection is enabled
@@ -208,7 +212,7 @@ func (l *UDSListener) handleConnection(conn *net.UnixConn, closeFunc CloseFuncti
 	var rateLimiter *ratelimit.MemBasedRateLimiter
 	if l.dogstatsdMemBasedRateLimiter {
 		var err error
-		rateLimiter, err = ratelimit.BuildMemBasedRateLimiter(l.config)
+		rateLimiter, err = ratelimit.BuildMemBasedRateLimiter(l.config, l.telemetry)
 		if err != nil {
 			log.Errorf("Cannot use DogStatsD rate limiter: %v", err)
 			rateLimiter = nil
