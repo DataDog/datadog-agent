@@ -282,7 +282,7 @@ func collectEntry(file os.DirEntry, path string, integrationName string, integra
 	entry.conf, err = GetIntegrationConfigFromFile(integrationName, absPath)
 	if err != nil {
 		if err.Error() == emptyFileError {
-			log.Tracef("skipping empty file: %s", absPath)
+			log.Infof("skipping empty file: %s", absPath)
 			entry.err = errors.New("empty file")
 			return entry, integrationErrors
 		}
