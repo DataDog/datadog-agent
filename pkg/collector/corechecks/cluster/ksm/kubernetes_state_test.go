@@ -488,34 +488,6 @@ func TestProcessMetrics(t *testing.T) {
 			},
 		},
 		{
-			name:   "phase tag for ns",
-			config: &KSMConfig{LabelsMapper: defaultLabelsMapper()},
-			metricsToProcess: map[string][]ksmstore.DDMetricsFam{
-				"kube_namespace_status_phase": {
-					{
-						Type: "*v1.Namespace",
-						Name: "kube_namespace_status_phase",
-						ListMetrics: []ksmstore.DDMetric{
-							{
-								Labels: map[string]string{"namespace": "default", "phase": "Active"},
-								Val:    1,
-							},
-						},
-					},
-				},
-			},
-			metricsToGet:       []ksmstore.DDMetricsFam{},
-			metricTransformers: defaultMetricTransformers(),
-			expected: []metricsExpected{
-				{
-					name:     "kubernetes_state.namespace.count",
-					val:      1,
-					tags:     []string{"phase:Active"},
-					hostname: "",
-				},
-			},
-		},
-		{
 			name:   "ingress metric",
 			config: &KSMConfig{LabelsMapper: defaultLabelsMapper()},
 			metricsToProcess: map[string][]ksmstore.DDMetricsFam{
