@@ -8,17 +8,18 @@ package extension
 
 // BuildInfoResponse is the response struct for BuildInfo
 type BuildInfoResponse struct {
-	AgentVersion string `json:"version"`
-	AgentCommand string `json:"command"`
-	AgentDesc    string `json:"description"`
+	AgentVersion     string `json:"version"`
+	AgentCommand     string `json:"command"`
+	AgentDesc        string `json:"description"`
+	ExtensionVersion string `json:"extension_version"`
 }
 
 // ConfigResponse is the response struct for Config
 type ConfigResponse struct {
-	CustomerConfig        string `json:"customer_configuration"`
-	EnvConfig             string `json:"environment_configuration"`
+	CustomerConfig        string `json:"provided_configuration"`
+	EnvConfig             string `json:"environment_variable_configuration"`
 	RuntimeOverrideConfig string `json:"runtime_override_configuration"`
-	RuntimeConfig         string `json:"runtime_configuration"`
+	RuntimeConfig         string `json:"full_configuration"`
 }
 
 // OTelFlareSource is the response struct for flare debug sources

@@ -129,9 +129,10 @@ func (ext *ddExtension) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 
 	resp := extensionDef.Response{
 		BuildInfoResponse: extensionDef.BuildInfoResponse{
-			AgentVersion: ext.info.Version,
-			AgentCommand: ext.info.Command,
-			AgentDesc:    ext.info.Description,
+			AgentVersion:     ext.info.Version,
+			AgentCommand:     ext.info.Command,
+			AgentDesc:        ext.info.Description,
+			ExtensionVersion: ext.info.Version,
 		},
 		ConfigResponse: extensionDef.ConfigResponse{
 			CustomerConfig: customer,
