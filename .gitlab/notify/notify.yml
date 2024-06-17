@@ -127,7 +127,8 @@ notify_failure_summary_daily:
     # Send weekly if necessary (note that this workflow is usually triggered early in the morning)
     - weekday="$(date --utc +%A)"
     # TODO : Friday
-    - if [ "$weekday" = "Monday" ]; then
+    - |
+      if [ "$weekday" = "Monday" ]; then
         echo 'Sending weekly summary'
         inv -e notify.failure-summary-send-notifications --is-daily-summary=false
       fi
