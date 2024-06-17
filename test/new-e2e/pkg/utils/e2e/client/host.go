@@ -318,6 +318,7 @@ func (h *Host) DialPort(port uint16) (net.Conn, error) {
 	return connection, err
 }
 
+// GetTmpFolder returns the temporary folder path for the host
 func (h *Host) GetTmpFolder() (string, error) {
 	switch osFamily := h.osFamily; osFamily {
 	case oscomp.WindowsFamily:
@@ -329,6 +330,7 @@ func (h *Host) GetTmpFolder() (string, error) {
 	}
 }
 
+// GetLogsFolder returns the logs folder path for the host
 func (h *Host) GetLogsFolder() (string, error) {
 	switch osFamily := h.osFamily; osFamily {
 	case oscomp.WindowsFamily:

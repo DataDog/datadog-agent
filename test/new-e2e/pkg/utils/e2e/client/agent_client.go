@@ -6,7 +6,6 @@
 package client
 
 import (
-	"errors"
 	"fmt"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"regexp"
@@ -176,14 +175,14 @@ func curlCommand(endpoint string, authToken string) string {
 func waitForReadyTimeout(t *testing.T, host *Host, commandRunner *agentCommandRunner, timeout time.Duration) error {
 	err := commandRunner.waitForReadyTimeout(timeout)
 
-	//if err != nil {
-	// Propagate the original error if we have another error here
-	localErr := generateAndDownloadFlare(t, commandRunner, host)
+	if err != nil {
+		// Propagate the original error if we have another error here
+		localErr := generateAndDownloadFlare(t, commandRunner, host)
 
-	if localErr != nil {
-		t.Errorf("Could not generate flare: %v", localErr)
+		if localErr != nil {
+			t.Errorf("Could not generate and get a flare: %v", localErr)
+		}
 	}
-	//}
 
 	return err
 }
@@ -191,10 +190,10 @@ func waitForReadyTimeout(t *testing.T, host *Host, commandRunner *agentCommandRu
 func generateAndDownloadFlare(t *testing.T, commandRunner *agentCommandRunner, host *Host) error {
 	profile := runner.GetProfile()
 	outputDir, err := profile.GetOutputDir()
-	//flareFound := false
+	flareFound := false
 
 	if err != nil {
-		return errors.New(fmt.Sprintf("Could not get output directory: %v", err))
+		return fmt.Errorf("could not get output directory: %v", err)
 	}
 
 	_, err = commandRunner.FlareWithError(agentclient.WithArgs([]string{"--email", "e2e@test.com", "--send", "--local"}))
@@ -205,17 +204,17 @@ func generateAndDownloadFlare(t *testing.T, commandRunner *agentCommandRunner, h
 
 	flareRegex, err := regexp.Compile(`datadog-agent-.*\.zip`)
 	if err != nil {
-		return errors.New(fmt.Sprintf("could not compile regex: %v", err))
+		return fmt.Errorf("could not compile regex: %v", err)
 	}
 
 	tmpFolder, err := host.GetTmpFolder()
 	if err != nil {
-		return errors.New(fmt.Sprintf("Could not get tmp folder: %v", err))
+		return fmt.Errorf("could not get tmp folder: %v", err)
 	}
 
 	entries, err := host.ReadDir(tmpFolder)
 	if err != nil {
-		return errors.New(fmt.Sprintf("Could not read directory: %v", err))
+		return fmt.Errorf("could not read directory: %v", err)
 	}
 
 	for _, entry := range entries {
@@ -225,7 +224,7 @@ func generateAndDownloadFlare(t *testing.T, commandRunner *agentCommandRunner, h
 			if host.osFamily != osComp.WindowsFamily {
 				_, err = host.Execute(fmt.Sprintf("sudo chmod 744 %s/%s", tmpFolder, entry.Name()))
 				if err != nil {
-					return errors.New(fmt.Sprintf("Could update permission of flare file %s/%s : %v", tmpFolder, entry.Name(), err))
+					return fmt.Errorf("could update permission of flare file %s/%s : %v", tmpFolder, entry.Name(), err)
 				}
 			}
 
@@ -233,36 +232,36 @@ func generateAndDownloadFlare(t *testing.T, commandRunner *agentCommandRunner, h
 			err = host.GetFile(fmt.Sprintf("%s/%s", tmpFolder, entry.Name()), fmt.Sprintf("%s/%s", outputDir, entry.Name()))
 
 			if err != nil {
-				return errors.New(fmt.Sprintf("Could not download flare file from %s/%s : %v", tmpFolder, entry.Name(), err))
+				return fmt.Errorf("could not download flare file from %s/%s : %v", tmpFolder, entry.Name(), err)
 			}
 
-			//flareFound = true
+			flareFound = true
 		}
 	}
 
-	//if !flareFound {
-	t.Errorf("Could not find a flare. Retrieving logs directly instead...")
+	if !flareFound {
+		t.Errorf("Could not find a flare. Retrieving logs directly instead...")
 
-	logsFolder, err := host.GetLogsFolder()
-	if err != nil {
-		return errors.New(fmt.Sprintf("Could not get logs folder: %v", err))
-	}
-
-	entries, err = host.ReadDir(logsFolder)
-
-	if err != nil {
-		return errors.New(fmt.Sprintf("Could not read directory: %v", err))
-	}
-
-	for _, entry := range entries {
-		t.Logf("Found log file: %s. Downloading file in: %s", entry.Name(), outputDir)
-
-		err = host.GetFile(fmt.Sprintf("%s/%s", logsFolder, entry.Name()), fmt.Sprintf("%s/%s", outputDir, entry.Name()))
+		logsFolder, err := host.GetLogsFolder()
 		if err != nil {
-			return errors.New(fmt.Sprintf("Could not download log file from %s/%s : %v", logsFolder, entry.Name(), err))
+			return fmt.Errorf("could not get logs folder: %v", err)
+		}
+
+		entries, err = host.ReadDir(logsFolder)
+
+		if err != nil {
+			return fmt.Errorf("could not read directory: %v", err)
+		}
+
+		for _, entry := range entries {
+			t.Logf("Found log file: %s. Downloading file in: %s", entry.Name(), outputDir)
+
+			err = host.GetFile(fmt.Sprintf("%s/%s", logsFolder, entry.Name()), fmt.Sprintf("%s/%s", outputDir, entry.Name()))
+			if err != nil {
+				return fmt.Errorf("could not download log file from %s/%s : %v", logsFolder, entry.Name(), err)
+			}
 		}
 	}
-	//}
 
 	return nil
 }
