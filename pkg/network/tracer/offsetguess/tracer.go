@@ -849,7 +849,7 @@ func newTracerStatus() *TracerStatus {
 
 	for k, v := range knownOffsets {
 		switch k {
-		// we only these two currently
+		// we only have these two currently
 		case GuessRTT:
 			status.Offset_rtt = v
 		case GuessRTTVar:
