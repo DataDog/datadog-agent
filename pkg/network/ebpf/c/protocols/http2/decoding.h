@@ -8,7 +8,7 @@
 #include "protocols/http/types.h"
 
 PKTBUF_READ_INTO_BUFFER(http2_preface, HTTP2_MARKER_SIZE, HTTP2_MARKER_SIZE)
-PKTBUF_READ_INTO_BUFFER(http2_frame_header, HTTP2_FRAME_HEADER_SIZE, HTTP2_FRAME_HEADER_SIZE)
+PKTBUF_READ_INTO_BUFFER_WITHOUT_TELEMETRY(http2_frame_header, HTTP2_FRAME_HEADER_SIZE, HTTP2_FRAME_HEADER_SIZE)
 PKTBUF_READ_INTO_BUFFER(path, HTTP2_MAX_PATH_LEN, BLK_SIZE)
 
 // Handles the dynamic table size update.
@@ -531,10 +531,17 @@ static __always_inline bool pktbuf_find_relevant_frames(pktbuf_t pkt, http2_tail
     bool is_headers_or_rst_frame, is_data_end_of_stream;
     http2_frame_t current_frame = {};
 
+    // The following if-clause could have been "simplified" into
+    // if (iteration_value->filter_iterations != 0) {
+    //    pktbuf_set_offset(pkt, iteration_value->data_off);
+    // }
+    // However, the compiler generates much more instructions in the code above, so we're using the following code.
+    __u32 current_offset = pktbuf_data_offset(pkt);
     // if we already processed part of the packet, we should start from the last offset we processed.
     if (iteration_value->filter_iterations != 0) {
-        pktbuf_set_offset(pkt, iteration_value->data_off);
+        current_offset = iteration_value->data_off;
     }
+    pktbuf_set_offset(pkt, current_offset);
 
    // If we have found enough interesting frames, we should not process any new frame.
    // The value of iteration_value->frames_count may potentially be greater than 0.
