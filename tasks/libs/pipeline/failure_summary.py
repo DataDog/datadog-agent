@@ -8,7 +8,6 @@ from datetime import UTC, datetime, timedelta
 
 from gitlab.v4.objects import Project, ProjectPipeline, ProjectPipelineJob
 from invoke import Context
-from slack_sdk import WebClient
 
 from tasks.github_tasks import ALL_TEAMS, GITHUB_SLACK_MAP
 from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
@@ -247,6 +246,8 @@ def send_summary_slack_message(channel: str, stats: list[dict], allow_failure: b
     - stats: Item of the dict returned by SummaryStats.make_stats
     """
     # Avoid circular dependency
+    from slack_sdk import WebClient
+
     from tasks.notify import NOTIFICATION_DISCLAIMER, get_ci_visibility_job_url
 
     # Create message
