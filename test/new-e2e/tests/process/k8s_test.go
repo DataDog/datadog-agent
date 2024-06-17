@@ -11,7 +11,6 @@ import (
 	_ "embed"
 	"os"
 	"strconv"
-	"strings"
 	"testing"
 	"text/template"
 
@@ -58,11 +57,18 @@ type K8sSuite struct {
 }
 
 func TestK8sTestSuite(t *testing.T) {
+	helmValues, err := createHelmValues(helmConfig{
+		ProcessAgentEnabled: true,
+		ProcessCollection:   true,
+	})
+	require.NoError(t, err)
+
 	options := []e2e.SuiteOption{
 		e2e.WithProvisioner(awskubernetes.KindProvisioner(
 			awskubernetes.WithWorkloadApp(func(e config.Env, kubeProvider *kubernetes.Provider) (*kubeComp.Workload, error) {
 				return cpustress.K8sAppDefinition(e, kubeProvider, "workload-stress")
 			}),
+			awskubernetes.WithAgentOptions(kubernetesagentparams.WithHelmValues(helmValues)),
 		)),
 	}
 
@@ -75,33 +81,11 @@ func TestK8sTestSuite(t *testing.T) {
 }
 
 func (s *K8sSuite) TestWorkloadsInstalled() {
-	helmValues, err := createHelmValues(helmConfig{
-		ProcessAgentEnabled: true,
-		ProcessCollection:   true,
-	})
-
-	require.NoError(s.T(), err)
-	options := []awskubernetes.ProvisionerOption{
-		awskubernetes.WithAgentOptions(kubernetesagentparams.WithHelmValues(helmValues)),
-	}
-
-	s.UpdateEnv(awskubernetes.KindProvisioner(options...))
-
-	res, _ := s.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").List(context.Background(), v1.ListOptions{})
-	containsClusterAgent := false
-	for _, pod := range res.Items {
-		s.T().Logf("pod name: %s", pod.Name)
-		if strings.Contains(pod.Name, "cluster-agent") {
-			containsClusterAgent = true
-			break
-		}
-	}
+	res, _ := s.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").
+		List(context.Background(), v1.ListOptions{LabelSelector: "app=dda-linux-datadog"})
+	assert.NotEmpty(s.T(), res.Items)
+	assert.Equal(s.T(), s.Env().Agent.InstallNameLinux, "dda-linux")
 
 	res, _ = s.Env().KubernetesCluster.Client().CoreV1().Pods("workload-stress").List(context.TODO(), v1.ListOptions{})
-	for _, pod := range res.Items {
-		s.T().Logf("pod name: %s", pod.Name)
-	}
-
-	assert.True(s.T(), containsClusterAgent, "Cluster Agent not found")
-	assert.Equal(s.T(), s.Env().Agent.InstallNameLinux, "dda-linux")
+	assert.NotEmpty(s.T(), res.Items)
 }
