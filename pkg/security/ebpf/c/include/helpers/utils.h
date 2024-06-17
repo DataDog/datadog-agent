@@ -80,10 +80,4 @@ u64 __attribute__((always_inline)) rand64() {
     return (u64)rand32() << 32 | bpf_ktime_get_ns();
 }
 
-u64 __attribute__((always_inline)) id64() {
-    // use the fist 56 bits of ktime to simulate a somewhat monotonic id
-    // the last 8 bits are the cpu id to avoid collisions between cores
-    return ((u64)bpf_get_smp_processor_id() << 56) | (bpf_ktime_get_ns() & 0xFFFFFFFFFFFFFF);
-}
-
 #endif
