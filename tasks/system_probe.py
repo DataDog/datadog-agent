@@ -34,9 +34,9 @@ from tasks.libs.common.utils import (
     get_build_flags,
     get_common_test_args,
     get_gobin,
-    get_version_numeric_only,
     parse_kernel_version,
 )
+from tasks.libs.releasing.version import get_version_numeric_only
 from tasks.libs.types.arch import ALL_ARCHS, Arch
 from tasks.windows_resources import MESSAGESTRINGS_MC_PATH
 

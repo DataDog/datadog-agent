@@ -51,6 +51,7 @@ type Host struct {
 	privateKeyPassphrase []byte
 	buildCommand         buildCommandFn
 	convertPathSeparator convertPathSeparatorFn
+	osFamily             oscomp.Family
 }
 
 // NewHost creates a new ssh client to connect to a remote host with
@@ -82,6 +83,7 @@ func NewHost(context e2e.Context, hostOutput remote.HostOutput) (*Host, error) {
 		privateKeyPassphrase: []byte(privateKeyPassword),
 		buildCommand:         buildCommandFactory(hostOutput.OSFamily),
 		convertPathSeparator: convertPathSeparatorFactory(hostOutput.OSFamily),
+		osFamily:             hostOutput.OSFamily,
 	}
 	err = host.Reconnect()
 	return host, err
@@ -314,6 +316,32 @@ func (h *Host) DialPort(port uint16) (net.Conn, error) {
 		connection, err = h.client.DialContext(context, protocol, address)
 	}
 	return connection, err
+}
+
+// GetTmpFolder returns the temporary folder path for the host
+func (h *Host) GetTmpFolder() (string, error) {
+	switch osFamily := h.osFamily; osFamily {
+	case oscomp.WindowsFamily:
+		return h.Execute("echo %TEMP%")
+	case oscomp.LinuxFamily:
+		return "/tmp", nil
+	default:
+		return "", errors.ErrUnsupported
+	}
+}
+
+// GetLogsFolder returns the logs folder path for the host
+func (h *Host) GetLogsFolder() (string, error) {
+	switch osFamily := h.osFamily; osFamily {
+	case oscomp.WindowsFamily:
+		return `C:\ProgramData\Datadog\logs`, nil
+	case oscomp.LinuxFamily:
+		return "/var/log/datadog/", nil
+	case oscomp.MacOSFamily:
+		return "/opt/datadog-agent/logs", nil
+	default:
+		return "", errors.ErrUnsupported
+	}
 }
 
 // appendWithSudo appends content to the file using sudo tee for Linux environment

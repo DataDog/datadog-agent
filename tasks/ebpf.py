@@ -443,8 +443,8 @@ def annotate_complexity(
 
                 if compl is not None:
                     # We have complexity information for this line, print everything that we had in buffer
-                    for l in buffer:
-                        print(l)
+                    for lb in buffer:
+                        print(lb)
                     buffer.clear()
 
                     if show_assembly:
@@ -491,8 +491,8 @@ def annotate_complexity(
 
                 elif len(buffer) == 9:
                     # Print the last lines if we have no line information
-                    for l in buffer:
-                        print(l)
+                    for lb in buffer:
+                        print(lb)
 
     print_complexity_legend()
 
@@ -540,7 +540,7 @@ def show_top_complexity_lines(
             )
 
         with open(f) as src:
-            line = next(l for i, l in enumerate(src) if i + 1 == int(lineno))
+            line = next(line for i, line in enumerate(src) if i + 1 == int(lineno))
             print(lineid)
             print(source_line_to_str(int(lineno), line, compl, compinfo_widths))
             print()
