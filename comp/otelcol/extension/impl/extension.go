@@ -128,17 +128,17 @@ func (ext *ddExtension) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 	enhanced, _ := provider.GetEnhancedConfAsString()
 
 	resp := extensionDef.Response{
-		extensionDef.BuildInfoResponse{
+		BuildInfoResponse: extensionDef.BuildInfoResponse{
 			AgentVersion: ext.info.Version,
 			AgentCommand: ext.info.Command,
 			AgentDesc:    ext.info.Description,
 		},
-		extensionDef.ConfigResponse{
+		ConfigResponse: extensionDef.ConfigResponse{
 			CustomerConfig: customer,
 			RuntimeConfig:  enhanced,
 		},
-		ext.debug,
-		getEnvironmentAsMap(),
+		DebugSourceResponse: ext.debug,
+		Environment:         getEnvironmentAsMap(),
 	}
 
 	j, err := json.MarshalIndent(resp, "", "  ")
