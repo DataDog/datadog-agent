@@ -78,8 +78,7 @@ type GenericCollector struct {
 	streamCtx    context.Context
 	streamCancel context.CancelFunc
 
-	ctx    context.Context
-	cancel context.CancelFunc
+	ctx context.Context
 
 	Insecure bool // for testing
 }
@@ -92,7 +91,7 @@ func (c *GenericCollector) Start(ctx context.Context, store workloadmeta.Compone
 
 	c.store = store
 
-	c.ctx, c.cancel = context.WithCancel(ctx)
+	c.ctx = ctx
 
 	opts := []grpc.DialOption{grpc.WithContextDialer(func(ctx context.Context, url string) (net.Conn, error) {
 		return net.Dial("tcp", url)
