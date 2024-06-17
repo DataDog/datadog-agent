@@ -75,7 +75,6 @@ type GenericCollector struct {
 	client GrpcClient
 	stream Stream
 
-	streamCtx    context.Context
 	streamCancel context.CancelFunc
 
 	ctx context.Context
@@ -154,7 +153,7 @@ func (c *GenericCollector) startWorkloadmetaStream(maxElapsed time.Duration) err
 			return err
 		}
 
-		c.streamCtx, c.streamCancel = context.WithCancel(
+		streamCtx, streamCancel := context.WithCancel(
 			metadata.NewOutgoingContext(
 				c.ctx,
 				metadata.MD{
@@ -164,8 +163,9 @@ func (c *GenericCollector) startWorkloadmetaStream(maxElapsed time.Duration) err
 				},
 			),
 		)
+		c.streamCancel = streamCancel
 
-		c.stream, err = c.client.StreamEntities(c.streamCtx)
+		c.stream, err = c.client.StreamEntities(streamCtx)
 		if err != nil {
 			log.Infof("unable to establish stream, will possibly retry: %s", err)
 			return err
