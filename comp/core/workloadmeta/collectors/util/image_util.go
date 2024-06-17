@@ -5,7 +5,7 @@
 
 //go:build trivy
 
-// Package util contains utility functions for image metadata collection
+// Package util contains utility functions for workload metadata collectors
 package util
 
 import (

@@ -5,13 +5,15 @@
 
 //go:build kubeapiserver
 
-// Package util contains utility functions for image metadata collection
+// Package util contains utility functions for workload metadata collectors
 package util
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 )
 
 func TestGenerateKubeMetadataEntityID(t *testing.T) {
@@ -20,7 +22,7 @@ func TestGenerateKubeMetadataEntityID(t *testing.T) {
 		namespace    string
 		resourceType string
 		resourceName string
-		expectedID   string
+		expectedID   workloadmeta.KubeMetadataEntityID
 	}{
 		{
 			name:         "namespace scoped resource",
@@ -34,7 +36,7 @@ func TestGenerateKubeMetadataEntityID(t *testing.T) {
 			namespace:    "",
 			resourceType: "nodes",
 			resourceName: "foo-node",
-			expectedID:   "nodes//foo-node",
+			expectedID:   GenerateKubeMetadataEntityID("nodes", "", "foo-node"),
 		},
 	}
 
@@ -49,10 +51,11 @@ func TestGenerateKubeMetadataEntityID(t *testing.T) {
 func TestParseKubeMetadataEntityID(t *testing.T) {
 	tests := []struct {
 		name              string
-		entityID          string
+		entityID          workloadmeta.KubeMetadataEntityID
 		expectedName      string
 		expectedNamespace string
 		expectedResource  string
+		expectError       bool
 	}{
 		{
 			name:              "namespace scoped resource",
@@ -60,13 +63,15 @@ func TestParseKubeMetadataEntityID(t *testing.T) {
 			expectedResource:  "deployments",
 			expectedName:      "app",
 			entityID:          "deployments/default/app",
+			expectError:       false,
 		},
 		{
 			name:              "cluster scoped resource",
 			expectedNamespace: "",
 			expectedResource:  "nodes",
 			expectedName:      "foo-node",
-			entityID:          "nodes//foo-node",
+			entityID:          GenerateKubeMetadataEntityID("nodes", "", "foo-node"),
+			expectError:       false,
 		},
 		{
 			name:              "malformatted id",
@@ -74,15 +79,22 @@ func TestParseKubeMetadataEntityID(t *testing.T) {
 			expectedResource:  "",
 			expectedName:      "",
 			entityID:          "mal//formatted//id",
+			expectError:       true,
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(tt *testing.T) {
-			resource, namespace, name := ParseKubeMetadataEntityID(test.entityID)
-			assert.Equal(tt, test.expectedName, name)
-			assert.Equal(tt, test.expectedNamespace, namespace)
-			assert.Equal(tt, test.expectedResource, resource)
+			resource, namespace, name, err := ParseKubeMetadataEntityID(test.entityID)
+			if test.expectError {
+				assert.Error(tt, err)
+			} else {
+				assert.NoError(tt, err)
+			}
+
+			assert.Equal(tt, name, test.expectedName)
+			assert.Equal(tt, namespace, test.expectedNamespace)
+			assert.Equal(tt, resource, test.expectedResource)
 		})
 	}
 

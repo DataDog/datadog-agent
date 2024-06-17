@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-// Package util contains utility functions for image metadata collection
+// Package util contains utility functions for workload metadata collectors
 package util
 
 import (

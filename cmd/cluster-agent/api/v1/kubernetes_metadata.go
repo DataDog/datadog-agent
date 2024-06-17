@@ -118,7 +118,7 @@ func getNamespaceMetadataWithTransformerFunc[T any](w http.ResponseWriter, r *ht
 	vars := mux.Vars(r)
 	var metadataBytes []byte
 	nsName := vars["ns"]
-	namespaceMetadata, err := wmeta.GetKubernetesMetadata(fmt.Sprintf("namespaces//%s", nsName))
+	namespaceMetadata, err := wmeta.GetKubernetesMetadata(util.GenerateKubeMetadataEntityID("namespaces", "", nsName))
 	if err != nil {
 		log.Debugf("Could not retrieve the %s of namespace %s: %v", what, nsName, err.Error()) //nolint:errcheck
 		http.Error(w, err.Error(), http.StatusInternalServerError)

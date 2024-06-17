@@ -5,21 +5,21 @@
 
 //go:build kubeapiserver
 
-// Package util contains utility functions for image metadata collection
+// Package util contains utility functions for workload metadata collectors
 package util
 
 import (
 	"fmt"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 )
 
 // GenerateKubeMetadataEntityID generates and returns a unique entity id for KubernetesMetadata entity
 // for namespaced objects, the id will have the format {resourceType}/{namespace}/{name} (e.g. deployments/default/app )
 // for cluster scoped objects, the id will have the format {resourceType}//{name} (e.g. node//master-node)
-func GenerateKubeMetadataEntityID(resource, namespace, name string) string {
-	return fmt.Sprintf("%s/%s/%s", resource, namespace, name)
+func GenerateKubeMetadataEntityID(resource, namespace, name string) workloadmeta.KubeMetadataEntityID {
+	return workloadmeta.KubeMetadataEntityID(fmt.Sprintf("%s/%s/%s", resource, namespace, name))
 }
 
 // ParseKubeMetadataEntityID parses a metadata entity ID and returns the resource type, namespace and resource name.
@@ -28,13 +28,13 @@ func GenerateKubeMetadataEntityID(resource, namespace, name string) string {
 // Examples:
 // - deployments/default/app
 // - namespaces//default
-// If the parsed id is malformatted, this function will return empty strings
-func ParseKubeMetadataEntityID(id string) (string, string, string) {
-	parts := strings.Split(id, "/")
+// If the parsed id is malformatted, this function will return empty strings and a non nil error
+func ParseKubeMetadataEntityID(id workloadmeta.KubeMetadataEntityID) (resource, namespace, name string, err error) {
+	parts := strings.Split(string(id), "/")
 	if len(parts) != 3 {
-		log.Errorf("malformatted metadata entity id: %s", id)
-		return "", "", ""
+		err := fmt.Errorf("malformatted metadata entity id: %s", id)
+		return "", "", "", err
 	}
 
-	return parts[0], parts[1], parts[2]
+	return parts[0], parts[1], parts[2], nil
 }

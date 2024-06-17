@@ -78,7 +78,7 @@ func (p metadataParser) Parse(obj interface{}) workloadmeta.Entity {
 	return &workloadmeta.KubernetesMetadata{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindKubernetesMetadata,
-			ID:   id,
+			ID:   string(id),
 		},
 		EntityMeta: workloadmeta.EntityMeta{
 			Name:        partialObjectMetadata.Name,
