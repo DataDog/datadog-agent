@@ -322,7 +322,7 @@ func (h *Host) DialPort(port uint16) (net.Conn, error) {
 func (h *Host) GetTmpFolder() (string, error) {
 	switch osFamily := h.osFamily; osFamily {
 	case oscomp.WindowsFamily:
-		return h.Execute("echo $env:TEMP")
+		return h.Execute("echo %TEMP%")
 	case oscomp.LinuxFamily:
 		return "/tmp", nil
 	default:

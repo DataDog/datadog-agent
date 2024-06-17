@@ -224,7 +224,7 @@ func generateAndDownloadFlare(t *testing.T, commandRunner *agentCommandRunner, h
 			if host.osFamily != osComp.WindowsFamily {
 				_, err = host.Execute(fmt.Sprintf("sudo chmod 744 %s/%s", tmpFolder, entry.Name()))
 				if err != nil {
-					return fmt.Errorf("could update permission of flare file %s/%s : %v", tmpFolder, entry.Name(), err)
+					return fmt.Errorf("could not update permission of flare file %s/%s : %v", tmpFolder, entry.Name(), err)
 				}
 			}
 
