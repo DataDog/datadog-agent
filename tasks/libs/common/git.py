@@ -53,3 +53,10 @@ def check_local_branch(ctx, branch):
 
 def get_commit_sha(ctx, commit="HEAD", short=False) -> str:
     return ctx.run(f"git rev-parse {'--short ' if short else ''}{commit}", hide=True).stdout.strip()
+
+
+def get_main_parent_commit(ctx) -> str:
+    """
+    Get the commit sha your current branch originated from
+    """
+    return ctx.run("git merge-base HEAD origin/main", hide=True).stdout.strip()

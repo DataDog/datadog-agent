@@ -8,7 +8,7 @@ from invoke import Context, task
 from invoke.exceptions import Exit
 
 from tasks.libs.common.color import Color, color_message
-from tasks.libs.common.git import get_commit_sha
+from tasks.libs.common.git import get_commit_sha, get_main_parent_commit
 from tasks.libs.common.utils import collapsed_section, get_distro
 
 PROFILE_COV = "coverage.out"
@@ -98,6 +98,8 @@ powershell.exe -executionpolicy Bypass -file {GO_COV_TEST_PATH}.ps1 %*"""
 @task
 def codecov(
     ctx: Context,
+    add_missing_coverage: bool = False,
+    debug: bool = False,
 ):
     """
     Uploads coverage data of all modules.
@@ -107,6 +109,8 @@ def codecov(
     distro_tag = get_distro()
     codecov_binary = "codecov" if platform.system() != "Windows" else "codecov.exe"
     with collapsed_section("Upload coverage reports to Codecov"):
+        if add_missing_coverage:
+            apply_missing_coverage(ctx, from_commit_sha=get_main_parent_commit(ctx), debug=debug)
         ctx.run(f"{codecov_binary} -f {PROFILE_COV} -F {distro_tag}", warn=True)
 
 
@@ -165,6 +169,8 @@ def apply_missing_coverage(ctx: Context, from_commit_sha: str, debug: bool = Fal
 
     :param from_commit_sha: The commit SHA from which to restore the coverage cache. It needs at least the 8 first characters.
     """
+    if not from_commit_sha or len(from_commit_sha) < 8:
+        raise Exit(color_message("Error: the commit SHA is missing or invalid.", "red"), code=1)
 
     # Download the coverage archive from S3
     cache_uri = _get_coverage_cache_uri()
