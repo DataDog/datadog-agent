@@ -15,7 +15,7 @@ const (
 	errorCodeProcfs              errCode = "procfs"
 	errorCodeSystemProbeConn     errCode = "system_probe"
 	errorCodeSystemProbePorts    errCode = "system_probe_ports"
-	errorCodeSystemProbeEnv      errCode = "system_probe_env"
+	errorCodeSystemProbeGetProc  errCode = "system_probe_get_proc"
 	errorCodeEmptyServiceName    errCode = "empty_service_name"
 	errorCodeRepeatedServiceName errCode = "repeated_service_name"
 )

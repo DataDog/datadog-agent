@@ -224,8 +224,8 @@ func (li *linuxImpl) getServiceInfo(p proc, sysProbe systemProbeClient, openPort
 	procResp, err := sysProbe.GetServiceDiscoveryProc(ctx, p.PID())
 	if err != nil {
 		return nil, errWithCode{
-			err:  fmt.Errorf("failed to get environment from system-probe: %w", err),
-			code: errorCodeSystemProbeEnv,
+			err:  fmt.Errorf("failed to get proc from system-probe: %w", err),
+			code: errorCodeSystemProbeGetProc,
 			svc:  nil,
 		}
 	}
