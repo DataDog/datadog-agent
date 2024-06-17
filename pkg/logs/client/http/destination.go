@@ -83,9 +83,6 @@ type Destination struct {
 	// Telemetry
 	expVars       *expvar.Map
 	telemetryName string
-
-	// Serverless
-	serverlessFlushChan chan *sync.WaitGroup
 }
 
 // NewDestination returns a new Destination.
@@ -97,7 +94,6 @@ func NewDestination(endpoint config.Endpoint,
 	destinationsContext *client.DestinationsContext,
 	maxConcurrentBackgroundSends int,
 	shouldRetry bool,
-	serverlessFlushChan chan *sync.WaitGroup,
 	telemetryName string,
 	cfg pkgconfigmodel.Reader) *Destination {
 
@@ -107,7 +103,6 @@ func NewDestination(endpoint config.Endpoint,
 		time.Second*10,
 		maxConcurrentBackgroundSends,
 		shouldRetry,
-		serverlessFlushChan,
 		telemetryName,
 		cfg)
 }
@@ -118,7 +113,6 @@ func newDestination(endpoint config.Endpoint,
 	timeout time.Duration,
 	maxConcurrentBackgroundSends int,
 	shouldRetry bool,
-	serverlessFlushChan chan *sync.WaitGroup,
 	telemetryName string,
 	cfg pkgconfigmodel.Reader) *Destination {
 
@@ -149,7 +143,6 @@ func newDestination(endpoint config.Endpoint,
 		destinationsContext: destinationsContext,
 		climit:              make(chan struct{}, maxConcurrentBackgroundSends),
 		wg:                  sync.WaitGroup{},
-		serverlessFlushChan: serverlessFlushChan,
 		backoff:             policy,
 		protocol:            endpoint.Protocol,
 		origin:              endpoint.Origin,
@@ -239,12 +232,6 @@ func (d *Destination) sendAndRetry(payload *message.Payload, output chan *messag
 			metrics.RetryTimeSpent.Add(int64(backoffDuration))
 			metrics.RetryCount.Add(1)
 			metrics.TlmRetryCount.Add(1)
-		}
-
-		if d.serverlessFlushChan != nil && !d.shouldRetry {
-			// Serverless should not retry but will attempt to sync an on-demand flush with when a payload is sent
-			serverlessWg := <-d.serverlessFlushChan
-			defer serverlessWg.Done()
 		}
 
 		err := d.unconditionalSend(payload)
@@ -435,7 +422,7 @@ func getMessageTimestamp(messages []*message.Message) int64 {
 func prepareCheckConnectivity(endpoint config.Endpoint, cfg pkgconfigmodel.Reader) (*client.DestinationsContext, *Destination) {
 	ctx := client.NewDestinationsContext()
 	// Lower the timeout to 5s because HTTP connectivity test is done synchronously during the agent bootstrap sequence
-	destination := newDestination(endpoint, JSONContentType, ctx, time.Second*5, 0, false, nil, "", cfg)
+	destination := newDestination(endpoint, JSONContentType, ctx, time.Second*5, 0, false, "", cfg)
 	return ctx, destination
 }
 

@@ -9,7 +9,6 @@ package pipeline
 import (
 	"context"
 	"fmt"
-	"sync"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
@@ -40,13 +39,12 @@ func NewPipeline(outputChan chan *message.Payload,
 	destinationsContext *client.DestinationsContext,
 	diagnosticMessageReceiver diagnostic.MessageReceiver,
 	serverless bool,
-	serverlessFlushChan chan *sync.WaitGroup,
 	pipelineID int,
 	status statusinterface.Status,
 	hostname hostnameinterface.Component,
 	cfg pkgconfigmodel.Reader) *Pipeline {
 
-	mainDestinations := getDestinations(endpoints, destinationsContext, pipelineID, serverless, serverlessFlushChan, status, cfg)
+	mainDestinations := getDestinations(endpoints, destinationsContext, pipelineID, serverless, status, cfg)
 
 	strategyInput := make(chan *message.Message, config.ChanSize)
 	senderInput := make(chan *message.Payload, 1) // Only buffer 1 message since payloads can be large
@@ -100,18 +98,26 @@ func (p *Pipeline) Flush(ctx context.Context) {
 	p.processor.Flush(ctx) // flush messages in the processor into the sender
 }
 
-func getDestinations(endpoints *config.Endpoints, destinationsContext *client.DestinationsContext, pipelineID int, serverless bool, serverlessFlushChan chan *sync.WaitGroup, status statusinterface.Status, cfg pkgconfigmodel.Reader) *client.Destinations {
+func getDestinations(endpoints *config.Endpoints, destinationsContext *client.DestinationsContext, pipelineID int, serverless bool, status statusinterface.Status, cfg pkgconfigmodel.Reader) *client.Destinations {
 	reliable := []client.Destination{}
 	additionals := []client.Destination{}
 
 	if endpoints.UseHTTP {
 		for i, endpoint := range endpoints.GetReliableEndpoints() {
 			telemetryName := fmt.Sprintf("logs_%d_reliable_%d", pipelineID, i)
-			reliable = append(reliable, http.NewDestination(endpoint, http.JSONContentType, destinationsContext, endpoints.BatchMaxConcurrentSend, !serverless, serverlessFlushChan, telemetryName, cfg))
+			if serverless {
+				reliable = append(reliable, http.NewSyncDestination(endpoint, http.JSONContentType, destinationsContext, telemetryName, cfg))
+			} else {
+				reliable = append(reliable, http.NewDestination(endpoint, http.JSONContentType, destinationsContext, endpoints.BatchMaxConcurrentSend, true, telemetryName, cfg))
+			}
 		}
 		for i, endpoint := range endpoints.GetUnReliableEndpoints() {
 			telemetryName := fmt.Sprintf("logs_%d_unreliable_%d", pipelineID, i)
-			additionals = append(additionals, http.NewDestination(endpoint, http.JSONContentType, destinationsContext, endpoints.BatchMaxConcurrentSend, false, serverlessFlushChan, telemetryName, cfg))
+			if serverless {
+				additionals = append(additionals, http.NewSyncDestination(endpoint, http.JSONContentType, destinationsContext, telemetryName, cfg))
+			} else {
+				additionals = append(additionals, http.NewDestination(endpoint, http.JSONContentType, destinationsContext, endpoints.BatchMaxConcurrentSend, false, telemetryName, cfg))
+			}
 		}
 		return client.NewDestinations(reliable, additionals)
 	}

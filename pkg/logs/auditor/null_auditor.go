@@ -52,13 +52,7 @@ func (a *NullAuditor) Channel() chan *message.Payload {
 }
 
 func (a *NullAuditor) run() {
-	for {
-		select {
-		case <-a.channel:
-			// draining the channel, we're not doing anything with the message
-		case <-a.stopChannel:
-			// TODO(remy): close the message channel
-			return
-		}
+	for range a.stopChannel {
+		return
 	}
 }
