@@ -19,6 +19,7 @@ always_build true
 build do
     license :project_license
 
+    flavor_arg = ENV['AGENT_FLAVOR']
     # TODO too many things done here, should be split
     block do
         # Conf files
@@ -59,7 +60,6 @@ build do
         end
 
         if linux_target? || osx_target?
-            flavor_arg = "$AGENT_FLAVOR"
             # Setup script aliases, e.g. `/opt/datadog-agent/embedded/bin/pip` will
             # default to `pip2` if the default Python runtime is Python 2.
             if with_python_runtime? "2"
@@ -100,7 +100,7 @@ build do
             move "#{install_dir}/etc/datadog-agent/datadog.yaml.example", "/etc/datadog-agent"
             move "#{install_dir}/etc/datadog-agent/conf.d", "/etc/datadog-agent", :force=>true
             unless heroku_target?
-              if flavor_arg.eql?("ua")
+              if flavor_arg.eql? "ua"
                 move "#{install_dir}/etc/datadog-agent/otel-config.yaml.example", "/etc/datadog-agent"
               end
               move "#{install_dir}/etc/datadog-agent/system-probe.yaml.example", "/etc/datadog-agent"
