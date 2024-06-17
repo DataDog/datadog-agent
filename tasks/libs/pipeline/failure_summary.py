@@ -223,8 +223,6 @@ def fetch_summaries(ctx: Context, period: timedelta) -> SummaryData:
     ids = SummaryData.list_summaries(ctx, after=int((datetime.now(timezone.utc) - period).timestamp()))
     repo = get_gitlab_repo()
     summaries = [SummaryData.read(ctx, repo, id) for id in ids]
-    # TODO
-    print('Found', len(summaries), 'summaries')
     summary = SummaryData.merge(summaries)
 
     return summary
@@ -300,9 +298,7 @@ def send_summary_slack_notification(channel: str, stats: list[dict], allow_failu
 
     # Send message
     client = WebClient(os.environ["SLACK_API_TOKEN"])
-    # TODO
-    # client.chat_postMessage(channel=channel, blocks=blocks)
-    client.chat_postMessage(channel='#celian-tests', blocks=blocks, text=alt_message)
+    client.chat_postMessage(channel=channel, blocks=blocks, text=alt_message)
 
 
 def send_summary_messages(
@@ -313,9 +309,6 @@ def send_summary_messages(
     """
     summary = fetch_summaries(ctx, period)
     stats = SummaryStats(summary, allow_failure)
-
-    # TODO : Remove test
-    stats.stats.append({'name': 'lint_macos', 'failures': 1, 'runs': 2})
 
     team_stats = stats.make_stats(max_length, jobowners=jobowners)
     if not team_stats:

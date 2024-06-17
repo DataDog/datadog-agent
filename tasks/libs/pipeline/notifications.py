@@ -17,7 +17,9 @@ from tasks.libs.owners.parsing import read_owners
 from tasks.libs.types.types import FailedJobReason, FailedJobs, Test
 
 
-def load_and_validate(file_name: str, default_placeholder: str, default_value: str, relpath: bool = True) -> dict[str, str]:
+def load_and_validate(
+    file_name: str, default_placeholder: str, default_value: str, relpath: bool = True
+) -> dict[str, str]:
     if relpath:
         p = pathlib.Path(os.path.realpath(__file__)).parent.joinpath(file_name)
     else:

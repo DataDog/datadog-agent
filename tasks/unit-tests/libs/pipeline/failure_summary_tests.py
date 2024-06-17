@@ -16,7 +16,7 @@ from tasks.libs.pipeline.notifications import load_and_validate
 TEST_DIR = '/tmp/summary'
 
 
-class FailureSummaryTest(TestCase):
+class TestFailureSummary(TestCase):
     def __init__(self, methodName: str = "runTest") -> None:
         super().__init__(methodName)
 
@@ -77,7 +77,7 @@ class FailureSummaryTest(TestCase):
             p.stop()
 
 
-class SummaryDataTest(FailureSummaryTest):
+class TestSummaryData(TestFailureSummary):
     def test_read_write_summaries(self):
         data = self.get_dummy_summary_data_ids([1, 2, 3], id=618)
         data.write()
@@ -128,7 +128,7 @@ class SummaryDataTest(FailureSummaryTest):
         self.assertEqual(summary.id, None)
 
 
-class SummaryStatsTest(FailureSummaryTest):
+class TestSummaryStats(TestFailureSummary):
     def test_make_stats(self):
         data = self.get_dummy_summary_data(
             [
@@ -210,7 +210,7 @@ class SummaryStatsTest(FailureSummaryTest):
         self.assertEqual(len(results[self.github_slack_map[ALL_TEAMS]]), 4)
 
 
-class ModuleTest(FailureSummaryTest):
+class TestModule(TestFailureSummary):
     def test_is_valid_job_infra(self):
         repo = MagicMock()
         repo.jobs.get.return_value.trace.return_value = b'Docker runner job start script failed'
