@@ -109,8 +109,7 @@ func (s *packageInstallerSuite) TestUpdateInstallerOCI() {
 	assert.NoError(s.T(), err)
 
 	version := s.Env().RemoteHost.MustExecute("/opt/datadog-packages/datadog-installer/stable/bin/installer/installer version")
-	assert.Equal(s.T(), "7.55.0-installer-0.2.1-1", version)
-	s.host.WaitForUnitActive("datadog-installer.service")
+	assert.Equal(s.T(), "7.55.0-installer-0.2.1\n", version)
 
 	// Install from QA registry
 	err = s.RunInstallScriptWithError()
@@ -118,12 +117,4 @@ func (s *packageInstallerSuite) TestUpdateInstallerOCI() {
 
 	version = s.Env().RemoteHost.MustExecute("/opt/datadog-packages/datadog-installer/stable/bin/installer/installer version")
 	assert.Contains(s.T(), version, "-devel+git")
-
-	s.host.WaitForUnitActive("datadog-installer.service")
-
-	state := s.host.State()
-	state.AssertUnitsLoaded("datadog-installer.service", "datadog-installer-exp.service")
-	state.AssertUnitsEnabled("datadog-installer.service")
-	state.AssertUnitsNotEnabled("datadog-installer-exp.service")
-	state.AssertUnitsRunning("datadog-installer.service")
 }

@@ -119,17 +119,17 @@ func TestUnbundledEventsTransform(t *testing.T) {
 	}
 
 	tests := []struct {
-		name                   string
-		collectedEventTypes    []collectedEventType
-		bundleUnspecifedEvents bool
-		expected               []event.Event
+		name                    string
+		collectedEventTypes     []collectedEventType
+		bundleUnspecifiedEvents bool
+		expected                []event.Event
 	}{
 		{
 			name: "unbundled events by Kind:Pod",
 			collectedEventTypes: []collectedEventType{
 				{Kind: "Pod", Source: "", Reasons: []string{}},
 			},
-			bundleUnspecifedEvents: true,
+			bundleUnspecifiedEvents: true,
 			expected: []event.Event{
 				{
 					Title: "Events from the PodDisruptionBudget default/otel-demo-opensearch-pdb",
@@ -234,7 +234,7 @@ func TestUnbundledEventsTransform(t *testing.T) {
 			collectedEventTypes: []collectedEventType{
 				{Kind: "Pod", Source: "", Reasons: []string{}},
 			},
-			bundleUnspecifedEvents: false,
+			bundleUnspecifiedEvents: false,
 			expected: []event.Event{
 				{
 					Title:    "Pod default/squirtle-8fff95dbb-tsc7v: Pulled",
@@ -288,7 +288,7 @@ func TestUnbundledEventsTransform(t *testing.T) {
 			collectedEventTypes: []collectedEventType{
 				{Kind: "ReplicaSet", Source: "", Reasons: []string{"Killing", "SuccessfulDelete"}},
 			},
-			bundleUnspecifedEvents: true,
+			bundleUnspecifiedEvents: true,
 			expected: []event.Event{
 				{
 					Title: "Events from the Pod default/squirtle-8fff95dbb-tsc7v",
@@ -413,7 +413,7 @@ func TestUnbundledEventsTransform(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			transformer := newUnbundledTransformer("test-cluster", local.NewFakeTagger(), tt.collectedEventTypes, tt.bundleUnspecifedEvents)
+			transformer := newUnbundledTransformer("test-cluster", local.NewFakeTagger(), tt.collectedEventTypes, tt.bundleUnspecifiedEvents)
 
 			events, errors := transformer.Transform(incomingEvents)
 

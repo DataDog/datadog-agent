@@ -18,11 +18,11 @@ instances:
     #
     # unbundle_events: true
 
-    ## @param unbundle_events - boolean - optional - default: false
+    ## @param bundle_unspecified_events - boolean - optional - default: false
     ## Collect the bundled events that are left after applying the filters filtered_event_types and collected_event_types.
     ## Only effective when unbundle_events is true.
     #
-    # bundle_unspecifed_events: true
+    # bundle_unspecified_events: true
 
     ## @param collected_event_types - map of array of strings - optional
     ## Specify which events to be collected by kind, source, and reasons.
@@ -47,7 +47,7 @@ instances:
 
     ## @param filtered_event_types - array of strings - optional
     ## Specify a list of exclusion filters over the event type, involvedObject.kind, reason, following the Kubernetes field-selector format.
-    ## Effective when unbundle_events is false or unbundle_events and bundle_unspecifed_events are true both.
+    ## Effective when unbundle_events is false or unbundle_events and bundle_unspecified_events are true both.
     #
     # filtered_event_types: ["reason!=FailedGetScale","involvedObject.kind==Pod","type==Normal"]
 
