@@ -48,6 +48,7 @@ type telemetryIndex struct {
 	name string
 }
 
+// ebpfErrorsTelemetry interface allows easy mocking for UTs without a need to initialize the whole ebpf sub-system and execute ebpf maps APIs
 type ebpfErrorsTelemetry interface {
 	sync.Locker
 	setup(opts *manager.Options)
@@ -93,7 +94,7 @@ func (e *EBPFTelemetry) setup(opts *manager.Options) {
 	}
 }
 
-// populateMapsWithKeys initializes the maps for holding telemetry info.
+// fill initializes the maps for holding telemetry info.
 // It must be called after the manager is initialized
 func (e *EBPFTelemetry) fill(m *manager.Manager) error {
 	e.mtx.Lock()
