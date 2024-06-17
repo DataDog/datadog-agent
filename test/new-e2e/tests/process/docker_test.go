@@ -15,7 +15,6 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
@@ -28,7 +27,7 @@ type dockerTestSuite struct {
 
 func TestDockerTestSuite(t *testing.T) {
 	// Tracked by ADXT-348
-	flake.Mark(t)
+	// flake.Mark(t)
 
 	t.Parallel()
 	agentOpts := []dockeragentparams.Option{
