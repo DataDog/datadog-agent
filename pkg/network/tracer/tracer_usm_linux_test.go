@@ -496,7 +496,11 @@ func testHTTPSClassification(t *testing.T, tr *Tracer, clientHost, targetHost, s
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
 				cmd := ctx.extras["cmd"].(*exec.Cmd)
-				utils.WaitForProgramsToBeTraced(t, "shared_libraries", cmd.Process.Pid)
+				soTLSAttachPID(t, cmd.Process.Pid)
+				t.Cleanup(func() {
+					soTLSDetachPID(t, cmd.Process.Pid)
+				})
+
 				client := nethttp.Client{
 					Transport: &nethttp.Transport{
 						TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
@@ -2304,5 +2308,29 @@ func goTLSDetachPID(t *testing.T, pid int) {
 
 	require.Eventually(t, func() bool {
 		return !utils.IsProgramTraced("go-tls", pid)
-	}, 5*time.Second, 100*time.Millisecond, "process %v is still traced by Go-TLS after detaching", pid)
+	}, 5*time.Second, 100*time.Millisecond, "process %v is still traced by TLS (Go TLS) monitoring after detaching", pid)
+}
+
+func soTLSAttachPID(t *testing.T, pid int) {
+	t.Helper()
+	if utils.IsProgramTraced("shared_libraries", pid) {
+		return
+	}
+	require.NoError(t, usm.OpenSSLAttachPID(uint32(pid)))
+	utils.WaitForProgramsToBeTraced(t, "shared_libraries", pid)
+}
+
+func soTLSDetachPID(t *testing.T, pid int) {
+	t.Helper()
+
+	// The program is not traced; nothing to do.
+	if !utils.IsProgramTraced("shared_libraries", pid) {
+		return
+	}
+
+	require.NoError(t, usm.OpenSSLDetachPID(uint32(pid)))
+
+	require.Eventually(t, func() bool {
+		return !utils.IsProgramTraced("shared_libraries", pid)
+	}, 5*time.Second, 100*time.Millisecond, "process %v is still traced by TLS (SO) monitoring after detaching", pid)
 }
