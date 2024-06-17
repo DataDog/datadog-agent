@@ -11,6 +11,10 @@
 #define STRINGIFY(a) #a
 
 // The method is used to read the data buffer from the TCP segment data up to `total_size` bytes.
+// The method will read the data in blocks of `blk_size` bytes. We're getting the callback function `fn` to perform
+// the actual reading of the data. The callback function should have the following signature:
+// void fn(struct __sk_buff *skb, u32 offset, char *buffer, u32 size);
+// The callback allows us to pass reader with or without telemetry.
 #define READ_INTO_BUFFER_INTERNAL(name, total_size, blk_size, fn)                                                   \
     static __always_inline void read_into_buffer_##name(char *buffer, struct __sk_buff *skb, u32 offset) {          \
         const u32 end = (total_size) < (skb->len - offset) ? offset + (total_size) : skb->len;                      \
