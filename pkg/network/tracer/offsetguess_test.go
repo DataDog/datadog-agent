@@ -174,14 +174,10 @@ func testOffsetGuess(t *testing.T) {
 	t.Cleanup(func() { server.Shutdown() })
 
 	var c net.Conn
-	require.Eventually(t, func() bool {
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		var err error
 		c, err = net.Dial("tcp4", server.address)
-		//nolint:gosimple // TODO(NET) Fix gosimple linter
-		if err == nil {
-			return true
-		}
-
-		return false
+		assert.NoError(collect, err)
 	}, time.Second, 100*time.Millisecond)
 	t.Cleanup(func() { c.Close() })
 
