@@ -199,7 +199,9 @@ PKTBUF_READ_BIG_ENDIAN(s32)
 PKTBUF_READ_BIG_ENDIAN(s16)
 PKTBUF_READ_BIG_ENDIAN(s8)
 
-#define PKTBUF_READ_INTO_BUFFER_INTERNAL(name, total_size, blk_size)                                        \
+// Wraps the mechanism of reading `total_size` bytes from the packet (starting from `offset`), into the given buffer.
+// An internal macro to reduce duplication between PKTBUF_READ_INTO_BUFFER and PKTBUF_READ_INTO_BUFFER_WITHOUT_TELEMETRY.
+#define PKTBUF_READ_INTO_BUFFER_INTERNAL(name, total_size)                                                  \
     static __always_inline void pktbuf_read_into_buffer_##name(char *buffer, pktbuf_t pkt, u32 offset) {    \
         switch (pkt.type) {                                                                                 \
         case PKTBUF_SKB:                                                                                    \
@@ -212,16 +214,20 @@ PKTBUF_READ_BIG_ENDIAN(s8)
         pktbuf_invalid_operation();                                                                         \
     }
 
+// Reads `total_size` bytes from the packet (starting from `offset`), into the given buffer. Every read operation is
+// wrapped with a telemetry callback to track the read operation.
 #define PKTBUF_READ_INTO_BUFFER(name, total_size, blk_size)         \
     READ_INTO_USER_BUFFER(name, total_size)                         \
     READ_INTO_BUFFER(name, total_size, blk_size)                    \
-    PKTBUF_READ_INTO_BUFFER_INTERNAL(name, total_size, blk_size)
+    PKTBUF_READ_INTO_BUFFER_INTERNAL(name, total_size)
 
 
+// Reads `total_size` bytes from the packet (starting from `offset`), into the given buffer. No telemetry is used.
+// Should be used if instruction limit is being hit or telemetry causes pressure on the eBPF verifier.
 #define PKTBUF_READ_INTO_BUFFER_WITHOUT_TELEMETRY(name, total_size, blk_size)   \
     READ_INTO_USER_BUFFER_WITHOUT_TELEMETRY(name, total_size)                   \
     READ_INTO_BUFFER_WITHOUT_TELEMETRY(name, total_size, blk_size)              \
-    PKTBUF_READ_INTO_BUFFER_INTERNAL(name, total_size, blk_size)
+    PKTBUF_READ_INTO_BUFFER_INTERNAL(name, total_size)
 
 
 // Wraps the mechanism of reading big-endian number (s16 or s32) from the packet, and increasing the offset.
