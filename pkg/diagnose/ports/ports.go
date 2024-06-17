@@ -72,6 +72,15 @@ func DiagnosePortSuite() []diagnosis.Diagnosis {
 			continue
 		}
 
+		if port.Pid == 0 {
+			diagnoses = append(diagnoses, diagnosis.Diagnosis{
+				Name:      key,
+				Result:    diagnosis.DiagnosisFail,
+				Diagnosis: fmt.Sprintf("Required port %d is already used by an undefined process. The Agent user may not have permissions to read additional process info.", value),
+			})
+			continue
+		}
+
 		diagnoses = append(diagnoses, diagnosis.Diagnosis{
 			Name:      key,
 			Result:    diagnosis.DiagnosisFail,
