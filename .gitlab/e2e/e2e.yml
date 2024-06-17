@@ -368,6 +368,7 @@ new-e2e-ndm-snmp:
     TEAM: network-device-monitoring
 
 new-e2e-flakes-finder:
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   stage: .pre
   script:
     - inv -e testwasher.generate-flake-finder-pipeline
@@ -376,6 +377,7 @@ new-e2e-flakes-finder:
       - $CI_PROJECT_DIR/flake-finder-gitlab-ci.yml
 
 new-e2e-trigger-flakes-finder:
+
   stage: .pre
   needs: [new-e2e-flakes-finder]
   variables:
