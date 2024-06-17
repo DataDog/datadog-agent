@@ -125,7 +125,7 @@ func (ext *ddExtension) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 	}
 
 	customer, _ := provider.GetProvidedConfAsString()
-	enhanced, _ := provider.GetEnhancedConfAsString()
+	// enhanced, _ := provider.GetEnhancedConfAsString()
 
 	resp := extensionDef.Response{
 		BuildInfoResponse: extensionDef.BuildInfoResponse{
@@ -136,7 +136,7 @@ func (ext *ddExtension) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 		},
 		ConfigResponse: extensionDef.ConfigResponse{
 			CustomerConfig: customer,
-			RuntimeConfig:  enhanced,
+			RuntimeConfig:  customer, // TODO: replace this with enhanced
 		},
 		DebugSourceResponse: ext.debug,
 		Environment:         getEnvironmentAsMap(),
