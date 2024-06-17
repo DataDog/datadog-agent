@@ -132,7 +132,6 @@ DEFAULT_MODULES = {
         targets=["./pkg", "./cmd", "./comp"],
     ),
     "cmd/agent/common/path": GoModule("cmd/agent/common/path", independent=True),
-    "comp/api/api/def": GoModule("comp/api/api/def", independent=True),
     "comp/core/config": GoModule("comp/core/config", independent=True, used_by_otel=True),
     "comp/core/flare/builder": GoModule("comp/core/flare/builder", independent=True),
     "comp/core/flare/types": GoModule("comp/core/flare/types", independent=True),

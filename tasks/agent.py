@@ -21,7 +21,6 @@ from tasks.go import deps
 from tasks.libs.common.utils import (
     REPO_PATH,
     bin_name,
-    create_version_json,
     get_build_flags,
     get_embedded_path,
     get_goenv,
@@ -29,6 +28,7 @@ from tasks.libs.common.utils import (
     gitlab_section,
     has_both_python,
 )
+from tasks.libs.releasing.version import create_version_json
 from tasks.rtloader import clean as rtloader_clean
 from tasks.rtloader import install as rtloader_install
 from tasks.rtloader import make as rtloader_make

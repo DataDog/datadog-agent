@@ -12,22 +12,29 @@ const (
 )
 
 var (
-	errorConstants     = map[string]int{}
-	openFlagsConstants = map[string]int{}
-	fileModeConstants  = map[string]int{}
-	inodeModeConstants = map[string]int{}
-	// KernelCapabilityConstants list of kernel capabilities
-	KernelCapabilityConstants = map[string]uint64{}
-	unlinkFlagsConstants      = map[string]int{}
-	ptraceConstants           = map[string]uint32{}
-	ptraceArchConstants       = map[string]uint32{}
-	protConstants             = map[string]uint64{}
-	mmapFlagConstants         = map[string]uint64{}
-	mmapFlagArchConstants     = map[string]uint64{}
-	addressFamilyConstants    = map[string]uint16{}
+	errorConstants         = map[string]int{}
+	addressFamilyConstants = map[string]uint16{}
 
 	// SignalConstants list of signals
 	SignalConstants = map[string]int{
 		"SIGKILL": SIGKILL,
 	}
 )
+
+func initVMConstants()               {}
+func initBPFCmdConstants()           {}
+func initBPFHelperFuncConstants()    {}
+func initBPFMapTypeConstants()       {}
+func initBPFProgramTypeConstants()   {}
+func initBPFAttachTypeConstants()    {}
+func initPipeBufFlagConstants()      {}
+func initOpenConstants()             {}
+func initFileModeConstants()         {}
+func initInodeModeConstants()        {}
+func initUnlinkConstanst()           {}
+func initKernelCapabilityConstants() {}
+func initPtraceConstants()           {}
+func initProtConstansts()            {}
+func initMMapFlagsConstants()        {}
+func initSignalConstants()           {}
+func initBPFMapNamesConstants()      {}
