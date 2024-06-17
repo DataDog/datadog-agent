@@ -127,7 +127,7 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, instance
 		return errors.New("service_discovery check not implemented on " + runtime.GOOS)
 	}
 	if ddconfig.IsContainerized() {
-		return errors.New("service_discovery check does not support containerized environments")
+		return errors.New("service_discovery check is not supported in containerized environments")
 	}
 	if err := c.CommonConfigure(senderManager, initConfig, instanceConfig, source); err != nil {
 		return err
