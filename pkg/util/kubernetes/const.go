@@ -92,11 +92,6 @@ const (
 	// PersistentVolumeClaimTagName represents the PersistentVolumeClaim tag name
 	PersistentVolumeClaimTagName = "persistentvolumeclaim"
 
-	// ResourceNameTagName represents any resource tag name
-	ResourceNameTagName = "kube_resource_name"
-	// ResourceKindTagName represents any resource kind
-	ResourceKindTagName = "kube_resource_kind"
-
 	// OwnerRefNameTagName represents any owner ref tag name
 	OwnerRefNameTagName = "kube_ownerref_name"
 	// OwnerRefKindTagName represents any owner ref kind
