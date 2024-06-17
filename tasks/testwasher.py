@@ -170,8 +170,7 @@ def generate_flake_finder_pipeline(_, n=3):
     kept_job = {}
     for job, job_details in config.items():
         if (
-            job == 'variables'
-            or 'variables' in job_details
+            'variables' in job_details
             and 'FLAKES_FINDER' in job_details['variables']
             and job_details['variables']['FLAKES_FINDER'] == "true"
         ):
