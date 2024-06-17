@@ -28,7 +28,6 @@ class FailureSummaryTest(TestCase):
         self.patches = [
             patch('tasks.libs.pipeline.failure_summary.write_file', self.write_file),
             patch('tasks.libs.pipeline.failure_summary.read_file', self.read_file),
-            patch('tasks.libs.pipeline.failure_summary.remove_files', self.remove_files),
             patch('tasks.libs.pipeline.failure_summary.list_files', self.list_files),
             patch('tasks.owners.GITHUB_SLACK_MAP', self.github_slack_map),
         ]
@@ -47,9 +46,6 @@ class FailureSummaryTest(TestCase):
     def read_file(self, ctx: Context, name: str) -> str:
         with open(f'{TEST_DIR}/{name}') as f:
             return f.read()
-
-    def remove_files(self, ctx: Context, names: list[str]):
-        os.system(f'rm -f {TEST_DIR}/{{{",".join(names)}}}')
 
     def list_files(self, ctx: Context) -> list[str]:
         return os.listdir(TEST_DIR)
@@ -258,20 +254,6 @@ class ModuleTest(FailureSummaryTest):
             self.assertEqual(len(summary.jobs), 2)
             self.assertEqual(summary.jobs[0].id, 1)
             self.assertEqual(summary.jobs[1].id, 2)
-
-    @patch('tasks.libs.pipeline.failure_summary.datetime')
-    def test_clean_summaries(self, mock):
-        mock.now.return_value = datetime(2042, 1, 16, tzinfo=UTC)
-
-        summaries = self.make_dummy_summaries()
-        ids = [s.id for s in summaries]
-
-        failure_summary.clean_summaries(MagicMock(), period=timedelta(days=10))
-        new_ids = failure_summary.list_files(MagicMock())
-        new_ids = sorted(SummaryData.get_id(name) for name in new_ids)
-
-        # 6, 8, 10
-        self.assertEqual(new_ids, ids[2:])
 
     @patch("tasks.libs.pipeline.failure_summary.send_summary_slack_message")
     def test_send_summary_messages(self, mock_slack: MagicMock = None):

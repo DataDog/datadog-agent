@@ -13,7 +13,6 @@ from slack_sdk import WebClient
 from tasks.github_tasks import ALL_TEAMS, GITHUB_SLACK_MAP
 from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
 from tasks.libs.pipeline.data import get_infra_failure_info
-from tasks.notify import AWS_S3_LS_CMD
 from tasks.owners import make_partition
 
 """
@@ -173,16 +172,12 @@ def read_file(ctx: Context, name: str) -> str:
     return data
 
 
-def remove_files(ctx: Context, names: list[str]):
-    # TODO : useless
-    os.system(f'rm -f /tmp/summary/{{{",".join(names)}}}')
-
-
 def list_files(ctx: Context) -> list[str]:
-    # TODO : Explicit try catch
+    from tasks.notify import AWS_S3_LS_CMD
+
     listing = ctx.run(AWS_S3_LS_CMD.format(bucket=FAILURE_SUMMARY_S3_BUCKET, prefix=FAILURE_SUMMARY_S3_PREFIX), hide="stdout").stdout
     listing = json.loads(listing)
-    listing = [item['Key'].removeprefix(FAILURE_SUMMARY_S3_PREFIX) for item in listing]
+    listing = [item['Key'].removeprefix(FAILURE_SUMMARY_S3_PREFIX + '/') for item in listing['Contents']]
     listing = [item for item in listing if item.endswith('.json')]
 
     return listing
@@ -240,16 +235,10 @@ def upload_summary(ctx: Context, pipeline_id: int) -> SummaryData:
     """
     summary = fetch_jobs(ctx, pipeline_id)
     summary.write()
+    # TODO
+    print('UPLOADED', summary)
 
     return summary
-
-
-def clean_summaries(ctx: Context, period: timedelta):
-    """
-    Will remove summaries older than this period
-    """
-    ids = SummaryData.list_summaries(ctx, before=int((datetime.now(UTC) - period).timestamp()))
-    remove_files(ctx, [SummaryData.filename(id) for id in ids])
 
 
 def send_summary_slack_message(channel: str, stats: list[dict], allow_failure: bool = False):
@@ -258,7 +247,7 @@ def send_summary_slack_message(channel: str, stats: list[dict], allow_failure: b
     - stats: Item of the dict returned by SummaryStats.make_stats
     """
     # Avoid circular dependency
-    from tasks.notify import get_ci_visibility_job_url, NOTIFICATION_DISCLAIMER
+    from tasks.notify import NOTIFICATION_DISCLAIMER, get_ci_visibility_job_url
 
     # Create message
     not_allowed_query = '-' if not allow_failure else ''
@@ -329,7 +318,8 @@ def send_summary_messages(ctx: Context, allow_failure: bool, max_length: int, pe
 
 # TODO : rm
 def test(ctx: Context):
-    send_summary_messages(ctx, allow_failure=False, max_length=8, period=timedelta(days=1))
+    # send_summary_messages(ctx, allow_failure=False, max_length=8, period=timedelta(days=1))
+
     # s = fetch_summaries(ctx, timedelta(days=999))
     # stats = SummaryStats(s, allow_failure=True)
     # print(stats.make_message(stats.make_stats(16)))

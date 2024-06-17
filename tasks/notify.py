@@ -16,7 +16,7 @@ from invoke import task
 from invoke.context import Context
 from invoke.exceptions import Exit, UnexpectedExit
 
-from tasks.libs.ciproviders.gitlab_api import BASE_URL
+from tasks.libs.ciproviders.gitlab_api import BASE_URL, get_gitlab_repo
 from tasks.libs.common.datadog_api import create_count, send_metrics
 from tasks.libs.pipeline import failure_summary
 from tasks.libs.pipeline.data import get_failed_jobs, get_infra_failure_info
@@ -623,24 +623,25 @@ def send_notification(ctx: Context, alert_jobs, jobowners=".gitlab/JOBOWNERS"):
 
 
 @task
-def failure_summary_on_pipeline(ctx):
+def failure_summary_upload_pipeline_data(ctx):
+    """
+    Upload failure summary data to S3 at the end of each main pipeline
+    """
     failure_summary.upload_summary(ctx, os.environ['CI_PIPELINE_ID'])
 
 
 @task
-def failure_summary_on_nightly(ctx, max_length=8):
-    summary = failure_summary.fetch_summaries(ctx, timedelta(days=1))
-    stats = failure_summary.SummaryStats(summary, allow_failure=False)
+def failure_summary_send_notifications(ctx, is_daily_summary: bool, max_length=8):
+    """
+    Make summaries from data in s3 and send them to slack
+    """
+    period = timedelta(days=1) if is_daily_summary else timedelta(weeks=1)
+    summary = failure_summary.fetch_summaries(ctx, period)
+    stats = failure_summary.SummaryStats(summary, allow_failure=not is_daily_summary)
 
     # TODO : Send
     # TODO : Dispatch to teams
     print(stats.create(max_length))
-
-
-# TODO
-# @task
-# def failure_summary_on_friday_nightly(ctx):
-#     pass
 
 
 @task
