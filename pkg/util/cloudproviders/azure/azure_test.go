@@ -139,6 +139,43 @@ func TestGetHostname(t *testing.T) {
 	}
 }
 
+func TestGetHostnameKubernetesTag(t *testing.T) {
+	ctx := context.Background()
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		io.WriteString(w, `{
+			"name": "vm-name",
+			"resourceGroupName": "my-resource-group",
+			"subscriptionId": "2370ac56-5683-45f8-a2d4-d1054292facb",
+			"vmId": "b33fa46-6aff-4dfa-be0a-9e922ca3ac6d",
+			"tags": "aks-managed-orchestrator:Kubernetes"
+		}`)
+	}))
+	defer ts.Close()
+	metadataURL = ts.URL
+
+	cases := []struct {
+		style, value string
+		err          bool
+	}{
+		{"os", "vm-name", false},
+		{"vmid", "b33fa46-6aff-4dfa-be0a-9e922ca3ac6d", false},
+		{"name", "vm-name", false},
+		{"name_and_resource_group", "vm-name.my-resource-group", false},
+		{"full", "vm-name.my-resource-group.2370ac56-5683-45f8-a2d4-d1054292facb", false},
+		{"invalid", "", true},
+	}
+
+	mockConfig := config.Mock(t)
+
+	for _, tt := range cases {
+		mockConfig.SetWithoutSource(hostnameStyleSetting, tt.style)
+		hostname, err := getHostnameWithConfig(ctx, mockConfig)
+		assert.Equal(t, tt.value, hostname)
+		assert.Equal(t, tt.err, (err != nil))
+	}
+}
+
 func TestGetHostnameWithInvalidMetadata(t *testing.T) {
 	ctx := context.Background()
 	mockConfig := config.Mock(t)
