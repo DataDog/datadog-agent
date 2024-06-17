@@ -35,7 +35,7 @@
 /repository.datadog.yml                 @DataDog/agent-ci-experience
 /generate_tools.go                      @DataDog/agent-ci-experience
 /service.datadog.yaml                   @DataDog/agent-build-and-releases
-/.pre-commit-config.yaml                 @DataDog/agent-developer-tools
+/.pre-commit-config.yaml                @DataDog/agent-developer-tools
 
 /.circleci/                             @DataDog/agent-ci-experience
 
