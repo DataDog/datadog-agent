@@ -17,6 +17,7 @@ func TestDefaultPackagesDefaultInstall(t *testing.T) {
 	env := &env.Env{}
 	packages := DefaultPackages(env)
 
+    // No packages released by default today
 	assert.Empty(t, packages)
 }
 
