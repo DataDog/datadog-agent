@@ -35,7 +35,15 @@ def update_test_infra_definitions(ctx: Context, commit_sha: str, go_mod_only: bo
     ctx.run("go mod tidy")
 
 
-@task
+@task(
+    help={
+        "old_build_image_tag": "The old build image tag",
+        "new_build_image_tag": "The new build image tag",
+        "old_go_version": "The old Go version",
+        "new_go_version": "The new Go version",
+        "test_version": "Flag to indicate if this is a test version",
+    }
+)
 def generate_pr_body(
     _: Context,
     old_build_image_tag: str,

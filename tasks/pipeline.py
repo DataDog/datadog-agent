@@ -810,10 +810,14 @@ def update_circleci_config(file_path, image_tag, test_version):
         circle.write(circle_ci.replace(f"{match.group(0)}", f"{image}:{image_tag}\n"))
 
 
-@task
+@task(
+    help={
+        "file_path": "path of the CircleCI configuration YAML file",
+    }
+)
 def get_image_tag(_, file_path=".circleci/config.yml"):
     """
-    Override variables in .gitlab-ci.yml file
+    Print the current image tag of the given CircleCI configuration file (default: ".circleci/config.yml")
     """
     image_name = "gcr.io/datadoghq/agent-circleci-runner"
     with open(file_path) as circle:
