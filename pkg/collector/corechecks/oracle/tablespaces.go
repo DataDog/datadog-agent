@@ -20,7 +20,10 @@ const tablespaceQuery12 = `SELECT
   NVL(m.used_space * t.block_size, 0) used,
   NVL(m.tablespace_size * t.block_size, 0) size_,
   NVL(m.used_percent, 0) in_use,
-  NVL2(m.used_space, 0, 1) offline_
+  CASE t.status
+      WHEN 'OFFLINE' THEN 1
+    ELSE 0
+  END AS offline_
 FROM
   cdb_tablespace_usage_metrics m, cdb_tablespaces t, v$containers c
 WHERE
@@ -31,7 +34,10 @@ const tablespaceQuery11 = `SELECT
   NVL(m.used_space * t.block_size, 0) used,
   NVL(m.tablespace_size * t.block_size, 0) size_,
   NVL(m.used_percent, 0) in_use,
-  NVL2(m.used_space, 0, 1) offline_
+  CASE t.status
+      WHEN 'OFFLINE' THEN 1
+    ELSE 0
+  END AS offline_
 FROM
   dba_tablespace_usage_metrics m, dba_tablespaces t
 WHERE
@@ -47,10 +53,10 @@ WHERE c.con_id(+) = f.con_id
 GROUP BY c.name, f.tablespace_name`
 
 	maxSizeQuery11 = `SELECT
-	f.tablespace_name tablespace_name,
-	SUM(CASE WHEN autoextensible = 'YES' THEN maxbytes ELSE bytes END) maxsize
-	FROM dba_data_files f
-	GROUP BY f.tablespace_name`
+    f.tablespace_name tablespace_name,
+    SUM(CASE WHEN autoextensible = 'YES' THEN maxbytes ELSE bytes END) maxsize
+    FROM dba_data_files f
+    GROUP BY f.tablespace_name`
 )
 
 //nolint:revive // TODO(DBM) Fix revive linter

@@ -36,4 +36,5 @@ func TestTablespaces(t *testing.T) {
 	}
 	tags := []string{fmt.Sprintf("pdb:%s", expectedPdb), "tablespace:TBS_TEST"}
 	s.AssertMetricOnce(t, "Gauge", "oracle.tablespace.size", 104857600, c.dbHostname, tags)
+	s.AssertMetricOnce(t, "Gauge", "oracle.tablespace.offline", 0, c.dbHostname, tags)
 }
