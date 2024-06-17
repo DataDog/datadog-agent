@@ -113,7 +113,7 @@ ua_agent_deb-arm64-a7:
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
-  needs: ["datadog-agent-7-arm64"]
+  needs: ["datadog-ua-agent-7-arm64"]
   variables:
     DESTINATION_DEB: "datadog-ua-agent_7_arm64.deb"
     DD_PROJECT: "agent"
