@@ -169,10 +169,16 @@ def generate_flake_finder_pipeline(_, n=3):
     # Lets keep only variables and jobs with flake finder variable
     kept_job = {}
     for job, job_details in config.items():
-        if job == 'new-e2e-process':
+        if (
+            job == 'variables'
+            or 'variables' in job_details
+            and 'FLAKES_FINDER' in job_details['variables']
+            and job_details['variables']['FLAKES_FINDER'] == "true"
+        ):
+            # Let's exlude job that are retried for now untill we find a solution to tackle them
+            if 'retry' in job_details:
+                continue
             kept_job[job] = job_details
-        # if (job == 'variables' or 'variables' in job_details and 'FLAKES_FINDER' in job_details['variables'] and job_details['variables']['FLAKES_FINDER'] == "true"):
-        #     kept_job[job] = job_details
 
     # Remove needs, rules and retry from the jobs
     for job in kept_job:

@@ -367,9 +367,24 @@ new-e2e-ndm-snmp:
     TARGETS: ./tests/ndm/snmp
     TEAM: network-device-monitoring
 
-new-e2e-flakes-finder:
+generate-flakes-finder-pipeline:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   stage: .pre
+  # rules: !reference [.on_deploy_nightly_repo_branch]
+  needs:
+    - deploy_deb_testing-a7_arm64
+    - deploy_deb_testing-a7_x64
+    - deploy_rpm_testing-a7_arm64
+    - deploy_rpm_testing-a7_x64
+    - deploy_suse_rpm_testing_arm64-a7
+    - deploy_suse_rpm_testing_x64-a7
+    - deploy_windows_testing-a7
+    - qa_installer_oci
+    - qa_agent_oci
+    - qa_cws_instrumentation
+    - qa_dca
+    - qa_dogstatsd
+    - qa_agent
   tags: ["arch:amd64"]
   script:
     - inv -e testwasher.generate-flake-finder-pipeline
@@ -381,6 +396,7 @@ new-e2e-trigger-flakes-finder:
 
   stage: .pre
   needs: [new-e2e-flakes-finder]
+  # rules: !reference [.on_deploy_nightly_repo_branch]
   variables:
     PARENT_PIPELINE_ID: $CI_PIPELINE_ID
     PARENT_COMMIT_SHA: $CI_COMMIT_SHORT_SHA
