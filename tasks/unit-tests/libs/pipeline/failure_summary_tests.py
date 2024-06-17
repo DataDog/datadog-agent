@@ -1,17 +1,17 @@
 import os
 import shutil
 from contextlib import contextmanager
-from datetime import UTC, datetime, timedelta
+from datetime import timedelta
 from unittest import TestCase
 from unittest.mock import MagicMock, patch
 
-from gitlab.v4.objects import ProjectManager, ProjectPipeline, ProjectPipelineJob
+from gitlab.v4.objects import ProjectPipeline, ProjectPipelineJob
 from invoke.context import Context, MockContext
 
 from tasks.github_tasks import ALL_TEAMS
-from tasks.libs.pipeline.notifications import load_and_validate
 from tasks.libs.pipeline import failure_summary
 from tasks.libs.pipeline.failure_summary import SummaryData, SummaryStats
+from tasks.libs.pipeline.notifications import load_and_validate
 
 TEST_DIR = '/tmp/summary'
 
@@ -20,7 +20,12 @@ class FailureSummaryTest(TestCase):
     def __init__(self, methodName: str = "runTest") -> None:
         super().__init__(methodName)
 
-        self.github_slack_map = load_and_validate("tasks/unit-tests/testdata/github_slack_map.yaml", "DEFAULT_SLACK_CHANNEL", '#agent-developer-experience', relpath=False)
+        self.github_slack_map = load_and_validate(
+            "tasks/unit-tests/testdata/github_slack_map.yaml",
+            "DEFAULT_SLACK_CHANNEL",
+            '#agent-developer-experience',
+            relpath=False,
+        )
 
     def setUp(self) -> None:
         os.makedirs(TEST_DIR, exist_ok=True)
@@ -31,7 +36,8 @@ class FailureSummaryTest(TestCase):
             patch('tasks.libs.pipeline.failure_summary.list_files', self.list_files),
             patch('tasks.owners.GITHUB_SLACK_MAP', self.github_slack_map),
         ]
-        self.mocks = [patch.start() for patch in self.patches]
+        for p in self.patches:
+            p.start()
 
     def tearDown(self) -> None:
         shutil.rmtree(TEST_DIR, ignore_errors=True)
@@ -69,13 +75,6 @@ class FailureSummaryTest(TestCase):
             yield mock
         finally:
             p.stop()
-
-    def read_result(self):
-        files = failure_summary.list_files(None)
-
-        self.assertEqual(len(files), 1)
-
-        return failure_summary.read_file(None, files[0])
 
 
 class SummaryDataTest(FailureSummaryTest):
@@ -196,7 +195,15 @@ class SummaryStatsTest(FailureSummaryTest):
         results = stats.make_stats(max_length=1000, jobowners='tasks/unit-tests/testdata/jobowners.txt')
         results = {channel: sorted(result, key=lambda d: d['name']) for channel, result in results.items()}
 
-        self.assertSetEqual(set(results), {'#agent-developer-experience', '#ebpf-platform-ops', '#agent-build-and-releases', self.github_slack_map[ALL_TEAMS]})
+        self.assertSetEqual(
+            set(results),
+            {
+                '#agent-developer-experience',
+                '#ebpf-platform-ops',
+                '#agent-build-and-releases',
+                self.github_slack_map[ALL_TEAMS],
+            },
+        )
         self.assertEqual(len(results['#agent-developer-experience']), 1)
         self.assertEqual(len(results['#ebpf-platform-ops']), 2)
         self.assertEqual(len(results['#agent-build-and-releases']), 1)
@@ -204,17 +211,6 @@ class SummaryStatsTest(FailureSummaryTest):
 
 
 class ModuleTest(FailureSummaryTest):
-    def make_dummy_summaries(self):
-        days = [2, 4, 6, 8, 10]
-        summaries = []
-        for day in days:
-            id = int(datetime(2042, 1, day, tzinfo=UTC).timestamp())
-            summary = SummaryData(MagicMock(), id, jobs=[ProjectPipelineJob(manager=MagicMock(), attrs={'id': day})])
-            summary.write()
-            summaries.append(summary)
-
-        return summaries
-
     def test_is_valid_job_infra(self):
         repo = MagicMock()
         repo.jobs.get.return_value.trace.return_value = b'Docker runner job start script failed'
@@ -255,7 +251,7 @@ class ModuleTest(FailureSummaryTest):
             self.assertEqual(summary.jobs[0].id, 1)
             self.assertEqual(summary.jobs[1].id, 2)
 
-    @patch("tasks.libs.pipeline.failure_summary.send_summary_slack_message")
+    @patch("tasks.libs.pipeline.failure_summary.send_summary_slack_notification")
     def test_send_summary_messages(self, mock_slack: MagicMock = None):
         # Verify that we send the right number of jobs per channel
         expected_team_njobs = {
@@ -265,22 +261,57 @@ class ModuleTest(FailureSummaryTest):
             self.github_slack_map[ALL_TEAMS]: 5,
         }
 
-        summary = SummaryData(MagicMock(), 42, jobs=[
-            # agent-ci-experience
-            *[ProjectPipelineJob(manager=MagicMock(), attrs={'name': 'hello', 'status': 'failed', 'allow_failure': False}) for _ in range(20)],
-            # agent-ci-experience
-            *[ProjectPipelineJob(manager=MagicMock(), attrs={'name': 'world', 'status': 'failed', 'allow_failure': False}) for _ in range(12)],
-            # agent-security
-            *[ProjectPipelineJob(manager=MagicMock(), attrs={'name': 'security_go_generate_check', 'status': 'failed', 'allow_failure': False}) for _ in range(10)],
-            # agent-ci-experience, agent-build-and-releases
-            *[ProjectPipelineJob(manager=MagicMock(), attrs={'name': 'tests_release', 'status': 'failed', 'allow_failure': False}) for _ in range(5)],
-            # agent-ci-experience, agent-build-and-releases
-            *[ProjectPipelineJob(manager=MagicMock(), attrs={'name': 'tests_release2', 'status': 'failed', 'allow_failure': False}) for _ in range(2)]
-        ])
+        summary = SummaryData(
+            MagicMock(),
+            42,
+            jobs=[
+                # agent-ci-experience
+                *[
+                    ProjectPipelineJob(
+                        manager=MagicMock(), attrs={'name': 'hello', 'status': 'failed', 'allow_failure': False}
+                    )
+                    for _ in range(20)
+                ],
+                # agent-ci-experience
+                *[
+                    ProjectPipelineJob(
+                        manager=MagicMock(), attrs={'name': 'world', 'status': 'failed', 'allow_failure': False}
+                    )
+                    for _ in range(12)
+                ],
+                # agent-security
+                *[
+                    ProjectPipelineJob(
+                        manager=MagicMock(),
+                        attrs={'name': 'security_go_generate_check', 'status': 'failed', 'allow_failure': False},
+                    )
+                    for _ in range(10)
+                ],
+                # agent-ci-experience, agent-build-and-releases
+                *[
+                    ProjectPipelineJob(
+                        manager=MagicMock(), attrs={'name': 'tests_release', 'status': 'failed', 'allow_failure': False}
+                    )
+                    for _ in range(5)
+                ],
+                # agent-ci-experience, agent-build-and-releases
+                *[
+                    ProjectPipelineJob(
+                        manager=MagicMock(),
+                        attrs={'name': 'tests_release2', 'status': 'failed', 'allow_failure': False},
+                    )
+                    for _ in range(2)
+                ],
+            ],
+        )
 
         with patch('tasks.libs.pipeline.failure_summary.fetch_summaries', return_value=summary):
             failure_summary.send_summary_messages(
-                MockContext(), allow_failure=False, jobowners="tasks/unit-tests/testdata/jobowners.txt", max_length=1000, period=timedelta(weeks=10)
+                MockContext(),
+                allow_failure=False,
+                jobowners="tasks/unit-tests/testdata/jobowners.txt",
+                max_length=1000,
+                period=timedelta(weeks=10),
             )
 
         # Verify called once for each channel
@@ -290,5 +321,4 @@ class ModuleTest(FailureSummaryTest):
             channel = call_args.kwargs['channel']
             stats = call_args.kwargs['stats']
             njobs = len(stats)
-            self.assertEqual(expected_team_njobs.get(channel, None), njobs, 'Failure for channel: ' + channel)
-
+            self.assertEqual(expected_team_njobs.get(channel, None), njobs, 'Failure for channel ' + channel)

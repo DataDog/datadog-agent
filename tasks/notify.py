@@ -6,12 +6,11 @@ import os
 import re
 import tempfile
 import traceback
-from collections import Counter, defaultdict
+from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from urllib.parse import quote
 
-from gitlab.v4.objects import ProjectPipeline, ProjectPipelineJob
 from invoke import task
 from invoke.context import Context
 from invoke.exceptions import Exit, UnexpectedExit
@@ -19,7 +18,7 @@ from invoke.exceptions import Exit, UnexpectedExit
 from tasks.libs.ciproviders.gitlab_api import BASE_URL
 from tasks.libs.common.datadog_api import create_count, send_metrics
 from tasks.libs.pipeline import failure_summary
-from tasks.libs.pipeline.data import get_failed_jobs, get_infra_failure_info
+from tasks.libs.pipeline.data import get_failed_jobs
 from tasks.libs.pipeline.notifications import (
     GITHUB_SLACK_MAP,
     base_message,
@@ -504,124 +503,6 @@ def send_notification(ctx: Context, alert_jobs, jobowners=".gitlab/JOBOWNERS"):
         print('Metrics sent')
 
 
-# @task
-# def send_failure_summary_notification(
-#     _, jobs: dict[str, any] | None = None, allowed_to_fail: bool = False, list_max_len=10, jobowners=".gitlab/JOBOWNERS"
-# ):
-#     from slack_sdk import WebClient
-
-#     def send_summary(channel, stats):
-#         """
-#         Send the summary to channel with these job stats
-#         """
-#         # Create message
-#         not_allowed_query = '-' if not allowed_to_fail else ''
-#         period = 'Daily' if not allowed_to_fail else 'Weekly'
-#         duration = '24 hours' if not allowed_to_fail else 'week'
-#         delta = timedelta(days=1) if not allowed_to_fail else timedelta(weeks=1)
-#         you_own = ' you own' if channel != '#agent-platform-ops' else ''
-#         flaky_tests = (
-#             ''
-#             if allowed_to_fail
-#             else ' In case of tests, you can <https://datadoghq.atlassian.net/wiki/spaces/ADX/pages/3405611398/Flaky+tests+in+go+introducing+flake.Mark|mark them as flaky>.'
-#         )
-#         expected_to_fail = 'They are allowed to fail' if allowed_to_fail else 'They are not expected to fail'
-
-#         message = []
-#         for name, fail in stats:
-#             link = get_ci_visibility_job_url(
-#                 name, prefix=False, extra_flags=['status:error', '-@error.domain:provider']
-#             )
-#             message.append(f"- <{link}|{name}>: *{fail} failures*")
-
-#         timestamp_start = int((datetime.now() - delta).timestamp() * 1000)
-#         timestamp_end = int(datetime.now().timestamp() * 1000)
-
-#         header = f'{period} Job Failure Report'
-#         description = f'These jobs{you_own} had the most failures in the last {duration}:'
-
-#         footer = (
-#             f'{expected_to_fail}. Click <https://app.datadoghq.com/ci/pipeline-executions?query=ci_level%3Ajob%20env%3Aprod%20%40git.repository.id%3A%22gitlab.ddbuild.io%2FDataDog%2Fdatadog-agent%22%20%40ci.pipeline.name%3A%22DataDog%2Fdatadog-agent%22%20%40ci.provider.instance%3Agitlab-ci%20%40git.branch%3Amain%20%40ci.status%3Aerror%20%40gitlab.pipeline_source%3A%28push%20OR%20schedule%29%20{not_allowed_query}%40ci.allowed_to_fail%3Atrue&agg_m=count&agg_m_source=base&agg_q=%40ci.job.name&start={timestamp_start}&end={timestamp_end}&agg_q_source=base&agg_t=count&fromUser=false&index=cipipeline&sort_m=count&sort_m_source=base&sort_t=count&top_n=25&top_o=top&viz=toplist&x_missing=true&paused=false|here> for more details.{flaky_tests}\n'
-#             + NOTIFICATION_DISCLAIMER
-#         )
-
-#         body = '\n'.join(message)
-#         # Rarely the body may be bigger than 3K characters, split into two messages in this case
-#         if len(body) >= 3000:
-#             body = ['\n'.join(message[: len(message) // 2]), '\n'.join(message[len(message) // 2 :])]
-#         else:
-#             body = [body]
-
-#         blocks = [
-#             {'type': 'header', 'text': {'type': 'plain_text', 'text': header}},
-#             {'type': 'section', 'text': {'type': 'mrkdwn', 'text': description}},
-#             *[{'type': 'section', 'text': {'type': 'mrkdwn', 'text': text}} for text in body],
-#             {'type': 'context', 'elements': [{'type': 'mrkdwn', 'text': ':information_source: ' + footer}]},
-#         ]
-
-#         # Send message
-#         client = WebClient(os.environ["SLACK_API_TOKEN"])
-#         client.chat_postMessage(channel=channel, blocks=blocks)
-
-#     # Get args passed by the environment variable
-#     if jobs is None:
-#         args = os.environ["ARGS"]
-#         args = json.loads(args)
-#         jobs = args['jobs']
-#         allowed_to_fail = args['allowedToFail']
-
-#     # List of (job_name, failure_count) ordered by failure_count
-#     stats = sorted(
-#         ((name, data['failures']) for name, data in jobs.items() if data['failures'] > 0),
-#         key=lambda x: x[1],
-#         reverse=True,
-#     )
-
-#     # Don't send message if no failure
-#     if len(stats) == 0:
-#         return
-
-#     # Partition by channels as some teams share the same slack channel (avoid duplicate messages)
-#     partition = make_partition([name for name, _ in stats], jobowners, get_channels=True)
-
-#     # team_stats[team] = [(job_name, failure_count), ...]
-#     team_stats = {}
-#     for channel in partition:
-#         team_stats[channel] = [(name, stat) for (name, stat) in stats if name in partition[channel]]
-#         team_stats[channel] = team_stats[channel][:list_max_len]
-
-#     for channel, stat in team_stats.items():
-#         send_summary(channel, stat)
-
-#     # Send full message to #agent-platform-ops
-#     send_summary('#agent-platform-ops', stats[:list_max_len])
-
-#     print('Messages sent')
-
-
-# @dataclass
-# class JobExecutionSummary:
-#     jobs: list[ProjectPipelineJob]
-
-#     # TODO
-#     @staticmethod
-#     def from_s3(self):
-#         pass
-
-#     # TODO : Create lock, etc.
-#     def to_s3(self):
-#         pass
-
-#     def fetch_pipeline_jobs(self, pipeline_id: int):
-#         """
-#         Will fetch all jobs from a pipeline and add them to the jobs list
-#         """
-#         pass
-
-#     def __str__(self):
-#         return '\n'.join(job.to_json() for job in self.jobs)
-
-
 @task
 def failure_summary_upload_pipeline_data(ctx):
     """
@@ -637,88 +518,6 @@ def failure_summary_send_notifications(ctx, is_daily_summary: bool, max_length=8
     """
     period = timedelta(days=1) if is_daily_summary else timedelta(weeks=1)
     failure_summary.send_summary_messages(ctx, is_daily_summary, max_length, period)
-    # summary = failure_summary.fetch_summaries(ctx, period)
-    # stats = failure_summary.SummaryStats(summary, allow_failure=not is_daily_summary)
-
-    # # TODO : Send
-    # # TODO : Dispatch to teams
-    # print(stats.create(max_length))
-
-
-@task
-def send_failure_summary_notification(
-    ctx, allowed_to_fail: bool = False, list_max_len=10, jobowners=".gitlab/JOBOWNERS"
-):
-    failure_summary.test(ctx)
-    return
-
-    import time
-
-    from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
-
-    tstart = time.perf_counter()
-
-    # period_start = datetime.now(timezone.utc) - (timedelta(weeks=1) if allowed_to_fail else timedelta(days=1))
-
-    repo = get_gitlab_repo()
-
-    print('Fetching pipelines from main...')
-    # TODO
-    pipelines: list[ProjectPipeline] = [repo.pipelines.get(36500940, lazy=True)]
-    # for pipeline in repo.pipelines.list(ref='main', per_page=100, iterator=True):
-    #     # No downstream pipelines
-    #     if pipeline.source not in ['push', 'schedule']:
-    #         continue
-
-    #     # Only pipelines from a specific period
-    #     date = datetime.fromisoformat(pipeline.updated_at)
-    #     if date < period_start:
-    #         break
-
-    #     pipelines.append(pipeline)
-    #     # TODO
-    #     break
-    print('Fetched', len(pipelines), 'pipelines')
-
-    print('Fetching jobs from main pipelines...')
-    jobs: list[ProjectPipelineJob] = []
-    for pipeline in pipelines:
-        for job in pipeline.jobs.list(per_page=100, all=True):
-            if job.status not in ['failed', 'success']:
-                continue
-
-            # Ignore infra failures
-            if job.status == 'failed':
-                trace = str(repo.jobs.get(job.id, lazy=True).trace(), 'utf-8')
-                failure_type = get_infra_failure_info(trace)
-                if failure_type is not None:
-                    continue
-
-            # Must match allowed to fail
-            if job.allow_failure != allowed_to_fail:
-                continue
-
-            jobs.append(job)
-    print('Fetched', len(jobs), 'jobs')
-
-    # Make summary stats
-    total_counter = Counter()
-    failure_counter = Counter()
-    for job in jobs:
-        total_counter.update([job.name])
-        if job.status == 'failed':
-            failure_counter.update([job.name])
-
-    summary_jobs = [
-        (name, failure_counter[name], total_counter[name]) for name in total_counter.keys() if failure_counter[name] > 0
-    ]
-    summary_jobs = sorted(summary_jobs, key=lambda x: x[1], reverse=True)
-
-    print()
-    print('\n'.join(f'- {name}: {failures}/{total}' for name, failures, total in summary_jobs[:list_max_len]))
-
-    tend = time.perf_counter()
-    print('Duration:', tend - tstart)
 
 
 @task
