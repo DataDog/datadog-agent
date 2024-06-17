@@ -171,7 +171,7 @@ def generate_flake_finder_pipeline(_, n=3):
     for job, job_details in config.items():
         if job == 'new-e2e-process':
             kept_job[job] = job_details
-        # if (job == 'variables' or 'variables' in job_details and 'FLAKES_FINDER' in job_details['variables'] and job_details['variables']['FLAKES_FINDER']):
+        # if (job == 'variables' or 'variables' in job_details and 'FLAKES_FINDER' in job_details['variables'] and job_details['variables']['FLAKES_FINDER'] == "true"):
         #     kept_job[job] = job_details
 
     # Remove needs, rules and retry from the jobs
