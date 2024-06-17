@@ -261,7 +261,7 @@ def send_summary_slack_notification(channel: str, stats: list[dict], allow_failu
     flaky_tests = (
         ''
         if allow_failure
-        else ' In case of tests, you can <https://datadoghq.atlassian.net/wiki/spaces/ADX/pages/3405611398/Flaky+tests+in+go+introducing+flake.Mark|mark them as flaky>.'
+        else ' In case of flaky tests, you can <https://datadoghq.atlassian.net/wiki/spaces/ADX/pages/3405611398/Flaky+tests+in+go+introducing+flake.Mark|mark them as flaky>.'
     )
     expected_to_fail = 'They are allowed to fail' if allow_failure else 'They are not expected to fail'
 
