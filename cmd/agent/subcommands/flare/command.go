@@ -31,12 +31,14 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	rcsetting "github.com/DataDog/datadog-agent/comp/core/settings"
+	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
@@ -106,6 +108,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath)),
 					LogParams:            logimpl.ForOneShot(command.LoggerName, "off", false),
 				}),
+				fx.Provide(func(c coreconfig.Component) rcsetting.Params {
+					return rcsetting.Params{}
+				}),
 				fx.Supply(flare.NewLocalParams(
 					commonpath.GetDistPath(),
 					commonpath.PyChecksPath,
@@ -136,6 +141,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				inventoryhostimpl.Module(),
 				resourcesimpl.Module(),
 				authtokenimpl.Module(),
+				settingsimpl.Module(),
 				// inventoryagent require a serializer. Since we're not actually sending the payload to
 				// the backend a nil will work.
 				fx.Provide(func() serializer.MetricSerializer {
