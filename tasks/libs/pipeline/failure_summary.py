@@ -2,12 +2,15 @@ from __future__ import annotations
 
 import json
 import os
+import sys
+import traceback
 from collections import Counter
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
 from gitlab.v4.objects import Project, ProjectPipeline, ProjectPipelineJob
 from invoke import Context
+from invoke.exceptions import Exit
 
 from tasks.github_tasks import ALL_TEAMS, GITHUB_SLACK_MAP
 from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
@@ -223,6 +226,8 @@ def fetch_summaries(ctx: Context, period: timedelta) -> SummaryData:
     ids = SummaryData.list_summaries(ctx, after=int((datetime.now(UTC) - period).timestamp()))
     repo = get_gitlab_repo()
     summaries = [SummaryData.read(ctx, repo, id) for id in ids]
+    # TODO
+    print('Found', len(summaries), 'summaries')
     summary = SummaryData.merge(summaries)
 
     return summary
@@ -234,8 +239,6 @@ def upload_summary(ctx: Context, pipeline_id: int) -> SummaryData:
     """
     summary = fetch_jobs(ctx, pipeline_id)
     summary.write()
-    # TODO
-    print('UPLOADED', summary)
 
     return summary
 
@@ -299,7 +302,9 @@ def send_summary_slack_message(channel: str, stats: list[dict], allow_failure: b
 
     # Send message
     client = WebClient(os.environ["SLACK_API_TOKEN"])
-    client.chat_postMessage(channel=channel, blocks=blocks)
+    # TODO
+    # client.chat_postMessage(channel=channel, blocks=blocks)
+    client.chat_postMessage(channel='#celian-tests', blocks=blocks)
 
 
 def send_summary_messages(ctx: Context, allow_failure: bool, max_length: int, period: timedelta, jobowners: str = '.gitlab/JOBOWNERS'):
@@ -309,48 +314,17 @@ def send_summary_messages(ctx: Context, allow_failure: bool, max_length: int, pe
     summary = fetch_summaries(ctx, period)
     stats = SummaryStats(summary, allow_failure)
 
+    error = False
     team_stats = stats.make_stats(max_length, jobowners=jobowners)
     for channel, stat in team_stats.items():
-        # TODO : try catch
-        send_summary_slack_message(channel=channel, stats=stat, allow_failure=allow_failure)
+        try:
+            send_summary_slack_message(channel=channel, stats=stat, allow_failure=allow_failure)
+        except Exception:
+            print(f"Error sending message to {channel}", file=sys.stderr)
+            traceback.print_exc()
+            error = True
 
     print('Messages sent')
 
-
-# TODO : rm
-def test(ctx: Context):
-    # send_summary_messages(ctx, allow_failure=False, max_length=8, period=timedelta(days=1))
-
-    # s = fetch_summaries(ctx, timedelta(days=999))
-    # stats = SummaryStats(s, allow_failure=True)
-    # print(stats.make_message(stats.make_stats(16)))
-
-    return
-
-    # repo = get_gitlab_repo()
-    # pipeline = repo.pipelines.get(36500940)
-    # print(json.dumps({'pipeline': pipeline.asdict()}, indent=2))
-    # return
-
-    upload_summary(ctx, 36500940)
-    upload_summary(ctx, 36560009)
-
-    # summary = fetch_jobs(ctx, 36500940)
-    # id = int(datetime(2024, 1, 1).timestamp())
-    # summary.id = id
-    # summary.write()
-
-    # summary2 = fetch_jobs(ctx, 36560009)
-    # id2 = int(datetime(2024, 2, 1).timestamp())
-    # summary2.id = id2
-    # summary2.write()
-
-    print()
-    print(SummaryData.list_summaries(ctx))
-    print(SummaryData.list_summaries(ctx, after=datetime(2024, 1, 15).timestamp()))
-    print(SummaryData.list_summaries(ctx, before=datetime(2024, 1, 15).timestamp()))
-
-    # print()
-    # summary = SummaryData.read(get_gitlab_repo(), id)
-    # print(summary)
-    # print(len(summary.jobs))
+    if error:
+        raise Exit('Error sending messages')
