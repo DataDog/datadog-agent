@@ -499,6 +499,15 @@ func testHTTPSClassification(t *testing.T, tr *Tracer, clientHost, targetHost, s
 		},
 	}
 
+	// makeRequest is a helper that makes a GET request and handle the response.
+	makeRequest := func(t require.TestingT, client *nethttp.Client, url string) {
+		r, err := client.Get(url)
+		require.NoError(t, err)
+		_, _ = io.Copy(io.Discard, r.Body)
+		_ = r.Body.Close()
+		client.CloseIdleConnections()
+	}
+
 	serverAddress := net.JoinHostPort(serverHost, httpsPort)
 	targetAddress := net.JoinHostPort(targetHost, httpsPort)
 	tests := []protocolClassificationAttributes{
@@ -520,41 +529,21 @@ func testHTTPSClassification(t *testing.T, tr *Tracer, clientHost, targetHost, s
 			postTracerSetup: func(t *testing.T, ctx testContext) {
 				cmd := ctx.extras["cmd"].(*exec.Cmd)
 				utils.WaitForProgramsToBeTraced(t, "shared_libraries", cmd.Process.Pid)
-				client := nethttp.Client{
+				client := &nethttp.Client{
 					Transport: &nethttp.Transport{
 						TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 						DialContext:     defaultDialer.DialContext,
 					},
 				}
 
-				// Ensure that we see HTTPS requests being traced *before* the actual test assertions
-				// This is done to reduce test test flakiness due to uprobe attachment delays
-				require.Eventually(t, func() bool {
-					resp, err := client.Get(fmt.Sprintf("https://%s/200/warm-up", ctx.targetAddress))
-					if err != nil {
-						return false
-					}
-					_, _ = io.Copy(io.Discard, resp.Body)
-					_ = resp.Body.Close()
+				// The server might not be ready to accept connection just yet, so we
+				// wait until it starts accepting them.
+				warmupURL := fmt.Sprintf("https://%s/200/warmup", ctx.targetAddress)
+				require.EventuallyWithT(t, func(c *assert.CollectT) {
+					makeRequest(c, client, warmupURL)
+				}, 5*time.Second, 100*time.Millisecond)
 
-					httpData := getConnections(t, tr).HTTP
-					for httpKey := range httpData {
-						if httpKey.Path.Content.Get() == resp.Request.URL.Path {
-							return true
-						}
-					}
-
-					return false
-				}, 5*time.Second, 100*time.Millisecond, "couldn't detect HTTPS traffic being traced (test setup validation)")
-
-				t.Log("run 3 clients request as we can have a race between the closing tcp socket and the http response")
-				for i := 0; i < 3; i++ {
-					resp, err := client.Get(fmt.Sprintf("https://%s/200/request-1", ctx.targetAddress))
-					require.NoError(t, err)
-					_, _ = io.Copy(io.Discard, resp.Body)
-					_ = resp.Body.Close()
-					client.CloseIdleConnections()
-				}
+				makeRequest(t, client, fmt.Sprintf("https://%s/200/request-1", ctx.targetAddress))
 			},
 			validation: func(t *testing.T, ctx testContext, tr *Tracer) {
 				waitForConnectionsWithProtocol(t, tr, ctx.targetAddress, ctx.serverAddress, &protocols.Stack{Encryption: protocols.TLS, Application: protocols.HTTP})
