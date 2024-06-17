@@ -175,9 +175,3 @@ func (f FakeAgent) SetStopWithSigterm(agent string) FakeAgent {
 	f.setBinary("stop_with_sigterm.sh", agent)
 	return f
 }
-
-// SetStopWithSigtermExit0 sets the fake Agent to stop with SIGTERM and exit with code 0.
-func (f FakeAgent) SetStopWithSigtermExit0(agent string) FakeAgent {
-	f.setBinary("stop_with_sigterm_exit0.sh", agent)
-	return f
-}

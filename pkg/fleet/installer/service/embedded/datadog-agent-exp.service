@@ -13,6 +13,8 @@ PIDFile=/opt/datadog-packages/datadog-agent/experiment/run/agent.pid
 User=dd-agent
 EnvironmentFile=-/etc/datadog-agent/environment
 ExecStart=/opt/datadog-packages/datadog-agent/experiment/bin/agent/agent run -p /opt/datadog-packages/datadog-agent/experiment/run/agent.pid
+ExecStart=/opt/datadog-packages/datadog-agent/experiment/bin/agent/agent run -p /opt/datadog-packages/datadog-agent/experiment/run/agent.pid
+ExecStart=/opt/datadog-packages/datadog-agent/experiment/bin/agent/agent run -p /opt/datadog-packages/datadog-agent/experiment/run/agent.pid
 ExecStart=/bin/false
 ExecStop=/bin/false
 
