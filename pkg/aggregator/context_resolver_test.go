@@ -77,18 +77,18 @@ func testTrackContext(t *testing.T, store *tags.Store) {
 	contextResolver := newContextResolver(store, "test")
 
 	// Track the 2 contexts
-	contextKey1 := contextResolver.trackContext(&mSample1)
-	contextKey2 := contextResolver.trackContext(&mSample2)
-	contextKey3 := contextResolver.trackContext(&mSample3)
+	contextKey1 := contextResolver.trackContext(&mSample1, 0)
+	contextKey2 := contextResolver.trackContext(&mSample2, 0)
+	contextKey3 := contextResolver.trackContext(&mSample3, 0)
 
 	// When we look up the 2 keys, they return the correct contexts
-	context1 := contextResolver.contextsByKey[contextKey1]
+	context1 := contextResolver.contextsByKey[contextKey1].context
 	assertContext(t, context1, mSample1.Name, mSample1.Tags, "")
 
-	context2 := contextResolver.contextsByKey[contextKey2]
+	context2 := contextResolver.contextsByKey[contextKey2].context
 	assertContext(t, context2, mSample2.Name, mSample2.Tags, "")
 
-	context3 := contextResolver.contextsByKey[contextKey3]
+	context3 := contextResolver.contextsByKey[contextKey3].context
 	assertContext(t, context3, mSample3.Name, mSample3.Tags, mSample3.Host)
 
 	assert.Equal(t, uint64(2), contextResolver.countsByMtype[metrics.GaugeType])
@@ -131,94 +131,59 @@ func testExpireContexts(t *testing.T, store *tags.Store) {
 		Tags:       []string{"foo", "bar", "baz"},
 		SampleRate: 1,
 	}
-	contextResolver := newTimestampContextResolver(store, "test")
+	mSample3 := metrics.MetricSample{
+		Name:       "my.counter.name",
+		Value:      1,
+		Mtype:      metrics.CounterType,
+		Tags:       []string{"foo"},
+		SampleRate: 1,
+	}
+	contextResolver := newTimestampContextResolver(store, "test", 2, 4)
 
 	// Track the 2 contexts
-	contextKey1 := contextResolver.trackContext(&mSample1, 4)
-	contextKey2 := contextResolver.trackContext(&mSample2, 6)
+	contextKey1 := contextResolver.trackContext(&mSample1, 4) // expires after 6
+	contextKey2 := contextResolver.trackContext(&mSample2, 6) // expires after 8
+	contextKey3 := contextResolver.trackContext(&mSample3, 6) // expires after 10
 
 	// With an expireTimestap of 3, both contexts are still valid
-	contextResolver.expireContexts(3, nil)
-	_, ok1 := contextResolver.resolver.contextsByKey[contextKey1]
-	_, ok2 := contextResolver.resolver.contextsByKey[contextKey2]
-	assert.True(t, ok1)
-	assert.True(t, ok2)
+	contextResolver.expireContexts(4)
+	_, ok := contextResolver.resolver.contextsByKey[contextKey1]
+	assert.True(t, ok)
+	_, ok = contextResolver.resolver.contextsByKey[contextKey2]
+	assert.True(t, ok)
+	_, ok = contextResolver.resolver.contextsByKey[contextKey3]
+	assert.True(t, ok)
 
-	// With an expireTimestap of 5, context 1 is expired
-	contextResolver.expireContexts(5, nil)
+	// With an expireTimestap of 8, context 1 is expired
+	contextResolver.expireContexts(7)
 
 	// context 1 is not tracked anymore, but context 2 still is
-	_, ok := contextResolver.resolver.contextsByKey[contextKey1]
+	_, ok = contextResolver.resolver.contextsByKey[contextKey1]
 	assert.False(t, ok)
 	_, ok = contextResolver.resolver.contextsByKey[contextKey2]
 	assert.True(t, ok)
+	_, ok = contextResolver.resolver.contextsByKey[contextKey3]
+	assert.True(t, ok)
+
+	contextResolver.expireContexts(9)
+	_, ok = contextResolver.resolver.contextsByKey[contextKey1]
+	assert.False(t, ok)
+	_, ok = contextResolver.resolver.contextsByKey[contextKey2]
+	assert.False(t, ok)
+	_, ok = contextResolver.resolver.contextsByKey[contextKey3]
+	assert.True(t, ok)
+
+	contextResolver.expireContexts(11)
+	_, ok = contextResolver.resolver.contextsByKey[contextKey1]
+	assert.False(t, ok)
+	_, ok = contextResolver.resolver.contextsByKey[contextKey2]
+	assert.False(t, ok)
+	_, ok = contextResolver.resolver.contextsByKey[contextKey3]
+	assert.False(t, ok)
 }
 
 func TestExpireContexts(t *testing.T) {
 	testWithTagsStore(t, testExpireContexts)
-}
-
-func testExpireContextsWithKeep(t *testing.T, store *tags.Store) {
-	mSample1 := metrics.MetricSample{
-		Name:       "my.metric.name",
-		Value:      1,
-		Mtype:      metrics.GaugeType,
-		Tags:       []string{"foo", "bar"},
-		SampleRate: 1,
-	}
-	mSample2 := metrics.MetricSample{
-		Name:       "my.metric.name",
-		Value:      1,
-		Mtype:      metrics.GaugeType,
-		Tags:       []string{"foo", "bar", "baz"},
-		SampleRate: 1,
-	}
-	contextResolver := newTimestampContextResolver(store, "test")
-
-	// Track the 2 contexts
-	contextKey1 := contextResolver.trackContext(&mSample1, 4)
-	contextKey2 := contextResolver.trackContext(&mSample2, 7)
-
-	keeperCalled := 0
-	keep := true
-	keeper := func(k ckey.ContextKey) bool {
-		keeperCalled++
-		assert.Equal(t, k, contextKey1)
-		return keep
-	}
-
-	// With an expireTimestap of 3, both contexts are still valid
-	contextResolver.expireContexts(3, keeper)
-	_, ok1 := contextResolver.resolver.contextsByKey[contextKey1]
-	_, ok2 := contextResolver.resolver.contextsByKey[contextKey2]
-	assert.True(t, ok1)
-	assert.True(t, ok2)
-	assert.Equal(t, keeperCalled, 0)
-
-	// With an expireTimestap of 5, context 1 is expired, but we explicitly keep it
-	contextResolver.expireContexts(5, keeper)
-	assert.Equal(t, keeperCalled, 1)
-
-	// both contexts are still tracked
-	_, ok1 = contextResolver.resolver.contextsByKey[contextKey1]
-	_, ok2 = contextResolver.resolver.contextsByKey[contextKey2]
-	assert.True(t, ok1)
-	assert.True(t, ok2)
-
-	// With an expireTimestap of 6, context 1 is expired, and we don't keep it this time
-	keep = false
-	contextResolver.expireContexts(6, keeper)
-	assert.Equal(t, keeperCalled, 2)
-
-	// context 1 is not tracked anymore
-	_, ok1 = contextResolver.resolver.contextsByKey[contextKey1]
-	_, ok2 = contextResolver.resolver.contextsByKey[contextKey2]
-	assert.False(t, ok1)
-	assert.True(t, ok2)
-}
-
-func TestExpireContextsWithKeep(t *testing.T) {
-	testWithTagsStore(t, testExpireContextsWithKeep)
 }
 
 func testCountBasedExpireContexts(t *testing.T, store *tags.Store) {
@@ -255,10 +220,10 @@ func testTagDeduplication(t *testing.T, store *tags.Store) {
 	ckey := resolver.trackContext(&metrics.MetricSample{
 		Name: "foo",
 		Tags: []string{"bar", "bar"},
-	})
+	}, 0)
 
-	assert.Equal(t, resolver.contextsByKey[ckey].Tags().Len(), 1)
-	metrics.AssertCompositeTagsEqual(t, resolver.contextsByKey[ckey].Tags(), tagset.CompositeTagsFromSlice([]string{"bar"}))
+	assert.Equal(t, resolver.contextsByKey[ckey].context.Tags().Len(), 1)
+	metrics.AssertCompositeTagsEqual(t, resolver.contextsByKey[ckey].context.Tags(), tagset.CompositeTagsFromSlice([]string{"bar"}))
 }
 
 func TestTagDeduplication(t *testing.T) {
@@ -289,14 +254,14 @@ func (s *mockSample) GetTags(tb, mb tagset.TagsAccumulator, _ metrics.EnrichTags
 
 func TestOriginTelemetry(t *testing.T) {
 	r := newContextResolver(tags.NewStore(true, "test"), "test")
-	r.trackContext(&mockSample{"foo", []string{"foo"}, []string{"ook"}})
-	r.trackContext(&mockSample{"foo", []string{"foo"}, []string{"eek"}})
-	r.trackContext(&mockSample{"foo", []string{"bar"}, []string{"ook"}})
-	r.trackContext(&mockSample{"bar", []string{"bar"}, []string{}})
-	r.trackContext(&mockSample{"bar", []string{"baz"}, []string{}})
+	r.trackContext(&mockSample{"foo", []string{"foo"}, []string{"ook"}}, 0)
+	r.trackContext(&mockSample{"foo", []string{"foo"}, []string{"eek"}}, 0)
+	r.trackContext(&mockSample{"foo", []string{"bar"}, []string{"ook"}}, 0)
+	r.trackContext(&mockSample{"bar", []string{"bar"}, []string{}}, 0)
+	r.trackContext(&mockSample{"bar", []string{"baz"}, []string{}}, 0)
 	sink := mockSink{}
 	ts := 1672835152.0
-	r.sendOriginTelemetry(ts, &sink, "test", []string{"test"})
+	r.contextsByKey.sendOriginTelemetry(ts, &sink, "test", []string{"test"})
 
 	assert.ElementsMatch(t, sink, []*metrics.Serie{{
 		Name:   "datadog.agent.aggregator.dogstatsd_contexts_by_origin",
