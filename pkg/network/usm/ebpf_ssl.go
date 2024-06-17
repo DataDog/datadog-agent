@@ -10,6 +10,7 @@ package usm
 import (
 	"bytes"
 	"debug/elf"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -762,4 +763,24 @@ func getUID(lib utils.PathIdentifier) string {
 // IsBuildModeSupported returns always true, as tls module is supported by all modes.
 func (*sslProgram) IsBuildModeSupported(buildmode.Type) bool {
 	return true
+}
+
+// OpenSSLAttachPID attaches Shared Libraries TLS hooks on the binary of process with
+// provided PID.
+func OpenSSLAttachPID(pid pid) error {
+	if opensslSpec.Instance == nil {
+		return errors.New("Shared Libaries TLS monitoring is not enabled")
+	}
+
+	return opensslSpec.Instance.(*sslProgram).watcher.AttachPID(pid)
+}
+
+// OpenSSLDetachPID detaches Shared Libraries TLS hooks on the binary of process with
+// provided PID.
+func OpenSSLDetachPID(pid pid) error {
+	if opensslSpec.Instance == nil {
+		return errors.New("Shared Libaries TLS monitoring is not enabled")
+	}
+
+	return opensslSpec.Instance.(*sslProgram).watcher.DetachPID(pid)
 }
