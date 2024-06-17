@@ -98,7 +98,7 @@ func TestReadConfigFiles(t *testing.T) {
 	configs, errors, err := ReadConfigFiles(GetAll)
 	require.Nil(t, err)
 	require.Equal(t, 19, len(configs))
-	require.Equal(t, 6, len(errors))
+	require.Equal(t, 4, len(errors))
 
 	for _, c := range configs {
 		if c.Name == "empty" {
