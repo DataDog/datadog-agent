@@ -48,9 +48,6 @@ type NamedPipeListener struct {
 func NewNamedPipeListener(pipeName string, packetOut chan packets.Packets,
 	sharedPacketPoolManager *packets.PoolManager, cfg config.Reader, capture replay.Component, telemetryStore *TelemetryStore, packetsTelemetryStore *packets.TelemetryStore, telemetrycomp telemetry.Component) (*NamedPipeListener, error) {
 
-	telemetryOnce.Do(func() {
-		namedPipeTelemetry = newListenerTelemetry("named_pipe", "named_pipe", telemetrycomp)
-	})
 	bufferSize := cfg.GetInt("dogstatsd_buffer_size")
 	return newNamedPipeListener(
 		pipeName,
@@ -58,6 +55,7 @@ func NewNamedPipeListener(pipeName string, packetOut chan packets.Packets,
 		packets.NewPacketManagerFromConfig(packetOut, sharedPacketPoolManager, cfg, packetsTelemetryStore),
 		capture,
 		telemetryStore,
+		telemetrycomp,
 	)
 }
 
@@ -67,7 +65,12 @@ func newNamedPipeListener(
 	packetManager *packets.PacketManager,
 	capture replay.Component,
 	telemetryStore *TelemetryStore,
+	telemetrycomp telemetry.Component,
 ) (*NamedPipeListener, error) {
+
+	telemetryOnce.Do(func() {
+		namedPipeTelemetry = newListenerTelemetry("named_pipe", "named_pipe", telemetrycomp)
+	})
 
 	config := winio.PipeConfig{
 		InputBufferSize:  int32(bufferSize),

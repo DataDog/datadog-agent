@@ -139,6 +139,7 @@ func newNamedPipeListenerTest(t *testing.T) namedPipeListenerTest {
 		packetManager,
 		nil,
 		listernerTelemetryStore,
+		telemetryComp,
 	)
 	assert.NoError(t, err)
 
