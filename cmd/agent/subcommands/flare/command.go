@@ -31,7 +31,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	"github.com/DataDog/datadog-agent/comp/core/log"
@@ -94,7 +93,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Long:  ``,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cliParams.args = args
-			config := coreconfig.NewAgentParams(globalParams.ConfFilePath,
+			configParams := config.NewAgentParams(globalParams.ConfFilePath,
 				config.WithSecurityAgentConfigFilePaths([]string{
 					path.Join(commonpath.DefaultConfPath, "security-agent.yaml"),
 				}),
@@ -104,12 +103,12 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(makeFlare,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams:         config,
+					ConfigParams:         configParams,
 					SecretParams:         secrets.NewEnabledParams(),
 					SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath)),
 					LogParams:            logimpl.ForOneShot(command.LoggerName, "off", false),
 				}),
-				fx.Provide(func(c coreconfig.Component) rcsetting.Params {
+				fx.Provide(func(c config.Component) rcsetting.Params {
 					return rcsetting.Params{}
 				}),
 				fx.Supply(flare.NewLocalParams(
