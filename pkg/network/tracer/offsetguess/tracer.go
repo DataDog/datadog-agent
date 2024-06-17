@@ -22,9 +22,9 @@ import (
 	"syscall"
 	"time"
 
-	"golang.org/x/sys/unix"
-
 	manager "github.com/DataDog/ebpf-manager"
+	"github.com/DataDog/gopsutil/host"
+	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/maps"
@@ -53,9 +53,23 @@ const (
 	rttVarDefaultOffsetBytes = 1280
 )
 
-var tcpKprobeCalledString = map[uint64]string{
-	tcpGetSockOptKProbeNotCalled: "tcp_getsockopt kprobe not executed",
-	tcpGetSockOptKProbeCalled:    "tcp_getsockopt kprobe executed",
+var (
+	tcpKprobeCalledString = map[uint64]string{
+		tcpGetSockOptKProbeNotCalled: "tcp_getsockopt kprobe not executed",
+		tcpGetSockOptKProbeCalled:    "tcp_getsockopt kprobe executed",
+	}
+
+	knownKernelOffsets = map[string]map[GuessWhat]uint64{
+		// debian 9 rtt and rtt var offset guessing is
+		// not reliable, so hardcoding the offsets here
+		"4.9.0-19-amd64": map[GuessWhat]uint64{
+			GuessRTT:    1444,
+			GuessRTTVar: 1448,
+		},
+	}
+)
+
+func init() {
 }
 
 type tracerOffsetGuesser struct {
@@ -755,32 +769,14 @@ func (t *tracerOffsetGuesser) Guess(cfg *config.Config) ([]manager.ConstantEdito
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 
-	processName := filepath.Base(os.Args[0])
-	if len(processName) > ProcCommMaxLen { // Truncate process name if needed
-		processName = processName[:ProcCommMaxLen]
-	}
-
-	cProcName := [ProcCommMaxLen + 1]int8{} // Last char has to be null character, so add one
-	for i, ch := range processName {
-		cProcName[i] = int8(ch)
-	}
-
-	t.guessTCPv6, t.guessUDPv6 = getIpv6Configuration(cfg)
-	t.status = &TracerStatus{
-		State:          uint64(StateChecking),
-		Proc:           Proc{Comm: cProcName},
-		What:           uint64(GuessSAddr),
-		Offset_netns:   netNsDefaultOffsetBytes,
-		Offset_rtt:     rttDefaultOffsetBytes,
-		Offset_rtt_var: rttVarDefaultOffsetBytes,
-	}
-
 	// if we already have the offsets, just return
 	err = mp.Lookup(&zero, t.status)
 	if err == nil && State(t.status.State) == StateReady {
 		return t.getConstantEditors(), nil
 	}
 
+	t.guessTCPv6, t.guessUDPv6 = getIpv6Configuration(cfg)
+	t.status = newTracerStatus()
 	eventGenerator, err := newTracerEventGenerator(t.guessUDPv6)
 	if err != nil {
 		return nil, err
@@ -832,6 +828,50 @@ func (t *tracerOffsetGuesser) Guess(cfg *config.Config) ([]manager.ConstantEdito
 	}
 
 	return t.getConstantEditors(), nil
+}
+
+func newTracerStatus() *TracerStatus {
+	processName := filepath.Base(os.Args[0])
+	if len(processName) > ProcCommMaxLen { // Truncate process name if needed
+		processName = processName[:ProcCommMaxLen]
+	}
+	cProcName := [ProcCommMaxLen + 1]int8{} // Last char has to be null character, so add one
+	for i, ch := range processName {
+		cProcName[i] = int8(ch)
+	}
+
+	status := &TracerStatus{
+		State:          uint64(StateChecking),
+		Proc:           Proc{Comm: cProcName},
+		What:           uint64(GuessSAddr),
+		Offset_netns:   netNsDefaultOffsetBytes,
+		Offset_rtt:     rttDefaultOffsetBytes,
+		Offset_rtt_var: rttVarDefaultOffsetBytes,
+	}
+
+	var err error
+	var kv string
+	if kv, err = host.KernelVersion(); err != nil {
+		log.Warnf("could not get kernel version: %s", err)
+		return status
+	}
+
+	knownOffsets := knownKernelOffsets[kv]
+	if len(knownOffsets) == 0 {
+		return status
+	}
+
+	for k, v := range knownOffsets {
+		switch k {
+		// we only these two currently
+		case GuessRTT:
+			status.Offset_rtt = v
+		case GuessRTTVar:
+			status.Offset_rtt_var = v
+		}
+	}
+
+	return status
 }
 
 func (t *tracerOffsetGuesser) getConstantEditors() []manager.ConstantEditor {
