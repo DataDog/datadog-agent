@@ -5,7 +5,6 @@
 
 //go:build kubeapiserver
 
-// Package util contains utility functions for workload metadata collectors
 package util
 
 import (
@@ -42,7 +41,7 @@ func TestGenerateKubeMetadataEntityID(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(tt *testing.T) {
-			assert.Equal(tt, GenerateKubeMetadataEntityID(test.resourceType, test.namespace, test.resourceName), test.expectedID)
+			assert.Equal(tt, test.expectedID, GenerateKubeMetadataEntityID(test.resourceType, test.namespace, test.resourceName))
 		})
 	}
 

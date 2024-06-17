@@ -3,9 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-//go:build kubeapiserver
-
-// Package util contains utility functions for workload metadata collectors
 package util
 
 import (
@@ -17,7 +14,7 @@ import (
 
 // GenerateKubeMetadataEntityID generates and returns a unique entity id for KubernetesMetadata entity
 // for namespaced objects, the id will have the format {resourceType}/{namespace}/{name} (e.g. deployments/default/app )
-// for cluster scoped objects, the id will have the format {resourceType}//{name} (e.g. node//master-node)
+// for cluster scoped objects, the id will have the format {resourceType}//{name} (e.g. nodes//master-node)
 func GenerateKubeMetadataEntityID(resource, namespace, name string) workloadmeta.KubeMetadataEntityID {
 	return workloadmeta.KubeMetadataEntityID(fmt.Sprintf("%s/%s/%s", resource, namespace, name))
 }
