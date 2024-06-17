@@ -94,7 +94,7 @@ host_aliases:
 func (v *windowsSecretSuite) TestAgentConfigRefresh() {
 	config := `secret_backend_command: C:\TestFolder\wrapper.bat
 secret_backend_arguments:
-  - "C:\TestFolder\"
+  - "C:\TestFolder"
 api_key: ENC[api_key]
 `
 
