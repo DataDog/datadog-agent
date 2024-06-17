@@ -505,7 +505,7 @@ def add_go_module(path):
     modulespy_regex = re.compile(r"DEFAULT_MODULES = {\n(.+?)\n}", re.DOTALL | re.MULTILINE)
 
     all_modules_match = modulespy_regex.search(modulespy)
-    assert all_modules_match, "Could not find DEFAdULT_MODULES in modules.py"
+    assert all_modules_match, "Could not find DEFAULT_MODULES in modules.py"
     all_modules = all_modules_match.group(1)
     all_modules = all_modules.split('\n')
     indent = ' ' * 4
