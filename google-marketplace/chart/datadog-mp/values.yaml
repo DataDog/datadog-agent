@@ -8,6 +8,7 @@ datadog-operator:
   serviceAccount:
     create: false
     name: placeholder
+  toolVersion: "google-marketplace"
 
 createAgent: false
 datadog:
