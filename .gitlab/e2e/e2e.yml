@@ -392,10 +392,9 @@ generate-flakes-finder-pipeline:
     paths:
       - $CI_PROJECT_DIR/flake-finder-gitlab-ci.yml
 
-new-e2e-trigger-flakes-finder:
-
+trigger-flakes-finder:
   stage: .pre
-  needs: [new-e2e-flakes-finder]
+  needs: [generate-flakes-finder-pipeline]
   # rules: !reference [.on_deploy_nightly_repo_branch]
   variables:
     PARENT_PIPELINE_ID: $CI_PIPELINE_ID
@@ -403,4 +402,4 @@ new-e2e-trigger-flakes-finder:
   trigger:
     include:
       - artifact: flake-finder-gitlab-ci.yml
-        job: new-e2e-flakes-finder
+        job: generate-flakes-finder-pipeline
