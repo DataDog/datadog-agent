@@ -59,16 +59,23 @@ func (m *mockErrorsTelemetry) forEachHelperEntry(yield func(telemetryIndex, Help
 // creates an error collector and replaces the telemetry field with a mock
 func createTestCollector(telemetry ebpfErrorsTelemetry) prometheus.Collector {
 	collector := NewEBPFErrorsCollector().(*EBPFErrorsCollector)
-	collector.T = telemetry
+	if collector != nil {
+		collector.T = telemetry
+	}
 	return collector
 }
 
 func TestEBPFErrorsCollector_NotInitialized(t *testing.T) {
+	//skip this test on unsupported kernel versions
+	if ok, _ := ebpfTelemetrySupported(); !ok {
+		t.SkipNow()
+	}
 	telemetry := &mockErrorsTelemetry{
 		mapErrMap:    nil,
 		helperErrMap: nil,
 	}
 	collector := createTestCollector(telemetry)
+	assert.NotNil(t, collector, "expected collector to be created")
 
 	ch := make(chan prometheus.Metric)
 	go func() {
@@ -85,7 +92,10 @@ func TestEBPFErrorsCollector_NotInitialized(t *testing.T) {
 }
 
 func TestEBPFErrorsCollector_SingleCollect(t *testing.T) {
-
+	//skip this test on unsupported kernel versions
+	if ok, _ := ebpfTelemetrySupported(); !ok {
+		t.SkipNow()
+	}
 	mapErrorsMockValue, helperErrorsMockValue := uint64(20), uint64(100)
 	//create mock telemetry objects (since we don't want to trigger full ebpf subsystem)
 	mapEntries := map[telemetryIndex]MapErrTelemetry{
@@ -110,6 +120,8 @@ func TestEBPFErrorsCollector_SingleCollect(t *testing.T) {
 	}
 	//use mock telemetry instead of real ebpfTelemetry to avoid triggering eBPF APIs
 	collector := createTestCollector(telemetry)
+	assert.NotNil(t, collector, "expected collector to be created")
+
 	ch := make(chan prometheus.Metric)
 	go func() {
 		collector.Collect(ch)
@@ -139,7 +151,10 @@ func TestEBPFErrorsCollector_SingleCollect(t *testing.T) {
 
 // TestEBPFErrorsCollector_DoubleCollect tests the case when the collector is called twice to validate the delta calculation of the Counter metric
 func TestEBPFErrorsCollector_DoubleCollect(t *testing.T) {
-
+	//skip this test on unsupported kernel versions
+	if ok, _ := ebpfTelemetrySupported(); !ok {
+		t.SkipNow()
+	}
 	mapErrorsMockValue, helperErrorsMockValue := uint64(20), uint64(100)
 	deltaMapErrors, deltaHelperErrors := float64(80), float64(900)
 	mapEntries := map[telemetryIndex]MapErrTelemetry{
@@ -163,6 +178,8 @@ func TestEBPFErrorsCollector_DoubleCollect(t *testing.T) {
 		helperErrMap: helperEntries,
 	}
 	collector := createTestCollector(telemetry)
+	assert.NotNil(t, collector, "expected collector to be created")
+
 	ch := make(chan prometheus.Metric)
 	go func() {
 		collector.Collect(ch)
