@@ -116,8 +116,8 @@ jobs:
               --base ${{ github.ref }} \
               --json title \
               --jq 'length')
-          if [ prs > 0 ]; then
-              echo "SKIP=true" >> $GITHUB_OUTPUT
+          if [ $prs -gt 0 ]; then
+            echo "SKIP=true" >> $GITHUB_OUTPUT
           fi
 
       # Create PR only if there is no pre-existing PR on the branch
