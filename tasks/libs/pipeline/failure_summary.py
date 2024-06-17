@@ -6,7 +6,7 @@ import sys
 import traceback
 from collections import Counter
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from gitlab.v4.objects import Project, ProjectPipeline, ProjectPipelineJob
 from invoke import Context
@@ -81,7 +81,7 @@ class SummaryData:
         self, ctx: Context, id: int = None, jobs: list[ProjectPipelineJob] = None, pipeline: ProjectPipeline = None
     ):
         self.ctx = ctx
-        self.id = id or int(datetime.now(UTC).timestamp())
+        self.id = id or int(datetime.now(timezone.utc).timestamp())
         self.jobs = jobs or []
         self.pipeline = pipeline
 
@@ -207,7 +207,7 @@ def fetch_jobs(ctx: Context, pipeline_id: int) -> SummaryData:
     """
     Returns all the jobs for a given pipeline
     """
-    id = int(datetime.now(UTC).timestamp())
+    id = int(datetime.now(timezone.utc).timestamp())
     repo = get_gitlab_repo()
 
     jobs: list[ProjectPipelineJob] = []
@@ -223,7 +223,7 @@ def fetch_summaries(ctx: Context, period: timedelta) -> SummaryData:
     """
     Returns all summaries for a given period
     """
-    ids = SummaryData.list_summaries(ctx, after=int((datetime.now(UTC) - period).timestamp()))
+    ids = SummaryData.list_summaries(ctx, after=int((datetime.now(timezone.utc) - period).timestamp()))
     repo = get_gitlab_repo()
     summaries = [SummaryData.read(ctx, repo, id) for id in ids]
     # TODO

@@ -16,7 +16,7 @@ from invoke import task
 from invoke.context import Context
 from invoke.exceptions import Exit, UnexpectedExit
 
-from tasks.libs.ciproviders.gitlab_api import BASE_URL, get_gitlab_repo
+from tasks.libs.ciproviders.gitlab_api import BASE_URL
 from tasks.libs.common.datadog_api import create_count, send_metrics
 from tasks.libs.pipeline import failure_summary
 from tasks.libs.pipeline.data import get_failed_jobs, get_infra_failure_info
@@ -658,7 +658,7 @@ def send_failure_summary_notification(
 
     tstart = time.perf_counter()
 
-    # period_start = datetime.now(UTC) - (timedelta(weeks=1) if allowed_to_fail else timedelta(days=1))
+    # period_start = datetime.now(timezone.utc) - (timedelta(weeks=1) if allowed_to_fail else timedelta(days=1))
 
     repo = get_gitlab_repo()
 
