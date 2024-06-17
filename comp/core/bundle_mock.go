@@ -40,7 +40,7 @@ func MakeMockBundle(logParams, logger fx.Option) fxutil.BundleOptions {
 		// TODO: (components)
 		// Since the telemetry component uses globals we hit the error
 		// for duplicates prometheus metrics.
-		// Once we are no using globals replace with telemetryimpl.MockModule()
+		// Once we are not using globals replace with telemetryimpl.MockModule()
 		telemetrynoop.Module(),
 		hostnameimpl.MockModule(),
 	)
