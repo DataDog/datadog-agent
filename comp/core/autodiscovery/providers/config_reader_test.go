@@ -27,17 +27,18 @@ func TestGetIntegrationConfig(t *testing.T) {
 	_, err = GetIntegrationConfigFromFile("foo", "tests/invalid.yaml")
 	assert.NotNil(t, err)
 
-	// valid yaml, invalid configuration file
+	// valid yaml but not a valid integration configuration
 	config, err := GetIntegrationConfigFromFile("foo", "tests/notaconfig.yaml")
 	assert.NotNil(t, err)
 	assert.Equal(t, len(config.Instances), 0)
 
-	// valid yaml, invalid configuration file
+	// empty file
 	config, err = GetIntegrationConfigFromFile("foo", "tests/empty.yaml")
 	assert.NotNil(t, err)
+	assert.Equal(t, err.Error(), emptyFileError)
 	assert.Equal(t, len(config.Instances), 0)
 
-	// valid yaml, invalid configuration file
+	// valid yaml with a stub integration instance
 	config, err = GetIntegrationConfigFromFile("foo", "tests/stub.yaml")
 	assert.Nil(t, err)
 	assert.Equal(t, len(config.Instances), 1)
