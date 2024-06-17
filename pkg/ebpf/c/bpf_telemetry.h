@@ -5,6 +5,9 @@
 #include "telemetry_types.h"
 #include "map-defs.h"
 
+/* redefinition of some error values */
+#define EEXIST -17
+
 #define STR(x) #x
 #define MK_KEY(key) STR(key##_telemetry_key)
 
@@ -14,15 +17,14 @@ BPF_HASH_MAP(helper_err_telemetry_map, unsigned long, helper_err_telemetry_t, 25
 #define PATCH_TARGET_TELEMETRY -1
 static void *(*bpf_telemetry_update_patch)(unsigned long, ...) = (void *)PATCH_TARGET_TELEMETRY;
 
-#define map_update_with_telemetry(fn, map, args...)                                \
+#define record_map_telemetry(map, errno_ret) \
     ({                                                                             \
-        long errno_ret, errno_slot;                                                \
-        errno_ret = fn(&map, args);                                                \
+        long errno_slot;                                                           \
         unsigned long err_telemetry_key;                                           \
         LOAD_CONSTANT(MK_KEY(map), err_telemetry_key);                             \
         if (errno_ret < 0 && err_telemetry_key > 0) {                              \
             map_err_telemetry_t *entry =                                           \
-                bpf_map_lookup_elem(&map_err_telemetry_map, &err_telemetry_key);   \
+            bpf_map_lookup_elem(&map_err_telemetry_map, &err_telemetry_key);       \
             if (entry) {                                                           \
                 errno_slot = errno_ret * -1;                                       \
                 if (errno_slot >= T_MAX_ERRNO) {                                   \
@@ -40,6 +42,12 @@ static void *(*bpf_telemetry_update_patch)(unsigned long, ...) = (void *)PATCH_T
             }                                                                      \
         }                                                                          \
         errno_ret;                                                                 \
+    })
+
+#define map_update_with_telemetry(fn, map, args...) \
+    ({                                              \
+        long errno_ret = fn(&map, args);            \
+        record_map_telemetry(map, errno_ret);       \
     })
 
 #define MK_FN_INDX(fn) FN_INDX_##fn

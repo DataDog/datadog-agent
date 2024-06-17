@@ -29,7 +29,10 @@ static __always_inline protocol_stack_t* get_protocol_stack(conn_tuple_t *skb_tu
     // this code path is executed once during the entire connection lifecycle
     protocol_stack_wrapper_t empty_wrapper = {0};
     empty_wrapper.updated = bpf_ktime_get_ns();
-    bpf_map_update_with_telemetry(connection_protocol, &normalized_tup, &empty_wrapper, BPF_NOEXIST);
+    int err = bpf_map_update_elem(&connection_protocol, &normalized_tup, &empty_wrapper, BPF_NOEXIST);
+    if (err < 0 && err != EEXIST) {
+        record_map_telemetry(connection_protocol, err);
+    }
     return __get_protocol_stack(&normalized_tup);
 }
 

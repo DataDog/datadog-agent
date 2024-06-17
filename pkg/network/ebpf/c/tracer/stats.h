@@ -33,7 +33,10 @@ static __always_inline conn_stats_ts_t *get_conn_stats(conn_tuple_t *t, struct s
     bpf_memset(&empty, 0, sizeof(conn_stats_ts_t));
     empty.duration = bpf_ktime_get_ns();
     empty.cookie = get_sk_cookie(sk);
-    bpf_map_update_with_telemetry(conn_stats, t, &empty, BPF_NOEXIST);
+    int err = bpf_map_update_elem(&conn_stats, t, &empty, BPF_NOEXIST);
+    if (err < 0 && err != EEXIST) {
+        record_map_telemetry(conn_stats, err);
+    }
     return bpf_map_lookup_elem(&conn_stats, t);
 }
 
@@ -182,7 +185,10 @@ static __always_inline void update_conn_stats(conn_tuple_t *t, size_t sent_bytes
 static __always_inline void update_tcp_stats(conn_tuple_t *t, tcp_stats_t stats) {
     // initialize-if-no-exist the connection state, and load it
     tcp_stats_t empty = {};
-    bpf_map_update_with_telemetry(tcp_stats, t, &empty, BPF_NOEXIST);
+    int err = bpf_map_update_elem(&tcp_stats, t, &empty, BPF_NOEXIST);
+    if (err < 0 && err != EEXIST) {
+        record_map_telemetry(tcp_stats, err);
+    }
 
     tcp_stats_t *val = bpf_map_lookup_elem(&tcp_stats, t);
     if (val == NULL) {
@@ -217,7 +223,10 @@ static __always_inline int handle_retransmit(struct sock *sk, int count) {
 
     // initialize-if-no-exist the connection state, and load it
     u32 u32_zero = 0;
-    bpf_map_update_with_telemetry(tcp_retransmits, &t, &u32_zero, BPF_NOEXIST);
+    int err = bpf_map_update_elem(&tcp_retransmits, &t, &u32_zero, BPF_NOEXIST);
+    if (err < 0 && err != EEXIST) {
+        record_map_telemetry(tcp_retransmits, err);
+    }
     u32 *val = bpf_map_lookup_elem(&tcp_retransmits, &t);
     if (val == NULL) {
         return 0;
