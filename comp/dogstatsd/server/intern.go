@@ -15,14 +15,29 @@ import (
 )
 
 var (
-	tlmSIRStrBytes telemetry.SimpleHistogram
-	telemtryOnce   sync.Once
+	tlmSIResets          telemetry.Counter
+	tlmSIRSize           telemetry.Gauge
+	tlmSIRBytes          telemetry.Gauge
+	tlmSIRHits           telemetry.Counter
+	tlmSIRMiss           telemetry.Counter
+	globaltlmSIRStrBytes telemetry.SimpleHistogram
+	telemetryOnce        sync.Once
 )
 
-func initGlobalTelemetry(telemtrycomp telemetry.Component) {
-	tlmSIRStrBytes = telemtrycomp.NewSimpleHistogram("dogstatsd", "string_interner_str_bytes",
+func initGlobalTelemetry(telemetrycomp telemetry.Component) {
+	globaltlmSIRStrBytes = telemetrycomp.NewSimpleHistogram("dogstatsd", "string_interner_str_bytes",
 		"Number of times string with specific length were added",
 		[]float64{1, 2, 4, 8, 16, 32, 64, 128})
+	tlmSIResets = telemetrycomp.NewCounter("dogstatsd", "string_interner_resets", []string{"interner_id"},
+		"Amount of resets of the string interner used in dogstatsd")
+	tlmSIRSize = telemetrycomp.NewGauge("dogstatsd", "string_interner_entries", []string{"interner_id"},
+		"Number of entries in the string interner")
+	tlmSIRBytes = telemetrycomp.NewGauge("dogstatsd", "string_interner_bytes", []string{"interner_id"},
+		"Number of bytes stored in the string interner")
+	tlmSIRHits = telemetrycomp.NewCounter("dogstatsd", "string_interner_hits", []string{"interner_id"},
+		"Number of times string interner returned an existing string")
+	tlmSIRMiss = telemetrycomp.NewCounter("dogstatsd", "string_interner_miss", []string{"interner_id"},
+		"Number of times string interner created a new string object")
 }
 
 // stringInterner is a string cache providing a longer life for strings,
@@ -59,7 +74,7 @@ type siTelemetry struct {
 }
 
 func newStringInterner(maxSize int, internerID int, telemetrycomp telemetry.Component) *stringInterner {
-	telemtryOnce.Do(func() { initGlobalTelemetry(telemetrycomp) })
+	telemetryOnce.Do(func() { initGlobalTelemetry(telemetrycomp) })
 
 	i := &stringInterner{
 		strings: make(map[string]string),
@@ -71,23 +86,18 @@ func newStringInterner(maxSize int, internerID int, telemetrycomp telemetry.Comp
 	}
 
 	if i.telemetry.enabled {
-		i.prepareTelemetry(telemetrycomp)
+		i.prepareTelemetry()
 	}
 
 	return i
 }
 
-func (i *stringInterner) prepareTelemetry(telemetrycomp telemetry.Component) {
-	i.telemetry.resets = telemetrycomp.NewCounter("dogstatsd", "string_interner_resets", []string{"interner_id"},
-		"Amount of resets of the string interner used in dogstatsd").WithValues(i.id)
-	i.telemetry.size = telemetrycomp.NewGauge("dogstatsd", "string_interner_entries", []string{"interner_id"},
-		"Number of entries in the string interner").WithValues(i.id)
-	i.telemetry.bytes = telemetrycomp.NewGauge("dogstatsd", "string_interner_bytes", []string{"interner_id"},
-		"Number of bytes stored in the string interner").WithValues(i.id)
-	i.telemetry.hits = telemetrycomp.NewCounter("dogstatsd", "string_interner_hits", []string{"interner_id"},
-		"Number of times string interner returned an existing string").WithValues(i.id)
-	i.telemetry.miss = telemetrycomp.NewCounter("dogstatsd", "string_interner_miss", []string{"interner_id"},
-		"Number of times string interner created a new string object").WithValues(i.id)
+func (i *stringInterner) prepareTelemetry() {
+	i.telemetry.resets = tlmSIResets.WithValues(i.id)
+	i.telemetry.size = tlmSIRSize.WithValues(i.id)
+	i.telemetry.bytes = tlmSIRBytes.WithValues(i.id)
+	i.telemetry.hits = tlmSIRHits.WithValues(i.id)
+	i.telemetry.miss = tlmSIRMiss.WithValues(i.id)
 }
 
 // LoadOrStore always returns the string from the cache, adding it into the
@@ -124,7 +134,7 @@ func (i *stringInterner) LoadOrStore(key []byte) string {
 		i.telemetry.miss.Inc()
 		i.telemetry.size.Inc()
 		i.telemetry.bytes.Add(float64(len(s)))
-		tlmSIRStrBytes.Observe(float64(len(s)))
+		globaltlmSIRStrBytes.Observe(float64(len(s)))
 		i.telemetry.curBytes += len(s)
 	}
 
