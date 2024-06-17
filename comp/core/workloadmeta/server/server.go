@@ -89,6 +89,9 @@ func (s *Server) StreamEntities(in *pb.WorkloadmetaStreamRequest, out pb.AgentSe
 				ticker.Reset(workloadmetaKeepAliveInterval)
 			}
 		case <-out.Context().Done():
+			if err := out.Context().Err(); err != nil {
+				log.Errorf("WORKLOADMETA STORE ERR SERVER SIDE: %v", err)
+			}
 			log.Warnf("CONTEXT DONE SERVER SIDE")
 			return nil
 
