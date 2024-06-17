@@ -50,37 +50,33 @@ func (v *windowsSecretSuite) TestAgentSecretChecksExecutablePermissions() {
 	assert.Regexp(v.T(), "Number of secrets .+: 0", output)
 }
 
-// TODO: use helpers here
-//
-//go:embed fixtures/setup_secret.ps1
-var secretSetupScript []byte
-
 func (v *windowsSecretSuite) TestAgentSecretCorrectPermissions() {
-	config := `secret_backend_command: C:\TestFolder\secret.bat
+	config := `secret_backend_command: C:\TestFolder\wrapper.bat
+secret_backend_arguments:
+  - 'C:\TestFolder'
 host_aliases:
   - ENC[alias_secret]`
 
-	// We embed a script that file create the secret binary (C:\secret.bat) with the correct permissions
+	agentParams := []func(*agentparams.Params) error{
+		agentparams.WithAgentConfig(config),
+	}
+	agentParams = append(agentParams, secrets.WithWindowsSecretSetupScript("C:/TestFolder/wrapper.bat", false)...)
+
+	// Create secret before running the Agent
+	secretClient := secrets.NewSecretClient(v.T(), v.Env().RemoteHost, `C:\TestFolder`)
+	secretClient.SetSecret("alias_secret", "a_super_secret_string")
+
+	// We embed a script that file create the secret binary (C:\wrapper.bat) with the correct permissions
 	v.UpdateEnv(
 		awshost.Provisioner(
 			awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)),
-			awshost.WithAgentOptions(
-				agentparams.WithFile(`C:/TestFolder/setup_secret.ps1`, string(secretSetupScript), true),
-			),
+			awshost.WithAgentOptions(agentParams...),
 		),
-	)
-
-	v.Env().RemoteHost.MustExecute(`C:/TestFolder/setup_secret.ps1 -FilePath "C:/TestFolder/secret.bat" -FileContent '@echo {"alias_secret": {"value": "a_super_secret_string"}}'`)
-
-	v.UpdateEnv(
-		awshost.Provisioner(
-			awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)),
-			awshost.WithAgentOptions(agentparams.WithAgentConfig(config))),
 	)
 
 	output := v.Env().Agent.Client.Secret()
 	assert.Contains(v.T(), output, "=== Checking executable permissions ===")
-	assert.Contains(v.T(), output, "Executable path: C:\\TestFolder\\secret.bat")
+	assert.Contains(v.T(), output, "Executable path: C:\\TestFolder\\wrapper.bat")
 	assert.Contains(v.T(), output, "Executable permissions: OK, the executable has the correct permissions")
 
 	ddagentRegex := `Access : .+\\ddagentuser Allow  ReadAndExecute`
@@ -94,7 +90,7 @@ host_aliases:
 func (v *windowsSecretSuite) TestAgentConfigRefresh() {
 	config := `secret_backend_command: C:\TestFolder\wrapper.bat
 secret_backend_arguments:
-  - "C:\TestFolder"
+  - 'C:\TestFolder'
 api_key: ENC[api_key]
 `
 
