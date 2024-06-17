@@ -10,6 +10,7 @@ package kubeapiserver
 import (
 	"context"
 	"fmt"
+	"regexp"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -19,6 +20,8 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func newMetadataStore(ctx context.Context, wlmetaStore workloadmeta.Component, metadataclient metadata.Interface, gvr schema.GroupVersionResource) (*cache.Reflector, *reflectorStore) {
@@ -31,10 +34,17 @@ func newMetadataStore(ctx context.Context, wlmetaStore workloadmeta.Component, m
 		},
 	}
 
+	annotationsExclude := config.Datadog().GetStringSlice("cluster_agent.kube_metadata_collection.resource_annotations_exclude")
+	parser, err := newMetadataParser(gvr, annotationsExclude)
+	if err != nil {
+		_ = log.Errorf("unable to parse all resource_annotations_exclude: %v, err:", err)
+		parser, _ = newMetadataParser(gvr, nil)
+	}
+
 	metadataStore := &reflectorStore{
 		wlmetaStore: wlmetaStore,
 		seen:        make(map[string]workloadmeta.EntityID),
-		parser:      newMetadataParser(gvr),
+		parser:      parser,
 		filter:      nil,
 	}
 	metadataReflector := cache.NewNamedReflector(
@@ -48,11 +58,17 @@ func newMetadataStore(ctx context.Context, wlmetaStore workloadmeta.Component, m
 }
 
 type metadataParser struct {
-	gvr schema.GroupVersionResource
+	gvr               schema.GroupVersionResource
+	annotationsFilter []*regexp.Regexp
 }
 
-func newMetadataParser(gvr schema.GroupVersionResource) objectParser {
-	return metadataParser{gvr}
+func newMetadataParser(gvr schema.GroupVersionResource, annotationsExclude []string) (objectParser, error) {
+	filters, err := parseFilters(annotationsExclude)
+	if err != nil {
+		return nil, err
+	}
+
+	return metadataParser{gvr: gvr, annotationsFilter: filters}, nil
 }
 
 // generateEntityID generates and returns a unique entity id for KubernetesMetadata entity
@@ -75,7 +91,7 @@ func (p metadataParser) Parse(obj interface{}) workloadmeta.Entity {
 			Name:        partialObjectMetadata.Name,
 			Namespace:   partialObjectMetadata.Namespace,
 			Labels:      partialObjectMetadata.Labels,
-			Annotations: partialObjectMetadata.Annotations,
+			Annotations: filterMapStringKey(partialObjectMetadata.Annotations, p.annotationsFilter),
 		},
 		GVR: p.gvr,
 	}

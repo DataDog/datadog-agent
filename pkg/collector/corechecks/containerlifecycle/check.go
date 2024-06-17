@@ -91,39 +91,43 @@ func (c *Check) Run() error {
 	log.Infof("Starting long-running check %q", c.ID())
 	defer log.Infof("Shutting down long-running check %q", c.ID())
 
-	containerFilterParams := workloadmeta.FilterParams{
-		Kinds:     []workloadmeta.Kind{workloadmeta.KindContainer},
-		Source:    workloadmeta.SourceRuntime,
-		EventType: workloadmeta.EventTypeUnset,
-	}
+	filter := workloadmeta.NewFilterBuilder().
+		SetSource(workloadmeta.SourceRuntime).
+		SetEventType(workloadmeta.EventTypeUnset).
+		AddKind(workloadmeta.KindContainer).
+		Build()
+
 	contEventsCh := c.workloadmetaStore.Subscribe(
 		CheckName+"-cont",
 		workloadmeta.NormalPriority,
-		workloadmeta.NewFilter(&containerFilterParams),
+		filter,
 	)
 
-	podFilterParams := workloadmeta.FilterParams{
-		Kinds:     []workloadmeta.Kind{workloadmeta.KindKubernetesPod},
-		Source:    workloadmeta.SourceNodeOrchestrator,
-		EventType: workloadmeta.EventTypeUnset,
-	}
+	podFilter := workloadmeta.NewFilterBuilder().
+		SetSource(workloadmeta.SourceNodeOrchestrator).
+		SetEventType(workloadmeta.EventTypeUnset).
+		AddKind(workloadmeta.KindKubernetesPod).
+		Build()
+
 	podEventsCh := c.workloadmetaStore.Subscribe(
 		CheckName+"-pod",
 		workloadmeta.NormalPriority,
-		workloadmeta.NewFilter(&podFilterParams),
+		podFilter,
 	)
 
 	var taskEventsCh chan workloadmeta.EventBundle
 	if ddConfig.Datadog().GetBool("container_lifecycle.ecs_task_event.enabled") {
-		taskFilterParams := workloadmeta.FilterParams{
-			Kinds:     []workloadmeta.Kind{workloadmeta.KindECSTask},
-			Source:    workloadmeta.SourceNodeOrchestrator,
-			EventType: workloadmeta.EventTypeUnset,
-		}
+
+		taskFilter := workloadmeta.NewFilterBuilder().
+			SetSource(workloadmeta.SourceNodeOrchestrator).
+			SetEventType(workloadmeta.EventTypeUnset).
+			AddKind(workloadmeta.KindECSTask).
+			Build()
+
 		taskEventsCh = c.workloadmetaStore.Subscribe(
 			CheckName+"-task",
 			workloadmeta.NormalPriority,
-			workloadmeta.NewFilter(&taskFilterParams),
+			taskFilter,
 		)
 	}
 

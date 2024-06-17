@@ -24,6 +24,9 @@ func setupAPM(config pkgconfigmodel.Config) {
 	config.BindEnv("apm_config.obfuscation.elasticsearch.enabled", "DD_APM_OBFUSCATION_ELASTICSEARCH_ENABLED")
 	config.BindEnv("apm_config.obfuscation.elasticsearch.keep_values", "DD_APM_OBFUSCATION_ELASTICSEARCH_KEEP_VALUES")
 	config.BindEnv("apm_config.obfuscation.elasticsearch.obfuscate_sql_values", "DD_APM_OBFUSCATION_ELASTICSEARCH_OBFUSCATE_SQL_VALUES")
+	config.BindEnv("apm_config.obfuscation.opensearch.enabled", "DD_APM_OBFUSCATION_OPENSEARCH_ENABLED")
+	config.BindEnv("apm_config.obfuscation.opensearch.keep_values", "DD_APM_OBFUSCATION_OPENSEARCH_KEEP_VALUES")
+	config.BindEnv("apm_config.obfuscation.opensearch.obfuscate_sql_values", "DD_APM_OBFUSCATION_OPENSEARCH_OBFUSCATE_SQL_VALUES")
 	config.BindEnv("apm_config.obfuscation.mongodb.enabled", "DD_APM_OBFUSCATION_MONGODB_ENABLED")
 	config.BindEnv("apm_config.obfuscation.mongodb.keep_values", "DD_APM_OBFUSCATION_MONGODB_KEEP_VALUES")
 	config.BindEnv("apm_config.obfuscation.mongodb.obfuscate_sql_values", "DD_APM_OBFUSCATION_MONGODB_OBFUSCATE_SQL_VALUES")
@@ -90,7 +93,8 @@ func setupAPM(config pkgconfigmodel.Config) {
 	config.BindEnv("apm_config.decoder_timeout", "DD_APM_DECODER_TIMEOUT")
 	config.BindEnv("apm_config.log_file", "DD_APM_LOG_FILE")
 	config.BindEnv("apm_config.max_events_per_second", "DD_APM_MAX_EPS", "DD_MAX_EPS")
-	config.BindEnv("apm_config.max_traces_per_second", "DD_APM_MAX_TPS", "DD_MAX_TPS")
+	config.BindEnv("apm_config.max_traces_per_second", "DD_APM_MAX_TPS", "DD_MAX_TPS") // deprecated
+	config.BindEnv("apm_config.target_traces_per_second", "DD_APM_TARGET_TPS")
 	config.BindEnv("apm_config.errors_per_second", "DD_APM_ERROR_TPS")
 	config.BindEnv("apm_config.enable_rare_sampler", "DD_APM_ENABLE_RARE_SAMPLER")
 	config.BindEnv("apm_config.disable_rare_sampler", "DD_APM_DISABLE_RARE_SAMPLER") //Deprecated

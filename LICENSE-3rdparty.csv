@@ -408,6 +408,7 @@ core,github.com/ProtonMail/go-crypto/openpgp/internal/ecc,BSD-3-Clause,Copyright
 core,github.com/ProtonMail/go-crypto/openpgp/internal/encoding,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,github.com/ProtonMail/go-crypto/openpgp/packet,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,github.com/ProtonMail/go-crypto/openpgp/s2k,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
+core,github.com/PuerkitoBio/goquery,BSD-3-Clause,"Copyright (c) 2012-2021, Martin Angers & Contributors"
 core,github.com/ReneKroon/ttlcache/v2,MIT,Copyright (c) 2018 Rene Kroon
 core,github.com/SAP/go-hdb/driver,Apache-2.0,Copyright 2014-2024 SAP SE or an SAP affiliate company and go-hdb contributors
 core,github.com/SAP/go-hdb/driver/dial,Apache-2.0,Copyright 2014-2024 SAP SE or an SAP affiliate company and go-hdb contributors
@@ -455,6 +456,10 @@ core,github.com/aliyun/aliyun-log-go-sdk/util,MIT,Copyright (c) 2017 Alibaba Clo
 core,github.com/anchore/go-struct-converter,Apache-2.0,"Copyright (c) 2022-2023 Anchore, Inc."
 core,github.com/andybalholm/brotli,MIT,"Copyright (c) 2009, 2010, 2013-2016 by the Brotli Authors"
 core,github.com/andybalholm/brotli/matchfinder,MIT,"Copyright (c) 2009, 2010, 2013-2016 by the Brotli Authors"
+core,github.com/andybalholm/cascadia,BSD-2-Clause,Copyright (c) 2011 Andy Balholm. All rights reserved
+core,github.com/antchfx/htmlquery,MIT,Copyright (c) 2016 Zheng Chun
+core,github.com/antchfx/xmlquery,MIT,Copyright (c) 2016 Zheng Chun
+core,github.com/antchfx/xpath,MIT,Copyright (c) 2016 Zheng Chun
 core,github.com/antlr/antlr4/runtime/Go/antlr/v4,BSD-3-Clause,Copyright 2021 The ANTLR Project
 core,github.com/apache/arrow/go/v14/arrow,Apache-2.0,Copyright (C) 1995-1998 Eric Young (eay@cryptsoft.com)
 core,github.com/apache/arrow/go/v14/arrow/array,Apache-2.0,Copyright (C) 1995-1998 Eric Young (eay@cryptsoft.com)
@@ -931,7 +936,7 @@ core,github.com/awslabs/amazon-ecr-credential-helper/ecr-login/config,Apache-2.0
 core,github.com/awslabs/amazon-ecr-credential-helper/ecr-login/version,Apache-2.0,"Copyright 2016 Amazon.com, Inc. or its affiliates. All Rights Reserved."
 core,github.com/axiomhq/hyperloglog,MIT,"Copyright (c) 2021, Axiom, Inc"
 core,github.com/bahlo/generic-list-go,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,github.com/beevik/ntp,BSD-2-Clause,Anton Tolchanov (knyar) | Ask Bjørn Hansen (abh) | Brett Vickers (beevik) | Christopher Batey (chbatey) | Copyright 2015-2017 Brett Vickers. All rights reserved | Leonid Evdokimov (darkk) | Meng Zhuo (mengzhuo) | Mikhail Salosin (AlphaB)
+core,github.com/beevik/ntp,BSD-2-Clause,Al Cutter (AlCutter) | Andrey Smirnov (smira) | Anton Tolchanov (knyar) | Ask Bjørn Hansen (abh) | Brett Vickers (beevik) | Christopher Batey (chbatey) | Copyright © 2015-2023 Brett Vickers. All rights reserved | Leonid Evdokimov (darkk) | Meng Zhuo (mengzhuo) | Mikhail Salosin (AlphaB) | Silves-Xiang (silves-xiang)
 core,github.com/benbjohnson/clock,MIT,Copyright (c) 2014 Ben Johnson
 core,github.com/beorn7/perks/quantile,MIT,Copyright (C) 2013 Blake Mizerany
 core,github.com/bgentry/go-netrc/netrc,MIT,Copyright © 2010 Fazlul Shahriar <fshahriar@gmail.com>. Newer | Copyright © 2014 Blake Gentry <blakesgentry@gmail.com>
@@ -1029,6 +1034,7 @@ core,github.com/containerd/containerd/containers,Apache-2.0,"Copyright 2012-2015
 core,github.com/containerd/containerd/content,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/containerd/content/local,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/containerd/content/proxy,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
+core,github.com/containerd/containerd/contrib/seccomp/kernelversion,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/containerd/defaults,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/containerd/diff,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
 core,github.com/containerd/containerd/diff/proxy,Apache-2.0,"Copyright 2012-2015 Docker, Inc."
@@ -1431,6 +1437,9 @@ core,github.com/goccy/go-json/internal/encoder/vm_color_indent,MIT,Copyright (c)
 core,github.com/goccy/go-json/internal/encoder/vm_indent,MIT,Copyright (c) 2020 Masaaki Goshima
 core,github.com/goccy/go-json/internal/errors,MIT,Copyright (c) 2020 Masaaki Goshima
 core,github.com/goccy/go-json/internal/runtime,MIT,Copyright (c) 2020 Masaaki Goshima
+core,github.com/gocolly/colly/v2,Apache-2.0,Copyright 2018 Adam Tauber
+core,github.com/gocolly/colly/v2/debug,Apache-2.0,Copyright 2018 Adam Tauber
+core,github.com/gocolly/colly/v2/storage,Apache-2.0,Copyright 2018 Adam Tauber
 core,github.com/gocomply/scap/pkg/scap/constants,CC0-1.0,CC0 1.0 Universal
 core,github.com/gocomply/scap/pkg/scap/models/cdf,CC0-1.0,CC0 1.0 Universal
 core,github.com/gocomply/scap/pkg/scap/models/cpe,CC0-1.0,CC0 1.0 Universal
@@ -1662,6 +1671,7 @@ core,github.com/hashicorp/go-uuid,MPL-2.0,"Copyright © 2014-2018 HashiCorp, Inc
 core,github.com/hashicorp/go-version,MPL-2.0,"Copyright © 2014-2018 HashiCorp, Inc"
 core,github.com/hashicorp/golang-lru/simplelru,MPL-2.0,"Copyright © 2014-2018 HashiCorp, Inc"
 core,github.com/hashicorp/golang-lru/v2,MPL-2.0,"Copyright © 2014-2018 HashiCorp, Inc"
+core,github.com/hashicorp/golang-lru/v2/expirable,MPL-2.0,"Copyright © 2014-2018 HashiCorp, Inc"
 core,github.com/hashicorp/golang-lru/v2/internal,MPL-2.0,"Copyright © 2014-2018 HashiCorp, Inc"
 core,github.com/hashicorp/golang-lru/v2/simplelru,MPL-2.0,"Copyright © 2014-2018 HashiCorp, Inc"
 core,github.com/hashicorp/hcl,MPL-2.0,"Copyright © 2014-2018 HashiCorp, Inc"
@@ -1806,6 +1816,7 @@ core,github.com/justincormack/go-memfd/msyscall,MIT,Copyright (c) 2017 Justin Co
 core,github.com/kardianos/osext,BSD-3-Clause,Copyright (c) 2012 The Go Authors. All rights reserved
 core,github.com/karrick/godirwalk,BSD-2-Clause,"Copyright (c) 2017, Karrick McDermott"
 core,github.com/kballard/go-shellquote,MIT,Copyright (C) 2014 Kevin Ballard
+core,github.com/kennygrant/sanitize,BSD-3-Clause,Copyright (c) 2017 Mechanism Design. All rights reserved
 core,github.com/kevinburke/ssh_config,MIT,"Copyright (c) 2013 - 2017 Thomas Pelletier, Eric Anderton | Copyright (c) 2017 Kevin Burke"
 core,github.com/kineticadb/kinetica-api-go/kinetica,MIT,Copyright (c) 2023 Kinetica
 core,github.com/kjk/lzma,BSD-3-Clause,"Copyright (c) 2010, Andrei Vieru. All rights reserved"
@@ -2925,6 +2936,7 @@ core,github.com/rs/zerolog/internal/json,MIT,Copyright (c) 2017 Olivier Poitrey
 core,github.com/rs/zerolog/log,MIT,Copyright (c) 2017 Olivier Poitrey
 core,github.com/sagikazarmark/locafero,MIT,Copyright (c) 2023 Márk Sági-Kazár <mark.sagikazar@gmail.com>
 core,github.com/sagikazarmark/slog-shim,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
+core,github.com/saintfish/chardet,MIT,Copyright (c) 2012 chardet Authors | Sheng Yu (yusheng dot sjtu at gmail dot com)
 core,github.com/samber/lo,MIT,Copyright (c) 2022 Samuel Berthe | Copyright © 2022 [Samuel Berthe](https://github.com/samber)
 core,github.com/samuel/go-zookeeper/zk,BSD-3-Clause,"Copyright (c) 2013, Samuel Stauffer <samuel@descolada.com>"
 core,github.com/santhosh-tekuri/jsonschema/v5,Apache-2.0,Copyright (c) 2017-2024 Santhosh Kumar Tekuri
@@ -3074,6 +3086,7 @@ core,github.com/syndtr/goleveldb/leveldb/table,BSD-2-Clause,Copyright 2012 Surya
 core,github.com/syndtr/goleveldb/leveldb/util,BSD-2-Clause,Copyright 2012 Suryandaru Triandana <syndtr@gmail.com>
 core,github.com/tchap/go-patricia/v2/patricia,MIT,Copyright (c) 2014 The AUTHORS | Ondřej Kupka <ondra.cap@gmail.com> | This is the complete list of go-patricia copyright holders:
 core,github.com/tedsuo/rata,MIT,Copyright (c) 2014 Ted Young
+core,github.com/temoto/robotstxt,MIT,Copyright (c) 2010 Sergey Shepelev <temotor@gmail.com>
 core,github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common,Apache-2.0,Copyright (c) 2017-2018 Tencent Ltd
 core,github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common/errors,Apache-2.0,Copyright (c) 2017-2018 Tencent Ltd
 core,github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common/http,Apache-2.0,Copyright (c) 2017-2018 Tencent Ltd
@@ -3759,6 +3772,13 @@ core,google.golang.org/api/transport,BSD-3-Clause,Copyright (c) 2011 Google Inc.
 core,google.golang.org/api/transport/grpc,BSD-3-Clause,Copyright (c) 2011 Google Inc. All rights reserved.
 core,google.golang.org/api/transport/http,BSD-3-Clause,Copyright (c) 2011 Google Inc. All rights reserved.
 core,google.golang.org/api/transport/http/internal/propagation,BSD-3-Clause,Copyright (c) 2011 Google Inc. All rights reserved.
+core,google.golang.org/appengine/internal,Apache-2.0,Copyright 2011 Google Inc. All rights reserved.
+core,google.golang.org/appengine/internal/base,Apache-2.0,Copyright 2011 Google Inc. All rights reserved.
+core,google.golang.org/appengine/internal/datastore,Apache-2.0,Copyright 2011 Google Inc. All rights reserved.
+core,google.golang.org/appengine/internal/log,Apache-2.0,Copyright 2011 Google Inc. All rights reserved.
+core,google.golang.org/appengine/internal/remote_api,Apache-2.0,Copyright 2011 Google Inc. All rights reserved.
+core,google.golang.org/appengine/internal/urlfetch,Apache-2.0,Copyright 2011 Google Inc. All rights reserved.
+core,google.golang.org/appengine/urlfetch,Apache-2.0,Copyright 2011 Google Inc. All rights reserved.
 core,google.golang.org/genproto/googleapis/api,Apache-2.0,Copyright 2015 Google LLC
 core,google.golang.org/genproto/googleapis/api/annotations,Apache-2.0,Copyright 2015 Google LLC
 core,google.golang.org/genproto/googleapis/api/distribution,Apache-2.0,Copyright 2015 Google LLC

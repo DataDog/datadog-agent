@@ -117,6 +117,19 @@ func TestHTTP2Scenarios(t *testing.T) {
 	})
 }
 
+func (s *usmHTTP2Suite) TestLoadHTTP2Binary() {
+	t := s.T()
+
+	cfg := s.getCfg()
+
+	for _, debug := range map[string]bool{"enabled": true, "disabled": false} {
+		t.Run(fmt.Sprintf("debug %v", debug), func(t *testing.T) {
+			cfg.BPFDebug = debug
+			setupUSMTLSMonitor(t, cfg)
+		})
+	}
+}
+
 func (s *usmHTTP2Suite) TestHTTP2DynamicTableCleanup() {
 	t := s.T()
 	cfg := s.getCfg()
@@ -498,13 +511,6 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 	t.Cleanup(cancel)
 	require.NoError(t, proxy.WaitForConnectionReady(unixPath))
 
-	getTLSNumber := func(numberWithoutTLS, numberWithTLS int, isTLS bool) int {
-		if isTLS {
-			return numberWithTLS
-		}
-		return numberWithoutTLS
-	}
-
 	tests := []struct {
 		name              string
 		skip              bool
@@ -555,8 +561,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			// The purpose of this test is to verify our ability to reach the limit set by HTTP2_MAX_FRAMES_ITERATIONS, which
 			// determines the maximum number of "interesting frames" we can process.
 			messageBuilder: func() [][]byte {
-				const numberWithoutTLS, numberWithTLS = 120, 60
-				iterations := getTLSNumber(numberWithoutTLS, numberWithTLS, s.isTLS)
+				const iterations = 120
 				framer := newFramer()
 				for i := 0; i < iterations; i++ {
 					streamID := getStreamID(i)
@@ -570,7 +575,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 				{
 					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
 					Method: usmhttp.MethodPost,
-				}: getTLSNumber(120, 60, s.isTLS),
+				}: 120,
 			},
 		},
 		{
