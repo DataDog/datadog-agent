@@ -9,8 +9,8 @@ import glob
 import json
 import operator
 import os
-import platform
 import re
+import shutil
 import sys
 from collections import defaultdict
 from datetime import datetime
@@ -23,6 +23,7 @@ from invoke.exceptions import Exit
 from tasks.agent import integration_tests as agent_integration_tests
 from tasks.build_tags import compute_build_tags_for_flavor
 from tasks.cluster_agent import integration_tests as dca_integration_tests
+from tasks.codecov import PROFILE_COV, CodecovWorkaround
 from tasks.devcontainer import run_on_devcontainer
 from tasks.dogstatsd import integration_tests as dsd_integration_tests
 from tasks.flavor import AgentFlavor
@@ -30,18 +31,17 @@ from tasks.libs.common.color import color_message
 from tasks.libs.common.datadog_api import create_count, send_metrics
 from tasks.libs.common.git import get_modified_files
 from tasks.libs.common.junit_upload_core import enrich_junitxml, produce_junit_tar
-from tasks.libs.common.utils import clean_nested_paths, collapsed_section, get_build_flags, get_distro
+from tasks.libs.common.utils import clean_nested_paths, collapsed_section, get_build_flags
 from tasks.modules import DEFAULT_MODULES, GoModule
 from tasks.test_core import ModuleTestResult, process_input_args, process_module_results, test_core
 from tasks.testwasher import TestWasher
 from tasks.trace_agent import integration_tests as trace_integration_tests
+from tasks.update_go import PATTERN_MAJOR_MINOR_BUGFIX
 
-PROFILE_COV = "coverage.out"
-TMP_PROFILE_COV_PREFIX = "coverage.out.rerun"
-GO_COV_TEST_PATH = "test_with_coverage"
 GO_TEST_RESULT_TMP_JSON = 'module_test_output.json'
 WINDOWS_MAX_PACKAGES_NUMBER = 150
 TRIGGER_ALL_TESTS_PATHS = ["tasks/gotest.py", "tasks/build_tags.py", ".gitlab/source_test/*"]
+OTEL_UPSTREAM_GO_VERSION = "1.21.0"
 
 
 class TestProfiler:
@@ -98,82 +98,6 @@ def build_standard_lib(
         out_stream=test_profiler,
         warn=True,
     )
-
-
-class CodecovWorkaround:
-    """
-    The CodecovWorkaround class wraps the gotestsum cmd execution to fix codecov reports inaccuracy,
-    according to https://github.com/gotestyourself/gotestsum/issues/274 workaround.
-    Basically unit tests' reruns rewrite the whole coverage file, making it inaccurate.
-    We use the --raw-command flag to tell each `go test` iteration to write coverage in a different file.
-    """
-
-    def __init__(self, ctx, module_path, coverage, packages, args):
-        self.ctx = ctx
-        self.module_path = module_path
-        self.coverage = coverage
-        self.packages = packages
-        self.args = args
-        self.cov_test_path_sh = os.path.join(self.module_path, GO_COV_TEST_PATH) + ".sh"
-        self.cov_test_path_ps1 = os.path.join(self.module_path, GO_COV_TEST_PATH) + ".ps1"
-        self.call_ps1_from_bat = os.path.join(self.module_path, GO_COV_TEST_PATH) + ".bat"
-        self.cov_test_path = self.cov_test_path_sh if platform.system() != 'Windows' else self.cov_test_path_ps1
-
-    def __enter__(self):
-        coverage_script = ""
-        if self.coverage:
-            if platform.system() == 'Windows':
-                coverage_script = f"""$tempFile = (".\\{TMP_PROFILE_COV_PREFIX}." + ([guid]::NewGuid().ToString().Replace("-", "").Substring(0, 10)))
-go test $($args | select -skip 1) -json -coverprofile="$tempFile" {self.packages}
-exit $LASTEXITCODE
-"""
-            else:
-                coverage_script = f"""#!/usr/bin/env bash
-set -eu
-go test "${{@:2}}" -json -coverprofile=\"$(mktemp {TMP_PROFILE_COV_PREFIX}.XXXXXXXXXX)\" {self.packages}
-"""
-            with open(self.cov_test_path, 'w', encoding='utf-8') as f:
-                f.write(coverage_script)
-
-            with open(self.call_ps1_from_bat, 'w', encoding='utf-8') as f:
-                f.write(
-                    f"""@echo off
-powershell.exe -executionpolicy Bypass -file {GO_COV_TEST_PATH}.ps1 %*"""
-                )
-
-            os.chmod(self.cov_test_path, 0o755)
-            os.chmod(self.call_ps1_from_bat, 0o755)
-
-        return self.cov_test_path_sh if platform.system() != 'Windows' else self.call_ps1_from_bat
-
-    def __exit__(self, *_):
-        if self.coverage:
-            # Removing the coverage script.
-            try:
-                os.remove(self.cov_test_path)
-                os.remove(self.call_ps1_from_bat)
-            except FileNotFoundError:
-                print(
-                    f"Error: Could not find the coverage script {self.cov_test_path} or {self.call_ps1_from_bat} while trying to delete it.",
-                    file=sys.stderr,
-                )
-            # Merging the unit tests reruns coverage files, keeping only the merged file.
-            files_to_delete = [
-                os.path.join(self.module_path, f)
-                for f in os.listdir(self.module_path)
-                if f.startswith(f"{TMP_PROFILE_COV_PREFIX}.")
-            ]
-            if not files_to_delete:
-                print(
-                    f"Error: Could not find coverage files starting with '{TMP_PROFILE_COV_PREFIX}.' in {self.module_path}",
-                    file=sys.stderr,
-                )
-            else:
-                self.ctx.run(
-                    f"gocovmerge {' '.join(files_to_delete)} > \"{os.path.join(self.module_path, PROFILE_COV)}\""
-                )
-                for f in files_to_delete:
-                    os.remove(f)
 
 
 def test_flavor(
@@ -464,21 +388,6 @@ def test(
         raise Exit(code=1)
 
     print(f"Tests final status (including re-runs): {color_message('ALL TESTS PASSED', 'green')}")
-
-
-@task
-def codecov(
-    ctx,
-):
-    """
-    Uploads coverage data of all modules.
-    This expects that the coverage files have already been generated by
-    inv test --coverage.
-    """
-    distro_tag = get_distro()
-    codecov_binary = "codecov" if platform.system() != "Windows" else "codecov.exe"
-    with collapsed_section("Upload coverage reports to Codecov"):
-        ctx.run(f"{codecov_binary} -f {PROFILE_COV} -F {distro_tag}", warn=True)
 
 
 @task
@@ -943,3 +852,38 @@ def lint_go(
     only_modified_packages=False,
 ):
     raise Exit("This task is deprecated, please use `inv linter.go`", 1)
+
+
+@task
+def check_otel_build(ctx):
+    with ctx.cd("test/otel"):
+        # Rename fixtures
+        shutil.copy("test/otel/dependencies.go.fake", "test/otel/dependencies.go")
+        shutil.copy("test/otel/go.mod.fake", "test/otel/go.mod")
+
+        # Update dependencies to latest local version
+        res = ctx.run("go mod tidy")
+        if not res.ok:
+            raise Exit(f"Error running `go mod tidy`: {res.stderr}")
+
+        # Build test/otel/dependencies.go with same settings as `make otelcontribcol`
+        res = ctx.run("GO111MODULE=on CGO_ENABLED=0 go build -trimpath -o . .", warn=True)
+        if res is None or not res.ok:
+            raise Exit(f"Error building otel components with datadog-agent dependencies: {res.stderr}")
+
+
+@task
+def check_otel_module_versions(ctx):
+    for path, module in DEFAULT_MODULES.items():
+        if module.used_by_otel:
+            mod_file = f"./{path}/go.mod"
+            pattern = f"^go {PATTERN_MAJOR_MINOR_BUGFIX}\r?$"
+            with open(mod_file, newline='', encoding='utf-8') as reader:
+                content = reader.read()
+                matches = re.findall(pattern, content, flags=re.MULTILINE)
+                if len(matches) != 1:
+                    raise Exit(f"{mod_file} does not match expected go directive format")
+                if matches[0] != f"go {OTEL_UPSTREAM_GO_VERSION}":
+                    raise Exit(
+                        f"{mod_file} version {matches[0]} does not match upstream version: {OTEL_UPSTREAM_GO_VERSION}"
+                    )

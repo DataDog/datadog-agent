@@ -316,6 +316,15 @@ func (lc *LambdaLogsCollector) processMessage(
 				})
 			lc.invocationEndTime = message.time
 			lc.executionContext.UpdateEndTime(message.time)
+
+			// The state is saved when a shutdown event is received. A shutdown event can occur before the
+			// runtimeDone log message is received so we save the state again to properly store the end time
+			if lc.executionContext.IsStateSaved() {
+				err := lc.executionContext.SaveCurrentExecutionContext()
+				if err != nil {
+					log.Warnf("Unable to save the current state. Failed with: %s", err)
+				}
+			}
 		}
 		if outOfMemoryRequestId != "" {
 			lc.lastOOMRequestID = outOfMemoryRequestId

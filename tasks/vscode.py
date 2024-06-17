@@ -8,16 +8,21 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 from collections import OrderedDict
+from pathlib import Path
 
-from invoke import task
+from invoke import Context, task
+from invoke.exceptions import Exit
 
 from tasks.build_tags import build_tags, filter_incompatible_tags, get_build_tags, get_default_build_tags
 from tasks.flavor import AgentFlavor
 from tasks.libs.common.color import Color, color_message
+from tasks.libs.json import JSONWithCommentsDecoder
 
 VSCODE_DIR = ".vscode"
 VSCODE_FILE = "settings.json"
+VSCODE_EXTENSIONS_FILE = "extensions.json"
 
 
 @task
@@ -85,3 +90,28 @@ def setup_devcontainer(
         flavor=flavor,
         image=image,
     )
+
+
+@task
+def setup_extensions(ctx: Context):
+    file = Path(VSCODE_DIR) / VSCODE_EXTENSIONS_FILE
+
+    if not file.exists():
+        print(color_message(f"The file {file} does not exist. Skipping installation of extensions.", Color.ORANGE))
+        raise Exit(code=1)
+
+    if shutil.which("code") is None:
+        print(
+            color_message(
+                "`code` can't be found in your PATH. Skipping installation of extensions. See https://code.visualstudio.com/docs/setup/mac#_launching-from-the-command-line",
+                Color.ORANGE,
+            )
+        )
+        raise Exit(code=2)
+
+    with open(file) as fd:
+        content = json.load(fd, cls=JSONWithCommentsDecoder)
+
+    for extension in content.get("recommendations", []):
+        print(color_message(f"Installing extension {extension}", Color.BLUE))
+        ctx.run(f"code --install-extension {extension} --force")

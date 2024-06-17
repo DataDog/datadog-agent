@@ -3,7 +3,8 @@ name: mysql
 services:
   mysql:
     image: mysql:8.0.32
-    command: --default-authentication-plugin=mysql_native_password
+    entrypoint: /runner.sh
+    command: --default-authentication-plugin=mysql_native_password ${MYSQL_TLS_ARGS}
     restart: always
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASS:-root}
@@ -11,3 +12,10 @@ services:
       - ${MYSQL_ADDR:-127.0.0.1}:${MYSQL_PORT:-3306}:3306
     tmpfs:
       - /var/lib/mysql
+    volumes:
+      - type: bind
+        source: ${CERTS_PATH}
+        target: /certs
+      - type: bind
+        source: ${TESTDIR}/testdata/runner.sh
+        target: /runner.sh

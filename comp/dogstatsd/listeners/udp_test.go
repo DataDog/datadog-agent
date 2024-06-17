@@ -49,10 +49,11 @@ func newPacketPoolManagerUDP(cfg config.Component, packetsTelemetryStore *packet
 }
 
 func TestNewUDPListener(t *testing.T) {
-	deps := fulfillDepsWithConfig(t, map[string]interface{}{})
+	deps := fulfillDepsWithConfig(t, map[string]interface{}{"dogstatsd_port": "__random__"})
 	telemetryStore := NewTelemetryStore(nil, deps.Telemetry)
 	packetsTelemetryStore := packets.NewTelemetryStore(nil, deps.Telemetry)
 	s, err := NewUDPListener(nil, newPacketPoolManagerUDP(deps.Config, packetsTelemetryStore), deps.Config, nil, telemetryStore, packetsTelemetryStore)
+
 	assert.NotNil(t, s)
 	assert.Nil(t, err)
 

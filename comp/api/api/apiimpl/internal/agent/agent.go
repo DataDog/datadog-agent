@@ -18,9 +18,6 @@ import (
 
 	"github.com/gorilla/mux"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
-	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
-
 	"github.com/DataDog/datadog-agent/comp/api/api"
 	"github.com/DataDog/datadog-agent/comp/api/api/utils"
 	streamutils "github.com/DataDog/datadog-agent/comp/api/api/utils/stream"
@@ -35,7 +32,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/diagnose"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
@@ -64,9 +60,6 @@ func SetupHandlers(
 	}
 
 	// TODO: move these to a component that is registerable
-	r.HandleFunc("/version", common.GetVersion).Methods("GET")
-	r.HandleFunc("/hostname", getHostname).Methods("GET")
-	r.HandleFunc("/stop", stopAgent).Methods("POST")
 	r.HandleFunc("/status", func(w http.ResponseWriter, r *http.Request) {
 		getStatus(w, r, statusComponent, "")
 	}).Methods("GET")
@@ -89,24 +82,6 @@ func SetupHandlers(
 	}
 
 	return r
-}
-
-func stopAgent(w http.ResponseWriter, _ *http.Request) {
-	signals.Stopper <- true
-	w.Header().Set("Content-Type", "application/json")
-	j, _ := json.Marshal("")
-	w.Write(j)
-}
-
-func getHostname(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	hname, err := hostname.Get(r.Context())
-	if err != nil {
-		log.Warnf("Error getting hostname: %s\n", err) // or something like this
-		hname = ""
-	}
-	j, _ := json.Marshal(hname)
-	w.Write(j)
 }
 
 func componentConfigHandler(w http.ResponseWriter, r *http.Request) {
