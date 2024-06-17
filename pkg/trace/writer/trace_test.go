@@ -61,8 +61,8 @@ func TestTraceWriter(t *testing.T) {
 			}},
 			TraceWriter: &config.WriterConfig{ConnectionLimit: 200, QueueSize: 40},
 		}
-		if !tc.useZstd {
-			cfg.Features = map[string]struct{}{"disable-zstd-encoding": {}}
+		if tc.useZstd {
+			cfg.Features = map[string]struct{}{"zstd-encoding": {}}
 		}
 
 		t.Run(fmt.Sprintf("zstd_%t", tc.useZstd), func(t *testing.T) {
@@ -135,7 +135,7 @@ func TestTraceWriterMultipleEndpointsConcurrent(t *testing.T) {
 
 	wg.Wait()
 	tw.Stop()
-	payloadsContain(t, srv.Payloads(), testSpans, true)
+	payloadsContain(t, srv.Payloads(), testSpans, false)
 }
 
 // useFlushThreshold sets n as the number of bytes to be used as the flush threshold
@@ -231,7 +231,7 @@ func TestTraceWriterFlushSync(t *testing.T) {
 		tw.FlushSync()
 		// Now all trace payloads should be sent
 		assert.Equal(t, 1, srv.Accepted())
-		payloadsContain(t, srv.Payloads(), testSpans, true)
+		payloadsContain(t, srv.Payloads(), testSpans, false)
 	})
 }
 
@@ -300,7 +300,7 @@ func TestTraceWriterSyncStop(t *testing.T) {
 		tw.Stop()
 		// Now all trace payloads should be sent
 		assert.Equal(t, 1, srv.Accepted())
-		payloadsContain(t, srv.Payloads(), testSpans, true)
+		payloadsContain(t, srv.Payloads(), testSpans, false)
 	})
 }
 
@@ -346,7 +346,7 @@ func TestTraceWriterAgentPayload(t *testing.T) {
 	// helper function to parse the received payload and inspect the TPS that were filled by the writer
 	assertExpectedTps := func(t *testing.T, priorityTps float64, errorTps float64, rareEnabled bool) {
 		require.Len(t, srv.payloads, 1)
-		ap, err := deserializePayload(*srv.payloads[0], true)
+		ap, err := deserializePayload(*srv.payloads[0], false)
 		assert.Nil(t, err)
 		assert.Equal(t, priorityTps, ap.TargetTPS)
 		assert.Equal(t, errorTps, ap.ErrorTPS)

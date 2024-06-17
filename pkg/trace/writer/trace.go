@@ -117,7 +117,7 @@ func NewTraceWriter(
 		telemetryCollector: telemetryCollector,
 		statsd:             statsd,
 		timing:             timing,
-		useZstd:            !cfg.HasFeature("disable-zstd-encoding"),
+		useZstd:            cfg.HasFeature("zstd-encoding"),
 	}
 	climit := cfg.TraceWriter.ConnectionLimit
 	if climit == 0 {
