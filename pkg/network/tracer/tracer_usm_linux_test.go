@@ -1642,7 +1642,7 @@ func testRedisProtocolClassificationInner(t *testing.T, tr *Tracer, clientHost, 
 	}
 
 	redisTeardown := func(t *testing.T, ctx testContext) {
-		redis.NewClient(ctx.serverAddress, defaultDialer, withTLS)
+		redis.NewClient(ctx.serverAddress, defaultDialer, withTLS, nil)
 		if client, ok := ctx.extras["client"].(*redis2.Client); ok {
 			timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 			defer cancel()
@@ -1665,7 +1665,7 @@ func testRedisProtocolClassificationInner(t *testing.T, tr *Tracer, clientHost, 
 				extras:        make(map[string]interface{}),
 			},
 			preTracerSetup: func(t *testing.T, ctx testContext) {
-				client := redis.NewClient(ctx.targetAddress, defaultDialer, withTLS)
+				client := redis.NewClient(ctx.targetAddress, defaultDialer, withTLS, ctx.extras["klw"].(io.Writer))
 				timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 				defer cancel()
 				client.Ping(timedContext)
@@ -1689,7 +1689,7 @@ func testRedisProtocolClassificationInner(t *testing.T, tr *Tracer, clientHost, 
 				extras:        make(map[string]interface{}),
 			},
 			preTracerSetup: func(t *testing.T, ctx testContext) {
-				client := redis.NewClient(ctx.targetAddress, defaultDialer, withTLS)
+				client := redis.NewClient(ctx.targetAddress, defaultDialer, withTLS, ctx.extras["klw"].(io.Writer))
 				timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 				defer cancel()
 				client.Set(timedContext, "key", "value", time.Minute)
@@ -1716,7 +1716,7 @@ func testRedisProtocolClassificationInner(t *testing.T, tr *Tracer, clientHost, 
 				extras:        make(map[string]interface{}),
 			},
 			preTracerSetup: func(t *testing.T, ctx testContext) {
-				client := redis.NewClient(ctx.targetAddress, defaultDialer, withTLS)
+				client := redis.NewClient(ctx.targetAddress, defaultDialer, withTLS, ctx.extras["klw"].(io.Writer))
 				timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 				defer cancel()
 				client.Ping(timedContext)
@@ -1772,7 +1772,7 @@ func testRedisProtocolClassificationInner(t *testing.T, tr *Tracer, clientHost, 
 				extras:        make(map[string]interface{}),
 			},
 			preTracerSetup: func(t *testing.T, ctx testContext) {
-				client := redis.NewClient(ctx.targetAddress, defaultDialer, withTLS)
+				client := redis.NewClient(ctx.targetAddress, defaultDialer, withTLS, ctx.extras["klw"].(io.Writer))
 				timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 				defer cancel()
 				client.Ping(timedContext)
