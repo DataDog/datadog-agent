@@ -1227,7 +1227,7 @@ func forwarder(config pkgconfigmodel.Config) {
 
 func dogstatsd(config pkgconfigmodel.Config) {
 	// Dogstatsd
-	config.BindEnvAndSetDefault("use_dogstatsd", true)
+	config.BindEnvAndSetDefault("use_dogstatsd", false)
 	config.BindEnvAndSetDefault("dogstatsd_port", 8125)    // Notice: 0 means UDP port closed
 	config.BindEnvAndSetDefault("dogstatsd_pipe_name", "") // experimental and not officially supported for now.
 	// Experimental and not officially supported for now.
