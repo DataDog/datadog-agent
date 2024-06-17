@@ -193,8 +193,8 @@ def is_valid_job(repo: Project, job: ProjectPipelineJob) -> bool:
     # Ignore infra failures
     if job.status == 'failed':
         trace = str(repo.jobs.get(job.id, lazy=True).trace(), 'utf-8')
-        failure_type = get_infra_failure_info(trace)
-        if failure_type is not None:
+        failure_type = next(get_infra_failure_info(trace), None)
+        if failure_type:
             return False
 
     return True

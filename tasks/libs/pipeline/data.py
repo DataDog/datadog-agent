@@ -123,7 +123,7 @@ infra_failure_logs = [
 def get_infra_failure_info(job_log: str):
     for regex, type in infra_failure_logs:
         if regex.search(job_log):
-            return type
+            yield type
 
 
 def get_job_failure_context(job: ProjectJob, job_log: str):
@@ -137,7 +137,8 @@ def get_job_failure_context(job: ProjectJob, job_log: str):
     if job.failure_reason in infra_failure_reasons:
         return FailedJobType.INFRA_FAILURE, FailedJobReason.from_gitlab_job_failure_reason(job.failure_reason)
 
-    if type := get_infra_failure_info(job_log):
+    type = next(get_infra_failure_info(job_log), None)
+    if type:
         return FailedJobType.INFRA_FAILURE, type
 
     return FailedJobType.JOB_FAILURE, FailedJobReason.FAILED_JOB_SCRIPT
