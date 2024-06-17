@@ -11,7 +11,6 @@ import re
 import shutil
 import sys
 import textwrap
-import time
 import traceback
 from pathlib import Path
 
@@ -22,7 +21,7 @@ import tasks.modules
 from tasks.build_tags import ALL_TAGS, UNIT_TEST_TAGS, get_default_build_tags
 from tasks.libs.common.color import color_message
 from tasks.libs.common.git import check_uncommitted_changes
-from tasks.libs.common.utils import TimedOperationResult, get_build_flags, gitlab_section, timed
+from tasks.libs.common.utils import TimedOperationResult, get_build_flags, timed
 from tasks.licenses import get_licenses_list
 from tasks.modules import DEFAULT_MODULES, generate_dummy_package
 
@@ -68,26 +67,26 @@ def run_golangci_lint(
     results = []
     time_results = []
     for target in targets:
-        target_path = Path(module_path) / target
-        time_start = time.perf_counter()
 
-        with gitlab_section('Lint ' + target_path.as_posix(), collapsed=True):
+        def lint_module(target):
             if not headless_mode:
                 print(f"running golangci on {target}")
             concurrency_arg = "" if concurrency is None else f"--concurrency {concurrency}"
             tags_arg = " ".join(sorted(set(tags)))
             timeout_arg_value = "25m0s" if not timeout else f"{timeout}m0s"
-            result = ctx.run(
+            return ctx.run(
                 f'golangci-lint run {verbosity} --timeout {timeout_arg_value} {concurrency_arg} --build-tags "{tags_arg}" --path-prefix "{module_path}" {golangci_lint_kwargs} {target}/...',
                 env=env,
                 warn=True,
             )
 
-        time_end = time.perf_counter()
-        duration = time_end - time_start
+        target_path = Path(module_path) / target
+        result, time_result = TimedOperationResult.run(
+            lint_module, target_path, 'Lint ' + target_path.as_posix(), target=target
+        )
 
         results.append(result)
-        time_results.append(TimedOperationResult(target_path, duration))
+        time_results.append(time_result)
 
     return results, time_results
 

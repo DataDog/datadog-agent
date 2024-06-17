@@ -47,6 +47,18 @@ class TimedOperationResult:
     # In seconds
     duration: float
 
+    @classmethod
+    def run(cls, f, name, description, **f_kwargs):
+        time_start = time.perf_counter()
+
+        with gitlab_section(description, collapsed=True):
+            result = f(**f_kwargs)
+
+        time_end = time.perf_counter()
+        duration = time_end - time_start
+
+        return result, cls(name, duration)
+
     def __lt__(self, other):
         if isinstance(other, TimedOperationResult):
             return self.name < other.name
