@@ -37,7 +37,9 @@ func (s *ZstdStrategy) Compress(src []byte) ([]byte, error) {
 	if cap(s.output) < bound {
 		// We need to reallocate the buffer to accomodate the larger size
 		s.output = make([]byte, bound)
-		log.Debugf("Reallocating zstd buffer to %d bytes", bound)
+		log.Debugf("Reallocating zstd buffer %d to %d bytes", cap(s.output), bound)
+	} else {
+		log.Debugf("Not reallocating zstd buffer %d to %d bytes", cap(s.output), bound)
 	}
 
 	return s.ctx.CompressLevel(s.output, src, s.level)
