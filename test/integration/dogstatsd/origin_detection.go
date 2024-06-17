@@ -20,6 +20,8 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	telemetrynoop "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/listeners"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
@@ -76,18 +78,25 @@ func testUDSOriginDetection(t *testing.T, network string) {
 		pidmapimpl.Module(),
 	))
 
+	telemetryComponent := fxutil.Test[telemetry.Component](t, fx.Options(
+		telemetrynoop.Module(),
+	))
+
 	// Start DSD
 	// The packet channel needs to be buffered, otherwise the sender will block and this
 	// will prevent disconnections.
 	packetsChannel := make(chan packets.Packets, 1024)
-	sharedPacketPool := packets.NewPool(32)
+
+	packetsTelemetryStore := packets.NewTelemetryStore(nil, telemetryComponent)
+	listenersTelemetryStore := listeners.NewTelemetryStore(nil, telemetryComponent)
+	sharedPacketPool := packets.NewPool(32, packetsTelemetryStore)
 	sharedPacketPoolManager := packets.NewPoolManager(sharedPacketPool)
 	var err error
 	var s listeners.StatsdListener
 	if network == "unixgram" {
-		s, err = listeners.NewUDSDatagramListener(packetsChannel, sharedPacketPoolManager, nil, confComponent, nil, optional.NewNoneOption[workloadmeta.Component](), pidMap)
+		s, err = listeners.NewUDSDatagramListener(packetsChannel, sharedPacketPoolManager, nil, confComponent, nil, optional.NewNoneOption[workloadmeta.Component](), pidMap, listenersTelemetryStore, packetsTelemetryStore, telemetryComponent)
 	} else if network == "unix" {
-		s, err = listeners.NewUDSStreamListener(packetsChannel, sharedPacketPoolManager, nil, confComponent, nil, optional.NewNoneOption[workloadmeta.Component](), pidMap)
+		s, err = listeners.NewUDSStreamListener(packetsChannel, sharedPacketPoolManager, nil, confComponent, nil, optional.NewNoneOption[workloadmeta.Component](), pidMap, listenersTelemetryStore, packetsTelemetryStore, telemetryComponent)
 	}
 	require.NotNil(t, s)
 	require.Nil(t, err)
