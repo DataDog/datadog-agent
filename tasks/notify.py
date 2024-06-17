@@ -636,12 +636,13 @@ def failure_summary_send_notifications(ctx, is_daily_summary: bool, max_length=8
     Make summaries from data in s3 and send them to slack
     """
     period = timedelta(days=1) if is_daily_summary else timedelta(weeks=1)
-    summary = failure_summary.fetch_summaries(ctx, period)
-    stats = failure_summary.SummaryStats(summary, allow_failure=not is_daily_summary)
+    failure_summary.send_summary_messages(ctx, is_daily_summary, max_length, period)
+    # summary = failure_summary.fetch_summaries(ctx, period)
+    # stats = failure_summary.SummaryStats(summary, allow_failure=not is_daily_summary)
 
-    # TODO : Send
-    # TODO : Dispatch to teams
-    print(stats.create(max_length))
+    # # TODO : Send
+    # # TODO : Dispatch to teams
+    # print(stats.create(max_length))
 
 
 @task
