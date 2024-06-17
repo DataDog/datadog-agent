@@ -3,6 +3,7 @@
 
 extensions:
   health_check:
+    endpoint: localhost:13133
   pprof:
     endpoint: localhost:1777
   zpages:
