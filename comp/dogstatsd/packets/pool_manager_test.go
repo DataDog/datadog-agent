@@ -28,8 +28,8 @@ func countPoolSize(p *PoolManager) int {
 }
 
 func TestPoolManager(t *testing.T) {
-	telemtryComponent := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
-	packetsTelemetryStore := NewTelemetryStore(nil, telemtryComponent)
+	telemetryComponent := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
+	packetsTelemetryStore := NewTelemetryStore(nil, telemetryComponent)
 	pool := NewPool(1024, packetsTelemetryStore)
 	manager := NewPoolManager(pool)
 
@@ -61,8 +61,8 @@ func TestPoolManager(t *testing.T) {
 }
 
 func BenchmarkPoolManagerPassthru(b *testing.B) {
-	telemtryComponent := fxutil.Test[telemetry.Component](b, telemetryimpl.MockModule())
-	packetsTelemetryStore := NewTelemetryStore(nil, telemtryComponent)
+	telemetryComponent := fxutil.Test[telemetry.Component](b, telemetryimpl.MockModule())
+	packetsTelemetryStore := NewTelemetryStore(nil, telemetryComponent)
 	pool := NewPool(1024, packetsTelemetryStore)
 	manager := NewPoolManager(pool)
 
@@ -73,8 +73,8 @@ func BenchmarkPoolManagerPassthru(b *testing.B) {
 }
 
 func BenchmarkPoolManagerNoPassthru(b *testing.B) {
-	telemtryComponent := fxutil.Test[telemetry.Component](b, telemetryimpl.MockModule())
-	packetsTelemetryStore := NewTelemetryStore(nil, telemtryComponent)
+	telemetryComponent := fxutil.Test[telemetry.Component](b, telemetryimpl.MockModule())
+	packetsTelemetryStore := NewTelemetryStore(nil, telemetryComponent)
 	pool := NewPool(1024, packetsTelemetryStore)
 	manager := NewPoolManager(pool)
 
@@ -86,8 +86,8 @@ func BenchmarkPoolManagerNoPassthru(b *testing.B) {
 }
 
 func BenchmarkSyncPool(b *testing.B) {
-	telemtryComponent := fxutil.Test[telemetry.Component](b, telemetryimpl.MockModule())
-	packetsTelemetryStore := NewTelemetryStore(nil, telemtryComponent)
+	telemetryComponent := fxutil.Test[telemetry.Component](b, telemetryimpl.MockModule())
+	packetsTelemetryStore := NewTelemetryStore(nil, telemetryComponent)
 	pool := NewPool(1024, packetsTelemetryStore)
 
 	for i := 0; i < b.N; i++ {
