@@ -204,6 +204,7 @@ def generate_flake_finder_pipeline(_, n=3):
                     new_job['variables']['E2E_PIPELINE_ID'] = "$PARENT_PIPELINE_ID"
                 if 'E2E_COMMIT_SHA' in new_job['variables']:
                     new_job['variables']['E2E_COMMIT_SHA'] = "$PARENT_COMMIT_SHA"
+            new_job["rules"] = [{"when": "always"}]
             new_jobs[f"{job}-{i}"] = new_job
 
     with open("flake-finder-gitlab-ci.yml", "w") as f:
