@@ -44,7 +44,7 @@ __maybe_unused static __always_inline void submit_closed_conn_event(void *ctx, i
     }
 }
 
-static __always_inline void cleanup_conn(void *ctx, conn_tuple_t *tup, struct sock *sk, bool skip_new_conn_create) {
+static __always_inline void cleanup_conn(void *ctx, conn_tuple_t *tup, struct sock *sk) {
     u32 cpu = bpf_get_smp_processor_id();
     // Will hold the full connection data to send through the perf or ring buffer
     conn_t conn = { .tup = *tup };
@@ -82,10 +82,7 @@ static __always_inline void cleanup_conn(void *ctx, conn_tuple_t *tup, struct so
             increment_telemetry_count(udp_dropped_conns);
             return; // nothing to report
         }
-        if (skip_new_conn_create) {
-            increment_telemetry_count(skipped_new_conn_create);
-            return;
-        }
+        increment_telemetry_count(skipped_new_conn_create);
         // we don't have any stats for the connection,
         // so cookie is not set, set it here
         conn.conn_stats.cookie = get_sk_cookie(sk);

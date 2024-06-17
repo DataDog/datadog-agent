@@ -224,7 +224,6 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_done, struct sock *sk) {
     if (failed_conn_pid) {
         if (*failed_conn_pid != pid_tgid) {
             log_debug("adamk kprobe/tcp_done: pid mismatch: %llu, %llu", pid_tgid, *failed_conn_pid);
-            increment_telemetry_count(tcp_done_pid_mismatch);
         }
         bpf_probe_read_kernel_with_telemetry(&pid_tgid, sizeof(pid_tgid), failed_conn_pid);
         t.pid = pid_tgid >> 32;
@@ -234,13 +233,15 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_done, struct sock *sk) {
     }
 
     if (bpf_map_delete_elem(&conn_close_flushed, &sk) != 0) {
-        cleanup_conn(ctx, &t, sk, false);
+        // this connection has not been flushed by tcp_close
+        cleanup_conn(ctx, &t, sk);
         // mark this connection as already flushed
         __u64 timestamp = bpf_ktime_get_ns();
         bpf_map_update_with_telemetry(conn_close_flushed, &sk, &timestamp, BPF_ANY);
     } else {
-        log_debug("adamk kprobe/tcp_done: conn_stats_ts_t found for conn_tuple");
+        increment_telemetry_count(tcp_done_pid_mismatch);
     }
+    
     flush_tcp_failure(ctx, &t, err);
 
     return 0;
@@ -281,7 +282,7 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_close, struct sock *sk) {
         return 0;
     }
 
-    cleanup_conn(ctx, &t, sk, false);
+    cleanup_conn(ctx, &t, sk);
 
     // mark this connection as already flushed
     __u64 timestamp = bpf_ktime_get_ns();
@@ -1023,7 +1024,7 @@ static __always_inline int handle_udp_destroy_sock(void *ctx, struct sock *skp) 
 
     __u16 lport = 0;
     if (valid_tuple) {
-        cleanup_conn(ctx, &tup, skp, false);
+        cleanup_conn(ctx, &tup, skp);
         lport = tup.sport;
     } else {
         lport = read_sport(skp);
