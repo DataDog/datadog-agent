@@ -143,7 +143,8 @@ class SummaryStats:
             team_stats[channel] = [s for s in self.stats if s['name'] in partition[channel]]
             team_stats[channel] = team_stats[channel][:max_length]
 
-        team_stats[GITHUB_SLACK_MAP[ALL_TEAMS]] = self.stats[:max_length]
+        if self.stats:
+            team_stats[GITHUB_SLACK_MAP[ALL_TEAMS]] = self.stats[:max_length]
 
         return team_stats
 
@@ -154,19 +155,13 @@ def write_file(ctx: Context, name: str, data: str):
     with open(FAILURE_SUMMARY_TMP_FILE, 'w') as f:
         f.write(data)
 
-    ctx.run(
-        f"{AWS_S3_CP_CMD} {FAILURE_SUMMARY_TMP_FILE} {FAILURE_SUMMARY_S3_BUCKET_URL}/{name}",
-        hide="stdout"
-    )
+    ctx.run(f"{AWS_S3_CP_CMD} {FAILURE_SUMMARY_TMP_FILE} {FAILURE_SUMMARY_S3_BUCKET_URL}/{name}", hide="stdout")
 
 
 def read_file(ctx: Context, name: str) -> str:
     from tasks.notify import AWS_S3_CP_CMD
 
-    ctx.run(
-        f"{AWS_S3_CP_CMD} {FAILURE_SUMMARY_S3_BUCKET_URL}/{name} {FAILURE_SUMMARY_TMP_FILE}",
-        hide="stdout"
-    )
+    ctx.run(f"{AWS_S3_CP_CMD} {FAILURE_SUMMARY_S3_BUCKET_URL}/{name} {FAILURE_SUMMARY_TMP_FILE}", hide="stdout")
 
     with open(FAILURE_SUMMARY_TMP_FILE) as f:
         data = f.read()
@@ -177,7 +172,9 @@ def read_file(ctx: Context, name: str) -> str:
 def list_files(ctx: Context) -> list[str]:
     from tasks.notify import AWS_S3_LS_CMD
 
-    listing = ctx.run(AWS_S3_LS_CMD.format(bucket=FAILURE_SUMMARY_S3_BUCKET, prefix=FAILURE_SUMMARY_S3_PREFIX), hide="stdout").stdout
+    listing = ctx.run(
+        AWS_S3_LS_CMD.format(bucket=FAILURE_SUMMARY_S3_BUCKET, prefix=FAILURE_SUMMARY_S3_PREFIX), hide="stdout"
+    ).stdout
     listing = json.loads(listing)
     listing = [item['Key'].removeprefix(FAILURE_SUMMARY_S3_PREFIX + '/') for item in listing['Contents']]
     listing = [item for item in listing if item.endswith('.json')]
@@ -243,7 +240,7 @@ def upload_summary(ctx: Context, pipeline_id: int) -> SummaryData:
     return summary
 
 
-def send_summary_slack_message(channel: str, stats: list[dict], allow_failure: bool = False):
+def send_summary_slack_notification(channel: str, stats: list[dict], allow_failure: bool = False):
     """
     Send the summary to channel with these job stats
     - stats: Item of the dict returned by SummaryStats.make_stats
@@ -251,7 +248,11 @@ def send_summary_slack_message(channel: str, stats: list[dict], allow_failure: b
     # Avoid circular dependency
     from slack_sdk import WebClient
 
-    from tasks.notify import NOTIFICATION_DISCLAIMER, get_ci_visibility_job_url
+    from tasks.notify import get_ci_visibility_job_url
+
+    # Do not send notification
+    if not stats:
+        return
 
     # Create message
     not_allowed_query = '-' if not allow_failure else ''
@@ -270,9 +271,7 @@ def send_summary_slack_message(channel: str, stats: list[dict], allow_failure: b
     for stat in stats:
         name = stat['name']
         fail = stat['failures']
-        link = get_ci_visibility_job_url(
-            name, prefix=False, extra_flags=['status:error', '-@error.domain:provider']
-        )
+        link = get_ci_visibility_job_url(name, prefix=False, extra_flags=['status:error', '-@error.domain:provider'])
         message.append(f"- <{link}|{name}>: *{fail} failures*")
 
     timestamp_start = int((datetime.now() - delta).timestamp() * 1000)
@@ -281,10 +280,9 @@ def send_summary_slack_message(channel: str, stats: list[dict], allow_failure: b
     header = f'{period} Job Failure Report'
     description = f'These jobs{you_own} had the most failures in the last {duration}:'
 
-    footer = (
-        f'{expected_to_fail}. Click <https://app.datadoghq.com/ci/pipeline-executions?query=ci_level%3Ajob%20env%3Aprod%20%40git.repository.id%3A%22gitlab.ddbuild.io%2FDataDog%2Fdatadog-agent%22%20%40ci.pipeline.name%3A%22DataDog%2Fdatadog-agent%22%20%40ci.provider.instance%3Agitlab-ci%20%40git.branch%3Amain%20%40ci.status%3Aerror%20%40gitlab.pipeline_source%3A%28push%20OR%20schedule%29%20{not_allowed_query}%40ci.allowed_to_fail%3Atrue&agg_m=count&agg_m_source=base&agg_q=%40ci.job.name&start={timestamp_start}&end={timestamp_end}&agg_q_source=base&agg_t=count&fromUser=false&index=cipipeline&sort_m=count&sort_m_source=base&sort_t=count&top_n=25&top_o=top&viz=toplist&x_missing=true&paused=false|here> for more details.{flaky_tests}\n'
-        + NOTIFICATION_DISCLAIMER
-    )
+    details = 'Click <https://app.datadoghq.com/ci/pipeline-executions?query=ci_level%3Ajob%20env%3Aprod%20%40git.repository.id%3A%22gitlab.ddbuild.io%2FDataDog%2Fdatadog-agent%22%20%40ci.pipeline.name%3A%22DataDog%2Fdatadog-agent%22%20%40ci.provider.instance%3Agitlab-ci%20%40git.branch%3Amain%20%40ci.status%3Aerror%20%40gitlab.pipeline_source%3A%28push%20OR%20schedule%29%20{not_allowed_query}%40ci.allowed_to_fail%3Atrue&agg_m=count&agg_m_source=base&agg_q=%40ci.job.name&start={timestamp_start}&end={timestamp_end}&agg_q_source=base&agg_t=count&fromUser=false&index=cipipeline&sort_m=count&sort_m_source=base&sort_t=count&top_n=25&top_o=top&viz=toplist&x_missing=true&paused=false|here> for more details.{flaky_tests}\n{NOTIFICATION_DISCLAIMER}'
+    footer = f'{expected_to_fail}. ' + details
+    alt_message = f'{header} available. {details}'
 
     body = '\n'.join(message)
     # Rarely the body may be bigger than 3K characters, split into two messages in this case
@@ -304,27 +302,37 @@ def send_summary_slack_message(channel: str, stats: list[dict], allow_failure: b
     client = WebClient(os.environ["SLACK_API_TOKEN"])
     # TODO
     # client.chat_postMessage(channel=channel, blocks=blocks)
-    client.chat_postMessage(channel='#celian-tests', blocks=blocks)
+    client.chat_postMessage(channel='#celian-tests', blocks=blocks, text=alt_message)
 
 
-def send_summary_messages(ctx: Context, allow_failure: bool, max_length: int, period: timedelta, jobowners: str = '.gitlab/JOBOWNERS'):
+def send_summary_messages(
+    ctx: Context, allow_failure: bool, max_length: int, period: timedelta, jobowners: str = '.gitlab/JOBOWNERS'
+):
     """
     Fetches the summaries for the period and sends messages to all teams having these jobs
     """
     summary = fetch_summaries(ctx, period)
     stats = SummaryStats(summary, allow_failure)
 
-    error = False
+    # TODO : Remove test
+    stats.stats.append({'name': 'lint_macos', 'failures': 1, 'runs': 2})
+
     team_stats = stats.make_stats(max_length, jobowners=jobowners)
+    if not team_stats:
+        print('No failures found')
+        return
+
+    error = False
     for channel, stat in team_stats.items():
         try:
-            send_summary_slack_message(channel=channel, stats=stat, allow_failure=allow_failure)
+            send_summary_slack_notification(channel=channel, stats=stat, allow_failure=allow_failure)
+            print('Notification sent to', channel)
         except Exception:
             print(f"Error sending message to {channel}", file=sys.stderr)
             traceback.print_exc()
             error = True
 
-    print('Messages sent')
+    print('All notifications sent')
 
     if error:
         raise Exit('Error sending messages')
