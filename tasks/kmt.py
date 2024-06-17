@@ -1634,10 +1634,10 @@ def explain_ci_failure(_, pipeline: str):
             # Some distros do not show the systemd service status in the boot log, which means
             # that we cannot infer the state of services from that boot log. Filter only non-kernel
             # lines in the output (kernel logs always are prefaced by [ seconds-since-boot ] so
-            # they're easy to filter out) to see if there we can find clues that tell us whether
+            # they're easy to filter out) to see if we can find clues that tell us whether
             # we have status logs or not.
             non_kernel_boot_log_lines = [
-                l for l in boot_log.splitlines() if re.match(r"\[[0-9 \.]+\]", l) is None
+                line for line in boot_log.splitlines() if re.match(r"\[[0-9 \.]+\]", line) is None
             ]  # reminder: match only searches pattern at the beginning of string
             non_kernel_boot_log = "\n".join(non_kernel_boot_log_lines)
             # systemd will always show the journal service starting in the boot log if it's outputting there
