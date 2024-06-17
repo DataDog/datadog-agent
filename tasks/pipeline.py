@@ -174,7 +174,7 @@ def auto_cancel_previous_pipelines(ctx):
     if not os.environ.get('GITLAB_TOKEN'):
         raise Exit("GITLAB_TOKEN variable needed to cancel pipelines on the same ref.", 1)
 
-    git_ref = os.getenv("CI_COMMIT_REF_NAME")
+    git_ref = os.environ["CI_COMMIT_REF_NAME"]
     git_sha = os.getenv("CI_COMMIT_SHA")
 
     repo = get_gitlab_repo()
@@ -207,7 +207,7 @@ def auto_cancel_previous_pipelines(ctx):
                 )
         else:
             print(is_ancestor.stderr)
-            raise Exit(1)
+            raise Exit(code=1)
 
 
 @task

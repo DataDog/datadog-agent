@@ -12,6 +12,7 @@ import shutil
 import sys
 import textwrap
 import traceback
+from collections.abc import Iterable
 from pathlib import Path
 
 from invoke import task
@@ -476,7 +477,7 @@ def get_deps(ctx, path):
         return deps
 
 
-def add_replaces(ctx, path, replaces: list[str]):
+def add_replaces(ctx, path, replaces: Iterable[str]):
     repo_path = posixpath.abspath('.')
     with ctx.cd(path):
         for repo_local_path in replaces:
@@ -504,6 +505,7 @@ def add_go_module(path):
     modulespy_regex = re.compile(r"DEFAULT_MODULES = {\n(.+?)\n}", re.DOTALL | re.MULTILINE)
 
     all_modules_match = modulespy_regex.search(modulespy)
+    assert all_modules_match, "Could not find DEFAdULT_MODULES in modules.py"
     all_modules = all_modules_match.group(1)
     all_modules = all_modules.split('\n')
     indent = ' ' * 4
@@ -515,7 +517,9 @@ def add_go_module(path):
     for i, line in enumerate(all_modules):
         # This line is the start of a module (not a comment / middle of a module declaration)
         if line.startswith(f'{indent}"'):
-            module = re.search(rf'{indent}"([^"]*)"', line).group(1)
+            results = re.search(rf'{indent}"([^"]*)"', line)
+            assert results, f"Could not find module name in line '{line}'"
+            module = results.group(1)
             if module < path:
                 insert_line = i
             else:
@@ -635,8 +639,8 @@ def create_module(ctx, path: str, no_verify: bool = False):
                 ctx.run('git clean -f')
                 ctx.run('git checkout HEAD -- .')
 
-                raise Exit(1)
+                raise Exit(code=1)
 
         print(color_message("Not removing changed files", "red"))
 
-        raise Exit(1)
+        raise Exit(code=1)

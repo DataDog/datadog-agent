@@ -13,6 +13,7 @@ import re
 import shutil
 import sys
 from collections import defaultdict
+from collections.abc import Iterable
 from datetime import datetime
 from pathlib import Path
 
@@ -104,7 +105,7 @@ def test_flavor(
     ctx,
     flavor: AgentFlavor,
     build_tags: list[str],
-    modules: list[GoModule],
+    modules: Iterable[GoModule],
     cmd: str,
     env: dict[str, str],
     args: dict[str, str],
@@ -419,16 +420,16 @@ def e2e_tests(ctx, target="gitlab", agent_image="", dca_image="", argo_workflow=
     choices = ["gitlab", "dev", "local"]
     if target not in choices:
         print(f'target {target} not in {choices}')
-        raise Exit(1)
+        raise Exit(code=1)
     if not os.getenv("DATADOG_AGENT_IMAGE"):
         if not agent_image:
             print("define DATADOG_AGENT_IMAGE envvar or image flag")
-            raise Exit(1)
+            raise Exit(code=1)
         os.environ["DATADOG_AGENT_IMAGE"] = agent_image
     if not os.getenv("DATADOG_CLUSTER_AGENT_IMAGE"):
         if not dca_image:
             print("define DATADOG_CLUSTER_AGENT_IMAGE envvar or image flag")
-            raise Exit(1)
+            raise Exit(code=1)
         os.environ["DATADOG_CLUSTER_AGENT_IMAGE"] = dca_image
     if not os.getenv("ARGO_WORKFLOW"):
         if argo_workflow:
@@ -463,6 +464,7 @@ def get_modified_packages(ctx, build_tags=None, lint=False) -> list[GoModule]:
         # Check if the package is in the target list of the module we want to test
         targeted = False
 
+        assert best_module_path, f"No module found for {modified_file}"
         targets = DEFAULT_MODULES[best_module_path].lint_targets if lint else DEFAULT_MODULES[best_module_path].targets
 
         for target in targets:
@@ -516,7 +518,7 @@ def get_modified_packages(ctx, build_tags=None, lint=False) -> list[GoModule]:
     for module in modules_to_test:
         print(f"- {module}: {modules_to_test[module].targets}")
 
-    return modules_to_test.values()
+    return list(modules_to_test.values())
 
 
 @task(iterable=["extra_tag"])
@@ -736,7 +738,7 @@ def find_impacted_packages(dependencies, modified_modules, cache=None):
     return impacted_modules
 
 
-def format_packages(ctx: Context, impacted_packages: set[str], build_tags: list[str] = None):
+def format_packages(ctx: Context, impacted_packages: set[str], build_tags: list[str] | None = None):
     """
     Format the packages list to be used in our test function. Will take each path and create a list of modules with its targets
     """
@@ -845,7 +847,7 @@ def lint_go(
     build_exclude=None,
     rtloader_root=None,
     cpus=None,
-    timeout: int = None,
+    timeout: int | None = None,
     golangci_lint_kwargs="",
     headless_mode=False,
     include_sds=False,
