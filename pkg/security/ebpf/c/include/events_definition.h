@@ -53,9 +53,9 @@ struct process_event_t {
     struct pid_cache_t pid_entry;
     struct linux_binprm_t linux_binprm;
     u64 args_id;
+    u64 envs_id;
     u32 args_truncated;
     u32 envs_truncated;
-    u64 envs_id;
 };
 
 struct exit_event_t {

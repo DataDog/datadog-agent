@@ -261,12 +261,12 @@ func (e *Process) UnmarshalBinary(data []byte) (int, error) {
 	}
 
 	e.ArgsID = binary.NativeEndian.Uint64(data[read : read+8])
-	e.ArgsTruncated = binary.NativeEndian.Uint32(data[read+8:read+12]) == 1
-	read += 12
+	e.EnvsID = binary.NativeEndian.Uint64(data[read+8 : read+16])
+	read += 16
 
-	e.EnvsTruncated = binary.NativeEndian.Uint32(data[read:read+4]) == 1
-	e.EnvsID = binary.NativeEndian.Uint64(data[read+4 : read+12])
-	read += 12
+	e.ArgsTruncated = binary.NativeEndian.Uint32(data[read:read+4]) == 1
+	e.EnvsTruncated = binary.NativeEndian.Uint32(data[read+4:read+8]) == 1
+	read += 8
 
 	return validateReadSize(size, read)
 }

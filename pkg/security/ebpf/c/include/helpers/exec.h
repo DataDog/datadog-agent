@@ -39,5 +39,4 @@ int __attribute__((always_inline)) handle_exec_event(ctx_t *ctx, struct syscall_
     return 0;
 }
 
-
 #endif
