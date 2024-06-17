@@ -91,7 +91,7 @@ notify_github:
     - rm "$messagefile"
 
 .failure_summary_job:
-  extends: .slack-notifier-base
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   stage: notify
   dependencies: []
   tags: ["arch:amd64"]
@@ -100,6 +100,7 @@ notify_github:
 
 .failure_summary_setup:
   - source /root/.bashrc
+  - export SLACK_API_TOKEN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SLACK_AGENT_CI_TOKEN_SSM_NAME)
   - export GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITLAB_READ_API_TOKEN_SSM_NAME)
   - export DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $API_KEY_ORG2_SSM_NAME)
   - python3 -m pip install -r requirements.txt -r tasks/libs/requirements-notifications.txt
