@@ -30,12 +30,12 @@
 
 /release.json                           @DataDog/agent-build-and-releases @DataDog/agent-metrics-logs @DataDog/windows-kernel-integrations @DataDog/agent-release-management @DataDog/agent-security
 /requirements.txt                       @DataDog/agent-ci-experience
-/pyproject.toml                         @DataDog/agent-ci-experience
+/pyproject.toml                         @DataDog/agent-ci-experience @DataDog/agent-developer-tools
 /setup.cfg                              @DataDog/agent-ci-experience
 /repository.datadog.yml                 @DataDog/agent-ci-experience
 /generate_tools.go                      @DataDog/agent-ci-experience
 /service.datadog.yaml                   @DataDog/agent-build-and-releases
-/.pre-commit-config.yaml                @DataDog/agent-developer-tools
+/.pre-commit-config.yaml                 @DataDog/agent-developer-tools
 
 /.circleci/                             @DataDog/agent-ci-experience
 
