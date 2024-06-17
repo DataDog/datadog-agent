@@ -9,6 +9,7 @@ package modules
 
 import (
 	"fmt"
+	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"net/http"
 	"os"
 	"path"
@@ -23,7 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/portlist"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
@@ -39,7 +40,10 @@ var ServiceDiscoveryModule = module.Factory{
 	Name:             config.ServiceDiscoveryModule,
 	ConfigNamespaces: []string{"service_discovery"},
 	Fn: func(_ *sysconfigtypes.Config, _ optional.Option[workloadmeta.Component], _ telemetry.Component) (module.Module, error) {
-		// TODO: return module.ErrNotEnabled if should not be initialized
+		if ddconfig.IsContainerized() {
+			// service_discovery check is not enabled in containerized environments
+			return nil, module.ErrNotEnabled
+		}
 
 		poller, err := portlist.NewPoller()
 		if err != nil {
@@ -82,16 +86,16 @@ func (s *serviceDiscovery) handleOpenPorts(w http.ResponseWriter, _ *http.Reques
 		return
 	}
 
-	var portsResp []*model.Port
+	var portsResp []*servicediscovery.Port
 	for _, p := range ports {
-		portsResp = append(portsResp, &model.Port{
+		portsResp = append(portsResp, &servicediscovery.Port{
 			PID:         p.Pid,
 			ProcessName: p.Process,
 			Port:        int(p.Port),
 			Proto:       p.Proto,
 		})
 	}
-	resp := &model.OpenPortsResponse{
+	resp := &servicediscovery.OpenPortsResponse{
 		Ports: portsResp,
 	}
 	utils.WriteAsJSON(w, resp)
@@ -126,8 +130,8 @@ func (s *serviceDiscovery) handleGetProc(w http.ResponseWriter, req *http.Reques
 		return
 	}
 
-	resp := &model.GetProcResponse{
-		Proc: &model.Proc{
+	resp := &servicediscovery.GetProcResponse{
+		Proc: &servicediscovery.Proc{
 			PID:     int(pid),
 			Environ: env,
 			CWD:     cwd,

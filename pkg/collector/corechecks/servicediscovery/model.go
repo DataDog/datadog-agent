@@ -3,8 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package model contains the types for the service_discovery check.
-package model
+package servicediscovery
 
 // Port represents an open port in the current host.
 type Port struct {

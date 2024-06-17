@@ -52,18 +52,7 @@ func fixAdditionalNames(additionalNames []string) []string {
 }
 
 func (sd *serviceDetector) Detect(p processInfo) serviceMetadata {
-	env := p.Env
-	hasPWD := false
-	for _, v := range env {
-		n := strings.Split(v, "=")[0]
-		if n == "PWD" {
-			hasPWD = true
-			break
-		}
-	}
-	if !hasPWD {
-		env = append(env, fmt.Sprintf("PWD=%s", p.Cwd))
-	}
+	env := ensureEnvWithPWD(p.Env, p.Cwd)
 
 	meta, _ := usm.ExtractServiceMetadata(sd.logger, p.CmdLine, env)
 	lang, _ := sd.langFinder.Detect(p.CmdLine, env)
@@ -84,4 +73,19 @@ func (sd *serviceDetector) Detect(p processInfo) serviceMetadata {
 		APMInstrumentation: string(apmInstr),
 		FromDDService:      meta.FromDDService,
 	}
+}
+
+func ensureEnvWithPWD(env []string, cwd string) []string {
+	hasPWD := false
+	for _, v := range env {
+		n := strings.Split(v, "=")[0]
+		if n == "PWD" {
+			hasPWD = true
+			break
+		}
+	}
+	if !hasPWD {
+		env = append(env, fmt.Sprintf("PWD=%s", cwd))
+	}
+	return env
 }

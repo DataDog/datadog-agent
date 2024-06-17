@@ -22,7 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	workloadmetacomp "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/stretchr/testify/require"
 )
@@ -46,7 +46,7 @@ func setupServiceDiscoveryModule(t *testing.T) string {
 	return srv.URL
 }
 
-func startServerAndGetPort(t *testing.T, modUrl string) *model.Port {
+func startServerAndGetPort(t *testing.T, modURL string) *servicediscovery.Port {
 	t.Helper()
 
 	// start a process listening at some port
@@ -57,14 +57,14 @@ func startServerAndGetPort(t *testing.T, modUrl string) *model.Port {
 	})
 	addr := ln.Addr().(*net.TCPAddr)
 
-	req, err := http.NewRequest("GET", modUrl+"/service_discovery/open_ports", nil)
+	req, err := http.NewRequest("GET", modURL+"/service_discovery/open_ports", nil)
 	require.NoError(t, err)
 
 	resp, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
 	defer resp.Body.Close()
 
-	res := &model.OpenPortsResponse{}
+	res := &servicediscovery.OpenPortsResponse{}
 	err = json.NewDecoder(resp.Body).Decode(res)
 	require.NoError(t, err)
 	require.NotEmpty(t, res)
@@ -102,7 +102,7 @@ func TestServiceDiscoveryModule_GetProc(t *testing.T) {
 	require.NoError(t, err)
 	defer resp.Body.Close()
 
-	res := &model.GetProcResponse{}
+	res := &servicediscovery.GetProcResponse{}
 	err = json.NewDecoder(resp.Body).Decode(res)
 	require.NoError(t, err)
 	require.NotNil(t, res)

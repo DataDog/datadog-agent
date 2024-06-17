@@ -81,3 +81,38 @@ func Test_serviceDetector(t *testing.T) {
 		})
 	}
 }
+
+func Test_ensureEnvWithPWD(t *testing.T) {
+	tests := []struct {
+		name string
+		env  []string
+		cwd  string
+		want []string
+	}{
+		{
+			name: "no_pwd",
+			env:  []string{"PATH=/some/path", "FOO=bar"},
+			cwd:  "/current/workdir",
+			want: []string{"PATH=/some/path", "FOO=bar", "PWD=/current/workdir"},
+		},
+		{
+			name: "empty_env",
+			env:  []string{},
+			cwd:  "/current/workdir",
+			want: []string{"PWD=/current/workdir"},
+		},
+		{
+			name: "has_pwd",
+			env:  []string{"PATH=/some/path", "FOO=bar", "PWD=/existing/pwd"},
+			cwd:  "/current/workdir",
+			want: []string{"PATH=/some/path", "FOO=bar", "PWD=/existing/pwd"},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := ensureEnvWithPWD(tc.env, tc.cwd)
+			assert.Equal(t, tc.want, got)
+		})
+	}
+}

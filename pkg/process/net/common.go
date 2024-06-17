@@ -21,7 +21,8 @@ import (
 	model "github.com/DataDog/agent-payload/v5/process"
 	"google.golang.org/protobuf/proto"
 
-	servicediscoverymodel "github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
+	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	netEncoding "github.com/DataDog/datadog-agent/pkg/network/encoding/unmarshal"
 	procEncoding "github.com/DataDog/datadog-agent/pkg/process/encoding"
@@ -380,8 +381,8 @@ func (r *RemoteSysProbeUtil) GetPprof(path string) ([]byte, error) {
 }
 
 // GetServiceDiscoveryOpenPorts returns open ports from system-probe.
-func (r *RemoteSysProbeUtil) GetServiceDiscoveryOpenPorts(ctx context.Context) (*servicediscoverymodel.OpenPortsResponse, error) {
-	url := serviceDiscoveryOpenPortsURL
+func (r *RemoteSysProbeUtil) GetServiceDiscoveryOpenPorts(ctx context.Context) (*servicediscovery.OpenPortsResponse, error) {
+	url := fmt.Sprintf("http://unix/%s/open_ports", sysconfig.ServiceDiscoveryModule)
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return nil, err
@@ -397,7 +398,7 @@ func (r *RemoteSysProbeUtil) GetServiceDiscoveryOpenPorts(ctx context.Context) (
 		return nil, fmt.Errorf("got non-success status code: path %s, url: %s, status_code: %d", r.path, url, resp.StatusCode)
 	}
 
-	res := &servicediscoverymodel.OpenPortsResponse{}
+	res := &servicediscovery.OpenPortsResponse{}
 	if err := json.NewDecoder(resp.Body).Decode(res); err != nil {
 		return nil, err
 	}
@@ -405,8 +406,8 @@ func (r *RemoteSysProbeUtil) GetServiceDiscoveryOpenPorts(ctx context.Context) (
 }
 
 // GetServiceDiscoveryProc returns proc information from system-probe.
-func (r *RemoteSysProbeUtil) GetServiceDiscoveryProc(ctx context.Context, pid int) (*servicediscoverymodel.GetProcResponse, error) {
-	url := fmt.Sprintf(serviceDiscoveryGetProcURL, pid)
+func (r *RemoteSysProbeUtil) GetServiceDiscoveryProc(ctx context.Context, pid int) (*servicediscovery.GetProcResponse, error) {
+	url := fmt.Sprintf("http://unix/%s/procs/%d", sysconfig.ServiceDiscoveryModule, pid)
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return nil, err
@@ -422,7 +423,7 @@ func (r *RemoteSysProbeUtil) GetServiceDiscoveryProc(ctx context.Context, pid in
 		return nil, fmt.Errorf("got non-success status code: path %s, url: %s, status_code: %d", r.path, url, resp.StatusCode)
 	}
 
-	res := &servicediscoverymodel.GetProcResponse{}
+	res := &servicediscovery.GetProcResponse{}
 	if err := json.NewDecoder(resp.Body).Decode(res); err != nil {
 		return nil, err
 	}

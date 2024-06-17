@@ -21,7 +21,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 )
 
@@ -89,31 +88,31 @@ var (
 )
 
 var (
-	portTCP22 = &model.Port{
+	portTCP22 = &Port{
 		Proto:       "tcp",
 		Port:        22,
 		ProcessName: "sshd",
 		PID:         procSSHD.pid,
 	}
-	portTCP8080 = &model.Port{
+	portTCP8080 = &Port{
 		Proto:       "tcp",
 		Port:        8080,
 		ProcessName: "test-service-1",
 		PID:         procTestService1.pid,
 	}
-	portTCP8080DifferentPID = &model.Port{
+	portTCP8080DifferentPID = &Port{
 		Proto:       "tcp",
 		Port:        8080,
 		ProcessName: "test-service-1",
 		PID:         procTestService1DifferentPID.pid,
 	}
-	portTCP8081 = &model.Port{
+	portTCP8081 = &Port{
 		Proto:       "tcp",
 		Port:        8081,
 		ProcessName: "ignore-1",
 		PID:         procIgnoreService1.pid,
 	}
-	portTCP5432 = &model.Port{
+	portTCP5432 = &Port{
 		Proto:       "tcp",
 		Port:        5432,
 		ProcessName: "test-service-1",
@@ -166,7 +165,7 @@ func cmpEvents(a, b *event) bool {
 func Test_linuxImpl(t *testing.T) {
 	type checkRun struct {
 		aliveProcs    []testProc
-		openPortsResp *model.OpenPortsResponse
+		openPortsResp *OpenPortsResponse
 		time          time.Time
 	}
 
@@ -184,7 +183,7 @@ func Test_linuxImpl(t *testing.T) {
 						procIgnoreService1,
 						procTestService1,
 					},
-					openPortsResp: &model.OpenPortsResponse{Ports: []*model.Port{
+					openPortsResp: &OpenPortsResponse{Ports: []*Port{
 						portTCP22,
 						portTCP8080,
 						portTCP8081,
@@ -197,7 +196,7 @@ func Test_linuxImpl(t *testing.T) {
 						procIgnoreService1,
 						procTestService1,
 					},
-					openPortsResp: &model.OpenPortsResponse{Ports: []*model.Port{
+					openPortsResp: &OpenPortsResponse{Ports: []*Port{
 						portTCP22,
 						portTCP8080,
 						portTCP8081,
@@ -210,7 +209,7 @@ func Test_linuxImpl(t *testing.T) {
 						procIgnoreService1,
 						procTestService1,
 					},
-					openPortsResp: &model.OpenPortsResponse{Ports: []*model.Port{
+					openPortsResp: &OpenPortsResponse{Ports: []*Port{
 						portTCP22,
 						portTCP8080,
 						portTCP8081,
@@ -221,7 +220,7 @@ func Test_linuxImpl(t *testing.T) {
 					aliveProcs: []testProc{
 						procSSHD,
 					},
-					openPortsResp: &model.OpenPortsResponse{Ports: []*model.Port{
+					openPortsResp: &OpenPortsResponse{Ports: []*Port{
 						portTCP22,
 					}},
 					time: calcTime(21 * time.Minute),
@@ -288,7 +287,7 @@ func Test_linuxImpl(t *testing.T) {
 						procTestService1,
 						procTestService1Repeat,
 					},
-					openPortsResp: &model.OpenPortsResponse{Ports: []*model.Port{
+					openPortsResp: &OpenPortsResponse{Ports: []*Port{
 						portTCP22,
 						portTCP8080,
 						portTCP8081,
@@ -303,7 +302,7 @@ func Test_linuxImpl(t *testing.T) {
 						procTestService1,
 						procTestService1Repeat,
 					},
-					openPortsResp: &model.OpenPortsResponse{Ports: []*model.Port{
+					openPortsResp: &OpenPortsResponse{Ports: []*Port{
 						portTCP22,
 						portTCP8080,
 						portTCP8081,
@@ -318,7 +317,7 @@ func Test_linuxImpl(t *testing.T) {
 						procTestService1,
 						procTestService1Repeat,
 					},
-					openPortsResp: &model.OpenPortsResponse{Ports: []*model.Port{
+					openPortsResp: &OpenPortsResponse{Ports: []*Port{
 						portTCP22,
 						portTCP8080,
 						portTCP8081,
@@ -331,7 +330,7 @@ func Test_linuxImpl(t *testing.T) {
 						procSSHD,
 						procTestService1,
 					},
-					openPortsResp: &model.OpenPortsResponse{Ports: []*model.Port{
+					openPortsResp: &OpenPortsResponse{Ports: []*Port{
 						portTCP22,
 						portTCP8080,
 					}},
@@ -432,7 +431,7 @@ func Test_linuxImpl(t *testing.T) {
 						procIgnoreService1,
 						procTestService1,
 					},
-					openPortsResp: &model.OpenPortsResponse{Ports: []*model.Port{
+					openPortsResp: &OpenPortsResponse{Ports: []*Port{
 						portTCP22,
 						portTCP8080,
 						portTCP8081,
@@ -446,7 +445,7 @@ func Test_linuxImpl(t *testing.T) {
 						procIgnoreService1,
 						procTestService1,
 					},
-					openPortsResp: &model.OpenPortsResponse{Ports: []*model.Port{
+					openPortsResp: &OpenPortsResponse{Ports: []*Port{
 						portTCP22,
 						portTCP8080,
 						portTCP8081,
@@ -458,7 +457,7 @@ func Test_linuxImpl(t *testing.T) {
 						procSSHD,
 						procTestService1DifferentPID,
 					},
-					openPortsResp: &model.OpenPortsResponse{Ports: []*model.Port{
+					openPortsResp: &OpenPortsResponse{Ports: []*Port{
 						portTCP22,
 						portTCP8080DifferentPID,
 					}},
@@ -469,7 +468,7 @@ func Test_linuxImpl(t *testing.T) {
 						procSSHD,
 						procTestService1DifferentPID,
 					},
-					openPortsResp: &model.OpenPortsResponse{Ports: []*model.Port{
+					openPortsResp: &OpenPortsResponse{Ports: []*Port{
 						portTCP22,
 						portTCP8080DifferentPID,
 					}},
@@ -551,7 +550,7 @@ func Test_linuxImpl(t *testing.T) {
 
 					mSysProbe.EXPECT().GetServiceDiscoveryProc(gomock.Any(), gomock.Eq(p.pid)).
 						Return(
-							&model.GetProcResponse{Proc: &model.Proc{
+							&GetProcResponse{Proc: &Proc{
 								PID:     p.pid,
 								Environ: p.env,
 								CWD:     p.cwd,

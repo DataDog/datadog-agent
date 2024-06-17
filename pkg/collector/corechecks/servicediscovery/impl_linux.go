@@ -15,7 +15,6 @@ import (
 
 	"github.com/prometheus/procfs"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -105,12 +104,11 @@ func (li *linuxImpl) DiscoverServices() (*discoveredServices, error) {
 			svc:  nil,
 		}
 	}
-	log.Debugf("got open ports from system-probe: %+v", portsStr(ports.Ports))
 
-	portsByPID := map[int][]*model.Port{}
+	portsByPID := map[int][]*Port{}
 	for _, p := range ports.Ports {
 		if p.PID == 0 {
-			log.Debugf("could not find port pid, skipping: %s:%d", p.Proto, p.Port)
+			log.Debugf("port:%s:%d | could not find port pid, skipping (insufficient permissions?)", p.Proto, p.Port)
 			continue
 		}
 		portsByPID[p.PID] = append(portsByPID[p.PID], p)
@@ -202,7 +200,7 @@ func (li *linuxImpl) aliveProcs() (map[int]proc, error) {
 	return procMap, nil
 }
 
-func (li *linuxImpl) getServiceInfo(p proc, sysProbe systemProbeClient, openPorts map[int][]*model.Port) (*serviceInfo, error) {
+func (li *linuxImpl) getServiceInfo(p proc, sysProbe systemProbeClient, openPorts map[int][]*Port) (*serviceInfo, error) {
 	cmdline, err := p.CmdLine()
 	if err != nil {
 		return nil, errWithCode{

@@ -20,7 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	processnet "github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -64,7 +63,7 @@ type serviceEvents struct {
 
 type discoveredServices struct {
 	aliveProcsCount int
-	openPorts       []*model.Port
+	openPorts       []*Port
 
 	ignoreProcs     map[int]bool
 	potentials      map[int]*serviceInfo
@@ -127,6 +126,9 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, instance
 	}
 	if newOSImpl == nil {
 		return errors.New("service_discovery check not implemented on " + runtime.GOOS)
+	}
+	if ddconfig.IsContainerized() {
+		return errors.New("service_discovery check does not support containerized environments")
 	}
 	if err := c.CommonConfigure(senderManager, initConfig, instanceConfig, source); err != nil {
 		return err
@@ -223,7 +225,7 @@ func (c *Check) Run() error {
 	for _, p := range disc.events.stop {
 		if potentialNames[p.meta.Name] {
 			// we consider this situation a restart, so we skip the stop event.
-			log.Debugf("there is a potential service with the same name as a stopped one, skipping end-service event (name: %q)", p.meta.Name)
+			log.Debugf("restart detected, skipping end-service event (name: %q)", p.meta.Name)
 			continue
 		}
 		eventsByName.addStop(p)
@@ -288,7 +290,7 @@ func (c *Check) Interval() time.Duration {
 	return refreshInterval
 }
 
-func portsStr(ports []*model.Port) string {
+func portsStr(ports []*Port) string {
 	out := make([]string, len(ports))
 	for i, v := range ports {
 		val := fmt.Sprintf("%s:%d", v.Proto, v.Port)
@@ -309,8 +311,8 @@ type realTime struct{}
 func (realTime) Now() time.Time { return time.Now() }
 
 type systemProbeClient interface {
-	GetServiceDiscoveryOpenPorts(ctx context.Context) (*model.OpenPortsResponse, error)
-	GetServiceDiscoveryProc(ctx context.Context, pid int) (*model.GetProcResponse, error)
+	GetServiceDiscoveryOpenPorts(ctx context.Context) (*OpenPortsResponse, error)
+	GetServiceDiscoveryProc(ctx context.Context, pid int) (*GetProcResponse, error)
 }
 
 func getSysProbeClient() (systemProbeClient, error) {

@@ -14,7 +14,6 @@ import (
 	reflect "reflect"
 	time "time"
 
-	model "github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
 	gomock "github.com/golang/mock/gomock"
 )
 
@@ -117,10 +116,10 @@ func (m *MocksystemProbeClient) EXPECT() *MocksystemProbeClientMockRecorder {
 }
 
 // GetServiceDiscoveryOpenPorts mocks base method.
-func (m *MocksystemProbeClient) GetServiceDiscoveryOpenPorts(ctx context.Context) (*model.OpenPortsResponse, error) {
+func (m *MocksystemProbeClient) GetServiceDiscoveryOpenPorts(ctx context.Context) (*OpenPortsResponse, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetServiceDiscoveryOpenPorts", ctx)
-	ret0, _ := ret[0].(*model.OpenPortsResponse)
+	ret0, _ := ret[0].(*OpenPortsResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -132,10 +131,10 @@ func (mr *MocksystemProbeClientMockRecorder) GetServiceDiscoveryOpenPorts(ctx in
 }
 
 // GetServiceDiscoveryProc mocks base method.
-func (m *MocksystemProbeClient) GetServiceDiscoveryProc(ctx context.Context, pid int) (*model.GetProcResponse, error) {
+func (m *MocksystemProbeClient) GetServiceDiscoveryProc(ctx context.Context, pid int) (*GetProcResponse, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetServiceDiscoveryProc", ctx, pid)
-	ret0, _ := ret[0].(*model.GetProcResponse)
+	ret0, _ := ret[0].(*GetProcResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
