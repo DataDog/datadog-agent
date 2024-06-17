@@ -508,34 +508,11 @@ func testHTTPSClassification(t *testing.T, tr *Tracer, clientHost, targetHost, s
 					},
 				}
 
-				// Ensure that we see HTTPS requests being traced *before* the actual test assertions
-				// This is done to reduce test test flakiness due to uprobe attachment delays
-				require.Eventually(t, func() bool {
-					resp, err := client.Get(fmt.Sprintf("https://%s/200/warm-up", ctx.targetAddress))
-					if err != nil {
-						return false
-					}
-					_, _ = io.Copy(io.Discard, resp.Body)
-					_ = resp.Body.Close()
-
-					httpData := getConnections(t, tr).HTTP
-					for httpKey := range httpData {
-						if httpKey.Path.Content.Get() == resp.Request.URL.Path {
-							return true
-						}
-					}
-
-					return false
-				}, 5*time.Second, 100*time.Millisecond, "couldn't detect HTTPS traffic being traced (test setup validation)")
-
-				t.Log("run 3 clients request as we can have a race between the closing tcp socket and the http response")
-				for i := 0; i < 3; i++ {
-					resp, err := client.Get(fmt.Sprintf("https://%s/200/request-1", ctx.targetAddress))
-					require.NoError(t, err)
-					_, _ = io.Copy(io.Discard, resp.Body)
-					_ = resp.Body.Close()
-					client.CloseIdleConnections()
-				}
+				resp, err := client.Get(fmt.Sprintf("https://%s/200/request-1", ctx.targetAddress))
+				require.NoError(t, err)
+				_, _ = io.Copy(io.Discard, resp.Body)
+				_ = resp.Body.Close()
+				client.CloseIdleConnections()
 			},
 			validation: func(t *testing.T, ctx testContext, tr *Tracer) {
 				waitForConnectionsWithProtocol(t, tr, ctx.targetAddress, ctx.serverAddress, &protocols.Stack{Encryption: protocols.TLS, Application: protocols.HTTP})
