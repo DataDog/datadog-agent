@@ -12,8 +12,10 @@
 package servicediscovery
 
 import (
+	context "context"
 	reflect "reflect"
 
+	model "github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
 	gomock "github.com/golang/mock/gomock"
 	procfs "github.com/prometheus/procfs"
 )
@@ -121,4 +123,57 @@ func (m *MockprocFS) AllProcs() ([]proc, error) {
 func (mr *MockprocFSMockRecorder) AllProcs() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AllProcs", reflect.TypeOf((*MockprocFS)(nil).AllProcs))
+}
+
+// MocksystemProbeClient is a mock of systemProbeClient interface.
+type MocksystemProbeClient struct {
+	ctrl     *gomock.Controller
+	recorder *MocksystemProbeClientMockRecorder
+}
+
+// MocksystemProbeClientMockRecorder is the mock recorder for MocksystemProbeClient.
+type MocksystemProbeClientMockRecorder struct {
+	mock *MocksystemProbeClient
+}
+
+// NewMocksystemProbeClient creates a new mock instance.
+func NewMocksystemProbeClient(ctrl *gomock.Controller) *MocksystemProbeClient {
+	mock := &MocksystemProbeClient{ctrl: ctrl}
+	mock.recorder = &MocksystemProbeClientMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MocksystemProbeClient) EXPECT() *MocksystemProbeClientMockRecorder {
+	return m.recorder
+}
+
+// GetServiceDiscoveryOpenPorts mocks base method.
+func (m *MocksystemProbeClient) GetServiceDiscoveryOpenPorts(ctx context.Context) (*model.OpenPortsResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetServiceDiscoveryOpenPorts", ctx)
+	ret0, _ := ret[0].(*model.OpenPortsResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetServiceDiscoveryOpenPorts indicates an expected call of GetServiceDiscoveryOpenPorts.
+func (mr *MocksystemProbeClientMockRecorder) GetServiceDiscoveryOpenPorts(ctx interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetServiceDiscoveryOpenPorts", reflect.TypeOf((*MocksystemProbeClient)(nil).GetServiceDiscoveryOpenPorts), ctx)
+}
+
+// GetServiceDiscoveryProc mocks base method.
+func (m *MocksystemProbeClient) GetServiceDiscoveryProc(ctx context.Context, pid int) (*model.GetProcResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetServiceDiscoveryProc", ctx, pid)
+	ret0, _ := ret[0].(*model.GetProcResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetServiceDiscoveryProc indicates an expected call of GetServiceDiscoveryProc.
+func (mr *MocksystemProbeClientMockRecorder) GetServiceDiscoveryProc(ctx, pid interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetServiceDiscoveryProc", reflect.TypeOf((*MocksystemProbeClient)(nil).GetServiceDiscoveryProc), ctx, pid)
 }

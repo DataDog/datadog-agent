@@ -10,7 +10,6 @@
 package servicediscovery
 
 import (
-	context "context"
 	reflect "reflect"
 	time "time"
 
@@ -90,57 +89,4 @@ func (m *Mocktimer) Now() time.Time {
 func (mr *MocktimerMockRecorder) Now() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Now", reflect.TypeOf((*Mocktimer)(nil).Now))
-}
-
-// MocksystemProbeClient is a mock of systemProbeClient interface.
-type MocksystemProbeClient struct {
-	ctrl     *gomock.Controller
-	recorder *MocksystemProbeClientMockRecorder
-}
-
-// MocksystemProbeClientMockRecorder is the mock recorder for MocksystemProbeClient.
-type MocksystemProbeClientMockRecorder struct {
-	mock *MocksystemProbeClient
-}
-
-// NewMocksystemProbeClient creates a new mock instance.
-func NewMocksystemProbeClient(ctrl *gomock.Controller) *MocksystemProbeClient {
-	mock := &MocksystemProbeClient{ctrl: ctrl}
-	mock.recorder = &MocksystemProbeClientMockRecorder{mock}
-	return mock
-}
-
-// EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MocksystemProbeClient) EXPECT() *MocksystemProbeClientMockRecorder {
-	return m.recorder
-}
-
-// GetServiceDiscoveryOpenPorts mocks base method.
-func (m *MocksystemProbeClient) GetServiceDiscoveryOpenPorts(ctx context.Context) (*OpenPortsResponse, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetServiceDiscoveryOpenPorts", ctx)
-	ret0, _ := ret[0].(*OpenPortsResponse)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetServiceDiscoveryOpenPorts indicates an expected call of GetServiceDiscoveryOpenPorts.
-func (mr *MocksystemProbeClientMockRecorder) GetServiceDiscoveryOpenPorts(ctx interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetServiceDiscoveryOpenPorts", reflect.TypeOf((*MocksystemProbeClient)(nil).GetServiceDiscoveryOpenPorts), ctx)
-}
-
-// GetServiceDiscoveryProc mocks base method.
-func (m *MocksystemProbeClient) GetServiceDiscoveryProc(ctx context.Context, pid int) (*GetProcResponse, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetServiceDiscoveryProc", ctx, pid)
-	ret0, _ := ret[0].(*GetProcResponse)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetServiceDiscoveryProc indicates an expected call of GetServiceDiscoveryProc.
-func (mr *MocksystemProbeClientMockRecorder) GetServiceDiscoveryProc(ctx, pid interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetServiceDiscoveryProc", reflect.TypeOf((*MocksystemProbeClient)(nil).GetServiceDiscoveryProc), ctx, pid)
 }

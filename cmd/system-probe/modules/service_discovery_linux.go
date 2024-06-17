@@ -23,7 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/portlist"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -86,16 +86,16 @@ func (s *serviceDiscovery) handleOpenPorts(w http.ResponseWriter, _ *http.Reques
 		return
 	}
 
-	var portsResp []*servicediscovery.Port
+	var portsResp []*model.Port
 	for _, p := range ports {
-		portsResp = append(portsResp, &servicediscovery.Port{
+		portsResp = append(portsResp, &model.Port{
 			PID:         p.Pid,
 			ProcessName: p.Process,
 			Port:        int(p.Port),
 			Proto:       p.Proto,
 		})
 	}
-	resp := &servicediscovery.OpenPortsResponse{
+	resp := &model.OpenPortsResponse{
 		Ports: portsResp,
 	}
 	utils.WriteAsJSON(w, resp)
@@ -130,8 +130,8 @@ func (s *serviceDiscovery) handleGetProc(w http.ResponseWriter, req *http.Reques
 		return
 	}
 
-	resp := &servicediscovery.GetProcResponse{
-		Proc: &servicediscovery.Proc{
+	resp := &model.GetProcResponse{
+		Proc: &model.Proc{
 			PID:     int(pid),
 			Environ: env,
 			CWD:     cwd,

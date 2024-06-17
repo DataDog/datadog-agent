@@ -7,7 +7,6 @@
 package servicediscovery
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"runtime"
@@ -20,8 +19,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
-	processnet "github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
@@ -63,7 +62,7 @@ type serviceEvents struct {
 
 type discoveredServices struct {
 	aliveProcsCount int
-	openPorts       []*Port
+	openPorts       []*model.Port
 
 	ignoreProcs     map[int]bool
 	potentials      map[int]*serviceInfo
@@ -290,7 +289,7 @@ func (c *Check) Interval() time.Duration {
 	return refreshInterval
 }
 
-func portsStr(ports []*Port) string {
+func portsStr(ports []*model.Port) string {
 	out := make([]string, len(ports))
 	for i, v := range ports {
 		val := fmt.Sprintf("%s:%d", v.Proto, v.Port)
@@ -309,14 +308,3 @@ type timer interface {
 type realTime struct{}
 
 func (realTime) Now() time.Time { return time.Now() }
-
-type systemProbeClient interface {
-	GetServiceDiscoveryOpenPorts(ctx context.Context) (*OpenPortsResponse, error)
-	GetServiceDiscoveryProc(ctx context.Context, pid int) (*GetProcResponse, error)
-}
-
-func getSysProbeClient() (systemProbeClient, error) {
-	return processnet.GetRemoteSystemProbeUtil(
-		ddconfig.SystemProbe.GetString("system_probe_config.sysprobe_socket"),
-	)
-}

@@ -15,6 +15,9 @@ import (
 
 	"github.com/prometheus/procfs"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
+	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	processnet "github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -105,7 +108,7 @@ func (li *linuxImpl) DiscoverServices() (*discoveredServices, error) {
 		}
 	}
 
-	portsByPID := map[int][]*Port{}
+	portsByPID := map[int][]*model.Port{}
 	for _, p := range ports.Ports {
 		if p.PID == 0 {
 			log.Debugf("port:%s:%d | could not find port pid, skipping (insufficient permissions?)", p.Proto, p.Port)
@@ -200,7 +203,7 @@ func (li *linuxImpl) aliveProcs() (map[int]proc, error) {
 	return procMap, nil
 }
 
-func (li *linuxImpl) getServiceInfo(p proc, sysProbe systemProbeClient, openPorts map[int][]*Port) (*serviceInfo, error) {
+func (li *linuxImpl) getServiceInfo(p proc, sysProbe systemProbeClient, openPorts map[int][]*model.Port) (*serviceInfo, error) {
 	cmdline, err := p.CmdLine()
 	if err != nil {
 		return nil, errWithCode{
@@ -303,4 +306,15 @@ func (w wProcFS) AllProcs() ([]proc, error) {
 		res = append(res, wProc{p})
 	}
 	return res, nil
+}
+
+type systemProbeClient interface {
+	GetServiceDiscoveryOpenPorts(ctx context.Context) (*model.OpenPortsResponse, error)
+	GetServiceDiscoveryProc(ctx context.Context, pid int) (*model.GetProcResponse, error)
+}
+
+func getSysProbeClient() (systemProbeClient, error) {
+	return processnet.GetRemoteSystemProbeUtil(
+		ddconfig.SystemProbe.GetString("system_probe_config.sysprobe_socket"),
+	)
 }
