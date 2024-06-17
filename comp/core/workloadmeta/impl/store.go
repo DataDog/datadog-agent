@@ -319,28 +319,6 @@ func (w *workloadmeta) GetKubernetesPodForContainer(containerID string) (*wmdef.
 	return pod.cached.(*wmdef.KubernetesPod), nil
 }
 
-// ListKubernetesNodes implements Store#ListKubernetesNodes
-func (w *workloadmeta) ListKubernetesNodes() []*wmdef.KubernetesNode {
-	entities := w.listEntitiesByKind(wmdef.KindKubernetesNode)
-
-	nodes := make([]*wmdef.KubernetesNode, 0, len(entities))
-	for i := range entities {
-		nodes = append(nodes, entities[i].(*wmdef.KubernetesNode))
-	}
-
-	return nodes
-}
-
-// GetKubernetesNode implements Store#GetKubernetesNode
-func (w *workloadmeta) GetKubernetesNode(id string) (*wmdef.KubernetesNode, error) {
-	entity, err := w.getEntityByKind(wmdef.KindKubernetesNode, id)
-	if err != nil {
-		return nil, err
-	}
-
-	return entity.(*wmdef.KubernetesNode), nil
-}
-
 // GetKubernetesDeployment implements Store#GetKubernetesDeployment
 func (w *workloadmeta) GetKubernetesDeployment(id string) (*wmdef.KubernetesDeployment, error) {
 	entity, err := w.getEntityByKind(wmdef.KindKubernetesDeployment, id)
@@ -349,16 +327,6 @@ func (w *workloadmeta) GetKubernetesDeployment(id string) (*wmdef.KubernetesDepl
 	}
 
 	return entity.(*wmdef.KubernetesDeployment), nil
-}
-
-// GetKubernetesNamespace implements Store#GetKubernetesNamespace
-func (w *workloadmeta) GetKubernetesNamespace(id string) (*wmdef.KubernetesNamespace, error) {
-	entity, err := w.getEntityByKind(wmdef.KindKubernetesNamespace, id)
-	if err != nil {
-		return nil, err
-	}
-
-	return entity.(*wmdef.KubernetesNamespace), nil
 }
 
 // ListECSTasks implements Store#ListECSTasks
@@ -415,6 +383,22 @@ func (w *workloadmeta) GetKubernetesMetadata(id string) (*wmdef.KubernetesMetada
 	}
 
 	return entity.(*wmdef.KubernetesMetadata), nil
+}
+
+// ListKubernetesMetadata implements Store#ListKubernetesMetadata.
+func (w *workloadmeta) ListKubernetesMetadata(filterFunc wmdef.EntityFilterFunc[*wmdef.KubernetesMetadata]) []*wmdef.KubernetesMetadata {
+	entities := w.listEntitiesByKind(wmdef.KindKubernetesMetadata)
+
+	var metadata []*wmdef.KubernetesMetadata
+	for _, entity := range entities {
+		kubeMetadata := entity.(*wmdef.KubernetesMetadata)
+
+		if filterFunc == nil || filterFunc(kubeMetadata) {
+			metadata = append(metadata, kubeMetadata)
+		}
+	}
+
+	return metadata
 }
 
 // Notify implements Store#Notify

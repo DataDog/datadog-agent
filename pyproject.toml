@@ -35,11 +35,10 @@ select = [
     "W",
 ]
 ignore = [
-    # - style options: W291,E501,E741
+    # - style options: E501,E741
     # - Unnecessary dict call: C408
     # - complex-structure : C901
     # - raise-without-from-inside-except: B904
-    "W291",
     "E501",
     "E741",
     "C408",
