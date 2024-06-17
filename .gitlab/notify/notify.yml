@@ -91,7 +91,7 @@ notify_github:
     - rm "$messagefile"
 
 .failure_summary_job:
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  extends: .slack-notifier-base
   stage: notify
   dependencies: []
   tags: ["arch:amd64"]
