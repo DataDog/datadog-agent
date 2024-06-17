@@ -107,8 +107,8 @@ notify_github:
 notify_failure_summary_on_pipeline:
   extends: .failure_summary_job
   stage: setup
-  rules:
-    - !reference [.on_main]
+  # rules:
+  #   - !reference [.on_main]
   script:
     - !reference [.failure_summary_setup]
     - inv -e notify.failure-summary-upload-pipeline-data
