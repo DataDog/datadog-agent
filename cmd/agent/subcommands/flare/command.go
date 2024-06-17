@@ -94,7 +94,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Long:  ``,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cliParams.args = args
-			config := config.NewAgentParams(globalParams.ConfFilePath,
+			config := coreconfig.NewAgentParams(globalParams.ConfFilePath,
 				config.WithSecurityAgentConfigFilePaths([]string{
 					path.Join(commonpath.DefaultConfPath, "security-agent.yaml"),
 				}),
