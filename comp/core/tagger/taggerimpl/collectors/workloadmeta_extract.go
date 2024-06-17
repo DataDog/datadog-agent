@@ -334,8 +334,8 @@ func (c *WorkloadMetaCollector) handleKubePod(ev workloadmeta.Event) []*types.Ta
 	pod := ev.Entity.(*workloadmeta.KubernetesPod)
 
 	tagList := taglist.NewTagList()
-	tagList.AddOrchestrator(kubernetes.PodTagName, pod.Name)
-	tagList.AddLow(kubernetes.NamespaceTagName, pod.Namespace)
+	tagList.AddOrchestrator(tags.KubePod, pod.Name)
+	tagList.AddLow(tags.KubeNamespace, pod.Namespace)
 	tagList.AddLow(tags.PodPhase, strings.ToLower(pod.Phase))
 	tagList.AddLow(tags.KubePriorityClass, pod.PriorityClass)
 	tagList.AddLow(tags.KubeQOS, pod.QOSClass)
@@ -385,15 +385,15 @@ func (c *WorkloadMetaCollector) handleKubePod(ev workloadmeta.Event) []*types.Ta
 
 	// Admission + Remote Config correlation tags
 	if rcID, found := pod.Annotations[kubernetes.RcIDAnnotKey]; found {
-		tagList.AddLow(kubernetes.RcIDTagName, rcID)
+		tagList.AddLow(tags.RemoteConfigID, rcID)
 	}
 	if rcRev, found := pod.Annotations[kubernetes.RcRevisionAnnotKey]; found {
-		tagList.AddLow(kubernetes.RcRevisionTagName, rcRev)
+		tagList.AddLow(tags.RemoteConfigRevision, rcRev)
 	}
 
 	for _, owner := range pod.Owners {
-		tagList.AddLow(kubernetes.OwnerRefKindTagName, strings.ToLower(owner.Kind))
-		tagList.AddOrchestrator(kubernetes.OwnerRefNameTagName, owner.Name)
+		tagList.AddLow(tags.KubeOwnerRefKind, strings.ToLower(owner.Kind))
+		tagList.AddOrchestrator(tags.KubeOwnerRefName, owner.Name)
 
 		c.extractTagsFromPodOwner(pod, owner, tagList)
 	}
@@ -575,40 +575,40 @@ func (c *WorkloadMetaCollector) extractTagsFromPodLabels(pod *workloadmeta.Kuber
 	}
 }
 
-func (c *WorkloadMetaCollector) extractTagsFromPodOwner(pod *workloadmeta.KubernetesPod, owner workloadmeta.KubernetesPodOwner, tags *taglist.TagList) {
+func (c *WorkloadMetaCollector) extractTagsFromPodOwner(pod *workloadmeta.KubernetesPod, owner workloadmeta.KubernetesPodOwner, tagList *taglist.TagList) {
 	switch owner.Kind {
 	case kubernetes.DeploymentKind:
-		tags.AddLow(kubernetes.DeploymentTagName, owner.Name)
+		tagList.AddLow(tags.KubeDeployment, owner.Name)
 
 	case kubernetes.DaemonSetKind:
-		tags.AddLow(kubernetes.DaemonSetTagName, owner.Name)
+		tagList.AddLow(tags.KubeDaemonSet, owner.Name)
 
 	case kubernetes.ReplicationControllerKind:
-		tags.AddLow(kubernetes.ReplicationControllerTagName, owner.Name)
+		tagList.AddLow(tags.KubeReplicationController, owner.Name)
 
 	case kubernetes.StatefulSetKind:
-		tags.AddLow(kubernetes.StatefulSetTagName, owner.Name)
+		tagList.AddLow(tags.KubeStatefulSet, owner.Name)
 		for _, pvc := range pod.PersistentVolumeClaimNames {
 			if pvc != "" {
-				tags.AddLow(kubernetes.PersistentVolumeClaimTagName, pvc)
+				tagList.AddLow(tags.KubePersistentVolumeClaim, pvc)
 			}
 		}
 
 	case kubernetes.JobKind:
 		cronjob, _ := kubernetes.ParseCronJobForJob(owner.Name)
 		if cronjob != "" {
-			tags.AddOrchestrator(kubernetes.JobTagName, owner.Name)
-			tags.AddLow(kubernetes.CronJobTagName, cronjob)
+			tagList.AddOrchestrator(tags.KubeJob, owner.Name)
+			tagList.AddLow(tags.KubeCronjob, cronjob)
 		} else {
-			tags.AddLow(kubernetes.JobTagName, owner.Name)
+			tagList.AddLow(tags.KubeJob, owner.Name)
 		}
 
 	case kubernetes.ReplicaSetKind:
 		deployment := kubernetes.ParseDeploymentForReplicaSet(owner.Name)
 		if len(deployment) > 0 {
-			tags.AddLow(kubernetes.DeploymentTagName, deployment)
+			tagList.AddLow(tags.KubeDeployment, deployment)
 		}
-		tags.AddLow(kubernetes.ReplicaSetTagName, owner.Name)
+		tagList.AddLow(tags.KubeReplicaSet, owner.Name)
 	}
 }
 

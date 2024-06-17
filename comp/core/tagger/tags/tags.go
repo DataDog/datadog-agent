@@ -48,8 +48,31 @@ const (
 	KubeQOS = "kube_qos"
 	// KubeContainerName is the tag for the Kubernetes container name
 	KubeContainerName = "kube_container_name"
-	// KubeService is the tag for the Kubernetes service name
+	// KubeOwnerRefKind is the tag for the Kubernetes owner reference kind
+	KubeOwnerRefKind = "kube_ownerref_kind"
+
+	// KubePod is the tag for the pod name
+	KubePod = "pod_name"
+	// KubeDeployment is the tag for the deployment name
+	KubeDeployment = "kube_deployment"
+	// KubeReplicaSet is the tag for the replica set name
+	KubeReplicaSet = "kube_replica_set"
+	// KubeReplicationController is the tag for the replication controller name
+	KubeReplicationController = "kube_replication_controller"
+	// KubeStatefulSet is the tag for the stateful set name
+	KubeStatefulSet = "kube_stateful_set"
+	// KubeDaemonSet is the tag for the daemon set name
+	KubeDaemonSet = "kube_daemon_set"
+	// KubeJob is the tag for the job name
+	KubeJob = "kube_job"
+	// KubeCronjob is the tag for the cronjob name
+	KubeCronjob = "kube_cronjob"
+	// KubeService is the tag for the service name
 	KubeService = "kube_service"
+	// KubeNamespace is the tag for the namespace name
+	KubeNamespace = "kube_namespace"
+	// KubePersistentVolumeClaim is the tag for the persistent volume name
+	KubePersistentVolumeClaim = "persistentvolumeclaim"
 
 	// KubeAppName is the tag for the "app.kubernetes.io/name" Kubernetes label
 	KubeAppName = "kube_app_name"
@@ -121,8 +144,15 @@ const (
 	// GitRepository is the tag for the Git repository URL
 	GitRepository = "git.repository_url"
 
+	// RemoteConfigID is the tag for the remote config ID
+	RemoteConfigID = "dd_remote_config_id"
+	// RemoteConfigRevision is the tag for the remote config revision
+	RemoteConfigRevision = "dd_remote_config_rev"
+
 	// ORCHESTRATOR CARDINALITY
 
+	// KubeOwnerRefName is the tag for the Kubernetes owner reference name
+	KubeOwnerRefName = "kube_ownerref_name"
 	// OpenshiftDeployment is the tag for the OpenShift deployment name
 	OpenshiftDeployment = "oshift_deployment"
 	// TaskARN is the tag for the task ARN (Amazon Resource Name)

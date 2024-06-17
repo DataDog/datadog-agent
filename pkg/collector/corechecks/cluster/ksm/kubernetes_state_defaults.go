@@ -7,7 +7,10 @@
 
 package ksm
 
-import "github.com/DataDog/datadog-agent/pkg/util/kubernetes"
+import (
+	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
+)
 
 // ksmMetricPrefix defines the KSM metrics namespace
 const ksmMetricPrefix = "kubernetes_state."
@@ -241,7 +244,7 @@ func getLabelToMatchForKind(kind string) []string {
 
 func defaultAnnotationsAsTags() map[string]map[string]string {
 	return map[string]map[string]string{
-		"pod":        {kubernetes.RcIDAnnotKey: kubernetes.RcIDTagName, kubernetes.RcRevisionAnnotKey: kubernetes.RcRevisionTagName},
-		"deployment": {kubernetes.RcIDAnnotKey: kubernetes.RcIDTagName, kubernetes.RcRevisionAnnotKey: kubernetes.RcRevisionTagName},
+		"pod":        {kubernetes.RcIDAnnotKey: tags.RemoteConfigID, kubernetes.RcRevisionAnnotKey: tags.RemoteConfigRevision},
+		"deployment": {kubernetes.RcIDAnnotKey: tags.RemoteConfigID, kubernetes.RcRevisionAnnotKey: tags.RemoteConfigRevision},
 	}
 }
