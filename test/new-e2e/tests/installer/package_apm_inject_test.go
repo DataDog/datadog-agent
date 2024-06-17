@@ -12,7 +12,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	e2eos "github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/stretchr/testify/assert"
 )
@@ -213,8 +212,6 @@ func (s *packageApmInjectSuite) TestUpgrade_InjectorOCI_To_InjectorDeb() {
 }
 
 func (s *packageApmInjectSuite) TestVersionBump() {
-	flake.Mark(s.T()) // TODO(baptiste): Fix this, it flakes on debian_12
-
 	s.host.InstallDocker()
 	s.RunInstallScript(
 		"DD_APM_INSTRUMENTATION_ENABLED=all",
@@ -296,6 +293,28 @@ func (s *packageApmInjectSuite) TestInstrument() {
 	s.assertLDPreloadInstrumented(injectOCIPath)
 	s.assertSocketPath("/var/run/datadog-installer/apm.socket")
 	s.assertDockerdInstrumented(injectOCIPath)
+}
+
+func (s *packageApmInjectSuite) TestPackagePinning() {
+	// Deb install using today's defaults
+	err := s.RunInstallScriptWithError(
+		"DD_APM_INSTRUMENTATION_ENABLED=all",
+		"DD_APM_INSTRUMENTATION_LIBRARIES=python:2.8.2-dev,dotnet",
+		envForceInstall("datadog-apm-inject"),
+		envForceInstall("datadog-apm-library-python"),
+		envForceInstall("datadog-apm-library-dotnet"),
+		envForceInstall("datadog-agent"),
+	)
+	defer s.Purge()
+	defer s.purgeInjectorDebInstall()
+	assert.NoError(s.T(), err)
+
+	s.assertLDPreloadInstrumented(injectOCIPath)
+	s.assertSocketPath("/var/run/datadog-installer/apm.socket")
+	s.assertDockerdInstrumented(injectOCIPath)
+
+	s.host.AssertPackageInstalledByInstaller("datadog-apm-library-python", "datadog-apm-library-dotnet")
+	s.host.AssertPackageVersion("datadog-apm-library-python", "2.8.2-dev")
 }
 
 func (s *packageApmInjectSuite) TestUninstrument() {

@@ -36,7 +36,7 @@ func TestStoreGenerators(t *testing.T) {
 				"language_detection.reporting.enabled":  false,
 				"language_detection.enabled":            false,
 			},
-			expectedStoresGenerator: []storeGenerator{newNodeStore},
+			expectedStoresGenerator: []storeGenerator{},
 		},
 		{
 			name: "All configurations disabled",
@@ -45,7 +45,7 @@ func TestStoreGenerators(t *testing.T) {
 				"language_detection.reporting.enabled":  false,
 				"language_detection.enabled":            true,
 			},
-			expectedStoresGenerator: []storeGenerator{newNodeStore},
+			expectedStoresGenerator: []storeGenerator{},
 		},
 		{
 			name: "Kubernetes tags enabled",
@@ -54,7 +54,7 @@ func TestStoreGenerators(t *testing.T) {
 				"language_detection.reporting.enabled":  false,
 				"language_detection.enabled":            true,
 			},
-			expectedStoresGenerator: []storeGenerator{newNodeStore, newPodStore},
+			expectedStoresGenerator: []storeGenerator{newPodStore},
 		},
 		{
 			name: "Language detection enabled",
@@ -63,7 +63,7 @@ func TestStoreGenerators(t *testing.T) {
 				"language_detection.reporting.enabled":  true,
 				"language_detection.enabled":            true,
 			},
-			expectedStoresGenerator: []storeGenerator{newNodeStore, newDeploymentStore},
+			expectedStoresGenerator: []storeGenerator{newDeploymentStore},
 		},
 		{
 			name: "Language detection enabled",
@@ -72,21 +72,16 @@ func TestStoreGenerators(t *testing.T) {
 				"language_detection.reporting.enabled":  true,
 				"language_detection.enabled":            false,
 			},
-			expectedStoresGenerator: []storeGenerator{newNodeStore},
+			expectedStoresGenerator: []storeGenerator{},
 		},
 		{
 			name: "All configurations enabled",
 			cfg: map[string]interface{}{
-				"cluster_agent.collect_kubernetes_tags":            true,
-				"language_detection.reporting.enabled":             true,
-				"language_detection.enabled":                       true,
-				"cluster_agent.kube_metadata_collection.enabled":   true,
-				"cluster_agent.kube_metadata_collection.resources": "namespaces",
-				"kubernetes_namespace_labels_as_tags": map[string]string{
-					"env": "env",
-				},
+				"cluster_agent.collect_kubernetes_tags": true,
+				"language_detection.reporting.enabled":  true,
+				"language_detection.enabled":            true,
 			},
-			expectedStoresGenerator: []storeGenerator{newNodeStore, newPodStore, newDeploymentStore},
+			expectedStoresGenerator: []storeGenerator{newPodStore, newDeploymentStore},
 		},
 	}
 
@@ -369,7 +364,26 @@ func TestResourcesWithMetadataCollectionEnabled(t *testing.T) {
 				"cluster_agent.kube_metadata_collection.enabled":   true,
 				"cluster_agent.kube_metadata_collection.resources": "",
 			},
-			expectedResources: []string{},
+			expectedResources: []string{"nodes"},
+		},
+		{
+			name: "deployments needed for language detection should be excluded from metadata collection",
+			cfg: map[string]interface{}{
+				"language_detection.enabled":                       true,
+				"language_detection.reporting.enabled":             true,
+				"cluster_agent.kube_metadata_collection.enabled":   true,
+				"cluster_agent.kube_metadata_collection.resources": "daemonsets deployments",
+			},
+			expectedResources: []string{"daemonsets", "nodes"},
+		},
+		{
+			name: "pods needed for autoscaling should be excluded from metadata collection",
+			cfg: map[string]interface{}{
+				"autoscaling.workload.enabled":                     true,
+				"cluster_agent.kube_metadata_collection.enabled":   true,
+				"cluster_agent.kube_metadata_collection.resources": "daemonsets pods",
+			},
+			expectedResources: []string{"daemonsets", "nodes"},
 		},
 		{
 			name: "resources explicitly requested",
@@ -377,7 +391,7 @@ func TestResourcesWithMetadataCollectionEnabled(t *testing.T) {
 				"cluster_agent.kube_metadata_collection.enabled":   true,
 				"cluster_agent.kube_metadata_collection.resources": "deployments statefulsets",
 			},
-			expectedResources: []string{"deployments", "statefulsets"},
+			expectedResources: []string{"nodes", "deployments", "statefulsets"},
 		},
 		{
 			name: "namespaces needed for namespace labels as tags",
@@ -386,7 +400,7 @@ func TestResourcesWithMetadataCollectionEnabled(t *testing.T) {
 					"label1": "tag1",
 				},
 			},
-			expectedResources: []string{"namespaces"},
+			expectedResources: []string{"nodes", "namespaces"},
 		},
 		{
 			name: "namespaces needed for namespace annotations as tags",
@@ -395,7 +409,7 @@ func TestResourcesWithMetadataCollectionEnabled(t *testing.T) {
 					"annotation1": "tag1",
 				},
 			},
-			expectedResources: []string{"namespaces"},
+			expectedResources: []string{"nodes", "namespaces"},
 		},
 		{
 			name: "namespaces needed for namespace labels and annotations as tags",
@@ -407,7 +421,7 @@ func TestResourcesWithMetadataCollectionEnabled(t *testing.T) {
 					"annotation1": "tag2",
 				},
 			},
-			expectedResources: []string{"namespaces"},
+			expectedResources: []string{"nodes", "namespaces"},
 		},
 		{
 			name: "resources explicitly requested and also needed for namespace labels as tags",
@@ -418,7 +432,7 @@ func TestResourcesWithMetadataCollectionEnabled(t *testing.T) {
 					"label1": "tag1",
 				},
 			},
-			expectedResources: []string{"namespaces", "deployments"}, // namespaces are not duplicated
+			expectedResources: []string{"nodes", "namespaces", "deployments"}, // namespaces are not duplicated
 		},
 	}
 

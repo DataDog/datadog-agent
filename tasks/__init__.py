@@ -51,6 +51,7 @@ from tasks import (
     vscode,
 )
 from tasks.build_tags import audit_tag_impact, print_default_build_tags
+from tasks.codecov import codecov
 from tasks.components import lint_components, lint_fxutil_oneshot_test
 from tasks.custom_task.custom_task import custom__call__
 from tasks.fuzz import fuzz
@@ -73,7 +74,6 @@ from tasks.go import (
 from tasks.gotest import (
     check_otel_build,
     check_otel_module_versions,
-    codecov,
     e2e_tests,
     get_impacted_packages,
     get_modified_packages,
