@@ -22,8 +22,8 @@ import (
 
 // Component is the agent component type.
 type Component interface {
-	// SetStatsdClient sets the stats client of the underlying trace agent.
-	SetStatsdClient(mclient statsd.ClientInterface)
+	// SetStatsdClientForOTel sets the stats client used by the OTLP receiver in the trace agent.
+	SetStatsdClientForOTel(mclient statsd.ClientInterface)
 	// SetOTelAttributeTranslator sets the OTel attributes translator of the underlying trace agent.
 	SetOTelAttributeTranslator(attrstrans *attributes.Translator)
 	// ReceiveOTLPSpans forwards the OTLP spans to the underlying trace agent to process.

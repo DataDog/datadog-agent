@@ -59,7 +59,7 @@ func (f *factory) setupTraceAgentCmp(set component.TelemetrySettings) error {
 		}
 		mclient := metricsclient.InitializeMetricClient(set.MeterProvider, metricsclient.ExporterSourceTag)
 		f.traceagentcmp.SetOTelAttributeTranslator(attributesTranslator)
-		f.traceagentcmp.SetStatsdClient(mclient)
+		f.traceagentcmp.SetStatsdClientForOTel(mclient)
 	})
 	return f.attributesErr
 }
