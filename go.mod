@@ -25,6 +25,7 @@ replace (
 
 replace (
 	github.com/DataDog/datadog-agent/cmd/agent/common/path => ./cmd/agent/common/path/
+	github.com/DataDog/datadog-agent/comp/api/api/def => ./comp/api/api/def/
 	github.com/DataDog/datadog-agent/comp/core/config => ./comp/core/config/
 	github.com/DataDog/datadog-agent/comp/core/flare/builder => ./comp/core/flare/builder
 	github.com/DataDog/datadog-agent/comp/core/flare/types => ./comp/core/flare/types
@@ -280,7 +281,7 @@ require (
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.52.0 // indirect
 	go.uber.org/atomic v1.11.0
 	go.uber.org/automaxprocs v1.5.3
-	go.uber.org/dig v1.17.0
+	go.uber.org/dig v1.17.1
 	go.uber.org/fx v1.18.2
 	go.uber.org/multierr v1.11.0
 	go.uber.org/zap v1.27.0
@@ -606,6 +607,7 @@ require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
 	github.com/DataDog/agent-payload/v5 v5.0.122
 	github.com/DataDog/datadog-agent/cmd/agent/common/path v0.55.0-rc.3
+	github.com/DataDog/datadog-agent/comp/api/api/def v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/comp/core/config v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface v0.55.0-rc.3
