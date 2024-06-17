@@ -9,6 +9,7 @@ include:
   - .gitlab/choco_build/choco_build.yml
   - .gitlab/choco_deploy/choco_deploy.yml
   - .gitlab/common/shared.yml
+  - .gitlab/common/skip_ci_check.yml
   - .gitlab/common/pr_commenter.yml
   - .gitlab/common/test_infra_version.yml
   - .gitlab/container_build/include.yml
@@ -40,7 +41,6 @@ include:
   - .gitlab/pkg_metrics/pkg_metrics.yml
   - .gitlab/post_rc_build/post_rc_tasks.yml
   - .gitlab/setup/setup.yml
-  - .gitlab/software_composition_analysis/software_composition_analysis.yml
   - .gitlab/source_test/include.yml
   - .gitlab/trigger_release/trigger_release.yml
 
@@ -164,15 +164,15 @@ variables:
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to _test_only
   DATADOG_AGENT_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BUILDIMAGES: v35901572-a9447181
+  DATADOG_AGENT_BUILDIMAGES: v36675054-482032aa
   DATADOG_AGENT_WINBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_WINBUILDIMAGES: v35901572-a9447181
+  DATADOG_AGENT_WINBUILDIMAGES: v36675054-482032aa
   DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_ARMBUILDIMAGES: v35901572-a9447181
+  DATADOG_AGENT_ARMBUILDIMAGES: v36675054-482032aa
   DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v35901572-a9447181
+  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v36675054-482032aa
   DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v35901572-a9447181
+  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v36675054-482032aa
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
   DEB_GPG_KEY_ID: c0962c7d
@@ -275,7 +275,7 @@ variables:
   if: $DEPLOY_AGENT == "true" || $DDR_WORKFLOW_ID != null
 
 .if_not_deploy: &if_not_deploy
-  if: $DEPLOY_AGENT != "true"
+  if: $DEPLOY_AGENT != "true" && $DDR_WORKFLOW_ID == null
 
 .if_tagged_commit: &if_tagged_commit
   if: $CI_COMMIT_TAG != null
@@ -302,10 +302,10 @@ variables:
 # RUN_ALL_BUILDS has no effect on main/deploy pipelines: they always run all builds (as some jobs
 # on main and deploy pipelines depend on jobs that are only run if we run all builds).
 .if_run_all_builds: &if_run_all_builds
-  if: $CI_COMMIT_BRANCH == "main" || $DEPLOY_AGENT == "true" || $RUN_ALL_BUILDS == "true"
+  if: $CI_COMMIT_BRANCH == "main" || $DEPLOY_AGENT == "true" || $RUN_ALL_BUILDS == "true" || $DDR_WORKFLOW_ID != null
 
 .if_not_run_all_builds: &if_not_run_all_builds
-  if: $CI_COMMIT_BRANCH != "main" && $DEPLOY_AGENT != "true" && $RUN_ALL_BUILDS != "true"
+  if: $CI_COMMIT_BRANCH != "main" && $DEPLOY_AGENT != "true" && $RUN_ALL_BUILDS != "true" && $DDR_WORKFLOW_ID == null
 
 # Rule to trigger test setup, run, and cleanup.
 # By default:
@@ -314,7 +314,7 @@ variables:
 # RUN_E2E_TESTS can be set to on to force all the installer tests to be run on a branch pipeline.
 # RUN_E2E_TESTS can be set to false to force installer tests to not run on main/deploy pipelines.
 .if_installer_tests: &if_installer_tests
-  if: ($CI_COMMIT_BRANCH == "main"  || $DEPLOY_AGENT == "true" || $RUN_E2E_TESTS == "on") && $RUN_E2E_TESTS != "off"
+  if: ($CI_COMMIT_BRANCH == "main"  || $DEPLOY_AGENT == "true" || $RUN_E2E_TESTS == "on" || $DDR_WORKFLOW_ID != null) && $RUN_E2E_TESTS != "off"
 
 .if_testing_cleanup: &if_testing_cleanup
   if: $TESTING_CLEANUP == "true"
@@ -343,7 +343,7 @@ variables:
   if: $RUN_UNIT_TESTS == "on"
 
 .if_deploy_on_beta_repo_branch: &if_deploy_on_beta_repo_branch
-  if: $DEPLOY_AGENT == "true" && $BUCKET_BRANCH == "beta"
+  if: ($DEPLOY_AGENT == "true" || $DDR_WORKFLOW_ID != null) && $BUCKET_BRANCH == "beta"
 
 # Rule to trigger jobs only when a tag matches a given pattern (for RCs)
 # on the beta branch.
@@ -351,7 +351,7 @@ variables:
 # need to check again if the pipeline is a deploy pipeline, but it doesn't hurt
 # to explicitly add it.
 .if_deploy_on_rc_tag_on_beta_repo_branch: &if_deploy_on_rc_tag_on_beta_repo_branch
-  if: $DEPLOY_AGENT == "true" && $BUCKET_BRANCH == "beta" && $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$/
+  if: ($DEPLOY_AGENT == "true" || $DDR_WORKFLOW_ID != null) && $BUCKET_BRANCH == "beta" && $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$/
 
 .if_scheduled_main: &if_scheduled_main
   if: $CI_PIPELINE_SOURCE == "schedule" && $CI_COMMIT_BRANCH == "main"
@@ -408,6 +408,10 @@ workflow:
 .except_mergequeue:
   - <<: *if_mergequeue
     when: never
+
+.on_mergequeue:
+  - <<: *if_mergequeue
+    when: on_success
 
 .manual:
   - !reference [.except_mergequeue]
@@ -590,7 +594,7 @@ workflow:
   - when: on_success
 
 .except_no_tests_no_deploy:
-  - if: $DEPLOY_AGENT == "false" && $RUN_E2E_TESTS == "off"
+  - if: $DEPLOY_AGENT == "false" && $DDR_WORKFLOW_ID == null && $RUN_E2E_TESTS == "off"
     when: never
 
 .on_main_or_release_branch:
@@ -930,15 +934,7 @@ workflow:
     when: on_success
 
 .on_installer_or_e2e_changes:
-  - <<: *if_disable_e2e_tests
-    when: never
-  - !reference [.except_mergequeue]
-  - <<: *if_main_branch
-    when: on_success
-  - <<: *if_release_branch
-    when: on_success
-  - if: $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$/
-    when: on_success
+  - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
         - .gitlab/**/*
@@ -947,7 +943,6 @@ workflow:
         - cmd/installer/**/*
         - test/new-e2e/tests/installer/**/*
         - tasks/installer.py
-        - test/new-e2e/go.mod
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
     when: on_success
 

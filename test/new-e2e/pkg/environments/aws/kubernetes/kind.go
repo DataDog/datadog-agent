@@ -7,6 +7,7 @@
 package awskubernetes
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
@@ -31,6 +32,14 @@ const (
 	defaultVMName     = "kind"
 )
 
+func kindDiagnoseFunc(ctx context.Context, stackName string) (string, error) {
+	dumpResult, err := dumpKindClusterState(ctx, stackName)
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("Dumping Kind cluster state:\n%s", dumpResult), nil
+}
+
 // KindProvisioner creates a new provisioner
 func KindProvisioner(opts ...ProvisionerOption) e2e.TypedProvisioner[environments.Kubernetes] {
 	// We ALWAYS need to make a deep copy of `params`, as the provisioner can be called multiple times.
@@ -46,6 +55,8 @@ func KindProvisioner(opts ...ProvisionerOption) e2e.TypedProvisioner[environment
 
 		return KindRunFunc(ctx, env, params)
 	}, params.extraConfigParams)
+
+	provisioner.SetDiagnoseFunc(kindDiagnoseFunc)
 
 	return provisioner
 }

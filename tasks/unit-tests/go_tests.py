@@ -1,5 +1,4 @@
 import unittest
-from unittest.mock import MagicMock, patch
 
 from tasks.gotest import find_impacted_packages, should_run_all_tests
 
@@ -47,14 +46,12 @@ class TestUtils(unittest.TestCase):
         expected_impacted_packages = {"pkg3"}
         self.assertEqual(find_impacted_packages(dependencies, changed_files), expected_impacted_packages)
 
-    @patch("builtins.print", new=MagicMock())
     def test_should_run_all_tests_1(self):
         modified_files = ["pkg/foo.go", "pkg/bar.go"]
         trigger_files = ["pkg/foo.go"]
 
         self.assertTrue(should_run_all_tests(modified_files, trigger_files))
 
-    @patch("builtins.print", new=MagicMock())
     def test_should_run_all_tests_2(self):
         modified_files = ["pkg/toto/bar.go"]
         trigger_files = ["pkg/*"]

@@ -65,12 +65,10 @@ func NewContainerTagger(wmeta workloadmeta.Component) (*ContainerTagger, error) 
 // Cancel the context to stop the container tagger.
 func (c *ContainerTagger) Start(ctx context.Context) {
 	go func() {
-		filterParams := workloadmeta.FilterParams{
-			Kinds:     []workloadmeta.Kind{workloadmeta.KindContainer},
-			Source:    workloadmeta.SourceClusterOrchestrator,
-			EventType: workloadmeta.EventTypeAll,
-		}
-		filter := workloadmeta.NewFilter(&filterParams)
+		filter := workloadmeta.NewFilterBuilder().
+			SetSource(workloadmeta.SourceClusterOrchestrator).
+			AddKind(workloadmeta.KindContainer).
+			Build()
 
 		ch := c.store.Subscribe(componentName, workloadmeta.NormalPriority, filter)
 		defer c.store.Unsubscribe(ch)

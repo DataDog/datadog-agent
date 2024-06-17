@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -102,6 +103,18 @@ func (i *installerImpl) States() (map[string]repository.State, error) {
 
 // IsInstalled checks if a package is installed.
 func (i *installerImpl) IsInstalled(_ context.Context, pkg string) (bool, error) {
+	// The install script passes the package name as either <package>-<version> or <package>=<version>
+	// depending on the platform so we strip the version prefix by looking for the "real" package name
+	hasMatch := false
+	for _, p := range PackagesList {
+		if strings.HasPrefix(pkg, p.Name) {
+			if hasMatch {
+				return false, fmt.Errorf("the package %v matches multiple known packages", pkg)
+			}
+			pkg = p.Name
+			hasMatch = true
+		}
+	}
 	hasPackage, err := i.db.HasPackage(pkg)
 	if err != nil {
 		return false, fmt.Errorf("could not list packages: %w", err)
@@ -348,7 +361,7 @@ func (i *installerImpl) stopExperiment(ctx context.Context, pkg string) error {
 	switch pkg {
 	case packageDatadogAgent:
 		return service.StopAgentExperiment(ctx)
-	case packageAPMInjector:
+	case packageDatadogInstaller:
 		return service.StopInstallerExperiment(ctx)
 	default:
 		return nil

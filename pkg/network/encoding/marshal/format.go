@@ -109,6 +109,15 @@ func FormatConnection(builder *model.ConnectionBuilder, conn network.ConnectionS
 	builder.SetRouteIdx(formatRouteIdx(conn.Via, routes))
 	dnsFormatter.FormatConnectionDNS(conn, builder)
 
+	if len(conn.TCPFailures) > 0 {
+		builder.AddTcpFailuresByErrCode(func(w *model.Connection_TcpFailuresByErrCodeEntryBuilder) {
+			for k, v := range conn.TCPFailures {
+				w.SetKey(k)
+				w.SetValue(v)
+			}
+		})
+	}
+
 	httpStaticTags, httpDynamicTags := httpEncoder.GetHTTPAggregationsAndTags(conn, builder)
 	http2StaticTags, http2DynamicTags := http2Encoder.WriteHTTP2AggregationsAndTags(conn, builder)
 
