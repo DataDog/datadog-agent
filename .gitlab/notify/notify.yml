@@ -35,6 +35,8 @@ notify:
       if [ "$CI_PIPELINE_SOURCE" != "pipeline" ]; then
         if [ "$DEPLOY_AGENT" = "true" ]; then
           invoke -e notify.send-message --notification-type "deploy"
+        elsif [ "$CI_PIPELINE_SOURCE" != "push" ]; then
+          invoke -e notify.send-message --notification-type "trigger"
         else
           invoke -e notify.send-message --notification-type "merge"
         fi
