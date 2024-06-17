@@ -370,6 +370,7 @@ new-e2e-ndm-snmp:
 new-e2e-flakes-finder:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   stage: .pre
+  tags: ["arch:amd64"]
   script:
     - inv -e testwasher.generate-flake-finder-pipeline
   artifacts:
