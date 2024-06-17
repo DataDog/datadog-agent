@@ -13,7 +13,6 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/DataDog/zstd"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
@@ -44,7 +43,12 @@ func (s MockSampler) GetTargetTPS() float64 {
 var mockSampler = MockSampler{TargetTPS: 5, Enabled: true}
 
 func TestTraceWriter(t *testing.T) {
-	testCases := []bool{false, true}
+	testCases := []struct {
+		useZstd bool
+	}{
+		{false},
+		{true},
+	}
 
 	for _, tc := range testCases {
 		srv := newTestServer()
@@ -57,11 +61,11 @@ func TestTraceWriter(t *testing.T) {
 			}},
 			TraceWriter: &config.WriterConfig{ConnectionLimit: 200, QueueSize: 40},
 		}
-		if tc {
-			cfg.Features = map[string]struct{}{"zstd-encoding": {}}
+		if !tc.useZstd {
+			cfg.Features = map[string]struct{}{"disable-zstd-encoding": {}}
 		}
 
-		t.Run(fmt.Sprintf("zstd_%t", tc), func(t *testing.T) {
+		t.Run(fmt.Sprintf("zstd_%t", tc.useZstd), func(t *testing.T) {
 			testSpans := []*SampledChunks{
 				randomSampledSpans(20, 8),
 				randomSampledSpans(10, 0),
@@ -80,7 +84,7 @@ func TestTraceWriter(t *testing.T) {
 			// One payload flushes due to overflowing the threshold, and the second one
 			// because of stop.
 			assert.Equal(t, 2, srv.Accepted())
-			payloadsContain(t, srv.Payloads(), testSpans, tc)
+			payloadsContain(t, srv.Payloads(), testSpans, tc.useZstd)
 		})
 	}
 }
@@ -131,7 +135,7 @@ func TestTraceWriterMultipleEndpointsConcurrent(t *testing.T) {
 
 	wg.Wait()
 	tw.Stop()
-	payloadsContain(t, srv.Payloads(), testSpans, false)
+	payloadsContain(t, srv.Payloads(), testSpans, true)
 }
 
 // useFlushThreshold sets n as the number of bytes to be used as the flush threshold
@@ -163,8 +167,8 @@ func payloadsContain(t *testing.T, payloads []*payload, sampledSpans []*SampledC
 		var err error
 		var reader io.ReadCloser
 
-		if shouldUseZstd {
-			reader = zstd.NewReader(p.body)
+		if shouldUseZstd && zstdAvailable {
+			reader = newZstdReader(p.body)
 			assert.NotNil(reader)
 		} else {
 			reader, err = gzip.NewReader(p.body)
@@ -227,7 +231,7 @@ func TestTraceWriterFlushSync(t *testing.T) {
 		tw.FlushSync()
 		// Now all trace payloads should be sent
 		assert.Equal(t, 1, srv.Accepted())
-		payloadsContain(t, srv.Payloads(), testSpans, false)
+		payloadsContain(t, srv.Payloads(), testSpans, true)
 	})
 }
 
@@ -296,7 +300,7 @@ func TestTraceWriterSyncStop(t *testing.T) {
 		tw.Stop()
 		// Now all trace payloads should be sent
 		assert.Equal(t, 1, srv.Accepted())
-		payloadsContain(t, srv.Payloads(), testSpans, false)
+		payloadsContain(t, srv.Payloads(), testSpans, true)
 	})
 }
 
@@ -342,7 +346,7 @@ func TestTraceWriterAgentPayload(t *testing.T) {
 	// helper function to parse the received payload and inspect the TPS that were filled by the writer
 	assertExpectedTps := func(t *testing.T, priorityTps float64, errorTps float64, rareEnabled bool) {
 		require.Len(t, srv.payloads, 1)
-		ap, err := deserializePayload(*srv.payloads[0])
+		ap, err := deserializePayload(*srv.payloads[0], true)
 		assert.Nil(t, err)
 		assert.Equal(t, priorityTps, ap.TargetTPS)
 		assert.Equal(t, errorTps, ap.ErrorTPS)
@@ -380,13 +384,21 @@ func TestTraceWriterAgentPayload(t *testing.T) {
 }
 
 // deserializePayload decompresses a payload and deserializes it into a pb.AgentPayload.
-func deserializePayload(p payload) (*pb.AgentPayload, error) {
-	gzipr, err := gzip.NewReader(p.body)
-	if err != nil {
-		return nil, err
+func deserializePayload(p payload, shouldUseZstd bool) (*pb.AgentPayload, error) {
+	var reader io.ReadCloser
+	var err error
+
+	if shouldUseZstd && zstdAvailable {
+		reader = newZstdReader(p.body)
+	} else {
+		reader, err = gzip.NewReader(p.body)
+		if err != nil {
+			return nil, err
+		}
 	}
-	defer gzipr.Close()
-	uncompressedBytes, err := io.ReadAll(gzipr)
+
+	defer reader.Close()
+	uncompressedBytes, err := io.ReadAll(reader)
 	if err != nil {
 		return nil, err
 	}

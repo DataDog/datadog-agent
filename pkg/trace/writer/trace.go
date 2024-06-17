@@ -22,7 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/timing"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
-	"github.com/DataDog/zstd"
 )
 
 // pathTraces is the target host API path for delivering traces.
@@ -118,7 +117,7 @@ func NewTraceWriter(
 		telemetryCollector: telemetryCollector,
 		statsd:             statsd,
 		timing:             timing,
-		useZstd:            cfg.HasFeature("zstd-encoding"),
+		useZstd:            !cfg.HasFeature("disable-zstd-encoding"),
 	}
 	climit := cfg.TraceWriter.ConnectionLimit
 	if climit == 0 {
@@ -289,7 +288,7 @@ func (w *TraceWriter) serializer() {
 			var p *payload
 			var writer io.WriteCloser
 
-			if w.useZstd {
+			if w.useZstd && zstdAvailable {
 				p = newPayload(map[string]string{
 					"Content-Type":     "application/x-protobuf",
 					"Content-Encoding": "zstd",
@@ -297,8 +296,7 @@ func (w *TraceWriter) serializer() {
 				})
 
 				p.body.Grow(len(b) / 2)
-				writer = zstd.NewWriterLevel(p.body, zstd.BestSpeed)
-
+				writer = newZstdWriter(p.body)
 			} else {
 				p = newPayload(map[string]string{
 					"Content-Type":     "application/x-protobuf",
