@@ -67,7 +67,7 @@ func TestStartStopUDPListener(t *testing.T) {
 	cfg["dogstatsd_port"] = port
 	cfg["dogstatsd_non_local_traffic"] = false
 
-	deps := fulfillDepsWithConfig(t, map[string]interface{}{})
+	deps := fulfillDepsWithConfig(t, cfg)
 	telemetryStore := NewTelemetryStore(nil, deps.Telemetry)
 	packetsTelemetryStore := packets.NewTelemetryStore(nil, deps.Telemetry)
 	s, err := NewUDPListener(nil, newPacketPoolManagerUDP(deps.Config, packetsTelemetryStore), deps.Config, nil, telemetryStore, packetsTelemetryStore)
@@ -103,7 +103,7 @@ func TestUDPNonLocal(t *testing.T) {
 	cfg := map[string]interface{}{}
 	cfg["dogstatsd_port"] = port
 	cfg["dogstatsd_non_local_traffic"] = true
-	deps := fulfillDepsWithConfig(t, map[string]interface{}{})
+	deps := fulfillDepsWithConfig(t, cfg)
 	telemetryStore := NewTelemetryStore(nil, deps.Telemetry)
 	packetsTelemetryStore := packets.NewTelemetryStore(nil, deps.Telemetry)
 	s, err := NewUDPListener(nil, newPacketPoolManagerUDP(deps.Config, packetsTelemetryStore), deps.Config, nil, telemetryStore, packetsTelemetryStore)
@@ -129,10 +129,12 @@ func TestUDPLocalOnly(t *testing.T) {
 	port, err := getAvailableUDPPort()
 	require.Nil(t, err)
 
+	fmt.Println("port: ", port)
+
 	cfg := map[string]interface{}{}
 	cfg["dogstatsd_port"] = port
 	cfg["dogstatsd_non_local_traffic"] = false
-	deps := fulfillDepsWithConfig(t, map[string]interface{}{})
+	deps := fulfillDepsWithConfig(t, cfg)
 	telemetryStore := NewTelemetryStore(nil, deps.Telemetry)
 	packetsTelemetryStore := packets.NewTelemetryStore(nil, deps.Telemetry)
 	s, err := NewUDPListener(nil, newPacketPoolManagerUDP(deps.Config, packetsTelemetryStore), deps.Config, nil, telemetryStore, packetsTelemetryStore)
@@ -165,10 +167,10 @@ func TestUDPReceive(t *testing.T) {
 	cfg["dogstatsd_port"] = port
 
 	packetChannel := make(chan packets.Packets)
-	deps := fulfillDepsWithConfig(t, map[string]interface{}{})
+	deps := fulfillDepsWithConfig(t, cfg)
 	telemetryStore := NewTelemetryStore(nil, deps.Telemetry)
 	packetsTelemetryStore := packets.NewTelemetryStore(nil, deps.Telemetry)
-	s, err := NewUDPListener(nil, newPacketPoolManagerUDP(deps.Config, packetsTelemetryStore), deps.Config, nil, telemetryStore, packetsTelemetryStore)
+	s, err := NewUDPListener(packetChannel, newPacketPoolManagerUDP(deps.Config, packetsTelemetryStore), deps.Config, nil, telemetryStore, packetsTelemetryStore)
 	require.NotNil(t, s)
 	assert.Nil(t, err)
 
@@ -208,7 +210,7 @@ func TestNewUDPListenerWhenBusyWithSoRcvBufSet(t *testing.T) {
 	cfg["dogstatsd_port"] = port
 	cfg["dogstatsd_non_local_traffic"] = false
 
-	deps := fulfillDepsWithConfig(t, map[string]interface{}{})
+	deps := fulfillDepsWithConfig(t, cfg)
 	telemetryStore := NewTelemetryStore(nil, deps.Telemetry)
 	packetsTelemetryStore := packets.NewTelemetryStore(nil, deps.Telemetry)
 	s, err := NewUDPListener(nil, newPacketPoolManagerUDP(deps.Config, packetsTelemetryStore), deps.Config, nil, telemetryStore, packetsTelemetryStore)
