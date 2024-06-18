@@ -73,11 +73,11 @@ def run(
     if targets:
         e2e_module.targets = targets
 
-    envVars = dict()
+    envVars = {}
     if profile:
         envVars["E2E_PROFILE"] = profile
 
-    parsedParams = dict()
+    parsedParams = {}
     for param in configparams:
         parts = param.split("=", 1)
         if len(parts) != 2:
@@ -148,7 +148,10 @@ def run(
                 params.append(f'-{args[param_key]}')
 
         command = f"{pre_command} -- inv -e new-e2e-tests.run {' '.join(params)}"
-        print(f"To run this test locally, use: `{command}`")
+        print(
+            f'To run this test locally, use: `{command}`. '
+            'You can also add `E2E_DEV_MODE="true"` to run in dev mode which will leave the environment up after the tests.'
+        )
 
     if not success:
         raise Exit(code=1)
