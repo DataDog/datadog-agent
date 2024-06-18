@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/testutil"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
 func TestGetV4TaskWithTags(t *testing.T) {
@@ -100,8 +101,9 @@ var expected = &Task{
 			StartedAt:     "2023-11-20T12:10:44.404563253Z",
 			Type:          "NORMAL",
 			Health: &HealthStatus{
-				Status: "HEALTHY",
-				Since:  "2023-11-20T12:11:16.383262018Z",
+				Status:   "HEALTHY",
+				Since:    "2023-11-20T12:11:16.383262018Z",
+				ExitCode: pointer.Ptr[int32](-1),
 			},
 			Volumes: []Volume{
 				{

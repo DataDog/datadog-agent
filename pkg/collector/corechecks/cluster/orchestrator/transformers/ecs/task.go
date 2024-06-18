@@ -140,7 +140,7 @@ func extractTimestamp(t time.Time) int64 {
 	return t.Unix()
 }
 
-func extractExitCode(exitCode *uint32) *model.ECSContainerExitCode {
+func extractExitCode(exitCode *int32) *model.ECSContainerExitCode {
 	if exitCode == nil {
 		return nil
 	}

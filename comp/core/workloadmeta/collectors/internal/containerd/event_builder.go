@@ -99,7 +99,8 @@ func createDeletionEvent(containerID string, exitInfo *exitInfo) workloadmeta.Co
 	}
 
 	if exitInfo != nil {
-		container.State.ExitCode = exitInfo.exitCode
+		exitcode := int32(*exitInfo.exitCode)
+		container.State.ExitCode = &exitcode
 		container.State.FinishedAt = exitInfo.exitTS
 	}
 
