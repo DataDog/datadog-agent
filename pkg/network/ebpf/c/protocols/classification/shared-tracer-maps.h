@@ -44,7 +44,7 @@ static __always_inline protocol_stack_t* get_protocol_stack(conn_tuple_t *skb_tu
     // Since connection_protocol is shared between maps running in different contexts, it gets effected by the
     // above scenario.
     // However the EBUSY error does not carry any signal for us since this is caused by a kernel bug.
-    bpf_map_update_with_telemetry(&connection_protocol, &normalized_tup, &empty_wrapper, BPF_NOEXIST, -EEXIST, -EBUSY);
+    bpf_map_update_with_telemetry(connection_protocol, &normalized_tup, &empty_wrapper, BPF_NOEXIST, -EEXIST, -EBUSY);
     return __get_protocol_stack(&normalized_tup);
 }
 
