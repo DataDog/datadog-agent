@@ -961,6 +961,15 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
+	case "event.hostname":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveHostname(ev, &ev.BaseEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
 	case "event.origin":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -16553,6 +16562,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"dns.question.name.length",
 		"dns.question.type",
 		"event.async",
+		"event.hostname",
 		"event.origin",
 		"event.os",
 		"event.service",
@@ -17947,6 +17957,8 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(ev.DNS.Type), nil
 	case "event.async":
 		return ev.FieldHandlers.ResolveAsync(ev), nil
+	case "event.hostname":
+		return ev.FieldHandlers.ResolveHostname(ev, &ev.BaseEvent), nil
 	case "event.origin":
 		return ev.BaseEvent.Origin, nil
 	case "event.os":
@@ -24281,6 +24293,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "dns", nil
 	case "event.async":
 		return "*", nil
+	case "event.hostname":
+		return "*", nil
 	case "event.origin":
 		return "*", nil
 	case "event.os":
@@ -26862,6 +26876,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "event.async":
 		return reflect.Bool, nil
+	case "event.hostname":
+		return reflect.String, nil
 	case "event.origin":
 		return reflect.String, nil
 	case "event.os":
@@ -29923,6 +29939,13 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Async"}
 		}
 		ev.Async = rv
+		return nil
+	case "event.hostname":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.Hostname"}
+		}
+		ev.BaseEvent.Hostname = rv
 		return nil
 	case "event.origin":
 		rv, ok := value.(string)
