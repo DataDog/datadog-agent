@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/pkg/util/fxutil
 
-go 1.21.0
+go 1.22.0
 
 require (
 	github.com/DataDog/datadog-agent/comp/def v0.54.0-rc.2
