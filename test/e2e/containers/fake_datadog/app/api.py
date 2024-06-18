@@ -305,8 +305,8 @@ def get_records(name):
 
     payloads = list()
     with open(path.join(record_dir, name)) as f:
-        for l in f:
-            payloads.append(json.loads(l))
+        for line in f:
+            payloads.append(json.loads(line))
     return json.dumps(payloads), 200
 
 
