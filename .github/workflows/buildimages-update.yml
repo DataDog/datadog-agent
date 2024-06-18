@@ -110,19 +110,21 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          base_branch=${{ github.ref }} # Get the full ref
+          base_branch=${base_branch#refs/heads/} # Remove 'refs/heads/' from the ref
           prs=$(gh pr list \
               --repo "$GITHUB_REPOSITORY" \
               --head ${{ inputs.branch }} \
-              --base ${{ github.ref }} \
+              --base $base_branch \
               --json title \
               --jq 'length')
-          if [ $prs -gt 0 ]; then
-            echo "SKIP=true" >> $GITHUB_OUTPUT
+          if [ $prs -eq 0 ]; then
+            echo "CREATE_PR=true" >> $GITHUB_OUTPUT
           fi
 
       # Create PR only if there is no pre-existing PR on the branch
       - name: Create PR
-        if: ${{ steps.check_pr.outputs.SKIP != 'true' }}
+        if: ${{ steps.check_pr.outputs.CREATE_PR == 'true' }}
         env:
           TMP_PR_BODY_PATH: /tmp/pr_body
           GH_TOKEN: ${{ github.token }}
