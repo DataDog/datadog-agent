@@ -11,7 +11,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"strconv"
 	"strings"
@@ -21,7 +20,6 @@ import (
 
 const (
 	ProcStatPath           = "/proc/stat"
-	ProcUptimePath         = "/proc/uptime"
 	ProcNetDevPath         = "/proc/net/dev"
 	lambdaNetworkInterface = "vinternal_1"
 )
@@ -139,6 +137,9 @@ func GetNetworkData(path string) (*NetworkData, error) {
 	// Skip header rows
 	for i := 0; i < 2; i++ {
 		_, err = fmt.Scanln(file)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	var interfaceName string
@@ -148,10 +149,10 @@ func GetNetworkData(path string) (*NetworkData, error) {
 		_, err = fmt.Fscanln(file, &interfaceName, &rxBytes, &rxPackets, &rxErrs, &rxDrop, &rxFifo, &rxFrame,
 			&rxCompressed, &rxMulticast, &txBytes, &txPackets, &txErrs, &txDrop, &txFifo, &txColls, &txCarrier,
 			&txCompressed)
-		if err == io.EOF {
+		if err != nil {
 			return nil, err
 		}
-		if err == nil && strings.HasPrefix(interfaceName, lambdaNetworkInterface) {
+		if strings.HasPrefix(interfaceName, lambdaNetworkInterface) {
 			return &NetworkData{
 				RxBytes: rxBytes,
 				TxBytes: txBytes,
