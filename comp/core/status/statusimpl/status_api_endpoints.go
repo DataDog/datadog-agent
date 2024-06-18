@@ -12,13 +12,19 @@ import (
 
 	"github.com/gorilla/mux"
 
-	"github.com/DataDog/datadog-agent/comp/api/api/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var mimeTypeMap = map[string]string{
 	"text": "text/plain",
 	"json": "application/json",
+}
+
+// SetJSONError writes a server error as JSON with the correct http error code
+func SetJSONError(w http.ResponseWriter, err error, errorCode int) {
+	w.Header().Set("Content-Type", "application/json")
+	body, _ := json.Marshal(map[string]string{"error": err.Error()})
+	http.Error(w, string(body), errorCode)
 }
 
 func (s *statusImplementation) getStatus(w http.ResponseWriter, r *http.Request, section string) {
@@ -50,7 +56,7 @@ func (s *statusImplementation) getStatus(w http.ResponseWriter, r *http.Request,
 			return
 		}
 
-		utils.SetJSONError(w, log.Errorf("Error getting status. Error: %v, Status: %v", err, buff), 500)
+		SetJSONError(w, log.Errorf("Error getting status. Error: %v, Status: %v", err, buff), 500)
 		return
 	}
 

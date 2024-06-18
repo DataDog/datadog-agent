@@ -35,7 +35,6 @@ replace (
 )
 
 require (
-	github.com/DataDog/datadog-agent v0.0.0-20240618111856-e9ec1e064b4f
 	github.com/DataDog/datadog-agent/comp/api/api/def v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/core/config v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.55.0-rc.3
@@ -62,7 +61,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/model v0.55.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.55.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.55.0-rc.3 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/grpc v0.55.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.55.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/optional v0.55.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.55.0-rc.3 // indirect
