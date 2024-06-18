@@ -575,7 +575,7 @@ func (c *AgentConfig) NewHTTPTransport() *http.Transport {
 			DualStack: true,
 		}).DialContext,
 		MaxIdleConns:          100,
-		IdleConnTimeout:       90 * time.Second,
+		IdleConnTimeout:       30 * time.Second,
 		TLSHandshakeTimeout:   10 * time.Second,
 		ExpectContinueTimeout: 1 * time.Second,
 	}

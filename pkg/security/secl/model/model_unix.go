@@ -5,7 +5,7 @@
 
 //go:build unix
 
-//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors -tags unix -types-file model.go -output accessors_unix.go -field-handlers field_handlers_unix.go -doc ../../../../docs/cloud-workload-security/secl.json -field-accessors-output field_accessors_unix.go
+//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors -tags unix -types-file model.go -output accessors_unix.go -field-handlers field_handlers_unix.go -doc ../../../../docs/cloud-workload-security/secl_linux.json -field-accessors-output field_accessors_unix.go
 
 // Package model holds model related files
 package model
@@ -210,8 +210,8 @@ type Process struct {
 
 	AWSSecurityCredentials []AWSSecurityCredentials `field:"-"`
 
-	ArgsID uint32 `field:"-"`
-	EnvsID uint32 `field:"-"`
+	ArgsID uint64 `field:"-"`
+	EnvsID uint64 `field:"-"`
 
 	ArgsEntry *ArgsEntry `field:"-"`
 	EnvsEntry *EnvsEntry `field:"-"`

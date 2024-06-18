@@ -309,6 +309,11 @@ func (ev *Event) GetDeleteKeyRegistryKeyPathLength() int {
 	return len(ev.DeleteRegistryKey.Registry.KeyPath)
 }
 
+// GetEventHostname returns the value of the field, resolving if necessary
+func (ev *Event) GetEventHostname() string {
+	return ev.FieldHandlers.ResolveHostname(ev, &ev.BaseEvent)
+}
+
 // GetEventOrigin returns the value of the field, resolving if necessary
 func (ev *Event) GetEventOrigin() string {
 	return ev.BaseEvent.Origin

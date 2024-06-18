@@ -60,13 +60,6 @@ type Component interface {
 	// to this function.
 	GetKubernetesPodByName(podName, podNamespace string) (*KubernetesPod, error)
 
-	// ListKubernetesNodes returns metadata about all known Kubernetes nodes
-	ListKubernetesNodes() []*KubernetesNode
-
-	// GetKubernetesNode returns metadata about a Kubernetes node. It fetches
-	// the entity with kind KindKubernetesNode and the given ID.
-	GetKubernetesNode(id string) (*KubernetesNode, error)
-
 	// GetKubernetesDeployment returns metadata about a Kubernetes deployment. It fetches
 	// the entity with kind KindKubernetesDeployment and the given ID.
 	GetKubernetesDeployment(id string) (*KubernetesDeployment, error)
@@ -74,6 +67,10 @@ type Component interface {
 	// GetKubernetesMetadata returns metadata about a Kubernetes resource. It fetches
 	// the entity with kind KubernetesMetadata and the given ID.
 	GetKubernetesMetadata(id string) (*KubernetesMetadata, error)
+
+	// ListKubernetesMetadata returns all the kubernetes metadata objects for
+	// which the passed filter evaluates to true.
+	ListKubernetesMetadata(filterFunc EntityFilterFunc[*KubernetesMetadata]) []*KubernetesMetadata
 
 	// ListECSTasks returns metadata about all ECS tasks, equivalent to all
 	// entities with kind KindECSTask.

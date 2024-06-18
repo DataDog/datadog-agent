@@ -34,9 +34,9 @@ from tasks.libs.common.utils import (
     get_build_flags,
     get_common_test_args,
     get_gobin,
-    get_version_numeric_only,
     parse_kernel_version,
 )
+from tasks.libs.releasing.version import get_version_numeric_only
 from tasks.libs.types.arch import ALL_ARCHS, Arch
 from tasks.windows_resources import MESSAGESTRINGS_MC_PATH
 
@@ -709,7 +709,7 @@ def test(
     if go_root:
         args["go"] = os.path.join(go_root, "bin", "go")
 
-    failed_pkgs = list()
+    failed_pkgs = []
     package_dirs = go_package_dirs(packages.split(" "), build_tags)
     # we iterate over the packages here to get the nice streaming test output
     for pdir in package_dirs:
@@ -1602,7 +1602,7 @@ def kitchen_prepare_btfs(ctx, files_dir, arch=CURRENT_ARCH):
             ctx,
             source_dir=f"{btf_dir}/kitchen-btfs-{arch}",
             output_dir=f"{btf_dir}/minimized-btfs",
-            input_bpf_programs=co_re_programs,
+            bpf_programs=co_re_programs,
         )
 
         ctx.run(
