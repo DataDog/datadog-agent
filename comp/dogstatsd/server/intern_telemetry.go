@@ -51,7 +51,7 @@ func newSiTelemetry(enabled bool, telemetry telemetry.Component) *stringInterner
 }
 
 // PrepareForId creates an instance of stringInternerInstanceTelemetry for a specific id.
-func (s *stringInternerTelemetry) PrepareForId(id string) *stringInternerInstanceTelemetry {
+func (s *stringInternerTelemetry) PrepareForID(id string) *stringInternerInstanceTelemetry {
 	if s.enabled {
 		return &stringInternerInstanceTelemetry{
 			enabled:              true,

@@ -39,7 +39,7 @@ func newStringInterner(maxSize int, internerID int, siTelemetry *stringInternerT
 		strings:   make(map[string]string),
 		id:        id,
 		maxSize:   maxSize,
-		telemetry: siTelemetry.PrepareForId(id),
+		telemetry: siTelemetry.PrepareForID(id),
 	}
 
 	return i
