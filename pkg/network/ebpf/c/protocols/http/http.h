@@ -153,10 +153,22 @@ static __always_inline http_transaction_t *http_fetch_state(conn_tuple_t *tuple,
 
     // We detected either a request or a response
     // In this case we initialize (or fetch) state associated to this tuple
-    int err = bpf_map_update_elem(&http_in_flight, tuple, http, BPF_NOEXIST);
-    if (err < 0 && err != EEXIST) {
-        record_map_telemetry(http_in_flight, err);
-    }
+    //
+    // We skip EEXIST because of the use of BPF_NOEXIST flag. Emitting telemetry for EEXIST here spams metrics
+    // and do not provide any useful signal since the key is expected to be present sometimes.
+    //
+    // EBUSY can be returned if a program tries to access an already held bucket lock
+    // https://elixir.bootlin.com/linux/latest/source/kernel/bpf/hashtab.c#L164
+    // Before kernel version 6.7 it was possible for a program to get interrupted before disabling
+    // interrupts for acquring the bucket spinlock but after marking a bucket as busy.
+    // https://github.com/torvalds/linux/commit/d35381aa73f7e1e8b25f3ed5283287a64d9ddff5
+    // As such a program running from an irq context would falsely see a bucket as busy in certain cases
+    // as explained in the linked commit message.
+    //
+    // Since http_in_flight is shared between maps running in different contexts, it gets effected by the
+    // above scenario.
+    // However the EBUSY error does not carry any signal for us since this is caused by a kernel bug.
+    bpf_map_update_with_telemetry(http_in_flight, tuple, http, BPF_NOEXIST, -EEXIST, -EBUSY);
 
     return bpf_map_lookup_elem(&http_in_flight, tuple);
 }

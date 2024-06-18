@@ -29,10 +29,22 @@ static __always_inline protocol_stack_t* get_protocol_stack(conn_tuple_t *skb_tu
     // this code path is executed once during the entire connection lifecycle
     protocol_stack_wrapper_t empty_wrapper = {0};
     empty_wrapper.updated = bpf_ktime_get_ns();
-    int err = bpf_map_update_elem(&connection_protocol, &normalized_tup, &empty_wrapper, BPF_NOEXIST);
-    if (err < 0 && err != EEXIST) {
-        record_map_telemetry(connection_protocol, err);
-    }
+
+    // We skip EEXIST because of the use of BPF_NOEXIST flag. Emitting telemetry for EEXIST here spams metrics
+    // and do not provide any useful signal since the key is expected to be present sometimes.
+    //
+    // EBUSY can be returned if a program tries to access an already held bucket lock
+    // https://elixir.bootlin.com/linux/latest/source/kernel/bpf/hashtab.c#L164
+    // Before kernel version 6.7 it was possible for a program to get interrupted before disabling
+    // interrupts for acquring the bucket spinlock but after marking a bucket as busy.
+    // https://github.com/torvalds/linux/commit/d35381aa73f7e1e8b25f3ed5283287a64d9ddff5
+    // As such a program running from an irq context would falsely see a bucket as busy in certain cases
+    // as explained in the linked commit message.
+    //
+    // Since http_in_flight is shared between maps running in different contexts, it gets effected by the
+    // above scenario.
+    // However the EBUSY error does not carry any signal for us since this is caused by a kernel bug.
+    bpf_map_update_with_telemetry(&connection_protocol, &normalized_tup, &empty_wrapper, BPF_NOEXIST, -EEXIST, -EBUSY);
     return __get_protocol_stack(&normalized_tup);
 }
 
