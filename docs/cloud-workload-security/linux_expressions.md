@@ -17,7 +17,7 @@ This documentation describes Linux attributes and helpers of the [Datadog's Secu
 Rules using Linux attributes and helpers must include an OS rule filter field as follows.
 
 
-{{< code-block lang="javascript" >}}
+{{< code-block lang="yaml" >}}
 id: [...]
 expression: [...]
 filters:

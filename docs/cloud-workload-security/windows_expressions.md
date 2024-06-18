@@ -17,7 +17,7 @@ This documentation describes Windows attributes and helpers of the [Datadog's Se
 Rules using Windows attributes and helpers must include an OS rule filter field as follows.
 
 
-{{< code-block lang="javascript" >}}
+{{< code-block lang="yaml" >}}
 id: [...]
 expression: [...]
 filters:
