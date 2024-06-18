@@ -10,15 +10,18 @@
 #define true 1
 #define false 0
 
-typedef enum
-{
+// TCP Failures
+#define TCP_CONN_FAILED_RESET 104
+#define TCP_CONN_FAILED_TIMEOUT 110
+#define TCP_CONN_FAILED_REFUSED 111
+
+typedef enum {
     CONN_DIRECTION_UNKNOWN = 0b00,
     CONN_DIRECTION_INCOMING = 0b01,
     CONN_DIRECTION_OUTGOING = 0b10,
 } conn_direction_t;
 
-typedef enum
-{
+typedef enum {
     PACKET_COUNT_NONE = 0,
     PACKET_COUNT_ABSOLUTE = 1,
     PACKET_COUNT_INCREMENT = 2,
@@ -54,8 +57,7 @@ typedef struct {
 } conn_stats_ts_t;
 
 // Connection flags
-typedef enum
-{
+typedef enum {
     CONN_L_INIT = 1 << 0, // initial/first message sent
     CONN_R_INIT = 1 << 1, // reply received for initial message from remote
     CONN_ASSURED = 1 << 2 // "3-way handshake" complete, i.e. response to initial reply sent
@@ -76,6 +78,11 @@ typedef struct {
     tcp_stats_t tcp_stats;
     __u32 tcp_retransmits;
 } conn_t;
+
+typedef struct {
+    conn_tuple_t tup;
+    __u32 failure_reason;
+} conn_failed_t;
 
 // Must match the number of conn_t objects embedded in the batch_t struct
 #ifndef CONN_CLOSED_BATCH_SIZE
@@ -104,6 +111,9 @@ typedef struct {
     __u64 udp_sends_processed;
     __u64 udp_sends_missed;
     __u64 udp_dropped_conns;
+    __u64 double_flush_attempts_close;
+    __u64 unsupported_tcp_failures;
+    __u64 skip_new_conn_create;
 } telemetry_t;
 
 typedef struct {

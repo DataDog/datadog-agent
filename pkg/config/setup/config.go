@@ -794,6 +794,11 @@ func InitConfig(config pkgconfigmodel.Config) {
 	// Network
 	config.BindEnv("network.id")
 
+	// OTel
+	config.BindEnvAndSetDefault("otel.enabled", false)
+	config.BindEnvAndSetDefault("otel.extension_url", "https://localhost:7777")
+	config.BindEnvAndSetDefault("otel.submit_dummy_metadata", false) // dev flag - to be removed
+
 	// inventories
 	config.BindEnvAndSetDefault("inventories_enabled", true)
 	config.BindEnvAndSetDefault("inventories_configuration_enabled", true)             // controls the agent configurations
@@ -863,6 +868,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnv("evp_proxy_config.api_key")
 	config.BindEnv("evp_proxy_config.additional_endpoints")
 	config.BindEnv("evp_proxy_config.max_payload_size")
+	config.BindEnv("evp_proxy_config.receiver_timeout")
 
 	// command line options
 	config.SetKnown("cmd.check.fullsketches")

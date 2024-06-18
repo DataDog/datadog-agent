@@ -8,6 +8,7 @@
 package kubernetesapiserver
 
 import (
+	"fmt"
 	"sort"
 	"testing"
 	"time"
@@ -22,7 +23,7 @@ import (
 )
 
 func TestUnbundledEventsTransform(t *testing.T) {
-	ts := metav1.Time{Time: time.Date(2024, 5, 29, 6, 0, 51, 0, time.UTC)}
+	ts := metav1.Time{Time: time.Date(2024, 5, 29, 6, 0, 51, 0, time.Now().Location())}
 
 	incomingEvents := []*v1.Event{
 		{
@@ -118,26 +119,26 @@ func TestUnbundledEventsTransform(t *testing.T) {
 	}
 
 	tests := []struct {
-		name                   string
-		collectedEventTypes    []collectedEventType
-		bundleUnspecifedEvents bool
-		expected               []event.Event
+		name                    string
+		collectedEventTypes     []collectedEventType
+		bundleUnspecifiedEvents bool
+		expected                []event.Event
 	}{
 		{
 			name: "unbundled events by Kind:Pod",
 			collectedEventTypes: []collectedEventType{
 				{Kind: "Pod", Source: "", Reasons: []string{}},
 			},
-			bundleUnspecifedEvents: true,
+			bundleUnspecifiedEvents: true,
 			expected: []event.Event{
 				{
 					Title: "Events from the PodDisruptionBudget default/otel-demo-opensearch-pdb",
-					Text: `%%% 
+					Text: fmt.Sprintf(`%%%%%%%[1]s
 1 **CalculateExpectedPodCountFailed**: Failed to calculate the number of expected pods: found no controllers for pod "otel-demo-opensearch-0"
- 
- _Events emitted by the kubelet seen at 2024-05-29 06:00:51 +0000 UTC since 2024-05-29 06:00:51 +0000 UTC_ 
+%[1]s
+ _Events emitted by the kubelet seen at %[2]s since %[2]s_%[1]s
 
- %%%`,
+ %%%%%%`, " ", ts.String()),
 					Ts:       ts.Time.Unix(),
 					Priority: event.PriorityNormal,
 					Tags: []string{
@@ -156,13 +157,13 @@ func TestUnbundledEventsTransform(t *testing.T) {
 				},
 				{
 					Title: "Events from the ReplicaSet default/blastoise-759fd559f7",
-					Text: `%%% 
+					Text: fmt.Sprintf(`%%%%%%%[1]s
 1 **Killing**: Stopping container blastoise
  1 **SuccessfulDelete**: Deleted pod: blastoise-759fd559f7-5wtqr
- 
- _Events emitted by the kubelet seen at 2024-05-29 06:00:51 +0000 UTC since 2024-05-29 06:00:51 +0000 UTC_ 
+%[1]s
+ _Events emitted by the kubelet seen at %[2]s since %[2]s_%[1]s
 
- %%%`,
+ %%%%%%`, " ", ts.String()),
 					Ts:       ts.Time.Unix(),
 					Priority: event.PriorityNormal,
 					Host:     "",
@@ -233,7 +234,7 @@ func TestUnbundledEventsTransform(t *testing.T) {
 			collectedEventTypes: []collectedEventType{
 				{Kind: "Pod", Source: "", Reasons: []string{}},
 			},
-			bundleUnspecifedEvents: false,
+			bundleUnspecifiedEvents: false,
 			expected: []event.Event{
 				{
 					Title:    "Pod default/squirtle-8fff95dbb-tsc7v: Pulled",
@@ -287,16 +288,16 @@ func TestUnbundledEventsTransform(t *testing.T) {
 			collectedEventTypes: []collectedEventType{
 				{Kind: "ReplicaSet", Source: "", Reasons: []string{"Killing", "SuccessfulDelete"}},
 			},
-			bundleUnspecifedEvents: true,
+			bundleUnspecifiedEvents: true,
 			expected: []event.Event{
 				{
 					Title: "Events from the Pod default/squirtle-8fff95dbb-tsc7v",
-					Text: `%%% 
+					Text: fmt.Sprintf(`%%%%%%%[1]s
 1 **Pulled**: Successfully pulled image "pokemon/squirtle:latest" in 1.263s (1.263s including waiting)
- 
- _Events emitted by the kubelet seen at 2024-05-29 06:00:51 +0000 UTC since 2024-05-29 06:00:51 +0000 UTC_ 
+%[1]s
+ _Events emitted by the kubelet seen at %[2]s since %[2]s_%[1]s
 
- %%%`,
+ %%%%%%`, " ", ts.String()),
 					Ts:       ts.Time.Unix(),
 					Priority: event.PriorityNormal,
 					Tags: []string{
@@ -317,12 +318,12 @@ func TestUnbundledEventsTransform(t *testing.T) {
 				},
 				{
 					Title: "Events from the Pod default/wartortle-8fff95dbb-tsc7v",
-					Text: `%%% 
+					Text: fmt.Sprintf(`%%%%%%%[1]s
 1 **Failed**: All containers terminated
- 
- _Events emitted by the kubelet seen at 2024-05-29 06:00:51 +0000 UTC since 2024-05-29 06:00:51 +0000 UTC_ 
+%[1]s
+ _Events emitted by the kubelet seen at %[2]s since %[2]s_%[1]s
 
- %%%`,
+ %%%%%%`, " ", ts.String()),
 					Ts:       ts.Time.Unix(),
 					Priority: event.PriorityNormal,
 					Tags: []string{
@@ -343,12 +344,12 @@ func TestUnbundledEventsTransform(t *testing.T) {
 				},
 				{
 					Title: "Events from the PodDisruptionBudget default/otel-demo-opensearch-pdb",
-					Text: `%%% 
+					Text: fmt.Sprintf(`%%%%%%%[1]s
 1 **CalculateExpectedPodCountFailed**: Failed to calculate the number of expected pods: found no controllers for pod "otel-demo-opensearch-0"
- 
- _Events emitted by the kubelet seen at 2024-05-29 06:00:51 +0000 UTC since 2024-05-29 06:00:51 +0000 UTC_ 
+%[1]s
+ _Events emitted by the kubelet seen at %[2]s since %[2]s_%[1]s
 
- %%%`,
+ %%%%%%`, " ", ts.String()),
 					Ts:       ts.Time.Unix(),
 					Priority: event.PriorityNormal,
 					Tags: []string{
@@ -412,7 +413,7 @@ func TestUnbundledEventsTransform(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			transformer := newUnbundledTransformer("test-cluster", local.NewFakeTagger(), tt.collectedEventTypes, tt.bundleUnspecifedEvents)
+			transformer := newUnbundledTransformer("test-cluster", local.NewFakeTagger(), tt.collectedEventTypes, tt.bundleUnspecifiedEvents)
 
 			events, errors := transformer.Transform(incomingEvents)
 

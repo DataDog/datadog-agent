@@ -190,8 +190,8 @@ func (w *WebhookForCommands) Operations() []admiv1.OperationType {
 
 // LabelSelectors returns the label selectors that specify when the webhook
 // should be invoked
-func (w *WebhookForCommands) LabelSelectors(_ bool) (namespaceSelector *metav1.LabelSelector, objectSelector *metav1.LabelSelector) {
-	return nil, nil
+func (w *WebhookForCommands) LabelSelectors(useNamespaceSelector bool) (namespaceSelector *metav1.LabelSelector, objectSelector *metav1.LabelSelector) {
+	return labelSelectors(useNamespaceSelector)
 }
 
 // MutateFunc returns the function that mutates the resources
@@ -357,7 +357,7 @@ func (ci *CWSInstrumentation) injectForCommand(request *admission.MutateRequest)
 func (ci *CWSInstrumentation) resolveNodeArch(nodeName string, apiClient kubernetes.Interface) (string, error) {
 	var arch string
 	// try with the wmeta
-	out, err := ci.wmeta.GetKubernetesNode(nodeName)
+	out, err := ci.wmeta.GetKubernetesMetadata(fmt.Sprintf("nodes//%s", nodeName))
 	if err == nil && out != nil {
 		arch = out.Labels["kubernetes.io/arch"]
 	}

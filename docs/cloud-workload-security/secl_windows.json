@@ -1,0 +1,2283 @@
+{
+  "event_types": [
+    {
+      "name": "*",
+      "definition": "",
+      "type": "",
+      "from_agent_version": "",
+      "experimental": false,
+      "properties": [
+        {
+          "name": "container.created_at",
+          "definition": "Timestamp of the creation of the container",
+          "property_doc_link": "container-created_at-doc"
+        },
+        {
+          "name": "container.id",
+          "definition": "ID of the container",
+          "property_doc_link": "container-id-doc"
+        },
+        {
+          "name": "container.tags",
+          "definition": "Tags of the container",
+          "property_doc_link": "container-tags-doc"
+        },
+        {
+          "name": "event.origin",
+          "definition": "Origin of the event",
+          "property_doc_link": "event-origin-doc"
+        },
+        {
+          "name": "event.os",
+          "definition": "Operating system of the event",
+          "property_doc_link": "event-os-doc"
+        },
+        {
+          "name": "event.service",
+          "definition": "Service associated with the event",
+          "property_doc_link": "event-service-doc"
+        },
+        {
+          "name": "event.timestamp",
+          "definition": "Timestamp of the event",
+          "property_doc_link": "event-timestamp-doc"
+        },
+        {
+          "name": "process.ancestors.cmdline",
+          "definition": "Command line of the process",
+          "property_doc_link": "common-process-cmdline-doc"
+        },
+        {
+          "name": "process.ancestors.container.id",
+          "definition": "Container ID",
+          "property_doc_link": "common-process-container-id-doc"
+        },
+        {
+          "name": "process.ancestors.created_at",
+          "definition": "Timestamp of the creation of the process",
+          "property_doc_link": "common-process-created_at-doc"
+        },
+        {
+          "name": "process.ancestors.envp",
+          "definition": "Environment variables of the process",
+          "property_doc_link": "common-process-envp-doc"
+        },
+        {
+          "name": "process.ancestors.envs",
+          "definition": "Environment variable names of the process",
+          "property_doc_link": "common-process-envs-doc"
+        },
+        {
+          "name": "process.ancestors.file.name",
+          "definition": "File's basename",
+          "property_doc_link": "common-fileevent-name-doc"
+        },
+        {
+          "name": "process.ancestors.file.name.length",
+          "definition": "Length of the corresponding string",
+          "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "process.ancestors.file.path",
+          "definition": "File's path",
+          "property_doc_link": "common-fileevent-path-doc"
+        },
+        {
+          "name": "process.ancestors.file.path.length",
+          "definition": "Length of the corresponding string",
+          "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "process.ancestors.pid",
+          "definition": "Process ID of the process (also called thread group ID)",
+          "property_doc_link": "common-pidcontext-pid-doc"
+        },
+        {
+          "name": "process.ancestors.ppid",
+          "definition": "Parent process ID",
+          "property_doc_link": "common-process-ppid-doc"
+        },
+        {
+          "name": "process.ancestors.user",
+          "definition": "User name",
+          "property_doc_link": "common-process-user-doc"
+        },
+        {
+          "name": "process.ancestors.user_sid",
+          "definition": "Sid of the user of the process",
+          "property_doc_link": "common-process-user_sid-doc"
+        },
+        {
+          "name": "process.cmdline",
+          "definition": "Command line of the process",
+          "property_doc_link": "common-process-cmdline-doc"
+        },
+        {
+          "name": "process.container.id",
+          "definition": "Container ID",
+          "property_doc_link": "common-process-container-id-doc"
+        },
+        {
+          "name": "process.created_at",
+          "definition": "Timestamp of the creation of the process",
+          "property_doc_link": "common-process-created_at-doc"
+        },
+        {
+          "name": "process.envp",
+          "definition": "Environment variables of the process",
+          "property_doc_link": "common-process-envp-doc"
+        },
+        {
+          "name": "process.envs",
+          "definition": "Environment variable names of the process",
+          "property_doc_link": "common-process-envs-doc"
+        },
+        {
+          "name": "process.file.name",
+          "definition": "File's basename",
+          "property_doc_link": "common-fileevent-name-doc"
+        },
+        {
+          "name": "process.file.name.length",
+          "definition": "Length of the corresponding string",
+          "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "process.file.path",
+          "definition": "File's path",
+          "property_doc_link": "common-fileevent-path-doc"
+        },
+        {
+          "name": "process.file.path.length",
+          "definition": "Length of the corresponding string",
+          "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "process.parent.cmdline",
+          "definition": "Command line of the process",
+          "property_doc_link": "common-process-cmdline-doc"
+        },
+        {
+          "name": "process.parent.container.id",
+          "definition": "Container ID",
+          "property_doc_link": "common-process-container-id-doc"
+        },
+        {
+          "name": "process.parent.created_at",
+          "definition": "Timestamp of the creation of the process",
+          "property_doc_link": "common-process-created_at-doc"
+        },
+        {
+          "name": "process.parent.envp",
+          "definition": "Environment variables of the process",
+          "property_doc_link": "common-process-envp-doc"
+        },
+        {
+          "name": "process.parent.envs",
+          "definition": "Environment variable names of the process",
+          "property_doc_link": "common-process-envs-doc"
+        },
+        {
+          "name": "process.parent.file.name",
+          "definition": "File's basename",
+          "property_doc_link": "common-fileevent-name-doc"
+        },
+        {
+          "name": "process.parent.file.name.length",
+          "definition": "Length of the corresponding string",
+          "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "process.parent.file.path",
+          "definition": "File's path",
+          "property_doc_link": "common-fileevent-path-doc"
+        },
+        {
+          "name": "process.parent.file.path.length",
+          "definition": "Length of the corresponding string",
+          "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "process.parent.pid",
+          "definition": "Process ID of the process (also called thread group ID)",
+          "property_doc_link": "common-pidcontext-pid-doc"
+        },
+        {
+          "name": "process.parent.ppid",
+          "definition": "Parent process ID",
+          "property_doc_link": "common-process-ppid-doc"
+        },
+        {
+          "name": "process.parent.user",
+          "definition": "User name",
+          "property_doc_link": "common-process-user-doc"
+        },
+        {
+          "name": "process.parent.user_sid",
+          "definition": "Sid of the user of the process",
+          "property_doc_link": "common-process-user_sid-doc"
+        },
+        {
+          "name": "process.pid",
+          "definition": "Process ID of the process (also called thread group ID)",
+          "property_doc_link": "common-pidcontext-pid-doc"
+        },
+        {
+          "name": "process.ppid",
+          "definition": "Parent process ID",
+          "property_doc_link": "common-process-ppid-doc"
+        },
+        {
+          "name": "process.user",
+          "definition": "User name",
+          "property_doc_link": "common-process-user-doc"
+        },
+        {
+          "name": "process.user_sid",
+          "definition": "Sid of the user of the process",
+          "property_doc_link": "common-process-user_sid-doc"
+        }
+      ]
+    },
+    {
+      "name": "change_permission",
+      "definition": "A permission change was made",
+      "type": "Registry",
+      "from_agent_version": "7.55",
+      "experimental": false,
+      "properties": [
+        {
+          "name": "change_permission.new_sd",
+          "definition": "New Security Descriptor of the object of which permission was changed",
+          "property_doc_link": "change_permission-new_sd-doc"
+        },
+        {
+          "name": "change_permission.old_sd",
+          "definition": "Original Security Descriptor of the object of which permission was changed",
+          "property_doc_link": "change_permission-old_sd-doc"
+        },
+        {
+          "name": "change_permission.path",
+          "definition": "Name of the object of which permission was changed",
+          "property_doc_link": "change_permission-path-doc"
+        },
+        {
+          "name": "change_permission.type",
+          "definition": "Type of the object of which permission was changed",
+          "property_doc_link": "change_permission-type-doc"
+        },
+        {
+          "name": "change_permission.user_domain",
+          "definition": "Domain name of the permission change author",
+          "property_doc_link": "change_permission-user_domain-doc"
+        },
+        {
+          "name": "change_permission.username",
+          "definition": "Username of the permission change author",
+          "property_doc_link": "change_permission-username-doc"
+        }
+      ]
+    },
+    {
+      "name": "create",
+      "definition": "A file was created",
+      "type": "File",
+      "from_agent_version": "7.52",
+      "experimental": false,
+      "properties": [
+        {
+          "name": "create.file.device_path",
+          "definition": "File's path",
+          "property_doc_link": "common-fimfileevent-device_path-doc"
+        },
+        {
+          "name": "create.file.device_path.length",
+          "definition": "Length of the corresponding string",
+          "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "create.file.name",
+          "definition": "File's basename",
+          "property_doc_link": "common-fimfileevent-name-doc"
+        },
+        {
+          "name": "create.file.name.length",
+          "definition": "Length of the corresponding string",
+          "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "create.file.path",
+          "definition": "File's path",
+          "property_doc_link": "common-fimfileevent-path-doc"
+        },
+        {
+          "name": "create.file.path.length",
+          "definition": "Length of the corresponding string",
+          "property_doc_link": "common-string-length-doc"
+        }
+      ]
+    },
+    {
+      "name": "create_key",
+      "definition": "A registry key was created",
+      "type": "Registry",
+      "from_agent_version": "7.52",
+      "experimental": false,
+      "properties": [
+        {
+          "name": "create.registry.key_name",
+          "definition": "Registry's name",
+          "property_doc_link": "common-registryevent-key_name-doc"
+        },
+        {
+          "name": "create.registry.key_name.length",
+          "definition": "Length of the corresponding string",
+          "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "create.registry.key_path",
+          "definition": "Registry's path",
+          "property_doc_link": "common-registryevent-key_path-doc"
+        },
+        {
+          "name": "create.registry.key_path.length",
+          "definition": "Length of the corresponding string",
+          "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "create_key.registry.key_name",
+          "definition": "Registry's name",
+          "property_doc_link": "common-registryevent-key_name-doc"
+        },
+        {
+          "name": "create_key.registry.key_name.length",
+          "definition": "Length of the corresponding string",
+          "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "create_key.registry.key_path",
+          "definition": "Registry's path",
+          "property_doc_link": "common-registryevent-key_path-doc"
+        },
+        {
+          "name": "create_key.registry.key_path.length",
+          "definition": "Length of the corresponding string",
+          "property_doc_link": "common-string-length-doc"
+        }
+      ]
+    },
+    {
+      "name": "delete",
+      "definition": "A file was deleted",
+      "type": "File",
+      "from_agent_version": "7.54",
+      "experimental": false,
+      "properties": [
+        {
+          "name": "delete.file.device_path",
+          "definition": "File's path",
+          "property_doc_link": "common-fimfileevent-device_path-doc"
+        },
+        {
+          "name": "delete.file.device_path.length",
+          "definition": "Length of the corresponding string",
+          "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "delete.file.name",
+          "definition": "File's basename",
+          "property_doc_link": "common-fimfileevent-name-doc"
+        },
+        {
+          "name": "delete.file.name.length",
+          "definition": "Length of the corresponding string",
+          "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "delete.file.path",
+          "definition": "File's path",
+          "property_doc_link": "common-fimfileevent-path-doc"
+        },
+        {
+          "name": "delete.file.path.length",
+          "definition": "Length of the corresponding string",
+          "property_doc_link": "common-string-length-doc"
+        }
+      ]
+    },
+    {
+      "name": "delete_key",
+      "definition": "A registry key was deleted",
+      "type": "Registry",
+      "from_agent_version": "7.52",
+      "experimental": false,
+      "properties": [
+        {
+          "name": "delete.registry.key_name",
+          "definition": "Registry's name",
+          "property_doc_link": "common-registryevent-key_name-doc"
+        },
+        {
+          "name": "delete.registry.key_name.length",
+          "definition": "Length of the corresponding string",
+          "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "delete.registry.key_path",
+          "definition": "Registry's path",
+          "property_doc_link": "common-registryevent-key_path-doc"
+        },
+        {
+          "name": "delete.registry.key_path.length",
+          "definition": "Length of the corresponding string",
+          "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "delete_key.registry.key_name",
+          "definition": "Registry's name",
+          "property_doc_link": "common-registryevent-key_name-doc"
+        },
+        {
+          "name": "delete_key.registry.key_name.length",
+          "definition": "Length of the corresponding string",
+          "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "delete_key.registry.key_path",
+          "definition": "Registry's path",
+          "property_doc_link": "common-registryevent-key_path-doc"
+        },
+        {
+          "name": "delete_key.registry.key_path.length",
+          "definition": "Length of the corresponding string",
+          "property_doc_link": "common-string-length-doc"
+        }
+      ]
+    },
+    {
+      "name": "exec",
+      "definition": "A process was executed or forked",
+      "type": "Process",
+      "from_agent_version": "7.27",
+      "experimental": false,
+      "properties": [
+        {
+          "name": "exec.cmdline",
+          "definition": "Command line of the process",
+          "property_doc_link": "common-process-cmdline-doc"
+        },
+        {
+          "name": "exec.container.id",
+          "definition": "Container ID",
+          "property_doc_link": "common-process-container-id-doc"
+        },
+        {
+          "name": "exec.created_at",
+          "definition": "Timestamp of the creation of the process",
+          "property_doc_link": "common-process-created_at-doc"
+        },
+        {
+          "name": "exec.envp",
+          "definition": "Environment variables of the process",
+          "property_doc_link": "common-process-envp-doc"
+        },
+        {
+          "name": "exec.envs",
+          "definition": "Environment variable names of the process",
+          "property_doc_link": "common-process-envs-doc"
+        },
+        {
+          "name": "exec.file.name",
+          "definition": "File's basename",
+          "property_doc_link": "common-fileevent-name-doc"
+        },
+        {
+          "name": "exec.file.name.length",
+          "definition": "Length of the corresponding string",
+          "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "exec.file.path",
+          "definition": "File's path",
+          "property_doc_link": "common-fileevent-path-doc"
+        },
+        {
+          "name": "exec.file.path.length",
+          "definition": "Length of the corresponding string",
+          "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "exec.pid",
+          "definition": "Process ID of the process (also called thread group ID)",
+          "property_doc_link": "common-pidcontext-pid-doc"
+        },
+        {
+          "name": "exec.ppid",
+          "definition": "Parent process ID",
+          "property_doc_link": "common-process-ppid-doc"
+        },
+        {
+          "name": "exec.user",
+          "definition": "User name",
+          "property_doc_link": "common-process-user-doc"
+        },
+        {
+          "name": "exec.user_sid",
+          "definition": "Sid of the user of the process",
+          "property_doc_link": "common-process-user_sid-doc"
+        }
+      ]
+    },
+    {
+      "name": "exit",
+      "definition": "A process was terminated",
+      "type": "Process",
+      "from_agent_version": "7.38",
+      "experimental": false,
+      "properties": [
+        {
+          "name": "exit.cause",
+          "definition": "Cause of the process termination (one of EXITED, SIGNALED, COREDUMPED)",
+          "property_doc_link": "exit-cause-doc"
+        },
+        {
+          "name": "exit.cmdline",
+          "definition": "Command line of the process",
+          "property_doc_link": "common-process-cmdline-doc"
+        },
+        {
+          "name": "exit.code",
+          "definition": "Exit code of the process or number of the signal that caused the process to terminate",
+          "property_doc_link": "exit-code-doc"
+        },
+        {
+          "name": "exit.container.id",
+          "definition": "Container ID",
+          "property_doc_link": "common-process-container-id-doc"
+        },
+        {
+          "name": "exit.created_at",
+          "definition": "Timestamp of the creation of the process",
+          "property_doc_link": "common-process-created_at-doc"
+        },
+        {
+          "name": "exit.envp",
+          "definition": "Environment variables of the process",
+          "property_doc_link": "common-process-envp-doc"
+        },
+        {
+          "name": "exit.envs",
+          "definition": "Environment variable names of the process",
+          "property_doc_link": "common-process-envs-doc"
+        },
+        {
+          "name": "exit.file.name",
+          "definition": "File's basename",
+          "property_doc_link": "common-fileevent-name-doc"
+        },
+        {
+          "name": "exit.file.name.length",
+          "definition": "Length of the corresponding string",
+          "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "exit.file.path",
+          "definition": "File's path",
+          "property_doc_link": "common-fileevent-path-doc"
+        },
+        {
+          "name": "exit.file.path.length",
+          "definition": "Length of the corresponding string",
+          "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "exit.pid",
+          "definition": "Process ID of the process (also called thread group ID)",
+          "property_doc_link": "common-pidcontext-pid-doc"
+        },
+        {
+          "name": "exit.ppid",
+          "definition": "Parent process ID",
+          "property_doc_link": "common-process-ppid-doc"
+        },
+        {
+          "name": "exit.user",
+          "definition": "User name",
+          "property_doc_link": "common-process-user-doc"
+        },
+        {
+          "name": "exit.user_sid",
+          "definition": "Sid of the user of the process",
+          "property_doc_link": "common-process-user_sid-doc"
+        }
+      ]
+    },
+    {
+      "name": "open_key",
+      "definition": "A registry key was opened",
+      "type": "Registry",
+      "from_agent_version": "7.52",
+      "experimental": false,
+      "properties": [
+        {
+          "name": "open.registry.key_name",
+          "definition": "Registry's name",
+          "property_doc_link": "common-registryevent-key_name-doc"
+        },
+        {
+          "name": "open.registry.key_name.length",
+          "definition": "Length of the corresponding string",
+          "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "open.registry.key_path",
+          "definition": "Registry's path",
+          "property_doc_link": "common-registryevent-key_path-doc"
+        },
+        {
+          "name": "open.registry.key_path.length",
+          "definition": "Length of the corresponding string",
+          "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "open_key.registry.key_name",
+          "definition": "Registry's name",
+          "property_doc_link": "common-registryevent-key_name-doc"
+        },
+        {
+          "name": "open_key.registry.key_name.length",
+          "definition": "Length of the corresponding string",
+          "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "open_key.registry.key_path",
+          "definition": "Registry's path",
+          "property_doc_link": "common-registryevent-key_path-doc"
+        },
+        {
+          "name": "open_key.registry.key_path.length",
+          "definition": "Length of the corresponding string",
+          "property_doc_link": "common-string-length-doc"
+        }
+      ]
+    },
+    {
+      "name": "rename",
+      "definition": "A file was renamed",
+      "type": "File",
+      "from_agent_version": "7.54",
+      "experimental": false,
+      "properties": [
+        {
+          "name": "rename.file.destination.device_path",
+          "definition": "File's path",
+          "property_doc_link": "common-fimfileevent-device_path-doc"
+        },
+        {
+          "name": "rename.file.destination.device_path.length",
+          "definition": "Length of the corresponding string",
+          "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "rename.file.destination.name",
+          "definition": "File's basename",
+          "property_doc_link": "common-fimfileevent-name-doc"
+        },
+        {
+          "name": "rename.file.destination.name.length",
+          "definition": "Length of the corresponding string",
+          "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "rename.file.destination.path",
+          "definition": "File's path",
+          "property_doc_link": "common-fimfileevent-path-doc"
+        },
+        {
+          "name": "rename.file.destination.path.length",
+          "definition": "Length of the corresponding string",
+          "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "rename.file.device_path",
+          "definition": "File's path",
+          "property_doc_link": "common-fimfileevent-device_path-doc"
+        },
+        {
+          "name": "rename.file.device_path.length",
+          "definition": "Length of the corresponding string",
+          "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "rename.file.name",
+          "definition": "File's basename",
+          "property_doc_link": "common-fimfileevent-name-doc"
+        },
+        {
+          "name": "rename.file.name.length",
+          "definition": "Length of the corresponding string",
+          "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "rename.file.path",
+          "definition": "File's path",
+          "property_doc_link": "common-fimfileevent-path-doc"
+        },
+        {
+          "name": "rename.file.path.length",
+          "definition": "Length of the corresponding string",
+          "property_doc_link": "common-string-length-doc"
+        }
+      ]
+    },
+    {
+      "name": "set_key_value",
+      "definition": "A registry key value was set",
+      "type": "Registry",
+      "from_agent_version": "7.52",
+      "experimental": false,
+      "properties": [
+        {
+          "name": "set.registry.key_name",
+          "definition": "Registry's name",
+          "property_doc_link": "common-registryevent-key_name-doc"
+        },
+        {
+          "name": "set.registry.key_name.length",
+          "definition": "Length of the corresponding string",
+          "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "set.registry.key_path",
+          "definition": "Registry's path",
+          "property_doc_link": "common-registryevent-key_path-doc"
+        },
+        {
+          "name": "set.registry.key_path.length",
+          "definition": "Length of the corresponding string",
+          "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "set.registry.value_name",
+          "definition": "Registry's value name",
+          "property_doc_link": "common-setregistrykeyvalueevent-registry-value_name-doc"
+        },
+        {
+          "name": "set.registry.value_name.length",
+          "definition": "Length of the corresponding string",
+          "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "set.value_name",
+          "definition": "Registry's value name",
+          "property_doc_link": "common-setregistrykeyvalueevent-value_name-doc"
+        },
+        {
+          "name": "set_key_value.registry.key_name",
+          "definition": "Registry's name",
+          "property_doc_link": "common-registryevent-key_name-doc"
+        },
+        {
+          "name": "set_key_value.registry.key_name.length",
+          "definition": "Length of the corresponding string",
+          "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "set_key_value.registry.key_path",
+          "definition": "Registry's path",
+          "property_doc_link": "common-registryevent-key_path-doc"
+        },
+        {
+          "name": "set_key_value.registry.key_path.length",
+          "definition": "Length of the corresponding string",
+          "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "set_key_value.registry.value_name",
+          "definition": "Registry's value name",
+          "property_doc_link": "common-setregistrykeyvalueevent-registry-value_name-doc"
+        },
+        {
+          "name": "set_key_value.registry.value_name.length",
+          "definition": "Length of the corresponding string",
+          "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "set_key_value.value_name",
+          "definition": "Registry's value name",
+          "property_doc_link": "common-setregistrykeyvalueevent-value_name-doc"
+        }
+      ]
+    },
+    {
+      "name": "write",
+      "definition": "A file was written",
+      "type": "File",
+      "from_agent_version": "7.54",
+      "experimental": false,
+      "properties": [
+        {
+          "name": "write.file.device_path",
+          "definition": "File's path",
+          "property_doc_link": "common-fimfileevent-device_path-doc"
+        },
+        {
+          "name": "write.file.device_path.length",
+          "definition": "Length of the corresponding string",
+          "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "write.file.name",
+          "definition": "File's basename",
+          "property_doc_link": "common-fimfileevent-name-doc"
+        },
+        {
+          "name": "write.file.name.length",
+          "definition": "Length of the corresponding string",
+          "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "write.file.path",
+          "definition": "File's path",
+          "property_doc_link": "common-fimfileevent-path-doc"
+        },
+        {
+          "name": "write.file.path.length",
+          "definition": "Length of the corresponding string",
+          "property_doc_link": "common-string-length-doc"
+        }
+      ]
+    }
+  ],
+  "properties_doc": [
+    {
+      "name": "*.cmdline",
+      "link": "common-process-cmdline-doc",
+      "type": "string",
+      "definition": "Command line of the process",
+      "prefixes": [
+        "exec",
+        "exit",
+        "process",
+        "process.ancestors",
+        "process.parent"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": [
+        {
+          "expression": "exec.cmdline == \"-sV -p 22,53,110,143,4564 198.116.0-255.1-127\"",
+          "description": "Matches any process with these exact arguments."
+        },
+        {
+          "expression": "exec.cmdline =~ \"* -F * http*\"",
+          "description": "Matches any process that has the \"-F\" argument anywhere before an argument starting with \"http\"."
+        }
+      ]
+    },
+    {
+      "name": "*.container.id",
+      "link": "common-process-container-id-doc",
+      "type": "string",
+      "definition": "Container ID",
+      "prefixes": [
+        "exec",
+        "exit",
+        "process",
+        "process.ancestors",
+        "process.parent"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.created_at",
+      "link": "common-process-created_at-doc",
+      "type": "int",
+      "definition": "Timestamp of the creation of the process",
+      "prefixes": [
+        "exec",
+        "exit",
+        "process",
+        "process.ancestors",
+        "process.parent"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.device_path",
+      "link": "common-fimfileevent-device_path-doc",
+      "type": "string",
+      "definition": "File's path",
+      "prefixes": [
+        "create.file",
+        "delete.file",
+        "rename.file",
+        "rename.file.destination",
+        "write.file"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": [
+        {
+          "expression": "create.file.device_path == \"\\device\\harddisk1\\cmd.bat\"",
+          "description": "Matches the creation of the file located at c:\\cmd.bat"
+        }
+      ]
+    },
+    {
+      "name": "*.envp",
+      "link": "common-process-envp-doc",
+      "type": "string",
+      "definition": "Environment variables of the process",
+      "prefixes": [
+        "exec",
+        "exit",
+        "process",
+        "process.ancestors",
+        "process.parent"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.envs",
+      "link": "common-process-envs-doc",
+      "type": "string",
+      "definition": "Environment variable names of the process",
+      "prefixes": [
+        "exec",
+        "exit",
+        "process",
+        "process.ancestors",
+        "process.parent"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.key_name",
+      "link": "common-registryevent-key_name-doc",
+      "type": "string",
+      "definition": "Registry's name",
+      "prefixes": [
+        "create.registry",
+        "create_key.registry",
+        "delete.registry",
+        "delete_key.registry",
+        "open.registry",
+        "open_key.registry",
+        "set.registry",
+        "set_key_value.registry"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.key_path",
+      "link": "common-registryevent-key_path-doc",
+      "type": "string",
+      "definition": "Registry's path",
+      "prefixes": [
+        "create.registry",
+        "create_key.registry",
+        "delete.registry",
+        "delete_key.registry",
+        "open.registry",
+        "open_key.registry",
+        "set.registry",
+        "set_key_value.registry"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.length",
+      "link": "common-string-length-doc",
+      "type": "int",
+      "definition": "Length of the corresponding string",
+      "prefixes": [
+        "create.file.device_path",
+        "create.file.name",
+        "create.file.path",
+        "create.registry.key_name",
+        "create.registry.key_path",
+        "create_key.registry.key_name",
+        "create_key.registry.key_path",
+        "delete.file.device_path",
+        "delete.file.name",
+        "delete.file.path",
+        "delete.registry.key_name",
+        "delete.registry.key_path",
+        "delete_key.registry.key_name",
+        "delete_key.registry.key_path",
+        "exec.file.name",
+        "exec.file.path",
+        "exit.file.name",
+        "exit.file.path",
+        "open.registry.key_name",
+        "open.registry.key_path",
+        "open_key.registry.key_name",
+        "open_key.registry.key_path",
+        "process.ancestors.file.name",
+        "process.ancestors.file.path",
+        "process.file.name",
+        "process.file.path",
+        "process.parent.file.name",
+        "process.parent.file.path",
+        "rename.file.destination.device_path",
+        "rename.file.destination.name",
+        "rename.file.destination.path",
+        "rename.file.device_path",
+        "rename.file.name",
+        "rename.file.path",
+        "set.registry.key_name",
+        "set.registry.key_path",
+        "set.registry.value_name",
+        "set_key_value.registry.key_name",
+        "set_key_value.registry.key_path",
+        "set_key_value.registry.value_name",
+        "write.file.device_path",
+        "write.file.name",
+        "write.file.path"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.name",
+      "link": "common-fileevent-name-doc",
+      "type": "string",
+      "definition": "File's basename",
+      "prefixes": [
+        "exec.file",
+        "exit.file",
+        "process.ancestors.file",
+        "process.file",
+        "process.parent.file"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": [
+        {
+          "expression": "exec.file.name == \"cmd.bat\"",
+          "description": "Matches the execution of any file named cmd.bat."
+        }
+      ]
+    },
+    {
+      "name": "*.name",
+      "link": "common-fimfileevent-name-doc",
+      "type": "string",
+      "definition": "File's basename",
+      "prefixes": [
+        "create.file",
+        "delete.file",
+        "rename.file",
+        "rename.file.destination",
+        "write.file"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": [
+        {
+          "expression": "create.file.name == \"cmd.bat\"",
+          "description": "Matches the creation of any file named cmd.bat."
+        }
+      ]
+    },
+    {
+      "name": "*.path",
+      "link": "common-fileevent-path-doc",
+      "type": "string",
+      "definition": "File's path",
+      "prefixes": [
+        "exec.file",
+        "exit.file",
+        "process.ancestors.file",
+        "process.file",
+        "process.parent.file"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": [
+        {
+          "expression": "exec.file.path == \"c:\\cmd.bat\"",
+          "description": "Matches the execution of the file located at c:\\cmd.bat"
+        }
+      ]
+    },
+    {
+      "name": "*.path",
+      "link": "common-fimfileevent-path-doc",
+      "type": "string",
+      "definition": "File's path",
+      "prefixes": [
+        "create.file",
+        "delete.file",
+        "rename.file",
+        "rename.file.destination",
+        "write.file"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": [
+        {
+          "expression": "create.file.path == \"c:\\cmd.bat\"",
+          "description": "Matches the creation of the file located at c:\\cmd.bat"
+        }
+      ]
+    },
+    {
+      "name": "*.pid",
+      "link": "common-pidcontext-pid-doc",
+      "type": "int",
+      "definition": "Process ID of the process (also called thread group ID)",
+      "prefixes": [
+        "exec",
+        "exit",
+        "process",
+        "process.ancestors",
+        "process.parent"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.ppid",
+      "link": "common-process-ppid-doc",
+      "type": "int",
+      "definition": "Parent process ID",
+      "prefixes": [
+        "exec",
+        "exit",
+        "process",
+        "process.ancestors",
+        "process.parent"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.registry.value_name",
+      "link": "common-setregistrykeyvalueevent-registry-value_name-doc",
+      "type": "string",
+      "definition": "Registry's value name",
+      "prefixes": [
+        "set",
+        "set_key_value"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.user",
+      "link": "common-process-user-doc",
+      "type": "string",
+      "definition": "User name",
+      "prefixes": [
+        "exec",
+        "exit",
+        "process",
+        "process.ancestors",
+        "process.parent"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.user_sid",
+      "link": "common-process-user_sid-doc",
+      "type": "string",
+      "definition": "Sid of the user of the process",
+      "prefixes": [
+        "exec",
+        "exit",
+        "process",
+        "process.ancestors",
+        "process.parent"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.value_name",
+      "link": "common-setregistrykeyvalueevent-value_name-doc",
+      "type": "string",
+      "definition": "Registry's value name",
+      "prefixes": [
+        "set",
+        "set_key_value"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "change_permission.new_sd",
+      "link": "change_permission-new_sd-doc",
+      "type": "string",
+      "definition": "New Security Descriptor of the object of which permission was changed",
+      "prefixes": [
+        "change_permission"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "change_permission.old_sd",
+      "link": "change_permission-old_sd-doc",
+      "type": "string",
+      "definition": "Original Security Descriptor of the object of which permission was changed",
+      "prefixes": [
+        "change_permission"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "change_permission.path",
+      "link": "change_permission-path-doc",
+      "type": "string",
+      "definition": "Name of the object of which permission was changed",
+      "prefixes": [
+        "change_permission"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "change_permission.type",
+      "link": "change_permission-type-doc",
+      "type": "string",
+      "definition": "Type of the object of which permission was changed",
+      "prefixes": [
+        "change_permission"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "change_permission.user_domain",
+      "link": "change_permission-user_domain-doc",
+      "type": "string",
+      "definition": "Domain name of the permission change author",
+      "prefixes": [
+        "change_permission"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "change_permission.username",
+      "link": "change_permission-username-doc",
+      "type": "string",
+      "definition": "Username of the permission change author",
+      "prefixes": [
+        "change_permission"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "container.created_at",
+      "link": "container-created_at-doc",
+      "type": "int",
+      "definition": "Timestamp of the creation of the container",
+      "prefixes": [
+        "container"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "container.id",
+      "link": "container-id-doc",
+      "type": "string",
+      "definition": "ID of the container",
+      "prefixes": [
+        "container"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "container.tags",
+      "link": "container-tags-doc",
+      "type": "string",
+      "definition": "Tags of the container",
+      "prefixes": [
+        "container"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "event.origin",
+      "link": "event-origin-doc",
+      "type": "string",
+      "definition": "Origin of the event",
+      "prefixes": [
+        ""
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "event.os",
+      "link": "event-os-doc",
+      "type": "string",
+      "definition": "Operating system of the event",
+      "prefixes": [
+        ""
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "event.service",
+      "link": "event-service-doc",
+      "type": "string",
+      "definition": "Service associated with the event",
+      "prefixes": [
+        ""
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "event.timestamp",
+      "link": "event-timestamp-doc",
+      "type": "int",
+      "definition": "Timestamp of the event",
+      "prefixes": [
+        ""
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "exit.cause",
+      "link": "exit-cause-doc",
+      "type": "int",
+      "definition": "Cause of the process termination (one of EXITED, SIGNALED, COREDUMPED)",
+      "prefixes": [
+        "exit"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "exit.code",
+      "link": "exit-code-doc",
+      "type": "int",
+      "definition": "Exit code of the process or number of the signal that caused the process to terminate",
+      "prefixes": [
+        "exit"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    }
+  ],
+  "constants": [
+    {
+      "name": "Boolean constants",
+      "link": "boolean-constants",
+      "description": "Boolean constants are the supported boolean constants.",
+      "all": [
+        {
+          "name": "true",
+          "architecture": "all"
+        },
+        {
+          "name": "false",
+          "architecture": "all"
+        }
+      ]
+    },
+    {
+      "name": "DNS qclasses",
+      "link": "dns-qclasses",
+      "description": "DNS qclasses are the supported DNS query classes.",
+      "all": [
+        {
+          "name": "CLASS_INET",
+          "architecture": "all"
+        },
+        {
+          "name": "CLASS_CSNET",
+          "architecture": "all"
+        },
+        {
+          "name": "CLASS_CHAOS",
+          "architecture": "all"
+        },
+        {
+          "name": "CLASS_HESIOD",
+          "architecture": "all"
+        },
+        {
+          "name": "CLASS_NONE",
+          "architecture": "all"
+        },
+        {
+          "name": "CLASS_ANY",
+          "architecture": "all"
+        }
+      ]
+    },
+    {
+      "name": "DNS qtypes",
+      "link": "dns-qtypes",
+      "description": "DNS qtypes are the supported DNS query types.",
+      "all": [
+        {
+          "name": "None",
+          "architecture": "all"
+        },
+        {
+          "name": "A",
+          "architecture": "all"
+        },
+        {
+          "name": "NS",
+          "architecture": "all"
+        },
+        {
+          "name": "MD",
+          "architecture": "all"
+        },
+        {
+          "name": "MF",
+          "architecture": "all"
+        },
+        {
+          "name": "CNAME",
+          "architecture": "all"
+        },
+        {
+          "name": "SOA",
+          "architecture": "all"
+        },
+        {
+          "name": "MB",
+          "architecture": "all"
+        },
+        {
+          "name": "MG",
+          "architecture": "all"
+        },
+        {
+          "name": "MR",
+          "architecture": "all"
+        },
+        {
+          "name": "NULL",
+          "architecture": "all"
+        },
+        {
+          "name": "PTR",
+          "architecture": "all"
+        },
+        {
+          "name": "HINFO",
+          "architecture": "all"
+        },
+        {
+          "name": "MINFO",
+          "architecture": "all"
+        },
+        {
+          "name": "MX",
+          "architecture": "all"
+        },
+        {
+          "name": "TXT",
+          "architecture": "all"
+        },
+        {
+          "name": "RP",
+          "architecture": "all"
+        },
+        {
+          "name": "AFSDB",
+          "architecture": "all"
+        },
+        {
+          "name": "X25",
+          "architecture": "all"
+        },
+        {
+          "name": "ISDN",
+          "architecture": "all"
+        },
+        {
+          "name": "RT",
+          "architecture": "all"
+        },
+        {
+          "name": "NSAPPTR",
+          "architecture": "all"
+        },
+        {
+          "name": "SIG",
+          "architecture": "all"
+        },
+        {
+          "name": "KEY",
+          "architecture": "all"
+        },
+        {
+          "name": "PX",
+          "architecture": "all"
+        },
+        {
+          "name": "GPOS",
+          "architecture": "all"
+        },
+        {
+          "name": "AAAA",
+          "architecture": "all"
+        },
+        {
+          "name": "LOC",
+          "architecture": "all"
+        },
+        {
+          "name": "NXT",
+          "architecture": "all"
+        },
+        {
+          "name": "EID",
+          "architecture": "all"
+        },
+        {
+          "name": "NIMLOC",
+          "architecture": "all"
+        },
+        {
+          "name": "SRV",
+          "architecture": "all"
+        },
+        {
+          "name": "ATMA",
+          "architecture": "all"
+        },
+        {
+          "name": "NAPTR",
+          "architecture": "all"
+        },
+        {
+          "name": "KX",
+          "architecture": "all"
+        },
+        {
+          "name": "CERT",
+          "architecture": "all"
+        },
+        {
+          "name": "DNAME",
+          "architecture": "all"
+        },
+        {
+          "name": "OPT",
+          "architecture": "all"
+        },
+        {
+          "name": "APL",
+          "architecture": "all"
+        },
+        {
+          "name": "DS",
+          "architecture": "all"
+        },
+        {
+          "name": "SSHFP",
+          "architecture": "all"
+        },
+        {
+          "name": "RRSIG",
+          "architecture": "all"
+        },
+        {
+          "name": "NSEC",
+          "architecture": "all"
+        },
+        {
+          "name": "DNSKEY",
+          "architecture": "all"
+        },
+        {
+          "name": "DHCID",
+          "architecture": "all"
+        },
+        {
+          "name": "NSEC3",
+          "architecture": "all"
+        },
+        {
+          "name": "NSEC3PARAM",
+          "architecture": "all"
+        },
+        {
+          "name": "TLSA",
+          "architecture": "all"
+        },
+        {
+          "name": "SMIMEA",
+          "architecture": "all"
+        },
+        {
+          "name": "HIP",
+          "architecture": "all"
+        },
+        {
+          "name": "NINFO",
+          "architecture": "all"
+        },
+        {
+          "name": "RKEY",
+          "architecture": "all"
+        },
+        {
+          "name": "TALINK",
+          "architecture": "all"
+        },
+        {
+          "name": "CDS",
+          "architecture": "all"
+        },
+        {
+          "name": "CDNSKEY",
+          "architecture": "all"
+        },
+        {
+          "name": "OPENPGPKEY",
+          "architecture": "all"
+        },
+        {
+          "name": "CSYNC",
+          "architecture": "all"
+        },
+        {
+          "name": "ZONEMD",
+          "architecture": "all"
+        },
+        {
+          "name": "SVCB",
+          "architecture": "all"
+        },
+        {
+          "name": "HTTPS",
+          "architecture": "all"
+        },
+        {
+          "name": "SPF",
+          "architecture": "all"
+        },
+        {
+          "name": "UINFO",
+          "architecture": "all"
+        },
+        {
+          "name": "UID",
+          "architecture": "all"
+        },
+        {
+          "name": "GID",
+          "architecture": "all"
+        },
+        {
+          "name": "UNSPEC",
+          "architecture": "all"
+        },
+        {
+          "name": "NID",
+          "architecture": "all"
+        },
+        {
+          "name": "L32",
+          "architecture": "all"
+        },
+        {
+          "name": "L64",
+          "architecture": "all"
+        },
+        {
+          "name": "LP",
+          "architecture": "all"
+        },
+        {
+          "name": "EUI48",
+          "architecture": "all"
+        },
+        {
+          "name": "EUI64",
+          "architecture": "all"
+        },
+        {
+          "name": "URI",
+          "architecture": "all"
+        },
+        {
+          "name": "CAA",
+          "architecture": "all"
+        },
+        {
+          "name": "AVC",
+          "architecture": "all"
+        },
+        {
+          "name": "TKEY",
+          "architecture": "all"
+        },
+        {
+          "name": "TSIG",
+          "architecture": "all"
+        },
+        {
+          "name": "IXFR",
+          "architecture": "all"
+        },
+        {
+          "name": "AXFR",
+          "architecture": "all"
+        },
+        {
+          "name": "MAILB",
+          "architecture": "all"
+        },
+        {
+          "name": "MAILA",
+          "architecture": "all"
+        },
+        {
+          "name": "ANY",
+          "architecture": "all"
+        },
+        {
+          "name": "TA",
+          "architecture": "all"
+        },
+        {
+          "name": "DLV",
+          "architecture": "all"
+        },
+        {
+          "name": "Reserved",
+          "architecture": "all"
+        }
+      ]
+    },
+    {
+      "name": "L3 protocols",
+      "link": "l3-protocols",
+      "description": "L3 protocols are the supported Layer 3 protocols.",
+      "all": [
+        {
+          "name": "ETH_P_LOOP",
+          "architecture": "all"
+        },
+        {
+          "name": "ETH_P_PUP",
+          "architecture": "all"
+        },
+        {
+          "name": "ETH_P_PUPAT",
+          "architecture": "all"
+        },
+        {
+          "name": "ETH_P_TSN",
+          "architecture": "all"
+        },
+        {
+          "name": "ETH_P_IP",
+          "architecture": "all"
+        },
+        {
+          "name": "ETH_P_X25",
+          "architecture": "all"
+        },
+        {
+          "name": "ETH_P_ARP",
+          "architecture": "all"
+        },
+        {
+          "name": "ETH_P_BPQ",
+          "architecture": "all"
+        },
+        {
+          "name": "ETH_P_IEEEPUP",
+          "architecture": "all"
+        },
+        {
+          "name": "ETH_P_IEEEPUPAT",
+          "architecture": "all"
+        },
+        {
+          "name": "ETH_P_BATMAN",
+          "architecture": "all"
+        },
+        {
+          "name": "ETH_P_DEC",
+          "architecture": "all"
+        },
+        {
+          "name": "ETH_P_DNADL",
+          "architecture": "all"
+        },
+        {
+          "name": "ETH_P_DNARC",
+          "architecture": "all"
+        },
+        {
+          "name": "ETH_P_DNART",
+          "architecture": "all"
+        },
+        {
+          "name": "ETH_P_LAT",
+          "architecture": "all"
+        },
+        {
+          "name": "ETH_P_DIAG",
+          "architecture": "all"
+        },
+        {
+          "name": "ETH_P_CUST",
+          "architecture": "all"
+        },
+        {
+          "name": "ETH_P_SCA",
+          "architecture": "all"
+        },
+        {
+          "name": "ETH_P_TEB",
+          "architecture": "all"
+        },
+        {
+          "name": "ETH_P_RARP",
+          "architecture": "all"
+        },
+        {
+          "name": "ETH_P_ATALK",
+          "architecture": "all"
+        },
+        {
+          "name": "ETH_P_AARP",
+          "architecture": "all"
+        },
+        {
+          "name": "ETH_P_8021_Q",
+          "architecture": "all"
+        },
+        {
+          "name": "ETH_P_ERSPAN",
+          "architecture": "all"
+        },
+        {
+          "name": "ETH_P_IPX",
+          "architecture": "all"
+        },
+        {
+          "name": "ETH_P_IPV6",
+          "architecture": "all"
+        },
+        {
+          "name": "ETH_P_PAUSE",
+          "architecture": "all"
+        },
+        {
+          "name": "ETH_P_SLOW",
+          "architecture": "all"
+        },
+        {
+          "name": "ETH_P_WCCP",
+          "architecture": "all"
+        },
+        {
+          "name": "ETH_P_MPLSUC",
+          "architecture": "all"
+        },
+        {
+          "name": "ETH_P_MPLSMC",
+          "architecture": "all"
+        },
+        {
+          "name": "ETH_P_ATMMPOA",
+          "architecture": "all"
+        },
+        {
+          "name": "ETH_P_PPPDISC",
+          "architecture": "all"
+        },
+        {
+          "name": "ETH_P_PPPSES",
+          "architecture": "all"
+        },
+        {
+          "name": "ETH_P__LINK_CTL",
+          "architecture": "all"
+        },
+        {
+          "name": "ETH_P_ATMFATE",
+          "architecture": "all"
+        },
+        {
+          "name": "ETH_P_PAE",
+          "architecture": "all"
+        },
+        {
+          "name": "ETH_P_AOE",
+          "architecture": "all"
+        },
+        {
+          "name": "ETH_P_8021_AD",
+          "architecture": "all"
+        },
+        {
+          "name": "ETH_P_802_EX1",
+          "architecture": "all"
+        },
+        {
+          "name": "ETH_P_TIPC",
+          "architecture": "all"
+        },
+        {
+          "name": "ETH_P_MACSEC",
+          "architecture": "all"
+        },
+        {
+          "name": "ETH_P_8021_AH",
+          "architecture": "all"
+        },
+        {
+          "name": "ETH_P_MVRP",
+          "architecture": "all"
+        },
+        {
+          "name": "ETH_P_1588",
+          "architecture": "all"
+        },
+        {
+          "name": "ETH_P_NCSI",
+          "architecture": "all"
+        },
+        {
+          "name": "ETH_P_PRP",
+          "architecture": "all"
+        },
+        {
+          "name": "ETH_P_FCOE",
+          "architecture": "all"
+        },
+        {
+          "name": "ETH_P_IBOE",
+          "architecture": "all"
+        },
+        {
+          "name": "ETH_P_TDLS",
+          "architecture": "all"
+        },
+        {
+          "name": "ETH_P_FIP",
+          "architecture": "all"
+        },
+        {
+          "name": "ETH_P_80221",
+          "architecture": "all"
+        },
+        {
+          "name": "ETH_P_HSR",
+          "architecture": "all"
+        },
+        {
+          "name": "ETH_P_NSH",
+          "architecture": "all"
+        },
+        {
+          "name": "ETH_P_LOOPBACK",
+          "architecture": "all"
+        },
+        {
+          "name": "ETH_P_QINQ1",
+          "architecture": "all"
+        },
+        {
+          "name": "ETH_P_QINQ2",
+          "architecture": "all"
+        },
+        {
+          "name": "ETH_P_QINQ3",
+          "architecture": "all"
+        },
+        {
+          "name": "ETH_P_EDSA",
+          "architecture": "all"
+        },
+        {
+          "name": "ETH_P_IFE",
+          "architecture": "all"
+        },
+        {
+          "name": "ETH_P_AFIUCV",
+          "architecture": "all"
+        },
+        {
+          "name": "ETH_P_8023_MIN",
+          "architecture": "all"
+        },
+        {
+          "name": "ETH_P_IPV6_HOP_BY_HOP",
+          "architecture": "all"
+        },
+        {
+          "name": "ETH_P_8023",
+          "architecture": "all"
+        },
+        {
+          "name": "ETH_P_AX25",
+          "architecture": "all"
+        },
+        {
+          "name": "ETH_P_ALL",
+          "architecture": "all"
+        },
+        {
+          "name": "ETH_P_8022",
+          "architecture": "all"
+        },
+        {
+          "name": "ETH_P_SNAP",
+          "architecture": "all"
+        },
+        {
+          "name": "ETH_P_DDCMP",
+          "architecture": "all"
+        },
+        {
+          "name": "ETH_P_WANPPP",
+          "architecture": "all"
+        },
+        {
+          "name": "ETH_P_PPPMP",
+          "architecture": "all"
+        },
+        {
+          "name": "ETH_P_LOCALTALK",
+          "architecture": "all"
+        },
+        {
+          "name": "ETH_P_CAN",
+          "architecture": "all"
+        },
+        {
+          "name": "ETH_P_CANFD",
+          "architecture": "all"
+        },
+        {
+          "name": "ETH_P_PPPTALK",
+          "architecture": "all"
+        },
+        {
+          "name": "ETH_P_TR8022",
+          "architecture": "all"
+        },
+        {
+          "name": "ETH_P_MOBITEX",
+          "architecture": "all"
+        },
+        {
+          "name": "ETH_P_CONTROL",
+          "architecture": "all"
+        },
+        {
+          "name": "ETH_P_IRDA",
+          "architecture": "all"
+        },
+        {
+          "name": "ETH_P_ECONET",
+          "architecture": "all"
+        },
+        {
+          "name": "ETH_P_HDLC",
+          "architecture": "all"
+        },
+        {
+          "name": "ETH_P_ARCNET",
+          "architecture": "all"
+        },
+        {
+          "name": "ETH_P_DSA",
+          "architecture": "all"
+        },
+        {
+          "name": "ETH_P_TRAILER",
+          "architecture": "all"
+        },
+        {
+          "name": "ETH_P_PHONET",
+          "architecture": "all"
+        },
+        {
+          "name": "ETH_P_IEEE802154",
+          "architecture": "all"
+        },
+        {
+          "name": "ETH_P_CAIF",
+          "architecture": "all"
+        },
+        {
+          "name": "ETH_P_XDSA",
+          "architecture": "all"
+        },
+        {
+          "name": "ETH_P_MAP",
+          "architecture": "all"
+        }
+      ]
+    },
+    {
+      "name": "L4 protocols",
+      "link": "l4-protocols",
+      "description": "L4 protocols are the supported Layer 4 protocols.",
+      "all": [
+        {
+          "name": "IP_PROTO_IP",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_PROTO_ICMP",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_PROTO_IGMP",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_PROTO_IPIP",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_PROTO_TCP",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_PROTO_EGP",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_PROTO_IGP",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_PROTO_PUP",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_PROTO_UDP",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_PROTO_IDP",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_PROTO_TP",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_PROTO_DCCP",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_PROTO_IPV6",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_PROTO_RSVP",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_PROTO_GRE",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_PROTO_ESP",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_PROTO_AH",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_PROTO_ICMPV6",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_PROTO_MTP",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_PROTO_BEETPH",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_PROTO_ENCAP",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_PROTO_PIM",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_PROTO_COMP",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_PROTO_SCTP",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_PROTO_UDPLITE",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_PROTO_MPLS",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_PROTO_RAW",
+          "architecture": "all"
+        }
+      ]
+    }
+  ]
+}

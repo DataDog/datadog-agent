@@ -11,7 +11,10 @@ import (
 	"sort"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
@@ -22,9 +25,6 @@ import (
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
-
-	"github.com/google/go-cmp/cmp"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestHandleKubePod(t *testing.T) {
@@ -206,6 +206,8 @@ func TestHandleKubePod(t *testing.T) {
 
 				// Phase tags
 				Phase: "Running",
+
+				PriorityClass: "high-priority",
 			},
 			expected: []*types.TagInfo{
 				{
@@ -229,6 +231,7 @@ func TestHandleKubePod(t *testing.T) {
 						"kube_app_managed_by:helm",
 						"kube_app_part_of:datadog",
 						"kube_ownerref_kind:deployment",
+						"kube_priority_class:high-priority",
 						"kube_service:service1",
 						"kube_service:service2",
 						"kube_qos:guaranteed",
@@ -520,11 +523,8 @@ func TestHandleKubePod(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			collector := &WorkloadMetaCollector{
-				store:      store,
-				children:   make(map[string]map[string]struct{}),
-				staticTags: tt.staticTags,
-			}
+			collector := NewWorkloadMetaCollector(context.Background(), store, nil)
+			collector.staticTags = tt.staticTags
 
 			collector.initPodMetaAsTags(tt.labelsAsTags, tt.annotationsAsTags, tt.nsLabelsAsTags, tt.nsAnnotationsAsTags)
 
@@ -671,11 +671,8 @@ func TestHandleKubePodNoContainerName(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			collector := &WorkloadMetaCollector{
-				store:      store,
-				children:   make(map[string]map[string]struct{}),
-				staticTags: tt.staticTags,
-			}
+			collector := NewWorkloadMetaCollector(context.Background(), store, nil)
+			collector.staticTags = tt.staticTags
 
 			collector.initPodMetaAsTags(tt.labelsAsTags, tt.annotationsAsTags, tt.nsLabelsAsTags, tt.annotationsAsTags)
 
@@ -689,15 +686,15 @@ func TestHandleKubePodNoContainerName(t *testing.T) {
 	}
 }
 
-func TestHandleKubeNamespace(t *testing.T) {
+func TestHandleKubeMetadata(t *testing.T) {
 	const namespace = "foobar"
 
-	namespaceEntityID := workloadmeta.EntityID{
-		Kind: workloadmeta.KindKubernetesNamespace,
-		ID:   namespace,
+	kubeMetadataEntityID := workloadmeta.EntityID{
+		Kind: workloadmeta.KindKubernetesMetadata,
+		ID:   fmt.Sprintf("namespaces//%s", namespace),
 	}
 
-	namespaceTaggerEntityID := fmt.Sprintf("namespace://%s", namespaceEntityID.ID)
+	taggerEntityID := fmt.Sprintf("kubernetes_metadata://%s", kubeMetadataEntityID.ID)
 
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		logimpl.MockModule(),
@@ -709,8 +706,8 @@ func TestHandleKubeNamespace(t *testing.T) {
 
 	store.Set(&workloadmeta.Container{
 		EntityID: workloadmeta.EntityID{
-			Kind: workloadmeta.KindKubernetesNamespace,
-			ID:   namespace,
+			Kind: workloadmeta.KindKubernetesMetadata,
+			ID:   fmt.Sprintf("namespaces//%s", namespace),
 		},
 		EntityMeta: workloadmeta.EntityMeta{
 			Name: namespace,
@@ -723,11 +720,11 @@ func TestHandleKubeNamespace(t *testing.T) {
 		annotationsAsTags   map[string]string
 		nsLabelsAsTags      map[string]string
 		nsAnnotationsAsTags map[string]string
-		namespace           workloadmeta.KubernetesNamespace
+		kubeMetadata        workloadmeta.KubernetesMetadata
 		expected            []*types.TagInfo
 	}{
 		{
-			name: "fully formed namespace",
+			name: "namespace",
 			nsLabelsAsTags: map[string]string{
 				"ns_env":       "ns_env",
 				"ns-ownerteam": "ns-team",
@@ -736,8 +733,8 @@ func TestHandleKubeNamespace(t *testing.T) {
 				"ns_tier":            "ns_tier",
 				"namespace_security": "ns_security",
 			},
-			namespace: workloadmeta.KubernetesNamespace{
-				EntityID: namespaceEntityID,
+			kubeMetadata: workloadmeta.KubernetesMetadata{
+				EntityID: kubeMetadataEntityID,
 				EntityMeta: workloadmeta.EntityMeta{
 					Name: namespace,
 					Labels: map[string]string{
@@ -750,11 +747,15 @@ func TestHandleKubeNamespace(t *testing.T) {
 						"namespace_security": "critical",
 					},
 				},
+				GVR: schema.GroupVersionResource{
+					Version:  "v1",
+					Resource: "namespaces",
+				},
 			},
 			expected: []*types.TagInfo{
 				{
-					Source:               nodeSource,
-					Entity:               namespaceTaggerEntityID,
+					Source:               kubeMetadataSource,
+					Entity:               taggerEntityID,
 					HighCardTags:         []string{},
 					OrchestratorCardTags: []string{},
 					LowCardTags: []string{
@@ -771,16 +772,13 @@ func TestHandleKubeNamespace(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			collector := &WorkloadMetaCollector{
-				store:    store,
-				children: make(map[string]map[string]struct{}),
-			}
+			collector := NewWorkloadMetaCollector(context.Background(), store, nil)
 
 			collector.initPodMetaAsTags(tt.labelsAsTags, tt.annotationsAsTags, tt.nsLabelsAsTags, tt.nsAnnotationsAsTags)
 
-			actual := collector.handleKubeNamespace(workloadmeta.Event{
+			actual := collector.handleKubeMetadata(workloadmeta.Event{
 				Type:   workloadmeta.EventTypeSet,
-				Entity: &tt.namespace,
+				Entity: &tt.kubeMetadata,
 			})
 
 			assertTagInfoListEqual(t, tt.expected, actual)
@@ -806,7 +804,9 @@ func TestHandleECSTask(t *testing.T) {
 		config.MockModule(),
 		fx.Supply(workloadmeta.NewParams()),
 		workloadmetafxmock.MockModule(),
-	))
+	), fx.Replace(config.MockParams{Overrides: map[string]any{
+		"ecs_collect_resource_tags_ec2": true,
+	}}))
 
 	store.Set(&workloadmeta.Container{
 		EntityID: workloadmeta.EntityID{
@@ -889,6 +889,7 @@ func TestHandleECSTask(t *testing.T) {
 					},
 				},
 				AvailabilityZone: "us-east-1c",
+				Region:           "us-east-1",
 			},
 			expected: []*types.TagInfo{
 				{
@@ -907,6 +908,7 @@ func TestHandleECSTask(t *testing.T) {
 						"task_version:1",
 						"availability_zone:us-east-1c",
 						"availability-zone:us-east-1c",
+						"region:us-east-1",
 					},
 					StandardTags: []string{},
 				},
@@ -925,6 +927,7 @@ func TestHandleECSTask(t *testing.T) {
 						"task_version:1",
 						"availability_zone:us-east-1c",
 						"availability-zone:us-east-1c",
+						"region:us-east-1",
 					},
 					StandardTags: []string{},
 				},
@@ -934,11 +937,7 @@ func TestHandleECSTask(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			collector := &WorkloadMetaCollector{
-				store:                  store,
-				children:               make(map[string]map[string]struct{}),
-				collectEC2ResourceTags: true,
-			}
+			collector := NewWorkloadMetaCollector(context.Background(), store, nil)
 
 			actual := collector.handleECSTask(workloadmeta.Event{
 				Type:   workloadmeta.EventTypeSet,
@@ -1478,9 +1477,9 @@ func TestHandleContainer(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			collector := &WorkloadMetaCollector{
-				staticTags: tt.staticTags,
-			}
+			collector := NewWorkloadMetaCollector(context.Background(), nil, nil)
+			collector.staticTags = tt.staticTags
+
 			collector.initContainerMetaAsTags(tt.labelsAsTags, tt.envAsTags)
 
 			actual := collector.handleContainer(workloadmeta.Event{
@@ -1564,7 +1563,7 @@ func TestHandleContainerImage(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			collector := &WorkloadMetaCollector{}
+			collector := NewWorkloadMetaCollector(context.Background(), nil, nil)
 
 			actual := collector.handleContainerImage(workloadmeta.Event{
 				Type:   workloadmeta.EventTypeSet,
@@ -1622,10 +1621,7 @@ func TestHandleDelete(t *testing.T) {
 		},
 	})
 
-	collector := &WorkloadMetaCollector{
-		store:    store,
-		children: make(map[string]map[string]struct{}),
-	}
+	collector := NewWorkloadMetaCollector(context.Background(), store, nil)
 
 	collector.handleKubePod(workloadmeta.Event{
 		Type:   workloadmeta.EventTypeSet,
@@ -1684,22 +1680,17 @@ func TestHandlePodWithDeletedContainer(t *testing.T) {
 
 	collectorCh := make(chan []*types.TagInfo, 10)
 
-	collector := &WorkloadMetaCollector{
-		store: fxutil.Test[workloadmetamock.Mock](t, fx.Options(
-			logimpl.MockModule(),
-			config.MockModule(),
-			fx.Supply(workloadmeta.NewParams()),
-			workloadmetafxmock.MockModule(),
-		)),
-		children: map[string]map[string]struct{}{
-			// Notice that here we set the container that belonged to the pod
-			// but that no longer exists
-			podTaggerEntityID: {
-				containerToBeDeletedTaggerEntityID: struct{}{},
-			},
-		},
-		tagProcessor: &fakeProcessor{collectorCh},
-	}
+	fakeStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		logimpl.MockModule(),
+		config.MockModule(),
+		fx.Supply(workloadmeta.NewParams()),
+		workloadmetafxmock.MockModule(),
+	))
+	collector := NewWorkloadMetaCollector(context.Background(), fakeStore, &fakeProcessor{collectorCh})
+	collector.children = map[string]map[string]struct{}{
+		// Notice that here we set the container that belonged to the pod
+		// but that no longer exists
+		podTaggerEntityID: {containerToBeDeletedTaggerEntityID: struct{}{}}}
 
 	eventBundle := workloadmeta.EventBundle{
 		Events: []workloadmeta.Event{
