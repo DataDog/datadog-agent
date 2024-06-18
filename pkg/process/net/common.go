@@ -21,7 +21,6 @@ import (
 	model "github.com/DataDog/agent-payload/v5/process"
 	"google.golang.org/protobuf/proto"
 
-	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	servicediscoverymodel "github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	netEncoding "github.com/DataDog/datadog-agent/pkg/network/encoding/unmarshal"
@@ -382,7 +381,7 @@ func (r *RemoteSysProbeUtil) GetPprof(path string) ([]byte, error) {
 
 // GetServiceDiscoveryOpenPorts returns open ports from system-probe.
 func (r *RemoteSysProbeUtil) GetServiceDiscoveryOpenPorts(ctx context.Context) (*servicediscoverymodel.OpenPortsResponse, error) {
-	url := fmt.Sprintf("http://unix/%s/open_ports", sysconfig.ServiceDiscoveryModule)
+	url := serviceDiscoveryOpenPortsURL
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return nil, err
@@ -407,7 +406,7 @@ func (r *RemoteSysProbeUtil) GetServiceDiscoveryOpenPorts(ctx context.Context) (
 
 // GetServiceDiscoveryProc returns proc information from system-probe.
 func (r *RemoteSysProbeUtil) GetServiceDiscoveryProc(ctx context.Context, pid int) (*servicediscoverymodel.GetProcResponse, error) {
-	url := fmt.Sprintf("http://unix/%s/procs/%d", sysconfig.ServiceDiscoveryModule, pid)
+	url := fmt.Sprintf(serviceDiscoveryGetProcURL, pid)
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return nil, err

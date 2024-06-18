@@ -5,7 +5,7 @@
 
 //go:build linux
 
-package modules
+package systemprobe
 
 import (
 	"encoding/json"

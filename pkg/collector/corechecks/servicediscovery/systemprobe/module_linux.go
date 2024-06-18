@@ -5,7 +5,7 @@
 
 //go:build linux
 
-package modules
+package systemprobe
 
 import (
 	"fmt"
@@ -25,7 +25,6 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/portlist"
-	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
@@ -35,16 +34,11 @@ const (
 	pathGetProc   = "/procs/{pid}"
 )
 
-// ServiceDiscoveryModule is the language detection module factory
+// ServiceDiscoveryModule is the service_discovery module factory.
 var ServiceDiscoveryModule = module.Factory{
 	Name:             config.ServiceDiscoveryModule,
-	ConfigNamespaces: []string{"service_discovery"},
+	ConfigNamespaces: moduleNamespaces,
 	Fn: func(_ *sysconfigtypes.Config, _ optional.Option[workloadmeta.Component], _ telemetry.Component) (module.Module, error) {
-		if ddconfig.IsContainerized() {
-			// service_discovery check is not enabled in containerized environments
-			return nil, module.ErrNotEnabled
-		}
-
 		poller, err := portlist.NewPoller()
 		if err != nil {
 			return nil, err

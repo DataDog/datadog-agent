@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
+	servicediscovery "github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/systemprobe"
 )
 
 // All System Probe modules should register their factories here
@@ -29,7 +30,7 @@ var All = []module.Factory{
 	ComplianceModule,
 	Pinger,
 	Traceroute,
-	ServiceDiscoveryModule,
+	servicediscovery.ServiceDiscoveryModule,
 }
 
 func inactivityEventLog(_ time.Duration) {
