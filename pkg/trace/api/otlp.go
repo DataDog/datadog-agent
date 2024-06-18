@@ -180,11 +180,6 @@ func (o *OTLPReceiver) sample(tid uint64) sampler.SamplingPriority {
 	return sampler.PriorityAutoDrop
 }
 
-// SetStatsdClientForOTel sets the stats client to be used by this OTLPReceiver
-func (o *OTLPReceiver) SetStatsdClientForOTel(mclient statsd.ClientInterface) {
-	o.statsd = mclient
-}
-
 // SetOTelAttributeTranslator sets the attribute translator to be used by this OTLPReceiver
 func (o *OTLPReceiver) SetOTelAttributeTranslator(attrstrans *attributes.Translator) {
 	o.conf.OTLPReceiver.AttributesTranslator = attrstrans

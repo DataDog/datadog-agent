@@ -57,9 +57,9 @@ func (f *factory) setupTraceAgentCmp(set component.TelemetrySettings) error {
 		if f.attributesErr != nil {
 			return
 		}
-		mclient := metricsclient.InitializeMetricClient(set.MeterProvider, metricsclient.ExporterSourceTag)
 		f.traceagentcmp.SetOTelAttributeTranslator(attributesTranslator)
-		f.traceagentcmp.SetStatsdClientForOTel(mclient)
+		// TODO(OASIS-12): use this statsd client in trace agent
+		_ = metricsclient.InitializeMetricClient(set.MeterProvider, metricsclient.ExporterSourceTag)
 	})
 	return f.attributesErr
 }

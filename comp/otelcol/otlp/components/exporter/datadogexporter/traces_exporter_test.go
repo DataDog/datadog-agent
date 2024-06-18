@@ -31,10 +31,6 @@ type testComponent struct {
 	*pkgagent.Agent
 }
 
-func (c testComponent) SetStatsdClientForOTel(mclient ddgostatsd.ClientInterface) {
-	c.Agent.OTLPReceiver.SetStatsdClientForOTel(mclient)
-}
-
 func (c testComponent) SetOTelAttributeTranslator(attrstrans *attributes.Translator) {
 	c.Agent.OTLPReceiver.SetOTelAttributeTranslator(attrstrans)
 }

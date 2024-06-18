@@ -12,7 +12,6 @@ import (
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 
-	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes/source"
 	"go.opentelemetry.io/collector/pdata/ptrace"
@@ -22,8 +21,6 @@ import (
 
 // Component is the agent component type.
 type Component interface {
-	// SetStatsdClientForOTel sets the stats client used by the OTLP receiver in the trace agent.
-	SetStatsdClientForOTel(mclient statsd.ClientInterface)
 	// SetOTelAttributeTranslator sets the OTel attributes translator of the underlying trace agent.
 	SetOTelAttributeTranslator(attrstrans *attributes.Translator)
 	// ReceiveOTLPSpans forwards the OTLP spans to the underlying trace agent to process.

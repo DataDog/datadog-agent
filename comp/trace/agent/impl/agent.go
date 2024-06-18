@@ -66,10 +66,6 @@ type dependencies struct {
 
 var _ traceagent.Component = (*component)(nil)
 
-func (c component) SetStatsdClientForOTel(mclient ddgostatsd.ClientInterface) {
-	c.Agent.OTLPReceiver.SetStatsdClientForOTel(mclient)
-}
-
 func (c component) SetOTelAttributeTranslator(attrstrans *attributes.Translator) {
 	c.Agent.OTLPReceiver.SetOTelAttributeTranslator(attrstrans)
 }

@@ -6,13 +6,11 @@ replace github.com/DataDog/datadog-agent/pkg/proto => ../../../../pkg/proto
 
 require (
 	github.com/DataDog/datadog-agent/pkg/proto v0.54.0
-	github.com/DataDog/datadog-go/v5 v5.5.0
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.16.1
 	go.opentelemetry.io/collector/pdata v1.9.0
 )
 
 require (
-	github.com/Microsoft/go-winio v0.5.0 // indirect
 	github.com/go-viper/mapstructure/v2 v2.0.0-alpha.1 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
