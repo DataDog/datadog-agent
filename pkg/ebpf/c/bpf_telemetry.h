@@ -104,7 +104,7 @@ static void *(*bpf_telemetry_update_patch)(unsigned long, ...) = (void *)PATCH_T
 #define __APPLY_OP3(expr, op, inv, one, two, three) op(__APPLY_OP2(expr, inv, one, two), expr(inv, three))
 
 /*
- * __APPLY_OPx applies `op`, where `op` is a logical operation to all, expr(inv, one),
+ * __APPLY_OPx applies `op`, where `op` is a logical operation to all expr(inv, one),
  * expr(inv, two), etc. `inv` is the invariant and one, two, three, are the values to be
  * checked against.
  */
