@@ -1,8 +1,9 @@
+//go:build test
+
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
-
 package metrics
 
 import (
@@ -517,6 +518,51 @@ func TestGenerateCPUEnhancedMetricsDisabled(t *testing.T) {
 	go GenerateCPUEnhancedMetrics(args)
 	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(4, 0, 100*time.Millisecond)
 	assert.Len(t, generatedMetrics, 0)
+	assert.Len(t, timedMetrics, 0)
+}
+
+func TestGenerateNetworkEnhancedMetrics(t *testing.T) {
+	demux := createDemultiplexer(t)
+	tags := []string{"functionname:test-function"}
+	now := float64(time.Now().UnixNano()) / float64(time.Second)
+	args := GenerateNetworkEnhancedMetricArgs{
+		RxBytesOffset: 10,
+		RxBytes:       100,
+		TxBytesOffset: 20,
+		TxBytes:       50,
+		Tags:          tags,
+		Demux:         demux,
+		Time:          now,
+	}
+	go GenerateNetworkEnhancedMetrics(args)
+	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(4, 0, 100*time.Millisecond)
+	assert.Equal(t, []metrics.MetricSample{
+		{
+			Name:       rxBytesMetric,
+			Value:      90,
+			Mtype:      metrics.DistributionType,
+			Tags:       tags,
+			SampleRate: 1,
+			Timestamp:  now,
+		},
+		{
+			Name:       txBytesMetric,
+			Value:      30,
+			Mtype:      metrics.DistributionType,
+			Tags:       tags,
+			SampleRate: 1,
+			Timestamp:  now,
+		},
+		{
+			Name:       totalNetworkMetric,
+			Value:      120,
+			Mtype:      metrics.DistributionType,
+			Tags:       tags,
+			SampleRate: 1,
+			Timestamp:  now,
+		}},
+		generatedMetrics,
+	)
 	assert.Len(t, timedMetrics, 0)
 }
 

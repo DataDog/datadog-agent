@@ -158,7 +158,8 @@ func WaitForNextInvocation(stopCh chan struct{}, daemon *daemon.Daemon, id regis
 }
 
 func callInvocationHandler(daemon *daemon.Daemon, arn string, deadlineMs int64, safetyBufferTimeout time.Duration, requestID string, invocationHandler InvocationHandler) {
-	userCPUTimeMsOffset, systemCPUTimeMsOffset, cpuOffsetErr := proc.GetCPUData("/proc/stat")
+	userCPUTimeMsOffset, systemCPUTimeMsOffset, cpuOffsetErr := proc.GetCPUData(proc.ProcStatPath)
+	networkOffsetData, networkOffsetErr := proc.GetNetworkData(proc.ProcNetDevPath)
 	timeout := computeTimeout(time.Now(), deadlineMs, safetyBufferTimeout)
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
@@ -174,10 +175,23 @@ func callInvocationHandler(daemon *daemon.Daemon, arn string, deadlineMs int64, 
 	case <-doneChannel:
 		break
 	}
-	if cpuOffsetErr == nil && daemon.MetricAgent != nil {
+	sendSystemEnhancedMetrics(daemon, cpuOffsetErr == nil, networkOffsetErr == nil, userCPUTimeMsOffset, systemCPUTimeMsOffset, networkOffsetData)
+}
+
+func sendSystemEnhancedMetrics(daemon *daemon.Daemon, emitCPUMetrics, emitNetworkMetrics bool, userCPUTimeMsOffset, systemCPUTimeMsOffset float64, networkOffsetData *proc.NetworkData) {
+	if daemon.MetricAgent == nil {
+		log.Debug("Could not send system enhanced metrics")
+		return
+	}
+	if emitCPUMetrics {
 		metrics.SendCPUEnhancedMetrics(userCPUTimeMsOffset, systemCPUTimeMsOffset, daemon.ExtraTags.Tags, daemon.MetricAgent.Demux)
 	} else {
 		log.Debug("Could not send CPU enhanced metrics")
+	}
+	if emitNetworkMetrics {
+		metrics.SendNetworkEnhancedMetrics(networkOffsetData, daemon.ExtraTags.Tags, daemon.MetricAgent.Demux)
+	} else {
+		log.Debug("Could not send network enhanced metrics")
 	}
 }
 

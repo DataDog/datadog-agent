@@ -48,6 +48,9 @@ const (
 	cpuSystemTimeMetric   = "aws.lambda.enhanced.cpu_system_time"
 	cpuUserTimeMetric     = "aws.lambda.enhanced.cpu_user_time"
 	cpuTotalTimeMetric    = "aws.lambda.enhanced.cpu_total_time"
+	rxBytesMetric         = "aws.lambda.enhanced.rx_bytes"
+	txBytesMetric         = "aws.lambda.enhanced.tx_bytes"
+	totalNetworkMetric    = "aws.lambda.enhanced.total_network"
 	enhancedMetricsEnvVar = "DD_ENHANCED_METRICS"
 )
 
@@ -287,7 +290,7 @@ func GenerateCPUEnhancedMetrics(args GenerateCPUEnhancedMetricsArgs) {
 
 // SendCPUEnhancedMetrics sends CPU enhanced metrics for the invocation
 func SendCPUEnhancedMetrics(userCPUOffsetMs, systemCPUOffsetMs float64, tags []string, demux aggregator.Demultiplexer) {
-	userCPUTimeMs, systemCPUTimeMs, err := proc.GetCPUData("/proc/stat")
+	userCPUTimeMs, systemCPUTimeMs, err := proc.GetCPUData(proc.ProcStatPath)
 	if err != nil {
 		log.Debug("Could not emit CPU enhanced metrics")
 		return
@@ -298,6 +301,67 @@ func SendCPUEnhancedMetrics(userCPUOffsetMs, systemCPUOffsetMs float64, tags []s
 		Tags:            tags,
 		Demux:           demux,
 		Time:            time.Now(),
+	})
+}
+
+func SendNetworkEnhancedMetrics(networkOffsetData *proc.NetworkData, tags []string, demux aggregator.Demultiplexer) {
+	if strings.ToLower(os.Getenv(enhancedMetricsEnvVar)) == "false" {
+		return
+	}
+	networkData, err := proc.GetNetworkData(proc.ProcNetDevPath)
+	if err != nil {
+		log.Debug("Could not emit network enhanced metrics")
+		return
+	}
+
+	now := float64(time.Now().UnixNano()) / float64(time.Second)
+	GenerateNetworkEnhancedMetrics(GenerateNetworkEnhancedMetricArgs{
+		networkOffsetData.RxBytes,
+		networkData.RxBytes,
+		networkOffsetData.TxBytes,
+		networkData.TxBytes,
+		tags,
+		demux,
+		now,
+	})
+}
+
+type GenerateNetworkEnhancedMetricArgs struct {
+	RxBytesOffset float64
+	RxBytes       float64
+	TxBytesOffset float64
+	TxBytes       float64
+	Tags          []string
+	Demux         aggregator.Demultiplexer
+	Time          float64
+}
+
+func GenerateNetworkEnhancedMetrics(args GenerateNetworkEnhancedMetricArgs) {
+	adjustedRxBytes := args.RxBytes - args.RxBytesOffset
+	adjustedTxBytes := args.TxBytes - args.TxBytesOffset
+	args.Demux.AggregateSample(metrics.MetricSample{
+		Name:       rxBytesMetric,
+		Value:      adjustedRxBytes,
+		Mtype:      metrics.DistributionType,
+		Tags:       args.Tags,
+		SampleRate: 1,
+		Timestamp:  args.Time,
+	})
+	args.Demux.AggregateSample(metrics.MetricSample{
+		Name:       txBytesMetric,
+		Value:      adjustedTxBytes,
+		Mtype:      metrics.DistributionType,
+		Tags:       args.Tags,
+		SampleRate: 1,
+		Timestamp:  args.Time,
+	})
+	args.Demux.AggregateSample(metrics.MetricSample{
+		Name:       totalNetworkMetric,
+		Value:      adjustedRxBytes + adjustedTxBytes,
+		Mtype:      metrics.DistributionType,
+		Tags:       args.Tags,
+		SampleRate: 1,
+		Timestamp:  args.Time,
 	})
 }
 
