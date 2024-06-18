@@ -62,7 +62,7 @@ var (
 	knownKernelOffsets = map[string]map[GuessWhat]uint64{
 		// debian 9 rtt and rtt var offset guessing is
 		// not reliable, so hardcoding the offsets here
-		"4.9.0-19-amd64": map[GuessWhat]uint64{
+		"4.9.0-19-amd64": {
 			GuessRTT:    1444,
 			GuessRTTVar: 1448,
 		},
