@@ -581,6 +581,12 @@ Package updater is the updater component.
 
 Package etw provides an ETW tracing interface
 
+### [comp/rdnsquerier](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/rdnsquerier)
+
+*Datadog Team*: network-device-monitoring
+
+Package rdnsquerier provides the reverse DNS querier component.
+
 ### [comp/serializer/compression](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/serializer/compression)
 
 *Datadog Team*: agent-metrics-logs
