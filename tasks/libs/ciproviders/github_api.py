@@ -144,7 +144,7 @@ class GithubAPI:
         if workflow is None:
             return False
         if inputs is None:
-            inputs = dict()
+            inputs = {}
         return workflow.create_dispatch(ref, inputs)
 
     def workflow_run(self, run_id):

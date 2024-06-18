@@ -37,7 +37,7 @@ def run_linters_for_each_os_x_arch(ctx, platforms, command, show_output):
     """
     Run the linters for different OSxArch combinations by using GOOS & GOARCH.
     """
-    results_per_os_x_arch = dict()
+    results_per_os_x_arch = {}
     platforms = platforms if platforms else CI_TESTED_OS_AND_ARCH
     platforms = [p.split(',') for p in platforms]
     for tested_os, tested_arch in platforms:

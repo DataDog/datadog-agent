@@ -73,11 +73,11 @@ def run(
     if targets:
         e2e_module.targets = targets
 
-    envVars = dict()
+    envVars = {}
     if profile:
         envVars["E2E_PROFILE"] = profile
 
-    parsedParams = dict()
+    parsedParams = {}
     for param in configparams:
         parts = param.split("=", 1)
         if len(parts) != 2:

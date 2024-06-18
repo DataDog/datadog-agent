@@ -709,7 +709,7 @@ def test(
     if go_root:
         args["go"] = os.path.join(go_root, "bin", "go")
 
-    failed_pkgs = list()
+    failed_pkgs = []
     package_dirs = go_package_dirs(packages.split(" "), build_tags)
     # we iterate over the packages here to get the nice streaming test output
     for pdir in package_dirs:
