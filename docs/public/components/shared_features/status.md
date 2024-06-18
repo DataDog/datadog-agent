@@ -5,22 +5,20 @@ Components can register a status provider. When the status command is executed, 
 ## Status Providers
 
 There are two types of status providers:
-- Header Providers
-- Regular Providers
+- Header Providers: those providers are displayed at the top of the status output. This section is reserved for the most important information about the agent, such as agent version, hostname, host info, metadata, etc.
+- Regular Providers: those providers will be rendered after all the header providers.
 
 Each provider has the freedom to configure how they want to display their information for the three types of status output: JSON, Text, and HTML. 
 This flexibility allows you to tailor the output to best suit your component's needs.
 
-The JSON and Text outputs are displayed within the status CLI, while the HTML output is used for the agent GUI. 
+The JSON and Text outputs are displayed within the status CLI, while the HTML output is used for the Agent GUI. 
 
 To guarantee consistent output, we order the status providers internally. The ordering mechanism is different depending on the status provider. 
 We order the header providers based on an index using the ascending direction.
-The regular providers are ordered based on their names.
+The regular providers are ordered alphabetically based on their names.
 
 
-### Header Providers
-
-The interface of the header providers is:
+### Header Providers Interface
 
 ```go
 type HeaderProvider interface {
@@ -34,11 +32,7 @@ type HeaderProvider interface {
 }
 ```
 
-The different header providers are displayed at the top of the status output. This section is reserved for the most important information about the agent, such as agent version, hostname, host info, metadata, etc.
-
-### Regular Providers
-
-The interface of the regular providers is:
+### Regular Providers Interface
 
 ```go
 // Provider interface
@@ -125,12 +119,12 @@ Below is an example of adding a status provider to your component.
 
     // Text renders the text output
     func (c *compressor) Text(_ bool, buffer io.Writer) error {
-      return status.RenderText(templatesFS, "compressor.tmpl", buffer, ia.getStatusInfo())
+      return status.RenderText(templatesFS, "compressor.tmpl", buffer, c.getStatusInfo())
     }
 
     // HTML renders the html output
     func (c *compressor) HTML(_ bool, buffer io.Writer) error {
-      return status.RenderHTML(templatesFS, "compressorHTML.tmpl", buffer, ia.getStatusInfo())
+      return status.RenderHTML(templatesFS, "compressorHTML.tmpl", buffer, c.getStatusInfo())
     }
 
     func (c *compressor) populateStatus(stats map[string]interface{}) {
@@ -141,7 +135,7 @@ Below is an example of adding a status provider to your component.
     func (c *compressor) getStatusInfo() map[string]interface{} {
       stats := make(map[string]interface{})
 
-      ia.populateStatus(stats)
+      c.populateStatus(stats)
 
       return stats
     }
