@@ -298,7 +298,7 @@ func (rs *RuleSet) populateFieldsWithRuleActionsData(policyRules []*RuleDefiniti
 	for _, rule := range policyRules {
 		for _, action := range rule.Actions {
 			if err := action.Check(opts); err != nil {
-				errs = multierror.Append(errs, fmt.Errorf("invalid action: %w", err))
+				errs = multierror.Append(errs, fmt.Errorf("invalid action in rule %s: %w", rule.ID, err))
 				continue
 			}
 
@@ -384,7 +384,9 @@ func (rs *RuleSet) populateFieldsWithRuleActionsData(policyRules []*RuleDefiniti
 					variableProvider = &rs.globalVariables
 				}
 
-				variable, err := variableProvider.GetVariable(action.Set.Name, variableValue)
+				opts := eval.VariableOpts{TTL: action.Set.TTL, Size: action.Set.Size}
+
+				variable, err := variableProvider.GetVariable(action.Set.Name, variableValue, opts)
 				if err != nil {
 					errs = multierror.Append(errs, fmt.Errorf("invalid type '%s' for variable '%s': %w", reflect.TypeOf(action.Set.Value), action.Set.Name, err))
 					continue
@@ -584,7 +586,7 @@ func (rs *RuleSet) GetEventApprovers(eventType eval.EventType, fieldCaps FieldCa
 		return nil, ErrNoEventTypeBucket{EventType: eventType}
 	}
 
-	return GetApprovers(bucket.rules, model.NewFakeEvent(), fieldCaps)
+	return GetApprovers(bucket.rules, rs.eventCtor(), fieldCaps)
 }
 
 // GetFieldValues returns all the values of the given field

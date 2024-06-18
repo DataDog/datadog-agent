@@ -33,7 +33,7 @@ int hook_security_file_mprotect(ctx_t *ctx) {
 
     // Retrieve vma information
     struct vm_area_struct *vma = (struct vm_area_struct *)CTX_PARM1(ctx);
-    bpf_probe_read(&syscall->mprotect.vm_protection, sizeof(syscall->mprotect.vm_protection), (char*)vma + flags_offset);
+    bpf_probe_read(&syscall->mprotect.vm_protection, sizeof(syscall->mprotect.vm_protection), (char *)vma + flags_offset);
     bpf_probe_read(&syscall->mprotect.vm_start, sizeof(syscall->mprotect.vm_start), &vma->vm_start);
     bpf_probe_read(&syscall->mprotect.vm_end, sizeof(syscall->mprotect.vm_end), &vma->vm_end);
     syscall->mprotect.req_protection = (u64)CTX_PARM2(ctx);

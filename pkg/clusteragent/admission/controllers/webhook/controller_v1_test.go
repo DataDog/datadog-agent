@@ -26,7 +26,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	configComp "github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/cwsinstrumentation"
@@ -600,7 +601,15 @@ func TestGenerateTemplatesV1(t *testing.T) {
 				execWebhook := webhook(
 					"datadog.webhook.cws.exec.instrumentation",
 					"/inject-command-cws",
-					nil,
+					&metav1.LabelSelector{
+						MatchExpressions: []metav1.LabelSelectorRequirement{
+							{
+								Key:      cwsinstrumentation.PodLabelEnabled,
+								Operator: metav1.LabelSelectorOpNotIn,
+								Values:   []string{"false"},
+							},
+						},
+					},
 					nil,
 					[]admiv1.OperationType{admiv1.Connect},
 					[]string{"pods/exec"},
@@ -637,7 +646,11 @@ func TestGenerateTemplatesV1(t *testing.T) {
 				execWebhook := webhook(
 					"datadog.webhook.cws.exec.instrumentation",
 					"/inject-command-cws",
-					nil,
+					&metav1.LabelSelector{
+						MatchLabels: map[string]string{
+							cwsinstrumentation.PodLabelEnabled: "true",
+						},
+					},
 					nil,
 					[]admiv1.OperationType{admiv1.Connect},
 					[]string{"pods/exec"},
@@ -679,7 +692,15 @@ func TestGenerateTemplatesV1(t *testing.T) {
 					"datadog.webhook.cws.exec.instrumentation",
 					"/inject-command-cws",
 					nil,
-					nil,
+					&metav1.LabelSelector{
+						MatchExpressions: []metav1.LabelSelectorRequirement{
+							{
+								Key:      cwsinstrumentation.PodLabelEnabled,
+								Operator: metav1.LabelSelectorOpNotIn,
+								Values:   []string{"false"},
+							},
+						},
+					},
 					[]admiv1.OperationType{admiv1.Connect},
 					[]string{"pods/exec"},
 				)
@@ -716,7 +737,11 @@ func TestGenerateTemplatesV1(t *testing.T) {
 					"datadog.webhook.cws.exec.instrumentation",
 					"/inject-command-cws",
 					nil,
-					nil,
+					&metav1.LabelSelector{
+						MatchLabels: map[string]string{
+							cwsinstrumentation.PodLabelEnabled: "true",
+						},
+					},
 					[]admiv1.OperationType{admiv1.Connect},
 					[]string{"pods/exec"},
 				)
@@ -946,7 +971,7 @@ func TestGenerateTemplatesV1(t *testing.T) {
 	wmeta := fxutil.Test[workloadmeta.Component](t,
 		core.MockBundle(),
 		fx.Replace(configComp.MockParams{Overrides: map[string]interface{}{"kube_resources_namespace": "nsfoo"}}),
-		workloadmeta.MockModule(),
+		workloadmetafxmock.MockModule(),
 		fx.Supply(workloadmeta.NewParams()),
 	)
 	for _, tt := range tests {
@@ -1085,7 +1110,7 @@ func newFixtureV1(t *testing.T) *fixtureV1 {
 
 func (f *fixtureV1) createController() (*ControllerV1, informers.SharedInformerFactory) {
 	factory := informers.NewSharedInformerFactory(f.client, time.Duration(0))
-	wmeta := fxutil.Test[workloadmeta.Component](f.t, core.MockBundle(), workloadmeta.MockModule(), fx.Supply(workloadmeta.NewParams()))
+	wmeta := fxutil.Test[workloadmeta.Component](f.t, core.MockBundle(), workloadmetafxmock.MockModule(), fx.Supply(workloadmeta.NewParams()))
 	return NewControllerV1(
 		f.client,
 		factory.Core().V1().Secrets(),

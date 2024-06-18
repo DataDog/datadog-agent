@@ -19,7 +19,7 @@ import (
 	"github.com/cenkalti/backoff/v4"
 	lru "github.com/hashicorp/golang-lru/v2"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/etw"
 	etwimpl "github.com/DataDog/datadog-agent/comp/etw/impl"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
@@ -32,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
@@ -112,7 +113,6 @@ type WindowsProbe struct {
 	blockonchannelsend bool
 
 	// approvers
-	disableApprovers  bool
 	currentEventTypes []string
 	approvers         map[eval.Field][]approver
 }
@@ -403,7 +403,7 @@ func (p *WindowsProbe) approveFimBasename(value string) bool {
 
 // currently support only string base approver for now
 func (p *WindowsProbe) approve(field eval.Field, eventType string, value string) bool {
-	if p.disableApprovers {
+	if !p.config.Probe.EnableApprovers {
 		return true
 	}
 
@@ -1203,7 +1203,12 @@ func NewWindowsProbe(probe *Probe, config *config.Config, opts Opts) (*WindowsPr
 		return nil, err
 	}
 
-	p.fieldHandlers = &FieldHandlers{config: config, resolvers: p.Resolvers}
+	hostname, err := utils.GetHostname()
+	if err != nil || hostname == "" {
+		hostname = "unknown"
+	}
+
+	p.fieldHandlers = &FieldHandlers{config: config, resolvers: p.Resolvers, hostname: hostname}
 
 	p.event = p.NewEvent()
 
@@ -1265,6 +1270,10 @@ func (p *WindowsProbe) FlushDiscarders() error {
 
 // OnNewDiscarder handles discarders
 func (p *WindowsProbe) OnNewDiscarder(_ *rules.RuleSet, ev *model.Event, field eval.Field, evalType eval.EventType) {
+	if !p.config.Probe.EnableDiscarders {
+		return
+	}
+
 	if evalType != "create" {
 		return
 	}
@@ -1326,6 +1335,11 @@ func (p *WindowsProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 
 		switch {
 		case action.Kill != nil:
+			// do not handle kill action on event with error
+			if ev.Error != nil {
+				return
+			}
+
 			p.processKiller.KillAndReport(action.Kill.Scope, action.Kill.Signal, ev, func(pid uint32, sig uint32) error {
 				return p.processKiller.KillFromUserspace(pid, sig, ev)
 			})

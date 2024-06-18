@@ -1,5 +1,10 @@
 from __future__ import annotations
 
+import shutil
+
+from tasks.libs.common.git import get_commit_sha, get_current_branch
+from tasks.libs.types.arch import Arch
+
 try:
     from termcolor import colored
 except ImportError:
@@ -27,7 +32,7 @@ try:
 except ImportError:
     tabulate = None
 
-from .system_probe import build_cws_object_files, build_object_files, is_root
+from .system_probe import build_cws_object_files, build_object_files, get_ebpf_build_dir, is_root
 
 VERIFIER_DATA_DIR = Path("ebpf-calculator")
 LOGS_DIR = VERIFIER_DATA_DIR / "logs"
@@ -57,10 +62,9 @@ skip_stat_keys = ["Complexity", "verification_time"]
 
 
 def tabulate_stats(stats):
-    table = list()
+    table = []
     for key, value in stats.items():
-        row = list()
-        row.append(key)
+        row = [key]
         for json_key in verifier_stat_json_keys:
             row.append(value[json_key])
         table.append(row)
@@ -98,9 +102,9 @@ def write_verifier_stats(verifier_stats, f, jsonfmt):
 # the go program return stats in the form {func_name: {stat_name: {Value: X}}}.
 # convert this to {func_name: {stat_name: X}}
 def format_verifier_stats(verifier_stats):
-    filtered = dict()
+    filtered = {}
     for func in verifier_stats:
-        filtered[func] = dict()
+        filtered[func] = {}
         for stat in verifier_stats[func]:
             if stat not in skip_stat_keys:
                 filtered[func][stat] = verifier_stats[func][stat]["Value"]
@@ -134,7 +138,8 @@ def collect_verification_stats(
 
     ctx.run("go build -tags linux_bpf pkg/ebpf/verifier/calculator/main.go")
 
-    env = {"DD_SYSTEM_PROBE_BPF_DIR": "./pkg/ebpf/bytecode/build"}
+    arch = Arch.local()
+    env = {"DD_SYSTEM_PROBE_BPF_DIR": f"./{get_ebpf_build_dir(arch)}"}
 
     # ensure all files are object files
     for f in filter_file or []:
@@ -208,16 +213,19 @@ def print_verification_stats(
     with open(base) as f:
         base_verifier_stats = json.load(f)
 
-    stats_diff = dict()
+    stats_diff = {}
     for key, value in verifier_stats.items():
-        stat = dict()
+        stat = {}
         if key not in base_verifier_stats:
             stats_diff[key] = value
             continue
 
         base_value = base_verifier_stats[key]
         for json_key in verifier_stat_json_keys:
-            stat[json_key] = colored_diff(value[json_key], base_value[json_key])
+            if jsonfmt:
+                stat[json_key] = value[json_key] - base_value[json_key]
+            else:
+                stat[json_key] = colored_diff(value[json_key], base_value[json_key])
 
         stats_diff[key] = stat
 
@@ -278,6 +286,11 @@ def get_total_complexity_stats_len(compinfo_widths: tuple[int, int, int]):
     return sum(compinfo_widths) + 7  # 7 = 2 brackets + 2 pipes + 3 letters
 
 
+COMPLEXITY_THRESHOLD_LOW = 5
+COMPLEXITY_THRESHOLD_MEDIUM = 20
+COMPLEXITY_THRESHOLD_HIGH = 50
+
+
 def source_line_to_str(
     lineno: int,
     line: str,
@@ -294,11 +307,11 @@ def source_line_to_str(
         total = compl["total_instructions_processed"]
         compinfo = f"[{insn:{compinfo_widths[0]}d}i|{passes:{compinfo_widths[1]}d}p|{total:{compinfo_widths[2]}d}t]"
 
-        if total <= 5:
+        if total <= COMPLEXITY_THRESHOLD_LOW:
             color = "green"
-        elif total <= 20:
+        elif total <= COMPLEXITY_THRESHOLD_MEDIUM:
             color = "yellow"
-        elif total <= 50:
+        elif total <= COMPLEXITY_THRESHOLD_HIGH:
             color = "red"
         else:
             color = "magenta"
@@ -359,6 +372,17 @@ def get_complexity_for_function(object_file: str, function: str, debug=False) ->
         return json.load(f)
 
 
+def _get_sorted_list_of_files(complexity_data: ComplexityData):
+    num_asm_insns = len(complexity_data["insn_map"])
+    files_and_min_asm: dict[str, int] = collections.defaultdict(lambda: num_asm_insns)
+    for lineid, compl in complexity_data["source_map"].items():
+        file = lineid.split(":")[0]
+        min_asm_for_line = min(compl["assembly_insns"], default=num_asm_insns)
+        files_and_min_asm[file] = min(files_and_min_asm[file], min_asm_for_line)
+
+    return [x[0] for x in sorted(files_and_min_asm.items(), key=lambda x: x[1])]
+
+
 @task(
     help={
         "object_file": "The program to analyze",
@@ -382,7 +406,7 @@ def annotate_complexity(
 ):
     """Show source code with annotated complexity information for the given program and function"""
     complexity_data = get_complexity_for_function(object_file, function, debug)
-    all_files = {x.split(":")[0] for x in complexity_data["source_map"].keys()}
+    all_files = _get_sorted_list_of_files(complexity_data)
 
     if colored is None:
         raise Exit("termcolor is required to print colored output")
@@ -401,7 +425,7 @@ def annotate_complexity(
 
     compinfo_widths = (len(str(max_insn)), len(str(max_passes)), len(str(max_total)))
 
-    for f in sorted(all_files):
+    for f in all_files:
         if not os.path.exists(f):
             print(f"File {f} not found")
             continue
@@ -418,8 +442,8 @@ def annotate_complexity(
 
                 if compl is not None:
                     # We have complexity information for this line, print everything that we had in buffer
-                    for l in buffer:
-                        print(l)
+                    for lb in buffer:
+                        print(lb)
                     buffer.clear()
 
                     if show_assembly:
@@ -466,8 +490,8 @@ def annotate_complexity(
 
                 elif len(buffer) == 9:
                     # Print the last lines if we have no line information
-                    for l in buffer:
-                        print(l)
+                    for lb in buffer:
+                        print(lb)
 
     print_complexity_legend()
 
@@ -515,7 +539,121 @@ def show_top_complexity_lines(
             )
 
         with open(f) as src:
-            line = next(l for i, l in enumerate(src) if i + 1 == int(lineno))
+            line = next(line for i, line in enumerate(src) if i + 1 == int(lineno))
             print(lineid)
             print(source_line_to_str(int(lineno), line, compl, compinfo_widths))
             print()
+
+
+@task
+def generate_html_report(ctx: Context, dest_folder: str | Path):
+    """Generate an HTML report with the complexity data"""
+    try:
+        from jinja2 import Environment, FileSystemLoader, select_autoescape
+    except ImportError:
+        raise Exit("jinja2 is required to generate the HTML report")
+
+    if not VERIFIER_STATS.exists() or not COMPLEXITY_DATA_DIR.exists():
+        print("[!] No verifier stats found, regenerating them...")
+        collect_verification_stats(ctx, line_complexity=True)
+
+    dest_folder = Path(dest_folder)
+    dest_folder.mkdir(exist_ok=True, parents=True)
+
+    with open(VERIFIER_STATS) as f:
+        verifier_stats = json.load(f)
+
+    stats_by_object_and_program = collections.defaultdict(dict)
+
+    for prog, stats in verifier_stats.items():
+        object_file, function = prog.split("/")
+        stats_by_object_and_program[object_file][function] = stats
+
+    env = Environment(
+        loader=FileSystemLoader(Path(__file__).parent / "ebpf_verifier/html/templates"),
+        autoescape=select_autoescape(),
+        trim_blocks=True,
+    )
+
+    template = env.get_template("index.html.j2")
+    render = template.render(
+        title=f"eBPF complexity report - {get_current_branch(ctx)} - {get_commit_sha(ctx, short=True)}",
+        verifier_stats=stats_by_object_and_program,
+    )
+
+    index_file = dest_folder / "index.html"
+    index_file.write_text(render)
+
+    for file in COMPLEXITY_DATA_DIR.glob("**/*.json"):
+        object_file = file.parent.name
+        function = file.stem
+
+        if function == "mappings":
+            continue  # Ignore the mappings file
+
+        print(f"Generating report for {object_file}/{function}...")
+
+        with open(file) as f:
+            complexity_data: ComplexityData = json.load(f)
+
+        if "source_map" not in complexity_data:
+            print("Invalid complexity data file", file)
+            continue
+
+        # Define the complexity level for all assembly instructions
+        for insn in complexity_data["insn_map"].values():
+            if insn['times_processed'] <= COMPLEXITY_THRESHOLD_LOW:
+                level = 'low'
+            elif insn['times_processed'] <= COMPLEXITY_THRESHOLD_MEDIUM:
+                level = 'medium'
+            elif insn['times_processed'] <= COMPLEXITY_THRESHOLD_HIGH:
+                level = 'high'
+            else:
+                level = 'extreme'
+            insn['complexity_level'] = level  # type: ignore
+
+        all_files = _get_sorted_list_of_files(complexity_data)
+        file_contents = {}
+        for f in all_files:
+            if not os.path.exists(f):
+                print(f"File {f} not found")
+                continue
+
+            with open(f) as src:
+                file_contents[f] = []
+                for lineno, line in enumerate(src.read().splitlines()):
+                    lineid = f"{f}:{lineno + 1}"
+                    compl = complexity_data["source_map"].get(lineid)
+                    linedata = {"line": line, "complexity": compl}
+                    if compl is not None:
+                        if compl['num_instructions'] <= COMPLEXITY_THRESHOLD_LOW:
+                            linedata['complexity_level'] = 'low'
+                        elif compl['num_instructions'] <= COMPLEXITY_THRESHOLD_MEDIUM:
+                            linedata['complexity_level'] = 'medium'
+                        elif compl['num_instructions'] <= COMPLEXITY_THRESHOLD_HIGH:
+                            linedata['complexity_level'] = 'high'
+                        else:
+                            linedata['complexity_level'] = 'extreme'
+                    else:
+                        linedata['complexity_level'] = 'none'
+
+                    file_contents[f].append(linedata)
+
+        template = env.get_template("program.html.j2")
+        render = template.render(
+            title=f"{object_file}/{function} complexity analysis",
+            object_file=object_file,
+            function=function,
+            complexity_data=complexity_data,
+            file_contents=file_contents,
+        )
+        object_folder = dest_folder / object_file
+        object_folder.mkdir(exist_ok=True, parents=True)
+        complexity_file = object_folder / f"{function}.html"
+        complexity_file.write_text(render)
+
+    # Copy all static files
+    static_files = Path(__file__).parent / "ebpf_verifier/html/static"
+    for file in static_files.glob("*"):
+        print(f"Copying static {file} to {dest_folder}")
+        shutil.copy(file, dest_folder)

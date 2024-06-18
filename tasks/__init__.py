@@ -23,6 +23,7 @@ from tasks import (
     fakeintake,
     git,
     github_tasks,
+    gitlab_helpers,
     go_deps,
     installer,
     kmt,
@@ -50,6 +51,7 @@ from tasks import (
     vscode,
 )
 from tasks.build_tags import audit_tag_impact, print_default_build_tags
+from tasks.codecov import codecov
 from tasks.components import lint_components, lint_fxutil_oneshot_test
 from tasks.custom_task.custom_task import custom__call__
 from tasks.fuzz import fuzz
@@ -70,7 +72,8 @@ from tasks.go import (
     tidy_all,
 )
 from tasks.gotest import (
-    codecov,
+    check_otel_build,
+    check_otel_module_versions,
     e2e_tests,
     get_impacted_packages,
     get_modified_packages,
@@ -117,6 +120,8 @@ ns.add_task(install_tools)
 ns.add_task(invoke_unit_tests)
 ns.add_task(check_mod_tidy)
 ns.add_task(check_go_mod_replaces)
+ns.add_task(check_otel_build)
+ns.add_task(check_otel_module_versions)
 ns.add_task(tidy)
 ns.add_task(tidy_all)
 ns.add_task(internal_deps_checker)
@@ -151,6 +156,7 @@ ns.add_collection(linter)
 ns.add_collection(msi)
 ns.add_collection(git)
 ns.add_collection(github_tasks, "github")
+ns.add_collection(gitlab_helpers, "gitlab")
 ns.add_collection(package)
 ns.add_collection(pipeline)
 ns.add_collection(notify)
@@ -178,10 +184,10 @@ ns.add_collection(devcontainer)
 ns.add_collection(omnibus)
 ns.configure(
     {
-        'run': {
+        "run": {
             # this should stay, set the encoding explicitly so invoke doesn't
             # freak out if a command outputs unicode chars.
-            'encoding': 'utf-8',
+            "encoding": "utf-8",
         }
     }
 )

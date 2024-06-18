@@ -12,6 +12,7 @@ import shutil
 import sys
 import textwrap
 import traceback
+from collections.abc import Iterable
 from pathlib import Path
 
 from invoke import task
@@ -21,7 +22,7 @@ import tasks.modules
 from tasks.build_tags import ALL_TAGS, UNIT_TEST_TAGS, get_default_build_tags
 from tasks.libs.common.color import color_message
 from tasks.libs.common.git import check_uncommitted_changes
-from tasks.libs.common.utils import get_build_flags, timed
+from tasks.libs.common.utils import TimedOperationResult, get_build_flags, timed
 from tasks.licenses import get_licenses_list
 from tasks.modules import DEFAULT_MODULES, generate_dummy_package
 
@@ -65,20 +66,30 @@ def run_golangci_lint(
     verbosity = "-v" if verbose else ""
     # we split targets to avoid going over the memory limit from circleCI
     results = []
+    time_results = []
     for target in targets:
-        if not headless_mode:
-            print(f"running golangci on {target}")
-        concurrency_arg = "" if concurrency is None else f"--concurrency {concurrency}"
-        tags_arg = " ".join(sorted(set(tags)))
-        timeout_arg_value = "25m0s" if not timeout else f"{timeout}m0s"
-        result = ctx.run(
-            f'golangci-lint run {verbosity} --timeout {timeout_arg_value} {concurrency_arg} --build-tags "{tags_arg}" --path-prefix "{module_path}" {golangci_lint_kwargs} {target}/...',
-            env=env,
-            warn=True,
-        )
-        results.append(result)
 
-    return results
+        def lint_module(target):
+            if not headless_mode:
+                print(f"running golangci on {target}")
+            concurrency_arg = "" if concurrency is None else f"--concurrency {concurrency}"
+            tags_arg = " ".join(sorted(set(tags)))
+            timeout_arg_value = "25m0s" if not timeout else f"{timeout}m0s"
+            return ctx.run(
+                f'golangci-lint run {verbosity} --timeout {timeout_arg_value} {concurrency_arg} --build-tags "{tags_arg}" --path-prefix "{module_path}" {golangci_lint_kwargs} {target}/...',
+                env=env,
+                warn=True,
+            )
+
+        target_path = Path(module_path) / target
+        result, time_result = TimedOperationResult.run(
+            lint_module, target_path, 'Lint ' + target_path.as_posix(), target=target
+        )
+
+        results.append(result)
+        time_results.append(time_result)
+
+    return results, time_results
 
 
 @task
@@ -436,7 +447,7 @@ def tidy(ctx):
 @task
 def check_go_version(ctx):
     go_version_output = ctx.run('go version')
-    # result is like "go version go1.21.10 linux/amd64"
+    # result is like "go version go1.21.11 linux/amd64"
     running_go_version = go_version_output.stdout.split(' ')[2]
 
     with open(".go-version") as f:
@@ -476,7 +487,7 @@ def get_deps(ctx, path):
         return deps
 
 
-def add_replaces(ctx, path, replaces: list[str]):
+def add_replaces(ctx, path, replaces: Iterable[str]):
     repo_path = posixpath.abspath('.')
     with ctx.cd(path):
         for repo_local_path in replaces:
@@ -504,6 +515,7 @@ def add_go_module(path):
     modulespy_regex = re.compile(r"DEFAULT_MODULES = {\n(.+?)\n}", re.DOTALL | re.MULTILINE)
 
     all_modules_match = modulespy_regex.search(modulespy)
+    assert all_modules_match, "Could not find DEFAULT_MODULES in modules.py"
     all_modules = all_modules_match.group(1)
     all_modules = all_modules.split('\n')
     indent = ' ' * 4
@@ -515,7 +527,9 @@ def add_go_module(path):
     for i, line in enumerate(all_modules):
         # This line is the start of a module (not a comment / middle of a module declaration)
         if line.startswith(f'{indent}"'):
-            module = re.search(rf'{indent}"([^"]*)"', line).group(1)
+            results = re.search(rf'{indent}"([^"]*)"', line)
+            assert results, f"Could not find module name in line '{line}'"
+            module = results.group(1)
             if module < path:
                 insert_line = i
             else:
@@ -635,8 +649,8 @@ def create_module(ctx, path: str, no_verify: bool = False):
                 ctx.run('git clean -f')
                 ctx.run('git checkout HEAD -- .')
 
-                raise Exit(1)
+                raise Exit(code=1)
 
         print(color_message("Not removing changed files", "red"))
 
-        raise Exit(1)
+        raise Exit(code=1)

@@ -7,10 +7,13 @@
 package daemon
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
+	osexec "os/exec"
 	"path/filepath"
 	"runtime"
 	"sync"
@@ -25,9 +28,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
 	installerErrors "github.com/DataDog/datadog-agent/pkg/fleet/installer/errors"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
+	"github.com/DataDog/datadog-agent/pkg/fleet/internal/bootstrap"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/exec"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 const (
@@ -47,18 +52,19 @@ type Daemon interface {
 
 	GetPackage(pkg string, version string) (Package, error)
 	GetState() (map[string]repository.State, error)
+	GetAPMInjectionStatus() (APMInjectionStatus, error)
 }
 
 type daemonImpl struct {
 	m        sync.Mutex
 	stopChan chan struct{}
 
-	installer     installer.Installer
-	remoteUpdates bool
-	rc            *remoteConfig
-	catalog       catalog
-	requests      chan remoteAPIRequest
-	requestsWG    sync.WaitGroup
+	env        *env.Env
+	installer  installer.Installer
+	rc         *remoteConfig
+	catalog    catalog
+	requests   chan remoteAPIRequest
+	requestsWG sync.WaitGroup
 }
 
 func newInstaller(env *env.Env, installerBin string) installer.Installer {
@@ -81,17 +87,17 @@ func NewDaemon(rcFetcher client.ConfigFetcher, config config.Reader) (Daemon, er
 	}
 	env := env.FromConfig(config)
 	installer := newInstaller(env, installerBin)
-	return newDaemon(rc, installer, env.RemoteUpdates), nil
+	return newDaemon(rc, installer, env), nil
 }
 
-func newDaemon(rc *remoteConfig, installer installer.Installer, remoteUpdates bool) *daemonImpl {
+func newDaemon(rc *remoteConfig, installer installer.Installer, env *env.Env) *daemonImpl {
 	i := &daemonImpl{
-		remoteUpdates: remoteUpdates,
-		rc:            rc,
-		installer:     installer,
-		requests:      make(chan remoteAPIRequest, 32),
-		catalog:       catalog{},
-		stopChan:      make(chan struct{}),
+		env:       env,
+		rc:        rc,
+		installer: installer,
+		requests:  make(chan remoteAPIRequest, 32),
+		catalog:   catalog{},
+		stopChan:  make(chan struct{}),
 	}
 	i.refreshState(context.Background())
 	return i
@@ -103,6 +109,46 @@ func (d *daemonImpl) GetState() (map[string]repository.State, error) {
 	defer d.m.Unlock()
 
 	return d.installer.States()
+}
+
+// GetAPMInjectionStatus returns the APM injection status. This is not done in the service
+// to avoid cross-contamination between the daemon and the installer.
+func (d *daemonImpl) GetAPMInjectionStatus() (status APMInjectionStatus, err error) {
+	d.m.Lock()
+	defer d.m.Unlock()
+
+	// Host is instrumented if the ld.so.preload file contains the apm injector
+	ldPreloadContent, err := os.ReadFile("/etc/ld.so.preload")
+	if err != nil {
+		return status, fmt.Errorf("could not read /etc/ld.so.preload: %w", err)
+	}
+	if bytes.Contains(ldPreloadContent, []byte("/opt/datadog-packages/datadog-apm-inject/stable/inject")) {
+		status.HostInstrumented = true
+	}
+
+	// Docker is installed if the docker binary is in the PATH
+	_, err = osexec.LookPath("docker")
+	if err != nil && errors.Is(err, osexec.ErrNotFound) {
+		return status, nil
+	} else if err != nil {
+		return status, fmt.Errorf("could not check if docker is installed: %w", err)
+	}
+	status.DockerInstalled = true
+
+	// Docker is instrumented if there is the injector runtime in its configuration
+	// We're not retrieving the default runtime from the docker daemon as we are not
+	// root
+	dockerConfigContent, err := os.ReadFile("/etc/docker/daemon.json")
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return status, fmt.Errorf("could not read /etc/docker/daemon.json: %w", err)
+	} else if errors.Is(err, os.ErrNotExist) {
+		return status, nil
+	}
+	if bytes.Contains(dockerConfigContent, []byte("/opt/datadog-packages/datadog-apm-inject/stable/inject")) {
+		status.DockerInstrumented = true
+	}
+
+	return status, nil
 }
 
 // GetPackage returns the package with the given name and version.
@@ -141,7 +187,7 @@ func (d *daemonImpl) Start(_ context.Context) error {
 			}
 		}
 	}()
-	if !d.remoteUpdates {
+	if !d.env.RemoteUpdates {
 		log.Infof("Daemon: Remote updates are disabled")
 		return nil
 	}
@@ -200,6 +246,21 @@ func (d *daemonImpl) startExperiment(ctx context.Context, url string) (err error
 		return fmt.Errorf("could not install experiment: %w", err)
 	}
 	log.Infof("Daemon: Successfully started experiment for package from %s", url)
+	return nil
+}
+
+func (d *daemonImpl) startInstallerExperiment(ctx context.Context, url string) (err error) {
+	span, ctx := tracer.StartSpanFromContext(ctx, "start_installer_experiment")
+	defer func() { span.Finish(tracer.WithError(err)) }()
+	d.refreshState(ctx)
+	defer d.refreshState(ctx)
+
+	log.Infof("Daemon: Starting installer experiment for package from %s", url)
+	err = bootstrap.InstallExperiment(ctx, d.env, url)
+	if err != nil {
+		return fmt.Errorf("could not install installer experiment: %w", err)
+	}
+	log.Infof("Daemon: Successfully started installer experiment for package from %s", url)
 	return nil
 }
 
@@ -274,7 +335,8 @@ func (d *daemonImpl) handleRemoteAPIRequest(request remoteAPIRequest) (err error
 	if err != nil {
 		return fmt.Errorf("could not get installer state: %w", err)
 	}
-	if s.Stable != request.ExpectedState.Stable || s.Experiment != request.ExpectedState.Experiment {
+	versionEqual := request.ExpectedState.InstallerVersion == "" || version.AgentVersion == request.ExpectedState.InstallerVersion
+	if versionEqual && s.Stable != request.ExpectedState.Stable || s.Experiment != request.ExpectedState.Experiment {
 		log.Infof("remote request %s not executed as state does not match: expected %v, got %v", request.ID, request.ExpectedState, s)
 		setRequestInvalid(ctx)
 		d.refreshState(ctx)
@@ -294,6 +356,10 @@ func (d *daemonImpl) handleRemoteAPIRequest(request remoteAPIRequest) (err error
 			return fmt.Errorf("could not get package %s, %s for %s, %s", request.Package, params.Version, runtime.GOARCH, runtime.GOOS)
 		}
 		log.Infof("Installer: Received remote request %s to start experiment for package %s version %s", request.ID, request.Package, request.Params)
+		if request.Package == "datadog-installer" {
+			// Special case for the installer package as we want the experiment installer to start the experiment itself
+			return d.startInstallerExperiment(ctx, experimentPackage.URL)
+		}
 		return d.startExperiment(ctx, experimentPackage.URL)
 	case methodStopExperiment:
 		log.Infof("Installer: Received remote request %s to stop experiment for package %s", request.ID, request.Package)

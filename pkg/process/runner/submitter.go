@@ -14,6 +14,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/benbjohnson/clock"
+
 	model "github.com/DataDog/agent-payload/v5/process"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -34,6 +36,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util/api"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api/headers"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -80,6 +83,9 @@ type CheckSubmitter struct {
 	rtNotifierChan chan types.RTResponse
 
 	agentStartTime int64
+
+	stopHeartbeat chan struct{}
+	clock         clock.Clock
 }
 
 //nolint:revive // TODO(PROC) Fix revive linter
@@ -157,6 +163,9 @@ func NewSubmitter(config config.Component, log log.Component, forwarders forward
 		exit: make(chan struct{}),
 
 		agentStartTime: time.Now().Unix(),
+
+		stopHeartbeat: make(chan struct{}),
+		clock:         clock.New(),
 	}, nil
 }
 
@@ -207,28 +216,28 @@ func (s *CheckSubmitter) Start() error {
 		s.consumePayloads(s.eventResults, s.eventForwarder)
 	}()
 
+	if flavor.GetFlavor() == flavor.ProcessAgent {
+		heartbeatTicker := s.clock.Ticker(15 * time.Second)
+		s.wg.Add(1)
+		go func() {
+			defer heartbeatTicker.Stop()
+			defer s.wg.Done()
+			s.heartbeat(heartbeatTicker)
+		}()
+	}
+
 	s.wg.Add(1)
 	go func() {
 		defer s.wg.Done()
 
-		heartbeat := time.NewTicker(15 * time.Second)
-		defer heartbeat.Stop()
-
-		queueSizeTicker := time.NewTicker(10 * time.Second)
+		queueSizeTicker := s.clock.Ticker(10 * time.Second)
 		defer queueSizeTicker.Stop()
 
-		queueLogTicker := time.NewTicker(time.Minute)
+		queueLogTicker := s.clock.Ticker(time.Minute)
 		defer queueLogTicker.Stop()
 
-		agentVersion, _ := version.Agent()
-		tags := []string{
-			fmt.Sprintf("version:%s", agentVersion.GetNumberAndPre()),
-			fmt.Sprintf("revision:%s", agentVersion.Commit),
-		}
 		for {
 			select {
-			case <-heartbeat.C:
-				statsd.Client.Gauge("datadog.process.agent", 1, tags, 1) //nolint:errcheck
 			case <-queueSizeTicker.C:
 				status.UpdateQueueStats(&status.QueueStats{
 					ProcessQueueSize:      s.processResults.Len(),
@@ -259,6 +268,8 @@ func (s *CheckSubmitter) Stop() {
 	s.rtProcessResults.Stop()
 	s.connectionsResults.Stop()
 	s.eventResults.Stop()
+
+	close(s.stopHeartbeat)
 
 	s.wg.Wait()
 
@@ -458,6 +469,23 @@ func (s *CheckSubmitter) shouldDropPayload(check string) bool {
 	}
 
 	return false
+}
+
+func (s *CheckSubmitter) heartbeat(heartbeatTicker *clock.Ticker) {
+	agentVersion, _ := version.Agent()
+	tags := []string{
+		fmt.Sprintf("version:%s", agentVersion.GetNumberAndPre()),
+		fmt.Sprintf("revision:%s", agentVersion.Commit),
+	}
+
+	for {
+		select {
+		case <-heartbeatTicker.C:
+			statsd.Client.Gauge("datadog.process.agent", 1, tags, 1) //nolint:errcheck
+		case <-s.stopHeartbeat:
+			return
+		}
+	}
 }
 
 func notifyRTStatusChange(rtNotifierChan chan<- types.RTResponse, statuses types.RTResponse) {

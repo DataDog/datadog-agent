@@ -180,7 +180,7 @@ def test_list(
                 filename = os.path.join(ctx.cwd, f"dependencies_{goos}_{goarch}.txt")
                 if not os.path.isfile(filename):
                     print(
-                        f"File {filename} does not exist. To execute the dependencies list check for the {binary} binary, please run the task `inv -e go-deps.generate --binaries {binary}"
+                        f"File {filename} does not exist. To execute the dependencies list check for the {binary} binary, please run the task `inv -e go-deps.generate"
                     )
                     continue
 

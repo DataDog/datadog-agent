@@ -24,7 +24,7 @@ import (
 	"github.com/containerd/containerd/namespaces"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	cutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -174,7 +174,7 @@ func NewCollector(cfg config.Component, wmeta optional.Option[workloadmeta.Compo
 	return &Collector{
 		config: collectorConfig{
 			clearCacheOnClose: cfg.GetBool("sbom.clear_cache_on_exit"),
-			maxCacheSize:      cfg.GetInt("sbom.persistentCache.max_disk_size"),
+			maxCacheSize:      cfg.GetInt("sbom.cache.max_disk_size"),
 			overlayFSSupport:  cfg.GetBool("sbom.container_image.overlayfs_direct_scan"),
 		},
 		osScanner:   ospkg.NewScanner(),

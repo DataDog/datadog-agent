@@ -2,7 +2,8 @@ import os
 
 from invoke import task
 
-from tasks.libs.common.utils import get_version_numeric_only, get_win_py_runtime_var
+from tasks.libs.common.utils import get_win_py_runtime_var
+from tasks.libs.releasing.version import get_version_numeric_only
 
 MESSAGESTRINGS_MC_PATH = "pkg/util/winutil/messagestrings/messagestrings.mc"
 

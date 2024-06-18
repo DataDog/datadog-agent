@@ -7,12 +7,13 @@ from typing import TYPE_CHECKING, cast
 import yaml
 
 from tasks.kernel_matrix_testing.tool import Exit
+from tasks.kernel_matrix_testing.vars import KMT_SUPPORTED_ARCHS
 from tasks.pipeline import GitlabYamlLoader
 
 if TYPE_CHECKING:
     from tasks.kernel_matrix_testing.types import (
-        Arch,
         Component,
+        KMTArchName,
         Platforms,
     )
 
@@ -26,7 +27,7 @@ def get_platforms():
 
 
 def filter_by_ci_component(platforms: Platforms, component: Component) -> Platforms:
-    job_arch_mapping: dict[Arch, str] = {
+    job_arch_mapping: dict[KMTArchName, str] = {
         "x86_64": "x64",
         "arm64": "arm64",
     }
@@ -42,8 +43,7 @@ def filter_by_ci_component(platforms: Platforms, component: Component) -> Platfo
     with open(target_file) as f:
         ci_config = yaml.load(f, Loader=GitlabYamlLoader())
 
-    arch_ls: list[Arch] = ["x86_64", "arm64"]
-    for arch in arch_ls:
+    for arch in KMT_SUPPORTED_ARCHS:
         job_name = f"kmt_run_{job_component_mapping[component]}_tests_{job_arch_mapping[arch]}"
         if job_name not in ci_config:
             raise Exit(f"Job {job_name} not found in {target_file}, cannot extract used platforms")
