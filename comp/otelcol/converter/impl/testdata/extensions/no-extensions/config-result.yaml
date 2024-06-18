@@ -9,9 +9,10 @@ extensions:
   health_check/dd-autoconfigured:
   zpages/dd-autoconfigured:
     endpoint: "localhost:55679"
-    
+  datadog/dd-autoconfigured:
+
 service:
-    extensions: [pprof/dd-autoconfigured, zpages/dd-autoconfigured, health_check/dd-autoconfigured]
+    extensions: [pprof/dd-autoconfigured, zpages/dd-autoconfigured, health_check/dd-autoconfigured, datadog/dd-autoconfigured]
     pipelines:
         traces:
             receivers: [nop]

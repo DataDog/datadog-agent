@@ -10,7 +10,7 @@ The autoconfigure logic is applied within the `Convert` function. It takes in a 
 
 ### Extensions
 
-The converter looks for the `pprof`, `health_check` and `zpages` extensions. If these are defined in the service pipeline, it does nothing. If any of these extensions are not defined, then it will add it's own extension config (name: `<extension_name>/dd-autoconfigured`) and add this in the services extension pipeline.  
+The converter looks for the `pprof`, `health_check`, `zpages` and `datadog` extensions. If these are defined in the service pipeline, it does nothing. If any of these extensions are not defined, then it will add it's own extension config (name: `<extension_name>/dd-autoconfigured`) and add this in the services extension pipeline.  
 
 
 ### Infra Attributes Processor

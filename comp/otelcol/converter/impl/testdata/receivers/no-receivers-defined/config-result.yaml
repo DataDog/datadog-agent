@@ -17,12 +17,13 @@ extensions:
   health_check/user-defined:
   zpages/user-defined:
     endpoint: "localhost:55679"
+  datadog/user-defined:
     
 processors:
   infraattributes/user-defined:
 
 service:
-    extensions: [pprof/user-defined, zpages/user-defined, health_check/user-defined]
+    extensions: [pprof/user-defined, zpages/user-defined, health_check/user-defined, datadog/user-defined]
     pipelines:
         traces:
             processors: [infraattributes/user-defined]

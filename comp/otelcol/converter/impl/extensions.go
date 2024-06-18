@@ -26,6 +26,11 @@ var (
 	healthCheckEnhancedName = healthCheckName + "/" + ddAutoconfiguredSuffix
 	healthCheckConfig       any
 
+	// datadog
+	datadogName         = "datadog"
+	datadogEnhancedName = datadogName + "/" + ddAutoconfiguredSuffix
+	datadogConfig       any
+
 	// components
 	extensions = []component{
 		{
@@ -45,6 +50,12 @@ var (
 			EnhancedName: healthCheckEnhancedName,
 			Type:         "extensions",
 			Config:       healthCheckConfig,
+		},
+		{
+			Name:         datadogName,
+			EnhancedName: datadogEnhancedName,
+			Type:         "extensions",
+			Config:       datadogConfig,
 		},
 	}
 )
