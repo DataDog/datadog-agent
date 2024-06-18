@@ -43,7 +43,7 @@ func componentName(fullName string) string {
 	return parts[0]
 }
 
-// addComponentToPipeline adds comp to the collector config. It supports receivers,
+// addComponentToConfig adds comp to the collector config. It supports receivers,
 // processors, exporters and extensions.
 func addComponentToConfig(conf *confmap.Conf, comp component) {
 	stringMapConf := conf.ToStringMap()
