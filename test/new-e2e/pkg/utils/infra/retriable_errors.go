@@ -31,5 +31,9 @@ func getKnownErrors() []knownError {
 			errorMessage: "failed attempts: dial tcp :22: connect: connection refused",
 			retryType:    reCreate,
 		},
+		{
+			errorMessage: "failed to run update",
+			retryType:    reCreate,
+		},
 	}
 }
