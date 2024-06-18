@@ -89,7 +89,7 @@ func TestEKSVMSuite(t *testing.T) {
 	t.Parallel()
 
 	s := &eksVMSuite{}
-	e2eParams := []e2e.SuiteOption{e2e.WithProvisioner(e2e.NewTypedPulumiProvisioner("eksHttpbin", eksHttpbinEnvProvisioner(), nil))}
+	e2eParams := []e2e.SuiteOption{e2e.WithProvisioner(e2e.NewTypedPulumiProvisioner("eksHttpbin", eksHttpbinEnvProvisioner(), nil)), e2e.WithStackName("kfairise-test-1")}
 
 	e2e.Run(t, s, e2eParams...)
 }

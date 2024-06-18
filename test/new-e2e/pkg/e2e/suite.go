@@ -144,6 +144,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"reflect"
 	"testing"
 	"time"
@@ -303,6 +304,10 @@ func (bs *BaseSuite[Env]) reconcileEnv(targetProvisioners ProvisionerMap) error 
 		}
 
 		resources.Merge(provisionerResources)
+	}
+
+	if os.Getenv("INIT_ONLY") != "" {
+		return nil
 	}
 
 	// Env is taken as parameter as some fields may have keys set by Env pulumi program.
@@ -466,6 +471,9 @@ func (bs *BaseSuite[Env]) SetupSuite() {
 		// `panic()` is required to stop the execution of the test suite. Otherwise `testify.Suite` will keep on running suite tests.
 		panic(err)
 	}
+	if os.Getenv("INIT_ONLY") != "" {
+		bs.T().Skip("INIT_ONLY is set, skipping tests")
+	}
 }
 
 // BeforeTest is executed right before the test starts and receives the suite and test names as input.
@@ -509,6 +517,11 @@ func (bs *BaseSuite[Env]) AfterTest(suiteName, testName string) {
 // [testify Suite]: https://pkg.go.dev/github.com/stretchr/testify/suite
 func (bs *BaseSuite[Env]) TearDownSuite() {
 	if bs.params.devMode {
+		return
+	}
+
+	if os.Getenv("INIT_ONLY") != "" {
+		bs.T().Logf("INIT_ONLY is set, skipping deletion")
 		return
 	}
 

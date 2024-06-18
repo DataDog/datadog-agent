@@ -9,6 +9,7 @@ package awskubernetes
 import (
 	"context"
 	"fmt"
+	"os"
 
 	"github.com/DataDog/test-infra-definitions/common/config"
 	"github.com/DataDog/test-infra-definitions/common/utils"
@@ -170,6 +171,9 @@ func EKSRunFunc(ctx *pulumi.Context, env *environments.AwsKubernetes, params *Pr
 		}), awsEnv.WithProviders(config.ProviderEKS, config.ProviderAWS))
 		if err != nil {
 			return err
+		}
+		if os.Getenv("INIT_ONLY") != "" {
+			return nil
 		}
 
 		// Building Kubernetes provider
