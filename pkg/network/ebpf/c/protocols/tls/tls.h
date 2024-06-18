@@ -58,7 +58,7 @@ static __always_inline bool is_valid_tls_version(__u16 version) {
 // - the payload length + the size of the record header is less than the size
 //   of the skb
 static __always_inline bool is_valid_tls_app_data(tls_record_header_t *hdr, __u32 buf_size, __u32 skb_len) {
-    if (!is_valid_tls_version(hdr->version)) {
+    if (!is_valid_tls_version(bpf_ntohs(hdr->version))) {
         return false;
     }
 
@@ -78,7 +78,7 @@ static __always_inline bool is_tls_handshake(tls_hello_message_t *msg) {
     switch (msg->handshake_type) {
     case TLS_HANDSHAKE_CLIENT_HELLO:
     case TLS_HANDSHAKE_SERVER_HELLO:
-        return is_valid_tls_version(msg->version);
+        return is_valid_tls_version(bpf_ntohs(msg->version));
     }
 
     return false;

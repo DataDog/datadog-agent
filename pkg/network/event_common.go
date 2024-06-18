@@ -287,6 +287,9 @@ type ConnectionStats struct {
 	ProtocolStack protocols.Stack
 
 	DNSStats map[dns.Hostname]map[dns.QueryType]dns.Stats
+
+	// TCPFailures stores the number of failures for a POSIX error code
+	TCPFailures map[uint32]uint32
 }
 
 // Via has info about the routing decision for a flow
@@ -415,6 +418,7 @@ func ConnectionSummary(c *ConnectionStats, names map[util.Address][]dns.Hostname
 	str += fmt.Sprintf(", protocol: %+v", c.ProtocolStack)
 	str += fmt.Sprintf(", netns: %d", c.NetNS)
 	str += fmt.Sprintf(", duration: %+v", c.Duration)
+	str += fmt.Sprintf(", failures: %v", c.TCPFailures)
 
 	return str
 }

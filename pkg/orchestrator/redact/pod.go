@@ -53,6 +53,24 @@ func scrubAnnotations(annotations map[string]string, scrubber *DataScrubber) {
 	}
 }
 
+func scrubContainerProbe(probe *v1.Probe, scrubber *DataScrubber) {
+	if probe == nil {
+		return
+	}
+
+	if probe.HTTPGet != nil {
+		for h := 0; h < len(probe.HTTPGet.HTTPHeaders); h++ {
+			if scrubber.ContainsSensitiveWord(probe.HTTPGet.HTTPHeaders[h].Name) {
+				probe.HTTPGet.HTTPHeaders[h].Value = redactedSecret
+			}
+		}
+	}
+
+	if probe.Exec != nil {
+		probe.Exec.Command, _ = scrubber.ScrubSimpleCommand(probe.Exec.Command)
+	}
+}
+
 // scrubContainer scrubs sensitive information in the command line & env vars
 func scrubContainer(c *v1.Container, scrubber *DataScrubber) {
 	// scrub env vars
@@ -61,6 +79,11 @@ func scrubContainer(c *v1.Container, scrubber *DataScrubber) {
 			c.Env[e].Value = redactedSecret
 		}
 	}
+
+	// scrub probes http headers
+	scrubContainerProbe(c.LivenessProbe, scrubber)
+	scrubContainerProbe(c.ReadinessProbe, scrubber)
+	scrubContainerProbe(c.StartupProbe, scrubber)
 
 	defer func() {
 		if r := recover(); r != nil {

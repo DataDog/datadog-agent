@@ -34,22 +34,25 @@ func newKafkaEncoder(kafkaPayloads map[kafka.Key]*kafka.RequestStats) *kafkaEnco
 	}
 }
 
-func (e *kafkaEncoder) WriteKafkaAggregations(c network.ConnectionStats, builder *model.ConnectionBuilder) {
+func (e *kafkaEncoder) WriteKafkaAggregations(c network.ConnectionStats, builder *model.ConnectionBuilder) uint64 {
 	if e == nil {
-		return
+		return 0
 	}
 
 	connectionData := e.byConnection.Find(c)
 	if connectionData == nil || len(connectionData.Data) == 0 || connectionData.IsPIDCollision(c) {
-		return
+		return 0
 	}
 
+	staticTags := uint64(0)
 	builder.SetDataStreamsAggregations(func(b *bytes.Buffer) {
-		e.encodeData(connectionData, b)
+		staticTags = e.encodeData(connectionData, b)
 	})
+	return staticTags
 }
 
-func (e *kafkaEncoder) encodeData(connectionData *USMConnectionData[kafka.Key, *kafka.RequestStats], w io.Writer) {
+func (e *kafkaEncoder) encodeData(connectionData *USMConnectionData[kafka.Key, *kafka.RequestStats], w io.Writer) uint64 {
+	var staticTags uint64
 	e.kafkaAggregationsBuilder.Reset(w)
 
 	for _, kv := range connectionData.Data {
@@ -71,9 +74,11 @@ func (e *kafkaEncoder) encodeData(connectionData *USMConnectionData[kafka.Key, *
 						kafkaStatsBuilder.SetCount(uint32(requestStat.Count))
 					})
 				})
+				staticTags |= requestStat.StaticTags
 			}
 		})
 	}
+	return staticTags
 }
 
 func (e *kafkaEncoder) Close() {

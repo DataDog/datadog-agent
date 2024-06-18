@@ -21,7 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -163,7 +163,8 @@ func makeFlare(w http.ResponseWriter, r *http.Request, statusComponent status.Co
 //nolint:revive // TODO(CINT) Fix revive linter
 func getConfigCheck(w http.ResponseWriter, r *http.Request, ac autodiscovery.Component) {
 	verbose := r.URL.Query().Get("verbose") == "true"
-	bytes := ac.GetConfigCheck(verbose)
+	noColor := r.URL.Query().Get("nocolor") == "true"
+	bytes := ac.GetConfigCheck(verbose, noColor)
 
 	w.Write(bytes)
 }

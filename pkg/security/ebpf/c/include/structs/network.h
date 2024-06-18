@@ -49,8 +49,8 @@ struct register_netdevice_cache_t {
 };
 
 struct cursor {
-	void *pos;
-	void *end;
+    void *pos;
+    void *end;
 };
 
 struct packet_t {

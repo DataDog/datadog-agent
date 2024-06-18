@@ -48,8 +48,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl"
@@ -103,7 +104,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				dogstatsd.ClientBundle,
 				// workloadmeta setup
 				collectors.GetCatalog(),
-				workloadmeta.Module(),
+				workloadmetafx.Module(),
 				fx.Provide(func(config config.Component) workloadmeta.Params {
 					catalog := workloadmeta.NodeAgent
 					if config.GetBool("security_agent.remote_workloadmeta") {

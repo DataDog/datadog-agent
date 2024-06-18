@@ -27,6 +27,7 @@ typedef struct kafka_transaction_t {
     __u8 request_api_key;
     __u8 request_api_version;
     __u8 topic_name_size;
+    __u8 tags;
     char topic_name[TOPIC_NAME_MAX_STRING_SIZE];
     __s8 error_code;
 } kafka_transaction_t;

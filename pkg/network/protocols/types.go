@@ -51,7 +51,7 @@ func (p ProtocolType) String() string {
 	case Postgres:
 		return "Postgres"
 	case AMQP:
-		return "AMPQ"
+		return "AMQP"
 	case Redis:
 		return "Redis"
 	case MySQL:

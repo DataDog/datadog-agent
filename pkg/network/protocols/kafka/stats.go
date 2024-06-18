@@ -51,7 +51,8 @@ func NewRequestStats() *RequestStats {
 
 // RequestStat stores stats for Kafka requests to a particular key
 type RequestStat struct {
-	Count int
+	Count      int
+	StaticTags uint64
 }
 
 // CombineWith merges the data in 2 RequestStats objects
@@ -62,12 +63,12 @@ func (r *RequestStats) CombineWith(newStats *RequestStats) {
 			// Nothing to do in this case
 			continue
 		}
-		r.AddRequest(statusCode, newRequests.Count)
+		r.AddRequest(statusCode, newRequests.Count, newRequests.StaticTags)
 	}
 }
 
 // AddRequest takes information about a Kafka transaction and adds it to the request stats
-func (r *RequestStats) AddRequest(errorCode int8, count int) {
+func (r *RequestStats) AddRequest(errorCode int8, count int, staticTags uint64) {
 	if !isValidKafkaErrorCode(errorCode) {
 		return
 	}
@@ -77,6 +78,7 @@ func (r *RequestStats) AddRequest(errorCode int8, count int) {
 		r.ErrorCodeToStat[errorCode] = stats
 	}
 	stats.Count += count
+	stats.StaticTags |= staticTags
 }
 
 func isValidKafkaErrorCode(errorCode int8) bool {

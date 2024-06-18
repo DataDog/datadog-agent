@@ -35,8 +35,10 @@ type KafkaTransaction struct {
 	Request_api_key     uint8
 	Request_api_version uint8
 	Topic_name_size     uint8
+	Tags                uint8
 	Topic_name          [80]byte
 	Error_code          int8
+	Pad_cgo_0           [7]byte
 }
 
 type KafkaResponseContext struct {
