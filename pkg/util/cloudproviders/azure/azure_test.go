@@ -148,7 +148,8 @@ func TestGetHostnameKubernetesTag(t *testing.T) {
 			"resourceGroupName": "my-resource-group",
 			"subscriptionId": "2370ac56-5683-45f8-a2d4-d1054292facb",
 			"vmId": "b33fa46-6aff-4dfa-be0a-9e922ca3ac6d",
-			"tags": "aks-managed-orchestrator:Kubernetes"
+			"osProfile": {"computerName":"node-name-A"},
+			"tagsList": [{"name":"aks-managed-orchestrator","value":"Kubernetes"}]
 		}`)
 	}))
 	defer ts.Close()
@@ -158,7 +159,7 @@ func TestGetHostnameKubernetesTag(t *testing.T) {
 		style, value string
 		err          bool
 	}{
-		{"os", "vm-name", false},
+		{"os", "node-name-a", false}, // use osProfile.computerName when running in AKS
 		{"vmid", "b33fa46-6aff-4dfa-be0a-9e922ca3ac6d", false},
 		{"name", "vm-name", false},
 		{"name_and_resource_group", "vm-name.my-resource-group", false},

@@ -17,7 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/cachedfetch"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // declare these as vars not const to ease testing
@@ -123,7 +122,7 @@ var instanceMetaFetcher = cachedfetch.Fetcher{
 	Name: "Azure Instance Metadata",
 	Attempt: func(ctx context.Context) (interface{}, error) {
 		metadataJSON, err := getResponse(ctx,
-			metadataURL+"/metadata/instance/compute?api-version=2017-08-01")
+			metadataURL+"/metadata/instance/compute?api-version=2021-02-01")
 		if err != nil {
 			return "", fmt.Errorf("failed to get Azure instance metadata: %s", err)
 		}
@@ -131,20 +130,13 @@ var instanceMetaFetcher = cachedfetch.Fetcher{
 	},
 }
 
-func getTags(tags string) (map[string]string, error) {
-	tagsMap := map[string]string{}
-	if tags == "" {
-		return tagsMap, fmt.Errorf("No tags detected")
-	}
-	tagsSlice := strings.Split(tags, ";")
-	for _, tag := range tagsSlice {
-		tagSlice := strings.SplitN(tag, ":", 2)
-		if len(tagSlice) != 2 {
-			log.Debugf("AKS-OS: failed to parse tag %s", tag)
+func isKubernetesTag(tagsList []map[string]string) bool {
+	for _, tag := range tagsList {
+		if tag["name"] == "aks-managed-orchestrator" && strings.Contains(tag["value"], "Kubernetes") {
+			return true
 		}
-		tagsMap[tagSlice[0]] = tagSlice[1]
 	}
-	return tagsMap, nil
+	return false
 }
 
 func getHostnameWithConfig(ctx context.Context, config config.Config) (string, error) {
@@ -154,25 +146,30 @@ func getHostnameWithConfig(ctx context.Context, config config.Config) (string, e
 	if err != nil {
 		return "", err
 	}
+	type OsProfile struct {
+		computerName string
+	}
 
 	var metadata struct {
 		VMID              string
 		Name              string
 		ResourceGroupName string
 		SubscriptionID    string
-		Tags              string
+		TagsList          []map[string]string
+		OsProfile         struct {
+			ComputerName string
+		}
 	}
+
 	if err := json.Unmarshal([]byte(metadataJSON), &metadata); err != nil {
 		return "", fmt.Errorf("failed to parse Azure instance metadata: %s", err)
 	}
-	tagsList, err := getTags(metadata.Tags)
-	if err != nil {
-		log.Debugf("Failed to parse metadata tags: %s", err)
-	}
+	isKubernetes := isKubernetesTag(metadata.TagsList)
+
 	if style == "os" {
-		// If running in AKS, use name as fallback
-		if strings.Contains(tagsList["aks-managed-orchestrator"], "Kubernetes") {
-			style = "name"
+		if isKubernetes {
+			// If running in AKS, use the node name as the hostname
+			style = "os_computer_name"
 		} else {
 			return "", fmt.Errorf("azure_hostname_style is set to 'os'")
 		}
@@ -188,6 +185,8 @@ func getHostnameWithConfig(ctx context.Context, config config.Config) (string, e
 		name = fmt.Sprintf("%s.%s", metadata.Name, metadata.ResourceGroupName)
 	case "full":
 		name = fmt.Sprintf("%s.%s.%s", metadata.Name, metadata.ResourceGroupName, metadata.SubscriptionID)
+	case "os_computer_name":
+		name = strings.ToLower(metadata.OsProfile.ComputerName)
 	default:
 		return "", fmt.Errorf("invalid azure_hostname_style value: %s", style)
 	}
