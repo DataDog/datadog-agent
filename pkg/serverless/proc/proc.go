@@ -11,6 +11,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"strconv"
 	"strings"
@@ -134,14 +135,6 @@ func GetNetworkData(path string) (*NetworkData, error) {
 	}
 	defer file.Close()
 
-	// Skip header rows
-	for i := 0; i < 2; i++ {
-		_, err = fmt.Scanln(file)
-		if err != nil {
-			return nil, err
-		}
-	}
-
 	var interfaceName string
 	var rxBytes, rxPackets, rxErrs, rxDrop, rxFifo, rxFrame, rxCompressed, rxMulticast, txBytes,
 		txPackets, txErrs, txDrop, txFifo, txColls, txCarrier, txCompressed float64
@@ -149,10 +142,10 @@ func GetNetworkData(path string) (*NetworkData, error) {
 		_, err = fmt.Fscanln(file, &interfaceName, &rxBytes, &rxPackets, &rxErrs, &rxDrop, &rxFifo, &rxFrame,
 			&rxCompressed, &rxMulticast, &txBytes, &txPackets, &txErrs, &txDrop, &txFifo, &txColls, &txCarrier,
 			&txCompressed)
-		if err != nil {
+		if errors.Is(err, io.EOF) {
 			return nil, err
 		}
-		if strings.HasPrefix(interfaceName, lambdaNetworkInterface) {
+		if err == nil && strings.HasPrefix(interfaceName, lambdaNetworkInterface) {
 			return &NetworkData{
 				RxBytes: rxBytes,
 				TxBytes: txBytes,
