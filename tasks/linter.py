@@ -25,7 +25,11 @@ from tasks.libs.common.check_tools_version import check_tools_version
 from tasks.libs.common.color import color_message
 from tasks.libs.common.constants import DEFAULT_BRANCH, GITHUB_REPO_NAME
 from tasks.libs.common.git import get_staged_files
-from tasks.libs.common.utils import is_pr_context, running_in_ci
+from tasks.libs.common.utils import (
+    gitlab_section,
+    is_pr_context,
+    running_in_ci,
+)
 from tasks.libs.types.copyright import CopyrightLinter, LintFailure
 from tasks.modules import GoModule
 from tasks.test_core import ModuleLintResult, process_input_args, process_module_results, test_core
@@ -167,7 +171,7 @@ def go(
         lint=True,
     )
 
-    lint_results = run_lint_go(
+    lint_results, execution_times = run_lint_go(
         ctx=ctx,
         modules=modules,
         flavor=flavor,
@@ -183,7 +187,14 @@ def go(
         include_sds=include_sds,
     )
 
-    success = process_module_results(flavor=flavor, module_results=lint_results)
+    with gitlab_section('Linter failures', collapsed=True):
+        success = process_module_results(flavor=flavor, module_results=lint_results)
+
+    with gitlab_section('Linter execution time'):
+        print(color_message('Execution time summary:', 'bold'))
+
+        for e in execution_times:
+            print(f'- {e.name}: {e.duration:.1f}s')
 
     if success:
         if not headless_mode:
@@ -216,7 +227,7 @@ def run_lint_go(
         include_sds=include_sds,
     )
 
-    lint_results = lint_flavor(
+    lint_results, execution_times = lint_flavor(
         ctx,
         modules=modules,
         flavor=flavor,
@@ -228,7 +239,7 @@ def run_lint_go(
         headless_mode=headless_mode,
     )
 
-    return lint_results
+    return lint_results, execution_times
 
 
 def lint_flavor(
@@ -246,9 +257,13 @@ def lint_flavor(
     Runs linters for given flavor, build tags, and modules.
     """
 
+    execution_times = []
+
     def command(module_results, module: GoModule, module_result):
+        nonlocal execution_times
+
         with ctx.cd(module.full_path()):
-            lint_results = run_golangci_lint(
+            lint_results, time_results = run_golangci_lint(
                 ctx,
                 module_path=module.path,
                 targets=module.lint_targets,
@@ -259,13 +274,16 @@ def lint_flavor(
                 golangci_lint_kwargs=golangci_lint_kwargs,
                 headless_mode=headless_mode,
             )
+            execution_times.extend(time_results)
             for lint_result in lint_results:
                 module_result.lint_outputs.append(lint_result)
                 if lint_result.exited != 0:
                     module_result.failed = True
         module_results.append(module_result)
 
-    return test_core(modules, flavor, ModuleLintResult, "golangci_lint", command, headless_mode=headless_mode)
+    return test_core(
+        modules, flavor, ModuleLintResult, "golangci_lint", command, headless_mode=headless_mode
+    ), execution_times
 
 
 @task
