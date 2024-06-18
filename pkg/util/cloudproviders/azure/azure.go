@@ -146,9 +146,6 @@ func getHostnameWithConfig(ctx context.Context, config config.Config) (string, e
 	if err != nil {
 		return "", err
 	}
-	type OsProfile struct {
-		computerName string
-	}
 
 	var metadata struct {
 		VMID              string
