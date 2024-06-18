@@ -4,7 +4,7 @@ import sys
 
 from invoke import task
 
-from tasks.libs.common.utils import collapsed_section, get_distro
+from tasks.libs.common.utils import get_distro, gitlab_section
 
 PROFILE_COV = "coverage.out"
 TMP_PROFILE_COV_PREFIX = "coverage.out.rerun"
@@ -98,5 +98,5 @@ def codecov(
     """
     distro_tag = get_distro()
     codecov_binary = "codecov" if platform.system() != "Windows" else "codecov.exe"
-    with collapsed_section("Upload coverage reports to Codecov"):
+    with gitlab_section("Upload coverage reports to Codecov", collapsed=True):
         ctx.run(f"{codecov_binary} -f {PROFILE_COV} -F {distro_tag}", warn=True)

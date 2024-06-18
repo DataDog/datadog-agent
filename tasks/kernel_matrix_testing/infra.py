@@ -79,7 +79,7 @@ def get_instance_runner(arch: KMTArchNameOrLocal):
 
 
 def print_failed(output: str):
-    out = list()
+    out = []
     for line in output.split("\n"):
         out.append(f"\t{line}")
     error('\n'.join(out))
@@ -176,7 +176,7 @@ def build_infrastructure(stack: str, ssh_key_obj: SSHKey | None = None):
         except json.decoder.JSONDecodeError:
             raise Exit(f"{stack_output} file is not a valid json file")
 
-    infra: dict[KMTArchNameOrLocal, HostInstance] = dict()
+    infra: dict[KMTArchNameOrLocal, HostInstance] = {}
     for arch in infra_map:
         key = ssh_key_obj['path'] if ssh_key_obj is not None else None
         instance = HostInstance(infra_map[arch]["ip"], arch, key)
