@@ -288,7 +288,7 @@ def _assign_pr_team_labels(gh, pr_id, teams):
             try:
                 gh.add_pr_label(pr_id, label_name)
                 print(label_name, 'label assigned to the pull request')
-            except github.GithubException:
+            except github.GithubException.GithubException:
                 print(f'Failed to assign label {label_name}')
 
 

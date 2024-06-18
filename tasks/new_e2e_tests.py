@@ -317,7 +317,7 @@ def _remove_stack(ctx: Context, stack: str):
 def _get_pulumi_about(ctx: Context) -> dict:
     output = ctx.run("pulumi about --json", hide=True, env=_get_default_env())
     if output is None or not output:
-        return {}
+        return ""
     return json.loads(output.stdout)
 
 
