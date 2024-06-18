@@ -624,7 +624,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/impl v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/comp/otelcol/converter/def v0.55.0-rc.1
-	github.com/DataDog/datadog-agent/comp/otelcol/converter/impl v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/comp/otelcol/converter/impl v0.0.0-20240618144845-a975ff101886
 	github.com/DataDog/datadog-agent/comp/otelcol/extension/impl v0.0.0-20240609183704-7277796a9179
 	github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/logsagentpipelineimpl v0.55.0-rc.3

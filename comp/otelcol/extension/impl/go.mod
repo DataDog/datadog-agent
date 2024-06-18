@@ -3,8 +3,10 @@ module github.com/DataDog/datadog-agent/comp/otelcol/extension/impl
 go 1.21.7
 
 require (
-	github.com/DataDog/datadog-agent/comp/otelcol/converter/def v0.0.0-20240612120928-751a8b9c3bce
+	github.com/DataDog/datadog-agent/comp/otelcol/converter/def v0.55.0-rc.1
+	github.com/DataDog/datadog-agent/comp/otelcol/converter/impl v0.0.0-20240618144845-a975ff101886
 	github.com/DataDog/datadog-agent/comp/otelcol/extension/def v0.0.0-20240612124811-03a2a2de1865
+	github.com/stretchr/testify v1.9.0
 	go.opentelemetry.io/collector/component v0.102.1
 	go.opentelemetry.io/collector/config/confighttp v0.101.0
 	go.opentelemetry.io/collector/confmap v0.102.1
@@ -13,6 +15,7 @@ require (
 )
 
 require (
+	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/fsnotify/fsnotify v1.7.0 // indirect
 	github.com/go-logr/logr v1.4.1 // indirect
@@ -27,6 +30,7 @@ require (
 	github.com/knadh/koanf/v2 v2.1.1 // indirect
 	github.com/mitchellh/copystructure v1.2.0 // indirect
 	github.com/mitchellh/reflectwalk v1.0.2 // indirect
+	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/rs/cors v1.10.1 // indirect
 	go.opentelemetry.io/collector v0.101.0 // indirect
 	go.opentelemetry.io/collector/config/configauth v0.101.0 // indirect
@@ -50,9 +54,11 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240520151616-dc85e6b867a5 // indirect
 	google.golang.org/grpc v1.64.0 // indirect
 	google.golang.org/protobuf v1.34.1 // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
 replace (
 	github.com/DataDog/datadog-agent/comp/otelcol/converter/def => ../../converter/def
+	github.com/DataDog/datadog-agent/comp/otelcol/converter/impl => ../../converter/impl
 	github.com/DataDog/datadog-agent/comp/otelcol/extension/def => ../../extension/def
 )
