@@ -8,6 +8,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/config => ../../config
 	github.com/DataDog/datadog-agent/comp/core/flare/builder => ../../../../comp/core/flare/builder
 	github.com/DataDog/datadog-agent/comp/core/flare/types => ../../../../comp/core/flare/types
+	github.com/DataDog/datadog-agent/comp/core/log => ../../log
 	github.com/DataDog/datadog-agent/comp/core/secrets => ../../secrets
 	github.com/DataDog/datadog-agent/comp/core/status => ../.
 	github.com/DataDog/datadog-agent/comp/core/telemetry => ../../telemetry

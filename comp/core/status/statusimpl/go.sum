@@ -2,8 +2,6 @@ cloud.google.com/go v0.26.0/go.mod h1:aQUYkXzVsufM+DwF1aE+0xfcU+56JwCaLick0ClmMT
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
 github.com/DataDog/datadog-agent v0.0.0-20240618111856-e9ec1e064b4f h1:IEd3Qu/n45h9CaAxoHAL4g5tj3Lq+QHwefaMC43sxtA=
 github.com/DataDog/datadog-agent v0.0.0-20240618111856-e9ec1e064b4f/go.mod h1:nURRXzZ9TKw6GuFeJ8gn/G5M1KQHs1FgLTIsZlbvQgM=
-github.com/DataDog/datadog-agent/comp/core/log v0.55.0-rc.3 h1:+lrI/qfUMIYZsghlKaQ9Fac7WtKONtG/aC/aagZdPks=
-github.com/DataDog/datadog-agent/comp/core/log v0.55.0-rc.3/go.mod h1:mK77WL4PSF3GXpkrqrq7I0e8lkqK25KCp5NTFkHaUho=
 github.com/DataDog/datadog-agent/pkg/config/logs v0.55.0-rc.3 h1:piILFEFuWgy8dn32/ootV7PJOlHkJFhxPm2/ljVFSew=
 github.com/DataDog/datadog-agent/pkg/config/logs v0.55.0-rc.3/go.mod h1:aDn+M0IduApKG7k5B8wOk4/i5JTw+NiNqtvyajczeJI=
 github.com/DataDog/datadog-agent/pkg/util/grpc v0.55.0-rc.3 h1:nqVeTsg0nFyTbI58s1dRlPu46I7LtQvqq2wKRutFLCI=
