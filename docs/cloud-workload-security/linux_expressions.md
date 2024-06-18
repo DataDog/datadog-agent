@@ -871,6 +871,9 @@ A file was opened
 | [`open.file.user`](#common-filefields-user-doc) | User of the file's owner |
 | [`open.flags`](#open-flags-doc) | Flags used when opening the file |
 | [`open.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
+| [`open.syscall.flags`](#open-syscall-flags-doc) | Flags argument of the syscall |
+| [`open.syscall.mode`](#open-syscall-mode-doc) | Mode argument of the syscall |
+| [`open.syscall.path`](#open-syscall-path-doc) | Path argument of the syscall |
 
 ### Event `ptrace`
 
@@ -2768,6 +2771,27 @@ Definition: Flags used when opening the file
 
 
 Constants: [Open flags](#open-flags)
+
+
+
+### `open.syscall.flags` {#open-syscall-flags-doc}
+Type: int
+
+Definition: Flags argument of the syscall
+
+
+
+### `open.syscall.mode` {#open-syscall-mode-doc}
+Type: int
+
+Definition: Mode argument of the syscall
+
+
+
+### `open.syscall.path` {#open-syscall-path-doc}
+Type: string
+
+Definition: Path argument of the syscall
 
 
 
