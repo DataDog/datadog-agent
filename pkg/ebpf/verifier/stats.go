@@ -83,112 +83,6 @@ func BuildVerifierStats(opts *StatsOptions) (*StatsResult, map[string]struct{}, 
 	return results, failedToLoad, nil
 }
 
-func getSourceMap(file string) (map[string]map[int]*SourceLine, map[string][]string, error) {
-	// call llvm-objdump to get the source map in the shell
-	// We cannot use the go DWARF library because it doesn't support certain features
-	// (replications) for eBPF programs.
-	cmd := exec.Command("llvm-objdump", "-Sl", file)
-	out, err := cmd.Output()
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to run llvm-objdump on %s: %w", file, err)
-	}
-
-	sourceMap := make(map[string]map[int]*SourceLine)
-	funcsPerSection := make(map[string][]string)
-	lines := strings.Split(string(out), "\n")
-	nextLineInfo := ""
-	currLineInfo, currLine := "", ""
-	currSect, currFunc := "", ""
-
-	sectionRegex := regexp.MustCompile("Disassembly of section (.*):")
-	functionRegex := regexp.MustCompile("^[0-9a-fA-F]{16} <([a-zA-Z_][a-zA-Z0-9_]+)>:$")
-	lineInfoRegex := regexp.MustCompile("^; [^:]+:[0-9]+")
-	functionJustStarted := false
-	insnOffset := 0
-
-	// Very ad-hoc parsing but enough for our purposes
-	for _, line := range lines {
-		if len(line) == 0 {
-			continue
-		}
-
-		// With -l, llvm-objdump will print the source line info
-		// in two lines starting with ;. The first is the file and line number,
-		// the second is the source line itself.
-		// So we keep track of the last two things we found that started with ";"
-		// Sometimes we can get a function entry point for an assembly line without source information,
-		// so we need to discard that. We only save the source information if the first line is of the form
-		// "; <file>:<line>" and the second line is the actual source line.
-		// Note that a single code line might translate to multiple assembly instructions, so we do
-		// this once and keep the state for all assembly lines following.
-		if line[0] == ';' {
-			if lineInfoRegex.MatchString(line) {
-				nextLineInfo = line
-			} else if nextLineInfo != "" {
-				currLineInfo = strings.TrimPrefix(nextLineInfo, "; ")
-				currLine = strings.TrimPrefix(line, "; ")
-				nextLineInfo = ""
-			}
-			continue
-		}
-		nextLineInfo = "" // Reset the next line info if we don't have a source line
-
-		// Check for section headers
-		sectionMatch := sectionRegex.FindStringSubmatch(line)
-		if len(sectionMatch) >= 2 {
-			currSect = strings.ReplaceAll(sectionMatch[1], "/", "__") // match naming convention
-			log.Printf("Found section %s\n", currSect)
-			continue
-		}
-
-		// Check for function names
-		functionMatch := functionRegex.FindStringSubmatch(line)
-		if len(functionMatch) >= 2 && !strings.HasPrefix(functionMatch[1], "LBB") { // Ignore block labels
-			currFunc = functionMatch[1]
-			log.Printf("Found function %s\n", currFunc)
-
-			if currSect == "" {
-				log.Printf("WARN: Found function %s without section, line=%v\n", currFunc, line)
-			} else {
-				funcsPerSection[currSect] = append(funcsPerSection[currSect], currFunc)
-			}
-
-			if _, ok := sourceMap[currFunc]; !ok {
-				sourceMap[currFunc] = make(map[int]*SourceLine)
-			}
-			functionJustStarted = true // Mark that this function just started so we have the instruction offset of the start
-			continue
-		}
-
-		// We should have a section and function at this point, ignore the line if we don't
-		if currSect == "" || currFunc == "" {
-			continue
-		}
-
-		line = strings.TrimLeft(line, " \t")
-		parts := strings.Split(line, ":")
-		insn, err := strconv.Atoi(parts[0])
-		if err != nil {
-			continue
-		}
-
-		if functionJustStarted {
-			// llvm-objdump counts instructions since the start of the section, but the verifier
-			// counts from the start of the function. We need to account for that offset
-			insnOffset = insn
-			functionJustStarted = false
-		}
-		insn -= insnOffset
-
-		sourceMap[currFunc][insn] = &SourceLine{
-			LineInfo: currLineInfo,
-			Line:     currLine,
-		}
-	}
-
-	return sourceMap, funcsPerSection, nil
-}
-
 func generateLoadFunction(file string, opts *StatsOptions, results *StatsResult, failedToLoad map[string]struct{}) func(bytecode.AssetReader, manager.Options) error {
 	return func(bc bytecode.AssetReader, managerOptions manager.Options) error {
 		kversion, err := kernel.HostVersion()
@@ -251,7 +145,7 @@ func generateLoadFunction(file string, opts *StatsOptions, results *StatsResult,
 		)
 
 		if opts.DetailedComplexity {
-			sourceMap, funcsPerSect, err = getSourceMap(file)
+			sourceMap, funcsPerSect, err = getSourceMap(file, collectionSpec)
 			if err != nil {
 				return fmt.Errorf("failed to get llvm-objdump data for %v: %w", file, err)
 			}
