@@ -9,7 +9,7 @@ from invoke.exceptions import Exit
 
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.git import get_commit_sha, get_main_parent_commit
-from tasks.libs.common.utils import collapsed_section, get_distro
+from tasks.libs.common.utils import get_distro, gitlab_section
 
 PROFILE_COV = "coverage.out"
 TMP_PROFILE_COV_PREFIX = "coverage.out.rerun"
@@ -118,7 +118,8 @@ def codecov(
         )
     distro_tag = get_distro()
     codecov_binary = "codecov" if platform.system() != "Windows" else "codecov.exe"
-    with collapsed_section("Upload coverage reports to Codecov"):
+
+    with gitlab_section("Upload coverage reports to Codecov", collapsed=True):
         if pull_coverage_cache:
             apply_missing_coverage(ctx, from_commit_sha=get_main_parent_commit(ctx), debug=debug)
         if push_coverage_cache:
