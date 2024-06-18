@@ -12,7 +12,6 @@ import (
 	"os/signal"
 	"syscall"
 
-	"context"
 	"github.com/DataDog/datadog-agent/cmd/installer/command"
 	"github.com/DataDog/datadog-agent/comp/core/pid"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -20,11 +19,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/updater/localapi"
 	"github.com/DataDog/datadog-agent/comp/updater/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func runFxWrapper(global *command.GlobalParams) error {
-	ctx := context.Background()
-
 	return fxutil.OneShot(
 		run,
 		getCommonFxOption(global),

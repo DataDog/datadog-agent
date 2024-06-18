@@ -6,6 +6,7 @@
 package daemon
 
 import (
+	"context"
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
@@ -40,12 +41,14 @@ func runCommand(global *command.GlobalParams) *cobra.Command {
 }
 
 func getCommonFxOption(global *command.GlobalParams) fx.Option {
-	return fx.Options(fx.Supply(core.BundleParams{
-		ConfigParams:         config.NewAgentParams(global.ConfFilePath),
-		SecretParams:         secrets.NewEnabledParams(),
-		SysprobeConfigParams: sysprobeconfigimpl.NewParams(),
-		LogParams:            logimpl.ForDaemon("INSTALLER", "installer.log_file", pkgconfig.DefaultUpdaterLogFile),
-	}),
+	ctx := context.Background()
+	return fx.Options(fx.Provide(func() context.Context { return ctx }),
+		fx.Supply(core.BundleParams{
+			ConfigParams:         config.NewAgentParams(global.ConfFilePath),
+			SecretParams:         secrets.NewEnabledParams(),
+			SysprobeConfigParams: sysprobeconfigimpl.NewParams(),
+			LogParams:            logimpl.ForDaemon("INSTALLER", "installer.log_file", pkgconfig.DefaultUpdaterLogFile),
+		}),
 		core.Bundle(),
 		fx.Supply(&rcservice.Params{
 			Options: []service.Option{
