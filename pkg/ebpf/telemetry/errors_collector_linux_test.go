@@ -155,13 +155,13 @@ func TestEBPFErrorsCollector_DoubleCollect(t *testing.T) {
 	if ok, _ := ebpfTelemetrySupported(); !ok {
 		t.SkipNow()
 	}
-	mapErrorsMockValue, helperErrorsMockValue := uint64(20), uint64(100)
-	deltaMapErrors, deltaHelperErrors := float64(80), float64(900)
+	mapErrorsMockValue1, helperErrorsMockValue1 := uint64(20), uint64(100)
+	mapErrorsMockValue2, helperErrorsMockValue2 := uint64(100), uint64(1000)
 	mapEntries := map[telemetryIndex]MapErrTelemetry{
-		{key: 1, name: mockMapName}: {Count: [64]uint64{mapErrorsMockValue}},
+		{key: 1, name: mockMapName}: {Count: [64]uint64{mapErrorsMockValue1}},
 	}
 	helperEntries := map[telemetryIndex]HelperErrTelemetry{
-		{key: 2, name: mockHelperName}: {Count: [320]uint64{helperErrorsMockValue}},
+		{key: 2, name: mockHelperName}: {Count: [320]uint64{helperErrorsMockValue1}},
 	}
 
 	//in this test we expect the values to match the delta between second and first collects
@@ -169,8 +169,8 @@ func TestEBPFErrorsCollector_DoubleCollect(t *testing.T) {
 		value  float64
 		labels []string
 	}{
-		{value: deltaMapErrors, labels: []string{"errno 0", mockMapName}},
-		{value: deltaHelperErrors, labels: []string{"errno 0", "bpf_probe_read", mockHelperName}},
+		{value: float64(mapErrorsMockValue2), labels: []string{"errno 0", mockMapName}},
+		{value: float64(helperErrorsMockValue2), labels: []string{"errno 0", "bpf_probe_read", mockHelperName}},
 	}
 
 	telemetry := &mockErrorsTelemetry{
@@ -196,9 +196,9 @@ func TestEBPFErrorsCollector_DoubleCollect(t *testing.T) {
 	//increase the counters of the mock telemetry object before second collect
 	collector.(*EBPFErrorsCollector).T = &mockErrorsTelemetry{
 		mapErrMap: map[telemetryIndex]MapErrTelemetry{
-			{key: 1, name: mockMapName}: {Count: [64]uint64{mapErrorsMockValue + uint64(deltaMapErrors)}}},
+			{key: 1, name: mockMapName}: {Count: [64]uint64{mapErrorsMockValue2}}},
 		helperErrMap: map[telemetryIndex]HelperErrTelemetry{
-			{key: 2, name: mockHelperName}: {Count: [320]uint64{helperErrorsMockValue + uint64(deltaHelperErrors)}}},
+			{key: 2, name: mockHelperName}: {Count: [320]uint64{helperErrorsMockValue2}}},
 	}
 
 	ch = make(chan prometheus.Metric)
