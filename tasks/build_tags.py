@@ -276,7 +276,7 @@ def get_default_build_tags(build="agent", flavor=AgentFlavor.base, platform=sys.
     The container integrations are currently only supported on Linux, disabling on
     the Windows and Darwin builds.
     """
-    include = build_tags.get(flavor).get(build)
+    include = build_tags[flavor].get(build)
     if include is None:
         print("Warning: unrecognized build type, no build tags included.", file=sys.stderr)
         include = set()
