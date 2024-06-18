@@ -109,6 +109,8 @@ notify_github:
 notify_failure_summary_on_pipeline:
   extends: .failure_summary_job
   rules:
+    - if: $CI_PIPELINE_SOURCE != "push" && $CI_PIPELINE_SOURCE != "schedule"
+      when: never
     - !reference [.on_main]
   script:
     - !reference [.failure_summary_setup]

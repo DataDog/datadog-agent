@@ -24,9 +24,9 @@ Every week day, a summary is created for all the pipelines of the last 24 hours 
 Once a week, a failure summary with allow to fail jobs is sent to the teams (send_summary_messages).
 """
 
-FAILURE_SUMMARY_S3_BUCKET_URL = f"s3://{FAILURE_SUMMARY_S3_BUCKET}/{FAILURE_SUMMARY_S3_PREFIX}
 FAILURE_SUMMARY_S3_BUCKET = "dd-ci-persistent-artefacts-build-stable"
 FAILURE_SUMMARY_S3_PREFIX = "datadog-agent/failure_summary"
+FAILURE_SUMMARY_S3_BUCKET_URL = f"s3://{FAILURE_SUMMARY_S3_BUCKET}/{FAILURE_SUMMARY_S3_PREFIX}"
 FAILURE_SUMMARY_TMP_FILE = "/tmp/failure_summary.json"
 
 
