@@ -58,7 +58,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/usm/testutil/grpc"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	grpc2 "github.com/DataDog/datadog-agent/pkg/util/grpc"
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 )
 
 const (
@@ -1224,7 +1223,7 @@ func testPostgresProtocolClassificationWrapper(enableTLS bool) func(t *testing.T
 func testPostgresProtocolClassification(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string, enableTLS bool) {
 	skippers := []func(t *testing.T, ctx testContext){skipIfUsingNAT}
 	if enableTLS {
-		flake.Mark(t)
+		t.Skip("TLS+Postgres classification tests are flaky")
 		skippers = append(skippers, skipIfGoTLSNotSupported)
 	}
 	skipFunc := composeSkips(skippers...)
@@ -1603,7 +1602,7 @@ func testRedisProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 }
 
 func testTLSRedisProtocolClassification(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
-	flake.Mark(t)
+	t.Skip("TLS+Redis classification tests are flaky")
 	testRedisProtocolClassificationInner(t, tr, clientHost, targetHost, serverHost, protocolsUtils.TLSEnabled)
 }
 
@@ -1786,7 +1785,7 @@ func testRedisProtocolClassificationInner(t *testing.T, tr *Tracer, clientHost, 
 }
 
 func testTLSAMQPProtocolClassification(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
-	flake.Mark(t)
+	t.Skip("TLS+AMQP classification tests are flaky")
 	testAMQPProtocolClassificationInner(t, tr, clientHost, targetHost, serverHost, protocolsUtils.TLSEnabled)
 }
 
