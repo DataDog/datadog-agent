@@ -740,14 +740,15 @@ func (p *EBPFResolver) resolveFromCache(pid, tid uint32, inode uint64) *model.Pr
 }
 
 // ResolveNewProcessCacheEntry resolves the context fields of a new process cache entry parsed from kernel data
-func (p *EBPFResolver) ResolveNewProcessCacheEntry(entry *model.ProcessCacheEntry, ctrCtx *model.ContainerContext) error {
+// it returns two kind of errors: the first one is a critical error and the second one is a non-critical error
+func (p *EBPFResolver) ResolveNewProcessCacheEntry(entry *model.ProcessCacheEntry, ctrCtx *model.ContainerContext) (error, error) {
 	if _, err := p.SetProcessPath(&entry.FileEvent, entry, ctrCtx); err != nil {
-		return &spath.ErrPathResolution{Err: fmt.Errorf("failed to resolve exec path: %w", err)}
+		return &spath.ErrPathResolution{Err: fmt.Errorf("failed to resolve exec path: %w", err)}, nil
 	}
 
 	if entry.HasInterpreter() {
 		if _, err := p.SetProcessPath(&entry.LinuxBinprm.FileEvent, entry, ctrCtx); err != nil {
-			return &spath.ErrPathResolution{Err: fmt.Errorf("failed to resolve interpreter path: %w", err)}
+			return &spath.ErrPathResolution{Err: fmt.Errorf("failed to resolve interpreter path: %w", err)}, nil
 		}
 	} else {
 		// mark it as resolved to avoid abnormal path later in the call flow
@@ -755,16 +756,22 @@ func (p *EBPFResolver) ResolveNewProcessCacheEntry(entry *model.ProcessCacheEntr
 		entry.LinuxBinprm.FileEvent.SetBasenameStr("")
 	}
 
-	p.SetProcessArgs(entry)
-	p.SetProcessEnvs(entry)
+	argsErr := p.SetProcessArgs(entry)
+	envsErr := p.SetProcessEnvs(entry)
 	p.SetProcessTTY(entry)
 	p.SetProcessUsersGroups(entry)
 	p.ApplyBootTime(entry)
 	p.SetProcessSymlink(entry)
 
 	_, err := p.SetProcessFilesystem(entry)
+	argsEnvsErr := errors.Join(argsErr, envsErr)
 
-	return err
+	var nonCriticalErr error
+	if argsEnvsErr != nil {
+		nonCriticalErr = &model.ErrProcessArgsEnvsResolution{Err: argsEnvsErr}
+	}
+
+	return err, nonCriticalErr
 }
 
 // ResolveFromKernelMaps resolves the entry from the kernel maps
@@ -823,7 +830,7 @@ func (p *EBPFResolver) resolveFromKernelMaps(pid, tid uint32, inode uint64) *mod
 	}
 
 	// resolve paths and other context fields
-	if err = p.ResolveNewProcessCacheEntry(entry, &ctrCtx); err != nil {
+	if err, _ = p.ResolveNewProcessCacheEntry(entry, &ctrCtx); err != nil {
 		return nil
 	}
 
@@ -905,7 +912,7 @@ func (p *EBPFResolver) resolveFromProcfs(pid uint32, maxDepth int) *model.Proces
 }
 
 // SetProcessArgs set arguments to cache entry
-func (p *EBPFResolver) SetProcessArgs(pce *model.ProcessCacheEntry) {
+func (p *EBPFResolver) SetProcessArgs(pce *model.ProcessCacheEntry) error {
 	if entry, found := p.argsEnvsCache.Get(pce.ArgsID); found {
 		if pce.ArgsTruncated {
 			p.argsTruncated.Inc()
@@ -920,7 +927,15 @@ func (p *EBPFResolver) SetProcessArgs(pce *model.ProcessCacheEntry) {
 
 		// no need to keep it in LRU now as attached to a process
 		p.argsEnvsCache.Remove(pce.ArgsID)
+
+		if pce.ExecFlags.Has(model.ExecEventFlagsHasArgs) && len(pce.ArgsEntry.Values) == 0 {
+			return model.ErrProcessArgumentsMissing
+		}
+	} else if pce.ExecFlags.Has(model.ExecEventFlagsHasArgs) {
+		return model.ErrProcessArgumentsMissing
 	}
+
+	return nil
 }
 
 // GetProcessArgvScrubbed returns the scrubbed args of the event as an array
@@ -941,7 +956,7 @@ func (p *EBPFResolver) GetProcessArgvScrubbed(pr *model.Process) ([]string, bool
 }
 
 // SetProcessEnvs set envs to cache entry
-func (p *EBPFResolver) SetProcessEnvs(pce *model.ProcessCacheEntry) {
+func (p *EBPFResolver) SetProcessEnvs(pce *model.ProcessCacheEntry) error {
 	if entry, found := p.argsEnvsCache.Get(pce.EnvsID); found {
 		if pce.EnvsTruncated {
 			p.envsTruncated.Inc()
@@ -956,7 +971,15 @@ func (p *EBPFResolver) SetProcessEnvs(pce *model.ProcessCacheEntry) {
 
 		// no need to keep it in LRU now as attached to a process
 		p.argsEnvsCache.Remove(pce.EnvsID)
+
+		if pce.ExecFlags.Has(model.ExecEventFlagsHasEnv) && len(pce.EnvsEntry.Values) == 0 {
+			return model.ErrProcessEnvVarsMissing
+		}
+	} else if pce.ExecFlags.Has(model.ExecEventFlagsHasEnv) {
+		return model.ErrProcessEnvVarsMissing
 	}
+
+	return nil
 }
 
 // GetProcessEnvs returns the envs of the event

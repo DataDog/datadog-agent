@@ -181,4 +181,11 @@ func (m *EBPFMonitors) ProcessEvent(event *model.Event) {
 			NewAbnormalEvent(events.BrokenProcessLineageErrorRuleID, events.BrokenProcessLineageErrorRuleDesc, event, event.Error),
 		)
 	}
+
+	var argsEnvsErr *model.ErrProcessArgsEnvsResolution
+	if errors.As(event.Error, &argsEnvsErr) {
+		m.ebpfProbe.probe.DispatchCustomEvent(
+			NewAbnormalEvent(events.NoProcessArgsEnvsErrorRuleID, events.NoProcessArgsEnvsErrorRuleDesc, event, event.Error),
+		)
+	}
 }

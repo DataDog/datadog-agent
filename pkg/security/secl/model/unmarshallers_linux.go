@@ -256,17 +256,27 @@ func (e *Process) UnmarshalBinary(data []byte) (int, error) {
 		e.LinuxBinprm.FileEvent.PathKey = pathKey
 	}
 
-	if len(data[read:]) < 16 {
+	if len(data[read:]) < 8 {
 		return 0, ErrNotEnoughData
 	}
 
 	e.ArgsID = binary.NativeEndian.Uint32(data[read : read+4])
-	e.ArgsTruncated = binary.NativeEndian.Uint32(data[read+4:read+8]) == 1
-	read += 8
+	read += 4
 
 	e.EnvsID = binary.NativeEndian.Uint32(data[read : read+4])
-	e.EnvsTruncated = binary.NativeEndian.Uint32(data[read+4:read+8]) == 1
-	read += 8
+	read += 4
+
+	if (len(data[read:])) < 8 {
+		return 0, ErrNotEnoughData
+	}
+
+	e.ExecFlags = ExecEventFlags(binary.NativeEndian.Uint32(data[read : read+4]))
+	e.ArgsTruncated = e.ExecFlags.Has(ExecEventFlagsArgsTruncated)
+	e.EnvsTruncated = e.ExecFlags.Has(ExecEventFlagsEnvsTruncated)
+	read += 4
+
+	// padding
+	read += 4
 
 	return validateReadSize(size, read)
 }

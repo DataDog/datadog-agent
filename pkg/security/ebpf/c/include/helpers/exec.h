@@ -7,10 +7,10 @@
 #include "process.h"
 
 int __attribute__((always_inline)) handle_exec_event(ctx_t *ctx, struct syscall_cache_t *syscall, struct file *file, struct path *path, struct inode *inode) {
-    if (syscall->exec.is_parsed) {
+    if (syscall->exec.flags & EXEC_FLAGS_IS_PARSED) {
         return 0;
     }
-    syscall->exec.is_parsed = 1;
+    syscall->exec.flags |= EXEC_FLAGS_IS_PARSED;
 
     syscall->exec.dentry = get_file_dentry(file);
 
@@ -37,6 +37,26 @@ int __attribute__((always_inline)) handle_exec_event(ctx_t *ctx, struct syscall_
     pop_current_or_impersonated_exec_syscall();
 
     return 0;
+}
+
+bool __attribute__((always_inline)) is_empty_string_array(const char **array) {
+    if (!array) {
+        return true;
+    }
+
+    char *str = (char *)NULL;
+    int n = bpf_probe_read(&str, sizeof(str), array);
+    if (n != 0 || !str) {
+        return true;
+    }
+
+    char c = '\0';
+    n = bpf_probe_read(&c, sizeof(c), str);
+    if (n != 0 || c == '\0') {
+        return true;
+    }
+
+    return false;
 }
 
 #endif
