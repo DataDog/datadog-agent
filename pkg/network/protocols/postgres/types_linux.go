@@ -20,7 +20,7 @@ type EbpfEvent struct {
 	Tx    EbpfTx
 }
 type EbpfTx struct {
-	Request_fragment    [64]byte
+	Request_fragment    [128]byte
 	Request_started     uint64
 	Response_last_seen  uint64
 	Original_query_size uint32
@@ -29,5 +29,5 @@ type EbpfTx struct {
 }
 
 const (
-	BufferSize = 0x40
+	BufferSize = 0x80
 )

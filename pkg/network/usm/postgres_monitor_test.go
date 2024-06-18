@@ -407,16 +407,16 @@ func testDecoding(t *testing.T, isTLS bool) {
 			},
 			postMonitorSetup: func(t *testing.T, ctx testContext) {
 				pg := ctx.extras["pg"].(*postgres.PGXClient)
-				longTableName := strings.Repeat("table_", 15)
+				longTableName := strings.Repeat("table_", 30)
 				require.NoError(t, pg.RunQuery(fmt.Sprintf("CREATE TABLE %s (id SERIAL PRIMARY KEY, foo TEXT)", longTableName)))
 				require.NoError(t, pg.RunQuery(fmt.Sprintf("DROP TABLE IF EXISTS %s", longTableName)))
 			},
 			validation: func(t *testing.T, ctx testContext, monitor *Monitor) {
 				validatePostgres(t, monitor, map[string]map[postgres.Operation]int{
-					"table_table_table_table_table_table_table_table_tab": {
+					`table_table_table_table_table_table_table_table_table_table_table_table_table_table_table_table_table_table_table_t`: {
 						postgres.CreateTableOP: adjustCount(1),
 					},
-					"table_table_table_table_table_table_table_t": {
+					"table_table_table_table_table_table_table_table_table_table_table_table_table_table_table_table_table_table": {
 						postgres.DropTableOP: adjustCount(1),
 					},
 				}, isTLS)
