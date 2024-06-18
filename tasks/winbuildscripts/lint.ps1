@@ -20,11 +20,23 @@ if($err -ne 0){
 }
 
 & inv -e install-tools
-& inv -e linter.go
 
+& inv -e linter.go
 $err = $LASTEXITCODE
-Write-Host Lint result is $err
+Write-Host Go linter result is $err
 if($err -ne 0){
-    Write-Host -ForegroundColor Red "lint failed $err"
+    Write-Host -ForegroundColor Red "go linter failed $err"
     [Environment]::Exit($err)
 }
+
+$timeTaken = Measure-Command {
+  & dotnet format --verify-no-changes .\\tools\\windows\\DatadogAgentInstaller
+  $err = $LASTEXITCODE
+  Write-Host Dotnet linter result is $err
+  if($err -ne 0){
+      Write-Host -ForegroundColor Red "dotnet linter failed $err"
+      [Environment]::Exit($err)
+  }
+}
+
+Write-Host "Dotnet linter run time: $($timeTaken.TotalSeconds) seconds"

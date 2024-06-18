@@ -84,7 +84,7 @@ func loadOOMKillCOREProbe(cfg *ebpf.Config) (*Probe, error) { //nolint:revive //
 }
 
 func loadOOMKillRuntimeCompiledProbe(cfg *ebpf.Config) (*Probe, error) {
-	buf, err := runtime.OomKill.Compile(cfg, getCFlags(cfg), nil /* llc flags */, statsd.Client)
+	buf, err := runtime.OomKill.Compile(cfg, getCFlags(cfg), statsd.Client)
 	if err != nil {
 		return nil, err
 	}

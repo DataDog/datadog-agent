@@ -58,7 +58,7 @@ Package api implements the "api" bundle,
 
 ### [comp/api/api](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/api/api)
 
-Package def implements the internal Agent API component definitions which exposes endpoints such as config, flare or status
+Package api implements the internal Agent API which exposes endpoints such as config, flare or status
 
 ### [comp/api/authtoken](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/api/authtoken)
 

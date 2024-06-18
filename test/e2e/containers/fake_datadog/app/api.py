@@ -274,7 +274,7 @@ def logging():
 
 
 def stat_records():
-    j = dict()
+    j = {}
     for elt in payload_names:
         try:
             p = path.join(record_dir, elt)
@@ -303,10 +303,10 @@ def get_records(name):
     if path.isfile(path.join(record_dir, name)) is False:
         return Response(status=503)
 
-    payloads = list()
+    payloads = []
     with open(path.join(record_dir, name)) as f:
-        for l in f:
-            payloads.append(json.loads(l))
+        for line in f:
+            payloads.append(json.loads(line))
     return json.dumps(payloads), 200
 
 

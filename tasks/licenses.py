@@ -140,7 +140,10 @@ def licenses_csv(licenses):
             copyright = f'"{copyright}"'
         return copyright
 
-    return [f"{l['component']},{l['package']},{l['license']},{fmt_copyright(l)}" for l in licenses]
+    return [
+        f"{license['component']},{license['package']},{license['license']},{fmt_copyright(license)}"
+        for license in licenses
+    ]
 
 
 def wwhrd_licenses(ctx):

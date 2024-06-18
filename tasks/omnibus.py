@@ -13,7 +13,8 @@ from tasks.libs.common.omnibus import (
     send_cache_miss_event,
     should_retry_bundle_install,
 )
-from tasks.libs.common.utils import collapsed_section, get_version, load_release_versions, timed
+from tasks.libs.common.utils import gitlab_section, timed
+from tasks.libs.releasing.version import get_version, load_release_versions
 from tasks.ssm import get_pfx_pass, get_signing_cert
 
 
@@ -50,7 +51,7 @@ def omnibus_run_task(
             "populate_s3_cache": populate_s3_cache,
         }
 
-        with collapsed_section(f"Running omnibus task {task}"):
+        with gitlab_section(f"Running omnibus task {task}", collapsed=True):
             ctx.run(cmd.format(**args), env=env, err_stream=sys.stdout)
 
 
@@ -66,7 +67,7 @@ def bundle_install_omnibus(ctx, gem_path=None, env=None, max_try=2):
         if gem_path:
             cmd += f" --path {gem_path}"
 
-        with collapsed_section("Bundle install omnibus"):
+        with gitlab_section("Bundle install omnibus", collapsed=True):
             for trial in range(max_try):
                 res = ctx.run(cmd, env=env, warn=True, err_stream=sys.stdout)
                 if res.ok:
@@ -259,7 +260,7 @@ def build(
         # Individual developers are still able to leverage the cache by providing
         # the OMNIBUS_GIT_CACHE_DIR env variable, but they won't pull from the CI
         # generated one.
-        with collapsed_section("Manage omnibus cache"):
+        with gitlab_section("Manage omnibus cache", collapsed=True):
             use_remote_cache = remote_cache_name is not None
             if use_remote_cache:
                 cache_state = None

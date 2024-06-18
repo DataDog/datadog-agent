@@ -129,7 +129,9 @@ func CreateDefaultConfig() component.Config {
 			TCPAddrConfig: confignet.TCPAddrConfig{
 				Endpoint: "https://trace.agent.datadoghq.com",
 			},
-			IgnoreResources: []string{},
+			IgnoreResources:           []string{},
+			SpanNameAsResourceName:    true,
+			ComputeTopLevelBySpanKind: true,
 		},
 
 		Logs: LogsConfig{

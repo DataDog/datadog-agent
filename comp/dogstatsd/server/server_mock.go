@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"time"
 
-	api "github.com/DataDog/datadog-agent/comp/api/api/def"
+	"github.com/DataDog/datadog-agent/comp/api/api"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"go.uber.org/fx"
 )
