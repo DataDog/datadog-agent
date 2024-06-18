@@ -24,7 +24,7 @@ type Package struct {
 
 // PackagesList lists all known packages. Not all of them are installable
 var PackagesList = []Package{
-	{Name: "datadog-apm-inject", released: false, condition: apmInjectEnabled},
+	{Name: "datadog-apm-inject", released: true, condition: apmInjectEnabled},
 	{Name: "datadog-apm-library-java", released: false, condition: apmLanguageEnabled},
 	{Name: "datadog-apm-library-ruby", released: false, condition: apmLanguageEnabled},
 	{Name: "datadog-apm-library-js", released: false, condition: apmLanguageEnabled},

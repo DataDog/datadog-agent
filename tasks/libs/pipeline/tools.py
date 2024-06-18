@@ -225,7 +225,7 @@ def loop_status(callable, timeout_sec):
     Utility to loop a function that takes a status and returns [done, status], until done is True.
     """
     start = time()
-    status = dict()
+    status = {}
     while True:
         done, status = callable(status)
         if done:
