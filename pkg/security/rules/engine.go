@@ -529,10 +529,6 @@ func (e *RuleEngine) HandleEvent(event *model.Event) {
 		return
 	}
 
-	if threatScoreRuleSet := e.GetThreatScoreRuleSet(); threatScoreRuleSet != nil {
-		threatScoreRuleSet.Evaluate(event)
-	}
-
 	// if the event should have been discarded in kernel space, we don't need to evaluate it
 	if event.IsSavedByActivityDumps() {
 		return
