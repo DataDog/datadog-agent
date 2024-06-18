@@ -10,13 +10,13 @@ go 1.21.0
 replace github.com/docker/distribution => github.com/docker/distribution v2.8.1+incompatible
 
 require (
-	github.com/DataDog/datadog-agent/pkg/obfuscate v0.55.0-rc.6
-	github.com/DataDog/datadog-agent/pkg/proto v0.55.0-rc.6
-	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.55.0-rc.6
-	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.55.0-rc.6
-	github.com/DataDog/datadog-agent/pkg/util/log v0.55.0-rc.6
-	github.com/DataDog/datadog-agent/pkg/util/pointer v0.55.0-rc.6
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.55.0-rc.6
+	github.com/DataDog/datadog-agent/pkg/obfuscate v0.55.0-rc.7
+	github.com/DataDog/datadog-agent/pkg/proto v0.55.0-rc.7
+	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.55.0-rc.7
+	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.55.0-rc.7
+	github.com/DataDog/datadog-agent/pkg/util/log v0.55.0-rc.7
+	github.com/DataDog/datadog-agent/pkg/util/pointer v0.55.0-rc.7
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.55.0-rc.7
 	github.com/DataDog/datadog-go/v5 v5.5.0
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.14.0
 	github.com/DataDog/sketches-go v1.4.2
