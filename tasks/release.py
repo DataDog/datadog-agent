@@ -945,6 +945,6 @@ def check_for_changes(ctx, release_branch):
             describe = ctx.run(f'git describe --tags --match "{latest_tag}"', hide=True).stdout.strip()
             commit_match = describe_pattern.match(describe)
             if commit_match:
-                print(f"Merged {commit_match['commit_number']} commits since {latest_tag} on {repo}")
-                return int(commit_match['commit_number'])
-    return 0
+                print(f"Merged {commit_match['commit_number']} commits since {latest_tag} on {repo}", file=sys.stderr)
+                print(int(commit_match['commit_number']))
+    print(0)
