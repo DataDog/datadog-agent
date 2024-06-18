@@ -1602,7 +1602,7 @@ def kitchen_prepare_btfs(ctx, files_dir, arch=CURRENT_ARCH):
             ctx,
             source_dir=f"{btf_dir}/kitchen-btfs-{arch}",
             output_dir=f"{btf_dir}/minimized-btfs",
-            bpf_programs=co_re_programs,
+            input_bpf_programs=co_re_programs,
         )
 
         ctx.run(
