@@ -886,6 +886,7 @@ func TestHandleECSTask(t *testing.T) {
 					},
 				},
 				AvailabilityZone: "us-east-1c",
+				Region:           "us-east-1",
 			},
 			expected: []*types.TagInfo{
 				{
@@ -904,6 +905,7 @@ func TestHandleECSTask(t *testing.T) {
 						"task_version:1",
 						"availability_zone:us-east-1c",
 						"availability-zone:us-east-1c",
+						"region:us-east-1",
 					},
 					StandardTags: []string{},
 				},
@@ -922,6 +924,7 @@ func TestHandleECSTask(t *testing.T) {
 						"task_version:1",
 						"availability_zone:us-east-1c",
 						"availability-zone:us-east-1c",
+						"region:us-east-1",
 					},
 					StandardTags: []string{},
 				},
