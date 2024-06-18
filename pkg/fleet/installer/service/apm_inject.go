@@ -137,6 +137,9 @@ func (a *apmInjectorInstaller) Setup(ctx context.Context) error {
 	if err := addSystemDEnvOverrides(ctx, traceAgentExp); err != nil {
 		return err
 	}
+	if err := systemdReload(ctx); err != nil {
+		return err
+	}
 
 	// /var/log/datadog is created by default with datadog-installer install
 	err = os.Mkdir("/var/log/datadog/dotnet", 0777)
