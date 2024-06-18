@@ -22,6 +22,11 @@ import (
 
 const subsystem = "WorkloadMetaExtractor"
 
+var (
+	initWorkloadMetaExtractor   sync.Once
+	sharedWorkloadMetaExtractor *WorkloadMetaExtractor
+)
+
 // ProcessEntity represents a process exposed by the WorkloadMeta extractor
 type ProcessEntity struct {
 	//nolint:revive // TODO(PROC) Fix revive linter
@@ -53,8 +58,8 @@ type WorkloadMetaExtractor struct {
 // Extract call from the WorkloadMetaExtractor cache
 type ProcessCacheDiff struct {
 	cacheVersion int32
-	creation     []*ProcessEntity
-	deletion     []*ProcessEntity
+	Creation     []*ProcessEntity
+	Deletion     []*ProcessEntity
 }
 
 var (
@@ -65,6 +70,14 @@ var (
 	diffsDroppedCounter = telemetry.NewSimpleCounter(
 		subsystem, "diffs_dropped", "The number of diffs dropped due to channel contention")
 )
+
+// GetSharedContainerProvider returns a shared WorkloadMetaExtractor
+func GetSharedWorkloadMetaExtractor(sysprobeConfig config.Reader) *WorkloadMetaExtractor {
+	initWorkloadMetaExtractor.Do(func() {
+		sharedWorkloadMetaExtractor = NewWorkloadMetaExtractor(sysprobeConfig)
+	})
+	return sharedWorkloadMetaExtractor
+}
 
 // NewWorkloadMetaExtractor constructs the WorkloadMetaExtractor.
 func NewWorkloadMetaExtractor(sysprobeConfig config.Reader) *WorkloadMetaExtractor {
@@ -158,8 +171,8 @@ func (w *WorkloadMetaExtractor) Extract(procs map[int32]*procutil.Process) {
 
 	diff := &ProcessCacheDiff{
 		cacheVersion: w.cacheVersion,
-		creation:     newEntities,
-		deletion:     deadProcs,
+		Creation:     newEntities,
+		Deletion:     deadProcs,
 	}
 
 	// Do not block on write to prevent Extract caller from hanging e.g. process check
