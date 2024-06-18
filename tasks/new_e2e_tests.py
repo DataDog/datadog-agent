@@ -288,13 +288,21 @@ def _destroy_stack(ctx: Context, stack: str):
             env=_get_default_env(),
         )
         if ret is not None and ret.exited != 0:
+            if "No valid credential sources found" in ret.stdout:
+                print(
+                    "No valid credentials sources found, you need to wrap the invoke command in aws-vault exec <account> --"
+                )
+                exit(1)
             # run with refresh on first destroy attempt failure
-            ctx.run(
+            ret = ctx.run(
                 f"pulumi destroy --stack {stack} -r --yes --remove --skip-preview",
                 warn=True,
                 hide=True,
                 env=_get_default_env(),
             )
+        if ret is not None and ret.exited != 0:
+            print(f"Failed to destroy stack {stack}, error: {ret.stdout}")
+            exit(1)
 
 
 def _remove_stack(ctx: Context, stack: str):
