@@ -26,50 +26,74 @@ var (
 func addProcessorToPipelinesWithDDExporter(conf *confmap.Conf, comp component) {
 	var componentAddedToConfig bool
 	stringMapConf := conf.ToStringMap()
-	if service, ok := stringMapConf["service"]; ok {
-		if serviceMap, ok := service.(map[string]any); ok {
-			if pipelines, ok := serviceMap["pipelines"]; ok {
-				if pipelinesMap, ok := pipelines.(map[string]any); ok {
-					for pipelineName, components := range pipelinesMap {
-						if componentsMap, ok := components.(map[string]any); ok {
-							if exporters, ok := componentsMap["exporters"]; ok {
-								if exportersSlice, ok := exporters.([]any); ok {
-									for _, exporter := range exportersSlice {
-										if exporterString, ok := exporter.(string); ok {
-											if componentName(exporterString) == "datadog" {
-												// datadog component is an exporter in this pipeline. Need to make sure that processor is also configured.
-												_, ok := componentsMap[comp.Type]
-												if !ok {
-													componentsMap[comp.Type] = []any{}
-												}
+	service, ok := stringMapConf["service"]
+	if !ok {
+		return
+	}
+	serviceMap, ok := service.(map[string]any)
+	if !ok {
+		return
+	}
+	pipelines, ok := serviceMap["pipelines"]
+	if !ok {
+		return
+	}
+	pipelinesMap, ok := pipelines.(map[string]any)
+	if !ok {
+		return
+	}
+	for pipelineName, components := range pipelinesMap {
+		componentsMap, ok := components.(map[string]any)
+		if !ok {
+			return
+		}
+		exporters, ok := componentsMap["exporters"]
+		if !ok {
+			continue
+		}
+		exportersSlice, ok := exporters.([]any)
+		if !ok {
+			return
+		}
+		for _, exporter := range exportersSlice {
+			exporterString, ok := exporter.(string)
+			if !ok {
+				return
+			}
+			if componentName(exporterString) == "datadog" {
+				// datadog component is an exporter in this pipeline. Need to make sure that processor is also configured.
+				_, ok := componentsMap[comp.Type]
+				if !ok {
+					componentsMap[comp.Type] = []any{}
+				}
 
-												infraAttrsInPipeline := false
-												if processorsSlice, ok := componentsMap[comp.Type].([]any); ok {
-													for _, processor := range processorsSlice {
-														if processorString, ok := processor.(string); ok {
-															if componentName(processorString) == comp.Name {
-																infraAttrsInPipeline = true
-															}
-														}
-													}
-													if !infraAttrsInPipeline {
-														// no processors are defined
-														if !componentAddedToConfig {
-															addComponentToConfig(conf, comp)
-															componentAddedToConfig = true
-														}
-														addComponentToPipeline(conf, comp, pipelineName)
-													}
-												}
-											}
-										}
-									}
-								}
-							}
-						}
+				infraAttrsInPipeline := false
+				processorsSlice, ok := componentsMap[comp.Type].([]any)
+				if !ok {
+					return
+				}
+				for _, processor := range processorsSlice {
+					processorString, ok := processor.(string)
+					if !ok {
+						return
 					}
+					if componentName(processorString) == comp.Name {
+						infraAttrsInPipeline = true
+					}
+
+				}
+				if !infraAttrsInPipeline {
+					// no processors are defined
+					if !componentAddedToConfig {
+						addComponentToConfig(conf, comp)
+						componentAddedToConfig = true
+					}
+					addComponentToPipeline(conf, comp, pipelineName)
 				}
 			}
+
 		}
+
 	}
+
 }

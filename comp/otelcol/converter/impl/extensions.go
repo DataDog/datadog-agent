@@ -66,31 +66,41 @@ func extensionIsInServicePipeline(conf *confmap.Conf, comp component) bool {
 		return false
 	}
 
-	if extensionsSlice, ok := pipelineExtensions.([]any); ok {
-		for _, extension := range extensionsSlice {
-			if extensionString, ok := extension.(string); ok {
-				if componentName(extensionString) == comp.Name {
-					return true
-				}
-			}
+	extensionsSlice, ok := pipelineExtensions.([]any)
+	if !ok {
+		return false
+	}
+	for _, extension := range extensionsSlice {
+		extensionString, ok := extension.(string)
+		if !ok {
+			return false
+		}
+		if componentName(extensionString) == comp.Name {
+			return true
 		}
 	}
+
 	return false
 }
 
 func addExtensionToPipeline(conf *confmap.Conf, comp component) {
 	stringMapConf := conf.ToStringMap()
-	if service, ok := stringMapConf["service"]; ok {
-		if serviceMap, ok := service.(map[string]any); ok {
-			_, ok := serviceMap["extensions"]
-			if !ok {
-				serviceMap["extensions"] = []any{}
-			}
-			if extensionsSlice, ok := serviceMap["extensions"].([]any); ok {
-				extensionsSlice = append(extensionsSlice, comp.EnhancedName)
-				serviceMap["extensions"] = extensionsSlice
-			}
-		}
+	service, ok := stringMapConf["service"]
+	if !ok {
+		return
 	}
+	serviceMap, ok := service.(map[string]any)
+	if !ok {
+		return
+	}
+	_, ok = serviceMap["extensions"]
+	if !ok {
+		serviceMap["extensions"] = []any{}
+	}
+	if extensionsSlice, ok := serviceMap["extensions"].([]any); ok {
+		extensionsSlice = append(extensionsSlice, comp.EnhancedName)
+		serviceMap["extensions"] = extensionsSlice
+	}
+
 	*conf = *confmap.NewFromStringMap(stringMapConf)
 }

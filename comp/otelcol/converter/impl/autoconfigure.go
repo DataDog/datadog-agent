@@ -48,10 +48,13 @@ func componentName(fullName string) string {
 func addComponentToConfig(conf *confmap.Conf, comp component) {
 	stringMapConf := conf.ToStringMap()
 
-	if components, ok := stringMapConf[comp.Type]; ok {
-		if componentsMap, ok := components.(map[string]any); ok {
-			componentsMap[comp.EnhancedName] = comp.Config
+	components, present := stringMapConf[comp.Type]
+	if present {
+		componentsMap, ok := components.(map[string]any)
+		if !ok {
+			return
 		}
+		componentsMap[comp.EnhancedName] = comp.Config
 	} else {
 		stringMapConf[comp.Type] = map[string]any{
 			comp.EnhancedName: comp.Config,
@@ -65,28 +68,39 @@ func addComponentToConfig(conf *confmap.Conf, comp component) {
 // it creates it. It only supports receivers, processors and exporters.
 func addComponentToPipeline(conf *confmap.Conf, comp component, pipelineName string) {
 	stringMapConf := conf.ToStringMap()
-	if service, ok := stringMapConf["service"]; ok {
-		if serviceMap, ok := service.(map[string]any); ok {
-			if pipelines, ok := serviceMap["pipelines"]; ok {
-				if pipelinesMap, ok := pipelines.(map[string]any); ok {
-					_, ok := pipelinesMap[pipelineName]
-					if !ok {
-						// create pipeline
-						pipelinesMap[pipelineName] = map[string]any{}
-					}
-					if pipelineMap, ok := pipelinesMap[pipelineName].(map[string]any); ok {
-						_, ok := pipelineMap[comp.Type]
-						if !ok {
-							pipelineMap[comp.Type] = []any{}
-						}
-						if pipelineOfTypeSlice, ok := pipelineMap[comp.Type].([]any); ok {
-							pipelineOfTypeSlice = append(pipelineOfTypeSlice, comp.EnhancedName)
-							pipelineMap[comp.Type] = pipelineOfTypeSlice
-						}
-					}
-				}
-			}
-		}
+	service, ok := stringMapConf["service"]
+	if !ok {
+		return
 	}
+	serviceMap, ok := service.(map[string]any)
+	if !ok {
+		return
+	}
+	pipelines, ok := serviceMap["pipelines"]
+	if !ok {
+		return
+	}
+	pipelinesMap, ok := pipelines.(map[string]any)
+	if !ok {
+		return
+	}
+	_, ok = pipelinesMap[pipelineName]
+	if !ok {
+		pipelinesMap[pipelineName] = map[string]any{}
+	}
+	pipelineMap, ok := pipelinesMap[pipelineName].(map[string]any)
+	if !ok {
+		return
+	}
+
+	_, ok = pipelineMap[comp.Type]
+	if !ok {
+		pipelineMap[comp.Type] = []any{}
+	}
+	if pipelineOfTypeSlice, ok := pipelineMap[comp.Type].([]any); ok {
+		pipelineOfTypeSlice = append(pipelineOfTypeSlice, comp.EnhancedName)
+		pipelineMap[comp.Type] = pipelineOfTypeSlice
+	}
+
 	*conf = *confmap.NewFromStringMap(stringMapConf)
 }
