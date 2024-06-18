@@ -32,7 +32,7 @@ var (
 	}
 
 	telemetryModuleName = "network_tracer__tcp_failure"
-	mapTTL              = 10 * time.Second.Nanoseconds()
+	mapTTL              = 5 * time.Second.Nanoseconds()
 )
 
 var failureTelemetry = struct {
@@ -62,7 +62,7 @@ type FailedConnMap map[ebpf.ConnTuple]*FailedConnStats
 // FailedConns is a struct to hold failed connections
 type FailedConns struct {
 	FailedConnMap map[ebpf.ConnTuple]*FailedConnStats
-	mapCleaner    *ddebpf.MapCleaner[uint64, int64]
+	mapCleaner    *ddebpf.MapCleaner[ebpf.ConnTuple, int64]
 	sync.RWMutex
 }
 
@@ -174,13 +174,13 @@ func (fc *FailedConns) setupMapCleaner(m *manager.Manager) {
 		log.Errorf("error getting %v map: %s", probes.ConnCloseFlushed, err)
 		return
 	}
-	mapCleaner, err := ddebpf.NewMapCleaner[uint64, int64](connCloseFlushMap, 1024)
+	mapCleaner, err := ddebpf.NewMapCleaner[ebpf.ConnTuple, int64](connCloseFlushMap, 1024)
 	if err != nil {
 		log.Errorf("error creating map cleaner: %s", err)
 		return
 	}
 
-	mapCleaner.Clean(time.Second*30, nil, nil, func(now int64, _key uint64, val int64) bool {
+	mapCleaner.Clean(time.Second*10, nil, nil, func(now int64, _key ebpf.ConnTuple, val int64) bool {
 		return val > 0 && now-val > mapTTL
 	})
 
