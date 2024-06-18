@@ -242,15 +242,16 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_done, struct sock *sk) {
     } else {
         log_debug("adamk kprobe/tcp_done: conn already flushed: %u, %u, %u", t.netns, t.sport, t.dport);
         bpf_map_delete_elem(&conn_close_flushed, &t);
+        increment_telemetry_count(tcp_done_pid_mismatch);
     }
-    
+
     flush_tcp_failure(ctx, &t, err);
 
     return 0;
 }
 
 SEC("kretprobe/tcp_done")
-int BPF_KRETPROBE(kretprobe__tcp_done_flush)  {
+int BPF_KRETPROBE(kretprobe__tcp_done_flush) {
     flush_conn_close_if_full(ctx);
     return 0;
 }
@@ -284,11 +285,10 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_close, struct sock *sk) {
         log_debug("adamk kprobe/tcp_close: conn already flushed: %u, %u, %u", t.netns, t.sport, t.dport);
         bpf_map_delete_elem(&conn_close_flushed, &t);
         increment_telemetry_count(double_flush_attempts_close);
-        return 0;
+    } else {
+        log_debug("adamk kprobe/tcp_close: flushing connection: %u, %u, %u", t.netns, t.sport, t.dport);
+        cleanup_conn(ctx, &t, sk);
     }
-
-    log_debug("adamk kprobe/tcp_close: flushing connection: %u, %u, %u", t.netns, t.sport, t.dport);
-    cleanup_conn(ctx, &t, sk);
 
     return 0;
 }
@@ -1110,7 +1110,7 @@ static __always_inline struct sock *sk_buff_sk(struct sk_buff *skb) {
 SEC("tracepoint/net/net_dev_queue")
 int tracepoint__net__net_dev_queue(struct net_dev_queue_ctx *ctx) {
     CHECK_BPF_PROGRAM_BYPASSED()
-    struct sk_buff* skb = ctx->skb;
+    struct sk_buff *skb = ctx->skb;
     if (!skb) {
         return 0;
     }
