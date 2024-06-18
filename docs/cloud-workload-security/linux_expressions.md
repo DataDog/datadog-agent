@@ -111,6 +111,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`container.id`](#container-id-doc) | ID of the container |
 | [`container.tags`](#container-tags-doc) | Tags of the container |
 | [`event.async`](#event-async-doc) | True if the syscall was asynchronous |
+| [`event.hostname`](#event-hostname-doc) | Hostname associated with the event |
 | [`event.origin`](#event-origin-doc) | Origin of the event |
 | [`event.os`](#event-os-doc) | Operating system of the event |
 | [`event.service`](#event-service-doc) | Service associated with the event |
@@ -2479,6 +2480,13 @@ Constants: [DNS qtypes](#dns-qtypes)
 Type: bool
 
 Definition: True if the syscall was asynchronous
+
+
+
+### `event.hostname` {#event-hostname-doc}
+Type: string
+
+Definition: Hostname associated with the event
 
 
 

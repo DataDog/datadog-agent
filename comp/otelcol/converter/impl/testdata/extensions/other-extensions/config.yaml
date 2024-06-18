@@ -1,30 +1,22 @@
 receivers:
-    nop:
-
-processors:
-    nop:
+    otlp:
 
 exporters:
     nop:
 
-connectors:
-    nop/connector:
-
 extensions:
-    nop:
+  otlp_encoding/user-defined:
+    protocol: otlp_proto
 
 service:
-    extensions: [nop]
+    extensions: [otlp_encoding/user-defined]
     pipelines:
         traces:
             receivers: [nop]
-            processors: [nop]
             exporters: [nop]
         metrics:
             receivers: [nop]
-            processors: [nop]
             exporters: [nop]
         logs:
             receivers: [nop]
-            processors: [nop]
             exporters: [nop]

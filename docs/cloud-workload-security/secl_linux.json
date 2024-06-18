@@ -28,6 +28,11 @@
           "property_doc_link": "event-async-doc"
         },
         {
+          "name": "event.hostname",
+          "definition": "Hostname associated with the event",
+          "property_doc_link": "event-hostname-doc"
+        },
+        {
           "name": "event.origin",
           "definition": "Origin of the event",
           "property_doc_link": "event-origin-doc"
@@ -8964,6 +8969,18 @@
       "link": "event-async-doc",
       "type": "bool",
       "definition": "True if the syscall was asynchronous",
+      "prefixes": [
+        ""
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "event.hostname",
+      "link": "event-hostname-doc",
+      "type": "string",
+      "definition": "Hostname associated with the event",
       "prefixes": [
         ""
       ],

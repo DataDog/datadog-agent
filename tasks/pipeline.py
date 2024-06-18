@@ -180,15 +180,25 @@ def auto_cancel_previous_pipelines(ctx):
     repo = get_gitlab_repo()
     pipelines = get_running_pipelines_on_same_ref(repo, git_ref)
     pipelines_without_current = [p for p in pipelines if p.sha != git_sha]
+    force_cancel_stages = [
+        "package_build",
+        # We want to cancel all KMT jobs to ensure proper cleanup of the KMT EC2 instances.
+        # If some jobs are canceled, the cleanup jobs will not run automatically, which means
+        # we must trigger the manual cleanup jobs (done in gracefully_cancel_pipeline) below.
+        # But if we trigger the cleanup manually and there are test jobs still running, those
+        # will be practically canceled (the instance they run on gets shut down) but will appear
+        # as a fail in the pipeline.
+        "kernel_matrix_testing_prepare",
+        "kernel_matrix_testing_system_probe",
+        "kernel_matrix_testing_security_agent",
+    ]
 
     for pipeline in pipelines_without_current:
         # We cancel pipeline only if it correspond to a commit that is an ancestor of the current commit
         is_ancestor = ctx.run(f'git merge-base --is-ancestor {pipeline.sha} {git_sha}', warn=True, hide="both")
         if is_ancestor.exited == 0:
             print(f'Gracefully canceling jobs that are not canceled on pipeline {pipeline.id} ({pipeline.web_url})')
-            gracefully_cancel_pipeline(
-                repo, pipeline, force_cancel_stages=["package_build", "kernel_matrix_testing_prepare"]
-            )
+            gracefully_cancel_pipeline(repo, pipeline, force_cancel_stages=force_cancel_stages)
         elif is_ancestor.exited == 1:
             print(f'{pipeline.sha} is not an ancestor of {git_sha}, not cancelling pipeline {pipeline.id}')
         elif is_ancestor.exited == 128:
@@ -202,9 +212,7 @@ def auto_cancel_previous_pipelines(ctx):
                 print(
                     f'Pipeline started earlier than {min_time_before_cancel} minutes ago, gracefully canceling pipeline {pipeline.id}'
                 )
-                gracefully_cancel_pipeline(
-                    repo, pipeline, force_cancel_stages=["package_build", "kernel_matrix_testing_prepare"]
-                )
+                gracefully_cancel_pipeline(repo, pipeline, force_cancel_stages=force_cancel_stages)
         else:
             print(is_ancestor.stderr)
             raise Exit(1)
@@ -582,24 +590,24 @@ def changelog(ctx, new_commit_sha):
 
 
 @task
-def get_schedules(_):
+def get_schedules(_, repo: str = 'DataDog/datadog-agent'):
     """
     Pretty-print all pipeline schedules on the repository.
     """
 
-    repo = get_gitlab_repo(token=get_gitlab_bot_token())
+    repo = get_gitlab_repo(repo, token=get_gitlab_bot_token())
 
     for sched in repo.pipelineschedules.list(per_page=100, all=True):
         sched.pprint()
 
 
 @task
-def get_schedule(_, schedule_id):
+def get_schedule(_, schedule_id, repo: str = 'DataDog/datadog-agent'):
     """
     Pretty-print a single pipeline schedule on the repository.
     """
 
-    repo = get_gitlab_repo(token=get_gitlab_bot_token())
+    repo = get_gitlab_repo(repo, token=get_gitlab_bot_token())
 
     sched = repo.pipelineschedules.get(schedule_id)
 
@@ -607,14 +615,14 @@ def get_schedule(_, schedule_id):
 
 
 @task
-def create_schedule(_, description, ref, cron, cron_timezone=None, active=False):
+def create_schedule(_, description, ref, cron, cron_timezone=None, active=False, repo: str = 'DataDog/datadog-agent'):
     """
     Create a new pipeline schedule on the repository.
 
     Note that unless you explicitly specify the --active flag, the schedule will be created as inactive.
     """
 
-    repo = get_gitlab_repo(token=get_gitlab_bot_token())
+    repo = get_gitlab_repo(repo, token=get_gitlab_bot_token())
 
     sched = repo.pipelineschedules.create(
         {'description': description, 'ref': ref, 'cron': cron, 'cron_timezone': cron_timezone, 'active': active}
@@ -624,12 +632,14 @@ def create_schedule(_, description, ref, cron, cron_timezone=None, active=False)
 
 
 @task
-def edit_schedule(_, schedule_id, description=None, ref=None, cron=None, cron_timezone=None):
+def edit_schedule(
+    _, schedule_id, description=None, ref=None, cron=None, cron_timezone=None, repo: str = 'DataDog/datadog-agent'
+):
     """
     Edit an existing pipeline schedule on the repository.
     """
 
-    repo = get_gitlab_repo(token=get_gitlab_bot_token())
+    repo = get_gitlab_repo(repo, token=get_gitlab_bot_token())
 
     data = {'description': description, 'ref': ref, 'cron': cron, 'cron_timezone': cron_timezone}
     data = {key: value for (key, value) in data.items() if value is not None}
@@ -640,25 +650,25 @@ def edit_schedule(_, schedule_id, description=None, ref=None, cron=None, cron_ti
 
 
 @task
-def activate_schedule(_, schedule_id):
+def activate_schedule(_, schedule_id, repo: str = 'DataDog/datadog-agent'):
     """
     Activate an existing pipeline schedule on the repository.
     """
 
-    repo = get_gitlab_repo(token=get_gitlab_bot_token())
+    repo = get_gitlab_repo(repo, token=get_gitlab_bot_token())
 
     sched = repo.pipelineschedules.update(schedule_id, {'active': True})
 
-    sched.pprint()
+    pprint.pprint(sched)
 
 
 @task
-def deactivate_schedule(_, schedule_id):
+def deactivate_schedule(_, schedule_id, repo: str = 'DataDog/datadog-agent'):
     """
     Deactivate an existing pipeline schedule on the repository.
     """
 
-    repo = get_gitlab_repo(token=get_gitlab_bot_token())
+    repo = get_gitlab_repo(repo, token=get_gitlab_bot_token())
 
     sched = repo.pipelineschedules.update(schedule_id, {'active': False})
 
@@ -666,12 +676,12 @@ def deactivate_schedule(_, schedule_id):
 
 
 @task
-def delete_schedule(_, schedule_id):
+def delete_schedule(_, schedule_id, repo: str = 'DataDog/datadog-agent'):
     """
     Delete an existing pipeline schedule on the repository.
     """
 
-    repo = get_gitlab_repo(token=get_gitlab_bot_token())
+    repo = get_gitlab_repo(repo, token=get_gitlab_bot_token())
 
     repo.pipelineschedules.delete(schedule_id)
 
@@ -679,12 +689,12 @@ def delete_schedule(_, schedule_id):
 
 
 @task
-def create_schedule_variable(_, schedule_id, key, value):
+def create_schedule_variable(_, schedule_id, key, value, repo: str = 'DataDog/datadog-agent'):
     """
     Create a variable for an existing schedule on the repository.
     """
 
-    repo = get_gitlab_repo(token=get_gitlab_bot_token())
+    repo = get_gitlab_repo(repo, token=get_gitlab_bot_token())
 
     sched = repo.pipelineschedules.get(schedule_id)
     sched.variables.create({'key': key, 'value': value})
@@ -693,12 +703,12 @@ def create_schedule_variable(_, schedule_id, key, value):
 
 
 @task
-def edit_schedule_variable(_, schedule_id, key, value):
+def edit_schedule_variable(_, schedule_id, key, value, repo: str = 'DataDog/datadog-agent'):
     """
     Edit an existing variable for a schedule on the repository.
     """
 
-    repo = get_gitlab_repo(token=get_gitlab_bot_token())
+    repo = get_gitlab_repo(repo, token=get_gitlab_bot_token())
 
     sched = repo.pipelineschedules.get(schedule_id)
     sched.variables.update(key, {'value': value})
@@ -707,12 +717,12 @@ def edit_schedule_variable(_, schedule_id, key, value):
 
 
 @task
-def delete_schedule_variable(_, schedule_id, key):
+def delete_schedule_variable(_, schedule_id, key, repo: str = 'DataDog/datadog-agent'):
     """
     Delete an existing variable for a schedule on the repository.
     """
 
-    repo = get_gitlab_repo(token=get_gitlab_bot_token())
+    repo = get_gitlab_repo(repo, token=get_gitlab_bot_token())
 
     sched = repo.pipelineschedules.get(schedule_id)
     sched.variables.delete(key)
