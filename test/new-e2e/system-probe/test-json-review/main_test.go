@@ -9,6 +9,7 @@ package main
 
 import (
 	"bytes"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -21,10 +22,39 @@ const flakeTestData = `{"Time":"2024-06-14T22:24:53.156240262Z","Action":"run","
 {"Time":"2024-06-14T22:26:02.039003529Z","Action":"fail","Package":"a/b/c","Test":"testname","Elapsed":26.25}
 `
 
+const failedTestData = `{"Time":"2024-06-14T22:24:53.156240262Z","Action":"run","Package":"a/b/c","Test":"testname"}
+{"Time":"2024-06-14T22:24:53.156263319Z","Action":"output","Package":"a/b/c","Test":"testname","Output":"=== RUN   testname\n"}
+{"Time":"2024-06-14T22:26:02.039003529Z","Action":"fail","Package":"a/b/c","Test":"testname","Elapsed":26.25}
+`
+
+const rerunTestData = `{"Time":"2024-06-14T22:24:53.156240262Z","Action":"run","Package":"a/b/c","Test":"testname"}
+{"Time":"2024-06-14T22:24:53.156263319Z","Action":"output","Package":"a/b/c","Test":"testname","Output":"=== RUN   testname\n"}
+{"Time":"2024-06-14T22:26:02.039003529Z","Action":"fail","Package":"a/b/c","Test":"testname","Elapsed":26.25}
+{"Time":"2024-06-14T22:27:53.156240262Z","Action":"run","Package":"a/b/c","Test":"testname"}
+{"Time":"2024-06-14T22:27:53.156263319Z","Action":"output","Package":"a/b/c","Test":"testname","Output":"=== RUN   testname\n"}
+{"Time":"2024-06-14T22:28:02.039003529Z","Action":"pass","Package":"a/b/c","Test":"testname","Elapsed":26.25}
+`
+
 func TestFlakeInOutput(t *testing.T) {
 	out, err := reviewTestsReaders(bytes.NewBuffer([]byte(flakeTestData)), nil)
 	require.NoError(t, err)
 	assert.Empty(t, out.Failed)
-	assert.NotEmpty(t, out.Flaky)
+	assert.Equal(t, fmt.Sprintf(flakyFormat, "a/b/c", "testname"), out.Flaky)
 	assert.Empty(t, out.ReRuns)
+}
+
+func TestFailedInOutput(t *testing.T) {
+	out, err := reviewTestsReaders(bytes.NewBuffer([]byte(failedTestData)), nil)
+	require.NoError(t, err)
+	assert.Equal(t, fmt.Sprintf(failFormat, "a/b/c", "testname"), out.Failed)
+	assert.Empty(t, out.Flaky)
+	assert.Empty(t, out.ReRuns)
+}
+
+func TestRerunInOutput(t *testing.T) {
+	out, err := reviewTestsReaders(bytes.NewBuffer([]byte(rerunTestData)), nil)
+	require.NoError(t, err)
+	assert.Empty(t, out.Failed)
+	assert.Empty(t, out.Flaky)
+	assert.Equal(t, fmt.Sprintf(rerunFormat, "a/b/c", "testname", "pass"), out.ReRuns)
 }

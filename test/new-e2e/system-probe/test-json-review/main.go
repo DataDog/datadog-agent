@@ -26,6 +26,12 @@ import (
 
 var flakyTestFile string
 
+const (
+	flakyFormat = "FLAKY: %s %s\n"
+	failFormat  = "FAIL: %s %s\n"
+	rerunFormat = "re-ran %s %s: %s\n"
+)
+
 func init() {
 	color.NoColor = false
 	flag.StringVar(&flakyTestFile, "flakes", "", "Path to flaky test file")
@@ -129,7 +135,7 @@ func reviewTestsReaders(jf io.Reader, ff io.Reader) (*reviewOutput, error) {
 				continue
 			}
 			if res.Action == "fail" {
-				rerunTests.WriteString(fmt.Sprintf("re-ran %s %s: %s\n", ev.Package, ev.Test, ev.Action))
+				rerunTests.WriteString(fmt.Sprintf(rerunFormat, ev.Package, ev.Test, ev.Action))
 			}
 			// overwrite previously failed result
 			if res.Action == "fail" && ev.Action == "pass" {
@@ -146,9 +152,9 @@ func reviewTestsReaders(jf io.Reader, ff io.Reader) (*reviewOutput, error) {
 	for _, ev := range testResults {
 		if ev.Action == "fail" {
 			if kf.IsFlaky(ev.Package, ev.Test) {
-				flakyTests.WriteString(fmt.Sprintf("FLAKY: %s %s\n", ev.Package, ev.Test))
+				flakyTests.WriteString(fmt.Sprintf(flakyFormat, ev.Package, ev.Test))
 			} else {
-				failedTests.WriteString(fmt.Sprintf("FAIL: %s %s\n", ev.Package, ev.Test))
+				failedTests.WriteString(fmt.Sprintf(failFormat, ev.Package, ev.Test))
 			}
 		}
 	}

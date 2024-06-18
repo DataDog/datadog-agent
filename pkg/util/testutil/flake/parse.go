@@ -68,11 +68,9 @@ func Parse(r io.Reader) (*KnownFlakyTests, error) {
 	}
 	kf := &KnownFlakyTests{packageTestList: make(map[string]map[string]struct{})}
 	for pkg, tests := range pkgToTests {
-		testSet := make(map[string]struct{})
 		for _, t := range tests {
-			testSet[t] = struct{}{}
+			kf.Add(pkg, t)
 		}
-		kf.packageTestList[pkg] = testSet
 	}
 	return kf, nil
 }
