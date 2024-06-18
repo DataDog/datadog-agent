@@ -24,6 +24,7 @@ import (
 type EBPFLessFieldHandlers struct {
 	config    *config.Config
 	resolvers *resolvers.EBPFLessResolvers
+	hostname  string
 }
 
 // ResolveService returns the service tag based on the process context
@@ -388,4 +389,9 @@ func (fh *EBPFLessFieldHandlers) ResolveSyscallCtxArgsInt2(_ *model.Event, e *mo
 // ResolveSyscallCtxArgsInt3 resolve syscall ctx
 func (fh *EBPFLessFieldHandlers) ResolveSyscallCtxArgsInt3(_ *model.Event, e *model.SyscallContext) int {
 	return int(e.IntArg3)
+}
+
+// ResolveHostname resolve the hostname
+func (fh *EBPFLessFieldHandlers) ResolveHostname(ev *model.Event, e *model.BaseEvent) string {
+	return fh.hostname
 }

@@ -18,6 +18,7 @@ import (
 type FieldHandlers struct {
 	config    *config.Config
 	resolvers *resolvers.Resolvers
+	hostname  string
 }
 
 // ResolveEventTime resolves the monolitic kernel event timestamp to an absolute time
@@ -156,4 +157,9 @@ func (fh *FieldHandlers) ResolveNewSecurityDescriptor(_ *model.Event, cp *model.
 		return cp.NewSd
 	}
 	return hrsd
+}
+
+// ResolveHostname resolve the hostname
+func (fh *FieldHandlers) ResolveHostname(ev *model.Event, e *model.BaseEvent) string {
+	return fh.hostname
 }
