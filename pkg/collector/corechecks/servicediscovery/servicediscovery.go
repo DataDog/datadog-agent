@@ -136,9 +136,6 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, instance
 		return fmt.Errorf("failed to parse config: %w", err)
 	}
 
-	if !ddconfig.SystemProbe.GetBool("system_probe_config.enabled") {
-		return errors.New("system-probe is not enabled")
-	}
 	if !ddconfig.SystemProbe.GetBool("service_discovery.enabled") {
 		return errors.New("system-probe service_discovery module is not enabled")
 	}
