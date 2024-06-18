@@ -801,7 +801,9 @@ func TestHandleECSTask(t *testing.T) {
 		config.MockModule(),
 		fx.Supply(workloadmeta.NewParams()),
 		workloadmetafxmock.MockModule(),
-	))
+	), fx.Replace(config.MockParams{Overrides: map[string]any{
+		"ecs_collect_resource_tags_ec2": true,
+	}}))
 
 	store.Set(&workloadmeta.Container{
 		EntityID: workloadmeta.EntityID{
@@ -930,7 +932,6 @@ func TestHandleECSTask(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			collector := NewWorkloadMetaCollector(context.Background(), store, nil)
-			collector.collectEC2ResourceTags = true
 
 			actual := collector.handleECSTask(workloadmeta.Event{
 				Type:   workloadmeta.EventTypeSet,
