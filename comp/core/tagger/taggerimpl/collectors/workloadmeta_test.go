@@ -206,6 +206,8 @@ func TestHandleKubePod(t *testing.T) {
 
 				// Phase tags
 				Phase: "Running",
+
+				PriorityClass: "high-priority",
 			},
 			expected: []*types.TagInfo{
 				{
@@ -229,6 +231,7 @@ func TestHandleKubePod(t *testing.T) {
 						"kube_app_managed_by:helm",
 						"kube_app_part_of:datadog",
 						"kube_ownerref_kind:deployment",
+						"kube_priority_class:high-priority",
 						"kube_service:service1",
 						"kube_service:service2",
 						"kube_qos:guaranteed",
