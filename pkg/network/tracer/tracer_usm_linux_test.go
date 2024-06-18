@@ -1602,7 +1602,6 @@ func testRedisProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 }
 
 func testTLSRedisProtocolClassification(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
-	t.Skip("TLS+Redis classification tests are flaky")
 	testRedisProtocolClassificationInner(t, tr, clientHost, targetHost, serverHost, protocolsUtils.TLSEnabled)
 }
 
@@ -1643,7 +1642,7 @@ func testRedisProtocolClassificationInner(t *testing.T, tr *Tracer, clientHost, 
 	}
 
 	redisTeardown := func(t *testing.T, ctx testContext) {
-		redis.NewClient(ctx.serverAddress, defaultDialer, withTLS)
+		redis.NewClient(ctx.serverAddress, defaultDialer, withTLS, nil)
 		if client, ok := ctx.extras["client"].(*redis2.Client); ok {
 			timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 			defer cancel()
@@ -1666,7 +1665,7 @@ func testRedisProtocolClassificationInner(t *testing.T, tr *Tracer, clientHost, 
 				extras:        make(map[string]interface{}),
 			},
 			preTracerSetup: func(t *testing.T, ctx testContext) {
-				client := redis.NewClient(ctx.targetAddress, defaultDialer, withTLS)
+				client := redis.NewClient(ctx.targetAddress, defaultDialer, withTLS, ctx.extras["klw"].(io.Writer))
 				timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 				defer cancel()
 				client.Ping(timedContext)
@@ -1690,7 +1689,7 @@ func testRedisProtocolClassificationInner(t *testing.T, tr *Tracer, clientHost, 
 				extras:        make(map[string]interface{}),
 			},
 			preTracerSetup: func(t *testing.T, ctx testContext) {
-				client := redis.NewClient(ctx.targetAddress, defaultDialer, withTLS)
+				client := redis.NewClient(ctx.targetAddress, defaultDialer, withTLS, ctx.extras["klw"].(io.Writer))
 				timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 				defer cancel()
 				client.Set(timedContext, "key", "value", time.Minute)
@@ -1717,7 +1716,7 @@ func testRedisProtocolClassificationInner(t *testing.T, tr *Tracer, clientHost, 
 				extras:        make(map[string]interface{}),
 			},
 			preTracerSetup: func(t *testing.T, ctx testContext) {
-				client := redis.NewClient(ctx.targetAddress, defaultDialer, withTLS)
+				client := redis.NewClient(ctx.targetAddress, defaultDialer, withTLS, ctx.extras["klw"].(io.Writer))
 				timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 				defer cancel()
 				client.Ping(timedContext)
@@ -1742,11 +1741,24 @@ func testRedisProtocolClassificationInner(t *testing.T, tr *Tracer, clientHost, 
 				extras:        make(map[string]interface{}),
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
+				dialContext := defaultDialer.DialContext
+				if withTLS {
+					tlsDialer := &tls.Dialer{
+						NetDialer: defaultDialer,
+						Config: &tls.Config{
+							InsecureSkipVerify: true,
+						},
+					}
+					dialContext = tlsDialer.DialContext
+				}
+
 				timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 				defer cancel()
-				conn, err := defaultDialer.DialContext(timedContext, "tcp", ctx.targetAddress)
+				conn, err := dialContext(timedContext, "tcp", ctx.targetAddress)
 				require.NoError(t, err)
 				_, err = conn.Write([]byte("+dummy\r\n"))
+				require.NoError(t, err)
+				_, err = conn.Read(make([]byte, 1))
 				require.NoError(t, err)
 			},
 			validation: validateProtocolConnection(expectedStack),
@@ -1760,7 +1772,7 @@ func testRedisProtocolClassificationInner(t *testing.T, tr *Tracer, clientHost, 
 				extras:        make(map[string]interface{}),
 			},
 			preTracerSetup: func(t *testing.T, ctx testContext) {
-				client := redis.NewClient(ctx.targetAddress, defaultDialer, withTLS)
+				client := redis.NewClient(ctx.targetAddress, defaultDialer, withTLS, ctx.extras["klw"].(io.Writer))
 				timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 				defer cancel()
 				client.Ping(timedContext)
@@ -1779,6 +1791,7 @@ func testRedisProtocolClassificationInner(t *testing.T, tr *Tracer, clientHost, 
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			tt.context.extras["klw"] = withPCAP(t, redisPort, getShortTestName("redis", tt.name), false)
 			testProtocolClassificationInner(t, tt, tr)
 		})
 	}
@@ -2305,4 +2318,53 @@ func goTLSDetachPID(t *testing.T, pid int) {
 	require.Eventually(t, func() bool {
 		return !utils.IsProgramTraced("go-tls", pid)
 	}, 5*time.Second, 100*time.Millisecond, "process %v is still traced by Go-TLS after detaching", pid)
+}
+
+func getShortTestName(proto, subtest string) string {
+	subtest = strings.ReplaceAll(subtest, " ", "_")
+	return fmt.Sprintf("%s-%s", proto, subtest)
+}
+
+// withPCAP runs tcpdump for the duration of the test.
+func withPCAP(t *testing.T, port string, suffix string, alwaysSave bool) io.Writer {
+	t.Helper()
+
+	// Ensure destination directory exists
+	const tmpDest string = "/tmp/test_pcaps/"
+
+	if _, err := os.Stat(tmpDest); os.IsNotExist(err) {
+		require.NoError(t, os.Mkdir(tmpDest, 0755))
+	} else {
+		require.NoError(t, err)
+	}
+
+	pcapFile := fmt.Sprintf("test-%s.pcap", suffix)
+	pcapTempPath := fmt.Sprintf("%s/%s", t.TempDir(), pcapFile)
+
+	klwFile := fmt.Sprintf("test-%s.keylog", suffix)
+	klwTempPath := fmt.Sprintf("%s/%s", t.TempDir(), klwFile)
+	klw, err := os.Create(klwTempPath)
+	require.NoError(t, err, "could not create keylog writer")
+
+	tcpdumpCmd := exec.Command("tcpdump", "-i", "any", "-w", pcapTempPath, "port", port)
+	stderr, err := tcpdumpCmd.StderrPipe()
+	require.NoError(t, err, "could not get tcpdump stderr pipe")
+	require.NoError(t, tcpdumpCmd.Start())
+
+	t.Cleanup(func() {
+		tcpdumpCmd.Process.Signal(os.Interrupt)
+		out, err := io.ReadAll(stderr)
+		require.NoError(t, err, "could not read stderr")
+		require.NoError(t, tcpdumpCmd.Wait(), "error during tcpdump: "+string(out))
+		klw.Close()
+
+		if !alwaysSave && !t.Failed() {
+			return
+		}
+
+		os.Rename(pcapTempPath, tmpDest+pcapFile)
+		os.Rename(klwTempPath, tmpDest+klwFile)
+	})
+
+	return klw
 }
