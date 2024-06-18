@@ -1574,17 +1574,19 @@ func (tm *testModule) extractAllDumpEventTypes(id *activityDumpIdentifier) ([]st
 }
 
 func (tm *testModule) StopAllActivityDumps() error {
+	for retry := 3; retry > 0; retry-- {
+		dumps, err := tm.ListActivityDumps()
+		if err != nil {
+			return err
+		}
+		if len(dumps) == 0 {
+			return nil
+		}
+		for _, dump := range dumps {
+			_ = tm.StopActivityDump(dump.Name, "", "")
+		}
+	}
 	dumps, err := tm.ListActivityDumps()
-	if err != nil {
-		return err
-	}
-	if len(dumps) == 0 {
-		return nil
-	}
-	for _, dump := range dumps {
-		_ = tm.StopActivityDump(dump.Name, "", "")
-	}
-	dumps, err = tm.ListActivityDumps()
 	if err != nil {
 		return err
 	}

@@ -10,12 +10,13 @@ package tests
 
 import (
 	"fmt"
-	imdsutils "github.com/DataDog/datadog-agent/pkg/security/tests/imds_utils"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
+
+	imdsutils "github.com/DataDog/datadog-agent/pkg/security/tests/imds_utils"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -119,6 +120,9 @@ func TestActivityDumps(t *testing.T) {
 	})
 
 	t.Run("activity-dump-cgroup-process", func(t *testing.T) {
+		if err := test.StopAllActivityDumps(); err != nil {
+			t.Fatal(err)
+		}
 		dockerInstance, dump, err := test.StartADockerGetDump()
 		if err != nil {
 			t.Fatal(err)
@@ -459,7 +463,11 @@ func TestActivityDumps(t *testing.T) {
 		for i := 0; i < testActivityDumpTracedCgroupsCount; i++ {
 			dockerInstance, dump, err := test.StartADockerGetDump()
 			if err != nil {
-				t.Fatal(err)
+				if i == 0 {
+					t.Fatal(err)
+				}
+				// if others dumps started during this loop that's fine
+				break
 			}
 			defer dockerInstance.stop()
 			startedDumps = append(startedDumps, dump)
@@ -471,7 +479,7 @@ func TestActivityDumps(t *testing.T) {
 			t.Fatal(err)
 		}
 		assert.Equal(t, testActivityDumpTracedCgroupsCount, len(dumps))
-		if !isListOfDumpsEqual(startedDumps, dumps) {
+		if !isListOfDumpsPresentInList2(startedDumps, dumps) {
 			t.Fatal("List of active dumps don't match the started ones")
 		}
 
@@ -489,10 +497,7 @@ func TestActivityDumps(t *testing.T) {
 	})
 }
 
-func isListOfDumpsEqual(list1, list2 []*activityDumpIdentifier) bool {
-	if len(list1) != len(list2) {
-		return false
-	}
+func isListOfDumpsPresentInList2(list1, list2 []*activityDumpIdentifier) bool {
 firstLoop:
 	for _, l1 := range list1 {
 		for _, l2 := range list2 {

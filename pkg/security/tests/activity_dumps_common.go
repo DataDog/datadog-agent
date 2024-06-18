@@ -23,7 +23,7 @@ import (
 const (
 	dedicatedADNodeForTestsEnv         = "DEDICATED_ACTIVITY_DUMP_NODE"
 	testActivityDumpRateLimiter        = 200
-	testActivityDumpTracedCgroupsCount = 3
+	testActivityDumpTracedCgroupsCount = 10
 )
 
 var (
