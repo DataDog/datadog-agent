@@ -77,9 +77,9 @@ func TestConvert(t *testing.T) {
 			expectedResult: "processors/other-processors/config-result.yaml",
 		},
 		{
-			name:           "processors/no-processor-in-some-pipelines",
-			provided:       "processors/no-processor-in-some-pipelines/config.yaml",
-			expectedResult: "processors/no-processor-in-some-pipelines/config-result.yaml",
+			name:           "processors/no-processor-partial",
+			provided:       "processors/no-processor-partial/config.yaml",
+			expectedResult: "processors/no-processor-partial/config-result.yaml",
 		},
 		{
 			name:           "processors/no-changes",
@@ -97,19 +97,19 @@ func TestConvert(t *testing.T) {
 			expectedResult: "receivers/no-prometheus-receiver/config-result.yaml",
 		},
 		{
-			name:           "receivers/no-prometheus-receiver-multiple-dd-exporter",
-			provided:       "receivers/no-prometheus-receiver-multiple-dd-exporter/config.yaml",
-			expectedResult: "receivers/no-prometheus-receiver-multiple-dd-exporter/config-result.yaml",
+			name:           "receivers/no-prom-multi-dd",
+			provided:       "receivers/no-prom-multi-dd/config.yaml",
+			expectedResult: "receivers/no-prom-multi-dd/config-result.yaml",
 		},
 		{
-			name:           "receivers/no-prometheus-receiver-not-default-address",
-			provided:       "receivers/no-prometheus-receiver-not-default-address/config.yaml",
-			expectedResult: "receivers/no-prometheus-receiver-not-default-address/config-result.yaml",
+			name:           "receivers/no-prom-not-default-addr",
+			provided:       "receivers/no-prom-not-default-addr/config.yaml",
+			expectedResult: "receivers/no-prom-not-default-addr/config-result.yaml",
 		},
 		{
-			name:           "receivers/multiple-dd-exporter-some-without-prometheus-receiver",
-			provided:       "receivers/multiple-dd-exporter-some-without-prometheus-receiver/config.yaml",
-			expectedResult: "receivers/multiple-dd-exporter-some-without-prometheus-receiver/config-result.yaml",
+			name:           "receivers/multi-dd-partial-prom",
+			provided:       "receivers/multi-dd-partial-prom/config.yaml",
+			expectedResult: "receivers/multi-dd-partial-prom/config-result.yaml",
 		},
 		{
 			name:           "receivers/no-receivers-defined",
