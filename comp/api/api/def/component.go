@@ -3,14 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-// Package api implements the internal Agent API which exposes endpoints such as config, flare or status
-package api
+// Package def implements the internal Agent API component definitions which exposes endpoints such as config, flare or status
+package def
 
 import (
 	"net"
 	"net/http"
-
-	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 
 	"go.uber.org/fx"
 )
@@ -24,9 +22,7 @@ import (
 
 // Component is the component type.
 type Component interface {
-	StartServer(
-		senderManager sender.DiagnoseSenderManager,
-	) error
+	StartServer() error
 	StopServer()
 	ServerAddress() *net.TCPAddr
 }

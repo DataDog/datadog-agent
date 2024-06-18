@@ -41,7 +41,7 @@ import (
 	comptraceconfig "github.com/DataDog/datadog-agent/comp/trace/config"
 
 	// core components
-	internalAPI "github.com/DataDog/datadog-agent/comp/api/api"
+	internalAPI "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/agenttelemetry"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
