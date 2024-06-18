@@ -367,6 +367,25 @@ func TestResourcesWithMetadataCollectionEnabled(t *testing.T) {
 			expectedResources: []string{"nodes"},
 		},
 		{
+			name: "deployments needed for language detection should be excluded from metadata collection",
+			cfg: map[string]interface{}{
+				"language_detection.enabled":                       true,
+				"language_detection.reporting.enabled":             true,
+				"cluster_agent.kube_metadata_collection.enabled":   true,
+				"cluster_agent.kube_metadata_collection.resources": "daemonsets deployments",
+			},
+			expectedResources: []string{"daemonsets", "nodes"},
+		},
+		{
+			name: "pods needed for autoscaling should be excluded from metadata collection",
+			cfg: map[string]interface{}{
+				"autoscaling.workload.enabled":                     true,
+				"cluster_agent.kube_metadata_collection.enabled":   true,
+				"cluster_agent.kube_metadata_collection.resources": "daemonsets pods",
+			},
+			expectedResources: []string{"daemonsets", "nodes"},
+		},
+		{
 			name: "resources explicitly requested",
 			cfg: map[string]interface{}{
 				"cluster_agent.kube_metadata_collection.enabled":   true,

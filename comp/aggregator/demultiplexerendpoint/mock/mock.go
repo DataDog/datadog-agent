@@ -11,7 +11,7 @@ package demultiplexerendpointmock
 import (
 	"net/http"
 
-	api "github.com/DataDog/datadog-agent/comp/api/api/def"
+	"github.com/DataDog/datadog-agent/comp/api/api"
 )
 
 type mock struct {

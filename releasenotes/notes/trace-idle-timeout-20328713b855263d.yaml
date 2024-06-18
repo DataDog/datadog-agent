@@ -1,0 +1,16 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    All datadog public endpoints have the maximum requirements to close idle
+    connections after 60s being idle.  If a given client keeps it for longer,
+    the server will close it, and the client will likely see the issue during
+    the next write, leading to a connection reset error.  The idle timeout
+    should be therefore set under a minute.
+    This PR is reducing the timeout from 90 to 30s.

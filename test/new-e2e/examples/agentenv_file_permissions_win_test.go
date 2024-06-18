@@ -9,14 +9,16 @@ import (
 	"regexp"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	perms "github.com/DataDog/test-infra-definitions/components/datadog/agentparams/filepermissions"
 	"github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
+	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
+	secrets "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-shared-components/secretsutils"
 )
 
 type filePermissionsWindowsTestSuite struct {
@@ -89,14 +91,16 @@ func (v *filePermissionsWindowsTestSuite) TestRemoveDefaultPermissions() {
 }
 
 func (v *filePermissionsWindowsTestSuite) TestSecretsPermissions() {
-	cmd := `/grant "ddagentuser:(RX)" "Administrators:(RX)"`
-
 	files := []agentparams.Option{
-		agentparams.WithFileWithPermissions(`C:/TestFolder2/secrets`, "", true, perms.NewWindowsPermissions(perms.WithIcaclsCommand(cmd), perms.WithDisableInheritance())),
+		agentparams.WithFileWithPermissions(`C:/TestFolder1/secrets`, "", true, secrets.WithWindowsSecretPermissions(false)),
+		agentparams.WithFileWithPermissions(`C:/TestFolder2/secrets`, "", true, secrets.WithWindowsSecretPermissions(true)),
 	}
 
 	v.updateEnvWithWindows(awshost.WithAgentOptions(files...))
 
-	perm := v.Env().RemoteHost.MustExecute("icacls C:/TestFolder2/secrets")
+	perm := v.Env().RemoteHost.MustExecute("icacls C:/TestFolder1/secrets")
+	assert.Regexp(v.T(), regexp.MustCompile(`C:/TestFolder1/secrets [[:alnum:]-]+\\ddagentuser:\(RX\)\n\nSuccessfully`), perm)
+
+	perm = v.Env().RemoteHost.MustExecute("icacls C:/TestFolder2/secrets")
 	assert.Regexp(v.T(), regexp.MustCompile(`C:/TestFolder2/secrets BUILTIN\\Administrators:\(RX\)\n[\s]+[[:alnum:]-]+\\ddagentuser:\(RX\)\n\nSuccessfully`), perm)
 }

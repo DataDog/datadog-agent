@@ -11,7 +11,6 @@ import (
 	"go.uber.org/fx"
 
 	demultiplexerComp "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
-	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
@@ -61,10 +60,9 @@ type mockDependencies struct {
 type MockProvides struct {
 	fx.Out
 
-	Comp          demultiplexerComp.Component
-	SenderManager diagnosesendermanager.Component
-	Mock          demultiplexerComp.Mock
-	Sender        sender.SenderManager
+	Comp   demultiplexerComp.Component
+	Mock   demultiplexerComp.Mock
+	Sender sender.SenderManager
 }
 
 func newMock(deps mockDependencies) MockProvides {
@@ -80,9 +78,8 @@ func newMock(deps mockDependencies) MockProvides {
 
 	instance := &mock{AgentDemultiplexer: aggregator.InitAndStartAgentDemultiplexerForTest(aggDeps, opts, "")}
 	return MockProvides{
-		Comp:          instance,
-		SenderManager: instance,
-		Mock:          instance,
-		Sender:        instance,
+		Comp:   instance,
+		Mock:   instance,
+		Sender: instance,
 	}
 }
