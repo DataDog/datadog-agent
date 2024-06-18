@@ -80,7 +80,7 @@ type provides struct {
 	Comp             collector.Component
 	StatusProvider   status.InformationProvider
 	MetadataProvider metadata.Provider
-	ApiGetPyStatus   api.AgentEndpointProvider
+	APIGetPyStatus   api.AgentEndpointProvider
 }
 
 // Module defines the fx options for this component.
@@ -105,7 +105,7 @@ func newProvides(deps dependencies) provides {
 		Comp:             c,
 		StatusProvider:   status.NewInformationProvider(collectorStatus.Provider{}),
 		MetadataProvider: agentCheckMetadata,
-		ApiGetPyStatus:   api.NewAgentEndpointProvider(getPythonStatus, "/py/status", "GET"),
+		APIGetPyStatus:   api.NewAgentEndpointProvider(getPythonStatus, "/py/status", "GET"),
 	}
 }
 

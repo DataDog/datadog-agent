@@ -73,7 +73,7 @@ func TestStatusImplementation_GetStatus(t *testing.T) {
 			method:      "GET",
 			routerPath:  "/status",
 			testedPath:  "/status",
-			httpHandler: provider.ApiGetStatus.Provider.HandlerFunc(),
+			httpHandler: provider.APIGetStatus.Provider.HandlerFunc(),
 			expected: func() []byte {
 				status, err := provider.Comp.GetStatus("text", false)
 				require.NoError(t, err)
@@ -84,7 +84,7 @@ func TestStatusImplementation_GetStatus(t *testing.T) {
 			method:      "GET",
 			routerPath:  "/sections",
 			testedPath:  "/sections",
-			httpHandler: provider.ApiGetSectionList.Provider.HandlerFunc(),
+			httpHandler: provider.APIGetSectionList.Provider.HandlerFunc(),
 			expected: func() []byte {
 				res, err := json.Marshal(provider.Comp.GetSections())
 				require.NoError(t, err)
@@ -95,7 +95,7 @@ func TestStatusImplementation_GetStatus(t *testing.T) {
 			method:      "GET",
 			routerPath:  "/{component}/status",
 			testedPath:  "/header/status",
-			httpHandler: provider.APiGetSection.Provider.HandlerFunc(),
+			httpHandler: provider.APIGetSection.Provider.HandlerFunc(),
 			expected: func() []byte {
 				status, err := provider.Comp.GetStatusBySections([]string{"header"}, "text", false)
 				require.NoError(t, err)

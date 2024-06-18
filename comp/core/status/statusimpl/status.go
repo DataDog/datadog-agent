@@ -50,9 +50,9 @@ type provides struct {
 
 	Comp              status.Component
 	FlareProvider     flaretypes.Provider
-	ApiGetStatus      api.AgentEndpointProvider
-	APiGetSection     api.AgentEndpointProvider
-	ApiGetSectionList api.AgentEndpointProvider
+	APIGetStatus      api.AgentEndpointProvider
+	APIGetSection     api.AgentEndpointProvider
+	APIGetSectionList api.AgentEndpointProvider
 }
 
 type statusImplementation struct {
@@ -135,17 +135,17 @@ func newStatus(deps dependencies) provides {
 	return provides{
 		Comp:          c,
 		FlareProvider: flaretypes.NewProvider(c.fillFlare),
-		ApiGetStatus: api.NewAgentEndpointProvider(
+		APIGetStatus: api.NewAgentEndpointProvider(
 			func(w http.ResponseWriter, r *http.Request) { c.getStatus(w, r, "") },
 			"/status",
 			"GET",
 		),
-		APiGetSection: api.NewAgentEndpointProvider(
+		APIGetSection: api.NewAgentEndpointProvider(
 			c.getSection,
 			"/{component}/status",
 			"GET",
 		),
-		ApiGetSectionList: api.NewAgentEndpointProvider(
+		APIGetSectionList: api.NewAgentEndpointProvider(
 			c.getSections,
 			"/status/sections",
 			"GET",
