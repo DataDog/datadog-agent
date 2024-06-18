@@ -128,7 +128,10 @@ func (s *packageAgentSuite) TestExperimentTimeout() {
 	defer s.Purge()
 	s.host.WaitForUnitActive("datadog-agent.service", "datadog-agent-trace.service", "datadog-agent-process.service")
 
-	s.host.SetupFakeAgentExp()
+	s.host.SetupFakeAgentExp().
+		SetStopWithSigtermExit0("core-agent").
+		SetStopWithSigtermExit0("process-agent").
+		SetStopWithSigtermExit0("trace-agent")
 
 	// assert timeout is already set
 	s.host.AssertUnitProperty("datadog-agent-exp.service", "JobTimeoutUSec", "50min")

@@ -7,7 +7,6 @@
 package secret
 
 import (
-	_ "embed"
 	"testing"
 	"time"
 
@@ -19,6 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
+	secrets "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-shared-components/secretsutils"
 )
 
 type windowsRuntimeSecretSuite struct {
@@ -31,28 +31,25 @@ func TestWindowsRuntimeSecretSuite(t *testing.T) {
 	)))
 }
 
-//go:embed fixtures/setup_secret.ps1
-var secretSetupScript []byte
-
-func (v *windowsRuntimeSecretSuite) TestSecretRuntimeAPIKey() {
-	config := `secret_backend_command: C:\TestFolder\secret.bat
+func (v *windowsRuntimeSecretSuite) TestSecretRuntimeHostname() {
+	config := `secret_backend_command: C:\TestFolder\wrapper.bat
+secret_backend_arguments:
+  - 'C:\TestFolder'
 hostname: ENC[hostname]`
 
+	agentParams := []func(*agentparams.Params) error{
+		agentparams.WithAgentConfig(config),
+	}
+	agentParams = append(agentParams, secrets.WithWindowsSecretSetupScript("C:/TestFolder/wrapper.bat", false)...)
+
+	secretClient := secrets.NewSecretClient(v.T(), v.Env().RemoteHost, "C:/TestFolder")
+	secretClient.SetSecret("hostname", "e2e.test")
+
 	v.UpdateEnv(
 		awshost.Provisioner(
 			awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)),
-			awshost.WithAgentOptions(
-				agentparams.WithFile(`C:/TestFolder/setup_secret.ps1`, string(secretSetupScript), true),
-			),
+			awshost.WithAgentOptions(agentParams...),
 		),
-	)
-
-	v.Env().RemoteHost.MustExecute(`C:/TestFolder/setup_secret.ps1 -FilePath "C:/TestFolder/secret.bat" -FileContent '@echo {"hostname": {"value": "e2e.test"}}'`)
-
-	v.UpdateEnv(
-		awshost.Provisioner(
-			awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)),
-			awshost.WithAgentOptions(agentparams.WithAgentConfig(config))),
 	)
 
 	assert.EventuallyWithT(v.T(), func(t *assert.CollectT) {

@@ -82,6 +82,45 @@ func TestScrubPod(t *testing.T) {
 						{Name: "API_KEY", Value: "LkhqmrnfESPrvhyfpephDDokCKvVokxXg"},
 						{Name: "DD_SITE", Value: "datadoghq.com"},
 					},
+					LivenessProbe: &v1.Probe{
+						ProbeHandler: v1.ProbeHandler{
+							HTTPGet: &v1.HTTPGetAction{
+								HTTPHeaders: []v1.HTTPHeader{
+									{
+										Name:  "Authorization",
+										Value: "Bearer GgItUUMOmܪnwPwcJNKbhwfutPmUgGXKHGin",
+									},
+								},
+							},
+							Exec: &v1.ExecAction{
+								Command: []string{"/hello", "--password", "fOPeWWuFKUxwGLRTNnoM٪YwCExdwUcQBDZMogm"},
+							},
+						},
+					},
+					ReadinessProbe: &v1.Probe{
+						ProbeHandler: v1.ProbeHandler{
+							HTTPGet: &v1.HTTPGetAction{
+								HTTPHeaders: []v1.HTTPHeader{
+									{
+										Name:  "Authorization",
+										Value: "Bearer GgItUUMOmܪnwPwcJNKbhwfutPmUgGXKHGin",
+									},
+								},
+							},
+						},
+					},
+					StartupProbe: &v1.Probe{
+						ProbeHandler: v1.ProbeHandler{
+							HTTPGet: &v1.HTTPGetAction{
+								HTTPHeaders: []v1.HTTPHeader{
+									{
+										Name:  "Authorization",
+										Value: "Bearer GgItUUMOmܪnwPwcJNKbhwfutPmUgGXKHGin",
+									},
+								},
+							},
+						},
+					},
 				},
 				{
 					Name:    "container-2",
@@ -136,6 +175,45 @@ func TestScrubPod(t *testing.T) {
 						{Name: "API_KEY", Value: "********"},
 						{Name: "DD_SITE", Value: "datadoghq.com"},
 					},
+					LivenessProbe: &v1.Probe{
+						ProbeHandler: v1.ProbeHandler{
+							HTTPGet: &v1.HTTPGetAction{
+								HTTPHeaders: []v1.HTTPHeader{
+									{
+										Name:  "Authorization",
+										Value: "********",
+									},
+								},
+							},
+							Exec: &v1.ExecAction{
+								Command: []string{"/hello", "--password", "********"},
+							},
+						},
+					},
+					ReadinessProbe: &v1.Probe{
+						ProbeHandler: v1.ProbeHandler{
+							HTTPGet: &v1.HTTPGetAction{
+								HTTPHeaders: []v1.HTTPHeader{
+									{
+										Name:  "Authorization",
+										Value: "********",
+									},
+								},
+							},
+						},
+					},
+					StartupProbe: &v1.Probe{
+						ProbeHandler: v1.ProbeHandler{
+							HTTPGet: &v1.HTTPGetAction{
+								HTTPHeaders: []v1.HTTPHeader{
+									{
+										Name:  "Authorization",
+										Value: "********",
+									},
+								},
+							},
+						},
+					},
 				},
 				{
 					Name:    "container-2",
@@ -152,7 +230,7 @@ func TestScrubPod(t *testing.T) {
 	}
 
 	scrubber := NewDefaultDataScrubber()
-	scrubber.AddCustomSensitiveWords([]string{"token", "username", "vault"})
+	scrubber.AddCustomSensitiveWords([]string{"token", "username", "vault", "authorization"})
 	ScrubPod(pod, scrubber)
 
 	assert.EqualValues(t, expectedPod, pod)
@@ -197,6 +275,45 @@ func TestScrubPodTemplate(t *testing.T) {
 					Env: []v1.EnvVar{
 						{Name: "API_KEY", Value: "LkhqmrnfESPrvhyfpephDDokCKvVokxXg"},
 						{Name: "DD_SITE", Value: "datadoghq.com"},
+					},
+					LivenessProbe: &v1.Probe{
+						ProbeHandler: v1.ProbeHandler{
+							HTTPGet: &v1.HTTPGetAction{
+								HTTPHeaders: []v1.HTTPHeader{
+									{
+										Name:  "Authorization",
+										Value: "Bearer GgItUUMOmܪnwPwcJNKbhwfutPmUgGXKHGin",
+									},
+								},
+							},
+							Exec: &v1.ExecAction{
+								Command: []string{"/hello", "--password", "fOPeWWuFKUxwGLRTNnoM٪YwCExdwUcQBDZMogm"},
+							},
+						},
+					},
+					ReadinessProbe: &v1.Probe{
+						ProbeHandler: v1.ProbeHandler{
+							HTTPGet: &v1.HTTPGetAction{
+								HTTPHeaders: []v1.HTTPHeader{
+									{
+										Name:  "Authorization",
+										Value: "Bearer GgItUUMOmܪnwPwcJNKbhwfutPmUgGXKHGin",
+									},
+								},
+							},
+						},
+					},
+					StartupProbe: &v1.Probe{
+						ProbeHandler: v1.ProbeHandler{
+							HTTPGet: &v1.HTTPGetAction{
+								HTTPHeaders: []v1.HTTPHeader{
+									{
+										Name:  "Authorization",
+										Value: "Bearer GgItUUMOmܪnwPwcJNKbhwfutPmUgGXKHGin",
+									},
+								},
+							},
+						},
 					},
 				},
 				{
@@ -249,6 +366,45 @@ func TestScrubPodTemplate(t *testing.T) {
 						{Name: "API_KEY", Value: "********"},
 						{Name: "DD_SITE", Value: "datadoghq.com"},
 					},
+					LivenessProbe: &v1.Probe{
+						ProbeHandler: v1.ProbeHandler{
+							HTTPGet: &v1.HTTPGetAction{
+								HTTPHeaders: []v1.HTTPHeader{
+									{
+										Name:  "Authorization",
+										Value: "********",
+									},
+								},
+							},
+							Exec: &v1.ExecAction{
+								Command: []string{"/hello", "--password", "********"},
+							},
+						},
+					},
+					ReadinessProbe: &v1.Probe{
+						ProbeHandler: v1.ProbeHandler{
+							HTTPGet: &v1.HTTPGetAction{
+								HTTPHeaders: []v1.HTTPHeader{
+									{
+										Name:  "Authorization",
+										Value: "********",
+									},
+								},
+							},
+						},
+					},
+					StartupProbe: &v1.Probe{
+						ProbeHandler: v1.ProbeHandler{
+							HTTPGet: &v1.HTTPGetAction{
+								HTTPHeaders: []v1.HTTPHeader{
+									{
+										Name:  "Authorization",
+										Value: "********",
+									},
+								},
+							},
+						},
+					},
 				},
 				{
 					Name:    "container-2",
@@ -262,7 +418,7 @@ func TestScrubPodTemplate(t *testing.T) {
 	}
 
 	scrubber := NewDefaultDataScrubber()
-	scrubber.AddCustomSensitiveWords([]string{"token", "username", "vault"})
+	scrubber.AddCustomSensitiveWords([]string{"token", "username", "vault", "authorization"})
 	ScrubPodTemplateSpec(template, scrubber)
 
 	assert.EqualValues(t, expectedTemplate, template)
