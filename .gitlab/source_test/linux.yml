@@ -18,7 +18,6 @@
   rules:
     - !reference [.except_disable_unit_tests]
     - !reference [.fast_on_dev_branch_only]
-    - !reference [.codecov_cache]
   variables:
     FLAVORS: '--flavor base'
     KUBERNETES_CPU_REQUEST: 16

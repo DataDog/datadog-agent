@@ -1038,32 +1038,27 @@ workflow:
   - <<: *if_main_branch
     variables:
       FAST_TESTS: "false"
-  - <<: *if_release_branch
-    variables:
-      FAST_TESTS: "false"
-  - <<: *if_tagged_commit
-    variables:
-      FAST_TESTS: "false"
-  - <<: *if_triggered_pipeline
-    variables:
-      FAST_TESTS: "false"
-  - <<: *if_run_all_unit_tests
-    variables:
-      FAST_TESTS: "false"
-  - variables:
-      FAST_TESTS: "true"
-
-
-.codecov_cache:
-  # Push coverage cache on main branch
-  # Pull coverage cache on dev branches
-  - <<: *if_main_branch
-    variables:
+      # Push coverage cache on main branch
       COVERAGE_CACHE_FLAG: "--push-coverage-cache"
   - <<: *if_release_branch
     variables:
+      FAST_TESTS: "false"
+      COVERAGE_CACHE_FLAG: ""
+  - <<: *if_tagged_commit
+    variables:
+      FAST_TESTS: "false"
+      COVERAGE_CACHE_FLAG: ""
+  - <<: *if_triggered_pipeline
+    variables:
+      FAST_TESTS: "false"
+      COVERAGE_CACHE_FLAG: ""
+  - <<: *if_run_all_unit_tests
+    variables:
+      FAST_TESTS: "false"
       COVERAGE_CACHE_FLAG: ""
   - variables:
+      FAST_TESTS: "true"
+      # Pull coverage cache on dev branches
       COVERAGE_CACHE_FLAG: "--pull-coverage-cache"
 
 .on_gitlab_changes:
