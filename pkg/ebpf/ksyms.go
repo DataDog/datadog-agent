@@ -41,10 +41,7 @@ var funcCache = newExistCache("/proc/kallsyms")
 func GetKernelSymbolsAddressesNoCache(ksymsReader io.Reader, ksyms ...string) (map[string]uint64, error) {
 	var check util.SSBytes
 	for _, rf := range ksyms {
-		if _, ok := funcCache.c[rf]; !ok {
-			// only check for functions we don't know about yet
-			check = append(check, []byte(rf))
-		}
+		check = append(check, []byte(rf))
 	}
 
 	present := make(map[string]uint64, len(ksyms))
