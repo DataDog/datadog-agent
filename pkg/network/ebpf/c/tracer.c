@@ -232,14 +232,17 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_done, struct sock *sk) {
         return 0;
     }
 
-    if (bpf_map_delete_elem(&conn_close_flushed, &sk) != 0) {
-        // this connection has not been flushed by tcp_close
-        cleanup_conn(ctx, &t, sk);
-        // mark this connection as already flushed
-        __u64 timestamp = bpf_ktime_get_ns();
-        bpf_map_update_with_telemetry(conn_close_flushed, &sk, &timestamp, BPF_ANY);
+    __u64 timestamp = bpf_ktime_get_ns();
+    if (bpf_map_update_with_telemetry(conn_close_flushed, &sk, &timestamp, BPF_NOEXIST) == 0) {
+        log_debug("adamk kprobe/tcp_done: flushing connection: %u, %u, %u", t.netns, t.sport, t.dport);
+        bool created_new_conn = cleanup_conn(ctx, &t, sk);
+        if (created_new_conn) {
+            increment_telemetry_count(skipped_new_conn_create);
+        }
+        log_debug("adamk kprobe/tcp_done: created_new_conn: %d", created_new_conn);
     } else {
-        increment_telemetry_count(tcp_done_pid_mismatch);
+        log_debug("adamk kprobe/tcp_done: conn already flushed: %u, %u, %u", t.netns, t.sport, t.dport);
+        bpf_map_delete_elem(&conn_close_flushed, &sk);
     }
     
     flush_tcp_failure(ctx, &t, err);
@@ -277,16 +280,17 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_close, struct sock *sk) {
     }
 
     // check if this connection was already flushed and ensure we don't flush again
-    if (tcp_failed_connections_enabled() && (bpf_map_delete_elem(&conn_close_flushed, &sk) == 0)) {
+    __u64 timestamp = bpf_ktime_get_ns();
+    if (tcp_failed_connections_enabled() && (bpf_map_update_with_telemetry(conn_close_flushed, &sk, &timestamp, BPF_NOEXIST) != 0)) {
+        log_debug("adamk kprobe/tcp_close: conn already flushed: %u, %u, %u", t.netns, t.sport, t.dport);
         increment_telemetry_count(double_flush_attempts_close);
         return 0;
+    } else {
+        bpf_map_delete_elem(&conn_close_flushed, &sk);
     }
 
+    log_debug("adamk kprobe/tcp_close: flushing connection: %u, %u, %u", t.netns, t.sport, t.dport);
     cleanup_conn(ctx, &t, sk);
-
-    // mark this connection as already flushed
-    __u64 timestamp = bpf_ktime_get_ns();
-    bpf_map_update_with_telemetry(conn_close_flushed, &sk, &timestamp, BPF_ANY);
 
     return 0;
 }
@@ -944,7 +948,7 @@ int BPF_BYPASSABLE_KRETPROBE(kretprobe__tcp_retransmit_skb, int rc) {
 SEC("kprobe/tcp_connect")
 int BPF_BYPASSABLE_KPROBE(kprobe__tcp_connect, struct sock *skp) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    log_debug("kprobe/tcp_connect: tgid: %llu, pid: %llu", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
+    log_debug("adamk kprobe/tcp_connect: tgid: %llu, pid: %llu", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
 
     bpf_map_update_with_telemetry(tcp_ongoing_connect_pid, &skp, &pid_tgid, BPF_ANY);
 
@@ -960,7 +964,7 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_finish_connect, struct sock *skp) {
 
     u64 pid_tgid = *pid_tgid_p;
     bpf_map_delete_elem(&tcp_ongoing_connect_pid, &skp);
-    log_debug("kprobe/tcp_finish_connect: tgid: %llu, pid: %llu", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
+    log_debug("adamk kprobe/tcp_finish_connect: tgid: %llu, pid: %llu", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
 
     conn_tuple_t t = {};
     if (!read_conn_tuple(&t, skp, pid_tgid, CONN_TYPE_TCP)) {
@@ -970,7 +974,7 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_finish_connect, struct sock *skp) {
     handle_tcp_stats(&t, skp, TCP_ESTABLISHED);
     handle_message(&t, 0, 0, CONN_DIRECTION_OUTGOING, 0, 0, PACKET_COUNT_NONE, skp);
 
-    log_debug("kprobe/tcp_connect: netns: %u, sport: %u, dport: %u", t.netns, t.sport, t.dport);
+    log_debug("adamk kprobe/tcp_finish_connect: netns: %u, sport: %u, dport: %u", t.netns, t.sport, t.dport);
 
     return 0;
 }

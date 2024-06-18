@@ -44,13 +44,14 @@ __maybe_unused static __always_inline void submit_closed_conn_event(void *ctx, i
     }
 }
 
-static __always_inline void cleanup_conn(void *ctx, conn_tuple_t *tup, struct sock *sk) {
+static __always_inline bool cleanup_conn(void *ctx, conn_tuple_t *tup, struct sock *sk) {
     u32 cpu = bpf_get_smp_processor_id();
     // Will hold the full connection data to send through the perf or ring buffer
     conn_t conn = { .tup = *tup };
     conn_stats_ts_t *cst = NULL;
     tcp_stats_t *tst = NULL;
     u32 *retrans = NULL;
+    bool created_new_conn = false;
     bool is_tcp = get_proto(&conn.tup) == CONN_TYPE_TCP;
     bool is_udp = get_proto(&conn.tup) == CONN_TYPE_UDP;
 
@@ -80,9 +81,9 @@ static __always_inline void cleanup_conn(void *ctx, conn_tuple_t *tup, struct so
     } else {
         if (is_udp) {
             increment_telemetry_count(udp_dropped_conns);
-            return; // nothing to report
+            return created_new_conn; // nothing to report
         }
-        increment_telemetry_count(skipped_new_conn_create);
+        created_new_conn = true;
         // we don't have any stats for the connection,
         // so cookie is not set, set it here
         conn.conn_stats.cookie = get_sk_cookie(sk);
@@ -100,7 +101,7 @@ static __always_inline void cleanup_conn(void *ctx, conn_tuple_t *tup, struct so
     // Batch TCP closed connections before generating a perf event
     batch_t *batch_ptr = bpf_map_lookup_elem(&conn_close_batch, &cpu);
     if (batch_ptr == NULL) {
-        return;
+        return created_new_conn;
     }
 
     // TODO: Can we turn this into a macro based on TCP_CLOSED_BATCH_SIZE?
@@ -108,21 +109,21 @@ static __always_inline void cleanup_conn(void *ctx, conn_tuple_t *tup, struct so
     case 0:
         batch_ptr->c0 = conn;
         batch_ptr->len++;
-        return;
+        return created_new_conn;
     case 1:
         batch_ptr->c1 = conn;
         batch_ptr->len++;
-        return;
+        return created_new_conn;
     case 2:
         batch_ptr->c2 = conn;
         batch_ptr->len++;
-        return;
+        return created_new_conn;
     case 3:
         batch_ptr->c3 = conn;
         batch_ptr->len++;
         // In this case the batch is ready to be flushed, which we defer to kretprobe/tcp_close
         // in order to cope with the eBPF stack limitation of 512 bytes.
-        return;
+        return created_new_conn;
     }
 
     // If we hit this section it means we had one or more interleaved tcp_close calls.
@@ -136,6 +137,7 @@ static __always_inline void cleanup_conn(void *ctx, conn_tuple_t *tup, struct so
     if (is_udp) {
         increment_telemetry_count(unbatched_udp_close);
     }
+    return created_new_conn;
 }
 
 // This function is used to flush the conn_failed_t to the perf or ring buffer.
