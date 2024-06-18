@@ -106,7 +106,7 @@ func TestLeaderCreateDeleteLocal(t *testing.T) {
 	f.RunControllerSync(true, "default/dpa-0")
 
 	// Check internal store content
-	expectedDPAInternal := model.PodAutoscalerInternal{
+	expectedDPAInternal := model.FakePodAutoscalerInternal{
 		Namespace:  "default",
 		Name:       "dpa-0",
 		Generation: 1,
@@ -114,7 +114,7 @@ func TestLeaderCreateDeleteLocal(t *testing.T) {
 	}
 	dpaInternal, found := f.store.Get("default/dpa-0")
 	assert.True(t, found)
-	assert.Equal(t, expectedDPAInternal, dpaInternal)
+	model.AssertPodAutoscalersEqual(t, expectedDPAInternal, dpaInternal)
 
 	// Object deleted from Kubernetes, should be deleted from store
 	f.InformerObjects = nil
@@ -130,7 +130,7 @@ func TestLeaderCreateDeleteLocal(t *testing.T) {
 	f.RunControllerSync(true, "default/dpa-0")
 
 	assert.True(t, found)
-	assert.Equal(t, expectedDPAInternal, dpaInternal)
+	model.AssertPodAutoscalersEqual(t, expectedDPAInternal, dpaInternal)
 }
 
 func TestLeaderCreateDeleteRemote(t *testing.T) {
@@ -147,12 +147,12 @@ func TestLeaderCreateDeleteRemote(t *testing.T) {
 		Owner: datadoghq.DatadogPodAutoscalerRemoteOwner,
 	}
 
-	dpaInternal := model.PodAutoscalerInternal{
+	dpaInternal := model.FakePodAutoscalerInternal{
 		Namespace: "default",
 		Name:      "dpa-0",
 		Spec:      &dpaSpec,
 	}
-	f.store.Set("default/dpa-0", dpaInternal, controllerID)
+	f.store.Set("default/dpa-0", dpaInternal.Build(), controllerID)
 
 	// Should create object in Kubernetes
 	expectedDPA := &datadoghq.DatadogPodAutoscaler{
@@ -207,7 +207,7 @@ func TestLeaderCreateDeleteRemote(t *testing.T) {
 
 	// We flag the object as deleted in the store, we expect delete operation in Kubernetes
 	dpaInternal.Deleted = true
-	f.store.Set("default/dpa-0", dpaInternal, controllerID)
+	f.store.Set("default/dpa-0", dpaInternal.Build(), controllerID)
 	f.InformerObjects = append(f.InformerObjects, expectedUnstructured)
 	f.Objects = append(f.Objects, expectedDPA)
 	f.Actions = nil

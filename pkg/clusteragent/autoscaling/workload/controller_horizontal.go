@@ -27,7 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
 type scaleDirection int
@@ -56,53 +55,54 @@ func newHorizontalReconciler(clock clock.Clock, eventRecorder record.EventRecord
 }
 
 func (hr *horizontalController) sync(ctx context.Context, podAutoscaler *datadoghq.DatadogPodAutoscaler, autoscalerInternal *model.PodAutoscalerInternal) (autoscaling.ProcessResult, error) {
-	gvk, err := autoscalerInternal.GetTargetGVK()
+	gvk, err := autoscalerInternal.TargetGVK()
 	if err != nil {
 		return autoscaling.NoRequeue, err
 	}
 
 	// Get the current scale of the target resource
-	scale, gr, err := hr.scaler.get(ctx, autoscalerInternal.Namespace, autoscalerInternal.Spec.TargetRef.Name, gvk)
+	scale, gr, err := hr.scaler.get(ctx, autoscalerInternal.Namespace(), autoscalerInternal.Spec().TargetRef.Name, gvk)
 	if err != nil {
 		return autoscaling.Requeue, fmt.Errorf("failed to get scale subresource for autoscaler %s, err: %w", autoscalerInternal.ID(), err)
 	}
 
 	// Update current replicas
-	autoscalerInternal.CurrentReplicas = pointer.Ptr(scale.Status.Replicas)
+	autoscalerInternal.SetCurrentReplicas(scale.Status.Replicas)
 
 	return hr.performScaling(ctx, podAutoscaler, autoscalerInternal, gr, scale)
 }
 
 func (hr *horizontalController) performScaling(ctx context.Context, podAutoscaler *datadoghq.DatadogPodAutoscaler, autoscalerInternal *model.PodAutoscalerInternal, gr schema.GroupResource, scale *autoscalingv1.Scale) (autoscaling.ProcessResult, error) {
 	// No Horizontal scaling, nothing to do
-	if autoscalerInternal.ScalingValues.Horizontal == nil {
-		autoscalerInternal.HorizontalLastActionError = nil
+	scalingValues := autoscalerInternal.ScalingValues()
+	if scalingValues.Horizontal == nil {
 		return autoscaling.NoRequeue, nil
 	}
 
 	currentDesiredReplicas := scale.Spec.Replicas
-	replicasFromRec := autoscalerInternal.ScalingValues.Horizontal.Replicas
+	replicasFromRec := scalingValues.Horizontal.Replicas
 
 	// Handling min/max replicas
+	specConstraints := autoscalerInternal.Spec().Constraints
 	minReplicas := defaultMinReplicas
-	if autoscalerInternal.Spec.Constraints != nil && autoscalerInternal.Spec.Constraints.MinReplicas != nil {
-		minReplicas = *autoscalerInternal.Spec.Constraints.MinReplicas
+	if specConstraints != nil && specConstraints.MinReplicas != nil {
+		minReplicas = *specConstraints.MinReplicas
 	}
 
 	maxReplicas := defaultMaxReplicas
-	if autoscalerInternal.Spec.Constraints != nil && autoscalerInternal.Spec.Constraints.MaxReplicas >= minReplicas {
-		maxReplicas = autoscalerInternal.Spec.Constraints.MaxReplicas
+	if specConstraints != nil && specConstraints.MaxReplicas >= minReplicas {
+		maxReplicas = specConstraints.MaxReplicas
 	}
 
 	// Compute the desired number of replicas based on recommendations, rules and constraints
-	horizontalAction, err := hr.computeScaleAction(autoscalerInternal, autoscalerInternal.ScalingValues.Horizontal.Source, currentDesiredReplicas, replicasFromRec, minReplicas, maxReplicas)
+	horizontalAction, err := hr.computeScaleAction(autoscalerInternal, scalingValues.Horizontal.Source, currentDesiredReplicas, replicasFromRec, minReplicas, maxReplicas)
 	if err != nil {
-		autoscalerInternal.HorizontalLastActionError = err
+		autoscalerInternal.UpdateFromHorizontalAction(nil, err)
 		return autoscaling.NoRequeue, nil
 	}
 	// We are already scaled
 	if horizontalAction == nil {
-		autoscalerInternal.HorizontalLastActionError = nil
+		autoscalerInternal.UpdateFromHorizontalAction(nil, nil)
 		return autoscaling.NoRequeue, nil
 	}
 
@@ -111,13 +111,12 @@ func (hr *horizontalController) performScaling(ctx context.Context, podAutoscale
 	if err != nil {
 		err = fmt.Errorf("failed to scale target: %s/%s to %d replicas, err: %w", scale.Namespace, scale.Name, horizontalAction.ToReplicas, err)
 		hr.eventRecorder.Event(podAutoscaler, corev1.EventTypeWarning, model.FailedScaleEventReason, err.Error())
-		autoscalerInternal.HorizontalLastActionError = err
+		autoscalerInternal.UpdateFromHorizontalAction(nil, err)
 		return autoscaling.Requeue, err
 	}
 
 	log.Debugf("Scaled target: %s/%s from %d replicas to %d replicas", scale.Namespace, scale.Name, horizontalAction.FromReplicas, horizontalAction.ToReplicas)
-	autoscalerInternal.HorizontalLastAction = horizontalAction
-	autoscalerInternal.HorizontalLastActionError = nil
+	autoscalerInternal.UpdateFromHorizontalAction(horizontalAction, nil)
 	hr.eventRecorder.Eventf(podAutoscaler, corev1.EventTypeNormal, model.SuccessfulScaleEventReason, "Scaled target: %s/%s from %d replicas to %d replicas", scale.Namespace, scale.Name, horizontalAction.FromReplicas, horizontalAction.ToReplicas)
 	return autoscaling.NoRequeue, nil
 }
@@ -165,28 +164,28 @@ func (hr *horizontalController) computeScaleAction(
 
 func isScalingAllowed(autoscalerInternal *model.PodAutoscalerInternal, source datadoghq.DatadogPodAutoscalerValueSource, direction scaleDirection) (bool, string) {
 	// If we don't have spec, we cannot take decisions, should not happen.
-	if autoscalerInternal.Spec == nil {
+	if autoscalerInternal.Spec() == nil {
 		return false, "pod autoscaling hasn't been initialized yet"
 	}
 
 	// By default, policy is to allow all
-	if autoscalerInternal.Spec.Policy == nil {
+	if autoscalerInternal.Spec().Policy == nil {
 		return true, ""
 	}
 
 	// We do have policies, checking if they allow this source
-	if !model.ApplyModeAllowSource(autoscalerInternal.Spec.Policy.ApplyMode, source) {
-		return false, fmt.Sprintf("horizontal scaling disabled due to applyMode: %s not allowing recommendations from source: %s", autoscalerInternal.Spec.Policy.ApplyMode, source)
+	if !model.ApplyModeAllowSource(autoscalerInternal.Spec().Policy.ApplyMode, source) {
+		return false, fmt.Sprintf("horizontal scaling disabled due to applyMode: %s not allowing recommendations from source: %s", autoscalerInternal.Spec().Policy.ApplyMode, source)
 	}
 
 	// Check if scaling direction is allowed
-	if direction == scaleUp && autoscalerInternal.Spec.Policy.Upscale != nil && autoscalerInternal.Spec.Policy.Upscale.Strategy != nil {
-		if *autoscalerInternal.Spec.Policy.Upscale.Strategy == datadoghq.DatadogPodAutoscalerDisabledStrategySelect {
+	if direction == scaleUp && autoscalerInternal.Spec().Policy.Upscale != nil && autoscalerInternal.Spec().Policy.Upscale.Strategy != nil {
+		if *autoscalerInternal.Spec().Policy.Upscale.Strategy == datadoghq.DatadogPodAutoscalerDisabledStrategySelect {
 			return false, "upscaling disabled by strategy"
 		}
 	}
-	if direction == scaleDown && autoscalerInternal.Spec.Policy.Downscale != nil && autoscalerInternal.Spec.Policy.Downscale.Strategy != nil {
-		if *autoscalerInternal.Spec.Policy.Downscale.Strategy == datadoghq.DatadogPodAutoscalerDisabledStrategySelect {
+	if direction == scaleDown && autoscalerInternal.Spec().Policy.Downscale != nil && autoscalerInternal.Spec().Policy.Downscale.Strategy != nil {
+		if *autoscalerInternal.Spec().Policy.Downscale.Strategy == datadoghq.DatadogPodAutoscalerDisabledStrategySelect {
 			return false, "downscaling disabled by strategy"
 		}
 	}
