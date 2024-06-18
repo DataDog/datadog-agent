@@ -30,7 +30,7 @@ func TestDefaultPackagesAPMInjectEnabled(t *testing.T) {
 	packages := DefaultPackages(env)
 
 	// APM inject packages are not released by default today
-	assert.Empty(t, packages)
+	assert.Equal(t, []string{"oci://gcr.io/datadoghq/apm-inject-package:latest"}, packages)
 }
 
 func TestDefaultPackages(t *testing.T) {

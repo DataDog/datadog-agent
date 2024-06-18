@@ -62,10 +62,9 @@ skip_stat_keys = ["Complexity", "verification_time"]
 
 
 def tabulate_stats(stats):
-    table = list()
+    table = []
     for key, value in stats.items():
-        row = list()
-        row.append(key)
+        row = [key]
         for json_key in verifier_stat_json_keys:
             row.append(value[json_key])
         table.append(row)
@@ -103,9 +102,9 @@ def write_verifier_stats(verifier_stats, f, jsonfmt):
 # the go program return stats in the form {func_name: {stat_name: {Value: X}}}.
 # convert this to {func_name: {stat_name: X}}
 def format_verifier_stats(verifier_stats):
-    filtered = dict()
+    filtered = {}
     for func in verifier_stats:
-        filtered[func] = dict()
+        filtered[func] = {}
         for stat in verifier_stats[func]:
             if stat not in skip_stat_keys:
                 filtered[func][stat] = verifier_stats[func][stat]["Value"]
@@ -214,9 +213,9 @@ def print_verification_stats(
     with open(base) as f:
         base_verifier_stats = json.load(f)
 
-    stats_diff = dict()
+    stats_diff = {}
     for key, value in verifier_stats.items():
-        stat = dict()
+        stat = {}
         if key not in base_verifier_stats:
             stats_diff[key] = value
             continue
@@ -443,8 +442,8 @@ def annotate_complexity(
 
                 if compl is not None:
                     # We have complexity information for this line, print everything that we had in buffer
-                    for l in buffer:
-                        print(l)
+                    for lb in buffer:
+                        print(lb)
                     buffer.clear()
 
                     if show_assembly:
@@ -491,8 +490,8 @@ def annotate_complexity(
 
                 elif len(buffer) == 9:
                     # Print the last lines if we have no line information
-                    for l in buffer:
-                        print(l)
+                    for lb in buffer:
+                        print(lb)
 
     print_complexity_legend()
 
@@ -540,7 +539,7 @@ def show_top_complexity_lines(
             )
 
         with open(f) as src:
-            line = next(l for i, l in enumerate(src) if i + 1 == int(lineno))
+            line = next(line for i, line in enumerate(src) if i + 1 == int(lineno))
             print(lineid)
             print(source_line_to_str(int(lineno), line, compl, compinfo_widths))
             print()
@@ -625,7 +624,7 @@ def generate_html_report(ctx: Context, dest_folder: str | Path):
                 for lineno, line in enumerate(src.read().splitlines()):
                     lineid = f"{f}:{lineno + 1}"
                     compl = complexity_data["source_map"].get(lineid)
-                    linedata = dict(line=line, complexity=compl)
+                    linedata = {"line": line, "complexity": compl}
                     if compl is not None:
                         if compl['num_instructions'] <= COMPLEXITY_THRESHOLD_LOW:
                             linedata['complexity_level'] = 'low'

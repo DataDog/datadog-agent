@@ -210,8 +210,8 @@ type Process struct {
 
 	AWSSecurityCredentials []AWSSecurityCredentials `field:"-"`
 
-	ArgsID uint32 `field:"-"`
-	EnvsID uint32 `field:"-"`
+	ArgsID uint64 `field:"-"`
+	EnvsID uint64 `field:"-"`
 
 	ArgsEntry *ArgsEntry `field:"-"`
 	EnvsEntry *EnvsEntry `field:"-"`
