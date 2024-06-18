@@ -28,9 +28,7 @@ type EBPFErrorsCollector struct {
 	T            ebpfErrorsTelemetry
 	mapOpsErrors *prometheus.CounterVec
 	helperErrors *prometheus.CounterVec
-	//ebpfMapOpsErrors *prometheus.Desc
-	//ebpfHelperErrors *prometheus.Desc
-	lastValues map[metricKey]uint64
+	lastValues   map[metricKey]uint64
 }
 
 type metricKey struct {
