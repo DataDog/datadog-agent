@@ -23,7 +23,7 @@ func BenchmarkLoadOrStoreReset(b *testing.B) {
 
 	// benchmark with the internal telemetry enabled
 	sInterner.telemetry.enabled = true
-	sInterner.prepareTelemetry(telemetryComp)
+	sInterner.prepareTelemetry()
 
 	list := []string{}
 	for i := 0; i < 512; i++ {
