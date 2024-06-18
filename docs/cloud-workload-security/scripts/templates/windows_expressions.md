@@ -14,6 +14,18 @@ further_reading:
 ## Windows Agent attributes and helpers
 This documentation describes Windows attributes and helpers of the [Datadog's Security Language (SECL)][1].
 
+Rules using Windows attributes and helpers must include an OS rule filter field as follows.
+
+{% raw %}
+{{< code-block lang="javascript" >}}
+id: [...]
+expression: [...]
+filters:
+  - os == "windows"
+
+{{< /code-block >}}
+{% endraw %}
+
 ## Triggers
 Triggers are events that correspond to types of activity seen by the system. The currently supported set of triggers is:
 
