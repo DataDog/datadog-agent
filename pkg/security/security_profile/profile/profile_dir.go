@@ -264,7 +264,7 @@ func (dp *DirectoryProvider) loadProfile(profilePath string) error {
 
 	// check if this profile matches a workload selector
 	for _, selector := range selectors {
-		if workloadSelector.Key() == selector {
+		if profileManagerSelector.Key() == selector {
 			propagateCb(workloadSelector, profile)
 		}
 	}
