@@ -83,9 +83,9 @@ def check_deploy_pipeline(repo: Project, git_ref: str, release_version_6, releas
         tag_name = "6." + "".join(match.groups())
         try:
             repo.tags.get(tag_name)
-        except GitlabError:
+        except GitlabError as e:
             print(f"Cannot find GitLab v6 tag {tag_name} while trying to build git ref {git_ref}")
-            raise Exit(code=1)
+            raise Exit(code=1) from e
 
         print(f"Successfully cross checked v6 tag {tag_name} and git ref {git_ref}")
     else:
@@ -96,9 +96,9 @@ def check_deploy_pipeline(repo: Project, git_ref: str, release_version_6, releas
             tag_name = "7." + "".join(match.groups())
             try:
                 repo.tags.get(tag_name)
-            except GitlabError:
+            except GitlabError as e:
                 print(f"Cannot find GitLab v7 tag {tag_name} while trying to build git ref {git_ref}")
-                raise Exit(code=1)
+                raise Exit(code=1) from e
 
             print(f"Successfully cross checked v7 tag {tag_name} and git ref {git_ref}")
 
@@ -447,7 +447,7 @@ def trigger_child_pipeline(_, git_ref, project_name, variable=None, follow=True)
     try:
         pipeline = repo.trigger_pipeline(git_ref, os.environ['CI_JOB_TOKEN'], variables=variables)
     except GitlabError as e:
-        raise Exit(f"Failed to create child pipeline: {e}", code=1)
+        raise Exit(f"Failed to create child pipeline: {e}", code=1) from e
 
     print(f"Created a child pipeline with id={pipeline.id}, url={pipeline.web_url}", flush=True)
 
@@ -940,9 +940,9 @@ def test_merge_queue(ctx):
             pipeline = next(p for p in pipelines if p.ref.startswith(f"mq-working-branch-{test_main}"))
             print(f"Pipeline found: {pipeline.web_url}")
             break
-        except StopIteration:
+        except StopIteration as e:
             if attempt == max_attempts - 1:
-                raise RuntimeError("No pipeline found for the merge queue")
+                raise RuntimeError("No pipeline found for the merge queue") from e
             continue
     success = pipeline.status == "running"
     if success:

@@ -37,7 +37,6 @@ select = [
 ignore = [
     "E501", # line-too-long
     "C901", # complex-structure
-    "B904", # raise-without-from-inside-except
     "UP033", # Ignore the lru_cache for now
     "UP017", # Ignore datetime.UTC for now
 ]
