@@ -133,7 +133,7 @@ func (t *Tagger) Start(ctx context.Context) error {
 	})
 
 	var err error
-	t.conn, err = grpc.DialContext(
+	t.conn, err = grpc.DialContext( //nolint:staticcheck // TODO (ASC) fix grpc.DialContext is deprecated
 		t.ctx,
 		t.options.Target,
 		grpc.WithTransportCredentials(creds),
@@ -381,7 +381,6 @@ func (t *Tagger) startTaggerStream(maxElapsed time.Duration) error {
 		t.stream, err = t.client.TaggerStreamEntities(t.streamCtx, &pb.StreamTagsRequest{
 			Cardinality: pb.TagCardinality_HIGH,
 		})
-
 		if err != nil {
 			log.Infof("unable to establish stream, will possibly retry: %s", err)
 			return err

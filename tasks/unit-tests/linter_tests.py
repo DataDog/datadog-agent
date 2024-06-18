@@ -1,4 +1,4 @@
-import shutil
+import os
 import unittest
 
 import tasks.linter as linter
@@ -8,7 +8,8 @@ class TestIsGetParameterCall(unittest.TestCase):
     test_file = "test_linter.tmp"
 
     def tearDown(self):
-        shutil.rmtree(self.test_file, ignore_errors=True)
+        if os.path.exists(self.test_file):
+            os.unlink(self.test_file)
 
     def test_no_get_param(self):
         with open(self.test_file, "w") as f:

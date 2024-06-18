@@ -22,6 +22,13 @@ import (
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
 
+const (
+	// StableInstallerPath is the path to the stable installer binary.
+	StableInstallerPath = "/opt/datadog-packages/datadog-installer/stable/bin/installer/installer"
+	// ExperimentInstallerPath is the path to the experiment installer binary.
+	ExperimentInstallerPath = "/opt/datadog-packages/datadog-installer/experiment/bin/installer/installer"
+)
+
 // InstallerExec is an implementation of the Installer interface that uses the installer binary.
 type InstallerExec struct {
 	env              *env.Env
@@ -105,6 +112,20 @@ func (i *InstallerExec) PromoteExperiment(ctx context.Context, pkg string) (err 
 // GarbageCollect runs the garbage collector.
 func (i *InstallerExec) GarbageCollect(ctx context.Context) (err error) {
 	cmd := i.newInstallerCmd(ctx, "garbage-collect")
+	defer func() { cmd.span.Finish(tracer.WithError(err)) }()
+	return cmd.Run()
+}
+
+// InstrumentAPMInjector instruments the APM auto-injector.
+func (i *InstallerExec) InstrumentAPMInjector(ctx context.Context, method string) (err error) {
+	cmd := i.newInstallerCmd(ctx, "apm instrument", method)
+	defer func() { cmd.span.Finish(tracer.WithError(err)) }()
+	return cmd.Run()
+}
+
+// UninstrumentAPMInjector uninstruments the APM auto-injector.
+func (i *InstallerExec) UninstrumentAPMInjector(ctx context.Context, method string) (err error) {
+	cmd := i.newInstallerCmd(ctx, "apm uninstrument", method)
 	defer func() { cmd.span.Finish(tracer.WithError(err)) }()
 	return cmd.Run()
 }

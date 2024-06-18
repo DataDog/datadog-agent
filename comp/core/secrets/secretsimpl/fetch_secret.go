@@ -17,12 +17,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-)
-
-var (
-	tlmSecretBackendElapsed = telemetry.NewGauge("secret_backend", "elapsed_ms", []string{"command", "exit_code"}, "Elapsed time of secret backend invocation")
 )
 
 type limitBuffer struct {
@@ -93,7 +88,7 @@ func (r *secretResolver) execCommand(inputPayload string) ([]byte, error) {
 		} else if ctx.Err() == context.DeadlineExceeded {
 			exitCode = "timeout"
 		}
-		tlmSecretBackendElapsed.Add(float64(elapsed.Milliseconds()), r.backendCommand, exitCode)
+		r.tlmSecretBackendElapsed.Add(float64(elapsed.Milliseconds()), r.backendCommand, exitCode)
 
 		if ctx.Err() == context.DeadlineExceeded {
 			return nil, fmt.Errorf("error while running '%s': command timeout", r.backendCommand)
@@ -103,7 +98,7 @@ func (r *secretResolver) execCommand(inputPayload string) ([]byte, error) {
 
 	log.Debugf("secret_backend_command stderr: %s", stderr.buf.String())
 
-	tlmSecretBackendElapsed.Add(float64(elapsed.Milliseconds()), r.backendCommand, "0")
+	r.tlmSecretBackendElapsed.Add(float64(elapsed.Milliseconds()), r.backendCommand, "0")
 	return stdout.buf.Bytes(), nil
 }
 

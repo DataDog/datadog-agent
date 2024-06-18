@@ -85,6 +85,9 @@ type ObfuscationConfig struct {
 	// ES holds the obfuscation configuration for ElasticSearch bodies.
 	ES obfuscate.JSONConfig `mapstructure:"elasticsearch"`
 
+	// OpenSearch holds the obfuscation configuration for OpenSearch bodies.
+	OpenSearch obfuscate.JSONConfig `mapstructure:"opensearch"`
+
 	// Mongo holds the obfuscation configuration for MongoDB queries.
 	Mongo obfuscate.JSONConfig `mapstructure:"mongodb"`
 
@@ -125,6 +128,7 @@ func (o *ObfuscationConfig) Export(conf *AgentConfig) obfuscate.Config {
 			Cache:            conf.HasFeature("sql_cache"),
 		},
 		ES:                   o.ES,
+		OpenSearch:           o.OpenSearch,
 		Mongo:                o.Mongo,
 		SQLExecPlan:          o.SQLExecPlan,
 		SQLExecPlanNormalize: o.SQLExecPlanNormalize,
@@ -220,6 +224,8 @@ type EVPProxy struct {
 	AdditionalEndpoints map[string][]string
 	// MaxPayloadSize indicates the size at which payloads will be rejected, in bytes.
 	MaxPayloadSize int64
+	// ReceiverTimeout indicates the maximum time an EVPProxy request can take. Value in seconds.
+	ReceiverTimeout int
 }
 
 // InstallSignatureConfig contains the information on how the agent was installed
@@ -569,7 +575,7 @@ func (c *AgentConfig) NewHTTPTransport() *http.Transport {
 			DualStack: true,
 		}).DialContext,
 		MaxIdleConns:          100,
-		IdleConnTimeout:       90 * time.Second,
+		IdleConnTimeout:       30 * time.Second,
 		TLSHandshakeTimeout:   10 * time.Second,
 		ExpectContinueTimeout: 1 * time.Second,
 	}

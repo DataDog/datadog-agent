@@ -16,7 +16,7 @@ from invoke.exceptions import Exit
 
 from tasks.flavor import AgentFlavor
 from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
-from tasks.libs.common.utils import collapsed_section
+from tasks.libs.common.utils import gitlab_section
 from tasks.libs.pipeline.notifications import (
     DEFAULT_JIRA_PROJECT,
     DEFAULT_SLACK_CHANNEL,
@@ -76,11 +76,16 @@ def junit_upload_from_tgz(junit_tgz, codeowners_path=".github/CODEOWNERS"):
     flaky_tests = get_flaky_from_test_output()
     junit_tgz = find_tarball(junit_tgz)
 
-    with collapsed_section(f"Uploading JUnit files for {junit_tgz}"), tempfile.TemporaryDirectory() as unpack_dir:
+    with (
+        gitlab_section(f"Uploading JUnit files for {junit_tgz}", collapsed=True),
+        tempfile.TemporaryDirectory() as unpack_dir,
+    ):
         working_dir = Path(unpack_dir)
         # unpack all files from archive
         with tarfile.open(junit_tgz) as tgz:
             tgz.extractall(path=str(working_dir))
+        # If archive contains folders, save them as we will put split xmls in folder on the working_dir
+        xml_folders = [item for item in working_dir.iterdir() if item.is_dir()]
 
         # Split xml files by codeowners
         generated_xmls = 0
@@ -88,14 +93,14 @@ def junit_upload_from_tgz(junit_tgz, codeowners_path=".github/CODEOWNERS"):
             if not xmlfile.is_file():
                 print(f"[WARN] Matched folder named {xmlfile}")
                 continue
-            generated_xmls += split_junitxml(xmlfile, codeowners, flaky_tests)
+            generated_xmls += split_junitxml(working_dir, xmlfile, codeowners, flaky_tests)
         print(f"Created {generated_xmls} JUnit XML files from {junit_tgz}")
         # *-fast(-v2).tgz contains only tests related to the modified code, they can be empty
         if generated_xmls == 0 and "-fast" not in junit_tgz:
             raise Exit(f"[ERROR] No JUnit XML files for upload found in: {junit_tgz}")
 
-        # Upload junit on a per-team basis
-        team_folders = [item for item in working_dir.iterdir() if item.is_dir()]
+        # Upload junit on a per-team basis (all folders except the one part of the original archive)
+        team_folders = [item for item in working_dir.iterdir() if item.is_dir() and item not in xml_folders]
         with ThreadPoolExecutor() as executor:
             for log in executor.map(upload_junitxmls, team_folders):
                 print(log)
@@ -151,7 +156,7 @@ def read_additional_tags(folder: Path):
     return tags
 
 
-def split_junitxml(xml_path: Path, codeowners, flaky_tests):
+def split_junitxml(root_dir: Path, xml_path: Path, codeowners, flaky_tests):
     """
     Split a junit XML into several according to the suite name and the codeowners.
     Returns a list with the owners of the written files.
@@ -195,7 +200,7 @@ def split_junitxml(xml_path: Path, codeowners, flaky_tests):
 
     # Save the split XMLs in folders with <owner>_<flavor> name (they will be uploaded with the same tags)
     for owner, xml in output_xmls.items():
-        write_dir = xml_path.parent / f"{owner}_{flavor}"
+        write_dir = root_dir / f"{owner}_{flavor}"
         if not write_dir.exists():
             write_dir.mkdir()
         xml.write(write_dir / xml_path.name, encoding="UTF-8", xml_declaration=True)

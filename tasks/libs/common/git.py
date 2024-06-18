@@ -3,6 +3,12 @@ from __future__ import annotations
 import os.path
 from typing import TYPE_CHECKING
 
+from invoke.exceptions import Exit
+
+from tasks.libs.common.color import color_message
+from tasks.libs.common.constants import DEFAULT_BRANCH
+from tasks.libs.common.user_interactions import yes_no_question
+
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
@@ -49,3 +55,73 @@ def check_local_branch(ctx, branch):
 
     # Return True if a branch is returned by git branch --list
     return matching_branch != "0"
+
+
+def get_commit_sha(ctx, commit="HEAD", short=False) -> str:
+    return ctx.run(f"git rev-parse {'--short ' if short else ''}{commit}", hide=True).stdout.strip()
+
+
+def check_base_branch(branch, release_version):
+    """
+    Checks if the given branch is either the default branch or the release branch associated
+    with the given release version.
+    """
+    return branch == DEFAULT_BRANCH or branch == release_version.branch()
+
+
+def try_git_command(ctx, git_command):
+    """
+    Try a git command that should be retried (after user confirmation) if it fails.
+    Primarily useful for commands which can fail if commit signing fails: we don't want the
+    whole workflow to fail if that happens, we want to retry.
+    """
+
+    do_retry = True
+
+    while do_retry:
+        res = ctx.run(git_command, warn=True)
+        if res.exited is None or res.exited > 0:
+            print(
+                color_message(
+                    f"Failed to run \"{git_command}\" (did the commit/tag signing operation fail?)",
+                    "orange",
+                )
+            )
+            do_retry = yes_no_question("Do you want to retry this operation?", color="orange", default=True)
+            continue
+
+        return True
+
+    return False
+
+
+def check_clean_branch_state(ctx, github, branch):
+    """
+    Check we are in a clean situation to create a new branch:
+    No uncommitted change, and branch doesn't exist locally or upstream
+    """
+    if check_uncommitted_changes(ctx):
+        raise Exit(
+            color_message(
+                "There are uncomitted changes in your repository. Please commit or stash them before trying again.",
+                "red",
+            ),
+            code=1,
+        )
+    if check_local_branch(ctx, branch):
+        raise Exit(
+            color_message(
+                f"The branch {branch} already exists locally. Please remove it before trying again.",
+                "red",
+            ),
+            code=1,
+        )
+
+    if github.get_branch(branch) is not None:
+        raise Exit(
+            color_message(
+                f"The branch {branch} already exists upstream. Please remove it before trying again.",
+                "red",
+            ),
+            code=1,
+        )

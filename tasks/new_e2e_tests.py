@@ -18,7 +18,8 @@ from invoke.tasks import task
 
 from tasks.flavor import AgentFlavor
 from tasks.gotest import process_test_result, test_flavor
-from tasks.libs.common.utils import REPO_PATH, get_git_commit
+from tasks.libs.common.git import get_commit_sha
+from tasks.libs.common.utils import REPO_PATH, running_in_ci
 from tasks.modules import DEFAULT_MODULES
 
 
@@ -72,11 +73,11 @@ def run(
     if targets:
         e2e_module.targets = targets
 
-    envVars = dict()
+    envVars = {}
     if profile:
         envVars["E2E_PROFILE"] = profile
 
-    parsedParams = dict()
+    parsedParams = {}
     for param in configparams:
         parts = param.split("=", 1)
         if len(parts) != 2:
@@ -101,7 +102,7 @@ def run(
         "verbose": '-v' if verbose else '',
         "nocache": '-count=1' if not cache else '',
         "REPO_PATH": REPO_PATH,
-        "commit": get_git_commit(),
+        "commit": get_commit_sha(ctx, short=True),
         "run": '-test.run ' + run if run else '',
         "skip": '-test.skip ' + skip if skip else '',
         "test_run_arg": test_run_arg,
@@ -133,6 +134,25 @@ def run(
     )
 
     success = process_test_result(test_res, junit_tar, AgentFlavor.base, test_washer)
+
+    if running_in_ci():
+        # Do not print all the params, they could contain secrets needed only in the CI
+        params = [f'--targets {t}' for t in targets]
+        pre_command = (
+            f"E2E_PIPELINE_ID={os.environ.get('CI_PIPELINE_ID')} aws-vault exec sso-agent-sandbox-account-admin"
+        )
+
+        param_keys = ('osversion', 'platform', 'arch')
+        for param_key in param_keys:
+            if args.get(param_key):
+                params.append(f'-{args[param_key]}')
+
+        command = f"{pre_command} -- inv -e new-e2e-tests.run {' '.join(params)}"
+        print(
+            f'To run this test locally, use: `{command}`. '
+            'You can also add `E2E_DEV_MODE="true"` to run in dev mode which will leave the environment up after the tests.'
+        )
+
     if not success:
         raise Exit(code=1)
 

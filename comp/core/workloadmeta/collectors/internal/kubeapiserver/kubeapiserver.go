@@ -11,9 +11,10 @@ package kubeapiserver
 import (
 	"context"
 	"slices"
+	"sort"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -36,41 +37,84 @@ const (
 // storeGenerator returns a new store specific to a given resource
 type storeGenerator func(context.Context, workloadmeta.Component, kubernetes.Interface) (*cache.Reflector, *reflectorStore)
 
-func storeGenerators(cfg model.Reader) []storeGenerator {
-	generators := []storeGenerator{newNodeStore}
+func shouldHavePodStore(cfg model.Reader) bool {
+	return cfg.GetBool("cluster_agent.collect_kubernetes_tags") || cfg.GetBool("autoscaling.workload.enabled")
+}
 
-	if cfg.GetBool("cluster_agent.collect_kubernetes_tags") || cfg.GetBool("autoscaling.workload.enabled") {
+func shouldHaveDeploymentStore(cfg model.Reader) bool {
+	return cfg.GetBool("language_detection.enabled") && cfg.GetBool("language_detection.reporting.enabled")
+}
+
+func storeGenerators(cfg model.Reader) []storeGenerator {
+	var generators []storeGenerator
+
+	if shouldHavePodStore(cfg) {
 		generators = append(generators, newPodStore)
 	}
 
-	if cfg.GetBool("language_detection.enabled") && cfg.GetBool("language_detection.reporting.enabled") {
+	if shouldHaveDeploymentStore(cfg) {
 		generators = append(generators, newDeploymentStore)
-	}
-
-	// TODO: Remove this once we migrate references to the namespace store to use generic collection
-	if cfg.GetBool("cluster_agent.kube_metadata_collection.enabled") {
-		resources := cfg.GetStringSlice("cluster_agent.kube_metadata_collection.resources")
-		if slices.Contains(resources, "namespaces") {
-			generators = append(generators, newNamespaceStore)
-		}
 	}
 
 	return generators
 }
 
 func metadataCollectionGVRs(cfg model.Reader, discoveryClient discovery.DiscoveryInterface) ([]schema.GroupVersionResource, error) {
-	if !cfg.GetBool("cluster_agent.kube_metadata_collection.enabled") {
-		return []schema.GroupVersionResource{}, nil
+	return discoverGVRs(discoveryClient, resourcesWithMetadataCollectionEnabled(cfg))
+}
+
+func resourcesWithMetadataCollectionEnabled(cfg model.Reader) []string {
+	resources := append(
+		resourcesWithRequiredMetadataCollection(cfg),
+		resourcesWithExplicitMetadataCollectionEnabled(cfg)...,
+	)
+
+	// Remove duplicates
+	sort.Strings(resources)
+	return slices.Compact(resources)
+}
+
+// resourcesWithRequiredMetadataCollection returns the list of resources that we
+// need to collect metadata from in order to make other enabled features work
+func resourcesWithRequiredMetadataCollection(cfg model.Reader) []string {
+	res := []string{"nodes"} // nodes are always needed
+
+	namespaceLabelsAsTagsEnabled := len(cfg.GetStringMapString("kubernetes_namespace_labels_as_tags")) > 0
+	namespaceAnnotationsAsTagsEnabled := len(cfg.GetStringMapString("kubernetes_namespace_annotations_as_tags")) > 0
+	if namespaceLabelsAsTagsEnabled || namespaceAnnotationsAsTagsEnabled {
+		res = append(res, "namespaces")
 	}
 
+	return res
+}
+
+// resourcesWithExplicitMetadataCollectionEnabled returns the list of resources
+// to collect metadata from according to the config options that configure
+// metadata collection
+// Pods and/or Deployments are excluded if they have their separate stores and informers
+// in order to avoid having two collectors collecting the same data.
+func resourcesWithExplicitMetadataCollectionEnabled(cfg model.Reader) []string {
+	if !cfg.GetBool("cluster_agent.kube_metadata_collection.enabled") {
+		return nil
+	}
+
+	var resources []string
 	requestedResources := cfg.GetStringSlice("cluster_agent.kube_metadata_collection.resources")
+	for _, resource := range requestedResources {
+		if resource == "pods" && shouldHavePodStore(cfg) {
+			log.Debugf("skipping pods from metadata collection because a separate pod store is initialised in workload metadata store.")
+			continue
+		}
 
-	// TODO: Remove this after implementing collector factory which specifies which collector should be registered for each specific resource type
-	// Adding this now as a quick work around to avoid having 2 collectors collecting the same data
-	excludedResources := []string{"namespaces"}
+		if resource == "deployments" && shouldHaveDeploymentStore(cfg) {
+			log.Debugf("skipping deployments from metadata collection because a separate deployment store is initialised in workload metadata store.")
+			continue
+		}
 
-	discoveredResourcesGVs, err := discoverGVRs(discoveryClient, requestedResources, excludedResources)
-	return discoveredResourcesGVs, err
+		resources = append(resources, resource)
+	}
+
+	return resources
 }
 
 type collector struct {

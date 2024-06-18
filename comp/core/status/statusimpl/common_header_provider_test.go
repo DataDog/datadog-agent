@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -102,6 +103,32 @@ func TestCommonHeaderProviderText(t *testing.T) {
 	assert.Equal(t, expectedResult, output)
 }
 
+func TestCommonHeaderProviderTime(t *testing.T) {
+	// test that the time is updated on each call
+	counter := 0
+	nowFunc = func() time.Time {
+		counter++
+		return time.Unix(int64(counter), 0)
+	}
+	defer func() { nowFunc = time.Now }()
+
+	config := fxutil.Test[config.Component](t, config.MockModule())
+
+	provider := newCommonHeaderProvider(agentParams, config)
+
+	data := map[string]interface{}{}
+	err := provider.JSON(false, data)
+	require.NoError(t, err)
+	require.Contains(t, data, "time_nano")
+	assert.EqualValues(t, int64(1000000000), data["time_nano"])
+
+	clear(data)
+	err = provider.JSON(false, data)
+	require.NoError(t, err)
+	require.Contains(t, data, "time_nano")
+	assert.EqualValues(t, int64(2000000000), data["time_nano"])
+}
+
 func TestCommonHeaderProviderTextWithFipsInformation(t *testing.T) {
 	nowFunc = func() time.Time { return time.Unix(1515151515, 0) }
 	startTimeProvider = time.Unix(1515151515, 0)
@@ -181,14 +208,14 @@ func TestCommonHeaderProviderHTML(t *testing.T) {
 	expectedHTMLOutput := fmt.Sprintf(`<div class="stat">
   <span class="stat_title">Agent Info</span>
   <span class="stat_data">
-    Version: %s
-    <br>Flavor: %s
-    <br>PID: %d
-    <br>Agent start: 2018-01-05 11:25:15 UTC (1515151515000)
-    <br>Log Level: info
-    <br>Config File: There is no config file
-    <br>Conf.d Path: %s
-    <br>Checks.d Path: %s
+    Version: %s<br>
+    Flavor: %s<br>
+    PID: %d<br>
+    Agent start: 2018-01-05 11:25:15 UTC (1515151515000)<br>
+    Log Level: info<br>
+    Config File: There is no config file<br>
+    Conf.d Path: %s<br>
+    Checks.d Path: %s
   </span>
 </div>
 
@@ -244,14 +271,14 @@ func TestCommonHeaderProviderHTMLWithFipsInformation(t *testing.T) {
 	expectedHTMLOutput := fmt.Sprintf(`<div class="stat">
   <span class="stat_title">Agent Info</span>
   <span class="stat_data">
-    Version: %s
-    <br>Flavor: %s
-    <br>PID: %d
-    <br>Agent start: 2018-01-05 11:25:15 UTC (1515151515000)
-    <br>Log Level: info
-    <br>Config File: There is no config file
-    <br>Conf.d Path: %s
-    <br>Checks.d Path: %s
+    Version: %s<br>
+    Flavor: %s<br>
+    PID: %d<br>
+    Agent start: 2018-01-05 11:25:15 UTC (1515151515000)<br>
+    Log Level: info<br>
+    Config File: There is no config file<br>
+    Conf.d Path: %s<br>
+    Checks.d Path: %s
   </span>
 </div>
 

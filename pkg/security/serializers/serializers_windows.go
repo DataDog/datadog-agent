@@ -1,3 +1,5 @@
+//go:generate go run github.com/DataDog/datadog-agent/pkg/security/generators/backend_doc -output ../../../docs/cloud-workload-security/backend_windows.schema.json
+
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
@@ -19,6 +21,8 @@ import (
 type FileSerializer struct {
 	// File path
 	Path string `json:"path,omitempty"`
+	// File device path
+	DevicePath string `json:"device_path,omitempty"`
 	// File basename
 	Name string `json:"name,omitempty"`
 }
@@ -115,8 +119,9 @@ func newFileSerializer(fe *model.FileEvent, e *model.Event, _ ...uint64) *FileSe
 
 func newFimFileSerializer(fe *model.FimFileEvent, e *model.Event, _ ...uint64) *FileSerializer {
 	return &FileSerializer{
-		Path: e.FieldHandlers.ResolveFimFilePath(e, fe),
-		Name: e.FieldHandlers.ResolveFimFileBasename(e, fe),
+		Path:       e.FieldHandlers.ResolveFileUserPath(e, fe),
+		DevicePath: e.FieldHandlers.ResolveFimFilePath(e, fe),
+		Name:       e.FieldHandlers.ResolveFimFileBasename(e, fe),
 	}
 }
 

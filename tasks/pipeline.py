@@ -14,15 +14,11 @@ from invoke.exceptions import Exit
 from tasks.libs.ciproviders.github_api import GithubAPI
 from tasks.libs.ciproviders.gitlab_api import get_gitlab_bot_token, get_gitlab_repo, refresh_pipeline
 from tasks.libs.common.color import color_message
-from tasks.libs.common.git import get_current_branch
+from tasks.libs.common.constants import DEFAULT_BRANCH, GITHUB_REPO_NAME
+from tasks.libs.common.git import check_clean_branch_state, get_commit_sha, get_current_branch
 from tasks.libs.common.utils import (
-    DEFAULT_BRANCH,
-    GITHUB_REPO_NAME,
-    check_clean_branch_state,
     get_all_allowed_repo_branches,
     is_allowed_repo_branch,
-    nightly_entry_for,
-    release_entry_for,
 )
 from tasks.libs.owners.parsing import read_owners
 from tasks.libs.pipeline.notifications import send_slack_message
@@ -34,6 +30,7 @@ from tasks.libs.pipeline.tools import (
     trigger_agent_pipeline,
     wait_for_pipeline,
 )
+from tasks.libs.releasing.documentation import nightly_entry_for, release_entry_for
 
 
 class GitlabReference(yaml.YAMLObject):
@@ -57,7 +54,7 @@ def GitlabYamlLoader():
 # Tasks to trigger pipelines
 
 
-def check_deploy_pipeline(repo: Project, git_ref, release_version_6, release_version_7, repo_branch):
+def check_deploy_pipeline(repo: Project, git_ref: str, release_version_6, release_version_7, repo_branch):
     """
     Run checks to verify a deploy pipeline is valid:
     - it targets a valid repo branch
@@ -121,7 +118,7 @@ def clean_running_pipelines(ctx, git_ref=DEFAULT_BRANCH, here=False, use_latest_
     print(f"Fetching running pipelines on {git_ref}")
 
     if not sha and use_latest_sha:
-        sha = ctx.run(f"git rev-parse {git_ref}", hide=True).stdout.strip()
+        sha = get_commit_sha(ctx, git_ref)
         print(f"Git sha not provided, using the one {git_ref} currently points to: {sha}")
     elif not sha:
         print(f"Git sha not provided, fetching all running pipelines on {git_ref}")
@@ -189,7 +186,9 @@ def auto_cancel_previous_pipelines(ctx):
         is_ancestor = ctx.run(f'git merge-base --is-ancestor {pipeline.sha} {git_sha}', warn=True, hide="both")
         if is_ancestor.exited == 0:
             print(f'Gracefully canceling jobs that are not canceled on pipeline {pipeline.id} ({pipeline.web_url})')
-            gracefully_cancel_pipeline(repo, pipeline, force_cancel_stages=["package_build"])
+            gracefully_cancel_pipeline(
+                repo, pipeline, force_cancel_stages=["package_build", "kernel_matrix_testing_prepare"]
+            )
         elif is_ancestor.exited == 1:
             print(f'{pipeline.sha} is not an ancestor of {git_sha}, not cancelling pipeline {pipeline.id}')
         elif is_ancestor.exited == 128:
@@ -203,7 +202,9 @@ def auto_cancel_previous_pipelines(ctx):
                 print(
                     f'Pipeline started earlier than {min_time_before_cancel} minutes ago, gracefully canceling pipeline {pipeline.id}'
                 )
-                gracefully_cancel_pipeline(repo, pipeline, force_cancel_stages=["package_build"])
+                gracefully_cancel_pipeline(
+                    repo, pipeline, force_cancel_stages=["package_build", "kernel_matrix_testing_prepare"]
+                )
         else:
             print(is_ancestor.stderr)
             raise Exit(1)
@@ -212,7 +213,7 @@ def auto_cancel_previous_pipelines(ctx):
 @task
 def run(
     ctx,
-    git_ref=None,
+    git_ref="",
     here=False,
     use_release_entries=False,
     major_versions=None,
@@ -220,6 +221,7 @@ def run(
     deploy=False,
     all_builds=True,
     e2e_tests=True,
+    kmt_tests=True,
     rc_build=False,
     rc_k8s_deployments=False,
 ):
@@ -266,7 +268,7 @@ def run(
 
     repo = get_gitlab_repo()
 
-    if (not git_ref and not here) or (git_ref and here):
+    if (git_ref == "" and not here) or (git_ref != "" and here):
         raise Exit("ERROR: Exactly one of --here or --git-ref <git ref> must be specified.", code=1)
 
     if use_release_entries:
@@ -328,6 +330,7 @@ def run(
             deploy=deploy,
             all_builds=all_builds,
             e2e_tests=e2e_tests,
+            kmt_tests=kmt_tests,
             rc_build=rc_build,
             rc_k8s_deployments=rc_k8s_deployments,
         )

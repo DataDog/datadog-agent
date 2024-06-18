@@ -23,7 +23,6 @@ exclude = [
 line-length = 120
 
 [tool.ruff.lint]
-# Rules were ported over from the legacy flake8 settings for parity
 # All the rules can be found here: https://beta.ruff.rs/docs/rules/
 select = [
     "B",
@@ -34,34 +33,11 @@ select = [
     "I",
     "U",
     "W",
-    "B003",
-    "B006",
-    "B007",
 ]
 ignore = [
-    # From legacy flake8 settings
-    # Ignore:
-    # - black-incompatible options: E203
-    # - bugbear overlap: E722
-    # - style options: W2,W3,W50,E111,E114,E117,E2,E3,E5,E74
-    # - Unnecessary dict call: C408
-    # - complex-structure : C901
-    # - raise-without-from-inside-except: B904
-    "E203",
-    "W2",
-    "W3",
-    "W50",
-    "E111",
-    "E114",
-    "E117",
-    "E2",
-    "E3",
-    "E5",
-    "E74",
-    "E722",
-    "C408",
-    "C901",
-    "B904",
+    "E501", # line-too-long
+    "C901", # complex-structure
+    "B904", # raise-without-from-inside-except
     "UP033", # Ignore the lru_cache for now
     "UP017", # Ignore datetime.UTC for now
 ]

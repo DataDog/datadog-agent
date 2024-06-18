@@ -33,7 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	secagent "github.com/DataDog/datadog-agent/pkg/security/agent"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
@@ -492,17 +492,15 @@ func checkPoliciesLocal(args *checkPoliciesCliParams, writer io.Writer) error {
 		return err
 	}
 
-	if !args.windowsModel {
-		report, err := kfilters.NewApplyRuleSetReport(cfg, ruleSet)
-		if err != nil {
-			return err
-		}
+	report, err := kfilters.NewApplyRuleSetReport(cfg, ruleSet)
+	if err != nil {
+		return err
+	}
 
-		content, _ := json.MarshalIndent(report, "", "\t")
-		_, err = fmt.Fprintf(writer, "%s\n", string(content))
-		if err != nil {
-			return fmt.Errorf("unable to write out report: %w", err)
-		}
+	content, _ := json.MarshalIndent(report, "", "\t")
+	_, err = fmt.Fprintf(writer, "%s\n", string(content))
+	if err != nil {
+		return fmt.Errorf("unable to write out report: %w", err)
 	}
 
 	return nil

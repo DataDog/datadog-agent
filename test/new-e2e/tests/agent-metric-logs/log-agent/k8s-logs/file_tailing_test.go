@@ -17,7 +17,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	kindfilelogger "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-metric-logs/kindfilelogging"
@@ -28,7 +27,6 @@ type k8sSuite struct {
 }
 
 func TestK8sSuite(t *testing.T) {
-	flake.Mark(t)
 	e2e.Run(t, &k8sSuite{}, e2e.WithProvisioner(kindfilelogger.Provisioner()))
 }
 

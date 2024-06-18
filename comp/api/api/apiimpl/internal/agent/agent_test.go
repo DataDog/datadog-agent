@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	"github.com/DataDog/datadog-agent/comp/core/flare/flareimpl"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
 
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
@@ -33,7 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	dogstatsddebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/serverdebugimpl"
@@ -100,10 +101,7 @@ func getComponentDeps(t *testing.T) handlerdeps {
 		demultiplexerendpointmock.MockModule(),
 		inventoryhostimpl.MockModule(),
 		secretsimpl.MockModule(),
-		fx.Provide(func(secretMock secrets.Mock) secrets.Component {
-			component := secretMock.(secrets.Component)
-			return component
-		}),
+		nooptelemetry.Module(),
 		inventorychecksimpl.MockModule(),
 		packagesigningimpl.MockModule(),
 		statusimpl.MockModule(),
@@ -146,11 +144,6 @@ func TestSetupHandlers(t *testing.T) {
 		method   string
 		wantCode int
 	}{
-		{
-			route:    "/version",
-			method:   "GET",
-			wantCode: 200,
-		},
 		{
 			route:    "/flare",
 			method:   "POST",

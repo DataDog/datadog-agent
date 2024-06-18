@@ -21,7 +21,7 @@ import tasks.modules
 from tasks.build_tags import ALL_TAGS, UNIT_TEST_TAGS, get_default_build_tags
 from tasks.libs.common.color import color_message
 from tasks.libs.common.git import check_uncommitted_changes
-from tasks.libs.common.utils import get_build_flags, timed
+from tasks.libs.common.utils import TimedOperationResult, get_build_flags, timed
 from tasks.licenses import get_licenses_list
 from tasks.modules import DEFAULT_MODULES, generate_dummy_package
 
@@ -65,20 +65,30 @@ def run_golangci_lint(
     verbosity = "-v" if verbose else ""
     # we split targets to avoid going over the memory limit from circleCI
     results = []
+    time_results = []
     for target in targets:
-        if not headless_mode:
-            print(f"running golangci on {target}")
-        concurrency_arg = "" if concurrency is None else f"--concurrency {concurrency}"
-        tags_arg = " ".join(sorted(set(tags)))
-        timeout_arg_value = "25m0s" if not timeout else f"{timeout}m0s"
-        result = ctx.run(
-            f'golangci-lint run {verbosity} --timeout {timeout_arg_value} {concurrency_arg} --build-tags "{tags_arg}" --path-prefix "{module_path}" {golangci_lint_kwargs} {target}/...',
-            env=env,
-            warn=True,
-        )
-        results.append(result)
 
-    return results
+        def lint_module(target):
+            if not headless_mode:
+                print(f"running golangci on {target}")
+            concurrency_arg = "" if concurrency is None else f"--concurrency {concurrency}"
+            tags_arg = " ".join(sorted(set(tags)))
+            timeout_arg_value = "25m0s" if not timeout else f"{timeout}m0s"
+            return ctx.run(
+                f'golangci-lint run {verbosity} --timeout {timeout_arg_value} {concurrency_arg} --build-tags "{tags_arg}" --path-prefix "{module_path}" {golangci_lint_kwargs} {target}/...',
+                env=env,
+                warn=True,
+            )
+
+        target_path = Path(module_path) / target
+        result, time_result = TimedOperationResult.run(
+            lint_module, target_path, 'Lint ' + target_path.as_posix(), target=target
+        )
+
+        results.append(result)
+        time_results.append(time_result)
+
+    return results, time_results
 
 
 @task
@@ -346,7 +356,7 @@ def reset(ctx):
 
 
 @task
-def check_go_mod_replaces(_ctx):
+def check_go_mod_replaces(_):
     errors_found = set()
     for mod in DEFAULT_MODULES.values():
         go_sum = os.path.join(mod.full_path(), "go.sum")
@@ -436,7 +446,7 @@ def tidy(ctx):
 @task
 def check_go_version(ctx):
     go_version_output = ctx.run('go version')
-    # result is like "go version go1.21.10 linux/amd64"
+    # result is like "go version go1.21.11 linux/amd64"
     running_go_version = go_version_output.stdout.split(' ')[2]
 
     with open(".go-version") as f:
