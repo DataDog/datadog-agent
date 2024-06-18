@@ -42,7 +42,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/version v0.55.0-rc.3
 	github.com/stretchr/testify v1.9.0
-	go.uber.org/fx v1.22.0
+	go.uber.org/fx v1.18.2
 	golang.org/x/text v0.14.0
 )
 

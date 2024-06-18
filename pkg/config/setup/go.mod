@@ -44,7 +44,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/system v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.55.0-rc.3
 	github.com/stretchr/testify v1.9.0
-	go.uber.org/fx v1.22.0
+	go.uber.org/fx v1.18.2
 	gopkg.in/yaml.v2 v2.4.0
 )
 

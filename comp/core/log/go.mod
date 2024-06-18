@@ -44,7 +44,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/log v0.55.0-rc.3
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // v2.6
 	github.com/stretchr/testify v1.9.0
-	go.uber.org/fx v1.22.0
+	go.uber.org/fx v1.18.2
 )
 
 require (

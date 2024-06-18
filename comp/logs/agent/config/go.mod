@@ -42,7 +42,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.55.0-rc.3
 	github.com/DataDog/viper v1.13.5
 	github.com/stretchr/testify v1.9.0
-	go.uber.org/fx v1.22.0
+	go.uber.org/fx v1.18.2
 )
 
 require (

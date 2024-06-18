@@ -25,7 +25,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.55.0-rc.3
 	github.com/benbjohnson/clock v1.3.0
 	github.com/stretchr/testify v1.9.0
-	go.uber.org/fx v1.22.0
+	go.uber.org/fx v1.18.2
 	golang.org/x/exp v0.0.0-20231214170342-aacd6d4b4611
 	golang.org/x/sys v0.20.0
 	gopkg.in/yaml.v2 v2.4.0
