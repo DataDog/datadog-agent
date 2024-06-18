@@ -367,14 +367,14 @@ X Section
 				expectedStatusHTMLOutput := fmt.Sprintf(`<div class="stat">
   <span class="stat_title">Agent Info</span>
   <span class="stat_data">
-    Version: %s
-    <br>Flavor: %s
-    <br>PID: %d
-    <br>Agent start: 2018-01-05 11:25:15 UTC (1515151515000)
-    <br>Log Level: info
-    <br>Config File: There is no config file
-    <br>Conf.d Path: %s
-    <br>Checks.d Path: %s
+    Version: %s<br>
+    Flavor: %s<br>
+    PID: %d<br>
+    Agent start: 2018-01-05 11:25:15 UTC (1515151515000)<br>
+    Log Level: info<br>
+    Config File: There is no config file<br>
+    Conf.d Path: %s<br>
+    Checks.d Path: %s
   </span>
 </div>
 
@@ -421,14 +421,14 @@ X Section
 				expectedStatusHTMLOutput := fmt.Sprintf(`<div class="stat">
   <span class="stat_title">Agent Info</span>
   <span class="stat_data">
-    Version: %s
-    <br>Flavor: %s
-    <br>PID: %d
-    <br>Agent start: 2018-01-05 11:25:15 UTC (1515151515000)
-    <br>Log Level: info
-    <br>Config File: There is no config file
-    <br>Conf.d Path: %s
-    <br>Checks.d Path: %s
+    Version: %s<br>
+    Flavor: %s<br>
+    PID: %d<br>
+    Agent start: 2018-01-05 11:25:15 UTC (1515151515000)<br>
+    Log Level: info<br>
+    Config File: There is no config file<br>
+    Conf.d Path: %s<br>
+    Checks.d Path: %s
   </span>
 </div>
 

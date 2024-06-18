@@ -395,7 +395,7 @@ def build_functional_tests(
 
     if not skip_linters:
         targets = [srcpath]
-        results = run_golangci_lint(ctx, module_path="", targets=targets, build_tags=build_tags)
+        results, _ = run_golangci_lint(ctx, module_path="", targets=targets, build_tags=build_tags)
         for result in results:
             # golangci exits with status 1 when it finds an issue
             if result.exited != 0:
