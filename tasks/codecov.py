@@ -113,7 +113,7 @@ def codecov(
     """
     if pull_coverage_cache and push_coverage_cache:
         raise Exit(
-            color_message("Error: Can't use both --pull-missing-coverage and --push-coverage-cache flags.", "red"),
+            color_message("Error: Can't use both --pull-missing-coverage and --push-coverage-cache flags.", Color.RED),
             code=1,
         )
     distro_tag = get_distro()
@@ -139,7 +139,7 @@ def produce_coverage_tar(files, archive_name):
 
 def _get_coverage_cache_uri():
     if BUCKET_CI_VAR not in os.environ:
-        raise Exit(color_message(f"Error: the {BUCKET_CI_VAR} environment variable is not set.", "red"), code=1)
+        raise Exit(color_message(f"Error: the {BUCKET_CI_VAR} environment variable is not set.", Color.RED), code=1)
     return f"{os.environ[BUCKET_CI_VAR]}/coverage-cache"
 
 
@@ -165,7 +165,7 @@ def upload_coverage_to_s3(ctx: Context):
         )
     else:
         raise Exit(
-            color_message(f"Failed to upload coverage cache to {cache_uri}/{commit_sha}/{COV_ARCHIVE_NAME}", "red"),
+            color_message(f"Failed to upload coverage cache to {cache_uri}/{commit_sha}/{COV_ARCHIVE_NAME}", Color.RED),
             code=1,
         )
 
@@ -183,7 +183,7 @@ def apply_missing_coverage(ctx: Context, from_commit_sha: str, debug: bool = Fal
     :param from_commit_sha: The commit SHA from which to restore the coverage cache. It needs at least the 8 first characters.
     """
     if not from_commit_sha or len(from_commit_sha) < 8:
-        raise Exit(color_message("Error: the commit SHA is missing or invalid.", "red"), code=1)
+        raise Exit(color_message("Error: the commit SHA is missing or invalid.", Color.RED), code=1)
 
     # Download the coverage archive from S3
     cache_uri = _get_coverage_cache_uri()
@@ -192,7 +192,7 @@ def apply_missing_coverage(ctx: Context, from_commit_sha: str, debug: bool = Fal
     if ctx.run(f"{AWS_CMD} s3 cp {cache_key} ./{downloaded_archive}", echo=True, warn=True):
         print(color_message(f'Successfully retrieved coverage cache from commit {from_commit_sha}', Color.GREEN))
     else:
-        raise Exit(color_message(f'Failed to restore coverage cache from {cache_key}', "red"), code=1)
+        raise Exit(color_message(f'Failed to restore coverage cache from {cache_key}', Color.RED), code=1)
 
     # Extract only the missing coverage files from the archive
     with tarfile.open(f"{downloaded_archive}", "r:gz") as tgz:
