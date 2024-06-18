@@ -24,11 +24,6 @@ import (
 	winio "github.com/Microsoft/go-winio"
 )
 
-var (
-	namedPipeTelemetry *listenerTelemetry
-	telemetryOnce      sync.Once
-)
-
 const pipeNamePrefix = `\\.\pipe\`
 
 // NamedPipeListener implements the StatsdListener interface for named pipe protocol.
@@ -38,10 +33,11 @@ type NamedPipeListener struct {
 	pipe          net.Listener
 	packetManager *packets.PacketManager
 	// TODO: Migrate to `ConnectionTracker` instead
-	connections    *namedPipeConnections
-	trafficCapture replay.Component // Currently ignored
-	listenWg       sync.WaitGroup
-	telemetryStore *TelemetryStore
+	connections       *namedPipeConnections
+	trafficCapture    replay.Component // Currently ignored
+	listenWg          sync.WaitGroup
+	telemetryStore    *TelemetryStore
+	internalTelemetry *listenerTelemetry
 }
 
 // NewNamedPipeListener returns an named pipe Statsd listener
@@ -68,9 +64,7 @@ func newNamedPipeListener(
 	telemetrycomp telemetry.Component,
 ) (*NamedPipeListener, error) {
 
-	telemetryOnce.Do(func() {
-		namedPipeTelemetry = newListenerTelemetry("named_pipe", "named_pipe", telemetrycomp)
-	})
+	namedPipeTelemetry := newListenerTelemetry("named_pipe", "named_pipe", telemetrycomp)
 
 	config := winio.PipeConfig{
 		InputBufferSize:  int32(bufferSize),
@@ -93,8 +87,9 @@ func newNamedPipeListener(
 			allConnsClosed:  make(chan struct{}),
 			activeConnCount: atomic.NewInt32(0),
 		},
-		trafficCapture: capture,
-		telemetryStore: telemetryStore,
+		trafficCapture:    capture,
+		telemetryStore:    telemetryStore,
+		internalTelemetry: namedPipeTelemetry,
 	}
 
 	log.Debugf("dogstatsd-named-pipes: %s successfully initialized", pipe.Addr())
@@ -192,7 +187,7 @@ func (l *NamedPipeListener) listenConnection(conn net.Conn, buffer []byte) {
 				break
 			}
 			log.Errorf("dogstatsd-named-pipes: error reading packet: %v", err.Error())
-			namedPipeTelemetry.onReadError()
+			l.internalTelemetry.onReadError()
 		} else {
 			endIndex := startWriteIndex + bytesRead
 
@@ -200,7 +195,7 @@ func (l *NamedPipeListener) listenConnection(conn net.Conn, buffer []byte) {
 			// If there is a '\n', at least one message is completed and '\n' is part of this message.
 			messageSize := bytes.LastIndexByte(buffer[:endIndex], '\n') + 1
 			if messageSize > 0 {
-				namedPipeTelemetry.onReadSuccess(messageSize)
+				l.internalTelemetry.onReadSuccess(messageSize)
 
 				// PacketAssembler merges multiple packets together and sends them when its buffer is full
 				l.packetManager.PacketAssembler.AddMessage(buffer[:messageSize])
