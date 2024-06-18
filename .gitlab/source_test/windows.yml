@@ -5,6 +5,7 @@
     - !reference [.except_mergequeue]
     - !reference [.except_disable_unit_tests]
     - !reference [.fast_on_dev_branch_only]
+    - !reference [.codecov_cache]
   needs: ["go_deps", "go_tools_deps"]
   tags: ["runner:windows-docker", "windowsversion:1809"]
   script:
@@ -41,6 +42,8 @@
       -e GO_TEST_SKIP_FLAKE="${GO_TEST_SKIP_FLAKE}"
       -e API_KEY_ORG2_SSM_NAME="${API_KEY_ORG2_SSM_NAME}"
       -e CODECOV_TOKEN_SSM_NAME="${CODECOV_TOKEN_SSM_NAME}"
+      -e S3_PERMANENT_ARTIFACTS_URI="${S3_PERMANENT_ARTIFACTS_URI}"
+      -e COVERAGE_CACHE_FLAG="${COVERAGE_CACHE_FLAG}"
       486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_1809_${ARCH}${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES}
       c:\mnt\tasks\winbuildscripts\unittests.bat
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }

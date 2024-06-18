@@ -1053,6 +1053,19 @@ workflow:
   - variables:
       FAST_TESTS: "true"
 
+
+.codecov_cache:
+  # Push coverage cache on main branch
+  # Pull coverage cache on dev branches
+  - <<: *if_main_branch
+    variables:
+      COVERAGE_CACHE_FLAG: "--push-coverage-cache"
+  - <<: *if_release_branch
+    variables:
+      COVERAGE_CACHE_FLAG: ""
+  - variables:
+      COVERAGE_CACHE_FLAG: "--pull-coverage-cache"
+
 .on_gitlab_changes:
   - !reference [.except_mergequeue]
   - changes:
