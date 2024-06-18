@@ -160,6 +160,6 @@ func (fh *FieldHandlers) ResolveNewSecurityDescriptor(_ *model.Event, cp *model.
 }
 
 // ResolveHostname resolve the hostname
-func (fh *FieldHandlers) ResolveHostname(ev *model.Event, e *model.BaseEvent) string {
+func (fh *FieldHandlers) ResolveHostname(_ *model.Event, _ *model.BaseEvent) string {
 	return fh.hostname
 }

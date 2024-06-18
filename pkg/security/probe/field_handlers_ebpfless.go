@@ -392,6 +392,6 @@ func (fh *EBPFLessFieldHandlers) ResolveSyscallCtxArgsInt3(_ *model.Event, e *mo
 }
 
 // ResolveHostname resolve the hostname
-func (fh *EBPFLessFieldHandlers) ResolveHostname(ev *model.Event, e *model.BaseEvent) string {
+func (fh *EBPFLessFieldHandlers) ResolveHostname(_ *model.Event, _ *model.BaseEvent) string {
 	return fh.hostname
 }
