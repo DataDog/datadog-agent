@@ -30,6 +30,7 @@ import (
 	serverdebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
@@ -159,13 +160,14 @@ type server struct {
 	wmeta optional.Option[workloadmeta.Component]
 
 	// telemetry
-	telemetry           telemetry.Component
-	tlmProcessed        telemetry.Counter
-	tlmProcessedOk      telemetry.SimpleCounter
-	tlmProcessedError   telemetry.SimpleCounter
-	tlmChannel          telemetry.Histogram
-	listernersTelemetry *listeners.TelemetryStore
-	packetsTelemetry    *packets.TelemetryStore
+	telemetry               telemetry.Component
+	tlmProcessed            telemetry.Counter
+	tlmProcessedOk          telemetry.SimpleCounter
+	tlmProcessedError       telemetry.SimpleCounter
+	tlmChannel              telemetry.Histogram
+	listernersTelemetry     *listeners.TelemetryStore
+	packetsTelemetry        *packets.TelemetryStore
+	stringInternerTelemetry *stringInternerTelemetry
 }
 
 func initTelemetry() {
@@ -298,11 +300,12 @@ func newServerCompat(cfg config.Reader, log logComponent.Component, capture repl
 			defaultHostname:           defaultHostname,
 			serverlessMode:            serverless,
 		},
-		wmeta:             wmeta,
-		telemetry:         telemetrycomp,
-		tlmProcessed:      dogstatsdTelemetryCount,
-		tlmProcessedOk:    dogstatsdTelemetryCount.WithValues("metrics", "ok", ""),
-		tlmProcessedError: dogstatsdTelemetryCount.WithValues("metrics", "error", ""),
+		wmeta:                   wmeta,
+		telemetry:               telemetrycomp,
+		tlmProcessed:            dogstatsdTelemetryCount,
+		tlmProcessedOk:          dogstatsdTelemetryCount.WithValues("metrics", "ok", ""),
+		tlmProcessedError:       dogstatsdTelemetryCount.WithValues("metrics", "error", ""),
+		stringInternerTelemetry: newSiTelemetry(utils.IsTelemetryEnabled(cfg), telemetrycomp),
 	}
 
 	buckets := getBuckets(cfg, log, "telemetry.dogstatsd.aggregator_channel_latency_buckets")
@@ -520,7 +523,7 @@ func (s *server) handleMessages() {
 	s.log.Debug("DogStatsD will run", workersCount, "workers")
 
 	for i := 0; i < workersCount; i++ {
-		worker := newWorker(s, i, s.wmeta, s.telemetry, s.packetsTelemetry)
+		worker := newWorker(s, i, s.wmeta, s.packetsTelemetry, s.stringInternerTelemetry)
 		go worker.run()
 		s.workers = append(s.workers, worker)
 	}

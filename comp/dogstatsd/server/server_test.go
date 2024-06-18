@@ -722,7 +722,8 @@ func TestNoMappingsConfig(t *testing.T) {
 
 	assert.Nil(t, s.mapper)
 
-	parser := newParser(deps.Config, newFloat64ListPool(deps.Telemetry), 1, deps.WMeta, deps.Telemetry)
+	stringInternerTelemetry := newSiTelemetry(false, deps.Telemetry)
+	parser := newParser(deps.Config, newFloat64ListPool(deps.Telemetry), 1, deps.WMeta, stringInternerTelemetry)
 	samples, err := s.parseMetricMessage(samples, parser, []byte("test.metric:666|g"), "", "", false)
 	assert.NoError(t, err)
 	assert.Len(t, samples, 1)
@@ -834,7 +835,8 @@ dogstatsd_mapper_profiles:
 
 			var actualSamples []MetricSample
 			for _, p := range scenario.packets {
-				parser := newParser(deps.Config, newFloat64ListPool(deps.Telemetry), 1, deps.WMeta, deps.Telemetry)
+				stringInternerTelemetry := newSiTelemetry(false, deps.Telemetry)
+				parser := newParser(deps.Config, newFloat64ListPool(deps.Telemetry), 1, deps.WMeta, stringInternerTelemetry)
 				samples, err := s.parseMetricMessage(samples, parser, []byte(p), "", "", false)
 				assert.NoError(t, err, "Case `%s` failed. parseMetricMessage should not return error %v", err)
 				for _, sample := range samples {
@@ -896,7 +898,8 @@ func TestProcessedMetricsOrigin(t *testing.T) {
 		assert.Len(s.cachedOriginCounters, 0, "this cache must be empty")
 		assert.Len(s.cachedOrder, 0, "this cache list must be empty")
 
-		parser := newParser(deps.Config, newFloat64ListPool(deps.Telemetry), 1, deps.WMeta, deps.Telemetry)
+		stringInternerTelemetry := newSiTelemetry(false, deps.Telemetry)
+		parser := newParser(deps.Config, newFloat64ListPool(deps.Telemetry), 1, deps.WMeta, stringInternerTelemetry)
 		samples := []metrics.MetricSample{}
 		samples, err := s.parseMetricMessage(samples, parser, []byte("test.metric:666|g"), "test_container", "1", false)
 		assert.NoError(err)
@@ -971,7 +974,8 @@ func testContainerIDParsing(t *testing.T, cfg map[string]interface{}) {
 	assert := assert.New(t)
 	requireStart(t, s)
 
-	parser := newParser(deps.Config, newFloat64ListPool(deps.Telemetry), 1, deps.WMeta, deps.Telemetry)
+	stringInternerTelemetry := newSiTelemetry(false, deps.Telemetry)
+	parser := newParser(deps.Config, newFloat64ListPool(deps.Telemetry), 1, deps.WMeta, stringInternerTelemetry)
 	parser.dsdOriginEnabled = true
 
 	// Metric
@@ -1015,7 +1019,8 @@ func TestOrigin(t *testing.T) {
 
 		requireStart(t, s)
 
-		parser := newParser(deps.Config, newFloat64ListPool(deps.Telemetry), 1, deps.WMeta, deps.Telemetry)
+		stringInternerTelemetry := newSiTelemetry(false, deps.Telemetry)
+		parser := newParser(deps.Config, newFloat64ListPool(deps.Telemetry), 1, deps.WMeta, stringInternerTelemetry)
 		parser.dsdOriginEnabled = true
 
 		// Metric
