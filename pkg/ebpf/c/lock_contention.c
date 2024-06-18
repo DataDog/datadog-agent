@@ -361,14 +361,6 @@ BPF_PERCPU_ARRAY_MAP(tstamp_cpu, struct tstamp_data, 1);
 BPF_HASH_MAP(lock_stat, struct lock_range, struct contention_data, 0);
 BPF_PERCPU_ARRAY_MAP(ranges, struct lock_range, 0);
 
-/* control flags */
-//int enabled;
-
-/* error stat */
-//int task_fail;
-//int time_fail;
-//int data_fail;
-//
 int data_map_full;
 
 static __always_inline int can_record(u64 *ctx, struct lock_range* range)
@@ -435,13 +427,11 @@ static __always_inline struct tstamp_data *get_tstamp_elem(__u32 flags) {
 		struct tstamp_data zero = {};
 
 		if (bpf_map_update_elem(&tstamp, &pid, &zero, BPF_NOEXIST) < 0) {
-			//__sync_fetch_and_add(&task_fail, 1);
 			return NULL;
 		}
 
 		pelem = bpf_map_lookup_elem(&tstamp, &pid);
 		if (pelem == NULL) {
-			//__sync_fetch_and_add(&task_fail, 1);
 			return NULL;
 		}
 	}
@@ -514,7 +504,6 @@ int tracepoint__contention_end(u64 *ctx)
     	pelem->lock = 0;
     	if (need_delete)
     		bpf_map_delete_elem(&tstamp, &pid);
-    	//__sync_fetch_and_add(&time_fail, 1);
     	return 0;
     }
 
@@ -525,7 +514,6 @@ int tracepoint__contention_end(u64 *ctx)
     		pelem->lock = 0;
     		if (need_delete)
     			bpf_map_delete_elem(&tstamp, &pid);
-    		//__sync_fetch_and_add(&data_fail, 1);
     		return 0;
     	}
 
@@ -542,7 +530,6 @@ int tracepoint__contention_end(u64 *ctx)
     	if (err < 0) {
     		if (err == -E2BIG)
     			data_map_full = 1;
-    		//__sync_fetch_and_add(&data_fail, 1);
     	}
 
     	pelem->lock = 0;
