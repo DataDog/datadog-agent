@@ -290,20 +290,28 @@ func libImageName(registry string, lang language, tag string) string {
 	return fmt.Sprintf(imageFormat, registry, lang, tag)
 }
 
+func (w *Webhook) isPodEligible(pod *corev1.Pod) bool {
+	if w.isEnabledInNamespace(pod.Namespace) {
+		// if Single Step Instrumentation is enabled, pods can still opt out using the label
+		if pod.GetLabels()[common.EnabledLabelKey] == "false" {
+			log.Debugf("Skipping single step instrumentation of pod %q due to label", mutatecommon.PodString(pod))
+			return false
+		}
+	} else if !mutatecommon.ShouldMutatePod(pod) {
+		log.Debugf("Skipping auto instrumentation of pod %q because pod mutation is not allowed", mutatecommon.PodString(pod))
+		return false
+	}
+
+	return true
+}
+
 func (w *Webhook) inject(pod *corev1.Pod, _ string, _ dynamic.Interface) (bool, error) {
 	if pod == nil {
 		return false, errors.New(metrics.InvalidInput)
 	}
 	injectApmTelemetryConfig(pod)
 
-	if w.isEnabledInNamespace(pod.Namespace) {
-		// if Single Step Instrumentation is enabled, pods can still opt out using the label
-		if pod.GetLabels()[common.EnabledLabelKey] == "false" {
-			log.Debugf("Skipping single step instrumentation of pod %q due to label", mutatecommon.PodString(pod))
-			return false, nil
-		}
-	} else if !mutatecommon.ShouldMutatePod(pod) {
-		log.Debugf("Skipping auto instrumentation of pod %q because pod mutation is not allowed", mutatecommon.PodString(pod))
+	if !w.isPodEligible(pod) {
 		return false, nil
 	}
 	for _, lang := range supportedLanguages {

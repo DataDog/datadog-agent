@@ -305,6 +305,7 @@ func TestExtractLibInfo(t *testing.T) {
 		pod                  *corev1.Pod
 		containerRegistry    string
 		expectedLibsToInject []libInfo
+		expectedPodEligible  int // using this as a flag system
 		setupConfig          func()
 	}{
 		{
@@ -341,14 +342,25 @@ func TestExtractLibInfo(t *testing.T) {
 			},
 		},
 		{
-			name:              "python",
-			pod:               common.FakePodWithAnnotation("admission.datadoghq.com/python-lib.version", "v1"),
-			containerRegistry: "registry",
+			name:                "python",
+			pod:                 common.FakePodWithAnnotation("admission.datadoghq.com/python-lib.version", "v1"),
+			containerRegistry:   "registry",
+			expectedPodEligible: 1,
 			expectedLibsToInject: []libInfo{
 				{
 					lang:  "python",
 					image: "registry/dd-lib-python-init:v1",
 				},
+			},
+		},
+		{
+			name:                 "python with unlabelled injection off",
+			pod:                  common.FakePodWithAnnotation("admission.datadoghq.com/python-lib.version", "v1"),
+			containerRegistry:    "registry",
+			expectedPodEligible:  -1,
+			expectedLibsToInject: []libInfo{},
+			setupConfig: func() {
+				mockConfig.SetWithoutSource("admission_controller.mutate_unlabelled", false)
 			},
 		},
 		{
@@ -436,9 +448,10 @@ func TestExtractLibInfo(t *testing.T) {
 			},
 		},
 		{
-			name:              "all",
-			pod:               common.FakePodWithAnnotation("admission.datadoghq.com/all-lib.version", "latest"),
-			containerRegistry: "registry",
+			name:                "all",
+			pod:                 common.FakePodWithAnnotation("admission.datadoghq.com/all-lib.version", "latest"),
+			containerRegistry:   "registry",
+			expectedPodEligible: 1,
 			expectedLibsToInject: []libInfo{ // TODO: Add new entry when a new language is supported
 				{
 					lang:  "java",
@@ -460,6 +473,77 @@ func TestExtractLibInfo(t *testing.T) {
 					lang:  "ruby",
 					image: "registry/dd-lib-ruby-init:latest",
 				},
+			},
+		},
+		{
+			name:                "all with mutate_unlabelled off",
+			pod:                 common.FakePodWithAnnotation("admission.datadoghq.com/all-lib.version", "latest"),
+			containerRegistry:   "registry",
+			expectedPodEligible: -1,
+			expectedLibsToInject: []libInfo{ // TODO: Add new entry when a new language is supported
+				{
+					lang:  "java",
+					image: "registry/dd-lib-java-init:latest",
+				},
+				{
+					lang:  "js",
+					image: "registry/dd-lib-js-init:latest",
+				},
+				{
+					lang:  "python",
+					image: "registry/dd-lib-python-init:latest",
+				},
+				{
+					lang:  "dotnet",
+					image: "registry/dd-lib-dotnet-init:latest",
+				},
+				{
+					lang:  "ruby",
+					image: "registry/dd-lib-ruby-init:latest",
+				},
+			},
+			setupConfig: func() {
+				mockConfig.SetWithoutSource("admission_controller.mutate_unlabelled", false)
+			},
+		},
+		{
+			name: "all with mutate_unlabelled off, but labelled admission enabled",
+			pod: &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						"admission.datadoghq.com/all-lib.version": "latest",
+					},
+					Labels: map[string]string{
+						"admission.datadoghq.com/enabled": "true",
+					},
+				},
+			},
+			containerRegistry:   "registry",
+			expectedPodEligible: 1,
+			expectedLibsToInject: []libInfo{ // TODO: Add new entry when a new language is supported
+				{
+					lang:  "java",
+					image: "registry/dd-lib-java-init:latest",
+				},
+				{
+					lang:  "js",
+					image: "registry/dd-lib-js-init:latest",
+				},
+				{
+					lang:  "python",
+					image: "registry/dd-lib-python-init:latest",
+				},
+				{
+					lang:  "dotnet",
+					image: "registry/dd-lib-dotnet-init:latest",
+				},
+				{
+					lang:  "ruby",
+					image: "registry/dd-lib-ruby-init:latest",
+				},
+			},
+			setupConfig: func() {
+				mockConfig.SetWithoutSource("admission_controller.mutate_unlabelled", false)
 			},
 		},
 		{
@@ -616,8 +700,19 @@ func TestExtractLibInfo(t *testing.T) {
 
 			// Need to create a new instance of the webhook to take into account
 			// the config changes.
-			apmInstrumentationWebhook, errInitAPMInstrumentation = NewWebhook(wmeta)
+			UnsetWebhook()
+			apmInstrumentationWebhook, errInitAPMInstrumentation := GetWebhook(wmeta)
 			require.NoError(t, errInitAPMInstrumentation)
+
+			podIsEligibile := apmInstrumentationWebhook.isPodEligible(tt.pod)
+			switch tt.expectedPodEligible {
+			case 1:
+				require.True(t, podIsEligibile, "pod is expected to be eligible to inject")
+			case -1:
+				require.False(t, podIsEligibile, "pod is expected to be ineligible to inject")
+			default:
+				// we don't check it
+			}
 
 			libsToInject, _ := apmInstrumentationWebhook.extractLibInfo(tt.pod)
 			require.ElementsMatch(t, tt.expectedLibsToInject, libsToInject)
@@ -2004,7 +2099,8 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 
 			// Need to create a new instance of the webhook to take into account
 			// the config changes.
-			apmInstrumentationWebhook, errInitAPMInstrumentation = NewWebhook(wmeta)
+			UnsetWebhook()
+			apmInstrumentationWebhook, errInitAPMInstrumentation := GetWebhook(wmeta)
 			require.NoError(t, errInitAPMInstrumentation)
 
 			_, err := apmInstrumentationWebhook.inject(tt.pod, "", fake.NewSimpleDynamicClient(scheme.Scheme))
@@ -2246,10 +2342,11 @@ func TestShouldInject(t *testing.T) {
 
 			// Need to create a new instance of the webhook to take into account
 			// the config changes.
-			apmInstrumentationWebhook, errInitAPMInstrumentation = NewWebhook(wmeta)
+			UnsetWebhook()
+			webhook, errInitAPMInstrumentation := GetWebhook(wmeta)
 			require.NoError(t, errInitAPMInstrumentation)
 
-			if got := ShouldInject(tt.pod, wmeta); got != tt.want {
+			if got := webhook.isPodEligible(tt.pod); got != tt.want {
 				t.Errorf("shouldInject() = %v, want %v", got, tt.want)
 			}
 		})
