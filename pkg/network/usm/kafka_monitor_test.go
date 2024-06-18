@@ -1310,8 +1310,8 @@ func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
 				getAndValidateKafkaStats(t, monitor, 1, tt.topic, kafkaParsingValidation{
 					expectedNumberOfFetchRequests: tt.numFetchedRecords,
 					expectedAPIVersionFetch:       apiVersion,
-				tlsEnabled:                    tls,
-			}, tt.errorCode)
+					tlsEnabled:                    tls,
+				}, tt.errorCode)
 			}
 		})
 
@@ -1373,8 +1373,8 @@ func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
 				getAndValidateKafkaStats(t, monitor, 1, tt.topic, kafkaParsingValidation{
 					expectedNumberOfFetchRequests: tt.numFetchedRecords * splitIdx,
 					expectedAPIVersionFetch:       apiVersion,
-				tlsEnabled:                    tls,
-			}, tt.errorCode)
+					tlsEnabled:                    tls,
+				}, tt.errorCode)
 			}
 		})
 	}
@@ -1520,7 +1520,7 @@ func validateProduceFetchCount(t *assert.CollectT, kafkaStats map[kafka.Key]*kaf
 	numberOfProduceRequests := 0
 	numberOfFetchRequests := 0
 	for kafkaKey, kafkaStat := range kafkaStats {
-		hasTLSTag := kafkaStat.StaticTags&network.ConnTagGo != 0
+		hasTLSTag := kafkaStat.ErrorCodeToStat[errorCode].StaticTags&network.ConnTagGo != 0
 		if hasTLSTag != validation.tlsEnabled {
 			continue
 		}
