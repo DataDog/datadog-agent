@@ -14,7 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	corelog "github.com/DataDog/datadog-agent/comp/core/log"
 	corelogimpl "github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/log/tracelogimpl"
@@ -105,13 +105,29 @@ func (r *remotehostimpl) Get(ctx context.Context) (string, error) {
 	return hostname, nil
 }
 
+func (r *remotehostimpl) GetSafe(ctx context.Context) string {
+	h, _ := r.Get(ctx)
+	return h
+}
+
+func (r *remotehostimpl) GetWithProvider(ctx context.Context) (hostnameinterface.Data, error) {
+	h, err := r.Get(ctx)
+	if err != nil {
+		return hostnameinterface.Data{}, err
+	}
+	return hostnameinterface.Data{
+		Hostname: h,
+		Provider: "remote",
+	}, nil
+}
+
 func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, opts ...fx.Option) error {
+	rh := &remotehostimpl{}
 	err := fxutil.Run(
 		forwarder.Bundle(),
 		tracelogimpl.Module(), // cannot have corelogimpl and tracelogimpl at the same time
 		inventoryagentimpl.Module(),
 		workloadmetafx.Module(),
-		hostnameimpl.Module(),
 		statsd.Module(),
 		sysprobeconfig.NoneModule(),
 		fetchonlyimpl.Module(),
@@ -136,8 +152,10 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 			return append(params.ConfPaths, params.Sets...)
 		}),
 		fx.Provide(func() (serializerexporter.SourceProviderFunc, error) {
-			rh := &remotehostimpl{}
 			return rh.Get, nil
+		}),
+		fx.Provide(func() hostnameinterface.Component {
+			return rh
 		}),
 
 		fx.Supply(optional.NewNoneOption[secrets.Component]()),
