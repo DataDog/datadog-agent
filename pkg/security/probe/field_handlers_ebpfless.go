@@ -78,8 +78,8 @@ func (fh *EBPFLessFieldHandlers) ResolveContainerContext(ev *model.Event) (*mode
 	return ev.ContainerContext, ev.ContainerContext != nil
 }
 
-// ResolveContainerContext retrieves the flags associated with the container context
-func (fh *EBPFLessFieldHandlers) ResolveContainerFlags(ev *model.Event, e *model.ContainerContext) int {
+// ResolveContainerFlags retrieves the flags associated with the container context
+func (fh *EBPFLessFieldHandlers) ResolveContainerFlags(ev *model.Event, _ *model.ContainerContext) int {
 	if ev.ContainerContext == nil {
 		return 0
 	}
