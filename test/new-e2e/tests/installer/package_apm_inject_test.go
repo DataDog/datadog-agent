@@ -388,6 +388,20 @@ func (s *packageApmInjectSuite) TestInstrumentScripts() {
 	s.assertDockerdInstrumented(injectOCIPath)
 }
 
+func (s *packageApmInjectSuite) TestInstrumentDockerInactive() {
+	s.host.InstallDocker()
+	s.Env().RemoteHost.MustExecute("sudo systemctl stop docker")
+
+	s.RunInstallScript("DD_APM_INSTRUMENTATION_ENABLED=all", "DD_APM_INSTRUMENTATION_LIBRARIES=python", envForceInstall("datadog-agent"), envForceInstall("datadog-apm-inject"), envForceInstall("datadog-apm-library-python"))
+	defer s.Purge()
+
+	s.Env().RemoteHost.MustExecute("sudo systemctl start docker")
+
+	s.assertLDPreloadInstrumented(injectOCIPath)
+	s.assertSocketPath("/var/run/datadog-installer/apm.socket")
+	s.assertDockerdInstrumented(injectOCIPath)
+}
+
 func (s *packageApmInjectSuite) assertTraceReceived(traceID uint64) {
 	found := assert.Eventually(s.T(), func() bool {
 		tracePayloads, err := s.Env().FakeIntake.Client().GetTraces()
