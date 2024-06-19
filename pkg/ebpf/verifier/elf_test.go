@@ -72,8 +72,10 @@ func TestGetSourceMap(t *testing.T) {
 				hasSourceInfo := false
 				var nonMatching []string
 
-				// Iterate instructions in order so it's easier to debug later
-				// if there are any mismatches
+				// Iterate all the instructions and compare the two sources of data we have.
+				// On one hand we have file-line from DWARF, on the other we have the line contents
+				// from BTF data. We compare the two and make sure they match for most of the lines
+				// We accept some divergence as sometimes there will be differences with macros, etc.
 				insList := maps.Keys(progSourceMap)
 				sort.Ints(insList)
 				for _, ins := range insList {
@@ -82,6 +84,10 @@ func TestGetSourceMap(t *testing.T) {
 						continue
 					}
 					hasSourceInfo = true
+
+					if sl.Line == "" { // We cannot compare with btf-defined source lines
+						continue
+					}
 
 					// Compare the line info with the one from the actual file
 					infoParts := strings.Split(sl.LineInfo, ":")
