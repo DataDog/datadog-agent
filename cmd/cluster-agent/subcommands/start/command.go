@@ -298,6 +298,45 @@ func start(log log.Component,
 		return err
 	}
 
+	clusterName := clustername.GetRFC1123CompliantClusterName(context.TODO(), hname)
+	// Generate and persist a cluster ID
+	// this must be a UUID, and ideally be stable for the lifetime of a cluster,
+	// so we store it in a configmap that we try and read before generating a new one.
+	coreClient := apiCl.Cl.CoreV1().(*corev1.CoreV1Client)
+	clusterID, err := apicommon.GetOrCreateClusterID(coreClient)
+	if err != nil {
+		pkglog.Errorf("Failed to generate or retrieve the cluster ID")
+	}
+	if clusterName == "" {
+		pkglog.Warn("Failed to auto-detect a Kubernetes cluster name. We recommend you set it manually via the cluster_name config option")
+	}
+
+	pkglog.Infof("Cluster ID: %s, Cluster Name: %s", clusterID, clusterName)
+
+	// Initialize and start remote configuration client
+	var rcClient *rcclient.Client
+	rcserv, isSet := rcService.Get()
+	if pkgconfig.IsRemoteConfigEnabled(config) && isSet && clusterID != "" && clusterName != "" {
+		// TODO: Is APM Tracing always required? I am not sure
+		products := []string{state.ProductAPMTracing}
+
+		if config.GetBool("autoscaling.workload.enabled") {
+			products = append(products, state.ProductContainerAutoscalingSettings, state.ProductContainerAutoscalingValues)
+		}
+
+		var err error
+		rcClient, err = initializeRemoteConfigClient(rcserv, config, clusterName, clusterID, products...)
+		if err != nil {
+			pkglog.Errorf("Failed to start remote-configuration: %v", err)
+		} else {
+			rcClient.Start()
+			pkglog.Debugf("Started RcClient")
+			defer func() {
+				rcClient.Close()
+			}()
+		}
+	}
+
 	// Create event recorder
 	eventBroadcaster := record.NewBroadcaster()
 	eventBroadcaster.StartLogging(pkglog.Infof)
@@ -318,42 +357,6 @@ func start(log log.Component,
 	if aggErr := controllers.StartControllers(ctx); aggErr != nil {
 		for _, err := range aggErr.Errors() {
 			pkglog.Warnf("Error while starting controller: %v", err)
-		}
-	}
-
-	clusterName := clustername.GetRFC1123CompliantClusterName(context.TODO(), hname)
-	// Generate and persist a cluster ID
-	// this must be a UUID, and ideally be stable for the lifetime of a cluster,
-	// so we store it in a configmap that we try and read before generating a new one.
-	clusterID, err := apicommon.GetOrCreateClusterID(apiCl.Cl.CoreV1())
-	if err != nil {
-		pkglog.Errorf("Failed to generate or retrieve the cluster ID, err: %v", err)
-	}
-	if clusterName == "" {
-		pkglog.Warn("Failed to auto-detect a Kubernetes cluster name. We recommend you set it manually via the cluster_name config option")
-	}
-	pkglog.Infof("Cluster ID: %s, Cluster Name: %s", clusterID, clusterName)
-
-	// Initialize and start remote configuration client
-	var rcClient *rcclient.Client
-	rcserv, isSet := rcService.Get()
-	if pkgconfig.IsRemoteConfigEnabled(config) && isSet {
-		// TODO: Is APM Tracing always required? I am not sure
-		products := []string{state.ProductAPMTracing}
-
-		if config.GetBool("autoscaling.workload.enabled") {
-			products = append(products, state.ProductContainerAutoscalingSettings, state.ProductContainerAutoscalingValues)
-		}
-
-		var err error
-		rcClient, err = initializeRemoteConfigClient(rcserv, config, clusterName, clusterID, products...)
-		if err != nil {
-			log.Errorf("Failed to start remote-configuration: %v", err)
-		} else {
-			rcClient.Start()
-			defer func() {
-				rcClient.Close()
-			}()
 		}
 	}
 
@@ -536,12 +539,8 @@ func setupClusterCheck(ctx context.Context, ac autodiscovery.Component) (*cluste
 }
 
 func initializeRemoteConfigClient(rcService rccomp.Component, config config.Component, clusterName, clusterID string, products ...string) (*rcclient.Client, error) {
-	if clusterName == "" {
-		pkglog.Warn("cluster-name won't be set for remote-config client")
-	}
-
-	if clusterID == "" {
-		pkglog.Warn("Error retrieving cluster ID: cluster-id won't be set for remote-config client")
+	if clusterID == "" || clusterName == "" {
+		return nil, fmt.Errorf("Error initializing RC client - cluster ID and cluster name should be set")
 	}
 
 	pkglog.Debugf("Initializing remote-config client with cluster-name: '%s', cluster-id: '%s', products: %v", clusterName, clusterID, products)

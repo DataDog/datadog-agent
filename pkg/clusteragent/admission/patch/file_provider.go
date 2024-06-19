@@ -76,8 +76,8 @@ func (fpp *filePatchProvider) process(forcePoll bool) {
 			log.Errorf("Skipping invalid patch request: %s", err)
 			continue
 		}
-		if ch, found := fpp.subscribers[req.K8sTarget.Kind]; found {
-			log.Infof("Publishing patch request for target %s", req.K8sTarget)
+		if ch, found := fpp.subscribers[KindCluster]; found {
+			log.Infof("Publishing patch request for target %v", req.K8sTarget)
 			ch <- req
 		}
 	}

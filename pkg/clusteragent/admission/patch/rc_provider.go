@@ -24,6 +24,7 @@ type remoteConfigProvider struct {
 	isLeaderNotif      <-chan struct{}
 	subscribers        map[TargetObjKind]chan Request
 	clusterName        string
+	rcConfigIDs        map[string]struct{}
 	telemetryCollector telemetry.TelemetryCollector
 }
 
@@ -38,6 +39,7 @@ func newRemoteConfigProvider(client *rcclient.Client, isLeaderNotif <-chan struc
 		isLeaderNotif:      isLeaderNotif,
 		subscribers:        make(map[TargetObjKind]chan Request),
 		clusterName:        clusterName,
+		rcConfigIDs:        make(map[string]struct{}),
 		telemetryCollector: telemetryCollector,
 	}, nil
 }
@@ -69,8 +71,14 @@ func (rcp *remoteConfigProvider) subscribe(kind TargetObjKind) chan Request {
 func (rcp *remoteConfigProvider) process(update map[string]state.RawConfig, _ func(string, state.ApplyStatus)) {
 	log.Infof("Got %d updates from remote-config", len(update))
 	var valid, invalid float64
+
+	toDelete := make(map[string]struct{}, len(rcp.rcConfigIDs))
+	for configID := range rcp.rcConfigIDs {
+		toDelete[configID] = struct{}{}
+	}
+
 	for path, config := range update {
-		log.Debugf("Parsing config %s from path %s", config.Config, path)
+		log.Infof("Parsing config %s from path %s", config.Config, path)
 		var req Request
 		err := json.Unmarshal(config.Config, &req)
 		if err != nil {
@@ -87,14 +95,30 @@ func (rcp *remoteConfigProvider) process(update map[string]state.RawConfig, _ fu
 			log.Errorf("Skipping invalid patch request: %s", err)
 			continue
 		}
-		if ch, found := rcp.subscribers[req.K8sTarget.Kind]; found {
+		if ch, found := rcp.subscribers[KindCluster]; found {
+			if _, ok := toDelete[req.ID]; ok {
+				delete(toDelete, req.ID)
+			} else {
+				rcp.rcConfigIDs[req.ID] = struct{}{}
+			}
+
 			valid++
 			// Log a telemetry event indicating a remote config patch to the Datadog backend
 			rcp.telemetryCollector.SendRemoteConfigPatchEvent(req.getApmRemoteConfigEvent(nil, telemetry.Success))
-			log.Debugf("Publishing patch request for target %s", req.K8sTarget)
+			log.Debugf("Publishing patch request for target %v", req.K8sTarget)
 			ch <- req
 		}
 	}
+
+	for configToDelete := range toDelete {
+		if ch, found := rcp.subscribers[KindCluster]; found {
+			ch <- Request{
+				ID:     configToDelete,
+				Action: DeleteConfig,
+			}
+		}
+	}
+
 	metrics.RemoteConfigs.Set(valid)
 	metrics.InvalidRemoteConfigs.Set(invalid)
 }

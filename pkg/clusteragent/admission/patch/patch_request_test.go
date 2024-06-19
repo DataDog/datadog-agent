@@ -14,6 +14,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func ptrTo[T any](v T) *T {
+	return &v
+}
+
 func TestPatchRequestValidate(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -23,58 +27,31 @@ func TestPatchRequestValidate(t *testing.T) {
 		valid       bool
 	}{
 		{
-			name:        "valid",
-			LibConfig:   common.LibConfig{Language: "lang", Version: "latest"},
-			K8sTarget:   K8sTarget{Cluster: "cluster", Kind: "deployment", Name: "name", Namespace: "ns"},
+			name:      "valid",
+			LibConfig: common.LibConfig{Env: ptrTo("dev")},
+			K8sTarget: K8sTarget{
+				ClusterTargets: []K8sClusterTarget{
+					{ClusterName: "cluster", Enabled: ptrTo(true), EnabledNamespaces: &([]string{"ns"})},
+				},
+			},
 			clusterName: "cluster",
 			valid:       true,
 		},
 		{
-			name:        "empty version",
-			LibConfig:   common.LibConfig{Language: "lang"},
-			K8sTarget:   K8sTarget{Cluster: "cluster", Kind: "deployment", Name: "name", Namespace: "ns"},
+			name:      "empty env",
+			LibConfig: common.LibConfig{},
+			K8sTarget: K8sTarget{
+				ClusterTargets: []K8sClusterTarget{
+					{ClusterName: "cluster", Enabled: ptrTo(true), EnabledNamespaces: &([]string{"ns"})},
+				},
+			},
 			clusterName: "cluster",
-			valid:       false,
+			valid:       true,
 		},
 		{
-			name:        "empty language",
-			LibConfig:   common.LibConfig{Version: "latest"},
-			K8sTarget:   K8sTarget{Cluster: "cluster", Kind: "deployment", Name: "name", Namespace: "ns"},
-			clusterName: "cluster",
-			valid:       false,
-		},
-		{
-			name:        "empty cluster",
-			LibConfig:   common.LibConfig{Language: "lang", Version: "latest"},
-			K8sTarget:   K8sTarget{Kind: "deployment", Name: "name", Namespace: "ns"},
-			clusterName: "cluster",
-			valid:       false,
-		},
-		{
-			name:        "wrong cluster",
-			LibConfig:   common.LibConfig{Language: "lang", Version: "latest"},
-			K8sTarget:   K8sTarget{Cluster: "wrong-cluster", Kind: "deployment", Name: "name", Namespace: "ns"},
-			clusterName: "cluster",
-			valid:       false,
-		},
-		{
-			name:        "empty kind",
-			LibConfig:   common.LibConfig{Language: "lang", Version: "latest"},
-			K8sTarget:   K8sTarget{Cluster: "cluster", Name: "name", Namespace: "ns"},
-			clusterName: "cluster",
-			valid:       false,
-		},
-		{
-			name:        "empty name",
-			LibConfig:   common.LibConfig{Language: "lang", Version: "latest"},
-			K8sTarget:   K8sTarget{Cluster: "cluster", Kind: "deployment", Namespace: "ns"},
-			clusterName: "cluster",
-			valid:       false,
-		},
-		{
-			name:        "empty namespace",
-			LibConfig:   common.LibConfig{Language: "lang", Version: "latest"},
-			K8sTarget:   K8sTarget{Cluster: "cluster", Kind: "deployment", Name: "name"},
+			name:        "no cluster targets",
+			LibConfig:   common.LibConfig{Env: ptrTo("dev")},
+			K8sTarget:   K8sTarget{ClusterTargets: []K8sClusterTarget{}},
 			clusterName: "cluster",
 			valid:       false,
 		},
@@ -83,7 +60,7 @@ func TestPatchRequestValidate(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			request := Request{
 				LibConfig: tt.LibConfig,
-				K8sTarget: tt.K8sTarget,
+				K8sTarget: &tt.K8sTarget,
 			}
 			err := request.Validate(tt.clusterName)
 			require.True(t, (err == nil) == tt.valid)

@@ -13,119 +13,96 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/telemetry"
-
+	k8sutil "github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/stretchr/testify/require"
-	appsv1 "k8s.io/api/apps/v1"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/fake"
 )
 
-func TestPatchDeployment(t *testing.T) {
+func TestPatchNamespace(t *testing.T) {
 	client := fake.NewSimpleClientset()
-	name := "target-deploy"
-	ns := "default"
+	name := "target-namespace"
+	env := "dev"
+	ctx := context.TODO()
 
-	// Create target deployment
-	deploy := appsv1.Deployment{}
-	deploy.ObjectMeta.Name = name
-	deploy.ObjectMeta.Namespace = ns
-	deploy.Spec.Template.Labels = make(map[string]string)
-	deploy.Spec.Template.Annotations = make(map[string]string)
-	client.AppsV1().Deployments(ns).Create(context.TODO(), &deploy, metav1.CreateOptions{})
+	// Create target namespace
+	ns := v1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        name,
+			Labels:      make(map[string]string),
+			Annotations: make(map[string]string),
+		},
+	}
+	_, _ = client.CoreV1().Namespaces().Create(ctx, &ns, metav1.CreateOptions{})
 
 	// Create patcher
 	p := patcher{
-		k8sClient:          client,
-		isLeader:           func() bool { return true },
-		telemetryCollector: telemetry.NewNoopCollector(),
+		k8sClient:            client,
+		isLeader:             func() bool { return true },
+		telemetryCollector:   telemetry.NewNoopCollector(),
+		configIDToNamespaces: make(map[string][]string),
 	}
 
 	// Create request skeleton
 	req := Request{
-		ID:        "id",
-		K8sTarget: K8sTarget{Kind: KindDeployment, Namespace: ns, Name: name},
-		LibConfig: common.LibConfig{Language: "java", Version: "latest"},
+		ID: "id",
+		K8sTarget: &K8sTarget{
+			ClusterTargets: []K8sClusterTarget{
+				{ClusterName: "test-cluster", Enabled: ptrTo(true), EnabledNamespaces: &[]string{name}},
+			},
+		},
+		LibConfig: common.LibConfig{Env: &env},
 	}
 
-	// Stage the patch
-	req.Action = StageConfig
+	// Enable the configuration
+	req.ID = "12345"
+	req.Action = EnableConfig
 	req.Revision = 12
-	require.NoError(t, p.patchDeployment(req))
+	require.NoError(t, p.patchNamespaces(req))
 
 	// Check the patch
-	got, err := client.AppsV1().Deployments(ns).Get(context.TODO(), name, metav1.GetOptions{})
+	got, err := client.CoreV1().Namespaces().Get(ctx, name, metav1.GetOptions{})
 	require.NoError(t, err)
-	require.NotContains(t, got.Spec.Template.Labels, "admission.datadoghq.com/enabled")
-	require.NotContains(t, got.Spec.Template.Annotations, "admission.datadoghq.com/java-lib.version")
-	require.NotContains(t, got.Spec.Template.Annotations, "admission.datadoghq.com/java-lib.config.v1")
-	require.NotContains(t, got.Spec.Template.Annotations, "admission.datadoghq.com/rc.id")
-	require.NotContains(t, got.Spec.Template.Annotations, "admission.datadoghq.com/rc.rev")
-	require.Equal(t, got.Annotations["admission.datadoghq.com/rc.id"], "id")
-	require.Equal(t, got.Annotations["admission.datadoghq.com/rc.rev"], "12")
+	expectedLabels := map[string]string{k8sutil.RcLabelKey: "true"}
+	expectedAnnotations := map[string]string{k8sutil.RcIDAnnotKey: "12345", k8sutil.RcRevisionAnnotKey: "12"}
+	require.Equal(t, expectedLabels, got.Labels)
+	require.Equal(t, expectedAnnotations, got.Annotations)
 
-	// Apply the patch
+	// Enable the configuration on the same namespace
+	req.ID = "123456"
 	req.Action = EnableConfig
 	req.Revision = 123
-	require.NoError(t, p.patchDeployment(req))
+	require.NoError(t, p.patchNamespaces(req))
 
 	// Check the patch
-	got, err = client.AppsV1().Deployments(ns).Get(context.TODO(), name, metav1.GetOptions{})
+	got, err = client.CoreV1().Namespaces().Get(ctx, name, metav1.GetOptions{})
 	require.NoError(t, err)
-	require.Equal(t, got.Spec.Template.Labels["admission.datadoghq.com/enabled"], "true")
-	require.Equal(t, got.Spec.Template.Annotations["admission.datadoghq.com/java-lib.version"], "latest")
-	require.Equal(t, got.Spec.Template.Annotations["admission.datadoghq.com/java-lib.config.v1"], `{"library_language":"java","library_version":"latest"}`)
-	require.Equal(t, got.Spec.Template.Annotations["admission.datadoghq.com/rc.id"], "id")
-	require.Equal(t, got.Spec.Template.Annotations["admission.datadoghq.com/rc.rev"], "123")
-	require.Equal(t, got.Annotations["admission.datadoghq.com/rc.id"], "id")
-	require.Equal(t, got.Annotations["admission.datadoghq.com/rc.rev"], "123")
+	require.Equal(t, expectedLabels, got.Labels)
+	require.Equal(t, expectedAnnotations, got.Annotations)
 
-	// Patch again to disable lib injection (aka revert)
+	// Disable the configuration
+	req.ID = "12345"
 	req.Action = DisableConfig
-	req.Revision = 1234
-	require.NoError(t, p.patchDeployment(req))
+	req.Revision = 13
+	require.NoError(t, p.patchNamespaces(req))
 
-	// Check the new patch
-	got, err = client.AppsV1().Deployments(ns).Get(context.TODO(), name, metav1.GetOptions{})
+	// Check the patch
+	got, err = client.CoreV1().Namespaces().Get(ctx, name, metav1.GetOptions{})
 	require.NoError(t, err)
-	require.Equal(t, got.Spec.Template.Labels["admission.datadoghq.com/enabled"], "false")
-	require.NotContains(t, got.Spec.Template.Annotations, "admission.datadoghq.com/java-lib.version")
-	require.NotContains(t, got.Spec.Template.Annotations, "admission.datadoghq.com/java-lib.config.v1")
-	require.Equal(t, got.Spec.Template.Annotations["admission.datadoghq.com/rc.id"], "id")
-	require.Equal(t, got.Spec.Template.Annotations["admission.datadoghq.com/rc.rev"], "1234")
-	require.Equal(t, got.Annotations["admission.datadoghq.com/rc.id"], "id")
-	require.Equal(t, got.Annotations["admission.datadoghq.com/rc.rev"], "1234")
+	expectedLabels = map[string]string{k8sutil.RcLabelKey: "false"}
+	require.Equal(t, expectedLabels, got.Labels)
+	require.Equal(t, expectedAnnotations, got.Annotations)
 
-	// Apply a new patch with a new config
-	req.Action = EnableConfig
-	req.Revision = 12345
-	req.LibConfig = common.LibConfig{Language: "java", Version: "latest", TracingTags: []string{"k1:v1", "k2:v2"}}
-	require.NoError(t, p.patchDeployment(req))
+	// Delete configuration
+	req.Action = DeleteConfig
+	req.Revision = 15
+	require.NoError(t, p.patchNamespaces(req))
 
-	// Check the new patch
-	got, err = client.AppsV1().Deployments(ns).Get(context.TODO(), name, metav1.GetOptions{})
+	// Check the patch
+	got, err = client.CoreV1().Namespaces().Get(ctx, name, metav1.GetOptions{})
 	require.NoError(t, err)
-	require.Equal(t, got.Spec.Template.Labels["admission.datadoghq.com/enabled"], "true")
-	require.Equal(t, got.Spec.Template.Annotations["admission.datadoghq.com/java-lib.version"], "latest")
-	require.Equal(t, got.Spec.Template.Annotations["admission.datadoghq.com/java-lib.config.v1"], `{"library_language":"java","library_version":"latest","tracing_tags":["k1:v1","k2:v2"]}`)
-	require.Equal(t, got.Spec.Template.Annotations["admission.datadoghq.com/rc.id"], "id")
-	require.Equal(t, got.Spec.Template.Annotations["admission.datadoghq.com/rc.rev"], "12345")
-	require.Equal(t, got.Annotations["admission.datadoghq.com/rc.id"], "id")
-	require.Equal(t, got.Annotations["admission.datadoghq.com/rc.rev"], "12345")
-
-	// Stage a new patch with a new config
-	req.Action = StageConfig
-	req.Revision = 123456
-	req.LibConfig = common.LibConfig{Language: "java", Version: "v1", TracingTags: []string{"foo:bar"}}
-	require.NoError(t, p.patchDeployment(req))
-
-	// Check the new patch, only the deployment annotations should be updated
-	got, err = client.AppsV1().Deployments(ns).Get(context.TODO(), name, metav1.GetOptions{})
-	require.NoError(t, err)
-	require.Equal(t, got.Spec.Template.Labels["admission.datadoghq.com/enabled"], "true")
-	require.Equal(t, got.Spec.Template.Annotations["admission.datadoghq.com/java-lib.version"], "latest")
-	require.Equal(t, got.Spec.Template.Annotations["admission.datadoghq.com/java-lib.config.v1"], `{"library_language":"java","library_version":"latest","tracing_tags":["k1:v1","k2:v2"]}`)
-	require.Equal(t, got.Spec.Template.Annotations["admission.datadoghq.com/rc.id"], "id")
-	require.Equal(t, got.Spec.Template.Annotations["admission.datadoghq.com/rc.rev"], "12345")
-	require.Equal(t, got.Annotations["admission.datadoghq.com/rc.id"], "id")
-	require.Equal(t, got.Annotations["admission.datadoghq.com/rc.rev"], "123456")
+	require.NotContains(t, got.ObjectMeta.Labels, k8sutil.RcLabelKey)
+	require.NotContains(t, got.ObjectMeta.Annotations, k8sutil.RcIDAnnotKey)
+	require.NotContains(t, got.ObjectMeta.Annotations, k8sutil.RcRevisionAnnotKey)
 }
