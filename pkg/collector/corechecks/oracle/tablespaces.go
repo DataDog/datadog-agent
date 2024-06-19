@@ -47,14 +47,14 @@ const (
 	maxSizeQuery12 = `SELECT
   c.name pdb_name,
   f.tablespace_name tablespace_name,
-  SUM(CASE WHEN autoextensible = 'YES' THEN maxbytes ELSE bytes END) maxsize
+  COALESCE(SUM(CASE WHEN autoextensible = 'YES' THEN maxbytes ELSE bytes END), 0) maxsize
 FROM cdb_data_files f, v$containers c
 WHERE c.con_id(+) = f.con_id
 GROUP BY c.name, f.tablespace_name`
 
 	maxSizeQuery11 = `SELECT
     f.tablespace_name tablespace_name,
-    SUM(CASE WHEN autoextensible = 'YES' THEN maxbytes ELSE bytes END) maxsize
+    COALESCE(SUM(CASE WHEN autoextensible = 'YES' THEN maxbytes ELSE bytes END), 0) maxsize
     FROM dba_data_files f
     GROUP BY f.tablespace_name`
 )
