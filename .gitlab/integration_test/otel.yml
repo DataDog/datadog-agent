@@ -9,12 +9,11 @@ integration_tests_otel:
   script:
     - inv check-otel-build
     - inv check-otel-module-versions
-  rules: # this should only run on dev branches
+  rules:
     - if: $CI_PIPELINE_SOURCE =~ /^schedule.*$/
       when: never
     - if: $CI_COMMIT_TAG
       when: never
-    - !reference [.except_main_or_release_branch]
     - if: $CI_COMMIT_MESSAGE =~ /.*\[skip cancel\].*/
       when: never
     - if: $CI_COMMIT_REF_NAME =~ /.*-skip-cancel$/
