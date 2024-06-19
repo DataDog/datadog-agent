@@ -10,8 +10,10 @@ package tests
 
 import (
 	"flag"
+	"fmt"
 	"math/rand"
 	"os"
+	"os/exec"
 	"testing"
 	"time"
 
@@ -25,6 +27,13 @@ func TestMain(m *testing.M) {
 	preTestsHook()
 	retCode := m.Run()
 	postTestsHook()
+
+	cmd := exec.Command("ps", "-e", "-o", "uid pid ppid pcpu pmem vsz rssize start time command")
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println(string(out))
 
 	if commonCfgDir != "" {
 		_ = os.RemoveAll(commonCfgDir)

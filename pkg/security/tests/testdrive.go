@@ -131,7 +131,10 @@ func newTestDriveWithMountPoint(tb testing.TB, fsType string, mountOpts []string
 func (td *testDrive) lsof() string {
 	lsofCmd := exec.Command("lsof", td.Root())
 	output, _ := lsofCmd.CombinedOutput()
-	return string(output)
+
+	cmd := exec.Command("ps", "-e", "-o", "uid pid ppid pcpu pmem vsz rssize start time command")
+	output2, _ := cmd.CombinedOutput()
+	return string(output) + string(output2)
 }
 
 func (td *testDrive) Unmount() error {
