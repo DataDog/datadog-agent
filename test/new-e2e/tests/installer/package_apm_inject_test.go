@@ -412,7 +412,8 @@ func (s *packageApmInjectSuite) TestInstallDependencies() {
 	s.RunInstallScript()
 	defer s.Purge()
 	s.host.AssertPackageNotInstalledByPackageManager("datadog-apm-inject")
-	s.Env().RemoteHost.MustExecute("sudo datadog-installer install oci://gcr.io/datadoghq/apm-library-python-package:2.8.2-dev-1")
+	_, err := s.Env().RemoteHost.Execute("sudo datadog-installer install oci://gcr.io/datadoghq/apm-library-python-package:2.8.2-dev-1")
+	assert.Error(s.T(), err)
 	s.host.AssertPackageNotInstalledByPackageManager("datadog-apm-library-python")
 }
 
