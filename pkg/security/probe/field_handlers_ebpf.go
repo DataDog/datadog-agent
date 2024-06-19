@@ -14,6 +14,7 @@ import (
 	"syscall"
 	"time"
 
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	sprocess "github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
@@ -597,12 +598,23 @@ func (fh *EBPFFieldHandlers) ResolveHostname(_ *model.Event, _ *model.BaseEvent)
 	return fh.hostname
 }
 
-// ResolveContainerFlags resolve syscall ctx
-func (fh *EBPFFieldHandlers) ResolveContainerFlags(ev *model.Event, e *model.ContainerContext) int {
+// ResolveContainerRuntime retrieves the container runtime managing the container
+func (fh *EBPFFieldHandlers) ResolveContainerRuntime(ev *model.Event, _ *model.ContainerContext) string {
 	ctx, found := fh.ResolveContainerContext(ev)
 	if !found || ctx == nil {
-		return 0
+		return ""
 	}
 
-	return int(ctx.Flags)
+	switch {
+	case (ev.ContainerContext.Flags & model.CGroupManagerCRI) != 0:
+		return string(workloadmeta.ContainerRuntimeContainerd)
+	case (ev.ContainerContext.Flags & model.CGroupManagerCRIO) != 0:
+		return string(workloadmeta.ContainerRuntimeCRIO)
+	case (ev.ContainerContext.Flags & model.CGroupManagerDocker) != 0:
+		return string(workloadmeta.ContainerRuntimeDocker)
+	case (ev.ContainerContext.Flags & model.CGroupManagerPodman) != 0:
+		return string(workloadmeta.ContainerRuntimePodman)
+	default:
+		return ""
+	}
 }

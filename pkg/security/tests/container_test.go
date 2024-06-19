@@ -101,7 +101,7 @@ func TestContainerFlags(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_container_flags",
-			Expression: `container.id != "" && open.file.path == "{{.Root}}/test-open" && (container.flags & MANAGED_BY_DOCKER) > 0`,
+			Expression: `container.id != "" && open.file.path == "{{.Root}}/test-open" && container.runtime == "docker"`,
 		},
 	}
 	test, err := newTestModule(t, nil, ruleDefs)
@@ -126,7 +126,7 @@ func TestContainerFlags(t *testing.T) {
 	}
 	defer dockerWrapper.stop()
 
-	dockerWrapper.Run(t, "container-flags", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	dockerWrapper.Run(t, "container-runtime", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		test.WaitSignal(t, func() error {
 			cmd := cmdFunc("touch", []string{testFile}, nil)
 			return cmd.Run()
@@ -134,6 +134,7 @@ func TestContainerFlags(t *testing.T) {
 			assertTriggeredRule(t, rule, "test_container_flags")
 			assertFieldEqual(t, event, "open.file.path", testFile)
 			assertFieldNotEmpty(t, event, "container.id", "container id shouldn't be empty")
+			assertFieldEqual(t, event, "container.runtime", "docker")
 			assert.Equal(t, model.CGroupManagerDocker, event.ContainerContext.Flags)
 
 			test.validateOpenSchema(t, event)

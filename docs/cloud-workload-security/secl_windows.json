@@ -13,14 +13,14 @@
           "property_doc_link": "container-created_at-doc"
         },
         {
-          "name": "container.flags",
-          "definition": "Flags associated with the container",
-          "property_doc_link": "container-flags-doc"
-        },
-        {
           "name": "container.id",
           "definition": "ID of the container",
           "property_doc_link": "container-id-doc"
+        },
+        {
+          "name": "container.runtime",
+          "definition": "Runtime managing the container",
+          "property_doc_link": "container-runtime-doc"
         },
         {
           "name": "container.tags",
@@ -1321,10 +1321,10 @@
       "examples": []
     },
     {
-      "name": "container.flags",
-      "link": "container-flags-doc",
-      "type": "int",
-      "definition": "Flags associated with the container",
+      "name": "container.id",
+      "link": "container-id-doc",
+      "type": "string",
+      "definition": "ID of the container",
       "prefixes": [
         "container"
       ],
@@ -1333,10 +1333,10 @@
       "examples": []
     },
     {
-      "name": "container.id",
-      "link": "container-id-doc",
+      "name": "container.runtime",
+      "link": "container-runtime-doc",
       "type": "string",
-      "definition": "ID of the container",
+      "definition": "Runtime managing the container",
       "prefixes": [
         "container"
       ],
@@ -1453,33 +1453,6 @@
         },
         {
           "name": "false",
-          "architecture": "all"
-        }
-      ]
-    },
-    {
-      "name": "ContainerFlags flags",
-      "link": "containerflags-flags",
-      "description": "Container flags are the supported flags for a container.",
-      "all": [
-        {
-          "name": "MANAGED_BY_DOCKER",
-          "architecture": "all"
-        },
-        {
-          "name": "MANAGED_BY_CRI_CONTAINERD",
-          "architecture": "all"
-        },
-        {
-          "name": "MANAGED_BY_CRIO",
-          "architecture": "all"
-        },
-        {
-          "name": "MANAGED_BY_PODMAN",
-          "architecture": "all"
-        },
-        {
-          "name": "MANAGED_BY_SYSTEMD",
           "architecture": "all"
         }
       ]

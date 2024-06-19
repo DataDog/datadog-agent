@@ -78,13 +78,9 @@ func (fh *EBPFLessFieldHandlers) ResolveContainerContext(ev *model.Event) (*mode
 	return ev.ContainerContext, ev.ContainerContext != nil
 }
 
-// ResolveContainerFlags retrieves the flags associated with the container context
-func (fh *EBPFLessFieldHandlers) ResolveContainerFlags(ev *model.Event, _ *model.ContainerContext) int {
-	if ev.ContainerContext == nil {
-		return 0
-	}
-
-	return int(ev.ContainerContext.Flags)
+// ResolveContainerRuntime retrieves the container runtime managing the container
+func (fh *EBPFLessFieldHandlers) ResolveContainerRuntime(ev *model.Event, _ *model.ContainerContext) string {
+	return ""
 }
 
 // ResolveProcessArgv0 resolves the first arg of the event

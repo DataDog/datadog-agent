@@ -13,11 +13,11 @@ import (
 
 // CGroup managers
 const (
-	CGroupManagerDocker  uint64 = 1 << 0
-	CGroupManagerCRIO    uint64 = 2 << 1
-	CGroupManagerPodman  uint64 = 3 << 2
-	CGroupManagerCRI     uint64 = 4 << 3
-	CGroupManagerSystemd uint64 = 5 << 4
+	CGroupManagerDocker uint64 = iota + 1
+	CGroupManagerCRIO
+	CGroupManagerPodman
+	CGroupManagerCRI
+	CGroupManagerSystemd
 )
 
 // RuntimePrefixes holds the cgroup prefixed used by the different runtimes

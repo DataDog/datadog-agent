@@ -814,20 +814,20 @@ func (ev *Event) GetContainerCreatedAt() int {
 	return ev.FieldHandlers.ResolveContainerCreatedAt(ev, ev.BaseEvent.ContainerContext)
 }
 
-// GetContainerFlags returns the value of the field, resolving if necessary
-func (ev *Event) GetContainerFlags() int {
-	if ev.BaseEvent.ContainerContext == nil {
-		return 0
-	}
-	return ev.FieldHandlers.ResolveContainerFlags(ev, ev.BaseEvent.ContainerContext)
-}
-
 // GetContainerId returns the value of the field, resolving if necessary
 func (ev *Event) GetContainerId() string {
 	if ev.BaseEvent.ContainerContext == nil {
 		return ""
 	}
 	return ev.FieldHandlers.ResolveContainerID(ev, ev.BaseEvent.ContainerContext)
+}
+
+// GetContainerRuntime returns the value of the field, resolving if necessary
+func (ev *Event) GetContainerRuntime() string {
+	if ev.BaseEvent.ContainerContext == nil {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveContainerRuntime(ev, ev.BaseEvent.ContainerContext)
 }
 
 // GetContainerTags returns the value of the field, resolving if necessary
