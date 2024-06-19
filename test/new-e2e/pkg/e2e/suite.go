@@ -41,6 +41,7 @@
 //
 // Note: By default, the BaseSuite test suite will delete the environment when the test suite finishes (whether it's successful or not).
 // During development, it's highly recommended to use the [params.WithDevMode] option to prevent the environment from being deleted.
+// [params.WithDevMode] is automatically enabled when the `E2E_DEV_MODE` environment variable is set to `true`.
 //
 // # Organizing your tests
 //
