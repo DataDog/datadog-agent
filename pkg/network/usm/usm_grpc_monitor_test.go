@@ -113,6 +113,10 @@ func (s *usmGRPCSuite) TestSimpleGRPCScenarios() {
 	t.Cleanup(cancel)
 	defaultCtx := context.Background()
 
+	usmMonitor := setupUSMTLSMonitor(t, s.getConfig())
+	if s.isTLS {
+		utils.WaitForProgramsToBeTraced(t, "go-tls", srv.Process.Pid)
+	}
 	// c is a stream endpoint
 	// a + b are unary endpoints
 	tests := []struct {
@@ -421,7 +425,7 @@ func (s *usmGRPCSuite) TestSimpleGRPCScenarios() {
 				if tt.expectedError {
 					t.Skip("Skipping test due to known issue")
 				}
-				s.testGRPCScenarios(t, srv.Process.Pid, tt.runClients, tt.expectedEndpoints, clientCount)
+				s.testGRPCScenarios(t, usmMonitor, tt.runClients, tt.expectedEndpoints, clientCount)
 			})
 		}
 	}
@@ -436,6 +440,11 @@ func (s *usmGRPCSuite) TestLargeBodiesGRPCScenarios() {
 	srv, cancel := grpc.NewGRPCTLSServer(t, srvAddr, s.isTLS)
 	t.Cleanup(cancel)
 	defaultCtx := context.Background()
+
+	usmMonitor := setupUSMTLSMonitor(t, s.getConfig())
+	if s.isTLS {
+		utils.WaitForProgramsToBeTraced(t, "go-tls", srv.Process.Pid)
+	}
 
 	// Random string generation is an heavy operation, and it's proportional for the length (15MB)
 	// Instead of generating the same long string (long name) for every test, we're generating it only once.
@@ -509,18 +518,14 @@ func (s *usmGRPCSuite) TestLargeBodiesGRPCScenarios() {
 		for _, clientCount := range []int{1} {
 			testNameSuffix := fmt.Sprintf("-different clients - %v", clientCount)
 			t.Run(tt.name+testNameSuffix, func(t *testing.T) {
-				s.testGRPCScenarios(t, srv.Process.Pid, tt.runClients, tt.expectedEndpoints, clientCount)
+				s.testGRPCScenarios(t, usmMonitor, tt.runClients, tt.expectedEndpoints, clientCount)
 			})
 		}
 	}
 }
 
-func (s *usmGRPCSuite) testGRPCScenarios(t *testing.T, srvPID int, runClientCallback func(*testing.T, int), expectedEndpoints map[http.Key]captureRange, clientCount int) {
-	usmMonitor := setupUSMTLSMonitor(t, s.getConfig())
-	if s.isTLS {
-		utils.WaitForProgramsToBeTraced(t, "go-tls", srvPID)
-	}
-
+func (s *usmGRPCSuite) testGRPCScenarios(t *testing.T, usmMonitor *Monitor, runClientCallback func(*testing.T, int), expectedEndpoints map[http.Key]captureRange, clientCount int) {
+	t.Cleanup(http2.CleanHTTP2Maps)
 	runClientCallback(t, clientCount)
 
 	res := make(map[http.Key]int)
