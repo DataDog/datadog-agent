@@ -51,7 +51,7 @@ from tasks import (
     vscode,
 )
 from tasks.build_tags import audit_tag_impact, print_default_build_tags
-from tasks.codecov import codecov
+from tasks.codecov import apply_missing_coverage, codecov, upload_coverage_to_s3
 from tasks.components import lint_components, lint_fxutil_oneshot_test
 from tasks.custom_task.custom_task import custom__call__
 from tasks.fuzz import fuzz
@@ -103,6 +103,8 @@ ns = Collection()
 # add single tasks to the root
 ns.add_task(test)
 ns.add_task(codecov)
+ns.add_task(upload_coverage_to_s3)
+ns.add_task(apply_missing_coverage)
 ns.add_task(integration_tests)
 ns.add_task(deps)
 ns.add_task(deps_vendored)
