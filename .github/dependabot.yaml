@@ -19,7 +19,6 @@ updates:
       - dependency-name: github.com/coreos/go-systemd
       # We only replace github.com/docker/distribution but we ignore all Docker dependencies.
       - dependency-name: github.com/docker/*
-      - dependency-name: github.com/florianl/go-conntrack
       - dependency-name: github.com/lxn/walk
       - dependency-name: github.com/prometheus/client_golang
       - dependency-name: github.com/spf13/cast
