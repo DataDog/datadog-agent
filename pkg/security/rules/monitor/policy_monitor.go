@@ -248,12 +248,12 @@ func (e HeartbeatEvent) ToJSON() ([]byte, error) {
 	return utils.MarshalEasyJSON(e)
 }
 
-// PolicyStateFromRuleDefinition returns a policy state based on the rule definition
-func PolicyStateFromRuleDefinition(def *rules.RuleDefinition) *PolicyState {
+// PolicyStateFromRule returns a policy state based on the rule definition
+func PolicyStateFromRule(rule *rules.PolicyRule) *PolicyState {
 	return &PolicyState{
-		Name:    def.Policy.Name,
-		Version: def.Policy.Version,
-		Source:  def.Policy.Source,
+		Name:    rule.Policy.Name,
+		Version: rule.Policy.Def.Version,
+		Source:  rule.Policy.Source,
 	}
 }
 
@@ -310,15 +310,15 @@ func NewPoliciesState(rs *rules.RuleSet, err *multierror.Error, includeInternalP
 	var exists bool
 
 	for _, rule := range rs.GetRules() {
-		if rule.Definition.Policy.IsInternal && !includeInternalPolicies {
+		if rule.Policy.IsInternal && !includeInternalPolicies {
 			continue
 		}
 
-		ruleDef := rule.Definition
-		policyName := ruleDef.Policy.Name
+		ruleDef := rule.Def
+		policyName := rule.Policy.Name
 
 		if policyState, exists = mp[policyName]; !exists {
-			policyState = PolicyStateFromRuleDefinition(ruleDef)
+			policyState = PolicyStateFromRule(rule.PolicyRule)
 			mp[policyName] = policyState
 		}
 		policyState.Rules = append(policyState.Rules, RuleStateFromDefinition(ruleDef, "loaded", ""))
@@ -328,18 +328,18 @@ func NewPoliciesState(rs *rules.RuleSet, err *multierror.Error, includeInternalP
 	if err != nil && err.Errors != nil {
 		for _, err := range err.Errors {
 			if rerr, ok := err.(*rules.ErrRuleLoad); ok {
-				if rerr.Definition.Policy.IsInternal && !includeInternalPolicies {
+				if rerr.Rule.Policy.IsInternal && !includeInternalPolicies {
 					continue
 				}
-				policyName := rerr.Definition.Policy.Name
+				policyName := rerr.Rule.Policy.Name
 
 				if _, exists := mp[policyName]; !exists {
-					policyState = PolicyStateFromRuleDefinition(rerr.Definition)
+					policyState = PolicyStateFromRule(rerr.Rule)
 					mp[policyName] = policyState
 				} else {
 					policyState = mp[policyName]
 				}
-				policyState.Rules = append(policyState.Rules, RuleStateFromDefinition(rerr.Definition, string(rerr.Type()), rerr.Err.Error()))
+				policyState.Rules = append(policyState.Rules, RuleStateFromDefinition(rerr.Rule.Def, string(rerr.Type()), rerr.Err.Error()))
 			}
 		}
 	}
