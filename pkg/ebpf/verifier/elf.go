@@ -44,15 +44,19 @@ func getLineReader(dwarfData *dwarf.Data) (*dwarf.LineReader, error) {
 	return nil, fmt.Errorf("no line reader found in DWARF data")
 }
 
+type progStartPoint struct {
+	sectionIndex int
+	addr         int64
+}
+
 // buildProgStartLinesMap builds a map of program names to the source line where they start.
 // This helps to build the correct offsets for the source map.
-func buildProgStartLinesMap(dwarfData *dwarf.Data, lineReader *dwarf.LineReader) (map[string]string, error) {
-	progStartLines := make(map[string]string)
+func buildProgStartLinesMap(dwarfData *dwarf.Data, lineReader *dwarf.LineReader, symToSeq map[string]int) (map[progStartPoint]string, error) {
+	progStartLines := make(map[progStartPoint]string)
 	entryReader := dwarfData.Reader()
 	if entryReader == nil {
 		return nil, fmt.Errorf("cannot get dwarf reader")
 	}
-	files := lineReader.Files()
 
 	for {
 		entry, err := entryReader.Next()
@@ -67,28 +71,57 @@ func buildProgStartLinesMap(dwarfData *dwarf.Data, lineReader *dwarf.LineReader)
 			continue
 		}
 
-		// Find the DeclFile and DeclLine fields
-		fileIndex, line := int64(0), int64(0)
+		// Find the program name and program start address in its section
+		progStartAddr := int64(-1)
 		progName := ""
 		for _, field := range entry.Field {
-			if field.Attr == dwarf.AttrDeclFile {
-				fileIndex = field.Val.(int64)
-			} else if field.Attr == dwarf.AttrDeclLine {
-				line = field.Val.(int64)
-			} else if field.Attr == dwarf.AttrName {
+			if field.Attr == dwarf.AttrName {
 				progName = field.Val.(string)
+			} else if field.Attr == dwarf.AttrLowpc {
+				progStartAddr = int64(field.Val.(uint64))
 			}
 		}
-		if fileIndex == 0 || line == 0 || progName == "" {
+		if progName == "" || progStartAddr == -1 {
 			continue // Ignore if we don't have all the fields
-		} else if int(fileIndex) >= len(files) {
-			return nil, fmt.Errorf("file index %d out of bounds in DWARF data with %d files, func %s", fileIndex, len(files), progName)
 		}
-		file := files[fileIndex]
-		progStartLines[fmt.Sprintf("%s:%d", file.Name, line)] = progName
+		sectIndex, ok := symToSeq[progName]
+		if !ok {
+			return nil, fmt.Errorf("cannot find section for symbol %s", progName)
+		}
+
+		fmt.Printf("prog: %s, sect: %d, addr: %d\n", progName, sectIndex, progStartAddr)
+		startPoint := progStartPoint{sectIndex, progStartAddr}
+		progStartLines[startPoint] = progName
 	}
 
 	return progStartLines, nil
+}
+
+func buildSymbolToSequenceMap(elfFile *elf.File) (map[string]int, error) {
+	symbols, err := elfFile.Symbols()
+	if err != nil {
+		return nil, fmt.Errorf("failed to read symbols from ELF file: %w", err)
+	}
+
+	// Each sequence is a section, unless that section has no content
+	sectIndexToSeqIndex := make(map[int]int)
+	idx := 0
+	for i, sect := range elfFile.Sections {
+		if sect.Flags&elf.SHF_EXECINSTR != 0 && sect.Size > 0 {
+			sectIndexToSeqIndex[i] = idx
+			idx++
+		}
+	}
+
+	symToSeq := make(map[string]int)
+	for _, sym := range symbols {
+		sectIndex := int(sym.Section)
+		if sectIndex >= 0 && sectIndex < len(elfFile.Sections) {
+			symToSeq[sym.Name] = sectIndexToSeqIndex[int(sectIndex)]
+		}
+	}
+
+	return symToSeq, nil
 }
 
 // getSourceMap builds the source map for an eBPF program. It returns two maps, one that
@@ -119,10 +152,14 @@ func getSourceMap(file string, spec *ebpf.CollectionSpec) (map[string]map[int]*S
 	if err != nil {
 		return nil, nil, fmt.Errorf("cannot get line reader for %s: %w", file, err)
 	}
+	symToSeq, err := buildSymbolToSequenceMap(elfFile)
+	if err != nil {
+		return nil, nil, fmt.Errorf("cannot build symbol to section index map for %s: %w", file, err)
+	}
 
 	// Build the map that links the source line to the start of each program, as the DWARF
 	// line info data doesn't tell you which program a line belongs to.
-	progStartMap, err := buildProgStartLinesMap(dwarfData, lineReader)
+	progStartMap, err := buildProgStartLinesMap(dwarfData, lineReader, symToSeq)
 	if err != nil {
 		return nil, nil, fmt.Errorf("cannot build program start lines for %s: %w", file, err)
 	}
@@ -131,6 +168,7 @@ func getSourceMap(file string, spec *ebpf.CollectionSpec) (map[string]map[int]*S
 	offsets := make(map[string]map[uint64]string)
 	currProgram := ""
 	startingOffset := uint64(0)
+	sectionIndex := 0
 	for {
 		var line dwarf.LineEntry
 		err := lineReader.Next(&line)
@@ -141,26 +179,36 @@ func getSourceMap(file string, spec *ebpf.CollectionSpec) (map[string]map[int]*S
 			return nil, nil, fmt.Errorf("DWARF lineReader file %s: %w", file, err)
 		}
 		if line.File != nil && line.Line > 0 {
+			startPoint := progStartPoint{sectionIndex, int64(line.Address)}
 			lineinfo := fmt.Sprintf("%s:%d", line.File.Name, line.Line)
 
 			// Reset the current program only if it's the first time we see it. Multiple
 			// assembly instructions might point to the first source line of a program
-			if newProg, ok := progStartMap[lineinfo]; ok && newProg != currProgram {
+			if newProg, ok := progStartMap[startPoint]; ok && newProg != currProgram {
 				// We need to keep track of the starting offset for each program to calculate
 				// the offset relative to the start. The eBPF loaders count program instructions
 				// from the start of the program, while in the ELF binary they're relative to the
 				// section start, and we might have multiple functions per section.
 				startingOffset = line.Address
-				currProgram = progStartMap[lineinfo]
+				currProgram = progStartMap[startPoint]
 			}
+			fmt.Printf("[%s@%d] line: %s, addr: %d, sp=%v\n", currProgram, sectionIndex, lineinfo, line.Address, startPoint)
+
+			// Increase section indexes whenever we find the end of a sequence
+			if line.EndSequence {
+				sectionIndex++
+			}
+
 			if currProgram == "" {
-				return nil, nil, fmt.Errorf("no program found for line %s", lineinfo)
+				// We might have information of programs that are not in the spec, ignore those
+				continue
 			}
 			if _, ok := offsets[currProgram]; !ok {
 				offsets[currProgram] = make(map[uint64]string)
 			}
 			offset := line.Address - startingOffset
 			offsets[currProgram][offset] = lineinfo
+
 		}
 	}
 
@@ -190,7 +238,7 @@ func getSourceMap(file string, spec *ebpf.CollectionSpec) (map[string]map[int]*S
 			}
 
 			sline := SourceLine{LineInfo: currLineInfo, Line: currLine}
-			// fmt.Printf("insIdx: %d, sline: %v\n", insIdx, sline)
+			fmt.Printf("[%s@%s] insIdx: %d, sline: %v\n", progSpec.Name, progSpec.SectionName, insIdx, sline)
 			sourceMap[progSpec.Name][insIdx] = &sline
 		}
 	}

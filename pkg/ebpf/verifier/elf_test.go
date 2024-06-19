@@ -11,11 +11,13 @@ import (
 	"fmt"
 	"io/fs"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"testing"
 
 	"github.com/cilium/ebpf"
+	"golang.org/x/exp/maps"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
@@ -70,7 +72,12 @@ func TestGetSourceMap(t *testing.T) {
 				hasSourceInfo := false
 				var nonMatching []string
 
-				for ins, sl := range progSourceMap {
+				// Iterate instructions in order so it's easier to debug later
+				// if there are any mismatches
+				insList := maps.Keys(progSourceMap)
+				sort.Ints(insList)
+				for _, ins := range insList {
+					sl := progSourceMap[ins]
 					if sl.LineInfo == "" {
 						continue
 					}
