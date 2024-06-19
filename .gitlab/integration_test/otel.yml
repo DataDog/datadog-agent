@@ -20,4 +20,3 @@ integration_tests_otel:
     - if: $CI_COMMIT_REF_NAME =~ /.*-skip-cancel$/
       when: never
     - when: always
-      allow_failure: true
