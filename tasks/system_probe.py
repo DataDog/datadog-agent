@@ -1890,9 +1890,6 @@ def _test_docker_image_list():
         for component in docker_compose["services"]:
             images.add(docker_compose["services"][component]["image"])
 
-    # Java tests have dynamic images in docker-compose.yml
-    images.update(["menci/archlinuxarm:base"])
-
     # Special use-case in javatls
     images.remove("${IMAGE_VERSION}")
     # Temporary: GoTLS monitoring inside containers tests are flaky in the CI, so at the meantime, the tests are
