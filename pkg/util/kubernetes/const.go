@@ -29,14 +29,8 @@ const (
 	// RcIDAnnotKey is the key of the RC ID annotation
 	RcIDAnnotKey = "admission.datadoghq.com/rc.id"
 
-	// RcIDTagName is the key of the RC ID tag
-	RcIDTagName = "dd_remote_config_id"
-
 	// RcRevisionAnnotKey is the key of the RC revision annotation
 	RcRevisionAnnotKey = "admission.datadoghq.com/rc.rev"
-
-	// RcRevisionTagName is the key of the RC revision tag
-	RcRevisionTagName = "dd_remote_config_rev"
 
 	// EnvTagEnvVar is the environment variable of the env standard tag
 	EnvTagEnvVar = "DD_ENV"
@@ -69,48 +63,6 @@ const (
 	// NamespaceKind represents the NamespaceKind object kind
 	NamespaceKind = "Namespace"
 
-	// PodTagName represents the pods tag name
-	PodTagName = "pod_name"
-	// DeploymentTagName represents the Deployment tag name
-	DeploymentTagName = "kube_deployment"
-	// ReplicaSetTagName represents the ReplicaSet tag name
-	ReplicaSetTagName = "kube_replica_set"
-	// ReplicationControllerTagName represents the ReplicationController tag name
-	ReplicationControllerTagName = "kube_replication_controller"
-	// StatefulSetTagName represents the StatefulSet tag name
-	StatefulSetTagName = "kube_stateful_set"
-	// DaemonSetTagName represents the DaemonSet tag name
-	DaemonSetTagName = "kube_daemon_set"
-	// JobTagName represents the Job tag name
-	JobTagName = "kube_job"
-	// CronJobTagName represents the CronJob tag name
-	CronJobTagName = "kube_cronjob"
-	// ServiceTagName represents the ServiceTagName tag name
-	ServiceTagName = "kube_service"
-	// NamespaceTagName represents the Namespace tag name
-	NamespaceTagName = "kube_namespace"
-	// PersistentVolumeClaimTagName represents the PersistentVolumeClaim tag name
-	PersistentVolumeClaimTagName = "persistentvolumeclaim"
-
-	// OwnerRefNameTagName represents any owner ref tag name
-	OwnerRefNameTagName = "kube_ownerref_name"
-	// OwnerRefKindTagName represents any owner ref kind
-	OwnerRefKindTagName = "kube_ownerref_kind"
-
 	// CriContainerNamespaceLabel is the label set on containers by runtimes with Pod Namespace
 	CriContainerNamespaceLabel = "io.kubernetes.pod.namespace"
 )
-
-// KindToTagName returns the tag name for a given kubernetes object name
-var KindToTagName = map[string]string{
-	PodKind:                   PodTagName,
-	DeploymentKind:            DeploymentTagName,
-	ReplicaSetKind:            ReplicaSetTagName,
-	ReplicationControllerKind: ReplicationControllerTagName,
-	StatefulSetKind:           StatefulSetTagName,
-	DaemonSetKind:             DaemonSetTagName,
-	JobKind:                   JobTagName,
-	CronJobKind:               CronJobTagName,
-	ServiceKind:               ServiceTagName,
-	NamespaceKind:             NamespaceTagName,
-}
