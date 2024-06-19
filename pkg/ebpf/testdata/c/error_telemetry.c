@@ -8,25 +8,27 @@
 #include "bpf_tracing.h"
 #include "bpf_telemetry.h"
 
-BPF_HASH_MAP(testmap1, u32, u32, 2);
-BPF_HASH_MAP(testmap2, u32, u32, 2);
+BPF_HASH_MAP(error_map, u32, u32, 2);
+BPF_HASH_MAP(suppress_map, u32, u32, 2);
 
-#define E2BIG 16
+#define E2BIG 7
 
 SEC("kprobe/vfs_open")
-int kprobe__vfs_open(void *ctx) {
+int kprobe__vfs_open(int *ctx) {
     u32 i = 0;
+    bpf_map_update_with_telemetry(error_map, &i, &i, BPF_ANY);
     i++;
-    bpf_map_update_with_telemetry(testmap1, &i, &i, BPF_ANY);
+    bpf_map_update_with_telemetry(error_map, &i, &i, BPF_ANY);
     i++;
-    bpf_map_update_with_telemetry(testmap1, &i, &i, BPF_ANY);
-    i++;
-    bpf_map_update_with_telemetry(testmap1, &i, &i, BPF_ANY);
+    bpf_map_update_with_telemetry(error_map, &i, &i, BPF_ANY);
 
-//#pragma unroll
-//    for (int i = 0; i < 10; i++) {
-//        bpf_map_update_with_telemetry(testmap2, &i, &i, BPF_ANY, -E2BIG);
-//    }
+    bpf_map_update_with_telemetry(suppress_map, &i, &i, BPF_ANY, -E2BIG);
+    i++;
+    bpf_map_update_with_telemetry(suppress_map, &i, &i, BPF_ANY, -E2BIG);
+    i++;
+    bpf_map_update_with_telemetry(suppress_map, &i, &i, BPF_ANY, -E2BIG);
 
     return 0;
 }
+
+char _license[] SEC("license") = "GPL";
