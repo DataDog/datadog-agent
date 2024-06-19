@@ -10,7 +10,10 @@ package tests
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
+	"strconv"
+	"syscall"
 	"testing"
 	"time"
 
@@ -201,6 +204,56 @@ func TestContainerScopedVariable(t *testing.T) {
 			return nil
 		}, func(event *model.Event, rule *rules.Rule) {
 			assert.Equal(t, "test_container_check_scoped_variable", rule.ID, "wrong rule triggered")
+		})
+	})
+}
+
+func TestCGroupID(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_container_flags",
+			Expression: `open.file.path == "{{.Root}}/test-open" && cgroup.id == "cg1"`,
+		},
+	}
+	test, err := newTestModule(t, nil, ruleDefs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	if err := os.MkdirAll("/sys/fs/cgroup/cg1", 0700); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := os.WriteFile("/sys/fs/cgroup/cg1/cgroup.procs", []byte(strconv.Itoa(os.Getpid())), 0700); err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll("/sys/fs/cgroup/cg1")
+
+	testFile, testFilePtr, err := test.Path("test-open")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	test.Run(t, "cgroup-id", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		test.WaitSignal(t, func() error {
+			fd, _, errno := syscall.Syscall6(syscall.SYS_OPENAT, 0, uintptr(testFilePtr), syscall.O_CREAT, 0711, 0, 0)
+			if errno != 0 {
+				return error(errno)
+			}
+			return syscall.Close(int(fd))
+
+		}, func(event *model.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_container_flags")
+			assertFieldEqual(t, event, "open.file.path", testFile)
+			assertFieldEqual(t, event, "container.id", "")
+			assertFieldEqual(t, event, "container.runtime", "")
+			assert.Equal(t, uint64(0), event.ContainerContext.Flags)
+			assertFieldEqual(t, event, "cgroup.id", "cg1")
+
+			test.validateOpenSchema(t, event)
 		})
 	})
 }
