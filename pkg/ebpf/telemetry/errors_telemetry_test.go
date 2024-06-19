@@ -5,12 +5,15 @@ import (
 	"os"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
-	manager "github.com/DataDog/ebpf-manager"
-	"github.com/alecthomas/assert/v2"
-	"github.com/cilium/ebpf"
-	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/unix"
+
+	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	manager "github.com/DataDog/ebpf-manager"
+
+	"github.com/cilium/ebpf"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type bpfPrograms struct {
@@ -33,6 +36,26 @@ var m = &manager.Manager{
 			Name: "suppress_map",
 		},
 	},
+}
+
+func getMapsTelemetry(e *EBPFTelemetry) map[string]interface{} {
+	t := make(map[string]interface{})
+	if e.mapErrMap == nil {
+		return t
+	}
+
+	var val mapErrTelemetry
+	for m, k := range e.mapKeys {
+		err := e.mapErrMap.Lookup(&k, &val)
+		if err != nil {
+			log.Debugf("failed to get telemetry for map:key %s:%d\n", m, k)
+			continue
+		}
+		if count := getErrCount(val.Count[:]); len(count) > 0 {
+			t[m] = count
+		}
+	}
+	return t
 }
 
 func triggerTestAndGetMapsTelemetry(t *testing.T) map[string]interface{} {
@@ -74,7 +97,7 @@ func triggerTestAndGetMapsTelemetry(t *testing.T) map[string]interface{} {
 	ebpfTelemetry, ok := collector.T.(*EBPFTelemetry)
 	require.True(t, ok)
 
-	mapsTelemetry := ebpfTelemetry.GetMapsTelemetry()
+	mapsTelemetry := getMapsTelemetry(ebpfTelemetry)
 	t.Logf("EBPF Maps telemetry: %v\n", mapsTelemetry)
 
 	return mapsTelemetry

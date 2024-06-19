@@ -1962,33 +1962,6 @@ func (s *TracerSuite) TestUDPIncomingDirectionFix() {
 	assert.Equal(t, network.OUTGOING, conn.Direction)
 }
 
-func (s *TracerSuite) TestGetMapsTelemetry() {
-	t := s.T()
-	if !httpsSupported() {
-		t.Skip("HTTPS feature not available/supported for this setup")
-	}
-
-	t.Setenv("DD_SYSTEM_PROBE_SERVICE_MONITORING_ENABLED", "true")
-	cfg := testConfig()
-	tr := setupTracer(t, cfg)
-
-	cmd := []string{"curl", "-k", "-o/dev/null", "example.com/[1-10]"}
-	err := exec.Command(cmd[0], cmd[1:]...).Run()
-	require.NoError(t, err)
-
-	ebpfTelemetryCollector, ok := tr.bpfErrorsCollector.(*ebpftelemetry.EBPFErrorsCollector)
-	require.True(t, ok)
-
-	telemetry, ok := ebpfTelemetryCollector.T.(*ebpftelemetry.EBPFTelemetry)
-	require.True(t, ok)
-	mapsTelemetry := telemetry.GetMapsTelemetry()
-	t.Logf("EBPF Maps telemetry: %v\n", mapsTelemetry)
-
-	tcpStatsErrors, ok := mapsTelemetry[probes.TCPStatsMap].(map[string]uint64)
-	require.True(t, ok)
-	assert.NotZero(t, tcpStatsErrors["EEXIST"])
-}
-
 func sysOpenAt2Supported() bool {
 	missing, err := ddebpf.VerifyKernelFuncs("do_sys_openat2")
 	if err == nil && len(missing) == 0 {
