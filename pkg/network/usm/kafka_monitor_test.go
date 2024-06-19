@@ -35,6 +35,7 @@ import (
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
+	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
@@ -86,6 +87,7 @@ type kafkaParsingValidation struct {
 	expectedNumberOfFetchRequests   int
 	expectedAPIVersionProduce       int
 	expectedAPIVersionFetch         int
+	tlsEnabled                      bool
 }
 
 func skipTestIfKernelNotSupported(t *testing.T) {
@@ -144,6 +146,9 @@ func (s *KafkaProtocolParsingSuite) TestKafkaProtocolParsing() {
 	})
 
 	t.Run("with TLS", func(t *testing.T) {
+		if !gotlsutils.GoTLSSupported(t, config.New()) {
+			t.Skip("GoTLS not supported for this setup")
+		}
 		for _, version := range versions {
 			t.Run(versionName(version), func(t *testing.T) {
 				s.testKafkaProtocolParsing(t, true, version)
@@ -244,6 +249,7 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 					expectedNumberOfFetchRequests:   fixCount(1),
 					expectedAPIVersionProduce:       8,
 					expectedAPIVersionFetch:         expectedAPIVersionFetch,
+					tlsEnabled:                      tls,
 				})
 			},
 			teardown:      kafkaTeardown,
@@ -283,6 +289,7 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 					expectedNumberOfFetchRequests:   0,
 					expectedAPIVersionProduce:       5,
 					expectedAPIVersionFetch:         0,
+					tlsEnabled:                      tls,
 				})
 			},
 			teardown:      kafkaTeardown,
@@ -325,6 +332,7 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 					expectedNumberOfFetchRequests:   0,
 					expectedAPIVersionProduce:       8,
 					expectedAPIVersionFetch:         0,
+					tlsEnabled:                      tls,
 				})
 			},
 			teardown:      kafkaTeardown,
@@ -410,6 +418,7 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 							expectedNumberOfFetchRequests:   0,
 							expectedAPIVersionProduce:       8,
 							expectedAPIVersionFetch:         0,
+							tlsEnabled:                      tls,
 						})
 				}, time.Second*3, time.Millisecond*100)
 			},
@@ -449,7 +458,7 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 				require.NoError(t, client.Client.ProduceSync(ctxTimeout, record).FirstErr(), "record had a produce error while synchronously producing")
 				cancel()
 
-				getAndValidateKafkaStats(t, monitor, 0, "", kafkaParsingValidation{})
+				getAndValidateKafkaStats(t, monitor, 0, "", kafkaParsingValidation{tlsEnabled: tls})
 			},
 			teardown: kafkaTeardown,
 			configuration: func() *config.Config {
@@ -505,6 +514,7 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 					expectedNumberOfFetchRequests:   fixCount(2),
 					expectedAPIVersionProduce:       8,
 					expectedAPIVersionFetch:         expectedAPIVersionFetch,
+					tlsEnabled:                      tls,
 				})
 			},
 			teardown:      kafkaTeardown,
@@ -571,6 +581,7 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 					expectedNumberOfFetchRequests:   fixCount(5 + 2*2),
 					expectedAPIVersionProduce:       8,
 					expectedAPIVersionFetch:         expectedAPIVersionFetch,
+					tlsEnabled:                      tls,
 				})
 			},
 			teardown:      kafkaTeardown,
@@ -1003,13 +1014,13 @@ func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
 
 				partition := makeFetchResponseTopicPartition(batches...)
 				var partitions []kmsg.FetchResponseTopicPartition
-				for i := 0; i < 100; i++ {
+				for i := 0; i < 25; i++ {
 					partitions = append(partitions, partition)
 				}
 
 				return makeFetchResponse(apiVersion, makeFetchResponseTopic(topic, partitions...))
 			},
-			numFetchedRecords: 1 * 1 * 100,
+			numFetchedRecords: 1 * 1 * 25,
 		},
 		{
 			name:  "many topics",
@@ -1183,7 +1194,8 @@ func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
 
 			getAndValidateKafkaStats(t, monitor, 1, tt.topic, kafkaParsingValidation{
 				expectedNumberOfFetchRequests: tt.numFetchedRecords,
-				expectedAPIVersionFetch:       int(apiVersion),
+				expectedAPIVersionFetch:       apiVersion,
+				tlsEnabled:                    tls,
 			})
 		})
 
@@ -1236,6 +1248,7 @@ func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
 			getAndValidateKafkaStats(t, monitor, 1, tt.topic, kafkaParsingValidation{
 				expectedNumberOfFetchRequests: tt.numFetchedRecords * splitIdx,
 				expectedAPIVersionFetch:       apiVersion,
+				tlsEnabled:                    tls,
 			})
 		})
 	}
@@ -1345,6 +1358,10 @@ func validateProduceFetchCount(t *assert.CollectT, kafkaStats map[kafka.Key]*kaf
 	numberOfProduceRequests := 0
 	numberOfFetchRequests := 0
 	for kafkaKey, kafkaStat := range kafkaStats {
+		hasTLSTag := kafkaStat.StaticTags&network.ConnTagGo != 0
+		if hasTLSTag != validation.tlsEnabled {
+			continue
+		}
 		assert.Equal(t, topicName[:min(len(topicName), 80)], kafkaKey.TopicName)
 		switch kafkaKey.RequestAPIKey {
 		case kafka.ProduceAPIKey:

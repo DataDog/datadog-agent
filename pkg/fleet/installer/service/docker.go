@@ -166,7 +166,14 @@ func (a *apmInjectorInstaller) verifyDockerRuntime(ctx context.Context) (err err
 func reloadDockerConfig(ctx context.Context) (err error) {
 	span, _ := tracer.StartSpanFromContext(ctx, "reload_docker")
 	defer func() { span.Finish(tracer.WithError(err)) }()
-	return exec.CommandContext(ctx, "systemctl", "reload", "docker").Run()
+	cmd := exec.Command("systemctl", "reload", "docker")
+	bufErr := new(bytes.Buffer)
+	cmd.Stderr = bufErr
+	err = cmd.Run()
+	if err != nil {
+		return fmt.Errorf("failed to reload docker (%s): %s", err.Error(), bufErr.String())
+	}
+	return nil
 }
 
 // isDockerInstalled checks if docker is installed on the system

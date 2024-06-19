@@ -28,6 +28,11 @@
           "property_doc_link": "event-async-doc"
         },
         {
+          "name": "event.hostname",
+          "definition": "Hostname associated with the event",
+          "property_doc_link": "event-hostname-doc"
+        },
+        {
           "name": "event.origin",
           "definition": "Origin of the event",
           "property_doc_link": "event-origin-doc"
@@ -3364,6 +3369,21 @@
           "name": "open.retval",
           "definition": "Return value of the syscall",
           "property_doc_link": "common-syscallevent-retval-doc"
+        },
+        {
+          "name": "open.syscall.flags",
+          "definition": "Flags argument of the syscall",
+          "property_doc_link": "open-syscall-flags-doc"
+        },
+        {
+          "name": "open.syscall.mode",
+          "definition": "Mode argument of the syscall",
+          "property_doc_link": "open-syscall-mode-doc"
+        },
+        {
+          "name": "open.syscall.path",
+          "definition": "Path argument of the syscall",
+          "property_doc_link": "open-syscall-path-doc"
         }
       ]
     },
@@ -8972,6 +8992,18 @@
       "examples": []
     },
     {
+      "name": "event.hostname",
+      "link": "event-hostname-doc",
+      "type": "string",
+      "definition": "Hostname associated with the event",
+      "prefixes": [
+        ""
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
       "name": "event.origin",
       "link": "event-origin-doc",
       "type": "string",
@@ -9413,6 +9445,42 @@
       ],
       "constants": "Open flags",
       "constants_link": "open-flags",
+      "examples": []
+    },
+    {
+      "name": "open.syscall.flags",
+      "link": "open-syscall-flags-doc",
+      "type": "int",
+      "definition": "Flags argument of the syscall",
+      "prefixes": [
+        "open"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "open.syscall.mode",
+      "link": "open-syscall-mode-doc",
+      "type": "int",
+      "definition": "Mode argument of the syscall",
+      "prefixes": [
+        "open"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "open.syscall.path",
+      "link": "open-syscall-path-doc",
+      "type": "string",
+      "definition": "Path argument of the syscall",
+      "prefixes": [
+        "open"
+      ],
+      "constants": "",
+      "constants_link": "",
       "examples": []
     },
     {

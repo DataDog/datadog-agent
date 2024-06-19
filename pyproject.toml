@@ -35,15 +35,8 @@ select = [
     "W",
 ]
 ignore = [
-    # - style options: E501,E741
-    # - Unnecessary dict call: C408
-    # - complex-structure : C901
-    # - raise-without-from-inside-except: B904
-    "E501",
-    "E741",
-    "C408",
-    "C901",
-    "B904",
+    "E501", # line-too-long
+    "C901", # complex-structure
     "UP033", # Ignore the lru_cache for now
     "UP017", # Ignore datetime.UTC for now
 ]

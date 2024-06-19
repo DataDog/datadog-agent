@@ -12,6 +12,7 @@ import time
 import traceback
 from collections import Counter
 from contextlib import contextmanager
+from dataclasses import dataclass
 from functools import wraps
 from pathlib import Path
 from subprocess import CalledProcessError, check_output
@@ -38,6 +39,31 @@ elif sys.platform == "win32":
 else:
     RTLOADER_LIB_NAME = "libdatadog-agent-rtloader.so"
 RTLOADER_HEADER_NAME = "datadog_agent_rtloader.h"
+
+
+@dataclass
+class TimedOperationResult:
+    name: str
+    # In seconds
+    duration: float
+
+    @classmethod
+    def run(cls, f, name, description, **f_kwargs):
+        time_start = time.perf_counter()
+
+        with gitlab_section(description, collapsed=True):
+            result = f(**f_kwargs)
+
+        time_end = time.perf_counter()
+        duration = time_end - time_start
+
+        return result, cls(name, duration)
+
+    def __lt__(self, other):
+        if isinstance(other, TimedOperationResult):
+            return self.name < other.name
+        else:
+            return True
 
 
 def get_all_allowed_repo_branches():
@@ -490,14 +516,13 @@ def is_pr_context(branch, pr_id, test_name):
 
 
 @contextmanager
-def collapsed_section(section_name):
+def gitlab_section(section_name, collapsed=False):
     section_id = section_name.replace(" ", "_").replace("/", "_")
     in_ci = running_in_gitlab_ci()
     try:
         if in_ci:
-            print(
-                f"\033[0Ksection_start:{int(time.time())}:{section_id}[collapsed=true]\r\033[0K{section_name + '...'}"
-            )
+            collapsed = '[collapsed=true]' if collapsed else ''
+            print(f"\033[0Ksection_start:{int(time.time())}:{section_id}{collapsed}\r\033[0K{section_name + '...'}")
         yield
     finally:
         if in_ci:
@@ -543,7 +568,7 @@ def retry_function(action_name_fmt, max_retries=2, retry_delay=1):
                             ),
                             file=sys.stderr,
                         )
-                        with collapsed_section(f"Retry {i + 1}/{max_retries} {action_name}"):
+                        with gitlab_section(f"Retry {i + 1}/{max_retries} {action_name}", collapsed=True):
                             traceback.print_exc()
                         time.sleep(retry_delay)
                         print(color_message(f'Retrying {action_name}', 'blue'))
