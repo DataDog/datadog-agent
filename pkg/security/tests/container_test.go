@@ -209,6 +209,10 @@ func TestContainerScopedVariable(t *testing.T) {
 }
 
 func TestCGroupID(t *testing.T) {
+	if testEnvironment == DockerEnvironment {
+		t.Skip("skipping cgroup ID test in docker")
+	}
+
 	SkipIfNotAvailable(t)
 
 	ruleDefs := []*rules.RuleDefinition{
