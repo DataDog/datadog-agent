@@ -169,6 +169,7 @@ func getSourceMap(file string, spec *ebpf.CollectionSpec) (map[string]map[int]*S
 	currProgram := ""
 	startingOffset := uint64(0)
 	sectionIndex := 0
+	prevAddress := 0
 	for {
 		var line dwarf.LineEntry
 		err := lineReader.Next(&line)
@@ -179,6 +180,13 @@ func getSourceMap(file string, spec *ebpf.CollectionSpec) (map[string]map[int]*S
 			return nil, nil, fmt.Errorf("DWARF lineReader file %s: %w", file, err)
 		}
 		if line.File != nil && line.Line > 0 {
+			// Increase section indexes whenever we reset the program. We have to look at the value of the previous
+			// address, because we might have multiple lines that have the same zero address.
+			if line.Address == 0 && prevAddress != 0 {
+				sectionIndex++
+			}
+			prevAddress = int(line.Address)
+
 			startPoint := progStartPoint{sectionIndex, int64(line.Address)}
 			lineinfo := fmt.Sprintf("%s:%d", line.File.Name, line.Line)
 
@@ -192,12 +200,7 @@ func getSourceMap(file string, spec *ebpf.CollectionSpec) (map[string]map[int]*S
 				startingOffset = line.Address
 				currProgram = progStartMap[startPoint]
 			}
-			fmt.Printf("[%s@%d] line: %s, addr: %d, sp=%v\n", currProgram, sectionIndex, lineinfo, line.Address, startPoint)
-
-			// Increase section indexes whenever we find the end of a sequence
-			if line.EndSequence {
-				sectionIndex++
-			}
+			fmt.Printf("[%s@%d] addr: 0x%x | line: %s, sp=%v\n", currProgram, sectionIndex, line.Address, lineinfo, startPoint)
 
 			if currProgram == "" {
 				// We might have information of programs that are not in the spec, ignore those
@@ -231,6 +234,8 @@ func getSourceMap(file string, spec *ebpf.CollectionSpec) (map[string]map[int]*S
 				// if we have a new source line
 				currLineInfo = offsets[progSpec.Name][insOffset]
 				currLine = ""
+			} else if insIdx == 0 {
+				return nil, nil, fmt.Errorf("missing line information at initial instruction for program %s", progSpec.Name)
 			}
 			// Keep the last source line for the instruction if we don't have a new one
 			if ins.Source() != nil && ins.Source().String() != "" {
@@ -238,7 +243,7 @@ func getSourceMap(file string, spec *ebpf.CollectionSpec) (map[string]map[int]*S
 			}
 
 			sline := SourceLine{LineInfo: currLineInfo, Line: currLine}
-			fmt.Printf("[%s@%s] insIdx: %d, sline: %v\n", progSpec.Name, progSpec.SectionName, insIdx, sline)
+			fmt.Printf("[%s@%s] ins:%d@%d, sline: %v\n", progSpec.Name, progSpec.SectionName, insIdx, insOffset, sline)
 			sourceMap[progSpec.Name][insIdx] = &sline
 		}
 	}
