@@ -88,7 +88,7 @@ func TestGetSourceMap(t *testing.T) {
 					}
 
 					// Do not try to read files in KMT environment, as we lack the source files
-					if strings.Contains(os.Getenv("CI_JOB_NAME"), "kmt_run") {
+					if _, ok := os.LookupEnv("GITLAB_CI"); ok {
 						continue
 					}
 
