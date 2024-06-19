@@ -62,7 +62,7 @@ namespace WixSetup
                 });
             }
 
-            if(string.IsNullOrEmpty(omnibusTarget) || omnibusTarget == "installer")
+            if (string.IsNullOrEmpty(omnibusTarget) || omnibusTarget == "installer")
             {
                 BuildMsi<DatadogInstaller>(() =>
                 {
