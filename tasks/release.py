@@ -808,7 +808,7 @@ def update_build_links(_ctx, new_version, patch_version=False):
                 "red",
             ),
             code=1,
-        )
+        ) from e
     print(color_message("Build links page updated", "green"))
 
 

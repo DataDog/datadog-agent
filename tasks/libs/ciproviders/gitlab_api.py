@@ -440,5 +440,5 @@ def load_context(context):
         try:
             j = json.loads(context)
             return [list(j.items())]
-        except json.JSONDecodeError:
-            raise Exit(f"Invalid context: {context}, must be a valid json, or a path to a yaml file", 1)
+        except json.JSONDecodeError as e:
+            raise Exit(f"Invalid context: {context}, must be a valid json, or a path to a yaml file", 1) from e
