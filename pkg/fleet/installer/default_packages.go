@@ -33,6 +33,14 @@ var PackagesList = []Package{
 	{Name: "datadog-agent", released: false, releasedWithRemoteUpdates: true},
 }
 
+var packageDependencies = map[string][]string{
+	"datadog-apm-library-java":   {"datadog-apm-inject"},
+	"datadog-apm-library-ruby":   {"datadog-apm-inject"},
+	"datadog-apm-library-js":     {"datadog-apm-inject"},
+	"datadog-apm-library-dotnet": {"datadog-apm-inject"},
+	"datadog-apm-library-python": {"datadog-apm-inject"},
+}
+
 // DefaultPackages resolves the default packages URLs to install based on the environment.
 func DefaultPackages(env *env.Env) []string {
 	return defaultPackages(env, PackagesList)

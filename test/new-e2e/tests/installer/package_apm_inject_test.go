@@ -402,6 +402,14 @@ func (s *packageApmInjectSuite) TestInstrumentDockerInactive() {
 	s.assertDockerdInstrumented(injectOCIPath)
 }
 
+func (s *packageApmInjectSuite) TestInstallDependencies() {
+	s.RunInstallScript()
+	defer s.Purge()
+	s.host.AssertPackageNotInstalledByPackageManager("datadog-apm-inject")
+	s.Env().RemoteHost.MustExecute("sudo datadog-installer install oci://datadoghq.com/datadog-apm-library-python:2.8.2-dev")
+	s.host.AssertPackageNotInstalledByPackageManager("datadog-apm-library-python")
+}
+
 func (s *packageApmInjectSuite) assertTraceReceived(traceID uint64) {
 	found := assert.Eventually(s.T(), func() bool {
 		tracePayloads, err := s.Env().FakeIntake.Client().GetTraces()
