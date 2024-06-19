@@ -158,7 +158,7 @@ class TestWasher:
 @task()
 def generate_flake_finder_pipeline(_, n=3):
     """
-    Verify that the jobs defined within job_files contain a change path rule.
+    Generate a child pipeline where jobs marked with SHOULD_RUN_IN_FLAKES_FINDER are run n times
     """
 
     # Read gitlab config
@@ -171,10 +171,10 @@ def generate_flake_finder_pipeline(_, n=3):
     for job, job_details in config.items():
         if (
             'variables' in job_details
-            and 'FLAKES_FINDER' in job_details['variables']
-            and job_details['variables']['FLAKES_FINDER'] == "true"
+            and 'SHOULD_RUN_IN_FLAKES_FINDER' in job_details['variables']
+            and job_details['variables']['SHOULD_RUN_IN_FLAKES_FINDER'] == "true"
         ):
-            # Let's exlude job that are retried for now untill we find a solution to tackle them
+            # Let's exclude job that are retried for now until we find a solution to tackle them
             if 'retry' in job_details:
                 continue
             kept_job[job] = job_details

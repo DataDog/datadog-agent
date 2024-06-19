@@ -97,7 +97,7 @@ k8s-e2e-otlp-main:
     # Generate external links to CI VISIBILITY, used by artifacts:reports:annotations
     - inv -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
   variables:
-    FLAKES_FINDER: "true"
+    SHOULD_RUN_IN_FLAKES_FINDER: "true"
     KUBERNETES_MEMORY_REQUEST: 12Gi
     KUBERNETES_MEMORY_LIMIT: 16Gi
     KUBERNETES_CPU_REQUEST: 6

@@ -145,14 +145,14 @@ def convert_to_config_node(json_data):
         return json_data
 
 
-def convert_to_dict(config_node):
+def convert_to_std_collections(config_node):
     """
-    Convert ConfigNode to dict
+    Convert ConfigNode to standard collections (list, dict)
     """
     if isinstance(config_node, ConfigNodeDict):
-        return {k: convert_to_dict(v) for k, v in config_node.items()}
+        return {k: convert_to_std_collections(v) for k, v in config_node.items()}
     elif isinstance(config_node, ConfigNodeList):
-        return [convert_to_dict(v) for v in config_node]
+        return [convert_to_std_collections(v) for v in config_node]
     else:
         return config_node
 
@@ -192,7 +192,7 @@ def apply_yaml_extends(config: dict, node):
             for key, value in parent.items():
                 if key not in node:
                     node[key] = value
-                if key in node and isinstance(node[key], dict) and isinstance(value, dict):
+                elif key in node and isinstance(node[key], dict) and isinstance(value, dict):
                     node[key].update(value)
 
         del node['extends']
@@ -248,7 +248,7 @@ def apply_yaml_reference(config: dict, node):
             node[key] = apply_ref(value)
     elif isinstance(node, list):
         results = []
-        for _, value in enumerate(node):
+        for value in node:
             postprocessed_value = apply_ref(value)
             # If list referenced within list, flatten lists
             if isinstance(value, YamlReferenceTagList) and isinstance(postprocessed_value, list):
@@ -317,7 +317,7 @@ def generate_gitlab_full_configuration(
         full_configuration = convert_to_config_node(full_configuration)
         apply_yaml_postprocessing(full_configuration, full_configuration)
 
-    full_configuration = convert_to_dict(full_configuration)
+    full_configuration = convert_to_std_collections(full_configuration)
     return yaml.safe_dump(full_configuration) if return_dump else full_configuration
 
 
