@@ -18,7 +18,7 @@ func (e *EBPFTelemetry) GetHelpersTelemetry() map[string]interface{} {
 		return helperTelemMap
 	}
 
-	var val HelperErrTelemetry
+	var val helperErrTelemetry
 	for probeName, k := range e.probeKeys {
 		err := e.helperErrMap.Lookup(&k, &val)
 		if err != nil {
@@ -47,7 +47,7 @@ func (e *EBPFTelemetry) GetMapsTelemetry() map[string]interface{} {
 		return t
 	}
 
-	var val MapErrTelemetry
+	var val mapErrTelemetry
 	for m, k := range e.mapKeys {
 		err := e.mapErrMap.Lookup(&k, &val)
 		if err != nil {

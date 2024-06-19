@@ -24,8 +24,8 @@ const (
 type mockErrorsTelemetry struct {
 	ebpfErrorsTelemetry
 	mtx          sync.Mutex
-	mapErrMap    map[telemetryIndex]MapErrTelemetry
-	helperErrMap map[telemetryIndex]HelperErrTelemetry
+	mapErrMap    map[telemetryIndex]mapErrTelemetry
+	helperErrMap map[telemetryIndex]helperErrTelemetry
 }
 
 func (m *mockErrorsTelemetry) Lock() {
@@ -40,7 +40,7 @@ func (m *mockErrorsTelemetry) isInitialized() bool {
 	return m.mapErrMap != nil && m.helperErrMap != nil
 }
 
-func (m *mockErrorsTelemetry) forEachMapEntry(yield func(telemetryIndex, MapErrTelemetry) bool) {
+func (m *mockErrorsTelemetry) forEachMapEntry(yield func(telemetryIndex, mapErrTelemetry) bool) {
 	for i, telemetry := range m.mapErrMap {
 		if !yield(i, telemetry) {
 			return
@@ -48,7 +48,7 @@ func (m *mockErrorsTelemetry) forEachMapEntry(yield func(telemetryIndex, MapErrT
 	}
 }
 
-func (m *mockErrorsTelemetry) forEachHelperEntry(yield func(telemetryIndex, HelperErrTelemetry) bool) {
+func (m *mockErrorsTelemetry) forEachHelperEntry(yield func(telemetryIndex, helperErrTelemetry) bool) {
 	for i, telemetry := range m.helperErrMap {
 		if !yield(i, telemetry) {
 			return
@@ -98,10 +98,10 @@ func TestEBPFErrorsCollector_SingleCollect(t *testing.T) {
 	}
 	mapErrorsMockValue, helperErrorsMockValue := uint64(20), uint64(100)
 	//create mock telemetry objects (since we don't want to trigger full ebpf subsystem)
-	mapEntries := map[telemetryIndex]MapErrTelemetry{
+	mapEntries := map[telemetryIndex]mapErrTelemetry{
 		{key: 1, name: mockMapName}: {Count: [64]uint64{mapErrorsMockValue}},
 	}
-	helperEntries := map[telemetryIndex]HelperErrTelemetry{
+	helperEntries := map[telemetryIndex]helperErrTelemetry{
 		{key: 2, name: mockHelperName}: {Count: [320]uint64{helperErrorsMockValue}},
 	}
 
@@ -157,10 +157,10 @@ func TestEBPFErrorsCollector_DoubleCollect(t *testing.T) {
 	}
 	mapErrorsMockValue1, helperErrorsMockValue1 := uint64(20), uint64(100)
 	mapErrorsMockValue2, helperErrorsMockValue2 := uint64(100), uint64(1000)
-	mapEntries := map[telemetryIndex]MapErrTelemetry{
+	mapEntries := map[telemetryIndex]mapErrTelemetry{
 		{key: 1, name: mockMapName}: {Count: [64]uint64{mapErrorsMockValue1}},
 	}
-	helperEntries := map[telemetryIndex]HelperErrTelemetry{
+	helperEntries := map[telemetryIndex]helperErrTelemetry{
 		{key: 2, name: mockHelperName}: {Count: [320]uint64{helperErrorsMockValue1}},
 	}
 
@@ -195,9 +195,9 @@ func TestEBPFErrorsCollector_DoubleCollect(t *testing.T) {
 
 	//increase the counters of the mock telemetry object before second collect
 	collector.(*EBPFErrorsCollector).T = &mockErrorsTelemetry{
-		mapErrMap: map[telemetryIndex]MapErrTelemetry{
+		mapErrMap: map[telemetryIndex]mapErrTelemetry{
 			{key: 1, name: mockMapName}: {Count: [64]uint64{mapErrorsMockValue2}}},
-		helperErrMap: map[telemetryIndex]HelperErrTelemetry{
+		helperErrMap: map[telemetryIndex]helperErrTelemetry{
 			{key: 2, name: mockHelperName}: {Count: [320]uint64{helperErrorsMockValue2}}},
 	}
 
