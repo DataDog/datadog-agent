@@ -9,18 +9,13 @@ package systemprobe
 
 import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
-	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
-// ServiceDiscoveryModule is the service_discovery module factory.
-var ServiceDiscoveryModule = module.Factory{
-	Name:             config.ServiceDiscoveryModule,
-	ConfigNamespaces: moduleNamespaces,
-	Fn: func(_ *sysconfigtypes.Config, _ optional.Option[workloadmeta.Component], _ telemetry.Component) (module.Module, error) {
-		return nil, module.ErrNotEnabled
-	},
+// NewServiceDiscoveryModule creates a new service_discovery system probe module.
+func NewServiceDiscoveryModule(_ *sysconfigtypes.Config, _ optional.Option[workloadmeta.Component], _ telemetry.Component) (module.Module, error) {
+	return nil, module.ErrNotEnabled
 }

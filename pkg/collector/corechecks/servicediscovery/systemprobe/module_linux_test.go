@@ -38,7 +38,15 @@ func setupServiceDiscoveryModule(t *testing.T) string {
 			config.ServiceDiscoveryModule: {},
 		},
 	}
-	err := module.Register(cfg, mux, []module.Factory{ServiceDiscoveryModule}, wmeta, nil)
+	m := module.Factory{
+		Name:             config.ServiceDiscoveryModule,
+		ConfigNamespaces: []string{"service_discovery"},
+		Fn:               NewServiceDiscoveryModule,
+		NeedsEBPF: func() bool {
+			return false
+		},
+	}
+	err := module.Register(cfg, mux, []module.Factory{m}, wmeta, nil)
 	require.NoError(t, err)
 
 	srv := httptest.NewServer(mux)

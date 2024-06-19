@@ -18,7 +18,6 @@ import (
 	"github.com/prometheus/procfs"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
-	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
@@ -34,22 +33,15 @@ const (
 	pathGetProc   = "/procs/{pid}"
 )
 
-// ServiceDiscoveryModule is the service_discovery module factory.
-var ServiceDiscoveryModule = module.Factory{
-	Name:             config.ServiceDiscoveryModule,
-	ConfigNamespaces: moduleNamespaces,
-	Fn: func(_ *sysconfigtypes.Config, _ optional.Option[workloadmeta.Component], _ telemetry.Component) (module.Module, error) {
-		poller, err := portlist.NewPoller()
-		if err != nil {
-			return nil, err
-		}
-		return &serviceDiscovery{
-			portPoller: poller,
-		}, nil
-	},
-	NeedsEBPF: func() bool {
-		return false
-	},
+// NewServiceDiscoveryModule creates a new service_discovery system probe module.
+func NewServiceDiscoveryModule(_ *sysconfigtypes.Config, _ optional.Option[workloadmeta.Component], _ telemetry.Component) (module.Module, error) {
+	poller, err := portlist.NewPoller()
+	if err != nil {
+		return nil, err
+	}
+	return &serviceDiscovery{
+		portPoller: poller,
+	}, nil
 }
 
 type serviceDiscovery struct {
