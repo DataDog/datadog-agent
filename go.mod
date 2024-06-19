@@ -175,7 +175,7 @@ require (
 	github.com/coreos/go-semver v0.3.1
 	github.com/coreos/go-systemd v22.5.0+incompatible
 	github.com/cri-o/ocicni v0.4.3
-	github.com/cyphar/filepath-securejoin v0.2.4
+	github.com/cyphar/filepath-securejoin v0.2.5
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
 	github.com/docker/docker v25.0.5+incompatible
 	github.com/docker/go-connections v0.5.0
@@ -522,7 +522,7 @@ require (
 	github.com/ulikunitz/xz v0.5.11 // indirect
 	github.com/vbatts/tar-split v0.11.5 // indirect
 	github.com/vito/go-sse v1.0.0 // indirect
-	github.com/vmihailenco/msgpack/v5 v5.3.5
+	github.com/vmihailenco/msgpack/v5 v5.4.1
 	github.com/vmihailenco/tagparser v0.1.2 // indirect
 	github.com/vmihailenco/tagparser/v2 v2.0.0 // indirect
 	github.com/xdg-go/pbkdf2 v1.0.0 // indirect
@@ -679,7 +679,7 @@ require (
 	github.com/cloudfoundry-community/go-cfclient/v2 v2.0.1-0.20230503155151-3d15366c5820
 	github.com/containerd/cgroups/v3 v3.0.3
 	github.com/containerd/typeurl/v2 v2.1.1
-	github.com/dvsekhvalnov/jose2go v1.6.0
+	github.com/dvsekhvalnov/jose2go v1.7.0
 	github.com/elastic/go-seccomp-bpf v1.4.0
 	github.com/fatih/structtag v1.2.0
 	github.com/glaslos/ssdeep v0.4.0
@@ -694,7 +694,7 @@ require (
 	github.com/prometheus-community/pro-bing v0.3.0
 	github.com/rickar/props v1.0.0
 	github.com/sijms/go-ora/v2 v2.8.19
-	github.com/swaggest/jsonschema-go v0.3.64
+	github.com/swaggest/jsonschema-go v0.3.70
 	github.com/valyala/fastjson v1.6.4
 	github.com/vibrantbyte/go-antpath v1.1.1
 	go.opentelemetry.io/collector/confmap/converter/expandconverter v0.102.1
