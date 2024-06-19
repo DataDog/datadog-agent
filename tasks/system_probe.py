@@ -1661,7 +1661,7 @@ def generate_minimized_btfs(ctx, source_dir, output_dir, bpf_programs):
         print(f"using all object files from directory {programs_dir}")
         bpf_programs = glob.glob(f"{programs_dir}/*.o")
 
-    newlist = list()
+    newlist = []
     for prog_path in bpf_programs:
         prog = os.path.basename(prog_path)
         if prog not in no_minimize:
