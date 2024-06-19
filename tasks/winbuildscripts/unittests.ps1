@@ -65,7 +65,7 @@ if($err -ne 0){
 
 # Upload coverage reports to Codecov
 $Env:CODECOV_TOKEN=$(& "$UT_BUILD_ROOT\tools\ci\aws_ssm_get_wrapper.ps1" $Env:CODECOV_TOKEN_SSM_NAME)
-& inv -e codecov $Env:CODECOV_CACHE_FLAG --debug
+& inv -e codecov $Env:COVERAGE_CACHE_FLAG --debug
 
 $ErrorActionPreference = "Continue" # Ignore upload errors now, until we change the logic to ignore empty files in the upload script
 $Env:DATADOG_API_KEY=$(& "$UT_BUILD_ROOT\tools\ci\aws_ssm_get_wrapper.ps1" $Env:API_KEY_ORG2_SSM_NAME)
