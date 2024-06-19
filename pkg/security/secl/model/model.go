@@ -56,15 +56,15 @@ type Releasable struct {
 // CallReleaseCallback calls the on-release callback
 func (r *Releasable) CallReleaseCallback() {
 	for _, cb := range r.onReleaseCallbacks {
-		if cb != nil {
-			cb()
-		}
+		cb()
 	}
 }
 
 // AppendReleaseCallback sets a callback to be called when the cache entry is released
 func (r *Releasable) AppendReleaseCallback(callback func()) {
-	r.onReleaseCallbacks = append(r.onReleaseCallbacks, callback)
+	if callback != nil {
+		r.onReleaseCallbacks = append(r.onReleaseCallbacks, callback)
+	}
 }
 
 // ContainerContext holds the container context of an event
@@ -440,16 +440,16 @@ func (pc *ProcessCacheEntry) Retain() {
 
 // AppendReleaseCallback set the callback called when the entry is released
 func (pc *ProcessCacheEntry) AppendReleaseCallback(callback func()) {
-	pc.onRelease = append(pc.onRelease, func(_ *ProcessCacheEntry) {
-		callback()
-	})
+	if callback != nil {
+		pc.onRelease = append(pc.onRelease, func(_ *ProcessCacheEntry) {
+			callback()
+		})
+	}
 }
 
 func (pc *ProcessCacheEntry) callReleaseCallbacks() {
 	for _, cb := range pc.onRelease {
-		if cb != nil {
-			cb(pc)
-		}
+		cb(pc)
 	}
 }
 
@@ -465,7 +465,10 @@ func (pc *ProcessCacheEntry) Release() {
 
 // NewProcessCacheEntry returns a new process cache entry
 func NewProcessCacheEntry(onRelease func(_ *ProcessCacheEntry)) *ProcessCacheEntry {
-	cbs := []func(_ *ProcessCacheEntry){onRelease}
+	var cbs []func(_ *ProcessCacheEntry)
+	if onRelease != nil {
+		cbs = append(cbs, onRelease)
+	}
 	return &ProcessCacheEntry{onRelease: cbs}
 }
 
