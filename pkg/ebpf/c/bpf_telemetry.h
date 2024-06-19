@@ -44,8 +44,6 @@ static void *(*bpf_telemetry_update_patch)(unsigned long, ...) = (void *)PATCH_T
         }                                                                      \
     }                                                                          \
 
-#define map_update_with_telemetry(fn, map, args...) \
-
 #define MK_FN_INDX(fn) FN_INDX_##fn
 
 #define FN_INDX_bpf_probe_read read_indx
