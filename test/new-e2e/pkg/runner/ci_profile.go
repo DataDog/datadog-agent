@@ -63,7 +63,7 @@ func NewCIProfile() (Profile, error) {
 	}
 
 	if initOnly || preinitialized {
-		uniqueID = os.Getenv("CI_PIPELINE_ID") // We use pipeline ID for init only and pre-initalized jobs, to be able to share state
+		uniqueID = os.Getenv("CI_PIPELINE_ID") // We use pipeline ID for init only and pre-initialized jobs, to be able to share state
 	}
 
 	// get environments from store
