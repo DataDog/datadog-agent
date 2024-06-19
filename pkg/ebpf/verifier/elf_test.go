@@ -8,7 +8,6 @@
 package verifier
 
 import (
-	"fmt"
 	"io/fs"
 	"path/filepath"
 	"sort"
@@ -68,9 +67,7 @@ func TestGetSourceMap(t *testing.T) {
 
 			for prog, progSourceMap := range sourceMap {
 				require.NotEmpty(tt, progSourceMap)
-
 				hasSourceInfo := false
-				var nonMatching []string
 
 				// Iterate all the instructions and compare the two sources of data we have.
 				// On one hand we have file-line from DWARF, on the other we have the line contents
@@ -106,15 +103,10 @@ func TestGetSourceMap(t *testing.T) {
 					require.GreaterOrEqual(tt, line, 0, "invalid line %d, ins %d", line, ins)
 					require.LessOrEqual(tt, line, len(fileCache[sourceFile]), "line %d not found in %s, ins %d", line, sourceFile, ins)
 					expectedLine := fileCache[sourceFile][line-1]
-					if expectedLine != sl.Line {
-						nonMatching = append(nonMatching, fmt.Sprintf("ins %d, %s, expected '%s', got '%s'", ins, sl.LineInfo, expectedLine, sl.Line))
-					}
+					require.Equal(tt, expectedLine, sl.Line, "mismatch at instruction %d, lineinfo=%s, prog %s", ins, sl.LineInfo, prog)
 				}
 
-				maxAllowedNonMatchingPerc := 0.25
-				maxAllowedNonMatching := int(float64(len(progSourceMap)) * maxAllowedNonMatchingPerc)
-				require.LessOrEqual(tt, len(nonMatching), maxAllowedNonMatching, "too many non-matching lines (%d/%d) for program %s. Missing matches:\n%s", len(nonMatching), len(progSourceMap), prog, strings.Join(nonMatching, "\n- "))
-				require.True(tt, hasSourceInfo, "no source info found for program %s", prog)
+				require.True(tt, hasSourceInfo, "no source info found for %s", prog)
 			}
 		})
 	}
