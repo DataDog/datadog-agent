@@ -37,14 +37,22 @@ const (
 // storeGenerator returns a new store specific to a given resource
 type storeGenerator func(context.Context, workloadmeta.Component, kubernetes.Interface) (*cache.Reflector, *reflectorStore)
 
+func shouldHavePodStore(cfg model.Reader) bool {
+	return cfg.GetBool("cluster_agent.collect_kubernetes_tags") || cfg.GetBool("autoscaling.workload.enabled")
+}
+
+func shouldHaveDeploymentStore(cfg model.Reader) bool {
+	return cfg.GetBool("language_detection.enabled") && cfg.GetBool("language_detection.reporting.enabled")
+}
+
 func storeGenerators(cfg model.Reader) []storeGenerator {
 	var generators []storeGenerator
 
-	if cfg.GetBool("cluster_agent.collect_kubernetes_tags") || cfg.GetBool("autoscaling.workload.enabled") {
+	if shouldHavePodStore(cfg) {
 		generators = append(generators, newPodStore)
 	}
 
-	if cfg.GetBool("language_detection.enabled") && cfg.GetBool("language_detection.reporting.enabled") {
+	if shouldHaveDeploymentStore(cfg) {
 		generators = append(generators, newDeploymentStore)
 	}
 
@@ -83,12 +91,30 @@ func resourcesWithRequiredMetadataCollection(cfg model.Reader) []string {
 // resourcesWithExplicitMetadataCollectionEnabled returns the list of resources
 // to collect metadata from according to the config options that configure
 // metadata collection
+// Pods and/or Deployments are excluded if they have their separate stores and informers
+// in order to avoid having two collectors collecting the same data.
 func resourcesWithExplicitMetadataCollectionEnabled(cfg model.Reader) []string {
 	if !cfg.GetBool("cluster_agent.kube_metadata_collection.enabled") {
 		return nil
 	}
 
-	return cfg.GetStringSlice("cluster_agent.kube_metadata_collection.resources")
+	var resources []string
+	requestedResources := cfg.GetStringSlice("cluster_agent.kube_metadata_collection.resources")
+	for _, resource := range requestedResources {
+		if resource == "pods" && shouldHavePodStore(cfg) {
+			log.Debugf("skipping pods from metadata collection because a separate pod store is initialised in workload metadata store.")
+			continue
+		}
+
+		if resource == "deployments" && shouldHaveDeploymentStore(cfg) {
+			log.Debugf("skipping deployments from metadata collection because a separate deployment store is initialised in workload metadata store.")
+			continue
+		}
+
+		resources = append(resources, resource)
+	}
+
+	return resources
 }
 
 type collector struct {

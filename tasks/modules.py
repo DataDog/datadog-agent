@@ -132,6 +132,7 @@ DEFAULT_MODULES = {
         targets=["./pkg", "./cmd", "./comp"],
     ),
     "cmd/agent/common/path": GoModule("cmd/agent/common/path", independent=True),
+    "comp/api/api/def": GoModule("comp/api/api/def", independent=True),
     "comp/core/config": GoModule("comp/core/config", independent=True, used_by_otel=True),
     "comp/core/flare/builder": GoModule("comp/core/flare/builder", independent=True),
     "comp/core/flare/types": GoModule("comp/core/flare/types", independent=True),
@@ -163,7 +164,7 @@ DEFAULT_MODULES = {
         "comp/otelcol/logsagentpipeline/logsagentpipelineimpl", independent=True, used_by_otel=True
     ),
     "comp/otelcol/otlp/components/exporter/datadogexporter": GoModule(
-        "comp/otelcol/otlp/components/exporter/datadogexporter", independent=True
+        "comp/otelcol/otlp/components/exporter/datadogexporter", independent=True, used_by_otel=True
     ),
     "comp/otelcol/otlp/components/exporter/logsagentexporter": GoModule(
         "comp/otelcol/otlp/components/exporter/logsagentexporter", independent=True, used_by_otel=True
@@ -177,7 +178,7 @@ DEFAULT_MODULES = {
     "comp/otelcol/otlp/components/statsprocessor": GoModule(
         "comp/otelcol/otlp/components/statsprocessor", independent=True, used_by_otel=True
     ),
-    "comp/otelcol/otlp/testutil": GoModule("comp/otelcol/otlp/testutil", independent=True),
+    "comp/otelcol/otlp/testutil": GoModule("comp/otelcol/otlp/testutil", independent=True, used_by_otel=True),
     "comp/otelcol/converter/def": GoModule("comp/otelcol/converter/def", independent=True, used_by_otel=True),
     "comp/otelcol/converter/impl": GoModule("comp/otelcol/converter/impl", independent=True, used_by_otel=True),
     "comp/serializer/compression": GoModule("comp/serializer/compression", independent=True, used_by_otel=True),

@@ -330,10 +330,10 @@ def config_ssh_key(ctx: Context):
         result = ask(f"[?] Found these valid key files:\n{keys_str}\nChoose one of these files (1-{len(ssh_keys)}): ")
         try:
             ssh_key = ssh_keys[int(result.strip()) - 1]
-        except ValueError:
-            raise Exit(f"Choice {result} is not a valid number")
-        except IndexError:  # out of range
-            raise Exit(f"Invalid choice {result}, must be a number between 1 and {len(ssh_keys)} (inclusive)")
+        except ValueError as e:
+            raise Exit(f"Choice {result} is not a valid number") from e
+        except IndexError as e:  # out of range
+            raise Exit(f"Invalid choice {result}, must be a number between 1 and {len(ssh_keys)} (inclusive)") from e
 
         aws_key_name = ask(
             f"Enter the key name configured in AWS for this key (leave blank to set the same as the local key name '{ssh_key['name']}'): "
@@ -388,7 +388,7 @@ def start_compiler(ctx: Context):
 
 def filter_target_domains(vms: str, infra: dict[KMTArchNameOrLocal, HostInstance], arch: Arch | None = None):
     vmsets = vmconfig.build_vmsets(vmconfig.build_normalized_vm_def_set(vms), [])
-    domains: list[LibvirtDomain] = list()
+    domains: list[LibvirtDomain] = []
     for vmset in vmsets:
         if arch is not None and Arch.from_str(vmset.arch) != arch:
             warn(f"Ignoring VM {vmset} as it is not of the expected architecture {arch}")
@@ -656,13 +656,14 @@ def prepare(
 
         # Copy the binaries to the target directory, CI will take them from those
         # paths as artifacts
-        copy_executables = {
+        copy_static_files = {
             gotestsum_path: paths.dependencies / "go/bin/gotestsum",
             clang_path: paths.arch_dir / "opt/datadog-agent/embedded/bin/clang-bpf",
             llc_path: paths.arch_dir / "opt/datadog-agent/embedded/bin/llc-bpf",
+            "flakes.yaml": paths.dependencies / "flakes.yaml",
         }
 
-        for src, dst in copy_executables.items():
+        for src, dst in copy_static_files.items():
             ctx.run(f"install -D {src} {dst}")
     else:
         gotestsum_path = paths.dependencies / "go/bin/gotestsum"
@@ -689,7 +690,7 @@ def prepare(
 
     info(f"[+] Preparing VMs {vms} in stack {stack} for {arch}")
 
-    target_instances: list[HostInstance] = list()
+    target_instances: list[HostInstance] = []
     for d in domains:
         target_instances.append(d.instance)
 
@@ -722,7 +723,7 @@ def prepare(
 
 
 def build_run_config(run: str | None, packages: list[str]):
-    c: dict[str, Any] = dict()
+    c: dict[str, Any] = {}
 
     if len(packages) == 0:
         return {"*": {"exclude": False}}
@@ -918,12 +919,12 @@ def kmt_sysprobe_prepare(
     ctx.run(f"ninja -d explain -v -f {nf_path}")
 
 
-def images_matching_ci(ctx: Context, domains: list[LibvirtDomain]):
+def images_matching_ci(_: Context, domains: list[LibvirtDomain]):
     platforms = get_platforms()
     arch = Arch.local().kmt_arch
     kmt_os = get_kmt_os()
 
-    not_matches = list()
+    not_matches = []
     for tag in platforms[arch]:
         platinfo = platforms[arch][tag]
         vmid = f"{platinfo['os_id']}_{platinfo['os_version']}"
@@ -1066,7 +1067,7 @@ def build_layout(ctx, domains, layout: str, verbose: bool):
         todo: DependenciesLayout = cast('DependenciesLayout', json.load(lf))
 
     for d in domains:
-        mkdir = list()
+        mkdir = []
         for dirs in todo["layout"]:
             mkdir.append(f"mkdir -p {dirs} &&")
 
@@ -1390,8 +1391,8 @@ def update_platform_info(
                 arch = Arch.from_str(keyvals['ARCH'])
                 image_name = keyvals['IMAGE_NAME']
                 image_filename = keyvals['IMAGE_FILENAME']
-            except KeyError:
-                raise Exit(f"[!] Invalid manifest {manifest}")
+            except KeyError as e:
+                raise Exit(f"[!] Invalid manifest {manifest}") from e
 
             if arch not in platforms:
                 warn(f"[!] Unsupported architecture {arch}, skipping")
@@ -1634,10 +1635,10 @@ def explain_ci_failure(_, pipeline: str):
             # Some distros do not show the systemd service status in the boot log, which means
             # that we cannot infer the state of services from that boot log. Filter only non-kernel
             # lines in the output (kernel logs always are prefaced by [ seconds-since-boot ] so
-            # they're easy to filter out) to see if there we can find clues that tell us whether
+            # they're easy to filter out) to see if we can find clues that tell us whether
             # we have status logs or not.
             non_kernel_boot_log_lines = [
-                l for l in boot_log.splitlines() if re.match(r"\[[0-9 \.]+\]", l) is None
+                line for line in boot_log.splitlines() if re.match(r"\[[0-9 \.]+\]", line) is None
             ]  # reminder: match only searches pattern at the beginning of string
             non_kernel_boot_log = "\n".join(non_kernel_boot_log_lines)
             # systemd will always show the journal service starting in the boot log if it's outputting there

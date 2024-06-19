@@ -10,8 +10,6 @@ import (
 	_ "embed"
 	"errors"
 	"fmt"
-	"os"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -39,11 +37,6 @@ func TestLanguageDetectionSuite(t *testing.T) {
 
 	options := []e2e.SuiteOption{
 		e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(awshost.WithAgentOptions(agentParams...))),
-	}
-
-	devModeEnv, _ := os.LookupEnv("E2E_DEVMODE")
-	if devMode, err := strconv.ParseBool(devModeEnv); err == nil && devMode {
-		options = append(options, e2e.WithDevMode())
 	}
 
 	e2e.Run(t, &languageDetectionSuite{}, options...)

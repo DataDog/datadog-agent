@@ -7,7 +7,6 @@ package converterimpl
 
 import (
 	"context"
-	"fmt"
 	"path/filepath"
 	"testing"
 
@@ -22,7 +21,6 @@ import (
 )
 
 func uriFromFile(filename string) []string {
-	fmt.Println(filepath.Join("testdata", filename))
 	return []string{filepath.Join("testdata", filename)}
 }
 
@@ -47,23 +45,99 @@ func TestNewConverter(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestConfigProviderConvert(t *testing.T) {
-	converter, err := NewConverter()
-	assert.NoError(t, err)
+func TestConvert(t *testing.T) {
+	tests := []struct {
+		name           string
+		provided       string
+		expectedResult string
+	}{
+		{
+			name:           "extensions/no-extensions",
+			provided:       "extensions/no-extensions/config.yaml",
+			expectedResult: "extensions/no-extensions/config-result.yaml",
+		},
+		{
+			name:           "extensions/other-extensions",
+			provided:       "extensions/other-extensions/config.yaml",
+			expectedResult: "extensions/other-extensions/config-result.yaml",
+		},
+		{
+			name:           "extensions/no-changes",
+			provided:       "extensions/no-changes/config.yaml",
+			expectedResult: "extensions/no-changes/config.yaml",
+		},
+		{
+			name:           "processors/no-processors",
+			provided:       "processors/no-processors/config.yaml",
+			expectedResult: "processors/no-processors/config-result.yaml",
+		},
+		{
+			name:           "processors/other-processors",
+			provided:       "processors/other-processors/config.yaml",
+			expectedResult: "processors/other-processors/config-result.yaml",
+		},
+		{
+			name:           "processors/no-processor-partial",
+			provided:       "processors/no-processor-partial/config.yaml",
+			expectedResult: "processors/no-processor-partial/config-result.yaml",
+		},
+		{
+			name:           "processors/no-changes",
+			provided:       "processors/no-changes/config.yaml",
+			expectedResult: "processors/no-changes/config.yaml",
+		},
+		{
+			name:           "receivers/no-changes",
+			provided:       "receivers/no-changes/config.yaml",
+			expectedResult: "receivers/no-changes/config.yaml",
+		},
+		{
+			name:           "receivers/no-prometheus-receiver",
+			provided:       "receivers/no-prometheus-receiver/config.yaml",
+			expectedResult: "receivers/no-prometheus-receiver/config-result.yaml",
+		},
+		{
+			name:           "receivers/no-prom-multi-dd",
+			provided:       "receivers/no-prom-multi-dd/config.yaml",
+			expectedResult: "receivers/no-prom-multi-dd/config-result.yaml",
+		},
+		{
+			name:           "receivers/no-prom-not-default-addr",
+			provided:       "receivers/no-prom-not-default-addr/config.yaml",
+			expectedResult: "receivers/no-prom-not-default-addr/config-result.yaml",
+		},
+		{
+			name:           "receivers/multi-dd-partial-prom",
+			provided:       "receivers/multi-dd-partial-prom/config.yaml",
+			expectedResult: "receivers/multi-dd-partial-prom/config-result.yaml",
+		},
+		{
+			name:           "receivers/no-receivers-defined",
+			provided:       "receivers/no-receivers-defined/config.yaml",
+			expectedResult: "receivers/no-receivers-defined/config-result.yaml",
+		},
+	}
 
-	resolver, err := newResolver(uriFromFile("nop/config.yaml"))
-	assert.NoError(t, err)
-	conf, err := resolver.Resolve(context.Background())
-	assert.NoError(t, err)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			converter, err := NewConverter()
+			assert.NoError(t, err)
 
-	resolverResult, err := newResolver(uriFromFile("nop/config-result.yaml"))
-	assert.NoError(t, err)
-	confResult, err := resolverResult.Resolve(context.Background())
-	assert.NoError(t, err)
+			resolver, err := newResolver(uriFromFile(tc.provided))
+			assert.NoError(t, err)
+			conf, err := resolver.Resolve(context.Background())
+			assert.NoError(t, err)
 
-	converter.Convert(context.Background(), conf)
+			converter.Convert(context.Background(), conf)
 
-	assert.Equal(t, confResult, conf)
+			resolverResult, err := newResolver(uriFromFile(tc.expectedResult))
+			assert.NoError(t, err)
+			confResult, err := resolverResult.Resolve(context.Background())
+			assert.NoError(t, err)
+
+			assert.Equal(t, confResult.ToStringMap(), conf.ToStringMap())
+		})
+	}
 }
 
 func TestGetConfDump(t *testing.T) {
