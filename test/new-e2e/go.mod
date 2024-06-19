@@ -29,21 +29,12 @@ require (
 	// `TEST_INFRA_DEFINITIONS_BUILDIMAGES` matches the commit sha in the module version
 	// Example: 	github.com/DataDog/test-infra-definitions v0.0.0-YYYYMMDDHHmmSS-0123456789AB
 	// => TEST_INFRA_DEFINITIONS_BUILDIMAGES: 0123456789AB
-<<<<<<< HEAD
 	github.com/DataDog/test-infra-definitions v0.0.0-20240618120136-1aeb55d47068
-	github.com/aws/aws-sdk-go-v2 v1.26.1
-	github.com/aws/aws-sdk-go-v2/config v1.27.11
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.138.1
-	github.com/aws/aws-sdk-go-v2/service/eks v1.35.1
-	github.com/aws/aws-sdk-go-v2/service/ssm v1.44.1
-=======
-	github.com/DataDog/test-infra-definitions v0.0.0-20240617152027-5f688723b34b
 	github.com/aws/aws-sdk-go-v2 v1.28.0
 	github.com/aws/aws-sdk-go-v2/config v1.27.19
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.164.2
 	github.com/aws/aws-sdk-go-v2/service/eks v1.43.2
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.50.7
->>>>>>> 856cd012cee1a8c272e5e9b4808c276009e341fc
 	github.com/cenkalti/backoff v2.2.1+incompatible
 	github.com/docker/cli v24.0.7+incompatible
 	github.com/docker/docker v24.0.7+incompatible
