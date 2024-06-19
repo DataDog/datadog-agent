@@ -59,12 +59,6 @@ type OverrideOptions struct {
 	Fields []OverrideField `yaml:"fields"`
 }
 
-// Ruleset loading operations
-const (
-	RuleSetTagKey          = "ruleset"
-	DefaultRuleSetTagValue = "probe_evaluation"
-)
-
 // MacroDefinition holds the definition of a macro
 type MacroDefinition struct {
 	ID                     MacroID       `yaml:"id"`
@@ -221,11 +215,6 @@ func (rs *RuleSet) ListRuleIDs() []RuleID {
 // GetRules returns the active rules
 func (rs *RuleSet) GetRules() map[eval.RuleID]*Rule {
 	return rs.rules
-}
-
-// GetRuleSetTag gets the value of the "ruleset" tag, which is the tag of the rules that belong in this rule set
-func (rs *RuleSet) GetRuleSetTag() eval.RuleSetTagValue {
-	return rs.opts.RuleSetTag[RuleSetTagKey]
 }
 
 // ListMacroIDs returns the list of MacroIDs from the ruleset
@@ -844,6 +833,63 @@ NewFields:
 // StopEventCollector stops the event collector
 func (rs *RuleSet) StopEventCollector() []CollectedEvent {
 	return rs.eventCollector.Stop()
+}
+
+// LoadPolicies loads policies from the provided policy loader
+func (rs *RuleSet) LoadPolicies(loader *PolicyLoader, opts PolicyLoaderOpts) *multierror.Error {
+	var (
+		errs       *multierror.Error
+		allRules   []*RuleDefinition
+		allMacros  []*MacroDefinition
+		macroIndex = make(map[string]*MacroDefinition)
+		rulesIndex = make(map[string]*RuleDefinition)
+	)
+
+	parsingContext := ast.NewParsingContext()
+
+	policies, err := loader.LoadPolicies(opts)
+	if err != nil {
+		errs = multierror.Append(errs, err)
+	}
+	rs.policies = policies
+
+	for _, policy := range policies {
+		for _, macro := range policy.Macros {
+			if existingMacro := macroIndex[macro.ID]; existingMacro != nil {
+				if err := existingMacro.MergeWith(macro); err != nil {
+					errs = multierror.Append(errs, err)
+				}
+			} else {
+				macroIndex[macro.ID] = macro
+				allMacros = append(allMacros, macro)
+			}
+		}
+
+		for _, rule := range policy.Rules {
+			if existingRule := rulesIndex[rule.ID]; existingRule != nil {
+				if err := existingRule.MergeWith(rule); err != nil {
+					errs = multierror.Append(errs, err)
+				}
+			} else {
+				rulesIndex[rule.ID] = rule
+				allRules = append(allRules, rule)
+			}
+		}
+	}
+
+	if err := rs.AddMacros(parsingContext, allMacros); err.ErrorOrNil() != nil {
+		errs = multierror.Append(errs, err)
+	}
+
+	if err := rs.populateFieldsWithRuleActionsData(allRules, opts); err.ErrorOrNil() != nil {
+		errs = multierror.Append(errs, err)
+	}
+
+	if err := rs.AddRules(parsingContext, allRules); err.ErrorOrNil() != nil {
+		errs = multierror.Append(errs, err)
+	}
+
+	return errs
 }
 
 // NewEvent returns a new event using the embedded constructor
