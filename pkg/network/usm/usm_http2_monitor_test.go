@@ -205,6 +205,11 @@ func (s *usmHTTP2Suite) TestSimpleHTTP2() {
 	t.Cleanup(cancel)
 	require.NoError(t, proxy.WaitForConnectionReady(unixPath))
 
+	monitor := setupUSMTLSMonitor(t, cfg)
+	if s.isTLS {
+		utils.WaitForProgramsToBeTraced(t, "go-tls", proxyProcess.Process.Pid)
+	}
+
 	tests := []struct {
 		name              string
 		runClients        func(t *testing.T, clientsCount int)
@@ -274,10 +279,7 @@ func (s *usmHTTP2Suite) TestSimpleHTTP2() {
 		for _, clientCount := range []int{1, 2, 5} {
 			testNameSuffix := fmt.Sprintf("-different clients - %v", clientCount)
 			t.Run(tt.name+testNameSuffix, func(t *testing.T) {
-				monitor := setupUSMTLSMonitor(t, cfg)
-				if s.isTLS {
-					utils.WaitForProgramsToBeTraced(t, "go-tls", proxyProcess.Process.Pid)
-				}
+				t.Cleanup(usmhttp2.CleanHTTP2Maps)
 				tt.runClients(t, clientCount)
 
 				res := make(map[usmhttp.Key]int)
