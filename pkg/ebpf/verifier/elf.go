@@ -168,6 +168,7 @@ func getSourceMap(file string, spec *ebpf.CollectionSpec) (map[string]map[int]*S
 	sourceMap := make(map[string]map[int]*SourceLine)
 	funcsPerSection := make(map[string][]string)
 	currLineInfo := ""
+	currLine := ""
 	for _, progSpec := range spec.Programs {
 		sourceMap[progSpec.Name] = make(map[int]*SourceLine)
 		funcsPerSection[progSpec.SectionName] = append(funcsPerSection[progSpec.SectionName], progSpec.Name)
@@ -181,12 +182,15 @@ func getSourceMap(file string, spec *ebpf.CollectionSpec) (map[string]map[int]*S
 				// A single C line can generate multiple instructions, only update the value
 				// if we have a new source line
 				currLineInfo = offsets[progSpec.Name][insOffset]
+				currLine = ""
 			}
-			sline := SourceLine{LineInfo: currLineInfo}
+			// Keep the last source line for the instruction if we don't have a new one
+			if ins.Source() != nil && ins.Source().String() != "" {
+				currLine = ins.Source().String()
+			}
 
-			if ins.Source() != nil {
-				sline.Line = ins.Source().String()
-			}
+			sline := SourceLine{LineInfo: currLineInfo, Line: currLine}
+			// fmt.Printf("insIdx: %d, sline: %v\n", insIdx, sline)
 			sourceMap[progSpec.Name][insIdx] = &sline
 		}
 	}

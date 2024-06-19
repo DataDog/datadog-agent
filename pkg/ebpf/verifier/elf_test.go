@@ -8,17 +8,17 @@
 package verifier
 
 import (
+	"fmt"
 	"io/fs"
 	"path/filepath"
-	"sort"
+	"strconv"
 	"strings"
 	"testing"
-
-	"golang.org/x/exp/maps"
 
 	"github.com/cilium/ebpf"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 
 	"github.com/stretchr/testify/require"
 )
@@ -45,6 +45,8 @@ func TestGetSourceMap(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	fileCache := make(map[string][]string)
+
 	for name, path := range objectFiles {
 		t.Run(name, func(tt *testing.T) {
 			spec, err := ebpf.LoadCollectionSpec(path)
@@ -66,14 +68,39 @@ func TestGetSourceMap(t *testing.T) {
 				require.NotEmpty(tt, progSourceMap)
 
 				hasSourceInfo := false
-				insnList := maps.Keys(progSourceMap)
-				sort.Ints(insnList)
-				for _, ins := range insnList {
-					sl := progSourceMap[ins]
-					if sl.LineInfo != "" {
-						hasSourceInfo = true
+				var nonMatching []string
+
+				for ins, sl := range progSourceMap {
+					if sl.LineInfo == "" {
+						continue
+					}
+					hasSourceInfo = true
+
+					// Compare the line info with the one from the actual file
+					infoParts := strings.Split(sl.LineInfo, ":")
+					require.Len(tt, infoParts, 2)
+					line, err := strconv.Atoi(infoParts[1])
+					require.NoError(tt, err)
+					sourceFile := infoParts[0]
+
+					if _, ok := fileCache[sourceFile]; !ok {
+						// Read all the lines from the file
+						lines, err := filesystem.ReadLines(sourceFile)
+						require.NoError(tt, err, "cannot read file %s", sourceFile)
+						fileCache[sourceFile] = lines
+					}
+
+					require.GreaterOrEqual(tt, line, 0, "invalid line %d, ins %d", line, ins)
+					require.LessOrEqual(tt, line, len(fileCache[sourceFile]), "line %d not found in %s, ins %d", line, sourceFile, ins)
+					expectedLine := fileCache[sourceFile][line-1]
+					if expectedLine != sl.Line {
+						nonMatching = append(nonMatching, fmt.Sprintf("ins %d, %s, expected '%s', got '%s'", ins, sl.LineInfo, expectedLine, sl.Line))
 					}
 				}
+
+				maxAllowedNonMatchingPerc := 0.25
+				maxAllowedNonMatching := int(float64(len(progSourceMap)) * maxAllowedNonMatchingPerc)
+				require.LessOrEqual(tt, len(nonMatching), maxAllowedNonMatching, "too many non-matching lines (%d/%d) for program %s. Missing matches:\n%s", len(nonMatching), len(progSourceMap), prog, strings.Join(nonMatching, "\n- "))
 				require.True(tt, hasSourceInfo, "no source info found for program %s", prog)
 			}
 		})
