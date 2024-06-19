@@ -141,7 +141,17 @@ SERVERLESS_TAGS = {"serverless", "otlp"}
 SYSTEM_PROBE_TAGS = AGENT_TAGS.union({"linux_bpf", "npm"}).difference({"python", "systemd"})
 
 # TRACE_AGENT_TAGS lists the tags that have to be added when the trace-agent
-TRACE_AGENT_TAGS = {"docker", "containerd", "datadog.no_waf", "kubeapiserver", "kubelet", "otlp", "netcgo", "podman", "zstd"}
+TRACE_AGENT_TAGS = {
+    "docker",
+    "containerd",
+    "datadog.no_waf",
+    "kubeapiserver",
+    "kubelet",
+    "otlp",
+    "netcgo",
+    "podman",
+    "zstd",
+}
 
 # TRACE_AGENT_HEROKU_TAGS lists the tags necessary to build the trace-agent for Heroku
 TRACE_AGENT_HEROKU_TAGS = TRACE_AGENT_TAGS.difference(
