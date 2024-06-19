@@ -17,7 +17,6 @@ set OMNIBUS_BUILD=omnibus.build
 @rem It's not strictly needed, as we will only invoke the .cmd for the Datadog Installer in the invoke task build-installer, but it's a good practice to be consistent.
 set OMNIBUS_TARGET=installer
 set OMNIBUS_ARGS=%OMNIBUS_ARGS% --target-project %OMNIBUS_TARGET%
-set CI_PROJECT_DIR=%BUILD_ROOT%
 
 if DEFINED GOMODCACHE set OMNIBUS_ARGS=%OMNIBUS_ARGS% --go-mod-cache %GOMODCACHE%
 if DEFINED USE_S3_CACHING set OMNIBUS_ARGS=%OMNIBUS_ARGS% %USE_S3_CACHING%
