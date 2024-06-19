@@ -41,14 +41,30 @@ func NewCIProfile() (Profile, error) {
 	// TODO move to job script
 	os.Setenv("PULUMI_CONFIG_PASSPHRASE", passVal)
 
+	// Test early create resources
+
 	// Building name prefix
 	jobID := os.Getenv("CI_JOB_ID")
 	projectID := os.Getenv("CI_PROJECT_ID")
 	if jobID == "" || projectID == "" {
 		return nil, fmt.Errorf("unable to compute name prefix, missing variables job id: %s, project id: %s", jobID, projectID)
 	}
-
+	uniqueID := jobID
 	store := parameters.NewEnvStore(EnvPrefix)
+
+	initOnly, err := store.GetBoolWithDefault(parameters.InitOnly, false)
+	if err != nil {
+		return nil, err
+	}
+
+	preinitialized, err := store.GetBoolWithDefault(parameters.PreInitialized, false)
+	if err != nil {
+		return nil, err
+	}
+
+	if initOnly || preinitialized {
+		uniqueID = os.Getenv("CI_PIPELINE_ID") // We use pipeline ID for init only and pre-initalized jobs, to be able to share state
+	}
 
 	// get environments from store
 	environmentsStr, err := store.GetWithDefault(parameters.Environments, defaultCIEnvironments)
@@ -69,7 +85,7 @@ func NewCIProfile() (Profile, error) {
 
 	return ciProfile{
 		baseProfile: newProfile("e2eci", ciEnvironments, store, &secretStore, outputRoot),
-		ciUniqueID:  "ci-" + jobID + "-" + projectID,
+		ciUniqueID:  "ci-" + uniqueID + "-" + projectID,
 	}, nil
 }
 

@@ -144,7 +144,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"reflect"
 	"testing"
 	"time"
@@ -189,6 +188,7 @@ type BaseSuite[Env any] struct {
 	currentProvisioners  ProvisionerMap
 
 	firstFailTest string
+	initOnly      bool
 }
 
 //
@@ -306,7 +306,7 @@ func (bs *BaseSuite[Env]) reconcileEnv(targetProvisioners ProvisionerMap) error 
 		resources.Merge(provisionerResources)
 	}
 
-	if os.Getenv("INIT_ONLY") != "" {
+	if bs.initOnly {
 		return nil
 	}
 
@@ -332,6 +332,11 @@ func (bs *BaseSuite[Env]) reconcileEnv(targetProvisioners ProvisionerMap) error 
 
 func (bs *BaseSuite[Env]) createEnv() (*Env, []reflect.StructField, []reflect.Value, error) {
 	var env Env
+	initOnly, err := runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.InitOnly, false)
+	if err == nil {
+		bs.initOnly = initOnly
+	}
+
 	envFields := reflect.VisibleFields(reflect.TypeOf(&env).Elem())
 	envValue := reflect.ValueOf(&env)
 
@@ -471,7 +476,7 @@ func (bs *BaseSuite[Env]) SetupSuite() {
 		// `panic()` is required to stop the execution of the test suite. Otherwise `testify.Suite` will keep on running suite tests.
 		panic(err)
 	}
-	if os.Getenv("INIT_ONLY") != "" {
+	if bs.initOnly {
 		bs.T().Skip("INIT_ONLY is set, skipping tests")
 	}
 }
@@ -520,7 +525,7 @@ func (bs *BaseSuite[Env]) TearDownSuite() {
 		return
 	}
 
-	if os.Getenv("INIT_ONLY") != "" {
+	if bs.initOnly {
 		bs.T().Logf("INIT_ONLY is set, skipping deletion")
 		return
 	}
