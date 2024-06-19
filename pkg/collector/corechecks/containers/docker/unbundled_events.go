@@ -18,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func newUnbundledTransformer(hostname string, types []string, eventTransformer eventTransformer) eventTransformer {
+func newUnbundledTransformer(hostname string, types []string, bundledTransformer eventTransformer) eventTransformer {
 	collectedEventTypes := make(map[string]struct{}, len(types))
 	for _, t := range types {
 		collectedEventTypes[t] = struct{}{}
@@ -27,7 +27,7 @@ func newUnbundledTransformer(hostname string, types []string, eventTransformer e
 	return &unbundledTransformer{
 		hostname:            hostname,
 		collectedEventTypes: collectedEventTypes,
-		eventTransformer:    eventTransformer,
+		eventTransformer:    bundledTransformer,
 	}
 }
 
