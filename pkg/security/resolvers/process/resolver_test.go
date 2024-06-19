@@ -486,7 +486,6 @@ func TestExecBomb(t *testing.T) {
 	exec1.ExecTime = time.Now()
 
 	exec2 := resolver.NewProcessCacheEntry(model.PIDContext{Pid: child.Pid, Tid: child.Pid})
-	exec2.Pid = child.Pid
 	exec2.PPid = child.PPid
 	exec2.FileEvent.Inode = 123
 	exec2.ExecTime = time.Now()

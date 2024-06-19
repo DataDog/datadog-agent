@@ -261,7 +261,7 @@ func TestActionSetVariable(t *testing.T) {
 
 	event := model.NewFakeEvent()
 	event.Type = uint32(model.FileOpenEventType)
-	processCacheEntry := &model.ProcessCacheEntry{}
+	processCacheEntry := model.NewProcessCacheEntry(nil)
 	processCacheEntry.Retain()
 	event.ProcessCacheEntry = processCacheEntry
 	event.SetFieldValue("open.file.path", "/tmp/test2")
@@ -332,7 +332,7 @@ func TestActionSetVariableTTL(t *testing.T) {
 
 	event := model.NewFakeEvent()
 	event.Type = uint32(model.FileOpenEventType)
-	processCacheEntry := &model.ProcessCacheEntry{}
+	processCacheEntry := model.NewProcessCacheEntry(nil)
 	processCacheEntry.Retain()
 	event.ProcessCacheEntry = processCacheEntry
 	event.SetFieldValue("open.file.path", "/tmp/test")

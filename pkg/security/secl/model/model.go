@@ -462,6 +462,10 @@ func (pc *ProcessCacheEntry) SetReleaseCallback(callback func()) {
 
 // Release decrement and eventually release the entry
 func (pc *ProcessCacheEntry) Release() {
+	if pc.refCount == 0 {
+		panic("releasing already released PCE")
+	}
+
 	pc.refCount--
 	if pc.refCount > 0 {
 		return
