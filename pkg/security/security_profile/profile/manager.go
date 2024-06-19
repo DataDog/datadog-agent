@@ -801,11 +801,11 @@ func (m *SecurityProfileManager) LookupEventInProfiles(event *model.Event) {
 
 	// lookup profile
 	profile := m.GetProfile(selector)
-	if profile == nil { // || profile.ActivityTree == nil {
+	if profile == nil || profile.ActivityTree == nil {
 		m.incrementEventFilteringStat(event.GetEventType(), NoProfile, NA)
 		return
 	}
-	if !profile.IsEventTypeValid(event.GetEventType()) /* || !profile.loadedInKernel */ {
+	if !profile.IsEventTypeValid(event.GetEventType()) || !profile.loadedInKernel {
 		m.incrementEventFilteringStat(event.GetEventType(), NoProfile, NA)
 		return
 	}
