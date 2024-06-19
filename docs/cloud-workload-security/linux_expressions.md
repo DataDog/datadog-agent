@@ -119,6 +119,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | Property | Definition |
 | -------- | ------------- |
 | [`container.created_at`](#container-created_at-doc) | Timestamp of the creation of the container |
+| [`container.flags`](#container-flags-doc) | Flags associated with the container |
 | [`container.id`](#container-id-doc) | ID of the container |
 | [`container.tags`](#container-tags-doc) | Tags of the container |
 | [`event.async`](#event-async-doc) | True if the syscall was asynchronous |
@@ -2428,6 +2429,13 @@ Definition: Timestamp of the creation of the container
 
 
 
+### `container.flags` {#container-flags-doc}
+Type: int
+
+Definition: Flags associated with the container
+
+
+
 ### `container.id` {#container-id-doc}
 Type: string
 
@@ -3334,6 +3342,17 @@ Boolean constants are the supported boolean constants.
 | ---- |---------------|
 | `true` | all |
 | `false` | all |
+
+### `ContainerFlags flags` {#containerflags-flags}
+Container flags are the supported flags for a container.
+
+| Name | Architectures |
+| ---- |---------------|
+| `MANAGED_BY_DOCKER` | all |
+| `MANAGED_BY_CRI_CONTAINERD` | all |
+| `MANAGED_BY_CRIO` | all |
+| `MANAGED_BY_PODMAN` | all |
+| `MANAGED_BY_SYSTEMD` | all |
 
 ### `DNS qclasses` {#dns-qclasses}
 DNS qclasses are the supported DNS query classes.

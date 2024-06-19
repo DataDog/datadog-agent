@@ -101,7 +101,7 @@ func TestContainerFlags(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_container_flags",
-			Expression: `container.id != "" && open.file.path == "{{.Root}}/test-open"`,
+			Expression: `container.id != "" && open.file.path == "{{.Root}}/test-open" && (container.flags & MANAGED_BY_DOCKER) > 0`,
 		},
 	}
 	test, err := newTestModule(t, nil, ruleDefs)

@@ -78,6 +78,15 @@ func (fh *EBPFLessFieldHandlers) ResolveContainerContext(ev *model.Event) (*mode
 	return ev.ContainerContext, ev.ContainerContext != nil
 }
 
+// ResolveContainerContext retrieves the flags associated with the container context
+func (fh *EBPFLessFieldHandlers) ResolveContainerFlags(ev *model.Event, e *model.ContainerContext) int {
+	if ev.ContainerContext == nil {
+		return 0
+	}
+
+	return int(ev.ContainerContext.Flags)
+}
+
 // ResolveProcessArgv0 resolves the first arg of the event
 func (fh *EBPFLessFieldHandlers) ResolveProcessArgv0(_ *model.Event, process *model.Process) string {
 	arg0, _ := sprocess.GetProcessArgv0(process)

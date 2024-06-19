@@ -24,6 +24,7 @@ func (ev *Event) ResolveFieldsForAD() {
 func (ev *Event) resolveFields(forADs bool) {
 	// resolve context fields that are not related to any event type
 	_ = ev.FieldHandlers.ResolveContainerCreatedAt(ev, ev.BaseEvent.ContainerContext)
+	_ = ev.FieldHandlers.ResolveContainerFlags(ev, ev.BaseEvent.ContainerContext)
 	_ = ev.FieldHandlers.ResolveContainerID(ev, ev.BaseEvent.ContainerContext)
 	if !forADs {
 		_ = ev.FieldHandlers.ResolveContainerTags(ev, ev.BaseEvent.ContainerContext)
@@ -968,6 +969,7 @@ type FieldHandlers interface {
 	ResolveChownGID(ev *Event, e *ChownEvent) string
 	ResolveChownUID(ev *Event, e *ChownEvent) string
 	ResolveContainerCreatedAt(ev *Event, e *ContainerContext) int
+	ResolveContainerFlags(ev *Event, e *ContainerContext) int
 	ResolveContainerID(ev *Event, e *ContainerContext) string
 	ResolveContainerTags(ev *Event, e *ContainerContext) []string
 	ResolveEventTime(ev *Event, e *BaseEvent) time.Time
@@ -1032,6 +1034,9 @@ func (dfh *FakeFieldHandlers) ResolveChownGID(ev *Event, e *ChownEvent) string {
 func (dfh *FakeFieldHandlers) ResolveChownUID(ev *Event, e *ChownEvent) string { return e.User }
 func (dfh *FakeFieldHandlers) ResolveContainerCreatedAt(ev *Event, e *ContainerContext) int {
 	return int(e.CreatedAt)
+}
+func (dfh *FakeFieldHandlers) ResolveContainerFlags(ev *Event, e *ContainerContext) int {
+	return int(e.Flags)
 }
 func (dfh *FakeFieldHandlers) ResolveContainerID(ev *Event, e *ContainerContext) string { return e.ID }
 func (dfh *FakeFieldHandlers) ResolveContainerTags(ev *Event, e *ContainerContext) []string {

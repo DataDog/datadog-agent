@@ -596,3 +596,13 @@ func (fh *EBPFFieldHandlers) ResolveSyscallCtxArgsInt3(ev *model.Event, e *model
 func (fh *EBPFFieldHandlers) ResolveHostname(_ *model.Event, _ *model.BaseEvent) string {
 	return fh.hostname
 }
+
+// ResolveContainerFlags resolve syscall ctx
+func (fh *EBPFFieldHandlers) ResolveContainerFlags(ev *model.Event, e *model.ContainerContext) int {
+	ctx, found := fh.ResolveContainerContext(ev)
+	if !found || ctx == nil {
+		return 0
+	}
+
+	return int(ctx.Flags)
+}

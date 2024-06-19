@@ -44,12 +44,6 @@ func FindContainerID(s string) (string, uint64) {
 		return "", 0
 	}
 
-<<<<<<< HEAD
-	// ensure the found containerID is delimited by characters other than a-zA-Z0-9, or that
-	// it starts or/and ends the initial string
-
-=======
->>>>>>> fd854ffac7 (Keep track of container flags)
 	// first, check what's before
 	if match[0] != 0 {
 		previousChar := string(s[match[0]-1])

@@ -399,6 +399,12 @@ func initBoolConstants() {
 	}
 }
 
+func initContainerFlagsConstants() {
+	for k, v := range ContainerFlagsConstants {
+		seclConstants[k] = &eval.IntEvaluator{Value: int(v)}
+	}
+}
+
 func initConstants() {
 	initBoolConstants()
 	initErrorConstants()
@@ -426,6 +432,7 @@ func initConstants() {
 	initExitCauseConstants()
 	initBPFMapNamesConstants()
 	usersession.InitUserSessionTypes()
+	initContainerFlagsConstants()
 }
 
 // RetValError represents a syscall return error value
@@ -758,11 +765,12 @@ const (
 
 var (
 	// ContainerFlagsConstants are the supported flags for a container
+	// generate_constants:ContainerFlags flags,Container flags are the supported flags for a container.
 	ContainerFlagsConstants = map[string]uint64{
-		"docker":         CGroupManagerDocker,
-		"cri-containerd": CGroupManagerCRI,
-		"crio":           CGroupManagerCRIO,
-		"podman":         CGroupManagerPodman,
-		"systemd":        CGroupManagerSystemd,
+		"MANAGED_BY_DOCKER":         CGroupManagerDocker,
+		"MANAGED_BY_CRI_CONTAINERD": CGroupManagerCRI,
+		"MANAGED_BY_CRIO":           CGroupManagerCRIO,
+		"MANAGED_BY_PODMAN":         CGroupManagerPodman,
+		"MANAGED_BY_SYSTEMD":        CGroupManagerSystemd,
 	}
 )
