@@ -51,3 +51,17 @@ ban-relative-imports = "all"
 [tool.ruff.format]
 # Enable preview style formatting.
 quote-style = "preserve"
+
+[tool.mypy]
+# Follows imports and type-check imported modules.
+follow_imports = "normal"
+# Ignore errors about imported packages that don't provide type hints.
+ignore_missing_imports = true
+# Don't require that all functions be annotated, as it would create
+# a lot of noise for imported modules that aren't annotated yet.
+# Note that this is the default behavior, but we're making our choice explicit here.
+disallow_untyped_defs = false
+# Include column numbers in errors.
+show_column_numbers = true
+# Exclude unit tests for now
+exclude = ['tasks/unit-tests']

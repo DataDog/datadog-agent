@@ -133,7 +133,7 @@ def go(
     build_exclude=None,
     rtloader_root=None,
     cpus=None,
-    timeout: int = None,
+    timeout: int | None = None,
     golangci_lint_kwargs="",
     headless_mode=False,
     include_sds=False,
