@@ -35,6 +35,7 @@ import (
 	aconfig "github.com/DataDog/datadog-agent/pkg/config"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/security/common/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
@@ -471,11 +472,7 @@ func (p *EBPFProbe) unmarshalContexts(data []byte, event *model.Event) (int, err
 		return 0, err
 	}
 
-	event.CGroupContext.CGroupID = model.GetCgroupFromContainer(event.ContainerContext.ContainerID, event.ContainerContext.Flags)
-	if event.ContainerContext.Flags&0b111 == 0 && event.ContainerContext.ContainerID != "" {
-		// Clear the container id if we do support this cgroup
-		event.ContainerContext.ContainerID = ""
-	}
+	event.CGroupContext.CGroupID, event.ContainerContext.ContainerID = containerutils.GetCGroupContext(event.ContainerContext.ContainerID, event.ContainerContext.Flags)
 
 	return read, nil
 }
@@ -504,9 +501,9 @@ func (p *EBPFProbe) unmarshalProcessCacheEntry(ev *model.Event, data []byte) (in
 	if err != nil {
 		return n, err
 	}
-	entry.Process.ContainerID = ev.ContainerContext.ContainerID
+
+	entry.Process.CGroup.ID, entry.Process.ContainerID = containerutils.GetCGroupContext(ev.ContainerContext.ContainerID, ev.ContainerContext.Flags)
 	entry.Process.CGroup.Flags = uint32(ev.ContainerContext.Flags)
-	entry.Process.CGroup.ID = ev.CGroupContext.CGroupID
 	entry.Source = model.ProcessCacheEntryFromEvent
 
 	return n, nil

@@ -30,6 +30,7 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
+	"github.com/DataDog/datadog-agent/pkg/security/common/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
@@ -350,8 +351,7 @@ func (p *EBPFResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, proc 
 	entry.FileEvent.MountOrigin = model.MountOriginProcfs
 	entry.FileEvent.MountSource = model.MountSourceSnapshot
 
-	entry.Process.ContainerID = string(containerID)
-	entry.Process.CGroup.ID = model.GetCgroupFromContainer(string(containerID), uint64(containerFlags))
+	entry.Process.CGroup.ID, entry.Process.ContainerID = containerutils.GetCGroupContext(string(containerID), uint64(containerFlags))
 	entry.Process.CGroup.Flags = uint32(containerFlags)
 
 	if entry.FileEvent.IsFileless() {

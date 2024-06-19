@@ -77,3 +77,12 @@ func GetContainerRuntime(flags uint64) string {
 		return ""
 	}
 }
+
+// GetCGroupContext returns the cgroup ID and the sanitized container ID from a container id/flags tuple
+func GetCGroupContext(containerID string, containerFlags uint64) (string, string) {
+	cgroupID := model.GetCgroupFromContainer(containerID, uint64(containerFlags))
+	if containerFlags&0b111 == 0 {
+		containerID = ""
+	}
+	return cgroupID, containerID
+}
