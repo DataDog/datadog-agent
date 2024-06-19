@@ -165,7 +165,7 @@ static __always_inline http_transaction_t *http_fetch_state(conn_tuple_t *tuple,
     // As such a program running from an irq context would falsely see a bucket as busy in certain cases
     // as explained in the linked commit message.
     //
-    // Since http_in_flight is shared between maps running in different contexts, it gets effected by the
+    // Since http_in_flight is shared between programs running in different contexts, it gets effected by the
     // above scenario.
     // However the EBUSY error does not carry any signal for us since this is caused by a kernel bug.
     bpf_map_update_with_telemetry(http_in_flight, tuple, http, BPF_NOEXIST, -EEXIST, -EBUSY);
