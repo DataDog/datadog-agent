@@ -2180,30 +2180,23 @@ func testHTTP2ProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 					{Name: "user-agent", Value: "Go-http-client/2.0"},
 				}
 
-				buf := new(bytes.Buffer)
-				framer := http2.NewFramer(buf, nil)
-
 				// Initiate a connection to the TCP server.
 				c, err := net.Dial("tcp", ctx.targetAddress)
 				require.NoError(t, err)
 				defer c.Close()
 
 				// Writing a magic and the settings in the same packet to socket.
-				_, err = c.Write(usmhttp2.ComposeMessage([]byte(http2.ClientPreface), buf.Bytes()))
+				_, err = c.Write([]byte(http2.ClientPreface))
 				require.NoError(t, err)
-				buf.Reset()
-				c.SetReadDeadline(time.Now().Add(http2DefaultTimeout))
-				frameReader := http2.NewFramer(nil, c)
-				for {
-					_, err := frameReader.ReadFrame()
-					if err != nil {
-						break
-					}
-				}
+				n, err := c.Read(make([]byte, len(http2.ClientPreface)))
+				require.NoError(t, err)
+				require.Equal(t, len(http2.ClientPreface), n)
 
 				rawHdrs, err := usmhttp2.NewHeadersFrameMessage(usmhttp2.HeadersFrameOptions{Headers: testHeaderFields})
 				require.NoError(t, err)
 
+				buf := new(bytes.Buffer)
+				framer := http2.NewFramer(buf, nil)
 				// Writing the header frames to the buffer using the Framer.
 				require.NoError(t, framer.WriteHeaders(http2.HeadersFrameParam{
 					StreamID:      uint32(1),
@@ -2214,14 +2207,9 @@ func testHTTP2ProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 
 				_, err = c.Write(buf.Bytes())
 				require.NoError(t, err)
-				c.SetReadDeadline(time.Now().Add(http2DefaultTimeout))
-				frameReader = http2.NewFramer(nil, c)
-				for {
-					_, err := frameReader.ReadFrame()
-					if err != nil {
-						break
-					}
-				}
+				n, err = c.Read(make([]byte, buf.Len()))
+				require.NoError(t, err)
+				require.Equal(t, buf.Len(), n)
 			},
 			teardown: func(t *testing.T, ctx testContext) {
 				if srv, ok := ctx.extras["server"].(*TCPServer); ok {
