@@ -50,6 +50,7 @@ func (s *packageApmInjectSuite) TestInstall() {
 	state.AssertFileExists("/etc/ld.so.preload", 0644, "root", "root")
 	state.AssertFileExists("/usr/bin/dd-host-install", 0755, "root", "root")
 	state.AssertFileExists("/usr/bin/dd-container-install", 0755, "root", "root")
+	state.AssertDirExists("/etc/datadog-agent/inject", 0755, "root", "root")
 	s.assertLDPreloadInstrumented(injectOCIPath)
 	s.assertSocketPath("/var/run/datadog-installer/apm.socket")
 	s.assertDockerdInstrumented(injectOCIPath)
@@ -406,7 +407,7 @@ func (s *packageApmInjectSuite) TestInstallDependencies() {
 	s.RunInstallScript()
 	defer s.Purge()
 	s.host.AssertPackageNotInstalledByPackageManager("datadog-apm-inject")
-	s.Env().RemoteHost.MustExecute("sudo datadog-installer install oci://datadoghq.com/datadog-apm-library-python:2.8.2-dev")
+	s.Env().RemoteHost.MustExecute("sudo datadog-installer install oci://gcr.io/datadoghq/apm-library-python-package:2.8.2-dev-1")
 	s.host.AssertPackageNotInstalledByPackageManager("datadog-apm-library-python")
 }
 
