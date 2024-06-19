@@ -59,7 +59,7 @@ jobs:
           python-version: 3.11
           cache: "pip"
 
-      - uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491 # v5.0.0
+      - uses: actions/setup-go@cdcb36043654635271a94b9a6d1392de5bb323a7 # v5.0.1
         with:
           # use the go version from the input, not from the .go-version file
           # in case it's a Go update PR
