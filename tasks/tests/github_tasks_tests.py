@@ -26,7 +26,7 @@ class GithubAPIMock:
 
 
 class TestAssignTeamLabelMock(unittest.TestCase):
-    CODEOWNERS_FILE = './tasks/unit-tests/testdata/codeowners.txt'
+    CODEOWNERS_FILE = './tasks/tests/testdata/codeowners.txt'
 
     def make_test(self, changed_files, expected_labels, pr_labels=None, possible_labels=None):
         from tasks.libs.owners.parsing import read_owners

@@ -4,8 +4,8 @@ from tasks.libs.owners.parsing import search_owners
 
 
 class TestSearchCodeOwners(unittest.TestCase):
-    CODEOWNERS_FILE = './tasks/unit-tests/testdata/codeowners.txt'
-    JOBOWNERS_FILE = './tasks/unit-tests/testdata/jobowners.txt'
+    CODEOWNERS_FILE = './tasks/tests/testdata/codeowners.txt'
+    JOBOWNERS_FILE = './tasks/tests/testdata/jobowners.txt'
 
     def test_search_codeowners(self):
         self.assertListEqual(search_owners("no_owners/file", self.CODEOWNERS_FILE), [])

@@ -432,7 +432,7 @@ def load_context(context):
             y = yaml.safe_load(f)
         if "variables" not in y:
             raise Exit(
-                f"Invalid context file: {context}, missing 'variables' key. Input file must be similar to tasks/unit-tests/testdata/gitlab_main_context_template.yml",
+                f"Invalid context file: {context}, missing 'variables' key. Input file must be similar to tasks/tests/testdata/gitlab_main_context_template.yml",
                 1,
             )
         return [list(y["variables"].items())]

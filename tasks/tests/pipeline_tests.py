@@ -38,8 +38,8 @@ class TestVerifyWorkspace(unittest.TestCase):
 
 
 class TestUpdateGitlabCI(unittest.TestCase):
-    gitlabci_file = "tasks/unit-tests/testdata/fake_gitlab-ci.yml"
-    erroneous_file = "tasks/unit-tests/testdata/erroneous_gitlab-ci.yml"
+    gitlabci_file = "tasks/tests/testdata/fake_gitlab-ci.yml"
+    erroneous_file = "tasks/tests/testdata/erroneous_gitlab-ci.yml"
 
     def tearDown(self) -> None:
         subprocess.run(f"git checkout -- {self.gitlabci_file} {self.erroneous_file}".split())
@@ -68,8 +68,8 @@ class TestUpdateGitlabCI(unittest.TestCase):
 
 
 class TestUpdateCircleCI(unittest.TestCase):
-    circleci_file = "tasks/unit-tests/testdata/fake_circleci_config.yml"
-    erroneous_file = "tasks/unit-tests/testdata/erroneous_circleci_config.yml"
+    circleci_file = "tasks/tests/testdata/fake_circleci_config.yml"
+    erroneous_file = "tasks/tests/testdata/erroneous_circleci_config.yml"
 
     def tearDown(self) -> None:
         subprocess.run(f"git checkout -- {self.circleci_file} {self.erroneous_file}".split())

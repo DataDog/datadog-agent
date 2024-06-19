@@ -193,7 +193,7 @@ def invoke_unit_tests(ctx):
     """
     Run the unit tests on the invoke tasks
     """
-    for _, _, files in os.walk("tasks/unit-tests/"):
+    for _, _, files in os.walk("tasks/tests/"):
         for file in files:
             if file[-3:] == ".py" and file != "__init__.py":
                 ctx.run(f"{sys.executable} -m tasks.unit-tests.{file[:-3]}")

@@ -17,7 +17,7 @@ from tasks.libs.types.types import FailedJobReason, FailedJobs, FailedJobType
 
 
 def get_fake_jobs() -> list[ProjectJob]:
-    with open("tasks/unit-tests/testdata/jobs.json") as f:
+    with open("tasks/tests/testdata/jobs.json") as f:
         jobs = json.load(f)
 
     return [ProjectJob(MagicMock(), attrs=job) for job in jobs]
@@ -245,7 +245,7 @@ class TestCheckConsistentFailures(unittest.TestCase):
 
         notify.check_consistent_failures(
             MockContext(run=Result("test")),
-            "tasks/unit-tests/testdata/job_executions.json",
+            "tasks/tests/testdata/job_executions.json",
         )
 
         trace_mock.assert_called()
@@ -269,7 +269,7 @@ class TestRetrieveJobExecutionsCreated(unittest.TestCase):
 
 
 class TestRetrieveJobExecutions(unittest.TestCase):
-    test_json = "tasks/unit-tests/testdata/job_executions.json"
+    test_json = "tasks/tests/testdata/job_executions.json"
 
     def test_not_found(self):
         ctx = MagicMock()
@@ -383,7 +383,7 @@ class TestJobOwners(unittest.TestCase):
 
         jobs = ['tests_hello', 'tests_ebpf', 'security_go_generate_check', 'hello_world', 'tests_hello_world']
 
-        partition = make_partition(jobs, "tasks/unit-tests/testdata/jobowners.txt")
+        partition = make_partition(jobs, "tasks/tests/testdata/jobowners.txt")
         partition = sorted(partition.items())
 
         self.assertEqual(
@@ -435,7 +435,7 @@ class TestSendNotification(unittest.TestCase):
         }
 
         alert_jobs = {"consecutive": consecutive, "cumulative": cumulative}
-        notify.send_notification(MagicMock(), alert_jobs, jobowners='tasks/unit-tests/testdata/jobowners.txt')
+        notify.send_notification(MagicMock(), alert_jobs, jobowners='tasks/tests/testdata/jobowners.txt')
         self.assertEqual(len(mock_slack.call_args_list), 4)
 
         # Verify that we send the right number of jobs per channel
@@ -494,9 +494,7 @@ class TestSendFailureSummaryNotification(unittest.TestCase):
             '#security-and-compliance-agent-ops': 1,
         }
 
-        notify.send_failure_summary_notification(
-            MockContext(), jobs, jobowners="tasks/unit-tests/testdata/jobowners.txt"
-        )
+        notify.send_failure_summary_notification(MockContext(), jobs, jobowners="tasks/tests/testdata/jobowners.txt")
         mock_slack.assert_called()
 
         # Verify called once for each channel
