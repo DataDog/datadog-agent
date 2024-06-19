@@ -2035,7 +2035,7 @@ func (s *TracerSuite) TestEbpfTelemetry() {
 		assert.NoError(t, promMetric.Write(&dtoMetric), "Failed to parse metric %v", promMetric.Desc())
 		assert.NotNilf(t, dtoMetric.GetCounter(), "expected metric %v to be of a counter type", promMetric.Desc())
 
-		//check if we found expected helper method metric by matching all 3 labels
+		//check we found expected helper and map errors metrics by matching all relevant labels
 		helperMatchingLabelsCount = 0
 		mapMatchingLabelsCount = 0
 		for _, label := range dtoMetric.GetLabel() {
