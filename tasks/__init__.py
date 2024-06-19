@@ -1,3 +1,6 @@
+# https://github.com/pyinvoke/invoke/issues/946
+# mypy: disable-error-code="arg-type"
+
 """
 Invoke entrypoint, import here all the tasks we want to make available
 """
