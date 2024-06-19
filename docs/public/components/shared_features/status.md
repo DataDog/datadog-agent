@@ -5,8 +5,8 @@ Components can register a status provider. When the status command is executed, 
 ## Status Providers
 
 There are two types of status providers:
-- Header Providers: those providers are displayed at the top of the status output. This section is reserved for the most important information about the agent, such as agent version, hostname, host info, metadata, etc.
-- Regular Providers: those providers will be rendered after all the header providers.
+- Header Providers: these providers are displayed at the top of the status output. This section is reserved for the most important information about the agent, such as agent version, hostname, host info, or metadata.
+- Regular Providers: these providers are rendered after all the header providers.
 
 Each provider has the freedom to configure how they want to display their information for the three types of status output: JSON, Text, and HTML. 
 This flexibility allows you to tailor the output to best suit your component's needs.
@@ -55,7 +55,12 @@ To add a status provider to your component, you need to declare it in the return
 The status component provides helper functions to create status providers: `NewInformationProvider` and `NewHeaderInformationProvider`.
 
 Also, the status component has helper functions to render text and HTML output: `RenderText` and `RenderHTML.` 
-The signature for both functions is: `(templateFS embed.FS, template string, buffer io.Writer, data any)`.
+The signature for both functions is: 
+
+```go
+(templateFS embed.FS, template string, buffer io.Writer, data any)
+```
+
 The `embed.FS` variable points to the location of the different status templates. These templates must be inside the component files. The folder must be named `status_templates`. 
 The name of the templates do not have any rules, but to keep the same consistency across the code, we suggest using `"<component>.tmpl"` for the text template and `"<component>HTML.tmpl"` for the HTML template.
 
@@ -143,8 +148,7 @@ Below is an example of adding a status provider to your component.
     
 ## Testing
 
-Ensuring that the status output is being displayed as expected is a critical part of your component development. 
-We highly encourage you to add tests to your components, giving you the confidence that your status output is accurate and reliable.  
+A critical part of your component development is ensuring that the status output is displayed as expected is. We highly encourage you to add tests to your components, giving you the confidence that your status output is accurate and reliable.    
 For our example above, testing the status output is as easy as testing the result of calling `JSON`, `Text` and `HTML`.
 
 === ":octicons-file-code-16: comp/compression/impl/component_test.go"
@@ -166,7 +170,20 @@ For our example above, testing the status output is as easy as testing the resul
       result, err := component.Text(false, buffer)
       assert.Nil(t, err)
   
-      assert.Equal(t, ..., result)
+      assert.Equal(t, ..., string(result))
+    }
+    
+    func TestJSON(t *testing.T) {
+      requires := Requires{}
+      
+      provides := NewComponent(requires)
+      component := provides.Comp
+      info := map[string]interface{}
+      
+      result, err := component.JSON(false, info)
+      assert.Nil(t, err)
+  
+      assert.Equal(t, ..., result["compressor"])
     }
     ``` 
     
