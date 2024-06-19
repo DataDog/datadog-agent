@@ -132,6 +132,20 @@ func (s *packageApmInjectSuite) TestInstrumentDefault() {
 	s.assertDockerdInstrumented(injectOCIPath)
 }
 
+func (s *packageApmInjectSuite) TestSystemdReload() {
+	s.host.InstallDocker()
+	err := s.RunInstallScriptWithError()
+	defer s.Purge()
+	assert.NoError(s.T(), err)
+
+	err = s.RunInstallScriptWithError("DD_APM_INSTRUMENTATION_LIBRARIES=python", envForceInstall("datadog-apm-inject"), envForceInstall("datadog-apm-library-python"))
+	assert.NoError(s.T(), err)
+	s.host.WaitForUnitActive("datadog-agent.service", "datadog-agent-trace.service")
+	s.assertLDPreloadInstrumented(injectOCIPath)
+	s.assertSocketPath("/var/run/datadog-installer/apm.socket")
+	s.assertDockerdInstrumented(injectOCIPath)
+}
+
 // TestUpgrade_InjectorDeb_To_InjectorOCI tests the upgrade from the DEB injector to the OCI injector.
 // Library package is OCI.
 func (s *packageApmInjectSuite) TestUpgrade_InjectorDeb_To_InjectorOCI() {
