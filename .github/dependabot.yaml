@@ -20,7 +20,6 @@ updates:
       # We only replace github.com/docker/distribution but we ignore all Docker dependencies.
       - dependency-name: github.com/docker/*
       - dependency-name: github.com/florianl/go-conntrack
-      - dependency-name: github.com/iovisor/gobpf
       - dependency-name: github.com/lxn/walk
       - dependency-name: github.com/mholt/archiver
       - dependency-name: github.com/prometheus/client_golang
