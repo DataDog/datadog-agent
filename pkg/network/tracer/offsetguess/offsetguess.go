@@ -58,6 +58,7 @@ var whatString = map[GuessWhat]string{
 	GuessDPort:     "destination port",
 	GuessNetNS:     "network namespace",
 	GuessRTT:       "Round Trip Time",
+	GuessRTTVar:    "Round Trip Time Variance",
 	GuessDAddrIPv6: "destination address IPv6",
 
 	// Guess offsets in struct flowi4

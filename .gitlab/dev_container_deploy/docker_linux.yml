@@ -251,6 +251,7 @@ qa_agent:
     - !reference [.on_container_or_e2e_changes]
     - !reference [.on_apm_or_e2e_changes]
     - !reference [.on_npm_or_e2e_changes]
+    - !reference [.on_process_or_e2e_changes]
     - !reference [.manual]
   needs:
     - docker_build_agent7

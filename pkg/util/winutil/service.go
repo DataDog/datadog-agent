@@ -125,7 +125,14 @@ func doControlService(ctx context.Context, service *mgr.Service, serviceName str
 
 	status, err = service.Control(command)
 	if err != nil {
-		return fmt.Errorf("could not send control %d to service %s: %w", command, serviceName, err)
+		// try to get the status after the control
+		statusAfter, errAfter := service.Query()
+		if errAfter != nil {
+			return fmt.Errorf("could not send control %d to service %s: %w Before control[state:%d, accepts:%d])",
+				command, serviceName, err, status.State, status.Accepts)
+		}
+		return fmt.Errorf("could not send control %d to service %s: %w Before control[state:%d, accepts:%d]), after[state:%d, accepts:%d] ",
+			command, serviceName, err, status.State, status.Accepts, statusAfter.State, statusAfter.Accepts)
 	}
 
 	return doWaitForState(ctx, service, to)

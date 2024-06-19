@@ -891,6 +891,11 @@ func (ev *Event) GetEventAsync() bool {
 	return ev.FieldHandlers.ResolveAsync(ev)
 }
 
+// GetEventHostname returns the value of the field, resolving if necessary
+func (ev *Event) GetEventHostname() string {
+	return ev.FieldHandlers.ResolveHostname(ev, &ev.BaseEvent)
+}
+
 // GetEventOrigin returns the value of the field, resolving if necessary
 func (ev *Event) GetEventOrigin() string {
 	return ev.BaseEvent.Origin

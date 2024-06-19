@@ -11,7 +11,8 @@ from contextlib import contextmanager
 from invoke import task
 from invoke.exceptions import Exit, UnexpectedExit
 
-from tasks.libs.common.utils import get_version, load_release_versions, timed
+from tasks.libs.common.utils import timed
+from tasks.libs.releasing.version import get_version, load_release_versions
 
 # Windows only import
 try:
