@@ -29,9 +29,9 @@ type eksSuite struct {
 
 func TestEKSSuite(t *testing.T) {
 	var initOnly bool
-	initOnly, err := runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.InitOnly, false)
+	initOnlyParam, err := runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.InitOnly, false)
 	if err == nil {
-		initOnly = initOnly
+		initOnly = initOnlyParam
 	}
 	suite.Run(t, &eksSuite{initOnly: initOnly})
 }
