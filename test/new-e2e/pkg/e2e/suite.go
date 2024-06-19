@@ -189,6 +189,7 @@ type BaseSuite[Env any] struct {
 	currentProvisioners  ProvisionerMap
 
 	firstFailTest string
+	initOnly      bool
 }
 
 //
@@ -306,6 +307,10 @@ func (bs *BaseSuite[Env]) reconcileEnv(targetProvisioners ProvisionerMap) error 
 		resources.Merge(provisionerResources)
 	}
 
+	if bs.initOnly {
+		return nil
+	}
+
 	// Env is taken as parameter as some fields may have keys set by Env pulumi program.
 	err = bs.buildEnvFromResources(resources, newEnvFields, newEnvValues)
 	if err != nil {
@@ -328,6 +333,11 @@ func (bs *BaseSuite[Env]) reconcileEnv(targetProvisioners ProvisionerMap) error 
 
 func (bs *BaseSuite[Env]) createEnv() (*Env, []reflect.StructField, []reflect.Value, error) {
 	var env Env
+	initOnly, err := runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.InitOnly, false)
+	if err == nil {
+		bs.initOnly = initOnly
+	}
+
 	envFields := reflect.VisibleFields(reflect.TypeOf(&env).Elem())
 	envValue := reflect.ValueOf(&env)
 
@@ -467,6 +477,9 @@ func (bs *BaseSuite[Env]) SetupSuite() {
 		// `panic()` is required to stop the execution of the test suite. Otherwise `testify.Suite` will keep on running suite tests.
 		panic(err)
 	}
+	if bs.initOnly {
+		bs.T().Skip("INIT_ONLY is set, skipping tests")
+	}
 }
 
 // BeforeTest is executed right before the test starts and receives the suite and test names as input.
@@ -510,6 +523,11 @@ func (bs *BaseSuite[Env]) AfterTest(suiteName, testName string) {
 // [testify Suite]: https://pkg.go.dev/github.com/stretchr/testify/suite
 func (bs *BaseSuite[Env]) TearDownSuite() {
 	if bs.params.devMode {
+		return
+	}
+
+	if bs.initOnly {
+		bs.T().Logf("INIT_ONLY is set, skipping deletion")
 		return
 	}
 

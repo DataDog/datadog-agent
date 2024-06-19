@@ -49,4 +49,8 @@ const (
 	PulumiVerboseProgressStreams StoreKey = "pulumi_verbose_progress_streams"
 	// DevMode config flag parameter name
 	DevMode StoreKey = "dev_mode"
+	// InitOnly config flag parameter name
+	InitOnly StoreKey = "init_only"
+	// PreInitialized config flag parameter name
+	PreInitialized StoreKey = "pre_initialized"
 )
