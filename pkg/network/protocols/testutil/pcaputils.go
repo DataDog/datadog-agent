@@ -58,7 +58,7 @@ func WithPCAP(t *testing.T, port string, suffix string, alwaysSave bool) io.Writ
 	require.NoError(t, tcpdumpCmd.Start())
 
 	t.Cleanup(func() {
-		tcpdumpCmd.Process.Signal(os.Interrupt)
+		require.NoError(t, tcpdumpCmd.Process.Signal(os.Interrupt), "could not send signal to tcpdump")
 		out, err := io.ReadAll(stderr)
 		require.NoError(t, err, "could not read stderr")
 		require.NoError(t, tcpdumpCmd.Wait(), "error during tcpdump: "+string(out))
@@ -68,8 +68,8 @@ func WithPCAP(t *testing.T, port string, suffix string, alwaysSave bool) io.Writ
 			return
 		}
 
-		os.Rename(pcapTempPath, tmpDest+pcapFile)
-		os.Rename(klwTempPath, tmpDest+klwFile)
+		require.NoError(t, os.Rename(pcapTempPath, tmpDest+pcapFile))
+		require.NoError(t, os.Rename(klwTempPath, tmpDest+klwFile))
 	})
 
 	return klw
