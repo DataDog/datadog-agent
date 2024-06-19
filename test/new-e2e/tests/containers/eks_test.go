@@ -31,7 +31,7 @@ func TestEKSSuite(t *testing.T) {
 	var initOnly bool
 	initOnly, err := runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.InitOnly, false)
 	if err == nil {
-		initOnly = true
+		initOnly = initOnly
 	}
 	suite.Run(t, &eksSuite{initOnly: initOnly})
 }
@@ -46,7 +46,7 @@ func (suite *eksSuite) SetupSuite() {
 		"dddogstatsd:deploy":    auto.ConfigValue{Value: "true"},
 	}
 	if suite.initOnly {
-		stackConfig["ddinfra:init_only"] = auto.ConfigValue{Value: "true"}
+		stackConfig["ddinfra:initOnly"] = auto.ConfigValue{Value: "true"}
 	}
 
 	_, stackOutput, err := infra.GetStackManager().GetStackNoDeleteOnFailure(
