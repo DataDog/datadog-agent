@@ -14,6 +14,7 @@ import (
 	"github.com/prometheus/common/model"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -22,7 +23,7 @@ import (
 )
 
 var (
-	volumeTagKeysToExclude = []string{"persistentvolumeclaim", "pod_phase"}
+	volumeTagKeysToExclude = []string{tags.KubePersistentVolumeClaim, tags.PodPhase}
 )
 
 type podMetadata struct {

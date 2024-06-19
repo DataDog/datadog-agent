@@ -1,3 +1,6 @@
+# https://github.com/pyinvoke/invoke/issues/946
+# mypy: disable-error-code="arg-type"
+
 """
 Invoke entrypoint, import here all the tasks we want to make available
 """
@@ -51,7 +54,7 @@ from tasks import (
     vscode,
 )
 from tasks.build_tags import audit_tag_impact, print_default_build_tags
-from tasks.codecov import codecov
+from tasks.codecov import apply_missing_coverage, codecov, upload_coverage_to_s3
 from tasks.components import lint_components, lint_fxutil_oneshot_test
 from tasks.custom_task.custom_task import custom__call__
 from tasks.fuzz import fuzz
@@ -82,7 +85,12 @@ from tasks.gotest import (
     send_unit_tests_stats,
     test,
 )
-from tasks.install_tasks import download_tools, install_devcontainer_cli, install_shellcheck, install_tools
+from tasks.install_tasks import (
+    download_tools,
+    install_devcontainer_cli,
+    install_shellcheck,
+    install_tools,
+)
 from tasks.junit_tasks import junit_upload
 from tasks.libs.common.go_workspaces import handle_go_work
 from tasks.show_linters_issues.show_linters_issues import show_linters_issues
@@ -98,6 +106,8 @@ ns = Collection()
 # add single tasks to the root
 ns.add_task(test)
 ns.add_task(codecov)
+ns.add_task(upload_coverage_to_s3)
+ns.add_task(apply_missing_coverage)
 ns.add_task(integration_tests)
 ns.add_task(deps)
 ns.add_task(deps_vendored)

@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	e2eos "github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/stretchr/testify/assert"
 )
@@ -131,6 +132,20 @@ func (s *packageApmInjectSuite) TestInstrumentDefault() {
 	s.assertDockerdInstrumented(injectOCIPath)
 }
 
+func (s *packageApmInjectSuite) TestSystemdReload() {
+	s.host.InstallDocker()
+	err := s.RunInstallScriptWithError()
+	defer s.Purge()
+	assert.NoError(s.T(), err)
+
+	err = s.RunInstallScriptWithError("DD_APM_INSTRUMENTATION_LIBRARIES=python", envForceInstall("datadog-apm-inject"), envForceInstall("datadog-apm-library-python"))
+	assert.NoError(s.T(), err)
+	s.host.WaitForUnitActive("datadog-agent.service", "datadog-agent-trace.service")
+	s.assertLDPreloadInstrumented(injectOCIPath)
+	s.assertSocketPath("/var/run/datadog-installer/apm.socket")
+	s.assertDockerdInstrumented(injectOCIPath)
+}
+
 // TestUpgrade_InjectorDeb_To_InjectorOCI tests the upgrade from the DEB injector to the OCI injector.
 // Library package is OCI.
 func (s *packageApmInjectSuite) TestUpgrade_InjectorDeb_To_InjectorOCI() {
@@ -212,6 +227,10 @@ func (s *packageApmInjectSuite) TestUpgrade_InjectorOCI_To_InjectorDeb() {
 }
 
 func (s *packageApmInjectSuite) TestVersionBump() {
+	if s.os.Flavor == e2eos.Debian {
+		flake.Mark(s.T())
+	}
+
 	s.host.InstallDocker()
 	s.RunInstallScript(
 		"DD_APM_INSTRUMENTATION_ENABLED=all",

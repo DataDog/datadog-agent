@@ -260,6 +260,26 @@ def ninja_network_ebpf_program(nw: NinjaWriter, infile, outfile, flags):
     ninja_ebpf_program(nw, infile, f"{root}-debug{ext}", {"flags": flags + " -DDEBUG=1"})
 
 
+def ninja_telemetry_ebpf_co_re_programs(nw, infile, outfile, flags):
+    ninja_ebpf_co_re_program(nw, infile, outfile, {"flags": flags})
+    root, ext = os.path.splitext(outfile)
+
+
+def ninja_telemetry_ebpf_programs(nw, build_dir, co_re_build_dir):
+    src_dir = os.path.join("pkg", "ebpf", "c")
+
+    telemetry_co_re_programs = [
+        "lock_contention",
+        "ksyms_iter",
+    ]
+    for prog in telemetry_co_re_programs:
+        infile = os.path.join(src_dir, f"{prog}.c")
+        outfile = os.path.join(co_re_build_dir, f"{prog}.c")
+
+        co_re_flags = [f"-I{src_dir}"]
+        ninja_telemetry_ebpf_co_re_programs(nw, infile, outfile, ' '.join(co_re_flags))
+
+
 def ninja_network_ebpf_co_re_program(nw: NinjaWriter, infile, outfile, flags):
     ninja_ebpf_co_re_program(nw, infile, outfile, {"flags": flags})
     root, ext = os.path.splitext(outfile)
@@ -459,6 +479,9 @@ def ninja_cgo_type_files(nw: NinjaWriter):
             "pkg/collector/corechecks/ebpf/probe/ebpfcheck/c_types.go": [
                 "pkg/collector/corechecks/ebpf/c/runtime/ebpf-kern-user.h"
             ],
+            "pkg/ebpf/types.go": [
+                "pkg/ebpf/c/lock_contention.h",
+            ],
         }
         nw.rule(
             name="godefs",
@@ -535,6 +558,7 @@ def ninja_generate(
             ninja_security_ebpf_programs(nw, build_dir, debug, kernel_release, arch=arch)
             ninja_container_integrations_ebpf_programs(nw, co_re_build_dir)
             ninja_runtime_compilation_files(nw, gobin)
+            ninja_telemetry_ebpf_programs(nw, build_dir, co_re_build_dir)
 
         ninja_cgo_type_files(nw)
 
@@ -1602,7 +1626,7 @@ def kitchen_prepare_btfs(ctx, files_dir, arch=CURRENT_ARCH):
             ctx,
             source_dir=f"{btf_dir}/kitchen-btfs-{arch}",
             output_dir=f"{btf_dir}/minimized-btfs",
-            bpf_programs=co_re_programs,
+            input_bpf_programs=co_re_programs,
         )
 
         ctx.run(
@@ -1612,6 +1636,10 @@ def kitchen_prepare_btfs(ctx, files_dir, arch=CURRENT_ARCH):
         )
     else:
         ctx.run(f"cp {btf_dir}/kitchen-btfs-{arch}.tar.xz {files_dir}/minimized-btfs.tar.xz")
+
+
+# list of programs we do not want to minimize against
+no_minimize = ["lock_contention.o"]
 
 
 @task(iterable=['bpf_programs'])
@@ -1632,6 +1660,14 @@ def generate_minimized_btfs(ctx, source_dir, output_dir, bpf_programs):
         programs_dir = os.path.abspath(bpf_programs[0])
         print(f"using all object files from directory {programs_dir}")
         bpf_programs = glob.glob(f"{programs_dir}/*.o")
+
+    newlist = []
+    for prog_path in bpf_programs:
+        prog = os.path.basename(prog_path)
+        if prog not in no_minimize:
+            newlist.append(prog_path)
+
+    bpf_programs = newlist
 
     ctx.run(f"mkdir -p {output_dir}")
 

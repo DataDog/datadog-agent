@@ -328,6 +328,11 @@ func ScrubLine(url string) string {
 	return DefaultScrubber.ScrubLine(url)
 }
 
+// ScrubDataObj scrubs credentials from the data interface by recursively walking over all the nodes
+func ScrubDataObj(data *interface{}) {
+	DefaultScrubber.ScrubDataObj(data)
+}
+
 // HideKeyExceptLastFiveChars replaces all characters in the key with "*", except
 // for the last 5 characters. If the key is an unrecognized length, replace
 // all of it with the default string of "*"s instead.

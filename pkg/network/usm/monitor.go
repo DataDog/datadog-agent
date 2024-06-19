@@ -19,7 +19,7 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	filterpkg "github.com/DataDog/datadog-agent/pkg/network/filter"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
@@ -89,7 +89,7 @@ func NewMonitor(c *config.Config, connectionProtocolMap *ebpf.Map) (m *Monitor, 
 	if filter == nil {
 		return nil, fmt.Errorf("error retrieving socket filter")
 	}
-	ebpfcheck.AddNameMappings(mgr.Manager.Manager, "usm_monitor")
+	ddebpf.AddNameMappings(mgr.Manager.Manager, "usm_monitor")
 
 	closeFilterFn, err := filterpkg.HeadlessSocketFilter(c, filter)
 	if err != nil {
@@ -208,7 +208,7 @@ func (m *Monitor) Stop() {
 
 	m.processMonitor.Stop()
 
-	ebpfcheck.RemoveNameMappings(m.ebpfProgram.Manager.Manager)
+	ddebpf.RemoveNameMappings(m.ebpfProgram.Manager.Manager)
 
 	m.ebpfProgram.Close()
 	m.closeFilterFn()
