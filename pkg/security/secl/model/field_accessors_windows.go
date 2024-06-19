@@ -13,6 +13,11 @@ import (
 	"time"
 )
 
+// GetCgroupId returns the value of the field, resolving if necessary
+func (ev *Event) GetCgroupId() string {
+	return ev.FieldHandlers.ResolveCGroupID(ev, &ev.BaseEvent.CGroupContext)
+}
+
 // GetChangePermissionNewSd returns the value of the field, resolving if necessary
 func (ev *Event) GetChangePermissionNewSd() string {
 	if ev.GetEventType().String() != "change_permission" {

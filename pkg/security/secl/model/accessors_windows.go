@@ -37,6 +37,15 @@ func (m *Model) GetEventTypes() []eval.EventType {
 }
 func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Evaluator, error) {
 	switch field {
+	case "cgroup.id":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveCGroupID(ev, &ev.BaseEvent.CGroupContext)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
 	case "change_permission.new_sd":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -1648,6 +1657,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 }
 func (ev *Event) GetFields() []eval.Field {
 	return []eval.Field{
+		"cgroup.id",
 		"change_permission.new_sd",
 		"change_permission.old_sd",
 		"change_permission.path",
@@ -1802,6 +1812,8 @@ func (ev *Event) GetFields() []eval.Field {
 }
 func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	switch field {
+	case "cgroup.id":
+		return ev.FieldHandlers.ResolveCGroupID(ev, &ev.BaseEvent.CGroupContext), nil
 	case "change_permission.new_sd":
 		return ev.FieldHandlers.ResolveNewSecurityDescriptor(ev, &ev.ChangePermission), nil
 	case "change_permission.old_sd":
@@ -2270,6 +2282,8 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 }
 func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	switch field {
+	case "cgroup.id":
+		return "*", nil
 	case "change_permission.new_sd":
 		return "change_permission", nil
 	case "change_permission.old_sd":
@@ -2575,6 +2589,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 }
 func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	switch field {
+	case "cgroup.id":
+		return reflect.String, nil
 	case "change_permission.new_sd":
 		return reflect.String, nil
 	case "change_permission.old_sd":
@@ -2880,6 +2896,13 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 }
 func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	switch field {
+	case "cgroup.id":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.CGroupContext.CGroupID"}
+		}
+		ev.BaseEvent.CGroupContext.CGroupID = rv
+		return nil
 	case "change_permission.new_sd":
 		rv, ok := value.(string)
 		if !ok {
@@ -2938,9 +2961,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ContainerContext.ID"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ContainerContext.ContainerID"}
 		}
-		ev.BaseEvent.ContainerContext.ID = rv
+		ev.BaseEvent.ContainerContext.ContainerID = rv
 		return nil
 	case "container.runtime":
 		if ev.BaseEvent.ContainerContext == nil {

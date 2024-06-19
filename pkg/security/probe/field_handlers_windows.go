@@ -29,11 +29,6 @@ func (fh *FieldHandlers) ResolveEventTime(ev *model.Event, _ *model.BaseEvent) t
 	return ev.Timestamp
 }
 
-// ResolveContainerContext retrieve the ContainerContext of the event
-func (fh *FieldHandlers) ResolveContainerContext(ev *model.Event) (*model.ContainerContext, bool) {
-	return ev.ContainerContext, ev.ContainerContext != nil
-}
-
 // ResolveFilePath resolves the inode to a full path
 func (fh *FieldHandlers) ResolveFilePath(_ *model.Event, f *model.FileEvent) string {
 	return f.PathnameStr
@@ -111,6 +106,21 @@ func (fh *FieldHandlers) ResolveUser(_ *model.Event, process *model.Process) str
 	return fh.resolvers.UserGroupResolver.GetUser(process.OwnerSidString)
 }
 
+// ResolveCGroupID resolves the cgroup ID of the event
+func (fh *FieldHandlers) ResolveCGroupID(_ *model.Event, _ *model.CGroupContext) string {
+	return ""
+}
+
+// ResolveContainerContext retrieve the ContainerContext of the event
+func (fh *FieldHandlers) ResolveContainerContext(ev *model.Event) (*model.ContainerContext, bool) {
+	return ev.ContainerContext, ev.ContainerContext != nil
+}
+
+// ResolveContainerRuntime retrieves the container runtime managing the container
+func (fh *FieldHandlers) ResolveContainerRuntime(_ *model.Event, _ *model.ContainerContext) string {
+	return ""
+}
+
 // ResolveContainerCreatedAt resolves the container creation time of the event
 func (fh *FieldHandlers) ResolveContainerCreatedAt(_ *model.Event, e *model.ContainerContext) int {
 	return int(e.CreatedAt)
@@ -118,7 +128,7 @@ func (fh *FieldHandlers) ResolveContainerCreatedAt(_ *model.Event, e *model.Cont
 
 // ResolveContainerID resolves the container ID of the event
 func (fh *FieldHandlers) ResolveContainerID(_ *model.Event, e *model.ContainerContext) string {
-	return e.ID
+	return e.ContainerID
 }
 
 // ResolveContainerTags resolves the container tags of the event

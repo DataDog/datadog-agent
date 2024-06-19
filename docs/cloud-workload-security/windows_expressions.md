@@ -65,6 +65,7 @@ List of the available variables:
 
 | Property | Definition |
 | -------- | ------------- |
+| [`cgroup.id`](#cgroup-id-doc) | ID of the cgroup |
 | [`container.created_at`](#container-created_at-doc) | Timestamp of the creation of the container |
 | [`container.id`](#container-id-doc) | ID of the container |
 | [`container.runtime`](#container-runtime-doc) | Runtime managing the container |
@@ -528,6 +529,13 @@ Definition: Registry's value name
 
 `*.value_name` has 2 possible prefixes:
 `set` `set_key_value`
+
+
+### `cgroup.id` {#cgroup-id-doc}
+Type: string
+
+Definition: ID of the cgroup
+
 
 
 ### `change_permission.new_sd` {#change_permission-new_sd-doc}

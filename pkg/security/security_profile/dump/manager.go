@@ -468,12 +468,12 @@ func (adm *ActivityDumpManager) HandleCGroupTracingEvent(event *model.CgroupTrac
 	adm.Lock()
 	defer adm.Unlock()
 
-	if len(event.ContainerContext.ID) == 0 {
+	if len(event.ContainerContext.ContainerID) == 0 {
 		seclog.Errorf("received a cgroup tracing event with an empty container ID")
 		return
 	}
 
-	if err := adm.startDumpWithConfig(event.ContainerContext.ID, event.ContainerContext.Flags, event.ConfigCookie, event.Config); err != nil {
+	if err := adm.startDumpWithConfig(event.ContainerContext.ContainerID, event.ContainerContext.Flags, event.ConfigCookie, event.Config); err != nil {
 		seclog.Warnf("%v", err)
 	}
 }
@@ -533,7 +533,7 @@ workloadLoop:
 		}
 
 		// if we're still here, we can start tracing this workload
-		if err := adm.startDumpWithConfig(workloads[0].ID, workloads[0].Flags, utils.NewCookie(), *adm.loadController.getDefaultLoadConfig()); err != nil {
+		if err := adm.startDumpWithConfig(workloads[0].ContainerID, workloads[0].Flags, utils.NewCookie(), *adm.loadController.getDefaultLoadConfig()); err != nil {
 			if !errors.Is(err, unix.E2BIG) {
 				seclog.Debugf("%v", err)
 				break

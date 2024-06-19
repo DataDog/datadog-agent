@@ -78,6 +78,7 @@ func copyProcessContext(parent, child *ProcessCacheEntry) {
 	// WARNING: this is why the user space cache should not be used to detect container breakouts. Dedicated
 	// in-kernel probes will need to be added.
 	if len(parent.ContainerID) > 0 && len(child.ContainerID) == 0 {
+		child.CGroup = parent.CGroup
 		child.ContainerID = parent.ContainerID
 	}
 }
@@ -132,6 +133,7 @@ func (pc *ProcessCacheEntry) Fork(childEntry *ProcessCacheEntry) {
 	childEntry.Comm = pc.Comm
 	childEntry.FileEvent = pc.FileEvent
 	childEntry.ContainerID = pc.ContainerID
+	childEntry.CGroup = pc.CGroup
 	childEntry.ExecTime = pc.ExecTime
 	childEntry.Credentials = pc.Credentials
 	childEntry.LinuxBinprm = pc.LinuxBinprm

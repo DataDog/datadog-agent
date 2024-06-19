@@ -70,6 +70,7 @@ func (ws WorkloadSelector) ToTags() []string {
 
 // CacheEntry cgroup resolver cache entry
 type CacheEntry struct {
+	model.CGroupContext
 	model.ContainerContext
 	sync.RWMutex
 	Deleted          *atomic.Bool
@@ -78,11 +79,15 @@ type CacheEntry struct {
 }
 
 // NewCacheEntry returns a new instance of a CacheEntry
-func NewCacheEntry(id string, pids ...uint32) (*CacheEntry, error) {
+func NewCacheEntry(containerID string, containerFlags uint64, pids ...uint32) (*CacheEntry, error) {
 	newCGroup := CacheEntry{
 		Deleted: atomic.NewBool(false),
+		CGroupContext: model.CGroupContext{
+			CGroupID: model.GetCgroupFromContainer(containerID, containerFlags),
+		},
 		ContainerContext: model.ContainerContext{
-			ID: id,
+			Flags:       containerFlags,
+			ContainerID: containerID,
 		},
 		PIDs: make(map[uint32]int8, 10),
 	}
@@ -150,5 +155,5 @@ func (cgce *CacheEntry) GetWorkloadSelectorCopy() *WorkloadSelector {
 
 // NeedsTagsResolution returns true if this workload is missing its tags
 func (cgce *CacheEntry) NeedsTagsResolution() bool {
-	return len(cgce.ID) != 0 && !cgce.WorkloadSelector.IsReady()
+	return len(cgce.ContainerID) != 0 && !cgce.WorkloadSelector.IsReady()
 }

@@ -8,6 +8,11 @@
       "experimental": false,
       "properties": [
         {
+          "name": "cgroup.id",
+          "definition": "ID of the cgroup",
+          "property_doc_link": "cgroup-id-doc"
+        },
+        {
           "name": "container.created_at",
           "definition": "Timestamp of the creation of the container",
           "property_doc_link": "container-created_at-doc"
@@ -1231,6 +1236,18 @@
       "prefixes": [
         "set",
         "set_key_value"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "cgroup.id",
+      "link": "cgroup-id-doc",
+      "type": "string",
+      "definition": "ID of the cgroup",
+      "prefixes": [
+        "cgroup"
       ],
       "constants": "",
       "constants_link": "",

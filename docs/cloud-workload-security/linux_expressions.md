@@ -118,6 +118,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 
 | Property | Definition |
 | -------- | ------------- |
+| [`cgroup.id`](#cgroup-id-doc) | ID of the cgroup |
 | [`container.created_at`](#container-created_at-doc) | Timestamp of the creation of the container |
 | [`container.id`](#container-id-doc) | ID of the container |
 | [`container.runtime`](#container-runtime-doc) | Runtime managing the container |
@@ -136,6 +137,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.ancestors.argv0`](#common-process-argv0-doc) | First argument of the process |
 | [`process.ancestors.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`process.ancestors.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
+| [`process.ancestors.cgroup.id`](#common-cgroup-id-doc) | Cgroup ID |
 | [`process.ancestors.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`process.ancestors.container.id`](#common-process-container-id-doc) | Container ID |
 | [`process.ancestors.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
@@ -211,6 +213,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.argv0`](#common-process-argv0-doc) | First argument of the process |
 | [`process.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`process.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
+| [`process.cgroup.id`](#common-cgroup-id-doc) | Cgroup ID |
 | [`process.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`process.container.id`](#common-process-container-id-doc) | Container ID |
 | [`process.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
@@ -277,6 +280,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.parent.argv0`](#common-process-argv0-doc) | First argument of the process |
 | [`process.parent.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`process.parent.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
+| [`process.parent.cgroup.id`](#common-cgroup-id-doc) | Cgroup ID |
 | [`process.parent.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`process.parent.container.id`](#common-process-container-id-doc) | Container ID |
 | [`process.parent.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
@@ -522,6 +526,7 @@ A process was executed or forked
 | [`exec.argv0`](#common-process-argv0-doc) | First argument of the process |
 | [`exec.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`exec.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
+| [`exec.cgroup.id`](#common-cgroup-id-doc) | Cgroup ID |
 | [`exec.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`exec.container.id`](#common-process-container-id-doc) | Container ID |
 | [`exec.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
@@ -606,6 +611,7 @@ A process was terminated
 | [`exit.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`exit.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`exit.cause`](#exit-cause-doc) | Cause of the process termination (one of EXITED, SIGNALED, COREDUMPED) |
+| [`exit.cgroup.id`](#common-cgroup-id-doc) | Cgroup ID |
 | [`exit.code`](#exit-code-doc) | Exit code of the process or number of the signal that caused the process to terminate |
 | [`exit.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`exit.container.id`](#common-process-container-id-doc) | Container ID |
@@ -904,6 +910,7 @@ A ptrace command was executed
 | [`ptrace.tracee.ancestors.argv0`](#common-process-argv0-doc) | First argument of the process |
 | [`ptrace.tracee.ancestors.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`ptrace.tracee.ancestors.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
+| [`ptrace.tracee.ancestors.cgroup.id`](#common-cgroup-id-doc) | Cgroup ID |
 | [`ptrace.tracee.ancestors.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`ptrace.tracee.ancestors.container.id`](#common-process-container-id-doc) | Container ID |
 | [`ptrace.tracee.ancestors.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
@@ -979,6 +986,7 @@ A ptrace command was executed
 | [`ptrace.tracee.argv0`](#common-process-argv0-doc) | First argument of the process |
 | [`ptrace.tracee.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`ptrace.tracee.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
+| [`ptrace.tracee.cgroup.id`](#common-cgroup-id-doc) | Cgroup ID |
 | [`ptrace.tracee.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`ptrace.tracee.container.id`](#common-process-container-id-doc) | Container ID |
 | [`ptrace.tracee.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
@@ -1045,6 +1053,7 @@ A ptrace command was executed
 | [`ptrace.tracee.parent.argv0`](#common-process-argv0-doc) | First argument of the process |
 | [`ptrace.tracee.parent.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`ptrace.tracee.parent.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
+| [`ptrace.tracee.parent.cgroup.id`](#common-cgroup-id-doc) | Cgroup ID |
 | [`ptrace.tracee.parent.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`ptrace.tracee.parent.container.id`](#common-process-container-id-doc) | Container ID |
 | [`ptrace.tracee.parent.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
@@ -1311,6 +1320,7 @@ A signal was sent
 | [`signal.target.ancestors.argv0`](#common-process-argv0-doc) | First argument of the process |
 | [`signal.target.ancestors.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`signal.target.ancestors.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
+| [`signal.target.ancestors.cgroup.id`](#common-cgroup-id-doc) | Cgroup ID |
 | [`signal.target.ancestors.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`signal.target.ancestors.container.id`](#common-process-container-id-doc) | Container ID |
 | [`signal.target.ancestors.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
@@ -1386,6 +1396,7 @@ A signal was sent
 | [`signal.target.argv0`](#common-process-argv0-doc) | First argument of the process |
 | [`signal.target.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`signal.target.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
+| [`signal.target.cgroup.id`](#common-cgroup-id-doc) | Cgroup ID |
 | [`signal.target.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`signal.target.container.id`](#common-process-container-id-doc) | Container ID |
 | [`signal.target.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
@@ -1452,6 +1463,7 @@ A signal was sent
 | [`signal.target.parent.argv0`](#common-process-argv0-doc) | First argument of the process |
 | [`signal.target.parent.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`signal.target.parent.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
+| [`signal.target.parent.cgroup.id`](#common-cgroup-id-doc) | Cgroup ID |
 | [`signal.target.parent.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`signal.target.parent.container.id`](#common-process-container-id-doc) | Container ID |
 | [`signal.target.parent.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
@@ -1959,6 +1971,15 @@ Definition: [Experimental] List of cryptographic hashes computed for this file
 `chdir.file` `chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
 
 
+### `*.id` {#common-cgroup-id-doc}
+Type: string
+
+Definition: Cgroup ID
+
+`*.id` has 11 possible prefixes:
+`exec.cgroup` `exit.cgroup` `process.ancestors.cgroup` `process.cgroup` `process.parent.cgroup` `ptrace.tracee.ancestors.cgroup` `ptrace.tracee.cgroup` `ptrace.tracee.parent.cgroup` `signal.target.ancestors.cgroup` `signal.target.cgroup` `signal.target.parent.cgroup`
+
+
 ### `*.in_upper_layer` {#common-filefields-in_upper_layer-doc}
 Type: bool
 
@@ -2350,6 +2371,13 @@ Definition: Permitted capability set of the process
 
 
 Constants: [Kernel Capability constants](#kernel-capability-constants)
+
+
+
+### `cgroup.id` {#cgroup-id-doc}
+Type: string
+
+Definition: ID of the cgroup
 
 
 

@@ -3616,6 +3616,16 @@ func easyjsonDdc0fdbeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers24(
 				}
 				(*out.ContainerContextSerializer).UnmarshalEasyJSON(in)
 			}
+		case "cgroup":
+			if in.IsNull() {
+				in.Skip()
+				out.CGroupContextSerializer = nil
+			} else {
+				if out.CGroupContextSerializer == nil {
+					out.CGroupContextSerializer = new(CGroupContextSerializer)
+				}
+				(*out.CGroupContextSerializer).UnmarshalEasyJSON(in)
+			}
 		default:
 			in.SkipRecursive()
 		}
@@ -3876,6 +3886,16 @@ func easyjsonDdc0fdbeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers24(
 			out.RawString(prefix)
 		}
 		(*in.ContainerContextSerializer).MarshalEasyJSON(out)
+	}
+	if in.CGroupContextSerializer != nil {
+		const prefix string = ",\"cgroup\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		(*in.CGroupContextSerializer).MarshalEasyJSON(out)
 	}
 	out.RawByte('}')
 }

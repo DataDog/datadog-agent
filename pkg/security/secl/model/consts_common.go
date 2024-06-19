@@ -746,23 +746,3 @@ const (
 	// ExitSignaled Process was terminated with a signal other than a coredump
 	ExitSignaled
 )
-
-// CGroup managers
-const (
-	CGroupManagerDocker uint64 = iota + 1
-	CGroupManagerCRIO
-	CGroupManagerPodman
-	CGroupManagerCRI
-	CGroupManagerSystemd
-)
-
-const (
-	// ContainerRuntimeDocker is used to specify that a container is managed by Docker
-	ContainerRuntimeDocker = "docker"
-	// ContainerRuntimeCRI is used to specify that a container is managed by containerd
-	ContainerRuntimeCRI = "containerd"
-	// ContainerRuntimeCRIO is used to specify that a container is managed by CRI-O
-	ContainerRuntimeCRIO = "cri-o"
-	// ContainerR	untimePodman is used to specify that a container is managed by Podman
-	ContainerRuntimePodman = "podman"
-)

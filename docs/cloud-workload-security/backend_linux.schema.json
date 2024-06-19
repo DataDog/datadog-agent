@@ -172,6 +172,17 @@
       ],
       "description": "BindEventSerializer serializes a bind event to JSON"
     },
+    "CGroupContext": {
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "CGroup ID"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "CGroupContextSerializer serializes a cgroup context to JSON"
+    },
     "ContainerContext": {
       "properties": {
         "id": {
@@ -1576,6 +1587,9 @@
     },
     "container": {
       "$ref": "#/$defs/ContainerContext"
+    },
+    "cgroup": {
+      "$ref": "#/$defs/CGroupContext"
     },
     "network": {
       "$ref": "#/$defs/NetworkContext"

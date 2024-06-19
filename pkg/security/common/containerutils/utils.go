@@ -9,33 +9,28 @@ package containerutils
 import (
 	"regexp"
 	"strings"
-)
 
-// CGroup managers
-const (
-	CGroupManagerDocker uint64 = iota + 1
-	CGroupManagerCRIO
-	CGroupManagerPodman
-	CGroupManagerCRI
-	CGroupManagerSystemd
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
-
-// RuntimePrefixes holds the cgroup prefixed used by the different runtimes
-var RuntimePrefixes = map[string]uint64{
-	"docker-":         CGroupManagerDocker,
-	"cri-containerd-": CGroupManagerCRI,
-	"crio-":           CGroupManagerCRIO,
-	"libpod-":         CGroupManagerPodman,
-}
 
 // ContainerIDPatternStr defines the regexp used to match container IDs
 // ([0-9a-fA-F]{64}) is standard container id used pretty much everywhere, length: 64
 // ([0-9a-fA-F]{32}-\d+) is container id used by AWS ECS, length: 43
 // ([0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){4}) is container id used by Garden, length: 28
-var ContainerIDPatternStr = "([0-9a-fA-F]{64})|([0-9a-fA-F]{32}-\\d+)|([0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){4})"
-var containerIDPattern = regexp.MustCompile(ContainerIDPatternStr)
+var ContainerIDPatternStr = ""
+var containerIDPattern *regexp.Regexp
 
 var containerIDCoreChars = "0123456789abcdefABCDEF"
+
+func init() {
+	var prefixes []string
+	for prefix := range model.RuntimePrefixes {
+		prefixes = append(prefixes, prefix)
+	}
+	ContainerIDPatternStr = "(?:" + strings.Join(prefixes[:], "|") + ")?([0-9a-fA-F]{64})|([0-9a-fA-F]{32}-\\d+)|([0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){4})"
+	containerIDPattern = regexp.MustCompile(ContainerIDPatternStr)
+}
 
 // FindContainerID extracts the first sub string that matches the pattern of a container ID
 func FindContainerID(s string) (string, uint64) {
@@ -62,15 +57,23 @@ func FindContainerID(s string) (string, uint64) {
 	// ensure the found containerID is delimited by charaters other than a-zA-Z0-9, or that
 	// it starts or/and ends the initial string
 
-	var flags uint64
-	containerID := s[match[0]:match[1]]
-	for runtimePrefix, runtimeFlag := range RuntimePrefixes {
-		if strings.HasPrefix(containerID, runtimePrefix) {
-			flags = runtimeFlag
-			containerID = containerID[len(runtimePrefix):]
-			break
-		}
-	}
-
+	cgroupID := s[match[0]:match[1]]
+	containerID, flags := model.GetContainerFromCgroup(cgroupID)
 	return containerID, flags
+}
+
+// GetContainerRuntime returns the container runtime managing the cgroup
+func GetContainerRuntime(flags uint64) string {
+	switch {
+	case (flags & model.CGroupManagerCRI) != 0:
+		return string(workloadmeta.ContainerRuntimeContainerd)
+	case (flags & model.CGroupManagerCRIO) != 0:
+		return string(workloadmeta.ContainerRuntimeCRIO)
+	case (flags & model.CGroupManagerDocker) != 0:
+		return string(workloadmeta.ContainerRuntimeDocker)
+	case (flags & model.CGroupManagerPodman) != 0:
+		return string(workloadmeta.ContainerRuntimePodman)
+	default:
+		return ""
+	}
 }

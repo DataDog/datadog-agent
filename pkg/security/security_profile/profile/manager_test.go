@@ -842,7 +842,10 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 				profile.ActivityTree = activity_tree.NewActivityTree(profile, nil, "security_profile")
 				profile.Instances = append(profile.Instances, &cgroupModel.CacheEntry{
 					ContainerContext: model.ContainerContext{
-						ID: defaultContainerID,
+						ContainerID: defaultContainerID,
+					},
+					CGroupContext: model.CGroupContext{
+						CGroupID: defaultContainerID,
 					},
 					WorkloadSelector: cgroupModel.WorkloadSelector{Image: "image", Tag: "tag"},
 				})

@@ -52,9 +52,9 @@ func (fs *containerFS) Open(filename string) (fs.File, error) {
 		file, err := os.Open(filepath.Join(utils.ProcRootPath(rootCandidatePID), filename))
 		if err != nil {
 			if os.IsNotExist(err) {
-				seclog.Tracef("failed to read %s for pid %d of container %s: %s", filename, rootCandidatePID, fs.cgroup.ID, err)
+				seclog.Tracef("failed to read %s for pid %d of container %s: %s", filename, rootCandidatePID, fs.cgroup.ContainerID, err)
 			} else {
-				seclog.Debugf("failed to read %s for pid %d of container %s: %s", filename, rootCandidatePID, fs.cgroup.ID, err)
+				seclog.Debugf("failed to read %s for pid %d of container %s: %s", filename, rootCandidatePID, fs.cgroup.ContainerID, err)
 			}
 			continue
 		}
@@ -62,7 +62,7 @@ func (fs *containerFS) Open(filename string) (fs.File, error) {
 		return file, nil
 	}
 
-	return nil, fmt.Errorf("failed to resolve root filesystem for %s", fs.cgroup.ID)
+	return nil, fmt.Errorf("failed to resolve root filesystem for %s", fs.cgroup.ContainerID)
 }
 
 type hostFS struct{}
@@ -211,8 +211,8 @@ func (r *Resolver) ResolveGroup(gid int, containerID string) (string, error) {
 
 // OnCGroupDeletedEvent is used to handle a CGroupDeleted event
 func (r *Resolver) OnCGroupDeletedEvent(sbom *cgroupModel.CacheEntry) {
-	r.nsGroupCache.Remove(sbom.ID)
-	r.nsUserCache.Remove(sbom.ID)
+	r.nsGroupCache.Remove(sbom.CGroupID)
+	r.nsUserCache.Remove(sbom.CGroupID)
 }
 
 // NewResolver instantiates a new user and group resolver

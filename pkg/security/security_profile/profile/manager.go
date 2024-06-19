@@ -321,7 +321,7 @@ func (m *SecurityProfileManager) LinkProfile(profile *SecurityProfile, workload 
 
 	// check if this instance of this workload is already tracked
 	for _, w := range profile.Instances {
-		if w.ID == workload.ID {
+		if w.ContainerID == workload.ContainerID {
 			// nothing to do, leave
 			return
 		}
@@ -343,7 +343,7 @@ func (m *SecurityProfileManager) UnlinkProfile(profile *SecurityProfile, workloa
 
 	// remove the workload from the list of instances of the Security Profile
 	for key, val := range profile.Instances {
-		if workload.ID == val.ID {
+		if workload.ContainerID == val.ContainerID {
 			profile.Instances = append(profile.Instances[0:key], profile.Instances[key+1:]...)
 			break
 		}
@@ -371,7 +371,7 @@ func (m *SecurityProfileManager) FillProfileContextFromContainerID(id string, ct
 		profile.Lock()
 		for _, instance := range profile.Instances {
 			instance.Lock()
-			if instance.ID == id {
+			if instance.ContainerID == id {
 				ctx.Name = profile.Metadata.Name
 				profileContext, ok := profile.versionContexts[imageTag]
 				if ok { // should always be the case
@@ -649,11 +649,11 @@ func (m *SecurityProfileManager) unloadProfile(profile *SecurityProfile) {
 
 // linkProfile (thread unsafe) updates the kernel space mapping between a workload and its profile
 func (m *SecurityProfileManager) linkProfile(profile *SecurityProfile, workload *cgroupModel.CacheEntry) {
-	if err := m.securityProfileMap.Put([]byte(workload.ID), profile.profileCookie); err != nil {
-		seclog.Errorf("couldn't link workload %s (selector: %s) with profile %s (check map size limit ?): %v", workload.ID, workload.WorkloadSelector.String(), profile.Metadata.Name, err)
+	if err := m.securityProfileMap.Put([]byte(workload.ContainerID), profile.profileCookie); err != nil {
+		seclog.Errorf("couldn't link workload %s (selector: %s) with profile %s (check map size limit ?): %v", workload.ContainerID, workload.WorkloadSelector.String(), profile.Metadata.Name, err)
 		return
 	}
-	seclog.Infof("workload %s (selector: %s) successfully linked to profile %s", workload.ID, workload.WorkloadSelector.String(), profile.Metadata.Name)
+	seclog.Infof("workload %s (selector: %s) successfully linked to profile %s", workload.ContainerID, workload.WorkloadSelector.String(), profile.Metadata.Name)
 }
 
 // unlinkProfile (thread unsafe) updates the kernel space mapping between a workload and its profile
@@ -662,10 +662,10 @@ func (m *SecurityProfileManager) unlinkProfile(profile *SecurityProfile, workloa
 		return
 	}
 
-	if err := m.securityProfileMap.Delete([]byte(workload.ID)); err != nil {
-		seclog.Errorf("couldn't unlink workload %s (selector: %s) with profile %s: %v", workload.ID, workload.WorkloadSelector.String(), profile.Metadata.Name, err)
+	if err := m.securityProfileMap.Delete([]byte(workload.ContainerID)); err != nil {
+		seclog.Errorf("couldn't unlink workload %s (selector: %s) with profile %s: %v", workload.ContainerID, workload.WorkloadSelector.String(), profile.Metadata.Name, err)
 	}
-	seclog.Infof("workload %s (selector: %s) successfully unlinked from profile %s", workload.ID, workload.WorkloadSelector.String(), profile.Metadata.Name)
+	seclog.Infof("workload %s (selector: %s) successfully unlinked from profile %s", workload.ContainerID, workload.WorkloadSelector.String(), profile.Metadata.Name)
 }
 
 func (m *SecurityProfileManager) canGenerateAnomaliesFor(e *model.Event) bool {

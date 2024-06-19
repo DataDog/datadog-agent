@@ -177,14 +177,20 @@ type LinuxBinprm struct {
 	FileEvent FileEvent `field:"file"`
 }
 
+// CGroup represent a control group
+type CGroup struct {
+	ID    string `field:"id"` // SECLDoc[id] Definition:`Cgroup ID`
+	Flags uint32 `field:"-"`
+}
+
 // Process represents a process
 type Process struct {
 	PIDContext
 
 	FileEvent FileEvent `field:"file,check:IsNotKworker"`
 
-	ContainerID    string `field:"container.id"` // SECLDoc[container.id] Definition:`Container ID`
-	ContainerFlags uint32 `field:"-"`
+	CGroup      CGroup `field:"cgroup"`
+	ContainerID string `field:"container.id,handler:ResolveProcessContainerID"` // SECLDoc[container.id] Definition:`Container ID`
 
 	SpanID  uint64 `field:"-"`
 	TraceID uint64 `field:"-"`

@@ -73,16 +73,6 @@ func (fh *EBPFLessFieldHandlers) ResolveProcessArgsOptions(ev *model.Event, proc
 	return args.ParseProcessOptions(fh.ResolveProcessArgv(ev, process))
 }
 
-// ResolveContainerContext retrieve the ContainerContext of the event
-func (fh *EBPFLessFieldHandlers) ResolveContainerContext(ev *model.Event) (*model.ContainerContext, bool) {
-	return ev.ContainerContext, ev.ContainerContext != nil
-}
-
-// ResolveContainerRuntime retrieves the container runtime managing the container
-func (fh *EBPFLessFieldHandlers) ResolveContainerRuntime(ev *model.Event, _ *model.ContainerContext) string {
-	return ""
-}
-
 // ResolveProcessArgv0 resolves the first arg of the event
 func (fh *EBPFLessFieldHandlers) ResolveProcessArgv0(_ *model.Event, process *model.Process) string {
 	arg0, _ := sprocess.GetProcessArgv0(process)
@@ -156,14 +146,29 @@ func (fh *EBPFLessFieldHandlers) ResolveEventTime(ev *model.Event, _ *model.Base
 	return ev.Timestamp
 }
 
+// ResolveCGroupID resolves the cgroup ID of the event
+func (fh *EBPFLessFieldHandlers) ResolveCGroupID(_ *model.Event, _ *model.CGroupContext) string {
+	return ""
+}
+
+// ResolveContainerContext retrieve the ContainerContext of the event
+func (fh *EBPFLessFieldHandlers) ResolveContainerContext(ev *model.Event) (*model.ContainerContext, bool) {
+	return ev.ContainerContext, ev.ContainerContext != nil
+}
+
+// ResolveContainerRuntime retrieves the container runtime managing the container
+func (fh *EBPFLessFieldHandlers) ResolveContainerRuntime(_ *model.Event, _ *model.ContainerContext) string {
+	return ""
+}
+
 // ResolveContainerID resolves the container ID of the event
 func (fh *EBPFLessFieldHandlers) ResolveContainerID(ev *model.Event, e *model.ContainerContext) string {
-	if len(e.ID) == 0 {
+	if len(e.ContainerID) == 0 {
 		if entry, _ := fh.ResolveProcessCacheEntry(ev); entry != nil {
-			e.ID = entry.ContainerID
+			e.ContainerID = entry.ContainerID
 		}
 	}
-	return e.ID
+	return e.ContainerID
 }
 
 // ResolveContainerCreatedAt resolves the container creation time of the event
@@ -178,10 +183,15 @@ func (fh *EBPFLessFieldHandlers) ResolveContainerCreatedAt(ev *model.Event, e *m
 
 // ResolveContainerTags resolves the container tags of the event
 func (fh *EBPFLessFieldHandlers) ResolveContainerTags(_ *model.Event, e *model.ContainerContext) []string {
-	if len(e.Tags) == 0 && e.ID != "" {
-		e.Tags = fh.resolvers.TagsResolver.Resolve(e.ID)
+	if len(e.Tags) == 0 && e.ContainerID != "" {
+		e.Tags = fh.resolvers.TagsResolver.Resolve(e.ContainerID)
 	}
 	return e.Tags
+}
+
+// ResolveProcessContainerID resolves the container ID of the event
+func (fh *EBPFLessFieldHandlers) ResolveProcessContainerID(ev *model.Event, _ *model.Process) string {
+	return fh.ResolveContainerID(ev, ev.ContainerContext)
 }
 
 // ResolveProcessCreatedAt resolves process creation time

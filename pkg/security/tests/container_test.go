@@ -101,7 +101,7 @@ func TestContainerFlags(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_container_flags",
-			Expression: `container.id != "" && open.file.path == "{{.Root}}/test-open" && container.runtime == "docker"`,
+			Expression: `container.id != "" && open.file.path == "{{.Root}}/test-open" && container.runtime == "docker" && cgroup.id =~ "docker-*"`,
 		},
 	}
 	test, err := newTestModule(t, nil, ruleDefs)
@@ -135,6 +135,7 @@ func TestContainerFlags(t *testing.T) {
 			assertFieldEqual(t, event, "open.file.path", testFile)
 			assertFieldNotEmpty(t, event, "container.id", "container id shouldn't be empty")
 			assertFieldEqual(t, event, "container.runtime", "docker")
+			assertFieldEqual(t, event, "cgroup.id", event.GetProcessCgroupId())
 			assert.Equal(t, model.CGroupManagerDocker, event.ContainerContext.Flags)
 
 			test.validateOpenSchema(t, event)
