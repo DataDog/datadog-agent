@@ -34,6 +34,7 @@ type ProvisionerParams struct {
 	eksLinuxARMNodeGroup     bool
 	eksBottlerocketNodeGroup bool
 	eksWindowsNodeGroup      bool
+	eksInitOnly              bool
 	deployDogstatsd          bool
 }
 
@@ -127,6 +128,14 @@ func WithEKSBottlerocketNodeGroup() ProvisionerOption {
 func WithEKSWindowsNodeGroup() ProvisionerOption {
 	return func(params *ProvisionerParams) error {
 		params.eksWindowsNodeGroup = true
+		return nil
+	}
+}
+
+// WithEKSInitOnly enable EKS init only
+func WithEKSInitOnly() ProvisionerOption {
+	return func(params *ProvisionerParams) error {
+		params.eksInitOnly = true
 		return nil
 	}
 }

@@ -12,6 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/infra"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/eks"
 
@@ -22,10 +23,17 @@ import (
 
 type eksSuite struct {
 	k8sSuite
+
+	initOnly bool
 }
 
 func TestEKSSuite(t *testing.T) {
-	suite.Run(t, &eksSuite{})
+	var initOnly bool
+	initOnly, err := runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.InitOnly, false)
+	if err == nil {
+		initOnly = true
+	}
+	suite.Run(t, &eksSuite{initOnly: initOnly})
 }
 
 func (suite *eksSuite) SetupSuite() {
@@ -36,6 +44,9 @@ func (suite *eksSuite) SetupSuite() {
 		"ddagent:fakeintake":    auto.ConfigValue{Value: "true"},
 		"ddtestworkload:deploy": auto.ConfigValue{Value: "true"},
 		"dddogstatsd:deploy":    auto.ConfigValue{Value: "true"},
+	}
+	if suite.initOnly {
+		stackConfig["ddinfra:init_only"] = auto.ConfigValue{Value: "true"}
 	}
 
 	_, stackOutput, err := infra.GetStackManager().GetStackNoDeleteOnFailure(
@@ -53,6 +64,10 @@ func (suite *eksSuite) SetupSuite() {
 			infra.GetStackManager().DeleteStack(ctx, "eks-cluster", nil)
 		}
 		suite.T().FailNow()
+	}
+
+	if suite.initOnly {
+		suite.T().Skip("E2E_INIT_ONLY is set, skipping tests")
 	}
 
 	fakeintake := &components.FakeIntake{}
@@ -79,6 +94,11 @@ func (suite *eksSuite) SetupSuite() {
 }
 
 func (suite *eksSuite) TearDownSuite() {
+	if suite.initOnly {
+		suite.T().Logf("E2E_INIT_ONLY is set, skipping deletion")
+		return
+	}
+
 	suite.k8sSuite.TearDownSuite()
 
 	ctx := context.Background()
