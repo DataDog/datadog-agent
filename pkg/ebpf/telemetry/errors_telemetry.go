@@ -149,8 +149,13 @@ func setupForTelemetry(m *manager.Manager, options *manager.Options, bpfTelemetr
 	if err != nil {
 		return err
 	}
+
 	m.InstructionPatchers = append(m.InstructionPatchers, func(m *manager.Manager) error {
-		return patchEBPFTelemetry(m, activateBPFTelemetry, bpfTelemetry)
+		progs, err := m.GetProgramSpecs()
+		if err != nil {
+			return err
+		}
+		return patchEBPFTelemetry(progs, activateBPFTelemetry, bpfTelemetry)
 	})
 
 	if activateBPFTelemetry {
@@ -174,7 +179,7 @@ func setupForTelemetry(m *manager.Manager, options *manager.Options, bpfTelemetr
 	return nil
 }
 
-func patchEBPFTelemetry(m *manager.Manager, enable bool, bpfTelemetry *EBPFTelemetry) error {
+func patchEBPFTelemetry(progs map[string]*ebpf.ProgramSpec, enable bool, bpfTelemetry *EBPFTelemetry) error {
 	const symbol = "telemetry_program_id_key"
 	newIns := asm.Mov.Reg(asm.R1, asm.R1)
 	if enable {
@@ -182,11 +187,6 @@ func patchEBPFTelemetry(m *manager.Manager, enable bool, bpfTelemetry *EBPFTelem
 	}
 	ldDWImm := asm.LoadImmOp(asm.DWord)
 	h := keyHash()
-
-	progs, err := m.GetProgramSpecs()
-	if err != nil {
-		return err
-	}
 
 	for fn, p := range progs {
 		// do constant editing of programs for helper errors post-init
