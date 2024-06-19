@@ -394,6 +394,9 @@ def get_version_ldflags(ctx, major_version='7', install_path=None):
         if package_version != "datadog-agent":
             ldflags += f"-X {REPO_PATH}/pkg/version.AgentPackageVersion={package_version} "
 
+    if not install_path or package_version == "datadog-agent":
+        ldflags += f"-X {REPO_PATH}/pkg/version.AgentPackageVersion={get_version(ctx, include_git=True, major_version=major_version)}-1 "
+
     return ldflags
 
 
