@@ -51,7 +51,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/redis"
 	protocolsUtils "github.com/DataDog/datadog-agent/pkg/network/protocols/testutil"
 	gotlstestutil "github.com/DataDog/datadog-agent/pkg/network/protocols/tls/gotls/testutil"
-	prototls "github.com/DataDog/datadog-agent/pkg/network/protocols/tls/openssl"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
 	"github.com/DataDog/datadog-agent/pkg/network/usm"
@@ -277,7 +276,7 @@ func testProtocolConnectionProtocolMapCleanup(t *testing.T, tr *Tracer, clientHo
 }
 
 type tlsTestCommand struct {
-	version        string
+	version        uint16
 	openSSLCommand []string
 }
 
@@ -308,19 +307,19 @@ func (s *USMSuite) TestTLSClassification() {
 
 	scenarios := []tlsTestCommand{
 		{
-			version:        "1.0",
+			version:        tls.VersionTLS10,
 			openSSLCommand: []string{"-tls1", "-cipher=DEFAULT@SECLEVEL=0"},
 		},
 		{
-			version:        "1.1",
+			version:        tls.VersionTLS11,
 			openSSLCommand: []string{"-tls1_1", "-cipher=DEFAULT@SECLEVEL=0"},
 		},
 		{
-			version:        "1.2",
+			version:        tls.VersionTLS12,
 			openSSLCommand: []string{"-tls1_2"},
 		},
 		{
-			version:        "1.3",
+			version:        tls.VersionTLS13,
 			openSSLCommand: []string{"-tls1_3"},
 		},
 	}
@@ -340,10 +339,34 @@ func (s *USMSuite) TestTLSClassification() {
 	for _, scenario := range scenarios {
 		scenario := scenario
 		tests = append(tests, tlsTest{
-			name: "TLS-" + scenario.version + "_docker",
+			name: strings.Replace(tls.VersionName(scenario.version), " ", "-", 1) + "_docker",
 			postTracerSetup: func(t *testing.T) {
-				require.NoError(t, prototls.RunServerOpenssl(t, portAsString, len(scenarios), append([]string{"-www"}, scenario.openSSLCommand...)...))
-				require.True(t, prototls.RunClientOpenssl(t, "localhost", portAsString, scenario.openSSLCommand...))
+				srv := testutil.NewTLSServerWithSpecificVersion("localhost:"+portAsString, func(conn net.Conn) {
+					defer conn.Close()
+					// Echo back whatever is received
+					_, err := io.Copy(conn, conn)
+					if err != nil {
+						fmt.Printf("Failed to echo data: %v\n", err)
+						return
+					}
+				}, scenario.version)
+				done := make(chan struct{})
+				require.NoError(t, srv.Run(done))
+				t.Cleanup(func() { close(done) })
+				tlsConfig := &tls.Config{
+					MinVersion:         scenario.version,
+					MaxVersion:         scenario.version,
+					InsecureSkipVerify: true,
+				}
+				conn, err := net.Dial("tcp", "localhost:"+portAsString)
+				require.NoError(t, err)
+				defer conn.Close()
+
+				// Wrap the TCP connection with TLS
+				tlsConn := tls.Client(conn, tlsConfig)
+
+				// Perform the TLS handshake
+				require.NoError(t, tlsConn.Handshake())
 			},
 			validation: func(t *testing.T, tr *Tracer) {
 				// Iterate through active connections until we find connection created above
