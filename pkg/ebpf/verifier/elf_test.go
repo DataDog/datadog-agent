@@ -9,6 +9,7 @@ package verifier
 
 import (
 	"io/fs"
+	"os"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -83,6 +84,11 @@ func TestGetSourceMap(t *testing.T) {
 					hasSourceInfo = true
 
 					if sl.Line == "" { // We cannot compare with btf-defined source lines
+						continue
+					}
+
+					// Do not try to read files in KMT environment, as we lack the source files
+					if strings.Contains(os.Getenv("CI_JOB_NAME"), "kmt_run") {
 						continue
 					}
 
