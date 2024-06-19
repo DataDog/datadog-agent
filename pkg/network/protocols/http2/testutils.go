@@ -13,7 +13,7 @@ import (
 	"github.com/cilium/ebpf"
 )
 
-// CleanHTTP2Maps deletes all entries from the http2 maps. Test utility to allow reusing USM instance without carring
+// CleanHTTP2Maps deletes all entries from the http2 maps. Test utility to allow reusing USM instance without caring
 // over previous data.
 func CleanHTTP2Maps() {
 	if Spec.Instance == nil {
