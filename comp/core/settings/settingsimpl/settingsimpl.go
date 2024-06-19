@@ -13,6 +13,7 @@ import (
 
 	"github.com/gorilla/mux"
 	json "github.com/json-iterator/go"
+	"github.com/mohae/deepcopy"
 	"go.uber.org/fx"
 	"gopkg.in/yaml.v2"
 
@@ -147,6 +148,13 @@ func (s *settingsRegistry) GetFullConfigBySource() http.HandlerFunc {
 		w.Header().Set("Content-Type", "application/json")
 
 		settings := s.config.AllSettingsBySource()
+		// scrub each config layer separately to avoid hitting scrubber size limits
+		for source, setting := range settings {
+			// deepcopy the config layer to avoid accidentally updating the original config object
+			setting = deepcopy.Copy(setting)
+			scrubber.ScrubDataObj(&setting)
+			settings[source] = setting
+		}
 
 		jsonData, err := json.Marshal(settings)
 		if err != nil {
@@ -156,15 +164,7 @@ func (s *settingsRegistry) GetFullConfigBySource() http.HandlerFunc {
 			return
 		}
 
-		scrubbed, err := scrubber.ScrubJSON(jsonData)
-		if err != nil {
-			s.log.Errorf("Unable to scrub sensitive data from config by layer: %s", err)
-			body, _ := json.Marshal(map[string]string{"error": err.Error()})
-			http.Error(w, string(body), http.StatusInternalServerError)
-			return
-		}
-
-		_, _ = w.Write(scrubbed)
+		_, _ = w.Write(jsonData)
 	}
 }
 
