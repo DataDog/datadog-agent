@@ -226,9 +226,9 @@ def wwhrd_licenses(ctx):
                             # we get the first match
                             license = project['matches'][0]['license']
                         licenses.append({"component": "core", "package": pkg, "license": license})
-        except RequestException:
+        except RequestException as e:
             print(f"There was an issue reaching license {pkg} for pkg {lic}")
-            raise Exit(code=1)
+            raise Exit(code=1) from e
 
     return licenses
 

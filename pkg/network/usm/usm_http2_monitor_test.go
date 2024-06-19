@@ -503,6 +503,8 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 	t := s.T()
 	cfg := s.getCfg()
 
+	usmMonitor := setupUSMTLSMonitor(t, cfg)
+
 	// Start local server and register its cleanup.
 	t.Cleanup(startH2CServer(t, authority, s.isTLS))
 
@@ -511,6 +513,9 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 	t.Cleanup(cancel)
 	require.NoError(t, proxy.WaitForConnectionReady(unixPath))
 
+	if s.isTLS {
+		utils.WaitForProgramsToBeTraced(t, "go-tls", proxyProcess.Process.Pid)
+	}
 	tests := []struct {
 		name              string
 		skip              bool
@@ -1232,11 +1237,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 				t.Skip("skipping test")
 			}
 
-			usmMonitor := setupUSMTLSMonitor(t, cfg)
-			if s.isTLS {
-				utils.WaitForProgramsToBeTraced(t, "go-tls", proxyProcess.Process.Pid)
-			}
-
+			t.Cleanup(usmhttp2.CleanHTTP2Maps)
 			c := dialHTTP2Server(t)
 
 			// Composing a message with the number of setting frames we want to send.

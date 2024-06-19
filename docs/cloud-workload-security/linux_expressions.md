@@ -14,6 +14,17 @@ further_reading:
 ## Linux Agent attributes and helpers
 This documentation describes Linux attributes and helpers of the [Datadog's Security Language (SECL)][1].
 
+Rules using Linux attributes and helpers must include an OS rule filter field as follows.
+
+
+{{< code-block lang="yaml" >}}
+id: [...]
+expression: [...]
+filters:
+  - os == "linux"
+
+{{< /code-block >}}
+
 ## Triggers
 Triggers are events that correspond to types of activity seen by the system. The currently supported set of triggers is:
 
@@ -111,6 +122,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`container.id`](#container-id-doc) | ID of the container |
 | [`container.tags`](#container-tags-doc) | Tags of the container |
 | [`event.async`](#event-async-doc) | True if the syscall was asynchronous |
+| [`event.hostname`](#event-hostname-doc) | Hostname associated with the event |
 | [`event.origin`](#event-origin-doc) | Origin of the event |
 | [`event.os`](#event-os-doc) | Operating system of the event |
 | [`event.service`](#event-service-doc) | Service associated with the event |
@@ -2479,6 +2491,13 @@ Constants: [DNS qtypes](#dns-qtypes)
 Type: bool
 
 Definition: True if the syscall was asynchronous
+
+
+
+### `event.hostname` {#event-hostname-doc}
+Type: string
+
+Definition: Hostname associated with the event
 
 
 

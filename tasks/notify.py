@@ -215,13 +215,10 @@ def send_message(ctx, notification_type="merge", print_to_stdout=False):
         traceback.print_exc(limit=-1, file=buffer)
         print("See the notify job log for the full exception traceback.", file=buffer)
 
-        messages_to_send = {
-            "@DataDog/agent-all": SlackMessage(base=buffer.getvalue()),
-        }
         # Print traceback on job log
         print(e)
         traceback.print_exc()
-        raise Exit(code=1)
+        raise Exit(code=1) from e
 
     # From the job failures, set whether the pipeline succeeded or failed and craft the
     # base message that will be sent.

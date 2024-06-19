@@ -633,7 +633,7 @@ def create_module(ctx, path: str, no_verify: bool = False):
             check_go_mod_replaces(ctx)
 
         print(color_message(f"Created package {path}", "green"))
-    except Exception:
+    except Exception as e:
         traceback.print_exc()
 
         # Restore files if user wants to
@@ -645,8 +645,8 @@ def create_module(ctx, path: str, no_verify: bool = False):
                 ctx.run('git clean -f')
                 ctx.run('git checkout HEAD -- .')
 
-                raise Exit(1)
+                raise Exit(code=1) from e
 
         print(color_message("Not removing changed files", "red"))
 
-        raise Exit(1)
+        raise Exit(code=1) from e
