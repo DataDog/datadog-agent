@@ -183,7 +183,8 @@ type Process struct {
 
 	FileEvent FileEvent `field:"file,check:IsNotKworker"`
 
-	ContainerID string `field:"container.id"` // SECLDoc[container.id] Definition:`Container ID`
+	ContainerID    string `field:"container.id"` // SECLDoc[container.id] Definition:`Container ID`
+	ContainerFlags uint32 `field:"-"`
 
 	SpanID  uint64 `field:"-"`
 	TraceID uint64 `field:"-"`

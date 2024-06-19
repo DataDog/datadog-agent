@@ -76,7 +76,8 @@ func (e *Process) MarshalProcCache(data []byte, bootTime time.Time) (int, error)
 		return 0, ErrNotEnoughSpace
 	}
 	copy(data[0:ContainerIDLen], e.ContainerID)
-	written := ContainerIDLen
+	binary.NativeEndian.PutUint64(data[ContainerIDLen:ContainerIDLen+8], uint64(e.ContainerFlags))
+	written := ContainerIDLen + 8
 
 	toAdd, err := MarshalBinary(data[written:], &e.FileEvent)
 	if err != nil {

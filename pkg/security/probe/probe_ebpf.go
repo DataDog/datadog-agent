@@ -498,6 +498,7 @@ func (p *EBPFProbe) unmarshalProcessCacheEntry(ev *model.Event, data []byte) (in
 		return n, err
 	}
 	entry.Process.ContainerID = ev.ContainerContext.ID
+	entry.Process.ContainerFlags = uint32(ev.ContainerContext.Flags)
 	entry.Source = model.ProcessCacheEntryFromEvent
 
 	return n, nil

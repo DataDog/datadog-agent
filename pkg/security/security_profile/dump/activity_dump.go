@@ -378,11 +378,13 @@ func (ad *ActivityDump) enable() error {
 
 	if len(ad.Metadata.ContainerID) > 0 {
 		// insert container ID in traced_cgroups map (it might already exist, do not update in that case)
-		if err := ad.adm.tracedCgroupsMap.Update(ad.Metadata.ContainerID, ad.LoadConfigCookie, ebpf.UpdateNoExist); err != nil {
+		containerID := make([]byte, 64)
+		copy(containerID, []byte(ad.Metadata.ContainerID))
+		if err := ad.adm.tracedCgroupsMap.Update(containerID, ad.LoadConfigCookie, ebpf.UpdateNoExist); err != nil {
 			if !errors.Is(err, ebpf.ErrKeyExist) {
 				// delete activity dump load config
 				_ = ad.adm.activityDumpsConfigMap.Delete(ad.LoadConfigCookie)
-				return fmt.Errorf("couldn't push activity dump container ID %s: %w", ad.Metadata.ContainerID, err)
+				return fmt.Errorf("couldn't push activity dump container ID %s: %w", containerID, err)
 			}
 		}
 	}

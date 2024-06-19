@@ -746,3 +746,23 @@ const (
 	// ExitSignaled Process was terminated with a signal other than a coredump
 	ExitSignaled
 )
+
+// CGroup managers
+const (
+	CGroupManagerDocker uint64 = iota + 1
+	CGroupManagerCRIO
+	CGroupManagerPodman
+	CGroupManagerCRI
+	CGroupManagerSystemd
+)
+
+var (
+	// ContainerFlagsConstants are the supported flags for a container
+	ContainerFlagsConstants = map[string]uint64{
+		"docker":         CGroupManagerDocker,
+		"cri-containerd": CGroupManagerCRI,
+		"crio":           CGroupManagerCRIO,
+		"podman":         CGroupManagerPodman,
+		"systemd":        CGroupManagerSystemd,
+	}
+)

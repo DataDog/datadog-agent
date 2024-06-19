@@ -74,6 +74,7 @@ type ContainerContext struct {
 	CreatedAt uint64   `field:"created_at,handler:ResolveContainerCreatedAt"`               // SECLDoc[created_at] Definition:`Timestamp of the creation of the container``
 	Tags      []string `field:"tags,handler:ResolveContainerTags,opts:skip_ad,weight:9999"` // SECLDoc[tags] Definition:`Tags of the container`
 	Resolved  bool     `field:"-"`
+	Flags     uint64   `field:"-"`
 }
 
 // SecurityProfileContext holds the security context of the profile

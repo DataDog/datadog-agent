@@ -7,6 +7,12 @@
 #include "helpers/utils.h"
 #include "maps.h"
 
+#define CGROUP_MANAGER_DOCKER 1
+#define CGROUP_MANAGER_CRIO 2
+#define CGROUP_MANAGER_PODMAN 3
+#define CGROUP_MANAGER_CRI 4
+#define CGROUP_MANAGER_SYSTEMD 5
+
 static __attribute__((always_inline)) int trace__cgroup_write(ctx_t *ctx) {
     u32 cgroup_write_type = get_cgroup_write_type();
     u32 pid;
@@ -76,26 +82,38 @@ static __attribute__((always_inline)) int trace__cgroup_write(ctx_t *ctx) {
         return 0;
     }
 
+    u32 container_flags = 0;
     char prefix[15];
     bpf_probe_read(&prefix, sizeof(prefix), container_id);
-    if (prefix[0] == 'd' && prefix[1] == 'o' && prefix[2] == 'c' && prefix[3] == 'k' && prefix[4] == 'e' && prefix[5] == 'r' && prefix[6] == '-') {
+
+    if (prefix[0] == 'd' && prefix[1] == 'o' && prefix[2] == 'c' && prefix[3] == 'k' && prefix[4] == 'e'
+        && prefix[5] == 'r' && prefix[6] == '-') {
         container_id += 7; // skip "docker-"
+        container_flags |= CGROUP_MANAGER_DOCKER;
     }
-    if (prefix[0] == 'c' && prefix[1] == 'r' && prefix[2] == 'i' && prefix[3] == 'o' && prefix[4] == '-') {
+    else if (prefix[0] == 'c' && prefix[1] == 'r' && prefix[2] == 'i' && prefix[3] == 'o' && prefix[4] == '-') {
         container_id += 5; // skip "crio-"
+        container_flags |= CGROUP_MANAGER_CRIO;
     }
-    if (prefix[0] == 'l' && prefix[1] == 'i' && prefix[2] == 'b' && prefix[3] == 'p' && prefix[4] == 'o' && prefix[5] == 'd' && prefix[6] == '-') {
+    else if (prefix[0] == 'l' && prefix[1] == 'i' && prefix[2] == 'b' && prefix[3] == 'p' && prefix[4] == 'o'
+        && prefix[5] == 'd' && prefix[6] == '-') {
         container_id += 7; // skip "libpod-"
+        container_flags |= CGROUP_MANAGER_PODMAN;
     }
-    if (prefix[0] == 'c' && prefix[1] == 'r' && prefix[2] == 'i' && prefix[3] == '-' && prefix[4] == 'c' && prefix[5] == 'o' && prefix[6] == 'n' && prefix[7] == 't' && prefix[8] == 'a' && prefix[9] == 'i' && prefix[10] == 'n' && prefix[11] == 'e' && prefix[12] == 'r' && prefix[13] == 'd' && prefix[14] == '-') {
+    else if (prefix[0] == 'c' && prefix[1] == 'r' && prefix[2] == 'i' && prefix[3] == '-' && prefix[4] == 'c'
+        && prefix[5] == 'o' && prefix[6] == 'n' && prefix[7] == 't' && prefix[8] == 'a' && prefix[9] == 'i'
+        && prefix[10] == 'n' && prefix[11] == 'e' && prefix[12] == 'r' && prefix[13] == 'd' && prefix[14] == '-') {
         container_id += 15; // skip "cri-containerd-"
+        container_flags |= CGROUP_MANAGER_CRI;
     }
 
     bpf_probe_read(&new_entry.container.container_id, sizeof(new_entry.container.container_id), container_id);
+
     if (!is_container_id_valid(new_entry.container.container_id)) {
         return 0;
     }
 
+    new_entry.container.flags = container_flags;
     bpf_map_update_elem(&proc_cache, &cookie, &new_entry, BPF_ANY);
 
     if (new_cookie) {

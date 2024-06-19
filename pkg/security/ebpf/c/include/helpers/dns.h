@@ -37,6 +37,7 @@ __attribute__((always_inline)) struct dns_event_t *reset_dns_event(struct __sk_b
         evt->container.container_id[0] = 0;
     } else {
         copy_container_id_no_tracing(entry->container.container_id, &evt->container.container_id);
+        evt->container.flags = entry->container.flags;
     }
 
     // should we sample this event for activity dumps ?
