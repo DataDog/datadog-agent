@@ -37,11 +37,19 @@ func NewConverter() (converter.Component, error) {
 
 // Convert autoconfigures conf and stores both the provided and enhanced conf.
 func (c *ddConverter) Convert(_ context.Context, conf *confmap.Conf) error {
-	// c.addProvidedConf(conf)
+	provided := confmap.New()
+	err := provided.Merge(conf)
+	if err != nil {
+		return err
+	}
+
+	// we store a copy of provided
+	c.addProvidedConf(provided)
 
 	enhanceConfig(conf)
 
-	// c.addEnhancedConf(conf)
+	// we store the enhanced copy
+	c.addEnhancedConf(conf)
 	return nil
 }
 
@@ -77,9 +85,9 @@ func (c *ddConverter) GetProvidedConfAsString() (string, error) {
 // GetEnhancedConf returns a string representing the enhanced collector configuration.
 // Note: this is currently not supported.
 func (c *ddConverter) GetEnhancedConfAsString() (string, error) {
-	confstr, _ := confToString(c.confDump.enhanced)
+	confstr, err := confToString(c.confDump.enhanced)
 
-	return confstr, fmt.Errorf("unsupported")
+	return confstr, err
 }
 
 // confToString takes in an *confmap.Conf and returns a string with the yaml

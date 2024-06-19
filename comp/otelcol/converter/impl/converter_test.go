@@ -141,56 +141,33 @@ func TestConvert(t *testing.T) {
 }
 
 func TestGetConfDump(t *testing.T) {
-	t.Run("nop", func(t *testing.T) {
-		converter, err := NewConverter()
-		assert.NoError(t, err)
 
-		resolver, err := newResolver(uriFromFile("nop/config.yaml"))
-		assert.NoError(t, err)
-		conf, err := resolver.Resolve(context.Background())
-		assert.NoError(t, err)
+	converter, err := NewConverter()
+	assert.NoError(t, err)
 
-		converter.Convert(context.Background(), conf)
+	resolver, err := newResolver(uriFromFile("dd/config.yaml"))
+	assert.NoError(t, err)
+	conf, err := resolver.Resolve(context.Background())
+	assert.NoError(t, err)
 
-		t.Run("provided", func(t *testing.T) {
-			assert.NotNil(t, converter.GetProvidedConf())
-		})
+	converter.Convert(context.Background(), conf)
 
-		t.Run("enhanced", func(t *testing.T) {
-			assert.Nil(t, converter.GetEnhancedConf())
-		})
+	t.Run("provided", func(t *testing.T) {
+		conf := converter.GetProvidedConf()
+		assert.NotNil(t, conf)
+
+		confStr, err := converter.GetProvidedConfAsString()
+		assert.NotEqual(t, "", confStr)
+		assert.Nil(t, err)
 	})
 
-	t.Run("dd", func(t *testing.T) {
-		converter, err := NewConverter()
-		assert.NoError(t, err)
+	t.Run("enhanced", func(t *testing.T) {
+		conf := converter.GetEnhancedConf()
+		assert.NotNil(t, conf)
 
-		resolver, err := newResolver(uriFromFile("dd/config-dd.yaml"))
-		assert.NoError(t, err)
-		conf, err := resolver.Resolve(context.Background())
-		assert.NoError(t, err)
-
-		converter.Convert(context.Background(), conf)
-
-		t.Run("provided", func(t *testing.T) {
-			assert.NotNil(t, converter.GetProvidedConf())
-		})
-
-		t.Run("enhanced", func(t *testing.T) {
-			assert.Nil(t, converter.GetEnhancedConf())
-		})
-
-		t.Run("provided", func(t *testing.T) {
-			conf, err := converter.GetProvidedConfAsString()
-			assert.NotEqual(t, "", conf)
-			assert.Nil(t, err)
-		})
-
-		t.Run("enhanced", func(t *testing.T) {
-			conf, err := converter.GetEnhancedConfAsString()
-			assert.Equal(t, "", conf)
-			assert.NotNil(t, err)
-		})
+		confStr, err := converter.GetEnhancedConfAsString()
+		assert.NotEqual(t, "", confStr)
+		assert.Nil(t, err)
 	})
 
 }
