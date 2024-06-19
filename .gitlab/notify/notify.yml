@@ -122,10 +122,15 @@ notify_failure_summary_daily:
   rules: !reference [.on_deploy_nightly_repo_branch]
   script:
     - !reference [.failure_summary_setup]
+    - weekday="$(date --utc '+%A')"
+    - |
+      if [ "$weekday" = "Sunday" ] || [ "$weekday" = "Monday" ]; then
+        echo "Skipping daily summary on $weekday"
+        exit
+      fi
     # Daily
     - inv -e notify.failure-summary-send-notifications --is-daily-summary=true
     # Send weekly if necessary (note that this workflow is usually triggered early in the morning)
-    - weekday="$(date --utc '+%A')"
     - |
       if [ "$weekday" = "Friday" ]; then
         echo 'Sending weekly summary'
