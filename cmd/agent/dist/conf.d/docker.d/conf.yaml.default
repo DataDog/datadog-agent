@@ -20,13 +20,13 @@ instances:
     ## Transforms each collected Docker event into its own Datadog
     ## event, instead of grouping them together by container image.
     #
-    # unbundle_events: true
+    # unbundle_events: false
 
     ## @param bundle_unspecified_events - boolean - optional - default: false
     ## Bundle the events that remain after unbundling with collected_event_types
     ## and filtering with filtered_event_types. Only effective when unbundle_events is true.
     #
-    # bundle_unspecified_events: true
+    # bundle_unspecified_events: false
 
     ## @param collected_event_types - array of strings - optional
     ## Specify which docker events will be collected. Only effective when
