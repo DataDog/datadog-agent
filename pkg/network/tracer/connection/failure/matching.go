@@ -180,7 +180,7 @@ func (fc *FailedConns) setupMapCleaner(m *manager.Manager) {
 		return
 	}
 
-	mapCleaner.Clean(time.Second*1, nil, nil, func(now int64, _key ebpf.ConnTuple, val int64) bool {
+	mapCleaner.Clean(time.Second*5, nil, nil, func(now int64, _key ebpf.ConnTuple, val int64) bool {
 		return val > 0 && now-val > mapTTL
 	})
 
