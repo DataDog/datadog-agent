@@ -5,7 +5,7 @@ from contextlib import contextmanager
 
 from invoke import Context, Exit, task
 
-from tasks.libs.common.color import color_message
+from tasks.libs.common.color import Color, color_message
 
 AGENT_MODULE_PATH_PREFIX = "github.com/DataDog/datadog-agent/"
 
@@ -179,6 +179,13 @@ DEFAULT_MODULES = {
     "comp/otelcol/otlp/testutil": GoModule("comp/otelcol/otlp/testutil", independent=True, used_by_otel=True),
     "comp/otelcol/converter/def": GoModule("comp/otelcol/converter/def", independent=True, used_by_otel=True),
     "comp/otelcol/converter/impl": GoModule("comp/otelcol/converter/impl", independent=True, used_by_otel=True),
+    "comp/otelcol/otlp/example/metric": GoModule(
+        "comp/otelcol/otlp/example/metric",
+        independent=True,
+        used_by_otel=True,
+        condition=lambda: False,
+        should_tag=False,
+    ),
     "comp/serializer/compression": GoModule("comp/serializer/compression", independent=True, used_by_otel=True),
     "comp/trace/agent/def": GoModule("comp/trace/agent/def", independent=True, used_by_otel=True),
     "internal/tools": GoModule("internal/tools", condition=lambda: False, should_tag=False),
@@ -266,10 +273,24 @@ DEFAULT_MODULES = {
         "test/new-e2e",
         independent=True,
         targets=["./pkg/runner", "./pkg/utils/e2e/client"],
-        lint_targets=[".", "./examples"],  # need to explictly list "examples", otherwise it is skipped
+        lint_targets=[".", "./examples"],  # need to explicitly list "examples", otherwise it is skipped
+    ),
+    "tools/retry_file_dump": GoModule(
+        "tools/retry_file_dump", independent=True, condition=lambda: False, should_tag=False
     ),
     "tools/retry_file_dump": GoModule("tools/retry_file_dump", condition=lambda: False, should_tag=False),
 }
+
+# Folder containing a `go.mod` file but that should not be added to the DEFAULT_MODULES
+IGNORED_MODULES = [
+    "./internal/tools/modparser/testdata/badformat",
+    "./internal/tools/modparser/testdata/match",
+    "./internal/tools/modparser/testdata/nomatch",
+    "./internal/tools/modparser/testdata/patchgoversion",
+    "./pkg/process/procutil/resources",
+    "./test/integration/serverless/recorder-extension",
+    "./test/integration/serverless/src",
+]
 
 MAIN_TEMPLATE = """package main
 
@@ -377,8 +398,21 @@ def validate(_: Context, fail_fast: bool = False):
                 if fail_fast:
                     raise Exit(f"{color_message('ERROR', 'red')}: {module.path} depends on missing {dependency}")
                 missing_modules.append((module, dependency))
+
+    # Find all go.mod files and make sure they are registered in DEFAULT_MODULES
+    for root, dirs, files in os.walk("."):
+        # Ignore the files that could be stored in the Python tests
+        dirs[:] = [d for d in dirs if root + '/' + d != "./tasks"]
+
+        if "go.mod" in files and root.removeprefix("./") not in DEFAULT_MODULES and root not in IGNORED_MODULES:
+            missing_modules.append((root, None))
+
     if missing_modules:
-        message = f"{color_message('ERROR', 'red')}: some modules are missing from DEFAULT_MODULES\n"
+        message = f"{color_message('ERROR', Color.RED)}: some modules are missing from DEFAULT_MODULES\n"
         for module, dependency in missing_modules:
-            message += f"  {module.path} depends on missing {dependency}\n"
+            if dependency:
+                message += f"  {module.path} depends on missing {dependency}\n"
+            else:
+                message += f"  {module} is missing from DEFAULT_MODULES\n"
+
         raise Exit(message)
