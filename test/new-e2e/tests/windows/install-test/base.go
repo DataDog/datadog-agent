@@ -33,7 +33,8 @@ import (
 
 type baseAgentMSISuite struct {
 	windows.BaseAgentInstallerSuite[environments.WindowsHost]
-	beforeInstall *windowsCommon.FileSystemSnapshot
+	beforeInstall      *windowsCommon.FileSystemSnapshot
+	beforeInstallPerms map[string]string // path -> SDDL
 }
 
 // NOTE: BeforeTest is not called before subtests
@@ -46,6 +47,8 @@ func (s *baseAgentMSISuite) BeforeTest(suiteName, testName string) {
 	var err error
 	// If necessary (for example for parallelization), store the snapshot per suite/test in a map
 	s.beforeInstall, err = windowsCommon.NewFileSystemSnapshot(vm, SystemPaths())
+	s.Require().NoError(err)
+	s.beforeInstallPerms, err = SnapshotPermissionsForPaths(vm, SystemPathsForPermissionsValidation())
 	s.Require().NoError(err)
 
 	// Clear the event logs before each test
@@ -133,6 +136,10 @@ func (s *baseAgentMSISuite) uninstallAgentAndRunUninstallTests(t *Tester) bool {
 		}
 
 		AssertDoesNotRemoveSystemFiles(s.T(), s.Env().RemoteHost, s.beforeInstall)
+
+		s.Run("uninstall does not change system file permissions", func() {
+			AssertDoesNotChangePathPermissions(s.T(), s.Env().RemoteHost, s.beforeInstallPerms)
+		})
 
 		t.TestUninstallExpectations(tt)
 	})

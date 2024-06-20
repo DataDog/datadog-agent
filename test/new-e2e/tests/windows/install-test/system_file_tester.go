@@ -58,3 +58,41 @@ func AssertDoesNotRemoveSystemFiles(t *testing.T, host *components.RemoteHost, b
 		assert.Empty(tt, result, "should not remove system files")
 	})
 }
+
+// SystemPathsForPermissionsValidation returns paths that we should ensure permissions are not
+// changed on by our installer.
+//
+// Paths were chosen because they are in the directory tree of our installed files.
+//
+// This test is a result of a bug in Windows MSI.DLL (reported, fix in progress).
+// See https://github.com/oleg-shilo/wixsharp/issues/1336
+func SystemPathsForPermissionsValidation() []string {
+	return []string{
+		`C:\`,
+		`C:\Program Files\`,
+		`C:\ProgramData\`,
+	}
+}
+
+// SnapshotPermissionsForPaths returns a map of paths to their SDDL permissions
+func SnapshotPermissionsForPaths(host *components.RemoteHost, paths []string) (map[string]string, error) {
+	permissions := make(map[string]string)
+	for _, path := range paths {
+		perms, err := windowsCommon.GetSecurityInfoForPath(host, path)
+		if err != nil {
+			return nil, err
+		}
+		permissions[path] = perms.SDDL
+	}
+	return permissions, nil
+}
+
+// AssertDoesNotChangePathPermissions checks that the permissions on the paths in the snapshot are not changed
+func AssertDoesNotChangePathPermissions(t *testing.T, host *components.RemoteHost, beforeInstall map[string]string) {
+	t.Helper()
+	for path, sddl := range beforeInstall {
+		perms, err := windowsCommon.GetSecurityInfoForPath(host, path)
+		assert.NoError(t, err)
+		assert.Equal(t, sddl, perms.SDDL, "%s permissions should not have changed", path)
+	}
+}
