@@ -9,8 +9,6 @@ import (
 	"bytes"
 	"context"
 	_ "embed"
-	"os"
-	"strconv"
 	"testing"
 	"text/template"
 
@@ -70,11 +68,6 @@ func TestK8sTestSuite(t *testing.T) {
 			}),
 			awskubernetes.WithAgentOptions(kubernetesagentparams.WithHelmValues(helmValues)),
 		)),
-	}
-
-	devModeEnv, _ := os.LookupEnv("E2E_DEVMODE")
-	if devMode, err := strconv.ParseBool(devModeEnv); err == nil && devMode {
-		options = append(options, e2e.WithDevMode())
 	}
 
 	e2e.Run(t, &K8sSuite{}, options...)
