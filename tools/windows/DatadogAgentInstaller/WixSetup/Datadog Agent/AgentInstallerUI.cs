@@ -1,40 +1,19 @@
 using System.Collections.Generic;
-using System.Drawing;
-using System.Xml.Linq;
 using WixSharp;
 using WixSharp.Controls;
-using WixSharp.Forms;
 
-namespace WixSetup.Datadog
+namespace WixSetup.Datadog_Agent
 {
     // ReSharper disable once InconsistentNaming
-    public class AgentInstallerUI : CustomUI
+    public class AgentInstallerUI : DatadogCustomUI
     {
-        private CustomUI OnFreshInstall(string dialog, string control, params DialogAction[] handlers)
-        {
-            handlers.ForEach(h => h.Condition &= Conditions.FirstInstall);
-            return On(dialog, control, handlers);
-        }
-
-        private CustomUI OnUpgrade(string dialog, string control, params DialogAction[] handlers)
-        {
-            handlers.ForEach(h => h.Condition &= Conditions.Upgrading);
-            return On(dialog, control, handlers);
-        }
-
-        private CustomUI OnMaintenance(string dialog, string control, params DialogAction[] handlers)
-        {
-            handlers.ForEach(h => h.Condition &= Conditions.Maintenance);
-            return On(dialog, control, handlers);
-        }
-
         public AgentInstallerUI(IWixProjectEvents wixProjectEvents, AgentCustomActions agentCustomActions)
+        : base(wixProjectEvents)
         {
             // ARPNOMODIFY=1 disables the "Change" button in the Control Panel, so remove it so that we have
             // our button.
             // https://learn.microsoft.com/en-us/windows/win32/msi/arpnomodify
             Properties.Remove("ARPNOMODIFY");
-            wixProjectEvents.WixSourceGenerated += OnWixSourceGenerated;
             DialogRefs = new List<string>
             {
                 CommonDialogs.BrowseDlg,
@@ -131,15 +110,6 @@ namespace WixSetup.Datadog
 
             On(Dialogs.SendFlareDialog, Buttons.Back, new ShowDialog(Dialogs.FatalErrorDialog));
             On(Dialogs.SendFlareDialog, "SendFlare", new ExecuteCustomAction(agentCustomActions.SendFlare));
-        }
-
-        public void OnWixSourceGenerated(XDocument document)
-        {
-            var ui = document.Root.Select("Product/UI");
-            // Need to customize here since color is not supported with standard methods
-            ui.AddTextStyle("WixUI_Font_Normal_White", new Font("Tahoma", 8), Color.White);
-            ui.AddTextStyle("WixUI_Font_Bigger_White", new Font("Tahoma", 12), Color.White);
-            ui.AddTextStyle("WixUI_Font_Title_White", new Font("Tahoma", 9, FontStyle.Bold), Color.White);
         }
     }
 }
