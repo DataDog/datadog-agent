@@ -279,7 +279,7 @@ func (s *usmHTTP2Suite) TestSimpleHTTP2() {
 		for _, clientCount := range []int{1, 2, 5} {
 			testNameSuffix := fmt.Sprintf("-different clients - %v", clientCount)
 			t.Run(tt.name+testNameSuffix, func(t *testing.T) {
-				t.Cleanup(usmhttp2.CleanHTTP2Maps)
+				t.Cleanup(func() { usmhttp2.CleanHTTP2Maps(t) })
 				tt.runClients(t, clientCount)
 
 				res := make(map[usmhttp.Key]int)
@@ -1239,7 +1239,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 				t.Skip("skipping test")
 			}
 
-			t.Cleanup(usmhttp2.CleanHTTP2Maps)
+			t.Cleanup(func() { usmhttp2.CleanHTTP2Maps(t) })
 			c := dialHTTP2Server(t)
 
 			// Composing a message with the number of setting frames we want to send.

@@ -525,7 +525,7 @@ func (s *usmGRPCSuite) TestLargeBodiesGRPCScenarios() {
 }
 
 func (s *usmGRPCSuite) testGRPCScenarios(t *testing.T, usmMonitor *Monitor, runClientCallback func(*testing.T, int), expectedEndpoints map[http.Key]captureRange, clientCount int) {
-	t.Cleanup(http2.CleanHTTP2Maps)
+	t.Cleanup(func() { http2.CleanHTTP2Maps(t) })
 	runClientCallback(t, clientCount)
 
 	res := make(map[http.Key]int)
