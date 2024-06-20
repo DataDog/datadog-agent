@@ -499,8 +499,8 @@ func TestExtractLibInfo(t *testing.T) {
 					},
 				},
 			},
-			containerRegistry:   "registry",
-			expectedPodEligible: pointer.Ptr(true),
+			containerRegistry:    "registry",
+			expectedPodEligible:  pointer.Ptr(true),
 			expectedLibsToInject: allLatestLibs,
 			setupConfig: func() {
 				mockConfig.SetWithoutSource("admission_controller.mutate_unlabelled", false)
