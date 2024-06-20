@@ -22,6 +22,7 @@ GO_VERSION_REFERENCES: list[tuple[str, str, str, bool]] = [
     (GO_VERSION_FILE, "", "", True),  # the version is the only content of the file
     ("./tools/gdb/Dockerfile", "https://go.dev/dl/go", ".linux-amd64.tar.gz", True),
     ("./test/fakeintake/Dockerfile", "FROM golang:", "-alpine", True),
+    ("./tasks/unit-tests/modules_tests.py", 'Go": "', '",', False),
     ("./devenv/scripts/Install-DevEnv.ps1", '$go_version = "', '"', True),
     ("./docs/dev/agent_dev_env.md", "[install Golang](https://golang.org/doc/install) version `", "`", True),
     ("./tasks/go.py", '"go version go', ' linux/amd64"', True),

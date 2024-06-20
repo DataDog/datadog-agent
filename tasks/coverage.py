@@ -96,7 +96,7 @@ powershell.exe -executionpolicy Bypass -file {GO_COV_TEST_PATH}.ps1 %*"""
 
 
 @task
-def codecov(
+def upload_to_codecov(
     ctx: Context,
     pull_coverage_cache: bool = False,
     push_coverage_cache: bool = False,
@@ -143,7 +143,6 @@ def _get_coverage_cache_uri():
     return f"{os.environ[BUCKET_CI_VAR]}/coverage-cache"
 
 
-@task
 def upload_coverage_to_s3(ctx: Context):
     """
     Create an archive with all the coverage.out files from the inv test --coverage command.
@@ -174,7 +173,6 @@ def upload_coverage_to_s3(ctx: Context):
     print(color_message(f'Successfully removed the local {COV_ARCHIVE_NAME}', Color.GREEN))
 
 
-@task
 def apply_missing_coverage(ctx: Context, from_commit_sha: str, debug: bool = False):
     """
     Download the coverage cache archive from S3 for the given commit SHA
