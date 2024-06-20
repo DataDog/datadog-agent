@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    Fix oracle.tablespace.offline metric not emitting 1 when tablespace is offline.
+    Fixes `oracle.tablespace.offline` metric not emitting 1 when tablespace is offline.
