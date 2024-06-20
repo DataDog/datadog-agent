@@ -86,7 +86,7 @@ func (s *K8sSuite) TestManualProcessCheck() {
 	assert.NoError(s.T(), err)
 	assert.Empty(s.T(), stderr)
 
-	assertManualProcessCheck(s.T(), stdout, false, "/usr/bin/stress-ng", "stress-ng")
+	assertManualProcessCheck(s.T(), stdout, false, "stress-ng-cpu [run]", "stress-ng")
 }
 
 func getAgentPod(t *testing.T, client kubeClient.Interface) corev1.Pod {
