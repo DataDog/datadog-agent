@@ -35,7 +35,7 @@ class TestCreateGitlabAnnotations(unittest.TestCase):
                 {
                     "external_link": {
                         "label": "CI Visibility: This job test runs on main",
-                        "url": f"{TEST_VISIBILITY_URL}?query=test_level%3Atest%20%40ci.job.name%3A%22test-job%22%20%40git.branch%3Amain20%40test.service%3Adatadog-agent",
+                        "url": f"{TEST_VISIBILITY_URL}?query=test_level%3Atest%20%40ci.job.name%3A%22test-job%22%20%40git.branch%3Amain%20%40test.service%3Adatadog-agent",
                     }
                 },
             ]
@@ -72,7 +72,7 @@ class TestCreateGitlabAnnotations(unittest.TestCase):
                 {
                     "external_link": {
                         "label": "CI Visibility: This job test runs on main",
-                        "url": f"{TEST_VISIBILITY_URL}?query=test_level%3Atest%20%40ci.job.name%3A%22test%20job%22%20%40git.branch%3Amain20%40test.service%3Adatadog-agent",
+                        "url": f"{TEST_VISIBILITY_URL}?query=test_level%3Atest%20%40ci.job.name%3A%22test%20job%22%20%40git.branch%3Amain%20%40test.service%3Adatadog-agent",
                     }
                 },
             ]
@@ -109,7 +109,7 @@ class TestCreateGitlabAnnotations(unittest.TestCase):
                 {
                     "external_link": {
                         "label": "CI Visibility: This job test runs on main",
-                        "url": f"{TEST_VISIBILITY_URL}?query=test_level%3Atest%20%40ci.job.name%3A%22test%20job%20%5BOne%7CTwo%7CThree%5D%20--skip%20Four%22%20%40git.branch%3Amain20%40test.service%3Adatadog-agent",
+                        "url": f"{TEST_VISIBILITY_URL}?query=test_level%3Atest%20%40ci.job.name%3A%22test%20job%20%5BOne%7CTwo%7CThree%5D%20--skip%20Four%22%20%40git.branch%3Amain%20%40test.service%3Adatadog-agent",
                     }
                 },
             ]

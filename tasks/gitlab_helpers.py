@@ -111,7 +111,7 @@ def get_link_to_pipeline_job_on_main(job_name: str):
 def get_link_to_test_runs(job_id: str):
     query_params = {
         "test_level": "test",
-        "@ci.job.url": f"https://gitlab.ddbuild.io/DataDog/datadog-agent/-/jobs/{job_id}",
+        "@ci.job.url": f"\"https://gitlab.ddbuild.io/DataDog/datadog-agent/-/jobs/{job_id}\"",
         "@test.service": "datadog-agent",
     }
     query_string = to_query_string(query_params)
