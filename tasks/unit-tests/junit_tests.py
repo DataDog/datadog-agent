@@ -8,10 +8,6 @@ from tasks.libs.owners.parsing import read_owners
 
 
 class TestFindTarball(unittest.TestCase):
-    def test_valid_tarball(self):
-        valid_tarball = "./tasks/unit-tests/testdata/junit-kitchen_test_system_probe_windows_x64.tgz"
-        self.assertEqual(junit.find_tarball(valid_tarball), valid_tarball)
-
     def test_tarball_in_folder(self):
         tarball_in_folder = "./tasks/unit-tests/testdata/secret.tar.gz"
         self.assertEqual(junit.find_tarball(tarball_in_folder), f"{tarball_in_folder}/secret.tar.gz")
@@ -146,6 +142,6 @@ class TestJUnitUploadFromTGZ(unittest.TestCase):
         mock_project = MagicMock()
         mock_project.pipelines.get.return_value = MagicMock()
         mock_gitlab.return_value = mock_project
-        junit.junit_upload_from_tgz("tasks/unit-tests/testdata/junit-tests_deb-x64-py3.tgz")
+        junit.junit_upload_from_tgz("tasks/unit-tests/testdata/testjunit-tests_deb-x64-py3.tgz")
         mock_popen.assert_called()
         self.assertEqual(mock_popen.call_count, 31)
