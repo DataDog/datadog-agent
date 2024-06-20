@@ -87,7 +87,7 @@ func TestExtensionHTTPHandler(t *testing.T) {
 		"environment",
 	}
 	var response map[string]interface{}
-	json.Unmarshal([]byte(rr.Body.String()), &response)
+	json.Unmarshal(rr.Body.Bytes(), &response)
 
 	for _, key := range expectedKeys {
 		_, ok := response[key]

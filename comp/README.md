@@ -380,6 +380,10 @@ Package collectorcontrib defines the OTel collector-contrib component
 
 Package converter defines the otel agent converter component.
 
+### [comp/otelcol/extension](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/otelcol/extension)
+
+Package extension defines the OpenTelemetry Extension component.
+
 ### [comp/otelcol/logsagentpipeline](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline)
 
 Package logsagentpipeline contains logs agent pipeline component
