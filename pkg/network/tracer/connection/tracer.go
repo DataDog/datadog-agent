@@ -544,9 +544,6 @@ func (t *tracer) Remove(conn *network.ConnectionStats) error {
 
 	removeConnection(conn)
 
-	// We have to remove the PID to remove the element from the TCP Map since we don't use the pid there
-	// TODO: remove this? it looks like we do use the PID in the TCP map
-	t.removeTuple.Pid = 0
 	if conn.Type == network.TCP {
 		// We can ignore the error for this map since it will not always contain the entry
 		_ = t.tcpStats.Delete(t.removeTuple)
