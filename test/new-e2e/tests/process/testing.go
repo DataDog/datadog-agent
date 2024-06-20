@@ -279,12 +279,6 @@ func assertManualProcessCheck(t *testing.T, check string, withIOStats bool, proc
 
 // assertManualContainerCheck asserts that the given container is collected from a manual container check
 func assertManualContainerCheck(t *testing.T, check string, expectedContainers ...string) {
-	defer func() {
-		if t.Failed() {
-			t.Logf("Check output:\n%s\n", check)
-		}
-	}()
-
 	var checkOutput struct {
 		Containers []*agentmodel.Container `json:"containers"`
 	}
