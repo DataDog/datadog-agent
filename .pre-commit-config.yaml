@@ -123,3 +123,9 @@ repos:
       entry: 'inv linter.update-go'
       language: system
       pass_filenames: false
+    - id: check-go-modules
+      name: check-go-modules
+      description: Validate all go modules are declared
+      entry: 'inv modules.validate'
+      language: system
+      pass_filenames: false

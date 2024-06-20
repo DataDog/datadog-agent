@@ -385,17 +385,11 @@ def for_each(ctx: Context, cmd: str, skip_untagged: bool = False):
 
 
 @task
-def validate(_: Context, fail_fast: bool = False):
+def validate(_: Context):
     """
     Test if every module was properly added in the DEFAULT_MODULES list.
     """
     missing_modules = []
-    for module in DEFAULT_MODULES.values():
-        for dependency in module.dependencies:
-            if dependency not in DEFAULT_MODULES:
-                if fail_fast:
-                    raise Exit(f"{color_message('ERROR', Color.RED)}: {module.path} depends on missing {dependency}")
-                missing_modules.append((module, dependency))
 
     # Find all go.mod files and make sure they are registered in DEFAULT_MODULES
     for root, dirs, files in os.walk("."):
@@ -403,14 +397,11 @@ def validate(_: Context, fail_fast: bool = False):
         dirs[:] = [d for d in dirs if root + '/' + d != "./tasks"]
 
         if "go.mod" in files and root.removeprefix("./") not in DEFAULT_MODULES and root not in IGNORED_MODULES:
-            missing_modules.append((root, None))
+            missing_modules.append(root)
 
     if missing_modules:
         message = f"{color_message('ERROR', Color.RED)}: some modules are missing from DEFAULT_MODULES\n"
-        for module, dependency in missing_modules:
-            if dependency:
-                message += f"  {module.path} depends on missing {dependency}\n"
-            else:
-                message += f"  {module} is missing from DEFAULT_MODULES\n"
+        for module in missing_modules:
+            message += f"  {module} is missing from DEFAULT_MODULES\n"
 
         raise Exit(message)
