@@ -108,6 +108,7 @@ func (c *unbundledTransformer) buildEventTags(ev *v1.Event, involvedObject v1.Ob
 	// Hardcoded tags
 	tagsAccumulator.Append(
 		fmt.Sprintf("source_component:%s", ev.Source.Component),
+		fmt.Sprintf("true_source:kubernetes"),
 		fmt.Sprintf("reporting_controller:%s", ev.ReportingController),
 		fmt.Sprintf("event_reason:%s", ev.Reason),
 	)

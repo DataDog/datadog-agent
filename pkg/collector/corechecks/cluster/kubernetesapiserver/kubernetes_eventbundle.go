@@ -66,6 +66,8 @@ func (b *kubernetesEventBundle) formatEvents(taggerInstance tagger.Component) (e
 	readableKey := buildReadableKey(b.involvedObject)
 	tags := getInvolvedObjectTags(b.involvedObject, taggerInstance)
 	tags = append(tags, fmt.Sprintf("source_component:%s", b.component))
+	tags = append(tags, "true_source:kubernetes")
+
 	tags = append(tags, fmt.Sprintf("reporting_controller:%s", b.reportingController))
 
 	if b.hostInfo.providerID != "" {
