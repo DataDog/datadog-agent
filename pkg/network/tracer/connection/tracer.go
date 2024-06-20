@@ -121,6 +121,8 @@ var ConnTracerTelemetry = struct {
 	UdpDroppedConns *prometheus.Desc
 	// doubleFlushAttemptsClose is a counter measuring the number of attempts to flush a closed connection twice from tcp_close
 	doubleFlushAttemptsClose *prometheus.Desc
+	// doubleFlushAttemptsDone is a counter measuring the number of attempts to flush a closed connection twice from tcp_done
+	doubleFlushAttemptsDone *prometheus.Desc
 	// unsupportedTcpFailures is a counter measuring the number of attempts to flush a TCP failure that is not supported
 	unsupportedTcpFailures *prometheus.Desc
 	// tcpDonePidMismatch is a counter measuring the number of TCP connections with a PID mismatch between tcp_connect and tcp_done
@@ -145,6 +147,8 @@ var ConnTracerTelemetry = struct {
 	lastUdpDroppedConns *atomic.Int64
 	// lastDoubleFlushAttemptsClose is a counter measuring the diff between the last two values of doubleFlushAttemptsClose
 	lastDoubleFlushAttemptsClose *atomic.Int64
+	// lastDoubleFlushAttemptsDone is a counter measuring the diff between the last two values of doubleFlushAttemptsDone
+	lastDoubleFlushAttemptsDone *atomic.Int64
 	// lastUnsupportedTcpFailures is a counter measuring the diff between the last two values of unsupportedTcpFailures
 	lastUnsupportedTcpFailures *atomic.Int64
 	// lastTcpDonePidMismatch is a counter measuring the diff between the last two values of tcpDonePidMismatch
@@ -158,12 +162,14 @@ var ConnTracerTelemetry = struct {
 	prometheus.NewDesc(connTracerModuleName+"__udp_sends_processed", "Counter measuring the number of processed UDP sends in EBPF", nil, nil),
 	prometheus.NewDesc(connTracerModuleName+"__udp_sends_missed", "Counter measuring failures to process UDP sends in EBPF", nil, nil),
 	prometheus.NewDesc(connTracerModuleName+"__udp_dropped_conns", "Counter measuring the number of dropped UDP connections in the EBPF map", nil, nil),
-	prometheus.NewDesc(connTracerModuleName+"__double_flush_attempts_close", "Counter measuring the number of attempts to flush a closed connection twice from tcp_done", nil, nil),
+	prometheus.NewDesc(connTracerModuleName+"__double_flush_attempts_close", "Counter measuring the number of attempts to flush a closed connection twice from tcp_close", nil, nil),
+	prometheus.NewDesc(connTracerModuleName+"__double_flush_attempts_done", "Counter measuring the number of attempts to flush a closed connection twice from tcp_done", nil, nil),
 	prometheus.NewDesc(connTracerModuleName+"__unsupported_tcp_failures", "Counter measuring the number of attempts to flush a TCP failure that is not supported", nil, nil),
-	prometheus.NewDesc(connTracerModuleName+"__tcp_done_pid_mismatch", "Counter measuring the number of TCP connections with a PID mismatch", nil, nil),
+	prometheus.NewDesc(connTracerModuleName+"__tcp_done_pid_mismatch", "Counter measuring the number of TCP connections with a PID mismatch between tcp_connect and tcp_done", nil, nil),
 	telemetry.NewStatCounterWrapper(connTracerModuleName, "pid_collisions", []string{}, "Counter measuring number of process collisions"),
 	telemetry.NewCounter(connTracerModuleName, "iteration_dups", []string{}, "Counter measuring the number of connections iterated more than once"),
 	telemetry.NewCounter(connTracerModuleName, "iteration_aborts", []string{}, "Counter measuring how many times ebpf iteration of connection map was aborted"),
+	atomic.NewInt64(0),
 	atomic.NewInt64(0),
 	atomic.NewInt64(0),
 	atomic.NewInt64(0),
@@ -507,6 +513,7 @@ func removeConnection(conn *network.ConnectionStats) {
 }
 
 func (t *tracer) Remove(conn *network.ConnectionStats) error {
+	// TODO: merge this code with the helper from matching.go
 	t.removeTuple.Sport = conn.SPort
 	t.removeTuple.Dport = conn.DPort
 	t.removeTuple.Netns = conn.NetNS
@@ -538,6 +545,7 @@ func (t *tracer) Remove(conn *network.ConnectionStats) error {
 	removeConnection(conn)
 
 	// We have to remove the PID to remove the element from the TCP Map since we don't use the pid there
+	// TODO: remove this? it looks like we do use the PID in the TCP map
 	t.removeTuple.Pid = 0
 	if conn.Type == network.TCP {
 		// We can ignore the error for this map since it will not always contain the entry
@@ -576,6 +584,7 @@ func (t *tracer) Describe(ch chan<- *prometheus.Desc) {
 	ch <- ConnTracerTelemetry.UdpSendsMissed
 	ch <- ConnTracerTelemetry.UdpDroppedConns
 	ch <- ConnTracerTelemetry.doubleFlushAttemptsClose
+	ch <- ConnTracerTelemetry.doubleFlushAttemptsDone
 	ch <- ConnTracerTelemetry.unsupportedTcpFailures
 	ch <- ConnTracerTelemetry.tcpDonePidMismatch
 }
@@ -617,6 +626,10 @@ func (t *tracer) Collect(ch chan<- prometheus.Metric) {
 	delta = int64(ebpfTelemetry.Double_flush_attempts_close) - ConnTracerTelemetry.lastDoubleFlushAttemptsClose.Load()
 	ConnTracerTelemetry.lastDoubleFlushAttemptsClose.Store(int64(ebpfTelemetry.Double_flush_attempts_close))
 	ch <- prometheus.MustNewConstMetric(ConnTracerTelemetry.doubleFlushAttemptsClose, prometheus.CounterValue, float64(delta))
+
+	delta = int64(ebpfTelemetry.Double_flush_attempts_done) - ConnTracerTelemetry.lastDoubleFlushAttemptsDone.Load()
+	ConnTracerTelemetry.lastDoubleFlushAttemptsDone.Store(int64(ebpfTelemetry.Double_flush_attempts_done))
+	ch <- prometheus.MustNewConstMetric(ConnTracerTelemetry.doubleFlushAttemptsDone, prometheus.CounterValue, float64(delta))
 
 	delta = int64(ebpfTelemetry.Unsupported_tcp_failures) - ConnTracerTelemetry.lastUnsupportedTcpFailures.Load()
 	ConnTracerTelemetry.lastUnsupportedTcpFailures.Store(int64(ebpfTelemetry.Unsupported_tcp_failures))

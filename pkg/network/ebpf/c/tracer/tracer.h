@@ -112,6 +112,7 @@ typedef struct {
     __u64 udp_sends_missed;
     __u64 udp_dropped_conns;
     __u64 double_flush_attempts_close;
+    __u64 double_flush_attempts_done;
     __u64 unsupported_tcp_failures;
     __u64 tcp_done_pid_mismatch;
 } telemetry_t;
