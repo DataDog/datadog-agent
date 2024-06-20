@@ -494,7 +494,7 @@ func updateTelemetry(tcp4 float64, tcp6 float64, udp4 float64, udp6 float64) {
 	ConnTracerTelemetry.connections.Set(udp6, "udp", "v6")
 }
 
-func removeConnection(conn *network.ConnectionStats) {
+func removeConnectionFromTelemetry(conn *network.ConnectionStats) {
 	isTCP := conn.Type == network.TCP
 	switch conn.Family {
 	case network.AFINET6:
@@ -542,7 +542,7 @@ func (t *tracer) Remove(conn *network.ConnectionStats) error {
 		return err
 	}
 
-	removeConnection(conn)
+	removeConnectionFromTelemetry(conn)
 
 	if conn.Type == network.TCP {
 		// We can ignore the error for this map since it will not always contain the entry
