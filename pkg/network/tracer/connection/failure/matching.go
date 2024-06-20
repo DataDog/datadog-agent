@@ -32,7 +32,7 @@ var (
 	}
 
 	telemetryModuleName = "network_tracer__tcp_failure"
-	mapTTL              = 250 * time.Millisecond.Nanoseconds()
+	mapTTL              = 50 * time.Millisecond.Nanoseconds()
 )
 
 var failureTelemetry = struct {
@@ -180,7 +180,7 @@ func (fc *FailedConns) setupMapCleaner(m *manager.Manager) {
 		return
 	}
 
-	mapCleaner.Clean(time.Second*1, nil, nil, func(now int64, _key ebpf.ConnTuple, val int64) bool {
+	mapCleaner.Clean(time.Millisecond*500, nil, nil, func(now int64, _key ebpf.ConnTuple, val int64) bool {
 		return val > 0 && now-val > mapTTL
 	})
 
