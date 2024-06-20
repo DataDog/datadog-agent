@@ -394,7 +394,7 @@ def validate(_: Context, fail_fast: bool = False):
         for dependency in module.dependencies:
             if dependency not in DEFAULT_MODULES:
                 if fail_fast:
-                    raise Exit(f"{color_message('ERROR', 'red')}: {module.path} depends on missing {dependency}")
+                    raise Exit(f"{color_message('ERROR', Color.RED)}: {module.path} depends on missing {dependency}")
                 missing_modules.append((module, dependency))
 
     # Find all go.mod files and make sure they are registered in DEFAULT_MODULES
