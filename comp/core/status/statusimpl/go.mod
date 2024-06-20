@@ -44,7 +44,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/flavor v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.55.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/util/log v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/version v0.55.0-rc.3
 	github.com/gorilla/mux v1.8.1
 	github.com/stretchr/testify v1.9.0
@@ -63,6 +62,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.55.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.55.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.55.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/log v0.55.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/optional v0.55.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.55.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.55.0-rc.3 // indirect

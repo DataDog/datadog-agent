@@ -33,6 +33,14 @@ func getTestComp(t *testing.T) provides {
 		logimpl.MockModule(),
 		fx.Supply(
 			agentParams,
+			status.NewHeaderInformationProvider(mockHeaderProvider{
+				data: map[string]interface{}{
+					"header_key": "header_value",
+				},
+				name:  "headerMock",
+				text:  "header_key: header_value\n",
+				index: 0,
+			}),
 			status.NewInformationProvider(mockProvider{
 				data: map[string]interface{}{
 					"foo": "bar",

@@ -11,8 +11,6 @@ import (
 	"net/http"
 
 	"github.com/gorilla/mux"
-
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var mimeTypeMap = map[string]string{
@@ -52,11 +50,11 @@ func (s *statusImplementation) getStatus(w http.ResponseWriter, r *http.Request,
 
 	if err != nil {
 		if format == "text" {
-			http.Error(w, log.Errorf("Error getting status. Error: %v.", err).Error(), 500)
+			http.Error(w, s.log.Errorf("Error getting status. Error: %v.", err).Error(), 500)
 			return
 		}
 
-		SetJSONError(w, log.Errorf("Error getting status. Error: %v, Status: %v", err, buff), 500)
+		SetJSONError(w, s.log.Errorf("Error getting status. Error: %v, Status: %v", err, buff), 500)
 		return
 	}
 
@@ -64,7 +62,7 @@ func (s *statusImplementation) getStatus(w http.ResponseWriter, r *http.Request,
 }
 
 func (s *statusImplementation) getSections(w http.ResponseWriter, _ *http.Request) {
-	log.Info("Got a request for the status sections.")
+	s.log.Info("Got a request for the status sections.")
 
 	w.Header().Set("Content-Type", "application/json")
 	res, _ := json.Marshal(s.GetSections())
