@@ -300,6 +300,28 @@ func assertLibReq(t *testing.T, pod *corev1.Pod, lang language, image, envKey, e
 }
 
 func TestExtractLibInfo(t *testing.T) {
+	allLatestLibs := []libInfo{ // TODO: Add new entry when a new language is supported
+		{
+			lang:  "java",
+			image: "registry/dd-lib-java-init:latest",
+		},
+		{
+			lang:  "js",
+			image: "registry/dd-lib-js-init:latest",
+		},
+		{
+			lang:  "python",
+			image: "registry/dd-lib-python-init:latest",
+		},
+		{
+			lang:  "dotnet",
+			image: "registry/dd-lib-dotnet-init:latest",
+		},
+		{
+			lang:  "ruby",
+			image: "registry/dd-lib-ruby-init:latest",
+		},
+	}
 	var mockConfig *config.MockConfig
 	tests := []struct {
 		name                 string
@@ -449,60 +471,18 @@ func TestExtractLibInfo(t *testing.T) {
 			},
 		},
 		{
-			name:                "all",
-			pod:                 common.FakePodWithAnnotation("admission.datadoghq.com/all-lib.version", "latest"),
-			containerRegistry:   "registry",
-			expectedPodEligible: pointer.Ptr(true),
-			expectedLibsToInject: []libInfo{ // TODO: Add new entry when a new language is supported
-				{
-					lang:  "java",
-					image: "registry/dd-lib-java-init:latest",
-				},
-				{
-					lang:  "js",
-					image: "registry/dd-lib-js-init:latest",
-				},
-				{
-					lang:  "python",
-					image: "registry/dd-lib-python-init:latest",
-				},
-				{
-					lang:  "dotnet",
-					image: "registry/dd-lib-dotnet-init:latest",
-				},
-				{
-					lang:  "ruby",
-					image: "registry/dd-lib-ruby-init:latest",
-				},
-			},
+			name:                 "all",
+			pod:                  common.FakePodWithAnnotation("admission.datadoghq.com/all-lib.version", "latest"),
+			containerRegistry:    "registry",
+			expectedPodEligible:  pointer.Ptr(true),
+			expectedLibsToInject: allLatestLibs,
 		},
 		{
-			name:                "all with mutate_unlabelled off",
-			pod:                 common.FakePodWithAnnotation("admission.datadoghq.com/all-lib.version", "latest"),
-			containerRegistry:   "registry",
-			expectedPodEligible: pointer.Ptr(false),
-			expectedLibsToInject: []libInfo{ // TODO: Add new entry when a new language is supported
-				{
-					lang:  "java",
-					image: "registry/dd-lib-java-init:latest",
-				},
-				{
-					lang:  "js",
-					image: "registry/dd-lib-js-init:latest",
-				},
-				{
-					lang:  "python",
-					image: "registry/dd-lib-python-init:latest",
-				},
-				{
-					lang:  "dotnet",
-					image: "registry/dd-lib-dotnet-init:latest",
-				},
-				{
-					lang:  "ruby",
-					image: "registry/dd-lib-ruby-init:latest",
-				},
-			},
+			name:                 "all with mutate_unlabelled off",
+			pod:                  common.FakePodWithAnnotation("admission.datadoghq.com/all-lib.version", "latest"),
+			containerRegistry:    "registry",
+			expectedPodEligible:  pointer.Ptr(false),
+			expectedLibsToInject: allLatestLibs,
 			setupConfig: func() {
 				mockConfig.SetWithoutSource("admission_controller.mutate_unlabelled", false)
 			},
@@ -521,28 +501,7 @@ func TestExtractLibInfo(t *testing.T) {
 			},
 			containerRegistry:   "registry",
 			expectedPodEligible: pointer.Ptr(true),
-			expectedLibsToInject: []libInfo{ // TODO: Add new entry when a new language is supported
-				{
-					lang:  "java",
-					image: "registry/dd-lib-java-init:latest",
-				},
-				{
-					lang:  "js",
-					image: "registry/dd-lib-js-init:latest",
-				},
-				{
-					lang:  "python",
-					image: "registry/dd-lib-python-init:latest",
-				},
-				{
-					lang:  "dotnet",
-					image: "registry/dd-lib-dotnet-init:latest",
-				},
-				{
-					lang:  "ruby",
-					image: "registry/dd-lib-ruby-init:latest",
-				},
-			},
+			expectedLibsToInject: allLatestLibs,
 			setupConfig: func() {
 				mockConfig.SetWithoutSource("admission_controller.mutate_unlabelled", false)
 			},
