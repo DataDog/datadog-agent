@@ -25,8 +25,6 @@ func (w *workloadmeta) Dump(verbose bool) wmdef.WorkloadDumpResponse {
 			info = e.String(verbose)
 		case *wmdef.KubernetesPod:
 			info = e.String(verbose)
-		case *wmdef.KubernetesNode:
-			info = e.String(verbose)
 		case *wmdef.ECSTask:
 			info = e.String(verbose)
 		case *wmdef.ContainerImageMetadata:
@@ -34,8 +32,6 @@ func (w *workloadmeta) Dump(verbose bool) wmdef.WorkloadDumpResponse {
 		case *wmdef.Process:
 			info = e.String(verbose)
 		case *wmdef.KubernetesDeployment:
-			info = e.String(verbose)
-		case *wmdef.KubernetesNamespace:
 			info = e.String(verbose)
 		case *wmdef.KubernetesMetadata:
 			info = e.String(verbose)

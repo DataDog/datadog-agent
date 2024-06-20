@@ -24,7 +24,8 @@ type EbpfTx struct {
 	Request_started     uint64
 	Response_last_seen  uint64
 	Original_query_size uint32
-	Pad_cgo_0           [4]byte
+	Tags                uint8
+	Pad_cgo_0           [3]byte
 }
 
 const (

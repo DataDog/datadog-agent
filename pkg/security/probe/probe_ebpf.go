@@ -32,9 +32,8 @@ import (
 	"github.com/DataDog/ebpf-manager/tracefs"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
 	aconfig "github.com/DataDog/datadog-agent/pkg/config"
-	commonebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
@@ -326,7 +325,7 @@ func (p *EBPFProbe) Setup() error {
 	if err := p.Manager.Start(); err != nil {
 		return err
 	}
-	ebpfcheck.AddNameMappings(p.Manager, "cws")
+	ddebpf.AddNameMappings(p.Manager, "cws")
 
 	p.applyDefaultFilterPolicies()
 
@@ -1321,7 +1320,7 @@ func (p *EBPFProbe) Close() error {
 	// we wait until both the reorderer and the monitor are stopped
 	p.wg.Wait()
 
-	ebpfcheck.RemoveNameMappings(p.Manager)
+	ddebpf.RemoveNameMappings(p.Manager)
 	ebpftelemetry.UnregisterTelemetry(p.Manager)
 	// Stopping the manager will stop the perf map reader and unload eBPF programs
 	if err := p.Manager.Stop(manager.CleanAll); err != nil {
@@ -1786,8 +1785,12 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, wmeta optional
 		return nil, err
 	}
 
-	// TODO safchain change the fields handlers
-	p.fieldHandlers = &EBPFFieldHandlers{config: config, resolvers: p.Resolvers}
+	hostname, err := utils.GetHostname()
+	if err != nil || hostname == "" {
+		hostname = "unknown"
+	}
+
+	p.fieldHandlers = &EBPFFieldHandlers{config: config, resolvers: p.Resolvers, hostname: hostname}
 
 	if useRingBuffers {
 		p.eventStream = ringbuffer.New(p.handleEvent)
@@ -1891,7 +1894,7 @@ func getOvlPathInOvlInode(kernelVersion *kernel.Version) uint64 {
 		return 1
 	}
 
-	check, err := commonebpf.VerifyKernelFuncs(patchSentinel)
+	check, err := ddebpf.VerifyKernelFuncs(patchSentinel)
 	if err != nil {
 		return 0
 	}
@@ -2039,7 +2042,7 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 		case action.InternalCallback != nil && rule.ID == events.RefreshUserCacheRuleID:
 			_ = p.RefreshUserCache(ev.ContainerContext.ID)
 
-		case action.InternalCallback != nil && rule.ID == events.RefreshSBOMRuleID && len(ev.ContainerContext.ID) > 0:
+		case action.InternalCallback != nil && rule.ID == events.RefreshSBOMRuleID && p.Resolvers.SBOMResolver != nil && len(ev.ContainerContext.ID) > 0:
 			if err := p.Resolvers.SBOMResolver.RefreshSBOM(ev.ContainerContext.ID); err != nil {
 				seclog.Warnf("failed to refresh SBOM for container %s, triggered by %s: %s", ev.ContainerContext.ID, ev.ProcessContext.Comm, err)
 			}

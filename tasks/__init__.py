@@ -1,3 +1,6 @@
+# https://github.com/pyinvoke/invoke/issues/946
+# mypy: disable-error-code="arg-type"
+
 """
 Invoke entrypoint, import here all the tasks we want to make available
 """
@@ -11,6 +14,7 @@ from tasks import (
     cluster_agent,
     cluster_agent_cloudfoundry,
     components,
+    coverage,
     cws_instrumentation,
     devcontainer,
     diff,
@@ -73,7 +77,6 @@ from tasks.go import (
 from tasks.gotest import (
     check_otel_build,
     check_otel_module_versions,
-    codecov,
     e2e_tests,
     get_impacted_packages,
     get_modified_packages,
@@ -102,7 +105,6 @@ ns = Collection()
 
 # add single tasks to the root
 ns.add_task(test)
-ns.add_task(codecov)
 ns.add_task(integration_tests)
 ns.add_task(deps)
 ns.add_task(deps_vendored)
@@ -148,6 +150,7 @@ ns.add_collection(buildimages)
 ns.add_collection(cluster_agent)
 ns.add_collection(cluster_agent_cloudfoundry)
 ns.add_collection(components)
+ns.add_collection(coverage)
 ns.add_collection(docs)
 ns.add_collection(bench)
 ns.add_collection(trace_agent)

@@ -55,13 +55,13 @@ func newDefaultConfig() component.Config {
 	}
 }
 
-var _ source.Provider = (*sourceProviderFunc)(nil)
+var _ source.Provider = (*SourceProviderFunc)(nil)
 
-// sourceProviderFunc is an adapter to allow the use of a function as a metrics.HostnameProvider.
-type sourceProviderFunc func(context.Context) (string, error)
+// SourceProviderFunc is an adapter to allow the use of a function as a metrics.HostnameProvider.
+type SourceProviderFunc func(context.Context) (string, error)
 
 // Source calls f and wraps in a source struct.
-func (f sourceProviderFunc) Source(ctx context.Context) (source.Source, error) {
+func (f SourceProviderFunc) Source(ctx context.Context) (source.Source, error) {
 	hostnameIdentifier, err := f(ctx)
 	if err != nil {
 		return source.Source{}, err
@@ -75,7 +75,7 @@ func (f sourceProviderFunc) Source(ctx context.Context) (source.Source, error) {
 type Exporter struct {
 	tr              *metrics.Translator
 	s               serializer.MetricSerializer
-	hostGetter      sourceProviderFunc
+	hostGetter      SourceProviderFunc
 	extraTags       []string
 	enricher        tagenricher
 	apmReceiverAddr string
@@ -85,7 +85,7 @@ func translatorFromConfig(
 	set component.TelemetrySettings,
 	attributesTranslator *attributes.Translator,
 	cfg *ExporterConfig,
-	hostGetter sourceProviderFunc,
+	hostGetter SourceProviderFunc,
 	statsIn chan []byte,
 ) (*metrics.Translator, error) {
 	histogramMode := metrics.HistogramMode(cfg.Metrics.HistConfig.Mode)
@@ -148,7 +148,7 @@ func NewExporter(
 	s serializer.MetricSerializer,
 	cfg *ExporterConfig,
 	enricher tagenricher,
-	hostGetter sourceProviderFunc,
+	hostGetter SourceProviderFunc,
 	statsIn chan []byte,
 ) (*Exporter, error) {
 	// Log any warnings from unmarshaling.

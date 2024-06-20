@@ -18,9 +18,10 @@ from tasks.libs.ciproviders.github_actions_tools import (
     print_workflow_conclusion,
     trigger_macos_workflow,
 )
+from tasks.libs.common.constants import DEFAULT_BRANCH, DEFAULT_INTEGRATIONS_CORE_BRANCH
 from tasks.libs.common.datadog_api import create_gauge, send_metrics
 from tasks.libs.common.junit_upload_core import repack_macos_junit_tar
-from tasks.libs.common.utils import DEFAULT_BRANCH, DEFAULT_INTEGRATIONS_CORE_BRANCH, get_git_pretty_ref
+from tasks.libs.common.utils import get_git_pretty_ref
 from tasks.libs.owners.parsing import read_owners
 from tasks.libs.pipeline.notifications import GITHUB_SLACK_MAP
 from tasks.release import _get_release_json_value
@@ -306,6 +307,9 @@ def handle_community_pr(_, repo='', pr_id=-1, labels=''):
     # Find teams corresponding to file changes
     teams = _get_teams(gh.get_pr_files(pr_id)) or [ALL_TEAMS]
     channels = [GITHUB_SLACK_MAP[team.lower()] for team in teams if team if team.lower() in GITHUB_SLACK_MAP]
+
+    # Remove duplicates
+    channels = list(set(channels))
 
     # Update labels
     for label in labels.split(','):

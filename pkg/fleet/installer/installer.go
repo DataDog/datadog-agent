@@ -10,9 +10,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/fleet/internal/paths"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -76,17 +78,17 @@ func NewInstaller(env *env.Env) (Installer, error) {
 	if err != nil {
 		return nil, fmt.Errorf("could not ensure packages directory exists: %w", err)
 	}
-	db, err := db.New(filepath.Join(PackagesPath, "packages.db"), db.WithTimeout(10*time.Second))
+	db, err := db.New(filepath.Join(paths.PackagesPath, "packages.db"), db.WithTimeout(10*time.Second))
 	if err != nil {
 		return nil, fmt.Errorf("could not create packages db: %w", err)
 	}
 	return &installerImpl{
 		db:           db,
 		downloader:   oci.NewDownloader(env, http.DefaultClient),
-		repositories: repository.NewRepositories(PackagesPath, LocksPack),
-		configsDir:   DefaultConfigsDir,
-		tmpDirPath:   TmpDirPath,
-		packagesDir:  PackagesPath,
+		repositories: repository.NewRepositories(paths.PackagesPath, paths.LocksPack),
+		configsDir:   paths.DefaultConfigsDir,
+		tmpDirPath:   paths.TmpDirPath,
+		packagesDir:  paths.PackagesPath,
 	}, nil
 }
 
@@ -102,6 +104,18 @@ func (i *installerImpl) States() (map[string]repository.State, error) {
 
 // IsInstalled checks if a package is installed.
 func (i *installerImpl) IsInstalled(_ context.Context, pkg string) (bool, error) {
+	// The install script passes the package name as either <package>-<version> or <package>=<version>
+	// depending on the platform so we strip the version prefix by looking for the "real" package name
+	hasMatch := false
+	for _, p := range PackagesList {
+		if strings.HasPrefix(pkg, p.Name) {
+			if hasMatch {
+				return false, fmt.Errorf("the package %v matches multiple known packages", pkg)
+			}
+			pkg = p.Name
+			hasMatch = true
+		}
+	}
 	hasPackage, err := i.db.HasPackage(pkg)
 	if err != nil {
 		return false, fmt.Errorf("could not list packages: %w", err)
@@ -122,6 +136,18 @@ func (i *installerImpl) Install(ctx context.Context, url string, args []string) 
 		span.SetTag(ext.ResourceName, pkg.Name)
 		span.SetTag("package_version", pkg.Version)
 	}
+
+	for _, dependency := range packageDependencies[pkg.Name] {
+		installed, err := i.IsInstalled(ctx, dependency)
+		if err != nil {
+			return fmt.Errorf("could not check if required package %s is installed: %w", dependency, err)
+		}
+		if !installed {
+			// TODO: we should resolve the dependency version & install it instead
+			return fmt.Errorf("required package %s is not installed", dependency)
+		}
+	}
+
 	dbPkg, err := i.db.GetPackage(pkg.Name)
 	if err != nil && !errors.Is(err, db.ErrPackageNotFound) {
 		return fmt.Errorf("could not get package: %w", err)
@@ -259,7 +285,7 @@ func (i *installerImpl) Purge(ctx context.Context) {
 
 	// remove all from disk
 	span, _ := tracer.StartSpanFromContext(ctx, "remove_all")
-	err = os.RemoveAll(PackagesPath)
+	err = os.RemoveAll(paths.PackagesPath)
 	defer span.Finish(tracer.WithError(err))
 	if err != nil {
 		log.Warnf("could not remove path: %v", err)
@@ -426,7 +452,7 @@ func checkAvailableDiskSpace(pkg *oci.DownloadedPackage, path string) error {
 }
 
 func ensurePackageDirExists() error {
-	err := os.MkdirAll(PackagesPath, 0755)
+	err := os.MkdirAll(paths.PackagesPath, 0755)
 	if err != nil {
 		return fmt.Errorf("error creating packages directory: %w", err)
 	}

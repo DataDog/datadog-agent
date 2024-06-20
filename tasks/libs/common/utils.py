@@ -2,7 +2,8 @@
 Miscellaneous functions, no tasks here
 """
 
-import json
+from __future__ import annotations
+
 import os
 import platform
 import re
@@ -11,27 +12,26 @@ import time
 import traceback
 from collections import Counter
 from contextlib import contextmanager
+from dataclasses import dataclass
 from functools import wraps
 from pathlib import Path
 from subprocess import CalledProcessError, check_output
 from types import SimpleNamespace
 
+from invoke.context import Context
 from invoke.exceptions import Exit
 
 from tasks.libs.common.color import Color, color_message
-from tasks.libs.common.git import check_local_branch, check_uncommitted_changes, get_commit_sha
+from tasks.libs.common.constants import (
+    ALLOWED_REPO_ALL_BRANCHES,
+    DEFAULT_BRANCH,
+    REPO_PATH,
+)
+from tasks.libs.common.git import get_commit_sha
 from tasks.libs.owners.parsing import search_owners
+from tasks.libs.releasing.version import get_version
+from tasks.libs.types.arch import Arch
 
-# constants
-DEFAULT_BRANCH = "main"
-DEFAULT_INTEGRATIONS_CORE_BRANCH = "master"
-GITHUB_ORG = "DataDog"
-REPO_NAME = "datadog-agent"
-GITHUB_REPO_NAME = f"{GITHUB_ORG}/{REPO_NAME}"
-REPO_PATH = f"github.com/{GITHUB_REPO_NAME}"
-ALLOWED_REPO_NON_NIGHTLY_BRANCHES = {"dev", "stable", "beta", "none"}
-ALLOWED_REPO_NIGHTLY_BRANCHES = {"nightly", "oldnightly"}
-ALLOWED_REPO_ALL_BRANCHES = ALLOWED_REPO_NON_NIGHTLY_BRANCHES.union(ALLOWED_REPO_NIGHTLY_BRANCHES)
 if sys.platform == "darwin":
     RTLOADER_LIB_NAME = "libdatadog-agent-rtloader.dylib"
 elif sys.platform == "win32":
@@ -39,7 +39,31 @@ elif sys.platform == "win32":
 else:
     RTLOADER_LIB_NAME = "libdatadog-agent-rtloader.so"
 RTLOADER_HEADER_NAME = "datadog_agent_rtloader.h"
-AGENT_VERSION_CACHE_NAME = "agent-version.cache"
+
+
+@dataclass
+class TimedOperationResult:
+    name: str
+    # In seconds
+    duration: float
+
+    @classmethod
+    def run(cls, f, name, description, **f_kwargs):
+        time_start = time.perf_counter()
+
+        with gitlab_section(description, collapsed=True):
+            result = f(**f_kwargs)
+
+        time_end = time.perf_counter()
+        duration = time_end - time_start
+
+        return result, cls(name, duration)
+
+    def __lt__(self, other):
+        if isinstance(other, TimedOperationResult):
+            return self.name < other.name
+        else:
+            return True
 
 
 def get_all_allowed_repo_branches():
@@ -48,10 +72,6 @@ def get_all_allowed_repo_branches():
 
 def is_allowed_repo_branch(branch):
     return branch in ALLOWED_REPO_ALL_BRANCHES
-
-
-def is_allowed_repo_nightly_branch(branch):
-    return branch in ALLOWED_REPO_NIGHTLY_BRANCHES
 
 
 def running_in_github_actions():
@@ -98,7 +118,7 @@ def get_distro():
         with open('/etc/os-release', encoding="utf-8") as f:
             for line in f:
                 if line.startswith('ID='):
-                    system = line.strip()[3:]
+                    system = line.strip().removeprefix('ID=').replace('"', '')
                     break
     return f"{system}_{arch}".lower()
 
@@ -190,7 +210,7 @@ def get_xcode_version(ctx):
 
 
 def get_build_flags(
-    ctx,
+    ctx: Context,
     static=False,
     install_path=None,
     run_path=None,
@@ -201,6 +221,7 @@ def get_build_flags(
     major_version='7',
     python_runtimes='3',
     headless_mode=False,
+    arch: Arch | None = None,
 ):
     """
     Build the common value for both ldflags and gcflags, and return an env accordingly.
@@ -308,6 +329,12 @@ def get_build_flags(
                 file=sys.stderr,
             )
 
+    if arch and arch.is_cross_compiling():
+        # For cross-compilation we need to be explicit about certain Go settings
+        env["GOARCH"] = arch.go_arch
+        env["CGO_ENABLED"] = "1"  # If we're cross-compiling, CGO is disabled by default. Ensure it's always enabled
+        env["CC"] = arch.gcc_compiler()
+
     if extldflags:
         ldflags += f"'-extldflags={extldflags}' "
 
@@ -366,7 +393,12 @@ def get_version_ldflags(ctx, major_version='7', install_path=None):
         package_version = os.path.basename(install_path)
         if package_version != "datadog-agent":
             ldflags += f"-X {REPO_PATH}/pkg/version.AgentPackageVersion={package_version} "
-
+        if sys.platform == 'win32':
+            # On Windows we don't have a version in the install_path
+            # so, set the package_version tag in order for Fleet Automation to detect
+            # upgrade in the health check.
+            # https://github.com/DataDog/dd-go/blob/cada5b3c2929473a2bd4a4142011767fe2dcce52/remote-config/apps/rc-api-internal/updater/health_check.go#L219
+            ldflags += f"-X {REPO_PATH}/pkg/version.AgentPackageVersion={get_version(ctx, include_git=True, major_version=major_version)}-1 "
     return ldflags
 
 
@@ -424,240 +456,6 @@ def get_git_pretty_ref():
         return check_output(["git", "describe", "--tags", "--exact-match"]).decode('utf-8').strip()
     except CalledProcessError:
         return current_branch
-
-
-def query_version(ctx, major_version, git_sha_length=7, release=False):
-    # The describe string format is <tag>-<number of commits since the tag>-g<commit hash>
-    # e.g. 6.0.0-beta.0-1-g4f19118
-    #   - tag is 6.0.0-beta.0
-    #   - it has been one commit since the tag creation
-    #   - that commit hash is g4f19118
-    cmd = rf'git describe --tags --candidates=50 --match "{get_matching_pattern(ctx, major_version, release=release)}"'
-    if git_sha_length and isinstance(git_sha_length, int):
-        cmd += f" --abbrev={git_sha_length}"
-    described_version = ctx.run(cmd, hide=True).stdout.strip()
-
-    # for the example above, 6.0.0-beta.0-1-g4f19118, this will be 1
-    commit_number_match = re.match(r"^.*-(?P<commit_number>\d+)-g[0-9a-f]+$", described_version)
-    commit_number = 0
-    if commit_number_match:
-        commit_number = int(commit_number_match.group('commit_number'))
-
-    version_re = r"^v?(?P<version>\d+\.\d+\.\d+)(?:(?:-|\.)(?P<pre>[0-9A-Za-z.-]+))?"
-    if commit_number == 0:
-        version_re += r"(?P<git_sha>)$"
-    else:
-        version_re += r"-\d+-g(?P<git_sha>[0-9a-f]+)$"
-
-    version_match = re.match(version_re, described_version)
-
-    if not version_match:
-        raise Exception("Could not query valid version from tags of local git repository")
-
-    # version: for the tag 6.0.0-beta.0, this will match 6.0.0
-    # pre: for the output, 6.0.0-beta.0-1-g4f19118, this will match beta.0
-    # if there have been no commits since, it will be just 6.0.0-beta.0,
-    # and it will match beta.0
-    # git_sha: for the output, 6.0.0-beta.0-1-g4f19118, this will match g4f19118
-    version, pre, git_sha = version_match.group('version', 'pre', 'git_sha')
-
-    # When we're on a tag, `git describe --tags --candidates=50` doesn't include a commit sha.
-    # We need it, so we fetch it another way.
-    if not git_sha:
-        # The git sha shown by `git describe --tags --candidates=50` is the first 7 characters of the sha,
-        # therefore we keep the same number of characters.
-        git_sha = get_commit_sha(ctx)[:7]
-
-    pipeline_id = os.getenv("CI_PIPELINE_ID", None)
-
-    return version, pre, commit_number, git_sha, pipeline_id
-
-
-def get_matching_pattern(ctx, major_version, release=False):
-    """
-    We need to used specific patterns (official release tags) for nightly builds as they are used to install agent versions.
-    """
-    pattern = rf"{major_version}\.*"
-    if release or is_allowed_repo_nightly_branch(os.getenv("BUCKET_BRANCH")):
-        pattern = ctx.run(
-            rf"git tag --list | grep -E '^{major_version}\.[0-9]+\.[0-9]+(-rc.*|-devel.*)?$' | sort -rV | head -1",
-            hide=True,
-        ).stdout.strip()
-    return pattern
-
-
-def create_version_json(ctx, git_sha_length=7):
-    """
-    Generate a json cache file containing all needed variables used by get_version.
-    """
-    packed_data = {}
-    for maj_version in ['6', '7']:
-        version, pre, commits_since_version, git_sha, pipeline_id = query_version(
-            ctx, maj_version, git_sha_length=git_sha_length
-        )
-        packed_data[maj_version] = [version, pre, commits_since_version, git_sha, pipeline_id]
-    bucket_branch = os.getenv("BUCKET_BRANCH")
-    packed_data["nightly"] = is_allowed_repo_nightly_branch(bucket_branch)
-    packed_data["dev"] = bucket_branch == "dev"
-    with open(AGENT_VERSION_CACHE_NAME, "w") as file:
-        json.dump(packed_data, file, indent=4)
-
-
-def get_version(
-    ctx,
-    url_safe=False,
-    git_sha_length=7,
-    major_version='7',
-    include_pipeline_id=False,
-    pipeline_id=None,
-    include_git=False,
-    include_pre=True,
-    release=False,
-):
-    version = ""
-    if pipeline_id is None:
-        pipeline_id = os.getenv("CI_PIPELINE_ID")
-
-    project_name = os.getenv("CI_PROJECT_NAME")
-    try:
-        agent_version_cache_file_exist = os.path.exists(AGENT_VERSION_CACHE_NAME)
-        if not agent_version_cache_file_exist:
-            if pipeline_id and pipeline_id.isdigit() and project_name == REPO_NAME:
-                ctx.run(
-                    f"aws s3 cp s3://dd-ci-artefacts-build-stable/datadog-agent/{pipeline_id}/{AGENT_VERSION_CACHE_NAME} .",
-                    hide="stdout",
-                )
-                agent_version_cache_file_exist = True
-
-        if agent_version_cache_file_exist:
-            with open(AGENT_VERSION_CACHE_NAME) as file:
-                cache_data = json.load(file)
-
-            version, pre, commits_since_version, git_sha, pipeline_id = cache_data[major_version]
-            # Dev's versions behave the same as nightly
-            is_nightly = cache_data["nightly"] or cache_data["dev"]
-
-            if pre and include_pre:
-                version = f"{version}-{pre}"
-    except (OSError, json.JSONDecodeError, IndexError) as e:
-        # If a cache file is found but corrupted we ignore it.
-        print(f"Error while recovering the version from {AGENT_VERSION_CACHE_NAME}: {e}", file=sys.stderr)
-        version = ""
-    # If we didn't load the cache
-    if not version:
-        if pipeline_id:
-            # only log this warning in CI
-            print("[WARN] Agent version cache file hasn't been loaded !", file=sys.stderr)
-        # we only need the git info for the non omnibus builds, omnibus includes all this information by default
-        version, pre, commits_since_version, git_sha, pipeline_id = query_version(
-            ctx, major_version, git_sha_length=git_sha_length, release=release
-        )
-        # Dev's versions behave the same as nightly
-        bucket_branch = os.getenv("BUCKET_BRANCH")
-        is_nightly = is_allowed_repo_nightly_branch(bucket_branch) or bucket_branch == "dev"
-        if pre and include_pre:
-            version = f"{version}-{pre}"
-
-    if not commits_since_version and is_nightly and include_git:
-        if url_safe:
-            version = f"{version}.git.{0}.{git_sha}"
-        else:
-            version = f"{version}+git.{0}.{git_sha}"
-
-    if commits_since_version and include_git:
-        if url_safe:
-            version = f"{version}.git.{commits_since_version}.{git_sha}"
-        else:
-            version = f"{version}+git.{commits_since_version}.{git_sha}"
-
-    if is_nightly and include_git and include_pipeline_id and pipeline_id is not None:
-        version = f"{version}.pipeline.{pipeline_id}"
-
-    # version could be unicode as it comes from `query_version`
-    return str(version)
-
-
-def get_version_numeric_only(ctx, major_version='7'):
-    # we only need the git info for the non omnibus builds, omnibus includes all this information by default
-    version = ""
-    pipeline_id = os.getenv("CI_PIPELINE_ID")
-    project_name = os.getenv("CI_PROJECT_NAME")
-    if pipeline_id and pipeline_id.isdigit() and project_name == REPO_NAME:
-        try:
-            if not os.path.exists(AGENT_VERSION_CACHE_NAME):
-                ctx.run(
-                    f"aws s3 cp s3://dd-ci-artefacts-build-stable/datadog-agent/{pipeline_id}/{AGENT_VERSION_CACHE_NAME} .",
-                    hide="stdout",
-                )
-
-            with open(AGENT_VERSION_CACHE_NAME) as file:
-                cache_data = json.load(file)
-
-            version, *_ = cache_data[major_version]
-        except (OSError, json.JSONDecodeError, IndexError) as e:
-            # If a cache file is found but corrupted we ignore it.
-            print(f"Error while recovering the version from {AGENT_VERSION_CACHE_NAME}: {e}")
-            version = ""
-    if not version:
-        version, *_ = query_version(ctx, major_version)
-    return version
-
-
-def load_release_versions(_, target_version):
-    with open("release.json") as f:
-        versions = json.load(f)
-        if target_version in versions:
-            # windows runners don't accepts anything else than strings in the
-            # environment when running a subprocess.
-            return {str(k): str(v) for k, v in versions[target_version].items()}
-    raise Exception(f"Could not find '{target_version}' version in release.json")
-
-
-##
-## release.json entry mapping functions
-##
-
-
-def nightly_entry_for(agent_major_version):
-    if agent_major_version == 6:
-        return "nightly"
-    return f"nightly-a{agent_major_version}"
-
-
-def release_entry_for(agent_major_version):
-    return f"release-a{agent_major_version}"
-
-
-def check_clean_branch_state(ctx, github, branch):
-    """
-    Check we are in a clean situation to create a new branch:
-    No uncommitted change, and branch doesn't exist locally or upstream
-    """
-    if check_uncommitted_changes(ctx):
-        raise Exit(
-            color_message(
-                "There are uncomitted changes in your repository. Please commit or stash them before trying again.",
-                "red",
-            ),
-            code=1,
-        )
-    if check_local_branch(ctx, branch):
-        raise Exit(
-            color_message(
-                f"The branch {branch} already exists locally. Please remove it before trying again.",
-                "red",
-            ),
-            code=1,
-        )
-
-    if github.get_branch(branch) is not None:
-        raise Exit(
-            color_message(
-                f"The branch {branch} already exists upstream. Please remove it before trying again.",
-                "red",
-            ),
-            code=1,
-        )
 
 
 @contextmanager
@@ -723,14 +521,13 @@ def is_pr_context(branch, pr_id, test_name):
 
 
 @contextmanager
-def collapsed_section(section_name):
+def gitlab_section(section_name, collapsed=False):
     section_id = section_name.replace(" ", "_").replace("/", "_")
     in_ci = running_in_gitlab_ci()
     try:
         if in_ci:
-            print(
-                f"\033[0Ksection_start:{int(time.time())}:{section_id}[collapsed=true]\r\033[0K{section_name + '...'}"
-            )
+            collapsed = '[collapsed=true]' if collapsed else ''
+            print(f"\033[0Ksection_start:{int(time.time())}:{section_id}{collapsed}\r\033[0K{section_name + '...'}")
         yield
     finally:
         if in_ci:
@@ -762,7 +559,7 @@ def retry_function(action_name_fmt, max_retries=2, retry_delay=1):
                 except Exception:
                     if i == max_retries:
                         print(
-                            color_message(f'Error: {action_name} failed after {max_retries} retries', 'red'),
+                            color_message(f'Error: {action_name} failed after {max_retries} retries', Color.RED),
                             file=sys.stderr,
                         )
                         # The stack trace is not printed here but the error is raised if we
@@ -772,11 +569,11 @@ def retry_function(action_name_fmt, max_retries=2, retry_delay=1):
                         print(
                             color_message(
                                 f'Warning: {action_name} failed (retry {i + 1}/{max_retries}), retrying in {retry_delay}s',
-                                'orange',
+                                Color.ORANGE,
                             ),
                             file=sys.stderr,
                         )
-                        with collapsed_section(f"Retry {i + 1}/{max_retries} {action_name}"):
+                        with gitlab_section(f"Retry {i + 1}/{max_retries} {action_name}", collapsed=True):
                             traceback.print_exc()
                         time.sleep(retry_delay)
                         print(color_message(f'Retrying {action_name}', 'blue'))
@@ -784,6 +581,19 @@ def retry_function(action_name_fmt, max_retries=2, retry_delay=1):
         return wrapper
 
     return decorator
+
+
+def parse_kernel_version(version: str) -> tuple[int, int, int, int]:
+    """
+    Parse a kernel version contained in the given string and return a
+    tuple with kernel version, major and minor revision and patch number
+    """
+    kernel_version_regex = re.compile(r'(\d+)\.(\d+)(\.(\d+))?(-(\d+))?')
+    match = kernel_version_regex.search(version)
+    if match is None:
+        raise ValueError(f"Cannot parse kernel version from {version}")
+
+    return (int(match.group(1)), int(match.group(2)), int(match.group(4) or "0"), int(match.group(6) or "0"))
 
 
 def guess_from_labels(issue):
