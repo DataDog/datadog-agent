@@ -3,7 +3,7 @@
 comment: false
 
 github_checks:
-    annotations: false
+  annotations: false
 
 # See https://docs.codecov.com/docs/coverage-configuration
 coverage:
