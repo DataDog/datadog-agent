@@ -105,8 +105,8 @@ type ReaderWriter interface {
 	Writer
 }
 
-// Loader is a subset of Config that allows loading the configuration
-type Loader interface {
+// Setup is a subset of Config that allows setting up the configuration
+type Setup interface {
 	// API implemented by viper.Viper
 
 	SetDefault(key string, value interface{})
@@ -117,6 +117,22 @@ type Loader interface {
 	SetEnvKeyReplacer(r *strings.Replacer)
 	SetEnvKeyTransformer(key string, fn func(string) interface{})
 
+	// SetKnown adds a key to the set of known valid config keys
+	SetKnown(key string)
+
+	// API not implemented by viper.Viper and that have proven useful for our config usage
+
+	// BindEnvAndSetDefault sets the default value for a config parameter and adds an env binding
+	// in one call, used for most config options.
+	//
+	// If env is provided, it will override the name of the environment variable used for this
+	// config key
+	BindEnvAndSetDefault(key string, val interface{}, env ...string)
+}
+
+// Compound is an interface for returning compound elements from the config, plus
+// some misc functions, that should likely be split into another interface
+type Compound interface {
 	UnmarshalKey(key string, rawVal interface{}, opts ...viper.DecoderConfigOption) error
 	Unmarshal(rawVal interface{}) error
 	UnmarshalExact(rawVal interface{}) error
@@ -132,18 +148,6 @@ type Loader interface {
 	SetConfigType(in string)
 
 	BindPFlag(key string, flag *pflag.Flag) error
-
-	// SetKnown adds a key to the set of known valid config keys
-	SetKnown(key string)
-
-	// API not implemented by viper.Viper and that have proven useful for our config usage
-
-	// BindEnvAndSetDefault sets the default value for a config parameter and adds an env binding
-	// in one call, used for most config options.
-	//
-	// If env is provided, it will override the name of the environment variable used for this
-	// config key
-	BindEnvAndSetDefault(key string, val interface{}, env ...string)
 }
 
 // Config represents an object that can load and store configuration parameters
@@ -154,5 +158,6 @@ type Loader interface {
 // - flags
 type Config interface {
 	ReaderWriter
-	Loader
+	Setup
+	Compound
 }
