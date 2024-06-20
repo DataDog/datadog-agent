@@ -948,7 +948,6 @@ func (can *CannedClientServer) runClient(msgs []Message) {
 }
 
 func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
-	skipTestIfKernelNotSupported(t)
 	defaultTopic := "test-topic"
 
 	tests := []struct {
@@ -1169,12 +1168,20 @@ func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
 	can.runServer()
 	proxyPid := can.runProxy()
 
+	monitor := newKafkaMonitor(t, getDefaultTestConfiguration(tls))
+	if tls {
+		utils.WaitForProgramsToBeTraced(t, "go-tls", proxyPid)
+	}
+
 	for _, tt := range tests {
 		if tt.onlyTLS && !tls {
 			continue
 		}
 
 		t.Run(tt.name, func(t *testing.T) {
+			t.Cleanup(func() {
+				kafka.CleanKafkaMaps(t)
+			})
 			req := generateFetchRequest(apiVersion, tt.topic)
 			resp := tt.buildResponse(tt.topic)
 			var msgs []Message
@@ -1183,11 +1190,6 @@ func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
 				msgs = appendMessages(msgs, 99, req, resp)
 			} else {
 				msgs = tt.buildMessages(req, resp)
-			}
-
-			monitor := newKafkaMonitor(t, getDefaultTestConfiguration(tls))
-			if tls {
-				utils.WaitForProgramsToBeTraced(t, "go-tls", proxyPid)
 			}
 
 			can.runClient(msgs)
@@ -1206,6 +1208,9 @@ func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
 
 		name := fmt.Sprintf("split/%s", tt.name)
 		t.Run(name, func(t *testing.T) {
+			t.Cleanup(func() {
+				kafka.CleanKafkaMaps(t)
+			})
 			req := generateFetchRequest(apiVersion, tt.topic)
 			resp := tt.buildResponse(tt.topic)
 
@@ -1240,10 +1245,6 @@ func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
 				}
 			}
 
-			monitor := newKafkaMonitor(t, getDefaultTestConfiguration(tls))
-			if tls {
-				utils.WaitForProgramsToBeTraced(t, "go-tls", proxyPid)
-			}
 			can.runClient(msgs)
 			getAndValidateKafkaStats(t, monitor, 1, tt.topic, kafkaParsingValidation{
 				expectedNumberOfFetchRequests: tt.numFetchedRecords * splitIdx,
@@ -1255,6 +1256,7 @@ func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
 }
 
 func TestKafkaFetchRaw(t *testing.T) {
+	skipTestIfKernelNotSupported(t)
 	versions := []int{4, 5, 7, 11, 12}
 
 	t.Run("without TLS", func(t *testing.T) {
