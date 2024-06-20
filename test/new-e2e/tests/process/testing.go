@@ -257,11 +257,22 @@ func assertManualProcessCheck(t *testing.T, check string, withIOStats bool, proc
 	err := json.Unmarshal([]byte(check), &checkOutput)
 	require.NoError(t, err, "failed to unmarshal process check output")
 
-	procs := filterProcess("stress-ng-cpu [run]", checkOutput.Processes)
+	procs := filterProcess(process, checkOutput.Processes)
 	assert.NotEmpty(t, procs, "no processes found")
 
 	for _, proc := range procs {
 		assert.Truef(t, processHasData(proc), "%s process is missing data", proc)
+	}
+
+	if withIOStats {
+		var hasIOStats bool
+		for _, proc := range procs {
+			if processHasIOStats(proc) {
+				hasIOStats = true
+				break
+			}
+		}
+		assert.Truef(t, hasIOStats, "Missing IOStats: %+v", procs)
 	}
 
 	for _, container := range expectedContainers {
