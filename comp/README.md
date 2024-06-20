@@ -58,7 +58,7 @@ Package api implements the "api" bundle,
 
 ### [comp/api/api](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/api/api)
 
-Package api implements the internal Agent API which exposes endpoints such as config, flare or status
+Package def implements the internal Agent API component definitions which exposes endpoints such as config, flare or status
 
 ### [comp/api/authtoken](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/api/authtoken)
 
@@ -294,6 +294,10 @@ Package inventorychecks implements a component to generate the 'check_metadata' 
 ### [comp/metadata/inventoryhost](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/inventoryhost)
 
 Package inventoryhost exposes the interface for the component to generate the 'host_metadata' metadata payload for inventory.
+
+### [comp/metadata/inventoryotel](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/inventoryotel)
+
+Package inventoryotel implements a component to generate the 'datadog_agent' metadata payload for inventory.
 
 ### [comp/metadata/packagesigning](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/packagesigning)
 
@@ -532,7 +536,7 @@ Package trace implements the "trace" bundle, providing components for the Trace 
 
 ### [comp/trace/agent](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/trace/agent)
 
-
+Package traceagent provides the agent component type.
 
 ### [comp/trace/config](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/trace/config)
 

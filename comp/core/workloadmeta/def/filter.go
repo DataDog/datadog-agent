@@ -19,6 +19,12 @@ type GenericEntityFilterFunc EntityFilterFunc[Entity]
 // any entity.
 func EntityFilterFuncAcceptAll(_ Entity) bool { return true }
 
+// IsNodeMetadata is a filter function that returns true if the metadata
+// belongs to a node.
+var IsNodeMetadata = func(metadata *KubernetesMetadata) bool {
+	return metadata.GVR.Resource == "nodes"
+}
+
 // Filter allows a subscriber to filter events by entity kind, event source, and
 // event type.
 //
@@ -106,7 +112,8 @@ func (f *Filter) MatchEntity(entity *Entity) bool {
 	entityKind := (*entity).GetID().Kind
 
 	if entityFilterFunc, found := f.kinds[entityKind]; found {
-		return entityFilterFunc(*entity)
+		// A nil filter should match
+		return entityFilterFunc == nil || entityFilterFunc(*entity)
 	}
 
 	return false

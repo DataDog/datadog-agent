@@ -1,3 +1,6 @@
+# https://github.com/pyinvoke/invoke/issues/946
+# mypy: disable-error-code="arg-type"
+
 """
 Invoke entrypoint, import here all the tasks we want to make available
 """
@@ -11,6 +14,7 @@ from tasks import (
     cluster_agent,
     cluster_agent_cloudfoundry,
     components,
+    coverage,
     cws_instrumentation,
     devcontainer,
     diff,
@@ -23,6 +27,7 @@ from tasks import (
     fakeintake,
     git,
     github_tasks,
+    gitlab_helpers,
     go_deps,
     installer,
     kmt,
@@ -70,7 +75,8 @@ from tasks.go import (
     tidy_all,
 )
 from tasks.gotest import (
-    codecov,
+    check_otel_build,
+    check_otel_module_versions,
     e2e_tests,
     get_impacted_packages,
     get_modified_packages,
@@ -79,7 +85,12 @@ from tasks.gotest import (
     send_unit_tests_stats,
     test,
 )
-from tasks.install_tasks import download_tools, install_devcontainer_cli, install_shellcheck, install_tools
+from tasks.install_tasks import (
+    download_tools,
+    install_devcontainer_cli,
+    install_shellcheck,
+    install_tools,
+)
 from tasks.junit_tasks import junit_upload
 from tasks.libs.common.go_workspaces import handle_go_work
 from tasks.show_linters_issues.show_linters_issues import show_linters_issues
@@ -94,7 +105,6 @@ ns = Collection()
 
 # add single tasks to the root
 ns.add_task(test)
-ns.add_task(codecov)
 ns.add_task(integration_tests)
 ns.add_task(deps)
 ns.add_task(deps_vendored)
@@ -117,6 +127,8 @@ ns.add_task(install_tools)
 ns.add_task(invoke_unit_tests)
 ns.add_task(check_mod_tidy)
 ns.add_task(check_go_mod_replaces)
+ns.add_task(check_otel_build)
+ns.add_task(check_otel_module_versions)
 ns.add_task(tidy)
 ns.add_task(tidy_all)
 ns.add_task(internal_deps_checker)
@@ -138,6 +150,7 @@ ns.add_collection(buildimages)
 ns.add_collection(cluster_agent)
 ns.add_collection(cluster_agent_cloudfoundry)
 ns.add_collection(components)
+ns.add_collection(coverage)
 ns.add_collection(docs)
 ns.add_collection(bench)
 ns.add_collection(trace_agent)
@@ -151,6 +164,7 @@ ns.add_collection(linter)
 ns.add_collection(msi)
 ns.add_collection(git)
 ns.add_collection(github_tasks, "github")
+ns.add_collection(gitlab_helpers, "gitlab")
 ns.add_collection(package)
 ns.add_collection(pipeline)
 ns.add_collection(notify)
@@ -178,10 +192,10 @@ ns.add_collection(devcontainer)
 ns.add_collection(omnibus)
 ns.configure(
     {
-        'run': {
+        "run": {
             # this should stay, set the encoding explicitly so invoke doesn't
             # freak out if a command outputs unicode chars.
-            'encoding': 'utf-8',
+            "encoding": "utf-8",
         }
     }
 )

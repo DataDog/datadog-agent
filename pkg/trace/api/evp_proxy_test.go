@@ -469,7 +469,7 @@ func TestE2E(t *testing.T) {
 		conf := newTestReceiverConfig()
 		conf.Site = "us3.datadoghq.com"
 		conf.Endpoints[0].APIKey = "test_api_key"
-		conf.ReceiverTimeout = 1 // in seconds
+		conf.EVPProxy.ReceiverTimeout = 1 // in seconds
 
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			time.Sleep(2 * time.Second)

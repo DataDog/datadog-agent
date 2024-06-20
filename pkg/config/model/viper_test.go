@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -382,4 +383,68 @@ func TestCopyConfig(t *testing.T) {
 	assert.True(t, backup.IsKnown("tyu"))
 	// can't compare function pointers directly so just check the number of callbacks
 	assert.Len(t, backup.(*safeConfig).notificationReceivers, 1, "notification receivers should be copied")
+}
+
+func TestExtraConfig(t *testing.T) {
+	config := NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+
+	confs := []struct {
+		name    string
+		content string
+		file    *os.File
+	}{
+		{
+			name:    "datadog",
+			content: "api_key:",
+		},
+		{
+			name: "extra1",
+			content: `api_key: abcdef
+site: datadoghq.eu
+proxy:
+    https: https:proxyserver1`},
+		{
+			name: "extra2",
+			content: `proxy:
+    http: http:proxyserver2`},
+	}
+
+	// write configs into temp files
+	for index, conf := range confs {
+		file, err := os.CreateTemp("", conf.name+"-*.yaml")
+		assert.NoError(t, err, "failed to create temporary file: %w", err)
+		file.Write([]byte(conf.content))
+		confs[index].file = file
+		defer os.Remove(file.Name())
+	}
+
+	// adding temp files into config
+	config.SetConfigFile(confs[0].file.Name())
+	err := config.AddExtraConfigPaths(func() []string {
+		res := []string{}
+		for _, e := range confs[1:] {
+			res = append(res, e.file.Name())
+		}
+		return res
+	}())
+	assert.NoError(t, err)
+
+	// loading config files
+	err = config.ReadInConfig()
+	assert.NoError(t, err)
+
+	assert.Equal(t, nil, config.Get("api_key"))
+	assert.Equal(t, "datadoghq.eu", config.Get("site"))
+	assert.Equal(t, "https:proxyserver1", config.Get("proxy.https"))
+	assert.Equal(t, "http:proxyserver2", config.Get("proxy.http"))
+	assert.Equal(t, SourceFile, config.GetSource("proxy.https"))
+
+	// Consistency check on ReadInConfig() call
+
+	oldConf := config.AllSettings()
+
+	// reloading config files
+	err = config.ReadInConfig()
+	assert.NoError(t, err)
+	assert.True(t, reflect.DeepEqual(oldConf, config.AllSettings()))
 }
