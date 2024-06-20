@@ -10,6 +10,7 @@ package mount
 
 import (
 	"encoding/json"
+	"fmt"
 	"path"
 	"slices"
 	"strings"
@@ -45,6 +46,8 @@ type redemptionEntry struct {
 // newMountFromMountInfo - Creates a new Mount from parsed MountInfo data
 func newMountFromMountInfo(mnt *mountinfo.Info) *model.Mount {
 	root := mnt.Root
+
+	fmt.Println(mnt)
 
 	if mnt.FSType == "btrfs" {
 		var subvol string
