@@ -179,13 +179,6 @@ DEFAULT_MODULES = {
     "comp/otelcol/otlp/testutil": GoModule("comp/otelcol/otlp/testutil", independent=True, used_by_otel=True),
     "comp/otelcol/converter/def": GoModule("comp/otelcol/converter/def", independent=True, used_by_otel=True),
     "comp/otelcol/converter/impl": GoModule("comp/otelcol/converter/impl", independent=True, used_by_otel=True),
-    "comp/otelcol/otlp/example/metric": GoModule(
-        "comp/otelcol/otlp/example/metric",
-        independent=True,
-        used_by_otel=True,
-        condition=lambda: False,
-        should_tag=False,
-    ),
     "comp/serializer/compression": GoModule("comp/serializer/compression", independent=True, used_by_otel=True),
     "comp/trace/agent/def": GoModule("comp/trace/agent/def", independent=True, used_by_otel=True),
     "internal/tools": GoModule("internal/tools", condition=lambda: False, should_tag=False),
@@ -283,11 +276,16 @@ DEFAULT_MODULES = {
 
 # Folder containing a `go.mod` file but that should not be added to the DEFAULT_MODULES
 IGNORED_MODULES = [
+    # Will be removed soon
+    "./comp/otelcol/otlp/example/metric",
+    # Test files
     "./internal/tools/modparser/testdata/badformat",
     "./internal/tools/modparser/testdata/match",
     "./internal/tools/modparser/testdata/nomatch",
     "./internal/tools/modparser/testdata/patchgoversion",
+    # This `go.mod` is a hack
     "./pkg/process/procutil/resources",
+    # Test files
     "./test/integration/serverless/recorder-extension",
     "./test/integration/serverless/src",
 ]
