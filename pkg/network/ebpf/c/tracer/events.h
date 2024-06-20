@@ -135,7 +135,6 @@ static __always_inline void cleanup_conn(void *ctx, conn_tuple_t *tup, struct so
     if (is_udp) {
         increment_telemetry_count(unbatched_udp_close);
     }
-    return;
 }
 
 // This function is used to flush the conn_failed_t to the perf or ring buffer.

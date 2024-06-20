@@ -233,7 +233,7 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_done, struct sock *sk) {
     }
 
     // check if this connection was already flushed and ensure we don't flush again
-    // upsert the timestamp to the map and delete if it already exists
+    // upsert the timestamp to the map and delete if it already exists, flush connection otherwise
     __u64 timestamp = bpf_ktime_get_ns();
     if (bpf_map_update_with_telemetry(conn_close_flushed, &t, &timestamp, BPF_NOEXIST) == 0) {
         cleanup_conn(ctx, &t, sk);
@@ -277,7 +277,7 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_close, struct sock *sk) {
 
     
     // check if this connection was already flushed and ensure we don't flush again
-    // upsert the timestamp to the map and delete if it already exists
+    // upsert the timestamp to the map and delete if it already exists, flush connection otherwise
     __u64 timestamp = bpf_ktime_get_ns();
     if (!tcp_failed_connections_enabled() || (bpf_map_update_with_telemetry(conn_close_flushed, &t, &timestamp, BPF_NOEXIST) == 0)) {
         cleanup_conn(ctx, &t, sk);

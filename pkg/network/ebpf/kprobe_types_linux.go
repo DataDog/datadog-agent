@@ -64,7 +64,6 @@ type Telemetry struct {
 	Udp_dropped_conns           uint64
 	Double_flush_attempts_close uint64
 	Unsupported_tcp_failures    uint64
-	Skip_new_conn_create        uint64
 	Tcp_done_pid_mismatch       uint64
 }
 type PortBinding struct {
