@@ -288,10 +288,6 @@ func (l *LockContentionCollector) Initialize(trackAllResources bool) error {
 	if l.initialized {
 		return nil
 	}
-	defer func() {
-		log.Infof("lock contention collector initialized")
-		l.initialized = true
-	}()
 
 	l.trackedLockMemRanges = make(map[LockRange]*mapStats)
 	maps := make(map[uint32]*targetMap)
@@ -470,6 +466,9 @@ func (l *LockContentionCollector) Initialize(trackAllResources bool) error {
 	// initialize buffers used in Collect
 	l.lockRanges = make([]LockRange, l.ranges)
 	l.contention = make([]ContentionData, l.ranges)
+
+	log.Infof("lock contention collector initialized")
+	l.initialized = true
 
 	return nil
 }
