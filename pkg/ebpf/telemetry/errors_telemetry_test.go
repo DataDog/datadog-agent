@@ -58,7 +58,35 @@ func getMapsTelemetry(e *EBPFTelemetry) map[string]interface{} {
 	return t
 }
 
-func triggerTestAndGetMapsTelemetry(t *testing.T) map[string]interface{} {
+func getHelpersTelemetry(e *EBPFTelemetry) map[string]interface{} {
+	helperTelemMap := make(map[string]interface{})
+	if e.helperErrMap == nil {
+		return helperTelemMap
+	}
+
+	var val helperErrTelemetry
+	for probeName, k := range e.probeKeys {
+		err := e.helperErrMap.Lookup(&k, &val)
+		if err != nil {
+			log.Debugf("failed to get telemetry for map:key %s:%d\n", probeName, k)
+			continue
+		}
+
+		t := make(map[string]interface{})
+		for indx, helperName := range helperNames {
+			base := maxErrno * indx
+			if count := getErrCount(val.Count[base : base+maxErrno]); len(count) > 0 {
+				t[helperName] = count
+			}
+		}
+		if len(t) > 0 {
+			helperTelemMap[probeName] = t
+		}
+	}
+	return helperTelemMap
+}
+
+func triggerTestAndGetMapsTelemetry(t *testing.T, getTelemetry func(ebpfTelemetry *EBPFTelemetry) map[string]interface{}) map[string]interface{} {
 	bpfDir := os.Getenv("DD_SYSTEM_PROBE_BPF_DIR")
 	require.True(t, bpfDir != "")
 
@@ -97,15 +125,15 @@ func triggerTestAndGetMapsTelemetry(t *testing.T) map[string]interface{} {
 	ebpfTelemetry, ok := collector.T.(*EBPFTelemetry)
 	require.True(t, ok)
 
-	mapsTelemetry := getMapsTelemetry(ebpfTelemetry)
-	t.Logf("EBPF Maps telemetry: %v\n", mapsTelemetry)
+	errTelemetry := getTelemetry(ebpfTelemetry)
+	t.Logf("Errors telemetry: %v\n", errTelemetry)
 
-	return mapsTelemetry
+	return errTelemetry
 
 }
 
-func TestGetMapsTelemetry(t *testing.T) {
-	mapsTelemetry := triggerTestAndGetMapsTelemetry(t)
+func TestMapsTelemetry(t *testing.T) {
+	mapsTelemetry := triggerTestAndGetMapsTelemetry(t, getMapsTelemetry)
 	t.Cleanup(func() {
 		m.Stop(manager.CleanAll)
 	})
@@ -116,11 +144,28 @@ func TestGetMapsTelemetry(t *testing.T) {
 }
 
 func TestMapsTelemetrySuppressError(t *testing.T) {
-	mapsTelemetry := triggerTestAndGetMapsTelemetry(t)
+	mapsTelemetry := triggerTestAndGetMapsTelemetry(t, getMapsTelemetry)
 	t.Cleanup(func() {
 		m.Stop(manager.CleanAll)
 	})
 
 	_, ok := mapsTelemetry["suppress_map"].(map[string]uint64)
 	require.True(t, !ok)
+}
+
+func TestHelpersTelemetry(t *testing.T) {
+	helpersTelemetry := triggerTestAndGetMapsTelemetry(t, getHelpersTelemetry)
+	t.Cleanup(func() {
+		m.Stop(manager.CleanAll)
+	})
+
+	openErrors, ok := helpersTelemetry["kprobe__vfs_open"].(map[string]interface{})
+	require.True(t, ok)
+
+	probeReadErrors, ok := openErrors["bpf_probe_read"].(map[string]uint64)
+	require.True(t, ok)
+
+	badAddressCnt, ok := probeReadErrors["EFAULT"]
+	require.True(t, ok)
+	assert.NotZero(t, badAddressCnt)
 }

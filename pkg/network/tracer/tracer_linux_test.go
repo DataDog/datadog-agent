@@ -1976,56 +1976,6 @@ func sysOpenAt2Supported() bool {
 	return kversion >= kernel.VersionCode(5, 6, 0)
 }
 
-func (s *TracerSuite) TestGetHelpersTelemetry() {
-	t := s.T()
-
-	// We need the tracepoints on open syscall in order
-	// to test.
-	if !httpsSupported() {
-		t.Skip("HTTPS feature not available/supported for this setup")
-	}
-
-	t.Setenv("DD_SYSTEM_PROBE_SERVICE_MONITORING_ENABLED", "true")
-	cfg := testConfig()
-	cfg.EnableNativeTLSMonitoring = true
-	cfg.EnableHTTPMonitoring = true
-	tr := setupTracer(t, cfg)
-
-	expectedErrorTP := "tracepoint__syscalls__sys_enter_openat"
-	syscallNumber := syscall.SYS_OPENAT
-	if sysOpenAt2Supported() {
-		expectedErrorTP = "tracepoint__syscalls__sys_enter_openat2"
-		// In linux kernel source dir run:
-		// printf SYS_openat2 | gcc -include sys/syscall.h -E -
-		syscallNumber = 437
-	}
-
-	// Ensure `bpf_probe_read_user` fails by passing an address guaranteed to pagefault to open syscall.
-	addr, _, sysErr := syscall.Syscall6(syscall.SYS_MMAP, uintptr(0), uintptr(syscall.Getpagesize()), syscall.PROT_READ|syscall.PROT_WRITE, syscall.MAP_ANON|syscall.MAP_PRIVATE, 0, 0)
-	require.Zero(t, sysErr)
-	syscall.Syscall(uintptr(syscallNumber), uintptr(0), uintptr(addr), uintptr(0))
-	t.Cleanup(func() {
-		syscall.Syscall(syscall.SYS_MUNMAP, uintptr(addr), uintptr(syscall.Getpagesize()), 0)
-	})
-	ebpfTelemetryCollector, ok := tr.bpfErrorsCollector.(*ebpftelemetry.EBPFErrorsCollector)
-	require.True(t, ok)
-
-	telemetry, ok := ebpfTelemetryCollector.T.(*ebpftelemetry.EBPFTelemetry)
-	require.True(t, ok)
-	helperTelemetry := telemetry.GetHelpersTelemetry()
-	t.Logf("EBPF helper telemetry: %v\n", helperTelemetry)
-
-	openAtErrors, ok := helperTelemetry[expectedErrorTP].(map[string]interface{})
-	require.True(t, ok)
-
-	probeReadUserError, ok := openAtErrors["bpf_probe_read_user"].(map[string]uint64)
-	require.True(t, ok)
-
-	badAddressCnt, ok := probeReadUserError["EFAULT"]
-	require.True(t, ok)
-	assert.NotZero(t, badAddressCnt)
-}
-
 func TestEbpfConntrackerFallback(t *testing.T) {
 	require.NoError(t, rlimit.RemoveMemlock())
 

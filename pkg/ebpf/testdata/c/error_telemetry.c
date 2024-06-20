@@ -28,6 +28,9 @@ int kprobe__vfs_open(int *ctx) {
     i++;
     bpf_map_update_with_telemetry(suppress_map, &i, &i, BPF_ANY, -E2BIG);
 
+    char buf[16];
+    bpf_probe_read_with_telemetry(&buf, 16, (void *)0xdeadbeef);
+
     return 0;
 }
 
