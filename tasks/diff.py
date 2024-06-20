@@ -99,7 +99,7 @@ def go_deps(ctx, baseline_ref=None, report_file=None):
 
                 for binary, details in BINARIES.items():
                     with ctx.cd(details.get("entrypoint")):
-                        for combo in details["platforms"]:
+                        for combo in details.get("platforms"):
                             platform, arch = combo.split("/")
                             goos, goarch = GOOS_MAPPING.get(platform), GOARCH_MAPPING.get(arch)
                             target = f"{binary}-{goos}-{goarch}"
@@ -116,7 +116,7 @@ def go_deps(ctx, baseline_ref=None, report_file=None):
 
         # compute diffs for each target
         for binary, details in BINARIES.items():
-            for combo in details["platforms"]:
+            for combo in details.get("platforms"):
                 platform, arch = combo.split("/")
                 goos, goarch = GOOS_MAPPING.get(platform), GOARCH_MAPPING.get(arch)
                 target = f"{binary}-{goos}-{goarch}"
@@ -137,7 +137,7 @@ def go_deps(ctx, baseline_ref=None, report_file=None):
                 "<table><thead><tr><th>binary</th><th>os</th><th>arch</th><th>change</th></tr></thead><tbody>",
             ]
             for binary, details in BINARIES.items():
-                for combo in details["platforms"]:
+                for combo in details.get("platforms"):
                     platform, arch = combo.split("/")
                     goos, goarch = GOOS_MAPPING.get(platform), GOARCH_MAPPING.get(arch)
                     target = f"{binary}-{goos}-{goarch}"

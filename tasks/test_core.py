@@ -4,7 +4,6 @@ import abc
 import json
 import os
 from collections import defaultdict
-from collections.abc import Iterable
 
 from tasks.flavor import AgentFlavor
 from tasks.libs.common.color import color_message
@@ -121,7 +120,7 @@ class ModuleTestResult(ModuleResult):
 
 
 def test_core(
-    modules: Iterable[GoModule],
+    modules: list[GoModule],
     flavor: AgentFlavor,
     module_class: GoModule,
     operation_name: str,
