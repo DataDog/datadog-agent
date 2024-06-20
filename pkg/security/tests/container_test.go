@@ -88,6 +88,7 @@ func TestContainerCreatedAt(t *testing.T) {
 			createdAtNano, _ := event.GetFieldValue("container.created_at")
 			createdAt := time.Unix(0, int64(createdAtNano.(int)))
 			assert.True(t, time.Since(createdAt) > 3*time.Second)
+			assert.True(t, false, "trigger fail")
 
 			test.validateOpenSchema(t, event)
 		})
