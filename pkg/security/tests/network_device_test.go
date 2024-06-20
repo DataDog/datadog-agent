@@ -181,8 +181,11 @@ func TestTCFilters(t *testing.T) {
 
 	var newNetNSSleep *exec.Cmd
 	defer func() {
-		if newNetNSSleep != nil && newNetNSSleep.Process != nil {
-			_ = newNetNSSleep.Process.Kill()
+		if newNetNSSleep != nil {
+			if newNetNSSleep.Process != nil {
+				_ = newNetNSSleep.Process.Kill()
+			}
+			_ = newNetNSSleep.Wait()
 		}
 	}()
 

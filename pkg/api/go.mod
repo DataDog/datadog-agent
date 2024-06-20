@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/pkg/api
 
-go 1.21.0
+go 1.22.0
 
 replace (
 	github.com/DataDog/datadog-agent/cmd/agent/common/path => ../../cmd/agent/common/path
@@ -43,6 +43,8 @@ require (
 )
 
 require (
+	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.55.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/comp/core/flare/types v0.55.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets v0.55.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/comp/def v0.55.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.55.0-rc.3 // indirect

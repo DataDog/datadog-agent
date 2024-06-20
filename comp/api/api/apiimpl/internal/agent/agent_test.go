@@ -145,11 +145,6 @@ func TestSetupHandlers(t *testing.T) {
 		wantCode int
 	}{
 		{
-			route:    "/version",
-			method:   "GET",
-			wantCode: 200,
-		},
-		{
 			route:    "/flare",
 			method:   "POST",
 			wantCode: 200,

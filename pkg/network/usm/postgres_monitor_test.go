@@ -22,6 +22,7 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
+	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
@@ -180,7 +181,7 @@ func testDecoding(t *testing.T, isTLS bool) {
 					"dummy": {
 						postgres.CreateTableOP: adjustCount(1),
 					},
-				})
+				}, isTLS)
 			},
 		},
 		{
@@ -208,7 +209,7 @@ func testDecoding(t *testing.T, isTLS bool) {
 					"dummy": {
 						postgres.InsertOP: adjustCount(2),
 					},
-				})
+				}, isTLS)
 			},
 		},
 		{
@@ -233,7 +234,7 @@ func testDecoding(t *testing.T, isTLS bool) {
 					"dummy": {
 						postgres.UpdateOP: adjustCount(1),
 					},
-				})
+				}, isTLS)
 			},
 		},
 		{
@@ -258,7 +259,7 @@ func testDecoding(t *testing.T, isTLS bool) {
 					"dummy": {
 						postgres.SelectOP: adjustCount(1),
 					},
-				})
+				}, isTLS)
 			},
 		},
 		{
@@ -282,7 +283,7 @@ func testDecoding(t *testing.T, isTLS bool) {
 					"dummy": {
 						postgres.DeleteTableOP: adjustCount(1),
 					},
-				})
+				}, isTLS)
 			},
 		},
 		{
@@ -306,7 +307,7 @@ func testDecoding(t *testing.T, isTLS bool) {
 					"dummy": {
 						postgres.AlterTableOP: adjustCount(1),
 					},
-				})
+				}, isTLS)
 			},
 		},
 		{
@@ -330,7 +331,7 @@ func testDecoding(t *testing.T, isTLS bool) {
 					"dummy": {
 						postgres.TruncateTableOP: adjustCount(1),
 					},
-				})
+				}, isTLS)
 			},
 		},
 		{
@@ -353,7 +354,7 @@ func testDecoding(t *testing.T, isTLS bool) {
 					"dummy": {
 						postgres.DropTableOP: adjustCount(1),
 					},
-				})
+				}, isTLS)
 			},
 		},
 		{
@@ -390,7 +391,7 @@ func testDecoding(t *testing.T, isTLS bool) {
 						postgres.InsertOP:      adjustCount(20),
 						postgres.CreateTableOP: adjustCount(1),
 					},
-				})
+				}, isTLS)
 			},
 		},
 		{
@@ -418,7 +419,7 @@ func testDecoding(t *testing.T, isTLS bool) {
 					"table_table_table_table_table_table_table_t": {
 						postgres.DropTableOP: adjustCount(1),
 					},
-				})
+				}, isTLS)
 			},
 		},
 		{
@@ -447,7 +448,7 @@ func testDecoding(t *testing.T, isTLS bool) {
 					"dummy": {
 						postgres.SelectOP: adjustCount(2),
 					},
-				})
+				}, isTLS)
 			},
 		},
 	}
@@ -565,7 +566,7 @@ func getPostgresDefaultTestConfiguration(enableTLS bool) *config.Config {
 	return cfg
 }
 
-func validatePostgres(t *testing.T, monitor *Monitor, expectedStats map[string]map[postgres.Operation]int) {
+func validatePostgres(t *testing.T, monitor *Monitor, expectedStats map[string]map[postgres.Operation]int, tls bool) {
 	found := make(map[string]map[postgres.Operation]int)
 	require.Eventually(t, func() bool {
 		postgresProtocolStats, exists := monitor.GetProtocolStats()[protocols.Postgres]
@@ -575,6 +576,10 @@ func validatePostgres(t *testing.T, monitor *Monitor, expectedStats map[string]m
 		// We might not have postgres stats, and it might be the expected case (to capture 0).
 		currentStats := postgresProtocolStats.(map[postgres.Key]*postgres.RequestStat)
 		for key, stats := range currentStats {
+			hasTLSTag := stats.StaticTags&network.ConnTagGo != 0
+			if hasTLSTag != tls {
+				continue
+			}
 			if _, ok := found[key.TableName]; !ok {
 				found[key.TableName] = make(map[postgres.Operation]int)
 			}

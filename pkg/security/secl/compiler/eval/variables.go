@@ -398,7 +398,7 @@ func NewMutableIntArrayVariable() *MutableIntArrayVariable {
 
 // ScopedVariable is the interface to be implemented by scoped variable in order to be released
 type ScopedVariable interface {
-	SetReleaseCallback(callback func())
+	AppendReleaseCallback(callback func())
 }
 
 // Scoper maps a variable to the entity its scoped to
@@ -517,7 +517,7 @@ func (v *ScopedVariables) GetVariable(name string, value interface{}, _ Variable
 		}
 		vars := v.vars[key]
 		if vars == nil {
-			key.SetReleaseCallback(func() {
+			key.AppendReleaseCallback(func() {
 				v.ReleaseVariable(key)
 			})
 			vars = NewVariables()
