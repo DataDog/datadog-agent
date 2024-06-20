@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build test
+//go:build linux_bpf && test
 
 package postgres
 
@@ -11,7 +11,11 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
+	"testing"
 	"time"
+
+	"github.com/cilium/ebpf"
 
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/dialect/pgdialect"
@@ -157,4 +161,68 @@ func runTimedQuery(callback func(context.Context, ...interface{}) (sql.Result, e
 	defer cancel()
 	_, err := callback(ctx)
 	return err
+}
+
+var (
+	mapTypesToZero = map[ebpf.MapType]struct{}{
+		ebpf.PerCPUArray: {},
+		ebpf.Array:       {},
+		ebpf.PerCPUHash:  {},
+	}
+)
+
+// CleanPostgresMaps deletes all entries from the postgres maps. Test utility to allow reusing USM instance without caring
+// over previous data.
+func CleanPostgresMaps(t *testing.T) {
+	if Spec.Instance == nil {
+		t.Log("postgres protocol not initialized")
+		return
+	}
+
+	m := Spec.Instance.(*protocol).mgr
+	if m == nil {
+		t.Log("postgres manager not initialized")
+		return
+	}
+
+	// Getting all maps loaded into the manager
+	maps, err := m.GetMaps()
+	if err != nil {
+		t.Logf("failed to get maps: %v", err)
+		return
+	}
+	for mapName, mapInstance := range maps {
+		// We only want to clean postgres maps
+		if !strings.Contains(mapName, "postgres") {
+			continue
+		}
+		// Special case for batches, as the values is never "empty", but contain the CPU number.
+		if strings.HasSuffix(mapName, "postgres_batches") {
+			continue
+		}
+		_, shouldOnlyZero := mapTypesToZero[mapInstance.Type()]
+
+		key := make([]byte, mapInstance.KeySize())
+		value := make([]byte, mapInstance.ValueSize())
+		mapEntries := mapInstance.Iterate()
+		var keys [][]byte
+		for mapEntries.Next(&key, &value) {
+			keys = append(keys, key)
+		}
+
+		if shouldOnlyZero {
+			emptyValue := make([]byte, mapInstance.ValueSize())
+			for _, key := range keys {
+				if err := mapInstance.Put(&key, &emptyValue); err != nil {
+					t.Log("failed zeroing map entry; error: ", err)
+				}
+			}
+		} else {
+			for _, key := range keys {
+				if err := mapInstance.Delete(&key); err != nil {
+					t.Log("failed deleting map entry; error: ", err)
+				}
+			}
+		}
+	}
 }
