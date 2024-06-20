@@ -250,8 +250,7 @@ func assertManualProcessCheck(t *testing.T, check string, withIOStats bool, proc
 	}()
 
 	var checkOutput struct {
-		Processes  []*agentmodel.Process   `json:"processes"`
-		Containers []*agentmodel.Container `json:"containers"`
+		Processes []*agentmodel.Process `json:"processes"`
 	}
 
 	err := json.Unmarshal([]byte(check), &checkOutput)
@@ -275,8 +274,27 @@ func assertManualProcessCheck(t *testing.T, check string, withIOStats bool, proc
 		assert.Truef(t, hasIOStats, "Missing IOStats: %+v", procs)
 	}
 
+	assertManualContainerCheck(t, check, expectedContainers...)
+}
+
+// assertManualContainerCheck asserts that the given container is collected from a manual container check
+func assertManualContainerCheck(t *testing.T, check string, expectedContainers ...string) {
+	defer func() {
+		if t.Failed() {
+			t.Logf("Check output:\n%s\n", check)
+		}
+	}()
+
+	var checkOutput struct {
+		Containers []*agentmodel.Container `json:"containers"`
+	}
+
+	err := json.Unmarshal([]byte(check), &checkOutput)
+	require.NoError(t, err, "failed to unmarshal process check output")
+
 	for _, container := range expectedContainers {
-		assert.Truef(t, findContainer(container, checkOutput.Containers), "%s container not found in %+v", container, checkOutput.Containers)
+		assert.Truef(t, findContainer(container, checkOutput.Containers),
+			"%s container not found in %+v", container, checkOutput.Containers)
 	}
 }
 

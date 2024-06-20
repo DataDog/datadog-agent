@@ -57,6 +57,7 @@ type K8sSuite struct {
 }
 
 func TestK8sTestSuite(t *testing.T) {
+	t.Parallel()
 	helmValues, err := createHelmValues(helmConfig{
 		ProcessAgentEnabled: true,
 		ProcessCollection:   true,
@@ -79,7 +80,7 @@ func (s *K8sSuite) TestManualProcessCheck() {
 	agent := getAgentPod(s.T(), s.Env().KubernetesCluster.Client())
 
 	// The log level needs to be overridden as the pod has an ENV var set.
-	// This is to so we get just json back from the check
+	// This is so we get just json back from the check
 	stdout, stderr, err := s.Env().KubernetesCluster.KubernetesClient.
 		PodExec(agent.Namespace, agent.Name, "process-agent",
 			[]string{"bash", "-c", "DD_LOG_LEVEL=OFF process-agent check process -w 5s --json"})
@@ -87,6 +88,33 @@ func (s *K8sSuite) TestManualProcessCheck() {
 	assert.Empty(s.T(), stderr)
 
 	assertManualProcessCheck(s.T(), stdout, false, "stress-ng-cpu [run]", "stress-ng")
+}
+
+func (s *K8sSuite) TestManualProcessDiscoveryCheck() {
+	agent := getAgentPod(s.T(), s.Env().KubernetesCluster.Client())
+	// The log level needs to be overridden as the pod has an ENV var set.
+	// This is so we get just json back from the check
+	stdout, stderr, err := s.Env().KubernetesCluster.KubernetesClient.
+		PodExec(agent.Namespace, agent.Name, "process-agent",
+			[]string{"bash", "-c", "DD_LOG_LEVEL=OFF process-agent check process_discovery -w 5s --json"})
+	assert.NoError(s.T(), err)
+	assert.Empty(s.T(), stderr)
+
+	assertManualProcessDiscoveryCheck(s.T(), stdout, "stress-ng-cpu [run]")
+}
+
+func (s *K8sSuite) TestManualContainerCheck() {
+	agent := getAgentPod(s.T(), s.Env().KubernetesCluster.Client())
+
+	// The log level needs to be overridden as the pod has an ENV var set.
+	// This is so we get just json back from the check
+	stdout, stderr, err := s.Env().KubernetesCluster.KubernetesClient.
+		PodExec(agent.Namespace, agent.Name, "process-agent",
+			[]string{"bash", "-c", "DD_LOG_LEVEL=OFF process-agent check container -w 5s --json"})
+	assert.NoError(s.T(), err)
+	assert.Empty(s.T(), stderr)
+
+	assertManualContainerCheck(s.T(), stdout, "stress-ng")
 }
 
 func getAgentPod(t *testing.T, client kubeClient.Interface) corev1.Pod {
