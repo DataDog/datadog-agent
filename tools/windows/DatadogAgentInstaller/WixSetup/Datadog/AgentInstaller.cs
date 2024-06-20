@@ -65,6 +65,10 @@ namespace WixSetup.Datadog
                 MinimumSupportedWindowsVersion.Windows10,
                 new Property("MsiLogging", "iwearucmop!"),
                 new Property("MSIRESTARTMANAGERCONTROL", "Disable"),
+
+                // set this property to anything to indicate to the merge module that on install rollback, it should
+                // execute the install custom action rollback; otherwise it won't.
+                new Property("DDDRIVERROLLBACK", "1"),
                 new Property("APIKEY")
                 {
                     AttributesDefinition = "Hidden=yes;Secure=yes"
