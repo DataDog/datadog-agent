@@ -25,7 +25,7 @@ from invoke.exceptions import Exit
 from tasks.agent import integration_tests as agent_integration_tests
 from tasks.build_tags import compute_build_tags_for_flavor
 from tasks.cluster_agent import integration_tests as dca_integration_tests
-from tasks.codecov import PROFILE_COV, CodecovWorkaround
+from tasks.coverage import PROFILE_COV, CodecovWorkaround
 from tasks.devcontainer import run_on_devcontainer
 from tasks.dogstatsd import integration_tests as dsd_integration_tests
 from tasks.flavor import AgentFlavor

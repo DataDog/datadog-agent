@@ -481,8 +481,10 @@ func checkPoliciesLocal(args *checkPoliciesCliParams, writer io.Writer) error {
 	var ruleSet *rules.RuleSet
 	if args.windowsModel {
 		ruleSet = rules.NewRuleSet(&winmodel.Model{}, newFakeWindowsEvent, ruleOpts, evalOpts)
+		ruleSet.SetFakeEventCtor(newFakeWindowsEvent)
 	} else {
 		ruleSet = rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
+		ruleSet.SetFakeEventCtor(newFakeEvent)
 	}
 	evaluationSet, err := rules.NewEvaluationSet([]*rules.RuleSet{ruleSet})
 	if err != nil {

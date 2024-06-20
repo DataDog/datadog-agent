@@ -15,7 +15,7 @@ experimental:
 templates:
   job_template: &job_template
     docker:
-      - image: gcr.io/datadoghq/agent-circleci-runner:v35901572-a9447181
+      - image: gcr.io/datadoghq/agent-circleci-runner:v37092872-d0ae7a07
         environment:
           USE_SYSTEM_LIBS: "1"
     working_directory: /go/src/github.com/DataDog/datadog-agent
@@ -103,10 +103,6 @@ jobs:
           command: inv -e test --rerun-fails=2 --python-runtimes 3 --coverage --race --profile --cpus 8 --build-stdlib --test-washer
           environment:
             GO_TEST_SKIP_FLAKE: "true"
-      - run:
-          name: upload code coverage results
-          # Never fail on coverage upload
-          command: inv -e codecov || true
 
   integration_tests:
     <<: *job_template

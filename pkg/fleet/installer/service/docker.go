@@ -140,6 +140,12 @@ func (a *apmInjectorInstaller) deleteDockerConfigContent(_ context.Context, prev
 func (a *apmInjectorInstaller) verifyDockerRuntime(ctx context.Context) (err error) {
 	span, _ := tracer.StartSpanFromContext(ctx, "verify_docker_runtime")
 	defer func() { span.Finish(tracer.WithError(err)) }()
+
+	if !isDockerActive(ctx) {
+		log.Warn("docker is inactive, skipping docker runtime verification")
+		return nil
+	}
+
 	for i := 0; i < 3; i++ {
 		if i > 0 {
 			time.Sleep(time.Second)
@@ -166,6 +172,10 @@ func (a *apmInjectorInstaller) verifyDockerRuntime(ctx context.Context) (err err
 func reloadDockerConfig(ctx context.Context) (err error) {
 	span, _ := tracer.StartSpanFromContext(ctx, "reload_docker")
 	defer func() { span.Finish(tracer.WithError(err)) }()
+	if !isDockerActive(ctx) {
+		log.Warn("docker is inactive, skipping docker reload")
+		return nil
+	}
 	cmd := exec.Command("systemctl", "reload", "docker")
 	bufErr := new(bytes.Buffer)
 	cmd.Stderr = bufErr
@@ -194,4 +204,20 @@ func isDockerInstalled(ctx context.Context) bool {
 		return false
 	}
 	return true
+}
+
+// isDockerActive checks if docker is active on the system
+func isDockerActive(ctx context.Context) bool {
+	cmd := exec.CommandContext(ctx, "systemctl", "is-active", "docker")
+	var outb bytes.Buffer
+	cmd.Stdout = &outb
+	err := cmd.Run()
+	if err != nil {
+		log.Warn("installer: failed to check if docker is active, assuming it isn't: ", err)
+		return false
+	}
+	if strings.TrimSpace(outb.String()) == "active" {
+		return true
+	}
+	return false
 }

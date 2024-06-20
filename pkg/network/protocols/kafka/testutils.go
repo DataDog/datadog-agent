@@ -5,7 +5,7 @@
 
 //go:build linux_bpf && test
 
-package http2
+package kafka
 
 import (
 	"strings"
@@ -22,17 +22,17 @@ var (
 	}
 )
 
-// CleanHTTP2Maps deletes all entries from the http2 maps. Test utility to allow reusing USM instance without caring
+// CleanKafkaMaps deletes all entries from the kafka maps. Test utility to allow reusing USM instance without caring
 // over previous data.
-func CleanHTTP2Maps(t *testing.T) {
+func CleanKafkaMaps(t *testing.T) {
 	if Spec.Instance == nil {
-		t.Log("http2 protocol not initialized")
+		t.Log("kafka protocol not initialized")
 		return
 	}
 
-	m := Spec.Instance.(*Protocol).mgr
+	m := Spec.Instance.(*protocol).mgr
 	if m == nil {
-		t.Log("http2 manager not initialized")
+		t.Log("kafka manager not initialized")
 		return
 	}
 
@@ -43,12 +43,12 @@ func CleanHTTP2Maps(t *testing.T) {
 		return
 	}
 	for mapName, mapInstance := range maps {
-		// We only want to clean http2 maps
-		if !strings.Contains(mapName, "http2") {
+		// We only want to clean kafka maps
+		if !strings.Contains(mapName, "kafka") {
 			continue
 		}
 		// Special case for batches, as the values is never "empty", but contain the CPU number.
-		if strings.HasSuffix(mapName, "http2_batches") {
+		if strings.HasSuffix(mapName, "kafka_batches") {
 			continue
 		}
 		_, shouldOnlyZero := mapTypesToZero[mapInstance.Type()]
