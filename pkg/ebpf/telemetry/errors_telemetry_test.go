@@ -10,6 +10,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	manager "github.com/DataDog/ebpf-manager"
+	"github.com/prometheus/client_golang/prometheus"
+	dto "github.com/prometheus/client_model/go"
 
 	"github.com/cilium/ebpf"
 	"github.com/stretchr/testify/assert"
@@ -86,7 +88,7 @@ func getHelpersTelemetry(e *EBPFTelemetry) map[string]interface{} {
 	return helperTelemMap
 }
 
-func triggerTestAndGetMapsTelemetry(t *testing.T, getTelemetry func(ebpfTelemetry *EBPFTelemetry) map[string]interface{}) map[string]interface{} {
+func triggerTestAndGetTelemetry(t *testing.T) []prometheus.Metric {
 	bpfDir := os.Getenv("DD_SYSTEM_PROBE_BPF_DIR")
 	require.True(t, bpfDir != "")
 
@@ -122,50 +124,112 @@ func triggerTestAndGetMapsTelemetry(t *testing.T, getTelemetry func(ebpfTelemetr
 	_, err = os.Open("/proc/self/exe")
 	require.NoError(t, err)
 
-	ebpfTelemetry, ok := collector.T.(*EBPFTelemetry)
-	require.True(t, ok)
+	ch := make(chan prometheus.Metric)
+	go func() {
+		collector.Collect(ch)
+		close(ch)
+	}()
 
-	errTelemetry := getTelemetry(ebpfTelemetry)
-	t.Logf("Errors telemetry: %v\n", errTelemetry)
+	//collect metrics from the channel
+	var metrics []prometheus.Metric
+	for m := range ch {
+		metrics = append(metrics, m)
+	}
 
-	return errTelemetry
-
+	return metrics
 }
 
 func TestMapsTelemetry(t *testing.T) {
-	mapsTelemetry := triggerTestAndGetMapsTelemetry(t, getMapsTelemetry)
+	mapsTelemetry := triggerTestAndGetTelemetry(t)
 	t.Cleanup(func() {
 		m.Stop(manager.CleanAll)
 	})
 
-	errors, ok := mapsTelemetry["error_map"].(map[string]uint64)
-	require.True(t, ok)
-	assert.NotZero(t, errors["E2BIG"])
+	errorMapEntryFound, e2bigErrorFound := false, false
+	for _, promMetric := range mapsTelemetry {
+		dtoMetric := dto.Metric{}
+		assert.NoError(t, promMetric.Write(&dtoMetric), "Failed to parse metric %v", promMetric.Desc())
+		assert.NotNilf(t, dtoMetric.GetCounter(), "expected metric %v to be of a counter type", promMetric.Desc())
+
+		for _, label := range dtoMetric.GetLabel() {
+			switch label.GetName() {
+			case "map_name":
+				if label.GetValue() == "error_map" {
+					errorMapEntryFound = true
+				}
+			case "error":
+				if label.GetValue() == "E2BIG" {
+					e2bigErrorFound = true
+				}
+			}
+		}
+
+		// check error value immediately if map is discovered
+		if errorMapEntryFound {
+			require.True(t, e2bigErrorFound)
+		}
+	}
+
+	// ensure test fails if map telemetry not found
+	require.True(t, errorMapEntryFound)
 }
 
 func TestMapsTelemetrySuppressError(t *testing.T) {
-	mapsTelemetry := triggerTestAndGetMapsTelemetry(t, getMapsTelemetry)
+	mapsTelemetry := triggerTestAndGetTelemetry(t)
 	t.Cleanup(func() {
 		m.Stop(manager.CleanAll)
 	})
 
-	_, ok := mapsTelemetry["suppress_map"].(map[string]uint64)
-	require.True(t, !ok)
+	suppressMapEntryFound := false
+	for _, promMetric := range mapsTelemetry {
+		dtoMetric := dto.Metric{}
+		assert.NoError(t, promMetric.Write(&dtoMetric), "Failed to parse metric %v", promMetric.Desc())
+		assert.NotNilf(t, dtoMetric.GetCounter(), "expected metric %v to be of a counter type", promMetric.Desc())
+
+		for _, label := range dtoMetric.GetLabel() {
+			switch label.GetName() {
+			case "map_name":
+				if label.GetValue() == "suppress_map" {
+					suppressMapEntryFound = true
+				}
+			}
+		}
+
+		require.False(t, suppressMapEntryFound)
+	}
 }
 
 func TestHelpersTelemetry(t *testing.T) {
-	helpersTelemetry := triggerTestAndGetMapsTelemetry(t, getHelpersTelemetry)
+	helperTelemetry := triggerTestAndGetTelemetry(t)
 	t.Cleanup(func() {
 		m.Stop(manager.CleanAll)
 	})
 
-	openErrors, ok := helpersTelemetry["kprobe__vfs_open"].(map[string]interface{})
-	require.True(t, ok)
+	probeReadHelperFound, efaultErrorFound := false, false
+	for _, promMetric := range helperTelemetry {
+		dtoMetric := dto.Metric{}
+		assert.NoError(t, promMetric.Write(&dtoMetric), "Failed to parse metric %v", promMetric.Desc())
+		assert.NotNilf(t, dtoMetric.GetCounter(), "expected metric %v to be of a counter type", promMetric.Desc())
 
-	probeReadErrors, ok := openErrors["bpf_probe_read"].(map[string]uint64)
-	require.True(t, ok)
+		for _, label := range dtoMetric.GetLabel() {
+			switch label.GetName() {
+			case "helper":
+				if label.GetValue() == "bpf_probe_read" {
+					probeReadHelperFound = true
+				}
+			case "error":
+				if label.GetValue() == "EFAULT" {
+					efaultErrorFound = true
+				}
+			}
 
-	badAddressCnt, ok := probeReadErrors["EFAULT"]
-	require.True(t, ok)
-	assert.NotZero(t, badAddressCnt)
+			// make sure bpf_probe_read helper has an associated EFAULT error
+			if probeReadHelperFound {
+				require.True(t, efaultErrorFound)
+			}
+		}
+	}
+
+	// ensure test fails if helper metric not found
+	require.True(t, probeReadHelperFound)
 }
