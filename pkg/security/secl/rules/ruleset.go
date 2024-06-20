@@ -196,6 +196,7 @@ type RuleSet struct {
 	fieldEvaluators  map[string]eval.Evaluator
 	model            eval.Model
 	eventCtor        func() eval.Event
+	fakeEventCtor    func() eval.Event
 	listenersLock    sync.RWMutex
 	listeners        []RuleSetListener
 	globalVariables  eval.GlobalVariables
@@ -586,7 +587,7 @@ func (rs *RuleSet) GetEventApprovers(eventType eval.EventType, fieldCaps FieldCa
 		return nil, ErrNoEventTypeBucket{EventType: eventType}
 	}
 
-	return GetApprovers(bucket.rules, rs.eventCtor(), fieldCaps)
+	return GetApprovers(bucket.rules, rs.newFakeEvent(), fieldCaps)
 }
 
 // GetFieldValues returns all the values of the given field
@@ -849,6 +850,20 @@ func (rs *RuleSet) StopEventCollector() []CollectedEvent {
 // NewEvent returns a new event using the embedded constructor
 func (rs *RuleSet) NewEvent() eval.Event {
 	return rs.eventCtor()
+}
+
+// SetFakeEventCtor sets the fake event constructor to the provided callback
+func (rs *RuleSet) SetFakeEventCtor(fakeEventCtor func() eval.Event) {
+	rs.fakeEventCtor = fakeEventCtor
+}
+
+// newFakeEvent returns a new event using the embedded constructor for fake events
+func (rs *RuleSet) newFakeEvent() eval.Event {
+	if rs.fakeEventCtor != nil {
+		return rs.fakeEventCtor()
+	}
+
+	return model.NewFakeEvent()
 }
 
 // NewRuleSet returns a new ruleset for the specified data model
