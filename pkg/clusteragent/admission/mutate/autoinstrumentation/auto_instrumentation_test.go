@@ -2341,9 +2341,8 @@ func TestShouldInject(t *testing.T) {
 			webhook, errInitAPMInstrumentation := GetWebhook(wmeta)
 			require.NoError(t, errInitAPMInstrumentation)
 
-			if got := webhook.isPodEligible(tt.pod); got != tt.want {
-				t.Errorf("shouldInject() = %v, want %v", got, tt.want)
-			}
+			require.Equal(t, tt.want, ShouldInject(tt.pod, webhook.wmeta), "expected ShouldInject() to be %t", tt.want)
+			require.Equal(t, tt.want, webhook.isPodEligible(tt.pod), "expected webhook.isPodEligible() to be %t", tt.want)
 		})
 	}
 }
