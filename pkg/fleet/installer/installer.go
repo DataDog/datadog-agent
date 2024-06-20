@@ -135,6 +135,18 @@ func (i *installerImpl) Install(ctx context.Context, url string, args []string) 
 		span.SetTag(ext.ResourceName, pkg.Name)
 		span.SetTag("package_version", pkg.Version)
 	}
+
+	for _, dependency := range packageDependencies[pkg.Name] {
+		installed, err := i.IsInstalled(ctx, dependency)
+		if err != nil {
+			return fmt.Errorf("could not check if required package %s is installed: %w", dependency, err)
+		}
+		if !installed {
+			// TODO: we should resolve the dependency version & install it instead
+			return fmt.Errorf("required package %s is not installed", dependency)
+		}
+	}
+
 	dbPkg, err := i.db.GetPackage(pkg.Name)
 	if err != nil && !errors.Is(err, db.ErrPackageNotFound) {
 		return fmt.Errorf("could not get package: %w", err)

@@ -58,7 +58,7 @@ def python(ctx):
         ctx.run("ruff format .")
         ctx.run("ruff check --fix .")
 
-    ctx.run("vulture --ignore-decorators @task --ignore-names 'test_*,Test*' tasks")
+    ctx.run("vulture")
 
 
 @task
@@ -133,7 +133,7 @@ def go(
     build_exclude=None,
     rtloader_root=None,
     cpus=None,
-    timeout: int = None,
+    timeout: int | None = None,
     golangci_lint_kwargs="",
     headless_mode=False,
     include_sds=False,
