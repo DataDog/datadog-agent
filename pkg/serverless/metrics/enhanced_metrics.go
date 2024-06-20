@@ -305,9 +305,6 @@ func SendCPUEnhancedMetrics(userCPUOffsetMs, systemCPUOffsetMs float64, tags []s
 }
 
 func SendNetworkEnhancedMetrics(networkOffsetData *proc.NetworkData, tags []string, demux aggregator.Demultiplexer) {
-	if strings.ToLower(os.Getenv(enhancedMetricsEnvVar)) == "false" {
-		return
-	}
 	networkData, err := proc.GetNetworkData(proc.ProcNetDevPath)
 	if err != nil {
 		log.Debug("Could not emit network enhanced metrics")
@@ -337,6 +334,9 @@ type GenerateNetworkEnhancedMetricArgs struct {
 }
 
 func GenerateNetworkEnhancedMetrics(args GenerateNetworkEnhancedMetricArgs) {
+	if strings.ToLower(os.Getenv(enhancedMetricsEnvVar)) == "false" {
+		return
+	}
 	adjustedRxBytes := args.RxBytes - args.RxBytesOffset
 	adjustedTxBytes := args.TxBytes - args.TxBytesOffset
 	args.Demux.AggregateSample(metrics.MetricSample{
