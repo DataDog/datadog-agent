@@ -88,6 +88,7 @@ func SnapshotPermissionsForPaths(host *components.RemoteHost, paths []string) (m
 }
 
 // AssertDoesNotChangePathPermissions checks that the permissions on the paths in the snapshot are not changed
+// by comparing their SDDL strings
 func AssertDoesNotChangePathPermissions(t *testing.T, host *components.RemoteHost, beforeInstall map[string]string) {
 	t.Helper()
 	for path, sddl := range beforeInstall {
