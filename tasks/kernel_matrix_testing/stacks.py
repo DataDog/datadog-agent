@@ -117,7 +117,7 @@ def get_all_vms_in_stack(stack: PathOrStr):
     from tasks.kernel_matrix_testing.vmconfig import get_vmconfig
 
     data = get_vmconfig(f"{get_kmt_os().stacks_dir}/{stack}/{VMCONFIG}")
-    vms: list[str] = list()
+    vms: list[str] = []
 
     for vmset in data["vmsets"]:
         for kernel in vmset.get("kernels", []):
@@ -287,7 +287,7 @@ def destroy_ec2_instances(ctx: Context, stack: str):
         return
 
     infra = build_infrastructure(stack)
-    ips: list[str] = list()
+    ips: list[str] = []
     for arch, instance in infra.items():
         if arch != "local":
             ips.append(instance.ip)

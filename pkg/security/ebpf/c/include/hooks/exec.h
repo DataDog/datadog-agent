@@ -8,14 +8,19 @@
 #include "constants/fentry_macro.h"
 
 int __attribute__((always_inline)) trace__sys_execveat(ctx_t *ctx, const char *path, const char **argv, const char **env) {
+    // use the fist 56 bits of ktime to simulate a somewhat monotonic id
+    // the last 8 bits are the cpu id to avoid collisions between cores
+    // increment the id by 1 for the envs to have distinct ids (this assumes a new exec syscall cannot be issued in the next nanosecond)
+    u64 id = ((u64)bpf_get_smp_processor_id() << 56) | (bpf_ktime_get_ns() & 0xFFFFFFFFFFFFFF);
+
     struct syscall_cache_t syscall = {
         .type = EVENT_EXEC,
         .exec = {
             .args = {
-                .id = rand32(),
+                .id = id,
             },
             .envs = {
-                .id = rand32(),
+                .id = id + 1,
             } }
     };
     collect_syscall_ctx(&syscall, SYSCALL_CTX_ARG_STR(0), (void *)path, NULL, NULL);

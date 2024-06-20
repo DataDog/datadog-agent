@@ -67,3 +67,21 @@ deploy_staging_windows_tags-7:
       --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers
       full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
+# Datadog Installer
+deploy_datadog_installer_packages_windows-x64:
+  rules:
+    !reference [.on_deploy]
+  stage: deploy_packages
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/gitlab_agent_deploy$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["arch:amd64"]
+  needs: ["windows-installer-amd64"]
+  before_script:
+    - ls $OMNIBUS_PACKAGE_DIR
+  script:
+    - $S3_CP_CMD
+      --recursive
+      --exclude "*"
+      --include "datadog-installer-1-x86_64.msi"
+      --include "datadog-installer-*-1-x86_64.debug.zip"
+      --include "datadog-installer-*-1-x86_64.zip"
+      $OMNIBUS_PACKAGE_DIR $S3_RELEASE_ARTIFACTS_URI/msi/x86_64/

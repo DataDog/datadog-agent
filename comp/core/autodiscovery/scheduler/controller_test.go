@@ -68,9 +68,9 @@ func TestController(t *testing.T) {
 	// all configs are scheduled once and only once
 	assert.EventuallyWithTf(t, func(c *assert.CollectT) {
 		s1.mutex.Lock()
-		assert.ElementsMatch(t, []event{{true, "one"}, {true, "two"}}, s1.events)
+		assert.ElementsMatch(c, []event{{true, "one"}, {true, "two"}}, s1.events)
 		s1.mutex.Unlock()
-	}, 2*time.Second, 100*time.Millisecond, "Failed to process configs before timeout")
+	}, 5*time.Second, 100*time.Millisecond, "Failed to process configs before timeout")
 	assert.Neverf(t, func() bool {
 		s1.mutex.Lock()
 		defer s1.mutex.Unlock()
@@ -87,7 +87,7 @@ func TestController(t *testing.T) {
 		s1.mutex.Lock()
 		assert.ElementsMatch(c, []event{{false, "one"}, {true, "three"}}, s1.events)
 		s1.mutex.Unlock()
-	}, 2*time.Second, 100*time.Millisecond, "Failed to process configs before timeout")
+	}, 5*time.Second, 100*time.Millisecond, "Failed to process configs before timeout")
 	s1.reset()
 
 	// subscribe a new scheduler and see that it does not get c1
@@ -112,7 +112,7 @@ func TestController(t *testing.T) {
 
 	assert.EventuallyWithTf(t, func(c *assert.CollectT) {
 		s2.mutex.Lock()
-		assert.ElementsMatch(t, []event{{false, "two"}}, s2.events)
+		assert.ElementsMatch(c, []event{{false, "two"}}, s2.events)
 		s2.mutex.Unlock()
 	}, 5*time.Second, 100*time.Millisecond, "Failed to process configs before timeout")
 	s2.reset()

@@ -13,9 +13,11 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	wmdef "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
@@ -1027,53 +1029,6 @@ func TestGetKubernetesPodByName(t *testing.T) {
 	}
 }
 
-func TestListKubernetesNodes(t *testing.T) {
-	node := &wmdef.KubernetesNode{
-		EntityID: wmdef.EntityID{
-			Kind: wmdef.KindKubernetesNode,
-			ID:   "some-node",
-		},
-	}
-
-	tests := []struct {
-		name          string
-		preEvents     []wmdef.CollectorEvent
-		expectedNodes []*wmdef.KubernetesNode
-	}{
-		{
-			name: "some nodes stored",
-			preEvents: []wmdef.CollectorEvent{
-				{
-					Type:   wmdef.EventTypeSet,
-					Source: fooSource,
-					Entity: node,
-				},
-			},
-			expectedNodes: []*wmdef.KubernetesNode{node},
-		},
-		{
-			name:          "no nodes stored",
-			preEvents:     nil,
-			expectedNodes: []*wmdef.KubernetesNode{},
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			deps := fxutil.Test[dependencies](t, fx.Options(
-				logimpl.MockModule(),
-				config.MockModule(),
-				fx.Supply(wmdef.NewParams()),
-			))
-			s := newWorkloadmetaObject(deps)
-
-			s.handleEvents(test.preEvents)
-
-			assert.Equal(t, test.expectedNodes, s.ListKubernetesNodes())
-		})
-	}
-}
-
 func TestListImages(t *testing.T) {
 	image := &wmdef.ContainerImageMetadata{
 		EntityID: wmdef.EntityID{
@@ -1414,6 +1369,65 @@ func TestGetKubernetesMetadata(t *testing.T) {
 
 	_, err = s.GetKubernetesMetadata("deployments/default/app")
 	assert.True(t, errors.IsNotFound(err))
+}
+
+func TestListKubernetesMetadata(t *testing.T) {
+	deps := fxutil.Test[dependencies](t, fx.Options(
+		logimpl.MockModule(),
+		config.MockModule(),
+		fx.Supply(wmdef.NewParams()),
+	))
+
+	wmeta := newWorkloadmetaObject(deps)
+
+	nodeMetadata := wmdef.KubernetesMetadata{
+		EntityID: wmdef.EntityID{
+			Kind: wmdef.KindKubernetesMetadata,
+			ID:   string(util.GenerateKubeMetadataEntityID("nodes", "", "node1")),
+		},
+		EntityMeta: wmdef.EntityMeta{
+			Name:        "node1",
+			Annotations: map[string]string{"a1": "v1"},
+			Labels:      map[string]string{"l1": "v2"},
+		},
+		GVR: schema.GroupVersionResource{
+			Version:  "v1",
+			Resource: "nodes",
+		},
+	}
+
+	deploymentMetadata := wmdef.KubernetesMetadata{
+		EntityID: wmdef.EntityID{
+			Kind: wmdef.KindKubernetesMetadata,
+			ID:   "deployments/default/app",
+		},
+		EntityMeta: wmdef.EntityMeta{
+			Name:        "app",
+			Namespace:   "default",
+			Annotations: map[string]string{"a1": "v1"},
+			Labels:      map[string]string{"l1": "v2"},
+		},
+		GVR: schema.GroupVersionResource{
+			Group:    "apps",
+			Version:  "v1",
+			Resource: "deployments",
+		},
+	}
+
+	wmeta.handleEvents([]wmdef.CollectorEvent{
+		{
+			Type:   wmdef.EventTypeSet,
+			Source: fooSource,
+			Entity: &nodeMetadata,
+		},
+		{
+			Type:   wmdef.EventTypeSet,
+			Source: fooSource,
+			Entity: &deploymentMetadata,
+		},
+	})
+
+	assert.ElementsMatch(t, []*wmdef.KubernetesMetadata{&nodeMetadata}, wmeta.ListKubernetesMetadata(wmdef.IsNodeMetadata))
 }
 
 func TestReset(t *testing.T) {

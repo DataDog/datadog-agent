@@ -2,7 +2,7 @@ module github.com/DataDog/datadog-agent/comp/api/api/def
 
 go 1.21.0
 
-require go.uber.org/fx v1.22.0
+require go.uber.org/fx v1.18.2
 
 require (
 	go.uber.org/dig v1.17.1 // indirect
