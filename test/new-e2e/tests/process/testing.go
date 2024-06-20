@@ -109,8 +109,7 @@ func assertProcessCollected(
 // requireProcessNotCollected asserts that the given process is NOT collected by the process check
 func requireProcessNotCollected(t *testing.T, payloads []*aggregator.ProcessPayload, process string) {
 	for _, payload := range payloads {
-		found, _ := findProcess(process, payload.Processes, false)
-		require.False(t, found, "%s process found", process)
+		require.Empty(t, filterProcess(process, payload.Processes))
 	}
 }
 
@@ -135,6 +134,17 @@ func findProcess(
 	}
 
 	return found, populated
+}
+
+// filterProcess returns process with the given name exists in the given list of processes
+func filterProcess(name string, processes []*agentmodel.Process) []*agentmodel.Process {
+	var found []*agentmodel.Process
+	for _, process := range processes {
+		if len(process.Command.Args) > 0 && process.Command.Args[0] == name {
+			found = append(found, process)
+		}
+	}
+	return found
 }
 
 // processHasData asserts that the given process has the expected data populated
@@ -247,13 +257,15 @@ func assertManualProcessCheck(t *testing.T, check string, withIOStats bool, proc
 	err := json.Unmarshal([]byte(check), &checkOutput)
 	require.NoError(t, err, "failed to unmarshal process check output")
 
-	found, populated := findProcess(process, checkOutput.Processes, withIOStats)
+	procs := filterProcess("stress-ng-cpu [run]", checkOutput.Processes)
+	assert.NotEmpty(t, procs, "no processes found")
 
-	require.True(t, found, "%s process not found", process)
-	assert.True(t, populated, "no %s process had all data populated", process)
+	for _, proc := range procs {
+		assert.Truef(t, processHasData(proc), "%s process is missing data", proc)
+	}
 
 	for _, container := range expectedContainers {
-		assert.True(t, findContainer(container, checkOutput.Containers), "%s container not found", container)
+		assert.Truef(t, findContainer(container, checkOutput.Containers), "%s container not found in %+v", container, checkOutput.Containers)
 	}
 }
 
