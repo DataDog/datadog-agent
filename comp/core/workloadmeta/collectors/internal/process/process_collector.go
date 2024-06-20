@@ -36,34 +36,6 @@ type collector struct {
 	processDiffCh <-chan *processwlm.ProcessCacheDiff
 }
 
-// NewCollector returns a new docker collector provider and an error
-func NewCollector() (workloadmeta.CollectorProvider, error) {
-	return workloadmeta.CollectorProvider{
-		Collector: &collector{
-			id:      collectorID,
-			catalog: workloadmeta.NodeAgent,
-		},
-	}, nil
-}
-
-// GetFxOptions returns the FX framework options for the collector
-func GetFxOptions() fx.Option {
-	return fx.Provide(NewCollector)
-}
-
-func (c *collector) Start(ctx context.Context, store workloadmeta.Component) error {
-	if !config.Datadog().GetBool("language_detection.enabled") || flavor.GetFlavor() != flavor.DefaultAgent {
-		return errors.NewDisabled(componentName, "core agent language detection not enabled")
-	}
-
-	c.store = store
-	c.processDiffCh = processwlm.GetSharedWorkloadMetaExtractor(config.SystemProbe).ProcessCacheDiff()
-
-	go c.stream(ctx)
-
-	return nil
-}
-
 func collectorEventsFromProcessDiff(diff *processwlm.ProcessCacheDiff) []workloadmeta.CollectorEvent {
 	events := make([]workloadmeta.CollectorEvent, 0, len(diff.Creation)+len(diff.Deletion))
 
@@ -98,6 +70,34 @@ func collectorEventsFromProcessDiff(diff *processwlm.ProcessCacheDiff) []workloa
 	}
 
 	return events
+}
+
+// NewCollector returns a new docker collector provider and an error
+func NewCollector() (workloadmeta.CollectorProvider, error) {
+	return workloadmeta.CollectorProvider{
+		Collector: &collector{
+			id:      collectorID,
+			catalog: workloadmeta.NodeAgent,
+		},
+	}, nil
+}
+
+// GetFxOptions returns the FX framework options for the collector
+func GetFxOptions() fx.Option {
+	return fx.Provide(NewCollector)
+}
+
+func (c *collector) Start(ctx context.Context, store workloadmeta.Component) error {
+	if !config.Datadog().GetBool("language_detection.enabled") || flavor.GetFlavor() != flavor.DefaultAgent {
+		return errors.NewDisabled(componentName, "core agent language detection not enabled")
+	}
+
+	c.store = store
+	c.processDiffCh = processwlm.GetSharedWorkloadMetaExtractor(config.SystemProbe).ProcessCacheDiff()
+
+	go c.stream(ctx)
+
+	return nil
 }
 
 func (c *collector) stream(ctx context.Context) {
