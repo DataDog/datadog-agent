@@ -204,8 +204,6 @@ def send_message(ctx, notification_type="merge", print_to_stdout=False):
     Use the --print-to-stdout option to test this locally, without sending
     real slack messages.
     """
-    default_branch = os.environ["CI_DEFAULT_BRANCH"]
-    git_ref = os.environ["CI_COMMIT_REF_NAME"]
 
     try:
         failed_jobs = get_failed_jobs(PROJECT_NAME, os.environ["CI_PIPELINE_ID"])
@@ -254,6 +252,8 @@ def send_message(ctx, notification_type="merge", print_to_stdout=False):
             print(f"Would send to {channel}:\n{str(message)}")
         else:
             all_teams = channel == "#datadog-agent-pipelines"
+            default_branch = os.environ["CI_DEFAULT_BRANCH"]
+            git_ref = os.environ["CI_COMMIT_REF_NAME"]
             send_dm = not _should_send_message_to_channel(git_ref, default_branch) and all_teams
 
             if all_teams:
