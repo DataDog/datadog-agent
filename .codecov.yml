@@ -2,6 +2,9 @@
 # Codecov is still inaccurate for Go code coverage, so we disable comments for now.
 comment: false
 
+github_checks:
+    annotations: false
+
 # See https://docs.codecov.com/docs/coverage-configuration
 coverage:
   range: 20..100
