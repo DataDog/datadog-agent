@@ -90,9 +90,10 @@ class ConfigNodeList(list):
     """
 
     def __init__(self, *args, **kwargs) -> None:
+        super().__init__()
         self.extend(*args, **kwargs)
 
-    def __hash__(self) -> int:
+    def __hash__(self):
         return id(self)
 
 
@@ -106,9 +107,10 @@ class ConfigNodeDict(dict):
     """
 
     def __init__(self, *args, **kwargs) -> None:
+        super().__init__()
         self.update(*args, **kwargs)
 
-    def __hash__(self) -> int:
+    def __hash__(self):
         return id(self)
 
 
@@ -337,7 +339,6 @@ def read_content(file_path):
     """
     Read the content of a file, either from a local file or from an http endpoint
     """
-    content = None
     if file_path.startswith('http'):
         import requests
 
@@ -347,6 +348,7 @@ def read_content(file_path):
     else:
         with open(file_path) as f:
             content = f.read()
+
     return yaml.safe_load(content)
 
 
