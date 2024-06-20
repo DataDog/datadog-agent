@@ -3,28 +3,28 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-// Package impl implements the logs_from_integrations component interface
-package logs_from_integrationsimpl
+// Package impl implements the integrations component interface
+package integrations
 
 import (
-	logs_from_integrations "github.com/DataDog/datadog-agent/comp/logs/logs_from_integrations/def"
+	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 )
 
 type Requires struct {
 }
 
 type Provides struct {
-	Comp logs_from_integrations.Component
+	Comp integrations.Component
 }
 
 type logsintegration struct {
-	logChan chan logs_from_integrations.IntegrationLog
+	logChan chan integrations.IntegrationLog
 }
 
-// NewComponent creates a new logs_from_integrations component
+// NewComponent creates a new integrations component
 func NewComponent(reqs Requires) (Provides, error) {
 	logsInt := &logsintegration{
-		logChan: make(chan logs_from_integrations.IntegrationLog),
+		logChan: make(chan integrations.IntegrationLog),
 	}
 
 	provides := Provides{
@@ -35,7 +35,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 
 // SendLog sends a log to any subscribers
 func (li *logsintegration) SendLog(log, integrationID string) {
-	integrationLog := &logs_from_integrations.IntegrationLog{
+	integrationLog := &integrations.IntegrationLog{
 		Log:           log,
 		IntegrationID: integrationID,
 	}
@@ -45,6 +45,6 @@ func (li *logsintegration) SendLog(log, integrationID string) {
 }
 
 // Subscribe returns a channel that sends all logs sent from integrations
-func (li *logsintegration) Subscribe() chan logs_from_integrations.IntegrationLog {
+func (li *logsintegration) Subscribe() chan integrations.IntegrationLog {
 	return li.logChan
 }

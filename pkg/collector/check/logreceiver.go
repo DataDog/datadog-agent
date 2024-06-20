@@ -9,7 +9,7 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/DataDog/datadog-agent/comp/logs/logs_from_integrations/def"
+	"github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 )
 
 // checkContext holds a list of reference to different components used by Go and Python checks.
@@ -20,14 +20,14 @@ import (
 // of C to Go. This way python checks can submit metadata to inventorychecks through the 'SetCheckMetadata' python
 // method.
 type logReceiverContext struct {
-	lr logs_from_integrations.Component
+	lr integrations.Component
 }
 
 var logCtx logReceiverContext
 var logReceiverContextMutex = sync.Mutex{}
 
 // GetLogsReceiverContext returns a reference to the logs_receiver component for Python and Go checks to use.
-func GetLogsReceiverContext() (logs_from_integrations.Component, error) {
+func GetLogsReceiverContext() (integrations.Component, error) {
 	checkContextMutex.Lock()
 	defer checkContextMutex.Unlock()
 
@@ -39,7 +39,7 @@ func GetLogsReceiverContext() (logs_from_integrations.Component, error) {
 }
 
 // InitializeInventoryChecksContext set the reference to inventorychecks in checkContext
-func InitializeLogsReceiverContext(lr logs_from_integrations.Component) {
+func InitializeLogsReceiverContext(lr integrations.Component) {
 	logReceiverContextMutex.Lock()
 	defer logReceiverContextMutex.Unlock()
 

@@ -3,14 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-// Package logs_from_integrations the logs_from_integrations component for the
-// Datadog Agent
+// Package integrations the integrations component for the Datadog Agent
 //
-// The logs_from_integrations component is a basic interface for integrations to
-// send logs from one place to another. It has two faces: integrations can use
-// the SendLog() function to send logs, and consumers can use the Subscribe()
+// The integrations component is a basic interface for integrations to send logs
+// from one place to another. It has two faces: integrations can use the
+// SendLog() function to send logs, and consumers can use the Subscribe()
 // function to receive a channel that receives all the logs integrations send.
-package logs_from_integrations
+package integrations
 
 // team: agent-metrics-logs
 

@@ -25,7 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	flareController "github.com/DataDog/datadog-agent/comp/logs/agent/flare"
-	logsFromIntegrations "github.com/DataDog/datadog-agent/comp/logs/logs_from_integrations/def"
+	logsIntegrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	rctypes "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
 	pkgConfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -72,14 +72,14 @@ func Module() fxutil.Module {
 type dependencies struct {
 	fx.In
 
-	Lc                   fx.Lifecycle
-	Log                  logComponent.Component
-	Config               configComponent.Component
-	InventoryAgent       inventoryagent.Component
-	Hostname             hostname.Component
-	WMeta                optional.Option[workloadmeta.Component]
-	SchedulerProviders   []schedulers.Scheduler `group:"log-agent-scheduler"`
-	LogsFromIntegrations logsFromIntegrations.Component
+	Lc                 fx.Lifecycle
+	Log                logComponent.Component
+	Config             configComponent.Component
+	InventoryAgent     inventoryagent.Component
+	Hostname           hostname.Component
+	WMeta              optional.Option[workloadmeta.Component]
+	SchedulerProviders []schedulers.Scheduler `group:"log-agent-scheduler"`
+	logsIntegrations   logsIntegrations.Component
 }
 
 type provides struct {
