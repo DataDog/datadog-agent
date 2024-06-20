@@ -2,6 +2,7 @@
 #define __USM_EVENTS_H
 
 #include "protocols/events-types.h"
+#include "bpf_telemetry.h"
 #define _STR(x) #x
 
 /* USM_EVENTS_INIT defines two functions used for the purposes of buffering and sending
@@ -54,9 +55,9 @@
                 }                                                                                       \
                                                                                                         \
                 if (use_ring_buffer) {                                                                  \
-                    perf_ret = bpf_ringbuf_output(&name##_batch_events, batch, sizeof(batch_data_t), 0);\
+                    perf_ret = bpf_ringbuf_output_with_telemetry(&name##_batch_events, batch, sizeof(batch_data_t), 0);\
                 } else {                                                                                \
-                    perf_ret = bpf_perf_event_output(ctx,                                               \
+                    perf_ret = bpf_perf_event_output_with_telemetry(ctx,                                               \
                                                      &name##_batch_events,                              \
                                                      key.cpu,                                           \
                                                      batch,                                             \

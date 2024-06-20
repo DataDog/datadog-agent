@@ -16,7 +16,8 @@ typedef struct {
 #define read_kernel_indx 2
 #define skb_load_bytes 3
 #define perf_event_output 4
-#define MAX_TELEMETRY_INDX 5
+#define ringbuf_output 5
+#define MAX_TELEMETRY_INDX 6
 typedef struct {
     unsigned long err_count[MAX_TELEMETRY_INDX * T_MAX_ERRNO];
 } helper_err_telemetry_t;
