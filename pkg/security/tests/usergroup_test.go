@@ -142,7 +142,11 @@ func TestUserGroup(t *testing.T) {
 				i := 0
 				dockerWrapper.RunTest(t, testCommand.name, func(t *testing.T, kind wrapperType, cmdFunc func(bin string, args, env []string) *exec.Cmd) {
 					test.WaitSignals(t, func() error {
-						return cmdFunc(testCommand.cmd[0], testCommand.cmd[1:], nil).Run()
+						out, err := cmdFunc(testCommand.cmd[0], testCommand.cmd[1:], nil).CombinedOutput()
+						if err != nil {
+							t.Logf(string(out))
+						}
+						return err
 					}, func(event *model.Event, rule *rules.Rule) error {
 						assertTriggeredRule(t, rule, testCommand.rules[i])
 						i++
