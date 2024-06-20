@@ -49,7 +49,7 @@ func TestSecurityProfile(t *testing.T) {
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(testOpts{
 		enableActivityDump:                  true,
 		activityDumpRateLimiter:             200,
-		activityDumpTracedCgroupsCount:      3,
+		activityDumpTracedCgroupsCount:      testActivityDumpTracedCgroupsCount,
 		activityDumpDuration:                testActivityDumpDuration,
 		activityDumpLocalStorageDirectory:   outputDir,
 		activityDumpLocalStorageCompression: false,
@@ -69,6 +69,10 @@ func TestSecurityProfile(t *testing.T) {
 	}
 
 	t.Run("security-profile-metadata", func(t *testing.T) {
+		if err = test.StopAllActivityDumps(); err != nil {
+			t.Fatal(err)
+		}
+
 		dockerInstance, dump, err := test.StartADockerGetDump()
 		if err != nil {
 			t.Fatal(err)
@@ -122,6 +126,10 @@ func TestSecurityProfile(t *testing.T) {
 	})
 
 	t.Run("security-profile-process", func(t *testing.T) {
+		if err = test.StopAllActivityDumps(); err != nil {
+			t.Fatal(err)
+		}
+
 		dockerInstance, dump, err := test.StartADockerGetDump()
 		if err != nil {
 			t.Fatal(err)
@@ -160,6 +168,10 @@ func TestSecurityProfile(t *testing.T) {
 			// TODO: Oracle because we are missing offsets. See dns_test.go
 			return kv.IsRH7Kernel() || kv.IsOracleUEKKernel() || kv.IsSLESKernel()
 		})
+
+		if err = test.StopAllActivityDumps(); err != nil {
+			t.Fatal(err)
+		}
 
 		dockerInstance, dump, err := test.StartADockerGetDump()
 		if err != nil {
@@ -224,7 +236,7 @@ func TestAnomalyDetection(t *testing.T) {
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(testOpts{
 		enableActivityDump:                      true,
 		activityDumpRateLimiter:                 200,
-		activityDumpTracedCgroupsCount:          3,
+		activityDumpTracedCgroupsCount:          testActivityDumpTracedCgroupsCount,
 		activityDumpDuration:                    testActivityDumpDuration,
 		activityDumpLocalStorageDirectory:       outputDir,
 		activityDumpLocalStorageCompression:     false,
@@ -249,6 +261,10 @@ func TestAnomalyDetection(t *testing.T) {
 	}
 
 	t.Run("anomaly-detection-process", func(t *testing.T) {
+		if err = test.StopAllActivityDumps(); err != nil {
+			t.Fatal(err)
+		}
+
 		dockerInstance, dump, err := test.StartADockerGetDump()
 		if err != nil {
 			t.Fatal(err)
@@ -282,6 +298,10 @@ func TestAnomalyDetection(t *testing.T) {
 	})
 
 	t.Run("anomaly-detection-process-negative", func(t *testing.T) {
+		if err = test.StopAllActivityDumps(); err != nil {
+			t.Fatal(err)
+		}
+
 		dockerInstance, dump, err := test.StartADockerGetDump()
 		if err != nil {
 			t.Fatal(err)
@@ -317,6 +337,9 @@ func TestAnomalyDetection(t *testing.T) {
 			// TODO: Oracle because we are missing offsets. See dns_test.go
 			return kv.IsRH7Kernel() || kv.IsOracleUEKKernel() || kv.IsSLESKernel()
 		})
+		if err = test.StopAllActivityDumps(); err != nil {
+			t.Fatal(err)
+		}
 		dockerInstance, dump, err := test.StartADockerGetDump()
 		if err != nil {
 			t.Fatal(err)
@@ -354,6 +377,9 @@ func TestAnomalyDetection(t *testing.T) {
 			// TODO: Oracle because we are missing offsets. See dns_test.go
 			return kv.IsRH7Kernel() || kv.IsOracleUEKKernel() || kv.IsSLESKernel()
 		})
+		if err = test.StopAllActivityDumps(); err != nil {
+			t.Fatal(err)
+		}
 		dockerInstance, dump, err := test.StartADockerGetDump()
 		if err != nil {
 			t.Fatal(err)
@@ -408,7 +434,7 @@ func TestAnomalyDetectionWarmup(t *testing.T) {
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(testOpts{
 		enableActivityDump:                      true,
 		activityDumpRateLimiter:                 200,
-		activityDumpTracedCgroupsCount:          3,
+		activityDumpTracedCgroupsCount:          testActivityDumpTracedCgroupsCount,
 		activityDumpDuration:                    testActivityDumpDuration,
 		activityDumpLocalStorageDirectory:       outputDir,
 		activityDumpLocalStorageCompression:     false,
@@ -581,7 +607,7 @@ func TestSecurityProfileReinsertionPeriod(t *testing.T) {
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(testOpts{
 		enableActivityDump:                      true,
 		activityDumpRateLimiter:                 200,
-		activityDumpTracedCgroupsCount:          3,
+		activityDumpTracedCgroupsCount:          testActivityDumpTracedCgroupsCount,
 		activityDumpDuration:                    testActivityDumpDuration,
 		activityDumpLocalStorageDirectory:       outputDir,
 		activityDumpLocalStorageCompression:     false,
@@ -606,6 +632,10 @@ func TestSecurityProfileReinsertionPeriod(t *testing.T) {
 	}
 
 	t.Run("anomaly-detection-reinsertion-process", func(t *testing.T) {
+		if err = test.StopAllActivityDumps(); err != nil {
+			t.Fatal(err)
+		}
+
 		dockerInstance, dump, err := test.StartADockerGetDump()
 		if err != nil {
 			t.Fatal(err)
@@ -640,6 +670,9 @@ func TestSecurityProfileReinsertionPeriod(t *testing.T) {
 			// TODO: Oracle because we are missing offsets. See dns_test.go
 			return kv.IsRH7Kernel() || kv.IsOracleUEKKernel() || kv.IsSLESKernel()
 		})
+		if err = test.StopAllActivityDumps(); err != nil {
+			t.Fatal(err)
+		}
 		dockerInstance, dump, err := test.StartADockerGetDump()
 		if err != nil {
 			t.Fatal(err)
@@ -670,6 +703,9 @@ func TestSecurityProfileReinsertionPeriod(t *testing.T) {
 	})
 
 	t.Run("anomaly-detection-stable-period-process", func(t *testing.T) {
+		if err = test.StopAllActivityDumps(); err != nil {
+			t.Fatal(err)
+		}
 		dockerInstance, dump, err := test.StartADockerGetDump()
 		if err != nil {
 			t.Fatal(err)
@@ -708,6 +744,9 @@ func TestSecurityProfileReinsertionPeriod(t *testing.T) {
 			// TODO: Oracle because we are missing offsets. See dns_test.go
 			return kv.IsRH7Kernel() || kv.IsOracleUEKKernel() || kv.IsSLESKernel()
 		})
+		if err = test.StopAllActivityDumps(); err != nil {
+			t.Fatal(err)
+		}
 		dockerInstance, dump, err := test.StartADockerGetDump()
 		if err != nil {
 			t.Fatal(err)
@@ -789,7 +828,7 @@ func TestSecurityProfileAutoSuppression(t *testing.T) {
 	test, err := newTestModule(t, nil, rulesDef, withStaticOpts(testOpts{
 		enableActivityDump:                      true,
 		activityDumpRateLimiter:                 200,
-		activityDumpTracedCgroupsCount:          3,
+		activityDumpTracedCgroupsCount:          testActivityDumpTracedCgroupsCount,
 		activityDumpDuration:                    testActivityDumpDuration,
 		activityDumpLocalStorageDirectory:       outputDir,
 		activityDumpLocalStorageCompression:     false,
@@ -810,6 +849,10 @@ func TestSecurityProfileAutoSuppression(t *testing.T) {
 	defer test.Close()
 	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
 	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err = test.StopAllActivityDumps(); err != nil {
 		t.Fatal(err)
 	}
 
@@ -957,7 +1000,7 @@ func TestSecurityProfileDifferentiateArgs(t *testing.T) {
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(testOpts{
 		enableActivityDump:                      true,
 		activityDumpRateLimiter:                 200,
-		activityDumpTracedCgroupsCount:          3,
+		activityDumpTracedCgroupsCount:          testActivityDumpTracedCgroupsCount,
 		activityDumpCgroupDifferentiateArgs:     true,
 		activityDumpDuration:                    testActivityDumpDuration,
 		activityDumpLocalStorageDirectory:       outputDir,
@@ -977,6 +1020,10 @@ func TestSecurityProfileDifferentiateArgs(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer test.Close()
+
+	if err = test.StopAllActivityDumps(); err != nil {
+		t.Fatal(err)
+	}
 
 	dockerInstance, dump, err := test.StartADockerGetDump()
 	if err != nil {
@@ -1092,6 +1139,10 @@ func TestSecurityProfileLifeCycleExecs(t *testing.T) {
 	defer test.Close()
 	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
 	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err = test.StopAllActivityDumps(); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1277,6 +1328,10 @@ func TestSecurityProfileLifeCycleDNS(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	if err = test.StopAllActivityDumps(); err != nil {
+		t.Fatal(err)
+	}
+
 	dockerInstanceV1, err := test.StartADocker()
 	if err != nil {
 		t.Fatal(err)
@@ -1457,6 +1512,10 @@ func TestSecurityProfileLifeCycleEvictitonProcess(t *testing.T) {
 	defer test.Close()
 	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
 	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err = test.StopAllActivityDumps(); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1657,6 +1716,10 @@ func TestSecurityProfileLifeCycleEvictitonDNS(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	if err = test.StopAllActivityDumps(); err != nil {
+		t.Fatal(err)
+	}
+
 	dockerInstanceV1, err := test.StartADocker()
 	if err != nil {
 		t.Fatal(err)
@@ -1853,6 +1916,10 @@ func TestSecurityProfileLifeCycleEvictitonProcessUnstable(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	if err = test.StopAllActivityDumps(); err != nil {
+		t.Fatal(err)
+	}
+
 	dockerInstanceV1, err := test.StartADocker()
 	if err != nil {
 		t.Fatal(err)
@@ -2027,7 +2094,7 @@ func TestSecurityProfilePersistence(t *testing.T) {
 	test, err := newTestModule(t, nil, rulesDef, withStaticOpts(testOpts{
 		enableActivityDump:                      true,
 		activityDumpRateLimiter:                 200,
-		activityDumpTracedCgroupsCount:          3,
+		activityDumpTracedCgroupsCount:          testActivityDumpTracedCgroupsCount,
 		activityDumpDuration:                    testActivityDumpDuration,
 		activityDumpLocalStorageDirectory:       outputDir,
 		activityDumpLocalStorageCompression:     false,

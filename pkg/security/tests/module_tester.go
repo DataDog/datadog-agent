@@ -687,7 +687,7 @@ func genTestConfigs(cfgDir string, opts testOpts) (*emconfig.Config, *secconfig.
 	}
 
 	if opts.activityDumpTracedCgroupsCount == 0 {
-		opts.activityDumpTracedCgroupsCount = 5
+		opts.activityDumpTracedCgroupsCount = testActivityDumpTracedCgroupsCount
 	}
 
 	if opts.activityDumpDuration == 0 {
