@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/serverless/proc"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
@@ -533,7 +534,7 @@ func TestGenerateNetworkEnhancedMetrics(t *testing.T) {
 		Demux:         demux,
 		Time:          now,
 	}
-	go GenerateNetworkEnhancedMetrics(args)
+	go generateNetworkEnhancedMetrics(args)
 	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(4, 0, 100*time.Millisecond)
 	assert.Equal(t, []metrics.MetricSample{
 		{
@@ -571,17 +572,20 @@ func TestNetworkEnhancedMetricsDisabled(t *testing.T) {
 	demux := createDemultiplexer(t)
 	tags := []string{"functionname:test-function"}
 
-	now := float64(time.Now().UnixNano()) / float64(time.Second)
-	args := GenerateNetworkEnhancedMetricArgs{
-		RxBytesOffset: 10,
-		RxBytes:       100,
-		TxBytesOffset: 20,
-		TxBytes:       50,
-		Tags:          tags,
-		Demux:         demux,
-		Time:          now,
-	}
-	go GenerateNetworkEnhancedMetrics(args)
+	go SendNetworkEnhancedMetrics(&proc.NetworkData{}, tags, demux)
+
+	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(1, 0, 100*time.Millisecond)
+
+	assert.Len(t, generatedMetrics, 0)
+	assert.Len(t, timedMetrics, 0)
+
+}
+
+func TestNetworkEnhancedMetricsCollectionError(t *testing.T) {
+	demux := createDemultiplexer(t)
+	tags := []string{"functionname:test-function"}
+
+	go SendNetworkEnhancedMetrics(&proc.NetworkData{}, tags, demux)
 
 	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(1, 0, 100*time.Millisecond)
 

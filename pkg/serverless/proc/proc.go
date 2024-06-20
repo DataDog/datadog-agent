@@ -143,7 +143,7 @@ func GetNetworkData(path string) (*NetworkData, error) {
 			&rxCompressed, &rxMulticast, &txBytes, &txPackets, &txErrs, &txDrop, &txFifo, &txColls, &txCarrier,
 			&txCompressed)
 		if errors.Is(err, io.EOF) {
-			return nil, err
+			return nil, errors.New(fmt.Sprintf("network data not found in file '%s'", path))
 		}
 		if err == nil && strings.HasPrefix(interfaceName, lambdaNetworkInterface) {
 			return &NetworkData{
