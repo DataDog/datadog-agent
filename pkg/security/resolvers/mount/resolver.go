@@ -61,6 +61,10 @@ func newMountFromMountInfo(mnt *mountinfo.Info) *model.Mount {
 		if subvol != "" {
 			root = strings.TrimPrefix(root, subvol)
 		}
+
+		if root == "" {
+			root = "/"
+		}
 	}
 
 	// create a Mount out of the parsed MountInfo
