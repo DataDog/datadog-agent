@@ -54,8 +54,8 @@ func (m *MockSecretResolver) SetFetchHookFunc(f func([]string) (map[string]strin
 	m.fetchHookFunc = f
 }
 
-// NewMock returns a MockSecretResolver
-func NewMock(testDeps testDeps) MockProvides {
+// newMock returns a MockSecretResolver
+func newMock(testDeps testDeps) MockProvides {
 	r := &MockSecretResolver{
 		secretResolver: newEnabledSecretResolver(testDeps.Telemetry),
 	}
@@ -69,5 +69,5 @@ func NewMock(testDeps testDeps) MockProvides {
 // MockModule is a module containing the mock, useful for testing
 func MockModule() fxutil.Module {
 	return fxutil.Component(
-		fx.Provide(NewMock))
+		fx.Provide(newMock))
 }
