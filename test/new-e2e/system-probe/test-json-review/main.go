@@ -16,6 +16,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"reflect"
 	"strings"
 	"time"
 
@@ -102,7 +103,7 @@ func reviewTestsReaders(jf io.Reader, ff io.Reader) (*reviewOutput, error) {
 	var failedTests, flakyTests, rerunTests strings.Builder
 	var kf *flake.KnownFlakyTests
 	var err error
-	if ff != nil {
+	if ff != nil && !reflect.ValueOf(ff).IsNil() {
 		kf, err = flake.Parse(ff)
 		if err != nil {
 			return nil, fmt.Errorf("parse flakes.yaml: %s", err)
