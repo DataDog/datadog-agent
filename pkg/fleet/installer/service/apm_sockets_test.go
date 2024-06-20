@@ -29,8 +29,8 @@ func TestSetSocketEnvs(t *testing.T) {
 			name:  "file doesn't exist",
 			input: "",
 			expected: map[string]string{
-				"DD_APM_RECEIVER_SOCKET": "/var/run/datadog-installer/apm.socket",
-				"DD_DOGSTATSD_SOCKET":    "/var/run/datadog-installer/dsd.socket",
+				"DD_APM_RECEIVER_SOCKET": "/var/run/datadog/apm.socket",
+				"DD_DOGSTATSD_SOCKET":    "/var/run/datadog/dsd.socket",
 				"DD_USE_DOGSTATSD":       "true",
 			},
 		},
@@ -38,8 +38,8 @@ func TestSetSocketEnvs(t *testing.T) {
 			name:  "keep other envs - missing newline",
 			input: "banana=true",
 			expected: map[string]string{
-				"DD_APM_RECEIVER_SOCKET": "/var/run/datadog-installer/apm.socket",
-				"DD_DOGSTATSD_SOCKET":    "/var/run/datadog-installer/dsd.socket",
+				"DD_APM_RECEIVER_SOCKET": "/var/run/datadog/apm.socket",
+				"DD_DOGSTATSD_SOCKET":    "/var/run/datadog/dsd.socket",
 				"DD_USE_DOGSTATSD":       "true",
 				"banana":                 "true",
 			},
@@ -48,8 +48,8 @@ func TestSetSocketEnvs(t *testing.T) {
 			name:  "keep envs - with newline",
 			input: "apple=false\nat=home\n",
 			expected: map[string]string{
-				"DD_APM_RECEIVER_SOCKET": "/var/run/datadog-installer/apm.socket",
-				"DD_DOGSTATSD_SOCKET":    "/var/run/datadog-installer/dsd.socket",
+				"DD_APM_RECEIVER_SOCKET": "/var/run/datadog/apm.socket",
+				"DD_DOGSTATSD_SOCKET":    "/var/run/datadog/dsd.socket",
 				"DD_USE_DOGSTATSD":       "true",
 				"apple":                  "false",
 				"at":                     "home",
@@ -60,7 +60,7 @@ func TestSetSocketEnvs(t *testing.T) {
 			input: "DD_APM_RECEIVER_SOCKET=/tmp/apm.socket",
 			expected: map[string]string{
 				"DD_APM_RECEIVER_SOCKET": "/tmp/apm.socket",
-				"DD_DOGSTATSD_SOCKET":    "/var/run/datadog-installer/dsd.socket",
+				"DD_DOGSTATSD_SOCKET":    "/var/run/datadog/dsd.socket",
 				"DD_USE_DOGSTATSD":       "true",
 			},
 		},
