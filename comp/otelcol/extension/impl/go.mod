@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/comp/otelcol/extension/impl
 
-go 1.21.7
+go 1.21.0
 
 require (
 	github.com/DataDog/datadog-agent/comp/otelcol/converter/def v0.55.0-rc.1
