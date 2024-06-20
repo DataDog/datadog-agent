@@ -80,7 +80,7 @@ func TestSendAggregations(t *testing.T) {
 
 	for _, testInstance := range tests {
 		t.Run(testInstance.name, func(t *testing.T) {
-			f := NewFactory(nil, nil, nil)
+			f := NewFactory(nil, nil, nil, nil)
 			cfg := f.CreateDefaultConfig().(*Config)
 			err := component.UnmarshalConfig(testInstance.cfgMap, cfg)
 			if err != nil || testInstance.err != "" {
