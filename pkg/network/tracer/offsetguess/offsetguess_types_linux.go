@@ -101,6 +101,7 @@ const (
 	GuessDPort     GuessWhat = 0x4
 	GuessNetNS     GuessWhat = 0x5
 	GuessRTT       GuessWhat = 0x6
+	GuessRTTVar    GuessWhat = 0x18
 	GuessDAddrIPv6 GuessWhat = 0x7
 
 	GuessSAddrFl4 GuessWhat = 0x8

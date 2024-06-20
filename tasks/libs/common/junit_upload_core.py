@@ -16,7 +16,7 @@ from invoke.exceptions import Exit
 
 from tasks.flavor import AgentFlavor
 from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
-from tasks.libs.common.utils import collapsed_section
+from tasks.libs.common.utils import gitlab_section
 from tasks.libs.pipeline.notifications import (
     DEFAULT_JIRA_PROJECT,
     DEFAULT_SLACK_CHANNEL,
@@ -76,7 +76,10 @@ def junit_upload_from_tgz(junit_tgz, codeowners_path=".github/CODEOWNERS"):
     flaky_tests = get_flaky_from_test_output()
     junit_tgz = find_tarball(junit_tgz)
 
-    with collapsed_section(f"Uploading JUnit files for {junit_tgz}"), tempfile.TemporaryDirectory() as unpack_dir:
+    with (
+        gitlab_section(f"Uploading JUnit files for {junit_tgz}", collapsed=True),
+        tempfile.TemporaryDirectory() as unpack_dir,
+    ):
         working_dir = Path(unpack_dir)
         # unpack all files from archive
         with tarfile.open(junit_tgz) as tgz:
