@@ -24,6 +24,7 @@ import (
 	corelog "github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	collectorcontrib "github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def"
 	collector "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
@@ -60,6 +61,7 @@ type Requires struct {
 	LogsAgent        optional.Option[logsagentpipeline.Component]
 	SourceProvider   serializerexporter.SourceProviderFunc
 	Tagger           tagger.Component
+	Statsd           statsd.Component
 	URIs             []string
 }
 
@@ -98,10 +100,14 @@ func NewComponent(reqs Requires) (Provides, error) {
 			if err != nil {
 				return otelcol.Factories{}, err
 			}
+			mclient, err := reqs.Statsd.Get()
+			if err != nil {
+				return otelcol.Factories{}, err
+			}
 			if v, ok := reqs.LogsAgent.Get(); ok {
-				factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(reqs.TraceAgent, reqs.Serializer, v, reqs.SourceProvider)
+				factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(reqs.TraceAgent, reqs.Serializer, v, reqs.SourceProvider, mclient)
 			} else {
-				factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(reqs.TraceAgent, reqs.Serializer, nil, reqs.SourceProvider)
+				factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(reqs.TraceAgent, reqs.Serializer, nil, reqs.SourceProvider, mclient)
 			}
 			factories.Processors[infraattributesprocessor.Type] = infraattributesprocessor.NewFactory(reqs.Tagger)
 			return factories, nil
