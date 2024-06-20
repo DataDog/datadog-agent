@@ -7,6 +7,7 @@ package utils
 
 import (
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
 
 // GetConfiguredTags returns list of tags from a configuration, based on
@@ -25,6 +26,10 @@ func GetConfiguredTags(c pkgconfigmodel.Reader, includeDogstatsd bool) []string 
 	combined = append(combined, tags...)
 	combined = append(combined, extraTags...)
 	combined = append(combined, dsdTags...)
+
+	if flavor.GetFlavor() == flavor.ClusterAgent {
+		combined = append(combined, c.GetStringSlice("cluster_checks.extra_tags")...)
+	}
 
 	return combined
 }
