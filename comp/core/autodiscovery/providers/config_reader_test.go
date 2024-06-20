@@ -43,7 +43,7 @@ func TestGetIntegrationConfig(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, len(config.Instances), 1)
 
-	// valid yaml, invalid configuration file
+	// valid yaml, instances array is null
 	config, err = GetIntegrationConfigFromFile("foo", "tests/null_instances.yaml")
 	assert.NotNil(t, err)
 	assert.Equal(t, len(config.Instances), 0)
