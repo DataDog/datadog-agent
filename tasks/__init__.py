@@ -14,6 +14,7 @@ from tasks import (
     cluster_agent,
     cluster_agent_cloudfoundry,
     components,
+    coverage,
     cws_instrumentation,
     devcontainer,
     diff,
@@ -54,7 +55,6 @@ from tasks import (
     vscode,
 )
 from tasks.build_tags import audit_tag_impact, print_default_build_tags
-from tasks.codecov import apply_missing_coverage, codecov, upload_coverage_to_s3
 from tasks.components import lint_components, lint_fxutil_oneshot_test
 from tasks.custom_task.custom_task import custom__call__
 from tasks.fuzz import fuzz
@@ -105,9 +105,6 @@ ns = Collection()
 
 # add single tasks to the root
 ns.add_task(test)
-ns.add_task(codecov)
-ns.add_task(upload_coverage_to_s3)
-ns.add_task(apply_missing_coverage)
 ns.add_task(integration_tests)
 ns.add_task(deps)
 ns.add_task(deps_vendored)
@@ -153,6 +150,7 @@ ns.add_collection(buildimages)
 ns.add_collection(cluster_agent)
 ns.add_collection(cluster_agent_cloudfoundry)
 ns.add_collection(components)
+ns.add_collection(coverage)
 ns.add_collection(docs)
 ns.add_collection(bench)
 ns.add_collection(trace_agent)
