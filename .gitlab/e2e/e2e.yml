@@ -302,6 +302,18 @@ new-e2e-npm-eks:
     EXTRA_PARAMS: --run "TestEKSVMSuite"
     E2E_PRE_INITIALIZED: "true"
 
+new-e2e-npm-eks-no-init:
+  extends: .new_e2e_template
+  rules:
+    - !reference [.on_npm_or_e2e_changes]
+    - !reference [.manual]
+  needs:
+    - qa_agent
+  variables:
+    TARGETS: ./tests/npm
+    TEAM: network-performance-monitoring
+    EXTRA_PARAMS: --run "TestEKSVMSuite"
+
 new-e2e-aml:
   extends: .new_e2e_template
   needs:
