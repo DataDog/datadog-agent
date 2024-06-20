@@ -38,6 +38,13 @@ func GetLogsReceiver() (integrations.Component, error) {
 	return logRcv.lr, nil
 }
 
+func LogsReceiverSendLog(log, logID string) {
+	logReceiverMutex.Lock()
+	logReceiverMutex.Unlock()
+
+	logRcv.lr.SendLog(log, logID)
+}
+
 // InitializeLogsReceiver
 func InitializeLogsReceiver(lr integrations.Component) {
 	logReceiverMutex.Lock()
