@@ -1255,8 +1255,8 @@ func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
 	}
 }
 
-func TestKafkaFetchRaw(t *testing.T) {
-	skipTestIfKernelNotSupported(t)
+func (s *KafkaProtocolParsingSuite) TestKafkaFetchRaw() {
+	t := s.T()
 	versions := []int{4, 5, 7, 11, 12}
 
 	t.Run("without TLS", func(t *testing.T) {
