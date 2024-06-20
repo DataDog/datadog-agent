@@ -51,6 +51,7 @@ import (
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	processstatsd "github.com/DataDog/datadog-agent/pkg/process/statsd"
 	ddruntime "github.com/DataDog/datadog-agent/pkg/runtime"
@@ -337,6 +338,7 @@ func startSystemProbe(log log.Component, statsd compstatsd.Component, telemetry 
 			if pc := ebpftelemetry.NewPerfUsageCollector(); pc != nil {
 				telemetry.RegisterCollector(pc)
 			}
+			telemetry.RegisterCollector(ddebpf.NewLockContentionCollector())
 		}
 		go func() {
 			common.ExpvarServer = &http.Server{

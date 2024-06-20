@@ -452,6 +452,10 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 			pm.TelemetryEnabled = true
 			ebpftelemetry.ReportPerfMapTelemetry(pm)
 		}
+		for _, rb := range e.RingBuffers {
+			rb.TelemetryEnabled = true
+			ebpftelemetry.ReportRingBufferTelemetry(rb)
+		}
 	}
 
 	// Add excluded functions from disabled protocols

@@ -780,6 +780,9 @@ func (o KubernetesPodOwner) String(verbose bool) string {
 	return sb.String()
 }
 
+// KubeMetadataEntityID is a unique ID for Kube Metadata Entity
+type KubeMetadataEntityID string
+
 // KubernetesMetadata is an Entity representing kubernetes resource metadata
 type KubernetesMetadata struct {
 	EntityID

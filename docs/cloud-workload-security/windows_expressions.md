@@ -14,6 +14,17 @@ further_reading:
 ## Windows Agent attributes and helpers
 This documentation describes Windows attributes and helpers of the [Datadog's Security Language (SECL)][1].
 
+Rules using Windows attributes and helpers must include an OS rule filter field as follows.
+
+
+{{< code-block lang="yaml" >}}
+id: [...]
+expression: [...]
+filters:
+  - os == "windows"
+
+{{< /code-block >}}
+
 ## Triggers
 Triggers are events that correspond to types of activity seen by the system. The currently supported set of triggers is:
 
@@ -57,6 +68,7 @@ List of the available variables:
 | [`container.created_at`](#container-created_at-doc) | Timestamp of the creation of the container |
 | [`container.id`](#container-id-doc) | ID of the container |
 | [`container.tags`](#container-tags-doc) | Tags of the container |
+| [`event.hostname`](#event-hostname-doc) | Hostname associated with the event |
 | [`event.origin`](#event-origin-doc) | Origin of the event |
 | [`event.os`](#event-os-doc) | Operating system of the event |
 | [`event.service`](#event-service-doc) | Service associated with the event |
@@ -577,6 +589,13 @@ Definition: ID of the container
 Type: string
 
 Definition: Tags of the container
+
+
+
+### `event.hostname` {#event-hostname-doc}
+Type: string
+
+Definition: Hostname associated with the event
 
 
 

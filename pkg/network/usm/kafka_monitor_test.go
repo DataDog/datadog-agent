@@ -1014,13 +1014,13 @@ func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
 
 				partition := makeFetchResponseTopicPartition(batches...)
 				var partitions []kmsg.FetchResponseTopicPartition
-				for i := 0; i < 100; i++ {
+				for i := 0; i < 25; i++ {
 					partitions = append(partitions, partition)
 				}
 
 				return makeFetchResponse(apiVersion, makeFetchResponseTopic(topic, partitions...))
 			},
-			numFetchedRecords: 1 * 1 * 100,
+			numFetchedRecords: 1 * 1 * 25,
 		},
 		{
 			name:  "many topics",

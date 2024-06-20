@@ -175,7 +175,7 @@ jobs:
 
             </details>
 
-            <details open>
+            <details>
             <summary>Benchmark stats</summary>
 
             ```
