@@ -239,6 +239,7 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_done, struct sock *sk) {
         cleanup_conn(ctx, &t, sk);
     } else {
         bpf_map_delete_elem(&conn_close_flushed, &t);
+        increment_telemetry_count(double_flush_attempts_done);
     }
 
     flush_tcp_failure(ctx, &t, err);
