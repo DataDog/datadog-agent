@@ -268,6 +268,7 @@ DEFAULT_MODULES = {
         targets=["./pkg/runner", "./pkg/utils/e2e/client"],
         lint_targets=[".", "./examples"],  # need to explictly list "examples", otherwise it is skipped
     ),
+    "tools/retry_file_dump": GoModule("tools/retry_file_dump", condition=lambda: False, should_tag=False),
 }
 
 MAIN_TEMPLATE = """package main
