@@ -16,7 +16,6 @@ import (
 	"io"
 	"log"
 	"os"
-	"reflect"
 	"strings"
 	"time"
 
@@ -88,7 +87,7 @@ func reviewTests(jsonFile string, flakyFile string) (*reviewOutput, error) {
 	}
 	defer jf.Close()
 
-	var ff *os.File
+	var ff io.ReadCloser
 	if flakyFile != "" {
 		ff, err = os.Open(flakyFile)
 		if err != nil {
@@ -103,7 +102,7 @@ func reviewTestsReaders(jf io.Reader, ff io.Reader) (*reviewOutput, error) {
 	var failedTests, flakyTests, rerunTests strings.Builder
 	var kf *flake.KnownFlakyTests
 	var err error
-	if ff != nil && !reflect.ValueOf(ff).IsNil() {
+	if ff != nil {
 		kf, err = flake.Parse(ff)
 		if err != nil {
 			return nil, fmt.Errorf("parse flakes.yaml: %s", err)
