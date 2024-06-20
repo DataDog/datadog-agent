@@ -19,39 +19,39 @@ import (
 // This also allows Go function exported to CPython to recover there reference to different components when coming out
 // of C to Go. This way python checks can submit metadata to inventorychecks through the 'SetCheckMetadata' python
 // method.
-type logReceiverContext struct {
+type logReceiver struct {
 	lr integrations.Component
 }
 
-var logCtx logReceiverContext
-var logReceiverContextMutex = sync.Mutex{}
+var logRcv logReceiver
+var logReceiverMutex = sync.Mutex{}
 
-// GetLogsReceiverContext returns a reference to the logs_receiver component for Python and Go checks to use.
-func GetLogsReceiverContext() (integrations.Component, error) {
-	checkContextMutex.Lock()
-	defer checkContextMutex.Unlock()
+// GetLogsReceiver returns a reference to the logs_receiver component for Python and Go checks to use.
+func GetLogsReceiver() (integrations.Component, error) {
+	logReceiverMutex.Lock()
+	defer logReceiverMutex.Unlock()
 
-	if logCtx.lr == nil {
+	if logRcv.lr == nil {
 		return nil, errors.New("logsReciever context was not set")
 	}
 
-	return logCtx.lr, nil
+	return logRcv.lr, nil
 }
 
-// InitializeInventoryChecksContext set the reference to inventorychecks in checkContext
-func InitializeLogsReceiverContext(lr integrations.Component) {
-	logReceiverContextMutex.Lock()
-	defer logReceiverContextMutex.Unlock()
+// InitializeLogsReceiver
+func InitializeLogsReceiver(lr integrations.Component) {
+	logReceiverMutex.Lock()
+	defer logReceiverMutex.Unlock()
 
-	if logCtx.lr == nil {
-		logCtx.lr = lr
+	if logRcv.lr == nil {
+		logRcv.lr = lr
 	}
 }
 
-// ReleaseContext reset to nil all the references hold by the current context
-func ReleaseLogReceiverContext() {
-	logReceiverContextMutex.Lock()
-	defer logReceiverContextMutex.Unlock()
+// ReleaseLogReceiver resets to the log receiver to nil
+func ReleaseLogReceiver() {
+	logReceiverMutex.Lock()
+	defer logReceiverMutex.Unlock()
 
-	logCtx.lr = nil
+	logRcv.lr = nil
 }

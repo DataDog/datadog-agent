@@ -96,6 +96,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs"
 	"github.com/DataDog/datadog-agent/comp/logs/adscheduler/adschedulerimpl"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
+	logsIntegration "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/comp/metadata"
 	"github.com/DataDog/datadog-agent/comp/metadata/host"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
@@ -232,6 +233,7 @@ func run(log log.Component,
 	_ inventoryhost.Component,
 	_ inventoryotel.Component,
 	_ secrets.Component,
+	logsReceiver logsIntegration.Component
 	invChecks inventorychecks.Component,
 	_ netflowServer.Component,
 	_ snmptrapsServer.Component,
@@ -588,6 +590,7 @@ func startAgent(
 
 	// TODO: (components) - Until the checks are components we set there context so they can depends on components.
 	check.InitializeInventoryChecksContext(invChecks)
+	check.InitializeLogsReceiver(logsIntegration)
 
 	// Init JMX runner and inject dogstatsd component
 	jmxfetch.InitRunner(server, jmxLogger)
