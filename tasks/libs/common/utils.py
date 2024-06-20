@@ -118,7 +118,7 @@ def get_distro():
         with open('/etc/os-release', encoding="utf-8") as f:
             for line in f:
                 if line.startswith('ID='):
-                    system = line.strip()[3:]
+                    system = line.strip()[3:].replace('"', '')
                     break
     return f"{system}_{arch}".lower()
 
