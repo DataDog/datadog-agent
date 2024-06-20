@@ -130,7 +130,7 @@ type Setup interface {
 	BindEnvAndSetDefault(key string, val interface{}, env ...string)
 }
 
-// Compound is an interface for returning compound elements from the config, plus
+// Compound is an interface for retrieving compound elements from the config, plus
 // some misc functions, that should likely be split into another interface
 type Compound interface {
 	UnmarshalKey(key string, rawVal interface{}, opts ...viper.DecoderConfigOption) error
