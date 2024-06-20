@@ -21,7 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/ndmtmp/forwarder"
 	nfconfig "github.com/DataDog/datadog-agent/comp/netflow/config"
 	"github.com/DataDog/datadog-agent/comp/netflow/flowaggregator"
-	"github.com/DataDog/datadog-agent/comp/rdnsquerier"
+	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"
 )
 
 type dependencies struct {
