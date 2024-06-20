@@ -121,6 +121,7 @@ int uprobe__kafka_tls_filter(struct pt_regs *ctx) {
     }
 
     kafka_process(&tup, kafka, pkt, kafka_tel);
+    kafka_batch_flush(ctx);
     return 0;
 }
 
@@ -1241,6 +1242,7 @@ static __always_inline int __uprobe__kafka_tls_response_parser(struct pt_regs *c
     // Put tuple on stack for 4.14.
     conn_tuple_t tup = args->tup;
     kafka_response_parser(kafka, ctx, &tup, pktbuf_from_tls(ctx, args), level, min_api_version, max_api_version);
+    kafka_batch_flush(ctx);
 
     return 0;
 }
