@@ -4,6 +4,7 @@ Release helper tasks
 
 import os
 import re
+import sys
 import tempfile
 from datetime import date
 from time import sleep
@@ -24,15 +25,21 @@ from tasks.libs.common.git import (
     check_clean_branch_state,
     clone,
     get_current_branch,
+    get_last_commit,
+    get_last_tag,
     try_git_command,
 )
 from tasks.libs.common.user_interactions import yes_no_question
-from tasks.libs.pipeline.notifications import DEFAULT_SLACK_CHANNEL, load_and_validate
-from tasks.libs.releasing.documentation import create_release_page, get_release_page_info
+from tasks.libs.pipeline.notifications import DEFAULT_SLACK_CHANNEL, load_and_validate, warn_new_commits
+from tasks.libs.releasing.documentation import create_release_page, get_release_page_info, release_manager
 from tasks.libs.releasing.json import (
+    UNFREEZE_REPO_AGENT,
+    UNFREEZE_REPOS,
     _get_release_json_value,
     _load_release_json,
     _save_release_json,
+    generate_repo_data,
+    set_new_release_branch,
     update_release_json,
 )
 from tasks.libs.releasing.notes import _add_dca_prelude, _add_prelude
@@ -50,15 +57,6 @@ from tasks.libs.releasing.version import (
 from tasks.modules import DEFAULT_MODULES
 from tasks.pipeline import edit_schedule, run
 from tasks.release_metrics.metrics import get_prs_metrics, get_release_lead_time
-
-UNFREEZE_REPO_AGENT = "datadog-agent"
-UNFREEZE_REPOS = ["omnibus-software", "omnibus-ruby", "datadog-agent-macos-build", UNFREEZE_REPO_AGENT]
-RELEASE_JSON_FIELDS_TO_UPDATE = [
-    "INTEGRATIONS_CORE_VERSION",
-    "OMNIBUS_SOFTWARE_VERSION",
-    "OMNIBUS_RUBY_VERSION",
-    "MACOS_BUILD_VERSION",
-]
 
 GITLAB_FILES_TO_UPDATE = [
     ".gitlab-ci.yml",
@@ -628,15 +626,7 @@ def unfreeze(ctx, base_directory="~/dd", major_versions="6,7", upstream="origin"
         ctx.run(f"git checkout {release_branch}")
         ctx.run(f"git checkout -b {update_branch}")
 
-        rj = _load_release_json()
-
-        rj["base_branch"] = release_branch
-
-        for nightly in ["nightly", "nightly-a7"]:
-            for field in RELEASE_JSON_FIELDS_TO_UPDATE:
-                rj[nightly][field] = f"{release_branch}"
-
-        _save_release_json(rj)
+        set_new_release_branch(release_branch)
 
         # Step 1.2 - In datadog-agent repo update gitlab-ci.yaml and notify.yml jobs
         for file in GITLAB_FILES_TO_UPDATE:
@@ -920,31 +910,36 @@ def chase_release_managers(_, version):
 
 
 @task
-def check_for_changes(ctx, release_branch):
+def check_for_changes(ctx, release_branch, warning_mode=False):
     """
     Check if there was any modification on the release repositories since last release candidate.
     """
-    describe_pattern = re.compile(r"^.*-(?P<commit_number>\d+)-g[0-9a-f]+$")
-    release_repos = UNFREEZE_REPOS
-    release_repos.insert(len(release_repos) - 1, "integrations-core")  # from smallest to biggest repo
-    gh = GithubAPI()
-    next_version = get_next_version(gh)
-    clone_branch = release_branch
-    for repo in release_repos:
-        if (
-            repo == "integrations-core" and release_branch == "main"
-        ):  # Release branch is not created yet except for integrations-core
-            clone_branch = next_version.branch()
-        with clone(ctx, repo, clone_branch, options="--filter=blob:none --no-checkout"):
-            # get last semver tag
-            latest_tag = ctx.run(
-                rf"git tag -l --sort=version:refname --merged {clone_branch} | grep -E '^[0-9]+\.[0-9]+\.[0-9]+' | tail -1",
-                hide=True,
-            ).stdout.strip()
-            # get number of commits since then with describe
-            describe = ctx.run(f'git describe --tags --match "{latest_tag}"', hide=True).stdout.strip()
-            commit_match = describe_pattern.match(describe)
-            if commit_match:
-                print(f"Merged {commit_match['commit_number']} commits since {latest_tag} on {repo}", file=sys.stderr)
-                print(int(commit_match['commit_number']))
-    print(0)
+    next_version = next_rc_version(ctx, "7")
+    repo_data = generate_repo_data(warning_mode, next_version, release_branch)
+    changes = 'false'
+    for repo_name, repo in repo_data.items():
+        head_commit = get_last_commit(ctx, repo_name, repo['branch'])
+        last_tag_commit, last_tag_name = get_last_tag(ctx, repo_name, next_version.tag_pattern())
+        if last_tag_commit != "" and last_tag_commit != head_commit:
+            changes = 'true'
+            print(f"{repo_name} has new commits since {last_tag_name}", file=sys.stderr)
+            if warning_mode:
+                rm = release_manager(repo_name, repo['branch'])
+                warn_new_commits(rm, "agent-integrations", repo['branch'], next_version)
+            else:
+                if repo_name not in ["datadog-agent", "integrations-core"]:
+                    with clone(ctx, repo_name, repo['branch'], options="--filter=blob:none --no-checkout"):
+                        # We can add the new commit now to be used by release candidate creation
+                        print(f"Creating new tag {next_version} on {repo_name}", file=sys.stderr)
+                        ctx.run(f"git tag {next_version}")
+                        ctx.run(f"git push origin tag {next_version}")
+            # This repo has changes, the next check is not needed
+            continue
+        if repo_name != "datadog-agent" and last_tag_name != repo['previous_tag']:
+            changes = 'true'
+            print(
+                f"{repo_name} has a new tag {last_tag_name} since last release candidate (was {repo['previous_tag']})",
+                file=sys.stderr,
+            )
+    # Send a value for the create_rc_pr.yml workflow
+    print(changes)

@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 
 from invoke.exceptions import Exit
 
-from tasks.libs.common.color import color_message
+from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.constants import DEFAULT_BRANCH
 from tasks.libs.common.user_interactions import yes_no_question
 
@@ -150,3 +150,35 @@ def check_clean_branch_state(ctx, github, branch):
             ),
             code=1,
         )
+
+
+def get_last_commit(ctx, repo, branch):
+    return (
+        ctx.run(
+            rf'git ls-remote -h https://github.com/DataDog/{repo} "refs/heads/{branch}"',
+            hide=True,
+        )
+        .stdout.strip()
+        .split()[0]
+    )
+
+
+def get_last_tag(ctx, repo, pattern):
+    tags = ctx.run(
+        rf'git ls-remote -t https://github.com/DataDog/{repo} "{pattern}"',
+        hide=True,
+    ).stdout.strip()
+    if not tags:
+        raise Exit(
+            color_message(
+                f"No tag found for pattern {pattern} in {repo}",
+                Color.RED,
+            ),
+            code=1,
+        )
+    last_tag = tags.split("\n")[-1]
+    last_tag_commit, last_tag_name = last_tag.split()
+    if last_tag_name.endswith("^{}"):
+        last_tag_name = last_tag_name[:-3]
+    last_tag_name = last_tag_name.removeprefix("refs/tags/")
+    return last_tag_commit, last_tag_name
