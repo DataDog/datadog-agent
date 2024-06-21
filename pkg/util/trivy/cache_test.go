@@ -398,6 +398,6 @@ func createCacheDeps(t *testing.T) cacheDeps {
 	return fxutil.Test[cacheDeps](t, fx.Options(
 		core.MockBundle(),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmetafxmock.MockModule(),
+		workloadmetafxmock.MockModuleV2(),
 	))
 }

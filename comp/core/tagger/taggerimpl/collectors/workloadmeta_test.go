@@ -69,7 +69,7 @@ func TestHandleKubePod(t *testing.T) {
 		config.MockModule(),
 		fx.Supply(workloadmeta.NewParams()),
 		fx.Supply(context.Background()),
-		workloadmetafxmock.MockModule(),
+		workloadmetafxmock.MockModuleV2(),
 	))
 	store.Set(&workloadmeta.Container{
 		EntityID: workloadmeta.EntityID{
@@ -874,7 +874,7 @@ func TestHandleKubePodWithoutPvcAsTags(t *testing.T) {
 		config.MockModule(),
 		fx.Supply(workloadmeta.NewParams()),
 		fx.Supply(context.Background()),
-		workloadmetafxmock.MockModule(),
+		workloadmetafxmock.MockModuleV2(),
 	), fx.Replace(config.MockParams{Overrides: map[string]any{
 		"kubernetes_persistent_volume_claims_as_tags": false,
 	}}))
@@ -1017,7 +1017,7 @@ func TestHandleKubePodNoContainerName(t *testing.T) {
 		config.MockModule(),
 		fx.Supply(workloadmeta.NewParams()),
 		fx.Supply(context.Background()),
-		workloadmetafxmock.MockModule(),
+		workloadmetafxmock.MockModuleV2(),
 	))
 
 	store.Set(&workloadmeta.Container{
@@ -1140,7 +1140,7 @@ func TestHandleKubeMetadata(t *testing.T) {
 		config.MockModule(),
 		fx.Supply(workloadmeta.NewParams()),
 		fx.Supply(context.Background()),
-		workloadmetafxmock.MockModule(),
+		workloadmetafxmock.MockModuleV2(),
 	))
 
 	store.Set(&workloadmeta.Container{
@@ -1242,7 +1242,7 @@ func TestHandleECSTask(t *testing.T) {
 		logimpl.MockModule(),
 		config.MockModule(),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmetafxmock.MockModule(),
+		workloadmetafxmock.MockModuleV2(),
 	), fx.Replace(config.MockParams{Overrides: map[string]any{
 		"ecs_collect_resource_tags_ec2": true,
 	}}))
@@ -2047,7 +2047,7 @@ func TestHandleDelete(t *testing.T) {
 		logimpl.MockModule(),
 		config.MockModule(),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmetafxmock.MockModule(),
+		workloadmetafxmock.MockModuleV2(),
 	))
 
 	store.Set(&workloadmeta.Container{
@@ -2123,7 +2123,7 @@ func TestHandlePodWithDeletedContainer(t *testing.T) {
 		logimpl.MockModule(),
 		config.MockModule(),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmetafxmock.MockModule(),
+		workloadmetafxmock.MockModuleV2(),
 	))
 	collector := NewWorkloadMetaCollector(context.Background(), fakeStore, &fakeProcessor{collectorCh})
 	collector.children = map[string]map[string]struct{}{

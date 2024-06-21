@@ -211,7 +211,7 @@ func TestDockerCustomPart(t *testing.T) {
 			Enabled:         true,
 			NameExcludeList: []*regexp.Regexp{regexp.MustCompile("agent-excluded")},
 		},
-		store: fxutil.Test[workloadmetamock.Mock](t, core.MockBundle(), fx.Supply(workloadmeta.NewParams()), workloadmetafxmock.MockModule()),
+		store: fxutil.Test[workloadmetamock.Mock](t, core.MockBundle(), fx.Supply(workloadmeta.NewParams()), workloadmetafxmock.MockModuleV2()),
 	}
 
 	err := check.runDockerCustom(mockSender, &dockerClient, dockerClient.FakeContainerList)
@@ -290,7 +290,7 @@ func TestContainersRunning(t *testing.T) {
 		instance:        &DockerConfig{},
 		dockerHostname:  "testhostname",
 		containerFilter: &containers.Filter{},
-		store:           fxutil.Test[workloadmetamock.Mock](t, core.MockBundle(), fx.Supply(workloadmeta.NewParams()), workloadmetafxmock.MockModule()),
+		store:           fxutil.Test[workloadmetamock.Mock](t, core.MockBundle(), fx.Supply(workloadmeta.NewParams()), workloadmetafxmock.MockModuleV2()),
 	}
 
 	err := check.runDockerCustom(mockSender, &dockerClient, dockerClient.FakeContainerList)

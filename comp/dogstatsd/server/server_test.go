@@ -71,7 +71,7 @@ func fulfillDepsWithConfigOverrideAndFeatures(t testing.TB, overrides map[string
 		compressionimpl.MockModule(),
 		pidmapimpl.Module(),
 		demultiplexerimpl.FakeSamplerMockModule(),
-		workloadmetafxmock.MockModule(),
+		workloadmetafxmock.MockModuleV2(),
 		fx.Supply(workloadmeta.NewParams()),
 		Module(),
 	))
@@ -93,7 +93,7 @@ func fulfillDepsWithConfigYaml(t testing.TB, yaml string) serverDeps {
 		compressionimpl.MockModule(),
 		pidmapimpl.Module(),
 		demultiplexerimpl.FakeSamplerMockModule(),
-		workloadmetafxmock.MockModule(),
+		workloadmetafxmock.MockModuleV2(),
 		fx.Supply(workloadmeta.NewParams()),
 		Module(),
 	))

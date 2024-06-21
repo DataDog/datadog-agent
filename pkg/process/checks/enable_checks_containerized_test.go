@@ -150,7 +150,7 @@ type deps struct {
 func createDeps(t *testing.T) deps {
 	return fxutil.Test[deps](t,
 		core.MockBundle(),
-		workloadmetafxmock.MockModule(),
+		workloadmetafxmock.MockModuleV2(),
 		fx.Supply(workloadmeta.NewParams()),
 		npcollectorimpl.MockModule(),
 	)

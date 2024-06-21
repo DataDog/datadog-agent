@@ -964,7 +964,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 	wmeta := fxutil.Test[workloadmeta.Component](t,
 		core.MockBundle(),
 		fx.Replace(configComp.MockParams{Overrides: map[string]interface{}{"kube_resources_namespace": "nsfoo"}}),
-		workloadmetafxmock.MockModule(),
+		workloadmetafxmock.MockModuleV2(),
 		fx.Supply(workloadmeta.NewParams()),
 	)
 	for _, tt := range tests {
@@ -1104,7 +1104,7 @@ func newFixtureV1beta1(t *testing.T) *fixtureV1beta1 {
 
 func (f *fixtureV1beta1) createController() (*ControllerV1beta1, informers.SharedInformerFactory) {
 	factory := informers.NewSharedInformerFactory(f.client, time.Duration(0))
-	wmeta := fxutil.Test[workloadmeta.Component](f.t, core.MockBundle(), workloadmetafxmock.MockModule(), fx.Supply(workloadmeta.NewParams()))
+	wmeta := fxutil.Test[workloadmeta.Component](f.t, core.MockBundle(), workloadmetafxmock.MockModuleV2(), fx.Supply(workloadmeta.NewParams()))
 	return NewControllerV1beta1(
 		f.client,
 		factory.Core().V1().Secrets(),
