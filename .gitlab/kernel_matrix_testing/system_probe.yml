@@ -282,8 +282,7 @@ kmt_sysprobe_cleanup_arm64:
   extends:
     - .kmt_sysprobe_cleanup
   needs:
-    - job: kmt_setup_env_sysprobe_arm64
-      artifacts: true
+    - kmt_setup_env_sysprobe_arm64
     - kmt_run_sysprobe_tests_arm64
   variables:
     ARCH: arm64
@@ -294,8 +293,7 @@ kmt_sysprobe_cleanup_x64:
   extends:
     - .kmt_sysprobe_cleanup
   needs:
-    - job: kmt_setup_env_sysprobe_x64
-      artifacts: true
+    - kmt_setup_env_sysprobe_x64
     - kmt_run_sysprobe_tests_x64
   variables:
     ARCH: x86_64
