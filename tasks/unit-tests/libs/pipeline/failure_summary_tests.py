@@ -198,15 +198,15 @@ class TestSummaryStats(TestFailureSummary):
         self.assertSetEqual(
             set(results),
             {
-                '#agent-developer-experience',
+                '#agent-devx-ops',
                 '#ebpf-platform-ops',
-                '#agent-build-and-releases',
+                '#agent-delivery-ops',
                 self.github_slack_map[ALL_TEAMS],
             },
         )
-        self.assertEqual(len(results['#agent-developer-experience']), 1)
+        self.assertEqual(len(results['#agent-devx-ops']), 1)
         self.assertEqual(len(results['#ebpf-platform-ops']), 2)
-        self.assertEqual(len(results['#agent-build-and-releases']), 1)
+        self.assertEqual(len(results['#agent-delivery-ops']), 1)
         self.assertEqual(len(results[self.github_slack_map[ALL_TEAMS]]), 4)
 
 
@@ -255,8 +255,8 @@ class TestModule(TestFailureSummary):
     def test_send_summary_messages(self, mock_slack: MagicMock = None):
         # Verify that we send the right number of jobs per channel
         expected_team_njobs = {
-            '#agent-build-and-releases': 2,
-            '#agent-developer-experience': 4,
+            '#agent-delivery-ops': 2,
+            '#agent-devx-ops': 4,
             '#security-and-compliance-agent-ops': 1,
             self.github_slack_map[ALL_TEAMS]: 5,
         }
