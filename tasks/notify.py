@@ -1,36 +1,22 @@
 from __future__ import annotations
 
-import json
 import io
 import os
-import re
 import traceback
-from collections import defaultdict
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 
 from invoke import task
 from invoke.exceptions import Exit
 
-from tasks.libs.common.datadog_api import create_count, send_metrics
-from tasks.libs.notify import failure_summary, pipeline_status, alerts
-from tasks.libs.notify.utils import NOTIFICATION_DISCLAIMER, PROJECT_NAME
+from tasks.libs.common.datadog_api import send_metrics
+from tasks.libs.notify import alerts, failure_summary, pipeline_status
+from tasks.libs.notify.utils import PROJECT_NAME
 from tasks.libs.pipeline.data import get_failed_jobs
 from tasks.libs.pipeline.notifications import (
-    GITHUB_SLACK_MAP,
     base_message,
     check_for_missing_owners_slack_and_jira,
-    email_to_slackid,
-    find_job_owners,
-    get_failed_tests,
-    get_git_author,
-    send_slack_message,
 )
 from tasks.libs.pipeline.stats import compute_failed_jobs_series, compute_required_jobs_max_duration
-from tasks.libs.types.types import FailedJobs, SlackMessage, TeamMessage
-
-UNKNOWN_OWNER_TEMPLATE = """The owner `{owner}` is not mapped to any slack channel.
-Please check for typos in the JOBOWNERS file and/or add them to the Github <-> Slack map.
-"""
 
 
 @task
@@ -71,65 +57,9 @@ def send_message(ctx, notification_type="merge", print_to_stdout=False):
         traceback.print_exc()
         raise Exit(code=1) from e
 
-    # From the job failures, set whether the pipeline succeeded or failed and craft the
-    # base message that will be sent.
-    if failed_jobs.all_mandatory_failures():  # At least one mandatory job failed
-        header_icon = ":host-red:"
-        state = "failed"
-        coda = NOTIFICATION_DISCLAIMER
-    else:
-        header_icon = ":host-green:"
-        state = "succeeded"
-        coda = ""
-
-    header = ""
-    if notification_type == "merge":
-        header = f"{header_icon} :merged: datadog-agent merge"
-    elif notification_type == "deploy":
-        header = f"{header_icon} :rocket: datadog-agent deploy"
-    base = base_message(header, state)
-
-    # Send messages
-    metrics = []
-    timestamp = int(datetime.now(timezone.utc).timestamp())
-    for owner, message in messages_to_send.items():
-        channel = GITHUB_SLACK_MAP.get(owner.lower(), None)
-        message.base_message = base
-        if channel is None:
-            channel = "#datadog-agent-pipelines"
-            message.base_message += UNKNOWN_OWNER_TEMPLATE.format(owner=owner)
-        message.coda = coda
-        if print_to_stdout:
-            print(f"Would send to {channel}:\n{str(message)}")
-        else:
-            all_teams = channel == "#datadog-agent-pipelines"
-            send_dm = not pipeline_status.should_send_message_to_channel(git_ref, default_branch) and all_teams
-
-            if all_teams:
-                recipient = channel
-                send_slack_message(recipient, str(message))
-                metrics.append(
-                    create_count(
-                        metric_name="datadog.ci.failed_job_notifications",
-                        timestamp=timestamp,
-                        tags=[
-                            f"team:{owner}",
-                            "repository:datadog-agent",
-                            f"git_ref:{git_ref}",
-                        ],
-                        unit="notification",
-                        value=1,
-                    )
-                )
-
-            # DM author
-            if send_dm:
-                author_email = get_git_author(email=True)
-                recipient = email_to_slackid(ctx, author_email)
-                send_slack_message(recipient, str(message))
-
-    if metrics:
-        send_metrics(metrics)
+    pipeline_status.send_message_and_metrics(
+        ctx, failed_jobs, messages_to_send, notification_type, print_to_stdout, git_ref, default_branch
+    )
 
 
 @task
@@ -181,13 +111,7 @@ def check_consistent_failures(ctx, job_failures_file="job_executions.v2.json"):
 
     alerts.send_notification(ctx, alert_jobs)
 
-    # Upload document
-    with open(job_failures_file, "w") as f:
-        json.dump(job_executions.to_dict(), f)
-    ctx.run(
-        f"{AWS_S3_CP_CMD} {job_failures_file} {ALERTS_S3_CI_BUCKET_URL}/{job_failures_file} ",
-        hide="stdout",
-    )
+    alerts.upload_job_executions(ctx, job_executions, job_failures_file)
 
 
 @task

@@ -8,7 +8,6 @@ from datetime import datetime, timezone
 from invoke.context import Context
 from invoke.exceptions import UnexpectedExit
 
-from tasks.libs.types.types import FailedJobs, SlackMessage, TeamMessage
 from tasks.libs.ciproviders.gitlab_api import BASE_URL
 from tasks.libs.common.datadog_api import create_count, send_metrics
 from tasks.libs.notify.utils import AWS_S3_CP_CMD, PROJECT_NAME, PROJECT_TITLE, get_ci_visibility_job_url
@@ -267,3 +266,12 @@ def send_notification(ctx: Context, alert_jobs, jobowners=".gitlab/JOBOWNERS"):
     if metrics:
         send_metrics(metrics)
         print('Metrics sent')
+
+
+def upload_job_executions(ctx, job_executions: PipelineRuns, job_failures_file: str):
+    with open(job_failures_file, "w") as f:
+        json.dump(job_executions.to_dict(), f)
+    ctx.run(
+        f"{AWS_S3_CP_CMD} {job_failures_file} {ALERTS_S3_CI_BUCKET_URL}/{job_failures_file} ",
+        hide="stdout",
+    )
