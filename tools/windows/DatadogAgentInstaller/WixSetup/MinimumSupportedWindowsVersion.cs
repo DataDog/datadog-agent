@@ -1,7 +1,7 @@
 using System.Xml.Linq;
 using WixSharp;
 
-namespace WixSetup.Datadog
+namespace WixSetup
 {
     /// <summary>
     /// Adds a LaunchCondition in the MSI to control the oldest OS supported.

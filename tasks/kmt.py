@@ -586,9 +586,6 @@ def kmt_secagent_prepare(
     ctx.run(f"ninja -d explain -v -f {nf_path}")
 
 
-btf_dir = "/opt/system-probe-tests/pkg/ebpf/bytecode/build/co-re/btf"
-
-
 @task
 def prepare(
     ctx: Context,
@@ -707,6 +704,7 @@ def prepare(
         d.copy(ctx, paths.arch_dir / "opt/*", "/opt/", exclude="*.ninja", verbose=verbose)
 
         # Copy BTF files
+        btf_dir = Path(f"/opt/{component}-tests") / get_ebpf_build_dir(arch_obj) / "co-re/btf"
         d.run_cmd(
             ctx,
             f"[ -f /sys/kernel/btf/vmlinux ] \
@@ -1059,6 +1057,7 @@ def test(
             target_folder.mkdir(parents=True, exist_ok=True)
             d.download(ctx, "/ci-visibility/junit/", target_folder)
 
+    info("[+] All domains finished, showing summary table of test results")
     show_last_test_results(ctx, stack)
 
 

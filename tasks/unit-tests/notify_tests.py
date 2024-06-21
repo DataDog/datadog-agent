@@ -472,38 +472,3 @@ class TestSendNotification(unittest.TestCase):
             self.assertEqual(
                 value, expected_metrics.get(team), f'Unexpected metric value for metric {name} of team {team}'
             )
-
-
-class TestSendFailureSummaryNotification(unittest.TestCase):
-    @patch("slack_sdk.WebClient")
-    @patch("os.environ", new=MagicMock())
-    def test_nominal(self, mock_slack: MagicMock):
-        # jobname: [total_failures, total_runs]
-        jobs = {
-            "hello": {"failures": 45},  # agent-ci-experience
-            "world": {"failures": 45},  # agent-ci-experience
-            "security_go_generate_check": {"failures": 21},  # agent-security
-            "tests_release": {"failures": 31},  # agent-ci-experience, agent-build-and-releases
-            "tests_release2": {"failures": 31},  # agent-ci-experience, agent-build-and-releases
-        }
-        # Verify that we send the right number of jobs per channel
-        expected_team_njobs = {
-            '#agent-build-and-releases': 2,
-            '#agent-developer-experience': 4,
-            '#agent-platform-ops': 5,
-            '#security-and-compliance-agent-ops': 1,
-        }
-
-        notify.send_failure_summary_notification(
-            MockContext(), jobs, jobowners="tasks/unit-tests/testdata/jobowners.txt"
-        )
-        mock_slack.assert_called()
-
-        # Verify called once for each channel
-        self.assertEqual(len(mock_slack.return_value.chat_postMessage.call_args_list), len(expected_team_njobs))
-
-        for call_args in mock_slack.return_value.chat_postMessage.call_args_list:
-            channel = call_args.kwargs['channel']
-            message = json.dumps(call_args.kwargs['blocks'])
-            njobs = message.count("- ")
-            self.assertEqual(expected_team_njobs.get(channel, None), njobs, 'Failure for channel: ' + channel)

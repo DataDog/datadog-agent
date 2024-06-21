@@ -118,7 +118,7 @@ def get_distro():
         with open('/etc/os-release', encoding="utf-8") as f:
             for line in f:
                 if line.startswith('ID='):
-                    system = line.strip()[3:]
+                    system = line.strip().removeprefix('ID=').replace('"', '')
                     break
     return f"{system}_{arch}".lower()
 
@@ -393,7 +393,12 @@ def get_version_ldflags(ctx, major_version='7', install_path=None):
         package_version = os.path.basename(install_path)
         if package_version != "datadog-agent":
             ldflags += f"-X {REPO_PATH}/pkg/version.AgentPackageVersion={package_version} "
-
+        if sys.platform == 'win32':
+            # On Windows we don't have a version in the install_path
+            # so, set the package_version tag in order for Fleet Automation to detect
+            # upgrade in the health check.
+            # https://github.com/DataDog/dd-go/blob/cada5b3c2929473a2bd4a4142011767fe2dcce52/remote-config/apps/rc-api-internal/updater/health_check.go#L219
+            ldflags += f"-X {REPO_PATH}/pkg/version.AgentPackageVersion={get_version(ctx, include_git=True, major_version=major_version)}-1 "
     return ldflags
 
 
