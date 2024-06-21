@@ -5,6 +5,7 @@
 
 //go:build test
 
+// Package mock provides the rdnsquerier mock component
 package mock
 
 import (
