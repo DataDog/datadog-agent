@@ -316,7 +316,7 @@ func SendNetworkEnhancedMetrics(networkOffsetData *proc.NetworkData, tags []stri
 	}
 
 	now := float64(time.Now().UnixNano()) / float64(time.Second)
-	generateNetworkEnhancedMetrics(GenerateNetworkEnhancedMetricArgs{
+	generateNetworkEnhancedMetrics(generateNetworkEnhancedMetricArgs{
 		networkOffsetData.RxBytes,
 		networkData.RxBytes,
 		networkOffsetData.TxBytes,
@@ -327,7 +327,7 @@ func SendNetworkEnhancedMetrics(networkOffsetData *proc.NetworkData, tags []stri
 	})
 }
 
-type GenerateNetworkEnhancedMetricArgs struct {
+type generateNetworkEnhancedMetricArgs struct {
 	RxBytesOffset float64
 	RxBytes       float64
 	TxBytesOffset float64
@@ -337,7 +337,7 @@ type GenerateNetworkEnhancedMetricArgs struct {
 	Time          float64
 }
 
-func generateNetworkEnhancedMetrics(args GenerateNetworkEnhancedMetricArgs) {
+func generateNetworkEnhancedMetrics(args generateNetworkEnhancedMetricArgs) {
 	adjustedRxBytes := args.RxBytes - args.RxBytesOffset
 	adjustedTxBytes := args.TxBytes - args.TxBytesOffset
 	args.Demux.AggregateSample(metrics.MetricSample{

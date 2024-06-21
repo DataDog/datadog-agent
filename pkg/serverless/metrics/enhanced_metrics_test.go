@@ -525,7 +525,7 @@ func TestGenerateNetworkEnhancedMetrics(t *testing.T) {
 	demux := createDemultiplexer(t)
 	tags := []string{"functionname:test-function"}
 	now := float64(time.Now().UnixNano()) / float64(time.Second)
-	args := GenerateNetworkEnhancedMetricArgs{
+	args := generateNetworkEnhancedMetricArgs{
 		RxBytesOffset: 10,
 		RxBytes:       100,
 		TxBytesOffset: 20,
