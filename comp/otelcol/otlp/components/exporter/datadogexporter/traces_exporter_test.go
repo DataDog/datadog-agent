@@ -69,7 +69,7 @@ func TestTraceExporter(t *testing.T) {
 		},
 	}
 
-	params := exportertest.NewNopCreateSettings()
+	params := exportertest.NewNopSettings()
 	tcfg := config.New()
 	tcfg.TraceWriter.FlushPeriodSeconds = 0.1
 	tcfg.Endpoints[0].APIKey = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
@@ -98,7 +98,7 @@ func TestTraceExporter(t *testing.T) {
 func TestNewTracesExporter(t *testing.T) {
 	cfg := &Config{}
 	cfg.API.Key = "ddog_32_characters_long_api_key1"
-	params := exportertest.NewNopCreateSettings()
+	params := exportertest.NewNopSettings()
 	tcfg := config.New()
 	tcfg.Endpoints[0].APIKey = "ddog_32_characters_long_api_key1"
 	ctx := context.Background()
