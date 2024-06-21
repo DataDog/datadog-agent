@@ -19,8 +19,7 @@ notify-on-tagged-success:
 notify:
   extends: .slack-notifier-base
   stage: notify
-  # rules: !reference [.on_main_or_release_branch_or_deploy_always]
-  needs: []
+  rules: !reference [.on_main_or_release_branch_or_deploy_always]
   dependencies: []
   tags: ["arch:amd64"]
   resource_group: notification
@@ -30,22 +29,21 @@ notify:
     - export DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $API_KEY_ORG2_SSM_NAME)
     - !reference [.setup_python_mirror_linux]
     - python3 -m pip install -r requirements.txt -r tasks/libs/requirements-notifications.txt
-    - invoke -e notify.send-message --notification-type "merge"
-    # - |
-    #   # Do not send notifications if this is a child pipeline of another repo
-    #   # The triggering repo should already have its own notification system
-    #   if [ "$CI_PIPELINE_SOURCE" != "pipeline" ]; then
-    #     if [ "$DEPLOY_AGENT" = "true" ]; then
-    #       invoke -e notify.send-message --notification-type "deploy"
-    #     else
-    #       invoke -e notify.send-message --notification-type "merge"
-    #     fi
-    #     if [ "$CI_COMMIT_BRANCH" = "$CI_DEFAULT_BRANCH" ]; then
-    #       invoke notify.check-consistent-failures
-    #     fi
-    #   else
-    #     echo "This pipeline was triggered by another repository, skipping notification."
-    #   fi
+    - |
+      # Do not send notifications if this is a child pipeline of another repo
+      # The triggering repo should already have its own notification system
+      if [ "$CI_PIPELINE_SOURCE" != "pipeline" ]; then
+        if [ "$DEPLOY_AGENT" = "true" ]; then
+          invoke -e notify.send-message --notification-type "deploy"
+        else
+          invoke -e notify.send-message --notification-type "merge"
+        fi
+        if [ "$CI_COMMIT_BRANCH" = "$CI_DEFAULT_BRANCH" ]; then
+          invoke notify.check-consistent-failures
+        fi
+      else
+        echo "This pipeline was triggered by another repository, skipping notification."
+      fi
 
 send_pipeline_stats:
   stage: notify
