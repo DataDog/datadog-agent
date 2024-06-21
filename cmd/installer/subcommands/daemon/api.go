@@ -30,11 +30,10 @@ type cliParams struct {
 }
 
 func apiCommands(global *command.GlobalParams) []*cobra.Command {
-	catalogCmd := &cobra.Command{
-		Use:     "catalog <catalog>",
-		Aliases: []string{"catalog"},
-		Short:   "Sets the catalog to use",
-		Args:    cobra.ExactArgs(1),
+	setCatalogCmd := &cobra.Command{
+		Use:   "set-catalog catalog",
+		Short: "Sets the catalog to use",
+		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return experimentFxWrapper(catalog, &cliParams{
 				GlobalParams: *global,
@@ -92,7 +91,7 @@ func apiCommands(global *command.GlobalParams) []*cobra.Command {
 			})
 		},
 	}
-	return []*cobra.Command{catalogCmd, startExperimentCmd, stopExperimentCmd, promoteExperimentCmd, installCmd}
+	return []*cobra.Command{setCatalogCmd, startExperimentCmd, stopExperimentCmd, promoteExperimentCmd, installCmd}
 }
 
 func experimentFxWrapper(f interface{}, params *cliParams) error {
