@@ -207,3 +207,42 @@ func Test_getEventHostInfoImpl(t *testing.T) {
 		})
 	}
 }
+
+func Test_getEventSource(t *testing.T) {
+	tests := []struct {
+		name                                  string
+		controllerName                        string
+		sourceComponent                       string
+		kubernetesEventSourceDetectionEnabled bool
+		want                                  string
+	}{
+		{
+			name:                                  "kubernetes event source detection maps controller name",
+			kubernetesEventSourceDetectionEnabled: true,
+			controllerName:                        "datadog-operator-manager",
+			sourceComponent:                       "",
+			want:                                  "datadog operator",
+		},
+		{
+			name:                                  "kubernetes event source detection source component name",
+			kubernetesEventSourceDetectionEnabled: true,
+			controllerName:                        "",
+			sourceComponent:                       "datadog-operator-manager",
+			want:                                  "datadog operator",
+		},
+		{
+			name:                                  "kubernetes event source detection uses default value if controller name not found",
+			kubernetesEventSourceDetectionEnabled: true,
+			controllerName:                        "abcd-test-controller",
+			sourceComponent:                       "abcd-test-source",
+			want:                                  "kubernetes",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := getEventSource(tt.controllerName, tt.sourceComponent); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("getEventSource() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
