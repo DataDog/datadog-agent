@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    Fix a bug in the agent where it could potentially fetch logs of short-lived kubernetes jobs twice if the CRI is docker.
+    Fix a bug in the Agent where it could potentially fetch logs of short-lived Kubernetes jobs twice if the CRI is Docker.
