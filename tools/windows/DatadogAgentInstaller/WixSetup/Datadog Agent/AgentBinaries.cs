@@ -1,6 +1,6 @@
 using WixSharp;
 
-namespace WixSetup.Datadog
+namespace WixSetup.Datadog_Agent
 {
     public class AgentBinaries
     {

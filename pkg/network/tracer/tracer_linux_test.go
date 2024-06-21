@@ -56,7 +56,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/testdns"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var kv470 = kernel.VersionCode(4, 7, 0)
@@ -1959,20 +1958,6 @@ func (s *TracerSuite) TestUDPIncomingDirectionFix() {
 	}, 3*time.Second, 100*time.Millisecond)
 
 	assert.Equal(t, network.OUTGOING, conn.Direction)
-}
-
-func sysOpenAt2Supported() bool {
-	missing, err := ddebpf.VerifyKernelFuncs("do_sys_openat2")
-	if err == nil && len(missing) == 0 {
-		return true
-	}
-	kversion, err := kernel.HostVersion()
-	if err != nil {
-		log.Error("could not determine the current kernel version. fallback to do_sys_open")
-		return false
-	}
-
-	return kversion >= kernel.VersionCode(5, 6, 0)
 }
 
 func TestEbpfConntrackerFallback(t *testing.T) {

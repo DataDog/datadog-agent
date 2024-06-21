@@ -5,7 +5,8 @@
 
 //go:build windows
 
-package installer
+// Package paths defines commonly used paths throughout the installer
+package paths
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/winregistry"
@@ -28,8 +29,9 @@ var (
 )
 
 func init() {
-	PackagesPath, _ = winregistry.GetProgramDataDirForProduct("Datadog Installer")
-	TmpDirPath = PackagesPath
-	LocksPack = filepath.Join(PackagesPath, "locks")
+	datadogInstallerData, _ := winregistry.GetProgramDataDirForProduct("Datadog Installer")
+	TmpDirPath = filepath.Join(datadogInstallerData, "temp")
+	PackagesPath = filepath.Join(datadogInstallerData, "packages")
+	LocksPack = filepath.Join(datadogInstallerData, "locks")
 	DefaultConfigsDir, _ = windows.KnownFolderPath(windows.FOLDERID_ProgramData, 0)
 }
