@@ -16,6 +16,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+const (
+	ProcStatPath   = "/proc/stat"
+	ProcUptimePath = "/proc/uptime"
+)
+
 func getPidList(procPath string) []int {
 	files, err := os.ReadDir(procPath)
 	pids := []int{}

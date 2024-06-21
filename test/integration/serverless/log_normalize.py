@@ -28,7 +28,6 @@ def normalize_metrics(stage, aws_account_id):
         replace(r'(dd_lambda_layer:datadog-python)[0-9_]+\.[0-9]+\.[0-9]+', r'\1X.X.X'),
         replace(r'(serverless.lambda-extension.integration-test.count)[0-9\.]+', r'\1'),
         replace(r'(architecture:)(x86_64|arm64)', r'\1XXX'),
-        replace(r'(cpu_name:cpu)[0-9]', r'\1X'),
         replace(stage, 'XXXXXX'),
         replace(aws_account_id, '############'),
         exclude(r'[ ]$'),

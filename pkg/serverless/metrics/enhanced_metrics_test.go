@@ -476,8 +476,8 @@ func TestGenerateCPUEnhancedMetrics(t *testing.T) {
 	demux := createDemultiplexer(t)
 	tags := []string{"functionname:test-function"}
 	now := float64(time.Now().UnixNano()) / float64(time.Second)
-	args := GenerateCPUEnhancedMetricsArgs{100, 53, 200, tags, demux, now}
-	go GenerateCPUEnhancedMetrics(args)
+	args := generateCPUEnhancedMetricsArgs{100, 53, 200, tags, demux, now}
+	go generateCPUEnhancedMetrics(args)
 	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(4, 0, 100*time.Millisecond)
 	assert.Equal(t, []metrics.MetricSample{
 		{
@@ -515,7 +515,19 @@ func TestDisableCPUEnhancedMetrics(t *testing.T) {
 	demux := createDemultiplexer(t)
 	tags := []string{"functionname:test-function"}
 
-	go SendCPUEnhancedMetrics(proc.CPUData{}, 0, tags, demux)
+	go SendCPUEnhancedMetrics(&proc.CPUData{}, 0, tags, demux)
+
+	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(1, 0, 100*time.Millisecond)
+
+	assert.Len(t, generatedMetrics, 0)
+	assert.Len(t, timedMetrics, 0)
+}
+
+func TestCPUEnhancedMetricsCollectionError(t *testing.T) {
+	demux := createDemultiplexer(t)
+	tags := []string{"functionname:test-function"}
+
+	go SendCPUEnhancedMetrics(&proc.CPUData{}, 0, tags, demux)
 
 	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(1, 0, 100*time.Millisecond)
 
