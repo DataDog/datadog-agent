@@ -35,7 +35,8 @@ type eventHostInfo struct {
 	providerID string
 }
 
-var CONTROLLER_TO_INTEGRATION = map[string]string{
+// ControllerToIntegration is a mapping of Kubernetes controller names to integrations
+var ControllerToIntegration = map[string]string{
 	"targetgroupbinding":                             "amazon elastic load balancing",
 	"cilium-sidekick":                                "cilium",
 	"datadogagent":                                   "datadog operator",
@@ -263,10 +264,10 @@ func getEventSource(controllerName string, sourceComponent string) string {
 		return "kubernetes"
 	}
 
-	if v, ok := CONTROLLER_TO_INTEGRATION[controllerName]; ok {
+	if v, ok := ControllerToIntegration[controllerName]; ok {
 		return v
 	}
-	if v, ok := CONTROLLER_TO_INTEGRATION[sourceComponent]; ok {
+	if v, ok := ControllerToIntegration[sourceComponent]; ok {
 		return v
 	}
 	// This is the default value for event sources
