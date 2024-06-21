@@ -10,6 +10,7 @@
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/btf-gen$DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BTF_GEN_BUILDIMAGES
   tags: ["arch:amd64"]
   script:
+    - command-that-totally-does-not-exist-so-i-force-a-ci-failure-please-do-not-commit-me-to-main
     - cd $CI_PROJECT_DIR
     - export BTFS_ETAG=$(aws s3api head-object --region us-east-1 --bucket dd-agent-omnibus --key btfs/$BTFHUB_ARCHIVE_BRANCH/btfs-$ARCH.tar --query ETag --output text | tr -d \")
     - export OUTPUTS_HASH=$(sha256sum sysprobe-build-outputs.tar.xz.sum | cut -d' ' -f1)

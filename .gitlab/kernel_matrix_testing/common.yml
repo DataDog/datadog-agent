@@ -136,6 +136,7 @@
     - inv -e system-probe.start-microvms --provision-instance --provision-microvms --vmconfig=$VMCONFIG_FILE $INSTANCE_TYPE_ARG $AMI_ID_ARG --ssh-key-name=$AWS_EC2_SSH_KEY_NAME --ssh-key-path=$AWS_EC2_SSH_KEY_FILE --infra-env=$INFRA_ENV --stack-name=kernel-matrix-testing-${TEST_COMPONENT}-${ARCH}-${CI_PIPELINE_ID} --run-agent
     - jq "." $CI_PROJECT_DIR/stack.output
     - pulumi logout
+    - touch hello
   after_script:
     - export DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $API_KEY_ORG2_SSM_NAME)
     - export AWS_PROFILE=agent-qa-ci
@@ -156,6 +157,7 @@
       - $CI_PROJECT_DIR/stack.output
       - $CI_PROJECT_DIR/libvirt
       - $VMCONFIG_FILE
+      - hello
 
 .kmt_cleanup:
   stage: kernel_matrix_testing_cleanup
@@ -165,6 +167,7 @@
     - !reference [.kmt_new_profile]
   script:
     - !reference [.shared_filters_and_queries]
+    - ls hello
     - aws ec2 describe-instances --filters $FILTER_TEAM $FILTER_MANAGED $FILTER_PIPELINE $FILTER_ARCH $FILTER_INSTANCE_TYPE $FILTER_TEST_COMPONENT --output json --query $QUERY_INSTANCE_IDS | tee -a instance.json
     - INSTANCE_ID="$(jq -r '.[0][0]' < instance.json)"
     - echo ${INSTANCE_ID}
