@@ -44,7 +44,6 @@ type protocol struct {
 	eventsConsumer *events.Consumer[EbpfEvent]
 	mapCleaner     *ddebpf.MapCleaner[netebpf.ConnTuple, EbpfTx]
 	statskeeper    *StatKeeper
-	mgr            *manager.Manager
 }
 
 // Spec is the protocol spec for the postgres protocol.
@@ -135,7 +134,6 @@ func (p *protocol) ConfigureOptions(mgr *manager.Manager, opts *manager.Options)
 
 // PreStart runs setup required before starting the protocol.
 func (p *protocol) PreStart(mgr *manager.Manager) (err error) {
-	p.mgr = mgr
 	p.eventsConsumer, err = events.NewConsumer(
 		eventStream,
 		mgr,

@@ -527,7 +527,7 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 				for _, client := range tt.context.clients {
 					client.Client.Close()
 				}
-				kafka.CleanKafkaMaps(t)
+				cleanProtocolMaps(t, "kafka", monitor.ebpfProgram.Manager.Manager)
 			})
 
 			tt.testBody(t, &tt.context, monitor)
@@ -1026,7 +1026,7 @@ func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
 
 		t.Run(tt.name, func(t *testing.T) {
 			t.Cleanup(func() {
-				kafka.CleanKafkaMaps(t)
+				cleanProtocolMaps(t, "kafka", monitor.ebpfProgram.Manager.Manager)
 			})
 			req := generateFetchRequest(apiVersion, tt.topic)
 			resp := tt.buildResponse(tt.topic)
@@ -1055,7 +1055,7 @@ func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
 		name := fmt.Sprintf("split/%s", tt.name)
 		t.Run(name, func(t *testing.T) {
 			t.Cleanup(func() {
-				kafka.CleanKafkaMaps(t)
+				cleanProtocolMaps(t, "kafka", monitor.ebpfProgram.Manager.Manager)
 			})
 			req := generateFetchRequest(apiVersion, tt.topic)
 			resp := tt.buildResponse(tt.topic)

@@ -190,7 +190,7 @@ func testDecoding(t *testing.T, isTLS bool) {
 			},
 		},
 		{
-			name: "guy insert rows in table",
+			name: "insert rows in table",
 			preMonitorSetup: func(t *testing.T, ctx testContext) {
 				pg, err := postgres.NewPGXClient(postgres.ConnectionOptions{
 					ServerAddress: ctx.serverAddress,
@@ -474,7 +474,7 @@ func testDecoding(t *testing.T, isTLS bool) {
 				pg := pgEntry.(*postgres.PGXClient)
 				defer pg.Close()
 				_ = pg.RunQuery(dropTableQuery)
-				postgres.CleanPostgresMaps(t)
+				cleanProtocolMaps(t, "postgres", monitor.ebpfProgram.Manager.Manager)
 			})
 			require.NoError(t, monitor.Pause())
 			if tt.preMonitorSetup != nil {
