@@ -26,9 +26,22 @@ type cliParams struct {
 	command.GlobalParams
 	pkg     string
 	version string
+	catalog string
 }
 
 func apiCommands(global *command.GlobalParams) []*cobra.Command {
+	catalogCmd := &cobra.Command{
+		Use:     "catalog <catalog>",
+		Aliases: []string{"catalog"},
+		Short:   "Sets the catalog to use",
+		Args:    cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return experimentFxWrapper(catalog, &cliParams{
+				GlobalParams: *global,
+				catalog:      args[0],
+			})
+		},
+	}
 	installCmd := &cobra.Command{
 		Use:     "install package version",
 		Aliases: []string{"install"},
@@ -79,7 +92,7 @@ func apiCommands(global *command.GlobalParams) []*cobra.Command {
 			})
 		},
 	}
-	return []*cobra.Command{startExperimentCmd, stopExperimentCmd, promoteExperimentCmd, installCmd}
+	return []*cobra.Command{catalogCmd, startExperimentCmd, stopExperimentCmd, promoteExperimentCmd, installCmd}
 }
 
 func experimentFxWrapper(f interface{}, params *cliParams) error {
@@ -94,6 +107,15 @@ func experimentFxWrapper(f interface{}, params *cliParams) error {
 		fx.Supply(params),
 		localapiclientimpl.Module(),
 	)
+}
+
+func catalog(params *cliParams, client localapiclient.Component) error {
+	err := client.SetCatalog(params.catalog)
+	if err != nil {
+		fmt.Println("Error setting catalog:", err)
+		return err
+	}
+	return nil
 }
 
 func start(params *cliParams, client localapiclient.Component) error {
