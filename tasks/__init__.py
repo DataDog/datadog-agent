@@ -52,6 +52,7 @@ from tasks import (
     system_probe,
     systray,
     trace_agent,
+    vim,
     vscode,
 )
 from tasks.build_tags import audit_tag_impact, print_default_build_tags
@@ -158,6 +159,7 @@ ns.add_collection(docker_tasks, "docker")
 ns.add_collection(dogstatsd)
 ns.add_collection(ebpf)
 ns.add_collection(emacs)
+ns.add_collection(vim)
 ns.add_collection(epforwarder)
 ns.add_collection(go_deps)
 ns.add_collection(linter)
