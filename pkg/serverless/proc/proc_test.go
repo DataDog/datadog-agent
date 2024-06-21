@@ -54,7 +54,7 @@ func TestSearchProcsForEnvVariableNotFound(t *testing.T) {
 
 func TestGetCPUData(t *testing.T) {
 	path := "./testData/stat/valid_stat"
-	cpuData, err := GetCPUData(path)
+	cpuData, err := getCPUData(path)
 	assert.Nil(t, err)
 	assert.Equal(t, float64(23370), cpuData.TotalUserTimeMs)
 	assert.Equal(t, float64(1880), cpuData.TotalSystemTimeMs)
@@ -64,22 +64,22 @@ func TestGetCPUData(t *testing.T) {
 	assert.Equal(t, float64(86490), cpuData.IndividualCPUIdleTimes["cpu1"])
 
 	path = "./testData/stat/invalid_stat_non_numerical_value_1"
-	cpuData, err = GetCPUData(path)
+	cpuData, err = getCPUData(path)
 	assert.NotNil(t, err)
 	assert.Nil(t, cpuData)
 
 	path = "./testData/stat/invalid_stat_non_numerical_value_2"
-	cpuData, err = GetCPUData(path)
+	cpuData, err = getCPUData(path)
 	assert.NotNil(t, err)
 	assert.Nil(t, cpuData)
 
 	path = "./testData/stat/invalid_stat_malformed_first_line"
-	cpuData, err = GetCPUData(path)
+	cpuData, err = getCPUData(path)
 	assert.NotNil(t, err)
 	assert.Nil(t, cpuData)
 
 	path = "./testData/stat/invalid_stat_malformed_per_cpu_line"
-	cpuData, err = GetCPUData(path)
+	cpuData, err = getCPUData(path)
 	assert.Nil(t, err)
 	assert.Equal(t, float64(23370), cpuData.TotalUserTimeMs)
 	assert.Equal(t, float64(1880), cpuData.TotalSystemTimeMs)
@@ -87,29 +87,29 @@ func TestGetCPUData(t *testing.T) {
 	assert.Equal(t, 0, len(cpuData.IndividualCPUIdleTimes))
 
 	path = "./testData/stat/nonexistent_stat"
-	cpuData, err = GetCPUData(path)
+	cpuData, err = getCPUData(path)
 	assert.NotNil(t, err)
 	assert.Nil(t, cpuData)
 }
 
 func TestGetUptime(t *testing.T) {
 	path := "./testData/uptime/valid_uptime"
-	uptime, err := GetUptime(path)
+	uptime, err := getUptime(path)
 	assert.Nil(t, err)
 	assert.Equal(t, float64(3213103123000), uptime)
 
 	path = "./testData/uptime/invalid_data_uptime"
-	uptime, err = GetUptime(path)
+	uptime, err = getUptime(path)
 	assert.NotNil(t, err)
 	assert.Equal(t, float64(0), uptime)
 
 	path = "./testData/uptime/malformed_uptime"
-	uptime, err = GetUptime(path)
+	uptime, err = getUptime(path)
 	assert.NotNil(t, err)
 	assert.Equal(t, float64(0), uptime)
 
 	path = "./testData/uptime/nonexistent_uptime"
-	uptime, err = GetUptime(path)
+	uptime, err = getUptime(path)
 	assert.NotNil(t, err)
 	assert.Equal(t, float64(0), uptime)
 }

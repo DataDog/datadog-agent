@@ -84,7 +84,11 @@ type CPUData struct {
 }
 
 // GetCPUData collects aggregated and per-core CPU usage data
-func GetCPUData(path string) (*CPUData, error) {
+func GetCPUData() (*CPUData, error) {
+	return getCPUData(ProcStatPath)
+}
+
+func getCPUData(path string) (*CPUData, error) {
 	cpuData := CPUData{}
 
 	file, err := os.Open(path)
@@ -128,7 +132,11 @@ func GetCPUData(path string) (*CPUData, error) {
 }
 
 // GetUptime collects uptime data
-func GetUptime(path string) (float64, error) {
+func GetUptime() (float64, error) {
+	return getUptime(ProcUptimePath)
+}
+
+func getUptime(path string) (float64, error) {
 	file, err := os.Open(path)
 	if err != nil {
 		return 0, err
