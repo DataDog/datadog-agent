@@ -461,27 +461,6 @@ core,github.com/antchfx/htmlquery,MIT,Copyright (c) 2016 Zheng Chun
 core,github.com/antchfx/xmlquery,MIT,Copyright (c) 2016 Zheng Chun
 core,github.com/antchfx/xpath,MIT,Copyright (c) 2016 Zheng Chun
 core,github.com/antlr/antlr4/runtime/Go/antlr/v4,BSD-3-Clause,Copyright 2021 The ANTLR Project
-core,github.com/apache/arrow/go/v14/arrow,Apache-2.0,Copyright (C) 1995-1998 Eric Young (eay@cryptsoft.com)
-core,github.com/apache/arrow/go/v14/arrow/array,Apache-2.0,Copyright (C) 1995-1998 Eric Young (eay@cryptsoft.com)
-core,github.com/apache/arrow/go/v14/arrow/arrio,Apache-2.0,Copyright (C) 1995-1998 Eric Young (eay@cryptsoft.com)
-core,github.com/apache/arrow/go/v14/arrow/bitutil,Apache-2.0,Copyright (C) 1995-1998 Eric Young (eay@cryptsoft.com)
-core,github.com/apache/arrow/go/v14/arrow/decimal128,Apache-2.0,Copyright (C) 1995-1998 Eric Young (eay@cryptsoft.com)
-core,github.com/apache/arrow/go/v14/arrow/decimal256,Apache-2.0,Copyright (C) 1995-1998 Eric Young (eay@cryptsoft.com)
-core,github.com/apache/arrow/go/v14/arrow/encoded,Apache-2.0,Copyright (C) 1995-1998 Eric Young (eay@cryptsoft.com)
-core,github.com/apache/arrow/go/v14/arrow/endian,Apache-2.0,Copyright (C) 1995-1998 Eric Young (eay@cryptsoft.com)
-core,github.com/apache/arrow/go/v14/arrow/float16,Apache-2.0,Copyright (C) 1995-1998 Eric Young (eay@cryptsoft.com)
-core,github.com/apache/arrow/go/v14/arrow/internal,Apache-2.0,Copyright (C) 1995-1998 Eric Young (eay@cryptsoft.com)
-core,github.com/apache/arrow/go/v14/arrow/internal/debug,Apache-2.0,Copyright (C) 1995-1998 Eric Young (eay@cryptsoft.com)
-core,github.com/apache/arrow/go/v14/arrow/internal/dictutils,Apache-2.0,Copyright (C) 1995-1998 Eric Young (eay@cryptsoft.com)
-core,github.com/apache/arrow/go/v14/arrow/internal/flatbuf,Apache-2.0,Copyright (C) 1995-1998 Eric Young (eay@cryptsoft.com)
-core,github.com/apache/arrow/go/v14/arrow/ipc,Apache-2.0,Copyright (C) 1995-1998 Eric Young (eay@cryptsoft.com)
-core,github.com/apache/arrow/go/v14/arrow/memory,Apache-2.0,Copyright (C) 1995-1998 Eric Young (eay@cryptsoft.com)
-core,github.com/apache/arrow/go/v14/arrow/memory/internal/cgoalloc,Apache-2.0,Copyright (C) 1995-1998 Eric Young (eay@cryptsoft.com)
-core,github.com/apache/arrow/go/v14/arrow/memory/mallocator,Apache-2.0,Copyright (C) 1995-1998 Eric Young (eay@cryptsoft.com)
-core,github.com/apache/arrow/go/v14/internal/bitutils,Apache-2.0,Copyright (C) 1995-1998 Eric Young (eay@cryptsoft.com)
-core,github.com/apache/arrow/go/v14/internal/hashing,Apache-2.0,Copyright (C) 1995-1998 Eric Young (eay@cryptsoft.com)
-core,github.com/apache/arrow/go/v14/internal/json,Apache-2.0,Copyright (C) 1995-1998 Eric Young (eay@cryptsoft.com)
-core,github.com/apache/arrow/go/v14/internal/utils,Apache-2.0,Copyright (C) 1995-1998 Eric Young (eay@cryptsoft.com)
 core,github.com/apache/arrow/go/v15/arrow,Apache-2.0,Copyright (C) 1995-1998 Eric Young (eay@cryptsoft.com)
 core,github.com/apache/arrow/go/v15/arrow/array,Apache-2.0,Copyright (C) 1995-1998 Eric Young (eay@cryptsoft.com)
 core,github.com/apache/arrow/go/v15/arrow/arrio,Apache-2.0,Copyright (C) 1995-1998 Eric Young (eay@cryptsoft.com)
@@ -507,6 +486,27 @@ core,github.com/apache/arrow/go/v15/internal/bitutils,Apache-2.0,Copyright (C) 1
 core,github.com/apache/arrow/go/v15/internal/hashing,Apache-2.0,Copyright (C) 1995-1998 Eric Young (eay@cryptsoft.com)
 core,github.com/apache/arrow/go/v15/internal/json,Apache-2.0,Copyright (C) 1995-1998 Eric Young (eay@cryptsoft.com)
 core,github.com/apache/arrow/go/v15/internal/utils,Apache-2.0,Copyright (C) 1995-1998 Eric Young (eay@cryptsoft.com)
+core,github.com/apache/arrow/go/v16/arrow,Apache-2.0,Copyright (C) 1995-1998 Eric Young (eay@cryptsoft.com)
+core,github.com/apache/arrow/go/v16/arrow/array,Apache-2.0,Copyright (C) 1995-1998 Eric Young (eay@cryptsoft.com)
+core,github.com/apache/arrow/go/v16/arrow/arrio,Apache-2.0,Copyright (C) 1995-1998 Eric Young (eay@cryptsoft.com)
+core,github.com/apache/arrow/go/v16/arrow/bitutil,Apache-2.0,Copyright (C) 1995-1998 Eric Young (eay@cryptsoft.com)
+core,github.com/apache/arrow/go/v16/arrow/decimal128,Apache-2.0,Copyright (C) 1995-1998 Eric Young (eay@cryptsoft.com)
+core,github.com/apache/arrow/go/v16/arrow/decimal256,Apache-2.0,Copyright (C) 1995-1998 Eric Young (eay@cryptsoft.com)
+core,github.com/apache/arrow/go/v16/arrow/encoded,Apache-2.0,Copyright (C) 1995-1998 Eric Young (eay@cryptsoft.com)
+core,github.com/apache/arrow/go/v16/arrow/endian,Apache-2.0,Copyright (C) 1995-1998 Eric Young (eay@cryptsoft.com)
+core,github.com/apache/arrow/go/v16/arrow/float16,Apache-2.0,Copyright (C) 1995-1998 Eric Young (eay@cryptsoft.com)
+core,github.com/apache/arrow/go/v16/arrow/internal,Apache-2.0,Copyright (C) 1995-1998 Eric Young (eay@cryptsoft.com)
+core,github.com/apache/arrow/go/v16/arrow/internal/debug,Apache-2.0,Copyright (C) 1995-1998 Eric Young (eay@cryptsoft.com)
+core,github.com/apache/arrow/go/v16/arrow/internal/dictutils,Apache-2.0,Copyright (C) 1995-1998 Eric Young (eay@cryptsoft.com)
+core,github.com/apache/arrow/go/v16/arrow/internal/flatbuf,Apache-2.0,Copyright (C) 1995-1998 Eric Young (eay@cryptsoft.com)
+core,github.com/apache/arrow/go/v16/arrow/ipc,Apache-2.0,Copyright (C) 1995-1998 Eric Young (eay@cryptsoft.com)
+core,github.com/apache/arrow/go/v16/arrow/memory,Apache-2.0,Copyright (C) 1995-1998 Eric Young (eay@cryptsoft.com)
+core,github.com/apache/arrow/go/v16/arrow/memory/internal/cgoalloc,Apache-2.0,Copyright (C) 1995-1998 Eric Young (eay@cryptsoft.com)
+core,github.com/apache/arrow/go/v16/arrow/memory/mallocator,Apache-2.0,Copyright (C) 1995-1998 Eric Young (eay@cryptsoft.com)
+core,github.com/apache/arrow/go/v16/internal/bitutils,Apache-2.0,Copyright (C) 1995-1998 Eric Young (eay@cryptsoft.com)
+core,github.com/apache/arrow/go/v16/internal/hashing,Apache-2.0,Copyright (C) 1995-1998 Eric Young (eay@cryptsoft.com)
+core,github.com/apache/arrow/go/v16/internal/json,Apache-2.0,Copyright (C) 1995-1998 Eric Young (eay@cryptsoft.com)
+core,github.com/apache/arrow/go/v16/internal/utils,Apache-2.0,Copyright (C) 1995-1998 Eric Young (eay@cryptsoft.com)
 core,github.com/apache/pulsar-client-go/oauth2,Apache-2.0,Copyright 2017-2019 The Apache Software Foundation
 core,github.com/apache/pulsar-client-go/oauth2/cache,Apache-2.0,Copyright 2017-2019 The Apache Software Foundation
 core,github.com/apache/pulsar-client-go/oauth2/clock,Apache-2.0,Copyright 2017-2019 The Apache Software Foundation
@@ -1976,6 +1976,7 @@ core,github.com/mtibben/percent,MIT,Copyright (c) 2020 Michael Tibben
 core,github.com/munnerz/goautoneg,BSD-3-Clause,"Copyright (c) 2011, Open Knowledge Foundation Ltd"
 core,github.com/mwitkow/go-conntrack,Apache-2.0,Copyright 2016 Michal Witkowski. All Rights Reserved.
 core,github.com/mxk/go-flowrate/flowrate,BSD-3-Clause,Copyright (c) 2014 The Go-FlowRate Authors. All rights reserved
+core,github.com/ncruces/go-strftime,MIT,Copyright (c) 2022 Nuno Cruces
 core,github.com/netsampler/goflow2/decoders,BSD-3-Clause,"Copyright (c) 2021, NetSampler"
 core,github.com/netsampler/goflow2/decoders/netflow,BSD-3-Clause,"Copyright (c) 2021, NetSampler"
 core,github.com/netsampler/goflow2/decoders/netflow/templates,BSD-3-Clause,"Copyright (c) 2021, NetSampler"
@@ -2324,6 +2325,7 @@ core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/metadata
 core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/metadataproviders/k8snode,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/metadataproviders/openshift,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/metadataproviders/system,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/pdatautil,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/sharedcomponent,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/splunk,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/sqlquery,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -2332,6 +2334,7 @@ core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/batchpersigna
 core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/experimentalmetricmetadata,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/internal,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/internal/logging,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/ottldatapoint,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/ottllog,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/ottlmetric,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -2429,7 +2432,6 @@ core,github.com/open-telemetry/opentelemetry-collector-contrib/processor/groupby
 core,github.com/open-telemetry/opentelemetry-collector-contrib/processor/k8sattributesprocessor,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/processor/k8sattributesprocessor/internal/kube,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/processor/k8sattributesprocessor/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
-core,github.com/open-telemetry/opentelemetry-collector-contrib/processor/k8sattributesprocessor/internal/observability,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/processor/metricsgenerationprocessor,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/processor/metricsgenerationprocessor/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/processor/metricstransformprocessor,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -2482,6 +2484,7 @@ core,github.com/open-telemetry/opentelemetry-collector-contrib/processor/spanpro
 core,github.com/open-telemetry/opentelemetry-collector-contrib/processor/sumologicprocessor,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/processor/sumologicprocessor/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/processor/tailsamplingprocessor,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/processor/tailsamplingprocessor/internal/cache,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/processor/tailsamplingprocessor/internal/idbatcher,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/processor/tailsamplingprocessor/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/processor/tailsamplingprocessor/internal/sampling,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -2558,7 +2561,6 @@ core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/flinkmet
 core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/flinkmetricsreceiver/internal/models,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/fluentforwardreceiver,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/fluentforwardreceiver/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
-core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/fluentforwardreceiver/observ,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/googlecloudpubsubreceiver,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/googlecloudpubsubreceiver/internal,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/googlecloudpubsubreceiver/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -3469,6 +3471,7 @@ core,go.opentelemetry.io/collector/semconv/v1.17.0,Apache-2.0,Copyright The Open
 core,go.opentelemetry.io/collector/semconv/v1.18.0,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/semconv/v1.21.0,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/semconv/v1.22.0,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/collector/semconv/v1.25.0,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/semconv/v1.6.1,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/semconv/v1.8.0,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/semconv/v1.9.0,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -4821,7 +4824,7 @@ core,k8s.io/utils/strings/slices,Apache-2.0,Copyright 2014 The Kubernetes Author
 core,k8s.io/utils/trace,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,lukechampine.com/uint128,MIT,Copyright (c) 2019 Luke Champine
 core,mellium.im/sasl,BSD-2-Clause,Copyright © 2014 The Mellium Contributors
-core,modernc.org/cc/v3,BSD-3-Clause,Copyright (c) 2017 The CC Authors. All rights reserved | Dan Kortschak <dan.kortschak@adelaide.edu.au> | Dan Peterson <danp@danp.net> | Denys Smirnov <denis.smirnov.91@gmail.com> | Jan Mercl <0xjnml@gmail.com> | Lucas Raab <tuftedocelot@fastmail.fm> | Maxim Kupriianov <max@kc.vc> | Peter Waller <p@pwaller.net> | Steffen Butzer <steffen(dot)butzer@outlook.com> | Tommi Virtanen <tv@eagain.net> | Yasuhiro Matsumoto <mattn.jp@gmail.com> | Zvi Effron <zeffron@cs.hmc.edu>
+core,modernc.org/cc/v3,BSD-3-Clause,Copyright (c) 2017 The CC Authors. All rights reserved | Dan Kortschak <dan.kortschak@adelaide.edu.au> | Dan Peterson <danp@danp.net> | Denys Smirnov <denis.smirnov.91@gmail.com> | Huang Qiqi <huangqiqi@loongson.cn> | Jan Mercl <0xjnml@gmail.com> | Lucas Raab <tuftedocelot@fastmail.fm> | Maxim Kupriianov <max@kc.vc> | Peter Waller <p@pwaller.net> | Steffen Butzer <steffen(dot)butzer@outlook.com> | Tommi Virtanen <tv@eagain.net> | Yasuhiro Matsumoto <mattn.jp@gmail.com> | Zvi Effron <zeffron@cs.hmc.edu>
 core,modernc.org/ccgo/v3/lib,BSD-3-Clause,Copyright (c) 2017 The CCGO Authors. All rights reserved
 core,modernc.org/libc,BSD-3-Clause,Copyright (c) 2017 The Libc Authors. All rights reserved | Dan Kortschak <dan@kortschak.io> | Dan Peterson <danp@danp.net> | Jaap Aarts <jaap.aarts1@gmail.com> | Jan Mercl <0xjnml@gmail.com> | Jason DeBettencourt <jasond17@gmail.com> | Koichi Shiraishi <zchee.io@gmail.com> | Marius Orcsik <marius@federated.id> | Steffen Butzer <steffen(dot)butzer@outlook.com> | ZHU Zijia <piggynl@outlook.com>
 core,modernc.org/libc/errno,BSD-3-Clause,Copyright (c) 2017 The Libc Authors. All rights reserved | Dan Kortschak <dan@kortschak.io> | Dan Peterson <danp@danp.net> | Jaap Aarts <jaap.aarts1@gmail.com> | Jan Mercl <0xjnml@gmail.com> | Jason DeBettencourt <jasond17@gmail.com> | Koichi Shiraishi <zchee.io@gmail.com> | Marius Orcsik <marius@federated.id> | Steffen Butzer <steffen(dot)butzer@outlook.com> | ZHU Zijia <piggynl@outlook.com>
