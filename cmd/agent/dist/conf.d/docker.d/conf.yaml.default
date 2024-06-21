@@ -34,7 +34,7 @@ instances:
 
     ## @param filtered_event_types - list of strings - optional - default: ['top', 'exec_start', 'exec_create', 'exec_die']
     ## List of excluded (filtered out) event types. Docker events of this type are not collected.
-    ## Only effective when unbundle_events is true, otherwise filtered_event_types is used.
+    ## Only effective when unbundle_events is false, otherwise collected_event_types is used.
     ## A list of available types can be found at:
     ## https://docs.docker.com/engine/reference/commandline/events/#object-types
     #
