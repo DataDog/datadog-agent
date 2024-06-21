@@ -54,6 +54,8 @@ const (
 	enhancedMetricsEnvVar = "DD_ENHANCED_METRICS"
 )
 
+var enhancedMetricsDisabled = strings.ToLower(os.Getenv(enhancedMetricsEnvVar)) == "false"
+
 func getOutOfMemorySubstrings() []string {
 	return []string{
 		"fatal error: runtime: out of memory",       // Go
@@ -258,7 +260,7 @@ type GenerateCPUEnhancedMetricsArgs struct {
 // GenerateCPUEnhancedMetrics generates enhanced metrics for CPU time spent running the function in kernel mode,
 // in user mode, and in total
 func GenerateCPUEnhancedMetrics(args GenerateCPUEnhancedMetricsArgs) {
-	if strings.ToLower(os.Getenv(enhancedMetricsEnvVar)) == "false" {
+	if enhancedMetricsDisabled {
 		return
 	}
 	timestamp := float64(args.Time.UnixNano()) / float64(time.Second)
@@ -305,7 +307,7 @@ func SendCPUEnhancedMetrics(userCPUOffsetMs, systemCPUOffsetMs float64, tags []s
 }
 
 func SendNetworkEnhancedMetrics(networkOffsetData *proc.NetworkData, tags []string, demux aggregator.Demultiplexer) {
-	if strings.ToLower(os.Getenv(enhancedMetricsEnvVar)) == "false" {
+	if enhancedMetricsDisabled {
 		return
 	}
 
@@ -369,7 +371,7 @@ func generateNetworkEnhancedMetrics(args generateNetworkEnhancedMetricArgs) {
 // incrementEnhancedMetric sends an enhanced metric with a value of 1 to the metrics channel
 func incrementEnhancedMetric(name string, tags []string, timestamp float64, demux aggregator.Demultiplexer, force bool) {
 	// TODO - pass config here, instead of directly looking up var
-	if !force && strings.ToLower(os.Getenv(enhancedMetricsEnvVar)) == "false" {
+	if !force && enhancedMetricsDisabled {
 		return
 	}
 	demux.AggregateSample(metrics.MetricSample{
