@@ -158,12 +158,32 @@ func buildSymbolToSequenceMap(elfFile *elf.File) (map[string]int, error) {
 	return symToSeq, nil
 }
 
+// openSafeELFFile opens an ELF file and recovers from panics that might happen when reading it.
+func openSafeELFFile(path string) (safe *elf.File, err error) {
+	defer func() {
+		r := recover()
+		if r == nil {
+			return
+		}
+
+		safe = nil
+		err = fmt.Errorf("reading ELF file panicked: %s", r)
+	}()
+
+	file, err := elf.Open(path)
+	if err != nil {
+		return nil, err
+	}
+
+	return file, nil
+}
+
 // getSourceMap builds the source map for an eBPF program. It returns two maps, one that
 // for each program function maps the instruction offset to the source line information, and
 // another that for each section maps the functions that belong to it.
 func getSourceMap(file string, spec *ebpf.CollectionSpec) (map[string]map[int]*SourceLine, map[string][]string, error) {
 	// Open the ELF file
-	elfFile, err := elf.Open(file)
+	elfFile, err := openSafeELFFile(file)
 	if err != nil {
 		return nil, nil, fmt.Errorf("cannot open ELF file %s: %w", file, err)
 	}
@@ -180,7 +200,7 @@ func getSourceMap(file string, spec *ebpf.CollectionSpec) (map[string]map[int]*S
 	}
 	entryReader := dwarfData.Reader()
 	if entryReader == nil {
-		return nil, nil, fmt.Errorf("cannot get dwarf reader for %s: %w", file, err)
+		return nil, nil, fmt.Errorf("cannot get DWARF reader for %s: %w", file, err)
 	}
 
 	// Get the reader for the .debug_lines section
