@@ -386,7 +386,7 @@ def validate(_: Context):
     """
     Test if every module was properly added in the DEFAULT_MODULES list.
     """
-    missing_modules = []
+    missing_modules: list[str] = []
 
     # Find all go.mod files and make sure they are registered in DEFAULT_MODULES
     for root, dirs, files in os.walk("."):
@@ -400,5 +400,7 @@ def validate(_: Context):
         message = f"{color_message('ERROR', Color.RED)}: some modules are missing from DEFAULT_MODULES\n"
         for module in missing_modules:
             message += f"  {module} is missing from DEFAULT_MODULES\n"
+
+        message += "Please add them to the DEFAULT_MODULES list or exclude them from the validation."
 
         raise Exit(message)
