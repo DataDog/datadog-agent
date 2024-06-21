@@ -38,7 +38,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/failure"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/fentry"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/util"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -512,24 +512,7 @@ func removeConnectionFromTelemetry(conn *network.ConnectionStats) {
 }
 
 func (t *tracer) Remove(conn *network.ConnectionStats) error {
-	// TODO: merge this code with the helper from matching.go
-	t.removeTuple.Sport = conn.SPort
-	t.removeTuple.Dport = conn.DPort
-	t.removeTuple.Netns = conn.NetNS
-	t.removeTuple.Pid = conn.Pid
-	t.removeTuple.Saddr_l, t.removeTuple.Saddr_h = util.ToLowHigh(conn.Source)
-	t.removeTuple.Daddr_l, t.removeTuple.Daddr_h = util.ToLowHigh(conn.Dest)
-
-	if conn.Family == network.AFINET6 {
-		t.removeTuple.Metadata = uint32(netebpf.IPv6)
-	} else {
-		t.removeTuple.Metadata = uint32(netebpf.IPv4)
-	}
-	if conn.Type == network.TCP {
-		t.removeTuple.Metadata |= uint32(netebpf.TCP)
-	} else {
-		t.removeTuple.Metadata |= uint32(netebpf.UDP)
-	}
+	util.ConnStatsToTuple(conn, t.removeTuple)
 
 	err := t.conns.Delete(t.removeTuple)
 	if err != nil {
@@ -546,6 +529,9 @@ func (t *tracer) Remove(conn *network.ConnectionStats) error {
 	if conn.Type == network.TCP {
 		// We can ignore the error for this map since it will not always contain the entry
 		_ = t.tcpStats.Delete(t.removeTuple)
+		// We remove the PID from the tuple as it is not used in the retransmits map
+		conn.Pid = 0
+		_ = t.tcpRetransmits.Delete(t.removeTuple)
 	}
 	return nil
 }
