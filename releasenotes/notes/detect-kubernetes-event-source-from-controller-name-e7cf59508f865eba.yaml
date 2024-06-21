@@ -6,10 +6,12 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-features:
+enhancements:
   - |
-    Set the source of kubernetes events to specific integrations based
-    on controller name if known. All kubernetes events will have the
-    tag ``true_source:kubernetes``. For controller names that do not
-    match any of the known integrations, the source will still be set
-    to ``kubernetes`` by default.
+    Add config ``kubernetes_events_source_detection.enabled`` that is
+    false by default. When set to true, set the source of kubernetes
+    events to specific integrations based on the name of the controller
+    that emitted it. All kubernetes events will have the tag
+    ``true_source:kubernetes``. For controller names that do not match
+    any of the known integrations, the source will still be set to
+    ``kubernetes`` by default.
