@@ -1872,7 +1872,6 @@ def wait_for_setup_job(ctx: Context, pipeline_id: int, arch: str | Arch, compone
     """Wait for the setup job to finish corresponding to the given pipeline, arch and component"""
     arch = Arch.from_str(arch)
     setup_jobs, _ = get_all_jobs_for_pipeline(pipeline_id)
-    print(setup_jobs)
     matching_jobs = [j for j in setup_jobs if j.arch == arch.kmt_arch and j.component == component]
     if len(matching_jobs) != 1:
         raise Exit(f"Search for setup_job for {arch} {component} failed: result = {matching_jobs}")
