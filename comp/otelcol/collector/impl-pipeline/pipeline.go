@@ -18,6 +18,7 @@ import (
 	"strings"
 
 	"github.com/gocolly/colly/v2"
+	"go.opentelemetry.io/collector/confmap"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
@@ -278,6 +279,25 @@ func (c *collectorImpl) requestOtelConfigInfo(_ int) ([]byte, error) {
 // Status returns the status of the collector.
 func (c *collectorImpl) Status() datatype.CollectorStatus {
 	return c.col.GetCollectorStatus()
+}
+
+// GetProvidedConf is a no-op.
+func (c *collectorImpl) GetProvidedConf() (*confmap.Conf, error) {
+	return nil, nil
+}
+
+// GetEnhancedConf is a no-op.
+func (c *collectorImpl) GetEnhancedConf() (*confmap.Conf, error) {
+	return nil, nil
+}
+// GetProvidedConfAsString is a no-op.
+func (c *collectorImpl) GetProvidedConfAsString() (string, error) {
+	return "", nil
+}
+
+// GetEnhancedConfAsString is a no-op.
+func (c *collectorImpl) GetEnhancedConfAsString() (string, error) {
+	return "", nil
 }
 
 // NewComponent creates a new Component for this module and returns any errors on failure.

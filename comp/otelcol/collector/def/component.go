@@ -8,6 +8,7 @@ package collector
 
 import (
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/datatype"
+	"go.opentelemetry.io/collector/confmap"
 )
 
 // team: opentelemetry
@@ -15,4 +16,8 @@ import (
 // Component specifies the interface implemented by the collector module.
 type Component interface {
 	Status() datatype.CollectorStatus
+	GetProvidedConf() (*confmap.Conf, error)
+	GetEnhancedConf() (*confmap.Conf, error)
+	GetProvidedConfAsString() (string, error)
+	GetEnhancedConfAsString() (string, error)
 }

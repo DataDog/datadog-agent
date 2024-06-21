@@ -10,6 +10,7 @@ package collectorimpl
 
 import (
 	"context"
+	"fmt"
 
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/confmap"
@@ -20,6 +21,7 @@ import (
 	"go.opentelemetry.io/collector/confmap/provider/httpsprovider"
 	"go.opentelemetry.io/collector/confmap/provider/yamlprovider"
 	"go.opentelemetry.io/collector/otelcol"
+	"gopkg.in/yaml.v2"
 
 	corelog "github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
@@ -39,9 +41,15 @@ import (
 )
 
 type collectorImpl struct {
-	log corelog.Component
-	set otelcol.CollectorSettings
-	col *otelcol.Collector
+	log      corelog.Component
+	set      otelcol.CollectorSettings
+	col      *otelcol.Collector
+	confDump confDump
+}
+
+type confDump struct {
+	provided *otelcol.Config
+	enhanced *otelcol.Config
 }
 
 // Requires declares the input types to the constructor
@@ -74,6 +82,57 @@ type converterFactory struct {
 
 func (c *converterFactory) Create(_ confmap.ConverterSettings) confmap.Converter {
 	return c.converter
+}
+
+// getConfig returns the *otelcol.Config from the slice of URIs. If enhanced is
+// true, it returns the enhanced config, else it returns the provided config.
+func getConfig(reqs Requires, enhanced bool) (*otelcol.Config, error) {
+	converterFactories := []confmap.ConverterFactory{
+		expandconverter.NewFactory(),
+	}
+
+	if enhanced {
+		converterFactories = []confmap.ConverterFactory{
+			expandconverter.NewFactory(),
+			&converterFactory{converter: reqs.Provider},
+		}
+	}
+
+	ocp, err := otelcol.NewConfigProvider(otelcol.ConfigProviderSettings{
+		ResolverSettings: confmap.ResolverSettings{
+			URIs: reqs.URIs,
+			ProviderFactories: []confmap.ProviderFactory{
+				fileprovider.NewFactory(),
+				envprovider.NewFactory(),
+				yamlprovider.NewFactory(),
+				httpprovider.NewFactory(),
+				httpsprovider.NewFactory(),
+			},
+			ConverterFactories: converterFactories,
+		},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create configprovider: %w", err)
+	}
+
+	factories, err := reqs.CollectorContrib.OTelComponentFactories()
+	if err != nil {
+		return nil, err
+	}
+
+	if v, ok := reqs.LogsAgent.Get(); ok {
+		factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(reqs.Serializer, v, reqs.SourceProvider)
+	} else {
+		factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(reqs.Serializer, nil, reqs.SourceProvider)
+	}
+	factories.Processors[infraattributesprocessor.Type] = infraattributesprocessor.NewFactory(reqs.Tagger)
+	
+	conf, err := ocp.Get(context.Background(), factories)
+	if err != nil {
+		return nil, err
+	}
+
+	return conf, nil
 }
 
 // NewComponent returns a new instance of the collector component.
@@ -125,10 +184,22 @@ func NewComponent(reqs Requires) (Provides, error) {
 	if err != nil {
 		return Provides{}, err
 	}
+	providedConf, err := getConfig(reqs, false)
+	if err != nil {
+		return Provides{}, err
+	}
+	enhancedConf, err := getConfig(reqs, true)
+	if err != nil {
+		return Provides{}, err
+	}
 	c := &collectorImpl{
 		log: reqs.Log,
 		set: set,
 		col: col,
+		confDump: confDump{
+			provided: providedConf,
+			enhanced: enhancedConf,
+		},
 	}
 
 	reqs.Lc.Append(compdef.Hook{
@@ -138,6 +209,48 @@ func NewComponent(reqs Requires) (Provides, error) {
 	return Provides{
 		Comp: c,
 	}, nil
+}
+
+// GetProvidedConf returns a string representing the enhanced collector configuration.
+func (c *collectorImpl) GetProvidedConf() (*confmap.Conf, error) {
+	conf := confmap.New()
+	conf.Marshal(c.confDump.provided)
+	return conf, nil
+}
+
+// GetEnhancedConf returns a string representing the enhanced collector configuration.
+func (c *collectorImpl) GetEnhancedConf() (*confmap.Conf, error) {
+	conf := confmap.New()
+	conf.Marshal(c.confDump.enhanced)
+	return conf, nil
+}
+
+// GetProvidedConf returns a string representing the enhanced collector configuration.
+func (c *collectorImpl) GetProvidedConfAsString() (string, error) {
+	confstr, err := confToString(c.confDump.provided)
+
+	return confstr, err
+}
+
+// GetEnhancedConf returns a string representing the enhanced collector configuration.
+func (c *collectorImpl) GetEnhancedConfAsString() (string, error) {
+	confstr, err := confToString(c.confDump.enhanced)
+
+	return confstr, err
+}
+
+func confToString(conf *otelcol.Config) (string, error) {
+	cfg := confmap.New()
+	err := cfg.Marshal(conf)
+	if err != nil {
+		return "", err
+	}
+	bytesConf, err := yaml.Marshal(conf)
+	if err != nil {
+		return "", err
+	}
+
+	return string(bytesConf), nil
 }
 
 func (c *collectorImpl) start(ctx context.Context) error {

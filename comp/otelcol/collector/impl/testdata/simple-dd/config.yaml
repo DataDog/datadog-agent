@@ -1,0 +1,26 @@
+receivers:
+    otlp:
+    prometheus:
+      config:
+        scrape_configs:
+          - job_name: 'otel-collector'
+            scrape_interval: 5s
+            static_configs:
+              - targets: ['0.0.0.0:8888']
+
+exporters:
+    datadog:
+      api:
+        key: 12345
+
+service:
+    pipelines:
+        traces:
+            receivers: [otlp]
+            exporters: [datadog]
+        metrics:
+            receivers: [otlp, prometheus]
+            exporters: [datadog]
+        logs:
+            receivers: [otlp]
+            exporters: [datadog]

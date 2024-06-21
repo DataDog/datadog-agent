@@ -1,0 +1,230 @@
+receivers:
+  otlp:
+    protocols:
+      grpc: null
+      http: null
+  prometheus:
+    prometheusconfig:
+      global:
+        scrape_interval: 1m
+        scrape_timeout: 10s
+        scrape_protocols:
+        - OpenMetricsText1.0.0
+        - OpenMetricsText0.0.1
+        - PrometheusText0.0.4
+        evaluation_interval: 1m
+      scrape_configs:
+      - job_name: otel-collector
+        honor_timestamps: true
+        track_timestamps_staleness: false
+        scrape_interval: 5s
+        scrape_timeout: 5s
+        scrape_protocols:
+        - OpenMetricsText1.0.0
+        - OpenMetricsText0.0.1
+        - PrometheusText0.0.4
+        metrics_path: /metrics
+        scheme: http
+        enable_compression: true
+        follow_redirects: true
+        enable_http2: true
+        static_configs:
+        - targets:
+          - 0.0.0.0:8888
+    trimmetricsuffixes: false
+    usestarttimemetric: false
+    starttimemetricregex: ""
+    reportextrascrapemetrics: false
+    targetallocator: null
+exporters:
+  datadog:
+    clientconfig:
+      endpoint: ""
+      proxyurl: ""
+      tlssetting:
+        config:
+          cafile: ""
+          capem: '[REDACTED]'
+          includesystemcacertspool: false
+          certfile: ""
+          certpem: '[REDACTED]'
+          keyfile: ""
+          keypem: '[REDACTED]'
+          minversion: ""
+          maxversion: ""
+          ciphersuites: []
+          reloadinterval: 0s
+        insecure: false
+        insecureskipverify: false
+        servername: ""
+      readbuffersize: 0
+      writebuffersize: 0
+      timeout: 15s
+      headers: {}
+      auth: null
+      compression: ""
+      maxidleconns: null
+      maxidleconnsperhost: null
+      maxconnsperhost: null
+      idleconntimeout: null
+      disablekeepalives: false
+      http2readidletimeout: 0s
+      http2pingtimeout: 0s
+      cookies: null
+    queuesettings:
+      enabled: true
+      numconsumers: 10
+      queuesize: 1000
+      storageid: null
+    backoffconfig:
+      enabled: true
+      initialinterval: 5s
+      randomizationfactor: 0.5
+      multiplier: 1.5
+      maxinterval: 30s
+      maxelapsedtime: 5m0s
+    tagsconfig:
+      hostname: ""
+    api:
+      key: '[REDACTED]'
+      site: datadoghq.com
+      failoninvalidkey: false
+    metrics:
+      enabled: false
+      deltattl: 3600
+      exporterconfig:
+        resourceattributesastags: false
+        instrumentationlibrarymetadataastags: false
+        instrumentationscopemetadataastags: false
+      tagcardinality: ""
+      histconfig:
+        mode: distributions
+        sendcountsum: false
+        sendaggregations: false
+      sumconfig:
+        cumulativemonotonicmode: to_delta
+        initialcumulativemonotonicmode: auto
+      summaryconfig:
+        mode: gauges
+      apmstatsreceiveraddr: ""
+      tags: ""
+    traces:
+      tcpaddrconfig:
+        endpoint: https://trace.agent.datadoghq.com
+        dialerconfig:
+          timeout: 0s
+      ignoreresources: []
+      spannameremappings: {}
+      spannameasresourcename: true
+      computetoplevelbyspankind: true
+      tracebuffer: 0
+    logs:
+      tcpaddrconfig:
+        endpoint: https://http-intake.logs.datadoghq.com
+        dialerconfig:
+          timeout: 0s
+      dumppayloads: false
+    hostmetadata:
+      enabled: true
+      hostnamesource: config_or_system
+      tags: []
+    onlymetadata: false
+processors:
+  infraattributes/dd-autoconfigured:
+    metrics:
+      metricinfraattributes: []
+    logs:
+      loginfraattributes: []
+    traces:
+      spaninfraattributes: []
+    cardinality: 0
+connectors: {}
+extensions:
+  pprof/dd-autoconfigured:
+    tcpaddr:
+      endpoint: localhost:1777
+      dialerconfig:
+        timeout: 0s
+    blockprofilefraction: 0
+    mutexprofilefraction: 0
+    savetofile: ""
+  health_check/dd-autoconfigured:
+    serverconfig:
+      endpoint: 0.0.0.0:13133
+      tlssetting: null
+      cors: null
+      auth: null
+      maxrequestbodysize: 0
+      includemetadata: false
+      responseheaders: {}
+      compressionalgorithms: []
+    path: /
+    responsebody: null
+    checkcollectorpipeline:
+      enabled: false
+      interval: 5m
+      exporterfailurethreshold: 5
+  zpages/dd-autoconfigured:
+    serverconfig:
+      endpoint: localhost:55679
+      tlssetting: null
+      cors: null
+      auth: null
+      maxrequestbodysize: 0
+      includemetadata: false
+      responseheaders: {}
+      compressionalgorithms: []
+service:
+  telemetry:
+    logs:
+      level: info
+      development: false
+      encoding: console
+      disablecaller: false
+      disablestacktrace: false
+      sampling:
+        enabled: true
+        tick: 10s
+        initial: 10
+        thereafter: 100
+      outputpaths:
+      - stderr
+      erroroutputpaths:
+      - stderr
+      initialfields: {}
+    metrics:
+      level: Normal
+      address: :8888
+      readers: []
+    traces:
+      propagators: []
+      processors: []
+    resource: {}
+  extensions:
+  - pprof/dd-autoconfigured
+  - zpages/dd-autoconfigured
+  - health_check/dd-autoconfigured
+  pipelines:
+    metrics:
+      receivers:
+      - otlp
+      - prometheus
+      processors:
+      - infraattributes/dd-autoconfigured
+      exporters:
+      - datadog
+    traces:
+      receivers:
+      - otlp
+      processors:
+      - infraattributes/dd-autoconfigured
+      exporters:
+      - datadog
+    logs:
+      receivers:
+      - otlp
+      processors:
+      - infraattributes/dd-autoconfigured
+      exporters:
+      - datadog
+

@@ -51,12 +51,12 @@ var (
 			Type:         "extensions",
 			Config:       healthCheckConfig,
 		},
-		{
-			Name:         datadogName,
-			EnhancedName: datadogEnhancedName,
-			Type:         "extensions",
-			Config:       datadogConfig,
-		},
+		// {
+		// 	Name:         datadogName,
+		// 	EnhancedName: datadogEnhancedName,
+		// 	Type:         "extensions",
+		// 	Config:       datadogConfig,
+		// },
 	}
 )
 

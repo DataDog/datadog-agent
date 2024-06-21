@@ -16,6 +16,4 @@ import (
 // provides extra functions to expose the provided and enhanced configs.
 type Component interface {
 	confmap.Converter
-	GetProvidedConf() string
-	GetEnhancedConf() string
 }
