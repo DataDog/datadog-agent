@@ -158,8 +158,8 @@ func WaitForNextInvocation(stopCh chan struct{}, daemon *daemon.Daemon, id regis
 }
 
 func callInvocationHandler(daemon *daemon.Daemon, arn string, deadlineMs int64, safetyBufferTimeout time.Duration, requestID string, invocationHandler InvocationHandler) {
-	userCPUTimeMsOffset, systemCPUTimeMsOffset, cpuOffsetErr := proc.GetCPUData(proc.ProcStatPath)
-	networkOffsetData, networkOffsetErr := proc.GetNetworkData(proc.ProcNetDevPath)
+	userCPUTimeMsOffset, systemCPUTimeMsOffset, cpuOffsetErr := proc.GetCPUData()
+	networkOffsetData, networkOffsetErr := proc.GetNetworkData()
 	timeout := computeTimeout(time.Now(), deadlineMs, safetyBufferTimeout)
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()

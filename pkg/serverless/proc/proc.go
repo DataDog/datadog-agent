@@ -80,7 +80,11 @@ func SearchProcsForEnvVariable(procPath string, envName string) []string {
 }
 
 // GetCPUData collects CPU usage data, returning total user CPU time, total system CPU time, error
-func GetCPUData(path string) (float64, float64, error) {
+func GetCPUData() (float64, float64, error) {
+	return getCPUData(ProcStatPath)
+}
+
+func getCPUData(path string) (float64, float64, error) {
 	file, err := os.Open(path)
 	if err != nil {
 		return 0, 0, err
@@ -128,7 +132,11 @@ type NetworkData struct {
 }
 
 // GetNetworkData collects bytes sent and received by the function
-func GetNetworkData(path string) (*NetworkData, error) {
+func GetNetworkData() (*NetworkData, error) {
+	return getNetworkData(ProcNetDevPath)
+}
+
+func getNetworkData(path string) (*NetworkData, error) {
 	file, err := os.Open(path)
 	if err != nil {
 		return nil, err

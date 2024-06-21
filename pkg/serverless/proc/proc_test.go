@@ -54,31 +54,31 @@ func TestSearchProcsForEnvVariableNotFound(t *testing.T) {
 
 func TestParseCPUTotals(t *testing.T) {
 	path := "./testData/valid_stat"
-	userCPUTimeMs, systemCPUTimeMs, err := GetCPUData(path)
+	userCPUTimeMs, systemCPUTimeMs, err := getCPUData(path)
 	assert.Equal(t, float64(23370), userCPUTimeMs)
 	assert.Equal(t, float64(1880), systemCPUTimeMs)
 	assert.Nil(t, err)
 
 	path = "./testData/invalid_stat_non_numerical_value_1"
-	userCPUTimeMs, systemCPUTimeMs, err = GetCPUData(path)
+	userCPUTimeMs, systemCPUTimeMs, err = getCPUData(path)
 	assert.Equal(t, float64(0), userCPUTimeMs)
 	assert.Equal(t, float64(0), systemCPUTimeMs)
 	assert.NotNil(t, err)
 
 	path = "./testData/invalid_stat_non_numerical_value_2"
-	userCPUTimeMs, systemCPUTimeMs, err = GetCPUData(path)
+	userCPUTimeMs, systemCPUTimeMs, err = getCPUData(path)
 	assert.Equal(t, float64(0), userCPUTimeMs)
 	assert.Equal(t, float64(0), systemCPUTimeMs)
 	assert.NotNil(t, err)
 
 	path = "./testData/invalid_stat_wrong_number_columns"
-	userCPUTimeMs, systemCPUTimeMs, err = GetCPUData(path)
+	userCPUTimeMs, systemCPUTimeMs, err = getCPUData(path)
 	assert.Equal(t, float64(0), userCPUTimeMs)
 	assert.Equal(t, float64(0), systemCPUTimeMs)
 	assert.NotNil(t, err)
 
 	path = "./testData/nonexistant_stat"
-	userCPUTimeMs, systemCPUTimeMs, err = GetCPUData(path)
+	userCPUTimeMs, systemCPUTimeMs, err = getCPUData(path)
 	assert.Equal(t, float64(0), userCPUTimeMs)
 	assert.Equal(t, float64(0), systemCPUTimeMs)
 	assert.NotNil(t, err)
@@ -86,28 +86,28 @@ func TestParseCPUTotals(t *testing.T) {
 
 func TestGetNetworkData(t *testing.T) {
 	path := "./testData/net/valid_dev"
-	networkData, err := GetNetworkData(path)
+	networkData, err := getNetworkData(path)
 	assert.Nil(t, err)
 	assert.Equal(t, float64(180), networkData.RxBytes)
 	assert.Equal(t, float64(254), networkData.TxBytes)
 
 	path = "./testData/net/invalid_dev_malformed"
-	networkData, err = GetNetworkData(path)
+	networkData, err = getNetworkData(path)
 	assert.NotNil(t, err)
 	assert.Nil(t, networkData)
 
 	path = "./testData/net/invalid_dev_non_numerical_value"
-	networkData, err = GetNetworkData(path)
+	networkData, err = getNetworkData(path)
 	assert.NotNil(t, err)
 	assert.Nil(t, networkData)
 
 	path = "./testData/net/missing_interface_dev"
-	networkData, err = GetNetworkData(path)
+	networkData, err = getNetworkData(path)
 	assert.NotNil(t, err)
 	assert.Nil(t, networkData)
 
 	path = "./testData/net/nonexistent_dev"
-	networkData, err = GetNetworkData(path)
+	networkData, err = getNetworkData(path)
 	assert.NotNil(t, err)
 	assert.Nil(t, networkData)
 }

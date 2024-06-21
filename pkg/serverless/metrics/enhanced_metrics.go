@@ -292,7 +292,7 @@ func GenerateCPUEnhancedMetrics(args GenerateCPUEnhancedMetricsArgs) {
 
 // SendCPUEnhancedMetrics sends CPU enhanced metrics for the invocation
 func SendCPUEnhancedMetrics(userCPUOffsetMs, systemCPUOffsetMs float64, tags []string, demux aggregator.Demultiplexer) {
-	userCPUTimeMs, systemCPUTimeMs, err := proc.GetCPUData(proc.ProcStatPath)
+	userCPUTimeMs, systemCPUTimeMs, err := proc.GetCPUData()
 	if err != nil {
 		log.Debug("Could not emit CPU enhanced metrics")
 		return
@@ -311,7 +311,7 @@ func SendNetworkEnhancedMetrics(networkOffsetData *proc.NetworkData, tags []stri
 		return
 	}
 
-	networkData, err := proc.GetNetworkData(proc.ProcNetDevPath)
+	networkData, err := proc.GetNetworkData()
 	if err != nil {
 		log.Debug("Could not emit network enhanced metrics")
 		return
