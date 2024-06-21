@@ -272,7 +272,7 @@ DEFAULT_MODULES = {
 }
 
 # Folder containing a `go.mod` file but that should not be added to the DEFAULT_MODULES
-IGNORED_MODULES = [
+IGNORED_MODULE_PATHS = [
     # Will be removed soon
     "./comp/otelcol/otlp/example/metric",
     # Test files
@@ -282,6 +282,8 @@ IGNORED_MODULES = [
     "./internal/tools/modparser/testdata/patchgoversion",
     # This `go.mod` is a hack
     "./pkg/process/procutil/resources",
+    # We have test files in the tasks folder
+    "./tasks",
     # Test files
     "./test/integration/serverless/recorder-extension",
     "./test/integration/serverless/src",
@@ -391,9 +393,9 @@ def validate(_: Context):
     # Find all go.mod files and make sure they are registered in DEFAULT_MODULES
     for root, dirs, files in os.walk("."):
         # Ignore the files that could be stored in the Python tests
-        dirs[:] = [d for d in dirs if root + '/' + d != "./tasks"]
+        dirs[:] = [d for d in dirs if root + '/' + d not in IGNORED_MODULE_PATHS]
 
-        if "go.mod" in files and root.removeprefix("./") not in DEFAULT_MODULES and root not in IGNORED_MODULES:
+        if "go.mod" in files and root.removeprefix("./") not in DEFAULT_MODULES:
             missing_modules.append(root)
 
     if missing_modules:
