@@ -9,7 +9,6 @@ package testutil
 import (
 	"context"
 	"fmt"
-	"io"
 	"net"
 	"os"
 	"os/exec"
@@ -71,23 +70,20 @@ func HTTPPythonServer(t *testing.T, addr string, options Options) *exec.Cmd {
 	require.NoError(t, err)
 
 	cmd := exec.Command("python3", scriptFile.Name(), strconv.FormatBool(options.EnableTLS))
-	stderr, err := cmd.StderrPipe()
-	require.NoError(t, err, "could not get Python HTTP server stderr pipe")
 	require.NoError(t, cmd.Start())
+
+	t.Cleanup(func() {
+		if cmd.Process != nil {
+			require.NoError(t, cmd.Process.Kill())
+			_, _ = cmd.Process.Wait()
+		}
+	})
 
 	// Waiting for the server to be ready
 	portCtx, cancelPortCtx := context.WithDeadline(context.Background(), time.Now().Add(time.Second*5))
 	rawConnect(portCtx, t, host, port)
 	cancelPortCtx()
 
-	t.Cleanup(func() {
-		if cmd.Process != nil {
-			_ = cmd.Process.Kill()
-			out, err := io.ReadAll(stderr)
-			require.NoError(t, err, "could not read stdout")
-			t.Log("Python HTTP server stdout\n" + string(out))
-		}
-	})
 	return cmd
 }
 
