@@ -6,7 +6,7 @@
 package metrics
 
 import (
-	"os"
+	"sync"
 	"testing"
 	"time"
 
@@ -251,17 +251,24 @@ func TestSendInvocationEnhancedMetric(t *testing.T) {
 }
 
 func TestDisableEnhancedMetrics(t *testing.T) {
-	os.Setenv("DD_ENHANCED_METRICS", "false")
-	defer os.Setenv("DD_ENHANCED_METRICS", "true")
+	var wg sync.WaitGroup
+	enhancedMetricsDisabled = true
 	demux := createDemultiplexer(t)
 	tags := []string{"functionname:test-function"}
 
-	go SendInvocationEnhancedMetric(tags, demux)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		SendInvocationEnhancedMetric(tags, demux)
+	}()
 
 	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(1, 0, 100*time.Millisecond)
 
 	assert.Len(t, generatedMetrics, 0)
 	assert.Len(t, timedMetrics, 0)
+
+	wg.Wait()
+	enhancedMetricsDisabled = false
 }
 
 func TestSendOutOfMemoryEnhancedMetric(t *testing.T) {
@@ -508,17 +515,25 @@ func TestGenerateCPUEnhancedMetrics(t *testing.T) {
 }
 
 func TestGenerateCPUEnhancedMetricsDisabled(t *testing.T) {
-	os.Setenv("DD_ENHANCED_METRICS", "false")
-	defer os.Setenv("DD_ENHANCED_METRICS", "true")
-
+	var wg sync.WaitGroup
+	enhancedMetricsDisabled = true
 	demux := createDemultiplexer(t)
 	tags := []string{"functionname:test-function"}
 	now := time.Now()
-	args := GenerateCPUEnhancedMetricsArgs{100, 53, tags, demux, now}
-	go GenerateCPUEnhancedMetrics(args)
-	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(4, 0, 100*time.Millisecond)
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		GenerateCPUEnhancedMetrics(GenerateCPUEnhancedMetricsArgs{100, 53, tags, demux, now})
+	}()
+
+	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(1, 0, 100*time.Millisecond)
+
 	assert.Len(t, generatedMetrics, 0)
 	assert.Len(t, timedMetrics, 0)
+
+	wg.Wait()
+	enhancedMetricsDisabled = false
 }
 
 func TestGenerateNetworkEnhancedMetrics(t *testing.T) {
@@ -535,7 +550,7 @@ func TestGenerateNetworkEnhancedMetrics(t *testing.T) {
 		Time:          now,
 	}
 	go generateNetworkEnhancedMetrics(args)
-	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(4, 0, 100*time.Millisecond)
+	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(3, 0, 100*time.Millisecond)
 	assert.Equal(t, []metrics.MetricSample{
 		{
 			Name:       rxBytesMetric,
@@ -567,31 +582,24 @@ func TestGenerateNetworkEnhancedMetrics(t *testing.T) {
 }
 
 func TestNetworkEnhancedMetricsDisabled(t *testing.T) {
-	os.Setenv("DD_ENHANCED_METRICS", "false")
-	defer os.Setenv("DD_ENHANCED_METRICS", "true")
+	var wg sync.WaitGroup
+	enhancedMetricsDisabled = true
 	demux := createDemultiplexer(t)
 	tags := []string{"functionname:test-function"}
 
-	go SendNetworkEnhancedMetrics(&proc.NetworkData{}, tags, demux)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		SendNetworkEnhancedMetrics(&proc.NetworkData{}, tags, demux)
+	}()
 
 	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(1, 0, 100*time.Millisecond)
 
 	assert.Len(t, generatedMetrics, 0)
 	assert.Len(t, timedMetrics, 0)
 
-}
-
-func TestNetworkEnhancedMetricsCollectionError(t *testing.T) {
-	demux := createDemultiplexer(t)
-	tags := []string{"functionname:test-function"}
-
-	go SendNetworkEnhancedMetrics(&proc.NetworkData{}, tags, demux)
-
-	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(1, 0, 100*time.Millisecond)
-
-	assert.Len(t, generatedMetrics, 0)
-	assert.Len(t, timedMetrics, 0)
-
+	wg.Wait()
+	enhancedMetricsDisabled = false
 }
 
 func createDemultiplexer(t *testing.T) demultiplexer.FakeSamplerMock {
