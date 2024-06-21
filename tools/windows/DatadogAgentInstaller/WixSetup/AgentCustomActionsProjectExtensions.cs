@@ -1,7 +1,8 @@
 using System.Linq;
+using WixSetup.Datadog_Agent;
 using WixSharp;
 
-namespace WixSetup.Datadog
+namespace WixSetup
 {
     public static class AgentCustomActionsProjectExtensions
     {
@@ -13,7 +14,7 @@ namespace WixSetup.Datadog
         /// <param name="project">The project to add the custom actions to.</param>
         /// <param name="agentCustomActions">The instance of the Agent custom action to inject.</param>
         /// <returns>The project, for chaining.</returns>
-        public static Project SetCustomActions(this Project project, AgentCustomActions agentCustomActions)
+        public static Project SetCustomActions(this Project project, object agentCustomActions)
         {
             project.Actions = project.Actions.Combine(
                 agentCustomActions.GetType()

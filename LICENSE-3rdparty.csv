@@ -1810,6 +1810,7 @@ core,github.com/josharian/intern,MIT,Copyright (c) 2019 Josh Bleecher Snyder
 core,github.com/josharian/native,MIT,Copyright 2020 Josh Bleecher Snyder
 core,github.com/jpillora/backoff,MIT,Copyright (c) 2017 Jaime Pillora
 core,github.com/json-iterator/go,MIT,Copyright (c) 2016 json-iterator
+core,github.com/judwhite/go-svc,MIT,Copyright (c) 2016 Jud White
 core,github.com/julienschmidt/httprouter,BSD-3-Clause,"Copyright (c) 2013, Julien Schmidt"
 core,github.com/justincormack/go-memfd,MIT,Copyright (c) 2017 Justin Cormack
 core,github.com/justincormack/go-memfd/msyscall,MIT,Copyright (c) 2017 Justin Cormack

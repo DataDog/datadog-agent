@@ -26,7 +26,7 @@ func NewMock(deps dependencies, t testing.TB) traceagent.Component { //nolint:re
 
 	// Several related non-components require a shared context to gracefully stop.
 	ctx, cancel := context.WithCancel(context.Background())
-	ag := &agent{
+	ag := component{
 		Agent: pkgagent.NewAgent(
 			ctx,
 			deps.Config.Object(),

@@ -141,49 +141,49 @@ var Spec = &protocols.ProtocolSpec{
 		},
 		{
 			ProgArrayName: protocols.TLSDispatcherProgramsMap,
-			Key:           uint32(protocols.ProgramTLSKafka),
+			Key:           uint32(protocols.ProgramKafka),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: tlsFilterTailCall,
 			},
 		},
 		{
 			ProgArrayName: protocols.TLSDispatcherProgramsMap,
-			Key:           uint32(protocols.ProgramTLSKafkaResponsePartitionParserV0),
+			Key:           uint32(protocols.ProgramKafkaResponsePartitionParserV0),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: tlsResponsePartitionParserV0TailCall,
 			},
 		},
 		{
 			ProgArrayName: protocols.TLSDispatcherProgramsMap,
-			Key:           uint32(protocols.ProgramTLSKafkaResponsePartitionParserV12),
+			Key:           uint32(protocols.ProgramKafkaResponsePartitionParserV12),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: tlsResponsePartitionParserV12TailCall,
 			},
 		},
 		{
 			ProgArrayName: protocols.TLSDispatcherProgramsMap,
-			Key:           uint32(protocols.ProgramTLSKafkaResponseRecordBatchParserV0),
+			Key:           uint32(protocols.ProgramKafkaResponseRecordBatchParserV0),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: tlsResponseRecordBatchParserV0TailCall,
 			},
 		},
 		{
 			ProgArrayName: protocols.TLSDispatcherProgramsMap,
-			Key:           uint32(protocols.ProgramTLSKafkaResponseRecordBatchParserV12),
+			Key:           uint32(protocols.ProgramKafkaResponseRecordBatchParserV12),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: tlsResponseRecordBatchParserV12TailCall,
 			},
 		},
 		{
 			ProgArrayName: protocols.TLSDispatcherProgramsMap,
-			Key:           uint32(protocols.ProgramTLSKafkaTermination),
+			Key:           uint32(protocols.ProgramKafkaTermination),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: tlsTerminationTailCall,
 			},
 		},
 		{
 			ProgArrayName: protocols.TLSProtocolDispatcherClassificationPrograms,
-			Key:           uint32(protocols.TLSDispatcherKafkaProg),
+			Key:           uint32(protocols.DispatcherKafkaProg),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: tlsDispatcherTailCall,
 			},
