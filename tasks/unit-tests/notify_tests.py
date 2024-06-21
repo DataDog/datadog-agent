@@ -12,6 +12,7 @@ from invoke import MockContext, Result
 from invoke.exceptions import UnexpectedExit
 
 from tasks import notify
+from tasks.libs.notify import alerts, pipeline_status
 from tasks.libs.pipeline.notifications import find_job_owners
 from tasks.libs.types.types import FailedJobReason, FailedJobs, FailedJobType
 
@@ -185,36 +186,40 @@ class TestSendMessage(unittest.TestCase):
         list_mock.assert_called()
 
     def test_post_to_channel1(self):
-        self.assertTrue(notify._should_send_message_to_channel("main", default_branch="main"))
+        self.assertTrue(pipeline_status.should_send_message_to_channel("main", default_branch="main"))
 
     def test_post_to_channel2(self):
-        self.assertTrue(notify._should_send_message_to_channel("7.52.x", default_branch="main"))
+        self.assertTrue(pipeline_status.should_send_message_to_channel("7.52.x", default_branch="main"))
 
     def test_post_to_channel3(self):
-        self.assertTrue(notify._should_send_message_to_channel("7.52.0", default_branch="main"))
+        self.assertTrue(pipeline_status.should_send_message_to_channel("7.52.0", default_branch="main"))
 
     def test_post_to_channel4(self):
-        self.assertTrue(notify._should_send_message_to_channel("7.52.0-rc.1", default_branch="main"))
+        self.assertTrue(pipeline_status.should_send_message_to_channel("7.52.0-rc.1", default_branch="main"))
 
     def test_post_to_author1(self):
-        self.assertFalse(notify._should_send_message_to_channel("7.52.0-beta-test-feature", default_branch="main"))
+        self.assertFalse(
+            pipeline_status.should_send_message_to_channel("7.52.0-beta-test-feature", default_branch="main")
+        )
 
     def test_post_to_author2(self):
-        self.assertFalse(notify._should_send_message_to_channel("7.52.0-rc.1-beta-test-feature", default_branch="main"))
+        self.assertFalse(
+            pipeline_status.should_send_message_to_channel("7.52.0-rc.1-beta-test-feature", default_branch="main")
+        )
 
     def test_post_to_author3(self):
-        self.assertFalse(notify._should_send_message_to_channel("celian/7.52.0", default_branch="main"))
+        self.assertFalse(pipeline_status.should_send_message_to_channel("celian/7.52.0", default_branch="main"))
 
     def test_post_to_author4(self):
-        self.assertFalse(notify._should_send_message_to_channel("a.b.c", default_branch="main"))
+        self.assertFalse(pipeline_status.should_send_message_to_channel("a.b.c", default_branch="main"))
 
     def test_post_to_author5(self):
-        self.assertFalse(notify._should_send_message_to_channel("my-feature", default_branch="main"))
+        self.assertFalse(pipeline_status.should_send_message_to_channel("my-feature", default_branch="main"))
 
 
 class TestSendStats(unittest.TestCase):
     @patch('tasks.libs.ciproviders.gitlab_api.get_gitlab_api')
-    @patch("tasks.notify.create_count", new=MagicMock())
+    @patch("tasks.libs.notify.alerts.create_count", new=MagicMock())
     def test_nominal(self, api_mock):
         repo_mock = api_mock.return_value.projects.get.return_value
         trace_mock = repo_mock.jobs.get.return_value.trace
@@ -229,6 +234,26 @@ class TestSendStats(unittest.TestCase):
         trace_mock.assert_called()
         pipeline_mock.assert_called()
         self.assertEqual(pipeline_mock.call_count, 2)
+
+
+class TestJobOwners(unittest.TestCase):
+    def test_partition(self):
+        from tasks.owners import make_partition
+
+        jobs = ['tests_hello', 'tests_ebpf', 'security_go_generate_check', 'hello_world', 'tests_hello_world']
+
+        partition = make_partition(jobs, "tasks/unit-tests/testdata/jobowners.txt")
+        partition = sorted(partition.items())
+
+        self.assertEqual(
+            partition,
+            [
+                ('@DataDog/agent-ci-experience', {'hello_world'}),
+                ('@DataDog/agent-security', {'security_go_generate_check'}),
+                ('@DataDog/ebpf-platform', {'tests_ebpf'}),
+                ('@DataDog/multiple', {'tests_hello', 'tests_hello_world'}),
+            ],
+        )
 
 
 class TestCheckConsistentFailures(unittest.TestCase):
@@ -252,29 +277,29 @@ class TestCheckConsistentFailures(unittest.TestCase):
         list_mock.assert_called()
 
 
-class TestRetrieveJobExecutionsCreated(unittest.TestCase):
+class TestAlertsRetrieveJobExecutionsCreated(unittest.TestCase):
     job_executions = None
     job_file = "job_executions.json"
 
     def setUp(self) -> None:
-        self.job_executions = notify.create_initial_job_executions(self.job_file)
+        self.job_executions = alerts.create_initial_job_executions(self.job_file)
 
     def tearDown(self) -> None:
         pathlib.Path(self.job_file).unlink(missing_ok=True)
 
     def test_retrieved(self):
         ctx = MockContext(run=Result("test"))
-        j = notify.retrieve_job_executions(ctx, "job_executions.json")
+        j = alerts.retrieve_job_executions(ctx, "job_executions.json")
         self.assertDictEqual(j.to_dict(), self.job_executions.to_dict())
 
 
-class TestRetrieveJobExecutions(unittest.TestCase):
+class TestAlertsRetrieveJobExecutions(unittest.TestCase):
     test_json = "tasks/unit-tests/testdata/job_executions.json"
 
     def test_not_found(self):
         ctx = MagicMock()
         ctx.run.side_effect = UnexpectedExit(Result(stderr="This is a 404 not found"))
-        j = notify.retrieve_job_executions(ctx, self.test_json)
+        j = alerts.retrieve_job_executions(ctx, self.test_json)
         self.assertEqual(j.pipeline_id, 0)
         self.assertEqual(j.jobs, {})
 
@@ -282,11 +307,11 @@ class TestRetrieveJobExecutions(unittest.TestCase):
         ctx = MagicMock()
         ctx.run.side_effect = UnexpectedExit(Result(stderr="This is another error"))
         with self.assertRaises(UnexpectedExit):
-            notify.retrieve_job_executions(ctx, self.test_json)
+            alerts.retrieve_job_executions(ctx, self.test_json)
 
 
-class TestUpdateStatistics(unittest.TestCase):
-    @patch("tasks.notify.get_failed_jobs")
+class TestAlertsUpdateStatistics(unittest.TestCase):
+    @patch("tasks.libs.notify.alerts.get_failed_jobs")
     def test_nominal(self, mock_get_failed):
         failed_jobs = mock_get_failed.return_value
         failed_jobs.all_failures.return_value = [
@@ -295,7 +320,7 @@ class TestUpdateStatistics(unittest.TestCase):
         ]
         os.environ["CI_COMMIT_SHA"] = "abcdef42"
         ok = {"id": None, "failing": False, 'commit': 'abcdef42'}
-        j = notify.PipelineRuns.from_dict(
+        j = alerts.PipelineRuns.from_dict(
             {
                 "jobs": {
                     "nafnaf": {
@@ -325,7 +350,7 @@ class TestUpdateStatistics(unittest.TestCase):
                 }
             }
         )
-        a, j = notify.update_statistics(j)
+        a, j = alerts.update_statistics(j)
         self.assertEqual(j.jobs["nifnif"].consecutive_failures, 1)
         self.assertEqual(len(j.jobs["nifnif"].jobs_info), 1)
         self.assertTrue(j.jobs["nifnif"].jobs_info[0].failing)
@@ -341,7 +366,7 @@ class TestUpdateStatistics(unittest.TestCase):
         self.assertIn("nafnaf", a["consecutive"])
         mock_get_failed.assert_called()
 
-    @patch("tasks.notify.get_failed_jobs")
+    @patch("tasks.libs.notify.alerts.get_failed_jobs")
     def test_multiple_failures(self, mock_get_failed):
         failed_jobs = mock_get_failed.return_value
         fail = {"id": 42, "failing": True, 'commit': 'abcdef42'}
@@ -350,7 +375,7 @@ class TestUpdateStatistics(unittest.TestCase):
             ProjectJob(MagicMock(), attrs=a | {"id": 42, 'commit': 'abcdef42'})
             for a in [{"name": "poulidor"}, {"name": "virenque"}, {"name": "bardet"}]
         ]
-        j = notify.PipelineRuns.from_dict(
+        j = alerts.PipelineRuns.from_dict(
             {
                 "jobs": {
                     "poulidor": {
@@ -365,7 +390,7 @@ class TestUpdateStatistics(unittest.TestCase):
                 }
             }
         )
-        a, j = notify.update_statistics(j)
+        a, j = alerts.update_statistics(j)
         self.assertEqual(j.jobs["poulidor"].consecutive_failures, 9)
         self.assertEqual(j.jobs["virenque"].consecutive_failures, 3)
         self.assertEqual(j.jobs["bardet"].consecutive_failures, 3)
@@ -377,65 +402,45 @@ class TestUpdateStatistics(unittest.TestCase):
         mock_get_failed.assert_called()
 
 
-class TestJobOwners(unittest.TestCase):
-    def test_partition(self):
-        from tasks.owners import make_partition
-
-        jobs = ['tests_hello', 'tests_ebpf', 'security_go_generate_check', 'hello_world', 'tests_hello_world']
-
-        partition = make_partition(jobs, "tasks/unit-tests/testdata/jobowners.txt")
-        partition = sorted(partition.items())
-
-        self.assertEqual(
-            partition,
-            [
-                ('@DataDog/agent-ci-experience', {'hello_world'}),
-                ('@DataDog/agent-security', {'security_go_generate_check'}),
-                ('@DataDog/ebpf-platform', {'tests_ebpf'}),
-                ('@DataDog/multiple', {'tests_hello', 'tests_hello_world'}),
-            ],
-        )
-
-
-class TestSendNotification(unittest.TestCase):
+class TestAlertsSendNotification(unittest.TestCase):
     def test_consecutive(self):
-        consecutive = notify.ConsecutiveJobAlert({'foo': [notify.ExecutionsJobInfo(1)] * notify.CONSECUTIVE_THRESHOLD})
+        consecutive = alerts.ConsecutiveJobAlert({'foo': [alerts.ExecutionsJobInfo(1)] * alerts.CONSECUTIVE_THRESHOLD})
         message = consecutive.format_message('abcdef')
-        self.assertIn(f'{notify.CONSECUTIVE_THRESHOLD} times in a row', message)
+        self.assertIn(f'{alerts.CONSECUTIVE_THRESHOLD} times in a row', message)
 
     def test_cumulative(self):
-        cumulative = notify.CumulativeJobAlert(
-            {'foo': [notify.ExecutionsJobInfo(i, failing=i % 3 != 0) for i in range(notify.CUMULATIVE_LENGTH)]}
+        cumulative = alerts.CumulativeJobAlert(
+            {'foo': [alerts.ExecutionsJobInfo(i, failing=i % 3 != 0) for i in range(alerts.CUMULATIVE_LENGTH)]}
         )
         message = cumulative.message()
-        self.assertIn(f'{notify.CUMULATIVE_THRESHOLD} times in last {notify.CUMULATIVE_LENGTH} executions', message)
+        self.assertIn(f'{alerts.CUMULATIVE_THRESHOLD} times in last {alerts.CUMULATIVE_LENGTH} executions', message)
 
-    @patch("tasks.notify.send_slack_message")
+    @patch("tasks.libs.notify.alerts.send_slack_message")
     def test_none(self, mock_slack):
         alert_jobs = {"consecutive": {}, "cumulative": {}}
-        notify.send_notification(MagicMock(), alert_jobs)
+        alerts.send_notification(MagicMock(), alert_jobs)
         mock_slack.assert_not_called()
 
-    @patch("tasks.notify.send_metrics")
-    @patch("tasks.notify.send_slack_message")
-    @patch.object(notify.ConsecutiveJobAlert, 'message', lambda self, ctx: '\n'.join(self.failures) + '\n')
-    @patch.object(notify.CumulativeJobAlert, 'message', lambda self: '\n'.join(self.failures))
+    @patch("tasks.libs.notify.alerts.send_metrics")
+    @patch("tasks.libs.notify.alerts.send_slack_message")
+    @patch.object(alerts.ConsecutiveJobAlert, 'message', lambda self, ctx: '\n'.join(self.failures) + '\n')
+    @patch.object(alerts.CumulativeJobAlert, 'message', lambda self: '\n'.join(self.failures))
     def test_jobowners(self, mock_slack: MagicMock, mock_metrics: MagicMock):
         consecutive = {
-            'tests_hello': [notify.ExecutionsJobInfo(1)] * notify.CONSECUTIVE_THRESHOLD,
-            'security_go_generate_check': [notify.ExecutionsJobInfo(1)] * notify.CONSECUTIVE_THRESHOLD,
+            'tests_hello': [alerts.ExecutionsJobInfo(1)] * alerts.CONSECUTIVE_THRESHOLD,
+            'security_go_generate_check': [alerts.ExecutionsJobInfo(1)] * alerts.CONSECUTIVE_THRESHOLD,
         }
         cumulative = {
             'tests_release1': [
-                notify.ExecutionsJobInfo(i, failing=i % 3 != 0) for i in range(notify.CUMULATIVE_LENGTH)
+                alerts.ExecutionsJobInfo(i, failing=i % 3 != 0) for i in range(alerts.CUMULATIVE_LENGTH)
             ],
             'tests_release2': [
-                notify.ExecutionsJobInfo(i, failing=i % 3 != 0) for i in range(notify.CUMULATIVE_LENGTH)
+                alerts.ExecutionsJobInfo(i, failing=i % 3 != 0) for i in range(alerts.CUMULATIVE_LENGTH)
             ],
         }
 
         alert_jobs = {"consecutive": consecutive, "cumulative": cumulative}
-        notify.send_notification(MagicMock(), alert_jobs, jobowners='tasks/unit-tests/testdata/jobowners.txt')
+        alerts.send_notification(MagicMock(), alert_jobs, jobowners='tasks/unit-tests/testdata/jobowners.txt')
         self.assertEqual(len(mock_slack.call_args_list), 4)
 
         # Verify that we send the right number of jobs per channel
