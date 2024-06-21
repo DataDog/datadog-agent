@@ -220,7 +220,7 @@ require (
 	google.golang.org/appengine v1.6.8 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240401170217-c3f982113cda // indirect
 	google.golang.org/grpc v1.63.2 // indirect
-	google.golang.org/protobuf v1.33.0 // indirect
+	google.golang.org/protobuf v1.34.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
@@ -241,7 +241,7 @@ require (
 require (
 	github.com/DataDog/datadog-agent/pkg/util/optional v0.55.0-rc.3
 	github.com/mitchellh/mapstructure v1.5.0
-	github.com/pulumi/pulumi-aws/sdk/v6 v6.25.0
+	github.com/pulumi/pulumi-aws/sdk/v6 v6.41.0
 	github.com/pulumi/pulumi-awsx/sdk/v2 v2.5.0
 	github.com/pulumi/pulumi-eks/sdk/v2 v2.2.1
 	github.com/pulumi/pulumi-kubernetes/sdk/v4 v4.13.1
