@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using WixSharp;
 
-namespace WixSetup.Datadog
+namespace WixSetup.Datadog_Agent
 {
     public class AgentFeatures
     {

@@ -982,17 +982,17 @@ static __always_inline void kafka_call_response_parser(void *ctx, conn_tuple_t *
         switch (level) {
         case PARSER_LEVEL_RECORD_BATCH:
             if (api_version >= 12) {
-                index = TLS_KAFKA_RESPONSE_RECORD_BATCH_PARSER_V12;
+                index = PROG_KAFKA_RESPONSE_RECORD_BATCH_PARSER_V12;
             } else {
-                index = TLS_KAFKA_RESPONSE_RECORD_BATCH_PARSER_V0;
+                index = PROG_KAFKA_RESPONSE_RECORD_BATCH_PARSER_V0;
             }
             break;
         case PARSER_LEVEL_PARTITION:
         default:
             if (api_version >= 12) {
-                index = TLS_KAFKA_RESPONSE_PARTITION_PARSER_V12;
+                index = PROG_KAFKA_RESPONSE_PARTITION_PARSER_V12;
             } else {
-                index = TLS_KAFKA_RESPONSE_PARTITION_PARSER_V0;
+                index = PROG_KAFKA_RESPONSE_PARTITION_PARSER_V0;
             }
             break;
         }

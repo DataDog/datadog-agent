@@ -1,7 +1,7 @@
 using System;
 using System.Linq;
 
-namespace WixSetup.Datadog
+namespace WixSetup.Datadog_Agent
 {
     public class AgentPython
     {
