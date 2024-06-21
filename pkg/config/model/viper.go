@@ -616,7 +616,7 @@ func (c *safeConfig) ReadInConfig() error {
 		if err != nil {
 			return fmt.Errorf("error merging %s config file: %w", confFile.path, err)
 		}
-		log.Infof("the following extra configuration file was loaded successfully: %s ", confFile.path)
+		log.Infof("extra configuration file %s was loaded successfully", confFile.path)
 	}
 	return nil
 }
