@@ -173,6 +173,7 @@
         aws ec2 terminate-instances --instance-ids "${INSTANCE_ID}"
       fi
   after_script:
+    - export DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $API_KEY_ORG2_SSM_NAME)
     - !reference [.tag_kmt_ci_job]
 
 # Manual cleanup jobs, these will be used to cleanup the instances after the tests
