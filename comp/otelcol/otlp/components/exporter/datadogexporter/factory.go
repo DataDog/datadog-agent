@@ -21,7 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	tracepb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
-	"github.com/DataDog/datadog-go/v5/statsd"
 
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 	otlpmetrics "github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics"
@@ -72,9 +71,8 @@ func newFactoryWithRegistry(
 	s serializer.MetricSerializer,
 	logsagent logsagentpipeline.Component,
 	h serializerexporter.SourceProviderFunc,
-	mclient statsd.ClientInterface,
+	mclientwrapper *metricsclient.StatsdClientWrapper,
 ) exporter.Factory {
-	mclientwrapper, _ := mclient.(*metricsclient.StatsdClientWrapper)
 	f := &factory{
 		registry:       registry,
 		s:              s,
@@ -113,9 +111,9 @@ func NewFactory(
 	s serializer.MetricSerializer,
 	logsAgent logsagentpipeline.Component,
 	h serializerexporter.SourceProviderFunc,
-	mclient statsd.ClientInterface,
+	mclientwrapper *metricsclient.StatsdClientWrapper,
 ) exporter.Factory {
-	return newFactoryWithRegistry(featuregate.GlobalRegistry(), traceagentcmp, s, logsAgent, h, mclient)
+	return newFactoryWithRegistry(featuregate.GlobalRegistry(), traceagentcmp, s, logsAgent, h, mclientwrapper)
 }
 
 func defaultClientConfig() confighttp.ClientConfig {
