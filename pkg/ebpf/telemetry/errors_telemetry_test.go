@@ -41,6 +41,14 @@ var m = &manager.Manager{
 	},
 }
 
+func skipTestIfEBPFTelemetryNotSupported(t *testing.T) {
+	ok, err := ebpfTelemetrySupported()
+	require.NoError(t, err)
+	if !ok {
+		t.Skip("EBPF telemetry is not supported for this kernel version")
+	}
+}
+
 func triggerTestAndGetTelemetry(t *testing.T) []prometheus.Metric {
 	bpfDir := os.Getenv("DD_SYSTEM_PROBE_BPF_DIR")
 	require.True(t, bpfDir != "")
@@ -93,6 +101,8 @@ func triggerTestAndGetTelemetry(t *testing.T) []prometheus.Metric {
 }
 
 func TestMapsTelemetry(t *testing.T) {
+	skipTestIfEBPFTelemetryNotSupported(t)
+
 	mapsTelemetry := triggerTestAndGetTelemetry(t)
 	t.Cleanup(func() {
 		m.Stop(manager.CleanAll)
@@ -128,6 +138,8 @@ func TestMapsTelemetry(t *testing.T) {
 }
 
 func TestMapsTelemetrySuppressError(t *testing.T) {
+	skipTestIfEBPFTelemetryNotSupported(t)
+
 	mapsTelemetry := triggerTestAndGetTelemetry(t)
 	t.Cleanup(func() {
 		m.Stop(manager.CleanAll)
@@ -153,6 +165,8 @@ func TestMapsTelemetrySuppressError(t *testing.T) {
 }
 
 func TestHelpersTelemetry(t *testing.T) {
+	skipTestIfEBPFTelemetryNotSupported(t)
+
 	helperTelemetry := triggerTestAndGetTelemetry(t)
 	t.Cleanup(func() {
 		m.Stop(manager.CleanAll)
