@@ -25,7 +25,7 @@ class TestCreateGitlabAnnotations(unittest.TestCase):
                 {
                     "external_link": {
                         "label": "Test Visibility: This job test runs",
-                        "url": f"{TEST_VISIBILITY_URL}?query=test_level%3Atest%20%40ci.job.url%3A%22{quote(GITLAB_BASE_URL)}%2FDataDog%2Fdatadog-agent%2F-%2Fjobs%2F123%22%20%40test.service%3Adatadog-agent",
+                        "url": f"{TEST_VISIBILITY_URL}?query=test_level%3Atest%20%40ci.job.url%3A%22{quote(GITLAB_BASE_URL, safe='')}%2FDataDog%2Fdatadog-agent%2F-%2Fjobs%2F123%22%20%40test.service%3Adatadog-agent",
                     }
                 },
                 {
