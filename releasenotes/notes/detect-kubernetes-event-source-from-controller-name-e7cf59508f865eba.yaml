@@ -1,0 +1,15 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    Set the source of kubernetes events to specific integrations based
+    on controller name if known. All kubernetes events will have the
+    tag ``true_source:kubernetes``. For controller names that do not
+    match any of the known integrations, the source will still be set
+    to ``kubernetes`` by default.
