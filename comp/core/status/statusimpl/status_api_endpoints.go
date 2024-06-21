@@ -20,9 +20,9 @@ var mimeTypeMap = map[string]string{
 
 // SetJSONError writes a server error as JSON with the correct http error code
 func SetJSONError(w http.ResponseWriter, err error, errorCode int) {
-	w.Header().Set("Content-Type", "application/json")
 	body, _ := json.Marshal(map[string]string{"error": err.Error()})
 	http.Error(w, string(body), errorCode)
+	w.Header().Set("Content-Type", "application/json")
 }
 
 func (s *statusImplementation) getStatus(w http.ResponseWriter, r *http.Request, section string) {
