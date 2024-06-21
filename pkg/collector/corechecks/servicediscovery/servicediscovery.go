@@ -197,7 +197,7 @@ func (c *Check) Run() error {
 			err := fmt.Errorf("found repeated service name: %s", svc.meta.Name)
 			telemetryFromError(errWithCode{
 				err:  err,
-				code: errorCodeRepeatedServiceName,
+				code: errorCodeServiceNameRepeated,
 				svc:  &svc.meta,
 			})
 			// track the PID, so we don't increase this counter in every run of the check.

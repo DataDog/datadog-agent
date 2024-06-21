@@ -103,7 +103,7 @@ func (li *linuxImpl) DiscoverServices() (*discoveredServices, error) {
 	if err != nil {
 		return nil, errWithCode{
 			err:  err,
-			code: errorCodeSystemProbePorts,
+			code: errorCodeSystemProbeOpenPorts,
 			svc:  nil,
 		}
 	}
@@ -262,7 +262,7 @@ func (li *linuxImpl) getServiceInfo(p proc, sysProbe systemProbeClient, openPort
 	if meta.Name == "" {
 		return nil, errWithCode{
 			err:  errors.New("service detection did not return a name"),
-			code: errorCodeEmptyServiceName,
+			code: errorCodeServiceNameEmpty,
 			svc:  nil,
 		}
 	}

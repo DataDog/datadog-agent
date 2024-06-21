@@ -12,12 +12,12 @@ import (
 type errCode string
 
 const (
-	errorCodeProcfs              errCode = "procfs"
-	errorCodeSystemProbeConn     errCode = "system_probe"
-	errorCodeSystemProbePorts    errCode = "system_probe_ports"
-	errorCodeSystemProbeGetProc  errCode = "system_probe_get_proc"
-	errorCodeEmptyServiceName    errCode = "empty_service_name"
-	errorCodeRepeatedServiceName errCode = "repeated_service_name"
+	errorCodeProcfs               errCode = "procfs"
+	errorCodeSystemProbeConn      errCode = "system_probe_conn"
+	errorCodeSystemProbeOpenPorts errCode = "system_probe_ports"
+	errorCodeSystemProbeGetProc   errCode = "system_probe_proc"
+	errorCodeServiceNameEmpty     errCode = "service_name_empty"
+	errorCodeServiceNameRepeated  errCode = "service_name_repeated"
 )
 
 type errWithCode struct {

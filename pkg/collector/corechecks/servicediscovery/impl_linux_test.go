@@ -17,6 +17,7 @@ import (
 	gocmp "github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/prometheus/procfs"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -59,6 +60,15 @@ var (
 			Starttime: procLaunchedClicks,
 		},
 	}
+	procTestService1Empty = testProc{
+		pid:     99,
+		cmdline: []string{},
+		env:     []string{},
+		cwd:     "",
+		stat: procfs.ProcStat{
+			Starttime: procLaunchedClicks,
+		},
+	}
 	procIgnoreService1 = testProc{
 		pid:     100,
 		cmdline: []string{"ignore-1"},
@@ -80,6 +90,33 @@ var (
 	procTestService1DifferentPID = testProc{
 		pid:     102,
 		cmdline: []string{"test-service-1"},
+		env:     []string{},
+		cwd:     "",
+		stat: procfs.ProcStat{
+			Starttime: procLaunchedClicks,
+		},
+	}
+	procErrorProcfsCmd = testProc{
+		pid:     103,
+		cmdline: []string{"error-procfs-cmd"},
+		env:     []string{},
+		cwd:     "",
+		stat: procfs.ProcStat{
+			Starttime: procLaunchedClicks,
+		},
+	}
+	procErrorProcfsStat = testProc{
+		pid:     104,
+		cmdline: []string{"error-procfs-stat"},
+		env:     []string{},
+		cwd:     "",
+		stat: procfs.ProcStat{
+			Starttime: procLaunchedClicks,
+		},
+	}
+	procErrorSysProbe = testProc{
+		pid:     105,
+		cmdline: []string{"error-sysprobe"},
 		env:     []string{},
 		cwd:     "",
 		stat: procfs.ProcStat{
@@ -119,16 +156,55 @@ var (
 		ProcessName: "test-service-1",
 		PID:         procTestService1Repeat.pid,
 	}
+	portTCP8081NoPID = &model.Port{
+		Proto:       "tcp",
+		Port:        8081,
+		ProcessName: "",
+		PID:         0,
+	}
+	portTCP8081Error = &model.Port{
+		Proto:       "tcp",
+		Port:        8081,
+		ProcessName: "err-1",
+		PID:         procErrorProcfsCmd.pid,
+	}
+	portTCP8082Error = &model.Port{
+		Proto:       "tcp",
+		Port:        8082,
+		ProcessName: "err-2",
+		PID:         procErrorProcfsStat.pid,
+	}
+	portTCP8083Error = &model.Port{
+		Proto:       "tcp",
+		Port:        8083,
+		ProcessName: "err-3",
+		PID:         procErrorSysProbe.pid,
+	}
 )
 
 func mockProc(
 	ctrl *gomock.Controller,
 	p testProc,
-) proc {
+) *Mockproc {
 	m := NewMockproc(ctrl)
 	m.EXPECT().PID().Return(p.pid).AnyTimes()
-	m.EXPECT().CmdLine().Return(p.cmdline, nil).AnyTimes()
-	m.EXPECT().Stat().Return(p.stat, nil).AnyTimes()
+
+	if p.pid == procErrorProcfsCmd.pid {
+		m.EXPECT().CmdLine().
+			Return(nil, errors.New("procfs cmdline error")).
+			AnyTimes()
+	} else {
+		m.EXPECT().CmdLine().Return(p.cmdline, nil).AnyTimes()
+	}
+
+	if p.pid == procErrorProcfsStat.pid {
+		m.EXPECT().Stat().
+			Return(procfs.ProcStat{}, errors.New("procfs stat error")).
+			AnyTimes()
+	} else {
+		m.EXPECT().Stat().Return(p.stat, nil).AnyTimes()
+	}
+
 	return m
 }
 
@@ -436,8 +512,7 @@ func Test_linuxImpl(t *testing.T) {
 						portTCP22,
 						portTCP8080,
 						portTCP8081,
-					},
-					},
+					}},
 					time: calcTime(0),
 				},
 				{
@@ -511,6 +586,98 @@ func Test_linuxImpl(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "ports_without_pid_are_skipped",
+			checkRun: []*checkRun{
+				{
+					aliveProcs: []testProc{
+						procSSHD,
+						procTestService1,
+					},
+					openPortsResp: &model.OpenPortsResponse{Ports: []*model.Port{
+						portTCP22,
+						portTCP8081NoPID,
+					}},
+					time: calcTime(0),
+				},
+				{
+					aliveProcs: []testProc{
+						procSSHD,
+						procTestService1,
+					},
+					openPortsResp: &model.OpenPortsResponse{Ports: []*model.Port{
+						portTCP22,
+						portTCP8081NoPID,
+					}},
+					time: calcTime(1),
+				},
+			},
+			wantEvents: nil,
+		},
+		{
+			name: "procs_generating_empty_service_name_are_skipped",
+			checkRun: []*checkRun{
+				{
+					aliveProcs: []testProc{
+						procSSHD,
+						procTestService1Empty,
+					},
+					openPortsResp: &model.OpenPortsResponse{Ports: []*model.Port{
+						portTCP22,
+						portTCP8081,
+					}},
+					time: calcTime(0),
+				},
+				{
+					aliveProcs: []testProc{
+						procSSHD,
+						procTestService1Empty,
+					},
+					openPortsResp: &model.OpenPortsResponse{Ports: []*model.Port{
+						portTCP22,
+						portTCP8081,
+					}},
+					time: calcTime(1 * time.Minute),
+				},
+			},
+			wantEvents: nil,
+		},
+		{
+			name: "procs_returning_err_are_skipped_and_ignored",
+			checkRun: []*checkRun{
+				{
+					aliveProcs: []testProc{
+						procSSHD,
+						procErrorProcfsCmd,
+						procErrorProcfsStat,
+						procErrorSysProbe,
+					},
+					openPortsResp: &model.OpenPortsResponse{Ports: []*model.Port{
+						portTCP22,
+						portTCP8081Error,
+						portTCP8082Error,
+						portTCP8083Error,
+					}},
+					time: calcTime(0),
+				},
+				{
+					aliveProcs: []testProc{
+						procSSHD,
+						procErrorProcfsCmd,
+						procErrorProcfsStat,
+						procErrorSysProbe,
+					},
+					openPortsResp: &model.OpenPortsResponse{Ports: []*model.Port{
+						portTCP22,
+						portTCP8081Error,
+						portTCP8082Error,
+						portTCP8083Error,
+					}},
+					time: calcTime(1 * time.Minute),
+				},
+			},
+			wantEvents: nil,
+		},
 	}
 
 	for _, tc := range tests {
@@ -547,17 +714,26 @@ func Test_linuxImpl(t *testing.T) {
 
 				var procs []proc
 				for _, p := range cr.aliveProcs {
-					procs = append(procs, mockProc(ctrl, p))
+					mProc := mockProc(ctrl, p)
 
-					mSysProbe.EXPECT().GetServiceDiscoveryProc(gomock.Any(), gomock.Eq(p.pid)).
-						Return(
-							&model.GetProcResponse{Proc: &model.Proc{
-								PID:     p.pid,
-								Environ: p.env,
-								CWD:     p.cwd,
-							}},
-							nil).
-						AnyTimes()
+					if p.pid == procErrorSysProbe.pid {
+						mSysProbe.EXPECT().GetServiceDiscoveryProc(gomock.Any(), gomock.Eq(p.pid)).
+							Return(nil, errors.New("sysprobe get proc error")).
+							AnyTimes()
+					} else {
+						mSysProbe.EXPECT().GetServiceDiscoveryProc(gomock.Any(), gomock.Eq(p.pid)).
+							Return(
+								&model.GetProcResponse{Proc: &model.Proc{
+									PID:     p.pid,
+									Environ: p.env,
+									CWD:     p.cwd,
+								}},
+								nil,
+							).
+							AnyTimes()
+					}
+
+					procs = append(procs, mProc)
 				}
 
 				mProcFS := NewMockprocFS(ctrl)
@@ -591,58 +767,80 @@ func Test_linuxImpl(t *testing.T) {
 }
 
 func Test_linuxImpl_errors(t *testing.T) {
-	ctrl := gomock.NewController(t)
-
-	// bad procFS
-	{
-		mErrProcfs := NewMockprocFS(ctrl)
-		mErrProcfs.EXPECT().AllProcs().
-			Return(nil, errors.New("procFS failure")).
-			AnyTimes()
-
-		li := linuxImpl{
-			procfs: mErrProcfs,
-		}
-		ds, err := li.DiscoverServices()
-		if ds != nil {
-			t.Error("expected nil discovery service")
-		}
-		var expected errWithCode
-		if errors.As(err, &expected) {
-			if expected.Code() != errorCodeProcfs {
-				t.Errorf("expected error code procfs: %#v", expected)
-			}
-		} else {
-			t.Error("expected errWithCode, got", err)
-		}
+	ignoreCfg := map[string]bool{
+		"ignore-1": true,
+		"ignore-2": true,
 	}
-	// bad systemProbe open ports
-	{
-		mErrSystemProbe := NewMocksystemProbeClient(ctrl)
-		mErrSystemProbe.EXPECT().GetServiceDiscoveryOpenPorts(gomock.Any()).
-			Return(nil, errors.New("system-probe open ports failure")).
-			AnyTimes()
 
-		mProcfs := NewMockprocFS(ctrl)
-		mProcfs.EXPECT().AllProcs().Return([]proc{}, nil).AnyTimes()
-
-		li := linuxImpl{
-			procfs: mProcfs,
-			getSysProbeClient: func() (systemProbeClient, error) {
-				return mErrSystemProbe, nil
+	tests := []struct {
+		name        string
+		procfs      procFS
+		setMocks    func(li *linuxImpl, ctrl *gomock.Controller)
+		wantErrCode errCode
+	}{
+		{
+			name: "system_probe_conn",
+			setMocks: func(li *linuxImpl, ctrl *gomock.Controller) {
+				li.getSysProbeClient = func() (systemProbeClient, error) {
+					return nil, errors.New("system probe conn error")
+				}
 			},
-		}
-		ds, err := li.DiscoverServices()
-		if ds != nil {
-			t.Error("expected nil discovery service")
-		}
-		var expected errWithCode
-		if errors.As(err, &expected) {
-			if expected.Code() != errorCodeSystemProbePorts {
-				t.Errorf("expected error code portPoller: %#v", expected)
+			wantErrCode: errorCodeSystemProbeConn,
+		},
+		{
+			name: "procfs_allprocs_err",
+			setMocks: func(li *linuxImpl, ctrl *gomock.Controller) {
+				mErrProcfs := NewMockprocFS(ctrl)
+				mErrProcfs.EXPECT().AllProcs().
+					Return(nil, errors.New("procFS failure")).
+					AnyTimes()
+
+				li.procfs = mErrProcfs
+			},
+			wantErrCode: errorCodeProcfs,
+		},
+		{
+			name: "system_probe_open_ports",
+			setMocks: func(li *linuxImpl, ctrl *gomock.Controller) {
+				mErrSystemProbe := NewMocksystemProbeClient(ctrl)
+				mErrSystemProbe.EXPECT().GetServiceDiscoveryOpenPorts(gomock.Any()).
+					Return(nil, errors.New("system-probe open ports failure")).
+					AnyTimes()
+
+				mProcfs := NewMockprocFS(ctrl)
+				mProcfs.EXPECT().AllProcs().Return([]proc{}, nil).AnyTimes()
+
+				li.procfs = mProcfs
+				li.getSysProbeClient = func() (systemProbeClient, error) {
+					return mErrSystemProbe, nil
+				}
+			},
+			wantErrCode: errorCodeSystemProbeOpenPorts,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+
+			impl, err := newLinuxImpl(ignoreCfg)
+			require.NoError(t, err)
+			li := impl.(*linuxImpl)
+
+			if tc.setMocks != nil {
+				tc.setMocks(li, ctrl)
 			}
-		} else {
-			t.Error("expected errWithCode, got", err)
-		}
+
+			ds, err := li.DiscoverServices()
+			assert.Nil(t, ds, "expected nil discovered services")
+			require.Error(t, err, "expected error from DiscoverServices")
+
+			if tc.wantErrCode == "" {
+				return
+			}
+			errc := &errWithCode{}
+			require.ErrorAs(t, err, errc, "expected error to be errWithCode")
+			assert.Equal(t, tc.wantErrCode, errc.Code())
+		})
 	}
 }
