@@ -135,34 +135,46 @@ func TestProcessCollector(t *testing.T) {
 
 func TestProcessCollectorStart(t *testing.T) {
 	tests := []struct {
-		name                 string
-		agentFlavor          string
-		langDetectionEnabled bool
-		expectedEnabled      bool
+		name                      string
+		agentFlavor               string
+		langDetectionEnabled      bool
+		processesRunInCoreEnabled bool
+		expectedEnabled           bool
 	}{
 		{
-			name:                 "core agent + config enabled",
-			agentFlavor:          flavor.DefaultAgent,
-			langDetectionEnabled: true,
-			expectedEnabled:      true,
+			name:                      "core agent + configs enabled",
+			agentFlavor:               flavor.DefaultAgent,
+			langDetectionEnabled:      true,
+			processesRunInCoreEnabled: true,
+			expectedEnabled:           true,
 		},
 		{
-			name:                 "core agent + config disabled",
-			agentFlavor:          flavor.DefaultAgent,
-			langDetectionEnabled: false,
-			expectedEnabled:      false,
+			name:                      "core agent + checks disabled + lang detection",
+			agentFlavor:               flavor.DefaultAgent,
+			langDetectionEnabled:      true,
+			processesRunInCoreEnabled: false,
+			expectedEnabled:           false,
 		},
 		{
-			name:                 "process agent + config enabled",
-			agentFlavor:          flavor.ProcessAgent,
-			langDetectionEnabled: true,
-			expectedEnabled:      false,
+			name:                      "core agent + configs disabled",
+			agentFlavor:               flavor.DefaultAgent,
+			langDetectionEnabled:      false,
+			processesRunInCoreEnabled: false,
+			expectedEnabled:           false,
 		},
 		{
-			name:                 "process agent + config disabled",
-			agentFlavor:          flavor.ProcessAgent,
-			langDetectionEnabled: false,
-			expectedEnabled:      false,
+			name:                      "process agent + configs enabled",
+			agentFlavor:               flavor.ProcessAgent,
+			langDetectionEnabled:      true,
+			processesRunInCoreEnabled: true,
+			expectedEnabled:           false,
+		},
+		{
+			name:                      "process agent + configs disabled",
+			agentFlavor:               flavor.ProcessAgent,
+			langDetectionEnabled:      false,
+			processesRunInCoreEnabled: false,
+			expectedEnabled:           false,
 		},
 	}
 
@@ -173,7 +185,9 @@ func TestProcessCollectorStart(t *testing.T) {
 			flavor.SetFlavor(test.agentFlavor)
 
 			configOverrides := map[string]interface{}{
-				"language_detection.enabled": test.langDetectionEnabled,
+				"language_detection.enabled":                test.langDetectionEnabled,
+				"process_config.process_collection.enabled": test.processesRunInCoreEnabled,
+				"process_config.run_in_core_agent.enabled":  test.processesRunInCoreEnabled,
 			}
 
 			mockStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(

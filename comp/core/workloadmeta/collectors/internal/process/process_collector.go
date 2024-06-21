@@ -87,8 +87,20 @@ func GetFxOptions() fx.Option {
 	return fx.Provide(NewCollector)
 }
 
+func (c *collector) enabled() bool {
+	if flavor.GetFlavor() != flavor.DefaultAgent {
+		return false
+	}
+
+	processChecksInCoreAgent := (config.Datadog().GetBool("process_config.process_collection.enabled") &&
+		config.Datadog().GetBool("process_config.run_in_core_agent.enabled"))
+	langDetectionEnabled := config.Datadog().GetBool("language_detection.enabled")
+
+	return langDetectionEnabled && processChecksInCoreAgent
+}
+
 func (c *collector) Start(ctx context.Context, store workloadmeta.Component) error {
-	if !config.Datadog().GetBool("language_detection.enabled") || flavor.GetFlavor() != flavor.DefaultAgent {
+	if !c.enabled() {
 		return errors.NewDisabled(componentName, "core agent language detection not enabled")
 	}
 
