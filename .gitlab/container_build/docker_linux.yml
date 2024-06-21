@@ -189,7 +189,7 @@ docker_build_ua_agent7:
     - !reference [.except_mergequeue]
     - when: on_success
   needs:
-    - job: agent_deb-x64-a7
+    - job: ua_agent_deb-x64-a7
       artifacts: false
   variables:
     IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
@@ -203,7 +203,7 @@ docker_build_ua_agent7_arm64:
     - !reference [.except_mergequeue]
     - when: on_success
   needs:
-    - job: agent_deb-arm64-a7
+    - job: ua_agent_deb-arm64-a7
       artifacts: false
   variables:
     IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
@@ -218,7 +218,7 @@ docker_build_ua_agent7_jmx:
     - !reference [.except_mergequeue]
     - when: on_success
   needs:
-    - job: agent_deb-x64-a7
+    - job: ua_agent_deb-x64-a7
       artifacts: false
   variables:
     IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
@@ -232,7 +232,7 @@ docker_build_ua_agent7_jmx_arm64:
     - !reference [.except_mergequeue]
     - when: on_success
   needs:
-    - job: agent_deb-arm64-a7
+    - job: ua_agent_deb-arm64-a7
       artifacts: false
   variables:
     IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
