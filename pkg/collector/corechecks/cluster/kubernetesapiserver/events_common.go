@@ -99,6 +99,7 @@ var ControllerToIntegration = map[string]string{
 	"validatingadmissionpolicy-status-controller":    "kubernetes",
 	"service-cidr-controller":                        "kubernetes",
 	"storage-version-migrator-controller":            "kubernetes",
+	"kubelet":                                        "kubernetes",
 	"endpoint-controller":                            "kubernetes controller manager",
 	"endpoint-slice-controller":                      "kubernetes controller manager",
 	"replicaset-controller":                          "kubernetes controller manager",
