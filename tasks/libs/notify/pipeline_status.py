@@ -92,10 +92,11 @@ def send_message_and_metrics(
             print(f"Would send to {channel}:\n{str(message)}")
         else:
             all_teams = channel == "#datadog-agent-pipelines"
-            send_dm = not should_send_message_to_channel(git_ref, default_branch) and all_teams
+            # send_dm = not should_send_message_to_channel(git_ref, default_branch) and all_teams
 
             if all_teams:
-                recipient = channel
+                # recipient = channel
+                recipient = '#celian-tests'
                 send_slack_message(recipient, str(message))
                 metrics.append(
                     create_count(
@@ -111,11 +112,13 @@ def send_message_and_metrics(
                     )
                 )
 
-            # DM author
-            if send_dm:
-                author_email = get_git_author(email=True)
-                recipient = email_to_slackid(ctx, author_email)
-                send_slack_message(recipient, str(message))
+            # TODO
+            # # DM author
+            # if send_dm:
+            #     author_email = get_git_author(email=True)
+            #     recipient = email_to_slackid(ctx, author_email)
+            #     send_slack_message(recipient, str(message))
 
+    # TODO
     if metrics:
         send_metrics(metrics)
