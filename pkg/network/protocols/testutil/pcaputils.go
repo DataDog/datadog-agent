@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux
+
 package testutil
 
 import (
@@ -10,13 +12,12 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
-
-const tmpDest string = "/tmp/test_pcaps/"
 
 // GetShortTestName generates a suffix in the form
 // "<protocol>-<subtest name>" to be passed to WithPCAP.
@@ -37,6 +38,8 @@ func GetShortTestName(proto, subtest string) string {
 func WithPCAP(t *testing.T, port string, suffix string, alwaysSave bool) io.Writer {
 	t.Helper()
 
+	tmpDest := os.TempDir()
+
 	// Ensure destination directory exists
 	if _, err := os.Stat(tmpDest); os.IsNotExist(err) {
 		require.NoError(t, os.Mkdir(tmpDest, 0755))
@@ -45,10 +48,11 @@ func WithPCAP(t *testing.T, port string, suffix string, alwaysSave bool) io.Writ
 	}
 
 	pcapFile := fmt.Sprintf("test-%s.pcap", suffix)
-	pcapTempPath := fmt.Sprintf("%s/%s", t.TempDir(), pcapFile)
+	pcapTempPath := filepath.Join(t.TempDir(), pcapFile)
 
 	klwFile := fmt.Sprintf("test-%s.keylog", suffix)
-	klwTempPath := fmt.Sprintf("%s/%s", t.TempDir(), klwFile)
+	klwTempPath := filepath.Join(t.TempDir(), klwFile)
+
 	klw, err := os.Create(klwTempPath)
 	require.NoError(t, err, "could not create keylog writer")
 
@@ -68,8 +72,8 @@ func WithPCAP(t *testing.T, port string, suffix string, alwaysSave bool) io.Writ
 			return
 		}
 
-		require.NoError(t, os.Rename(pcapTempPath, tmpDest+pcapFile))
-		require.NoError(t, os.Rename(klwTempPath, tmpDest+klwFile))
+		require.NoError(t, os.Rename(pcapTempPath, filepath.Join(tmpDest, pcapFile)))
+		require.NoError(t, os.Rename(klwTempPath, filepath.Join(tmpDest, klwFile)))
 	})
 
 	return klw
