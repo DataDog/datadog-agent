@@ -2,10 +2,9 @@ unit_tests_notify:
   stage: source_test
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
-  # TODO
   rules:
-    # - !reference [.except_main_or_release_branch]
-    # - !reference [.except_disable_unit_tests]
+    - !reference [.except_main_or_release_branch]
+    - !reference [.except_disable_unit_tests]
     - when: always
   script:
     - source /root/.bashrc
