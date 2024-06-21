@@ -1,23 +1,10 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING
 
-if TYPE_CHECKING:
-    from tasks.kernel_matrix_testing.types import Arch
+from tasks.libs.types.arch import Arch, KMTArchName
 
-
-arch_mapping: dict[str, Arch] = {
-    "amd64": "x86_64",
-    "x86": "x86_64",
-    "x86_64": "x86_64",
-    "x86-64": "x86_64",
-    "arm64": "arm64",
-    "arm": "arm64",
-    "aarch64": "arm64",
-}
-arch_ls: list[Arch] = ["x86_64", "arm64"]
-
+KMT_SUPPORTED_ARCHS: list[KMTArchName] = ["x86_64", "arm64"]
 VMCONFIG = "vmconfig.json"
 
 
@@ -37,7 +24,7 @@ class KMTPaths:
 
     @property
     def arch_dir(self):
-        return self.stack_dir / self.arch
+        return self.stack_dir / self.arch.kmt_arch
 
     @property
     def stack_dir(self):
@@ -60,7 +47,7 @@ class KMTPaths:
 
     @property
     def tools(self):
-        return self.root / self.arch / "tools"
+        return self.root / self.arch.kmt_arch / "tools"
 
     @property
     def test_results(self):

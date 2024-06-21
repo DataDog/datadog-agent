@@ -416,10 +416,11 @@ class TestSendNotification(unittest.TestCase):
         notify.send_notification(MagicMock(), alert_jobs)
         mock_slack.assert_not_called()
 
+    @patch("tasks.notify.send_metrics")
     @patch("tasks.notify.send_slack_message")
     @patch.object(notify.ConsecutiveJobAlert, 'message', lambda self, ctx: '\n'.join(self.failures) + '\n')
     @patch.object(notify.CumulativeJobAlert, 'message', lambda self: '\n'.join(self.failures))
-    def test_jobowners(self, mock_slack: MagicMock):
+    def test_jobowners(self, mock_slack: MagicMock, mock_metrics: MagicMock):
         consecutive = {
             'tests_hello': [notify.ExecutionsJobInfo(1)] * notify.CONSECUTIVE_THRESHOLD,
             'security_go_generate_check': [notify.ExecutionsJobInfo(1)] * notify.CONSECUTIVE_THRESHOLD,
@@ -453,37 +454,21 @@ class TestSendNotification(unittest.TestCase):
 
             self.assertEqual(expected_team_njobs.get(channel, None), njobs)
 
-
-class TestSendFailureSummaryNotification(unittest.TestCase):
-    @patch("slack_sdk.WebClient")
-    @patch("os.environ", new=MagicMock())
-    def test_nominal(self, mock_slack: MagicMock):
-        # jobname: [total_failures, total_runs]
-        jobs = {
-            "hello": {"failures": 45},  # agent-ci-experience
-            "world": {"failures": 45},  # agent-ci-experience
-            "security_go_generate_check": {"failures": 21},  # agent-security
-            "tests_release": {"failures": 31},  # agent-ci-experience, agent-build-and-releases
-            "tests_release2": {"failures": 31},  # agent-ci-experience, agent-build-and-releases
+        # Verify metrics
+        mock_metrics.assert_called_once()
+        expected_metrics = {
+            '@datadog/agent-security': 1,
+            '@datadog/agent-build-and-releases': 2,
+            '@datadog/agent-ci-experience': 2,
+            '@datadog/agent-developer-tools': 2,
+            '@datadog/documentation': 2,
+            '@datadog/agent-platform': 2,
         }
-        # Verify that we send the right number of jobs per channel
-        expected_team_njobs = {
-            '#agent-build-and-releases': 2,
-            '#agent-developer-experience': 4,
-            '#agent-platform-ops': 5,
-            '#security-and-compliance-agent-ops': 1,
-        }
+        for metric in mock_metrics.call_args[0][0]:
+            name = metric['metric']
+            value = int(metric['points'][0]['value'])
+            team = next(tag.removeprefix('team:') for tag in metric['tags'] if tag.startswith('team:'))
 
-        notify.send_failure_summary_notification(
-            MockContext(), jobs, jobowners="tasks/unit-tests/testdata/jobowners.txt"
-        )
-        mock_slack.assert_called()
-
-        # Verify called once for each channel
-        self.assertEqual(len(mock_slack.return_value.chat_postMessage.call_args_list), len(expected_team_njobs))
-
-        for call_args in mock_slack.return_value.chat_postMessage.call_args_list:
-            channel = call_args.kwargs['channel']
-            message = json.dumps(call_args.kwargs['blocks'])
-            njobs = message.count("- ")
-            self.assertEqual(expected_team_njobs.get(channel, None), njobs, 'Failure for channel: ' + channel)
+            self.assertEqual(
+                value, expected_metrics.get(team), f'Unexpected metric value for metric {name} of team {team}'
+            )

@@ -19,7 +19,7 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	filterpkg "github.com/DataDog/datadog-agent/pkg/network/filter"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
@@ -89,7 +89,7 @@ func NewMonitor(c *config.Config, connectionProtocolMap *ebpf.Map) (m *Monitor, 
 	if filter == nil {
 		return nil, fmt.Errorf("error retrieving socket filter")
 	}
-	ebpfcheck.AddNameMappings(mgr.Manager.Manager, "usm_monitor")
+	ddebpf.AddNameMappings(mgr.Manager.Manager, "usm_monitor")
 
 	closeFilterFn, err := filterpkg.HeadlessSocketFilter(c, filter)
 	if err != nil {
@@ -147,6 +147,24 @@ func (m *Monitor) Start() error {
 	return err
 }
 
+// Pause bypasses the eBPF programs in the monitor
+func (m *Monitor) Pause() error {
+	if m == nil {
+		return nil
+	}
+
+	return m.ebpfProgram.Pause()
+}
+
+// Resume enables the previously bypassed eBPF programs in the monitor
+func (m *Monitor) Resume() error {
+	if m == nil {
+		return nil
+	}
+
+	return m.ebpfProgram.Resume()
+}
+
 // GetUSMStats returns the current state of the USM monitor
 func (m *Monitor) GetUSMStats() map[string]interface{} {
 	response := map[string]interface{}{
@@ -190,7 +208,7 @@ func (m *Monitor) Stop() {
 
 	m.processMonitor.Stop()
 
-	ebpfcheck.RemoveNameMappings(m.ebpfProgram.Manager.Manager)
+	ddebpf.RemoveNameMappings(m.ebpfProgram.Manager.Manager)
 
 	m.ebpfProgram.Close()
 	m.closeFilterFn()

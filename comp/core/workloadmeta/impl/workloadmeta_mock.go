@@ -60,13 +60,28 @@ func (w *workloadMetaMock) GetContainer(id string) (*wmdef.Container, error) {
 }
 
 // GetKubernetesMetadata implements workloadMetaMock#GetKubernetesMetadata.
-func (w *workloadMetaMock) GetKubernetesMetadata(id string) (*wmdef.KubernetesMetadata, error) {
-	entity, err := w.getEntityByKind(wmdef.KindKubernetesMetadata, id)
+func (w *workloadMetaMock) GetKubernetesMetadata(id wmdef.KubeMetadataEntityID) (*wmdef.KubernetesMetadata, error) {
+	entity, err := w.getEntityByKind(wmdef.KindKubernetesMetadata, string(id))
 	if err != nil {
 		return nil, err
 	}
 
 	return entity.(*wmdef.KubernetesMetadata), nil
+}
+
+func (w *workloadMetaMock) ListKubernetesMetadata(filter wmdef.EntityFilterFunc[*wmdef.KubernetesMetadata]) []*wmdef.KubernetesMetadata {
+	entities := w.listEntitiesByKind(wmdef.KindKubernetesMetadata)
+
+	var res []*wmdef.KubernetesMetadata
+
+	for _, entity := range entities {
+		metadata := entity.(*wmdef.KubernetesMetadata)
+		if filter(metadata) {
+			res = append(res, metadata)
+		}
+	}
+
+	return res
 }
 
 // ListContainers returns metadata about all known containers.
@@ -190,27 +205,6 @@ func (w *workloadMetaMock) GetKubernetesPodByName(podName, podNamespace string) 
 	return nil, errors.NewNotFound(podName)
 }
 
-func (w *workloadMetaMock) ListKubernetesNodes() []*wmdef.KubernetesNode {
-	entities := w.listEntitiesByKind(wmdef.KindKubernetesNode)
-
-	nodes := make([]*wmdef.KubernetesNode, 0, len(entities))
-	for i := range entities {
-		nodes = append(nodes, entities[i].(*wmdef.KubernetesNode))
-	}
-
-	return nodes
-}
-
-// GetKubernetesNode returns metadata about a Kubernetes node.
-func (w *workloadMetaMock) GetKubernetesNode(id string) (*wmdef.KubernetesNode, error) {
-	entity, err := w.getEntityByKind(wmdef.KindKubernetesPod, id)
-	if err != nil {
-		return nil, err
-	}
-
-	return entity.(*wmdef.KubernetesNode), nil
-}
-
 // GetKubernetesDeployment implements Component#GetKubernetesDeployment
 func (w *workloadMetaMock) GetKubernetesDeployment(id string) (*wmdef.KubernetesDeployment, error) {
 	entity, err := w.getEntityByKind(wmdef.KindKubernetesDeployment, id)
@@ -219,16 +213,6 @@ func (w *workloadMetaMock) GetKubernetesDeployment(id string) (*wmdef.Kubernetes
 	}
 
 	return entity.(*wmdef.KubernetesDeployment), nil
-}
-
-// GetKubernetesNamespace implements Component#GetKubernetesNamespace
-func (w *workloadMetaMock) GetKubernetesNamespace(id string) (*wmdef.KubernetesNamespace, error) {
-	entity, err := w.getEntityByKind(wmdef.KindKubernetesNamespace, id)
-	if err != nil {
-		return nil, err
-	}
-
-	return entity.(*wmdef.KubernetesNamespace), nil
 }
 
 // GetECSTask returns metadata about an ECS task.

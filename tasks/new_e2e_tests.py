@@ -19,7 +19,7 @@ from invoke.tasks import task
 from tasks.flavor import AgentFlavor
 from tasks.gotest import process_test_result, test_flavor
 from tasks.libs.common.git import get_commit_sha
-from tasks.libs.common.utils import REPO_PATH, running_in_ci
+from tasks.libs.common.utils import REPO_PATH, color_message, running_in_ci
 from tasks.modules import DEFAULT_MODULES
 
 
@@ -73,11 +73,11 @@ def run(
     if targets:
         e2e_module.targets = targets
 
-    envVars = dict()
+    envVars = {}
     if profile:
         envVars["E2E_PROFILE"] = profile
 
-    parsedParams = dict()
+    parsedParams = {}
     for param in configparams:
         parts = param.split("=", 1)
         if len(parts) != 2:
@@ -148,7 +148,10 @@ def run(
                 params.append(f'-{args[param_key]}')
 
         command = f"{pre_command} -- inv -e new-e2e-tests.run {' '.join(params)}"
-        print(f"To run this test locally, use: `{command}`")
+        print(
+            f'To run this test locally, use: `{command}`. '
+            'You can also add `E2E_DEV_MODE="true"` to run in dev mode which will leave the environment up after the tests.'
+        )
 
     if not success:
         raise Exit(code=1)
@@ -285,13 +288,26 @@ def _destroy_stack(ctx: Context, stack: str):
             env=_get_default_env(),
         )
         if ret is not None and ret.exited != 0:
+            if "No valid credential sources found" in ret.stdout:
+                print(
+                    "No valid credentials sources found, you need to wrap the invoke command in aws-vault exec <account> --"
+                )
+                raise Exit(
+                    color_message(
+                        f"Failed to destroy stack {stack}, no valid credentials sources found, you need to wrap the invoke command in aws-vault exec <account> --",
+                        "red",
+                    ),
+                    1,
+                )
             # run with refresh on first destroy attempt failure
-            ctx.run(
+            ret = ctx.run(
                 f"pulumi destroy --stack {stack} -r --yes --remove --skip-preview",
                 warn=True,
                 hide=True,
                 env=_get_default_env(),
             )
+        if ret is not None and ret.exited != 0:
+            raise Exit(color_message(f"Failed to destroy stack {stack}: {ret.stdout}", "red"), 1)
 
 
 def _remove_stack(ctx: Context, stack: str):

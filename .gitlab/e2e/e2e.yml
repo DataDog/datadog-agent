@@ -94,6 +94,8 @@ k8s-e2e-otlp-main:
     - touch $E2E_PRIVATE_KEY_PATH && chmod 600 $E2E_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SSH_KEY_RSA_SSM_NAME > $E2E_PRIVATE_KEY_PATH
     # Use S3 backend
     - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
+    # Generate external links to CI VISIBILITY, used by artifacts:reports:annotations
+    - inv -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
   variables:
     KUBERNETES_MEMORY_REQUEST: 12Gi
     KUBERNETES_MEMORY_LIMIT: 16Gi
@@ -104,6 +106,7 @@ k8s-e2e-otlp-main:
     E2E_PIPELINE_ID: $CI_PIPELINE_ID
     E2E_COMMIT_SHA: $CI_COMMIT_SHORT_SHA
     E2E_OUTPUT_DIR: $CI_PROJECT_DIR/e2e-output
+    EXTERNAL_LINKS_PATH: external_links_$CI_JOB_ID.json
   script:
     - inv -e new-e2e-tests.run --targets $TARGETS -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password) --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS} --test-washer
   after_script:
@@ -116,6 +119,10 @@ k8s-e2e-otlp-main:
       - $E2E_OUTPUT_DIR
       # junit tarball, kept for investigations
       - junit-*.tgz
+    reports:
+      annotations:
+        - $EXTERNAL_LINKS_PATH
+
 
 .new_e2e_template_needs_deb_x64:
   extends: .new_e2e_template
@@ -219,7 +226,7 @@ new-e2e-language-detection:
 
 new-e2e-npm-packages:
   extends: .new_e2e_template
-  rules: 
+  rules:
     - !reference [.on_npm_or_e2e_changes]
     - !reference [.manual]
   needs:
@@ -249,7 +256,7 @@ new-e2e-aml:
     - deploy_deb_testing-a7_x64
     - deploy_windows_testing-a7
     - qa_agent
-  rules: 
+  rules:
     - !reference [.on_aml_or_e2e_changes]
     - !reference [.manual]
   variables:
@@ -258,7 +265,7 @@ new-e2e-aml:
 
 new-e2e-cws:
   extends: .new_e2e_template
-  rules: 
+  rules:
     - !reference [.on_cws_or_e2e_changes]
     - !reference [.manual]
   needs:
@@ -279,8 +286,13 @@ new-e2e-cws:
   allow_failure: true
 
 new-e2e-process:
-  extends: .new_e2e_template_needs_deb_windows_x64
-  rules: 
+  extends: .new_e2e_template
+  needs:
+    - deploy_deb_testing-a7_x64
+    - deploy_windows_testing-a7
+    - qa_agent
+    - qa_dca
+  rules:
     - !reference [.on_process_or_e2e_changes]
     - !reference [.manual]
   variables:

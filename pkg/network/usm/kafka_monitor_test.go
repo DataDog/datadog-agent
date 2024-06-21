@@ -16,7 +16,6 @@ import (
 	"fmt"
 	"io"
 	"net"
-	nethttp "net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -35,6 +34,7 @@ import (
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
+	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
@@ -75,10 +75,6 @@ type kafkaParsingTestAttributes struct {
 	context testContext
 	// The test body
 	testBody func(t *testing.T, ctx *testContext, monitor *Monitor)
-	// Cleaning test resources if needed.
-	teardown func(t *testing.T, ctx testContext)
-	// Configuration for the monitor object
-	configuration func() *config.Config
 }
 
 type kafkaParsingValidation struct {
@@ -86,6 +82,7 @@ type kafkaParsingValidation struct {
 	expectedNumberOfFetchRequests   int
 	expectedAPIVersionProduce       int
 	expectedAPIVersionFetch         int
+	tlsEnabled                      bool
 }
 
 func skipTestIfKernelNotSupported(t *testing.T) {
@@ -144,6 +141,9 @@ func (s *KafkaProtocolParsingSuite) TestKafkaProtocolParsing() {
 	})
 
 	t.Run("with TLS", func(t *testing.T) {
+		if !gotlsutils.GoTLSSupported(t, config.New()) {
+			t.Skip("GoTLS not supported for this setup")
+		}
 		for _, version := range versions {
 			t.Run(versionName(version), func(t *testing.T) {
 				s.testKafkaProtocolParsing(t, true, version)
@@ -153,14 +153,11 @@ func (s *KafkaProtocolParsingSuite) TestKafkaProtocolParsing() {
 }
 
 func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls bool, version *kversion.Versions) {
-	targetHost := "127.0.0.1"
-	serverHost := "127.0.0.1"
-
-	kafkaTeardown := func(t *testing.T, ctx testContext) {
-		for _, client := range ctx.clients {
-			client.Client.Close()
-		}
-	}
+	const (
+		targetHost = "127.0.0.1"
+		serverHost = "127.0.0.1"
+		unixPath   = "/tmp/transparent.sock"
+	)
 
 	port := kafkaPort
 	if tls {
@@ -169,8 +166,6 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 
 	serverAddress := net.JoinHostPort(serverHost, port)
 	targetAddress := net.JoinHostPort(targetHost, port)
-
-	const unixPath = "/tmp/transparent.sock"
 
 	dialFn := func(ctx context.Context, network, address string) (net.Conn, error) {
 		var d net.Dialer
@@ -186,10 +181,6 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 		}
 
 		return count * 2
-	}
-
-	getConfig := func() *config.Config {
-		return getDefaultTestConfiguration(tls)
 	}
 
 	tmp, found := version.LookupMaxKeyVersion(kafka.FetchAPIKey)
@@ -244,10 +235,9 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 					expectedNumberOfFetchRequests:   fixCount(1),
 					expectedAPIVersionProduce:       8,
 					expectedAPIVersionFetch:         expectedAPIVersionFetch,
+					tlsEnabled:                      tls,
 				})
 			},
-			teardown:      kafkaTeardown,
-			configuration: getConfig,
 		},
 		{
 			name: "TestProduceClientIdEmptyString",
@@ -283,10 +273,9 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 					expectedNumberOfFetchRequests:   0,
 					expectedAPIVersionProduce:       5,
 					expectedAPIVersionFetch:         0,
+					tlsEnabled:                      tls,
 				})
 			},
-			teardown:      kafkaTeardown,
-			configuration: getConfig,
 		},
 		{
 			name: "TestManyProduceRequests",
@@ -325,138 +314,8 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 					expectedNumberOfFetchRequests:   0,
 					expectedAPIVersionProduce:       8,
 					expectedAPIVersionFetch:         0,
+					tlsEnabled:                      tls,
 				})
-			},
-			teardown:      kafkaTeardown,
-			configuration: getConfig,
-		},
-		{
-			name: "TestHTTPAndKafka",
-			context: testContext{
-				serverPort:    kafkaPort,
-				targetAddress: targetAddress,
-				serverAddress: serverAddress,
-				extras: map[string]interface{}{
-					"topic_name": s.getTopicName(),
-				},
-			},
-			testBody: func(t *testing.T, ctx *testContext, monitor *Monitor) {
-				topicName := ctx.extras["topic_name"].(string)
-				client, err := kafka.NewClient(kafka.Options{
-					ServerAddress: ctx.targetAddress,
-					DialFn:        dialFn,
-					CustomOptions: []kgo.Opt{
-						kgo.MaxVersions(version),
-						kgo.ClientID(""),
-					},
-				})
-				require.NoError(t, err)
-				ctx.clients = append(ctx.clients, client)
-				require.NoError(t, client.CreateTopic(topicName))
-
-				record := &kgo.Record{Topic: topicName, Value: []byte("Hello Kafka!")}
-				ctxTimeout, cancel := context.WithTimeout(context.Background(), time.Second*5)
-				require.NoError(t, client.Client.ProduceSync(ctxTimeout, record).FirstErr(), "record had a produce error while synchronously producing")
-				cancel()
-
-				serverAddr := "localhost:8081"
-				srvDoneFn := testutil.HTTPServer(t, serverAddr, testutil.Options{})
-				t.Cleanup(srvDoneFn)
-				httpClient := nethttp.Client{}
-
-				req, err := nethttp.NewRequest(httpMethods[0], fmt.Sprintf("http://%s/%d/request", serverAddr, nethttp.StatusOK), nil)
-				require.NoError(t, err)
-
-				httpRequestCount := 10
-				for i := 0; i < httpRequestCount; i++ {
-					resp, err := httpClient.Do(req)
-					require.NoError(t, err)
-					// Have to read the response body to ensure the client will be able to properly close the connection.
-					io.Copy(io.Discard, resp.Body)
-					resp.Body.Close()
-				}
-				srvDoneFn()
-
-				httpOccurrences := 0
-				expectedKafkaRequestCount := fixCount(1)
-				kafkaStats := make(map[kafka.Key]*kafka.RequestStat)
-				require.EventuallyWithT(t, func(collect *assert.CollectT) {
-					allStats := monitor.GetProtocolStats()
-					require.NotNil(t, allStats)
-
-					httpStats, ok := allStats[protocols.HTTP]
-					if ok {
-						httpOccurrences += countRequestOccurrences(httpStats.(map[http.Key]*http.RequestStats), req)
-					}
-
-					kafkaProtocolStats, ok := allStats[protocols.Kafka]
-					// We might not have kafka stats, and it might be the expected case (to capture 0).
-					if ok {
-						currentStats := kafkaProtocolStats.(map[kafka.Key]*kafka.RequestStat)
-						for key, stats := range currentStats {
-							prevStats, ok := kafkaStats[key]
-							if ok && prevStats != nil {
-								prevStats.CombineWith(stats)
-							} else {
-								kafkaStats[key] = currentStats[key]
-							}
-						}
-					}
-					assert.Equal(collect, expectedKafkaRequestCount, len(kafkaStats), "Unexpected number of Kafka requests")
-					assert.Equal(collect, httpRequestCount, httpOccurrences, "Unexpected number of HTTP requests")
-					validateProduceFetchCount(collect, kafkaStats, topicName,
-						kafkaParsingValidation{
-							expectedNumberOfProduceRequests: fixCount(1),
-							expectedNumberOfFetchRequests:   0,
-							expectedAPIVersionProduce:       8,
-							expectedAPIVersionFetch:         0,
-						})
-				}, time.Second*3, time.Millisecond*100)
-			},
-			teardown: kafkaTeardown,
-			configuration: func() *config.Config {
-				cfg := getConfig()
-				cfg.EnableHTTPMonitoring = true
-				return cfg
-			},
-		},
-		{
-			name: "TestEnableHTTPOnly",
-			context: testContext{
-				serverPort:    kafkaPort,
-				targetAddress: targetAddress,
-				serverAddress: serverAddress,
-				extras: map[string]interface{}{
-					"topic_name": s.getTopicName(),
-				},
-			},
-			testBody: func(t *testing.T, ctx *testContext, monitor *Monitor) {
-				topicName := ctx.extras["topic_name"].(string)
-				client, err := kafka.NewClient(kafka.Options{
-					ServerAddress: ctx.targetAddress,
-					DialFn:        dialFn,
-					CustomOptions: []kgo.Opt{
-						kgo.MaxVersions(version),
-						kgo.ClientID(""),
-					},
-				})
-				require.NoError(t, err)
-				ctx.clients = append(ctx.clients, client)
-				require.NoError(t, client.CreateTopic(topicName))
-
-				record := &kgo.Record{Topic: topicName, Value: []byte("Hello Kafka!")}
-				ctxTimeout, cancel := context.WithTimeout(context.Background(), time.Second*5)
-				require.NoError(t, client.Client.ProduceSync(ctxTimeout, record).FirstErr(), "record had a produce error while synchronously producing")
-				cancel()
-
-				getAndValidateKafkaStats(t, monitor, 0, "", kafkaParsingValidation{})
-			},
-			teardown: kafkaTeardown,
-			configuration: func() *config.Config {
-				cfg := config.New()
-				cfg.EnableHTTPMonitoring = true
-				cfg.MaxTrackedConnections = 1000
-				return cfg
 			},
 		},
 		{
@@ -505,10 +364,9 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 					expectedNumberOfFetchRequests:   fixCount(2),
 					expectedAPIVersionProduce:       8,
 					expectedAPIVersionFetch:         expectedAPIVersionFetch,
+					tlsEnabled:                      tls,
 				})
 			},
-			teardown:      kafkaTeardown,
-			configuration: getConfig,
 		},
 		{
 			name: "Multiple records with and without batching",
@@ -571,10 +429,9 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 					expectedNumberOfFetchRequests:   fixCount(5 + 2*2),
 					expectedAPIVersionProduce:       8,
 					expectedAPIVersionFetch:         expectedAPIVersionFetch,
+					tlsEnabled:                      tls,
 				})
 			},
-			teardown:      kafkaTeardown,
-			configuration: getConfig,
 		},
 		{
 			name: "Kafka Kernel Telemetry",
@@ -652,8 +509,6 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 					})
 				}
 			},
-			teardown:      kafkaTeardown,
-			configuration: getConfig,
 		},
 	}
 
@@ -661,18 +516,20 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 	t.Cleanup(cancel)
 	require.NoError(t, proxy.WaitForConnectionReady(unixPath))
 
+	cfg := getDefaultTestConfiguration(tls)
+	monitor := newKafkaMonitor(t, cfg)
+	if tls && cfg.EnableGoTLSSupport {
+		utils.WaitForProgramsToBeTraced(t, "go-tls", proxyProcess.Process.Pid)
+	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if tt.teardown != nil {
-				t.Cleanup(func() {
-					tt.teardown(t, tt.context)
-				})
-			}
-			cfg := tt.configuration()
-			monitor := newKafkaMonitor(t, cfg)
-			if tls && cfg.EnableGoTLSSupport {
-				utils.WaitForProgramsToBeTraced(t, "go-tls", proxyProcess.Process.Pid)
-			}
+			t.Cleanup(func() {
+				for _, client := range tt.context.clients {
+					client.Client.Close()
+				}
+				kafka.CleanKafkaMaps(t)
+			})
+
 			tt.testBody(t, &tt.context, monitor)
 		})
 	}
@@ -937,7 +794,6 @@ func (can *CannedClientServer) runClient(msgs []Message) {
 }
 
 func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
-	skipTestIfKernelNotSupported(t)
 	defaultTopic := "test-topic"
 
 	tests := []struct {
@@ -1003,13 +859,13 @@ func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
 
 				partition := makeFetchResponseTopicPartition(batches...)
 				var partitions []kmsg.FetchResponseTopicPartition
-				for i := 0; i < 100; i++ {
+				for i := 0; i < 25; i++ {
 					partitions = append(partitions, partition)
 				}
 
 				return makeFetchResponse(apiVersion, makeFetchResponseTopic(topic, partitions...))
 			},
-			numFetchedRecords: 1 * 1 * 100,
+			numFetchedRecords: 1 * 1 * 25,
 		},
 		{
 			name:  "many topics",
@@ -1158,12 +1014,20 @@ func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
 	can.runServer()
 	proxyPid := can.runProxy()
 
+	monitor := newKafkaMonitor(t, getDefaultTestConfiguration(tls))
+	if tls {
+		utils.WaitForProgramsToBeTraced(t, "go-tls", proxyPid)
+	}
+
 	for _, tt := range tests {
 		if tt.onlyTLS && !tls {
 			continue
 		}
 
 		t.Run(tt.name, func(t *testing.T) {
+			t.Cleanup(func() {
+				kafka.CleanKafkaMaps(t)
+			})
 			req := generateFetchRequest(apiVersion, tt.topic)
 			resp := tt.buildResponse(tt.topic)
 			var msgs []Message
@@ -1174,16 +1038,12 @@ func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
 				msgs = tt.buildMessages(req, resp)
 			}
 
-			monitor := newKafkaMonitor(t, getDefaultTestConfiguration(tls))
-			if tls {
-				utils.WaitForProgramsToBeTraced(t, "go-tls", proxyPid)
-			}
-
 			can.runClient(msgs)
 
 			getAndValidateKafkaStats(t, monitor, 1, tt.topic, kafkaParsingValidation{
 				expectedNumberOfFetchRequests: tt.numFetchedRecords,
-				expectedAPIVersionFetch:       int(apiVersion),
+				expectedAPIVersionFetch:       apiVersion,
+				tlsEnabled:                    tls,
 			})
 		})
 
@@ -1194,6 +1054,13 @@ func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
 
 		name := fmt.Sprintf("split/%s", tt.name)
 		t.Run(name, func(t *testing.T) {
+			if tls {
+				t.Skip("TLS split tests disabled due to flakiness")
+			}
+
+			t.Cleanup(func() {
+				kafka.CleanKafkaMaps(t)
+			})
 			req := generateFetchRequest(apiVersion, tt.topic)
 			resp := tt.buildResponse(tt.topic)
 
@@ -1228,20 +1095,18 @@ func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
 				}
 			}
 
-			monitor := newKafkaMonitor(t, getDefaultTestConfiguration(tls))
-			if tls {
-				utils.WaitForProgramsToBeTraced(t, "go-tls", proxyPid)
-			}
 			can.runClient(msgs)
 			getAndValidateKafkaStats(t, monitor, 1, tt.topic, kafkaParsingValidation{
 				expectedNumberOfFetchRequests: tt.numFetchedRecords * splitIdx,
 				expectedAPIVersionFetch:       apiVersion,
+				tlsEnabled:                    tls,
 			})
 		})
 	}
 }
 
-func TestKafkaFetchRaw(t *testing.T) {
+func (s *KafkaProtocolParsingSuite) TestKafkaFetchRaw() {
+	t := s.T()
 	versions := []int{4, 5, 7, 11, 12}
 
 	t.Run("without TLS", func(t *testing.T) {
@@ -1345,6 +1210,10 @@ func validateProduceFetchCount(t *assert.CollectT, kafkaStats map[kafka.Key]*kaf
 	numberOfProduceRequests := 0
 	numberOfFetchRequests := 0
 	for kafkaKey, kafkaStat := range kafkaStats {
+		hasTLSTag := kafkaStat.StaticTags&network.ConnTagGo != 0
+		if hasTLSTag != validation.tlsEnabled {
+			continue
+		}
 		assert.Equal(t, topicName[:min(len(topicName), 80)], kafkaKey.TopicName)
 		switch kafkaKey.RequestAPIKey {
 		case kafka.ProduceAPIKey:

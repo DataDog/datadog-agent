@@ -232,7 +232,11 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		c.MaxEPS = core.GetFloat64("apm_config.max_events_per_second")
 	}
 	if core.IsSet("apm_config.max_traces_per_second") {
+		log.Warn("`apm_config.max_traces_per_second` is deprecated, please use `apm_config.target_traces_per_second` instead")
 		c.TargetTPS = core.GetFloat64("apm_config.max_traces_per_second")
+	}
+	if core.IsSet("apm_config.target_traces_per_second") {
+		c.TargetTPS = core.GetFloat64("apm_config.target_traces_per_second")
 	}
 	if core.IsSet("apm_config.errors_per_second") {
 		c.ErrorTPS = core.GetFloat64("apm_config.errors_per_second")
@@ -636,6 +640,9 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	}
 	if k := "evp_proxy_config.max_payload_size"; core.IsSet(k) {
 		c.EVPProxy.MaxPayloadSize = core.GetInt64(k)
+	}
+	if k := "evp_proxy_config.receiver_timeout"; core.IsSet(k) {
+		c.EVPProxy.ReceiverTimeout = core.GetInt(k)
 	}
 	c.DebugServerPort = core.GetInt("apm_config.debug.port")
 	return nil
