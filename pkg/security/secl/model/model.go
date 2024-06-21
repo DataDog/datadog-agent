@@ -427,12 +427,6 @@ func (pc *ProcessCacheEntry) IsContainerRoot() bool {
 	return pc.ContainerID != "" && pc.Ancestor != nil && pc.Ancestor.ContainerID == ""
 }
 
-// Reset the entry
-func (pc *ProcessCacheEntry) Reset() {
-	pc.ProcessContext = zeroProcessContext
-	pc.refCount = 0
-}
-
 // Retain increment ref counter
 func (pc *ProcessCacheEntry) Retain() {
 	pc.refCount++
