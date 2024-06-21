@@ -71,7 +71,7 @@ var (
 		subsystem, "diffs_dropped", "The number of diffs dropped due to channel contention")
 )
 
-// GetSharedContainerProvider returns a shared WorkloadMetaExtractor
+// GetSharedWorkloadMetaExtractor returns a shared WorkloadMetaExtractor
 func GetSharedWorkloadMetaExtractor(sysprobeConfig config.Reader) *WorkloadMetaExtractor {
 	initWorkloadMetaExtractor.Do(func() {
 		sharedWorkloadMetaExtractor = NewWorkloadMetaExtractor(sysprobeConfig)

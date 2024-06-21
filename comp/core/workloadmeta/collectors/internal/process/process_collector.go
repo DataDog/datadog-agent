@@ -3,8 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package process implements the local process collector for
-// Workloadmeta.
+// Package process implements the local process collector for Workloadmeta.
 package process
 
 import (
@@ -72,7 +71,7 @@ func collectorEventsFromProcessDiff(diff *processwlm.ProcessCacheDiff) []workloa
 	return events
 }
 
-// NewCollector returns a new docker collector provider and an error
+// NewCollector returns a new local process collector provider and an error
 func NewCollector() (workloadmeta.CollectorProvider, error) {
 	return workloadmeta.CollectorProvider{
 		Collector: &collector{
@@ -92,8 +91,8 @@ func (c *collector) enabled() bool {
 		return false
 	}
 
-	processChecksInCoreAgent := (config.Datadog().GetBool("process_config.process_collection.enabled") &&
-		config.Datadog().GetBool("process_config.run_in_core_agent.enabled"))
+	processChecksInCoreAgent := config.Datadog().GetBool("process_config.process_collection.enabled") &&
+		config.Datadog().GetBool("process_config.run_in_core_agent.enabled")
 	langDetectionEnabled := config.Datadog().GetBool("language_detection.enabled")
 
 	return langDetectionEnabled && processChecksInCoreAgent
