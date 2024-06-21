@@ -19,7 +19,8 @@ from tasks.libs.pipeline.notifications import (
 from tasks.owners import channel_owners, make_partition
 
 """
-Alerts are notifications sent to each team channel when a job fails multiple times in a row or multiple times in a few executions
+Alerts are notifications sent to each team channel when a job fails multiple times in a row or
+multiple times in a few executions.
 """
 
 ALERTS_S3_CI_BUCKET_URL = "s3://dd-ci-artefacts-build-stable/datadog-agent/failed_jobs"
@@ -155,7 +156,7 @@ def retrieve_job_executions(ctx, job_failures_file):
     """
     try:
         ctx.run(
-            f"{AWS_S3_CP_CMD}  {ALERTS_S3_CI_BUCKET_URL}/{job_failures_file} {job_failures_file}",
+            f"{AWS_S3_CP_CMD} {ALERTS_S3_CI_BUCKET_URL}/{job_failures_file} {job_failures_file}",
             hide=True,
         )
         with open(job_failures_file) as f:
@@ -272,6 +273,6 @@ def upload_job_executions(ctx, job_executions: PipelineRuns, job_failures_file: 
     with open(job_failures_file, "w") as f:
         json.dump(job_executions.to_dict(), f)
     ctx.run(
-        f"{AWS_S3_CP_CMD} {job_failures_file} {ALERTS_S3_CI_BUCKET_URL}/{job_failures_file} ",
+        f"{AWS_S3_CP_CMD} {job_failures_file} {ALERTS_S3_CI_BUCKET_URL}/{job_failures_file}",
         hide="stdout",
     )
