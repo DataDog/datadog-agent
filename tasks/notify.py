@@ -11,6 +11,7 @@ from invoke.exceptions import Exit
 
 from tasks.libs.common.datadog_api import send_metrics
 from tasks.libs.notify import alerts, failure_summary, pipeline_status
+from tasks.libs.notify.unit_tests import process_unit_tests_tarballs
 from tasks.libs.notify.utils import PROJECT_NAME
 from tasks.libs.pipeline.data import get_failed_jobs
 from tasks.libs.pipeline.notifications import (
@@ -138,7 +139,7 @@ def unit_tests(ctx, pipeline_id, pipeline_url, branch_name):
 
     pipeline_id_regex = re.compile(r"pipeline ([0-9]*)")
 
-    jobs_with_no_tests_run = unit_tests.process_unit_tests_tarballs(ctx)
+    jobs_with_no_tests_run = process_unit_tests_tarballs(ctx)
     gh = GithubAPI("DataDog/datadog-agent")
     prs = gh.get_pr_for_branch(branch_name)
 
