@@ -19,14 +19,9 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
 
-	"github.com/cilium/ebpf"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-type bpfPrograms struct {
-	KprobeVfsOpen *ebpf.Program `ebpf:"kprobe__vfs_open"`
-}
 
 var m = &manager.Manager{
 	Probes: []*manager.Probe{
