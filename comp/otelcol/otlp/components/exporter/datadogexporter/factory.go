@@ -16,6 +16,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter"
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient"
+	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	tracepb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -35,29 +37,46 @@ import (
 )
 
 type factory struct {
-	onceAttributesTranslator sync.Once
-	attributesTranslator     *attributes.Translator
-	attributesErr            error
+	attributesErr          error
+	onceSetupTraceAgentCmp sync.Once
 
-	registry  *featuregate.Registry
-	s         serializer.MetricSerializer
-	logsAgent logsagentpipeline.Component
-	h         serializerexporter.SourceProviderFunc
+	registry      *featuregate.Registry
+	s             serializer.MetricSerializer
+	logsAgent     logsagentpipeline.Component
+	h             serializerexporter.SourceProviderFunc
+	traceagentcmp traceagent.Component
 }
 
-func (f *factory) AttributesTranslator(set component.TelemetrySettings) (*attributes.Translator, error) {
-	f.onceAttributesTranslator.Do(func() {
-		f.attributesTranslator, f.attributesErr = attributes.NewTranslator(set)
+// setupTraceAgentCmp sets up the trace agent component.
+// It is needed in trace exporter to send trace and in metrics exporter to send apm stats.
+// The set up happens only once, subsequent calls are no-op.
+func (f *factory) setupTraceAgentCmp(set component.TelemetrySettings) error {
+	f.onceSetupTraceAgentCmp.Do(func() {
+		var attributesTranslator *attributes.Translator
+		attributesTranslator, f.attributesErr = attributes.NewTranslator(set)
+		if f.attributesErr != nil {
+			return
+		}
+		f.traceagentcmp.SetOTelAttributeTranslator(attributesTranslator)
+		// TODO(OASIS-12): use this statsd client in trace agent
+		_ = metricsclient.InitializeMetricClient(set.MeterProvider, metricsclient.ExporterSourceTag)
 	})
-	return f.attributesTranslator, f.attributesErr
+	return f.attributesErr
 }
 
-func newFactoryWithRegistry(registry *featuregate.Registry, s serializer.MetricSerializer, logsagent logsagentpipeline.Component, h serializerexporter.SourceProviderFunc) exporter.Factory {
+func newFactoryWithRegistry(
+	registry *featuregate.Registry,
+	traceagentcmp traceagent.Component,
+	s serializer.MetricSerializer,
+	logsagent logsagentpipeline.Component,
+	h serializerexporter.SourceProviderFunc,
+) exporter.Factory {
 	f := &factory{
-		registry:  registry,
-		s:         s,
-		logsAgent: logsagent,
-		h:         h,
+		registry:      registry,
+		s:             s,
+		logsAgent:     logsagent,
+		traceagentcmp: traceagentcmp,
+		h:             h,
 	}
 
 	return exporter.NewFactory(
@@ -84,8 +103,13 @@ func (t *tagEnricher) Enrich(_ context.Context, extraTags []string, dimensions *
 }
 
 // NewFactory creates a Datadog exporter factory
-func NewFactory(s serializer.MetricSerializer, logsAgent logsagentpipeline.Component, h serializerexporter.SourceProviderFunc) exporter.Factory {
-	return newFactoryWithRegistry(featuregate.GlobalRegistry(), s, logsAgent, h)
+func NewFactory(
+	traceagentcmp traceagent.Component,
+	s serializer.MetricSerializer,
+	logsAgent logsagentpipeline.Component,
+	h serializerexporter.SourceProviderFunc,
+) exporter.Factory {
+	return newFactoryWithRegistry(featuregate.GlobalRegistry(), traceagentcmp, s, logsAgent, h)
 }
 
 func defaultClientConfig() confighttp.ClientConfig {
@@ -160,26 +184,51 @@ func checkAndCastConfig(c component.Config, logger *zap.Logger) *Config {
 
 // createTracesExporter creates a trace exporter based on this config.
 func (f *factory) createTracesExporter(
-	_ context.Context,
-	_ exporter.CreateSettings,
-	_ component.Config,
+	ctx context.Context,
+	set exporter.Settings,
+	c component.Config,
 ) (exporter.Traces, error) {
-	// TODO implement
-	return nil, nil
+	cfg := checkAndCastConfig(c, set.TelemetrySettings.Logger)
+
+	err := f.setupTraceAgentCmp(set.TelemetrySettings)
+	if err != nil {
+		return nil, fmt.Errorf("failed to set up trace agent component: %w", err)
+	}
+
+	if cfg.OnlyMetadata {
+		return nil, fmt.Errorf("datadog::only_metadata should not be set in OTel Agent")
+	}
+
+	tracex := newTracesExporter(ctx, set, cfg, f.traceagentcmp)
+
+	return exporterhelper.NewTracesExporter(
+		ctx,
+		set,
+		cfg,
+		tracex.consumeTraces,
+		// explicitly disable since we rely on http.Client timeout logic.
+		exporterhelper.WithTimeout(exporterhelper.TimeoutSettings{Timeout: 0 * time.Second}),
+		// We don't do retries on traces because of deduping concerns on APM Events.
+		exporterhelper.WithRetry(configretry.BackOffConfig{Enabled: false}),
+		exporterhelper.WithQueue(cfg.QueueSettings),
+	)
 }
 
-// createTracesExporter creates a trace exporter based on this config.
+// createMetricsExporter creates a metrics exporter based on this config.
 func (f *factory) createMetricsExporter(
 	ctx context.Context,
-	set exporter.CreateSettings,
+	set exporter.Settings,
 	c component.Config,
 ) (exporter.Metrics, error) {
 	cfg := checkAndCastConfig(c, set.Logger)
+	if err := f.setupTraceAgentCmp(set.TelemetrySettings); err != nil {
+		return nil, fmt.Errorf("failed to set up trace agent component: %w", err)
+	}
 	var wg sync.WaitGroup // waits for consumeStatsPayload to exit
 	statsIn := make(chan []byte, 1000)
 	statsv := set.BuildInfo.Command + set.BuildInfo.Version
 	f.consumeStatsPayload(ctx, &wg, statsIn, statsv, fmt.Sprintf("datadogexporter-%s-%s", set.BuildInfo.Command, set.BuildInfo.Version), set.Logger)
-	sf := serializerexporter.NewFactory(f.s, &tagEnricher{}, f.h, statsIn)
+	sf := serializerexporter.NewFactory(f.s, &tagEnricher{}, f.h, statsIn, &wg)
 	ex := &serializerexporter.ExporterConfig{
 		Metrics: cfg.Metrics,
 		TimeoutSettings: exporterhelper.TimeoutSettings{
@@ -214,8 +263,7 @@ func (f *factory) consumeStatsPayload(ctx context.Context, wg *sync.WaitGroup, s
 					}
 					// The DD Connector doesn't set the agent version, so we'll set it here
 					sp.AgentVersion = agentVersion
-
-					// TODO(OASIS-12): send StatsPayload with trace agent
+					f.traceagentcmp.SendStatsPayload(sp)
 				}
 			}
 		}()
@@ -225,7 +273,7 @@ func (f *factory) consumeStatsPayload(ctx context.Context, wg *sync.WaitGroup, s
 // createLogsExporter creates a logs exporter based on the config.
 func (f *factory) createLogsExporter(
 	ctx context.Context,
-	set exporter.CreateSettings,
+	set exporter.Settings,
 	_ component.Config,
 ) (exporter.Logs, error) {
 	var logch chan *message.Message

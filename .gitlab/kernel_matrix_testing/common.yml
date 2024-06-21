@@ -162,9 +162,15 @@
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
   tags: ["arch:amd64"]
   before_script:
+    - export GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITLAB_SCHEDULER_TOKEN_SSM_NAME)
     - !reference [.kmt_new_profile]
   script:
     - !reference [.shared_filters_and_queries]
+    # Gitlab CI ignores the dependency of clean up jobs on the setup job, as the run job already depends on the setup
+    # and Gitlab thinks it can simplify the dependency graph. This leads to a problem where, if any other dependency of the run test
+    # jobs fail (e.g., building the system probe tests), the run tests will be skipped, and the cleanup job will run even though the
+    # setup_env job hasn't finished. This causes instances to be leftover for more time than necessary.
+    - inv kmt.wait-for-setup-job --pipeline-id $CI_PIPELINE_ID --arch $ARCH --component $TEST_COMPONENT
     - aws ec2 describe-instances --filters $FILTER_TEAM $FILTER_MANAGED $FILTER_PIPELINE $FILTER_ARCH $FILTER_INSTANCE_TYPE $FILTER_TEST_COMPONENT --output json --query $QUERY_INSTANCE_IDS | tee -a instance.json
     - INSTANCE_ID="$(jq -r '.[0][0]' < instance.json)"
     - echo ${INSTANCE_ID}
@@ -173,6 +179,7 @@
         aws ec2 terminate-instances --instance-ids "${INSTANCE_ID}"
       fi
   after_script:
+    - export DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $API_KEY_ORG2_SSM_NAME)
     - !reference [.tag_kmt_ci_job]
 
 # Manual cleanup jobs, these will be used to cleanup the instances after the tests
@@ -225,7 +232,7 @@
     - ssh metal_instance "scp /home/ubuntu/job_env-${ARCH}-${TAG}-${TEST_SET}.txt ${MICRO_VM_IP}:/job_env.txt"
     - NESTED_VM_CMD="/home/ubuntu/connector -host ${MICRO_VM_IP} -user root -ssh-file /home/kernel-version-testing/ddvm_rsa -vm-cmd 'CI=true /root/fetch_dependencies.sh ${ARCH} && /opt/micro-vm-init.sh -test-tools /opt/testing-tools -retry ${RETRY} -test-root /opt/${TEST_COMPONENT}-tests -packages-run-config /opt/${TEST_SET}.json'"
     - $CI_PROJECT_DIR/connector-$ARCH -host $INSTANCE_IP -user ubuntu -ssh-file $AWS_EC2_SSH_KEY_FILE -vm-cmd "${NESTED_VM_CMD}"
-    - ssh metal_instance "ssh ${MICRO_VM_IP} '/opt/testing-tools/test-json-review'"
+    - ssh metal_instance "ssh ${MICRO_VM_IP} '/opt/testing-tools/test-json-review -flakes /opt/testing-tools/flakes.yaml'"
   artifacts:
     expire_in: 2 weeks
     when: always
