@@ -237,8 +237,16 @@ func Test_getEventSource(t *testing.T) {
 			sourceComponent:                       "abcd-test-source",
 			want:                                  "kubernetes",
 		},
+		{
+			name:                                  "kubernetes event source detection uses default value if source detection disabled",
+			kubernetesEventSourceDetectionEnabled: false,
+			controllerName:                        "datadog-operator-manager",
+			sourceComponent:                       "datadog-operator-manager",
+			want:                                  "kubernetes",
+		},
 	}
 	for _, tt := range tests {
+		t.Setenv("DD_KUBERNETES_EVENTS_SOURCE_DETECTION_ENABLED", fmt.Sprintf("%t", tt.kubernetesEventSourceDetectionEnabled))
 		t.Run(tt.name, func(t *testing.T) {
 			if got := getEventSource(tt.controllerName, tt.sourceComponent); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("getEventSource() = %v, want %v", got, tt.want)

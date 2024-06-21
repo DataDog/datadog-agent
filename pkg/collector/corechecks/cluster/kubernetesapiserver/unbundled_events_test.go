@@ -51,7 +51,7 @@ func TestUnbundledEventsTransform(t *testing.T) {
 				Name:      "squirtle-8fff95dbb-tsc7v",
 				UID:       "43b7e0d3-9212-4355-a957-4ac15ce3a7f7",
 			},
-			Type:    "Noarmal",
+			Type:    "Normal",
 			Reason:  "Pulled",
 			Message: "Successfully pulled image \"pokemon/squirtle:latest\" in 1.263s (1.263s including waiting)",
 			Source: v1.EventSource{
