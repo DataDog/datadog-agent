@@ -295,7 +295,7 @@ func (pb *PayloadsBuilder) writeSerie(serie *metrics.Serie) error {
 	//                       |-----------| 'OriginProduct' enum
 	//                                    |-------| 'Agent' enum value
 
-	addToPayload := func(serie *metrics.Serie) error {
+	addToPayload := func() error {
 		err := pb.compressor.AddItem(pb.buf.Bytes())
 		if err != nil {
 			return err
@@ -453,7 +453,7 @@ func (pb *PayloadsBuilder) writeSerie(serie *metrics.Serie) error {
 		err = stream.ErrPayloadFull
 	} else {
 		// Compress the protobuf metadata and the marshaled series
-		err = addToPayload(serie)
+		err = addToPayload()
 	}
 
 	switch err {
@@ -472,7 +472,7 @@ func (pb *PayloadsBuilder) writeSerie(serie *metrics.Serie) error {
 		}
 
 		// Add it to the new compression buffer
-		err = addToPayload(serie)
+		err = addToPayload()
 		if err == stream.ErrItemTooBig {
 			// Item was too big, drop it
 			expvarsItemTooBig.Add(1)
