@@ -28,7 +28,7 @@
 '@datadog/windows-agent': '#windows-agent-ops'
 '@datadog/windows-kernel-integrations': '#windows-kernel-integrations-ops'
 '@datadog/opentelemetry': '#opentelemetry-ops'
-'@datadog/agent-e2e-testing': '#agent-developer-tools-ops'
+'@datadog/agent-e2e-testing': '#agent-devx-loops-ops'
 '@datadog/software-integrity-and-trust': '#sit'
 '@datadog/single-machine-performance': '#single-machine-performance'
 '@datadog/agent-integrations': '#agent-integrations'
