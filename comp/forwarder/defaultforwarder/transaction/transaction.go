@@ -198,8 +198,11 @@ const (
 type Destination int
 
 const (
+	// AllRegions indicates the transaction should be sent to all regions (default behavior)
 	AllRegions = iota
+	// PrimaryOnly indicates the transaction should be sent to the primary region during MRF
 	PrimaryOnly
+	// SecondaryOnly indicates the transaction should be sent to the secondary region during MRF
 	SecondaryOnly
 )
 
