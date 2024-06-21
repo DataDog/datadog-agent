@@ -32,7 +32,6 @@ const (
 	readKernelIndx
 	skbLoadBytes
 	perfEventOutput
-	ringbufOutput
 	mapErr = math.MaxInt
 )
 
@@ -42,7 +41,6 @@ var helperNames = map[int]string{
 	readKernelIndx:  "bpf_probe_read_kernel",
 	skbLoadBytes:    "bpf_skb_load_bytes",
 	perfEventOutput: "bpf_perf_event_output",
-	ringbufOutput:   "bpf_ringbuf_output",
 }
 
 type telemetryIndex struct {
