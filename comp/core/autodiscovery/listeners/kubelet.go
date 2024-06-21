@@ -90,10 +90,9 @@ func (l *KubeletListener) createPodService(
 	})
 
 	entity := kubelet.PodUIDToEntityName(pod.ID)
-	tags, _ := tagger.Tag(kubelet.PodUIDToTaggerEntityName(pod.ID), tagger.ChecksCardinality())
 	svc := &service{
 		entity:        pod,
-		tags:          tags,
+		tagsHash:      tagger.GetEntityHash(kubelet.PodUIDToTaggerEntityName(pod.ID), tagger.ChecksCardinality()),
 		adIdentifiers: []string{entity},
 		hosts:         map[string]string{"pod": pod.IP},
 		ports:         ports,
@@ -153,12 +152,11 @@ func (l *KubeletListener) createContainerService(
 	})
 
 	entity := containers.BuildEntityName(string(container.Runtime), container.ID)
-	tags, _ := tagger.Tag(containers.BuildTaggerEntityName(container.ID), tagger.ChecksCardinality())
 	svc := &service{
-		entity: container,
-		tags:   tags,
-		ready:  pod.Ready,
-		ports:  ports,
+		entity:   container,
+		tagsHash: tagger.GetEntityHash(containers.BuildTaggerEntityName(container.ID), tagger.ChecksCardinality()),
+		ready:    pod.Ready,
+		ports:    ports,
 		extraConfig: map[string]string{
 			"pod_name":  pod.Name,
 			"namespace": pod.Namespace,

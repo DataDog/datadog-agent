@@ -34,6 +34,7 @@ type Component interface {
 	GetEntity(entityID string) (*types.Entity, error)
 	Subscribe(cardinality types.TagCardinality) chan []types.EntityEvent
 	Unsubscribe(ch chan []types.EntityEvent)
+	GetEntityHash(entity string, cardinality types.TagCardinality) string
 	AgentTags(cardinality types.TagCardinality) ([]string, error)
 	GlobalTags(cardinality types.TagCardinality) ([]string, error)
 	SetNewCaptureTagger(newCaptureTagger Component)

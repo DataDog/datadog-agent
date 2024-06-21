@@ -109,10 +109,9 @@ func (l *ContainerListener) createContainerService(entity workloadmeta.Entity) {
 		return ports[i].Port < ports[j].Port
 	})
 
-	tags, _ := tagger.Tag(containers.BuildTaggerEntityName(container.ID), tagger.ChecksCardinality())
 	svc := &service{
-		entity: container,
-		tags:   tags,
+		entity:   container,
+		tagsHash: tagger.GetEntityHash(containers.BuildTaggerEntityName(container.ID), tagger.ChecksCardinality()),
 		adIdentifiers: computeContainerServiceIDs(
 			containers.BuildEntityName(string(container.Runtime), container.ID),
 			containerImg.RawName,
