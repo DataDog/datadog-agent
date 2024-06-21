@@ -530,8 +530,10 @@ func (t *tracer) Remove(conn *network.ConnectionStats) error {
 		// We can ignore the error for this map since it will not always contain the entry
 		_ = t.tcpStats.Delete(t.removeTuple)
 		// We remove the PID from the tuple as it is not used in the retransmits map
-		conn.Pid = 0
+		pid := t.removeTuple.Pid
+		t.removeTuple.Pid = 0
 		_ = t.tcpRetransmits.Delete(t.removeTuple)
+		t.removeTuple.Pid = pid
 	}
 	return nil
 }
