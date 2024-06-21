@@ -38,7 +38,7 @@ if ENV.has_key?("OMNIBUS_GIT_CACHE_DIR") && !BUILD_OCIRU
 end
 
 if windows_target?
-  if flavor.eql? "ua"
+  if ua_target? "ua"
     raise UnknownPlatform
   end
 

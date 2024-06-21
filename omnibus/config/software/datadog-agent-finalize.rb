@@ -100,9 +100,6 @@ build do
             move "#{install_dir}/etc/datadog-agent/datadog.yaml.example", "/etc/datadog-agent"
             move "#{install_dir}/etc/datadog-agent/conf.d", "/etc/datadog-agent", :force=>true
             unless heroku_target?
-              if flavor_arg.eql? "ua"
-                move "#{install_dir}/etc/datadog-agent/otel-config.yaml.example", "/etc/datadog-agent"
-              end
               move "#{install_dir}/etc/datadog-agent/system-probe.yaml.example", "/etc/datadog-agent"
               move "#{install_dir}/etc/datadog-agent/security-agent.yaml.example", "/etc/datadog-agent", :force=>true
               move "#{install_dir}/etc/datadog-agent/runtime-security.d", "/etc/datadog-agent", :force=>true
@@ -112,6 +109,10 @@ build do
               if debian_target? || redhat_target?
                 move "#{install_dir}/etc/datadog-agent/selinux", "/etc/datadog-agent/selinux"
               end
+            end
+
+            if ua_target?
+              move "#{install_dir}/etc/datadog-agent/otel-config.yaml.example", "/etc/datadog-agent"
             end
 
             # Create empty directories so that they're owned by the package

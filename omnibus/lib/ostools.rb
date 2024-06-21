@@ -46,6 +46,10 @@ def heroku_target?()
     return ENV['AGENT_FLAVOR'] == 'heroku'
 end
 
+def ua_target?()
+    return ENV['AGENT_FLAVOR'] == 'ua'
+end
+
 def os
     case RUBY_PLATFORM
     when /linux/
