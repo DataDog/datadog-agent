@@ -26,22 +26,26 @@ import (
 )
 
 func TestUDS(t *testing.T) {
+	defaultSockPath := "/tmp/apm.sock"
 	sockPath := "/tmp/test-trace.sock"
 	payload := msgpTraces(t, pb.Traces{testutil.RandomTrace(10, 20)})
-	client := http.Client{
-		Transport: &http.Transport{
-			Proxy: http.ProxyFromEnvironment,
-			DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
-				return net.Dial("unix", sockPath)
+
+	newClient := func(path string) http.Client {
+		return http.Client{
+			Transport: &http.Transport{
+				Proxy: http.ProxyFromEnvironment,
+				DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
+					return net.Dial("unix", path)
+				},
+				MaxIdleConns:          100,
+				IdleConnTimeout:       90 * time.Second,
+				TLSHandshakeTimeout:   10 * time.Second,
+				ExpectContinueTimeout: 1 * time.Second,
 			},
-			MaxIdleConns:          100,
-			IdleConnTimeout:       90 * time.Second,
-			TLSHandshakeTimeout:   10 * time.Second,
-			ExpectContinueTimeout: 1 * time.Second,
-		},
+		}
 	}
 
-	t.Run("off", func(t *testing.T) {
+	t.Run("off_default_off", func(t *testing.T) {
 		// running the tests on different ports to prevent
 		// flaky panics related to the port being already taken
 		port := 8127
@@ -53,26 +57,69 @@ func TestUDS(t *testing.T) {
 		r.Start()
 		defer r.Stop()
 
+		client := newClient(sockPath)
 		resp, err := client.Post(fmt.Sprintf("http://localhost:%v/v0.4/traces", port), "application/msgpack", bytes.NewReader(payload))
+		if err == nil {
+			resp.Body.Close()
+			t.Fatalf("expected to fail, got response %#v", resp)
+		}
+
+		// default socket also disabled
+		client = newClient(defaultSockPath)
+		resp, err = client.Post(fmt.Sprintf("http://localhost:%v/v0.4/traces", port), "application/msgpack", bytes.NewReader(payload))
 		if err == nil {
 			resp.Body.Close()
 			t.Fatalf("expected to fail, got response %#v", resp)
 		}
 	})
 
-	t.Run("on", func(t *testing.T) {
+	t.Run("off_default_on", func(t *testing.T) {
 		// running the tests on different ports to prevent
 		// flaky panics related to the port being already taken
-		port := 8125
+		port := 8127
 		conf := config.New()
 		conf.Endpoints[0].APIKey = "apikey_2"
-		conf.ReceiverSocket = sockPath
 		conf.ReceiverPort = port
+		conf.ReceiverDefaultSocket = defaultSockPath
 
 		r := newTestReceiverFromConfig(conf)
 		r.Start()
 		defer r.Stop()
 
+		client := newClient(sockPath)
+		resp, err := client.Post(fmt.Sprintf("http://localhost:%v/v0.4/traces", port), "application/msgpack", bytes.NewReader(payload))
+		if err == nil {
+			resp.Body.Close()
+			t.Fatalf("expected to fail, got response %#v", resp)
+		}
+
+		// default socket enabled
+		client = newClient(defaultSockPath)
+		resp, err = client.Post(fmt.Sprintf("http://localhost:%v/v0.4/traces", port), "application/msgpack", bytes.NewReader(payload))
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		if resp.StatusCode != 200 {
+			t.Fatalf("expected http.StatusOK, got response: %#v", resp)
+		}
+	})
+
+	t.Run("on_default", func(t *testing.T) {
+		// running the tests on different ports to prevent
+		// flaky panics related to the port being already taken
+		port := 8125
+		conf := config.New()
+		conf.Endpoints[0].APIKey = "apikey_2"
+		conf.ReceiverPort = port
+		conf.ReceiverSocket = defaultSockPath
+		conf.ReceiverDefaultSocket = defaultSockPath
+
+		r := newTestReceiverFromConfig(conf)
+		r.Start()
+		defer r.Stop()
+
+		client := newClient(defaultSockPath)
 		resp, err := client.Post(fmt.Sprintf("http://localhost:%v/v0.4/traces", port), "application/msgpack", bytes.NewReader(payload))
 		if err != nil {
 			t.Fatal(err)
@@ -81,6 +128,42 @@ func TestUDS(t *testing.T) {
 		if resp.StatusCode != 200 {
 			t.Fatalf("expected http.StatusOK, got response: %#v", resp)
 		}
+	})
+
+	t.Run("on_default_other", func(t *testing.T) {
+		// running the tests on different ports to prevent
+		// flaky panics related to the port being already taken
+		port := 8125
+		conf := config.New()
+		conf.Endpoints[0].APIKey = "apikey_2"
+		conf.ReceiverPort = port
+		conf.ReceiverSocket = sockPath
+		conf.ReceiverDefaultSocket = defaultSockPath
+
+		r := newTestReceiverFromConfig(conf)
+		r.Start()
+		defer r.Stop()
+
+		client := newClient(sockPath)
+		resp, err := client.Post(fmt.Sprintf("http://localhost:%v/v0.4/traces", port), "application/msgpack", bytes.NewReader(payload))
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		if resp.StatusCode != 200 {
+			t.Fatalf("expected http.StatusOK, got response: %#v", resp)
+		}
+
+		client = newClient(defaultSockPath)
+		resp, err = client.Post(fmt.Sprintf("http://localhost:%v/v0.4/traces", port), "application/msgpack", bytes.NewReader(payload))
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		if resp.StatusCode != 200 {
+			t.Fatalf("expected http.StatusOK, got response: %#v", resp)
+		}
+
 	})
 }
 
