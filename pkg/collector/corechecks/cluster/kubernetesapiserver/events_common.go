@@ -107,8 +107,15 @@ var ControllerToIntegration = map[string]string{
 	"default-scheduler":                              "kubernetes scheduler",
 	"spark-operator":                                 "spark",
 	"vaultd":                                         "vault",
-	// "cluster-autoscaler":                             "kubernetes cluster autoscaler",
+	"cluster-autoscaler":                             "kubernetes cluster autoscaler",
 }
+
+// defaultEventSource is the source that should be used for kubernetes events emitted by
+// a controller not in the ControllerToIntegration map.
+const defaultEventSource = "kubernetes"
+
+// kubernetesEventSource is the name of the source for kubernetes events
+const kubernetesEventSource = "kubernetes"
 
 // getDDAlertType converts kubernetes event types into datadog alert types
 func getDDAlertType(k8sType string) event.AlertType {
@@ -262,7 +269,7 @@ func init() {
 
 func getEventSource(controllerName string, sourceComponent string) string {
 	if !ddConfig.Datadog().GetBool("kubernetes_events_source_detection.enabled") {
-		return "kubernetes"
+		return kubernetesEventSource
 	}
 
 	if v, ok := ControllerToIntegration[controllerName]; ok {
@@ -271,6 +278,5 @@ func getEventSource(controllerName string, sourceComponent string) string {
 	if v, ok := ControllerToIntegration[sourceComponent]; ok {
 		return v
 	}
-	// This is the default value for event sources
-	return "kubernetes"
+	return defaultEventSource
 }
