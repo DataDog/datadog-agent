@@ -392,7 +392,6 @@ def validate(_: Context):
 
     # Find all go.mod files and make sure they are registered in DEFAULT_MODULES
     for root, dirs, files in os.walk("."):
-        # Ignore the files that could be stored in the Python tests
         dirs[:] = [d for d in dirs if root + '/' + d not in IGNORED_MODULE_PATHS]
 
         if "go.mod" in files and root.removeprefix("./") not in DEFAULT_MODULES:
