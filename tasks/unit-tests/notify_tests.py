@@ -4,6 +4,7 @@ import json
 import os
 import pathlib
 import unittest
+from contextlib import contextmanager
 from unittest.mock import MagicMock, patch
 
 from codeowners import CodeOwners
@@ -22,6 +23,19 @@ def get_fake_jobs() -> list[ProjectJob]:
         jobs = json.load(f)
 
     return [ProjectJob(MagicMock(), attrs=job) for job in jobs]
+
+
+@contextmanager
+def test_job_executions(path="tasks/unit-tests/testdata/job_executions.json"):
+    """
+    Make a job_executions.json file for testing purposes and clean it up after the test
+    """
+    alerts.create_initial_job_executions(path)
+
+    yield path
+
+    # Cancel changes
+    alerts.create_initial_job_executions(path)
 
 
 class TestSendMessage(unittest.TestCase):
@@ -268,10 +282,11 @@ class TestCheckConsistentFailures(unittest.TestCase):
         trace_mock.return_value = b"net/http: TLS handshake timeout"
         list_mock.return_value = get_fake_jobs()
 
-        notify.check_consistent_failures(
-            MockContext(run=Result("test")),
-            "tasks/unit-tests/testdata/job_executions.json",
-        )
+        with test_job_executions() as path:
+            notify.check_consistent_failures(
+                MockContext(run=Result("test")),
+                path,
+            )
 
         trace_mock.assert_called()
         list_mock.assert_called()

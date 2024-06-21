@@ -1,1 +1,1 @@
-{"pipeline_id": 456, "jobs": {"do-not-merge": {"consecutive_failures": 1, "jobs_info": [{"id": 457502691, "failing": true, "commit": "abcdef42"}]}}}
+{"pipeline_id": 0, "jobs": {}}
