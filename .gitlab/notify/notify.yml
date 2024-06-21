@@ -119,7 +119,7 @@ notify_failure_summary_on_pipeline:
 # Send failure summary notifications daily and weekly
 notify_failure_summary_daily:
   extends: .failure_summary_job
-  rules: !reference [.on_deploy_nightly_repo_branch]
+  rules: !reference [.on_deploy_nightly_repo_branch_always]
   script:
     - !reference [.failure_summary_setup]
     - weekday="$(date --utc '+%A')"
