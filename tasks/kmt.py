@@ -1057,6 +1057,7 @@ def test(
             target_folder.mkdir(parents=True, exist_ok=True)
             d.download(ctx, "/ci-visibility/junit/", target_folder)
 
+    info("[+] All domains finished, showing summary table of test results")
     show_last_test_results(ctx, stack)
 
 
