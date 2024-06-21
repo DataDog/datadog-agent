@@ -46,6 +46,7 @@ func TestGetSourceMap(t *testing.T) {
 		return nil
 	})
 	require.NoError(t, err)
+	require.Greater(t, len(objectFiles), 0, "no object files found")
 
 	fileCache := make(map[string][]string)
 

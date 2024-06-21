@@ -289,7 +289,7 @@ func getSourceMap(file string, spec *ebpf.CollectionSpec) (map[string]map[int]*S
 		for iter.Next() {
 			ins := iter.Ins
 			insOffset := iter.Offset.Bytes()
-			insIdx := int(insOffset / 8) // Use the instruction offset in bytes as the index, because that's what the verifier uses
+			insIdx := int(iter.Offset) // Use the instruction offset as the index, because that's what the verifier uses. This accounts for double-wide instructions
 			if _, ok := offsets[progSpec.Name][insOffset]; ok {
 				// A single C line can generate multiple instructions, only update the value
 				// if we have a new source line
