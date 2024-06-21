@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
 import json
 import os
 import sys
 import traceback
 from collections import Counter
 from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 
 from gitlab.v4.objects import Project, ProjectPipeline, ProjectPipelineJob
 from invoke import Context
