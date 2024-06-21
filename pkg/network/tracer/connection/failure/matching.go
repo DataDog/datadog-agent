@@ -71,6 +71,7 @@ type FailedConns struct {
 func NewFailedConns(m *manager.Manager) *FailedConns {
 	fc := &FailedConns{
 		FailedConnMap: make(map[ebpf.ConnTuple]*FailedConnStats),
+		failureTuple:  &ebpf.ConnTuple{},
 	}
 	fc.setupMapCleaner(m)
 	return fc
