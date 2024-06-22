@@ -114,10 +114,12 @@ func (fc *FailedConns) MatchFailedConn(conn *network.ConnectionStats) {
 
 	if failedConn, ok := fc.FailedConnMap[*fc.failureTuple]; ok {
 		// found matching failed connection
+		log.Errorf("adamk - found matching failed connection: %v", failedConn)
 		conn.TCPFailures = make(map[uint32]uint32)
 
 		for errCode, count := range failedConn.CountByErrCode {
 			failureTelemetry.failedConnMatches.Add(1, strconv.Itoa(int(errCode)))
+			log.Errorf("adamk - adding failure code: %v", errCode)
 			conn.TCPFailures[errCode] += count
 		}
 	}

@@ -83,6 +83,7 @@ func (c *tcpCloseConsumer) Stop() {
 
 func (c *tcpCloseConsumer) extractConn(data []byte) {
 	ct := (*netebpf.Conn)(unsafe.Pointer(&data[0]))
+	log.Errorf("adamk received closed connection: %v", ct)
 	conn := c.buffer.Next()
 	populateConnStats(conn, &ct.Tup, &ct.Conn_stats, c.ch)
 	updateTCPStats(conn, &ct.Tcp_stats, ct.Tcp_retransmits)

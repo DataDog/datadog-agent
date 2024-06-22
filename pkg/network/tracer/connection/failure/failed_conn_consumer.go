@@ -62,6 +62,7 @@ func (c *TCPFailedConnConsumer) Stop() {
 
 func (c *TCPFailedConnConsumer) extractConn(data []byte) {
 	failedConn := (*netebpf.FailedConn)(unsafe.Pointer(&data[0]))
+	log.Errorf("adamk failed connection received: %v", failedConn)
 	failedConnConsumerTelemetry.eventsReceived.Inc()
 
 	c.FailedConns.upsertConn(failedConn)
