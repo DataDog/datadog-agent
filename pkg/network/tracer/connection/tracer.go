@@ -296,6 +296,7 @@ func NewTracer(config *config.Config, _ telemetryComponent.Component) (Tracer, e
 		config.TCPFailedConnectionsEnabled = false
 	}
 	if config.FailedConnectionsSupported() {
+		log.Errorf("adamk failed connections supported and enabled. creating consumer")
 		failedConnConsumer = failure.NewFailedConnConsumer(failedConnsHandler, m)
 	}
 
@@ -361,7 +362,6 @@ func (t *tracer) Start(callback func([]network.ConnectionStats)) (err error) {
 
 	t.closeConsumer.Start(callback)
 	t.failedConnConsumer.Start()
-	log.Info("started failed connection consumer")
 	return nil
 }
 

@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const maxRoutes = math.MaxInt32
@@ -110,8 +111,11 @@ func FormatConnection(builder *model.ConnectionBuilder, conn network.ConnectionS
 	dnsFormatter.FormatConnectionDNS(conn, builder)
 
 	if len(conn.TCPFailures) > 0 {
+		log.Errorf("adamk - encoding failed connection: %v", conn.TCPFailures)
 		builder.AddTcpFailuresByErrCode(func(w *model.Connection_TcpFailuresByErrCodeEntryBuilder) {
 			for k, v := range conn.TCPFailures {
+				log.Errorf("adamk - adding failure code: %v", k)
+				log.Errorf("adamk - adding failure count: %v", v)
 				w.SetKey(k)
 				w.SetValue(v)
 			}

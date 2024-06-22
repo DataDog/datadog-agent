@@ -73,6 +73,7 @@ func (c *TCPFailedConnConsumer) Start() {
 	if c == nil {
 		return
 	}
+	log.Errorf("adamk starting failed conn consumer")
 
 	go func() {
 		dataChannel := c.eventHandler.DataChannel()
