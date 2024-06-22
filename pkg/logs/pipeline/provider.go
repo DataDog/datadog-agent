@@ -166,16 +166,12 @@ func (p *provider) NextPipelineChan() chan *message.Message {
 
 // Flush flushes synchronously all the contained pipeline of this provider.
 func (p *provider) Flush(ctx context.Context) {
-
-	for _, pipeline := range p.pipelines {
+	for _, p := range p.pipelines {
 		select {
 		case <-ctx.Done():
 			return
 		default:
-			pipeline.Flush(ctx)
+			p.Flush(ctx)
 		}
-	}
-	if p.serverless {
-		<-p.outputChan
 	}
 }
