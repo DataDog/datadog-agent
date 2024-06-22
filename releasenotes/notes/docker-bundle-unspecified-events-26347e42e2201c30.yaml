@@ -8,7 +8,7 @@
 ---
 enhancements:
   - |
-    Introduces an ``bundle_unspecifed_events`` config to the ``docker`` integration.
+    Introduces a ``bundle_unspecifed_events`` config to the ``docker`` integration.
     When ``bundle_unspecifed_events`` and ``unbundle_events`` are true,
     Docker events are unbundled according to ``collected_event_types`` and
-    the remaining events are bundled after the ``filtered_event_types`` + ``collected_event_types``.
+    the remaining events are bundled after excluding the ``filtered_event_types`` and ``collected_event_types``.
