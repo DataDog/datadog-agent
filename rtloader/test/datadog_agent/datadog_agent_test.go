@@ -179,6 +179,19 @@ func TestLog(t *testing.T) {
 	helpers.AssertMemoryUsage(t)
 }
 
+func TestSendLog(t *testing.T) {
+	code := `
+	datadog_agent.send_log("log line", "postgres:test:12345")
+	`
+	out, err := run(code)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out != "log line,postgres:test:12345" {
+		t.Errorf("Unexpected printed value: '%s'", out)
+	}
+}
+
 func TestSetCheckMetadata(t *testing.T) {
 	code := `
 	datadog_agent.set_check_metadata("redis:test:12345", "version.raw", "5.0.6")

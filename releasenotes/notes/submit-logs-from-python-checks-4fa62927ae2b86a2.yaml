@@ -1,0 +1,5 @@
+---
+enhancements:
+  - |
+    Implement API that allows Python checks to send logs for
+    eventual submission.
