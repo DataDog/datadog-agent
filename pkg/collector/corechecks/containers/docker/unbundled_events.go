@@ -27,14 +27,14 @@ func newUnbundledTransformer(hostname string, types []string, bundledTransformer
 	return &unbundledTransformer{
 		hostname:            hostname,
 		collectedEventTypes: collectedEventTypes,
-		eventTransformer:    bundledTransformer,
+		bundledTransformer: bundledTransformer,
 	}
 }
 
 type unbundledTransformer struct {
 	hostname            string
 	collectedEventTypes map[string]struct{}
-	eventTransformer    eventTransformer
+	bundledTransformer eventTransformer
 }
 
 func (t *unbundledTransformer) Transform(events []*docker.ContainerEvent) ([]event.Event, []error) {
@@ -81,7 +81,7 @@ func (t *unbundledTransformer) Transform(events []*docker.ContainerEvent) ([]eve
 		})
 	}
 
-	bundledEvs, errs := t.eventTransformer.Transform(evsToBundle)
+	bundledEvs, errs := t.bundledTransformer.Transform(evsToBundle)
 
 	return append(datadogEvs, bundledEvs...), append(errors, errs...)
 }
