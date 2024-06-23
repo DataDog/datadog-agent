@@ -72,13 +72,15 @@ func (r *RequestStats) AddRequest(errorCode int8, count int, staticTags uint64) 
 	if !isValidKafkaErrorCode(errorCode) {
 		return
 	}
-	stats, exists := r.ErrorCodeToStat[errorCode]
-	if !exists {
-		stats = &RequestStat{}
-		r.ErrorCodeToStat[errorCode] = stats
+	if stats, exists := r.ErrorCodeToStat[errorCode]; exists {
+		stats.Count += count
+		stats.StaticTags |= staticTags
+	} else {
+		r.ErrorCodeToStat[errorCode] = &RequestStat{
+			Count:      count,
+			StaticTags: staticTags,
+		}
 	}
-	stats.Count += count
-	stats.StaticTags |= staticTags
 }
 
 func isValidKafkaErrorCode(errorCode int8) bool {
