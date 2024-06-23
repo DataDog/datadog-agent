@@ -18,7 +18,9 @@ type ddConverter struct {
 	confDump confDump
 }
 
-var _ confmap.Converter = (*ddConverter)(nil)
+var (
+	_ confmap.Converter = (*ddConverter)(nil)
+)
 
 type confDump struct {
 	provided string
@@ -35,10 +37,11 @@ func NewConverter() (converter.Component, error) {
 	}, nil
 }
 
-func (c *ddConverter) Convert(_ context.Context, _ *confmap.Conf) error {
+// Convert autoconfigures conf and stores both the provided and enhanced conf.
+func (c *ddConverter) Convert(_ context.Context, conf *confmap.Conf) error {
 	// c.addProvidedConf(conf)
 
-	// TODO: enhance config (e.g. add dd connector)
+	enhanceConfig(conf)
 
 	// c.addEnhancedConf(conf)
 	return nil

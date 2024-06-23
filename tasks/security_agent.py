@@ -395,7 +395,7 @@ def build_functional_tests(
 
     if not skip_linters:
         targets = [srcpath]
-        results = run_golangci_lint(ctx, module_path="", targets=targets, build_tags=build_tags)
+        results, _ = run_golangci_lint(ctx, module_path="", targets=targets, build_tags=build_tags)
         for result in results:
             # golangci exits with status 1 when it finds an issue
             if result.exited != 0:
@@ -585,9 +585,7 @@ def docker_functional_tests(
         kernel_release=kernel_release,
     )
 
-    image_tag = (
-        "ghcr.io/paulcacheux/cws-centos7@sha256:b16587f1cc7caebc1a18868b9fbd3823e79457065513e591352c4d929b14c426"
-    )
+    image_tag = "ghcr.io/datadog/apps-cws-centos7:main"
 
     container_name = 'security-agent-tests'
     capabilities = ['SYS_ADMIN', 'SYS_RESOURCE', 'SYS_PTRACE', 'NET_ADMIN', 'IPC_LOCK', 'ALL']

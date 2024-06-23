@@ -390,6 +390,15 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
+	case "event.hostname":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveHostname(ev, &ev.BaseEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
 	case "event.origin":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -1667,6 +1676,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"delete_key.registry.key_name.length",
 		"delete_key.registry.key_path",
 		"delete_key.registry.key_path.length",
+		"event.hostname",
 		"event.origin",
 		"event.os",
 		"event.service",
@@ -1856,6 +1866,8 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return ev.DeleteRegistryKey.Registry.KeyPath, nil
 	case "delete_key.registry.key_path.length":
 		return len(ev.DeleteRegistryKey.Registry.KeyPath), nil
+	case "event.hostname":
+		return ev.FieldHandlers.ResolveHostname(ev, &ev.BaseEvent), nil
 	case "event.origin":
 		return ev.BaseEvent.Origin, nil
 	case "event.os":
@@ -2320,6 +2332,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "delete_key", nil
 	case "delete_key.registry.key_path.length":
 		return "delete_key", nil
+	case "event.hostname":
+		return "*", nil
 	case "event.origin":
 		return "*", nil
 	case "event.os":
@@ -2621,6 +2635,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.String, nil
 	case "delete_key.registry.key_path.length":
 		return reflect.Int, nil
+	case "event.hostname":
+		return reflect.String, nil
 	case "event.origin":
 		return reflect.String, nil
 	case "event.os":
@@ -3049,6 +3065,13 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return nil
 	case "delete_key.registry.key_path.length":
 		return &eval.ErrFieldReadOnly{Field: "delete_key.registry.key_path.length"}
+	case "event.hostname":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.Hostname"}
+		}
+		ev.BaseEvent.Hostname = rv
+		return nil
 	case "event.origin":
 		rv, ok := value.(string)
 		if !ok {

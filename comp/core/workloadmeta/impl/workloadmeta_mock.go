@@ -60,8 +60,8 @@ func (w *workloadMetaMock) GetContainer(id string) (*wmdef.Container, error) {
 }
 
 // GetKubernetesMetadata implements workloadMetaMock#GetKubernetesMetadata.
-func (w *workloadMetaMock) GetKubernetesMetadata(id string) (*wmdef.KubernetesMetadata, error) {
-	entity, err := w.getEntityByKind(wmdef.KindKubernetesMetadata, id)
+func (w *workloadMetaMock) GetKubernetesMetadata(id wmdef.KubeMetadataEntityID) (*wmdef.KubernetesMetadata, error) {
+	entity, err := w.getEntityByKind(wmdef.KindKubernetesMetadata, string(id))
 	if err != nil {
 		return nil, err
 	}
