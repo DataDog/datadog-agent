@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2023-present Datadog, Inc.
+
 // Package remotehostnameimpl provides a function to get the hostname from core agent.
 package remotehostnameimpl
 
@@ -9,30 +14,59 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	cache "github.com/patrickmn/go-cache"
+	"go.uber.org/fx"
 )
 
 const (
+	defaultExpire = 15 * time.Minute
+	defaultPurge  = 30 * time.Second
+	// AgentCachePrefix is the common root to use to prefix all the cache
+	// keys for any value regarding the Agent
+	AgentCachePrefix = "agent"
+
+	// encapsulate the cache module for easy refactoring
+
+	// NoExpiration maps to go-cache corresponding value
+	NoExpiration = cache.NoExpiration
 	// maxAttempts is the maximum number of times we try to get the hostname
 	// from the core-agent before bailing out.
 	maxAttempts = 6
 )
 
+// Module defines the fx options for this component.
+func Module() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newRemoteHostImpl))
+}
+
+var cachKey = "hostname"
+
 type remotehostimpl struct {
-	hostname string
+	cache *cache.Cache
+}
+
+func newRemoteHostImpl() hostnameinterface.Component {
+	return &remotehostimpl{
+		cache: cache.New(defaultExpire, defaultPurge),
+	}
 }
 
 func (r *remotehostimpl) Get(ctx context.Context) (string, error) {
-	if r.hostname != "" {
-		return r.hostname, nil
+	if hostname, found := r.cache.Get(cachKey); found {
+		return hostname.(string), nil
 	}
-	hostname, err := utils.GetHostnameWithContextAndFallback(ctx)
+	hostname, err := getHostnameWithContextAndFallback(ctx)
 	if err != nil {
 		return "", err
 	}
-	r.hostname = hostname
+	r.cache.Set(cachKey, hostname, NoExpiration)
 	return hostname, nil
 }
 
