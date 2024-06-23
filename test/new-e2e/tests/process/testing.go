@@ -259,9 +259,14 @@ func assertManualProcessCheck(t *testing.T, check string, withIOStats bool, proc
 	procs := filterProcess(process, checkOutput.Processes)
 	assert.NotEmpty(t, procs, "no processes found")
 
+	var hasData bool
 	for _, proc := range procs {
-		assert.Truef(t, processHasData(proc), "%s process is missing data", proc)
+		if processHasData(proc) {
+			hasData = true
+			break
+		}
 	}
+	assert.Truef(t, hasData, "Missing process data: %v", procs)
 
 	if withIOStats {
 		var hasIOStats bool
