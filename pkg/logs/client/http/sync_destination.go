@@ -7,6 +7,7 @@
 package http
 
 import (
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
@@ -19,13 +20,15 @@ import (
 
 // SyncDestination sends a payload over HTTP and does not retry.
 type SyncDestination struct {
-	destination *Destination
+	destination    *Destination
+	senderDoneChan chan *sync.WaitGroup
 }
 
 // NewSyncDestination returns a new synchronous Destination.
 func NewSyncDestination(endpoint config.Endpoint,
 	contentType string,
 	destinationsContext *client.DestinationsContext,
+	senderDoneChan chan *sync.WaitGroup,
 	telemetryName string,
 	cfg pkgconfigmodel.Reader) *SyncDestination {
 
@@ -33,6 +36,7 @@ func NewSyncDestination(endpoint config.Endpoint,
 		contentType,
 		destinationsContext,
 		time.Second*10,
+		senderDoneChan,
 		telemetryName,
 		cfg)
 }
@@ -41,11 +45,13 @@ func newSyncDestination(endpoint config.Endpoint,
 	contentType string,
 	destinationsContext *client.DestinationsContext,
 	timeout time.Duration,
+	senderDoneChan chan *sync.WaitGroup,
 	telemetryName string,
 	cfg pkgconfigmodel.Reader) *SyncDestination {
 
 	return &SyncDestination{
-		destination: newDestination(endpoint, contentType, destinationsContext, timeout, 1, false, telemetryName, cfg),
+		destination:    newDestination(endpoint, contentType, destinationsContext, timeout, 1, false, telemetryName, cfg),
+		senderDoneChan: senderDoneChan,
 	}
 }
 
@@ -81,6 +87,12 @@ func (d *SyncDestination) run(input chan *message.Payload, output chan *message.
 			metrics.TlmDestinationErrors.Inc()
 			log.Debugf("Could not send payload: %v", err)
 		}
+
+		if d.senderDoneChan != nil {
+			senderDoneWg := <-d.senderDoneChan
+			senderDoneWg.Done()
+		}
+
 		metrics.LogsSent.Add(int64(len(p.Messages)))
 		metrics.TlmLogsSent.Add(float64(len(p.Messages)))
 		output <- p
