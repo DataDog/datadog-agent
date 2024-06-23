@@ -119,7 +119,7 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 		fx.Provide(func(h hostnameinterface.Component) (serializerexporter.SourceProviderFunc, error) {
 			return h.Get, nil
 		}),
-		fx.Provide(remotehostnameimpl.Module()),
+		remotehostnameimpl.Module(),
 		fx.Supply(optional.NewNoneOption[secrets.Component]()),
 
 		fx.Provide(func(c coreconfig.Component) corelogimpl.Params {
