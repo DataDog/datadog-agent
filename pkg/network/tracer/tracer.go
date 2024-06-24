@@ -18,7 +18,6 @@ import (
 	"github.com/DataDog/ebpf-manager/tracefs"
 	"github.com/cihub/seelog"
 	"github.com/cilium/ebpf"
-	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/atomic"
 	"go4.org/intern"
 
@@ -79,14 +78,13 @@ var tracerTelemetry = struct {
 
 // Tracer implements the functionality of the network tracer
 type Tracer struct {
-	config             *config.Config
-	state              network.State
-	conntracker        netlink.Conntracker
-	reverseDNS         dns.ReverseDNS
-	usmMonitor         *usm.Monitor
-	ebpfTracer         connection.Tracer
-	bpfErrorsCollector prometheus.Collector
-	lastCheck          *atomic.Int64
+	config      *config.Config
+	state       network.State
+	conntracker netlink.Conntracker
+	reverseDNS  dns.ReverseDNS
+	usmMonitor  *usm.Monitor
+	ebpfTracer  connection.Tracer
+	lastCheck   *atomic.Int64
 
 	bufferLock sync.Mutex
 
@@ -404,9 +402,6 @@ func (t *Tracer) Stop() {
 		events.UnregisterHandler(t.processCache)
 		t.processCache.Stop()
 		telemetry.GetCompatComponent().UnregisterCollector(t.processCache)
-	}
-	if t.bpfErrorsCollector != nil {
-		telemetry.GetCompatComponent().UnregisterCollector(t.bpfErrorsCollector)
 	}
 }
 
