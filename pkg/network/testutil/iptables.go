@@ -41,7 +41,10 @@ func IptablesSave(tb testing.TB) []byte {
 
 // IptablesRestore restores iptables state from a file
 func IptablesRestore(tb testing.TB, state []byte) {
-	cmd := exec.Command("iptables-restore", "--counters")
+	// Define the time to wait for the xtables lock.
+	// This is necessary because we noticed that iptables-restore fails with error code 4 when it can't acquire the lock.
+	lockWaitTimeSeconds := "5"
+	cmd := exec.Command("iptables-restore", "--counters", "--wait", lockWaitTimeSeconds)
 	cmd.Stdin = bytes.NewReader(state)
 	assert.NoError(tb, cmd.Run())
 }
