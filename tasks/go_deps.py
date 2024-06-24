@@ -256,7 +256,7 @@ def generate(
                 f.close()
 
 
-def key_from_value(map: dict[str, str], value: str) -> str:
+def key_for_value(map: dict[str, str], value: str) -> str:
     """Return the key from a value in a dictionary."""
     for k, v in map.items():
         if v == value:
@@ -280,12 +280,12 @@ def show(ctx: Context, build: str, flavor: str = AgentFlavor.base.name, os: str 
     if os is None:
         goos = ctx.run("go env GOOS", hide=True)
         assert goos
-        os = key_from_value(GOOS_MAPPING, goos.stdout.strip())
+        os = key_for_value(GOOS_MAPPING, goos.stdout.strip())
 
     if arch is None:
         goarch = ctx.run("go env GOARCH", hide=True)
         assert goarch
-        arch = key_from_value(GOARCH_MAPPING, goarch.stdout.strip())
+        arch = key_for_value(GOARCH_MAPPING, goarch.stdout.strip())
 
     entrypoint = BINARIES[build]["entrypoint"]
     with ctx.cd(entrypoint):
