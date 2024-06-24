@@ -32,7 +32,7 @@ func TestNewFactory(t *testing.T) {
 	cfg := factory.CreateDefaultConfig()
 	assert.NotNil(t, cfg)
 
-	ext, err := factory.CreateExtension(context.Background(), extension.CreateSettings{}, cfg)
+	ext, err := factory.CreateExtension(context.Background(), extension.Settings{}, cfg)
 	assert.NoError(t, err)
 	assert.NotNil(t, ext)
 

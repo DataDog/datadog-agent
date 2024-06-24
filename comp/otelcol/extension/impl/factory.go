@@ -34,7 +34,7 @@ func NewFactory(converter confmap.Converter) extension.Factory {
 	}
 }
 
-func (f *ddExtensionFactory) CreateExtension(ctx context.Context, set extension.CreateSettings, cfg component.Config) (extension.Extension, error) {
+func (f *ddExtensionFactory) CreateExtension(ctx context.Context, set extension.Settings, cfg component.Config) (extension.Extension, error) {
 
 	config := &Config{
 		Converter: f.converter,
