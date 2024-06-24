@@ -133,7 +133,7 @@ RUN apt full-upgrade -y \
   # this can be removed
   # Install libssl-dev as it's required by some Python checks and we rely on system version
   # Install libseccomp2 as required by `nosys-seccomp` wrapper
-  && apt install -y iproute2 libssl-dev libseccomp2 tzdata adduser
+  && apt install -y iproute2 libssl-dev libseccomp2 tzdata adduser libgoogle-perftools-dev
 
 # Install openjdk-11-jre-headless on jmx flavor
 RUN if [ -n "$WITH_JMX" ]; then echo "Pulling openjdk-11 from testing" \
@@ -219,7 +219,7 @@ VOLUME ["/var/run/s6", "/var/log/datadog"]
 
 # Ensure the glibc doesn't try to call syscalls that may not be supported
 COPY --from=nosys-seccomp /tmp/nosys.so /opt/lib/nosys.so
-ENV LD_PRELOAD=/opt/lib/nosys.so
+ENV LD_PRELOAD="/opt/lib/nosys.so /lib/x86_64-linux-gnu/libtcmalloc.so"
 
 # Single entrypoint
 COPY entrypoint.sh /bin/entrypoint.sh
