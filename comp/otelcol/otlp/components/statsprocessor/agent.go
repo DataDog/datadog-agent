@@ -32,18 +32,22 @@ type TraceAgent struct {
 	// wg waits for all goroutines to exit.
 	wg sync.WaitGroup
 
+	// out specifies the channel through which the agent will output Stats Payloads
+	// resulting from ingested traces.
+	out chan *pb.StatsPayload
+
 	// exit signals the agent to shut down.
 	exit chan struct{}
 }
 
 // NewAgent creates a new unstarted traceagent using the given context. Call Start to start the traceagent.
 // The out channel will receive outoing stats payloads resulting from spans ingested using the Ingest method.
-func NewAgent(ctx context.Context, out chan *pb.StatsPayload, metricsClient statsd.ClientInterface, timingReporter timing.Reporter) *TraceAgent {
-	return NewAgentWithConfig(ctx, traceconfig.New(), out, metricsClient, timingReporter)
+func NewAgent(ctx context.Context, metricsClient statsd.ClientInterface, timingReporter timing.Reporter) *TraceAgent {
+	return NewAgentWithConfig(ctx, traceconfig.New(), metricsClient, timingReporter)
 }
 
 // NewAgentWithConfig creates a new traceagent with the given config cfg. Used in tests; use newAgent instead.
-func NewAgentWithConfig(ctx context.Context, cfg *traceconfig.AgentConfig, out chan *pb.StatsPayload, metricsClient statsd.ClientInterface, timingReporter timing.Reporter) *TraceAgent {
+func NewAgentWithConfig(ctx context.Context, cfg *traceconfig.AgentConfig, metricsClient statsd.ClientInterface, timingReporter timing.Reporter) *TraceAgent {
 	// disable the HTTP receiver
 	cfg.ReceiverPort = 0
 	// set the API key to succeed startup; it is never used nor needed
@@ -56,6 +60,7 @@ func NewAgentWithConfig(ctx context.Context, cfg *traceconfig.AgentConfig, out c
 	cfg.Hostname = "__unset__"
 	pchan := make(chan *api.Payload, 1000)
 	a := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector(), metricsClient)
+	out := make(chan *pb.StatsPayload, 100)
 	// replace the Concentrator (the component which computes and flushes APM Stats from incoming
 	// traces) with our own, which uses the 'out' channel.
 	a.Concentrator = stats.NewConcentrator(cfg, out, time.Now(), metricsClient)
@@ -69,6 +74,7 @@ func NewAgentWithConfig(ctx context.Context, cfg *traceconfig.AgentConfig, out c
 		Agent: a,
 		exit:  make(chan struct{}),
 		pchan: pchan,
+		out:   out,
 	}
 }
 
@@ -92,6 +98,11 @@ func (p *TraceAgent) Start() {
 
 	p.goDrain()
 	p.goProcess()
+}
+
+// StatsChan returns the channel to output stats payloads
+func (p *TraceAgent) StatsChan() chan *pb.StatsPayload {
+	return p.out
 }
 
 // Stop stops the traceagent, making it unable to ingest spans. Do not call Ingest after Stop.
@@ -170,6 +181,9 @@ type Ingester interface {
 
 	// Ingest ingests the set of traces.
 	Ingest(ctx context.Context, traces ptrace.Traces)
+
+	// StatsChan returns the channel to output stats payloads
+	StatsChan() chan *pb.StatsPayload
 
 	// Stop stops the statsprocessor.
 	Stop()

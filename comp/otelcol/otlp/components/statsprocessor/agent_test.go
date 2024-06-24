@@ -32,13 +32,12 @@ func TestTraceAgentConfig(t *testing.T) {
 	cfg := traceconfig.New()
 	require.NotZero(t, cfg.ReceiverPort)
 
-	out := make(chan *pb.StatsPayload)
 	_, metricClient, timingReporter := setupMetricClient()
-	agnt := NewAgentWithConfig(context.Background(), cfg, out, metricClient, timingReporter)
+	agnt := NewAgentWithConfig(context.Background(), cfg, metricClient, timingReporter)
 	require.Zero(t, cfg.ReceiverPort)
 	require.NotEmpty(t, cfg.Endpoints[0].APIKey)
 	require.Equal(t, "__unset__", cfg.Hostname)
-	require.Equal(t, out, agnt.Concentrator.Out)
+	require.Equal(t, agnt.StatsChan(), agnt.Concentrator.Out)
 }
 
 func TestTraceAgent(t *testing.T) {
@@ -47,10 +46,9 @@ func TestTraceAgent(t *testing.T) {
 	require.NoError(t, err)
 	cfg.OTLPReceiver.AttributesTranslator = attributesTranslator
 	cfg.BucketInterval = 50 * time.Millisecond
-	out := make(chan *pb.StatsPayload, 10)
 	ctx := context.Background()
 	_, metricClient, timingReporter := setupMetricClient()
-	a := NewAgentWithConfig(ctx, cfg, out, metricClient, timingReporter)
+	a := NewAgentWithConfig(ctx, cfg, metricClient, timingReporter)
 	a.Start()
 	defer a.Stop()
 
@@ -82,7 +80,7 @@ func TestTraceAgent(t *testing.T) {
 loop:
 	for {
 		select {
-		case stats = <-out:
+		case stats = <-a.StatsChan():
 			if len(stats.Stats) != 0 {
 				break loop
 			}
