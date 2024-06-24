@@ -33,16 +33,16 @@ type Telemetry struct {
 }
 
 // createQueryLengthBuckets initializes the query length buckets
-// Bucket 1: <= 33   query length
-// Bucket 2: 34 - 48 query length
-// Bucket 3: 49 - 63 query length
-// Bucket 4: 64 - 78 query length
-// Bucket 5: 79 - 93 query length
-// Bucket 6: 94 - 108 query length
-// Bucket 7: 109 - 123 query length
-// Bucket 8: 124 - 138 query length
-// Bucket 9: 139 - 153 query length
-// Bucket 10: >= 154 query length
+// Bucket 1: <= 34   query length
+// Bucket 2: 35 - 49 query length
+// Bucket 3: 50 - 64 query length
+// Bucket 4: 65 - 79 query length
+// Bucket 5: 80 - 94 query length
+// Bucket 6: 95 - 109 query length
+// Bucket 7: 110 - 124 query length
+// Bucket 8: 125 - 139 query length
+// Bucket 9: 140 - 154 query length
+// Bucket 10: >= 155 query length
 func createQueryLengthBuckets(metricGroup *libtelemetry.MetricGroup) [numberOfBuckets]*libtelemetry.Counter {
 	var buckets [numberOfBuckets]*libtelemetry.Counter
 	for i := 0; i < numberOfBuckets; i++ {
@@ -65,7 +65,10 @@ func NewTelemetry() *Telemetry {
 
 // getBucketIndex returns the index of the bucket for the given query size
 func getBucketIndex(querySize int) int {
-	startSize := BufferSize - belowBufferBucketCount*bucketRange
+	// Add 1 to the start size to include BufferSize (64) as the last value of bucket 3, resulting in the following order:
+	// The first three buckets will include sizes below the current buffer size,
+	// and the rest will include sizes equal to or above the buffer size.
+	startSize := BufferSize - belowBufferBucketCount*bucketRange + 1
 
 	if querySize < startSize {
 		return 0 // Bucket 1: queries smaller than the lower bound

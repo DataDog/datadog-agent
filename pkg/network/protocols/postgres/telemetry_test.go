@@ -38,12 +38,7 @@ func TestTelemetry_Count(t *testing.T) {
 				},
 				{
 					Tx: EbpfTx{
-						Original_query_size: 34,
-					},
-				},
-				{
-					Tx: EbpfTx{
-						Original_query_size: 49,
+						Original_query_size: 35,
 					},
 				},
 				{
@@ -53,27 +48,32 @@ func TestTelemetry_Count(t *testing.T) {
 				},
 				{
 					Tx: EbpfTx{
-						Original_query_size: 79,
+						Original_query_size: 65,
 					},
 				},
 				{
 					Tx: EbpfTx{
-						Original_query_size: 94,
+						Original_query_size: 80,
 					},
 				},
 				{
 					Tx: EbpfTx{
-						Original_query_size: 109,
+						Original_query_size: 95,
 					},
 				},
 				{
 					Tx: EbpfTx{
-						Original_query_size: 124,
+						Original_query_size: 110,
 					},
 				},
 				{
 					Tx: EbpfTx{
-						Original_query_size: 139,
+						Original_query_size: 125,
+					},
+				},
+				{
+					Tx: EbpfTx{
+						Original_query_size: 140,
 					},
 				},
 				{
@@ -137,8 +137,8 @@ func TestTelemetry_Count(t *testing.T) {
 
 func verifyTelemetry(t *testing.T, tel *Telemetry, expected telemetryResults) {
 	for i := 0; i < len(tel.queryLengthBuckets); i++ {
-		assert.Equal(t, tel.queryLengthBuckets[i].Get(), expected.queryLength[i], "queryLength for bucket %d count is incorrect", i)
+		assert.Equal(t, expected.queryLength[i], tel.queryLengthBuckets[i].Get(), "queryLength for bucket %d count is incorrect", i)
 	}
-	assert.Equal(t, tel.failedTableNameExtraction.Get(), expected.failedTableNameExtraction, "failedTableNameExtraction count is incorrect")
-	assert.Equal(t, tel.failedOperationExtraction.Get(), expected.failedOperationExtraction, "failedOperationExtraction count is incorrect")
+	assert.Equal(t, expected.failedTableNameExtraction, tel.failedTableNameExtraction.Get(), "failedTableNameExtraction count is incorrect")
+	assert.Equal(t, expected.failedOperationExtraction, tel.failedOperationExtraction.Get(), "failedOperationExtraction count is incorrect")
 }
