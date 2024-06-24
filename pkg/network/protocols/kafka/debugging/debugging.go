@@ -64,7 +64,7 @@ func Kafka(stats map[kafka.Key]*kafka.RequestStats) []RequestSummary {
 
 		for status, stat := range requestStat.ErrorCodeToStat {
 
-			debug.ByStatus[status] = Stats{
+			debug.ByStatus[int8(status)] = Stats{
 				Count: stat.Count,
 			}
 		}

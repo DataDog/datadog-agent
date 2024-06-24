@@ -811,7 +811,7 @@ func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
 		buildMessages                       func(kmsg.FetchRequest, kmsg.FetchResponse) []Message
 		onlyTLS                             bool
 		numFetchedRecords                   int
-		errorCode                           int8
+		errorCode                           int32
 		produceFetchValidationWithErrorCode *kafkaParsingValidationWithErrorCodes
 	}{
 		{
@@ -1307,7 +1307,7 @@ func (i *PrintableInt) Add(other int) {
 	*i = PrintableInt(other + i.Load())
 }
 
-func getAndValidateKafkaStats(t *testing.T, monitor *Monitor, expectedStatsCount int, topicName string, validation kafkaParsingValidation, errorCode int8) map[kafka.Key]*kafka.RequestStats {
+func getAndValidateKafkaStats(t *testing.T, monitor *Monitor, expectedStatsCount int, topicName string, validation kafkaParsingValidation, errorCode int32) map[kafka.Key]*kafka.RequestStats {
 	kafkaStats := make(map[kafka.Key]*kafka.RequestStats)
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
 		protocolStats := monitor.GetProtocolStats()
@@ -1368,7 +1368,7 @@ func getDefaultTestConfiguration(tls bool) *config.Config {
 	return cfg
 }
 
-func validateProduceFetchCount(t *assert.CollectT, kafkaStats map[kafka.Key]*kafka.RequestStats, topicName string, validation kafkaParsingValidation, errorCode int8) {
+func validateProduceFetchCount(t *assert.CollectT, kafkaStats map[kafka.Key]*kafka.RequestStats, topicName string, validation kafkaParsingValidation, errorCode int32) {
 	numberOfProduceRequests := 0
 	numberOfFetchRequests := 0
 	for kafkaKey, kafkaStat := range kafkaStats {
@@ -1395,8 +1395,8 @@ func validateProduceFetchCount(t *assert.CollectT, kafkaStats map[kafka.Key]*kaf
 }
 
 func validateProduceFetchCountWithErrorCodes(t *assert.CollectT, kafkaStats map[kafka.Key]*kafka.RequestStats, topicName string, validation kafkaParsingValidationWithErrorCodes) {
-	produceRequests := make(map[int8]int, len(validation.expectedNumberOfProduceRequests))
-	fetchRequests := make(map[int8]int, len(validation.expectedNumberOfFetchRequests))
+	produceRequests := make(map[int32]int, len(validation.expectedNumberOfProduceRequests))
+	fetchRequests := make(map[int32]int, len(validation.expectedNumberOfFetchRequests))
 	for kafkaKey, kafkaStat := range kafkaStats {
 		assert.Equal(t, topicName[:min(len(topicName), 80)], kafkaKey.TopicName)
 		switch kafkaKey.RequestAPIKey {

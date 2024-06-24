@@ -39,13 +39,16 @@ func NewKey(saddr, daddr util.Address, sport, dport uint16, topicName string, re
 // RequestStats stores Kafka request statistics per Kafka error code
 // We include the error code here and not in the Key to avoid creating a new Key for each error code
 type RequestStats struct {
-	ErrorCodeToStat map[int8]*RequestStat
+	// Go uses optimized map access implementations if the key is int32/int64, so using int32 instead of int8
+	// Here you can find the original CPU impact when using int8:
+	// https://dd.datad0g.com/dashboard/s3s-3hu-mh6/usm-performance-evaluation-20?fromUser=true&refresh_mode=paused&tpl_var_base_agent-env%5B0%5D=kafka-error-base&tpl_var_client-service%5B0%5D=kafka-client-%2A&tpl_var_compare_agent-env%5B0%5D=kafka-error-new&tpl_var_kube_cluster_name%5B0%5D=usm-datad0g&tpl_var_server-service%5B0%5D=kafka-broker&view=spans&from_ts=1719153394917&to_ts=1719156854000&live=false
+	ErrorCodeToStat map[int32]*RequestStat
 }
 
 // NewRequestStats creates a new RequestStats object.
 func NewRequestStats() *RequestStats {
 	return &RequestStats{
-		ErrorCodeToStat: make(map[int8]*RequestStat),
+		ErrorCodeToStat: make(map[int32]*RequestStat),
 	}
 }
 
@@ -68,7 +71,7 @@ func (r *RequestStats) CombineWith(newStats *RequestStats) {
 }
 
 // AddRequest takes information about a Kafka transaction and adds it to the request stats
-func (r *RequestStats) AddRequest(errorCode int8, count int, staticTags uint64) {
+func (r *RequestStats) AddRequest(errorCode int32, count int, staticTags uint64) {
 	if !isValidKafkaErrorCode(errorCode) {
 		return
 	}
@@ -83,6 +86,6 @@ func (r *RequestStats) AddRequest(errorCode int8, count int, staticTags uint64) 
 	}
 }
 
-func isValidKafkaErrorCode(errorCode int8) bool {
+func isValidKafkaErrorCode(errorCode int32) bool {
 	return errorCode >= -1 && errorCode <= 119
 }
