@@ -8,27 +8,18 @@
 package statsd
 
 import (
-	"go.uber.org/fx"
-
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-// OTelStatsdModule defines the fx options for the OTel statsd otelcomponent.
-// This should only be used in the OTel agent.
-func OTelStatsdModule() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newOTelStatsdComp))
-}
-
 type otelcomponent struct {
-	client ddgostatsd.ClientInterface
+	client *metricsclient.StatsdClientWrapper
 }
 
-func newOTelStatsdComp() Component {
-	return &otelcomponent{metricsclient.NewStatsdClientWrapper(&ddgostatsd.NoOpClient{})}
+// NewOTelStatsd returns a new statsd component for the OTel agent
+func NewOTelStatsd(client *metricsclient.StatsdClientWrapper) Component {
+	return &otelcomponent{client}
 }
 
 // Get returns a pre-configured and shared statsd client (requires STATSD_URL env var to be set)

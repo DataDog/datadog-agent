@@ -10,7 +10,6 @@ package collectorimpl
 
 import (
 	"context"
-	"errors"
 
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/confmap"
@@ -25,7 +24,6 @@ import (
 	corelog "github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	collectorcontrib "github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def"
 	collector "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
@@ -55,16 +53,16 @@ type Requires struct {
 	Lc compdef.Lifecycle
 
 	// Log specifies the logging component.
-	Log              corelog.Component
-	Provider         confmap.Converter
-	CollectorContrib collectorcontrib.Component
-	Serializer       serializer.MetricSerializer
-	TraceAgent       traceagent.Component
-	LogsAgent        optional.Option[logsagentpipeline.Component]
-	SourceProvider   serializerexporter.SourceProviderFunc
-	Tagger           tagger.Component
-	Statsd           statsd.Component
-	URIs             []string
+	Log                 corelog.Component
+	Provider            confmap.Converter
+	CollectorContrib    collectorcontrib.Component
+	Serializer          serializer.MetricSerializer
+	TraceAgent          traceagent.Component
+	LogsAgent           optional.Option[logsagentpipeline.Component]
+	SourceProvider      serializerexporter.SourceProviderFunc
+	Tagger              tagger.Component
+	StatsdClientWrapper *metricsclient.StatsdClientWrapper
+	URIs                []string
 }
 
 // Provides declares the output types from the constructor
@@ -102,18 +100,10 @@ func NewComponent(reqs Requires) (Provides, error) {
 			if err != nil {
 				return otelcol.Factories{}, err
 			}
-			mclient, err := reqs.Statsd.Get()
-			if err != nil {
-				return otelcol.Factories{}, err
-			}
-			mclientwrapper, ok := mclient.(*metricsclient.StatsdClientWrapper)
-			if !ok {
-				return otelcol.Factories{}, errors.New("otel agent requires a metricsclient.StatsdClientWrapper")
-			}
 			if v, ok := reqs.LogsAgent.Get(); ok {
-				factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(reqs.TraceAgent, reqs.Serializer, v, reqs.SourceProvider, mclientwrapper)
+				factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(reqs.TraceAgent, reqs.Serializer, v, reqs.SourceProvider, reqs.StatsdClientWrapper)
 			} else {
-				factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(reqs.TraceAgent, reqs.Serializer, nil, reqs.SourceProvider, mclientwrapper)
+				factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(reqs.TraceAgent, reqs.Serializer, nil, reqs.SourceProvider, reqs.StatsdClientWrapper)
 			}
 			factories.Processors[infraattributesprocessor.Type] = infraattributesprocessor.NewFactory(reqs.Tagger)
 			return factories, nil
