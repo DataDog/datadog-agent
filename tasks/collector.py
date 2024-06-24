@@ -6,6 +6,8 @@ import urllib.request
 
 from invoke import task
 
+from tasks.go import tidy
+
 LICENSE_HEADER = """// Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
@@ -13,17 +15,30 @@ LICENSE_HEADER = """// Unless explicitly stated otherwise all files in this repo
 """
 
 
-@task
+@task(post=[tidy])
 def generate(ctx):
     arch = platform.machine()
+    system = platform.system()
     base_url = "https://github.com/open-telemetry/opentelemetry-collector/releases/download/cmd%2Fbuilder%2Fv0.103.1/"
 
-    if arch == "x86_64":
-        binary_name = "ocb_0.103.1_linux_amd64"
-    elif arch == "arm64" or arch == "aarch64":
-        binary_name = "ocb_0.103.1_linux_arm64"
+    if system == "Linux":
+        if arch == "x86_64":
+            binary_name = "ocb_0.103.1_linux_amd64"
+        elif arch == "arm64" or arch == "aarch64":
+            binary_name = "ocb_0.103.1_linux_arm64"
+        else:
+            print(f"Unsupported architecture: {arch}")
+            return
+    elif system == "Darwin":
+        if arch == "x86_64":
+            binary_name = "ocb_0.103.1_darwin_amd64"
+        elif arch == "arm64":
+            binary_name = "ocb_0.103.1_darwin_arm64"
+        else:
+            print(f"Unsupported architecture: {arch}")
+            return
     else:
-        print(f"Unsupported architecture: {arch}")
+        print(f"Unsupported system: {system}")
         return
 
     binary_url = f"{base_url}{binary_name}"
@@ -41,7 +56,7 @@ def generate(ctx):
             return
 
         # Run the binary with specified options
-        config_path = "./comp/otelcol/collector-contrib/def/manifest.yaml"
+        config_path = "./comp/otelcol/collector-contrib/impl/manifest.yaml"
         run_command = f"{binary_path} --config {config_path} --skip-compilation"
         print(f"Running command: {run_command}")
 
