@@ -16,8 +16,13 @@ import (
 
 const (
 	numberOfBuckets        = 10
-	bucketRange            = 15
-	belowBufferBucketCount = 3
+	bucketLength           = 15
+	underBufferSizeBuckets = 3
+	// Add 1 to the firstBucketLowerBoundary to include BufferSize as the last value of bucket 3,
+	// resulting in the following order:
+	// The first three buckets will include sizes below the current buffer size,
+	// and the rest will include sizes equal to or above the buffer size.
+	firstBucketLowerBoundary = BufferSize - underBufferSizeBuckets*bucketLength + 1
 )
 
 // Telemetry is a struct to hold the telemetry for the postgres protocol
@@ -65,16 +70,11 @@ func NewTelemetry() *Telemetry {
 
 // getBucketIndex returns the index of the bucket for the given query size
 func getBucketIndex(querySize int) int {
-	// Add 1 to the start size to include BufferSize (64) as the last value of bucket 3, resulting in the following order:
-	// The first three buckets will include sizes below the current buffer size,
-	// and the rest will include sizes equal to or above the buffer size.
-	startSize := BufferSize - belowBufferBucketCount*bucketRange + 1
-
-	if querySize < startSize {
-		return 0 // Bucket 1: queries smaller than the lower bound
+	if querySize < firstBucketLowerBoundary {
+		return 0 // Bucket 1: The query is smaller than the lower bound
 	}
 
-	bucketIndex := (querySize - startSize) / bucketRange
+	bucketIndex := (querySize - firstBucketLowerBoundary) / bucketLength
 	if bucketIndex >= numberOfBuckets {
 		return numberOfBuckets - 1 // Bucket 10: queries larger than the upper bound
 	}
