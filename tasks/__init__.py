@@ -13,6 +13,7 @@ from tasks import (
     buildimages,
     cluster_agent,
     cluster_agent_cloudfoundry,
+    collector,
     components,
     coverage,
     cws_instrumentation,
@@ -192,6 +193,7 @@ ns.add_collection(modules)
 ns.add_collection(pre_commit)
 ns.add_collection(devcontainer)
 ns.add_collection(omnibus)
+ns.add_collection(collector)
 ns.configure(
     {
         "run": {
