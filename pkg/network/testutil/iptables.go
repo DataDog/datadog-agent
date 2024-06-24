@@ -41,12 +41,20 @@ func IptablesSave(tb testing.TB) []byte {
 
 // IptablesRestore restores iptables state from a file
 func IptablesRestore(tb testing.TB, state []byte) {
-	// Define the time to wait for the xtables lock.
-	// This is necessary because we noticed that iptables-restore fails with error code 4 when it can't acquire the lock.
-	lockWaitTimeSeconds := "5"
-	cmd := exec.Command("iptables-restore", "--counters", "--wait", lockWaitTimeSeconds)
-	cmd.Stdin = bytes.NewReader(state)
-	assert.NoError(tb, cmd.Run())
+	var restoreErr error
+	// The attempt mechanism is necessary because we noticed that iptables-restore fails with error code 4 when it can't acquire the lock.
+	// We can't rely on the --wait flag as it's not available on older versions of iptables.
+	for attempt := 0; attempt < 3; attempt++ {
+		cmd := exec.Command("iptables-restore", "--counters")
+		cmd.Stdin = bytes.NewReader(state)
+		restoreErr = cmd.Run()
+
+		// If no error occurs, return early.
+		if restoreErr == nil {
+			return
+		}
+	}
+	assert.NoError(tb, restoreErr)
 }
 
 // Ip6tablesSave saves the current iptables state to a file
