@@ -440,8 +440,8 @@ class TestSendNotification(unittest.TestCase):
 
         # Verify that we send the right number of jobs per channel
         expected_team_njobs = {
-            '#agent-build-and-releases': 2,
-            '#agent-developer-experience': 2,
+            '#agent-delivery-ops': 2,
+            '#agent-devx-ops': 2,
             '#agent-platform-ops': 4,
             '#security-and-compliance-agent-ops': 1,
         }
