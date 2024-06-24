@@ -68,6 +68,11 @@ func (s *HTTPTransactionsSerializer) Add(transaction *transaction.HTTPTransactio
 		return err
 	}
 
+	destination, err := toTransactionDestinationProto(transaction.Destination)
+	if err != nil {
+		return err
+	}
+
 	var payload []byte
 	var pointCount int32
 	if transaction.Payload != nil {
@@ -81,15 +86,16 @@ func (s *HTTPTransactionsSerializer) Add(transaction *transaction.HTTPTransactio
 		// If a user can update the domain for some serialized transactions, they can replace the domain
 		// by a local address like http://127.0.0.1:1234. The Agent would send the HTTP transactions to the url
 		// http://127.0.0.1:1234/intake/?api_key=API_KEY which contains the API_KEY.
-		Domain:     "",
-		Endpoint:   &EndpointProto{Route: s.replaceAPIKeys(endpoint.Route), Name: endpoint.Name},
-		Headers:    s.toHeaderProto(transaction.Headers),
-		Payload:    payload,
-		ErrorCount: int64(transaction.ErrorCount),
-		CreatedAt:  transaction.CreatedAt.Unix(),
-		Retryable:  transaction.Retryable,
-		Priority:   priority,
-		PointCount: pointCount,
+		Domain:      "",
+		Endpoint:    &EndpointProto{Route: s.replaceAPIKeys(endpoint.Route), Name: endpoint.Name},
+		Headers:     s.toHeaderProto(transaction.Headers),
+		Payload:     payload,
+		ErrorCount:  int64(transaction.ErrorCount),
+		CreatedAt:   transaction.CreatedAt.Unix(),
+		Retryable:   transaction.Retryable,
+		Priority:    priority,
+		PointCount:  pointCount,
+		Destination: destination,
 	}
 	s.collection.Values = append(s.collection.Values, &transactionProto)
 	return nil
@@ -116,6 +122,7 @@ func (s *HTTPTransactionsSerializer) Deserialize(bytes []byte) ([]transaction.Tr
 	for _, tr := range collection.Values {
 		var route string
 		var proto http.Header
+		var destination transaction.Destination
 		e := tr.Endpoint
 
 		priority, err := fromTransactionPriorityProto(tr.Priority)
@@ -123,6 +130,9 @@ func (s *HTTPTransactionsSerializer) Deserialize(bytes []byte) ([]transaction.Tr
 			route, err = s.restoreAPIKeys(e.Route)
 			if err == nil {
 				proto, err = s.fromHeaderProto(tr.Headers)
+				if err == nil { // TODO: the reason for this nesting pattern is unclear to me
+					destination, err = fromTransactionDestinationProto(tr.Destination)
+				}
 			}
 		}
 
@@ -144,6 +154,7 @@ func (s *HTTPTransactionsSerializer) Deserialize(bytes []byte) ([]transaction.Tr
 			Retryable:      tr.Retryable,
 			StorableOnDisk: true,
 			Priority:       priority,
+			Destination:    destination,
 		}
 		tr.SetDefaultHandlers()
 		httpTransactions = append(httpTransactions, &tr)
@@ -191,6 +202,19 @@ func fromTransactionPriorityProto(priority TransactionPriorityProto) (transactio
 	}
 }
 
+func fromTransactionDestinationProto(destination TransactionDestinationProto) (transaction.Destination, error) {
+	switch destination {
+	case TransactionDestinationProto_ALL_REGIONS:
+		return transaction.AllRegions, nil
+	case TransactionDestinationProto_PRIMARY_ONLY:
+		return transaction.PrimaryOnly, nil
+	case TransactionDestinationProto_SECONDARY_ONLY:
+		return transaction.SecondaryOnly, nil
+	default:
+		return transaction.AllRegions, fmt.Errorf("Unsupported destination %v", destination)
+	}
+}
+
 func (s *HTTPTransactionsSerializer) toHeaderProto(headers http.Header) map[string]*HeaderValuesProto {
 	headersProto := make(map[string]*HeaderValuesProto)
 	for key, headerValues := range headers {
@@ -208,6 +232,19 @@ func toTransactionPriorityProto(priority transaction.Priority) (TransactionPrior
 		return TransactionPriorityProto_HIGH, nil
 	default:
 		return TransactionPriorityProto_NORMAL, fmt.Errorf("Unsupported priority %v", priority)
+	}
+}
+
+func toTransactionDestinationProto(destination transaction.Destination) (TransactionDestinationProto, error) {
+	switch destination {
+	case transaction.AllRegions:
+		return TransactionDestinationProto_ALL_REGIONS, nil
+	case transaction.PrimaryOnly:
+		return TransactionDestinationProto_PRIMARY_ONLY, nil
+	case transaction.SecondaryOnly:
+		return TransactionDestinationProto_SECONDARY_ONLY, nil
+	default:
+		return TransactionDestinationProto_ALL_REGIONS, fmt.Errorf("Unsupported destination %v", destination)
 	}
 }
 
