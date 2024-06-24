@@ -158,10 +158,3 @@ func assertConnectionCount(t *testing.T, c *Check, max int) {
 	require.NoError(t, err, "failed to execute the session count query")
 	require.LessOrEqual(t, n, max, "too many sessions:")
 }
-
-// TODO: move this to a shared package managed by the Agent logs and metrics team
-func assertEventPlatformEventMissing(t *testing.T, m *mocksender.MockSender, expectedRawEvent []byte, expectedEventType string) {
-	if m.Mock.AssertCalled(t, "EventPlatformEvent", expectedRawEvent, expectedEventType) {
-		assert.Fail(t, "event shouldn't have been sent")
-	}
-}
