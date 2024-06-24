@@ -16,6 +16,7 @@ import (
 	"github.com/pkg/errors"
 	"go.uber.org/fx"
 
+	coreConfig "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
@@ -55,6 +56,8 @@ type rcClient struct {
 	// Tasks are separated from the other products, because they must be executed once
 	taskListeners     []types.RCAgentTaskListener
 	settingsComponent settings.Component
+	Log               log.Component
+	Config            coreConfig.Component
 }
 
 type dependencies struct {
@@ -265,6 +268,7 @@ func (rc rcClient) agentConfigUpdateCallback(updates map[string]state.RawConfig,
 
 	// Checks who (the source) is responsible for the last logLevel change
 	source := config.Datadog().GetSource("log_level")
+	streamLogsSource := config.Datadog().GetSource("enable_stream_logs")
 
 	switch source {
 	case model.SourceRC:
@@ -297,6 +301,14 @@ func (rc rcClient) agentConfigUpdateCallback(updates map[string]state.RawConfig,
 		err = rc.settingsComponent.SetRuntimeSetting("log_level", mergedConfig.LogLevel, model.SourceRC)
 	}
 
+	switch streamLogsSource {
+	case model.SourceRC:
+		if *mergedConfig.EnableStreamLogs {
+			err = rc.settingsComponent.SetRuntimeSetting("enable_stream_logs", *mergedConfig.EnableStreamLogs, model.SourceRC)
+		}
+	default:
+		err = rc.settingsComponent.SetRuntimeSetting("enable_stream_logs", false, model.SourceRC)
+	}
 	// Apply the new status to all configs
 	for cfgPath := range updates {
 		if err == nil {

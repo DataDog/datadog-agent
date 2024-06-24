@@ -36,6 +36,11 @@ func (f *flare) collectLogsFiles(fb types.FlareBuilder) error {
 		dogstatsdLogFile = f.params.defaultDogstatsdLogFile
 	}
 
+	streamlogsLogFile := f.config.GetString("dogstatsd_log_file")
+	if streamlogsLogFile == "" {
+		streamlogsLogFile = f.params.defaultStreamlogsLogFile
+	}
+
 	shouldIncludeFunc := func(path string) bool {
 		if filepath.Ext(path) == ".log" || getFirstSuffix(path) == ".log" {
 			return true
@@ -44,9 +49,10 @@ func (f *flare) collectLogsFiles(fb types.FlareBuilder) error {
 	}
 
 	f.log.Flush()
-	fb.CopyDirToWithoutScrubbing(filepath.Dir(logFile), "logs", shouldIncludeFunc)          //nolint:errcheck
-	fb.CopyDirToWithoutScrubbing(filepath.Dir(jmxLogFile), "logs", shouldIncludeFunc)       //nolint:errcheck
-	fb.CopyDirToWithoutScrubbing(filepath.Dir(dogstatsdLogFile), "logs", shouldIncludeFunc) //nolint:errcheck
+	fb.CopyDirToWithoutScrubbing(filepath.Dir(logFile), "logs", shouldIncludeFunc)           //nolint:errcheck
+	fb.CopyDirToWithoutScrubbing(filepath.Dir(jmxLogFile), "logs", shouldIncludeFunc)        //nolint:errcheck
+	fb.CopyDirToWithoutScrubbing(filepath.Dir(dogstatsdLogFile), "logs", shouldIncludeFunc)  //nolint:errcheck
+	fb.CopyDirToWithoutScrubbing(filepath.Dir(streamlogsLogFile), "logs", shouldIncludeFunc) //nolint:errcheck
 	return nil
 }
 

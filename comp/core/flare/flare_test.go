@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
+	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
@@ -30,6 +31,7 @@ func TestFlareCreation(t *testing.T) {
 		fxutil.Test[dependencies](
 			t,
 			logimpl.MockModule(),
+			settingsimpl.MockModule(),
 			config.MockModule(),
 			secretsimpl.MockModule(),
 			fx.Provide(func(secretMock secrets.Mock) secrets.Component {
