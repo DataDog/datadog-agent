@@ -2267,7 +2267,7 @@ func TestKafkaStats(t *testing.T) {
 
 	kafkaStats := make(map[kafka.Key]*kafka.RequestStats)
 	kafkaStats[key] = &kafka.RequestStats{
-		ErrorCodeToStat: map[int8]*kafka.RequestStat{
+		ErrorCodeToStat: map[int32]*kafka.RequestStat{
 			0: {Count: 2},
 		},
 	}
@@ -2298,7 +2298,7 @@ func TestKafkaStatsWithMultipleClients(t *testing.T) {
 		kafkaStats := make(map[kafka.Key]*kafka.RequestStats)
 		key := kafka.NewKey(c.Source, c.Dest, c.SPort, c.DPort, topicName, kafka.ProduceAPIKey, 1)
 		kafkaStats[key] = &kafka.RequestStats{
-			ErrorCodeToStat: map[int8]*kafka.RequestStat{
+			ErrorCodeToStat: map[int32]*kafka.RequestStat{
 				0: {Count: 2},
 			},
 		}

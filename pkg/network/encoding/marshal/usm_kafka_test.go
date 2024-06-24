@@ -85,13 +85,13 @@ func (s *KafkaSuite) TestFormatKafkaStats() {
 		},
 		Kafka: map[kafka.Key]*kafka.RequestStats{
 			kafkaKey1: {
-				ErrorCodeToStat: map[int8]*kafka.RequestStat{
+				ErrorCodeToStat: map[int32]*kafka.RequestStat{
 					0: {Count: 10},
 					1: {Count: 2},
 				},
 			},
 			kafkaKey2: {
-				ErrorCodeToStat: map[int8]*kafka.RequestStat{
+				ErrorCodeToStat: map[int32]*kafka.RequestStat{
 					0:  {Count: 2},
 					10: {Count: 5},
 				},
@@ -164,7 +164,7 @@ func (s *KafkaSuite) TestKafkaIDCollisionRegression() {
 		},
 		Kafka: map[kafka.Key]*kafka.RequestStats{
 			kafkaKey: {
-				ErrorCodeToStat: map[int8]*kafka.RequestStat{
+				ErrorCodeToStat: map[int32]*kafka.RequestStat{
 					0: {Count: 10},
 				},
 			},
@@ -225,7 +225,7 @@ func (s *KafkaSuite) TestKafkaLocalhostScenario() {
 		},
 		Kafka: map[kafka.Key]*kafka.RequestStats{
 			kafkaKey: {
-				ErrorCodeToStat: map[int8]*kafka.RequestStat{
+				ErrorCodeToStat: map[int32]*kafka.RequestStat{
 					0: {Count: 10},
 				},
 			},
@@ -283,7 +283,7 @@ func generateBenchMarkPayloadKafka(entries uint16) network.Connections {
 			kafka.ProduceAPIKey,
 			apiVersion1,
 		)] = &kafka.RequestStats{
-			ErrorCodeToStat: map[int8]*kafka.RequestStat{0: {Count: 10}},
+			ErrorCodeToStat: map[int32]*kafka.RequestStat{0: {Count: 10}},
 		}
 	}
 
