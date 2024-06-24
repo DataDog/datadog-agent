@@ -216,6 +216,16 @@ new-e2e-agent-subcommands:
       - EXTRA_PARAMS: --run TestLinuxRunSuite
       - EXTRA_PARAMS: --run TestWindowsRunSuite
 
+new-e2e-windows-service-test:
+  extends: .new_e2e_template_needs_deb_windows_x64
+  rules:
+    - !reference [.on_windows_service_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/windows/service-test
+    TEAM: windows-agent
+    EXTRA_PARAMS: --run TestServiceBehavior
+
 new-e2e-language-detection:
   extends: .new_e2e_template_needs_deb_x64
   rules:

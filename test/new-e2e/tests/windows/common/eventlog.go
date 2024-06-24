@@ -48,18 +48,26 @@ func ClearEventLog(host *components.RemoteHost, logName string) error {
 
 // GetEventLogErrorsAndWarnings returns a formatted list of errors and warnings from an event log
 func GetEventLogErrorsAndWarnings(host *components.RemoteHost, logName string) (string, error) {
-	// ignore powershell exception if no events are found
-	cmd := fmt.Sprintf(`
-	try {
-		Get-WinEvent -FilterHashTable @{ LogName='%s'; Level=1,2,3 } -ErrorAction Stop | Select TimeCreated,RecordID,ProviderName,ID,Level,Message | fl
-	} catch [Exception] {
-		if ($_.Exception -match "No events were found that match the specified selection criteria") { Exit 0 }
-		else { throw }
-	}`, logName)
-	out, err := host.Execute(cmd)
+	// Format events with Format-List and use Out-String to avoid truncation/word-wrap
+	cmd := fmt.Sprintf(`Get-WinEvent -FilterHashTable @{ LogName='%s'; Level=1,2,3 } -ErrorAction Stop | Select TimeCreated,RecordID,ProviderName,ID,Level,Message | Format-List | Out-String -Width 4096`, logName)
+	out, err := runCommandAndIgnoreNoEventsError(host, cmd)
 	if err != nil {
 		return "", fmt.Errorf("error getting errors and warnings from %s event log: %w", logName, err)
 	}
 
 	return out, nil
+}
+
+// runs provided command and ignores "No events were found that match the specified selection criteria" error.
+// command must invlude `-ErrorAction Stop` to ensure that the error is raised.
+func runCommandAndIgnoreNoEventsError(host *components.RemoteHost, cmd string) (string, error) {
+	// ignore powershell exception if no events are found
+	cmd = fmt.Sprintf(`
+	try {
+		%s
+	} catch [Exception] {
+		if ($_.Exception -match "No events were found that match the specified selection criteria") { Exit 0 }
+		else { throw }
+	}`, cmd)
+	return host.Execute(cmd)
 }

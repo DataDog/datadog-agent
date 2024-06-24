@@ -971,6 +971,19 @@ workflow:
   - when: manual
     allow_failure: true
 
+.on_windows_service_or_e2e_changes:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        - cmd/**/*
+        - pkg/util/winutil/servicemain/**/*
+        - pkg/util/winutil/messagestrings/**/*
+        - tasks/windows_resources.py
+        - test/new-e2e/tests/windows/service-test/**/*
+        - test/new-e2e/go.mod
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+    when: on_success
+
 .on_trace_agent_changes_or_manual:
   - !reference [.except_mergequeue]
   - changes:
