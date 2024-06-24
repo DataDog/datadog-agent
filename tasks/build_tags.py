@@ -250,7 +250,7 @@ def compute_build_tags_for_flavor(
 
 
 @task
-def print_default_build_tags(_, build="agent", flavor=AgentFlavor.base.name, platform=sys.platform):
+def print_default_build_tags(_, build="agent", flavor=AgentFlavor.base.name, platform: str | None = None):
     """
     Build the default list of tags based on the build type and platform.
     Prints as comma separated list suitable for go tooling (eg, gopls, govulncheck)
@@ -269,13 +269,14 @@ def print_default_build_tags(_, build="agent", flavor=AgentFlavor.base.name, pla
     print(",".join(sorted(get_default_build_tags(build=build, flavor=flavor, platform=platform))))
 
 
-def get_default_build_tags(build="agent", flavor=AgentFlavor.base, platform=sys.platform):
+def get_default_build_tags(build="agent", flavor=AgentFlavor.base, platform: str | None = None):
     """
     Build the default list of tags based on the build type and current platform.
 
     The container integrations are currently only supported on Linux, disabling on
     the Windows and Darwin builds.
     """
+    platform = platform or sys.platform
     include = build_tags.get(flavor).get(build)
     if include is None:
         print("Warning: unrecognized build type, no build tags included.", file=sys.stderr)
