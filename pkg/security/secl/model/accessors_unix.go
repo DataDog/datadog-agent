@@ -4088,6 +4088,33 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
+	case "open.syscall.flags":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ev := ctx.Event.(*Event)
+				return int(ev.FieldHandlers.ResolveSyscallCtxArgsInt2(ev, &ev.Open.SyscallContext))
+			},
+			Field:  field,
+			Weight: 900 * eval.HandlerWeight,
+		}, nil
+	case "open.syscall.mode":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ev := ctx.Event.(*Event)
+				return int(ev.FieldHandlers.ResolveSyscallCtxArgsInt3(ev, &ev.Open.SyscallContext))
+			},
+			Field:  field,
+			Weight: 900 * eval.HandlerWeight,
+		}, nil
+	case "open.syscall.path":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Open.SyscallContext)
+			},
+			Field:  field,
+			Weight: 900 * eval.HandlerWeight,
+		}, nil
 	case "process.ancestors.args":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
@@ -16881,6 +16908,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"open.file.user",
 		"open.flags",
 		"open.retval",
+		"open.syscall.flags",
+		"open.syscall.mode",
+		"open.syscall.path",
 		"process.ancestors.args",
 		"process.ancestors.args_flags",
 		"process.ancestors.args_options",
@@ -18811,6 +18841,12 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(ev.Open.Flags), nil
 	case "open.retval":
 		return int(ev.Open.SyscallEvent.Retval), nil
+	case "open.syscall.flags":
+		return int(ev.FieldHandlers.ResolveSyscallCtxArgsInt2(ev, &ev.Open.SyscallContext)), nil
+	case "open.syscall.mode":
+		return int(ev.FieldHandlers.ResolveSyscallCtxArgsInt3(ev, &ev.Open.SyscallContext)), nil
+	case "open.syscall.path":
+		return ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Open.SyscallContext), nil
 	case "process.ancestors.args":
 		var values []string
 		ctx := eval.NewContext(ev)
@@ -24931,6 +24967,12 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "open", nil
 	case "open.retval":
 		return "open", nil
+	case "open.syscall.flags":
+		return "open", nil
+	case "open.syscall.mode":
+		return "open", nil
+	case "open.syscall.path":
+		return "open", nil
 	case "process.ancestors.args":
 		return "*", nil
 	case "process.ancestors.args_flags":
@@ -27514,6 +27556,12 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "open.retval":
 		return reflect.Int, nil
+	case "open.syscall.flags":
+		return reflect.Int, nil
+	case "open.syscall.mode":
+		return reflect.Int, nil
+	case "open.syscall.path":
+		return reflect.String, nil
 	case "process.ancestors.args":
 		return reflect.String, nil
 	case "process.ancestors.args_flags":
@@ -32591,6 +32639,27 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Open.SyscallEvent.Retval"}
 		}
 		ev.Open.SyscallEvent.Retval = int64(rv)
+		return nil
+	case "open.syscall.flags":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Open.SyscallContext.IntArg2"}
+		}
+		ev.Open.SyscallContext.IntArg2 = int64(rv)
+		return nil
+	case "open.syscall.mode":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Open.SyscallContext.IntArg3"}
+		}
+		ev.Open.SyscallContext.IntArg3 = int64(rv)
+		return nil
+	case "open.syscall.path":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Open.SyscallContext.StrArg1"}
+		}
+		ev.Open.SyscallContext.StrArg1 = rv
 		return nil
 	case "process.ancestors.args":
 		if ev.BaseEvent.ProcessContext == nil {

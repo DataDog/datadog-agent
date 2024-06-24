@@ -113,7 +113,6 @@ def check_go_version(ctx) -> SetupResult:
         )
 
     version = re.search(r'go version go(\d+.\d+.\d+)', output.stdout)
-    assert version, f"Could not parse Go version from '{output.stdout}'"
 
     if version.group(1) != expected_version:
         return SetupResult(
@@ -137,7 +136,7 @@ def check_python_version(_ctx) -> SetupResult:
         status = Status.FAIL
         message = (
             f"Python version is {sys.version_info[0]}.{sys.version_info[1]}.{sys.version_info[2]}. "
-            "Please update your environment: https://datadoghq.dev/datadog-agent/setup/#python-dependencies"
+            "Please update your environment: https://datadoghq.dev/datadog-agent/setup/#python-dependencies",
         )
 
     return SetupResult("Check Python version", status, message)

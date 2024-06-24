@@ -60,7 +60,7 @@ def update_changelog(ctx, new_version=None, target="all", upstream="origin"):
         new_version_int = list(map(int, new_version.split(".")))
         if len(new_version_int) != 3:
             print(f"Error: invalid version: {new_version_int}")
-            raise Exit(code=1)
+            raise Exit(1)
 
         # let's avoid losing uncommitted change with 'git reset --hard'
         try:
@@ -140,7 +140,7 @@ def update_installscript_changelog(ctx, new_version):
 
     if len(new_version_int) != 3:
         print(f"Error: invalid version: {new_version_int}")
-        raise Exit(code=1)
+        raise Exit(1)
 
     # let's avoid losing uncommitted change with 'git reset --hard'
     try:
