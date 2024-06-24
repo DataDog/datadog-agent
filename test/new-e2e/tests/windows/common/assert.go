@@ -169,3 +169,14 @@ func AssertNotContainsEqualable[T equalable[T]](t *testing.T, list []T, elem T, 
 		return a.Equal(b)
 	}, msgAndArgs...)
 }
+
+// Filter is a generic function that filters a list based on a provided filter function
+func Filter[T any](list []T, filter func(T) bool) []T {
+	var filtered []T
+	for _, elem := range list {
+		if filter(elem) {
+			filtered = append(filtered, elem)
+		}
+	}
+	return filtered
+}

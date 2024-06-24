@@ -564,6 +564,12 @@ workflow:
     when: never
   - <<: *if_deploy
 
+.on_deploy_nightly_repo_branch_always:
+  - <<: *if_not_nightly_or_dev_repo_branch
+    when: never
+  - <<: *if_deploy
+    when: always
+
 .on_deploy_stable_or_beta_repo_branch:
   - <<: *if_not_stable_or_beta_repo_branch
     when: never

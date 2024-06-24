@@ -46,7 +46,7 @@ CONSECUTIVE_THRESHOLD = 3
 CUMULATIVE_THRESHOLD = 5
 CUMULATIVE_LENGTH = 10
 CI_VISIBILITY_JOB_URL = 'https://app.datadoghq.com/ci/pipeline-executions?query=ci_level%3Ajob%20%40ci.pipeline.name%3ADataDog%2Fdatadog-agent%20%40git.branch%3Amain%20%40ci.job.name%3A{name}{extra_flags}&agg_m=count'
-NOTIFICATION_DISCLAIMER = "If there is something wrong with the notification please contact #agent-developer-experience"
+NOTIFICATION_DISCLAIMER = "If there is something wrong with the notification please contact #agent-devx-help"
 
 
 def get_ci_visibility_job_url(name: str, prefix=True, extra_flags: list[str] | str = "") -> str:
@@ -568,7 +568,7 @@ On pipeline [{pipeline_id}]({pipeline_url}) ([CI Visibility](https://app.datadog
         msg += f"  - {job}\n"
     msg += "</details>\n"
     msg += "\n"
-    msg += "If you modified Go files and expected unit tests to run in these jobs, please double check the job logs. If you think tests should have been executed reach out to #agent-developer-experience"
+    msg += "If you modified Go files and expected unit tests to run in these jobs, please double check the job logs. If you think tests should have been executed reach out to #agent-devx-help"
     return msg
 
 
