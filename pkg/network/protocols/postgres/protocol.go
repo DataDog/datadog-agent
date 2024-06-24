@@ -41,6 +41,7 @@ const (
 // protocol holds the state of the postgres protocol monitoring.
 type protocol struct {
 	cfg            *config.Config
+	telemetry      *Telemetry
 	eventsConsumer *events.Consumer[EbpfEvent]
 	mapCleaner     *ddebpf.MapCleaner[netebpf.ConnTuple, EbpfTx]
 	statskeeper    *StatKeeper
@@ -112,6 +113,7 @@ func newPostgresProtocol(cfg *config.Config) (protocols.Protocol, error) {
 
 	return &protocol{
 		cfg:         cfg,
+		telemetry:   NewTelemetry(),
 		statskeeper: NewStatkeeper(cfg),
 	}, nil
 }
@@ -197,6 +199,7 @@ func (p *protocol) processPostgres(events []EbpfEvent) {
 	for i := range events {
 		tx := &events[i]
 		p.statskeeper.Process(NewEventWrapper(tx))
+		p.telemetry.Count(tx)
 	}
 }
 
