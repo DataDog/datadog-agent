@@ -664,7 +664,7 @@ def mod_diffs(_, targets):
     optionally compared to a list of target go.mod files.
 
     Parameters:
-    - targets (str): Comma-separated list of paths to target go.mod files.
+    - targets: list of paths to target go.mod files.
     """
     # Find all go.mod files in the repo
     all_go_mod_files = []
@@ -674,8 +674,7 @@ def mod_diffs(_, targets):
     # Validate the provided targets
     for target in targets:
         if target not in all_go_mod_files:
-            print(f"Error: Target go.mod file '{target}' not found.")
-            return
+            raise Exit(f"Error: Target go.mod file '{target}' not found.")
 
     for target in targets:
         all_go_mod_files.remove(target)
@@ -717,10 +716,9 @@ def mod_diffs(_, targets):
                         print(f"  - Version {version} in:")
                         for path in intersecting_paths:
                             print(f"    * {path}")
-        else:
-            if len(versions) > 1:
-                print(f"Library {library} has different versions:")
-                for version, paths in versions.items():
-                    print(f"  - Version {version} in:")
-                    for path in paths:
-                        print(f"    * {path}")
+        elif len(versions) > 1:
+            print(f"Library {library} has different versions:")
+            for version, paths in versions.items():
+                print(f"  - Version {version} in:")
+                for path in paths:
+                    print(f"    * {path}")
