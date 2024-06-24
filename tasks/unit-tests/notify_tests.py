@@ -168,7 +168,7 @@ class TestSendMessage(unittest.TestCase):
         self.assertIn("@DataDog/agent-e2e-testing", owners)
         self.assertIn("@DataDog/agent-devx-infra", owners)
         self.assertNotIn("@DataDog/agent-devx-loops", owners)
-        self.assertNotIn("@DataDog/agent-build-and-releases", owners)
+        self.assertNotIn("@DataDog/agent-delivery", owners)
 
     @patch('tasks.libs.ciproviders.gitlab_api.get_gitlab_api')
     def test_merge_with_get_failed_call(self, api_mock):
@@ -458,7 +458,7 @@ class TestSendNotification(unittest.TestCase):
         mock_metrics.assert_called_once()
         expected_metrics = {
             '@datadog/agent-security': 1,
-            '@datadog/agent-build-and-releases': 2,
+            '@datadog/agent-delivery': 2,
             '@datadog/agent-devx-infra': 2,
             '@datadog/agent-devx-loops': 2,
             '@datadog/documentation': 2,
