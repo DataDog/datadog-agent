@@ -120,7 +120,7 @@ def upload_to_codecov(
     codecov_binary = "codecov" if platform.system() != "Windows" else "codecov.exe"
 
     coverage_cache_section = (
-        "Applying missing coverage cache from S3." if pull_coverage_cache else "Uploading coverage files to S3."
+        "Applying missing coverage cache from S3" if pull_coverage_cache else "Uploading coverage files to S3"
     )
     with gitlab_section(coverage_cache_section, collapsed=True):
         if pull_coverage_cache:
