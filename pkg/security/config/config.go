@@ -468,7 +468,7 @@ func (c *RuntimeSecurityConfig) GetAnomalyDetectionMinimumStablePeriod(eventType
 func (c *RuntimeSecurityConfig) sanitize() error {
 	serviceName := utils.GetTagValue("service", configUtils.GetConfiguredTags(coreconfig.Datadog(), true))
 	if len(serviceName) > 0 {
-		c.HostServiceName = fmt.Sprintf("service:%s", serviceName)
+		c.HostServiceName = serviceName
 	}
 
 	if c.IMDSIPv4 == 0 {
