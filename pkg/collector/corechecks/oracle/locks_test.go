@@ -16,6 +16,7 @@ import (
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
+	"github.com/benbjohnson/clock"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -63,6 +64,10 @@ func TestLocks(t *testing.T) {
 	rows := sqlmock.NewRows([]string{"SECONDS", "PROGRAM"}).
 		AddRow(17, "test-program")
 	dbMock.ExpectQuery("SELECT.*transaction.*").WillReturnRows(rows)
+	mockClock := clock.NewMock()
+	mockClock.Set(time.Now())
+	c.clock = mockClock
+	ts := float64(c.clock.Now().UnixMilli())
 	err = c.locks()
 	assert.NoError(t, err, "failed to execute locks query")
 	payload := lockMetricsPayload{
@@ -73,6 +78,7 @@ func TestLocks(t *testing.T) {
 			},
 		},
 	}
+	m.Timestamp = ts
 	payload.metricsPayload = m
 	payloadBytes, err = json.Marshal(payload)
 	require.NoError(t, err, "failed to marshal lock metrics payload")
