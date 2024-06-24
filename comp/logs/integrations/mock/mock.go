@@ -17,7 +17,7 @@ type mock_integrations struct {
 }
 
 // Subscribe ...
-func (l *mock_integrations) Subscribe() chan IntegrationLog {
+func (l *mock_integrations) Subscribe() chan integrations.IntegrationLog {
 	return make(chan integrations.IntegrationLog)
 }
 
