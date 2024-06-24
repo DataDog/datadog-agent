@@ -50,11 +50,11 @@ func (s *statusImplementation) getStatus(w http.ResponseWriter, r *http.Request,
 
 	if err != nil {
 		if format == "text" {
-			http.Error(w, s.log.Errorf("Error getting status. Error: %v.", err).Error(), 500)
+			http.Error(w, s.log.Errorf("Error getting status. Error: %v.", err).Error(), http.StatusInternalServerError)
 			return
 		}
 
-		SetJSONError(w, s.log.Errorf("Error getting status. Error: %v, Status: %v", err, buff), 500)
+		SetJSONError(w, s.log.Errorf("Error getting status. Error: %v, Status: %v", err, buff), http.StatusInternalServerError)
 		return
 	}
 
