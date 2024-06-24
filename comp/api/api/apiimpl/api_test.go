@@ -27,6 +27,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	replaymock "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/fx-mock"
@@ -78,6 +80,7 @@ type testdeps struct {
 	Autodiscovery         autodiscovery.Mock
 	Logs                  optional.Option[logsAgent.Component]
 	Collector             optional.Option[collector.Component]
+	Telemetry             telemetry.Component
 	EndpointProviders     []api.EndpointProvider `group:"agent_endpoint"`
 }
 
@@ -95,6 +98,7 @@ func getComponentDependencies(t *testing.T) testdeps {
 		demultiplexerimpl.MockModule(),
 		inventoryhostimpl.MockModule(),
 		secretsimpl.MockModule(),
+		nooptelemetry.Module(),
 		fx.Provide(func(secretMock secrets.Mock) secrets.Component {
 			component := secretMock.(secrets.Component)
 			return component
@@ -140,6 +144,7 @@ func getTestAPIServer(deps testdeps) api.Component {
 		LogsAgentComp:     deps.Logs,
 		WorkloadMeta:      deps.WorkloadMeta,
 		Collector:         deps.Collector,
+		Telemetry:         deps.Telemetry,
 		EndpointProviders: deps.EndpointProviders,
 	}
 	return newAPIServer(apideps)

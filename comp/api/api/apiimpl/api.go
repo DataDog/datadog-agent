@@ -11,6 +11,7 @@ import (
 
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
 	"github.com/DataDog/datadog-agent/comp/api/api"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
@@ -18,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
@@ -52,27 +54,30 @@ type apiServer struct {
 	logsAgentComp     optional.Option[logsAgent.Component]
 	wmeta             workloadmeta.Component
 	collector         optional.Option[collector.Component]
+	telemetry         telemetry.Component
 	endpointProviders []api.EndpointProvider
 }
 
 type dependencies struct {
 	fx.In
 
-	DogstatsdServer   dogstatsdServer.Component
-	Capture           replay.Component
-	PidMap            pidmap.Component
-	SecretResolver    secrets.Component
-	PkgSigning        packagesigning.Component
-	StatusComponent   status.Component
-	RcService         optional.Option[rcservice.Component]
-	RcServiceMRF      optional.Option[rcservicemrf.Component]
-	AuthToken         authtoken.Component
-	Tagger            tagger.Component
-	AutoConfig        autodiscovery.Component
-	LogsAgentComp     optional.Option[logsAgent.Component]
-	WorkloadMeta      workloadmeta.Component
-	Collector         optional.Option[collector.Component]
-	EndpointProviders []api.EndpointProvider `group:"agent_endpoint"`
+	DogstatsdServer       dogstatsdServer.Component
+	Capture               replay.Component
+	PidMap                pidmap.Component
+	SecretResolver        secrets.Component
+	PkgSigning            packagesigning.Component
+	StatusComponent       status.Component
+	RcService             optional.Option[rcservice.Component]
+	RcServiceMRF          optional.Option[rcservicemrf.Component]
+	AuthToken             authtoken.Component
+	Tagger                tagger.Component
+	AutoConfig            autodiscovery.Component
+	LogsAgentComp         optional.Option[logsAgent.Component]
+	WorkloadMeta          workloadmeta.Component
+	Collector             optional.Option[collector.Component]
+	DiagnoseSenderManager diagnosesendermanager.Component
+	Telemetry             telemetry.Component
+	EndpointProviders     []api.EndpointProvider `group:"agent_endpoint"`
 }
 
 var _ api.Component = (*apiServer)(nil)
@@ -93,6 +98,7 @@ func newAPIServer(deps dependencies) api.Component {
 		logsAgentComp:     deps.LogsAgentComp,
 		wmeta:             deps.WorkloadMeta,
 		collector:         deps.Collector,
+		telemetry:         deps.Telemetry,
 		endpointProviders: fxutil.GetAndFilterGroup(deps.EndpointProviders),
 	}
 }
@@ -115,6 +121,7 @@ func (server *apiServer) StartServer(
 		server.collector,
 		server.autoConfig,
 		server.endpointProviders,
+		server.telemetry,
 	)
 }
 
