@@ -339,7 +339,7 @@ func startSystemProbe(log log.Component, statsd compstatsd.Component, telemetry 
 				telemetry.RegisterCollector(pc)
 			}
 			if lcc := ddebpf.NewLockContentionCollector(); lcc != nil {
-				telemetry.RegisterCollector(ddebpf.NewLockContentionCollector())
+				telemetry.RegisterCollector(lcc)
 			}
 		}
 		go func() {
