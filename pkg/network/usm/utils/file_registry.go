@@ -107,7 +107,7 @@ var (
 	errCallbackIsMissing       = errors.New("activationCB and deactivationCB must be both non-nil")
 	errAlreadyStopped          = errors.New("registry already stopped")
 	errPathIsBlocked           = errors.New("path is blocked")
-	errPathIsAlreadyRegistered = errors.New("path is already registered")
+	ErrPathIsAlreadyRegistered = errors.New("path is already registered")
 )
 
 // Register inserts or updates a new file registration within to the `FileRegistry`;
@@ -149,7 +149,7 @@ func (r *FileRegistry) Register(namespacedPath string, pid uint32, activationCB,
 			r.byPID[pid][pathID] = struct{}{}
 		}
 		r.telemetry.fileAlreadyRegistered.Add(1)
-		return errPathIsAlreadyRegistered
+		return ErrPathIsAlreadyRegistered
 	}
 
 	if err := activationCB(path); err != nil {
