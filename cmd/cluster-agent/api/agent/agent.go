@@ -10,6 +10,7 @@ package agent
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 
@@ -201,7 +202,8 @@ func getWorkloadList(w http.ResponseWriter, r *http.Request, wmeta workloadmeta.
 }
 
 func setJSONError(w http.ResponseWriter, err error, errorCode int) {
-	w.Header().Set("Content-Type", "application/json")
 	body, _ := json.Marshal(map[string]string{"error": err.Error()})
-	http.Error(w, string(body), errorCode)
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(errorCode)
+	fmt.Fprintln(w, string(body))
 }
