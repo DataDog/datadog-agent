@@ -982,7 +982,7 @@ func TestBootTimeLocalFS(t *testing.T) {
 }
 
 func TestBootTimeRefresh(t *testing.T) {
-    // https://datadoghq.atlassian.net/browse/PROCS-3981
+	// https://datadoghq.atlassian.net/browse/PROCS-3981
 	flake.Mark(t)
 	probe := getProbeWithPermission(WithBootTimeRefreshInterval(500*time.Millisecond), WithProcFSRoot("resources/test_procfs/proc/"))
 	defer probe.Close()
