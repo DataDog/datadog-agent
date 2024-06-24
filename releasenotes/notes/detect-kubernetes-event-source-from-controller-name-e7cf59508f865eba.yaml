@@ -8,8 +8,8 @@
 ---
 enhancements:
   - |
-    Add config ``kubernetes_events_source_detection.enabled`` that is
-    false by default. When set to true, set the source of kubernetes
+    Adds config ``kubernetes_events_source_detection.enabled`` which is
+    false by default. When set to true, this sets the source of kubernetes
     events to specific integrations based on the name of the controller
     that emitted it. All kubernetes events will have the tag
     ``true_source:kubernetes``. For controller names that do not match
