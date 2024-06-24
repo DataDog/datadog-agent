@@ -206,6 +206,8 @@ func TestHandleKubePod(t *testing.T) {
 
 				// Phase tags
 				Phase: "Running",
+
+				PriorityClass: "high-priority",
 			},
 			expected: []*types.TagInfo{
 				{
@@ -229,6 +231,7 @@ func TestHandleKubePod(t *testing.T) {
 						"kube_app_managed_by:helm",
 						"kube_app_part_of:datadog",
 						"kube_ownerref_kind:deployment",
+						"kube_priority_class:high-priority",
 						"kube_service:service1",
 						"kube_service:service2",
 						"kube_qos:guaranteed",
@@ -454,6 +457,252 @@ func TestHandleKubePod(t *testing.T) {
 						fmt.Sprintf("kube_namespace:%s", podNamespace),
 						"dd_remote_config_id:id",
 						"dd_remote_config_rev:123",
+					},
+					StandardTags: []string{},
+				},
+			},
+		},
+		{
+			name: "pod owned by daemonset",
+			pod: workloadmeta.KubernetesPod{
+				EntityID: podEntityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name:      podName,
+					Namespace: podNamespace,
+				},
+				Owners: []workloadmeta.KubernetesPodOwner{
+					{
+						Kind: kubernetes.DaemonSetKind,
+						Name: "owner_name",
+					},
+				},
+			},
+			expected: []*types.TagInfo{
+				{
+					Source:       podSource,
+					Entity:       podTaggerEntityID,
+					HighCardTags: []string{},
+					OrchestratorCardTags: []string{
+						fmt.Sprintf("pod_name:%s", podName),
+						"kube_ownerref_name:owner_name",
+					},
+					LowCardTags: []string{
+						fmt.Sprintf("kube_namespace:%s", podNamespace),
+						"kube_ownerref_kind:daemonset",
+						"kube_daemon_set:owner_name",
+					},
+					StandardTags: []string{},
+				},
+			},
+		},
+		{
+			name: "pod owned by replication controller",
+			pod: workloadmeta.KubernetesPod{
+				EntityID: podEntityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name:      podName,
+					Namespace: podNamespace,
+				},
+				Owners: []workloadmeta.KubernetesPodOwner{
+					{
+						Kind: kubernetes.ReplicationControllerKind,
+						Name: "owner_name",
+					},
+				},
+			},
+			expected: []*types.TagInfo{
+				{
+					Source:       podSource,
+					Entity:       podTaggerEntityID,
+					HighCardTags: []string{},
+					OrchestratorCardTags: []string{
+						fmt.Sprintf("pod_name:%s", podName),
+						"kube_ownerref_name:owner_name",
+					},
+					LowCardTags: []string{
+						fmt.Sprintf("kube_namespace:%s", podNamespace),
+						"kube_ownerref_kind:replicationcontroller",
+						"kube_replication_controller:owner_name",
+					},
+					StandardTags: []string{},
+				},
+			},
+		},
+		{
+			name: "pod owned by statefulset with persistent volume claim",
+			pod: workloadmeta.KubernetesPod{
+				EntityID: podEntityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name:      podName,
+					Namespace: podNamespace,
+				},
+				Owners: []workloadmeta.KubernetesPodOwner{
+					{
+						Kind: kubernetes.StatefulSetKind,
+						Name: "owner_name",
+					},
+				},
+				PersistentVolumeClaimNames: []string{
+					"pvc-0",
+				},
+			},
+			expected: []*types.TagInfo{
+				{
+					Source:       podSource,
+					Entity:       podTaggerEntityID,
+					HighCardTags: []string{},
+					OrchestratorCardTags: []string{
+						fmt.Sprintf("pod_name:%s", podName),
+						"kube_ownerref_name:owner_name",
+					},
+					LowCardTags: []string{
+						fmt.Sprintf("kube_namespace:%s", podNamespace),
+						"kube_ownerref_kind:statefulset",
+						"kube_stateful_set:owner_name",
+						"persistentvolumeclaim:pvc-0",
+					},
+					StandardTags: []string{},
+				},
+			},
+		},
+		{
+			name: "pod owned by job",
+			pod: workloadmeta.KubernetesPod{
+				EntityID: podEntityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name:      podName,
+					Namespace: podNamespace,
+				},
+				Owners: []workloadmeta.KubernetesPodOwner{
+					{
+						Kind: kubernetes.JobKind,
+						Name: "owner_name",
+					},
+				},
+			},
+			expected: []*types.TagInfo{
+				{
+					Source:       podSource,
+					Entity:       podTaggerEntityID,
+					HighCardTags: []string{},
+					OrchestratorCardTags: []string{
+						fmt.Sprintf("pod_name:%s", podName),
+						"kube_ownerref_name:owner_name",
+					},
+					LowCardTags: []string{
+						fmt.Sprintf("kube_namespace:%s", podNamespace),
+						"kube_ownerref_kind:job",
+						"kube_job:owner_name",
+					},
+					StandardTags: []string{},
+				},
+			},
+		},
+		{
+			name: "pod owned by cronjob",
+			pod: workloadmeta.KubernetesPod{
+				EntityID: podEntityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name:      podName,
+					Namespace: podNamespace,
+				},
+				Owners: []workloadmeta.KubernetesPodOwner{
+					{
+						Kind: kubernetes.JobKind,
+						// job owned by "some_cronjob".
+						// Notice that, to make this test work, the job name
+						// included after the "-" separator needs to be valid
+						// according to the ParseCronJobForJob function.
+						Name: "some_cronjob-123",
+					},
+				},
+			},
+			expected: []*types.TagInfo{
+				{
+					Source:       podSource,
+					Entity:       podTaggerEntityID,
+					HighCardTags: []string{},
+					OrchestratorCardTags: []string{
+						fmt.Sprintf("pod_name:%s", podName),
+						"kube_ownerref_name:some_cronjob-123",
+						"kube_job:some_cronjob-123",
+					},
+					LowCardTags: []string{
+						fmt.Sprintf("kube_namespace:%s", podNamespace),
+						"kube_ownerref_kind:job",
+						"kube_cronjob:some_cronjob",
+					},
+					StandardTags: []string{},
+				},
+			},
+		},
+		{
+			name: "pod owned by replicaset without deployment",
+			pod: workloadmeta.KubernetesPod{
+				EntityID: podEntityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name:      podName,
+					Namespace: podNamespace,
+				},
+				Owners: []workloadmeta.KubernetesPodOwner{
+					{
+						Kind: kubernetes.ReplicaSetKind,
+						Name: "owner_name",
+					},
+				},
+			},
+			expected: []*types.TagInfo{
+				{
+					Source:       podSource,
+					Entity:       podTaggerEntityID,
+					HighCardTags: []string{},
+					OrchestratorCardTags: []string{
+						fmt.Sprintf("pod_name:%s", podName),
+						"kube_ownerref_name:owner_name",
+					},
+					LowCardTags: []string{
+						fmt.Sprintf("kube_namespace:%s", podNamespace),
+						"kube_ownerref_kind:replicaset",
+						"kube_replica_set:owner_name",
+					},
+					StandardTags: []string{},
+				},
+			},
+		},
+		{
+			name: "pod owned by replicaset that belongs to a deployment",
+			pod: workloadmeta.KubernetesPod{
+				EntityID: podEntityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name:      podName,
+					Namespace: podNamespace,
+				},
+				Owners: []workloadmeta.KubernetesPodOwner{
+					{
+						Kind: kubernetes.ReplicaSetKind,
+						// replicaset owned by "some_deployment"
+						// Notice that, to make this test work, the replicaset
+						// name included after the "-" separator needs to be
+						// valid according to the ParseDeploymentForReplicaSet
+						// function.
+						Name: "some_deployment-bcd2",
+					},
+				},
+			},
+			expected: []*types.TagInfo{
+				{
+					Source:       podSource,
+					Entity:       podTaggerEntityID,
+					HighCardTags: []string{},
+					OrchestratorCardTags: []string{
+						fmt.Sprintf("pod_name:%s", podName),
+						"kube_ownerref_name:some_deployment-bcd2",
+					},
+					LowCardTags: []string{
+						fmt.Sprintf("kube_namespace:%s", podNamespace),
+						"kube_ownerref_kind:replicaset",
+						"kube_replica_set:some_deployment-bcd2",
+						"kube_deployment:some_deployment",
 					},
 					StandardTags: []string{},
 				},
@@ -801,7 +1050,9 @@ func TestHandleECSTask(t *testing.T) {
 		config.MockModule(),
 		fx.Supply(workloadmeta.NewParams()),
 		workloadmetafxmock.MockModule(),
-	))
+	), fx.Replace(config.MockParams{Overrides: map[string]any{
+		"ecs_collect_resource_tags_ec2": true,
+	}}))
 
 	store.Set(&workloadmeta.Container{
 		EntityID: workloadmeta.EntityID{
@@ -884,6 +1135,7 @@ func TestHandleECSTask(t *testing.T) {
 					},
 				},
 				AvailabilityZone: "us-east-1c",
+				Region:           "us-east-1",
 			},
 			expected: []*types.TagInfo{
 				{
@@ -902,6 +1154,7 @@ func TestHandleECSTask(t *testing.T) {
 						"task_version:1",
 						"availability_zone:us-east-1c",
 						"availability-zone:us-east-1c",
+						"region:us-east-1",
 					},
 					StandardTags: []string{},
 				},
@@ -920,6 +1173,7 @@ func TestHandleECSTask(t *testing.T) {
 						"task_version:1",
 						"availability_zone:us-east-1c",
 						"availability-zone:us-east-1c",
+						"region:us-east-1",
 					},
 					StandardTags: []string{},
 				},
@@ -930,7 +1184,6 @@ func TestHandleECSTask(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			collector := NewWorkloadMetaCollector(context.Background(), store, nil)
-			collector.collectEC2ResourceTags = true
 
 			actual := collector.handleECSTask(workloadmeta.Event{
 				Type:   workloadmeta.EventTypeSet,

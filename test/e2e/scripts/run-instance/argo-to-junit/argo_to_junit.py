@@ -18,7 +18,7 @@ def _generate_test_suites(root_name, argo_nodes):
     """
     for node_id, node_status in argo_nodes.items():
         if node_status.get("type") in ["StepGroup", "DAG"]:
-            test_cases = list()
+            test_cases = []
             tc = TestCase(node_status.get("displayName", node_id))
             children = node_status.get("children", [])
             for child_id in children:
@@ -56,7 +56,7 @@ def main():
         print(json.dumps(crd))
         raise Exception("Incompatible CRD")
 
-    test_suites = list()
+    test_suites = []
     for ts in _generate_test_suites(crd_name, nodes):
         test_suites.append(ts)
     with open(args.output_file, "w") as f:

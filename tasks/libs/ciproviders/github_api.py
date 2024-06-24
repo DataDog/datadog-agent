@@ -144,7 +144,7 @@ class GithubAPI:
         if workflow is None:
             return False
         if inputs is None:
-            inputs = dict()
+            inputs = {}
         return workflow.create_dispatch(ref, inputs)
 
     def workflow_run(self, run_id):
@@ -401,7 +401,7 @@ Make sure that milestone is open before trying again.""",
     labels = [
         "changelog/no-changelog",
         "qa/no-code-change",
-        "team/agent-build-and-releases",
+        "team/agent-delivery",
         "team/agent-release-management",
         "category/release_operations",
     ]

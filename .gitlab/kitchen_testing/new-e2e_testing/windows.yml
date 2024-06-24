@@ -31,7 +31,28 @@
     - export LAST_STABLE_VERSION=$(invoke release.get-release-json-value "last_stable::$AGENT_MAJOR_VERSION")
     - !reference [.new_e2e_template, script]
 
-.new-e2e_windows_installer_tests:
+# TODO: gitlab issue prevents using !reference in parallel.matrix so we must duplicate the lists for now.
+#       https://gitlab.com/gitlab-org/gitlab/-/issues/439828
+.new-e2e_windows_installer_v6_tests:
+  parallel:
+    matrix:
+      - E2E_MSI_TEST: TestInstall
+      - E2E_MSI_TEST: TestRepair
+      - E2E_MSI_TEST: TestUpgrade
+      - E2E_MSI_TEST: TestUpgradeRollback
+      - E2E_MSI_TEST: TestUpgradeChangeUser
+      - E2E_MSI_TEST: TestAgentUser/user_only
+      - E2E_MSI_TEST: TestAgentUser/dotslash_user
+      - E2E_MSI_TEST: TestAgentUser/hostname_user
+      - E2E_MSI_TEST: TestAgentUser/LocalSystem
+      - E2E_MSI_TEST: TestAgentUser/SYSTEM
+      - E2E_MSI_TEST: TestInstallOpts
+      - E2E_MSI_TEST: TestSubServicesOpts/all-subservices
+      - E2E_MSI_TEST: TestSubServicesOpts/no-subservices
+      - E2E_MSI_TEST: TestInstallAltDir
+      - E2E_MSI_TEST: TestInstallFail
+
+.new-e2e_windows_installer_v7_tests:
   parallel:
     matrix:
       - E2E_MSI_TEST: TestInstall
@@ -48,6 +69,11 @@
       - E2E_MSI_TEST: TestSubServicesOpts/no-subservices
       - E2E_MSI_TEST: TestInstallAltDir
       - E2E_MSI_TEST: TestInstallFail
+      # These tests are v7 only
+      - E2E_MSI_TEST: TestNPMUpgradeToNPM
+      - E2E_MSI_TEST: TestNPMUpgradeNPMToNPM
+      - E2E_MSI_TEST: TestNPMInstallWithAddLocal
+      - E2E_MSI_TEST: TestNPMUpgradeFromBeta
 
 # Agent 6
 .new-e2e_windows_a6_x86_64:
@@ -63,7 +89,7 @@ new-e2e-windows-agent-msi-windows-server-a6-x86_64:
   stage: kitchen_testing
   extends:
     - .new-e2e_windows_a6_x86_64
-    - .new-e2e_windows_installer_tests
+    - .new-e2e_windows_installer_v6_tests
   rules:
     - !reference [.on_deploy]
     - !reference [.on_windows_installer_changes_or_manual]
@@ -82,7 +108,7 @@ new-e2e-windows-agent-msi-windows-server-a7-x86_64:
   stage: kitchen_testing
   extends:
     - .new-e2e_windows_a7_x86_64
-    - .new-e2e_windows_installer_tests
+    - .new-e2e_windows_installer_v7_tests
   rules:
     - !reference [.on_deploy]
     - !reference [.on_windows_installer_changes_or_manual]

@@ -1,3 +1,6 @@
+# https://github.com/pyinvoke/invoke/issues/946
+# mypy: disable-error-code="arg-type"
+
 """
 Invoke entrypoint, import here all the tasks we want to make available
 """
@@ -11,6 +14,7 @@ from tasks import (
     cluster_agent,
     cluster_agent_cloudfoundry,
     components,
+    coverage,
     cws_instrumentation,
     devcontainer,
     diff,
@@ -47,11 +51,12 @@ from tasks import (
     setup,
     system_probe,
     systray,
+    testwasher,
     trace_agent,
+    vim,
     vscode,
 )
 from tasks.build_tags import audit_tag_impact, print_default_build_tags
-from tasks.codecov import codecov
 from tasks.components import lint_components, lint_fxutil_oneshot_test
 from tasks.custom_task.custom_task import custom__call__
 from tasks.fuzz import fuzz
@@ -82,12 +87,7 @@ from tasks.gotest import (
     send_unit_tests_stats,
     test,
 )
-from tasks.install_tasks import (
-    download_tools,
-    install_devcontainer_cli,
-    install_shellcheck,
-    install_tools,
-)
+from tasks.install_tasks import download_tools, install_devcontainer_cli, install_shellcheck, install_tools
 from tasks.junit_tasks import junit_upload
 from tasks.libs.common.go_workspaces import handle_go_work
 from tasks.show_linters_issues.show_linters_issues import show_linters_issues
@@ -102,7 +102,6 @@ ns = Collection()
 
 # add single tasks to the root
 ns.add_task(test)
-ns.add_task(codecov)
 ns.add_task(integration_tests)
 ns.add_task(deps)
 ns.add_task(deps_vendored)
@@ -148,6 +147,7 @@ ns.add_collection(buildimages)
 ns.add_collection(cluster_agent)
 ns.add_collection(cluster_agent_cloudfoundry)
 ns.add_collection(components)
+ns.add_collection(coverage)
 ns.add_collection(docs)
 ns.add_collection(bench)
 ns.add_collection(trace_agent)
@@ -155,6 +155,7 @@ ns.add_collection(docker_tasks, "docker")
 ns.add_collection(dogstatsd)
 ns.add_collection(ebpf)
 ns.add_collection(emacs)
+ns.add_collection(vim)
 ns.add_collection(epforwarder)
 ns.add_collection(go_deps)
 ns.add_collection(linter)
@@ -174,6 +175,7 @@ ns.add_collection(release)
 ns.add_collection(rtloader)
 ns.add_collection(system_probe)
 ns.add_collection(process_agent)
+ns.add_collection(testwasher)
 ns.add_collection(security_agent)
 ns.add_collection(cws_instrumentation)
 ns.add_collection(vscode)
