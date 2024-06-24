@@ -37,7 +37,7 @@
 '@datadog/agent-cspm': '#k9-cspm-ops'
 '@datadog/telemetry-and-analytics': '#instrumentation-telemetry'
 '@datadog/asm-go': '#k9-asm-library-go'
-'@datadog/agent-delivery': '#agent-devx-ops'
+'@datadog/agent-delivery': '#agent-delivery-ops'
 '@datadog/agent-devx-infra': '#agent-devx-ops'
 '@datadog/agent-devx-loops': '#agent-devx-ops'
 '@datadog/apm-onboarding': '#apm-onboarding'
