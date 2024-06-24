@@ -91,7 +91,7 @@ class TestSetTag(unittest.TestCase):
         mock_instance = MagicMock()
         mock_instance.pipelines.get.return_value = MagicMock()
         mock_gitlab.return_value = mock_instance
-        tags = junit.set_tags("agent-ci-experience", "base", "", {}, "")
+        tags = junit.set_tags("agent-devx-infra", "base", "", {}, "")
         self.assertEqual(len(tags), 14)
         self.assertIn("slack_channel:agent-devx-ops", tags)
 
@@ -102,7 +102,7 @@ class TestSetTag(unittest.TestCase):
         mock_instance.pipelines.get.return_value = MagicMock()
         mock_gitlab.return_value = mock_instance
         tags = junit.set_tags(
-            "agent-ci-experience",
+            "agent-devx-infra",
             "base",
             'kitchen-e2e',
             ["upload_option.os_version_from_name"],
@@ -119,7 +119,7 @@ class TestSetTag(unittest.TestCase):
         mock_instance = MagicMock()
         mock_instance.pipelines.get.return_value = MagicMock()
         mock_gitlab.return_value = mock_instance
-        tags = junit.set_tags("agent-ci-experience", "base", "", ["--tags", "simple:basique"], "")
+        tags = junit.set_tags("agent-devx-infra", "base", "", ["--tags", "simple:basique"], "")
         self.assertEqual(len(tags), 16)
         self.assertIn("simple:basique", tags)
 
@@ -130,7 +130,7 @@ class TestSetTag(unittest.TestCase):
         mock_instance.pipelines.get.return_value = MagicMock()
         mock_gitlab.return_value = mock_instance
         tags = junit.set_tags(
-            "agent-ci-experience", "base", "", junit.read_additional_tags(Path("tasks/unit-tests/testdata")), ""
+            "agent-devx-infra", "base", "", junit.read_additional_tags(Path("tasks/unit-tests/testdata")), ""
         )
         self.assertEqual(len(tags), 14)
 
