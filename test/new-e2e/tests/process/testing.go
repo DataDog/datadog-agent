@@ -109,8 +109,7 @@ func assertProcessCollected(
 // requireProcessNotCollected asserts that the given process is NOT collected by the process check
 func requireProcessNotCollected(t *testing.T, payloads []*aggregator.ProcessPayload, process string) {
 	for _, payload := range payloads {
-		found, _ := findProcess(process, payload.Processes, false)
-		require.False(t, found, "%s process found", process)
+		require.Empty(t, filterProcess(process, payload.Processes))
 	}
 }
 
@@ -135,6 +134,17 @@ func findProcess(
 	}
 
 	return found, populated
+}
+
+// filterProcess returns process with the given name exists in the given list of processes
+func filterProcess(name string, processes []*agentmodel.Process) []*agentmodel.Process {
+	var found []*agentmodel.Process
+	for _, process := range processes {
+		if len(process.Command.Args) > 0 && process.Command.Args[0] == name {
+			found = append(found, process)
+		}
+	}
+	return found
 }
 
 // processHasData asserts that the given process has the expected data populated
@@ -240,20 +250,50 @@ func assertManualProcessCheck(t *testing.T, check string, withIOStats bool, proc
 	}()
 
 	var checkOutput struct {
-		Processes  []*agentmodel.Process   `json:"processes"`
+		Processes []*agentmodel.Process `json:"processes"`
+	}
+
+	err := json.Unmarshal([]byte(check), &checkOutput)
+	require.NoError(t, err, "failed to unmarshal process check output")
+
+	procs := filterProcess(process, checkOutput.Processes)
+	assert.NotEmpty(t, procs, "no processes found")
+
+	var hasData bool
+	for _, proc := range procs {
+		if processHasData(proc) {
+			hasData = true
+			break
+		}
+	}
+	assert.Truef(t, hasData, "Missing process data: %v", procs)
+
+	if withIOStats {
+		var hasIOStats bool
+		for _, proc := range procs {
+			if processHasIOStats(proc) {
+				hasIOStats = true
+				break
+			}
+		}
+		assert.Truef(t, hasIOStats, "Missing IOStats: %+v", procs)
+	}
+
+	assertManualContainerCheck(t, check, expectedContainers...)
+}
+
+// assertManualContainerCheck asserts that the given container is collected from a manual container check
+func assertManualContainerCheck(t *testing.T, check string, expectedContainers ...string) {
+	var checkOutput struct {
 		Containers []*agentmodel.Container `json:"containers"`
 	}
 
 	err := json.Unmarshal([]byte(check), &checkOutput)
 	require.NoError(t, err, "failed to unmarshal process check output")
 
-	found, populated := findProcess(process, checkOutput.Processes, withIOStats)
-
-	require.True(t, found, "%s process not found", process)
-	assert.True(t, populated, "no %s process had all data populated", process)
-
 	for _, container := range expectedContainers {
-		assert.True(t, findContainer(container, checkOutput.Containers), "%s container not found", container)
+		assert.Truef(t, findContainer(container, checkOutput.Containers),
+			"%s container not found in %+v", container, checkOutput.Containers)
 	}
 }
 

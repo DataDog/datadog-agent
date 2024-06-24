@@ -189,7 +189,7 @@ func checkAndCastConfig(c component.Config, logger *zap.Logger) *Config {
 // createTracesExporter creates a trace exporter based on this config.
 func (f *factory) createTracesExporter(
 	ctx context.Context,
-	set exporter.CreateSettings,
+	set exporter.Settings,
 	c component.Config,
 ) (exporter.Traces, error) {
 	cfg := checkAndCastConfig(c, set.TelemetrySettings.Logger)
@@ -221,7 +221,7 @@ func (f *factory) createTracesExporter(
 // createMetricsExporter creates a metrics exporter based on this config.
 func (f *factory) createMetricsExporter(
 	ctx context.Context,
-	set exporter.CreateSettings,
+	set exporter.Settings,
 	c component.Config,
 ) (exporter.Metrics, error) {
 	cfg := checkAndCastConfig(c, set.Logger)
@@ -277,7 +277,7 @@ func (f *factory) consumeStatsPayload(ctx context.Context, wg *sync.WaitGroup, s
 // createLogsExporter creates a logs exporter based on the config.
 func (f *factory) createLogsExporter(
 	ctx context.Context,
-	set exporter.CreateSettings,
+	set exporter.Settings,
 	_ component.Config,
 ) (exporter.Logs, error) {
 	var logch chan *message.Message

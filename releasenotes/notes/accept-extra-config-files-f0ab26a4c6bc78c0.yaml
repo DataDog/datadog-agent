@@ -9,4 +9,4 @@
 features:
   - |
     The core Agent now supports multiple configuration files in addition to the main ``datadog.yaml`` file. 
-    The -E flag can be used with the ``datadog-agent run`` command to specify additional configuration files to be loaded sequentially after the main ``datadog.yaml``.
+    The -E flag can be used to specify additional configuration files to be loaded sequentially after the main ``datadog.yaml``.

@@ -40,7 +40,7 @@ func NewNetworkPolicyCollector() *NetworkPolicyCollector {
 	return &NetworkPolicyCollector{
 		metadata: &collectors.CollectorMetadata{
 			IsDefaultVersion:          true,
-			IsStable:                  false,
+			IsStable:                  true,
 			IsMetadataProducer:        true,
 			IsManifestProducer:        true,
 			SupportsManifestBuffering: true,
