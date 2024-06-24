@@ -226,6 +226,7 @@ def build(
 
     if embedded_path is None:
         embedded_path = get_embedded_path(ctx)
+        assert embedded_path, "Failed to find embedded path"
 
     for build in bundled_agents:
         if build == "agent":
@@ -411,7 +412,7 @@ def image_build(ctx, arch='amd64', base_dir="omnibus", python_version="2", skip_
         raise ParseError("provided python_version is invalid")
 
     build_context = "Dockerfiles/agent"
-    base_dir = base_dir or os.environ.get("OMNIBUS_BASE_DIR")
+    base_dir = base_dir or os.environ["OMNIBUS_BASE_DIR"]
     pkg_dir = os.path.join(base_dir, 'pkg')
     deb_glob = f'datadog-agent*_{arch}.deb'
     dockerfile_path = f"{build_context}/Dockerfile"
