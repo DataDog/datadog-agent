@@ -271,40 +271,16 @@ func (r *HTTPReceiver) Start() {
 		log.Debug("HTTP receiver disabled by config (apm_config.receiver_port: 0).")
 	}
 
-	// Listen on the default APM socket
+	// Listen on the default APM socket (if /var/run/datadog/ exists)
 	if path := r.conf.ReceiverDefaultSocket; path != "" {
 		if _, err := os.Stat(filepath.Dir(path)); !os.IsNotExist(err) {
-			ln, err := r.listenUnix(path)
-			if err != nil {
-				r.telemetryCollector.SendStartupError(telemetry.CantStartUdsServer, err)
-				killProcess("Error creating UDS listener: %v", err)
-			}
-			go func() {
-				defer watchdog.LogOnPanic(r.statsd)
-				if err := r.server.Serve(ln); err != nil && err != http.ErrServerClosed {
-					log.Errorf("Could not start UDS server: %v. UDS receiver disabled.", err)
-					r.telemetryCollector.SendStartupError(telemetry.CantStartUdsServer, err)
-				}
-			}()
-			log.Infof("Listening for traces at unix://%s", path)
+			r.serveUDS(path)
 		}
 	}
 
 	// If `apm_config.receiver_socket` is different from the default one, create a separate listener
 	if path := r.conf.ReceiverSocket; path != "" && path != r.conf.ReceiverDefaultSocket {
-		ln, err := r.listenUnix(path)
-		if err != nil {
-			r.telemetryCollector.SendStartupError(telemetry.CantStartUdsServer, err)
-			killProcess("Error creating UDS listener: %v", err)
-		}
-		go func() {
-			defer watchdog.LogOnPanic(r.statsd)
-			if err := r.server.Serve(ln); err != nil && err != http.ErrServerClosed {
-				log.Errorf("Could not start UDS server: %v. UDS receiver disabled.", err)
-				r.telemetryCollector.SendStartupError(telemetry.CantStartUdsServer, err)
-			}
-		}()
-		log.Infof("Listening for traces at unix://%s", path)
+		r.serveUDS(path)
 	}
 
 	if path := r.conf.WindowsPipeName; path != "" {
@@ -330,6 +306,22 @@ func (r *HTTPReceiver) Start() {
 		defer watchdog.LogOnPanic(r.statsd)
 		r.loop()
 	}()
+}
+
+func (r *HTTPReceiver) serveUDS(path string) {
+	ln, err := r.listenUnix(path)
+	if err != nil {
+		r.telemetryCollector.SendStartupError(telemetry.CantStartUdsServer, err)
+		killProcess("Error creating UDS listener: %v", err)
+	}
+	go func() {
+		defer watchdog.LogOnPanic(r.statsd)
+		if err := r.server.Serve(ln); err != nil && err != http.ErrServerClosed {
+			log.Errorf("Could not start UDS server: %v. UDS receiver disabled.", err)
+			r.telemetryCollector.SendStartupError(telemetry.CantStartUdsServer, err)
+		}
+	}()
+	log.Infof("Listening for traces at unix://%s", path)
 }
 
 // listenUnix returns a net.Listener listening on the given "unix" socket path.
