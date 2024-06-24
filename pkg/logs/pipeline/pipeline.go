@@ -110,6 +110,7 @@ func (p *Pipeline) Flush(ctx context.Context) {
 	p.processor.Flush(ctx) // flush messages in the processor into the sender
 
 	if p.serverless {
+		// Wait for the logs sender to finish sending payloads
 		<-p.flushDoneChan
 	}
 }

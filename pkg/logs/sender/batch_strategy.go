@@ -142,6 +142,7 @@ func (s *batchStrategy) processMessage(m *message.Message, outputChan chan *mess
 func (s *batchStrategy) flushBuffer(outputChan chan *message.Payload) {
 	if s.buffer.IsEmpty() {
 		if s.serverless {
+			// If there are no messages to send then mark the flush as done
 			s.flushDoneChan <- struct{}{}
 		}
 		return
