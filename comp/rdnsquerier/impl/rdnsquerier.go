@@ -7,11 +7,15 @@
 package rdnsquerierimpl
 
 import (
+	"net"
+	"net/netip"
+
 	"context"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"
+	rdnsquerierimplnone "github.com/DataDog/datadog-agent/comp/rdnsquerier/impl-none"
 )
 
 // Requires defines the dependencies for the rdnsquerier component
@@ -33,6 +37,14 @@ type rdnsQuerierImpl struct {
 
 // NewComponent creates a new rdnsquerier component
 func NewComponent(reqs Requires) (Provides, error) {
+	netflowRDNSEnrichmentEnabled := reqs.Config.GetBool("network_devices.netflow.reverse_dns_enrichment_enabled")
+
+	if !netflowRDNSEnrichmentEnabled {
+		return Provides{
+			Comp: rdnsquerierimplnone.NewNone().Comp,
+		}, nil
+	}
+
 	q := &rdnsQuerierImpl{
 		config: reqs.Config,
 		logger: reqs.Logger,
@@ -49,15 +61,41 @@ func NewComponent(reqs Requires) (Provides, error) {
 }
 
 func (q *rdnsQuerierImpl) start(context.Context) error {
+	// TODO start workers
 	return nil
 }
 
 func (q *rdnsQuerierImpl) stop(context.Context) error {
+	// TODO stop workers
 	return nil
 }
 
-// GetHostname gets the hostname for the given IP address if the IP address is in the private address space, or returns an empty string if not.
-// The initial implementation always returns an empty string.
-func (q *rdnsQuerierImpl) GetHostname(_ []byte) string {
-	return ""
+// GetHostname attempts to use reverse DNS lookup to resolve the hostname for the given IP address.
+// If the IP address is in the private address space and the lookup is successful it calls the
+// updateHostname function with the hostname.
+func (q *rdnsQuerierImpl) GetHostname(ipAddr []byte, updateHostname func(string)) {
+	ipaddr, ok := netip.AddrFromSlice(ipAddr)
+	if !ok {
+		// IP address is invalid
+		return
+	}
+
+	if !ipaddr.IsPrivate() {
+		return
+	}
+
+	addr := ipaddr.String()
+
+	go func() {
+		// net.LookupAddr() can return both a non-zero length slice of hostnames and an error, but when
+		// using the host C library resolver at most one result will be returned.  So for now, since
+		// specifying other DNS resolvers is not supported, if we get an error we know that no valid
+		// hostname was returned.
+		hostnames, err := net.LookupAddr(addr)
+		if err != nil || len(hostnames) == 0 {
+			return
+		}
+
+		updateHostname(hostnames[0])
+	}()
 }

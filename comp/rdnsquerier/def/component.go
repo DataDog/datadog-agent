@@ -10,5 +10,5 @@ package rdnsquerier
 
 // Component is the component type.
 type Component interface {
-	GetHostname([]byte) string
+	GetHostname([]byte, func(string))
 }

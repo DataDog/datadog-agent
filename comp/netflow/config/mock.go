@@ -17,6 +17,7 @@ func newMock(conf *NetflowConfig, logger log.Component) (Component, error) {
 	if err := conf.SetDefaults("default", logger); err != nil {
 		return nil, err
 	}
+	conf.ReverseDNSEnrichmentEnabled = true
 	return &configService{conf}, nil
 }
 

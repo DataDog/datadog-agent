@@ -9,6 +9,8 @@
 package mock
 
 import (
+	"net/netip"
+
 	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"
 )
 
@@ -24,6 +26,13 @@ func NewMock() rdnsquerier.Component {
 	return &rdnsQuerierMock{}
 }
 
-func (m *rdnsQuerierMock) GetHostname(_ []byte) string {
-	return ""
+func (q *rdnsQuerierMock) GetHostname(ipAddr []byte, updateHostname func(string)) {
+	ipaddr, ok := netip.AddrFromSlice(ipAddr)
+	if !ok || !ipaddr.IsPrivate() {
+		return
+	}
+
+	go func() {
+		updateHostname("hostname-" + ipaddr.String())
+	}()
 }

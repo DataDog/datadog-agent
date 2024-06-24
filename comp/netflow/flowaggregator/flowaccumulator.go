@@ -125,16 +125,14 @@ func (f *flowAccumulator) add(flowToAdd *common.Flow) {
 	aggHash := flowToAdd.AggregationHash()
 	aggFlow, ok := f.flows[aggHash]
 	if !ok {
-		flowToAdd.SrcReverseDNSHostname = f.rdnsQuerier.GetHostname(flowToAdd.SrcAddr)
-		flowToAdd.DstReverseDNSHostname = f.rdnsQuerier.GetHostname(flowToAdd.DstAddr)
 		f.flows[aggHash] = newFlowContext(flowToAdd)
+		f.addRDNSEnrichment(aggHash, flowToAdd.SrcAddr, flowToAdd.DstAddr)
 		return
 	}
 	if aggFlow.flow == nil {
 		// flowToAdd is for the same hash as an aggregated flow that has been flushed
-		flowToAdd.SrcReverseDNSHostname = f.rdnsQuerier.GetHostname(flowToAdd.SrcAddr)
-		flowToAdd.DstReverseDNSHostname = f.rdnsQuerier.GetHostname(flowToAdd.DstAddr)
 		aggFlow.flow = flowToAdd
+		f.addRDNSEnrichment(aggHash, flowToAdd.SrcAddr, flowToAdd.DstAddr)
 	} else {
 		// use go routine for hash collision detection to avoid blocking critical path
 		go f.detectHashCollision(aggHash, *aggFlow.flow, *flowToAdd)
@@ -161,6 +159,33 @@ func (f *flowAccumulator) add(flowToAdd *common.Flow) {
 		}
 	}
 	f.flows[aggHash] = aggFlow
+}
+
+func (f *flowAccumulator) addRDNSEnrichment(aggHash uint64, srcAddr []byte, dstAddr []byte) {
+	f.rdnsQuerier.GetHostname(
+		srcAddr,
+		func(hostname string) {
+			f.flowsMutex.Lock()
+			defer f.flowsMutex.Unlock()
+
+			aggFlow, ok := f.flows[aggHash]
+			if ok && aggFlow.flow != nil {
+				aggFlow.flow.SrcReverseDNSHostname = hostname
+			}
+		},
+	)
+	f.rdnsQuerier.GetHostname(
+		dstAddr,
+		func(hostname string) {
+			f.flowsMutex.Lock()
+			defer f.flowsMutex.Unlock()
+
+			aggFlow, ok := f.flows[aggHash]
+			if ok && aggFlow.flow != nil {
+				aggFlow.flow.DstReverseDNSHostname = hostname
+			}
+		},
+	)
 }
 
 func (f *flowAccumulator) getFlowContextCount() int {
