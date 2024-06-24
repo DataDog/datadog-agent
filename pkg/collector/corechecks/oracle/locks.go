@@ -132,6 +132,11 @@ func (c *Check) locks() error {
 		}
 		oracleRows = append(oracleRows, p)
 	}
+
+	if len(oracleRows) == 0 {
+		return nil
+	}
+
 	hname, _ := hostname.Get(context.TODO())
 	m := metricsPayload{
 		Host:                  c.dbHostname,
