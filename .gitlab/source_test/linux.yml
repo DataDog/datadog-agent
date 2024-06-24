@@ -24,6 +24,7 @@
     KUBERNETES_MEMORY_REQUEST: 16Gi
     KUBERNETES_MEMORY_LIMIT: 16Gi
     TEST_OUTPUT_FILE: test_output.json
+    EXTERNAL_LINKS_PATH: external_links_$CI_JOB_ID.json
   script:
     - !reference [.retrieve_linux_go_tools_deps]
     - inv -e install-tools
@@ -34,7 +35,8 @@
     - inv -e test $FLAVORS --include-sds --race --profile --rerun-fails=2 --python-runtimes "$PYTHON_RUNTIMES" --coverage --cpus $KUBERNETES_CPU_REQUEST $EXTRA_OPTS --save-result-json $TEST_OUTPUT_FILE --junit-tar "junit-${CI_JOB_NAME}.tgz" --build-stdlib $FAST_TESTS_FLAG --test-washer
     # Upload coverage files to Codecov. Never fail on coverage upload.
     - export CODECOV_TOKEN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $CODECOV_TOKEN_SSM_NAME)
-    - inv -e codecov || true
+    - inv -e coverage.upload-to-codecov $COVERAGE_CACHE_FLAG || true
+    - inv -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
   artifacts:
     expire_in: 2 weeks
     when: always
@@ -43,6 +45,8 @@
       - junit-*.tgz
     reports:
       junit: "**/junit-out-*.xml"
+      annotations:
+        - $EXTERNAL_LINKS_PATH
 
 .upload_junit_source:
   - $CI_PROJECT_DIR/tools/ci/junit_upload.sh
@@ -68,6 +72,7 @@
     - inv -e rtloader.install
     - inv -e install-tools
     - inv -e linter.go --cpus $KUBERNETES_CPU_REQUEST $FLAVORS $EXTRA_OPTS
+
 
 .linux_x64:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
@@ -255,6 +260,7 @@ new-e2e-unit-tests:
     # Use S3 backend
     - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
   script:
+    - inv -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
     - inv -e new-e2e-tests.run --targets ./pkg/utils --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS}
   after_script:
     - $CI_PROJECT_DIR/tools/ci/junit_upload.sh

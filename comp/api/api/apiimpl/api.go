@@ -11,12 +11,12 @@ import (
 
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/api/api"
+	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
+	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
@@ -25,7 +25,6 @@ import (
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
@@ -41,7 +40,6 @@ type apiServer struct {
 	capture           replay.Component
 	pidMap            pidmap.Component
 	secretResolver    secrets.Component
-	statusComponent   status.Component
 	rcService         optional.Option[rcservice.Component]
 	rcServiceMRF      optional.Option[rcservicemrf.Component]
 	authToken         authtoken.Component
@@ -50,26 +48,27 @@ type apiServer struct {
 	logsAgentComp     optional.Option[logsAgent.Component]
 	wmeta             workloadmeta.Component
 	collector         optional.Option[collector.Component]
+	senderManager     diagnosesendermanager.Component
 	endpointProviders []api.EndpointProvider
 }
 
 type dependencies struct {
 	fx.In
 
-	DogstatsdServer   dogstatsdServer.Component
-	Capture           replay.Component
-	PidMap            pidmap.Component
-	SecretResolver    secrets.Component
-	StatusComponent   status.Component
-	RcService         optional.Option[rcservice.Component]
-	RcServiceMRF      optional.Option[rcservicemrf.Component]
-	AuthToken         authtoken.Component
-	Tagger            tagger.Component
-	AutoConfig        autodiscovery.Component
-	LogsAgentComp     optional.Option[logsAgent.Component]
-	WorkloadMeta      workloadmeta.Component
-	Collector         optional.Option[collector.Component]
-	EndpointProviders []api.EndpointProvider `group:"agent_endpoint"`
+	DogstatsdServer       dogstatsdServer.Component
+	Capture               replay.Component
+	PidMap                pidmap.Component
+	SecretResolver        secrets.Component
+	RcService             optional.Option[rcservice.Component]
+	RcServiceMRF          optional.Option[rcservicemrf.Component]
+	AuthToken             authtoken.Component
+	Tagger                tagger.Component
+	AutoConfig            autodiscovery.Component
+	LogsAgentComp         optional.Option[logsAgent.Component]
+	WorkloadMeta          workloadmeta.Component
+	Collector             optional.Option[collector.Component]
+	DiagnoseSenderManager diagnosesendermanager.Component
+	EndpointProviders     []api.EndpointProvider `group:"agent_endpoint"`
 }
 
 var _ api.Component = (*apiServer)(nil)
@@ -80,7 +79,6 @@ func newAPIServer(deps dependencies) api.Component {
 		capture:           deps.Capture,
 		pidMap:            deps.PidMap,
 		secretResolver:    deps.SecretResolver,
-		statusComponent:   deps.StatusComponent,
 		rcService:         deps.RcService,
 		rcServiceMRF:      deps.RcServiceMRF,
 		authToken:         deps.AuthToken,
@@ -89,15 +87,15 @@ func newAPIServer(deps dependencies) api.Component {
 		logsAgentComp:     deps.LogsAgentComp,
 		wmeta:             deps.WorkloadMeta,
 		collector:         deps.Collector,
+		senderManager:     deps.DiagnoseSenderManager,
 		endpointProviders: fxutil.GetAndFilterGroup(deps.EndpointProviders),
 	}
 }
 
 // StartServer creates the router and starts the HTTP server
-func (server *apiServer) StartServer(
-	senderManager sender.DiagnoseSenderManager,
-) error {
-	return StartServers(server.rcService,
+func (server *apiServer) StartServer() error {
+	return StartServers(
+		server.rcService,
 		server.rcServiceMRF,
 		server.dogstatsdServer,
 		server.capture,
@@ -105,9 +103,8 @@ func (server *apiServer) StartServer(
 		server.wmeta,
 		server.taggerComp,
 		server.logsAgentComp,
-		senderManager,
+		server.senderManager,
 		server.secretResolver,
-		server.statusComponent,
 		server.collector,
 		server.autoConfig,
 		server.endpointProviders,

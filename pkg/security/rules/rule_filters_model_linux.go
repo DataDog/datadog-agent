@@ -189,6 +189,11 @@ func (m *RuleFilterModel) GetEvaluator(field eval.Field, _ eval.RegisterID) (eva
 			Value: m.origin,
 			Field: field,
 		}, nil
+	case "hostname":
+		return &eval.StringEvaluator{
+			Value: getHostname(),
+			Field: field,
+		}, nil
 	}
 
 	return nil, &eval.ErrFieldNotFound{Field: field}
@@ -256,6 +261,8 @@ func (e *RuleFilterEvent) GetFieldValue(field eval.Field) (interface{}, error) {
 		return os.Environ(), nil
 	case "origin":
 		return e.origin, nil
+	case "hostname":
+		return getHostname(), nil
 	}
 
 	return nil, &eval.ErrFieldNotFound{Field: field}

@@ -25,6 +25,7 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cihub/seelog"
+	"github.com/cilium/ebpf"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -655,5 +656,56 @@ func skipIfNotSupported(t *testing.T, err error) {
 	notSupported := new(errNotSupported)
 	if errors.As(err, &notSupported) {
 		t.Skipf("skipping test because this kernel is not supported: %s", notSupported)
+	}
+}
+
+var (
+	mapTypesToZero = map[ebpf.MapType]struct{}{
+		ebpf.PerCPUArray: {},
+		ebpf.Array:       {},
+		ebpf.PerCPUHash:  {},
+	}
+)
+
+func cleanProtocolMaps(t *testing.T, protocolName string, manager *manager.Manager) {
+	// Getting all maps loaded into the manager
+	maps, err := manager.GetMaps()
+	if err != nil {
+		t.Logf("failed to get maps: %v", err)
+		return
+	}
+	for mapName, mapInstance := range maps {
+		// We only want to clean postgres maps
+		if !strings.Contains(mapName, protocolName) {
+			continue
+		}
+		// Special case for batches, as the values is never "empty", but contain the CPU number.
+		if strings.HasSuffix(mapName, fmt.Sprintf("%s_batches", protocolName)) {
+			continue
+		}
+		_, shouldOnlyZero := mapTypesToZero[mapInstance.Type()]
+
+		key := make([]byte, mapInstance.KeySize())
+		value := make([]byte, mapInstance.ValueSize())
+		mapEntries := mapInstance.Iterate()
+		var keys [][]byte
+		for mapEntries.Next(&key, &value) {
+			keys = append(keys, key)
+		}
+
+		if shouldOnlyZero {
+			emptyValue := make([]byte, mapInstance.ValueSize())
+			for _, key := range keys {
+				if err := mapInstance.Put(&key, &emptyValue); err != nil {
+					t.Log("failed zeroing map entry; error: ", err)
+				}
+			}
+		} else {
+			for _, key := range keys {
+				if err := mapInstance.Delete(&key); err != nil {
+					t.Log("failed deleting map entry; error: ", err)
+				}
+			}
+		}
 	}
 }

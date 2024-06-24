@@ -15,9 +15,11 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"path/filepath"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/env"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/service/embedded"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"go.uber.org/multierr"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
@@ -44,7 +46,7 @@ func RemoveAPMInjector(ctx context.Context) (err error) {
 	defer func() { span.Finish(tracer.WithError(err)) }()
 	installer := newAPMInjectorInstaller(injectorPath)
 	defer func() { installer.Finish(err) }()
-	return installer.Uninstrument(ctx)
+	return installer.Remove(ctx)
 }
 
 // InstrumentAPMInjector instruments the APM injector
@@ -97,6 +99,9 @@ func (a *apmInjectorInstaller) Finish(err error) {
 	if err != nil {
 		// Run rollbacks in reverse order
 		for i := len(a.rollbacks) - 1; i >= 0; i-- {
+			if a.rollbacks[i] == nil {
+				continue
+			}
 			if rollbackErr := a.rollbacks[i](); rollbackErr != nil {
 				log.Warnf("rollback failed: %v", rollbackErr)
 			}
@@ -105,6 +110,9 @@ func (a *apmInjectorInstaller) Finish(err error) {
 
 	// Run cleanups in reverse order
 	for i := len(a.cleanups) - 1; i >= 0; i-- {
+		if a.cleanups[i] == nil {
+			continue
+		}
 		a.cleanups[i]()
 	}
 }
@@ -129,8 +137,11 @@ func (a *apmInjectorInstaller) Setup(ctx context.Context) error {
 	if err := addSystemDEnvOverrides(ctx, traceAgentExp); err != nil {
 		return err
 	}
+	if err := systemdReload(ctx); err != nil {
+		return err
+	}
 
-	// /var/log/datadog is created by default with datadog-installer install
+	// Create mandatory dirs
 	err = os.Mkdir("/var/log/datadog/dotnet", 0777)
 	if err != nil && !os.IsExist(err) {
 		return fmt.Errorf("error creating /var/log/datadog/dotnet: %w", err)
@@ -140,8 +151,29 @@ func (a *apmInjectorInstaller) Setup(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("error changing permissions on /var/log/datadog/dotnet: %w", err)
 	}
+	err = os.Mkdir("/etc/datadog-agent/inject", 0755)
+	if err != nil && !os.IsExist(err) {
+		return fmt.Errorf("error creating /etc/datadog-agent/inject: %w", err)
+	}
+
+	err = a.addInstrumentScripts(ctx)
+	if err != nil {
+		return fmt.Errorf("error adding install scripts: %w", err)
+	}
 
 	return a.Instrument(ctx)
+}
+
+func (a *apmInjectorInstaller) Remove(ctx context.Context) (err error) {
+	span, _ := tracer.StartSpanFromContext(ctx, "remove_injector")
+	defer func() { span.Finish(tracer.WithError(err)) }()
+
+	err = a.removeInstrumentScripts(ctx)
+	if err != nil {
+		return fmt.Errorf("error removing install scripts: %w", err)
+	}
+
+	return a.Uninstrument(ctx)
 }
 
 // Instrument instruments the APM injector
@@ -265,6 +297,106 @@ func (a *apmInjectorInstaller) verifySharedLib(ctx context.Context, libPath stri
 	cmd.Stderr = &buf
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed to verify injected lib %s (%w): %s", libPath, err, buf.String())
+	}
+	return nil
+}
+
+// addInstrumentScripts writes the instrument scripts that come with the APM injector
+// and override the previous instrument scripts if they exist
+// These scripts are either:
+// - Referenced in our public documentation, so we override them to use installer commands for consistency
+// - Used on deb/rpm removal and may break the OCI in the process
+func (a *apmInjectorInstaller) addInstrumentScripts(ctx context.Context) (err error) {
+	span, _ := tracer.StartSpanFromContext(ctx, "add_instrument_scripts")
+	defer func() { span.Finish(tracer.WithError(err)) }()
+
+	hostMutator := newFileMutator(
+		"/usr/bin/dd-host-install",
+		func(_ context.Context, _ []byte) ([]byte, error) {
+			return embedded.FS.ReadFile("dd-host-install")
+		},
+		nil, nil,
+	)
+	a.cleanups = append(a.cleanups, hostMutator.cleanup)
+	rollbackHost, err := hostMutator.mutate(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to override dd-host-install: %w", err)
+	}
+	a.rollbacks = append(a.rollbacks, rollbackHost)
+	err = os.Chmod("/usr/bin/dd-host-install", 0755)
+	if err != nil {
+		return fmt.Errorf("failed to change permissions of dd-host-install: %w", err)
+	}
+
+	containerMutator := newFileMutator(
+		"/usr/bin/dd-container-install",
+		func(_ context.Context, _ []byte) ([]byte, error) {
+			return embedded.FS.ReadFile("dd-container-install")
+		},
+		nil, nil,
+	)
+	a.cleanups = append(a.cleanups, containerMutator.cleanup)
+	rollbackContainer, err := containerMutator.mutate(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to override dd-host-install: %w", err)
+	}
+	a.rollbacks = append(a.rollbacks, rollbackContainer)
+	err = os.Chmod("/usr/bin/dd-container-install", 0755)
+	if err != nil {
+		return fmt.Errorf("failed to change permissions of dd-container-install: %w", err)
+	}
+
+	// Only override dd-cleanup if it exists
+	_, err = os.Stat("/usr/bin/dd-cleanup")
+	if err == nil {
+		cleanupMutator := newFileMutator(
+			"/usr/bin/dd-cleanup",
+			func(_ context.Context, _ []byte) ([]byte, error) {
+				return embedded.FS.ReadFile("dd-cleanup")
+			},
+			nil, nil,
+		)
+		a.cleanups = append(a.cleanups, cleanupMutator.cleanup)
+		rollbackCleanup, err := cleanupMutator.mutate(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to override dd-cleanup: %w", err)
+		}
+		a.rollbacks = append(a.rollbacks, rollbackCleanup)
+		err = os.Chmod("/usr/bin/dd-cleanup", 0755)
+		if err != nil {
+			return fmt.Errorf("failed to change permissions of dd-cleanup: %w", err)
+		}
+	} else if err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("failed to check if dd-cleanup exists on disk: %w", err)
+	}
+	return nil
+}
+
+// removeInstrumentScripts removes the install scripts that come with the APM injector
+// if and only if they've been installed by the installer and not modified
+func (a *apmInjectorInstaller) removeInstrumentScripts(ctx context.Context) (retErr error) {
+	span, _ := tracer.StartSpanFromContext(ctx, "remove_instrument_scripts")
+	defer func() { span.Finish(tracer.WithError(retErr)) }()
+
+	for _, script := range []string{"dd-host-install", "dd-container-install", "dd-cleanup"} {
+		path := filepath.Join("/usr/bin", script)
+		_, err := os.Stat(path)
+		if err == nil {
+			content, err := os.ReadFile(path)
+			if err != nil {
+				return fmt.Errorf("failed to read %s: %w", path, err)
+			}
+			embeddedContent, err := embedded.FS.ReadFile(script)
+			if err != nil {
+				return fmt.Errorf("failed to read embedded %s: %w", script, err)
+			}
+			if bytes.Equal(content, embeddedContent) {
+				err = os.Remove(path)
+				if err != nil {
+					return fmt.Errorf("failed to remove %s: %w", path, err)
+				}
+			}
+		}
 	}
 	return nil
 }

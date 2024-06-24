@@ -195,6 +195,7 @@ rules:
     version: {{$Rule.Version}}
     expression: >-
       {{$Rule.Expression}}
+    disabled: {{$Rule.Disabled}}
     tags:
 {{- range $Tag, $Val := .Tags}}
       {{$Tag}}: {{$Val}}
@@ -641,6 +642,14 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		return nil, err
 	}
 
+	if opts.staticOpts.disableBundledRules {
+		ruleDefs = append(ruleDefs, &rules.RuleDefinition{
+			ID:       events.NeedRefreshSBOMRuleID,
+			Disabled: true,
+			Combine:  rules.OverridePolicy,
+		})
+	}
+
 	st, err := newSimpleTest(t, macroDefs, ruleDefs, opts.dynamicOpts.testDir)
 	if err != nil {
 		return nil, err
@@ -767,12 +776,10 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 
 		testMod.eventMonitor.RegisterEventConsumer(cws)
 
-		testMod.ruleEngine.SetRulesetLoadedCallback(func(es *rules.EvaluationSet, err *multierror.Error) {
+		testMod.ruleEngine.SetRulesetLoadedCallback(func(rs *rules.RuleSet, err *multierror.Error) {
 			ruleSetloadedErr = err
 			log.Infof("Adding test module as listener")
-			for _, ruleSet := range es.RuleSets {
-				ruleSet.AddListener(testMod)
-			}
+			rs.AddListener(testMod)
 		})
 	}
 

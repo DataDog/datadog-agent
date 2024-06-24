@@ -32,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
@@ -1202,7 +1203,12 @@ func NewWindowsProbe(probe *Probe, config *config.Config, opts Opts) (*WindowsPr
 		return nil, err
 	}
 
-	p.fieldHandlers = &FieldHandlers{config: config, resolvers: p.Resolvers}
+	hostname, err := utils.GetHostname()
+	if err != nil || hostname == "" {
+		hostname = "unknown"
+	}
+
+	p.fieldHandlers = &FieldHandlers{config: config, resolvers: p.Resolvers, hostname: hostname}
 
 	p.event = p.NewEvent()
 
@@ -1329,6 +1335,11 @@ func (p *WindowsProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 
 		switch {
 		case action.Kill != nil:
+			// do not handle kill action on event with error
+			if ev.Error != nil {
+				return
+			}
+
 			p.processKiller.KillAndReport(action.Kill.Scope, action.Kill.Signal, ev, func(pid uint32, sig uint32) error {
 				return p.processKiller.KillFromUserspace(pid, sig, ev)
 			})

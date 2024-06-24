@@ -20,6 +20,7 @@ typedef struct {
     __u64 response_last_seen;
     // The actual size of the query stored in request_fragment.
     __u32 original_query_size;
+    __u8 tags;
 } postgres_transaction_t;
 
 // The struct we send to userspace, containing the connection tuple and the transaction information.
