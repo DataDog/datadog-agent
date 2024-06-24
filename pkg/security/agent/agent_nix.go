@@ -30,7 +30,7 @@ func NewRuntimeSecurityAgent(statsdClient statsd.ClientInterface, hostname strin
 		return nil, errors.New("failed to initialize the telemetry reporter")
 	}
 	// on windows do no storage manager
-	storage, err := dump.NewSecurityAgentStorageManager()
+	storage, err := dump.NewAgentStorageManager()
 	if err != nil {
 		return nil, err
 	}
