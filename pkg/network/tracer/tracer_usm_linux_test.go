@@ -25,6 +25,7 @@ import (
 
 	redis2 "github.com/go-redis/redis/v9"
 	gorilla "github.com/gorilla/mux"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"github.com/twmb/franz-go/pkg/kgo"
@@ -520,15 +521,16 @@ func testHTTPSClassification(t *testing.T, tr *Tracer, clientHost, targetHost, s
 				extras:        make(map[string]interface{}),
 			},
 			preTracerSetup: func(t *testing.T, ctx testContext) {
-				cmd := testutil.HTTPPythonServer(t, ctx.serverAddress, testutil.Options{
-					EnableKeepAlive: false,
-					EnableTLS:       true,
-				})
+				cmd := gotlstestutil.NewGoTLSServer(t, ctx.serverAddress)
 				ctx.extras["cmd"] = cmd
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
 				cmd := ctx.extras["cmd"].(*exec.Cmd)
-				utils.WaitForProgramsToBeTraced(t, "shared_libraries", cmd.Process.Pid)
+				goTLSAttachPID(t, cmd.Process.Pid)
+				t.Cleanup(func() {
+					goTLSDetachPID(t, cmd.Process.Pid)
+				})
+
 				client := &nethttp.Client{
 					Transport: &nethttp.Transport{
 						TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
