@@ -33,9 +33,9 @@ func checkPoliciesCommands(globalParams *command.GlobalParams) []*cobra.Command 
 			return fxutil.OneShot(checkPolicies,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+					ConfigParams: config.NewAgentParams("", config.WithConfigMissingOK(true)),
 					SecretParams: secrets.NewEnabledParams(),
-					LogParams:    logimpl.ForOneShot(command.LoggerName, "off", false)}),
+					LogParams:    logimpl.ForOneShot("SYS-PROBE", "info", true)}),
 				core.Bundle(),
 			)
 		},
