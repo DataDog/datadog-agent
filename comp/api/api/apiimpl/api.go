@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
@@ -49,6 +50,7 @@ type apiServer struct {
 	wmeta             workloadmeta.Component
 	collector         optional.Option[collector.Component]
 	senderManager     diagnosesendermanager.Component
+	telemetry         telemetry.Component
 	endpointProviders []api.EndpointProvider
 }
 
@@ -68,6 +70,7 @@ type dependencies struct {
 	WorkloadMeta          workloadmeta.Component
 	Collector             optional.Option[collector.Component]
 	DiagnoseSenderManager diagnosesendermanager.Component
+	Telemetry             telemetry.Component
 	EndpointProviders     []api.EndpointProvider `group:"agent_endpoint"`
 }
 
@@ -88,6 +91,7 @@ func newAPIServer(deps dependencies) api.Component {
 		wmeta:             deps.WorkloadMeta,
 		collector:         deps.Collector,
 		senderManager:     deps.DiagnoseSenderManager,
+		telemetry:         deps.Telemetry,
 		endpointProviders: fxutil.GetAndFilterGroup(deps.EndpointProviders),
 	}
 }
@@ -108,6 +112,7 @@ func (server *apiServer) StartServer() error {
 		server.collector,
 		server.autoConfig,
 		server.endpointProviders,
+		server.telemetry,
 	)
 }
 

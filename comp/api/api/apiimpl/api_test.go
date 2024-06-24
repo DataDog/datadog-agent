@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
@@ -61,6 +62,7 @@ type testdeps struct {
 	Logs                  optional.Option[logsAgent.Component]
 	Collector             optional.Option[collector.Component]
 	DiagnoseSenderManager diagnosesendermanager.Component
+	Telemetry             telemetry.Component
 	EndpointProviders     []api.EndpointProvider `group:"agent_endpoint"`
 }
 
@@ -104,6 +106,7 @@ func getTestAPIServer(deps testdeps) api.Component {
 		LogsAgentComp:     deps.Logs,
 		WorkloadMeta:      deps.WorkloadMeta,
 		Collector:         deps.Collector,
+		Telemetry:         deps.Telemetry,
 		EndpointProviders: deps.EndpointProviders,
 	}
 	return newAPIServer(apideps)
