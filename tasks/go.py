@@ -658,7 +658,7 @@ def create_module(ctx, path: str, no_verify: bool = False):
 
 
 @task(iterable=['targets'])
-def mod_diffs(ctx, targets):
+def mod_diffs(_, targets):
     """
     Lists differences in versions of libraries in the repo,
     optionally compared to a list of target go.mod files.
