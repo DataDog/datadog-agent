@@ -10,6 +10,7 @@ import (
 	"context"
 	_ "embed"
 	"encoding/json"
+	"fmt"
 	"testing"
 	"text/template"
 	"time"
@@ -26,6 +27,7 @@ import (
 	kubeClient "k8s.io/client-go/kubernetes"
 
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awskubernetes "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/kubernetes"
@@ -83,7 +85,7 @@ func (s *K8sSuite) TestProcessCheck() {
 	t := s.T()
 
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
-		status := s.getAgentStatus()
+		status := k8sAgentStatus(t, s.Env().KubernetesCluster)
 		assert.ElementsMatch(t, []string{"process", "rtprocess"}, status.ProcessAgentStatus.Expvars.Map.EnabledChecks)
 	}, 2*time.Minute, 5*time.Second)
 
@@ -119,7 +121,7 @@ func (s *K8sSuite) TestProcessDiscoveryCheck() {
 	))
 
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
-		status := s.getAgentStatus()
+		status := k8sAgentStatus(t, s.Env().KubernetesCluster)
 		assert.ElementsMatch(t, []string{"process_discovery"}, status.ProcessAgentStatus.Expvars.Map.EnabledChecks)
 	}, 2*time.Minute, 5*time.Second)
 
@@ -135,52 +137,39 @@ func (s *K8sSuite) TestProcessDiscoveryCheck() {
 }
 
 func (s *K8sSuite) TestManualProcessCheck() {
-	agent := getAgentPod(s.T(), s.Env().KubernetesCluster.Client())
-
-	// The log level needs to be overridden as the pod has an ENV var set.
-	// This is so we get just json back from the check
-	stdout, stderr, err := s.Env().KubernetesCluster.KubernetesClient.
-		PodExec(agent.Namespace, agent.Name, "process-agent",
-			[]string{"bash", "-c", "DD_LOG_LEVEL=OFF process-agent check process -w 5s --json"})
-	assert.NoError(s.T(), err)
-	assert.Empty(s.T(), stderr)
-
-	assertManualProcessCheck(s.T(), stdout, false, "stress-ng-cpu [run]", "stress-ng")
+	checkOutput := execProcessAgentCheck(s.T(), s.Env().KubernetesCluster, "process")
+	assertManualProcessCheck(s.T(), checkOutput, false, "stress-ng-cpu [run]", "stress-ng")
 }
 
 func (s *K8sSuite) TestManualProcessDiscoveryCheck() {
-	agent := getAgentPod(s.T(), s.Env().KubernetesCluster.Client())
-	// The log level needs to be overridden as the pod has an ENV var set.
-	// This is so we get just json back from the check
-	stdout, stderr, err := s.Env().KubernetesCluster.KubernetesClient.
-		PodExec(agent.Namespace, agent.Name, "process-agent",
-			[]string{"bash", "-c", "DD_LOG_LEVEL=OFF process-agent check process_discovery -w 5s --json"})
-	assert.NoError(s.T(), err)
-	assert.Empty(s.T(), stderr)
-
-	assertManualProcessDiscoveryCheck(s.T(), stdout, "stress-ng-cpu [run]")
+	checkOutput := execProcessAgentCheck(s.T(), s.Env().KubernetesCluster, "process_discovery")
+	assertManualProcessDiscoveryCheck(s.T(), checkOutput, "stress-ng-cpu [run]")
 }
 
 func (s *K8sSuite) TestManualContainerCheck() {
-	agent := getAgentPod(s.T(), s.Env().KubernetesCluster.Client())
+	checkOutput := execProcessAgentCheck(s.T(), s.Env().KubernetesCluster, "container")
+	assertManualContainerCheck(s.T(), checkOutput, "stress-ng")
+}
+
+func execProcessAgentCheck(t *testing.T, cluster *components.KubernetesCluster, check string) string {
+	agent := getAgentPod(t, cluster.Client())
+	cmd := fmt.Sprintf("DD_LOG_LEVEL=OFF process-agent check %s -w 5s --json", check)
 
 	// The log level needs to be overridden as the pod has an ENV var set.
 	// This is so we get just json back from the check
-	stdout, stderr, err := s.Env().KubernetesCluster.KubernetesClient.
-		PodExec(agent.Namespace, agent.Name, "process-agent",
-			[]string{"bash", "-c", "DD_LOG_LEVEL=OFF process-agent check container -w 5s --json"})
-	assert.NoError(s.T(), err)
-	assert.Empty(s.T(), stderr)
+	stdout, stderr, err := cluster.KubernetesClient.
+		PodExec(agent.Namespace, agent.Name, "process-agent", []string{"bash", "-c", cmd})
+	assert.NoError(t, err)
+	assert.Empty(t, stderr)
 
-	assertManualContainerCheck(s.T(), stdout, "stress-ng")
+	return stdout
 }
 
-func (s *K8sSuite) getAgentStatus() AgentStatus {
-	t := s.T()
-	agent := getAgentPod(t, s.Env().KubernetesCluster.Client())
+func k8sAgentStatus(t *testing.T, cluster *components.KubernetesCluster) AgentStatus {
+	agent := getAgentPod(t, cluster.Client())
 
-	stdout, stderr, err := s.Env().KubernetesCluster.KubernetesClient.
-		PodExec(agent.Namespace, agent.Name, "process-agent",
+	stdout, stderr, err := cluster.KubernetesClient.
+		PodExec(agent.Namespace, agent.Name, "agent",
 			[]string{"bash", "-c", "DD_LOG_LEVEL=OFF agent status --json"})
 	require.NoError(t, err)
 	assert.Empty(t, stderr)
