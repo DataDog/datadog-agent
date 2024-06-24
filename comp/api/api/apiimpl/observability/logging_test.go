@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -115,17 +116,18 @@ func TestLogResponseHandlerLogging(t *testing.T) {
 					assert.EqualValues(t, ttURL.Path, args[2])
 					assert.EqualValues(t, tt.remoteAddr, args[3])
 					assert.EqualValues(t, ttURL.Host, args[4])
-					assert.LessOrEqual(t, tt.duration, args[5])
+					assert.EqualValues(t, tt.duration, args[5])
 					assert.EqualValues(t, tt.statusCode, args[6])
 				}
 			}
 
+			clock := clock.NewMock()
 			next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				time.Sleep(tt.duration)
+				clock.Add(tt.duration)
 				w.WriteHeader(tt.statusCode)
 			})
 
-			logHandler := logResponseHandler(serverName, getLogFunc)
+			logHandler := logResponseHandler(serverName, getLogFunc, clock)
 			handler := http.StripPrefix(tt.stripPrefix, logHandler(next))
 
 			rr := httptest.NewRecorder()
