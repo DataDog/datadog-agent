@@ -16,7 +16,7 @@ import (
 )
 
 type telemetryResults struct {
-	exceededQueryLength       [4]int64
+	queryLength               [bucketRange]int64
 	failedTableNameExtraction int64
 	failedOperationExtraction int64
 }
@@ -33,30 +33,60 @@ func TestTelemetry_Count(t *testing.T) {
 			tx: []*EbpfEvent{
 				{
 					Tx: EbpfTx{
-						Original_query_size: 120,
+						Original_query_size: 19,
 					},
 				},
 				{
 					Tx: EbpfTx{
-						Original_query_size: 129,
+						Original_query_size: 34,
 					},
 				},
 				{
 					Tx: EbpfTx{
-						Original_query_size: 257,
+						Original_query_size: 49,
 					},
 				},
 				{
 					Tx: EbpfTx{
-						Original_query_size: 514,
+						Original_query_size: 64,
+					},
+				},
+				{
+					Tx: EbpfTx{
+						Original_query_size: 79,
+					},
+				},
+				{
+					Tx: EbpfTx{
+						Original_query_size: 94,
+					},
+				},
+				{
+					Tx: EbpfTx{
+						Original_query_size: 109,
+					},
+				},
+				{
+					Tx: EbpfTx{
+						Original_query_size: 124,
+					},
+				},
+				{
+					Tx: EbpfTx{
+						Original_query_size: 139,
+					},
+				},
+				{
+					Tx: EbpfTx{
+						Original_query_size: 200,
 					},
 				},
 			},
 
 			expectedTelemetry: telemetryResults{
-				exceededQueryLength:       [4]int64{1, 1, 1, 1},
-				failedOperationExtraction: 4,
-				failedTableNameExtraction: 4,
+				queryLength:               [bucketRange]int64{1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
+				failedOperationExtraction: 10,
+				failedTableNameExtraction: 10,
 			},
 		},
 		{
@@ -65,6 +95,7 @@ func TestTelemetry_Count(t *testing.T) {
 			query: "CREA TABLE dummy",
 			expectedTelemetry: telemetryResults{
 				failedOperationExtraction: 1,
+				queryLength:               [bucketRange]int64{1, 0, 0, 0, 0, 0, 0, 0, 0, 0},
 			},
 		},
 		{
@@ -73,6 +104,7 @@ func TestTelemetry_Count(t *testing.T) {
 			query: "CREATE TABLE",
 			expectedTelemetry: telemetryResults{
 				failedTableNameExtraction: 1,
+				queryLength:               [bucketRange]int64{1, 0, 0, 0, 0, 0, 0, 0, 0, 0},
 			},
 		},
 		{
@@ -82,6 +114,7 @@ func TestTelemetry_Count(t *testing.T) {
 			expectedTelemetry: telemetryResults{
 				failedTableNameExtraction: 1,
 				failedOperationExtraction: 1,
+				queryLength:               [bucketRange]int64{1, 0, 0, 0, 0, 0, 0, 0, 0, 0},
 			},
 		},
 	}
@@ -94,7 +127,8 @@ func TestTelemetry_Count(t *testing.T) {
 				copy(tt.tx[0].Tx.Request_fragment[:], tt.query)
 			}
 			for _, tx := range tt.tx {
-				tel.Count(tx)
+				ep := NewEventWrapper(tx)
+				tel.Count(tx, ep)
 			}
 			verifyTelemetry(t, tel, tt.expectedTelemetry)
 		})
@@ -102,8 +136,8 @@ func TestTelemetry_Count(t *testing.T) {
 }
 
 func verifyTelemetry(t *testing.T, tel *Telemetry, expected telemetryResults) {
-	for i := 0; i < len(tel.exceededQueryLengthBuckets); i++ {
-		assert.Equal(t, tel.exceededQueryLengthBuckets[i].Get(), expected.exceededQueryLength[i], "exceededQueryLength for bucket %d count is incorrect", i)
+	for i := 0; i < len(tel.queryLengthBuckets); i++ {
+		assert.Equal(t, tel.queryLengthBuckets[i].Get(), expected.queryLength[i], "queryLength for bucket %d count is incorrect", i)
 	}
 	assert.Equal(t, tel.failedTableNameExtraction.Get(), expected.failedTableNameExtraction, "failedTableNameExtraction count is incorrect")
 	assert.Equal(t, tel.failedOperationExtraction.Get(), expected.failedOperationExtraction, "failedOperationExtraction count is incorrect")

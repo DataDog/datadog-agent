@@ -198,8 +198,9 @@ func (*protocol) IsBuildModeSupported(buildmode.Type) bool {
 func (p *protocol) processPostgres(events []EbpfEvent) {
 	for i := range events {
 		tx := &events[i]
-		p.statskeeper.Process(NewEventWrapper(tx))
-		p.telemetry.Count(tx)
+		eventWrapper := NewEventWrapper(tx)
+		p.statskeeper.Process(eventWrapper)
+		p.telemetry.Count(tx, eventWrapper)
 	}
 }
 
