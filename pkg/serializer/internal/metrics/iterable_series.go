@@ -239,6 +239,7 @@ type PayloadsBuilder struct {
 
 // Prepare to write the next payload
 func (pb *PayloadsBuilder) startPayload() error {
+	pb.pointsThisPayload = 0
 	pb.seriesThisPayload = 0
 	pb.bufferContext.CompressorInput.Reset()
 	pb.bufferContext.CompressorOutput.Reset()
