@@ -35,7 +35,7 @@ def load_and_validate(
 
 
 DATADOG_AGENT_GITHUB_ORG_URL = "https://github.com/DataDog"
-DEFAULT_SLACK_CHANNEL = "#agent-developer-experience"
+DEFAULT_SLACK_CHANNEL = "#agent-devx-ops"
 DEFAULT_JIRA_PROJECT = "AGNTR"
 # Map keys in lowercase
 GITHUB_SLACK_MAP = load_and_validate("github_slack_map.yaml", "DEFAULT_SLACK_CHANNEL", DEFAULT_SLACK_CHANNEL)
