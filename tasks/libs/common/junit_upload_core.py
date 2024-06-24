@@ -72,13 +72,13 @@ def junit_upload_from_tgz(junit_tgz, codeowners_path=".github/CODEOWNERS"):
     with open(codeowners_path) as f:
         codeowners = CodeOwners(f.read())
 
-    flaky_tests = get_flaky_from_test_output()
     junit_tgz = find_tarball(junit_tgz)
 
     with (
         gitlab_section(f"Uploading JUnit files for {junit_tgz}", collapsed=True),
         tempfile.TemporaryDirectory() as unpack_dir,
     ):
+        flaky_tests = get_flaky_from_test_output()
         working_dir = Path(unpack_dir)
         # unpack all files from archive
         with tarfile.open(junit_tgz) as tgz:
@@ -224,8 +224,8 @@ def upload_junitxmls(team_dir: Path):
 
     for process in processes:
         stdout, stderr = process.communicate()
-        print(f" Uploaded {len(tuple(team_dir.iterdir()))} files for {team_dir.name}")
         print(stdout)
+        print(f" Uploaded {len(tuple(team_dir.iterdir()))} files for {team_dir.name}")
         if stderr:
             print(f"Failed uploading junit:\n{stderr}", file=os.sys.stderr)
             raise CalledProcessError(process.returncode, DATADOG_CI_COMMAND)
@@ -308,7 +308,6 @@ def _update_environ(unpack_dir: Path):
                     continue
                 key, val = line.strip().split('=', 1)
                 job_env[key] = val
-        print("\n".join(f"{k}={v}" for k, v in job_env.items()))
         process_env.update(job_env)
     return process_env
 
@@ -344,8 +343,12 @@ def produce_junit_tar(files, result_path):
         tgz.addfile(tags_info, tags_file)
 
         job_env_file = io.BytesIO()
-        job_env_file.write(f'CI_JOB_URL={os.environ.get("CI_JOB_URL", "")}\n'.encode())
-        job_env_file.write(f'CI_JOB_NAME={os.environ.get("CI_JOB_NAME", "")}'.encode())
+        job_env_file.writelines(
+            [
+                f'CI_JOB_URL={os.environ.get("CI_JOB_URL", "")}\n'.encode(),
+                f'CI_JOB_NAME="{os.environ.get("CI_JOB_NAME", "")}"'.encode(),
+            ]
+        )
         job_env_info = tarfile.TarInfo(JOB_ENV_FILE_NAME)
         job_env_info.size = job_env_file.getbuffer().nbytes
         job_env_file.seek(0)
