@@ -187,6 +187,9 @@ pkg/network/netlink/testdata/message_dump*
 *~
 .dir-locals.el
 
+# Vim
+.vimrc
+
 # etags
 /TAGS
 

@@ -13,7 +13,7 @@ from tasks.pipeline import update_circleci_config, update_gitlab_config, update_
         "test_version": "Is a test image or not",
     }
 )
-def update(_: Context, image_tag: str, test_version: str | None = True):
+def update(_: Context, image_tag: str, test_version: bool = True):
     """
     Update local files to run with new image_tag from agent-buildimages
     Use --no-test-version to commit without the _test_only suffixes

@@ -30,6 +30,7 @@ const (
 	useDefaultUser = iota
 	useLegacyUser
 	useDoesNotExistUser
+	useSysUser
 )
 
 const (
@@ -60,7 +61,13 @@ func getConnectData(t *testing.T, userType int) config.ConnectionConfig {
 			passwordEnvVariable = "ORACLE_TEST_LEGACY_PASSWORD"
 			server = os.Getenv(serverEnvVariable)
 			serviceName = os.Getenv(serviceNameEnvVariable)
+		case useSysUser:
+			userEnvVariable = "ORACLE_TEST_SYS_USER"
+			passwordEnvVariable = "ORACLE_TEST_SYS_PASSWORD"
+			server = os.Getenv(serverEnvVariable)
+			serviceName = os.Getenv(serviceNameEnvVariable)
 		}
+
 		username = os.Getenv(userEnvVariable)
 		password = os.Getenv(passwordEnvVariable)
 		port, _ := strconv.Atoi(os.Getenv(portEnvVariable))
@@ -86,6 +93,8 @@ func getConnectData(t *testing.T, userType int) config.ConnectionConfig {
 	switch userType {
 	case useLegacyUser:
 		return handleRealConnection(useLegacyUser)
+	case useSysUser:
+		return handleRealConnection(useSysUser)
 	case useDoesNotExistUser:
 		return config.ConnectionConfig{
 			Username:    doesNotExist,

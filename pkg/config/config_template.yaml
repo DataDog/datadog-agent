@@ -913,7 +913,7 @@ api_key:
   # container_collect_all: false
 
   ## @param logs_dd_url - string - optional
-  ## @env DD_LOGS_CONFIG_DD_URL - string - optional
+  ## @env DD_LOGS_CONFIG_LOGS_DD_URL - string - optional
   ## Define the endpoint and port to hit when using a proxy for logs. The logs are forwarded in TCP
   ## therefore the proxy must be able to handle TCP connections.
   #
@@ -1070,6 +1070,7 @@ api_key:
   #
   # apm_dd_url: <ENDPOINT>:<PORT>
 
+  ## DEPRECATED - please use `target_traces_per_second` instead.
   ## @param max_traces_per_second - integer - optional - default: 10
   ## @env DD_APM_MAX_TPS - integer - optional - default: 10
   ## The target traces per second to sample. Sampling rates to apply are adjusted given
@@ -1079,6 +1080,16 @@ api_key:
   ## value sufficiently high for your traffic pattern.
   #
   # max_traces_per_second: 10
+
+  ## @param target_traces_per_second - integer - optional - default: 10
+  ## @env DD_APM_TARGET_TPS - integer - optional - default: 10
+  ## The target traces per second to sample. Sampling rates to apply are adjusted given
+  ## the received traffic and communicated to tracers. This configures head-based sampling.
+  ## As of 7.35.0 sampling cannot be disabled and setting 'max_traces_per_second' to 0 no longer
+  ## disables sampling, but instead sends no traces to the intake. To avoid rate limiting, set this
+  ## value sufficiently high for your traffic pattern.
+  #
+  # target_traces_per_second: 10
 
   ## @param errors_per_second - integer - optional - default: 10
   ## @env DD_APM_ERROR_TPS - integer - optional - default: 10
@@ -1133,6 +1144,19 @@ api_key:
   #         keep_values:
   #             - client_id
   ##        @param DD_APM_OBFUSCATION_ELASTICSEARCH_OBFUSCATE_SQL_VALUES - boolean - optional
+  ##        The set of keys for which their values will be passed through SQL obfuscation
+  #         obfuscate_sql_values:
+  #             - val1
+  #
+  #     opensearch:
+  ##        @param DD_APM_OBFUSCATION_OPENSEARCH_ENABLED - boolean - optional
+  ##        Enables obfuscation rules for spans of type "opensearch". Enabled by default.
+  #         enabled: true
+  ##        @param DD_APM_OBFUSCATION_OPENSEARCH_KEEP_VALUES - object - optional
+  ##        List of keys that should not be obfuscated.
+  #         keep_values:
+  #             - client_id
+  ##        @param DD_APM_OBFUSCATION_OPENSEARCH_OBFUSCATE_SQL_VALUES - boolean - optional
   ##        The set of keys for which their values will be passed through SQL obfuscation
   #         obfuscate_sql_values:
   #             - val1
@@ -3550,7 +3574,7 @@ api_key:
   ## This field is used by NDM features (SNMP check, SNMP Traps listener, etc).
   #
   # namespace: default
-  
+
   ## @param autodiscovery - custom object - optional
   ## Creates and schedules a listener to automatically discover your SNMP devices.
   ## Discovered devices can then be monitored with the SNMP integration by using

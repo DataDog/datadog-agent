@@ -78,20 +78,22 @@ func (m *metadataController) run(stopCh <-chan struct{}) {
 		return
 	}
 
-	wmetaFilterParams := workloadmeta.FilterParams{
-		Kinds:     []workloadmeta.Kind{workloadmeta.KindKubernetesNode},
-		Source:    workloadmeta.SourceAll,
-		EventType: workloadmeta.EventTypeAll,
-	}
+	filter := workloadmeta.NewFilterBuilder().AddKindWithEntityFilter(
+		workloadmeta.KindKubernetesMetadata,
+		func(entity workloadmeta.Entity) bool {
+			metadata := entity.(*workloadmeta.KubernetesMetadata)
+			return workloadmeta.IsNodeMetadata(metadata)
+		},
+	).Build()
 
 	wmetaEventsCh := m.wmeta.Subscribe(
 		"metadata-controller",
 		workloadmeta.NormalPriority,
-		workloadmeta.NewFilter(&wmetaFilterParams),
+		filter,
 	)
 	defer m.wmeta.Unsubscribe(wmetaEventsCh)
 
-	go m.processWorkloadmetaNodeEvents(wmetaEventsCh)
+	go m.processWorkloadmetaNodeMetadataEvents(wmetaEventsCh)
 	go wait.Until(m.worker, time.Second, stopCh)
 	<-stopCh
 }
@@ -116,12 +118,12 @@ func (m *metadataController) processNextWorkItem() bool {
 	return true
 }
 
-func (m *metadataController) processWorkloadmetaNodeEvents(wmetaEventsCh chan workloadmeta.EventBundle) {
+func (m *metadataController) processWorkloadmetaNodeMetadataEvents(wmetaEventsCh chan workloadmeta.EventBundle) {
 	for eventBundle := range wmetaEventsCh {
 		eventBundle.Acknowledge()
 
 		for _, event := range eventBundle.Events {
-			node := event.Entity.(*workloadmeta.KubernetesNode)
+			node := event.Entity.(*workloadmeta.KubernetesMetadata)
 
 			switch event.Type {
 			case workloadmeta.EventTypeSet:
@@ -270,7 +272,7 @@ func (m *metadataController) mapEndpoints(endpoints *corev1.Endpoints) error {
 }
 
 func (m *metadataController) deleteMappedEndpoints(namespace, svc string) error {
-	nodes := m.wmeta.ListKubernetesNodes()
+	nodes := m.wmeta.ListKubernetesMetadata(workloadmeta.IsNodeMetadata)
 
 	// Delete the service from the metadata bundle for each node.
 	for _, node := range nodes {
