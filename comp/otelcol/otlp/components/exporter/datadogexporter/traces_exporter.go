@@ -14,7 +14,7 @@ import (
 )
 
 type traceExporter struct {
-	params        exporter.CreateSettings
+	params        exporter.Settings
 	cfg           *Config
 	ctx           context.Context      // ctx triggers shutdown upon cancellation
 	traceagentcmp traceagent.Component // agent processes incoming traces
@@ -22,7 +22,7 @@ type traceExporter struct {
 
 func newTracesExporter(
 	ctx context.Context,
-	params exporter.CreateSettings,
+	params exporter.Settings,
 	cfg *Config,
 	traceagentcmp traceagent.Component,
 ) *traceExporter {

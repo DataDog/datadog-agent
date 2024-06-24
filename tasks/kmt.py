@@ -41,6 +41,7 @@ from tasks.kernel_matrix_testing.tool import Exit, ask, error, get_binary_target
 from tasks.kernel_matrix_testing.vars import KMT_SUPPORTED_ARCHS, KMTPaths
 from tasks.libs.build.ninja import NinjaWriter
 from tasks.libs.common.utils import get_build_flags
+from tasks.libs.pipeline.tools import loop_status
 from tasks.libs.types.arch import Arch, KMTArchName
 from tasks.security_agent import build_functional_tests, build_stress_tests
 from tasks.system_probe import (
@@ -1863,3 +1864,24 @@ def tag_ci_job(ctx: Context):
     tags_str = " ".join(f"--tags '{tag_prefix}{k}:{v}'" for k, v in tags.items())
 
     ctx.run(f"datadog-ci tag --level job {tags_str}")
+
+
+@task
+def wait_for_setup_job(ctx: Context, pipeline_id: int, arch: str | Arch, component: Component, timeout_sec: int = 3600):
+    """Wait for the setup job to finish corresponding to the given pipeline, arch and component"""
+    arch = Arch.from_str(arch)
+    setup_jobs, _ = get_all_jobs_for_pipeline(pipeline_id)
+    matching_jobs = [j for j in setup_jobs if j.arch == arch.kmt_arch and j.component == component]
+    if len(matching_jobs) != 1:
+        raise Exit(f"Search for setup_job for {arch} {component} failed: result = {matching_jobs}")
+
+    setup_job = matching_jobs[0]
+    finished_status = {"failed", "success", "canceled", "skipped"}
+
+    def _check_status(_):
+        setup_job.refresh()
+        info(f"[+] Status for job {setup_job.name}: {setup_job.status}")
+        return setup_job.status.lower() in finished_status, None
+
+    loop_status(_check_status, timeout_sec=timeout_sec)
+    info(f"[+] Setup job {setup_job.name} finished with status {setup_job.status}")
