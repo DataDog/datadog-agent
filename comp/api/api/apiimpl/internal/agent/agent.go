@@ -56,8 +56,6 @@ func SetupHandlers(
 	r.HandleFunc("/status/health", getHealth).Methods("GET")
 	r.HandleFunc("/{component}/status", componentStatusHandler).Methods("POST")
 	r.HandleFunc("/{component}/configs", componentConfigHandler).Methods("GET")
-	r.HandleFunc("/secrets", func(w http.ResponseWriter, r *http.Request) { secretInfo(w, r, secretResolver) }).Methods("GET")
-	r.HandleFunc("/secret/refresh", func(w http.ResponseWriter, r *http.Request) { secretRefresh(w, r, secretResolver) }).Methods("GET")
 	r.HandleFunc("/diagnose", func(w http.ResponseWriter, r *http.Request) {
 		diagnoseDeps := diagnose.NewSuitesDeps(senderManager, collector, secretResolver, optional.NewOption(wmeta), optional.NewOption[autodiscovery.Component](ac))
 		getDiagnose(w, r, diagnoseDeps)
@@ -112,19 +110,6 @@ func getHealth(w http.ResponseWriter, _ *http.Request) {
 	}
 
 	w.Write(jsonHealth)
-}
-
-func secretInfo(w http.ResponseWriter, _ *http.Request, secretResolver secrets.Component) {
-	secretResolver.GetDebugInfo(w)
-}
-
-func secretRefresh(w http.ResponseWriter, _ *http.Request, secretResolver secrets.Component) {
-	result, err := secretResolver.Refresh()
-	if err != nil {
-		utils.SetJSONError(w, err, 500)
-		return
-	}
-	w.Write([]byte(result))
 }
 
 func getDiagnose(w http.ResponseWriter, r *http.Request, diagnoseDeps diagnose.SuitesDeps) {

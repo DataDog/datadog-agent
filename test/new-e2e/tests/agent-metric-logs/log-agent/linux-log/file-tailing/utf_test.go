@@ -8,8 +8,6 @@ package linuxfiletailing
 import (
 	_ "embed"
 	"fmt"
-	"os"
-	"strconv"
 	"testing"
 	"time"
 
@@ -37,12 +35,8 @@ type UtfSuite struct {
 // TestUtfSuite runs the E2E test suite for tailing UTF encoded logs
 func TestUtfSuite(t *testing.T) {
 	s := &UtfSuite{}
-	devModeEnv, _ := os.LookupEnv("E2E_DEVMODE")
 	options := []e2e.SuiteOption{
 		e2e.WithProvisioner(awshost.Provisioner(awshost.WithAgentOptions(agentparams.WithLogs(), agentparams.WithIntegration("custom_logs.d", logConfig)))),
-	}
-	if devMode, err := strconv.ParseBool(devModeEnv); err == nil && devMode {
-		options = append(options, e2e.WithDevMode())
 	}
 
 	e2e.Run(t, s, options...)

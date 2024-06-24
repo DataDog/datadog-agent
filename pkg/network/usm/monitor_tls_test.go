@@ -105,7 +105,7 @@ func (s *tlsSuite) TestHTTPSViaLibraryIntegration() {
 				dir, err := testutil.CurDir()
 				require.NoError(t, err)
 
-				dir = path.Join(dir, "..", "protocols", "tls", "openssl", "testdata", "musl")
+				dir = path.Join(dir, "testdata", "musl")
 				protocolsUtils.RunDockerServer(t, "musl-alpine", path.Join(dir, "/docker-compose.yml"),
 					nil, regexp.MustCompile("started"), protocolsUtils.DefaultTimeout, 3)
 
