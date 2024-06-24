@@ -137,8 +137,11 @@ func (a *apmInjectorInstaller) Setup(ctx context.Context) error {
 	if err := addSystemDEnvOverrides(ctx, traceAgentExp); err != nil {
 		return err
 	}
+	if err := systemdReload(ctx); err != nil {
+		return err
+	}
 
-	// /var/log/datadog is created by default with datadog-installer install
+	// Create mandatory dirs
 	err = os.Mkdir("/var/log/datadog/dotnet", 0777)
 	if err != nil && !os.IsExist(err) {
 		return fmt.Errorf("error creating /var/log/datadog/dotnet: %w", err)
@@ -147,6 +150,10 @@ func (a *apmInjectorInstaller) Setup(ctx context.Context) error {
 	err = os.Chmod("/var/log/datadog/dotnet", 0777)
 	if err != nil {
 		return fmt.Errorf("error changing permissions on /var/log/datadog/dotnet: %w", err)
+	}
+	err = os.Mkdir("/etc/datadog-agent/inject", 0755)
+	if err != nil && !os.IsExist(err) {
+		return fmt.Errorf("error creating /etc/datadog-agent/inject: %w", err)
 	}
 
 	err = a.addInstrumentScripts(ctx)

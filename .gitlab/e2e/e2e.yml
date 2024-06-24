@@ -97,6 +97,7 @@ k8s-e2e-otlp-main:
     # Generate external links to CI VISIBILITY, used by artifacts:reports:annotations
     - inv -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
   variables:
+    SHOULD_RUN_IN_FLAKES_FINDER: "true"
     KUBERNETES_MEMORY_REQUEST: 12Gi
     KUBERNETES_MEMORY_LIMIT: 16Gi
     KUBERNETES_CPU_REQUEST: 6
@@ -226,7 +227,7 @@ new-e2e-language-detection:
 
 new-e2e-npm-packages:
   extends: .new_e2e_template
-  rules: 
+  rules:
     - !reference [.on_npm_or_e2e_changes]
     - !reference [.manual]
   needs:
@@ -256,7 +257,7 @@ new-e2e-aml:
     - deploy_deb_testing-a7_x64
     - deploy_windows_testing-a7
     - qa_agent
-  rules: 
+  rules:
     - !reference [.on_aml_or_e2e_changes]
     - !reference [.manual]
   variables:
@@ -265,7 +266,7 @@ new-e2e-aml:
 
 new-e2e-cws:
   extends: .new_e2e_template
-  rules: 
+  rules:
     - !reference [.on_cws_or_e2e_changes]
     - !reference [.manual]
   needs:
@@ -291,7 +292,8 @@ new-e2e-process:
     - deploy_deb_testing-a7_x64
     - deploy_windows_testing-a7
     - qa_agent
-  rules: 
+    - qa_dca
+  rules:
     - !reference [.on_process_or_e2e_changes]
     - !reference [.manual]
   variables:
@@ -365,3 +367,41 @@ new-e2e-ndm-snmp:
   variables:
     TARGETS: ./tests/ndm/snmp
     TEAM: network-device-monitoring
+
+generate-flakes-finder-pipeline:
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  stage: e2e
+  rules: !reference [.on_deploy_nightly_repo_branch]
+  needs:
+    - deploy_deb_testing-a7_arm64
+    - deploy_deb_testing-a7_x64
+    - deploy_rpm_testing-a7_arm64
+    - deploy_rpm_testing-a7_x64
+    - deploy_suse_rpm_testing_arm64-a7
+    - deploy_suse_rpm_testing_x64-a7
+    - deploy_windows_testing-a7
+    - qa_installer_oci
+    - qa_agent_oci
+    - qa_cws_instrumentation
+    - qa_dca
+    - qa_dogstatsd
+    - qa_agent
+  tags: ["arch:amd64"]
+  script:
+    - inv -e testwasher.generate-flake-finder-pipeline
+  artifacts:
+    paths:
+      - $CI_PROJECT_DIR/flake-finder-gitlab-ci.yml
+
+trigger-flakes-finder:
+  stage: e2e
+  needs: [generate-flakes-finder-pipeline]
+  rules: !reference [.on_deploy_nightly_repo_branch]
+  variables:
+    PARENT_PIPELINE_ID: $CI_PIPELINE_ID
+    PARENT_COMMIT_SHA: $CI_COMMIT_SHORT_SHA
+  trigger:
+    include:
+      - artifact: flake-finder-gitlab-ci.yml
+        job: generate-flakes-finder-pipeline
+  allow_failure: true

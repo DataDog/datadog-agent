@@ -16,7 +16,7 @@ class TestLoadAndValidate(unittest.TestCase):
 
         # Assert that a couple of expected entries are there, including one that uses DEFAULT_SLACK_PROJECT
         self.assertEqual(notifications.GITHUB_SLACK_MAP['@datadog/agent-all'], "#datadog-agent-pipelines")
-        self.assertEqual(notifications.GITHUB_SLACK_MAP['@datadog/agent-ci-experience'], "#agent-developer-experience")
+        self.assertEqual(notifications.GITHUB_SLACK_MAP['@datadog/agent-ci-experience'], "#agent-devx-ops")
 
 
 class TestFailedJobs(unittest.TestCase):

@@ -73,18 +73,5 @@ func (f *flare) collectConfigFiles(fb types.FlareBuilder) error {
 		})
 	}
 
-	if mainConfpath := f.config.ConfigFileUsed(); mainConfpath != "" {
-		confDir := filepath.Dir(mainConfpath)
-
-		// zip up the config file that was actually used, if one exists
-		fb.CopyFileTo(mainConfpath, filepath.Join("etc", "datadog.yaml")) //nolint:errcheck
-
-		// figure out system-probe file path based on main config path, and use best effort to include
-		// system-probe.yaml to the flare
-		fb.CopyFileTo(filepath.Join(confDir, "system-probe.yaml"), filepath.Join("etc", "system-probe.yaml")) //nolint:errcheck
-
-		// use best effort to include security-agent.yaml to the flare
-		fb.CopyFileTo(filepath.Join(confDir, "security-agent.yaml"), filepath.Join("etc", "security-agent.yaml")) //nolint:errcheck
-	}
 	return nil
 }

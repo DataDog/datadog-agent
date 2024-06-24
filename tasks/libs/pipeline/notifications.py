@@ -17,8 +17,13 @@ from tasks.libs.owners.parsing import read_owners
 from tasks.libs.types.types import FailedJobReason, FailedJobs, Test
 
 
-def load_and_validate(file_name: str, default_placeholder: str, default_value: str) -> dict[str, str]:
-    p = pathlib.Path(os.path.realpath(__file__)).parent.joinpath(file_name)
+def load_and_validate(
+    file_name: str, default_placeholder: str, default_value: str, relpath: bool = True
+) -> dict[str, str]:
+    if relpath:
+        p = pathlib.Path(os.path.realpath(__file__)).parent.joinpath(file_name)
+    else:
+        p = pathlib.Path(file_name)
 
     result: dict[str, str] = {}
     with p.open(encoding='utf-8') as file_stream:
@@ -30,7 +35,7 @@ def load_and_validate(file_name: str, default_placeholder: str, default_value: s
 
 
 DATADOG_AGENT_GITHUB_ORG_URL = "https://github.com/DataDog"
-DEFAULT_SLACK_CHANNEL = "#agent-developer-experience"
+DEFAULT_SLACK_CHANNEL = "#agent-devx-ops"
 DEFAULT_JIRA_PROJECT = "AGNTR"
 # Map keys in lowercase
 GITHUB_SLACK_MAP = load_and_validate("github_slack_map.yaml", "DEFAULT_SLACK_CHANNEL", DEFAULT_SLACK_CHANNEL)

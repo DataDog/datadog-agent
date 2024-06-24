@@ -13,7 +13,7 @@ Here is an abstract of the go.mod file format:
 
 {
     "Module": {"Path": "github.com/DataDog/datadog-agent"},
-    "Go": "1.21",
+    "Go": "1.22",
     "Require": [
         {"Path": "github.com/DataDog/datadog-agent/pkg/config/logs", "Version": "v0.51.0-rc.2"},
         {"Path": "k8s.io/kms", "Version": "v0.27.6", "Indirect": true},
