@@ -4,22 +4,27 @@ import subprocess
 import tempfile
 import urllib.request
 
-from invoke import task
+from invoke.exceptions import Exit
+from invoke.tasks import task
 
-from tasks.go import tidy
+from tasks.go import generate_licenses, tidy
+from tasks.libs.common.color import Color, color_message
 
 LICENSE_HEADER = """// Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 """
+OCB_VERSION = "v0.103.1"
 
 
-@task(post=[tidy])
+@task(post=[tidy, generate_licenses])
 def generate(ctx):
     arch = platform.machine()
     system = platform.system()
-    base_url = "https://github.com/open-telemetry/opentelemetry-collector/releases/download/cmd%2Fbuilder%2Fv0.103.1/"
+    base_url = (
+        f"https://github.com/open-telemetry/opentelemetry-collector/releases/download/cmd%2Fbuilder%2F{OCB_VERSION}/"
+    )
 
     if system == "Linux":
         if arch == "x86_64":
@@ -52,8 +57,10 @@ def generate(ctx):
             os.chmod(binary_path, 0o755)
             print(f"Downloaded to {binary_path}")
         except Exception as e:
-            print(f"Failed to download {binary_url}: {e}")
-            return
+            raise Exit(
+                color_message("Error: Failed to download the binary", Color.RED),
+                code=1,
+            ) from e
 
         # Run the binary with specified options
         config_path = "./comp/otelcol/collector-contrib/impl/manifest.yaml"
@@ -61,12 +68,16 @@ def generate(ctx):
         print(f"Running command: {run_command}")
 
         try:
-            result = subprocess.run(run_command, shell=True, check=True, capture_output=True, text=True)
+            result = ctx.run(run_command)
             print(f"Binary output:\n{result.stdout}")
         except subprocess.CalledProcessError as e:
-            print(f"Failed to run the binary: {e}")
-            print(f"Error output:\n{e.stderr}")
-            return
+            raise Exit(
+                color_message(
+                    f"Error: Failed to run the binary: {e} output:\n {e.stderr}",
+                    Color.RED,
+                ),
+                code=1,
+            ) from e
 
     # Clean the files with main* in comp/otelcol/collector-contrib/impl
     impl_path = "./comp/otelcol/collector-contrib/impl"
