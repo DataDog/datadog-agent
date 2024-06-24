@@ -263,6 +263,14 @@ func (suite *k8sSuite) TestClusterAgentConfigCheck() {
 		suite.Require().NoError(err)
 		suite.Empty(stderr, "Standard error of `agent configcheck` should be empty")
 		suite.Contains(stdout, "=== kubernetes_apiserver check ===")
+
+		// Test the cluster agent config check command running on a TTY session
+		stdout, stderr, err = suite.podExec("datadog", linuxPods.Items[0].Name, "cluster-agent", []string{"agent", "configcheck"}, func(podOption *corev1.PodExecOptions) {
+			podOption.TTY = true
+		})
+		suite.Require().NoError(err)
+		suite.Empty(stderr, "Standard error of `agent configcheck` should be empty")
+		suite.Contains(stdout, "=== kubernetes_apiserver check ===")
 	})
 }
 
@@ -1232,7 +1240,9 @@ func (suite *k8sSuite) testHPA(namespace, deployment string) {
 	})
 }
 
-func (suite *k8sSuite) podExec(namespace, pod, container string, cmd []string) (stdout, stderr string, err error) {
+type podExecOption func(*corev1.PodExecOptions)
+
+func (suite *k8sSuite) podExec(namespace, pod, container string, cmd []string, podOptions ...podExecOption) (stdout, stderr string, err error) {
 	req := suite.K8sClient.CoreV1().RESTClient().Post().Resource("pods").Namespace(namespace).Name(pod).SubResource("exec")
 	option := &corev1.PodExecOptions{
 		Stdin:     false,
@@ -1241,6 +1251,10 @@ func (suite *k8sSuite) podExec(namespace, pod, container string, cmd []string) (
 		TTY:       false,
 		Container: container,
 		Command:   cmd,
+	}
+
+	for _, podOption := range podOptions {
+		podOption(option)
 	}
 
 	req.VersionedParams(

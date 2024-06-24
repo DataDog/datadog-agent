@@ -72,7 +72,11 @@ type SubcommandFactory func(globalParams *GlobalParams) []*cobra.Command
 
 // MakeCommand makes the top-level Cobra command for this app.
 func MakeCommand(subcommandFactories []SubcommandFactory, winParams bool, rootCmdRun func(globalParams *GlobalParams)) *cobra.Command {
-	globalParams := GlobalParams{}
+	globalParams := GlobalParams{
+		// github.com/fatih/color sets its global color.NoColor to a default value based on
+		// whether the process is running in a tty
+		NoColor: color.NoColor,
+	}
 
 	rootCmd := &cobra.Command{
 		Run: func(_ *cobra.Command, _ []string) {
@@ -101,7 +105,7 @@ func MakeCommand(subcommandFactories []SubcommandFactory, winParams bool, rootCm
 	// github.com/fatih/color sets its global color.NoColor to a default value based on
 	// whether the process is running in a tty.  So, we only want to override that when
 	// the value is true.
-	rootCmd.PersistentFlags().BoolVarP(&globalParams.NoColor, "no-color", "n", false, "disable color output")
+	rootCmd.PersistentFlags().BoolVarP(&globalParams.NoColor, "no-color", "n", globalParams.NoColor, "disable color output")
 	rootCmd.PersistentPreRun = func(*cobra.Command, []string) {
 		if globalParams.NoColor {
 			color.NoColor = true

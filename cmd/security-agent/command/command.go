@@ -45,7 +45,11 @@ var (
 
 // MakeCommand makes the top-level Cobra command for this command.
 func MakeCommand(subcommandFactories []SubcommandFactory) *cobra.Command {
-	var globalParams GlobalParams
+	globalParams := GlobalParams{
+		// github.com/fatih/color sets its global color.NoColor to a default value based on
+		// whether the process is running in a tty
+		NoColor: color.NoColor,
+	}
 
 	SecurityAgentCmd := &cobra.Command{
 		Use:   "datadog-security-agent [command]",
@@ -67,7 +71,7 @@ Datadog Security Agent takes care of running compliance and security checks.`,
 
 	SecurityAgentCmd.PersistentFlags().StringArrayVarP(&globalParams.ConfigFilePaths, "cfgpath", "c", defaultSecurityAgentConfigFilePaths, "paths to yaml configuration files")
 	SecurityAgentCmd.PersistentFlags().StringVar(&globalParams.SysProbeConfFilePath, "sysprobe-config", defaultSysProbeConfPath, "path to system-probe.yaml config")
-	SecurityAgentCmd.PersistentFlags().BoolVarP(&globalParams.NoColor, "no-color", "n", false, "disable color output")
+	SecurityAgentCmd.PersistentFlags().BoolVarP(&globalParams.NoColor, "no-color", "n", globalParams.NoColor, "disable color output")
 
 	for _, factory := range subcommandFactories {
 		for _, subcmd := range factory(&globalParams) {
