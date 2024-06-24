@@ -93,7 +93,7 @@ class TestSetTag(unittest.TestCase):
         mock_gitlab.return_value = mock_instance
         tags = junit.set_tags("agent-ci-experience", "base", "", {}, "")
         self.assertEqual(len(tags), 14)
-        self.assertIn("slack_channel:agent-developer-experience", tags)
+        self.assertIn("slack_channel:agent-devx-ops", tags)
 
     @patch.dict("os.environ", {"CI_PIPELINE_ID": "1664"})
     @patch("tasks.libs.common.junit_upload_core.get_gitlab_repo")
