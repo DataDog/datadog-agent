@@ -365,8 +365,9 @@ func GenerateCPUUtilizationEnhancedMetrics(args GenerateCPUUtilizationEnhancedMe
 
 	numberCPUs := float64(len(args.IndividualCPUIdleTimes))
 	adjustedIdleTime := args.IdleTimeMs - args.IdleTimeOffsetMs
-	totalUtilizedPercent := 100 * (adjustedUptime*numberCPUs - adjustedIdleTime) / (adjustedUptime * numberCPUs)
-	totalUtilizedCores := totalUtilizedPercent * numberCPUs
+	totalUtilizedDecimal := (adjustedUptime*numberCPUs - adjustedIdleTime) / (adjustedUptime * numberCPUs)
+	totalUtilizedPercent := 100 * totalUtilizedDecimal
+	totalUtilizedCores := numberCPUs * totalUtilizedDecimal
 
 	args.Demux.AggregateSample(metrics.MetricSample{
 		Name:       cpuTotalUtilizationPctMetric,

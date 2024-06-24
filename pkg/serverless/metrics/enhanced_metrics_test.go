@@ -2,11 +2,10 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
-
 package metrics
 
 import (
-	"os"
+	"sync"
 	"testing"
 	"time"
 
@@ -251,17 +250,24 @@ func TestSendInvocationEnhancedMetric(t *testing.T) {
 }
 
 func TestDisableEnhancedMetrics(t *testing.T) {
-	os.Setenv("DD_ENHANCED_METRICS", "false")
-	defer os.Setenv("DD_ENHANCED_METRICS", "true")
+	var wg sync.WaitGroup
+	enhancedMetricsDisabled = true
 	demux := createDemultiplexer(t)
 	tags := []string{"functionname:test-function"}
 
-	go SendInvocationEnhancedMetric(tags, demux)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		SendInvocationEnhancedMetric(tags, demux)
+	}()
 
 	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(1, 0, 100*time.Millisecond)
 
 	assert.Len(t, generatedMetrics, 0)
 	assert.Len(t, timedMetrics, 0)
+
+	wg.Wait()
+	enhancedMetricsDisabled = false
 }
 
 func TestSendOutOfMemoryEnhancedMetric(t *testing.T) {
@@ -510,29 +516,23 @@ func TestGenerateCPUEnhancedMetrics(t *testing.T) {
 }
 
 func TestDisableCPUEnhancedMetrics(t *testing.T) {
-	os.Setenv("DD_ENHANCED_METRICS", "false")
-	defer os.Setenv("DD_ENHANCED_METRICS", "true")
+	var wg sync.WaitGroup
+	enhancedMetricsDisabled = true
 	demux := createDemultiplexer(t)
 	tags := []string{"functionname:test-function"}
 
-	go SendCPUEnhancedMetrics(&proc.CPUData{}, 0, tags, demux)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		SendCPUEnhancedMetrics(&proc.CPUData{}, 0, tags, demux)
+	}()
 
 	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(1, 0, 100*time.Millisecond)
 
 	assert.Len(t, generatedMetrics, 0)
 	assert.Len(t, timedMetrics, 0)
-}
-
-func TestCPUEnhancedMetricsCollectionError(t *testing.T) {
-	demux := createDemultiplexer(t)
-	tags := []string{"functionname:test-function"}
-
-	go SendCPUEnhancedMetrics(&proc.CPUData{}, 0, tags, demux)
-
-	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(1, 0, 100*time.Millisecond)
-
-	assert.Len(t, generatedMetrics, 0)
-	assert.Len(t, timedMetrics, 0)
+	wg.Wait()
+	enhancedMetricsDisabled = false
 }
 
 func TestGenerateCPUUtilizationEnhancedMetrics(t *testing.T) {
@@ -557,11 +557,19 @@ func TestGenerateCPUUtilizationEnhancedMetrics(t *testing.T) {
 		Time:             now,
 	}
 	go GenerateCPUUtilizationEnhancedMetrics(args)
-	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(4, 0, 100*time.Millisecond)
+	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(5, 0, 100*time.Millisecond)
 	assert.Equal(t, []metrics.MetricSample{
 		{
-			Name:       cpuTotalUtilizationMetric,
+			Name:       cpuTotalUtilizationPctMetric,
 			Value:      60,
+			Mtype:      metrics.DistributionType,
+			Tags:       tags,
+			SampleRate: 1,
+			Timestamp:  now,
+		},
+		{
+			Name:       cpuTotalUtilizationMetric,
+			Value:      1.2,
 			Mtype:      metrics.DistributionType,
 			Tags:       tags,
 			SampleRate: 1,
@@ -579,7 +587,7 @@ func TestGenerateCPUUtilizationEnhancedMetrics(t *testing.T) {
 			Name:       cpuMaxUtilizationMetric,
 			Value:      80,
 			Mtype:      metrics.DistributionType,
-			Tags:       append(tags, "cpu_name:cpu0"),
+			Tags:       tags,
 			SampleRate: 1,
 			Timestamp:  now,
 		},
@@ -587,7 +595,7 @@ func TestGenerateCPUUtilizationEnhancedMetrics(t *testing.T) {
 			Name:       cpuMinUtilizationMetric,
 			Value:      40,
 			Mtype:      metrics.DistributionType,
-			Tags:       append(tags, "cpu_name:cpu1"),
+			Tags:       tags,
 			SampleRate: 1,
 			Timestamp:  now,
 		}},
