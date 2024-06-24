@@ -144,7 +144,7 @@
 /cmd/trace-agent/                       @DataDog/agent-apm
 /cmd/agent/subcommands/controlsvc       @DataDog/windows-agent
 /cmd/agent/subcommands/dogstatsd*       @DataDog/agent-metrics-logs
-/cmd/agent/subcommands/integrations     @DataDog/software-integrity-and-trust @DataDog/agent-integrations @DataDog/agent-shared-components
+/cmd/agent/subcommands/integrations     @DataDog/agent-integrations @DataDog/agent-shared-components
 /cmd/agent/subcommands/remoteconfig     @Datadog/remote-config
 /cmd/agent/subcommands/snmp             @DataDog/network-device-monitoring
 /cmd/agent/subcommands/streamlogs       @DataDog/agent-metrics-logs
