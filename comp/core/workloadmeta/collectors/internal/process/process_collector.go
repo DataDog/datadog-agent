@@ -35,42 +35,6 @@ type collector struct {
 	processDiffCh <-chan *processwlm.ProcessCacheDiff
 }
 
-func collectorEventsFromProcessDiff(diff *processwlm.ProcessCacheDiff) []workloadmeta.CollectorEvent {
-	events := make([]workloadmeta.CollectorEvent, 0, len(diff.Creation)+len(diff.Deletion))
-
-	for _, creation := range diff.Creation {
-		events = append(events, workloadmeta.CollectorEvent{
-			Type: workloadmeta.EventTypeSet,
-			Entity: &workloadmeta.Process{
-				EntityID: workloadmeta.EntityID{
-					Kind: workloadmeta.KindProcess,
-					ID:   strconv.Itoa(int(creation.Pid)),
-				},
-				ContainerID:  creation.ContainerId,
-				NsPid:        creation.NsPid,
-				CreationTime: time.UnixMilli(creation.CreationTime),
-				Language:     creation.Language,
-			},
-			Source: workloadmeta.SourceLocalProcessCollector,
-		})
-	}
-
-	for _, deletion := range diff.Deletion {
-		events = append(events, workloadmeta.CollectorEvent{
-			Type: workloadmeta.EventTypeUnset,
-			Entity: &workloadmeta.Process{
-				EntityID: workloadmeta.EntityID{
-					Kind: workloadmeta.KindProcess,
-					ID:   strconv.Itoa(int(deletion.Pid)),
-				},
-			},
-			Source: workloadmeta.SourceLocalProcessCollector,
-		})
-	}
-
-	return events
-}
-
 // NewCollector returns a new local process collector provider and an error
 func NewCollector() (workloadmeta.CollectorProvider, error) {
 	return workloadmeta.CollectorProvider{
@@ -120,7 +84,7 @@ func (c *collector) stream(ctx context.Context) {
 
 		case diff := <-c.processDiffCh:
 			log.Debugf("Received process diff with %d creations and %d deletions", len(diff.Creation), len(diff.Deletion))
-			events := collectorEventsFromProcessDiff(diff)
+			events := transform(diff)
 			c.store.Notify(events)
 
 		case <-ctx.Done():
@@ -144,4 +108,42 @@ func (c *collector) GetID() string {
 
 func (c *collector) GetTargetCatalog() workloadmeta.AgentType {
 	return c.catalog
+}
+
+// transform converts a ProcessCacheDiff into a list of CollectorEvents.
+// The type of event is based whether a process was created or deleted since the last diff.
+func transform(diff *processwlm.ProcessCacheDiff) []workloadmeta.CollectorEvent {
+	events := make([]workloadmeta.CollectorEvent, 0, len(diff.Creation)+len(diff.Deletion))
+
+	for _, creation := range diff.Creation {
+		events = append(events, workloadmeta.CollectorEvent{
+			Type: workloadmeta.EventTypeSet,
+			Entity: &workloadmeta.Process{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindProcess,
+					ID:   strconv.Itoa(int(creation.Pid)),
+				},
+				ContainerID:  creation.ContainerId,
+				NsPid:        creation.NsPid,
+				CreationTime: time.UnixMilli(creation.CreationTime),
+				Language:     creation.Language,
+			},
+			Source: workloadmeta.SourceLocalProcessCollector,
+		})
+	}
+
+	for _, deletion := range diff.Deletion {
+		events = append(events, workloadmeta.CollectorEvent{
+			Type: workloadmeta.EventTypeUnset,
+			Entity: &workloadmeta.Process{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindProcess,
+					ID:   strconv.Itoa(int(deletion.Pid)),
+				},
+			},
+			Source: workloadmeta.SourceLocalProcessCollector,
+		})
+	}
+
+	return events
 }
