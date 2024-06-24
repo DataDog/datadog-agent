@@ -242,7 +242,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/optional v0.55.0-rc.3
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/pulumi/pulumi-aws/sdk/v6 v6.41.0
-	github.com/pulumi/pulumi-awsx/sdk/v2 v2.5.0
+	github.com/pulumi/pulumi-awsx/sdk/v2 v2.12.3
 	github.com/pulumi/pulumi-eks/sdk/v2 v2.2.1
 	github.com/pulumi/pulumi-kubernetes/sdk/v4 v4.13.1
 	github.com/xeipuuv/gojsonschema v1.2.0
