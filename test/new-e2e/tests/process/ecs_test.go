@@ -11,8 +11,9 @@ import (
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/apps/cpustress"
 	"github.com/DataDog/test-infra-definitions/components/datadog/ecsagentparams"
+	"github.com/DataDog/test-infra-definitions/resources/aws"
+	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
@@ -21,28 +22,47 @@ import (
 )
 
 type ECSSuite struct {
-	e2e.BaseSuite[environments.ECS]
+	e2e.BaseSuite[ecsCPUStressEnv]
+}
+
+type ecsCPUStressEnv struct {
+	environments.ECS
+}
+
+func ecsCPUStressProvisioner() e2e.PulumiEnvRunFunc[ecsCPUStressEnv] {
+	return func(ctx *pulumi.Context, env *ecsCPUStressEnv) error {
+		awsEnv, err := aws.NewEnvironment(ctx)
+		if err != nil {
+			return err
+		}
+		env.ECS.AwsEnvironment = &awsEnv
+
+		params := ecs.GetProvisionerParams(
+			ecs.WithECSLinuxECSOptimizedNodeGroup(),
+			ecs.WithAgentOptions(
+				ecsagentparams.WithAgentServiceEnvVariable("DD_PROCESS_CONFIG_PROCESS_COLLECTION_ENABLED", "true"),
+			),
+		)
+
+		if err := ecs.Run(ctx, &env.ECS, params); err != nil {
+			return err
+		}
+
+		if _, err := cpustress.EcsAppDefinition(awsEnv, env.ClusterArn); err != nil {
+			return err
+		}
+
+		return nil
+	}
 }
 
 func TestECSTestSuite(t *testing.T) {
-	agentOpts := []ecsagentparams.Option{
-		ecsagentparams.WithAgentServiceEnvVariable("DD_PROCESS_CONFIG_PROCESS_COLLECTION_ENABLED", "true"),
-	}
+	t.Parallel()
+	s := ECSSuite{}
+	e2eParams := []e2e.SuiteOption{e2e.WithProvisioner(
+		e2e.NewTypedPulumiProvisioner("ecsCPUStress", ecsCPUStressProvisioner(), nil))}
 
-	options := []e2e.SuiteOption{
-		e2e.WithProvisioner(
-			ecs.Provisioner(
-				ecs.WithECSLinuxECSOptimizedNodeGroup(),
-				ecs.WithAgentOptions(agentOpts...)),
-		),
-	}
-
-	var ecsEnv ECSSuite
-	e2e.Run(t, &ecsEnv, options...)
-
-	// TODO: Get the CPU workload working
-	_, err := cpustress.EcsAppDefinition(*ecsEnv.Env().AwsEnvironment, ecsEnv.Env().ClusterArn)
-	require.NoError(t, err)
+	e2e.Run(t, &s, e2eParams...)
 }
 
 func (s *ECSSuite) TestECSProcessCheck() {
@@ -58,6 +78,6 @@ func (s *ECSSuite) TestECSProcessCheck() {
 		assert.GreaterOrEqual(c, len(payloads), 2, "fewer than 2 payloads returned")
 	}, 2*time.Minute, 10*time.Second)
 
-	assertProcessCollected(t, payloads, false, "dd")
-	assertContainersCollected(t, payloads, []string{"fake-process"})
+	assertProcessCollected(t, payloads, false, "stress-ng-cpu [run]")
+	assertContainersCollected(t, payloads, []string{"stress-ng"})
 }
