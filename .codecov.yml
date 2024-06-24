@@ -1,6 +1,6 @@
 # See https://docs.codecov.com/docs/pull-request-comments
 # Codecov is still inaccurate for Go code coverage, so we disable comments for now.
-comment: false
+# comment: false
 
 github_checks:
   annotations: false
