@@ -1,181 +1,175 @@
+connectors: {}
+exporters:
+  datadog:
+    api:
+      fail_on_invalid_key: false
+      key: '[REDACTED]'
+      site: datadoghq.com
+    auth: null
+    compression: ""
+    cookies: null
+    disable_keep_alives: false
+    endpoint: ""
+    headers: {}
+    host_metadata:
+      enabled: true
+      hostname_source: config_or_system
+      tags: []
+    hostname: ""
+    http2_ping_timeout: 0s
+    http2_read_idle_timeout: 0s
+    idle_conn_timeout: null
+    logs:
+      dialer:
+        timeout: 0s
+      dump_payloads: false
+      endpoint: https://http-intake.logs.datadoghq.com
+    max_conns_per_host: null
+    max_idle_conns: null
+    max_idle_conns_per_host: null
+    metrics:
+      apm_stats_receiver_addr: ""
+      delta_ttl: 3600
+      enabled: false
+      histograms:
+        mode: distributions
+        send_aggregation_metrics: false
+        send_count_sum_metrics: false
+      instrumentation_library_metadata_as_tags: false
+      instrumentation_scope_metadata_as_tags: false
+      resource_attributes_as_tags: false
+      summaries:
+        mode: gauges
+      sums:
+        cumulative_monotonic_mode: to_delta
+        initial_cumulative_monotonic_value: auto
+      tag_cardinality: ""
+      tags: ""
+    only_metadata: false
+    proxy_url: ""
+    read_buffer_size: 0
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_elapsed_time: 5m0s
+      max_interval: 30s
+      multiplier: 1.5
+      randomization_factor: 0.5
+    sending_queue:
+      enabled: true
+      num_consumers: 10
+      queue_size: 1000
+      storage: null
+    timeout: 15s
+    tls:
+      ca_file: ""
+      ca_pem: '[REDACTED]'
+      cert_file: ""
+      cert_pem: '[REDACTED]'
+      cipher_suites: []
+      include_system_ca_certs_pool: false
+      insecure: false
+      insecure_skip_verify: false
+      key_file: ""
+      key_pem: '[REDACTED]'
+      max_version: ""
+      min_version: ""
+      reload_interval: 0s
+      server_name_override: ""
+    traces:
+      compute_top_level_by_span_kind: true
+      dialer:
+        timeout: 0s
+      endpoint: https://trace.agent.datadoghq.com
+      ignore_resources: []
+      span_name_as_resource_name: true
+      span_name_remappings: {}
+      trace_buffer: 0
+    write_buffer_size: 0
+extensions: {}
+processors: {}
 receivers:
-  prometheus:
-    prometheusconfig:
-      global:
-        scrape_interval: 1m
-        scrape_timeout: 10s
-        scrape_protocols:
-        - OpenMetricsText1.0.0
-        - OpenMetricsText0.0.1
-        - PrometheusText0.0.4
-        evaluation_interval: 1m
-      scrape_configs:
-      - job_name: otel-collector
-        honor_timestamps: true
-        track_timestamps_staleness: false
-        scrape_interval: 5s
-        scrape_timeout: 5s
-        scrape_protocols:
-        - OpenMetricsText1.0.0
-        - OpenMetricsText0.0.1
-        - PrometheusText0.0.4
-        metrics_path: /metrics
-        scheme: http
-        enable_compression: true
-        follow_redirects: true
-        enable_http2: true
-        static_configs:
-        - targets:
-          - 0.0.0.0:8888
-    trimmetricsuffixes: false
-    usestarttimemetric: false
-    starttimemetricregex: ""
-    reportextrascrapemetrics: false
-    targetallocator: null
   otlp:
     protocols:
       grpc: null
       http: null
-exporters:
-  datadog:
-    clientconfig:
-      endpoint: ""
-      proxyurl: ""
-      tlssetting:
-        config:
-          cafile: ""
-          capem: '[REDACTED]'
-          includesystemcacertspool: false
-          certfile: ""
-          certpem: '[REDACTED]'
-          keyfile: ""
-          keypem: '[REDACTED]'
-          minversion: ""
-          maxversion: ""
-          ciphersuites: []
-          reloadinterval: 0s
-        insecure: false
-        insecureskipverify: false
-        servername: ""
-      readbuffersize: 0
-      writebuffersize: 0
-      timeout: 15s
-      headers: {}
-      auth: null
-      compression: ""
-      maxidleconns: null
-      maxidleconnsperhost: null
-      maxconnsperhost: null
-      idleconntimeout: null
-      disablekeepalives: false
-      http2readidletimeout: 0s
-      http2pingtimeout: 0s
-      cookies: null
-    queuesettings:
-      enabled: true
-      numconsumers: 10
-      queuesize: 1000
-      storageid: null
-    backoffconfig:
-      enabled: true
-      initialinterval: 5s
-      randomizationfactor: 0.5
-      multiplier: 1.5
-      maxinterval: 30s
-      maxelapsedtime: 5m0s
-    tagsconfig:
-      hostname: ""
-    api:
-      key: '[REDACTED]'
-      site: datadoghq.com
-      failoninvalidkey: false
-    metrics:
-      enabled: false
-      deltattl: 3600
-      exporterconfig:
-        resourceattributesastags: false
-        instrumentationlibrarymetadataastags: false
-        instrumentationscopemetadataastags: false
-      tagcardinality: ""
-      histconfig:
-        mode: distributions
-        sendcountsum: false
-        sendaggregations: false
-      sumconfig:
-        cumulativemonotonicmode: to_delta
-        initialcumulativemonotonicmode: auto
-      summaryconfig:
-        mode: gauges
-      apmstatsreceiveraddr: ""
-      tags: ""
-    traces:
-      tcpaddrconfig:
-        endpoint: https://trace.agent.datadoghq.com
-        dialerconfig:
-          timeout: 0s
-      ignoreresources: []
-      spannameremappings: {}
-      spannameasresourcename: true
-      computetoplevelbyspankind: true
-      tracebuffer: 0
-    logs:
-      tcpaddrconfig:
-        endpoint: https://http-intake.logs.datadoghq.com
-        dialerconfig:
-          timeout: 0s
-      dumppayloads: false
-    hostmetadata:
-      enabled: true
-      hostnamesource: config_or_system
-      tags: []
-    onlymetadata: false
-processors: {}
-connectors: {}
-extensions: {}
+  prometheus:
+    config:
+      global:
+        evaluation_interval: 1m
+        scrape_interval: 1m
+        scrape_protocols:
+        - OpenMetricsText1.0.0
+        - OpenMetricsText0.0.1
+        - PrometheusText0.0.4
+        scrape_timeout: 10s
+      scrape_configs:
+      - enable_compression: true
+        enable_http2: true
+        follow_redirects: true
+        honor_timestamps: true
+        job_name: otel-collector
+        metrics_path: /metrics
+        scheme: http
+        scrape_interval: 5s
+        scrape_protocols:
+        - OpenMetricsText1.0.0
+        - OpenMetricsText0.0.1
+        - PrometheusText0.0.4
+        scrape_timeout: 5s
+        static_configs:
+        - targets:
+          - 0.0.0.0:8888
+        track_timestamps_staleness: false
+    report_extra_scrape_metrics: false
+    start_time_metric_regex: ""
+    target_allocator: null
+    trim_metric_suffixes: false
+    use_start_time_metric: false
 service:
-  telemetry:
-    logs:
-      level: info
-      development: false
-      encoding: console
-      disablecaller: false
-      disablestacktrace: false
-      sampling:
-        enabled: true
-        tick: 10s
-        initial: 10
-        thereafter: 100
-      outputpaths:
-      - stderr
-      erroroutputpaths:
-      - stderr
-      initialfields: {}
-    metrics:
-      level: Normal
-      address: :8888
-      readers: []
-    traces:
-      propagators: []
-      processors: []
-    resource: {}
   extensions: []
   pipelines:
     logs:
-      receivers:
-      - otlp
-      processors: []
       exporters:
       - datadog
-    traces:
+      processors: []
       receivers:
       - otlp
-      processors: []
-      exporters:
-      - datadog
     metrics:
+      exporters:
+      - datadog
+      processors: []
       receivers:
       - otlp
       - prometheus
-      processors: []
+    traces:
       exporters:
       - datadog
+      processors: []
+      receivers:
+      - otlp
+  telemetry:
+    logs:
+      development: false
+      disable_caller: false
+      disable_stacktrace: false
+      encoding: console
+      error_output_paths:
+      - stderr
+      initial_fields: {}
+      level: info
+      output_paths:
+      - stderr
+      sampling:
+        enabled: true
+        initial: 10
+        thereafter: 100
+        tick: 10s
+    metrics:
+      address: :8888
+      level: Normal
+      readers: []
+    resource: {}
+    traces:
+      processors: []
+      propagators: []

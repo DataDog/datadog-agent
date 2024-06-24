@@ -126,7 +126,7 @@ func getConfig(reqs Requires, enhanced bool) (*otelcol.Config, error) {
 		factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(reqs.Serializer, nil, reqs.SourceProvider)
 	}
 	factories.Processors[infraattributesprocessor.Type] = infraattributesprocessor.NewFactory(reqs.Tagger)
-	
+
 	conf, err := ocp.Get(context.Background(), factories)
 	if err != nil {
 		return nil, err
@@ -245,7 +245,7 @@ func confToString(conf *otelcol.Config) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	bytesConf, err := yaml.Marshal(conf)
+	bytesConf, err := yaml.Marshal(cfg.ToStringMap())
 	if err != nil {
 		return "", err
 	}

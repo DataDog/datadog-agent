@@ -9,6 +9,7 @@
 package collectorimpl
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -17,6 +18,7 @@ import (
 	converterimpl "github.com/DataDog/datadog-agent/comp/otelcol/converter/impl"
 	"github.com/stretchr/testify/assert"
 	"go.opentelemetry.io/collector/confmap"
+	"gopkg.in/yaml.v3"
 )
 
 type lifecycle struct{}
@@ -39,36 +41,43 @@ func TestGetConfDump(t *testing.T) {
 		Provider:         provider,
 		Lc:               &lifecycle{},
 	}
-
 	provides, err := NewComponent(reqs)
 	assert.NoError(t, err)
 
-	providedConf, _ := provides.Comp.GetProvidedConf()
-	enhancedConf, _ := provides.Comp.GetEnhancedConf()
+	t.Run("provided", func(t *testing.T) {
+		// string
+		actualString, _ := provides.Comp.GetProvidedConfAsString()
+		actualStringMap, err := yamlBytesToMap([]byte(actualString))
+		assert.NoError(t, err)
 
-	reqsProvided := Requires{
-		CollectorContrib: collectorcontribimpl.NewComponent(),
-		URIs:             uriFromFile("simple-dd/config-provided-result.yaml"),
-		Provider:         provider,
-		Lc:               &lifecycle{},
-	}
-	configResultProvided, err := getConfig(reqsProvided, false)
-	assert.NoError(t, err)
-	confMapResultProvided := confmap.New()
-	err = confMapResultProvided.Marshal(configResultProvided)
-	assert.NoError(t, err)
-	assert.Equal(t, confMapResultProvided.ToStringMap(), providedConf.ToStringMap())
+		expectedBytes, err := os.ReadFile(filepath.Join("testdata", "simple-dd", "config-provided-result.yaml"))
+		assert.NoError(t, err)
+		expectedMap, err := yamlBytesToMap(expectedBytes)
+		assert.NoError(t, err)
 
-	reqsEnhanced := Requires{
-		CollectorContrib: collectorcontribimpl.NewComponent(),
-		URIs:             uriFromFile("simple-dd/config-enhanced-result.yaml"),
-		Provider:         provider,
-		Lc:               &lifecycle{},
+		assert.Equal(t, expectedMap, actualStringMap)
+	})
+
+	t.Run("enhanced", func(t *testing.T) {
+		// string
+		actualString, _ := provides.Comp.GetEnhancedConfAsString()
+		actualStringMap, err := yamlBytesToMap([]byte(actualString))
+		assert.NoError(t, err)
+
+		expectedBytes, err := os.ReadFile(filepath.Join("testdata", "simple-dd", "config-enhanced-result.yaml"))
+		assert.NoError(t, err)
+		expectedMap, err := yamlBytesToMap(expectedBytes)
+		assert.NoError(t, err)
+
+		assert.Equal(t, expectedMap, actualStringMap)
+	})
+}
+
+func yamlBytesToMap(bytesConfig []byte) (map[string]any, error) {
+	var configMap = map[string]interface{}{}
+	err := yaml.Unmarshal(bytesConfig, configMap)
+	if err != nil {
+		return nil, err
 	}
-	configResultEnhanced, err := getConfig(reqsEnhanced, true)
-	assert.NoError(t, err)
-	confMapResultEnhanced := confmap.New()
-	err = confMapResultEnhanced.Marshal(configResultEnhanced)
-	assert.NoError(t, err)
-	assert.Equal(t, confMapResultEnhanced.ToStringMap(), enhancedConf.ToStringMap())
+	return configMap, nil
 }
