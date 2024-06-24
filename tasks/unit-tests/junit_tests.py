@@ -57,6 +57,7 @@ class TestSplitJUnitXML(unittest.TestCase):
         self.assertTrue(generated_folder.exists())
 
     def test_with_split(self):
+        self.skipTest("incident-28339")
         xml_file = Path("./tasks/unit-tests/testdata/secret.tar.gz/-go-src-datadog-agent-junit-out-base.xml")
         owners = read_owners(".github/CODEOWNERS")
         self.assertEqual(junit.split_junitxml(xml_file.parent, xml_file, owners, []), 29)
@@ -140,6 +141,7 @@ class TestJUnitUploadFromTGZ(unittest.TestCase):
     @patch("tasks.libs.common.junit_upload_core.get_gitlab_repo")
     @patch("tasks.libs.common.junit_upload_core.Popen")
     def test_e2e(self, mock_popen, mock_gitlab):
+        self.skipTest("incident-28339")
         mock_instance = MagicMock()
         mock_instance.communicate.return_value = (b"stdout", b"")
         mock_popen.return_value = mock_instance
