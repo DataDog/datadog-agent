@@ -1,0 +1,8 @@
+version: v1.57.0
+
+name: custom-golangci-lint
+
+plugins:
+  # a plugin from local source
+  - module: 'github.com/DataDog/datadog-agent/pkg/linters/config'
+    path: ./pkg/linters/config

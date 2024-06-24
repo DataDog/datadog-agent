@@ -269,6 +269,7 @@ DEFAULT_MODULES = {
         lint_targets=[".", "./examples"],  # need to explicitly list "examples", otherwise it is skipped
     ),
     "tools/retry_file_dump": GoModule("tools/retry_file_dump", condition=lambda: False, should_tag=False),
+    "pkg/linters/config": GoModule("pkg/linters/config", condition=lambda: False, should_tag=False),
 }
 
 # Folder containing a `go.mod` file but that should not be added to the DEFAULT_MODULES

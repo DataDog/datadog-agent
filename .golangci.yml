@@ -77,6 +77,7 @@ linters:
     - depguard    # Depguard is useful for preventing specific packages from being used
     - bodyclose   # checks whether HTTP response body is closed successfully
     - gosimple    # Linter for Go source code that specializes in simplifying code.
+    - pkgconfig   # Custom linter to check that checks that components do not use github.com/DataDog/pkg/config to access the configuration instance, instead they should use the configuration component.
 
 linters-settings:
   depguard:
@@ -153,3 +154,7 @@ linters-settings:
       - name: var-naming
       # non-default rules:
       - name: duplicated-imports
+  custom:
+    pkgconfig:
+      type: "module"
+      description: "Ensure pkg/config is not used in the comp folder"
