@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/confmap"
 )
 
@@ -82,7 +81,7 @@ func TestSendAggregations(t *testing.T) {
 		t.Run(testInstance.name, func(t *testing.T) {
 			f := NewFactory(nil, nil, nil, nil)
 			cfg := f.CreateDefaultConfig().(*Config)
-			err := component.UnmarshalConfig(testInstance.cfgMap, cfg)
+			err := testInstance.cfgMap.Unmarshal(&cfg)
 			if err != nil || testInstance.err != "" {
 				assert.EqualError(t, err, testInstance.err)
 			} else {

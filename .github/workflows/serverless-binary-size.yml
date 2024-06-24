@@ -135,6 +135,7 @@ jobs:
         uses: marocchino/sticky-pull-request-comment@331f8f5b4215f0445d3c07b4967662a32a2d3e31 # v2.9.0
         if: steps.should.outputs.should_run == 'true'
         with:
+          header: serverless-binary-size
           hide_and_recreate: true
           hide_classify: "RESOLVED"
           message: |
