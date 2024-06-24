@@ -35,8 +35,8 @@ func (m *testDaemon) Stop(ctx context.Context) error {
 	return args.Error(0)
 }
 
-func (m *testDaemon) Install(ctx context.Context, url string) error {
-	args := m.Called(ctx, url)
+func (m *testDaemon) Install(ctx context.Context, url string, installArgs []string) error {
+	args := m.Called(ctx, url, installArgs)
 	return args.Error(0)
 }
 
@@ -63,6 +63,11 @@ func (m *testDaemon) GetPackage(pkg string, version string) (Package, error) {
 func (m *testDaemon) GetState() (map[string]repository.State, error) {
 	args := m.Called()
 	return args.Get(0).(map[string]repository.State), args.Error(1)
+}
+
+func (m *testDaemon) GetAPMInjectionStatus() (APMInjectionStatus, error) {
+	args := m.Called()
+	return args.Get(0).(APMInjectionStatus), args.Error(1)
 }
 
 type testLocalAPI struct {
@@ -103,6 +108,7 @@ func TestAPIStatus(t *testing.T) {
 		},
 	}
 	api.i.On("GetState").Return(installerState, nil)
+	api.i.On("GetAPMInjectionStatus").Return(APMInjectionStatus{}, nil)
 
 	resp, err := api.c.Status()
 
@@ -122,7 +128,7 @@ func TestAPIInstall(t *testing.T) {
 		URL:     "oci://example.com/test-package@5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8",
 	}
 	api.i.On("GetPackage", testPackage.Name, testPackage.Version).Return(testPackage, nil)
-	api.i.On("Install", mock.Anything, testPackage.URL).Return(nil)
+	api.i.On("Install", mock.Anything, testPackage.URL, []string(nil)).Return(nil)
 
 	err := api.c.Install(testPackage.Name, testPackage.Version)
 

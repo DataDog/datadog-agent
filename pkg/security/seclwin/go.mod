@@ -1,11 +1,11 @@
 module github.com/DataDog/datadog-agent/pkg/security/seclwin
 
-go 1.21
+go 1.22
 
 replace github.com/DataDog/datadog-agent/pkg/security/secl => ../secl
 
 require (
-	github.com/DataDog/datadog-agent/pkg/security/secl v0.53.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/security/secl v0.55.0-rc.3
 	github.com/hashicorp/golang-lru/v2 v2.0.7
 )
 

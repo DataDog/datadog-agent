@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive // TODO(CINT) Fix revive linter
+// Package diagnose provides the diagnose functionality for the Agent.
 package diagnose
 
 import (
@@ -15,8 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -24,23 +23,6 @@ import (
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
-
-func getDiagnose(diagCfg diagnosis.Config, senderManager sender.DiagnoseSenderManager, collector optional.Option[collector.Component], secretResolver secrets.Component, wmeta optional.Option[workloadmeta.Component], acOpt optional.Option[autodiscovery.Component]) []diagnosis.Diagnosis {
-	if coll, ok := collector.Get(); diagCfg.RunningInAgentProcess && ok {
-		return diagnoseChecksInAgentProcess(coll)
-	}
-	if ac, ok := acOpt.Get(); ok {
-		return diagnoseChecksInCLIProcess(diagCfg, senderManager, secretResolver, wmeta, ac)
-	}
-	return []diagnosis.Diagnosis{
-		{
-			Result:    diagnosis.DiagnosisUnexpectedError,
-			Name:      "Collector or AutoDiscovery not found",
-			Diagnosis: "Collector or AutoDiscovery not found",
-			RawError:  "Collector or AutoDiscovery not found",
-		},
-	}
-}
 
 func getInstanceDiagnoses(instance check.Check) []diagnosis.Diagnosis {
 
@@ -90,7 +72,7 @@ func diagnoseChecksInAgentProcess(collector collector.Component) []diagnosis.Dia
 	return diagnoses
 }
 
-func diagnoseChecksInCLIProcess(diagCfg diagnosis.Config, senderManager diagnosesendermanager.Component, secretResolver secrets.Component, wmeta optional.Option[workloadmeta.Component], ac autodiscovery.Component) []diagnosis.Diagnosis { //nolint:revive // TODO fix revive unused-parameter
+func diagnoseChecksInCLIProcess(_ diagnosis.Config, senderManager diagnosesendermanager.Component, secretResolver secrets.Component, wmeta optional.Option[workloadmeta.Component], ac autodiscovery.Component) []diagnosis.Diagnosis { //nolint:revive // TODO fix revive unused-parameter
 	// other choices
 	// 	run() github.com\DataDog\datadog-agent\pkg\cli\subcommands\check\command.go
 	//  runCheck() github.com\DataDog\datadog-agent\cmd\agent\gui\checks.go
@@ -121,7 +103,7 @@ func diagnoseChecksInCLIProcess(diagCfg diagnosis.Config, senderManager diagnose
 		}
 	}
 	// Initializing the aggregator with a flush interval of 0 (to disable the flush goroutines)
-	common.LoadComponents(secretResolver, wmetaInstance, ac, pkgconfig.Datadog.GetString("confd_path"))
+	common.LoadComponents(secretResolver, wmetaInstance, ac, pkgconfig.Datadog().GetString("confd_path"))
 	ac.LoadAndRun(context.Background())
 
 	// Create the CheckScheduler, but do not attach it to

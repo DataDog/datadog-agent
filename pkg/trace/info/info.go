@@ -73,8 +73,13 @@ const (
     {{end}}
 
   {{end}}
+  {{if .Status.Config.ProbabilisticSamplerEnabled}}
+  Probabilistic sampling percentage: {{.Status.Config.ProbabilisticSamplerSamplingPercentage}}%
+  Probabilistic sampler hash seed: {{.Status.Config.ProbabilisticSamplerHashSeed}}
+  {{ else }}
   {{ range $key, $value := .Status.RateByService }}
   Priority sampling rate for '{{ $key }}': {{percent $value}} %
+  {{ end }}
   {{ end }}
 
   --- Writer stats (1 min) ---

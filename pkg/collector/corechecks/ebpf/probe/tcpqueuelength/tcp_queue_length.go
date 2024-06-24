@@ -19,7 +19,6 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/tcpqueuelength/model"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
@@ -93,7 +92,7 @@ func startTCPQueueLengthProbe(buf bytecode.AssetReader, managerOptions manager.O
 	if err != nil {
 		return nil, fmt.Errorf("failed to get map '%s': %w", statsMapName, err)
 	}
-	ebpfcheck.AddNameMappings(m, "tcp_queue_length")
+	ebpf.AddNameMappings(m, "tcp_queue_length")
 
 	return &Tracer{
 		m:        m,
@@ -103,7 +102,7 @@ func startTCPQueueLengthProbe(buf bytecode.AssetReader, managerOptions manager.O
 
 // Close releases all associated resources
 func (t *Tracer) Close() {
-	ebpfcheck.RemoveNameMappings(t.m)
+	ebpf.RemoveNameMappings(t.m)
 	if err := t.m.Stop(manager.CleanAll); err != nil {
 		log.Errorf("error stopping TCP Queue Length: %s", err)
 	}
@@ -177,7 +176,7 @@ func loadTCPQueueLengthCOREProbe(cfg *ebpf.Config) (*Tracer, error) {
 }
 
 func loadTCPQueueLengthRuntimeCompiledProbe(cfg *ebpf.Config) (*Tracer, error) {
-	compiledOutput, err := runtime.TcpQueueLength.Compile(cfg, []string{"-g"}, nil /* llc flags */, statsd.Client)
+	compiledOutput, err := runtime.TcpQueueLength.Compile(cfg, []string{"-g"}, statsd.Client)
 	if err != nil {
 		return nil, err
 	}

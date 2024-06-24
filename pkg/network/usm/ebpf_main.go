@@ -33,6 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http2"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/postgres"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/buildmode"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
@@ -47,6 +48,7 @@ var (
 		http.Spec,
 		http2.Spec,
 		kafka.Spec,
+		postgres.Spec,
 		javaTLSSpec,
 		// opensslSpec is unique, as we're modifying its factory during runtime to allow getting more parameters in the
 		// factory.
@@ -96,6 +98,8 @@ func newEBPFProgram(c *config.Config, connectionProtocolMap *ebpf.Map) (*ebpfPro
 		Maps: []*manager.Map{
 			{Name: protocols.TLSDispatcherProgramsMap},
 			{Name: protocols.ProtocolDispatcherProgramsMap},
+			{Name: protocols.ProtocolDispatcherClassificationPrograms},
+			{Name: protocols.TLSProtocolDispatcherClassificationPrograms},
 			{Name: connectionStatesMap},
 			{Name: sockFDLookupArgsMap},
 			{Name: tupleByPidFDMap},
@@ -420,6 +424,7 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 	options.DefaultKProbeMaxActive = maxActive
 	options.DefaultKprobeAttachMethod = kprobeAttachMethod
 	options.VerifierOptions.Programs.LogSize = 10 * 1024 * 1024
+	options.BypassEnabled = e.cfg.BypassEnabled
 
 	supported, notSupported := e.getProtocolsForBuildMode()
 	cleanup := e.configureManagerWithSupportedProtocols(supported)
@@ -431,6 +436,10 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 		for _, pm := range e.PerfMaps {
 			pm.TelemetryEnabled = true
 			ebpftelemetry.ReportPerfMapTelemetry(pm)
+		}
+		for _, rb := range e.RingBuffers {
+			rb.TelemetryEnabled = true
+			ebpftelemetry.ReportRingBufferTelemetry(rb)
 		}
 	}
 

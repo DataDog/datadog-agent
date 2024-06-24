@@ -9,8 +9,10 @@
 package service
 
 import (
+	"context"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/env"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -18,18 +20,47 @@ func TestSetLDPreloadConfig(t *testing.T) {
 	a := &apmInjectorInstaller{
 		installPath: "/tmp/stable",
 	}
+	testCases := []struct {
+		name     string
+		input    []byte
+		expected []byte
+	}{
+		{
+			name:     "File doesn't exist",
+			input:    nil,
+			expected: []byte("/tmp/stable/inject/launcher.preload.so\n"),
+		},
+		{
+			name:     "Don't reuse the input buffer",
+			input:    make([]byte, 2, 1000),
+			expected: append([]byte{0x0, 0x0}, []byte("\n/tmp/stable/inject/launcher.preload.so\n")...),
+		},
+		{
+			name:     "File contains unrelated entries",
+			input:    []byte("/abc/def/preload.so\n"),
+			expected: []byte("/abc/def/preload.so\n/tmp/stable/inject/launcher.preload.so\n"),
+		},
+		{
+			name:     "File contains unrelated entries with no newline",
+			input:    []byte("/abc/def/preload.so"),
+			expected: []byte("/abc/def/preload.so\n/tmp/stable/inject/launcher.preload.so\n"),
+		},
+		{
+			name:     "File contains old preload instructions",
+			input:    []byte("banana\n/opt/datadog/apm/inject/launcher.preload.so\ntomato"),
+			expected: []byte("banana\n/tmp/stable/inject/launcher.preload.so\ntomato"),
+		},
+	}
 
-	for input, expected := range map[string]string{
-		// File doesn't exist
-		"": "/tmp/stable/inject/launcher.preload.so\n",
-		// File contains unrelated entries
-		"/abc/def/preload.so\n": "/abc/def/preload.so\n/tmp/stable/inject/launcher.preload.so\n",
-		// File contains unrelated entries with no newline
-		"/abc/def/preload.so": "/abc/def/preload.so\n/tmp/stable/inject/launcher.preload.so\n",
-	} {
-		output, err := a.setLDPreloadConfigContent([]byte(input))
-		assert.Nil(t, err)
-		assert.Equal(t, expected, string(output))
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			output, err := a.setLDPreloadConfigContent(context.TODO(), tc.input)
+			assert.Nil(t, err)
+			assert.Equal(t, tc.expected, output)
+			if len(tc.input) > 0 {
+				assert.False(t, &tc.input[0] == &output[0])
+			}
+		})
 	}
 }
 
@@ -60,96 +91,71 @@ func TestRemoveLDPreloadConfig(t *testing.T) {
 		// File doesn't contain the entry to remove (removed by customer?)
 		"/abc/def/preload.so /def/abc/preload.so": "/abc/def/preload.so /def/abc/preload.so",
 	} {
-		output, err := a.deleteLDPreloadConfigContent([]byte(input))
+		output, err := a.deleteLDPreloadConfigContent(context.TODO(), []byte(input))
 		assert.Nil(t, err)
 		assert.Equal(t, expected, string(output))
 	}
 
 	// File is badly formatted (non-breaking space instead of space)
 	input := "/tmp/stable/inject/launcher.preload.so\u00a0/def/abc/preload.so"
-	output, err := a.deleteLDPreloadConfigContent([]byte(input))
+	output, err := a.deleteLDPreloadConfigContent(context.TODO(), []byte(input))
 	assert.NotNil(t, err)
 	assert.Equal(t, "", string(output))
+	assert.NotEqual(t, input, string(output))
 }
 
-func TestSetAgentConfig(t *testing.T) {
-	a := &apmInjectorInstaller{
-		installPath: "/tmp/stable",
+func TestShouldInstrumentHost(t *testing.T) {
+	tests := []struct {
+		name     string
+		envValue string
+		expected bool
+	}{
+		{"Instrument all", "all", true},
+		{"Instrument host", "host", true},
+		{"Instrument docker", "docker", false},
+		{"Invalid value", "unknown", false},
+		{"not set", "not_set", true},
 	}
 
-	for input, expected := range map[string]string{
-		// File doesn't exist
-		"": `
-# BEGIN LD PRELOAD CONFIG
-apm_config:
-  receiver_socket: /tmp/stable/inject/run/apm.socket
-use_dogstatsd: true
-dogstatsd_socket: /tmp/stable/inject/run/dsd.socket
-# END LD PRELOAD CONFIG
-`,
-		// File contains unrelated entries
-		`api_key: 000000000
-site: datad0g.com`: `api_key: 000000000
-site: datad0g.com
-# BEGIN LD PRELOAD CONFIG
-apm_config:
-  receiver_socket: /tmp/stable/inject/run/apm.socket
-use_dogstatsd: true
-dogstatsd_socket: /tmp/stable/inject/run/dsd.socket
-# END LD PRELOAD CONFIG
-`,
-		// File already contains the agent config
-		`# BEGIN LD PRELOAD CONFIG
-apm_config:
-  receiver_socket: /tmp/stable/inject/run/apm.socket
-use_dogstatsd: true
-dogstatsd_socket: /tmp/stable/inject/run/dsd.socket
-# END LD PRELOAD CONFIG`: `# BEGIN LD PRELOAD CONFIG
-apm_config:
-  receiver_socket: /tmp/stable/inject/run/apm.socket
-use_dogstatsd: true
-dogstatsd_socket: /tmp/stable/inject/run/dsd.socket
-# END LD PRELOAD CONFIG`,
-	} {
-		output := a.setAgentConfigContent([]byte(input))
-		assert.Equal(t, expected, string(output))
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			execEnvs := &env.Env{
+				InstallScript: env.InstallScriptEnv{
+					APMInstrumentationEnabled: tt.envValue,
+				},
+			}
+			result := shouldInstrumentHost(execEnvs)
+			if result != tt.expected {
+				t.Errorf("shouldInstrumentHost() with envValue %s; got %t, want %t", tt.envValue, result, tt.expected)
+			}
+		})
 	}
 }
 
-func TestRemoveAgentConfig(t *testing.T) {
-	a := &apmInjectorInstaller{
-		installPath: "/tmp/stable",
+func TestShouldInstrumentDocker(t *testing.T) {
+	tests := []struct {
+		name     string
+		envValue string
+		expected bool
+	}{
+		{"Instrument all", "all", true},
+		{"Instrument host", "host", false},
+		{"Instrument docker", "docker", true},
+		{"Invalid value", "unknown", false},
+		{"not set", "not_set", true},
 	}
 
-	for input, expected := range map[string]string{
-		// File doesn't exist
-		"": "",
-		// File only contains the agent config
-		`# BEGIN LD PRELOAD CONFIG
-        apm_config:
-          receiver_socket: /tmp/stable/inject/run/apm.socket
-        use_dogstatsd: true
-        dogstatsd_socket: /tmp/stable/inject/run/dsd.socket
-        # END LD PRELOAD CONFIG`: "",
-		// File contains unrelated entries
-		`api_key: 000000000
-site: datad0g.com
-# BEGIN LD PRELOAD CONFIG
-apm_config:
-  receiver_socket: /tmp/stable/inject/run/apm.socket
-use_dogstatsd: true
-dogstatsd_socket: /tmp/stable/inject/run/dsd.socket
-# END LD PRELOAD CONFIG
-`: `api_key: 000000000
-site: datad0g.com
-
-`,
-		// File **only** contains unrelated entries somehow
-		`api_key: 000000000
-site: datad0g.com`: `api_key: 000000000
-site: datad0g.com`,
-	} {
-		output := a.deleteAgentConfigContent([]byte(input))
-		assert.Equal(t, expected, string(output))
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			execEnvs := &env.Env{
+				InstallScript: env.InstallScriptEnv{
+					APMInstrumentationEnabled: tt.envValue,
+				},
+			}
+			result := shouldInstrumentDocker(execEnvs)
+			if result != tt.expected {
+				t.Errorf("shouldInstrumentDocker() with envValue %s; got %t, want %t", tt.envValue, result, tt.expected)
+			}
+		})
 	}
 }

@@ -7,7 +7,9 @@
 package config
 
 import (
+	"encoding/binary"
 	"fmt"
+	"net"
 	"strings"
 	"time"
 
@@ -65,6 +67,8 @@ type RuntimeSecurityConfig struct {
 	SelfTestSendReport bool
 	// RemoteConfigurationEnabled defines whether to use remote monitoring
 	RemoteConfigurationEnabled bool
+	// RemoteConfigurationDumpPolicies defines whether to dump remote config policy
+	RemoteConfigurationDumpPolicies bool
 	// LogPatterns pattern to be used by the logger for trace level
 	LogPatterns []string
 	// LogTags tags to be used by the logger for trace level
@@ -123,7 +127,7 @@ type RuntimeSecurityConfig struct {
 	// be provided as strings in the following format "{image_name}:[{image_tag}|*]". If "*" is provided instead of a
 	// specific image tag, then the entry will match any workload with the input {image_name} regardless of their tag.
 	ActivityDumpWorkloadDenyList []string
-	// ActivityDumpTagRulesEnabled enable the tagging of nodes with matched rules (only for rules having the tag ruleset:threat_score)
+	// ActivityDumpTagRulesEnabled enable the tagging of nodes with matched rules
 	ActivityDumpTagRulesEnabled bool
 	// ActivityDumpSilentWorkloadsDelay defines the minimum amount of time to wait before the activity dump manager will start tracing silent workloads
 	ActivityDumpSilentWorkloadsDelay time.Duration
@@ -223,7 +227,25 @@ type RuntimeSecurityConfig struct {
 	EBPFLessSocket string
 
 	// Enforcement capabilities
-	EnforcementEnabled bool
+	EnforcementEnabled           bool
+	EnforcementRawSyscallEnabled bool
+
+	//WindowsFilenameCacheSize is the max number of filenames to cache
+	WindowsFilenameCacheSize int
+	//WindowsRegistryCacheSize is the max number of registry paths to cache
+	WindowsRegistryCacheSize int
+
+	// ETWEventsChannelSize windows specific ETW channel buffer size
+	ETWEventsChannelSize int
+
+	//ETWEventsMaxBuffers sets the maximumbuffers argument to ETW
+	ETWEventsMaxBuffers int
+
+	// WindowsProbeChannelUnbuffered defines if the windows probe channel should be unbuffered
+	WindowsProbeBlockOnChannelSend bool
+
+	// IMDSIPv4 is used to provide a custom IP address for the IMDS endpoint
+	IMDSIPv4 uint32
 }
 
 // Config defines a security config
@@ -277,17 +299,23 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 	}
 
 	rsConfig := &RuntimeSecurityConfig{
-		RuntimeEnabled: coreconfig.SystemProbe.GetBool("runtime_security_config.enabled"),
-		FIMEnabled:     coreconfig.SystemProbe.GetBool("runtime_security_config.fim_enabled"),
+		RuntimeEnabled:                 coreconfig.SystemProbe.GetBool("runtime_security_config.enabled"),
+		FIMEnabled:                     coreconfig.SystemProbe.GetBool("runtime_security_config.fim_enabled"),
+		WindowsFilenameCacheSize:       coreconfig.SystemProbe.GetInt("runtime_security_config.windows_filename_cache_max"),
+		WindowsRegistryCacheSize:       coreconfig.SystemProbe.GetInt("runtime_security_config.windows_registry_cache_max"),
+		ETWEventsChannelSize:           coreconfig.SystemProbe.GetInt("runtime_security_config.etw_events_channel_size"),
+		ETWEventsMaxBuffers:            coreconfig.SystemProbe.GetInt("runtime_security_config.etw_events_max_buffers"),
+		WindowsProbeBlockOnChannelSend: coreconfig.SystemProbe.GetBool("runtime_security_config.windows_probe_block_on_channel_send"),
 
 		SocketPath:           coreconfig.SystemProbe.GetString("runtime_security_config.socket"),
 		EventServerBurst:     coreconfig.SystemProbe.GetInt("runtime_security_config.event_server.burst"),
 		EventServerRate:      coreconfig.SystemProbe.GetInt("runtime_security_config.event_server.rate"),
 		EventServerRetention: coreconfig.SystemProbe.GetDuration("runtime_security_config.event_server.retention"),
 
-		SelfTestEnabled:            coreconfig.SystemProbe.GetBool("runtime_security_config.self_test.enabled"),
-		SelfTestSendReport:         coreconfig.SystemProbe.GetBool("runtime_security_config.self_test.send_report"),
-		RemoteConfigurationEnabled: isRemoteConfigEnabled(),
+		SelfTestEnabled:                 coreconfig.SystemProbe.GetBool("runtime_security_config.self_test.enabled"),
+		SelfTestSendReport:              coreconfig.SystemProbe.GetBool("runtime_security_config.self_test.send_report"),
+		RemoteConfigurationEnabled:      isRemoteConfigEnabled(),
+		RemoteConfigurationDumpPolicies: coreconfig.SystemProbe.GetBool("runtime_security_config.remote_configuration.dump_policies"),
 
 		// policy & ruleset
 		PoliciesDir:                         coreconfig.SystemProbe.GetString("runtime_security_config.policies.dir"),
@@ -376,7 +404,8 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		AnomalyDetectionEnabled:                      coreconfig.SystemProbe.GetBool("runtime_security_config.security_profile.anomaly_detection.enabled"),
 
 		// enforcement
-		EnforcementEnabled: coreconfig.SystemProbe.GetBool("runtime_security_config.enforcement.enabled"),
+		EnforcementEnabled:           coreconfig.SystemProbe.GetBool("runtime_security_config.enforcement.enabled"),
+		EnforcementRawSyscallEnabled: coreconfig.SystemProbe.GetBool("runtime_security_config.enforcement.raw_syscall.enabled"),
 
 		// User Sessions
 		UserSessionsCacheSize: coreconfig.SystemProbe.GetInt("runtime_security_config.user_sessions.cache_size"),
@@ -384,6 +413,9 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		// ebpf less
 		EBPFLessEnabled: coreconfig.SystemProbe.GetBool("runtime_security_config.ebpfless.enabled"),
 		EBPFLessSocket:  coreconfig.SystemProbe.GetString("runtime_security_config.ebpfless.socket"),
+
+		// IMDS
+		IMDSIPv4: parseIMDSIPv4(),
 	}
 
 	if err := rsConfig.sanitize(); err != nil {
@@ -398,6 +430,16 @@ func (c *RuntimeSecurityConfig) IsRuntimeEnabled() bool {
 	return c.RuntimeEnabled || c.FIMEnabled
 }
 
+// parseIMDSIPv4 returns the uint32 representation of the IMDS IP set by the configuration
+func parseIMDSIPv4() uint32 {
+	ip := coreconfig.SystemProbe.GetString("runtime_security_config.imds_ipv4")
+	parsedIP := net.ParseIP(ip)
+	if parsedIP == nil {
+		return 0
+	}
+	return binary.LittleEndian.Uint32(parsedIP.To4())
+}
+
 // If RC is globally enabled, RC is enabled for CWS, unless the CWS-specific RC value is explicitly set to false
 func isRemoteConfigEnabled() bool {
 	// This value defaults to true
@@ -407,7 +449,7 @@ func isRemoteConfigEnabled() bool {
 		return false
 	}
 
-	if coreconfig.IsRemoteConfigEnabled(coreconfig.Datadog) {
+	if coreconfig.IsRemoteConfigEnabled(coreconfig.Datadog()) {
 		return true
 	}
 
@@ -424,15 +466,19 @@ func (c *RuntimeSecurityConfig) GetAnomalyDetectionMinimumStablePeriod(eventType
 
 // sanitize ensures that the configuration is properly setup
 func (c *RuntimeSecurityConfig) sanitize() error {
-	serviceName := utils.GetTagValue("service", configUtils.GetConfiguredTags(coreconfig.Datadog, true))
+	serviceName := utils.GetTagValue("service", configUtils.GetConfiguredTags(coreconfig.Datadog(), true))
 	if len(serviceName) > 0 {
 		c.HostServiceName = fmt.Sprintf("service:%s", serviceName)
+	}
+
+	if c.IMDSIPv4 == 0 {
+		return fmt.Errorf("invalid IPv4 address: got %v", coreconfig.SystemProbe.GetString("runtime_security_config.imds_ipv4"))
 	}
 
 	return c.sanitizeRuntimeSecurityConfigActivityDump()
 }
 
-// sanitizeNetworkConfiguration ensures that runtime_security_config.activity_dump is properly configured
+// sanitizeRuntimeSecurityConfigActivityDump ensures that runtime_security_config.activity_dump is properly configured
 func (c *RuntimeSecurityConfig) sanitizeRuntimeSecurityConfigActivityDump() error {
 	var execFound bool
 	for _, evtType := range c.ActivityDumpTracedEventTypes {
@@ -456,18 +502,32 @@ func (c *RuntimeSecurityConfig) sanitizeRuntimeSecurityConfigActivityDump() erro
 	if c.ActivityDumpTracedCgroupsCount > model.MaxTracedCgroupsCount {
 		c.ActivityDumpTracedCgroupsCount = model.MaxTracedCgroupsCount
 	}
+
+	hasProfileStorageFormat := false
+	for _, format := range c.ActivityDumpLocalStorageFormats {
+		hasProfileStorageFormat = hasProfileStorageFormat || format == Profile
+	}
+
+	if c.SecurityProfileEnabled && !hasProfileStorageFormat {
+		return fmt.Errorf("'profile' storage format has to be enabled when using security profiles, got only formats: %v", c.ActivityDumpLocalStorageFormats)
+	}
+
+	if c.SecurityProfileEnabled && c.ActivityDumpLocalStorageDirectory != c.SecurityProfileDir {
+		return fmt.Errorf("activity dumps storage directory '%s' has to be the same than security profile storage directory '%s'", c.ActivityDumpLocalStorageDirectory, c.SecurityProfileDir)
+	}
+
 	return nil
 }
 
 // ActivityDumpRemoteStorageEndpoints returns the list of activity dump remote storage endpoints parsed from the agent config
 func ActivityDumpRemoteStorageEndpoints(endpointPrefix string, intakeTrackType logsconfig.IntakeTrackType, intakeProtocol logsconfig.IntakeProtocol, intakeOrigin logsconfig.IntakeOrigin) (*logsconfig.Endpoints, error) {
-	logsConfig := logsconfig.NewLogsConfigKeys("runtime_security_config.activity_dump.remote_storage.endpoints.", coreconfig.Datadog)
-	endpoints, err := logsconfig.BuildHTTPEndpointsWithConfig(coreconfig.Datadog, logsConfig, endpointPrefix, intakeTrackType, intakeProtocol, intakeOrigin)
+	logsConfig := logsconfig.NewLogsConfigKeys("runtime_security_config.activity_dump.remote_storage.endpoints.", coreconfig.Datadog())
+	endpoints, err := logsconfig.BuildHTTPEndpointsWithConfig(coreconfig.Datadog(), logsConfig, endpointPrefix, intakeTrackType, intakeProtocol, intakeOrigin)
 	if err != nil {
-		endpoints, err = logsconfig.BuildHTTPEndpoints(coreconfig.Datadog, intakeTrackType, intakeProtocol, intakeOrigin)
+		endpoints, err = logsconfig.BuildHTTPEndpoints(coreconfig.Datadog(), intakeTrackType, intakeProtocol, intakeOrigin)
 		if err == nil {
-			httpConnectivity := logshttp.CheckConnectivity(endpoints.Main, coreconfig.Datadog)
-			endpoints, err = logsconfig.BuildEndpoints(coreconfig.Datadog, httpConnectivity, intakeTrackType, intakeProtocol, intakeOrigin)
+			httpConnectivity := logshttp.CheckConnectivity(endpoints.Main, coreconfig.Datadog())
+			endpoints, err = logsconfig.BuildEndpoints(coreconfig.Datadog(), httpConnectivity, intakeTrackType, intakeProtocol, intakeOrigin)
 		}
 	}
 

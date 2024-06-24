@@ -8,8 +8,6 @@ package windowsfiletailing
 import (
 	_ "embed"
 	"fmt"
-	"os"
-	"strconv"
 	"testing"
 	"time"
 
@@ -41,7 +39,6 @@ const (
 // TestE2EVMFakeintakeSuite runs the E2E test suite for the log agent with a VM and fake intake.
 func TestE2EVMFakeintakeSuite(t *testing.T) {
 	s := &WindowsFakeintakeSuite{}
-	devModeEnv, _ := os.LookupEnv("E2E_DEVMODE")
 	options := []e2e.SuiteOption{
 		e2e.WithProvisioner(awshost.Provisioner(
 			awshost.WithEC2InstanceOptions(ec2.WithOS(testos.WindowsDefault)),
@@ -50,9 +47,6 @@ func TestE2EVMFakeintakeSuite(t *testing.T) {
 				agentparams.WithIntegration("custom_logs.d", logConfig)))),
 	}
 
-	if devMode, err := strconv.ParseBool(devModeEnv); err == nil && devMode {
-		options = append(options, e2e.WithDevMode())
-	}
 	e2e.Run(t, s, options...)
 }
 
@@ -130,7 +124,7 @@ func (s *WindowsFakeintakeSuite) testLogCollection() {
 		fmt.Sprintf("dirname:%s", utils.WindowsLogsFolderPath),
 	}
 	// Check intake for new logs
-	utils.CheckLogsExpected(s, "hello", "hello-world", expectedTags)
+	utils.CheckLogsExpected(s.T(), s.Env().FakeIntake, "hello", "hello-world", expectedTags)
 
 }
 
@@ -150,7 +144,7 @@ func (s *WindowsFakeintakeSuite) testLogNoPermission() {
 			// Generate log
 			utils.AppendLog(s, logFileName, "access-denied", 1)
 			// Check intake for new logs
-			utils.CheckLogsNotExpected(s, "hello", "access-denied")
+			utils.CheckLogsNotExpected(s.T(), s.Env().FakeIntake, "hello", "access-denied")
 		}
 	}, 2*time.Minute, 5*time.Second)
 
@@ -169,7 +163,7 @@ func (s *WindowsFakeintakeSuite) testLogCollectionAfterPermission() {
 	t.Logf("Permissions granted for log file.")
 
 	// Check intake for new logs
-	utils.CheckLogsExpected(s, "hello", "hello-after-permission-world", []string{})
+	utils.CheckLogsExpected(s.T(), s.Env().FakeIntake, "hello", "hello-after-permission-world", []string{})
 }
 
 func (s *WindowsFakeintakeSuite) testLogCollectionBeforePermission() {
@@ -192,7 +186,7 @@ func (s *WindowsFakeintakeSuite) testLogCollectionBeforePermission() {
 	utils.AppendLog(s, logFileName, "access-granted", 1)
 
 	// Check intake for new logs
-	utils.CheckLogsExpected(s, "hello", "access-granted", []string{})
+	utils.CheckLogsExpected(s.T(), s.Env().FakeIntake, "hello", "access-granted", []string{})
 }
 
 func (s *WindowsFakeintakeSuite) testLogRecreateRotation() {
@@ -217,6 +211,6 @@ func (s *WindowsFakeintakeSuite) testLogRecreateRotation() {
 	utils.AppendLog(s, logFileName, "hello-world-new-content", 1)
 
 	// Check intake for new logs
-	utils.CheckLogsExpected(s, "hello", "hello-world-new-content", []string{})
+	utils.CheckLogsExpected(s.T(), s.Env().FakeIntake, "hello", "hello-world-new-content", []string{})
 
 }

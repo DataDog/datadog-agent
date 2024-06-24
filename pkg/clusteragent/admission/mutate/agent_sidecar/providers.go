@@ -49,7 +49,7 @@ func providerIsSupported(provider string) bool {
 // applyProviderOverrides applies the necessary overrides for the provider
 // configured. It returns a boolean that indicates if the pod was mutated.
 func applyProviderOverrides(pod *corev1.Pod) (bool, error) {
-	provider := config.Datadog.GetString("admission_controller.agent_sidecar.provider")
+	provider := config.Datadog().GetString("admission_controller.agent_sidecar.provider")
 
 	if !providerIsSupported(provider) {
 		return false, fmt.Errorf("unsupported provider: %v", provider)

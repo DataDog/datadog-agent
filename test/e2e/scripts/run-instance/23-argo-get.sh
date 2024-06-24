@@ -22,8 +22,8 @@ if ! locale -k LC_CTYPE | grep -qi 'charmap="utf-\+8"'; then
 fi
 
 for workflow in $(./argo list --status Succeeded -o name | grep -v 'No workflows found'); do
-    # CWS and CSPM always get logs
-    if [ "$ARGO_WORKFLOW" = "cws" ] || [ "$ARGO_WORKFLOW" = "cspm" ]; then
+    # CSPM always gets logs
+    if [ "$ARGO_WORKFLOW" = "cspm" ]; then
         ./argo logs "$workflow"
     fi
 

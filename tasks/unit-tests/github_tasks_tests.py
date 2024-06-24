@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import unittest
 from unittest.mock import patch
 
@@ -33,9 +35,11 @@ class TestAssignTeamLabelMock(unittest.TestCase):
 
         fake_codeowners = read_owners(TestAssignTeamLabelMock.CODEOWNERS_FILE)
 
-        with patch('tasks.libs.ciproviders.github_api.GithubAPI') as gh_mock, patch.object(
-            tasks.github_tasks, 'read_owners'
-        ) as read_owners_mock, patch.object(tasks.github_tasks, '_get_team_labels') as team_labels_mock:
+        with (
+            patch('tasks.libs.ciproviders.github_api.GithubAPI') as gh_mock,
+            patch.object(tasks.github_tasks, 'read_owners') as read_owners_mock,
+            patch.object(tasks.github_tasks, '_get_team_labels') as team_labels_mock,
+        ):
             gh = GithubAPIMock(
                 pr_labels or [],
                 changed_files,

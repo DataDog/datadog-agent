@@ -23,7 +23,7 @@ func DiscoverComponentsFromConfig() ([]config.ConfigurationProviders, []config.L
 	detectedListeners := []config.Listeners{}
 
 	// Auto-add Prometheus config provider based on `prometheus_scrape.enabled`
-	if config.Datadog.GetBool("prometheus_scrape.enabled") {
+	if config.Datadog().GetBool("prometheus_scrape.enabled") {
 		var prometheusProvider config.ConfigurationProviders
 		if flavor.GetFlavor() == flavor.ClusterAgent {
 			prometheusProvider = config.ConfigurationProviders{Name: "prometheus_services", Polling: true}
@@ -34,7 +34,7 @@ func DiscoverComponentsFromConfig() ([]config.ConfigurationProviders, []config.L
 		detectedProviders = append(detectedProviders, prometheusProvider)
 	}
 	// Add database-monitoring aurora listener if the feature is enabled
-	if config.Datadog.GetBool("database_monitoring.autodiscovery.aurora.enabled") {
+	if config.Datadog().GetBool("database_monitoring.autodiscovery.aurora.enabled") {
 		detectedListeners = append(detectedListeners, config.Listeners{Name: "database-monitoring-aurora"})
 		log.Info("Database monitoring aurora discovery is enabled: Adding the aurora listener")
 	}
@@ -75,7 +75,7 @@ func DiscoverComponentsFromConfig() ([]config.ConfigurationProviders, []config.L
 
 	// Auto-activate autodiscovery without listeners: - snmp
 	configs := []snmplistener.Config{}
-	err := config.Datadog.UnmarshalKey("network_devices.autodiscovery.configs", &configs)
+	err := config.Datadog().UnmarshalKey("network_devices.autodiscovery.configs", &configs)
 
 	if err == nil && len(configs) > 0 {
 		detectedListeners = append(detectedListeners, config.Listeners{Name: "snmp"})

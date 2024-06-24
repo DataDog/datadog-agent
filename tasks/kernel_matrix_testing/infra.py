@@ -13,7 +13,7 @@ from tasks.kernel_matrix_testing.kmt_os import get_kmt_os
 from tasks.kernel_matrix_testing.tool import Exit, ask, error, info
 
 if TYPE_CHECKING:
-    from tasks.kernel_matrix_testing.types import ArchOrLocal, PathOrStr, SSHKey, StackOutput
+    from tasks.kernel_matrix_testing.types import KMTArchNameOrLocal, PathOrStr, SSHKey, StackOutput
 
 # Common SSH options for all SSH commands
 SSH_OPTIONS = {
@@ -71,7 +71,7 @@ class RemoteCommandRunner:
         raise Exit("command failed")
 
 
-def get_instance_runner(arch: ArchOrLocal):
+def get_instance_runner(arch: KMTArchNameOrLocal):
     if arch == "local":
         return LocalCommandRunner
     else:
@@ -79,7 +79,7 @@ def get_instance_runner(arch: ArchOrLocal):
 
 
 def print_failed(output: str):
-    out = list()
+    out = []
     for line in output.split("\n"):
         out.append(f"\t{line}")
     error('\n'.join(out))
@@ -111,13 +111,36 @@ class LibvirtDomain:
         run = f"ssh {ssh_options_command(extra_opts)} -o IdentitiesOnly=yes -i {self.ssh_key} root@{self.ip} {{proxy_cmd}} '{cmd}'"
         return self.instance.runner.run_cmd(ctx, self.instance, run, allow_fail, verbose)
 
-    def copy(
-        self, ctx: Context, source: PathOrStr, target: PathOrStr, exclude: PathOrStr = None, verbose: bool = False
-    ):
+    def _get_rsync_base(self, exclude: PathOrStr | None) -> str:
         exclude_arg = ""
         if exclude is not None:
             exclude_arg = f"--exclude '{exclude}'"
-        run = f"rsync -e \"ssh {ssh_options_command({'IdentitiesOnly': 'yes'})} {{proxy_cmd}} -i {self.ssh_key}\" -p -rt --exclude='.git*' {exclude_arg} --filter=':- .gitignore' {source} root@{self.ip}:{target}"
+
+        return f"rsync -e \"ssh {ssh_options_command({'IdentitiesOnly': 'yes'})} {{proxy_cmd}} -i {self.ssh_key}\" -p -rt --exclude='.git*' {exclude_arg} --filter=':- .gitignore'"
+
+    def copy(
+        self,
+        ctx: Context,
+        source: PathOrStr,
+        target: PathOrStr,
+        exclude: PathOrStr | None = None,
+        verbose: bool = False,
+    ):
+        # Always ensure that the parent directory exists, rsync creates the rest
+        self.run_cmd(ctx, f"mkdir -p {os.path.dirname(target)}", verbose=verbose)
+
+        run = self._get_rsync_base(exclude) + f" {source} root@{self.ip}:{target}"
+        return self.instance.runner.run_cmd(ctx, self.instance, run, False, verbose)
+
+    def download(
+        self,
+        ctx: Context,
+        source: PathOrStr,
+        target: PathOrStr,
+        exclude: PathOrStr | None = None,
+        verbose: bool = False,
+    ):
+        run = self._get_rsync_base(exclude) + f" root@{self.ip}:{source} {target}"
         return self.instance.runner.run_cmd(ctx, self.instance, run, False, verbose)
 
     def __repr__(self):
@@ -128,9 +151,9 @@ class LibvirtDomain:
 
 
 class HostInstance:
-    def __init__(self, ip: str, arch: ArchOrLocal, ssh_key_path: str | None):
+    def __init__(self, ip: str, arch: KMTArchNameOrLocal, ssh_key_path: str | None):
         self.ip: str = ip
-        self.arch: ArchOrLocal = arch
+        self.arch: KMTArchNameOrLocal = arch
         self.ssh_key_path: str | None = ssh_key_path
         self.microvms: list[LibvirtDomain] = []
         self.runner = get_instance_runner(arch)
@@ -150,10 +173,10 @@ def build_infrastructure(stack: str, ssh_key_obj: SSHKey | None = None):
     with open(stack_output) as f:
         try:
             infra_map: StackOutput = json.load(f)
-        except json.decoder.JSONDecodeError:
-            raise Exit(f"{stack_output} file is not a valid json file")
+        except json.decoder.JSONDecodeError as e:
+            raise Exit(f"{stack_output} file is not a valid json file") from e
 
-    infra: dict[ArchOrLocal, HostInstance] = dict()
+    infra: dict[KMTArchNameOrLocal, HostInstance] = {}
     for arch in infra_map:
         key = ssh_key_obj['path'] if ssh_key_obj is not None else None
         instance = HostInstance(infra_map[arch]["ip"], arch, key)
@@ -205,7 +228,8 @@ def try_get_ssh_key(ctx: Context, key_hint: str | None) -> SSHKey | None:
     """
     if key_hint is not None:
         checked_paths: list[str] = []
-        possible_paths = map(Path, [key_hint, f"~/.ssh/{key_hint}", f"~/.ssh/{key_hint}.pem"])
+        home = Path.home()
+        possible_paths = map(Path, [key_hint, f"{home}/.ssh/{key_hint}", f"{home}/.ssh/{key_hint}.pem"])
         for path in possible_paths:
             checked_paths.append(os.fspath(path))
             if not path.is_file():
@@ -240,7 +264,7 @@ def try_get_ssh_key(ctx: Context, key_hint: str | None) -> SSHKey | None:
             return {'path': None, 'name': key_hint, 'aws_key_name': key_hint}
 
         raise Exit(
-            f"Could not find file for ssh key {key_hint}. Looked in {possible_paths}, it's not a path, not a file name nor a key name"
+            f"Could not find file for ssh key {key_hint}. Looked in {list(possible_paths)}, it's not a path, not a file name nor a key name"
         )
 
     cm = ConfigManager()
@@ -249,7 +273,7 @@ def try_get_ssh_key(ctx: Context, key_hint: str | None) -> SSHKey | None:
 
 def ensure_key_in_agent(ctx: Context, key: SSHKey):
     info(f"[+] Checking that key {key} is in the SSH agent...")
-    res = ctx.run(f"ssh-add -l | grep {key['name']}")
+    res = ctx.run(f"ssh-add -l | grep {key['name']}", warn=True)
     if res is None or not res.ok:
         if key['path'] is None:
             raise Exit(f"Key {key} not found in the agent and no path provided to add it")

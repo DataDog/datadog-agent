@@ -43,7 +43,7 @@ func TestLogsExporter(t *testing.T) {
 			args: args{
 				ld:            lr,
 				otelSource:    otelSource,
-				logSourceName: logSourceName,
+				logSourceName: LogSourceName,
 			},
 
 			want: testutil.JSONLogs{
@@ -75,7 +75,7 @@ func TestLogsExporter(t *testing.T) {
 					return lrr
 				}(),
 				otelSource:    otelSource,
-				logSourceName: logSourceName,
+				logSourceName: LogSourceName,
 			},
 
 			want: testutil.JSONLogs{
@@ -107,7 +107,7 @@ func TestLogsExporter(t *testing.T) {
 					return lrr
 				}(),
 				otelSource:    otelSource,
-				logSourceName: logSourceName,
+				logSourceName: LogSourceName,
 			},
 
 			want: testutil.JSONLogs{
@@ -141,7 +141,7 @@ func TestLogsExporter(t *testing.T) {
 					return lrr
 				}(),
 				otelSource:    otelSource,
-				logSourceName: logSourceName,
+				logSourceName: LogSourceName,
 			},
 
 			want: testutil.JSONLogs{
@@ -224,7 +224,7 @@ func TestLogsExporter(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			testChannel := make(chan *message.Message, 10)
 
-			params := exportertest.NewNopCreateSettings()
+			params := exportertest.NewNopSettings()
 			f := NewFactory(testChannel)
 			cfg := &Config{
 				OtelSource:    tt.args.otelSource,
@@ -249,7 +249,6 @@ func TestLogsExporter(t *testing.T) {
 			close(testChannel)
 		})
 	}
-
 }
 
 // traceIDToUint64 converts 128bit traceId to 64 bit uint64

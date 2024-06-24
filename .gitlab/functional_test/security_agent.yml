@@ -40,30 +40,19 @@ kitchen_test_security_agent_x64:
     matrix:
       - KITCHEN_PLATFORM: "centos"
         KITCHEN_OSVERS: "centos-77"
-        KITCHEN_CWS_PLATFORM: [host, docker]
-      - KITCHEN_PLATFORM: "centos"
-        KITCHEN_OSVERS: "rhel-85,rhel-91"
-        KITCHEN_CI_MOUNT_PATH: "/mnt/ci"
-        KITCHEN_CI_ROOT_PATH: "/tmp/ci"
-        KITCHEN_CWS_PLATFORM: [host]
+        KITCHEN_CWS_PLATFORM: [docker]
       - KITCHEN_PLATFORM: "ubuntu"
         KITCHEN_OSVERS: "ubuntu-18-04-0,ubuntu-18-04,ubuntu-18-04-3"
-        KITCHEN_CWS_PLATFORM: [host, docker]
+        KITCHEN_CWS_PLATFORM: [docker]
       - KITCHEN_PLATFORM: "ubuntu"
         KITCHEN_OSVERS: "ubuntu-20-04,ubuntu-20-04-2,ubuntu-22-04"
-        KITCHEN_CWS_PLATFORM: [host, docker]
+        KITCHEN_CWS_PLATFORM: [docker]
       - KITCHEN_PLATFORM: "ubuntu"
         KITCHEN_OSVERS: "ubuntu-22-04"
         KITCHEN_CWS_PLATFORM: [ad, ebpfless, ebpfless-no-seccomp]
-      - KITCHEN_PLATFORM: "suse"
-        KITCHEN_OSVERS: "sles-12,sles-15"
-        KITCHEN_CWS_PLATFORM: [host]
-      - KITCHEN_PLATFORM: "suse"
-        KITCHEN_OSVERS: "opensuse-15-3"
-        KITCHEN_CWS_PLATFORM: [host]
       - KITCHEN_PLATFORM: "debian"
         KITCHEN_OSVERS: "debian-10,debian-11"
-        KITCHEN_CWS_PLATFORM: [host, docker]
+        KITCHEN_CWS_PLATFORM: [docker]
       - KITCHEN_PLATFORM: "oracle"
         KITCHEN_OSVERS: "oracle-7-9"
         KITCHEN_CWS_PLATFORM: [host, docker]
@@ -88,7 +77,7 @@ kitchen_test_security_agent_arm64:
     matrix:
       - KITCHEN_PLATFORM: "ubuntu"
         KITCHEN_OSVERS: "ubuntu-20-04-2,ubuntu-22-04"
-        KITCHEN_CWS_PLATFORM: [host, docker, ad, ebpfless, ebpfless-no-seccomp]
+        KITCHEN_CWS_PLATFORM: [docker, ad, ebpfless, ebpfless-no-seccomp]
 
 kitchen_test_security_agent_amazonlinux_x64:
   extends:
@@ -110,7 +99,7 @@ kitchen_test_security_agent_amazonlinux_x64:
     matrix:
       - KITCHEN_PLATFORM: "amazonlinux"
         KITCHEN_OSVERS: "amazonlinux2-4-14,amazonlinux2-5-10"
-        KITCHEN_CWS_PLATFORM: [host, docker]
+        KITCHEN_CWS_PLATFORM: [docker]
       - KITCHEN_PLATFORM: "amazonlinux"
         KITCHEN_OSVERS: "amazonlinux2022-5-15,amazonlinux2023"
         KITCHEN_CWS_PLATFORM: [host, docker]
@@ -131,12 +120,9 @@ kitchen_test_security_agent_x64_ec2:
     - tasks/kitchen_setup.sh
   parallel:
     matrix:
-      - KITCHEN_PLATFORM: "centos"
-        KITCHEN_OSVERS: "rocky-92"
-        KITCHEN_CWS_PLATFORM: [host]
       - KITCHEN_PLATFORM: "ubuntu"
         KITCHEN_OSVERS: "ubuntu-23-10"
-        KITCHEN_CWS_PLATFORM: [host, docker]
+        KITCHEN_CWS_PLATFORM: [docker]
         KITCHEN_EC2_DEVICE_NAME: "/dev/sda1"
 
 kitchen_test_security_agent_amazonlinux_x64_fentry:
@@ -174,9 +160,8 @@ kitchen_stress_security_agent:
 
 kitchen_test_security_agent_windows_x64:
   extends:
-    - .kitchen_os_windows
     - .kitchen_test_security_agent
-    - .kitchen_azure_x64
+    - .kitchen_os_windows
     - .kitchen_azure_location_north_central_us
   rules:
     !reference [.on_security_agent_changes_or_manual]

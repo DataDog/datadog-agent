@@ -686,17 +686,27 @@ func handleUtimes(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, re
 func handleUtimensAt(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, disableStats bool) error {
 	fd := tracer.ReadArgInt32(regs, 0)
 
-	filename, err := tracer.ReadArgString(process.Pid, regs, 1)
-	if err != nil {
-		return err
-	}
+	filenamePtr := tracer.argToRegValue(regs, 1)
+	filename := ""
+	if filenamePtr == 0 {
+		// fd points to the file itself, not the directory
+		var exists bool
+		if filename, exists = process.Res.Fd[fd]; !exists {
+			return errors.New("process FD cache incomplete during path resolution")
+		}
+	} else {
+		var err error
+		filename, err = tracer.ReadArgString(process.Pid, regs, 1)
+		if err != nil {
+			return err
+		}
 
-	filename, err = getFullPathFromFd(process, filename, fd)
-	if err != nil {
-		return err
+		filename, err = getFullPathFromFd(process, filename, fd)
+		if err != nil {
+			return err
+		}
 	}
-
-	filename, err = getFullPathFromFilename(process, filename)
+	filename, err := getFullPathFromFilename(process, filename)
 	if err != nil {
 		return err
 	}

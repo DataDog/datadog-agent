@@ -367,14 +367,14 @@ X Section
 				expectedStatusHTMLOutput := fmt.Sprintf(`<div class="stat">
   <span class="stat_title">Agent Info</span>
   <span class="stat_data">
-    Version: %s
-    <br>Flavor: %s
-    <br>PID: %d
-    <br>Agent start: 2018-01-05 11:25:15 UTC (1515151515000)
-    <br>Log Level: info
-    <br>Config File: There is no config file
-    <br>Conf.d Path: %s
-    <br>Checks.d Path: %s
+    Version: %s<br>
+    Flavor: %s<br>
+    PID: %d<br>
+    Agent start: 2018-01-05 11:25:15 UTC (1515151515000)<br>
+    Log Level: info<br>
+    Config File: There is no config file<br>
+    Conf.d Path: %s<br>
+    Checks.d Path: %s
   </span>
 </div>
 
@@ -421,14 +421,14 @@ X Section
 				expectedStatusHTMLOutput := fmt.Sprintf(`<div class="stat">
   <span class="stat_title">Agent Info</span>
   <span class="stat_data">
-    Version: %s
-    <br>Flavor: %s
-    <br>PID: %d
-    <br>Agent start: 2018-01-05 11:25:15 UTC (1515151515000)
-    <br>Log Level: info
-    <br>Config File: There is no config file
-    <br>Conf.d Path: %s
-    <br>Checks.d Path: %s
+    Version: %s<br>
+    Flavor: %s<br>
+    PID: %d<br>
+    Agent start: 2018-01-05 11:25:15 UTC (1515151515000)<br>
+    Log Level: info<br>
+    Config File: There is no config file<br>
+    Conf.d Path: %s<br>
+    Checks.d Path: %s
   </span>
 </div>
 
@@ -609,10 +609,6 @@ func TestGetStatusWithErrors(t *testing.T) {
 Collector
 =========
  text from b
-
-=============
-Error Section
-=============
 
 ====================
 Status render errors
@@ -904,7 +900,6 @@ Status render errors
 			format:  "text",
 			section: "header",
 			assertFunc: func(t *testing.T, bytes []byte) {
-
 				expectedStatusTextErrorOutput := fmt.Sprintf(`%s
   Status date: 2018-01-05 11:25:15 UTC (1515151515000)
   Agent start: 2018-01-05 11:25:15 UTC (1515151515000)
@@ -1093,13 +1088,12 @@ func TestFlareProvider(t *testing.T) {
 	))
 
 	provides := newStatus(deps)
-	flareProvider := provides.FlareProvider.Provider
+	flareProvider := provides.FlareProvider.Callback
 
 	assert.NotNil(t, flareProvider)
 }
 
 func TestGetStatusBySectionIncorrect(t *testing.T) {
-
 	deps := fxutil.Test[dependencies](t, fx.Options(
 		config.MockModule(),
 		fx.Supply(

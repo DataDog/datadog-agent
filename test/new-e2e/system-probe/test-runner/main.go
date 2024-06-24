@@ -61,7 +61,7 @@ var timeouts = map[*regexp.Regexp]time.Duration{
 	regexp.MustCompile("pkg/network/protocols/http$"): 15 * time.Minute,
 	regexp.MustCompile("pkg/network/tracer$"):         55 * time.Minute,
 	regexp.MustCompile("pkg/network/usm$"):            55 * time.Minute,
-	regexp.MustCompile("pkg/security/.*"):             30 * time.Minute,
+	regexp.MustCompile("pkg/security.*"):              30 * time.Minute,
 }
 
 func getTimeout(pkg string) time.Duration {
@@ -74,6 +74,18 @@ func getTimeout(pkg string) time.Duration {
 		}
 	}
 	return to
+}
+
+func getEBPFBuildDir() (string, error) {
+	arch, _, err := getArchAndRelease()
+	if err != nil {
+		return "", fmt.Errorf("cannot get arch: %w", err)
+	}
+	if arch == "aarch64" {
+		arch = "arm64"
+	}
+
+	return fmt.Sprintf("pkg/ebpf/bytecode/build/%s", arch), nil
 }
 
 func glob(dir, filePattern string, filterFn func(path string) bool) ([]string, error) {
@@ -208,12 +220,18 @@ func testPass(testConfig *testConfig, props map[string]string) error {
 		args := buildCommandArgs(pkg, xmlpath, jsonpath, testsuite, testConfig)
 
 		cmd := exec.Command(filepath.Join(testConfig.testingTools, "go/bin/gotestsum"), args...)
+
+		buildDir, err := getEBPFBuildDir()
+		if err != nil {
+			return fmt.Errorf("getEBPFBuildDir: %w", err)
+		}
 		baseEnv = append(
 			baseEnv,
-			"DD_SYSTEM_PROBE_BPF_DIR="+filepath.Join(testConfig.testDirRoot, "pkg/ebpf/bytecode/build"),
+			"DD_SYSTEM_PROBE_BPF_DIR="+filepath.Join(testConfig.testDirRoot, buildDir),
 			"DD_SERVICE_MONITORING_CONFIG_TLS_JAVA_DIR="+filepath.Join(testConfig.testDirRoot, "pkg/network/protocols/tls/java"),
 		)
 		cmd.Env = append(cmd.Environ(), baseEnv...)
+
 		cmd.Dir = filepath.Dir(testsuite)
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
@@ -318,17 +336,25 @@ func readOSRelease() (map[string]string, error) {
 	return keyvals, nil
 }
 
+func getArchAndRelease() (string, string, error) {
+	var u unix.Utsname
+	if err := unix.Uname(&u); err != nil {
+		return "", "", fmt.Errorf("uname: %w", err)
+	}
+	arch, release := unix.ByteSliceToString(u.Machine[:]), unix.ByteSliceToString(u.Release[:])
+	return arch, release, nil
+}
+
 func getProps() (map[string]string, error) {
 	osrHash, err := readOSRelease()
 	if err != nil {
 		return nil, fmt.Errorf("os-release: %s", err)
 	}
 	osname := fmt.Sprintf("%s-%s", osrHash["ID"], osrHash["VERSION_ID"])
-	var u unix.Utsname
-	if err := unix.Uname(&u); err != nil {
-		return nil, fmt.Errorf("uname: %w", err)
+	arch, release, err := getArchAndRelease()
+	if err != nil {
+		return nil, fmt.Errorf("arch and release: %s", err)
 	}
-	arch, release := unix.ByteSliceToString(u.Machine[:]), unix.ByteSliceToString(u.Release[:])
 	fmt.Printf("arch: %s\nrelease: %s\n", arch, release)
 	return map[string]string{
 		"dd_tags[os.platform]":     "linux",
@@ -349,12 +375,12 @@ func fixAssetPermissions(testDirRoot string) error {
 		return pathEmbedded(path, "pkg/ebpf/bytecode/build")
 	})
 	if err != nil {
-		return fmt.Errorf("glob assets: %s", err)
+		return fmt.Errorf("glob assets: %w", err)
 	}
 
 	for _, file := range matches {
 		if err := os.Chown(file, 0, 0); err != nil {
-			return fmt.Errorf("chown %s: %s", file, err)
+			return fmt.Errorf("chown %s: %w", file, err)
 		}
 	}
 	return nil

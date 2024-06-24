@@ -72,12 +72,12 @@ func TestDentryPathERPC(t *testing.T) {
 		basename := path.Base(testFile)
 
 		res, err := p.Resolvers.DentryResolver.Resolve(event.Open.File.PathKey, true)
-		assert.Nil(test.t, err)
+		assert.NoError(test.t, err)
 		assert.Equal(test.t, basename, path.Base(res))
 
 		// check that the path is now available from the cache
 		res, err = p.Resolvers.DentryResolver.ResolveFromCache(event.Open.File.PathKey)
-		assert.Nil(test.t, err)
+		assert.NoError(test.t, err)
 		assert.Equal(test.t, basename, path.Base(res))
 
 		// check stats
@@ -139,12 +139,12 @@ func TestDentryPathMap(t *testing.T) {
 		basename := path.Base(testFile)
 
 		res, err := p.Resolvers.DentryResolver.Resolve(event.Open.File.PathKey, true)
-		assert.Nil(test.t, err)
+		assert.NoError(test.t, err)
 		assert.Equal(test.t, basename, path.Base(res))
 
 		// check that the path is now available from the cache
 		res, err = p.Resolvers.DentryResolver.ResolveFromCache(event.Open.File.PathKey)
-		assert.Nil(test.t, err)
+		assert.NoError(test.t, err)
 		assert.Equal(test.t, basename, path.Base(res))
 
 		// check stats
@@ -211,7 +211,7 @@ func TestDentryName(t *testing.T) {
 
 		// check that the path is now available from the cache
 		res, err = p.Resolvers.DentryResolver.ResolveNameFromCache(event.Open.File.PathKey)
-		assert.Nil(test.t, err)
+		assert.NoError(test.t, err)
 		assert.Equal(test.t, basename, path.Base(res))
 	})
 }

@@ -7,8 +7,12 @@
 package eventplatformreceiverimpl
 
 import (
+	"net/http"
+
 	"go.uber.org/fx"
 
+	api "github.com/DataDog/datadog-agent/comp/api/api/def"
+	apiutils "github.com/DataDog/datadog-agent/comp/api/api/utils/stream"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
@@ -22,7 +26,22 @@ func Module() fxutil.Module {
 	)
 }
 
+type provides struct {
+	fx.Out
+
+	Comp     eventplatformreceiver.Component
+	Endpoint api.AgentEndpointProvider
+}
+
+func streamEventPlatform(eventPlatformReceiver eventplatformreceiver.Component) func(w http.ResponseWriter, r *http.Request) {
+	return apiutils.GetStreamFunc(func() apiutils.MessageReceiver { return eventPlatformReceiver }, "event platform payloads", "agent")
+}
+
 // NewReceiver returns a new event platform receiver.
-func NewReceiver(hostname hostnameinterface.Component) eventplatformreceiver.Component {
-	return diagnostic.NewBufferedMessageReceiver(&epFormatter{}, hostname)
+func NewReceiver(hostname hostnameinterface.Component) provides { // nolint:revive
+	epr := diagnostic.NewBufferedMessageReceiver(&epFormatter{}, hostname)
+	return provides{
+		Comp:     epr,
+		Endpoint: api.NewAgentEndpointProvider(streamEventPlatform(epr), "/stream-event-platform", "POST"),
+	}
 }

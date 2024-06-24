@@ -201,7 +201,7 @@ func (m *istioMonitor) Start() {
 	}()
 
 	utils.AddAttacher("istio", m)
-	log.Debug("Istio monitoring enabled")
+	log.Info("Istio monitoring enabled")
 }
 
 // Stop the istioMonitor.

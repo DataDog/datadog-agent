@@ -8,13 +8,13 @@ replace (
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.53.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.55.0-rc.3
 	github.com/stretchr/testify v1.9.0
 	go.uber.org/fx v1.18.2
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/def v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/comp/def v0.55.0-rc.3 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect

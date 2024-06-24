@@ -69,7 +69,7 @@ func buildDeviceMetadata(namespace string, device client.Device) devicemetadata.
 		Vendor:       "cisco",
 		Name:         device.HostName,
 		Tags:         append(buildDeviceTags(namespace, device), "source:cisco-sdwan"),
-		IDTags:       []string{"system_ip:" + device.SystemIP},
+		IDTags:       []string{"device_namespace:" + namespace, "system_ip:" + device.SystemIP},
 		Status:       mapNDMStatus(device.Reachability),
 		Model:        device.DeviceModel,
 		OsName:       device.DeviceOs,

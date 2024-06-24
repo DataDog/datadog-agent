@@ -8,6 +8,9 @@
 package inventoryhostimpl
 
 import (
+	"net/http"
+
+	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"go.uber.org/fx"
@@ -26,10 +29,19 @@ func MockModule() fxutil.Module {
 		fx.Provide(newMock))
 }
 
+// MockProvides is the mock component output
+type MockProvides struct {
+	fx.Out
+
+	Comp     inventoryhost.Component
+	Endpoint api.AgentEndpointProvider
+}
+
 type inventoryhostMock struct{}
 
-func newMock() inventoryhost.Component {
-	return &inventoryhostMock{}
+// handlerFunc is a simple mocked http.Handler function
+func (m *inventoryhostMock) handlerFunc(w http.ResponseWriter, _ *http.Request) {
+	w.Write([]byte("OK"))
 }
 
 func (m *inventoryhostMock) GetAsJSON() ([]byte, error) {
@@ -37,3 +49,11 @@ func (m *inventoryhostMock) GetAsJSON() ([]byte, error) {
 }
 
 func (m *inventoryhostMock) Refresh() {}
+
+func newMock() MockProvides {
+	ih := &inventoryhostMock{}
+	return MockProvides{
+		Comp:     ih,
+		Endpoint: api.NewAgentEndpointProvider(ih.handlerFunc, "/metadata/inventory-host", "GET"),
+	}
+}

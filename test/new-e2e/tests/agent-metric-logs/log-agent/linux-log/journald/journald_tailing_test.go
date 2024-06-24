@@ -8,8 +8,6 @@ package journaldlog
 import (
 	_ "embed"
 	"fmt"
-	"os"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -46,15 +44,11 @@ var randomLogger []byte
 
 // TestE2EVMFakeintakeSuite returns the stack definition required for the log agent test suite.
 func TestE2EVMFakeintakeSuite(t *testing.T) {
-	devModeEnv, _ := os.LookupEnv("E2E_DEVMODE")
 	options := []e2e.SuiteOption{
 		e2e.WithProvisioner(awshost.Provisioner(
 			awshost.WithAgentOptions(
 				agentparams.WithLogs(),
 				agentparams.WithIntegration("custom_logs.d", string(logBasicConfig))))),
-	}
-	if devMode, err := strconv.ParseBool(devModeEnv); err == nil && devMode {
-		options = append(options, e2e.WithDevMode())
 	}
 
 	e2e.Run(t, &LinuxJournaldFakeintakeSuite{}, options...)
@@ -95,7 +89,7 @@ func (s *LinuxJournaldFakeintakeSuite) journaldLogCollection() {
 	appendJournaldLog(s, "hello-world", 1)
 
 	// Check that the generated log is collected
-	utils.CheckLogsExpected(s, "hello", "hello-world", []string{})
+	utils.CheckLogsExpected(s.T(), s.Env().FakeIntake, "hello", "hello-world", []string{})
 }
 
 func (s *LinuxJournaldFakeintakeSuite) journaldIncludeServiceLogCollection() {
@@ -141,7 +135,7 @@ func (s *LinuxJournaldFakeintakeSuite) journaldIncludeServiceLogCollection() {
 		agentReady := s.Env().Agent.Client.IsReady()
 		if assert.Truef(c, agentReady, "Agent is not ready after restart") {
 			// Check that the agent service log is collected
-			utils.CheckLogsExpected(s, "random-logger", "less important", []string{})
+			utils.CheckLogsExpected(s.T(), s.Env().FakeIntake, "random-logger", "less important", []string{})
 		}
 	}, 1*time.Minute, 5*time.Second)
 
@@ -162,7 +156,7 @@ func (s *LinuxJournaldFakeintakeSuite) journaldExcludeServiceCollection() {
 		agentReady := s.Env().Agent.Client.IsReady()
 		if assert.Truef(c, agentReady, "Agent is not ready after restart") {
 			// Check that the datadog-agent.service log is not collected, specifically logs from the check runners
-			utils.CheckLogsNotExpected(s, "no-datadog", "running check")
+			utils.CheckLogsNotExpected(s.T(), s.Env().FakeIntake, "no-datadog", "running check")
 		}
 	}, 1*time.Minute, 5*time.Second)
 }

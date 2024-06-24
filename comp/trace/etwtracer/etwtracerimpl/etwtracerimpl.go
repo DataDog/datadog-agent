@@ -275,7 +275,7 @@ func (a *etwtracerimpl) start(_ context.Context) error {
 	a.log.Infof("Starting Datadog APM ETW tracer component")
 	var err error
 	etwSessionName := "Datadog APM ETW tracer"
-	a.session, err = a.etw.NewSession(etwSessionName)
+	a.session, err = a.etw.NewSession(etwSessionName, func(cfg *etw.SessionConfiguration) {})
 	if err != nil {
 		a.log.Errorf("Failed to create the ETW session '%s': %v", etwSessionName, err)
 		// Don't fail the Agent startup
@@ -421,15 +421,34 @@ func (a *etwtracerimpl) doTrace() {
 
 func (a *etwtracerimpl) stop(_ context.Context) error {
 	a.log.Infof("Stopping Datadog APM ETW tracer component")
-	err := a.session.StopTracing()
-	err = errors.Join(err, a.pipeListener.Close())
+
+	// NOTE: since start can fail but doesn't return an error, stop will be
+	//       called in cases where start exits before fully intializing the
+	//       object, so we need to check that each resource is not nil before
+	//       closing it.
+	var err error
+
+	if a.session != nil {
+		err = a.session.StopTracing()
+		if err != nil {
+			a.log.Errorf("Failed to stop the ETW session: %v", err)
+		}
+	}
+	if a.pipeListener != nil {
+		err = errors.Join(err, a.pipeListener.Close())
+		if err != nil {
+			a.log.Errorf("Failed to stop the ETW session: %v", err)
+		}
+	}
 	// Cancel all active reads
-	a.readCancel()
-	a.pidMutex.Lock()
-	defer a.pidMutex.Unlock()
-	for pid, pidCtx := range a.pids {
-		pidCtx.conn.Close()
-		delete(a.pids, pid)
+	if a.readCtx != nil {
+		a.readCancel()
+		a.pidMutex.Lock()
+		defer a.pidMutex.Unlock()
+		for pid, pidCtx := range a.pids {
+			pidCtx.conn.Close()
+			delete(a.pids, pid)
+		}
 	}
 	return err
 }

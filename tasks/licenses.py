@@ -140,7 +140,10 @@ def licenses_csv(licenses):
             copyright = f'"{copyright}"'
         return copyright
 
-    return [f"{l['component']},{l['package']},{l['license']},{fmt_copyright(l)}" for l in licenses]
+    return [
+        f"{license['component']},{license['package']},{license['license']},{fmt_copyright(license)}"
+        for license in licenses
+    ]
 
 
 def wwhrd_licenses(ctx):
@@ -223,9 +226,9 @@ def wwhrd_licenses(ctx):
                             # we get the first match
                             license = project['matches'][0]['license']
                         licenses.append({"component": "core", "package": pkg, "license": license})
-        except RequestException:
+        except RequestException as e:
             print(f"There was an issue reaching license {pkg} for pkg {lic}")
-            raise Exit(code=1)
+            raise Exit(code=1) from e
 
     return licenses
 
@@ -285,7 +288,7 @@ def find_copyright_for(package, overrides, ctx):
 
     for filename in AUTHORS_LOCATIONS:
         filename = os.path.join(pkgdir, filename)
-        if os.path.exists(filename):
+        if os.path.isfile(filename):
             lines = open(filename, encoding="utf-8")
             if package in CONTRIBUTORS_WITH_UNCOMMENTED_HEADER:
                 lines = skipheader(lines)

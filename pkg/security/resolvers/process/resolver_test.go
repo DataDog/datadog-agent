@@ -30,7 +30,7 @@ func testCacheSize(t *testing.T, resolver *EBPFResolver) {
 			return fmt.Errorf("cache size error: %d", resolver.cacheSize.Load())
 		},
 	)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 }
 
 func TestFork1st(t *testing.T) {

@@ -23,7 +23,7 @@ import (
 	"k8s.io/client-go/dynamic"
 
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/admission"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
@@ -56,8 +56,8 @@ type Webhook struct {
 func NewWebhook(wmeta workloadmeta.Component) *Webhook {
 	return &Webhook{
 		name:          webhookName,
-		isEnabled:     config.Datadog.GetBool("admission_controller.inject_tags.enabled"),
-		endpoint:      config.Datadog.GetString("admission_controller.inject_tags.endpoint"),
+		isEnabled:     config.Datadog().GetBool("admission_controller.inject_tags.enabled"),
+		endpoint:      config.Datadog().GetString("admission_controller.inject_tags.endpoint"),
 		resources:     []string{"pods"},
 		operations:    []admiv1.OperationType{admiv1.Create},
 		ownerCacheTTL: ownerCacheTTL(),
@@ -268,9 +268,9 @@ func (w *Webhook) getAndCacheOwner(info *ownerInfo, ns string, dc dynamic.Interf
 }
 
 func ownerCacheTTL() time.Duration {
-	if config.Datadog.IsSet("admission_controller.pod_owners_cache_validity") { // old option. Kept for backwards compatibility
-		return config.Datadog.GetDuration("admission_controller.pod_owners_cache_validity") * time.Minute
+	if config.Datadog().IsSet("admission_controller.pod_owners_cache_validity") { // old option. Kept for backwards compatibility
+		return config.Datadog().GetDuration("admission_controller.pod_owners_cache_validity") * time.Minute
 	}
 
-	return config.Datadog.GetDuration("admission_controller.inject_tags.pod_owners_cache_validity") * time.Minute
+	return config.Datadog().GetDuration("admission_controller.inject_tags.pod_owners_cache_validity") * time.Minute
 }

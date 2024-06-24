@@ -1,11 +1,12 @@
+from __future__ import annotations
+
 import re
-from typing import List, Tuple
 
 from invoke import exceptions
 from invoke.context import Context
 from invoke.tasks import task
 
-from tasks.go import tidy_all
+from tasks.go import tidy
 from tasks.libs.common.color import color_message
 from tasks.modules import DEFAULT_MODULES
 from tasks.pipeline import update_circleci_config, update_gitlab_config
@@ -17,10 +18,11 @@ GO_VERSION_FILE = "./.go-version"
 # - path is the path of the file to update
 # - pre_pattern and post_pattern delimit the version to update
 # - is_bugfix is True if the version in the match is a bugfix version, False if it's a minor
-GO_VERSION_REFERENCES: List[Tuple[str, str, str, bool]] = [
+GO_VERSION_REFERENCES: list[tuple[str, str, str, bool]] = [
     (GO_VERSION_FILE, "", "", True),  # the version is the only content of the file
     ("./tools/gdb/Dockerfile", "https://go.dev/dl/go", ".linux-amd64.tar.gz", True),
     ("./test/fakeintake/Dockerfile", "FROM golang:", "-alpine", True),
+    ("./tasks/unit-tests/modules_tests.py", 'Go": "', '",', False),
     ("./devenv/scripts/Install-DevEnv.ps1", '$go_version = "', '"', True),
     ("./docs/dev/agent_dev_env.md", "[install Golang](https://golang.org/doc/install) version `", "`", True),
     ("./tasks/go.py", '"go version go', ' linux/amd64"', True),
@@ -97,11 +99,11 @@ def update_go(
     # check the installed go version before running `tidy_all`
     res = ctx.run("go version")
     if res.stdout.startswith(f"go version go{version} "):
-        tidy_all(ctx)
+        tidy(ctx)
     else:
         print(
             color_message(
-                "WARNING: did not run `inv tidy-all` as the version of your `go` binary doesn't match the requested version",
+                "WARNING: did not run `inv tidy` as the version of your `go` binary doesn't match the requested version",
                 "orange",
             )
         )

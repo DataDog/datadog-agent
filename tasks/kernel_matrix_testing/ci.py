@@ -6,44 +6,45 @@ import os
 import re
 import tarfile
 import xml.etree.ElementTree as ET
-from typing import TYPE_CHECKING, Any, overload
+from typing import TYPE_CHECKING, overload
 
-from tasks.libs.ciproviders.gitlab import Gitlab, get_gitlab_token
+from gitlab.v4.objects import Project, ProjectJob
+
+from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
 
 if TYPE_CHECKING:
-    from typing_extensions import Literal
+    from typing import Literal
 
-    from tasks.kernel_matrix_testing.types import Arch, Component, StackOutput, VMConfig
-
-
-def get_gitlab() -> Gitlab:
-    return Gitlab("DataDog/datadog-agent", str(get_gitlab_token()))
+    from tasks.kernel_matrix_testing.types import Component, KMTArchName, StackOutput, VMConfig
 
 
 class KMTJob:
     """Abstract class representing a Kernel Matrix Testing job, with common properties and methods for all job types"""
 
-    def __init__(self, job_data: dict[str, Any]):
-        self.gitlab = get_gitlab()
-        self.job_data = job_data
+    def __init__(self, job: ProjectJob, gitlab: Project | None = None):
+        self.gitlab = gitlab or get_gitlab_repo()
+        self.job = job
 
     def __str__(self):
         return f"<KMTJob: {self.name}>"
 
+    def refresh(self) -> None:
+        self.job = self.gitlab.jobs.get(self.id)
+
     @property
     def id(self) -> int:
-        return self.job_data["id"]
+        return self.job.id
 
     @property
     def pipeline_id(self) -> int:
-        return self.job_data["pipeline"]["id"]
+        return self.job.pipeline["id"]
 
     @property
     def name(self) -> str:
-        return self.job_data.get("name", "")
+        return self.job.name
 
     @property
-    def arch(self) -> Arch:
+    def arch(self) -> KMTArchName:
         return "x86_64" if "x64" in self.name else "arm64"
 
     @property
@@ -52,11 +53,11 @@ class KMTJob:
 
     @property
     def status(self) -> str:
-        return self.job_data['status']
+        return self.job.status
 
     @property
     def failure_reason(self) -> str:
-        return self.job_data["failure_reason"]
+        return self.job.failure_reason
 
     @overload
     def artifact_file(self, file: str, ignore_not_found: Literal[True]) -> str | None:  # noqa: U100
@@ -90,16 +91,17 @@ class KMTJob:
         ignore_not_found: if True, return None if the file is not found, otherwise raise an error
         """
         try:
-            res = self.gitlab.artifact(self.id, file, ignore_not_found=ignore_not_found)
-            if res is None:
-                if not ignore_not_found:
-                    raise RuntimeError("Invalid return value from gitlab.artifact")
-                else:
-                    return None
-            res.raise_for_status()
+            res = self.gitlab.jobs.get(self.id, lazy=True).artifact(file)
+
+            if not isinstance(res, bytes):
+                raise RuntimeError(f"Expected binary data, got {type(res)}")
+
+            return res
         except Exception as e:
+            if ignore_not_found:
+                return None
+
             raise RuntimeError(f"Could not retrieve artifact {file}") from e
-        return res.content
 
 
 class KMTSetupEnvJob(KMTJob):
@@ -107,8 +109,8 @@ class KMTSetupEnvJob(KMTJob):
     the job name and output artifacts
     """
 
-    def __init__(self, job_data: dict[str, Any]):
-        super().__init__(job_data)
+    def __init__(self, job: ProjectJob, gitlab: Project | None = None):
+        super().__init__(job, gitlab)
         self.associated_test_jobs: list[KMTTestRunJob] = []
 
     @property
@@ -160,13 +162,37 @@ class KMTSetupEnvJob(KMTJob):
         return self.artifact_file(vm_log_path)
 
 
+def get_test_results_from_tarfile(tar: tarfile.TarFile) -> dict[str, bool | None]:
+    reports: list[ET.ElementTree] = []
+    for member in tar.getmembers():
+        filename = os.path.basename(member.name)
+        if filename.endswith(".xml"):
+            data = tar.extractfile(member)
+            if data is not None:
+                reports.append(ET.parse(data))
+
+    results: dict[str, bool | None] = {}
+    for report in reports:
+        for testsuite in report.findall(".//testsuite"):
+            pkgname = testsuite.get("name")
+
+            for testcase in report.findall(".//testcase"):
+                name = testcase.get("name")
+                if name is not None:
+                    failed = len(testcase.findall(".//failure")) > 0
+                    skipped = len(testcase.findall(".//skipped")) > 0
+                    results[f"{pkgname}:{name}"] = None if skipped else not failed
+
+    return results
+
+
 class KMTTestRunJob(KMTJob):
     """Represent a kmt_test_* job, with properties that allow extracting data from
     the job name and output artifacts
     """
 
-    def __init__(self, job_data: dict[str, Any]):
-        super().__init__(job_data)
+    def __init__(self, job: ProjectJob, gitlab: Project | None = None):
+        super().__init__(job, gitlab)
         self.setup_job: KMTSetupEnvJob | None = None
 
     @property
@@ -184,43 +210,18 @@ class KMTTestRunJob(KMTJob):
     def vmset(self) -> str:
         return self.vars[1]
 
-    def get_junit_reports(self) -> list[ET.ElementTree]:
-        """Return the XML data from all JUnit reports in this job. Does not fail if the file is not found."""
-        junit_archive_name = f"junit-{self.arch}-{self.distro}-{self.vmset}.tar.gz"
-        junit_archive = self.artifact_file_binary(f"test/kitchen/{junit_archive_name}", ignore_not_found=True)
-        if junit_archive is None:
-            return []
-
-        bytearr = io.BytesIO(junit_archive)
-        tar = tarfile.open(fileobj=bytearr)
-
-        reports: list[ET.ElementTree] = []
-        for member in tar.getmembers():
-            filename = os.path.basename(member.name)
-            if filename.endswith(".xml"):
-                data = tar.extractfile(member)
-                if data is not None:
-                    reports.append(ET.parse(data))
-
-        return reports
-
     def get_test_results(self) -> dict[str, bool | None]:
         """Return a dictionary with the results of all tests in this job, indexed by "package_name:testname".
         The values are True if test passed, False if failed, None if skipped.
         """
-        results: dict[str, bool | None] = {}
-        for report in self.get_junit_reports():
-            for testsuite in report.findall(".//testsuite"):
-                pkgname = testsuite.get("name")
+        junit_archive_name = f"junit-{self.arch}-{self.distro}-{self.vmset}.tar.gz"
+        junit_archive = self.artifact_file_binary(f"test/kitchen/{junit_archive_name}", ignore_not_found=True)
+        if junit_archive is None:
+            return {}
 
-                for testcase in report.findall(".//testcase"):
-                    name = testcase.get("name")
-                    if name is not None:
-                        failed = len(testcase.findall(".//failure")) > 0
-                        skipped = len(testcase.findall(".//skipped")) > 0
-                        results[f"{pkgname}:{name}"] = None if skipped else not failed
-
-        return results
+        bytearr = io.BytesIO(junit_archive)
+        tar = tarfile.open(fileobj=bytearr)
+        return get_test_results_from_tarfile(tar)
 
 
 def get_all_jobs_for_pipeline(pipeline_id: int | str) -> tuple[list[KMTSetupEnvJob], list[KMTTestRunJob]]:
@@ -231,13 +232,14 @@ def get_all_jobs_for_pipeline(pipeline_id: int | str) -> tuple[list[KMTSetupEnvJ
     setup_jobs: list[KMTSetupEnvJob] = []
     test_jobs: list[KMTTestRunJob] = []
 
-    gitlab = get_gitlab()
-    for job in gitlab.all_jobs(pipeline_id):
-        name = job.get("name", "")
+    gitlab = get_gitlab_repo()
+    jobs = gitlab.pipelines.get(pipeline_id, lazy=True).jobs.list(per_page=100, all=True)
+    for job in jobs:
+        name = job.name
         if name.startswith("kmt_setup_env"):
-            setup_jobs.append(KMTSetupEnvJob(job))
+            setup_jobs.append(KMTSetupEnvJob(job, gitlab))
         elif name.startswith("kmt_run_"):
-            test_jobs.append(KMTTestRunJob(job))
+            test_jobs.append(KMTTestRunJob(job, gitlab))
 
     # link setup jobs
     for job in test_jobs:

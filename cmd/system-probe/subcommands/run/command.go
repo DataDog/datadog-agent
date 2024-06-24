@@ -31,8 +31,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/agent/autoexit"
 	"github.com/DataDog/datadog-agent/comp/agent/autoexit/autoexitimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/healthprobe"
-	"github.com/DataDog/datadog-agent/comp/core/healthprobe/healthprobeimpl"
+	healthprobe "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
+	healthprobefx "github.com/DataDog/datadog-agent/comp/core/healthprobe/fx"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/pid"
@@ -44,13 +44,14 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	compstatsd "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient/rcclientimpl"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	processstatsd "github.com/DataDog/datadog-agent/pkg/process/statsd"
 	ddruntime "github.com/DataDog/datadog-agent/pkg/runtime"
@@ -101,7 +102,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 						LogsGoroutines: config.GetBool("log_all_goroutines_when_unhealthy"),
 					}
 				}),
-				healthprobeimpl.Module(),
+				healthprobefx.Module(),
 				// use system-probe config instead of agent config for logging
 				fx.Provide(func(lc fx.Lifecycle, params logimpl.Params, sysprobeconfig sysprobeconfig.Component) (log.Component, error) {
 					return logimpl.NewLogger(lc, params, sysprobeconfig)
@@ -263,7 +264,7 @@ func runSystemProbe(ctxChan <-chan context.Context, errChan chan error) error {
 				LogsGoroutines: config.GetBool("log_all_goroutines_when_unhealthy"),
 			}
 		}),
-		healthprobeimpl.Module(),
+		healthprobefx.Module(),
 		fx.Supply(optional.NewNoneOption[workloadmeta.Component]()),
 		// use system-probe config instead of agent config for logging
 		fx.Provide(func(lc fx.Lifecycle, params logimpl.Params, sysprobeconfig sysprobeconfig.Component) (log.Component, error) {
@@ -337,6 +338,7 @@ func startSystemProbe(log log.Component, statsd compstatsd.Component, telemetry 
 			if pc := ebpftelemetry.NewPerfUsageCollector(); pc != nil {
 				telemetry.RegisterCollector(pc)
 			}
+			telemetry.RegisterCollector(ddebpf.NewLockContentionCollector())
 		}
 		go func() {
 			common.ExpvarServer = &http.Server{

@@ -14,11 +14,12 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go4.org/intern"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
-func TestEventHandlerWrapperCopy(t *testing.T) {
+func TestEventConsumerWrapperCopy(t *testing.T) {
 	Init()
 
 	t.Run("test exec process attributes", func(t *testing.T) {
@@ -42,17 +43,17 @@ func TestEventHandlerWrapperCopy(t *testing.T) {
 				ContainerContext: &model.ContainerContext{ID: "cid_exec"},
 				FieldHandlers:    &model.FakeFieldHandlers{},
 			}}
-		evHandler := &eventHandlerWrapper{}
+		evHandler := &eventConsumerWrapper{}
 		_p := evHandler.Copy(ev)
 		require.IsType(t, &Process{}, _p, "Copy should return a *events.Process")
 		p := _p.(*Process)
 		assert.Equal(t, uint32(2233), p.Pid)
 		assert.Equal(t, now.UnixNano(), p.StartTime)
-		assert.EqualValues(t, []string{
-			"DD_ENV=env",
-			"DD_SERVICE=service",
-			"DD_VERSION=version",
-		}, p.Envs)
+		assert.EqualValues(t, []*intern.Value{
+			intern.GetByString("env:env"),
+			intern.GetByString("service:service"),
+			intern.GetByString("version:version"),
+		}, p.Tags)
 		assert.NotNil(t, p.ContainerID, "container ID should not be nil")
 		assert.Equal(t, "cid_exec", p.ContainerID.Get().(string), "container id mismatch")
 	})
@@ -78,28 +79,27 @@ func TestEventHandlerWrapperCopy(t *testing.T) {
 				ContainerContext: &model.ContainerContext{ID: "cid_fork"},
 				FieldHandlers:    &model.FakeFieldHandlers{},
 			}}
-		evHandler := &eventHandlerWrapper{}
+		evHandler := &eventConsumerWrapper{}
 		_p := evHandler.Copy(ev)
 		require.IsType(t, &Process{}, _p, "Copy should return a *events.Process")
 		p := _p.(*Process)
 		assert.Equal(t, uint32(2244), p.Pid)
 		assert.Equal(t, now.UnixNano(), p.StartTime)
-		assert.EqualValues(t, []string{
-			"DD_ENV=env",
-			"DD_SERVICE=service",
-			"DD_VERSION=version",
-		}, p.Envs)
+		assert.EqualValues(t, []*intern.Value{
+			intern.GetByString("env:env"),
+			intern.GetByString("service:service"),
+			intern.GetByString("version:version"),
+		}, p.Tags)
 		assert.NotNil(t, p.ContainerID, "container ID should not be nil")
 		assert.Equal(t, "cid_fork", p.ContainerID.Get().(string), "container id mismatch")
 	})
 
 	t.Run("no container context", func(t *testing.T) {
 		ev := &model.Event{BaseEvent: model.BaseEvent{}}
-		evHandler := &eventHandlerWrapper{}
+		evHandler := &eventConsumerWrapper{}
 		p := evHandler.Copy(ev)
 		require.IsType(t, &Process{}, p, "Copy should return a *events.Process")
-		assert.NotNil(t, p.(*Process).ContainerID, "container ID should not be nil")
-		assert.Empty(t, p.(*Process).ContainerID.Get().(string), "container ID should be empty")
+		assert.Nil(t, p.(*Process).ContainerID, "container ID should be nil")
 	})
 
 }

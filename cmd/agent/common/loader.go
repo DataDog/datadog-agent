@@ -14,7 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/sbom/scanner"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
@@ -25,7 +25,6 @@ func GetWorkloadmetaInit() workloadmeta.InitHelper {
 	return func(ctx context.Context, wm workloadmeta.Component, cfg config.Component) error {
 		// SBOM scanner needs to be called here as initialization is required prior to the
 		// catalog getting instantiated and initialized.
-		// TODO: (components) - CreateGlobalScanner should accept the config component as argument
 		sbomScanner, err := scanner.CreateGlobalScanner(cfg, optional.NewOption(wm))
 		if err != nil {
 			return fmt.Errorf("failed to create SBOM scanner: %s", err)

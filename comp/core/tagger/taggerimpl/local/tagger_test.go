@@ -12,19 +12,25 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
+	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestTagBuilder(t *testing.T) {
 
-	store := fxutil.Test[workloadmeta.Mock](t, fx.Options(
-		core.MockBundle(),
+	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		fx.Supply(config.Params{}),
+		fx.Supply(logimpl.Params{}),
+		logimpl.MockModule(),
+		config.MockModule(),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.MockModuleV2(),
+		workloadmetafxmock.MockModuleV2(),
 	))
 	tagger := NewTagger(store)
 	tagger.Start(context.Background())

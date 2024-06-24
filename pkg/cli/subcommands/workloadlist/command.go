@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -116,9 +116,9 @@ func workloadURL(verbose bool) (string, error) {
 
 	var prefix string
 	if flavor.GetFlavor() == flavor.ClusterAgent {
-		prefix = fmt.Sprintf("https://%v:%v/workload-list", ipcAddress, pkgconfig.Datadog.GetInt("cluster_agent.cmd_port"))
+		prefix = fmt.Sprintf("https://%v:%v/workload-list", ipcAddress, pkgconfig.Datadog().GetInt("cluster_agent.cmd_port"))
 	} else {
-		prefix = fmt.Sprintf("https://%v:%v/agent/workload-list", ipcAddress, pkgconfig.Datadog.GetInt("cmd_port"))
+		prefix = fmt.Sprintf("https://%v:%v/agent/workload-list", ipcAddress, pkgconfig.Datadog().GetInt("cmd_port"))
 	}
 
 	if verbose {

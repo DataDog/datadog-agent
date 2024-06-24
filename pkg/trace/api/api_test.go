@@ -581,6 +581,7 @@ func TestDecodeV05(t *testing.T) {
 		TracerVersion:   "1.2.3",
 		Chunks: []*pb.TraceChunk{
 			{
+				Tags:     make(map[string]string),
 				Priority: int32(sampler.PriorityNone),
 				Spans: []*pb.Span{
 					{

@@ -10,6 +10,8 @@ package trivy
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"io"
 	"os"
 	"strings"
@@ -27,9 +29,8 @@ import (
 	"github.com/opencontainers/go-digest"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/samber/lo"
-	"golang.org/x/xerrors"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 )
 
 // ContainerdCollector defines the conttainerd collector name
@@ -59,7 +60,7 @@ func (n familiarNamed) String() string {
 func imageWriter(client *containerd.Client, img containerd.Image) imageSave {
 	return func(ctx context.Context, ref []string) (io.ReadCloser, error) {
 		if len(ref) < 1 {
-			return nil, xerrors.New("no image reference")
+			return nil, errors.New("no image reference")
 		}
 		imgOpts := archive.WithImage(client.ImageService(), ref[0])
 		manifestOpts := archive.WithManifest(img.Target())
@@ -79,7 +80,7 @@ func convertContainerdImage(ctx context.Context, client *containerd.Client, imgM
 
 	f, err := os.CreateTemp("", "fanal-containerd-*")
 	if err != nil {
-		return nil, cleanup, xerrors.Errorf("failed to create a temporary file: %w", err)
+		return nil, cleanup, fmt.Errorf("failed to create a temporary file: %w", err)
 	}
 
 	cleanup = func() {
@@ -89,7 +90,7 @@ func convertContainerdImage(ctx context.Context, client *containerd.Client, imgM
 
 	insp, history, ref, err := inspect(ctx, imgMeta, img)
 	if err != nil {
-		return nil, cleanup, xerrors.Errorf("inspect error: %w", err) // Note: the original code doesn't return "cleanup".
+		return nil, cleanup, fmt.Errorf("inspect error: %w", err) // Note: the original code doesn't return "cleanup".
 	}
 
 	return &image{

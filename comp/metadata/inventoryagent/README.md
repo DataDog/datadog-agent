@@ -14,16 +14,8 @@ The `Set` method from the component allow the rest of the codebase to add any in
 
 ## Agent Configuration
 
-The agent configurations are scrubbed from any sensitive information (same logic than for the flare).
-This include the following:
-`full_configuration`
-`provided_configuration`
-`file_configuration`
-`environment_variable_configuration`
-`agent_runtime_configuration`
-`remote_configuration`
-`cli_configuration`
-`source_local_configuration`
+The agent configurations are scrubbed from any sensitive information (same logic than for the flare). The `Format`
+section goes into more default about what configuration is sent.
 
 Sending Agent configuration can be disabled using `inventories_configuration_enabled`.
 
@@ -89,6 +81,7 @@ The payload is a JSON dict with the following fields
   - `feature_usm_enabled` - **bool**: True if Universal Service Monitoring is enabled (see: `service_monitoring_config.enabled` config option in `system-probe.yaml`)
   - `feature_usm_http2_enabled` - **bool**: True if HTTP2 monitoring is enabled for Universal Service Monitoring (see: `service_monitoring_config.enable_http2_monitoring` config option in `system-probe.yaml`).
   - `feature_usm_kafka_enabled` - **bool**: True if Kafka monitoring is enabled for Universal Service Monitoring (see: `service_monitoring_config.enable_kafka_monitoring` config option in `system-probe.yaml`)
+  - `feature_usm_postgres_enabled` - **bool**: True if Postgres monitoring is enabled for Universal Service Monitoring (see: `service_monitoring_config.enable_postgres_monitoring` config option in `system-probe.yaml`)
   - `feature_usm_java_tls_enabled` - **bool**: True if HTTPS monitoring through java TLS is enabled for Universal Service Monitoring (see: `service_monitoring_config.tls.java.enabled` config option in `system-probe.yaml`).
   - `feature_usm_go_tls_enabled` - **bool**: True if HTTPS monitoring through GoTLS is enabled for Universal Service Monitoring (see: `service_monitoring_config.tls.go.enabled` config option in `system-probe.yaml`).
   - `feature_dynamic_instrumentation_enabled` - **bool**: True if dynamic instrumentation module is enabled (see: `dynamic_instrumentation.enabled` config option).
@@ -167,9 +160,11 @@ Here an example of an inventory payload:
         "full_configuration": "<entire yaml configuration for the agent>",
         "provided_configuration": "api_key: \"***************************aaaaa\"\ncheck_runners: 4\ncmd.check.fullsketches: false\ncontainerd_namespace: []\ncontainerd_namespaces: []\npython_version: \"3\"\ntracemalloc_debug: false\nlog_level: \"warn\"",
         "file_configuration": "check_runners: 4\ncmd.check.fullsketches: false\ncontainerd_namespace: []\ncontainerd_namespaces: []\npython_version: \"3\"\ntracemalloc_debug: false",
+        "agent_runtime_configuration": "runtime_block_profile_rate: 5000",
         "environment_variable_configuration": "api_key: \"***************************aaaaa\"",
         "remote_configuration": "log_level: \"debug\"",
-        "cli_configuration": "log_level: \"warn\""
+        "cli_configuration": "log_level: \"warn\"",
+        "source_local_configuration": ""
     }
     "hostname": "my-host",
     "timestamp": 1631281754507358895

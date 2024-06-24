@@ -14,6 +14,8 @@ internal_kubernetes_deploy_experimental:
       when: never
     - if: $DDR != "true"
       when: never
+    - if: $APPS != "datadog-agent"
+      when: never
     - !reference [.on_deploy]
   needs:
     - job: docker_trigger_internal
@@ -56,10 +58,12 @@ notify-slack:
       when: never
     - if: $DDR != "true"
       when: never
+    - if: $APPS != "datadog-agent"
+      when: never
     - !reference [.on_deploy]
   tags: ["arch:amd64"]
   needs: ["internal_kubernetes_deploy_experimental"]
   script:
     - export SDM_JWT=$(vault read -field=token identity/oidc/token/sdm)
-    - python3 -m pip install -r tasks/libs/requirements-notifications.txt
+    - python3 -m pip install -r tasks/requirements.txt
     - inv pipeline.changelog ${CI_COMMIT_SHORT_SHA}

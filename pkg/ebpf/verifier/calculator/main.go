@@ -146,12 +146,12 @@ func main() {
 		FilterPrograms:     filterRegexp,
 	}
 
-	stats, compl, _, err := verifier.BuildVerifierStats(&statsOpts)
+	results, _, err := verifier.BuildVerifierStats(&statsOpts)
 	if err != nil {
 		log.Fatalf("failed to build verifier stats: %v", err)
 	}
 
-	j, err := json.Marshal(stats)
+	j, err := json.Marshal(results.Stats)
 	if err != nil {
 		log.Fatalf("failed to marshal json %v", err)
 	}
@@ -168,7 +168,22 @@ func main() {
 
 	if *lineComplexity {
 		log.Printf("Writing complexity data to %s", *complexityDataDir)
-		for progName, data := range compl {
+
+		for objectFile, funcsPerSect := range results.FuncsPerSection {
+			mappings, err := json.Marshal(funcsPerSect)
+			if err != nil {
+				log.Fatalf("failed to marshal funcs per section JSON: %v", err)
+			}
+			destPath := filepath.Join(*complexityDataDir, objectFile, "mappings.json")
+			if err := os.MkdirAll(filepath.Dir(destPath), 0755); err != nil {
+				log.Fatalf("failed to create directory %s: %v", filepath.Dir(destPath), err)
+			}
+			if err := os.WriteFile(destPath, mappings, 0644); err != nil {
+				log.Fatalf("failed to write mappings data: %v", err)
+			}
+		}
+
+		for progName, data := range results.Complexity {
 			contents, err := json.Marshal(data)
 			if err != nil {
 				log.Fatalf("failed to marshal json for %s: %v", progName, err)
@@ -180,7 +195,7 @@ func main() {
 			if err := os.MkdirAll(filepath.Dir(destPath), 0755); err != nil {
 				log.Fatalf("failed to create directory %s: %v", filepath.Dir(destPath), err)
 			}
-			if err := os.WriteFile(filepath.Join(*complexityDataDir, fmt.Sprintf("%s.json", progName)), contents, 0644); err != nil {
+			if err := os.WriteFile(destPath, contents, 0644); err != nil {
 				log.Fatalf("failed to write complexity data for %s: %v", progName, err)
 			}
 		}

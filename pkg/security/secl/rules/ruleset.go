@@ -59,12 +59,6 @@ type OverrideOptions struct {
 	Fields []OverrideField `yaml:"fields"`
 }
 
-// Ruleset loading operations
-const (
-	RuleSetTagKey          = "ruleset"
-	DefaultRuleSetTagValue = "probe_evaluation"
-)
-
 // MacroDefinition holds the definition of a macro
 type MacroDefinition struct {
 	ID                     MacroID       `yaml:"id"`
@@ -196,6 +190,7 @@ type RuleSet struct {
 	fieldEvaluators  map[string]eval.Evaluator
 	model            eval.Model
 	eventCtor        func() eval.Event
+	fakeEventCtor    func() eval.Event
 	listenersLock    sync.RWMutex
 	listeners        []RuleSetListener
 	globalVariables  eval.GlobalVariables
@@ -221,11 +216,6 @@ func (rs *RuleSet) ListRuleIDs() []RuleID {
 // GetRules returns the active rules
 func (rs *RuleSet) GetRules() map[eval.RuleID]*Rule {
 	return rs.rules
-}
-
-// GetRuleSetTag gets the value of the "ruleset" tag, which is the tag of the rules that belong in this rule set
-func (rs *RuleSet) GetRuleSetTag() eval.RuleSetTagValue {
-	return rs.opts.RuleSetTag[RuleSetTagKey]
 }
 
 // ListMacroIDs returns the list of MacroIDs from the ruleset
@@ -298,7 +288,7 @@ func (rs *RuleSet) populateFieldsWithRuleActionsData(policyRules []*RuleDefiniti
 	for _, rule := range policyRules {
 		for _, action := range rule.Actions {
 			if err := action.Check(opts); err != nil {
-				errs = multierror.Append(errs, fmt.Errorf("invalid action: %w", err))
+				errs = multierror.Append(errs, fmt.Errorf("invalid action in rule %s: %w", rule.ID, err))
 				continue
 			}
 
@@ -384,7 +374,9 @@ func (rs *RuleSet) populateFieldsWithRuleActionsData(policyRules []*RuleDefiniti
 					variableProvider = &rs.globalVariables
 				}
 
-				variable, err := variableProvider.GetVariable(action.Set.Name, variableValue)
+				opts := eval.VariableOpts{TTL: action.Set.TTL, Size: action.Set.Size}
+
+				variable, err := variableProvider.GetVariable(action.Set.Name, variableValue, opts)
 				if err != nil {
 					errs = multierror.Append(errs, fmt.Errorf("invalid type '%s' for variable '%s': %w", reflect.TypeOf(action.Set.Value), action.Set.Name, err))
 					continue
@@ -584,7 +576,7 @@ func (rs *RuleSet) GetEventApprovers(eventType eval.EventType, fieldCaps FieldCa
 		return nil, ErrNoEventTypeBucket{EventType: eventType}
 	}
 
-	return GetApprovers(bucket.rules, model.NewFakeEvent(), fieldCaps)
+	return GetApprovers(bucket.rules, rs.newFakeEvent(), fieldCaps)
 }
 
 // GetFieldValues returns all the values of the given field
@@ -765,12 +757,12 @@ func (rs *RuleSet) EvaluateDiscarders(event eval.Event) {
 	for _, check := range mdiscsToCheck {
 		isMultiDiscarder := true
 		for _, entry := range check.mdisc.Entries {
-			bucket := rs.eventRuleBuckets[entry.EventType]
-			if bucket == nil {
+			bucket := rs.eventRuleBuckets[entry.EventType.String()]
+			if bucket == nil || len(bucket.rules) == 0 {
 				continue
 			}
 
-			dctx, err := buildDiscarderCtx(entry.Field, check.value)
+			dctx, err := buildDiscarderCtx(entry.EventType, entry.Field, check.value)
 			if err != nil {
 				rs.logger.Errorf("failed to build discarder context: %v", err)
 				isMultiDiscarder = false
@@ -784,7 +776,7 @@ func (rs *RuleSet) EvaluateDiscarders(event eval.Event) {
 		}
 
 		if isMultiDiscarder {
-			rs.NotifyDiscarderFound(event, check.mdisc.FinalField, check.mdisc.FinalEventType)
+			rs.NotifyDiscarderFound(event, check.mdisc.FinalField, check.mdisc.FinalEventType.String())
 		}
 	}
 }
@@ -808,8 +800,9 @@ type multiDiscarderCheck struct {
 	value string
 }
 
-func buildDiscarderCtx(field string, value interface{}) (*eval.Context, error) {
+func buildDiscarderCtx(eventType model.EventType, field string, value interface{}) (*eval.Context, error) {
 	ev := model.NewFakeEvent()
+	ev.BaseEvent.Type = uint32(eventType)
 	if err := ev.SetFieldValue(field, value); err != nil {
 		return nil, err
 	}
@@ -843,9 +836,80 @@ func (rs *RuleSet) StopEventCollector() []CollectedEvent {
 	return rs.eventCollector.Stop()
 }
 
+// LoadPolicies loads policies from the provided policy loader
+func (rs *RuleSet) LoadPolicies(loader *PolicyLoader, opts PolicyLoaderOpts) *multierror.Error {
+	var (
+		errs       *multierror.Error
+		allRules   []*RuleDefinition
+		allMacros  []*MacroDefinition
+		macroIndex = make(map[string]*MacroDefinition)
+		rulesIndex = make(map[string]*RuleDefinition)
+	)
+
+	parsingContext := ast.NewParsingContext()
+
+	policies, err := loader.LoadPolicies(opts)
+	if err != nil {
+		errs = multierror.Append(errs, err)
+	}
+	rs.policies = policies
+
+	for _, policy := range policies {
+		for _, macro := range policy.Macros {
+			if existingMacro := macroIndex[macro.ID]; existingMacro != nil {
+				if err := existingMacro.MergeWith(macro); err != nil {
+					errs = multierror.Append(errs, err)
+				}
+			} else {
+				macroIndex[macro.ID] = macro
+				allMacros = append(allMacros, macro)
+			}
+		}
+
+		for _, rule := range policy.Rules {
+			if existingRule := rulesIndex[rule.ID]; existingRule != nil {
+				if err := existingRule.MergeWith(rule); err != nil {
+					errs = multierror.Append(errs, err)
+				}
+			} else {
+				rulesIndex[rule.ID] = rule
+				allRules = append(allRules, rule)
+			}
+		}
+	}
+
+	if err := rs.AddMacros(parsingContext, allMacros); err.ErrorOrNil() != nil {
+		errs = multierror.Append(errs, err)
+	}
+
+	if err := rs.populateFieldsWithRuleActionsData(allRules, opts); err.ErrorOrNil() != nil {
+		errs = multierror.Append(errs, err)
+	}
+
+	if err := rs.AddRules(parsingContext, allRules); err.ErrorOrNil() != nil {
+		errs = multierror.Append(errs, err)
+	}
+
+	return errs
+}
+
 // NewEvent returns a new event using the embedded constructor
 func (rs *RuleSet) NewEvent() eval.Event {
 	return rs.eventCtor()
+}
+
+// SetFakeEventCtor sets the fake event constructor to the provided callback
+func (rs *RuleSet) SetFakeEventCtor(fakeEventCtor func() eval.Event) {
+	rs.fakeEventCtor = fakeEventCtor
+}
+
+// newFakeEvent returns a new event using the embedded constructor for fake events
+func (rs *RuleSet) newFakeEvent() eval.Event {
+	if rs.fakeEventCtor != nil {
+		return rs.fakeEventCtor()
+	}
+
+	return model.NewFakeEvent()
 }
 
 // NewRuleSet returns a new ruleset for the specified data model

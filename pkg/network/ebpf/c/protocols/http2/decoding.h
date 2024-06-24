@@ -1,33 +1,144 @@
 #ifndef __HTTP2_DECODING_H
 #define __HTTP2_DECODING_H
 
+#include "protocols/helpers/pktbuf.h"
 #include "protocols/http2/decoding-common.h"
 #include "protocols/http2/usm-events.h"
 #include "protocols/http2/skb-common.h"
 #include "protocols/http/types.h"
 
-READ_INTO_BUFFER(path, HTTP2_MAX_PATH_LEN, BLK_SIZE)
+PKTBUF_READ_INTO_BUFFER(http2_preface, HTTP2_MARKER_SIZE, HTTP2_MARKER_SIZE)
+PKTBUF_READ_INTO_BUFFER_WITHOUT_TELEMETRY(http2_frame_header, HTTP2_FRAME_HEADER_SIZE, HTTP2_FRAME_HEADER_SIZE)
+PKTBUF_READ_INTO_BUFFER(path, HTTP2_MAX_PATH_LEN, BLK_SIZE)
 
-// parse_field_literal parses a header with a literal value.
+// Handles the dynamic table size update.
+static __always_inline void pktbuf_handle_dynamic_table_update(pktbuf_t pkt) {
+    // To determine the size of the dynamic table update, we read an integer representation byte by byte.
+    // We continue reading bytes until we encounter a byte without the Most Significant Bit (MSB) set,
+    // indicating that we've consumed the complete integer. While in the context of the dynamic table
+    // update, we set the state as true if the MSB is set, and false otherwise. Then, we proceed to the next byte.
+    // More on the feature - https://httpwg.org/specs/rfc7541.html#rfc.section.6.3.
+    __u8 current_ch;
+    pktbuf_load_bytes_from_current_offset(pkt, &current_ch, sizeof(current_ch));
+    // If the top 3 bits are 001, then we have a dynamic table size update.
+    if ((current_ch & 224) == 32) {
+        pktbuf_advance(pkt, sizeof(current_ch));
+    #pragma unroll(HTTP2_MAX_DYNAMIC_TABLE_UPDATE_ITERATIONS)
+        for (__u8 iter = 0; iter < HTTP2_MAX_DYNAMIC_TABLE_UPDATE_ITERATIONS; ++iter) {
+            pktbuf_load_bytes_from_current_offset(pkt, &current_ch, sizeof(current_ch));
+            pktbuf_advance(pkt, sizeof(current_ch));
+            if ((current_ch & 128) == 0) {
+                return;
+            }
+        }
+    }
+}
+
+// Similar to read_hpack_int, but with a small optimization of getting the
+// current character as input argument.
+static __always_inline bool pktbuf_read_hpack_int_with_given_current_char(pktbuf_t pkt, __u64 current_char_as_number, __u64 max_number_for_bits, __u64 *out) {
+    current_char_as_number &= max_number_for_bits;
+
+    // In HPACK, if the number is too big to be stored in max_number_for_bits
+    // bits, then those bits are all set to one, and the rest of the number must
+    // be read from subsequent bytes.
+    if (current_char_as_number < max_number_for_bits) {
+        *out = current_char_as_number;
+        return true;
+    }
+
+    // Read the next byte, and check if it is the last byte of the number.
+    // While HPACK does support arbitrary sized numbers, we are limited by the
+    // number of instructions we can use in a single eBPF program, so we only
+    // parse one additional byte. The max value that can be parsed is
+    // `(2^max_number_for_bits - 1) + 127`.
+    __u64 next_char = 0;
+    if (pktbuf_load_bytes_from_current_offset(pkt, &next_char, 1) >= 0 && (next_char & 128) == 0) {
+        pktbuf_advance(pkt, 1);
+        *out = current_char_as_number + (next_char & 127);
+        return true;
+    }
+
+    return false;
+}
+
+// Reads an unsigned variable length integer as specified in the
+// HPACK specification, from an skb.
+//
+// See https://httpwg.org/specs/rfc7541.html#rfc.section.5.1 for more details on
+// how numbers are represented in HPACK.
+//
+// max_number_for_bits represents the number of bits in the first byte that are
+// used to represent the MSB of number. It must always be between 1 and 8.
+//
+// The parsed number is stored in out.
+//
+// read_hpack_int returns true if the integer was successfully parsed, and false
+// otherwise.
+static __always_inline bool pktbuf_read_hpack_int(pktbuf_t pkt, __u64 max_number_for_bits, __u64 *out, bool *is_huffman_encoded) {
+    __u64 current_char_as_number = 0;
+    if (pktbuf_load_bytes_from_current_offset(pkt, &current_char_as_number, sizeof(__u8)) < 0) {
+        return false;
+    }
+    pktbuf_advance(pkt, sizeof(__u8));
+    // We are only interested in the first bit of the first byte, which indicates if it is huffman encoded or not.
+    // See: https://datatracker.ietf.org/doc/html/rfc7541#appendix-B for more details on huffman code.
+    *is_huffman_encoded = (current_char_as_number & 128) > 0;
+
+    return pktbuf_read_hpack_int_with_given_current_char(pkt, current_char_as_number, max_number_for_bits, out);
+}
+
+// A helper function to check for the HTTP2 magic sent at the beginning
+// of an HTTP2 connection, and skip it if present.
+static __always_inline void pktbuf_skip_preface(pktbuf_t pkt) {
+    char preface[HTTP2_MARKER_SIZE];
+    bpf_memset((char *)preface, 0, HTTP2_MARKER_SIZE);
+    pktbuf_read_into_buffer_http2_preface(preface, pkt, pktbuf_data_offset(pkt));
+    if (is_http2_preface(preface, HTTP2_MARKER_SIZE)) {
+        pktbuf_advance(pkt, HTTP2_MARKER_SIZE);
+    }
+}
+
+// Returns the telemetry pointer from the relevant map.
+static __always_inline void* get_telemetry(pktbuf_t pkt) {
+    const __u32 zero = 0;
+
+    pktbuf_map_lookup_option_t map_lookup_telemetry_array[] = {
+        [PKTBUF_SKB] = {
+            .map = &http2_telemetry,
+            .key = (void*)&zero,
+        },
+        [PKTBUF_TLS] = {
+            .map = &tls_http2_telemetry,
+            .key = (void*)&zero,
+        },
+    };
+    return pktbuf_map_lookup(pkt, map_lookup_telemetry_array);
+}
+
+// Parses a header with a literal value.
 //
 // We are only interested in path headers, that we will store in our internal
 // dynamic table, and will skip headers that are not path headers.
-static __always_inline bool parse_field_literal(struct __sk_buff *skb, skb_info_t *skb_info, http2_header_t *headers_to_process, __u64 index, __u64 global_dynamic_counter, __u8 *interesting_headers_counter, http2_telemetry_t *http2_tel, bool save_header) {
+// Returns true if the header was successfully parsed, and false otherwise.
+// Increments the interesting_headers_counter if the header is a path header with a length in the range of [0, HTTP2_MAX_PATH_LEN],
+// and we don't exceed packet boundaries.
+static __always_inline bool pktbuf_parse_field_literal(pktbuf_t pkt, http2_header_t *headers_to_process, __u64 index, __u64 global_dynamic_counter, __u8 *interesting_headers_counter, http2_telemetry_t *http2_tel, bool save_header) {
     __u64 str_len = 0;
     bool is_huffman_encoded = false;
     // String length supposed to be represented with at least 7 bits representation -https://datatracker.ietf.org/doc/html/rfc7541#section-5.2
-    if (!read_hpack_int(skb, skb_info, MAX_7_BITS, &str_len, &is_huffman_encoded)) {
+    if (!pktbuf_read_hpack_int(pkt, MAX_7_BITS, &str_len, &is_huffman_encoded)) {
         return false;
     }
 
     // The header name is new and inserted in the dynamic table - we skip the new value.
     if (index == 0) {
-        skb_info->data_off += str_len;
+        pktbuf_advance(pkt, str_len);
         str_len = 0;
         // String length supposed to be represented with at least 7 bits representation -https://datatracker.ietf.org/doc/html/rfc7541#section-5.2
         // At this point the huffman code is not interesting due to the fact that we already read the string length,
         // We are reading the current size in order to skip it.
-        if (!read_hpack_int(skb, skb_info, MAX_7_BITS, &str_len, &is_huffman_encoded)) {
+        if (!pktbuf_read_hpack_int(pkt, MAX_7_BITS, &str_len, &is_huffman_encoded)) {
             return false;
         }
         goto end;
@@ -51,7 +162,7 @@ static __always_inline bool parse_field_literal(struct __sk_buff *skb, skb_info_
         goto end;
     }
 
-    if (skb_info->data_off + str_len > skb_info->data_end) {
+    if (pktbuf_data_offset(pkt) + str_len > pktbuf_data_end(pkt)) {
         __sync_fetch_and_add(&http2_tel->literal_value_exceeds_frame, 1);
         goto end;
     }
@@ -63,47 +174,63 @@ static __always_inline bool parse_field_literal(struct __sk_buff *skb, skb_info_
         headers_to_process->type = kNewDynamicHeaderNotIndexed;
     }
     headers_to_process->original_index = index;
-    headers_to_process->new_dynamic_value_offset = skb_info->data_off;
+    headers_to_process->new_dynamic_value_offset = pktbuf_data_offset(pkt);
     headers_to_process->new_dynamic_value_size = str_len;
     headers_to_process->is_huffman_encoded = is_huffman_encoded;
-    // If the string len (`str_len`) is in the range of [0, HTTP2_MAX_PATH_LEN], and we don't exceed packet boundaries
-    // (skb_info->data_off + str_len <= skb_info->data_end) and the index is kIndexPath, then we have a path header,
-    // and we're increasing the counter. In any other case, we're not increasing the counter.
     *interesting_headers_counter += (str_len > 0 && str_len <= HTTP2_MAX_PATH_LEN);
 end:
-    skb_info->data_off += str_len;
+    pktbuf_advance(pkt, str_len);
     return true;
 }
 
-// filter_relevant_headers parses the http2 headers frame, and filters headers
+// Handles a literal header, and updates the offset. This function is meant to run on not interesting literal headers.
+static __always_inline bool pktbuf_process_and_skip_literal_headers(pktbuf_t pkt, __u64 index) {
+    __u64 str_len = 0;
+    bool is_huffman_encoded = false;
+    // String length supposed to be represented with at least 7 bits representation -https://datatracker.ietf.org/doc/html/rfc7541#section-5.2
+    if (!pktbuf_read_hpack_int(pkt, MAX_7_BITS, &str_len, &is_huffman_encoded)) {
+        return false;
+    }
+
+    // The header name is new and inserted in the dynamic table - we skip the new value.
+    if (index == 0) {
+        pktbuf_advance(pkt, str_len);
+        str_len = 0;
+        // String length supposed to be represented with at least 7 bits representation -https://datatracker.ietf.org/doc/html/rfc7541#section-5.2
+        // At this point the huffman code is not interesting due to the fact that we already read the string length,
+        // We are reading the current size in order to skip it.
+        if (!pktbuf_read_hpack_int(pkt, MAX_7_BITS, &str_len, &is_huffman_encoded)) {
+            return false;
+        }
+    }
+    pktbuf_advance(pkt, str_len);
+    return true;
+}
+
+// Parses the http2 headers frame, and filters headers
 // that are relevant for us, to be processed later on.
 // The return value is the number of relevant headers that were found and inserted
 // in the `headers_to_process` table.
-static __always_inline __u8 filter_relevant_headers(struct __sk_buff *skb, skb_info_t *restrict skb_info, conn_tuple_t *tup, dynamic_table_index_t *dynamic_index, http2_header_t *headers_to_process, __u32 frame_length, http2_telemetry_t *http2_tel) {
+static __always_inline __u8 pktbuf_filter_relevant_headers(pktbuf_t pkt, __u64 *global_dynamic_counter, dynamic_table_index_t *dynamic_index, http2_header_t *headers_to_process, __u32 frame_length, http2_telemetry_t *http2_tel) {
     __u8 current_ch;
     __u8 interesting_headers = 0;
     http2_header_t *current_header;
-    const __u32 frame_end = skb_info->data_off + frame_length;
-    const __u32 end = frame_end < skb_info->data_end + 1 ? frame_end : skb_info->data_end + 1;
+    const __u32 frame_end = pktbuf_data_offset(pkt) + frame_length;
+    const __u32 end = frame_end < pktbuf_data_end(pkt) + 1 ? frame_end : pktbuf_data_end(pkt) + 1;
     bool is_indexed = false;
     bool is_literal = false;
     __u64 max_bits = 0;
     __u64 index = 0;
 
-    __u64 *global_dynamic_counter = get_dynamic_counter(tup);
-    if (global_dynamic_counter == NULL) {
-        return 0;
-    }
-
-    handle_dynamic_table_update(skb, skb_info);
+    pktbuf_handle_dynamic_table_update(pkt);
 
 #pragma unroll(HTTP2_MAX_PSEUDO_HEADERS_COUNT_FOR_FILTERING)
     for (__u8 headers_index = 0; headers_index < HTTP2_MAX_PSEUDO_HEADERS_COUNT_FOR_FILTERING; ++headers_index) {
-        if (skb_info->data_off >= end) {
+        if (pktbuf_data_offset(pkt) >= end) {
             break;
         }
-        bpf_skb_load_bytes(skb, skb_info->data_off, &current_ch, sizeof(current_ch));
-        skb_info->data_off++;
+        pktbuf_load_bytes_from_current_offset(pkt, &current_ch, sizeof(current_ch));
+        pktbuf_advance(pkt, sizeof(current_ch));
 
         is_indexed = (current_ch & 128) != 0;
         is_literal = (current_ch & 192) == 64;
@@ -119,7 +246,7 @@ static __always_inline __u8 filter_relevant_headers(struct __sk_buff *skb, skb_i
         // max bits are 4.
 
         index = 0;
-        if (!read_hpack_int_with_given_current_char(skb, skb_info, current_ch, max_bits, &index)) {
+        if (!pktbuf_read_hpack_int_with_given_current_char(pkt, current_ch, max_bits, &index)) {
             break;
         }
 
@@ -141,19 +268,19 @@ static __always_inline __u8 filter_relevant_headers(struct __sk_buff *skb, skb_i
         // 6.2.1 Literal Header Field with Incremental Indexing
         // top two bits are 11
         // https://httpwg.org/specs/rfc7541.html#rfc.section.6.2.1
-        if (!parse_field_literal(skb, skb_info, current_header, index, *global_dynamic_counter, &interesting_headers, http2_tel, is_literal)) {
+        if (!pktbuf_parse_field_literal(pkt, current_header, index, *global_dynamic_counter, &interesting_headers, http2_tel, is_literal)) {
             break;
         }
     }
 
 #pragma unroll(HTTP2_MAX_HEADERS_COUNT_FOR_FILTERING)
     for (__u8 headers_index = 0; headers_index < HTTP2_MAX_HEADERS_COUNT_FOR_FILTERING; ++headers_index) {
-        if (skb_info->data_off >= end) {
+        if (pktbuf_data_offset(pkt) >= end) {
             break;
         }
 
-        bpf_skb_load_bytes(skb, skb_info->data_off, &current_ch, sizeof(current_ch));
-        skb_info->data_off++;
+        pktbuf_load_bytes_from_current_offset(pkt, &current_ch, sizeof(current_ch));
+        pktbuf_advance(pkt, sizeof(current_ch));
 
         is_indexed = (current_ch & 128) != 0;
         is_literal = (current_ch & 192) == 64;
@@ -169,7 +296,7 @@ static __always_inline __u8 filter_relevant_headers(struct __sk_buff *skb, skb_i
         // max bits are 4.
 
         index = 0;
-        if (!read_hpack_int_with_given_current_char(skb, skb_info, current_ch, max_bits, &index)) {
+        if (!pktbuf_read_hpack_int_with_given_current_char(pkt, current_ch, max_bits, &index)) {
             break;
         }
 
@@ -183,7 +310,7 @@ static __always_inline __u8 filter_relevant_headers(struct __sk_buff *skb, skb_i
         // We're not increasing the counter for literal without indexing or literal never indexed.
         __sync_fetch_and_add(global_dynamic_counter, is_literal);
         // Handle frame headers which are not pseudo headers fields.
-        if (!process_and_skip_literal_headers(skb, skb_info, index)){
+        if (!pktbuf_process_and_skip_literal_headers(pkt, index)){
             break;
         }
     }
@@ -191,9 +318,9 @@ static __always_inline __u8 filter_relevant_headers(struct __sk_buff *skb, skb_i
     return interesting_headers;
 }
 
-// process_headers processes the headers that were filtered in filter_relevant_headers,
+// Processes the headers that were filtered in filter_relevant_headers,
 // looking for requests path, status code, and method.
-static __always_inline void process_headers(struct __sk_buff *skb, dynamic_table_index_t *dynamic_index, http2_stream_t *current_stream, http2_header_t *headers_to_process, __u8 interesting_headers,  http2_telemetry_t *http2_tel) {
+static __always_inline void pktbuf_process_headers(pktbuf_t pkt, dynamic_table_index_t *dynamic_index, http2_stream_t *current_stream, http2_header_t *headers_to_process, __u8 interesting_headers,  http2_telemetry_t *http2_tel) {
     http2_header_t *current_header;
     dynamic_table_entry_t dynamic_value = {};
 
@@ -208,8 +335,8 @@ static __always_inline void process_headers(struct __sk_buff *skb, dynamic_table
         if (current_header->type == kStaticHeader) {
             if (is_method_index(current_header->index)) {
                 // TODO: mark request
-               current_stream->request_method.static_table_entry = current_header->index;
-               current_stream->request_method.finalized = true;
+                current_stream->request_method.static_table_entry = current_header->index;
+                current_stream->request_method.finalized = true;
                 __sync_fetch_and_add(&http2_tel->request_seen, 1);
             } else if (is_status_index(current_header->index)) {
                 current_stream->status_code.static_table_entry = current_header->index;
@@ -237,15 +364,15 @@ static __always_inline void process_headers(struct __sk_buff *skb, dynamic_table
                 bpf_memcpy(current_stream->status_code.raw_buffer, dynamic_value->buffer, HTTP2_STATUS_CODE_MAX_LEN);
                 current_stream->status_code.is_huffman_encoded = dynamic_value->is_huffman_encoded;
                 current_stream->status_code.finalized = true;
-            }  else if (is_method_index(dynamic_value->original_index)) {
+            } else if (is_method_index(dynamic_value->original_index)) {
                 bpf_memcpy(current_stream->request_method.raw_buffer, dynamic_value->buffer, HTTP2_METHOD_MAX_LEN);
                 current_stream->request_method.is_huffman_encoded = dynamic_value->is_huffman_encoded;
-                current_stream->request_method.length = current_header->new_dynamic_value_size;
+                current_stream->request_method.length = dynamic_value->string_len;
                 current_stream->request_method.finalized = true;
             }
         } else {
             // create the new dynamic value which will be added to the internal table.
-            read_into_buffer_path(dynamic_value.buffer, skb, current_header->new_dynamic_value_offset);
+            pktbuf_read_into_buffer_path(dynamic_value.buffer, pkt, current_header->new_dynamic_value_offset);
             // If the value is indexed - add it to the dynamic table.
             if (current_header->type == kNewDynamicHeader) {
                 dynamic_value.string_len = current_header->new_dynamic_value_size;
@@ -272,67 +399,53 @@ static __always_inline void process_headers(struct __sk_buff *skb, dynamic_table
     }
 }
 
-static __always_inline void process_headers_frame(struct __sk_buff *skb, http2_stream_t *current_stream, skb_info_t *restrict skb_info, conn_tuple_t *tup, dynamic_table_index_t *dynamic_index, http2_frame_t *current_frame_header, http2_telemetry_t *http2_tel) {
-    const __u32 zero = 0;
-
-    // Allocating an array of headers, to hold all interesting headers from the frame.
-    http2_header_t *headers_to_process = bpf_map_lookup_elem(&http2_headers_to_process, &zero);
-    if (headers_to_process == NULL) {
-        return;
-    }
-    bpf_memset(headers_to_process, 0, HTTP2_MAX_HEADERS_COUNT_FOR_PROCESSING * sizeof(http2_header_t));
-
-    __u8 interesting_headers = filter_relevant_headers(skb, skb_info, tup, dynamic_index, headers_to_process, current_frame_header->length, http2_tel);
-    process_headers(skb, dynamic_index, current_stream, headers_to_process, interesting_headers, http2_tel);
-}
-
 // The function is trying to read the remaining of a split frame header. We have the first part in
 // `frame_state->buf` (from the previous packet), and now we're trying to read the remaining (`frame_state->remainder`
 // bytes from the current packet).
-static __always_inline void fix_header_frame(struct __sk_buff *skb, skb_info_t *skb_info, char *out, frame_header_remainder_t *frame_state) {
+static __always_inline void pktbuf_fix_header_frame(pktbuf_t pkt, char *out, frame_header_remainder_t *frame_state) {
     bpf_memcpy(out, frame_state->buf, HTTP2_FRAME_HEADER_SIZE);
     // Verifier is unhappy with a single call to `bpf_skb_load_bytes` with a variable length (although checking boundaries)
     switch (frame_state->remainder) {
     case 1:
-        bpf_skb_load_bytes(skb, skb_info->data_off, out + HTTP2_FRAME_HEADER_SIZE - 1, 1);
+        pktbuf_load_bytes_from_current_offset(pkt, out + HTTP2_FRAME_HEADER_SIZE - 1, 1);
         break;
     case 2:
-        bpf_skb_load_bytes(skb, skb_info->data_off, out + HTTP2_FRAME_HEADER_SIZE - 2, 2);
+        pktbuf_load_bytes_from_current_offset(pkt, out + HTTP2_FRAME_HEADER_SIZE - 2, 2);
         break;
     case 3:
-        bpf_skb_load_bytes(skb, skb_info->data_off, out + HTTP2_FRAME_HEADER_SIZE - 3, 3);
+        pktbuf_load_bytes_from_current_offset(pkt, out + HTTP2_FRAME_HEADER_SIZE - 3, 3);
         break;
     case 4:
-        bpf_skb_load_bytes(skb, skb_info->data_off, out + HTTP2_FRAME_HEADER_SIZE - 4, 4);
+        pktbuf_load_bytes_from_current_offset(pkt, out + HTTP2_FRAME_HEADER_SIZE - 4, 4);
         break;
     case 5:
-        bpf_skb_load_bytes(skb, skb_info->data_off, out + HTTP2_FRAME_HEADER_SIZE - 5, 5);
+        pktbuf_load_bytes_from_current_offset(pkt, out + HTTP2_FRAME_HEADER_SIZE - 5, 5);
         break;
     case 6:
-        bpf_skb_load_bytes(skb, skb_info->data_off, out + HTTP2_FRAME_HEADER_SIZE - 6, 6);
+        pktbuf_load_bytes_from_current_offset(pkt, out + HTTP2_FRAME_HEADER_SIZE - 6, 6);
         break;
     case 7:
-        bpf_skb_load_bytes(skb, skb_info->data_off, out + HTTP2_FRAME_HEADER_SIZE - 7, 7);
+        pktbuf_load_bytes_from_current_offset(pkt, out + HTTP2_FRAME_HEADER_SIZE - 7, 7);
         break;
     case 8:
-        bpf_skb_load_bytes(skb, skb_info->data_off, out + HTTP2_FRAME_HEADER_SIZE - 8, 8);
+        pktbuf_load_bytes_from_current_offset(pkt, out + HTTP2_FRAME_HEADER_SIZE - 8, 8);
         break;
     }
     return;
 }
 
-static __always_inline bool get_first_frame(struct __sk_buff *skb, skb_info_t *skb_info, frame_header_remainder_t *frame_state, http2_frame_t *current_frame, http2_telemetry_t *http2_tel) {
+static __always_inline bool pktbuf_get_first_frame(pktbuf_t pkt, frame_header_remainder_t *frame_state, http2_frame_t *current_frame, http2_telemetry_t *http2_tel) {
     // Attempting to read the initial frame in the packet, or handling a state where there is no remainder and finishing reading the current frame.
     if (frame_state == NULL) {
         // Checking we have enough bytes in the packet to read a frame header.
-        if (skb_info->data_off + HTTP2_FRAME_HEADER_SIZE > skb_info->data_end) {
+        if (pktbuf_data_offset(pkt) + HTTP2_FRAME_HEADER_SIZE > pktbuf_data_end(pkt)) {
             // Not enough bytes, cannot read frame, so we have 0 interesting frames in that packet.
             return false;
         }
 
         // Reading frame, and ensuring the frame is valid.
-        bpf_skb_load_bytes(skb, skb_info->data_off, (char *)current_frame, HTTP2_FRAME_HEADER_SIZE);
-        skb_info->data_off += HTTP2_FRAME_HEADER_SIZE;
+        pktbuf_load_bytes_from_current_offset(pkt, (char *)current_frame, HTTP2_FRAME_HEADER_SIZE);
+        pktbuf_advance(pkt, HTTP2_FRAME_HEADER_SIZE);
         if (!format_http2_frame_header(current_frame)) {
             // Frame is not valid, so we have 0 interesting frames in that packet.
             return false;
@@ -363,9 +476,9 @@ static __always_inline bool get_first_frame(struct __sk_buff *skb, skb_info_t *s
         return true;
     }
     if (frame_state->header_length > 0) {
-        fix_header_frame(skb, skb_info, (char*)current_frame, frame_state);
+        pktbuf_fix_header_frame(pkt, (char*)current_frame, frame_state);
         if (format_http2_frame_header(current_frame)) {
-            skb_info->data_off += frame_state->remainder;
+            pktbuf_advance(pkt, frame_state->remainder);
             frame_state->remainder = 0;
             return true;
         }
@@ -378,24 +491,24 @@ static __always_inline bool get_first_frame(struct __sk_buff *skb, skb_info_t *s
     if (frame_state->remainder > 0) {
         // To make a "best effort," if we are in a state where we are left with a remainder, and the length of it from
         // our current position is larger than the data end, we will attempt to handle the remaining buffer as much as possible.
-        if (skb_info->data_off + frame_state->remainder > skb_info->data_end) {
-            frame_state->remainder -= skb_info->data_end - skb_info->data_off;
-            skb_info->data_off = skb_info->data_end;
+        if (pktbuf_data_offset(pkt) + frame_state->remainder > pktbuf_data_end(pkt)) {
+            frame_state->remainder -= pktbuf_data_end(pkt) - pktbuf_data_offset(pkt);
+            pktbuf_set_offset(pkt, pktbuf_data_end(pkt));
             return false;
         }
-        skb_info->data_off += frame_state->remainder;
+        pktbuf_advance(pkt, frame_state->remainder);
         frame_state->remainder = 0;
         // The remainders "ends" the current packet. No interesting frames were found.
-        if (skb_info->data_off == skb_info->data_end) {
+        if (pktbuf_data_offset(pkt) == pktbuf_data_end(pkt)) {
             return false;
         }
-        if (skb_info->data_off + HTTP2_FRAME_HEADER_SIZE > skb_info->data_end) {
+        if (pktbuf_data_offset(pkt) + HTTP2_FRAME_HEADER_SIZE > pktbuf_data_end(pkt)) {
             return false;
         }
         reset_frame(current_frame);
-        bpf_skb_load_bytes(skb, skb_info->data_off, (char *)current_frame, HTTP2_FRAME_HEADER_SIZE);
+        pktbuf_load_bytes_from_current_offset(pkt, (char *)current_frame, HTTP2_FRAME_HEADER_SIZE);
         if (format_http2_frame_header(current_frame)) {
-            skb_info->data_off += HTTP2_FRAME_HEADER_SIZE;
+            pktbuf_advance(pkt, HTTP2_FRAME_HEADER_SIZE);
             return true;
         }
     }
@@ -403,7 +516,7 @@ static __always_inline bool get_first_frame(struct __sk_buff *skb, skb_info_t *s
     return false;
 }
 
-// find_relevant_frames iterates over the packet and finds frames that are
+// Iterates over the packet and finds frames that are
 // relevant for us. The frames info and location are stored in the `iteration_value->frames_array` array,
 // and the number of frames found is being stored at iteration_value->frames_count.
 // This function returns true if there are more frames to filter and if the number of frames found is less than
@@ -414,14 +527,21 @@ static __always_inline bool get_first_frame(struct __sk_buff *skb, skb_info_t *s
 // - HEADERS frames
 // - RST_STREAM frames
 // - DATA frames with the END_STREAM flag set
-static __always_inline bool find_relevant_frames(struct __sk_buff *skb, skb_info_t *restrict skb_info, http2_tail_call_state_t *iteration_value, http2_telemetry_t *http2_tel) {
+static __always_inline bool pktbuf_find_relevant_frames(pktbuf_t pkt, http2_tail_call_state_t *iteration_value, http2_telemetry_t *http2_tel) {
     bool is_headers_or_rst_frame, is_data_end_of_stream;
     http2_frame_t current_frame = {};
 
+    // The following if-clause could have been "simplified" into
+    // if (iteration_value->filter_iterations != 0) {
+    //    pktbuf_set_offset(pkt, iteration_value->data_off);
+    // }
+    // However, the compiler generates much more instructions in the code above, so we're using the following code.
+    __u32 current_offset = pktbuf_data_offset(pkt);
     // if we already processed part of the packet, we should start from the last offset we processed.
     if (iteration_value->filter_iterations != 0) {
-        skb_info->data_off = iteration_value->data_off;
+        current_offset = iteration_value->data_off;
     }
+    pktbuf_set_offset(pkt, current_offset);
 
    // If we have found enough interesting frames, we should not process any new frame.
    // The value of iteration_value->frames_count may potentially be greater than 0.
@@ -434,18 +554,15 @@ static __always_inline bool find_relevant_frames(struct __sk_buff *skb, skb_info
 #pragma unroll(HTTP2_MAX_FRAMES_TO_FILTER)
     for (; iteration < HTTP2_MAX_FRAMES_TO_FILTER; ++iteration) {
         // Checking we can read HTTP2_FRAME_HEADER_SIZE from the skb.
-        if (skb_info->data_off + HTTP2_FRAME_HEADER_SIZE > skb_info->data_end) {
+        if (pktbuf_data_offset(pkt) + HTTP2_FRAME_HEADER_SIZE > pktbuf_data_end(pkt)) {
             break;
         }
 
-        bpf_skb_load_bytes(skb, skb_info->data_off, (char *)&current_frame, HTTP2_FRAME_HEADER_SIZE);
-        skb_info->data_off += HTTP2_FRAME_HEADER_SIZE;
+        pktbuf_read_into_buffer_http2_frame_header((char *)&current_frame, pkt, pktbuf_data_offset(pkt));
+        pktbuf_advance(pkt, HTTP2_FRAME_HEADER_SIZE);
         if (!format_http2_frame_header(&current_frame)) {
             break;
         }
-
-        // We are not checking for frame splits in the previous condition due to a verifier issue.
-        check_frame_split(http2_tel, skb_info->data_off,skb_info->data_end, current_frame);
 
         // END_STREAM can appear only in Headers and Data frames.
         // Check out https://datatracker.ietf.org/doc/html/rfc7540#section-6.1 for data frame, and
@@ -454,11 +571,11 @@ static __always_inline bool find_relevant_frames(struct __sk_buff *skb, skb_info
         is_data_end_of_stream = ((current_frame.flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM) && (current_frame.type == kDataFrame);
         if (iteration_value->frames_count < HTTP2_MAX_FRAMES_ITERATIONS && (is_headers_or_rst_frame || is_data_end_of_stream)) {
             iteration_value->frames_array[iteration_value->frames_count].frame = current_frame;
-            iteration_value->frames_array[iteration_value->frames_count].offset = skb_info->data_off;
+            iteration_value->frames_array[iteration_value->frames_count].offset = pktbuf_data_offset(pkt);
             iteration_value->frames_count++;
         }
 
-        skb_info->data_off += current_frame.length;
+        pktbuf_advance(pkt, current_frame.length);
 
         // If we have found enough interesting frames, we can stop iterating.
         if (iteration_value->frames_count >= HTTP2_MAX_FRAMES_ITERATIONS) {
@@ -473,25 +590,120 @@ static __always_inline bool find_relevant_frames(struct __sk_buff *skb, skb_info
     // This function returns true if there are more frames to filter, which will be parsed by the next tail call,
     // and if we have not yet reached the maximum number of frames we can process.
     return (((iteration == HTTP2_MAX_FRAMES_TO_FILTER) &&
-            (skb_info->data_off + HTTP2_FRAME_HEADER_SIZE <= skb_info->data_end))&&
+            (pktbuf_data_offset(pkt) + HTTP2_FRAME_HEADER_SIZE <= pktbuf_data_end(pkt)))&&
             iteration_value->frames_count < HTTP2_MAX_FRAMES_ITERATIONS);
+}
+
+static __always_inline void handle_first_frame(pktbuf_t pkt, __u32 *external_data_offset, conn_tuple_t *tup) {
+    const __u32 zero = 0;
+    http2_frame_t current_frame = {};
+
+    // A single packet can contain multiple HTTP/2 frames, due to instruction limitations we have divided the
+    // processing into multiple tail calls, where each tail call process a single frame. We must have context when
+    // we are processing the frames, for example, to know how many bytes have we read in the packet, or it we reached
+    // to the maximum number of frames we can process. For that we are checking if the iteration context already exists.
+    // If not, creating a new one to be used for further processing
+    http2_tail_call_state_t *iteration_value = bpf_map_lookup_elem(&http2_frames_to_process, &zero);
+    if (iteration_value == NULL) {
+        return;
+    }
+    iteration_value->frames_count = 0;
+    iteration_value->iteration = 0;
+    iteration_value->filter_iterations = 0;
+    iteration_value->data_off = 0;
+
+    // skip HTTP2 magic, if present
+    pktbuf_skip_preface(pkt);
+    if (pktbuf_data_offset(pkt) == pktbuf_data_end(pkt)) {
+        // Abort early if we reached to the end of the frame (a.k.a having only the HTTP2 magic in the packet).
+        return;
+    }
+
+    frame_header_remainder_t *frame_state = bpf_map_lookup_elem(&http2_remainder, tup);
+
+    http2_telemetry_t *http2_tel = get_telemetry(pkt);
+    if (http2_tel == NULL) {
+        return;
+    }
+
+    bool has_valid_first_frame = pktbuf_get_first_frame(pkt, frame_state, &current_frame, http2_tel);
+    // If we have a state and we consumed it, then delete it.
+    if (frame_state != NULL && frame_state->remainder == 0) {
+        bpf_map_delete_elem(&http2_remainder, tup);
+    }
+
+    if (!has_valid_first_frame) {
+        // Handling the case where we have a frame header remainder, and we couldn't read the frame header.
+        if (pktbuf_data_offset(pkt) < pktbuf_data_end(pkt) && pktbuf_data_offset(pkt) + HTTP2_FRAME_HEADER_SIZE > pktbuf_data_end(pkt)) {
+            frame_header_remainder_t new_frame_state = { 0 };
+            new_frame_state.remainder = HTTP2_FRAME_HEADER_SIZE - (pktbuf_data_end(pkt) - pktbuf_data_offset(pkt));
+            bpf_memset(new_frame_state.buf, 0, HTTP2_FRAME_HEADER_SIZE);
+        #pragma unroll(HTTP2_FRAME_HEADER_SIZE)
+            for (__u32 iteration = 0; iteration < HTTP2_FRAME_HEADER_SIZE && new_frame_state.remainder + iteration < HTTP2_FRAME_HEADER_SIZE; ++iteration) {
+                pktbuf_load_bytes(pkt, pktbuf_data_offset(pkt) + iteration, new_frame_state.buf + iteration, 1);
+            }
+            new_frame_state.header_length = HTTP2_FRAME_HEADER_SIZE - new_frame_state.remainder;
+            bpf_map_update_elem(&http2_remainder, tup, &new_frame_state, BPF_ANY);
+        }
+        return;
+    }
+
+    bool is_headers_or_rst_frame = current_frame.type == kHeadersFrame || current_frame.type == kRSTStreamFrame;
+    bool is_data_end_of_stream = ((current_frame.flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM) && (current_frame.type == kDataFrame);
+    if (is_headers_or_rst_frame || is_data_end_of_stream) {
+        iteration_value->frames_array[0].frame = current_frame;
+        iteration_value->frames_array[0].offset = pktbuf_data_offset(pkt);
+        iteration_value->frames_count = 1;
+    }
+
+    pktbuf_advance(pkt, current_frame.length);
+    // We're exceeding the packet boundaries, so we have a remainder.
+    if (pktbuf_data_offset(pkt) > pktbuf_data_end(pkt)) {
+        frame_header_remainder_t new_frame_state = { 0 };
+
+        // Saving the remainder.
+        new_frame_state.remainder = pktbuf_data_offset(pkt) - pktbuf_data_end(pkt);
+        // We did find an interesting frame (as frames_count == 1), so we cache the current frame and waiting for the
+        // next call.
+        if (iteration_value->frames_count == 1) {
+            new_frame_state.header_length = HTTP2_FRAME_HEADER_SIZE;
+            bpf_memcpy(new_frame_state.buf, (char *)&current_frame, HTTP2_FRAME_HEADER_SIZE);
+        }
+
+        iteration_value->frames_count = 0;
+        bpf_map_update_elem(&http2_remainder, tup, &new_frame_state, BPF_ANY);
+        // Not calling the next tail call as we have nothing to process.
+        return;
+    }
+    // Overriding the data_off field of the cached packet. The next prog will start from the offset of the next valid
+    // frame.
+    *external_data_offset = pktbuf_data_offset(pkt);
+
+    pktbuf_tail_call_option_t frame_filter_tail_call_array[] = {
+        [PKTBUF_SKB] = {
+            .prog_array_map = &protocols_progs,
+            .index = PROG_HTTP2_FRAME_FILTER,
+        },
+        [PKTBUF_TLS] = {
+            .prog_array_map = &tls_process_progs,
+            .index = PROG_HTTP2_FRAME_FILTER,
+        },
+    };
+    pktbuf_tail_call_compact(pkt, frame_filter_tail_call_array);
 }
 
 SEC("socket/http2_handle_first_frame")
 int socket__http2_handle_first_frame(struct __sk_buff *skb) {
     const __u32 zero = 0;
-    http2_frame_t current_frame = {};
 
     dispatcher_arguments_t dispatcher_args_copy;
-    bpf_memset(&dispatcher_args_copy, 0, sizeof(dispatcher_arguments_t));
-    // We're not calling fetch_dispatching_arguments as, we need to modify the `data_off` field of skb_info, so
+    // We're not calling fetch_dispatching_arguments as, we need to modify the `data_off` field of packet, so
     // the next prog will start to read from the next valid frame.
     dispatcher_arguments_t *args = bpf_map_lookup_elem(&dispatcher_arguments, &zero);
     if (args == NULL) {
         return false;
     }
-    bpf_memcpy(&dispatcher_args_copy.tup, &args->tup, sizeof(conn_tuple_t));
-    bpf_memcpy(&dispatcher_args_copy.skb_info, &args->skb_info, sizeof(skb_info_t));
+    dispatcher_args_copy = *args;
 
     // If we detected a tcp termination we should stop processing the packet, and clear its dynamic table by deleting the counter.
     if (is_tcp_termination(&dispatcher_args_copy.skb_info)) {
@@ -507,6 +719,15 @@ int socket__http2_handle_first_frame(struct __sk_buff *skb) {
         return 0;
     }
 
+    pktbuf_t pkt = pktbuf_from_skb(skb, &dispatcher_args_copy.skb_info);
+
+    handle_first_frame(pkt, &args->skb_info.data_off, &dispatcher_args_copy.tup);
+    return 0;
+}
+
+static __always_inline void filter_frame(pktbuf_t pkt, void *map_key, conn_tuple_t *tup) {
+    const __u32 zero = 0;
+
     // A single packet can contain multiple HTTP/2 frames, due to instruction limitations we have divided the
     // processing into multiple tail calls, where each tail call process a single frame. We must have context when
     // we are processing the frames, for example, to know how many bytes have we read in the packet, or it we reached
@@ -514,83 +735,96 @@ int socket__http2_handle_first_frame(struct __sk_buff *skb) {
     // If not, creating a new one to be used for further processing
     http2_tail_call_state_t *iteration_value = bpf_map_lookup_elem(&http2_frames_to_process, &zero);
     if (iteration_value == NULL) {
-        return 0;
-    }
-    iteration_value->frames_count = 0;
-    iteration_value->iteration = 0;
-    iteration_value->filter_iterations = 0;
-    iteration_value->data_off = 0;
-
-    // skip HTTP2 magic, if present
-    skip_preface(skb, &dispatcher_args_copy.skb_info);
-    if (dispatcher_args_copy.skb_info.data_off == dispatcher_args_copy.skb_info.data_end) {
-        // Abort early if we reached to the end of the frame (a.k.a having only the HTTP2 magic in the packet).
-        return 0;
+        return;
     }
 
-    frame_header_remainder_t *frame_state = bpf_map_lookup_elem(&http2_remainder, &dispatcher_args_copy.tup);
-
-    http2_telemetry_t *http2_tel = bpf_map_lookup_elem(&http2_telemetry, &zero);
+    http2_telemetry_t *http2_tel = get_telemetry(pkt);
     if (http2_tel == NULL) {
-        return 0;
+        return;
     }
 
-    bool has_valid_first_frame = get_first_frame(skb, &dispatcher_args_copy.skb_info, frame_state, &current_frame, http2_tel);
-    // If we have a state and we consumed it, then delete it.
-    if (frame_state != NULL && frame_state->remainder == 0) {
-        bpf_map_delete_elem(&http2_remainder, &dispatcher_args_copy.tup);
+    // Some functions might change and override data_off field in the packet. Since it is used as a key
+    // in a map, we cannot allow it to be modified. Thus, storing the original value of the offset.
+    __u32 original_off = pktbuf_data_offset(pkt);
+
+    bool have_more_frames_to_process = pktbuf_find_relevant_frames(pkt, iteration_value, http2_tel);
+    // We have found there are more frames to filter, so we will call frame_filter again.
+    // Max current amount of tail calls would be 2, which will allow us to currently parse
+    // HTTP2_MAX_TAIL_CALLS_FOR_FRAMES_FILTER*HTTP2_MAX_FRAMES_ITERATIONS.
+    iteration_value->filter_iterations++;
+    if (have_more_frames_to_process && iteration_value->filter_iterations < HTTP2_MAX_TAIL_CALLS_FOR_FRAMES_FILTER) {
+        // save local copy of the offset, so the next prog will start from the offset of the next valid frame.
+        iteration_value->data_off = pktbuf_data_offset(pkt);
+        pktbuf_tail_call_option_t frame_filter_tail_call_array[] = {
+            [PKTBUF_SKB] = {
+                .prog_array_map = &protocols_progs,
+                .index = PROG_HTTP2_FRAME_FILTER,
+            },
+            [PKTBUF_TLS] = {
+                .prog_array_map = &tls_process_progs,
+                .index = PROG_HTTP2_FRAME_FILTER,
+            },
+        };
+        pktbuf_tail_call_compact(pkt, frame_filter_tail_call_array);
     }
 
-    if (!has_valid_first_frame) {
-        // Handling the case where we have a frame header remainder, and we couldn't read the frame header.
-        if (dispatcher_args_copy.skb_info.data_off < dispatcher_args_copy.skb_info.data_end && dispatcher_args_copy.skb_info.data_off + HTTP2_FRAME_HEADER_SIZE > dispatcher_args_copy.skb_info.data_end) {
-            frame_header_remainder_t new_frame_state = { 0 };
-            new_frame_state.remainder = HTTP2_FRAME_HEADER_SIZE - (dispatcher_args_copy.skb_info.data_end - dispatcher_args_copy.skb_info.data_off);
-            bpf_memset(new_frame_state.buf, 0, HTTP2_FRAME_HEADER_SIZE);
-        #pragma unroll(HTTP2_FRAME_HEADER_SIZE)
-            for (__u32 iteration = 0; iteration < HTTP2_FRAME_HEADER_SIZE && new_frame_state.remainder + iteration < HTTP2_FRAME_HEADER_SIZE; ++iteration) {
-                bpf_skb_load_bytes(skb, dispatcher_args_copy.skb_info.data_off + iteration, new_frame_state.buf + iteration, 1);
-            }
-            new_frame_state.header_length = HTTP2_FRAME_HEADER_SIZE - new_frame_state.remainder;
-            bpf_map_update_elem(&http2_remainder, &dispatcher_args_copy.tup, &new_frame_state, BPF_ANY);
+    // if we left with more headers to process and we reached the max amount of tail calls we should update the telemetry.
+    if (have_more_frames_to_process && iteration_value->filter_iterations >= HTTP2_MAX_TAIL_CALLS_FOR_FRAMES_FILTER) {
+        __sync_fetch_and_add(&http2_tel->exceeding_max_frames_to_filter, 1);
+    }
+
+    frame_header_remainder_t new_frame_state = { 0 };
+    if (pktbuf_data_offset(pkt) > pktbuf_data_end(pkt)) {
+        // We have a remainder
+        new_frame_state.remainder = pktbuf_data_offset(pkt) - pktbuf_data_end(pkt);
+        bpf_map_update_elem(&http2_remainder, tup, &new_frame_state, BPF_ANY);
+    } else if (pktbuf_data_offset(pkt) < pktbuf_data_end(pkt) && pktbuf_data_offset(pkt) + HTTP2_FRAME_HEADER_SIZE > pktbuf_data_end(pkt)) {
+        // We have a frame header remainder
+        new_frame_state.remainder = HTTP2_FRAME_HEADER_SIZE - (pktbuf_data_end(pkt) - pktbuf_data_offset(pkt));
+        bpf_memset(new_frame_state.buf, 0, HTTP2_FRAME_HEADER_SIZE);
+    #pragma unroll(HTTP2_FRAME_HEADER_SIZE)
+        for (__u32 iteration = 0; iteration < HTTP2_FRAME_HEADER_SIZE && new_frame_state.remainder + iteration < HTTP2_FRAME_HEADER_SIZE; ++iteration) {
+            pktbuf_load_bytes(pkt, pktbuf_data_offset(pkt) + iteration, new_frame_state.buf + iteration, 1);
         }
-        return 0;
+        new_frame_state.header_length = HTTP2_FRAME_HEADER_SIZE - new_frame_state.remainder;
+        bpf_map_update_elem(&http2_remainder, tup, &new_frame_state, BPF_ANY);
     }
 
-    check_frame_split(http2_tel, dispatcher_args_copy.skb_info.data_off, dispatcher_args_copy.skb_info.data_end, current_frame);
-    bool is_headers_or_rst_frame = current_frame.type == kHeadersFrame || current_frame.type == kRSTStreamFrame;
-    bool is_data_end_of_stream = ((current_frame.flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM) && (current_frame.type == kDataFrame);
-    if (is_headers_or_rst_frame || is_data_end_of_stream) {
-        iteration_value->frames_array[0].frame = current_frame;
-        iteration_value->frames_array[0].offset = dispatcher_args_copy.skb_info.data_off;
-        iteration_value->frames_count = 1;
+    if (iteration_value->frames_count == 0) {
+        return;
     }
 
-    dispatcher_args_copy.skb_info.data_off += current_frame.length;
-    // We're exceeding the packet boundaries, so we have a remainder.
-    if (dispatcher_args_copy.skb_info.data_off > dispatcher_args_copy.skb_info.data_end) {
-        frame_header_remainder_t new_frame_state = { 0 };
-
-        // Saving the remainder.
-        new_frame_state.remainder = dispatcher_args_copy.skb_info.data_off - dispatcher_args_copy.skb_info.data_end;
-        // We did find an interesting frame (as frames_count == 1), so we cache the current frame and waiting for the
-        // next call.
-        if (iteration_value->frames_count == 1) {
-            new_frame_state.header_length = HTTP2_FRAME_HEADER_SIZE;
-            bpf_memcpy(new_frame_state.buf, (char *)&current_frame, HTTP2_FRAME_HEADER_SIZE);
-        }
-
-        iteration_value->frames_count = 0;
-        bpf_map_update_elem(&http2_remainder, &dispatcher_args_copy.tup, &new_frame_state, BPF_ANY);
-        // Not calling the next tail call as we have nothing to process.
-        return 0;
+    // restoring the original value.
+    pktbuf_set_offset(pkt, original_off);
+    pktbuf_map_update_option_t http2_iterations_map_update_array[] = {
+        [PKTBUF_SKB] = {
+            .map = &http2_iterations,
+            .key = map_key,
+            .value = iteration_value,
+            .flags = BPF_NOEXIST,
+        },
+        [PKTBUF_TLS] = {
+            .map = &tls_http2_iterations,
+            .key = map_key,
+            .value = iteration_value,
+            .flags = BPF_NOEXIST,
+        },
+    };
+    // We have couple of interesting headers, launching tail calls to handle them.
+    if (pktbuf_map_update(pkt, http2_iterations_map_update_array) >= 0) {
+        // We managed to cache the iteration_value in the http2_iterations map.
+        pktbuf_tail_call_option_t headers_parser_tail_call_array[] = {
+            [PKTBUF_SKB] = {
+                .prog_array_map = &protocols_progs,
+                .index = PROG_HTTP2_HEADERS_PARSER,
+            },
+            [PKTBUF_TLS] = {
+                .prog_array_map = &tls_process_progs,
+                .index = PROG_HTTP2_HEADERS_PARSER,
+            },
+        };
+        pktbuf_tail_call_compact(pkt, headers_parser_tail_call_array);
     }
-    // Overriding the data_off field of the cached skb_info. The next prog will start from the offset of the next valid
-    // frame.
-    args->skb_info.data_off = dispatcher_args_copy.skb_info.data_off;
-
-    bpf_tail_call_compat(skb, &protocols_progs, PROG_HTTP2_FRAME_FILTER);
-    return 0;
 }
 
 SEC("socket/http2_filter")
@@ -601,100 +835,36 @@ int socket__http2_filter(struct __sk_buff *skb) {
         return 0;
     }
 
-    const __u32 zero = 0;
+    pktbuf_t pkt = pktbuf_from_skb(skb, &dispatcher_args_copy.skb_info);
 
-    // A single packet can contain multiple HTTP/2 frames, due to instruction limitations we have divided the
-    // processing into multiple tail calls, where each tail call process a single frame. We must have context when
-    // we are processing the frames, for example, to know how many bytes have we read in the packet, or it we reached
-    // to the maximum number of frames we can process. For that we are checking if the iteration context already exists.
-    // If not, creating a new one to be used for further processing
-    http2_tail_call_state_t *iteration_value = bpf_map_lookup_elem(&http2_frames_to_process, &zero);
-    if (iteration_value == NULL) {
-        return 0;
-    }
-
-    http2_telemetry_t *http2_tel = bpf_map_lookup_elem(&http2_telemetry, &zero);
-    if (http2_tel == NULL) {
-        return 0;
-    }
-
-    // Some functions might change and override fields in dispatcher_args_copy.skb_info. Since it is used as a key
-    // in a map, we cannot allow it to be modified. Thus, having a local copy of skb_info.
-    skb_info_t local_skb_info = dispatcher_args_copy.skb_info;
-
-    bool have_more_frames_to_process = find_relevant_frames(skb, &local_skb_info, iteration_value, http2_tel);
-    // We have found there are more frames to filter, so we will call frame_filter again.
-    // Max current amount of tail calls would be 2, which will allow us to currently parse
-    // HTTP2_MAX_TAIL_CALLS_FOR_FRAMES_FILTER*HTTP2_MAX_FRAMES_ITERATIONS.
-    iteration_value->filter_iterations++;
-    if (have_more_frames_to_process && iteration_value->filter_iterations < HTTP2_MAX_TAIL_CALLS_FOR_FRAMES_FILTER) {
-        // save local copy of the skb_info, so the next prog will start from the offset of the next valid frame.
-        iteration_value->data_off = local_skb_info.data_off;
-        bpf_tail_call_compat(skb, &protocols_progs, PROG_HTTP2_FRAME_FILTER);
-    }
-
-    // if we left with more headers to process and we reached the max amount of tail calls we should update the telemetry.
-    if (have_more_frames_to_process && iteration_value->filter_iterations >= HTTP2_MAX_TAIL_CALLS_FOR_FRAMES_FILTER) {
-        __sync_fetch_and_add(&http2_tel->exceeding_max_frames_to_filter, 1);
-    }
-
-    frame_header_remainder_t new_frame_state = { 0 };
-    if (local_skb_info.data_off > local_skb_info.data_end) {
-        // We have a remainder
-        new_frame_state.remainder = local_skb_info.data_off - local_skb_info.data_end;
-        bpf_map_update_elem(&http2_remainder, &dispatcher_args_copy.tup, &new_frame_state, BPF_ANY);
-    } else if (local_skb_info.data_off < local_skb_info.data_end && local_skb_info.data_off + HTTP2_FRAME_HEADER_SIZE > local_skb_info.data_end) {
-        // We have a frame header remainder
-        new_frame_state.remainder = HTTP2_FRAME_HEADER_SIZE - (local_skb_info.data_end - local_skb_info.data_off);
-        bpf_memset(new_frame_state.buf, 0, HTTP2_FRAME_HEADER_SIZE);
-    #pragma unroll(HTTP2_FRAME_HEADER_SIZE)
-        for (__u32 iteration = 0; iteration < HTTP2_FRAME_HEADER_SIZE && new_frame_state.remainder + iteration < HTTP2_FRAME_HEADER_SIZE; ++iteration) {
-            bpf_skb_load_bytes(skb, local_skb_info.data_off + iteration, new_frame_state.buf + iteration, 1);
-        }
-        new_frame_state.header_length = HTTP2_FRAME_HEADER_SIZE - new_frame_state.remainder;
-        bpf_map_update_elem(&http2_remainder, &dispatcher_args_copy.tup, &new_frame_state, BPF_ANY);
-    }
-
-    if (iteration_value->frames_count == 0) {
-        return 0;
-    }
-
-    // We have couple of interesting headers, launching tail calls to handle them.
-    if (bpf_map_update_elem(&http2_iterations, &dispatcher_args_copy, iteration_value, BPF_NOEXIST) >= 0) {
-        // We managed to cache the iteration_value in the http2_iterations map.
-        bpf_tail_call_compat(skb, &protocols_progs, PROG_HTTP2_HEADERS_PARSER);
-    }
-
+    filter_frame(pkt, &dispatcher_args_copy, &dispatcher_args_copy.tup);
     return 0;
 }
 
-// The program is responsible for parsing all headers frames. For each headers frame we parse the headers,
-// fill the dynamic table with the new interesting literal headers, and modifying the streams accordingly.
-// The program can be called multiple times (via "self call" of tail calls) in case we have more frames to parse
-// than the maximum number of frames we can process in a single tail call.
-// The program is being called after socket__http2_filter, and it is being called only if we have interesting frames.
-// The program calls socket__http2_dynamic_table_cleaner to clean the dynamic table if needed.
-SEC("socket/http2_headers_parser")
-int socket__http2_headers_parser(struct __sk_buff *skb) {
-    dispatcher_arguments_t dispatcher_args_copy;
-    bpf_memset(&dispatcher_args_copy, 0, sizeof(dispatcher_arguments_t));
-    if (!fetch_dispatching_arguments(&dispatcher_args_copy.tup, &dispatcher_args_copy.skb_info)) {
-        return 0;
-    }
-
-    // Some functions might change and override data_off field in dispatcher_args_copy.skb_info. Since it is used as a key
+static __always_inline void headers_parser(pktbuf_t pkt, void *map_key, conn_tuple_t *tup, __u8 tags) {
+    // Some functions might change and override data_off field in the packet. Since it is used as a key
     // in a map, we cannot allow it to be modified. Thus, storing the original value of the offset.
-    __u32 original_off = dispatcher_args_copy.skb_info.data_off;
+    __u32 original_off = pktbuf_data_offset(pkt);
 
     // A single packet can contain multiple HTTP/2 frames, due to instruction limitations we have divided the
     // processing into multiple tail calls, where each tail call process a single frame. We must have context when
     // we are processing the frames, for example, to know how many bytes have we read in the packet, or it we reached
     // to the maximum number of frames we can process. For that we are checking if the iteration context already exists.
     // If not, creating a new one to be used for further processing
-    http2_tail_call_state_t *tail_call_state = bpf_map_lookup_elem(&http2_iterations, &dispatcher_args_copy);
+    pktbuf_map_lookup_option_t http2_iterations_array[] = {
+        [PKTBUF_SKB] = {
+            .map = &http2_iterations,
+            .key = map_key,
+        },
+        [PKTBUF_TLS] = {
+            .map = &tls_http2_iterations,
+            .key = map_key,
+        },
+    };
+    http2_tail_call_state_t *tail_call_state = pktbuf_map_lookup(pkt, http2_iterations_array);
     if (tail_call_state == NULL) {
         // We didn't find the cached context, aborting.
-        return 0;
+        return;
     }
 
     const __u32 zero = 0;
@@ -703,7 +873,7 @@ int socket__http2_headers_parser(struct __sk_buff *skb) {
         goto delete_iteration;
     }
 
-    http2_telemetry_t *http2_tel = bpf_map_lookup_elem(&http2_telemetry, &zero);
+    http2_telemetry_t *http2_tel = get_telemetry(pkt);
     if (http2_tel == NULL) {
         goto delete_iteration;
     }
@@ -713,11 +883,25 @@ int socket__http2_headers_parser(struct __sk_buff *skb) {
 
     // create the http2 ctx for the current http2 frame.
     bpf_memset(http2_ctx, 0, sizeof(http2_ctx_t));
-    http2_ctx->http2_stream_key.tup = dispatcher_args_copy.tup;
+    http2_ctx->http2_stream_key.tup = *tup;
     normalize_tuple(&http2_ctx->http2_stream_key.tup);
-    http2_ctx->dynamic_index.tup = dispatcher_args_copy.tup;
+    http2_ctx->dynamic_index.tup = *tup;
 
     http2_stream_t *current_stream = NULL;
+
+    // Allocating an array of headers, to hold all interesting headers from the frame.
+    http2_header_t *headers_to_process = bpf_map_lookup_elem(&http2_headers_to_process, &zero);
+    if (headers_to_process == NULL) {
+        goto delete_iteration;
+    }
+    bpf_memset(headers_to_process, 0, HTTP2_MAX_HEADERS_COUNT_FOR_PROCESSING * sizeof(http2_header_t));
+
+    __u8 interesting_headers = 0;
+
+    __u64 *global_dynamic_counter = get_dynamic_counter(tup);
+    if (global_dynamic_counter == NULL) {
+        goto delete_iteration;
+    }
 
     #pragma unroll(HTTP2_MAX_FRAMES_FOR_HEADERS_PARSER_PER_TAIL_CALL)
     for (__u16 index = 0; index < HTTP2_MAX_FRAMES_FOR_HEADERS_PARSER_PER_TAIL_CALL; index++) {
@@ -740,38 +924,82 @@ int socket__http2_headers_parser(struct __sk_buff *skb) {
         if (current_stream == NULL) {
             continue;
         }
-        dispatcher_args_copy.skb_info.data_off = current_frame.offset;
-        process_headers_frame(skb, current_stream, &dispatcher_args_copy.skb_info, &dispatcher_args_copy.tup, &http2_ctx->dynamic_index, &current_frame.frame, http2_tel);
+        current_stream->tags = tags;
+        pktbuf_set_offset(pkt, current_frame.offset);
+
+        interesting_headers = pktbuf_filter_relevant_headers(pkt, global_dynamic_counter, &http2_ctx->dynamic_index, headers_to_process, current_frame.frame.length, http2_tel);
+        pktbuf_process_headers(pkt, &http2_ctx->dynamic_index, current_stream, headers_to_process, interesting_headers, http2_tel);
     }
 
     if (tail_call_state->iteration < HTTP2_MAX_FRAMES_ITERATIONS &&
         tail_call_state->iteration < tail_call_state->frames_count &&
         tail_call_state->iteration < HTTP2_MAX_FRAMES_FOR_HEADERS_PARSER) {
-        bpf_tail_call_compat(skb, &protocols_progs, PROG_HTTP2_HEADERS_PARSER);
+        pktbuf_tail_call_option_t tail_call_arr[] = {
+            [PKTBUF_SKB] = {
+                .prog_array_map = &protocols_progs,
+                .index = PROG_HTTP2_HEADERS_PARSER,
+            },
+            [PKTBUF_TLS] = {
+                .prog_array_map = &tls_process_progs,
+                .index = PROG_HTTP2_HEADERS_PARSER,
+            },
+        };
+        pktbuf_tail_call_compact(pkt, tail_call_arr);
     }
     // Zeroing the iteration index to call EOS parser
     tail_call_state->iteration = 0;
-    bpf_tail_call_compat(skb, &protocols_progs, PROG_HTTP2_DYNAMIC_TABLE_CLEANER);
+    pktbuf_tail_call_option_t tail_call_arr[] = {
+        [PKTBUF_SKB] = {
+            .prog_array_map = &protocols_progs,
+            .index = PROG_HTTP2_DYNAMIC_TABLE_CLEANER,
+        },
+        [PKTBUF_TLS] = {
+            .prog_array_map = &tls_process_progs,
+            .index = PROG_HTTP2_DYNAMIC_TABLE_CLEANER,
+        },
+    };
+    pktbuf_tail_call_compact(pkt, tail_call_arr);
 
 delete_iteration:
     // restoring the original value.
-    dispatcher_args_copy.skb_info.data_off = original_off;
-    bpf_map_delete_elem(&http2_iterations, &dispatcher_args_copy);
-
-    return 0;
+    pktbuf_set_offset(pkt, original_off);
+    pktbuf_map_delete(pkt, http2_iterations_array);
 }
 
-// The program is responsible for cleaning the dynamic table.
-// The program calls socket__http2_eos_parser to finalize the streams and enqueue them to be sent to the user mode.
-SEC("socket/http2_dynamic_table_cleaner")
-int socket__http2_dynamic_table_cleaner(struct __sk_buff *skb) {
+// The program is responsible for parsing all headers frames. For each headers frame we parse the headers,
+// fill the dynamic table with the new interesting literal headers, and modifying the streams accordingly.
+// The program can be called multiple times (via "self call" of tail calls) in case we have more frames to parse
+// than the maximum number of frames we can process in a single tail call.
+// The program is being called after socket__http2_filter, and it is being called only if we have interesting frames.
+// The program calls socket__http2_dynamic_table_cleaner to clean the dynamic table if needed.
+SEC("socket/http2_headers_parser")
+int socket__http2_headers_parser(struct __sk_buff *skb) {
     dispatcher_arguments_t dispatcher_args_copy;
     bpf_memset(&dispatcher_args_copy, 0, sizeof(dispatcher_arguments_t));
     if (!fetch_dispatching_arguments(&dispatcher_args_copy.tup, &dispatcher_args_copy.skb_info)) {
         return 0;
     }
 
-    dynamic_counter_t *dynamic_counter = bpf_map_lookup_elem(&http2_dynamic_counter_table, &dispatcher_args_copy.tup);
+    pktbuf_t pkt = pktbuf_from_skb(skb, &dispatcher_args_copy.skb_info);
+
+    headers_parser(pkt, &dispatcher_args_copy, &dispatcher_args_copy.tup, NO_TAGS);
+
+    return 0;
+}
+
+static __always_inline void dynamic_table_cleaner(pktbuf_t pkt, conn_tuple_t *tup) {
+    pktbuf_tail_call_option_t eos_parser_tail_call_array[] = {
+        [PKTBUF_SKB] = {
+            .prog_array_map = &protocols_progs,
+            .index = PROG_HTTP2_EOS_PARSER,
+        },
+        [PKTBUF_TLS] = {
+            .prog_array_map = &tls_process_progs,
+            .index = PROG_HTTP2_EOS_PARSER,
+        },
+    };
+
+    dynamic_counter_t *dynamic_counter = bpf_map_lookup_elem(&http2_dynamic_counter_table, tup);
     if (dynamic_counter == NULL) {
         goto next;
     }
@@ -783,7 +1011,7 @@ int socket__http2_dynamic_table_cleaner(struct __sk_buff *skb) {
     }
 
     dynamic_table_index_t dynamic_index = {
-        .tup = dispatcher_args_copy.tup,
+        .tup = *tup,
     };
 
     #pragma unroll(HTTP2_DYNAMIC_TABLE_CLEANUP_ITERATIONS)
@@ -803,40 +1031,50 @@ int socket__http2_dynamic_table_cleaner(struct __sk_buff *skb) {
     }
 
 next:
-    bpf_tail_call_compat(skb, &protocols_progs, PROG_HTTP2_EOS_PARSER);
-
-    return 0;
+    pktbuf_tail_call_compact(pkt, eos_parser_tail_call_array);
 }
 
-// The program is responsible for parsing all frames that mark the end of a stream.
-// We consider a frame as marking the end of a stream if it is either:
-//  - An headers or data frame with END_STREAM flag set.
-//  - An RST_STREAM frame.
-// The program is being called after http2_dynamic_table_cleaner, and it finalizes the streams and enqueue them
-// to be sent to the user mode.
-// The program is ready to be called multiple times (via "self call" of tail calls) in case we have more frames to
-// process than the maximum number of frames we can process in a single tail call.
-SEC("socket/http2_eos_parser")
-int socket__http2_eos_parser(struct __sk_buff *skb) {
+// The program is responsible for cleaning the dynamic table.
+// The program calls socket__http2_eos_parser to finalize the streams and enqueue them to be sent to the user mode.
+SEC("socket/http2_dynamic_table_cleaner")
+int socket__http2_dynamic_table_cleaner(struct __sk_buff *skb) {
     dispatcher_arguments_t dispatcher_args_copy;
     bpf_memset(&dispatcher_args_copy, 0, sizeof(dispatcher_arguments_t));
     if (!fetch_dispatching_arguments(&dispatcher_args_copy.tup, &dispatcher_args_copy.skb_info)) {
         return 0;
     }
 
+    pktbuf_t pkt = pktbuf_from_skb(skb, &dispatcher_args_copy.skb_info);
+    dynamic_table_cleaner(pkt, &dispatcher_args_copy.tup);
+
+    return 0;
+}
+
+static __always_inline void eos_parser(pktbuf_t pkt, void *map_key, conn_tuple_t *tup) {
+    const __u32 zero = 0;
+
+    pktbuf_map_lookup_option_t http2_iterations_array[] = {
+        [PKTBUF_SKB] = {
+            .map = &http2_iterations,
+            .key = map_key,
+        },
+        [PKTBUF_TLS] = {
+            .map = &tls_http2_iterations,
+            .key = map_key,
+        },
+    };
     // A single packet can contain multiple HTTP/2 frames, due to instruction limitations we have divided the
     // processing into multiple tail calls, where each tail call process a single frame. We must have context when
     // we are processing the frames, for example, to know how many bytes have we read in the packet, or it we reached
     // to the maximum number of frames we can process. For that we are checking if the iteration context already exists.
     // If not, creating a new one to be used for further processing
-    http2_tail_call_state_t *tail_call_state = bpf_map_lookup_elem(&http2_iterations, &dispatcher_args_copy);
+    http2_tail_call_state_t *tail_call_state = pktbuf_map_lookup(pkt, http2_iterations_array);
     if (tail_call_state == NULL) {
         // We didn't find the cached context, aborting.
-        return 0;
+        return;
     }
 
-    const __u32 zero = 0;
-    http2_telemetry_t *http2_tel = bpf_map_lookup_elem(&http2_telemetry, &zero);
+    http2_telemetry_t *http2_tel = get_telemetry(pkt);
     if (http2_tel == NULL) {
         goto delete_iteration;
     }
@@ -849,7 +1087,7 @@ int socket__http2_eos_parser(struct __sk_buff *skb) {
         goto delete_iteration;
     }
     bpf_memset(http2_ctx, 0, sizeof(http2_ctx_t));
-    http2_ctx->http2_stream_key.tup = dispatcher_args_copy.tup;
+    http2_ctx->http2_stream_key.tup = *tup;
     normalize_tuple(&http2_ctx->http2_stream_key.tup);
 
     bool is_rst = false, is_end_of_stream = false;
@@ -907,12 +1145,43 @@ int socket__http2_eos_parser(struct __sk_buff *skb) {
     if (tail_call_state->iteration < HTTP2_MAX_FRAMES_ITERATIONS &&
         tail_call_state->iteration < tail_call_state->frames_count &&
         tail_call_state->iteration < HTTP2_MAX_FRAMES_FOR_EOS_PARSER) {
-        bpf_tail_call_compat(skb, &protocols_progs, PROG_HTTP2_EOS_PARSER);
+
+        pktbuf_tail_call_option_t eos_parser_tail_call_array[] = {
+            [PKTBUF_SKB] = {
+                .prog_array_map = &protocols_progs,
+                .index = PROG_HTTP2_EOS_PARSER,
+            },
+            [PKTBUF_TLS] = {
+                .prog_array_map = &tls_process_progs,
+                .index = PROG_HTTP2_EOS_PARSER,
+            },
+        };
+        pktbuf_tail_call_compact(pkt, eos_parser_tail_call_array);
     }
 
 delete_iteration:
-    bpf_map_delete_elem(&http2_iterations, &dispatcher_args_copy);
+    pktbuf_map_delete(pkt, http2_iterations_array);
+}
 
+// The program is responsible for parsing all frames that mark the end of a stream.
+// We consider a frame as marking the end of a stream if it is either:
+//  - An headers or data frame with END_STREAM flag set.
+//  - An RST_STREAM frame.
+// The program is being called after http2_dynamic_table_cleaner, and it finalizes the streams and enqueue them
+// to be sent to the user mode.
+// The program is ready to be called multiple times (via "self call" of tail calls) in case we have more frames to
+// process than the maximum number of frames we can process in a single tail call.
+SEC("socket/http2_eos_parser")
+int socket__http2_eos_parser(struct __sk_buff *skb) {
+    dispatcher_arguments_t dispatcher_args_copy;
+    bpf_memset(&dispatcher_args_copy, 0, sizeof(dispatcher_arguments_t));
+    if (!fetch_dispatching_arguments(&dispatcher_args_copy.tup, &dispatcher_args_copy.skb_info)) {
+        return 0;
+    }
+
+    pktbuf_t pkt = pktbuf_from_skb(skb, &dispatcher_args_copy.skb_info);
+
+    eos_parser(pkt, &dispatcher_args_copy, &dispatcher_args_copy.tup);
     return 0;
 }
 #endif

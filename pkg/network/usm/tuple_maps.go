@@ -31,6 +31,14 @@ func initializeTupleMaps(m *ddebpf.Manager) {
 
 	connections := procnet.GetTCPConnections()
 	for _, c := range connections {
+		if !c.Laddr.IsValid() || !c.Raddr.IsValid() {
+			// This is a safeguard against calling As4() or As6() on a
+			// zero netip.Addr value. Note that a zero netip.Addr value is not a
+			// valid IP address and it's not the same thing as "0.0.0.0" or "::"
+			// which are both valid.
+			continue
+		}
+
 		ll, lh := util.ToLowHighIP(c.Laddr)
 		rl, rh := util.ToLowHighIP(c.Raddr)
 

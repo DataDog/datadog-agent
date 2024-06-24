@@ -11,12 +11,26 @@
   tags: ["arch:amd64"]
   script:
     - cd $CI_PROJECT_DIR
+    - export BTFS_ETAG=$(aws s3api head-object --region us-east-1 --bucket dd-agent-omnibus --key btfs/$BTFHUB_ARCHIVE_BRANCH/btfs-$ARCH.tar --query ETag --output text | tr -d \")
+    - export OUTPUTS_HASH=$(sha256sum sysprobe-build-outputs.tar.xz.sum | cut -d' ' -f1)
+    - export MIN_BTFS_FILENAME=minimized-btfs-$BTFS_ETAG-$OUTPUTS_HASH.tar.xz
+    - |
+      # if running all builds, or this is a release branch, skip the cache check
+      if [[ "$RUN_ALL_BUILDS" != "true" && ! $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+\.x$/ ]]; then
+        if aws s3api head-object --region us-east-1 --bucket dd-ci-artefacts-build-stable --key $CI_PROJECT_NAME/btfs/$MIN_BTFS_FILENAME; then
+          $S3_CP_CMD $S3_PROJECT_ARTIFACTS_URI/btfs/$MIN_BTFS_FILENAME $CI_PROJECT_DIR/minimized-btfs.tar.xz
+          echo "cached minimized BTFs exist"
+          exit 0
+        fi
+      fi
+    # cache does not exist, download processed BTFs and minimize
     - $S3_CP_CMD $S3_DD_AGENT_OMNIBUS_BTFS_URI/$BTFHUB_ARCHIVE_BRANCH/btfs-$ARCH.tar .
     - tar -xf btfs-$ARCH.tar
     - tar -xf sysprobe-build-outputs.tar.xz
-    - inv -e system-probe.generate-minimized-btfs --source-dir "$CI_PROJECT_DIR/btfs-$ARCH" --output-dir "$CI_PROJECT_DIR/minimized-btfs" --bpf-programs "$CI_PROJECT_DIR/pkg/ebpf/bytecode/build/co-re"
+    - inv -e system-probe.generate-minimized-btfs --source-dir "$CI_PROJECT_DIR/btfs-$ARCH" --output-dir "$CI_PROJECT_DIR/minimized-btfs" --bpf-programs "$CI_PROJECT_DIR/pkg/ebpf/bytecode/build/${ARCH}/co-re"
     - cd minimized-btfs
     - tar -cJf $CI_PROJECT_DIR/minimized-btfs.tar.xz *
+    - $S3_CP_CMD $CI_PROJECT_DIR/minimized-btfs.tar.xz $S3_PROJECT_ARTIFACTS_URI/btfs/$MIN_BTFS_FILENAME
   variables:
     KUBERNETES_MEMORY_REQUEST: "32Gi"
     KUBERNETES_MEMORY_LIMIT: "32Gi"

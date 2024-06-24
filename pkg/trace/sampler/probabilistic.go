@@ -18,8 +18,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 
-	"github.com/DataDog/datadog-go/v5/statsd"
 	"go.uber.org/atomic"
+
+	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 const (

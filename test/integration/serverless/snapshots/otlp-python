@@ -13,7 +13,7 @@
             "meta": {
               "_dd.compute_stats": "1",
               "_dd.origin": "lambda",
-              "_dd.p.dm": "-9",
+              "_dd.p.dm": "null",
               "account_id": "############",
               "architecture": "XXX",
               "aws_account": "############",
@@ -107,7 +107,8 @@
           }
         ],
         "tags": {
-          "_dd.otlp_sr": "1.00"
+          "_dd.otlp_sr": "null",
+          "_dd.p.dm": "null"
         }
       }
     ],
@@ -136,7 +137,7 @@
             "meta": {
               "_dd.compute_stats": "1",
               "_dd.origin": "lambda",
-              "_dd.p.dm": "-9",
+              "_dd.p.dm": "null",
               "account_id": "############",
               "architecture": "XXX",
               "aws_account": "############",
@@ -230,7 +231,8 @@
           }
         ],
         "tags": {
-          "_dd.otlp_sr": "1.00"
+          "_dd.otlp_sr": "null",
+          "_dd.p.dm": "null"
         }
       }
     ],

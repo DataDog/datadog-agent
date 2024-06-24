@@ -1,25 +1,36 @@
+from __future__ import annotations
+
 import os
 import re
 import sys
 from collections import defaultdict
-from typing import List
+from glob import glob
+from os.path import dirname, exists, join, relpath
 
 from invoke import Exit, task
 
 from tasks.build_tags import compute_build_tags_for_flavor
+from tasks.devcontainer import run_on_devcontainer
 from tasks.flavor import AgentFlavor
 from tasks.go import run_golangci_lint
 from tasks.libs.ciproviders.github_api import GithubAPI
-from tasks.libs.ciproviders.gitlab import (
-    Gitlab,
+from tasks.libs.ciproviders.gitlab_api import (
     generate_gitlab_full_configuration,
-    get_gitlab_token,
+    get_gitlab_repo,
     get_preset_contexts,
     load_context,
+    read_includes,
 )
 from tasks.libs.common.check_tools_version import check_tools_version
-from tasks.libs.common.utils import DEFAULT_BRANCH, GITHUB_REPO_NAME, color_message, is_pr_context
-from tasks.libs.types.copyright import CopyrightLinter
+from tasks.libs.common.color import color_message
+from tasks.libs.common.constants import DEFAULT_BRANCH, GITHUB_REPO_NAME
+from tasks.libs.common.git import get_staged_files
+from tasks.libs.common.utils import (
+    gitlab_section,
+    is_pr_context,
+    running_in_ci,
+)
+from tasks.libs.types.copyright import CopyrightLinter, LintFailure
 from tasks.modules import GoModule
 from tasks.test_core import ModuleLintResult, process_input_args, process_module_results, test_core
 from tasks.update_go import _update_go_mods, _update_references
@@ -38,19 +49,36 @@ def python(ctx):
     https://github.com/DataDog/datadog-agent/blob/{DEFAULT_BRANCH}/docs/dev/agent_dev_env.md#pre-commit-hooks"""
     )
 
-    ctx.run("ruff check --fix .")
-    ctx.run("vulture --ignore-decorators @task --ignore-names 'test_*,Test*' tasks")
+    if running_in_ci():
+        # We want to the CI to fail if there are any issues
+        ctx.run("ruff format --check .")
+        ctx.run("ruff check .")
+    else:
+        # Otherwise we just need to format the files
+        ctx.run("ruff format .")
+        ctx.run("ruff check --fix .")
+
+    ctx.run("vulture")
 
 
 @task
-def copyrights(_, fix=False, dry_run=False, debug=False):
+def copyrights(ctx, fix=False, dry_run=False, debug=False, only_staged_files=False):
     """
     Checks that all Go files contain the appropriate copyright header. If '--fix'
     is provided as an option, it will try to fix problems as it finds them. If
     '--dry_run' is provided when fixing, no changes to the files will be applied.
     """
+    files = None
 
-    CopyrightLinter(debug=debug).assert_compliance(fix=fix, dry_run=dry_run)
+    if only_staged_files:
+        staged_files = get_staged_files(ctx)
+        files = [path for path in staged_files if path.endswith(".go")]
+
+    try:
+        CopyrightLinter(debug=debug).assert_compliance(fix=fix, dry_run=dry_run, files=files)
+    except LintFailure:
+        # the linter prints useful messages on its own, so no need to print the exception
+        sys.exit(1)
 
 
 @task
@@ -66,9 +94,9 @@ def filenames(ctx):
     else:
         print("Checking filenames for illegal characters")
         forbidden_chars = '<>:"\\|?*'
-        for file in files:
-            if any(char in file for char in forbidden_chars):
-                print(f"Error: Found illegal character in path {file}")
+        for filename in files:
+            if any(char in filename for char in forbidden_chars):
+                print(f"Error: Found illegal character in path {filename}")
                 failure = True
 
     print("Checking filename length")
@@ -76,14 +104,16 @@ def filenames(ctx):
     prefix_length = 160
     # Maximum length supported by the win32 API
     max_length = 255
-    for file in files:
+    for filename in files:
         if (
-            not file.startswith(
+            not filename.startswith(
                 ('test/kitchen/', 'tools/windows/DatadogAgentInstaller', 'test/workload-checks', 'test/regression')
             )
-            and prefix_length + len(file) > max_length
+            and prefix_length + len(filename) > max_length
         ):
-            print(f"Error: path {file} is too long ({prefix_length + len(file) - max_length} characters too many)")
+            print(
+                f"Error: path {filename} is too long ({prefix_length + len(filename) - max_length} characters too many)"
+            )
             failure = True
 
     if failure:
@@ -91,6 +121,7 @@ def filenames(ctx):
 
 
 @task(iterable=['flavors'])
+@run_on_devcontainer
 def go(
     ctx,
     module=None,
@@ -101,12 +132,13 @@ def go(
     build_include=None,
     build_exclude=None,
     rtloader_root=None,
-    arch="x64",
     cpus=None,
-    timeout: int = None,
+    timeout: int | None = None,
     golangci_lint_kwargs="",
     headless_mode=False,
     include_sds=False,
+    only_modified_packages=False,
+    run_on=None,  # noqa: U100, F841. Used by the run_on_devcontainer decorator
 ):
     """
     Run go linters on the given module and targets.
@@ -125,49 +157,21 @@ def go(
         inv linter.go --targets=./pkg/collector/check,./pkg/aggregator
         inv linter.go --module=.
     """
-    _lint_go(
-        ctx=ctx,
-        module=module,
-        targets=targets,
-        flavor=flavor,
-        build=build,
-        build_tags=build_tags,
-        build_include=build_include,
-        build_exclude=build_exclude,
-        rtloader_root=rtloader_root,
-        arch=arch,
-        cpus=cpus,
-        timeout=timeout,
-        golangci_lint_kwargs=golangci_lint_kwargs,
-        headless_mode=headless_mode,
-        include_sds=include_sds,
-    )
-
-
-# Temporary method to duplicate go linter task not to impact macos jobs.
-def _lint_go(
-    ctx,
-    module,
-    targets,
-    flavor,
-    build,
-    build_tags,
-    build_include,
-    build_exclude,
-    rtloader_root,
-    arch,
-    cpus,
-    timeout,
-    golangci_lint_kwargs,
-    headless_mode,
-    include_sds,
-):
     if not check_tools_version(ctx, ['go', 'golangci-lint']):
         print("Warning: If you have linter errors it might be due to version mismatches.", file=sys.stderr)
 
-    modules, flavor = process_input_args(module, targets, flavor, headless_mode)
+    modules, flavor = process_input_args(
+        ctx,
+        module,
+        targets,
+        flavor,
+        headless_mode,
+        build_tags=build_tags,
+        only_modified_packages=only_modified_packages,
+        lint=True,
+    )
 
-    lint_results = run_lint_go(
+    lint_results, execution_times = run_lint_go(
         ctx=ctx,
         modules=modules,
         flavor=flavor,
@@ -176,7 +180,6 @@ def _lint_go(
         build_include=build_include,
         build_exclude=build_exclude,
         rtloader_root=rtloader_root,
-        arch=arch,
         cpus=cpus,
         timeout=timeout,
         golangci_lint_kwargs=golangci_lint_kwargs,
@@ -184,7 +187,14 @@ def _lint_go(
         include_sds=include_sds,
     )
 
-    success = process_module_results(flavor=flavor, module_results=lint_results)
+    with gitlab_section('Linter failures', collapsed=True):
+        success = process_module_results(flavor=flavor, module_results=lint_results)
+
+    with gitlab_section('Linter execution time'):
+        print(color_message('Execution time summary:', 'bold'))
+
+        for e in execution_times:
+            print(f'- {e.name}: {e.duration:.1f}s')
 
     if success:
         if not headless_mode:
@@ -203,7 +213,6 @@ def run_lint_go(
     build_include=None,
     build_exclude=None,
     rtloader_root=None,
-    arch="x64",
     cpus=None,
     timeout=None,
     golangci_lint_kwargs="",
@@ -213,18 +222,16 @@ def run_lint_go(
     linter_tags = build_tags or compute_build_tags_for_flavor(
         flavor=flavor,
         build=build,
-        arch=arch,
         build_include=build_include,
         build_exclude=build_exclude,
         include_sds=include_sds,
     )
 
-    lint_results = lint_flavor(
+    lint_results, execution_times = lint_flavor(
         ctx,
         modules=modules,
         flavor=flavor,
         build_tags=linter_tags,
-        arch=arch,
         rtloader_root=rtloader_root,
         concurrency=cpus,
         timeout=timeout,
@@ -232,15 +239,14 @@ def run_lint_go(
         headless_mode=headless_mode,
     )
 
-    return lint_results
+    return lint_results, execution_times
 
 
 def lint_flavor(
     ctx,
-    modules: List[GoModule],
+    modules: list[GoModule],
     flavor: AgentFlavor,
-    build_tags: List[str],
-    arch: str,
+    build_tags: list[str],
     rtloader_root: bool,
     concurrency: int,
     timeout=None,
@@ -251,27 +257,33 @@ def lint_flavor(
     Runs linters for given flavor, build tags, and modules.
     """
 
+    execution_times = []
+
     def command(module_results, module: GoModule, module_result):
+        nonlocal execution_times
+
         with ctx.cd(module.full_path()):
-            lint_results = run_golangci_lint(
+            lint_results, time_results = run_golangci_lint(
                 ctx,
                 module_path=module.path,
                 targets=module.lint_targets,
                 rtloader_root=rtloader_root,
                 build_tags=build_tags,
-                arch=arch,
                 concurrency=concurrency,
                 timeout=timeout,
                 golangci_lint_kwargs=golangci_lint_kwargs,
                 headless_mode=headless_mode,
             )
+            execution_times.extend(time_results)
             for lint_result in lint_results:
                 module_result.lint_outputs.append(lint_result)
                 if lint_result.exited != 0:
                     module_result.failed = True
         module_results.append(module_result)
 
-    return test_core(modules, flavor, ModuleLintResult, "golangci_lint", command, headless_mode=headless_mode)
+    return test_core(
+        modules, flavor, ModuleLintResult, "golangci_lint", command, headless_mode=headless_mode
+    ), execution_times
 
 
 @task
@@ -301,15 +313,15 @@ def ssm_parameters(ctx):
     lint_folders = [".circleci", ".github", ".gitlab", "tasks", "test"]
     repo_files = ctx.run("git ls-files", hide="both")
     error_files = []
-    for file in repo_files.stdout.split("\n"):
-        if any(file.startswith(f) for f in lint_folders):
-            matched = is_get_parameter_call(file)
+    for filename in repo_files.stdout.split("\n"):
+        if any(filename.startswith(f) for f in lint_folders):
+            matched = is_get_parameter_call(filename)
             if matched:
                 error_files.append(matched)
     if error_files:
         print("The following files contain unexpected syntax for aws ssm get-parameter:")
-        for file in error_files:
-            print(f"  - {file}")
+        for filename in error_files:
+            print(f"  - {filename}")
         raise Exit(code=1)
 
 
@@ -326,7 +338,7 @@ class SSMParameterCall:
             message += "Please use the dedicated `aws_ssm_get_wrapper.(sh|ps1)`."
         if not self.with_env_var:
             message += " Save your parameter name as environment variable in .gitlab-ci.yml file."
-        return f"{self.file}:{self.line_nb+1}. {message}"
+        return f"{self.file}:{self.line_nb + 1}. {message}"
 
     def __repr__(self):
         return str(self)
@@ -364,17 +376,17 @@ def gitlab_ci(_, test="all", custom_context=None):
     else:
         all_contexts = get_preset_contexts(test)
     print(f"We will tests {len(all_contexts)} contexts.")
+    agent = get_gitlab_repo()
     for context in all_contexts:
         print("Test gitlab configuration with context: ", context)
         config = generate_gitlab_full_configuration(".gitlab-ci.yml", dict(context))
-        gitlab = Gitlab(api_token=get_gitlab_token())
-        res = gitlab.lint(config)
-        status = color_message("valid", "green") if res["valid"] else color_message("invalid", "red")
+        res = agent.ci_lint.create({"content": config, "dry_run": True, "include_jobs": True})
+        status = color_message("valid", "green") if res.valid else color_message("invalid", "red")
         print(f"Config is {status}")
-        if len(res["warnings"]) > 0:
-            print(color_message(f"Warnings: {res['warnings']}", "orange"), file=sys.stderr)
-        if not res["valid"]:
-            print(color_message(f"Errors: {res['errors']}", "red"), file=sys.stderr)
+        if len(res.warnings) > 0:
+            print(color_message(f"Warnings: {res.warnings}", "orange"), file=sys.stderr)
+        if not res.valid:
+            print(color_message(f"Errors: {res.errors}", "red"), file=sys.stderr)
             raise Exit(code=1)
 
 
@@ -407,3 +419,131 @@ def releasenote(ctx):
 def update_go(_):
     _update_references(warn=False, version="1.2.3", dry_run=True)
     _update_go_mods(warn=False, version="1.2.3", include_otel_modules=True, dry_run=True)
+
+
+@task(iterable=['job_files'])
+def test_change_path(_, job_files=None):
+    """
+    Verify that the jobs defined within job_files contain a change path rule.
+    """
+    job_files = job_files or (['.gitlab/e2e/e2e.yml'] + list(glob('.gitlab/kitchen_testing/new-e2e_testing/*.yml')))
+
+    # Read gitlab config
+    config = generate_gitlab_full_configuration(".gitlab-ci.yml", {}, return_dump=False, apply_postprocessing=True)
+
+    # Fetch all test jobs
+    test_config = read_includes(job_files, return_config=True, add_file_path=True)
+    tests = [(test, data['_file_path']) for test, data in test_config.items() if test[0] != '.']
+
+    def contains_valid_change_rule(rule):
+        """
+        Verifies that the job rule contains the required change path configuration.
+        """
+        if 'changes' not in rule or 'paths' not in rule['changes']:
+            return False
+
+        # The change paths should be more than just test files
+        return any(
+            not path.startswith(('test/', './test/', 'test\\', '.\\test\\')) for path in rule['changes']['paths']
+        )
+
+    # Verify that all tests contain a change path rule
+    tests_without_change_path = defaultdict(list)
+    for test, filepath in tests:
+        if not any(contains_valid_change_rule(rule) for rule in config[test]['rules'] if isinstance(rule, dict)):
+            tests_without_change_path[filepath].append(test)
+
+    if len(tests_without_change_path) != 0:
+        print(color_message("error: Tests without required change paths rule:", "red"), file=sys.stderr)
+        for filepath, tests in tests_without_change_path.items():
+            print(f"- {color_message(filepath, 'bold')}: {', '.join(tests)}", file=sys.stderr)
+
+        raise RuntimeError(
+            'Some tests do not contain required change paths rule, they must contain at least one non-test path.'
+        )
+    else:
+        print(color_message("success: All tests contain a change paths rule", "green"))
+
+
+# modules -> packages that should not be vetted, each with a reason
+EXCLUDED_PACKAGES = {
+    '.': {
+        './pkg/ebpf/compiler': "requires C libraries not available everywhere",
+        './cmd/py-launcher': "requires building rtloader",
+        './pkg/collector/python': "requires building rtloader",
+    },
+}
+
+GO_TAGS = ["test"]
+
+
+@task
+def go_vet(ctx):
+    def go_module_for_package(package_path):
+        """
+        Finds the go module containing the given package, and the package's path
+        relative to that module.  This only works for `./`-relative package paths,
+        in the current repository.  The returned module does not contain a trailing
+        `/` character.  If the package path does not exist, the return value is
+        `.`.
+        """
+        assert package_path.startswith('./')
+        module_path = package_path
+        while module_path != '.' and not exists(join(module_path, 'go.mod')):
+            module_path = dirname(module_path)
+        relative_package = relpath(package_path, start=module_path)
+        if relative_package != '.' and not relative_package[0].startswith('./'):
+            relative_package = f"./{relative_package}"
+        return module_path, relative_package
+
+    def is_go_file(path):
+        """Checks if file is a go file from the Agent code."""
+        return (path.startswith("pkg") or path.startswith("cmd")) and path.endswith(".go")
+
+    # Exclude non go files
+    go_files = (path for path in get_staged_files(ctx) if is_go_file(path))
+
+    # Get the package for each file
+    packages = {f'./{dirname(f)}' for f in go_files}
+
+    if not packages:
+        return
+
+    # separate those by module
+    by_mod = {}
+    for package_path in packages:
+        module, package = go_module_for_package(package_path)
+        reason = EXCLUDED_PACKAGES.get(module, {}).get(package, None)
+        if reason:
+            print(f"Skipping {package} in {module}: {reason}")
+            continue
+        by_mod.setdefault(module, set()).add(package)
+
+    # now, for each module, we use 'go list' to list all of the *valid* packages
+    # (those with at least one .go file included by the current build tags), and
+    # use that to skip packages that do not have any files included, which will
+    # otherwise cause go vet to fail.
+    for module, packages in by_mod.items():
+        with ctx.cd(module):
+            # -find skips listing package dependencies
+            # -f {{.Dir}} outputs the absolute dir containing the package
+            res = ctx.run("go list -find -f '{{.Dir}}' ./...", hide=True)
+
+        valid_packages = set()
+        for line in res.stdout.splitlines():
+            if line:
+                relative = relpath(line, module)
+                if relative != '.':
+                    relative = f'./{relative}'
+            valid_packages.add(relative)
+        for package in packages - valid_packages:
+            print(f"Skipping {package} in {module}: not a valid package or all files are excluded by build tags")
+            packages.remove(package)
+
+    go_tags_arg = '-tags ' + ','.join(GO_TAGS) if GO_TAGS else ''
+    for module, packages in by_mod.items():
+        if not packages:
+            continue
+
+        with ctx.cd(module):
+            ctx.run(f"go vet {go_tags_arg} {' '.join(packages)}")

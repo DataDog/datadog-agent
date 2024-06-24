@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import sys
-from typing import TYPE_CHECKING, Callable, Iterable
+from collections.abc import Callable, Iterable
+from typing import TYPE_CHECKING
 
 from tasks.kernel_matrix_testing.tool import info
 
@@ -22,7 +23,7 @@ def resource_in_stack(stack: str, resource: str) -> bool:
 
 def get_resources_in_stack(stack: str, list_fn: Callable[[], Iterable[TNamed]]) -> list[TNamed]:
     resources = list_fn()
-    stack_resources = list()
+    stack_resources = []
     for resource in resources:
         if resource_in_stack(stack, resource.name()):
             stack_resources.append(resource)
@@ -52,7 +53,7 @@ def getAllStackVolumesFn(conn: libvirt.virConnect, stack: str):
     def getAllStackVolumes() -> list[libvirt.virStorageVol]:
         pools = get_resources_in_stack(stack, conn.listAllStoragePools)
 
-        volumes: list[libvirt.virStorageVol] = list()
+        volumes: list[libvirt.virStorageVol] = []
         for pool in pools:
             if not pool.isActive():
                 continue

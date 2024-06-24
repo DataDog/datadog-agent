@@ -17,17 +17,18 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 )
 
 type kubernetesEventBundle struct {
-	involvedObject v1.ObjectReference   // Parent object for this event bundle
-	component      string               // Used to identify the Kubernetes component which generated the event
-	timeStamp      float64              // Used for the new events in the bundle to specify when they first occurred
-	lastTimestamp  float64              // Used for the modified events in the bundle to specify when they last occurred
-	countByAction  map[string]int       // Map of count per action to aggregate several events from the same ObjUid in one event
-	alertType      event.EventAlertType // The Datadog event type
-	hostInfo       eventHostInfo        // Host information extracted from the event, where applicable
+	involvedObject v1.ObjectReference // Parent object for this event bundle
+	component      string             // Used to identify the Kubernetes component which generated the event
+	timeStamp      float64            // Used for the new events in the bundle to specify when they first occurred
+	lastTimestamp  float64            // Used for the modified events in the bundle to specify when they last occurred
+	countByAction  map[string]int     // Map of count per action to aggregate several events from the same ObjUid in one event
+	alertType      event.AlertType    // The Datadog event type
+	hostInfo       eventHostInfo      // Host information extracted from the event, where applicable
 }
 
 func newKubernetesEventBundler(clusterName string, event *v1.Event) *kubernetesEventBundle {
@@ -55,13 +56,13 @@ func (b *kubernetesEventBundle) addEvent(event *v1.Event) error {
 	return nil
 }
 
-func (b *kubernetesEventBundle) formatEvents() (event.Event, error) {
+func (b *kubernetesEventBundle) formatEvents(taggerInstance tagger.Component) (event.Event, error) {
 	if len(b.countByAction) == 0 {
 		return event.Event{}, errors.New("no event to export")
 	}
 
 	readableKey := buildReadableKey(b.involvedObject)
-	tags := getInvolvedObjectTags(b.involvedObject)
+	tags := getInvolvedObjectTags(b.involvedObject, taggerInstance)
 	tags = append(tags, fmt.Sprintf("source_component:%s", b.component))
 
 	if b.hostInfo.providerID != "" {
@@ -71,7 +72,7 @@ func (b *kubernetesEventBundle) formatEvents() (event.Event, error) {
 	// If hostname was not defined, the aggregator will then set the local hostname
 	output := event.Event{
 		Title:          fmt.Sprintf("Events from the %s", readableKey),
-		Priority:       event.EventPriorityNormal,
+		Priority:       event.PriorityNormal,
 		Host:           b.hostInfo.hostname,
 		SourceTypeName: "kubernetes",
 		EventType:      CheckName,

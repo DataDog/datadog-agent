@@ -20,6 +20,8 @@ import (
 	"sync"
 	"time"
 
+	"google.golang.org/protobuf/proto"
+
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	apiv1 "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
@@ -29,7 +31,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"google.golang.org/protobuf/proto"
 )
 
 /*
@@ -47,15 +48,23 @@ var globalClusterAgentClient *DCAClient
 
 type metadataNames []string
 
+// Metadata represents the metadata of a kubernetes resource including its name, namespace, annotations and labels
+type Metadata struct {
+	Name        string
+	Namespace   string
+	Annotations map[string]string
+	Labels      map[string]string
+}
+
 // DCAClientInterface  is required to query the API of Datadog cluster agent
 type DCAClientInterface interface {
-	Version() version.Version
+	Version(withRefresh bool) version.Version
 	ClusterAgentAPIEndpoint() string
 
-	GetVersion() (version.Version, error)
 	GetNodeLabels(nodeName string) (map[string]string, error)
 	GetNodeAnnotations(nodeName string) (map[string]string, error)
 	GetNamespaceLabels(nsName string) (map[string]string, error)
+	GetNamespaceMetadata(nsName string) (*Metadata, error)
 	GetPodsMetadataForNode(nodeName string) (apiv1.NamespacesPodsStringsSet, error)
 	GetKubernetesMetadataNames(nodeName, ns, podName string) ([]string, error)
 	GetCFAppsMetadataForNode(nodename string) (map[string][]string, error)
@@ -66,6 +75,7 @@ type DCAClientInterface interface {
 	GetKubernetesClusterID() (string, error)
 
 	PostLanguageMetadata(ctx context.Context, data *pbgo.ParentLanguageAnnotationRequest) error
+	SupportsNamespaceMetadataCollection() bool
 }
 
 // DCAClient is required to query the API of Datadog cluster agent
@@ -115,14 +125,14 @@ func (c *DCAClient) init() error {
 		return err
 	}
 
-	authToken, err := security.GetClusterAgentAuthToken(config.Datadog)
+	authToken, err := security.GetClusterAgentAuthToken(config.Datadog())
 	if err != nil {
 		return err
 	}
 
 	c.clusterAgentAPIRequestHeaders = http.Header{}
 	c.clusterAgentAPIRequestHeaders.Set(authorizationHeaderKey, fmt.Sprintf("Bearer %s", authToken))
-	podIP := config.Datadog.GetString("clc_runner_host")
+	podIP := config.Datadog().GetString("clc_runner_host")
 	c.clusterAgentAPIRequestHeaders.Set(RealIPHeader, podIP)
 
 	if err := c.initHTTPClient(); err != nil {
@@ -130,7 +140,7 @@ func (c *DCAClient) init() error {
 	}
 
 	// Run DCA connection refresh
-	c.startReconnectHandler(time.Duration(config.Datadog.GetInt64("cluster_agent.client_reconnect_period_seconds")) * time.Second)
+	c.startReconnectHandler(time.Duration(config.Datadog().GetInt64("cluster_agent.client_reconnect_period_seconds")) * time.Second)
 
 	log.Infof("Successfully connected to the Datadog Cluster Agent %s", c.clusterAgentVersion.String())
 	return nil
@@ -181,7 +191,7 @@ func (c *DCAClient) initHTTPClient() error {
 	}
 
 	// Validate the cluster-agent client by checking the version
-	clusterAgentVersion, err := c.GetVersion()
+	clusterAgentVersion, err := c.getVersion()
 	if err != nil {
 		return err
 	}
@@ -217,7 +227,7 @@ func GetClusterAgentEndpoint() (string, error) {
 	const configDcaURL = "cluster_agent.url"
 	const configDcaSvcName = "cluster_agent.kubernetes_service_name"
 
-	dcaURL := config.Datadog.GetString(configDcaURL)
+	dcaURL := config.Datadog().GetString(configDcaURL)
 	if dcaURL != "" {
 		if strings.HasPrefix(dcaURL, "http://") {
 			return "", fmt.Errorf("cannot get cluster agent endpoint, not a https scheme: %s", dcaURL)
@@ -239,7 +249,7 @@ func GetClusterAgentEndpoint() (string, error) {
 
 	// Construct the URL with the Kubernetes service environment variables
 	// *_SERVICE_HOST and *_SERVICE_PORT
-	dcaSvc := config.Datadog.GetString(configDcaSvcName)
+	dcaSvc := config.Datadog().GetString(configDcaSvcName)
 	log.Debugf("Identified service for the Datadog Cluster Agent: %s", dcaSvc)
 	if dcaSvc == "" {
 		return "", fmt.Errorf("cannot get a cluster agent endpoint, both %s and %s are empty", configDcaURL, configDcaSvcName)
@@ -272,7 +282,19 @@ func GetClusterAgentEndpoint() (string, error) {
 }
 
 // Version returns ClusterAgentVersion already stored in the DCAClient
-func (c *DCAClient) Version() version.Version {
+// It refreshes the cached version before returning it if withRefresh is true
+func (c *DCAClient) Version(withRefresh bool) version.Version {
+	if withRefresh {
+		ver, err := c.getVersion()
+		if err != nil {
+			log.Errorf("failed to refresh cluster agent version")
+		} else {
+			c.clusterAgentClientLock.Lock()
+			c.clusterAgentVersion = ver
+			c.clusterAgentClientLock.Unlock()
+		}
+	}
+
 	c.clusterAgentClientLock.RLock()
 	defer c.clusterAgentClientLock.RUnlock()
 
@@ -373,8 +395,8 @@ func (c *DCAClient) doJSONQueryToLeader(ctx context.Context, path, method string
 	return err
 }
 
-// GetVersion fetches the version of the Cluster Agent. Used in the agent status command.
-func (c *DCAClient) GetVersion() (version.Version, error) {
+// getVersion fetches the version of the Cluster Agent
+func (c *DCAClient) getVersion() (version.Version, error) {
 	var version version.Version
 	err := c.doJSONQuery(context.TODO(), "version", "GET", nil, &version, false)
 	return version, err
@@ -392,6 +414,13 @@ func (c *DCAClient) GetNamespaceLabels(nsName string) (map[string]string, error)
 	var result map[string]string
 	err := c.doJSONQuery(context.TODO(), "api/v1/tags/namespace/"+nsName, "GET", nil, &result, false)
 	return result, err
+}
+
+// GetNamespaceMetadata returns the namespace metadata from the Cluster Agent.
+func (c *DCAClient) GetNamespaceMetadata(nsName string) (*Metadata, error) {
+	var result Metadata
+	err := c.doJSONQuery(context.TODO(), "api/v1/metadata/namespace/"+nsName, "GET", nil, &result, false)
+	return &result, err
 }
 
 // GetNodeAnnotations returns the node annotations from the Cluster Agent.
@@ -476,4 +505,10 @@ func (c *DCAClient) PostLanguageMetadata(ctx context.Context, data *pbgo.ParentL
 	// query https://host:port/api/v1/languagedetection without expecting a response
 	_, err = c.doQuery(ctx, languageDetectionPath, "POST", bytes.NewBuffer(queryBody), false, false)
 	return err
+}
+
+// SupportsNamespaceMetadataCollection returns true only if the cluster agent supports collecting namespace metadata
+func (c *DCAClient) SupportsNamespaceMetadataCollection() bool {
+	dcaVersion := c.Version(false)
+	return dcaVersion.Major >= 7 && dcaVersion.Minor >= 55
 }

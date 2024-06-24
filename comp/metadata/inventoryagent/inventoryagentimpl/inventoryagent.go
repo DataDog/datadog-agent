@@ -10,6 +10,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"reflect"
 	"strings"
 	"sync"
@@ -17,7 +18,10 @@ import (
 
 	"github.com/DataDog/viper"
 	"go.uber.org/fx"
+	"gopkg.in/yaml.v2"
 
+	api "github.com/DataDog/datadog-agent/comp/api/api/def"
+	"github.com/DataDog/datadog-agent/comp/api/api/utils"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
@@ -111,6 +115,7 @@ type provides struct {
 	Provider             runnerimpl.Provider
 	FlareProvider        flaretypes.Provider
 	StatusHeaderProvider status.HeaderInformationProvider
+	Endpoint             api.AgentEndpointProvider
 }
 
 func newInventoryAgentProvider(deps dependencies) provides {
@@ -136,6 +141,7 @@ func newInventoryAgentProvider(deps dependencies) provides {
 		Provider:             ia.MetadataProvider(),
 		FlareProvider:        ia.FlareProvider(),
 		StatusHeaderProvider: status.NewHeaderInformationProvider(ia),
+		Endpoint:             api.NewAgentEndpointProvider(ia.writePayloadAsJSON, "/metadata/inventory-agent", "GET"),
 	}
 }
 
@@ -285,6 +291,7 @@ func (ia *inventoryagent) fetchSystemProbeMetadata() {
 
 	ia.data["feature_usm_enabled"] = sysProbeConf.GetBool("service_monitoring_config.enabled")
 	ia.data["feature_usm_kafka_enabled"] = sysProbeConf.GetBool("service_monitoring_config.enable_kafka_monitoring")
+	ia.data["feature_usm_postgres_enabled"] = sysProbeConf.GetBool("service_monitoring_config.enable_postgres_monitoring")
 	ia.data["feature_usm_java_tls_enabled"] = sysProbeConf.GetBool("service_monitoring_config.tls.java.enabled")
 	ia.data["feature_usm_http2_enabled"] = sysProbeConf.GetBool("service_monitoring_config.enable_http2_monitoring")
 	ia.data["feature_usm_istio_enabled"] = sysProbeConf.GetBool("service_monitoring_config.tls.istio.enabled")
@@ -357,6 +364,16 @@ func (ia *inventoryagent) refreshMetadata() {
 	ia.fetchSystemProbeMetadata()
 }
 
+func (ia *inventoryagent) writePayloadAsJSON(w http.ResponseWriter, _ *http.Request) {
+	// GetAsJSON already return scrubbed data
+	scrubbed, err := ia.GetAsJSON()
+	if err != nil {
+		utils.SetJSONError(w, err, 500)
+		return
+	}
+	w.Write(scrubbed)
+}
+
 // Set updates a metadata value in the payload. The given value will be stored in the cache without being copied. It is
 // up to the caller to make sure the given value will not be modified later.
 func (ia *inventoryagent) Set(name string, value interface{}) {
@@ -375,6 +392,48 @@ func (ia *inventoryagent) Set(name string, value interface{}) {
 	}
 }
 
+func (ia *inventoryagent) marshalAndScrub(data interface{}) (string, error) {
+	flareScrubber := scrubber.NewWithDefaults()
+
+	provided, err := yaml.Marshal(data)
+	if err != nil {
+		return "", ia.log.Errorf("could not marshal agent configuration: %s", err)
+	}
+
+	scrubbed, err := flareScrubber.ScrubYaml(provided)
+	if err != nil {
+		return "", ia.log.Errorf("could not scrubb agent configuration: %s", err)
+	}
+
+	return string(scrubbed), nil
+}
+
+func (ia *inventoryagent) getConfigs(data agentMetadata) {
+	if ia.conf.GetBool("inventories_configuration_enabled") {
+		layers := ia.conf.AllSettingsBySource()
+		layersName := map[model.Source]string{
+			model.SourceFile:               "file_configuration",
+			model.SourceEnvVar:             "environment_variable_configuration",
+			model.SourceAgentRuntime:       "agent_runtime_configuration",
+			model.SourceLocalConfigProcess: "source_local_configuration",
+			model.SourceRC:                 "remote_configuration",
+			model.SourceCLI:                "cli_configuration",
+			model.SourceProvided:           "provided_configuration",
+		}
+
+		for source, conf := range layers {
+			if layer, ok := layersName[source]; ok {
+				if yaml, err := ia.marshalAndScrub(conf); err == nil {
+					data[layer] = yaml
+				}
+			}
+		}
+		if yaml, err := ia.marshalAndScrub(ia.conf.AllSettings()); err == nil {
+			data["full_configuration"] = yaml
+		}
+	}
+}
+
 func (ia *inventoryagent) getPayload() marshaler.JSONMarshaler {
 	ia.m.Lock()
 	defer ia.m.Unlock()
@@ -387,21 +446,7 @@ func (ia *inventoryagent) getPayload() marshaler.JSONMarshaler {
 		data[k] = v
 	}
 
-	configLayer := map[string]func() (string, error){
-		"full_configuration":                 ia.getFullConfiguration,
-		"provided_configuration":             ia.getProvidedConfiguration,
-		"file_configuration":                 ia.getFileConfiguration,
-		"environment_variable_configuration": ia.getEnvVarConfiguration,
-		"agent_runtime_configuration":        ia.getRuntimeConfiguration,
-		"remote_configuration":               ia.getRemoteConfiguration,
-		"cli_configuration":                  ia.getCliConfiguration,
-		"source_local_configuration":         ia.getSourceLocalConfiguration,
-	}
-	for layer, getter := range configLayer {
-		if conf, err := getter(); err == nil {
-			data[layer] = conf
-		}
-	}
+	ia.getConfigs(data)
 
 	return &Payload{
 		Hostname:  ia.hostname,

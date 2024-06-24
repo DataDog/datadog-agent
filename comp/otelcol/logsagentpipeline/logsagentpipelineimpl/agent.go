@@ -100,7 +100,7 @@ func (a *Agent) Start(context.Context) error {
 	a.log.Debug("Starting logs-agent...")
 
 	// setup the server config
-	endpoints, err := buildEndpoints(a.config)
+	endpoints, err := buildEndpoints(a.config, a.log)
 
 	if err != nil {
 		message := fmt.Sprintf("Invalid endpoints: %v", err)
@@ -206,7 +206,6 @@ func (a *Agent) SetupPipeline(
 	// We pass the health handle to the auditor because it's the end of the pipeline and the most
 	// critical part. Arguably it could also be plugged to the destination.
 	auditorTTL := time.Duration(a.config.GetInt("logs_config.auditor_ttl")) * time.Hour
-	fmt.Println(a.config.GetString("logs_config.run_path"))
 	auditor := auditor.New(a.config.GetString("logs_config.run_path"), auditor.DefaultRegistryFilename, auditorTTL, health)
 	destinationsCtx := client.NewDestinationsContext()
 
@@ -220,10 +219,13 @@ func (a *Agent) SetupPipeline(
 }
 
 // buildEndpoints builds endpoints for the logs agent
-func buildEndpoints(coreConfig pkgconfigmodel.Reader) (*config.Endpoints, error) {
+func buildEndpoints(coreConfig pkgconfigmodel.Reader, log logComponent.Component) (*config.Endpoints, error) {
 	httpConnectivity := config.HTTPConnectivityFailure
 	if endpoints, err := config.BuildHTTPEndpoints(coreConfig, intakeTrackType, config.AgentJSONIntakeProtocol, config.DefaultIntakeOrigin); err == nil {
 		httpConnectivity = http.CheckConnectivity(endpoints.Main, coreConfig)
+		if !httpConnectivity {
+			log.Warn("Error while validating API key")
+		}
 	}
 	return config.BuildEndpoints(coreConfig, httpConnectivity, intakeTrackType, config.AgentJSONIntakeProtocol, config.DefaultIntakeOrigin)
 }
