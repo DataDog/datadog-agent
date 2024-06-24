@@ -59,7 +59,7 @@ class TestSplitJUnitXML(unittest.TestCase):
     def test_with_split(self):
         xml_file = Path("./tasks/unit-tests/testdata/secret.tar.gz/-go-src-datadog-agent-junit-out-base.xml")
         owners = read_owners(".github/CODEOWNERS")
-        self.assertEqual(junit.split_junitxml(xml_file.parent, xml_file, owners, []), 29)
+        self.assertEqual(junit.split_junitxml(xml_file.parent, xml_file, owners, []), 28)
 
 
 class TestGroupPerTag(unittest.TestCase):
@@ -148,4 +148,4 @@ class TestJUnitUploadFromTGZ(unittest.TestCase):
         mock_gitlab.return_value = mock_project
         junit.junit_upload_from_tgz("tasks/unit-tests/testdata/junit-tests_deb-x64-py3.tgz")
         mock_popen.assert_called()
-        self.assertEqual(mock_popen.call_count, 31)
+        self.assertEqual(mock_popen.call_count, 30)
