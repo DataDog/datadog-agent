@@ -51,6 +51,7 @@ from tasks import (
     setup,
     system_probe,
     systray,
+    testwasher,
     trace_agent,
     vim,
     vscode,
@@ -179,6 +180,7 @@ ns.add_collection(release)
 ns.add_collection(rtloader)
 ns.add_collection(system_probe)
 ns.add_collection(process_agent)
+ns.add_collection(testwasher)
 ns.add_collection(security_agent)
 ns.add_collection(cws_instrumentation)
 ns.add_collection(vscode)
