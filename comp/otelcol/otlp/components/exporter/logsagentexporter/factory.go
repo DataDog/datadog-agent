@@ -58,7 +58,7 @@ func NewFactory(logsAgentChannel chan *message.Message) exp.Factory {
 
 func (f *factory) createLogsExporter(
 	ctx context.Context,
-	set exp.CreateSettings,
+	set exp.Settings,
 	c component.Config,
 ) (exp.Logs, error) {
 	cfg := checkAndCastConfig(c)

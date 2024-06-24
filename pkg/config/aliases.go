@@ -29,8 +29,6 @@ type (
 	Writer = model.Writer
 	// ReaderWriter is alias to model.ReaderWriter
 	ReaderWriter = model.ReaderWriter
-	// Loader is alias to model.Loader
-	Loader = model.Loader
 	// Config is alias to model.Config
 	Config = model.Config
 )

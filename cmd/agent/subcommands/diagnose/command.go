@@ -35,10 +35,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/diagnose"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	utillog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 
-	"github.com/cihub/seelog"
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
@@ -86,7 +84,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Short: "Validate Agent installation, configuration and environment",
 		Long:  ``,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			utillog.SetupLogger(seelog.Disabled, "off")
 			return fxutil.OneShot(cmdDiagnose,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
@@ -287,6 +284,7 @@ func cmdDiagnose(cliParams *cliParams,
 	wmeta optional.Option[workloadmeta.Component],
 	ac autodiscovery.Component,
 	secretResolver secrets.Component,
+	_ log.Component,
 ) error {
 	diagCfg := diagnosis.Config{
 		Verbose:  cliParams.verbose,
