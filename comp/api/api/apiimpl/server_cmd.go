@@ -23,7 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/api/api"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/internal/agent"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/internal/check"
-	apiutils "github.com/DataDog/datadog-agent/comp/api/api/apiimpl/utils"
+	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/observability"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
@@ -146,7 +146,7 @@ func startCMDServer(
 	cmdMux.Handle("/", gwmux)
 
 	// Add some observability in the API server
-	cmdMuxHandler := apiutils.LogResponseHandler(cmdServerName)(cmdMux)
+	cmdMuxHandler := observability.LogResponseHandler(cmdServerName)(cmdMux)
 
 	srv := grpcutil.NewMuxedGRPCServer(
 		cmdAddr,

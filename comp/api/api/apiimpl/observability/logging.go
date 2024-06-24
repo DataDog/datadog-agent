@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package utils implements utility functions for the API servers
-package utils
+// Package observability implements various observability handlers for the API servers
+package observability
 
 import (
 	"net/http"
