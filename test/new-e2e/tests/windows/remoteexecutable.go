@@ -105,7 +105,9 @@ func (rs *RemoteExecutable) CopyFiles() error {
 		if err == nil && td.IsDir() {
 			rs.t.Logf("Copying testdata dir %s to %s", testdata, filepath.Join(remoteDir, "testdata"))
 			remoteTestData := filepath.ToSlash(filepath.Join(remoteDir, "testdata"))
-			rs.vm.CopyFolder(testdata, remoteTestData)
+			if err := rs.vm.CopyFolder(testdata, remoteTestData); err != nil {
+				return err
+			}
 		}
 	}
 	return nil

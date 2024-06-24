@@ -62,7 +62,10 @@ func CreateIISSite(host *components.RemoteHost, site []IISSiteDefinition) error 
 
 		if s.AssetsDir != "" {
 			// copy the assets
-			host.CopyFolder(s.AssetsDir, tgtpath)
+			if err := host.CopyFolder(s.AssetsDir, tgtpath); err != nil {
+				return err
+			}
+
 		}
 		script := `
 		if ((get-iissite -name %s).State -ne "Started") {
