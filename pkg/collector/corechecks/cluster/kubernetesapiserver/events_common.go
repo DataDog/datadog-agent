@@ -37,7 +37,7 @@ type eventHostInfo struct {
 
 // ControllerToIntegration is a mapping of Kubernetes controller names to integrations
 var ControllerToIntegration = map[string]string{
-	"targetgroupbinding":                             "amazon elastic load balancing",
+	"targetgroupbinding":                             "amazon elb",
 	"cilium-sidekick":                                "cilium",
 	"datadogagent":                                   "datadog operator",
 	"ExtendedDaemonSet":                              "datadog operator",
@@ -104,7 +104,7 @@ var ControllerToIntegration = map[string]string{
 	"endpoint-slice-controller":                      "kubernetes controller manager",
 	"replicaset-controller":                          "kubernetes controller manager",
 	"kube-controller-manager":                        "kubernetes controller manager",
-	"default-scheduler":                              "kubernetes scheduler",
+	"default-scheduler":                              "kube_scheduler",
 	"spark-operator":                                 "spark",
 	"vaultd":                                         "vault",
 	"cluster-autoscaler":                             "kubernetes cluster autoscaler",
