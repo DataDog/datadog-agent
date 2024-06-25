@@ -9,6 +9,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 )
 
 func linkRead(linkPath string) (string, error) {
@@ -26,7 +27,11 @@ func linkExists(linkPath string) (bool, error) {
 }
 
 func linkSet(linkPath string, targetPath string) error {
-	return atomicSymlink(targetPath, linkPath)
+	if runtime.GOOS == "windows" {
+		return symlinkWithImpersonation(targetPath, linkPath, setReparsePoint)
+	} else {
+		return atomicSymlink(targetPath, linkPath)
+	}
 }
 
 func linkDelete(linkPath string) error {

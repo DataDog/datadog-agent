@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !windows
-
 package repository
 
 import (
@@ -74,6 +72,25 @@ func TestLinkSet(t *testing.T) {
 	exists, err := linkExists(linkPath)
 	assert.NoError(t, err)
 	assert.True(t, exists)
+}
+
+func TestLinkSetWhenExists(t *testing.T) {
+	tmpDir := t.TempDir()
+	stablePath := filepath.Join(tmpDir, "7.55.0-rc.2-1")
+	experimentPath := filepath.Join(tmpDir, "7.54.0-installer-0.0.8-rc.1.git.16.bcd53a6.pipeline.34898077-1")
+	linkPath := filepath.Join(tmpDir, "stable")
+
+	createTarget(t, stablePath)
+	err := linkSet(linkPath, stablePath)
+	assert.NoError(t, err)
+
+	exists, err := linkExists(linkPath)
+	assert.NoError(t, err)
+	assert.True(t, exists)
+
+	createTarget(t, experimentPath)
+	err = linkSet(linkPath, experimentPath)
+	assert.NoError(t, err)
 }
 
 func TestLinkDelete(t *testing.T) {
