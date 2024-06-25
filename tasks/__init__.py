@@ -51,7 +51,9 @@ from tasks import (
     setup,
     system_probe,
     systray,
+    testwasher,
     trace_agent,
+    vim,
     vscode,
 )
 from tasks.build_tags import audit_tag_impact, print_default_build_tags
@@ -70,6 +72,7 @@ from tasks.go import (
     go_fix,
     internal_deps_checker,
     lint_licenses,
+    mod_diffs,
     reset,
     tidy,
     tidy_all,
@@ -85,12 +88,7 @@ from tasks.gotest import (
     send_unit_tests_stats,
     test,
 )
-from tasks.install_tasks import (
-    download_tools,
-    install_devcontainer_cli,
-    install_shellcheck,
-    install_tools,
-)
+from tasks.install_tasks import download_tools, install_devcontainer_cli, install_shellcheck, install_tools
 from tasks.junit_tasks import junit_upload
 from tasks.libs.common.go_workspaces import handle_go_work
 from tasks.show_linters_issues.show_linters_issues import show_linters_issues
@@ -141,6 +139,7 @@ ns.add_task(build_messagetable)
 ns.add_task(get_impacted_packages)
 ns.add_task(get_modified_packages)
 ns.add_task(send_unit_tests_stats)
+ns.add_task(mod_diffs)
 # To deprecate
 ns.add_task(lint_go)
 
@@ -158,6 +157,7 @@ ns.add_collection(docker_tasks, "docker")
 ns.add_collection(dogstatsd)
 ns.add_collection(ebpf)
 ns.add_collection(emacs)
+ns.add_collection(vim)
 ns.add_collection(epforwarder)
 ns.add_collection(go_deps)
 ns.add_collection(linter)
@@ -177,6 +177,7 @@ ns.add_collection(release)
 ns.add_collection(rtloader)
 ns.add_collection(system_probe)
 ns.add_collection(process_agent)
+ns.add_collection(testwasher)
 ns.add_collection(security_agent)
 ns.add_collection(cws_instrumentation)
 ns.add_collection(vscode)

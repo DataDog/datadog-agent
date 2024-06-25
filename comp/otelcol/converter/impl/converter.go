@@ -8,6 +8,7 @@ package converterimpl
 
 import (
 	"context"
+	"fmt"
 
 	converter "github.com/DataDog/datadog-agent/comp/otelcol/converter/def"
 	"go.opentelemetry.io/collector/confmap"

@@ -46,7 +46,7 @@ CONSECUTIVE_THRESHOLD = 3
 CUMULATIVE_THRESHOLD = 5
 CUMULATIVE_LENGTH = 10
 CI_VISIBILITY_JOB_URL = 'https://app.datadoghq.com/ci/pipeline-executions?query=ci_level%3Ajob%20%40ci.pipeline.name%3ADataDog%2Fdatadog-agent%20%40git.branch%3Amain%20%40ci.job.name%3A{name}{extra_flags}&agg_m=count'
-NOTIFICATION_DISCLAIMER = "If there is something wrong with the notification please contact #agent-developer-experience"
+NOTIFICATION_DISCLAIMER = "If there is something wrong with the notification please contact #agent-devx-help"
 
 
 def get_ci_visibility_job_url(name: str, prefix=True, extra_flags: list[str] | str = "") -> str:
@@ -204,11 +204,9 @@ def send_message(ctx, notification_type="merge", print_to_stdout=False):
     Use the --print-to-stdout option to test this locally, without sending
     real slack messages.
     """
-    default_branch = os.getenv("CI_DEFAULT_BRANCH")
-    git_ref = os.getenv("CI_COMMIT_REF_NAME")
 
     try:
-        failed_jobs = get_failed_jobs(PROJECT_NAME, os.getenv("CI_PIPELINE_ID"))
+        failed_jobs = get_failed_jobs(PROJECT_NAME, os.environ["CI_PIPELINE_ID"])
         messages_to_send = generate_failure_messages(PROJECT_NAME, failed_jobs)
     except Exception as e:
         buffer = io.StringIO()
@@ -254,6 +252,8 @@ def send_message(ctx, notification_type="merge", print_to_stdout=False):
             print(f"Would send to {channel}:\n{str(message)}")
         else:
             all_teams = channel == "#datadog-agent-pipelines"
+            default_branch = os.environ["CI_DEFAULT_BRANCH"]
+            git_ref = os.environ["CI_COMMIT_REF_NAME"]
             send_dm = not _should_send_message_to_channel(git_ref, default_branch) and all_teams
 
             if all_teams:
@@ -364,9 +364,9 @@ def check_consistent_failures(ctx, job_failures_file="job_executions.v2.json"):
     job_executions = retrieve_job_executions(ctx, job_failures_file)
 
     # By-pass if the pipeline chronological order is not respected
-    if job_executions.pipeline_id > int(os.getenv("CI_PIPELINE_ID")):
+    if job_executions.pipeline_id > int(os.environ["CI_PIPELINE_ID"]):
         return
-    job_executions.pipeline_id = int(os.getenv("CI_PIPELINE_ID"))
+    job_executions.pipeline_id = int(os.environ["CI_PIPELINE_ID"])
 
     alert_jobs, job_executions = update_statistics(job_executions)
 
@@ -413,7 +413,7 @@ def update_statistics(job_executions: PipelineRuns):
     cumulative_alerts = {}
 
     # Update statistics and collect consecutive failed jobs
-    failed_jobs = get_failed_jobs(PROJECT_NAME, os.getenv("CI_PIPELINE_ID"))
+    failed_jobs = get_failed_jobs(PROJECT_NAME, os.environ["CI_PIPELINE_ID"])
     commit_sha = os.getenv("CI_COMMIT_SHA")
     failed_dict = {job.name: ExecutionsJobInfo(job.id, True, commit_sha) for job in failed_jobs.all_failures()}
 
@@ -568,7 +568,7 @@ On pipeline [{pipeline_id}]({pipeline_url}) ([CI Visibility](https://app.datadog
         msg += f"  - {job}\n"
     msg += "</details>\n"
     msg += "\n"
-    msg += "If you modified Go files and expected unit tests to run in these jobs, please double check the job logs. If you think tests should have been executed reach out to #agent-developer-experience"
+    msg += "If you modified Go files and expected unit tests to run in these jobs, please double check the job logs. If you think tests should have been executed reach out to #agent-devx-help"
     return msg
 
 

@@ -8,6 +8,7 @@ package utils
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"github.com/avast/retry-go/v4"
@@ -25,15 +26,35 @@ const (
 	maxAttempts = 6
 )
 
+var (
+	hostnameLock   sync.RWMutex
+	cachedHostname string
+)
+
 // GetHostname attempts to acquire a hostname by connecting to the core
 // agent's gRPC endpoints.
 func GetHostname() (string, error) {
-	return GetHostnameWithContext(context.Background())
+	hostnameLock.RLock()
+	if cachedHostname != "" {
+		hostnameLock.RUnlock()
+		return cachedHostname, nil
+	}
+	hostnameLock.RUnlock()
+
+	hostname, err := getHostnameFromAgent(context.Background())
+
+	if hostname != "" {
+		hostnameLock.Lock()
+		cachedHostname = hostname
+		hostnameLock.Unlock()
+	}
+
+	return hostname, err
 }
 
-// GetHostnameWithContext attempts to acquire a hostname by connecting to the
+// getHostnameFromAgent attempts to acquire a hostname by connecting to the
 // core agent's gRPC endpoints extending the given context.
-func GetHostnameWithContext(ctx context.Context) (string, error) {
+func getHostnameFromAgent(ctx context.Context) (string, error) {
 	var hostname string
 	err := retry.Do(func() error {
 		ctx, cancel := context.WithTimeout(ctx, 1*time.Second)
@@ -65,7 +86,7 @@ func GetHostnameWithContext(ctx context.Context) (string, error) {
 // GetHostnameWithContextAndFallback attempts to acquire a hostname by connecting to the
 // core agent's gRPC endpoints extending the given context, or falls back to local resolution
 func GetHostnameWithContextAndFallback(ctx context.Context) (string, error) {
-	hostnameDetected, err := GetHostnameWithContext(ctx)
+	hostnameDetected, err := getHostnameFromAgent(ctx)
 	if err != nil {
 		log.Warnf("Could not resolve hostname from core-agent: %v", err)
 		hostnameDetected, err = hostname.Get(ctx)
