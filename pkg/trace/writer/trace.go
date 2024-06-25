@@ -6,14 +6,15 @@
 package writer
 
 import (
-	"compress/gzip"
 	"errors"
-	"io"
 	"runtime"
 	"strings"
 	"sync"
 	"time"
 
+	compression "github.com/DataDog/datadog-agent/comp/trace/compression/def"
+	gzip "github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip"
+	zstd "github.com/DataDog/datadog-agent/comp/trace/compression/impl-zstd"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
@@ -286,32 +287,31 @@ func (w *TraceWriter) serializer() {
 
 			w.stats.BytesUncompressed.Add(int64(len(b)))
 			var p *payload
-			var writer io.WriteCloser
+			var compressor compression.Component
 
-			if w.useZstd && zstdAvailable {
+			if w.useZstd && zstd.ZstdAvailable {
 				p = newPayload(map[string]string{
 					"Content-Type":     "application/x-protobuf",
 					"Content-Encoding": "zstd",
 					headerLanguages:    strings.Join(info.Languages(), "|"),
 				})
-
-				p.body.Grow(len(b) / 2)
-				writer = newZstdWriter(p.body)
+				compressor = zstd.NewComponent()
 			} else {
 				p = newPayload(map[string]string{
 					"Content-Type":     "application/x-protobuf",
 					"Content-Encoding": "gzip",
 					headerLanguages:    strings.Join(info.Languages(), "|"),
 				})
-				p.body.Grow(len(b) / 2)
+				compressor = gzip.NewComponent()
+			}
 
-				writer, err = gzip.NewWriterLevel(p.body, gzip.BestSpeed)
-				if err != nil {
-					// it will never happen, unless an invalid compression is chosen;
-					// we know gzip.BestSpeed is valid.
-					log.Errorf("Failed to compress trace paylod: %s", err)
-					return
-				}
+			p.body.Grow(len(b) / 2)
+			writer, err := compressor.NewWriter(p.body)
+			if err != nil {
+				// it will never happen, unless an invalid compression is chosen;
+				// we know gzip.BestSpeed is valid.
+				log.Errorf("Failed to compress trace paylod: %s", err)
+				return
 			}
 
 			if _, err := writer.Write(b); err != nil {
