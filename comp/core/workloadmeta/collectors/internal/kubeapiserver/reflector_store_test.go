@@ -65,7 +65,7 @@ func Test_AddDelete_Deployment(t *testing.T) {
 func Test_AddDelete_Pod(t *testing.T) {
 	workloadmetaComponent := mockedWorkloadmeta(t)
 
-	podStore := newPodReflectorStore(workloadmetaComponent)
+	podStore := newPodReflectorStore(workloadmetaComponent, workloadmetaComponent.GetConfig())
 
 	pod := corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -142,7 +142,7 @@ func Test_AddDelete_PartialObjectMetadata(t *testing.T) {
 	}, timeout, interval)
 }
 
-func mockedWorkloadmeta(t *testing.T) workloadmeta.Component {
+func mockedWorkloadmeta(t *testing.T) workloadmetamock.Mock {
 	return fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		core.MockBundle(),
 		fx.Supply(workloadmeta.NewParams()),
