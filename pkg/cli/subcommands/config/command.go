@@ -38,10 +38,11 @@ type cliParams struct {
 // A pointer to this type is passed to SubcommandFactory's, but its contents
 // are not valid until Cobra calls the subcommand's Run or RunE function.
 type GlobalParams struct {
-	ConfFilePath   string
-	ConfigName     string
-	LoggerName     string
-	SettingsClient func() (settings.Client, error)
+	ConfFilePath       string
+	ExtraConfFilePaths []string
+	ConfigName         string
+	LoggerName         string
+	SettingsClient     func() (settings.Client, error)
 }
 
 // MakeCommand returns a `config` command to be used by agent binaries.
@@ -59,7 +60,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 			return fxutil.OneShot(callback,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithConfigName(globalParams.ConfigName)),
+					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithConfigName(globalParams.ConfigName), config.WithExtraConfFiles(globalParams.ExtraConfFilePaths)),
 					LogParams:    logimpl.ForOneShot(globalParams.LoggerName, "off", true)}),
 				core.Bundle(),
 			)
