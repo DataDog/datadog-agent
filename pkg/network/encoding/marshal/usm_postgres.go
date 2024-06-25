@@ -19,7 +19,7 @@ import (
 
 type postgresEncoder struct {
 	postgresAggregationsBuilder *model.DatabaseAggregationsBuilder
-	byConnection                *USMConnectionIndex[postgres.Key, *postgres.RequestStat]
+	byConnection                *network.USMConnectionIndex[postgres.Key, *postgres.RequestStat]
 }
 
 func newPostgresEncoder(postgresPayloads map[postgres.Key]*postgres.RequestStat) *postgresEncoder {
@@ -29,7 +29,7 @@ func newPostgresEncoder(postgresPayloads map[postgres.Key]*postgres.RequestStat)
 
 	return &postgresEncoder{
 		postgresAggregationsBuilder: model.NewDatabaseAggregationsBuilder(nil),
-		byConnection: GroupByConnection("postgres", postgresPayloads, func(key postgres.Key) types.ConnectionKey {
+		byConnection: network.GroupByConnection("postgres", postgresPayloads, func(key postgres.Key) types.ConnectionKey {
 			return key.ConnectionKey
 		}),
 	}
@@ -52,7 +52,7 @@ func (e *postgresEncoder) WritePostgresAggregations(c network.ConnectionStats, b
 	return staticTags
 }
 
-func (e *postgresEncoder) encodeData(connectionData *USMConnectionData[postgres.Key, *postgres.RequestStat], w io.Writer) uint64 {
+func (e *postgresEncoder) encodeData(connectionData *network.USMConnectionData[postgres.Key, *postgres.RequestStat], w io.Writer) uint64 {
 	var staticTags uint64
 	e.postgresAggregationsBuilder.Reset(w)
 

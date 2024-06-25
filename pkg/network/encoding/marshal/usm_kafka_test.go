@@ -6,6 +6,7 @@
 package marshal
 
 import (
+	"fmt"
 	"runtime"
 	"testing"
 
@@ -195,7 +196,6 @@ func generateBenchMarkPayloadKafka(entries uint16) network.Connections {
 		BufferedData: network.BufferedData{
 			Conns: make([]network.ConnectionStats, 1),
 		},
-		Kafka: map[kafka.Key]*kafka.RequestStat{},
 	}
 
 	payload.Conns[0].Dest = localhost
@@ -204,17 +204,20 @@ func generateBenchMarkPayloadKafka(entries uint16) network.Connections {
 	payload.Conns[0].SPort = 1112
 
 	for index := uint16(0); index < entries; index++ {
-		payload.Kafka[kafka.NewKey(
-			localhost,
-			localhost,
-			1112,
-			1111,
-			fmt.Sprintf("%s-%d", topicName, index+1),
-			kafka.ProduceAPIKey,
-			apiVersion1,
-		)] = &kafka.RequestStat{
-			Count: 10,
-		}
+		payload.Conns[0].KafkaStats = append(payload.Conns[0].KafkaStats, network.USMKeyValue[kafka.Key, *kafka.RequestStat]{
+			Key: kafka.NewKey(
+				localhost,
+				localhost,
+				1112,
+				1111,
+				fmt.Sprintf("%s-%d", topicName, index+1),
+				kafka.ProduceAPIKey,
+				apiVersion1,
+			),
+			Value: &kafka.RequestStat{
+				Count: 10,
+			},
+		})
 	}
 
 	return payload
@@ -228,7 +231,7 @@ func commonBenchmarkKafkaEncoder(b *testing.B, entries uint16) {
 	b.ReportAllocs()
 	var h *kafkaEncoder
 	for i := 0; i < b.N; i++ {
-		h = newKafkaEncoder(payload.Kafka)
+		h = newKafkaEncoder()
 		streamer.Reset()
 		h.WriteKafkaAggregations(payload.Conns[0], a)
 		h.Close()
