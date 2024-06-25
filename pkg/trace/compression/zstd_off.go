@@ -5,32 +5,30 @@
 
 //go:build !zstd
 
-// Package impl implements the compression component interface
-package implzstd
+package compression
 
 import (
 	"errors"
 	"io"
 
-	compression "github.com/DataDog/datadog-agent/comp/trace/compression/def"
+	compressiondef "github.com/DataDog/datadog-agent/comp/trace/compression/def"
 )
 
 const ZstdAvailable = false
 
 var ErrNotAvailable = errors.New("zstd not available. `zstd` build tag not used")
 
-type compressor struct {
-}
+type zstdCompressor struct{}
 
 // NewComponent creates a new compression component
-func NewComponent() compression.Component {
-	return &compressor{}
+func NewZstdCompressor() compressiondef.Component {
+	return &zstdCompressor{}
 }
 
-func (c *compressor) NewWriter(w io.Writer) (io.WriteCloser, error) {
+func (c *zstdCompressor) NewWriter(w io.Writer) (io.WriteCloser, error) {
 	return nil, ErrNotAvailable
 }
 
-func (c *compressor) NewReader(w io.Reader) (io.ReadCloser, error) {
+func (c *zstdCompressor) NewReader(w io.Reader) (io.ReadCloser, error) {
 	return nil, ErrNotAvailable
 }

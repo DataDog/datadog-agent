@@ -12,10 +12,9 @@ import (
 	"sync"
 	"time"
 
-	compression "github.com/DataDog/datadog-agent/comp/trace/compression/def"
-	gzip "github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip"
-	zstd "github.com/DataDog/datadog-agent/comp/trace/compression/impl-zstd"
+	compressiondef "github.com/DataDog/datadog-agent/comp/trace/compression/def"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/trace/compression"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
@@ -287,22 +286,22 @@ func (w *TraceWriter) serializer() {
 
 			w.stats.BytesUncompressed.Add(int64(len(b)))
 			var p *payload
-			var compressor compression.Component
+			var compressor compressiondef.Component
 
-			if w.useZstd && zstd.ZstdAvailable {
+			if w.useZstd && compression.ZstdAvailable {
 				p = newPayload(map[string]string{
 					"Content-Type":     "application/x-protobuf",
 					"Content-Encoding": "zstd",
 					headerLanguages:    strings.Join(info.Languages(), "|"),
 				})
-				compressor = zstd.NewComponent()
+				compressor = compression.NewZstdCompressor()
 			} else {
 				p = newPayload(map[string]string{
 					"Content-Type":     "application/x-protobuf",
 					"Content-Encoding": "gzip",
 					headerLanguages:    strings.Join(info.Languages(), "|"),
 				})
-				compressor = gzip.NewComponent()
+				compressor = compression.NewGZIPCompressor()
 			}
 
 			p.body.Grow(len(b) / 2)

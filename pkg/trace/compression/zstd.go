@@ -5,30 +5,29 @@
 
 //go:build zstd
 
-// Package impl implements the compression component interface
-package implzstd
+package compression
 
 import (
 	"io"
 
-	compression "github.com/DataDog/datadog-agent/comp/trace/compression/def"
+	compressiondef "github.com/DataDog/datadog-agent/comp/trace/compression/def"
 
 	"github.com/DataDog/zstd"
 )
 
 const ZstdAvailable = true
 
-type compressor struct{}
+type zstdCompressor struct{}
 
 // NewComponent creates a new compression component
-func NewComponent() compression.Component {
-	return &compressor{}
+func NewZstdCompressor() compressiondef.Component {
+	return &zstdCompressor{}
 }
 
-func (c *compressor) NewWriter(w io.Writer) (io.WriteCloser, error) {
+func (c *zstdCompressor) NewWriter(w io.Writer) (io.WriteCloser, error) {
 	return zstd.NewWriterLevel(w, zstd.BestSpeed), nil
 }
 
-func (c *compressor) NewReader(w io.Reader) (io.ReadCloser, error) {
+func (c *zstdCompressor) NewReader(w io.Reader) (io.ReadCloser, error) {
 	return zstd.NewReader(w), nil
 }

@@ -3,28 +3,27 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-// Package impl implements the compression component interface
-package implgzip
+package compression
 
 import (
 	"io"
 
-	compression "github.com/DataDog/datadog-agent/comp/trace/compression/def"
+	compressiondef "github.com/DataDog/datadog-agent/comp/trace/compression/def"
 
 	"compress/gzip"
 )
 
-type compressor struct{}
+type gzipCompressor struct{}
 
 // NewComponent creates a new compression component
-func NewComponent() compression.Component {
-	return &compressor{}
+func NewGZIPCompressor() compressiondef.Component {
+	return &gzipCompressor{}
 }
 
-func (c *compressor) NewWriter(w io.Writer) (io.WriteCloser, error) {
+func (c *gzipCompressor) NewWriter(w io.Writer) (io.WriteCloser, error) {
 	return gzip.NewWriterLevel(w, gzip.BestSpeed)
 }
 
-func (c *compressor) NewReader(w io.Reader) (io.ReadCloser, error) {
+func (c *gzipCompressor) NewReader(w io.Reader) (io.ReadCloser, error) {
 	return gzip.NewReader(w)
 }

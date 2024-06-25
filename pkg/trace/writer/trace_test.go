@@ -12,15 +12,14 @@ import (
 	"sync"
 	"testing"
 
-	compression "github.com/DataDog/datadog-agent/comp/trace/compression/def"
-	gzip "github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip"
-	zstd "github.com/DataDog/datadog-agent/comp/trace/compression/impl-zstd"
+	compressiondef "github.com/DataDog/datadog-agent/comp/trace/compression/def"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/trace/compression"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
@@ -167,12 +166,12 @@ func payloadsContain(t *testing.T, payloads []*payload, sampledSpans []*SampledC
 	for _, p := range payloads {
 		assert := assert.New(t)
 		var slurp []byte
-		var compressor compression.Component
+		var compressor compressiondef.Component
 
-		if shouldUseZstd && zstd.ZstdAvailable {
-			compressor = zstd.NewComponent()
+		if shouldUseZstd && compression.ZstdAvailable {
+			compressor = compression.NewZstdCompressor()
 		} else {
-			compressor = gzip.NewComponent()
+			compressor = compression.NewGZIPCompressor()
 		}
 
 		reader, err := compressor.NewReader(p.body)
@@ -388,12 +387,12 @@ func TestTraceWriterAgentPayload(t *testing.T) {
 
 // deserializePayload decompresses a payload and deserializes it into a pb.AgentPayload.
 func deserializePayload(p payload, shouldUseZstd bool) (*pb.AgentPayload, error) {
-	var compressor compression.Component
+	var compressor compressiondef.Component
 
-	if shouldUseZstd && zstd.ZstdAvailable {
-		compressor = zstd.NewComponent()
+	if shouldUseZstd && compression.ZstdAvailable {
+		compressor = compression.NewZstdCompressor()
 	} else {
-		compressor = gzip.NewComponent()
+		compressor = compression.NewGZIPCompressor()
 	}
 
 	reader, err := compressor.NewReader(p.body)
