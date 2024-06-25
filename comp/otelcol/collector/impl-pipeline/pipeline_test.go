@@ -56,13 +56,13 @@ func createFakeOTelExtensionHTTPServer() (string, func()) {
 	return testServerURL, func() { ts.Close() }
 }
 
-var startupConfig = map[string]string{
+var customerConfig = map[string]string{
 	"key1": "value1",
 	"key2": "value2",
 	"key3": "value3",
 }
 
-var runtimeConfig = map[string]string{
+var overrideConfig = map[string]string{
 	"key4": "value4",
 	"key5": "value5",
 	"key6": "value6",
@@ -82,31 +82,30 @@ func TestOTelExtFlareBuilder(t *testing.T) {
 
 	// Override the response that the flare builder gets from the otel extension
 	overrideConfigResponseTemplate := `{
-	"startup_configuration": {{.startupconfig}},
-	"runtime_configuration": {{.runtimeconfig}},
-	"cmdline": {{.cmdline}},
-	"sources": [
-		{
-			"name": "prometheus",
+	"version": "0.0.1",
+	"command": {{.cmdline}},
+	"provided_configuration": {{.customerconfig}},
+	"environment_variable_configuration": "",
+	"runtime_override_configuration": {{.overrideconfig}},
+	"full_configuration": "",
+	"sources": {
+		"prometheus": {
 			"url": "{{.url}}/one",
-			"crawl": true
+			"crawl": false
 		},
-		{
-			"name": "zpages",
+		"health_check": {
 			"url": "{{.url}}/two",
 			"crawl": false
 		},
-		{
-			"name": "health_check",
+		"zpages": {
 			"url": "{{.url}}/three",
 			"crawl": true
 		},
-		{
-			"name": "pprof",
+		"pprof": {
 			"url": "{{.url}}/four",
-			"crawl": true
+			"crawl": false
 		}
-	],
+	},
 	"environment": {{.environment}}
 }
 `
@@ -114,11 +113,11 @@ func TestOTelExtFlareBuilder(t *testing.T) {
 	require.NoError(t, err)
 	b := &bytes.Buffer{}
 	err = tmpl.Execute(b, map[string]string{
-		"url":           localServerURL,
-		"startupconfig": toJSON(startupConfig),
-		"runtimeconfig": toJSON(runtimeConfig),
-		"cmdline":       strconv.Quote(cmdline),
-		"environment":   toJSON(environment),
+		"url":            localServerURL,
+		"customerconfig": strconv.Quote(toJSON(customerConfig)),
+		"overrideconfig": strconv.Quote(toJSON(overrideConfig)),
+		"cmdline":        strconv.Quote(cmdline),
+		"environment":    toJSON(environment),
 	})
 	require.NoError(t, err)
 	overrideConfigResponse = b.String()
@@ -149,12 +148,12 @@ func TestOTelExtFlareBuilder(t *testing.T) {
 	pageTmpl := `<body>Another source is <a href="%s/secret">here</a></body>`
 
 	f.AssertFileContent("data-source-1", "otel/otel-flare/prometheus.dat")
-	f.AssertFileContent("data-source-2", "otel/otel-flare/zpages.dat")
-	f.AssertFileContent(fmt.Sprintf(pageTmpl, localServerURL), "otel/otel-flare/health_check.dat")
+	f.AssertFileContent("data-source-2", "otel/otel-flare/health_check.dat")
+	f.AssertFileContent(fmt.Sprintf(pageTmpl, localServerURL), "otel/otel-flare/zpages.dat")
 	f.AssertFileContent("data-source-4", "otel/otel-flare/pprof.dat")
 
-	f.AssertFileContent(toJSON(startupConfig), "otel/otel-flare/startup.cfg")
-	f.AssertFileContent(toJSON(runtimeConfig), "otel/otel-flare/runtime.cfg")
-	f.AssertFileContent(toJSON(environment), "otel/otel-flare/environment.cfg")
-	f.AssertFileContent(cmdline, "otel/otel-flare/cmdline.txt")
+	f.AssertFileContent(strconv.Quote(toJSON(customerConfig)), "otel/otel-flare/customer.cfg")
+	f.AssertFileContent(strconv.Quote(toJSON(overrideConfig)), "otel/otel-flare/runtime_override.cfg")
+	f.AssertFileContent(toJSON(environment), "otel/otel-flare/environment.json")
+	f.AssertFileContent(cmdline, "otel/otel-flare/command.txt")
 }
