@@ -77,8 +77,8 @@ class TestAssignTeamLabelMock(unittest.TestCase):
         self.make_test(changed_files, expected_labels)
 
     def test_multiple_files_single_team(self):
-        changed_files = ['.gitignore', '.gitlab/a.py']
-        expected_labels = ['team/team-everything', 'team/team-a']
+        changed_files = ['.gitlab/hello/world', '.gitlab/a.py']
+        expected_labels = ['team/team-a']
 
         self.make_test(changed_files, expected_labels)
 
