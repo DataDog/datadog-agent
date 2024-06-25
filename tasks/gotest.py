@@ -14,9 +14,11 @@ import re
 import shutil
 import sys
 from collections import defaultdict
+from collections.abc import Iterable
 from datetime import datetime
 from pathlib import Path
 
+import requests
 from invoke import task
 from invoke.context import Context
 from invoke.exceptions import Exit
@@ -24,6 +26,7 @@ from invoke.exceptions import Exit
 from tasks.agent import integration_tests as agent_integration_tests
 from tasks.build_tags import compute_build_tags_for_flavor
 from tasks.cluster_agent import integration_tests as dca_integration_tests
+from tasks.coverage import PROFILE_COV, CodecovWorkaround
 from tasks.devcontainer import run_on_devcontainer
 from tasks.dogstatsd import integration_tests as dsd_integration_tests
 from tasks.flavor import AgentFlavor
@@ -31,20 +34,19 @@ from tasks.libs.common.color import color_message
 from tasks.libs.common.datadog_api import create_count, send_metrics
 from tasks.libs.common.git import get_modified_files
 from tasks.libs.common.junit_upload_core import enrich_junitxml, produce_junit_tar
-from tasks.libs.common.utils import clean_nested_paths, collapsed_section, get_build_flags, get_distro
+from tasks.libs.common.utils import clean_nested_paths, get_build_flags, get_distro, gitlab_section
 from tasks.modules import DEFAULT_MODULES, GoModule
 from tasks.test_core import ModuleTestResult, process_input_args, process_module_results, test_core
 from tasks.testwasher import TestWasher
 from tasks.trace_agent import integration_tests as trace_integration_tests
 from tasks.update_go import PATTERN_MAJOR_MINOR_BUGFIX
 
-PROFILE_COV = "coverage.out"
-TMP_PROFILE_COV_PREFIX = "coverage.out.rerun"
-GO_COV_TEST_PATH = "test_with_coverage"
 GO_TEST_RESULT_TMP_JSON = 'module_test_output.json'
 WINDOWS_MAX_PACKAGES_NUMBER = 150
 TRIGGER_ALL_TESTS_PATHS = ["tasks/gotest.py", "tasks/build_tags.py", ".gitlab/source_test/*"]
-OTEL_UPSTREAM_GO_VERSION = "1.21.0"
+OTEL_UPSTREAM_GO_MOD_PATH = (
+    "https://raw.githubusercontent.com/open-telemetry/opentelemetry-collector-contrib/main/go.mod"
+)
 
 
 class TestProfiler:
@@ -103,87 +105,11 @@ def build_standard_lib(
     )
 
 
-class CodecovWorkaround:
-    """
-    The CodecovWorkaround class wraps the gotestsum cmd execution to fix codecov reports inaccuracy,
-    according to https://github.com/gotestyourself/gotestsum/issues/274 workaround.
-    Basically unit tests' reruns rewrite the whole coverage file, making it inaccurate.
-    We use the --raw-command flag to tell each `go test` iteration to write coverage in a different file.
-    """
-
-    def __init__(self, ctx, module_path, coverage, packages, args):
-        self.ctx = ctx
-        self.module_path = module_path
-        self.coverage = coverage
-        self.packages = packages
-        self.args = args
-        self.cov_test_path_sh = os.path.join(self.module_path, GO_COV_TEST_PATH) + ".sh"
-        self.cov_test_path_ps1 = os.path.join(self.module_path, GO_COV_TEST_PATH) + ".ps1"
-        self.call_ps1_from_bat = os.path.join(self.module_path, GO_COV_TEST_PATH) + ".bat"
-        self.cov_test_path = self.cov_test_path_sh if platform.system() != 'Windows' else self.cov_test_path_ps1
-
-    def __enter__(self):
-        coverage_script = ""
-        if self.coverage:
-            if platform.system() == 'Windows':
-                coverage_script = f"""$tempFile = (".\\{TMP_PROFILE_COV_PREFIX}." + ([guid]::NewGuid().ToString().Replace("-", "").Substring(0, 10)))
-go test $($args | select -skip 1) -json -coverprofile="$tempFile" {self.packages}
-exit $LASTEXITCODE
-"""
-            else:
-                coverage_script = f"""#!/usr/bin/env bash
-set -eu
-go test "${{@:2}}" -json -coverprofile=\"$(mktemp {TMP_PROFILE_COV_PREFIX}.XXXXXXXXXX)\" {self.packages}
-"""
-            with open(self.cov_test_path, 'w', encoding='utf-8') as f:
-                f.write(coverage_script)
-
-            with open(self.call_ps1_from_bat, 'w', encoding='utf-8') as f:
-                f.write(
-                    f"""@echo off
-powershell.exe -executionpolicy Bypass -file {GO_COV_TEST_PATH}.ps1 %*"""
-                )
-
-            os.chmod(self.cov_test_path, 0o755)
-            os.chmod(self.call_ps1_from_bat, 0o755)
-
-        return self.cov_test_path_sh if platform.system() != 'Windows' else self.call_ps1_from_bat
-
-    def __exit__(self, *_):
-        if self.coverage:
-            # Removing the coverage script.
-            try:
-                os.remove(self.cov_test_path)
-                os.remove(self.call_ps1_from_bat)
-            except FileNotFoundError:
-                print(
-                    f"Error: Could not find the coverage script {self.cov_test_path} or {self.call_ps1_from_bat} while trying to delete it.",
-                    file=sys.stderr,
-                )
-            # Merging the unit tests reruns coverage files, keeping only the merged file.
-            files_to_delete = [
-                os.path.join(self.module_path, f)
-                for f in os.listdir(self.module_path)
-                if f.startswith(f"{TMP_PROFILE_COV_PREFIX}.")
-            ]
-            if not files_to_delete:
-                print(
-                    f"Error: Could not find coverage files starting with '{TMP_PROFILE_COV_PREFIX}.' in {self.module_path}",
-                    file=sys.stderr,
-                )
-            else:
-                self.ctx.run(
-                    f"gocovmerge {' '.join(files_to_delete)} > \"{os.path.join(self.module_path, PROFILE_COV)}\""
-                )
-                for f in files_to_delete:
-                    os.remove(f)
-
-
 def test_flavor(
     ctx,
     flavor: AgentFlavor,
     build_tags: list[str],
-    modules: list[GoModule],
+    modules: Iterable[GoModule],
     cmd: str,
     env: dict[str, str],
     args: dict[str, str],
@@ -436,7 +362,7 @@ def test(
     if only_impacted_packages:
         modules = get_impacted_packages(ctx, build_tags=unit_tests_tags)
 
-    with collapsed_section("Running unit tests"):
+    with gitlab_section("Running unit tests", collapsed=True):
         test_results = test_flavor(
             ctx,
             flavor=flavor,
@@ -480,7 +406,7 @@ def codecov(
     """
     distro_tag = get_distro()
     codecov_binary = "codecov" if platform.system() != "Windows" else "codecov.exe"
-    with collapsed_section("Upload coverage reports to Codecov"):
+    with gitlab_section("Upload coverage reports to Codecov", collapsed=True):
         ctx.run(f"{codecov_binary} -f {PROFILE_COV} -F {distro_tag}", warn=True)
 
 
@@ -513,16 +439,16 @@ def e2e_tests(ctx, target="gitlab", agent_image="", dca_image="", argo_workflow=
     choices = ["gitlab", "dev", "local"]
     if target not in choices:
         print(f'target {target} not in {choices}')
-        raise Exit(1)
+        raise Exit(code=1)
     if not os.getenv("DATADOG_AGENT_IMAGE"):
         if not agent_image:
             print("define DATADOG_AGENT_IMAGE envvar or image flag")
-            raise Exit(1)
+            raise Exit(code=1)
         os.environ["DATADOG_AGENT_IMAGE"] = agent_image
     if not os.getenv("DATADOG_CLUSTER_AGENT_IMAGE"):
         if not dca_image:
             print("define DATADOG_CLUSTER_AGENT_IMAGE envvar or image flag")
-            raise Exit(1)
+            raise Exit(code=1)
         os.environ["DATADOG_CLUSTER_AGENT_IMAGE"] = dca_image
     if not os.getenv("ARGO_WORKFLOW"):
         if argo_workflow:
@@ -557,6 +483,7 @@ def get_modified_packages(ctx, build_tags=None, lint=False) -> list[GoModule]:
         # Check if the package is in the target list of the module we want to test
         targeted = False
 
+        assert best_module_path, f"No module found for {modified_file}"
         targets = DEFAULT_MODULES[best_module_path].lint_targets if lint else DEFAULT_MODULES[best_module_path].targets
 
         for target in targets:
@@ -610,7 +537,7 @@ def get_modified_packages(ctx, build_tags=None, lint=False) -> list[GoModule]:
     for module in modules_to_test:
         print(f"- {module}: {modules_to_test[module].targets}")
 
-    return modules_to_test.values()
+    return list(modules_to_test.values())
 
 
 @task(iterable=["extra_tag"])
@@ -830,7 +757,7 @@ def find_impacted_packages(dependencies, modified_modules, cache=None):
     return impacted_modules
 
 
-def format_packages(ctx: Context, impacted_packages: set[str], build_tags: list[str] = None):
+def format_packages(ctx: Context, impacted_packages: set[str], build_tags: list[str] | None = None):
     """
     Format the packages list to be used in our test function. Will take each path and create a list of modules with its targets
     """
@@ -939,7 +866,7 @@ def lint_go(
     build_exclude=None,
     rtloader_root=None,
     cpus=None,
-    timeout: int = None,
+    timeout: int | None = None,
     golangci_lint_kwargs="",
     headless_mode=False,
     include_sds=False,
@@ -968,16 +895,20 @@ def check_otel_build(ctx):
 
 @task
 def check_otel_module_versions(ctx):
+    pattern = f"^go {PATTERN_MAJOR_MINOR_BUGFIX}\r?$"
+    r = requests.get(OTEL_UPSTREAM_GO_MOD_PATH)
+    matches = re.findall(pattern, r.text, flags=re.MULTILINE)
+    if len(matches) != 1:
+        raise Exit(f"Error parsing upstream go.mod version: {OTEL_UPSTREAM_GO_MOD_PATH}")
+    upstream_version = matches[0]
+
     for path, module in DEFAULT_MODULES.items():
         if module.used_by_otel:
             mod_file = f"./{path}/go.mod"
-            pattern = f"^go {PATTERN_MAJOR_MINOR_BUGFIX}\r?$"
             with open(mod_file, newline='', encoding='utf-8') as reader:
                 content = reader.read()
                 matches = re.findall(pattern, content, flags=re.MULTILINE)
                 if len(matches) != 1:
                     raise Exit(f"{mod_file} does not match expected go directive format")
-                if matches[0] != f"go {OTEL_UPSTREAM_GO_VERSION}":
-                    raise Exit(
-                        f"{mod_file} version {matches[0]} does not match upstream version: {OTEL_UPSTREAM_GO_VERSION}"
-                    )
+                if matches[0] != upstream_version:
+                    raise Exit(f"{mod_file} version {matches[0]} does not match upstream version: {upstream_version}")

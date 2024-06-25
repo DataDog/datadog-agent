@@ -35,7 +35,7 @@ import (
 )
 
 // runAgentSidekicks is the entrypoint for running non-components that run along the agent.
-func runAgentSidekicks(ag *agent) error {
+func runAgentSidekicks(ag component) error {
 	tracecfg := ag.config.Object()
 	err := info.InitInfo(tracecfg) // for expvar & -info option
 	if err != nil {

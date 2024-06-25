@@ -42,7 +42,6 @@ type Kind string
 const (
 	KindContainer              Kind = "container"
 	KindKubernetesPod          Kind = "kubernetes_pod"
-	KindKubernetesNode         Kind = "kubernetes_node"
 	KindKubernetesMetadata     Kind = "kubernetes_metadata"
 	KindKubernetesDeployment   Kind = "kubernetes_deployment"
 	KindECSTask                Kind = "ecs_task"
@@ -781,6 +780,9 @@ func (o KubernetesPodOwner) String(verbose bool) string {
 	return sb.String()
 }
 
+// KubeMetadataEntityID is a unique ID for Kube Metadata Entity
+type KubeMetadataEntityID string
+
 // KubernetesMetadata is an Entity representing kubernetes resource metadata
 type KubernetesMetadata struct {
 	EntityID
@@ -827,47 +829,6 @@ func (m *KubernetesMetadata) String(verbose bool) string {
 }
 
 var _ Entity = &KubernetesMetadata{}
-
-// KubernetesNode is an Entity representing a Kubernetes Node.
-type KubernetesNode struct {
-	EntityID
-	EntityMeta
-}
-
-// GetID implements Entity#GetID.
-func (n *KubernetesNode) GetID() EntityID {
-	return n.EntityID
-}
-
-// Merge implements Entity#Merge.
-func (n *KubernetesNode) Merge(e Entity) error {
-	nn, ok := e.(*KubernetesNode)
-	if !ok {
-		return fmt.Errorf("cannot merge KubernetesNode with different kind %T", e)
-	}
-
-	return merge(n, nn)
-}
-
-// DeepCopy implements Entity#DeepCopy.
-func (n KubernetesNode) DeepCopy() Entity {
-	cn := deepcopy.Copy(n).(KubernetesNode)
-	return &cn
-}
-
-// String implements Entity#String
-func (n KubernetesNode) String(verbose bool) string {
-	var sb strings.Builder
-	_, _ = fmt.Fprintln(&sb, "----------- Entity ID -----------")
-	_, _ = fmt.Fprintln(&sb, n.EntityID.String(verbose))
-
-	_, _ = fmt.Fprintln(&sb, "----------- Entity Meta -----------")
-	_, _ = fmt.Fprint(&sb, n.EntityMeta.String(verbose))
-
-	return sb.String()
-}
-
-var _ Entity = &KubernetesNode{}
 
 // KubernetesDeployment is an Entity representing a Kubernetes Deployment.
 type KubernetesDeployment struct {

@@ -5,7 +5,7 @@ from contextlib import contextmanager
 
 from invoke import Context, Exit, task
 
-from tasks.libs.common.color import color_message
+from tasks.libs.common.color import Color, color_message
 
 AGENT_MODULE_PATH_PREFIX = "github.com/DataDog/datadog-agent/"
 
@@ -157,12 +157,14 @@ DEFAULT_MODULES = {
     "comp/otelcol/collector-contrib/impl": GoModule(
         "comp/otelcol/collector-contrib/impl", independent=True, used_by_otel=True
     ),
+    "comp/otelcol/extension/def": GoModule("comp/otelcol/extension/def", independent=True, used_by_otel=True),
+    "comp/otelcol/extension/impl": GoModule("comp/otelcol/extension/impl", independent=True, used_by_otel=True),
     "comp/otelcol/logsagentpipeline": GoModule("comp/otelcol/logsagentpipeline", independent=True, used_by_otel=True),
     "comp/otelcol/logsagentpipeline/logsagentpipelineimpl": GoModule(
         "comp/otelcol/logsagentpipeline/logsagentpipelineimpl", independent=True, used_by_otel=True
     ),
     "comp/otelcol/otlp/components/exporter/datadogexporter": GoModule(
-        "comp/otelcol/otlp/components/exporter/datadogexporter", independent=True
+        "comp/otelcol/otlp/components/exporter/datadogexporter", independent=True, used_by_otel=True
     ),
     "comp/otelcol/otlp/components/exporter/logsagentexporter": GoModule(
         "comp/otelcol/otlp/components/exporter/logsagentexporter", independent=True, used_by_otel=True
@@ -176,9 +178,9 @@ DEFAULT_MODULES = {
     "comp/otelcol/otlp/components/statsprocessor": GoModule(
         "comp/otelcol/otlp/components/statsprocessor", independent=True, used_by_otel=True
     ),
-    "comp/otelcol/otlp/testutil": GoModule("comp/otelcol/otlp/testutil", independent=True),
-    "comp/otelcol/converter/def": GoModule("comp/otelcol/converter/def", independent=True),
-    "comp/otelcol/converter/impl": GoModule("comp/otelcol/converter/impl", independent=True),
+    "comp/otelcol/otlp/testutil": GoModule("comp/otelcol/otlp/testutil", independent=True, used_by_otel=True),
+    "comp/otelcol/converter/def": GoModule("comp/otelcol/converter/def", independent=True, used_by_otel=True),
+    "comp/otelcol/converter/impl": GoModule("comp/otelcol/converter/impl", independent=True, used_by_otel=True),
     "comp/serializer/compression": GoModule("comp/serializer/compression", independent=True, used_by_otel=True),
     "comp/trace/agent/def": GoModule("comp/trace/agent/def", independent=True, used_by_otel=True),
     "internal/tools": GoModule("internal/tools", condition=lambda: False, should_tag=False),
@@ -266,9 +268,26 @@ DEFAULT_MODULES = {
         "test/new-e2e",
         independent=True,
         targets=["./pkg/runner", "./pkg/utils/e2e/client"],
-        lint_targets=[".", "./examples"],  # need to explictly list "examples", otherwise it is skipped
+        lint_targets=[".", "./examples"],  # need to explicitly list "examples", otherwise it is skipped
     ),
+    "tools/retry_file_dump": GoModule("tools/retry_file_dump", condition=lambda: False, should_tag=False),
 }
+
+# Folder containing a `go.mod` file but that should not be added to the DEFAULT_MODULES
+IGNORED_MODULE_PATHS = [
+    # Test files
+    "./internal/tools/modparser/testdata/badformat",
+    "./internal/tools/modparser/testdata/match",
+    "./internal/tools/modparser/testdata/nomatch",
+    "./internal/tools/modparser/testdata/patchgoversion",
+    # This `go.mod` is a hack
+    "./pkg/process/procutil/resources",
+    # We have test files in the tasks folder
+    "./tasks",
+    # Test files
+    "./test/integration/serverless/recorder-extension",
+    "./test/integration/serverless/src",
+]
 
 MAIN_TEMPLATE = """package main
 
@@ -365,19 +384,24 @@ def for_each(ctx: Context, cmd: str, skip_untagged: bool = False):
 
 
 @task
-def validate(_: Context, fail_fast: bool = False):
+def validate(_: Context):
     """
     Test if every module was properly added in the DEFAULT_MODULES list.
     """
-    missing_modules = []
-    for module in DEFAULT_MODULES.values():
-        for dependency in module.dependencies:
-            if dependency not in DEFAULT_MODULES:
-                if fail_fast:
-                    raise Exit(f"{color_message('ERROR', 'red')}: {module.path} depends on missing {dependency}")
-                missing_modules.append((module, dependency))
+    missing_modules: list[str] = []
+
+    # Find all go.mod files and make sure they are registered in DEFAULT_MODULES
+    for root, dirs, files in os.walk("."):
+        dirs[:] = [d for d in dirs if root + '/' + d not in IGNORED_MODULE_PATHS]
+
+        if "go.mod" in files and root.removeprefix("./") not in DEFAULT_MODULES:
+            missing_modules.append(root)
+
     if missing_modules:
-        message = f"{color_message('ERROR', 'red')}: some modules are missing from DEFAULT_MODULES\n"
-        for module, dependency in missing_modules:
-            message += f"  {module.path} depends on missing {dependency}\n"
+        message = f"{color_message('ERROR', Color.RED)}: some modules are missing from DEFAULT_MODULES\n"
+        for module in missing_modules:
+            message += f"  {module} is missing from DEFAULT_MODULES\n"
+
+        message += "Please add them to the DEFAULT_MODULES list or exclude them from the validation."
+
         raise Exit(message)

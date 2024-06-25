@@ -298,6 +298,17 @@ func TestFilter_MatchEntity(t *testing.T) {
 			},
 			expectMatch: false,
 		},
+		{
+			name:   "a nil entity filter func should match",
+			filter: &Filter{kinds: map[Kind]GenericEntityFilterFunc{KindContainer: nil}},
+			entity: &Container{
+				EntityID: EntityID{
+					ID:   "cont-d",
+					Kind: KindContainer,
+				},
+			},
+			expectMatch: true,
+		},
 	}
 
 	for _, test := range tests {

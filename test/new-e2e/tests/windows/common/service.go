@@ -97,7 +97,7 @@ func (s *ServiceConfig) FetchUserSID(host *components.RemoteHost) error {
 
 // GetServiceStatus returns the status of the service
 func GetServiceStatus(host *components.RemoteHost, service string) (string, error) {
-	cmd := fmt.Sprintf("(Get-Service -Name '%s').Status", service)
+	cmd := fmt.Sprintf("$ErrorActionPreference='Stop'; (Get-Service -Name '%s').Status", service)
 	out, err := host.Execute(cmd)
 	return strings.TrimSpace(out), err
 }

@@ -31,7 +31,7 @@ func TestLinuxRuntimeSecretSuite(t *testing.T) {
 //go:embed fixtures/secret_script.py
 var secretScript []byte
 
-func (v *linuxRuntimeSecretSuite) TestSecretRuntimeAPIKey() {
+func (v *linuxRuntimeSecretSuite) TestSecretRuntimeHostname() {
 	config := `secret_backend_command: /tmp/bin/secret.sh
 hostname: ENC[hostname]`
 

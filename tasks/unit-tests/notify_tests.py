@@ -157,18 +157,18 @@ class TestSendMessage(unittest.TestCase):
             )
         )
         jobowners = """\
-        job1 @DataDog/agent-ci-experience
-        job2 @DataDog/agent-ci-experience
-        job3 @DataDog/agent-ci-experience @DataDog/agent-developer-tools
-        not* @DataDog/agent-build-and-releases
+        job1 @DataDog/agent-devx-infra
+        job2 @DataDog/agent-devx-infra
+        job3 @DataDog/agent-devx-infra @DataDog/agent-devx-loops
+        not* @DataDog/agent-delivery
         """
         read_owners_mock.return_value = CodeOwners(jobowners)
         owners = find_job_owners(failed)
         # Should send notifications to agent-e2e-testing and ci-experience
         self.assertIn("@DataDog/agent-e2e-testing", owners)
-        self.assertIn("@DataDog/agent-ci-experience", owners)
-        self.assertNotIn("@DataDog/agent-developer-tools", owners)
-        self.assertNotIn("@DataDog/agent-build-and-releases", owners)
+        self.assertIn("@DataDog/agent-devx-infra", owners)
+        self.assertNotIn("@DataDog/agent-devx-loops", owners)
+        self.assertNotIn("@DataDog/agent-delivery", owners)
 
     @patch('tasks.libs.ciproviders.gitlab_api.get_gitlab_api')
     def test_merge_with_get_failed_call(self, api_mock):
@@ -389,7 +389,7 @@ class TestJobOwners(unittest.TestCase):
         self.assertEqual(
             partition,
             [
-                ('@DataDog/agent-ci-experience', {'hello_world'}),
+                ('@DataDog/agent-devx-infra', {'hello_world'}),
                 ('@DataDog/agent-security', {'security_go_generate_check'}),
                 ('@DataDog/ebpf-platform', {'tests_ebpf'}),
                 ('@DataDog/multiple', {'tests_hello', 'tests_hello_world'}),
@@ -440,8 +440,8 @@ class TestSendNotification(unittest.TestCase):
 
         # Verify that we send the right number of jobs per channel
         expected_team_njobs = {
-            '#agent-build-and-releases': 2,
-            '#agent-developer-experience': 2,
+            '#agent-delivery-ops': 2,
+            '#agent-devx-ops': 2,
             '#agent-platform-ops': 4,
             '#security-and-compliance-agent-ops': 1,
         }
@@ -458,9 +458,9 @@ class TestSendNotification(unittest.TestCase):
         mock_metrics.assert_called_once()
         expected_metrics = {
             '@datadog/agent-security': 1,
-            '@datadog/agent-build-and-releases': 2,
-            '@datadog/agent-ci-experience': 2,
-            '@datadog/agent-developer-tools': 2,
+            '@datadog/agent-delivery': 2,
+            '@datadog/agent-devx-infra': 2,
+            '@datadog/agent-devx-loops': 2,
             '@datadog/documentation': 2,
             '@datadog/agent-platform': 2,
         }
@@ -472,38 +472,3 @@ class TestSendNotification(unittest.TestCase):
             self.assertEqual(
                 value, expected_metrics.get(team), f'Unexpected metric value for metric {name} of team {team}'
             )
-
-
-class TestSendFailureSummaryNotification(unittest.TestCase):
-    @patch("slack_sdk.WebClient")
-    @patch("os.environ", new=MagicMock())
-    def test_nominal(self, mock_slack: MagicMock):
-        # jobname: [total_failures, total_runs]
-        jobs = {
-            "hello": {"failures": 45},  # agent-ci-experience
-            "world": {"failures": 45},  # agent-ci-experience
-            "security_go_generate_check": {"failures": 21},  # agent-security
-            "tests_release": {"failures": 31},  # agent-ci-experience, agent-build-and-releases
-            "tests_release2": {"failures": 31},  # agent-ci-experience, agent-build-and-releases
-        }
-        # Verify that we send the right number of jobs per channel
-        expected_team_njobs = {
-            '#agent-build-and-releases': 2,
-            '#agent-developer-experience': 4,
-            '#agent-platform-ops': 5,
-            '#security-and-compliance-agent-ops': 1,
-        }
-
-        notify.send_failure_summary_notification(
-            MockContext(), jobs, jobowners="tasks/unit-tests/testdata/jobowners.txt"
-        )
-        mock_slack.assert_called()
-
-        # Verify called once for each channel
-        self.assertEqual(len(mock_slack.return_value.chat_postMessage.call_args_list), len(expected_team_njobs))
-
-        for call_args in mock_slack.return_value.chat_postMessage.call_args_list:
-            channel = call_args.kwargs['channel']
-            message = json.dumps(call_args.kwargs['blocks'])
-            njobs = message.count("- ")
-            self.assertEqual(expected_team_njobs.get(channel, None), njobs, 'Failure for channel: ' + channel)
