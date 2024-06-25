@@ -121,6 +121,8 @@ def filenames(ctx):
 
 
 CUSTOM_GOLANGCI_LINT = "agent-golangci-lint"
+# Comma separated list of linters to be used in the custom golangci-lint
+CUSTOM_GOLANGCI_LINTERS = "pkgconfig"
 
 
 @task(iterable=['flavors'])
@@ -186,6 +188,9 @@ def go(
         only_modified_packages=only_modified_packages,
         lint=True,
     )
+
+    if golangci_executable == CUSTOM_GOLANGCI_LINT:
+        golangci_lint_kwargs += f"-E {CUSTOM_GOLANGCI_LINTERS}"
 
     lint_results, execution_times = run_lint_go(
         ctx=ctx,
