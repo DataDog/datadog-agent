@@ -812,13 +812,13 @@ def update_circleci_config(file_path, image_tag, test_version):
 
 @task(
     help={
-        "file_path": "path of the CircleCI configuration YAML file",
+        "file_path": "path of the Gitlab configuration YAML file",
     },
     autoprint=True,
 )
 def get_gitlab_config_image_tag(_, file_path=".gitlab-ci.yml"):
     """
-    Print the current image tag of the given CircleCI configuration file (default: ".circleci/config.yml")
+    Print the current image tag of the given Gitlab configuration file (default: ".gitlab-ci.yml")
     """
     with open(file_path) as gl:
         file_content = gl.readlines()

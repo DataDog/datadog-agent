@@ -66,9 +66,11 @@ This PR updates the current buildimages (`{old_build_image_tag}`) to `{new_build
 """
 
     if old_go_version != new_go_version:
+        old_go_version_url = f"https://go.dev/doc/devel/release#go{old_go_version}"
+        new_go_version_url = f"https://go.dev/doc/devel/release#go{new_go_version}"
         pr_body += f"""
 
 ### Golang update
-This PR updates the current Golang version ([`{old_go_version}`](https://go.dev/doc/devel/release#go{old_go_version})) to [`{new_go_version}`](https://go.dev/doc/devel/release#go{new_go_version}).
+This PR updates the current Golang version ([`{old_go_version}`]({old_go_version_url})) to [`{new_go_version}`]({new_go_version_url}).
 """
     return pr_body
