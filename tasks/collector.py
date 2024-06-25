@@ -17,7 +17,9 @@ LICENSE_HEADER = """// Unless explicitly stated otherwise all files in this repo
 """
 OCB_VERSION = "0.103.1"
 
-BASE_URL = f"https://github.com/open-telemetry/opentelemetry-collector/releases/download/cmd%2Fbuilder%2Fv{OCB_VERSION}/"
+BASE_URL = (
+    f"https://github.com/open-telemetry/opentelemetry-collector/releases/download/cmd%2Fbuilder%2Fv{OCB_VERSION}/"
+)
 
 BINARY_NAMES_BY_SYSTEM_AND_ARCH = {
     "Linux": {
@@ -104,6 +106,4 @@ def generate(ctx):
                 with open(file_path, "w") as f:
                     f.write(content)
 
-                print(
-                    f"Updated package name and ensured license header in: {file_path}"
-                )
+                print(f"Updated package name and ensured license header in: {file_path}")
