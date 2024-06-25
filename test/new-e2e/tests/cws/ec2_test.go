@@ -8,8 +8,10 @@ package cws
 
 import (
 	_ "embed"
+	"errors"
 	"fmt"
 	"path"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -17,6 +19,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/ssh"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
@@ -239,6 +242,36 @@ func (a *agentSuite) Test03OpenSignal() {
 		}
 		assert.Contains(c, agentContext["rule_id"], agentRuleName, "signal doesn't contain agent rule id")
 	}, 4*time.Minute, 10*time.Second)
+}
+
+func (a *agentSuite) Test04SecurityAgentSIGTERM() {
+	output := a.Env().RemoteHost.MustExecute("cat /opt/datadog-agent/run/security-agent.pid")
+	pid, err := strconv.ParseInt(strings.TrimSpace(output), 10, 64)
+	require.NoError(a.T(), err, "failed to parse security-agent pid")
+
+	var start, end time.Time
+	start = time.Now()
+	_, err = a.Env().RemoteHost.Execute(fmt.Sprintf("sudo kill -SIGTERM %d", pid))
+	require.NoError(a.T(), err, "failed to send SIGTERM to security-agent")
+	exited := assert.EventuallyWithT(a.T(), func(c *assert.CollectT) {
+		_, err := a.Env().RemoteHost.Execute("pgrep -x security-agent")
+		if err == nil {
+			c.Errorf("security-agent should not be running")
+			return
+		}
+
+		// pgrep exits with 1 if no process is found
+		var exitErr *ssh.ExitError
+		if errors.As(err, &exitErr) && exitErr.ExitStatus() == 1 {
+			end = time.Now()
+			return
+		}
+		assert.NoError(c, err, "failed to check the security-agent process state")
+	}, 30*time.Second, 1*time.Second)
+
+	if exited {
+		a.T().Logf("security-agent exited after %s", end.Sub(start).String())
+	}
 }
 
 // test that the detection of CWS is properly working
