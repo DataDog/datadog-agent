@@ -98,7 +98,7 @@ func setup(mode.Conf) (cloudservice.CloudService, *serverlessInitLog.Config, *tr
 	tracelog.SetLogger(corelogger{})
 
 	// load proxy settings
-	pkgconfig.LoadProxyFromEnv(pkgconfig.Datadog)
+	pkgconfig.LoadProxyFromEnv(pkgconfig.Datadog())
 
 	cloudService := cloudservice.GetCloudServiceType()
 
@@ -110,7 +110,7 @@ func setup(mode.Conf) (cloudservice.CloudService, *serverlessInitLog.Config, *tr
 
 	tags := serverlessInitTag.GetBaseTagsMapWithMetadata(
 		serverlessTag.MergeWithOverwrite(
-			serverlessTag.ArrayToMap(configUtils.GetConfiguredTags(pkgconfig.Datadog, false)),
+			serverlessTag.ArrayToMap(configUtils.GetConfiguredTags(pkgconfig.Datadog(), false)),
 			cloudService.GetTags()),
 		modeConf.TagVersionMode)
 
@@ -139,7 +139,7 @@ func setup(mode.Conf) (cloudservice.CloudService, *serverlessInitLog.Config, *tr
 	return cloudService, agentLogConfig, traceAgent, metricAgent, logsAgent
 }
 func setupTraceAgent(traceAgent *trace.ServerlessTraceAgent, tags map[string]string) {
-	traceAgent.Start(pkgconfig.Datadog.GetBool("apm_config.enabled"), &trace.LoadConfig{Path: datadogConfigPath}, nil, random.Random.Uint64())
+	traceAgent.Start(pkgconfig.Datadog().GetBool("apm_config.enabled"), &trace.LoadConfig{Path: datadogConfigPath}, nil, random.Random.Uint64())
 	traceAgent.SetTags(tags)
 	for range time.Tick(3 * time.Second) {
 		traceAgent.Flush()
@@ -147,7 +147,7 @@ func setupTraceAgent(traceAgent *trace.ServerlessTraceAgent, tags map[string]str
 }
 
 func setupMetricAgent(tags map[string]string) *metrics.ServerlessMetricAgent {
-	pkgconfig.Datadog.Set("use_v2_api.series", false, model.SourceAgentRuntime)
+	pkgconfig.Datadog().Set("use_v2_api.series", false, model.SourceAgentRuntime)
 	metricAgent := &metrics.ServerlessMetricAgent{
 		SketchesBucketOffset: time.Second * 0,
 	}
