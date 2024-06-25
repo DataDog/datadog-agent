@@ -85,7 +85,7 @@ func TestPackageSigningComponent(t *testing.T) {
 			e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(
 				awshost.WithEC2InstanceOptions(ec2.WithAMI(ami, osDesc, osDesc.Architecture)),
 			)),
-			e2e.WithStackName(fmt.Sprintf("pkgSigning-%s-%s", platform)),
+			e2e.WithStackName(fmt.Sprintf("pkgSigning-%s", platform)),
 		)
 	})
 }
