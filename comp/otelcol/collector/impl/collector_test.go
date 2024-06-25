@@ -17,7 +17,7 @@ import (
 	collectorcontribimpl "github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/impl"
 	converterimpl "github.com/DataDog/datadog-agent/comp/otelcol/converter/impl"
 	"github.com/stretchr/testify/assert"
-	"go.opentelemetry.io/collector/confmap"
+	"go.opentelemetry.io/collector/confmap/confmaptest"
 	"gopkg.in/yaml.v3"
 )
 
@@ -29,6 +29,15 @@ func (l *lifecycle) Append(h compdef.Hook) {
 
 func uriFromFile(filename string) []string {
 	return []string{filepath.Join("testdata", filename)}
+}
+
+func yamlBytesToMap(bytesConfig []byte) (map[string]any, error) {
+	var configMap = map[string]interface{}{}
+	err := yaml.Unmarshal(bytesConfig, configMap)
+	if err != nil {
+		return nil, err
+	}
+	return configMap, nil
 }
 
 func TestGetConfDump(t *testing.T) {
@@ -44,8 +53,7 @@ func TestGetConfDump(t *testing.T) {
 	provides, err := NewComponent(reqs)
 	assert.NoError(t, err)
 
-	t.Run("provided", func(t *testing.T) {
-		// string
+	t.Run("provided-string", func(t *testing.T) {
 		actualString, _ := provides.Comp.GetProvidedConfAsString()
 		actualStringMap, err := yamlBytesToMap([]byte(actualString))
 		assert.NoError(t, err)
@@ -58,8 +66,22 @@ func TestGetConfDump(t *testing.T) {
 		assert.Equal(t, expectedMap, actualStringMap)
 	})
 
+	t.Run("provided-confmap", func(t *testing.T) {
+		actualConfmap, _ := provides.Comp.GetProvidedConf()
+		// marshal to yaml and then to map to drop the types for comparison
+		bytesConf, err := yaml.Marshal(actualConfmap.ToStringMap())
+		assert.NoError(t, err)
+		actualStringMap, err := yamlBytesToMap([]byte(bytesConf))
+		assert.NoError(t, err)
+
+		expectedMap, err := confmaptest.LoadConf("testdata/simple-dd/config-provided-result.yaml")
+		expectedStringMap := expectedMap.ToStringMap()
+		assert.NoError(t, err)
+
+		assert.Equal(t, expectedStringMap, actualStringMap)
+	})
+
 	t.Run("enhanced", func(t *testing.T) {
-		// string
 		actualString, _ := provides.Comp.GetEnhancedConfAsString()
 		actualStringMap, err := yamlBytesToMap([]byte(actualString))
 		assert.NoError(t, err)
@@ -71,13 +93,19 @@ func TestGetConfDump(t *testing.T) {
 
 		assert.Equal(t, expectedMap, actualStringMap)
 	})
-}
 
-func yamlBytesToMap(bytesConfig []byte) (map[string]any, error) {
-	var configMap = map[string]interface{}{}
-	err := yaml.Unmarshal(bytesConfig, configMap)
-	if err != nil {
-		return nil, err
-	}
-	return configMap, nil
+	t.Run("enhance-confmap", func(t *testing.T) {
+		actualConfmap, _ := provides.Comp.GetEnhancedConf()
+		// marshal to yaml and then to map to drop the types for comparison
+		bytesConf, err := yaml.Marshal(actualConfmap.ToStringMap())
+		assert.NoError(t, err)
+		actualStringMap, err := yamlBytesToMap([]byte(bytesConf))
+		assert.NoError(t, err)
+
+		expectedMap, err := confmaptest.LoadConf("testdata/simple-dd/config-enhanced-result.yaml")
+		expectedStringMap := expectedMap.ToStringMap()
+		assert.NoError(t, err)
+
+		assert.Equal(t, expectedStringMap, actualStringMap)
+	})
 }
