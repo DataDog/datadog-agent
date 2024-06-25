@@ -211,3 +211,7 @@ func enableCurrentThreadPrivilege(privilegeName string) error {
 	tp.Privileges[0].Attributes = windows.SE_PRIVILEGE_ENABLED
 	return windows.AdjustTokenPrivileges(t, false, &tp, 0, nil, nil)
 }
+
+func atomicSymlink(oldname, newname string) error {
+	return symlinkWithImpersonation(oldname, newname, setReparsePoint)
+}
