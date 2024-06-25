@@ -275,8 +275,6 @@ DEFAULT_MODULES = {
 
 # Folder containing a `go.mod` file but that should not be added to the DEFAULT_MODULES
 IGNORED_MODULE_PATHS = [
-    # Will be removed soon
-    "./comp/otelcol/otlp/example/metric",
     # Test files
     "./internal/tools/modparser/testdata/badformat",
     "./internal/tools/modparser/testdata/match",
