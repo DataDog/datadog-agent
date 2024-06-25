@@ -511,6 +511,76 @@ func (s *StartStopServiceRaceConditionTestSuite) TestStopMainWhenDependentServic
 	assert.Equal(s.T(), status.State, svc.Stopped, "`Dep2` service should be stopped")
 }
 
+// Test start a service after it has been just started. This is to test
+// that starting a service when it is in START_PENDING state is handled correctly
+func (s *StartStopServiceRaceConditionTestSuite) TestStartServiceAfterStartService() {
+	// SETUP: Start main service only
+	err := s.mainSvc.Start()
+	assert.Nil(s.T(), err, "Failed to start `main` service: %v", err)
+
+	// Immediately start it again, since main service most likely will be in
+	// the start pending state at the moment of the second start. It should start
+	// successfully without any error
+	err = StartService(s.mainSvcName)
+	assert.Nil(s.T(), err, "`Main` service should start successfully: %v", err)
+}
+
+// Test start a service after it has been just stopped. This is to test
+// that starting a service when it is in STOP_PENDING state is handled correctly
+func (s *StartStopServiceRaceConditionTestSuite) TestStartServiceAfterStopService() {
+	// SETUP: Start, wait for starting and stop externally main service
+	// to make sure it is in the stop pending state
+	err := s.mainSvc.Start()
+	assert.Nil(s.T(), err, "Failed to start `main` service: %v", err)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	err = WaitForState(ctx, s.mainSvcName, svc.Running)
+	assert.Nil(s.T(), err, "`Main` service should be running: %v", err)
+	_, err = s.mainSvc.Control(svc.Stop)
+	assert.Nil(s.T(), err, "`Main` service should be stopping: %v", err)
+
+	// Immediately start it again, since main service most likely will be in
+	// the stop pending state at the moment of the second start. It should start
+	// successfully without any error
+	err = StartService(s.mainSvcName)
+	assert.Nil(s.T(), err, "`Main` service should start successfully: %v", err)
+}
+
+// Test stop a service after it has been just started. This is to test
+// that stoppiong a service when it is in START_PENDING state is handled correctly
+func (s *StartStopServiceRaceConditionTestSuite) TestStopServiceAfterStartService() {
+	// SETUP: Start main service only
+	err := s.mainSvc.Start()
+	assert.Nil(s.T(), err, "Failed to start `main` service: %v", err)
+
+	// Immediately start it again, since main service most likely will be in
+	// the start pending state at the moment of the second start. It should start
+	// successfully without any error
+	err = StopService(s.mainSvcName)
+	assert.Nil(s.T(), err, "`Main` service should stop successfully: %v", err)
+}
+
+// Test stop a service after it has been just stopped. This is to test
+// that stopping a service when it is in STOP_PENDING state is handled correctly
+func (s *StartStopServiceRaceConditionTestSuite) TestStopServiceAfterStopService() {
+	// SETUP: Start, wait for starting and stop externally main service
+	// to make sure it is in the stop pending state
+	err := s.mainSvc.Start()
+	assert.Nil(s.T(), err, "Failed to start `main` service: %v", err)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	err = WaitForState(ctx, s.mainSvcName, svc.Running)
+	assert.Nil(s.T(), err, "`Main` service should be running: %v", err)
+	_, err = s.mainSvc.Control(svc.Stop)
+	assert.Nil(s.T(), err, "`Main` service should be stopping: %v", err)
+
+	// Immediately start it again, since main service most likely will be in
+	// the stop pending state at the moment of the second start. It should start
+	// successfully without any error
+	err = StopService(s.mainSvcName)
+	assert.Nil(s.T(), err, "`Main` service should stop successfully: %v", err)
+}
+
 func TestStartStopServiceRaceConditionTestSuite(t *testing.T) {
 	suite.Run(t, new(StartStopServiceRaceConditionTestSuite))
 }

@@ -81,7 +81,8 @@ func closeManagerService(manager *mgr.Mgr, service *mgr.Service) {
 // Does not block until service is started
 // https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-startservicea#remarks
 func StartService(serviceName string, serviceArgs ...string) error {
-	manager, service, err := openManagerService(serviceName, windows.SERVICE_START)
+	desiredAccess := uint32(windows.SERVICE_START | windows.SERVICE_QUERY_STATUS)
+	manager, service, err := openManagerService(serviceName, desiredAccess)
 	if err != nil {
 		return err
 	}
@@ -90,6 +91,36 @@ func StartService(serviceName string, serviceArgs ...string) error {
 }
 
 func doStartService(service *mgr.Service, serviceName string, serviceArgs ...string) error {
+	status, err := service.Query()
+	if err != nil {
+		return fmt.Errorf("could not query service `%s` to start it. %w", serviceName, err)
+	}
+
+	// Are we already running?
+	if status.State == svc.Running {
+		return nil
+	}
+
+	// Are we (potentially) in a transient state (meaning no running and not stopped)? If so, wait for it to complete
+	if status.State != svc.Stopped {
+		ctx, cancel := context.WithTimeout(context.Background(), defaultServiceCommandTimeout*time.Second)
+		defer cancel()
+
+		err = doWaitForTransientStateCompletion(ctx, service, status.State, serviceName, svc.Cmd(0))
+		if err != nil {
+			return err
+		}
+
+		// If the service was in svc.StartPending then it should be in svc.Running now
+		// otherwise we would error out. Accordingly now we are in expected state
+		if status.State == svc.StartPending {
+			return nil
+		}
+	}
+
+	// Start the service or rather initiate starting the service
+	// We could wait until the service is startted, making the call blocking
+	// and synchronous, but historically we have not do so and we are ok so far
 	if err := service.Start(serviceArgs...); err != nil {
 		return fmt.Errorf("could not start service %s: %w", serviceName, err)
 	}
@@ -103,6 +134,7 @@ func doStartService(service *mgr.Service, serviceName string, serviceArgs ...str
 //
 //revive:disable-next-line:var-naming Name is intended to match the Windows API name
 func ControlService(serviceName string, command svc.Cmd, to svc.State, desiredAccess uint32, timeout uint64) error {
+	desiredAccess |= windows.SERVICE_QUERY_STATUS
 	manager, service, err := openManagerService(serviceName, desiredAccess)
 	if err != nil {
 		return err
@@ -115,24 +147,48 @@ func ControlService(serviceName string, command svc.Cmd, to svc.State, desiredAc
 	return doControlService(ctx, service, serviceName, command, to)
 }
 
-func doControlService(ctx context.Context, service *mgr.Service, serviceName string, command svc.Cmd, to svc.State) error {
-	// check if we are already in the desired state (if error
-	// skip the check and proceed directly with the control)
+func doControlService(ctx context.Context, service *mgr.Service, serviceName string, cmd svc.Cmd, to svc.State) error {
 	status, err := service.Query()
-	if err == nil && status.State == to {
+	if err != nil {
+		return fmt.Errorf("could not query service `%s` to send controld command %d. %w", serviceName, cmd, err)
+	}
+
+	// check if we are already in the desired state
+	if status.State == to {
 		return nil
 	}
 
-	status, err = service.Control(command)
+	// SERVICE_CONTROL_STOP control command may or may not succeed if the service is
+	// in SERVICE_STOP_PENDING or SERVICE_START_PENDING states. The same service when
+	// it is in SERVICE_START_PENDING state, depending on timin may accept SERVICE_CONTROL_STOP
+	// control but in other cases it will not (it is  indicated by the Accepts field).
+	//
+	// In addition, it is probably not too kosher to stop a service that is in a
+	// transition state. Accordingly we will wait it out until the service completes its
+	// transition to a state.
+	if cmd == svc.Stop {
+		err = doWaitForTransientStateCompletion(ctx, service, status.State, serviceName, cmd)
+		if err != nil {
+			return err
+		}
+
+		// If the service was in svc.StopPending then it should be in svc.Stopped now
+		// otherwise we would error out. Accordingly now we are in expected state
+		if status.State == svc.StopPending {
+			return nil
+		}
+	}
+
+	status, err = service.Control(cmd)
 	if err != nil {
 		// try to get the status after the control
 		statusAfter, errAfter := service.Query()
 		if errAfter != nil {
 			return fmt.Errorf("could not send control %d to service %s: %w Before control[state:%d, accepts:%d])",
-				command, serviceName, err, status.State, status.Accepts)
+				cmd, serviceName, err, status.State, status.Accepts)
 		}
 		return fmt.Errorf("could not send control %d to service %s: %w Before control[state:%d, accepts:%d]), after[state:%d, accepts:%d] ",
-			command, serviceName, err, status.State, status.Accepts, statusAfter.State, statusAfter.Accepts)
+			cmd, serviceName, err, status.State, status.Accepts, statusAfter.State, statusAfter.Accepts)
 	}
 
 	return doWaitForState(ctx, service, to)
@@ -286,6 +342,24 @@ func doWaitForState(ctx context.Context, service *mgr.Service, desiredState svc.
 			return ctx.Err()
 		}
 	}
+}
+
+func doWaitForTransientStateCompletion(ctx context.Context, service *mgr.Service, currentState svc.State, serviceName string, cmd svc.Cmd) error {
+	if currentState == svc.StartPending {
+		// wait for the service to complete the transition to the SERVICE_RUNNING state
+		err := doWaitForState(ctx, service, svc.Running)
+		if err != nil {
+			return fmt.Errorf("waiting for SERVICE_START_PENDING to transition to SERVICE_RUNNING before sending control %d to service %s failed: %w", cmd, serviceName, err)
+		}
+	} else if currentState == svc.StopPending {
+		// wait for the service to complete the transition to the SERVICE_STOPPED state
+		err := doWaitForState(ctx, service, svc.Stopped)
+		if err != nil {
+			return fmt.Errorf("waiting for SERVICE_STOP_PENDING to transition to SERVICE_STOPPED before sending control %d to service %s failed: %w", cmd, serviceName, err)
+		}
+	}
+
+	return nil
 }
 
 // RestartService stops a service and thenif the stop was successful starts it again
