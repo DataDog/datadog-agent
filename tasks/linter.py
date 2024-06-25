@@ -165,10 +165,10 @@ def go(
 
     golangci_executable = "golangci-lint"
 
-    if not os.path.isfile(os.path.expanduser(f"~/go/bin/{CUSTOM_GOLANGCI_LINT}")):
+    if not os.path.isfile(f"/go/bin/{CUSTOM_GOLANGCI_LINT}"):
         res = ctx.run("golangci-lint custom -v")
         if res.ok:
-            os.rename(CUSTOM_GOLANGCI_LINT, os.path.expanduser(f"~/go/bin/{CUSTOM_GOLANGCI_LINT}"))
+            os.rename(CUSTOM_GOLANGCI_LINT, f"/go/bin/{CUSTOM_GOLANGCI_LINT}")
             golangci_executable = CUSTOM_GOLANGCI_LINT
         else:
             print(
@@ -219,7 +219,7 @@ def go(
             print(f'- {e.name}: {e.duration:.1f}s')
 
     if golangci_executable == CUSTOM_GOLANGCI_LINT:
-        os.remove(os.path.expanduser(f"~/go/bin/{CUSTOM_GOLANGCI_LINT}"))
+        os.remove(f"/go/bin/{CUSTOM_GOLANGCI_LINT}")
 
     if success:
         if not headless_mode:
