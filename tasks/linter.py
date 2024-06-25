@@ -166,7 +166,7 @@ def go(
     golangci_executable = "golangci-lint"
 
     if not os.path.isfile(os.path.expanduser(f"~/go/bin/{CUSTOM_GOLANGCI_LINT}")):
-        res = ctx.run("golangci-lint custom")
+        res = ctx.run("golangci-lint custom -v")
         if res.ok:
             os.rename(CUSTOM_GOLANGCI_LINT, os.path.expanduser(f"~/go/bin/{CUSTOM_GOLANGCI_LINT}"))
             golangci_executable = CUSTOM_GOLANGCI_LINT
