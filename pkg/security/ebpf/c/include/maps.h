@@ -32,7 +32,6 @@ BPF_HASH_MAP(activity_dump_config_defaults, u32, struct activity_dump_config, 1)
 BPF_HASH_MAP(traced_cgroups, struct container_context_t, u64, 1) // max entries will be overridden at runtime
 BPF_HASH_MAP(cgroup_wait_list, struct container_context_t, u64, 1) // max entries will be overridden at runtime
 BPF_HASH_MAP(traced_pids, u32, u64, 8192) // max entries will be overridden at runtime
-BPF_HASH_MAP(traced_comms, char[TASK_COMM_LEN], u64, 200)
 BPF_HASH_MAP(basename_approvers, struct basename_t, struct basename_filter_t, 255)
 BPF_HASH_MAP(register_netdevice_cache, u64, struct register_netdevice_cache_t, 1024)
 BPF_HASH_MAP(netdevice_lookup_cache, u64, struct device_ifindex_t, 1024)
