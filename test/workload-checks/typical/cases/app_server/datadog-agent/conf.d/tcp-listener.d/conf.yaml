@@ -1,5 +1,0 @@
-logs:
-  - type: tcp
-    port: 10000
-    service: "my-service"
-    source: "apache"

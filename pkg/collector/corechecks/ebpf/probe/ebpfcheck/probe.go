@@ -134,7 +134,7 @@ func startEBPFCheck(buf bytecode.AssetReader, opts manager.Options) (*Probe, err
 	p.perfBufferMap = p.coll.Maps["perf_buffers"]
 	p.ringBufferMap = p.coll.Maps["ring_buffers"]
 	p.pidMap = p.coll.Maps["map_pids"]
-	AddNameMappingsCollection(p.coll, "ebpf_check")
+	ddebpf.AddNameMappingsCollection(p.coll, "ebpf_check")
 
 	if err := p.attach(collSpec); err != nil {
 		return nil, err
@@ -194,7 +194,7 @@ func (k *Probe) attach(collSpec *ebpf.CollectionSpec) (err error) {
 
 // Close releases all associated resources
 func (k *Probe) Close() {
-	RemoveNameMappingsCollection(k.coll)
+	ddebpf.RemoveNameMappingsCollection(k.coll)
 	for _, l := range k.links {
 		if err := l.Close(); err != nil {
 			log.Warnf("error unlinking program: %s", err)
@@ -254,9 +254,8 @@ func (k *Probe) getProgramStats(stats *model.EBPFStats) error {
 			continue
 		}
 
-		mappingLock.RLock()
 		name := unix.ByteSliceToString(info.Name[:])
-		if pn, ok := progNameMapping[uint32(progid)]; ok {
+		if pn, err := ddebpf.GetProgNameFromProgID(uint32(progid)); err == nil {
 			name = pn
 		}
 		// we require a name, so use program type for unnamed programs
@@ -264,10 +263,9 @@ func (k *Probe) getProgramStats(stats *model.EBPFStats) error {
 			name = strings.ToLower(ebpf.ProgramType(info.Type).String())
 		}
 		module := "unknown"
-		if mod, ok := progModuleMapping[uint32(progid)]; ok {
+		if mod, err := ddebpf.GetModuleFromProgID(uint32(progid)); err == nil {
 			module = mod
 		}
-		mappingLock.RUnlock()
 
 		tag := hex.EncodeToString(info.Tag[:])
 		ps := model.EBPFProgramStats{
@@ -322,18 +320,16 @@ func (k *Probe) getMapStats(stats *model.EBPFStats) error {
 			continue
 		}
 		name := info.Name
-		mappingLock.RLock()
-		if mn, ok := mapNameMapping[uint32(mapid)]; ok {
+		if mn, err := ddebpf.GetMapNameFromMapID(uint32(mapid)); err == nil {
 			name = mn
 		}
 		if name == "" {
 			name = info.Type.String()
 		}
 		module := "unknown"
-		if mod, ok := mapModuleMapping[uint32(mapid)]; ok {
+		if mod, err := ddebpf.GetModuleFromMapID(uint32(mapid)); err == nil {
 			module = mod
 		}
-		mappingLock.RUnlock()
 
 		baseMapStats := model.EBPFMapStats{
 			ID:         uint32(mapid),

@@ -14,6 +14,8 @@ internal_kubernetes_deploy_experimental:
       when: never
     - if: $DDR != "true"
       when: never
+    - if: $APPS != "datadog-agent"
+      when: never
     - !reference [.on_deploy]
   needs:
     - job: docker_trigger_internal
@@ -39,7 +41,8 @@ internal_kubernetes_deploy_experimental:
         --variable EXPLICIT_WORKFLOWS
         --variable OPTION_PRE_SCRIPT
         --variable SKIP_PLAN_CHECK
-        --variable APPS,BAZEL_TARGET
+        --variable APPS
+        --variable BAZEL_TARGET
         --variable DDR
         --variable DDR_WORKFLOW_ID
         --variable TARGET_ENV
@@ -55,6 +58,8 @@ notify-slack:
     - if: $CI_COMMIT_BRANCH != "main"
       when: never
     - if: $DDR != "true"
+      when: never
+    - if: $APPS != "datadog-agent"
       when: never
     - !reference [.on_deploy]
   tags: ["arch:amd64"]

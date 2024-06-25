@@ -37,7 +37,7 @@ def run_linters_for_each_os_x_arch(ctx, platforms, command, show_output):
     """
     Run the linters for different OSxArch combinations by using GOOS & GOARCH.
     """
-    results_per_os_x_arch = dict()
+    results_per_os_x_arch = {}
     platforms = platforms if platforms else CI_TESTED_OS_AND_ARCH
     platforms = [p.split(',') for p in platforms]
     for tested_os, tested_arch in platforms:
@@ -66,7 +66,7 @@ def show_linters_issues(
     """
     This function displays the list of files that need fixing for a specific team and for specific linters.
 
-        Example: inv show-linters-issues --filter-team "@DataDog/agent-ci-experience" --filter-linters "revive" --platforms "linux,amd64" --platforms "linux,arm64"
+        Example: inv show-linters-issues --filter-team "@DataDog/agent-devx-infra" --filter-linters "revive" --platforms "linux,amd64" --platforms "linux,arm64"
 
         Parameters:
             team (str): keep only the files owned by a team. These are Github team names from the GITHUB_SLACK_MAP variable.

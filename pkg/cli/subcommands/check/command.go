@@ -30,8 +30,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger/jmxloggerimpl"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
-	internalAPI "github.com/DataDog/datadog-agent/comp/api/api"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl"
+	internalAPI "github.com/DataDog/datadog-agent/comp/api/api/def"
 	authtokenimpl "github.com/DataDog/datadog-agent/comp/api/authtoken/createandfetchimpl"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core"
@@ -128,6 +128,7 @@ type cliParams struct {
 // are not valid until Cobra calls the subcommand's Run or RunE function.
 type GlobalParams struct {
 	ConfFilePath         string
+	ExtraConfFilePaths   []string
 	SysProbeConfFilePath string
 	ConfigName           string
 	LoggerName           string
@@ -153,7 +154,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 			return fxutil.OneShot(run,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams:         config.NewAgentParams(globalParams.ConfFilePath, config.WithConfigName(globalParams.ConfigName)),
+					ConfigParams:         config.NewAgentParams(globalParams.ConfFilePath, config.WithConfigName(globalParams.ConfigName), config.WithExtraConfFiles(globalParams.ExtraConfFilePaths)),
 					SecretParams:         secrets.NewEnabledParams(),
 					SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath)),
 					LogParams:            logimpl.ForOneShot(globalParams.LoggerName, "off", true)}),
@@ -328,11 +329,11 @@ func run(
 			fmt.Println("Please consider using the 'jmx' command instead of 'check jmx'")
 			selectedChecks := []string{cliParams.checkName}
 			if cliParams.checkRate {
-				if err := standalone.ExecJmxListWithRateMetricsJSON(selectedChecks, config.GetString("log_level"), allConfigs, demultiplexer, agentAPI, jmxLogger); err != nil {
+				if err := standalone.ExecJmxListWithRateMetricsJSON(selectedChecks, config.GetString("log_level"), allConfigs, agentAPI, jmxLogger); err != nil {
 					return fmt.Errorf("while running the jmx check: %v", err)
 				}
 			} else {
-				if err := standalone.ExecJmxListWithMetricsJSON(selectedChecks, config.GetString("log_level"), allConfigs, demultiplexer, agentAPI, jmxLogger); err != nil {
+				if err := standalone.ExecJmxListWithMetricsJSON(selectedChecks, config.GetString("log_level"), allConfigs, agentAPI, jmxLogger); err != nil {
 					return fmt.Errorf("while running the jmx check: %v", err)
 				}
 			}

@@ -22,10 +22,12 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
+	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/postgres"
+	protocolsUtils "github.com/DataDog/datadog-agent/pkg/network/protocols/testutil"
 	gotlstestutil "github.com/DataDog/datadog-agent/pkg/network/protocols/tls/gotls/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 )
@@ -87,7 +89,7 @@ func (s *postgresProtocolParsingSuite) TestLoadPostgresBinary() {
 	t := s.T()
 	for name, debug := range map[string]bool{"enabled": true, "disabled": false} {
 		t.Run(name, func(t *testing.T) {
-			cfg := getPostgresDefaultTestConfiguration(postgres.TLSDisabled)
+			cfg := getPostgresDefaultTestConfiguration(protocolsUtils.TLSDisabled)
 			cfg.BPFDebug = debug
 			setupUSMTLSMonitor(t, cfg)
 		})
@@ -158,6 +160,11 @@ func testDecoding(t *testing.T, isTLS bool) {
 		return count * 2
 	}
 
+	monitor := setupUSMTLSMonitor(t, getPostgresDefaultTestConfiguration(isTLS))
+	if isTLS {
+		utils.WaitForProgramsToBeTraced(t, "go-tls", os.Getpid())
+	}
+
 	tests := []postgresParsingTestAttributes{
 		{
 			name: "create table",
@@ -179,7 +186,7 @@ func testDecoding(t *testing.T, isTLS bool) {
 					"dummy": {
 						postgres.CreateTableOP: adjustCount(1),
 					},
-				})
+				}, isTLS)
 			},
 		},
 		{
@@ -207,7 +214,7 @@ func testDecoding(t *testing.T, isTLS bool) {
 					"dummy": {
 						postgres.InsertOP: adjustCount(2),
 					},
-				})
+				}, isTLS)
 			},
 		},
 		{
@@ -232,7 +239,7 @@ func testDecoding(t *testing.T, isTLS bool) {
 					"dummy": {
 						postgres.UpdateOP: adjustCount(1),
 					},
-				})
+				}, isTLS)
 			},
 		},
 		{
@@ -257,7 +264,7 @@ func testDecoding(t *testing.T, isTLS bool) {
 					"dummy": {
 						postgres.SelectOP: adjustCount(1),
 					},
-				})
+				}, isTLS)
 			},
 		},
 		{
@@ -281,7 +288,7 @@ func testDecoding(t *testing.T, isTLS bool) {
 					"dummy": {
 						postgres.DeleteTableOP: adjustCount(1),
 					},
-				})
+				}, isTLS)
 			},
 		},
 		{
@@ -305,7 +312,7 @@ func testDecoding(t *testing.T, isTLS bool) {
 					"dummy": {
 						postgres.AlterTableOP: adjustCount(1),
 					},
-				})
+				}, isTLS)
 			},
 		},
 		{
@@ -329,7 +336,7 @@ func testDecoding(t *testing.T, isTLS bool) {
 					"dummy": {
 						postgres.TruncateTableOP: adjustCount(1),
 					},
-				})
+				}, isTLS)
 			},
 		},
 		{
@@ -352,7 +359,7 @@ func testDecoding(t *testing.T, isTLS bool) {
 					"dummy": {
 						postgres.DropTableOP: adjustCount(1),
 					},
-				})
+				}, isTLS)
 			},
 		},
 		{
@@ -389,7 +396,7 @@ func testDecoding(t *testing.T, isTLS bool) {
 						postgres.InsertOP:      adjustCount(20),
 						postgres.CreateTableOP: adjustCount(1),
 					},
-				})
+				}, isTLS)
 			},
 		},
 		{
@@ -417,7 +424,7 @@ func testDecoding(t *testing.T, isTLS bool) {
 					"table_table_table_table_table_table_table_t": {
 						postgres.DropTableOP: adjustCount(1),
 					},
-				})
+				}, isTLS)
 			},
 		},
 		{
@@ -446,7 +453,7 @@ func testDecoding(t *testing.T, isTLS bool) {
 					"dummy": {
 						postgres.SelectOP: adjustCount(2),
 					},
-				})
+				}, isTLS)
 			},
 		},
 	}
@@ -467,14 +474,14 @@ func testDecoding(t *testing.T, isTLS bool) {
 				pg := pgEntry.(*postgres.PGXClient)
 				defer pg.Close()
 				_ = pg.RunQuery(dropTableQuery)
+				cleanProtocolMaps(t, "postgres", monitor.ebpfProgram.Manager.Manager)
 			})
+			require.NoError(t, monitor.Pause())
 			if tt.preMonitorSetup != nil {
 				tt.preMonitorSetup(t, tt.context)
 			}
-			monitor := setupUSMTLSMonitor(t, getPostgresDefaultTestConfiguration(isTLS))
-			if isTLS {
-				utils.WaitForProgramsToBeTraced(t, "go-tls", os.Getpid())
-			}
+			require.NoError(t, monitor.Resume())
+
 			obj, ok := tt.context.extras["pg"]
 			require.True(t, ok)
 			pgClient := obj.(*postgres.PGXClient)
@@ -483,6 +490,7 @@ func testDecoding(t *testing.T, isTLS bool) {
 			// That's a workaround until we can classify the 'Parse' message.
 			require.NoError(t, pgClient.Ping())
 			tt.postMonitorSetup(t, tt.context)
+			require.NoError(t, monitor.Pause())
 			tt.validation(t, tt.context, monitor)
 		})
 	}
@@ -511,7 +519,7 @@ func (s *postgresProtocolParsingSuite) TestCleanupEBPFEntriesOnTermination() {
 	t := s.T()
 
 	// Creating the monitor
-	monitor := setupUSMTLSMonitor(t, getPostgresDefaultTestConfiguration(postgres.TLSDisabled))
+	monitor := setupUSMTLSMonitor(t, getPostgresDefaultTestConfiguration(protocolsUtils.TLSDisabled))
 
 	wg := sync.WaitGroup{}
 
@@ -561,10 +569,11 @@ func getPostgresDefaultTestConfiguration(enableTLS bool) *config.Config {
 	// If GO TLS is enabled, we need to allow self traffic to be captured.
 	// If GO TLS is disabled, the value is irrelevant.
 	cfg.GoTLSExcludeSelf = false
+	cfg.BypassEnabled = true
 	return cfg
 }
 
-func validatePostgres(t *testing.T, monitor *Monitor, expectedStats map[string]map[postgres.Operation]int) {
+func validatePostgres(t *testing.T, monitor *Monitor, expectedStats map[string]map[postgres.Operation]int, tls bool) {
 	found := make(map[string]map[postgres.Operation]int)
 	require.Eventually(t, func() bool {
 		postgresProtocolStats, exists := monitor.GetProtocolStats()[protocols.Postgres]
@@ -574,6 +583,10 @@ func validatePostgres(t *testing.T, monitor *Monitor, expectedStats map[string]m
 		// We might not have postgres stats, and it might be the expected case (to capture 0).
 		currentStats := postgresProtocolStats.(map[postgres.Key]*postgres.RequestStat)
 		for key, stats := range currentStats {
+			hasTLSTag := stats.StaticTags&network.ConnTagGo != 0
+			if hasTLSTag != tls {
+				continue
+			}
 			if _, ok := found[key.TableName]; !ok {
 				found[key.TableName] = make(map[postgres.Operation]int)
 			}

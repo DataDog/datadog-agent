@@ -26,6 +26,8 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/executable"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -111,7 +113,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		return fxutil.OneShot(callback,
 			fx.Supply(cliParams),
 			fx.Supply(core.BundleParams{
-				ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithConfigMissingOK(true))}),
+				ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithConfigMissingOK(true), config.WithExtraConfFiles(globalParams.ExtraConfFilePath)),
+				LogParams:    logimpl.ForOneShot(command.LoggerName, "off", true),
+			}),
 			core.Bundle(),
 		)
 	}
@@ -365,7 +369,7 @@ func pip(cliParams *cliParams, args []string, stdout io.Writer, stderr io.Writer
 	return nil
 }
 
-func install(config config.Component, cliParams *cliParams) error {
+func install(config config.Component, cliParams *cliParams, _ log.Component) error {
 	if err := loadPythonInfo(config, cliParams); err != nil {
 		return err
 	}
@@ -862,7 +866,7 @@ func moveConfigurationFiles(srcFolder string, dstFolder string) error {
 	return nil
 }
 
-func remove(config config.Component, cliParams *cliParams) error {
+func remove(config config.Component, cliParams *cliParams, _ log.Component) error {
 	if err := loadPythonInfo(config, cliParams); err != nil {
 		return err
 	}
@@ -886,7 +890,7 @@ func remove(config config.Component, cliParams *cliParams) error {
 	return pip(cliParams, pipArgs, os.Stdout, os.Stderr)
 }
 
-func list(config config.Component, cliParams *cliParams) error {
+func list(config config.Component, cliParams *cliParams, _ log.Component) error {
 	if err := loadPythonInfo(config, cliParams); err != nil {
 		return err
 	}
@@ -913,7 +917,7 @@ func list(config config.Component, cliParams *cliParams) error {
 	return nil
 }
 
-func show(config config.Component, cliParams *cliParams) error {
+func show(config config.Component, cliParams *cliParams, _ log.Component) error {
 	if err := loadPythonInfo(config, cliParams); err != nil {
 		return err
 	}

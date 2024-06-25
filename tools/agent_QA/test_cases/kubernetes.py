@@ -7,7 +7,7 @@ class K8CollectAllDocker(TestCase):
     def build(self, config):  # noqa: U100
         self.append(
             """
-# Setup 
+# Setup
 
 Run an agent pod with and configure the agent to tail docker socket and set:
 
@@ -34,8 +34,8 @@ class K8DockerContainerLabels(TestCase):
 
     def build(self, config):  # noqa: U100
         self.append(
-            """ 
-# Setup 
+            """
+# Setup
 Logs agent AD configured using docker labels on K8s (labels set directly on the container via a Dockerfile, instead of pod annotations).
 
 **Not supported yet** see https://datadoghq.atlassian.net/browse/AC-1530
@@ -43,7 +43,7 @@ Logs agent AD configured using docker labels on K8s (labels set directly on the 
 ------
 # Test
 
-- Collect all activated => Source and service are properly set 
+- Collect all activated => Source and service are properly set
 - Collect all disabled => Source and service are properly set and only this container is collected
 - Check that processing rules are working in AD labels:  `com.datadoghq.ad.logs: '[{"source": "java", "service": "myapp", "log_processing_rules": [{"type": "multi_line", "name": "log_start_with_date", "pattern" : "\\d{4}\\-(0?[1-9]|1[012])\\-(0?[1-9]|[12][0-9]|3[01])"}]}]'``
 
@@ -56,7 +56,7 @@ class K8CollectAll(TestCase):
 
     def build(self, config):  # noqa: U100
         self.append(
-            """ 
+            """
 
 # Setup
 
@@ -66,7 +66,7 @@ Deploy a pod using K8s AD annotations to enable logs collection: https://app.dat
 
 Check if annotation works on its own, and with container_collect_all enabled, exclusion, and few corner cases (see checklist)
 
-Example setup: https://github.com/DataDog/croissant-integration-resources/tree/master/logs-agent/qa/kubernetes/ad-pod-annotations 
+Example setup: https://github.com/DataDog/croissant-integration-resources/tree/master/logs-agent/qa/kubernetes/ad-pod-annotations
 
 - [k8s+docker] All logs from all containers are collected when `DD_LOGS_CONFIG_CONTAINER_COLLECT_ALL=true` set.
 - [k8s+docker] All logs are properly tagged with container metadata
@@ -84,7 +84,7 @@ class K8PodAnnotation(TestCase):
 
     def build(self, config):  # noqa: U100
         self.append(
-            """ 
+            """
 # Setup
 Example setup: https://github.com/DataDog/croissant-integration-resources/tree/master/logs-agent/qa/kubernetes/ad-pod-annotations
 
@@ -93,7 +93,7 @@ Example setup: https://github.com/DataDog/croissant-integration-resources/tree/m
 
 Check the following both for the logged pod starting before the agent, and for the logged pod starting after the agent.
 
-- containerCollectAll: true => Source and service are properly set 
+- containerCollectAll: true => Source and service are properly set
 - containerCollectAll: false => Source and service are properly set and only the annotated container is collected
 - Check that processing rules are working in AD labels (the `logs-source` pod should have `one\ntwo\nthree` in its `agent stream-logs` output)
 
@@ -106,7 +106,7 @@ class K8FileTailingAnnotation(TestCase):
 
     def build(self, config):  # noqa: U100
         self.append(
-            """ 
+            """
 # Setup
 ```
 apiVersion: v1
@@ -128,7 +128,7 @@ spec:
 
 Check that the following combination are working as expected:
 
- * Single log config in the annotation with and without `container_collect_all` 
+ * Single log config in the annotation with and without `container_collect_all`
  * Two log config : one for the container itself (no type in the config) and the other for the file
  * Single log config for the container
 

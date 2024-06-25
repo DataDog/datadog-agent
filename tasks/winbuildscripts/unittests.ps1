@@ -65,12 +65,14 @@ if($err -ne 0){
 
 # Upload coverage reports to Codecov
 $Env:CODECOV_TOKEN=$(& "$UT_BUILD_ROOT\tools\ci\aws_ssm_get_wrapper.ps1" $Env:CODECOV_TOKEN_SSM_NAME)
-& inv -e codecov
+& inv -e coverage.upload-to-codecov $Env:COVERAGE_CACHE_FLAG
 
 $ErrorActionPreference = "Continue" # Ignore upload errors now, until we change the logic to ignore empty files in the upload script
-$Env:DATADOG_API_KEY=$(& "$UT_BUILD_ROOT\tools\ci\aws_ssm_get_wrapper.ps1" $Env:API_KEY_ORG2_SSM_NAME)
-Get-ChildItem -Path "$UT_BUILD_ROOT" -Filter "junit-*.tgz" -Recurse | ForEach-Object {
-    $outputFilePath = "upload_output.txt"
-    inv -e junit-upload --tgz-path $_.FullName > $outputFilePath
+# Copy test files to c:\mnt for further gitlab upload
+Get-ChildItem -Path "$UT_BUILD_ROOT" -Filter "junit-out-*.xml" -Recurse | ForEach-Object {
+    Copy-Item -Path $_.FullName -Destination C:\mnt
 }
+$Env:DATADOG_API_KEY=$(& "$UT_BUILD_ROOT\tools\ci\aws_ssm_get_wrapper.ps1" $Env:API_KEY_ORG2_SSM_NAME)
+$Env:GITLAB_TOKEN=$(& "$UT_BUILD_ROOT\tools\ci\aws_ssm_get_wrapper.ps1" $Env:GITLAB_TOKEN_SSM_NAME)
+& inv -e junit-upload --tgz-path $Env:JUNIT_TAR
 
