@@ -48,7 +48,7 @@ func checkPoliciesCommands(globalParams *command.GlobalParams) []*cobra.Command 
 }
 
 // reloadPoliciesCommands is deprecated
-func reloadPoliciesCommands(globalParams *command.GlobalParams) []*cobra.Command {
+func reloadPoliciesCommands(_ *command.GlobalParams) []*cobra.Command {
 	reloadPoliciesCmd := &cobra.Command{
 		Use:   "reload",
 		Short: "Reload policies",

@@ -62,7 +62,7 @@ func activityDumpCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{activityDumpCmd}
 }
 
-func listCommands(globalParams *command.GlobalParams) []*cobra.Command {
+func listCommands(_ *command.GlobalParams) []*cobra.Command {
 	activityDumpListCmd := &cobra.Command{
 		Use:   "list",
 		Short: "get the list of running activity dumps",

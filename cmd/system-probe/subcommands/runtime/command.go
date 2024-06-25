@@ -148,7 +148,7 @@ func commonCheckPoliciesCommands(globalParams *command.GlobalParams) []*cobra.Co
 	return []*cobra.Command{commonCheckPoliciesCmd}
 }
 
-func commonReloadPoliciesCommands(globalParams *command.GlobalParams) []*cobra.Command {
+func commonReloadPoliciesCommands(_ *command.GlobalParams) []*cobra.Command {
 	commonReloadPoliciesCmd := &cobra.Command{
 		Use:   "reload",
 		Short: "Reload policies",
@@ -166,7 +166,7 @@ func commonReloadPoliciesCommands(globalParams *command.GlobalParams) []*cobra.C
 }
 
 // nolint: deadcode, unused
-func selfTestCommands(globalParams *command.GlobalParams) []*cobra.Command {
+func selfTestCommands(_ *command.GlobalParams) []*cobra.Command {
 	selfTestCmd := &cobra.Command{
 		Use:   "self-test",
 		Short: "Run runtime self test",
@@ -296,7 +296,7 @@ func networkNamespaceCommands(globalParams *command.GlobalParams) []*cobra.Comma
 }
 
 //nolint:unused // TODO(SEC) Fix unused linter
-func discardersCommands(globalParams *command.GlobalParams) []*cobra.Command {
+func discardersCommands(_ *command.GlobalParams) []*cobra.Command {
 
 	dumpDiscardersCmd := &cobra.Command{
 		Use:   "dump",
