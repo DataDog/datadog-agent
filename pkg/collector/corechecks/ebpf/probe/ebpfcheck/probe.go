@@ -22,7 +22,6 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/asm"
-	"github.com/cilium/ebpf/btf"
 	"github.com/cilium/ebpf/features"
 	"github.com/cilium/ebpf/link"
 	"github.com/cilium/ebpf/rlimit"
@@ -57,6 +56,8 @@ type Probe struct {
 	links                 []link.Link
 	mapBuffers            entryCountBuffers
 	entryCountMaxRestarts int
+
+	mphCache *mapProgHelperCache
 
 	nrcpus uint32
 }
@@ -96,6 +97,8 @@ func NewProbe(cfg *ddebpf.Config) (*Probe, error) {
 	probe.mapBuffers.valuesBufferSizeLimit = uint32(ddconfig.SystemProbe.GetInt("ebpf_check.entry_count.max_values_buffer_size_bytes"))
 	probe.mapBuffers.iterationRestartDetectionEntries = ddconfig.SystemProbe.GetInt("ebpf_check.entry_count.entries_for_iteration_restart_detection")
 	probe.entryCountMaxRestarts = ddconfig.SystemProbe.GetInt("ebpf_check.entry_count.max_restarts")
+
+	probe.mphCache = newMapProgHelperCache()
 
 	log.Debugf("successfully loaded ebpf check probe")
 	return probe, nil
@@ -203,6 +206,9 @@ func (k *Probe) Close() {
 			log.Warnf("error unlinking program: %s", err)
 		}
 	}
+
+	k.mphCache.Close()
+
 	k.coll.Close()
 	if k.statsFD != nil {
 		_ = k.statsFD.Close()
@@ -367,7 +373,7 @@ func (k *Probe) getMapStats(stats *model.EBPFStats) error {
 			if module != "unknown" {
 				// hashMapNumberOfEntries might allocate memory, so we only do it if we have a module name, as
 				// unknown modules get discarded anyway (only RSS is used for total counts)
-				baseMapStats.Entries = hashMapNumberOfEntries(mp, &k.mapBuffers, k.entryCountMaxRestarts)
+				baseMapStats.Entries = hashMapNumberOfEntries(mp, mapid, k.mphCache, &k.mapBuffers, k.entryCountMaxRestarts)
 			}
 		case ebpf.Array, ebpf.PerCPUArray, ebpf.ProgramArray, ebpf.CGroupArray, ebpf.ArrayOfMaps:
 			baseMapStats.MaxSize, baseMapStats.RSS = arrayMemoryUsage(info, uint64(k.nrcpus))
@@ -396,6 +402,9 @@ func (k *Probe) getMapStats(stats *model.EBPFStats) error {
 	}
 	// Allow the maps to be garbage collected
 	k.mapBuffers.resetBuffers()
+
+	// Close unused programs in the prog helper cache
+	k.mphCache.closeUnusedPrograms()
 
 	return nil
 }
@@ -895,15 +904,15 @@ func hashMapNumberOfEntriesWithIteration(mp *ebpf.Map, buffers *entryCountBuffer
 	return numElements, nil
 }
 
-func hashMapNumberOfEntries(mp *ebpf.Map, buffers *entryCountBuffers, maxRestarts int) int64 {
+func hashMapNumberOfEntries(mp *ebpf.Map, mapid ebpf.MapID, mphCache *mapProgHelperCache, buffers *entryCountBuffers, maxRestarts int) int64 {
 	if isPerCPU(mp.Type()) {
 		return -1
 	}
 
 	var numElements int64
 	var err error
-	if isForEachElemHelperAvailable() && mp.Type() != ebpf.HashOfMaps {
-		numElements, err = hashMapNumberOfEntriesWithHelper(mp)
+	if mphCache != nil && isForEachElemHelperAvailable() && mp.Type() != ebpf.HashOfMaps && mapid != 0 {
+		numElements, err = hashMapNumberOfEntriesWithHelper(mp, mapid, mphCache)
 	} else if ddmaps.BatchAPISupported() && mp.Type() != ebpf.HashOfMaps { // HashOfMaps doesn't work with batch API
 		numElements, err = hashMapNumberOfEntriesWithBatch(mp, buffers, maxRestarts)
 	} else {
@@ -921,113 +930,11 @@ func isForEachElemHelperAvailable() bool {
 	return features.HaveProgramHelper(ebpf.SocketFilter, asm.FnForEachMapElem) == nil
 }
 
-func hashMapNumberOfEntriesWithHelper(mp *ebpf.Map) (int64, error) {
-	entryBtf := &btf.Func{
-		Name: "entry",
-		Type: &btf.FuncProto{
-			Return: &btf.Int{
-				Name:     "int",
-				Size:     4,
-				Encoding: btf.Signed,
-			},
-		},
-	}
-
-	u64Btf := &btf.Int{
-		Name:     "long",
-		Size:     8,
-		Encoding: btf.Unsigned,
-	}
-
-	callbackBtf := &btf.Func{
-		Name: "callback",
-		Type: &btf.FuncProto{
-			Return: u64Btf,
-			Params: []btf.FuncParam{
-				{
-					Name: "map",
-					Type: u64Btf,
-				},
-				{
-					Name: "key",
-					Type: u64Btf,
-				},
-				{
-					Name: "value",
-					Type: u64Btf,
-				},
-				{
-					Name: "ctx",
-					Type: u64Btf,
-				},
-			},
-		},
-	}
-
-	/*
-		equivalent to the following C code, based on the fact that `for_each_map_elem`
-		returns the amount of entries visited, so visiting all the entries ensures we
-		get the amount of entries in the map.
-
-		int callback(struct bpf_map* map, const void* key, void* value, void * ctx) {
-			return 0;
-		}
-
-		int entry() {
-			return bpf_for_each_map_elem(fd, callback, NULL, 0);
-		}
-	*/
-
-	spec := &ebpf.ProgramSpec{
-		Type: ebpf.SocketFilter,
-		Instructions: asm.Instructions{
-			// entry
-			btf.WithFuncMetadata(
-				asm.LoadMapPtr(asm.R1, mp.FD()), // map fd
-				entryBtf,
-			),
-			asm.Instruction{
-				OpCode:   asm.LoadImmOp(asm.DWord),
-				Src:      asm.PseudoFunc,
-				Dst:      asm.R2,
-				Constant: -1,
-			}.WithReference("callback"),
-			asm.LoadImm(asm.R3, 0, asm.DWord), // callback ctx
-			asm.LoadImm(asm.R4, 0, asm.DWord), // flags
-			asm.FnForEachMapElem.Call(),
-
-			asm.Instruction{
-				OpCode: asm.Exit.Op(asm.ImmSource),
-			},
-
-			// callback
-			btf.WithFuncMetadata(
-				asm.LoadImm(asm.R0, 0, asm.DWord).WithSymbol("callback"),
-				callbackBtf,
-			),
-			asm.Instruction{
-				OpCode: asm.Exit.Op(asm.ImmSource),
-			},
-		},
-		License: "GPL",
-	}
-
-	prog, err := ebpf.NewProgramWithOptions(spec, ebpf.ProgramOptions{
-		LogDisabled: true,
-	})
+func hashMapNumberOfEntriesWithHelper(mp *ebpf.Map, mapid ebpf.MapID, mphCache *mapProgHelperCache) (int64, error) {
+	prog, err := mphCache.newCachedProgramForMap(mp, mapid)
 	if err != nil {
 		return 0, err
 	}
-
-	info, err := prog.Info()
-	if err != nil {
-		log.Warnf("failed to fetch info for helper program: %v", err)
-	} else if id, ok := info.ID(); ok {
-		ddebpf.AddIgnoredProgramID(id)
-		defer ddebpf.RemoveIgnoredProgramID(id)
-	}
-
-	defer prog.Close()
 
 	res, _, err := prog.Test(make([]byte, 32))
 	if err != nil {
