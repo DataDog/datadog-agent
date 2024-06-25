@@ -15,38 +15,37 @@ LICENSE_HEADER = """// Unless explicitly stated otherwise all files in this repo
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 """
-OCB_VERSION = "v0.103.1"
+OCB_VERSION = "0.103.1"
+
+BASE_URL = f"https://github.com/open-telemetry/opentelemetry-collector/releases/download/cmd%2Fbuilder%2Fv{OCB_VERSION}/"
+
+BINARY_NAMES_BY_SYSTEM_AND_ARCH = {
+    "Linux": {
+        "x86_64": f"ocb_{OCB_VERSION}_linux_amd64",
+        "arm64": f"ocb_{OCB_VERSION}_linux_arm64",
+        "aarch64": f"ocb_{OCB_VERSION}_linux_arm64",
+    },
+    "Darwin": {
+        "x86_64": f"ocb_{OCB_VERSION}_darwin_amd64",
+        "arm64": f"ocb_{OCB_VERSION}_darwin_arm64",
+    },
+}
 
 
 @task(post=[tidy, generate_licenses])
 def generate(ctx):
     arch = platform.machine()
     system = platform.system()
-    base_url = (
-        f"https://github.com/open-telemetry/opentelemetry-collector/releases/download/cmd%2Fbuilder%2F{OCB_VERSION}/"
-    )
 
-    if system == "Linux":
-        if arch == "x86_64":
-            binary_name = "ocb_0.103.1_linux_amd64"
-        elif arch == "arm64" or arch == "aarch64":
-            binary_name = "ocb_0.103.1_linux_arm64"
-        else:
-            print(f"Unsupported architecture: {arch}")
-            return
-    elif system == "Darwin":
-        if arch == "x86_64":
-            binary_name = "ocb_0.103.1_darwin_amd64"
-        elif arch == "arm64":
-            binary_name = "ocb_0.103.1_darwin_arm64"
-        else:
-            print(f"Unsupported architecture: {arch}")
-            return
-    else:
+    if system not in BINARY_NAMES_BY_SYSTEM_AND_ARCH:
         print(f"Unsupported system: {system}")
         return
+    if arch not in BINARY_NAMES_BY_SYSTEM_AND_ARCH[system]:
+        print(f"Unsupported architecture: {arch}")
+        return
+    binary_name = BINARY_NAMES_BY_SYSTEM_AND_ARCH[system][arch]
 
-    binary_url = f"{base_url}{binary_name}"
+    binary_url = f"{BASE_URL}{binary_name}"
 
     with tempfile.TemporaryDirectory() as tmpdirname:
         binary_path = os.path.join(tmpdirname, binary_name)
@@ -105,4 +104,6 @@ def generate(ctx):
                 with open(file_path, "w") as f:
                     f.write(content)
 
-                print(f"Updated package name and ensured license header in: {file_path}")
+                print(
+                    f"Updated package name and ensured license header in: {file_path}"
+                )
