@@ -381,8 +381,7 @@ func (r *RemoteSysProbeUtil) GetPprof(path string) ([]byte, error) {
 
 // GetServiceDiscoveryOpenPorts returns open ports from system-probe.
 func (r *RemoteSysProbeUtil) GetServiceDiscoveryOpenPorts(ctx context.Context) (*servicediscoverymodel.OpenPortsResponse, error) {
-	url := serviceDiscoveryOpenPortsURL
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, serviceDiscoveryOpenPortsURL, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -394,7 +393,7 @@ func (r *RemoteSysProbeUtil) GetServiceDiscoveryOpenPorts(ctx context.Context) (
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("got non-success status code: path %s, url: %s, status_code: %d", r.path, url, resp.StatusCode)
+		return nil, fmt.Errorf("got non-success status code: path %s, url: %s, status_code: %d", r.path, serviceDiscoveryOpenPortsURL, resp.StatusCode)
 	}
 
 	res := &servicediscoverymodel.OpenPortsResponse{}
@@ -407,7 +406,7 @@ func (r *RemoteSysProbeUtil) GetServiceDiscoveryOpenPorts(ctx context.Context) (
 // GetServiceDiscoveryProc returns proc information from system-probe.
 func (r *RemoteSysProbeUtil) GetServiceDiscoveryProc(ctx context.Context, pid int) (*servicediscoverymodel.GetProcResponse, error) {
 	url := fmt.Sprintf(serviceDiscoveryGetProcURL, pid)
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err
 	}

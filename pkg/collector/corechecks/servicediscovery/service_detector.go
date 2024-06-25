@@ -76,16 +76,12 @@ func (sd *serviceDetector) Detect(p processInfo) serviceMetadata {
 }
 
 func ensureEnvWithPWD(env []string, cwd string) []string {
-	hasPWD := false
 	for _, v := range env {
 		n := strings.Split(v, "=")[0]
 		if n == "PWD" {
-			hasPWD = true
-			break
+			return env
 		}
 	}
-	if !hasPWD {
-		env = append(env, fmt.Sprintf("PWD=%s", cwd))
-	}
+	env = append(env, fmt.Sprintf("PWD=%s", cwd))
 	return env
 }
