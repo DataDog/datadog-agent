@@ -120,9 +120,11 @@ func (d *daemonImpl) GetAPMInjectionStatus() (status APMInjectionStatus, err err
 	// Host is instrumented if the ld.so.preload file contains the apm injector
 	ldPreloadContent, err := os.ReadFile("/etc/ld.so.preload")
 	if err != nil {
-		return status, nil
+		if errors.Is(err, os.ErrNotExist) {
+			return status, nil
+		}
+		return status, fmt.Errorf("could not read /etc/ld.so.preload: %w", err)
 	}
-	status.LdPreloadAvailable = true
 	if bytes.Contains(ldPreloadContent, []byte("/opt/datadog-packages/datadog-apm-inject/stable/inject")) {
 		status.HostInstrumented = true
 	}

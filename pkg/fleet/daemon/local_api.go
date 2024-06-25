@@ -38,7 +38,6 @@ type APMInjectionStatus struct {
 	HostInstrumented   bool `json:"host_instrumented"`
 	DockerInstalled    bool `json:"docker_installed"`
 	DockerInstrumented bool `json:"docker_instrumented"`
-	LdPreloadAvailable bool `json:"ld_preload_available"`
 }
 
 // APIResponse is the response to an API request.
