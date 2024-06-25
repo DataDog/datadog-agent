@@ -129,3 +129,4 @@ repos:
       entry: 'inv modules.validate'
       language: system
       pass_filenames: false
+      files: .*go\.mod$

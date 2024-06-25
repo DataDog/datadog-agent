@@ -2,6 +2,7 @@ import os
 import subprocess
 import sys
 from contextlib import contextmanager
+from pathlib import Path
 
 from invoke import Context, Exit, task
 
@@ -276,17 +277,17 @@ DEFAULT_MODULES = {
 # Folder containing a `go.mod` file but that should not be added to the DEFAULT_MODULES
 IGNORED_MODULE_PATHS = [
     # Test files
-    "./internal/tools/modparser/testdata/badformat",
-    "./internal/tools/modparser/testdata/match",
-    "./internal/tools/modparser/testdata/nomatch",
-    "./internal/tools/modparser/testdata/patchgoversion",
+    Path("./internal/tools/modparser/testdata/badformat"),
+    Path("./internal/tools/modparser/testdata/match"),
+    Path("./internal/tools/modparser/testdata/nomatch"),
+    Path("./internal/tools/modparser/testdata/patchgoversion"),
     # This `go.mod` is a hack
-    "./pkg/process/procutil/resources",
+    Path("./pkg/process/procutil/resources"),
     # We have test files in the tasks folder
-    "./tasks",
+    Path("./tasks"),
     # Test files
-    "./test/integration/serverless/recorder-extension",
-    "./test/integration/serverless/src",
+    Path("./test/integration/serverless/recorder-extension"),
+    Path("./test/integration/serverless/src"),
 ]
 
 MAIN_TEMPLATE = """package main
@@ -389,12 +390,13 @@ def validate(_: Context):
     Test if every module was properly added in the DEFAULT_MODULES list.
     """
     missing_modules: list[str] = []
+    default_modules_paths = {Path(p) for p in DEFAULT_MODULES}
 
     # Find all go.mod files and make sure they are registered in DEFAULT_MODULES
     for root, dirs, files in os.walk("."):
-        dirs[:] = [d for d in dirs if root + '/' + d not in IGNORED_MODULE_PATHS]
+        dirs[:] = [d for d in dirs if Path(root) / d not in IGNORED_MODULE_PATHS]
 
-        if "go.mod" in files and root.removeprefix("./") not in DEFAULT_MODULES:
+        if "go.mod" in files and Path(root) not in default_modules_paths:
             missing_modules.append(root)
 
     if missing_modules:
