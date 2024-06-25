@@ -18,12 +18,12 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func newPodStore(ctx context.Context, wlm workloadmeta.Component, client kubernetes.Interface) (*cache.Reflector, *reflectorStore) {
+func newPodStore(ctx context.Context, wlm workloadmeta.Component, config config.Reader, client kubernetes.Interface) (*cache.Reflector, *reflectorStore) {
 	podListerWatcher := &cache.ListWatch{
 		ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
 			return client.CoreV1().Pods(metav1.NamespaceAll).List(ctx, options)
@@ -33,7 +33,7 @@ func newPodStore(ctx context.Context, wlm workloadmeta.Component, client kuberne
 		},
 	}
 
-	podStore := newPodReflectorStore(wlm)
+	podStore := newPodReflectorStore(wlm, config)
 	podReflector := cache.NewNamedReflector(
 		componentName,
 		podListerWatcher,
@@ -45,8 +45,8 @@ func newPodStore(ctx context.Context, wlm workloadmeta.Component, client kuberne
 	return podReflector, podStore
 }
 
-func newPodReflectorStore(wlmetaStore workloadmeta.Component) *reflectorStore {
-	annotationsExclude := config.Datadog().GetStringSlice("cluster_agent.kubernetes_resources_collection.pod_annotations_exclude")
+func newPodReflectorStore(wlmetaStore workloadmeta.Component, config config.Reader) *reflectorStore {
+	annotationsExclude := config.GetStringSlice("cluster_agent.kubernetes_resources_collection.pod_annotations_exclude")
 	parser, err := newPodParser(annotationsExclude)
 	if err != nil {
 		_ = log.Errorf("unable to parse all pod_annotations_exclude: %v, err:", err)
