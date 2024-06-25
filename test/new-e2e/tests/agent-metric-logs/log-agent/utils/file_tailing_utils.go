@@ -102,17 +102,15 @@ func CheckLogFilePresence(ls LogsTestSuite, logFileName string) {
 
 	switch ls.Env().RemoteHost.OSFamily {
 	case os.WindowsFamily:
-		checkCmd := fmt.Sprintf("Get-Content %s\\%s", WindowsLogsFolderPath, logFileName)
-		_, err := ls.Env().RemoteHost.Execute(checkCmd)
-		if err != nil {
-			assert.FailNow(t, "Log File not found")
-		}
+		logPath := fmt.Sprintf("%s\\%s", WindowsLogsFolderPath, logFileName)
+		logExists, err := ls.Env().RemoteHost.FileExists(logPath)
+		assert.NoError(t, err)
+		assert.True(t, logExists)
 	default: // Assuming Linux if not Windows.
-		checkCmd := fmt.Sprintf("sudo cat %s/%s", LinuxLogsFolderPath, logFileName)
-		_, err := ls.Env().RemoteHost.Execute(checkCmd)
-		if err != nil {
-			assert.FailNow(t, "Log File not found")
-		}
+		logPath := fmt.Sprintf("%s/%s", LinuxLogsFolderPath, logFileName)
+		logExists, err := ls.Env().RemoteHost.FileExists(logPath)
+		assert.NoError(t, err)
+		assert.True(t, logExists)
 	}
 }
 
@@ -180,7 +178,8 @@ func CleanUp(ls LogsTestSuite) {
 	if ls.IsDevMode() {
 		switch ls.Env().RemoteHost.OSFamily {
 		default: // default is linux
-			ls.Env().RemoteHost.MustExecute(fmt.Sprintf("sudo rm -rf %s", LinuxLogsFolderPath))
+			err := ls.Env().RemoteHost.Remove(LinuxLogsFolderPath)
+			require.NoError(t, err, "Unable to remove linux log file")
 			checkCmd = fmt.Sprintf("ls %s 2>/dev/null || echo 'Files do not exist'", LinuxLogsFolderPath)
 		case os.WindowsFamily:
 			if ls.IsDevMode() {

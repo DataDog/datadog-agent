@@ -26,6 +26,7 @@ var utfLittleEndianLogConfig []byte
 var utfBigEndianLogConfig []byte
 
 const utfservice = "utfservice"
+const logFile = "/var/log/hello-world-utf.log"
 
 // UTFSuite defines a test suite for the log agent tailing UTF encoded logs
 type UtfSuite struct {
@@ -53,15 +54,14 @@ func (s *UtfSuite) BeforeTest(suiteName, testName string) {
 	}, 1*time.Minute, 10*time.Second)
 
 	// Create a new log file for utf encoded messages
-	s.Env().RemoteHost.MustExecute("sudo touch /var/log/hello-world-utf.log")
-	s.Env().RemoteHost.MustExecute("sudo chmod +r /var/log/hello-world-utf.log")
+	s.Env().RemoteHost.WriteFile(logFile, []byte{})
 }
 
 func (s *UtfSuite) AfterTest(suiteName, testName string) {
 	s.BaseSuite.AfterTest(suiteName, testName)
 
 	// delete log file
-	s.Env().RemoteHost.MustExecute("sudo rm /var/log/hello-world-utf.log")
+	s.Env().RemoteHost.Remove(logFile)
 }
 
 func (s *UtfSuite) TestUtfTailing() {

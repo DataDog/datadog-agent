@@ -73,7 +73,8 @@ func (s *MultiLineSuite) BeforeTest(suiteName, testName string) {
 func (s *MultiLineSuite) AfterTest(suiteName, testName string) {
 	s.BaseSuite.AfterTest(suiteName, testName)
 
-	s.Env().RemoteHost.Execute(fmt.Sprintf("sudo rm -rf %s", utils.LinuxLogsFolderPath))
+	// s.Env().RemoteHost.Execute(fmt.Sprintf("sudo rm -rf %s", utils.LinuxLogsFolderPath))
+	s.Env().RemoteHost.Remove(utils.LinuxLogsFolderPath)
 }
 
 func (s *MultiLineSuite) generateMultilineLogs(prefix string, count int) {
