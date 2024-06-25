@@ -102,16 +102,16 @@ func NewFileRegistry(programName string) *FileRegistry {
 	return r
 }
 
-//revive:disable:exported
 var (
-	errPidIsNotRegistered      = errors.New("pid is not registered")
-	errCallbackIsMissing       = errors.New("activationCB and deactivationCB must be both non-nil")
-	errAlreadyStopped          = errors.New("registry already stopped")
-	errPathIsBlocked           = errors.New("path is blocked")
+	errPidIsNotRegistered = errors.New("pid is not registered")
+	errCallbackIsMissing  = errors.New("activationCB and deactivationCB must be both non-nil")
+	errAlreadyStopped     = errors.New("registry already stopped")
+	errPathIsBlocked      = errors.New("path is blocked")
+
+	// ErrPathIsAlreadyRegistered is the error resulting if the
+	// path is already in the file registry.
 	ErrPathIsAlreadyRegistered = errors.New("path is already registered")
 )
-
-//revive:enable
 
 // Register inserts or updates a new file registration within to the `FileRegistry`;
 //
