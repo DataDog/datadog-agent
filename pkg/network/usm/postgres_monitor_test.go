@@ -8,6 +8,7 @@
 package usm
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"os"
@@ -576,6 +577,123 @@ func (s *postgresProtocolParsingSuite) TestCleanupEBPFEntriesOnTermination() {
 	require.NoError(t, client.Close())
 	entries := getPostgresInFlightEntries(t, monitor)
 	require.Len(t, entries, 0)
+}
+
+func (s *postgresProtocolParsingSuite) TestRaw() {
+	t := s.T()
+
+	tests := []struct {
+		name  string
+		isTLS bool
+	}{
+		{
+			name:  "with TLS",
+			isTLS: true,
+		},
+		{
+			name:  "without TLS",
+			isTLS: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.isTLS && !gotlstestutil.GoTLSSupported(t, config.New()) {
+				t.Skip("GoTLS not supported for this setup")
+			}
+			testRaw(t, tt.isTLS)
+		})
+	}
+}
+
+// getNetworkPGConn returns a network connection to the postgres server.
+// PG requires to perform handshake (plaintext) before sending the actual queries or upgrading to TLS.
+// Since we are not monitoring the handshake, we can use an actual client, and peel the connection from it.
+func getNetworkPGConn(t *testing.T, serverAddress string, isTLS bool) net.Conn {
+	pg, err := postgres.NewPGXClient(postgres.ConnectionOptions{
+		ServerAddress: serverAddress,
+		EnableTLS:     isTLS,
+	})
+	require.NoError(t, err)
+	t.Cleanup(pg.Close)
+	timedCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	client, err := pg.DB.Acquire(timedCtx)
+	cancel()
+	require.NoError(t, err)
+	t.Cleanup(client.Release)
+	return client.Conn().PgConn().Conn()
+}
+
+func testRaw(t *testing.T, isTLS bool) {
+	monitor := setupUSMTLSMonitor(t, getPostgresDefaultTestConfiguration(isTLS))
+
+	// Start server
+	serverHost := "127.0.0.1"
+
+	serverAddress := net.JoinHostPort(serverHost, postgresPort)
+	require.NoError(t, postgres.RunServer(t, serverHost, postgresPort, isTLS))
+	// Verifies that the postgres server is up and running.
+	// It tries to connect to the server until it succeeds or the timeout is reached.
+	// We need that function (and cannot relay on the RunServer method) as the target regex is being logged a couple os
+	// milliseconds before the server is actually ready to accept connections.
+	waitForPostgresServer(t, serverAddress, isTLS)
+
+	if isTLS {
+		utils.WaitForProgramsToBeTraced(t, "go-tls", os.Getpid())
+	}
+
+	adjustCount := func(count int) int {
+		if isTLS {
+			return count
+		}
+
+		return count * 2
+	}
+	tests := []struct {
+		name                      string
+		messageBuilderPreMonitor  func() [][]byte
+		messageBuilderPostMonitor func() [][]byte
+		expectedEndpoints         map[string]map[postgres.Operation]int
+	}{
+		{
+			name: "create table",
+			messageBuilderPostMonitor: func() [][]byte {
+				output := make([]byte, 0)
+				var err error
+				output, err = (&pgproto3.Query{String: createTableQuery}).Encode(output)
+				output, err = (&pgproto3.ReadyForQuery{}).Encode(output)
+				require.NoError(t, err)
+				return [][]byte{output}
+			},
+			expectedEndpoints: map[string]map[postgres.Operation]int{
+				"dummy": {
+					postgres.CreateTableOP: adjustCount(1),
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.NoError(t, monitor.Pause())
+			t.Cleanup(func() { _ = monitor.Pause() })
+			client := getNetworkPGConn(t, serverAddress, isTLS)
+
+			if tt.messageBuilderPreMonitor != nil {
+				for _, message := range tt.messageBuilderPreMonitor() {
+					n, err := client.Write(message)
+					require.NoError(t, err)
+					require.Equal(t, len(message), n)
+				}
+			}
+
+			require.NoError(t, monitor.Resume())
+			for _, message := range tt.messageBuilderPostMonitor() {
+				n, err := client.Write(message)
+				require.NoError(t, err)
+				require.Equal(t, len(message), n)
+			}
+			validatePostgres(t, monitor, tt.expectedEndpoints, isTLS)
+		})
+	}
 }
 
 func getPostgresDefaultTestConfiguration(enableTLS bool) *config.Config {
