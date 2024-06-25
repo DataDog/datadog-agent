@@ -129,6 +129,7 @@ func createHTTPTransactionWithHeaderTests(header http.Header, domain string) *tr
 	tr.CreatedAt = time.Now()
 	tr.Retryable = true
 	tr.Priority = transaction.TransactionPriorityHigh
+	tr.Destination = transaction.PrimaryOnly
 	return tr
 }
 
@@ -139,6 +140,7 @@ func assertTransactionEqual(a *assert.Assertions, tr1 *transaction.HTTPTransacti
 	a.Equal(tr1.Retryable, tr2.Retryable)
 	a.Equal(tr1.Priority, tr2.Priority)
 	a.Equal(tr1.ErrorCount, tr2.ErrorCount)
+	a.Equal(tr1.Destination, tr2.Destination)
 
 	a.NotNil(tr1.Payload)
 	a.NotNil(tr2.Payload)
