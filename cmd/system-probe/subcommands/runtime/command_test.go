@@ -34,7 +34,7 @@ func TestDownloadCommand(t *testing.T) {
 			cliInput: []string{"download"},
 			check: func(cliParams *downloadPolicyCliParams, params core.BundleParams) {
 				// Verify logger defaults
-				require.Equal(t, command.LoggerName, params.LoggerName(), "logger name not matching")
+				require.Equal(t, "SYS-PROBE", params.LoggerName(), "logger name not matching")
 				require.Equal(t, "off", params.LogLevelFn(nil), "log level not matching")
 			},
 		},
@@ -91,7 +91,7 @@ func newMockRSClient(t *testing.T) secagent.SecurityModuleClientWrapper {
 	return m
 }
 
-// go test -v github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/runtime --run="Test_checkPoliciesLoaded"
+// go test -v github.com/DataDog/datadog-agent/cmd/system-probe/subcommands/runtime --run="Test_checkPoliciesLoaded"
 func Test_checkPoliciesLoaded(t *testing.T) {
 	type args struct {
 		args   *checkPoliciesCliParams
