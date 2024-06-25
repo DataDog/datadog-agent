@@ -38,8 +38,16 @@ type TraceAgent struct {
 	exit chan struct{}
 }
 
-type statsAdder interface {
-	Add(*pb.StatsPayload)
+type OtelStatsAdder struct {
+	out chan *pb.StatsPayload
+}
+
+func (a *OtelStatsAdder) Add(payload *pb.StatsPayload) {
+	a.out <- payload
+}
+
+func NewOTelStatsAdder(out chan *pb.StatsPayload) *OtelStatsAdder {
+	return &OtelStatsAdder{out}
 }
 
 type noopTraceWriter struct{}
@@ -52,12 +60,12 @@ func (n *noopTraceWriter) FlushSync() error { return nil }
 
 // NewAgent creates a new unstarted traceagent using the given context. Call Start to start the traceagent.
 // The out channel will receive outoing stats payloads resulting from spans ingested using the Ingest method.
-func NewAgent(ctx context.Context, out statsAdder, metricsClient statsd.ClientInterface, timingReporter timing.Reporter) *TraceAgent {
+func NewAgent(ctx context.Context, out chan *pb.StatsPayload, metricsClient statsd.ClientInterface, timingReporter timing.Reporter) *TraceAgent {
 	return NewAgentWithConfig(ctx, traceconfig.New(), out, metricsClient, timingReporter)
 }
 
 // NewAgentWithConfig creates a new traceagent with the given config cfg. Used in tests; use newAgent instead.
-func NewAgentWithConfig(ctx context.Context, cfg *traceconfig.AgentConfig, out statsAdder, metricsClient statsd.ClientInterface, timingReporter timing.Reporter) *TraceAgent {
+func NewAgentWithConfig(ctx context.Context, cfg *traceconfig.AgentConfig, out chan *pb.StatsPayload, metricsClient statsd.ClientInterface, timingReporter timing.Reporter) *TraceAgent {
 	// disable the HTTP receiver
 	cfg.ReceiverPort = 0
 	// set the API key to succeed startup; it is never used nor needed
@@ -72,10 +80,11 @@ func NewAgentWithConfig(ctx context.Context, cfg *traceconfig.AgentConfig, out s
 	a := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector(), metricsClient)
 	// replace the Concentrator (the component which computes and flushes APM Stats from incoming
 	// traces) with our own, which uses the 'out' channel.
-	a.Concentrator = stats.NewConcentrator(cfg, out, time.Now(), metricsClient)
+	statsAdder := NewOTelStatsAdder(out)
+	a.Concentrator = stats.NewConcentrator(cfg, statsAdder, time.Now(), metricsClient)
 	// ...and the same for the ClientStatsAggregator; we don't use it here, but it is also a source
 	// of stats which should be available to us.
-	a.ClientStatsAggregator = stats.NewClientStatsAggregator(cfg, out, metricsClient)
+	a.ClientStatsAggregator = stats.NewClientStatsAggregator(cfg, statsAdder, metricsClient)
 	// lastly, start the OTLP receiver, which will be used to introduce ResourceSpans into the traceagent,
 	// so that we can transform them to Datadog spans and receive stats.
 	a.OTLPReceiver = api.NewOTLPReceiver(pchan, cfg, metricsClient, timingReporter)

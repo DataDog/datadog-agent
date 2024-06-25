@@ -29,27 +29,16 @@ func setupMetricClient() (*metric.ManualReader, statsd.ClientInterface, timing.R
 	return reader, metricClient, timingReporter
 }
 
-type noopStatsAdder struct{}
-
-func (nsa noopStatsAdder) Add(_ *pb.StatsPayload) {}
-
 func TestTraceAgentConfig(t *testing.T) {
 	cfg := traceconfig.New()
 	require.NotZero(t, cfg.ReceiverPort)
 
+	out := make(chan *pb.StatsPayload)
 	_, metricClient, timingReporter := setupMetricClient()
-	_ = NewAgentWithConfig(context.Background(), cfg, noopStatsAdder{}, metricClient, timingReporter)
+	_ = NewAgentWithConfig(context.Background(), cfg, out, metricClient, timingReporter)
 	require.Zero(t, cfg.ReceiverPort)
 	require.NotEmpty(t, cfg.Endpoints[0].APIKey)
 	require.Equal(t, "__unset__", cfg.Hostname)
-}
-
-type mockStatsAdder struct {
-	out chan *pb.StatsPayload
-}
-
-func (msa *mockStatsAdder) Add(payload *pb.StatsPayload) {
-	msa.out <- payload
 }
 
 func TestTraceAgent(t *testing.T) {
@@ -58,10 +47,10 @@ func TestTraceAgent(t *testing.T) {
 	require.NoError(t, err)
 	cfg.OTLPReceiver.AttributesTranslator = attributesTranslator
 	cfg.BucketInterval = 50 * time.Millisecond
+	out := make(chan *pb.StatsPayload, 10)
 	ctx := context.Background()
 	_, metricClient, timingReporter := setupMetricClient()
-	msa := &mockStatsAdder{out: make(chan *pb.StatsPayload, 1)}
-	a := NewAgentWithConfig(ctx, cfg, msa, metricClient, timingReporter)
+	a := NewAgentWithConfig(ctx, cfg, out, metricClient, timingReporter)
 	a.Start()
 	defer a.Stop()
 
@@ -93,7 +82,7 @@ func TestTraceAgent(t *testing.T) {
 loop:
 	for {
 		select {
-		case stats = <-msa.out:
+		case stats = <-out:
 			if len(stats.Stats) != 0 {
 				break loop
 			}
