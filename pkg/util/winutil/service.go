@@ -87,13 +87,13 @@ func StartService(serviceName string, serviceArgs ...string) error {
 		return err
 	}
 	defer closeManagerService(manager, service)
-	return doStartService(service, serviceName, serviceArgs...)
+	return doStartService(service, serviceArgs...)
 }
 
-func doStartService(service *mgr.Service, serviceName string, serviceArgs ...string) error {
+func doStartService(service *mgr.Service, serviceArgs ...string) error {
 	status, err := service.Query()
 	if err != nil {
-		return fmt.Errorf("could not query service `%s` to start it. %w", serviceName, err)
+		return fmt.Errorf("could not query service `%s` to start it. %w", service.Name, err)
 	}
 
 	// Are we already running?
@@ -106,9 +106,9 @@ func doStartService(service *mgr.Service, serviceName string, serviceArgs ...str
 		ctx, cancel := context.WithTimeout(context.Background(), defaultServiceCommandTimeout*time.Second)
 		defer cancel()
 
-		err = doWaitForTransientStateCompletion(ctx, service, status.State, serviceName, svc.Cmd(0))
+		err = doWaitForTransientStateCompletion(ctx, service, status.State)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to start service `%s`. %w", service.Name, err)
 		}
 
 		// If the service was in svc.StartPending then it should be in svc.Running now
@@ -119,10 +119,10 @@ func doStartService(service *mgr.Service, serviceName string, serviceArgs ...str
 	}
 
 	// Start the service or rather initiate starting the service
-	// We could wait until the service is startted, making the call blocking
-	// and synchronous, but historically we have not do so and we are ok so far
+	// We could wait until the service is started, making the call blocking
+	// and synchronous, but historically we have not done so and we are ok so far
 	if err := service.Start(serviceArgs...); err != nil {
-		return fmt.Errorf("could not start service %s: %w", serviceName, err)
+		return fmt.Errorf("could not start service %s: %w", service.Name, err)
 	}
 	return nil
 }
@@ -144,13 +144,13 @@ func ControlService(serviceName string, command svc.Cmd, to svc.State, desiredAc
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout)*time.Second)
 	defer cancel()
 
-	return doControlService(ctx, service, serviceName, command, to)
+	return doControlService(ctx, service, command, to)
 }
 
-func doControlService(ctx context.Context, service *mgr.Service, serviceName string, cmd svc.Cmd, to svc.State) error {
+func doControlService(ctx context.Context, service *mgr.Service, cmd svc.Cmd, to svc.State) error {
 	status, err := service.Query()
 	if err != nil {
-		return fmt.Errorf("could not query service `%s` to send controld command %d. %w", serviceName, cmd, err)
+		return fmt.Errorf("could not query service `%s` to send controld command %d. %w", service.Name, cmd, err)
 	}
 
 	// check if we are already in the desired state
@@ -167,9 +167,9 @@ func doControlService(ctx context.Context, service *mgr.Service, serviceName str
 	// transition state. Accordingly we will wait it out until the service completes its
 	// transition to a state.
 	if cmd == svc.Stop {
-		err = doWaitForTransientStateCompletion(ctx, service, status.State, serviceName, cmd)
+		err = doWaitForTransientStateCompletion(ctx, service, status.State)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to send command `%d` to service `%s`. %w", cmd, service.Name, err)
 		}
 
 		// If the service was in svc.StopPending then it should be in svc.Stopped now
@@ -185,17 +185,17 @@ func doControlService(ctx context.Context, service *mgr.Service, serviceName str
 		statusAfter, errAfter := service.Query()
 		if errAfter != nil {
 			return fmt.Errorf("could not send control %d to service %s: %w Before control[state:%d, accepts:%d])",
-				cmd, serviceName, err, status.State, status.Accepts)
+				cmd, service.Name, err, status.State, status.Accepts)
 		}
 		return fmt.Errorf("could not send control %d to service %s: %w Before control[state:%d, accepts:%d]), after[state:%d, accepts:%d] ",
-			cmd, serviceName, err, status.State, status.Accepts, statusAfter.State, statusAfter.Accepts)
+			cmd, service.Name, err, status.State, status.Accepts, statusAfter.State, statusAfter.Accepts)
 	}
 
 	return doWaitForState(ctx, service, to)
 }
 
-func doStopService(ctx context.Context, service *mgr.Service, serviceName string) error {
-	return doControlService(ctx, service, serviceName, svc.Stop, svc.Stopped)
+func doStopService(ctx context.Context, service *mgr.Service) error {
+	return doControlService(ctx, service, svc.Stop, svc.Stopped)
 }
 
 // StopService stops a service and any services that depend on it
@@ -206,7 +206,7 @@ func StopService(serviceName string) error {
 		return err
 	}
 	defer closeManagerService(manager, service)
-	return doStopServiceWithDependencies(manager, service, serviceName, svc.AnyActivity, nil)
+	return doStopServiceWithDependencies(manager, service, svc.AnyActivity, nil)
 }
 
 // We need to get all dependent services (windows.SERVICE_STATE_ALL) to attempt to stop them,
@@ -237,7 +237,7 @@ func StopService(serviceName string) error {
 //		7. Attempt to stop core agent service will fail because a dependent service is "still" running
 //
 // Callback is invoked to help unit tests to setup race condition in deterministic way
-func doStopServiceWithDependencies(manager *mgr.Mgr, service *mgr.Service, serviceName string,
+func doStopServiceWithDependencies(manager *mgr.Mgr, service *mgr.Service,
 	depenStatus svc.ActivityStatus, callback stopServiceCallback) error {
 
 	ctx, cancel := context.WithTimeout(context.Background(), defaultServiceCommandTimeout*time.Second)
@@ -246,7 +246,7 @@ func doStopServiceWithDependencies(manager *mgr.Mgr, service *mgr.Service, servi
 	// open dependent services
 	depServiceNames, err := service.ListDependentServices(depenStatus)
 	if err != nil {
-		return fmt.Errorf("could not list dependent services for %s: %v", serviceName, err)
+		return fmt.Errorf("could not list dependent services for %s: %v", service.Name, err)
 	}
 	if callback != nil {
 		callback.afterDependentsEnumeration()
@@ -265,23 +265,23 @@ func doStopServiceWithDependencies(manager *mgr.Mgr, service *mgr.Service, servi
 		select {
 		case <-ctx.Done():
 			// timed out
-			return fmt.Errorf("could not stop service %s: %w", serviceName, ctx.Err())
+			return fmt.Errorf("could not stop service %s: %w", service.Name, ctx.Err())
 		default:
 			// try to stop dependent and then primary target
 			for i, depService := range depServices {
 				if callback != nil {
 					callback.beforeStopService(depServiceNames[i])
 				}
-				err = doStopService(ctx, depService, depServiceNames[i])
+				err = doStopService(ctx, depService)
 				if err != nil {
-					return fmt.Errorf("could not stop service %s: %w", depServiceNames[i], err)
+					return fmt.Errorf("could not stop service %s: %w", depService.Name, err)
 				}
 			}
 
 			if callback != nil {
-				callback.beforeStopService(serviceName)
+				callback.beforeStopService(service.Name)
 			}
-			err = doStopService(ctx, service, serviceName)
+			err = doStopService(ctx, service)
 			if err == nil {
 				return nil
 			}
@@ -291,7 +291,7 @@ func doStopServiceWithDependencies(manager *mgr.Mgr, service *mgr.Service, servi
 				continue
 			}
 
-			return fmt.Errorf("could not stop service %s: %w", serviceName, err)
+			return fmt.Errorf("could not stop service %s: %w", service.Name, err)
 		}
 	}
 }
@@ -344,18 +344,18 @@ func doWaitForState(ctx context.Context, service *mgr.Service, desiredState svc.
 	}
 }
 
-func doWaitForTransientStateCompletion(ctx context.Context, service *mgr.Service, currentState svc.State, serviceName string, cmd svc.Cmd) error {
+func doWaitForTransientStateCompletion(ctx context.Context, service *mgr.Service, currentState svc.State) error {
 	if currentState == svc.StartPending {
 		// wait for the service to complete the transition to the SERVICE_RUNNING state
 		err := doWaitForState(ctx, service, svc.Running)
 		if err != nil {
-			return fmt.Errorf("waiting for SERVICE_START_PENDING to transition to SERVICE_RUNNING before sending control %d to service %s failed: %w", cmd, serviceName, err)
+			return fmt.Errorf("waiting for SERVICE_START_PENDING to transition to SERVICE_RUNNING failed. %w", err)
 		}
 	} else if currentState == svc.StopPending {
 		// wait for the service to complete the transition to the SERVICE_STOPPED state
 		err := doWaitForState(ctx, service, svc.Stopped)
 		if err != nil {
-			return fmt.Errorf("waiting for SERVICE_STOP_PENDING to transition to SERVICE_STOPPED before sending control %d to service %s failed: %w", cmd, serviceName, err)
+			return fmt.Errorf("waiting for SERVICE_STOP_PENDING to transition to SERVICE_STOPPED failed: %w", err)
 		}
 	}
 
@@ -372,8 +372,8 @@ func RestartService(serviceName string) error {
 	}
 	defer closeManagerService(manager, service)
 
-	if err = doStopServiceWithDependencies(manager, service, serviceName, svc.AnyActivity, nil); err == nil {
-		err = doStartService(service, serviceName)
+	if err = doStopServiceWithDependencies(manager, service, svc.AnyActivity, nil); err == nil {
+		err = doStartService(service)
 	}
 	return err
 }
