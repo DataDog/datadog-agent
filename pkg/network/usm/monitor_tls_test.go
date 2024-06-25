@@ -252,7 +252,7 @@ func generateTemporaryFile(t *testing.T) string {
 func buildPrefetchFileBin(t *testing.T) string {
 	curDir, err := testutil.CurDir()
 	require.NoError(t, err)
-	serverBin, err := usmtestutil.BuildUnixTransparentProxyServer(filepath.Join(curDir, "testutil"), "prefetch_file")
+	serverBin, err := usmtestutil.BuildGoBinaryWrapper(filepath.Join(curDir, "testutil"), "prefetch_file")
 	require.NoError(t, err)
 	return serverBin
 }
