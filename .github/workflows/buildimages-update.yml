@@ -112,7 +112,7 @@ jobs:
         run: |
           base_branch=${{ github.ref }} # Get the full ref
           base_branch=${base_branch#refs/heads/} # Remove 'refs/heads/' from the ref
-          prs=$(gh pr list \
+          prs=$(gh pr list \ # prs variable contains the number of PRs already created that match head and base branches
               --repo "$GITHUB_REPOSITORY" \
               --head ${{ inputs.branch }} \
               --base $base_branch \
@@ -120,7 +120,7 @@ jobs:
               --jq 'length')
           if [ $prs -eq 0 ]; then
             echo "CREATE_PR=true" >> $GITHUB_OUTPUT
-          fi
+          fi 
 
       # Create PR only if there is no pre-existing PR on the branch
       - name: Create PR
@@ -128,11 +128,19 @@ jobs:
         env:
           TMP_PR_BODY_PATH: /tmp/pr_body
           GH_TOKEN: ${{ github.token }}
+          PR_TITLE: "[automated] ${{ steps.update_build_images.outputs.MESSAGE }}"
+          PR_LABELS: "go-update,team/agent-shared-components"
         run: |
-          inv -e buildimages.generate-pr-body ${{ steps.current_buildimage_tag.outputs.BUILDIMAGE_TAG }} ${{ inputs.images_id }} ${{ steps.current_go_version.outputs.GO_VERSION }} ${{ inputs.go_version }} ${{ inputs.test_version && '--test-version' || '' }} > $TMP_PR_BODY_PATH
-          gh pr create \
+          inv -e buildimages.generate-pr-body \ # Generate the PR description
+          ${{ steps.current_buildimage_tag.outputs.BUILDIMAGE_TAG }} \
+          ${{ inputs.images_id }} \
+          ${{ steps.current_go_version.outputs.GO_VERSION }} \
+          ${{ inputs.go_version }} \
+          ${{ inputs.test_version && '--test-version' || '' }} > $TMP_PR_BODY_PATH
+
+          gh pr create \ # Create the PR
           -B ${{ github.ref }} \
-          -t "[automated] ${{ steps.update_build_images.outputs.MESSAGE }}" \
+          -t $PR_TITLE \
           -F $TMP_PR_BODY_PATH \
+          -l $PR_LABELS \
           -d \
-          -l "go-update,team/agent-shared-components" \
