@@ -151,14 +151,14 @@ DEFAULT_MODULES = {
     ),
     "comp/logs/agent/config": GoModule("comp/logs/agent/config", independent=True, used_by_otel=True),
     "comp/netflow/payload": GoModule("comp/netflow/payload", independent=True),
-    "comp/otelcol/extension/def": GoModule("comp/otelcol/extension/def", independent=True, used_by_otel=True),
-    "comp/otelcol/extension/impl": GoModule("comp/otelcol/extension/impl", independent=True, used_by_otel=True),
     "comp/otelcol/collector-contrib/def": GoModule(
         "comp/otelcol/collector-contrib/def", independent=True, used_by_otel=True
     ),
     "comp/otelcol/collector-contrib/impl": GoModule(
         "comp/otelcol/collector-contrib/impl", independent=True, used_by_otel=True
     ),
+    "comp/otelcol/extension/def": GoModule("comp/otelcol/extension/def", independent=True, used_by_otel=True),
+    "comp/otelcol/extension/impl": GoModule("comp/otelcol/extension/impl", independent=True, used_by_otel=True),
     "comp/otelcol/logsagentpipeline": GoModule("comp/otelcol/logsagentpipeline", independent=True, used_by_otel=True),
     "comp/otelcol/logsagentpipeline/logsagentpipelineimpl": GoModule(
         "comp/otelcol/logsagentpipeline/logsagentpipelineimpl", independent=True, used_by_otel=True
