@@ -13,13 +13,11 @@ import (
 	"github.com/cilium/ebpf/ringbuf"
 
 	manager "github.com/DataDog/ebpf-manager"
+
+	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
 
-var ringPool = sync.Pool{
-	New: func() interface{} {
-		return new(ringbuf.Record)
-	},
-}
+var ringPool = ddsync.NewDefaultTypedPool[ringbuf.Record]()
 
 // RingBufferHandler implements EventHandler
 // this line is just a static check of the interface
@@ -39,7 +37,7 @@ type RingBufferHandler struct {
 func NewRingBufferHandler(dataChannelSize int) *RingBufferHandler {
 	return &RingBufferHandler{
 		RecordGetter: func() *ringbuf.Record {
-			return ringPool.Get().(*ringbuf.Record)
+			return ringPool.Get()
 		},
 		dataChannel: make(chan *DataEvent, dataChannelSize),
 		// This channel is not really used in the context of ring buffers but

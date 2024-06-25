@@ -33,7 +33,8 @@ import (
 	"encoding/binary"
 	"errors"
 	"io"
-	"sync"
+
+	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
 
 var (
@@ -60,12 +61,10 @@ const (
 )
 
 var (
-	dataRawBuildPool = sync.Pool{
-		New: func() any {
-			b := make([]byte, maxSizeToRead)
-			return &b
-		},
-	}
+	dataRawBuildPool = ddsync.NewTypedPool(func() *[]byte {
+		b := make([]byte, maxSizeToRead)
+		return &b
+	})
 )
 
 type exe interface {
@@ -90,7 +89,7 @@ func ReadElfBuildInfo(elfFile *elf.File) (vers string, err error) {
 	// data segment; the linker puts it near the beginning.
 	// See cmd/link/internal/ld.Link.buildinfo.
 	dataAddr := x.DataStart()
-	dataPtr := dataRawBuildPool.Get().(*[]byte)
+	dataPtr := dataRawBuildPool.Get()
 	data := *dataPtr
 	defer func() {
 		data := *dataPtr

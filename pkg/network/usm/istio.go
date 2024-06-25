@@ -19,6 +19,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
+
 	manager "github.com/DataDog/ebpf-manager"
 )
 
@@ -82,12 +84,10 @@ var envoyCmd = []byte("/bin/envoy")
 // readBufferPool is used for reading /proc/<pid>/cmdline files.
 // We use a pointer to a slice to avoid allocations when casting
 // values to the empty interface during Put() calls.
-var readBufferPool = sync.Pool{
-	New: func() any {
-		b := make([]byte, 128)
-		return &b
-	},
-}
+var readBufferPool = ddsync.NewTypedPool(func() *[]byte {
+	b := make([]byte, 128)
+	return &b
+})
 
 // istioMonitor essentially scans for Envoy processes and attaches SSL uprobes
 // to them.
@@ -276,7 +276,7 @@ func (m *istioMonitor) getEnvoyPath(pid uint32) string {
 
 	// From here on we shouldn't allocate for the common case
 	// (eg., a process is *not* envoy)
-	bufferPtr := readBufferPool.Get().(*[]byte)
+	bufferPtr := readBufferPool.Get()
 	defer func() {
 		readBufferPool.Put(bufferPtr)
 	}()

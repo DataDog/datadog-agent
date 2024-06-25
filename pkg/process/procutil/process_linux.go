@@ -17,7 +17,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"sync"
 	"syscall"
 	"time"
 	"unicode"
@@ -28,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
 
 const (
@@ -747,12 +747,10 @@ func (p *probe) getLinkWithAuthCheck(pidPath string, file string) string {
 	return str
 }
 
-var fdDirentPool = sync.Pool{
-	New: func() interface{} {
-		s := make([]byte, blockSize)
-		return &s
-	},
-}
+var fdDirentPool = ddsync.NewTypedPool(func() *[]byte {
+	s := make([]byte, blockSize)
+	return &s
+})
 
 // getFDCount gets num_fds from /proc/(pid)/fd WITHOUT using the native Readdirnames(),
 // this will skip the step of returning all file names(we don't need) in a dir which takes a lot of memory
@@ -784,7 +782,7 @@ func (p *probe) getFDCount(pidPath string) int32 {
 	}
 	defer d.Close()
 
-	ptr := fdDirentPool.Get().(*[]byte)
+	ptr := fdDirentPool.Get()
 	b := *ptr
 	defer fdDirentPool.Put(ptr)
 

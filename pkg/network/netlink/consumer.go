@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"sync"
 	"syscall"
 
 	"github.com/cihub/seelog"
@@ -26,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
 
 const (
@@ -63,7 +63,7 @@ func init() {
 type Consumer struct {
 	conn     *netlink.Conn
 	socket   *Socket
-	pool     *sync.Pool
+	pool     *ddsync.TypedPool[[]byte]
 	procRoot string
 
 	// targetRateLimit represents the maximum number of netlink messages per second
@@ -97,7 +97,7 @@ type Event struct {
 	msgs   []netlink.Message
 	netns  uint32
 	buffer *[]byte
-	pool   *sync.Pool
+	pool   *ddsync.TypedPool[[]byte]
 }
 
 // Messages returned from the socket read
@@ -545,7 +545,7 @@ func (c *Consumer) receive(output chan Event, ns uint32) {
 
 ReadLoop:
 	for {
-		buffer := c.pool.Get().(*[]byte)
+		buffer := c.pool.Get()
 		// ignore the netns value coming from netlink because it is a nsid NOT an inode number.
 		// once we have a mapping between nsid->ino, then we can use these values again.
 		msgs, _, err := c.socket.ReceiveInto(*buffer)
@@ -664,14 +664,12 @@ func (c *Consumer) throttle(numMessages int) error {
 	return c.conn.JoinGroup(netlinkCtNew)
 }
 
-func newBufferPool() *sync.Pool {
+func newBufferPool() *ddsync.TypedPool[[]byte] {
 	bufferSize := os.Getpagesize()
-	return &sync.Pool{
-		New: func() interface{} {
-			b := make([]byte, bufferSize)
-			return &b
-		},
-	}
+	return ddsync.NewTypedPool(func() *[]byte {
+		b := make([]byte, bufferSize)
+		return &b
+	})
 }
 
 var (
