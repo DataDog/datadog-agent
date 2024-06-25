@@ -4,6 +4,7 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build !windows
+// #cgo LDFLAGS: -ltcmalloc
 
 // Main package for the agent binary
 package main
