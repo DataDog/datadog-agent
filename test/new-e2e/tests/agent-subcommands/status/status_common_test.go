@@ -8,6 +8,7 @@ package status
 import (
 	"fmt"
 	"regexp"
+	"runtime"
 	"time"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
@@ -172,7 +173,8 @@ func (v *baseStatusSuite) TestDefaultInstallStatus() {
 		},
 		{
 			name:            "System Probe",
-			shouldBePresent: false,
+			shouldBePresent: runtime.GOOS == "linux",
+			shouldContain:   []string{"Status: Running"},
 		},
 		{
 			// XXX: this test is expected to fail until 7.48 as a known status render errors has been fixed in #18123

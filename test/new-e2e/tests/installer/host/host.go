@@ -575,7 +575,7 @@ func (s *State) AssertUnitsNotEnabled(names ...string) {
 func (s *State) AssertUnitsDead(names ...string) {
 	for _, name := range names {
 		unit, ok := s.Units[name]
-		assert.True(s.t, ok, "unit %v is not running", name)
-		assert.Equal(s.t, Dead, unit.SubState, "unit %v is not running", name)
+		assert.True(s.t, ok, "unit %v is not dead", name)
+		assert.Equal(s.t, Dead, unit.SubState, "unit %v is not dead", name)
 	}
 }

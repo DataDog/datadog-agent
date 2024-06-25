@@ -54,8 +54,8 @@ func (s *packageAgentSuite) TestInstall() {
 func (s *packageAgentSuite) assertUnits(state host.State, oldUnits bool) {
 	state.AssertUnitsLoaded(agentUnit, traceUnit, processUnit, probeUnit, securityUnit)
 	state.AssertUnitsEnabled(agentUnit)
-	state.AssertUnitsRunning(agentUnit, traceUnit, processUnit)
-	state.AssertUnitsDead(probeUnit, securityUnit)
+	state.AssertUnitsRunning(agentUnit, traceUnit, processUnit, probeUnit)
+	state.AssertUnitsDead(securityUnit)
 
 	systemdPath := "/etc/systemd/system"
 	if oldUnits {
@@ -179,7 +179,7 @@ func (s *packageAgentSuite) TestExperimentTimeout() {
 		Unordered(host.SystemdEvents().
 			Started(traceUnit).
 			Started(processUnit).
-			Skipped(probeUnit).
+			Started(probeUnit).
 			Skipped(securityUnit),
 		),
 	)
@@ -251,7 +251,7 @@ func (s *packageAgentSuite) TestExperimentIgnoringSigterm() {
 		Unordered(host.SystemdEvents().
 			Started(traceUnit).
 			Started(processUnit).
-			Skipped(probeUnit).
+			Started(probeUnit).
 			Skipped(securityUnit),
 		),
 	)
@@ -306,7 +306,7 @@ func (s *packageAgentSuite) TestExperimentExits() {
 			Unordered(host.SystemdEvents().
 				Started(traceUnit).
 				Started(processUnit).
-				Skipped(probeUnit).
+				Started(probeUnit).
 				Skipped(securityUnit),
 			),
 		)
@@ -365,7 +365,7 @@ func (s *packageAgentSuite) TestExperimentStopped() {
 			Unordered(host.SystemdEvents().
 				Started(traceUnit).
 				Started(processUnit).
-				Skipped(probeUnit).
+				Started(probeUnit).
 				Skipped(securityUnit),
 			),
 		)
