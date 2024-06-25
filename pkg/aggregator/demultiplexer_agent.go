@@ -147,12 +147,12 @@ func initAgentDemultiplexer(
 	// prepare the serializer
 	// ----------------------
 
-	aggSerializer := serializer.NewSerializer(sharedForwarder, orchestratorForwarder, compressor, config.Datadog(), hostname)
+	sharedSerializer := serializer.NewSerializer(sharedForwarder, orchestratorForwarder, compressor, config.Datadog(), hostname)
 
 	// prepare the embedded aggregator
 	// --
 
-	agg := NewBufferedAggregator(aggSerializer, eventPlatformForwarder, hostname, options.FlushInterval)
+	agg := NewBufferedAggregator(sharedSerializer, eventPlatformForwarder, hostname, options.FlushInterval)
 
 	// statsd samplers
 	// ---------------
@@ -191,7 +191,6 @@ func initAgentDemultiplexer(
 
 	// --
 
-	demuxSerializer := serializer.NewSerializer(sharedForwarder, orchestratorForwarder, compressor, config.Datadog(), hostname)
 	demux := &AgentDemultiplexer{
 		log:       log,
 		options:   options,
@@ -205,7 +204,7 @@ func initAgentDemultiplexer(
 		dataOutputs: dataOutputs{
 			forwarders: forwarders{},
 
-			sharedSerializer: demuxSerializer,
+			sharedSerializer: sharedSerializer,
 			noAggSerializer:  noAggSerializer,
 		},
 
