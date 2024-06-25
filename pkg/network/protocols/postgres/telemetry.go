@@ -19,8 +19,8 @@ const (
 	bucketLength                            = 15
 	numberOfBucketsSmallerThanMaxBufferSize = 3
 	// firstBucketLowerBoundary is the lower boundary of the first bucket.
-	// We add 1 in order to include BufferSize as the last value of bucket 3.
-	// Then the first three buckets will include sizes below the current BufferSize,
+	// We add 1 in order to include BufferSize as the upper boundary of the third bucket.
+	// Then the first three buckets will include query lengths shorter or equal to BufferSize,
 	// and the rest will include sizes equal to or above the buffer size.
 	firstBucketLowerBoundary = BufferSize - numberOfBucketsSmallerThanMaxBufferSize*bucketLength + 1
 )
