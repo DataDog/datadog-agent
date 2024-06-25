@@ -67,7 +67,8 @@ type WorkloadMetaCollector struct {
 	globContainerLabels    map[string]glob.Glob
 	globContainerEnvLabels map[string]glob.Glob
 
-	collectEC2ResourceTags bool
+	collectEC2ResourceTags            bool
+	collectPersistentVolumeClaimsTags bool
 }
 
 func (c *WorkloadMetaCollector) initContainerMetaAsTags(labelsAsTags, envAsTags map[string]string) {
@@ -159,10 +160,11 @@ func (c *WorkloadMetaCollector) stream(ctx context.Context) {
 // NewWorkloadMetaCollector returns a new WorkloadMetaCollector.
 func NewWorkloadMetaCollector(_ context.Context, store workloadmeta.Component, p processor) *WorkloadMetaCollector {
 	c := &WorkloadMetaCollector{
-		tagProcessor:           p,
-		store:                  store,
-		children:               make(map[string]map[string]struct{}),
-		collectEC2ResourceTags: config.Datadog().GetBool("ecs_collect_resource_tags_ec2"),
+		tagProcessor:                      p,
+		store:                             store,
+		children:                          make(map[string]map[string]struct{}),
+		collectEC2ResourceTags:            config.Datadog().GetBool("ecs_collect_resource_tags_ec2"),
+		collectPersistentVolumeClaimsTags: config.Datadog().GetBool("kubernetes_persistent_volume_claims_as_tags"),
 	}
 
 	containerLabelsAsTags := mergeMaps(

@@ -71,7 +71,6 @@ func TestHandleKubePod(t *testing.T) {
 		fx.Supply(context.Background()),
 		workloadmetafxmock.MockModule(),
 	))
-
 	store.Set(&workloadmeta.Container{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindContainer,
@@ -245,6 +244,68 @@ func TestHandleKubePod(t *testing.T) {
 						"tier:node",
 					}, standardTags...),
 					StandardTags: standardTags,
+				},
+			},
+		},
+		{
+			name: "persistent volume claim tags activated",
+			pod: workloadmeta.KubernetesPod{
+				EntityID: podEntityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name:      podName,
+					Namespace: podNamespace,
+				},
+				Containers: []workloadmeta.OrchestratorContainer{
+					{
+						ID:    noEnvContainerID,
+						Name:  containerName,
+						Image: image,
+					},
+				},
+				Owners: []workloadmeta.KubernetesPodOwner{
+					{
+						Kind: kubernetes.StatefulSetKind,
+					},
+				},
+				// PVC tags
+				PersistentVolumeClaimNames: []string{"pvc-0"},
+			},
+			expected: []*types.TagInfo{
+				{
+					Source:       podSource,
+					Entity:       podTaggerEntityID,
+					HighCardTags: []string{},
+					OrchestratorCardTags: []string{
+						fmt.Sprintf("pod_name:%s", podName),
+					},
+					LowCardTags: []string{
+						fmt.Sprintf("kube_namespace:%s", podNamespace),
+						"kube_ownerref_kind:statefulset",
+						"persistentvolumeclaim:pvc-0",
+					},
+					StandardTags: []string{},
+				},
+				{
+					Source: podSource,
+					Entity: noEnvContainerTaggerEntityID,
+					HighCardTags: []string{
+						fmt.Sprintf("container_id:%s", noEnvContainerID),
+						fmt.Sprintf("display_container_name:%s_%s", runtimeContainerName, podName),
+					},
+					OrchestratorCardTags: []string{
+						fmt.Sprintf("pod_name:%s", podName),
+					},
+					LowCardTags: []string{
+						fmt.Sprintf("kube_namespace:%s", podNamespace),
+						fmt.Sprintf("kube_container_name:%s", containerName),
+						"image_id:datadog/agent@sha256:a63d3f66fb2f69d955d4f2ca0b229385537a77872ffc04290acae65aed5317d2",
+						"image_name:datadog/agent",
+						"image_tag:latest",
+						"short_image:agent",
+						"kube_ownerref_kind:statefulset",
+						"persistentvolumeclaim:pvc-0",
+					},
+					StandardTags: []string{},
 				},
 			},
 		},
@@ -760,6 +821,138 @@ func TestHandleKubePod(t *testing.T) {
 					},
 					LowCardTags: []string{
 						fmt.Sprintf("kube_namespace:%s", podNamespace),
+					},
+					StandardTags: []string{},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			collector := NewWorkloadMetaCollector(context.Background(), store, nil)
+			collector.staticTags = tt.staticTags
+
+			collector.initPodMetaAsTags(tt.labelsAsTags, tt.annotationsAsTags, tt.nsLabelsAsTags, tt.nsAnnotationsAsTags)
+
+			actual := collector.handleKubePod(workloadmeta.Event{
+				Type:   workloadmeta.EventTypeSet,
+				Entity: &tt.pod,
+			})
+
+			assertTagInfoListEqual(t, tt.expected, actual)
+		})
+	}
+}
+
+func TestHandleKubePodWithoutPvcAsTags(t *testing.T) {
+	const (
+		noEnvContainerID     = "foobarbaz"
+		containerName        = "agent"
+		runtimeContainerName = "k8s_datadog-agent_agent"
+		podName              = "datadog-agent-foobar"
+		podNamespace         = "default"
+	)
+
+	podEntityID := workloadmeta.EntityID{
+		Kind: workloadmeta.KindKubernetesPod,
+		ID:   "foobar",
+	}
+
+	podTaggerEntityID := fmt.Sprintf("kubernetes_pod_uid://%s", podEntityID.ID)
+
+	image := workloadmeta.ContainerImage{
+		ID:        "datadog/agent@sha256:a63d3f66fb2f69d955d4f2ca0b229385537a77872ffc04290acae65aed5317d2",
+		RawName:   "datadog/agent@sha256:a63d3f66fb2f69d955d4f2ca0b229385537a77872ffc04290acae65aed5317d2",
+		Name:      "datadog/agent",
+		ShortName: "agent",
+		Tag:       "latest",
+	}
+
+	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		logimpl.MockModule(),
+		config.MockModule(),
+		fx.Supply(workloadmeta.NewParams()),
+		fx.Supply(context.Background()),
+		workloadmetafxmock.MockModule(),
+	), fx.Replace(config.MockParams{Overrides: map[string]any{
+		"kubernetes_persistent_volume_claims_as_tags": false,
+	}}))
+	store.Set(&workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindContainer,
+			ID:   noEnvContainerID,
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name: runtimeContainerName,
+		},
+	})
+
+	tests := []struct {
+		name                string
+		staticTags          map[string]string
+		labelsAsTags        map[string]string
+		annotationsAsTags   map[string]string
+		nsLabelsAsTags      map[string]string
+		nsAnnotationsAsTags map[string]string
+		pod                 workloadmeta.KubernetesPod
+		expected            []*types.TagInfo
+	}{
+		{
+			name: "persistent volume claim tags deactivated",
+			pod: workloadmeta.KubernetesPod{
+				EntityID: podEntityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name:      podName,
+					Namespace: podNamespace,
+				},
+				Containers: []workloadmeta.OrchestratorContainer{
+					{
+						ID:    noEnvContainerID,
+						Name:  containerName,
+						Image: image,
+					},
+				},
+				Owners: []workloadmeta.KubernetesPodOwner{
+					{
+						Kind: kubernetes.StatefulSetKind,
+					},
+				},
+				// PVC tags
+				PersistentVolumeClaimNames: []string{"pvc-0"},
+			},
+			expected: []*types.TagInfo{
+				{
+					Source:       podSource,
+					Entity:       podTaggerEntityID,
+					HighCardTags: []string{},
+					OrchestratorCardTags: []string{
+						fmt.Sprintf("pod_name:%s", podName),
+					},
+					LowCardTags: []string{
+						fmt.Sprintf("kube_namespace:%s", podNamespace),
+						"kube_ownerref_kind:statefulset",
+					},
+					StandardTags: []string{},
+				},
+				{
+					Source: podSource,
+					Entity: fmt.Sprintf("container_id://%s", noEnvContainerID),
+					HighCardTags: []string{
+						fmt.Sprintf("container_id:%s", noEnvContainerID),
+						fmt.Sprintf("display_container_name:%s_%s", runtimeContainerName, podName),
+					},
+					OrchestratorCardTags: []string{
+						fmt.Sprintf("pod_name:%s", podName),
+					},
+					LowCardTags: []string{
+						fmt.Sprintf("kube_namespace:%s", podNamespace),
+						fmt.Sprintf("kube_container_name:%s", containerName),
+						"image_id:datadog/agent@sha256:a63d3f66fb2f69d955d4f2ca0b229385537a77872ffc04290acae65aed5317d2",
+						"image_name:datadog/agent",
+						"image_tag:latest",
+						"short_image:agent",
+						"kube_ownerref_kind:statefulset",
 					},
 					StandardTags: []string{},
 				},
