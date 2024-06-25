@@ -21,10 +21,10 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-metrics-logs/log-agent/utils"
 )
 
-//go:embed log-config/automulti.yaml
+//go:embed config/automulti.yaml
 var autoMultiLineConfig string
 
-//go:embed log-config/pattern.yaml
+//go:embed config/pattern.yaml
 var multiLineLogPatternConfig string
 
 const singleLineLog = "This is a single line log"

@@ -26,7 +26,7 @@ type LinuxFakeintakeSuite struct {
 	e2e.BaseSuite[environments.Host]
 }
 
-//go:embed log-config/config.yaml
+//go:embed config/config.yaml
 var logConfig string
 
 const (

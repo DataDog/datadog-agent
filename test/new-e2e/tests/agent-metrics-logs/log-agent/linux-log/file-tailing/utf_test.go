@@ -19,10 +19,10 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-//go:embed log-config/utf-16-le.yaml
+//go:embed config/utf-16-le.yaml
 var utfLittleEndianLogConfig []byte
 
-//go:embed log-config/utf-16-be.yaml
+//go:embed config/utf-16-be.yaml
 var utfBigEndianLogConfig []byte
 
 const utfservice = "utfservice"
