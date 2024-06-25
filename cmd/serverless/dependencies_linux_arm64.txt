@@ -66,7 +66,6 @@ github.com/DataDog/datadog-agent/cmd/agent/common/path
 github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice
 github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice/helper
 github.com/DataDog/datadog-agent/comp/api/api/def
-github.com/DataDog/datadog-agent/comp/api/api/utils
 github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration
 github.com/DataDog/datadog-agent/comp/core/config
 github.com/DataDog/datadog-agent/comp/core/flare/builder
@@ -250,7 +249,6 @@ github.com/DataDog/datadog-agent/pkg/util/fargate
 github.com/DataDog/datadog-agent/pkg/util/filesystem
 github.com/DataDog/datadog-agent/pkg/util/flavor
 github.com/DataDog/datadog-agent/pkg/util/fxutil
-github.com/DataDog/datadog-agent/pkg/util/grpc/context
 github.com/DataDog/datadog-agent/pkg/util/hostname
 github.com/DataDog/datadog-agent/pkg/util/hostname/validate
 github.com/DataDog/datadog-agent/pkg/util/http
