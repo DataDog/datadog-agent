@@ -26,6 +26,7 @@ type windowsTestSuite struct {
 }
 
 func TestWindowsTestSuite(t *testing.T) {
+	t.Parallel()
 	e2e.Run(t, &windowsTestSuite{},
 		e2e.WithProvisioner(
 			awshost.Provisioner(
