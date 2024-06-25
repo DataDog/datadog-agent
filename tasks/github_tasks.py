@@ -1,11 +1,14 @@
+from __future__ import annotations
+
 import os
 import re
 import time
 from collections import Counter
 from functools import lru_cache
-from typing import List
 
-from invoke import Exit, task
+from invoke.context import Context
+from invoke.exceptions import Exit
+from invoke.tasks import task
 
 from tasks.libs.ciproviders.github_actions_tools import (
     download_artifacts,
@@ -15,9 +18,10 @@ from tasks.libs.ciproviders.github_actions_tools import (
     print_workflow_conclusion,
     trigger_macos_workflow,
 )
+from tasks.libs.common.constants import DEFAULT_BRANCH, DEFAULT_INTEGRATIONS_CORE_BRANCH
 from tasks.libs.common.datadog_api import create_gauge, send_metrics
 from tasks.libs.common.junit_upload_core import repack_macos_junit_tar
-from tasks.libs.common.utils import DEFAULT_BRANCH, DEFAULT_INTEGRATIONS_CORE_BRANCH, get_git_pretty_ref
+from tasks.libs.common.utils import get_git_pretty_ref
 from tasks.libs.owners.parsing import read_owners
 from tasks.libs.pipeline.notifications import GITHUB_SLACK_MAP
 from tasks.release import _get_release_json_value
@@ -206,7 +210,7 @@ def get_token_from_app(_, app_id_env='GITHUB_APP_ID', pkey_env='GITHUB_KEY_B64')
     GithubAPI.get_token_from_app(app_id_env, pkey_env)
 
 
-def _get_teams(changed_files, owners_file='.github/CODEOWNERS') -> List[str]:
+def _get_teams(changed_files, owners_file='.github/CODEOWNERS') -> list[str]:
     codeowners = read_owners(owners_file)
 
     team_counter = Counter()
@@ -284,7 +288,7 @@ def _assign_pr_team_labels(gh, pr_id, teams):
             try:
                 gh.add_pr_label(pr_id, label_name)
                 print(label_name, 'label assigned to the pull request')
-            except github.GithubException.GithubException:
+            except github.GithubException:
                 print(f'Failed to assign label {label_name}')
 
 
@@ -304,6 +308,9 @@ def handle_community_pr(_, repo='', pr_id=-1, labels=''):
     teams = _get_teams(gh.get_pr_files(pr_id)) or [ALL_TEAMS]
     channels = [GITHUB_SLACK_MAP[team.lower()] for team in teams if team if team.lower() in GITHUB_SLACK_MAP]
 
+    # Remove duplicates
+    channels = list(set(channels))
+
     # Update labels
     for label in labels.split(','):
         if label:
@@ -321,3 +328,31 @@ def handle_community_pr(_, repo='', pr_id=-1, labels=''):
     client = WebClient(os.environ['SLACK_API_TOKEN'])
     for channel in channels:
         client.chat_postMessage(channel=channel, text=message)
+
+
+@task
+def milestone_pr_team_stats(_: Context, milestone: str, team: str):
+    """
+    This task prints statistics about the PRs opened by a given team and
+    merged in the given milestone.
+    """
+    from tasks.libs.ciproviders.github_api import GithubAPI
+
+    gh = GithubAPI()
+    team_members = gh.get_team_members(team)
+    authors = ' '.join("author:" + member.login for member in team_members)
+    common_query = f'repo:DataDog/datadog-agent is:pr is:merged milestone:{milestone} {authors}'
+
+    no_code_changes_query = common_query + ' label:qa/no-code-change'
+    no_code_changes = gh.search_issues(no_code_changes_query).totalCount
+
+    qa_done_query = common_query + ' -label:qa/no-code-change label:qa/done'
+    qa_done = gh.search_issues(qa_done_query).totalCount
+
+    with_qa_query = common_query + ' -label:qa/no-code-change -label:qa/done'
+    with_qa = gh.search_issues(with_qa_query).totalCount
+
+    print("no code changes :", no_code_changes)
+    print("qa done :", qa_done)
+    print("with qa :", with_qa)
+    print("proportion of PRs with code changes and QA done :", 100 * qa_done / (qa_done + with_qa), "%")

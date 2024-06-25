@@ -10,7 +10,7 @@ import sys
 from invoke import task
 from invoke.exceptions import Exit
 
-from tasks.libs.common.utils import collapsed_section
+from tasks.libs.common.utils import gitlab_section
 
 
 def get_rtloader_path():
@@ -57,7 +57,7 @@ def clear_cmake_cache(rtloader_path, settings):
 
 
 @task
-def make(ctx, install_prefix=None, python_runtimes='3', cmake_options='', arch="x64"):
+def make(ctx, install_prefix=None, python_runtimes='3', cmake_options=''):
     dev_path = get_dev_path()
 
     if cmake_options.find("-G") == -1:
@@ -84,9 +84,6 @@ def make(ctx, install_prefix=None, python_runtimes='3', cmake_options='', arch="
     for option, value in settings.items():
         cmake_args += f" -D{option}={value} "
 
-    if arch == "x86":
-        cmake_args += " -DARCH_I386=ON"
-
     if sys.platform == 'darwin':
         cmake_args += " -DCMAKE_OSX_DEPLOYMENT_TARGET=10.13"
 
@@ -99,7 +96,7 @@ def make(ctx, install_prefix=None, python_runtimes='3', cmake_options='', arch="
         else:
             raise
 
-    with collapsed_section("Build rtloader"):
+    with gitlab_section("Build rtloader", collapsed=True):
         ctx.run(f"cd {rtloader_build_path} && cmake {cmake_args} {get_rtloader_path()}", err_stream=sys.stdout)
         run_make_command(ctx)
 
@@ -125,19 +122,19 @@ def clean(_):
 
 @task
 def install(ctx):
-    with collapsed_section("Install rtloader"):
+    with gitlab_section("Install rtloader", collapsed=True):
         run_make_command(ctx, "install")
 
 
 @task
 def test(ctx):
-    with collapsed_section("Run rtloader tests"):
+    with gitlab_section("Run rtloader tests", collapsed=True):
         ctx.run(f"make -C {get_rtloader_build_path()}/test run", err_stream=sys.stdout)
 
 
 @task
 def format(ctx, raise_if_changed=False):
-    with collapsed_section("Run clang-format on rtloader"):
+    with gitlab_section("Run clang-format on rtloader", collapsed=True):
         run_make_command(ctx, "clang-format")
 
     if raise_if_changed:

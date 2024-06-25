@@ -1,8 +1,9 @@
+from __future__ import annotations
+
 import json
 import os
 import pathlib
 import unittest
-from typing import List
 from unittest.mock import MagicMock, patch
 
 from codeowners import CodeOwners
@@ -15,7 +16,7 @@ from tasks.libs.pipeline.notifications import find_job_owners
 from tasks.libs.types.types import FailedJobReason, FailedJobs, FailedJobType
 
 
-def get_fake_jobs() -> List[ProjectJob]:
+def get_fake_jobs() -> list[ProjectJob]:
     with open("tasks/unit-tests/testdata/jobs.json") as f:
         jobs = json.load(f)
 
@@ -156,18 +157,18 @@ class TestSendMessage(unittest.TestCase):
             )
         )
         jobowners = """\
-        job1 @DataDog/agent-ci-experience
-        job2 @DataDog/agent-ci-experience
-        job3 @DataDog/agent-ci-experience @DataDog/agent-developer-tools
-        not* @DataDog/agent-build-and-releases
+        job1 @DataDog/agent-devx-infra
+        job2 @DataDog/agent-devx-infra
+        job3 @DataDog/agent-devx-infra @DataDog/agent-devx-loops
+        not* @DataDog/agent-delivery
         """
         read_owners_mock.return_value = CodeOwners(jobowners)
         owners = find_job_owners(failed)
         # Should send notifications to agent-e2e-testing and ci-experience
         self.assertIn("@DataDog/agent-e2e-testing", owners)
-        self.assertIn("@DataDog/agent-ci-experience", owners)
-        self.assertNotIn("@DataDog/agent-developer-tools", owners)
-        self.assertNotIn("@DataDog/agent-build-and-releases", owners)
+        self.assertIn("@DataDog/agent-devx-infra", owners)
+        self.assertNotIn("@DataDog/agent-devx-loops", owners)
+        self.assertNotIn("@DataDog/agent-delivery", owners)
 
     @patch('tasks.libs.ciproviders.gitlab_api.get_gitlab_api')
     def test_merge_with_get_failed_call(self, api_mock):
@@ -264,7 +265,7 @@ class TestRetrieveJobExecutionsCreated(unittest.TestCase):
     def test_retrieved(self):
         ctx = MockContext(run=Result("test"))
         j = notify.retrieve_job_executions(ctx, "job_executions.json")
-        self.assertEqual(j, self.job_executions)
+        self.assertDictEqual(j.to_dict(), self.job_executions.to_dict())
 
 
 class TestRetrieveJobExecutions(unittest.TestCase):
@@ -274,7 +275,8 @@ class TestRetrieveJobExecutions(unittest.TestCase):
         ctx = MagicMock()
         ctx.run.side_effect = UnexpectedExit(Result(stderr="This is a 404 not found"))
         j = notify.retrieve_job_executions(ctx, self.test_json)
-        self.assertEqual(j, {"pipeline_id": 0, "jobs": {}})
+        self.assertEqual(j.pipeline_id, 0)
+        self.assertEqual(j.jobs, {})
 
     def test_other_error(self):
         ctx = MagicMock()
@@ -288,27 +290,52 @@ class TestUpdateStatistics(unittest.TestCase):
     def test_nominal(self, mock_get_failed):
         failed_jobs = mock_get_failed.return_value
         failed_jobs.all_failures.return_value = [
-            ProjectJob(MagicMock(), attrs=a) for a in [{"name": "nifnif"}, {"name": "nafnaf"}]
+            ProjectJob(MagicMock(), attrs=a)
+            for a in [{"name": "nifnif", "id": 504685380}, {"name": "nafnaf", "id": 504685380}]
         ]
-        j = {
-            "jobs": {
-                "nafnaf": {
-                    "consecutive_failures": 2,
-                    "cumulative_failures": [0, 0, 0, 0, 0, 0, 0, 0, 1, 1],
-                },
-                "noufnouf": {
-                    "consecutive_failures": 2,
-                    "cumulative_failures": [1, 0, 1, 1],
-                },
+        os.environ["CI_COMMIT_SHA"] = "abcdef42"
+        ok = {"id": None, "failing": False, 'commit': 'abcdef42'}
+        j = notify.PipelineRuns.from_dict(
+            {
+                "jobs": {
+                    "nafnaf": {
+                        "consecutive_failures": 2,
+                        "jobs_info": [
+                            ok,
+                            ok,
+                            ok,
+                            ok,
+                            ok,
+                            ok,
+                            ok,
+                            ok,
+                            {"id": 422184420, "failing": True, 'commit': 'abcdef42'},
+                            {"id": 618314618, "failing": True, 'commit': 'abcdef42'},
+                        ],
+                    },
+                    "noufnouf": {
+                        "consecutive_failures": 2,
+                        "jobs_info": [
+                            {"id": 422184420, "failing": True, 'commit': 'abcdef42'},
+                            ok,
+                            {"id": 618314618, "failing": True, 'commit': 'abcdef42'},
+                            {"id": 314618314, "failing": True, 'commit': 'abcdef42'},
+                        ],
+                    },
+                }
             }
-        }
+        )
         a, j = notify.update_statistics(j)
-        self.assertEqual(j["jobs"]["nifnif"]["consecutive_failures"], 1)
-        self.assertEqual(j["jobs"]["nifnif"]["cumulative_failures"], [1])
-        self.assertEqual(j["jobs"]["nafnaf"]["consecutive_failures"], 3)
-        self.assertEqual(j["jobs"]["nafnaf"]["cumulative_failures"], [0, 0, 0, 0, 0, 0, 0, 1, 1, 1])
-        self.assertEqual(j["jobs"]["noufnouf"]["consecutive_failures"], 0)
-        self.assertEqual(j["jobs"]["noufnouf"]["cumulative_failures"], [1, 0, 1, 1, 0])
+        self.assertEqual(j.jobs["nifnif"].consecutive_failures, 1)
+        self.assertEqual(len(j.jobs["nifnif"].jobs_info), 1)
+        self.assertTrue(j.jobs["nifnif"].jobs_info[0].failing)
+        self.assertEqual(j.jobs["nafnaf"].consecutive_failures, 3)
+        self.assertEqual(
+            [job.failing for job in j.jobs["nafnaf"].jobs_info],
+            [False, False, False, False, False, False, False, True, True, True],
+        )
+        self.assertEqual(j.jobs["noufnouf"].consecutive_failures, 0)
+        self.assertEqual([job.failing for job in j.jobs["noufnouf"].jobs_info], [True, False, True, True, False])
         self.assertEqual(len(a["consecutive"]), 1)
         self.assertEqual(len(a["cumulative"]), 0)
         self.assertIn("nafnaf", a["consecutive"])
@@ -317,26 +344,31 @@ class TestUpdateStatistics(unittest.TestCase):
     @patch("tasks.notify.get_failed_jobs")
     def test_multiple_failures(self, mock_get_failed):
         failed_jobs = mock_get_failed.return_value
+        fail = {"id": 42, "failing": True, 'commit': 'abcdef42'}
+        ok = {"id": None, "failing": False, 'commit': 'abcdef42'}
         failed_jobs.all_failures.return_value = [
-            ProjectJob(MagicMock(), attrs=a) for a in [{"name": "poulidor"}, {"name": "virenque"}, {"name": "bardet"}]
+            ProjectJob(MagicMock(), attrs=a | {"id": 42, 'commit': 'abcdef42'})
+            for a in [{"name": "poulidor"}, {"name": "virenque"}, {"name": "bardet"}]
         ]
-        j = {
-            "jobs": {
-                "poulidor": {
-                    "consecutive_failures": 8,
-                    "cumulative_failures": [0, 0, 1, 1, 1, 1, 1, 1, 1, 1],
-                },
-                "virenque": {
-                    "consecutive_failures": 2,
-                    "cumulative_failures": [0, 0, 0, 0, 1, 0, 1, 0, 1, 1],
-                },
-                "bardet": {"consecutive_failures": 2, "cumulative_failures": [1, 1]},
+        j = notify.PipelineRuns.from_dict(
+            {
+                "jobs": {
+                    "poulidor": {
+                        "consecutive_failures": 8,
+                        "jobs_info": [ok, ok, fail, fail, fail, fail, fail, fail, fail, fail],
+                    },
+                    "virenque": {
+                        "consecutive_failures": 2,
+                        "jobs_info": [ok, ok, ok, ok, fail, ok, fail, ok, fail, fail],
+                    },
+                    "bardet": {"consecutive_failures": 2, "jobs_info": [fail, fail]},
+                }
             }
-        }
+        )
         a, j = notify.update_statistics(j)
-        self.assertEqual(j["jobs"]["poulidor"]["consecutive_failures"], 9)
-        self.assertEqual(j["jobs"]["virenque"]["consecutive_failures"], 3)
-        self.assertEqual(j["jobs"]["bardet"]["consecutive_failures"], 3)
+        self.assertEqual(j.jobs["poulidor"].consecutive_failures, 9)
+        self.assertEqual(j.jobs["virenque"].consecutive_failures, 3)
+        self.assertEqual(j.jobs["bardet"].consecutive_failures, 3)
         self.assertEqual(len(a["consecutive"]), 2)
         self.assertEqual(len(a["cumulative"]), 1)
         self.assertIn("virenque", a["consecutive"])
@@ -345,36 +377,98 @@ class TestUpdateStatistics(unittest.TestCase):
         mock_get_failed.assert_called()
 
 
+class TestJobOwners(unittest.TestCase):
+    def test_partition(self):
+        from tasks.owners import make_partition
+
+        jobs = ['tests_hello', 'tests_ebpf', 'security_go_generate_check', 'hello_world', 'tests_hello_world']
+
+        partition = make_partition(jobs, "tasks/unit-tests/testdata/jobowners.txt")
+        partition = sorted(partition.items())
+
+        self.assertEqual(
+            partition,
+            [
+                ('@DataDog/agent-devx-infra', {'hello_world'}),
+                ('@DataDog/agent-security', {'security_go_generate_check'}),
+                ('@DataDog/ebpf-platform', {'tests_ebpf'}),
+                ('@DataDog/multiple', {'tests_hello', 'tests_hello_world'}),
+            ],
+        )
+
+
 class TestSendNotification(unittest.TestCase):
-    @patch("tasks.notify.send_slack_message")
-    def test_consecutive(self, mock_slack):
-        alert_jobs = {"consecutive": ["foo"], "cumulative": []}
-        notify.send_notification(alert_jobs)
-        mock_slack.assert_called_with(
-            "#agent-platform-ops",
-            f"Job(s) `foo` failed {notify.CONSECUTIVE_THRESHOLD} times in a row.\n",
-        )
+    def test_consecutive(self):
+        consecutive = notify.ConsecutiveJobAlert({'foo': [notify.ExecutionsJobInfo(1)] * notify.CONSECUTIVE_THRESHOLD})
+        message = consecutive.format_message('abcdef')
+        self.assertIn(f'{notify.CONSECUTIVE_THRESHOLD} times in a row', message)
 
-    @patch("tasks.notify.send_slack_message")
-    def test_cumulative(self, mock_slack):
-        alert_jobs = {"consecutive": [], "cumulative": ["bar", "baz"]}
-        notify.send_notification(alert_jobs)
-        mock_slack.assert_called_with(
-            "#agent-platform-ops",
-            f"Job(s) `bar`, `baz` failed {notify.CUMULATIVE_THRESHOLD} times in last {notify.CUMULATIVE_LENGTH} executions.\n",
+    def test_cumulative(self):
+        cumulative = notify.CumulativeJobAlert(
+            {'foo': [notify.ExecutionsJobInfo(i, failing=i % 3 != 0) for i in range(notify.CUMULATIVE_LENGTH)]}
         )
-
-    @patch("tasks.notify.send_slack_message")
-    def test_both(self, mock_slack):
-        alert_jobs = {"consecutive": ["foo"], "cumulative": ["bar", "baz"]}
-        notify.send_notification(alert_jobs)
-        mock_slack.assert_called_with(
-            "#agent-platform-ops",
-            f"Job(s) `foo` failed {notify.CONSECUTIVE_THRESHOLD} times in a row.\nJob(s) `bar`, `baz` failed {notify.CUMULATIVE_THRESHOLD} times in last {notify.CUMULATIVE_LENGTH} executions.\n",
-        )
+        message = cumulative.message()
+        self.assertIn(f'{notify.CUMULATIVE_THRESHOLD} times in last {notify.CUMULATIVE_LENGTH} executions', message)
 
     @patch("tasks.notify.send_slack_message")
     def test_none(self, mock_slack):
-        alert_jobs = {"consecutive": [], "cumulative": []}
-        notify.send_notification(alert_jobs)
+        alert_jobs = {"consecutive": {}, "cumulative": {}}
+        notify.send_notification(MagicMock(), alert_jobs)
         mock_slack.assert_not_called()
+
+    @patch("tasks.notify.send_metrics")
+    @patch("tasks.notify.send_slack_message")
+    @patch.object(notify.ConsecutiveJobAlert, 'message', lambda self, ctx: '\n'.join(self.failures) + '\n')
+    @patch.object(notify.CumulativeJobAlert, 'message', lambda self: '\n'.join(self.failures))
+    def test_jobowners(self, mock_slack: MagicMock, mock_metrics: MagicMock):
+        consecutive = {
+            'tests_hello': [notify.ExecutionsJobInfo(1)] * notify.CONSECUTIVE_THRESHOLD,
+            'security_go_generate_check': [notify.ExecutionsJobInfo(1)] * notify.CONSECUTIVE_THRESHOLD,
+        }
+        cumulative = {
+            'tests_release1': [
+                notify.ExecutionsJobInfo(i, failing=i % 3 != 0) for i in range(notify.CUMULATIVE_LENGTH)
+            ],
+            'tests_release2': [
+                notify.ExecutionsJobInfo(i, failing=i % 3 != 0) for i in range(notify.CUMULATIVE_LENGTH)
+            ],
+        }
+
+        alert_jobs = {"consecutive": consecutive, "cumulative": cumulative}
+        notify.send_notification(MagicMock(), alert_jobs, jobowners='tasks/unit-tests/testdata/jobowners.txt')
+        self.assertEqual(len(mock_slack.call_args_list), 4)
+
+        # Verify that we send the right number of jobs per channel
+        expected_team_njobs = {
+            '#agent-delivery-ops': 2,
+            '#agent-devx-ops': 2,
+            '#agent-platform-ops': 4,
+            '#security-and-compliance-agent-ops': 1,
+        }
+
+        for call_args in mock_slack.call_args_list:
+            channel, message = call_args.args
+            # The mock will separate job names with a newline
+            jobs = message.strip().split("\n")
+            njobs = len(jobs)
+
+            self.assertEqual(expected_team_njobs.get(channel, None), njobs)
+
+        # Verify metrics
+        mock_metrics.assert_called_once()
+        expected_metrics = {
+            '@datadog/agent-security': 1,
+            '@datadog/agent-delivery': 2,
+            '@datadog/agent-devx-infra': 2,
+            '@datadog/agent-devx-loops': 2,
+            '@datadog/documentation': 2,
+            '@datadog/agent-platform': 2,
+        }
+        for metric in mock_metrics.call_args[0][0]:
+            name = metric['metric']
+            value = int(metric['points'][0]['value'])
+            team = next(tag.removeprefix('team:') for tag in metric['tags'] if tag.startswith('team:'))
+
+            self.assertEqual(
+                value, expected_metrics.get(team), f'Unexpected metric value for metric {name} of team {team}'
+            )

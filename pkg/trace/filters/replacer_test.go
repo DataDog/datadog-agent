@@ -52,12 +52,14 @@ func TestReplacer(t *testing.T) {
 					"http.url":      "some/[REDACTED]/token/abcdef/abc",
 					"other.url":     "some/guid/token/abcdef/abc",
 					"custom.tag":    "/foo/bar/foo",
+					"_special":      "this should not be changed",
 				},
 				want: map[string]string{
 					"resource.name": "that is stage",
 					"http.url":      "some/[REDACTED]/token/?/abc",
 					"other.url":     "some/guid/token/?/abc",
 					"custom.tag":    "/foo/bar/extra",
+					"_special":      "this should not be changed",
 				},
 			},
 		} {

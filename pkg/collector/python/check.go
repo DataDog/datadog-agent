@@ -81,7 +81,7 @@ func NewPythonCheck(senderManager sender.SenderManager, name string, class *C.rt
 		class:         class,
 		interval:      defaults.DefaultCheckInterval,
 		lastWarnings:  []error{},
-		telemetry:     utils.IsCheckTelemetryEnabled(name, config.Datadog),
+		telemetry:     utils.IsCheckTelemetryEnabled(name, config.Datadog()),
 	}
 	runtime.SetFinalizer(pyCheck, pythonCheckFinalizer)
 
@@ -308,7 +308,7 @@ func (c *PythonCheck) Configure(senderManager sender.SenderManager, integrationC
 		log.Warnf("could not get a '%s' check instance with the new api: %s", c.ModuleName, rtLoaderError)
 		log.Warn("trying to instantiate the check with the old api, passing agentConfig to the constructor")
 
-		allSettings := config.Datadog.AllSettings()
+		allSettings := config.Datadog().AllSettings()
 		agentConfig, err := yaml.Marshal(allSettings)
 		if err != nil {
 			log.Errorf("error serializing agent config: %s", err)

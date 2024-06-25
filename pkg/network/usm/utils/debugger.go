@@ -104,6 +104,26 @@ func (d *tlsDebugger) GetTracedPrograms() []TracedProgram {
 	return all
 }
 
+// GetBlockedPathIDs returns a list of PathIdentifiers blocked in the
+// registry for the specified program type.
+func (d *tlsDebugger) GetBlockedPathIDs(programType string) []PathIdentifier {
+	d.mux.Lock()
+	defer d.mux.Unlock()
+
+	for _, registry := range d.registries {
+		if registry.telemetry.programName != programType {
+			continue
+		}
+
+		registry.m.Lock()
+		defer registry.m.Unlock()
+
+		return registry.blocklistByID.Keys()
+	}
+
+	return nil
+}
+
 // AddAttacher adds an attacher to the debugger.
 func (d *tlsDebugger) AddAttacher(name string, a Attacher) {
 	d.mux.Lock()
@@ -195,4 +215,12 @@ func init() {
 	debugger = &tlsDebugger{
 		attachers: make(map[string]Attacher),
 	}
+}
+
+// GetTracedProgramList returns a list of traced programs.
+func GetTracedProgramList() []TracedProgram {
+	if debugger == nil {
+		return nil
+	}
+	return debugger.GetTracedPrograms()
 }

@@ -78,8 +78,6 @@ func (l *LoadConfig) Load() (*config.AgentConfig, error) {
 	c, err := compcorecfg.NewServerlessConfig(l.Path)
 	if err != nil {
 		return nil, err
-	} else if c == nil {
-		return nil, fmt.Errorf("No error, but no configuration component was produced - bailing out")
 	}
 	return comptracecfg.LoadConfigFile(l.Path, c)
 }
@@ -92,7 +90,7 @@ func (s *ServerlessTraceAgent) Start(enabled bool, loadConfig Load, lambdaSpanCh
 		// Set the serverless config option which will be used to determine if
 		// hostname should be resolved. Skipping hostname resolution saves >1s
 		// in load time between gRPC calls and agent commands.
-		ddConfig.Datadog.Set("serverless.enabled", true, model.SourceAgentRuntime)
+		ddConfig.Datadog().Set("serverless.enabled", true, model.SourceAgentRuntime)
 
 		tc, confErr := loadConfig.Load()
 		if confErr != nil {

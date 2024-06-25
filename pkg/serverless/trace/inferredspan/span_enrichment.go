@@ -37,7 +37,7 @@ func CreateServiceMapping(val string) map[string]string {
 }
 
 func init() {
-	serviceMappingStr := config.Datadog.GetString("serverless.service_mapping")
+	serviceMappingStr := config.Datadog().GetString("serverless.service_mapping")
 	serviceMapping = CreateServiceMapping(serviceMappingStr)
 }
 

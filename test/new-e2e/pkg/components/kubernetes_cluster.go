@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
+
 	"github.com/DataDog/test-infra-definitions/components/kubernetes"
 
 	kubeClient "k8s.io/client-go/kubernetes"
@@ -21,7 +23,7 @@ const kubeClientTimeout = 60 * time.Second
 type KubernetesCluster struct {
 	kubernetes.ClusterOutput
 
-	client kubeClient.Interface
+	KubernetesClient *client.KubernetesClient
 }
 
 var _ e2e.Initializable = &KubernetesCluster{}
@@ -37,7 +39,7 @@ func (kc *KubernetesCluster) Init(e2e.Context) error {
 	config.Timeout = kubeClientTimeout
 
 	// Create client
-	kc.client, err = kubeClient.NewForConfig(config)
+	kc.KubernetesClient, err = client.NewKubernetesClient(config)
 	if err != nil {
 		return err
 	}
@@ -47,5 +49,5 @@ func (kc *KubernetesCluster) Init(e2e.Context) error {
 
 // Client returns the Kubernetes client
 func (kc *KubernetesCluster) Client() kubeClient.Interface {
-	return kc.client
+	return kc.KubernetesClient.K8sClient
 }

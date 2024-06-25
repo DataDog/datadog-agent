@@ -37,15 +37,37 @@ func ResetDebugger() {
 	}
 }
 
+// IsProgramTraced checks if the process with the provided PID is
+// traced.
+func IsProgramTraced(programType string, pid int) bool {
+	traced := GetTracedPrograms(programType)
+	for _, prog := range traced {
+		if slices.Contains[[]uint32](prog.PIDs, uint32(pid)) {
+			return true
+		}
+	}
+	return false
+}
+
 // WaitForProgramsToBeTraced waits for the program to be traced by the debugger
 func WaitForProgramsToBeTraced(t *testing.T, programType string, pid int) {
 	require.Eventuallyf(t, func() bool {
-		traced := GetTracedPrograms(programType)
-		for _, prog := range traced {
-			if slices.Contains[[]uint32](prog.PIDs, uint32(pid)) {
+		return IsProgramTraced(programType, pid)
+	}, time.Second*5, time.Millisecond*100, "process %v is not traced by %v", pid, programType)
+}
+
+// WaitForPathToBeBlocked waits for the path to be blocked from tracing in the
+// registry (due to failing activation).
+func WaitForPathToBeBlocked(t *testing.T, programType string, path string) {
+	pathID, err := NewPathIdentifier(path)
+	require.NoError(t, err)
+	require.Eventuallyf(t, func() bool {
+		blocked := debugger.GetBlockedPathIDs(programType)
+		for _, id := range blocked {
+			if id == pathID {
 				return true
 			}
 		}
 		return false
-	}, time.Second*5, time.Millisecond*100, "process %v is not traced by %v", pid, programType)
+	}, time.Second*5, time.Millisecond*100, "path %v is not blocked in %v", path, programType)
 }

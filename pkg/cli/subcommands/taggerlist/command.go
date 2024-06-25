@@ -35,9 +35,10 @@ type cliParams struct {
 // A pointer to this type is passed to SubcommandFactory's, but its contents
 // are not valid until Cobra calls the subcommand's Run or RunE function.
 type GlobalParams struct {
-	ConfFilePath string
-	ConfigName   string
-	LoggerName   string
+	ConfFilePath       string
+	ExtraConfFilePaths []string
+	ConfigName         string
+	LoggerName         string
 }
 
 // MakeCommand returns a `tagger-list` command to be used by agent binaries.
@@ -59,6 +60,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 					ConfigParams: config.NewAgentParams(
 						globalParams.ConfFilePath,
 						config.WithConfigName(globalParams.ConfigName),
+						config.WithExtraConfFiles(globalParams.ExtraConfFilePaths),
 					),
 					LogParams: logimpl.ForOneShot(globalParams.LoggerName, "off", true)}),
 				core.Bundle(),
@@ -89,9 +91,9 @@ func getTaggerURL(_ config.Component) (string, error) {
 
 	var urlstr string
 	if flavor.GetFlavor() == flavor.ClusterAgent {
-		urlstr = fmt.Sprintf("https://%v:%v/tagger-list", ipcAddress, pkgconfig.Datadog.GetInt("cluster_agent.cmd_port"))
+		urlstr = fmt.Sprintf("https://%v:%v/tagger-list", ipcAddress, pkgconfig.Datadog().GetInt("cluster_agent.cmd_port"))
 	} else {
-		urlstr = fmt.Sprintf("https://%v:%v/agent/tagger-list", ipcAddress, pkgconfig.Datadog.GetInt("cmd_port"))
+		urlstr = fmt.Sprintf("https://%v:%v/agent/tagger-list", ipcAddress, pkgconfig.Datadog().GetInt("cmd_port"))
 	}
 
 	return urlstr, nil

@@ -2,13 +2,14 @@
 Running E2E Tests with infra based on Pulumi
 """
 
+from __future__ import annotations
+
 import json
 import os
 import os.path
 import shutil
 import tempfile
 from pathlib import Path
-from typing import List
 
 import yaml
 from invoke.context import Context
@@ -16,8 +17,9 @@ from invoke.exceptions import Exit
 from invoke.tasks import task
 
 from tasks.flavor import AgentFlavor
-from tasks.go_test import process_test_result, test_flavor
-from tasks.libs.common.utils import REPO_PATH, get_git_commit
+from tasks.gotest import process_test_result, test_flavor
+from tasks.libs.common.git import get_commit_sha
+from tasks.libs.common.utils import REPO_PATH, color_message, running_in_ci
 from tasks.modules import DEFAULT_MODULES
 
 
@@ -71,11 +73,11 @@ def run(
     if targets:
         e2e_module.targets = targets
 
-    envVars = dict()
+    envVars = {}
     if profile:
         envVars["E2E_PROFILE"] = profile
 
-    parsedParams = dict()
+    parsedParams = {}
     for param in configparams:
         parts = param.split("=", 1)
         if len(parts) != 2:
@@ -100,7 +102,7 @@ def run(
         "verbose": '-v' if verbose else '',
         "nocache": '-count=1' if not cache else '',
         "REPO_PATH": REPO_PATH,
-        "commit": get_git_commit(),
+        "commit": get_commit_sha(ctx, short=True),
         "run": '-test.run ' + run if run else '',
         "skip": '-test.skip ' + skip if skip else '',
         "test_run_arg": test_run_arg,
@@ -132,6 +134,25 @@ def run(
     )
 
     success = process_test_result(test_res, junit_tar, AgentFlavor.base, test_washer)
+
+    if running_in_ci():
+        # Do not print all the params, they could contain secrets needed only in the CI
+        params = [f'--targets {t}' for t in targets]
+        pre_command = (
+            f"E2E_PIPELINE_ID={os.environ.get('CI_PIPELINE_ID')} aws-vault exec sso-agent-sandbox-account-admin"
+        )
+
+        param_keys = ('osversion', 'platform', 'arch')
+        for param_key in param_keys:
+            if args.get(param_key):
+                params.append(f'-{args[param_key]}')
+
+        command = f"{pre_command} -- inv -e new-e2e-tests.run {' '.join(params)}"
+        print(
+            f'To run this test locally, use: `{command}`. '
+            'You can also add `E2E_DEV_MODE="true"` to run in dev mode which will leave the environment up after the tests.'
+        )
+
     if not success:
         raise Exit(code=1)
 
@@ -239,8 +260,8 @@ def _clean_stacks(ctx: Context):
         _remove_stack(ctx, stack)
 
 
-def _get_existing_stacks(ctx: Context) -> List[str]:
-    e2e_stacks: List[str] = []
+def _get_existing_stacks(ctx: Context) -> list[str]:
+    e2e_stacks: list[str] = []
     output = ctx.run("pulumi stack ls --all --project e2elocal --json", hide=True, env=_get_default_env())
     if output is None or not output:
         return []
@@ -267,13 +288,26 @@ def _destroy_stack(ctx: Context, stack: str):
             env=_get_default_env(),
         )
         if ret is not None and ret.exited != 0:
+            if "No valid credential sources found" in ret.stdout:
+                print(
+                    "No valid credentials sources found, you need to wrap the invoke command in aws-vault exec <account> --"
+                )
+                raise Exit(
+                    color_message(
+                        f"Failed to destroy stack {stack}, no valid credentials sources found, you need to wrap the invoke command in aws-vault exec <account> --",
+                        "red",
+                    ),
+                    1,
+                )
             # run with refresh on first destroy attempt failure
-            ctx.run(
+            ret = ctx.run(
                 f"pulumi destroy --stack {stack} -r --yes --remove --skip-preview",
                 warn=True,
                 hide=True,
                 env=_get_default_env(),
             )
+        if ret is not None and ret.exited != 0:
+            raise Exit(color_message(f"Failed to destroy stack {stack}: {ret.stdout}", "red"), 1)
 
 
 def _remove_stack(ctx: Context, stack: str):
@@ -283,7 +317,7 @@ def _remove_stack(ctx: Context, stack: str):
 def _get_pulumi_about(ctx: Context) -> dict:
     output = ctx.run("pulumi about --json", hide=True, env=_get_default_env())
     if output is None or not output:
-        return ""
+        return {}
     return json.loads(output.stdout)
 
 

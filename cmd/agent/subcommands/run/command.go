@@ -41,9 +41,11 @@ import (
 	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger/jmxloggerimpl"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
-	internalAPI "github.com/DataDog/datadog-agent/comp/api/api"
+	demultiplexerendpointfx "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexerendpoint/fx"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl"
+	internalAPI "github.com/DataDog/datadog-agent/comp/api/api/def"
 	authtokenimpl "github.com/DataDog/datadog-agent/comp/api/authtoken/createandfetchimpl"
+	commonendpoints "github.com/DataDog/datadog-agent/comp/api/commonendpoints/fx"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/collector/collector/collectorimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
@@ -52,6 +54,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
+	"github.com/DataDog/datadog-agent/comp/core/gui"
 	"github.com/DataDog/datadog-agent/comp/core/gui/guiimpl"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
@@ -74,13 +77,15 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/defaults"
+	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
+	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	dogstatsddebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	dogstatsdStatusimpl "github.com/DataDog/datadog-agent/comp/dogstatsd/status/statusimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
@@ -97,16 +102,21 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
+	"github.com/DataDog/datadog-agent/comp/metadata/inventoryotel"
 	"github.com/DataDog/datadog-agent/comp/metadata/packagesigning"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner"
+	securityagentmetadata "github.com/DataDog/datadog-agent/comp/metadata/securityagent/def"
+	systemprobemetadata "github.com/DataDog/datadog-agent/comp/metadata/systemprobe/def"
 	"github.com/DataDog/datadog-agent/comp/ndmtmp"
 	"github.com/DataDog/datadog-agent/comp/netflow"
 	netflowServer "github.com/DataDog/datadog-agent/comp/netflow/server"
+	"github.com/DataDog/datadog-agent/comp/networkpath"
 	"github.com/DataDog/datadog-agent/comp/otelcol"
-	otelcollector "github.com/DataDog/datadog-agent/comp/otelcol/collector"
+	otelcollector "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
 	processAgent "github.com/DataDog/datadog-agent/comp/process/agent"
 	processagentStatusImpl "github.com/DataDog/datadog-agent/comp/process/status/statusimpl"
+	rdnsquerierfx "github.com/DataDog/datadog-agent/comp/rdnsquerier/fx"
 	remoteconfig "github.com/DataDog/datadog-agent/comp/remote-config"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice/rcserviceimpl"
@@ -168,7 +178,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				ddruntime.SetMaxProcs()
 			}),
 			fx.Supply(core.BundleParams{
-				ConfigParams:         config.NewAgentParams(globalParams.ConfFilePath),
+				ConfigParams:         config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(cliParams.ExtraConfFilePath)),
 				SecretParams:         secrets.NewEnabledParams(),
 				SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath)),
 				LogParams:            logimpl.ForDaemon(command.LoggerName, "log_file", path.DefaultLogFile),
@@ -216,11 +226,13 @@ func run(log log.Component,
 	demultiplexer demultiplexer.Component,
 	sharedSerializer serializer.MetricSerializer,
 	logsAgent optional.Option[logsAgent.Component],
+	_ statsd.Component,
 	processAgent processAgent.Component,
 	otelcollector otelcollector.Component,
 	_ host.Component,
 	_ inventoryagent.Component,
 	_ inventoryhost.Component,
+	_ inventoryotel.Component,
 	_ secrets.Component,
 	invChecks inventorychecks.Component,
 	_ netflowServer.Component,
@@ -228,6 +240,8 @@ func run(log log.Component,
 	_ langDetectionCl.Component,
 	agentAPI internalAPI.Component,
 	_ packagesigning.Component,
+	_ systemprobemetadata.Component,
+	_ securityagentmetadata.Component,
 	statusComponent status.Component,
 	collector collector.Component,
 	cloudfoundrycontainer cloudfoundrycontainer.Component,
@@ -237,6 +251,7 @@ func run(log log.Component,
 	_ healthprobe.Component,
 	_ autoexit.Component,
 	settings settings.Component,
+	_ optional.Option[gui.Component],
 	_ agenttelemetry.Component,
 ) error {
 	defer func() {
@@ -334,7 +349,7 @@ func getSharedFxOption() fx.Option {
 		// workloadmeta setup
 		collectors.GetCatalog(),
 		fx.Provide(defaults.DefaultParams),
-		workloadmeta.Module(),
+		workloadmetafx.Module(),
 		fx.Supply(
 			status.Params{
 				PythonVersionGetFunc: python.GetPythonVersion,
@@ -362,11 +377,14 @@ func getSharedFxOption() fx.Option {
 		traceagentStatusImpl.Module(),
 		processagentStatusImpl.Module(),
 		dogstatsdStatusimpl.Module(),
+		statsd.Module(),
 		statusimpl.Module(),
 		authtokenimpl.Module(),
 		apiimpl.Module(),
+		commonendpoints.Module(),
 		compressionimpl.Module(),
 		demultiplexerimpl.Module(),
+		demultiplexerendpointfx.Module(),
 		dogstatsd.Bundle(),
 		fx.Provide(func(logsagent optional.Option[logsAgent.Component]) optional.Option[logsagentpipeline.Component] {
 			if la, ok := logsagent.Get(); ok {
@@ -397,7 +415,7 @@ func getSharedFxOption() fx.Option {
 			lc.Append(fx.Hook{
 				OnStart: func(_ context.Context) error {
 					//  setup the AutoConfig instance
-					common.LoadComponents(secretResolver, wmeta, ac, pkgconfig.Datadog.GetString("confd_path"))
+					common.LoadComponents(secretResolver, wmeta, ac, pkgconfig.Datadog().GetString("confd_path"))
 					return nil
 				},
 			})
@@ -428,6 +446,7 @@ func getSharedFxOption() fx.Option {
 		}),
 		ndmtmp.Bundle(),
 		netflow.Bundle(),
+		rdnsquerierfx.Module(),
 		snmptraps.Bundle(),
 		collectorimpl.Module(),
 		process.Bundle(),
@@ -462,6 +481,7 @@ func getSharedFxOption() fx.Option {
 		}),
 		settingsimpl.Module(),
 		agenttelemetryimpl.Module(),
+		networkpath.Bundle(),
 	)
 }
 
@@ -499,17 +519,17 @@ func startAgent(
 		log.Infof("Starting Datadog Agent v%v", version.AgentVersion)
 	}
 
-	if err := util.SetupCoreDump(pkgconfig.Datadog); err != nil {
+	if err := util.SetupCoreDump(pkgconfig.Datadog()); err != nil {
 		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
 	}
 
-	if v := pkgconfig.Datadog.GetBool("internal_profiling.capture_all_allocations"); v {
+	if v := pkgconfig.Datadog().GetBool("internal_profiling.capture_all_allocations"); v {
 		runtime.MemProfileRate = 1
 		log.Infof("MemProfileRate set to 1, capturing every single memory allocation!")
 	}
 
 	// Setup Internal Profiling
-	common.SetupInternalProfiling(settings, pkgconfig.Datadog, "")
+	common.SetupInternalProfiling(settings, pkgconfig.Datadog(), "")
 
 	// Setup expvar server
 	telemetryHandler := telemetry.Handler()
@@ -525,14 +545,14 @@ func startAgent(
 	log.Infof("Hostname is: %s", hostnameDetected)
 
 	// start remote configuration management
-	if pkgconfig.IsRemoteConfigEnabled(pkgconfig.Datadog) {
+	if pkgconfig.IsRemoteConfigEnabled(pkgconfig.Datadog()) {
 		// Subscribe to `AGENT_TASK` product
 		rcclient.SubscribeAgentTask()
 
 		// Subscribe to `APM_TRACING` product
 		rcclient.SubscribeApmTracing()
 
-		if pkgconfig.Datadog.GetBool("remote_configuration.agent_integrations.enabled") {
+		if pkgconfig.Datadog().GetBool("remote_configuration.agent_integrations.enabled") {
 			// Spin up the config provider to schedule integrations through remote-config
 			rcProvider := providers.NewRemoteConfigProvider()
 			rcclient.Subscribe(data.ProductAgentIntegrations, rcProvider.IntegrationScheduleCallback)
@@ -542,15 +562,13 @@ func startAgent(
 	}
 
 	// start the cmd HTTP server
-	if err = agentAPI.StartServer(
-		demultiplexer,
-	); err != nil {
+	if err = agentAPI.StartServer(); err != nil {
 		return log.Errorf("Error while starting api server, exiting: %v", err)
 	}
 
 	// start clc runner server
 	// only start when the cluster agent is enabled and a cluster check runner host is enabled
-	if pkgconfig.Datadog.GetBool("cluster_agent.enabled") && pkgconfig.Datadog.GetBool("clc_runner_enabled") {
+	if pkgconfig.Datadog().GetBool("cluster_agent.enabled") && pkgconfig.Datadog().GetBool("clc_runner_enabled") {
 		if err = clcrunnerapi.StartCLCRunnerServer(map[string]http.Handler{
 			"/telemetry": telemetryHandler,
 		}, ac); err != nil {
@@ -559,7 +577,7 @@ func startAgent(
 	}
 
 	// Create the Leader election engine without initializing it
-	if pkgconfig.Datadog.GetBool("leader_election") {
+	if pkgconfig.Datadog().GetBool("leader_election") {
 		leaderelection.CreateGlobalLeaderEngine(ctx)
 	}
 
@@ -580,7 +598,7 @@ func startAgent(
 	jmxfetch.RegisterWith(ac)
 
 	// Set up check collector
-	commonchecks.RegisterChecks(wmeta, cfg)
+	commonchecks.RegisterChecks(wmeta, cfg, telemetry)
 	ac.AddScheduler("check", pkgcollector.InitCheckScheduler(optional.NewOption(collector), demultiplexer), true)
 
 	demultiplexer.AddAgentStartupTelemetry(version.AgentVersion)

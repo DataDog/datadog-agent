@@ -11,7 +11,8 @@ from contextlib import contextmanager
 from invoke import task
 from invoke.exceptions import Exit, UnexpectedExit
 
-from tasks.libs.common.utils import get_version, load_release_versions, timed
+from tasks.libs.common.utils import timed
+from tasks.libs.releasing.version import get_version, load_release_versions
 
 # Windows only import
 try:
@@ -35,6 +36,23 @@ NUGET_CONFIG_BASE = '''<?xml version="1.0" encoding="utf-8"?>
 <configuration>
 </configuration>
 '''
+
+DATADOG_AGENT_MSI_ALLOW_LIST = [
+    "APPLICATIONDATADIRECTORY",
+    "EXAMPLECONFSLOCATION",
+    "checks.d",
+    "run",
+    "logs",
+    "ProgramMenuDatadog",
+]
+
+DATADOG_INSTALLER_MSI_ALLOW_LIST = [
+    "APPLICATIONDATADIRECTORY",
+    "DatadogInstallerData",
+    "locks",
+    "packages",
+    "temp",
+]
 
 
 def _get_vs_build_command(cmd, vstudio_root=None):
@@ -140,7 +158,6 @@ def sign_file(ctx, path, force=False):
 def _build(
     ctx,
     env,
-    arch='x64',
     configuration='Release',
     project='',
     vstudio_root=None,
@@ -179,7 +196,7 @@ def _build(
 
     # Construct build command line
     cmd = _get_vs_build_command(
-        f'cd {BUILD_SOURCE_DIR} && msbuild {project} /restore /p:Configuration={configuration} /p:Platform="{arch}" /verbosity:minimal',
+        f'cd {BUILD_SOURCE_DIR} && msbuild {project} /restore /p:Configuration={configuration} /p:Platform="x64" /verbosity:minimal',
         vstudio_root,
     )
     print(f"Build Command: {cmd}")
@@ -224,7 +241,7 @@ def _build_wxs(ctx, env, outdir):
     sign_file(ctx, os.path.join(outdir, 'CustomActions.CA.dll'))
 
 
-def _build_msi(ctx, env, outdir, name):
+def _build_msi(ctx, env, outdir, name, allowlist):
     # Run the generated build command to build the MSI
     build_cmd = os.path.join(outdir, f"Build_{name}.cmd")
     if not os.path.exists(build_cmd):
@@ -239,7 +256,7 @@ def _build_msi(ctx, env, outdir, name):
         raise Exit("Failed to build the MSI installer.", code=1)
 
     out_file = os.path.join(outdir, f"{name}.msi")
-    validate_msi(ctx, out_file)
+    validate_msi(ctx, allowlist, out_file)
     sign_file(ctx, out_file)
 
 
@@ -258,7 +275,6 @@ def build(
     _build(
         ctx,
         env,
-        arch=arch,
         configuration=configuration,
         vstudio_root=vstudio_root,
     )
@@ -277,12 +293,7 @@ def build(
     # Run WiX to turn the WXS into an MSI
     with timed("Building MSI"):
         msi_name = f"datadog-agent-{env['PACKAGE_VERSION']}-1-x86_64"
-        _build_msi(
-            ctx,
-            env,
-            build_outdir,
-            msi_name,
-        )
+        _build_msi(ctx, env, build_outdir, msi_name, DATADOG_AGENT_MSI_ALLOW_LIST)
 
         # And copy it to the final output path as a build artifact
         shutil.copy2(os.path.join(build_outdir, msi_name + '.msi'), OUTPUT_PATH)
@@ -291,13 +302,46 @@ def build(
     optional_name = "datadog-agent-7.43.0~rc.3+git.485.14b9337-1-x86_64"
     if os.path.exists(os.path.join(build_outdir, optional_name + ".wxs")):
         with timed("Building optional MSI"):
-            _build_msi(
-                ctx,
-                env,
-                build_outdir,
-                optional_name,
-            )
+            _build_msi(ctx, env, build_outdir, optional_name, DATADOG_AGENT_MSI_ALLOW_LIST)
             shutil.copy2(os.path.join(build_outdir, optional_name + '.msi'), OUTPUT_PATH)
+
+
+@task
+def build_installer(ctx, vstudio_root=None, arch="x64", debug=False):
+    """
+    Build the MSI installer for the agent
+    """
+    env = {}
+    env['NUGET_PACKAGES_DIR'] = f'{NUGET_PACKAGES_DIR}'
+    env['AGENT_INSTALLER_OUTPUT_DIR'] = f'{BUILD_OUTPUT_DIR}'
+    configuration = _msbuild_configuration(debug=debug)
+    build_outdir = build_out_dir(arch, configuration)
+
+    # Build the builder executable (WixSetup.exe)
+    _build(
+        ctx,
+        env,
+        configuration=configuration,
+        vstudio_root=vstudio_root,
+    )
+
+    # sign build output that will be included in the installer MSI
+    sign_file(ctx, os.path.join(build_outdir, 'CustomActions.dll'))
+
+    # Run WixSetup.exe to generate the WXS and other input files
+    with timed("Building WXS"):
+        _build_wxs(
+            ctx,
+            env,
+            build_outdir,
+        )
+
+    with timed("Building MSI"):
+        msi_name = "datadog-installer-1-x86_64"
+        _build_msi(ctx, env, build_outdir, msi_name, DATADOG_INSTALLER_MSI_ALLOW_LIST)
+
+        # And copy it to the final output path as a build artifact
+        shutil.copy2(os.path.join(build_outdir, msi_name + '.msi'), OUTPUT_PATH)
 
 
 @task
@@ -314,7 +358,6 @@ def test(
     _build(
         ctx,
         env,
-        arch=arch,
         configuration=configuration,
         vstudio_root=vstudio_root,
     )
@@ -335,7 +378,7 @@ def test(
         raise Exit(code=1)
 
 
-def validate_msi_createfolder_table(db):
+def validate_msi_createfolder_table(db, allowlist):
     """
     Checks that the CreateFolder MSI table only contains certain directories.
 
@@ -352,7 +395,6 @@ def validate_msi_createfolder_table(db):
     TODO: We don't want the AI flag to be removed from the directories in the allow list either, but
           this behavior was also present in the original installer so leave them for now.
     """
-    allowlist = ["APPLICATIONDATADIRECTORY", "EXAMPLECONFSLOCATION", "checks.d", "run", "logs", "ProgramMenuDatadog"]
 
     with MsiClosing(db.OpenView("Select Directory_ FROM CreateFolder")) as view:
         view.Execute(None)
@@ -371,9 +413,9 @@ def validate_msi_createfolder_table(db):
 
 
 @task
-def validate_msi(_ctx, msi=None):
+def validate_msi(_, allowlist, msi=None):
     with MsiClosing(msilib.OpenDatabase(msi, msilib.MSIDBOPEN_READONLY)) as db:
-        validate_msi_createfolder_table(db)
+        validate_msi_createfolder_table(db, allowlist)
 
 
 @contextmanager

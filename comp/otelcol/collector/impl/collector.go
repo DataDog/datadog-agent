@@ -12,97 +12,161 @@ import (
 	"context"
 
 	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/confmap"
+	"go.opentelemetry.io/collector/confmap/converter/expandconverter"
+	"go.opentelemetry.io/collector/confmap/provider/envprovider"
+	"go.opentelemetry.io/collector/confmap/provider/fileprovider"
+	"go.opentelemetry.io/collector/confmap/provider/httpprovider"
+	"go.opentelemetry.io/collector/confmap/provider/httpsprovider"
+	"go.opentelemetry.io/collector/confmap/provider/yamlprovider"
 	"go.opentelemetry.io/collector/otelcol"
 
-	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	corelog "github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	collectorcontrib "github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def"
-	collectordef "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
+	collector "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
+	ddextension "github.com/DataDog/datadog-agent/comp/otelcol/extension/impl"
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
-	"github.com/DataDog/datadog-agent/comp/otelcol/otlp"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter"
-	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/tagenrichmentprocessor"
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter"
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient"
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor"
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/datatype"
+	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
+	zapAgent "github.com/DataDog/datadog-agent/pkg/util/log/zap"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
-type dependencies struct {
+type collectorImpl struct {
+	log corelog.Component
+	set otelcol.CollectorSettings
+	col *otelcol.Collector
+}
+
+// Requires declares the input types to the constructor
+type Requires struct {
 	// Lc specifies the compdef lifecycle settings, used for appending startup
 	// and shutdown hooks.
 	Lc compdef.Lifecycle
 
 	// Log specifies the logging component.
-	Log              corelog.Component
-	Provider         otelcol.ConfigProvider
-	CollectorContrib collectorcontrib.Component
-	Serializer       serializer.MetricSerializer
-	LogsAgent        optional.Option[logsagentpipeline.Component]
-	HostName         hostname.Component
+	Log                 corelog.Component
+	Provider            confmap.Converter
+	CollectorContrib    collectorcontrib.Component
+	Serializer          serializer.MetricSerializer
+	TraceAgent          traceagent.Component
+	LogsAgent           optional.Option[logsagentpipeline.Component]
+	SourceProvider      serializerexporter.SourceProviderFunc
+	Tagger              tagger.Component
+	StatsdClientWrapper *metricsclient.StatsdClientWrapper
+	URIs                []string
 }
 
-type collector struct {
-	deps dependencies
-	set  otelcol.CollectorSettings
-	col  *otelcol.Collector
+// Provides declares the output types from the constructor
+type Provides struct {
+	compdef.Out
+
+	Comp collector.Component
 }
 
-// New returns a new instance of the collector component.
-func New(deps dependencies) (collectordef.Component, error) {
+type converterFactory struct {
+	converter confmap.Converter
+}
+
+func (c *converterFactory) Create(_ confmap.ConverterSettings) confmap.Converter {
+	return c.converter
+}
+
+// NewComponent returns a new instance of the collector component.
+func NewComponent(reqs Requires) (Provides, error) {
+	// Replace default core to use Agent logger
+	options := []zap.Option{
+		zap.WrapCore(func(zapcore.Core) zapcore.Core {
+			return zapAgent.NewZapCore()
+		}),
+	}
 	set := otelcol.CollectorSettings{
 		BuildInfo: component.BuildInfo{
-			Version:     "0.0.1",
+			Version:     "v0.102.0",
 			Command:     "otel-agent",
 			Description: "Datadog Agent OpenTelemetry Collector Distribution",
 		},
+		LoggingOptions: options,
 		Factories: func() (otelcol.Factories, error) {
-			factories, err := deps.CollectorContrib.OTelComponentFactories()
+			factories, err := reqs.CollectorContrib.OTelComponentFactories()
 			if err != nil {
 				return otelcol.Factories{}, err
 			}
-			if v, ok := deps.LogsAgent.Get(); ok {
-				factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(deps.Serializer, v, deps.HostName)
+			if v, ok := reqs.LogsAgent.Get(); ok {
+				factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(reqs.TraceAgent, reqs.Serializer, v, reqs.SourceProvider, reqs.StatsdClientWrapper)
 			} else {
-				factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(deps.Serializer, nil, deps.HostName)
+				factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(reqs.TraceAgent, reqs.Serializer, nil, reqs.SourceProvider, reqs.StatsdClientWrapper)
 			}
-			factories.Processors[tagenrichmentprocessor.Type] = tagenrichmentprocessor.NewFactory()
+			factories.Processors[infraattributesprocessor.Type] = infraattributesprocessor.NewFactory(reqs.Tagger)
+			factories.Extensions[ddextension.Type] = ddextension.NewFactory(reqs.Provider)
 			return factories, nil
 		},
-		ConfigProvider: deps.Provider,
+		ConfigProviderSettings: otelcol.ConfigProviderSettings{
+			ResolverSettings: confmap.ResolverSettings{
+				URIs: reqs.URIs,
+				ProviderFactories: []confmap.ProviderFactory{
+					fileprovider.NewFactory(),
+					envprovider.NewFactory(),
+					yamlprovider.NewFactory(),
+					httpprovider.NewFactory(),
+					httpsprovider.NewFactory(),
+				},
+				ConverterFactories: []confmap.ConverterFactory{
+					expandconverter.NewFactory(),
+					&converterFactory{converter: reqs.Provider},
+				},
+			},
+		},
 	}
 	col, err := otelcol.NewCollector(set)
 	if err != nil {
-		return nil, err
+		return Provides{}, err
 	}
-	c := &collector{
-		deps: deps,
-		set:  set,
-		col:  col,
+	c := &collectorImpl{
+		log: reqs.Log,
+		set: set,
+		col: col,
 	}
 
-	deps.Lc.Append(compdef.Hook{
+	reqs.Lc.Append(compdef.Hook{
 		OnStart: c.start,
 		OnStop:  c.stop,
 	})
-	return c, nil
+	return Provides{
+		Comp: c,
+	}, nil
 }
 
-func (c *collector) start(context.Context) error {
+func (c *collectorImpl) start(ctx context.Context) error {
+	// Dry run the collector pipeline to ensure it is configured correctly
+	err := c.col.DryRun(ctx)
+	if err != nil {
+		return err
+	}
 	go func() {
 		if err := c.col.Run(context.Background()); err != nil {
-			c.deps.Log.Errorf("Error running the collector pipeline: %v", err)
+			c.log.Errorf("Error running the collector pipeline: %v", err)
 		}
 	}()
 	return nil
 }
 
-func (c *collector) stop(context.Context) error {
+func (c *collectorImpl) stop(context.Context) error {
 	c.col.Shutdown()
 	return nil
 }
 
-func (c *collector) Status() otlp.CollectorStatus {
-	return otlp.CollectorStatus{
+func (c *collectorImpl) Status() datatype.CollectorStatus {
+	return datatype.CollectorStatus{
 		Status: c.col.GetState().String(),
 	}
 }

@@ -9,6 +9,7 @@ include:
   - .gitlab/choco_build/choco_build.yml
   - .gitlab/choco_deploy/choco_deploy.yml
   - .gitlab/common/shared.yml
+  - .gitlab/common/skip_ci_check.yml
   - .gitlab/common/pr_commenter.yml
   - .gitlab/common/test_infra_version.yml
   - .gitlab/container_build/include.yml
@@ -40,7 +41,6 @@ include:
   - .gitlab/pkg_metrics/pkg_metrics.yml
   - .gitlab/post_rc_build/post_rc_tasks.yml
   - .gitlab/setup/setup.yml
-  - .gitlab/software_composition_analysis/software_composition_analysis.yml
   - .gitlab/source_test/include.yml
   - .gitlab/trigger_release/trigger_release.yml
 
@@ -74,8 +74,8 @@ stages:
   - integration_test
   - benchmarks
   - package_build
-  - pkg_metrics
   - packaging
+  - pkg_metrics
   - kitchen_deploy
   - kitchen_testing
   - container_build
@@ -164,20 +164,20 @@ variables:
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to _test_only
   DATADOG_AGENT_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BUILDIMAGES: v32778237-8467c81e
+  DATADOG_AGENT_BUILDIMAGES: v37111741-34301f4a
   DATADOG_AGENT_WINBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_WINBUILDIMAGES: v32778237-8467c81e
+  DATADOG_AGENT_WINBUILDIMAGES: v37111741-34301f4a
   DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_ARMBUILDIMAGES: v32778237-8467c81e
+  DATADOG_AGENT_ARMBUILDIMAGES: v37111741-34301f4a
   DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v32778237-8467c81e
+  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v37111741-34301f4a
   DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v32778237-8467c81e
+  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v37111741-34301f4a
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
-  DEB_GPG_KEY_ID: ad9589b7
-  DEB_GPG_KEY_NAME: "Datadog, Inc. Master key"
-  RPM_GPG_KEY_ID: fd4bf915
+  DEB_GPG_KEY_ID: c0962c7d
+  DEB_GPG_KEY_NAME: "Datadog, Inc. APT key"
+  RPM_GPG_KEY_ID: b01082d3
   RPM_GPG_KEY_NAME: "Datadog, Inc. RPM key"
   DOCKER_REGISTRY_URL: docker.io
   KITCHEN_INFRASTRUCTURE_FLAKES_RETRY: 2
@@ -196,46 +196,48 @@ variables:
 
   # List of parameters retrieved from AWS SSM
   # They must be defined as environment variables in the GitLab CI/CD settings, to ease rotation if needed
-  AGENT_QA_PROFILE_SSM_NAME: ci.datadog-agent.agent-qa-profile  # agent-ci-experience
-  API_KEY_ORG2_SSM_NAME: ci.datadog-agent.datadog_api_key_org2  # agent-ci-experience
-  API_KEY_DDDEV_SSM_NAME: ci.datadog-agent.datadog_api_key  # agent-ci-experience
-  APP_KEY_ORG2_SSM_NAME: ci.datadog-agent.datadog_app_key_org2  # agent-ci-experience
-  ARTIFACTORY_TOKEN_SSM_NAME: ci.datadog-agent.artifactory_token  # agent-ci-experience
-  ARTIFACTORY_BYPASS_SSM_NAME: ci.datadog-agent.artifactory_bypass  # agent-ci-experience
-  CHANGELOG_COMMIT_SHA_SSM_NAME: ci.datadog-agent.gitlab_changelog_commit_sha  # agent-ci-experience
+  AGENT_QA_PROFILE_SSM_NAME: ci.datadog-agent.agent-qa-profile  # agent-devx-infra
+  API_KEY_ORG2_SSM_NAME: ci.datadog-agent.datadog_api_key_org2  # agent-devx-infra
+  API_KEY_DDDEV_SSM_NAME: ci.datadog-agent.datadog_api_key  # agent-devx-infra
+  APP_KEY_ORG2_SSM_NAME: ci.datadog-agent.datadog_app_key_org2  # agent-devx-infra
+  ARTIFACTORY_TOKEN_SSM_NAME: ci.datadog-agent.artifactory_token  # agent-devx-infra
+  ARTIFACTORY_BYPASS_SSM_NAME: ci.datadog-agent.artifactory_bypass  # agent-devx-infra
+  CHANGELOG_COMMIT_SHA_SSM_NAME: ci.datadog-agent.gitlab_changelog_commit_sha  # agent-devx-infra
   CHOCOLATEY_API_KEY_SSM_NAME: ci.datadog-agent.chocolatey_api_key  # windows-agent
-  DEB_GPG_KEY_SSM_NAME: ci.datadog-agent.deb_signing_private_key_v2_${DEB_GPG_KEY_ID}  # agent-build-and-releases
-  DEB_SIGNING_PASSPHRASE_SSM_NAME: ci.datadog-agent.deb_signing_key_passphrase_v2_${DEB_GPG_KEY_ID}  # agent-build-and-releases
-  DOCKER_REGISTRY_LOGIN_SSM_KEY: ci.datadog-agent.docker_hub_login  # agent-ci-experience
-  DOCKER_REGISTRY_PWD_SSM_KEY: ci.datadog-agent.docker_hub_pwd  # agent-ci-experience
-  E2E_TESTS_API_KEY_SSM_NAME: ci.datadog-agent.e2e_tests_api_key  # agent-developer-tools
-  E2E_TESTS_APP_KEY_SSM_NAME: ci.datadog-agent.e2e_tests_app_key  # agent-developer-tools
-  E2E_TESTS_RC_KEY_SSM_NAME: ci.datadog-agent.e2e_tests_rc_key  # agent-developer-tools
-  KITCHEN_EC2_SSH_KEY_SSM_NAME: ci.datadog-agent.aws_ec2_kitchen_ssh_key  # agent-developer-tools
-  KITCHEN_AZURE_CLIENT_ID_SSM_NAME: ci.datadog-agent.azure_kitchen_client_id  # agent-developer-tools
-  KITCHEN_AZURE_CLIENT_SECRET_SSM_NAME: ci.datadog-agent.azure_kitchen_client_secret  # agent-developer-tools
-  KITCHEN_AZURE_SUBSCRIPTION_ID_SSM_NAME: ci.datadog-agent.azure_kitchen_subscription_id  # agent-developer-tools
-  KITCHEN_AZURE_TENANT_ID_SSM_NAME: ci.datadog-agent.azure_kitchen_tenant_id  # agent-developer-tools
+  CODECOV_TOKEN_SSM_NAME: ci.datadog-agent.codecov_token  # agent-devx-infra
+  DEB_GPG_KEY_SSM_NAME: ci.datadog-agent.deb_signing_private_key_${DEB_GPG_KEY_ID}  # agent-delivery
+  DEB_SIGNING_PASSPHRASE_SSM_NAME: ci.datadog-agent.deb_signing_key_passphrase_${DEB_GPG_KEY_ID}  # agent-delivery
+  DOCKER_REGISTRY_LOGIN_SSM_KEY: ci.datadog-agent.docker_hub_login  # agent-devx-infra
+  DOCKER_REGISTRY_PWD_SSM_KEY: ci.datadog-agent.docker_hub_pwd  # agent-devx-infra
+  E2E_TESTS_API_KEY_SSM_NAME: ci.datadog-agent.e2e_tests_api_key  # agent-devx-loops
+  E2E_TESTS_APP_KEY_SSM_NAME: ci.datadog-agent.e2e_tests_app_key  # agent-devx-loops
+  E2E_TESTS_RC_KEY_SSM_NAME: ci.datadog-agent.e2e_tests_rc_key  # agent-devx-loops
+  KITCHEN_EC2_SSH_KEY_SSM_NAME: ci.datadog-agent.aws_ec2_kitchen_ssh_key  # agent-devx-loops
+  KITCHEN_AZURE_CLIENT_ID_SSM_NAME: ci.datadog-agent.azure_kitchen_client_id  # agent-devx-loops
+  KITCHEN_AZURE_CLIENT_SECRET_SSM_NAME: ci.datadog-agent.azure_kitchen_client_secret  # agent-devx-loops
+  KITCHEN_AZURE_SUBSCRIPTION_ID_SSM_NAME: ci.datadog-agent.azure_kitchen_subscription_id  # agent-devx-loops
+  KITCHEN_AZURE_TENANT_ID_SSM_NAME: ci.datadog-agent.azure_kitchen_tenant_id  # agent-devx-loops
   GITLAB_SCHEDULER_TOKEN_SSM_NAME: ci.datadog-agent.gitlab_pipelines_scheduler_token  # ci-cd
   GITLAB_READ_API_TOKEN_SSM_NAME: ci.datadog-agent.gitlab_read_api_token  # ci-cd
-  INSTALL_SCRIPT_API_KEY_SSM_NAME: ci.agent-linux-install-script.datadog_api_key  # agent-build-and-releases
-  JIRA_READ_API_TOKEN_SSM_NAME: ci.datadog-agent.jira_read_api_token  # agent-ci-experience
-  MACOS_GITHUB_APP_ID_SSM_NAME: ci.datadog-agent.macos_github_app_id  # agent-ci-experience
-  MACOS_GITHUB_INSTALLATION_ID_SSM_NAME: ci.datadog-agent.macos_github_installation_id  # agent-ci-experience
-  MACOS_GITHUB_KEY_SSM_NAME: ci.datadog-agent.macos_github_key_b64  # agent-ci-experience
-  MACOS_GITHUB_APP_ID_2_SSM_NAME: ci.datadog-agent.macos_github_app_id_2  # agent-ci-experience
-  MACOS_GITHUB_INSTALLATION_ID_2_SSM_NAME: ci.datadog-agent.macos_github_installation_id_2  # agent-ci-experience
-  MACOS_GITHUB_KEY_2_SSM_NAME: ci.datadog-agent.macos_github_key_b64_2  # agent-ci-experience
-  RPM_GPG_KEY_SSM_NAME: ci.datadog-agent.rpm_signing_private_key_v2_${RPM_GPG_KEY_ID}  # agent-build-and-releases
-  RPM_SIGNING_PASSPHRASE_SSM_NAME: ci.datadog-agent.rpm_signing_key_passphrase_v2_${RPM_GPG_KEY_ID}  # agent-build-and-releases
+  INSTALL_SCRIPT_API_KEY_SSM_NAME: ci.agent-linux-install-script.datadog_api_key  # agent-delivery
+  JIRA_READ_API_TOKEN_SSM_NAME: ci.datadog-agent.jira_read_api_token  # agent-devx-infra
+  MACOS_GITHUB_APP_ID_SSM_NAME: ci.datadog-agent.macos_github_app_id  # agent-devx-infra
+  MACOS_GITHUB_INSTALLATION_ID_SSM_NAME: ci.datadog-agent.macos_github_installation_id  # agent-devx-infra
+  MACOS_GITHUB_KEY_SSM_NAME: ci.datadog-agent.macos_github_key_b64  # agent-devx-infra
+  MACOS_GITHUB_APP_ID_2_SSM_NAME: ci.datadog-agent.macos_github_app_id_2  # agent-devx-infra
+  MACOS_GITHUB_INSTALLATION_ID_2_SSM_NAME: ci.datadog-agent.macos_github_installation_id_2  # agent-devx-infra
+  MACOS_GITHUB_KEY_2_SSM_NAME: ci.datadog-agent.macos_github_key_b64_2  # agent-devx-infra
+  RPM_GPG_KEY_SSM_NAME: ci.datadog-agent.rpm_signing_private_key_${RPM_GPG_KEY_ID}  # agent-delivery
+  RPM_SIGNING_PASSPHRASE_SSM_NAME: ci.datadog-agent.rpm_signing_key_passphrase_${RPM_GPG_KEY_ID}  # agent-delivery
+  SLACK_AGENT_CI_TOKEN_SSM_NAME: ci.datadog-agent.slack_agent_ci_token  # agent-devx-infra
   SMP_ACCOUNT_ID_SSM_NAME: ci.datadog-agent.single-machine-performance-account-id  # single-machine-performance
   SMP_AGENT_TEAM_ID_SSM_NAME: ci.datadog-agent.single-machine-performance-agent-team-id  # single-machine-performance
   SMP_API_SSM_NAME: ci.datadog-agent.single-machine-performance-api  # single-machine-performance
   SMP_BOT_ACCESS_KEY_SSM_NAME: ci.datadog-agent.single-machine-performance-bot-access-key  # single-machine-performance
   SMP_BOT_ACCESS_KEY_ID_SSM_NAME: ci.datadog-agent.single-machine-performance-bot-access-key-id  # single-machine-performance
   SSH_KEY_SSM_NAME: ci.datadog-agent.ssh_key  # system-probe
-  SSH_KEY_RSA_SSM_NAME: ci.datadog-agent.ssh_key_rsa  # agent-developer-tools
-  SSH_PUBLIC_KEY_RSA_SSM_NAME: ci.datadog-agent.ssh_public_key_rsa  # agent-developer-tools
+  SSH_KEY_RSA_SSM_NAME: ci.datadog-agent.ssh_key_rsa  # agent-devx-loops
+  SSH_PUBLIC_KEY_RSA_SSM_NAME: ci.datadog-agent.ssh_public_key_rsa  # agent-devx-loops
   VCPKG_BLOB_SAS_URL_SSM_NAME: ci.datadog-agent-buildimages.vcpkg_blob_sas_url  # windows-agent
   WINGET_PAT_SSM_NAME: ci.datadog-agent.winget_pat  # windows-agent
 
@@ -271,10 +273,10 @@ variables:
   if: $RELEASE_VERSION_7 == ""
 
 .if_deploy: &if_deploy
-  if: $DEPLOY_AGENT == "true"
+  if: $DEPLOY_AGENT == "true" || $DDR_WORKFLOW_ID != null
 
 .if_not_deploy: &if_not_deploy
-  if: $DEPLOY_AGENT != "true"
+  if: $DEPLOY_AGENT != "true" && $DDR_WORKFLOW_ID == null
 
 .if_tagged_commit: &if_tagged_commit
   if: $CI_COMMIT_TAG != null
@@ -301,10 +303,10 @@ variables:
 # RUN_ALL_BUILDS has no effect on main/deploy pipelines: they always run all builds (as some jobs
 # on main and deploy pipelines depend on jobs that are only run if we run all builds).
 .if_run_all_builds: &if_run_all_builds
-  if: $CI_COMMIT_BRANCH == "main" || $DEPLOY_AGENT == "true" || $RUN_ALL_BUILDS == "true"
+  if: $CI_COMMIT_BRANCH == "main" || $DEPLOY_AGENT == "true" || $RUN_ALL_BUILDS == "true" || $DDR_WORKFLOW_ID != null
 
 .if_not_run_all_builds: &if_not_run_all_builds
-  if: $CI_COMMIT_BRANCH != "main" && $DEPLOY_AGENT != "true" && $RUN_ALL_BUILDS != "true"
+  if: $CI_COMMIT_BRANCH != "main" && $DEPLOY_AGENT != "true" && $RUN_ALL_BUILDS != "true" && $DDR_WORKFLOW_ID == null
 
 # Rule to trigger test setup, run, and cleanup.
 # By default:
@@ -313,7 +315,7 @@ variables:
 # RUN_E2E_TESTS can be set to on to force all the installer tests to be run on a branch pipeline.
 # RUN_E2E_TESTS can be set to false to force installer tests to not run on main/deploy pipelines.
 .if_installer_tests: &if_installer_tests
-  if: ($CI_COMMIT_BRANCH == "main"  || $DEPLOY_AGENT == "true" || $RUN_E2E_TESTS == "on") && $RUN_E2E_TESTS != "off"
+  if: ($CI_COMMIT_BRANCH == "main"  || $DEPLOY_AGENT == "true" || $RUN_E2E_TESTS == "on" || $DDR_WORKFLOW_ID != null) && $RUN_E2E_TESTS != "off"
 
 .if_testing_cleanup: &if_testing_cleanup
   if: $TESTING_CLEANUP == "true"
@@ -342,7 +344,7 @@ variables:
   if: $RUN_UNIT_TESTS == "on"
 
 .if_deploy_on_beta_repo_branch: &if_deploy_on_beta_repo_branch
-  if: $DEPLOY_AGENT == "true" && $BUCKET_BRANCH == "beta"
+  if: ($DEPLOY_AGENT == "true" || $DDR_WORKFLOW_ID != null) && $BUCKET_BRANCH == "beta"
 
 # Rule to trigger jobs only when a tag matches a given pattern (for RCs)
 # on the beta branch.
@@ -350,7 +352,7 @@ variables:
 # need to check again if the pipeline is a deploy pipeline, but it doesn't hurt
 # to explicitly add it.
 .if_deploy_on_rc_tag_on_beta_repo_branch: &if_deploy_on_rc_tag_on_beta_repo_branch
-  if: $DEPLOY_AGENT == "true" && $BUCKET_BRANCH == "beta" && $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$/
+  if: ($DEPLOY_AGENT == "true" || $DDR_WORKFLOW_ID != null) && $BUCKET_BRANCH == "beta" && $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$/
 
 .if_scheduled_main: &if_scheduled_main
   if: $CI_PIPELINE_SOURCE == "schedule" && $CI_COMMIT_BRANCH == "main"
@@ -407,6 +409,10 @@ workflow:
 .except_mergequeue:
   - <<: *if_mergequeue
     when: never
+
+.on_mergequeue:
+  - <<: *if_mergequeue
+    when: on_success
 
 .manual:
   - !reference [.except_mergequeue]
@@ -558,6 +564,12 @@ workflow:
     when: never
   - <<: *if_deploy
 
+.on_deploy_nightly_repo_branch_always:
+  - <<: *if_not_nightly_or_dev_repo_branch
+    when: never
+  - <<: *if_deploy
+    when: always
+
 .on_deploy_stable_or_beta_repo_branch:
   - <<: *if_not_stable_or_beta_repo_branch
     when: never
@@ -589,7 +601,7 @@ workflow:
   - when: on_success
 
 .except_no_tests_no_deploy:
-  - if: $DEPLOY_AGENT == "false" && $RUN_E2E_TESTS == "off"
+  - if: $DEPLOY_AGENT == "false" && $DDR_WORKFLOW_ID == null && $RUN_E2E_TESTS == "off"
     when: never
 
 .on_main_or_release_branch:
@@ -603,7 +615,7 @@ workflow:
   - <<: *if_run_all_unit_tests
   - changes:
       paths:
-        - pkg/installer/**/*
+        - pkg/fleet/**/*
       compare_to: main
     variables:
       FAST_TESTS: "true"
@@ -638,9 +650,7 @@ workflow:
   - <<: *if_installer_tests
     when: always
 
-.on_all_new_e2e_tests:
-  - <<: *if_not_run_all_builds
-    when: never
+.on_all_install_script_tests:
   - <<: *if_installer_tests
 
 # Default kitchen tests are also run on dev branches
@@ -759,8 +769,6 @@ workflow:
   - changes:
       paths: *system_probe_change_paths
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
-  - when: manual
-    allow_failure: true
 
 .on_e2e_changes_or_manual:
   - <<: *if_main_branch
@@ -776,24 +784,6 @@ workflow:
     allow_failure: true
 
 # New E2E related rules
-
-.on_e2e_or_fakeintake_changes_or_manual:
-  - <<: *if_main_branch
-  - !reference [.except_mergequeue]
-  - <<: *fakeintake_changes
-    variables:
-      FAKEINTAKE_IMAGE_OVERRIDE: "public.ecr.aws/datadog/fakeintake:v$CI_COMMIT_SHORT_SHA"
-    when: on_success
-  - changes:
-      paths:
-        - test/new-e2e/pkg/**/*
-        - test/new-e2e/test-infra-definition/*
-        - test/new-e2e/go.mod
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
-    when: on_success
-  - when: manual
-    allow_failure: true
-
 
 .on_e2e_main_release_or_rc: # This rule is used as a base for all new-e2e rules
   - <<: *if_disable_e2e_tests
@@ -813,7 +803,21 @@ workflow:
         - test/new-e2e/go.mod
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
 
-.on_container_or_e2e_changes_or_manual:
+.on_e2e_or_fakeintake_changes_or_manual:
+  - !reference [.on_e2e_main_release_or_rc]
+  - <<: *fakeintake_changes
+    variables:
+      FAKEINTAKE_IMAGE_OVERRIDE: "public.ecr.aws/datadog/fakeintake:v$CI_COMMIT_SHORT_SHA"
+    when: on_success
+  - changes:
+      paths:
+        - test/new-e2e/test-infra-definition/*
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+    when: on_success
+  - when: manual
+    allow_failure: true
+
+.on_container_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
@@ -841,10 +845,8 @@ workflow:
         - test/new-e2e/go.mod
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
     when: on_success
-  - when: manual
-    allow_failure: true
 
-.on_rc_or_e2e_changes_or_manual:
+.on_rc_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
@@ -852,20 +854,16 @@ workflow:
         - comp/remote-config/**/*
         - test/new-e2e/tests/remote-config/**/*
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
-  - when: manual
-    allow_failure: true
 
-.on_asc_or_e2e_changes_or_manual:
+.on_asc_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
         # TODO: Add paths that should trigger tests for ASC
         - test/new-e2e/tests/agent-shared-components/**/*
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
-  - when: manual
-    allow_failure: true
 
-.on_subcommands_or_e2e_changes_or_manual:
+.on_subcommands_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
@@ -874,70 +872,80 @@ workflow:
         - comp/**/*
         - test/new-e2e/tests/agent-subcommands/**/*
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
-  - when: manual
-    allow_failure: true
 
-.on_language-detection_or_e2e_changes_or_manual:
+.on_language-detection_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
         # TODO: Add paths that should trigger tests for language detection
         - test/new-e2e/tests/language-detection/**/*
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
-  - when: manual
-    allow_failure: true
 
-.on_npm_or_e2e_changes_or_manual:
+.on_npm_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
         # TODO: Add paths that should trigger tests for npm
         - test/new-e2e/tests/npm/**/*
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
-  - when: manual
-    allow_failure: true
 
-.on_aml_or_e2e_changes_or_manual:
+.on_aml_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
-        # TODO: Add paths that should trigger tests for AML
         - test/new-e2e/tests/agent-metrics-logs/**/*
+        - cmd/agent/subcommands/dogstatsd*/*
+        - cmd/agent/subcommands/streamlogs/*
+        - cmd/dogstatsd/**/*
+        - comp/agent/jmxlogger/**/*
+        - comp/aggregator/**/*
+        - comp/collector/**/*
+        - comp/core/agenttelemetry/**/*
+        - comp/core/autodiscovery/providers/config_reader*.go
+        - comp/core/autodiscovery/providers/file*.go
+        - comp/forwarder/**/*
+        - comp/logs/**/*
+        - comp/serializer/compression/**/*
+        - pkg/aggregator/**/*
+        - pkg/collector/**/*
+        - pkg/commonchecks/**/*
+        - pkg/dogstatsd/**/*
+        - pkg/jmxfetch/**/*
+        - pkg/logs/**/*
+        - pkg/metrics/**/*
+        - pkg/persistentcache/**/*
+        - pkg/serializer/**/*
+        - rtloader/**/*
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
-  - when: manual
-    allow_failure: true
 
-.on_cws_or_e2e_changes_or_manual:
+.on_cws_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
         # TODO: Add paths that should trigger tests for CWS
         - test/new-e2e/tests/cws/**/*
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
-  - when: manual
-    allow_failure: true
 
-.on_process_or_e2e_changes_or_manual:
+.on_process_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
-        # TODO: Add paths that should trigger tests for process
         - test/new-e2e/tests/process/**/*
+        - cmd/process-agent/**/*
+        - comp/process/**/*
+        - pkg/process/**/*
+        - pkg/config/setup/process.go
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
-  - when: manual
-    allow_failure: true
 
-.on_orchestrator_or_e2e_changes_or_manual:
+.on_orchestrator_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
         # TODO: Add paths that should trigger tests for orchestrator
         - test/new-e2e/tests/orchestrator/**/*
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
-  - when: manual
-    allow_failure: true
 
-.on_apm_or_e2e_changes_or_manual:
+.on_apm_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
@@ -948,39 +956,36 @@ workflow:
         - test/new-e2e/go.mod
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
     when: on_success
-  - when: manual
-    allow_failure: true
 
-.on_installer_or_e2e_changes_or_manual:
-  - <<: *if_disable_e2e_tests
-    when: never
-  - !reference [.except_mergequeue]
-  - <<: *if_main_branch
-    when: on_success
-  - <<: *if_release_branch
-    when: on_success
-  - if: $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$/
-    when: on_success
+.on_installer_or_e2e_changes:
+  - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
         - .gitlab/**/*
         - omnibus/config/**/*
-        - pkg/installer/**/*
+        - pkg/fleet/**/*
         - cmd/installer/**/*
         - test/new-e2e/tests/installer/**/*
         - tasks/installer.py
-        - test/new-e2e/go.mod
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
     when: on_success
-  - when: manual
-    allow_failure: true
 
-.on_ndm_netflow_or_e2e_changes_or_manual:
+.on_ndm_netflow_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
         - comp/netflow/**/*
         - test/new-e2e/tests/ndm/netflow/**/*
+        - test/new-e2e/go.mod
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+    when: on_success
+
+.on_ndm_snmp_or_e2e_changes:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        - pkg/collector/corechecks/snmp/**/*
+        - test/new-e2e/tests/ndm/snmp/**/*
         - test/new-e2e/go.mod
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
     when: on_success
@@ -1057,20 +1062,28 @@ workflow:
   - <<: *if_main_branch
     variables:
       FAST_TESTS: "false"
+      # Push coverage cache on main branch
+      COVERAGE_CACHE_FLAG: "--push-coverage-cache"
   - <<: *if_release_branch
     variables:
       FAST_TESTS: "false"
+      COVERAGE_CACHE_FLAG: ""
   - <<: *if_tagged_commit
     variables:
       FAST_TESTS: "false"
+      COVERAGE_CACHE_FLAG: ""
   - <<: *if_triggered_pipeline
     variables:
       FAST_TESTS: "false"
+      COVERAGE_CACHE_FLAG: ""
   - <<: *if_run_all_unit_tests
     variables:
       FAST_TESTS: "false"
+      COVERAGE_CACHE_FLAG: ""
   - variables:
       FAST_TESTS: "true"
+      # Pull coverage cache on dev branches
+      COVERAGE_CACHE_FLAG: "--pull-coverage-cache"
 
 .on_gitlab_changes:
   - !reference [.except_mergequeue]
@@ -1093,3 +1106,12 @@ workflow:
       paths:
         - test/kitchen/tasks/**/*
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+
+.on_powershell_module_or_e2e_changes_or_manual:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        - test/new-e2e/tests/windows/powershell-module-test/*
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+  - when: manual
+    allow_failure: true

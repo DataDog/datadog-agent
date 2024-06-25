@@ -12,9 +12,10 @@ import (
 
 // TCPServer represents a basic TCP server configuration.
 type TCPServer struct {
-	address   string
-	onMessage func(c net.Conn)
-	isTLS     bool
+	address    string
+	onMessage  func(c net.Conn)
+	isTLS      bool
+	tlsVersion uint16
 }
 
 // NewTCPServer creates and initializes a new TCPServer instance with the provided address
@@ -24,6 +25,17 @@ func NewTCPServer(addr string, onMessage func(c net.Conn), isTLS bool) *TCPServe
 		address:   addr,
 		onMessage: onMessage,
 		isTLS:     isTLS,
+	}
+}
+
+// NewTLSServerWithSpecificVersion creates and initializes a new TCPServer instance with the provided address
+// and callback function to handle incoming messages. It also sets the TLS version to the provided value.
+func NewTLSServerWithSpecificVersion(addr string, onMessage func(c net.Conn), tlsVersion uint16) *TCPServer {
+	return &TCPServer{
+		address:    addr,
+		onMessage:  onMessage,
+		isTLS:      true,
+		tlsVersion: tlsVersion,
 	}
 }
 
@@ -43,6 +55,10 @@ func (s *TCPServer) Run(done chan struct{}) error {
 		}
 		tlsConfig := &tls.Config{
 			Certificates: []tls.Certificate{cert},
+		}
+		if s.tlsVersion != 0 {
+			tlsConfig.MinVersion = s.tlsVersion
+			tlsConfig.MaxVersion = s.tlsVersion
 		}
 		ln, lnErr = tls.Listen("tcp", s.address, tlsConfig)
 	} else {

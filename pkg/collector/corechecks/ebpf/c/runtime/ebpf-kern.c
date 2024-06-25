@@ -4,6 +4,7 @@
 #include "bpf_core_read.h"
 #include "map-defs.h"
 #include "ebpf-kern-user.h"
+#include "bpf_metadata.h"
 
 #define F_DUPFD_CLOEXEC 1030
 

@@ -242,7 +242,7 @@ func TestDetectMetricsToCollect(t *testing.T) {
 	defer func() { timeNow = time.Now }()
 
 	profilesWithInvalidExtendConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "detectmetr.d"))
-	config.Datadog.SetWithoutSource("confd_path", profilesWithInvalidExtendConfdPath)
+	config.Datadog().SetWithoutSource("confd_path", profilesWithInvalidExtendConfdPath)
 
 	sess := session.CreateFakeSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {

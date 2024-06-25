@@ -7,13 +7,17 @@ package model
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
+	"os"
 	"reflect"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"path/filepath"
 
 	"github.com/DataDog/viper"
 	"github.com/mohae/deepcopy"
@@ -29,18 +33,41 @@ type Source string
 
 // Declare every known Source
 const (
-	SourceDefault            Source = "default"
-	SourceUnknown            Source = "unknown"
-	SourceFile               Source = "file"
-	SourceEnvVar             Source = "environment-variable"
-	SourceAgentRuntime       Source = "agent-runtime"
+	// SourceDefault are the values from defaults.
+	SourceDefault Source = "default"
+	// SourceUnknown are the values from unknown source. This should only be used in tests when calling
+	// SetWithoutSource.
+	SourceUnknown Source = "unknown"
+	// SourceFile are the values loaded from configuration file.
+	SourceFile Source = "file"
+	// SourceEnvVar are the values loaded from the environment variables.
+	SourceEnvVar Source = "environment-variable"
+	// SourceAgentRuntime are the values configured by the agent itself. The agent can dynamically compute the best
+	// value for some settings when not set by the user.
+	SourceAgentRuntime Source = "agent-runtime"
+	// SourceLocalConfigProcess are the values mirrored from the config process. The config process is the
+	// core-agent. This is used when side process like security-agent or trace-agent pull their configuration from
+	// the core-agent.
 	SourceLocalConfigProcess Source = "local-config-process"
-	SourceRC                 Source = "remote-config"
-	SourceCLI                Source = "cli"
+	// SourceRC are the values loaded from remote-config (aka Datadog backend)
+	SourceRC Source = "remote-config"
+	// SourceCLI are the values set by the user at runtime through the CLI.
+	SourceCLI Source = "cli"
+	// SourceProvided are all values set by any source but default.
+	SourceProvided Source = "provided" // everything but defaults
 )
 
 // sources list the known sources, following the order of hierarchy between them
-var sources = []Source{SourceDefault, SourceUnknown, SourceFile, SourceEnvVar, SourceAgentRuntime, SourceLocalConfigProcess, SourceRC, SourceCLI}
+var sources = []Source{
+	SourceDefault,
+	SourceUnknown,
+	SourceFile,
+	SourceEnvVar,
+	SourceAgentRuntime,
+	SourceLocalConfigProcess,
+	SourceRC,
+	SourceCLI,
+}
 
 // ValueWithSource is a tuple for a source and a value, not necessarily the applied value in the main config
 type ValueWithSource struct {
@@ -70,8 +97,7 @@ type safeConfig struct {
 	notificationReceivers []NotificationReceiver
 
 	// Proxy settings
-	proxiesOnce sync.Once
-	proxies     *Proxy
+	proxies *Proxy
 
 	// configEnvVars is the set of env vars that are consulted for
 	// configuration values.
@@ -80,6 +106,9 @@ type safeConfig struct {
 	// keys that have been used but are unknown
 	// used to warn (a single time) on use
 	unknownKeys map[string]struct{}
+
+	// extraConfigFilePaths represents additional configuration file paths that will be merged into the main configuration when ReadInConfig() is called.
+	extraConfigFilePaths []string
 }
 
 // OnUpdate adds a callback to the list receivers to be called each time a value is changed in the configuration
@@ -224,37 +253,6 @@ func (c *safeConfig) IsSet(key string) bool {
 	c.RLock()
 	defer c.RUnlock()
 	return c.Viper.IsSet(key)
-}
-
-// IsSet wraps Viper for concurrent access
-func (c *safeConfig) IsSetForSource(key string, source Source) bool {
-	c.RLock()
-	defer c.RUnlock()
-	return c.configSources[source].IsSet(key)
-}
-
-// IsSectionSet checks if a section is set by checking if either it
-// or any of its subkeys is set.
-func (c *safeConfig) IsSectionSet(section string) bool {
-	// The section is considered set if any of the keys
-	// inside it is set.
-	// This is needed when keys within the section
-	// are set through env variables.
-
-	// Add trailing . to make sure we don't take into account unrelated
-	// settings, eg. IsSectionSet("section") shouldn't return true
-	// if "section_key" is set.
-	sectionPrefix := section + "."
-
-	for _, key := range c.AllKeysLowercased() {
-		if strings.HasPrefix(key, sectionPrefix) && c.IsSet(key) {
-			return true
-		}
-	}
-
-	// If none of the keys are set, the section is still considered as set
-	// if it has been explicitly set in the config.
-	return c.IsSet(section)
 }
 
 func (c *safeConfig) AllKeysLowercased() []string {
@@ -560,11 +558,36 @@ func (c *safeConfig) UnmarshalExact(rawVal interface{}) error {
 func (c *safeConfig) ReadInConfig() error {
 	c.Lock()
 	defer c.Unlock()
-	err := c.Viper.ReadInConfig()
+	// ReadInConfig reset configuration with the main config file
+	err := errors.Join(c.Viper.ReadInConfig(), c.configSources[SourceFile].ReadInConfig())
 	if err != nil {
 		return err
 	}
-	return c.configSources[SourceFile].ReadInConfig()
+
+	type extraConf struct {
+		path    string
+		content []byte
+	}
+
+	// Read extra config files
+	extraConfContents := []extraConf{}
+	for _, path := range c.extraConfigFilePaths {
+		b, err := os.ReadFile(path)
+		if err != nil {
+			return fmt.Errorf("could not read extra config file '%s': %w", path, err)
+		}
+		extraConfContents = append(extraConfContents, extraConf{path: path, content: b})
+	}
+
+	// Merge with base config and 'file' config
+	for _, confFile := range extraConfContents {
+		err = errors.Join(c.Viper.MergeConfig(bytes.NewReader(confFile.content)), c.configSources[SourceFile].MergeConfig(bytes.NewReader(confFile.content)))
+		if err != nil {
+			return fmt.Errorf("error merging %s config file: %w", confFile.path, err)
+		}
+		log.Infof("extra configuration file %s was loaded successfully", confFile.path)
+	}
+	return nil
 }
 
 // ReadConfig wraps Viper for concurrent access
@@ -607,7 +630,7 @@ func (c *safeConfig) AllSettings() map[string]interface{} {
 	return c.Viper.AllSettings()
 }
 
-// AllSettingsWithoutDefault wraps Viper for concurrent access
+// AllSettingsWithoutDefault returns a copy of the all the settings in the configuration without defaults
 func (c *safeConfig) AllSettingsWithoutDefault() map[string]interface{} {
 	c.RLock()
 	defer c.RUnlock()
@@ -617,14 +640,27 @@ func (c *safeConfig) AllSettingsWithoutDefault() map[string]interface{} {
 	return c.Viper.AllSettingsWithoutDefault()
 }
 
-// AllSourceSettingsWithoutDefault wraps Viper for concurrent access
-func (c *safeConfig) AllSourceSettingsWithoutDefault(source Source) map[string]interface{} {
+// AllSettingsBySource returns the settings from each source (file, env vars, ...)
+func (c *safeConfig) AllSettingsBySource() map[Source]interface{} {
 	c.RLock()
 	defer c.RUnlock()
 
-	// AllSourceSettingsWithoutDefault returns a fresh map, so the caller may do with it
-	// as they please without holding the lock.
-	return c.configSources[source].AllSettingsWithoutDefault()
+	sources := []Source{
+		SourceDefault,
+		SourceUnknown,
+		SourceFile,
+		SourceEnvVar,
+		SourceAgentRuntime,
+		SourceRC,
+		SourceCLI,
+		SourceLocalConfigProcess,
+	}
+	res := map[Source]interface{}{}
+	for _, source := range sources {
+		res[source] = c.configSources[source].AllSettingsWithoutDefault()
+	}
+	res[SourceProvided] = c.AllSettingsWithoutDefault()
+	return res
 }
 
 // AddConfigPath wraps Viper for concurrent access
@@ -633,6 +669,35 @@ func (c *safeConfig) AddConfigPath(in string) {
 	defer c.Unlock()
 	c.configSources[SourceFile].AddConfigPath(in)
 	c.Viper.AddConfigPath(in)
+}
+
+// AddExtraConfigPaths allows adding additional configuration files
+// which will be merged into the main configuration during the ReadInConfig call.
+// Configuration files are merged sequentially. If a key already exists and the foreign value type matches the existing one, the foreign value overrides it.
+// If both the existing value and the new value are nested configurations, they are merged recursively following the same principles.
+func (c *safeConfig) AddExtraConfigPaths(ins []string) error {
+	if len(ins) == 0 {
+		return nil
+	}
+	c.Lock()
+	defer c.Unlock()
+	var pathsToAdd []string
+	var errs []error
+	for _, in := range ins {
+		in, err := filepath.Abs(in)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("could not get absolute path of extra config file '%s': %s", in, err))
+			continue
+		}
+		if slices.Index(c.extraConfigFilePaths, in) == -1 && slices.Index(pathsToAdd, in) == -1 {
+			pathsToAdd = append(pathsToAdd, in)
+		}
+	}
+	err := errors.Join(errs...)
+	if err == nil {
+		c.extraConfigFilePaths = append(c.extraConfigFilePaths, pathsToAdd...)
+	}
+	return err
 }
 
 // SetConfigName wraps Viper for concurrent access
@@ -740,8 +805,10 @@ func (c *safeConfig) CopyConfig(cfg Config) {
 		c.configSources = cfg.configSources
 		c.envPrefix = cfg.envPrefix
 		c.envKeyReplacer = cfg.envKeyReplacer
+		c.proxies = cfg.proxies
 		c.configEnvVars = cfg.configEnvVars
 		c.unknownKeys = cfg.unknownKeys
+		c.notificationReceivers = cfg.notificationReceivers
 		return
 	}
 	panic("Replacement config must be an instance of safeConfig")
@@ -749,20 +816,31 @@ func (c *safeConfig) CopyConfig(cfg Config) {
 
 // GetProxies returns the proxy settings from the configuration
 func (c *safeConfig) GetProxies() *Proxy {
-	c.proxiesOnce.Do(func() {
-		if c.GetBool("fips.enabled") {
-			return
-		}
-		if !c.IsSet("proxy.http") && !c.IsSet("proxy.https") && !c.IsSet("proxy.no_proxy") {
-			return
-		}
-		p := &Proxy{
-			HTTP:    c.GetString("proxy.http"),
-			HTTPS:   c.GetString("proxy.https"),
-			NoProxy: c.GetStringSlice("proxy.no_proxy"),
-		}
+	c.Lock()
+	defer c.Unlock()
+	if c.proxies != nil {
+		return c.proxies
+	}
+	if c.Viper.GetBool("fips.enabled") {
+		return nil
+	}
+	if !c.Viper.IsSet("proxy.http") && !c.Viper.IsSet("proxy.https") && !c.Viper.IsSet("proxy.no_proxy") {
+		return nil
+	}
+	p := &Proxy{
+		HTTP:    c.Viper.GetString("proxy.http"),
+		HTTPS:   c.Viper.GetString("proxy.https"),
+		NoProxy: c.Viper.GetStringSlice("proxy.no_proxy"),
+	}
 
-		c.proxies = p
-	})
+	c.proxies = p
 	return c.proxies
+}
+
+func (c *safeConfig) ExtraConfigFilesUsed() []string {
+	c.Lock()
+	defer c.Unlock()
+	res := make([]string, len(c.extraConfigFilePaths))
+	copy(res, c.extraConfigFilePaths)
+	return res
 }

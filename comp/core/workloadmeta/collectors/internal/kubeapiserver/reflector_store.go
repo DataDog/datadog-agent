@@ -16,7 +16,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 )
 
 // objectParser is an interface allowing to plug any object
@@ -144,11 +144,13 @@ func (r *reflectorStore) Delete(obj interface{}) error {
 	var uid types.UID
 	var entity workloadmeta.Entity
 	switch v := obj.(type) {
+	// All the supported objects need to be in this switch statement to be able
+	// to be deleted.
 	case *corev1.Pod:
 		uid = v.UID
-	case *corev1.Node:
-		uid = v.UID
 	case *appsv1.Deployment:
+		uid = v.UID
+	case *metav1.PartialObjectMetadata:
 		uid = v.UID
 	default:
 		return fmt.Errorf("failed to identify Kind of object: %#v", obj)

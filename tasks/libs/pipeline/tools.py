@@ -1,14 +1,18 @@
+from __future__ import annotations
+
 import datetime
 import functools
 import platform
 import sys
 from time import sleep, time
-from typing import List
+from typing import cast
 
 from gitlab import GitlabError
+from gitlab.exceptions import GitlabJobPlayError
 from gitlab.v4.objects import Project, ProjectJob, ProjectPipeline
 
-from tasks.libs.common.color import color_message
+from tasks.libs.ciproviders.gitlab_api import refresh_pipeline
+from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.user_interactions import yes_no_question
 from tasks.libs.common.utils import DEFAULT_BRANCH
 
@@ -19,7 +23,7 @@ class FilteredOutException(Exception):
     pass
 
 
-def get_running_pipelines_on_same_ref(repo: Project, ref, sha=None) -> List[ProjectPipeline]:
+def get_running_pipelines_on_same_ref(repo: Project, ref: str, sha=None) -> list[ProjectPipeline]:
     pipelines = repo.pipelines.list(ref=ref, sha=sha, per_page=100, all=True)
 
     RUNNING_STATUSES = ["created", "pending", "running"]
@@ -36,7 +40,7 @@ def parse_datetime(dt):
     return datetime.datetime.strptime(dt, "%Y-%m-%dT%H:%M:%S.%f%z")
 
 
-def cancel_pipelines_with_confirmation(repo: Project, pipelines: List[ProjectPipeline]):
+def cancel_pipelines_with_confirmation(repo: Project, pipelines: list[ProjectPipeline]):
     for pipeline in pipelines:
         commit = repo.commits.get(pipeline.sha)
 
@@ -75,12 +79,38 @@ def gracefully_cancel_pipeline(repo: Project, pipeline: ProjectPipeline, force_c
     """
 
     jobs = pipeline.jobs.list(per_page=100, all=True)
+    kmt_cleanup_jobs_to_run: set[str] = set()
+    jobs_by_name: dict[str, ProjectJob] = {}
 
     for job in jobs:
+        jobs_by_name[job.name] = cast(ProjectJob, job)
+
         if job.stage in force_cancel_stages or (
-            job.status not in ["running", "canceled"] and "cleanup" not in job.name
+            job.status not in ["running", "canceled", "success"] and "cleanup" not in job.name
         ):
             repo.jobs.get(job.id, lazy=True).cancel()
+
+            if job.name.startswith("kmt_setup_env") or job.name.startswith("kmt_run"):
+                component = "sysprobe" if "sysprobe" in job.name else "secagent"
+                arch = "x64" if "x64" in job.name else "arm64"
+                cleanup_job = f"kmt_{component}_cleanup_{arch}_manual"
+                kmt_cleanup_jobs_to_run.add(cleanup_job)
+
+    # Run manual cleanup jobs for KMT. If we canceled the setup env or the tests job,
+    # the cleanup job will not run automatically. We need to trigger the manual variants
+    # to avoid leaving KMT instances running too much time.
+    for cleanup_job_name in kmt_cleanup_jobs_to_run:
+        cleanup_job = jobs_by_name.get(cleanup_job_name, None)
+        if cleanup_job is not None:
+            print(f"Triggering KMT {cleanup_job_name} job")
+            try:
+                repo.jobs.get(cleanup_job.id, lazy=True).play()
+            except GitlabJobPlayError:
+                # It can happen if you push two commits in a very short period of time (a few seconds).
+                # Both pipelines will try to play the job and one will fail.
+                print(color_message("The job is unplayable. Was it already replayed by another pipeline?", Color.RED))
+        else:
+            print(f"Cleanup job {cleanup_job_name} not found, skipping.")
 
 
 def trigger_agent_pipeline(
@@ -92,6 +122,7 @@ def trigger_agent_pipeline(
     deploy=False,
     all_builds=False,
     e2e_tests=False,
+    kmt_tests=False,
     rc_build=False,
     rc_k8s_deployments=False,
 ) -> ProjectPipeline:
@@ -121,6 +152,8 @@ def trigger_agent_pipeline(
     else:
         args["RUN_E2E_TESTS"] = "off"
 
+    args["RUN_KMT_TESTS"] = "on" if kmt_tests else "off"
+
     if release_version_6 is not None:
         args["RELEASE_VERSION_6"] = release_version_6
 
@@ -147,9 +180,9 @@ def trigger_agent_pipeline(
         return repo.pipelines.create({'ref': ref, 'variables': variables})
     except GitlabError as e:
         if "filtered out by workflow rules" in e.error_message:
-            raise FilteredOutException
+            raise FilteredOutException from e
 
-        raise RuntimeError(f"Invalid response from Gitlab API: {e}")
+        raise RuntimeError(f"Invalid response from Gitlab API: {e}") from e
 
 
 def wait_for_pipeline(
@@ -192,7 +225,7 @@ def loop_status(callable, timeout_sec):
     Utility to loop a function that takes a status and returns [done, status], until done is True.
     """
     start = time()
-    status = dict()
+    status = {}
     while True:
         done, status = callable(status)
         if done:
@@ -206,7 +239,7 @@ def pipeline_status(pipeline: ProjectPipeline, job_status):
     """
     Checks the pipeline status and updates job statuses.
     """
-    pipeline.refresh()
+    refresh_pipeline(pipeline)
     jobs = pipeline.jobs.list(per_page=100, all=True)
 
     job_status = update_job_status(jobs, job_status)
@@ -254,7 +287,7 @@ def pipeline_status(pipeline: ProjectPipeline, job_status):
     return False, job_status
 
 
-def update_job_status(jobs: List[ProjectJob], job_status):
+def update_job_status(jobs: list[ProjectJob], job_status):
     """
     Updates job statuses and notify on changes.
     """

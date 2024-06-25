@@ -7,19 +7,19 @@
 package configcheck
 
 import (
-	"bytes"
 	"fmt"
+	"net/url"
 
-	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	"github.com/DataDog/datadog-agent/pkg/flare"
+	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -45,7 +45,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(run,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath),
+					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(cliParams.ExtraConfFilePath)),
 					SecretParams: secrets.NewEnabledParams(),
 					LogParams:    logimpl.ForOneShot("CORE", "off", true)}),
 				core.Bundle(),
@@ -57,14 +57,28 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{configCheckCommand}
 }
 
-func run(_ config.Component, cliParams *cliParams) error {
-	var b bytes.Buffer
-	color.Output = &b
-	err := flare.GetConfigCheck(color.Output, cliParams.verbose)
-	if err != nil {
-		return fmt.Errorf("unable to get pkgconfig: %v", err)
+func run(config config.Component, cliParams *cliParams, _ log.Component) error {
+	v := url.Values{}
+	if cliParams.verbose {
+		v.Set("verbose", "true")
 	}
 
-	fmt.Println(b.String())
+	if cliParams.NoColor {
+		v.Set("nocolor", "true")
+	} else {
+		v.Set("nocolor", "false")
+	}
+
+	endpoint, err := apiutil.NewIPCEndpoint(config, "/agent/config-check")
+	if err != nil {
+		return err
+	}
+
+	res, err := endpoint.DoGet(apiutil.WithValues(v))
+	if err != nil {
+		return fmt.Errorf("the agent ran into an error while checking config: %v", err)
+	}
+
+	fmt.Println(string(res))
 	return nil
 }

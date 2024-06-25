@@ -11,22 +11,26 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/utils"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
-	"go.uber.org/fx"
-
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/fx"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taglist"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
+	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 )
 
 func TestHandleKubePod(t *testing.T) {
 	const (
 		fullyFleshedContainerID = "foobarquux"
+		otelEnvContainerID      = "otelcontainer"
 		noEnvContainerID        = "foobarbaz"
 		containerName           = "agent"
 		runtimeContainerName    = "k8s_datadog-agent_agent"
@@ -60,14 +64,13 @@ func TestHandleKubePod(t *testing.T) {
 		Tag:       "latest",
 	}
 
-	store := fxutil.Test[workloadmeta.Mock](t, fx.Options(
+	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		logimpl.MockModule(),
 		config.MockModule(),
 		fx.Supply(workloadmeta.NewParams()),
 		fx.Supply(context.Background()),
-		workloadmeta.MockModule(),
+		workloadmetafxmock.MockModule(),
 	))
-
 	store.Set(&workloadmeta.Container{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindContainer,
@@ -86,6 +89,20 @@ func TestHandleKubePod(t *testing.T) {
 	store.Set(&workloadmeta.Container{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindContainer,
+			ID:   otelEnvContainerID,
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name: runtimeContainerName,
+		},
+		Image: image,
+		EnvVars: map[string]string{
+			"OTEL_SERVICE_NAME":        svc,
+			"OTEL_RESOURCE_ATTRIBUTES": fmt.Sprintf("service.name=%s,service.version=%s,deployment.environment=%s", svc, version, env),
+		},
+	})
+	store.Set(&workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindContainer,
 			ID:   noEnvContainerID,
 		},
 		EntityMeta: workloadmeta.EntityMeta{
@@ -94,13 +111,14 @@ func TestHandleKubePod(t *testing.T) {
 	})
 
 	tests := []struct {
-		name              string
-		staticTags        map[string]string
-		labelsAsTags      map[string]string
-		annotationsAsTags map[string]string
-		nsLabelsAsTags    map[string]string
-		pod               workloadmeta.KubernetesPod
-		expected          []*types.TagInfo
+		name                string
+		staticTags          map[string]string
+		labelsAsTags        map[string]string
+		annotationsAsTags   map[string]string
+		nsLabelsAsTags      map[string]string
+		nsAnnotationsAsTags map[string]string
+		pod                 workloadmeta.KubernetesPod
+		expected            []*types.TagInfo
 	}{
 		{
 			name: "fully formed pod (no containers)",
@@ -115,6 +133,10 @@ func TestHandleKubePod(t *testing.T) {
 			nsLabelsAsTags: map[string]string{
 				"ns_env":       "ns_env",
 				"ns-ownerteam": "ns-team",
+			},
+			nsAnnotationsAsTags: map[string]string{
+				"ns_tier":            "ns_tier",
+				"namespace_security": "ns_security",
 			},
 			pod: workloadmeta.KubernetesPod{
 				EntityID: podEntityID,
@@ -158,6 +180,12 @@ func TestHandleKubePod(t *testing.T) {
 					"foo":          "bar",
 				},
 
+				// NS annotations as tags
+				NamespaceAnnotations: map[string]string{
+					"ns_tier":            "some_tier",
+					"namespace_security": "critical",
+				},
+
 				// kube_service tags
 				KubeServices: []string{"service1", "service2"},
 
@@ -177,6 +205,8 @@ func TestHandleKubePod(t *testing.T) {
 
 				// Phase tags
 				Phase: "Running",
+
+				PriorityClass: "high-priority",
 			},
 			expected: []*types.TagInfo{
 				{
@@ -200,17 +230,82 @@ func TestHandleKubePod(t *testing.T) {
 						"kube_app_managed_by:helm",
 						"kube_app_part_of:datadog",
 						"kube_ownerref_kind:deployment",
+						"kube_priority_class:high-priority",
 						"kube_service:service1",
 						"kube_service:service2",
 						"kube_qos:guaranteed",
 						"ns-team:containers",
 						"ns_env:dev",
+						"ns_tier:some_tier",
+						"ns_security:critical",
 						"pod_phase:running",
 						"pod_template_version:1.0.0",
 						"team:container-integrations",
 						"tier:node",
 					}, standardTags...),
 					StandardTags: standardTags,
+				},
+			},
+		},
+		{
+			name: "persistent volume claim tags activated",
+			pod: workloadmeta.KubernetesPod{
+				EntityID: podEntityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name:      podName,
+					Namespace: podNamespace,
+				},
+				Containers: []workloadmeta.OrchestratorContainer{
+					{
+						ID:    noEnvContainerID,
+						Name:  containerName,
+						Image: image,
+					},
+				},
+				Owners: []workloadmeta.KubernetesPodOwner{
+					{
+						Kind: kubernetes.StatefulSetKind,
+					},
+				},
+				// PVC tags
+				PersistentVolumeClaimNames: []string{"pvc-0"},
+			},
+			expected: []*types.TagInfo{
+				{
+					Source:       podSource,
+					Entity:       podTaggerEntityID,
+					HighCardTags: []string{},
+					OrchestratorCardTags: []string{
+						fmt.Sprintf("pod_name:%s", podName),
+					},
+					LowCardTags: []string{
+						fmt.Sprintf("kube_namespace:%s", podNamespace),
+						"kube_ownerref_kind:statefulset",
+						"persistentvolumeclaim:pvc-0",
+					},
+					StandardTags: []string{},
+				},
+				{
+					Source: podSource,
+					Entity: noEnvContainerTaggerEntityID,
+					HighCardTags: []string{
+						fmt.Sprintf("container_id:%s", noEnvContainerID),
+						fmt.Sprintf("display_container_name:%s_%s", runtimeContainerName, podName),
+					},
+					OrchestratorCardTags: []string{
+						fmt.Sprintf("pod_name:%s", podName),
+					},
+					LowCardTags: []string{
+						fmt.Sprintf("kube_namespace:%s", podNamespace),
+						fmt.Sprintf("kube_container_name:%s", containerName),
+						"image_id:datadog/agent@sha256:a63d3f66fb2f69d955d4f2ca0b229385537a77872ffc04290acae65aed5317d2",
+						"image_name:datadog/agent",
+						"image_tag:latest",
+						"short_image:agent",
+						"kube_ownerref_kind:statefulset",
+						"persistentvolumeclaim:pvc-0",
+					},
+					StandardTags: []string{},
 				},
 			},
 		},
@@ -248,6 +343,57 @@ func TestHandleKubePod(t *testing.T) {
 					Entity: fullyFleshedContainerTaggerEntityID,
 					HighCardTags: []string{
 						fmt.Sprintf("container_id:%s", fullyFleshedContainerID),
+						fmt.Sprintf("display_container_name:%s_%s", runtimeContainerName, podName),
+					},
+					OrchestratorCardTags: []string{
+						fmt.Sprintf("pod_name:%s", podName),
+					},
+					LowCardTags: append([]string{
+						fmt.Sprintf("kube_namespace:%s", podNamespace),
+						fmt.Sprintf("kube_container_name:%s", containerName),
+						"image_id:datadog/agent@sha256:a63d3f66fb2f69d955d4f2ca0b229385537a77872ffc04290acae65aed5317d2",
+						"image_name:datadog/agent",
+						"image_tag:latest",
+						"short_image:agent",
+					}, standardTags...),
+					StandardTags: standardTags,
+				},
+			},
+		},
+		{
+			name: "pod with fully formed container, standard tags from env with opentelemetry sdk",
+			pod: workloadmeta.KubernetesPod{
+				EntityID: podEntityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name:      podName,
+					Namespace: podNamespace,
+				},
+				Containers: []workloadmeta.OrchestratorContainer{
+					{
+						ID:    otelEnvContainerID,
+						Name:  containerName,
+						Image: image,
+					},
+				},
+			},
+			expected: []*types.TagInfo{
+				{
+					Source:       podSource,
+					Entity:       podTaggerEntityID,
+					HighCardTags: []string{},
+					OrchestratorCardTags: []string{
+						fmt.Sprintf("pod_name:%s", podName),
+					},
+					LowCardTags: []string{
+						fmt.Sprintf("kube_namespace:%s", podNamespace),
+					},
+					StandardTags: []string{},
+				},
+				{
+					Source: podSource,
+					Entity: fmt.Sprintf("container_id://%s", otelEnvContainerID),
+					HighCardTags: []string{
+						fmt.Sprintf("container_id:%s", otelEnvContainerID),
 						fmt.Sprintf("display_container_name:%s_%s", runtimeContainerName, podName),
 					},
 					OrchestratorCardTags: []string{
@@ -378,6 +524,252 @@ func TestHandleKubePod(t *testing.T) {
 			},
 		},
 		{
+			name: "pod owned by daemonset",
+			pod: workloadmeta.KubernetesPod{
+				EntityID: podEntityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name:      podName,
+					Namespace: podNamespace,
+				},
+				Owners: []workloadmeta.KubernetesPodOwner{
+					{
+						Kind: kubernetes.DaemonSetKind,
+						Name: "owner_name",
+					},
+				},
+			},
+			expected: []*types.TagInfo{
+				{
+					Source:       podSource,
+					Entity:       podTaggerEntityID,
+					HighCardTags: []string{},
+					OrchestratorCardTags: []string{
+						fmt.Sprintf("pod_name:%s", podName),
+						"kube_ownerref_name:owner_name",
+					},
+					LowCardTags: []string{
+						fmt.Sprintf("kube_namespace:%s", podNamespace),
+						"kube_ownerref_kind:daemonset",
+						"kube_daemon_set:owner_name",
+					},
+					StandardTags: []string{},
+				},
+			},
+		},
+		{
+			name: "pod owned by replication controller",
+			pod: workloadmeta.KubernetesPod{
+				EntityID: podEntityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name:      podName,
+					Namespace: podNamespace,
+				},
+				Owners: []workloadmeta.KubernetesPodOwner{
+					{
+						Kind: kubernetes.ReplicationControllerKind,
+						Name: "owner_name",
+					},
+				},
+			},
+			expected: []*types.TagInfo{
+				{
+					Source:       podSource,
+					Entity:       podTaggerEntityID,
+					HighCardTags: []string{},
+					OrchestratorCardTags: []string{
+						fmt.Sprintf("pod_name:%s", podName),
+						"kube_ownerref_name:owner_name",
+					},
+					LowCardTags: []string{
+						fmt.Sprintf("kube_namespace:%s", podNamespace),
+						"kube_ownerref_kind:replicationcontroller",
+						"kube_replication_controller:owner_name",
+					},
+					StandardTags: []string{},
+				},
+			},
+		},
+		{
+			name: "pod owned by statefulset with persistent volume claim",
+			pod: workloadmeta.KubernetesPod{
+				EntityID: podEntityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name:      podName,
+					Namespace: podNamespace,
+				},
+				Owners: []workloadmeta.KubernetesPodOwner{
+					{
+						Kind: kubernetes.StatefulSetKind,
+						Name: "owner_name",
+					},
+				},
+				PersistentVolumeClaimNames: []string{
+					"pvc-0",
+				},
+			},
+			expected: []*types.TagInfo{
+				{
+					Source:       podSource,
+					Entity:       podTaggerEntityID,
+					HighCardTags: []string{},
+					OrchestratorCardTags: []string{
+						fmt.Sprintf("pod_name:%s", podName),
+						"kube_ownerref_name:owner_name",
+					},
+					LowCardTags: []string{
+						fmt.Sprintf("kube_namespace:%s", podNamespace),
+						"kube_ownerref_kind:statefulset",
+						"kube_stateful_set:owner_name",
+						"persistentvolumeclaim:pvc-0",
+					},
+					StandardTags: []string{},
+				},
+			},
+		},
+		{
+			name: "pod owned by job",
+			pod: workloadmeta.KubernetesPod{
+				EntityID: podEntityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name:      podName,
+					Namespace: podNamespace,
+				},
+				Owners: []workloadmeta.KubernetesPodOwner{
+					{
+						Kind: kubernetes.JobKind,
+						Name: "owner_name",
+					},
+				},
+			},
+			expected: []*types.TagInfo{
+				{
+					Source:       podSource,
+					Entity:       podTaggerEntityID,
+					HighCardTags: []string{},
+					OrchestratorCardTags: []string{
+						fmt.Sprintf("pod_name:%s", podName),
+						"kube_ownerref_name:owner_name",
+					},
+					LowCardTags: []string{
+						fmt.Sprintf("kube_namespace:%s", podNamespace),
+						"kube_ownerref_kind:job",
+						"kube_job:owner_name",
+					},
+					StandardTags: []string{},
+				},
+			},
+		},
+		{
+			name: "pod owned by cronjob",
+			pod: workloadmeta.KubernetesPod{
+				EntityID: podEntityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name:      podName,
+					Namespace: podNamespace,
+				},
+				Owners: []workloadmeta.KubernetesPodOwner{
+					{
+						Kind: kubernetes.JobKind,
+						// job owned by "some_cronjob".
+						// Notice that, to make this test work, the job name
+						// included after the "-" separator needs to be valid
+						// according to the ParseCronJobForJob function.
+						Name: "some_cronjob-123",
+					},
+				},
+			},
+			expected: []*types.TagInfo{
+				{
+					Source:       podSource,
+					Entity:       podTaggerEntityID,
+					HighCardTags: []string{},
+					OrchestratorCardTags: []string{
+						fmt.Sprintf("pod_name:%s", podName),
+						"kube_ownerref_name:some_cronjob-123",
+						"kube_job:some_cronjob-123",
+					},
+					LowCardTags: []string{
+						fmt.Sprintf("kube_namespace:%s", podNamespace),
+						"kube_ownerref_kind:job",
+						"kube_cronjob:some_cronjob",
+					},
+					StandardTags: []string{},
+				},
+			},
+		},
+		{
+			name: "pod owned by replicaset without deployment",
+			pod: workloadmeta.KubernetesPod{
+				EntityID: podEntityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name:      podName,
+					Namespace: podNamespace,
+				},
+				Owners: []workloadmeta.KubernetesPodOwner{
+					{
+						Kind: kubernetes.ReplicaSetKind,
+						Name: "owner_name",
+					},
+				},
+			},
+			expected: []*types.TagInfo{
+				{
+					Source:       podSource,
+					Entity:       podTaggerEntityID,
+					HighCardTags: []string{},
+					OrchestratorCardTags: []string{
+						fmt.Sprintf("pod_name:%s", podName),
+						"kube_ownerref_name:owner_name",
+					},
+					LowCardTags: []string{
+						fmt.Sprintf("kube_namespace:%s", podNamespace),
+						"kube_ownerref_kind:replicaset",
+						"kube_replica_set:owner_name",
+					},
+					StandardTags: []string{},
+				},
+			},
+		},
+		{
+			name: "pod owned by replicaset that belongs to a deployment",
+			pod: workloadmeta.KubernetesPod{
+				EntityID: podEntityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name:      podName,
+					Namespace: podNamespace,
+				},
+				Owners: []workloadmeta.KubernetesPodOwner{
+					{
+						Kind: kubernetes.ReplicaSetKind,
+						// replicaset owned by "some_deployment"
+						// Notice that, to make this test work, the replicaset
+						// name included after the "-" separator needs to be
+						// valid according to the ParseDeploymentForReplicaSet
+						// function.
+						Name: "some_deployment-bcd2",
+					},
+				},
+			},
+			expected: []*types.TagInfo{
+				{
+					Source:       podSource,
+					Entity:       podTaggerEntityID,
+					HighCardTags: []string{},
+					OrchestratorCardTags: []string{
+						fmt.Sprintf("pod_name:%s", podName),
+						"kube_ownerref_name:some_deployment-bcd2",
+					},
+					LowCardTags: []string{
+						fmt.Sprintf("kube_namespace:%s", podNamespace),
+						"kube_ownerref_kind:replicaset",
+						"kube_replica_set:some_deployment-bcd2",
+						"kube_deployment:some_deployment",
+					},
+					StandardTags: []string{},
+				},
+			},
+		},
+		{
 			name: "static tags",
 			staticTags: map[string]string{
 				"eks_fargate_node": "foobar",
@@ -438,13 +830,142 @@ func TestHandleKubePod(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			collector := &WorkloadMetaCollector{
-				store:      store,
-				children:   make(map[string]map[string]struct{}),
-				staticTags: tt.staticTags,
-			}
+			collector := NewWorkloadMetaCollector(context.Background(), store, nil)
+			collector.staticTags = tt.staticTags
 
-			collector.initPodMetaAsTags(tt.labelsAsTags, tt.annotationsAsTags, tt.nsLabelsAsTags)
+			collector.initPodMetaAsTags(tt.labelsAsTags, tt.annotationsAsTags, tt.nsLabelsAsTags, tt.nsAnnotationsAsTags)
+
+			actual := collector.handleKubePod(workloadmeta.Event{
+				Type:   workloadmeta.EventTypeSet,
+				Entity: &tt.pod,
+			})
+
+			assertTagInfoListEqual(t, tt.expected, actual)
+		})
+	}
+}
+
+func TestHandleKubePodWithoutPvcAsTags(t *testing.T) {
+	const (
+		noEnvContainerID     = "foobarbaz"
+		containerName        = "agent"
+		runtimeContainerName = "k8s_datadog-agent_agent"
+		podName              = "datadog-agent-foobar"
+		podNamespace         = "default"
+	)
+
+	podEntityID := workloadmeta.EntityID{
+		Kind: workloadmeta.KindKubernetesPod,
+		ID:   "foobar",
+	}
+
+	podTaggerEntityID := fmt.Sprintf("kubernetes_pod_uid://%s", podEntityID.ID)
+
+	image := workloadmeta.ContainerImage{
+		ID:        "datadog/agent@sha256:a63d3f66fb2f69d955d4f2ca0b229385537a77872ffc04290acae65aed5317d2",
+		RawName:   "datadog/agent@sha256:a63d3f66fb2f69d955d4f2ca0b229385537a77872ffc04290acae65aed5317d2",
+		Name:      "datadog/agent",
+		ShortName: "agent",
+		Tag:       "latest",
+	}
+
+	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		logimpl.MockModule(),
+		config.MockModule(),
+		fx.Supply(workloadmeta.NewParams()),
+		fx.Supply(context.Background()),
+		workloadmetafxmock.MockModule(),
+	), fx.Replace(config.MockParams{Overrides: map[string]any{
+		"kubernetes_persistent_volume_claims_as_tags": false,
+	}}))
+	store.Set(&workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindContainer,
+			ID:   noEnvContainerID,
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name: runtimeContainerName,
+		},
+	})
+
+	tests := []struct {
+		name                string
+		staticTags          map[string]string
+		labelsAsTags        map[string]string
+		annotationsAsTags   map[string]string
+		nsLabelsAsTags      map[string]string
+		nsAnnotationsAsTags map[string]string
+		pod                 workloadmeta.KubernetesPod
+		expected            []*types.TagInfo
+	}{
+		{
+			name: "persistent volume claim tags deactivated",
+			pod: workloadmeta.KubernetesPod{
+				EntityID: podEntityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name:      podName,
+					Namespace: podNamespace,
+				},
+				Containers: []workloadmeta.OrchestratorContainer{
+					{
+						ID:    noEnvContainerID,
+						Name:  containerName,
+						Image: image,
+					},
+				},
+				Owners: []workloadmeta.KubernetesPodOwner{
+					{
+						Kind: kubernetes.StatefulSetKind,
+					},
+				},
+				// PVC tags
+				PersistentVolumeClaimNames: []string{"pvc-0"},
+			},
+			expected: []*types.TagInfo{
+				{
+					Source:       podSource,
+					Entity:       podTaggerEntityID,
+					HighCardTags: []string{},
+					OrchestratorCardTags: []string{
+						fmt.Sprintf("pod_name:%s", podName),
+					},
+					LowCardTags: []string{
+						fmt.Sprintf("kube_namespace:%s", podNamespace),
+						"kube_ownerref_kind:statefulset",
+					},
+					StandardTags: []string{},
+				},
+				{
+					Source: podSource,
+					Entity: fmt.Sprintf("container_id://%s", noEnvContainerID),
+					HighCardTags: []string{
+						fmt.Sprintf("container_id:%s", noEnvContainerID),
+						fmt.Sprintf("display_container_name:%s_%s", runtimeContainerName, podName),
+					},
+					OrchestratorCardTags: []string{
+						fmt.Sprintf("pod_name:%s", podName),
+					},
+					LowCardTags: []string{
+						fmt.Sprintf("kube_namespace:%s", podNamespace),
+						fmt.Sprintf("kube_container_name:%s", containerName),
+						"image_id:datadog/agent@sha256:a63d3f66fb2f69d955d4f2ca0b229385537a77872ffc04290acae65aed5317d2",
+						"image_name:datadog/agent",
+						"image_tag:latest",
+						"short_image:agent",
+						"kube_ownerref_kind:statefulset",
+					},
+					StandardTags: []string{},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			collector := NewWorkloadMetaCollector(context.Background(), store, nil)
+			collector.staticTags = tt.staticTags
+
+			collector.initPodMetaAsTags(tt.labelsAsTags, tt.annotationsAsTags, tt.nsLabelsAsTags, tt.nsAnnotationsAsTags)
 
 			actual := collector.handleKubePod(workloadmeta.Event{
 				Type:   workloadmeta.EventTypeSet,
@@ -491,12 +1012,12 @@ func TestHandleKubePodNoContainerName(t *testing.T) {
 		Tag:       "latest",
 	}
 
-	store := fxutil.Test[workloadmeta.Mock](t, fx.Options(
+	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		logimpl.MockModule(),
 		config.MockModule(),
 		fx.Supply(workloadmeta.NewParams()),
 		fx.Supply(context.Background()),
-		workloadmeta.MockModule(),
+		workloadmetafxmock.MockModule(),
 	))
 
 	store.Set(&workloadmeta.Container{
@@ -525,13 +1046,14 @@ func TestHandleKubePodNoContainerName(t *testing.T) {
 	})
 
 	tests := []struct {
-		name              string
-		staticTags        map[string]string
-		labelsAsTags      map[string]string
-		annotationsAsTags map[string]string
-		nsLabelsAsTags    map[string]string
-		pod               workloadmeta.KubernetesPod
-		expected          []*types.TagInfo
+		name                string
+		staticTags          map[string]string
+		labelsAsTags        map[string]string
+		annotationsAsTags   map[string]string
+		nsLabelsAsTags      map[string]string
+		nsAnnotationsAsTags map[string]string
+		pod                 workloadmeta.KubernetesPod
+		expected            []*types.TagInfo
 	}{
 		{
 			name: "pod with no container name",
@@ -588,17 +1110,114 @@ func TestHandleKubePodNoContainerName(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			collector := &WorkloadMetaCollector{
-				store:      store,
-				children:   make(map[string]map[string]struct{}),
-				staticTags: tt.staticTags,
-			}
+			collector := NewWorkloadMetaCollector(context.Background(), store, nil)
+			collector.staticTags = tt.staticTags
 
-			collector.initPodMetaAsTags(tt.labelsAsTags, tt.annotationsAsTags, tt.nsLabelsAsTags)
+			collector.initPodMetaAsTags(tt.labelsAsTags, tt.annotationsAsTags, tt.nsLabelsAsTags, tt.annotationsAsTags)
 
 			actual := collector.handleKubePod(workloadmeta.Event{
 				Type:   workloadmeta.EventTypeSet,
 				Entity: &tt.pod,
+			})
+
+			assertTagInfoListEqual(t, tt.expected, actual)
+		})
+	}
+}
+
+func TestHandleKubeMetadata(t *testing.T) {
+	const namespace = "foobar"
+
+	kubeMetadataEntityID := workloadmeta.EntityID{
+		Kind: workloadmeta.KindKubernetesMetadata,
+		ID:   fmt.Sprintf("namespaces//%s", namespace),
+	}
+
+	taggerEntityID := fmt.Sprintf("kubernetes_metadata://%s", kubeMetadataEntityID.ID)
+
+	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		logimpl.MockModule(),
+		config.MockModule(),
+		fx.Supply(workloadmeta.NewParams()),
+		fx.Supply(context.Background()),
+		workloadmetafxmock.MockModule(),
+	))
+
+	store.Set(&workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubernetesMetadata,
+			ID:   fmt.Sprintf("namespaces//%s", namespace),
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name: namespace,
+		},
+	})
+
+	tests := []struct {
+		name                string
+		labelsAsTags        map[string]string
+		annotationsAsTags   map[string]string
+		nsLabelsAsTags      map[string]string
+		nsAnnotationsAsTags map[string]string
+		kubeMetadata        workloadmeta.KubernetesMetadata
+		expected            []*types.TagInfo
+	}{
+		{
+			name: "namespace",
+			nsLabelsAsTags: map[string]string{
+				"ns_env":       "ns_env",
+				"ns-ownerteam": "ns-team",
+			},
+			nsAnnotationsAsTags: map[string]string{
+				"ns_tier":            "ns_tier",
+				"namespace_security": "ns_security",
+			},
+			kubeMetadata: workloadmeta.KubernetesMetadata{
+				EntityID: kubeMetadataEntityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: namespace,
+					Labels: map[string]string{
+						"ns_env":       "dev",
+						"ns-ownerteam": "containers",
+						"foo":          "bar",
+					},
+					Annotations: map[string]string{
+						"ns_tier":            "some_tier",
+						"namespace_security": "critical",
+					},
+				},
+				GVR: schema.GroupVersionResource{
+					Version:  "v1",
+					Resource: "namespaces",
+				},
+			},
+			expected: []*types.TagInfo{
+				{
+					Source:               kubeMetadataSource,
+					Entity:               taggerEntityID,
+					HighCardTags:         []string{},
+					OrchestratorCardTags: []string{},
+					LowCardTags: []string{
+						"ns_env:dev",
+						"ns-team:containers",
+						"ns_tier:some_tier",
+						"ns_security:critical",
+					},
+					StandardTags: []string{},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			collector := NewWorkloadMetaCollector(context.Background(), store, nil)
+
+			collector.initPodMetaAsTags(tt.labelsAsTags, tt.annotationsAsTags, tt.nsLabelsAsTags, tt.nsAnnotationsAsTags)
+
+			actual := collector.handleKubeMetadata(workloadmeta.Event{
+				Type:   workloadmeta.EventTypeSet,
+				Entity: &tt.kubeMetadata,
 			})
 
 			assertTagInfoListEqual(t, tt.expected, actual)
@@ -619,12 +1238,14 @@ func TestHandleECSTask(t *testing.T) {
 
 	taggerEntityID := fmt.Sprintf("container_id://%s", containerID)
 
-	store := fxutil.Test[workloadmeta.Mock](t, fx.Options(
+	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		logimpl.MockModule(),
 		config.MockModule(),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.MockModule(),
-	))
+		workloadmetafxmock.MockModule(),
+	), fx.Replace(config.MockParams{Overrides: map[string]any{
+		"ecs_collect_resource_tags_ec2": true,
+	}}))
 
 	store.Set(&workloadmeta.Container{
 		EntityID: workloadmeta.EntityID{
@@ -707,6 +1328,7 @@ func TestHandleECSTask(t *testing.T) {
 					},
 				},
 				AvailabilityZone: "us-east-1c",
+				Region:           "us-east-1",
 			},
 			expected: []*types.TagInfo{
 				{
@@ -725,6 +1347,7 @@ func TestHandleECSTask(t *testing.T) {
 						"task_version:1",
 						"availability_zone:us-east-1c",
 						"availability-zone:us-east-1c",
+						"region:us-east-1",
 					},
 					StandardTags: []string{},
 				},
@@ -743,6 +1366,7 @@ func TestHandleECSTask(t *testing.T) {
 						"task_version:1",
 						"availability_zone:us-east-1c",
 						"availability-zone:us-east-1c",
+						"region:us-east-1",
 					},
 					StandardTags: []string{},
 				},
@@ -752,11 +1376,7 @@ func TestHandleECSTask(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			collector := &WorkloadMetaCollector{
-				store:                  store,
-				children:               make(map[string]map[string]struct{}),
-				collectEC2ResourceTags: true,
-			}
+			collector := NewWorkloadMetaCollector(context.Background(), store, nil)
 
 			actual := collector.handleECSTask(workloadmeta.Event{
 				Type:   workloadmeta.EventTypeSet,
@@ -873,6 +1493,113 @@ func TestHandleContainer(t *testing.T) {
 						"owner_team:container-integrations",
 					}, standardTags...),
 					StandardTags: standardTags,
+				},
+			},
+		},
+		{
+			name: "tags from environment with opentelemetry sdk",
+			container: workloadmeta.Container{
+				EntityID: entityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: containerName,
+				},
+				EnvVars: map[string]string{
+					// env as tags
+					"TEAM": "container-integrations",
+					"TIER": "node",
+
+					// otel standard tags
+					"OTEL_SERVICE_NAME":        svc,
+					"OTEL_RESOURCE_ATTRIBUTES": fmt.Sprintf("service.name=%s,service.version=%s,deployment.environment=%s", svc, version, env),
+				},
+			},
+			envAsTags: map[string]string{
+				"team": "owner_team",
+			},
+			expected: []*types.TagInfo{
+				{
+					Source: containerSource,
+					Entity: taggerEntityID,
+					HighCardTags: []string{
+						fmt.Sprintf("container_name:%s", containerName),
+						fmt.Sprintf("container_id:%s", entityID.ID),
+					},
+					OrchestratorCardTags: []string{},
+					LowCardTags: append([]string{
+						"owner_team:container-integrations",
+					}, standardTags...),
+					StandardTags: standardTags,
+				},
+			},
+		},
+		{
+			name: "tags from environment with opentelemetry sdk with whitespace",
+			container: workloadmeta.Container{
+				EntityID: entityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: containerName,
+				},
+				EnvVars: map[string]string{
+					// env as tags
+					"TEAM": "container-integrations",
+					"TIER": "node",
+
+					// otel standard tags
+					"OTEL_SERVICE_NAME":        svc,
+					"OTEL_RESOURCE_ATTRIBUTES": fmt.Sprintf("service.name= %s, service.version = %s , deployment.environment =%s", svc, version, env),
+				},
+			},
+			envAsTags: map[string]string{
+				"team": "owner_team",
+			},
+			expected: []*types.TagInfo{
+				{
+					Source: containerSource,
+					Entity: taggerEntityID,
+					HighCardTags: []string{
+						fmt.Sprintf("container_name:%s", containerName),
+						fmt.Sprintf("container_id:%s", entityID.ID),
+					},
+					OrchestratorCardTags: []string{},
+					LowCardTags: append([]string{
+						"owner_team:container-integrations",
+					}, standardTags...),
+					StandardTags: standardTags,
+				},
+			},
+		},
+		{
+			name: "tags from environment with malformed OTEL_RESOURCE_ATTRIBUTES",
+			container: workloadmeta.Container{
+				EntityID: entityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: containerName,
+				},
+				EnvVars: map[string]string{
+					// env as tags
+					"TEAM": "container-integrations",
+					"TIER": "node",
+
+					// otel standard tags
+					"OTEL_RESOURCE_ATTRIBUTES": fmt.Sprintf("service.name=,  =  , =%s", env),
+				},
+			},
+			envAsTags: map[string]string{
+				"team": "owner_team",
+			},
+			expected: []*types.TagInfo{
+				{
+					Source: containerSource,
+					Entity: taggerEntityID,
+					HighCardTags: []string{
+						fmt.Sprintf("container_name:%s", containerName),
+						fmt.Sprintf("container_id:%s", entityID.ID),
+					},
+					OrchestratorCardTags: []string{},
+					LowCardTags: []string{
+						"owner_team:container-integrations",
+					},
+					StandardTags: []string{},
 				},
 			},
 		},
@@ -1189,9 +1916,9 @@ func TestHandleContainer(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			collector := &WorkloadMetaCollector{
-				staticTags: tt.staticTags,
-			}
+			collector := NewWorkloadMetaCollector(context.Background(), nil, nil)
+			collector.staticTags = tt.staticTags
+
 			collector.initContainerMetaAsTags(tt.labelsAsTags, tt.envAsTags)
 
 			actual := collector.handleContainer(workloadmeta.Event{
@@ -1275,7 +2002,7 @@ func TestHandleContainerImage(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			collector := &WorkloadMetaCollector{}
+			collector := NewWorkloadMetaCollector(context.Background(), nil, nil)
 
 			actual := collector.handleContainerImage(workloadmeta.Event{
 				Type:   workloadmeta.EventTypeSet,
@@ -1316,11 +2043,11 @@ func TestHandleDelete(t *testing.T) {
 	podTaggerEntityID := fmt.Sprintf("kubernetes_pod_uid://%s", podEntityID.ID)
 	containerTaggerEntityID := fmt.Sprintf("container_id://%s", containerID)
 
-	store := fxutil.Test[workloadmeta.Mock](t, fx.Options(
+	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		logimpl.MockModule(),
 		config.MockModule(),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.MockModule(),
+		workloadmetafxmock.MockModule(),
 	))
 
 	store.Set(&workloadmeta.Container{
@@ -1333,10 +2060,7 @@ func TestHandleDelete(t *testing.T) {
 		},
 	})
 
-	collector := &WorkloadMetaCollector{
-		store:    store,
-		children: make(map[string]map[string]struct{}),
-	}
+	collector := NewWorkloadMetaCollector(context.Background(), store, nil)
 
 	collector.handleKubePod(workloadmeta.Event{
 		Type:   workloadmeta.EventTypeSet,
@@ -1395,22 +2119,17 @@ func TestHandlePodWithDeletedContainer(t *testing.T) {
 
 	collectorCh := make(chan []*types.TagInfo, 10)
 
-	collector := &WorkloadMetaCollector{
-		store: fxutil.Test[workloadmeta.Mock](t, fx.Options(
-			logimpl.MockModule(),
-			config.MockModule(),
-			fx.Supply(workloadmeta.NewParams()),
-			workloadmeta.MockModule(),
-		)),
-		children: map[string]map[string]struct{}{
-			// Notice that here we set the container that belonged to the pod
-			// but that no longer exists
-			podTaggerEntityID: {
-				containerToBeDeletedTaggerEntityID: struct{}{},
-			},
-		},
-		tagProcessor: &fakeProcessor{collectorCh},
-	}
+	fakeStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		logimpl.MockModule(),
+		config.MockModule(),
+		fx.Supply(workloadmeta.NewParams()),
+		workloadmetafxmock.MockModule(),
+	))
+	collector := NewWorkloadMetaCollector(context.Background(), fakeStore, &fakeProcessor{collectorCh})
+	collector.children = map[string]map[string]struct{}{
+		// Notice that here we set the container that belonged to the pod
+		// but that no longer exists
+		podTaggerEntityID: {containerToBeDeletedTaggerEntityID: struct{}{}}}
 
 	eventBundle := workloadmeta.EventBundle{
 		Events: []workloadmeta.Event{
@@ -1507,7 +2226,7 @@ func TestParseJSONValue(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tags := utils.NewTagList()
+			tags := taglist.NewTagList()
 			err := parseJSONValue(tt.value, tags)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("parseJSONValue() error = %v, wantErr %v", err, tt.wantErr)

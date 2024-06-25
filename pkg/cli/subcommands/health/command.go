@@ -39,9 +39,10 @@ type cliParams struct {
 // A pointer to this type is passed to SubcommandFactory's, but its contents
 // are not valid until Cobra calls the subcommand's Run or RunE function.
 type GlobalParams struct {
-	ConfFilePath string
-	ConfigName   string
-	LoggerName   string
+	ConfFilePath       string
+	ExtraConfFilePaths []string
+	ConfigName         string
+	LoggerName         string
 }
 
 // MakeCommand returns a `health` command to be used by agent binaries.
@@ -57,7 +58,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 			return fxutil.OneShot(requestHealth,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithConfigName(globalParams.ConfigName)),
+					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithConfigName(globalParams.ConfigName), config.WithExtraConfFiles(globalParams.ExtraConfFilePaths)),
 					LogParams:    logimpl.ForOneShot(globalParams.LoggerName, "off", true)}),
 				core.Bundle(),
 			)
@@ -78,9 +79,9 @@ func requestHealth(_ log.Component, config config.Component, cliParams *cliParam
 
 	var urlstr string
 	if flavor.GetFlavor() == flavor.ClusterAgent {
-		urlstr = fmt.Sprintf("https://%v:%v/status/health", ipcAddress, pkgconfig.Datadog.GetInt("cluster_agent.cmd_port"))
+		urlstr = fmt.Sprintf("https://%v:%v/status/health", ipcAddress, pkgconfig.Datadog().GetInt("cluster_agent.cmd_port"))
 	} else {
-		urlstr = fmt.Sprintf("https://%v:%v/agent/status/health", ipcAddress, pkgconfig.Datadog.GetInt("cmd_port"))
+		urlstr = fmt.Sprintf("https://%v:%v/agent/status/health", ipcAddress, pkgconfig.Datadog().GetInt("cmd_port"))
 	}
 
 	// Set session token

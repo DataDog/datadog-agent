@@ -22,6 +22,11 @@ func smNS(k ...string) string {
 	return nskey("service_monitoring_config", k...)
 }
 
+// ccmNS adds `ccm_network_config` namespace to a configuration key
+func ccmNS(k ...string) string {
+	return nskey("ccm_network_config", k...)
+}
+
 // diNS adds `dynamic_instrumentation` namespace to configuration key
 func diNS(k ...string) string {
 	return nskey("dynamic_instrumentation", k...)

@@ -332,7 +332,6 @@ type HelloMsg struct {
 
 // Message defines a message
 type Message struct {
-	SeqNum  uint64
 	Type    MessageType
 	Hello   *HelloMsg   `json:",omitempty"`
 	Syscall *SyscallMsg `json:",omitempty"`
@@ -346,7 +345,6 @@ func (m Message) String() string {
 
 // Reset resets a message
 func (m *Message) Reset() {
-	m.SeqNum = 0
 	m.Type = MessageTypeUnknown
 	m.Hello = nil
 	m.Syscall = nil

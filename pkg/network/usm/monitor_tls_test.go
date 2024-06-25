@@ -17,6 +17,7 @@ import (
 	nethttp "net/http"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -29,18 +30,21 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
+	eventmonitortestutil "github.com/DataDog/datadog-agent/pkg/eventmonitor/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http2"
+	protocolsUtils "github.com/DataDog/datadog-agent/pkg/network/protocols/testutil"
 	gotlstestutil "github.com/DataDog/datadog-agent/pkg/network/protocols/tls/gotls/testutil"
 	javatestutil "github.com/DataDog/datadog-agent/pkg/network/protocols/tls/java/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/tls/nodejs"
 	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
 	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
+	procmontestutil "github.com/DataDog/datadog-agent/pkg/process/monitor/testutil"
 )
 
 type tlsSuite struct {
@@ -79,10 +83,9 @@ func (s *tlsSuite) TestHTTPSViaLibraryIntegration() {
 		regexp.MustCompile(`/[^ ]+libgnutls.so[^ ]*`),
 	}
 	tests := []struct {
-		name         string
-		fetchCmd     []string
-		prefetchLibs []string
-		commandFound bool
+		name                string
+		fetchCmd            []string
+		getBinaryAndCommand func(*testing.T) (string, []string, []string)
 	}{
 		{
 			name:     "wget",
@@ -92,24 +95,33 @@ func (s *tlsSuite) TestHTTPSViaLibraryIntegration() {
 			name:     "curl",
 			fetchCmd: []string{"curl", "--http1.1", "-k", "-o/dev/null", "-d", tempFile},
 		},
-	}
+		{
+			// musl (used in, for example, Alpine Linux) uses the open(2) system
+			// call to open shared libraries, unlike glibc (default in most
+			// other distributions) which uses openat(2) or openat2(2).
+			name:     "curl (musl)",
+			fetchCmd: []string{"chroot"},
+			getBinaryAndCommand: func(t *testing.T) (string, []string, []string) {
+				dir, err := testutil.CurDir()
+				require.NoError(t, err)
 
-	if lddFound {
-		for index := range tests {
-			fetch, err := exec.LookPath(tests[index].fetchCmd[0])
-			tests[index].commandFound = err == nil
-			if !tests[index].commandFound {
-				continue
-			}
-			linked, _ := exec.Command(ldd, fetch).Output()
+				dir = path.Join(dir, "testdata", "musl")
+				protocolsUtils.RunDockerServer(t, "musl-alpine", path.Join(dir, "/docker-compose.yml"),
+					nil, regexp.MustCompile("started"), protocolsUtils.DefaultTimeout, 3)
 
-			for _, lib := range tlsLibs {
-				libSSLPath := lib.FindString(string(linked))
-				if _, err := os.Stat(libSSLPath); err == nil {
-					tests[index].prefetchLibs = append(tests[index].prefetchLibs, libSSLPath)
-				}
-			}
-		}
+				rawout, err := exec.Command("docker", "inspect", "-f", "{{.State.Pid}}", "musl-alpine-1").Output()
+				require.NoError(t, err)
+				containerPid := strings.TrimSpace(string(rawout))
+				containerRoot := fmt.Sprintf("/proc/%s/root", containerPid)
+
+				// We start curl with chroot instead of via docker run since
+				// docker run forks and so `testHTTPSLibrary` woudn't have the
+				// PID of curl which it needs to wait for the shared library
+				// monitoring to happen.
+				return containerRoot, []string{"chroot", containerRoot, "ldd", "/usr/bin/curl"}, []string{"chroot", containerRoot,
+					"curl", "--http1.1", "-k", "-o/dev/null", "-d", tempFile}
+			},
+		},
 	}
 
 	// Spin-up HTTPS server
@@ -128,13 +140,39 @@ func (s *tlsSuite) TestHTTPSViaLibraryIntegration() {
 			if !lddFound {
 				t.Skip("ldd not found; skipping test.")
 			}
-			if !test.commandFound {
+
+			fetch, err := exec.LookPath(test.fetchCmd[0])
+			commandFound := err == nil
+			if !commandFound {
 				t.Skipf("%s not found; skipping test.", test.fetchCmd)
 			}
-			if len(test.prefetchLibs) == 0 {
+
+			root := ""
+			lddCommand := []string{ldd, fetch}
+			command := test.fetchCmd
+			if test.getBinaryAndCommand != nil {
+				root, lddCommand, command = test.getBinaryAndCommand(t)
+			}
+
+			linked, _ := exec.Command(lddCommand[0], lddCommand[1:]...).Output()
+
+			var prefetchLibs []string
+			for _, lib := range tlsLibs {
+				libSSLPath := lib.FindString(string(linked))
+				if libSSLPath == "" {
+					continue
+				}
+				libSSLPath = path.Join(root, libSSLPath)
+				if _, err := os.Stat(libSSLPath); err == nil {
+					prefetchLibs = append(prefetchLibs, libSSLPath)
+				}
+
+			}
+
+			if len(prefetchLibs) == 0 {
 				t.Fatalf("%s not linked with any of these libs %v", test.name, tlsLibs)
 			}
-			testHTTPSLibrary(t, cfg, test.fetchCmd, test.prefetchLibs)
+			testHTTPSLibrary(t, cfg, command, prefetchLibs)
 		})
 	}
 }
@@ -526,23 +564,38 @@ func TestHTTPGoTLSAttachProbes(t *testing.T) {
 	})
 }
 
-func TestHTTP2GoTLSAttachProbes(t *testing.T) {
+func testHTTP2GoTLSAttachProbes(t *testing.T, cfg *config.Config) {
 	modes := []ebpftest.BuildMode{ebpftest.RuntimeCompiled, ebpftest.CORE}
 	ebpftest.TestBuildModes(t, modes, "", func(t *testing.T) {
 		if !http2.Supported() {
 			t.Skip("HTTP2 not supported for this setup")
 		}
-		if !gotlstestutil.GoTLSSupported(t, config.New()) {
+		if !gotlstestutil.GoTLSSupported(t, cfg) {
 			t.Skip("GoTLS not supported for this setup")
 		}
 
 		t.Run("new process", func(t *testing.T) {
-			testHTTPGoTLSCaptureNewProcess(t, config.New(), true)
+			testHTTPGoTLSCaptureNewProcess(t, cfg, true)
 		})
 		t.Run("already running process", func(t *testing.T) {
-			testHTTPGoTLSCaptureAlreadyRunning(t, config.New(), true)
+			testHTTPGoTLSCaptureAlreadyRunning(t, cfg, true)
 		})
 	})
+}
+
+func TestHTTP2GoTLSAttachProbes(t *testing.T) {
+	t.Run("netlink",
+		func(t *testing.T) {
+			cfg := config.New()
+			cfg.EnableUSMEventStream = false
+			testHTTP2GoTLSAttachProbes(t, cfg)
+		})
+	t.Run("event stream",
+		func(t *testing.T) {
+			cfg := config.New()
+			cfg.EnableUSMEventStream = true
+			testHTTP2GoTLSAttachProbes(t, cfg)
+		})
 }
 
 func TestHTTPSGoTLSAttachProbesOnContainer(t *testing.T) {
@@ -895,6 +948,9 @@ func setupUSMTLSMonitor(t *testing.T, cfg *config.Config) *Monitor {
 	usmMonitor, err := NewMonitor(cfg, nil)
 	require.NoError(t, err)
 	require.NoError(t, usmMonitor.Start())
+	if cfg.EnableUSMEventStream {
+		eventmonitortestutil.StartEventMonitor(t, procmontestutil.RegisterProcessMonitorEventConsumer)
+	}
 	t.Cleanup(usmMonitor.Stop)
 	t.Cleanup(utils.ResetDebugger)
 	return usmMonitor

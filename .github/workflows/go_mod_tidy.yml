@@ -32,12 +32,12 @@ jobs:
       - name: Install python
         uses: actions/setup-python@82c7e631bb3cdc910f68e0081d67478d79c6982d # v5.1.0
         with:
-          python-version: "3.9.12"
+          python-version: 3.11
           cache: "pip"
       - name: Install python requirements.txt
         run: python3 -m pip install -r requirements.txt
       - name: Go mod tidy
-        run: inv -e tidy-all
+        run: inv -e tidy
       - name: Update LICENSE-3rdparty.csv
         if: ${{ github.event_name == 'workflow_dispatch' || !contains(github.event.pull_request.labels.*.name, 'dependencies-go-tools') }}
         run: |

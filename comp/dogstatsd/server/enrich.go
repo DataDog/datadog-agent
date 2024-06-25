@@ -165,28 +165,28 @@ func enrichMetricSample(dest []metrics.MetricSample, ddSample dogstatsdMetricSam
 	})
 }
 
-func enrichEventPriority(priority eventPriority) metricsevent.EventPriority {
+func enrichEventPriority(priority eventPriority) metricsevent.Priority {
 	switch priority {
 	case priorityNormal:
-		return metricsevent.EventPriorityNormal
+		return metricsevent.PriorityNormal
 	case priorityLow:
-		return metricsevent.EventPriorityLow
+		return metricsevent.PriorityLow
 	}
-	return metricsevent.EventPriorityNormal
+	return metricsevent.PriorityNormal
 }
 
-func enrichEventAlertType(dogstatsdAlertType alertType) metricsevent.EventAlertType {
+func enrichEventAlertType(dogstatsdAlertType alertType) metricsevent.AlertType {
 	switch dogstatsdAlertType {
 	case alertTypeSuccess:
-		return metricsevent.EventAlertTypeSuccess
+		return metricsevent.AlertTypeSuccess
 	case alertTypeInfo:
-		return metricsevent.EventAlertTypeInfo
+		return metricsevent.AlertTypeInfo
 	case alertTypeWarning:
-		return metricsevent.EventAlertTypeWarning
+		return metricsevent.AlertTypeWarning
 	case alertTypeError:
-		return metricsevent.EventAlertTypeError
+		return metricsevent.AlertTypeError
 	}
-	return metricsevent.EventAlertTypeSuccess
+	return metricsevent.AlertTypeSuccess
 }
 
 func enrichEvent(event dogstatsdEvent, origin string, conf enrichConfig) *metricsevent.Event {

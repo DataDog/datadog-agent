@@ -182,7 +182,7 @@ func TestObfuscateConfig(t *testing.T) {
 		&config.ObfuscationConfig{},
 	))
 
-	t.Run("json/enabled", testConfig(
+	t.Run("elasticsearch/enabled", testConfig(
 		"elasticsearch",
 		"elasticsearch.body",
 		`{"role": "database"}`,
@@ -192,9 +192,37 @@ func TestObfuscateConfig(t *testing.T) {
 		},
 	))
 
-	t.Run("json/disabled", testConfig(
+	t.Run("elasticsearch/disabled", testConfig(
 		"elasticsearch",
 		"elasticsearch.body",
+		`{"role": "database"}`,
+		`{"role": "database"}`,
+		&config.ObfuscationConfig{},
+	))
+
+	t.Run("opensearch/elasticsearch-type", testConfig(
+		"elasticsearch",
+		"opensearch.body",
+		`{"role": "database"}`,
+		`{"role":"?"}`,
+		&config.ObfuscationConfig{
+			OpenSearch: obfuscate.JSONConfig{Enabled: true},
+		},
+	))
+
+	t.Run("opensearch/opensearch-type", testConfig(
+		"opensearch",
+		"opensearch.body",
+		`{"role": "database"}`,
+		`{"role":"?"}`,
+		&config.ObfuscationConfig{
+			OpenSearch: obfuscate.JSONConfig{Enabled: true},
+		},
+	))
+
+	t.Run("opensearch/disabled", testConfig(
+		"elasticsearch",
+		"opensearch.body",
 		`{"role": "database"}`,
 		`{"role": "database"}`,
 		&config.ObfuscationConfig{},
@@ -367,4 +395,27 @@ func TestSQLTableNames(t *testing.T) {
 		agnt.obfuscateSpan(span)
 		assert.Empty(t, span.Meta["sql.tables"])
 	})
+}
+
+func BenchmarkCCObfuscation(b *testing.B) {
+	ctx, cancelFunc := context.WithCancel(context.Background())
+	cfg := config.New()
+	cfg.Endpoints[0].APIKey = "test"
+	cfg.Obfuscation = &config.ObfuscationConfig{
+		CreditCards: obfuscate.CreditCardsConfig{Enabled: true},
+	}
+	agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{})
+	defer cancelFunc()
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		span := &pb.Span{Type: "typ", Meta: map[string]string{
+			"akey":         "somestring",
+			"bkey":         "somestring",
+			"card.number":  "5105-1051-0510-5100",
+			"_sample_rate": "1",
+			"sql.query":    "SELECT * FROM users WHERE id = 42",
+		}}
+		agnt.obfuscateSpan(span)
+	}
 }

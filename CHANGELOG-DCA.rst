@@ -2,6 +2,60 @@
 Release Notes
 =============
 
+.. _Release Notes_7.54.1:
+
+7.54.1 / 6.54.1
+================
+
+.. _Release Notes_7.54.1_Prelude:
+
+Prelude
+-------
+
+Released on: 2024-06-18
+Pinned to datadog-agent v7.54.1: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7541>`_.
+
+.. _Release Notes_7.54.0:
+
+7.54.0 / 6.54.0
+================
+
+.. _Release Notes_7.54.0_Prelude:
+
+Prelude
+-------
+
+Released on: 2024-05-29
+Pinned to datadog-agent v7.54.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7540>`_.
+
+
+.. _Release Notes_7.54.0_New Features:
+
+New Features
+------------
+
+- Add `LimitRange` and `StorageClass` collection in the orchestrator check.
+
+
+.. _Release Notes_7.54.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Added retry mechanism to language detection patcher in order to retry failed patching operations.
+
+
+.. _Release Notes_7.54.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fix collection of numeric rolling update options in Kubernetes deployments
+  and daemonsets.
+
+- Fixed initialization of language expiration time for detected languages.
+
+
 .. _Release Notes_7.53.0:
 
 7.53.0 / 6.53.0

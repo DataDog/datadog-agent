@@ -26,5 +26,11 @@ func getChdirProbes(fentry bool) []*manager.Probe {
 		},
 		SyscallFuncName: "chdir",
 	}, fentry, EntryAndExit)...)
+	chdirProbes = append(chdirProbes, ExpandSyscallProbes(&manager.Probe{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID: SecurityAgentUID,
+		},
+		SyscallFuncName: "fchdir",
+	}, fentry, EntryAndExit)...)
 	return chdirProbes
 }

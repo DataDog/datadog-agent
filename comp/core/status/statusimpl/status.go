@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"path"
 	"sort"
 	"strings"
@@ -23,8 +24,10 @@ import (
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 
+	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -36,6 +39,7 @@ type dependencies struct {
 	fx.In
 	Config config.Component
 	Params status.Params
+	Log    log.Component
 
 	Providers       []status.Provider       `group:"status"`
 	HeaderProviders []status.HeaderProvider `group:"header_status"`
@@ -44,14 +48,18 @@ type dependencies struct {
 type provides struct {
 	fx.Out
 
-	Comp          status.Component
-	FlareProvider flaretypes.Provider
+	Comp              status.Component
+	FlareProvider     flaretypes.Provider
+	APIGetStatus      api.AgentEndpointProvider
+	APIGetSection     api.AgentEndpointProvider
+	APIGetSectionList api.AgentEndpointProvider
 }
 
 type statusImplementation struct {
 	sortedHeaderProviders    []status.HeaderProvider
 	sortedSectionNames       []string
 	sortedProvidersBySection map[string][]status.Provider
+	log                      log.Component
 }
 
 // Module defines the fx options for this component.
@@ -121,13 +129,28 @@ func newStatus(deps dependencies) provides {
 		sortedSectionNames:       sortedSectionNames,
 		sortedProvidersBySection: sortedProvidersBySection,
 		sortedHeaderProviders:    sortedHeaderProviders,
+		log:                      deps.Log,
 	}
 
 	return provides{
 		Comp:          c,
 		FlareProvider: flaretypes.NewProvider(c.fillFlare),
+		APIGetStatus: api.NewAgentEndpointProvider(
+			func(w http.ResponseWriter, r *http.Request) { c.getStatus(w, r, "") },
+			"/status",
+			"GET",
+		),
+		APIGetSection: api.NewAgentEndpointProvider(
+			c.getSection,
+			"/{component}/status",
+			"GET",
+		),
+		APIGetSectionList: api.NewAgentEndpointProvider(
+			c.getSections,
+			"/status/sections",
+			"GET",
+		),
 	}
-
 }
 
 func (s *statusImplementation) GetStatus(format string, verbose bool, excludeSections ...string) ([]byte, error) {
@@ -167,7 +190,7 @@ func (s *statusImplementation) GetStatus(format string, verbose bool, excludeSec
 
 		return json.Marshal(stats)
 	case "text":
-		var b = new(bytes.Buffer)
+		b := new(bytes.Buffer)
 
 		for _, sc := range s.sortedHeaderProviders {
 			name := sc.Name()
@@ -226,7 +249,7 @@ func (s *statusImplementation) GetStatus(format string, verbose bool, excludeSec
 
 		return b.Bytes(), nil
 	case "html":
-		var b = new(bytes.Buffer)
+		b := new(bytes.Buffer)
 
 		for _, sc := range s.sortedHeaderProviders {
 			if present(sc.Name(), excludeSections) {
@@ -282,7 +305,7 @@ func (s *statusImplementation) GetStatusBySections(sections []string, format str
 
 			return json.Marshal(stats)
 		case "text":
-			var b = new(bytes.Buffer)
+			b := new(bytes.Buffer)
 
 			for i, sc := range providers {
 				if i == 0 {
@@ -308,7 +331,7 @@ func (s *statusImplementation) GetStatusBySections(sections []string, format str
 
 			return b.Bytes(), nil
 		case "html":
-			var b = new(bytes.Buffer)
+			b := new(bytes.Buffer)
 
 			for _, sc := range providers {
 				err := sc.HTML(verbose, b)
@@ -327,7 +350,7 @@ func (s *statusImplementation) GetStatusBySections(sections []string, format str
 	for _, section := range sections {
 		providersForSection, ok := s.sortedProvidersBySection[strings.ToLower(section)]
 		if !ok {
-			res, _ := json.Marshal(append([]string{"header"}, s.sortedSectionNames...))
+			res, _ := json.Marshal(s.GetSections())
 			errorMsg := fmt.Sprintf("unknown status section '%s', available sections are: %s", section, string(res))
 			return nil, errors.New(errorMsg)
 		}
@@ -354,7 +377,7 @@ func (s *statusImplementation) GetStatusBySections(sections []string, format str
 
 		return json.Marshal(stats)
 	case "text":
-		var b = new(bytes.Buffer)
+		b := new(bytes.Buffer)
 
 		for i, sc := range providers {
 			if i == 0 {
@@ -377,7 +400,7 @@ func (s *statusImplementation) GetStatusBySections(sections []string, format str
 
 		return b.Bytes(), nil
 	case "html":
-		var b = new(bytes.Buffer)
+		b := new(bytes.Buffer)
 
 		for _, sc := range providers {
 			err := sc.HTML(verbose, b)
@@ -391,9 +414,13 @@ func (s *statusImplementation) GetStatusBySections(sections []string, format str
 	}
 }
 
-// fillFlare add the inventory payload to flares.
+func (s *statusImplementation) GetSections() []string {
+	return append([]string{"header"}, s.sortedSectionNames...)
+}
+
+// fillFlare add the status.log to flares.
 func (s *statusImplementation) fillFlare(fb flaretypes.FlareBuilder) error {
-	fb.AddFileFromFunc("status.log", func() ([]byte, error) { return s.GetStatus("text", true) })
+	fb.AddFileFromFunc("status.log", func() ([]byte, error) { return s.GetStatus("text", true) }) //nolint:errcheck
 	return nil
 }
 

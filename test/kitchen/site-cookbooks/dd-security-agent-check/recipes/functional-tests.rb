@@ -166,13 +166,9 @@ if not ['redhat', 'suse', 'opensuseleap', 'rocky'].include?(node[:platform])
   end
 
   if ['docker', 'docker-fentry'].include?(node[:cws_platform])
-    # Please see https://github.com/paulcacheux/cws-buildimages/blob/main/Dockerfile
-    # for the definition of this base image.
-    # If this successfully helps in reducing the amount of rate limits, this should be moved
-    # to DataDog/datadog-agent-buildimages.
     file "#{node['common']['work_dir']}/Dockerfile" do
       content <<-EOF
-      FROM ghcr.io/paulcacheux/cws-centos7@sha256:4fc1aac178b5c1690ce71c37f22b8a23cedfb969c7056702c21be50e848e554f
+      FROM ghcr.io/datadog/apps-cws-centos7:main
 
       COPY clang-bpf /opt/datadog-agent/embedded/bin/
       COPY llc-bpf /opt/datadog-agent/embedded/bin/

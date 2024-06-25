@@ -40,11 +40,13 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/inventoryagentimpl"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost/inventoryhostimpl"
+	"github.com/DataDog/datadog-agent/comp/metadata/inventoryotel/inventoryotelimpl"
 	"github.com/DataDog/datadog-agent/comp/metadata/resources/resourcesimpl"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
@@ -74,7 +76,7 @@ type cliParams struct {
 	profileMutexFraction int
 	profileBlocking      bool
 	profileBlockingRate  int
-	withStreamLog        bool
+	withStreamLogs       time.Duration
 }
 
 // Commands returns a slice of subcommands for the 'agent' command.
@@ -94,7 +96,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					path.Join(commonpath.DefaultConfPath, "security-agent.yaml"),
 				}),
 				config.WithConfigLoadSecurityAgent(true),
-				config.WithIgnoreErrors(true))
+				config.WithIgnoreErrors(true),
+				config.WithExtraConfFiles(globalParams.ExtraConfFilePath))
 
 			return fxutil.OneShot(makeFlare,
 				fx.Supply(cliParams),
@@ -121,7 +124,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 						NoInstance: !cliParams.forceLocal, //if forceLocal is true, we want to run workloadmeta
 					}
 				}),
-				workloadmeta.Module(),
+				workloadmetafx.Module(),
 				taggerimpl.OptionalModule(),
 				autodiscoveryimpl.OptionalModule(), // if forceLocal is true, we will start autodiscovery (loadComponents) later
 				flare.Module(),
@@ -132,6 +135,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				inventoryagentimpl.Module(),
 				hostimpl.Module(),
 				inventoryhostimpl.Module(),
+				inventoryotelimpl.Module(),
 				resourcesimpl.Module(),
 				authtokenimpl.Module(),
 				// inventoryagent require a serializer. Since we're not actually sending the payload to
@@ -152,7 +156,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	flareCmd.Flags().IntVarP(&cliParams.profileMutexFraction, "profile-mutex-fraction", "", 100, "Set the fraction of mutex contention events that are reported in the mutex profile")
 	flareCmd.Flags().BoolVarP(&cliParams.profileBlocking, "profile-blocking", "B", false, "Add gorouting blocking profile to the performance data in the flare")
 	flareCmd.Flags().IntVarP(&cliParams.profileBlockingRate, "profile-blocking-rate", "", 10000, "Set the fraction of goroutine blocking events that are reported in the blocking profile")
-	flareCmd.Flags().BoolVarP(&cliParams.withStreamLog, "with-stream-logs", "L", false, "Log 60s of the stream-logs command to the agent log file")
+	flareCmd.Flags().DurationVarP(&cliParams.withStreamLogs, "with-stream-logs", "L", 0*time.Second, "Add stream-logs data to the flare. It will collect logs for the amount of seconds passed to the flag")
 	flareCmd.SetArgs([]string{"caseID"})
 
 	return []*cobra.Command{flareCmd}
@@ -167,7 +171,7 @@ func readProfileData(seconds int) (flare.ProfileData, error) {
 	type pprofGetter func(path string) ([]byte, error)
 
 	tcpGet := func(portConfig string) pprofGetter {
-		pprofURL := fmt.Sprintf("http://127.0.0.1:%d/debug/pprof", pkgconfig.Datadog.GetInt(portConfig))
+		pprofURL := fmt.Sprintf("http://127.0.0.1:%d/debug/pprof", pkgconfig.Datadog().GetInt(portConfig))
 		return func(path string) ([]byte, error) {
 			return util.DoGet(c, pprofURL+path, util.LeaveConnectionOpen)
 		}
@@ -202,6 +206,11 @@ func readProfileData(seconds int) (flare.ProfileData, error) {
 					name: service + "-block.pprof",
 					path: "/block",
 				},
+				{
+					// Trace
+					name: service + ".trace",
+					path: fmt.Sprintf("/trace?seconds=%d", seconds),
+				},
 			} {
 				b, err := get(prof.path)
 				if err != nil {
@@ -218,15 +227,15 @@ func readProfileData(seconds int) (flare.ProfileData, error) {
 		"security-agent": serviceProfileCollector(tcpGet("security_agent.expvar_port"), seconds),
 	}
 
-	if pkgconfig.Datadog.GetBool("process_config.enabled") ||
-		pkgconfig.Datadog.GetBool("process_config.container_collection.enabled") ||
-		pkgconfig.Datadog.GetBool("process_config.process_collection.enabled") {
+	if pkgconfig.Datadog().GetBool("process_config.enabled") ||
+		pkgconfig.Datadog().GetBool("process_config.container_collection.enabled") ||
+		pkgconfig.Datadog().GetBool("process_config.process_collection.enabled") {
 
 		agentCollectors["process"] = serviceProfileCollector(tcpGet("process_config.expvar_port"), seconds)
 	}
 
-	if pkgconfig.Datadog.GetBool("apm_config.enabled") {
-		traceCpusec := pkgconfig.Datadog.GetInt("apm_config.receiver_timeout")
+	if pkgconfig.Datadog().GetBool("apm_config.enabled") {
+		traceCpusec := pkgconfig.Datadog().GetInt("apm_config.receiver_timeout")
 		if traceCpusec > seconds {
 			// do not exceed requested duration
 			traceCpusec = seconds
@@ -278,6 +287,16 @@ func makeFlare(flareComp flare.Component,
 		err     error
 	)
 
+	streamLogParams := streamlogs.CliParams{
+		FilePath: commonpath.DefaultStreamlogsLogFile,
+		Duration: cliParams.withStreamLogs,
+		Quiet:    true,
+	}
+
+	if streamLogParams.Duration < 0 {
+		fmt.Fprintln(color.Output, color.YellowString("Invalid duration provided for streaming logs, please provide a positive value"))
+	}
+
 	fmt.Fprintln(color.Output, color.BlueString("NEW: You can now generate a flare from the comfort of your Datadog UI!"))
 	fmt.Fprintln(color.Output, color.BlueString("See https://docs.datadoghq.com/agent/troubleshooting/send_a_flare/?tab=agentv6v7#send-a-flare-from-the-datadog-site for more info."))
 
@@ -325,6 +344,14 @@ func makeFlare(flareComp flare.Component,
 		return err
 	}
 
+	if streamLogParams.Duration > 0 {
+		fmt.Fprintln(color.Output, color.GreenString((fmt.Sprintf("Asking the agent to stream logs for %s", streamLogParams.Duration))))
+		err := streamlogs.StreamLogs(lc, config, &streamLogParams)
+		if err != nil {
+			fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Error streaming logs: %s", err)))
+		}
+	}
+
 	var filePath string
 	if cliParams.forceLocal {
 		filePath, err = createArchive(flareComp, profile, nil)
@@ -340,20 +367,6 @@ func makeFlare(flareComp flare.Component,
 		fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("The flare zipfile \"%s\" does not exist.", filePath)))
 		fmt.Fprintln(color.Output, color.RedString("If the agent running in a different container try the '--local' option to generate the flare locally"))
 		return err
-	}
-
-	streamLogParams := streamlogs.CliParams{
-		FilePath: commonpath.DefaultStreamlogsLogFile,
-		Duration: 60 * time.Second, // default duration
-		Quiet:    true,
-	}
-
-	if cliParams.withStreamLog {
-		fmt.Fprintln(color.Output, color.GreenString("Asking the agent to stream logs."))
-		err := streamlogs.StreamLogs(lc, config, &streamLogParams)
-		if err != nil {
-			fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Error streaming logs: %s", err)))
-		}
 	}
 
 	fmt.Fprintf(color.Output, "%s is going to be uploaded to Datadog\n", color.YellowString(filePath))
@@ -382,10 +395,10 @@ func requestArchive(flareComp flare.Component, pdata flare.ProfileData) (string,
 		return createArchive(flareComp, pdata, err)
 	}
 
-	urlstr := fmt.Sprintf("https://%v:%v/agent/flare", ipcAddress, pkgconfig.Datadog.GetInt("cmd_port"))
+	urlstr := fmt.Sprintf("https://%v:%v/agent/flare", ipcAddress, pkgconfig.Datadog().GetInt("cmd_port"))
 
 	// Set session token
-	if err = util.SetAuthToken(pkgconfig.Datadog); err != nil {
+	if err = util.SetAuthToken(pkgconfig.Datadog()); err != nil {
 		fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Error: %s", err)))
 		return createArchive(flareComp, pdata, err)
 	}
