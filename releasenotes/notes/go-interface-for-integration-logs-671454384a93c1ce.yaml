@@ -8,6 +8,4 @@
 ---
 features:
   - |
-    This change adds a go interface for logs coming from
-    integrations. The RTLoader will be able to use this interface
-    in order to send logs directly to the agent from integraions.
+    This change adds a Go interface for logs coming from integrations. The RTLoader will be able to use this interface to send logs directly to the Agent from integrations.
