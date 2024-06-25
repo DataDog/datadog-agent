@@ -261,8 +261,8 @@ new-e2e-aml:
     - !reference [.on_aml_or_e2e_changes]
     - !reference [.manual]
   variables:
-    TARGETS: ./tests/agent-metric-logs
-    TEAM: agent-metric-logs
+    TARGETS: ./tests/agent-metrics-logs
+    TEAM: agent-metrics-logs
 
 new-e2e-cws:
   extends: .new_e2e_template
