@@ -586,6 +586,7 @@
 /test/new-e2e/tests/remote-config             @DataDog/remote-config
 /test/new-e2e/tests/updater                   @DataDog/fleet
 /test/new-e2e/tests/installer                 @DataDog/fleet
+/test/otel/                                   @DataDog/opentelemetry
 /test/system/                                 @DataDog/agent-shared-components
 /test/system/dogstatsd/                       @DataDog/agent-metrics-logs
 /test/benchmarks/apm_scripts/                 @DataDog/agent-apm
