@@ -112,7 +112,7 @@ func (is *rpmTestSuite) TestRpm() {
 		arch = *architecture
 	}
 	yumrepo := fmt.Sprintf("http://yumtesting.datad0g.com/testing/pipeline-%s-a%s/%s/%s/",
-		os.Getenv("CI_PIPELINE_ID"), *majorVersion, *majorVersion, arch)
+		os.Getenv("E2E_PIPELINE_ID"), *majorVersion, *majorVersion, arch)
 	fileManager := VMclient.FileManager
 
 	protocol := "https"

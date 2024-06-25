@@ -267,7 +267,7 @@ func GetPackageFromEnv() (*Package, error) {
 	channel, channelFound := LookupChannelFromEnv()
 	version, _ := LookupVersionFromEnv()
 	arch, _ := LookupArchFromEnv()
-	pipelineID, pipelineIDFound := os.LookupEnv("CI_PIPELINE_ID")
+	pipelineID, pipelineIDFound := os.LookupEnv("E2E_PIPELINE_ID")
 
 	majorVersion := strings.Split(version, ".")[0]
 
