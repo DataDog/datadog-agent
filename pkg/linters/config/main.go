@@ -6,6 +6,7 @@
 package config
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/golangci/plugin-module-register/register"
@@ -45,8 +46,7 @@ func (f *pkgconfigPlugin) run(pass *analysis.Pass) (interface{}, error) {
 
 		if strings.Contains(pass.Pkg.Path(), "github.com/DataDog/datadog-agent/comp") {
 			for _, imp := range file.Imports {
-
-				if imp.Path.Value == "github.com/DataDog/datadog-agent/pkg/config" {
+				if imp.Path.Value == fmt.Sprintf("\"%s\"", "github.com/DataDog/datadog-agent/pkg/config") {
 					pass.Report(analysis.Diagnostic{
 						Pos:      imp.Pos(),
 						End:      imp.End(),
