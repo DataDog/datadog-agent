@@ -124,7 +124,7 @@ func (h *Host) executeAndReconnectOnError(command string) (string, error) {
 		stdout, err = execute(h.client, command)
 	}
 	if err != nil {
-		return "", fmt.Errorf("%v: %v", stdout, err)
+		return "", fmt.Errorf("%v: %w", stdout, err)
 	}
 	return stdout, err
 }
