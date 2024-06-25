@@ -49,7 +49,7 @@ func (t *tracerOffsetGuesser) sockRanges() []offsetRange {
 		GuessSPort,
 		GuessNetNS,
 		GuessRTT,
-		GuessRTT, // stand in for rtt_var, will never be matched
+		GuessRTTVar,
 		GuessDAddrIPv6,
 	}, GuessWhat(t.status.What))
 

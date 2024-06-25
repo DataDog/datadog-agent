@@ -50,30 +50,21 @@ func (m *Model) NewDefaultEventWithType(kind EventType) eval.Event {
 
 // Releasable represents an object than can be released
 type Releasable struct {
-	onReleaseCallback func() `field:"-"`
+	onReleaseCallbacks []func() `field:"-"`
 }
 
 // CallReleaseCallback calls the on-release callback
 func (r *Releasable) CallReleaseCallback() {
-	if r.onReleaseCallback != nil {
-		r.onReleaseCallback()
+	for _, cb := range r.onReleaseCallbacks {
+		cb()
 	}
 }
 
-// SetReleaseCallback sets a callback to be called when the cache entry is released
-func (r *Releasable) SetReleaseCallback(callback func()) {
-	previousCallback := r.onReleaseCallback
-	r.onReleaseCallback = func() {
-		callback()
-		if previousCallback != nil {
-			previousCallback()
-		}
+// AppendReleaseCallback sets a callback to be called when the cache entry is released
+func (r *Releasable) AppendReleaseCallback(callback func()) {
+	if callback != nil {
+		r.onReleaseCallbacks = append(r.onReleaseCallbacks, callback)
 	}
-}
-
-// OnRelease triggers the callback
-func (r *Releasable) OnRelease() {
-	r.onReleaseCallback()
 }
 
 // ContainerContext holds the container context of an event
@@ -427,9 +418,8 @@ var zeroProcessContext ProcessContext
 type ProcessCacheEntry struct {
 	ProcessContext
 
-	refCount  uint64                     `field:"-"`
-	onRelease func(_ *ProcessCacheEntry) `field:"-"`
-	releaseCb func()                     `field:"-"`
+	refCount  uint64                       `field:"-"`
+	onRelease []func(_ *ProcessCacheEntry) `field:"-"`
 }
 
 // IsContainerRoot returns whether this is a top level process in the container ID
@@ -441,7 +431,6 @@ func (pc *ProcessCacheEntry) IsContainerRoot() bool {
 func (pc *ProcessCacheEntry) Reset() {
 	pc.ProcessContext = zeroProcessContext
 	pc.refCount = 0
-	pc.releaseCb = nil
 }
 
 // Retain increment ref counter
@@ -449,14 +438,18 @@ func (pc *ProcessCacheEntry) Retain() {
 	pc.refCount++
 }
 
-// SetReleaseCallback set the callback called when the entry is released
-func (pc *ProcessCacheEntry) SetReleaseCallback(callback func()) {
-	previousCallback := pc.releaseCb
-	pc.releaseCb = func() {
-		callback()
-		if previousCallback != nil {
-			previousCallback()
-		}
+// AppendReleaseCallback set the callback called when the entry is released
+func (pc *ProcessCacheEntry) AppendReleaseCallback(callback func()) {
+	if callback != nil {
+		pc.onRelease = append(pc.onRelease, func(_ *ProcessCacheEntry) {
+			callback()
+		})
+	}
+}
+
+func (pc *ProcessCacheEntry) callReleaseCallbacks() {
+	for _, cb := range pc.onRelease {
+		cb(pc)
 	}
 }
 
@@ -467,18 +460,16 @@ func (pc *ProcessCacheEntry) Release() {
 		return
 	}
 
-	if pc.onRelease != nil {
-		pc.onRelease(pc)
-	}
-
-	if pc.releaseCb != nil {
-		pc.releaseCb()
-	}
+	pc.callReleaseCallbacks()
 }
 
 // NewProcessCacheEntry returns a new process cache entry
 func NewProcessCacheEntry(onRelease func(_ *ProcessCacheEntry)) *ProcessCacheEntry {
-	return &ProcessCacheEntry{onRelease: onRelease}
+	var cbs []func(_ *ProcessCacheEntry)
+	if onRelease != nil {
+		cbs = append(cbs, onRelease)
+	}
+	return &ProcessCacheEntry{onRelease: cbs}
 }
 
 // ProcessAncestorsIterator defines an iterator of ancestors

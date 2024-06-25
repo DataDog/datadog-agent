@@ -162,37 +162,6 @@ float_list:
 	assert.Equal(t, []float64{1.1, 2.2, 3.3}, list)
 }
 
-func TestIsSectionSet(t *testing.T) {
-	config := NewConfig("test", "DD", strings.NewReplacer(".", "_"))
-
-	config.BindEnv("test.key")
-	config.BindEnv("othertest.key")
-	config.SetKnown("yetanothertest_key")
-	config.SetConfigType("yaml")
-
-	yamlExample := []byte(`
-test:
-  key:
-`)
-
-	config.ReadConfig(bytes.NewBuffer(yamlExample))
-
-	res := config.IsSectionSet("test")
-	assert.Equal(t, true, res)
-
-	res = config.IsSectionSet("othertest")
-	assert.Equal(t, false, res)
-
-	t.Setenv("DD_OTHERTEST_KEY", "value")
-
-	res = config.IsSectionSet("othertest")
-	assert.Equal(t, true, res)
-
-	config.SetWithoutSource("yetanothertest_key", "value")
-	res = config.IsSectionSet("yetanothertest")
-	assert.Equal(t, false, res)
-}
-
 func TestSet(t *testing.T) {
 	config := NewConfig("test", "DD", strings.NewReplacer(".", "_"))
 	config.Set("foo", "bar", SourceFile)
@@ -217,13 +186,6 @@ func TestGetSource(t *testing.T) {
 	config.Set("foo", "bar", SourceFile)
 	config.Set("foo", "baz", SourceEnvVar)
 	assert.Equal(t, SourceEnvVar, config.GetSource("foo"))
-}
-
-func TestIsSet(t *testing.T) {
-	config := NewConfig("test", "DD", strings.NewReplacer(".", "_"))
-	assert.False(t, config.IsSetForSource("foo", SourceFile))
-	config.Set("foo", "bar", SourceFile)
-	assert.True(t, config.IsSetForSource("foo", SourceFile))
 }
 
 func TestIsKnown(t *testing.T) {
@@ -275,13 +237,6 @@ func TestIsKnown(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestUnsetForSource(t *testing.T) {
-	config := NewConfig("test", "DD", strings.NewReplacer(".", "_"))
-	config.Set("foo", "bar", SourceFile)
-	config.UnsetForSource("foo", SourceFile)
-	assert.False(t, config.IsSetForSource("foo", SourceFile))
 }
 
 func TestAllFileSettingsWithoutDefault(t *testing.T) {

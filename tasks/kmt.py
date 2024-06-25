@@ -41,6 +41,7 @@ from tasks.kernel_matrix_testing.tool import Exit, ask, error, get_binary_target
 from tasks.kernel_matrix_testing.vars import KMT_SUPPORTED_ARCHS, KMTPaths
 from tasks.libs.build.ninja import NinjaWriter
 from tasks.libs.common.utils import get_build_flags
+from tasks.libs.pipeline.tools import loop_status
 from tasks.libs.types.arch import Arch, KMTArchName
 from tasks.security_agent import build_functional_tests, build_stress_tests
 from tasks.system_probe import (
@@ -59,8 +60,8 @@ from tasks.system_probe import (
 )
 
 if TYPE_CHECKING:
-    from tasks.kernel_matrix_testing.types import (  # noqa: F401
-        Component,
+    from tasks.kernel_matrix_testing.types import (
+        Component,  # noqa: F401
         DependenciesLayout,
         KMTArchNameOrLocal,
         PathOrStr,
@@ -330,10 +331,10 @@ def config_ssh_key(ctx: Context):
         result = ask(f"[?] Found these valid key files:\n{keys_str}\nChoose one of these files (1-{len(ssh_keys)}): ")
         try:
             ssh_key = ssh_keys[int(result.strip()) - 1]
-        except ValueError:
-            raise Exit(f"Choice {result} is not a valid number")
-        except IndexError:  # out of range
-            raise Exit(f"Invalid choice {result}, must be a number between 1 and {len(ssh_keys)} (inclusive)")
+        except ValueError as e:
+            raise Exit(f"Choice {result} is not a valid number") from e
+        except IndexError as e:  # out of range
+            raise Exit(f"Invalid choice {result}, must be a number between 1 and {len(ssh_keys)} (inclusive)") from e
 
         aws_key_name = ask(
             f"Enter the key name configured in AWS for this key (leave blank to set the same as the local key name '{ssh_key['name']}'): "
@@ -586,9 +587,6 @@ def kmt_secagent_prepare(
     ctx.run(f"ninja -d explain -v -f {nf_path}")
 
 
-btf_dir = "/opt/system-probe-tests/pkg/ebpf/bytecode/build/co-re/btf"
-
-
 @task
 def prepare(
     ctx: Context,
@@ -656,13 +654,14 @@ def prepare(
 
         # Copy the binaries to the target directory, CI will take them from those
         # paths as artifacts
-        copy_executables = {
+        copy_static_files = {
             gotestsum_path: paths.dependencies / "go/bin/gotestsum",
             clang_path: paths.arch_dir / "opt/datadog-agent/embedded/bin/clang-bpf",
             llc_path: paths.arch_dir / "opt/datadog-agent/embedded/bin/llc-bpf",
+            "flakes.yaml": paths.dependencies / "flakes.yaml",
         }
 
-        for src, dst in copy_executables.items():
+        for src, dst in copy_static_files.items():
             ctx.run(f"install -D {src} {dst}")
     else:
         gotestsum_path = paths.dependencies / "go/bin/gotestsum"
@@ -706,6 +705,7 @@ def prepare(
         d.copy(ctx, paths.arch_dir / "opt/*", "/opt/", exclude="*.ninja", verbose=verbose)
 
         # Copy BTF files
+        btf_dir = Path(f"/opt/{component}-tests") / get_ebpf_build_dir(arch_obj) / "co-re/btf"
         d.run_cmd(
             ctx,
             f"[ -f /sys/kernel/btf/vmlinux ] \
@@ -1058,6 +1058,7 @@ def test(
             target_folder.mkdir(parents=True, exist_ok=True)
             d.download(ctx, "/ci-visibility/junit/", target_folder)
 
+    info("[+] All domains finished, showing summary table of test results")
     show_last_test_results(ctx, stack)
 
 
@@ -1390,8 +1391,8 @@ def update_platform_info(
                 arch = Arch.from_str(keyvals['ARCH'])
                 image_name = keyvals['IMAGE_NAME']
                 image_filename = keyvals['IMAGE_FILENAME']
-            except KeyError:
-                raise Exit(f"[!] Invalid manifest {manifest}")
+            except KeyError as e:
+                raise Exit(f"[!] Invalid manifest {manifest}") from e
 
             if arch not in platforms:
                 warn(f"[!] Unsupported architecture {arch}, skipping")
@@ -1863,3 +1864,24 @@ def tag_ci_job(ctx: Context):
     tags_str = " ".join(f"--tags '{tag_prefix}{k}:{v}'" for k, v in tags.items())
 
     ctx.run(f"datadog-ci tag --level job {tags_str}")
+
+
+@task
+def wait_for_setup_job(ctx: Context, pipeline_id: int, arch: str | Arch, component: Component, timeout_sec: int = 3600):
+    """Wait for the setup job to finish corresponding to the given pipeline, arch and component"""
+    arch = Arch.from_str(arch)
+    setup_jobs, _ = get_all_jobs_for_pipeline(pipeline_id)
+    matching_jobs = [j for j in setup_jobs if j.arch == arch.kmt_arch and j.component == component]
+    if len(matching_jobs) != 1:
+        raise Exit(f"Search for setup_job for {arch} {component} failed: result = {matching_jobs}")
+
+    setup_job = matching_jobs[0]
+    finished_status = {"failed", "success", "canceled", "skipped"}
+
+    def _check_status(_):
+        setup_job.refresh()
+        info(f"[+] Status for job {setup_job.name}: {setup_job.status}")
+        return setup_job.status.lower() in finished_status, None
+
+    loop_status(_check_status, timeout_sec=timeout_sec)
+    info(f"[+] Setup job {setup_job.name} finished with status {setup_job.status}")

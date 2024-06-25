@@ -28,6 +28,9 @@ class KMTJob:
     def __str__(self):
         return f"<KMTJob: {self.name}>"
 
+    def refresh(self) -> None:
+        self.job = self.gitlab.jobs.get(self.id)
+
     @property
     def id(self) -> int:
         return self.job.id

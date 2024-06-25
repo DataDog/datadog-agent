@@ -90,9 +90,10 @@ class ConfigNodeList(list):
     """
 
     def __init__(self, *args, **kwargs) -> None:
+        super().__init__()
         self.extend(*args, **kwargs)
 
-    def __hash__(self) -> int:
+    def __hash__(self):
         return id(self)
 
 
@@ -106,9 +107,10 @@ class ConfigNodeDict(dict):
     """
 
     def __init__(self, *args, **kwargs) -> None:
+        super().__init__()
         self.update(*args, **kwargs)
 
-    def __hash__(self) -> int:
+    def __hash__(self):
         return id(self)
 
 
@@ -143,6 +145,18 @@ def convert_to_config_node(json_data):
         return constructor([convert_to_config_node(v) for v in json_data])
     else:
         return json_data
+
+
+def convert_to_std_collections(config_node):
+    """
+    Convert ConfigNode to standard collections (list, dict)
+    """
+    if isinstance(config_node, ConfigNodeDict):
+        return {k: convert_to_std_collections(v) for k, v in config_node.items()}
+    elif isinstance(config_node, ConfigNodeList):
+        return [convert_to_std_collections(v) for v in config_node]
+    else:
+        return config_node
 
 
 def apply_yaml_extends(config: dict, node):
@@ -180,6 +194,8 @@ def apply_yaml_extends(config: dict, node):
             for key, value in parent.items():
                 if key not in node:
                     node[key] = value
+                elif key in node and isinstance(node[key], dict) and isinstance(value, dict):
+                    node[key].update(value)
 
         del node['extends']
 
@@ -233,8 +249,16 @@ def apply_yaml_reference(config: dict, node):
         for key, value in node.items():
             node[key] = apply_ref(value)
     elif isinstance(node, list):
-        for i, value in enumerate(node):
-            node[i] = apply_ref(value)
+        results = []
+        for value in node:
+            postprocessed_value = apply_ref(value)
+            # If list referenced within list, flatten lists
+            if isinstance(value, YamlReferenceTagList) and isinstance(postprocessed_value, list):
+                results.extend(postprocessed_value)
+            else:
+                results.append(postprocessed_value)
+        node.clear()
+        node.extend(results)
 
 
 @lru_cache(maxsize=None)
@@ -295,6 +319,7 @@ def generate_gitlab_full_configuration(
         full_configuration = convert_to_config_node(full_configuration)
         apply_yaml_postprocessing(full_configuration, full_configuration)
 
+    full_configuration = convert_to_std_collections(full_configuration)
     return yaml.safe_dump(full_configuration) if return_dump else full_configuration
 
 
@@ -337,7 +362,6 @@ def read_content(file_path):
     """
     Read the content of a file, either from a local file or from an http endpoint
     """
-    content = None
     if file_path.startswith('http'):
         import requests
 
@@ -347,6 +371,7 @@ def read_content(file_path):
     else:
         with open(file_path) as f:
             content = f.read()
+
     return yaml.safe_load(content)
 
 
@@ -440,5 +465,5 @@ def load_context(context):
         try:
             j = json.loads(context)
             return [list(j.items())]
-        except json.JSONDecodeError:
-            raise Exit(f"Invalid context: {context}, must be a valid json, or a path to a yaml file", 1)
+        except json.JSONDecodeError as e:
+            raise Exit(f"Invalid context: {context}, must be a valid json, or a path to a yaml file", 1) from e

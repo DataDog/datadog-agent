@@ -376,11 +376,11 @@ func (h *Host) appendWithSftp(path string, content []byte) (int64, error) {
 }
 
 func (h *Host) getSFTPClient() *sftp.Client {
-	sftpClient, err := sftp.NewClient(h.client)
+	sftpClient, err := sftp.NewClient(h.client, sftp.UseConcurrentWrites(true))
 	if err != nil {
 		err = h.Reconnect()
 		require.NoError(h.context.T(), err)
-		sftpClient, err = sftp.NewClient(h.client)
+		sftpClient, err = sftp.NewClient(h.client, sftp.UseConcurrentWrites(true))
 		require.NoError(h.context.T(), err)
 	}
 	return sftpClient
