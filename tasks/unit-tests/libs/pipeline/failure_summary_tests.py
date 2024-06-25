@@ -265,14 +265,14 @@ class TestModule(TestFailureSummary):
             MagicMock(),
             42,
             jobs=[
-                # agent-ci-experience
+                # agent-devx-infra
                 *[
                     ProjectPipelineJob(
                         manager=MagicMock(), attrs={'name': 'hello', 'status': 'failed', 'allow_failure': False}
                     )
                     for _ in range(20)
                 ],
-                # agent-ci-experience
+                # agent-devx-infra
                 *[
                     ProjectPipelineJob(
                         manager=MagicMock(), attrs={'name': 'world', 'status': 'failed', 'allow_failure': False}
@@ -287,14 +287,14 @@ class TestModule(TestFailureSummary):
                     )
                     for _ in range(10)
                 ],
-                # agent-ci-experience, agent-build-and-releases
+                # agent-devx-infra, agent-build-and-releases
                 *[
                     ProjectPipelineJob(
                         manager=MagicMock(), attrs={'name': 'tests_release', 'status': 'failed', 'allow_failure': False}
                     )
                     for _ in range(5)
                 ],
-                # agent-ci-experience, agent-build-and-releases
+                # agent-devx-infra, agent-build-and-releases
                 *[
                     ProjectPipelineJob(
                         manager=MagicMock(),

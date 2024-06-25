@@ -27,8 +27,24 @@ func TestGetIntegrationConfig(t *testing.T) {
 	_, err = GetIntegrationConfigFromFile("foo", "tests/invalid.yaml")
 	assert.NotNil(t, err)
 
-	// valid yaml, invalid configuration file
+	// valid yaml but not a valid integration configuration
 	config, err := GetIntegrationConfigFromFile("foo", "tests/notaconfig.yaml")
+	assert.NotNil(t, err)
+	assert.Equal(t, len(config.Instances), 0)
+
+	// empty file
+	config, err = GetIntegrationConfigFromFile("foo", "tests/empty.yaml")
+	assert.NotNil(t, err)
+	assert.Equal(t, err.Error(), emptyFileError)
+	assert.Equal(t, len(config.Instances), 0)
+
+	// valid yaml with a stub integration instance
+	config, err = GetIntegrationConfigFromFile("foo", "tests/stub.yaml")
+	assert.Nil(t, err)
+	assert.Equal(t, len(config.Instances), 1)
+
+	// valid yaml, instances array is null
+	config, err = GetIntegrationConfigFromFile("foo", "tests/null_instances.yaml")
 	assert.NotNil(t, err)
 	assert.Equal(t, len(config.Instances), 0)
 
@@ -82,12 +98,18 @@ func TestReadConfigFiles(t *testing.T) {
 
 	configs, errors, err := ReadConfigFiles(GetAll)
 	require.Nil(t, err)
-	require.Equal(t, 18, len(configs))
-	require.Equal(t, 3, len(errors))
+	require.Equal(t, 19, len(configs))
+	require.Equal(t, 4, len(errors))
+
+	for _, c := range configs {
+		if c.Name == "empty" {
+			require.Fail(t, "empty config should not be returned")
+		}
+	}
 
 	configs, _, err = ReadConfigFiles(WithoutAdvancedAD)
 	require.Nil(t, err)
-	require.Equal(t, 17, len(configs))
+	require.Equal(t, 18, len(configs))
 
 	configs, _, err = ReadConfigFiles(WithAdvancedADOnly)
 	require.Nil(t, err)
