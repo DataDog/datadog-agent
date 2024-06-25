@@ -8,11 +8,11 @@ package status
 import (
 	"fmt"
 	"regexp"
-	"runtime"
 	"time"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
+	e2eos "github.com/DataDog/test-infra-definitions/components/os"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -173,7 +173,7 @@ func (v *baseStatusSuite) TestDefaultInstallStatus() {
 		},
 		{
 			name:            "System Probe",
-			shouldBePresent: runtime.GOOS == "linux",
+			shouldBePresent: v.Env().RemoteHost.OSFamily == e2eos.LinuxFamily,
 			shouldContain:   []string{"Status: Running"},
 		},
 		{
