@@ -42,7 +42,8 @@ def update_test_infra_definitions(ctx: Context, commit_sha: str, go_mod_only: bo
         "old_go_version": "The old Go version",
         "new_go_version": "The new Go version",
         "test_version": "Flag to indicate if this is a test version",
-    }
+    },
+    autoprint=True,
 )
 def generate_pr_body(
     _: Context,
@@ -55,11 +56,13 @@ def generate_pr_body(
     """
     Generate the PR body used for buildimages-update Github workflow
     """
-    pr_body = f"""This PR was automatically created by the [Update buildimages Github Workflow](https://github.com/DataDog/datadog-agent/actions/workflows/buildimages-update.yml).
+    buildimages_workflow_url = "https://github.com/DataDog/datadog-agent/actions/workflows/buildimages-update.yml"
+    test_version_str = "(test version)" if test_version else ""
+    compare_url = f"https://github.com/DataDog/datadog-agent-buildimages/compare/{old_build_image_tag.split('-')[1]}...{new_build_image_tag.split('-')[1]}"
+    pr_body = f"""This PR was automatically created by the [Update buildimages Github Workflow]({buildimages_workflow_url}).  
 
-### Buildimages update
-This PR updates the current buildimages (`{old_build_image_tag}`) to `{new_build_image_tag}`{'(test version)' if test_version else ''}, here is the full changelog between:
-https://github.com/DataDog/datadog-agent-buildimages/compare/{old_build_image_tag.split("-")[1]}...{new_build_image_tag.split("-")[1]}
+### Buildimages update  
+This PR updates the current buildimages (`{old_build_image_tag}`) to `{new_build_image_tag}`{test_version_str}, [here is the full changelog]({compare_url}).  
 """
 
     if old_go_version != new_go_version:
@@ -68,4 +71,4 @@ https://github.com/DataDog/datadog-agent-buildimages/compare/{old_build_image_ta
 ### Golang update
 This PR updates the current Golang version ([`{old_go_version}`](https://go.dev/doc/devel/release#go{old_go_version})) to [`{new_go_version}`](https://go.dev/doc/devel/release#go{new_go_version}).
 """
-    print(pr_body)
+    return pr_body

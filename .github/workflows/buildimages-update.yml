@@ -76,7 +76,7 @@ jobs:
       - name: Get current buildimage tag
         id: current_buildimage_tag
         run: |
-            echo "BUILDIMAGE_TAG=$(inv pipeline.get-image-tag)" >> $GITHUB_OUTPUT
+            echo "BUILDIMAGE_TAG=$(inv pipeline.get-gitlab-config-image-tag)" >> $GITHUB_OUTPUT
 
       - name: Update buildimages IDs and Go version
         id: update_build_images
@@ -139,8 +139,8 @@ jobs:
           ${{ inputs.test_version && '--test-version' || '' }} > $TMP_PR_BODY_PATH
 
           gh pr create \ # Create the PR
-          -B ${{ github.ref }} \
-          -t $PR_TITLE \
-          -F $TMP_PR_BODY_PATH \
-          -l $PR_LABELS \
-          -d \
+          --base ${{ github.ref }} \
+          --title $PR_TITLE \
+          --body-file $TMP_PR_BODY_PATH \
+          --label $PR_LABELS \
+          --draft \

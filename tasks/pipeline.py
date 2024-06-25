@@ -813,19 +813,22 @@ def update_circleci_config(file_path, image_tag, test_version):
 @task(
     help={
         "file_path": "path of the CircleCI configuration YAML file",
-    }
+    },
+    autoprint=True,
 )
-def get_image_tag(_, file_path=".circleci/config.yml"):
+def get_gitlab_config_image_tag(_, file_path=".gitlab-ci.yml"):
     """
     Print the current image tag of the given CircleCI configuration file (default: ".circleci/config.yml")
     """
-    image_name = "gcr.io/datadoghq/agent-circleci-runner"
-    with open(file_path) as circle:
-        circle_ci = circle.read()
-    match = re.search(rf"({image_name}(_test_only)?):([a-zA-Z0-9_-]+)\n", circle_ci)
-    if not match:
-        raise RuntimeError(f"Impossible to find the version of image {image_name} in circleci configuration file")
-    print(match.group(0).split(":")[1].strip())
+    with open(file_path) as gl:
+        file_content = gl.readlines()
+    gitlab_ci = yaml.load("".join(file_content), Loader=GitlabYamlLoader())
+    if "variables" not in gitlab_ci or "DATADOG_AGENT_BUILDIMAGES" not in gitlab_ci["variables"]:
+        raise Exit(
+            color_message(f"Impossible to find the version of image in {file_path} configuration file", "red"),
+            code=1,
+        )
+    return gitlab_ci["variables"]["DATADOG_AGENT_BUILDIMAGES"]
 
 
 def trigger_build(ctx, branch_name=None, create_branch=False):
