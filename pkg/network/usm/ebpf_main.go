@@ -33,6 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http2"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/postgres"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/buildmode"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
@@ -47,6 +48,7 @@ var (
 		http.Spec,
 		http2.Spec,
 		kafka.Spec,
+		postgres.Spec,
 		javaTLSSpec,
 		// opensslSpec is unique, as we're modifying its factory during runtime to allow getting more parameters in the
 		// factory.
@@ -61,8 +63,8 @@ const (
 	protocolDispatcherSocketFilterFunction = "socket__protocol_dispatcher"
 	connectionStatesMap                    = "connection_states"
 	sockFDLookupArgsMap                    = "sockfd_lookup_args"
-	sockByPidFDMap                         = "sock_by_pid_fd"
-	pidFDBySockMap                         = "pid_fd_by_sock"
+	tupleByPidFDMap                        = "tuple_by_pid_fd"
+	pidFDByTupleMap                        = "pid_fd_by_tuple"
 
 	sockFDLookup    = "kprobe__sockfd_lookup_light"
 	sockFDLookupRet = "kretprobe__sockfd_lookup_light"
@@ -78,7 +80,7 @@ const (
 )
 
 type ebpfProgram struct {
-	*ebpftelemetry.Manager
+	*ddebpf.Manager
 	cfg                   *config.Config
 	tailCallRouter        []manager.TailCallRoute
 	connectionProtocolMap *ebpf.Map
@@ -91,15 +93,17 @@ type ebpfProgram struct {
 	buildMode  buildmode.Type
 }
 
-func newEBPFProgram(c *config.Config, connectionProtocolMap *ebpf.Map, bpfTelemetry *ebpftelemetry.EBPFTelemetry) (*ebpfProgram, error) {
+func newEBPFProgram(c *config.Config, connectionProtocolMap *ebpf.Map) (*ebpfProgram, error) {
 	mgr := &manager.Manager{
 		Maps: []*manager.Map{
 			{Name: protocols.TLSDispatcherProgramsMap},
 			{Name: protocols.ProtocolDispatcherProgramsMap},
+			{Name: protocols.ProtocolDispatcherClassificationPrograms},
+			{Name: protocols.TLSProtocolDispatcherClassificationPrograms},
 			{Name: connectionStatesMap},
 			{Name: sockFDLookupArgsMap},
-			{Name: sockByPidFDMap},
-			{Name: pidFDBySockMap},
+			{Name: tupleByPidFDMap},
+			{Name: pidFDByTupleMap},
 		},
 		Probes: []*manager.Probe{
 			{
@@ -150,12 +154,12 @@ func newEBPFProgram(c *config.Config, connectionProtocolMap *ebpf.Map, bpfTeleme
 	}
 
 	program := &ebpfProgram{
-		Manager:               ebpftelemetry.NewManager(mgr, bpfTelemetry),
+		Manager:               ddebpf.NewManager(mgr, &ebpftelemetry.ErrorsTelemetryModifier{}),
 		cfg:                   c,
 		connectionProtocolMap: connectionProtocolMap,
 	}
 
-	opensslSpec.Factory = newSSLProgramProtocolFactory(mgr, bpfTelemetry)
+	opensslSpec.Factory = newSSLProgramProtocolFactory(mgr)
 	goTLSSpec.Factory = newGoTLSProgramProtocolFactory(mgr)
 
 	if err := program.initProtocols(c); err != nil {
@@ -165,6 +169,7 @@ func newEBPFProgram(c *config.Config, connectionProtocolMap *ebpf.Map, bpfTeleme
 	return program, nil
 }
 
+// Init initializes the ebpf program.
 func (e *ebpfProgram) Init() error {
 	var err error
 	defer func() {
@@ -206,7 +211,10 @@ func (e *ebpfProgram) Init() error {
 	return err
 }
 
+// Start starts the ebpf program and the enabled protocols.
 func (e *ebpfProgram) Start() error {
+	initializeTupleMaps(e.Manager)
+
 	// Mainly for tests, but possible for other cases as well, we might have a nil (not shared) connection protocol map
 	// between NPM and USM. In such a case we just create our own instance, but we don't modify the
 	// `e.connectionProtocolMap` field.
@@ -260,6 +268,7 @@ func (e *ebpfProgram) Start() error {
 	return nil
 }
 
+// Close stops the ebpf program and cleans up all resources.
 func (e *ebpfProgram) Close() error {
 	e.mapCleaner.Stop()
 	stopProtocolWrapper := func(protocol protocols.Protocol, m *manager.Manager) error {
@@ -382,11 +391,11 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 			MaxEntries: e.cfg.MaxTrackedConnections,
 			EditorFlag: manager.EditMaxEntries,
 		},
-		sockByPidFDMap: {
+		tupleByPidFDMap: {
 			MaxEntries: e.cfg.MaxTrackedConnections,
 			EditorFlag: manager.EditMaxEntries,
 		},
-		pidFDBySockMap: {
+		pidFDByTupleMap: {
 			MaxEntries: e.cfg.MaxTrackedConnections,
 			EditorFlag: manager.EditMaxEntries,
 		},
@@ -415,6 +424,7 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 	options.DefaultKProbeMaxActive = maxActive
 	options.DefaultKprobeAttachMethod = kprobeAttachMethod
 	options.VerifierOptions.Programs.LogSize = 10 * 1024 * 1024
+	options.BypassEnabled = e.cfg.BypassEnabled
 
 	supported, notSupported := e.getProtocolsForBuildMode()
 	cleanup := e.configureManagerWithSupportedProtocols(supported)
@@ -426,6 +436,10 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 		for _, pm := range e.PerfMaps {
 			pm.TelemetryEnabled = true
 			ebpftelemetry.ReportPerfMapTelemetry(pm)
+		}
+		for _, rb := range e.RingBuffers {
+			rb.TelemetryEnabled = true
+			ebpftelemetry.ReportRingBufferTelemetry(rb)
 		}
 	}
 
@@ -450,7 +464,7 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 		}
 	}
 
-	err := e.InitWithOptions(buf, options)
+	err := e.InitWithOptions(buf, &options)
 	if err != nil {
 		cleanup()
 	} else {
@@ -506,19 +520,19 @@ func (e *ebpfProgram) dumpMapsHandler(w io.Writer, _ *manager.Manager, mapName s
 			spew.Fdump(w, key, value)
 		}
 
-	case sockByPidFDMap: // maps/sock_by_pid_fd (BPF_MAP_TYPE_HASH), key C.pid_fd_t, value uintptr // C.struct sock*
-		io.WriteString(w, "Map: '"+mapName+"', key: 'C.pid_fd_t', value: 'uintptr // C.struct sock*'\n")
+	case tupleByPidFDMap: // maps/tuple_by_pid_fd (BPF_MAP_TYPE_HASH), key C.pid_fd_t, value C.conn_tuple_t
+		io.WriteString(w, "Map: '"+mapName+"', key: 'C.pid_fd_t', value: 'C.conn_tuple_t'\n")
 		iter := currentMap.Iterate()
 		var key netebpf.PIDFD
-		var value uintptr // C.struct sock*
+		var value http.ConnTuple
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
 			spew.Fdump(w, key, value)
 		}
 
-	case pidFDBySockMap: // maps/pid_fd_by_sock (BPF_MAP_TYPE_HASH), key uintptr // C.struct sock*, value C.pid_fd_t
-		io.WriteString(w, "Map: '"+mapName+"', key: 'uintptr // C.struct sock*', value: 'C.pid_fd_t'\n")
+	case pidFDByTupleMap: // maps/pid_fd_by_tuple (BPF_MAP_TYPE_HASH), key C.conn_tuple_t, value C.pid_fd_t
+		io.WriteString(w, "Map: '"+mapName+"', key: 'C.conn_tuple_t', value: 'C.pid_fd_t'\n")
 		iter := currentMap.Iterate()
-		var key uintptr // C.struct sock*
+		var key http.ConnTuple
 		var value netebpf.PIDFD
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
 			spew.Fdump(w, key, value)

@@ -1,0 +1,9 @@
+# Extract of the .gitab/JOBOWNERS file, for testing purposes
+
+*                                    @DataDog/agent-devx-infra
+
+tests_*                              @DataDog/multiple
+tests_ebpf*                          @DataDog/ebpf-platform
+security_go_generate_check           @DataDog/agent-security
+
+tests_release*                           @DataDog/agent-delivery @DataDog/agent-devx-infra @DataDog/agent-devx-loops

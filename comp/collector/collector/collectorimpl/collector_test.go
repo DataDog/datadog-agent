@@ -10,6 +10,7 @@ package collectorimpl
 import (
 	"context"
 	"sort"
+	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -25,7 +26,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stub"
+	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 // FIXTURE
@@ -94,6 +97,9 @@ func (suite *CollectorTestSuite) SetupTest() {
 	suite.c = newCollector(fxutil.Test[dependencies](suite.T(),
 		core.MockBundle(),
 		demultiplexerimpl.MockModule(),
+		fx.Provide(func() optional.Option[serializer.MetricSerializer] {
+			return optional.NewNoneOption[serializer.MetricSerializer]()
+		}),
 		fx.Replace(config.MockParams{
 			Overrides: map[string]interface{}{"check_cancel_timeout": 500 * time.Millisecond},
 		})))
@@ -158,6 +164,20 @@ func (suite *CollectorTestSuite) TestCancelCheck_TimeoutIsApplied() {
 	// assert that `Cancel` was actually called on the check, which may be flaky if the goroutine
 	// that calls `Cancel` didn't have a chance to be scheduled before the timeout is hit.
 	ch.AssertNumberOfCalls(suite.T(), "Cancel", 1)
+}
+
+func (suite *CollectorTestSuite) TestCancelCheck_CheckIsCleanedUp() {
+	ch := NewCheckSlowCancel(10 * time.Second)
+
+	start := time.Now()
+	id, err := suite.c.RunCheck(ch)
+	assert.Nil(suite.T(), err)
+	assert.NotEmpty(suite.T(), suite.c.checks)
+
+	err = suite.c.StopCheck(id)
+	assert.NotNil(suite.T(), err)
+	assert.WithinDuration(suite.T(), start, time.Now(), 5*time.Second)
+	assert.Empty(suite.T(), suite.c.checks)
 }
 
 func (suite *CollectorTestSuite) TestGet() {
@@ -252,4 +272,8 @@ func (suite *CollectorTestSuite) TestReloadAllCheckInstances() {
 	assert.Equal(suite.T(), killed, []checkid.ID{"baz", "qux"})
 
 	assert.Zero(suite.T(), len(suite.c.checks))
+}
+
+func TestCollectorSuite(t *testing.T) {
+	suite.Run(t, new(CollectorTestSuite))
 }

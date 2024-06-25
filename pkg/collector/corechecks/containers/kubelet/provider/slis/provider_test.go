@@ -15,8 +15,9 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/comp/core"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
+	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common"
@@ -161,11 +162,10 @@ func TestProvider_Provide(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var err error
 
-			store := fxutil.Test[workloadmeta.Mock](t, fx.Options(
+			store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 				core.MockBundle(),
-				collectors.GetCatalog(),
 				fx.Supply(workloadmeta.NewParams()),
-				workloadmeta.MockModuleV2(),
+				workloadmetafxmock.MockModuleV2(),
 			))
 
 			mockSender := mocksender.NewMockSender(checkid.ID(t.Name()))
@@ -221,5 +221,54 @@ func TestProvider_Provide(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestProvider_DisableProvider(t *testing.T) {
+	slisEndpoint := "http://10.8.0.1:10255/metrics/slis"
+
+	var err error
+
+	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		core.MockBundle(),
+		fx.Supply(workloadmeta.NewParams()),
+		workloadmetafxmock.MockModuleV2(),
+	))
+
+	mockSender := mocksender.NewMockSender(checkid.ID(t.Name()))
+	mockSender.SetupAcceptAll()
+
+	err = commontesting.StorePopulatedFromFile(store, "../../testdata/pods.json", common.NewPodUtils())
+	if err != nil {
+		t.Errorf("unable to populate store from file at: %s, err: %v", "../../testdata/pods.json", err)
+	}
+
+	kubeletMock := mock.NewKubeletMock()
+	var content []byte
+	kubeletMock.MockReplies["/metrics/slis"] = &mock.HTTPReplyMock{
+		Data:         content,
+		ResponseCode: 404,
+		Error:        nil,
+	}
+
+	config := &common.KubeletConfig{
+		SlisMetricsEndpoint: &slisEndpoint,
+	}
+
+	p, err := NewProvider(
+		&containers.Filter{
+			Enabled:         true,
+			NameExcludeList: []*regexp.Regexp{regexp.MustCompile("agent-excluded")},
+		},
+		config,
+		store,
+	)
+	assert.NoError(t, err)
+
+	err = p.Provide(kubeletMock, mockSender)
+	assert.Truef(t, p.ScraperConfig.IsDisabled, "provider should be disabled")
+	if !reflect.DeepEqual(err, nil) {
+		t.Errorf("Collect() error = %v, wantErr %v", err, nil)
+		return
 	}
 }

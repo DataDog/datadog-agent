@@ -22,6 +22,8 @@ const (
 	MessageTypeHello
 	// MessageTypeSyscall syscall type
 	MessageTypeSyscall
+	// MessageTypeGoodbye event type
+	MessageTypeGoodbye
 )
 
 // SyscallType defines the type of a syscall message
@@ -60,7 +62,7 @@ const (
 	SyscallTypeUtimes
 	// SyscallTypeLink link/linkat/symlink/symlinkat type
 	SyscallTypeLink
-	// SyscallTypeChmod chmod/fchmod/fchmodat type
+	// SyscallTypeChmod chmod/fchmod/fchmodat/fchmodat2 type
 	SyscallTypeChmod
 	// SyscallTypeChown chown/fchown/lchown/fchownat/fchownat2 type
 	SyscallTypeChown
@@ -68,6 +70,12 @@ const (
 	SyscallTypeLoadModule
 	// SyscallTypeUnloadModule delete_module type
 	SyscallTypeUnloadModule
+	// SyscallTypeChdir chdir/fchdir type
+	SyscallTypeChdir
+	// SyscallTypeMount mount type
+	SyscallTypeMount
+	// SyscallTypeUmount umount/umount2 type
+	SyscallTypeUmount
 )
 
 // ContainerContext defines a container context
@@ -99,13 +107,15 @@ type Credentials struct {
 
 // ExecSyscallMsg defines an exec message
 type ExecSyscallMsg struct {
-	File          OpenSyscallMsg
+	File          FileSyscallMsg
 	Args          []string
 	ArgsTruncated bool
 	Envs          []string
 	EnvsTruncated bool
 	TTY           string
 	Credentials   *Credentials
+	PPID          uint32
+	FromProcFS    bool
 }
 
 // ForkSyscallMsg defines a fork message
@@ -119,14 +129,20 @@ type ExitSyscallMsg struct {
 	Cause model.ExitCause
 }
 
-// OpenSyscallMsg defines an open message
-type OpenSyscallMsg struct {
+// FileSyscallMsg defines a file message
+type FileSyscallMsg struct {
 	Filename    string
 	CTime       uint64
 	MTime       uint64
-	Flags       uint32
 	Mode        uint32
+	Inode       uint64
 	Credentials *Credentials
+}
+
+// OpenSyscallMsg defines an open message
+type OpenSyscallMsg struct {
+	FileSyscallMsg
+	Flags uint32
 }
 
 // DupSyscallFakeMsg defines a dup message
@@ -134,9 +150,9 @@ type DupSyscallFakeMsg struct {
 	OldFd int32
 }
 
-// ChdirSyscallFakeMsg defines a chdir message
-type ChdirSyscallFakeMsg struct {
-	Path string
+// ChdirSyscallMsg defines a chdir message
+type ChdirSyscallMsg struct {
+	Dir FileSyscallMsg
 }
 
 // SetUIDSyscallMsg defines a setreuid message
@@ -175,29 +191,29 @@ type CapsetSyscallMsg struct {
 
 // UnlinkSyscallMsg defines a unlink message
 type UnlinkSyscallMsg struct {
-	File OpenSyscallMsg
+	File FileSyscallMsg
 }
 
 // RmdirSyscallMsg defines a rmdir message
 type RmdirSyscallMsg struct {
-	File OpenSyscallMsg
+	File FileSyscallMsg
 }
 
 // RenameSyscallMsg defines a rename/renameat/renameat2 message
 type RenameSyscallMsg struct {
-	OldFile OpenSyscallMsg
-	NewFile OpenSyscallMsg
+	OldFile FileSyscallMsg
+	NewFile FileSyscallMsg
 }
 
 // MkdirSyscallMsg defines a mkdir/mkdirat message
 type MkdirSyscallMsg struct {
-	Dir  OpenSyscallMsg
+	Dir  FileSyscallMsg
 	Mode uint32
 }
 
 // UtimesSyscallMsg defines a utime/utimes/utimensat/futimesat message
 type UtimesSyscallMsg struct {
-	File  OpenSyscallMsg
+	File  FileSyscallMsg
 	ATime uint64 // in nanoseconds
 	MTime uint64 // in nanoseconds
 }
@@ -215,19 +231,19 @@ const (
 // LinkSyscallMsg defines a link/linkat/symlink/symlinkat message
 type LinkSyscallMsg struct {
 	Type   LinkType
-	Target OpenSyscallMsg
-	Link   OpenSyscallMsg
+	Target FileSyscallMsg
+	Link   FileSyscallMsg
 }
 
 // ChmodSyscallMsg defines a chmod/fchmod/fchmodat/fchmodat2 message
 type ChmodSyscallMsg struct {
-	File OpenSyscallMsg
+	File FileSyscallMsg
 	Mode uint32
 }
 
 // ChownSyscallMsg defines a chown/fchown/lchown/fchownat/fchownat2 message
 type ChownSyscallMsg struct {
-	File  OpenSyscallMsg
+	File  FileSyscallMsg
 	UID   int32
 	User  string
 	GID   int32
@@ -236,7 +252,7 @@ type ChownSyscallMsg struct {
 
 // LoadModuleSyscallMsg defines a init_module/finit_module message
 type LoadModuleSyscallMsg struct {
-	File             OpenSyscallMsg
+	File             FileSyscallMsg
 	LoadedFromMemory bool
 	Name             string
 	Args             string
@@ -247,12 +263,32 @@ type UnloadModuleSyscallMsg struct {
 	Name string
 }
 
+// SpanContext stores a span context (if any)
+type SpanContext struct {
+	SpanID  uint64
+	TraceID uint64
+}
+
+// MountSyscallMsg defines a mount message
+type MountSyscallMsg struct {
+	Source string
+	Target string
+	FSType string
+}
+
+// UmountSyscallMsg defines a mount message
+type UmountSyscallMsg struct {
+	Path string
+}
+
 // SyscallMsg defines a syscall message
 type SyscallMsg struct {
 	Type         SyscallType
 	PID          uint32
+	SpanContext  *SpanContext `json:",omitempty"`
 	Timestamp    uint64
 	Retval       int64
+	ContainerID  string
 	Exec         *ExecSyscallMsg         `json:",omitempty"`
 	Open         *OpenSyscallMsg         `json:",omitempty"`
 	Fork         *ForkSyscallMsg         `json:",omitempty"`
@@ -273,10 +309,12 @@ type SyscallMsg struct {
 	Chown        *ChownSyscallMsg        `json:",omitempty"`
 	LoadModule   *LoadModuleSyscallMsg   `json:",omitempty"`
 	UnloadModule *UnloadModuleSyscallMsg `json:",omitempty"`
+	Chdir        *ChdirSyscallMsg        `json:",omitempty"`
+	Mount        *MountSyscallMsg        `json:",omitempty"`
+	Umount       *UmountSyscallMsg       `json:",omitempty"`
 
 	// internals
-	Dup   *DupSyscallFakeMsg   `json:",omitempty"`
-	Chdir *ChdirSyscallFakeMsg `json:",omitempty"`
+	Dup *DupSyscallFakeMsg `json:",omitempty"`
 }
 
 // String returns string representation
@@ -294,7 +332,6 @@ type HelloMsg struct {
 
 // Message defines a message
 type Message struct {
-	SeqNum  uint64
 	Type    MessageType
 	Hello   *HelloMsg   `json:",omitempty"`
 	Syscall *SyscallMsg `json:",omitempty"`
@@ -308,7 +345,6 @@ func (m Message) String() string {
 
 // Reset resets a message
 func (m *Message) Reset() {
-	m.SeqNum = 0
 	m.Type = MessageTypeUnknown
 	m.Hello = nil
 	m.Syscall = nil

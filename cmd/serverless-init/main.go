@@ -45,17 +45,16 @@ type cliParams struct {
 func main() {
 	if len(os.Args) < 2 {
 		panic("[datadog init process] invalid argument count, did you forget to set CMD ?")
-	} else {
+	}
 
-		cliParams := &cliParams{
-			args: os.Args[1:],
-		}
+	cliParams := &cliParams{
+		args: os.Args[1:],
+	}
 
-		err := fxutil.OneShot(run, fx.Supply(cliParams))
+	err := fxutil.OneShot(run, fx.Supply(cliParams))
 
-		if err != nil {
-			logger.Error(err)
-		}
+	if err != nil {
+		logger.Error(err)
 	}
 }
 
@@ -86,7 +85,7 @@ func setup() (cloudservice.CloudService, *log.Config, *trace.ServerlessTraceAgen
 	tracelog.SetLogger(corelogger{})
 
 	// load proxy settings
-	config.LoadProxyFromEnv(config.Datadog)
+	config.LoadProxyFromEnv(config.Datadog())
 
 	cloudService := cloudservice.GetCloudServiceType()
 
@@ -94,7 +93,7 @@ func setup() (cloudservice.CloudService, *log.Config, *trace.ServerlessTraceAgen
 	// and exit right away.
 	_ = cloudService.Init()
 
-	tags := tags.MergeWithOverwrite(tags.ArrayToMap(configUtils.GetConfiguredTags(config.Datadog, false)), cloudService.GetTags())
+	tags := tags.MergeWithOverwrite(tags.ArrayToMap(configUtils.GetConfiguredTags(config.Datadog(), false)), cloudService.GetTags())
 	origin := cloudService.GetOrigin()
 	prefix := cloudService.GetPrefix()
 
@@ -125,7 +124,7 @@ func setup() (cloudservice.CloudService, *log.Config, *trace.ServerlessTraceAgen
 }
 
 func setupTraceAgent(traceAgent *trace.ServerlessTraceAgent, tags map[string]string) {
-	traceAgent.Start(config.Datadog.GetBool("apm_config.enabled"), &trace.LoadConfig{Path: datadogConfigPath}, nil, random.Random.Uint64())
+	traceAgent.Start(config.Datadog().GetBool("apm_config.enabled"), &trace.LoadConfig{Path: datadogConfigPath}, nil, random.Random.Uint64())
 	traceAgent.SetTags(tag.GetBaseTagsMapWithMetadata(tags))
 	for range time.Tick(3 * time.Second) {
 		traceAgent.Flush()
@@ -133,7 +132,7 @@ func setupTraceAgent(traceAgent *trace.ServerlessTraceAgent, tags map[string]str
 }
 
 func setupMetricAgent(tags map[string]string) *metrics.ServerlessMetricAgent {
-	config.Datadog.Set("use_v2_api.series", false, model.SourceAgentRuntime)
+	config.Datadog().Set("use_v2_api.series", false, model.SourceAgentRuntime)
 	metricAgent := &metrics.ServerlessMetricAgent{
 		SketchesBucketOffset: time.Second * 0,
 	}

@@ -2,7 +2,6 @@
 set -euo pipefail
 
 printf '=%.0s' {0..79} ; echo
-set -x
 
 # ${DATADOG_AGENT_IMAGE} and ${DATADOG_CLUSTER_AGENT_IMAGE} are provided by the CI
 if [[ -z ${DATADOG_AGENT_IMAGE:+x} ]] || [[ -z ${DATADOG_CLUSTER_AGENT_IMAGE:+x} ]]; then
@@ -54,9 +53,6 @@ argo_submit_cws_cspm() {
 }
 
 case "$ARGO_WORKFLOW" in
-    "cws")
-        argo_submit_cws_cspm cws-workflow.yaml
-        ;;
     "cspm")
         argo_submit_cws_cspm cspm-workflow.yaml
         ;;

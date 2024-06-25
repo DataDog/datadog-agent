@@ -7,6 +7,7 @@ package http
 
 import (
 	"errors"
+	"regexp"
 	"strconv"
 	"strings"
 	"testing"
@@ -19,49 +20,32 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
-func getNewConfig() pkgconfigmodel.Reader {
+func getNewConfig() pkgconfigmodel.ReaderWriter {
 	return pkgconfigmodel.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
 }
 
 func TestBuildURLShouldReturnHTTPSWithUseSSL(t *testing.T) {
-	url := buildURL(config.Endpoint{
-		APIKey: "bar",
-		Host:   "foo",
-		UseSSL: pointer.Ptr(true),
-	})
+	url := buildURL(config.NewEndpoint("bar", "foo", 0, true))
 	assert.Equal(t, "https://foo/v1/input", url)
 }
 
 func TestBuildURLShouldReturnHTTPWithoutUseSSL(t *testing.T) {
-	url := buildURL(config.Endpoint{
-		APIKey: "bar",
-		Host:   "foo",
-		UseSSL: pointer.Ptr(false),
-	})
+	url := buildURL(config.NewEndpoint("bar", "foo", 0, false))
 	assert.Equal(t, "http://foo/v1/input", url)
 }
 
 func TestBuildURLShouldReturnAddressWithPortWhenDefined(t *testing.T) {
-	url := buildURL(config.Endpoint{
-		APIKey: "bar",
-		Host:   "foo",
-		Port:   1234,
-		UseSSL: pointer.Ptr(false),
-	})
+	url := buildURL(config.NewEndpoint("bar", "foo", 1234, false))
 	assert.Equal(t, "http://foo:1234/v1/input", url)
 }
 
 func TestBuildURLShouldReturnAddressForVersion2(t *testing.T) {
-	url := buildURL(config.Endpoint{
-		APIKey:    "bar",
-		Host:      "foo",
-		UseSSL:    pointer.Ptr(false),
-		Version:   config.EPIntakeVersion2,
-		TrackType: "test-track",
-	})
+	e := config.NewEndpoint("bar", "foo", 0, false)
+	e.Version = config.EPIntakeVersion2
+	e.TrackType = "test-track"
+	url := buildURL(e)
 	assert.Equal(t, "http://foo/api/v2/test-track", url)
 }
 
@@ -226,6 +210,16 @@ func TestDestinationSendsTimestampHeaders(t *testing.T) {
 	assert.GreaterOrEqual(t, ddCurrentTimestamp, currentTimestamp)
 }
 
+func TestDestinationSendsUserAgent(t *testing.T) {
+	cfg := getNewConfig()
+	server := NewTestServer(200, cfg)
+	defer server.httpServer.Close()
+
+	err := server.Destination.unconditionalSend(&message.Payload{Encoded: []byte("payload")})
+	assert.Nil(t, err)
+	assert.Regexp(t, regexp.MustCompile("datadog-agent/.*"), server.request.Header.Values("user-agent"))
+}
+
 func TestDestinationConcurrentSends(t *testing.T) {
 	cfg := getNewConfig()
 	// make the server return 500, so the payloads get stuck retrying
@@ -361,4 +355,19 @@ func TestBackoffDelayDisabled(t *testing.T) {
 
 	assert.Equal(t, 0, server.Destination.nbErrors)
 	server.Stop()
+}
+
+func TestDestinationHA(t *testing.T) {
+	variants := []bool{true, false}
+	for _, variant := range variants {
+		endpoint := config.Endpoint{
+			IsMRF: variant,
+		}
+		isEndpointMRF := endpoint.IsMRF
+
+		dest := NewDestination(endpoint, JSONContentType, client.NewDestinationsContext(), 1, false, "test", getNewConfig())
+		isDestMRF := dest.IsMRF()
+
+		assert.Equal(t, isEndpointMRF, isDestMRF)
+	}
 }

@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	orchestratorforwarder "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -37,6 +38,7 @@ type dependencies struct {
 	SharedForwarder        defaultforwarder.Component
 	OrchestratorForwarder  orchestratorforwarder.Component
 	EventPlatformForwarder eventplatform.Component
+	Compressor             compression.Component
 
 	Params Params
 }
@@ -59,6 +61,7 @@ type provides struct {
 	DiagnosticSenderManager diagnosesendermanager.Component
 	SenderManager           sender.SenderManager
 	StatusProvider          status.InformationProvider
+	AggregatorDemultiplexer aggregator.Demultiplexer
 }
 
 func newDemultiplexer(deps dependencies) (provides, error) {
@@ -78,6 +81,7 @@ func newDemultiplexer(deps dependencies) (provides, error) {
 		deps.OrchestratorForwarder,
 		deps.Params.AgentDemultiplexerOptions,
 		deps.EventPlatformForwarder,
+		deps.Compressor,
 		hostnameDetected)
 	demultiplexer := demultiplexer{
 		AgentDemultiplexer: agentDemultiplexer,
@@ -94,6 +98,7 @@ func newDemultiplexer(deps dependencies) (provides, error) {
 		StatusProvider: status.NewInformationProvider(demultiplexerStatus{
 			Log: deps.Log,
 		}),
+		AggregatorDemultiplexer: demultiplexer,
 	}, nil
 }
 

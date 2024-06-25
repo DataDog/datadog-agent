@@ -13,8 +13,8 @@ import (
 	"github.com/docker/docker/api/types/events"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/generic"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 )
@@ -34,7 +34,7 @@ func getImageTagsFromContainer(taggerEntityID string, resolvedImageName string, 
 		return getImageTags(resolvedImageName)
 	}
 
-	containerTags, err := tagger.Tag(taggerEntityID, collectors.LowCardinality)
+	containerTags, err := tagger.Tag(taggerEntityID, types.LowCardinality)
 	if err != nil {
 		return nil, err
 	}

@@ -41,9 +41,10 @@ import (
 
 	"google.golang.org/protobuf/proto"
 
-	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 func NewTestAgent(ctx context.Context, conf *config.AgentConfig, telemetryCollector telemetry.TelemetryCollector) *Agent {
@@ -189,7 +190,7 @@ func TestProcess(t *testing.T) {
 
 		agnt.Process(&api.Payload{
 			TracerPayload: testutil.TracerPayloadWithChunk(testutil.TraceChunkWithSpan(spanValid)),
-			Source:        info.NewReceiverStats().GetTagStats(info.Tags{}),
+			Source:        want,
 		})
 		assert.EqualValues(0, want.TracesFiltered.Load())
 		assert.EqualValues(0, want.SpansFiltered.Load())
@@ -203,6 +204,50 @@ func TestProcess(t *testing.T) {
 		})
 		assert.EqualValues(1, want.TracesFiltered.Load())
 		assert.EqualValues(2, want.SpansFiltered.Load())
+	})
+
+	t.Run("Block-all", func(t *testing.T) {
+		cfg := config.New()
+		cfg.Endpoints[0].APIKey = "test"
+		cfg.Ignore["resource"] = []string{".*"}
+		ctx, cancel := context.WithCancel(context.Background())
+		agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
+		defer cancel()
+
+		now := time.Now()
+		span1 := &pb.Span{
+			TraceID:  1,
+			SpanID:   1,
+			Resource: "SELECT name FROM people WHERE age = 42 AND extra = 55",
+			Type:     "sql",
+			Start:    now.Add(-time.Second).UnixNano(),
+			Duration: (500 * time.Millisecond).Nanoseconds(),
+		}
+		span2 := &pb.Span{
+			TraceID:  1,
+			SpanID:   1,
+			Resource: "INSERT INTO db VALUES (1, 2, 3)",
+			Type:     "sql",
+			Start:    now.Add(-time.Second).UnixNano(),
+			Duration: (500 * time.Millisecond).Nanoseconds(),
+		}
+
+		want := agnt.Receiver.Stats.GetTagStats(info.Tags{})
+		assert := assert.New(t)
+
+		agnt.Process(&api.Payload{
+			TracerPayload: testutil.TracerPayloadWithChunk(testutil.TraceChunkWithSpan(span1)),
+			Source:        want,
+		})
+		agnt.Process(&api.Payload{
+			TracerPayload: testutil.TracerPayloadWithChunk(testutil.TraceChunkWithSpans([]*pb.Span{
+				span2,
+				span2,
+			})),
+			Source: want,
+		})
+		assert.EqualValues(2, want.TracesFiltered.Load())
+		assert.EqualValues(3, want.SpansFiltered.Load())
 	})
 
 	t.Run("BlacklistPayload", func(t *testing.T) {
@@ -486,7 +531,7 @@ func TestProcess(t *testing.T) {
 }
 
 func spansToChunk(spans ...*pb.Span) *pb.TraceChunk {
-	return &pb.TraceChunk{Spans: spans}
+	return &pb.TraceChunk{Spans: spans, Tags: make(map[string]string)}
 }
 
 func dropped(c *pb.TraceChunk) *pb.TraceChunk {
@@ -1004,19 +1049,34 @@ func TestClientComputedStats(t *testing.T) {
 func TestSampling(t *testing.T) {
 	// agentConfig allows the test to customize how the agent is configured.
 	type agentConfig struct {
-		rareSamplerDisabled, errorsSampled, noPrioritySampled bool
+		rareSamplerDisabled, errorsSampled, noPrioritySampled, probabilisticSampler bool
+		probabilisticSamplerSamplingPercentage                                      float32
 	}
 	// configureAgent creates a new agent using the provided configuration.
 	configureAgent := func(ac agentConfig) *Agent {
-		cfg := &config.AgentConfig{RareSamplerEnabled: !ac.rareSamplerDisabled, RareSamplerCardinality: 200, RareSamplerTPS: 5}
-		sampledCfg := &config.AgentConfig{ExtraSampleRate: 1, TargetTPS: 5, ErrorTPS: 10, RareSamplerEnabled: !ac.rareSamplerDisabled}
+		cfg := &config.AgentConfig{
+			RareSamplerEnabled:                     !ac.rareSamplerDisabled,
+			RareSamplerCardinality:                 200,
+			RareSamplerTPS:                         5,
+			RareSamplerCooldownPeriod:              5 * time.Minute,
+			ProbabilisticSamplerEnabled:            ac.probabilisticSampler,
+			ProbabilisticSamplerSamplingPercentage: ac.probabilisticSamplerSamplingPercentage,
+		}
+		sampledCfg := &config.AgentConfig{
+			ExtraSampleRate:    1,
+			TargetTPS:          5,
+			ErrorTPS:           10,
+			RareSamplerEnabled: !ac.rareSamplerDisabled,
+		}
+
 		statsd := &statsd.NoOpClient{}
 		a := &Agent{
-			NoPrioritySampler: sampler.NewNoPrioritySampler(cfg, statsd),
-			ErrorsSampler:     sampler.NewErrorsSampler(cfg, statsd),
-			PrioritySampler:   sampler.NewPrioritySampler(cfg, &sampler.DynamicConfig{}, statsd),
-			RareSampler:       sampler.NewRareSampler(cfg, statsd),
-			conf:              cfg,
+			NoPrioritySampler:    sampler.NewNoPrioritySampler(cfg, statsd),
+			ErrorsSampler:        sampler.NewErrorsSampler(cfg, statsd),
+			PrioritySampler:      sampler.NewPrioritySampler(cfg, &sampler.DynamicConfig{}, statsd),
+			RareSampler:          sampler.NewRareSampler(cfg, statsd),
+			ProbabilisticSampler: sampler.NewProbabilisticSampler(cfg, statsd),
+			conf:                 cfg,
 		}
 		if ac.errorsSampled {
 			a.ErrorsSampler = sampler.NewErrorsSampler(sampledCfg, statsd)
@@ -1051,7 +1111,7 @@ func TestSampling(t *testing.T) {
 		testCases   []samplingTestCase
 	}{
 		"nopriority-unsampled": {
-			agentConfig: agentConfig{noPrioritySampled: false},
+			agentConfig: agentConfig{noPrioritySampled: false, rareSamplerDisabled: true},
 			testCases: []samplingTestCase{
 				{trace: generateProcessedTrace(sampler.PriorityNone, false), wantSampled: false},
 			},
@@ -1075,7 +1135,7 @@ func TestSampling(t *testing.T) {
 			},
 		},
 		"error-unsampled": {
-			agentConfig: agentConfig{errorsSampled: false},
+			agentConfig: agentConfig{errorsSampled: false, rareSamplerDisabled: true},
 			testCases: []samplingTestCase{
 				{trace: generateProcessedTrace(sampler.PriorityNone, true), wantSampled: false},
 			},
@@ -1105,7 +1165,7 @@ func TestSampling(t *testing.T) {
 			},
 		},
 		"error-prio-unsampled": {
-			agentConfig: agentConfig{errorsSampled: false},
+			agentConfig: agentConfig{errorsSampled: false, rareSamplerDisabled: true},
 			testCases: []samplingTestCase{
 				{trace: generateProcessedTrace(sampler.PriorityAutoDrop, true), wantSampled: false},
 			},
@@ -1129,12 +1189,80 @@ func TestSampling(t *testing.T) {
 				{trace: generateProcessedTrace(sampler.PriorityAutoDrop, false), wantSampled: false},
 			},
 		},
+		// These tests use 0% and 100% to ensure traces are sampled or not by the sampler. They are
+		// intended to test the sampling logic of the agent under various configurations. The exact
+		// behavior of the probabilistic sampler is tested in pkg/trace/sampler.
+		"probabilistic-no-prio-100": {
+			agentConfig: agentConfig{noPrioritySampled: false, rareSamplerDisabled: true, probabilisticSampler: true, probabilisticSamplerSamplingPercentage: 100},
+			testCases: []samplingTestCase{
+				{trace: generateProcessedTrace(sampler.PriorityNone, false), wantSampled: true},
+			},
+		},
+		"probabilistic-no-prio-0": {
+			agentConfig: agentConfig{noPrioritySampled: false, rareSamplerDisabled: true, probabilisticSampler: true, probabilisticSamplerSamplingPercentage: 0},
+			testCases: []samplingTestCase{
+				{trace: generateProcessedTrace(sampler.PriorityNone, false), wantSampled: false},
+			},
+		},
+		"probabilistic-prio-drop-100": {
+			agentConfig: agentConfig{noPrioritySampled: false, rareSamplerDisabled: true, probabilisticSampler: true, probabilisticSamplerSamplingPercentage: 100},
+			testCases: []samplingTestCase{
+				{trace: generateProcessedTrace(sampler.PriorityUserDrop, false), wantSampled: true},
+			},
+		},
+		"probabilistic-prio-drop-0": {
+			agentConfig: agentConfig{noPrioritySampled: false, rareSamplerDisabled: true, probabilisticSampler: true, probabilisticSamplerSamplingPercentage: 0},
+			testCases: []samplingTestCase{
+				{trace: generateProcessedTrace(sampler.PriorityUserDrop, false), wantSampled: false},
+			},
+		},
+		"probabilistic-prio-keep-100": {
+			agentConfig: agentConfig{noPrioritySampled: false, rareSamplerDisabled: true, probabilisticSampler: true, probabilisticSamplerSamplingPercentage: 100},
+			testCases: []samplingTestCase{
+				{trace: generateProcessedTrace(sampler.PriorityUserKeep, false), wantSampled: true},
+			},
+		},
+		"probabilistic-prio-keep-0": {
+			agentConfig: agentConfig{noPrioritySampled: false, rareSamplerDisabled: true, probabilisticSampler: true, probabilisticSamplerSamplingPercentage: 0},
+			testCases: []samplingTestCase{
+				{trace: generateProcessedTrace(sampler.PriorityUserKeep, false), wantSampled: false},
+			},
+		},
+		"probabilistic-rare-100": {
+			agentConfig: agentConfig{noPrioritySampled: false, rareSamplerDisabled: false, probabilisticSampler: true, probabilisticSamplerSamplingPercentage: 100},
+			testCases: []samplingTestCase{
+				{trace: generateProcessedTrace(sampler.PriorityNone, false), wantSampled: true},
+			},
+		},
+		"probabilistic-rare-0": {
+			agentConfig: agentConfig{noPrioritySampled: false, rareSamplerDisabled: false, probabilisticSampler: true, probabilisticSamplerSamplingPercentage: 0},
+			testCases: []samplingTestCase{
+				{trace: generateProcessedTrace(sampler.PriorityNone, false), wantSampled: true},
+			},
+		},
+		"probabilistic-rare-prio-0": {
+			agentConfig: agentConfig{noPrioritySampled: false, rareSamplerDisabled: false, probabilisticSampler: true, probabilisticSamplerSamplingPercentage: 0},
+			testCases: []samplingTestCase{
+				{trace: generateProcessedTrace(sampler.PriorityUserKeep, false), wantSampled: true},
+			},
+		},
+		"probabilistic-error-100": {
+			agentConfig: agentConfig{noPrioritySampled: false, rareSamplerDisabled: true, probabilisticSampler: true, errorsSampled: true, probabilisticSamplerSamplingPercentage: 100},
+			testCases: []samplingTestCase{
+				{trace: generateProcessedTrace(sampler.PriorityAutoDrop, true), wantSampled: true},
+			},
+		},
+		"probabilistic-error-0": {
+			agentConfig: agentConfig{noPrioritySampled: false, rareSamplerDisabled: true, probabilisticSampler: true, errorsSampled: true, probabilisticSamplerSamplingPercentage: 0},
+			testCases: []samplingTestCase{
+				{trace: generateProcessedTrace(sampler.PriorityAutoDrop, true), wantSampled: true},
+			},
+		},
 	} {
 		t.Run(name, func(t *testing.T) {
 			a := configureAgent(tt.agentConfig)
 			for _, tc := range tt.testCases {
-				_, hasPriority := sampler.GetSamplingPriority(tc.trace.TraceChunk)
-				sampled := a.runSamplers(time.Now(), tc.trace, hasPriority)
+				sampled, _ := a.traceSampling(time.Now(), &info.TagStats{}, &tc.trace)
 				assert.EqualValues(t, tc.wantSampled, sampled)
 			}
 		})
@@ -1153,10 +1281,11 @@ func TestSample(t *testing.T) {
 			Error:    err, // If 1, the Error Sampler will keep the trace, if 0, it will not be sampled
 			Meta:     map[string]string{},
 		}
+		chunk := testutil.TraceChunkWithSpan(root)
 		if decisionMaker != "" {
-			root.Meta["_dd.p.dm"] = decisionMaker
+			chunk.Tags["_dd.p.dm"] = decisionMaker
 		}
-		pt := traceutil.ProcessedTrace{TraceChunk: testutil.TraceChunkWithSpan(root), Root: root}
+		pt := traceutil.ProcessedTrace{TraceChunk: chunk, Root: root}
 		pt.TraceChunk.Priority = int32(priority)
 		return pt
 	}
@@ -1165,49 +1294,41 @@ func TestSample(t *testing.T) {
 		trace           traceutil.ProcessedTrace
 		keep            bool
 		keepWithFeature bool
-		dropped         bool // whether the trace was dropped by sampling
 	}{
 		"userdrop-error-no-dm-sampled": {
 			trace:           genSpan("", sampler.PriorityUserDrop, 1),
 			keep:            false,
 			keepWithFeature: true,
-			dropped:         false,
 		},
 		"userdrop-error-manual-dm-unsampled": {
 			trace:           genSpan("-4", sampler.PriorityUserDrop, 1),
 			keep:            false,
 			keepWithFeature: false,
-			dropped:         false,
 		},
 		"userdrop-error-agent-dm-sampled": {
 			trace:           genSpan("-1", sampler.PriorityUserDrop, 1),
 			keep:            false,
 			keepWithFeature: true,
-			dropped:         false,
 		},
 		"userkeep-error-no-dm-sampled": {
 			trace:           genSpan("", sampler.PriorityUserKeep, 1),
 			keep:            true,
 			keepWithFeature: true,
-			dropped:         false,
 		},
 		"userkeep-error-agent-dm-sampled": {
 			trace:           genSpan("-1", sampler.PriorityUserKeep, 1),
 			keep:            true,
 			keepWithFeature: true,
-			dropped:         false,
 		},
 		"autodrop-error-sampled": {
 			trace:           genSpan("", sampler.PriorityAutoDrop, 1),
 			keep:            true,
 			keepWithFeature: true,
-			dropped:         false,
 		},
 		"autodrop-not-sampled": {
 			trace:           genSpan("", sampler.PriorityAutoDrop, 0),
 			keep:            false,
 			keepWithFeature: false,
-			dropped:         true,
 		},
 	}
 	for name, tt := range tests {
@@ -1222,12 +1343,12 @@ func TestSample(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			keep, _ := a.traceSampling(now, info.NewReceiverStats().GetTagStats(info.Tags{}), &tt.trace)
 			assert.Equal(t, tt.keep, keep)
-			assert.Equal(t, tt.dropped, tt.trace.TraceChunk.DroppedTrace)
+			assert.Equal(t, !tt.keep, tt.trace.TraceChunk.DroppedTrace)
 			cfg.Features["error_rare_sample_tracer_drop"] = struct{}{}
 			defer delete(cfg.Features, "error_rare_sample_tracer_drop")
 			keep, _ = a.traceSampling(now, info.NewReceiverStats().GetTagStats(info.Tags{}), &tt.trace)
 			assert.Equal(t, tt.keepWithFeature, keep)
-			assert.Equal(t, tt.dropped, tt.trace.TraceChunk.DroppedTrace)
+			assert.Equal(t, !tt.keepWithFeature, tt.trace.TraceChunk.DroppedTrace)
 		})
 	}
 }

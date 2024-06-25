@@ -22,6 +22,8 @@ import (
 	"github.com/cihub/seelog"
 	"github.com/hashicorp/golang-lru/v2/simplelru"
 
+	telemetryComp "github.com/DataDog/datadog-agent/comp/core/telemetry"
+
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -44,6 +46,8 @@ type Conntracker interface {
 	// Collect returns the current state of all metrics of the collector
 	Collect(metrics chan<- prometheus.Metric)
 	GetTranslationForConn(network.ConnectionStats) *network.IPTranslation
+	// GetType returns a string describing whether the conntracker is "ebpf" or "netlink"
+	GetType() string
 	DeleteTranslation(network.ConnectionStats)
 	DumpCachedTable(context.Context) (map[uint32][]DebugConntrackEntry, error)
 	Close()
@@ -105,7 +109,7 @@ var conntrackerTelemetry = struct {
 }
 
 // NewConntracker creates a new conntracker with a short term buffer capped at the given size
-func NewConntracker(config *config.Config) (Conntracker, error) {
+func NewConntracker(config *config.Config, telemetrycomp telemetryComp.Component) (Conntracker, error) {
 	var (
 		err         error
 		conntracker Conntracker
@@ -114,7 +118,7 @@ func NewConntracker(config *config.Config) (Conntracker, error) {
 	done := make(chan struct{})
 
 	go func() {
-		conntracker, err = newConntrackerOnce(config)
+		conntracker, err = newConntrackerOnce(config, telemetrycomp)
 		done <- struct{}{}
 	}()
 
@@ -126,8 +130,8 @@ func NewConntracker(config *config.Config) (Conntracker, error) {
 	}
 }
 
-func newConntrackerOnce(cfg *config.Config) (Conntracker, error) {
-	consumer, err := NewConsumer(cfg)
+func newConntrackerOnce(cfg *config.Config, telemetrycomp telemetryComp.Component) (Conntracker, error) {
+	consumer, err := NewConsumer(cfg, telemetrycomp)
 	if err != nil {
 		return nil, err
 	}
@@ -155,6 +159,11 @@ func newConntrackerOnce(cfg *config.Config) (Conntracker, error) {
 
 	log.Infof("initialized conntrack with target_rate_limit=%d messages/sec", cfg.ConntrackRateLimit)
 	return ctr, nil
+}
+
+// GetType returns a string describing whether the conntracker is "ebpf" or "netlink"
+func (ctr *realConntracker) GetType() string {
+	return "netlink"
 }
 
 func (ctr *realConntracker) GetTranslationForConn(c network.ConnectionStats) *network.IPTranslation {

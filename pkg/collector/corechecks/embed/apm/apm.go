@@ -5,7 +5,7 @@
 
 //go:build apm && !windows && !linux
 
-//nolint:revive // TODO(APM) Fix revive linter
+// Package apm contains the APM check
 package apm
 
 import (
@@ -19,8 +19,8 @@ import (
 	"go.uber.org/atomic"
 	yaml "gopkg.in/yaml.v2"
 
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
@@ -96,10 +96,10 @@ func (c *APMCheck) run() error {
 	hname, _ := hostname.Get(context.TODO())
 
 	env := os.Environ()
-	env = append(env, fmt.Sprintf("DD_API_KEY=%s", utils.SanitizeAPIKey(config.Datadog.GetString("api_key"))))
+	env = append(env, fmt.Sprintf("DD_API_KEY=%s", utils.SanitizeAPIKey(config.Datadog().GetString("api_key"))))
 	env = append(env, fmt.Sprintf("DD_HOSTNAME=%s", hname))
-	env = append(env, fmt.Sprintf("DD_DOGSTATSD_PORT=%s", config.Datadog.GetString("dogstatsd_port")))
-	env = append(env, fmt.Sprintf("DD_LOG_LEVEL=%s", config.Datadog.GetString("log_level")))
+	env = append(env, fmt.Sprintf("DD_DOGSTATSD_PORT=%s", config.Datadog().GetString("dogstatsd_port")))
+	env = append(env, fmt.Sprintf("DD_LOG_LEVEL=%s", config.Datadog().GetString("log_level")))
 	cmd.Env = env
 
 	// forward the standard output to the Agent logger
@@ -151,10 +151,8 @@ func (c *APMCheck) run() error {
 	return err
 }
 
-// Configure the APMCheck
-//
-//nolint:revive // TODO(APM) Fix revive linter
-func (c *APMCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
+// Configure configures the APM check with the provided configuration
+func (c *APMCheck) Configure(_ sender.SenderManager, _ uint64, data integration.Data, initConfig integration.Data, source string) error {
 	var checkConf apmCheckConf
 	if err := yaml.Unmarshal(data, &checkConf); err != nil {
 		return err
@@ -178,7 +176,7 @@ func (c *APMCheck) Configure(senderManager sender.SenderManager, integrationConf
 		c.binPath = defaultBinPath
 	}
 
-	configFile := config.Datadog.ConfigFileUsed()
+	configFile := config.Datadog().ConfigFileUsed()
 
 	c.commandOpts = []string{}
 
@@ -188,7 +186,7 @@ func (c *APMCheck) Configure(senderManager sender.SenderManager, integrationConf
 	}
 
 	c.source = source
-	c.telemetry = utils.IsCheckTelemetryEnabled("apm", config.Datadog)
+	c.telemetry = utils.IsCheckTelemetryEnabled("apm", config.Datadog())
 	c.initConfig = string(initConfig)
 	c.instanceConfig = string(data)
 	return nil

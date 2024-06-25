@@ -8,7 +8,7 @@ using System.ServiceProcess;
 using Datadog.CustomActions.Extensions;
 using Datadog.CustomActions.Interfaces;
 using Datadog.CustomActions.Native;
-using Datadog.CustomActions.RollbackData;
+using Datadog.CustomActions.Rollback;
 using Microsoft.Deployment.WindowsInstaller;
 using Microsoft.Win32;
 using ServiceController = Datadog.CustomActions.Native.ServiceController;
@@ -193,11 +193,7 @@ namespace Datadog.CustomActions
             _serviceController.SetCredentials(Constants.SystemProbeServiceName, "LocalSystem", "");
             _serviceController.SetCredentials(Constants.ProcessAgentServiceName, "LocalSystem", "");
 
-            var installCWS = _session.Property("INSTALL_CWS");
-            if (!string.IsNullOrEmpty(installCWS))
-            {
-                _serviceController.SetCredentials(Constants.SecurityAgentServiceName, ddAgentUserName, ddAgentUserPassword);
-            }
+            _serviceController.SetCredentials(Constants.SecurityAgentServiceName, ddAgentUserName, ddAgentUserPassword);
         }
 
         private void UpdateAndLogAccessControl(string serviceName, CommonSecurityDescriptor securityDescriptor)
@@ -229,10 +225,7 @@ namespace Datadog.CustomActions
                 Constants.AgentServiceName,
             };
 
-            if (!string.IsNullOrEmpty(_session.Property("INSTALL_CWS")))
-            {
-                services.Add(Constants.SecurityAgentServiceName);
-            }
+            services.Add(Constants.SecurityAgentServiceName);
 
             foreach (var serviceName in services)
             {

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive // TODO(APM) Fix revive linter
+// Package agent implements the trace-agent.
 package agent
 
 import (
@@ -47,6 +47,9 @@ const (
 	// manualSampling is the value for _dd.p.dm when user sets sampling priority directly in code.
 	manualSampling = "-4"
 
+	// probabilitySampling is the value for _dd.p.dm when the agent is configured to use the ProbabilitySampler.
+	probabilitySampling = "-9"
+
 	// tagDecisionMaker specifies the sampling decision maker
 	tagDecisionMaker = "_dd.p.dm"
 )
@@ -63,6 +66,7 @@ type Agent struct {
 	ErrorsSampler         *sampler.ErrorsSampler
 	RareSampler           *sampler.RareSampler
 	NoPrioritySampler     *sampler.NoPrioritySampler
+	ProbabilisticSampler  *sampler.ProbabilisticSampler
 	EventProcessor        *event.Processor
 	TraceWriter           *writer.TraceWriter
 	StatsWriter           *writer.StatsWriter
@@ -74,8 +78,7 @@ type Agent struct {
 
 	// obfuscator is used to obfuscate sensitive data from various span
 	// tags based on their type.
-	obfuscator     *obfuscate.Obfuscator
-	cardObfuscator *ccObfuscator
+	obfuscator *obfuscate.Obfuscator
 
 	// DiscardSpan will be called on all spans, if non-nil. If it returns true, the span will be deleted before processing.
 	DiscardSpan func(*pb.Span) bool
@@ -117,10 +120,10 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig, telemetryCollector 
 		ErrorsSampler:         sampler.NewErrorsSampler(conf, statsd),
 		RareSampler:           sampler.NewRareSampler(conf, statsd),
 		NoPrioritySampler:     sampler.NewNoPrioritySampler(conf, statsd),
+		ProbabilisticSampler:  sampler.NewProbabilisticSampler(conf, statsd),
 		EventProcessor:        newEventProcessor(conf, statsd),
 		StatsWriter:           writer.NewStatsWriter(conf, statsChan, telemetryCollector, statsd, timing),
 		obfuscator:            obfuscate.NewObfuscator(oconf),
-		cardObfuscator:        newCreditCardsObfuscator(conf.Obfuscation.CreditCards),
 		In:                    in,
 		conf:                  conf,
 		ctx:                   ctx,
@@ -146,6 +149,7 @@ func (a *Agent) Run() {
 		a.PrioritySampler,
 		a.ErrorsSampler,
 		a.NoPrioritySampler,
+		a.ProbabilisticSampler,
 		a.EventProcessor,
 		a.OTLPReceiver,
 		a.RemoteConfigHandler,
@@ -218,10 +222,10 @@ func (a *Agent) loop() {
 		a.PrioritySampler,
 		a.ErrorsSampler,
 		a.NoPrioritySampler,
+		a.ProbabilisticSampler,
 		a.RareSampler,
 		a.EventProcessor,
 		a.obfuscator,
-		a.cardObfuscator,
 		a.DebugServer,
 	} {
 		stopper.Stop()
@@ -292,7 +296,7 @@ func (a *Agent) Process(p *api.Payload) {
 
 		// Root span is used to carry some trace-level metadata, such as sampling rate and priority.
 		root := traceutil.GetRoot(chunk.Spans)
-		setChunkAttributesFromRoot(chunk, root)
+		setChunkAttributes(chunk, root)
 		if !a.Blacklister.Allows(root) {
 			log.Debugf("Trace rejected by ignore resources rules. root: %v", root)
 			ts.TracesFiltered.Inc()
@@ -410,7 +414,7 @@ func processedTrace(p *api.Payload, chunk *pb.TraceChunk, root *pb.Span, contain
 	// We will first need to deprecate the `enable_cid_stats` feature flag.
 	gitCommitSha, imageTag, err := version.GetVersionDataFromContainerTags(containerID, conf)
 	if err != nil {
-		log.Error("Trace agent is unable to resolve container ID (%s) to container tags: %v", containerID, err)
+		log.Debugf("Trace agent is unable to resolve container ID (%s) to container tags: %v", containerID, err)
 	} else {
 		pt.ImageTag = imageTag
 		// Only override the GitCommitSha if it was not set in the trace.
@@ -422,14 +426,12 @@ func processedTrace(p *api.Payload, chunk *pb.TraceChunk, root *pb.Span, contain
 }
 
 // newChunksArray creates a new array which will point only to sampled chunks.
-
 // The underlying array behind TracePayload.Chunks points to unsampled chunks
 // preventing them from being collected by the GC.
 func newChunksArray(chunks []*pb.TraceChunk) []*pb.TraceChunk {
-	//nolint:revive // TODO(APM) Fix revive linter
-	new := make([]*pb.TraceChunk, len(chunks))
-	copy(new, chunks)
-	return new
+	newChunks := make([]*pb.TraceChunk, len(chunks))
+	copy(newChunks, chunks)
+	return newChunks
 }
 
 var _ api.StatsProcessor = (*Agent)(nil)
@@ -514,17 +516,6 @@ func (a *Agent) ProcessStats(in *pb.ClientStatsPayload, lang, tracerVersion stri
 	a.ClientStatsAggregator.In <- a.processStats(in, lang, tracerVersion)
 }
 
-func isManualUserDrop(priority sampler.SamplingPriority, pt *traceutil.ProcessedTrace) bool {
-	if priority != sampler.PriorityUserDrop {
-		return false
-	}
-	dm, hasDm := pt.Root.Meta[tagDecisionMaker]
-	if !hasDm {
-		return false
-	}
-	return dm == manualSampling
-}
-
 // sample performs all sampling on the processedTrace modifying it as needed and returning if the trace should be kept and the number of events in the trace
 func (a *Agent) sample(now time.Time, ts *info.TagStats, pt *traceutil.ProcessedTrace) (keep bool, numEvents int) {
 	// We have a `keep` that is different from pt's `DroppedTrace` field as `DroppedTrace` will be sent to intake.
@@ -551,31 +542,29 @@ func (a *Agent) sample(now time.Time, ts *info.TagStats, pt *traceutil.Processed
 	return keep, len(events)
 }
 
+// isManualUserDrop returns true if and only if the ProcessedTrace is marked as Priority User Drop
+// AND has a sampling decision maker of "Manual Sampling" (-4)
+//
+// Note: This does not work for traces with PriorityUserDrop, since most tracers do not set
+// the decision maker field for user drop scenarios.
+func isManualUserDrop(pt *traceutil.ProcessedTrace) bool {
+	priority, _ := sampler.GetSamplingPriority(pt.TraceChunk)
+	// Default priority is non-drop, so it's safe to ignore if the priority wasn't found
+	if priority != sampler.PriorityUserDrop {
+		return false
+	}
+	dm, hasDm := pt.TraceChunk.Tags[tagDecisionMaker]
+	if !hasDm {
+		return false
+	}
+	return dm == manualSampling
+}
+
 // traceSampling reports whether the chunk should be kept as a trace, setting "DroppedTrace" on the chunk
 func (a *Agent) traceSampling(now time.Time, ts *info.TagStats, pt *traceutil.ProcessedTrace) (keep bool, checkAnalyticsEvents bool) {
-	priority, hasPriority := sampler.GetSamplingPriority(pt.TraceChunk)
-
-	if hasPriority {
-		ts.TracesPerSamplingPriority.CountSamplingPriority(priority)
-	} else {
-		ts.TracesPriorityNone.Inc()
-	}
-	if a.conf.HasFeature("error_rare_sample_tracer_drop") {
-		// We skip analytics events when a trace is marked as manual drop (aka priority -1)
-		// Note that we DON'T skip single span sampling. We only do this for historical
-		// reasons and analytics events are deprecated so hopefully this can all go away someday.
-		if isManualUserDrop(priority, pt) {
-			return false, false
-		}
-	} else { // This path to be deleted once manualUserDrop detection is available on all tracers for P < 1.
-		if priority < 0 {
-			return false, false
-		}
-	}
-	sampled := a.runSamplers(now, *pt, hasPriority)
+	sampled, check := a.runSamplers(now, ts, *pt)
 	pt.TraceChunk.DroppedTrace = !sampled
-
-	return sampled, true
+	return sampled, check
 }
 
 // getAnalyzedEvents returns any sampled analytics events in the ProcessedTrace
@@ -586,37 +575,68 @@ func (a *Agent) getAnalyzedEvents(pt *traceutil.ProcessedTrace, ts *info.TagStat
 	return events
 }
 
-// runSamplers runs all the agent's samplers on pt and returns the sampling decision
-// along with the sampling rate.
-func (a *Agent) runSamplers(now time.Time, pt traceutil.ProcessedTrace, hasPriority bool) bool {
-	if hasPriority {
-		return a.samplePriorityTrace(now, pt)
-	}
-	return a.sampleNoPriorityTrace(now, pt)
-}
-
-// samplePriorityTrace samples traces with priority set on them. PrioritySampler and
-// ErrorSampler are run in parallel. The RareSampler catches traces with rare top-level
-// or measured spans that are not caught by PrioritySampler and ErrorSampler.
-func (a *Agent) samplePriorityTrace(now time.Time, pt traceutil.ProcessedTrace) bool {
+// runSamplers runs the agent's configured samplers on pt and returns the sampling decision along
+// with the sampling rate.
+//
+// The rare sampler is run first, catching all rare traces early. If the probabilistic sampler is
+// enabled, it is run on the trace, followed by the error sampler. Otherwise, If the trace has a
+// priority set, the sampling priority is used with the Priority Sampler. When there is no priority
+// set, the NoPrioritySampler is run. Finally, if the trace has not been sampled by the other
+// samplers, the error sampler is run.
+func (a *Agent) runSamplers(now time.Time, ts *info.TagStats, pt traceutil.ProcessedTrace) (keep bool, checkAnalyticsEvents bool) {
 	// run this early to make sure the signature gets counted by the RareSampler.
 	rare := a.RareSampler.Sample(now, pt.TraceChunk, pt.TracerEnv)
-	if a.PrioritySampler.Sample(now, pt.TraceChunk, pt.Root, pt.TracerEnv, pt.ClientDroppedP0sWeight) {
-		return true
-	}
-	if traceContainsError(pt.TraceChunk.Spans) {
-		return a.ErrorsSampler.Sample(now, pt.TraceChunk.Spans, pt.Root, pt.TracerEnv)
-	}
-	return rare
-}
 
-// sampleNoPriorityTrace samples traces with no priority set on them. The traces
-// get sampled by either the score sampler or the error sampler if they have an error.
-func (a *Agent) sampleNoPriorityTrace(now time.Time, pt traceutil.ProcessedTrace) bool {
-	if traceContainsError(pt.TraceChunk.Spans) {
-		return a.ErrorsSampler.Sample(now, pt.TraceChunk.Spans, pt.Root, pt.TracerEnv)
+	if a.conf.ProbabilisticSamplerEnabled {
+		if rare {
+			return true, true
+		}
+		if a.ProbabilisticSampler.Sample(pt.Root) {
+			pt.TraceChunk.Tags[tagDecisionMaker] = probabilitySampling
+			return true, true
+		}
+		if traceContainsError(pt.TraceChunk.Spans) {
+			return a.ErrorsSampler.Sample(now, pt.TraceChunk.Spans, pt.Root, pt.TracerEnv), true
+		}
+		return false, true
 	}
-	return a.NoPrioritySampler.Sample(now, pt.TraceChunk.Spans, pt.Root, pt.TracerEnv)
+
+	priority, hasPriority := sampler.GetSamplingPriority(pt.TraceChunk)
+	if hasPriority {
+		ts.TracesPerSamplingPriority.CountSamplingPriority(priority)
+	} else {
+		ts.TracesPriorityNone.Inc()
+	}
+	if a.conf.HasFeature("error_rare_sample_tracer_drop") {
+		// We skip analytics events when a trace is marked as manual drop (aka priority -1)
+		// Note that we DON'T skip single span sampling. We only do this for historical
+		// reasons and analytics events are deprecated so hopefully this can all go away someday.
+		if isManualUserDrop(&pt) {
+			return false, false
+		}
+	} else { // This path to be deleted once manualUserDrop detection is available on all tracers for P < 1.
+		if priority < 0 {
+			return false, false
+		}
+	}
+
+	if rare {
+		return true, true
+	}
+
+	if hasPriority {
+		if a.PrioritySampler.Sample(now, pt.TraceChunk, pt.Root, pt.TracerEnv, pt.ClientDroppedP0sWeight) {
+			return true, true
+		}
+	} else if a.NoPrioritySampler.Sample(now, pt.TraceChunk.Spans, pt.Root, pt.TracerEnv) {
+		return true, true
+	}
+
+	if traceContainsError(pt.TraceChunk.Spans) {
+		return a.ErrorsSampler.Sample(now, pt.TraceChunk.Spans, pt.Root, pt.TracerEnv), true
+	}
+
+	return false, true
 }
 
 func traceContainsError(trace pb.Trace) bool {

@@ -16,8 +16,10 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core"
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
+	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
@@ -37,14 +39,14 @@ func TestGetContainers(t *testing.T) {
 	metricsProvider.RegisterConcreteCollector(provider.NewRuntimeMetadata(string(provider.RuntimeNameGarden), ""), metricsCollector)
 
 	// Workload meta + tagger
-	metadataProvider := fxutil.Test[workloadmeta.Mock](t, fx.Options(
+	metadataProvider := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		core.MockBundle(),
 		fx.Supply(context.Background()),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.MockModule(),
+		workloadmetafxmock.MockModule(),
 	))
 
-	fakeTagger := tagger.SetupFakeTagger(t)
+	fakeTagger := taggerimpl.SetupFakeTagger(t)
 	defer fakeTagger.ResetTagger()
 
 	// Finally, container provider
@@ -141,6 +143,9 @@ func TestGetContainers(t *testing.T) {
 			Health:    workloadmeta.ContainerHealthHealthy,
 			CreatedAt: testTime.Add(-10 * time.Minute),
 			StartedAt: testTime,
+		},
+		Image: workloadmeta.ContainerImage{
+			RepoDigest: "sha256:378e0fa5bc50e6707ec9eb03c511cc6a2a4741f0c345d88dedb2fb9247b19f94",
 		},
 	})
 	fakeTagger.SetTags(containers.BuildTaggerEntityName("cID3"), "fake", []string{"low:common"}, []string{"orch:orch1"}, []string{"id:container3"}, nil)
@@ -354,12 +359,13 @@ func TestGetContainers(t *testing.T) {
 			ThreadLimit: 20,
 		},
 		{
-			Type:    "containerd",
-			Id:      "cID3",
-			State:   process.ContainerState_running,
-			Health:  process.ContainerHealth_healthy,
-			Created: testTime.Add(-10 * time.Minute).Unix(),
-			Started: testTime.Unix(),
+			Type:       "containerd",
+			Id:         "cID3",
+			State:      process.ContainerState_running,
+			Health:     process.ContainerHealth_healthy,
+			Created:    testTime.Add(-10 * time.Minute).Unix(),
+			Started:    testTime.Unix(),
+			RepoDigest: "sha256:378e0fa5bc50e6707ec9eb03c511cc6a2a4741f0c345d88dedb2fb9247b19f94",
 			Tags: []string{
 				"low:common",
 				"orch:orch1",
@@ -559,12 +565,13 @@ func TestGetContainers(t *testing.T) {
 			ThreadLimit: 20,
 		},
 		{
-			Type:    "containerd",
-			Id:      "cID3",
-			State:   process.ContainerState_running,
-			Health:  process.ContainerHealth_healthy,
-			Created: testTime.Add(-10 * time.Minute).Unix(),
-			Started: testTime.Unix(),
+			Type:       "containerd",
+			Id:         "cID3",
+			State:      process.ContainerState_running,
+			Health:     process.ContainerHealth_healthy,
+			Created:    testTime.Add(-10 * time.Minute).Unix(),
+			Started:    testTime.Unix(),
+			RepoDigest: "sha256:378e0fa5bc50e6707ec9eb03c511cc6a2a4741f0c345d88dedb2fb9247b19f94",
 			Tags: []string{
 				"low:common",
 				"orch:orch1",

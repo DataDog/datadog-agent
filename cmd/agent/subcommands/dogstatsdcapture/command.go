@@ -100,9 +100,9 @@ func dogstatsdCapture(log log.Component, config config.Component, cliParams *cli
 		InsecureSkipVerify: true,
 	})
 
-	conn, err := grpc.DialContext(
+	conn, err := grpc.DialContext( //nolint:staticcheck // TODO (ASC) fix grpc.DialContext is deprecated
 		ctx,
-		fmt.Sprintf(":%v", pkgconfig.Datadog.GetInt("cmd_port")),
+		fmt.Sprintf(":%v", pkgconfig.Datadog().GetInt("cmd_port")),
 		grpc.WithTransportCredentials(creds),
 	)
 	if err != nil {

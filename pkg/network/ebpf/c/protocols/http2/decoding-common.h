@@ -68,7 +68,7 @@ static __always_inline __u64 *get_dynamic_counter(conn_tuple_t *tup) {
 }
 
 // parse_field_indexed parses fully-indexed headers.
-static __always_inline void parse_field_indexed(dynamic_table_index_t *dynamic_index, http2_header_t *headers_to_process, __u8 index, __u64 global_dynamic_counter, __u8 *interesting_headers_counter) {
+static __always_inline void parse_field_indexed(dynamic_table_index_t *dynamic_index, http2_header_t *restrict headers_to_process, __u8 index, __u64 global_dynamic_counter, __u8 *interesting_headers_counter) {
     if (headers_to_process == NULL) {
         return;
     }
@@ -126,8 +126,8 @@ static __always_inline void update_path_size_telemetry(http2_telemetry_t *http2_
 // See RFC 7540 section 5.1: https://datatracker.ietf.org/doc/html/rfc7540#section-5.1
 static __always_inline void handle_end_of_stream(http2_stream_t *current_stream, http2_stream_key_t *http2_stream_key_template, http2_telemetry_t *http2_tel) {
     // We want to see the EOS twice for a given stream: one for the client, one for the server.
-    if (!current_stream->request_end_of_stream) {
-        current_stream->request_end_of_stream = true;
+    if (!current_stream->end_of_stream_seen) {
+        current_stream->end_of_stream_seen = true;
         return;
     }
 
@@ -164,13 +164,6 @@ static __always_inline bool format_http2_frame_header(http2_frame_t *out) {
 
 static __always_inline void reset_frame(http2_frame_t *out) {
     *out = (http2_frame_t){ 0 };
-}
-
-// check_frame_split checks if the frame is split into multiple tcp payloads, if so, it increments the split counter.
-static __always_inline void check_frame_split(http2_telemetry_t *http2_tel, __u32 data_off, __u32 data_end, __u32 length){
-    if (data_off + length > data_end) {
-        __sync_fetch_and_add(&http2_tel->fragmented_frame_count, 1);
-    }
 }
 
 #endif

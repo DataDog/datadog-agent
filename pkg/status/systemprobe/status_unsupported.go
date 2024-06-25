@@ -9,8 +9,8 @@
 package systemprobe
 
 import (
-	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/status"
+	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 )
 
 // GetStatus returns a notice that it is not supported on systems that do not at least build the process agent
@@ -20,10 +20,7 @@ func GetStatus(stats map[string]interface{}, _ string) {
 	}
 }
 
-// GetProvider returns NoopProvider
-func GetProvider(_ config.Component) status.Provider {
-	return status.NoopProvider{}
+// GetProvider returns nil
+func GetProvider(_ sysprobeconfig.Component) status.Provider {
+	return nil
 }
-
-// Provider provides the functionality to populate the status output
-type Provider status.NoopProvider

@@ -35,6 +35,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serverless/proxy"
 	"github.com/DataDog/datadog-agent/pkg/serverless/random"
 	"github.com/DataDog/datadog-agent/pkg/serverless/registration"
+	"github.com/DataDog/datadog-agent/pkg/serverless/streamlogs"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace/inferredspan"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -43,9 +44,12 @@ import (
 )
 
 var (
-	logLevelEnvVar         = "DD_LOG_LEVEL"
-	flushStrategyEnvVar    = "DD_SERVERLESS_FLUSH_STRATEGY"
-	logsLogsTypeSubscribed = "DD_LOGS_CONFIG_LAMBDA_LOGS_TYPE"
+	logLevelEnvVar             = "DD_LOG_LEVEL"
+	flushStrategyEnvVar        = "DD_SERVERLESS_FLUSH_STRATEGY"
+	logsLogsTypeSubscribed     = "DD_LOGS_CONFIG_LAMBDA_LOGS_TYPE"
+	logsLogsBufferingTimeoutMs = "DD_LOGS_CONFIG_LAMBDA_LOGS_BUFFERING_TIMEOUT_MS"
+	logsLogsBufferingMaxBytes  = "DD_LOGS_CONFIG_LAMBDA_LOGS_BUFFERING_MAX_BYTES"
+	logsLogsBufferingMaxItesm  = "DD_LOGS_CONFIG_LAMBDA_LOGS_BUFFERING_MAX_ITEMS"
 
 	// AWS Lambda is writing the Lambda function files in /var/task, we want the
 	// configuration file to be at the root of this directory.
@@ -89,7 +93,7 @@ func runAgent() {
 	stopCh := make(chan struct{})
 
 	flavor.SetFlavor(flavor.ServerlessAgent)
-	config.Datadog.Set("use_v2_api.series", false, model.SourceAgentRuntime)
+	config.Datadog().Set("use_v2_api.series", false, model.SourceAgentRuntime)
 
 	// Disable remote configuration for now as it just spams the debug logs
 	// and provides no value.
@@ -119,7 +123,7 @@ func runAgent() {
 
 	debug.OutputDatadogEnvVariablesForDebugging()
 
-	config.Datadog.SetConfigFile(datadogConfigPath)
+	config.Datadog().SetConfigFile(datadogConfigPath)
 	// Load datadog.yaml file into the config, so that metricAgent can pick these configurations
 	if _, err := config.LoadWithoutSecret(); err != nil {
 		log.Errorf("Error happened when loading configuration from datadog.yaml for metric agent: %s", err)
@@ -188,7 +192,7 @@ func runAgent() {
 	}
 	metricAgent.Start(daemon.FlushTimeout, &metrics.MetricConfig{}, &metrics.MetricDogStatsD{})
 	serverlessDaemon.SetStatsdServer(metricAgent)
-	serverlessDaemon.SetupLogCollectionHandler(logsAPICollectionRoute, logChannel, config.Datadog.GetBool("serverless.logs_enabled"), config.Datadog.GetBool("enhanced_metrics"), lambdaInitMetricChan)
+	serverlessDaemon.SetupLogCollectionHandler(logsAPICollectionRoute, logChannel, config.Datadog().GetBool("serverless.logs_enabled"), config.Datadog().GetBool("enhanced_metrics"), lambdaInitMetricChan)
 
 	// Concurrently start heavyweight features
 	var wg sync.WaitGroup
@@ -198,7 +202,7 @@ func runAgent() {
 	go func() {
 		defer wg.Done()
 		traceAgent := &trace.ServerlessTraceAgent{}
-		traceAgent.Start(config.Datadog.GetBool("apm_config.enabled"), &trace.LoadConfig{Path: datadogConfigPath}, lambdaSpanChan, coldStartSpanId)
+		traceAgent.Start(config.Datadog().GetBool("apm_config.enabled"), &trace.LoadConfig{Path: datadogConfigPath}, lambdaSpanChan, coldStartSpanId)
 		serverlessDaemon.SetTraceAgent(traceAgent)
 	}()
 
@@ -233,9 +237,9 @@ func runAgent() {
 				LogsType:            os.Getenv(logsLogsTypeSubscribed),
 				Port:                logsAPIHttpServerPort,
 				CollectionRoute:     logsAPICollectionRoute,
-				Timeout:             logsAPITimeout,
-				MaxBytes:            logsAPIMaxBytes,
-				MaxItems:            logsAPIMaxItems,
+				Timeout:             envVarToInt(logsLogsBufferingTimeoutMs, logsAPITimeout),
+				MaxBytes:            envVarToInt(logsLogsBufferingMaxBytes, logsAPIMaxBytes),
+				MaxItems:            envVarToInt(logsLogsBufferingMaxItesm, logsAPIMaxItems),
 			})
 
 		if logRegistrationError != nil {
@@ -246,6 +250,12 @@ func runAgent() {
 				log.Errorf("Error setting up the logs agent: %s", err)
 			}
 			serverlessDaemon.SetLogsAgent(logsAgent)
+			ctx, cancel := context.WithCancel(context.Background())
+			go streamlogs.Run(ctx, logsAgent, os.Stdout)
+			go func() {
+				<-stopCh
+				cancel()
+			}()
 		}
 	}()
 
@@ -269,6 +279,7 @@ func runAgent() {
 		TraceAgent:           serverlessDaemon.TraceAgent,
 		StopChan:             make(chan struct{}),
 		ColdStartSpanId:      coldStartSpanId,
+		ColdStartRequestID:   serverlessDaemon.ExecutionContext.GetCurrentState().ColdstartRequestID,
 	}
 
 	log.Debug("Starting ColdStartSpanCreator")
@@ -287,7 +298,7 @@ func runAgent() {
 		ExtraTags:            serverlessDaemon.ExtraTags,
 		Demux:                serverlessDaemon.MetricAgent.Demux,
 		ProcessTrace:         ta.Process,
-		DetectLambdaLibrary:  func() bool { return serverlessDaemon.LambdaLibraryDetected },
+		DetectLambdaLibrary:  serverlessDaemon.IsLambdaLibraryDetected,
 		InferredSpansEnabled: inferredspan.IsInferredSpansEnabled(),
 	}
 
@@ -314,7 +325,7 @@ func runAgent() {
 		)
 	}
 
-	serverlessDaemon.ComputeGlobalTags(configUtils.GetConfiguredTags(config.Datadog, true))
+	serverlessDaemon.ComputeGlobalTags(configUtils.GetConfiguredTags(config.Datadog(), true))
 
 	// run the invocation loop in a routine
 	// we don't want to start this mainloop before because once we're waiting on
@@ -348,4 +359,15 @@ func handleTerminationSignals(serverlessDaemon *daemon.Daemon, stopCh chan struc
 	log.Infof("Received signal '%s', shutting down...", signo)
 	serverlessDaemon.Stop()
 	stopCh <- struct{}{}
+}
+
+func envVarToInt(envVar string, defaultValue int) int {
+	if value, ok := os.LookupEnv(envVar); ok {
+		intValue, err := strconv.Atoi(value)
+		if err == nil {
+			return intValue
+		}
+		log.Warnf("%s must be int type, got %s: %s", envVar, value, err)
+	}
+	return defaultValue
 }

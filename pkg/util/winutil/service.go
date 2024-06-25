@@ -8,30 +8,25 @@
 package winutil
 
 import (
-	"bytes"
 	"context"
-	"encoding/binary"
+	"errors"
 	"fmt"
 	"time"
-	"unsafe"
 
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/svc"
 	"golang.org/x/sys/windows/svc/mgr"
-
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
-	defaultServiceCommandTimeout = 10
+	defaultServiceCommandTimeout = 30
 )
 
-var (
-	modadvapi32               = windows.NewLazyDLL("advapi32.dll")
-	procEnumDependentServices = modadvapi32.NewProc("EnumDependentServicesW")
-)
-
-type enumServiceState uint32
+// to support edge case/rase condition testing
+type stopServiceCallback interface {
+	afterDependentsEnumeration()
+	beforeStopService(serviceName string)
+}
 
 // OpenSCManager connects to SCM
 //
@@ -50,9 +45,35 @@ func OpenSCManager(desiredAccess uint32) (*mgr.Mgr, error) {
 func OpenService(manager *mgr.Mgr, serviceName string, desiredAccess uint32) (*mgr.Service, error) {
 	h, err := windows.OpenService(manager.Handle, windows.StringToUTF16Ptr(serviceName), desiredAccess)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("could not open service %s: %w", serviceName, err)
 	}
 	return &mgr.Service{Name: serviceName, Handle: h}, nil
+}
+
+// Compound convenience function (two above often called one after the other)
+func openManagerService(serviceName string, desiredAccess uint32) (*mgr.Mgr, *mgr.Service, error) {
+	manager, err := OpenSCManager(windows.SC_MANAGER_CONNECT)
+	if err != nil {
+		return nil, nil, fmt.Errorf("could not open SCM for service %s: %w", serviceName, err)
+	}
+
+	service, err := OpenService(manager, serviceName, desiredAccess)
+	if err != nil {
+		manager.Disconnect()
+		return nil, nil, err
+	}
+
+	return manager, service, nil
+}
+
+// Compound convenience function
+func closeManagerService(manager *mgr.Mgr, service *mgr.Service) {
+	if service != nil {
+		service.Close()
+	}
+	if manager != nil {
+		manager.Disconnect()
+	}
 }
 
 // StartService starts serviceName via SCM.
@@ -60,22 +81,48 @@ func OpenService(manager *mgr.Mgr, serviceName string, desiredAccess uint32) (*m
 // Does not block until service is started
 // https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-startservicea#remarks
 func StartService(serviceName string, serviceArgs ...string) error {
-
-	manager, err := OpenSCManager(windows.SC_MANAGER_CONNECT)
+	desiredAccess := uint32(windows.SERVICE_START | windows.SERVICE_QUERY_STATUS)
+	manager, service, err := openManagerService(serviceName, desiredAccess)
 	if err != nil {
-		return fmt.Errorf("could not open SCM: %v", err)
+		return err
 	}
-	defer manager.Disconnect()
+	defer closeManagerService(manager, service)
+	return doStartService(service, serviceArgs...)
+}
 
-	service, err := OpenService(manager, serviceName, windows.SERVICE_START)
+func doStartService(service *mgr.Service, serviceArgs ...string) error {
+	status, err := service.Query()
 	if err != nil {
-		return fmt.Errorf("could not open service %s: %v", serviceName, err)
+		return fmt.Errorf("could not query service `%s` to start it. %w", service.Name, err)
 	}
-	defer service.Close()
 
-	err = service.Start(serviceArgs...)
-	if err != nil {
-		return fmt.Errorf("could not start service %s: %v", serviceName, err)
+	// Are we already running?
+	if status.State == svc.Running {
+		return nil
+	}
+
+	// Are we (potentially) in a transient state (meaning no running and not stopped)? If so, wait for it to complete
+	if status.State != svc.Stopped {
+		ctx, cancel := context.WithTimeout(context.Background(), defaultServiceCommandTimeout*time.Second)
+		defer cancel()
+
+		err = doWaitForTransientStateCompletion(ctx, service, status.State)
+		if err != nil {
+			return fmt.Errorf("failed to start service `%s`. %w", service.Name, err)
+		}
+
+		// If the service was in svc.StartPending then it should be in svc.Running now
+		// otherwise we would error out. Accordingly now we are in expected state
+		if status.State == svc.StartPending {
+			return nil
+		}
+	}
+
+	// Start the service or rather initiate starting the service
+	// We could wait until the service is started, making the call blocking
+	// and synchronous, but historically we have not done so and we are ok so far
+	if err := service.Start(serviceArgs...); err != nil {
+		return fmt.Errorf("could not start service %s: %w", service.Name, err)
 	}
 	return nil
 }
@@ -86,80 +133,188 @@ func StartService(serviceName string, serviceArgs ...string) error {
 // https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-controlservice
 //
 //revive:disable-next-line:var-naming Name is intended to match the Windows API name
-func ControlService(serviceName string, command svc.Cmd, to svc.State, desiredAccess uint32, timeout int64) error {
-
-	manager, err := OpenSCManager(windows.SC_MANAGER_CONNECT)
+func ControlService(serviceName string, command svc.Cmd, to svc.State, desiredAccess uint32, timeout uint64) error {
+	desiredAccess |= windows.SERVICE_QUERY_STATUS
+	manager, service, err := openManagerService(serviceName, desiredAccess)
 	if err != nil {
-		return fmt.Errorf("could not open SCM: %v", err)
+		return err
 	}
-	defer manager.Disconnect()
+	defer closeManagerService(manager, service)
 
-	service, err := OpenService(manager, serviceName, desiredAccess)
-	if err != nil {
-		return fmt.Errorf("could not open service %s: %v", serviceName, err)
-	}
-	defer service.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout)*time.Second)
+	defer cancel()
 
-	status, err := service.Control(command)
-	if err != nil {
-		return fmt.Errorf("could not send control %d: %v", command, err)
-	}
-
-	timesup := time.Now().Add(time.Duration(timeout) * time.Second)
-	for status.State != to {
-		if time.Now().After(timesup) {
-			return fmt.Errorf("timeout waiting for service %s to go to state %d; current state: %d", serviceName, to, status.State)
-		}
-		time.Sleep(300 * time.Millisecond)
-		status, err = service.Query()
-		if err != nil {
-			return fmt.Errorf("could not retrieve status for %s: %v", serviceName, err)
-		}
-	}
-	return nil
+	return doControlService(ctx, service, command, to)
 }
 
-func doStopService(serviceName string) error {
-	return ControlService(serviceName, svc.Stop, svc.Stopped, windows.SERVICE_STOP|windows.SERVICE_QUERY_STATUS, defaultServiceCommandTimeout)
+func doControlService(ctx context.Context, service *mgr.Service, cmd svc.Cmd, to svc.State) error {
+	status, err := service.Query()
+	if err != nil {
+		return fmt.Errorf("could not query service `%s` to send controld command %d. %w", service.Name, cmd, err)
+	}
+
+	// check if we are already in the desired state
+	if status.State == to {
+		return nil
+	}
+
+	// SERVICE_CONTROL_STOP control command may or may not succeed if the service is
+	// in SERVICE_STOP_PENDING or SERVICE_START_PENDING states. The same service when
+	// it is in SERVICE_START_PENDING state, depending on timin may accept SERVICE_CONTROL_STOP
+	// control but in other cases it will not (it is  indicated by the Accepts field).
+	//
+	// In addition, it is probably not too kosher to stop a service that is in a
+	// transition state. Accordingly we will wait it out until the service completes its
+	// transition to a state.
+	if cmd == svc.Stop {
+		err = doWaitForTransientStateCompletion(ctx, service, status.State)
+		if err != nil {
+			return fmt.Errorf("failed to send command `%d` to service `%s`. %w", cmd, service.Name, err)
+		}
+
+		// If the service was in svc.StopPending then it should be in svc.Stopped now
+		// otherwise we would error out. Accordingly now we are in expected state
+		if status.State == svc.StopPending {
+			return nil
+		}
+	}
+
+	status, err = service.Control(cmd)
+	if err != nil {
+		// try to get the status after the control
+		statusAfter, errAfter := service.Query()
+		if errAfter != nil {
+			return fmt.Errorf("could not send control %d to service %s: %w Before control[state:%d, accepts:%d])",
+				cmd, service.Name, err, status.State, status.Accepts)
+		}
+		return fmt.Errorf("could not send control %d to service %s: %w Before control[state:%d, accepts:%d]), after[state:%d, accepts:%d] ",
+			cmd, service.Name, err, status.State, status.Accepts, statusAfter.State, statusAfter.Accepts)
+	}
+
+	return doWaitForState(ctx, service, to)
+}
+
+func doStopService(ctx context.Context, service *mgr.Service) error {
+	return doControlService(ctx, service, svc.Stop, svc.Stopped)
 }
 
 // StopService stops a service and any services that depend on it
 func StopService(serviceName string) error {
-
-	deps, err := ListDependentServices(serviceName, windows.SERVICE_ACTIVE)
+	desiredStopAccess := uint32(windows.SERVICE_STOP | windows.SERVICE_QUERY_STATUS | windows.SERVICE_ENUMERATE_DEPENDENTS)
+	manager, service, err := openManagerService(serviceName, desiredStopAccess)
 	if err != nil {
-		return fmt.Errorf("could not list dependent services for %s: %v", serviceName, err)
+		return err
+	}
+	defer closeManagerService(manager, service)
+	return doStopServiceWithDependencies(manager, service, svc.AnyActivity, nil)
+}
+
+// We need to get all dependent services (windows.SERVICE_STATE_ALL) to attempt to stop them,
+// including those that are not RUNNING yet (stopped). It may appears to be strange, but it
+// better handles some edge cases (which more likely during installation or upgrade if
+// Agent configuration is updated immediately after). It may happen if the core agent
+// (datadogagent) service is starting, which in turn will "manually" start dependent services
+// and at the same time, externally, a configuration script would restart agent to make sure
+// that new configuration is applied.
+//
+// In this case, attempting to stop ALL dependent services should handle cases when a
+// dependent service started moments after stop command get list of dependent services and
+// and if it collects only already running dependent services it would miss a chance to get
+// and stop just started dependent services. In this case, as result, restart would fail,
+// the core agent service will not be stopped, and some dependent services may be left
+// running (and some may be stopped), which may lead to unexpected behavior. Certanly, new
+// configuration will not be applied.
+//
+//		For illustration purposes here is an example of one specific race condition:
+//		1. The core agent (datadogagent) service is starting
+//		2. Starting core agent starts trace-agent dependent service
+//		3. Agent's restart-service CLI command started
+//		4. Agent get list all dependent services (e.g., trace-agent, process-agent, system-probe
+//		5. Agent's restart-service CLI command enumerate all dependent services and if they are
+//	    running it will stop them.
+//		6. Just before restart-service CLI command will stop core agent service, the service
+//	    is still starting and it may start trace-agent dependent service.
+//		7. Attempt to stop core agent service will fail because a dependent service is "still" running
+//
+// Callback is invoked to help unit tests to setup race condition in deterministic way
+func doStopServiceWithDependencies(manager *mgr.Mgr, service *mgr.Service,
+	depenStatus svc.ActivityStatus, callback stopServiceCallback) error {
+
+	ctx, cancel := context.WithTimeout(context.Background(), defaultServiceCommandTimeout*time.Second)
+	defer cancel()
+
+	// open dependent services
+	depServiceNames, err := service.ListDependentServices(depenStatus)
+	if err != nil {
+		return fmt.Errorf("could not list dependent services for %s: %v", service.Name, err)
+	}
+	if callback != nil {
+		callback.afterDependentsEnumeration()
+	}
+	var depServices []*mgr.Service
+	for _, depServiceName := range depServiceNames {
+		depService, err := OpenService(manager, depServiceName, windows.SERVICE_STOP|windows.SERVICE_QUERY_STATUS)
+		if err != nil {
+			return fmt.Errorf("could open service %s: %w", depServiceName, err)
+		}
+		depServices = append(depServices, depService)
+		defer depService.Close()
 	}
 
-	for _, dep := range deps {
-		err = doStopService(dep.serviceName)
-		if err != nil {
-			return fmt.Errorf("could not stop service %s: %v", dep.serviceName, err)
+	for {
+		select {
+		case <-ctx.Done():
+			// timed out
+			return fmt.Errorf("could not stop service %s: %w", service.Name, ctx.Err())
+		default:
+			// try to stop dependent and then primary target
+			for i, depService := range depServices {
+				if callback != nil {
+					callback.beforeStopService(depServiceNames[i])
+				}
+				err = doStopService(ctx, depService)
+				if err != nil {
+					return fmt.Errorf("could not stop service %s: %w", depService.Name, err)
+				}
+			}
+
+			if callback != nil {
+				callback.beforeStopService(service.Name)
+			}
+			err = doStopService(ctx, service)
+			if err == nil {
+				return nil
+			}
+			if errors.Is(errors.Unwrap(err), windows.ERROR_DEPENDENT_SERVICES_RUNNING) {
+				// If we are here, it means that some dependent service is still running, try
+				// again hopefully race condition will be resolved in the next iteration.
+				continue
+			}
+
+			return fmt.Errorf("could not stop service %s: %w", service.Name, err)
 		}
 	}
-	return doStopService(serviceName)
 }
 
 // WaitForState waits for the service to become the desired state. A timeout can be specified
 // with a context. Returns nil if/when the service becomes the desired state.
 func WaitForState(ctx context.Context, serviceName string, desiredState svc.State) error {
-	// open handle to service
-	manager, err := OpenSCManager(windows.SC_MANAGER_CONNECT)
+	manager, service, err := openManagerService(serviceName, windows.SERVICE_QUERY_STATUS)
 	if err != nil {
-		return fmt.Errorf("could not open SCM: %v", err)
+		return err
 	}
-	defer manager.Disconnect()
+	defer closeManagerService(manager, service)
 
-	service, err := OpenService(manager, serviceName, windows.SERVICE_QUERY_STATUS)
-	if err != nil {
-		return fmt.Errorf("could not open service %s: %v", serviceName, err)
-	}
-	defer service.Close()
+	return doWaitForState(ctx, service, desiredState)
+}
 
+// WaitForState waits for the service to become the desired state. A timeout can be specified
+// with a context. Returns nil if/when the service becomes the desired state.
+func doWaitForState(ctx context.Context, service *mgr.Service, desiredState svc.State) error {
 	// check if state matches desiredState
 	status, err := service.Query()
 	if err != nil {
-		return fmt.Errorf("could not retrieve service status: %v", err)
+		return fmt.Errorf("could not retrieve service status: %w", err)
 	}
 	if status.State == desiredState {
 		return nil
@@ -171,7 +326,7 @@ func WaitForState(ctx context.Context, serviceName string, desiredState svc.Stat
 		case <-time.After(300 * time.Millisecond):
 			status, err := service.Query()
 			if err != nil {
-				return fmt.Errorf("could not retrieve service status: %v", err)
+				return fmt.Errorf("could not retrieve service status: %w", err)
 			}
 			if status.State == desiredState {
 				return nil
@@ -179,7 +334,7 @@ func WaitForState(ctx context.Context, serviceName string, desiredState svc.Stat
 		case <-ctx.Done():
 			status, err := service.Query()
 			if err != nil {
-				return fmt.Errorf("could not retrieve service status: %v", err)
+				return fmt.Errorf("could not retrieve service status: %w", err)
 			}
 			if status.State == desiredState {
 				return nil
@@ -189,60 +344,53 @@ func WaitForState(ctx context.Context, serviceName string, desiredState svc.Stat
 	}
 }
 
-// RestartService stops a service and thenif the stop was successful starts it again
-func RestartService(serviceName string) error {
-	var err error
-	if err = StopService(serviceName); err == nil {
-		err = StartService(serviceName)
+func doWaitForTransientStateCompletion(ctx context.Context, service *mgr.Service, currentState svc.State) error {
+	if currentState == svc.StartPending {
+		// wait for the service to complete the transition to the SERVICE_RUNNING state
+		err := doWaitForState(ctx, service, svc.Running)
+		if err != nil {
+			return fmt.Errorf("waiting for SERVICE_START_PENDING to transition to SERVICE_RUNNING failed. %w", err)
+		}
+	} else if currentState == svc.StopPending {
+		// wait for the service to complete the transition to the SERVICE_STOPPED state
+		err := doWaitForState(ctx, service, svc.Stopped)
+		if err != nil {
+			return fmt.Errorf("waiting for SERVICE_STOP_PENDING to transition to SERVICE_STOPPED failed: %w", err)
+		}
 	}
-	return err
+
+	return nil
 }
 
-// ListDependentServices returns the services that depend on serviceName
-//
-// https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-enumdependentservicesw
-//
-// when Go has their version, replace ours with the upstream
-// https://github.com/golang/go/issues/56766
-func ListDependentServices(serviceName string, state enumServiceState) ([]EnumServiceStatus, error) {
-	manager, err := OpenSCManager(windows.SC_MANAGER_CONNECT)
+// RestartService stops a service and thenif the stop was successful starts it again
+func RestartService(serviceName string) error {
+	restartFlags := uint32(windows.SERVICE_ENUMERATE_DEPENDENTS | windows.SERVICE_START |
+		windows.SERVICE_STOP | windows.SERVICE_QUERY_STATUS)
+	manager, service, err := openManagerService(serviceName, restartFlags)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	defer manager.Disconnect()
+	defer closeManagerService(manager, service)
 
-	service, err := OpenService(manager, serviceName, windows.SERVICE_ENUMERATE_DEPENDENTS)
-	if err != nil {
-		return nil, fmt.Errorf("could not open service %s: %v", serviceName, err)
+	if err = doStopServiceWithDependencies(manager, service, svc.AnyActivity, nil); err == nil {
+		err = doStartService(service)
 	}
-	defer service.Close()
-
-	deps, err := enumDependentServices(service.Handle, state)
-	if err != nil {
-		return nil, fmt.Errorf("could not enumerate dependent services for %s: %v", serviceName, err)
-	}
-	return deps, nil
+	return err
 }
 
 // IsServiceDisabled returns true if serviceName is disabled
 func IsServiceDisabled(serviceName string) (enabled bool, err error) {
 	enabled = false
 
-	manager, err := OpenSCManager(windows.SC_MANAGER_CONNECT)
+	manager, service, err := openManagerService(serviceName, windows.SERVICE_QUERY_CONFIG)
 	if err != nil {
-		return
+		return enabled, err
 	}
-	defer manager.Disconnect()
-
-	service, err := OpenService(manager, serviceName, windows.SERVICE_QUERY_CONFIG)
-	if err != nil {
-		return enabled, fmt.Errorf("could not open service %s: %v", serviceName, err)
-	}
-	defer service.Close()
+	defer closeManagerService(manager, service)
 
 	serviceConfig, err := service.Config()
 	if err != nil {
-		return enabled, fmt.Errorf("could not retrieve config for %s: %v", serviceName, err)
+		return enabled, fmt.Errorf("could not retrieve config for %s: %w", serviceName, err)
 	}
 	return (serviceConfig.StartType == windows.SERVICE_DISABLED), nil
 }
@@ -251,105 +399,15 @@ func IsServiceDisabled(serviceName string) (enabled bool, err error) {
 func IsServiceRunning(serviceName string) (running bool, err error) {
 	running = false
 
-	manager, err := OpenSCManager(windows.SC_MANAGER_CONNECT)
+	manager, service, err := openManagerService(serviceName, windows.SERVICE_QUERY_STATUS)
 	if err != nil {
-		return
+		return running, err
 	}
-	defer manager.Disconnect()
+	defer closeManagerService(manager, service)
 
-	service, err := OpenService(manager, serviceName, windows.SERVICE_QUERY_STATUS)
+	status, err := service.Query()
 	if err != nil {
-		return running, fmt.Errorf("could not open service %s: %v", serviceName, err)
+		return running, fmt.Errorf("could not retrieve status for %s: %w", serviceName, err)
 	}
-	defer service.Close()
-
-	serviceStatus, err := service.Query()
-	if err != nil {
-		return running, fmt.Errorf("could not retrieve status for %s: %v", serviceName, err)
-	}
-	return (serviceStatus.State == windows.SERVICE_RUNNING), nil
-}
-
-// ServiceStatus reports information pertaining to enumerated services
-// only exported so binary.Read works
-type ServiceStatus struct {
-	DwServiceType             uint32
-	DwCurrentState            uint32
-	DwControlsAccepted        uint32
-	DwWin32ExitCode           uint32
-	DwServiceSpecificExitCode uint32
-	DwCheckPoint              uint32
-	DwWaitHint                uint32
-}
-
-// EnumServiceStatus complete enumerated service information
-// only exported so binary.Read works
-type EnumServiceStatus struct {
-	serviceName string
-	displayName string
-	status      ServiceStatus
-}
-
-type internalEnumServiceStatus struct {
-	ServiceName uint64 // offset from beginning of buffer
-	DisplayName uint64 // offset from beginning of buffer.
-	Status      ServiceStatus
-	Padding     uint32 // structure is qword aligned.
-
-}
-
-func enumDependentServices(h windows.Handle, state enumServiceState) (services []EnumServiceStatus, err error) {
-	services = make([]EnumServiceStatus, 0)
-	var bufsz uint32
-	var count uint32
-	_, _, err = procEnumDependentServices.Call(uintptr(h),
-		uintptr(state),
-		uintptr(0),
-		uintptr(0), // current buffer size is zero
-		uintptr(unsafe.Pointer(&bufsz)),
-		uintptr(unsafe.Pointer(&count)))
-
-	// success with a 0 buffer means no dependent services
-	if err == error(windows.ERROR_SUCCESS) {
-		err = nil
-		return
-	}
-
-	// since the initial buffer sent is 0 bytes, we expect the return code to
-	// always be ERROR_MORE_DATA, unless something went wrong
-	if err != error(windows.ERROR_MORE_DATA) {
-		log.Warnf("Error getting buffer %v", err)
-		return
-	}
-
-	servicearray := make([]uint8, bufsz)
-	ret, _, err := procEnumDependentServices.Call(uintptr(h),
-		uintptr(state),
-		uintptr(unsafe.Pointer(&servicearray[0])),
-		uintptr(bufsz),
-		uintptr(unsafe.Pointer(&bufsz)),
-		uintptr(unsafe.Pointer(&count)))
-	if ret == 0 {
-		log.Warnf("Error getting deps %d %v", int(ret), err)
-		return
-	}
-	// now get to parse out the C structure into go.
-	var ess internalEnumServiceStatus
-	baseptr := uintptr(unsafe.Pointer(&servicearray[0]))
-	buf := bytes.NewReader(servicearray)
-	for i := uint32(0); i < count; i++ {
-
-		err = binary.Read(buf, binary.LittleEndian, &ess)
-		if err != nil {
-			break
-		}
-
-		ess.ServiceName = ess.ServiceName - uint64(baseptr)
-		ess.DisplayName = ess.DisplayName - uint64(baseptr)
-		ss := EnumServiceStatus{serviceName: ConvertWindowsString(servicearray[ess.ServiceName:]),
-			displayName: ConvertWindowsString(servicearray[ess.DisplayName:]),
-			status:      ess.Status}
-		services = append(services, ss)
-	}
-	return
+	return (status.State == windows.SERVICE_RUNNING), nil
 }

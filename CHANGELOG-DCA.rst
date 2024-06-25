@@ -2,10 +2,178 @@
 Release Notes
 =============
 
+.. _Release Notes_7.54.1:
+
+7.54.1 / 6.54.1
+================
+
+.. _Release Notes_7.54.1_Prelude:
+
+Prelude
+-------
+
+Released on: 2024-06-18
+Pinned to datadog-agent v7.54.1: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7541>`_.
+
+.. _Release Notes_7.54.0:
+
+7.54.0 / 6.54.0
+================
+
+.. _Release Notes_7.54.0_Prelude:
+
+Prelude
+-------
+
+Released on: 2024-05-29
+Pinned to datadog-agent v7.54.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7540>`_.
+
+
+.. _Release Notes_7.54.0_New Features:
+
+New Features
+------------
+
+- Add `LimitRange` and `StorageClass` collection in the orchestrator check.
+
+
+.. _Release Notes_7.54.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Added retry mechanism to language detection patcher in order to retry failed patching operations.
+
+
+.. _Release Notes_7.54.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fix collection of numeric rolling update options in Kubernetes deployments
+  and daemonsets.
+
+- Fixed initialization of language expiration time for detected languages.
+
+
+.. _Release Notes_7.53.0:
+
+7.53.0 / 6.53.0
+================
+
+.. _Release Notes_7.53.0_Prelude:
+
+Prelude
+-------
+
+Released on: 2024-04-30
+Pinned to datadog-agent v7.53.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7530>`_.
+
+
+.. _Release Notes_7.53.0_New Features:
+
+New Features
+------------
+
+- APM library injection now works on EKS Fargate when the admission controller
+  is configured to add an Agent sidecar in EKS Fargate.
+
+- Cluster Agent now supports activating Application Security Management, Code Vulnerabilities, and
+  Software Composition Analysis via Helm charts.
+
+
+.. _Release Notes_7.53.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Add the `mutation_webhook` tag to `admission_webhooks.webhooks_received` and `admission_webhooks.response_duration` Cluster Agent telemetry.
+
+- When using the admission controller to inject an Agent sidecar on EKS
+  Fargate, `shareProcessNamespace` is now set to `true` automatically. This is
+  to ensure that the process collection feature works.
+
+
+.. _Release Notes_7.52.0:
+
+7.52.0 / 6.52.0
+================
+
+.. _Release Notes_7.52.0_New Features:
+
+New Features
+------------
+
+- Add agent sidecar injection webhook in `cluster-agent` Kubernetes admission controller. This new webhook adds the Agent as sidecar container in applicative Pods when it is required by the environment. For example with the EKS Fargate environment.
+
+
+.. _Release Notes_7.52.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Introduces a new config option in the Cluster Agent to set the rebalance
+  period when advanced dispatching is enabled:
+  ``cluster_checks.rebalance_period``. The default value is 10 min.
+
+
+.. _Release Notes_7.52.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fix an issue where the admission controller would remove the field `restartPolicy`
+  from native sidecar containers, preventing pod creation on Kubernetes 1.29+.
+
+- Fix missing `kube_api_version` tag on HPA and VPA resources.
+
+
+.. _Release Notes_7.51.0:
+
+7.51.0 / 6.51.0
+================
+
+.. _Release Notes_7.51.0_Prelude:
+
+Prelude
+-------
+
+Released on: 2024-02-19
+Pinned to datadog-agent v7.51.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7510>`_.
+
+.. _Release Notes_7.51.0_New Features:
+
+New Features
+------------
+
+- Enable Horizontal Pod Autoscaler collection for the Orchestrator by default
+
+- Add isolate command to clusterchecks to make it easier to pinpoint
+  a check that that is causing high CPU/memory usage. Command can be
+  run in the cluster agent with:
+  `datadog-cluster-agent clusterchecks isolate --checkID=<checkID>`
+
+
+.. _Release Notes_7.51.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Enable CRD collection by default in the orchestrator check.
+
+
+.. _Release Notes_7.51.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fixes a bug that would trigger unnecessary APIServer `List` requests from the Cluster Agent or Cluster Checks Runner.
+
+
 .. _Release Notes_7.50.1:
 
 7.50.1 / 6.50.1
-======
+================
 
 .. _Release Notes_7.50.1_Bug Fixes:
 
@@ -18,7 +186,7 @@ Bug Fixes
 .. _Release Notes_7.50.0:
 
 7.50.0 / 6.50.0
-======
+================
 
 .. _Release Notes_7.50.0_New Features:
 
@@ -67,7 +235,7 @@ Bug Fixes
 .. _Release Notes_7.49.0:
 
 7.49.0 / 6.49.0
-======
+================
 
 .. _Release Notes_7.49.0_New Features:
 
@@ -107,7 +275,7 @@ Bug Fixes
 .. _Release Notes_7.48.0:
 
 7.48.0 / 6.48.0
-======
+================
 
 .. _Release Notes_7.48.0_New Features:
 
@@ -157,7 +325,7 @@ Bug Fixes
 .. _Release Notes_7.47.0:
 
 7.47.0 / 6.47.0
-======
+================
 
 .. _Release Notes_7.47.0_Upgrade Notes:
 
@@ -203,7 +371,7 @@ Bug Fixes
 .. _Release Notes_7.46.0:
 
 7.46.0 / 6.46.0
-======
+================
 
 .. _Release Notes_7.46.0_New Features:
 
@@ -237,7 +405,7 @@ Bug Fixes
 .. _Release Notes_7.45.0:
 
 7.45.0 / 6.45.0
-======
+================
 
 .. _Release Notes_7.45.0_Enhancement Notes:
 
@@ -270,7 +438,7 @@ Bug Fixes
 .. _Release Notes_7.44.0:
 
 7.44.0 / 6.44.0
-======
+================
 
 .. _Release Notes_7.44.0_New Features:
 
@@ -299,7 +467,7 @@ Enhancement Notes
 .. _Release Notes_7.43.0:
 
 7.43.0 / 6.43.0
-======
+================
 
 .. _Release Notes_7.43.0_New Features:
 
@@ -322,7 +490,7 @@ Bug Fixes
 .. _Release Notes_7.42.0:
 
 7.42.0 / 6.42.0
-======
+================
 
 .. _Release Notes_7.42.0_New Features:
 
@@ -343,7 +511,7 @@ Enhancement Notes
 .. _Release Notes_7.41.0:
 
 7.41.0 / 6.41.0
-======
+================
 
 .. _Release Notes_7.41.0_New Features:
 
@@ -364,7 +532,7 @@ Enhancement Notes
 .. _Release Notes_7.40.0:
 
 7.40.0 / 6.40.0
-======
+================
 
 .. _Release Notes_7.40.0_New Features:
 
@@ -405,7 +573,7 @@ Bug Fixes
 .. _Release Notes_7.39.0:
 
 7.39.0 / 6.39.0
-======
+================
 
 .. _Release Notes_7.39.0_New Features:
 
@@ -458,7 +626,7 @@ Other Notes
 .. _Release Notes_dca-1.22.0_dca-1.22.X:
 
 dca-1.22.0
-======
+==========
 
 .. _Release Notes_dca-1.22.0_dca-1.22.X_Prelude:
 

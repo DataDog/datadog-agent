@@ -1,47 +1,91 @@
+from __future__ import annotations
+
 import getpass
 import os
+import shutil
+import sys
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-from tasks.kernel_matrix_testing.compiler import build_compiler
+from invoke.context import Context
+
+from tasks.kernel_matrix_testing.compiler import get_compiler
 from tasks.kernel_matrix_testing.download import download_rootfs
 from tasks.kernel_matrix_testing.kmt_os import get_kmt_os
-from tasks.kernel_matrix_testing.tool import info
+from tasks.kernel_matrix_testing.tool import Exit, ask, info, is_root
 
-VMCONFIG = "vmconfig.json"
-
-
-def is_root():
-    return os.getuid() == 0
+if TYPE_CHECKING:
+    from tasks.kernel_matrix_testing.types import PathOrStr
 
 
-def get_active_branch_name():
-    head_dir = Path(".") / ".git" / "HEAD"
-    with head_dir.open("r") as f:
-        content = f.read().splitlines()
-
-    for line in content:
-        if line[0:4] == "ref:":
-            return line.partition("refs/heads/")[2].replace("/", "-")
-
-
-def check_and_get_stack(stack):
-    if stack is None:
-        stack = get_active_branch_name()
-
-    if not stack.endswith("-ddvm"):
-        return f"{stack}-ddvm"
-    else:
-        return stack
-
-
-def gen_ssh_key(ctx, kmt_dir):
+def gen_ssh_key(ctx: Context, kmt_dir: PathOrStr):
     ctx.run(f"cp tasks/kernel_matrix_testing/ddvm_rsa {kmt_dir}")
-    ctx.run(f"chmod 400 {kmt_dir}/ddvm_rsa")
+    ctx.run(f"chmod 600 {kmt_dir}/ddvm_rsa")
 
 
-def init_kernel_matrix_testing_system(ctx, lite):
+def init_kernel_matrix_testing_system(ctx: Context, lite: bool, images):
     kmt_os = get_kmt_os()
 
+    info("[+] Installing OS-specific general requirements...")
+    kmt_os.install_requirements(ctx)
+
+    if sys.version_info >= (3, 12):
+        resp = ask("Python 3.12+ is not tested yet with KMT, some packages might not be available. Continue? (y/N)? ")
+        if resp.lower().strip() != "y":
+            raise Exit("Aborted by user")
+
+    reqs_file = Path(__file__).parent / "requirements.txt"
+    ctx.run(f"pip3 install -r {reqs_file.absolute()}")
+
+    if shutil.which("pulumi") is None:
+        if Path("~/.pulumi/bin/pulumi").expanduser().exists():
+            raise Exit("pulumi is installed in ~/.pulumi/bin/pulumi, but not in $PATH. Add it to $PATH.")
+
+        ctx.run("curl -fsSL https://get.pulumi.com | sh")
+        os.environ["PATH"] = f"{os.environ['PATH']}:{os.path.expanduser('~/.pulumi/bin')}"
+
+        if shutil.which("pulumi") is None:
+            raise Exit("pulumi not found in $PATH after installation")
+
+        ctx.run("pulumi login --local")
+
+    repo_root = Path(__file__).parent.parent.parent
+    test_infra_dir = repo_root.parent / "test-infra-definitions"
+
+    if not test_infra_dir.is_dir():
+        resp = ask(
+            f"test-infra-definitions directory not found in {test_infra_dir.absolute()}. Clone the repository? (y/N)? "
+        )
+        if resp.lower().strip() != "y":
+            raise Exit("Aborted by user")
+
+        ctx.run(f"git clone git@github.com:DataDog/test-infra-definitions.git {test_infra_dir}")
+
+    info("[+] Installing pulumi plugins")
+    with ctx.cd(test_infra_dir):
+        ctx.run("go mod download")
+        ctx.run("PULUMI_CONFIG_PASSPHRASE=dummy pulumi --non-interactive plugin install")
+
+    pulumi_test_cmd = "pulumi --non-interactive plugin ls"
+    res = ctx.run(pulumi_test_cmd, warn=True)
+    if res is None or not res.ok:
+        raise Exit(
+            f"Running {pulumi_test_cmd} failed, check that the installation is correct (see tasks/kernel_matrix_testing/README.md)"
+        )
+
+    if not lite:
+        if shutil.which("libvirtd") is None:
+            if Path("/opt/homebrew/sbin/libvirtd").exists():
+                raise Exit(
+                    "libvirtd is installed in /opt/homebrew/sbin/libvirtd, but not in $PATH. /opt/homebrew/sbin should be part of your $PATH variable"
+                )
+            else:
+                raise Exit("libvirtd not found in $PATH, did you run tasks/kernel_matrix_testing/env-setup.sh?")
+
+        info("[+] OS-specific setup")
+        kmt_os.init_local(ctx)
+
+    info("[+] Creating KMT directories")
     sudo = "sudo" if not is_root() else ""
     user = getpass.getuser()
     ctx.run(f"{sudo} install -d -m 0755 -g {kmt_os.libvirt_group} -o {user} {kmt_os.kmt_dir}")
@@ -51,23 +95,17 @@ def init_kernel_matrix_testing_system(ctx, lite):
     ctx.run(f"{sudo} install -d -m 0755 -g {kmt_os.libvirt_group} -o {user} {kmt_os.rootfs_dir}")
     ctx.run(f"{sudo} install -d -m 0755 -g {kmt_os.libvirt_group} -o {user} {kmt_os.shared_dir}")
 
-    if not lite:
-        ## fix libvirt conf
-        ctx.run(
-            f"{sudo} sed --in-place 's/#security_driver = \"selinux\"/security_driver = \"none\"/' {kmt_os.qemu_conf}"
-        )
-        ctx.run(f"{sudo} sed --in-place 's/#user = \"root\"/user = \"{user}\"/' {kmt_os.qemu_conf}")
-        ctx.run(f"{sudo} sed --in-place 's/#group = \"root\"/group = \"kvm\"/' {kmt_os.qemu_conf}")
-
-        kmt_os.restart_libvirtd(ctx, sudo)
-
     # download dependencies
     if not lite:
-        download_rootfs(ctx, kmt_os.rootfs_dir)
-        gen_ssh_key(ctx, kmt_os.kmt_dir)
+        info("[+] Downloading VM images")
+        download_rootfs(ctx, kmt_os.rootfs_dir, "system-probe", arch=None, images=images)
+
+    # Copy the SSH key we use to connect
+    gen_ssh_key(ctx, kmt_os.kmt_dir)
 
     # build docker compile image
+    info("[+] Starting compiler image")
     kmt_os.assert_user_in_docker_group(ctx)
     info(f"[+] User '{os.getlogin()}' in group 'docker'")
 
-    build_compiler(ctx)
+    get_compiler(ctx).start()

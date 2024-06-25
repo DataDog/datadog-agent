@@ -14,15 +14,8 @@ The `Set` method from the component allow the rest of the codebase to add any in
 
 ## Agent Configuration
 
-The agent configurations are scrubbed from any sensitive information (same logic than for the flare).
-This include the following:
-`full_configuration`
-`provided_configuration`
-`file_configuration`
-`environment_variable_configuration`
-`agent_runtime_configuration`
-`remote_configuration`
-`cli_configuration`
+The agent configurations are scrubbed from any sensitive information (same logic than for the flare). The `Format`
+section goes into more default about what configuration is sent.
 
 Sending Agent configuration can be disabled using `inventories_configuration_enabled`.
 
@@ -36,6 +29,7 @@ The payload is a JSON dict with the following fields
 - `agent_metadata` - **dict of string to JSON type**:
   - `hostname_source` - **string**: the source for the agent hostname (see pkg/util/hostname/providers.go:GetWithProvider).
   - `agent_version` - **string**: the version of the Agent.
+  - `agent_startup_time_ms` - **int**: the Agent startup timestamp (Unix milliseconds timestamp).
   - `flavor` - **string**: the flavor of the Agent. The Agent can be build under different flavor such as standalone
     dogstatsd, iot, serverless ... (see `pkg/util/flavor` package).
   - `config_apm_dd_url` - **string**: the configuration value `apm_config.dd_url` (scrubbed)
@@ -47,6 +41,7 @@ The payload is a JSON dict with the following fields
   - `config_process_dd_url` - **string**: the configuration value `process_config.process_dd_url` (scrubbed)
   - `config_proxy_http` - **string**: the configuration value `proxy.http` (scrubbed)
   - `config_proxy_https` - **string**: the configuration value `proxy.https` (scrubbed)
+  - `config_eks_fargate` - **bool**: the configuration value `eks_fargate`
   - `install_method_tool` - **string**: the name of the tool used to install the agent (ie, Chef, Ansible, ...).
   - `install_method_tool_version` - **string**: the tool version used to install the agent (ie: Chef version, Ansible
     version, ...). This defaults to `"undefined"` when not installed through a tool (like when installed with apt, source
@@ -86,6 +81,7 @@ The payload is a JSON dict with the following fields
   - `feature_usm_enabled` - **bool**: True if Universal Service Monitoring is enabled (see: `service_monitoring_config.enabled` config option in `system-probe.yaml`)
   - `feature_usm_http2_enabled` - **bool**: True if HTTP2 monitoring is enabled for Universal Service Monitoring (see: `service_monitoring_config.enable_http2_monitoring` config option in `system-probe.yaml`).
   - `feature_usm_kafka_enabled` - **bool**: True if Kafka monitoring is enabled for Universal Service Monitoring (see: `service_monitoring_config.enable_kafka_monitoring` config option in `system-probe.yaml`)
+  - `feature_usm_postgres_enabled` - **bool**: True if Postgres monitoring is enabled for Universal Service Monitoring (see: `service_monitoring_config.enable_postgres_monitoring` config option in `system-probe.yaml`)
   - `feature_usm_java_tls_enabled` - **bool**: True if HTTPS monitoring through java TLS is enabled for Universal Service Monitoring (see: `service_monitoring_config.tls.java.enabled` config option in `system-probe.yaml`).
   - `feature_usm_go_tls_enabled` - **bool**: True if HTTPS monitoring through GoTLS is enabled for Universal Service Monitoring (see: `service_monitoring_config.tls.go.enabled` config option in `system-probe.yaml`).
   - `feature_dynamic_instrumentation_enabled` - **bool**: True if dynamic instrumentation module is enabled (see: `dynamic_instrumentation.enabled` config option).
@@ -122,6 +118,7 @@ The payload is a JSON dict with the following fields
     Only the settings currently used by Remote Configuration are included, and their value might not match what's applyed by the agent because they can be overriden by other sources.
   - `cli_configuration` - **string**: the Agent configuration specified by the CLI (scrubbed), as a YAML string.
     Only the settings set in the CLI are included, they cannot be overriden by any other sources.
+  - `source_local_configuration` - **string**: the Agent configuration synchronized from the local Agent process, as a YAML string.
   - `ecs_fargate_task_arn` - **string**: if the Agent runs in ECS Fargate, contains the Agent's Task ARN. Else, is empty.
   - `ecs_fargate_cluster_name` - **string**: if the Agent runs in ECS Fargate, contains the Agent's cluster name. Else, is empty.
 
@@ -163,9 +160,11 @@ Here an example of an inventory payload:
         "full_configuration": "<entire yaml configuration for the agent>",
         "provided_configuration": "api_key: \"***************************aaaaa\"\ncheck_runners: 4\ncmd.check.fullsketches: false\ncontainerd_namespace: []\ncontainerd_namespaces: []\npython_version: \"3\"\ntracemalloc_debug: false\nlog_level: \"warn\"",
         "file_configuration": "check_runners: 4\ncmd.check.fullsketches: false\ncontainerd_namespace: []\ncontainerd_namespaces: []\npython_version: \"3\"\ntracemalloc_debug: false",
+        "agent_runtime_configuration": "runtime_block_profile_rate: 5000",
         "environment_variable_configuration": "api_key: \"***************************aaaaa\"",
         "remote_configuration": "log_level: \"debug\"",
-        "cli_configuration": "log_level: \"warn\""
+        "cli_configuration": "log_level: \"warn\"",
+        "source_local_configuration": ""
     }
     "hostname": "my-host",
     "timestamp": 1631281754507358895

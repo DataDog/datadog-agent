@@ -3,15 +3,13 @@
 # For now, the workaround is to include "common" files once in the top-level .gitlab-ci.yml file
 # See: https://gitlab.com/gitlab-org/gitlab/-/issues/28987
 # include:
-#   - /.gitlab/kitchen_common/testing.yml
-#   - /.gitlab/functional_test/common.yml
+#   - .gitlab/kitchen_testing/testing.yml
+#   - .gitlab/functional_test/common.yml
 
 kitchen_test_system_probe_windows_x64:
   extends:
-    - .kitchen_agent_a7
-    - .kitchen_os_windows
     - .kitchen_test_system_probe
-    - .kitchen_azure_x64
+    - .kitchen_os_windows
     - .kitchen_azure_location_north_central_us
   stage: functional_test
   needs: [ "tests_windows_sysprobe_x64" ]

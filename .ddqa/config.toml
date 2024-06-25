@@ -1,73 +1,66 @@
 global_config_source = "aHR0cHM6Ly9yYXcuZ2l0aHVidXNlcmNvbnRlbnQuY29tL0RhdGFEb2cvZ2l0aHViLW1ldGFkYXRhL21hc3Rlci9qaXJhLnRvbWw="
-qa_statuses = [
-  "To Do",
-  "In Progress",
-  "Done",
-]
-ignored_labels = [
-  "qa/done",
-  "qa/no-code-change",
-]
+qa_statuses = ["To Do", "In Progress", "Done"]
+ignored_labels = ["qa/done", "qa/no-code-change"]
 
 [teams."Agent Metrics Logs"]
 jira_project = "AMLII"
 jira_issue_type = "Task"
-jira_statuses = [
-  "To Do",
-  "In Progress",
-  "Done",
-]
+jira_statuses = ["To Do", "In Progress", "Done"]
 github_team = "agent-metrics-logs"
 github_labels = ["team/agent-metrics-logs"]
 exclude_members = ["olivielpeau"]
 
+[teams."Agent Processing and Routing"]
+jira_project = "APR"
+jira_issue_type = "Task"
+jira_statuses = ["To Do", "In Progress", "Done"]
+github_team = "agent-processing-and-routing"
+github_labels = ["team/agent-processing-and-routing"]
+exclude_members = []
+
 [teams."Agent Shared Components"]
 jira_project = "ASCII"
 jira_issue_type = "QA"
-jira_statuses = [
-  "To Do",
-  "In Progress",
-  "Done",
-]
+jira_statuses = ["To Do", "In Progress", "Done"]
 github_team = "agent-shared-components"
 github_labels = ["team/agent-shared-components"]
-exclude_members = [
-  "sgnn7",
-  "truthbk",
-  "cmourot",
-]
+exclude_members = ["sgnn7", "truthbk", "cmourot"]
 
-[teams."Agent Platform"]
-jira_project = "APL"
+[teams."Agent Developer Tools"]
+jira_project = "ADXT"
 jira_issue_type = "QA"
-jira_statuses = [
-  "To Do",
-  "In Progress",
-  "Done",
-]
-github_team = "agent-platform"
-github_labels = ["team/agent-platform"]
-exclude_members = ["olivielpeau"]
+jira_statuses = ["To Do", "In Progress", "Done"]
+github_team = "agent-devx-loops"
+github_labels = ["team/agent-devx-loops"]
+exclude_members = []
+
+[teams."Agent CI Experience"]
+jira_project = "ACIX"
+jira_issue_type = "QA"
+jira_statuses = ["To Do", "In Progress", "Done"]
+github_team = "agent-devx-infra"
+github_labels = ["team/agent-devx-infra"]
+exclude_members = []
+
+[teams."Agent Build and Releases Experience"]
+jira_project = "BARX"
+jira_issue_type = "Task"
+jira_statuses = ["To Do", "In Progress", "Done"]
+github_team = "agent-delivery"
+github_labels = ["team/agent-delivery"]
+exclude_members = ["hithwen"]
 
 [teams."Universal Service Monitoring"]
 jira_project = "USMON"
 jira_issue_type = "Task"
-jira_statuses = [
-  "To Do",
-  "In Progress",
-  "Done",
-]
+jira_statuses = ["To Do", "In Progress", "Done"]
 github_team = "universal-service-monitoring"
 github_labels = ["team/usm"]
 
 [teams."Network Device Monitoring"]
 jira_project = "NDMII"
 jira_issue_type = "Task"
-jira_statuses = [
-  "To Do",
-  "In Progress",
-  "Done",
-]
+jira_statuses = ["To Do", "In Progress", "Done"]
 github_team = "network-device-monitoring"
 github_labels = ["team/network-device-monitoring"]
 exclude_members = ["leeavital", "heyronhay"]
@@ -75,207 +68,150 @@ exclude_members = ["leeavital", "heyronhay"]
 [teams."Network Performance Monitoring"]
 jira_project = "NPM"
 jira_issue_type = "Task"
-jira_statuses = [
-  "Backlog",
-  "In Progress",
-  "Done",
-]
+jira_statuses = ["Backlog", "In Progress", "Done"]
 github_team = "networks"
 github_labels = ["team/networks"]
 
 [teams."OpenTelemetry"]
 jira_project = "OTEL"
 jira_issue_type = "Task"
-jira_statuses = [
-  "To Do",
-  "In Progress",
-  "Done",
-]
+jira_statuses = ["To Do", "In Progress", "Done"]
 github_team = "opentelemetry"
 github_labels = ["team/opentelemetry"]
 
 [teams."eBPF Platform"]
 jira_project = "EBPF"
 jira_issue_type = "Task"
-jira_statuses = [
-  "To Do",
-  "In Progress",
-  "Done",
-]
+jira_statuses = ["To Do", "In Progress", "Done"]
 github_team = "ebpf-platform"
 github_labels = ["team/ebpf-platform"]
 
 [teams."Agent Integrations"]
 jira_project = "AI"
 jira_issue_type = "Task"
-jira_statuses = [
-  "Backlog",
-  "In Progress",
-  "Done",
-]
+jira_statuses = ["Backlog", "In Progress", "Done"]
 github_team = "agent-integrations"
 github_labels = ["team/integrations"]
-exclude_members = [
-  "ofek",
-  "alopezz",
-]
+exclude_members = ["ofek", "alopezz"]
 
 [teams."Platform Integrations"]
 jira_project = "PLINT"
 jira_issue_type = "Task"
-jira_statuses = [
-  "To Do",
-  "In Progress",
-  "Done",
-]
+jira_statuses = ["To Do", "In Progress", "Done"]
 github_team = "platform-integrations"
 github_labels = ["team/platform-integrations"]
-exclude_members = [
-  "hithwen",
-]
+exclude_members = ["hithwen"]
 
 [teams."APM"]
-jira_project = "AIT"
+jira_project = "APMSP"
 jira_component = "Trace Agent"
 jira_issue_type = "Task"
-jira_statuses = [
-  "Backlog",
-  "In Progress",
-  "Done",
-]
-github_team = "apm-go"
+jira_statuses = ["Backlog", "In Progress", "Done"]
+github_team = "agent-apm"
 github_labels = ["team/agent-apm"]
 
 [teams."Remote Config"]
 jira_project = "RC"
 jira_issue_type = "QA"
-jira_statuses = [
-  "To Do",
-  "In Progress",
-  "Done",
-]
+jira_statuses = ["To Do", "In Progress", "Done"]
 github_team = "remote-config"
 github_labels = ["team/remote-config"]
+
+[teams."Fleet Automation"]
+jira_project = "FA"
+jira_issue_type = "QA"
+jira_statuses = ["To Do", "In Progress", "Done"]
+github_team = "Fleet"
+github_labels = ["team/fleet-automation"]
 
 [teams."Container Integrations"]
 jira_project = "CONTINT"
 jira_issue_type = "Task"
-jira_statuses = [
-  "To Do",
-  "In Progress",
-  "Done",
-]
+jira_statuses = ["To Do", "In Progress", "Done"]
 github_team = "container-integrations"
 github_labels = ["team/containers"]
+exclude_members = ["clamoriniere"]
+
+[teams."Container Platform"]
+jira_project = "CONTP"
+jira_issue_type = "Task"
+jira_statuses = ["To Do", "In Progress", "Done"]
+github_team = "container-platform"
+github_labels = ["team/container-platform"]
+exclude_members = ["clamoriniere"]
 
 [teams."Container Ecosystems"]
 jira_project = "CECO"
 jira_issue_type = "Task"
-jira_statuses = [
-  "To Do",
-  "In Progress",
-  "Done",
-]
+jira_statuses = ["To Do", "In Progress", "Done"]
 github_team = "container-ecosystems"
 github_labels = ["team/container-ecosystems"]
 
 [teams."Security And Compliance Agent"]
-jira_project = "SEC"
-jira_component = "CWS Agent"
+jira_project = "CWS"
+jira_component = "Agent"
 jira_issue_type = "Task"
-jira_statuses = [
-  "To Do",
-  "In Progress",
-  "Done",
-]
+jira_statuses = ["To Do", "In Progress", "Done"]
 github_team = "agent-security"
 github_labels = ["team/agent-security"]
+exclude_members = [
+  "jinroh",
+  "0intro",
+]
 
 [teams."CSPM Agent"]
 jira_project = "SEC"
 jira_component = "CSPM Agent"
 jira_issue_type = "Task"
-jira_statuses = [
-  "To Do",
-  "In Progress",
-  "Done",
-]
+jira_statuses = ["To Do", "In Progress", "Done"]
 github_team = "agent-cspm"
 github_labels = ["team/agent-cspm"]
 
 [teams."Processes"]
 jira_project = "PROCS"
 jira_issue_type = "Task"
-jira_statuses = [
-  "TRIAGE",
-  "In Progress",
-  "Done",
-]
+jira_statuses = ["TRIAGE", "In Progress", "Done"]
 github_team = "processes"
 github_labels = ["team/processes"]
 
 [teams."Windows Agent"]
 jira_project = "WINA"
 jira_issue_type = "QA Task"
-jira_statuses = [
-  "To Do",
-  "In Progress",
-  "Done",
-]
+jira_statuses = ["To Do", "In Progress", "Done"]
 github_team = "windows-agent"
 github_labels = ["team/windows-agent"]
 
 [teams."Windows Kernel Integrations"]
 jira_project = "WKINT"
 jira_issue_type = "Task"
-jira_statuses = [
-  "To Do",
-  "In Progress",
-  "Done",
-]
+jira_statuses = ["To Do", "In Progress", "Done"]
 github_team = "windows-kernel-integrations"
 github_labels = ["team/windows-kernel-integrations"]
 
 [teams."Database Monitoring"]
 jira_project = "DBMON"
 jira_issue_type = "Task"
-jira_statuses = [
-  "Eventually",
-  "In Progress",
-  "Done",
-]
+jira_statuses = ["Eventually", "In Progress", "Done"]
 github_team = "database-monitoring"
 github_labels = ["team/database-monitoring"]
 
 [teams."Container App"]
 jira_project = "CAP"
 jira_issue_type = "Task"
-jira_statuses = [
-  "💼 To Do",
-  "💡 In Progress",
-  "✅ Done",
-]
+jira_statuses = ["💼 To Do", "💡 In Progress", "✅ Done"]
 github_team = "container-app"
 github_labels = ["team/container-app"]
 
 [teams."APM Onboarding"]
 jira_project = "APMON"
 jira_issue_type = "Story"
-jira_statuses = [
-  "Selected For Development",
-  "In Progress",
-  "Done",
-]
+jira_statuses = ["Selected For Development", "In Progress", "Done"]
 github_team = "apm-onboarding"
 github_labels = ["team/apm-onboarding"]
 
 [teams."Agent Release Management"]
 jira_project = "AGNTR"
 jira_issue_type = "Task"
-jira_statuses = [
-  "To Do",
-  "In Progress",
-  "Done",
-]
+jira_statuses = ["To Do", "In Progress", "Done"]
 github_team = "agent-release-management"
 github_labels = ["team/agent-release-management"]

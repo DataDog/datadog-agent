@@ -4,12 +4,14 @@
 // Copyright 2016-present Datadog, Inc.
 
 //nolint:revive // TODO(PROC) Fix revive linter
-package app
+package check
 
 import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"slices"
+	"strings"
 	"time"
 
 	"github.com/fatih/color"
@@ -26,9 +28,15 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
+	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector"
+	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl"
 	processComponent "github.com/DataDog/datadog-agent/comp/process"
 	"github.com/DataDog/datadog-agent/comp/process/hostinfo"
 	"github.com/DataDog/datadog-agent/comp/process/types"
@@ -39,17 +47,17 @@ import (
 
 const defaultWaitInterval = time.Second
 
-type cliParams struct {
+type CliParams struct {
 	*command.GlobalParams
 	checkName       string
 	checkOutputJSON bool
 	waitInterval    time.Duration
 }
 
-type dependencies struct {
+type Dependencies struct {
 	fx.In
 
-	CliParams *cliParams
+	CliParams *CliParams
 
 	Config   config.Component
 	Syscfg   sysprobeconfig.Component
@@ -60,6 +68,7 @@ type dependencies struct {
 	// lifecycle.
 	Tagger       tagger.Component
 	WorkloadMeta workloadmeta.Component
+	NpCollector  npcollector.Component
 	Checks       []types.CheckComponent `group:"check"`
 }
 
@@ -73,30 +82,50 @@ func nextGroupID() func() int32 {
 
 // Commands returns a slice of subcommands for the `check` command in the Process Agent
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
-	cliParams := &cliParams{
-		GlobalParams: globalParams,
+	checkAllowlist := []string{"process", "rtprocess", "container", "rtcontainer", "connections", "process_discovery", "process_events"}
+	return []*cobra.Command{MakeCommand(func() *command.GlobalParams {
+		return &command.GlobalParams{
+			ConfFilePath:         globalParams.ConfFilePath,
+			ExtraConfFilePath:    globalParams.ExtraConfFilePath,
+			SysProbeConfFilePath: globalParams.SysProbeConfFilePath,
+		}
+	}, "check", checkAllowlist)}
+}
+
+func MakeCommand(globalParamsGetter func() *command.GlobalParams, name string, allowlist []string) *cobra.Command {
+	cliParams := &CliParams{
+		GlobalParams: globalParamsGetter(),
 	}
 
 	checkCmd := &cobra.Command{
-		Use:   "check",
-		Short: "Run a specific check and print the results. Choose from: process, rtprocess, container, rtcontainer, connections, process_discovery, process_events",
+		Use:   name,
+		Short: "Run a specific check and print the results. Choose from: " + strings.Join(allowlist, ", "),
 
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cliParams.checkName = args[0]
 
-			bundleParams := command.GetCoreBundleParamsForOneShot(globalParams)
+			if !slices.Contains(allowlist, cliParams.checkName) {
+				return fmt.Errorf("invalid check '%s'", cliParams.checkName)
+			}
+
+			bundleParams := command.GetCoreBundleParamsForOneShot(globalParamsGetter())
 
 			// Disable logging if `--json` is specified. This way the check command will output proper json.
 			if cliParams.checkOutputJSON {
 				bundleParams.LogParams = logimpl.ForOneShot(string(command.LoggerName), "off", true)
 			}
 
-			return fxutil.OneShot(runCheckCmd,
+			return fxutil.OneShot(RunCheckCmd,
 				fx.Supply(cliParams, bundleParams),
 				core.Bundle(),
 				// Provide workloadmeta module
-				workloadmeta.Module(),
+				workloadmetafx.Module(),
+				// Provide eventplatformimpl module
+				eventplatformreceiverimpl.Module(),
+				eventplatformimpl.Module(),
+				fx.Supply(eventplatformimpl.NewDefaultParams()),
+				npcollectorimpl.Module(),
 				// Provide the corresponding workloadmeta Params to configure the catalog
 				collectors.GetCatalog(),
 				fx.Provide(func(config config.Component) workloadmeta.Params {
@@ -112,7 +141,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				}),
 
 				// Provide tagger module
-				tagger.Module(),
+				taggerimpl.Module(),
 				// Tagger must be initialized after agent config has been setup
 				fx.Provide(func(c config.Component) tagger.Params {
 					if c.GetBool("process_config.remote_tagger") {
@@ -129,10 +158,10 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	checkCmd.Flags().BoolVar(&cliParams.checkOutputJSON, "json", false, "Output check results in JSON")
 	checkCmd.Flags().DurationVarP(&cliParams.waitInterval, "wait", "w", defaultWaitInterval, "How long to wait before running the check")
 
-	return []*cobra.Command{checkCmd}
+	return checkCmd
 }
 
-func runCheckCmd(deps dependencies) error {
+func RunCheckCmd(deps Dependencies) error {
 	command.SetHostMountEnv(deps.Log)
 
 	// Now that the logger is configured log host info
@@ -158,7 +187,6 @@ func runCheckCmd(deps dependencies) error {
 			MaxConnsPerMessage:   deps.Syscfg.SysProbeObject().MaxConnsPerMessage,
 			SystemProbeAddress:   deps.Syscfg.SysProbeObject().SocketAddress,
 			ProcessModuleEnabled: processModuleEnabled,
-			GRPCServerEnabled:    deps.Syscfg.SysProbeObject().GRPCServerEnabled,
 		}
 
 		if !matchingCheck(deps.CliParams.checkName, ch) {
@@ -185,7 +213,7 @@ func matchingCheck(checkName string, ch checks.Check) bool {
 	return ch.Name() == checkName
 }
 
-func runCheck(log log.Component, cliParams *cliParams, ch checks.Check) error {
+func runCheck(log log.Component, cliParams *CliParams, ch checks.Check) error {
 	nextGroupID := nextGroupID()
 
 	options := &checks.RunOptions{

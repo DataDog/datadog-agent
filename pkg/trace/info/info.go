@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package info exposes internal information about the trace-agent.
 package info
 
 import (
@@ -72,8 +73,13 @@ const (
     {{end}}
 
   {{end}}
+  {{if .Status.Config.ProbabilisticSamplerEnabled}}
+  Probabilistic sampling percentage: {{.Status.Config.ProbabilisticSamplerSamplingPercentage}}%
+  Probabilistic sampler hash seed: {{.Status.Config.ProbabilisticSamplerHashSeed}}
+  {{ else }}
   {{ range $key, $value := .Status.RateByService }}
   Priority sampling rate for '{{ $key }}': {{percent $value}} %
+  {{ end }}
   {{ end }}
 
   --- Writer stats (1 min) ---

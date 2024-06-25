@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !windows
-
 package file
 
 import (
@@ -22,9 +20,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/status"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
+	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 )
 
 var chanSize = 10
@@ -45,7 +43,7 @@ func (suite *TailerTestSuite) SetupTest() {
 	var err error
 	suite.testDir = suite.T().TempDir()
 
-	suite.testPath = fmt.Sprintf("%s/tailer.log", suite.testDir)
+	suite.testPath = filepath.Join(suite.testDir, "tailer.log")
 	f, err := os.Create(suite.testPath)
 	suite.Nil(err)
 	suite.testFile = f
@@ -107,7 +105,7 @@ func (suite *TailerTestSuite) TestTialerTimeDurationConfig() {
 	// To satisfy the suite level tailer
 	suite.tailer.StartFromBeginning()
 
-	coreConfig.Datadog.SetWithoutSource("logs_config.close_timeout", 42)
+	coreConfig.Datadog().SetWithoutSource("logs_config.close_timeout", 42)
 	sleepDuration := 10 * time.Millisecond
 	info := status.NewInfoRegistry()
 
@@ -249,7 +247,9 @@ func (suite *TailerTestSuite) TestWithBlanklines() {
 
 func (suite *TailerTestSuite) TestTailerIdentifier() {
 	suite.tailer.StartFromBeginning()
-	suite.Equal(fmt.Sprintf("file:%s/tailer.log", suite.testDir), suite.tailer.Identifier())
+	suite.Equal(
+		fmt.Sprintf("file:%s", filepath.Join(suite.testDir, "tailer.log")),
+		suite.tailer.Identifier())
 }
 
 func (suite *TailerTestSuite) TestOriginTagsWhenTailingFiles() {
@@ -260,9 +260,10 @@ func (suite *TailerTestSuite) TestOriginTagsWhenTailingFiles() {
 	suite.Nil(err)
 
 	msg := <-suite.outputChan
-	tags := msg.Origin.Tags()
+	tags := msg.Tags()
 	suite.ElementsMatch([]string{
 		"filename:" + filepath.Base(suite.testFile.Name()),
+		"dirname:" + filepath.Dir(suite.testFile.Name()),
 	}, tags)
 }
 
@@ -290,7 +291,7 @@ func (suite *TailerTestSuite) TestDirTagWhenTailingFiles() {
 	suite.Nil(err)
 
 	msg := <-suite.outputChan
-	tags := msg.Origin.Tags()
+	tags := msg.Tags()
 	suite.ElementsMatch([]string{
 		"filename:" + filepath.Base(suite.testFile.Name()),
 		"dirname:" + filepath.Dir(suite.testFile.Name()),
@@ -320,6 +321,7 @@ func (suite *TailerTestSuite) TestBuildTagsFileOnly() {
 	tags := suite.tailer.buildTailerTags()
 	suite.ElementsMatch([]string{
 		"filename:" + filepath.Base(suite.testFile.Name()),
+		"dirname:" + filepath.Dir(suite.testFile.Name()),
 	}, tags)
 }
 

@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
+	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config/fetcher"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
@@ -65,6 +66,15 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 
 	cmd.AddCommand(
 		&cobra.Command{
+			Use:   "by-source",
+			Short: "Show the runtime configuration by source (ie: default, config file, env vars, ...)",
+			Long:  ``,
+			RunE:  oneShotRunE(showRuntimeConfigurationBySource),
+		},
+	)
+
+	cmd.AddCommand(
+		&cobra.Command{
 			Use:   "list-runtime",
 			Short: "List settings that can be changed at runtime",
 			Long:  ``,
@@ -97,7 +107,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 func getClient(sysprobeconfig sysprobeconfig.Component) (settings.Client, error) {
 	cfg := sysprobeconfig.SysProbeObject()
 	hc := client.Get(cfg.SocketAddress)
-	return settingshttp.NewClient(hc, "http://localhost/config", "system-probe"), nil
+	return settingshttp.NewClient(hc, "http://localhost/config", "system-probe", settingshttp.NewHTTPClientOptions(util.LeaveConnectionOpen)), nil
 }
 
 func showRuntimeConfiguration(sysprobeconfig sysprobeconfig.Component, _ *cliParams) error {
@@ -107,6 +117,22 @@ func showRuntimeConfiguration(sysprobeconfig sysprobeconfig.Component, _ *cliPar
 	}
 
 	fmt.Println(runtimeConfig)
+
+	return nil
+}
+
+func showRuntimeConfigurationBySource(sysprobeconfig sysprobeconfig.Component, _ *cliParams) error {
+	c, err := getClient(sysprobeconfig)
+	if err != nil {
+		return err
+	}
+
+	config, err := c.FullConfigBySource()
+	if err != nil {
+		return err
+	}
+
+	fmt.Println(config)
 
 	return nil
 }

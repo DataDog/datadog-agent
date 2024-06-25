@@ -5,7 +5,6 @@
 
 //go:build trivy
 
-// Package util contains utility functions for image metadata collection
 package util
 
 import (
@@ -14,8 +13,10 @@ import (
 	"testing"
 
 	"github.com/CycloneDX/cyclonedx-go"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	trivycore "github.com/aquasecurity/trivy/pkg/sbom/core"
 	trivydx "github.com/aquasecurity/trivy/pkg/sbom/cyclonedx"
+
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 )
 
 func Test_UpdateSBOMRepoMetadata(t *testing.T) {
@@ -74,8 +75,8 @@ func Test_UpdateSBOMRepoMetadata(t *testing.T) {
 						Metadata: &cyclonedx.Metadata{
 							Component: &cyclonedx.Component{
 								Properties: &[]cyclonedx.Property{
-									{Name: trivydx.Namespace + trivydx.PropertyRepoDigest, Value: "digest2"},
-									{Name: trivydx.Namespace + trivydx.PropertyRepoTag, Value: "tag2"},
+									{Name: trivydx.Namespace + trivycore.PropertyRepoDigest, Value: "digest2"},
+									{Name: trivydx.Namespace + trivycore.PropertyRepoTag, Value: "tag2"},
 								},
 							},
 						},
@@ -90,10 +91,10 @@ func Test_UpdateSBOMRepoMetadata(t *testing.T) {
 					Metadata: &cyclonedx.Metadata{
 						Component: &cyclonedx.Component{
 							Properties: &[]cyclonedx.Property{
-								{Name: trivydx.Namespace + trivydx.PropertyRepoDigest, Value: "digest1"},
-								{Name: trivydx.Namespace + trivydx.PropertyRepoDigest, Value: "digest2"},
-								{Name: trivydx.Namespace + trivydx.PropertyRepoTag, Value: "tag1"},
-								{Name: trivydx.Namespace + trivydx.PropertyRepoTag, Value: "tag2"},
+								{Name: trivydx.Namespace + trivycore.PropertyRepoDigest, Value: "digest1"},
+								{Name: trivydx.Namespace + trivycore.PropertyRepoDigest, Value: "digest2"},
+								{Name: trivydx.Namespace + trivycore.PropertyRepoTag, Value: "tag1"},
+								{Name: trivydx.Namespace + trivycore.PropertyRepoTag, Value: "tag2"},
 							},
 						},
 					},
@@ -109,8 +110,8 @@ func Test_UpdateSBOMRepoMetadata(t *testing.T) {
 						Metadata: &cyclonedx.Metadata{
 							Component: &cyclonedx.Component{
 								Properties: &[]cyclonedx.Property{
-									{Name: trivydx.Namespace + trivydx.PropertyRepoTag, Value: "tag1"},
-									{Name: trivydx.Namespace + trivydx.PropertyRepoDigest, Value: "digest1"},
+									{Name: trivydx.Namespace + trivycore.PropertyRepoTag, Value: "tag1"},
+									{Name: trivydx.Namespace + trivycore.PropertyRepoDigest, Value: "digest1"},
 								},
 							},
 						},
@@ -125,8 +126,8 @@ func Test_UpdateSBOMRepoMetadata(t *testing.T) {
 					Metadata: &cyclonedx.Metadata{
 						Component: &cyclonedx.Component{
 							Properties: &[]cyclonedx.Property{
-								{Name: trivydx.Namespace + trivydx.PropertyRepoDigest, Value: "digest1"},
-								{Name: trivydx.Namespace + trivydx.PropertyRepoTag, Value: "tag1"},
+								{Name: trivydx.Namespace + trivycore.PropertyRepoDigest, Value: "digest1"},
+								{Name: trivydx.Namespace + trivycore.PropertyRepoTag, Value: "tag1"},
 							},
 						},
 					},
@@ -142,8 +143,8 @@ func Test_UpdateSBOMRepoMetadata(t *testing.T) {
 						Metadata: &cyclonedx.Metadata{
 							Component: &cyclonedx.Component{
 								Properties: &[]cyclonedx.Property{
-									{Name: trivydx.Namespace + trivydx.PropertyRepoTag, Value: "tag1"},
-									{Name: trivydx.Namespace + trivydx.PropertyRepoDigest, Value: "digest1"},
+									{Name: trivydx.Namespace + trivycore.PropertyRepoTag, Value: "tag1"},
+									{Name: trivydx.Namespace + trivycore.PropertyRepoDigest, Value: "digest1"},
 								},
 							},
 						},
@@ -157,7 +158,7 @@ func Test_UpdateSBOMRepoMetadata(t *testing.T) {
 					Metadata: &cyclonedx.Metadata{
 						Component: &cyclonedx.Component{
 							Properties: &[]cyclonedx.Property{
-								{Name: trivydx.Namespace + trivydx.PropertyRepoDigest, Value: "digest1"},
+								{Name: trivydx.Namespace + trivycore.PropertyRepoDigest, Value: "digest1"},
 							},
 						},
 					},
@@ -173,9 +174,9 @@ func Test_UpdateSBOMRepoMetadata(t *testing.T) {
 						Metadata: &cyclonedx.Metadata{
 							Component: &cyclonedx.Component{
 								Properties: &[]cyclonedx.Property{
-									{Name: trivydx.Namespace + trivydx.PropertyRepoTag, Value: "tag1"},
+									{Name: trivydx.Namespace + trivycore.PropertyRepoTag, Value: "tag1"},
 									{Name: "prop1", Value: "tag1"},
-									{Name: trivydx.Namespace + trivydx.PropertyRepoDigest, Value: "digest1"},
+									{Name: trivydx.Namespace + trivycore.PropertyRepoDigest, Value: "digest1"},
 								},
 							},
 						},
@@ -189,7 +190,7 @@ func Test_UpdateSBOMRepoMetadata(t *testing.T) {
 					Metadata: &cyclonedx.Metadata{
 						Component: &cyclonedx.Component{
 							Properties: &[]cyclonedx.Property{
-								{Name: trivydx.Namespace + trivydx.PropertyRepoDigest, Value: "digest1"},
+								{Name: trivydx.Namespace + trivycore.PropertyRepoDigest, Value: "digest1"},
 								{Name: "prop1", Value: "tag1"},
 							},
 						},

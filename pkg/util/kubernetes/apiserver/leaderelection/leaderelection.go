@@ -16,7 +16,7 @@ import (
 	"sync"
 	"time"
 
-	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	configmaplock "github.com/DataDog/datadog-agent/internal/third_party/client-go/tools/leaderelection/resourcelock"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
@@ -75,9 +75,9 @@ type LeaderEngine struct {
 func newLeaderEngine(ctx context.Context) *LeaderEngine {
 	return &LeaderEngine{
 		ctx:             ctx,
-		LeaseName:       config.Datadog.GetString("leader_lease_name"),
+		LeaseName:       config.Datadog().GetString("leader_lease_name"),
 		LeaderNamespace: common.GetResourcesNamespace(),
-		ServiceName:     config.Datadog.GetString("cluster_agent.kubernetes_service_name"),
+		ServiceName:     config.Datadog().GetString("cluster_agent.kubernetes_service_name"),
 		leaderMetric:    metrics.NewLeaderMetric(),
 		subscribers:     []chan struct{}{},
 		LeaseDuration:   defaultLeaderLeaseDuration,
@@ -88,7 +88,7 @@ func newLeaderEngine(ctx context.Context) *LeaderEngine {
 // It is ONLY to be used for tests
 func ResetGlobalLeaderEngine() {
 	globalLeaderEngine = nil
-	telemetryComponent.GetCompatComponent().Reset()
+	telemetryimpl.GetCompatComponent().Reset()
 }
 
 // Initialize initializes the leader engine
@@ -139,7 +139,7 @@ func (le *LeaderEngine) init() error {
 	}
 	log.Debugf("Init LeaderEngine with HolderIdentity: %q", le.HolderIdentity)
 
-	leaseDuration := config.Datadog.GetInt("leader_lease_duration")
+	leaseDuration := config.Datadog().GetInt("leader_lease_duration")
 	if leaseDuration > 0 {
 		le.LeaseDuration = time.Duration(leaseDuration) * time.Second
 	} else {
@@ -307,7 +307,7 @@ func detectLeases(client discovery.DiscoveryInterface) (bool, error) {
 // CanUseLeases returns if leases can be used for leader election. If the resource is defined in the config
 // It uses it. Otherwise it uses the discovery client for leader election.
 func CanUseLeases(client discovery.DiscoveryInterface) (bool, error) {
-	resourceType := config.Datadog.GetString("leader_election_default_resource")
+	resourceType := config.Datadog().GetString("leader_election_default_resource")
 	if resourceType == "lease" || resourceType == "leases" {
 		return true, nil
 	} else if resourceType == "configmap" || resourceType == "configmaps" {
@@ -323,7 +323,7 @@ func CanUseLeases(client discovery.DiscoveryInterface) (bool, error) {
 
 func getLeaseLeaderElectionRecord(client coordinationv1.CoordinationV1Interface) (rl.LeaderElectionRecord, error) {
 	var empty rl.LeaderElectionRecord
-	lease, err := client.Leases(common.GetResourcesNamespace()).Get(context.TODO(), config.Datadog.GetString("leader_lease_name"), metav1.GetOptions{})
+	lease, err := client.Leases(common.GetResourcesNamespace()).Get(context.TODO(), config.Datadog().GetString("leader_lease_name"), metav1.GetOptions{})
 	if err != nil {
 		return empty, err
 	}
@@ -334,7 +334,7 @@ func getLeaseLeaderElectionRecord(client coordinationv1.CoordinationV1Interface)
 
 func getConfigMapLeaderElectionRecord(client corev1.CoreV1Interface) (rl.LeaderElectionRecord, error) {
 	var led rl.LeaderElectionRecord
-	leaderElectionCM, err := client.ConfigMaps(common.GetResourcesNamespace()).Get(context.TODO(), config.Datadog.GetString("leader_lease_name"), metav1.GetOptions{})
+	leaderElectionCM, err := client.ConfigMaps(common.GetResourcesNamespace()).Get(context.TODO(), config.Datadog().GetString("leader_lease_name"), metav1.GetOptions{})
 	if err != nil {
 		return led, err
 	}

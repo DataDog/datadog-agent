@@ -10,6 +10,7 @@ package docker
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -25,11 +26,10 @@ import (
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/errors"
-	"github.com/DataDog/datadog-agent/pkg/sbom"
+	errorspkg "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/sbom/scanner"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -66,7 +66,6 @@ type collector struct {
 
 	// SBOM Scanning
 	sbomScanner *scanner.Scanner //nolint: unused
-	scanOptions sbom.ScanOptions //nolint: unused
 }
 
 // NewCollector returns a new docker collector provider and an error
@@ -86,7 +85,7 @@ func GetFxOptions() fx.Option {
 
 func (c *collector) Start(ctx context.Context, store workloadmeta.Component) error {
 	if !config.IsFeaturePresent(config.Docker) {
-		return errors.NewDisabled(componentName, "Agent is not running on Docker")
+		return errorspkg.NewDisabled(componentName, "Agent is not running on Docker")
 	}
 
 	c.store = store
@@ -179,7 +178,11 @@ func (c *collector) stream(ctx context.Context) {
 }
 
 func (c *collector) generateEventsFromContainerList(ctx context.Context, filter *containers.Filter) error {
-	containers, err := c.dockerUtil.RawContainerListWithFilter(ctx, container.ListOptions{}, filter)
+	if c.store == nil {
+		return errors.New("Start was not called")
+	}
+
+	containers, err := c.dockerUtil.RawContainerListWithFilter(ctx, container.ListOptions{}, filter, c.store)
 	if err != nil {
 		return err
 	}
@@ -318,13 +321,13 @@ func (c *collector) buildCollectorEvent(ctx context.Context, ev *docker.Containe
 		}
 
 	case events.ActionDie, docker.ActionDied:
-		var exitCode *uint32
+		var exitCode *int64
 		if exitCodeString, found := ev.Attributes["exitCode"]; found {
-			exitCodeInt, err := strconv.ParseInt(exitCodeString, 10, 32)
+			exitCodeInt, err := strconv.ParseInt(exitCodeString, 10, 64)
 			if err != nil {
 				log.Debugf("Cannot convert exit code %q: %v", exitCodeString, err)
 			} else {
-				exitCode = pointer.Ptr(uint32(exitCodeInt))
+				exitCode = pointer.Ptr(exitCodeInt)
 			}
 		}
 
@@ -379,7 +382,7 @@ func extractImage(ctx context.Context, container types.ContainerJSON, resolve re
 			log.Debugf("cannot split image name %q for container %q: %s", resolvedImageSpec, container.ID, err)
 
 			// fallback and try to parse the original imageSpec anyway
-			if err == containers.ErrImageIsSha256 {
+			if errors.Is(err, containers.ErrImageIsSha256) {
 				name, registry, shortName, tag, err = containers.SplitImageName(imageSpec)
 				if err != nil {
 					log.Debugf("cannot split image name %q for container %q: %s", imageSpec, container.ID, err)

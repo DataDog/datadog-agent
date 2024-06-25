@@ -14,21 +14,21 @@ import (
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
 )
 
-// exporterConfig defines configuration for the serializer exporter.
-type exporterConfig struct {
+// ExporterConfig defines configuration for the serializer exporter.
+type ExporterConfig struct {
 	// squash ensures fields are correctly decoded in embedded struct
 	exporterhelper.TimeoutSettings `mapstructure:",squash"`
 	exporterhelper.QueueSettings   `mapstructure:",squash"`
 
-	Metrics metricsConfig `mapstructure:"metrics"`
+	Metrics MetricsConfig `mapstructure:"metrics"`
 
 	warnings []string
 }
 
-var _ component.Config = (*exporterConfig)(nil)
+var _ component.Config = (*ExporterConfig)(nil)
 
-// metricsConfig defines the metrics exporter specific configuration options
-type metricsConfig struct {
+// MetricsConfig defines the metrics exporter specific configuration options
+type MetricsConfig struct {
 	// Enabled reports whether Metrics should be enabled.
 	Enabled bool `mapstructure:"enabled"`
 
@@ -36,19 +36,19 @@ type metricsConfig struct {
 	// metric are kept in memory to calculate deltas
 	DeltaTTL int64 `mapstructure:"delta_ttl"`
 
-	ExporterConfig metricsExporterConfig `mapstructure:",squash"`
+	ExporterConfig MetricsExporterConfig `mapstructure:",squash"`
 
 	// TagCardinality is the level of granularity of tags to send for OTLP metrics.
 	TagCardinality string `mapstructure:"tag_cardinality"`
 
 	// HistConfig defines the export of OTLP Histograms.
-	HistConfig histogramConfig `mapstructure:"histograms"`
+	HistConfig HistogramConfig `mapstructure:"histograms"`
 
 	// SumConfig defines the export of OTLP Sums.
-	SumConfig sumConfig `mapstructure:"sums"`
+	SumConfig SumConfig `mapstructure:"sums"`
 
 	// SummaryConfig defines the export for OTLP Summaries.
-	SummaryConfig summaryConfig `mapstructure:"summaries"`
+	SummaryConfig SummaryConfig `mapstructure:"summaries"`
 
 	// APMStatsReceiverAddr is the address to send APM stats to.
 	APMStatsReceiverAddr string `mapstructure:"apm_stats_receiver_addr"`
@@ -57,8 +57,34 @@ type metricsConfig struct {
 	Tags string `mapstructure:"tags"`
 }
 
-// histogramConfig customizes export of OTLP Histograms.
-type histogramConfig struct {
+// HistogramMode is the export mode for OTLP Histogram metrics.
+type HistogramMode string
+
+const (
+	// HistogramModeNoBuckets reports no bucket histogram metrics. .sum and .count metrics will still be sent
+	// if `send_count_sum_metrics` is enabled.
+	HistogramModeNoBuckets HistogramMode = "nobuckets"
+	// HistogramModeCounters reports histograms as Datadog counts, one metric per bucket.
+	HistogramModeCounters HistogramMode = "counters"
+	// HistogramModeDistributions reports histograms as Datadog distributions (recommended).
+	HistogramModeDistributions HistogramMode = "distributions"
+)
+
+var _ encoding.TextUnmarshaler = (*HistogramMode)(nil)
+
+// UnmarshalText unmarshals bytes to HistogramMode
+func (hm *HistogramMode) UnmarshalText(in []byte) error {
+	switch mode := HistogramMode(in); mode {
+	case HistogramModeCounters, HistogramModeDistributions, HistogramModeNoBuckets:
+		*hm = mode
+		return nil
+	default:
+		return fmt.Errorf("invalid histogram mode %q", mode)
+	}
+}
+
+// HistogramConfig customizes export of OTLP Histograms.
+type HistogramConfig struct {
 	// Mode for exporting histograms. Valid values are 'distributions', 'counters' or 'nobuckets'.
 	//  - 'distributions' sends histograms as Datadog distributions (recommended).
 	//  - 'counters' sends histograms as Datadog counts, one metric per bucket.
@@ -66,7 +92,7 @@ type histogramConfig struct {
 	//    if `send_count_sum_metrics` is enabled.
 	//
 	// The current default is 'distributions'.
-	Mode string `mapstructure:"mode"`
+	Mode HistogramMode `mapstructure:"mode"`
 
 	// SendCountSum states if the export should send .sum, .count, .min and .max metrics for histograms.
 	// The default is false.
@@ -76,6 +102,14 @@ type histogramConfig struct {
 	// SendAggregations states if the export should send .sum, .count, .min and .max metrics for histograms.
 	// The default is false.
 	SendAggregations bool `mapstructure:"send_aggregation_metrics"`
+}
+
+// Validate HistogramConfig
+func (c *HistogramConfig) Validate() error {
+	if c.Mode == HistogramModeNoBuckets && !c.SendAggregations {
+		return fmt.Errorf("'nobuckets' mode and `send_aggregation_metrics` set to false will send no histogram metrics")
+	}
+	return nil
 }
 
 // CumulativeMonotonicSumMode is the export mode for OTLP Sum metrics.
@@ -137,8 +171,8 @@ func (iv *InitialValueMode) UnmarshalText(in []byte) error {
 	}
 }
 
-// sumConfig customizes export of OTLP Sums.
-type sumConfig struct {
+// SumConfig customizes export of OTLP Sums.
+type SumConfig struct {
 	// CumulativeMonotonicMode is the mode for exporting OTLP Cumulative Monotonic Sums.
 	// Valid values are 'to_delta' or 'raw_value'.
 	//  - 'to_delta' calculates delta for cumulative monotonic sums and sends it as a Datadog count.
@@ -177,8 +211,8 @@ func (sm *SummaryMode) UnmarshalText(in []byte) error {
 	}
 }
 
-// summaryConfig customizes export of OTLP Summaries.
-type summaryConfig struct {
+// SummaryConfig customizes export of OTLP Summaries.
+type SummaryConfig struct {
 	// Mode is the the mode for exporting OTLP Summaries.
 	// Valid values are 'noquantiles' or 'gauges'.
 	//  - 'noquantiles' sends no `.quantile` metrics. `.sum` and `.count` metrics will still be sent.
@@ -189,9 +223,9 @@ type summaryConfig struct {
 	Mode SummaryMode `mapstructure:"mode"`
 }
 
-// metricsExporterConfig provides options for a user to customize the behavior of the
+// MetricsExporterConfig provides options for a user to customize the behavior of the
 // metrics exporter
-type metricsExporterConfig struct {
+type MetricsExporterConfig struct {
 	// ResourceAttributesAsTags, if set to true, will use the exporterhelper feature to transform all
 	// resource attributes into metric labels, which are then converted into tags
 	ResourceAttributesAsTags bool `mapstructure:"resource_attributes_as_tags"`
@@ -209,11 +243,11 @@ type metricsExporterConfig struct {
 }
 
 // Validate configuration
-func (e *exporterConfig) Validate() error {
+func (e *ExporterConfig) Validate() error {
 	return e.QueueSettings.Validate()
 }
 
-var _ confmap.Unmarshaler = (*exporterConfig)(nil)
+var _ confmap.Unmarshaler = (*ExporterConfig)(nil)
 
 const (
 	warnDeprecatedSendCountSum   = "otlp_config.metrics.histograms.send_count_sum_metrics is deprecated in favor of otlp_config.metrics.histograms.send_aggregation_metrics"
@@ -221,8 +255,8 @@ const (
 )
 
 // Unmarshal a configuration map into the configuration struct.
-func (e *exporterConfig) Unmarshal(configMap *confmap.Conf) error {
-	err := configMap.Unmarshal(e, confmap.WithErrorUnused())
+func (e *ExporterConfig) Unmarshal(configMap *confmap.Conf) error {
+	err := configMap.Unmarshal(e, confmap.WithIgnoreUnused())
 	if err != nil {
 		return err
 	}

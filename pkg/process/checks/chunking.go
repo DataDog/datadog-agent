@@ -14,10 +14,11 @@ import (
 // chunkProcessesBySizeAndWeight chunks `model.Process` payloads by max allowed size and max allowed weight of a chunk
 func chunkProcessesBySizeAndWeight(procs []*model.Process, ctr *model.Container, maxChunkSize, maxChunkWeight int, chunker *util.ChunkAllocator[model.CollectorProc, *model.Process]) {
 	if ctr != nil && len(procs) == 0 {
-		// can happen in two scenarios, and we still need to report the container
+		// can happen in three scenarios, and we still need to report the container
 		// a) if a process is skipped (e.g. disallowlisted)
-		// b) if process <=> container mapping cannot be established (e.g. Docker on Windows)
-		appendContainerWithoutProcesses(ctr, chunker.GetChunks())
+		// b) if process <=> container mapping cannot be established (e.g. Docker on Windows).
+		// c) if no processes were collected from the container (e.g. pidMode not set to "task" on ECS Fargate)
+		appendContainerWithoutProcesses(ctr, chunker)
 		return
 	}
 
@@ -42,9 +43,10 @@ func chunkProcessesBySizeAndWeight(procs []*model.Process, ctr *model.Container,
 	util.ChunkPayloadsBySizeAndWeight[model.CollectorProc, *model.Process](list, chunker, maxChunkSize, maxChunkWeight)
 }
 
-func appendContainerWithoutProcesses(ctr *model.Container, collectorProcs *[]model.CollectorProc) {
+func appendContainerWithoutProcesses(ctr *model.Container, chunker *util.ChunkAllocator[model.CollectorProc, *model.Process]) {
+	collectorProcs := chunker.GetChunks()
 	if len(*collectorProcs) == 0 {
-		*collectorProcs = append(*collectorProcs, model.CollectorProc{})
+		chunker.Accept([]*model.Process{}, 0)
 	}
 	collectorProc := &(*collectorProcs)[len(*collectorProcs)-1]
 	collectorProc.Containers = append(collectorProc.Containers, ctr)

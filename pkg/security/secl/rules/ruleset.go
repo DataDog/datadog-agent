@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/log"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/utils"
 )
 
 // MacroID represents the ID of a macro
@@ -57,12 +58,6 @@ const (
 type OverrideOptions struct {
 	Fields []OverrideField `yaml:"fields"`
 }
-
-// Ruleset loading operations
-const (
-	RuleSetTagKey          = "ruleset"
-	DefaultRuleSetTagValue = "probe_evaluation"
-)
 
 // MacroDefinition holds the definition of a macro
 type MacroDefinition struct {
@@ -115,6 +110,7 @@ type RuleDefinition struct {
 	Actions                []*ActionDefinition `yaml:"actions"`
 	Every                  time.Duration       `yaml:"every"`
 	Silent                 bool                `yaml:"silent"`
+	GroupID                string              `yaml:"group_id"`
 	Policy                 *Policy
 }
 
@@ -135,7 +131,11 @@ func applyOverride(rd1, rd2 *RuleDefinition) {
 	if len(rd2.OverrideOptions.Fields) == 0 {
 		rd1.Expression = rd2.Expression
 	} else if slices.Contains(rd2.OverrideOptions.Fields, OverrideAllFields) {
+		// keep the original policy
+		policy := rd1.Policy
+
 		*rd1 = *rd2
+		rd1.Policy = policy
 	} else {
 		if slices.Contains(rd2.OverrideOptions.Fields, OverrideExpressionField) {
 			rd1.Expression = rd2.Expression
@@ -190,6 +190,7 @@ type RuleSet struct {
 	fieldEvaluators  map[string]eval.Evaluator
 	model            eval.Model
 	eventCtor        func() eval.Event
+	fakeEventCtor    func() eval.Event
 	listenersLock    sync.RWMutex
 	listeners        []RuleSetListener
 	globalVariables  eval.GlobalVariables
@@ -215,11 +216,6 @@ func (rs *RuleSet) ListRuleIDs() []RuleID {
 // GetRules returns the active rules
 func (rs *RuleSet) GetRules() map[eval.RuleID]*Rule {
 	return rs.rules
-}
-
-// GetRuleSetTag gets the value of the "ruleset" tag, which is the tag of the rules that belong in this rule set
-func (rs *RuleSet) GetRuleSetTag() eval.RuleSetTagValue {
-	return rs.opts.RuleSetTag[RuleSetTagKey]
 }
 
 // ListMacroIDs returns the list of MacroIDs from the ruleset
@@ -292,7 +288,7 @@ func (rs *RuleSet) populateFieldsWithRuleActionsData(policyRules []*RuleDefiniti
 	for _, rule := range policyRules {
 		for _, action := range rule.Actions {
 			if err := action.Check(opts); err != nil {
-				errs = multierror.Append(errs, fmt.Errorf("invalid action: %w", err))
+				errs = multierror.Append(errs, fmt.Errorf("invalid action in rule %s: %w", rule.ID, err))
 				continue
 			}
 
@@ -378,7 +374,9 @@ func (rs *RuleSet) populateFieldsWithRuleActionsData(policyRules []*RuleDefiniti
 					variableProvider = &rs.globalVariables
 				}
 
-				variable, err := variableProvider.GetVariable(action.Set.Name, variableValue)
+				opts := eval.VariableOpts{TTL: action.Set.TTL, Size: action.Set.Size}
+
+				variable, err := variableProvider.GetVariable(action.Set.Name, variableValue, opts)
 				if err != nil {
 					errs = multierror.Append(errs, fmt.Errorf("invalid type '%s' for variable '%s': %w", reflect.TypeOf(action.Set.Value), action.Set.Name, err))
 					continue
@@ -578,7 +576,7 @@ func (rs *RuleSet) GetEventApprovers(eventType eval.EventType, fieldCaps FieldCa
 		return nil, ErrNoEventTypeBucket{EventType: eventType}
 	}
 
-	return GetApprovers(bucket.rules, model.NewFakeEvent(), fieldCaps)
+	return GetApprovers(bucket.rules, rs.newFakeEvent(), fieldCaps)
 }
 
 // GetFieldValues returns all the values of the given field
@@ -626,6 +624,10 @@ func (rs *RuleSet) IsDiscarder(event eval.Event, field eval.Field) (bool, error)
 
 func (rs *RuleSet) runRuleActions(_ eval.Event, ctx *eval.Context, rule *Rule) error {
 	for _, action := range rule.Definition.Actions {
+		if !action.IsAccepted(ctx) {
+			continue
+		}
+
 		switch {
 		// action.Kill has to handled by a ruleset listener
 		case action.Set != nil:
@@ -683,20 +685,23 @@ func (rs *RuleSet) Evaluate(event eval.Event) bool {
 	}
 
 	result := false
+
 	for _, rule := range bucket.rules {
-		if rule.GetEvaluator().Eval(ctx) {
+		utils.PprofDoWithoutContext(rule.GetPprofLabels(), func() {
+			if rule.GetEvaluator().Eval(ctx) {
 
-			if rs.logger.IsTracing() {
-				rs.logger.Tracef("Rule `%s` matches with event `%s`\n", rule.ID, event)
+				if rs.logger.IsTracing() {
+					rs.logger.Tracef("Rule `%s` matches with event `%s`\n", rule.ID, event)
+				}
+
+				if err := rs.runRuleActions(event, ctx, rule); err != nil {
+					rs.logger.Errorf("Error while executing rule actions: %s", err)
+				}
+
+				rs.NotifyRuleMatch(rule, event)
+				result = true
 			}
-
-			if err := rs.runRuleActions(event, ctx, rule); err != nil {
-				rs.logger.Errorf("Error while executing rule actions: %s", err)
-			}
-
-			rs.NotifyRuleMatch(rule, event)
-			result = true
-		}
+		})
 	}
 
 	// no-op in the general case, only used to collect events in functional tests
@@ -721,7 +726,23 @@ func (rs *RuleSet) EvaluateDiscarders(event eval.Event) {
 		rs.logger.Tracef("Looking for discarders for event of type `%s`", eventType)
 	}
 
+	var mdiscsToCheck []*multiDiscarderCheck
+
 	for _, field := range bucket.fields {
+		if check := rs.getValidMultiDiscarder(field); check != nil {
+			value, err := event.GetFieldValue(field)
+			if err != nil {
+				rs.logger.Debugf("Failed to get field value for %s: %s", field, err)
+				continue
+			}
+
+			// currently only support string values
+			if valueStr, ok := value.(string); ok {
+				check.value = valueStr
+				mdiscsToCheck = append(mdiscsToCheck, check)
+			}
+		}
+
 		if rs.opts.SupportedDiscarders != nil {
 			if _, exists := rs.opts.SupportedDiscarders[field]; !exists {
 				continue
@@ -732,6 +753,60 @@ func (rs *RuleSet) EvaluateDiscarders(event eval.Event) {
 			rs.NotifyDiscarderFound(event, field, eventType)
 		}
 	}
+
+	for _, check := range mdiscsToCheck {
+		isMultiDiscarder := true
+		for _, entry := range check.mdisc.Entries {
+			bucket := rs.eventRuleBuckets[entry.EventType.String()]
+			if bucket == nil || len(bucket.rules) == 0 {
+				continue
+			}
+
+			dctx, err := buildDiscarderCtx(entry.EventType, entry.Field, check.value)
+			if err != nil {
+				rs.logger.Errorf("failed to build discarder context: %v", err)
+				isMultiDiscarder = false
+				break
+			}
+
+			if isDiscarder, _ := IsDiscarder(dctx, entry.Field, bucket.rules); !isDiscarder {
+				isMultiDiscarder = false
+				break
+			}
+		}
+
+		if isMultiDiscarder {
+			rs.NotifyDiscarderFound(event, check.mdisc.FinalField, check.mdisc.FinalEventType.String())
+		}
+	}
+}
+
+func (rs *RuleSet) getValidMultiDiscarder(field string) *multiDiscarderCheck {
+	for _, mdisc := range rs.opts.SupportedMultiDiscarders {
+		for _, entry := range mdisc.Entries {
+			if entry.Field == field {
+				return &multiDiscarderCheck{
+					mdisc: mdisc,
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+type multiDiscarderCheck struct {
+	mdisc *MultiDiscarder
+	value string
+}
+
+func buildDiscarderCtx(eventType model.EventType, field string, value interface{}) (*eval.Context, error) {
+	ev := model.NewFakeEvent()
+	ev.BaseEvent.Type = uint32(eventType)
+	if err := ev.SetFieldValue(field, value); err != nil {
+		return nil, err
+	}
+	return eval.NewContext(ev), nil
 }
 
 // GetEventTypes returns all the event types handled by the ruleset
@@ -761,9 +836,80 @@ func (rs *RuleSet) StopEventCollector() []CollectedEvent {
 	return rs.eventCollector.Stop()
 }
 
+// LoadPolicies loads policies from the provided policy loader
+func (rs *RuleSet) LoadPolicies(loader *PolicyLoader, opts PolicyLoaderOpts) *multierror.Error {
+	var (
+		errs       *multierror.Error
+		allRules   []*RuleDefinition
+		allMacros  []*MacroDefinition
+		macroIndex = make(map[string]*MacroDefinition)
+		rulesIndex = make(map[string]*RuleDefinition)
+	)
+
+	parsingContext := ast.NewParsingContext()
+
+	policies, err := loader.LoadPolicies(opts)
+	if err != nil {
+		errs = multierror.Append(errs, err)
+	}
+	rs.policies = policies
+
+	for _, policy := range policies {
+		for _, macro := range policy.Macros {
+			if existingMacro := macroIndex[macro.ID]; existingMacro != nil {
+				if err := existingMacro.MergeWith(macro); err != nil {
+					errs = multierror.Append(errs, err)
+				}
+			} else {
+				macroIndex[macro.ID] = macro
+				allMacros = append(allMacros, macro)
+			}
+		}
+
+		for _, rule := range policy.Rules {
+			if existingRule := rulesIndex[rule.ID]; existingRule != nil {
+				if err := existingRule.MergeWith(rule); err != nil {
+					errs = multierror.Append(errs, err)
+				}
+			} else {
+				rulesIndex[rule.ID] = rule
+				allRules = append(allRules, rule)
+			}
+		}
+	}
+
+	if err := rs.AddMacros(parsingContext, allMacros); err.ErrorOrNil() != nil {
+		errs = multierror.Append(errs, err)
+	}
+
+	if err := rs.populateFieldsWithRuleActionsData(allRules, opts); err.ErrorOrNil() != nil {
+		errs = multierror.Append(errs, err)
+	}
+
+	if err := rs.AddRules(parsingContext, allRules); err.ErrorOrNil() != nil {
+		errs = multierror.Append(errs, err)
+	}
+
+	return errs
+}
+
 // NewEvent returns a new event using the embedded constructor
 func (rs *RuleSet) NewEvent() eval.Event {
 	return rs.eventCtor()
+}
+
+// SetFakeEventCtor sets the fake event constructor to the provided callback
+func (rs *RuleSet) SetFakeEventCtor(fakeEventCtor func() eval.Event) {
+	rs.fakeEventCtor = fakeEventCtor
+}
+
+// newFakeEvent returns a new event using the embedded constructor for fake events
+func (rs *RuleSet) newFakeEvent() eval.Event {
+	if rs.fakeEventCtor != nil {
+		return rs.fakeEventCtor()
+	}
+
+	return model.NewFakeEvent()
 }
 
 // NewRuleSet returns a new ruleset for the specified data model

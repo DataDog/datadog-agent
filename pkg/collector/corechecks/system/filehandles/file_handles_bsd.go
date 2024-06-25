@@ -9,8 +9,8 @@ package filehandles
 import (
 	"github.com/blabber/go-freebsd-sysctl/sysctl"
 
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -54,8 +54,8 @@ func (c *fhCheck) Run() error {
 }
 
 // The check doesn't need configuration
-func (c *fhCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) (err error) {
-	if err := c.CommonConfigure(senderManager, integrationConfigDigest, initConfig, data, source); err != nil {
+func (c *fhCheck) Configure(senderManager sender.SenderManager, _ uint64, data integration.Data, initConfig integration.Data, source string) (err error) {
+	if err := c.CommonConfigure(senderManager, initConfig, data, source); err != nil {
 		return err
 	}
 

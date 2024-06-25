@@ -9,11 +9,14 @@ package hostimpl
 import (
 	"context"
 	"encoding/json"
+	"net/http"
 	"path/filepath"
 	"time"
 
 	"go.uber.org/fx"
 
+	api "github.com/DataDog/datadog-agent/comp/api/api/def"
+	apiutils "github.com/DataDog/datadog-agent/comp/api/api/utils"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/log"
@@ -21,10 +24,13 @@ import (
 	hostComp "github.com/DataDog/datadog-agent/comp/metadata/host"
 	"github.com/DataDog/datadog-agent/comp/metadata/resources"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
+	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
+	"github.com/DataDog/datadog-agent/pkg/gohai"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
 // run the host metadata collector every 1800 seconds (30 minutes)
@@ -69,6 +75,8 @@ type provides struct {
 	MetadataProvider     runnerimpl.Provider
 	FlareProvider        flaretypes.Provider
 	StatusHeaderProvider status.HeaderInformationProvider
+	Endpoint             api.AgentEndpointProvider
+	GohaiEndpoint        api.AgentEndpointProvider
 }
 
 func newHostProvider(deps dependencies) provides {
@@ -101,10 +109,14 @@ func newHostProvider(deps dependencies) provides {
 		serializer:      deps.Serializer,
 	}
 	return provides{
-		Comp:                 &h,
-		MetadataProvider:     runnerimpl.NewProvider(h.collect),
-		FlareProvider:        flaretypes.NewProvider(h.fillFlare),
-		StatusHeaderProvider: status.NewHeaderInformationProvider(&h),
+		Comp:             &h,
+		MetadataProvider: runnerimpl.NewProvider(h.collect),
+		FlareProvider:    flaretypes.NewProvider(h.fillFlare),
+		StatusHeaderProvider: status.NewHeaderInformationProvider(StatusProvider{
+			Config: h.config,
+		}),
+		Endpoint:      api.NewAgentEndpointProvider(h.writePayloadAsJSON, "/metadata/v5", "GET"),
+		GohaiEndpoint: api.NewAgentEndpointProvider(h.writeGohaiPayload, "/metadata/gohai", "GET"),
 	}
 }
 
@@ -122,4 +134,35 @@ func (h *host) GetPayloadAsJSON(ctx context.Context) ([]byte, error) {
 
 func (h *host) fillFlare(fb flaretypes.FlareBuilder) error {
 	return fb.AddFileFromFunc(filepath.Join("metadata", "host.json"), func() ([]byte, error) { return h.GetPayloadAsJSON(context.Background()) })
+}
+
+func (h *host) writePayloadAsJSON(w http.ResponseWriter, _ *http.Request) {
+	jsonPayload, err := h.GetPayloadAsJSON(context.Background())
+	if err != nil {
+		apiutils.SetJSONError(w, h.log.Errorf("Unable to marshal v5 metadata payload: %s", err), 500)
+		return
+	}
+
+	scrubbed, err := scrubber.ScrubBytes(jsonPayload)
+	if err != nil {
+		apiutils.SetJSONError(w, h.log.Errorf("Unable to scrub metadata payload: %s", err), 500)
+		return
+	}
+	w.Write(scrubbed)
+}
+
+func (h *host) writeGohaiPayload(w http.ResponseWriter, _ *http.Request) {
+	payload := gohai.GetPayloadWithProcesses(pkgconfig.IsContainerized())
+	jsonPayload, err := json.MarshalIndent(payload, "", "  ")
+	if err != nil {
+		apiutils.SetJSONError(w, h.log.Errorf("Unable to marshal gohai metadata payload: %s", err), 500)
+		return
+	}
+
+	scrubbed, err := scrubber.ScrubBytes(jsonPayload)
+	if err != nil {
+		apiutils.SetJSONError(w, h.log.Errorf("Unable to scrub gohai metadata payload: %s", err), 500)
+		return
+	}
+	w.Write(scrubbed)
 }

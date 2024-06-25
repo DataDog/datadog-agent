@@ -2,17 +2,28 @@
 Golang related tasks go here
 """
 
+from __future__ import annotations
+
 import glob
 import os
+import posixpath
+import re
 import shutil
+import sys
 import textwrap
+import traceback
+from collections import defaultdict
+from collections.abc import Iterable
 from pathlib import Path
 
 from invoke import task
 from invoke.exceptions import Exit
 
+import tasks.modules
 from tasks.build_tags import ALL_TAGS, UNIT_TEST_TAGS, get_default_build_tags
-from tasks.libs.common.utils import get_build_flags, timed
+from tasks.libs.common.color import color_message
+from tasks.libs.common.git import check_uncommitted_changes
+from tasks.libs.common.utils import TimedOperationResult, get_build_flags, timed
 from tasks.licenses import get_licenses_list
 from tasks.modules import DEFAULT_MODULES, generate_dummy_package
 
@@ -23,7 +34,6 @@ GOOS_MAPPING = {
 }
 GOARCH_MAPPING = {
     "x64": "amd64",
-    "x86": "386",
     "arm64": "arm64",
 }
 
@@ -35,7 +45,6 @@ def run_golangci_lint(
     rtloader_root=None,
     build_tags=None,
     build="test",
-    arch="x64",
     concurrency=None,
     timeout=None,
     verbose=False,
@@ -47,7 +56,7 @@ def run_golangci_lint(
         # as comma separated tokens in a string
         targets = targets.split(',')
 
-    tags = build_tags or get_default_build_tags(build=build, arch=arch)
+    tags = build_tags or get_default_build_tags(build=build)
     if not isinstance(tags, list):
         tags = [tags]
 
@@ -58,36 +67,30 @@ def run_golangci_lint(
     verbosity = "-v" if verbose else ""
     # we split targets to avoid going over the memory limit from circleCI
     results = []
+    time_results = []
     for target in targets:
-        if not headless_mode:
-            print(f"running golangci on {target}")
-        concurrency_arg = "" if concurrency is None else f"--concurrency {concurrency}"
-        tags_arg = " ".join(sorted(set(tags)))
-        timeout_arg_value = "25m0s" if not timeout else f"{timeout}m0s"
-        result = ctx.run(
-            f'golangci-lint run {verbosity} --timeout {timeout_arg_value} {concurrency_arg} --build-tags "{tags_arg}" --path-prefix "{module_path}" {golangci_lint_kwargs} {target}/...',
-            env=env,
-            warn=True,
+
+        def lint_module(target):
+            if not headless_mode:
+                print(f"running golangci on {target}")
+            concurrency_arg = "" if concurrency is None else f"--concurrency {concurrency}"
+            tags_arg = " ".join(sorted(set(tags)))
+            timeout_arg_value = "25m0s" if not timeout else f"{timeout}m0s"
+            return ctx.run(
+                f'golangci-lint run {verbosity} --timeout {timeout_arg_value} {concurrency_arg} --build-tags "{tags_arg}" --path-prefix "{module_path}" {golangci_lint_kwargs} {target}/...',
+                env=env,
+                warn=True,
+            )
+
+        target_path = Path(module_path) / target
+        result, time_result = TimedOperationResult.run(
+            lint_module, target_path, 'Lint ' + target_path.as_posix(), target=target
         )
+
         results.append(result)
+        time_results.append(time_result)
 
-    return results
-
-
-@task
-def golangci_lint(
-    ctx, targets, rtloader_root=None, build_tags=None, build="test", arch="x64", concurrency=None  # noqa: U100
-):
-    """
-    Run golangci-lint on targets using .golangci.yml configuration.
-
-    Example invocation:
-        inv golangci-lint --targets=./pkg/collector/check,./pkg/aggregator
-    DEPRECATED
-    Please use inv lint-go instead
-    """
-    print("WARNING: golangci-lint task is deprecated, please migrate to lint-go task")
-    raise Exit(code=1)
+    return results, time_results
 
 
 @task
@@ -149,12 +152,12 @@ def lint_licenses(ctx):
 
     licenses = []
     file = 'LICENSE-3rdparty.csv'
-    with open(file, 'r', encoding='utf-8') as f:
+    with open(file, encoding='utf-8') as f:
         next(f)
         for line in f:
             licenses.append(line.rstrip())
 
-    new_licenses = get_licenses_list(ctx)
+    new_licenses = get_licenses_list(ctx, file)
 
     removed_licenses = [ele for ele in new_licenses if ele not in licenses]
     for license in removed_licenses:
@@ -183,27 +186,7 @@ def generate_licenses(ctx, filename='LICENSE-3rdparty.csv', verbose=False):
     """
     Generates the LICENSE-3rdparty.csv file. Run this if `inv lint-licenses` fails.
     """
-    new_licenses = get_licenses_list(ctx)
-
-    # check that all deps have a non-"UNKNOWN" copyright and license
-    unknown_licenses = False
-    for line in new_licenses:
-        if ',UNKNOWN' in line:
-            unknown_licenses = True
-            print(f"! {line}")
-
-    if unknown_licenses:
-        raise Exit(
-            message=textwrap.dedent(
-                """\
-                At least one dependency's license or copyright could not be determined.
-
-                Consult the dependency's source, update
-                `.copyright-overrides.yml` or `.wwhrd.yml` accordingly, and run
-                `inv generate-licenses` to update {}."""
-            ).format(filename),
-            code=1,
-        )
+    new_licenses = get_licenses_list(ctx, filename)
 
     with open(filename, 'w') as f:
         f.write("Component,Origin,License,Copyright\n")
@@ -375,13 +358,41 @@ def reset(ctx):
 
 
 @task
+def check_go_mod_replaces(_):
+    errors_found = set()
+    for mod in DEFAULT_MODULES.values():
+        go_sum = os.path.join(mod.full_path(), "go.sum")
+        if not os.path.exists(go_sum):
+            continue
+        with open(go_sum) as f:
+            for line in f:
+                if "github.com/datadog/datadog-agent" in line.lower():
+                    err_mod = line.split()[0]
+                    errors_found.add(f"{mod.import_path}/go.mod is missing a replace for {err_mod}")
+
+    if errors_found:
+        message = "\nErrors found:\n"
+        message += "\n".join("  - " + error for error in sorted(errors_found))
+        message += (
+            "\n\nThis task operates on go.sum files, so make sure to run `inv -e tidy` before re-running this task."
+        )
+        raise Exit(message=message)
+
+
+@task
 def check_mod_tidy(ctx, test_folder="testmodule"):
     with generate_dummy_package(ctx, test_folder) as dummy_folder:
         errors_found = []
         for mod in DEFAULT_MODULES.values():
             with ctx.cd(mod.full_path()):
                 ctx.run("go mod tidy")
-                res = ctx.run("git diff --exit-code go.mod go.sum", warn=True)
+
+                files = "go.mod"
+                if os.path.exists(os.path.join(mod.full_path(), "go.sum")):
+                    # if the module has no dependency, no go.sum file will be created
+                    files += " go.sum"
+
+                res = ctx.run(f"git diff --exit-code {files}", warn=True)
                 if res.exited is None or res.exited > 0:
                     errors_found.append(f"go.mod or go.sum for {mod.import_path} module is out of sync")
 
@@ -400,21 +411,44 @@ def check_mod_tidy(ctx, test_folder="testmodule"):
 
         if errors_found:
             message = "\nErrors found:\n" + "\n".join("  - " + error for error in errors_found)
-            message += "\n\nRun 'inv tidy-all' to fix 'out of sync' errors."
+            message += "\n\nRun 'inv tidy' to fix 'out of sync' errors."
             raise Exit(message=message)
 
 
 @task
 def tidy_all(ctx):
+    sys.stderr.write(color_message('This command is deprecated, please use `tidy` instead\n', "orange"))
+    sys.stderr.write("Running `tidy`...\n")
+    tidy(ctx)
+
+
+@task
+def tidy(ctx):
+    if os.name != 'nt':  # not windows
+        import resource
+
+        # Some people might face ulimit issues, so we bump it up if needed.
+        # It won't change it globally, only for this process and child processes.
+        # TODO: if this is working fine, let's do it during the init so all tasks can benefit from it if needed.
+        current_ulimit = resource.getrlimit(resource.RLIMIT_NOFILE)
+        if current_ulimit[0] < 1024:
+            resource.setrlimit(resource.RLIMIT_NOFILE, (1024, current_ulimit[1]))
+
+    # Note: It's currently faster to tidy everything than looking for exactly what we should tidy
+    promises = []
     for mod in DEFAULT_MODULES.values():
         with ctx.cd(mod.full_path()):
-            ctx.run("go mod tidy")
+            # https://docs.pyinvoke.org/en/stable/api/runners.html#invoke.runners.Runner.run
+            promises.append(ctx.run("go mod tidy", asynchronous=True))
+
+    for promise in promises:
+        promise.join()
 
 
 @task
 def check_go_version(ctx):
     go_version_output = ctx.run('go version')
-    # result is like "go version go1.21.7 linux/amd64"
+    # result is like "go version go1.22.4 linux/amd64"
     running_go_version = go_version_output.stdout.split(' ')[2]
 
     with open(".go-version") as f:
@@ -438,3 +472,253 @@ def go_fix(ctx, fix=None):
             for osname in oslist:
                 tags = set(ALL_TAGS).union({osname, "ebpf_bindata"})
                 ctx.run(f"go fix{fixarg} -tags {','.join(tags)} ./...")
+
+
+def get_deps(ctx, path):
+    with ctx.cd(path):
+        # Might fail if no mod tidy
+        deps: list[str] = ctx.run("go list -deps ./...", hide=True, warn=True).stdout.strip().splitlines()
+        prefix = 'github.com/DataDog/datadog-agent/'
+        deps = [
+            dep.removeprefix(prefix)
+            for dep in deps
+            if dep.startswith(prefix) and dep != f'github.com/DataDog/datadog-agent/{path}'
+        ]
+
+        return deps
+
+
+def add_replaces(ctx, path, replaces: Iterable[str]):
+    repo_path = posixpath.abspath('.')
+    with ctx.cd(path):
+        for repo_local_path in replaces:
+            if repo_local_path != path:
+                # Example for pkg/util/log with path=pkg/util/cachedfetch
+                # - repo_local_path: pkg/util/log
+                # - online_path: github.com/DataDog/datadog-agent/pkg/util/log
+                # - module_local_path: ../../../pkg/util/log
+                level = os.path.abspath(path).count('/') - repo_path.count('/')
+                module_local_path = ('./' if level == 0 else '../' * level) + repo_local_path
+                online_path = f'github.com/DataDog/datadog-agent/{repo_local_path}'
+
+                ctx.run(f"go mod edit -replace={online_path}={module_local_path}")
+
+
+def add_go_module(path):
+    """
+    Add go module to modules.py
+    """
+    print(color_message("Updating DEFAULT_MODULES within modules.py", "blue"))
+    modules_path = tasks.modules.__file__
+    with open(modules_path) as f:
+        modulespy = f.read()
+
+    modulespy_regex = re.compile(r"DEFAULT_MODULES = {\n(.+?)\n}", re.DOTALL | re.MULTILINE)
+
+    all_modules_match = modulespy_regex.search(modulespy)
+    assert all_modules_match, "Could not find DEFAULT_MODULES in modules.py"
+    all_modules = all_modules_match.group(1)
+    all_modules = all_modules.split('\n')
+    indent = ' ' * 4
+
+    new_module = f'{indent}"{path}": GoModule("{path}", independent=True),'
+
+    # Insert in order
+    insert_line = 0
+    for i, line in enumerate(all_modules):
+        # This line is the start of a module (not a comment / middle of a module declaration)
+        if line.startswith(f'{indent}"'):
+            results = re.search(rf'{indent}"([^"]*)"', line)
+            assert results, f"Could not find module name in line '{line}'"
+            module = results.group(1)
+            if module < path:
+                insert_line = i
+            else:
+                assert module != path, f"Module {path} already exists within {modules_path}"
+
+    all_modules.insert(insert_line, new_module)
+    all_modules = '\n'.join(all_modules)
+    with open(modules_path, 'w') as f:
+        f.write(modulespy.replace(all_modules_match.group(1), all_modules))
+
+
+@task
+def create_module(ctx, path: str, no_verify: bool = False):
+    """
+    Create new go module following steps within <docs/dev/modules.md>
+    - packages: Comma separated list of packages the will use the new module
+    """
+
+    path = path.rstrip('/').rstrip('\\')
+
+    if check_uncommitted_changes(ctx):
+        raise RuntimeError("There are uncomitted changes, all changes must be committed to run this command.")
+
+    # Perform checks + save current state to restore it in case of failure
+    assert not posixpath.exists(path + '/go.mod'), f"Path {path + '/go.mod'} already exists"
+    is_empty = not posixpath.exists(path)
+
+    # Get info
+    with open('go.mod') as f:
+        mainmod = f.read()
+
+    goversion_regex = re.compile(r'^go +([.0-9]+)$', re.MULTILINE)
+    goversion = next(goversion_regex.finditer(mainmod)).group(1)
+
+    # Module content
+    gomod = f"""
+    module github.com/DataDog/datadog-agent/{path}
+
+    go {goversion}
+    """.replace('    ', '')
+
+    try:
+        # Create package
+        print(color_message(f"Creating package {path}", "blue"))
+
+        ctx.run(f"mkdir -p {path}")
+        with open(f"{path}/go.mod", 'w') as f:
+            f.write(gomod)
+
+        if not is_empty:
+            # 1. Update current module
+            deps = get_deps(ctx, path)
+            add_replaces(ctx, path, deps)
+            with ctx.cd(path):
+                ctx.run('go mod tidy')
+
+            # Find and update indirect replaces within go.mod
+            with open(path + '/go.mod') as f:
+                mod_content = f.read()
+                replaces = {
+                    replace
+                    for replace in re.findall(r'github.com/DataDog/datadog-agent/([^\n ]*)', mod_content)
+                    if replace != path
+                }
+            with open(f"{path}/go.mod", 'w') as f:
+                # Cancel mod tidy since it can update the go version
+                f.write(gomod)
+            add_replaces(ctx, path, replaces)
+            with ctx.cd(path):
+                ctx.run('go mod tidy')
+
+            # 2. Update dependencies
+            # Find module that must include the new module
+            dependent_modules = []
+            for gomod in glob.glob('./**/go.mod', recursive=True):
+                gomod = Path(gomod).as_posix()
+                mod_path = posixpath.dirname(gomod)
+                if posixpath.abspath(mod_path) != posixpath.abspath(path):
+                    deps = get_deps(ctx, mod_path)
+                    if path in deps:
+                        dependent_modules.append(mod_path)
+
+            for mod in dependent_modules:
+                add_replaces(ctx, mod, [path])
+
+        # Update modules.py
+        add_go_module(path)
+
+        if not is_empty:
+            # Tidy all
+            print(color_message("Running tidy-all task", "bold"))
+            tidy(ctx)
+
+        if not no_verify:
+            # Stage updated files since some linting tasks will require it
+            print(color_message("Staging new module files", "bold"))
+            ctx.run("git add --all")
+
+            print(color_message("Linting repo", "blue"))
+            print(color_message("Running internal-deps-checker task", "bold"))
+            internal_deps_checker(ctx)
+            print(color_message("Running check-mod-tidy task", "bold"))
+            check_mod_tidy(ctx)
+            print(color_message("Running check-go-mod-replaces task", "bold"))
+            check_go_mod_replaces(ctx)
+
+        print(color_message(f"Created package {path}", "green"))
+    except Exception as e:
+        traceback.print_exc()
+
+        # Restore files if user wants to
+        if sys.stdin.isatty():
+            print(color_message("Failed to create module", "red"))
+            if input('Do you want to restore all files ? [N/y]').strip() in 'yY':
+                print(color_message("Restoring files", "blue"))
+
+                ctx.run('git clean -f')
+                ctx.run('git checkout HEAD -- .')
+
+                raise Exit(code=1) from e
+
+        print(color_message("Not removing changed files", "red"))
+
+        raise Exit(code=1) from e
+
+
+@task(iterable=['targets'])
+def mod_diffs(_, targets):
+    """
+    Lists differences in versions of libraries in the repo,
+    optionally compared to a list of target go.mod files.
+
+    Parameters:
+    - targets: list of paths to target go.mod files.
+    """
+    # Find all go.mod files in the repo
+    all_go_mod_files = []
+    for module in DEFAULT_MODULES:
+        all_go_mod_files.append(os.path.join(module, 'go.mod'))
+
+    # Validate the provided targets
+    for target in targets:
+        if target not in all_go_mod_files:
+            raise Exit(f"Error: Target go.mod file '{target}' not found.")
+
+    for target in targets:
+        all_go_mod_files.remove(target)
+
+    # Dictionary to store library versions
+    library_versions = defaultdict(lambda: defaultdict(set))
+
+    # Regular expression to match require statements in go.mod
+    require_pattern = re.compile(r'^\s*([a-zA-Z0-9.\-/]+)\s+([a-zA-Z0-9.\-+]+)')
+
+    # Process each go.mod file
+    for go_mod_file in all_go_mod_files + targets:
+        with open(go_mod_file) as f:
+            inside_require_block = False
+            for line in f:
+                line = line.strip()
+                if line == "require (":
+                    inside_require_block = True
+                    continue
+                elif inside_require_block and line == ")":
+                    inside_require_block = False
+                    continue
+                if inside_require_block or line.startswith("require "):
+                    match = require_pattern.match(line)
+                    if match:
+                        library, version = match.groups()
+                        if not library.startswith("github.com/DataDog/datadog-agent/"):
+                            library_versions[library][version].add(go_mod_file)
+
+    # List libraries with multiple versions
+    for library, versions in library_versions.items():
+        if targets:
+            relevant_paths = {path for version_paths in versions.values() for path in version_paths if path in targets}
+            if relevant_paths:
+                print(f"Library {library} differs in:")
+                for version, paths in versions.items():
+                    intersecting_paths = set(paths).intersection(targets)
+                    if intersecting_paths:
+                        print(f"  - Version {version} in:")
+                        for path in intersecting_paths:
+                            print(f"    * {path}")
+        elif len(versions) > 1:
+            print(f"Library {library} has different versions:")
+            for version, paths in versions.items():
+                print(f"  - Version {version} in:")
+                for path in paths:
+                    print(f"    * {path}")

@@ -15,33 +15,34 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/cilium/ebpf/btf"
-	"github.com/mholt/archiver/v3"
-	"golang.org/x/exp/maps"
-	"golang.org/x/exp/slices"
 
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/util/archive"
 	"github.com/DataDog/datadog-agent/pkg/util/funcs"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const btfFlushDelay = 1 * time.Minute
+const btfArchiveName = "minimized-btfs.tar.xz"
 
 type btfPlatform string
 
 const (
-	platformAmazon btfPlatform = "amzn"
-	platformCentOS btfPlatform = "centos"
-	platformDebian btfPlatform = "debian"
-	platformFedora btfPlatform = "fedora"
-	platformOracle btfPlatform = "ol"
-	platformRedhat btfPlatform = "rhel"
-	platformSUSE   btfPlatform = "sles"
-	platformUbuntu btfPlatform = "ubuntu"
+	platformAmazon       btfPlatform = "amzn"
+	platformCentOS       btfPlatform = "centos"
+	platformDebian       btfPlatform = "debian"
+	platformFedora       btfPlatform = "fedora"
+	platformOpenSUSELeap btfPlatform = "opensuse-leap"
+	platformOracle       btfPlatform = "ol"
+	platformRedhat       btfPlatform = "rhel"
+	platformSUSE         btfPlatform = "sles"
+	platformUbuntu       btfPlatform = "ubuntu"
 )
 
 func (p btfPlatform) String() string {
@@ -52,8 +53,10 @@ func btfPlatformFromString(platform string) (btfPlatform, error) {
 	switch platform {
 	case "amzn", "amazon":
 		return platformAmazon, nil
-	case "suse", "sles": //opensuse treated differently on purpose
+	case "suse", "sles":
 		return platformSUSE, nil
+	case "opensuse", "opensuse-leap":
+		return platformOpenSUSELeap, nil
 	case "redhat", "rhel":
 		return platformRedhat, nil
 	case "oracle", "ol":
@@ -84,12 +87,19 @@ func FlushBTF() {
 	}
 }
 
+type kernelModuleBTFLoadFunc func(string) (*btf.Spec, error)
+
+type returnBTF struct {
+	vmlinux        *btf.Spec
+	moduleLoadFunc kernelModuleBTFLoadFunc
+}
+
 type orderedBTFLoader struct {
 	userBTFPath string
 	embeddedDir string
 
 	result         ebpftelemetry.BTFResult
-	loadFunc       funcs.CachedFunc[btf.Spec]
+	loadFunc       funcs.CachedFunc[returnBTF]
 	delayedFlusher *time.Timer
 }
 
@@ -99,20 +109,20 @@ func initBTFLoader(cfg *Config) *orderedBTFLoader {
 		embeddedDir: filepath.Join(cfg.BPFDir, "co-re", "btf"),
 		result:      ebpftelemetry.BtfNotFound,
 	}
-	btfLoader.loadFunc = funcs.CacheWithCallback[btf.Spec](btfLoader.get, loadKernelSpec.Flush)
+	btfLoader.loadFunc = funcs.CacheWithCallback[returnBTF](btfLoader.get, loadKernelSpec.Flush)
 	btfLoader.delayedFlusher = time.AfterFunc(btfFlushDelay, btfLoader.Flush)
 	return btfLoader
 }
 
-type btfLoaderFunc func() (*btf.Spec, error)
+type btfLoaderFunc func() (*returnBTF, error)
 
 // Get returns BTF for the running kernel
-func (b *orderedBTFLoader) Get() (*btf.Spec, ebpftelemetry.COREResult, error) {
-	spec, err := b.loadFunc.Do()
-	if spec != nil {
+func (b *orderedBTFLoader) Get() (*returnBTF, ebpftelemetry.COREResult, error) {
+	ret, err := b.loadFunc.Do()
+	if ret != nil && ret.vmlinux != nil {
 		b.delayedFlusher.Reset(btfFlushDelay)
 	}
-	return spec, ebpftelemetry.COREResult(b.result), err
+	return ret, ebpftelemetry.COREResult(b.result), err
 }
 
 // Flush deletes any cached BTF
@@ -121,7 +131,7 @@ func (b *orderedBTFLoader) Flush() {
 	b.loadFunc.Flush()
 }
 
-func (b *orderedBTFLoader) get() (*btf.Spec, error) {
+func (b *orderedBTFLoader) get() (*returnBTF, error) {
 	loaders := []struct {
 		result ebpftelemetry.BTFResult
 		loader btfLoaderFunc
@@ -132,10 +142,10 @@ func (b *orderedBTFLoader) get() (*btf.Spec, error) {
 		{ebpftelemetry.SuccessEmbeddedBTF, b.loadEmbedded, "embedded collection"},
 	}
 	var err error
-	var spec *btf.Spec
+	var ret *returnBTF
 	for _, l := range loaders {
 		log.Debugf("attempting BTF load from %s", l.desc)
-		spec, err = l.loader()
+		ret, err = l.loader()
 		if err != nil {
 			err = fmt.Errorf("BTF load from %s: %w", l.desc, err)
 			// attempting default kernel when not supported will return this error
@@ -144,39 +154,98 @@ func (b *orderedBTFLoader) get() (*btf.Spec, error) {
 			}
 			continue
 		}
-		if spec != nil {
+		if ret != nil {
 			log.Debugf("successfully loaded BTF from %s", l.desc)
 			b.result = l.result
-			return spec, nil
+			return ret, nil
 		}
 	}
 	return nil, err
 }
 
-func (b *orderedBTFLoader) loadKernel() (*btf.Spec, error) {
-	return GetKernelSpec()
+func (b *orderedBTFLoader) loadKernel() (*returnBTF, error) {
+	spec, err := GetKernelSpec()
+	if err != nil {
+		return nil, err
+	}
+	return &returnBTF{vmlinux: spec, moduleLoadFunc: nil}, nil
 }
 
-func (b *orderedBTFLoader) loadUser() (*btf.Spec, error) {
+func (b *orderedBTFLoader) loadUser() (*returnBTF, error) {
 	if b.userBTFPath == "" {
 		return nil, nil
 	}
-	return loadBTFFrom(b.userBTFPath)
+	spec, err := loadBTFFrom(b.userBTFPath)
+	if err != nil {
+		return nil, err
+	}
+	return &returnBTF{vmlinux: spec, moduleLoadFunc: nil}, nil
 }
 
-func (b *orderedBTFLoader) loadEmbedded() (*btf.Spec, error) {
+func (b *orderedBTFLoader) checkForMinimizedBTF(extractDir string) (*returnBTF, error) {
+	// <relative_path_in_tarball>/<kernel_version>/<kernel_version>.btf
+	btfRelativePath := filepath.Join(extractDir, filepath.Base(extractDir)+".btf")
+	extractedBtfPath := filepath.Join(b.embeddedDir, btfRelativePath)
+	if _, err := os.Stat(extractedBtfPath); err == nil {
+		spec, err := loadBTFFrom(extractedBtfPath)
+		if err != nil {
+			return nil, err
+		}
+		// no module load function for minimized single file BTF
+		return &returnBTF{vmlinux: spec, moduleLoadFunc: nil}, nil
+	}
+	return nil, nil
+}
+
+func (b *orderedBTFLoader) checkForUnminimizedBTF(extractDir string) (*returnBTF, error) {
+	absExtractDir := filepath.Join(b.embeddedDir, extractDir)
+	modLoadFunc := func(mod string) (*btf.Spec, error) {
+		b.delayedFlusher.Reset(btfFlushDelay)
+		return loadBTFFrom(filepath.Join(absExtractDir, mod))
+	}
+	btfRelativePath := filepath.Join(extractDir, "vmlinux")
+	extractedBtfPath := filepath.Join(b.embeddedDir, btfRelativePath)
+	if _, err := os.Stat(extractedBtfPath); err == nil {
+		spec, err := loadBTFFrom(extractedBtfPath)
+		if err != nil {
+			return nil, err
+		}
+		return &returnBTF{vmlinux: spec, moduleLoadFunc: modLoadFunc}, nil
+	}
+	return nil, nil
+}
+
+func (b *orderedBTFLoader) checkforBTF(extractDir string) (*returnBTF, error) {
+	ret, err := b.checkForMinimizedBTF(extractDir)
+	if err != nil || ret != nil {
+		return ret, err
+	}
+	ret, err = b.checkForUnminimizedBTF(extractDir)
+	if err != nil || ret != nil {
+		return ret, err
+	}
+	return nil, nil
+}
+
+func (b *orderedBTFLoader) loadEmbedded() (*returnBTF, error) {
 	btfRelativeTarballFilename, err := b.embeddedPath()
 	if err != nil {
 		return nil, err
 	}
-	btfRelativePath := strings.TrimSuffix(btfRelativeTarballFilename, ".tar.xz")
+	kernelVersion, err := kernel.Release()
+	if err != nil {
+		return nil, fmt.Errorf("kernel release: %s", err)
+	}
+	// <relative_path_in_tarball>/<kernel_version>
+	extractDir := filepath.Join(filepath.Dir(btfRelativeTarballFilename), kernelVersion)
+	absExtractDir := filepath.Join(b.embeddedDir, extractDir)
 
 	// If we've previously extracted the BTF file in question, we can just load it
-	extractedBtfPath := filepath.Join(b.embeddedDir, btfRelativePath)
-	if _, err := os.Stat(extractedBtfPath); err == nil {
-		return loadBTFFrom(extractedBtfPath)
+	ret, err := b.checkforBTF(extractDir)
+	if err != nil || ret != nil {
+		return ret, err
 	}
-	log.Debugf("extracted btf file not found at %s: attempting to extract from embedded archive", extractedBtfPath)
+	log.Debugf("extracted btf file not found at %s: attempting to extract from embedded archive", absExtractDir)
 
 	// The embedded BTFs are compressed twice: the individual BTFs themselves are compressed, and the collection
 	// of BTFs as a whole is also compressed.
@@ -184,16 +253,20 @@ func (b *orderedBTFLoader) loadEmbedded() (*btf.Spec, error) {
 	// tarball, and then unarchive it.
 	btfTarball := filepath.Join(b.embeddedDir, btfRelativeTarballFilename)
 	if _, err := os.Stat(btfTarball); errors.Is(err, fs.ErrNotExist) {
-		collectionTarball := filepath.Join(b.embeddedDir, "minimized-btfs.tar.xz")
-		if err := archiver.NewTarXz().Extract(collectionTarball, btfRelativeTarballFilename, b.embeddedDir); err != nil {
+		collectionTarball := filepath.Join(b.embeddedDir, btfArchiveName)
+		if err := archive.TarXZExtractFile(collectionTarball, btfRelativeTarballFilename, b.embeddedDir); err != nil {
 			return nil, fmt.Errorf("extract kernel BTF tarball from collection: %w", err)
 		}
 	}
 
-	if err := archiver.NewTarXz().Unarchive(btfTarball, filepath.Dir(extractedBtfPath)); err != nil {
+	if err := archive.TarXZExtractAll(btfTarball, absExtractDir); err != nil {
 		return nil, fmt.Errorf("extract kernel BTF from tarball: %w", err)
 	}
-	return loadBTFFrom(extractedBtfPath)
+	ret, err = b.checkforBTF(extractDir)
+	if err != nil || ret != nil {
+		return ret, err
+	}
+	return nil, fmt.Errorf("embedded BTF not found at %s", extractDir)
 }
 
 func (b *orderedBTFLoader) embeddedPath() (string, error) {
@@ -222,14 +295,15 @@ var kernelVersionPatterns = []struct {
 	{regexp.MustCompile(`\.el[7-8]uek\.`), []btfPlatform{platformOracle}},
 	{regexp.MustCompile(`\.deb10\.`), []btfPlatform{platformDebian}},
 	{regexp.MustCompile(`\.fc\d{2}\.`), []btfPlatform{platformFedora}},
+	{regexp.MustCompile(`-lp15\d\.`), []btfPlatform{platformOpenSUSELeap}},
+	{regexp.MustCompile(`-150300\.`), []btfPlatform{platformOpenSUSELeap}},
 }
 
 var errIncorrectOSReleaseMount = errors.New("please mount the /etc/os-release file as /host/etc/os-release in the system-probe container to resolve this")
 
 // getEmbeddedBTF returns the relative path to the BTF *tarball* file
 func (b *orderedBTFLoader) getEmbeddedBTF(platform btfPlatform, platformVersion, kernelVersion string) (string, error) {
-	btfFilename := kernelVersion + ".btf"
-	btfTarball := btfFilename + ".tar.xz"
+	btfTarball := kernelVersion + ".btf.tar.xz"
 	possiblePaths := b.searchEmbeddedCollection(btfTarball)
 	if len(possiblePaths) == 0 {
 		return "", fmt.Errorf("no BTF file in embedded collection matching kernel version `%s`", kernelVersion)
@@ -300,7 +374,7 @@ func (b *orderedBTFLoader) getEmbeddedBTF(platform btfPlatform, platformVersion,
 		return "", fmt.Errorf("ubuntu platform version incorrectly detected as `%s`. %w", platformVersion, errIncorrectOSReleaseMount)
 	}
 	platformStrings := make([]string, 0, len(possiblePlatforms))
-	for _, pp := range maps.Keys(possiblePlatforms) {
+	for pp := range possiblePlatforms {
 		platformStrings = append(platformStrings, pp.String())
 	}
 	return "", fmt.Errorf("BTF platform incorrectly detected as `%s`. It is likely one of `%s`, but we are unable to automatically decide. %w", platform, strings.Join(platformStrings, ","), errIncorrectOSReleaseMount)
@@ -308,28 +382,20 @@ func (b *orderedBTFLoader) getEmbeddedBTF(platform btfPlatform, platformVersion,
 
 func (b *orderedBTFLoader) searchEmbeddedCollection(filename string) []string {
 	var matchingPaths []string
-	collectionTarball := filepath.Join(b.embeddedDir, "minimized-btfs.tar.xz")
-	err := archiver.NewTarXz().Walk(collectionTarball, func(f archiver.File) error {
-		th, ok := f.Header.(*tar.Header)
-		if !ok {
-			return fmt.Errorf("expected header to be *tar.Header but was %T", f.Header)
-		}
-
-		if !f.IsDir() {
-			if filepath.Base(th.Name) == filename {
-				pform := strings.Split(th.Name, string(os.PathSeparator))[0]
+	collectionTarball := filepath.Join(b.embeddedDir, btfArchiveName)
+	// ignore error because we only care if there are matching paths
+	_ = archive.WalkTarXZArchive(collectionTarball, func(_ *tar.Reader, hdr *tar.Header) error {
+		if hdr.Typeflag == tar.TypeReg {
+			if filepath.Base(hdr.Name) == filename {
+				pform := strings.Split(hdr.Name, string(os.PathSeparator))[0]
 				// must be a recognized platform
 				if _, err := btfPlatformFromString(pform); err == nil {
-					matchingPaths = append(matchingPaths, th.Name)
+					matchingPaths = append(matchingPaths, hdr.Name)
 				}
 			}
 		}
 		return nil
 	})
-	if err != nil {
-		// swallow error intentionally
-		return nil
-	}
 	return matchingPaths
 }
 

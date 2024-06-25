@@ -8,6 +8,7 @@ package checks
 import (
 	"context"
 	"errors"
+	"fmt"
 	"regexp"
 	"strings"
 	"time"
@@ -16,6 +17,7 @@ import (
 	"github.com/shirou/gopsutil/v3/cpu"
 	"go.uber.org/atomic"
 
+	workloadmetacomp "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata/parser"
@@ -26,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/subscriptions"
 )
@@ -41,14 +44,16 @@ const (
 )
 
 // NewProcessCheck returns an instance of the ProcessCheck.
-func NewProcessCheck(config ddconfig.Reader, sysprobeYamlConfig ddconfig.Reader) *ProcessCheck {
+func NewProcessCheck(config ddconfig.Reader, sysprobeYamlConfig ddconfig.Reader, wmeta workloadmetacomp.Component) *ProcessCheck {
 	serviceExtractorEnabled := true
 	useWindowsServiceName := sysprobeYamlConfig.GetBool("system_probe_config.process_service_inference.use_windows_service_name")
+	useImprovedAlgorithm := sysprobeYamlConfig.GetBool("system_probe_config.process_service_inference.use_improved_algorithm")
 	check := &ProcessCheck{
 		config:           config,
 		scrubber:         procutil.NewDefaultDataScrubber(),
 		lookupIdProbe:    NewLookupIDProbe(config),
-		serviceExtractor: parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName),
+		serviceExtractor: parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName, useImprovedAlgorithm),
+		wmeta:            wmeta,
 	}
 
 	return check
@@ -90,7 +95,7 @@ type ProcessCheck struct {
 	realtimeLastProcs   map[int32]*procutil.Stats
 	realtimeLastRun     time.Time
 
-	notInitializedLogLimit *util.LogLimit
+	notInitializedLogLimit *log.Limit
 
 	// lastPIDs is []int32 that holds PIDs that the check fetched last time,
 	// will be reused by RT process collection to get stats
@@ -116,6 +121,8 @@ type ProcessCheck struct {
 	workloadMetaServer    *workloadmeta.GRPCServer
 
 	serviceExtractor *parser.ServiceExtractor
+
+	wmeta workloadmetacomp.Component
 }
 
 // Init initializes the singleton ProcessCheck.
@@ -125,9 +132,9 @@ func (p *ProcessCheck) Init(syscfg *SysProbeConfig, info *HostInfo, oneShot bool
 	p.probe = newProcessProbe(p.config,
 		procutil.WithPermission(syscfg.ProcessModuleEnabled),
 		procutil.WithIgnoreZombieProcesses(p.config.GetBool(configIgnoreZombies)))
-	p.containerProvider = proccontainers.GetSharedContainerProvider()
+	p.containerProvider = proccontainers.GetSharedContainerProvider(p.wmeta)
 
-	p.notInitializedLogLimit = util.NewLogLimit(1, time.Minute*10)
+	p.notInitializedLogLimit = log.NewLogLimit(1, time.Minute*10)
 
 	networkID, err := cloudproviders.GetNetworkID(context.TODO())
 	if err != nil {
@@ -197,6 +204,10 @@ func (p *ProcessCheck) getLastConnRates() ProcessConnRates {
 
 // IsEnabled returns true if the check is enabled by configuration
 func (p *ProcessCheck) IsEnabled() bool {
+	if p.config.GetBool("process_config.run_in_core_agent.enabled") && flavor.GetFlavor() == flavor.ProcessAgent {
+		return false
+	}
+
 	return p.config.GetBool("process_config.process_collection.enabled")
 }
 
@@ -270,9 +281,6 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, erro
 		extractor.Extract(procs)
 	}
 
-	// Keep track of containers addresses
-	LocalResolver.LoadAddrs(containers, pidToCid)
-
 	// End check early if this is our first run.
 	if p.lastProcs == nil {
 		p.lastProcs = procs
@@ -333,8 +341,9 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, erro
 		p.realtimeLastRun = p.lastRun
 	}
 
-	statsd.Client.Gauge("datadog.process.containers.host_count", float64(totalContainers), []string{}, 1) //nolint:errcheck
-	statsd.Client.Gauge("datadog.process.processes.host_count", float64(totalProcs), []string{}, 1)       //nolint:errcheck
+	agentNameTag := fmt.Sprintf("agent:%s", flavor.GetFlavor())
+	statsd.Client.Gauge("datadog.process.containers.host_count", float64(totalContainers), []string{agentNameTag}, 1) //nolint:errcheck
+	statsd.Client.Gauge("datadog.process.processes.host_count", float64(totalProcs), []string{agentNameTag}, 1)       //nolint:errcheck
 	log.Debugf("collected processes in %s", time.Since(start))
 
 	return result, nil
@@ -422,6 +431,7 @@ func chunkProcessesAndContainers(
 
 	totalProcs := len(procsByCtr[emptyCtrID])
 
+	// we first split non-container processes in chunks
 	chunkProcessesBySizeAndWeight(procsByCtr[emptyCtrID], nil, maxChunkSize, maxChunkWeight, chunker)
 
 	totalContainers := len(containers)
@@ -608,7 +618,8 @@ func skipProcess(
 	}
 	if _, ok := lastProcs[fp.Pid]; !ok {
 		// Skipping any processes that didn't exist in the previous run.
-		// This means short-lived processes (<2s) will never be captured.
+		// The check runs every 10 seconds by default, so this means
+		// processes that live less than 20 seconds may not be captured.
 		return true
 	}
 	// Skipping zombie processes (defined in docs as Status = "Z") if the config

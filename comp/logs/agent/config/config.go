@@ -17,7 +17,6 @@ import (
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
 // ContainerCollectAll is the name of the docker integration that collect logs from all containers
@@ -113,7 +112,9 @@ func BuildEndpointsWithConfig(coreConfig pkgconfigmodel.Reader, logsConfig *Logs
 		log.Warnf("Use of illegal configuration parameter, if you need to send your logs to a proxy, "+
 			"please use '%s' and '%s' instead", logsConfig.getConfigKey("logs_dd_url"), logsConfig.getConfigKey("logs_no_ssl"))
 	}
-	if logsConfig.isForceHTTPUse() || logsConfig.obsPipelineWorkerEnabled() || (bool(httpConnectivity) && !(logsConfig.isForceTCPUse() || logsConfig.isSocks5ProxySet() || logsConfig.hasAdditionalEndpoints())) {
+
+	mrfEnabled := coreConfig.GetBool("multi_region_failover.enabled")
+	if logsConfig.isForceHTTPUse() || logsConfig.obsPipelineWorkerEnabled() || mrfEnabled || (bool(httpConnectivity) && !(logsConfig.isForceTCPUse() || logsConfig.isSocks5ProxySet() || logsConfig.hasAdditionalEndpoints())) {
 		return BuildHTTPEndpointsWithConfig(coreConfig, logsConfig, endpointPrefix, intakeTrackType, intakeProtocol, intakeOrigin)
 	}
 	log.Warnf("You are currently sending Logs to Datadog through TCP (either because %s or %s is set or the HTTP connectivity test has failed) "+
@@ -140,13 +141,7 @@ func IsExpectedTagsSet(coreConfig pkgconfigmodel.Reader) bool {
 
 func buildTCPEndpoints(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfigKeys) (*Endpoints, error) {
 	useProto := logsConfig.devModeUseProto()
-	proxyAddress := logsConfig.socks5ProxyAddress()
-	main := Endpoint{
-		APIKey:                  logsConfig.getLogsAPIKey(),
-		ProxyAddress:            proxyAddress,
-		ConnectionResetInterval: logsConfig.connectionResetInterval(),
-		UseSSL:                  pointer.Ptr(logsConfig.logsNoSSL()),
-	}
+	main := NewTCPEndpoint(logsConfig)
 
 	if logsDDURL, defined := logsConfig.logsDDURL(); defined {
 		// Proxy settings, expect 'logs_config.logs_dd_url' to respect the format '<HOST>:<PORT>'
@@ -158,11 +153,11 @@ func buildTCPEndpoints(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfigK
 		}
 		main.Host = host
 		main.Port = port
-		*main.UseSSL = !logsConfig.logsNoSSL()
+		main.useSSL = !logsConfig.logsNoSSL()
 	} else if logsConfig.usePort443() {
 		main.Host = logsConfig.ddURL443()
 		main.Port = 443
-		*main.UseSSL = true
+		main.useSSL = true
 	} else {
 		// If no proxy is set, we default to 'logs_config.dd_url' if set, or to 'site'.
 		// if none of them is set, we default to the US agent endpoint.
@@ -172,17 +167,10 @@ func buildTCPEndpoints(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfigK
 		} else {
 			main.Port = logsConfig.ddPort()
 		}
-		*main.UseSSL = !logsConfig.devModeNoSSL()
+		main.useSSL = !logsConfig.devModeNoSSL()
 	}
 
-	additionals := logsConfig.getAdditionalEndpoints()
-	for i := 0; i < len(additionals); i++ {
-		if additionals[i].UseSSL == nil {
-			additionals[i].UseSSL = main.UseSSL
-		}
-		additionals[i].ProxyAddress = proxyAddress
-		additionals[i].APIKey = pkgconfigutils.SanitizeAPIKey(additionals[i].APIKey)
-	}
+	additionals := loadTCPAdditionalEndpoints(main, logsConfig)
 	return NewEndpoints(main, additionals, useProto, false), nil
 }
 
@@ -201,18 +189,7 @@ func BuildHTTPEndpointsWithConfig(coreConfig pkgconfigmodel.Reader, logsConfig *
 	// Provide default values for legacy settings when the configuration key does not exist
 	defaultNoSSL := logsConfig.logsNoSSL()
 
-	main := Endpoint{
-		APIKey:                  logsConfig.getLogsAPIKey(),
-		UseCompression:          logsConfig.useCompression(),
-		CompressionLevel:        logsConfig.compressionLevel(),
-		ConnectionResetInterval: logsConfig.connectionResetInterval(),
-		BackoffBase:             logsConfig.senderBackoffBase(),
-		BackoffMax:              logsConfig.senderBackoffMax(),
-		BackoffFactor:           logsConfig.senderBackoffFactor(),
-		RecoveryInterval:        logsConfig.senderRecoveryInterval(),
-		RecoveryReset:           logsConfig.senderRecoveryReset(),
-		UseSSL:                  pointer.Ptr(defaultNoSSL),
-	}
+	main := NewHTTPEndpoint(logsConfig)
 
 	if logsConfig.useV2API() && intakeTrackType != "" {
 		main.Version = EPIntakeVersion2
@@ -230,7 +207,7 @@ func BuildHTTPEndpointsWithConfig(coreConfig pkgconfigmodel.Reader, logsConfig *
 		}
 		main.Host = host
 		main.Port = port
-		*main.UseSSL = useSSL
+		main.useSSL = useSSL
 	} else if logsDDURL, logsDDURLDefined := logsConfig.logsDDURL(); logsDDURLDefined {
 		host, port, useSSL, err := parseAddressWithScheme(logsDDURL, defaultNoSSL, parseAddress)
 		if err != nil {
@@ -238,7 +215,7 @@ func BuildHTTPEndpointsWithConfig(coreConfig pkgconfigmodel.Reader, logsConfig *
 		}
 		main.Host = host
 		main.Port = port
-		*main.UseSSL = useSSL
+		main.useSSL = useSSL
 	} else {
 		addr := pkgconfigutils.GetMainEndpoint(coreConfig, endpointPrefix, logsConfig.getConfigKey("dd_url"))
 		host, port, useSSL, err := parseAddressWithScheme(addr, logsConfig.devModeNoSSL(), parseAddressAsHost)
@@ -248,31 +225,38 @@ func BuildHTTPEndpointsWithConfig(coreConfig pkgconfigmodel.Reader, logsConfig *
 
 		main.Host = host
 		main.Port = port
-		*main.UseSSL = useSSL
+		main.useSSL = useSSL
 	}
 
-	additionals := logsConfig.getAdditionalEndpoints()
-	for i := 0; i < len(additionals); i++ {
-		if additionals[i].UseSSL == nil {
-			additionals[i].UseSSL = main.UseSSL
-		}
-		additionals[i].APIKey = pkgconfigutils.SanitizeAPIKey(additionals[i].APIKey)
-		additionals[i].UseCompression = main.UseCompression
-		additionals[i].CompressionLevel = main.CompressionLevel
-		additionals[i].BackoffBase = main.BackoffBase
-		additionals[i].BackoffMax = main.BackoffMax
-		additionals[i].BackoffFactor = main.BackoffFactor
-		additionals[i].RecoveryInterval = main.RecoveryInterval
-		additionals[i].RecoveryReset = main.RecoveryReset
+	additionals := loadHTTPAdditionalEndpoints(main, logsConfig, intakeTrackType, intakeProtocol, intakeOrigin)
 
-		if additionals[i].Version == 0 {
-			additionals[i].Version = main.Version
+	// Add in the MRF endpoint if MRF is enabled.
+	if coreConfig.GetBool("multi_region_failover.enabled") {
+		mrfURL, err := pkgconfigutils.GetMRFEndpoint(coreConfig, endpointPrefix, "multi_region_failover.dd_url")
+		if err != nil {
+			return nil, fmt.Errorf("cannot construct MRF endpoint: %s", err)
 		}
-		if additionals[i].Version == EPIntakeVersion2 {
-			additionals[i].TrackType = intakeTrackType
-			additionals[i].Protocol = intakeProtocol
-			additionals[i].Origin = intakeOrigin
+
+		mrfHost, mrfPort, mrfUseSSL, err := parseAddressWithScheme(mrfURL, defaultNoSSL, parseAddressAsHost)
+		if err != nil {
+			return nil, fmt.Errorf("could not parse %s: %v", mrfURL, err)
 		}
+
+		e := NewEndpoint(coreConfig.GetString("multi_region_failover.api_key"), mrfHost, mrfPort, mrfUseSSL)
+		e.IsMRF = true
+		e.UseCompression = main.UseCompression
+		e.CompressionLevel = main.CompressionLevel
+		e.BackoffBase = main.BackoffBase
+		e.BackoffMax = main.BackoffMax
+		e.BackoffFactor = main.BackoffFactor
+		e.RecoveryInterval = main.RecoveryInterval
+		e.RecoveryReset = main.RecoveryReset
+		e.Version = main.Version
+		e.TrackType = intakeTrackType
+		e.Protocol = intakeProtocol
+		e.Origin = intakeOrigin
+
+		additionals = append(additionals, e)
 	}
 
 	batchWait := logsConfig.batchWait()

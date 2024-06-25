@@ -31,7 +31,7 @@ func TestGetHostname(t *testing.T) {
 	metadataURL = ts.URL
 
 	aliases, err := GetHostAliases(ctx)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	require.Len(t, aliases, 1)
 	assert.Equal(t, expected, aliases[0])
 	assert.Equal(t, lastRequest.URL.Path, "/latest/meta-data/instance-id")
@@ -51,7 +51,7 @@ func TestGetNTPHosts(t *testing.T) {
 	defer ts.Close()
 
 	metadataURL = ts.URL
-	config.Datadog.SetWithoutSource("cloud_provider_metadata", []string{"alibaba"})
+	config.Datadog().SetWithoutSource("cloud_provider_metadata", []string{"alibaba"})
 	actualHosts := GetNTPHosts(ctx)
 
 	assert.Equal(t, expectedHosts, actualHosts)

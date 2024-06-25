@@ -11,6 +11,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"time"
 
@@ -26,8 +27,9 @@ const typeStr = "file"
 
 // NewFactory creates a new OTLP receiver factory.
 func NewFactory() collectorreceiver.Factory {
+	cfgType, _ := component.NewType(typeStr)
 	return collectorreceiver.NewFactory(
-		typeStr,
+		cfgType,
 		createDefaultConfig,
 		collectorreceiver.WithMetrics(createMetricsReceiver, component.StabilityLevelAlpha),
 	)
@@ -35,7 +37,7 @@ func NewFactory() collectorreceiver.Factory {
 
 // Config of filereceiver.
 type Config struct {
-	collectorreceiver.CreateSettings `mapstructure:",squash"`
+	collectorreceiver.Settings `mapstructure:",squash"`
 	// Path of metrics data.
 	Path string `mapstructure:"path"`
 	// LoopConfig is the loop configuration.
@@ -59,9 +61,10 @@ func (cfg *Config) Validate() error {
 }
 
 func createDefaultConfig() component.Config {
+	cfgType, _ := component.NewType(typeStr)
 	return &Config{
-		CreateSettings: collectorreceiver.CreateSettings{
-			ID: component.NewID(typeStr),
+		Settings: collectorreceiver.Settings{
+			ID: component.NewID(cfgType),
 		},
 		Loop: LoopConfig{Enabled: false, Period: 10 * time.Second},
 	}
@@ -88,10 +91,10 @@ func (r *receiver) Start(_ context.Context, host component.Host) error {
 	return nil
 }
 
-func (r *receiver) unmarshalAndSend(host component.Host) {
+func (r *receiver) unmarshalAndSend(_ component.Host) {
 	file, err := os.Open(r.config.Path)
 	if err != nil {
-		host.ReportFatalError(fmt.Errorf("failed to open %q: %w", r.config.Path, err))
+		log.Fatal(fmt.Errorf("failed to open %q: %w", r.config.Path, err))
 		return
 	}
 
@@ -100,24 +103,24 @@ func (r *receiver) unmarshalAndSend(host component.Host) {
 	for scanner.Scan() {
 		metrics, err := r.unmarshaler.UnmarshalMetrics(scanner.Bytes())
 		if err != nil {
-			host.ReportFatalError(fmt.Errorf("failed to unmarshal %q: %w", r.config.Path, err))
+			log.Fatal(fmt.Errorf("failed to unmarshal %q: %w", r.config.Path, err))
 			return
 		}
 
 		err = r.nextConsumer.ConsumeMetrics(context.Background(), metrics)
 		if err != nil {
-			host.ReportFatalError(fmt.Errorf("failed to send %q: %w", r.config.Path, err))
+			log.Fatal(fmt.Errorf("failed to send %q: %w", r.config.Path, err))
 			return
 		}
 	}
 
 	if err := scanner.Err(); err != nil {
-		host.ReportFatalError(fmt.Errorf("failed to scan %q: %w", r.config.Path, err))
+		log.Fatal(fmt.Errorf("failed to scan %q: %w", r.config.Path, err))
 		return
 	}
 
 	if err := file.Close(); err != nil {
-		host.ReportFatalError(fmt.Errorf("failed to close %q: %w", r.config.Path, err))
+		log.Fatal(fmt.Errorf("failed to close %q: %w", r.config.Path, err))
 		return
 	}
 }
@@ -140,7 +143,7 @@ func (r *receiver) Shutdown(context.Context) error {
 
 func createMetricsReceiver(
 	_ context.Context,
-	set collectorreceiver.CreateSettings,
+	set collectorreceiver.Settings,
 	cfg component.Config,
 	consumer consumer.Metrics,
 ) (collectorreceiver.Metrics, error) {

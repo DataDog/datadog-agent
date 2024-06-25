@@ -15,7 +15,7 @@ experimental:
 templates:
   job_template: &job_template
     docker:
-      - image: gcr.io/datadoghq/agent-circleci-runner:v27950662-17e84032
+      - image: gcr.io/datadoghq/agent-circleci-runner:v37111741-34301f4a
         environment:
           USE_SYSTEM_LIBS: "1"
     working_directory: /go/src/github.com/DataDog/datadog-agent
@@ -100,13 +100,9 @@ jobs:
       - run:
           name: run unit tests
           no_output_timeout: 20m
-          command: inv -e test --rerun-fails=2 --python-runtimes 3 --coverage --race --profile --cpus 8 --build-stdlib
+          command: inv -e test --rerun-fails=2 --python-runtimes 3 --coverage --race --profile --cpus 8 --build-stdlib --test-washer
           environment:
             GO_TEST_SKIP_FLAKE: "true"
-      - run:
-          name: upload code coverage results
-          # Never fail on coverage upload
-          command: inv -e codecov || true
 
   integration_tests:
     <<: *job_template
@@ -119,18 +115,6 @@ jobs:
           name: run integration tests
           command: inv -e integration-tests --race --remote-docker
 
-  release_note:
-    <<: *job_template
-    steps:
-      - restore_cache: *restore_source
-      - restore_cache: *restore_deps
-      - run:
-          command: pip install -r tasks/libs/requirements-github.txt
-          name: Install additional requirements
-      - run:
-          command: inv -e lint-releasenote
-          name: run PR check for release note
-
   go_linting:
     <<: *job_template
     resource_class: xlarge
@@ -140,7 +124,7 @@ jobs:
       - run:
           name: run go linters
           no_output_timeout: 20m
-          command: inv -e lint-go
+          command: inv -e linter.go
 
   licenses_linting:
     <<: *job_template
@@ -158,7 +142,7 @@ jobs:
       - restore_cache: *restore_deps
       - run:
           name: run copyrights linting
-          command: inv -e lint-copyrights
+          command: inv -e linter.copyrights
 
   filename_linting:
     <<: *job_template
@@ -167,7 +151,7 @@ jobs:
       - restore_cache: *restore_deps
       - run:
           name: run filename linting
-          command: inv -e lint-filenames
+          command: inv -e linter.filenames
 
   shell_linting:
     <<: *job_template
@@ -186,20 +170,6 @@ jobs:
           #SC2028: echo may not expand escape sequences. Use printf.
           #SC2059: Don't use variables in the printf format string. Use printf "..%s.." "$foo".
           command: shellcheck --severity=info -e SC2059 -e SC2028 --shell=bash ./cmd/**/*.sh ./omnibus/package-scripts/*/*
-
-  python_linting:
-    <<: *job_template
-    steps:
-      - restore_cache: *restore_source
-      - restore_cache: *restore_deps
-      - run:
-          name: setting env vars for click
-          command: |
-            echo 'export LC_ALL="C.UTF-8"' >> $BASH_ENV
-            echo 'export LANG="C.UTF-8"' >> $BASH_ENV
-      - run:
-          name: lint python files
-          command: inv -e lint-python
 
   component_linting:
     <<: *job_template
@@ -280,13 +250,6 @@ workflows:
       - integration_tests:
           requires:
             - dependencies
-      - release_note:
-          filters:
-            branches:
-              ignore:
-                - main
-          requires:
-            - dependencies
       - go_linting:
           requires:
             - dependencies
@@ -300,9 +263,6 @@ workflows:
           requires:
             - dependencies
       - shell_linting:
-          requires:
-            - dependencies
-      - python_linting:
           requires:
             - dependencies
       - component_linting:

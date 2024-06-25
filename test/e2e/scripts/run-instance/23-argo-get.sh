@@ -2,7 +2,6 @@
 set -euo pipefail
 
 printf '=%.0s' {0..79} ; echo
-set -x
 
 ARGO_WORKFLOW=${ARGO_WORKFLOW:-''}
 
@@ -23,8 +22,8 @@ if ! locale -k LC_CTYPE | grep -qi 'charmap="utf-\+8"'; then
 fi
 
 for workflow in $(./argo list --status Succeeded -o name | grep -v 'No workflows found'); do
-    # CWS and CSPM always get logs
-    if [ "$ARGO_WORKFLOW" = "cws" ] || [ "$ARGO_WORKFLOW" = "cspm" ]; then
+    # CSPM always gets logs
+    if [ "$ARGO_WORKFLOW" = "cspm" ]; then
         ./argo logs "$workflow"
     fi
 

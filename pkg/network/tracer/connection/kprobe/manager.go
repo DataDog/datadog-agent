@@ -8,14 +8,12 @@
 package kprobe
 
 import (
-	"os"
-
 	manager "github.com/DataDog/ebpf-manager"
 
-	"github.com/DataDog/datadog-agent/pkg/ebpf"
-	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/util"
 )
 
 var mainProbes = []probes.ProbeFuncName{
@@ -33,6 +31,8 @@ var mainProbes = []probes.ProbeFuncName{
 	probes.TCPReadSock,
 	probes.TCPReadSockReturn,
 	probes.TCPClose,
+	probes.TCPDone,
+	probes.TCPDoneFlushReturn,
 	probes.TCPCloseCleanProtocolsReturn,
 	probes.TCPCloseFlushReturn,
 	probes.TCPConnect,
@@ -61,11 +61,12 @@ var mainProbes = []probes.ProbeFuncName{
 	probes.UDPSendPageReturn,
 }
 
-func initManager(mgr *ebpftelemetry.Manager, closedHandler *ebpf.PerfHandler, runtimeTracer bool, cfg *config.Config) error {
+func initManager(mgr *ddebpf.Manager, connCloseEventHandler ddebpf.EventHandler, failedConnsHandler ddebpf.EventHandler, runtimeTracer bool, cfg *config.Config) error {
 	mgr.Maps = []*manager.Map{
 		{Name: probes.ConnMap},
 		{Name: probes.TCPStatsMap},
 		{Name: probes.TCPConnectSockPidMap},
+		{Name: probes.ConnCloseFlushed},
 		{Name: probes.ConnCloseBatchMap},
 		{Name: "udp_recv_sock"},
 		{Name: "udpv6_recv_sock"},
@@ -74,29 +75,21 @@ func initManager(mgr *ebpftelemetry.Manager, closedHandler *ebpf.PerfHandler, ru
 		{Name: "pending_bind"},
 		{Name: probes.TelemetryMap},
 		{Name: probes.ConnectionProtocolMap},
-		{Name: probes.TcpSendMsgArgsMap},
-		{Name: probes.TcpSendPageArgsMap},
-		{Name: probes.UdpSendPageArgsMap},
-		{Name: probes.IpMakeSkbArgsMap},
+		{Name: probes.TCPSendMsgArgsMap},
+		{Name: probes.TCPSendPageArgsMap},
+		{Name: probes.UDPSendPageArgsMap},
+		{Name: probes.IPMakeSkbArgsMap},
 		{Name: probes.MapErrTelemetryMap},
 		{Name: probes.HelperErrTelemetryMap},
-		{Name: probes.TcpRecvMsgArgsMap},
+		{Name: probes.TCPRecvMsgArgsMap},
 		{Name: probes.ClassificationProgsMap},
 		{Name: probes.TCPCloseProgsMap},
 	}
-	pm := &manager.PerfMap{
-		Map: manager.Map{Name: probes.ConnCloseEventMap},
-		PerfMapOptions: manager.PerfMapOptions{
-			PerfRingBufferSize: 8 * os.Getpagesize(),
-			Watermark:          1,
-			RecordHandler:      closedHandler.RecordHandler,
-			LostHandler:        closedHandler.LostHandler,
-			RecordGetter:       closedHandler.RecordGetter,
-			TelemetryEnabled:   cfg.InternalTelemetryEnabled,
-		},
+	util.SetupClosedConnHandler(connCloseEventHandler, mgr, cfg)
+	if cfg.FailedConnectionsSupported() && failedConnsHandler != nil {
+		util.SetupFailedConnHandler(failedConnsHandler, mgr, cfg)
 	}
-	mgr.PerfMaps = []*manager.PerfMap{pm}
-	ebpftelemetry.ReportPerfMapTelemetry(pm)
+
 	for _, funcName := range mainProbes {
 		p := &manager.Probe{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{

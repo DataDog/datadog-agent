@@ -59,8 +59,6 @@ type EventContextSerializer struct {
 	Async bool `json:"async,omitempty"`
 	// The list of rules that the event matched (only valid in the context of an anomaly)
 	MatchedRules []MatchedRuleSerializer `json:"matched_rules,omitempty"`
-	// Origin of the event
-	Origin string `json:"origin,omitempty"`
 	// Variables values
 	Variables Variables `json:"variables,omitempty"`
 }
@@ -75,6 +73,8 @@ type ProcessContextSerializer struct {
 	Ancestors []*ProcessSerializer `json:"ancestors,omitempty"`
 	// Variables values
 	Variables Variables `json:"variables,omitempty"`
+	// True if the ancestors list was truncated because it was too big
+	TruncatedAncestors bool `json:"truncated_ancestors,omitempty"`
 }
 
 // IPPortSerializer is used to serialize an IP and Port context to JSON
@@ -113,6 +113,50 @@ type NetworkContextSerializer struct {
 	Destination IPPortSerializer `json:"destination"`
 	// size is the size in bytes of the network event
 	Size uint32 `json:"size"`
+}
+
+// AWSSecurityCredentialsSerializer serializes the security credentials from an AWS IMDS request
+// easyjson:json
+type AWSSecurityCredentialsSerializer struct {
+	// code is the IMDS server code response
+	Code string `json:"code"`
+	// type is the security credentials type
+	Type string `json:"type"`
+	// access_key_id is the unique access key ID of the credentials
+	AccessKeyID string `json:"access_key_id"`
+	// last_updated is the last time the credentials were updated
+	LastUpdated string `json:"last_updated"`
+	// expiration is the expiration date of the credentials
+	Expiration string `json:"expiration"`
+}
+
+// AWSIMDSEventSerializer serializes an AWS IMDS event to JSON
+// easyjson:json
+type AWSIMDSEventSerializer struct {
+	// is_imds_v2 reports if the IMDS event follows IMDSv1 or IMDSv2 conventions
+	IsIMDSv2 bool `json:"is_imds_v2"`
+	// SecurityCredentials holds the scrubbed data collected on the security credentials
+	SecurityCredentials *AWSSecurityCredentialsSerializer `json:"security_credentials,omitempty"`
+}
+
+// IMDSEventSerializer serializes an IMDS event to JSON
+// easyjson:json
+type IMDSEventSerializer struct {
+	// type is the type of IMDS event
+	Type string `json:"type"`
+	// cloud_provider is the intended cloud provider of the IMDS event
+	CloudProvider string `json:"cloud_provider"`
+	// url is the url of the IMDS request
+	URL string `json:"url,omitempty"`
+	// host is the host of the HTTP protocol
+	Host string `json:"host,omitempty"`
+	// user_agent is the user agent of the HTTP client
+	UserAgent string `json:"user_agent,omitempty"`
+	// server is the server header of a response
+	Server string `json:"server,omitempty"`
+
+	// AWS holds the AWS specific data parsed from the IMDS event
+	AWS *AWSIMDSEventSerializer `json:"aws,omitempty"`
 }
 
 // DNSQuestionSerializer serializes a DNS question to JSON
@@ -200,6 +244,40 @@ func newDNSEventSerializer(d *model.DNSEvent) *DNSEventSerializer {
 }
 
 // nolint: deadcode, unused
+func newAWSSecurityCredentialsSerializer(creds *model.AWSSecurityCredentials) *AWSSecurityCredentialsSerializer {
+	return &AWSSecurityCredentialsSerializer{
+		Code:        creds.Code,
+		Type:        creds.Type,
+		LastUpdated: creds.LastUpdated,
+		Expiration:  creds.ExpirationRaw,
+		AccessKeyID: creds.AccessKeyID,
+	}
+}
+
+// nolint: deadcode, unused
+func newIMDSEventSerializer(e *model.IMDSEvent) *IMDSEventSerializer {
+	var aws *AWSIMDSEventSerializer
+	if e.CloudProvider == model.IMDSAWSCloudProvider {
+		aws = &AWSIMDSEventSerializer{
+			IsIMDSv2: e.AWS.IsIMDSv2,
+		}
+		if len(e.AWS.SecurityCredentials.AccessKeyID) > 0 {
+			aws.SecurityCredentials = newAWSSecurityCredentialsSerializer(&e.AWS.SecurityCredentials)
+		}
+	}
+
+	return &IMDSEventSerializer{
+		Type:          e.Type,
+		CloudProvider: e.CloudProvider,
+		URL:           e.URL,
+		Host:          e.Host,
+		UserAgent:     e.UserAgent,
+		Server:        e.Server,
+		AWS:           aws,
+	}
+}
+
+// nolint: deadcode, unused
 func newIPPortSerializer(c *model.IPPortContext) IPPortSerializer {
 	return IPPortSerializer{
 		IP:   c.IPNet.IP.String(),
@@ -232,11 +310,13 @@ func NewBaseEventSerializer(event *model.Event, opts *eval.Opts) *BaseEventSeria
 	s := &BaseEventSerializer{
 		EventContextSerializer: EventContextSerializer{
 			Name:      eventType.String(),
-			Origin:    event.Origin,
 			Variables: newVariablesContext(event, opts, ""),
 		},
-		ProcessContextSerializer: newProcessContextSerializer(pc, event, opts),
+		ProcessContextSerializer: newProcessContextSerializer(pc, event),
 		Date:                     utils.NewEasyjsonTime(event.ResolveEventTime()),
+	}
+	if s.ProcessContextSerializer != nil {
+		s.ProcessContextSerializer.Variables = newVariablesContext(event, opts, "process.")
 	}
 
 	if event.IsAnomalyDetectionEvent() && len(event.Rules) > 0 {
@@ -255,11 +335,6 @@ func NewBaseEventSerializer(event *model.Event, opts *eval.Opts) *BaseEventSeria
 		}
 		s.ExitEventSerializer = newExitEventSerializer(event)
 		s.EventContextSerializer.Outcome = serializeOutcome(0)
-	case model.ExecEventType:
-		s.FileEventSerializer = &FileEventSerializer{
-			FileSerializer: *newFileSerializer(&event.ProcessContext.Process.FileEvent, event),
-		}
-		s.EventContextSerializer.Outcome = serializeOutcome(0)
 	}
 
 	return s
@@ -269,6 +344,10 @@ func newVariablesContext(e *model.Event, opts *eval.Opts, prefix string) (variab
 	if opts != nil && opts.VariableStore != nil {
 		store := opts.VariableStore
 		for name, variable := range store.Variables {
+			if _, found := model.SECLVariables[name]; found {
+				continue
+			}
+
 			if (prefix != "" && !strings.HasPrefix(name, prefix)) ||
 				(prefix == "" && strings.Contains(name, ".")) {
 				continue
@@ -281,19 +360,22 @@ func newVariablesContext(e *model.Event, opts *eval.Opts, prefix string) (variab
 					variables = Variables{}
 				}
 				if value != nil {
+					trimmedName := strings.TrimPrefix(name, prefix)
 					switch value := value.(type) {
 					case []string:
-						for _, value := range value {
-							if scrubbed, err := scrubber.ScrubString(value); err == nil {
-								variables[strings.TrimPrefix(name, prefix)] = scrubbed
+						scrubbedValues := make([]string, 0, len(value))
+						for _, elem := range value {
+							if scrubbed, err := scrubber.ScrubString(elem); err == nil {
+								scrubbedValues = append(scrubbedValues, scrubbed)
 							}
 						}
+						variables[trimmedName] = scrubbedValues
 					case string:
 						if scrubbed, err := scrubber.ScrubString(value); err == nil {
-							variables[strings.TrimPrefix(name, prefix)] = scrubbed
+							variables[trimmedName] = scrubbed
 						}
 					default:
-						variables[strings.TrimPrefix(name, prefix)] = value
+						variables[trimmedName] = value
 					}
 				}
 			}

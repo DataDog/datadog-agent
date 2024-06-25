@@ -3,9 +3,10 @@ import tarfile
 import tempfile
 
 import docker
+from retry.api import retry_call
+
 from lib.const import SEC_AGENT_PATH
 from lib.log import LogGetter
-from retry.api import retry_call
 
 
 def is_container_running(container):

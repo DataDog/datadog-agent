@@ -28,15 +28,6 @@ spec:
         source: |
           set -euo pipefail
 
-          # for CWS tests we need to have a test policy before the container start
-          mkdir -p /tmp/runtime-security.d
-          cat > /tmp/runtime-security.d/test.policy <<EOF
-          rules:
-            - id: TEST
-              expression: open.file.path == "/tmp/test123"
-          EOF
-          kubectl create configmap cws-test-policy --from-file=/tmp/runtime-security.d/test.policy
-
           cat > /tmp/values.yaml <<EOF
           datadog:
             kubeStateMetricsEnabled: false
@@ -82,10 +73,6 @@ spec:
             securityAgent:
               compliance:
                 enabled: true
-              runtime:
-                enabled: true
-                network:
-                  enabled: false
 
             confd:
               memory.yaml: |
@@ -123,34 +110,13 @@ spec:
                 env:
                   - name:  DD_USE_V2_API_SERIES
                     value: "false"
-              systemProbe:
-                logLevel: TRACE
-                env:
-                  - name: HOST_PROC
-                    value: "/host/root/proc"
-                  - name: DD_RUNTIME_SECURITY_CONFIG_LOG_PATTERNS
-                    value: "module.APIServer.*"
-                  - name: DD_RUNTIME_SECURITY_CONFIG_POLICIES_DIR
-                    value: "/tmp/runtime-security.d"
-                  - name: DD_RUNTIME_SECURITY_CONFIG_REMOTE_CONFIGURATION_ENABLED
-                    value: "{{inputs.parameters.remote_configuration_enabled}}"
-                securityContext:
-                  capabilities:
-                    drop:
-                      - all
             volumes:
-              - configMap:
-                  name: cws-test-policy
-                name: cws-test-policy
               - name: host-root-proc
                 hostPath:
                   path: /host/proc
             volumeMounts:
               - name: host-root-proc
                 mountPath: /host/root/proc
-              - name: cws-test-policy
-                mountPath: /tmp/runtime-security.d/test.policy
-                subPath: test.policy
             useConfigMap: true
             customAgentConfig:
               additional_endpoints:
@@ -208,7 +174,6 @@ spec:
         command: [sh]
         source: |
           set -euo pipefail
-          set -x
 
           until kubectl --namespace {{inputs.parameters.namespace}} get pods -l app=datadog-agent; do
             sleep 1
@@ -234,7 +199,6 @@ spec:
         command: [sh]
         source: |
           set -euo pipefail
-          set -x
 
           until kubectl --namespace {{inputs.parameters.namespace}} get pods -l app=datadog-agent; do
             sleep 1
@@ -255,7 +219,6 @@ spec:
         command: [sh]
         source: |
           set -euo pipefail
-          set -x
 
           until kubectl --namespace {{inputs.parameters.namespace}} get cm datadog-agent-leader-election -o jsonpath={.metadata.annotations."control-plane\.alpha\.kubernetes\.io/leader"}; do
             sleep 1
@@ -439,32 +402,6 @@ spec:
                 - name: namespace
                   value: "{{inputs.parameters.namespace}}"
 
-    - name: test-cws-e2e
-      inputs:
-        parameters:
-          - name: namespace
-          - name: site
-      activeDeadlineSeconds: 900
-      script:
-        image: public.ecr.aws/docker/library/python:latest
-        envFrom:
-          - secretRef:
-              name: dd-keys
-        command: [bash]
-        volumeMounts:
-          - name: datadog-agent-volume
-            mountPath: /host/datadog-agent
-        source: |
-          set -euo pipefail
-
-          export DD_SITE={{inputs.parameters.site}}
-
-          cd /host/datadog-agent/test/e2e/cws-tests
-          python -m venv /tmp/.venv
-          source /tmp/.venv/bin/activate
-          pip install -q -r requirements.txt
-          python tests/test_e2e_cws_kubernetes.py --namespace {{inputs.parameters.namespace}} --in-cluster
-
     - name: test-cspm-e2e
       inputs:
         parameters:
@@ -501,7 +438,6 @@ spec:
         command: [sh]
         source: |
           set -euo pipefail
-          set -x
 
           kubectl --namespace {{inputs.parameters.namespace}} get pods -l app=datadog-agent -o custom-columns=name:metadata.name --no-headers | while read -r po; do
             kubectl --namespace {{inputs.parameters.namespace}} describe pod $po
@@ -517,7 +453,6 @@ spec:
         command: [sh]
         source: |
           set -euo pipefail
-          set -x
 
           kubectl --namespace {{inputs.parameters.namespace}} get pods -l app=datadog-cluster-agent -o custom-columns=name:metadata.name --no-headers | while read -r po; do
             kubectl --namespace {{inputs.parameters.namespace}} describe pod $po
@@ -533,7 +468,6 @@ spec:
         command: [sh]
         source: |
           set -euo pipefail
-          set -x
 
           kubectl --namespace {{inputs.parameters.namespace}} get pods -l app=datadog-agent -o custom-columns=name:metadata.name --no-headers | while read -r po; do
             kubectl --namespace {{inputs.parameters.namespace}} logs $po -c agent
@@ -549,7 +483,6 @@ spec:
         command: [sh]
         source: |
           set -euo pipefail
-          set -x
 
           kubectl --namespace {{inputs.parameters.namespace}} get pods -l app=datadog-agent -o custom-columns=name:metadata.name --no-headers | while read -r po; do
             kubectl --namespace {{inputs.parameters.namespace}} logs $po -c process-agent
@@ -565,26 +498,9 @@ spec:
         command: [sh]
         source: |
           set -euo pipefail
-          set -x
 
           kubectl --namespace {{inputs.parameters.namespace}} get pods -l app=datadog-agent -o custom-columns=name:metadata.name --no-headers | while read -r po; do
             kubectl --namespace {{inputs.parameters.namespace}} logs $po -c trace-agent
-          done
-
-    - name: log-system-probe
-      inputs:
-        parameters:
-          - name: namespace
-      activeDeadlineSeconds: 300
-      script:
-        image: alpine/k8s:1.27.1
-        command: [sh]
-        source: |
-          set -euo pipefail
-          set -x
-
-          kubectl --namespace {{inputs.parameters.namespace}} get pods -l app=datadog-agent -o custom-columns=name:metadata.name --no-headers | while read -r po; do
-            kubectl --namespace {{inputs.parameters.namespace}} logs $po -c system-probe
           done
 
     - name: log-security-agent
@@ -597,7 +513,6 @@ spec:
         command: [sh]
         source: |
           set -euo pipefail
-          set -x
 
           kubectl --namespace {{inputs.parameters.namespace}} get pods -l app=datadog-agent -o custom-columns=name:metadata.name --no-headers | while read -r po; do
             kubectl --namespace {{inputs.parameters.namespace}} logs $po -c security-agent
@@ -613,7 +528,6 @@ spec:
         command: [sh]
         source: |
           set -euo pipefail
-          set -x
 
           kubectl --namespace {{inputs.parameters.namespace}} get pods -l app=datadog-cluster-agent -o custom-columns=name:metadata.name --no-headers | while read -r po; do
             kubectl --namespace {{inputs.parameters.namespace}} logs $po
@@ -629,7 +543,6 @@ spec:
         command: [sh]
         source: |
           set -euo pipefail
-          set -x
 
           kubectl --namespace {{inputs.parameters.namespace}} get pods -l app=datadog-agent -o custom-columns=name:metadata.name --no-headers | while read -r po; do
             kubectl --namespace {{inputs.parameters.namespace}} exec $po -c agent -- agent status
@@ -645,7 +558,6 @@ spec:
         command: [sh]
         source: |
           set -euo pipefail
-          set -x
 
           kubectl --namespace {{inputs.parameters.namespace}} get pods -l app=datadog-agent -o custom-columns=name:metadata.name --no-headers | while read -r po; do
             kubectl --namespace {{inputs.parameters.namespace}} exec $po -c agent -- agent config
@@ -661,7 +573,6 @@ spec:
         command: [sh]
         source: |
           set -euo pipefail
-          set -x
 
           kubectl --namespace {{inputs.parameters.namespace}} get pods -l app=datadog-agent -o custom-columns=name:metadata.name --no-headers | while read -r po; do
             kubectl --namespace {{inputs.parameters.namespace}} exec $po -c agent -- agent configcheck
@@ -677,7 +588,6 @@ spec:
         command: [sh]
         source: |
           set -euo pipefail
-          set -x
 
           kubectl --namespace {{inputs.parameters.namespace}} get pods -l app=datadog-agent -o custom-columns=name:metadata.name --no-headers | while read -r po; do
             kubectl --namespace {{inputs.parameters.namespace}} exec $po -c agent -- agent tagger-list
@@ -714,12 +624,6 @@ spec:
                   value: "{{inputs.parameters.namespace}}"
           - name: log-trace-agent
             template: log-trace-agent
-            arguments:
-              parameters:
-                - name: namespace
-                  value: "{{inputs.parameters.namespace}}"
-          - name: log-system-probe
-            template: log-system-probe
             arguments:
               parameters:
                 - name: namespace

@@ -54,6 +54,9 @@ const (
 	InitModuleNr     = unix.SYS_INIT_MODULE       // InitModuleNr defines the syscall ID for arm64
 	FInitModuleNr    = unix.SYS_FINIT_MODULE      // FInitModuleNr defines the syscall ID for arm64
 	DeleteModuleNr   = unix.SYS_DELETE_MODULE     // DeleteModuleNr defines the syscall ID for arm64
+	IoctlNr          = unix.SYS_IOCTL             // IoctlNr defines the syscall ID for arm64
+	MountNr          = unix.SYS_MOUNT             // MountNr defines the syscall ID for arm64
+	Umount2Nr        = unix.SYS_UMOUNT2           // Umount2Nr defines the syscall ID for arm64
 
 	OpenNr      = -1  // OpenNr not available on arm64
 	ForkNr      = -2  // ForkNr not available on arm64

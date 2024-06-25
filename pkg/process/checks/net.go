@@ -8,29 +8,37 @@ package checks
 import (
 	"context"
 	"errors"
+	"runtime"
 	"sort"
 	"time"
+
+	"github.com/benbjohnson/clock"
 
 	model "github.com/DataDog/agent-payload/v5/process"
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
+	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata/parser"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/process/net/resolver"
-	putil "github.com/DataDog/datadog-agent/pkg/process/util"
+	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/subscriptions"
 )
 
-var (
-	// LocalResolver is a singleton LocalResolver
-	LocalResolver = &resolver.LocalResolver{}
+const (
+	maxResolverPidCacheSize  = 32768
+	maxResolverAddrCacheSize = 4096
+)
 
+var (
 	// ErrTracerStillNotInitialized signals that the tracer is _still_ not ready, so we shouldn't log additional errors
 	ErrTracerStillNotInitialized = errors.New("remote tracer is still not initialized")
 
@@ -39,11 +47,13 @@ var (
 )
 
 // NewConnectionsCheck returns an instance of the ConnectionsCheck.
-func NewConnectionsCheck(config, sysprobeYamlConfig config.Reader, syscfg *sysconfigtypes.Config) *ConnectionsCheck {
+func NewConnectionsCheck(config, sysprobeYamlConfig config.Reader, syscfg *sysconfigtypes.Config, wmeta workloadmeta.Component, npCollector npcollector.Component) *ConnectionsCheck {
 	return &ConnectionsCheck{
 		config:             config,
 		syscfg:             syscfg,
 		sysprobeYamlConfig: sysprobeYamlConfig,
+		wmeta:              wmeta,
+		npCollector:        npCollector,
 	}
 }
 
@@ -57,13 +67,18 @@ type ConnectionsCheck struct {
 	maxConnsPerMessage     int
 	tracerClientID         string
 	networkID              string
-	notInitializedLogLimit *putil.LogLimit
+	notInitializedLogLimit *log.Limit
 
 	dockerFilter     *parser.DockerProxy
 	serviceExtractor *parser.ServiceExtractor
 	processData      *ProcessData
 
 	processConnRatesTransmitter subscriptions.Transmitter[ProcessConnRates]
+
+	localresolver *resolver.LocalResolver
+	wmeta         workloadmeta.Component
+
+	npCollector npcollector.Component
 }
 
 // ProcessConnRates describes connection rates for processes
@@ -73,7 +88,7 @@ type ProcessConnRates map[int32]*model.ProcessNetworks
 func (c *ConnectionsCheck) Init(syscfg *SysProbeConfig, hostInfo *HostInfo, _ bool) error {
 	c.hostInfo = hostInfo
 	c.maxConnsPerMessage = syscfg.MaxConnsPerMessage
-	c.notInitializedLogLimit = putil.NewLogLimit(1, time.Minute*10)
+	c.notInitializedLogLimit = log.NewLogLimit(1, time.Minute*10)
 
 	// We use the current process PID as the system-probe client ID
 	c.tracerClientID = ProcessAgentClientID
@@ -101,15 +116,30 @@ func (c *ConnectionsCheck) Init(syscfg *SysProbeConfig, hostInfo *HostInfo, _ bo
 	c.dockerFilter = parser.NewDockerProxy()
 	serviceExtractorEnabled := c.sysprobeYamlConfig.GetBool("system_probe_config.process_service_inference.enabled")
 	useWindowsServiceName := c.sysprobeYamlConfig.GetBool("system_probe_config.process_service_inference.use_windows_service_name")
-	c.serviceExtractor = parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName)
+	useImprovedAlgorithm := c.sysprobeYamlConfig.GetBool("system_probe_config.process_service_inference.use_improved_algorithm")
+	c.serviceExtractor = parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName, useImprovedAlgorithm)
 	c.processData.Register(c.dockerFilter)
 	c.processData.Register(c.serviceExtractor)
+
+	// LocalResolver is a singleton LocalResolver
+	c.localresolver = resolver.NewLocalResolver(proccontainers.GetSharedContainerProvider(c.wmeta), clock.New(), maxResolverAddrCacheSize, maxResolverPidCacheSize)
+	c.localresolver.Run()
 
 	return nil
 }
 
 // IsEnabled returns true if the check is enabled by configuration
 func (c *ConnectionsCheck) IsEnabled() bool {
+	// connection check is not supported on darwin, so we should fail gracefully in this case.
+	if runtime.GOOS == "darwin" {
+		return false
+	}
+
+	// connections check is only supported on the process agent
+	if flavor.GetFlavor() != flavor.ProcessAgent {
+		return false
+	}
+
 	_, npmModuleEnabled := c.syscfg.EnabledModules[sysconfig.NetworkTracerModule]
 	return npmModuleEnabled && c.syscfg.Enabled
 }
@@ -153,11 +183,13 @@ func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResu
 		c.dockerFilter.Filter(conns)
 	}
 	// Resolve the Raddr side of connections for local containers
-	LocalResolver.Resolve(conns)
+	c.localresolver.Resolve(conns)
 
 	c.notifyProcessConnRates(c.config, conns)
 
 	log.Debugf("collected connections in %s", time.Since(start))
+
+	c.npCollector.ScheduleConns(conns.Conns)
 
 	groupID := nextGroupID()
 	messages := batchConnections(c.hostInfo, c.maxConnsPerMessage, groupID, conns.Conns, conns.Dns, c.networkID, conns.ConnTelemetryMap, conns.CompilationTelemetryByAsset, conns.KernelHeaderFetchResult, conns.CORETelemetryByAsset, conns.PrebuiltEBPFAssets, conns.Domains, conns.Routes, conns.Tags, conns.AgentConfiguration, c.serviceExtractor)
@@ -165,7 +197,9 @@ func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResu
 }
 
 // Cleanup frees any resource held by the ConnectionsCheck before the agent exits
-func (c *ConnectionsCheck) Cleanup() {}
+func (c *ConnectionsCheck) Cleanup() {
+	c.localresolver.Stop()
+}
 
 func (c *ConnectionsCheck) getConnections() (*model.Connections, error) {
 	tu, err := net.GetRemoteSystemProbeUtil(c.syscfg.SocketAddress)

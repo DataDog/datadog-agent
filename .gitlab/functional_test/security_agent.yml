@@ -3,7 +3,7 @@
 # For now, the workaround is to include "common" files once in the top-level .gitlab-ci.yml file
 # See: https://gitlab.com/gitlab-org/gitlab/-/issues/28987
 # include:
-#   - /.gitlab/kitchen_common/testing.yml
+#   - .gitlab/kitchen_testing/testing.yml
 
 # Expect warning: github.com/DataDog/datadog-agent/pkg/config.LoadCustom:1501 Unknown environment variable: DD_SYSTEM_PROBE_BPF_DIR
 .kitchen_test_security_agent_linux:
@@ -17,18 +17,20 @@
     - tasks/run-test-kitchen.sh security-agent-test $AGENT_MAJOR_VERSION
     - popd
     - inv system-probe.print-failed-tests --output-dir $DD_AGENT_TESTING_DIR/testjson
+  after_script:
+    - $CI_PROJECT_DIR/tools/ci/junit_upload.sh "$DD_AGENT_TESTING_DIR/junit-*.tar.gz"
   artifacts:
     expire_in: 2 weeks
     when: always
     paths:
-      - $DD_AGENT_TESTING_DIR/kitchen-junit-*.tar.gz
+      - $DD_AGENT_TESTING_DIR/junit-*.tar.gz
 
 kitchen_test_security_agent_x64:
   extends:
     - .kitchen_test_security_agent_linux
     - .kitchen_azure_x64
     - .kitchen_azure_location_north_central_us
-  needs: ["tests_ebpf_x64", "prepare_ebpf_functional_tests_x64"]
+  needs: ["tests_ebpf_x64", "prepare_secagent_ebpf_functional_tests_x64"]
   variables:
     KITCHEN_ARCH: x86_64
   before_script:
@@ -38,30 +40,19 @@ kitchen_test_security_agent_x64:
     matrix:
       - KITCHEN_PLATFORM: "centos"
         KITCHEN_OSVERS: "centos-77"
-        KITCHEN_CWS_PLATFORM: [host, docker]
-      - KITCHEN_PLATFORM: "centos"
-        KITCHEN_OSVERS: "rhel-85,rhel-91"
-        KITCHEN_CI_MOUNT_PATH: "/mnt/ci"
-        KITCHEN_CI_ROOT_PATH: "/tmp/ci"
-        KITCHEN_CWS_PLATFORM: [host]
+        KITCHEN_CWS_PLATFORM: [docker]
       - KITCHEN_PLATFORM: "ubuntu"
         KITCHEN_OSVERS: "ubuntu-18-04-0,ubuntu-18-04,ubuntu-18-04-3"
-        KITCHEN_CWS_PLATFORM: [host, docker]
+        KITCHEN_CWS_PLATFORM: [docker]
       - KITCHEN_PLATFORM: "ubuntu"
         KITCHEN_OSVERS: "ubuntu-20-04,ubuntu-20-04-2,ubuntu-22-04"
-        KITCHEN_CWS_PLATFORM: [host, docker]
+        KITCHEN_CWS_PLATFORM: [docker]
       - KITCHEN_PLATFORM: "ubuntu"
         KITCHEN_OSVERS: "ubuntu-22-04"
-        KITCHEN_CWS_PLATFORM: [ad, ebpfless]
-      - KITCHEN_PLATFORM: "suse"
-        KITCHEN_OSVERS: "sles-12,sles-15"
-        KITCHEN_CWS_PLATFORM: [host]
-      - KITCHEN_PLATFORM: "suse"
-        KITCHEN_OSVERS: "opensuse-15-3"
-        KITCHEN_CWS_PLATFORM: [host]
+        KITCHEN_CWS_PLATFORM: [ad, ebpfless, ebpfless-no-seccomp]
       - KITCHEN_PLATFORM: "debian"
         KITCHEN_OSVERS: "debian-10,debian-11"
-        KITCHEN_CWS_PLATFORM: [host, docker]
+        KITCHEN_CWS_PLATFORM: [docker]
       - KITCHEN_PLATFORM: "oracle"
         KITCHEN_OSVERS: "oracle-7-9"
         KITCHEN_CWS_PLATFORM: [host, docker]
@@ -73,7 +64,7 @@ kitchen_test_security_agent_arm64:
     - .kitchen_ec2
   rules:
     !reference [.on_security_agent_changes_or_manual]
-  needs: [ "tests_ebpf_arm64", "prepare_ebpf_functional_tests_arm64" ]
+  needs: [ "tests_ebpf_arm64", "prepare_secagent_ebpf_functional_tests_arm64" ]
   variables:
     KITCHEN_ARCH: arm64
     KITCHEN_EC2_INSTANCE_TYPE: "t4g.xlarge"
@@ -86,7 +77,7 @@ kitchen_test_security_agent_arm64:
     matrix:
       - KITCHEN_PLATFORM: "ubuntu"
         KITCHEN_OSVERS: "ubuntu-20-04-2,ubuntu-22-04"
-        KITCHEN_CWS_PLATFORM: [host, docker, ad, ebpfless]
+        KITCHEN_CWS_PLATFORM: [docker, ad, ebpfless, ebpfless-no-seccomp]
 
 kitchen_test_security_agent_amazonlinux_x64:
   extends:
@@ -95,7 +86,7 @@ kitchen_test_security_agent_amazonlinux_x64:
     - .kitchen_ec2
   rules:
     !reference [.on_security_agent_changes_or_manual]
-  needs: [ "tests_ebpf_x64", "prepare_ebpf_functional_tests_x64" ]
+  needs: [ "tests_ebpf_x64", "prepare_secagent_ebpf_functional_tests_x64" ]
   variables:
     KITCHEN_ARCH: x86_64
     KITCHEN_EC2_INSTANCE_TYPE: "t3.medium"
@@ -108,7 +99,7 @@ kitchen_test_security_agent_amazonlinux_x64:
     matrix:
       - KITCHEN_PLATFORM: "amazonlinux"
         KITCHEN_OSVERS: "amazonlinux2-4-14,amazonlinux2-5-10"
-        KITCHEN_CWS_PLATFORM: [host, docker]
+        KITCHEN_CWS_PLATFORM: [docker]
       - KITCHEN_PLATFORM: "amazonlinux"
         KITCHEN_OSVERS: "amazonlinux2022-5-15,amazonlinux2023"
         KITCHEN_CWS_PLATFORM: [host, docker]
@@ -118,7 +109,7 @@ kitchen_test_security_agent_x64_ec2:
     - .kitchen_test_security_agent_linux
     - .kitchen_ec2_location_us_east_1
     - .kitchen_ec2
-  needs: [ "tests_ebpf_x64", "prepare_ebpf_functional_tests_x64" ]
+  needs: [ "tests_ebpf_x64", "prepare_secagent_ebpf_functional_tests_x64" ]
   variables:
     KITCHEN_ARCH: x86_64
     KITCHEN_EC2_INSTANCE_TYPE: "t3.medium"
@@ -129,12 +120,9 @@ kitchen_test_security_agent_x64_ec2:
     - tasks/kitchen_setup.sh
   parallel:
     matrix:
-      - KITCHEN_PLATFORM: "centos"
-        KITCHEN_OSVERS: "rocky-92"
-        KITCHEN_CWS_PLATFORM: [host]
       - KITCHEN_PLATFORM: "ubuntu"
         KITCHEN_OSVERS: "ubuntu-23-10"
-        KITCHEN_CWS_PLATFORM: [host, docker]
+        KITCHEN_CWS_PLATFORM: [docker]
         KITCHEN_EC2_DEVICE_NAME: "/dev/sda1"
 
 kitchen_test_security_agent_amazonlinux_x64_fentry:
@@ -145,7 +133,7 @@ kitchen_test_security_agent_amazonlinux_x64_fentry:
     matrix:
       - KITCHEN_PLATFORM: "amazonlinux"
         KITCHEN_OSVERS: "amazonlinux2023"
-        KITCHEN_CWS_PLATFORM: [docker-fentry] # only docker for now because the host test is too slow because of BTF copying
+        KITCHEN_CWS_PLATFORM: [host-fentry, docker-fentry]
 
 kitchen_stress_security_agent:
   extends:
@@ -156,7 +144,7 @@ kitchen_stress_security_agent:
   rules:
     !reference [.manual]
   stage: functional_test
-  needs: ["tests_ebpf_x64", "prepare_ebpf_functional_tests_x64"]
+  needs: ["tests_ebpf_x64", "prepare_secagent_ebpf_functional_tests_x64"]
   variables:
     AGENT_MAJOR_VERSION: 7
     DD_PIPELINE_ID: $CI_PIPELINE_ID-fnct
@@ -172,9 +160,8 @@ kitchen_stress_security_agent:
 
 kitchen_test_security_agent_windows_x64:
   extends:
-    - .kitchen_os_windows
     - .kitchen_test_security_agent
-    - .kitchen_azure_x64
+    - .kitchen_os_windows
     - .kitchen_azure_location_north_central_us
   rules:
     !reference [.on_security_agent_changes_or_manual]

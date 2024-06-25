@@ -25,7 +25,7 @@ type Proxy struct {
 // NotificationReceiver represents the callback type to receive notifications each time the `Set` method is called. The
 // configuration will call each NotificationReceiver registered through the 'OnUpdate' method, therefore
 // 'NotificationReceiver' should not be blocking.
-type NotificationReceiver func(key string)
+type NotificationReceiver func(setting string, oldValue, newValue any)
 
 // Reader is a subset of Config that only allows reading of configuration
 type Reader interface {
@@ -50,14 +50,16 @@ type Reader interface {
 	GetAllSources(key string) []ValueWithSource
 
 	ConfigFileUsed() string
+	ExtraConfigFilesUsed() []string
 
 	AllSettings() map[string]interface{}
 	AllSettingsWithoutDefault() map[string]interface{}
-	AllSourceSettingsWithoutDefault(source Source) map[string]interface{}
-	AllKeys() []string
+	AllSettingsBySource() map[Source]interface{}
+	// AllKeysLowercased returns all config keys in the config, no matter how they are set.
+	// Note that it returns the keys lowercased.
+	AllKeysLowercased() []string
 
 	IsSet(key string) bool
-	IsSetForSource(key string, source Source) bool
 
 	// UnmarshalKey Unmarshal a configuration key into a struct
 	UnmarshalKey(key string, rawVal interface{}, opts ...viper.DecoderConfigOption) error
@@ -65,17 +67,14 @@ type Reader interface {
 	// IsKnown returns whether this key is known
 	IsKnown(key string) bool
 
-	// GetKnownKeys returns all the keys that meet at least one of these criteria:
+	// GetKnownKeysLowercased returns all the keys that meet at least one of these criteria:
 	// 1) have a default, 2) have an environment variable binded, 3) are an alias or 4) have been SetKnown()
-	GetKnownKeys() map[string]interface{}
+	// Note that it returns the keys lowercased.
+	GetKnownKeysLowercased() map[string]interface{}
 
 	// GetEnvVars returns a list of the env vars that the config supports.
 	// These have had the EnvPrefix applied, as well as the EnvKeyReplacer.
 	GetEnvVars() []string
-
-	// IsSectionSet checks if a given section is set by checking if any of
-	// its subkeys is set.
-	IsSectionSet(section string) bool
 
 	// Warnings returns pointer to a list of warnings (completes config.Component interface)
 	Warnings() *Warnings
@@ -102,8 +101,8 @@ type ReaderWriter interface {
 	Writer
 }
 
-// Loader is a subset of Config that allows loading the configuration
-type Loader interface {
+// Setup is a subset of Config that allows setting up the configuration
+type Setup interface {
 	// API implemented by viper.Viper
 
 	SetDefault(key string, value interface{})
@@ -113,22 +112,6 @@ type Loader interface {
 	BindEnv(input ...string)
 	SetEnvKeyReplacer(r *strings.Replacer)
 	SetEnvKeyTransformer(key string, fn func(string) interface{})
-
-	UnmarshalKey(key string, rawVal interface{}, opts ...viper.DecoderConfigOption) error
-	Unmarshal(rawVal interface{}) error
-	UnmarshalExact(rawVal interface{}) error
-
-	ReadInConfig() error
-	ReadConfig(in io.Reader) error
-	MergeConfig(in io.Reader) error
-	MergeConfigMap(cfg map[string]any) error
-
-	AddConfigPath(in string)
-	SetConfigName(in string)
-	SetConfigFile(in string)
-	SetConfigType(in string)
-
-	BindPFlag(key string, flag *pflag.Flag) error
 
 	// SetKnown adds a key to the set of known valid config keys
 	SetKnown(key string)
@@ -143,6 +126,27 @@ type Loader interface {
 	BindEnvAndSetDefault(key string, val interface{}, env ...string)
 }
 
+// Compound is an interface for retrieving compound elements from the config, plus
+// some misc functions, that should likely be split into another interface
+type Compound interface {
+	UnmarshalKey(key string, rawVal interface{}, opts ...viper.DecoderConfigOption) error
+	Unmarshal(rawVal interface{}) error
+	UnmarshalExact(rawVal interface{}) error
+
+	ReadInConfig() error
+	ReadConfig(in io.Reader) error
+	MergeConfig(in io.Reader) error
+	MergeConfigMap(cfg map[string]any) error
+
+	AddConfigPath(in string)
+	AddExtraConfigPaths(in []string) error
+	SetConfigName(in string)
+	SetConfigFile(in string)
+	SetConfigType(in string)
+
+	BindPFlag(key string, flag *pflag.Flag) error
+}
+
 // Config represents an object that can load and store configuration parameters
 // coming from different kind of sources:
 // - defaults
@@ -151,5 +155,6 @@ type Loader interface {
 // - flags
 type Config interface {
 	ReaderWriter
-	Loader
+	Setup
+	Compound
 }

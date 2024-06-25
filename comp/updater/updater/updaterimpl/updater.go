@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
 	updatercomp "github.com/DataDog/datadog-agent/comp/updater/updater"
-	"github.com/DataDog/datadog-agent/pkg/updater"
+	"github.com/DataDog/datadog-agent/pkg/fleet/daemon"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
@@ -32,11 +32,6 @@ func Module() fxutil.Module {
 	)
 }
 
-// Parameters contains the parameters for the updater.
-type Parameters struct {
-	Package string
-}
-
 // dependencies contains the dependencies to build the updater.
 type dependencies struct {
 	fx.In
@@ -44,7 +39,6 @@ type dependencies struct {
 	Log          log.Component
 	Config       config.Component
 	RemoteConfig optional.Option[rcservice.Component]
-	Parameters   Parameters
 }
 
 func newUpdaterComponent(lc fx.Lifecycle, dependencies dependencies) (updatercomp.Component, error) {
@@ -52,10 +46,10 @@ func newUpdaterComponent(lc fx.Lifecycle, dependencies dependencies) (updatercom
 	if !ok {
 		return nil, errRemoteConfigRequired
 	}
-	updater, err := updater.NewUpdater(remoteConfig, dependencies.Parameters.Package)
+	daemon, err := daemon.NewDaemon(remoteConfig, dependencies.Config)
 	if err != nil {
 		return nil, fmt.Errorf("could not create updater: %w", err)
 	}
-	lc.Append(fx.Hook{OnStart: updater.Start, OnStop: updater.Stop})
-	return updater, nil
+	lc.Append(fx.Hook{OnStart: daemon.Start, OnStop: daemon.Stop})
+	return daemon, nil
 }

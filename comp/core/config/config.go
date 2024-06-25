@@ -7,12 +7,16 @@ package config
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
 
+	"go.uber.org/fx"
+
+	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"go.uber.org/fx"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 // Reader is a subset of Config that only allows reading of configuration
@@ -32,23 +36,29 @@ type cfg struct {
 // TODO: (components) investigate whether this interface is worth keeping, otherwise delete it and just use dependencies
 type configDependencies interface {
 	getParams() *Params
-	getSecretResolver() secrets.Component
+	getSecretResolver() (secrets.Component, bool)
 }
 
 type dependencies struct {
 	fx.In
 
 	Params Params
-	// secrets Component is optional, if not provided, the config will not decrypt secrets
-	Secret secrets.Component `optional:"true"`
+	Secret optional.Option[secrets.Component]
 }
 
 func (d dependencies) getParams() *Params {
 	return &d.Params
 }
 
-func (d dependencies) getSecretResolver() secrets.Component {
-	return d.Secret
+func (d dependencies) getSecretResolver() (secrets.Component, bool) {
+	return d.Secret.Get()
+}
+
+type provides struct {
+	fx.Out
+
+	Comp          Component
+	FlareProvider flaretypes.Provider
 }
 
 // NewServerlessConfig initializes a config component from the given config file
@@ -68,10 +78,18 @@ func NewServerlessConfig(path string) (Component, error) {
 	return newConfig(d)
 }
 
-func newConfig(deps dependencies) (Component, error) {
-	config := pkgconfigsetup.Datadog
+func newComponent(deps dependencies) (provides, error) {
+	c, err := newConfig(deps)
+	return provides{
+		Comp:          c,
+		FlareProvider: flaretypes.NewProvider(c.fillFlare),
+	}, err
+}
+
+func newConfig(deps dependencies) (*cfg, error) {
+	config := pkgconfigsetup.Datadog()
 	warnings, err := setupConfig(config, deps)
-	returnErrFct := func(e error) (Component, error) {
+	returnErrFct := func(e error) (*cfg, error) {
 		if e != nil && deps.Params.ignoreErrors {
 			if warnings == nil {
 				warnings = &pkgconfigmodel.Warnings{}
@@ -99,6 +117,25 @@ func (c *cfg) Warnings() *pkgconfigmodel.Warnings {
 	return c.warnings
 }
 
-func (c *cfg) Object() pkgconfigmodel.Reader {
-	return c.Config
+// fillFlare add the Configuration files to flares.
+func (c *cfg) fillFlare(fb flaretypes.FlareBuilder) error {
+	if mainConfpath := c.ConfigFileUsed(); mainConfpath != "" {
+		confDir := filepath.Dir(mainConfpath)
+
+		// zip up the config file that was actually used, if one exists
+		fb.CopyFileTo(mainConfpath, filepath.Join("etc", "datadog.yaml")) //nolint:errcheck
+
+		// figure out system-probe file path based on main config path, and use best effort to include
+		// system-probe.yaml to the flare
+		fb.CopyFileTo(filepath.Join(confDir, "system-probe.yaml"), filepath.Join("etc", "system-probe.yaml")) //nolint:errcheck
+
+		// use best effort to include security-agent.yaml to the flare
+		fb.CopyFileTo(filepath.Join(confDir, "security-agent.yaml"), filepath.Join("etc", "security-agent.yaml")) //nolint:errcheck
+	}
+
+	for _, path := range c.ExtraConfigFilesUsed() {
+		fb.CopyFileTo(path, filepath.Join("etc/extra_conf/", path)) //nolint:errcheck
+	}
+
+	return nil
 }

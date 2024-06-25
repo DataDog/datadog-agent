@@ -11,13 +11,15 @@ import (
 	"os"
 	"testing"
 	"text/template"
+	"time"
 
 	"github.com/google/uuid"
-	"github.com/pulumi/pulumi-aws/sdk/v5/go/aws/ecs"
-	"github.com/pulumi/pulumi-aws/sdk/v5/go/aws/ssm"
-	"github.com/pulumi/pulumi-awsx/sdk/go/awsx/awsx"
-	ecsx "github.com/pulumi/pulumi-awsx/sdk/go/awsx/ecs"
+	"github.com/pulumi/pulumi-aws/sdk/v6/go/aws/ecs"
+	"github.com/pulumi/pulumi-aws/sdk/v6/go/aws/ssm"
+	"github.com/pulumi/pulumi-awsx/sdk/v2/go/awsx/awsx"
+	ecsx "github.com/pulumi/pulumi-awsx/sdk/v2/go/awsx/ecs"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	configCommon "github.com/DataDog/test-infra-definitions/common/config"
@@ -62,7 +64,7 @@ func TestECSFargate(t *testing.T) {
 
 	ddHostname := fmt.Sprintf("%s-%s", ecsFgHostnamePrefix, uuid.NewString()[:4])
 
-	e2e.Run(t, &ecsFargateSuite{ddHostname: ddHostname},
+	e2e.Run[ecsFargateEnv](t, &ecsFargateSuite{ddHostname: ddHostname},
 		e2e.WithUntypedPulumiProvisioner(func(ctx *pulumi.Context) error {
 			awsEnv, err := awsResources.NewEnvironment(ctx)
 			if err != nil {
@@ -83,7 +85,7 @@ func TestECSFargate(t *testing.T) {
 
 			// Setup agent API key
 			apiKeyParam, err := ssm.NewParameter(ctx, awsEnv.Namer.ResourceName("agent-apikey"), &ssm.ParameterArgs{
-				Name:  awsEnv.CommonNamer.DisplayName(1011, pulumi.String("agent-apikey")),
+				Name:  awsEnv.CommonNamer().DisplayName(1011, pulumi.String("agent-apikey")),
 				Type:  ssm.ParameterTypeSecureString,
 				Value: awsEnv.AgentAPIKey(),
 			}, awsEnv.WithProviders(configCommon.ProviderAWS, configCommon.ProviderAWSX))
@@ -121,6 +123,10 @@ func TestECSFargate(t *testing.T) {
 								Name:  pulumi.StringPtr("DD_RUNTIME_SECURITY_CONFIG_EBPFLESS_ENABLED"),
 								Value: pulumi.StringPtr("true"),
 							},
+							ecsx.TaskDefinitionKeyValuePairArgs{
+								Name:  pulumi.StringPtr("DD_RUNTIME_SECURITY_CONFIG_USE_SECRUNTIME_TRACK"),
+								Value: pulumi.StringPtr("false"),
+							},
 						},
 						Secrets: ecsx.TaskDefinitionSecretArray{
 							ecsx.TaskDefinitionSecretArgs{
@@ -140,7 +146,7 @@ func TestECSFargate(t *testing.T) {
 					"ubuntu-with-tracer": {
 						Cpu:       pulumi.IntPtr(0),
 						Name:      pulumi.String("ubuntu-with-tracer"),
-						Image:     pulumi.String("docker.io/ubuntu:22.04"),
+						Image:     pulumi.String("public.ecr.aws/lts/ubuntu:22.04"),
 						Essential: pulumi.BoolPtr(false),
 						EntryPoint: pulumi.ToStringArray([]string{
 							"/cws-instrumentation-volume/cws-instrumentation",
@@ -200,6 +206,7 @@ func TestECSFargate(t *testing.T) {
 							},
 						},
 						LogConfiguration: ecsResources.GetFirelensLogConfiguration(pulumi.String("cws-instrumentation-init"), pulumi.String(ecsFgHostnamePrefix), apiKeyParam.Name),
+						User:             pulumi.StringPtr("0"),
 					},
 					"log_router": *ecsResources.FargateFirelensContainerDefinition(),
 				},
@@ -216,7 +223,7 @@ func TestECSFargate(t *testing.T) {
 				TaskRole: &awsx.DefaultRoleWithPolicyArgs{
 					RoleArn: pulumi.StringPtr(awsEnv.ECSTaskRole()),
 				},
-				Family: awsEnv.CommonNamer.DisplayName(255, pulumi.String("cws-task")),
+				Family: awsEnv.CommonNamer().DisplayName(255, pulumi.String("cws-task")),
 			}, awsEnv.WithProviders(configCommon.ProviderAWS, configCommon.ProviderAWSX))
 			if err != nil {
 				return err
@@ -229,6 +236,7 @@ func TestECSFargate(t *testing.T) {
 			return nil
 		}, nil),
 	)
+	t.Logf("Running testsuite with DD_HOSTNAME=%s", ddHostname)
 }
 
 func (s *ecsFargateSuite) SetupSuite() {
@@ -236,37 +244,49 @@ func (s *ecsFargateSuite) SetupSuite() {
 	s.apiClient = api.NewClient()
 }
 
+func (s *ecsFargateSuite) Hostname() string {
+	return s.ddHostname
+}
+
+func (s *ecsFargateSuite) Client() *api.Client {
+	return s.apiClient
+}
+
 func (s *ecsFargateSuite) TestRulesetLoaded() {
-	query := fmt.Sprintf("host:%s rule_id:ruleset_loaded @policies.name:%s", s.ddHostname, selfTestsPolicyName)
-	result, err := api.WaitAppLogs(s.apiClient, query)
-	s.Require().NoError(err, "could not get new ruleset_loaded event log")
-	agentContext, ok := result.Attributes["agent"].(map[string]interface{})
-	s.Require().True(ok, "unexpected agent context")
-	s.Require().EqualValues("ruleset_loaded", agentContext["rule_id"], "unexpected agent rule ID")
+	assert.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		testRulesetLoaded(c, s, "file", selfTestsPolicyName)
+	}, 1*time.Minute, 5*time.Second)
 }
 
 func (s *ecsFargateSuite) TestExecRule() {
-	query := fmt.Sprintf("host:%s rule_id:%s", s.ddHostname, execRuleID)
-	result, err := api.WaitAppLogs(s.apiClient, query)
-	s.Require().NoError(err, "could not get the exec rule event log")
-	agentContext, ok := result.Attributes["agent"].(map[string]interface{})
-	s.Require().True(ok, "unexpected agent context")
-	s.Require().EqualValues(execRuleID, agentContext["rule_id"], "unexpected agent rule ID")
+	assert.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		testRuleEvent(c, s, execRuleID, func(event *api.RuleEvent) {
+			assert.Equal(c, "exec", event.Evt.Name, "event name should be exec")
+			assert.Equal(c, execFilePath, event.Process.Executable.Path, "exec path does not match")
+		})
+	}, 1*time.Minute, 5*time.Second)
 }
 
 func (s *ecsFargateSuite) TestOpenRule() {
-	query := fmt.Sprintf("host:%s rule_id:%s", s.ddHostname, openRuleID)
-	result, err := api.WaitAppLogs(s.apiClient, query)
-	s.Require().NoError(err, "could not get the open rule event log")
-	agentContext, ok := result.Attributes["agent"].(map[string]interface{})
-	s.Require().True(ok, "unexpected agent context")
-	s.Require().EqualValues(openRuleID, agentContext["rule_id"], "unexpected agent rule ID")
+	assert.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		testRuleEvent(c, s, openRuleID, func(event *api.RuleEvent) {
+			assert.Equal(c, "open", event.Evt.Name, "event name should be open")
+			assert.Equal(c, openFilePath, event.File.Path, "file path does not match")
+		})
+	}, 1*time.Minute, 5*time.Second)
+}
+
+func (s *ecsFargateSuite) TestSelftests() {
+	assert.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		testSelftestsEvent(c, s, func(event *api.SelftestsEvent) {
+			assert.Contains(c, event.SucceededTests, "datadog_agent_cws_self_test_rule_exec", "missing selftest result")
+		})
+	}, 1*time.Minute, 5*time.Second)
 }
 
 const (
-	cwsInstrumentationFullImagePathParamName = "cwsinstrumentation:fullImagePath"
-	cwsInstrumentationDefaultImagePath       = "public.ecr.aws/datadog/cws-instrumentation:rc"
-	agentDefaultImagePath                    = "public.ecr.aws/datadog/agent:7.51.0-rc.1"
+	cwsInstrumentationDefaultImagePath = "public.ecr.aws/datadog/cws-instrumentation:rc"
+	agentDefaultImagePath              = "public.ecr.aws/datadog/agent:7-rc"
 )
 
 func getCWSInstrumentationFullImagePath() string {

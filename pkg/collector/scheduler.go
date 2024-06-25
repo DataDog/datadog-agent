@@ -16,8 +16,8 @@ import (
 	"golang.org/x/text/language"
 
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
@@ -167,6 +167,11 @@ func (s *CheckScheduler) getChecks(config integration.Config) ([]check.Check, er
 	selectedLoader := initConfig.LoaderName
 
 	for _, instance := range config.Instances {
+		if check.IsJMXInstance(config.Name, instance, config.InitConfig) {
+			log.Debugf("skip loading jmx check '%s', it is handled elsewhere", config.Name)
+			continue
+		}
+
 		errors := []string{}
 		selectedInstanceLoader := selectedLoader
 		instanceConfig := commonInstanceConfig{}
@@ -198,18 +203,9 @@ func (s *CheckScheduler) getChecks(config integration.Config) ([]check.Check, er
 				errorStats.removeLoaderErrors(config.Name)
 				checks = append(checks, c)
 				break
-			} else if c != nil && check.IsJMXInstance(config.Name, instance, config.InitConfig) {
-				// JMXfetch is more permissive than the agent regarding instance configuration. It
-				// accepts tags as a map and a list whether the agent only accepts tags as a list
-				// we still attempt to schedule the check but we save the error.
-				log.Debugf("%v: loading issue for JMX check '%s', the agent will still attempt to schedule it", loader, config.Name)
-				errorStats.setLoaderError(config.Name, fmt.Sprintf("%v", loader), err.Error())
-				checks = append(checks, c)
-				break
-			} else {
-				errorStats.setLoaderError(config.Name, fmt.Sprintf("%v", loader), err.Error())
-				errors = append(errors, fmt.Sprintf("%v: %s", loader, err))
 			}
+			errorStats.setLoaderError(config.Name, fmt.Sprintf("%v", loader), err.Error())
+			errors = append(errors, fmt.Sprintf("%v: %s", loader, err))
 		}
 
 		if len(errors) == numLoaders {

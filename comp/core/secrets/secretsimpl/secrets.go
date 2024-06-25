@@ -10,8 +10,12 @@ import (
 	"bufio"
 	"bytes"
 	_ "embed"
+	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
+	"path/filepath"
+	"regexp"
 	"slices"
 	"sort"
 	"strconv"
@@ -24,24 +28,31 @@ import (
 	"golang.org/x/exp/maps"
 	yaml "gopkg.in/yaml.v2"
 
+	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
+const auditFileBasename = "secret-audit-file.json"
+
 type provides struct {
 	fx.Out
 
-	Comp          secrets.Component
-	FlareProvider flaretypes.Provider
+	Comp            secrets.Component
+	FlareProvider   flaretypes.Provider
+	InfoEndpoint    api.AgentEndpointProvider
+	RefreshEndpoint api.AgentEndpointProvider
 }
 
 type dependencies struct {
 	fx.In
 
-	Params secrets.Params
+	Params    secrets.Params
+	Telemetry telemetry.Component
 }
 
 // Module defines the fx options for this component.
@@ -79,6 +90,10 @@ type secretResolver struct {
 	// refresh secrets at a regular interval
 	refreshInterval time.Duration
 	ticker          *time.Ticker
+	// filename to write audit records to
+	auditFilename    string
+	auditFileMaxSize int
+	auditRotRecs     *rotatingNDRecords
 	// subscriptions want to be notified about changes to the secrets
 	subscriptions []secrets.SecretChangeCallback
 
@@ -86,55 +101,31 @@ type secretResolver struct {
 	commandHookFunc func(string) ([]byte, error)
 	fetchHookFunc   func([]string) (map[string]string, error)
 	scrubHookFunc   func([]string)
+
+	// Telemetry
+	tlmSecretBackendElapsed telemetry.Gauge
 }
 
 var _ secrets.Component = (*secretResolver)(nil)
 
-// TODO: (components) Hack to maintain a singleton reference to the secrets Component
-//
-// Only needed temporarily, since the secrets.Component is needed for the diagnose functionality.
-// It is very difficult right now to modify diagnose because it would require modifying many
-// function signatures, which would only increase future maintenance. Once diagnose is better
-// integrated with Components, we should be able to remove this hack.
-//
-// Other components should not copy this pattern, it is only meant to be used temporarily.
-var mu sync.Mutex
-var instance *secretResolver
-
-func newEnabledSecretResolver() *secretResolver {
+func newEnabledSecretResolver(telemetry telemetry.Component) *secretResolver {
 	return &secretResolver{
-		cache:   make(map[string]string),
-		origin:  make(handleToContext),
-		enabled: true,
+		cache:                   make(map[string]string),
+		origin:                  make(handleToContext),
+		enabled:                 true,
+		tlmSecretBackendElapsed: telemetry.NewGauge("secret_backend", "elapsed_ms", []string{"command", "exit_code"}, "Elapsed time of secret backend invocation"),
 	}
 }
 
 func newSecretResolverProvider(deps dependencies) provides {
-	resolver := newEnabledSecretResolver()
+	resolver := newEnabledSecretResolver(deps.Telemetry)
 	resolver.enabled = deps.Params.Enabled
-
-	mu.Lock()
-	defer mu.Unlock()
-	if instance == nil {
-		instance = resolver
-	}
-
 	return provides{
-		Comp:          resolver,
-		FlareProvider: flaretypes.NewProvider(resolver.fillFlare),
+		Comp:            resolver,
+		FlareProvider:   flaretypes.NewProvider(resolver.fillFlare),
+		InfoEndpoint:    api.NewAgentEndpointProvider(resolver.writeDebugInfo, "/secrets", "GET"),
+		RefreshEndpoint: api.NewAgentEndpointProvider(resolver.handleRefresh, "/secret/refresh", "GET"),
 	}
-}
-
-// GetInstance returns the singleton instance of the secret.Component
-func GetInstance() secrets.Component {
-	mu.Lock()
-	defer mu.Unlock()
-	if instance == nil {
-		deps := dependencies{Params: secrets.Params{Enabled: false}}
-		p := newSecretResolverProvider(deps)
-		instance = p.Comp.(*secretResolver)
-	}
-	return instance
 }
 
 // fillFlare add the inventory payload to flares.
@@ -143,10 +134,33 @@ func (r *secretResolver) fillFlare(fb flaretypes.FlareBuilder) error {
 	writer := bufio.NewWriter(&buffer)
 	r.GetDebugInfo(writer)
 	writer.Flush()
-	fb.AddFile("secrets.log", buffer.Bytes())
+	fb.AddFile("secrets.log", buffer.Bytes()) //nolint:errcheck
+	fb.CopyFile(r.auditFilename)              //nolint:errcheck
 	return nil
 }
 
+func (r *secretResolver) writeDebugInfo(w http.ResponseWriter, _ *http.Request) {
+	r.GetDebugInfo(w)
+}
+
+func (r *secretResolver) handleRefresh(w http.ResponseWriter, _ *http.Request) {
+	result, err := r.Refresh()
+	if err != nil {
+		setJSONError(w, err, 500)
+		return
+	}
+	w.Write([]byte(result))
+}
+
+// setJSONError writes a server error as JSON with the correct http error code
+// NOTE: this is copied from comp/api/api/utils to avoid requiring that to be a go module
+func setJSONError(w http.ResponseWriter, err error, errorCode int) {
+	w.Header().Set("Content-Type", "application/json")
+	body, _ := json.Marshal(map[string]string{"error": err.Error()})
+	http.Error(w, string(body), errorCode)
+}
+
+// assocate with the handle itself the origin (filename) and path where the handle appears
 func (r *secretResolver) registerSecretOrigin(handle string, origin string, path []string) {
 	for _, info := range r.origin[handle] {
 		if info.origin == origin && slices.Equal(info.path, path) {
@@ -183,25 +197,30 @@ func (r *secretResolver) registerSecretOrigin(handle string, origin string, path
 }
 
 // Configure initializes the executable command and other options of the secrets component
-func (r *secretResolver) Configure(command string, arguments []string, timeout, maxSize, refreshInterval int, groupExecPerm, removeLinebreak bool) {
+func (r *secretResolver) Configure(params secrets.ConfigParams) {
 	if !r.enabled {
 		return
 	}
-	r.backendCommand = command
-	r.backendArguments = arguments
-	r.backendTimeout = timeout
+	r.backendCommand = params.Command
+	r.backendArguments = params.Arguments
+	r.backendTimeout = params.Timeout
 	if r.backendTimeout == 0 {
 		r.backendTimeout = SecretBackendTimeoutDefault
 	}
-	r.responseMaxSize = maxSize
+	r.responseMaxSize = params.MaxSize
 	if r.responseMaxSize == 0 {
 		r.responseMaxSize = SecretBackendOutputMaxSizeDefault
 	}
-	r.refreshInterval = time.Duration(refreshInterval) * time.Second
-	r.commandAllowGroupExec = groupExecPerm
-	r.removeTrailingLinebreak = removeLinebreak
+	r.refreshInterval = time.Duration(params.RefreshInterval) * time.Second
+	r.commandAllowGroupExec = params.GroupExecPerm
+	r.removeTrailingLinebreak = params.RemoveLinebreak
 	if r.commandAllowGroupExec {
 		log.Warnf("Agent configuration relax permissions constraint on the secret backend cmd, Group can read and exec")
+	}
+	r.auditFilename = filepath.Join(params.RunPath, auditFileBasename)
+	r.auditFileMaxSize = params.AuditFileMaxSize
+	if r.auditFileMaxSize == 0 {
+		r.auditFileMaxSize = SecretAuditFileMaxSizeDefault
 	}
 }
 
@@ -364,6 +383,9 @@ func (r *secretResolver) matchesAllowlist(handle string) bool {
 	return false
 }
 
+// for all secrets returned by the backend command, notify subscribers (if allowlist lets them),
+// and return the handles that have received new values compared to what was in the cache,
+// and where those handles appear
 func (r *secretResolver) processSecretResponse(secretResponse map[string]string, useAllowlist bool) secretRefreshInfo {
 	var handleInfoList []handleInfo
 
@@ -379,6 +401,8 @@ func (r *secretResolver) processSecretResponse(secretResponse map[string]string,
 		if useAllowlist && !r.matchesAllowlist(handle) {
 			continue
 		}
+
+		log.Debugf("Secret %s has changed", handle)
 
 		places := make([]handlePlace, 0, len(r.origin[handle]))
 		for _, secretCtx := range r.origin[handle] {
@@ -442,8 +466,16 @@ func (r *secretResolver) Refresh() (string, error) {
 		return "", err
 	}
 
+	var auditRecordErr error
 	// when Refreshing secrets, only update what the allowlist allows by passing `true`
 	refreshResult := r.processSecretResponse(secretResponse, true)
+	if len(refreshResult.Handles) > 0 {
+		// add the results to the audit file, if any secrets have new values
+		if err := r.addToAuditFile(secretResponse); err != nil {
+			log.Error(err)
+			auditRecordErr = err
+		}
+	}
 
 	// render a report
 	t := template.New("secret_refresh")
@@ -452,11 +484,62 @@ func (r *secretResolver) Refresh() (string, error) {
 		return "", err
 	}
 	b := new(strings.Builder)
-	err = t.Execute(b, refreshResult)
-	if err != nil {
+	if err = t.Execute(b, refreshResult); err != nil {
 		return "", err
 	}
-	return b.String(), nil
+	return b.String(), auditRecordErr
+}
+
+type auditRecord struct {
+	Handle string `json:"handle"`
+	Value  string `json:"value,omitempty"`
+}
+
+// addToAuditFile adds records to the audit file based upon newly refreshed secrets
+func (r *secretResolver) addToAuditFile(secretResponse map[string]string) error {
+	if r.auditFilename == "" {
+		return nil
+	}
+	if r.auditRotRecs == nil {
+		r.auditRotRecs = newRotatingNDRecords(r.auditFilename, config{})
+	}
+
+	// iterate keys in deterministic order by sorting
+	handles := make([]string, 0, len(secretResponse))
+	for handle := range secretResponse {
+		handles = append(handles, handle)
+	}
+	sort.Strings(handles)
+
+	var newRows []auditRecord
+	// add the newly refreshed secrets to the list of rows
+	for _, handle := range handles {
+		secretValue := secretResponse[handle]
+		scrubbedValue := ""
+		if isLikelyAPIOrAppKey(handle, secretValue, r.origin) {
+			scrubbedValue = scrubber.HideKeyExceptLastFiveChars(secretValue)
+		}
+		newRows = append(newRows, auditRecord{Handle: handle, Value: scrubbedValue})
+	}
+
+	return r.auditRotRecs.Add(time.Now().UTC(), newRows)
+}
+
+var apiKeyStringRegex = regexp.MustCompile(`^[[:xdigit:]]{32}(?:[[:xdigit]]{8})?$`)
+
+// return whether the secret is likely an API key or App key based whether it is 32 or 40 hex
+// characters, as well as the setting name where it is found in the config
+func isLikelyAPIOrAppKey(handle, secretValue string, origin handleToContext) bool {
+	if !apiKeyStringRegex.MatchString(secretValue) {
+		return false
+	}
+	for _, secretCtx := range origin[handle] {
+		lastElem := secretCtx.path[len(secretCtx.path)-1]
+		if strings.HasSuffix(strings.ToLower(lastElem), "key") {
+			return true
+		}
+	}
+	return false
 }
 
 type secretInfo struct {

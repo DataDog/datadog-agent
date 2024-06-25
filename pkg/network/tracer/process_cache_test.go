@@ -19,85 +19,23 @@ import (
 )
 
 func TestProcessCacheProcessEvent(t *testing.T) {
+	testFunc := func(t *testing.T, name string, entry *events.Process) {
+		pc, err := newProcessCache(10)
+		require.NoError(t, err)
+		t.Cleanup(pc.Stop)
 
-	const ddService = "DD_SERVICE"
-	const ddVersion = "DD_VERSION"
-	const ddEnv = "DD_ENV"
-
-	envs := map[string]string{
-		ddService: "service",
-		ddVersion: "version",
-		ddEnv:     "env",
-	}
-
-	tests := []struct {
-		envs        []string
-		filter      []string
-		filtered    []string
-		containerID string
-	}{
-		{},
-		{envs: nil, filter: defaultFilteredEnvs, filtered: nil},
-		{envs: []string{ddEnv}, filter: defaultFilteredEnvs, filtered: []string{ddEnv}},
-		{envs: []string{ddVersion}, filter: defaultFilteredEnvs, filtered: []string{ddVersion}},
-		{envs: []string{ddService}, filter: defaultFilteredEnvs, filtered: []string{ddService}},
-		{envs: []string{ddEnv, ddVersion}, filter: defaultFilteredEnvs, filtered: []string{ddEnv, ddVersion}},
-		{envs: []string{ddEnv, ddService}, filter: defaultFilteredEnvs, filtered: []string{ddEnv, ddService}},
-		{envs: []string{ddVersion, ddService}, filter: defaultFilteredEnvs, filtered: []string{ddVersion, ddService}},
-		{envs: []string{ddService, ddVersion, ddEnv}, filter: defaultFilteredEnvs, filtered: defaultFilteredEnvs},
-		{envs: []string{ddService, ddVersion, ddEnv, "foo=bar"}, filter: defaultFilteredEnvs, filtered: defaultFilteredEnvs},
-		{envs: []string{"foo=bar"}, filter: defaultFilteredEnvs, filtered: []string{}},
-		{envs: []string{ddEnv}},
-		{envs: []string{ddVersion}},
-		{envs: []string{ddService}},
-		{envs: []string{ddEnv, ddVersion}},
-		{envs: []string{ddEnv, ddService}},
-		{envs: []string{ddVersion, ddService}},
-		{envs: []string{ddService, ddVersion, ddEnv}},
-	}
-
-	testFunc := func(t *testing.T, entry *events.Process) {
-		for i, te := range tests {
-			t.Run(fmt.Sprintf("%d", i), func(t *testing.T) {
-				pc, err := newProcessCache(10, te.filter)
-				require.NoError(t, err)
-				t.Cleanup(pc.Stop)
-
-				var values []string
-				for _, e := range te.envs {
-					values = append(values, e+"="+envs[e])
-				}
-
-				entry.Envs = values
-
-				p := pc.processEvent(entry)
-				if (entry.ContainerID == nil || entry.ContainerID.Get().(string) == "") && len(te.filter) > 0 && len(te.filtered) == 0 {
-					assert.Nil(t, p)
-				} else {
-					assert.NotNil(t, p)
-					assert.Equal(t, entry.Pid, p.Pid)
-					if entry.ContainerID != nil {
-						containerID, ok := p.ContainerID.Get().(string)
-						assert.True(t, ok)
-						assert.Equal(t, entry.ContainerID.Get(), containerID)
-					}
-					l := te.envs
-					if len(te.filter) > 0 {
-						l = te.filtered
-					}
-					assert.Len(t, p.Envs, len(l))
-					for _, e := range l {
-						assert.Equal(t, envs[e], p.Env(e))
-					}
-				}
-			})
+		p := pc.processEvent(entry)
+		if entry.ContainerID == nil && len(entry.Tags) == 0 {
+			assert.Nil(t, p)
+		} else {
+			assert.Equal(t, entry, p)
 		}
 	}
 
 	t.Run("without container id", func(t *testing.T) {
 		entry := events.Process{Pid: 1234}
 
-		testFunc(t, &entry)
+		testFunc(t, t.Name(), &entry)
 	})
 
 	t.Run("with container id", func(t *testing.T) {
@@ -106,7 +44,23 @@ func TestProcessCacheProcessEvent(t *testing.T) {
 			ContainerID: intern.GetByString("container"),
 		}
 
-		testFunc(t, &entry)
+		testFunc(t, t.Name(), &entry)
+	})
+
+	t.Run("without container id, with tags", func(t *testing.T) {
+		entry := events.Process{Pid: 1234, Tags: []*intern.Value{intern.GetByString("foo"), intern.GetByString("bar")}}
+
+		testFunc(t, t.Name(), &entry)
+	})
+
+	t.Run("with container id, with tags", func(t *testing.T) {
+		entry := events.Process{
+			Pid:         1234,
+			ContainerID: intern.GetByString("container"),
+			Tags:        []*intern.Value{intern.GetByString("foo"), intern.GetByString("bar")},
+		}
+
+		testFunc(t, t.Name(), &entry)
 	})
 
 	t.Run("empty container id", func(t *testing.T) {
@@ -115,13 +69,13 @@ func TestProcessCacheProcessEvent(t *testing.T) {
 			ContainerID: intern.GetByString(""),
 		}
 
-		testFunc(t, &entry)
+		testFunc(t, t.Name(), &entry)
 	})
 }
 
 func TestProcessCacheAdd(t *testing.T) {
 	t.Run("fewer than maxProcessListSize", func(t *testing.T) {
-		pc, err := newProcessCache(5, nil)
+		pc, err := newProcessCache(5)
 		require.NoError(t, err)
 		require.NotNil(t, pc)
 		t.Cleanup(pc.Stop)
@@ -139,7 +93,7 @@ func TestProcessCacheAdd(t *testing.T) {
 	})
 
 	t.Run("greater than maxProcessListSize", func(t *testing.T) {
-		pc, err := newProcessCache(10, nil)
+		pc, err := newProcessCache(10)
 		require.NoError(t, err)
 		require.NotNil(t, pc)
 		t.Cleanup(pc.Stop)
@@ -165,7 +119,7 @@ func TestProcessCacheAdd(t *testing.T) {
 	})
 
 	t.Run("process evicted, same pid", func(t *testing.T) {
-		pc, err := newProcessCache(2, nil)
+		pc, err := newProcessCache(2)
 		require.NoError(t, err)
 		require.NotNil(t, pc)
 		t.Cleanup(pc.Stop)
@@ -216,7 +170,7 @@ func TestProcessCacheAdd(t *testing.T) {
 	})
 
 	t.Run("process evicted, different pid", func(t *testing.T) {
-		pc, err := newProcessCache(1, nil)
+		pc, err := newProcessCache(1)
 		require.NoError(t, err)
 		require.NotNil(t, pc)
 		t.Cleanup(pc.Stop)
@@ -243,7 +197,7 @@ func TestProcessCacheAdd(t *testing.T) {
 	})
 
 	t.Run("process updated", func(t *testing.T) {
-		pc, err := newProcessCache(1, nil)
+		pc, err := newProcessCache(1)
 		require.NoError(t, err)
 		require.NotNil(t, pc)
 		t.Cleanup(pc.Stop)
@@ -251,7 +205,7 @@ func TestProcessCacheAdd(t *testing.T) {
 		pc.add(&events.Process{
 			Pid:       1234,
 			StartTime: 1,
-			Envs:      []string{"foo=bar"},
+			Tags:      []*intern.Value{intern.GetByString("foo:bar")},
 		})
 
 		p, ok := pc.Get(1234, 1)
@@ -259,12 +213,12 @@ func TestProcessCacheAdd(t *testing.T) {
 		require.NotNil(t, p)
 		assert.Equal(t, uint32(1234), p.Pid)
 		assert.Equal(t, int64(1), p.StartTime)
-		assert.Equal(t, p.Env("foo"), "bar")
+		assert.Contains(t, p.Tags, intern.GetByString("foo:bar"))
 
 		pc.add(&events.Process{
 			Pid:       1234,
 			StartTime: 1,
-			Envs:      []string{"bar=foo"},
+			Tags:      []*intern.Value{intern.GetByString("bar:foo")},
 		})
 
 		p, ok = pc.Get(1234, 1)
@@ -272,13 +226,13 @@ func TestProcessCacheAdd(t *testing.T) {
 		require.NotNil(t, p)
 		assert.Equal(t, uint32(1234), p.Pid)
 		assert.Equal(t, int64(1), p.StartTime)
-		assert.Equal(t, p.Env("bar"), "foo")
-		assert.NotContains(t, p.Envs, "foo")
+		assert.Contains(t, p.Tags, intern.GetByString("bar:foo"))
+		assert.NotContains(t, p.Tags, intern.GetByString("foo:bar"))
 	})
 }
 
 func TestProcessCacheGet(t *testing.T) {
-	pc, err := newProcessCache(10, nil)
+	pc, err := newProcessCache(10)
 	require.NoError(t, err)
 	require.NotNil(t, pc)
 	t.Cleanup(pc.Stop)

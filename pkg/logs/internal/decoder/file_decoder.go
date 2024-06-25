@@ -16,8 +16,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/encodedtext"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/noop"
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/status"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
+	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 )
 
 // NewDecoderFromSource creates a new decoder from a log source
@@ -35,7 +35,7 @@ func NewDecoderFromSourceWithPattern(source *sources.ReplaceableSource, multiLin
 	case sources.KubernetesSourceType:
 		lineParser = kubernetes.New()
 	case sources.DockerSourceType:
-		if coreConfig.Datadog.GetBool("logs_config.use_podman_logs") {
+		if coreConfig.Datadog().GetBool("logs_config.use_podman_logs") {
 			// podman's on-disk logs are in kubernetes format
 			lineParser = kubernetes.New()
 		} else {

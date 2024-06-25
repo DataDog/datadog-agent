@@ -13,10 +13,10 @@
 #define HTTP2_MAX_FRAMES_FOR_EOS_PARSER (HTTP2_MAX_FRAMES_FOR_EOS_PARSER_PER_TAIL_CALL * HTTP2_MAX_TAIL_CALLS_FOR_EOS_PARSER)
 
 // Represents the maximum number of frames we'll process in a single tail call in `handle_headers_frames` program.
-#define HTTP2_MAX_FRAMES_FOR_HEADERS_PARSER_PER_TAIL_CALL 18
+#define HTTP2_MAX_FRAMES_FOR_HEADERS_PARSER_PER_TAIL_CALL 16
 // Represents the maximum number of tail calls to process headers frames.
-// Currently we have up to 240 frames in a packet, thus 14 (14*18 = 252) tail calls is enough.
-#define HTTP2_MAX_TAIL_CALLS_FOR_HEADERS_PARSER 14
+// Currently we have up to 240 frames in a packet, thus 15 (15*16 = 240) tail calls is enough.
+#define HTTP2_MAX_TAIL_CALLS_FOR_HEADERS_PARSER 15
 #define HTTP2_MAX_FRAMES_FOR_HEADERS_PARSER (HTTP2_MAX_FRAMES_FOR_HEADERS_PARSER_PER_TAIL_CALL * HTTP2_MAX_TAIL_CALLS_FOR_HEADERS_PARSER)
 // Maximum number of frames to be processed in a single tail call.
 #define HTTP2_MAX_FRAMES_ITERATIONS 240
@@ -30,13 +30,6 @@
 
 // Represents the maximum number octets we will process in the dynamic table update size.
 #define HTTP2_MAX_DYNAMIC_TABLE_UPDATE_ITERATIONS 5
-
-// Represents the maximum number of frames we'll process in a single tail call in `uprobe__http2_tls_headers_parser` program.
-#define HTTP2_TLS_MAX_FRAMES_FOR_HEADERS_PARSER_PER_TAIL_CALL 15
-// Represents the maximum number of tail calls to process headers frames.
-// Currently we have up to 120 frames in a packet, thus 8 (8*15 = 120) tail calls is enough.
-#define HTTP2_TLS_MAX_TAIL_CALLS_FOR_HEADERS_PARSER 8
-#define HTTP2_TLS_MAX_FRAMES_FOR_HEADERS_PARSER (HTTP2_TLS_MAX_FRAMES_FOR_HEADERS_PARSER_PER_TAIL_CALL * HTTP2_TLS_MAX_TAIL_CALLS_FOR_HEADERS_PARSER)
 
 // A limit of max non pseudo headers which we process in the request/response.
 // In HTTP/2 we know that we start with pseudo headers and then we have non pseudo headers.
@@ -168,11 +161,12 @@ typedef struct {
 typedef struct {
     __u64 response_last_seen;
     __u64 request_started;
+    __u8 tags;
 
     status_code_t status_code;
     method_t request_method;
     path_t path;
-    bool request_end_of_stream;
+    bool end_of_stream_seen;
 } http2_stream_t;
 
 typedef struct {
@@ -243,7 +237,6 @@ typedef struct {
     __u64 exceeding_max_interesting_frames;
     __u64 exceeding_max_frames_to_filter;
     __u64 path_size_bucket[HTTP2_TELEMETRY_PATH_BUCKETS+1];
-    __u64 fragmented_frame_count;
 } http2_telemetry_t;
 
 typedef struct {

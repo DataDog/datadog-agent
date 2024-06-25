@@ -25,7 +25,7 @@ const prefixPathSuffix string = "."
 type authorizedSet map[string]struct{}
 
 var authorizedConfigPathsCore = buildAuthorizedSet(
-	"api_key", "site", "dd_url", "logs_config.dd_url", "ha",
+	"api_key", "site", "dd_url", "logs_config.dd_url",
 )
 
 func buildAuthorizedSet(paths ...string) authorizedSet {
@@ -101,7 +101,7 @@ func (c *configEndpoint) getAllConfigValuesHandler(w http.ResponseWriter, r *htt
 // GetConfigEndpointMuxCore builds and returns the mux for the config endpoint with default values
 // for the core agent
 func GetConfigEndpointMuxCore() *gorilla.Router {
-	return GetConfigEndpointMux(config.Datadog, authorizedConfigPathsCore, "core")
+	return GetConfigEndpointMux(config.Datadog(), authorizedConfigPathsCore, "core")
 }
 
 // GetConfigEndpointMux builds and returns the mux for the config endpoint, with the given config,

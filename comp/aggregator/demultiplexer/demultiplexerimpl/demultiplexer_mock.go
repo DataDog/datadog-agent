@@ -8,20 +8,27 @@
 package demultiplexerimpl
 
 import (
+	"go.uber.org/fx"
+
 	demultiplexerComp "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
+	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"go.uber.org/fx"
 )
 
 // MockModule defines the fx options for this component.
 func MockModule() fxutil.Module {
 	return fxutil.Component(
-		fx.Provide(newMock))
+		fx.Provide(newMock),
+		fx.Provide(func(demux demultiplexerComp.Component) aggregator.Demultiplexer {
+			return demux
+		}),
+	)
 }
 
 type mock struct {
@@ -50,7 +57,17 @@ type mockDependencies struct {
 	Hostname hostname.Component
 }
 
-func newMock(deps mockDependencies) (demultiplexerComp.Component, demultiplexerComp.Mock) {
+// MockProvides is the mock component output
+type MockProvides struct {
+	fx.Out
+
+	Comp          demultiplexerComp.Component
+	SenderManager diagnosesendermanager.Component
+	Mock          demultiplexerComp.Mock
+	Sender        sender.SenderManager
+}
+
+func newMock(deps mockDependencies) MockProvides {
 	opts := aggregator.DefaultAgentDemultiplexerOptions()
 	opts.DontStartForwarders = true
 
@@ -58,8 +75,14 @@ func newMock(deps mockDependencies) (demultiplexerComp.Component, demultiplexerC
 		Log:             deps.Log,
 		Hostname:        deps.Hostname,
 		SharedForwarder: defaultforwarder.NoopForwarder{},
+		Compressor:      compressionimpl.NewMockCompressor(),
 	}
 
 	instance := &mock{AgentDemultiplexer: aggregator.InitAndStartAgentDemultiplexerForTest(aggDeps, opts, "")}
-	return instance, instance
+	return MockProvides{
+		Comp:          instance,
+		SenderManager: instance,
+		Mock:          instance,
+		Sender:        instance,
+	}
 }

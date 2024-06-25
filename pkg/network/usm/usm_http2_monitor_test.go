@@ -35,6 +35,7 @@ import (
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
+	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	usmhttp "github.com/DataDog/datadog-agent/pkg/network/protocols/http"
@@ -106,14 +107,27 @@ func TestHTTP2Scenarios(t *testing.T) {
 				isTLS: true,
 			},
 		} {
-			if tc.isTLS && !gotlsutils.GoTLSSupported(t, config.New()) {
-				t.Skip("GoTLS not supported for this setup")
-			}
 			t.Run(tc.name, func(t *testing.T) {
+				if tc.isTLS && !gotlsutils.GoTLSSupported(t, config.New()) {
+					t.Skip("GoTLS not supported for this setup")
+				}
 				suite.Run(t, &usmHTTP2Suite{isTLS: tc.isTLS})
 			})
 		}
 	})
+}
+
+func (s *usmHTTP2Suite) TestLoadHTTP2Binary() {
+	t := s.T()
+
+	cfg := s.getCfg()
+
+	for _, debug := range map[string]bool{"enabled": true, "disabled": false} {
+		t.Run(fmt.Sprintf("debug %v", debug), func(t *testing.T) {
+			cfg.BPFDebug = debug
+			setupUSMTLSMonitor(t, cfg)
+		})
+	}
 }
 
 func (s *usmHTTP2Suite) TestHTTP2DynamicTableCleanup() {
@@ -191,6 +205,11 @@ func (s *usmHTTP2Suite) TestSimpleHTTP2() {
 	t.Cleanup(cancel)
 	require.NoError(t, proxy.WaitForConnectionReady(unixPath))
 
+	monitor := setupUSMTLSMonitor(t, cfg)
+	if s.isTLS {
+		utils.WaitForProgramsToBeTraced(t, "go-tls", proxyProcess.Process.Pid)
+	}
+
 	tests := []struct {
 		name              string
 		runClients        func(t *testing.T, clientsCount int)
@@ -260,10 +279,7 @@ func (s *usmHTTP2Suite) TestSimpleHTTP2() {
 		for _, clientCount := range []int{1, 2, 5} {
 			testNameSuffix := fmt.Sprintf("-different clients - %v", clientCount)
 			t.Run(tt.name+testNameSuffix, func(t *testing.T) {
-				monitor := setupUSMTLSMonitor(t, cfg)
-				if s.isTLS {
-					utils.WaitForProgramsToBeTraced(t, "go-tls", proxyProcess.Process.Pid)
-				}
+				t.Cleanup(func() { cleanProtocolMaps(t, "http2", monitor.ebpfProgram.Manager.Manager) })
 				tt.runClients(t, clientCount)
 
 				res := make(map[usmhttp.Key]int)
@@ -306,6 +322,7 @@ func (s *usmHTTP2Suite) TestSimpleHTTP2() {
 						}
 					}
 					ebpftest.DumpMapsTestHelper(t, monitor.DumpMaps, usmhttp2.InFlightMap)
+					dumpTelemetry(t, monitor, s.isTLS)
 				}
 			})
 		}
@@ -411,7 +428,6 @@ func (s *usmHTTP2Suite) TestHTTP2KernelTelemetry() {
 					return false
 				}
 				return reflect.DeepEqual(telemetry.Path_size_bucket, tt.expectedTelemetry.Path_size_bucket)
-
 			}, time.Second*5, time.Millisecond*100)
 			if t.Failed() {
 				t.Logf("expected telemetry: %+v;\ngot: %+v", tt.expectedTelemetry, telemetry)
@@ -489,6 +505,8 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 	t := s.T()
 	cfg := s.getCfg()
 
+	usmMonitor := setupUSMTLSMonitor(t, cfg)
+
 	// Start local server and register its cleanup.
 	t.Cleanup(startH2CServer(t, authority, s.isTLS))
 
@@ -497,13 +515,9 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 	t.Cleanup(cancel)
 	require.NoError(t, proxy.WaitForConnectionReady(unixPath))
 
-	getTLSNumber := func(numberWithoutTLS, numberWithTLS int, isTLS bool) int {
-		if isTLS {
-			return numberWithTLS
-		}
-		return numberWithoutTLS
+	if s.isTLS {
+		utils.WaitForProgramsToBeTraced(t, "go-tls", proxyProcess.Process.Pid)
 	}
-
 	tests := []struct {
 		name              string
 		skip              bool
@@ -554,8 +568,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			// The purpose of this test is to verify our ability to reach the limit set by HTTP2_MAX_FRAMES_ITERATIONS, which
 			// determines the maximum number of "interesting frames" we can process.
 			messageBuilder: func() [][]byte {
-				const numberWithoutTLS, numberWithTLS = 120, 60
-				iterations := getTLSNumber(numberWithoutTLS, numberWithTLS, s.isTLS)
+				const iterations = 120
 				framer := newFramer()
 				for i := 0; i < iterations; i++ {
 					streamID := getStreamID(i)
@@ -569,7 +582,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 				{
 					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
 					Method: usmhttp.MethodPost,
-				}: getTLSNumber(120, 60, s.isTLS),
+				}: 120,
 			},
 		},
 		{
@@ -727,9 +740,10 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 		},
 		{
 			name: "validate various status codes",
-			// The purpose of this test is to verify that we support status codes that do not appear in the static table.
+			// The purpose of this test is to verify that we support status codes that both do and
+			// do not appear in the static table.
 			messageBuilder: func() [][]byte {
-				statusCodes := []int{http.StatusCreated, http.StatusMultipleChoices, http.StatusUnauthorized, http.StatusGatewayTimeout}
+				statusCodes := []int{200, 201, 204, 206, 300, 304, 400, 401, 404, 500, 504}
 				const iterationsPerStatusCode = 3
 				messages := make([][]byte, 0, len(statusCodes)*iterationsPerStatusCode)
 				for statusCodeIteration, statusCode := range statusCodes {
@@ -745,7 +759,19 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			},
 			expectedEndpoints: map[usmhttp.Key]int{
 				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/status/200")},
+					Method: usmhttp.MethodPost,
+				}: 3,
+				{
 					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/status/201")},
+					Method: usmhttp.MethodPost,
+				}: 3,
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/status/204")},
+					Method: usmhttp.MethodPost,
+				}: 3,
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/status/206")},
 					Method: usmhttp.MethodPost,
 				}: 3,
 				{
@@ -753,7 +779,23 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 					Method: usmhttp.MethodPost,
 				}: 3,
 				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/status/304")},
+					Method: usmhttp.MethodPost,
+				}: 3,
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/status/400")},
+					Method: usmhttp.MethodPost,
+				}: 3,
+				{
 					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/status/401")},
+					Method: usmhttp.MethodPost,
+				}: 3,
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/status/404")},
+					Method: usmhttp.MethodPost,
+				}: 3,
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/status/500")},
 					Method: usmhttp.MethodPost,
 				}: 3,
 				{
@@ -766,15 +808,19 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			name: "validate http methods",
 			// The purpose of this test is to validate that we are able to capture all http methods.
 			messageBuilder: func() [][]byte {
-				httpMethods = []string{http.MethodGet, http.MethodPost, http.MethodHead, http.MethodDelete,
+				httpMethods := []string{http.MethodGet, http.MethodPost, http.MethodHead, http.MethodDelete,
 					http.MethodPut, http.MethodPatch, http.MethodOptions, http.MethodTrace, http.MethodConnect}
+				// Duplicating the list to have each method appearing twice
+				httpMethods = append(httpMethods, httpMethods...)
 				// Currently, the methods TRACE and CONNECT are not supported by the http.Method package.
 				// Therefore, we mark those requests as incomplete and not expected to be captured.
 				framer := newFramer()
+				var buf bytes.Buffer
+				encoder := hpack.NewEncoder(&buf)
 				for i, method := range httpMethods {
 					streamID := getStreamID(i)
 					framer.
-						writeHeaders(t, streamID, usmhttp2.HeadersFrameOptions{Headers: generateTestHeaderFields(headersGenerationOptions{overrideMethod: method})}).
+						writeHeadersWithEncoder(t, streamID, usmhttp2.HeadersFrameOptions{Headers: generateTestHeaderFields(headersGenerationOptions{overrideMethod: method})}, encoder, &buf).
 						writeData(t, streamID, endStream, emptyBody)
 				}
 				return [][]byte{framer.bytes()}
@@ -783,31 +829,31 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 				{
 					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
 					Method: usmhttp.MethodGet,
-				}: 1,
+				}: 2,
 				{
 					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
 					Method: usmhttp.MethodPost,
-				}: 1,
+				}: 2,
 				{
 					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
 					Method: usmhttp.MethodHead,
-				}: 1,
+				}: 2,
 				{
 					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
 					Method: usmhttp.MethodDelete,
-				}: 1,
+				}: 2,
 				{
 					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
 					Method: usmhttp.MethodPut,
-				}: 1,
+				}: 2,
 				{
 					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
 					Method: usmhttp.MethodPatch,
-				}: 1,
+				}: 2,
 				{
 					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
 					Method: usmhttp.MethodOptions,
-				}: 1,
+				}: 2,
 			},
 		},
 		{
@@ -1154,6 +1200,38 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			},
 			expectedEndpoints: nil,
 		},
+		{
+			name: "remainder + header remainder",
+			// Testing the scenario where we have both a remainder (a frame's payload split over 2 packets) and in the
+			// second packet, we have the remainder and a partial frame header of a new request. We're testing that we
+			// can capture the 2 requests in this scenario.
+			messageBuilder: func() [][]byte {
+				data := []byte("testcontent")
+				request1 := newFramer().
+					writeHeaders(t, 1, usmhttp2.HeadersFrameOptions{Headers: generateTestHeaderFields(headersGenerationOptions{overrideContentLength: len(data)})}).
+					writeData(t, 1, true, data).bytes()
+				request2 := newFramer().
+					writeHeaders(t, 3, usmhttp2.HeadersFrameOptions{Headers: headersWithGivenEndpoint("/bbb")}).
+					writeData(t, 3, true, emptyBody).bytes()
+				firstPacket := request1[:len(request1)-6]
+				secondPacket := append(request1[len(request1)-6:], request2[:5]...)
+				return [][]byte{
+					firstPacket,
+					secondPacket,
+					request2[5:],
+				}
+			},
+			expectedEndpoints: map[usmhttp.Key]int{
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Method: usmhttp.MethodPost,
+				}: 1,
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/bbb")},
+					Method: usmhttp.MethodPost,
+				}: 1,
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1161,11 +1239,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 				t.Skip("skipping test")
 			}
 
-			usmMonitor := setupUSMTLSMonitor(t, cfg)
-			if s.isTLS {
-				utils.WaitForProgramsToBeTraced(t, "go-tls", proxyProcess.Process.Pid)
-			}
-
+			t.Cleanup(func() { cleanProtocolMaps(t, "http2", usmMonitor.ebpfProgram.Manager.Manager) })
 			c := dialHTTP2Server(t)
 
 			// Composing a message with the number of setting frames we want to send.
@@ -1173,7 +1247,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 
 			res := make(map[usmhttp.Key]int)
 			assert.Eventually(t, func() bool {
-				return validateStats(usmMonitor, res, tt.expectedEndpoints)
+				return validateStats(usmMonitor, res, tt.expectedEndpoints, s.isTLS)
 			}, time.Second*5, time.Millisecond*100, "%v != %v", res, tt.expectedEndpoints)
 			if t.Failed() {
 				for key := range tt.expectedEndpoints {
@@ -1182,78 +1256,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 					}
 				}
 				ebpftest.DumpMapsTestHelper(t, usmMonitor.DumpMaps, usmhttp2.InFlightMap, "http2_dynamic_table")
-				if telemetry, err := getHTTP2KernelTelemetry(usmMonitor, s.isTLS); err == nil {
-					tlsMarker := ""
-					if s.isTLS {
-						tlsMarker = "tls "
-					}
-					t.Logf("http2 eBPF %stelemetry: %v", tlsMarker, telemetry)
-				}
-			}
-		})
-	}
-}
-
-func (s *usmHTTP2Suite) TestFrameSplitIntoMultiplePackets() {
-	t := s.T()
-	cfg := s.getCfg()
-
-	// Start local server and register its cleanup.
-	t.Cleanup(startH2CServer(t, authority, s.isTLS))
-
-	// Start the proxy server.
-	proxyProcess, cancel := proxy.NewExternalUnixTransparentProxyServer(t, unixPath, authority, s.isTLS)
-	t.Cleanup(cancel)
-	require.NoError(t, proxy.WaitForConnectionReady(unixPath))
-
-	tests := []struct {
-		name           string
-		messageBuilder func() [][]byte
-	}{
-		{
-			name: "validate message split into 2 tcp segments",
-			// The purpose of this test is to validate that we cannot handle reassembled tcp segments.
-			messageBuilder: func() [][]byte {
-				a := newFramer().
-					writeHeaders(t, 1, usmhttp2.HeadersFrameOptions{Headers: testHeaders()}).
-					writeData(t, 1, true, emptyBody).bytes()
-				return [][]byte{
-					// we split it in 10 bytes in order to split the payload itself.
-					a[:10],
-					a[10:],
-				}
-
-			},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			usmMonitor := setupUSMTLSMonitor(t, cfg)
-			if s.isTLS {
-				utils.WaitForProgramsToBeTraced(t, "go-tls", proxyProcess.Process.Pid)
-			}
-
-			c := dialHTTP2Server(t)
-
-			// Composing a message with the number of setting frames we want to send.
-			require.NoError(t, writeInput(c, 500*time.Millisecond, tt.messageBuilder()...))
-
-			assert.Eventually(t, func() bool {
-				telemetry, err := getHTTP2KernelTelemetry(usmMonitor, s.isTLS)
-				require.NoError(t, err, "could not get http2 telemetry")
-				require.Greater(t, telemetry.Fragmented_frame_count, uint64(0), "expected to see frames split count > 0")
-				return true
-
-			}, time.Second*5, time.Millisecond*100)
-			if t.Failed() {
-				ebpftest.DumpMapsTestHelper(t, usmMonitor.DumpMaps, usmhttp2.InFlightMap, "http2_dynamic_table")
-				if telemetry, err := getHTTP2KernelTelemetry(usmMonitor, s.isTLS); err == nil {
-					tlsMarker := ""
-					if s.isTLS {
-						tlsMarker = "tls "
-					}
-					t.Logf("http2 eBPF %stelemetry: %v", tlsMarker, telemetry)
-				}
+				dumpTelemetry(t, usmMonitor, s.isTLS)
 			}
 		})
 	}
@@ -1319,7 +1322,7 @@ func (s *usmHTTP2Suite) TestDynamicTable() {
 			res := make(map[usmhttp.Key]int)
 			assert.Eventually(t, func() bool {
 				// validate the stats we get
-				require.True(t, validateStats(usmMonitor, res, tt.expectedEndpoints))
+				require.True(t, validateStats(usmMonitor, res, tt.expectedEndpoints, s.isTLS))
 
 				validateDynamicTableMap(t, usmMonitor.ebpfProgram, tt.expectedDynamicTablePathIndexes)
 
@@ -1332,6 +1335,83 @@ func (s *usmHTTP2Suite) TestDynamicTable() {
 					}
 				}
 				ebpftest.DumpMapsTestHelper(t, usmMonitor.DumpMaps, usmhttp2.InFlightMap)
+				dumpTelemetry(t, usmMonitor, s.isTLS)
+			}
+		})
+	}
+}
+
+// TestRemainderTable tests the remainder table map.
+// We would like to make sure that the remainder table map is being updated correctly.
+func (s *usmHTTP2Suite) TestRemainderTable() {
+	t := s.T()
+	cfg := s.getCfg()
+
+	// Start local server and register its cleanup.
+	t.Cleanup(startH2CServer(t, authority, s.isTLS))
+
+	// Start the proxy server.
+	proxyProcess, cancel := proxy.NewExternalUnixTransparentProxyServer(t, unixPath, authority, s.isTLS)
+	t.Cleanup(cancel)
+	require.NoError(t, proxy.WaitForConnectionReady(unixPath))
+
+	tests := []struct {
+		name           string
+		messageBuilder func() [][]byte
+		mapSize        int
+	}{
+		{
+			name: "validate clean with remainder and header zero",
+			// The purpose of this test is to validate that we cannot handle reassembled tcp segments.
+			messageBuilder: func() [][]byte {
+				data := []byte("test12345")
+				a := newFramer().
+					writeHeaders(t, 1, usmhttp2.HeadersFrameOptions{Headers: generateTestHeaderFields(headersGenerationOptions{overrideContentLength: len(data)})}).bytes()
+				b := newFramer().writeData(t, 1, true, data).bytes()
+				message := append(a, b[:11]...)
+				return [][]byte{
+					// we split it in 11 bytes in order to split the payload itself.
+					message,
+					b[11:],
+				}
+			},
+			mapSize: 0,
+		},
+		{
+			name: "validate remainder in map",
+			// The purpose of this test is to validate that we cannot handle reassembled tcp segments.
+			messageBuilder: func() [][]byte {
+				a := newFramer().
+					writeHeaders(t, 1, usmhttp2.HeadersFrameOptions{Headers: testHeaders()}).
+					writeData(t, 1, true, emptyBody).bytes()
+				return [][]byte{
+					// we split it in 10 bytes in order to split the payload itself.
+					a[:10],
+					a[10:],
+				}
+			},
+			mapSize: 1,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			usmMonitor := setupUSMTLSMonitor(t, cfg)
+			if s.isTLS {
+				utils.WaitForProgramsToBeTraced(t, "go-tls", proxyProcess.Process.Pid)
+			}
+
+			c := dialHTTP2Server(t)
+
+			// Composing a message with the number of setting frames we want to send.
+			require.NoError(t, writeInput(c, 500*time.Millisecond, tt.messageBuilder()...))
+
+			assert.Eventually(t, func() bool {
+				require.Len(t, getRemainderTableMapKeys(t, usmMonitor.ebpfProgram), tt.mapSize)
+				return true
+			}, time.Second*5, time.Millisecond*100, "")
+			if t.Failed() {
+				ebpftest.DumpMapsTestHelper(t, usmMonitor.DumpMaps, usmhttp2.InFlightMap)
+				dumpTelemetry(t, usmMonitor, s.isTLS)
 			}
 		})
 	}
@@ -1398,7 +1478,7 @@ func (s *usmHTTP2Suite) TestRawHuffmanEncoding() {
 			res := make(map[usmhttp.Key]int)
 			assert.Eventually(t, func() bool {
 				// validate the stats we get
-				if !validateStats(usmMonitor, res, tt.expectedEndpoints) {
+				if !validateStats(usmMonitor, res, tt.expectedEndpoints, s.isTLS) {
 					return false
 				}
 
@@ -1411,6 +1491,7 @@ func (s *usmHTTP2Suite) TestRawHuffmanEncoding() {
 					}
 				}
 				ebpftest.DumpMapsTestHelper(t, usmMonitor.DumpMaps, usmhttp2.InFlightMap)
+				dumpTelemetry(t, usmMonitor, s.isTLS)
 			}
 		})
 	}
@@ -1446,7 +1527,7 @@ func TestHTTP2InFlightMapCleaner(t *testing.T) {
 }
 
 // validateStats validates that the stats we get from the monitor are as expected.
-func validateStats(usmMonitor *Monitor, res, expectedEndpoints map[usmhttp.Key]int) bool {
+func validateStats(usmMonitor *Monitor, res, expectedEndpoints map[usmhttp.Key]int, isTLS bool) bool {
 	for key, stat := range getHTTPLikeProtocolStats(usmMonitor, protocols.HTTP2) {
 		if key.DstPort == srvPort || key.SrcPort == srvPort {
 			statusCode := testutil.StatusFromPath(key.Path.Content.Get())
@@ -1455,6 +1536,10 @@ func validateStats(usmMonitor *Monitor, res, expectedEndpoints map[usmhttp.Key]i
 			// 200 as the status code.
 			if statusCode == 0 {
 				statusCode = 200
+			}
+			hasTag := stat.Data[statusCode].StaticTags == network.ConnTagGo
+			if hasTag != isTLS {
+				continue
 			}
 			count := stat.Data[statusCode].Count
 			newKey := usmhttp.Key{
@@ -1671,6 +1756,33 @@ func (f *framer) writeHeaders(t *testing.T, streamID uint32, headersFramesOption
 	headersFrame, err := usmhttp2.NewHeadersFrameMessage(headersFramesOptions)
 	require.NoError(t, err, "could not create headers frame")
 
+	if headersFramesOptions.EndStream {
+		require.NoError(t, f.framer.WriteHeaders(http2.HeadersFrameParam{
+			StreamID:      streamID,
+			BlockFragment: headersFrame,
+			EndHeaders:    endHeaders,
+			EndStream:     true,
+		}), "could not write header frames")
+		return f
+	}
+
+	return f.writeRawHeaders(t, streamID, true, headersFrame)
+}
+
+func (f *framer) writeHeadersWithEncoder(t *testing.T, streamID uint32, headersFramesOptions usmhttp2.HeadersFrameOptions, encoder *hpack.Encoder, buf *bytes.Buffer) *framer {
+	require.NoError(t, usmhttp2.NewHeadersFrameMessageWithEncoder(encoder, headersFramesOptions), "could not create headers frame")
+	headersFrame := buf.Bytes()
+	buf.Reset()
+	if headersFramesOptions.EndStream {
+		require.NoError(t, f.framer.WriteHeaders(http2.HeadersFrameParam{
+			StreamID:      streamID,
+			BlockFragment: headersFrame,
+			EndHeaders:    endHeaders,
+			EndStream:     true,
+		}), "could not write header frames")
+		return f
+	}
+
 	return f.writeRawHeaders(t, streamID, true, headersFrame)
 }
 
@@ -1755,6 +1867,21 @@ func validateDynamicTableMap(t *testing.T, ebpfProgram *ebpfProgram, expectedDyn
 	require.EqualValues(t, expectedDynamicTablePathIndexes, resultIndexes)
 }
 
+// getRemainderTableMapKeys returns the keys of the remainder table map.
+func getRemainderTableMapKeys(t *testing.T, ebpfProgram *ebpfProgram) []usmhttp.ConnTuple {
+	remainderMap, _, err := ebpfProgram.GetMap("http2_remainder")
+	require.NoError(t, err)
+	resultIndexes := make([]usmhttp.ConnTuple, 0)
+	var key usmhttp2.ConnTuple
+	var value usmhttp2.HTTP2RemainderEntry
+	iterator := remainderMap.Iterate()
+
+	for iterator.Next(&key, &value) {
+		resultIndexes = append(resultIndexes, key)
+	}
+	return resultIndexes
+}
+
 // validateHuffmanEncoded validates that the dynamic table map contains the expected huffman encoded paths.
 func validateHuffmanEncoded(t *testing.T, ebpfProgram *ebpfProgram, expectedHuffmanEncoded map[int]bool) bool {
 	dynamicTableMap, _, err := ebpfProgram.GetMap("http2_dynamic_table")
@@ -1804,4 +1931,14 @@ func getHTTP2KernelTelemetry(monitor *Monitor, isTLS bool) (*usmhttp2.HTTP2Telem
 		return nil, fmt.Errorf("unable to lookup %q map: %s", mapName, err)
 	}
 	return http2Telemetry, nil
+}
+
+func dumpTelemetry(t *testing.T, usmMonitor *Monitor, isTLS bool) {
+	if telemetry, err := getHTTP2KernelTelemetry(usmMonitor, isTLS); err == nil {
+		tlsMarker := ""
+		if isTLS {
+			tlsMarker = "tls "
+		}
+		t.Logf("http2 eBPF %stelemetry: %v", tlsMarker, telemetry)
+	}
 }

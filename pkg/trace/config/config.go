@@ -85,6 +85,9 @@ type ObfuscationConfig struct {
 	// ES holds the obfuscation configuration for ElasticSearch bodies.
 	ES obfuscate.JSONConfig `mapstructure:"elasticsearch"`
 
+	// OpenSearch holds the obfuscation configuration for OpenSearch bodies.
+	OpenSearch obfuscate.JSONConfig `mapstructure:"opensearch"`
+
 	// Mongo holds the obfuscation configuration for MongoDB queries.
 	Mongo obfuscate.JSONConfig `mapstructure:"mongodb"`
 
@@ -111,7 +114,7 @@ type ObfuscationConfig struct {
 	Memcached obfuscate.MemcachedConfig `mapstructure:"memcached"`
 
 	// CreditCards holds the configuration for obfuscating credit cards.
-	CreditCards CreditCardsConfig `mapstructure:"credit_cards"`
+	CreditCards obfuscate.CreditCardsConfig `mapstructure:"credit_cards"`
 }
 
 // Export returns an obfuscate.Config matching o.
@@ -125,12 +128,14 @@ func (o *ObfuscationConfig) Export(conf *AgentConfig) obfuscate.Config {
 			Cache:            conf.HasFeature("sql_cache"),
 		},
 		ES:                   o.ES,
+		OpenSearch:           o.OpenSearch,
 		Mongo:                o.Mongo,
 		SQLExecPlan:          o.SQLExecPlan,
 		SQLExecPlanNormalize: o.SQLExecPlanNormalize,
 		HTTP:                 o.HTTP,
 		Redis:                o.Redis,
 		Memcached:            o.Memcached,
+		CreditCard:           o.CreditCards,
 		Logger:               new(debugLogger),
 	}
 }
@@ -139,18 +144,6 @@ type debugLogger struct{}
 
 func (debugLogger) Debugf(format string, params ...interface{}) {
 	log.Debugf(format, params...)
-}
-
-// CreditCardsConfig holds the configuration for credit card obfuscation in
-// (Meta) tags.
-type CreditCardsConfig struct {
-	// Enabled specifies whether this feature should be enabled.
-	Enabled bool `mapstructure:"enabled"`
-
-	// Luhn specifies whether Luhn checksum validation should be enabled.
-	// https://dev.to/shiraazm/goluhn-a-simple-library-for-generating-calculating-and-verifying-luhn-numbers-588j
-	// It reduces false positives, but increases the CPU time X3.
-	Luhn bool `mapstructure:"luhn"`
 }
 
 // Enablable can represent any option that has an "enabled" boolean sub-field.
@@ -231,6 +224,8 @@ type EVPProxy struct {
 	AdditionalEndpoints map[string][]string
 	// MaxPayloadSize indicates the size at which payloads will be rejected, in bytes.
 	MaxPayloadSize int64
+	// ReceiverTimeout indicates the maximum time an EVPProxy request can take. Value in seconds.
+	ReceiverTimeout int
 }
 
 // InstallSignatureConfig contains the information on how the agent was installed
@@ -310,6 +305,11 @@ type AgentConfig struct {
 	RareSamplerCooldownPeriod time.Duration
 	RareSamplerCardinality    int
 
+	// Probabilistic Sampler configuration
+	ProbabilisticSamplerEnabled            bool
+	ProbabilisticSamplerHashSeed           uint32
+	ProbabilisticSamplerSamplingPercentage float32
+
 	// Receiver
 	ReceiverHost    string
 	ReceiverPort    int
@@ -348,8 +348,7 @@ type AgentConfig struct {
 	StatsdSocket   string // for UDS Sockets
 
 	// logging
-	LogFilePath   string
-	LogThrottling bool
+	LogFilePath string
 
 	// watchdog
 	MaxMemory        float64       // MaxMemory is the threshold (bytes allocated) above which program panics and exits, to be restarted
@@ -501,7 +500,6 @@ func New() *AgentConfig {
 		StatsdPort:    8125,
 		StatsdEnabled: true,
 
-		LogThrottling:      true,
 		LambdaFunctionName: os.Getenv("AWS_LAMBDA_FUNCTION_NAME"),
 
 		MaxMemory:        5e8, // 500 Mb, should rarely go above 50 Mb
@@ -538,8 +536,11 @@ func computeGlobalTags() map[string]string {
 	return make(map[string]string)
 }
 
+// ErrContainerTagsFuncNotDefined is returned when the containerTags function is not defined.
+var ErrContainerTagsFuncNotDefined = errors.New("containerTags function not defined")
+
 func noopContainerTagsFunc(_ string) ([]string, error) {
-	return nil, errors.New("ContainerTags function not defined")
+	return nil, ErrContainerTagsFuncNotDefined
 }
 
 // APIKey returns the first (main) endpoint's API key.
@@ -574,20 +575,20 @@ func (c *AgentConfig) NewHTTPTransport() *http.Transport {
 			DualStack: true,
 		}).DialContext,
 		MaxIdleConns:          100,
-		IdleConnTimeout:       90 * time.Second,
+		IdleConnTimeout:       30 * time.Second,
 		TLSHandshakeTimeout:   10 * time.Second,
 		ExpectContinueTimeout: 1 * time.Second,
 	}
 	return transport
 }
 
-//nolint:revive // TODO(APM) Fix revive linter
+// HasFeature returns true if the agent has the given feature flag.
 func (c *AgentConfig) HasFeature(feat string) bool {
 	_, ok := c.Features[feat]
 	return ok
 }
 
-//nolint:revive // TODO(APM) Fix revive linter
+// AllFeatures returns a slice of all the feature flags the agent has.
 func (c *AgentConfig) AllFeatures() []string {
 	feats := []string{}
 	for feat := range c.Features {
@@ -596,7 +597,6 @@ func (c *AgentConfig) AllFeatures() []string {
 	return feats
 }
 
-//nolint:revive // TODO(APM) Fix revive linter
 func inAzureAppServices() bool {
 	_, existsLinux := os.LookupEnv("APPSVC_RUN_ZIP")
 	_, existsWin := os.LookupEnv("WEBSITE_APPSERVICEAPPLOGS_TRACE_ENABLED")

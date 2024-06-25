@@ -10,6 +10,8 @@
 package trivy
 
 import (
+	"context"
+
 	cyclonedxgo "github.com/CycloneDX/cyclonedx-go"
 	"github.com/aquasecurity/trivy/pkg/sbom/cyclonedx"
 	"github.com/aquasecurity/trivy/pkg/types"
@@ -19,12 +21,12 @@ import (
 type Report struct {
 	*types.Report
 	id        string
-	marshaler *cyclonedx.Marshaler
+	marshaler cyclonedx.Marshaler
 }
 
 // ToCycloneDX returns the report as a CycloneDX SBOM
 func (r *Report) ToCycloneDX() (*cyclonedxgo.BOM, error) {
-	bom, err := r.marshaler.Marshal(*r.Report)
+	bom, err := r.marshaler.MarshalReport(context.TODO(), *r.Report)
 	if err != nil {
 		return nil, err
 	}

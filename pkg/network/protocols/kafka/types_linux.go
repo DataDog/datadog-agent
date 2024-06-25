@@ -3,6 +3,10 @@
 
 package kafka
 
+const (
+	TopicNameBuckets = 0xa
+)
+
 type ConnTuple struct {
 	Saddr_h  uint64
 	Saddr_l  uint64
@@ -16,10 +20,42 @@ type ConnTuple struct {
 }
 
 type EbpfTx struct {
-	Tup                 ConnTuple
-	Request_api_key     uint16
-	Request_api_version uint16
+	Tup         ConnTuple
+	Transaction KafkaTransaction
+}
+
+type KafkaTransactionKey struct {
+	Tuple     ConnTuple
+	Id        int32
+	Pad_cgo_0 [4]byte
+}
+type KafkaTransaction struct {
+	Request_started     uint64
+	Records_count       uint32
+	Request_api_key     uint8
+	Request_api_version uint8
+	Topic_name_size     uint8
+	Tags                uint8
 	Topic_name          [80]byte
-	Topic_name_size     uint16
-	Pad_cgo_0           [2]byte
+}
+
+type KafkaResponseContext struct {
+	Transaction                 KafkaTransaction
+	State                       uint8
+	Remainder                   uint8
+	Varint_position             uint8
+	Partition_state             uint8
+	Remainder_buf               [4]int8
+	Record_batches_num_bytes    int32
+	Record_batch_length         int32
+	Expected_tcp_seq            uint32
+	Carry_over_offset           int32
+	Partitions_count            uint32
+	Varint_value                uint32
+	Record_batches_arrays_idx   uint32
+	Record_batches_arrays_count uint32
+}
+
+type RawKernelTelemetry struct {
+	Name_size_buckets [10]uint64
 }

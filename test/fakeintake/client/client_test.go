@@ -53,9 +53,21 @@ var apiV02APMStats []byte
 //go:embed fixtures/api_v1_metadata_response
 var apiV1Metadata []byte
 
+//go:embed fixtures/api_v2_ndmflow_response
+var apiV2NDMFlow []byte
+
+func NewServer(handler http.Handler) *httptest.Server {
+	handlerWitHeader := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Fakeintake-ID", "20000000-0000-0000-0000-000000000000")
+		handler.ServeHTTP(w, r)
+	})
+
+	return httptest.NewServer(handlerWitHeader)
+}
+
 func TestClient(t *testing.T) {
 	t.Run("getFakePayloads should properly format the request", func(t *testing.T) {
-		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ts := NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// allow requests only to "/foo/bar"
 			routes := r.URL.Query()["endpoint"]
 
@@ -89,7 +101,7 @@ func TestClient(t *testing.T) {
 	})
 
 	t.Run("getFakePayloads should handle response with errors", func(t *testing.T) {
-		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ts := NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusBadRequest)
 		}))
 		defer ts.Close()
@@ -101,7 +113,7 @@ func TestClient(t *testing.T) {
 	})
 
 	t.Run("getMetrics", func(t *testing.T) {
-		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ts := NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Write(apiV2SeriesResponse)
 		}))
 		defer ts.Close()
@@ -116,7 +128,7 @@ func TestClient(t *testing.T) {
 	})
 
 	t.Run("getMetric", func(t *testing.T) {
-		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ts := NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Write(apiV2SeriesResponse)
 		}))
 		defer ts.Close()
@@ -129,7 +141,7 @@ func TestClient(t *testing.T) {
 	})
 
 	t.Run("FilterMetrics", func(t *testing.T) {
-		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ts := NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Write(apiV2SeriesResponse)
 		}))
 		defer ts.Close()
@@ -145,7 +157,7 @@ func TestClient(t *testing.T) {
 	})
 
 	t.Run("getCheckRun", func(t *testing.T) {
-		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ts := NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Write(apiV1CheckRunResponse)
 		}))
 		defer ts.Close()
@@ -160,7 +172,7 @@ func TestClient(t *testing.T) {
 	})
 
 	t.Run("GetCheckRun", func(t *testing.T) {
-		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ts := NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Write(apiV1CheckRunResponse)
 		}))
 		defer ts.Close()
@@ -173,7 +185,7 @@ func TestClient(t *testing.T) {
 	})
 
 	t.Run("getLogs", func(t *testing.T) {
-		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ts := NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Write(apiV2LogsResponse)
 		}))
 		defer ts.Close()
@@ -186,7 +198,7 @@ func TestClient(t *testing.T) {
 	})
 
 	t.Run("getLog", func(t *testing.T) {
-		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ts := NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Write(apiV2LogsResponse)
 		}))
 		defer ts.Close()
@@ -201,7 +213,7 @@ func TestClient(t *testing.T) {
 	})
 
 	t.Run("FilterLogs", func(t *testing.T) {
-		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ts := NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Write(apiV2LogsResponse)
 		}))
 		defer ts.Close()
@@ -213,7 +225,7 @@ func TestClient(t *testing.T) {
 	})
 
 	t.Run("GetServerHealth", func(t *testing.T) {
-		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ts := NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if r.URL.Path != "/fakeintake/health" {
 				w.WriteHeader(http.StatusBadRequest)
 				return
@@ -228,7 +240,7 @@ func TestClient(t *testing.T) {
 	})
 
 	t.Run("FlushPayloads", func(t *testing.T) {
-		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ts := NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if r.URL.Path != "/fakeintake/flushPayloads" {
 				w.WriteHeader(http.StatusBadRequest)
 				return
@@ -243,7 +255,7 @@ func TestClient(t *testing.T) {
 	})
 
 	t.Run("ConfigureOverride", func(t *testing.T) {
-		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ts := NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if r.URL.Path != "/fakeintake/configure/override" {
 				w.WriteHeader(http.StatusBadRequest)
 				return
@@ -262,7 +274,7 @@ func TestClient(t *testing.T) {
 	})
 
 	t.Run("GetLatestFlare", func(t *testing.T) {
-		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ts := NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Write(supportFlareResponse)
 		}))
 		defer ts.Close()
@@ -288,7 +300,7 @@ func TestClient(t *testing.T) {
 				]
 			}`, base64.StdEncoding.EncodeToString(payload))
 
-		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ts := NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Write([]byte(response))
 		}))
 		defer ts.Close()
@@ -313,7 +325,7 @@ func TestClient(t *testing.T) {
 				]
 			}`, base64.StdEncoding.EncodeToString(payload))
 
-		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ts := NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Write([]byte(response))
 		}))
 		defer ts.Close()
@@ -338,7 +350,7 @@ func TestClient(t *testing.T) {
 				]
 			}`, base64.StdEncoding.EncodeToString(payload))
 
-		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ts := NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Write([]byte(response))
 		}))
 		defer ts.Close()
@@ -351,7 +363,7 @@ func TestClient(t *testing.T) {
 	})
 
 	t.Run("getContainerImages", func(t *testing.T) {
-		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ts := NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Write(apiV2ContainerImage)
 		}))
 		defer ts.Close()
@@ -366,7 +378,7 @@ func TestClient(t *testing.T) {
 	})
 
 	t.Run("getContainerImage", func(t *testing.T) {
-		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ts := NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Write(apiV2ContainerImage)
 		}))
 		defer ts.Close()
@@ -379,7 +391,7 @@ func TestClient(t *testing.T) {
 	})
 
 	t.Run("FilterContainerImages", func(t *testing.T) {
-		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ts := NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Write(apiV2ContainerImage)
 		}))
 		defer ts.Close()
@@ -392,7 +404,7 @@ func TestClient(t *testing.T) {
 	})
 
 	t.Run("getContainerLifecycleEvents", func(t *testing.T) {
-		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ts := NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Write(apiV2ContainerLifecycle)
 		}))
 		defer ts.Close()
@@ -406,7 +418,7 @@ func TestClient(t *testing.T) {
 	})
 
 	t.Run("GetContainerLifecycleEvents", func(t *testing.T) {
-		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ts := NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Write(apiV2ContainerLifecycle)
 		}))
 		defer ts.Close()
@@ -418,7 +430,7 @@ func TestClient(t *testing.T) {
 	})
 
 	t.Run("getSBOMs", func(t *testing.T) {
-		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ts := NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Write(apiV2SBOM)
 		}))
 		defer ts.Close()
@@ -433,7 +445,7 @@ func TestClient(t *testing.T) {
 	})
 
 	t.Run("getSBOM", func(t *testing.T) {
-		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ts := NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Write(apiV2SBOM)
 		}))
 		defer ts.Close()
@@ -446,7 +458,7 @@ func TestClient(t *testing.T) {
 	})
 
 	t.Run("FilterSBOMs", func(t *testing.T) {
-		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ts := NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Write(apiV2SBOM)
 		}))
 		defer ts.Close()
@@ -459,7 +471,7 @@ func TestClient(t *testing.T) {
 	})
 
 	t.Run("getTraces", func(t *testing.T) {
-		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ts := NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Write(apiV02Trace)
 		}))
 		defer ts.Close()
@@ -471,7 +483,7 @@ func TestClient(t *testing.T) {
 	})
 
 	t.Run("getAPMStats", func(t *testing.T) {
-		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ts := NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Write(apiV02APMStats)
 		}))
 		defer ts.Close()
@@ -483,7 +495,7 @@ func TestClient(t *testing.T) {
 	})
 
 	t.Run("GetMetadata", func(t *testing.T) {
-		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ts := NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Write(apiV1Metadata)
 		}))
 		defer ts.Close()
@@ -497,4 +509,111 @@ func TestClient(t *testing.T) {
 			assert.Equal(t, expectedHostname, p.Hostname)
 		}
 	})
+
+	t.Run("getNDMFlows", func(t *testing.T) {
+		ts := NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Write(apiV2NDMFlow)
+		}))
+		defer ts.Close()
+
+		client := NewClient(ts.URL)
+		err := client.getNDMFlows()
+		require.NoError(t, err)
+		assert.True(t, client.ndmflowAggregator.ContainsPayloadName("i-028cd2a4530c36887"))
+	})
+
+	t.Run("GetNDMFlows", func(t *testing.T) {
+		ts := NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Write(apiV2NDMFlow)
+		}))
+		defer ts.Close()
+
+		client := NewClient(ts.URL)
+		ndmflows, err := client.GetNDMFlows()
+		require.NoError(t, err)
+		assert.Equal(t, len(ndmflows), 992)
+		const expectedHostname = "i-028cd2a4530c36887"
+		for _, n := range ndmflows {
+			assert.Equal(t, expectedHostname, n.Host)
+		}
+
+		t.Logf("%+v", ndmflows[0])
+		assert.Equal(t, int64(1710375648197), ndmflows[0].FlushTimestamp)
+		assert.Equal(t, "netflow5", ndmflows[0].FlowType)
+		assert.Equal(t, uint64(0), ndmflows[0].SamplingRate)
+		assert.Equal(t, "ingress", ndmflows[0].Direction)
+		assert.Equal(t, uint64(1710375646), ndmflows[0].Start)
+		assert.Equal(t, uint64(1710375648), ndmflows[0].End)
+		assert.Equal(t, uint64(2070), ndmflows[0].Bytes)
+		assert.Equal(t, uint64(1884), ndmflows[0].Packets)
+		assert.Equal(t, "IPv4", ndmflows[0].EtherType)
+		assert.Equal(t, "TCP", ndmflows[0].IPProtocol)
+		assert.Equal(t, "default", ndmflows[0].Device.Namespace)
+		assert.Equal(t, "172.18.0.3", ndmflows[0].Exporter.IP)
+		assert.Equal(t, "192.168.20.10", ndmflows[0].Source.IP)
+		assert.Equal(t, "40", ndmflows[0].Source.Port)
+		assert.Equal(t, "00:00:00:00:00:00", ndmflows[0].Source.Mac)
+		assert.Equal(t, "192.0.0.0/5", ndmflows[0].Source.Mask)
+		assert.Equal(t, "202.12.190.10", ndmflows[0].Destination.IP)
+		assert.Equal(t, "443", ndmflows[0].Destination.Port)
+		assert.Equal(t, "00:00:00:00:00:00", ndmflows[0].Destination.Mac)
+		assert.Equal(t, "202.12.188.0/22", ndmflows[0].Destination.Mask)
+		assert.Equal(t, uint32(0), ndmflows[0].Ingress.Interface.Index)
+		assert.Equal(t, uint32(0), ndmflows[0].Egress.Interface.Index)
+		assert.Equal(t, "i-028cd2a4530c36887", ndmflows[0].Host)
+		assert.Empty(t, ndmflows[0].TCPFlags)
+		assert.Equal(t, "172.199.15.1", ndmflows[0].NextHop.IP)
+		assert.Empty(t, ndmflows[0].AdditionalFields)
+	})
+
+	t.Run("test strict fakeintakeid check mode", func(t *testing.T) {
+		defer func() {
+			if r := recover(); r != nil {
+				assert.Equal(t, "expected fakeintakeID 20000000-0000-0000-0000-000000000000 got 10000000-0000-0000-0000-000000000000: The fakeintake probably restarted during your test", r)
+			}
+		}()
+		ts := NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path == "/fakeintake/health" {
+				w.Header().Set("Fakeintake-ID", "10000000-0000-0000-0000-000000000000")
+				w.WriteHeader(http.StatusOK)
+				return
+			}
+			w.Header().Set("Fakeintake-ID", "20000000-0000-0000-0000-000000000000")
+
+		}))
+		defer ts.Close()
+
+		client := NewClient(ts.URL)
+
+		_, err := client.get("fakeintake/toto")
+		require.NoError(t, err)
+		_, err = client.get("fakeintake/hello")
+		require.NoError(t, err)
+		client.get("fakeintake/health")
+		// should never be called because we expect previous call to panic
+		t.Fail()
+	})
+
+	t.Run("test non-strict fakeintakeid check mode", func(t *testing.T) {
+		ts := NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path == "/fakeintake/health" {
+				w.Header().Set("Fakeintake-ID", "10000000-0000-0000-0000-000000000000")
+				w.WriteHeader(http.StatusOK)
+				return
+			}
+			w.Header().Set("Fakeintake-ID", "20000000-0000-0000-0000-000000000000")
+
+		}))
+		defer ts.Close()
+
+		client := NewClient(ts.URL, WithoutStrictFakeintakeIDCheck())
+
+		_, err := client.get("fakeintake/toto")
+		require.NoError(t, err)
+		_, err = client.get("fakeintake/hello")
+		require.NoError(t, err)
+		_, err = client.get("fakeintake/health")
+		require.NoError(t, err)
+	})
+
 }

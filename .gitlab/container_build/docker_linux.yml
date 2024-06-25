@@ -7,13 +7,18 @@
     - aws s3 sync --only-show-errors $S3_ARTIFACTS_URI $BUILD_CONTEXT
     - TAG_SUFFIX=${TAG_SUFFIX:-}
     - BUILD_ARG=${BUILD_ARG:-}
-    - ECR_RELEASE_SUFFIX=${CI_COMMIT_TAG+-release}
+    - |
+      if [[ "$BUCKET_BRANCH" == "nightly" && ( "$IMAGE" =~ "ci/datadog-agent/agent" || "$IMAGE" =~ "ci/datadog-agent/cluster-agent" || "$IMAGE" =~ "ci/datadog-agent/cws-instrumentation" ) ]]; then
+        export ECR_RELEASE_SUFFIX="-nightly"
+      else
+        export ECR_RELEASE_SUFFIX=${CI_COMMIT_TAG+-release}
+      fi
     - TARGET_TAG=${IMAGE}${ECR_RELEASE_SUFFIX}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}$TAG_SUFFIX-$ARCH
     # DockerHub login for build to limit rate limit when pulling base images
-    - DOCKER_REGISTRY_LOGIN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_LOGIN_SSM_KEY --with-decryption --query "Parameter.Value" --out text)
-    - aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_PWD_SSM_KEY --with-decryption --query "Parameter.Value" --out text | docker login --username "$DOCKER_REGISTRY_LOGIN" --password-stdin "$DOCKER_REGISTRY_URL"
+    - DOCKER_REGISTRY_LOGIN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $DOCKER_REGISTRY_LOGIN_SSM_KEY)
+    - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $DOCKER_REGISTRY_PWD_SSM_KEY | docker login --username "$DOCKER_REGISTRY_LOGIN" --password-stdin "$DOCKER_REGISTRY_URL"
     # Build image
-    - docker buildx build --no-cache --push --pull --platform linux/$ARCH --build-arg CIBUILD=true --build-arg GENERAL_ARTIFACTS_CACHE_BUCKET_URL=${GENERAL_ARTIFACTS_CACHE_BUCKET_URL} $BUILD_ARG --file $BUILD_CONTEXT/Dockerfile --tag ${TARGET_TAG} $BUILD_CONTEXT
+    - docker buildx build --no-cache --push --pull --platform linux/$ARCH --build-arg CIBUILD=true --build-arg GENERAL_ARTIFACTS_CACHE_BUCKET_URL=${GENERAL_ARTIFACTS_CACHE_BUCKET_URL} $BUILD_ARG --file $BUILD_CONTEXT/Dockerfile --tag ${TARGET_TAG} --label "org.opencontainers.image.created=$(date --rfc-3339=seconds)" --label "org.opencontainers.image.authors=Datadog <package@datadoghq.com>" --label "org.opencontainers.image.source=https://github.com/DataDog/datadog-agent" --label "org.opencontainers.image.version=$(inv agent.version)" --label "org.opencontainers.image.revision=${CI_COMMIT_SHA}" --label "org.opencontainers.image.vendor=Datadog, Inc." $BUILD_CONTEXT
     # Squash image
     - crane flatten -t ${TARGET_TAG} ${TARGET_TAG}
   # Workaround for temporary network failures
@@ -36,7 +41,9 @@
 # build agent6 py2 image
 docker_build_agent6:
   extends: .docker_build_job_definition_amd64
-  rules: !reference [.on_a6]
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
   needs:
     - job: agent_deb-x64-a6
       artifacts: false
@@ -48,7 +55,7 @@ docker_build_agent6:
 
 docker_build_agent6_arm64:
   extends: .docker_build_job_definition_arm64
-  rules: !reference [.on_all_builds_a6]
+  rules: !reference [.on_all_builds]
   needs:
     - job: agent_deb-arm64-a6
       artifacts: false
@@ -61,7 +68,9 @@ docker_build_agent6_arm64:
 # build agent6 py2 jmx image
 docker_build_agent6_jmx:
   extends: .docker_build_job_definition_amd64
-  rules: !reference [.on_a6]
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
   needs:
     - job: agent_deb-x64-a6
       artifacts: false
@@ -75,7 +84,7 @@ docker_build_agent6_jmx:
 # build agent6 py2 jmx image
 docker_build_agent6_jmx_arm64:
   extends: .docker_build_job_definition_arm64
-  rules: !reference [.on_all_builds_a6]
+  rules: !reference [.on_all_builds]
   needs:
     - job: agent_deb-arm64-a6
       artifacts: false
@@ -90,7 +99,9 @@ docker_build_agent6_jmx_arm64:
 # build agent6 jmx unified image (including python3)
 docker_build_agent6_py2py3_jmx:
   extends: .docker_build_job_definition_amd64
-  rules: !reference [.on_a6]
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
   needs:
     - job: agent_deb-x64-a6
       artifacts: false
@@ -103,7 +114,9 @@ docker_build_agent6_py2py3_jmx:
 # build agent7 image
 docker_build_agent7:
   extends: .docker_build_job_definition_amd64
-  rules: !reference [.on_a7]
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
   needs:
     - job: agent_deb-x64-a7
       artifacts: false
@@ -116,7 +129,9 @@ docker_build_agent7:
 single_machine_performance-amd64-a7:
   extends: .docker_publish_job_definition
   stage: container_build
-  rules: !reference [.on_a7]
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
   needs:
     - docker_build_agent7
   variables:
@@ -126,7 +141,9 @@ single_machine_performance-amd64-a7:
 
 docker_build_agent7_arm64:
   extends: .docker_build_job_definition_arm64
-  rules: !reference [.on_a7]
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
   needs:
     - job: agent_deb-arm64-a7
       artifacts: false
@@ -139,7 +156,9 @@ docker_build_agent7_arm64:
 # build agent7 jmx image
 docker_build_agent7_jmx:
   extends: .docker_build_job_definition_amd64
-  rules: !reference [.on_a7]
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
   needs:
     - job: agent_deb-x64-a7
       artifacts: false
@@ -151,7 +170,9 @@ docker_build_agent7_jmx:
 
 docker_build_agent7_jmx_arm64:
   extends: .docker_build_job_definition_arm64
-  rules: !reference [.on_a7]
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
   needs:
     - job: agent_deb-arm64-a7
       artifacts: false
@@ -168,6 +189,10 @@ docker_build_cluster_agent_amd64:
   needs:
     - job: cluster_agent-build_amd64
       artifacts: false
+    - job: cws_instrumentation-build_amd64
+      artifacts: false
+    - job: cws_instrumentation-build_arm64
+      artifacts: false
   variables:
     IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/cluster-agent
     BUILD_CONTEXT: Dockerfiles/cluster-agent
@@ -179,6 +204,10 @@ docker_build_cluster_agent_arm64:
   rules: !reference [.on_tag_or_a7]
   needs:
     - job: cluster_agent-build_arm64
+      artifacts: false
+    - job: cws_instrumentation-build_amd64
+      artifacts: false
+    - job: cws_instrumentation-build_arm64
       artifacts: false
   variables:
     IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/cluster-agent
@@ -210,7 +239,9 @@ docker_build_cws_instrumentation_arm64:
 # build the dogstatsd image
 docker_build_dogstatsd_amd64:
   extends: .docker_build_job_definition_amd64
-  rules: !reference [.on_a7]
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
   needs:
     - job: build_dogstatsd_static-binary_x64
       artifacts: false
@@ -221,7 +252,9 @@ docker_build_dogstatsd_amd64:
 # build the dogstatsd image
 docker_build_dogstatsd_arm64:
   extends: .docker_build_job_definition_arm64
-  rules: !reference [.on_a7]
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
   needs:
     - job: build_dogstatsd_static-binary_arm64
       artifacts: false

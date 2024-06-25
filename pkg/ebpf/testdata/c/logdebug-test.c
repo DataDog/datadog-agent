@@ -1,4 +1,8 @@
+#include "kconfig.h"
 #include "ktypes.h"
+#include "bpf_metadata.h"
+#include <uapi/linux/ptrace.h>
+#include "bpf_tracing.h"
 #include "bpf_helpers.h"
 #include "bpf_helpers_custom.h"
 #include <uapi/linux/bpf.h>
@@ -41,8 +45,17 @@ int somefunc(unsigned int number) {
     return pid + number;
 }
 
+static int __always_inline is_logdebug_call(struct pt_regs *ctx) {
+    u32 cmd = PT_REGS_PARM3(ctx);
+    return cmd == 0xfafafefe;
+};
+
 SEC("kprobe/do_vfs_ioctl")
 int logdebugtest(struct pt_regs *ctx) {
+    if (!is_logdebug_call(ctx)) {
+        return 0;
+    }
+
     log_debug("hi"); // small word, should get a single MovImm instruction
     log_debug("123456"); // Small word, single movImm instruction on 64-bit boundary (add 2 bytes for newline and null character)
     log_debug("1234567"); // null character has to go on next 64b word

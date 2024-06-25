@@ -31,7 +31,7 @@ var (
 )
 
 func isTagExcluded(tag string) bool {
-	if excludedTags := config.Datadog.GetStringSlice("exclude_ec2_tags"); excludedTags != nil {
+	if excludedTags := config.Datadog().GetStringSlice("exclude_ec2_tags"); excludedTags != nil {
 		for _, excludedTag := range excludedTags {
 			if tag == excludedTag {
 				return true
@@ -42,7 +42,7 @@ func isTagExcluded(tag string) bool {
 }
 
 func fetchEc2Tags(ctx context.Context) ([]string, error) {
-	if config.Datadog.GetBool("collect_ec2_tags_use_imds") {
+	if config.Datadog().GetBool("collect_ec2_tags_use_imds") {
 		// prefer to fetch tags from IMDS, falling back to the API
 		tags, err := fetchEc2TagsFromIMDS(ctx)
 		if err == nil {
@@ -88,7 +88,7 @@ func fetchEc2TagsFromIMDS(ctx context.Context) ([]string, error) {
 }
 
 func fetchEc2TagsFromAPI(ctx context.Context) ([]string, error) {
-	instanceIdentity, err := getInstanceIdentity(ctx)
+	instanceIdentity, err := GetInstanceIdentity(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -114,7 +114,7 @@ func fetchEc2TagsFromAPI(ctx context.Context) ([]string, error) {
 	return getTagsWithCreds(ctx, instanceIdentity, awsCreds)
 }
 
-func getTagsWithCreds(ctx context.Context, instanceIdentity *ec2Identity, awsCreds aws.CredentialsProvider) ([]string, error) {
+func getTagsWithCreds(ctx context.Context, instanceIdentity *EC2Identity, awsCreds aws.CredentialsProvider) ([]string, error) {
 	connection := ec2.New(ec2.Options{
 		Region:      instanceIdentity.Region,
 		Credentials: awsCreds,
@@ -123,7 +123,7 @@ func getTagsWithCreds(ctx context.Context, instanceIdentity *ec2Identity, awsCre
 	// We want to use 'ec2_metadata_timeout' here instead of current context. 'ctx' comes from the agent main and will
 	// only be canceled if the agent is stopped. The default timeout for the AWS SDK is 1 minutes (20s timeout with
 	// 3 retries). Since we call getTagsWithCreds twice in a row, it can be a 2 minutes latency.
-	ctx, cancel := context.WithTimeout(ctx, config.Datadog.GetDuration("ec2_metadata_timeout")*time.Millisecond)
+	ctx, cancel := context.WithTimeout(ctx, config.Datadog().GetDuration("ec2_metadata_timeout")*time.Millisecond)
 	defer cancel()
 
 	ec2Tags, err := connection.DescribeTags(ctx,
@@ -183,15 +183,17 @@ func GetTags(ctx context.Context) ([]string, error) {
 	return tags, err
 }
 
-type ec2Identity struct {
+// EC2Identity holds the instances identity document
+// nolint: revive
+type EC2Identity struct {
 	Region     string
 	InstanceID string
 	AccountID  string
 }
 
-func getInstanceIdentity(ctx context.Context) (*ec2Identity, error) {
-	instanceIdentity := &ec2Identity{}
-
+// GetInstanceIdentity returns the instance identity document for the current instance
+func GetInstanceIdentity(ctx context.Context) (*EC2Identity, error) {
+	instanceIdentity := &EC2Identity{}
 	res, err := doHTTPRequest(ctx, instanceIdentityURL, false)
 	if err != nil {
 		return instanceIdentity, fmt.Errorf("unable to fetch EC2 API to get identity: %s", err)

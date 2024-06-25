@@ -15,8 +15,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	orchestratorforwarder "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
@@ -37,7 +37,7 @@ type DemultiplexerWithAggregator interface {
 	// AggregateCheckSample adds check sample sent by a check from one of the collectors into a check sampler pipeline.
 	AggregateCheckSample(sample metrics.MetricSample)
 	Options() AgentDemultiplexerOptions
-	GetEventPlatformForwarder() (eventplatformimpl.EventPlatformForwarder, error)
+	GetEventPlatformForwarder() (eventplatform.Forwarder, error)
 	GetEventsAndServiceChecksChannels() (chan []*event.Event, chan []*servicecheck.ServiceCheck)
 	DumpDogstatsdContexts(io.Writer) error
 }
@@ -46,7 +46,7 @@ type DemultiplexerWithAggregator interface {
 type AgentDemultiplexer struct {
 	log log.Component
 
-	m sync.Mutex
+	m sync.RWMutex
 
 	// stopChan completely stops the flushLoop of the Demultiplexer when receiving
 	// a message, not doing anything else.
@@ -104,9 +104,6 @@ type statsd struct {
 }
 
 type forwarders struct {
-	shared             forwarder.Forwarder
-	orchestrator       orchestratorforwarder.Component
-	eventPlatform      eventplatform.Component
 	containerLifecycle *forwarder.DefaultForwarder
 }
 
@@ -125,8 +122,9 @@ func InitAndStartAgentDemultiplexer(
 	orchestratorForwarder orchestratorforwarder.Component,
 	options AgentDemultiplexerOptions,
 	eventPlatformForwarder eventplatform.Component,
+	compressor compression.Component,
 	hostname string) *AgentDemultiplexer {
-	demux := initAgentDemultiplexer(log, sharedForwarder, orchestratorForwarder, options, eventPlatformForwarder, hostname)
+	demux := initAgentDemultiplexer(log, sharedForwarder, orchestratorForwarder, options, eventPlatformForwarder, compressor, hostname)
 	go demux.run()
 	return demux
 }
@@ -137,18 +135,19 @@ func initAgentDemultiplexer(
 	orchestratorForwarder orchestratorforwarder.Component,
 	options AgentDemultiplexerOptions,
 	eventPlatformForwarder eventplatform.Component,
+	compressor compression.Component,
 	hostname string) *AgentDemultiplexer {
 	// prepare the multiple forwarders
 	// -------------------------------
-	if config.Datadog.GetBool("telemetry.enabled") && config.Datadog.GetBool("telemetry.dogstatsd_origin") && !config.Datadog.GetBool("aggregator_use_tags_store") {
+	if config.Datadog().GetBool("telemetry.enabled") && config.Datadog().GetBool("telemetry.dogstatsd_origin") && !config.Datadog().GetBool("aggregator_use_tags_store") {
 		log.Warn("DogStatsD origin telemetry is not supported when aggregator_use_tags_store is disabled.")
-		config.Datadog.Set("telemetry.dogstatsd_origin", false, model.SourceAgentRuntime)
+		config.Datadog().Set("telemetry.dogstatsd_origin", false, model.SourceAgentRuntime)
 	}
 
 	// prepare the serializer
 	// ----------------------
 
-	sharedSerializer := serializer.NewSerializer(sharedForwarder, orchestratorForwarder, config.Datadog, hostname)
+	sharedSerializer := serializer.NewSerializer(sharedForwarder, orchestratorForwarder, compressor, config.Datadog(), hostname)
 
 	// prepare the embedded aggregator
 	// --
@@ -158,8 +157,8 @@ func initAgentDemultiplexer(
 	// statsd samplers
 	// ---------------
 
-	bufferSize := config.Datadog.GetInt("aggregator_buffer_size")
-	metricSamplePool := metrics.NewMetricSamplePool(MetricSamplePoolBatchSize, utils.IsTelemetryEnabled(config.Datadog))
+	bufferSize := config.Datadog().GetInt("aggregator_buffer_size")
+	metricSamplePool := metrics.NewMetricSamplePool(MetricSamplePoolBatchSize, utils.IsTelemetryEnabled(config.Datadog()))
 
 	_, statsdPipelinesCount := GetDogStatsDWorkerAndPipelineCount()
 	log.Debug("the Demultiplexer will use", statsdPipelinesCount, "pipelines")
@@ -168,7 +167,7 @@ func initAgentDemultiplexer(
 
 	for i := 0; i < statsdPipelinesCount; i++ {
 		// the sampler
-		tagsStore := tags.NewStore(config.Datadog.GetBool("aggregator_use_tags_store"), fmt.Sprintf("timesampler #%d", i))
+		tagsStore := tags.NewStore(config.Datadog().GetBool("aggregator_use_tags_store"), fmt.Sprintf("timesampler #%d", i))
 
 		statsdSampler := NewTimeSampler(TimeSamplerID(i), bucketSize, tagsStore, agg.hostname)
 
@@ -181,9 +180,9 @@ func initAgentDemultiplexer(
 	var noAggWorker *noAggregationStreamWorker
 	var noAggSerializer serializer.MetricSerializer
 	if options.EnableNoAggregationPipeline {
-		noAggSerializer = serializer.NewSerializer(sharedForwarder, orchestratorForwarder, config.Datadog, hostname)
+		noAggSerializer = serializer.NewSerializer(sharedForwarder, orchestratorForwarder, compressor, config.Datadog(), hostname)
 		noAggWorker = newNoAggregationStreamWorker(
-			config.Datadog.GetInt("dogstatsd_no_aggregation_pipeline_batch_size"),
+			config.Datadog().GetInt("dogstatsd_no_aggregation_pipeline_batch_size"),
 			metricSamplePool,
 			noAggSerializer,
 			agg.flushAndSerializeInParallel,
@@ -203,11 +202,7 @@ func initAgentDemultiplexer(
 
 		// Output
 		dataOutputs: dataOutputs{
-			forwarders: forwarders{
-				shared:        sharedForwarder,
-				orchestrator:  orchestratorForwarder,
-				eventPlatform: eventPlatformForwarder,
-			},
+			forwarders: forwarders{},
 
 			sharedSerializer: sharedSerializer,
 			noAggSerializer:  noAggSerializer,
@@ -263,23 +258,6 @@ func (d *AgentDemultiplexer) run() {
 	if !d.options.DontStartForwarders {
 		d.log.Debugf("Starting forwarders")
 
-		// orchestrator forwarder
-		orchestratorforwarder, found := d.forwarders.orchestrator.Get()
-
-		if found {
-			orchestratorforwarder.Start() //nolint:errcheck
-		} else {
-			d.log.Debug("not starting the orchestrator forwarder")
-		}
-
-		// event platform forwarder
-		eventPlatform, found := d.forwarders.eventPlatform.Get()
-		if found {
-			eventPlatform.Start()
-		} else {
-			d.log.Debug("not starting the event platform forwarder")
-		}
-
 		// container lifecycle forwarder
 		if d.forwarders.containerLifecycle != nil {
 			if err := d.forwarders.containerLifecycle.Start(); err != nil {
@@ -289,12 +267,6 @@ func (d *AgentDemultiplexer) run() {
 			d.log.Debug("not starting the container lifecycle forwarder")
 		}
 
-		// shared forwarder
-		if d.forwarders.shared != nil {
-			d.forwarders.shared.Start() //nolint:errcheck
-		} else {
-			d.log.Debug("not starting the shared forwarder")
-		}
 		d.log.Debug("Forwarders started")
 	}
 
@@ -340,7 +312,7 @@ func (d *AgentDemultiplexer) flushLoop() {
 // Stop stops the demultiplexer.
 // Resources are released, the instance should not be used after a call to `Stop()`.
 func (d *AgentDemultiplexer) Stop(flush bool) {
-	timeout := config.Datadog.GetDuration("aggregator_stop_timeout") * time.Second
+	timeout := config.Datadog().GetDuration("aggregator_stop_timeout") * time.Second
 
 	if d.noAggStreamWorker != nil {
 		d.noAggStreamWorker.stop(flush)
@@ -381,24 +353,9 @@ func (d *AgentDemultiplexer) Stop(flush bool) {
 	// forwarders
 
 	if !d.options.DontStartForwarders {
-		orchestratorforwarder, found := d.dataOutputs.forwarders.orchestrator.Get()
-		if found {
-			orchestratorforwarder.Stop()
-			d.dataOutputs.forwarders.orchestrator.Reset()
-		}
-		eventPlatform, found := d.dataOutputs.forwarders.eventPlatform.Get()
-
-		if found {
-			eventPlatform.Stop()
-			d.dataOutputs.forwarders.eventPlatform.Reset()
-		}
 		if d.dataOutputs.forwarders.containerLifecycle != nil {
 			d.dataOutputs.forwarders.containerLifecycle.Stop()
 			d.dataOutputs.forwarders.containerLifecycle = nil
-		}
-		if d.dataOutputs.forwarders.shared != nil {
-			d.dataOutputs.forwarders.shared.Stop()
-			d.dataOutputs.forwarders.shared = nil
 		}
 	}
 
@@ -434,15 +391,15 @@ func (d *AgentDemultiplexer) ForceFlushToSerializer(start time.Time, waitForSeri
 // - to have an implementation of SendIterableSeries listening on multiple sinks in parallel, or,
 // - to have a thread-safe implementation of the underlying `util.BufferedChan`.
 func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerializer bool) {
-	d.m.Lock()
-	defer d.m.Unlock()
+	d.m.RLock()
+	defer d.m.RUnlock()
 
 	if d.aggregator == nil {
 		// NOTE(remy): we could consider flushing only the time samplers
 		return
 	}
 
-	logPayloads := config.Datadog.GetBool("log_payloads")
+	logPayloads := config.Datadog().GetBool("log_payloads")
 	series, sketches := createIterableMetrics(d.aggregator.flushAndSerializeInParallel, d.sharedSerializer, logPayloads, false)
 
 	metrics.Serialize(
@@ -508,7 +465,7 @@ func (d *AgentDemultiplexer) GetEventsAndServiceChecksChannels() (chan []*event.
 }
 
 // GetEventPlatformForwarder returns underlying events and service checks channels.
-func (d *AgentDemultiplexer) GetEventPlatformForwarder() (eventplatformimpl.EventPlatformForwarder, error) {
+func (d *AgentDemultiplexer) GetEventPlatformForwarder() (eventplatform.Forwarder, error) {
 	return d.aggregator.GetEventPlatformForwarder()
 }
 
@@ -604,8 +561,8 @@ func (d *AgentDemultiplexer) DumpDogstatsdContexts(dest io.Writer) error {
 // If no error is returned here, DestroySender must be called with the same ID
 // once the sender is not used anymore
 func (d *AgentDemultiplexer) GetSender(id checkid.ID) (sender.Sender, error) {
-	d.m.Lock()
-	defer d.m.Unlock()
+	d.m.RLock()
+	defer d.m.RUnlock()
 
 	if d.senders == nil {
 		return nil, errors.New("demultiplexer is stopped")
@@ -617,8 +574,8 @@ func (d *AgentDemultiplexer) GetSender(id checkid.ID) (sender.Sender, error) {
 // SetSender returns the passed sender with the passed ID.
 // This is largely for testing purposes
 func (d *AgentDemultiplexer) SetSender(s sender.Sender, id checkid.ID) error {
-	d.m.Lock()
-	defer d.m.Unlock()
+	d.m.RLock()
+	defer d.m.RUnlock()
 	if d.senders == nil {
 		return errors.New("demultiplexer is stopped")
 	}
@@ -630,8 +587,8 @@ func (d *AgentDemultiplexer) SetSender(s sender.Sender, id checkid.ID) error {
 // Should be called when no sender with this ID is used anymore
 // The metrics of this (these) sender(s) that haven't been flushed yet will be lost
 func (d *AgentDemultiplexer) DestroySender(id checkid.ID) {
-	d.m.Lock()
-	defer d.m.Unlock()
+	d.m.RLock()
+	defer d.m.RUnlock()
 
 	if d.senders == nil {
 		return
@@ -642,8 +599,8 @@ func (d *AgentDemultiplexer) DestroySender(id checkid.ID) {
 
 // GetDefaultSender returns a default sender.
 func (d *AgentDemultiplexer) GetDefaultSender() (sender.Sender, error) {
-	d.m.Lock()
-	defer d.m.Unlock()
+	d.m.RLock()
+	defer d.m.RUnlock()
 
 	if d.senders == nil {
 		return nil, errors.New("demultiplexer is stopped")

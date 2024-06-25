@@ -9,7 +9,7 @@
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>Datadog.CustomActions</RootNamespace>
     <AssemblyName>CustomActions</AssemblyName>
-    <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
+    <TargetFrameworkVersion>v4.7.2</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <Deterministic>true</Deterministic>
     <NuGetPackageImportStamp>
@@ -85,6 +85,7 @@
     <Compile Include="Native\ServiceController.cs" />
     <Compile Include="Native\ServiceControllerExtensions.cs" />
     <Compile Include="Native\WindowsService.cs" />
+    <Compile Include="PrerequisitesCustomActions.cs" />
     <Compile Include="Rollback\ServicePermissionRollbackData.cs" />
     <Compile Include="Rollback\RestoreDaclRollbackCustomAction.cs" />
     <Compile Include="Rollback\FilePermissionRollbackData.cs" />

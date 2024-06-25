@@ -10,6 +10,7 @@ package testing
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -17,7 +18,8 @@ import (
 
 	tmock "github.com/stretchr/testify/mock"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -34,6 +36,11 @@ var (
 		"kubernetes_pod_uid://2fdfd4d9-10ce-11e8-bd5a-42010af00137": {"pod_name:fluentd-gcp-v2.0.10-p13r3"},
 		"container_id://5741ed2471c0e458b6b95db40ba05d1a5ee168256638a0264f08703e48d76561": {
 			"kube_container_name:fluentd-gcp",
+			"kube_deployment:fluentd-gcp-v2.0.10",
+			"kube_namespace:default",
+		},
+		"container_id://1d1f139dc1c9d49010512744df34740abcfaadf9930d3afd85afbf5fccfadbd6": {
+			"kube_container_name:init",
 			"kube_deployment:fluentd-gcp-v2.0.10",
 			"kube_namespace:default",
 		},
@@ -81,6 +88,10 @@ var (
 		"container_id://32fc50ecfe24df055f6d56037acb966337eef7282ad5c203a1be58f2dd2fe743": {"pod_name:dd-agent-ntepl", "kube_namespace:default"},
 		"container_id://a335589109ce5506aa69ba7481fc3e6c943abd23c5277016c92dac15d0f40479": {
 			"kube_container_name:datadog-agent",
+			"kube_namespace:default",
+		},
+		"container_id://80bd9ebe296615341c68d571e843d800fb4a75bef696d858065572ab4e49920b": {
+			"kube_container_name:running-init",
 			"kube_namespace:default",
 		},
 		"container_id://326b384481ca95204018e3e837c61e522b64a3b86c3804142a22b2d1db9dbd7b": {
@@ -148,7 +159,7 @@ func CreateKubeletMock(response EndpointResponse, endpoint string) (*mock.Kubele
 }
 
 // StorePopulatedFromFile populates a workloadmeta.Store based on pod data from a given file.
-func StorePopulatedFromFile(store workloadmeta.Mock, filename string, podUtils *common.PodUtils) error {
+func StorePopulatedFromFile(store workloadmetamock.Mock, filename string, podUtils *common.PodUtils) error {
 	if filename == "" {
 		return nil
 	}
@@ -176,7 +187,7 @@ func StorePopulatedFromFile(store workloadmeta.Mock, filename string, podUtils *
 
 			image, err := workloadmeta.NewContainerImage(container.ImageID, container.Image)
 			if err != nil {
-				if err == containers.ErrImageIsSha256 {
+				if errors.Is(err, containers.ErrImageIsSha256) {
 					// try the resolved image ID if the image name in the container
 					// status is a SHA256. this seems to happen sometimes when
 					// pinning the image to a SHA256

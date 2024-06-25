@@ -16,7 +16,7 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
-	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
@@ -169,8 +169,14 @@ func testTracerFallbackCOREAndRCErr(t *testing.T) {
 	runFallbackTests(t, "CORE and RC error", true, true, tests)
 }
 
-func loaderFunc(closeFn func(), err error) func(_ *config.Config, _ manager.Options, _ *ddebpf.PerfHandler, _ *ebpftelemetry.EBPFTelemetry) (*manager.Manager, func(), error) {
-	return func(_ *config.Config, _ manager.Options, _ *ddebpf.PerfHandler, _ *ebpftelemetry.EBPFTelemetry) (*manager.Manager, func(), error) {
+func loaderFunc(closeFn func(), err error) func(_ *config.Config, _ manager.Options, _ ddebpf.EventHandler, _ ddebpf.EventHandler) (*manager.Manager, func(), error) {
+	return func(_ *config.Config, _ manager.Options, _ ddebpf.EventHandler, _ ddebpf.EventHandler) (*manager.Manager, func(), error) {
+		return nil, closeFn, err
+	}
+}
+
+func prebuiltLoaderFunc(closeFn func(), err error) func(_ *config.Config, _ manager.Options, _ ddebpf.EventHandler) (*manager.Manager, func(), error) {
+	return func(_ *config.Config, _ manager.Options, _ ddebpf.EventHandler) (*manager.Manager, func(), error) {
 		return nil, closeFn, err
 	}
 }
@@ -187,14 +193,13 @@ func runFallbackTests(t *testing.T, desc string, coreErr, rcErr bool, tests []st
 	expectedCloseFn := func() {}
 	rcTracerLoader = loaderFunc(expectedCloseFn, nil)
 	coreTracerLoader = loaderFunc(expectedCloseFn, nil)
+	prebuiltTracerLoader = prebuiltLoaderFunc(expectedCloseFn, nil)
 	if rcErr {
 		rcTracerLoader = loaderFunc(nil, assert.AnError)
 	}
 	if coreErr {
 		coreTracerLoader = loaderFunc(nil, assert.AnError)
 	}
-
-	prebuiltTracerLoader = loaderFunc(expectedCloseFn, nil)
 
 	offsetGuessingRun := 0
 	tracerOffsetGuesserRunner = func(cfg *config.Config) ([]manager.ConstantEditor, error) {
@@ -246,12 +251,12 @@ func TestCORETracerSupported(t *testing.T) {
 	})
 
 	coreCalled := false
-	coreTracerLoader = func(config *config.Config, mgrOpts manager.Options, perfHandlerTCP *ddebpf.PerfHandler, bpfTelemetry *ebpftelemetry.EBPFTelemetry) (*manager.Manager, func(), error) {
+	coreTracerLoader = func(config *config.Config, mgrOpts manager.Options, closedConnEventHandler ddebpf.EventHandler, failedConnEventHandler ddebpf.EventHandler) (*manager.Manager, func(), error) {
 		coreCalled = true
 		return nil, nil, nil
 	}
 	prebuiltCalled := false
-	prebuiltTracerLoader = func(config *config.Config, mgrOpts manager.Options, perfHandlerTCP *ddebpf.PerfHandler, bpfTelemetry *ebpftelemetry.EBPFTelemetry) (*manager.Manager, func(), error) {
+	prebuiltTracerLoader = func(config *config.Config, mgrOpts manager.Options, closedConnEventHandler ddebpf.EventHandler) (*manager.Manager, func(), error) {
 		prebuiltCalled = true
 		return nil, nil, nil
 	}
@@ -287,4 +292,37 @@ func TestCORETracerSupported(t *testing.T) {
 		assert.True(t, coreCalled)
 		assert.False(t, prebuiltCalled)
 	}
+}
+
+func TestDefaultKprobeMaxActiveSet(t *testing.T) {
+	prevLoader := tracerLoaderFromAsset
+	tracerLoaderFromAsset = func(buf bytecode.AssetReader, runtimeTracer, coreTracer bool, config *config.Config, mgrOpts manager.Options, connCloseEventHandler ddebpf.EventHandler, failedConnHandler ddebpf.EventHandler) (*manager.Manager, func(), error) {
+		assert.Equal(t, mgrOpts.DefaultKProbeMaxActive, 128)
+		return nil, nil, nil
+	}
+	t.Cleanup(func() { tracerLoaderFromAsset = prevLoader })
+
+	t.Run("CO-RE", func(t *testing.T) {
+		cfg := config.New()
+		cfg.EnableCORE = true
+		cfg.AllowRuntimeCompiledFallback = false
+		_, _, _, err := LoadTracer(cfg, manager.Options{DefaultKProbeMaxActive: 128}, nil, nil)
+		require.NoError(t, err)
+	})
+
+	t.Run("prebuilt", func(t *testing.T) {
+		cfg := config.New()
+		cfg.EnableCORE = false
+		cfg.AllowRuntimeCompiledFallback = false
+		_, _, _, err := LoadTracer(cfg, manager.Options{DefaultKProbeMaxActive: 128}, nil, nil)
+		require.NoError(t, err)
+	})
+
+	t.Run("runtime_compiled", func(t *testing.T) {
+		cfg := config.New()
+		cfg.EnableCORE = false
+		cfg.AllowRuntimeCompiledFallback = true
+		_, _, _, err := LoadTracer(cfg, manager.Options{DefaultKProbeMaxActive: 128}, nil, nil)
+		require.NoError(t, err)
+	})
 }

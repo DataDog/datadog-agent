@@ -9,7 +9,6 @@ package tracer
 
 import (
 	"fmt"
-	"strings"
 	"sync"
 	"time"
 
@@ -21,12 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
-
-var defaultFilteredEnvs = []string{
-	"DD_ENV",
-	"DD_VERSION",
-	"DD_SERVICE",
-}
 
 const (
 	maxProcessQueueLen = 100
@@ -51,7 +44,7 @@ var processCacheTelemetry = struct {
 type processList []*events.Process
 
 type processCache struct {
-	sync.Mutex
+	mu sync.Mutex
 
 	// cache of pid -> list of processes holds a list of processes
 	// with the same pid but differing start times up to a max of
@@ -60,10 +53,6 @@ type processCache struct {
 	cacheByPid map[uint32]processList
 	// lru cache; keyed by (pid, start time)
 	cache *lru.Cache[processCacheKey, *events.Process]
-	// filteredEnvs contains environment variable names
-	// that a process in the cache must have; empty filteredEnvs
-	// means no filter, and any process can be inserted the cache
-	filteredEnvs map[string]struct{}
 
 	in      chan *events.Process
 	stopped chan struct{}
@@ -75,16 +64,11 @@ type processCacheKey struct {
 	startTime int64
 }
 
-func newProcessCache(maxProcs int, filteredEnvs []string) (*processCache, error) {
+func newProcessCache(maxProcs int) (*processCache, error) {
 	pc := &processCache{
-		filteredEnvs: make(map[string]struct{}, len(filteredEnvs)),
-		cacheByPid:   map[uint32]processList{},
-		in:           make(chan *events.Process, maxProcessQueueLen),
-		stopped:      make(chan struct{}),
-	}
-
-	for _, e := range filteredEnvs {
-		pc.filteredEnvs[e] = struct{}{}
+		cacheByPid: map[uint32]processList{},
+		in:         make(chan *events.Process, maxProcessQueueLen),
+		stopped:    make(chan struct{}),
 	}
 
 	var err error
@@ -141,33 +125,11 @@ func (pc *processCache) HandleProcessEvent(entry *events.Process) {
 }
 
 func (pc *processCache) processEvent(entry *events.Process) *events.Process {
-	envs := entry.Envs[:0]
-	for _, e := range entry.Envs {
-		k, _, _ := strings.Cut(e, "=")
-		if len(pc.filteredEnvs) > 0 {
-			if _, found := pc.filteredEnvs[k]; !found {
-				continue
-			}
-		}
-
-		envs = append(envs, e)
-
-		if len(pc.filteredEnvs) > 0 && len(pc.filteredEnvs) == len(envs) {
-			break
-		}
+	if len(entry.Tags) == 0 && entry.ContainerID == nil {
+		return nil
 	}
 
-	// entry is acceptable if:
-	// 1. it has a container ID; or
-	// 2. we are not filtering on env vars or at least one of the env vars is present
-	if (entry.ContainerID != nil && entry.ContainerID.Get().(string) != "") ||
-		len(pc.filteredEnvs) == 0 ||
-		len(envs) > 0 {
-		entry.Envs = envs
-		return entry
-	}
-
-	return nil
+	return entry
 }
 
 func (pc *processCache) Trim() {
@@ -175,8 +137,8 @@ func (pc *processCache) Trim() {
 		return
 	}
 
-	pc.Lock()
-	defer pc.Unlock()
+	pc.mu.Lock()
+	defer pc.mu.Unlock()
 
 	now := time.Now().Unix()
 	trimmed := 0
@@ -210,8 +172,8 @@ func (pc *processCache) add(p *events.Process) {
 		return
 	}
 
-	pc.Lock()
-	defer pc.Unlock()
+	pc.mu.Lock()
+	defer pc.mu.Unlock()
 
 	if log.ShouldLog(seelog.TraceLvl) {
 		log.Tracef("adding process %+v to process cache", p)
@@ -231,8 +193,8 @@ func (pc *processCache) Get(pid uint32, ts int64) (*events.Process, bool) {
 		return nil, false
 	}
 
-	pc.Lock()
-	defer pc.Unlock()
+	pc.mu.Lock()
+	defer pc.mu.Unlock()
 
 	log.TraceFunc(func() string { return fmt.Sprintf("looking up pid %d", pid) })
 
@@ -254,8 +216,8 @@ func (pc *processCache) Dump() (interface{}, error) {
 		return res, nil
 	}
 
-	pc.Lock()
-	defer pc.Unlock()
+	pc.mu.Lock()
+	defer pc.mu.Unlock()
 
 	for pid, pl := range pc.cacheByPid {
 		res[pid] = pl

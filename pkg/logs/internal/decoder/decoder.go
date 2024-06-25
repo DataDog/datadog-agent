@@ -10,14 +10,13 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	dd_conf "github.com/DataDog/datadog-agent/pkg/config"
 	//nolint:revive // TODO(AML) Fix revive linter
 	pkgConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/framer"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers"
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/status"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
+	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -101,7 +100,7 @@ func syncSourceInfo(source *sources.ReplaceableSource, lh *MultiLineHandler) {
 func NewDecoderWithFraming(source *sources.ReplaceableSource, parser parsers.Parser, framing framer.Framing, multiLinePattern *regexp.Regexp, tailerInfo *status.InfoRegistry) *Decoder {
 	inputChan := make(chan *message.Message)
 	outputChan := make(chan *message.Message)
-	lineLimit := config.MaxMessageSizeBytes(pkgConfig.Datadog)
+	lineLimit := config.MaxMessageSizeBytes(pkgConfig.Datadog())
 	detectedPattern := &DetectedPattern{}
 
 	outputFn := func(m *message.Message) { outputChan <- m }
@@ -110,13 +109,13 @@ func NewDecoderWithFraming(source *sources.ReplaceableSource, parser parsers.Par
 	var lineHandler LineHandler
 	for _, rule := range source.Config().ProcessingRules {
 		if rule.Type == config.MultiLine {
-			lh := NewMultiLineHandler(outputFn, rule.Regex, config.AggregationTimeout(pkgConfig.Datadog), lineLimit, false)
+			lh := NewMultiLineHandler(outputFn, rule.Regex, config.AggregationTimeout(pkgConfig.Datadog()), lineLimit, false, tailerInfo)
 			syncSourceInfo(source, lh)
 			lineHandler = lh
 		}
 	}
 	if lineHandler == nil {
-		if source.Config().AutoMultiLineEnabled(pkgConfig.Datadog) {
+		if source.Config().AutoMultiLineEnabled(pkgConfig.Datadog()) {
 			log.Infof("Auto multi line log detection enabled")
 
 			if multiLinePattern != nil {
@@ -125,7 +124,7 @@ func NewDecoderWithFraming(source *sources.ReplaceableSource, parser parsers.Par
 				// Save the pattern again for the next rotation
 				detectedPattern.Set(multiLinePattern)
 
-				lh := NewMultiLineHandler(outputFn, multiLinePattern, config.AggregationTimeout(pkgConfig.Datadog), lineLimit, true)
+				lh := NewMultiLineHandler(outputFn, multiLinePattern, config.AggregationTimeout(pkgConfig.Datadog()), lineLimit, true, tailerInfo)
 				syncSourceInfo(source, lh)
 				lineHandler = lh
 			} else {
@@ -139,7 +138,7 @@ func NewDecoderWithFraming(source *sources.ReplaceableSource, parser parsers.Par
 	// construct the lineParser, wrapping the parser
 	var lineParser LineParser
 	if parser.SupportsPartialLine() {
-		lineParser = NewMultiLineParser(lineHandler.process, config.AggregationTimeout(pkgConfig.Datadog), parser, lineLimit)
+		lineParser = NewMultiLineParser(lineHandler.process, config.AggregationTimeout(pkgConfig.Datadog()), parser, lineLimit)
 	} else {
 		lineParser = NewSingleLineParser(lineHandler.process, parser)
 	}
@@ -153,13 +152,13 @@ func NewDecoderWithFraming(source *sources.ReplaceableSource, parser parsers.Par
 func buildAutoMultilineHandlerFromConfig(outputFn func(*message.Message), lineLimit int, source *sources.ReplaceableSource, detectedPattern *DetectedPattern, tailerInfo *status.InfoRegistry) *AutoMultilineHandler {
 	linesToSample := source.Config().AutoMultiLineSampleSize
 	if linesToSample <= 0 {
-		linesToSample = dd_conf.Datadog.GetInt("logs_config.auto_multi_line_default_sample_size")
+		linesToSample = pkgConfig.Datadog().GetInt("logs_config.auto_multi_line_default_sample_size")
 	}
 	matchThreshold := source.Config().AutoMultiLineMatchThreshold
 	if matchThreshold == 0 {
-		matchThreshold = dd_conf.Datadog.GetFloat64("logs_config.auto_multi_line_default_match_threshold")
+		matchThreshold = pkgConfig.Datadog().GetFloat64("logs_config.auto_multi_line_default_match_threshold")
 	}
-	additionalPatterns := dd_conf.Datadog.GetStringSlice("logs_config.auto_multi_line_extra_patterns")
+	additionalPatterns := pkgConfig.Datadog().GetStringSlice("logs_config.auto_multi_line_extra_patterns")
 	additionalPatternsCompiled := []*regexp.Regexp{}
 
 	for _, p := range additionalPatterns {
@@ -171,14 +170,14 @@ func buildAutoMultilineHandlerFromConfig(outputFn func(*message.Message), lineLi
 		additionalPatternsCompiled = append(additionalPatternsCompiled, compiled)
 	}
 
-	matchTimeout := time.Second * dd_conf.Datadog.GetDuration("logs_config.auto_multi_line_default_match_timeout")
+	matchTimeout := time.Second * pkgConfig.Datadog().GetDuration("logs_config.auto_multi_line_default_match_timeout")
 	return NewAutoMultilineHandler(
 		outputFn,
 		lineLimit,
 		linesToSample,
 		matchThreshold,
 		matchTimeout,
-		config.AggregationTimeout(pkgConfig.Datadog),
+		config.AggregationTimeout(pkgConfig.Datadog()),
 		source,
 		additionalPatternsCompiled,
 		detectedPattern,

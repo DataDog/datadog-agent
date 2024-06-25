@@ -24,20 +24,33 @@ HOOK_SYSCALL_ENTRY3(ptrace, u32, request, pid_t, pid, void *, addr) {
     return 0;
 }
 
-HOOK_ENTRY("ptrace_check_attach")
-int hook_ptrace_check_attach(ctx_t *ctx) {
+int __attribute__((always_inline)) ptrace_check_attach_common(struct task_struct *child) {
+    if (!child) {
+        return 0;
+    }
+
     struct syscall_cache_t *syscall = peek_syscall(EVENT_PTRACE);
     if (!syscall) {
         return 0;
     }
 
-    struct task_struct *child = (struct task_struct *)CTX_PARM1(ctx);
-    if (!child) {
+    // we already found the pid
+    if (syscall->ptrace.pid != 0) {
         return 0;
     }
     syscall->ptrace.pid = get_root_nr_from_task_struct(child);
 
     return 0;
+}
+
+HOOK_ENTRY("ptrace_check_attach")
+int hook_ptrace_check_attach(ctx_t *ctx) {
+    return ptrace_check_attach_common((struct task_struct *)CTX_PARM1(ctx));
+}
+
+HOOK_ENTRY("arch_ptrace")
+int hook_arch_ptrace(ctx_t *ctx) {
+    return ptrace_check_attach_common((struct task_struct *)CTX_PARM1(ctx));
 }
 
 int __attribute__((always_inline)) sys_ptrace_ret(void *ctx, int retval) {

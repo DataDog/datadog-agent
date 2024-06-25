@@ -9,6 +9,8 @@ golang_deps_diff:
     - !reference [ .except_main_or_release_branch ]
     - when: on_success
   needs: ["go_deps"]
+  variables:
+    KUBERNETES_CPU_REQUEST: 4
   before_script:
     - source /root/.bashrc
     - !reference [.retrieve_linux_go_deps]
@@ -45,3 +47,31 @@ golang_deps_commenter:
         exit 0
       fi
       exit $exitcode
+
+golang_deps_send_count_metrics:
+  stage: source_test
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["arch:amd64"]
+  rules:
+    - when: on_success
+  needs: ["go_deps"]
+  before_script:
+    - source /root/.bashrc
+    - !reference [.retrieve_linux_go_deps]
+  script:
+    # Get API key to send metrics
+    - export DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $API_KEY_ORG2_SSM_NAME)
+    - inv -e go-deps.send-count-metrics --git-sha "${CI_COMMIT_SHA}" --git-ref "${CI_COMMIT_REF_NAME}"
+
+golang_deps_test:
+  stage: source_test
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["arch:amd64"]
+  rules:
+    - when: on_success
+  needs: ["go_deps"]
+  before_script:
+    - source /root/.bashrc
+    - !reference [.retrieve_linux_go_deps]
+  script:
+    - inv -e go-deps.test-list

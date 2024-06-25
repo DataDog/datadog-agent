@@ -12,8 +12,11 @@
 #define TLS_VERSION13 0x0304
 
 #define TLS_HANDSHAKE 0x16
+#define TLS_APPLICATION_DATA 0x17
 
 /* https://www.rfc-editor.org/rfc/rfc5246#page-19 6.2. Record Layer */
+
+#define TLS_MAX_PAYLOAD_LENGTH (1 << 14)
 
 // TLS record layer header structure
 typedef struct {
@@ -31,30 +34,73 @@ typedef struct {
 #define TLS_HANDSHAKE_CLIENT_HELLO 0x01
 #define TLS_HANDSHAKE_SERVER_HELLO 0x02
 
-static __always_inline bool is_tls(const char* buf, __u32 buf_size) {
-    if (buf_size < (sizeof(tls_record_header_t)+sizeof(tls_hello_message_t))) {
+// is_valid_tls_version checks if the given version is a valid TLS version as
+// defined in the TLS specification.
+static __always_inline bool is_valid_tls_version(__u16 version) {
+    switch (version) {
+    case SSL_VERSION20:
+    case SSL_VERSION30:
+    case TLS_VERSION10:
+    case TLS_VERSION11:
+    case TLS_VERSION12:
+    case TLS_VERSION13:
+        return true;
+    }
+
+    return false;
+}
+
+// is_valid_tls_app_data checks if the buffer is a valid TLS Application Data
+// record header. The record header is considered valid if:
+// - the TLS version field is a known SSL/TLS version
+// - the payload length is below the maximum payload length defined in the
+//   standard.
+// - the payload length + the size of the record header is less than the size
+//   of the skb
+static __always_inline bool is_valid_tls_app_data(tls_record_header_t *hdr, __u32 buf_size, __u32 skb_len) {
+    if (!is_valid_tls_version(bpf_ntohs(hdr->version))) {
+        return false;
+    }
+
+    __u16 payload_len = bpf_ntohs(hdr->length);
+    if (payload_len > TLS_MAX_PAYLOAD_LENGTH) {
+        return false;
+    }
+
+    return sizeof(*hdr) + payload_len <= skb_len;
+}
+
+// is_tls_handshake checks if the given TLS message header is a valid TLS
+// handshake message. The message is considered valid if:
+// - The type matches CLIENT_HELLO or SERVER_HELLO
+// - The version is a known SSL/TLS version
+static __always_inline bool is_tls_handshake(tls_hello_message_t *msg) {
+    switch (msg->handshake_type) {
+    case TLS_HANDSHAKE_CLIENT_HELLO:
+    case TLS_HANDSHAKE_SERVER_HELLO:
+        return is_valid_tls_version(bpf_ntohs(msg->version));
+    }
+
+    return false;
+}
+
+// is_tls checks if the given buffer is a valid TLS record header. We are
+// currently checking for two types of record headers:
+// - TLS Handshake record headers
+// - TLS Application Data record headers
+static __always_inline bool is_tls(const char *buf, __u32 buf_size, __u32 skb_len) {
+    if (buf_size < (sizeof(tls_record_header_t) + sizeof(tls_hello_message_t))) {
         return false;
     }
 
     tls_record_header_t *tls_record_header = (tls_record_header_t *)buf;
-    if (tls_record_header->content_type != TLS_HANDSHAKE) {
-        return false;
+    switch (tls_record_header->content_type) {
+    case TLS_HANDSHAKE:
+        return is_tls_handshake((tls_hello_message_t *)(buf + sizeof(tls_record_header_t)));
+    case TLS_APPLICATION_DATA:
+        return is_valid_tls_app_data(tls_record_header, buf_size, skb_len);
     }
 
-    tls_hello_message_t *tls_hello_message = (tls_hello_message_t *)(buf + sizeof(tls_record_header_t));
-    if (tls_hello_message->handshake_type != TLS_HANDSHAKE_CLIENT_HELLO && tls_hello_message->handshake_type != TLS_HANDSHAKE_SERVER_HELLO) {
-        return false;
-    }
-
-    switch (tls_hello_message->version) {
-        case SSL_VERSION20:
-        case SSL_VERSION30:
-        case TLS_VERSION10:
-        case TLS_VERSION11:
-        case TLS_VERSION12:
-        case TLS_VERSION13:
-            return true;
-    }
     return false;
 }
 

@@ -9,8 +9,8 @@ __attribute__((always_inline)) int parse_dns_request(struct __sk_buff *skb, stru
     u16 qname_length = 0;
     u8 end_of_name = 0;
 
-    // Handle DNS request
-    #pragma unroll
+// Handle DNS request
+#pragma unroll
     for (int i = 0; i < DNS_MAX_LENGTH; i++) {
         if (end_of_name) {
             evt->name[i] = 0;
@@ -106,8 +106,14 @@ int classifier_dns_request_parser(struct __sk_buff *skb) {
         return ACT_OK;
     }
 
+    // really should not happen, the loop in parse_dns_request only ever
+    // reads DNS_MAX_LENGTH bytes
+    if (qname_length > DNS_MAX_LENGTH) {
+        return ACT_OK;
+    }
+
     // send DNS event
-    send_event_with_size_ptr(skb, EVENT_DNS, evt, offsetof(struct dns_event_t, name) + (qname_length & (DNS_MAX_LENGTH - 1)));
+    send_event_with_size_ptr(skb, EVENT_DNS, evt, offsetof(struct dns_event_t, name) + qname_length);
 
     if (!is_dns_request_parsing_done(skb, pkt)) {
         tail_call_to_classifier(skb, DNS_REQUEST_PARSER);

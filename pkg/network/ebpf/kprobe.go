@@ -58,6 +58,24 @@ func (t ConnTuple) DestEndpoint() string {
 	return net.JoinHostPort(t.DestAddress().String(), strconv.Itoa(int(t.Dport)))
 }
 
+// SetFamily sets the family (IPv4 or IPv6) for a tuple.
+func (t *ConnTuple) SetFamily(family ConnFamily) {
+	if family == IPv6 {
+		t.Metadata |= uint32(IPv6) // Set the IPv6 bit
+	} else {
+		t.Metadata &^= uint32(IPv6) // Clear the IPv6 bit
+	}
+}
+
+// SetType sets the type (TCP or UDP) for a tuple.
+func (t *ConnTuple) SetType(connType ConnType) {
+	if connType == TCP {
+		t.Metadata |= uint32(TCP) // Set the TCP bit
+	} else {
+		t.Metadata &^= uint32(TCP) // Clear the TCP bit
+	}
+}
+
 func (t ConnTuple) String() string {
 	return fmt.Sprintf(
 		"[%s%s] [PID: %d] [%s ⇄ %s] (ns: %d)",
@@ -77,7 +95,7 @@ func (cs ConnStats) ConnectionDirection() ConnDirection {
 
 // IsAssured returns whether the connection has seen traffic in both directions.
 func (cs ConnStats) IsAssured() bool {
-	return cs.Flags&uint32(Assured) != 0
+	return cs.Flags&uint8(Assured) != 0
 }
 
 // ToBatch converts a byte slice to a Batch pointer.

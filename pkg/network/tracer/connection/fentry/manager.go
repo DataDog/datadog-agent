@@ -9,20 +9,20 @@
 package fentry
 
 import (
-	"os"
+	manager "github.com/DataDog/ebpf-manager"
 
-	"github.com/DataDog/datadog-agent/pkg/ebpf"
-	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
-	manager "github.com/DataDog/ebpf-manager"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/util"
 )
 
-func initManager(mgr *ebpftelemetry.Manager, closedHandler *ebpf.PerfHandler, cfg *config.Config) {
+func initManager(mgr *ddebpf.Manager, connCloseEventHandler ddebpf.EventHandler, cfg *config.Config) {
 	mgr.Maps = []*manager.Map{
 		{Name: probes.ConnMap},
 		{Name: probes.TCPStatsMap},
 		{Name: probes.TCPConnectSockPidMap},
+		{Name: probes.ConnCloseFlushed},
 		{Name: probes.ConnCloseBatchMap},
 		{Name: "udp_recv_sock"},
 		{Name: "udpv6_recv_sock"},
@@ -33,20 +33,7 @@ func initManager(mgr *ebpftelemetry.Manager, closedHandler *ebpf.PerfHandler, cf
 		{Name: probes.MapErrTelemetryMap},
 		{Name: probes.HelperErrTelemetryMap},
 	}
-	pm := &manager.PerfMap{
-		Map: manager.Map{Name: probes.ConnCloseEventMap},
-		PerfMapOptions: manager.PerfMapOptions{
-			PerfRingBufferSize: 8 * os.Getpagesize(),
-			Watermark:          1,
-			RecordHandler:      closedHandler.RecordHandler,
-			LostHandler:        closedHandler.LostHandler,
-			RecordGetter:       closedHandler.RecordGetter,
-			TelemetryEnabled:   cfg.InternalTelemetryEnabled,
-		},
-	}
-	mgr.PerfMaps = []*manager.PerfMap{pm}
-	ebpftelemetry.ReportPerfMapTelemetry(pm)
-
+	util.SetupClosedConnHandler(connCloseEventHandler, mgr, cfg)
 	for funcName := range programs {
 		p := &manager.Probe{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{

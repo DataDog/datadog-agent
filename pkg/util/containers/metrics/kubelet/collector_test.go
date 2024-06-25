@@ -14,7 +14,9 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
+	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet/mock"
@@ -25,11 +27,11 @@ import (
 )
 
 func TestKubeletCollectorLinux(t *testing.T) {
-	metadataStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
+	metadataStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		core.MockBundle(),
 		fx.Supply(context.Background()),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.MockModule(),
+		workloadmetafxmock.MockModule(),
 	))
 
 	kubeletMock := mock.NewKubeletMock()
@@ -159,11 +161,11 @@ func TestKubeletCollectorLinux(t *testing.T) {
 }
 
 func TestKubeletCollectorWindows(t *testing.T) {
-	metadataStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
+	metadataStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		core.MockBundle(),
 		fx.Supply(context.Background()),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.MockModule(),
+		workloadmetafxmock.MockModule(),
 	))
 	kubeletMock := mock.NewKubeletMock()
 
@@ -207,6 +209,94 @@ func TestKubeletCollectorWindows(t *testing.T) {
 			PrivateWorkingSet: pointer.Ptr(65474560.0),
 		},
 	}, cID1Stats)
+}
+
+func TestContainerIDForPodUIDAndContName(t *testing.T) {
+	for _, tt := range []struct {
+		name        string
+		pod         *workloadmeta.KubernetesPod
+		podUID      string
+		contName    string
+		initCont    bool
+		expectedCid string
+	}{
+		{
+			name: "pod with container",
+			pod: &workloadmeta.KubernetesPod{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindKubernetesPod,
+					ID:   "c84eb7fb-09f2-11ea-abb1-42010a84017a",
+				},
+				EntityMeta: workloadmeta.EntityMeta{
+					Name:      "kube-dns-5877696fb4-m6cvp",
+					Namespace: "kube-system",
+				},
+				Containers: []workloadmeta.OrchestratorContainer{
+					{
+						ID:   "cID1",
+						Name: "kubedns",
+					},
+				},
+			},
+			podUID:      "c84eb7fb-09f2-11ea-abb1-42010a84017a",
+			contName:    "kubedns",
+			initCont:    false,
+			expectedCid: "cID1",
+		},
+		{
+			name: "pod with init container",
+			pod: &workloadmeta.KubernetesPod{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindKubernetesPod,
+					ID:   "c84eb7fb-09f2-11ea-abb1-42010a84017a",
+				},
+				EntityMeta: workloadmeta.EntityMeta{
+					Name:      "kube-dns-5877696fb4-m6cvp",
+					Namespace: "kube-system",
+				},
+				InitContainers: []workloadmeta.OrchestratorContainer{
+					{
+						ID:   "cID1",
+						Name: "kubedns",
+					},
+				},
+			},
+			podUID:      "c84eb7fb-09f2-11ea-abb1-42010a84017a",
+			contName:    "kubedns",
+			initCont:    true,
+			expectedCid: "cID1",
+		},
+		{
+			name:        "not found",
+			podUID:      "poduid",
+			contName:    "contname",
+			initCont:    false,
+			expectedCid: "",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			metadataStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+				core.MockBundle(),
+				fx.Supply(context.Background()),
+				fx.Supply(workloadmeta.NewParams()),
+				workloadmetafxmock.MockModule(),
+			))
+
+			kubeletMock := mock.NewKubeletMock()
+			if tt.pod != nil {
+				metadataStore.Set(tt.pod)
+			}
+
+			kubeletCollector := &kubeletCollector{
+				kubeletClient: kubeletMock,
+				metadataStore: metadataStore,
+			}
+
+			cid, err := kubeletCollector.ContainerIDForPodUIDAndContName(tt.podUID, tt.contName, tt.initCont, time.Minute)
+			assert.NoError(t, err)
+			assert.Equal(t, tt.expectedCid, cid)
+		})
+	}
 }
 
 func setStatsSummaryFromFile(t *testing.T, filePath string, kubeletMock *mock.KubeletMock) {

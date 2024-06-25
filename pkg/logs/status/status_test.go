@@ -9,18 +9,19 @@ import (
 	"fmt"
 	"math"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgConfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/util/testutils"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
+	"github.com/DataDog/datadog-agent/pkg/logs/util/testutils"
 )
 
 func initStatus() {
-	InitStatus(pkgConfig.Datadog, testutils.CreateSources([]*sources.LogSource{
+	InitStatus(pkgConfig.Datadog(), testutils.CreateSources([]*sources.LogSource{
 		sources.NewLogSource("foo", &config.LogsConfig{Type: "foo"}),
 		sources.NewLogSource("bar", &config.LogsConfig{Type: "foo"}),
 		sources.NewLogSource("foo", &config.LogsConfig{Type: "foo"}),
@@ -95,13 +96,13 @@ func TestStatusDeduplicateErrorsAndWarnings(t *testing.T) {
 func TestMetrics(t *testing.T) {
 	defer Clear()
 	Clear()
-	var expected = `{"BytesSent": 0, "DestinationErrors": 0, "DestinationLogsDropped": {}, "EncodedBytesSent": 0, "Errors": "", "HttpDestinationStats": {}, "IsRunning": false, "LogsDecoded": 0, "LogsProcessed": 0, "LogsSent": 0, "SenderLatency": 0, "Warnings": ""}`
+	var expected = `{"BytesSent": 0, "DestinationErrors": 0, "DestinationLogsDropped": {}, "EncodedBytesSent": 0, "Errors": "", "HttpDestinationStats": {}, "IsRunning": false, "LogsDecoded": 0, "LogsProcessed": 0, "LogsSent": 0, "RetryCount": 0, "RetryTimeSpent": 0, "SenderLatency": 0, "Warnings": ""}`
 	assert.Equal(t, expected, metrics.LogsExpvars.String())
 
 	initStatus()
 	AddGlobalWarning("bar", "Unique Warning")
 	AddGlobalError("bar", "I am an error")
-	expected = `{"BytesSent": 0, "DestinationErrors": 0, "DestinationLogsDropped": {}, "EncodedBytesSent": 0, "Errors": "I am an error", "HttpDestinationStats": {}, "IsRunning": true, "LogsDecoded": 0, "LogsProcessed": 0, "LogsSent": 0, "SenderLatency": 0, "Warnings": "Unique Warning"}`
+	expected = `{"BytesSent": 0, "DestinationErrors": 0, "DestinationLogsDropped": {}, "EncodedBytesSent": 0, "Errors": "I am an error", "HttpDestinationStats": {}, "IsRunning": true, "LogsDecoded": 0, "LogsProcessed": 0, "LogsSent": 0, "RetryCount": 0, "RetryTimeSpent": 0, "SenderLatency": 0, "Warnings": "Unique Warning"}`
 	assert.Equal(t, expected, metrics.LogsExpvars.String())
 }
 
@@ -110,26 +111,32 @@ func TestStatusMetrics(t *testing.T) {
 	initStatus()
 
 	status := Get(false)
-	assert.Equal(t, int64(0), status.StatusMetrics["LogsProcessed"])
-	assert.Equal(t, int64(0), status.StatusMetrics["LogsSent"])
-	assert.Equal(t, int64(0), status.StatusMetrics["BytesSent"])
-	assert.Equal(t, int64(0), status.StatusMetrics["EncodedBytesSent"])
+	assert.Equal(t, "0", status.StatusMetrics["LogsProcessed"])
+	assert.Equal(t, "0", status.StatusMetrics["LogsSent"])
+	assert.Equal(t, "0", status.StatusMetrics["BytesSent"])
+	assert.Equal(t, "0", status.StatusMetrics["EncodedBytesSent"])
+	assert.Equal(t, "0", status.StatusMetrics["RetryCount"])
+	assert.Equal(t, "0s", status.StatusMetrics["RetryTimeSpent"])
 
 	metrics.LogsProcessed.Set(5)
 	metrics.LogsSent.Set(3)
 	metrics.BytesSent.Set(42)
 	metrics.EncodedBytesSent.Set(21)
+	metrics.RetryCount.Set(42)
+	metrics.RetryTimeSpent.Set(int64(time.Hour * 2))
 	status = Get(false)
 
-	assert.Equal(t, int64(5), status.StatusMetrics["LogsProcessed"])
-	assert.Equal(t, int64(3), status.StatusMetrics["LogsSent"])
-	assert.Equal(t, int64(42), status.StatusMetrics["BytesSent"])
-	assert.Equal(t, int64(21), status.StatusMetrics["EncodedBytesSent"])
+	assert.Equal(t, "5", status.StatusMetrics["LogsProcessed"])
+	assert.Equal(t, "3", status.StatusMetrics["LogsSent"])
+	assert.Equal(t, "42", status.StatusMetrics["BytesSent"])
+	assert.Equal(t, "21", status.StatusMetrics["EncodedBytesSent"])
+	assert.Equal(t, "42", status.StatusMetrics["RetryCount"])
+	assert.Equal(t, "2h0m0s", status.StatusMetrics["RetryTimeSpent"])
 
 	metrics.LogsProcessed.Set(math.MaxInt64)
 	metrics.LogsProcessed.Add(1)
 	status = Get(false)
-	assert.Equal(t, int64(math.MinInt64), status.StatusMetrics["LogsProcessed"])
+	assert.Equal(t, fmt.Sprintf("%v", math.MinInt64), status.StatusMetrics["LogsProcessed"])
 }
 
 func TestStatusEndpoints(t *testing.T) {

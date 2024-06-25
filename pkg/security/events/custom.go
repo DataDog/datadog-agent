@@ -60,6 +60,21 @@ const (
 
 	// RefreshUserCacheRuleID is the rule ID used to refresh users and groups cache
 	RefreshUserCacheRuleID = "refresh_user_cache"
+
+	// RefreshSBOMRuleID is the rule ID used to refresh SBOM
+	RefreshSBOMRuleID = "refresh_sbom"
+
+	// NeedRefreshSBOMRuleID is the rule ID used to request a SBOM refresh
+	NeedRefreshSBOMRuleID = "need_refresh_sbom"
+
+	// EBPFLessHelloMessageRuleID is the rule ID used when a hello message is received
+	EBPFLessHelloMessageRuleID = "ebpfless_hello_msg"
+	// EBPFLessHelloMessageRuleDesc is the rule description for the hello msg event
+	EBPFLessHelloMessageRuleDesc = "Hello message received"
+	// InternalCoreDumpRuleID internal core dump
+	InternalCoreDumpRuleID = "internal_core_dump"
+	// InternalCoreDumpRuleDesc internal core dump
+	InternalCoreDumpRuleDesc = "Internal Core Dump"
 )
 
 // CustomEventCommonFields represents the fields common to all custom events
@@ -92,6 +107,7 @@ func AllCustomRuleIDs() []string {
 		AnomalyDetectionRuleID,
 		NoProcessContextErrorRuleID,
 		BrokenProcessLineageErrorRuleID,
+		InternalCoreDumpRuleID,
 	}
 }
 

@@ -8,16 +8,14 @@ from invoke import task
 from invoke.exceptions import Exit
 
 from tasks.build_tags import get_default_build_tags
+from tasks.libs.common.git import get_commit_sha, get_current_branch
 from tasks.libs.common.utils import (
     REPO_PATH,
     bin_name,
     get_build_flags,
-    get_git_branch_name,
-    get_git_commit,
     get_go_version,
     get_version,
 )
-from tasks.system_probe import CURRENT_ARCH
 
 BIN_DIR = os.path.join(".", "bin")
 BIN_PATH = os.path.join(BIN_DIR, "cws-instrumentation", bin_name("cws-instrumentation"))
@@ -28,13 +26,10 @@ CONTAINER_PLATFORM_MAPPING = {"aarch64": "arm64", "amd64": "amd64", "x86_64": "a
 @task(iterable=["build_tags"])
 def build(
     ctx,
-    build_tags,
+    build_tags=None,
     race=False,
     incremental_build=True,
     major_version='7',
-    # arch is never used here; we keep it to have a
-    # consistent CLI on the build task for all agents.
-    arch=CURRENT_ARCH,  # noqa: U100
     go_mod="mod",
     static=False,
     no_strip_binary=False,
@@ -42,6 +37,8 @@ def build(
     """
     Build cws-instrumentation
     """
+    if build_tags is None:
+        build_tags = []
     ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, python_runtimes='3', static=static)
 
     # TODO use pkg/version for this
@@ -49,8 +46,8 @@ def build(
     ld_vars = {
         "Version": get_version(ctx, major_version=major_version),
         "GoVersion": get_go_version(),
-        "GitBranch": get_git_branch_name(),
-        "GitCommit": get_git_commit(),
+        "GitBranch": get_current_branch(ctx),
+        "GitCommit": get_commit_sha(ctx, short=True),
         "BuildDate": datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
     }
 
@@ -99,8 +96,18 @@ def image_build(ctx, arch=None, tag=AGENT_TAG, push=False):
     ctx.run(f"chmod +x {latest_file}")
 
     build_context = "Dockerfiles/cws-instrumentation"
-    exec_path = f"{build_context}/cws-instrumentation.{arch}"
+    cws_instrumentation_base = f"{build_context}/datadog-cws-instrumentation"
+    exec_path = f"{cws_instrumentation_base}/cws-instrumentation.{arch}"
     dockerfile_path = f"{build_context}/Dockerfile"
+
+    try:
+        os.mkdir(cws_instrumentation_base)
+    except FileExistsError:
+        # Directory already exists
+        pass
+    except OSError as e:
+        # Handle other OS-related errors
+        print(f"Error creating directory: {e}")
 
     shutil.copy2(latest_file, exec_path)
     ctx.run(f"docker build -t {tag} --platform linux/{arch} {build_context} -f {dockerfile_path}")

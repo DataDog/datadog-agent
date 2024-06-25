@@ -16,9 +16,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
@@ -30,6 +30,13 @@ offset_threshold: 60
 port: 123
 version: 3
 timeout: 5
+`
+	ntpCfgStringDatadogPool = `
+offset_threshold: 60
+port: 123
+version: 3
+timeout: 5
+hosts: [ 0.datadog.pool.ntp.org, 1.datadog.pool.ntp.org, 2.datadog.pool.ntp.org, 3.datadog.pool.ntp.org ]
 `
 	offset = 10
 )
@@ -117,7 +124,7 @@ func TestNTPCritical(t *testing.T) {
 }
 
 func TestNTPError(t *testing.T) {
-	ntpCfg := []byte(ntpCfgString)
+	ntpCfg := []byte(ntpCfgStringDatadogPool)
 	ntpInitCfg := []byte("")
 
 	ntpQuery = testNTPQueryError
@@ -143,6 +150,7 @@ func TestNTPError(t *testing.T) {
 	mockSender.AssertNumberOfCalls(t, "ServiceCheck", 1)
 	mockSender.AssertNumberOfCalls(t, "Commit", 1)
 	assert.Error(t, err)
+	assert.EqualError(t, err, "failed to get clock offset from any ntp host: [ 0.datadog.pool.ntp.org, 1.datadog.pool.ntp.org, 2.datadog.pool.ntp.org, 3.datadog.pool.ntp.org ]")
 }
 
 func TestNTPInvalid(t *testing.T) {
@@ -353,7 +361,7 @@ func TestDefaultHostConfig(t *testing.T) {
 
 	expectedHosts := []string{"0.datadog.pool.ntp.org", "1.datadog.pool.ntp.org", "2.datadog.pool.ntp.org", "3.datadog.pool.ntp.org"}
 	testedConfig := []byte(``)
-	config.Datadog.SetWithoutSource("cloud_provider_metadata", []string{})
+	config.Datadog().SetWithoutSource("cloud_provider_metadata", []string{})
 
 	ntpCheck := new(NTPCheck)
 	ntpCheck.Configure(aggregator.NewNoOpSenderManager(), integration.FakeConfigHash, testedConfig, []byte(""), "test")

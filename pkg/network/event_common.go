@@ -12,11 +12,13 @@ import (
 	"time"
 
 	"github.com/dustin/go-humanize"
+	"go4.org/intern"
 
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/postgres"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
@@ -133,6 +135,7 @@ type Connections struct {
 	KernelHeaderFetchResult     int32
 	CORETelemetryByAsset        map[string]int32
 	PrebuiltAssets              []string
+	Postgres                    map[postgres.Key]*postgres.RequestStat
 }
 
 // NewConnections create a new Connections object
@@ -253,6 +256,7 @@ type ConnectionStats struct {
 
 	// Last time the stats for this connection were updated
 	LastUpdateEpoch uint64
+	Duration        time.Duration
 
 	RTT    uint32 // Stored in µs
 	RTTVar uint32
@@ -267,12 +271,15 @@ type ConnectionStats struct {
 	Direction        ConnectionDirection
 	SPortIsEphemeral EphemeralPortType
 	StaticTags       uint64
-	Tags             map[string]struct{}
+	Tags             map[*intern.Value]struct{}
 
 	IntraHost bool
 	IsAssured bool
+	IsClosed  bool
 
-	ContainerID *string
+	ContainerID struct {
+		Source, Dest *intern.Value
+	}
 
 	ProtocolStack protocols.Stack
 
@@ -280,16 +287,19 @@ type ConnectionStats struct {
 	HTTPStats  []USMKeyValue[http.Key, *http.RequestStats]
 	KafkaStats []USMKeyValue[kafka.Key, *kafka.RequestStat]
 	HTTP2Stats []USMKeyValue[http.Key, *http.RequestStats]
+
+	// TCPFailures stores the number of failures for a POSIX error code
+	TCPFailures map[uint32]uint32
 }
 
 // Via has info about the routing decision for a flow
 type Via struct {
-	Subnet Subnet
+	Subnet Subnet `json:"subnet,omitempty"`
 }
 
 // Subnet stores info about a subnet
 type Subnet struct {
-	Alias string
+	Alias string `json:"alias,omitempty"`
 }
 
 // IPTranslation can be associated with a connection to show the connection is NAT'd
@@ -326,12 +336,6 @@ func (c ConnectionStats) ByteKey(buf []byte) []byte {
 // Currently this key is used only for the aggregation of ephemeral connections.
 func (c ConnectionStats) ByteKeyNAT(buf []byte) []byte {
 	return generateConnectionKey(c, buf, true)
-}
-
-// IsShortLived returns true when a connection went through its whole lifecycle
-// between two connection checks
-func (c ConnectionStats) IsShortLived() bool {
-	return c.Last.TCPEstablished >= 1 && c.Last.TCPClosed >= 1
 }
 
 const keyFmt = "p:%d|src:%s:%d|dst:%s:%d|f:%d|t:%d"
@@ -413,6 +417,8 @@ func ConnectionSummary(c *ConnectionStats, names map[util.Address][]dns.Hostname
 	str += fmt.Sprintf(", last update epoch: %d, cookie: %d", c.LastUpdateEpoch, c.Cookie)
 	str += fmt.Sprintf(", protocol: %+v", c.ProtocolStack)
 	str += fmt.Sprintf(", netns: %d", c.NetNS)
+	str += fmt.Sprintf(", duration: %+v", c.Duration)
+	str += fmt.Sprintf(", failures: %v", c.TCPFailures)
 
 	return str
 }

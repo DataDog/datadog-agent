@@ -5,21 +5,22 @@
 
 //go:build trivy
 
-// Package util contains utility functions for image metadata collection
 package util
 
 import (
+	"slices"
+
 	"github.com/CycloneDX/cyclonedx-go"
+	trivycore "github.com/aquasecurity/trivy/pkg/sbom/core"
 	trivydx "github.com/aquasecurity/trivy/pkg/sbom/cyclonedx"
 	"github.com/mohae/deepcopy"
-	"golang.org/x/exp/slices"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 )
 
 const (
-	repoTagPropertyKey    = trivydx.Namespace + trivydx.PropertyRepoTag
-	repoDigestPropertyKey = trivydx.Namespace + trivydx.PropertyRepoDigest
+	repoTagPropertyKey    = trivydx.Namespace + trivycore.PropertyRepoTag
+	repoDigestPropertyKey = trivydx.Namespace + trivycore.PropertyRepoDigest
 )
 
 // UpdateSBOMRepoMetadata finds if the repo tags and repo digests are present in the SBOM and updates them if not.

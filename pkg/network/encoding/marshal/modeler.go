@@ -21,13 +21,14 @@ var (
 
 // ConnectionsModeler contains all the necessary structs for modeling a connection.
 type ConnectionsModeler struct {
-	httpEncoder  *httpEncoder
-	http2Encoder *http2Encoder
-	kafkaEncoder *kafkaEncoder
-	dnsFormatter *dnsFormatter
-	ipc          ipCache
-	routeIndex   map[string]RouteIdx
-	tagsSet      *network.TagsSet
+	httpEncoder     *httpEncoder
+	http2Encoder    *http2Encoder
+	kafkaEncoder    *kafkaEncoder
+	postgresEncoder *postgresEncoder
+	dnsFormatter    *dnsFormatter
+	ipc             ipCache
+	routeIndex      map[string]RouteIdx
+	tagsSet         *network.TagsSet
 }
 
 // NewConnectionsModeler initializes the connection modeler with encoders, dns formatter for
@@ -38,13 +39,14 @@ type ConnectionsModeler struct {
 func NewConnectionsModeler(conns *network.Connections) *ConnectionsModeler {
 	ipc := make(ipCache, len(conns.Conns)/2)
 	return &ConnectionsModeler{
-		httpEncoder:  newHTTPEncoder(),
-		http2Encoder: newHTTP2Encoder(),
-		kafkaEncoder: newKafkaEncoder(),
-		ipc:          ipc,
-		dnsFormatter: newDNSFormatter(conns, ipc),
-		routeIndex:   make(map[string]RouteIdx),
-		tagsSet:      network.NewTagsSet(),
+		httpEncoder:     newHTTPEncoder(),
+		http2Encoder:    newHTTP2Encoder(),
+		kafkaEncoder:    newKafkaEncoder(),
+		postgresEncoder: newPostgresEncoder(conns.Postgres),
+		ipc:             ipc,
+		dnsFormatter:    newDNSFormatter(conns, ipc),
+		routeIndex:      make(map[string]RouteIdx),
+		tagsSet:         network.NewTagsSet(),
 	}
 }
 
@@ -53,6 +55,7 @@ func (c *ConnectionsModeler) Close() {
 	c.httpEncoder.Close()
 	c.http2Encoder.Close()
 	c.kafkaEncoder.Close()
+	c.postgresEncoder.Close()
 }
 
 func (c *ConnectionsModeler) modelConnections(builder *model.ConnectionsBuilder, conns *network.Connections) {
@@ -60,12 +63,13 @@ func (c *ConnectionsModeler) modelConnections(builder *model.ConnectionsBuilder,
 		agentCfg = &model.AgentConfiguration{
 			NpmEnabled: config.SystemProbe.GetBool("network_config.enabled"),
 			UsmEnabled: config.SystemProbe.GetBool("service_monitoring_config.enabled"),
+			CcmEnabled: config.SystemProbe.GetBool("ccm_network_config.enabled"),
 		}
 	})
 
 	for _, conn := range conns.Conns {
 		builder.AddConns(func(builder *model.ConnectionBuilder) {
-			FormatConnection(builder, conn, c.routeIndex, c.httpEncoder, c.http2Encoder, c.kafkaEncoder, c.dnsFormatter, c.ipc, c.tagsSet)
+			FormatConnection(builder, conn, c.routeIndex, c.httpEncoder, c.http2Encoder, c.kafkaEncoder, c.postgresEncoder, c.dnsFormatter, c.ipc, c.tagsSet)
 		})
 	}
 
@@ -78,6 +82,7 @@ func (c *ConnectionsModeler) modelConnections(builder *model.ConnectionsBuilder,
 		w.SetDsmEnabled(agentCfg.DsmEnabled)
 		w.SetNpmEnabled(agentCfg.NpmEnabled)
 		w.SetUsmEnabled(agentCfg.UsmEnabled)
+		w.SetCcmEnabled(agentCfg.CcmEnabled)
 	})
 	for _, d := range c.dnsFormatter.Domains() {
 		builder.AddDomains(d)

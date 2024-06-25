@@ -20,7 +20,7 @@ import (
 	"github.com/cihub/seelog"
 	"gopkg.in/yaml.v2"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	coreutil "github.com/DataDog/datadog-agent/pkg/util"
@@ -29,10 +29,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/pinger"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
+	netutils "github.com/DataDog/datadog-agent/pkg/networkdevice/utils"
 	"github.com/DataDog/datadog-agent/pkg/snmp/snmpintegration"
 	"github.com/DataDog/datadog-agent/pkg/snmp/utils"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/configvalidation"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/profile"
 )
@@ -54,7 +54,9 @@ const defaultDetectMetricsRefreshInterval = 3600
 // subnetTagKey is the prefix used for subnet tag
 const subnetTagKey = "autodiscovery_subnet"
 const deviceNamespaceTagKey = "device_namespace"
-const deviceIPTagKey = "snmp_device"
+const snmpDeviceIPTagKey = "snmp_device"
+const deviceIPTagKey = "device_ip"
+const deviceIDTagKey = "device_id"
 
 // DefaultBulkMaxRepetitions is the default max rep
 // Using too high max repetitions might lead to tooBig SNMP error messages.
@@ -278,10 +280,15 @@ func (c *CheckConfig) UpdateDeviceIDAndTags() {
 
 // GetStaticTags return static tags built from configuration
 func (c *CheckConfig) GetStaticTags() []string {
-	tags := common.CopyStrings(c.ExtraTags)
+	tags := netutils.CopyStrings(c.ExtraTags)
 	tags = append(tags, deviceNamespaceTagKey+":"+c.Namespace)
 	if c.IPAddress != "" {
+		tags = append(tags, snmpDeviceIPTagKey+":"+c.IPAddress)
 		tags = append(tags, deviceIPTagKey+":"+c.IPAddress)
+	}
+
+	if c.DeviceID != "" {
+		tags = append(tags, deviceIDTagKey+":"+c.DeviceID)
 	}
 
 	if c.UseDeviceIDAsHostname {
@@ -309,7 +316,7 @@ func (c *CheckConfig) GetNetworkTags() []string {
 // getDeviceIDTags return sorted tags used for generating device id
 // warning: changing getDeviceIDTags logic might lead to different deviceID
 func (c *CheckConfig) getDeviceIDTags() []string {
-	tags := []string{deviceNamespaceTagKey + ":" + c.Namespace, deviceIPTagKey + ":" + c.IPAddress}
+	tags := []string{deviceNamespaceTagKey + ":" + c.Namespace, snmpDeviceIPTagKey + ":" + c.IPAddress}
 	sort.Strings(tags)
 	return tags
 }
@@ -505,7 +512,7 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	} else if initConfig.Namespace != "" {
 		c.Namespace = initConfig.Namespace
 	} else {
-		c.Namespace = coreconfig.Datadog.GetString("network_devices.namespace")
+		c.Namespace = coreconfig.Datadog().GetString("network_devices.namespace")
 	}
 
 	c.Namespace, err = utils.NormalizeNamespace(c.Namespace)
@@ -683,17 +690,17 @@ func (c *CheckConfig) Copy() *CheckConfig {
 	newConfig.OidBatchSize = c.OidBatchSize
 	newConfig.BulkMaxRepetitions = c.BulkMaxRepetitions
 	newConfig.Profiles = c.Profiles
-	newConfig.ProfileTags = common.CopyStrings(c.ProfileTags)
+	newConfig.ProfileTags = netutils.CopyStrings(c.ProfileTags)
 	newConfig.Profile = c.Profile
 	newConfig.ProfileDef = c.ProfileDef
-	newConfig.ExtraTags = common.CopyStrings(c.ExtraTags)
-	newConfig.InstanceTags = common.CopyStrings(c.InstanceTags)
+	newConfig.ExtraTags = netutils.CopyStrings(c.ExtraTags)
+	newConfig.InstanceTags = netutils.CopyStrings(c.InstanceTags)
 	newConfig.CollectDeviceMetadata = c.CollectDeviceMetadata
 	newConfig.CollectTopology = c.CollectTopology
 	newConfig.UseDeviceIDAsHostname = c.UseDeviceIDAsHostname
 	newConfig.DeviceID = c.DeviceID
 
-	newConfig.DeviceIDTags = common.CopyStrings(c.DeviceIDTags)
+	newConfig.DeviceIDTags = netutils.CopyStrings(c.DeviceIDTags)
 	newConfig.ResolvedSubnetName = c.ResolvedSubnetName
 	newConfig.Namespace = c.Namespace
 	newConfig.AutodetectProfile = c.AutodetectProfile

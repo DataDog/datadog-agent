@@ -23,14 +23,15 @@ type TCPStats struct {
 type ConnStats struct {
 	Sent_bytes     uint64
 	Recv_bytes     uint64
+	Sent_packets   uint32
+	Recv_packets   uint32
 	Timestamp      uint64
-	Flags          uint32
+	Duration       uint64
 	Cookie         uint32
-	Sent_packets   uint64
-	Recv_packets   uint64
-	Direction      uint8
 	Protocol_stack ProtocolStack
-	Pad_cgo_0      [3]byte
+	Flags          uint8
+	Direction      uint8
+	Pad_cgo_0      [6]byte
 }
 type Conn struct {
 	Tup             ConnTuple
@@ -38,22 +39,32 @@ type Conn struct {
 	Tcp_stats       TCPStats
 	Tcp_retransmits uint32
 }
+type FailedConn struct {
+	Tup       ConnTuple
+	Reason    uint32
+	Pad_cgo_0 [4]byte
+}
 type Batch struct {
-	C0  Conn
-	C1  Conn
-	C2  Conn
-	C3  Conn
-	Len uint16
-	Id  uint64
+	C0        Conn
+	C1        Conn
+	C2        Conn
+	C3        Conn
+	Id        uint64
+	Cpu       uint32
+	Len       uint16
+	Pad_cgo_0 [2]byte
 }
 type Telemetry struct {
-	Tcp_failed_connect  uint64
-	Tcp_sent_miscounts  uint64
-	Unbatched_tcp_close uint64
-	Unbatched_udp_close uint64
-	Udp_sends_processed uint64
-	Udp_sends_missed    uint64
-	Udp_dropped_conns   uint64
+	Tcp_failed_connect          uint64
+	Tcp_sent_miscounts          uint64
+	Unbatched_tcp_close         uint64
+	Unbatched_udp_close         uint64
+	Udp_sends_processed         uint64
+	Udp_sends_missed            uint64
+	Udp_dropped_conns           uint64
+	Double_flush_attempts_close uint64
+	Unsupported_tcp_failures    uint64
+	Skip_new_conn_create        uint64
 }
 type PortBinding struct {
 	Netns     uint32
@@ -105,7 +116,12 @@ const (
 const BatchSize = 0x4
 const SizeofBatch = 0x1f0
 
+const TCPFailureConnReset = 0x68
+const TCPFailureConnTimeout = 0x6e
+const TCPFailureConnRefused = 0x6f
+
 const SizeofConn = 0x78
+const SizeofFailedConn = 0x38
 
 type ClassificationProgram = uint32
 

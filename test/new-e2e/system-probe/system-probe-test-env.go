@@ -16,6 +16,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"syscall"
 	"time"
@@ -57,7 +58,8 @@ type EnvOpts struct {
 	SSHKeyPath            string
 	SSHKeyName            string
 	InfraEnv              string
-	Provision             bool
+	ProvisionInstance     bool
+	ProvisionMicrovms     bool
 	ShutdownPeriod        int
 	FailOnMissing         bool
 	DependenciesDirectory string
@@ -79,8 +81,6 @@ type TestEnv struct {
 }
 
 var (
-	customAMIWorkingDir = filepath.Join("/", "home", "kernel-version-testing")
-
 	ciProjectDir = getEnv("CI_PROJECT_DIR", "/tmp")
 	sshKeyX86    = getEnv("LibvirtSSHKeyX86", "/tmp/libvirt_rsa-x86_64")
 	sshKeyArm    = getEnv("LibvirtSSHKeyARM", "/tmp/libvirt_rsa-arm64")
@@ -176,6 +176,25 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *EnvOpts) (*
 		return nil, fmt.Errorf("No API Key for datadog-agent provided")
 	}
 
+	var customAMILocalWorkingDir string
+
+	// Remote AMI working dir is always on Linux
+	customAMIRemoteWorkingDir := filepath.Join("/", "home", "kernel-version-testing")
+
+	if runtime.GOOS == "linux" {
+		// Linux share the same working dir as the remote (which is always Linux)
+		customAMILocalWorkingDir = customAMIRemoteWorkingDir
+	} else if runtime.GOOS == "darwin" {
+		// macOS does not let us create /home/kernel-version-testing, so we use an alternative
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get user home directory: %w", err)
+		}
+		customAMILocalWorkingDir = filepath.Join(homeDir, "kernel-version-testing")
+	} else {
+		return nil, fmt.Errorf("unsupported OS: %s", runtime.GOOS)
+	}
+
 	config := runner.ConfigMap{
 		runner.InfraEnvironmentVariables: auto.ConfigValue{Value: opts.InfraEnv},
 		runner.AWSKeyPairName:            auto.ConfigValue{Value: opts.SSHKeyName},
@@ -190,10 +209,12 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *EnvOpts) (*
 		"microvm:microVMConfigFile":              auto.ConfigValue{Value: opts.VMConfigPath},
 		"microvm:libvirtSSHKeyFileX86":           auto.ConfigValue{Value: sshKeyX86},
 		"microvm:libvirtSSHKeyFileArm":           auto.ConfigValue{Value: sshKeyArm},
-		"microvm:provision":                      auto.ConfigValue{Value: strconv.FormatBool(opts.Provision)},
+		"microvm:provision-instance":             auto.ConfigValue{Value: strconv.FormatBool(opts.ProvisionInstance)},
+		"microvm:provision-microvms":             auto.ConfigValue{Value: strconv.FormatBool(opts.ProvisionMicrovms)},
 		"microvm:x86AmiID":                       auto.ConfigValue{Value: opts.X86AmiID},
 		"microvm:arm64AmiID":                     auto.ConfigValue{Value: opts.ArmAmiID},
-		"microvm:workingDir":                     auto.ConfigValue{Value: customAMIWorkingDir},
+		"microvm:localWorkingDir":                auto.ConfigValue{Value: customAMILocalWorkingDir},
+		"microvm:remoteWorkingDir":               auto.ConfigValue{Value: customAMIRemoteWorkingDir},
 		"ddagent:deploy":                         auto.ConfigValue{Value: strconv.FormatBool(opts.RunAgent)},
 		"ddagent:apiKey":                         auto.ConfigValue{Value: apiKey, Secret: true},
 	}
@@ -231,12 +252,19 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *EnvOpts) (*
 			config["ddinfra:aws/defaultSubnets"] = auto.ConfigValue{Value: az}
 		}
 
-		pulumiStack, upResult, err = stackManager.GetStackNoDeleteOnFailure(systemProbeTestEnv.context, systemProbeTestEnv.name, config, func(ctx *pulumi.Context) error {
-			if err := microvms.Run(ctx); err != nil {
-				return fmt.Errorf("setup micro-vms in remote instance: %w", err)
-			}
-			return nil
-		}, opts.FailOnMissing, nil)
+		pulumiStack, upResult, err = stackManager.GetStackNoDeleteOnFailure(
+			systemProbeTestEnv.context,
+			systemProbeTestEnv.name,
+			func(ctx *pulumi.Context) error {
+				if err := microvms.Run(ctx); err != nil {
+					return fmt.Errorf("setup micro-vms in remote instance: %w", err)
+				}
+				return nil
+			},
+			infra.WithFailOnMissing(opts.FailOnMissing),
+			infra.WithConfigMap(config),
+		)
+
 		if err != nil {
 			return handleScenarioFailure(err, func(possibleError handledError) {
 				// handle the following errors by trying in a different availability zone

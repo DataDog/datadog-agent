@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
@@ -56,7 +57,7 @@ func testDemux(log log.Component, hostname hostname.Component) *AgentDemultiplex
 	opts.DontStartForwarders = true
 	orchestratorForwarder := optional.NewOption[defaultforwarder.Forwarder](defaultforwarder.NoopForwarder{})
 	eventPlatformForwarder := optional.NewOptionPtr[eventplatform.Forwarder](eventplatformimpl.NewNoopEventPlatformForwarder(hostname))
-	demux := initAgentDemultiplexer(log, NewForwarderTest(log), &orchestratorForwarder, opts, eventPlatformForwarder, defaultHostname)
+	demux := initAgentDemultiplexer(log, NewForwarderTest(log), &orchestratorForwarder, opts, eventPlatformForwarder, compressionimpl.NewMockCompressor(), defaultHostname)
 	return demux
 }
 
@@ -236,7 +237,7 @@ func TestGetSenderServiceTagMetrics(t *testing.T) {
 	s.sender.SetCheckService("")
 	s.sender.FinalizeCheckServiceTag()
 
-	s.sender.sendMetricSample("metric.test", 42.0, "testhostname", checkTags, metrics.CounterType, false, false)
+	s.sender.sendMetricSample("metric.test", 42.0, "testhostname", checkTags, metrics.CounterType, false, false, 0)
 	sms := (<-s.itemChan).(*senderMetricSample)
 	assert.Equal(t, checkTags, sms.metricSample.Tags)
 
@@ -244,7 +245,7 @@ func TestGetSenderServiceTagMetrics(t *testing.T) {
 	s.sender.SetCheckService("service1")
 	s.sender.SetCheckService("service2")
 	s.sender.FinalizeCheckServiceTag()
-	s.sender.sendMetricSample("metric.test", 42.0, "testhostname", checkTags, metrics.CounterType, false, false)
+	s.sender.sendMetricSample("metric.test", 42.0, "testhostname", checkTags, metrics.CounterType, false, false, 0)
 	sms = (<-s.itemChan).(*senderMetricSample)
 	assert.Equal(t, append(checkTags, "service:service2"), sms.metricSample.Tags)
 }
@@ -310,13 +311,13 @@ func TestGetSenderAddCheckCustomTagsMetrics(t *testing.T) {
 	s := initSender(checkID1, "")
 	// no custom tags
 
-	s.sender.sendMetricSample("metric.test", 42.0, "testhostname", nil, metrics.CounterType, false, false)
+	s.sender.sendMetricSample("metric.test", 42.0, "testhostname", nil, metrics.CounterType, false, false, 0)
 	sms := (<-s.itemChan).(*senderMetricSample)
 	assert.Nil(t, sms.metricSample.Tags)
 
 	// only tags added by the check
 	checkTags := []string{"check:tag1", "check:tag2"}
-	s.sender.sendMetricSample("metric.test", 42.0, "testhostname", checkTags, metrics.CounterType, false, false)
+	s.sender.sendMetricSample("metric.test", 42.0, "testhostname", checkTags, metrics.CounterType, false, false, 0)
 	sms = (<-s.itemChan).(*senderMetricSample)
 	assert.Equal(t, checkTags, sms.metricSample.Tags)
 
@@ -326,12 +327,12 @@ func TestGetSenderAddCheckCustomTagsMetrics(t *testing.T) {
 	assert.Len(t, s.sender.checkTags, 2)
 
 	// only tags coming from the configuration file
-	s.sender.sendMetricSample("metric.test", 42.0, "testhostname", nil, metrics.CounterType, false, false)
+	s.sender.sendMetricSample("metric.test", 42.0, "testhostname", nil, metrics.CounterType, false, false, 0)
 	sms = (<-s.itemChan).(*senderMetricSample)
 	assert.Equal(t, customTags, sms.metricSample.Tags)
 
 	// tags added by the check + tags coming from the configuration file
-	s.sender.sendMetricSample("metric.test", 42.0, "testhostname", checkTags, metrics.CounterType, false, false)
+	s.sender.sendMetricSample("metric.test", 42.0, "testhostname", checkTags, metrics.CounterType, false, false, 0)
 	sms = (<-s.itemChan).(*senderMetricSample)
 	assert.Equal(t, append(checkTags, customTags...), sms.metricSample.Tags)
 }
@@ -370,11 +371,26 @@ func TestSenderPopulatingMetricSampleSource(t *testing.T) {
 			checkID:              "uptime:1",
 			expectedMetricSource: metrics.MetricSourceUptime,
 		},
+		{
+			name:                 "checkid http_check:1 should have MetricSourceHTTPCheck",
+			checkID:              "http_check:1",
+			expectedMetricSource: metrics.MetricSourceHTTPCheck,
+		},
+		{
+			name:                 "checkid postgres:1 should have MetricSourcePostgres",
+			checkID:              "postgres:1",
+			expectedMetricSource: metrics.MetricSourcePostgres,
+		},
+		{
+			name:                 "checkid tls:1 should have MetricSourceTLS",
+			checkID:              "tls:1",
+			expectedMetricSource: metrics.MetricSourceTLS,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := initSender(tt.checkID, "")
-			s.sender.sendMetricSample("metric.test", 42.0, "testhostname", nil, metrics.CounterType, false, false)
+			s.sender.sendMetricSample("metric.test", 42.0, "testhostname", nil, metrics.CounterType, false, false, 0)
 			sms := (<-s.itemChan).(*senderMetricSample)
 			assert.Equal(t, sms.metricSample.Source, tt.expectedMetricSource)
 		})
@@ -512,10 +528,10 @@ func TestCheckSenderInterface(t *testing.T) {
 		Title:          "Something happened",
 		Text:           "Description of the event",
 		Ts:             12,
-		Priority:       event.EventPriorityLow,
+		Priority:       event.PriorityLow,
 		Host:           "my-hostname",
 		Tags:           []string{"foo", "bar"},
-		AlertType:      event.EventAlertTypeInfo,
+		AlertType:      event.AlertTypeInfo,
 		AggregationKey: "event_agg_key",
 		SourceTypeName: "docker",
 	}
@@ -636,10 +652,10 @@ func TestCheckSenderHostname(t *testing.T) {
 				Title:          "Something happened",
 				Text:           "Description of the event",
 				Ts:             12,
-				Priority:       event.EventPriorityLow,
+				Priority:       event.PriorityLow,
 				Host:           tc.submittedHostname,
 				Tags:           []string{"foo", "bar"},
-				AlertType:      event.EventAlertTypeInfo,
+				AlertType:      event.AlertTypeInfo,
 				AggregationKey: "event_agg_key",
 				SourceTypeName: "docker",
 			}
@@ -665,4 +681,27 @@ func TestCheckSenderHostname(t *testing.T) {
 			assert.Equal(t, []string{"foo", "bar"}, event.Tags)
 		})
 	}
+}
+
+func TestSenderGaugeWithTimestampValidation(t *testing.T) {
+	// this test not using anything global
+	// -
+
+	s := initSender(checkID1, "")
+
+	s.sender.GaugeWithTimestamp("my.gauge_with_timestamp", 42, "my-hostname", nil, 1000)
+	metricSample := (<-s.itemChan).(*senderMetricSample)
+	assert.EqualValues(t, 42, metricSample.metricSample.Value)
+	assert.EqualValues(t, 1000, metricSample.metricSample.Timestamp)
+	assert.Nil(t, metricSample.metricSample.Tags)
+
+	// Timestamp 0 is invalid
+	err := s.sender.GaugeWithTimestamp("my.gauge_with_timestamp", 42, "my-hostname", nil, 0)
+	assert.Error(t, err)
+	assert.Len(t, s.itemChan, 0)
+
+	// Negative timestamp is invalid
+	err = s.sender.GaugeWithTimestamp("my.gauge_with_timestamp", 42, "my-hostname", nil, -10000)
+	assert.Error(t, err)
+	assert.Len(t, s.itemChan, 0)
 }

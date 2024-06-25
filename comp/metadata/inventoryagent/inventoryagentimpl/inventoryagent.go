@@ -10,13 +10,18 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"reflect"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/DataDog/viper"
 	"go.uber.org/fx"
+	"gopkg.in/yaml.v2"
 
+	api "github.com/DataDog/datadog-agent/comp/api/api/def"
+	"github.com/DataDog/datadog-agent/comp/api/api/utils"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
@@ -29,6 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configFetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	ecsmeta "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
@@ -40,7 +46,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/pkg/util/uuid"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/DataDog/viper"
 )
 
 // Module defines the fx options for this component.
@@ -110,6 +115,7 @@ type provides struct {
 	Provider             runnerimpl.Provider
 	FlareProvider        flaretypes.Provider
 	StatusHeaderProvider status.HeaderInformationProvider
+	Endpoint             api.AgentEndpointProvider
 }
 
 func newInventoryAgentProvider(deps dependencies) provides {
@@ -127,7 +133,7 @@ func newInventoryAgentProvider(deps dependencies) provides {
 	if ia.Enabled {
 		ia.initData()
 		// We want to be notified when the configuration is updated
-		deps.Config.OnUpdate(func(_ string) { ia.Refresh() })
+		deps.Config.OnUpdate(func(_ string, _, _ any) { ia.Refresh() })
 	}
 
 	return provides{
@@ -135,6 +141,7 @@ func newInventoryAgentProvider(deps dependencies) provides {
 		Provider:             ia.MetadataProvider(),
 		FlareProvider:        ia.FlareProvider(),
 		StatusHeaderProvider: status.NewHeaderInformationProvider(ia),
+		Endpoint:             api.NewAgentEndpointProvider(ia.writePayloadAsJSON, "/metadata/inventory-agent", "GET"),
 	}
 }
 
@@ -170,6 +177,7 @@ func (ia *inventoryagent) initData() {
 	}
 
 	ia.data["agent_version"] = version.AgentVersion
+	ia.data["agent_startup_time_ms"] = pkgconfigsetup.StartTime.UnixMilli()
 	ia.data["flavor"] = flavor.GetFlavor()
 }
 
@@ -179,12 +187,18 @@ type configGetter interface {
 	GetString(string) string
 }
 
+type zeroConfigGetter struct{}
+
+func (z *zeroConfigGetter) GetBool(string) bool     { return false }
+func (z *zeroConfigGetter) GetInt(string) int       { return 0 }
+func (z *zeroConfigGetter) GetString(string) string { return "" }
+
 // getCorrectConfig tries to fetch the configuration from another process. It returns a new
-// configuration object on success and the fallback upon failure.
-func (ia *inventoryagent) getCorrectConfig(name string, conf model.Reader, configFetcher func(config model.Reader) (string, error), fallback configGetter) configGetter {
+// configuration object on success and the local config upon failure.
+func (ia *inventoryagent) getCorrectConfig(name string, localConf model.Reader, configFetcher func(config model.Reader) (string, error)) configGetter {
 	// We query the configuration from another agent itself to have accurate data. If the other process isn't
 	// available we fallback on the current configuration.
-	if remoteConfig, err := configFetcher(conf); err == nil {
+	if remoteConfig, err := configFetcher(localConf); err == nil {
 		cfg := viper.New()
 		cfg.SetConfigType("yaml")
 		if err = cfg.ReadConfig(strings.NewReader(remoteConfig)); err != nil {
@@ -192,10 +206,8 @@ func (ia *inventoryagent) getCorrectConfig(name string, conf model.Reader, confi
 		} else {
 			return cfg
 		}
-	} else {
-		ia.log.Infof("could not fetch %s process configuration: %s", name, err)
 	}
-	return fallback
+	return localConf
 }
 
 func (ia *inventoryagent) fetchCoreAgentMetadata() {
@@ -212,13 +224,14 @@ func (ia *inventoryagent) fetchCoreAgentMetadata() {
 	}
 
 	ia.data["config_dd_url"] = scrub(ia.conf.GetString("dd_url"))
-	ia.data["config_site"] = scrub(ia.conf.GetString("dd_site"))
+	ia.data["config_site"] = scrub(ia.conf.GetString("site"))
 	ia.data["config_logs_dd_url"] = scrub(ia.conf.GetString("logs_config.logs_dd_url"))
 	ia.data["config_logs_socks5_proxy_address"] = scrub(ia.conf.GetString("logs_config.socks5_proxy_address"))
 	ia.data["config_no_proxy"] = cfgSlice("proxy.no_proxy")
 	ia.data["config_process_dd_url"] = scrub(ia.conf.GetString("process_config.process_dd_url"))
 	ia.data["config_proxy_http"] = scrub(ia.conf.GetString("proxy.http"))
 	ia.data["config_proxy_https"] = scrub(ia.conf.GetString("proxy.https"))
+	ia.data["config_eks_fargate"] = ia.conf.GetBool("eks_fargate")
 	ia.data["feature_fips_enabled"] = ia.conf.GetBool("fips.enabled")
 	ia.data["feature_logs_enabled"] = ia.conf.GetBool("logs_enabled")
 	ia.data["feature_imdsv2_enabled"] = ia.conf.GetBool("ec2_prefer_imdsv2")
@@ -230,21 +243,21 @@ func (ia *inventoryagent) fetchCoreAgentMetadata() {
 }
 
 func (ia *inventoryagent) fetchSecurityAgentMetadata() {
-	securityCfg := ia.getCorrectConfig("security-agent", ia.conf, fetchSecurityConfig, ia.conf)
+	securityCfg := ia.getCorrectConfig("security-agent", ia.conf, fetchSecurityConfig)
 
 	ia.data["feature_cspm_enabled"] = securityCfg.GetBool("compliance_config.enabled")
-	ia.data["feature_cspm_host_benchmarks_enabled"] = securityCfg.GetBool("compliance_config.host_benchmarks.enabled")
+	ia.data["feature_cspm_host_benchmarks_enabled"] = securityCfg.GetBool("compliance_config.enabled") && securityCfg.GetBool("compliance_config.host_benchmarks.enabled")
 }
 
 func (ia *inventoryagent) fetchTraceAgentMetadata() {
-	traceCfg := ia.getCorrectConfig("trace-agent", ia.conf, fetchTraceConfig, ia.conf)
+	traceCfg := ia.getCorrectConfig("trace-agent", ia.conf, fetchTraceConfig)
 
 	ia.data["config_apm_dd_url"] = scrub(traceCfg.GetString("apm_config.apm_dd_url"))
 	ia.data["feature_apm_enabled"] = traceCfg.GetBool("apm_config.enabled")
 }
 
 func (ia *inventoryagent) fetchProcessAgentMetadata() {
-	processCfg := ia.getCorrectConfig("process-agent", ia.conf, fetchProcessConfig, ia.conf)
+	processCfg := ia.getCorrectConfig("process-agent", ia.conf, fetchProcessConfig)
 
 	ia.data["feature_process_enabled"] = processCfg.GetBool("process_config.process_collection.enabled")
 	ia.data["feature_processes_container_enabled"] = processCfg.GetBool("process_config.container_collection.enabled")
@@ -252,63 +265,61 @@ func (ia *inventoryagent) fetchProcessAgentMetadata() {
 }
 
 func (ia *inventoryagent) fetchSystemProbeMetadata() {
-	// If the system-probe configuration is not loaded we fallback on zero value for all metadata
-	getBoolSysProbe := func(key string) bool { return false }
-	getIntSysProbe := func(key string) int { return 0 }
-
+	var sysProbeConf configGetter
 	localSysProbeConf, isSet := ia.sysprobeConf.Get()
 	if isSet {
 		// If we can fetch the configuration from the system-probe process, we use it. If not we fallback on the
 		// local instance.
-		sysProbeConf := ia.getCorrectConfig("system-probe", localSysProbeConf, fetchSystemProbeConfig, localSysProbeConf)
-
-		getBoolSysProbe = sysProbeConf.GetBool
-		getIntSysProbe = sysProbeConf.GetInt
+		sysProbeConf = ia.getCorrectConfig("system-probe", localSysProbeConf, fetchSystemProbeConfig)
+	} else {
+		// If the system-probe configuration is not loaded we fallback on zero value for all metadata
+		sysProbeConf = &zeroConfigGetter{}
 	}
 
 	// Cloud Workload Security / system-probe
 
-	ia.data["feature_cws_enabled"] = getBoolSysProbe("runtime_security_config.enabled")
-	ia.data["feature_cws_security_profiles_enabled"] = getBoolSysProbe("runtime_security_config.activity_dump.enabled")
-	ia.data["feature_cws_remote_config_enabled"] = getBoolSysProbe("runtime_security_config.remote_configuration.enabled")
-	ia.data["feature_cws_network_enabled"] = getBoolSysProbe("event_monitoring_config.network.enabled")
+	ia.data["feature_cws_enabled"] = sysProbeConf.GetBool("runtime_security_config.enabled")
+	ia.data["feature_cws_security_profiles_enabled"] = sysProbeConf.GetBool("runtime_security_config.activity_dump.enabled")
+	ia.data["feature_cws_remote_config_enabled"] = sysProbeConf.GetBool("runtime_security_config.remote_configuration.enabled")
+	ia.data["feature_cws_network_enabled"] = sysProbeConf.GetBool("event_monitoring_config.network.enabled")
 
 	// Service monitoring / system-probe
 
-	ia.data["feature_networks_enabled"] = getBoolSysProbe("network_config.enabled")
-	ia.data["feature_networks_http_enabled"] = getBoolSysProbe("service_monitoring_config.enable_http_monitoring")
-	ia.data["feature_networks_https_enabled"] = getBoolSysProbe("service_monitoring_config.tls.native.enabled")
+	ia.data["feature_networks_enabled"] = sysProbeConf.GetBool("network_config.enabled")
+	ia.data["feature_networks_http_enabled"] = sysProbeConf.GetBool("service_monitoring_config.enable_http_monitoring")
+	ia.data["feature_networks_https_enabled"] = sysProbeConf.GetBool("service_monitoring_config.tls.native.enabled")
 
-	ia.data["feature_usm_enabled"] = getBoolSysProbe("service_monitoring_config.enabled")
-	ia.data["feature_usm_kafka_enabled"] = getBoolSysProbe("service_monitoring_config.enable_kafka_monitoring")
-	ia.data["feature_usm_java_tls_enabled"] = getBoolSysProbe("service_monitoring_config.tls.java.enabled")
-	ia.data["feature_usm_http2_enabled"] = getBoolSysProbe("service_monitoring_config.enable_http2_monitoring")
-	ia.data["feature_usm_istio_enabled"] = getBoolSysProbe("service_monitoring_config.tls.istio.enabled")
-	ia.data["feature_usm_http_by_status_code_enabled"] = getBoolSysProbe("service_monitoring_config.enable_http_stats_by_status_code")
-	ia.data["feature_usm_go_tls_enabled"] = getBoolSysProbe("service_monitoring_config.tls.go.enabled")
+	ia.data["feature_usm_enabled"] = sysProbeConf.GetBool("service_monitoring_config.enabled")
+	ia.data["feature_usm_kafka_enabled"] = sysProbeConf.GetBool("service_monitoring_config.enable_kafka_monitoring")
+	ia.data["feature_usm_postgres_enabled"] = sysProbeConf.GetBool("service_monitoring_config.enable_postgres_monitoring")
+	ia.data["feature_usm_java_tls_enabled"] = sysProbeConf.GetBool("service_monitoring_config.tls.java.enabled")
+	ia.data["feature_usm_http2_enabled"] = sysProbeConf.GetBool("service_monitoring_config.enable_http2_monitoring")
+	ia.data["feature_usm_istio_enabled"] = sysProbeConf.GetBool("service_monitoring_config.tls.istio.enabled")
+	ia.data["feature_usm_http_by_status_code_enabled"] = sysProbeConf.GetBool("service_monitoring_config.enable_http_stats_by_status_code")
+	ia.data["feature_usm_go_tls_enabled"] = sysProbeConf.GetBool("service_monitoring_config.tls.go.enabled")
 
 	// miscellaneous / system-probe
 
-	ia.data["feature_tcp_queue_length_enabled"] = getBoolSysProbe("system_probe_config.enable_tcp_queue_length")
-	ia.data["feature_oom_kill_enabled"] = getBoolSysProbe("system_probe_config.enable_oom_kill")
-	ia.data["feature_windows_crash_detection_enabled"] = getBoolSysProbe("windows_crash_detection.enabled")
-	ia.data["feature_dynamic_instrumentation_enabled"] = getBoolSysProbe("dynamic_instrumentation.enabled")
+	ia.data["feature_tcp_queue_length_enabled"] = sysProbeConf.GetBool("system_probe_config.enable_tcp_queue_length")
+	ia.data["feature_oom_kill_enabled"] = sysProbeConf.GetBool("system_probe_config.enable_oom_kill")
+	ia.data["feature_windows_crash_detection_enabled"] = sysProbeConf.GetBool("windows_crash_detection.enabled")
+	ia.data["feature_dynamic_instrumentation_enabled"] = sysProbeConf.GetBool("dynamic_instrumentation.enabled")
 
-	ia.data["system_probe_core_enabled"] = getBoolSysProbe("system_probe_config.enable_co_re")
-	ia.data["system_probe_runtime_compilation_enabled"] = getBoolSysProbe("system_probe_config.enable_runtime_compiler")
-	ia.data["system_probe_kernel_headers_download_enabled"] = getBoolSysProbe("system_probe_config.enable_kernel_header_download")
-	ia.data["system_probe_prebuilt_fallback_enabled"] = getBoolSysProbe("system_probe_config.allow_precompiled_fallback")
-	ia.data["system_probe_telemetry_enabled"] = getBoolSysProbe("system_probe_config.telemetry_enabled")
-	ia.data["system_probe_max_connections_per_message"] = getIntSysProbe("system_probe_config.max_conns_per_message")
-	ia.data["system_probe_track_tcp_4_connections"] = getBoolSysProbe("network_config.collect_tcp_v4")
-	ia.data["system_probe_track_tcp_6_connections"] = getBoolSysProbe("network_config.collect_tcp_v6")
-	ia.data["system_probe_track_udp_4_connections"] = getBoolSysProbe("network_config.collect_udp_v4")
-	ia.data["system_probe_track_udp_6_connections"] = getBoolSysProbe("network_config.collect_udp_v6")
-	ia.data["system_probe_protocol_classification_enabled"] = getBoolSysProbe("network_config.enable_protocol_classification")
-	ia.data["system_probe_gateway_lookup_enabled"] = getBoolSysProbe("network_config.enable_gateway_lookup")
-	ia.data["system_probe_root_namespace_enabled"] = getBoolSysProbe("network_config.enable_root_netns")
+	ia.data["system_probe_core_enabled"] = sysProbeConf.GetBool("system_probe_config.enable_co_re")
+	ia.data["system_probe_runtime_compilation_enabled"] = sysProbeConf.GetBool("system_probe_config.enable_runtime_compiler")
+	ia.data["system_probe_kernel_headers_download_enabled"] = sysProbeConf.GetBool("system_probe_config.enable_kernel_header_download")
+	ia.data["system_probe_prebuilt_fallback_enabled"] = sysProbeConf.GetBool("system_probe_config.allow_precompiled_fallback")
+	ia.data["system_probe_telemetry_enabled"] = sysProbeConf.GetBool("system_probe_config.telemetry_enabled")
+	ia.data["system_probe_max_connections_per_message"] = sysProbeConf.GetInt("system_probe_config.max_conns_per_message")
+	ia.data["system_probe_track_tcp_4_connections"] = sysProbeConf.GetBool("network_config.collect_tcp_v4")
+	ia.data["system_probe_track_tcp_6_connections"] = sysProbeConf.GetBool("network_config.collect_tcp_v6")
+	ia.data["system_probe_track_udp_4_connections"] = sysProbeConf.GetBool("network_config.collect_udp_v4")
+	ia.data["system_probe_track_udp_6_connections"] = sysProbeConf.GetBool("network_config.collect_udp_v6")
+	ia.data["system_probe_protocol_classification_enabled"] = sysProbeConf.GetBool("network_config.enable_protocol_classification")
+	ia.data["system_probe_gateway_lookup_enabled"] = sysProbeConf.GetBool("network_config.enable_gateway_lookup")
+	ia.data["system_probe_root_namespace_enabled"] = sysProbeConf.GetBool("network_config.enable_root_netns")
 
-	ia.data["feature_dynamic_instrumentation_enabled"] = getBoolSysProbe("dynamic_instrumentation.enabled")
+	ia.data["feature_dynamic_instrumentation_enabled"] = sysProbeConf.GetBool("dynamic_instrumentation.enabled")
 
 	// ECS Fargate
 	ia.fetchECSFargateAgentMetadata()
@@ -353,6 +364,16 @@ func (ia *inventoryagent) refreshMetadata() {
 	ia.fetchSystemProbeMetadata()
 }
 
+func (ia *inventoryagent) writePayloadAsJSON(w http.ResponseWriter, _ *http.Request) {
+	// GetAsJSON already return scrubbed data
+	scrubbed, err := ia.GetAsJSON()
+	if err != nil {
+		utils.SetJSONError(w, err, 500)
+		return
+	}
+	w.Write(scrubbed)
+}
+
 // Set updates a metadata value in the payload. The given value will be stored in the cache without being copied. It is
 // up to the caller to make sure the given value will not be modified later.
 func (ia *inventoryagent) Set(name string, value interface{}) {
@@ -371,6 +392,48 @@ func (ia *inventoryagent) Set(name string, value interface{}) {
 	}
 }
 
+func (ia *inventoryagent) marshalAndScrub(data interface{}) (string, error) {
+	flareScrubber := scrubber.NewWithDefaults()
+
+	provided, err := yaml.Marshal(data)
+	if err != nil {
+		return "", ia.log.Errorf("could not marshal agent configuration: %s", err)
+	}
+
+	scrubbed, err := flareScrubber.ScrubYaml(provided)
+	if err != nil {
+		return "", ia.log.Errorf("could not scrubb agent configuration: %s", err)
+	}
+
+	return string(scrubbed), nil
+}
+
+func (ia *inventoryagent) getConfigs(data agentMetadata) {
+	if ia.conf.GetBool("inventories_configuration_enabled") {
+		layers := ia.conf.AllSettingsBySource()
+		layersName := map[model.Source]string{
+			model.SourceFile:               "file_configuration",
+			model.SourceEnvVar:             "environment_variable_configuration",
+			model.SourceAgentRuntime:       "agent_runtime_configuration",
+			model.SourceLocalConfigProcess: "source_local_configuration",
+			model.SourceRC:                 "remote_configuration",
+			model.SourceCLI:                "cli_configuration",
+			model.SourceProvided:           "provided_configuration",
+		}
+
+		for source, conf := range layers {
+			if layer, ok := layersName[source]; ok {
+				if yaml, err := ia.marshalAndScrub(conf); err == nil {
+					data[layer] = yaml
+				}
+			}
+		}
+		if yaml, err := ia.marshalAndScrub(ia.conf.AllSettings()); err == nil {
+			data["full_configuration"] = yaml
+		}
+	}
+}
+
 func (ia *inventoryagent) getPayload() marshaler.JSONMarshaler {
 	ia.m.Lock()
 	defer ia.m.Unlock()
@@ -383,20 +446,7 @@ func (ia *inventoryagent) getPayload() marshaler.JSONMarshaler {
 		data[k] = v
 	}
 
-	configLayer := map[string]func() (string, error){
-		"full_configuration":                 ia.getFullConfiguration,
-		"provided_configuration":             ia.getProvidedConfiguration,
-		"file_configuration":                 ia.getFileConfiguration,
-		"environment_variable_configuration": ia.getEnvVarConfiguration,
-		"agent_runtime_configuration":        ia.getRuntimeConfiguration,
-		"remote_configuration":               ia.getRemoteConfiguration,
-		"cli_configuration":                  ia.getCliConfiguration,
-	}
-	for layer, getter := range configLayer {
-		if conf, err := getter(); err == nil {
-			data[layer] = conf
-		}
-	}
+	ia.getConfigs(data)
 
 	return &Payload{
 		Hostname:  ia.hostname,

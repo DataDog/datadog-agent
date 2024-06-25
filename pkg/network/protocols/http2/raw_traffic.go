@@ -18,13 +18,11 @@ import (
 type HeadersFrameOptions struct {
 	Headers                []hpack.HeaderField
 	DynamicTableUpdateSize uint32
+	EndStream              bool
 }
 
-// NewHeadersFrameMessage creates a new HTTP2 data frame message with the given header fields.
-func NewHeadersFrameMessage(frameOptions HeadersFrameOptions) ([]byte, error) {
-	var buf bytes.Buffer
-	enc := hpack.NewEncoder(&buf)
-
+// NewHeadersFrameMessageWithEncoder creates a new HTTP2 data frame message with the given header fields. Uses the provided encoder to encode the headers.
+func NewHeadersFrameMessageWithEncoder(enc *hpack.Encoder, frameOptions HeadersFrameOptions) error {
 	if frameOptions.DynamicTableUpdateSize > 0 {
 		// we set the max dynamic table size to 100 to be able to test different cases of literal header parsing.
 		enc.SetMaxDynamicTableSizeLimit(frameOptions.DynamicTableUpdateSize)
@@ -32,8 +30,20 @@ func NewHeadersFrameMessage(frameOptions HeadersFrameOptions) ([]byte, error) {
 
 	for _, value := range frameOptions.Headers {
 		if err := enc.WriteField(value); err != nil {
-			return nil, fmt.Errorf("error encoding field: %w", err)
+			return fmt.Errorf("error encoding field: %w", err)
 		}
+	}
+
+	return nil
+}
+
+// NewHeadersFrameMessage creates a new HTTP2 data frame message with the given header fields.
+func NewHeadersFrameMessage(frameOptions HeadersFrameOptions) ([]byte, error) {
+	var buf bytes.Buffer
+	enc := hpack.NewEncoder(&buf)
+
+	if err := NewHeadersFrameMessageWithEncoder(enc, frameOptions); err != nil {
+		return nil, err
 	}
 
 	return buf.Bytes(), nil

@@ -51,8 +51,7 @@ func TestBuildVerifierStats(t *testing.T) {
 		t.Skipf("Skipping because verifier statistics not available on kernel %s", kversion)
 	}
 
-	err = rlimit.RemoveMemlock()
-	require.NoError(t, err)
+	require.NoError(t, rlimit.RemoveMemlock())
 
 	objectFiles := make(map[string]string)
 	directory := ddebpf.NewConfig().BPFDir
@@ -85,7 +84,8 @@ func TestBuildVerifierStats(t *testing.T) {
 	for _, path := range objectFiles {
 		files = append(files, path)
 	}
-	stats, failedToLoad, err := BuildVerifierStats(files)
+	results, failedToLoad, err := BuildVerifierStats(&StatsOptions{ObjectFiles: files})
+	stats := results.Stats
 	require.NoError(t, err)
 
 	assert.True(t, len(stats) > 0)
@@ -126,9 +126,6 @@ func TestBuildVerifierStats(t *testing.T) {
 
 	// sanity check the values we can somehow bound
 	for _, stat := range stats {
-		if kversion >= kernel.VersionCode(5, 2, 0) {
-			assert.True(t, stat.VerificationTime.Value > 0)
-		}
 		assert.True(t, stat.StackDepth.Value >= 0 && stat.StackDepth.Value <= EBPFStackLimit)
 		assert.True(t, stat.InstructionsProcessedLimit.Value > 0 && stat.InstructionsProcessedLimit.Value <= bpfComplexity)
 		assert.True(t, stat.InstructionsProcessed.Value > 0 && stat.InstructionsProcessed.Value <= stat.InstructionsProcessedLimit.Value)

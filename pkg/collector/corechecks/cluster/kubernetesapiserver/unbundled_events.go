@@ -13,13 +13,13 @@ import (
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func newUnbundledTransformer(clusterName string, taggerInstance tagger.Component, types []collectedEventType) eventTransformer {
+func newUnbundledTransformer(clusterName string, taggerInstance tagger.Component, types []collectedEventType, bundleUnspecifiedEvents bool) eventTransformer {
 	collectedTypes := make([]collectedEventType, 0, len(types))
 	for _, f := range types {
 		if f.Kind == "" && f.Source == "" {
@@ -30,23 +30,33 @@ func newUnbundledTransformer(clusterName string, taggerInstance tagger.Component
 		collectedTypes = append(collectedTypes, f)
 	}
 
+	var t eventTransformer = noopEventTransformer{}
+	if bundleUnspecifiedEvents {
+		t = newBundledTransformer(clusterName, taggerInstance)
+	}
+
 	return &unbundledTransformer{
-		clusterName:    clusterName,
-		collectedTypes: collectedTypes,
-		taggerInstance: taggerInstance,
+		clusterName:             clusterName,
+		collectedTypes:          collectedTypes,
+		taggerInstance:          taggerInstance,
+		bundledTransformer:      t,
+		bundleUnspecifiedEvents: bundleUnspecifiedEvents,
 	}
 }
 
 type unbundledTransformer struct {
-	clusterName    string
-	collectedTypes []collectedEventType
-	taggerInstance tagger.Component
+	clusterName             string
+	collectedTypes          []collectedEventType
+	taggerInstance          tagger.Component
+	bundledTransformer      eventTransformer
+	bundleUnspecifiedEvents bool
 }
 
 func (c *unbundledTransformer) Transform(events []*v1.Event) ([]event.Event, []error) {
 	var (
-		datadogEvs []event.Event
-		errors     []error
+		eventsToBundle []*v1.Event
+		datadogEvs     []event.Event
+		errors         []error
 	)
 
 	for _, ev := range events {
@@ -58,42 +68,62 @@ func (c *unbundledTransformer) Transform(events []*v1.Event) ([]event.Event, []e
 		)
 
 		if !c.shouldCollect(ev) {
+			if c.bundleUnspecifiedEvents {
+				eventsToBundle = append(eventsToBundle, ev)
+			}
 			continue
 		}
 
 		involvedObject := ev.InvolvedObject
 		hostInfo := getEventHostInfo(c.clusterName, ev)
 		readableKey := buildReadableKey(involvedObject)
-		tagsAccumulator := tagset.NewHashlessTagsAccumulator()
 
-		tagsAccumulator.Append(getInvolvedObjectTags(involvedObject)...)
-		tagsAccumulator.Append(
-			fmt.Sprintf("source_component:%s", ev.Source.Component),
-			fmt.Sprintf("event_reason:%s", ev.Reason))
-
-		if hostInfo.providerID != "" {
-			tagsAccumulator.Append(fmt.Sprintf("host_provider_id:%s", hostInfo.providerID))
-		}
-		c.getTagsFromTagger(involvedObject, tagsAccumulator)
-		tagsAccumulator.SortUniq()
+		tags := c.buildEventTags(ev, involvedObject, hostInfo)
 
 		emittedEvents.Inc(involvedObject.Kind, ev.Type)
-
-		datadogEvs = append(datadogEvs, event.Event{
+		event := event.Event{
 			Title:          fmt.Sprintf("%s: %s", readableKey, ev.Reason),
-			Priority:       event.EventPriorityNormal,
+			Priority:       event.PriorityNormal,
 			Host:           hostInfo.hostname,
 			SourceTypeName: "kubernetes",
 			EventType:      CheckName,
 			Ts:             int64(ev.LastTimestamp.Unix()),
-			Tags:           tagsAccumulator.Get(),
+			Tags:           tags,
 			AggregationKey: fmt.Sprintf("kubernetes_apiserver:%s", involvedObject.UID),
 			AlertType:      getDDAlertType(ev.Type),
 			Text:           ev.Message,
-		})
+		}
+		datadogEvs = append(datadogEvs, event)
 	}
 
-	return datadogEvs, errors
+	bundledEvents, errs := c.bundledTransformer.Transform(eventsToBundle)
+
+	return append(datadogEvs, bundledEvents...), append(errors, errs...)
+}
+
+// buildEventTags aggregate all tags for an event from multiple sources.
+func (c *unbundledTransformer) buildEventTags(ev *v1.Event, involvedObject v1.ObjectReference, hostInfo eventHostInfo) []string {
+	tagsAccumulator := tagset.NewHashlessTagsAccumulator()
+
+	// Hardcoded tags
+	tagsAccumulator.Append(
+		fmt.Sprintf("source_component:%s", ev.Source.Component),
+		fmt.Sprintf("event_reason:%s", ev.Reason),
+	)
+
+	// Specific providerID tag
+	if hostInfo.providerID != "" {
+		tagsAccumulator.Append(fmt.Sprintf("host_provider_id:%s", hostInfo.providerID))
+	}
+
+	// Tags from the involved object, including tags from object namespace
+	tagsAccumulator.Append(getInvolvedObjectTags(involvedObject, c.taggerInstance)...)
+
+	// Finally tags from the tagger
+	c.getTagsFromTagger(involvedObject, tagsAccumulator)
+
+	tagsAccumulator.SortUniq()
+	return tagsAccumulator.Get()
 }
 
 // getTagsFromTagger add to the TagsAccumulator associated object tags from the tagger.
@@ -102,17 +132,25 @@ func (c *unbundledTransformer) getTagsFromTagger(obj v1.ObjectReference, tagsAcc
 	if c.taggerInstance == nil {
 		return
 	}
+
+	globalTags, err := c.taggerInstance.GlobalTags(types.HighCardinality)
+	if err != nil {
+		log.Debugf("error getting global tags: %s", err)
+	}
+	tagsAcc.Append(globalTags...)
+
 	switch obj.Kind {
 	case podKind:
 		entityID := fmt.Sprintf("kubernetes_pod_uid://%s", obj.UID)
 		entity, err := c.taggerInstance.GetEntity(entityID)
-		if err != nil {
-			return
+		if err == nil {
+			// we can get high Cardinality because tags on events is seemless.
+			tagsAcc.Append(entity.GetTags(types.HighCardinality)...)
+		} else {
+			log.Debugf("error getting pod entity for entity ID: %s, pod tags may be missing", err)
 		}
-		// we can get high Cardinality because tags on events is seemless.
-		tagsAcc.Append(entity.GetTags(collectors.HighCardinality)...)
+
 	default:
-		return
 	}
 }
 

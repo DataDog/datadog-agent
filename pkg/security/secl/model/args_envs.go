@@ -7,21 +7,20 @@
 package model
 
 import (
+	"slices"
 	"strings"
-
-	"golang.org/x/exp/slices"
 )
 
 const (
 	// MaxArgEnvSize maximum size of one argument or environment variable
 	MaxArgEnvSize = 256
 	// MaxArgsEnvsSize maximum number of args and/or envs
-	MaxArgsEnvsSize = 128
+	MaxArgsEnvsSize = 256
 )
 
 // ArgsEnvs raw value for args and envs
 type ArgsEnvs struct {
-	ID        uint32
+	ID        uint64
 	Size      uint32
 	ValuesRaw [MaxArgEnvSize]byte
 }

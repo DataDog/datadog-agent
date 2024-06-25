@@ -12,7 +12,7 @@ import (
 
 	"github.com/DataDog/agent-payload/v5/contlcycle"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	types "github.com/DataDog/datadog-agent/pkg/containerlifecycle"
@@ -25,6 +25,7 @@ type processor struct {
 	sender          sender.Sender
 	podsQueue       *queue
 	containersQueue *queue
+	tasksQueue      *queue
 	store           workloadmeta.Component
 }
 
@@ -33,6 +34,7 @@ func newProcessor(sender sender.Sender, chunkSize int, store workloadmeta.Compon
 		sender:          sender,
 		podsQueue:       newQueue(chunkSize),
 		containersQueue: newQueue(chunkSize),
+		tasksQueue:      newQueue(chunkSize),
 		store:           store,
 	}
 }
@@ -75,7 +77,17 @@ func (p *processor) processEvents(evBundle workloadmeta.EventBundle) {
 			if err != nil {
 				log.Debugf("Couldn't process pod %q: %v", event.Entity.GetID().ID, err)
 			}
-		case workloadmeta.KindECSTask: // not supported
+		case workloadmeta.KindECSTask:
+			task, ok := event.Entity.(*workloadmeta.ECSTask)
+			if !ok {
+				log.Debugf("Expected workloadmeta.ECSTask got %T, skipping", event.Entity)
+				continue
+			}
+
+			err := p.processTask(task)
+			if err != nil {
+				log.Debugf("Couldn't process task %q: %v", event.Entity.GetID().ID, err)
+			}
 		default:
 			log.Tracef("Cannot handle event for entity %q with kind %q", entityID.ID, entityID.Kind)
 		}
@@ -112,6 +124,8 @@ func (p *processor) processContainer(container *workloadmeta.Container, sources 
 			switch c.Owner.Kind {
 			case workloadmeta.KindKubernetesPod:
 				event.withOwnerType(types.ObjectKindPod)
+			case workloadmeta.KindECSTask:
+				event.withOwnerType(types.ObjectKindTask)
 			default:
 				log.Tracef("Cannot handle owner for container %q with type %q", container.ID, c.Owner.Kind)
 			}
@@ -137,6 +151,22 @@ func (p *processor) processPod(pod *workloadmeta.KubernetesPod) error {
 	return p.podsQueue.add(event)
 }
 
+func (p *processor) processTask(task *workloadmeta.ECSTask) error {
+	event := newEvent()
+	event.withObjectKind(types.ObjectKindTask)
+	event.withEventType(types.EventNameDelete)
+	event.withObjectID(task.GetID().ID)
+	event.withSource(string(workloadmeta.SourceNodeOrchestrator))
+	if task.LaunchType == workloadmeta.ECSLaunchTypeFargate {
+		event.withSource(string(workloadmeta.SourceRuntime))
+	}
+	// we don't have exit timestamp for tasks in the response of metadata v1 api, so we use the current timestamp
+	ts := time.Now().Unix()
+	event.withTaskExitTimestamp(&ts)
+
+	return p.tasksQueue.add(event)
+}
+
 // processQueues consumes the data available in the queues
 func (p *processor) processQueues(ctx context.Context, pollInterval time.Duration) {
 	ticker := time.NewTicker(pollInterval)
@@ -156,6 +186,7 @@ func (p *processor) processQueues(ctx context.Context, pollInterval time.Duratio
 func (p *processor) flush() {
 	p.flushContainers()
 	p.flushPods()
+	p.flushTasks()
 }
 
 // flushContainers forwards queued container events to the aggregator
@@ -178,6 +209,18 @@ func (p *processor) flushPods() {
 
 		for eventType, eventCount := range eventCountByType(msgs) {
 			emittedEvents.Add(float64(eventCount), eventType, types.ObjectKindPod)
+		}
+	}
+}
+
+// flushTasks forwards queued task events to the aggregator
+func (p *processor) flushTasks() {
+	msgs := p.tasksQueue.flush()
+	if len(msgs) > 0 {
+		p.containerLifecycleEvent(msgs)
+
+		for eventType, eventCount := range eventCountByType(msgs) {
+			emittedEvents.Add(float64(eventCount), eventType, types.ObjectKindTask)
 		}
 	}
 }

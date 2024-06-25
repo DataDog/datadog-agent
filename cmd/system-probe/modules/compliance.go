@@ -19,11 +19,13 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/compliance/dbconfig"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 
 	"go.uber.org/atomic"
-	"google.golang.org/grpc"
 )
 
 // ComplianceModule is a system-probe module that exposes an HTTP api to
@@ -35,7 +37,7 @@ import (
 var ComplianceModule = module.Factory{
 	Name:             config.ComplianceModule,
 	ConfigNamespaces: []string{},
-	Fn: func(cfg *sysconfigtypes.Config) (module.Module, error) {
+	Fn: func(cfg *sysconfigtypes.Config, _ optional.Option[workloadmeta.Component], _ telemetry.Component) (module.Module, error) {
 		return &complianceModule{}, nil
 	},
 	NeedsEBPF: func() bool {
@@ -56,11 +58,6 @@ func (m *complianceModule) GetStats() map[string]interface{} {
 	return map[string]interface{}{
 		"performed_checks": m.performedChecks.Load(),
 	}
-}
-
-// RegisterGRPC is a noop (implements module.Module)
-func (*complianceModule) RegisterGRPC(grpc.ServiceRegistrar) error {
-	return nil
 }
 
 // Register implements module.Module.

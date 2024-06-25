@@ -12,18 +12,19 @@ package tailerfactory
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/status"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util/containersorpods"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers/container/tailerfactory/tailers"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
+	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 	dockerutilPkg "github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -59,6 +60,8 @@ func (tf *factory) makeFileSource(source *sources.LogSource) (*sources.LogSource
 		// container runtime
 		switch source.Config.Type {
 		case "docker":
+			return tf.makeDockerFileSource(source)
+		case "podman":
 			return tf.makeDockerFileSource(source)
 		default:
 			return nil, fmt.Errorf("file tailing is not supported for source type %s", source.Config.Type)
@@ -121,6 +124,7 @@ func (tf *factory) makeDockerFileSource(source *sources.LogSource) (*sources.Log
 	// New file source that inherits most of its parent's properties
 	fileSource := sources.NewLogSource(source.Name, &config.LogsConfig{
 		Type:                        config.FileType,
+		TailingMode:                 source.Config.TailingMode,
 		Identifier:                  containerID,
 		Path:                        path,
 		Service:                     serviceName,
@@ -143,7 +147,7 @@ func (tf *factory) makeDockerFileSource(source *sources.LogSource) (*sources.Log
 func (tf *factory) findDockerLogPath(containerID string) string {
 	// if the user has set a custom docker data root, this will pick it up
 	// and set it in place of the usual docker base path
-	overridePath := coreConfig.Datadog.GetString("logs_config.docker_path_override")
+	overridePath := coreConfig.Datadog().GetString("logs_config.docker_path_override")
 	if len(overridePath) > 0 {
 		return filepath.Join(overridePath, "containers", containerID, fmt.Sprintf("%s-json.log", containerID))
 	}
@@ -156,7 +160,7 @@ func (tf *factory) findDockerLogPath(containerID string) string {
 	default: // linux, darwin
 		// this config flag provides temporary support for podman while it is
 		// still recognized by AD as a "docker" runtime.
-		if coreConfig.Datadog.GetBool("logs_config.use_podman_logs") {
+		if coreConfig.Datadog().GetBool("logs_config.use_podman_logs") {
 			return filepath.Join(
 				podmanLogsBasePath, "storage/overlay-containers", containerID,
 				"userdata/ctr.log")
@@ -171,7 +175,11 @@ func (tf *factory) findDockerLogPath(containerID string) string {
 func (tf *factory) makeK8sFileSource(source *sources.LogSource) (*sources.LogSource, error) {
 	containerID := source.Config.Identifier
 
-	pod, err := tf.workloadmetaStore.GetKubernetesPodForContainer(containerID)
+	wmeta, ok := tf.workloadmetaStore.Get()
+	if !ok {
+		return nil, errors.New("workloadmeta store is not initialized")
+	}
+	pod, err := wmeta.GetKubernetesPodForContainer(containerID)
 	if err != nil {
 		return nil, fmt.Errorf("cannot find pod for container %q: %w", containerID, err)
 	}
@@ -201,12 +209,12 @@ func (tf *factory) makeK8sFileSource(source *sources.LogSource) (*sources.LogSou
 	// kubernetes-launcher behavior.
 
 	sourceName, serviceName := tf.defaultSourceAndService(source, containersorpods.LogPods)
-
 	// New file source that inherits most of its parent's properties
 	fileSource := sources.NewLogSource(
 		fmt.Sprintf("%s/%s/%s", pod.Namespace, pod.Name, container.Name),
 		&config.LogsConfig{
 			Type:                        config.FileType,
+			TailingMode:                 source.Config.TailingMode,
 			Identifier:                  containerID,
 			Path:                        path,
 			Service:                     serviceName,

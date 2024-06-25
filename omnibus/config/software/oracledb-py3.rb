@@ -16,5 +16,5 @@ build do
   license_file "./LICENSE.txt"
 
   command "sed -i 's/cython/cython<3.0.0/g' pyproject.toml"
-  command "#{install_dir}/embedded/bin/pip3 install 'cryptography<42.0.0' ."
+  command "#{install_dir}/embedded/bin/pip3 install ."
 end

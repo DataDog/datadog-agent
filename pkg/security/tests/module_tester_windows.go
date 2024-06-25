@@ -18,6 +18,7 @@ import (
 
 	"github.com/hashicorp/go-multierror"
 
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
@@ -29,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/tests/statsdclient"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 var (
@@ -131,7 +133,9 @@ runtime_security_config:
     min_timeout: {{ .ActivityDumpLoadControllerTimeout }}
     {{end}}
     traced_cgroups_count: {{ .ActivityDumpTracedCgroupsCount }}
-	cgroup_differentiate_args: {{ .ActivityDumpCgroupDifferentiateArgs }}
+    cgroup_differentiate_args: {{ .ActivityDumpCgroupDifferentiateArgs }}
+    auto_suppression:
+      enabled: {{ .ActivityDumpAutoSuppressionEnabled }}
     traced_event_types:   {{range .ActivityDumpTracedEventTypes}}
     - {{.}}
     {{end}}
@@ -257,7 +261,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 			StatsdClient: statsdClient,
 		},
 	}
-	testMod.eventMonitor, err = eventmonitor.NewEventMonitor(emconfig, secconfig, emopts)
+	testMod.eventMonitor, err = eventmonitor.NewEventMonitor(emconfig, secconfig, emopts, optional.NewNoneOption[workloadmeta.Component]())
 	if err != nil {
 		return nil, err
 	}
@@ -274,17 +278,15 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 
 		testMod.eventMonitor.RegisterEventConsumer(cws)
 
-		testMod.ruleEngine.SetRulesetLoadedCallback(func(es *rules.EvaluationSet, err *multierror.Error) {
+		testMod.ruleEngine.SetRulesetLoadedCallback(func(rs *rules.RuleSet, err *multierror.Error) {
 			ruleSetloadedErr = err
 			log.Infof("Adding test module as listener")
-			for _, ruleSet := range es.RuleSets {
-				ruleSet.AddListener(testMod)
-			}
+			rs.AddListener(testMod)
 		})
 	}
 
 	// listen to probe event
-	if err := testMod.probe.AddFullAccessEventHandler(testMod); err != nil {
+	if err := testMod.probe.AddEventHandler(testMod); err != nil {
 		return nil, err
 	}
 
@@ -319,6 +321,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 }
 
 func (tm *testModule) Close() {
+	tm.eventMonitor.Close()
 }
 
 // NewTimeoutError returns a new timeout error with the metrics collected during the test

@@ -29,6 +29,7 @@ func (ev *Event) resolveFields(forADs bool) {
 		_ = ev.FieldHandlers.ResolveContainerTags(ev, ev.BaseEvent.ContainerContext)
 	}
 	_ = ev.FieldHandlers.ResolveAsync(ev)
+	_ = ev.FieldHandlers.ResolveHostname(ev, &ev.BaseEvent)
 	_ = ev.FieldHandlers.ResolveService(ev, &ev.BaseEvent)
 	_ = ev.FieldHandlers.ResolveEventTimestamp(ev, &ev.BaseEvent)
 	_ = ev.FieldHandlers.ResolveProcessArgs(ev, &ev.BaseEvent.ProcessContext.Process)
@@ -221,6 +222,7 @@ func (ev *Event) resolveFields(forADs bool) {
 		if !forADs {
 			_ = ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Chdir.File)
 		}
+		_ = ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Chdir.SyscallContext)
 	case "chmod":
 		_ = ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Chmod.File.FileFields)
 		_ = ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.Chmod.File.FileFields)
@@ -234,6 +236,8 @@ func (ev *Event) resolveFields(forADs bool) {
 		if !forADs {
 			_ = ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Chmod.File)
 		}
+		_ = ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Chmod.SyscallContext)
+		_ = ev.FieldHandlers.ResolveSyscallCtxArgsInt2(ev, &ev.Chmod.SyscallContext)
 	case "chown":
 		_ = ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Chown.File.FileFields)
 		_ = ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.Chown.File.FileFields)
@@ -327,8 +331,7 @@ func (ev *Event) resolveFields(forADs bool) {
 		_ = ev.FieldHandlers.ResolveProcessEnvs(ev, ev.Exec.Process)
 		_ = ev.FieldHandlers.ResolveProcessEnvp(ev, ev.Exec.Process)
 		_ = ev.FieldHandlers.ResolveProcessEnvsTruncated(ev, ev.Exec.Process)
-		_ = ev.FieldHandlers.ResolveProcessArgsScrubbed(ev, ev.Exec.Process)
-		_ = ev.FieldHandlers.ResolveProcessArgvScrubbed(ev, ev.Exec.Process)
+		_ = ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Exec.SyscallContext)
 	case "exit":
 		if ev.Exit.Process.IsNotKworker() {
 			_ = ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Exit.Process.FileEvent.FileFields)
@@ -405,8 +408,7 @@ func (ev *Event) resolveFields(forADs bool) {
 		_ = ev.FieldHandlers.ResolveProcessEnvs(ev, ev.Exit.Process)
 		_ = ev.FieldHandlers.ResolveProcessEnvp(ev, ev.Exit.Process)
 		_ = ev.FieldHandlers.ResolveProcessEnvsTruncated(ev, ev.Exit.Process)
-		_ = ev.FieldHandlers.ResolveProcessArgsScrubbed(ev, ev.Exit.Process)
-		_ = ev.FieldHandlers.ResolveProcessArgvScrubbed(ev, ev.Exit.Process)
+	case "imds":
 	case "link":
 		_ = ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Link.Source.FileFields)
 		_ = ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.Link.Source.FileFields)
@@ -491,6 +493,9 @@ func (ev *Event) resolveFields(forADs bool) {
 		if !forADs {
 			_ = ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Open.File)
 		}
+		_ = ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Open.SyscallContext)
+		_ = ev.FieldHandlers.ResolveSyscallCtxArgsInt2(ev, &ev.Open.SyscallContext)
+		_ = ev.FieldHandlers.ResolveSyscallCtxArgsInt3(ev, &ev.Open.SyscallContext)
 	case "ptrace":
 		if ev.PTrace.Tracee.Process.IsNotKworker() {
 			_ = ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.PTrace.Tracee.Process.FileEvent.FileFields)
@@ -567,8 +572,6 @@ func (ev *Event) resolveFields(forADs bool) {
 		_ = ev.FieldHandlers.ResolveProcessEnvs(ev, &ev.PTrace.Tracee.Process)
 		_ = ev.FieldHandlers.ResolveProcessEnvp(ev, &ev.PTrace.Tracee.Process)
 		_ = ev.FieldHandlers.ResolveProcessEnvsTruncated(ev, &ev.PTrace.Tracee.Process)
-		_ = ev.FieldHandlers.ResolveProcessArgsScrubbed(ev, &ev.PTrace.Tracee.Process)
-		_ = ev.FieldHandlers.ResolveProcessArgvScrubbed(ev, &ev.PTrace.Tracee.Process)
 		if ev.PTrace.Tracee.HasParent() && ev.PTrace.Tracee.Parent.IsNotKworker() {
 			_ = ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.PTrace.Tracee.Parent.FileEvent.FileFields)
 		}
@@ -665,12 +668,6 @@ func (ev *Event) resolveFields(forADs bool) {
 		}
 		if ev.PTrace.Tracee.HasParent() {
 			_ = ev.FieldHandlers.ResolveProcessEnvsTruncated(ev, ev.PTrace.Tracee.Parent)
-		}
-		if ev.PTrace.Tracee.HasParent() {
-			_ = ev.FieldHandlers.ResolveProcessArgsScrubbed(ev, ev.PTrace.Tracee.Parent)
-		}
-		if ev.PTrace.Tracee.HasParent() {
-			_ = ev.FieldHandlers.ResolveProcessArgvScrubbed(ev, ev.PTrace.Tracee.Parent)
 		}
 	case "removexattr":
 		_ = ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.RemoveXAttr.File.FileFields)
@@ -826,8 +823,6 @@ func (ev *Event) resolveFields(forADs bool) {
 		_ = ev.FieldHandlers.ResolveProcessEnvs(ev, &ev.Signal.Target.Process)
 		_ = ev.FieldHandlers.ResolveProcessEnvp(ev, &ev.Signal.Target.Process)
 		_ = ev.FieldHandlers.ResolveProcessEnvsTruncated(ev, &ev.Signal.Target.Process)
-		_ = ev.FieldHandlers.ResolveProcessArgsScrubbed(ev, &ev.Signal.Target.Process)
-		_ = ev.FieldHandlers.ResolveProcessArgvScrubbed(ev, &ev.Signal.Target.Process)
 		if ev.Signal.Target.HasParent() && ev.Signal.Target.Parent.IsNotKworker() {
 			_ = ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Signal.Target.Parent.FileEvent.FileFields)
 		}
@@ -925,12 +920,6 @@ func (ev *Event) resolveFields(forADs bool) {
 		if ev.Signal.Target.HasParent() {
 			_ = ev.FieldHandlers.ResolveProcessEnvsTruncated(ev, ev.Signal.Target.Parent)
 		}
-		if ev.Signal.Target.HasParent() {
-			_ = ev.FieldHandlers.ResolveProcessArgsScrubbed(ev, ev.Signal.Target.Parent)
-		}
-		if ev.Signal.Target.HasParent() {
-			_ = ev.FieldHandlers.ResolveProcessArgvScrubbed(ev, ev.Signal.Target.Parent)
-		}
 	case "splice":
 		_ = ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Splice.File.FileFields)
 		_ = ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.Splice.File.FileFields)
@@ -990,6 +979,7 @@ type FieldHandlers interface {
 	ResolveFileFilesystem(ev *Event, e *FileEvent) string
 	ResolveFilePath(ev *Event, e *FileEvent) string
 	ResolveHashesFromEvent(ev *Event, e *FileEvent) []string
+	ResolveHostname(ev *Event, e *BaseEvent) string
 	ResolveK8SGroups(ev *Event, e *UserSessionContext) []string
 	ResolveK8SUID(ev *Event, e *UserSessionContext) string
 	ResolveK8SUsername(ev *Event, e *UserSessionContext) string
@@ -1010,6 +1000,7 @@ type FieldHandlers interface {
 	ResolveProcessArgv(ev *Event, e *Process) []string
 	ResolveProcessArgv0(ev *Event, e *Process) string
 	ResolveProcessArgvScrubbed(ev *Event, e *Process) []string
+	ResolveProcessCmdArgv(ev *Event, e *Process) []string
 	ResolveProcessCreatedAt(ev *Event, e *Process) int
 	ResolveProcessEnvp(ev *Event, e *Process) []string
 	ResolveProcessEnvs(ev *Event, e *Process) []string
@@ -1023,6 +1014,12 @@ type FieldHandlers interface {
 	ResolveSetuidEUser(ev *Event, e *SetuidEvent) string
 	ResolveSetuidFSUser(ev *Event, e *SetuidEvent) string
 	ResolveSetuidUser(ev *Event, e *SetuidEvent) string
+	ResolveSyscallCtxArgsInt1(ev *Event, e *SyscallContext) int
+	ResolveSyscallCtxArgsInt2(ev *Event, e *SyscallContext) int
+	ResolveSyscallCtxArgsInt3(ev *Event, e *SyscallContext) int
+	ResolveSyscallCtxArgsStr1(ev *Event, e *SyscallContext) string
+	ResolveSyscallCtxArgsStr2(ev *Event, e *SyscallContext) string
+	ResolveSyscallCtxArgsStr3(ev *Event, e *SyscallContext) string
 	ResolveXAttrName(ev *Event, e *SetXAttrEvent) string
 	ResolveXAttrNamespace(ev *Event, e *SetXAttrEvent) string
 	// custom handlers not tied to any fields
@@ -1059,6 +1056,7 @@ func (dfh *FakeFieldHandlers) ResolveFilePath(ev *Event, e *FileEvent) string { 
 func (dfh *FakeFieldHandlers) ResolveHashesFromEvent(ev *Event, e *FileEvent) []string {
 	return e.Hashes
 }
+func (dfh *FakeFieldHandlers) ResolveHostname(ev *Event, e *BaseEvent) string { return e.Hostname }
 func (dfh *FakeFieldHandlers) ResolveK8SGroups(ev *Event, e *UserSessionContext) []string {
 	return e.K8SGroups
 }
@@ -1105,6 +1103,7 @@ func (dfh *FakeFieldHandlers) ResolveProcessArgv0(ev *Event, e *Process) string 
 func (dfh *FakeFieldHandlers) ResolveProcessArgvScrubbed(ev *Event, e *Process) []string {
 	return e.ArgvScrubbed
 }
+func (dfh *FakeFieldHandlers) ResolveProcessCmdArgv(ev *Event, e *Process) []string { return e.Argv }
 func (dfh *FakeFieldHandlers) ResolveProcessCreatedAt(ev *Event, e *Process) int {
 	return int(e.CreatedAt)
 }
@@ -1126,7 +1125,25 @@ func (dfh *FakeFieldHandlers) ResolveSetgidGroup(ev *Event, e *SetgidEvent) stri
 func (dfh *FakeFieldHandlers) ResolveSetuidEUser(ev *Event, e *SetuidEvent) string  { return e.EUser }
 func (dfh *FakeFieldHandlers) ResolveSetuidFSUser(ev *Event, e *SetuidEvent) string { return e.FSUser }
 func (dfh *FakeFieldHandlers) ResolveSetuidUser(ev *Event, e *SetuidEvent) string   { return e.User }
-func (dfh *FakeFieldHandlers) ResolveXAttrName(ev *Event, e *SetXAttrEvent) string  { return e.Name }
+func (dfh *FakeFieldHandlers) ResolveSyscallCtxArgsInt1(ev *Event, e *SyscallContext) int {
+	return int(e.IntArg1)
+}
+func (dfh *FakeFieldHandlers) ResolveSyscallCtxArgsInt2(ev *Event, e *SyscallContext) int {
+	return int(e.IntArg2)
+}
+func (dfh *FakeFieldHandlers) ResolveSyscallCtxArgsInt3(ev *Event, e *SyscallContext) int {
+	return int(e.IntArg3)
+}
+func (dfh *FakeFieldHandlers) ResolveSyscallCtxArgsStr1(ev *Event, e *SyscallContext) string {
+	return e.StrArg1
+}
+func (dfh *FakeFieldHandlers) ResolveSyscallCtxArgsStr2(ev *Event, e *SyscallContext) string {
+	return e.StrArg2
+}
+func (dfh *FakeFieldHandlers) ResolveSyscallCtxArgsStr3(ev *Event, e *SyscallContext) string {
+	return e.StrArg3
+}
+func (dfh *FakeFieldHandlers) ResolveXAttrName(ev *Event, e *SetXAttrEvent) string { return e.Name }
 func (dfh *FakeFieldHandlers) ResolveXAttrNamespace(ev *Event, e *SetXAttrEvent) string {
 	return e.Namespace
 }

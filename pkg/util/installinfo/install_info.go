@@ -31,6 +31,7 @@ type InstallInfo struct {
 	InstallerVersion string `json:"installer_version" yaml:"installer_version"`
 }
 
+// installInfoMethod contains install info
 type installInfoMethod struct {
 	Method InstallInfo `json:"install_method" yaml:"install_method"`
 }
@@ -76,8 +77,8 @@ func getFromPath(path string) (*InstallInfo, error) {
 // LogVersionHistory loads version history file, append new entry if agent version is different than the last entry in the
 // JSON file, trim the file if too many entries then save the file.
 func LogVersionHistory() {
-	versionHistoryFilePath := filepath.Join(config.Datadog.GetString("run_path"), "version-history.json")
-	installInfoFilePath := GetFilePath(config.Datadog)
+	versionHistoryFilePath := filepath.Join(config.Datadog().GetString("run_path"), "version-history.json")
+	installInfoFilePath := GetFilePath(config.Datadog())
 	logVersionHistoryToFile(versionHistoryFilePath, installInfoFilePath, version.AgentVersion, time.Now().UTC())
 }
 

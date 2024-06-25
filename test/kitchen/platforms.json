@@ -2,7 +2,6 @@
     "centos": {
         "azure": {
             "x86_64": {
-                "centos-610": "urn,OpenLogic:CentOS:6.10:6.10.2020042900",
                 "centos-76": "urn,OpenLogic:CentOS:7.6:7.6.201909120",
                 "centos-77": "urn,OpenLogic:CentOS:7.7:7.7.201912090",
                 "rhel-81": "urn,RedHat:RHEL:8.1:8.1.2021040910",
@@ -41,13 +40,13 @@
         },
         "ec2": {
             "x86_64": {
-                "debian-10": "ami-041540a5c191757a0",
-                "debian-11": "ami-0fd320e6b2de9e34a",
+                "debian-10": "ami-067a196d70cb53732",
+                "debian-11": "ami-0607e701db389efe7",
                 "debian-12": "ami-07edaec601cf2b6d3"
             },
             "arm64": {
-                "debian-10": "ami-0108ade0d057c8eba",
-                "debian-11": "ami-0d3b78362fc3d8e61",
+                "debian-10": "ami-0b6ee4b8f4aa91fb4",
+                "debian-11": "ami-00988b9ead6afb0b1",
                 "debian-12": "ami-02aab8d5301cb8d68"
             }
         }
@@ -133,13 +132,13 @@
                 "amazonlinux2-4-14": "ami-038b3df3312ddf25d",
                 "amazonlinux2-5-10": "ami-06a0cd9728546d178",
                 "amazonlinux2022-5-15": "ami-0f0f00c2d082c52ae",
-                "amazonlinux2023": "ami-09a843efa5c250b9c"
+                "amazonlinux2023": "ami-064ed2d3fc01d3ec1"
             },
             "arm64": {
                 "amazonlinux2-4-14": "ami-090230ed0c6b13c74",
                 "amazonlinux2-5-10": "ami-09e51988f56677f44",
                 "amazonlinux2022-5-15": "ami-0acc51c3357f26240",
-                "amazonlinux2023": "ami-08fc6fb8ad2e794bb"
+                "amazonlinux2023": "ami-0a515c154e76934f7"
             }
         }
     },

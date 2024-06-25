@@ -13,22 +13,24 @@ import (
 	"time"
 
 	"go.uber.org/atomic"
-	"google.golang.org/grpc"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 // EBPFProbe Factory
 var EBPFProbe = module.Factory{
 	Name:             config.EBPFModule,
 	ConfigNamespaces: []string{},
-	Fn: func(cfg *sysconfigtypes.Config) (module.Module, error) {
+	Fn: func(cfg *sysconfigtypes.Config, _ optional.Option[workloadmeta.Component], _ telemetry.Component) (module.Module, error) {
 		log.Infof("Starting the ebpf probe")
 		okp, err := ebpfcheck.NewProbe(ebpf.NewConfig())
 		if err != nil {
@@ -66,9 +68,4 @@ func (o *ebpfModule) GetStats() map[string]interface{} {
 	return map[string]interface{}{
 		"last_check": o.lastCheck.Load(),
 	}
-}
-
-// RegisterGRPC register to system probe gRPC server
-func (o *ebpfModule) RegisterGRPC(_ grpc.ServiceRegistrar) error {
-	return nil
 }

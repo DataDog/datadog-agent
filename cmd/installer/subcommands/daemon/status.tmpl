@@ -1,0 +1,33 @@
+Datadog Installer v{{ htmlSafe .Version }}
+{{ range $name, $package := .Packages }}
+{{ boldText $name }}
+  State: {{ if $package.Experiment -}}{{ yellowText "Upgrading" }}{{- else if $package.Stable -}}{{ greenText "OK" }}{{- else -}}{{ redText "no stable version" }}{{- end }}
+  Installed versions:
+  {{- if $package.Stable }}
+    {{ greenText "●" }} stable: v{{ htmlSafe $package.Stable }}
+  {{- else }}
+    {{ redText "●" }} stable: none
+  {{- end }}{{ if $package.Experiment }}
+    {{ yellowText "●" }} experiment: v{{ htmlSafe $package.Experiment }}
+  {{- else }}
+    ● experiment: none
+  {{- end }}
+  {{- if eq $name "datadog-apm-inject" }}{{ template "datadog-apm-inject" $.ApmInjectionStatus }}{{ end }}
+{{ end -}}
+
+
+{{- define "datadog-apm-inject" }}
+  Instrumentation status:
+    {{ if eq .HostInstrumented true -}}
+      {{ greenText "●" }} Host: Instrumented
+    {{- else -}}
+      {{ redText "●" }} Host: Not instrumented
+    {{- end }}
+    {{ if eq .DockerInstalled false -}}
+      {{ italicText "●" }} Docker: {{ italicText "not installed" }}
+    {{- else if eq .DockerInstrumented true -}}
+      {{ greenText "●" }} Docker: Instrumented
+    {{- else -}}
+      {{ redText "●" }} Docker: Not instrumented
+    {{- end }}
+{{- end -}}

@@ -15,13 +15,14 @@ import (
 	"fmt"
 	"hash"
 	"io"
+	"io/fs"
 	"os"
+	"slices"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/glaslos/ssdeep"
 	lru "github.com/hashicorp/golang-lru/v2"
 	"go.uber.org/atomic"
-	"golang.org/x/exp/slices"
 	"golang.org/x/time/rate"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
@@ -74,6 +75,14 @@ type ResolverOpts struct {
 	EventTypes []model.EventType
 }
 
+// LRUCacheKey is the structure used to access cached hashes
+type LRUCacheKey struct {
+	path        string
+	containerID string
+	inode       uint64
+	pathID      uint32
+}
+
 // LRUCacheEntry is the structure used to cache hashes
 type LRUCacheEntry struct {
 	state  model.HashState
@@ -86,8 +95,9 @@ type Resolver struct {
 	statsdClient   statsd.ClientInterface
 	limiter        *rate.Limiter
 	cgroupResolver *cgroup.Resolver
+	replace        map[string]string
 
-	cache *lru.Cache[model.PathKey, *LRUCacheEntry]
+	cache *lru.Cache[LRUCacheKey, *LRUCacheEntry]
 
 	// stats
 	hashCount    map[model.EventType]map[model.HashAlgorithm]*atomic.Uint64
@@ -105,10 +115,10 @@ func NewResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.ClientInte
 		}, nil
 	}
 
-	var cache *lru.Cache[model.PathKey, *LRUCacheEntry]
+	var cache *lru.Cache[LRUCacheKey, *LRUCacheEntry]
 	if c.HashResolverCacheSize > 0 {
 		var err error
-		cache, err = lru.New[model.PathKey, *LRUCacheEntry](c.HashResolverCacheSize)
+		cache, err = lru.New[LRUCacheKey, *LRUCacheEntry](c.HashResolverCacheSize)
 		if err != nil {
 			return nil, fmt.Errorf("couldn't create hash resolver cache: %w", err)
 		}
@@ -128,6 +138,7 @@ func NewResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.ClientInte
 		hashCount:      make(map[model.EventType]map[model.HashAlgorithm]*atomic.Uint64),
 		hashMiss:       make(map[model.EventType]map[model.HashState]*atomic.Uint64),
 		hashCacheHit:   make(map[model.EventType]*atomic.Uint64),
+		replace:        c.HashResolverReplace,
 	}
 
 	// generate counters
@@ -197,6 +208,15 @@ func (resolver *Resolver) getHashFunction(algorithm model.HashAlgorithm) hash.Ha
 	}
 }
 
+func getFileInfo(path string) (fs.FileMode, int64, error) {
+	fileInfo, err := os.Stat(path)
+	if err != nil {
+		return 0, 0, err
+	}
+
+	return fileInfo.Mode(), fileInfo.Size(), nil
+}
+
 // hash hashes the provided file event
 func (resolver *Resolver) hash(eventType model.EventType, process *model.Process, file *model.FileEvent) {
 	if !file.IsPathnameStrResolved || len(file.PathnameStr) == 0 {
@@ -205,9 +225,21 @@ func (resolver *Resolver) hash(eventType model.EventType, process *model.Process
 		return
 	}
 
+	if hashStr, exists := resolver.replace[file.PathnameStr]; exists {
+		file.Hashes = append(file.Hashes, hashStr)
+		file.HashState = model.Done
+		return
+	}
+
 	// check if the hash(es) of this file is in cache
+	fileKey := LRUCacheKey{
+		path:        file.PathnameStr,
+		containerID: process.ContainerID,
+		inode:       file.Inode,
+		pathID:      file.PathKey.PathID,
+	}
 	if resolver.cache != nil {
-		cacheEntry, ok := resolver.cache.Get(file.PathKey)
+		cacheEntry, ok := resolver.cache.Get(fileKey)
 		if ok {
 			file.HashState = cacheEntry.state
 			file.Hashes = cacheEntry.hashes
@@ -225,10 +257,18 @@ func (resolver *Resolver) hash(eventType model.EventType, process *model.Process
 	}
 
 	// open the target file
-	var lastErr error
-	var f *os.File
+	var (
+		lastErr error
+		f       *os.File
+		mode    fs.FileMode
+		size    int64
+	)
 	for _, pidCandidate := range rootPIDs {
-		f, lastErr = os.Open(utils.ProcRootFilePath(pidCandidate, file.PathnameStr))
+		path := utils.ProcRootFilePath(pidCandidate, file.PathnameStr)
+		if mode, size, lastErr = getFileInfo(path); !mode.IsRegular() {
+			continue
+		}
+		f, lastErr = os.Open(path)
 		if lastErr == nil {
 			break
 		}
@@ -248,30 +288,23 @@ func (resolver *Resolver) hash(eventType model.EventType, process *model.Process
 		file.HashState = model.FileOpenError
 		return
 	}
-	defer f.Close()
 
-	fi, err := f.Stat()
-	if err != nil {
+	if f == nil {
 		file.HashState = model.FileNotFound
 		resolver.hashMiss[eventType][model.FileNotFound].Inc()
 		return
 	}
-
-	// is this a regular file ?
-	if !fi.Mode().IsRegular() {
-		file.HashState = model.Done
-		return
-	}
+	defer f.Close()
 
 	// is the file size above the configured limit
-	if fi.Size() > resolver.opts.MaxFileSize {
+	if size > resolver.opts.MaxFileSize {
 		resolver.hashMiss[eventType][model.FileTooBig].Inc()
 		file.HashState = model.FileTooBig
 		return
 	}
 
 	// is the file empty ?
-	if fi.Size() == 0 {
+	if size == 0 {
 		resolver.hashMiss[eventType][model.FileEmpty].Inc()
 		file.HashState = model.FileEmpty
 		return
@@ -296,7 +329,7 @@ func (resolver *Resolver) hash(eventType model.EventType, process *model.Process
 	}
 	multiWriter := newSizeLimitedWriter(io.MultiWriter(hashers...), int(resolver.opts.MaxFileSize))
 
-	if _, err = io.Copy(multiWriter, f); err != nil {
+	if _, err := io.Copy(multiWriter, f); err != nil {
 		if errors.Is(err, ErrSizeLimitReached) {
 			resolver.hashMiss[eventType][model.FileTooBig].Inc()
 			file.HashState = model.FileTooBig
@@ -341,7 +374,7 @@ func (resolver *Resolver) hash(eventType model.EventType, process *model.Process
 			hashes: make([]string, len(file.Hashes)),
 		}
 		copy(cacheEntry.hashes, file.Hashes)
-		resolver.cache.Add(file.PathKey, cacheEntry)
+		resolver.cache.Add(fileKey, cacheEntry)
 	}
 }
 

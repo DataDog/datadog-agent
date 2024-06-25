@@ -26,23 +26,29 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
+	eventmonitortestutil "github.com/DataDog/datadog-agent/pkg/eventmonitor/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	fileopener "github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
+	procmontestutil "github.com/DataDog/datadog-agent/pkg/process/monitor/testutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func launchProcessMonitor(t *testing.T) {
+func launchProcessMonitor(t *testing.T, useEventStream bool) {
 	pm := monitor.GetProcessMonitor()
 	t.Cleanup(pm.Stop)
-	require.NoError(t, pm.Initialize())
+	require.NoError(t, pm.Initialize(useEventStream))
+	if useEventStream {
+		eventmonitortestutil.StartEventMonitor(t, procmontestutil.RegisterProcessMonitorEventConsumer)
+	}
 }
 
 type SharedLibrarySuite struct {
 	suite.Suite
+	useEventStream bool
 }
 
 func TestSharedLibrary(t *testing.T) {
@@ -52,6 +58,10 @@ func TestSharedLibrary(t *testing.T) {
 
 	ebpftest.TestBuildModes(t, []ebpftest.BuildMode{ebpftest.Prebuilt, ebpftest.RuntimeCompiled, ebpftest.CORE}, "", func(t *testing.T) {
 		suite.Run(t, new(SharedLibrarySuite))
+	})
+
+	t.Run("event stream", func(t *testing.T) {
+		suite.Run(t, &SharedLibrarySuite{useEventStream: true})
 	})
 }
 
@@ -64,7 +74,6 @@ func (s *SharedLibrarySuite) TestSharedLibraryDetection() {
 	unregisterRecorder := new(utils.CallbackRecorder)
 
 	watcher, err := NewWatcher(config.New(),
-		nil,
 		Rule{
 			Re:           regexp.MustCompile(`foo-libssl.so`),
 			RegisterCB:   registerRecorder.Callback(),
@@ -74,7 +83,7 @@ func (s *SharedLibrarySuite) TestSharedLibraryDetection() {
 	require.NoError(t, err)
 	watcher.Start()
 	t.Cleanup(watcher.Stop)
-	launchProcessMonitor(t)
+	launchProcessMonitor(t, s.useEventStream)
 
 	// create files
 	command1, err := fileopener.OpenFromAnotherProcess(t, fooPath1)
@@ -123,7 +132,6 @@ func (s *SharedLibrarySuite) TestSharedLibraryDetectionWithPIDAndRootNamespace()
 	}
 
 	watcher, err := NewWatcher(config.New(),
-		nil,
 		Rule{
 			Re:           regexp.MustCompile(`fooroot-crypto.so`),
 			RegisterCB:   callback,
@@ -133,7 +141,7 @@ func (s *SharedLibrarySuite) TestSharedLibraryDetectionWithPIDAndRootNamespace()
 	require.NoError(t, err)
 	watcher.Start()
 	t.Cleanup(watcher.Stop)
-	launchProcessMonitor(t)
+	launchProcessMonitor(t, s.useEventStream)
 
 	time.Sleep(10 * time.Millisecond)
 	// simulate a slow (1 second) : open, write, close of the file
@@ -173,7 +181,6 @@ func (s *SharedLibrarySuite) TestSameInodeRegression() {
 	unregisterRecorder := new(utils.CallbackRecorder)
 
 	watcher, err := NewWatcher(config.New(),
-		nil,
 		Rule{
 			Re:           regexp.MustCompile(`foo-libssl.so`),
 			RegisterCB:   registerRecorder.Callback(),
@@ -183,7 +190,7 @@ func (s *SharedLibrarySuite) TestSameInodeRegression() {
 	require.NoError(t, err)
 	watcher.Start()
 	t.Cleanup(watcher.Stop)
-	launchProcessMonitor(t)
+	launchProcessMonitor(t, s.useEventStream)
 
 	command1, err := fileopener.OpenFromAnotherProcess(t, fooPath1, fooPath2)
 	require.NoError(t, err)
@@ -216,7 +223,6 @@ func (s *SharedLibrarySuite) TestSoWatcherLeaks() {
 	unregisterCB := unregisterRecorder.Callback()
 
 	watcher, err := NewWatcher(config.New(),
-		nil,
 		Rule{
 			Re:           regexp.MustCompile(`foo-libssl.so`),
 			RegisterCB:   registerCB,
@@ -231,7 +237,7 @@ func (s *SharedLibrarySuite) TestSoWatcherLeaks() {
 	require.NoError(t, err)
 	watcher.Start()
 	t.Cleanup(watcher.Stop)
-	launchProcessMonitor(t)
+	launchProcessMonitor(t, s.useEventStream)
 
 	command1, err := fileopener.OpenFromAnotherProcess(t, fooPath1, fooPath2)
 	require.NoError(t, err)
@@ -284,7 +290,6 @@ func (s *SharedLibrarySuite) TestSoWatcherProcessAlreadyHoldingReferences() {
 	unregisterCB := unregisterRecorder.Callback()
 
 	watcher, err := NewWatcher(config.New(),
-		nil,
 		Rule{
 			Re:           regexp.MustCompile(`foo-libssl.so`),
 			RegisterCB:   registerCB,
@@ -305,7 +310,7 @@ func (s *SharedLibrarySuite) TestSoWatcherProcessAlreadyHoldingReferences() {
 
 	watcher.Start()
 	t.Cleanup(watcher.Stop)
-	launchProcessMonitor(t)
+	launchProcessMonitor(t, s.useEventStream)
 
 	require.Eventually(t, func() bool {
 		return registerRecorder.CallsForPathID(fooPathID1) == 1 &&
@@ -356,7 +361,6 @@ func createTempTestFile(t *testing.T, name string) (string, utils.PathIdentifier
 
 func BenchmarkScanSOWatcherNew(b *testing.B) {
 	w, _ := NewWatcher(config.New(),
-		nil,
 		Rule{
 			Re: regexp.MustCompile(`libssl.so`),
 		},

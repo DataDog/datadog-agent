@@ -14,7 +14,11 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
+	"github.com/DataDog/datadog-agent/comp/core/status"
+	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -23,7 +27,14 @@ func TestLifecycle(t *testing.T) {
 		Module(),
 		core.MockBundle(),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.Module(),
+		workloadmetafx.Module(),
+		fx.Supply(
+			status.Params{
+				PythonVersionGetFunc: func() string { return "n/a" },
+			},
+		),
+		statusimpl.Module(),
+		settingsimpl.MockModule(),
 	))
 
 	assert.Eventually(t, func() bool {

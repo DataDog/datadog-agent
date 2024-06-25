@@ -30,14 +30,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 )
 
+const testTimeout = 2 * time.Second
+const testTicker = 5 * time.Millisecond
+
 type mockEvt struct {
 	events.Publisher
 	events.Forwarder
 	mockSubscribe func(ctx context.Context, filter ...string) (ch <-chan *events.Envelope, errs <-chan error)
 }
 
-//nolint:revive // TODO(CINT) Fix revive linter
-func (m *mockEvt) Subscribe(ctx context.Context, filters ...string) (ch <-chan *events.Envelope, errs <-chan error) {
+func (m *mockEvt) Subscribe(ctx context.Context, _ ...string) (ch <-chan *events.Envelope, errs <-chan error) {
 	return m.mockSubscribe(ctx)
 }
 
@@ -89,43 +91,18 @@ func TestCheckEvents(t *testing.T) {
 	}
 	cha <- &en
 
-	timeout := time.NewTimer(2 * time.Second)
-	ticker := time.NewTicker(5 * time.Millisecond)
-	condition := false
-	for {
-		select {
-		case <-ticker.C:
-			if !sub.isRunning() {
-				continue
-			}
-			condition = true
-		case <-timeout.C:
-			require.FailNow(t, "Timeout waiting event listener to be healthy")
-		}
-		if condition {
-			break
-		}
-	}
+	require.Eventually(t, func() bool {
+		sub.Lock()
+		defer sub.Unlock()
+		return len(sub.Events) > 0
+	}, testTimeout, testTicker)
 
 	ev := sub.Flush(time.Now().Unix())
 	assert.Len(t, ev, 1)
 	assert.Equal(t, ev[0].Topic, "/tasks/paused")
 	errorsCh <- fmt.Errorf("chan breaker")
-	condition = false
-	for {
-		select {
-		case <-ticker.C:
-			if sub.isRunning() {
-				continue
-			}
-			condition = true
-		case <-timeout.C:
-			require.FailNow(t, "Timeout waiting for error")
-		}
-		if condition {
-			break
-		}
-	}
+
+	require.Eventually(t, func() bool { return !sub.isRunning() }, testTimeout, testTicker)
 
 	// Test the multiple events one unsupported
 	sub = createEventSubscriber("subscriberTest2", containerdutil.ContainerdItf(itf), nil)
@@ -158,23 +135,13 @@ func TestCheckEvents(t *testing.T) {
 	cha <- &ek
 	cha <- &evnd
 
-	condition = false
-	for {
-		select {
-		case <-ticker.C:
-			if !sub.isRunning() {
-				continue
-			}
-			condition = true
-		case <-timeout.C:
-			require.FailNow(t, "Timeout waiting event listener to be healthy")
-		}
-		if condition {
-			break
-		}
-	}
+	require.Eventually(t, func() bool {
+		sub.Lock()
+		defer sub.Unlock()
+		return len(sub.Events) > 0
+	}, testTimeout, testTicker)
+
 	ev2 := sub.Flush(time.Now().Unix())
-	fmt.Printf("\n\n 2/ Flush %v\n\n", ev2)
 	assert.Len(t, ev2, 1)
 	assert.Equal(t, ev2[0].Topic, "/tasks/oom")
 }
@@ -184,9 +151,6 @@ func TestCheckEvents_PauseContainers(t *testing.T) {
 	existingPauseContainerID := "existing_pause"
 	existingNonPauseContainerID := "existing_non_pause"
 	newPauseContainerID := "new_container"
-
-	testTimeout := 1 * time.Second
-	testTicker := 5 * time.Millisecond
 
 	cha := make(chan *events.Envelope)
 	errorsCh := make(chan error)
@@ -282,8 +246,8 @@ func TestCheckEvents_PauseContainers(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			defaultExcludePauseContainers := config.Datadog.GetBool("exclude_pause_container")
-			config.Datadog.SetWithoutSource("exclude_pause_container", test.excludePauseContainers)
+			defaultExcludePauseContainers := config.Datadog().GetBool("exclude_pause_container")
+			config.Datadog().SetWithoutSource("exclude_pause_container", test.excludePauseContainers)
 
 			if test.generateCreateEvent {
 				eventCreateContainer, err := createContainerEvent(testNamespace, test.containerID)
@@ -312,7 +276,7 @@ func TestCheckEvents_PauseContainers(t *testing.T) {
 				assert.Empty(t, sub.Flush(time.Now().Unix()))
 			}
 
-			config.Datadog.SetWithoutSource("exclude_pause_container", defaultExcludePauseContainers)
+			config.Datadog().SetWithoutSource("exclude_pause_container", defaultExcludePauseContainers)
 		})
 	}
 

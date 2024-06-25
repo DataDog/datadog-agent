@@ -57,7 +57,7 @@ type Tracer struct {
 
 	// internals
 	info *arch.Info
-	opts Opts
+	opts TracerOpts
 	// user and group cache
 	// TODO: user opens of passwd/group files to reset the limiters?
 	userCache                map[int]string
@@ -74,11 +74,12 @@ type Creds struct {
 	GID *uint32
 }
 
-// Opts defines syscall filters
-type Opts struct {
-	Syscalls []string
-	Creds    Creds
-	Logger   Logger
+// TracerOpts defines ptracer options
+type TracerOpts struct {
+	Syscalls        []string
+	Creds           Creds
+	Logger          Logger
+	SeccompDisabled bool
 }
 
 func processVMReadv(pid int, addr uintptr, data []byte) (int, error) {
@@ -239,17 +240,20 @@ func (t *Tracer) ReadArgStringArray(pid int, regs syscall.PtraceRegs, arg int) (
 	return result, nil
 }
 
-// Trace traces a process
-func (t *Tracer) Trace(cb func(cbType CallbackType, nr int, pid int, ppid int, regs syscall.PtraceRegs, waitStatus *syscall.WaitStatus)) error {
+func isExited(waitStatus syscall.WaitStatus) bool {
+	return waitStatus.Exited() || waitStatus.CoreDump() || waitStatus.Signaled()
+}
+
+func (t *Tracer) trace(cb func(cbType CallbackType, nr int, pid int, ppid int, regs syscall.PtraceRegs, waitStatus *syscall.WaitStatus)) error {
 	var waitStatus syscall.WaitStatus
 
-	if err := syscall.PtraceCont(t.PID, 0); err != nil {
+	if err := syscall.PtraceSyscall(t.PID, 0); err != nil {
 		return err
 	}
 
 	var (
-		regs   syscall.PtraceRegs
-		prevNr int
+		tracker = NewSyscallStateTracker()
+		regs    syscall.PtraceRegs
 	)
 
 	for {
@@ -259,7 +263,9 @@ func (t *Tracer) Trace(cb func(cbType CallbackType, nr int, pid int, ppid int, r
 			break
 		}
 
-		if waitStatus.Exited() || waitStatus.CoreDump() || waitStatus.Signaled() {
+		if isExited(waitStatus) {
+			tracker.Exit(pid)
+
 			if pid == t.PID {
 				break
 			}
@@ -269,6 +275,100 @@ func (t *Tracer) Trace(cb func(cbType CallbackType, nr int, pid int, ppid int, r
 
 		if waitStatus.Stopped() {
 			if signal := waitStatus.StopSignal(); signal != syscall.SIGTRAP {
+				if signal == syscall.SIGSTOP {
+					signal = syscall.Signal(0)
+				}
+				if err := syscall.PtraceSyscall(pid, int(signal)); err == nil {
+					continue
+				}
+			}
+
+			if err := syscall.PtraceGetRegs(pid, &regs); err != nil {
+				t.opts.Logger.Debugf("unable to get registers for pid %d: %v", pid, err)
+
+				// it got probably killed
+				cb(CallbackExitType, ExitNr, pid, 0, regs, &waitStatus)
+
+				if pid == t.PID {
+					break
+				}
+				continue
+			}
+
+			nr := GetSyscallNr(regs)
+
+			switch waitStatus.TrapCause() {
+			case syscall.PTRACE_EVENT_CLONE, syscall.PTRACE_EVENT_FORK, syscall.PTRACE_EVENT_VFORK:
+				// called at the exit of the syscall
+				if npid, err := syscall.PtraceGetEventMsg(pid); err == nil {
+					cb(CallbackPostType, nr, int(npid), pid, regs, nil)
+				}
+			case syscall.PTRACE_EVENT_EXEC:
+				// called at the exit of the syscall
+				cb(CallbackPostType, ExecveNr, pid, 0, regs, nil)
+
+				if state := tracker.PeekState(pid); state != nil {
+					state.Exec = true
+				}
+			default:
+				switch nr {
+				case ForkNr, VforkNr, CloneNr, Clone3Nr:
+					// already handled by the PTRACE_EVENT_CLONE, etc.
+				default:
+					state := tracker.NextStop(pid)
+
+					if tracker.IsSyscallEntry(pid) {
+						cb(CallbackPreType, nr, pid, 0, regs, nil)
+					} else {
+						// we already captured the exit of the exec syscall with PTRACE_EVENT_EXEC if success
+						if !state.Exec {
+							cb(CallbackPostType, nr, pid, 0, regs, nil)
+						}
+						state.Exec = false
+					}
+				}
+			}
+
+			if err := syscall.PtraceSyscall(pid, 0); err != nil {
+				t.opts.Logger.Debugf("unable to call ptrace continue for pid %d: %v", pid, err)
+			}
+		}
+	}
+
+	return nil
+}
+
+func (t *Tracer) traceWithSeccomp(cb func(cbType CallbackType, nr int, pid int, ppid int, regs syscall.PtraceRegs, waitStatus *syscall.WaitStatus)) error {
+	var waitStatus syscall.WaitStatus
+
+	if err := syscall.PtraceCont(t.PID, 0); err != nil {
+		return err
+	}
+
+	var (
+		regs syscall.PtraceRegs
+	)
+
+	for {
+		pid, err := syscall.Wait4(-1, &waitStatus, 0, nil)
+		if err != nil {
+			t.opts.Logger.Debugf("unable to wait for pid %d: %v", pid, err)
+			break
+		}
+
+		if isExited(waitStatus) {
+			if pid == t.PID {
+				break
+			}
+			cb(CallbackExitType, ExitNr, pid, 0, regs, &waitStatus)
+			continue
+		}
+
+		if waitStatus.Stopped() {
+			if signal := waitStatus.StopSignal(); signal != syscall.SIGTRAP {
+				if signal == syscall.SIGSTOP {
+					signal = syscall.Signal(0)
+				}
 				if err := syscall.PtraceCont(pid, int(signal)); err == nil {
 					continue
 				}
@@ -276,26 +376,31 @@ func (t *Tracer) Trace(cb func(cbType CallbackType, nr int, pid int, ppid int, r
 
 			if err := syscall.PtraceGetRegs(pid, &regs); err != nil {
 				t.opts.Logger.Debugf("unable to get registers for pid %d: %v", pid, err)
-				break
+
+				// it got probably killed
+				cb(CallbackExitType, ExitNr, pid, 0, regs, &waitStatus)
+
+				if pid == t.PID {
+					break
+				}
+				continue
 			}
 
 			nr := GetSyscallNr(regs)
-			if nr == 0 {
-				nr = prevNr
-			}
-			prevNr = nr
 
 			switch waitStatus.TrapCause() {
 			case syscall.PTRACE_EVENT_CLONE, syscall.PTRACE_EVENT_FORK, syscall.PTRACE_EVENT_VFORK:
+				// called at the exit of the syscall
 				if npid, err := syscall.PtraceGetEventMsg(pid); err == nil {
 					cb(CallbackPostType, nr, int(npid), pid, regs, nil)
 				}
 			case syscall.PTRACE_EVENT_EXEC:
+				// called at the exit of the syscall
 				cb(CallbackPostType, ExecveNr, pid, 0, regs, nil)
 			case unix.PTRACE_EVENT_SECCOMP:
 				switch nr {
 				case ForkNr, VforkNr, CloneNr, Clone3Nr:
-					// already handled
+					// already handled by the PTRACE_EVENT_CLONE, etc.
 				default:
 					cb(CallbackPreType, nr, pid, 0, regs, nil)
 
@@ -308,7 +413,7 @@ func (t *Tracer) Trace(cb func(cbType CallbackType, nr int, pid int, ppid int, r
 			default:
 				switch nr {
 				case ForkNr, VforkNr, CloneNr, Clone3Nr:
-					// already handled
+					// already handled by the PTRACE_EVENT_CLONE, etc.
 				case ExecveNr, ExecveatNr:
 					// triggered in case of error
 					cb(CallbackPostType, nr, pid, 0, regs, nil)
@@ -328,7 +433,15 @@ func (t *Tracer) Trace(cb func(cbType CallbackType, nr int, pid int, ppid int, r
 	return nil
 }
 
-func traceFilterProg(opts Opts) (*syscall.SockFprog, error) {
+// Trace traces a process
+func (t *Tracer) Trace(cb func(cbType CallbackType, nr int, pid int, ppid int, regs syscall.PtraceRegs, waitStatus *syscall.WaitStatus)) error {
+	if t.opts.SeccompDisabled {
+		return t.trace(cb)
+	}
+	return t.traceWithSeccomp(cb)
+}
+
+func traceFilterProg(opts TracerOpts) (*syscall.SockFprog, error) {
 	policy := seccomp.Policy{
 		DefaultAction: seccomp.ActionAllow,
 		Syscalls: []seccomp.SyscallGroup{
@@ -364,15 +477,20 @@ func traceFilterProg(opts Opts) (*syscall.SockFprog, error) {
 }
 
 // NewTracer returns a tracer
-func NewTracer(path string, args []string, envs []string, opts Opts) (*Tracer, error) {
+func NewTracer(path string, args []string, envs []string, opts TracerOpts) (*Tracer, error) {
 	info, err := arch.GetInfo("")
 	if err != nil {
 		return nil, err
 	}
 
-	prog, err := traceFilterProg(opts)
-	if err != nil {
-		return nil, fmt.Errorf("unable to compile bpf prog: %w", err)
+	var prog *syscall.SockFprog
+
+	// syscalls specified then we generate a seccomp filter
+	if !opts.SeccompDisabled {
+		prog, err = traceFilterProg(opts)
+		if err != nil {
+			return nil, fmt.Errorf("unable to compile bpf prog: %w", err)
+		}
 	}
 
 	runtime.LockOSThread()

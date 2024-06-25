@@ -14,7 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	clientComp "github.com/DataDog/datadog-agent/comp/languagedetection/client"
 	langUtil "github.com/DataDog/datadog-agent/pkg/languagedetection/util"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
@@ -103,7 +103,7 @@ type client struct {
 func newClient(
 	deps dependencies,
 ) clientComp.Component {
-	if !deps.Config.GetBool("language_detection.enabled") || !deps.Config.GetBool("cluster_agent.enabled") {
+	if !deps.Config.GetBool("language_detection.reporting.enabled") || !deps.Config.GetBool("language_detection.enabled") || !deps.Config.GetBool("cluster_agent.enabled") {
 		return optional.NewNoneOption[clientComp.Component]()
 	}
 
@@ -115,7 +115,7 @@ func newClient(
 		cancel:                           cancel,
 		logger:                           deps.Log,
 		store:                            deps.Workloadmeta,
-		freshDataPeriod:                  deps.Config.GetDuration("language_detection.client_period"),
+		freshDataPeriod:                  deps.Config.GetDuration("language_detection.reporting.buffer_period"),
 		mutex:                            sync.Mutex{},
 		telemetry:                        newComponentTelemetry(deps.Telemetry),
 		currentBatch:                     make(batch),
@@ -123,7 +123,7 @@ func newClient(
 		processesWithoutPodTTL:           defaultProcessWithoutPodTTL,
 		processesWithoutPodCleanupPeriod: defaultprocessesWithoutPodCleanupPeriod,
 		freshlyUpdatedPods:               make(map[string]struct{}),
-		periodicalFlushPeriod:            deps.Config.GetDuration("language_detection.cleanup.ttl_refresh_period"),
+		periodicalFlushPeriod:            deps.Config.GetDuration("language_detection.reporting.refresh_period"),
 	}
 	deps.Lc.Append(fx.Hook{
 		OnStart: cl.start,
@@ -150,19 +150,15 @@ func (c *client) stop(_ context.Context) error {
 func (c *client) run() {
 	defer c.logger.Info("Shutting down language detection client")
 
-	filterParams := workloadmeta.FilterParams{
-		Kinds: []workloadmeta.Kind{
-			workloadmeta.KindKubernetesPod, // Subscribe to pod events to clean up the current batch when a pod is deleted
-			workloadmeta.KindProcess,       // Subscribe to process events to populate the current batch
-		},
-		Source:    workloadmeta.SourceAll,
-		EventType: workloadmeta.EventTypeAll,
-	}
+	filter := workloadmeta.NewFilterBuilder().
+		AddKind(workloadmeta.KindProcess).
+		AddKind(workloadmeta.KindKubernetesPod).
+		Build()
 
 	eventCh := c.store.Subscribe(
 		subscriber,
 		workloadmeta.NormalPriority,
-		workloadmeta.NewFilter(&filterParams),
+		filter,
 	)
 	defer c.store.Unsubscribe(eventCh)
 

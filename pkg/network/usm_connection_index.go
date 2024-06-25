@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/cihub/seelog"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/types"
@@ -92,6 +94,11 @@ func GroupByConnection[K comparable, V any](protocol string, data map[K]V, keyGe
 // Find returns a `USMConnectionData` object associated to given `network.ConnectionStats`
 // The returned object will include all USM aggregation associated to this connection
 func (bc *USMConnectionIndex[K, V]) Find(c ConnectionStats) *USMConnectionData[K, V] {
+	// Early return because USM currently doesn't support any protocol over UDP
+	if c.Type != TCP {
+		return nil
+	}
+
 	result := bc.find(c)
 	if result != nil {
 		// Mark `USMConnectionData` as claimed for the purposes of orphan
@@ -182,8 +189,11 @@ func (bc *USMConnectionIndex[K, V]) Close() {
 
 		// Determine count of orphan aggregations
 		var total int
-		for _, value := range bc.data {
+		for key, value := range bc.data {
 			if !value.claimed {
+				if log.ShouldLog(seelog.TraceLvl) {
+					log.Tracef("key %+v unclaimed", key)
+				}
 				total += len(value.Data)
 			}
 		}

@@ -53,16 +53,40 @@ else
   end
 end
 
+if ENV["OMNIBUS_PACKAGE_ARTIFACT_DIR"]
+  dependency "package-artifact"
+  do_package = true
+  dependency 'init-scripts-iot-agent'
+else
+  # ------------------------------------
+  # Dependencies
+  # ------------------------------------
+
+  # creates required build directories
+  dependency 'preparation'
+
+  # Datadog agent
+  dependency 'datadog-iot-agent'
+
+  if windows_target?
+    dependency 'datadog-agent-finalize'
+  end
+
+  # version manifest file
+  dependency 'version-manifest'
+
+  do_package = false
+end
+
 if ENV.has_key?("OMNIBUS_WORKERS_OVERRIDE")
   COMPRESSION_THREADS = ENV["OMNIBUS_WORKERS_OVERRIDE"].to_i
 else
   COMPRESSION_THREADS = 1
 end
 
-# On armv7, dpkg is built as a 32bits application, which means
-# we can only address 32 bits of memory, which is likely to OOM
-# if we use too many compression threads or a too agressive level
-if ENV.has_key?("DEPLOY_AGENT") && ENV["DEPLOY_AGENT"] == "true" && (!ENV.has_key?("PACKAGE_ARCH") || ENV["PACKAGE_ARCH"] != "armhf")
+if ENV.has_key?('FORCED_PACKAGE_COMPRESSION_LEVEL')
+  COMPRESSION_LEVEL = ENV['FORCED_PACKAGE_COMPRESSION_LEVEL'].to_i
+elsif ENV.has_key?("DEPLOY_AGENT") && ENV["DEPLOY_AGENT"] == "true"
   COMPRESSION_LEVEL = 9
 else
   COMPRESSION_LEVEL = 5
@@ -90,6 +114,7 @@ description 'Datadog IoT Agent
 
 # .deb specific flags
 package :deb do
+  skip_packager !do_package
   vendor 'Datadog <package@datadoghq.com>'
   epoch 1
   license 'Apache License Version 2.0'
@@ -108,6 +133,7 @@ end
 
 # .rpm specific flags
 package :rpm do
+  skip_packager !do_package
   vendor 'Datadog <package@datadoghq.com>'
   epoch 1
   dist_tag ''
@@ -131,18 +157,6 @@ end
 
 # Linux
 if linux_target?
-  # Upstart
-  if debian_target? || redhat_target? || suse_target?
-    extra_package_file '/etc/init/datadog-agent.conf'
-  end
-
-  # Systemd
-  if debian_target?
-    extra_package_file '/lib/systemd/system/datadog-agent.service'
-  else
-    extra_package_file '/usr/lib/systemd/system/datadog-agent.service'
-  end
-
   # Example configuration files for the agent and the checks
   extra_package_file '/etc/datadog-agent/datadog.yaml.example'
   extra_package_file '/etc/datadog-agent/conf.d/'
@@ -156,8 +170,10 @@ package :zip do
   skip_packager true
 end
 
-package :ociru do
-  skip_packager true
+package :xz do
+  skip_packager do_package
+  compression_threads COMPRESSION_THREADS
+  compression_level COMPRESSION_LEVEL
 end
 
 package :msi do
@@ -201,29 +217,17 @@ package :msi do
   })
 end
 
-# ------------------------------------
-# Dependencies
-# ------------------------------------
-
-# creates required build directories
-dependency 'preparation'
-
-# Datadog agent
-dependency 'datadog-iot-agent'
-
-if windows_target?
-  dependency 'datadog-agent-finalize'
-end
-
-# version manifest file
-dependency 'version-manifest'
-
 # package scripts
 if linux_target?
-  if debian_target?
-    package_scripts_path "#{Omnibus::Config.project_root}/package-scripts/iot-agent-deb"
+  if !do_package
+    extra_package_file "#{Omnibus::Config.project_root}/package-scripts/iot-agent-deb"
+    extra_package_file "#{Omnibus::Config.project_root}/package-scripts/iot-agent-rpm"
   else
-    package_scripts_path "#{Omnibus::Config.project_root}/package-scripts/iot-agent-rpm"
+    if debian_target?
+      package_scripts_path "#{Omnibus::Config.project_root}/package-scripts/iot-agent-deb"
+    else
+      package_scripts_path "#{Omnibus::Config.project_root}/package-scripts/iot-agent-rpm"
+    end
   end
 end
 

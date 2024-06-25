@@ -16,8 +16,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
+	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 func TestRealConfig(t *testing.T) {
@@ -35,7 +37,11 @@ func TestRealConfig(t *testing.T) {
 			WithConfigMissingOK(true),
 			WithConfFilePath(dir),
 		)),
-		fx.Provide(func() secrets.Component { return secretsimpl.NewMock() }),
+		fx.Provide(func(secretResolver secrets.Component) optional.Option[secrets.Component] {
+			return optional.NewOption[secrets.Component](secretResolver)
+		}),
+		secretsimpl.MockModule(),
+		nooptelemetry.Module(),
 		Module(),
 	))
 	require.Equal(t, "https://example.com", config.GetString("dd_url"))
@@ -56,8 +62,8 @@ func TestMockConfig(t *testing.T) {
 	// but defaults are set
 	require.Equal(t, "localhost", config.GetString("cmd_host"))
 
-	// values can also be set by the mock (config.Writer)
-	config.(Mock).Set("app_key", "newvalue", model.SourceAgentRuntime)
+	// values can also be set
+	config.Set("app_key", "newvalue", model.SourceAgentRuntime)
 	require.Equal(t, "newvalue", config.GetString("app_key"))
 }
 

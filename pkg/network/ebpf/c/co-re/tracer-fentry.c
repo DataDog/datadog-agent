@@ -2,6 +2,7 @@
 #include "bpf_telemetry.h"
 #include "bpf_endian.h"
 #include "bpf_tracing.h"
+#include "bpf_metadata.h"
 
 #include "ip.h"
 #include "ipv6.h"
@@ -62,7 +63,7 @@ static __always_inline int read_conn_tuple_partial_from_flowi4(conn_tuple_t *t, 
     }
 
     if (t->saddr_l == 0 || t->daddr_l == 0) {
-        log_debug("ERR(fl4): src/dst addr not set src:%d,dst:%d", t->saddr_l, t->daddr_l);
+        log_debug("ERR(fl4): src/dst addr not set src:%llu,dst:%llu", t->saddr_l, t->daddr_l);
         return 0;
     }
 
@@ -97,11 +98,11 @@ static __always_inline int read_conn_tuple_partial_from_flowi6(conn_tuple_t *t, 
     }
 
     if (!(t->saddr_h || t->saddr_l)) {
-        log_debug("ERR(fl6): src addr not set src_l:%d,src_h:%d", t->saddr_l, t->saddr_h);
+        log_debug("ERR(fl6): src addr not set src_l:%llu,src_h:%llu", t->saddr_l, t->saddr_h);
         return 0;
     }
     if (!(t->daddr_h || t->daddr_l)) {
-        log_debug("ERR(fl6): dst addr not set dst_l:%d,dst_h:%d", t->daddr_l, t->daddr_h);
+        log_debug("ERR(fl6): dst addr not set dst_l:%llu,dst_h:%llu", t->daddr_l, t->daddr_h);
         return 0;
     }
 
@@ -143,7 +144,7 @@ int BPF_PROG(tcp_sendmsg_exit, struct sock *sk, struct msghdr *msg, size_t size,
     }
 
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    log_debug("fexit/tcp_sendmsg: pid_tgid: %d, sent: %d, sock: %llx", pid_tgid, sent, sk);
+    log_debug("fexit/tcp_sendmsg: pid_tgid: %llu, sent: %d, sock: %p", pid_tgid, sent, sk);
 
     conn_tuple_t t = {};
     if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
@@ -168,7 +169,7 @@ RETURN_IF_NOT_IN_SYSPROBE_TASK("fexit/tcp_sendpage");
     }
 
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    log_debug("fexit/tcp_sendpage: pid_tgid: %d, sent: %d, sock: %llx", pid_tgid, sent, sk);
+    log_debug("fexit/tcp_sendpage: pid_tgid: %llu, sent: %d, sock: %p", pid_tgid, sent, sk);
 
     conn_tuple_t t = {};
     if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
@@ -193,7 +194,7 @@ int BPF_PROG(udp_sendpage_exit, struct sock *sk, struct page *page, int offset, 
     }
 
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    log_debug("fexit/udp_sendpage: pid_tgid: %d, sent: %d, sock: %llx", pid_tgid, sent, sk);
+    log_debug("fexit/udp_sendpage: pid_tgid: %llu, sent: %d, sock: %p", pid_tgid, sent, sk);
 
     conn_tuple_t t = {};
     if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_UDP)) {
@@ -235,13 +236,13 @@ int BPF_PROG(tcp_close, struct sock *sk, long timeout) {
     bpf_map_delete_elem(&tcp_ongoing_connect_pid, &sk);
 
     // Get network namespace id
-    log_debug("fentry/tcp_close: tgid: %u, pid: %u", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
+    log_debug("fentry/tcp_close: tgid: %llu, pid: %llu", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
     if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
         return 0;
     }
     log_debug("fentry/tcp_close: netns: %u, sport: %u, dport: %u", t.netns, t.sport, t.dport);
 
-    cleanup_conn(ctx, &t, sk);
+    cleanup_conn(ctx, &t, sk, false);
     return 0;
 }
 
@@ -447,7 +448,7 @@ SEC("fentry/tcp_connect")
 int BPF_PROG(tcp_connect, struct sock *sk) {
     RETURN_IF_NOT_IN_SYSPROBE_TASK("fentry/tcp_connect");
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    log_debug("fentry/tcp_connect: tgid: %u, pid: %u", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
+    log_debug("fentry/tcp_connect: tgid: %llu, pid: %llu", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
 
     bpf_map_update_with_telemetry(tcp_ongoing_connect_pid, &sk, &pid_tgid, BPF_ANY);
 
@@ -464,7 +465,7 @@ int BPF_PROG(tcp_finish_connect, struct sock *sk, struct sk_buff *skb, int rc) {
 
     u64 pid_tgid = *pid_tgid_p;
     bpf_map_delete_elem(&tcp_ongoing_connect_pid, &sk);
-    log_debug("fentry/tcp_finish_connect: tgid: %u, pid: %u", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
+    log_debug("fentry/tcp_finish_connect: tgid: %llu, pid: %llu", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
 
     conn_tuple_t t = {};
     if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
@@ -487,7 +488,7 @@ int BPF_PROG(inet_csk_accept_exit, struct sock *_sk, int flags, int *err, bool k
     }
 
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    log_debug("fexit/inet_csk_accept: tgid: %u, pid: %u", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
+    log_debug("fexit/inet_csk_accept: tgid: %llu, pid: %llu", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
 
     conn_tuple_t t = {};
     if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
@@ -528,7 +529,7 @@ static __always_inline int handle_udp_destroy_sock(void *ctx, struct sock *sk) {
 
     __u16 lport = 0;
     if (valid_tuple) {
-        cleanup_conn(ctx, &tup, sk);
+        cleanup_conn(ctx, &tup, sk, false);
         lport = tup.sport;
     } else {
         // get the port for the current sock

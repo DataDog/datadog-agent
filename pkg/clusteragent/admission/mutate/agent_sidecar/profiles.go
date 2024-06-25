@@ -10,8 +10,10 @@ package agentsidecar
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/config"
+
 	corev1 "k8s.io/api/core/v1"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 ////////////////////////////////
@@ -27,12 +29,12 @@ type ProfileOverride struct {
 	ResourceRequirements corev1.ResourceRequirements `json:"resources,omitempty"`
 }
 
-// LoadSidecarProfiles returns the profile overrides provided by the user
+// loadSidecarProfiles returns the profile overrides provided by the user
 // It returns an error in case of miss-configuration or in case more than
 // one profile is configured
-func LoadSidecarProfiles() ([]ProfileOverride, error) {
+func loadSidecarProfiles() ([]ProfileOverride, error) {
 	// Read and parse profiles
-	profilesJSON := config.Datadog.GetString("admission_controller.agent_sidecar.profiles")
+	profilesJSON := config.Datadog().GetString("admission_controller.agent_sidecar.profiles")
 
 	var profiles []ProfileOverride
 
@@ -48,35 +50,41 @@ func LoadSidecarProfiles() ([]ProfileOverride, error) {
 	return profiles, nil
 }
 
-func applyProfileOverrides(container *corev1.Container) error {
+// applyProfileOverrides applies the profile overrides to the container. It
+// returns a boolean that indicates if the container was mutated
+func applyProfileOverrides(container *corev1.Container) (bool, error) {
 	if container == nil {
-		return fmt.Errorf("can't apply profile overrides to nil containers")
+		return false, fmt.Errorf("can't apply profile overrides to nil containers")
 	}
 
-	profiles, err := LoadSidecarProfiles()
+	profiles, err := loadSidecarProfiles()
 
 	if err != nil {
-		return err
+		return false, err
 	}
 	if len(profiles) == 0 {
-		return nil
+		return false, nil
 	}
 
 	overrides := profiles[0]
 
+	mutated := false
+
 	// Apply environment variable overrides
-	err = withEnvOverrides(container, overrides.EnvVars...)
+	overridden, err := withEnvOverrides(container, overrides.EnvVars...)
 	if err != nil {
-		return err
+		return false, err
 	}
+	mutated = mutated || overridden
 
 	// Apply resource requirement overrides
 	if overrides.ResourceRequirements.Limits != nil {
 		err = withResourceLimits(container, overrides.ResourceRequirements)
 		if err != nil {
-			return err
+			return mutated, err
 		}
+		mutated = true
 	}
 
-	return nil
+	return mutated, nil
 }

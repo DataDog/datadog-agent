@@ -108,7 +108,7 @@ func getExpectedConnections(encodedWithQueryType bool, httpOutBlob []byte) *mode
 					ReplDstPort: int32(80),
 				},
 
-				Type:      model.ConnectionType_udp,
+				Type:      model.ConnectionType_tcp,
 				Family:    model.ConnectionFamily_v6,
 				Direction: model.ConnectionDirection_local,
 
@@ -130,8 +130,8 @@ func getExpectedConnections(encodedWithQueryType bool, httpOutBlob []byte) *mode
 				DnsStatsByDomain:            dnsByDomain,
 				DnsStatsByDomainByQueryType: dnsByDomainByQuerytype,
 				DnsSuccessfulResponses:      1, // TODO: verify why this was needed
-
-				RouteIdx: -1,
+				TcpFailuresByErrCode:        map[uint32]uint32{110: 1},
+				RouteIdx:                    -1,
 				Protocol: &model.ProtocolStack{
 					Stack: []model.ProtocolType{model.ProtocolType_protocolTLS, model.ProtocolType_protocolHTTP2},
 				},
@@ -235,7 +235,7 @@ func testSerialization(t *testing.T, aggregateByStatusCode bool) {
 						ReplDstPort: 80,
 					},
 
-					Type:      network.UDP,
+					Type:      network.TCP,
 					Family:    network.AFINET6,
 					Direction: network.LOCAL,
 					Via: &network.Via{
@@ -278,6 +278,9 @@ func testSerialization(t *testing.T, aggregateByStatusCode bool) {
 								CountByRcode:      map[uint32]uint32{0: 1},
 							},
 						},
+					},
+					TCPFailures: map[uint32]uint32{
+						110: 1,
 					},
 				},
 			},

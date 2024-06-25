@@ -24,7 +24,7 @@ import (
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/client"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	dderrors "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
@@ -53,7 +53,7 @@ type DockerUtil struct {
 // init makes an empty DockerUtil bootstrap itself.
 // This is not exposed as public API but is called by the retrier embed.
 func (d *DockerUtil) init() error {
-	d.queryTimeout = config.Datadog.GetDuration("docker_query_timeout") * time.Second
+	d.queryTimeout = config.Datadog().GetDuration("docker_query_timeout") * time.Second
 
 	// Major failure risk is here, do that first
 	ctx, cancel := context.WithTimeout(context.Background(), d.queryTimeout)
@@ -145,7 +145,7 @@ func (d *DockerUtil) RawContainerList(ctx context.Context, options container.Lis
 }
 
 // RawContainerListWithFilter is like RawContainerList but with a container filter.
-func (d *DockerUtil) RawContainerListWithFilter(ctx context.Context, options container.ListOptions, filter *containers.Filter) ([]types.Container, error) {
+func (d *DockerUtil) RawContainerListWithFilter(ctx context.Context, options container.ListOptions, filter *containers.Filter, wmeta workloadmeta.Component) ([]types.Container, error) {
 	containers, err := d.RawContainerList(ctx, options)
 	if err != nil {
 		return nil, err
@@ -157,8 +157,7 @@ func (d *DockerUtil) RawContainerListWithFilter(ctx context.Context, options con
 
 	isExcluded := func(container types.Container) bool {
 		var annotations map[string]string
-		// TODO(components)L inject dependency and remove use of global
-		if pod, err := workloadmeta.GetGlobalStore().GetKubernetesPodForContainer(container.ID); err == nil {
+		if pod, err := wmeta.GetKubernetesPodForContainer(container.ID); err == nil {
 			annotations = pod.Annotations
 		}
 		for _, name := range container.Names {

@@ -333,7 +333,8 @@ func (t *HTTPTransaction) Process(ctx context.Context, config config.Component, 
 // internalProcess does the  work of actually sending the http request to the specified domain
 // This will return  (http status code, response body, error).
 func (t *HTTPTransaction) internalProcess(ctx context.Context, config config.Component, log log.Component, client *http.Client) (int, []byte, error) {
-	reader := bytes.NewReader(t.Payload.GetContent())
+	payload := t.Payload.GetContent()
+	reader := bytes.NewReader(payload)
 	url := t.Domain + t.Endpoint.Route
 	transactionEndpointName := t.GetEndpointName()
 	logURL := scrubber.ScrubLine(url) // sanitized url that can be logged
@@ -347,6 +348,7 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, config config.Com
 		return 0, nil, nil
 	}
 	req.Header = t.Headers
+	log.Tracef("Sending %s request to %s with body size %d and headers %v", req.Method, logURL, len(payload), req.Header)
 	resp, err := client.Do(req)
 
 	if err != nil {
@@ -412,16 +414,16 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, config config.Com
 	loggingFrequency := config.GetInt64("logging_frequency")
 
 	if transactionsSuccess.Value() == 1 {
-		log.Infof("Successfully posted payload to %q, the agent will only log transaction success every %d transactions", logURL, loggingFrequency)
-		log.Tracef("Url: %q payload: %q", logURL, truncateBodyForLog(body))
+		log.Infof("Successfully posted payload to %q (%s), the agent will only log transaction success every %d transactions", logURL, resp.Status, loggingFrequency)
+		log.Tracef("Url: %q, response status %s, content length %d, payload: %q", logURL, resp.Status, resp.ContentLength, truncateBodyForLog(body))
 		return resp.StatusCode, body, nil
 	}
 	if transactionsSuccess.Value()%loggingFrequency == 0 {
-		log.Infof("Successfully posted payload to %q", logURL)
-		log.Tracef("Url: %q payload: %q", logURL, truncateBodyForLog(body))
+		log.Infof("Successfully posted payload to %q (%s)", logURL, resp.Status)
+		log.Tracef("Url: %q, response status %s, content length %d, payload: %q", logURL, resp.Status, resp.ContentLength, truncateBodyForLog(body))
 		return resp.StatusCode, body, nil
 	}
-	log.Tracef("Successfully posted payload to %q: %q", logURL, truncateBodyForLog(body))
+	log.Tracef("Successfully posted payload to %q (%s): %q", logURL, resp.Status, truncateBodyForLog(body))
 	return resp.StatusCode, body, nil
 }
 

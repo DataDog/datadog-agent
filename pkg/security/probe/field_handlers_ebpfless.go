@@ -24,6 +24,7 @@ import (
 type EBPFLessFieldHandlers struct {
 	config    *config.Config
 	resolvers *resolvers.EBPFLessResolvers
+	hostname  string
 }
 
 // ResolveService returns the service tag based on the process context
@@ -221,11 +222,6 @@ func (fh *EBPFLessFieldHandlers) ResolveFileFilesystem(_ *model.Event, e *model.
 	return e.Filesystem
 }
 
-// ResolveHashesFromEvent resolves the hashes of the requested event
-func (fh *EBPFLessFieldHandlers) ResolveHashesFromEvent(_ *model.Event, e *model.FileEvent) []string {
-	return e.Hashes
-}
-
 // ResolveK8SGroups resolves the k8s groups of the event
 func (fh *EBPFLessFieldHandlers) ResolveK8SGroups(_ *model.Event, e *model.UserSessionContext) []string {
 	return e.K8SGroups
@@ -337,9 +333,65 @@ func (fh *EBPFLessFieldHandlers) ResolveXAttrNamespace(_ *model.Event, e *model.
 }
 
 // ResolveHashes resolves the hash of the provided file
-func (fh *EBPFLessFieldHandlers) ResolveHashes(_ model.EventType, _ *model.Process, _ *model.FileEvent) []string {
-	return nil
+func (fh *EBPFLessFieldHandlers) ResolveHashes(eventType model.EventType, process *model.Process, file *model.FileEvent) []string {
+	return fh.resolvers.HashResolver.ComputeHashes(eventType, process, file)
+}
+
+// ResolveHashesFromEvent resolves the hashes of the requested event
+func (fh *EBPFLessFieldHandlers) ResolveHashesFromEvent(ev *model.Event, f *model.FileEvent) []string {
+	return fh.resolvers.HashResolver.ComputeHashesFromEvent(ev, f)
 }
 
 // ResolveUserSessionContext resolves and updates the provided user session context
 func (fh *EBPFLessFieldHandlers) ResolveUserSessionContext(_ *model.UserSessionContext) {}
+
+// ResolveProcessCmdArgv resolves the command line
+func (fh *EBPFLessFieldHandlers) ResolveProcessCmdArgv(ev *model.Event, process *model.Process) []string {
+	cmdline := []string{fh.ResolveProcessArgv0(ev, process)}
+	return append(cmdline, fh.ResolveProcessArgv(ev, process)...)
+}
+
+// ResolveAWSSecurityCredentials resolves and updates the AWS security credentials of the input process entry
+func (fh *EBPFLessFieldHandlers) ResolveAWSSecurityCredentials(_ *model.Event) []model.AWSSecurityCredentials {
+	return nil
+}
+
+// ResolveSyscallCtxArgs resolve syscall ctx
+func (fh *EBPFLessFieldHandlers) ResolveSyscallCtxArgs(_ *model.Event, e *model.SyscallContext) {
+	e.Resolved = true
+}
+
+// ResolveSyscallCtxArgsStr1 resolve syscall ctx
+func (fh *EBPFLessFieldHandlers) ResolveSyscallCtxArgsStr1(_ *model.Event, e *model.SyscallContext) string {
+	return e.StrArg1
+}
+
+// ResolveSyscallCtxArgsStr2 resolve syscall ctx
+func (fh *EBPFLessFieldHandlers) ResolveSyscallCtxArgsStr2(_ *model.Event, e *model.SyscallContext) string {
+	return e.StrArg2
+}
+
+// ResolveSyscallCtxArgsStr3 resolve syscall ctx
+func (fh *EBPFLessFieldHandlers) ResolveSyscallCtxArgsStr3(_ *model.Event, e *model.SyscallContext) string {
+	return e.StrArg3
+}
+
+// ResolveSyscallCtxArgsInt1 resolve syscall ctx
+func (fh *EBPFLessFieldHandlers) ResolveSyscallCtxArgsInt1(_ *model.Event, e *model.SyscallContext) int {
+	return int(e.IntArg1)
+}
+
+// ResolveSyscallCtxArgsInt2 resolve syscall ctx
+func (fh *EBPFLessFieldHandlers) ResolveSyscallCtxArgsInt2(_ *model.Event, e *model.SyscallContext) int {
+	return int(e.IntArg2)
+}
+
+// ResolveSyscallCtxArgsInt3 resolve syscall ctx
+func (fh *EBPFLessFieldHandlers) ResolveSyscallCtxArgsInt3(_ *model.Event, e *model.SyscallContext) int {
+	return int(e.IntArg3)
+}
+
+// ResolveHostname resolve the hostname
+func (fh *EBPFLessFieldHandlers) ResolveHostname(_ *model.Event, _ *model.BaseEvent) string {
+	return fh.hostname
+}

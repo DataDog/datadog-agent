@@ -12,12 +12,19 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/fx"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes/fake"
+
+	"github.com/DataDog/datadog-agent/comp/core"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestNewController(t *testing.T) {
 	client := fake.NewSimpleClientset()
+	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(), fx.Supply(workloadmeta.NewParams()))
 	factory := informers.NewSharedInformerFactory(client, time.Duration(0))
 
 	// V1
@@ -28,6 +35,8 @@ func TestNewController(t *testing.T) {
 		func() bool { return true },
 		make(chan struct{}),
 		v1Cfg,
+		wmeta,
+		nil,
 	)
 
 	assert.IsType(t, &ControllerV1{}, controller)
@@ -40,6 +49,8 @@ func TestNewController(t *testing.T) {
 		func() bool { return true },
 		make(chan struct{}),
 		v1beta1Cfg,
+		wmeta,
+		nil,
 	)
 
 	assert.IsType(t, &ControllerV1beta1{}, controller)

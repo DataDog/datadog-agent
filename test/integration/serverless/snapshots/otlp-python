@@ -13,7 +13,7 @@
             "meta": {
               "_dd.compute_stats": "1",
               "_dd.origin": "lambda",
-              "_dd.p.dm": "-9",
+              "_dd.p.dm": "null",
               "account_id": "############",
               "architecture": "XXX",
               "aws_account": "############",
@@ -31,17 +31,17 @@
               "otel.status_code": "Unset",
               "otel.trace_id": "null",
               "region": "eu-west-1",
-              "runtime": "provided.al2",
+              "runtime": "python3.8",
               "service": "integration-tests-service",
               "span.kind": "internal",
               "taga": "valuea",
               "tagb": "valueb",
               "tagc": "valuec",
               "tagd": "valued",
-              "telemetry.auto.version": "0.39b0",
+              "telemetry.auto.version": "0.44b0",
               "telemetry.sdk.language": "python",
               "telemetry.sdk.name": "opentelemetry",
-              "telemetry.sdk.version": "1.18.0",
+              "telemetry.sdk.version": "1.23.0",
               "version": "integration-tests-version"
             },
             "metrics": null,
@@ -76,21 +76,21 @@
               "functionname": "integration-tests-extension-XXXXXX-otlp-python",
               "memorysize": "1024",
               "otel.library.name": "opentelemetry.instrumentation.aws_lambda",
-              "otel.library.version": "0.39b0",
+              "otel.library.version": "0.44b0",
               "otel.status_code": "Unset",
               "otel.trace_id": "null",
               "region": "eu-west-1",
-              "runtime": "provided.al2",
+              "runtime": "python3.8",
               "service": "integration-tests-service",
               "span.kind": "server",
               "taga": "valuea",
               "tagb": "valueb",
               "tagc": "valuec",
               "tagd": "valued",
-              "telemetry.auto.version": "0.39b0",
+              "telemetry.auto.version": "0.44b0",
               "telemetry.sdk.language": "python",
               "telemetry.sdk.name": "opentelemetry",
-              "telemetry.sdk.version": "1.18.0",
+              "telemetry.sdk.version": "1.23.0",
               "version": "integration-tests-version"
             },
             "metrics": {
@@ -107,7 +107,8 @@
           }
         ],
         "tags": {
-          "_dd.otlp_sr": "1.00"
+          "_dd.otlp_sr": "null",
+          "_dd.p.dm": "null"
         }
       }
     ],
@@ -136,7 +137,7 @@
             "meta": {
               "_dd.compute_stats": "1",
               "_dd.origin": "lambda",
-              "_dd.p.dm": "-9",
+              "_dd.p.dm": "null",
               "account_id": "############",
               "architecture": "XXX",
               "aws_account": "############",
@@ -154,17 +155,17 @@
               "otel.status_code": "Unset",
               "otel.trace_id": "null",
               "region": "eu-west-1",
-              "runtime": "provided.al2",
+              "runtime": "python3.8",
               "service": "integration-tests-service",
               "span.kind": "internal",
               "taga": "valuea",
               "tagb": "valueb",
               "tagc": "valuec",
               "tagd": "valued",
-              "telemetry.auto.version": "0.39b0",
+              "telemetry.auto.version": "0.44b0",
               "telemetry.sdk.language": "python",
               "telemetry.sdk.name": "opentelemetry",
-              "telemetry.sdk.version": "1.18.0",
+              "telemetry.sdk.version": "1.23.0",
               "version": "integration-tests-version"
             },
             "metrics": null,
@@ -199,21 +200,21 @@
               "functionname": "integration-tests-extension-XXXXXX-otlp-python",
               "memorysize": "1024",
               "otel.library.name": "opentelemetry.instrumentation.aws_lambda",
-              "otel.library.version": "0.39b0",
+              "otel.library.version": "0.44b0",
               "otel.status_code": "Unset",
               "otel.trace_id": "null",
               "region": "eu-west-1",
-              "runtime": "provided.al2",
+              "runtime": "python3.8",
               "service": "integration-tests-service",
               "span.kind": "server",
               "taga": "valuea",
               "tagb": "valueb",
               "tagc": "valuec",
               "tagd": "valued",
-              "telemetry.auto.version": "0.39b0",
+              "telemetry.auto.version": "0.44b0",
               "telemetry.sdk.language": "python",
               "telemetry.sdk.name": "opentelemetry",
-              "telemetry.sdk.version": "1.18.0",
+              "telemetry.sdk.version": "1.23.0",
               "version": "integration-tests-version"
             },
             "metrics": {
@@ -230,7 +231,8 @@
           }
         ],
         "tags": {
-          "_dd.otlp_sr": "1.00"
+          "_dd.otlp_sr": "null",
+          "_dd.p.dm": "null"
         }
       }
     ],

@@ -3,50 +3,54 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:generate go run github.com/DataDog/datadog-agent/pkg/security/generators/event_copy -scope "(h *eventConsumerWrapper)" -pkg events -output event_copy_linux.go Process .
+
 //go:build linux
 
 // Package events handles process events
 package events
 
 import (
+	"slices"
 	"strings"
 	"sync"
 	"time"
 
 	"go.uber.org/atomic"
 	"go4.org/intern"
-	"golang.org/x/exp/slices"
 
-	"github.com/DataDog/datadog-agent/pkg/security/events"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-var theMonitor atomic.Value
-var once sync.Once
-var initErr error
+const (
+	chanSize = 100
+)
+
+var (
+	theMonitor atomic.Value
+	once       sync.Once
+	initErr    error
+	envFilter  = map[string]bool{
+		"DD_SERVICE": true,
+		"DD_VERSION": true,
+		"DD_ENV":     true,
+	}
+	envTagNames = map[string]string{
+		"DD_SERVICE": "service",
+		"DD_VERSION": "version",
+		"DD_ENV":     "env",
+	}
+)
 
 // Process is a process
 type Process struct {
 	Pid         uint32
-	Envs        []string
+	Tags        []*intern.Value
 	ContainerID *intern.Value
 	StartTime   int64
 	Expiry      int64
-}
-
-// Env returns the value of a environment variable
-func (p *Process) Env(key string) string {
-	for _, e := range p.Envs {
-		k, v, _ := strings.Cut(e, "=")
-		if k == key {
-			return v
-		}
-	}
-
-	return ""
 }
 
 // Init initializes the events package
@@ -84,9 +88,9 @@ func UnregisterHandler(handler ProcessEventHandler) {
 	m.UnregisterHandler(handler)
 }
 
-type eventHandlerWrapper struct{}
+type eventConsumerWrapper struct{}
 
-func (h *eventHandlerWrapper) HandleEvent(ev any) {
+func (h *eventConsumerWrapper) HandleEvent(ev any) {
 	if ev == nil {
 		log.Errorf("Received nil event")
 		return
@@ -105,10 +109,8 @@ func (h *eventHandlerWrapper) HandleEvent(ev any) {
 }
 
 // Copy copies the necessary fields from the event received from the event monitor
-func (h *eventHandlerWrapper) Copy(ev *model.Event) any {
+func (h *eventConsumerWrapper) Copy(ev *model.Event) any {
 	if theMonitor.Load() == nil {
-		// monitor is not initialized, so need to copy the event
-		// since it will get dropped by the handler anyway
 		return nil
 	}
 
@@ -121,32 +123,54 @@ func (h *eventHandlerWrapper) Copy(ev *model.Event) any {
 		processStartTime = ev.GetProcessForkTime()
 	}
 
-	envs := ev.GetProcessEnvp()
+	p := &Process{
+		Pid:       ev.GetProcessPid(),
+		StartTime: processStartTime.UnixNano(),
+	}
 
-	return &Process{
-		Pid:         ev.GetProcessPid(),
-		ContainerID: intern.GetByString(ev.GetContainerId()),
-		StartTime:   processStartTime.UnixNano(),
-		Envs: model.FilterEnvs(envs, map[string]bool{
-			"DD_SERVICE": true,
-			"DD_VERSION": true,
-			"DD_ENV":     true,
-		}),
+	envs := model.FilterEnvs(ev.GetProcessEnvp(), envFilter)
+	if len(envs) > 0 {
+		p.Tags = make([]*intern.Value, 0, len(envs))
+		for _, env := range envs {
+			k, v, _ := strings.Cut(env, "=")
+			if len(v) > 0 {
+				if t := envTagNames[k]; t != "" {
+					p.Tags = append(p.Tags, intern.GetByString(t+":"+v))
+				}
+			}
+		}
+	}
+
+	if cid := ev.GetContainerId(); cid != "" {
+		p.ContainerID = intern.GetByString(cid)
+	}
+
+	return p
+}
+
+// EventTypes returns the event types handled by this consumer
+func (h *eventConsumerWrapper) EventTypes() []model.EventType {
+	return []model.EventType{
+		model.ForkEventType,
+		model.ExecEventType,
 	}
 }
 
-func (h *eventHandlerWrapper) HandleCustomEvent(rule *rules.Rule, event *events.CustomEvent) {
-	m := theMonitor.Load()
-	if m != nil {
-		m.(*eventMonitor).HandleCustomEvent(rule, event)
-	}
+// ChanSize returns the chan size used by this consumer
+func (h *eventConsumerWrapper) ChanSize() int {
+	return chanSize
 }
 
-var _eventHandlerWrapper = &eventHandlerWrapper{}
+// ID returns the id of this consumer
+func (h eventConsumerWrapper) ID() string {
+	return "network"
+}
 
-// Handler returns an event handler to handle events from the runtime security module
-func Handler() sprobe.EventHandler {
-	return _eventHandlerWrapper
+var _eventConsumerWrapper = &eventConsumerWrapper{}
+
+// Consumer returns an event consumer to handle events from the runtime security module
+func Consumer() sprobe.EventConsumerInterface {
+	return _eventConsumerWrapper
 }
 
 type eventMonitor struct {
@@ -166,10 +190,6 @@ func (e *eventMonitor) HandleEvent(ev *Process) {
 	for _, h := range e.handlers {
 		h.HandleProcessEvent(ev)
 	}
-}
-
-//nolint:revive // TODO(NET) Fix revive linter
-func (e *eventMonitor) HandleCustomEvent(rule *rules.Rule, event *events.CustomEvent) {
 }
 
 func (e *eventMonitor) RegisterHandler(handler ProcessEventHandler) {

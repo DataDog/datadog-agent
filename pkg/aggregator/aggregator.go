@@ -14,9 +14,8 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -245,9 +244,9 @@ type BufferedAggregator struct {
 	health    *health.Handle
 	agentName string // Name of the agent for telemetry metrics
 
-	tlmContainerTagsEnabled bool                                              // Whether we should call the tagger to tag agent telemetry metrics
-	agentTags               func(collectors.TagCardinality) ([]string, error) // This function gets the agent tags from the tagger (defined as a struct field to ease testing)
-	globalTags              func(collectors.TagCardinality) ([]string, error) // This function gets global tags from the tagger when host tags are not available
+	tlmContainerTagsEnabled bool                                         // Whether we should call the tagger to tag agent telemetry metrics
+	agentTags               func(types.TagCardinality) ([]string, error) // This function gets the agent tags from the tagger (defined as a struct field to ease testing)
+	globalTags              func(types.TagCardinality) ([]string, error) // This function gets global tags from the tagger when host tags are not available
 
 	flushAndSerializeInParallel FlushAndSerializeInParallel
 }
@@ -268,21 +267,29 @@ func NewFlushAndSerializeInParallel(config config.Config) FlushAndSerializeInPar
 
 // NewBufferedAggregator instantiates a BufferedAggregator
 func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder eventplatform.Component, hostname string, flushInterval time.Duration) *BufferedAggregator {
-	bufferSize := config.Datadog.GetInt("aggregator_buffer_size")
+	bufferSize := config.Datadog().GetInt("aggregator_buffer_size")
 
 	agentName := flavor.GetFlavor()
-	if agentName == flavor.IotAgent && !config.Datadog.GetBool("iot_host") {
+	if agentName == flavor.IotAgent && !config.Datadog().GetBool("iot_host") {
 		agentName = flavor.DefaultAgent
-	} else if config.Datadog.GetBool("iot_host") {
+	} else if config.Datadog().GetBool("iot_host") {
 		// Override the agentName if this Agent is configured to report as IotAgent
 		agentName = flavor.IotAgent
 	}
-	if config.Datadog.GetBool("heroku_dyno") {
+	if config.Datadog().GetBool("heroku_dyno") {
 		// Override the agentName if this Agent is configured to report as Heroku Dyno
 		agentName = flavor.HerokuAgent
 	}
 
-	tagsStore := tags.NewStore(config.Datadog.GetBool("aggregator_use_tags_store"), "aggregator")
+	if config.Datadog().GetBool("djm_config.enabled") {
+		AddRecurrentSeries(&metrics.Serie{
+			Name:   "datadog.djm.agent_host",
+			Points: []metrics.Point{{Value: 1.0}},
+			MType:  metrics.APIGaugeType,
+		})
+	}
+
+	tagsStore := tags.NewStore(config.Datadog().GetBool("aggregator_use_tags_store"), "aggregator")
 
 	aggregator := &BufferedAggregator{
 		bufferedServiceCheckIn: make(chan []*servicecheck.ServiceCheck, bufferSize),
@@ -309,10 +316,10 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 		stopChan:                    make(chan struct{}),
 		health:                      health.RegisterLiveness("aggregator"),
 		agentName:                   agentName,
-		tlmContainerTagsEnabled:     config.Datadog.GetBool("basic_telemetry_add_container_tags"),
+		tlmContainerTagsEnabled:     config.Datadog().GetBool("basic_telemetry_add_container_tags"),
 		agentTags:                   tagger.AgentTags,
 		globalTags:                  tagger.GlobalTags,
-		flushAndSerializeInParallel: NewFlushAndSerializeInParallel(config.Datadog),
+		flushAndSerializeInParallel: NewFlushAndSerializeInParallel(config.Datadog()),
 	}
 
 	return aggregator
@@ -382,7 +389,7 @@ func (agg *BufferedAggregator) GetBufferedChannels() (chan []*event.Event, chan 
 }
 
 // GetEventPlatformForwarder returns a event platform forwarder
-func (agg *BufferedAggregator) GetEventPlatformForwarder() (eventplatformimpl.EventPlatformForwarder, error) {
+func (agg *BufferedAggregator) GetEventPlatformForwarder() (eventplatform.Forwarder, error) {
 	forwarder, found := agg.eventPlatformForwarder.Get()
 	if !found {
 		return nil, errors.New("event platform forwarder not initialized")
@@ -451,7 +458,7 @@ func (agg *BufferedAggregator) addServiceCheck(sc servicecheck.ServiceCheck) {
 		sc.Ts = time.Now().Unix()
 	}
 	tb := tagset.NewHashlessTagsAccumulatorFromSlice(sc.Tags)
-	tagger.EnrichTags(tb, sc.OriginFromUDS, sc.OriginFromClient, sc.Cardinality)
+	tagger.EnrichTags(tb, sc.OriginInfo)
 
 	tb.SortUniq()
 	sc.Tags = tb.Get()
@@ -465,7 +472,7 @@ func (agg *BufferedAggregator) addEvent(e event.Event) {
 		e.Ts = time.Now().Unix()
 	}
 	tb := tagset.NewHashlessTagsAccumulatorFromSlice(e.Tags)
-	tagger.EnrichTags(tb, e.OriginFromUDS, e.OriginFromClient, e.Cardinality)
+	tagger.EnrichTags(tb, e.OriginInfo)
 
 	tb.SortUniq()
 	e.Tags = tb.Get()
@@ -635,7 +642,7 @@ func (agg *BufferedAggregator) flushServiceChecks(start time.Time, waitForSerial
 	addFlushCount("ServiceChecks", int64(len(serviceChecks)))
 
 	// For debug purposes print out all serviceCheck/tag combinations
-	if config.Datadog.GetBool("log_payloads") {
+	if config.Datadog().GetBool("log_payloads") {
 		log.Debug("Flushing the following Service Checks:")
 		for _, sc := range serviceChecks {
 			log.Debugf("%s", sc)
@@ -692,7 +699,7 @@ func (agg *BufferedAggregator) flushEvents(start time.Time, waitForSerializer bo
 	addFlushCount("Events", int64(len(events)))
 
 	// For debug purposes print out all Event/tag combinations
-	if config.Datadog.GetBool("log_payloads") {
+	if config.Datadog().GetBool("log_payloads") {
 		log.Debug("Flushing the following Events:")
 		for _, event := range events {
 			log.Debugf("%s", event)
@@ -813,13 +820,13 @@ func (agg *BufferedAggregator) tags(withVersion bool) []string {
 	var tags []string
 
 	var err error
-	tags, err = agg.globalTags(tagger.ChecksCardinality)
+	tags, err = agg.globalTags(tagger.ChecksCardinality())
 	if err != nil {
 		log.Debugf("Couldn't get Global tags: %v", err)
 	}
 
 	if agg.tlmContainerTagsEnabled {
-		agentTags, err := agg.agentTags(tagger.ChecksCardinality)
+		agentTags, err := agg.agentTags(tagger.ChecksCardinality())
 		if err == nil {
 			if tags == nil {
 				tags = agentTags
@@ -832,6 +839,9 @@ func (agg *BufferedAggregator) tags(withVersion bool) []string {
 	}
 	if withVersion {
 		tags = append(tags, "version:"+version.AgentVersion)
+		if version.AgentPackageVersion != "" {
+			tags = append(tags, "package_version:"+version.AgentPackageVersion)
+		}
 	}
 	// nil to empty string
 	// This is expected by other components/tests
@@ -922,10 +932,10 @@ func (agg *BufferedAggregator) handleRegisterSampler(id checkid.ID) {
 		return
 	}
 	agg.checkSamplers[id] = newCheckSampler(
-		config.Datadog.GetInt("check_sampler_bucket_commits_count_expiry"),
-		config.Datadog.GetBool("check_sampler_expire_metrics"),
-		config.Datadog.GetBool("check_sampler_context_metrics"),
-		config.Datadog.GetDuration("check_sampler_stateful_metric_expiration_time"),
+		config.Datadog().GetInt("check_sampler_bucket_commits_count_expiry"),
+		config.Datadog().GetBool("check_sampler_expire_metrics"),
+		config.Datadog().GetBool("check_sampler_context_metrics"),
+		config.Datadog().GetDuration("check_sampler_stateful_metric_expiration_time"),
 		agg.tagsStore,
 		id,
 	)

@@ -13,7 +13,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	"github.com/DataDog/datadog-agent/comp/process/agent"
 	"github.com/DataDog/datadog-agent/comp/process/hostinfo/hostinfoimpl"
 	"github.com/DataDog/datadog-agent/comp/process/processcheck/processcheckimpl"
@@ -21,7 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/process/submitter/submitterimpl"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 func TestProcessAgentComponent(t *testing.T) {
@@ -53,13 +54,19 @@ func TestProcessAgentComponent(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			originalFlavor := flavor.GetFlavor()
 			flavor.SetFlavor(tc.agentFlavor)
+			defer func() {
+				flavor.SetFlavor(originalFlavor)
+			}()
 
 			opts := []fx.Option{
 				runnerimpl.Module(),
 				hostinfoimpl.MockModule(),
 				submitterimpl.MockModule(),
-				tagger.MockModule(),
+				telemetryimpl.Module(),
+				taggerimpl.MockModule(),
+				statsd.MockModule(),
 				Module(),
 			}
 
@@ -67,9 +74,8 @@ func TestProcessAgentComponent(t *testing.T) {
 				opts = append(opts, processcheckimpl.MockModule())
 			}
 
-			agt := fxutil.Test[optional.Option[agent.Component]](t, fx.Options(opts...))
-
-			assert.Equal(t, tc.expected, agt.IsSet())
+			agentComponent := fxutil.Test[agent.Component](t, fx.Options(opts...))
+			assert.Equal(t, tc.expected, agentComponent.Enabled())
 		})
 	}
 }

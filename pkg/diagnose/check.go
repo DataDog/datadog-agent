@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive // TODO(CINT) Fix revive linter
+// Package diagnose provides the diagnose functionality for the Agent.
 package diagnose
 
 import (
@@ -13,9 +13,9 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
-	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -23,14 +23,6 @@ import (
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
-
-func getDiagnose(diagCfg diagnosis.Config, senderManager sender.DiagnoseSenderManager, collector optional.Option[collector.Component]) []diagnosis.Diagnosis {
-	if coll, ok := collector.Get(); diagCfg.RunningInAgentProcess && ok {
-		return diagnoseChecksInAgentProcess(coll)
-	}
-
-	return diagnoseChecksInCLIProcess(diagCfg, senderManager)
-}
 
 func getInstanceDiagnoses(instance check.Check) []diagnosis.Diagnosis {
 
@@ -80,7 +72,7 @@ func diagnoseChecksInAgentProcess(collector collector.Component) []diagnosis.Dia
 	return diagnoses
 }
 
-func diagnoseChecksInCLIProcess(diagCfg diagnosis.Config, senderManager diagnosesendermanager.Component) []diagnosis.Diagnosis { //nolint:revive // TODO fix revive unused-parameter
+func diagnoseChecksInCLIProcess(_ diagnosis.Config, senderManager diagnosesendermanager.Component, secretResolver secrets.Component, wmeta optional.Option[workloadmeta.Component], ac autodiscovery.Component) []diagnosis.Diagnosis { //nolint:revive // TODO fix revive unused-parameter
 	// other choices
 	// 	run() github.com\DataDog\datadog-agent\pkg\cli\subcommands\check\command.go
 	//  runCheck() github.com\DataDog\datadog-agent\cmd\agent\gui\checks.go
@@ -98,19 +90,21 @@ func diagnoseChecksInCLIProcess(diagCfg diagnosis.Config, senderManager diagnose
 		}
 	}
 
-	// TODO: (components) Hack to retrieve a singleton reference to the secrets Component
-	//
-	// Only needed temporarily, since the secrets.Component is needed for the diagnose functionality.
-	// It is very difficult right now to modify diagnose because it would require modifying many
-	// function signatures, which would only increase future maintenance. Once diagnose is better
-	// integrated with Components, we should be able to remove this hack.
-	//
-	// Other components should not copy this pattern, it is only meant to be used temporarily.
-	secretResolver := secretsimpl.GetInstance()
-
+	wmetaInstance, ok := wmeta.Get()
+	if !ok {
+		errMsg := "Workload Meta is not available"
+		return []diagnosis.Diagnosis{
+			{
+				Result:      diagnosis.DiagnosisFail,
+				Name:        errMsg,
+				Diagnosis:   errMsg,
+				Remediation: errMsg,
+			},
+		}
+	}
 	// Initializing the aggregator with a flush interval of 0 (to disable the flush goroutines)
-	common.LoadComponents(secretResolver, workloadmeta.GetGlobalStore(), pkgconfig.Datadog.GetString("confd_path"))
-	common.AC.LoadAndRun(context.Background())
+	common.LoadComponents(secretResolver, wmetaInstance, ac, pkgconfig.Datadog().GetString("confd_path"))
+	ac.LoadAndRun(context.Background())
 
 	// Create the CheckScheduler, but do not attach it to
 	// AutoDiscovery.
@@ -118,7 +112,7 @@ func diagnoseChecksInCLIProcess(diagCfg diagnosis.Config, senderManager diagnose
 
 	// Load matching configurations (should we use common.AC.GetAllConfigs())
 	waitCtx, cancelTimeout := context.WithTimeout(context.Background(), time.Duration(5*time.Second))
-	diagnoseConfigs, err := common.WaitForAllConfigsFromAD(waitCtx)
+	diagnoseConfigs, err := common.WaitForAllConfigsFromAD(waitCtx, ac)
 	cancelTimeout()
 	if err != nil {
 		return []diagnosis.Diagnosis{

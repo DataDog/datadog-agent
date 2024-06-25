@@ -28,17 +28,6 @@ func Module() fxutil.Module {
 	)
 }
 
-// TraceModule defines the fx options for this component in its Trace variant.
-//
-// TODO(components): move this comp/trace; that component shall implement the
-//
-//	log.Component interface.
-func TraceModule() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newTraceLogger),
-	)
-}
-
 // logger implements the component
 type logger struct {
 	// this component is currently implementing a thin wrapper around

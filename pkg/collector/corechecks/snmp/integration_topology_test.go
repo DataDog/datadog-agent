@@ -17,9 +17,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/version"
 
@@ -33,7 +33,7 @@ func TestTopologyPayload_LLDP(t *testing.T) {
 	timeNow = common.MockTimeNow
 	aggregator.NewBufferedAggregator(nil, nil, "", 1*time.Hour)
 	invalidPath, _ := filepath.Abs(filepath.Join("internal", "test", "metadata.d"))
-	config.Datadog.SetWithoutSource("confd_path", invalidPath)
+	config.Datadog().SetWithoutSource("confd_path", invalidPath)
 
 	sess := session.CreateMockSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
@@ -593,6 +593,8 @@ profiles:
       ],
       "tags": [
         "agent_version:%s",
+		"device_id:profile-metadata:1.2.3.4",
+		"device_ip:1.2.3.4",
         "device_namespace:profile-metadata",
         "device_vendor:f5",
         "snmp_device:1.2.3.4",
@@ -732,7 +734,7 @@ func TestTopologyPayload_CDP(t *testing.T) {
 	timeNow = common.MockTimeNow
 	aggregator.NewBufferedAggregator(nil, nil, "", 1*time.Hour)
 	invalidPath, _ := filepath.Abs(filepath.Join("internal", "test", "metadata.d"))
-	config.Datadog.SetWithoutSource("confd_path", invalidPath)
+	config.Datadog().SetWithoutSource("confd_path", invalidPath)
 
 	sess := session.CreateMockSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
@@ -1292,6 +1294,8 @@ profiles:
       ],
       "tags": [
         "agent_version:%s",
+		"device_id:profile-metadata:1.2.3.4",
+		"device_ip:1.2.3.4",
         "device_namespace:profile-metadata",
         "device_vendor:f5",
         "snmp_device:1.2.3.4",
@@ -1422,7 +1426,7 @@ func TestTopologyPayload_LLDP_CDP(t *testing.T) {
 	timeNow = common.MockTimeNow
 	aggregator.NewBufferedAggregator(nil, nil, "", 1*time.Hour)
 	invalidPath, _ := filepath.Abs(filepath.Join("internal", "test", "metadata.d"))
-	config.Datadog.SetWithoutSource("confd_path", invalidPath)
+	config.Datadog().SetWithoutSource("confd_path", invalidPath)
 
 	sess := session.CreateMockSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
@@ -1982,6 +1986,8 @@ profiles:
       ],
       "tags": [
         "agent_version:%s",
+		"device_id:profile-metadata:1.2.3.4",
+		"device_ip:1.2.3.4",
         "device_namespace:profile-metadata",
         "device_vendor:f5",
         "snmp_device:1.2.3.4",

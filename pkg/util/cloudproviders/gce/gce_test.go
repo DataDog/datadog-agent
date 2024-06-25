@@ -40,7 +40,7 @@ func TestGetHostname(t *testing.T) {
 	metadataURL = ts.URL
 
 	val, err := GetHostname(ctx)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, expected, val)
 	assert.Equal(t, "/instance/hostname", lastRequest.URL.Path)
 }
@@ -84,7 +84,7 @@ func TestGetHostAliases(t *testing.T) {
 	metadataURL = ts.URL
 
 	val, err := GetHostAliases(ctx)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, []string{"gce-custom-hostname.custom-domain.gce-project", "gce-instance-name.gce-project"}, val)
 }
 
@@ -110,7 +110,7 @@ func TestGetHostAliasesInstanceNameError(t *testing.T) {
 	metadataURL = ts.URL
 
 	val, err := GetHostAliases(ctx)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, []string{"gce-custom-hostname.custom-domain.gce-project", "gce-custom-hostname.gce-project"}, val)
 }
 
@@ -128,7 +128,7 @@ func TestGetClusterName(t *testing.T) {
 	metadataURL = ts.URL
 
 	val, err := GetClusterName(ctx)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, expected, val)
 	assert.Equal(t, "/instance/attributes/cluster-name", lastRequest.URL.Path)
 }
@@ -147,7 +147,7 @@ func TestGetPublicIPv4(t *testing.T) {
 	metadataURL = ts.URL
 
 	val, err := GetPublicIPv4(ctx)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, expected, val)
 	assert.Equal(t, "/instance/network-interfaces/0/access-configs/0/external-ip", lastRequest.URL.Path)
 }
@@ -230,7 +230,7 @@ func TestGetNTPHosts(t *testing.T) {
 	defer ts.Close()
 
 	metadataURL = ts.URL
-	config.Datadog.SetWithoutSource("cloud_provider_metadata", []string{"gcp"})
+	config.Datadog().SetWithoutSource("cloud_provider_metadata", []string{"gcp"})
 	actualHosts := GetNTPHosts(ctx)
 
 	assert.Equal(t, expectedHosts, actualHosts)

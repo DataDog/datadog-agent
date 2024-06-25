@@ -3,29 +3,70 @@
 # verbose regular expressions by Black. Use [ ] to denote a significant space
 # character.
 
-[tool.black]
-include = '\.pyi?$'
+[tool.ruff]
+target-version = "py311"
+exclude = [
+    ".git",
+    ".github",
+    ".circleci",
+    "chocolatey",
+    "Dockerfiles",
+    "docs",
+    "google-marketplace",
+    "omnibus",
+    "pkg-config",
+    "releasenotes",
+    "vendor",
+    "venv",
+    "dev",
+]
 line-length = 120
-py36 = false
-skip-string-normalization = true
-exclude = '''
-(
-  /(
-    | \.git
-    | docs
-    | releasenotes
-    | releasenotes-installscript
-    | vendor
-    | dev
-  )/
-)
-'''
 
-[tool.isort]
-default_section = 'THIRDPARTY'
-force_grid_wrap = 0
-include_trailing_comma = true
-known_first_party = 'datadog_checks'
-line_length = 120
-multi_line_output = 3
-use_parentheses = true
+[tool.ruff.lint]
+# All the rules can be found here: https://beta.ruff.rs/docs/rules/
+select = [
+    "B",
+    "C",
+    "E",
+    "F",
+    "G",
+    "I",
+    "U",
+    "W",
+]
+ignore = [
+    "E501", # line-too-long
+    "C901", # complex-structure
+    "UP033", # Ignore the lru_cache for now
+    "UP017", # Ignore datetime.UTC for now
+]
+unfixable = [
+    "UP033", # Don't fix the lru_cache yet
+    "UP017", # Don't fix datetime.UTC yet
+]
+
+[tool.ruff.lint.flake8-tidy-imports]
+ban-relative-imports = "all"
+
+[tool.ruff.format]
+# Enable preview style formatting.
+quote-style = "preserve"
+
+[tool.mypy]
+# Follows imports and type-check imported modules.
+follow_imports = "normal"
+# Ignore errors about imported packages that don't provide type hints.
+ignore_missing_imports = true
+# Don't require that all functions be annotated, as it would create
+# a lot of noise for imported modules that aren't annotated yet.
+# Note that this is the default behavior, but we're making our choice explicit here.
+disallow_untyped_defs = false
+# Include column numbers in errors.
+show_column_numbers = true
+# Exclude unit tests for now
+exclude = ['tasks/unit-tests']
+
+[tool.vulture]
+ignore_decorators = ["@task"]
+ignore_names = ["test_*", "Test*"]
+paths = ["tasks"]

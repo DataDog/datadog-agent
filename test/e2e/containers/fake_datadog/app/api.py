@@ -274,13 +274,13 @@ def logging():
 
 
 def stat_records():
-    j = dict()
+    j = {}
     for elt in payload_names:
         try:
             p = path.join(record_dir, elt)
             st = os.stat(p)
             lines = 0
-            with open(p, 'r') as f:
+            with open(p) as f:
                 for _ in f:
                     lines += 1
             j[elt] = {"size": st.st_size, "lines": lines}
@@ -303,10 +303,10 @@ def get_records(name):
     if path.isfile(path.join(record_dir, name)) is False:
         return Response(status=503)
 
-    payloads = list()
-    with open(path.join(record_dir, name), 'r') as f:
-        for l in f:
-            payloads.append(json.loads(l))
+    payloads = []
+    with open(path.join(record_dir, name)) as f:
+        for line in f:
+            payloads.append(json.loads(line))
     return json.dumps(payloads), 200
 
 

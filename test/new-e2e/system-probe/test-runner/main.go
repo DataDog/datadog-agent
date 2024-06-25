@@ -41,26 +41,27 @@ type packageRunConfiguration struct {
 }
 
 type testConfig struct {
+	runCount          int
 	retryCount        int
+	verbose           bool
 	packagesRunConfig map[string]packageRunConfiguration
+	testDirRoot       string
+	testingTools      string
+	extraParams       string
 }
 
-const (
-	testDirRoot  = "/system-probe-tests"
-	ciVisibility = "/ci-visibility"
-)
+const ciVisibility = "/ci-visibility"
 
 var baseEnv = []string{
 	"GITLAB_CI=true", // force color output support to be detected
 	"GOVERSION=" + runtime.Version(),
-	"DD_SYSTEM_PROBE_BPF_DIR=" + filepath.Join(testDirRoot, "pkg/ebpf/bytecode/build"),
-	"DD_SYSTEM_PROBE_JAVA_DIR=" + filepath.Join(testDirRoot, "pkg/network/protocols/tls/java"),
 }
 
 var timeouts = map[*regexp.Regexp]time.Duration{
 	regexp.MustCompile("pkg/network/protocols/http$"): 15 * time.Minute,
 	regexp.MustCompile("pkg/network/tracer$"):         55 * time.Minute,
-	regexp.MustCompile("pkg/network/usm$"):            30 * time.Minute,
+	regexp.MustCompile("pkg/network/usm$"):            55 * time.Minute,
+	regexp.MustCompile("pkg/security.*"):              30 * time.Minute,
 }
 
 func getTimeout(pkg string) time.Duration {
@@ -75,8 +76,21 @@ func getTimeout(pkg string) time.Duration {
 	return to
 }
 
+func getEBPFBuildDir() (string, error) {
+	arch, _, err := getArchAndRelease()
+	if err != nil {
+		return "", fmt.Errorf("cannot get arch: %w", err)
+	}
+	if arch == "aarch64" {
+		arch = "arm64"
+	}
+
+	return fmt.Sprintf("pkg/ebpf/bytecode/build/%s", arch), nil
+}
+
 func glob(dir, filePattern string, filterFn func(path string) bool) ([]string, error) {
 	var matches []string
+
 	err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -101,20 +115,24 @@ func glob(dir, filePattern string, filterFn func(path string) bool) ([]string, e
 	return matches, nil
 }
 
-func pathToPackage(path string) string {
-	dir, _ := filepath.Rel(testDirRoot, filepath.Dir(path))
-	return dir
-}
-
 func buildCommandArgs(pkg string, xmlpath string, jsonpath string, file string, testConfig *testConfig) []string {
+	verbosity := "testname"
+	if testConfig.verbose {
+		verbosity = "standard-verbose"
+	}
+
 	args := []string{
-		"--format", "testname",
+		"--format", verbosity,
 		"--junitfile", xmlpath,
 		"--jsonfile", jsonpath,
 		fmt.Sprintf("--rerun-fails=%d", testConfig.retryCount),
 		"--rerun-fails-max-failures=100",
 		"--raw-command", "--",
-		"/go/bin/test2json", "-t", "-p", pkg, file, "-test.v", "-test.count=1", "-test.timeout=" + getTimeout(pkg).String(),
+		filepath.Join(testConfig.testingTools, "go/bin/test2json"), "-t", "-p", pkg, file, "-test.v", fmt.Sprintf("-test.count=%d", testConfig.runCount), "-test.timeout=" + getTimeout(pkg).String(),
+	}
+
+	if testConfig.extraParams != "" {
+		args = append(args, strings.Split(testConfig.extraParams, " ")...)
 	}
 
 	packagesRunConfig := testConfig.packagesRunConfig
@@ -165,8 +183,8 @@ func createDir(d string) error {
 }
 
 func testPass(testConfig *testConfig, props map[string]string) error {
-	testsuites, err := glob(testDirRoot, "testsuite", func(path string) bool {
-		dir := pathToPackage(path)
+	testsuites, err := glob(testConfig.testDirRoot, "testsuite", func(path string) bool {
+		dir, _ := filepath.Rel(testConfig.testDirRoot, filepath.Dir(path))
 
 		if config, ok := testConfig.packagesRunConfig[dir]; ok {
 			return !config.Exclude
@@ -192,21 +210,35 @@ func testPass(testConfig *testConfig, props map[string]string) error {
 	}
 
 	for _, testsuite := range testsuites {
-		pkg := pathToPackage(testsuite)
+		pkg, err := filepath.Rel(testConfig.testDirRoot, filepath.Dir(testsuite))
+		if err != nil {
+			return fmt.Errorf("could not get relative path for %s: %w", testsuite, err)
+		}
 		junitfilePrefix := strings.ReplaceAll(pkg, "/", "-")
 		xmlpath := filepath.Join(xmlDir, fmt.Sprintf("%s.xml", junitfilePrefix))
 		jsonpath := filepath.Join(jsonDir, fmt.Sprintf("%s.json", junitfilePrefix))
 		args := buildCommandArgs(pkg, xmlpath, jsonpath, testsuite, testConfig)
 
-		cmd := exec.Command("/go/bin/gotestsum", args...)
+		cmd := exec.Command(filepath.Join(testConfig.testingTools, "go/bin/gotestsum"), args...)
+
+		buildDir, err := getEBPFBuildDir()
+		if err != nil {
+			return fmt.Errorf("getEBPFBuildDir: %w", err)
+		}
+		baseEnv = append(
+			baseEnv,
+			"DD_SYSTEM_PROBE_BPF_DIR="+filepath.Join(testConfig.testDirRoot, buildDir),
+			"DD_SERVICE_MONITORING_CONFIG_TLS_JAVA_DIR="+filepath.Join(testConfig.testDirRoot, "pkg/network/protocols/tls/java"),
+		)
 		cmd.Env = append(cmd.Environ(), baseEnv...)
+
 		cmd.Dir = filepath.Dir(testsuite)
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 
 		if err := cmd.Run(); err != nil {
 			// log but do not return error
-			fmt.Fprintf(os.Stderr, "cmd run %s: %s", testsuite, err)
+			fmt.Fprintf(os.Stderr, "cmd run %s: %s\n", testsuite, err)
 		}
 
 		if err := addProperties(xmlpath, props); err != nil {
@@ -220,9 +252,27 @@ func testPass(testConfig *testConfig, props map[string]string) error {
 	return nil
 }
 
+func getRealPath(dir string) (string, error) {
+	target := dir
+
+	if fi, err := os.Lstat(target); err == nil && fi.Mode()&os.ModeSymlink != 0 {
+		target, err = os.Readlink(target)
+		if err != nil {
+			return "", fmt.Errorf("unable to resolve symlink for %s: %w", target, err)
+		}
+	}
+
+	return target, nil
+}
+
 func buildTestConfiguration() (*testConfig, error) {
 	retryPtr := flag.Int("retry", 2, "number of times to retry testing pass")
 	packageRunConfigPtr := flag.String("packages-run-config", "", "Configuration for controlling which tests run in a package")
+	verbose := flag.Bool("verbose", false, "if set to true verbosity level is 'standard-verbose', otherwise it is 'testname'")
+	runCount := flag.Int("run-count", 1, "number of times to run the test")
+	testRoot := flag.String("test-root", "/opt/system-probe-tests", "directory containing test packages")
+	testTools := flag.String("test-tools", "/opt/testing-tools", "directory containing test tools")
+	extraParams := flag.String("extra-params", "", "extra parameters to pass to the test runner")
 
 	flag.Parse()
 
@@ -241,9 +291,25 @@ func buildTestConfiguration() (*testConfig, error) {
 		}
 	}
 
+	// get real path because the `WalkDir` helper does not support following symlinks
+	root, err := getRealPath(*testRoot)
+	if err != nil {
+		return nil, err
+	}
+
+	tools, err := getRealPath(*testTools)
+	if err != nil {
+		return nil, err
+	}
+
 	return &testConfig{
+		runCount:          *runCount,
+		verbose:           *verbose,
 		retryCount:        *retryPtr,
 		packagesRunConfig: breakdown,
+		testDirRoot:       root,
+		testingTools:      tools,
+		extraParams:       *extraParams,
 	}, nil
 }
 
@@ -270,17 +336,25 @@ func readOSRelease() (map[string]string, error) {
 	return keyvals, nil
 }
 
+func getArchAndRelease() (string, string, error) {
+	var u unix.Utsname
+	if err := unix.Uname(&u); err != nil {
+		return "", "", fmt.Errorf("uname: %w", err)
+	}
+	arch, release := unix.ByteSliceToString(u.Machine[:]), unix.ByteSliceToString(u.Release[:])
+	return arch, release, nil
+}
+
 func getProps() (map[string]string, error) {
 	osrHash, err := readOSRelease()
 	if err != nil {
 		return nil, fmt.Errorf("os-release: %s", err)
 	}
 	osname := fmt.Sprintf("%s-%s", osrHash["ID"], osrHash["VERSION_ID"])
-	var u unix.Utsname
-	if err := unix.Uname(&u); err != nil {
-		return nil, fmt.Errorf("uname: %w", err)
+	arch, release, err := getArchAndRelease()
+	if err != nil {
+		return nil, fmt.Errorf("arch and release: %s", err)
 	}
-	arch, release := unix.ByteSliceToString(u.Machine[:]), unix.ByteSliceToString(u.Release[:])
 	fmt.Printf("arch: %s\nrelease: %s\n", arch, release)
 	return map[string]string{
 		"dd_tags[os.platform]":     "linux",
@@ -296,17 +370,17 @@ func pathEmbedded(fullPath, embedded string) bool {
 	return strings.Contains(fullPath, normalized)
 }
 
-func fixAssetPermissions() error {
+func fixAssetPermissions(testDirRoot string) error {
 	matches, err := glob(testDirRoot, `.*\.o`, func(path string) bool {
 		return pathEmbedded(path, "pkg/ebpf/bytecode/build")
 	})
 	if err != nil {
-		return fmt.Errorf("glob assets: %s", err)
+		return fmt.Errorf("glob assets: %w", err)
 	}
 
 	for _, file := range matches {
 		if err := os.Chown(file, 0, 0); err != nil {
-			return fmt.Errorf("chown %s: %s", file, err)
+			return fmt.Errorf("chown %s: %w", file, err)
 		}
 	}
 	return nil
@@ -323,7 +397,7 @@ func run() error {
 		return fmt.Errorf("failed to build test configuration: %w", err)
 	}
 
-	if err := fixAssetPermissions(); err != nil {
+	if err := fixAssetPermissions(testConfig.testDirRoot); err != nil {
 		return fmt.Errorf("asset perms: %s", err)
 	}
 

@@ -216,6 +216,8 @@ func convertContainerStatus(cs corev1.ContainerStatus) model.ContainerStatus {
 		ContainerID:  cs.ContainerID,
 		Ready:        cs.Ready,
 		RestartCount: cs.RestartCount,
+		Image:        cs.Image,
+		ImageID:      cs.ImageID,
 	}
 	// detecting the current state
 	if cs.State.Waiting != nil {
@@ -259,6 +261,19 @@ func convertResourceRequirements(rq corev1.ResourceRequirements, containerName s
 			if quantity, found := (*resourceList)[resourceName]; found {
 				holder[resourceName.String()] = handler(quantity)
 			}
+		}
+	}
+
+	// Fill non-default values (other than CPU and Memory)
+	for resourceName, quantity := range rq.Limits {
+		if _, found := limits[resourceName.String()]; !found {
+			limits[resourceName.String()] = quantity.Value()
+		}
+	}
+
+	for resourceName, quantity := range rq.Requests {
+		if _, found := requests[resourceName.String()]; !found {
+			requests[resourceName.String()] = quantity.Value()
 		}
 	}
 

@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"runtime"
 
 	manager "github.com/DataDog/ebpf-manager"
 	"golang.org/x/sys/unix"
@@ -30,6 +31,7 @@ const (
 	probeUID               = "so"
 
 	// probe used for streaming shared library events
+	openSysCall    = "open"
 	openatSysCall  = "openat"
 	openat2SysCall = "openat2"
 )
@@ -39,10 +41,10 @@ var traceTypes = []string{"enter", "exit"}
 type ebpfProgram struct {
 	cfg         *config.Config
 	perfHandler *ddebpf.PerfHandler
-	*ebpftelemetry.Manager
+	*ddebpf.Manager
 }
 
-func newEBPFProgram(c *config.Config, bpfTelemetry *ebpftelemetry.EBPFTelemetry) *ebpfProgram {
+func newEBPFProgram(c *config.Config) *ebpfProgram {
 	perfHandler := ddebpf.NewPerfHandler(100)
 	pm := &manager.PerfMap{
 		Map: manager.Map{
@@ -74,7 +76,7 @@ func newEBPFProgram(c *config.Config, bpfTelemetry *ebpftelemetry.EBPFTelemetry)
 
 	return &ebpfProgram{
 		cfg:         c,
-		Manager:     ebpftelemetry.NewManager(mgr, bpfTelemetry),
+		Manager:     ddebpf.NewManager(mgr, &ebpftelemetry.ErrorsTelemetryModifier{}),
 		perfHandler: perfHandler,
 	}
 }
@@ -133,7 +135,8 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 	}
 
 	options.VerifierOptions.Programs.LogSize = 10 * 1024 * 1024
-	return e.InitWithOptions(buf, options)
+	options.BypassEnabled = e.cfg.BypassEnabled
+	return e.InitWithOptions(buf, &options)
 }
 
 func (e *ebpfProgram) initCORE() error {
@@ -177,11 +180,16 @@ func sysOpenAt2Supported() bool {
 	return kversion >= kernel.VersionCode(5, 6, 0)
 }
 
-// getSysOpenHooksIdentifiers returns the enter and exit tracepoints for openat and openat2 (if supported).
+// getSysOpenHooksIdentifiers returns the enter and exit tracepoints for supported open*
+// system calls.
 func getSysOpenHooksIdentifiers() []manager.ProbeIdentificationPair {
 	openatProbes := []string{openatSysCall}
 	if sysOpenAt2Supported() {
 		openatProbes = append(openatProbes, openat2SysCall)
+	}
+	// amd64 has open(2), arm64 doesn't
+	if runtime.GOARCH == "amd64" {
+		openatProbes = append(openatProbes, openSysCall)
 	}
 
 	res := make([]manager.ProbeIdentificationPair, 0, len(traceTypes)*len(openatProbes))

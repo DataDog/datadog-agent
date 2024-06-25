@@ -176,12 +176,12 @@ func Test_ConsumeMetrics_Tags(t *testing.T) {
 			ctx := context.Background()
 			f := NewFactory(rec, &MockTagEnricher{}, func(context.Context) (string, error) {
 				return "", nil
-			})
-			cfg := f.CreateDefaultConfig().(*exporterConfig)
+			}, nil, nil)
+			cfg := f.CreateDefaultConfig().(*ExporterConfig)
 			cfg.Metrics.Tags = strings.Join(tt.extraTags, ",")
 			exp, err := f.CreateMetricsExporter(
 				ctx,
-				exportertest.NewNopCreateSettings(),
+				exportertest.NewNopSettings(),
 				cfg,
 			)
 			require.NoError(t, err)

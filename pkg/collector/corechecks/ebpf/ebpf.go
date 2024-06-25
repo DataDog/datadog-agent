@@ -16,8 +16,8 @@ import (
 	"gopkg.in/yaml.v2"
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	ebpfcheck "github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck/model"
@@ -61,8 +61,8 @@ func (c *EBPFCheckConfig) Parse(data []byte) error {
 }
 
 // Configure parses the check configuration and init the check
-func (m *EBPFCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
-	if err := m.CommonConfigure(senderManager, integrationConfigDigest, initConfig, config, source); err != nil {
+func (m *EBPFCheck) Configure(senderManager sender.SenderManager, _ uint64, config, initConfig integration.Data, source string) error {
+	if err := m.CommonConfigure(senderManager, initConfig, config, source); err != nil {
 		return err
 	}
 	if err := m.config.Parse(config); err != nil {

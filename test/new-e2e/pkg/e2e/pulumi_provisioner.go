@@ -26,9 +26,10 @@ type PulumiEnvRunFunc[Env any] func(ctx *pulumi.Context, env *Env) error
 
 // PulumiProvisioner is a provisioner based on Pulumi with binding to an environment.
 type PulumiProvisioner[Env any] struct {
-	id        string
-	runFunc   PulumiEnvRunFunc[Env]
-	configMap runner.ConfigMap
+	id           string
+	runFunc      PulumiEnvRunFunc[Env]
+	configMap    runner.ConfigMap
+	diagnoseFunc func(ctx context.Context, stackName string) (string, error)
 }
 
 var (
@@ -71,13 +72,13 @@ func (pp *PulumiProvisioner[Env]) ProvisionEnv(ctx context.Context, stackName st
 	_, stackOutput, err := infra.GetStackManager().GetStackNoDeleteOnFailure(
 		ctx,
 		stackName,
-		pp.configMap,
 		func(ctx *pulumi.Context) error {
 			return pp.runFunc(ctx, env)
 		},
-		false,
-		logger,
+		infra.WithConfigMap(pp.configMap),
+		infra.WithLogWriter(logger),
 	)
+
 	if err != nil {
 		return nil, err
 	}
@@ -99,6 +100,19 @@ func (pp *PulumiProvisioner[Env]) ProvisionEnv(ctx context.Context, stackName st
 	}
 
 	return resources, nil
+}
+
+// Diagnose runs the diagnose function if it is set diagnoseFunc
+func (pp *PulumiProvisioner[Env]) Diagnose(ctx context.Context, stackName string) (string, error) {
+	if pp.diagnoseFunc != nil {
+		return pp.diagnoseFunc(ctx, stackName)
+	}
+	return "", nil
+}
+
+// SetDiagnoseFunc sets the diagnose function.
+func (pp *PulumiProvisioner[Env]) SetDiagnoseFunc(diagnoseFunc func(ctx context.Context, stackName string) (string, error)) {
+	pp.diagnoseFunc = diagnoseFunc
 }
 
 // Destroy deletes the Pulumi stack.

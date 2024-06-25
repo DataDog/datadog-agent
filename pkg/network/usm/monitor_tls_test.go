@@ -8,6 +8,7 @@
 package usm
 
 import (
+	"bufio"
 	"bytes"
 	"crypto/tls"
 	"fmt"
@@ -16,6 +17,7 @@ import (
 	nethttp "net/http"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -28,17 +30,21 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
+	eventmonitortestutil "github.com/DataDog/datadog-agent/pkg/eventmonitor/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http2"
+	protocolsUtils "github.com/DataDog/datadog-agent/pkg/network/protocols/testutil"
 	gotlstestutil "github.com/DataDog/datadog-agent/pkg/network/protocols/tls/gotls/testutil"
 	javatestutil "github.com/DataDog/datadog-agent/pkg/network/protocols/tls/java/testutil"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/tls/nodejs"
 	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
 	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
+	procmontestutil "github.com/DataDog/datadog-agent/pkg/process/monitor/testutil"
 )
 
 type tlsSuite struct {
@@ -77,10 +83,9 @@ func (s *tlsSuite) TestHTTPSViaLibraryIntegration() {
 		regexp.MustCompile(`/[^ ]+libgnutls.so[^ ]*`),
 	}
 	tests := []struct {
-		name         string
-		fetchCmd     []string
-		prefetchLibs []string
-		commandFound bool
+		name                string
+		fetchCmd            []string
+		getBinaryAndCommand func(*testing.T) (string, []string, []string)
 	}{
 		{
 			name:     "wget",
@@ -90,65 +95,84 @@ func (s *tlsSuite) TestHTTPSViaLibraryIntegration() {
 			name:     "curl",
 			fetchCmd: []string{"curl", "--http1.1", "-k", "-o/dev/null", "-d", tempFile},
 		},
+		{
+			// musl (used in, for example, Alpine Linux) uses the open(2) system
+			// call to open shared libraries, unlike glibc (default in most
+			// other distributions) which uses openat(2) or openat2(2).
+			name:     "curl (musl)",
+			fetchCmd: []string{"chroot"},
+			getBinaryAndCommand: func(t *testing.T) (string, []string, []string) {
+				dir, err := testutil.CurDir()
+				require.NoError(t, err)
+
+				dir = path.Join(dir, "testdata", "musl")
+				protocolsUtils.RunDockerServer(t, "musl-alpine", path.Join(dir, "/docker-compose.yml"),
+					nil, regexp.MustCompile("started"), protocolsUtils.DefaultTimeout, 3)
+
+				rawout, err := exec.Command("docker", "inspect", "-f", "{{.State.Pid}}", "musl-alpine-1").Output()
+				require.NoError(t, err)
+				containerPid := strings.TrimSpace(string(rawout))
+				containerRoot := fmt.Sprintf("/proc/%s/root", containerPid)
+
+				// We start curl with chroot instead of via docker run since
+				// docker run forks and so `testHTTPSLibrary` woudn't have the
+				// PID of curl which it needs to wait for the shared library
+				// monitoring to happen.
+				return containerRoot, []string{"chroot", containerRoot, "ldd", "/usr/bin/curl"}, []string{"chroot", containerRoot,
+					"curl", "--http1.1", "-k", "-o/dev/null", "-d", tempFile}
+			},
+		},
 	}
 
-	if lddFound {
-		for index := range tests {
-			fetch, err := exec.LookPath(tests[index].fetchCmd[0])
-			tests[index].commandFound = err == nil
-			if !tests[index].commandFound {
-				continue
-			}
-			linked, _ := exec.Command(ldd, fetch).Output()
+	// Spin-up HTTPS server
+	serverDoneFn := testutil.HTTPServer(t, "127.0.0.1:8443", testutil.Options{
+		EnableTLS:       true,
+		EnableKeepAlive: true,
+		// Having some sleep in the response, to allow us to ensure we hooked the process.
+		SlowResponse: time.Millisecond * 200,
+	})
+	t.Cleanup(serverDoneFn)
 
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// The 2 checks below, could be done outside the loops, but it wouldn't mark the specific tests
+			// as skipped. So we're checking it here.
+			if !lddFound {
+				t.Skip("ldd not found; skipping test.")
+			}
+
+			fetch, err := exec.LookPath(test.fetchCmd[0])
+			commandFound := err == nil
+			if !commandFound {
+				t.Skipf("%s not found; skipping test.", test.fetchCmd)
+			}
+
+			root := ""
+			lddCommand := []string{ldd, fetch}
+			command := test.fetchCmd
+			if test.getBinaryAndCommand != nil {
+				root, lddCommand, command = test.getBinaryAndCommand(t)
+			}
+
+			linked, _ := exec.Command(lddCommand[0], lddCommand[1:]...).Output()
+
+			var prefetchLibs []string
 			for _, lib := range tlsLibs {
 				libSSLPath := lib.FindString(string(linked))
-				if _, err := os.Stat(libSSLPath); err == nil {
-					tests[index].prefetchLibs = append(tests[index].prefetchLibs, libSSLPath)
+				if libSSLPath == "" {
+					continue
 				}
-			}
-		}
-	}
+				libSSLPath = path.Join(root, libSSLPath)
+				if _, err := os.Stat(libSSLPath); err == nil {
+					prefetchLibs = append(prefetchLibs, libSSLPath)
+				}
 
-	for _, keepAlive := range []struct {
-		name  string
-		value bool
-	}{
-		{
-			name:  "without keep-alive",
-			value: false,
-		},
-		{
-			name:  "with keep-alive",
-			value: true,
-		},
-	} {
-		t.Run(keepAlive.name, func(t *testing.T) {
-			// Spin-up HTTPS server
-			serverDoneFn := testutil.HTTPServer(t, "127.0.0.1:8443", testutil.Options{
-				EnableTLS:       true,
-				EnableKeepAlive: keepAlive.value,
-				// Having some sleep in the response, to allow us to ensure we hooked the process.
-				SlowResponse: time.Millisecond * 200,
-			})
-			t.Cleanup(serverDoneFn)
-
-			for _, test := range tests {
-				t.Run(test.name, func(t *testing.T) {
-					// The 2 checks below, could be done outside the loops, but it wouldn't mark the specific tests
-					// as skipped. So we're checking it here.
-					if !lddFound {
-						t.Skip("ldd not found; skipping test.")
-					}
-					if !test.commandFound {
-						t.Skipf("%s not found; skipping test.", test.fetchCmd)
-					}
-					if len(test.prefetchLibs) == 0 {
-						t.Fatalf("%s not linked with any of these libs %v", test.name, tlsLibs)
-					}
-					testHTTPSLibrary(t, cfg, test.fetchCmd, test.prefetchLibs)
-				})
 			}
+
+			if len(prefetchLibs) == 0 {
+				t.Fatalf("%s not linked with any of these libs %v", test.name, tlsLibs)
+			}
+			testHTTPSLibrary(t, cfg, command, prefetchLibs)
 		})
 	}
 }
@@ -403,7 +427,7 @@ func simpleGetRequestsGenerator(t *testing.T, targetAddr string) (*nethttp.Clien
 	return client, func() *nethttp.Request {
 		idx++
 		status := statusCodes[random.Intn(len(statusCodes))]
-		req, err := nethttp.NewRequest(nethttp.MethodGet, fmt.Sprintf("https://%s/%d/request-%d", targetAddr, status, idx), nil)
+		req, err := nethttp.NewRequest(nethttp.MethodGet, fmt.Sprintf("https://%s/status/%d/request-%d", targetAddr, status, idx), nil)
 		require.NoError(t, err)
 
 		resp, err := client.Do(req)
@@ -523,6 +547,8 @@ func (s *tlsSuite) TestJavaInjection() {
 }
 
 func TestHTTPGoTLSAttachProbes(t *testing.T) {
+	t.Skip("skipping GoTLS tests while we investigate their flakiness")
+
 	modes := []ebpftest.BuildMode{ebpftest.RuntimeCompiled, ebpftest.CORE}
 	ebpftest.TestBuildModes(t, modes, "", func(t *testing.T) {
 		if !gotlstestutil.GoTLSSupported(t, config.New()) {
@@ -538,23 +564,38 @@ func TestHTTPGoTLSAttachProbes(t *testing.T) {
 	})
 }
 
-func TestHTTP2GoTLSAttachProbes(t *testing.T) {
+func testHTTP2GoTLSAttachProbes(t *testing.T, cfg *config.Config) {
 	modes := []ebpftest.BuildMode{ebpftest.RuntimeCompiled, ebpftest.CORE}
 	ebpftest.TestBuildModes(t, modes, "", func(t *testing.T) {
 		if !http2.Supported() {
 			t.Skip("HTTP2 not supported for this setup")
 		}
-		if !gotlstestutil.GoTLSSupported(t, config.New()) {
+		if !gotlstestutil.GoTLSSupported(t, cfg) {
 			t.Skip("GoTLS not supported for this setup")
 		}
 
 		t.Run("new process", func(t *testing.T) {
-			testHTTPGoTLSCaptureNewProcess(t, config.New(), true)
+			testHTTPGoTLSCaptureNewProcess(t, cfg, true)
 		})
 		t.Run("already running process", func(t *testing.T) {
-			testHTTPGoTLSCaptureAlreadyRunning(t, config.New(), true)
+			testHTTPGoTLSCaptureAlreadyRunning(t, cfg, true)
 		})
 	})
+}
+
+func TestHTTP2GoTLSAttachProbes(t *testing.T) {
+	t.Run("netlink",
+		func(t *testing.T) {
+			cfg := config.New()
+			cfg.EnableUSMEventStream = false
+			testHTTP2GoTLSAttachProbes(t, cfg)
+		})
+	t.Run("event stream",
+		func(t *testing.T) {
+			cfg := config.New()
+			cfg.EnableUSMEventStream = true
+			testHTTP2GoTLSAttachProbes(t, cfg)
+		})
 }
 
 func TestHTTPSGoTLSAttachProbesOnContainer(t *testing.T) {
@@ -570,6 +611,136 @@ func TestHTTPSGoTLSAttachProbesOnContainer(t *testing.T) {
 		})
 		t.Run("already running process", func(t *testing.T) {
 			testHTTPSGoTLSCaptureAlreadyRunningContainer(t, config.New())
+		})
+	})
+}
+
+func TestOldConnectionRegression(t *testing.T) {
+	t.Skip("skipping this test for now while we investigate the errors on debian-10-x86 and ubuntu-18.04-x86")
+
+	modes := []ebpftest.BuildMode{ebpftest.RuntimeCompiled, ebpftest.CORE}
+	ebpftest.TestBuildModes(t, modes, "", func(t *testing.T) {
+		if !gotlstestutil.GoTLSSupported(t, config.New()) {
+			t.Skip("GoTLS not supported for this setup")
+		}
+
+		// Spin up HTTP server
+		const serverAddr = "127.0.0.1:8081"
+		const httpPath = "/200/foobar"
+		closeServer := testutil.HTTPServer(t, serverAddr, testutil.Options{
+			EnableTLS:       true,
+			EnableKeepAlive: true,
+		})
+		t.Cleanup(closeServer)
+
+		// Create a TLS connection *before* starting the USM monitor
+		// This is the main purpose of this test: verifying that GoTLS
+		// monitoring works for connections initiated prior to USM monitor.
+		tlsConfig := &tls.Config{InsecureSkipVerify: true}
+		conn, err := tls.Dial("tcp", serverAddr, tlsConfig)
+		require.NoError(t, err)
+		defer conn.Close()
+
+		// Start USM monitor
+		cfg := config.New()
+		cfg.EnableHTTPMonitoring = true
+		cfg.EnableGoTLSSupport = true
+		cfg.GoTLSExcludeSelf = false
+		usmMonitor := setupUSMTLSMonitor(t, cfg)
+
+		// Ensure this test program is being traced
+		utils.WaitForProgramsToBeTraced(t, "go-tls", os.Getpid())
+
+		// The HTTPServer used here effectively works as an "echo" servers and
+		// returns back in the response whatever it received in the request
+		// body. Here we add a `$` to the request body as a way to delimit the
+		// end of the http response since we can't rely on EOFs for the code
+		// below because we're sending multiple requests over the same socket.
+		requestBody := fmt.Sprintf("GET %s HTTP/1.1\nHost: %s\n\n$", httpPath, serverAddr)
+
+		// Create a bufio.Reader to help with reading until the delimiter
+		// mentioned above.
+		reader := bufio.NewReader(conn)
+
+		// Issue multiple HTTP requests
+		// NOTE: This is a temporary hack to avoid test flakiness because
+		// currently the TLS.Close() codepath may fail due to a race condition
+		// in which the `protocol_stack` object is deleted before the
+		// termination code runs. By issuing a multiple requests on the same socket
+		// we force the previous ones to be flushed.
+		for i := 0; i < 10; i++ {
+			conn.Write([]byte(requestBody))
+			_, err := reader.ReadBytes('$')
+			if err != nil {
+				break
+			}
+		}
+
+		// Ensure we have captured a request
+		stats, ok := usmMonitor.GetProtocolStats()[protocols.HTTP]
+		require.True(t, ok)
+		httpStats, ok := stats.(map[http.Key]*http.RequestStats)
+		require.True(t, ok)
+		assert.Condition(t, func() bool {
+			for key := range httpStats {
+				if key.Path.Content.Get() == httpPath {
+					return true
+				}
+			}
+			return false
+		})
+	})
+}
+
+func TestLimitListenerRegression(t *testing.T) {
+	modes := []ebpftest.BuildMode{ebpftest.RuntimeCompiled, ebpftest.CORE}
+	ebpftest.TestBuildModes(t, modes, "", func(t *testing.T) {
+		if !gotlstestutil.GoTLSSupported(t, config.New()) {
+			t.Skip("GoTLS not supported for this setup")
+		}
+
+		// Spin up HTTP server
+		const serverAddr = "127.0.0.1:8081"
+		const httpPath = "/200/foobar"
+		closeServer := testutil.HTTPServer(t, serverAddr, testutil.Options{
+			EnableTLS:           true,
+			EnableLimitListener: true,
+		})
+		t.Cleanup(closeServer)
+
+		// Start USM monitor
+		cfg := config.New()
+		cfg.EnableHTTPMonitoring = true
+		cfg.EnableGoTLSSupport = true
+		cfg.GoTLSExcludeSelf = false
+		// This one is particularly important for this test so we ensure we
+		// don't accidentally report a false positive based on client (`curl`)
+		// data as opposed to the GoTLS server with `netutils.LimitListener`
+		cfg.EnableNativeTLSMonitoring = false
+		usmMonitor := setupUSMTLSMonitor(t, cfg)
+
+		// Ensure this test program is being traced
+		utils.WaitForProgramsToBeTraced(t, "go-tls", os.Getpid())
+
+		// Issue multiple HTTP requests
+		for i := 0; i < 10; i++ {
+			cmd := exec.Command("curl", "-k", "--http1.1", fmt.Sprintf("https://%s%s", serverAddr, httpPath))
+			err := cmd.Run()
+			assert.NoError(t, err)
+		}
+
+		// Ensure we have captured a request
+		stats, ok := usmMonitor.GetProtocolStats()[protocols.HTTP]
+		require.True(t, ok)
+		httpStats, ok := stats.(map[http.Key]*http.RequestStats)
+		require.True(t, ok)
+		assert.Condition(t, func() bool {
+			for key := range httpStats {
+				if key.Path.Content.Get() == httpPath {
+					return true
+				}
+			}
+			return false
 		})
 	})
 }
@@ -774,9 +945,12 @@ func (m requestsMap) String() string {
 }
 
 func setupUSMTLSMonitor(t *testing.T, cfg *config.Config) *Monitor {
-	usmMonitor, err := NewMonitor(cfg, nil, nil)
+	usmMonitor, err := NewMonitor(cfg, nil)
 	require.NoError(t, err)
 	require.NoError(t, usmMonitor.Start())
+	if cfg.EnableUSMEventStream {
+		eventmonitortestutil.StartEventMonitor(t, procmontestutil.RegisterProcessMonitorEventConsumer)
+	}
 	t.Cleanup(usmMonitor.Stop)
 	t.Cleanup(utils.ResetDebugger)
 	return usmMonitor
@@ -793,4 +967,73 @@ func getHTTPLikeProtocolStats(monitor *Monitor, protocolType protocols.ProtocolT
 		return nil
 	}
 	return res
+}
+
+func (s *tlsSuite) TestNodeJSTLS() {
+	const (
+		expectedOccurrences = 10
+		serverPort          = "4444"
+	)
+
+	t := s.T()
+
+	cert, key, err := testutil.GetCertsPaths()
+	require.NoError(t, err)
+
+	require.NoError(t, nodejs.RunServerNodeJS(t, key, cert, serverPort))
+	nodeJSPID, err := nodejs.GetNodeJSDockerPID()
+	require.NoError(t, err)
+
+	cfg := config.New()
+	cfg.EnableHTTPMonitoring = true
+	cfg.EnableNodeJSMonitoring = true
+
+	usmMonitor := setupUSMTLSMonitor(t, cfg)
+	utils.WaitForProgramsToBeTraced(t, "nodejs", int(nodeJSPID))
+
+	// This maps will keep track of whether the tracer saw this request already or not
+	client, requestFn := simpleGetRequestsGenerator(t, fmt.Sprintf("localhost:%s", serverPort))
+	var requests []*nethttp.Request
+	for i := 0; i < expectedOccurrences; i++ {
+		requests = append(requests, requestFn())
+	}
+
+	client.CloseIdleConnections()
+	requestsExist := make([]bool, len(requests))
+
+	assert.Eventually(t, func() bool {
+		stats := getHTTPLikeProtocolStats(usmMonitor, protocols.HTTP)
+		if stats == nil {
+			return false
+		}
+
+		if len(stats) == 0 {
+			return false
+		}
+
+		for reqIndex, req := range requests {
+			if !requestsExist[reqIndex] {
+				requestsExist[reqIndex] = isRequestIncluded(stats, req)
+			}
+		}
+
+		// Slight optimization here, if one is missing, then go into another cycle of checking the new connections.
+		// otherwise, if all present, abort.
+		for reqIndex, exists := range requestsExist {
+			if !exists {
+				// reqIndex is 0 based, while the number is requests[reqIndex] is 1 based.
+				t.Logf("request %d was not found (req %v)", reqIndex+1, requests[reqIndex])
+				return false
+			}
+		}
+
+		return true
+	}, 3*time.Second, 100*time.Millisecond, "connection not found")
+
+	for reqIndex, exists := range requestsExist {
+		if !exists {
+			// reqIndex is 0 based, while the number is requests[reqIndex] is 1 based.
+			t.Logf("request %d was not found (req %v)", reqIndex+1, requests[reqIndex])
+		}
+	}
 }

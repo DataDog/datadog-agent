@@ -7,16 +7,18 @@ package checks
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
 
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -25,9 +27,10 @@ const (
 )
 
 // NewContainerCheck returns an instance of the ContainerCheck.
-func NewContainerCheck(config ddconfig.Reader) *ContainerCheck {
+func NewContainerCheck(config ddconfig.Reader, wmeta workloadmeta.Component) *ContainerCheck {
 	return &ContainerCheck{
 		config: config,
+		wmeta:  wmeta,
 	}
 }
 
@@ -42,14 +45,15 @@ type ContainerCheck struct {
 	lastRates         map[string]*proccontainers.ContainerRateMetrics
 	networkID         string
 
-	containerFailedLogLimit *util.LogLimit
+	containerFailedLogLimit *log.Limit
 
 	maxBatchSize int
+	wmeta        workloadmeta.Component
 }
 
 // Init initializes a ContainerCheck instance.
 func (c *ContainerCheck) Init(_ *SysProbeConfig, info *HostInfo, _ bool) error {
-	c.containerProvider = proccontainers.GetSharedContainerProvider()
+	c.containerProvider = proccontainers.GetSharedContainerProvider(c.wmeta)
 	c.hostInfo = info
 
 	networkID, err := cloudproviders.GetNetworkID(context.TODO())
@@ -58,7 +62,7 @@ func (c *ContainerCheck) Init(_ *SysProbeConfig, info *HostInfo, _ bool) error {
 	}
 	c.networkID = networkID
 
-	c.containerFailedLogLimit = util.NewLogLimit(10, time.Minute*10)
+	c.containerFailedLogLimit = log.NewLogLimit(10, time.Minute*10)
 	c.maxBatchSize = getMaxBatchSize(c.config)
 	return nil
 }
@@ -66,6 +70,10 @@ func (c *ContainerCheck) Init(_ *SysProbeConfig, info *HostInfo, _ bool) error {
 // IsEnabled returns true if the check is enabled by configuration
 // Keep in mind that ContainerRTCheck.IsEnabled should only be enabled if the `ContainerCheck` is enabled
 func (c *ContainerCheck) IsEnabled() bool {
+	if c.config.GetBool("process_config.run_in_core_agent.enabled") && flavor.GetFlavor() == flavor.ProcessAgent {
+		return false
+	}
+
 	return canEnableContainerChecks(c.config, true)
 }
 
@@ -94,9 +102,8 @@ func (c *ContainerCheck) Run(nextGroupID func() int32, options *RunOptions) (Run
 
 	var err error
 	var containers []*model.Container
-	var pidToCid map[int]string
 	var lastRates map[string]*proccontainers.ContainerRateMetrics
-	containers, lastRates, pidToCid, err = c.containerProvider.GetContainers(cacheValidityNoRT, c.lastRates)
+	containers, lastRates, _, err = c.containerProvider.GetContainers(cacheValidityNoRT, c.lastRates)
 	if err == nil {
 		c.lastRates = lastRates
 	} else {
@@ -107,9 +114,6 @@ func (c *ContainerCheck) Run(nextGroupID func() int32, options *RunOptions) (Run
 		log.Trace("No containers found")
 		return nil, nil
 	}
-
-	// Keep track of containers addresses
-	LocalResolver.LoadAddrs(containers, pidToCid)
 
 	groupSize := len(containers) / c.maxBatchSize
 	if len(containers)%c.maxBatchSize != 0 {
@@ -131,7 +135,8 @@ func (c *ContainerCheck) Run(nextGroupID func() int32, options *RunOptions) (Run
 	}
 
 	numContainers := float64(len(containers))
-	statsd.Client.Gauge("datadog.process.containers.host_count", numContainers, []string{}, 1) //nolint:errcheck
+	agentNameTag := fmt.Sprintf("agent:%s", flavor.GetFlavor())
+	statsd.Client.Gauge("datadog.process.containers.host_count", numContainers, []string{agentNameTag}, 1) //nolint:errcheck
 	log.Debugf("collected %d containers in %s", int(numContainers), time.Since(startTime))
 	return StandardRunResult(messages), nil
 }

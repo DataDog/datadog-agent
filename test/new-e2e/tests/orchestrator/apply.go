@@ -9,7 +9,7 @@ import (
 	_ "embed"
 	"fmt"
 
-	"github.com/pulumi/pulumi-kubernetes/sdk/v3/go/kubernetes"
+	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
 	"github.com/DataDog/test-infra-definitions/common/utils"
@@ -40,7 +40,7 @@ func Apply(ctx *pulumi.Context) error {
 
 	// Deploy testing workload
 	if awsEnv.TestingWorkloadDeploy() {
-		if _, err := redis.K8sAppDefinition(*awsEnv.CommonEnvironment, kindKubeProvider, "workload-redis", agentDependency); err != nil {
+		if _, err := redis.K8sAppDefinition(awsEnv, kindKubeProvider, "workload-redis", true, agentDependency); err != nil {
 			return fmt.Errorf("failed to install redis: %w", err)
 		}
 	}
@@ -62,7 +62,12 @@ func createCluster(ctx *pulumi.Context) (*resAws.Environment, *localKubernetes.C
 		return nil, nil, nil, err
 	}
 
-	kindCluster, err := localKubernetes.NewKindCluster(*awsEnv.CommonEnvironment, vm, awsEnv.CommonNamer.ResourceName("kind"), "kind", awsEnv.KubernetesVersion())
+	installEcrCredsHelperCmd, err := ec2.InstallECRCredentialsHelper(awsEnv, vm)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	kindCluster, err := localKubernetes.NewKindCluster(&awsEnv, vm, awsEnv.CommonNamer().ResourceName("kind"), "kind", awsEnv.KubernetesVersion(), utils.PulumiDependsOn(installEcrCredsHelperCmd))
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -98,7 +103,7 @@ func deployAgent(ctx *pulumi.Context, awsEnv *resAws.Environment, cluster *local
 		if fakeIntake, err = fakeintake.NewECSFargateInstance(*awsEnv, cluster.Name(), fakeIntakeOptions...); err != nil {
 			return nil, err
 		}
-		if err := fakeIntake.Export(awsEnv.Ctx, nil); err != nil {
+		if err := fakeIntake.Export(awsEnv.Ctx(), nil); err != nil {
 			return nil, err
 		}
 	}
@@ -108,7 +113,7 @@ func deployAgent(ctx *pulumi.Context, awsEnv *resAws.Environment, cluster *local
 	// Deploy the agent
 	if awsEnv.AgentDeploy() {
 		customValues := fmt.Sprintf(agentCustomValuesFmt, clusterName)
-		helmComponent, err := agent.NewHelmInstallation(*awsEnv.CommonEnvironment, agent.HelmInstallationArgs{
+		helmComponent, err := agent.NewHelmInstallation(awsEnv, agent.HelmInstallationArgs{
 			KubeProvider: kindKubeProvider,
 			Namespace:    "datadog",
 			ValuesYAML: pulumi.AssetOrArchiveArray{
@@ -129,7 +134,7 @@ func deployAgent(ctx *pulumi.Context, awsEnv *resAws.Environment, cluster *local
 
 	// Deploy standalone dogstatsd
 	if awsEnv.DogstatsdDeploy() {
-		if _, err := dogstatsdstandalone.K8sAppDefinition(*awsEnv.CommonEnvironment, kindKubeProvider, "dogstatsd-standalone", fakeIntake, false, clusterName); err != nil {
+		if _, err := dogstatsdstandalone.K8sAppDefinition(awsEnv, kindKubeProvider, "dogstatsd-standalone", fakeIntake, false, clusterName); err != nil {
 			return nil, err
 		}
 	}

@@ -1,0 +1,213 @@
+---
+
+.package_rpm_common:
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
+  before_script:
+    - source /root/.bashrc
+  script:
+    - echo "About to build for $RELEASE_VERSION"
+    - !reference [.setup_ruby_mirror_linux]
+    - !reference [.cache_omnibus_ruby_deps, setup]
+    - RPM_GPG_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $RPM_GPG_KEY_SSM_NAME)
+    - printf -- "$RPM_GPG_KEY" | gpg --import --batch
+    - export RPM_SIGNING_PASSPHRASE=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $RPM_SIGNING_PASSPHRASE_SSM_NAME)
+    - inv -e omnibus.build --release-version "$RELEASE_VERSION" --major-version "$AGENT_MAJOR_VERSION" --base-dir $OMNIBUS_BASE_DIR --skip-deps --target-project=${DD_PROJECT} ${OMNIBUS_EXTRA_ARGS}
+    - ls -la $OMNIBUS_PACKAGE_DIR/
+    - !reference [.lint_linux_packages]
+  stage: packaging
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+      - $OMNIBUS_PACKAGE_DIR
+  variables:
+    KUBERNETES_CPU_REQUEST: 16
+    KUBERNETES_MEMORY_REQUEST: "32Gi"
+    KUBERNETES_MEMORY_LIMIT: "32Gi"
+    OMNIBUS_PACKAGE_ARTIFACT_DIR: $OMNIBUS_PACKAGE_DIR
+  cache:
+    - !reference [.cache_omnibus_ruby_deps, cache]
+
+.package_rpm_x86:
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["arch:amd64"]
+  variables:
+    DD_PKG_ARCH: x86_64
+    PACKAGE_ARCH: amd64
+
+.package_rpm_arm64:
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_arm64$DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX:$DATADOG_AGENT_ARMBUILDIMAGES
+  tags: ["arch:arm64"]
+  variables:
+    PACKAGE_ARCH: arm64
+    DD_PKG_ARCH: arm64
+
+.package_rpm_agent_6:
+  variables:
+    RELEASE_VERSION: $RELEASE_VERSION_6
+    AGENT_MAJOR_VERSION: 6
+
+.package_rpm_agent_7:
+  variables:
+    RELEASE_VERSION: $RELEASE_VERSION_7
+    AGENT_MAJOR_VERSION: 7
+
+.package_suse_rpm_common:
+  extends: .package_rpm_common
+  script:
+    - !reference [.package_rpm_common, script]
+    - mkdir -p $OMNIBUS_PACKAGE_DIR_SUSE && mv $OMNIBUS_PACKAGE_DIR/*.rpm $OMNIBUS_PACKAGE_DIR_SUSE/
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+      - $OMNIBUS_PACKAGE_DIR_SUSE
+  variables:
+    OMNIBUS_EXTRA_ARGS: "--host-distribution=suse"
+
+agent_rpm-x64-a6:
+  extends: [.package_rpm_common, .package_rpm_agent_6, .package_rpm_x86]
+  needs: ["datadog-agent-6-x64"]
+  variables:
+    DD_PROJECT: agent
+
+agent_rpm-x64-a7:
+  extends: [.package_rpm_common, .package_rpm_agent_7, .package_rpm_x86]
+  tags: ["arch:amd64"]
+  needs: ["datadog-agent-7-x64"]
+  variables:
+    DD_PROJECT: agent
+
+agent_rpm-arm64-a6:
+  extends: [.package_rpm_common, .package_rpm_agent_6, .package_rpm_arm64]
+  needs: ["datadog-agent-6-arm64"]
+  variables:
+    DD_PROJECT: agent
+
+agent_rpm-arm64-a7:
+  extends: [.package_rpm_common, .package_rpm_agent_7, .package_rpm_arm64]
+  needs: ["datadog-agent-7-arm64"]
+  variables:
+    DD_PROJECT: agent
+
+agent_suse-x64-a6:
+  extends: [.package_suse_rpm_common, .package_rpm_agent_6, .package_rpm_x86]
+  needs: ["datadog-agent-6-x64"]
+  variables:
+    DD_PRODUCT: agent
+
+agent_suse-x64-a7:
+  extends: [.package_suse_rpm_common, .package_rpm_agent_7, .package_rpm_x86]
+  needs: ["datadog-agent-7-x64"]
+  variables:
+    DD_PRODUCT: agent
+
+agent_suse-arm64-a7:
+  extends: [.package_suse_rpm_common, .package_rpm_agent_7, .package_rpm_arm64]
+  needs: ["datadog-agent-7-arm64"]
+  variables:
+    DD_PRODUCT: agent
+
+installer_rpm-amd64:
+  extends: [.package_rpm_common, .package_rpm_agent_7, .package_rpm_x86]
+  needs: ["installer-amd64"]
+  variables:
+    DD_PROJECT: installer
+
+installer_rpm-arm64:
+  extends: [.package_rpm_common, .package_rpm_agent_7, .package_rpm_arm64]
+  needs: ["installer-arm64"]
+  variables:
+    DD_PROJECT: installer
+
+installer_suse_rpm-amd64:
+  extends: [.package_suse_rpm_common, .package_rpm_agent_7, .package_rpm_x86]
+  needs: ["installer-amd64"]
+  variables:
+    DD_PROJECT: installer
+
+installer_suse_rpm-arm64:
+  extends: [.package_suse_rpm_common, .package_rpm_agent_7, .package_rpm_arm64]
+  needs: ["installer-arm64"]
+  variables:
+    DD_PROJECT: installer
+
+.package_iot_rpm_common:
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
+  script:
+    - source /root/.bashrc
+    - echo "About to build for $RELEASE_VERSION"
+    - !reference [.setup_ruby_mirror_linux]
+    - !reference [.cache_omnibus_ruby_deps, setup]
+    - RPM_GPG_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $RPM_GPG_KEY_SSM_NAME)
+    - printf -- "$RPM_GPG_KEY" | gpg --import --batch
+    - export RPM_SIGNING_PASSPHRASE=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $RPM_SIGNING_PASSPHRASE_SSM_NAME)
+    - inv -e omnibus.build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR --skip-deps --flavor=iot ${OMNIBUS_EXTRA_ARGS}
+    - ls -la $OMNIBUS_PACKAGE_DIR/
+    - !reference [.lint_linux_packages]
+  stage: packaging
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+      - $OMNIBUS_PACKAGE_DIR
+  variables:
+    KUBERNETES_CPU_REQUEST: 16
+    KUBERNETES_MEMORY_REQUEST: "32Gi"
+    KUBERNETES_MEMORY_LIMIT: "32Gi"
+    OMNIBUS_PACKAGE_ARTIFACT_DIR: $OMNIBUS_PACKAGE_DIR
+    RELEASE_VERSION: $RELEASE_VERSION_7
+  cache:
+    - !reference [.cache_omnibus_ruby_deps, cache]
+
+iot_agent_rpm-x64:
+  extends: [.package_iot_rpm_common, .package_rpm_x86]
+  needs: ["iot-agent-x64"]
+
+iot_agent_rpm-arm64:
+  extends: [.package_iot_rpm_common, .package_rpm_arm64]
+  needs: ["iot-agent-arm64"]
+
+iot_agent_rpm-armhf:
+  extends: .package_iot_rpm_common
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_armhf$DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX:$DATADOG_AGENT_ARMBUILDIMAGES
+  # Run with platform:arm64 since no platform:armhf exists and arm64 should be backwards compatible
+  tags: ["arch:arm64"]
+  needs: ["iot-agent-armhf"]
+  variables:
+    PACKAGE_ARCH: armhf
+    DD_PKG_ARCH: "arm64"
+  before_script:
+    # Ensures uname -m reports armv7l
+    - export LD_PRELOAD="/usr/local/lib/libfakearmv7l.so"
+
+iot_agent_suse-x64:
+  extends: [.package_iot_rpm_common, .package_rpm_x86]
+  needs: ["iot-agent-x64"]
+  script:
+    # Don't simply redefine OMNIBUS_PACKAGE_DIR since it also defines where the input
+    # artifact is expected to be found. Since the build job is distribution agnostic
+    # it shouldn't store its artifact in a suse/ subfolder
+    - !reference [.package_iot_rpm_common, script]
+    - mkdir -p $OMNIBUS_PACKAGE_DIR_SUSE && mv $OMNIBUS_PACKAGE_DIR/* $OMNIBUS_PACKAGE_DIR_SUSE/
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+      - $OMNIBUS_PACKAGE_DIR_SUSE
+  variables:
+    OMNIBUS_EXTRA_ARGS: "--host-distribution=suse"
+  cache:
+    - !reference [.cache_omnibus_ruby_deps, cache]
+
+dogstatsd_rpm-x64:
+  extends: [.package_rpm_common, .package_rpm_agent_7, .package_rpm_x86]
+  needs: ["dogstatsd-x64"]
+  variables:
+    DD_PROJECT: dogstatsd
+
+dogstatsd_suse-x64:
+  extends: [.package_suse_rpm_common, .package_rpm_agent_7, .package_rpm_x86]
+  needs: ["dogstatsd-x64"]
+  variables:
+    DD_PROJECT: dogstatsd

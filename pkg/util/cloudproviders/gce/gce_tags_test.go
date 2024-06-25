@@ -97,7 +97,7 @@ func TestGetHostTags(t *testing.T) {
 	defer server.Close()
 	defer cache.Cache.Delete(tagsCacheKey)
 	tags, err := GetTags(ctx)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	testTags(t, tags, expectedFullTags)
 }
 
@@ -106,10 +106,10 @@ func TestGetHostTagsWithProjectID(t *testing.T) {
 	server := mockMetadataRequest(t)
 	defer server.Close()
 	defer cache.Cache.Delete(tagsCacheKey)
-	config.Datadog.SetWithoutSource("gce_send_project_id_tag", true)
-	defer config.Datadog.SetWithoutSource("gce_send_project_id_tag", false)
+	config.Datadog().SetWithoutSource("gce_send_project_id_tag", true)
+	defer config.Datadog().SetWithoutSource("gce_send_project_id_tag", false)
 	tags, err := GetTags(ctx)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	testTags(t, tags, expectedTagsWithProjectID)
 }
 
@@ -118,14 +118,14 @@ func TestGetHostTagsSuccessThenError(t *testing.T) {
 	server := mockMetadataRequest(t)
 	tags, err := GetTags(ctx)
 	require.NotNil(t, tags)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	server.Close()
 
 	server = mockMetadataRequestError(t)
 	defer server.Close()
 	defer cache.Cache.Delete(tagsCacheKey)
 	tags, err = GetTags(ctx)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	testTags(t, tags, expectedFullTags)
 }
 
@@ -142,6 +142,6 @@ func TestGetHostTagsWithNonDefaultTagFilters(t *testing.T) {
 	defer cache.Cache.Delete(tagsCacheKey)
 
 	tags, err := GetTags(ctx)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	testTags(t, tags, expectedExcludedTags)
 }

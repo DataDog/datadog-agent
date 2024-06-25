@@ -34,10 +34,19 @@ static __always_inline void clean_protocol_classification(conn_tuple_t *tup) {
     bpf_map_delete_elem(&conn_tuple_to_socket_skb_conn_tuple, &conn_tuple);
 }
 
-static __always_inline void cleanup_conn(void *ctx, conn_tuple_t *tup, struct sock *sk) {
-    u32 cpu = bpf_get_smp_processor_id();
+__maybe_unused static __always_inline void submit_closed_conn_event(void *ctx, int cpu, void *event_data, size_t data_size) {
+    __u64 ringbuffers_enabled = 0;
+    LOAD_CONSTANT("ringbuffers_enabled", ringbuffers_enabled);
+    if (ringbuffers_enabled > 0) {
+        bpf_ringbuf_output(&conn_close_event, event_data, data_size, 0);
+    } else {
+        bpf_perf_event_output(ctx, &conn_close_event, cpu, event_data, data_size);
+    }
+}
 
-    // Will hold the full connection data to send through the perf buffer
+static __always_inline void cleanup_conn(void *ctx, conn_tuple_t *tup, struct sock *sk, bool skip_new_conn_create) {
+    u32 cpu = bpf_get_smp_processor_id();
+    // Will hold the full connection data to send through the perf or ring buffer
     conn_t conn = { .tup = *tup };
     conn_stats_ts_t *cst = NULL;
     tcp_stats_t *tst = NULL;
@@ -64,15 +73,19 @@ static __always_inline void cleanup_conn(void *ctx, conn_tuple_t *tup, struct so
     }
 
     cst = bpf_map_lookup_elem(&conn_stats, &(conn.tup));
-    if (is_udp && !cst) {
-        increment_telemetry_count(udp_dropped_conns);
-        return; // nothing to report
-    }
 
     if (cst) {
         conn.conn_stats = *cst;
         bpf_map_delete_elem(&conn_stats, &(conn.tup));
     } else {
+        if (is_udp) {
+            increment_telemetry_count(udp_dropped_conns);
+            return; // nothing to report
+        }
+        if (skip_new_conn_create) {
+            increment_telemetry_count(skipped_new_conn_create);
+            return;
+        }
         // we don't have any stats for the connection,
         // so cookie is not set, set it here
         conn.conn_stats.cookie = get_sk_cookie(sk);
@@ -80,7 +93,12 @@ static __always_inline void cleanup_conn(void *ctx, conn_tuple_t *tup, struct so
         determine_connection_direction(&conn.tup, &conn.conn_stats);
     }
 
-    conn.conn_stats.timestamp = bpf_ktime_get_ns();
+    // update the `duration` field to reflect the duration of the
+    // connection; `duration` had the creation timestamp for
+    // the conn_stats_ts_t object up to now. we re-use this field
+    // for the duration since we would overrun stack size limits
+    // if we added another field
+    conn.conn_stats.duration = bpf_ktime_get_ns() - conn.conn_stats.duration;
 
     // Batch TCP closed connections before generating a perf event
     batch_t *batch_ptr = bpf_map_lookup_elem(&conn_close_batch, &cpu);
@@ -114,8 +132,7 @@ static __always_inline void cleanup_conn(void *ctx, conn_tuple_t *tup, struct so
     // We send the connection outside of a batch anyway. This is likely not as
     // frequent of a case to cause performance issues and avoid cases where
     // we drop whole connections, which impacts things USM connection matching.
-    bpf_perf_event_output(ctx, &conn_close_event, cpu, &conn, sizeof(conn));
-
+    submit_closed_conn_event(ctx, cpu, &conn, sizeof(conn_t));
     if (is_tcp) {
         increment_telemetry_count(unbatched_tcp_close);
     }
@@ -124,25 +141,38 @@ static __always_inline void cleanup_conn(void *ctx, conn_tuple_t *tup, struct so
     }
 }
 
+// This function is used to flush the conn_failed_t to the perf or ring buffer.
+static __always_inline void flush_tcp_failure(void *ctx, conn_tuple_t *tup, int failure_reason) {
+    conn_failed_t failure = {};
+    failure.tup = *tup;
+    failure.failure_reason = failure_reason;
+
+    __u64 ringbuffers_enabled = 0;
+    LOAD_CONSTANT("ringbuffers_enabled", ringbuffers_enabled);
+    if (ringbuffers_enabled > 0) {
+        bpf_ringbuf_output(&conn_fail_event, &failure, sizeof(conn_failed_t), 0);
+    } else {
+        u32 cpu = bpf_get_smp_processor_id();
+        bpf_perf_event_output(ctx, &conn_fail_event, cpu, &failure, sizeof(conn_failed_t));
+    }
+}
+
 static __always_inline void flush_conn_close_if_full(void *ctx) {
     u32 cpu = bpf_get_smp_processor_id();
     batch_t *batch_ptr = bpf_map_lookup_elem(&conn_close_batch, &cpu);
-    if (!batch_ptr) {
+    if (!batch_ptr || batch_ptr->len != CONN_CLOSED_BATCH_SIZE) {
         return;
     }
 
-    if (batch_ptr->len == CONN_CLOSED_BATCH_SIZE) {
-        // Here we copy the batch data to a variable allocated in the eBPF stack
-        // This is necessary for older Kernel versions only (we validated this behavior on 4.4.0),
-        // since you can't directly write a map entry to the perf buffer.
-        batch_t batch_copy = {};
-        bpf_memcpy(&batch_copy, batch_ptr, sizeof(batch_copy));
-        batch_ptr->len = 0;
-        batch_ptr->id++;
+    // Here we copy the batch data to a variable allocated in the eBPF stack
+    // This is necessary for older Kernel versions only (we validated this behavior on 4.4.0),
+    // since you can't directly write a map entry to the perf buffer.
+    batch_t batch_copy = {};
+    bpf_memcpy(&batch_copy, batch_ptr, sizeof(batch_copy));
+    batch_ptr->len = 0;
+    batch_ptr->id++;
 
-        // we cannot use the telemetry macro here because of stack size constraints
-        bpf_perf_event_output(ctx, &conn_close_event, cpu, &batch_copy, sizeof(batch_copy));
-    }
+    submit_closed_conn_event(ctx, cpu, &batch_copy, sizeof(batch_t));
 }
 
 #endif // __TRACER_EVENTS_H

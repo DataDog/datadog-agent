@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	serverlessTags "github.com/DataDog/datadog-agent/pkg/serverless/tags"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -470,6 +471,55 @@ func TestGenerateEnhancedMetricsFromRuntimeDoneLogOK(t *testing.T) {
 	assert.Len(t, timedMetrics, 0)
 }
 
+func TestGenerateCPUEnhancedMetrics(t *testing.T) {
+	demux := createDemultiplexer(t)
+	tags := []string{"functionname:test-function"}
+	now := time.Now()
+	args := GenerateCPUEnhancedMetricsArgs{100, 53, tags, demux, now}
+	go GenerateCPUEnhancedMetrics(args)
+	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(4, 0, 100*time.Millisecond)
+	assert.Equal(t, generatedMetrics, []metrics.MetricSample{
+		{
+			Name:       cpuSystemTimeMetric,
+			Value:      53,
+			Mtype:      metrics.DistributionType,
+			Tags:       tags,
+			SampleRate: 1,
+			Timestamp:  float64(now.UnixNano()) / float64(time.Second),
+		},
+		{
+			Name:       cpuUserTimeMetric,
+			Value:      100,
+			Mtype:      metrics.DistributionType,
+			Tags:       tags,
+			SampleRate: 1,
+			Timestamp:  float64(now.UnixNano()) / float64(time.Second),
+		},
+		{
+			Name:       cpuTotalTimeMetric,
+			Value:      153,
+			Mtype:      metrics.DistributionType,
+			Tags:       tags,
+			SampleRate: 1,
+			Timestamp:  float64(now.UnixNano()) / float64(time.Second),
+		}})
+	assert.Len(t, timedMetrics, 0)
+}
+
+func TestGenerateCPUEnhancedMetricsDisabled(t *testing.T) {
+	os.Setenv("DD_ENHANCED_METRICS", "false")
+	defer os.Setenv("DD_ENHANCED_METRICS", "true")
+
+	demux := createDemultiplexer(t)
+	tags := []string{"functionname:test-function"}
+	now := time.Now()
+	args := GenerateCPUEnhancedMetricsArgs{100, 53, tags, demux, now}
+	go GenerateCPUEnhancedMetrics(args)
+	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(4, 0, 100*time.Millisecond)
+	assert.Len(t, generatedMetrics, 0)
+	assert.Len(t, timedMetrics, 0)
+}
+
 func createDemultiplexer(t *testing.T) demultiplexer.FakeSamplerMock {
-	return fxutil.Test[demultiplexer.FakeSamplerMock](t, logimpl.MockModule(), demultiplexerimpl.FakeSamplerMockModule(), hostnameimpl.MockModule())
+	return fxutil.Test[demultiplexer.FakeSamplerMock](t, logimpl.MockModule(), compressionimpl.MockModule(), demultiplexerimpl.FakeSamplerMockModule(), hostnameimpl.MockModule())
 }
