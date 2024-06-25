@@ -100,7 +100,6 @@ build do
             move "#{install_dir}/etc/datadog-agent/conf.d", "/etc/datadog-agent", :force=>true
             unless heroku_target?
               move "#{install_dir}/etc/datadog-agent/system-probe.yaml.example", "/etc/datadog-agent"
-              copy "/etc/datadog-agent/system-probe.yaml.example", "/etc/datadog-agent/system-probe.yaml"
               move "#{install_dir}/etc/datadog-agent/security-agent.yaml.example", "/etc/datadog-agent", :force=>true
               move "#{install_dir}/etc/datadog-agent/runtime-security.d", "/etc/datadog-agent", :force=>true
               move "#{install_dir}/etc/datadog-agent/compliance.d", "/etc/datadog-agent"

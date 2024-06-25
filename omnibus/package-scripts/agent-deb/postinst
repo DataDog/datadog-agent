@@ -102,11 +102,15 @@ chown -R dd-agent:dd-agent ${CONFIG_DIR}
 chown -R dd-agent:dd-agent ${LOG_DIR}
 chown -R dd-agent:dd-agent ${INSTALL_DIR}
 
+
+# Ensure system-probe config exists
+if [ ! -f "$CONFIG_DIR/system-probe.yaml" ]; then
+    cp "$CONFIG_DIR/system-probe.yaml.example" "$CONFIG_DIR/system-probe.yaml"
+fi
+
 # Make system-probe configs read-only
 chmod 0440 ${CONFIG_DIR}/system-probe.yaml.example || true
-if [ -f "$CONFIG_DIR/system-probe.yaml" ]; then
-    chmod 0440 ${CONFIG_DIR}/system-probe.yaml || true
-fi
+chmod 0440 ${CONFIG_DIR}/system-probe.yaml || true
 
 # Make security-agent config read-only
 chmod 0440 ${CONFIG_DIR}/security-agent.yaml.example || true
