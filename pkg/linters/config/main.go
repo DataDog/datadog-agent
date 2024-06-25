@@ -16,32 +16,14 @@ func init() {
 	register.Plugin("pkgconfig", New)
 }
 
-// type MySettings struct {
-// 	One   string    `json:"one"`
-// 	Two   []Element `json:"two"`
-// 	Three Element   `json:"three"`
-// }
-
-// type Element struct {
-// 	Name string `json:"name"`
-// }
-
-type PluginExample struct {
+type pkgconfigPlugin struct {
 }
 
 func New(settings any) (register.LinterPlugin, error) {
-	// The configuration type will be map[string]any or []interface, it depends on your configuration.
-	// You can use https://github.com/go-viper/mapstructure to convert map to struct.
-
-	// s, err := register.DecodeSettings[MySettings](settings)
-	// if err != nil {
-	// 	return nil, err
-	// }
-
-	return &PluginExample{}, nil
+	return &pkgconfigPlugin{}, nil
 }
 
-func (f *PluginExample) BuildAnalyzers() ([]*analysis.Analyzer, error) {
+func (f *pkgconfigPlugin) BuildAnalyzers() ([]*analysis.Analyzer, error) {
 	return []*analysis.Analyzer{
 		{
 			Name: "pkgconfig",
@@ -51,11 +33,11 @@ func (f *PluginExample) BuildAnalyzers() ([]*analysis.Analyzer, error) {
 	}, nil
 }
 
-func (f *PluginExample) GetLoadMode() string {
+func (f *pkgconfigPlugin) GetLoadMode() string {
 	return register.LoadModeSyntax
 }
 
-func (f *PluginExample) run(pass *analysis.Pass) (interface{}, error) {
+func (f *pkgconfigPlugin) run(pass *analysis.Pass) (interface{}, error) {
 	for _, file := range pass.Files {
 		if file.Imports == nil {
 			continue
@@ -63,7 +45,8 @@ func (f *PluginExample) run(pass *analysis.Pass) (interface{}, error) {
 
 		if strings.Contains(pass.Pkg.Path(), "github.com/DataDog/datadog-agent/comp") {
 			for _, imp := range file.Imports {
-				if strings.Contains(imp.Path.Value, "pkg/config") {
+
+				if imp.Path.Value == "github.com/DataDog/datadog-agent/pkg/config" {
 					pass.Report(analysis.Diagnostic{
 						Pos:      imp.Pos(),
 						End:      imp.End(),
