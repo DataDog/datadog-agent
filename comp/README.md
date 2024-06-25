@@ -301,7 +301,7 @@ Package inventoryotel implements a component to generate the 'datadog_agent' met
 
 ### [comp/metadata/packagesigning](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/packagesigning)
 
-*Datadog Team*: agent-build-and-releases
+*Datadog Team*: agent-delivery
 
 Package packagesigning implements a component to generate the 'signing' metadata payload for DD inventory (REDAPL).
 
@@ -584,6 +584,12 @@ Package updater is the updater component.
 *Datadog Team*: windows-agent
 
 Package etw provides an ETW tracing interface
+
+### [comp/rdnsquerier](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/rdnsquerier)
+
+*Datadog Team*: network-device-monitoring
+
+Package rdnsquerier provides the reverse DNS querier component.
 
 ### [comp/serializer/compression](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/serializer/compression)
 

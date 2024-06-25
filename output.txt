@@ -1,0 +1,1098 @@
+  aws-vault exec sso-agent-sandbox-account-admin -- go test -v "-test.timeout" 20m .\tests\sysprobe-functional\sysprobe_test.go
+=== RUN   TestVMSuite
+    sysprobe_test.go:40: Starting top level testvmsuite
+=== RUN   TestVMSuite/TestSystemProbeSuite
+Creating workspace for stack: db-e2e-vmsuite-6e7783666b6cdb86 at C:\Users\db\AppData\Local\Temp/pulumi-workspace/77ae85dbda588688    remotehost.go:183: connecting to remote VM at Administrator@10.1.59.81
+    sysprobe_test.go:64: Starting test took 2m56.7694844s
+    suite.go:249: No change in provisioners, skipping environment update
+    sysprobe_test.go:69: SetupSuite took 0s
+    sysprobe_test.go:78: IIS Installed, continuing
+    sysprobe_test.go:80: Creating sites
+    sysprobe_test.go:101: AssetsDir: D:\src\agent.e2e\test\new-e2e\tests\sysprobe-functional/assets
+    sysprobe_test.go:104: Provisioning IIS took 3m11.1181933s
+    sysprobe_test.go:105: Sites created, continuing
+    remoteexecutable.go:80: Created remote directory: c:/tmp/pkg/ebpf/cgo
+    remoteexecutable.go:80: Created remote directory: c:/tmp/pkg/ebpf
+    remoteexecutable.go:80: Created remote directory: c:/tmp/pkg/network/config
+    remoteexecutable.go:80: Created remote directory: c:/tmp/pkg/network/dns
+    remoteexecutable.go:80: Created remote directory: c:/tmp/pkg/network/driver
+    remoteexecutable.go:80: Created remote directory: c:/tmp/pkg/network/encoding/marshal
+    remoteexecutable.go:80: Created remote directory: c:/tmp/pkg/network/encoding
+    remoteexecutable.go:80: Created remote directory: c:/tmp/pkg/network/netlink
+    remoteexecutable.go:80: Created remote directory: c:/tmp/pkg/network/protocols/http
+    remoteexecutable.go:80: Created remote directory: c:/tmp/pkg/network/protocols/telemetry
+    remoteexecutable.go:80: Created remote directory: c:/tmp/pkg/network/protocols
+    remoteexecutable.go:80: Created remote directory: c:/tmp/pkg/network/protocols/tls/gotls
+    remoteexecutable.go:80: Created remote directory: c:/tmp/pkg/network
+    remoteexecutable.go:80: Created remote directory: c:/tmp/pkg/network/tracer
+    remoteexecutable.go:80: Created remote directory: c:/tmp/pkg/network/usm/utils
+    remoteexecutable.go:98: Copying D:\src\agent.e2e\test\kitchen\site-cookbooks\dd-system-probe-check\files\default\tests\pkg\ebpf\cgo\testsuite.exe to c:/tmp/pkg/ebpf/cgo/testsuite.exe
+    remoteexecutable.go:98: Copying D:\src\agent.e2e\test\kitchen\site-cookbooks\dd-system-probe-check\files\default\tests\pkg\ebpf\testsuite.exe to c:/tmp/pkg/ebpf/testsuite.exe
+    remoteexecutable.go:107: Copying testdata dir D:\src\agent.e2e\test\kitchen\site-cookbooks\dd-system-probe-check\files\default\tests\pkg\ebpf\testdata to c:\tmp\pkg\ebpf\testdata
+    remoteexecutable.go:98: Copying D:\src\agent.e2e\test\kitchen\site-cookbooks\dd-system-probe-check\files\default\tests\pkg\network\config\testsuite.exe to c:/tmp/pkg/network/config/testsuite.exe
+    remoteexecutable.go:107: Copying testdata dir D:\src\agent.e2e\test\kitchen\site-cookbooks\dd-system-probe-check\files\default\tests\pkg\network\config\testdata to c:\tmp\pkg\network\config\testdata
+    remoteexecutable.go:98: Copying D:\src\agent.e2e\test\kitchen\site-cookbooks\dd-system-probe-check\files\default\tests\pkg\network\dns\testsuite.exe to c:/tmp/pkg/network/dns/testsuite.exe
+    remoteexecutable.go:98: Copying D:\src\agent.e2e\test\kitchen\site-cookbooks\dd-system-probe-check\files\default\tests\pkg\network\driver\testsuite.exe to c:/tmp/pkg/network/driver/testsuite.exe
+    remoteexecutable.go:98: Copying D:\src\agent.e2e\test\kitchen\site-cookbooks\dd-system-probe-check\files\default\tests\pkg\network\encoding\marshal\testsuite.exe to c:/tmp/pkg/network/encoding/marshal/testsuite.exe
+    remoteexecutable.go:98: Copying D:\src\agent.e2e\test\kitchen\site-cookbooks\dd-system-probe-check\files\default\tests\pkg\network\encoding\testsuite.exe to c:/tmp/pkg/network/encoding/testsuite.exe
+    remoteexecutable.go:98: Copying D:\src\agent.e2e\test\kitchen\site-cookbooks\dd-system-probe-check\files\default\tests\pkg\network\netlink\testsuite.exe to c:/tmp/pkg/network/netlink/testsuite.exe
+    remoteexecutable.go:98: Copying D:\src\agent.e2e\test\kitchen\site-cookbooks\dd-system-probe-check\files\default\tests\pkg\network\protocols\http\testsuite.exe to c:/tmp/pkg/network/protocols/http/testsuite.exe
+    remoteexecutable.go:98: Copying D:\src\agent.e2e\test\kitchen\site-cookbooks\dd-system-probe-check\files\default\tests\pkg\network\protocols\telemetry\testsuite.exe to c:/tmp/pkg/network/protocols/telemetry/testsuite.exe
+    remoteexecutable.go:98: Copying D:\src\agent.e2e\test\kitchen\site-cookbooks\dd-system-probe-check\files\default\tests\pkg\network\protocols\testsuite.exe to c:/tmp/pkg/network/protocols/testsuite.exe
+    remoteexecutable.go:98: Copying D:\src\agent.e2e\test\kitchen\site-cookbooks\dd-system-probe-check\files\default\tests\pkg\network\protocols\tls\gotls\testsuite.exe to c:/tmp/pkg/network/protocols/tls/gotls/testsuite.exe
+    remoteexecutable.go:107: Copying testdata dir D:\src\agent.e2e\test\kitchen\site-cookbooks\dd-system-probe-check\files\default\tests\pkg\network\protocols\tls\gotls\testdata to c:\tmp\pkg\network\protocols\tls\gotls\testdata
+    remoteexecutable.go:98: Copying D:\src\agent.e2e\test\kitchen\site-cookbooks\dd-system-probe-check\files\default\tests\pkg\network\testsuite.exe to c:/tmp/pkg/network/testsuite.exe
+    remoteexecutable.go:107: Copying testdata dir D:\src\agent.e2e\test\kitchen\site-cookbooks\dd-system-probe-check\files\default\tests\pkg\network\testdata to c:\tmp\pkg\network\testdata
+    remoteexecutable.go:98: Copying D:\src\agent.e2e\test\kitchen\site-cookbooks\dd-system-probe-check\files\default\tests\pkg\network\tracer\testsuite.exe to c:/tmp/pkg/network/tracer/testsuite.exe
+    remoteexecutable.go:107: Copying testdata dir D:\src\agent.e2e\test\kitchen\site-cookbooks\dd-system-probe-check\files\default\tests\pkg\network\tracer\testdata to c:\tmp\pkg\network\tracer\testdata
+    remoteexecutable.go:98: Copying D:\src\agent.e2e\test\kitchen\site-cookbooks\dd-system-probe-check\files\default\tests\pkg\network\usm\utils\testsuite.exe to c:/tmp/pkg/network/usm/utils/testsuite.exe
+    sysprobe_test.go:117: CopyFiles took 4m38.1570698s
+    sysprobe_test.go:124: Getting install package https://s3.amazonaws.com/ddagent-windows-stable/datadog-agent-7-latest.amd64.msi...
+    sysprobe_test.go:128: Download complete, took 5.9557526s
+    sysprobe_test.go:132: Install complete, took 4m37.746926s
+    sysprobe_test.go:142: Stop service took 15.3037817s
+    remoteexecutable.go:121: Running testsuite: pkg\ebpf\cgo\testsuite.exe
+    remoteexecutable.go:145: TestSuite: === RUN   TestRemoveAbsolute
+    remoteexecutable.go:145: TestSuite: --- PASS: TestRemoveAbsolute (0.00s)
+    remoteexecutable.go:145: TestSuite: PASS
+    remoteexecutable.go:145: TestSuite:
+    remoteexecutable.go:125: Testsuite c:\tmp\pkg\ebpf\cgo\testsuite.exe took 8.3068738s
+    remoteexecutable.go:121: Running testsuite: pkg\ebpf\testsuite.exe
+    remoteexecutable.go:145: TestSuite: === RUN   TestVerifyKernelFuncs
+    remoteexecutable.go:145: TestSuite: --- PASS: TestVerifyKernelFuncs (0.08s)
+    remoteexecutable.go:145: TestSuite: PASS
+    remoteexecutable.go:145: TestSuite:
+    remoteexecutable.go:125: Testsuite c:\tmp\pkg\ebpf\testsuite.exe took 8.0968505s
+    remoteexecutable.go:121: Running testsuite: pkg\network\config\testsuite.exe
+    remoteexecutable.go:145: TestSuite: === RUN   TestDisablingDNSInspection
+    remoteexecutable.go:145: TestSuite: === RUN   TestDisablingDNSInspection/via_YAML
+    remoteexecutable.go:145: TestSuite: === RUN   TestDisablingDNSInspection/via_ENV_variable
+    remoteexecutable.go:145: TestSuite: --- PASS: TestDisablingDNSInspection (0.05s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestDisablingDNSInspection/via_YAML (0.03s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestDisablingDNSInspection/via_ENV_variable (0.01s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestDisablingProtocolClassification
+    remoteexecutable.go:145: TestSuite: === RUN   TestDisablingProtocolClassification/via_YAML
+    remoteexecutable.go:145: TestSuite: === RUN   TestDisablingProtocolClassification/via_ENV_variable
+    remoteexecutable.go:145: TestSuite: --- PASS: TestDisablingProtocolClassification (0.03s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestDisablingProtocolClassification/via_YAML (0.01s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestDisablingProtocolClassification/via_ENV_variable (0.02s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestEnableHTTPStatsByStatusCode
+    remoteexecutable.go:145: TestSuite: === RUN   TestEnableHTTPStatsByStatusCode/via_YAML
+    remoteexecutable.go:145: TestSuite: === RUN   TestEnableHTTPStatsByStatusCode/via_ENV_variable
+    remoteexecutable.go:145: TestSuite: --- PASS: TestEnableHTTPStatsByStatusCode (0.03s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestEnableHTTPStatsByStatusCode/via_YAML (0.02s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestEnableHTTPStatsByStatusCode/via_ENV_variable (0.01s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestEnableHTTPMonitoring
+    remoteexecutable.go:145: TestSuite: === RUN   TestEnableHTTPMonitoring/via_deprecated_YAML
+    remoteexecutable.go:145: TestSuite: === RUN   TestEnableHTTPMonitoring/via_deprecated_ENV_variable
+    remoteexecutable.go:145: TestSuite: === RUN   TestEnableHTTPMonitoring/via_YAML
+    remoteexecutable.go:145: TestSuite: === RUN   TestEnableHTTPMonitoring/via_ENV_variable
+    remoteexecutable.go:145: TestSuite: === RUN   TestEnableHTTPMonitoring/Deprecated_is_enabled,_new_is_disabled
+    remoteexecutable.go:145: TestSuite: === RUN   TestEnableHTTPMonitoring/Deprecated_is_disabled,_new_is_enabled
+    remoteexecutable.go:145: TestSuite: === RUN   TestEnableHTTPMonitoring/Both_enabled
+    remoteexecutable.go:145: TestSuite: === RUN   TestEnableHTTPMonitoring/Not_enabled
+    remoteexecutable.go:145: TestSuite: --- PASS: TestEnableHTTPMonitoring (0.07s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestEnableHTTPMonitoring/via_deprecated_YAML (0.02s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestEnableHTTPMonitoring/via_deprecated_ENV_variable (0.01s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestEnableHTTPMonitoring/via_YAML (0.02s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestEnableHTTPMonitoring/via_ENV_variable (0.01s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestEnableHTTPMonitoring/Deprecated_is_enabled,_new_is_disabled (0.01s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestEnableHTTPMonitoring/Deprecated_is_disabled,_new_is_enabled (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestEnableHTTPMonitoring/Both_enabled (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestEnableHTTPMonitoring/Not_enabled (0.00s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestEnableJavaTLSSupport
+    remoteexecutable.go:145: TestSuite: === RUN   TestEnableJavaTLSSupport/via_YAML
+    remoteexecutable.go:145: TestSuite: === RUN   TestEnableJavaTLSSupport/via_ENV_variable
+    remoteexecutable.go:145: TestSuite: --- PASS: TestEnableJavaTLSSupport (0.07s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestEnableJavaTLSSupport/via_YAML (0.03s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestEnableJavaTLSSupport/via_ENV_variable (0.04s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestEnableHTTP2Monitoring
+    remoteexecutable.go:145: TestSuite: === RUN   TestEnableHTTP2Monitoring/via_YAML
+    remoteexecutable.go:145: TestSuite: === RUN   TestEnableHTTP2Monitoring/via_ENV_variable
+    remoteexecutable.go:145: TestSuite: --- PASS: TestEnableHTTP2Monitoring (0.05s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestEnableHTTP2Monitoring/via_YAML (0.04s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestEnableHTTP2Monitoring/via_ENV_variable (0.01s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestEnableKafkaMonitoring
+    remoteexecutable.go:145: TestSuite: === RUN   TestEnableKafkaMonitoring/via_YAML
+    remoteexecutable.go:145: TestSuite: === RUN   TestEnableKafkaMonitoring/via_ENV_variable
+    remoteexecutable.go:145: TestSuite: --- PASS: TestEnableKafkaMonitoring (0.04s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestEnableKafkaMonitoring/via_YAML (0.02s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestEnableKafkaMonitoring/via_ENV_variable (0.01s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestDefaultDisabledJavaTLSSupport
+    remoteexecutable.go:145: TestSuite: --- PASS: TestDefaultDisabledJavaTLSSupport (0.01s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestDefaultDisabledHTTP2Support
+    remoteexecutable.go:145: TestSuite: --- PASS: TestDefaultDisabledHTTP2Support (0.01s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestDisableGatewayLookup
+    remoteexecutable.go:145: TestSuite: === RUN   TestDisableGatewayLookup/via_YAML
+    remoteexecutable.go:145: TestSuite: === RUN   TestDisableGatewayLookup/via_ENV_variable
+    remoteexecutable.go:145: TestSuite: --- PASS: TestDisableGatewayLookup (0.03s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestDisableGatewayLookup/via_YAML (0.02s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestDisableGatewayLookup/via_ENV_variable (0.01s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestIgnoreConntrackInitFailure
+    remoteexecutable.go:145: TestSuite: === RUN   TestIgnoreConntrackInitFailure/via_YAML
+    remoteexecutable.go:145: TestSuite: === RUN   TestIgnoreConntrackInitFailure/via_ENV_variable
+    remoteexecutable.go:145: TestSuite: --- PASS: TestIgnoreConntrackInitFailure (0.04s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestIgnoreConntrackInitFailure/via_YAML (0.02s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestIgnoreConntrackInitFailure/via_ENV_variable (0.01s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestEnablingDNSStatsCollection
+    remoteexecutable.go:145: TestSuite: === RUN   TestEnablingDNSStatsCollection/via_YAML
+    remoteexecutable.go:145: TestSuite: === RUN   TestEnablingDNSStatsCollection/via_ENV_variable
+    remoteexecutable.go:145: TestSuite: --- PASS: TestEnablingDNSStatsCollection (0.05s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestEnablingDNSStatsCollection/via_YAML (0.02s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestEnablingDNSStatsCollection/via_ENV_variable (0.03s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestDisablingDNSDomainCollection
+    remoteexecutable.go:145: TestSuite: === RUN   TestDisablingDNSDomainCollection/via_YAML
+    remoteexecutable.go:145: TestSuite: === RUN   TestDisablingDNSDomainCollection/via_ENV_variable
+    remoteexecutable.go:145: TestSuite: --- PASS: TestDisablingDNSDomainCollection (0.06s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestDisablingDNSDomainCollection/via_YAML (0.03s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestDisablingDNSDomainCollection/via_ENV_variable (0.03s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestSettingMaxDNSStats
+    remoteexecutable.go:145: TestSuite: === RUN   TestSettingMaxDNSStats/via_YAML
+    remoteexecutable.go:145: TestSuite: === RUN   TestSettingMaxDNSStats/via_ENV_variable
+    remoteexecutable.go:145: TestSuite: --- PASS: TestSettingMaxDNSStats (0.03s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestSettingMaxDNSStats/via_YAML (0.01s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestSettingMaxDNSStats/via_ENV_variable (0.02s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestHTTPReplaceRules
+    remoteexecutable.go:145: TestSuite: === RUN   TestHTTPReplaceRules/via_deprecated_YAML
+    remoteexecutable.go:145: TestSuite: === RUN   TestHTTPReplaceRules/via_deprecated_ENV_variable
+    remoteexecutable.go:145: TestSuite: === RUN   TestHTTPReplaceRules/via_YAML
+    remoteexecutable.go:145: TestSuite: === RUN   TestHTTPReplaceRules/via_ENV_variable
+    remoteexecutable.go:145: TestSuite: === RUN   TestHTTPReplaceRules/Deprecated_is_enabled,_new_is_disabled
+    remoteexecutable.go:145: TestSuite: === RUN   TestHTTPReplaceRules/Deprecated_is_disabled,_new_is_enabled
+    remoteexecutable.go:145: TestSuite: === RUN   TestHTTPReplaceRules/Both_enabled
+    remoteexecutable.go:145: TestSuite: === RUN   TestHTTPReplaceRules/Not_enabled
+    remoteexecutable.go:145: TestSuite: --- PASS: TestHTTPReplaceRules (0.05s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestHTTPReplaceRules/via_deprecated_YAML (0.01s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestHTTPReplaceRules/via_deprecated_ENV_variable (0.01s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestHTTPReplaceRules/via_YAML (0.02s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestHTTPReplaceRules/via_ENV_variable (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestHTTPReplaceRules/Deprecated_is_enabled,_new_is_disabled (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestHTTPReplaceRules/Deprecated_is_disabled,_new_is_enabled (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestHTTPReplaceRules/Both_enabled (0.01s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestHTTPReplaceRules/Not_enabled (0.00s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestMaxTrackedHTTPConnections
+    remoteexecutable.go:145: TestSuite: === RUN   TestMaxTrackedHTTPConnections/via_deprecated_YAML
+    remoteexecutable.go:145: TestSuite: === RUN   TestMaxTrackedHTTPConnections/via_deprecated_ENV_variable
+    remoteexecutable.go:145: TestSuite: === RUN   TestMaxTrackedHTTPConnections/via_YAML
+    remoteexecutable.go:145: TestSuite: === RUN   TestMaxTrackedHTTPConnections/via_ENV_variable
+    remoteexecutable.go:145: TestSuite: === RUN   TestMaxTrackedHTTPConnections/Deprecated_is_enabled,_new_is_disabled
+    remoteexecutable.go:145: TestSuite: === RUN   TestMaxTrackedHTTPConnections/Deprecated_is_disabled,_new_is_enabled
+    remoteexecutable.go:145: TestSuite: === RUN   TestMaxTrackedHTTPConnections/Both_enabled
+    remoteexecutable.go:145: TestSuite: === RUN   TestMaxTrackedHTTPConnections/Not_enabled
+    remoteexecutable.go:145: TestSuite: --- PASS: TestMaxTrackedHTTPConnections (0.06s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestMaxTrackedHTTPConnections/via_deprecated_YAML (0.02s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestMaxTrackedHTTPConnections/via_deprecated_ENV_variable (0.01s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestMaxTrackedHTTPConnections/via_YAML (0.02s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestMaxTrackedHTTPConnections/via_ENV_variable (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestMaxTrackedHTTPConnections/Deprecated_is_enabled,_new_is_disabled (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestMaxTrackedHTTPConnections/Deprecated_is_disabled,_new_is_enabled (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestMaxTrackedHTTPConnections/Both_enabled (0.01s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestMaxTrackedHTTPConnections/Not_enabled (0.00s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestHTTP2DynamicTableMapCleanerInterval
+    remoteexecutable.go:145: TestSuite: === RUN   TestHTTP2DynamicTableMapCleanerInterval/via_YAML
+    remoteexecutable.go:145: TestSuite: === RUN   TestHTTP2DynamicTableMapCleanerInterval/via_ENV_variable
+    remoteexecutable.go:145: TestSuite: === RUN   TestHTTP2DynamicTableMapCleanerInterval/Not_enabled
+    remoteexecutable.go:145: TestSuite: --- PASS: TestHTTP2DynamicTableMapCleanerInterval (0.04s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestHTTP2DynamicTableMapCleanerInterval/via_YAML (0.03s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestHTTP2DynamicTableMapCleanerInterval/via_ENV_variable (0.01s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestHTTP2DynamicTableMapCleanerInterval/Not_enabled (0.00s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestHTTPMapCleanerInterval
+    remoteexecutable.go:145: TestSuite: === RUN   TestHTTPMapCleanerInterval/via_deprecated_YAML
+    remoteexecutable.go:145: TestSuite: === RUN   TestHTTPMapCleanerInterval/via_deprecated_ENV_variable
+    remoteexecutable.go:145: TestSuite: === RUN   TestHTTPMapCleanerInterval/via_YAML
+    remoteexecutable.go:145: TestSuite: === RUN   TestHTTPMapCleanerInterval/via_ENV_variable
+    remoteexecutable.go:145: TestSuite: === RUN   TestHTTPMapCleanerInterval/Deprecated_is_enabled,_new_is_disabled
+    remoteexecutable.go:145: TestSuite: === RUN   TestHTTPMapCleanerInterval/Deprecated_is_disabled,_new_is_enabled
+    remoteexecutable.go:145: TestSuite: === RUN   TestHTTPMapCleanerInterval/Both_enabled
+    remoteexecutable.go:145: TestSuite: === RUN   TestHTTPMapCleanerInterval/Not_enabled
+    remoteexecutable.go:145: TestSuite: --- PASS: TestHTTPMapCleanerInterval (0.10s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestHTTPMapCleanerInterval/via_deprecated_YAML (0.04s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestHTTPMapCleanerInterval/via_deprecated_ENV_variable (0.01s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestHTTPMapCleanerInterval/via_YAML (0.03s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestHTTPMapCleanerInterval/via_ENV_variable (0.01s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestHTTPMapCleanerInterval/Deprecated_is_enabled,_new_is_disabled (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestHTTPMapCleanerInterval/Deprecated_is_disabled,_new_is_enabled (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestHTTPMapCleanerInterval/Both_enabled (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestHTTPMapCleanerInterval/Not_enabled (0.00s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestHTTPIdleConnectionTTL
+    remoteexecutable.go:145: TestSuite: === RUN   TestHTTPIdleConnectionTTL/via_deprecated_YAML
+    remoteexecutable.go:145: TestSuite: === RUN   TestHTTPIdleConnectionTTL/via_deprecated_ENV_variable
+    remoteexecutable.go:145: TestSuite: === RUN   TestHTTPIdleConnectionTTL/via_YAML
+    remoteexecutable.go:145: TestSuite: === RUN   TestHTTPIdleConnectionTTL/via_ENV_variable
+    remoteexecutable.go:145: TestSuite: === RUN   TestHTTPIdleConnectionTTL/Deprecated_is_enabled,_new_is_disabled
+    remoteexecutable.go:145: TestSuite: === RUN   TestHTTPIdleConnectionTTL/Deprecated_is_disabled,_new_is_enabled
+    remoteexecutable.go:145: TestSuite: === RUN   TestHTTPIdleConnectionTTL/Both_enabled
+    remoteexecutable.go:145: TestSuite: === RUN   TestHTTPIdleConnectionTTL/Not_enabled
+    remoteexecutable.go:145: TestSuite: --- PASS: TestHTTPIdleConnectionTTL (0.08s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestHTTPIdleConnectionTTL/via_deprecated_YAML (0.03s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestHTTPIdleConnectionTTL/via_deprecated_ENV_variable (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestHTTPIdleConnectionTTL/via_YAML (0.02s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestHTTPIdleConnectionTTL/via_ENV_variable (0.01s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestHTTPIdleConnectionTTL/Deprecated_is_enabled,_new_is_disabled (0.01s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestHTTPIdleConnectionTTL/Deprecated_is_disabled,_new_is_enabled (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestHTTPIdleConnectionTTL/Both_enabled (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestHTTPIdleConnectionTTL/Not_enabled (0.01s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestHTTPNotificationThreshold
+    remoteexecutable.go:145: TestSuite: === RUN   TestHTTPNotificationThreshold/via_deprecated_YAML
+    remoteexecutable.go:145: TestSuite: === RUN   TestHTTPNotificationThreshold/via_deprecated_ENV_variable
+    remoteexecutable.go:145: TestSuite: === RUN   TestHTTPNotificationThreshold/via_YAML
+    remoteexecutable.go:145: TestSuite: === RUN   TestHTTPNotificationThreshold/via_ENV_variable
+    remoteexecutable.go:145: TestSuite: === RUN   TestHTTPNotificationThreshold/Deprecated_is_enabled,_new_is_disabled
+    remoteexecutable.go:145: TestSuite: === RUN   TestHTTPNotificationThreshold/Deprecated_is_disabled,_new_is_enabled
+    remoteexecutable.go:145: TestSuite: === RUN   TestHTTPNotificationThreshold/Both_enabled
+    remoteexecutable.go:145: TestSuite: === RUN   TestHTTPNotificationThreshold/Not_enabled
+    remoteexecutable.go:145: TestSuite: --- PASS: TestHTTPNotificationThreshold (0.09s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestHTTPNotificationThreshold/via_deprecated_YAML (0.03s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestHTTPNotificationThreshold/via_deprecated_ENV_variable (0.01s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestHTTPNotificationThreshold/via_YAML (0.03s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestHTTPNotificationThreshold/via_ENV_variable (0.01s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestHTTPNotificationThreshold/Deprecated_is_enabled,_new_is_disabled (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestHTTPNotificationThreshold/Deprecated_is_disabled,_new_is_enabled (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestHTTPNotificationThreshold/Both_enabled (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestHTTPNotificationThreshold/Not_enabled (0.00s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestHTTPNotificationThresholdOverLimit
+    remoteexecutable.go:145: TestSuite: === RUN   TestHTTPNotificationThresholdOverLimit/via_deprecated_YAML
+    remoteexecutable.go:145: TestSuite: === RUN   TestHTTPNotificationThresholdOverLimit/via_deprecated_ENV_variable
+    remoteexecutable.go:145: TestSuite: === RUN   TestHTTPNotificationThresholdOverLimit/via_YAML
+    remoteexecutable.go:145: TestSuite: === RUN   TestHTTPNotificationThresholdOverLimit/via_ENV_variable
+    remoteexecutable.go:145: TestSuite: === RUN   TestHTTPNotificationThresholdOverLimit/Deprecated_is_enabled,_new_is_disabled
+    remoteexecutable.go:145: TestSuite: === RUN   TestHTTPNotificationThresholdOverLimit/Deprecated_is_disabled,_new_is_enabled
+    remoteexecutable.go:145: TestSuite: === RUN   TestHTTPNotificationThresholdOverLimit/Both_enabled
+    remoteexecutable.go:145: TestSuite: === RUN   TestHTTPNotificationThresholdOverLimit/Not_enabled
+    remoteexecutable.go:145: TestSuite: --- PASS: TestHTTPNotificationThresholdOverLimit (0.08s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestHTTPNotificationThresholdOverLimit/via_deprecated_YAML (0.02s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestHTTPNotificationThresholdOverLimit/via_deprecated_ENV_variable (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestHTTPNotificationThresholdOverLimit/via_YAML (0.02s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestHTTPNotificationThresholdOverLimit/via_ENV_variable (0.01s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestHTTPNotificationThresholdOverLimit/Deprecated_is_enabled,_new_is_disabled (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestHTTPNotificationThresholdOverLimit/Deprecated_is_disabled,_new_is_enabled (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestHTTPNotificationThresholdOverLimit/Both_enabled (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestHTTPNotificationThresholdOverLimit/Not_enabled (0.00s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestHTTPMaxRequestFragment
+    remoteexecutable.go:145: TestSuite: === RUN   TestHTTPMaxRequestFragment/via_deprecated_YAML
+    remoteexecutable.go:145: TestSuite: === RUN   TestHTTPMaxRequestFragment/via_deprecated_ENV_variable
+    remoteexecutable.go:145: TestSuite: === RUN   TestHTTPMaxRequestFragment/via_YAML
+    remoteexecutable.go:145: TestSuite: === RUN   TestHTTPMaxRequestFragment/via_ENV_variable
+    remoteexecutable.go:145: TestSuite: === RUN   TestHTTPMaxRequestFragment/Deprecated_is_enabled,_new_is_disabled
+    remoteexecutable.go:145: TestSuite: === RUN   TestHTTPMaxRequestFragment/Deprecated_is_disabled,_new_is_enabled
+    remoteexecutable.go:145: TestSuite: === RUN   TestHTTPMaxRequestFragment/Both_enabled
+    remoteexecutable.go:145: TestSuite: === RUN   TestHTTPMaxRequestFragment/Not_enabled
+    remoteexecutable.go:145: TestSuite: --- PASS: TestHTTPMaxRequestFragment (0.10s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestHTTPMaxRequestFragment/via_deprecated_YAML (0.03s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestHTTPMaxRequestFragment/via_deprecated_ENV_variable (0.01s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestHTTPMaxRequestFragment/via_YAML (0.03s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestHTTPMaxRequestFragment/via_ENV_variable (0.01s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestHTTPMaxRequestFragment/Deprecated_is_enabled,_new_is_disabled (0.01s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestHTTPMaxRequestFragment/Deprecated_is_disabled,_new_is_enabled (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestHTTPMaxRequestFragment/Both_enabled (0.02s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestHTTPMaxRequestFragment/Not_enabled (0.00s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestHTTPMaxRequestFragmentLimit
+    remoteexecutable.go:145: TestSuite: === RUN   TestHTTPMaxRequestFragmentLimit/via_deprecated_YAML
+    remoteexecutable.go:145: TestSuite: === RUN   TestHTTPMaxRequestFragmentLimit/via_deprecated_ENV_variable
+    remoteexecutable.go:145: TestSuite: === RUN   TestHTTPMaxRequestFragmentLimit/via_YAML
+    remoteexecutable.go:145: TestSuite: === RUN   TestHTTPMaxRequestFragmentLimit/via_ENV_variable
+    remoteexecutable.go:145: TestSuite: === RUN   TestHTTPMaxRequestFragmentLimit/Deprecated_is_enabled,_new_is_disabled
+    remoteexecutable.go:145: TestSuite: === RUN   TestHTTPMaxRequestFragmentLimit/Deprecated_is_disabled,_new_is_enabled
+    remoteexecutable.go:145: TestSuite: === RUN   TestHTTPMaxRequestFragmentLimit/Both_enabled
+    remoteexecutable.go:145: TestSuite: === RUN   TestHTTPMaxRequestFragmentLimit/Not_enabled
+    remoteexecutable.go:145: TestSuite: --- PASS: TestHTTPMaxRequestFragmentLimit (0.11s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestHTTPMaxRequestFragmentLimit/via_deprecated_YAML (0.05s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestHTTPMaxRequestFragmentLimit/via_deprecated_ENV_variable (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestHTTPMaxRequestFragmentLimit/via_YAML (0.04s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestHTTPMaxRequestFragmentLimit/via_ENV_variable (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestHTTPMaxRequestFragmentLimit/Deprecated_is_enabled,_new_is_disabled (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestHTTPMaxRequestFragmentLimit/Deprecated_is_disabled,_new_is_enabled (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestHTTPMaxRequestFragmentLimit/Both_enabled (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestHTTPMaxRequestFragmentLimit/Not_enabled (0.00s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestMaxClosedConnectionsBuffered
+    remoteexecutable.go:145: TestSuite: === RUN   TestMaxClosedConnectionsBuffered/value_set
+    remoteexecutable.go:145: TestSuite: === RUN   TestMaxClosedConnectionsBuffered/value_not_set
+    remoteexecutable.go:145: TestSuite: --- PASS: TestMaxClosedConnectionsBuffered (0.01s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestMaxClosedConnectionsBuffered/value_set (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestMaxClosedConnectionsBuffered/value_not_set (0.00s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestMaxHTTPStatsBuffered
+    remoteexecutable.go:145: TestSuite: === RUN   TestMaxHTTPStatsBuffered/via_deprecated_YAML
+    remoteexecutable.go:145: TestSuite: === RUN   TestMaxHTTPStatsBuffered/via_deprecated_ENV_variable
+    remoteexecutable.go:145: TestSuite: === RUN   TestMaxHTTPStatsBuffered/via_YAML
+    remoteexecutable.go:145: TestSuite: === RUN   TestMaxHTTPStatsBuffered/via_ENV_variable
+    remoteexecutable.go:145: TestSuite: === RUN   TestMaxHTTPStatsBuffered/Deprecated_is_enabled,_new_is_disabled
+    remoteexecutable.go:145: TestSuite: === RUN   TestMaxHTTPStatsBuffered/Deprecated_is_disabled,_new_is_enabled
+    remoteexecutable.go:145: TestSuite: === RUN   TestMaxHTTPStatsBuffered/Both_enabled
+    remoteexecutable.go:145: TestSuite: === RUN   TestMaxHTTPStatsBuffered/Not_enabled
+    remoteexecutable.go:145: TestSuite: --- PASS: TestMaxHTTPStatsBuffered (0.05s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestMaxHTTPStatsBuffered/via_deprecated_YAML (0.01s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestMaxHTTPStatsBuffered/via_deprecated_ENV_variable (0.01s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestMaxHTTPStatsBuffered/via_YAML (0.01s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestMaxHTTPStatsBuffered/via_ENV_variable (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestMaxHTTPStatsBuffered/Deprecated_is_enabled,_new_is_disabled (0.01s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestMaxHTTPStatsBuffered/Deprecated_is_disabled,_new_is_enabled (0.01s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestMaxHTTPStatsBuffered/Both_enabled (0.01s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestMaxHTTPStatsBuffered/Not_enabled (0.00s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestMaxKafkaStatsBuffered
+    remoteexecutable.go:145: TestSuite: === RUN   TestMaxKafkaStatsBuffered/value_set_through_env_var
+    remoteexecutable.go:145: TestSuite: === RUN   TestMaxKafkaStatsBuffered/value_set_through_yaml
+    remoteexecutable.go:145: TestSuite: --- PASS: TestMaxKafkaStatsBuffered (0.03s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestMaxKafkaStatsBuffered/value_set_through_env_var (0.01s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestMaxKafkaStatsBuffered/value_set_through_yaml (0.02s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestNetworkConfigEnabled
+    remoteexecutable.go:145: TestSuite: === RUN   TestNetworkConfigEnabled/0
+    remoteexecutable.go:145: TestSuite: === RUN   TestNetworkConfigEnabled/1
+    remoteexecutable.go:145: TestSuite: === RUN   TestNetworkConfigEnabled/2
+    remoteexecutable.go:145: TestSuite: === RUN   TestNetworkConfigEnabled/3
+    remoteexecutable.go:145: TestSuite: === RUN   TestNetworkConfigEnabled/4
+    remoteexecutable.go:145: TestSuite: === RUN   TestNetworkConfigEnabled/5
+    remoteexecutable.go:145: TestSuite: === RUN   TestNetworkConfigEnabled/6
+    remoteexecutable.go:145: TestSuite: === RUN   TestNetworkConfigEnabled/7
+    remoteexecutable.go:145: TestSuite: --- PASS: TestNetworkConfigEnabled (0.11s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestNetworkConfigEnabled/0 (0.01s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestNetworkConfigEnabled/1 (0.02s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestNetworkConfigEnabled/2 (0.03s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestNetworkConfigEnabled/3 (0.02s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestNetworkConfigEnabled/4 (0.01s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestNetworkConfigEnabled/5 (0.01s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestNetworkConfigEnabled/6 (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestNetworkConfigEnabled/7 (0.01s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestIstioMonitoring
+    remoteexecutable.go:145: TestSuite: === RUN   TestIstioMonitoring/default_value
+    remoteexecutable.go:145: TestSuite: === RUN   TestIstioMonitoring/via_yaml
+    remoteexecutable.go:145: TestSuite: === RUN   TestIstioMonitoring/via_deprecated_ENV_variable
+    remoteexecutable.go:145: TestSuite: --- PASS: TestIstioMonitoring (0.03s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestIstioMonitoring/default_value (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestIstioMonitoring/via_yaml (0.03s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestIstioMonitoring/via_deprecated_ENV_variable (0.00s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestMaxUSMConcurrentRequests
+    remoteexecutable.go:145: TestSuite: === RUN   TestMaxUSMConcurrentRequests/default_value
+    remoteexecutable.go:145: TestSuite: === RUN   TestMaxUSMConcurrentRequests/via_yaml
+    remoteexecutable.go:145: TestSuite: === RUN   TestMaxUSMConcurrentRequests/via_ENV_variable
+    remoteexecutable.go:145: TestSuite: --- PASS: TestMaxUSMConcurrentRequests (0.03s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestMaxUSMConcurrentRequests/default_value (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestMaxUSMConcurrentRequests/via_yaml (0.03s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestMaxUSMConcurrentRequests/via_ENV_variable (0.00s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestUSMTLSNativeEnabled
+    remoteexecutable.go:145: TestSuite: === RUN   TestUSMTLSNativeEnabled/via_deprecated_YAML
+    remoteexecutable.go:145: TestSuite: === RUN   TestUSMTLSNativeEnabled/via_deprecated_ENV_variable
+    remoteexecutable.go:145: TestSuite: === RUN   TestUSMTLSNativeEnabled/via_YAML
+    remoteexecutable.go:145: TestSuite: === RUN   TestUSMTLSNativeEnabled/via_ENV_variable
+    remoteexecutable.go:145: TestSuite: === RUN   TestUSMTLSNativeEnabled/Deprecated_is_enabled,_new_is_disabled
+    remoteexecutable.go:145: TestSuite: === RUN   TestUSMTLSNativeEnabled/Deprecated_is_disabled,_new_is_enabled
+    remoteexecutable.go:145: TestSuite: === RUN   TestUSMTLSNativeEnabled/Both_enabled
+    remoteexecutable.go:145: TestSuite: === RUN   TestUSMTLSNativeEnabled/Not_enabled
+    remoteexecutable.go:145: TestSuite: --- PASS: TestUSMTLSNativeEnabled (0.08s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestUSMTLSNativeEnabled/via_deprecated_YAML (0.03s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestUSMTLSNativeEnabled/via_deprecated_ENV_variable (0.01s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestUSMTLSNativeEnabled/via_YAML (0.03s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestUSMTLSNativeEnabled/via_ENV_variable (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestUSMTLSNativeEnabled/Deprecated_is_enabled,_new_is_disabled (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestUSMTLSNativeEnabled/Deprecated_is_disabled,_new_is_enabled (0.01s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestUSMTLSNativeEnabled/Both_enabled (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestUSMTLSNativeEnabled/Not_enabled (0.00s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestUSMTLSGoEnabled
+    remoteexecutable.go:145: TestSuite: === RUN   TestUSMTLSGoEnabled/via_deprecated_YAML
+    remoteexecutable.go:145: TestSuite: === RUN   TestUSMTLSGoEnabled/via_deprecated_ENV_variable
+    remoteexecutable.go:145: TestSuite: === RUN   TestUSMTLSGoEnabled/via_YAML
+    remoteexecutable.go:145: TestSuite: === RUN   TestUSMTLSGoEnabled/via_ENV_variable
+    remoteexecutable.go:145: TestSuite: === RUN   TestUSMTLSGoEnabled/Deprecated_is_enabled,_new_is_disabled
+    remoteexecutable.go:145: TestSuite: === RUN   TestUSMTLSGoEnabled/Deprecated_is_disabled,_new_is_enabled
+    remoteexecutable.go:145: TestSuite: === RUN   TestUSMTLSGoEnabled/Both_enabled
+    remoteexecutable.go:145: TestSuite: === RUN   TestUSMTLSGoEnabled/Not_enabled
+    remoteexecutable.go:145: TestSuite: --- PASS: TestUSMTLSGoEnabled (0.06s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestUSMTLSGoEnabled/via_deprecated_YAML (0.03s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestUSMTLSGoEnabled/via_deprecated_ENV_variable (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestUSMTLSGoEnabled/via_YAML (0.01s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestUSMTLSGoEnabled/via_ENV_variable (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestUSMTLSGoEnabled/Deprecated_is_enabled,_new_is_disabled (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestUSMTLSGoEnabled/Deprecated_is_disabled,_new_is_enabled (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestUSMTLSGoEnabled/Both_enabled (0.01s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestUSMTLSGoEnabled/Not_enabled (0.00s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestUSMTLSGoExcludeSelf
+    remoteexecutable.go:145: TestSuite: === RUN   TestUSMTLSGoExcludeSelf/via_YAML
+    remoteexecutable.go:145: TestSuite: === RUN   TestUSMTLSGoExcludeSelf/via_ENV_variable
+    remoteexecutable.go:145: TestSuite: === RUN   TestUSMTLSGoExcludeSelf/Not_disabled
+    remoteexecutable.go:145: TestSuite: --- PASS: TestUSMTLSGoExcludeSelf (0.04s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestUSMTLSGoExcludeSelf/via_YAML (0.03s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestUSMTLSGoExcludeSelf/via_ENV_variable (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestUSMTLSGoExcludeSelf/Not_disabled (0.00s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestProcessServiceInference
+    remoteexecutable.go:145: TestSuite: === RUN   TestProcessServiceInference/via_deprecated_YAML
+    remoteexecutable.go:145: TestSuite: === RUN   TestProcessServiceInference/via_ENV_variable
+    remoteexecutable.go:145: TestSuite: === RUN   TestProcessServiceInference/via_YAML
+    remoteexecutable.go:145: TestSuite: === RUN   TestProcessServiceInference/Deprecated_is_enabled,_new_is_disabled
+    remoteexecutable.go:145: TestSuite: === RUN   TestProcessServiceInference/Deprecated_is_disabled,_new_is_enabled
+    remoteexecutable.go:145: TestSuite: === RUN   TestProcessServiceInference/Both_enabled
+    remoteexecutable.go:145: TestSuite: === RUN   TestProcessServiceInference/Not_enabled
+    remoteexecutable.go:145: TestSuite: === RUN   TestProcessServiceInference/Enabled_without_net,_dsm,_sm_enabled
+    remoteexecutable.go:145: TestSuite: --- PASS: TestProcessServiceInference (0.17s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestProcessServiceInference/via_deprecated_YAML (0.03s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestProcessServiceInference/via_ENV_variable (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestProcessServiceInference/via_YAML (0.03s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestProcessServiceInference/Deprecated_is_enabled,_new_is_disabled (0.03s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestProcessServiceInference/Deprecated_is_disabled,_new_is_enabled (0.04s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestProcessServiceInference/Both_enabled (0.02s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestProcessServiceInference/Not_enabled (0.01s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestProcessServiceInference/Enabled_without_net,_dsm,_sm_enabled (0.01s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestProcessServiceInferenceWindows
+    remoteexecutable.go:145: TestSuite: === RUN   TestProcessServiceInferenceWindows/via_deprecated_YAML
+    remoteexecutable.go:145: TestSuite: === RUN   TestProcessServiceInferenceWindows/via_ENV_variable
+    remoteexecutable.go:145: TestSuite: === RUN   TestProcessServiceInferenceWindows/via_YAML
+    remoteexecutable.go:145: TestSuite: === RUN   TestProcessServiceInferenceWindows/Deprecated_is_enabled,_new_is_disabled
+    remoteexecutable.go:145: TestSuite: === RUN   TestProcessServiceInferenceWindows/Deprecated_is_disabled,_new_is_enabled
+    remoteexecutable.go:145: TestSuite: === RUN   TestProcessServiceInferenceWindows/Both_enabled
+    remoteexecutable.go:145: TestSuite: === RUN   TestProcessServiceInferenceWindows/Not_enabled
+    remoteexecutable.go:145: TestSuite: --- PASS: TestProcessServiceInferenceWindows (0.17s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestProcessServiceInferenceWindows/via_deprecated_YAML (0.05s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestProcessServiceInferenceWindows/via_ENV_variable (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestProcessServiceInferenceWindows/via_YAML (0.02s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestProcessServiceInferenceWindows/Deprecated_is_enabled,_new_is_disabled (0.03s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestProcessServiceInferenceWindows/Deprecated_is_disabled,_new_is_enabled (0.03s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestProcessServiceInferenceWindows/Both_enabled (0.02s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestProcessServiceInferenceWindows/Not_enabled (0.02s)
+    remoteexecutable.go:145: TestSuite: PASS
+    remoteexecutable.go:145: TestSuite:
+    remoteexecutable.go:125: Testsuite c:\tmp\pkg\network\config\testsuite.exe took 11.0383285s
+    remoteexecutable.go:121: Running testsuite: pkg\network\dns\testsuite.exe
+    remoteexecutable.go:145: TestSuite: === RUN   TestMultipleIPsForSameName
+    remoteexecutable.go:145: TestSuite: --- PASS: TestMultipleIPsForSameName (0.00s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestMultipleNamesForSameIP
+    remoteexecutable.go:145: TestSuite: --- PASS: TestMultipleNamesForSameIP (0.00s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestDNSCacheExpiration
+    remoteexecutable.go:145: TestSuite: --- PASS: TestDNSCacheExpiration (0.00s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestDNSCacheTelemetry
+    remoteexecutable.go:145: TestSuite: --- PASS: TestDNSCacheTelemetry (0.00s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestDNSCacheMerge
+    remoteexecutable.go:145: TestSuite: --- PASS: TestDNSCacheMerge (0.00s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestDNSCacheMerge_MixedCaseNames
+    remoteexecutable.go:145: TestSuite: --- PASS: TestDNSCacheMerge_MixedCaseNames (0.00s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestGetOversizedDNS
+    remoteexecutable.go:145: TestSuite: --- PASS: TestGetOversizedDNS (0.00s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestSuccessLatency
+    remoteexecutable.go:145: TestSuite: --- PASS: TestSuccessLatency (0.00s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestFailureLatency
+    remoteexecutable.go:145: TestSuite: --- PASS: TestFailureLatency (0.00s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestTimeout
+    remoteexecutable.go:145: TestSuite: --- PASS: TestTimeout (0.00s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestExpiredStateRemoval
+    remoteexecutable.go:145: TestSuite: --- PASS: TestExpiredStateRemoval (0.00s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestHostnameFromBytesAllocs
+    remoteexecutable.go:145: TestSuite: --- PASS: TestHostnameFromBytesAllocs (0.00s)
+    remoteexecutable.go:145: TestSuite: PASS
+    remoteexecutable.go:145: TestSuite:
+    remoteexecutable.go:125: Testsuite c:\tmp\pkg\network\dns\testsuite.exe took 9.6174799s
+    remoteexecutable.go:121: Running testsuite: pkg\network\driver\testsuite.exe
+    remoteexecutable.go:145: TestSuite: === RUN   TestDriverRequiresPath
+    remoteexecutable.go:145: TestSuite: --- PASS: TestDriverRequiresPath (0.00s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestDriverCanOpenExpectedPaths
+    remoteexecutable.go:145: TestSuite: --- PASS: TestDriverCanOpenExpectedPaths (0.00s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestDriverWillAcceptFilters
+    remoteexecutable.go:145: TestSuite: === RUN   TestDriverWillAcceptFilters/Test_flow_handle_will_accept_flow_filter
+    remoteexecutable.go:145: TestSuite: === RUN   TestDriverWillAcceptFilters/Test_flow_handle_will_not_accept_transport_filter
+    remoteexecutable.go:145: TestSuite: --- PASS: TestDriverWillAcceptFilters (0.02s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestDriverWillAcceptFilters/Test_flow_handle_will_accept_flow_filter (0.01s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestDriverWillAcceptFilters/Test_flow_handle_will_not_accept_transport_filter (0.00s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestDriverWillNotAcceptMismatchedFilters
+    remoteexecutable.go:145: TestSuite: === RUN   TestDriverWillNotAcceptMismatchedFilters/Test_flow_handle_will_not_accept_data_filter_on_flow_handle
+    remoteexecutable.go:145: TestSuite: === RUN   TestDriverWillNotAcceptMismatchedFilters/Test_flow_handle_will_not_accept_flow_filter_on_transport_handle
+    remoteexecutable.go:145: TestSuite: --- PASS: TestDriverWillNotAcceptMismatchedFilters (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestDriverWillNotAcceptMismatchedFilters/Test_flow_handle_will_not_accept_data_filter_on_flow_handle (0.00s)    
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestDriverWillNotAcceptMismatchedFilters/Test_flow_handle_will_not_accept_flow_filter_on_transport_handle (0.00s)
+    remoteexecutable.go:145: TestSuite: PASS
+    remoteexecutable.go:145: TestSuite:
+    remoteexecutable.go:125: Testsuite c:\tmp\pkg\network\driver\testsuite.exe took 7.2223153s
+    remoteexecutable.go:121: Running testsuite: pkg\network\encoding\marshal\testsuite.exe
+    remoteexecutable.go:145: TestSuite: === RUN   TestFormatConnectionDNS
+    remoteexecutable.go:145: TestSuite: === RUN   TestFormatConnectionDNS/DNS_with_collect_domains_enabled=true,enable_dns_by_querytype=false
+    remoteexecutable.go:145: TestSuite: === RUN   TestFormatConnectionDNS/DNS_with_collect_domains_enabled=true,enable_dns_by_querytype=true
+    remoteexecutable.go:145: TestSuite: --- PASS: TestFormatConnectionDNS (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestFormatConnectionDNS/DNS_with_collect_domains_enabled=true,enable_dns_by_querytype=false (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestFormatConnectionDNS/DNS_with_collect_domains_enabled=true,enable_dns_by_querytype=true (0.00s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestFormatRouteIdx
+    remoteexecutable.go:145: TestSuite: === RUN   TestFormatRouteIdx/nil_via
+    remoteexecutable.go:145: TestSuite: === RUN   TestFormatRouteIdx/empty_via
+    remoteexecutable.go:145: TestSuite: === RUN   TestFormatRouteIdx/empty_routes,_non-nil_via
+    remoteexecutable.go:145: TestSuite: === RUN   TestFormatRouteIdx/non-empty_routes,_non-nil_via_with_existing_alias
+    remoteexecutable.go:145: TestSuite: === RUN   TestFormatRouteIdx/non-empty_routes,_non-nil_via_with_non-existing_alias
+    remoteexecutable.go:145: TestSuite: --- PASS: TestFormatRouteIdx (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestFormatRouteIdx/nil_via (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestFormatRouteIdx/empty_via (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestFormatRouteIdx/empty_routes,_non-nil_via (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestFormatRouteIdx/non-empty_routes,_non-nil_via_with_existing_alias (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestFormatRouteIdx/non-empty_routes,_non-nil_via_with_non-existing_alias (0.00s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestFormatProtocols
+    remoteexecutable.go:145: TestSuite: === RUN   TestFormatProtocols/unknown_protocol
+    remoteexecutable.go:145: TestSuite: === RUN   TestFormatProtocols/http_protocol
+    remoteexecutable.go:145: TestSuite: === RUN   TestFormatProtocols/http2_protocol
+    remoteexecutable.go:145: TestSuite: === RUN   TestFormatProtocols/grpc_protocol
+    remoteexecutable.go:145: TestSuite: === RUN   TestFormatProtocols/tls_protocol
+    remoteexecutable.go:145: TestSuite: === RUN   TestFormatProtocols/kafka_protocol
+    remoteexecutable.go:145: TestSuite: === RUN   TestFormatProtocols/amqp_protocol
+    remoteexecutable.go:145: TestSuite: === RUN   TestFormatProtocols/redis_protocol
+    remoteexecutable.go:145: TestSuite: === RUN   TestFormatProtocols/mongo_protocol
+    remoteexecutable.go:145: TestSuite: === RUN   TestFormatProtocols/mysql_protocol
+    remoteexecutable.go:145: TestSuite: --- PASS: TestFormatProtocols (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestFormatProtocols/unknown_protocol (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestFormatProtocols/http_protocol (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestFormatProtocols/http2_protocol (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestFormatProtocols/grpc_protocol (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestFormatProtocols/tls_protocol (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestFormatProtocols/kafka_protocol (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestFormatProtocols/amqp_protocol (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestFormatProtocols/redis_protocol (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestFormatProtocols/mongo_protocol (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestFormatProtocols/mysql_protocol (0.00s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestHTTP2Stats
+    remoteexecutable.go:145: TestSuite:     http2_test.go:39: the feature is only supported on linux.
+    remoteexecutable.go:145: TestSuite: --- SKIP: TestHTTP2Stats (0.00s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestFormatHTTPStats
+    remoteexecutable.go:145: TestSuite: === RUN   TestFormatHTTPStats/status_code
+    remoteexecutable.go:145: TestSuite: === RUN   TestFormatHTTPStats/status_class
+    remoteexecutable.go:145: TestSuite: --- PASS: TestFormatHTTPStats (0.01s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestFormatHTTPStats/status_code (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestFormatHTTPStats/status_class (0.00s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestFormatHTTPStatsByPath
+    remoteexecutable.go:145: TestSuite: === RUN   TestFormatHTTPStatsByPath/status_code
+    remoteexecutable.go:145: TestSuite: === RUN   TestFormatHTTPStatsByPath/status_class
+    remoteexecutable.go:145: TestSuite: --- PASS: TestFormatHTTPStatsByPath (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestFormatHTTPStatsByPath/status_code (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestFormatHTTPStatsByPath/status_class (0.00s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestIDCollisionRegression
+    remoteexecutable.go:145: TestSuite: === RUN   TestIDCollisionRegression/status_code
+    remoteexecutable.go:145: TestSuite: === RUN   TestIDCollisionRegression/status_class
+    remoteexecutable.go:145: TestSuite: --- PASS: TestIDCollisionRegression (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestIDCollisionRegression/status_code (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestIDCollisionRegression/status_class (0.00s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestLocalhostScenario
+    remoteexecutable.go:145: TestSuite: === RUN   TestLocalhostScenario/status_code
+    remoteexecutable.go:145: TestSuite: === RUN   TestLocalhostScenario/status_class
+    remoteexecutable.go:145: TestSuite: --- PASS: TestLocalhostScenario (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestLocalhostScenario/status_code (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestLocalhostScenario/status_class (0.00s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestKafkaStats
+    remoteexecutable.go:145: TestSuite:     kafka_test.go:27: the feature is only supported on linux.
+    remoteexecutable.go:145: TestSuite: --- SKIP: TestKafkaStats (0.00s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestUSMLookup
+    remoteexecutable.go:145: TestSuite: --- PASS: TestUSMLookup (0.00s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestGroupByConnection
+    remoteexecutable.go:145: TestSuite: --- PASS: TestGroupByConnection (0.00s)
+    remoteexecutable.go:145: TestSuite: PASS
+    remoteexecutable.go:145: TestSuite:
+    remoteexecutable.go:125: Testsuite c:\tmp\pkg\network\encoding\marshal\testsuite.exe took 10.6131918s
+    remoteexecutable.go:121: Running testsuite: pkg\network\encoding\testsuite.exe
+    remoteexecutable.go:145: TestSuite: === RUN   TestSerialization
+    remoteexecutable.go:145: TestSuite: === RUN   TestSerialization/status_code
+    remoteexecutable.go:145: TestSuite: === RUN   TestSerialization/status_code/requesting_application/json_serialization_(no_query_types)
+    remoteexecutable.go:145: TestSuite: === RUN   TestSerialization/status_code/requesting_application/json_serialization_(with_query_types)
+    remoteexecutable.go:145: TestSuite: === RUN   TestSerialization/status_code/requesting_empty_serialization
+    remoteexecutable.go:145: TestSuite: === RUN   TestSerialization/status_code/requesting_unsupported_serialization_format
+    remoteexecutable.go:145: TestSuite: === RUN   TestSerialization/status_code/render_default_values_with_application/json
+    remoteexecutable.go:145: TestSuite: === RUN   TestSerialization/status_code/requesting_application/protobuf_serialization_(no_query_types)
+    remoteexecutable.go:145: TestSuite: === RUN   TestSerialization/status_code/requesting_application/protobuf_serialization_(with_query_types)
+    remoteexecutable.go:145: TestSuite: === RUN   TestSerialization/status_class
+    remoteexecutable.go:145: TestSuite: === RUN   TestSerialization/status_class/requesting_application/json_serialization_(no_query_types)
+    remoteexecutable.go:145: TestSuite: === RUN   TestSerialization/status_class/requesting_application/json_serialization_(with_query_types)
+    remoteexecutable.go:145: TestSuite: === RUN   TestSerialization/status_class/requesting_empty_serialization
+    remoteexecutable.go:145: TestSuite: === RUN   TestSerialization/status_class/requesting_unsupported_serialization_format
+    remoteexecutable.go:145: TestSuite: === RUN   TestSerialization/status_class/render_default_values_with_application/json
+    remoteexecutable.go:145: TestSuite: === RUN   TestSerialization/status_class/requesting_application/protobuf_serialization_(no_query_types)
+    remoteexecutable.go:145: TestSuite: === RUN   TestSerialization/status_class/requesting_application/protobuf_serialization_(with_query_types)
+    remoteexecutable.go:145: TestSuite: --- PASS: TestSerialization (0.09s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestSerialization/status_code (0.04s)
+    remoteexecutable.go:145: TestSuite:         --- PASS: TestSerialization/status_code/requesting_application/json_serialization_(no_query_types) (0.00s)
+    remoteexecutable.go:145: TestSuite:         --- PASS: TestSerialization/status_code/requesting_application/json_serialization_(with_query_types) (0.01s)
+    remoteexecutable.go:145: TestSuite:         --- PASS: TestSerialization/status_code/requesting_empty_serialization (0.00s)
+    remoteexecutable.go:145: TestSuite:         --- PASS: TestSerialization/status_code/requesting_unsupported_serialization_format (0.02s)
+    remoteexecutable.go:145: TestSuite:         --- PASS: TestSerialization/status_code/render_default_values_with_application/json (0.00s)
+    remoteexecutable.go:145: TestSuite:         --- PASS: TestSerialization/status_code/requesting_application/protobuf_serialization_(no_query_types) (0.00s)        
+    remoteexecutable.go:145: TestSuite:         --- PASS: TestSerialization/status_code/requesting_application/protobuf_serialization_(with_query_types) (0.00s)      
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestSerialization/status_class (0.05s)
+    remoteexecutable.go:145: TestSuite:         --- PASS: TestSerialization/status_class/requesting_application/json_serialization_(no_query_types) (0.00s)
+    remoteexecutable.go:145: TestSuite:         --- PASS: TestSerialization/status_class/requesting_application/json_serialization_(with_query_types) (0.02s)
+    remoteexecutable.go:145: TestSuite:         --- PASS: TestSerialization/status_class/requesting_empty_serialization (0.00s)
+    remoteexecutable.go:145: TestSuite:         --- PASS: TestSerialization/status_class/requesting_unsupported_serialization_format (0.00s)
+    remoteexecutable.go:145: TestSuite:         --- PASS: TestSerialization/status_class/render_default_values_with_application/json (0.02s)
+    remoteexecutable.go:145: TestSuite:         --- PASS: TestSerialization/status_class/requesting_application/protobuf_serialization_(no_query_types) (0.00s)       
+    remoteexecutable.go:145: TestSuite:         --- PASS: TestSerialization/status_class/requesting_application/protobuf_serialization_(with_query_types) (0.00s)     
+    remoteexecutable.go:145: TestSuite: === RUN   TestHTTPSerializationWithLocalhostTraffic
+    remoteexecutable.go:145: TestSuite: === RUN   TestHTTPSerializationWithLocalhostTraffic/status_code
+    remoteexecutable.go:145: TestSuite: === RUN   TestHTTPSerializationWithLocalhostTraffic/status_class
+    remoteexecutable.go:145: TestSuite: --- PASS: TestHTTPSerializationWithLocalhostTraffic (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestHTTPSerializationWithLocalhostTraffic/status_code (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestHTTPSerializationWithLocalhostTraffic/status_class (0.00s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestHTTP2SerializationWithLocalhostTraffic
+    remoteexecutable.go:145: TestSuite: === RUN   TestHTTP2SerializationWithLocalhostTraffic/status_code
+    remoteexecutable.go:145: TestSuite: === RUN   TestHTTP2SerializationWithLocalhostTraffic/status_class
+    remoteexecutable.go:145: TestSuite: --- PASS: TestHTTP2SerializationWithLocalhostTraffic (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestHTTP2SerializationWithLocalhostTraffic/status_code (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestHTTP2SerializationWithLocalhostTraffic/status_class (0.00s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestPooledObjectGarbageRegression
+    remoteexecutable.go:145: TestSuite: --- PASS: TestPooledObjectGarbageRegression (0.04s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestPooledHTTP2ObjectGarbageRegression
+    remoteexecutable.go:145: TestSuite: --- PASS: TestPooledHTTP2ObjectGarbageRegression (0.04s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestUSMPayloadTelemetry
+    remoteexecutable.go:145: TestSuite: --- PASS: TestUSMPayloadTelemetry (0.00s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestKafkaSerializationWithLocalhostTraffic
+    remoteexecutable.go:145: TestSuite:     encoding_test.go:940: the feature is only supported on linux.
+    remoteexecutable.go:145: TestSuite: --- SKIP: TestKafkaSerializationWithLocalhostTraffic (0.00s)
+    remoteexecutable.go:145: TestSuite: PASS
+    remoteexecutable.go:145: TestSuite:
+    remoteexecutable.go:125: Testsuite c:\tmp\pkg\network\encoding\testsuite.exe took 10.5887429s
+    remoteexecutable.go:121: Running testsuite: pkg\network\netlink\testsuite.exe
+    remoteexecutable.go:145: TestSuite: === RUN   TestCircuitBreakerDefaultState
+    remoteexecutable.go:145: TestSuite: --- PASS: TestCircuitBreakerDefaultState (0.00s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestCircuitBreakerRemainsClosed
+    remoteexecutable.go:145: TestSuite: --- PASS: TestCircuitBreakerRemainsClosed (0.00s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestCircuitBreakerSupportsBursts
+    remoteexecutable.go:145: TestSuite: --- PASS: TestCircuitBreakerSupportsBursts (0.00s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestCircuitBreakerReset
+    remoteexecutable.go:145: TestSuite: --- PASS: TestCircuitBreakerReset (0.00s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestStartAboveThreshold
+    remoteexecutable.go:145: TestSuite: --- PASS: TestStartAboveThreshold (0.00s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestCircuitBreakerRateCalculation
+    remoteexecutable.go:145: TestSuite: --- PASS: TestCircuitBreakerRateCalculation (0.00s)
+    remoteexecutable.go:145: TestSuite: PASS
+    remoteexecutable.go:145: TestSuite:
+    remoteexecutable.go:125: Testsuite c:\tmp\pkg\network\netlink\testsuite.exe took 8.2120017s
+    remoteexecutable.go:121: Running testsuite: pkg\network\protocols\http\testsuite.exe
+    remoteexecutable.go:145: TestSuite: === RUN   TestEtwTransactions
+    remoteexecutable.go:145: TestSuite: === RUN   TestEtwTransactions/Test_default_site_ipv4
+    remoteexecutable.go:145: TestSuite: === RUN   TestEtwTransactions/Test_default_site_ipv4_bad_path
+    remoteexecutable.go:145: TestSuite: === RUN   TestEtwTransactions/Test_site1_ipv4
+    remoteexecutable.go:145: TestSuite: === RUN   TestEtwTransactions/Test_site2_ipv4
+    remoteexecutable.go:145: TestSuite: === RUN   TestEtwTransactions/Test_default_site_ipv6
+    remoteexecutable.go:145: TestSuite: === RUN   TestEtwTransactions/Test_default_site_ipv6_bad_path
+    remoteexecutable.go:145: TestSuite: === RUN   TestEtwTransactions/Test_site1_ipv6
+    remoteexecutable.go:145: TestSuite: === RUN   TestEtwTransactions/Test_site2_ipv6
+    remoteexecutable.go:145: TestSuite: === RUN   TestEtwTransactions/Test_path_limit_one_short
+    remoteexecutable.go:145: TestSuite: === RUN   TestEtwTransactions/Test_path_limit_at_boundary
+    remoteexecutable.go:145: TestSuite: === RUN   TestEtwTransactions/Test_path_limit_one_over
+    remoteexecutable.go:145: TestSuite: --- PASS: TestEtwTransactions (46.03s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestEtwTransactions/Test_default_site_ipv4 (3.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestEtwTransactions/Test_default_site_ipv4_bad_path (3.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestEtwTransactions/Test_site1_ipv4 (3.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestEtwTransactions/Test_site2_ipv4 (3.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestEtwTransactions/Test_default_site_ipv6 (3.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestEtwTransactions/Test_default_site_ipv6_bad_path (3.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestEtwTransactions/Test_site1_ipv6 (3.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestEtwTransactions/Test_site2_ipv6 (3.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestEtwTransactions/Test_path_limit_one_short (3.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestEtwTransactions/Test_path_limit_at_boundary (3.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestEtwTransactions/Test_path_limit_one_over (3.00s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestPath
+    remoteexecutable.go:145: TestSuite: --- PASS: TestPath (0.00s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestMaximumLengthPath
+    remoteexecutable.go:145: TestSuite: --- PASS: TestMaximumLengthPath (0.00s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestFullPath
+    remoteexecutable.go:145: TestSuite: --- PASS: TestFullPath (0.00s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestPathHandlesNullTerminator
+    remoteexecutable.go:145: TestSuite: --- PASS: TestPathHandlesNullTerminator (0.00s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestLatency
+    remoteexecutable.go:145: TestSuite: --- PASS: TestLatency (0.00s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestTokenizer
+    remoteexecutable.go:145: TestSuite: --- PASS: TestTokenizer (0.00s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestURLQuantizer
+    remoteexecutable.go:145: TestSuite: --- PASS: TestURLQuantizer (0.00s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestProcessHTTPTransactions
+    remoteexecutable.go:145: TestSuite: --- PASS: TestProcessHTTPTransactions (0.00s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestPathProcessing
+    remoteexecutable.go:145: TestSuite: === RUN   TestPathProcessing/reject_rule
+    remoteexecutable.go:145: TestSuite: === RUN   TestPathProcessing/replace_rule
+    remoteexecutable.go:145: TestSuite: === RUN   TestPathProcessing/chained_rules
+    remoteexecutable.go:145: TestSuite: --- PASS: TestPathProcessing (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestPathProcessing/reject_rule (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestPathProcessing/replace_rule (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestPathProcessing/chained_rules (0.00s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestHTTPCorrectness
+    remoteexecutable.go:145: TestSuite: === RUN   TestHTTPCorrectness/wrong_path_format
+    remoteexecutable.go:145: TestSuite: === RUN   TestHTTPCorrectness/invalid_http_verb
+    remoteexecutable.go:145: TestSuite: === RUN   TestHTTPCorrectness/invalid_latency
+    remoteexecutable.go:145: TestSuite: === RUN   TestHTTPCorrectness/Empty_path
+    remoteexecutable.go:145: TestSuite: --- PASS: TestHTTPCorrectness (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestHTTPCorrectness/wrong_path_format (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestHTTPCorrectness/invalid_http_verb (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestHTTPCorrectness/invalid_latency (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestHTTPCorrectness/Empty_path (0.00s)
+    remoteexecutable.go:145: TestSuite: PASS
+    remoteexecutable.go:145: TestSuite:
+    remoteexecutable.go:125: Testsuite c:\tmp\pkg\network\protocols\http\testsuite.exe took 54.9907753s
+    remoteexecutable.go:121: Running testsuite: pkg\network\protocols\telemetry\testsuite.exe
+    remoteexecutable.go:145: TestSuite: === RUN   TestDeltas
+    remoteexecutable.go:145: TestSuite: === RUN   TestDeltas/gauge_metric
+    remoteexecutable.go:145: TestSuite: === RUN   TestDeltas/counter_metric
+    remoteexecutable.go:145: TestSuite: === RUN   TestDeltas/one_metric,_multiple_clients
+    remoteexecutable.go:145: TestSuite: --- PASS: TestDeltas (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestDeltas/gauge_metric (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestDeltas/counter_metric (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestDeltas/one_metric,_multiple_clients (0.00s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestMetricGroup
+    remoteexecutable.go:145: TestSuite: --- PASS: TestMetricGroup (0.00s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestMetricGroupSummary
+    remoteexecutable.go:145: TestSuite: --- PASS: TestMetricGroupSummary (0.00s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestGaugeSummaryRegression
+    remoteexecutable.go:145: TestSuite: --- PASS: TestGaugeSummaryRegression (0.00s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestNewMetric
+    remoteexecutable.go:145: TestSuite: === RUN   TestNewMetric/different_names
+    remoteexecutable.go:145: TestSuite: === RUN   TestNewMetric/same_name
+    remoteexecutable.go:145: TestSuite: === RUN   TestNewMetric/same_name_and_different_tags
+    remoteexecutable.go:145: TestSuite: === RUN   TestNewMetric/same_name_and_tags
+    remoteexecutable.go:145: TestSuite: --- PASS: TestNewMetric (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestNewMetric/different_names (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestNewMetric/same_name (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestNewMetric/same_name_and_different_tags (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestNewMetric/same_name_and_tags (0.00s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestMetricOperations
+    remoteexecutable.go:145: TestSuite: === RUN   TestMetricOperations/counter_metric
+    remoteexecutable.go:145: TestSuite: --- PASS: TestMetricOperations (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestMetricOperations/counter_metric (0.00s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestSplitTagsAndOpts
+    remoteexecutable.go:145: TestSuite: === RUN   TestSplitTagsAndOpts/only_tags
+    remoteexecutable.go:145: TestSuite: === RUN   TestSplitTagsAndOpts/only_opts
+    remoteexecutable.go:145: TestSuite: === RUN   TestSplitTagsAndOpts/tags_and_opts
+    remoteexecutable.go:145: TestSuite: --- PASS: TestSplitTagsAndOpts (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestSplitTagsAndOpts/only_tags (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestSplitTagsAndOpts/only_opts (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestSplitTagsAndOpts/tags_and_opts (0.00s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestSplitName
+    remoteexecutable.go:145: TestSuite: === RUN   TestSplitName/with_namespace
+    remoteexecutable.go:145: TestSuite: === RUN   TestSplitName/without_namespace
+    remoteexecutable.go:145: TestSuite: --- PASS: TestSplitName (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestSplitName/with_namespace (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestSplitName/without_namespace (0.00s)
+    remoteexecutable.go:145: TestSuite: PASS
+    remoteexecutable.go:145: TestSuite:
+    remoteexecutable.go:125: Testsuite c:\tmp\pkg\network\protocols\telemetry\testsuite.exe took 8.1258815s
+    remoteexecutable.go:121: Running testsuite: pkg\network\protocols\testsuite.exe
+    remoteexecutable.go:145: TestSuite: === RUN   TestNSTimestampToFloat
+    remoteexecutable.go:145: TestSuite: --- PASS: TestNSTimestampToFloat (0.00s)
+    remoteexecutable.go:145: TestSuite: PASS
+    remoteexecutable.go:145: TestSuite:
+    remoteexecutable.go:125: Testsuite c:\tmp\pkg\network\protocols\testsuite.exe took 8.5085296s
+    remoteexecutable.go:121: Running testsuite: pkg\network\protocols\tls\gotls\testsuite.exe
+    remoteexecutable.go:145: TestSuite: PASS
+    remoteexecutable.go:145: TestSuite:
+    remoteexecutable.go:125: Testsuite c:\tmp\pkg\network\protocols\tls\gotls\testsuite.exe took 8.3971799s
+    remoteexecutable.go:121: Running testsuite: pkg\network\testsuite.exe
+    remoteexecutable.go:145: TestSuite: === RUN   TestClientBufferPool
+    remoteexecutable.go:145: TestSuite: --- PASS: TestClientBufferPool (0.00s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestSetFlowFiltersFail
+    remoteexecutable.go:145: TestSuite: --- PASS: TestSetFlowFiltersFail (0.00s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestConnectionStatsInfiniteLoop
+    remoteexecutable.go:145: TestSuite: --- PASS: TestConnectionStatsInfiniteLoop (0.00s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestBeautifyKey
+    remoteexecutable.go:145: TestSuite: --- PASS: TestBeautifyKey (0.00s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestConnStatsByteKey
+    remoteexecutable.go:145: TestSuite: --- PASS: TestConnStatsByteKey (0.00s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestByteKeyNAT
+    remoteexecutable.go:145: TestSuite: --- PASS: TestByteKeyNAT (0.00s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestIsExpired
+    remoteexecutable.go:145: TestSuite: --- PASS: TestIsExpired (0.00s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestNetshParse
+    remoteexecutable.go:145: TestSuite: === RUN   TestNetshParse/english
+    remoteexecutable.go:145: TestSuite: === RUN   TestNetshParse/french
+    remoteexecutable.go:145: TestSuite: --- PASS: TestNetshParse (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestNetshParse/english (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestNetshParse/french (0.00s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestKeyTuplesFromConn
+    remoteexecutable.go:145: TestSuite: --- PASS: TestKeyTuplesFromConn (0.00s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestParseConnectionFilters
+    remoteexecutable.go:145: TestSuite: --- PASS: TestParseConnectionFilters (0.00s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestDNATIntraHost
+    remoteexecutable.go:145: TestSuite: --- PASS: TestDNATIntraHost (0.00s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestSNATIntraHost
+    remoteexecutable.go:145: TestSuite: --- PASS: TestSNATIntraHost (0.00s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestRemoveConnections
+    remoteexecutable.go:145: TestSuite: --- PASS: TestRemoveConnections (0.01s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestRetrieveClosedConnection
+    remoteexecutable.go:145: TestSuite: === RUN   TestRetrieveClosedConnection/without_prior_registration
+    remoteexecutable.go:145: TestSuite: === RUN   TestRetrieveClosedConnection/with_registration
+    remoteexecutable.go:145: TestSuite: --- PASS: TestRetrieveClosedConnection (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestRetrieveClosedConnection/without_prior_registration (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestRetrieveClosedConnection/with_registration (0.00s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestDropEmptyConnections
+    remoteexecutable.go:145: TestSuite: === RUN   TestDropEmptyConnections/drop_empty_connection
+    remoteexecutable.go:145: TestSuite: === RUN   TestDropEmptyConnections/drop_incoming_empty_connection
+    remoteexecutable.go:145: TestSuite: === RUN   TestDropEmptyConnections/drop_incoming_connection_when_conns_full
+    remoteexecutable.go:145: TestSuite: === RUN   TestDropEmptyConnections/replace_empty_connection_with_non-empty
+    remoteexecutable.go:145: TestSuite: === RUN   TestDropEmptyConnections/replace_non-empty_connection_with_empty
+    remoteexecutable.go:145: TestSuite: === RUN   TestDropEmptyConnections/Replace_with_latest
+    remoteexecutable.go:145: TestSuite: === RUN   TestDropEmptyConnections/Replace_at_index
+    remoteexecutable.go:145: TestSuite: === RUN   TestDropEmptyConnections/insert_empty_connection_at_end
+    remoteexecutable.go:145: TestSuite: === RUN   TestDropEmptyConnections/insert_conn_before_empty_connections
+    remoteexecutable.go:145: TestSuite: === RUN   TestDropEmptyConnections/insert_non-empty_conn_at_the_end
+    remoteexecutable.go:145: TestSuite: --- PASS: TestDropEmptyConnections (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestDropEmptyConnections/drop_empty_connection (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestDropEmptyConnections/drop_incoming_empty_connection (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestDropEmptyConnections/drop_incoming_connection_when_conns_full (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestDropEmptyConnections/replace_empty_connection_with_non-empty (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestDropEmptyConnections/replace_non-empty_connection_with_empty (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestDropEmptyConnections/Replace_with_latest (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestDropEmptyConnections/Replace_at_index (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestDropEmptyConnections/insert_empty_connection_at_end (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestDropEmptyConnections/insert_conn_before_empty_connections (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestDropEmptyConnections/insert_non-empty_conn_at_the_end (0.00s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestFirstTelemetryRegistering
+    remoteexecutable.go:145: TestSuite: --- PASS: TestFirstTelemetryRegistering (0.00s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestTelemetryDiffing
+    remoteexecutable.go:145: TestSuite: === RUN   TestTelemetryDiffing/unique_client
+    remoteexecutable.go:145: TestSuite: === RUN   TestTelemetryDiffing/two_clients
+    remoteexecutable.go:145: TestSuite: --- PASS: TestTelemetryDiffing (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestTelemetryDiffing/unique_client (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestTelemetryDiffing/two_clients (0.00s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestNoPriorRegistrationActiveConnections
+    remoteexecutable.go:145: TestSuite: --- PASS: TestNoPriorRegistrationActiveConnections (0.00s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestCleanupClient
+    remoteexecutable.go:145: TestSuite: --- PASS: TestCleanupClient (0.00s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestLastStats
+    remoteexecutable.go:145: TestSuite: --- PASS: TestLastStats (0.00s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestLastStatsForClosedConnection
+    remoteexecutable.go:145: TestSuite: --- PASS: TestLastStatsForClosedConnection (0.00s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestRaceConditions
+    remoteexecutable.go:145: TestSuite: --- PASS: TestRaceConditions (1.02s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestSameKeyEdgeCases
+    remoteexecutable.go:145: TestSuite: === RUN   TestSameKeyEdgeCases/ShortlivedConnection
+    remoteexecutable.go:145: TestSuite: === RUN   TestSameKeyEdgeCases/TwoShortlivedConnections
+    remoteexecutable.go:145: TestSuite: === RUN   TestSameKeyEdgeCases/TwoShortlivedConnectionsCrossing-1
+    remoteexecutable.go:145: TestSuite: === RUN   TestSameKeyEdgeCases/TwoShortlivedConnectionsCrossing-2
+    remoteexecutable.go:145: TestSuite: === RUN   TestSameKeyEdgeCases/ConnectionCrossing
+    remoteexecutable.go:145: TestSuite: === RUN   TestSameKeyEdgeCases/TwoShortlivedConnectionsCrossingWithTwoClients
+    remoteexecutable.go:145: TestSuite: === RUN   TestSameKeyEdgeCases/ShortlivedConnectionCrossingWithThreeClients
+    remoteexecutable.go:145: TestSuite: === RUN   TestSameKeyEdgeCases/LonglivedConnectionWithTwoClientsJoiningAtDifferentTimes
+    remoteexecutable.go:145: TestSuite: --- PASS: TestSameKeyEdgeCases (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestSameKeyEdgeCases/ShortlivedConnection (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestSameKeyEdgeCases/TwoShortlivedConnections (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestSameKeyEdgeCases/TwoShortlivedConnectionsCrossing-1 (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestSameKeyEdgeCases/TwoShortlivedConnectionsCrossing-2 (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestSameKeyEdgeCases/ConnectionCrossing (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestSameKeyEdgeCases/TwoShortlivedConnectionsCrossingWithTwoClients (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestSameKeyEdgeCases/ShortlivedConnectionCrossingWithThreeClients (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestSameKeyEdgeCases/LonglivedConnectionWithTwoClientsJoiningAtDifferentTimes (0.00s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestStatsResetOnUnderflow
+    remoteexecutable.go:145: TestSuite: --- PASS: TestStatsResetOnUnderflow (0.00s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestDoubleCloseOnTwoClients
+    remoteexecutable.go:145: TestSuite: --- PASS: TestDoubleCloseOnTwoClients (0.00s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestUnorderedCloseEvent
+    remoteexecutable.go:145: TestSuite: --- PASS: TestUnorderedCloseEvent (0.00s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestAggregateClosedConnectionsTimestamp
+    remoteexecutable.go:145: TestSuite: --- PASS: TestAggregateClosedConnectionsTimestamp (0.00s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestDNSStatsWithMultipleClients
+    remoteexecutable.go:145: TestSuite: --- PASS: TestDNSStatsWithMultipleClients (0.00s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestHTTPStats
+    remoteexecutable.go:145: TestSuite: === RUN   TestHTTPStats/status_code
+    remoteexecutable.go:145: TestSuite: === RUN   TestHTTPStats/status_class
+    remoteexecutable.go:145: TestSuite: --- PASS: TestHTTPStats (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestHTTPStats/status_code (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestHTTPStats/status_class (0.00s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestHTTP2Stats
+    remoteexecutable.go:145: TestSuite: === RUN   TestHTTP2Stats/status_code
+    remoteexecutable.go:145: TestSuite: === RUN   TestHTTP2Stats/status_class
+    remoteexecutable.go:145: TestSuite: --- PASS: TestHTTP2Stats (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestHTTP2Stats/status_code (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestHTTP2Stats/status_class (0.00s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestHTTPStatsWithMultipleClients
+    remoteexecutable.go:145: TestSuite: === RUN   TestHTTPStatsWithMultipleClients/status_code
+    remoteexecutable.go:145: TestSuite: === RUN   TestHTTPStatsWithMultipleClients/status_class
+    remoteexecutable.go:145: TestSuite: --- PASS: TestHTTPStatsWithMultipleClients (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestHTTPStatsWithMultipleClients/status_code (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestHTTPStatsWithMultipleClients/status_class (0.00s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestHTTP2StatsWithMultipleClients
+    remoteexecutable.go:145: TestSuite: === RUN   TestHTTP2StatsWithMultipleClients/status_code
+    remoteexecutable.go:145: TestSuite: === RUN   TestHTTP2StatsWithMultipleClients/status_class
+    remoteexecutable.go:145: TestSuite: --- PASS: TestHTTP2StatsWithMultipleClients (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestHTTP2StatsWithMultipleClients/status_code (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestHTTP2StatsWithMultipleClients/status_class (0.00s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestDetermineConnectionIntraHost
+    remoteexecutable.go:145: TestSuite: --- PASS: TestDetermineConnectionIntraHost (1.69s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestIntraHostFixDirection
+    remoteexecutable.go:145: TestSuite: === RUN   TestIntraHostFixDirection/outgoing_both_non-ephemeral
+    remoteexecutable.go:145: TestSuite: === RUN   TestIntraHostFixDirection/outgoing_non_ephemeral_to_ephemeral
+    remoteexecutable.go:145: TestSuite: === RUN   TestIntraHostFixDirection/outgoing_ephemeral_to_non_ephemeral
+    remoteexecutable.go:145: TestSuite: === RUN   TestIntraHostFixDirection/incoming_udp_non_ephemeral_to_ephemeral
+    remoteexecutable.go:145: TestSuite: === RUN   TestIntraHostFixDirection/incoming_udp_ephemeral_to_non_ephemeral
+    remoteexecutable.go:145: TestSuite: === RUN   TestIntraHostFixDirection/incoming_tcp_non_ephemeral_to_ephemeral
+    remoteexecutable.go:145: TestSuite: --- PASS: TestIntraHostFixDirection (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestIntraHostFixDirection/outgoing_both_non-ephemeral (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestIntraHostFixDirection/outgoing_non_ephemeral_to_ephemeral (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestIntraHostFixDirection/outgoing_ephemeral_to_non_ephemeral (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestIntraHostFixDirection/incoming_udp_non_ephemeral_to_ephemeral (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestIntraHostFixDirection/incoming_udp_ephemeral_to_non_ephemeral (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestIntraHostFixDirection/incoming_tcp_non_ephemeral_to_ephemeral (0.00s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestClosedMergingWithAddressCollision
+    remoteexecutable.go:145: TestSuite: === RUN   TestClosedMergingWithAddressCollision/ephemeral_connections
+    remoteexecutable.go:145: TestSuite: === RUN   TestClosedMergingWithAddressCollision/long-lived_connection
+    remoteexecutable.go:145: TestSuite: --- PASS: TestClosedMergingWithAddressCollision (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestClosedMergingWithAddressCollision/ephemeral_connections (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestClosedMergingWithAddressCollision/long-lived_connection (0.00s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestKafkaStats
+    remoteexecutable.go:145: TestSuite: --- PASS: TestKafkaStats (0.00s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestKafkaStatsWithMultipleClients
+    remoteexecutable.go:145: TestSuite: --- PASS: TestKafkaStatsWithMultipleClients (0.00s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestFilterConnections
+    remoteexecutable.go:145: TestSuite: === RUN   TestFilterConnections/filter
+    remoteexecutable.go:145: TestSuite: === RUN   TestFilterConnections/stable_pointer
+    remoteexecutable.go:145: TestSuite: --- PASS: TestFilterConnections (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestFilterConnections/filter (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestFilterConnections/stable_pointer (0.00s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestDNSPIDCollision
+    remoteexecutable.go:145: TestSuite: --- PASS: TestDNSPIDCollision (0.00s)
+    remoteexecutable.go:145: TestSuite: PASS
+    remoteexecutable.go:145: TestSuite:
+    remoteexecutable.go:125: Testsuite c:\tmp\pkg\network\testsuite.exe took 11.2538304s
+    remoteexecutable.go:121: Running testsuite: pkg\network\tracer\testsuite.exe
+    remoteexecutable.go:145: TestSuite: === RUN   TestProtocolClassification
+    remoteexecutable.go:145: TestSuite: === RUN   TestProtocolClassification/without_nat
+    remoteexecutable.go:145: TestSuite: === RUN   TestProtocolClassification/without_nat/kafka
+    remoteexecutable.go:145: TestSuite:     tracer_classification_test.go:96: test is supported on linux machine only
+    remoteexecutable.go:145: TestSuite: === RUN   TestProtocolClassification/without_nat/mysql
+    remoteexecutable.go:145: TestSuite:     tracer_classification_test.go:96: test is supported on linux machine only
+    remoteexecutable.go:145: TestSuite: === RUN   TestProtocolClassification/without_nat/postgres
+    remoteexecutable.go:145: TestSuite:     tracer_classification_test.go:96: test is supported on linux machine only
+    remoteexecutable.go:145: TestSuite: === RUN   TestProtocolClassification/without_nat/mongo
+    remoteexecutable.go:145: TestSuite:     tracer_classification_test.go:96: test is supported on linux machine only
+    remoteexecutable.go:145: TestSuite: === RUN   TestProtocolClassification/without_nat/redis
+    remoteexecutable.go:145: TestSuite:     tracer_classification_test.go:96: test is supported on linux machine only
+    remoteexecutable.go:145: TestSuite: === RUN   TestProtocolClassification/without_nat/amqp
+    remoteexecutable.go:145: TestSuite:     tracer_classification_test.go:96: test is supported on linux machine only
+    remoteexecutable.go:145: TestSuite: === RUN   TestProtocolClassification/without_nat/http
+    remoteexecutable.go:145: TestSuite: === RUN   TestProtocolClassification/without_nat/http/tcp_client_with_sending_HTTP_request
+    remoteexecutable.go:145: TestSuite: 1714704451763507400 [Warn] disabling process event monitoring as it is not supported for this kernel version
+    remoteexecutable.go:145: TestSuite:     tracer_classification_test.go:1904: looking for target addr 127.0.0.1:8080
+    remoteexecutable.go:145: TestSuite:     tracer_classification_test.go:1905: looking for server addr 127.0.0.1:8080
+    remoteexecutable.go:145: TestSuite:     tracer_classification_test.go:1913: found potential outgoing connection [TCPv4] [PID: 2964] [127.0.0.1:49824 ??? 127.0.0.1:8080] (outgoing) 99 B sent (+99 B), 75 B received (+75 B), 0 retransmits (+0), RTT 90??s (?? 52??s), 1 established (+1), 0 closed (+0), last update epoch: 1101875000000, cookie: 2, protocol: {API:Unknown Application:HTTP Encryption:Unknown}, netns: 0
+    remoteexecutable.go:145: TestSuite:     tracer_classification_test.go:1915: found outgoing connection [TCPv4] [PID: 2964] [127.0.0.1:49824 ??? 127.0.0.1:8080] (outgoing) 99 B sent (+99 B), 75 B received (+75 B), 0 retransmits (+0), RTT 90??s (?? 52??s), 1 established (+1), 0 closed (+0), last update epoch: 1101875000000, cookie: 2, protocol: {API:Unknown Application:HTTP Encryption:Unknown}, netns: 0
+    remoteexecutable.go:145: TestSuite:     tracer_classification_test.go:1926: found potential incoming connection [TCPv4] [PID: 2964] [127.0.0.1:8080 ??? 127.0.0.1:49824] (incoming) 75 B sent (+75 B), 99 B received (+99 B), 0 retransmits (+0), RTT 37??s (?? 17??s), 1 established (+1), 0 closed (+0), last update epoch: 1101875000000, cookie: 3, protocol: {API:Unknown Application:HTTP Encryption:Unknown}, netns: 0
+    remoteexecutable.go:145: TestSuite:     tracer_classification_test.go:1928: found incoming connection [TCPv4] [PID: 2964] [127.0.0.1:8080 ??? 127.0.0.1:49824] (incoming) 75 B sent (+75 B), 99 B received (+99 B), 0 retransmits (+0), RTT 37??s (?? 17??s), 1 established (+1), 0 closed (+0), last update epoch: 1101875000000, cookie: 3, protocol: {API:Unknown Application:HTTP Encryption:Unknown}, netns: 0
+    remoteexecutable.go:145: TestSuite: === RUN   TestProtocolClassification/without_nat/http2
+    remoteexecutable.go:145: TestSuite:     tracer_classification_test.go:96: test is supported on linux machine only
+    remoteexecutable.go:145: TestSuite: === RUN   TestProtocolClassification/without_nat/edge_cases
+    remoteexecutable.go:145: TestSuite: === RUN   TestProtocolClassification/without_nat/edge_cases/tcp_client_without_sending_data
+    remoteexecutable.go:145: TestSuite:     tracer_classification_test.go:1904: looking for target addr 127.0.0.1:10001
+    remoteexecutable.go:145: TestSuite:     tracer_classification_test.go:1905: looking for server addr 127.0.0.1:10001
+    remoteexecutable.go:145: TestSuite:     tracer_classification_test.go:1913: found potential outgoing connection [TCPv4] [PID: 2964] [127.0.0.1:49825 ??? 127.0.0.1:10001] (outgoing) 0 B sent (+0 B), 0 B received (+0 B), 0 retransmits (+0), RTT 78??s (?? 39??s), 1 established (+1), 1 closed (+1), last update epoch: 1102546875000, cookie: 2, protocol: {API:Unknown Application:Unknown Encryption:Unknown}, netns: 0
+    remoteexecutable.go:145: TestSuite:     tracer_classification_test.go:1915: found outgoing connection [TCPv4] [PID: 2964] [127.0.0.1:49825 ??? 127.0.0.1:10001] (outgoing) 0 B sent (+0 B), 0 B received (+0 B), 0 retransmits (+0), RTT 78??s (?? 39??s), 1 established (+1), 1 closed (+1), last update epoch: 1102546875000, cookie: 2, protocol: {API:Unknown Application:Unknown Encryption:Unknown}, netns: 0
+    remoteexecutable.go:145: TestSuite:     tracer_classification_test.go:1926: found potential incoming connection [TCPv4] [PID: 2964] [127.0.0.1:10001 ??? 127.0.0.1:49825] (incoming) 0 B sent (+0 B), 0 B received (+0 B), 0 retransmits (+0), RTT 43??s (?? 21??s), 1 established (+1), 1 closed (+1), last update epoch: 1102546875000, cookie: 3, protocol: {API:Unknown Application:Unknown Encryption:Unknown}, netns: 0
+    remoteexecutable.go:145: TestSuite:     tracer_classification_test.go:1928: found incoming connection [TCPv4] [PID: 2964] [127.0.0.1:10001 ??? 127.0.0.1:49825] (incoming) 0 B sent (+0 B), 0 B received (+0 B), 0 retransmits (+0), RTT 43??s (?? 21??s), 1 established (+1), 1 closed (+1), last update epoch: 1102546875000, cookie: 3, protocol: {API:Unknown Application:Unknown Encryption:Unknown}, netns: 0
+    remoteexecutable.go:145: TestSuite: === RUN   TestProtocolClassification/without_nat/edge_cases/tcp_client_with_sending_random_data
+    remoteexecutable.go:145: TestSuite:     tracer_classification_test.go:1904: looking for target addr 127.0.0.1:10002
+    remoteexecutable.go:145: TestSuite:     tracer_classification_test.go:1905: looking for server addr 127.0.0.1:10002
+    remoteexecutable.go:145: TestSuite:     tracer_classification_test.go:1913: found potential outgoing connection [TCPv4] [PID: 2964] [127.0.0.1:49826 ??? 127.0.0.1:10002] (outgoing) 6 B sent (+6 B), 6 B received (+6 B), 0 retransmits (+0), RTT 62??s (?? 34??s), 1 established (+1), 1 closed (+1), last update epoch: 1102812500000, cookie: 2, protocol: {API:Unknown Application:Unknown Encryption:Unknown}, netns: 0
+    remoteexecutable.go:145: TestSuite:     tracer_classification_test.go:1915: found outgoing connection [TCPv4] [PID: 2964] [127.0.0.1:49826 ??? 127.0.0.1:10002] (outgoing) 6 B sent (+6 B), 6 B received (+6 B), 0 retransmits (+0), RTT 62??s (?? 34??s), 1 established (+1), 1 closed (+1), last update epoch: 1102812500000, cookie: 2, protocol: {API:Unknown Application:Unknown Encryption:Unknown}, netns: 0
+    remoteexecutable.go:145: TestSuite:     tracer_classification_test.go:1926: found potential incoming connection [TCPv4] [PID: 2964] [127.0.0.1:10002 ??? 127.0.0.1:49826] (incoming) 6 B sent (+6 B), 6 B received (+6 B), 0 retransmits (+0), RTT 31??s (?? 16??s), 1 established (+1), 1 closed (+1), last update epoch: 1102812500000, cookie: 3, protocol: {API:Unknown Application:Unknown Encryption:Unknown}, netns: 0
+    remoteexecutable.go:145: TestSuite:     tracer_classification_test.go:1928: found incoming connection [TCPv4] [PID: 2964] [127.0.0.1:10002 ??? 127.0.0.1:49826] (incoming) 6 B sent (+6 B), 6 B received (+6 B), 0 retransmits (+0), RTT 31??s (?? 16??s), 1 established (+1), 1 closed (+1), last update epoch: 1102812500000, cookie: 3, protocol: {API:Unknown Application:Unknown Encryption:Unknown}, netns: 0
+    remoteexecutable.go:145: TestSuite: === RUN   TestProtocolClassification/without_nat/edge_cases/mixed_protocols
+    remoteexecutable.go:145: TestSuite:     tracer_classification_test.go:1904: looking for target addr 127.0.0.1:10003
+    remoteexecutable.go:145: TestSuite:     tracer_classification_test.go:1905: looking for server addr 127.0.0.1:10003
+    remoteexecutable.go:145: TestSuite:     tracer_classification_test.go:1913: found potential outgoing connection [TCPv4] [PID: 2964] [127.0.0.1:49827 ??? 127.0.0.1:10003] (outgoing) 51 B sent (+51 B), 51 B received (+51 B), 0 retransmits (+0), RTT 56??s (?? 36??s), 1 established (+1), 1 closed (+1), last update epoch: 1103109375000, cookie: 2, protocol: {API:Unknown Application:HTTP Encryption:Unknown}, netns: 0
+    remoteexecutable.go:145: TestSuite:     tracer_classification_test.go:1915: found outgoing connection [TCPv4] [PID: 2964] [127.0.0.1:49827 ??? 127.0.0.1:10003] (outgoing) 51 B sent (+51 B), 51 B received (+51 B), 0 retransmits (+0), RTT 56??s (?? 36??s), 1 established (+1), 1 closed (+1), last update epoch: 1103109375000, cookie: 2, protocol: {API:Unknown Application:HTTP Encryption:Unknown}, netns: 0
+    remoteexecutable.go:145: TestSuite:     tracer_classification_test.go:1926: found potential incoming connection [TCPv4] [PID: 2964] [127.0.0.1:10003 ??? 127.0.0.1:49827] (incoming) 51 B sent (+51 B), 51 B received (+51 B), 0 retransmits (+0), RTT 28??s (?? 16??s), 1 established (+1), 1 closed (+1), last update epoch: 1103109375000, cookie: 3, protocol: {API:Unknown Application:HTTP Encryption:Unknown}, netns: 0
+    remoteexecutable.go:145: TestSuite:     tracer_classification_test.go:1928: found incoming connection [TCPv4] [PID: 2964] [127.0.0.1:10003 ??? 127.0.0.1:49827] (incoming) 51 B sent (+51 B), 51 B received (+51 B), 0 retransmits (+0), RTT 28??s (?? 16??s), 1 established (+1), 1 closed (+1), last update epoch: 1103109375000, cookie: 3, protocol: {API:Unknown Application:HTTP Encryption:Unknown}, netns: 0
+    remoteexecutable.go:145: TestSuite: --- PASS: TestProtocolClassification (1.49s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestProtocolClassification/without_nat (1.49s)
+    remoteexecutable.go:145: TestSuite:         --- SKIP: TestProtocolClassification/without_nat/kafka (0.00s)
+    remoteexecutable.go:145: TestSuite:         --- SKIP: TestProtocolClassification/without_nat/mysql (0.00s)
+    remoteexecutable.go:145: TestSuite:         --- SKIP: TestProtocolClassification/without_nat/postgres (0.00s)
+    remoteexecutable.go:145: TestSuite:         --- SKIP: TestProtocolClassification/without_nat/mongo (0.00s)
+    remoteexecutable.go:145: TestSuite:         --- SKIP: TestProtocolClassification/without_nat/redis (0.00s)
+    remoteexecutable.go:145: TestSuite:         --- SKIP: TestProtocolClassification/without_nat/amqp (0.00s)
+    remoteexecutable.go:145: TestSuite:         --- PASS: TestProtocolClassification/without_nat/http (0.62s)
+    remoteexecutable.go:145: TestSuite:             --- PASS: TestProtocolClassification/without_nat/http/tcp_client_with_sending_HTTP_request (0.62s)
+    remoteexecutable.go:145: TestSuite:         --- SKIP: TestProtocolClassification/without_nat/http2 (0.00s)
+    remoteexecutable.go:145: TestSuite:         --- PASS: TestProtocolClassification/without_nat/edge_cases (0.86s)
+    remoteexecutable.go:145: TestSuite:             --- PASS: TestProtocolClassification/without_nat/edge_cases/tcp_client_without_sending_data (0.30s)
+    remoteexecutable.go:145: TestSuite:             --- PASS: TestProtocolClassification/without_nat/edge_cases/tcp_client_with_sending_random_data (0.27s)
+    remoteexecutable.go:145: TestSuite:             --- PASS: TestProtocolClassification/without_nat/edge_cases/mixed_protocols (0.29s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestTracerSuite
+    remoteexecutable.go:145: TestSuite: === RUN   TestTracerSuite/prebuilt
+    remoteexecutable.go:145: TestSuite: === RUN   TestTracerSuite/prebuilt/TestConnectedUDPSendIPv6
+    remoteexecutable.go:145: TestSuite: === RUN   TestTracerSuite/prebuilt/TestDNSStats
+    remoteexecutable.go:145: TestSuite: === RUN   TestTracerSuite/prebuilt/TestDNSStats/valid_domain
+    remoteexecutable.go:145: TestSuite: === RUN   TestTracerSuite/prebuilt/TestDNSStats/invalid_domain
+    remoteexecutable.go:145: TestSuite: === RUN   TestTracerSuite/prebuilt/TestDNSStats/timeout
+    remoteexecutable.go:145: TestSuite: === RUN   TestTracerSuite/prebuilt/TestGetStats
+    remoteexecutable.go:145: TestSuite: === RUN   TestTracerSuite/prebuilt/TestGetStats/ebpf_conntracker_true
+    remoteexecutable.go:145: TestSuite: === RUN   TestTracerSuite/prebuilt/TestGetStats/ebpf_conntracker_false
+    remoteexecutable.go:145: TestSuite: === RUN   TestTracerSuite/prebuilt/TestLocalDNSCollectionDisabled
+    remoteexecutable.go:145: TestSuite: === RUN   TestTracerSuite/prebuilt/TestLocalDNSCollectionEnabled
+    remoteexecutable.go:145: TestSuite: === RUN   TestTracerSuite/prebuilt/TestShouldExcludeEmptyStatsConnection
+    remoteexecutable.go:145: TestSuite: === RUN   TestTracerSuite/prebuilt/TestShouldSkipExcludedConnection
+    remoteexecutable.go:145: TestSuite: === RUN   TestTracerSuite/prebuilt/TestTCPCollectionDisabled
+    remoteexecutable.go:145: TestSuite:     tracer_test.go:330: Test disabled on Windows
+    remoteexecutable.go:145: TestSuite: === RUN   TestTracerSuite/prebuilt/TestTCPConnsReported
+    remoteexecutable.go:145: TestSuite: === RUN   TestTracerSuite/prebuilt/TestTCPDirection
+    remoteexecutable.go:145: TestSuite:     tracer_test.go:1209: received http request from 127.0.0.1:49830
+    remoteexecutable.go:145: TestSuite: === RUN   TestTracerSuite/prebuilt/TestTCPEstablished
+    remoteexecutable.go:145: TestSuite: === RUN   TestTracerSuite/prebuilt/TestTCPEstablishedPreExistingConn
+    remoteexecutable.go:145: TestSuite: === RUN   TestTracerSuite/prebuilt/TestTCPOverIPv6
+    remoteexecutable.go:145: TestSuite: === RUN   TestTracerSuite/prebuilt/TestTCPSendAndReceive
+    remoteexecutable.go:145: TestSuite: === RUN   TestTracerSuite/prebuilt/TestTCPShortLived
+    remoteexecutable.go:145: TestSuite: === RUN   TestTracerSuite/prebuilt/TestUDPDisabled
+    remoteexecutable.go:145: TestSuite: === RUN   TestTracerSuite/prebuilt/TestUDPSendAndReceive
+    remoteexecutable.go:145: TestSuite: === RUN   TestTracerSuite/prebuilt/TestUDPSendAndReceive/v4
+    remoteexecutable.go:145: TestSuite: === RUN   TestTracerSuite/prebuilt/TestUDPSendAndReceive/v4/fixed_port
+    remoteexecutable.go:145: TestSuite: === RUN   TestTracerSuite/prebuilt/TestUDPSendAndReceive/v6
+    remoteexecutable.go:145: TestSuite: === RUN   TestTracerSuite/prebuilt/TestUDPSendAndReceive/v6/fixed_port
+    remoteexecutable.go:145: TestSuite: === RUN   TestTracerSuite/prebuilt/TestUnconnectedUDPSendIPv4
+    remoteexecutable.go:145: TestSuite: --- PASS: TestTracerSuite (15.07s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestTracerSuite/prebuilt (15.07s)
+    remoteexecutable.go:145: TestSuite:         --- PASS: TestTracerSuite/prebuilt/TestConnectedUDPSendIPv6 (0.15s)
+    remoteexecutable.go:145: TestSuite:         --- PASS: TestTracerSuite/prebuilt/TestDNSStats (2.63s)
+    remoteexecutable.go:145: TestSuite:             --- PASS: TestTracerSuite/prebuilt/TestDNSStats/valid_domain (0.14s)
+    remoteexecutable.go:145: TestSuite:             --- PASS: TestTracerSuite/prebuilt/TestDNSStats/invalid_domain (0.14s)
+    remoteexecutable.go:145: TestSuite:             --- PASS: TestTracerSuite/prebuilt/TestDNSStats/timeout (2.14s)
+    remoteexecutable.go:145: TestSuite:         --- PASS: TestTracerSuite/prebuilt/TestGetStats (8.31s)
+    remoteexecutable.go:145: TestSuite:             --- PASS: TestTracerSuite/prebuilt/TestGetStats/ebpf_conntracker_true (4.15s)
+    remoteexecutable.go:145: TestSuite:             --- PASS: TestTracerSuite/prebuilt/TestGetStats/ebpf_conntracker_false (4.16s)
+    remoteexecutable.go:145: TestSuite:         --- PASS: TestTracerSuite/prebuilt/TestLocalDNSCollectionDisabled (0.15s)
+    remoteexecutable.go:145: TestSuite:         --- PASS: TestTracerSuite/prebuilt/TestLocalDNSCollectionEnabled (0.16s)
+    remoteexecutable.go:145: TestSuite:         --- PASS: TestTracerSuite/prebuilt/TestShouldExcludeEmptyStatsConnection (0.28s)
+    remoteexecutable.go:145: TestSuite:         --- PASS: TestTracerSuite/prebuilt/TestShouldSkipExcludedConnection (0.17s)
+    remoteexecutable.go:145: TestSuite:         --- SKIP: TestTracerSuite/prebuilt/TestTCPCollectionDisabled (0.00s)
+    remoteexecutable.go:145: TestSuite:         --- PASS: TestTracerSuite/prebuilt/TestTCPConnsReported (0.16s)
+    remoteexecutable.go:145: TestSuite:         --- PASS: TestTracerSuite/prebuilt/TestTCPDirection (0.68s)
+    remoteexecutable.go:145: TestSuite:         --- PASS: TestTracerSuite/prebuilt/TestTCPEstablished (0.68s)
+    remoteexecutable.go:145: TestSuite:         --- PASS: TestTracerSuite/prebuilt/TestTCPEstablishedPreExistingConn (0.68s)
+    remoteexecutable.go:145: TestSuite:         --- SKIP: TestTracerSuite/prebuilt/TestTCPOverIPv6 (0.00s)
+    remoteexecutable.go:145: TestSuite:         --- PASS: TestTracerSuite/prebuilt/TestTCPSendAndReceive (0.31s)
+    remoteexecutable.go:145: TestSuite:         --- PASS: TestTracerSuite/prebuilt/TestTCPShortLived (0.28s)
+    remoteexecutable.go:145: TestSuite:         --- PASS: TestTracerSuite/prebuilt/TestUDPDisabled (0.12s)
+    remoteexecutable.go:145: TestSuite:         --- PASS: TestTracerSuite/prebuilt/TestUDPSendAndReceive (0.16s)
+    remoteexecutable.go:145: TestSuite:             --- PASS: TestTracerSuite/prebuilt/TestUDPSendAndReceive/v4 (0.00s)
+    remoteexecutable.go:145: TestSuite:                 --- PASS: TestTracerSuite/prebuilt/TestUDPSendAndReceive/v4/fixed_port (0.00s)
+    remoteexecutable.go:145: TestSuite:             --- PASS: TestTracerSuite/prebuilt/TestUDPSendAndReceive/v6 (0.00s)
+    remoteexecutable.go:145: TestSuite:                 --- PASS: TestTracerSuite/prebuilt/TestUDPSendAndReceive/v6/fixed_port (0.00s)
+    remoteexecutable.go:145: TestSuite:         --- PASS: TestTracerSuite/prebuilt/TestUnconnectedUDPSendIPv4 (0.16s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestSkipConnectionDNS
+    remoteexecutable.go:145: TestSuite: === RUN   TestSkipConnectionDNS/CollectLocalDNS_disabled
+    remoteexecutable.go:145: TestSuite: === RUN   TestSkipConnectionDNS/CollectLocalDNS_disabled#01
+    remoteexecutable.go:145: TestSuite: --- PASS: TestSkipConnectionDNS (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestSkipConnectionDNS/CollectLocalDNS_disabled (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestSkipConnectionDNS/CollectLocalDNS_disabled#01 (0.00s)
+    remoteexecutable.go:145: TestSuite: PASS
+    remoteexecutable.go:145: TestSuite:
+    remoteexecutable.go:125: Testsuite c:\tmp\pkg\network\tracer\testsuite.exe took 28.4686983s
+    remoteexecutable.go:121: Running testsuite: pkg\network\usm\utils\testsuite.exe
+    remoteexecutable.go:145: TestSuite: === RUN   TestRollupKey
+    remoteexecutable.go:145: TestSuite: === RUN   TestRollupKey/same_key
+    remoteexecutable.go:145: TestSuite: === RUN   TestRollupKey/same_key,_flipped_order
+    remoteexecutable.go:145: TestSuite: === RUN   TestRollupKey/same_IPs,_but_no_matching_ports
+    remoteexecutable.go:145: TestSuite: === RUN   TestRollupKey/same_IPs,_different_ephemeral_ports
+    remoteexecutable.go:145: TestSuite: --- PASS: TestRollupKey (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestRollupKey/same_key (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestRollupKey/same_key,_flipped_order (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestRollupKey/same_IPs,_but_no_matching_ports (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestRollupKey/same_IPs,_different_ephemeral_ports (0.00s)
+    remoteexecutable.go:145: TestSuite: === RUN   TestClearEphemeralPort
+    remoteexecutable.go:145: TestSuite: === RUN   TestClearEphemeralPort/no_state
+    remoteexecutable.go:145: TestSuite: === RUN   TestClearEphemeralPort/base_case
+    remoteexecutable.go:145: TestSuite: === RUN   TestClearEphemeralPort/flipped_tuples
+    remoteexecutable.go:145: TestSuite: --- PASS: TestClearEphemeralPort (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestClearEphemeralPort/no_state (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestClearEphemeralPort/base_case (0.00s)
+    remoteexecutable.go:145: TestSuite:     --- PASS: TestClearEphemeralPort/flipped_tuples (0.00s)
+    remoteexecutable.go:145: TestSuite: PASS
+    remoteexecutable.go:145: TestSuite:
+    remoteexecutable.go:125: Testsuite c:\tmp\pkg\network\usm\utils\testsuite.exe took 5.6309023s
+    remoteexecutable.go:127: Total time to run tests: 3m19.0715817s
+    sysprobe_test.go:153: RunTests took 3m19.0715817s
+--- PASS: TestVMSuite (1191.92s)
+    --- PASS: TestVMSuite/TestSystemProbeSuite (1157.21s)
+PASS
+ok      command-line-arguments  1192.465s
+PY: (agentdev) GOROOT c:\go\1.21.9\go GOPATH c:\go git-branch: db/e2e-testsuite-tests-timing
+Agent-Build - D:\src\agent.e2e\test\new-e2e
