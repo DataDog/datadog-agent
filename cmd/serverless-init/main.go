@@ -25,7 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/serverless"
 
 	"go.uber.org/atomic"
@@ -60,7 +59,6 @@ func main() {
 	err := fxutil.OneShot(
 		run,
 		autodiscoveryimpl.Module(),
-		workloadmeta.Module(),
 		fx.Provide(func(config coreconfig.Component) healthprobeDef.Options {
 			return healthprobeDef.Options{
 				Port:           config.GetInt("health_port"),
@@ -69,7 +67,6 @@ func main() {
 		}),
 		taggerimpl.Module(),
 		healthprobeFx.Module(),
-		fx.Supply(workloadmeta.NewParams()),
 		fx.Supply(tagger.NewTaggerParams()),
 		fx.Supply(core.BundleParams{
 			ConfigParams: coreconfig.NewParams("", coreconfig.WithConfigMissingOK(true)),
