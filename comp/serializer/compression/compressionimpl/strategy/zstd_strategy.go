@@ -8,7 +8,6 @@ package strategy
 
 import (
 	"bytes"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/comp/serializer/compression"
 	"github.com/DataDog/zstd"
