@@ -35,8 +35,8 @@ type eventHostInfo struct {
 	providerID string
 }
 
-// ControllerToIntegration is a mapping of Kubernetes controller names to integrations
-var ControllerToIntegration = map[string]string{
+// controllerToIntegration is a mapping of Kubernetes controller names to integrations
+var controllerToIntegration = map[string]string{
 	"targetgroupbinding":                             "amazon elb",
 	"cilium-sidekick":                                "cilium",
 	"datadogagent":                                   "datadog operator",
@@ -100,6 +100,7 @@ var ControllerToIntegration = map[string]string{
 	"service-cidr-controller":                        "kubernetes",
 	"storage-version-migrator-controller":            "kubernetes",
 	"kubelet":                                        "kubernetes",
+	"cluster-autoscaler":                             "kubernetes cluster autoscaler",
 	"endpoint-controller":                            "kubernetes controller manager",
 	"endpoint-slice-controller":                      "kubernetes controller manager",
 	"replicaset-controller":                          "kubernetes controller manager",
@@ -107,11 +108,10 @@ var ControllerToIntegration = map[string]string{
 	"default-scheduler":                              "kube_scheduler",
 	"spark-operator":                                 "spark",
 	"vaultd":                                         "vault",
-	"cluster-autoscaler":                             "kubernetes cluster autoscaler",
 }
 
 // defaultEventSource is the source that should be used for kubernetes events emitted by
-// a controller not in the ControllerToIntegration map.
+// a controller not in the controllerToIntegration map.
 const defaultEventSource = "kubernetes"
 
 // kubernetesEventSource is the name of the source for kubernetes events
@@ -272,10 +272,10 @@ func getEventSource(controllerName string, sourceComponent string) string {
 		return kubernetesEventSource
 	}
 
-	if v, ok := ControllerToIntegration[controllerName]; ok {
+	if v, ok := controllerToIntegration[controllerName]; ok {
 		return v
 	}
-	if v, ok := ControllerToIntegration[sourceComponent]; ok {
+	if v, ok := controllerToIntegration[sourceComponent]; ok {
 		return v
 	}
 	return defaultEventSource
