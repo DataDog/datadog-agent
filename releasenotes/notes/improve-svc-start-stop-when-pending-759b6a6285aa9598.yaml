@@ -8,8 +8,4 @@
 ---
 enhancements:
   - |
-    Improve utility functions which start or stop a service to better
-    handle SERVICE_START_PENDING and SERVICE_STOP_PENDING states by simply
-    waiting for the service to complete transition. It will help better
-    handle Windows Agent concurrent execution of`agent.exe start` and
-    `agent.exe restart` commands.
+    Improve utility functions that start or stop a service to better manage the SERVICE_START_PENDING and SERVICE_STOP_PENDING states by waiting for the service transition to complete. This will improve handling of concurrent execution of `agent.exe start` and `agent.exe restart` commands for the Windows Agent.
