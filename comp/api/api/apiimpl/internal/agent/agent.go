@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/status"
+	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
@@ -146,7 +147,7 @@ func getStatus(w http.ResponseWriter, r *http.Request, statusComponent status.Co
 			return
 		}
 
-		utils.SetJSONError(w, log.Errorf("Error getting status. Error: %v, Status: %v", err, s), 500)
+		httputils.SetJSONError(w, log.Errorf("Error getting status. Error: %v, Status: %v", err, s), 500)
 		return
 	}
 
@@ -176,7 +177,7 @@ func getHealth(w http.ResponseWriter, _ *http.Request) {
 	jsonHealth, err := json.Marshal(h)
 	if err != nil {
 		log.Errorf("Error marshalling status. Error: %v, Status: %v", err, h)
-		utils.SetJSONError(w, err, 500)
+		httputils.SetJSONError(w, err, 500)
 		return
 	}
 
@@ -190,7 +191,7 @@ func secretInfo(w http.ResponseWriter, _ *http.Request, secretResolver secrets.C
 func secretRefresh(w http.ResponseWriter, _ *http.Request, secretResolver secrets.Component) {
 	result, err := secretResolver.Refresh()
 	if err != nil {
-		utils.SetJSONError(w, err, 500)
+		httputils.SetJSONError(w, err, 500)
 		return
 	}
 	w.Write([]byte(result))
@@ -237,7 +238,7 @@ func getDiagnose(w http.ResponseWriter, r *http.Request, diagnoseDeps diagnose.S
 		}
 	}
 	if err != nil {
-		utils.SetJSONError(w, log.Errorf("Running diagnose in Agent process failed: %s", err), 500)
+		httputils.SetJSONError(w, log.Errorf("Running diagnose in Agent process failed: %s", err), 500)
 		return
 	}
 
@@ -245,6 +246,6 @@ func getDiagnose(w http.ResponseWriter, r *http.Request, diagnoseDeps diagnose.S
 	w.Header().Set("Content-Type", "application/json")
 	err = json.NewEncoder(w).Encode(diagnoses)
 	if err != nil {
-		utils.SetJSONError(w, log.Errorf("Unable to marshal config check response: %s", err), 500)
+		httputils.SetJSONError(w, log.Errorf("Unable to marshal config check response: %s", err), 500)
 	}
 }

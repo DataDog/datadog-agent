@@ -7,21 +7,11 @@
 package utils
 
 import (
-	"encoding/json"
-	"fmt"
 	"net"
 	"net/http"
 
 	grpccontext "github.com/DataDog/datadog-agent/pkg/util/grpc/context"
 )
-
-// SetJSONError writes a server error as JSON with the correct http error code
-func SetJSONError(w http.ResponseWriter, err error, errorCode int) {
-	body, _ := json.Marshal(map[string]string{"error": err.Error()})
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(errorCode)
-	fmt.Fprintln(w, string(body))
-}
 
 // GetConnection returns the connection for the request
 func GetConnection(r *http.Request) net.Conn {
