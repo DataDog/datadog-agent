@@ -81,7 +81,7 @@ func testUDSOriginDetection(t *testing.T, network string) {
 	// will prevent disconnections.
 	packetsChannel := make(chan packets.Packets, 1024)
 	sharedPacketPool := packets.NewPool(32)
-	sharedPacketPoolManager := packets.NewPoolManager(sharedPacketPool)
+	sharedPacketPoolManager := packets.NewPoolManager[packets.Packet](sharedPacketPool)
 	var err error
 	var s listeners.StatsdListener
 	if network == "unixgram" {

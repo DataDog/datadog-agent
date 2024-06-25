@@ -20,13 +20,14 @@ import (
 	"github.com/DataDog/zstd"
 	"github.com/spf13/afero"
 
+	"github.com/golang/protobuf/proto"
+
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	taggerproto "github.com/DataDog/datadog-agent/comp/core/tagger/proto"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/golang/protobuf/proto"
 )
 
 const (
@@ -57,8 +58,8 @@ type TrafficCaptureWriter struct {
 	ongoing   bool
 	accepting bool
 
-	sharedPacketPoolManager *packets.PoolManager
-	oobPacketPoolManager    *packets.PoolManager
+	sharedPacketPoolManager *packets.PoolManager[packets.Packet]
+	oobPacketPoolManager    *packets.PoolManager[[]byte]
 
 	taggerState map[int32]string
 
@@ -268,7 +269,7 @@ func (tc *TrafficCaptureWriter) Enqueue(msg *replay.CaptureBuffer) bool {
 }
 
 // RegisterSharedPoolManager registers the shared pool manager with the TrafficCaptureWriter.
-func (tc *TrafficCaptureWriter) RegisterSharedPoolManager(p *packets.PoolManager) error {
+func (tc *TrafficCaptureWriter) RegisterSharedPoolManager(p *packets.PoolManager[packets.Packet]) error {
 	if tc.sharedPacketPoolManager != nil {
 		return fmt.Errorf("OOB Pool Manager already registered with the writer")
 	}
@@ -279,7 +280,7 @@ func (tc *TrafficCaptureWriter) RegisterSharedPoolManager(p *packets.PoolManager
 }
 
 // RegisterOOBPoolManager registers the OOB shared pool manager with the TrafficCaptureWriter.
-func (tc *TrafficCaptureWriter) RegisterOOBPoolManager(p *packets.PoolManager) error {
+func (tc *TrafficCaptureWriter) RegisterOOBPoolManager(p *packets.PoolManager[[]byte]) error {
 	if tc.oobPacketPoolManager != nil {
 		return fmt.Errorf("OOB Pool Manager already registered with the writer")
 	}

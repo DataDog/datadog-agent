@@ -119,7 +119,7 @@ type server struct {
 	captureChan             chan packets.Packets
 	serverlessFlushChan     chan bool
 	sharedPacketPool        *packets.Pool
-	sharedPacketPoolManager *packets.PoolManager
+	sharedPacketPoolManager *packets.PoolManager[packets.Packet]
 	sharedFloat64List       *float64ListPool
 	Statistics              *util.Stats
 	Started                 bool
