@@ -82,6 +82,7 @@ new-e2e_windows_powershell_module_test:
   variables:
     TARGETS: ./tests/windows/powershell-module-test
     TEAM: windows-kernel-integrations
+  needs: []
 
 # Agent 6
 .new-e2e_windows_a6_x86_64:
