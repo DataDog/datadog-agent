@@ -83,7 +83,7 @@ func TestInstallScript(t *testing.T) {
 				e2e.WithProvisioner(awshost.ProvisionerNoAgentNoFakeIntake(
 					awshost.WithEC2InstanceOptions(vmOpts...),
 				)),
-				e2e.WithStackName(fmt.Sprintf("install-script-test-%v-%v-%s-%s-%v", os.Getenv("CI_PIPELINE_ID"), osVers, *architecture, *flavor, *majorVersion)),
+				e2e.WithStackName(fmt.Sprintf("install-script-test-%v-%s-%s-%v", osVers, *architecture, *flavor, *majorVersion)),
 			)
 		})
 	}

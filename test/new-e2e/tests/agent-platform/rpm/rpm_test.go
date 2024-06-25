@@ -88,7 +88,7 @@ func TestRpmScript(t *testing.T) {
 				e2e.WithProvisioner(awshost.ProvisionerNoAgentNoFakeIntake(
 					awshost.WithEC2InstanceOptions(vmOpts...),
 				)),
-				e2e.WithStackName(fmt.Sprintf("rpm-test-%v-%v-%s-%v", os.Getenv("CI_PIPELINE_ID"), osVers, *architecture, *majorVersion)),
+				e2e.WithStackName(fmt.Sprintf("rpm-test-%v-%s-%v", osVers, *architecture, *majorVersion)),
 			)
 		})
 	}

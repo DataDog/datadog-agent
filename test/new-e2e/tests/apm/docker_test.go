@@ -28,7 +28,7 @@ type DockerFakeintakeSuite struct {
 func dockerSuiteOpts(tr transport, opts ...awsdocker.ProvisionerOption) []e2e.SuiteOption {
 	options := []e2e.SuiteOption{
 		e2e.WithProvisioner(awsdocker.Provisioner(opts...)),
-		e2e.WithStackName(fmt.Sprintf("apm-docker-suite-%s-%v", tr, os.Getenv("CI_PIPELINE_ID"))),
+		e2e.WithStackName(fmt.Sprintf("apm-docker-suite-%s", tr)),
 	}
 	return options
 }

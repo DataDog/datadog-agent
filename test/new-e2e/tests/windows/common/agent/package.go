@@ -247,7 +247,7 @@ func LookupChannelURLFromEnv() (string, bool) {
 //
 // WINDOWS_AGENT_MSI_URL: manually provided URL (all other parameters are informational only)
 //
-// CI_PIPELINE_ID: use the URL from a specific CI pipeline, major version and arch are used, channel is blank
+// E2E_PIPELINE_ID: use the URL from a specific CI pipeline, major version and arch are used, channel is blank
 //
 // WINDOWS_AGENT_VERSION: The complete version, e.g. 7.49.0-1, 7.49.0-rc.3-1, or a major version, e.g. 7, arch and channel are used
 //
