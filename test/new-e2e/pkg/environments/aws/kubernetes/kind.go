@@ -112,6 +112,10 @@ func KindRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Prov
 			newOpts := []kubernetesagentparams.Option{kubernetesagentparams.WithFakeintake(fakeIntake)}
 			params.agentOptions = append(newOpts, params.agentOptions...)
 		}
+		if params.otelAgentOptions != nil {
+			newOpts := []kubernetesagentparams.Option{kubernetesagentparams.WithFakeintake(fakeIntake)}
+			params.otelAgentOptions = append(newOpts, params.otelAgentOptions...)
+		}
 	} else {
 		env.FakeIntake = nil
 	}
@@ -130,6 +134,34 @@ agents:
 		newOpts := []kubernetesagentparams.Option{kubernetesagentparams.WithHelmValues(helmValues)}
 		params.agentOptions = append(newOpts, params.agentOptions...)
 		agent, err := agent.NewKubernetesAgent(&awsEnv, kindClusterName, kubeProvider, params.agentOptions...)
+		if err != nil {
+			return err
+		}
+		err = agent.Export(ctx, &env.Agent.KubernetesAgentOutput)
+		if err != nil {
+			return err
+		}
+
+	} else {
+		env.Agent = nil
+	}
+
+	if params.otelAgentOptions != nil {
+		kindClusterName := ctx.Stack()
+		// TODO: replace with otel agent helm values
+		helmValues := fmt.Sprintf(`
+datadog:
+  kubelet:
+    tlsVerify: false
+  clusterName: "%s"
+agents:
+  useHostNetwork: true
+`, kindClusterName)
+
+		newOpts := []kubernetesagentparams.Option{kubernetesagentparams.WithHelmValues(helmValues)}
+		params.otelAgentOptions = append(newOpts, params.otelAgentOptions...)
+		// TODO: replace with otelagent.NewKubernetesAgent
+		agent, err := agent.NewKubernetesAgent(&awsEnv, kindClusterName, kubeProvider, params.otelAgentOptions...)
 		if err != nil {
 			return err
 		}

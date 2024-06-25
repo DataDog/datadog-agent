@@ -16,7 +16,8 @@ type Kubernetes struct {
 	// Components
 	KubernetesCluster *components.KubernetesCluster
 	FakeIntake        *components.FakeIntake
-	Agent             *components.KubernetesAgent
+	// TODO: add KubernetesOTelAgent here
+	Agent *components.KubernetesAgent
 }
 
 // AwsKubernetes is an environment that contains a AWS Kubernetes cluster (EKS), the Agent and a FakeIntake.

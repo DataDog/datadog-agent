@@ -344,6 +344,34 @@ func EKSRunFunc(ctx *pulumi.Context, env *environments.AwsKubernetes, params *Pr
 			}
 		}
 
+		// Deploy the OTel agent
+		if params.otelAgentOptions != nil {
+			paramsAgent, err := kubernetesagentparams.NewParams(&awsEnv, params.otelAgentOptions...)
+			if err != nil {
+				return err
+			}
+
+			// TODO: replace with otelagent.NewHelmInstallation
+			helmComponent, err := agent.NewHelmInstallation(&awsEnv, agent.HelmInstallationArgs{
+				KubeProvider:  eksKubeProvider,
+				Namespace:     "datadog",
+				ValuesYAML:    paramsAgent.HelmValues,
+				Fakeintake:    fakeIntake,
+				DeployWindows: params.eksWindowsNodeGroup,
+			}, dependsOnSetup)
+			if err != nil {
+				return err
+			}
+			env.Agent = nil
+
+			ctx.Export("agent-linux-helm-install-name", helmComponent.LinuxHelmReleaseName)
+			ctx.Export("agent-linux-helm-install-status", helmComponent.LinuxHelmReleaseStatus)
+			if params.eksWindowsNodeGroup {
+				ctx.Export("agent-windows-helm-install-name", helmComponent.WindowsHelmReleaseName)
+				ctx.Export("agent-windows-helm-install-status", helmComponent.WindowsHelmReleaseStatus)
+			}
+		}
+
 		// Deploy standalone dogstatsd
 		if params.deployDogstatsd {
 			if _, err := dogstatsdstandalone.K8sAppDefinition(&awsEnv, eksKubeProvider, "dogstatsd-standalone", fakeIntake, true, ""); err != nil {

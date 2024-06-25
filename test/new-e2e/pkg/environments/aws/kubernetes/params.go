@@ -26,6 +26,7 @@ type ProvisionerParams struct {
 	name              string
 	vmOptions         []ec2.VMOption
 	agentOptions      []kubernetesagentparams.Option
+	otelAgentOptions  []kubernetesagentparams.Option
 	fakeintakeOptions []fakeintake.Option
 	extraConfigParams runner.ConfigMap
 	workloadAppFuncs  []WorkloadAppFunc
@@ -42,6 +43,7 @@ func newProvisionerParams() *ProvisionerParams {
 		name:              defaultVMName,
 		vmOptions:         []ec2.VMOption{},
 		agentOptions:      []kubernetesagentparams.Option{},
+		otelAgentOptions:  []kubernetesagentparams.Option{},
 		fakeintakeOptions: []fakeintake.Option{},
 		extraConfigParams: runner.ConfigMap{},
 		workloadAppFuncs:  []WorkloadAppFunc{},
@@ -87,6 +89,14 @@ func WithEC2VMOptions(opts ...ec2.VMOption) ProvisionerOption {
 func WithAgentOptions(opts ...kubernetesagentparams.Option) ProvisionerOption {
 	return func(params *ProvisionerParams) error {
 		params.agentOptions = opts
+		return nil
+	}
+}
+
+// WithOTelAgentOptions adds options to the OTel agent
+func WithOTelAgentOptions(opts ...kubernetesagentparams.Option) ProvisionerOption {
+	return func(params *ProvisionerParams) error {
+		params.otelAgentOptions = opts
 		return nil
 	}
 }
@@ -151,6 +161,7 @@ func WithoutFakeIntake() ProvisionerOption {
 func WithoutAgent() ProvisionerOption {
 	return func(params *ProvisionerParams) error {
 		params.agentOptions = nil
+		params.otelAgentOptions = nil
 		return nil
 	}
 }
