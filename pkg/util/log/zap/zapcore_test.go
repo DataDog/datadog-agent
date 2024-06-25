@@ -9,6 +9,7 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
+	"os/exec"
 	"strings"
 	"testing"
 
@@ -44,9 +45,23 @@ func parseShortFilePath(_ string) seelog.FormatterFunc {
 }
 
 func extractShortPathFromFullPath(fullPath string) string {
+	// Ask git for the root of the repository. This handles cases where
+	// the repository's directory name does not end in "datadog-agent",
+	// for example, when using git worktrees.
+	cmd := exec.Command("git", "rev-parse", "--show-toplevel")
+	stdout, err := cmd.CombinedOutput()
+	if err == nil {
+		rootpath := strings.TrimSpace(string(stdout))
+		if !strings.HasSuffix(rootpath, "/") {
+			rootpath = rootpath + "/"
+		}
+		if strings.HasPrefix(fullPath, rootpath) {
+			return strings.TrimPrefix(fullPath, rootpath)
+		}
+	}
 	// We want to trim the part containing the path of the project
-	// ie DataDog/datadog-agent/ or DataDog/datadog-process-agent/
-	slices := strings.Split(fullPath, "-agent/")
+	// ie DataDog/datadog-agent/
+	slices := strings.Split(fullPath, "datadog-agent/")
 	return slices[len(slices)-1]
 }
 
