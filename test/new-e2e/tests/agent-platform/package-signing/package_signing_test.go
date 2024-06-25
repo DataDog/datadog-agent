@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"os"
 	"regexp"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"

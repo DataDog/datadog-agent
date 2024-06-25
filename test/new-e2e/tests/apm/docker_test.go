@@ -7,7 +7,6 @@ package apm
 
 import (
 	"fmt"
-	"os"
 	"testing"
 	"time"
 
