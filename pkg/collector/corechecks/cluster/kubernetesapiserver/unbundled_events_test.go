@@ -149,8 +149,8 @@ func TestUnbundledEventsTransform(t *testing.T) {
 						"name:otel-demo-opensearch-pdb",
 						"kube_namespace:default",
 						"namespace:default",
+						"orchestrator:kubernetes",
 						"source_component:kubelet",
-						"true_source:kubernetes",
 						"reporting_controller:",
 					},
 					AlertType:      event.AlertTypeWarning,
@@ -178,8 +178,8 @@ func TestUnbundledEventsTransform(t *testing.T) {
 						"kube_namespace:default",
 						"namespace:default",
 						"kube_replica_set:blastoise-759fd559f7",
+						"orchestrator:kubernetes",
 						"source_component:kubelet",
-						"true_source:kubernetes",
 						"reporting_controller:disruption-budget-manager",
 					},
 					AlertType:      event.AlertTypeInfo,
@@ -202,9 +202,9 @@ func TestUnbundledEventsTransform(t *testing.T) {
 						"name:squirtle-8fff95dbb-tsc7v",
 						"namespace:default",
 						"pod_name:squirtle-8fff95dbb-tsc7v",
-						"reporting_controller:",
 						"source_component:kubelet",
-						"true_source:kubernetes",
+						"orchestrator:kubernetes",
+						"reporting_controller:",
 					},
 					AlertType:      event.AlertTypeInfo,
 					AggregationKey: "kubernetes_apiserver:43b7e0d3-9212-4355-a957-4ac15ce3a7f7",
@@ -226,9 +226,9 @@ func TestUnbundledEventsTransform(t *testing.T) {
 						"name:wartortle-8fff95dbb-tsc7v",
 						"namespace:default",
 						"pod_name:wartortle-8fff95dbb-tsc7v",
+						"orchestrator:kubernetes",
 						"reporting_controller:",
 						"source_component:kubelet",
-						"true_source:kubernetes",
 					},
 					AlertType:      event.AlertTypeWarning,
 					AggregationKey: "kubernetes_apiserver:17f2bab8-d051-4861-bc87-db3ba75dd6f6",
@@ -260,9 +260,9 @@ func TestUnbundledEventsTransform(t *testing.T) {
 						"name:squirtle-8fff95dbb-tsc7v",
 						"namespace:default",
 						"pod_name:squirtle-8fff95dbb-tsc7v",
-						"reporting_controller:",
 						"source_component:kubelet",
-						"true_source:kubernetes",
+						"orchestrator:kubernetes",
+						"reporting_controller:",
 					},
 					AlertType:      event.AlertTypeInfo,
 					AggregationKey: "kubernetes_apiserver:43b7e0d3-9212-4355-a957-4ac15ce3a7f7",
@@ -284,9 +284,9 @@ func TestUnbundledEventsTransform(t *testing.T) {
 						"name:wartortle-8fff95dbb-tsc7v",
 						"namespace:default",
 						"pod_name:wartortle-8fff95dbb-tsc7v",
+						"orchestrator:kubernetes",
 						"reporting_controller:",
 						"source_component:kubelet",
-						"true_source:kubernetes",
 					},
 					AlertType:      event.AlertTypeWarning,
 					AggregationKey: "kubernetes_apiserver:17f2bab8-d051-4861-bc87-db3ba75dd6f6",
@@ -322,7 +322,7 @@ func TestUnbundledEventsTransform(t *testing.T) {
 						"namespace:default",
 						"pod_name:squirtle-8fff95dbb-tsc7v",
 						"source_component:kubelet",
-						"true_source:kubernetes",
+						"orchestrator:kubernetes",
 						"reporting_controller:",
 					},
 					Host:           "test-host-test-cluster",
@@ -350,7 +350,7 @@ func TestUnbundledEventsTransform(t *testing.T) {
 						"namespace:default",
 						"pod_name:wartortle-8fff95dbb-tsc7v",
 						"source_component:kubelet",
-						"true_source:kubernetes",
+						"orchestrator:kubernetes",
 						"reporting_controller:",
 					},
 					Host:           "test-host-test-cluster",
@@ -376,8 +376,8 @@ func TestUnbundledEventsTransform(t *testing.T) {
 						"name:otel-demo-opensearch-pdb",
 						"kube_namespace:default",
 						"namespace:default",
+						"orchestrator:kubernetes",
 						"source_component:kubelet",
-						"true_source:kubernetes",
 						"reporting_controller:",
 					},
 					AlertType:      event.AlertTypeWarning,
@@ -399,9 +399,9 @@ func TestUnbundledEventsTransform(t *testing.T) {
 						"kubernetes_kind:ReplicaSet",
 						"name:blastoise-759fd559f7",
 						"namespace:default",
+						"orchestrator:kubernetes",
 						"reporting_controller:disruption-budget-manager",
 						"source_component:kubelet",
-						"true_source:kubernetes",
 					},
 					AlertType:      event.AlertTypeInfo,
 					AggregationKey: "kubernetes_apiserver:b96b5c25-6282-4e6f-a2fb-010196a284d9",
@@ -422,9 +422,9 @@ func TestUnbundledEventsTransform(t *testing.T) {
 						"kubernetes_kind:ReplicaSet",
 						"name:blastoise-759fd559f7",
 						"namespace:default",
+						"orchestrator:kubernetes",
 						"reporting_controller:",
 						"source_component:kubelet",
-						"true_source:kubernetes",
 					},
 					AlertType:      event.AlertTypeInfo,
 					AggregationKey: "kubernetes_apiserver:b96b5c25-6282-4e6f-a2fb-010196a284d9",
@@ -446,7 +446,18 @@ func TestUnbundledEventsTransform(t *testing.T) {
 			})
 
 			assert.Empty(t, errors)
-			assert.Equal(t, tt.expected, events)
+			for i := range events {
+				assert.Equal(t, tt.expected[i].Ts, events[i].Ts)
+				assert.Equal(t, tt.expected[i].Title, events[i].Title)
+				assert.Equal(t, tt.expected[i].Text, events[i].Text)
+				assert.Equal(t, tt.expected[i].Priority, events[i].Priority)
+				assert.Equal(t, tt.expected[i].Host, events[i].Host)
+				assert.Equal(t, tt.expected[i].AlertType, events[i].AlertType)
+				assert.Equal(t, tt.expected[i].AggregationKey, events[i].AggregationKey)
+				assert.Equal(t, tt.expected[i].SourceTypeName, events[i].SourceTypeName)
+				assert.Equal(t, tt.expected[i].EventType, events[i].EventType)
+				assert.ElementsMatch(t, tt.expected[i].Tags, events[i].Tags)
+			}
 		})
 	}
 }

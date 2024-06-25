@@ -12,6 +12,6 @@ enhancements:
     false by default. When set to true, this sets the source of kubernetes
     events to specific integrations based on the name of the controller
     that emitted it. All kubernetes events will have the tag
-    ``true_source:kubernetes``. For controller names that do not match
+    ``orchestrator:kubernetes``. For controller names that do not match
     any of the known integrations, the source will still be set to
     ``kubernetes`` by default.

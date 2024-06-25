@@ -21,7 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 )
 
-func createEvent(count int32, namespace, objname, objkind, objuid, component, hostname, reason, message, typ string, timestamp int64) *v1.Event {
+func createEvent(count int32, namespace, objname, objkind, objuid, component, reportingController, hostname, reason, message, typ string, timestamp int64) *v1.Event {
 	return &v1.Event{
 		InvolvedObject: v1.ObjectReference{
 			Name:      objname,
@@ -41,8 +41,9 @@ func createEvent(count int32, namespace, objname, objkind, objuid, component, ho
 		LastTimestamp: metav1.Time{
 			Time: time.Unix(timestamp, 0),
 		},
-		Message: message,
-		Type:    typ,
+		Message:             message,
+		Type:                typ,
+		ReportingController: reportingController,
 	}
 }
 
@@ -63,8 +64,8 @@ func TestFormatEvent(t *testing.T) {
 		{
 			name: "basic event",
 			events: []*v1.Event{
-				createEvent(2, "default", podName, "Pod", objUID, "default-scheduler", nodeName, "Scheduled", "Successfully assigned dca-789976f5d7-2ljx6 to ip-10-0-0-54", "Normal", timestamp),
-				createEvent(3, "default", podName, "Pod", objUID, "default-scheduler", nodeName, "Started", "Started container", "Normal", timestamp),
+				createEvent(2, "default", podName, "Pod", objUID, "default-scheduler", "default-scheduler", nodeName, "Scheduled", "Successfully assigned dca-789976f5d7-2ljx6 to ip-10-0-0-54", "Normal", timestamp),
+				createEvent(3, "default", podName, "Pod", objUID, "default-scheduler", "default-scheduler", nodeName, "Started", "Started container", "Normal", timestamp),
 			},
 			expected: event.Event{
 				Title:          "Events from the Pod default/dca-789976f5d7-2ljx6",
@@ -79,8 +80,8 @@ func TestFormatEvent(t *testing.T) {
 					"kubernetes_kind:Pod",
 					"namespace:default",
 					"source_component:default-scheduler",
-					"true_source:kubernetes",
-					"reporting_controller:",
+					"orchestrator:kubernetes",
+					"reporting_controller:default-scheduler",
 					fmt.Sprintf("kube_name:%s", podName),
 					fmt.Sprintf("name:%s", podName),
 					fmt.Sprintf("pod_name:%s", podName),
@@ -99,7 +100,7 @@ func TestFormatEvent(t *testing.T) {
 		{
 			name: "event text escaping",
 			events: []*v1.Event{
-				createEvent(1, "default", podName, "Pod", objUID, "default-scheduler", nodeName, "Failed", "Error: error response: filepath: ~file~", "Normal", timestamp),
+				createEvent(1, "default", podName, "Pod", objUID, "default-scheduler", "default-scheduler", nodeName, "Failed", "Error: error response: filepath: ~file~", "Normal", timestamp),
 			},
 			expected: event.Event{
 				Title:          "Events from the Pod default/dca-789976f5d7-2ljx6",
@@ -114,8 +115,8 @@ func TestFormatEvent(t *testing.T) {
 					"kubernetes_kind:Pod",
 					"namespace:default",
 					"source_component:default-scheduler",
-					"true_source:kubernetes",
-					"reporting_controller:",
+					"orchestrator:kubernetes",
+					"reporting_controller:default-scheduler",
 					fmt.Sprintf("kube_name:%s", podName),
 					fmt.Sprintf("name:%s", podName),
 					fmt.Sprintf("pod_name:%s", podName),
@@ -135,8 +136,8 @@ func TestFormatEvent(t *testing.T) {
 			clusterName:    clusterName,
 			hostProviderID: "test-host-provider-id",
 			events: []*v1.Event{
-				createEvent(2, "default", podName, "Pod", objUID, "default-scheduler", "machine-blue", "Scheduled", "Successfully assigned dca-789976f5d7-2ljx6 to ip-10-0-0-54", "Normal", timestamp),
-				createEvent(3, "default", podName, "Pod", objUID, "default-scheduler", "machine-blue", "Started", "Started container", "Normal", timestamp),
+				createEvent(2, "default", podName, "Pod", objUID, "default-scheduler", "default-scheduler", "machine-blue", "Scheduled", "Successfully assigned dca-789976f5d7-2ljx6 to ip-10-0-0-54", "Normal", timestamp),
+				createEvent(3, "default", podName, "Pod", objUID, "default-scheduler", "default-scheduler", "machine-blue", "Started", "Started container", "Normal", timestamp),
 			},
 			expected: event.Event{
 				Title:          "Events from the Pod default/dca-789976f5d7-2ljx6",
@@ -152,8 +153,8 @@ func TestFormatEvent(t *testing.T) {
 					"namespace:default",
 					"source_component:default-scheduler",
 					"host_provider_id:test-host-provider-id",
-					"true_source:kubernetes",
-					"reporting_controller:",
+					"orchestrator:kubernetes",
+					"reporting_controller:default-scheduler",
 					fmt.Sprintf("kube_name:%s", podName),
 					fmt.Sprintf("name:%s", podName),
 					fmt.Sprintf("pod_name:%s", podName),
@@ -203,43 +204,43 @@ func TestEventsTagging(t *testing.T) {
 	}{
 		{
 			name:         "pod",
-			k8sEvent:     createEvent(1, "default", "nginx-2d9jp-cmssw", "Pod", "c9f47d37-68d1-46a4-9295-419b054cb351", "kubelet", "xx-xx-default-pool-xxx-xxx", "Killing", "Stopping container daemon", "Normal", 709662600),
-			expectedTags: []string{"source_component:kubelet", "kube_kind:Pod", "kubernetes_kind:Pod", "kube_name:nginx-2d9jp-cmssw", "name:nginx-2d9jp-cmssw", "pod_name:nginx-2d9jp-cmssw", "namespace:default", "kube_namespace:default", "reporting_controller:", "true_source:kubernetes"},
+			k8sEvent:     createEvent(1, "default", "nginx-2d9jp-cmssw", "Pod", "c9f47d37-68d1-46a4-9295-419b054cb351", "kubelet", "kubelet", "xx-xx-default-pool-xxx-xxx", "Killing", "Stopping container daemon", "Normal", 709662600),
+			expectedTags: []string{"source_component:kubelet", "kube_kind:Pod", "kubernetes_kind:Pod", "kube_name:nginx-2d9jp-cmssw", "name:nginx-2d9jp-cmssw", "pod_name:nginx-2d9jp-cmssw", "namespace:default", "kube_namespace:default", "reporting_controller:kubelet", "orchestrator:kubernetes"},
 		},
 		{
 			name:         "deploy",
-			k8sEvent:     createEvent(1, "default", "nginx", "Deployment", "b85978f5-2bf2-413f-9611-0b433d2cbf30", "deployment-controller", "", "ScalingReplicaSet", "Scaled up replica set nginx-b49f5958c to 1", "Normal", 709662600),
-			expectedTags: []string{"source_component:deployment-controller", "kube_kind:Deployment", "kubernetes_kind:Deployment", "kube_name:nginx", "name:nginx", "kube_deployment:nginx", "namespace:default", "kube_namespace:default", "reporting_controller:", "true_source:kubernetes"},
+			k8sEvent:     createEvent(1, "default", "nginx", "Deployment", "b85978f5-2bf2-413f-9611-0b433d2cbf30", "deployment-controller", "deployment-controller", "", "ScalingReplicaSet", "Scaled up replica set nginx-b49f5958c to 1", "Normal", 709662600),
+			expectedTags: []string{"source_component:deployment-controller", "kube_kind:Deployment", "kubernetes_kind:Deployment", "kube_name:nginx", "name:nginx", "kube_deployment:nginx", "namespace:default", "kube_namespace:default", "reporting_controller:deployment-controller", "orchestrator:kubernetes"},
 		},
 		{
 			name:         "replicaset",
-			k8sEvent:     createEvent(1, "default", "nginx-b49f5958c", "ReplicaSet", "e048d70f-a83a-4559-9cc8-e55020c74ef0", "replicaset-controller", "", "SuccessfulCreate", "Created pod: nginx-b49f5958c-cbwlk", "Normal", 709662600),
-			expectedTags: []string{"source_component:replicaset-controller", "kube_kind:ReplicaSet", "kubernetes_kind:ReplicaSet", "kube_name:nginx-b49f5958c", "name:nginx-b49f5958c", "kube_replica_set:nginx-b49f5958c", "namespace:default", "kube_namespace:default", "reporting_controller:", "true_source:kubernetes"},
+			k8sEvent:     createEvent(1, "default", "nginx-b49f5958c", "ReplicaSet", "e048d70f-a83a-4559-9cc8-e55020c74ef0", "replicaset-controller", "replicaset-controller", "", "SuccessfulCreate", "Created pod: nginx-b49f5958c-cbwlk", "Normal", 709662600),
+			expectedTags: []string{"source_component:replicaset-controller", "kube_kind:ReplicaSet", "kubernetes_kind:ReplicaSet", "kube_name:nginx-b49f5958c", "name:nginx-b49f5958c", "kube_replica_set:nginx-b49f5958c", "namespace:default", "kube_namespace:default", "reporting_controller:replicaset-controller", "orchestrator:kubernetes"},
 		},
 		{
 			name:         "cronjob",
-			k8sEvent:     createEvent(1, "default", "logger", "CronJob", "5c3db67d-bba6-4322-b35d-0b6cb3adaf8b", "cronjob-controller", "", "SuccessfulCreate", "Created job logger-160978308", "Normal", 709662600),
-			expectedTags: []string{"source_component:cronjob-controller", "kube_kind:CronJob", "kubernetes_kind:CronJob", "kube_name:logger", "name:logger", "kube_cronjob:logger", "namespace:default", "kube_namespace:default", "reporting_controller:", "true_source:kubernetes"},
+			k8sEvent:     createEvent(1, "default", "logger", "CronJob", "5c3db67d-bba6-4322-b35d-0b6cb3adaf8b", "cronjob-controller", "cronjob-controller", "", "SuccessfulCreate", "Created job logger-160978308", "Normal", 709662600),
+			expectedTags: []string{"source_component:cronjob-controller", "kube_kind:CronJob", "kubernetes_kind:CronJob", "kube_name:logger", "name:logger", "kube_cronjob:logger", "namespace:default", "kube_namespace:default", "reporting_controller:cronjob-controller", "orchestrator:kubernetes"},
 		},
 		{
 			name:         "job",
-			k8sEvent:     createEvent(1, "default", "logger-1609783080", "Job", "8d8ae0d4-3e36-49be-94f5-786e823d7502", "job-controller", "", "SuccessfulCreate", "Created pod: logger-1609783080-5g2g4", "Normal", 709662600),
-			expectedTags: []string{"source_component:job-controller", "kube_kind:Job", "kubernetes_kind:Job", "kube_name:logger-1609783080", "name:logger-1609783080", "kube_job:logger-1609783080", "namespace:default", "kube_namespace:default", "reporting_controller:", "true_source:kubernetes"},
+			k8sEvent:     createEvent(1, "default", "logger-1609783080", "Job", "8d8ae0d4-3e36-49be-94f5-786e823d7502", "job-controller", "job-controller", "", "SuccessfulCreate", "Created pod: logger-1609783080-5g2g4", "Normal", 709662600),
+			expectedTags: []string{"source_component:job-controller", "kube_kind:Job", "kubernetes_kind:Job", "kube_name:logger-1609783080", "name:logger-1609783080", "kube_job:logger-1609783080", "namespace:default", "kube_namespace:default", "reporting_controller:job-controller", "orchestrator:kubernetes"},
 		},
 		{
 			name:         "service",
-			k8sEvent:     createEvent(1, "default", "lb", "Service", "41f2f0fe-0ee1-4e98-a3c2-959093cf1016", "service-controller", "", "UpdatedLoadBalancer", "Updated load balancer with new hosts", "Normal", 709662600),
-			expectedTags: []string{"source_component:service-controller", "kube_kind:Service", "kubernetes_kind:Service", "kube_name:lb", "name:lb", "kube_service:lb", "namespace:default", "kube_namespace:default", "reporting_controller:", "true_source:kubernetes"},
+			k8sEvent:     createEvent(1, "default", "lb", "Service", "41f2f0fe-0ee1-4e98-a3c2-959093cf1016", "service-controller", "service-controller", "", "UpdatedLoadBalancer", "Updated load balancer with new hosts", "Normal", 709662600),
+			expectedTags: []string{"source_component:service-controller", "kube_kind:Service", "kubernetes_kind:Service", "kube_name:lb", "name:lb", "kube_service:lb", "namespace:default", "kube_namespace:default", "reporting_controller:service-controller", "orchestrator:kubernetes"},
 		},
 		{
 			name:         "daemonset",
-			k8sEvent:     createEvent(1, "default", "daemon", "DaemonSet", "764add75-7122-463c-9fde-241da14cf4e2", "daemonset-controller", "", "SuccessfulCreate", "Created pod: daemon-8wr6f", "Normal", 709662600),
-			expectedTags: []string{"source_component:daemonset-controller", "kube_kind:DaemonSet", "kubernetes_kind:DaemonSet", "kube_name:daemon", "name:daemon", "kube_daemon_set:daemon", "namespace:default", "kube_namespace:default", "reporting_controller:", "true_source:kubernetes"},
+			k8sEvent:     createEvent(1, "default", "daemon", "DaemonSet", "764add75-7122-463c-9fde-241da14cf4e2", "daemonset-controller", "daemonset-controller", "", "SuccessfulCreate", "Created pod: daemon-8wr6f", "Normal", 709662600),
+			expectedTags: []string{"source_component:daemonset-controller", "kube_kind:DaemonSet", "kubernetes_kind:DaemonSet", "kube_name:daemon", "name:daemon", "kube_daemon_set:daemon", "namespace:default", "kube_namespace:default", "reporting_controller:daemonset-controller", "orchestrator:kubernetes"},
 		},
 		{
 			name:         "statefulset",
-			k8sEvent:     createEvent(1, "default", "stateful", "StatefulSet", "493fc503-1264-418c-9af5-b8a961779194", "statefulset-controller", "", "FailedCreate", "create Pod stateful-0 in StatefulSet stateful failed", "Warning", 709662600),
-			expectedTags: []string{"source_component:statefulset-controller", "kube_kind:StatefulSet", "kubernetes_kind:StatefulSet", "kube_name:stateful", "name:stateful", "kube_stateful_set:stateful", "namespace:default", "kube_namespace:default", "reporting_controller:", "true_source:kubernetes"},
+			k8sEvent:     createEvent(1, "default", "stateful", "StatefulSet", "493fc503-1264-418c-9af5-b8a961779194", "statefulset-controller", "statefulset-controller", "", "FailedCreate", "create Pod stateful-0 in StatefulSet stateful failed", "Warning", 709662600),
+			expectedTags: []string{"source_component:statefulset-controller", "kube_kind:StatefulSet", "kubernetes_kind:StatefulSet", "kube_name:stateful", "name:stateful", "kube_stateful_set:stateful", "namespace:default", "kube_namespace:default", "reporting_controller:statefulset-controller", "orchestrator:kubernetes"},
 		},
 	}
 	for _, tt := range tests {
