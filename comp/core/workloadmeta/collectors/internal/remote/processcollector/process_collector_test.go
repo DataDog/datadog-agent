@@ -56,7 +56,7 @@ func (s *mockServer) StreamEntities(_ *pbgo.ProcessStreamEntitiesRequest, out pb
 	for _, response := range s.responses {
 		err := out.Send(response)
 		if err != nil {
-			panic(err)
+			return err
 		}
 	}
 
