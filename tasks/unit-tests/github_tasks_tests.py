@@ -31,7 +31,7 @@ class TestAssignTeamLabelMock(unittest.TestCase):
     def make_test(self, changed_files, expected_labels, pr_labels=None, possible_labels=None):
         from tasks.libs.owners.parsing import read_owners
 
-        possible_labels = possible_labels or ['team/agent-platform', 'team/documentation', 'team/agent-security']
+        possible_labels = possible_labels or ['team/team-everything', 'team/team-a', 'team/team-b', 'team/team-doc']
 
         fake_codeowners = read_owners(TestAssignTeamLabelMock.CODEOWNERS_FILE)
 
@@ -66,32 +66,32 @@ class TestAssignTeamLabelMock(unittest.TestCase):
 
     def test_single_file_single_team(self):
         changed_files = ['.gitignore']
-        expected_labels = ['team/agent-platform']
+        expected_labels = ['team/team-everything']
 
         self.make_test(changed_files, expected_labels)
 
     def test_single_file_multiple_teams(self):
         changed_files = ['README.md']
-        expected_labels = ['team/agent-platform', 'team/documentation']
+        expected_labels = ['team/team-a', 'team/team-doc']
 
         self.make_test(changed_files, expected_labels)
 
     def test_multiple_files_single_team(self):
         changed_files = ['.gitignore', '.gitlab/a.py']
-        expected_labels = ['team/agent-platform']
+        expected_labels = ['team/team-everything', 'team/team-a']
 
         self.make_test(changed_files, expected_labels)
 
     def test_multiple_files_single_team_best(self):
         # agent-platform has more files than security so only one team will be assigned
         changed_files = ['.gitignore', '.gitlab-ci.yml', '.gitlab/security.yml']
-        expected_labels = ['team/agent-platform']
+        expected_labels = ['team/team-everything']
 
         self.make_test(changed_files, expected_labels)
 
     def test_multiple_files_multiple_teams(self):
         changed_files = ['.gitignore', '.gitlab/security.yml']
-        expected_labels = ['team/agent-platform', 'team/agent-security']
+        expected_labels = ['team/team-everything', 'team/team-b']
 
         self.make_test(changed_files, expected_labels)
 
@@ -105,10 +105,10 @@ class TestAssignTeamLabelMock(unittest.TestCase):
         changed_files = ['.gitignore']
         expected_labels = []
 
-        self.make_test(changed_files, expected_labels, pr_labels=['team/agent-platform'])
+        self.make_test(changed_files, expected_labels, pr_labels=['team/team-a'])
 
     def test_invalid_team_label(self):
         changed_files = ['.gitignore']
         expected_labels = []
 
-        self.make_test(changed_files, expected_labels, possible_labels=['team/documentation'])
+        self.make_test(changed_files, expected_labels, possible_labels=['team/team-doc'])

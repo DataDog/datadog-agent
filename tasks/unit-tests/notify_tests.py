@@ -4,6 +4,7 @@ import json
 import os
 import pathlib
 import unittest
+from collections import Counter
 from unittest.mock import MagicMock, patch
 
 from codeowners import CodeOwners
@@ -12,7 +13,7 @@ from invoke import MockContext, Result
 from invoke.exceptions import UnexpectedExit
 
 from tasks import notify
-from tasks.libs.pipeline.notifications import find_job_owners
+from tasks.libs.pipeline.notifications import find_job_owners, load_and_validate
 from tasks.libs.types.types import FailedJobReason, FailedJobs, FailedJobType
 
 
@@ -21,6 +22,15 @@ def get_fake_jobs() -> list[ProjectJob]:
         jobs = json.load(f)
 
     return [ProjectJob(MagicMock(), attrs=job) for job in jobs]
+
+
+def get_github_slack_map():
+    return load_and_validate(
+        "tasks/unit-tests/testdata/github_slack_map.yaml",
+        "DEFAULT_SLACK_CHANNEL",
+        '#channel-everything',
+        relpath=False,
+    )
 
 
 class TestSendMessage(unittest.TestCase):
@@ -381,7 +391,14 @@ class TestJobOwners(unittest.TestCase):
     def test_partition(self):
         from tasks.owners import make_partition
 
-        jobs = ['tests_hello', 'tests_ebpf', 'security_go_generate_check', 'hello_world', 'tests_hello_world']
+        jobs = [
+            'tests_team_a_42',
+            'tests_team_a_618',
+            'this_is_a_test',
+            'tests_team_b_1',
+            'tests_letters_0',
+            'hello_world',
+        ]
 
         partition = make_partition(jobs, "tasks/unit-tests/testdata/jobowners.txt")
         partition = sorted(partition.items())
@@ -389,10 +406,9 @@ class TestJobOwners(unittest.TestCase):
         self.assertEqual(
             partition,
             [
-                ('@DataDog/agent-devx-infra', {'hello_world'}),
-                ('@DataDog/agent-security', {'security_go_generate_check'}),
-                ('@DataDog/ebpf-platform', {'tests_ebpf'}),
-                ('@DataDog/multiple', {'tests_hello', 'tests_hello_world'}),
+                ('@DataDog/team-a', {'tests_team_a_42', 'tests_team_a_618', 'tests_letters_0'}),
+                ('@DataDog/team-b', {'tests_team_b_1', 'tests_letters_0'}),
+                ('@DataDog/team-everything', {'this_is_a_test', 'hello_world'}),
             ],
         )
 
@@ -420,16 +436,19 @@ class TestSendNotification(unittest.TestCase):
     @patch("tasks.notify.send_slack_message")
     @patch.object(notify.ConsecutiveJobAlert, 'message', lambda self, ctx: '\n'.join(self.failures) + '\n')
     @patch.object(notify.CumulativeJobAlert, 'message', lambda self: '\n'.join(self.failures))
+    @patch('tasks.owners.GITHUB_SLACK_MAP', get_github_slack_map())
+    @patch('tasks.notify.CHANNEL_BROADCAST', '#channel-broadcast')
     def test_jobowners(self, mock_slack: MagicMock, mock_metrics: MagicMock):
         consecutive = {
             'tests_hello': [notify.ExecutionsJobInfo(1)] * notify.CONSECUTIVE_THRESHOLD,
-            'security_go_generate_check': [notify.ExecutionsJobInfo(1)] * notify.CONSECUTIVE_THRESHOLD,
+            'tests_team_a_1': [notify.ExecutionsJobInfo(1)] * notify.CONSECUTIVE_THRESHOLD,
+            'tests_letters_1': [notify.ExecutionsJobInfo(1)] * notify.CONSECUTIVE_THRESHOLD,
         }
         cumulative = {
-            'tests_release1': [
+            'tests_team_b_1': [
                 notify.ExecutionsJobInfo(i, failing=i % 3 != 0) for i in range(notify.CUMULATIVE_LENGTH)
             ],
-            'tests_release2': [
+            'tests_team_a_2': [
                 notify.ExecutionsJobInfo(i, failing=i % 3 != 0) for i in range(notify.CUMULATIVE_LENGTH)
             ],
         }
@@ -440,10 +459,10 @@ class TestSendNotification(unittest.TestCase):
 
         # Verify that we send the right number of jobs per channel
         expected_team_njobs = {
-            '#agent-delivery-ops': 2,
-            '#agent-devx-ops': 2,
-            '#agent-platform-ops': 4,
-            '#security-and-compliance-agent-ops': 1,
+            '#channel-a': 3,
+            '#channel-b': 2,
+            '#channel-everything': 1,
+            '#channel-broadcast': 5,
         }
 
         for call_args in mock_slack.call_args_list:
@@ -452,23 +471,24 @@ class TestSendNotification(unittest.TestCase):
             jobs = message.strip().split("\n")
             njobs = len(jobs)
 
-            self.assertEqual(expected_team_njobs.get(channel, None), njobs)
+            self.assertEqual(
+                expected_team_njobs.get(channel, None), njobs, f'Unexpected number of jobs for channel {channel}'
+            )
 
         # Verify metrics
         mock_metrics.assert_called_once()
         expected_metrics = {
-            '@datadog/agent-security': 1,
-            '@datadog/agent-delivery': 2,
-            '@datadog/agent-devx-infra': 2,
-            '@datadog/agent-devx-loops': 2,
-            '@datadog/documentation': 2,
-            '@datadog/agent-platform': 2,
+            '@datadog/team-a': 3,
+            '@datadog/team-b': 2,
+            '@datadog/team-everything': 1,
         }
+        current_metrics = Counter()
         for metric in mock_metrics.call_args[0][0]:
-            name = metric['metric']
             value = int(metric['points'][0]['value'])
             team = next(tag.removeprefix('team:') for tag in metric['tags'] if tag.startswith('team:'))
 
-            self.assertEqual(
-                value, expected_metrics.get(team), f'Unexpected metric value for metric {name} of team {team}'
-            )
+            current_metrics.update({team: value})
+
+        current_metrics = dict(current_metrics.items())
+
+        self.assertDictEqual(current_metrics, expected_metrics)

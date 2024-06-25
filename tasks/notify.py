@@ -47,6 +47,8 @@ CUMULATIVE_THRESHOLD = 5
 CUMULATIVE_LENGTH = 10
 CI_VISIBILITY_JOB_URL = 'https://app.datadoghq.com/ci/pipeline-executions?query=ci_level%3Ajob%20%40ci.pipeline.name%3ADataDog%2Fdatadog-agent%20%40git.branch%3Amain%20%40ci.job.name%3A{name}{extra_flags}&agg_m=count'
 NOTIFICATION_DISCLAIMER = "If there is something wrong with the notification please contact #agent-devx-help"
+CHANNEL_BROADCAST = '#agent-devx-ops'
+CHANNEL_PIPELINES = '#datadog-agent-pipelines'
 
 
 def get_ci_visibility_job_url(name: str, prefix=True, extra_flags: list[str] | str = "") -> str:
@@ -245,13 +247,13 @@ def send_message(ctx, notification_type="merge", print_to_stdout=False):
         channel = GITHUB_SLACK_MAP.get(owner.lower(), None)
         message.base_message = base
         if channel is None:
-            channel = "#datadog-agent-pipelines"
+            channel = CHANNEL_PIPELINES
             message.base_message += UNKNOWN_OWNER_TEMPLATE.format(owner=owner)
         message.coda = coda
         if print_to_stdout:
             print(f"Would send to {channel}:\n{str(message)}")
         else:
-            all_teams = channel == "#datadog-agent-pipelines"
+            all_teams = channel == CHANNEL_PIPELINES
             default_branch = os.environ["CI_DEFAULT_BRANCH"]
             git_ref = os.environ["CI_COMMIT_REF_NAME"]
             send_dm = not _should_send_message_to_channel(git_ref, default_branch) and all_teams
@@ -490,10 +492,10 @@ def send_notification(ctx: Context, alert_jobs, jobowners=".gitlab/JOBOWNERS"):
         )
         send_alert(channel, consecutive, cumulative)
 
-    # Send all alerts to #agent-platform-ops
+    # Send all alerts
     consecutive = ConsecutiveJobAlert(alert_jobs["consecutive"])
     cumulative = CumulativeJobAlert(alert_jobs["cumulative"])
-    send_alert('#agent-platform-ops', consecutive, cumulative)
+    send_alert(CHANNEL_BROADCAST, consecutive, cumulative)
 
     if metrics:
         send_metrics(metrics)

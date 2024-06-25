@@ -8,12 +8,13 @@ from unittest.mock import MagicMock, patch
 from gitlab.v4.objects import ProjectPipeline, ProjectPipelineJob
 from invoke.context import Context, MockContext
 
-from tasks.github_tasks import ALL_TEAMS
 from tasks.libs.pipeline import failure_summary
 from tasks.libs.pipeline.failure_summary import SummaryData, SummaryStats
 from tasks.libs.pipeline.notifications import load_and_validate
+from tasks.notify import CHANNEL_PIPELINES
 
 TEST_DIR = '/tmp/summary'
+ALL_TEAMS_CHANNEL = '#channel-broadcast'
 
 
 class TestFailureSummary(TestCase):
@@ -23,7 +24,7 @@ class TestFailureSummary(TestCase):
         self.github_slack_map = load_and_validate(
             "tasks/unit-tests/testdata/github_slack_map.yaml",
             "DEFAULT_SLACK_CHANNEL",
-            '#agent-developer-experience',
+            ALL_TEAMS_CHANNEL,
             relpath=False,
         )
 
@@ -143,7 +144,7 @@ class TestSummaryStats(TestFailureSummary):
         stats = SummaryStats(data, allow_failure=False)
         results = stats.make_stats(max_length=1000, jobowners='tasks/unit-tests/testdata/jobowners.txt')
         results = {channel: sorted(result, key=lambda d: d['name']) for channel, result in results.items()}
-        result = results[self.github_slack_map[ALL_TEAMS]]
+        result = results[ALL_TEAMS_CHANNEL]
 
         self.assertEqual(len(result), 2)
         self.assertEqual(result[0], {'name': 'job1', 'failures': 2, 'runs': 3})
@@ -167,7 +168,7 @@ class TestSummaryStats(TestFailureSummary):
         stats = SummaryStats(data, allow_failure=False)
         results = stats.make_stats(max_length=1000, jobowners='tasks/unit-tests/testdata/jobowners.txt')
         results = {channel: sorted(result, key=lambda d: d['name']) for channel, result in results.items()}
-        result = results[self.github_slack_map[ALL_TEAMS]]
+        result = results[ALL_TEAMS_CHANNEL]
 
         self.assertEqual(len(result), 2)
         self.assertEqual(result[0], {'name': 'job1', 'failures': 2, 'runs': 3})
@@ -176,7 +177,7 @@ class TestSummaryStats(TestFailureSummary):
         stats = SummaryStats(data, allow_failure=True)
         results = stats.make_stats(max_length=1000, jobowners='tasks/unit-tests/testdata/jobowners.txt')
         results = {channel: sorted(result, key=lambda d: d['name']) for channel, result in results.items()}
-        result = results[self.github_slack_map[ALL_TEAMS]]
+        result = results[ALL_TEAMS_CHANNEL]
 
         self.assertEqual(len(result), 1)
         self.assertEqual(result[0], {'name': 'job3', 'failures': 1, 'runs': 2})
@@ -185,9 +186,9 @@ class TestSummaryStats(TestFailureSummary):
         data = self.get_dummy_summary_data(
             [
                 {'name': 'tests_hello', 'status': 'failed', 'allow_failure': False},
-                {'name': 'tests_ebpf1', 'status': 'failed', 'allow_failure': False},
-                {'name': 'tests_ebpf2', 'status': 'failed', 'allow_failure': False},
-                {'name': 'tests_release', 'status': 'failed', 'allow_failure': False},
+                {'name': 'tests_team_a_42', 'status': 'failed', 'allow_failure': False},
+                {'name': 'tests_team_b_618', 'status': 'failed', 'allow_failure': False},
+                {'name': 'tests_letters_1618', 'status': 'failed', 'allow_failure': False},
             ]
         )
 
@@ -198,16 +199,16 @@ class TestSummaryStats(TestFailureSummary):
         self.assertSetEqual(
             set(results),
             {
-                '#agent-devx-ops',
-                '#ebpf-platform-ops',
-                '#agent-delivery-ops',
-                self.github_slack_map[ALL_TEAMS],
+                '#channel-a',
+                '#channel-b',
+                ALL_TEAMS_CHANNEL,
+                CHANNEL_PIPELINES,
             },
         )
-        self.assertEqual(len(results['#agent-devx-ops']), 1)
-        self.assertEqual(len(results['#ebpf-platform-ops']), 2)
-        self.assertEqual(len(results['#agent-delivery-ops']), 1)
-        self.assertEqual(len(results[self.github_slack_map[ALL_TEAMS]]), 4)
+        self.assertEqual(len(results['#channel-a']), 2)
+        self.assertEqual(len(results['#channel-b']), 2)
+        self.assertEqual(len(results[ALL_TEAMS_CHANNEL]), 1)
+        self.assertEqual(len(results[CHANNEL_PIPELINES]), 4)
 
 
 class TestModule(TestFailureSummary):
@@ -254,51 +255,43 @@ class TestModule(TestFailureSummary):
     @patch("tasks.libs.pipeline.failure_summary.send_summary_slack_notification")
     def test_send_summary_messages(self, mock_slack: MagicMock = None):
         # Verify that we send the right number of jobs per channel
-        expected_team_njobs = {
-            '#agent-delivery-ops': 2,
-            '#agent-devx-ops': 4,
-            '#security-and-compliance-agent-ops': 1,
-            self.github_slack_map[ALL_TEAMS]: 5,
-        }
+        expected_team_njobs = {'#channel-a': 2, '#channel-b': 3, ALL_TEAMS_CHANNEL: 1, CHANNEL_PIPELINES: 5}
 
         summary = SummaryData(
             MagicMock(),
             42,
             jobs=[
-                # agent-devx-infra
                 *[
                     ProjectPipelineJob(
                         manager=MagicMock(), attrs={'name': 'hello', 'status': 'failed', 'allow_failure': False}
                     )
                     for _ in range(20)
                 ],
-                # agent-devx-infra
                 *[
                     ProjectPipelineJob(
-                        manager=MagicMock(), attrs={'name': 'world', 'status': 'failed', 'allow_failure': False}
+                        manager=MagicMock(),
+                        attrs={'name': 'tests_team_a_0', 'status': 'failed', 'allow_failure': False},
                     )
                     for _ in range(12)
                 ],
-                # agent-security
                 *[
                     ProjectPipelineJob(
                         manager=MagicMock(),
-                        attrs={'name': 'security_go_generate_check', 'status': 'failed', 'allow_failure': False},
+                        attrs={'name': 'tests_letters_1', 'status': 'failed', 'allow_failure': False},
                     )
                     for _ in range(10)
                 ],
-                # agent-devx-infra, agent-build-and-releases
-                *[
-                    ProjectPipelineJob(
-                        manager=MagicMock(), attrs={'name': 'tests_release', 'status': 'failed', 'allow_failure': False}
-                    )
-                    for _ in range(5)
-                ],
-                # agent-devx-infra, agent-build-and-releases
                 *[
                     ProjectPipelineJob(
                         manager=MagicMock(),
-                        attrs={'name': 'tests_release2', 'status': 'failed', 'allow_failure': False},
+                        attrs={'name': 'tests_team_b_42', 'status': 'failed', 'allow_failure': False},
+                    )
+                    for _ in range(5)
+                ],
+                *[
+                    ProjectPipelineJob(
+                        manager=MagicMock(),
+                        attrs={'name': 'tests_team_b_314', 'status': 'failed', 'allow_failure': False},
                     )
                     for _ in range(2)
                 ],
