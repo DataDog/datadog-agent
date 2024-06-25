@@ -17,6 +17,7 @@ Datadog Installer v{{ htmlSafe .Version }}
 
 
 {{- define "datadog-apm-inject" }}
+{{- if eq .LdPreloadAvailable true -}}
   Instrumentation status:
     {{ if eq .HostInstrumented true -}}
       {{ greenText "●" }} Host: Instrumented
@@ -30,4 +31,5 @@ Datadog Installer v{{ htmlSafe .Version }}
     {{- else -}}
       {{ redText "●" }} Docker: Not instrumented
     {{- end }}
+{{- end -}}
 {{- end -}}
