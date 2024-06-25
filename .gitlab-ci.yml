@@ -893,8 +893,29 @@ workflow:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
-        # TODO: Add paths that should trigger tests for AML
         - test/new-e2e/tests/agent-metrics-logs/**/*
+        - cmd/agent/subcommands/dogstatsd*/*
+        - cmd/agent/subcommands/streamlogs/*
+        - cmd/dogstatsd/**/*
+        - comp/agent/jmxlogger/**/*
+        - comp/aggregator/**/*
+        - comp/collector/**/*
+        - comp/core/agenttelemetry/**/*
+        - comp/core/autodiscovery/providers/config_reader*.go
+        - comp/core/autodiscovery/providers/file*.go
+        - comp/forwarder/**/*
+        - comp/logs/**/*
+        - comp/serializer/compression/**/*
+        - pkg/aggregator/**/*
+        - pkg/collector/**/*
+        - pkg/commonchecks/**/*
+        - pkg/dogstatsd/**/*
+        - pkg/jmxfetch/**/*
+        - pkg/logs/**/*
+        - pkg/metrics/**/*
+        - pkg/persistentcache/**/*
+        - pkg/serializer/**/*
+        - rtloader/**/*
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
 
 .on_cws_or_e2e_changes:
