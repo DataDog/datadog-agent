@@ -98,8 +98,8 @@ func getCPUData(path string) (*CPUData, error) {
 	defer file.Close()
 
 	var label string
-	var totalUser, totalNice, totalSystem, totalIdle, totalIowait, totalIrq, totalSoftirq, totalSteal, totalGuest, totalGuestNice float64
-	_, err = fmt.Fscanln(file, &label, &totalUser, &totalNice, &totalSystem, &totalIdle, &totalIowait, &totalIrq, &totalSoftirq, &totalSteal, &totalGuest, &totalGuestNice)
+	var user, nice, system, idle, iowait, irq, softirq, steal, guest, guestNice float64
+	_, err = fmt.Fscanln(file, &label, &user, &nice, &system, &idle, &iowait, &irq, &softirq, &steal, &guest, &guestNice)
 	if err != nil {
 		return nil, err
 	}
@@ -111,20 +111,23 @@ func getCPUData(path string) (*CPUData, error) {
 		return nil, err
 	}
 
-	cpuData.TotalUserTimeMs = (1000 * totalUser) / float64(clcktck)
-	cpuData.TotalSystemTimeMs = (1000 * totalSystem) / float64(clcktck)
-	cpuData.TotalIdleTimeMs = (1000 * totalIdle) / float64(clcktck)
+	cpuData.TotalUserTimeMs = (1000 * user) / float64(clcktck)
+	cpuData.TotalSystemTimeMs = (1000 * system) / float64(clcktck)
+	cpuData.TotalIdleTimeMs = (1000 * idle) / float64(clcktck)
 
 	// Scan for cpuN lines
 	perCPUDataMap := map[string]float64{}
-	var perCPULabel string
-	var user, nice, system, idle, iowait, irq, softirq, steal, guest, guestNice float64
 	for {
-		_, err = fmt.Fscanln(file, &perCPULabel, &user, &nice, &system, &idle, &iowait, &irq, &softirq, &steal, &guest, &guestNice)
-		if err != nil || !strings.HasPrefix(perCPULabel, "cpu") {
+		_, err = fmt.Fscanln(file, &label, &user, &nice, &system, &idle, &iowait, &irq, &softirq, &steal, &guest, &guestNice)
+		if err != nil && !strings.HasPrefix(label, "cpu") {
 			break
+		} else if err != nil {
+			return nil, err
 		}
-		perCPUDataMap[perCPULabel] = (1000 * idle) / float64(clcktck)
+		perCPUDataMap[label] = (1000 * idle) / float64(clcktck)
+	}
+	if len(perCPUDataMap) == 0 {
+		return nil, fmt.Errorf("per-core CPU data not found in file %s", path)
 	}
 	cpuData.IndividualCPUIdleTimes = perCPUDataMap
 

@@ -80,11 +80,13 @@ func TestGetCPUData(t *testing.T) {
 
 	path = "./testData/stat/invalid_stat_malformed_per_cpu_line"
 	cpuData, err = getCPUData(path)
-	assert.Nil(t, err)
-	assert.Equal(t, float64(23370), cpuData.TotalUserTimeMs)
-	assert.Equal(t, float64(1880), cpuData.TotalSystemTimeMs)
-	assert.Equal(t, float64(178380), cpuData.TotalIdleTimeMs)
-	assert.Equal(t, 0, len(cpuData.IndividualCPUIdleTimes))
+	assert.NotNil(t, err)
+	assert.Nil(t, cpuData)
+
+	path = "./testData/stat/invalid_stat_missing_cpun_data"
+	cpuData, err = getCPUData(path)
+	assert.NotNil(t, err)
+	assert.Nil(t, cpuData)
 
 	path = "./testData/stat/nonexistent_stat"
 	cpuData, err = getCPUData(path)
