@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/ndmtmp/forwarder"
 	nfconfig "github.com/DataDog/datadog-agent/comp/netflow/config"
 	"github.com/DataDog/datadog-agent/comp/netflow/flowaggregator"
+	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"
 )
 
 type dependencies struct {
@@ -30,6 +31,7 @@ type dependencies struct {
 	Demultiplexer demultiplexer.Component
 	Forwarder     forwarder.Component
 	Hostname      hostname.Component
+	RDNSQuerier   rdnsquerier.Component
 }
 
 type provides struct {
@@ -46,7 +48,8 @@ func newServer(lc fx.Lifecycle, deps dependencies) (provides, error) {
 	if err != nil {
 		return provides{}, err
 	}
-	flowAgg := flowaggregator.NewFlowAggregator(sender, deps.Forwarder, conf, deps.Hostname.GetSafe(context.Background()), deps.Logger)
+
+	flowAgg := flowaggregator.NewFlowAggregator(sender, deps.Forwarder, conf, deps.Hostname.GetSafe(context.Background()), deps.Logger, deps.RDNSQuerier)
 
 	server := &Server{
 		config:  conf,

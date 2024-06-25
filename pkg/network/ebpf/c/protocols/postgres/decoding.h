@@ -272,7 +272,7 @@ int uprobe__postgres_tls_process(struct pt_regs *ctx) {
 
     // If the message is a parse message, we tail call to the dedicated function to handle it.
     if (header.message_tag == POSTGRES_PARSE_MAGIC_BYTE) {
-        bpf_tail_call_compat(ctx, &tls_process_progs, TLS_PROG_POSTGRES_PROCESS_PARSE_MESSAGE);
+        bpf_tail_call_compat(ctx, &tls_process_progs, PROG_POSTGRES_PROCESS_PARSE_MESSAGE);
         return 0;
     }
     postgres_entrypoint(pkt, &tup, &header, (__u8)args->tags);

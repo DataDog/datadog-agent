@@ -29,8 +29,10 @@ import (
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter"
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/datatype"
+	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	zapAgent "github.com/DataDog/datadog-agent/pkg/util/log/zap"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
@@ -51,14 +53,16 @@ type Requires struct {
 	Lc compdef.Lifecycle
 
 	// Log specifies the logging component.
-	Log              corelog.Component
-	Provider         confmap.Converter
-	CollectorContrib collectorcontrib.Component
-	Serializer       serializer.MetricSerializer
-	LogsAgent        optional.Option[logsagentpipeline.Component]
-	SourceProvider   serializerexporter.SourceProviderFunc
-	Tagger           tagger.Component
-	URIs             []string
+	Log                 corelog.Component
+	Provider            confmap.Converter
+	CollectorContrib    collectorcontrib.Component
+	Serializer          serializer.MetricSerializer
+	TraceAgent          traceagent.Component
+	LogsAgent           optional.Option[logsagentpipeline.Component]
+	SourceProvider      serializerexporter.SourceProviderFunc
+	Tagger              tagger.Component
+	StatsdClientWrapper *metricsclient.StatsdClientWrapper
+	URIs                []string
 }
 
 // Provides declares the output types from the constructor
@@ -97,9 +101,9 @@ func NewComponent(reqs Requires) (Provides, error) {
 				return otelcol.Factories{}, err
 			}
 			if v, ok := reqs.LogsAgent.Get(); ok {
-				factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(reqs.Serializer, v, reqs.SourceProvider)
+				factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(reqs.TraceAgent, reqs.Serializer, v, reqs.SourceProvider, reqs.StatsdClientWrapper)
 			} else {
-				factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(reqs.Serializer, nil, reqs.SourceProvider)
+				factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(reqs.TraceAgent, reqs.Serializer, nil, reqs.SourceProvider, reqs.StatsdClientWrapper)
 			}
 			factories.Processors[infraattributesprocessor.Type] = infraattributesprocessor.NewFactory(reqs.Tagger)
 			return factories, nil

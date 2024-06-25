@@ -9,7 +9,6 @@ import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
-	"slices"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 
@@ -396,9 +395,9 @@ func NewInheritSecurityInfo(owner Identity, group Identity, access []AccessRule)
 	}
 }
 
-// ContainsRuleForIdentity returns true if the list contains a rule for the given identity
-func ContainsRuleForIdentity[T AuthorizationRuleWithRights](acl []T, identity Identity) bool {
-	return slices.ContainsFunc(acl, func(rule T) bool {
+// FilterRulesForIdentity returns the rules that match the given identity
+func FilterRulesForIdentity[T AuthorizationRuleWithRights](acl []T, identity Identity) []T {
+	return Filter(acl, func(rule T) bool {
 		return rule.GetAuthorizationRule().Identity.Equal(identity)
 	})
 }
