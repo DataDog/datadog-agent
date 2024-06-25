@@ -61,7 +61,7 @@ func NewConntrackOffsetGuesser(cfg *config.Config) (OffsetGuesser, error) {
 				// it twice in a process (once by the tracer offset guesser)
 				// does not seem to work; this will be not be enabled,
 				// so explicitly disabled, and the manager won't load it
-				{ProbeIdentificationPair: idPair(probes.NetDevQueue)}},
+				{ProbeIdentificationPair: idPair(probes.NetDevQueueTracepoint)}},
 		},
 		status:       &ConntrackStatus{},
 		tcpv6Enabled: tcpv6EnabledConst,

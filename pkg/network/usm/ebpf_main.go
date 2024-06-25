@@ -17,6 +17,7 @@ import (
 	"unsafe"
 
 	"github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/features"
 	"github.com/davecgh/go-spew/spew"
 	"golang.org/x/sys/unix"
 
@@ -66,8 +67,10 @@ const (
 	tupleByPidFDMap                        = "tuple_by_pid_fd"
 	pidFDByTupleMap                        = "pid_fd_by_tuple"
 
-	sockFDLookup    = "kprobe__sockfd_lookup_light"
-	sockFDLookupRet = "kretprobe__sockfd_lookup_light"
+	sockFDLookup         = "kprobe__sockfd_lookup_light"
+	sockFDLookupRet      = "kretprobe__sockfd_lookup_light"
+	netifReceiveSkbTp    = "tracepoint__net__netif_receive_skb"
+	netifReceiveSkbRawTp = "raw_tracepoint__net__netif_receive_skb"
 
 	tcpCloseProbe = "kprobe__tcp_close"
 
@@ -94,6 +97,23 @@ type ebpfProgram struct {
 }
 
 func newEBPFProgram(c *config.Config, connectionProtocolMap *ebpf.Map) (*ebpfProgram, error) {
+	netifProbe := manager.Probe{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			EBPFFuncName: netifReceiveSkbTp,
+			UID:          probeUID,
+		},
+	}
+	if features.HaveProgramType(ebpf.RawTracepoint) == nil {
+		netifProbe = manager.Probe{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: netifReceiveSkbRawTp,
+				UID:          probeUID,
+			},
+			TracepointCategory: "net",
+			TracepointName:     "netif_receive_skb",
+		}
+	}
+
 	mgr := &manager.Manager{
 		Maps: []*manager.Map{
 			{Name: protocols.TLSDispatcherProgramsMap},
@@ -118,12 +138,7 @@ func newEBPFProgram(c *config.Config, connectionProtocolMap *ebpf.Map) (*ebpfPro
 					UID:          probeUID,
 				},
 			},
-			{
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: "tracepoint__net__netif_receive_skb",
-					UID:          probeUID,
-				},
-			},
+			&netifProbe,
 			{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
 					EBPFFuncName: protocolDispatcherSocketFilterFunction,
@@ -462,6 +477,13 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 		for _, tc := range p.TailCalls {
 			options.ExcludedFunctions = append(options.ExcludedFunctions, tc.ProbeIdentificationPair.EBPFFuncName)
 		}
+	}
+
+	// exclude unused netif_receive_skb probe
+	if features.HaveProgramType(ebpf.RawTracepoint) == nil {
+		options.ExcludedFunctions = append(options.ExcludedFunctions, netifReceiveSkbTp)
+	} else {
+		options.ExcludedFunctions = append(options.ExcludedFunctions, netifReceiveSkbRawTp)
 	}
 
 	err := e.InitWithOptions(buf, &options)

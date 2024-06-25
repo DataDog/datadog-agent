@@ -14,6 +14,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+
+	libebpf "github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/features"
 )
 
 func enableProbe(enabled map[probes.ProbeFuncName]struct{}, name probes.ProbeFuncName) {
@@ -36,13 +39,18 @@ func enabledProbes(c *config.Config, runtimeTracer, coreTracer bool) (map[probes
 		return nil, err
 	}
 
+	netDevQueue := probes.NetDevQueueTracepoint
+	if features.HaveProgramType(libebpf.RawTracepoint) == nil {
+		netDevQueue = probes.NetDevQueueRawTracepoint
+	}
+
 	if c.CollectTCPv4Conns || c.CollectTCPv6Conns {
 		if ClassificationSupported(c) {
 			enableProbe(enabled, probes.ProtocolClassifierEntrySocketFilter)
 			enableProbe(enabled, probes.ProtocolClassifierQueuesSocketFilter)
 			enableProbe(enabled, probes.ProtocolClassifierDBsSocketFilter)
 			enableProbe(enabled, probes.ProtocolClassifierGRPCSocketFilter)
-			enableProbe(enabled, probes.NetDevQueue)
+			enableProbe(enabled, netDevQueue)
 			enableProbe(enabled, probes.TCPCloseCleanProtocolsReturn)
 		}
 		enableProbe(enabled, selectVersionBasedProbe(runtimeTracer, kv, probes.TCPSendMsg, probes.TCPSendMsgPre410, kv410))
