@@ -1,3 +1,4 @@
+import os
 import re
 from collections import defaultdict
 from datetime import datetime, timezone
@@ -57,9 +58,7 @@ def generate_failure_messages(project_name: str, failed_jobs: FailedJobs) -> dic
     return messages_to_send
 
 
-def send_message_and_metrics(
-    ctx, failed_jobs, messages_to_send, notification_type, print_to_stdout, git_ref, default_branch
-):
+def send_message_and_metrics(ctx, failed_jobs, messages_to_send, notification_type, print_to_stdout):
     # From the job failures, set whether the pipeline succeeded or failed and craft the
     # base message that will be sent.
     if failed_jobs.all_mandatory_failures():  # At least one mandatory job failed
@@ -92,6 +91,8 @@ def send_message_and_metrics(
             print(f"Would send to {channel}:\n{str(message)}")
         else:
             all_teams = channel == "#datadog-agent-pipelines"
+            default_branch = os.environ["CI_DEFAULT_BRANCH"]
+            git_ref = os.environ["CI_COMMIT_REF_NAME"]
             send_dm = not should_send_message_to_channel(git_ref, default_branch) and all_teams
 
             if all_teams:

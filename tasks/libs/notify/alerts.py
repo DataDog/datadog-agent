@@ -182,7 +182,7 @@ def update_statistics(job_executions: PipelineRuns):
     cumulative_alerts = {}
 
     # Update statistics and collect consecutive failed jobs
-    failed_jobs = get_failed_jobs(PROJECT_NAME, os.getenv("CI_PIPELINE_ID"))
+    failed_jobs = get_failed_jobs(PROJECT_NAME, os.environ["CI_PIPELINE_ID"])
     commit_sha = os.getenv("CI_COMMIT_SHA")
     failed_dict = {job.name: ExecutionsJobInfo(job.id, True, commit_sha) for job in failed_jobs.all_failures()}
 

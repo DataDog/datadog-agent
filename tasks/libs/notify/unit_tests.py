@@ -19,7 +19,7 @@ On pipeline [{pipeline_id}]({pipeline_url}) ([CI Visibility](https://app.datadog
         msg += f"  - {job}\n"
     msg += "</details>\n"
     msg += "\n"
-    msg += "If you modified Go files and expected unit tests to run in these jobs, please double check the job logs. If you think tests should have been executed reach out to #agent-developer-experience"
+    msg += "If you modified Go files and expected unit tests to run in these jobs, please double check the job logs. If you think tests should have been executed reach out to #agent-devx-help"
     return msg
 
 
