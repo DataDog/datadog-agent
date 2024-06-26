@@ -62,6 +62,21 @@ def get_test_link_to_job_on_main(job_name: str):
     return f"{TEST_VISIBILITY_URL}?query={quoted_query_string}"
 
 
+def get_test_link_to_test_on_main(suite_name: str, test_name: str):
+    test_name = test_name.replace('"', '\\"')
+    query_params = {
+        "test_level": "test",
+        # wrapping in double quotes
+        "@ci.test.name": f'"{test_name}"',
+        "@ci.suite.name": f'"{suite_name}"',
+        "@git.branch": "main",
+        "@test.service": "datadog-agent",
+    }
+    query_string = to_query_string(query_params)
+    quoted_query_string = quote(string=query_string, safe="")
+    return f"{TEST_VISIBILITY_URL}?query={quoted_query_string}"
+
+
 def to_query_string(params: dict):
     # we cannot use `urllib.parse.urlencode` as the ci visibility query parameter
     # format expects `key:value` items separated by space
