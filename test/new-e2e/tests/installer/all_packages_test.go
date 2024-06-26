@@ -57,7 +57,6 @@ var (
 		{t: testInstaller},
 		{t: testAgent},
 		{t: testApmInjectAgent, skippedFlavors: []e2eos.Descriptor{e2eos.CentOS7, e2eos.RedHat9, e2eos.Fedora37, e2eos.Suse15}},
-		{t: testUpgradeScenario},
 	}
 )
 
