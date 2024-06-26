@@ -28,6 +28,8 @@ type stopServiceCallback interface {
 	beforeStopService(serviceName string)
 }
 
+type serviceStateMatcher func(svc.State) bool
+
 // OpenSCManager connects to SCM
 //
 // https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-openscmanagerw
@@ -96,33 +98,28 @@ func doStartService(service *mgr.Service, serviceArgs ...string) error {
 		return fmt.Errorf("could not query service `%s` to start it. %w", service.Name, err)
 	}
 
-	// Are we already running?
-	if status.State == svc.Running {
+	// Are we already running or starting to run (run pending)? In contrast to the Stop service
+	// command, historically, this API does not wait for the service to transition to Running
+	// state. Accordingly, we are considered to be done and can return from this function
+	// successfully.
+	if status.State == svc.Running || status.State == svc.StartPending {
 		return nil
 	}
 
-	// Are we (potentially) in a transient state (meaning no running and not stopped)? If so, wait for it to complete
-	if status.State != svc.Stopped {
+	// Are we in SERVICE_STOP_PENDING state?
+	if status.State == svc.StopPending {
+		// Lets wait for its completion before preceding
 		ctx, cancel := context.WithTimeout(context.Background(), defaultServiceCommandTimeout*time.Second)
 		defer cancel()
 
-		err = doWaitForTransientStateCompletion(ctx, service, status.State)
+		status.State, err = waitForPendingStateChange(ctx, service, status.State)
 		if err != nil {
 			return fmt.Errorf("failed to start service `%s`. %w", service.Name, err)
 		}
-
-		// If the service was in svc.StartPending then it should be in svc.Running now
-		// otherwise we would error out. Accordingly now we are in expected state
-		if status.State == svc.StartPending {
-			return nil
-		}
 	}
 
-	// Start the service or rather initiate starting the service
-	// We could wait until the service is started, making the call blocking
-	// and synchronous, but historically we have not done so and we are ok so far
 	if err := service.Start(serviceArgs...); err != nil {
-		return fmt.Errorf("could not start service %s: %w", service.Name, err)
+		return fmt.Errorf("could not start service %s, preceding state %d: %w", service.Name, status.State, err)
 	}
 	return nil
 }
@@ -167,14 +164,14 @@ func doControlService(ctx context.Context, service *mgr.Service, cmd svc.Cmd, to
 	// transition state. Accordingly we will wait it out until the service completes its
 	// transition to a state.
 	if cmd == svc.Stop {
-		err = doWaitForTransientStateCompletion(ctx, service, status.State)
+		status.State, err = waitForPendingStateChange(ctx, service, status.State)
 		if err != nil {
 			return fmt.Errorf("failed to send command `%d` to service `%s`. %w", cmd, service.Name, err)
 		}
 
-		// If the service was in svc.StopPending then it should be in svc.Stopped now
-		// otherwise we would error out. Accordingly now we are in expected state
-		if status.State == svc.StopPending {
+		// Check if we are actually stopped now (e.g., because we were in SERVICE_STOP_PENDING
+		// or because the service crashed or exited for other reasons).
+		if status.State == svc.Stopped {
 			return nil
 		}
 	}
@@ -191,7 +188,7 @@ func doControlService(ctx context.Context, service *mgr.Service, cmd svc.Cmd, to
 			cmd, service.Name, err, status.State, status.Accepts, statusAfter.State, statusAfter.Accepts)
 	}
 
-	return doWaitForState(ctx, service, to)
+	return waitForDesiredState(ctx, service, to)
 }
 
 func doStopService(ctx context.Context, service *mgr.Service) error {
@@ -305,19 +302,23 @@ func WaitForState(ctx context.Context, serviceName string, desiredState svc.Stat
 	}
 	defer closeManagerService(manager, service)
 
-	return doWaitForState(ctx, service, desiredState)
+	return waitForDesiredState(ctx, service, desiredState)
 }
 
-// WaitForState waits for the service to become the desired state. A timeout can be specified
+// WaitForState waits for the service to become the desired state. A timeout should be specified
 // with a context. Returns nil if/when the service becomes the desired state.
-func doWaitForState(ctx context.Context, service *mgr.Service, desiredState svc.State) error {
+func waitForStateMatch(ctx context.Context, service *mgr.Service, matcher serviceStateMatcher) (svc.State, error) {
+	var status svc.Status
+	var err error
+
 	// check if state matches desiredState
-	status, err := service.Query()
+	status, err = service.Query()
 	if err != nil {
-		return fmt.Errorf("could not retrieve service status: %w", err)
+		return status.State, fmt.Errorf("could not retrieve service status: %w", err)
 	}
-	if status.State == desiredState {
-		return nil
+
+	if matcher(status.State) {
+		return status.State, nil
 	}
 
 	// Wait for timeout or state to match desiredState
@@ -326,40 +327,47 @@ func doWaitForState(ctx context.Context, service *mgr.Service, desiredState svc.
 		case <-time.After(300 * time.Millisecond):
 			status, err := service.Query()
 			if err != nil {
-				return fmt.Errorf("could not retrieve service status: %w", err)
+				return status.State, fmt.Errorf("could not retrieve service status: %w", err)
 			}
-			if status.State == desiredState {
-				return nil
+			if matcher(status.State) {
+				return status.State, nil
 			}
 		case <-ctx.Done():
 			status, err := service.Query()
 			if err != nil {
-				return fmt.Errorf("could not retrieve service status: %w", err)
+				return status.State, fmt.Errorf("could not retrieve service status: %w", err)
 			}
-			if status.State == desiredState {
-				return nil
+			if matcher(status.State) {
+				return status.State, nil
 			}
-			return ctx.Err()
+			return status.State, fmt.Errorf("timeout waiting to match service state: %w", ctx.Err())
 		}
 	}
 }
 
-func doWaitForTransientStateCompletion(ctx context.Context, service *mgr.Service, currentState svc.State) error {
-	if currentState == svc.StartPending {
-		// wait for the service to complete the transition to the SERVICE_RUNNING state
-		err := doWaitForState(ctx, service, svc.Running)
+func waitForDesiredState(ctx context.Context, service *mgr.Service, desiredState svc.State) error {
+	_, err := waitForStateMatch(ctx, service, func(state svc.State) bool {
+		return state == desiredState
+	})
+	return err
+}
+
+func waitForPendingStateChange(ctx context.Context, service *mgr.Service, currentState svc.State) (svc.State, error) {
+	// Wait for the service to complete transition from a pending state SERVICE_RUNNING or
+	// SERVICE_STOPPED to a new state, which normally would be SERVICE_RUNNING or SERVICE_STOPPED
+	// but not necessarily (because in some cases the service may crash, hang, error out or
+	// intentionally transition to other states).
+	if currentState == svc.StartPending || currentState == svc.StopPending {
+		state, err := waitForStateMatch(ctx, service, func(state svc.State) bool {
+			return state != currentState
+		})
 		if err != nil {
-			return fmt.Errorf("waiting for SERVICE_START_PENDING to transition to SERVICE_RUNNING failed. %w", err)
+			return state, fmt.Errorf("waiting for state %d to be changed failed. %w", currentState, err)
 		}
-	} else if currentState == svc.StopPending {
-		// wait for the service to complete the transition to the SERVICE_STOPPED state
-		err := doWaitForState(ctx, service, svc.Stopped)
-		if err != nil {
-			return fmt.Errorf("waiting for SERVICE_STOP_PENDING to transition to SERVICE_STOPPED failed: %w", err)
-		}
+		return state, nil
 	}
 
-	return nil
+	return currentState, nil
 }
 
 // RestartService stops a service and thenif the stop was successful starts it again
