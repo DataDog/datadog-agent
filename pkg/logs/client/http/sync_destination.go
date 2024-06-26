@@ -19,6 +19,7 @@ import (
 )
 
 // SyncDestination sends a payload over HTTP and does not retry.
+// In Serverless, the retry and backoff logic is handled by the serverless flush strategy
 type SyncDestination struct {
 	destination    *Destination
 	senderDoneChan chan *sync.WaitGroup
