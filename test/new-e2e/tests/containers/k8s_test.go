@@ -1091,17 +1091,21 @@ func (suite *k8sSuite) TestContainerLifecycleEvents() {
 		pods, err := suite.K8sClient.CoreV1().Pods("workload-nginx").List(context.Background(), metav1.ListOptions{
 			LabelSelector: fields.OneTermEqualSelector("app", "nginx").String(),
 			FieldSelector: fields.OneTermEqualSelector("status.phase", "Running").String(),
-			Limit:         1,
 		})
 		// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
 		if !assert.NoErrorf(c, err, "Failed to list nginx pods") {
 			return
 		}
-		if !assert.NotEmptyf(c, pods, "Failed to find an nginx pod") {
+		if !assert.NotEmptyf(c, pods.Items, "Failed to find an nginx pod") {
 			return
 		}
 
-		nginxPod = pods.Items[0]
+		// Choose the oldest pod.
+		// If we choose a pod that is too recent, there is a risk that we delete a pod that hasn’t been seen by the agent yet.
+		// So that no pod lifecycle event is sent.
+		nginxPod = lo.MinBy(pods.Items, func(item corev1.Pod, min corev1.Pod) bool {
+			return item.Status.StartTime.Before(min.Status.StartTime)
+		})
 	}, 1*time.Minute, 10*time.Second, "Failed to find an nginx pod")
 
 	err := suite.K8sClient.CoreV1().Pods("workload-nginx").Delete(context.Background(), nginxPod.Name, metav1.DeleteOptions{})
