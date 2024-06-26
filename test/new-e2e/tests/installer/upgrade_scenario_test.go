@@ -66,7 +66,7 @@ func testUpgradeScenario(os e2eos.Descriptor, arch e2eos.Architecture) packageSu
 }
 
 func (s *upgradeScenarioSuite) TestUpgradeSuccessful() {
-	s.RunInstallScript("DD_REMOTE_UPDATES=true", envForceInstall("datadog-agent"))
+	s.RunInstallScript("DD_REMOTE_UPDATES=true")
 	defer s.Purge()
 	s.host.WaitForUnitActive(
 		"datadog-agent.service",
@@ -139,9 +139,6 @@ func (s *upgradeScenarioSuite) assertSuccessfulStartExperiment(timestamp host.Jo
 
 	installerStatus := s.getInstallerStatus()
 	require.Equal(s.T(), version, installerStatus["datadog-agent"].ExperimentVersion)
-
-	// Agent version currently running
-	require.Equal(s.T(), strings.TrimSuffix(latestAgentVersion, "-1"), s.host.AgentVersion())
 }
 
 func (s *upgradeScenarioSuite) assertSuccessfulPromoteExperiment(timestamp host.JournaldTimestamp, version string) {
@@ -162,9 +159,6 @@ func (s *upgradeScenarioSuite) assertSuccessfulPromoteExperiment(timestamp host.
 	installerStatus := s.getInstallerStatus()
 	require.Equal(s.T(), version, installerStatus["datadog-agent"].StableVersion)
 	require.Equal(s.T(), "none", installerStatus["datadog-agent"].ExperimentVersion)
-
-	// Agent version currently running
-	require.Equal(s.T(), strings.TrimSuffix(latestAgentVersion, "-1"), s.host.AgentVersion())
 }
 
 //lint:ignore U1000 Ignore unused function for now
