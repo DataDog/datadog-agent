@@ -63,7 +63,7 @@ func (s *startStopTestSuite) TestStopTimeout() {
 
 	// ensure all services are running
 	s.startAgent()
-	s.requireAllServicesRunning()
+	s.requireAllServicesState("Running")
 
 	services := []string{
 		// stop dependent services first since stopping them won't affect other services
@@ -85,7 +85,7 @@ func (s *startStopTestSuite) TestStopTimeout() {
 	}
 
 	// test all services are stopped
-	s.assertAllServicesStopped()
+	s.assertAllServicesState("Stopped")
 
 	// check the System event log for unexpected exit messages
 	// hard stop timeout should set SERVICE_STOPPED before exiting, so
@@ -104,28 +104,28 @@ func (s *startStopTestSuite) TestStopTimeout() {
 // TestAgentStartsAllServices tests that starting the agent starts all services
 func (s *startStopTestSuite) TestAgentStartsAllServices() {
 	s.startAgent()
-	s.requireAllServicesRunning()
+	s.requireAllServicesState("Running")
 }
 
 // TestAgentStopsAllServices tests that stopping the agent stops all services
 func (s *startStopTestSuite) TestAgentStopsAllServices() {
 	host := s.Env().RemoteHost
 	s.startAgent()
-	s.requireAllServicesRunning()
+	s.requireAllServicesState("Running")
 
 	// stop the agent
 	err := windowsCommon.StopService(host, "datadogagent")
 	s.Require().NoError(err, "should stop the datadogagent service")
 
 	// ensure all services are stopped
-	s.assertAllServicesStopped()
+	s.assertAllServicesState("Stopped")
 }
 
 // TestHardExitEventLogEntry tests that the System event log contains an "unexpectedly terminated" message when a service is killed
 func (s *startStopTestSuite) TestHardExitEventLogEntry() {
 	host := s.Env().RemoteHost
 	s.startAgent()
-	s.requireAllServicesRunning()
+	s.requireAllServicesState("Running")
 
 	// kill the agent
 	for _, serviceName := range s.expectedUserServices() {
@@ -266,39 +266,25 @@ func (s *startStopTestSuite) startAgent() {
 	s.Require().NoError(err, "should start the datadogagent service")
 }
 
-func (s *startStopTestSuite) requireAllServicesRunning() {
+func (s *startStopTestSuite) requireAllServicesState(expected string) {
 	// ensure all services are running
-	s.allServicesRunning()
+	s.assertAllServicesState(expected)
 
 	if s.T().Failed() {
 		// stop test if not all services are running
-		s.FailNow("not all services are running")
+		s.FailNow("not all services are %s", expected)
 	}
 }
 
-func (s *startStopTestSuite) allServicesRunning() {
+func (s *startStopTestSuite) assertAllServicesState(expected string) {
 	host := s.Env().RemoteHost
 
 	for _, serviceName := range s.expectedInstalledServices() {
 		s.Assert().EventuallyWithT(func(c *assert.CollectT) {
 			status, err := windowsCommon.GetServiceStatus(host, serviceName)
 			require.NoError(c, err)
-			if !assert.Equal(c, "Running", status, "%s should be running", serviceName) {
-				s.T().Logf("waiting for %s to start, status %s", serviceName, status)
-			}
-		}, 1*time.Minute, 1*time.Second, "%s should be in the expected state", serviceName)
-	}
-}
-
-func (s *startStopTestSuite) assertAllServicesStopped() {
-	host := s.Env().RemoteHost
-
-	for _, serviceName := range s.expectedInstalledServices() {
-		s.Assert().EventuallyWithT(func(c *assert.CollectT) {
-			status, err := windowsCommon.GetServiceStatus(host, serviceName)
-			require.NoError(c, err)
-			if !assert.Equal(c, "Stopped", status, "%s should be stopped", serviceName) {
-				s.T().Logf("waiting for %s to stop, status %s", serviceName, status)
+			if !assert.Equal(c, expected, status, "%s should be %s", serviceName, expected) {
+				s.T().Logf("waiting for %s to be %s, status %s", serviceName, expected, status)
 			}
 		}, 1*time.Minute, 1*time.Second, "%s should be in the expected state", serviceName)
 	}
