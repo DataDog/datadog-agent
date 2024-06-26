@@ -654,15 +654,31 @@ func testRaw(t *testing.T, isTLS bool) {
 		messageBuilderPostMonitor func() [][]byte
 		expectedEndpoints         map[string]map[postgres.Operation]int
 	}{
+		//{
+		//	name: "create table",
+		//	messageBuilderPostMonitor: func() [][]byte {
+		//		output := make([]byte, 0)
+		//		var err error
+		//		output, err = (&pgproto3.Query{String: createTableQuery}).Encode(output)
+		//		output, err = (&pgproto3.ReadyForQuery{}).Encode(output)
+		//		require.NoError(t, err)
+		//		return [][]byte{output}
+		//	},
+		//	expectedEndpoints: map[string]map[postgres.Operation]int{
+		//		"dummy": {
+		//			postgres.CreateTableOP: adjustCount(1),
+		//		},
+		//	},
+		//},
 		{
-			name: "create table",
+			name: "truncated pg header",
 			messageBuilderPostMonitor: func() [][]byte {
 				output := make([]byte, 0)
 				var err error
 				output, err = (&pgproto3.Query{String: createTableQuery}).Encode(output)
 				output, err = (&pgproto3.ReadyForQuery{}).Encode(output)
 				require.NoError(t, err)
-				return [][]byte{output}
+				return [][]byte{output[:5], output[5:]}
 			},
 			expectedEndpoints: map[string]map[postgres.Operation]int{
 				"dummy": {
