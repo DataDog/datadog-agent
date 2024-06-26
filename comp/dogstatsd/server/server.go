@@ -384,7 +384,7 @@ func (s *server) start(context.Context) error {
 	if _, err := os.Stat(filepath.Dir(defaultSocket)); !os.IsNotExist(err) {
 		unixListener, err := listeners.NewUDSDatagramListener(packetsChannel, sharedPacketPoolManager, sharedUDSOobPoolManager, s.config, defaultSocket, s.tCapture, s.wmeta, s.pidMap)
 		if err != nil {
-			s.log.Errorf("Can't init listener: %s", err.Error())
+			s.log.Errorf("Can't init UDS listener on path %s: %s", defaultSocket, err.Error())
 		} else {
 			tmpListeners = append(tmpListeners, unixListener)
 			udsListenerRunning = true
@@ -395,7 +395,7 @@ func (s *server) start(context.Context) error {
 	if len(socketPath) > 0 && socketPath != defaultSocket {
 		unixListener, err := listeners.NewUDSDatagramListener(packetsChannel, sharedPacketPoolManager, sharedUDSOobPoolManager, s.config, socketPath, s.tCapture, s.wmeta, s.pidMap)
 		if err != nil {
-			s.log.Errorf("Can't init listener: %s", err.Error())
+			s.log.Errorf("Can't init UDS listener on path %s: %s", socketPath, err.Error())
 		} else {
 			tmpListeners = append(tmpListeners, unixListener)
 			udsListenerRunning = true

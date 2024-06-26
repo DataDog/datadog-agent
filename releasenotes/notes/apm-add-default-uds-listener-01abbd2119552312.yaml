@@ -8,5 +8,8 @@
 ---
 enhancements:
   - |
-    APM: Add a default UDS listener on /var/run/datadog/apm.socket.
-    This is used in the Single Step APM Instrumentation, improving the overall onboarding experience and minimizing the agent configuration.
+    APM: Add default UDS listeners for traces (trace-agent) and
+    dogstatsd (core-agent) on /var/run/datadog/apm.socket and
+    /var/run/datadog/dsd.socket, respectively.
+    These are used in the Single Step APM Instrumentation, improving
+    the onboarding experience and minimizing the agent configuration.
