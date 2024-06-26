@@ -38,7 +38,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/pid"
 	"github.com/DataDog/datadog-agent/comp/core/pid/pidimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
@@ -91,11 +90,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.ConfFilePath))),
 				fx.Supply(logimpl.ForDaemon("SYS-PROBE", "log_file", common.DefaultLogFile)),
 				fx.Supply(rcclient.Params{AgentName: "system-probe", AgentVersion: version.AgentVersion}),
-				secretsimpl.Module(),
-				fx.Provide(func(comp secrets.Component) optional.Option[secrets.Component] {
-					return optional.NewOption[secrets.Component](comp)
-				}),
-				fx.Supply(secrets.NewEnabledParams()),
+				fx.Supply(optional.NewNoneOption[secrets.Component]()),
 				compstatsd.Module(),
 				config.Module(),
 				telemetryimpl.Module(),
@@ -257,11 +252,7 @@ func runSystemProbe(ctxChan <-chan context.Context, errChan chan error) error {
 		fx.Supply(sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(""))),
 		fx.Supply(logimpl.ForDaemon("SYS-PROBE", "log_file", common.DefaultLogFile)),
 		fx.Supply(rcclient.Params{AgentName: "system-probe", AgentVersion: version.AgentVersion}),
-		secretsimpl.Module(),
-		fx.Provide(func(comp secrets.Component) optional.Option[secrets.Component] {
-			return optional.NewOption[secrets.Component](comp)
-		}),
-		fx.Supply(secrets.NewEnabledParams()),
+		fx.Supply(optional.NewNoneOption[secrets.Component]()),
 		rcclientimpl.Module(),
 		config.Module(),
 		telemetryimpl.Module(),
