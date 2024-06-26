@@ -71,6 +71,7 @@ instances:
     docker.cpu.user: 1000
   collect_events: false
   unbundle_events: false
+  bundle_unspecified_events: false
   filtered_event_types:
   - top
   - exec_start

@@ -28,6 +28,7 @@ func (ev *Event) resolveFields(forADs bool) {
 	if !forADs {
 		_ = ev.FieldHandlers.ResolveContainerTags(ev, ev.BaseEvent.ContainerContext)
 	}
+	_ = ev.FieldHandlers.ResolveHostname(ev, &ev.BaseEvent)
 	_ = ev.FieldHandlers.ResolveService(ev, &ev.BaseEvent)
 	_ = ev.FieldHandlers.ResolveEventTimestamp(ev, &ev.BaseEvent)
 	_ = ev.FieldHandlers.ResolveProcessCmdLine(ev, &ev.BaseEvent.ProcessContext.Process)
@@ -116,6 +117,7 @@ type FieldHandlers interface {
 	ResolveFileUserPath(ev *Event, e *FimFileEvent) string
 	ResolveFimFileBasename(ev *Event, e *FimFileEvent) string
 	ResolveFimFilePath(ev *Event, e *FimFileEvent) string
+	ResolveHostname(ev *Event, e *BaseEvent) string
 	ResolveNewSecurityDescriptor(ev *Event, e *ChangePermissionEvent) string
 	ResolveOldSecurityDescriptor(ev *Event, e *ChangePermissionEvent) string
 	ResolveProcessCmdLine(ev *Event, e *Process) string
@@ -154,6 +156,7 @@ func (dfh *FakeFieldHandlers) ResolveFimFileBasename(ev *Event, e *FimFileEvent)
 func (dfh *FakeFieldHandlers) ResolveFimFilePath(ev *Event, e *FimFileEvent) string {
 	return e.PathnameStr
 }
+func (dfh *FakeFieldHandlers) ResolveHostname(ev *Event, e *BaseEvent) string { return e.Hostname }
 func (dfh *FakeFieldHandlers) ResolveNewSecurityDescriptor(ev *Event, e *ChangePermissionEvent) string {
 	return e.NewSd
 }

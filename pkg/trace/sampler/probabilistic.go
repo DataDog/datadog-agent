@@ -29,6 +29,9 @@ const (
 	numProbabilisticBuckets = 0x4000
 	bitMaskHashBuckets      = numProbabilisticBuckets - 1
 	percentageScaleFactor   = numProbabilisticBuckets / 100.0
+
+	// probRateKey indicates the percentage sampling rate configured for the probabilistic sampler
+	probRateKey = "_dd.prob_sr"
 )
 
 // ProbabilisticSampler is a sampler that overrides all other samplers,
@@ -37,6 +40,7 @@ type ProbabilisticSampler struct {
 	enabled                  bool
 	hashSeed                 []byte
 	scaledSamplingPercentage uint32
+	samplingPercentage       float64
 
 	statsd     statsd.ClientInterface
 	tracesSeen *atomic.Int64
@@ -58,6 +62,7 @@ func NewProbabilisticSampler(conf *config.AgentConfig, statsd statsd.ClientInter
 		enabled:                  conf.ProbabilisticSamplerEnabled,
 		hashSeed:                 hashSeedBytes,
 		scaledSamplingPercentage: uint32(conf.ProbabilisticSamplerSamplingPercentage * percentageScaleFactor),
+		samplingPercentage:       float64(conf.ProbabilisticSamplerSamplingPercentage) / 100.,
 		statsd:                   statsd,
 		tracesSeen:               atomic.NewInt64(0),
 		tracesKept:               atomic.NewInt64(0),
@@ -122,6 +127,7 @@ func (ps *ProbabilisticSampler) Sample(root *trace.Span) bool {
 	keep := hash&bitMaskHashBuckets < ps.scaledSamplingPercentage
 	if keep {
 		ps.tracesKept.Add(1)
+		setMetric(root, probRateKey, ps.samplingPercentage)
 	}
 	return keep
 }

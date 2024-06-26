@@ -207,7 +207,7 @@ const (
 // serverlessConfigComponents are the config components that are used by all agents, and in particular serverless.
 // Components should only be added here if they are reachable by the serverless agent.
 // Otherwise directly add the configs to InitConfig.
-var serverlessConfigComponents = []func(pkgconfigmodel.Config){
+var serverlessConfigComponents = []func(pkgconfigmodel.Setup){
 	agent,
 	fips,
 	dogstatsd,
@@ -345,6 +345,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("kubernetes_node_label_as_cluster_name", "")
 	config.BindEnvAndSetDefault("kubernetes_namespace_labels_as_tags", map[string]string{})
 	config.BindEnvAndSetDefault("kubernetes_namespace_annotations_as_tags", map[string]string{})
+	config.BindEnvAndSetDefault("kubernetes_persistent_volume_claims_as_tags", true)
 	config.BindEnvAndSetDefault("container_cgroup_prefix", "")
 
 	config.BindEnvAndSetDefault("prometheus_scrape.enabled", false)           // Enables the prometheus config provider
@@ -471,6 +472,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("cluster_agent.language_detection.cleanup.period", "10m")
 	config.BindEnvAndSetDefault("cluster_agent.kube_metadata_collection.enabled", false)
 	config.BindEnvAndSetDefault("cluster_agent.kube_metadata_collection.resources", []string{})
+	config.BindEnvAndSetDefault("cluster_agent.kube_metadata_collection.resource_annotations_exclude", []string{})
 
 	// Metadata endpoints
 
@@ -793,6 +795,11 @@ func InitConfig(config pkgconfigmodel.Config) {
 	// Network
 	config.BindEnv("network.id")
 
+	// OTel
+	config.BindEnvAndSetDefault("otel.enabled", false)
+	config.BindEnvAndSetDefault("otel.extension_url", "https://localhost:7777")
+	config.BindEnvAndSetDefault("otel.submit_dummy_metadata", false) // dev flag - to be removed
+
 	// inventories
 	config.BindEnvAndSetDefault("inventories_enabled", true)
 	config.BindEnvAndSetDefault("inventories_configuration_enabled", true)             // controls the agent configurations
@@ -862,6 +869,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnv("evp_proxy_config.api_key")
 	config.BindEnv("evp_proxy_config.additional_endpoints")
 	config.BindEnv("evp_proxy_config.max_payload_size")
+	config.BindEnv("evp_proxy_config.receiver_timeout")
 
 	// command line options
 	config.SetKnown("cmd.check.fullsketches")
@@ -914,7 +922,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("djm_config.enabled", false)
 }
 
-func agent(config pkgconfigmodel.Config) {
+func agent(config pkgconfigmodel.Setup) {
 	config.BindEnv("api_key")
 
 	// Agent
@@ -998,7 +1006,7 @@ func agent(config pkgconfigmodel.Config) {
 	config.SetKnown("proxy.no_proxy")
 }
 
-func fips(config pkgconfigmodel.Config) {
+func fips(config pkgconfigmodel.Setup) {
 	// Fips
 	config.BindEnvAndSetDefault("fips.enabled", false)
 	config.BindEnvAndSetDefault("fips.port_range_start", 9803)
@@ -1007,7 +1015,7 @@ func fips(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("fips.tls_verify", true)
 }
 
-func remoteconfig(config pkgconfigmodel.Config) {
+func remoteconfig(config pkgconfigmodel.Setup) {
 	// Remote config
 	config.BindEnvAndSetDefault("remote_configuration.enabled", true)
 	config.BindEnvAndSetDefault("remote_configuration.key", "")
@@ -1029,7 +1037,7 @@ func remoteconfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("remote_configuration.agent_integrations.allow_log_config_scheduling", false)
 }
 
-func autoconfig(config pkgconfigmodel.Config) {
+func autoconfig(config pkgconfigmodel.Setup) {
 	// Autoconfig
 	// Defaut Timeout in second when talking to storage for configuration (etcd, zookeeper, ...)
 	config.BindEnvAndSetDefault("autoconf_template_url_timeout", 5)
@@ -1061,7 +1069,7 @@ func autoconfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("autoconfig_include_features", []string{})
 }
 
-func containerSyspath(config pkgconfigmodel.Config) {
+func containerSyspath(config pkgconfigmodel.Setup) {
 	if pkgconfigenv.IsContainerized() {
 		// In serverless-containerized environments (e.g Fargate)
 		// it's impossible to mount host volumes.
@@ -1103,7 +1111,7 @@ func containerSyspath(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("proc_root", "/proc")
 }
 
-func debugging(config pkgconfigmodel.Config) {
+func debugging(config pkgconfigmodel.Setup) {
 	// Debugging + C-land crash feature flags
 	config.BindEnvAndSetDefault("c_stacktrace_collection", false)
 	config.BindEnvAndSetDefault("c_core_dump", false)
@@ -1118,7 +1126,7 @@ func debugging(config pkgconfigmodel.Config) {
 	config.BindEnv("no_proxy_nonexact_match")
 }
 
-func telemetry(config pkgconfigmodel.Config) {
+func telemetry(config pkgconfigmodel.Setup) {
 	// Telemetry
 	// Enable telemetry metrics on the internals of the Agent.
 	// This create a lot of billable custom metrics.
@@ -1140,7 +1148,7 @@ func telemetry(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("agent_telemetry.enabled", false)
 }
 
-func serializer(config pkgconfigmodel.Config) {
+func serializer(config pkgconfigmodel.Setup) {
 	// Serializer
 	config.BindEnvAndSetDefault("enable_stream_payload_serialization", true)
 	config.BindEnvAndSetDefault("enable_service_checks_stream_payload_serialization", true)
@@ -1166,7 +1174,7 @@ func serializer(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("enable_payloads.json_to_v1_intake", true)
 }
 
-func aggregator(config pkgconfigmodel.Config) {
+func aggregator(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("aggregator_stop_timeout", 2)
 	config.BindEnvAndSetDefault("aggregator_buffer_size", 100)
 	config.BindEnvAndSetDefault("aggregator_use_tags_store", true)
@@ -1175,7 +1183,7 @@ func aggregator(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("aggregator_flush_metrics_and_serialize_in_parallel_buffer_size", 4000)
 }
 
-func serverless(config pkgconfigmodel.Config) {
+func serverless(config pkgconfigmodel.Setup) {
 	// Serverless Agent
 	config.SetDefault("serverless.enabled", false)
 	config.BindEnvAndSetDefault("serverless.logs_enabled", true)
@@ -1187,7 +1195,7 @@ func serverless(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("serverless.service_mapping", nil, "DD_SERVICE_MAPPING")
 }
 
-func forwarder(config pkgconfigmodel.Config) {
+func forwarder(config pkgconfigmodel.Setup) {
 	// Forwarder
 	config.BindEnvAndSetDefault("additional_endpoints", map[string][]string{})
 	config.BindEnvAndSetDefault("forwarder_timeout", 20)
@@ -1218,7 +1226,7 @@ func forwarder(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("forwarder_requeue_buffer_size", 100)
 }
 
-func dogstatsd(config pkgconfigmodel.Config) {
+func dogstatsd(config pkgconfigmodel.Setup) {
 	// Dogstatsd
 	config.BindEnvAndSetDefault("use_dogstatsd", true)
 	config.BindEnvAndSetDefault("dogstatsd_port", 8125)    // Notice: 0 means UDP port closed
@@ -1313,7 +1321,7 @@ func dogstatsd(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("histogram_copy_to_distribution_prefix", "")
 }
 
-func logsagent(config pkgconfigmodel.Config) {
+func logsagent(config pkgconfigmodel.Setup) {
 	// Logs Agent
 
 	// External Use: modify those parameters to configure the logs-agent.
@@ -1434,13 +1442,13 @@ func logsagent(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("logs_config.file_wildcard_selection_mode", "by_name")
 }
 
-func vector(config pkgconfigmodel.Config) {
+func vector(config pkgconfigmodel.Setup) {
 	// Vector integration
 	bindVectorOptions(config, Metrics)
 	bindVectorOptions(config, Logs)
 }
 
-func cloudfoundry(config pkgconfigmodel.Config) {
+func cloudfoundry(config pkgconfigmodel.Setup) {
 	// Cloud Foundry
 	config.BindEnvAndSetDefault("cloud_foundry", false)
 	config.BindEnvAndSetDefault("bosh_id", "")
@@ -1448,7 +1456,7 @@ func cloudfoundry(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("cloud_foundry_buildpack", false)
 }
 
-func containerd(config pkgconfigmodel.Config) {
+func containerd(config pkgconfigmodel.Setup) {
 	// Containerd
 	config.BindEnvAndSetDefault("containerd_namespace", []string{})
 	config.BindEnvAndSetDefault("containerd_namespaces", []string{}) // alias for containerd_namespace
@@ -1457,14 +1465,14 @@ func containerd(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("container_labels_as_tags", map[string]string{})
 }
 
-func cri(config pkgconfigmodel.Config) {
+func cri(config pkgconfigmodel.Setup) {
 	// CRI
 	config.BindEnvAndSetDefault("cri_socket_path", "")              // empty is disabled
 	config.BindEnvAndSetDefault("cri_connection_timeout", int64(1)) // in seconds
 	config.BindEnvAndSetDefault("cri_query_timeout", int64(5))      // in seconds
 }
 
-func kubernetes(config pkgconfigmodel.Config) {
+func kubernetes(config pkgconfigmodel.Setup) {
 	// Kubernetes
 	config.BindEnvAndSetDefault("kubernetes_kubelet_host", "")
 	config.BindEnvAndSetDefault("kubernetes_kubelet_nodename", "")
@@ -1494,7 +1502,7 @@ func kubernetes(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("kubernetes_ad_tags_disabled", []string{})
 }
 
-func podman(config pkgconfigmodel.Config) {
+func podman(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("podman_db_path", "")
 }
 
@@ -2195,7 +2203,7 @@ func sanitizeExternalMetricsProviderChunkSize(config pkgconfigmodel.Config) {
 	}
 }
 
-func bindEnvAndSetLogsConfigKeys(config pkgconfigmodel.Config, prefix string) {
+func bindEnvAndSetLogsConfigKeys(config pkgconfigmodel.Setup, prefix string) {
 	config.BindEnv(prefix + "logs_dd_url") // Send the logs to a proxy. Must respect format '<HOST>:<PORT>' and '<PORT>' to be an integer
 	config.BindEnv(prefix + "dd_url")
 	config.BindEnv(prefix + "additional_endpoints")
@@ -2363,7 +2371,7 @@ func getValidHostAliasesWithConfig(config pkgconfigmodel.Reader) []string {
 	return aliases
 }
 
-func bindVectorOptions(config pkgconfigmodel.Config, datatype DataType) {
+func bindVectorOptions(config pkgconfigmodel.Setup, datatype DataType) {
 	config.BindEnvAndSetDefault(fmt.Sprintf("observability_pipelines_worker.%s.enabled", datatype), false)
 	config.BindEnvAndSetDefault(fmt.Sprintf("observability_pipelines_worker.%s.url", datatype), "")
 

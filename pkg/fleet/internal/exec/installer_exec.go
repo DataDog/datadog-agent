@@ -10,15 +10,23 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/fleet/internal/paths"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"os"
 	"os/exec"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/env"
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/fleet/telemetry"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
+)
+
+const (
+	// StableInstallerPath is the path to the stable installer binary.
+	StableInstallerPath = "/opt/datadog-packages/datadog-installer/stable/bin/installer/installer"
+	// ExperimentInstallerPath is the path to the experiment installer binary.
+	ExperimentInstallerPath = "/opt/datadog-packages/datadog-installer/experiment/bin/installer/installer"
 )
 
 // InstallerExec is an implementation of the Installer interface that uses the installer binary.
@@ -108,6 +116,20 @@ func (i *InstallerExec) GarbageCollect(ctx context.Context) (err error) {
 	return cmd.Run()
 }
 
+// InstrumentAPMInjector instruments the APM auto-injector.
+func (i *InstallerExec) InstrumentAPMInjector(ctx context.Context, method string) (err error) {
+	cmd := i.newInstallerCmd(ctx, "apm instrument", method)
+	defer func() { cmd.span.Finish(tracer.WithError(err)) }()
+	return cmd.Run()
+}
+
+// UninstrumentAPMInjector uninstruments the APM auto-injector.
+func (i *InstallerExec) UninstrumentAPMInjector(ctx context.Context, method string) (err error) {
+	cmd := i.newInstallerCmd(ctx, "apm uninstrument", method)
+	defer func() { cmd.span.Finish(tracer.WithError(err)) }()
+	return cmd.Run()
+}
+
 // IsInstalled checks if a package is installed.
 func (i *InstallerExec) IsInstalled(ctx context.Context, pkg string) (_ bool, err error) {
 	cmd := i.newInstallerCmd(ctx, "is-installed", pkg)
@@ -146,12 +168,14 @@ func (i *InstallerExec) DefaultPackages(ctx context.Context) (_ []string, err er
 
 // State returns the state of a package.
 func (i *InstallerExec) State(pkg string) (repository.State, error) {
-	repositories := repository.NewRepositories(installer.PackagesPath, installer.LocksPack)
+	repositories := repository.NewRepositories(paths.PackagesPath, paths.LocksPack)
 	return repositories.Get(pkg).GetState()
 }
 
 // States returns the states of all packages.
 func (i *InstallerExec) States() (map[string]repository.State, error) {
-	repositories := repository.NewRepositories(installer.PackagesPath, installer.LocksPack)
-	return repositories.GetState()
+	repositories := repository.NewRepositories(paths.PackagesPath, paths.LocksPack)
+	states, err := repositories.GetState()
+	log.Debugf("repositories states: %v", states)
+	return states, err
 }

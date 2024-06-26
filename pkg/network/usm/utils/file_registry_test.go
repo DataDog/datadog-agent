@@ -57,7 +57,7 @@ func TestMultiplePIDsSharingSameFile(t *testing.T) {
 
 	// Trying to register the same file twice from different PIDs
 	require.NoError(t, r.Register(path, pid1, registerCallback, unregisterCallback))
-	require.Equal(t, errPathIsAlreadyRegistered, r.Register(path, pid2, registerCallback, unregisterCallback))
+	require.Equal(t, ErrPathIsAlreadyRegistered, r.Register(path, pid2, registerCallback, unregisterCallback))
 
 	// Assert that the callback should execute only *once*
 	assert.Equal(t, 1, registerRecorder.CallsForPathID(pathID))
@@ -100,7 +100,7 @@ func TestRepeatedRegistrationsFromSamePID(t *testing.T) {
 	pid := uint32(cmd.Process.Pid)
 
 	require.NoError(t, r.Register(path, pid, registerCallback, unregisterCallback))
-	require.Equal(t, errPathIsAlreadyRegistered, r.Register(path, pid, registerCallback, unregisterCallback))
+	require.Equal(t, ErrPathIsAlreadyRegistered, r.Register(path, pid, registerCallback, unregisterCallback))
 	require.NoError(t, r.Unregister(pid))
 
 	// Assert that despite multiple calls to `Register` from the same PID we

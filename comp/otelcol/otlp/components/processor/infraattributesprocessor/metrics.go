@@ -26,7 +26,7 @@ type infraAttributesMetricProcessor struct {
 	cardinality types.TagCardinality
 }
 
-func newInfraAttributesMetricProcessor(set processor.CreateSettings, cfg *Config, tagger tagger.Component) (*infraAttributesMetricProcessor, error) {
+func newInfraAttributesMetricProcessor(set processor.Settings, cfg *Config, tagger tagger.Component) (*infraAttributesMetricProcessor, error) {
 	iamp := &infraAttributesMetricProcessor{
 		logger:      set.Logger,
 		tagger:      tagger,
@@ -61,10 +61,10 @@ func entityIDsFromAttributes(attrs pcommon.Map) []string {
 		}
 	}
 	if namespace, ok := attrs.Get(conventions.AttributeK8SNamespaceName); ok {
-		entityIDs = append(entityIDs, fmt.Sprintf("namespace://%v", namespace.AsString()))
+		entityIDs = append(entityIDs, fmt.Sprintf("kubernetes_metadata://namespaces//%v", namespace.AsString()))
 	}
-	if nodeUID, ok := attrs.Get(conventions.AttributeK8SNodeUID); ok {
-		entityIDs = append(entityIDs, fmt.Sprintf("kubernetes_node_uid://%v", nodeUID.AsString()))
+	if nodeName, ok := attrs.Get(conventions.AttributeK8SNodeName); ok {
+		entityIDs = append(entityIDs, fmt.Sprintf("kubernetes_metadata://nodes//%v", nodeName.AsString()))
 	}
 	if podUID, ok := attrs.Get(conventions.AttributeK8SPodUID); ok {
 		entityIDs = append(entityIDs, fmt.Sprintf("kubernetes_pod_uid://%v", podUID.AsString()))

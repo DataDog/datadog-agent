@@ -13,6 +13,10 @@ extensions:
       targets:
         - name: "staging"
           ci_pipeline: "//fake_placeholder:fake_placeholder"
+          branch: "main"
+        - name: "conductor-sandbox"
+          ci_pipeline: "//fake_placeholder:fake_placeholder"
+          branch: "chouquette/conductor"
   datadoghq.com/change-detection:
     source_patterns:
       - service.datadog.yaml

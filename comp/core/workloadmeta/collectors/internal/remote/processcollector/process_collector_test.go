@@ -25,8 +25,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/remote"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
+	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
@@ -54,7 +56,7 @@ func (s *mockServer) StreamEntities(_ *pbgo.ProcessStreamEntitiesRequest, out pb
 	for _, response := range s.responses {
 		err := out.Send(response)
 		if err != nil {
-			panic(err)
+			return err
 		}
 	}
 
@@ -244,13 +246,13 @@ func TestCollection(t *testing.T) {
 
 			// We do not inject any collectors here; we instantiate
 			// and initialize it out-of-band below. That's OK.
-			mockStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
+			mockStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 				core.MockBundle(),
 				fx.Replace(config.MockParams{Overrides: overrides}),
 				fx.Supply(workloadmeta.Params{
 					AgentType: workloadmeta.Remote,
 				}),
-				workloadmeta.MockModuleV2(),
+				workloadmetafxmock.MockModuleV2(),
 			))
 
 			time.Sleep(time.Second)
@@ -270,7 +272,6 @@ func TestCollection(t *testing.T) {
 				err := grpcServer.Serve(lis)
 				require.NoError(t, err)
 			}()
-			defer grpcServer.Stop()
 
 			_, portStr, err := net.SplitHostPort(lis.Addr().String())
 			require.NoError(t, err)
@@ -313,6 +314,7 @@ func TestCollection(t *testing.T) {
 			}
 
 			mockStore.Unsubscribe(ch)
+			grpcServer.Stop()
 			cancel()
 
 			// Verify final state

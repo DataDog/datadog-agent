@@ -125,13 +125,6 @@ func TestValidate(t *testing.T) {
 			},
 		},
 		{
-			name: "With peer_tags",
-			cfg: &Config{
-				API:    APIConfig{Key: "notnull"},
-				Traces: TracesConfig{PeerTags: []string{"tag1", "tag2"}},
-			},
-		},
-		{
 			name: "With confighttp client configs",
 			cfg: &Config{
 				API: APIConfig{Key: "notnull"},
@@ -179,7 +172,7 @@ func TestValidate(t *testing.T) {
 }
 
 func TestUnmarshal(t *testing.T) {
-	cfgWithHTTPConfigs := NewFactory(nil, nil, nil).CreateDefaultConfig().(*Config)
+	cfgWithHTTPConfigs := NewFactory(nil, nil, nil, nil, nil).CreateDefaultConfig().(*Config)
 	idleConnTimeout := 30 * time.Second
 	maxIdleConn := 300
 	maxIdleConnPerHost := 150
@@ -338,7 +331,7 @@ func TestUnmarshal(t *testing.T) {
 		},
 	}
 
-	f := NewFactory(nil, nil, nil)
+	f := NewFactory(nil, nil, nil, nil, nil)
 	for _, testInstance := range tests {
 		t.Run(testInstance.name, func(t *testing.T) {
 			cfg := f.CreateDefaultConfig().(*Config)

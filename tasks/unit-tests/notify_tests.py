@@ -24,7 +24,6 @@ def get_fake_jobs() -> list[ProjectJob]:
 
 
 class TestSendMessage(unittest.TestCase):
-    @patch("builtins.print", new=MagicMock())
     @patch('tasks.libs.ciproviders.gitlab_api.get_gitlab_api')
     def test_merge(self, api_mock):
         repo_mock = api_mock.return_value.projects.get.return_value
@@ -34,7 +33,6 @@ class TestSendMessage(unittest.TestCase):
         notify.send_message(MockContext(), notification_type="merge", print_to_stdout=True)
         list_mock.assert_called()
 
-    @patch("builtins.print", new=MagicMock())
     @patch("tasks.notify.get_failed_jobs")
     def test_merge_without_get_failed_call(self, get_failed_jobs_mock):
         failed = FailedJobs()
@@ -99,7 +97,6 @@ class TestSendMessage(unittest.TestCase):
 
         get_failed_jobs_mock.assert_called()
 
-    @patch("builtins.print", new=MagicMock())
     @patch("tasks.libs.owners.parsing.read_owners")
     def test_route_e2e_internal_error(self, read_owners_mock):
         failed = FailedJobs()
@@ -160,20 +157,19 @@ class TestSendMessage(unittest.TestCase):
             )
         )
         jobowners = """\
-        job1 @DataDog/agent-ci-experience
-        job2 @DataDog/agent-ci-experience
-        job3 @DataDog/agent-ci-experience @DataDog/agent-developer-tools
-        not* @DataDog/agent-build-and-releases
+        job1 @DataDog/agent-devx-infra
+        job2 @DataDog/agent-devx-infra
+        job3 @DataDog/agent-devx-infra @DataDog/agent-devx-loops
+        not* @DataDog/agent-delivery
         """
         read_owners_mock.return_value = CodeOwners(jobowners)
         owners = find_job_owners(failed)
         # Should send notifications to agent-e2e-testing and ci-experience
         self.assertIn("@DataDog/agent-e2e-testing", owners)
-        self.assertIn("@DataDog/agent-ci-experience", owners)
-        self.assertNotIn("@DataDog/agent-developer-tools", owners)
-        self.assertNotIn("@DataDog/agent-build-and-releases", owners)
+        self.assertIn("@DataDog/agent-devx-infra", owners)
+        self.assertNotIn("@DataDog/agent-devx-loops", owners)
+        self.assertNotIn("@DataDog/agent-delivery", owners)
 
-    @patch("builtins.print", new=MagicMock())
     @patch('tasks.libs.ciproviders.gitlab_api.get_gitlab_api')
     def test_merge_with_get_failed_call(self, api_mock):
         repo_mock = api_mock.return_value.projects.get.return_value
@@ -217,7 +213,6 @@ class TestSendMessage(unittest.TestCase):
 
 
 class TestSendStats(unittest.TestCase):
-    @patch("builtins.print", new=MagicMock())
     @patch('tasks.libs.ciproviders.gitlab_api.get_gitlab_api')
     @patch("tasks.notify.create_count", new=MagicMock())
     def test_nominal(self, api_mock):
@@ -341,9 +336,9 @@ class TestUpdateStatistics(unittest.TestCase):
         )
         self.assertEqual(j.jobs["noufnouf"].consecutive_failures, 0)
         self.assertEqual([job.failing for job in j.jobs["noufnouf"].jobs_info], [True, False, True, True, False])
-        self.assertEqual(len(a["consecutive"].failures), 1)
-        self.assertEqual(len(a["cumulative"].failures), 0)
-        self.assertIn("nafnaf", a["consecutive"].failures)
+        self.assertEqual(len(a["consecutive"]), 1)
+        self.assertEqual(len(a["cumulative"]), 0)
+        self.assertIn("nafnaf", a["consecutive"])
         mock_get_failed.assert_called()
 
     @patch("tasks.notify.get_failed_jobs")
@@ -374,12 +369,32 @@ class TestUpdateStatistics(unittest.TestCase):
         self.assertEqual(j.jobs["poulidor"].consecutive_failures, 9)
         self.assertEqual(j.jobs["virenque"].consecutive_failures, 3)
         self.assertEqual(j.jobs["bardet"].consecutive_failures, 3)
-        self.assertEqual(len(a["consecutive"].failures), 2)
-        self.assertEqual(len(a["cumulative"].failures), 1)
-        self.assertIn("virenque", a["consecutive"].failures)
-        self.assertIn("bardet", a["consecutive"].failures)
-        self.assertIn("virenque", a["cumulative"].failures)
+        self.assertEqual(len(a["consecutive"]), 2)
+        self.assertEqual(len(a["cumulative"]), 1)
+        self.assertIn("virenque", a["consecutive"])
+        self.assertIn("bardet", a["consecutive"])
+        self.assertIn("virenque", a["cumulative"])
         mock_get_failed.assert_called()
+
+
+class TestJobOwners(unittest.TestCase):
+    def test_partition(self):
+        from tasks.owners import make_partition
+
+        jobs = ['tests_hello', 'tests_ebpf', 'security_go_generate_check', 'hello_world', 'tests_hello_world']
+
+        partition = make_partition(jobs, "tasks/unit-tests/testdata/jobowners.txt")
+        partition = sorted(partition.items())
+
+        self.assertEqual(
+            partition,
+            [
+                ('@DataDog/agent-devx-infra', {'hello_world'}),
+                ('@DataDog/agent-security', {'security_go_generate_check'}),
+                ('@DataDog/ebpf-platform', {'tests_ebpf'}),
+                ('@DataDog/multiple', {'tests_hello', 'tests_hello_world'}),
+            ],
+        )
 
 
 class TestSendNotification(unittest.TestCase):
@@ -397,22 +412,63 @@ class TestSendNotification(unittest.TestCase):
 
     @patch("tasks.notify.send_slack_message")
     def test_none(self, mock_slack):
-        alert_jobs = {"consecutive": notify.ConsecutiveJobAlert({}), "cumulative": notify.CumulativeJobAlert({})}
+        alert_jobs = {"consecutive": {}, "cumulative": {}}
         notify.send_notification(MagicMock(), alert_jobs)
         mock_slack.assert_not_called()
 
-
-class TestSendFailureSummaryNotification(unittest.TestCase):
-    @patch("slack_sdk.WebClient")
-    @patch("os.environ", new=MagicMock())
-    def test_nominal(self, mock_slack):
-        # jobname: [total_failures, total_runs]
-        jobs = {
-            "myjob1": [45, None],
-            "myjob2": [42, 45],
-            "myjob3": [21, None],
-            "myjob4": [16, 89],
+    @patch("tasks.notify.send_metrics")
+    @patch("tasks.notify.send_slack_message")
+    @patch.object(notify.ConsecutiveJobAlert, 'message', lambda self, ctx: '\n'.join(self.failures) + '\n')
+    @patch.object(notify.CumulativeJobAlert, 'message', lambda self: '\n'.join(self.failures))
+    def test_jobowners(self, mock_slack: MagicMock, mock_metrics: MagicMock):
+        consecutive = {
+            'tests_hello': [notify.ExecutionsJobInfo(1)] * notify.CONSECUTIVE_THRESHOLD,
+            'security_go_generate_check': [notify.ExecutionsJobInfo(1)] * notify.CONSECUTIVE_THRESHOLD,
         }
-        notify.send_failure_summary_notification(MockContext(), jobs)
-        mock_slack.assert_called()
-        mock_slack.return_value.chat_postMessage.assert_called()
+        cumulative = {
+            'tests_release1': [
+                notify.ExecutionsJobInfo(i, failing=i % 3 != 0) for i in range(notify.CUMULATIVE_LENGTH)
+            ],
+            'tests_release2': [
+                notify.ExecutionsJobInfo(i, failing=i % 3 != 0) for i in range(notify.CUMULATIVE_LENGTH)
+            ],
+        }
+
+        alert_jobs = {"consecutive": consecutive, "cumulative": cumulative}
+        notify.send_notification(MagicMock(), alert_jobs, jobowners='tasks/unit-tests/testdata/jobowners.txt')
+        self.assertEqual(len(mock_slack.call_args_list), 4)
+
+        # Verify that we send the right number of jobs per channel
+        expected_team_njobs = {
+            '#agent-delivery-ops': 2,
+            '#agent-devx-ops': 2,
+            '#agent-platform-ops': 4,
+            '#security-and-compliance-agent-ops': 1,
+        }
+
+        for call_args in mock_slack.call_args_list:
+            channel, message = call_args.args
+            # The mock will separate job names with a newline
+            jobs = message.strip().split("\n")
+            njobs = len(jobs)
+
+            self.assertEqual(expected_team_njobs.get(channel, None), njobs)
+
+        # Verify metrics
+        mock_metrics.assert_called_once()
+        expected_metrics = {
+            '@datadog/agent-security': 1,
+            '@datadog/agent-delivery': 2,
+            '@datadog/agent-devx-infra': 2,
+            '@datadog/agent-devx-loops': 2,
+            '@datadog/documentation': 2,
+            '@datadog/agent-platform': 2,
+        }
+        for metric in mock_metrics.call_args[0][0]:
+            name = metric['metric']
+            value = int(metric['points'][0]['value'])
+            team = next(tag.removeprefix('team:') for tag in metric['tags'] if tag.startswith('team:'))
+
+            self.assertEqual(
+                value, expected_metrics.get(team), f'Unexpected metric value for metric {name} of team {team}'
+            )

@@ -17,7 +17,7 @@ type infraAttributesSpanProcessor struct {
 	logger *zap.Logger
 }
 
-func newInfraAttributesSpanProcessor(set processor.CreateSettings, _ *Config) (*infraAttributesSpanProcessor, error) {
+func newInfraAttributesSpanProcessor(set processor.Settings, _ *Config) (*infraAttributesSpanProcessor, error) {
 	tesp := &infraAttributesSpanProcessor{
 		logger: set.Logger,
 	}

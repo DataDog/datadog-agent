@@ -18,7 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 
@@ -318,7 +318,7 @@ func (p *processor) processImageSBOM(img *workloadmeta.ContainerImageMetadata) {
 		}
 
 		if len(repoDigests) == 0 {
-			log.Errorf("The image %s has no repo digest for repo %s", img.ID, repo)
+			log.Infof("The image %s has no repo digest for repo %s", img.ID, repo)
 			continue
 		}
 

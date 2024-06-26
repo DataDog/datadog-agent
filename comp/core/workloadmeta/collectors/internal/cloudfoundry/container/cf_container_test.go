@@ -7,19 +7,24 @@ package container
 import (
 	"context"
 	"testing"
+	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
+	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/fx"
 )
 
 func TestStartError(t *testing.T) {
-	workloadmetaStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
+	workloadmetaStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		core.MockBundle(),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.MockModule(),
+		workloadmetafxmock.MockModuleV2(),
 	))
 	c := collector{
 		store: workloadmetaStore,
@@ -30,10 +35,10 @@ func TestStartError(t *testing.T) {
 }
 
 func TestPull(t *testing.T) {
-	workloadmetaStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
+	workloadmetaStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		core.MockBundle(),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.MockModule(),
+		workloadmetafxmock.MockModuleV2(),
 	))
 	fakeNodeName := "fake-hostname"
 
@@ -43,16 +48,13 @@ func TestPull(t *testing.T) {
 	}
 
 	err := c.Pull(context.TODO())
-	assert.NoError(t, err)
-	evs := workloadmetaStore.GetNotifiedEvents()
-	assert.NotEmpty(t, evs)
+	require.NoError(t, err)
 
-	event0 := evs[0]
-
-	assert.Equal(t, event0.Type, workloadmeta.EventTypeSet)
-	assert.Equal(t, event0.Source, workloadmeta.SourceClusterOrchestrator)
-
-	containerEntity, ok := event0.Entity.(*workloadmeta.Container)
-	assert.True(t, ok)
-	assert.Equal(t, containerEntity.ID, fakeNodeName)
+	assert.Eventually(t, func() bool {
+		container, err := workloadmetaStore.GetContainer(fakeNodeName)
+		if err != nil {
+			return false
+		}
+		return container.Runtime == workloadmeta.ContainerRuntimeGarden
+	}, 10*time.Second, 50*time.Millisecond)
 }

@@ -26,18 +26,17 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/diagnose"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	utillog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 
-	"github.com/cihub/seelog"
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
@@ -85,11 +84,10 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Short: "Validate Agent installation, configuration and environment",
 		Long:  ``,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			utillog.SetupLogger(seelog.Disabled, "off")
 			return fxutil.OneShot(cmdDiagnose,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath),
+					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(globalParams.ExtraConfFilePath)),
 					LogParams:    logimpl.ForOneShot("CORE", "off", true),
 				}),
 				core.Bundle(),
@@ -103,7 +101,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					}
 				}),
 				fx.Supply(optional.NewNoneOption[collector.Component]()),
-				workloadmeta.Module(),
+				workloadmetafx.Module(),
 				taggerimpl.Module(),
 				fx.Provide(func(config config.Component) tagger.Params { return tagger.NewTaggerParamsForCoreAgent(config) }),
 				autodiscoveryimpl.Module(),
@@ -197,6 +195,20 @@ This command print the inventory-host metadata payload. This payload is used by 
 		},
 	}
 
+	payloadInventoriesOtelCmd := &cobra.Command{
+		Use:   "inventory-otel",
+		Short: "Print the Inventory otel metadata payload.",
+		Long: `
+This command print the inventory-otel metadata payload. This payload is used by the 'inventories/sql' product.`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return fxutil.OneShot(printPayload,
+				fx.Supply(payloadName("inventory-otel")),
+				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
+				core.Bundle(),
+			)
+		},
+	}
+
 	payloadInventoriesChecksCmd := &cobra.Command{
 		Use:   "inventory-checks",
 		Short: "[internal] Print the Inventory checks metadata payload.",
@@ -257,6 +269,7 @@ This command print the security-agent metadata payload. This payload is used by 
 	showPayloadCommand.AddCommand(payloadGohaiCmd)
 	showPayloadCommand.AddCommand(payloadInventoriesAgentCmd)
 	showPayloadCommand.AddCommand(payloadInventoriesHostCmd)
+	showPayloadCommand.AddCommand(payloadInventoriesOtelCmd)
 	showPayloadCommand.AddCommand(payloadInventoriesChecksCmd)
 	showPayloadCommand.AddCommand(payloadInventoriesPkgSigningCmd)
 	showPayloadCommand.AddCommand(payloadSystemProbeCmd)
@@ -271,6 +284,7 @@ func cmdDiagnose(cliParams *cliParams,
 	wmeta optional.Option[workloadmeta.Component],
 	ac autodiscovery.Component,
 	secretResolver secrets.Component,
+	_ log.Component,
 ) error {
 	diagCfg := diagnosis.Config{
 		Verbose:  cliParams.verbose,
@@ -307,7 +321,7 @@ func printPayload(name payloadName, _ log.Component, config config.Component) er
 
 	r, err := util.DoGet(c, apiConfigURL, util.CloseConnection)
 	if err != nil {
-		return fmt.Errorf("Could not fetch metadata v5 payload: %s", err)
+		return fmt.Errorf("Could not fetch metadata payload: %s", err)
 	}
 
 	fmt.Println(string(r))

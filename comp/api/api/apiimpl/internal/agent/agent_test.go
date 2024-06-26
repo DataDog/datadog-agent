@@ -19,21 +19,20 @@ import (
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	demultiplexerendpointmock "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexerendpoint/fx-mock"
-	"github.com/DataDog/datadog-agent/comp/api/api"
+	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	"github.com/DataDog/datadog-agent/comp/core/flare/flareimpl"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
 
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
-	"github.com/DataDog/datadog-agent/comp/core/status"
-	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	dogstatsddebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/serverdebugimpl"
@@ -75,7 +74,6 @@ type handlerdeps struct {
 	InvHost               inventoryhost.Component
 	InvChecks             inventorychecks.Component
 	PkgSigning            packagesigning.Component
-	StatusComponent       status.Mock
 	Collector             optional.Option[collector.Component]
 	EventPlatformReceiver eventplatformreceiver.Component
 	Ac                    autodiscovery.Mock
@@ -100,13 +98,9 @@ func getComponentDeps(t *testing.T) handlerdeps {
 		demultiplexerendpointmock.MockModule(),
 		inventoryhostimpl.MockModule(),
 		secretsimpl.MockModule(),
-		fx.Provide(func(secretMock secrets.Mock) secrets.Component {
-			component := secretMock.(secrets.Component)
-			return component
-		}),
+		nooptelemetry.Module(),
 		inventorychecksimpl.MockModule(),
 		packagesigningimpl.MockModule(),
-		statusimpl.MockModule(),
 		fx.Provide(func() optional.Option[collector.Component] {
 			return optional.NewNoneOption[collector.Component]()
 		}),
@@ -131,7 +125,6 @@ func setupRoutes(t *testing.T) *mux.Router {
 		deps.LogsAgent,
 		sender,
 		deps.SecretResolver,
-		deps.StatusComponent,
 		deps.Collector,
 		deps.Ac,
 		deps.EndpointProviders,
@@ -146,11 +139,6 @@ func TestSetupHandlers(t *testing.T) {
 		method   string
 		wantCode int
 	}{
-		{
-			route:    "/version",
-			method:   "GET",
-			wantCode: 200,
-		},
 		{
 			route:    "/flare",
 			method:   "POST",

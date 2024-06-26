@@ -45,12 +45,6 @@ var (
 
 	// ErrRuleAgentFilter is returned when an agent rule was filtered
 	ErrRuleAgentFilter = errors.New("agent rule filtered")
-
-	// ErrNoRuleSetsInEvaluationSet is returned when no rule sets were provided to instantiate an evaluation set
-	ErrNoRuleSetsInEvaluationSet = errors.New("no rule sets provided to instantiate an evaluation set")
-
-	// ErrCannotChangeTagAfterLoading is returned when an attempt was made to change the tag on a ruleset that already has rules loaded
-	ErrCannotChangeTagAfterLoading = errors.New("cannot change tag on a rule set that already has rules loaded")
 )
 
 // ErrFieldTypeUnknown is returned when a field has an unknown type

@@ -19,8 +19,8 @@ import (
 	"github.com/containerd/containerd/errdefs"
 	"github.com/containerd/containerd/namespaces"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	cutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -55,6 +55,16 @@ func buildWorkloadMetaContainer(namespace string, container containerd.Container
 		} else {
 			imageID = imgConfig.Digest.String()
 		}
+	}
+
+	// Get Container PID
+	var pid int
+	task, err := container.Task(ctx, nil)
+	if err == nil {
+		pid = int(task.Pid())
+	} else {
+		pid = 0
+		log.Debugf("cannot get container %s's process PID: %v", container.ID(), err)
 	}
 
 	image, err := workloadmeta.NewContainerImage(imageID, info.Image)
@@ -118,7 +128,7 @@ func buildWorkloadMetaContainer(namespace string, container containerd.Container
 			FinishedAt: time.Time{},    // Not available
 		},
 		NetworkIPs: networkIPs,
-		PID:        0, // Not available
+		PID:        pid, // PID will be 0 for non-running containers
 	}
 
 	// Spec retrieval is slow if large due to JSON parsing

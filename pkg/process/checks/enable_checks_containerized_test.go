@@ -14,7 +14,8 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -149,7 +150,7 @@ type deps struct {
 func createDeps(t *testing.T) deps {
 	return fxutil.Test[deps](t,
 		core.MockBundle(),
-		workloadmeta.MockModule(),
+		workloadmetafxmock.MockModule(),
 		fx.Supply(workloadmeta.NewParams()),
 		npcollectorimpl.MockModule(),
 	)
