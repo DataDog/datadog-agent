@@ -23,13 +23,12 @@ func NewComponent() integrations.Component {
 
 // SendLog sends a log to any subscribers
 func (li *logsintegration) SendLog(log, integrationID string) {
-	integrationLog := &integrations.IntegrationLog{
+	integrationLog := integrations.IntegrationLog{
 		Log:           log,
 		IntegrationID: integrationID,
 	}
 
-	// TODO: is this correct
-	li.logChan <- *integrationLog
+	li.logChan <- integrationLog
 }
 
 // Subscribe returns a channel that sends all logs sent from integrations
