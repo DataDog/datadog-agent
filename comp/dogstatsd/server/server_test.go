@@ -163,19 +163,7 @@ func TestNoRaceOriginTagMaps(t *testing.T) {
 	}
 }
 
-func TestUDPReceive(t *testing.T) {
-	cfg := make(map[string]interface{})
-
-	cfg["dogstatsd_port"] = listeners.RandomPortName
-	cfg["dogstatsd_no_aggregation_pipeline"] = true // another test may have turned it off
-
-	deps := fulfillDepsWithConfigOverride(t, cfg)
-	demux := deps.Demultiplexer
-
-	conn, err := net.Dial("udp", deps.Server.UDPLocalAddr())
-	require.NoError(t, err, "cannot connect to DSD socket")
-	defer conn.Close()
-
+func testReceive(t *testing.T, conn net.Conn, demux demultiplexer.FakeSamplerMock) {
 	// Test metric
 	conn.Write([]byte("daemon:666|g|#sometag1:somevalue1,sometag2:somevalue2"))
 	samples, timedSamples := demux.WaitForSamples(time.Second * 2)
@@ -428,6 +416,55 @@ func TestUDPReceive(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		assert.FailNow(t, "Timeout on receive channel")
 	}
+}
+
+func TestUDSReceive(t *testing.T) {
+	cfg := make(map[string]interface{})
+
+	socket := defaultSocket
+	defer func() {
+		defaultSocket = socket
+	}()
+
+	defaultSocket = "/tmp/dsd.socket"               // default socket
+	customSocket := "/tmp/dsd_custom.socket"        // custom socket
+	cfg["dogstatsd_no_aggregation_pipeline"] = true // another test may have turned it off
+	cfg["dogstatsd_socket"] = customSocket
+
+	deps := fulfillDepsWithConfigOverride(t, cfg)
+	demux := deps.Demultiplexer
+
+	t.Run("default", func(t *testing.T) {
+		conn, err := net.Dial("unixgram", defaultSocket)
+		require.NoError(t, err, "cannot connect to DSD socket")
+		defer conn.Close()
+
+		testReceive(t, conn, demux)
+	})
+
+	t.Run("custom", func(t *testing.T) {
+		conn, err := net.Dial("unixgram", customSocket)
+		require.NoError(t, err, "cannot connect to DSD socket")
+		defer conn.Close()
+
+		testReceive(t, conn, demux)
+	})
+}
+
+func TestUDPReceive(t *testing.T) {
+	cfg := make(map[string]interface{})
+
+	cfg["dogstatsd_port"] = listeners.RandomPortName
+	cfg["dogstatsd_no_aggregation_pipeline"] = true // another test may have turned it off
+
+	deps := fulfillDepsWithConfigOverride(t, cfg)
+	demux := deps.Demultiplexer
+
+	conn, err := net.Dial("udp", deps.Server.UDPLocalAddr())
+	require.NoError(t, err, "cannot connect to UDP network")
+	defer conn.Close()
+
+	testReceive(t, conn, demux)
 }
 
 func TestUDPForward(t *testing.T) {

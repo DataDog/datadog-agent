@@ -11,6 +11,8 @@ import (
 	"expvar"
 	"fmt"
 	"net"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -64,6 +66,11 @@ var (
 	tlmChannel            = telemetry.NewHistogramNoOp()
 	defaultChannelBuckets = []float64{100, 250, 500, 1000, 10000}
 	once                  sync.Once
+
+	// defaultSocket will always be opened as long as the parent directory is available,
+	// usually created by systemd. If the user-configured socket differs from this one,
+	// 2 sockets will be listening.
+	defaultSocket = "/var/run/datadog/dsd.socket"
 )
 
 type dependencies struct {
@@ -373,8 +380,20 @@ func (s *server) start(context.Context) error {
 		}
 	}
 
-	if len(socketPath) > 0 {
-		unixListener, err := listeners.NewUDSDatagramListener(packetsChannel, sharedPacketPoolManager, sharedUDSOobPoolManager, s.config, s.tCapture, s.wmeta, s.pidMap)
+	// Listen on the default socket (if /var/run/datadog/ exists)
+	if _, err := os.Stat(filepath.Dir(defaultSocket)); !os.IsNotExist(err) {
+		unixListener, err := listeners.NewUDSDatagramListener(packetsChannel, sharedPacketPoolManager, sharedUDSOobPoolManager, s.config, defaultSocket, s.tCapture, s.wmeta, s.pidMap)
+		if err != nil {
+			s.log.Errorf("Can't init listener: %s", err.Error())
+		} else {
+			tmpListeners = append(tmpListeners, unixListener)
+			udsListenerRunning = true
+		}
+	}
+
+	// If user-defined socket differs from default one, create additional listener
+	if len(socketPath) > 0 && socketPath != defaultSocket {
+		unixListener, err := listeners.NewUDSDatagramListener(packetsChannel, sharedPacketPoolManager, sharedUDSOobPoolManager, s.config, socketPath, s.tCapture, s.wmeta, s.pidMap)
 		if err != nil {
 			s.log.Errorf("Can't init listener: %s", err.Error())
 		} else {

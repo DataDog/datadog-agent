@@ -26,11 +26,10 @@ type UDSDatagramListener struct {
 }
 
 // NewUDSDatagramListener returns an idle UDS datagram Statsd listener
-func NewUDSDatagramListener(packetOut chan packets.Packets, sharedPacketPoolManager *packets.PoolManager, sharedOobPoolManager *packets.PoolManager, cfg config.Reader, capture replay.Component, wmeta optional.Option[workloadmeta.Component], pidMap pidmap.Component) (*UDSDatagramListener, error) {
-	socketPath := cfg.GetString("dogstatsd_socket")
+func NewUDSDatagramListener(packetOut chan packets.Packets, sharedPacketPoolManager *packets.PoolManager, sharedOobPoolManager *packets.PoolManager, cfg config.Reader, path string, capture replay.Component, wmeta optional.Option[workloadmeta.Component], pidMap pidmap.Component) (*UDSDatagramListener, error) {
 	transport := "unixgram"
 
-	address, err := setupSocketBeforeListen(socketPath, transport)
+	address, err := setupSocketBeforeListen(path, transport)
 	if err != nil {
 		return nil, err
 	}
@@ -40,7 +39,7 @@ func NewUDSDatagramListener(packetOut chan packets.Packets, sharedPacketPoolMana
 		return nil, fmt.Errorf("can't listen: %s", err)
 	}
 
-	err = setSocketWriteOnly(socketPath)
+	err = setSocketWriteOnly(path)
 	if err != nil {
 		return nil, err
 	}
