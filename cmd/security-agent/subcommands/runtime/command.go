@@ -33,7 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	secagent "github.com/DataDog/datadog-agent/pkg/security/agent"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
@@ -481,28 +481,24 @@ func checkPoliciesLocal(args *checkPoliciesCliParams, writer io.Writer) error {
 	var ruleSet *rules.RuleSet
 	if args.windowsModel {
 		ruleSet = rules.NewRuleSet(&winmodel.Model{}, newFakeWindowsEvent, ruleOpts, evalOpts)
+		ruleSet.SetFakeEventCtor(newFakeWindowsEvent)
 	} else {
 		ruleSet = rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
+		ruleSet.SetFakeEventCtor(newFakeEvent)
 	}
-	evaluationSet, err := rules.NewEvaluationSet([]*rules.RuleSet{ruleSet})
+	if err := ruleSet.LoadPolicies(loader, loaderOpts); err.ErrorOrNil() != nil {
+		return err
+	}
+
+	report, err := kfilters.NewApplyRuleSetReport(cfg, ruleSet)
 	if err != nil {
 		return err
 	}
-	if err := evaluationSet.LoadPolicies(loader, loaderOpts); err.ErrorOrNil() != nil {
-		return err
-	}
 
-	if !args.windowsModel {
-		report, err := kfilters.NewApplyRuleSetReport(cfg, ruleSet)
-		if err != nil {
-			return err
-		}
-
-		content, _ := json.MarshalIndent(report, "", "\t")
-		_, err = fmt.Fprintf(writer, "%s\n", string(content))
-		if err != nil {
-			return fmt.Errorf("unable to write out report: %w", err)
-		}
+	content, _ := json.MarshalIndent(report, "", "\t")
+	_, err = fmt.Fprintf(writer, "%s\n", string(content))
+	if err != nil {
+		return fmt.Errorf("unable to write out report: %w", err)
 	}
 
 	return nil
@@ -605,12 +601,8 @@ func evalRule(_ log.Component, _ config.Component, _ secrets.Component, evalArgs
 	} else {
 		ruleSet = rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
 	}
-	evaluationSet, err := rules.NewEvaluationSet([]*rules.RuleSet{ruleSet})
-	if err != nil {
-		return err
-	}
 
-	if err := evaluationSet.LoadPolicies(loader, loaderOpts); err.ErrorOrNil() != nil {
+	if err := ruleSet.LoadPolicies(loader, loaderOpts); err.ErrorOrNil() != nil {
 		return err
 	}
 

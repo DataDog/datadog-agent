@@ -181,6 +181,15 @@ func ExpectedInstalledServices() []string {
 	}
 }
 
+// ExpectedRunningServices returns the list of services expected to be running after installation
+func ExpectedRunningServices() []string {
+	return []string{
+		"datadogagent",
+		"datadog-trace-agent",
+		"datadog-process-agent",
+	}
+}
+
 // quotePathIfContainsSpaces quotes the path if it contains spaces and returns the result.
 //
 // Due to how Windows parse the service command line, it is important to quote paths that contain spaces

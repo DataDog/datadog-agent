@@ -18,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/autoscaling/workload/impl/model"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
 	rcclient "github.com/DataDog/datadog-agent/pkg/config/remote/client"

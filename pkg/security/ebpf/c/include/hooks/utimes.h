@@ -71,7 +71,7 @@ int __attribute__((always_inline)) sys_utimes_ret(void *ctx, int retval) {
     return 0;
 }
 
- HOOK_SYSCALL_COMPAT_EXIT(utime) {
+HOOK_SYSCALL_COMPAT_EXIT(utime) {
     int retval = SYSCALL_PARMRET(ctx);
     return sys_utimes_ret(ctx, retval);
 }

@@ -4,6 +4,30 @@ from datetime import timedelta
 from tasks.libs.owners.parsing import list_owners
 
 
+def _stringify_config(config_dict):
+    """
+    Takes a config dict of the following form:
+    {
+        "xxx_VERSION": Version(major: x, minor: y, patch: z, rc: t, prefix: "pre"),
+        "xxx_HASH": "hashvalue",
+        ...
+    }
+
+    and transforms all VERSIONs into their string representation (using the Version object's __str__).
+    """
+    return {key: str(value) for key, value in config_dict.items()}
+
+
+def nightly_entry_for(agent_major_version):
+    if agent_major_version == 6:
+        return "nightly"
+    return f"nightly-a{agent_major_version}"
+
+
+def release_entry_for(agent_major_version):
+    return f"release-a{agent_major_version}"
+
+
 def create_release_page(version, freeze_date):
     username = os.environ['ATLASSIAN_USERNAME']
     password = os.environ['ATLASSIAN_PASSWORD']

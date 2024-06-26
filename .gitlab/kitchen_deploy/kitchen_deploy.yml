@@ -118,7 +118,8 @@ deploy_deb_testing-a7_x64:
 deploy_deb_testing-a7_arm64:
   rules:
     - !reference [.on_all_install_script_tests]
-    - !reference [.on_installer_or_e2e_changes_or_manual]
+    - !reference [.on_installer_or_e2e_changes]
+    - !reference [.manual]
   extends:
     - .deploy_deb_testing-a7
   needs: ["installer_deb-arm64", "agent_deb-arm64-a7", "lint_linux-arm64"]
@@ -202,7 +203,8 @@ deploy_rpm_testing-a7_x64:
 deploy_rpm_testing-a7_arm64:
   rules:
     - !reference [.on_all_install_script_tests]
-    - !reference [.on_installer_or_e2e_changes_or_manual]
+    - !reference [.on_installer_or_e2e_changes]
+    - !reference [.manual]
   extends:
     - .deploy_rpm_testing-a7
   needs: ["installer_rpm-arm64", "agent_rpm-arm64-a7", "lint_linux-arm64"]
@@ -260,7 +262,8 @@ deploy_suse_rpm_testing_x64-a7:
 deploy_suse_rpm_testing_arm64-a7:
   rules:
     - !reference [.on_kitchen_tests]
-    - !reference [.on_installer_or_e2e_changes_or_manual]
+    - !reference [.on_installer_or_e2e_changes]
+    - !reference [.manual]
   stage: kitchen_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/gitlab_agent_deploy$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
@@ -298,9 +301,16 @@ deploy_windows_testing-a7:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/gitlab_agent_deploy$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   needs:
-    ["lint_windows-x64", "windows_msi_and_bosh_zip_x64-a7"]
+    ["lint_windows-x64", "windows_msi_and_bosh_zip_x64-a7", "windows-installer-amd64"]
   before_script:
     - source /root/.bashrc
     - ls $OMNIBUS_PACKAGE_DIR
   script:
-    - $S3_CP_CMD --recursive --exclude "*" --include "datadog-agent-7.*.msi" $OMNIBUS_PACKAGE_DIR s3://$WIN_S3_BUCKET/$WINDOWS_TESTING_S3_BUCKET_A7 --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
+    - $S3_CP_CMD
+      --recursive
+      --exclude "*"
+      --include "datadog-agent-7.*.msi"
+      --include "datadog-installer-1-x86_64.msi"
+      $OMNIBUS_PACKAGE_DIR s3://$WIN_S3_BUCKET/$WINDOWS_TESTING_S3_BUCKET_A7
+      --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers
+      full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732

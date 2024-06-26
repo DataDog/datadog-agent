@@ -23,7 +23,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
+	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -43,16 +45,16 @@ func testCollectEvent(t *testing.T, createResource func(*fake.Clientset) error, 
 		"language_detection.reporting.enabled":  true,
 	}
 
-	wlm := fxutil.Test[workloadmeta.Mock](t, fx.Options(
+	wlm := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		core.MockBundle(),
 		fx.Replace(config.MockParams{Overrides: overrides}),
 		fx.Supply(context.Background()),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.MockModuleV2(),
+		workloadmetafxmock.MockModuleV2(),
 	))
 	ctx := context.TODO()
 
-	store, _ := newStore(ctx, wlm, client)
+	store, _ := newStore(ctx, wlm, wlm.GetConfig(), client)
 	stopStore := make(chan struct{})
 	go store.Run(stopStore)
 
@@ -109,11 +111,11 @@ func testCollectMetadataEvent(t *testing.T, createObjects func() []runtime.Objec
 
 	metadataclient := metafake.NewSimpleMetadataClient(testScheme, objects...)
 
-	wlm := fxutil.Test[workloadmeta.Mock](t, fx.Options(
+	wlm := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		core.MockBundle(),
 		fx.Supply(context.Background()),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.MockModuleV2(),
+		workloadmetafxmock.MockModuleV2(),
 	))
 	ctx := context.TODO()
 
@@ -122,7 +124,7 @@ func testCollectMetadataEvent(t *testing.T, createObjects func() []runtime.Objec
 	response, err := metadataclient.Resource(gvr).List(ctx, v1.ListOptions{})
 	assert.NoError(t, err)
 	fmt.Println("metadata client listing: ", response.String())
-	store, _ := newMetadataStore(ctx, wlm, metadataclient, gvr)
+	store, _ := newMetadataStore(ctx, wlm, wlm.GetConfig(), metadataclient, gvr)
 
 	stopStore := make(chan struct{})
 	go store.Run(stopStore)

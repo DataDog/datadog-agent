@@ -8,7 +8,7 @@ import tempfile
 import traceback
 from collections import defaultdict
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from urllib.parse import quote
 
 from invoke import task
@@ -17,6 +17,7 @@ from invoke.exceptions import Exit, UnexpectedExit
 
 from tasks.libs.ciproviders.gitlab_api import BASE_URL
 from tasks.libs.common.datadog_api import create_count, send_metrics
+from tasks.libs.pipeline import failure_summary
 from tasks.libs.pipeline.data import get_failed_jobs
 from tasks.libs.pipeline.notifications import (
     GITHUB_SLACK_MAP,
@@ -31,6 +32,7 @@ from tasks.libs.pipeline.notifications import (
 )
 from tasks.libs.pipeline.stats import compute_failed_jobs_series, compute_required_jobs_max_duration
 from tasks.libs.types.types import FailedJobs, SlackMessage, TeamMessage
+from tasks.owners import channel_owners, make_partition
 
 UNKNOWN_OWNER_TEMPLATE = """The owner `{owner}` is not mapped to any slack channel.
 Please check for typos in the JOBOWNERS file and/or add them to the Github <-> Slack map.
@@ -38,24 +40,28 @@ Please check for typos in the JOBOWNERS file and/or add them to the Github <-> S
 PROJECT_NAME = "DataDog/datadog-agent"
 PROJECT_TITLE = PROJECT_NAME.removeprefix("DataDog/")
 AWS_S3_CP_CMD = "aws s3 cp --only-show-errors --region us-east-1 --sse AES256"
+AWS_S3_LS_CMD = "aws s3api list-objects-v2 --bucket '{bucket}' --prefix '{prefix}/' --delimiter /"
 S3_CI_BUCKET_URL = "s3://dd-ci-artefacts-build-stable/datadog-agent/failed_jobs"
 CONSECUTIVE_THRESHOLD = 3
 CUMULATIVE_THRESHOLD = 5
 CUMULATIVE_LENGTH = 10
-CI_VISIBILITY_JOB_URL = 'https://app.datadoghq.com/ci/pipeline-executions?query=ci_level%3Ajob%20%40ci.pipeline.name%3ADataDog%2Fdatadog-agent%20%40git.branch%3Amain%20%40ci.job.name%3A{}&agg_m=count'
+CI_VISIBILITY_JOB_URL = 'https://app.datadoghq.com/ci/pipeline-executions?query=ci_level%3Ajob%20%40ci.pipeline.name%3ADataDog%2Fdatadog-agent%20%40git.branch%3Amain%20%40ci.job.name%3A{name}{extra_flags}&agg_m=count'
+NOTIFICATION_DISCLAIMER = "If there is something wrong with the notification please contact #agent-devx-help"
 
 
-def get_ci_visibility_job_url(name: str, prefix=True) -> str:
+def get_ci_visibility_job_url(name: str, prefix=True, extra_flags: list[str] | str = "") -> str:
     # Escape (https://docs.datadoghq.com/logs/explorer/search_syntax/#escape-special-characters-and-spaces)
-    name = re.sub(r"([-+=&|><!(){}[\]^\"“”~*?:\\ ])", r"\\\1", name)
-
     if prefix:
-        name += '*'
+        # Cannot escape using double quotes for glob syntax
+        name = re.sub(r"([-+=&|><!(){}[\]^\"“”~*?:\\ ])", r"\\\1", name) + '*'
+        name = quote(name)
+    else:
+        name = quote(f'"{name}"')
 
-    # URL Quote
-    name = quote(name)
+    if isinstance(extra_flags, list):
+        extra_flags = quote(''.join(' ' + flag for flag in extra_flags))
 
-    return CI_VISIBILITY_JOB_URL.format(name)
+    return CI_VISIBILITY_JOB_URL.format(name=name, extra_flags=extra_flags)
 
 
 @dataclass
@@ -72,7 +78,7 @@ class ExecutionsJobInfo:
 
     @staticmethod
     def ci_visibility_url(name):
-        return get_ci_visibility_job_url(name)
+        return get_ci_visibility_job_url(name, extra_flags=['status:error', '-@error.domain:provider'])
 
     @staticmethod
     def from_dict(data):
@@ -198,11 +204,9 @@ def send_message(ctx, notification_type="merge", print_to_stdout=False):
     Use the --print-to-stdout option to test this locally, without sending
     real slack messages.
     """
-    default_branch = os.getenv("CI_DEFAULT_BRANCH")
-    git_ref = os.getenv("CI_COMMIT_REF_NAME")
 
     try:
-        failed_jobs = get_failed_jobs(PROJECT_NAME, os.getenv("CI_PIPELINE_ID"))
+        failed_jobs = get_failed_jobs(PROJECT_NAME, os.environ["CI_PIPELINE_ID"])
         messages_to_send = generate_failure_messages(PROJECT_NAME, failed_jobs)
     except Exception as e:
         buffer = io.StringIO()
@@ -211,20 +215,17 @@ def send_message(ctx, notification_type="merge", print_to_stdout=False):
         traceback.print_exc(limit=-1, file=buffer)
         print("See the notify job log for the full exception traceback.", file=buffer)
 
-        messages_to_send = {
-            "@DataDog/agent-all": SlackMessage(base=buffer.getvalue()),
-        }
         # Print traceback on job log
         print(e)
         traceback.print_exc()
-        raise Exit(code=1)
+        raise Exit(code=1) from e
 
     # From the job failures, set whether the pipeline succeeded or failed and craft the
     # base message that will be sent.
     if failed_jobs.all_mandatory_failures():  # At least one mandatory job failed
         header_icon = ":host-red:"
         state = "failed"
-        coda = "If there is something wrong with the notification please contact #agent-developer-experience"
+        coda = NOTIFICATION_DISCLAIMER
     else:
         header_icon = ":host-green:"
         state = "succeeded"
@@ -251,10 +252,11 @@ def send_message(ctx, notification_type="merge", print_to_stdout=False):
             print(f"Would send to {channel}:\n{str(message)}")
         else:
             all_teams = channel == "#datadog-agent-pipelines"
-            post_channel = _should_send_message_to_channel(git_ref, default_branch) or all_teams
+            default_branch = os.environ["CI_DEFAULT_BRANCH"]
+            git_ref = os.environ["CI_COMMIT_REF_NAME"]
             send_dm = not _should_send_message_to_channel(git_ref, default_branch) and all_teams
 
-            if post_channel:
+            if all_teams:
                 recipient = channel
                 send_slack_message(recipient, str(message))
                 metrics.append(
@@ -362,9 +364,9 @@ def check_consistent_failures(ctx, job_failures_file="job_executions.v2.json"):
     job_executions = retrieve_job_executions(ctx, job_failures_file)
 
     # By-pass if the pipeline chronological order is not respected
-    if job_executions.pipeline_id > int(os.getenv("CI_PIPELINE_ID")):
+    if job_executions.pipeline_id > int(os.environ["CI_PIPELINE_ID"]):
         return
-    job_executions.pipeline_id = int(os.getenv("CI_PIPELINE_ID"))
+    job_executions.pipeline_id = int(os.environ["CI_PIPELINE_ID"])
 
     alert_jobs, job_executions = update_statistics(job_executions)
 
@@ -411,7 +413,7 @@ def update_statistics(job_executions: PipelineRuns):
     cumulative_alerts = {}
 
     # Update statistics and collect consecutive failed jobs
-    failed_jobs = get_failed_jobs(PROJECT_NAME, os.getenv("CI_PIPELINE_ID"))
+    failed_jobs = get_failed_jobs(PROJECT_NAME, os.environ["CI_PIPELINE_ID"])
     commit_sha = os.getenv("CI_COMMIT_SHA")
     failed_dict = {job.name: ExecutionsJobInfo(job.id, True, commit_sha) for job in failed_jobs.all_failures()}
 
@@ -445,54 +447,74 @@ def update_statistics(job_executions: PipelineRuns):
             cumulative_alerts[job_name] = [job for job in job_executions.jobs[job_name].jobs_info if job.failing]
 
     return {
-        'consecutive': ConsecutiveJobAlert(consecutive_alerts),
-        'cumulative': CumulativeJobAlert(cumulative_alerts),
+        'consecutive': consecutive_alerts,
+        'cumulative': cumulative_alerts,
     }, job_executions
 
 
-def send_notification(ctx: Context, alert_jobs):
-    message = alert_jobs["consecutive"].message(ctx) + alert_jobs["cumulative"].message()
-    message = message.strip()
+def send_notification(ctx: Context, alert_jobs, jobowners=".gitlab/JOBOWNERS"):
+    def send_alert(channel, consecutive: ConsecutiveJobAlert, cumulative: CumulativeJobAlert):
+        nonlocal metrics
 
-    if message:
-        send_slack_message("#agent-platform-ops", message)
+        message = consecutive.message(ctx) + cumulative.message()
+        message = message.strip()
+
+        if message:
+            send_slack_message(channel, message)
+
+            # Create metrics for consecutive and cumulative alerts
+            metrics += [
+                create_count(
+                    metric_name=f"datadog.ci.failed_job_alerts.{alert_type}",
+                    timestamp=timestamp,
+                    tags=[f"team:{team}", "repository:datadog-agent"],
+                    unit="notification",
+                    value=len(failures),
+                )
+                for alert_type, failures in (("consecutive", consecutive.failures), ("cumulative", cumulative.failures))
+                for team in channel_owners(channel)
+                if len(failures) > 0
+            ]
+
+    metrics = []
+    timestamp = int(datetime.now(timezone.utc).timestamp())
+    all_alerts = set(alert_jobs["consecutive"]) | set(alert_jobs["cumulative"])
+    partition = make_partition(all_alerts, jobowners, get_channels=True)
+
+    for channel in partition:
+        consecutive = ConsecutiveJobAlert(
+            {name: jobs for (name, jobs) in alert_jobs["consecutive"].items() if name in partition[channel]}
+        )
+        cumulative = CumulativeJobAlert(
+            {name: jobs for (name, jobs) in alert_jobs["cumulative"].items() if name in partition[channel]}
+        )
+        send_alert(channel, consecutive, cumulative)
+
+    # Send all alerts to #agent-platform-ops
+    consecutive = ConsecutiveJobAlert(alert_jobs["consecutive"])
+    cumulative = CumulativeJobAlert(alert_jobs["cumulative"])
+    send_alert('#agent-platform-ops', consecutive, cumulative)
+
+    if metrics:
+        send_metrics(metrics)
+        print('Metrics sent')
 
 
 @task
-def send_failure_summary_notification(_, jobs: dict[str, any] | None = None, list_max_len=10):
-    if jobs is None:
-        jobs = os.environ["JOB_FAILURES"]
-        jobs = json.loads(jobs)
+def failure_summary_upload_pipeline_data(ctx):
+    """
+    Upload failure summary data to S3 at the end of each main pipeline
+    """
+    failure_summary.upload_summary(ctx, os.environ['CI_PIPELINE_ID'])
 
-    # List of (job_name, (failure_count, total_count)) ordered by failure_count
-    stats = sorted(
-        ((name, (fail, success)) for (name, (fail, success)) in jobs.items() if fail > 0),
-        key=lambda x: (x[1][0], x[1][1] if x[1][1] is not None else 0),
-        reverse=True,
-    )[:list_max_len]
 
-    # Don't send message if no failure
-    if len(stats) == 0:
-        return
-
-    # Create message
-    message = ['*Daily Job Failure Report*']
-    message.append('These jobs had the most failures in the last 24 hours:')
-    for name, (fail, total) in stats:
-        link = get_ci_visibility_job_url(name)
-        message.append(f"- <{link}|{name}>: *{fail} failures*{f' / {total} runs' if total else ''}")
-
-    message.append(
-        'Click <https://app.datadoghq.com/ci/pipeline-executions?query=ci_level%3Ajob%20env%3Aprod%20%40git.repository.id%3A%22gitlab.ddbuild.io%2FDataDog%2Fdatadog-agent%22%20%40ci.pipeline.name%3A%22DataDog%2Fdatadog-agent%22%20%40ci.provider.instance%3Agitlab-ci%20%40git.branch%3Amain%20%40ci.status%3Aerror&agg_m=count&agg_m_source=base&agg_q=%40ci.job.name&agg_q_source=base&agg_t=count&fromUser=false&index=cipipeline&sort_m=count&sort_m_source=base&sort_t=count&top_n=25&top_o=top&viz=toplist&x_missing=true&paused=false|here> for more details.'
-    )
-
-    # Send message
-    from slack_sdk import WebClient
-
-    client = WebClient(os.environ["SLACK_API_TOKEN"])
-    client.chat_postMessage(channel='#agent-platform-ops', text='\n'.join(message))
-
-    print('Message sent')
+@task
+def failure_summary_send_notifications(ctx, is_daily_summary: bool, max_length=8):
+    """
+    Make summaries from data in s3 and send them to slack
+    """
+    period = timedelta(days=1) if is_daily_summary else timedelta(weeks=1)
+    failure_summary.send_summary_messages(ctx, is_daily_summary, max_length, period)
 
 
 @task
@@ -546,7 +568,7 @@ On pipeline [{pipeline_id}]({pipeline_url}) ([CI Visibility](https://app.datadog
         msg += f"  - {job}\n"
     msg += "</details>\n"
     msg += "\n"
-    msg += "If you modified Go files and expected unit tests to run in these jobs, please double check the job logs. If you think tests should have been executed reach out to #agent-developer-experience"
+    msg += "If you modified Go files and expected unit tests to run in these jobs, please double check the job logs. If you think tests should have been executed reach out to #agent-devx-help"
     return msg
 
 

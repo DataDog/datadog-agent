@@ -10,7 +10,7 @@ package autoscaling
 
 import (
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/admission"
-	"github.com/DataDog/datadog-agent/comp/autoscaling/workload/def"
+	autoscaling "github.com/DataDog/datadog-agent/comp/autoscaling/workload/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	"github.com/DataDog/datadog-agent/pkg/config"
 

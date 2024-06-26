@@ -12,9 +12,10 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/DataDog/viper"
+
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/viper"
 )
 
 // setupConfig is copied from cmd/agent/common/helpers.go.
@@ -42,6 +43,11 @@ func setupConfig(config pkgconfigmodel.Config, deps configDependencies) (*pkgcon
 	}
 	if defaultConfPath != "" {
 		config.AddConfigPath(defaultConfPath)
+	}
+
+	// load extra config file paths
+	if err := config.AddExtraConfigPaths(p.ExtraConfFilePath); err != nil {
+		return nil, err
 	}
 
 	// load the configuration

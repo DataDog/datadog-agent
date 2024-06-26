@@ -5,7 +5,7 @@ go 1.21.0
 replace github.com/DataDog/datadog-agent/pkg/util/sort => ../util/sort/
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/sort v0.55.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/util/sort v0.55.0-rc.3
 	github.com/stretchr/testify v1.9.0
 	github.com/twmb/murmur3 v1.1.8
 )

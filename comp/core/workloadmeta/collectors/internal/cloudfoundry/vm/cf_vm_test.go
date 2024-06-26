@@ -9,14 +9,18 @@ import (
 	"fmt"
 	"slices"
 	"testing"
+	"time"
 
 	"code.cloudfoundry.org/garden"
 	"code.cloudfoundry.org/garden/gardenfakes"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
+	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	apiv1 "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
@@ -24,6 +28,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
+
+var waitFor = 10 * time.Second
+var tick = 50 * time.Millisecond
 
 var activeContainerWithoutProperties = gardenfakes.FakeContainer{
 	HandleStub: func() string {
@@ -214,10 +221,10 @@ func (f *FakeDCAClient) SupportsNamespaceMetadataCollection() bool {
 func TestStartError(t *testing.T) {
 	fakeGardenUtil := FakeGardenUtil{}
 
-	workloadmetaStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
+	workloadmetaStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		core.MockBundle(),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.MockModule(),
+		workloadmetafxmock.MockModuleV2(),
 	))
 
 	c := collector{
@@ -232,10 +239,10 @@ func TestStartError(t *testing.T) {
 func TestPullNoContainers(t *testing.T) {
 	fakeGardenUtil := FakeGardenUtil{containers: nil}
 	fakeDCAClient := FakeDCAClient{}
-	workloadmetaStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
+	workloadmetaStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		core.MockBundle(),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.MockModule(),
+		workloadmetafxmock.MockModuleV2(),
 	))
 
 	c := collector{
@@ -246,10 +253,25 @@ func TestPullNoContainers(t *testing.T) {
 	}
 
 	err := c.Pull(context.TODO())
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
-	evs := workloadmetaStore.GetNotifiedEvents()
-	assert.Empty(t, evs)
+	// If pull sets a container in the store, the one here will be added after
+	// it because workloadmeta processes the events in order. Therefore, if we
+	// only see this container and no others when listing, it means Pull()
+	// didn't add anything.
+	workloadmetaStore.Set(
+		&workloadmeta.Container{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindContainer,
+				ID:   "test-container",
+			},
+		},
+	)
+
+	assert.Eventually(t, func() bool {
+		containers := workloadmetaStore.ListContainers()
+		return len(containers) == 1 && containers[0].ID == "test-container"
+	}, waitFor, tick)
 }
 
 func TestPullActiveContainer(t *testing.T) {
@@ -260,10 +282,10 @@ func TestPullActiveContainer(t *testing.T) {
 		containers: containers,
 	}
 	fakeDCAClient := FakeDCAClient{}
-	workloadmetaStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
+	workloadmetaStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		core.MockBundle(),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.MockModule(),
+		workloadmetafxmock.MockModuleV2(),
 	))
 
 	c := collector{
@@ -274,25 +296,22 @@ func TestPullActiveContainer(t *testing.T) {
 	}
 
 	err := c.Pull(context.TODO())
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
-	evs := workloadmetaStore.GetNotifiedEvents()
-	assert.NotEmpty(t, evs)
+	require.Eventually(t, func() bool {
+		_, err := workloadmetaStore.GetContainer(activeContainerWithoutProperties.Handle())
+		return err == nil
+	}, waitFor, tick)
 
-	event0 := evs[0]
+	container, err := workloadmetaStore.GetContainer(activeContainerWithoutProperties.Handle())
+	require.NoError(t, err)
 
-	assert.Equal(t, event0.Type, workloadmeta.EventTypeSet)
-	assert.Equal(t, event0.Source, workloadmeta.SourceClusterOrchestrator)
-
-	containerEntity, ok := event0.Entity.(*workloadmeta.Container)
-	assert.True(t, ok)
-
-	assert.Equal(t, containerEntity.Kind, workloadmeta.KindContainer)
-	assert.Equal(t, containerEntity.Runtime, workloadmeta.ContainerRuntimeGarden)
-	assert.Equal(t, containerEntity.ID, activeContainerWithoutProperties.Handle())
-	assert.Equal(t, containerEntity.State.Status, workloadmeta.ContainerStatusRunning)
-	assert.True(t, containerEntity.State.Running)
-	assert.NotEmpty(t, containerEntity.CollectorTags)
+	assert.Equal(t, container.Kind, workloadmeta.KindContainer)
+	assert.Equal(t, container.Runtime, workloadmeta.ContainerRuntimeGarden)
+	assert.Equal(t, container.ID, activeContainerWithoutProperties.Handle())
+	assert.Equal(t, container.State.Status, workloadmeta.ContainerStatusRunning)
+	assert.True(t, container.State.Running)
+	assert.NotEmpty(t, container.CollectorTags)
 }
 
 func TestPullStoppedContainer(t *testing.T) {
@@ -303,10 +322,10 @@ func TestPullStoppedContainer(t *testing.T) {
 		containers: containers,
 	}
 	fakeDCAClient := FakeDCAClient{}
-	workloadmetaStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
+	workloadmetaStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		core.MockBundle(),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.MockModule(),
+		workloadmetafxmock.MockModuleV2(),
 	))
 
 	c := collector{
@@ -317,25 +336,22 @@ func TestPullStoppedContainer(t *testing.T) {
 	}
 
 	err := c.Pull(context.TODO())
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
-	evs := workloadmetaStore.GetNotifiedEvents()
-	assert.NotEmpty(t, evs)
+	require.Eventually(t, func() bool {
+		_, err := workloadmetaStore.GetContainer(stoppedContainer.Handle())
+		return err == nil
+	}, waitFor, tick)
 
-	event0 := evs[0]
+	container, err := workloadmetaStore.GetContainer(stoppedContainer.Handle())
+	require.NoError(t, err)
 
-	assert.Equal(t, event0.Type, workloadmeta.EventTypeSet)
-	assert.Equal(t, event0.Source, workloadmeta.SourceClusterOrchestrator)
-
-	containerEntity, ok := event0.Entity.(*workloadmeta.Container)
-	assert.True(t, ok)
-
-	assert.Equal(t, containerEntity.Kind, workloadmeta.KindContainer)
-	assert.Equal(t, containerEntity.Runtime, workloadmeta.ContainerRuntimeGarden)
-	assert.Equal(t, containerEntity.ID, stoppedContainer.Handle())
-	assert.Equal(t, containerEntity.State.Status, workloadmeta.ContainerStatusStopped)
-	assert.False(t, containerEntity.State.Running)
-	assert.NotEmpty(t, containerEntity.CollectorTags)
+	assert.Equal(t, container.Kind, workloadmeta.KindContainer)
+	assert.Equal(t, container.Runtime, workloadmeta.ContainerRuntimeGarden)
+	assert.Equal(t, container.ID, stoppedContainer.Handle())
+	assert.Equal(t, container.State.Status, workloadmeta.ContainerStatusStopped)
+	assert.False(t, container.State.Running)
+	assert.NotEmpty(t, container.CollectorTags)
 }
 
 func TestPullDetectsDeletedContainers(t *testing.T) {
@@ -346,10 +362,10 @@ func TestPullDetectsDeletedContainers(t *testing.T) {
 		containers: containers,
 	}
 	fakeDCAClient := FakeDCAClient{}
-	workloadmetaStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
+	workloadmetaStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		core.MockBundle(),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.MockModule(),
+		workloadmetafxmock.MockModuleV2(),
 	))
 
 	c := collector{
@@ -360,36 +376,23 @@ func TestPullDetectsDeletedContainers(t *testing.T) {
 	}
 
 	err := c.Pull(context.TODO())
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
-	evs := workloadmetaStore.GetNotifiedEvents()
-	assert.NotEmpty(t, evs)
-
-	// expect a set event of the active container
-	event0 := evs[0]
-
-	assert.Equal(t, event0.Type, workloadmeta.EventTypeSet)
-	assert.Equal(t, event0.Source, workloadmeta.SourceClusterOrchestrator)
+	require.Eventually(t, func() bool {
+		_, err := workloadmetaStore.GetContainer(activeContainerWithoutProperties.Handle())
+		return err == nil
+	}, waitFor, tick)
 
 	// remove containers
 	fakeGardenUtil.containers = nil
 
 	err = c.Pull(context.TODO())
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
-	evs = workloadmetaStore.GetNotifiedEvents()
-	assert.NotEmpty(t, evs)
-
-	// expect an unset event of the previous active container
-	event1 := evs[1]
-	containerEntity, ok := event1.Entity.(*workloadmeta.Container)
-
-	assert.True(t, ok)
-
-	assert.Equal(t, event1.Type, workloadmeta.EventTypeUnset)
-	assert.Equal(t, event1.Source, workloadmeta.SourceClusterOrchestrator)
-	assert.Equal(t, containerEntity.Kind, workloadmeta.KindContainer)
-	assert.Equal(t, containerEntity.ID, activeContainerWithoutProperties.Handle())
+	assert.Eventually(t, func() bool {
+		_, err := workloadmetaStore.GetContainer(activeContainerWithoutProperties.Handle())
+		return err != nil
+	}, waitFor, tick)
 }
 
 func TestPullAppNameWithDCA(t *testing.T) {
@@ -400,10 +403,10 @@ func TestPullAppNameWithDCA(t *testing.T) {
 		containers: containers,
 	}
 	fakeDCAClient := FakeDCAClient{}
-	workloadmetaStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
+	workloadmetaStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		core.MockBundle(),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.MockModule(),
+		workloadmetafxmock.MockModuleV2(),
 	))
 
 	c := collector{
@@ -414,15 +417,17 @@ func TestPullAppNameWithDCA(t *testing.T) {
 	}
 
 	err := c.Pull(context.TODO())
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
-	evs := workloadmetaStore.GetNotifiedEvents()
-	assert.NotEmpty(t, evs)
+	require.Eventually(t, func() bool {
+		_, err := workloadmetaStore.GetContainer(activeContainerWithoutProperties.Handle())
+		return err == nil
+	}, waitFor, tick)
 
-	event0 := evs[0]
-	containerEntity, ok := event0.Entity.(*workloadmeta.Container)
-	assert.True(t, ok)
-	assert.Contains(t, containerEntity.CollectorTags, "container_name:active-container-app")
+	container, err := workloadmetaStore.GetContainer(activeContainerWithoutProperties.Handle())
+	require.NoError(t, err)
+
+	assert.Contains(t, container.CollectorTags, "container_name:active-container-app")
 }
 
 func TestPullNoAppNameWithoutDCA(t *testing.T) {
@@ -434,10 +439,10 @@ func TestPullNoAppNameWithoutDCA(t *testing.T) {
 	}
 	fakeDCAClient := FakeDCAClient{}
 
-	workloadmetaStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
+	workloadmetaStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		core.MockBundle(),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.MockModule(),
+		workloadmetafxmock.MockModuleV2(),
 	))
 
 	c := collector{
@@ -448,15 +453,17 @@ func TestPullNoAppNameWithoutDCA(t *testing.T) {
 	}
 
 	err := c.Pull(context.TODO())
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
-	evs := workloadmetaStore.GetNotifiedEvents()
-	assert.NotEmpty(t, evs)
+	require.Eventually(t, func() bool {
+		_, err := workloadmetaStore.GetContainer(activeContainerWithoutProperties.Handle())
+		return err == nil
+	}, waitFor, tick)
 
-	event0 := evs[0]
-	containerEntity, ok := event0.Entity.(*workloadmeta.Container)
-	assert.True(t, ok)
-	assert.Contains(t, containerEntity.CollectorTags, fmt.Sprintf("container_name:%s", activeContainerWithoutProperties.Handle()))
+	container, err := workloadmetaStore.GetContainer(activeContainerWithoutProperties.Handle())
+	require.NoError(t, err)
+
+	assert.Contains(t, container.CollectorTags, fmt.Sprintf("container_name:%s", activeContainerWithoutProperties.Handle()))
 }
 
 func TestPullAppNameWithGardenPropertiesWithoutDCA(t *testing.T) {
@@ -470,10 +477,10 @@ func TestPullAppNameWithGardenPropertiesWithoutDCA(t *testing.T) {
 
 	// We do not inject any collectors here; we instantiate
 	// and initialize it out-of-band below. That's OK.
-	workloadmetaStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
+	workloadmetaStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		core.MockBundle(),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.MockModule(),
+		workloadmetafxmock.MockModuleV2(),
 	))
 
 	c := collector{
@@ -486,11 +493,13 @@ func TestPullAppNameWithGardenPropertiesWithoutDCA(t *testing.T) {
 	err := c.Pull(context.TODO())
 	assert.NoError(t, err)
 
-	evs := workloadmetaStore.GetNotifiedEvents()
-	assert.NotEmpty(t, evs)
+	require.Eventually(t, func() bool {
+		_, err := workloadmetaStore.GetContainer(activeContainerWithProperties.Handle())
+		return err == nil
+	}, waitFor, tick)
 
-	event0 := evs[0]
-	containerEntity, ok := event0.Entity.(*workloadmeta.Container)
-	assert.True(t, ok)
-	assert.Contains(t, containerEntity.CollectorTags, fmt.Sprintf("container_name:%s", "app-name-1"))
+	container, err := workloadmetaStore.GetContainer(activeContainerWithProperties.Handle())
+	require.NoError(t, err)
+
+	assert.Contains(t, container.CollectorTags, fmt.Sprintf("container_name:%s", "app-name-1"))
 }

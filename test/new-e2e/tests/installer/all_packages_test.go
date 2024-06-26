@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"os"
 	"regexp"
-	"slices"
 	"strings"
 	"testing"
 
@@ -47,23 +46,23 @@ var (
 		e2eos.RedHat9,
 		e2eos.Fedora37,
 		e2eos.CentOS7,
-		// e2eos.Suse15,
+		e2eos.Suse15,
 	}
 	arm64Flavors = []e2eos.Descriptor{
 		e2eos.Ubuntu2204,
 		e2eos.AmazonLinux2,
-		// e2eos.Suse15,
+		e2eos.Suse15,
 	}
-	packagesTestsWithSkipedFlavors = []packageTestsWithSkipedFlavors{
+	packagesTestsWithSkippedFlavors = []packageTestsWithSkipedFlavors{
 		{t: testInstaller},
 		{t: testAgent},
-		{t: testApmInjectAgent, skippedFlavors: []e2eos.Descriptor{e2eos.CentOS7, e2eos.RedHat9, e2eos.Fedora37}},
+		{t: testApmInjectAgent, skippedFlavors: []e2eos.Descriptor{e2eos.CentOS7, e2eos.RedHat9, e2eos.Fedora37, e2eos.Suse15}},
 	}
 )
 
 var packagesConfig = []testPackageConfig{
-	{name: "datadog-installer", defaultVersion: fmt.Sprintf("pipeline-%v", os.Getenv("CI_PIPELINE_ID")), registry: "669783387624.dkr.ecr.us-east-1.amazonaws.com", auth: "ecr"},
-	{name: "datadog-agent", defaultVersion: fmt.Sprintf("pipeline-%v", os.Getenv("CI_PIPELINE_ID")), registry: "669783387624.dkr.ecr.us-east-1.amazonaws.com", auth: "ecr"},
+	{name: "datadog-installer", defaultVersion: fmt.Sprintf("pipeline-%v", os.Getenv("E2E_PIPELINE_ID")), registry: "669783387624.dkr.ecr.us-east-1.amazonaws.com", auth: "ecr"},
+	{name: "datadog-agent", defaultVersion: fmt.Sprintf("pipeline-%v", os.Getenv("E2E_PIPELINE_ID")), registry: "669783387624.dkr.ecr.us-east-1.amazonaws.com", auth: "ecr"},
 	{name: "datadog-apm-inject", defaultVersion: "latest"},
 	{name: "datadog-apm-library-java", defaultVersion: "latest"},
 	{name: "datadog-apm-library-ruby", defaultVersion: "latest"},
@@ -72,7 +71,22 @@ var packagesConfig = []testPackageConfig{
 	{name: "datadog-apm-library-python", defaultVersion: "latest"},
 }
 
+func shouldSkip(flavors []e2eos.Descriptor, flavor e2eos.Descriptor) bool {
+	for _, f := range flavors {
+		if f.Flavor == flavor.Flavor && f.Version == flavor.Version {
+			return true
+		}
+	}
+	return false
+}
+
 func TestPackages(t *testing.T) {
+
+	if _, ok := os.LookupEnv("E2E_PIPELINE_ID"); !ok {
+		t.Log("E2E_PIPELINE_ID env var is not set, this test requires this variable to be set to work")
+		t.FailNow()
+	}
+
 	var flavors []e2eos.Descriptor
 	for _, flavor := range amd64Flavors {
 		flavor.Architecture = e2eos.AMD64Arch
@@ -83,9 +97,9 @@ func TestPackages(t *testing.T) {
 		flavors = append(flavors, flavor)
 	}
 	for _, f := range flavors {
-		for _, test := range packagesTestsWithSkipedFlavors {
+		for _, test := range packagesTestsWithSkippedFlavors {
 			flavor := f // capture range variable for parallel tests closure
-			if slices.Contains(test.skippedFlavors, flavor) {
+			if shouldSkip(test.skippedFlavors, flavor) {
 				continue
 			}
 			suite := test.t(flavor, flavor.Architecture)
@@ -149,6 +163,13 @@ func (s *packageBaseSuite) SetupSuite() {
 	s.host = host.New(s.T(), s.Env().RemoteHost, s.os, s.arch)
 }
 
+func (s *packageBaseSuite) RunInstallScriptProdOci(params ...string) error {
+	env := map[string]string{}
+	installScriptPackageManagerEnv(env, s.arch)
+	_, err := s.Env().RemoteHost.Execute(fmt.Sprintf(`%s bash -c "$(curl -L https://storage.googleapis.com/updater-dev/install_script_agent7.sh)"`, strings.Join(params, " ")), client.WithEnvVariables(env))
+	return err
+}
+
 func (s *packageBaseSuite) RunInstallScriptWithError(params ...string) error {
 	// FIXME: use the official install script
 	_, err := s.Env().RemoteHost.Execute(fmt.Sprintf(`%s bash -c "$(curl -L https://storage.googleapis.com/updater-dev/install_script_agent7.sh)"`, strings.Join(params, " ")), client.WithEnvVariables(installScriptEnv(s.arch)))
@@ -172,8 +193,12 @@ func envForceNoInstall(pkg string) string {
 	return "DD_INSTALLER_DEFAULT_PKG_INSTALL_" + strings.ToUpper(strings.ReplaceAll(pkg, "-", "_")) + "=false"
 }
 
+func envForceVersion(pkg, version string) string {
+	return "DD_INSTALLER_DEFAULT_PKG_VERSION_" + strings.ToUpper(strings.ReplaceAll(pkg, "-", "_")) + "=" + version
+}
+
 func (s *packageBaseSuite) Purge() {
-	s.Env().RemoteHost.MustExecute("sudo apt-get remove -y --purge datadog-installer || sudo yum remove -y datadog-installer")
+	s.Env().RemoteHost.MustExecute("sudo apt-get remove -y --purge datadog-installer || sudo yum remove -y datadog-installer || sudo zypper remove -y datadog-installer")
 }
 
 // setupFakeIntake sets up the fake intake for the agent and trace agent.
@@ -198,22 +223,24 @@ func (s *packageBaseSuite) setupFakeIntake() {
 	s.Env().RemoteHost.MustExecute("sudo systemctl daemon-reload")
 }
 
-func installScriptEnv(arch e2eos.Architecture) map[string]string {
+func installScriptPackageManagerEnv(env map[string]string, arch e2eos.Architecture) {
 	apiKey := os.Getenv("DD_API_KEY")
 	if apiKey == "" {
 		apiKey = "deadbeefdeadbeefdeadbeefdeadbeef"
 	}
-	env := map[string]string{
-		"DD_API_KEY": apiKey,
-		"DD_SITE":    "datadoghq.com",
-		// Install Script env variables
-		"DD_INSTALLER":             "true",
-		"TESTING_KEYS_URL":         "keys.datadoghq.com",
-		"TESTING_APT_URL":          "apttesting.datad0g.com",
-		"TESTING_APT_REPO_VERSION": fmt.Sprintf("pipeline-%s-a7-%s 7", os.Getenv("CI_PIPELINE_ID"), arch),
-		"TESTING_YUM_URL":          "yumtesting.datad0g.com",
-		"TESTING_YUM_VERSION_PATH": fmt.Sprintf("testing/pipeline-%s-a7/7", os.Getenv("CI_PIPELINE_ID")),
-	}
+	env["DD_API_KEY"] = apiKey
+	env["DD_SITE"] = "datadoghq.com"
+	// Install Script env variables
+	env["DD_INSTALLER"] = "true"
+	env["TESTING_KEYS_URL"] = "keys.datadoghq.com"
+	env["TESTING_APT_URL"] = "apttesting.datad0g.com"
+	env["TESTING_APT_REPO_VERSION"] = fmt.Sprintf("pipeline-%s-a7-%s 7", os.Getenv("E2E_PIPELINE_ID"), arch)
+	env["TESTING_YUM_URL"] = "yumtesting.datad0g.com"
+	env["TESTING_YUM_VERSION_PATH"] = fmt.Sprintf("testing/pipeline-%s-a7/7", os.Getenv("E2E_PIPELINE_ID"))
+
+}
+
+func installScriptInstallerEnv(env map[string]string) {
 	for _, pkg := range packagesConfig {
 		name := strings.ToUpper(strings.ReplaceAll(pkg.name, "-", "_"))
 		image := strings.TrimPrefix(name, "DATADOG_") + "_PACKAGE"
@@ -227,5 +254,11 @@ func installScriptEnv(arch e2eos.Architecture) map[string]string {
 			env[fmt.Sprintf("DD_INSTALLER_DEFAULT_PKG_VERSION_%s", name)] = pkg.defaultVersion
 		}
 	}
+}
+
+func installScriptEnv(arch e2eos.Architecture) map[string]string {
+	env := map[string]string{}
+	installScriptPackageManagerEnv(env, arch)
+	installScriptInstallerEnv(env)
 	return env
 }

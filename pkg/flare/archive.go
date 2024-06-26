@@ -22,7 +22,7 @@ import (
 	"time"
 
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -88,6 +88,8 @@ func CompleteFlare(fb flaretypes.FlareBuilder, diagnoseDeps diagnose.SuitesDeps)
 	fb.AddFileFromFunc("go-routine-dump.log", func() ([]byte, error) { return getHTTPCallContent(pprofURL) })                                     //nolint:errcheck
 	fb.AddFileFromFunc("docker_inspect.log", func() ([]byte, error) { return getDockerSelfInspect(diagnoseDeps.GetWMeta()) })                     //nolint:errcheck
 	fb.AddFileFromFunc("docker_ps.log", getDockerPs)                                                                                              //nolint:errcheck
+	fb.AddFileFromFunc("k8s/kubelet_config.yaml", getKubeletConfig)                                                                               //nolint:errcheck
+	fb.AddFileFromFunc("k8s/kubelet_pods.yaml", getKubeletPods)                                                                                   //nolint:errcheck
 
 	getRegistryJSON(fb)
 
