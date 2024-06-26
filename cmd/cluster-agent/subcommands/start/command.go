@@ -114,10 +114,13 @@ import (
 )
 
 // This hack allows us to retrieve these fields with `fx.Provide()`
-// TODO(Components): Create mini-components to retrieve the following fields
-type clusterName string
-type clusterID string
-type hostName string
+type clusterInfo struct {
+	name string
+	id   string
+}
+type hostInfo struct {
+	hostName string
+}
 
 // Commands returns a slice of subcommands for the 'cluster-agent' command.
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
@@ -210,22 +213,22 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					h hostnameinterface.Component,
 					logComp log.Component,
 					_ *apiserver.APIClient, // Called by hostname.Get
-				) (hostName, error) {
+				) (hostInfo, error) {
 					// Get hostname as aggregator requires hostname
 					hname, err := hostname.Get(ctx)
 					if err != nil {
-						return "", fmt.Errorf("Error while getting hostname, exiting: %v", err)
+						return hostInfo{}, fmt.Errorf("Error while getting hostname, exiting: %v", err)
 					}
 					logComp.Infof("Hostname is: %s", hname)
-					return hostName(hname), nil
+					return hostInfo{hname}, nil
 				}),
 				// Initialize clusterID and clusterName
 				fx.Provide(func(
 					logComp log.Component,
-					hName hostName,
+					hostName hostInfo,
 					apiCl *apiserver.APIClient,
-				) (clusterName, clusterID, error) {
-					cName := clustername.GetRFC1123CompliantClusterName(context.TODO(), string(hName))
+				) (clusterInfo, error) {
+					cName := clustername.GetRFC1123CompliantClusterName(context.TODO(), hostName.hostName)
 					// Generate and persist a cluster ID
 					// this must be a UUID, and ideally be stable for the lifetime of a cluster,
 					// so we store it in a configmap that we try and read before generating a new one.
@@ -237,7 +240,10 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 						logComp.Warn("Failed to auto-detect a Kubernetes cluster name. We recommend you set it manually via the cluster_name config option")
 					}
 					logComp.Infof("Cluster ID: %s, Cluster Name: %s", cID, cName)
-					return clusterName(cName), clusterID(cID), nil
+					return clusterInfo{
+						name: cName,
+						id:   cID,
+					}, nil
 				}),
 				// Create the global leader engine, pass the API client to the leader engine
 				// so that the leaderEngine is created after the APIClient is ready
@@ -250,8 +256,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					logComp log.Component,
 					cgc config.Component,
 					rcService optional.Option[rccomp.Component],
-					cName clusterName,
-					cid clusterID,
+					cInfo clusterInfo,
 				) optional.Option[*rcclient.Client] {
 					var rcClient *rcclient.Client
 					rcserv, isSet := rcService.Get()
@@ -265,7 +270,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 						}
 
 						var err error
-						rcClient, err = initializeRemoteConfigClient(rcserv, cgc, string(cName), string(cid), products...)
+						rcClient, err = initializeRemoteConfigClient(rcserv, cgc, cInfo.name, cInfo.id, products...)
 						if err != nil {
 							logComp.Errorf("Failed to start remote-configuration: %v", err)
 						} else {
@@ -317,8 +322,7 @@ func start(
 	recommender optional.Option[autoscaling.Component],
 	rcCl optional.Option[*rcclient.Client],
 	apiCl *apiserver.APIClient,
-	cName clusterName,
-	cid clusterID,
+	cInfo clusterInfo,
 	le *leaderelection.LeaderEngine,
 ) error {
 	stopCh := make(chan struct{})
@@ -397,7 +401,7 @@ func start(
 		}
 	}
 
-	clusterName, clusterID := string(cName), string(cid)
+	clusterName, clusterID := cInfo.name, cInfo.id
 
 	// Retrieve rc client
 	var rcClient *rcclient.Client
