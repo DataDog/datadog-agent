@@ -7,7 +7,7 @@
 package fx
 
 import (
-	"github.com/DataDog/datadog-agent/comp/autoscaling/workload/impl"
+	workloadimpl "github.com/DataDog/datadog-agent/comp/autoscaling/workload/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -15,7 +15,7 @@ import (
 func Module() fxutil.Module {
 	return fxutil.Component(
 		fxutil.ProvideComponentConstructor(
-			impl.NewComponent,
+			workloadimpl.NewComponent,
 		),
 	)
 }

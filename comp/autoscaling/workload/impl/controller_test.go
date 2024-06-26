@@ -5,7 +5,7 @@
 
 //go:build kubeapiserver
 
-package impl
+package workloadimpl
 
 import (
 	"testing"

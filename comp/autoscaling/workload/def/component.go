@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-// Package autoscaling implements the autoscaling controller
-package autoscaling
+// Package workload implements the autoscaling controller
+package workload
 
 import (
 	corev1 "k8s.io/api/core/v1"

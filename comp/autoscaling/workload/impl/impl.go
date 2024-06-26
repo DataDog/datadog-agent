@@ -3,8 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-// Package impl implements the autoscaling component interface
-package impl
+package workloadimpl
 
 import (
 	"context"
