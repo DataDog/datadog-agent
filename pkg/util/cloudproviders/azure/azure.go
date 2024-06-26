@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/cachedfetch"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // declare these as vars not const to ease testing
@@ -29,6 +30,17 @@ var (
 )
 
 const hostnameStyleSetting = "azure_hostname_style"
+
+type metadata struct {
+	VMID              string
+	Name              string
+	ResourceGroupName string
+	SubscriptionID    string
+	TagsList          []map[string]string
+	OsProfile         struct {
+		ComputerName string
+	}
+}
 
 // IsRunningOn returns true if the agent is running on Azure
 func IsRunningOn(ctx context.Context) bool {
@@ -53,7 +65,20 @@ var vmIDFetcher = cachedfetch.Fetcher{
 
 // GetHostAliases returns the VM ID from the Azure Metadata api
 func GetHostAliases(ctx context.Context) ([]string, error) {
-	return vmIDFetcher.FetchStringSlice(ctx)
+	aliases := []string{}
+
+	metadata, err := getMetadata(ctx)
+	if err != nil {
+		log.Debugf("Could not get metadata: %s", err)
+	} else {
+		if isKubernetesTag(metadata.TagsList) {
+			aliases = append(aliases, metadata.OsProfile.ComputerName)
+		}
+	}
+
+	vm, err := vmIDFetcher.FetchStringSlice(ctx)
+	aliases = append(aliases, vm...)
+	return aliases, err
 }
 
 var resourceGroupNameFetcher = cachedfetch.Fetcher{
@@ -139,28 +164,26 @@ func isKubernetesTag(tagsList []map[string]string) bool {
 	return false
 }
 
+func getMetadata(ctx context.Context) (metadata, error) {
+	metadataInfo := metadata{}
+	metadataJSON, err := instanceMetaFetcher.FetchString(ctx)
+	if err != nil {
+		return metadataInfo, err
+	}
+
+	if err := json.Unmarshal([]byte(metadataJSON), &metadataInfo); err != nil {
+		return metadataInfo, fmt.Errorf("failed to parse Azure instance metadata: %s", err)
+	}
+	return metadataInfo, nil
+}
+
 func getHostnameWithConfig(ctx context.Context, config config.Config) (string, error) {
 	style := config.GetString(hostnameStyleSetting)
-
-	metadataJSON, err := instanceMetaFetcher.FetchString(ctx)
+	metadata, err := getMetadata(ctx)
 	if err != nil {
 		return "", err
 	}
 
-	var metadata struct {
-		VMID              string
-		Name              string
-		ResourceGroupName string
-		SubscriptionID    string
-		TagsList          []map[string]string
-		OsProfile         struct {
-			ComputerName string
-		}
-	}
-
-	if err := json.Unmarshal([]byte(metadataJSON), &metadata); err != nil {
-		return "", fmt.Errorf("failed to parse Azure instance metadata: %s", err)
-	}
 	isKubernetes := isKubernetesTag(metadata.TagsList)
 
 	if style == "os" {
