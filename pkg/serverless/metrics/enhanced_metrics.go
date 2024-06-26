@@ -26,6 +26,9 @@ const (
 	armLambdaPricePerGbSecond = 0.0000133334
 	msToSec                   = 0.001
 
+	//tmp path
+	tmpPath = "/tmp/"
+
 	// Enhanced metrics
 	maxMemoryUsedMetric       = "aws.lambda.enhanced.max_memory_used"
 	memorySizeMetric          = "aws.lambda.enhanced.memorysize"
@@ -56,6 +59,8 @@ const (
 	rxBytesMetric                = "aws.lambda.enhanced.rx_bytes"
 	txBytesMetric                = "aws.lambda.enhanced.tx_bytes"
 	totalNetworkMetric           = "aws.lambda.enhanced.total_network"
+	tmpUsedMetric                = "aws.lambda.enhanced.tmp_used"
+	tmpMaxMetric                 = "aws.lambda.enhanced.tmp_max"
 	enhancedMetricsEnvVar        = "DD_ENHANCED_METRICS"
 
 	// Bottlecap
@@ -488,6 +493,67 @@ func generateNetworkEnhancedMetrics(args generateNetworkEnhancedMetricArgs) {
 		SampleRate: 1,
 		Timestamp:  args.Time,
 	})
+}
+
+type generateTmpEnhancedMetricsArgs struct {
+	TmpMax  float64
+	TmpUsed float64
+	Tags    []string
+	Demux   aggregator.Demultiplexer
+	Time    float64
+}
+
+// generateTmpEnhancedMetrics generates enhanced metrics for space used and available in the /tmp directory
+func generateTmpEnhancedMetrics(args generateTmpEnhancedMetricsArgs) {
+	args.Demux.AggregateSample(metrics.MetricSample{
+		Name:       tmpUsedMetric,
+		Value:      args.TmpUsed,
+		Mtype:      metrics.DistributionType,
+		Tags:       args.Tags,
+		SampleRate: 1,
+		Timestamp:  args.Time,
+	})
+	args.Demux.AggregateSample(metrics.MetricSample{
+		Name:       tmpMaxMetric,
+		Value:      args.TmpMax,
+		Mtype:      metrics.DistributionType,
+		Tags:       args.Tags,
+		SampleRate: 1,
+		Timestamp:  args.Time,
+	})
+}
+
+func SendTmpEnhancedMetrics(sendMetrics chan bool, tags []string, metricAgent *ServerlessMetricAgent) {
+	if enhancedMetricsDisabled {
+		return
+	}
+
+	bsize, blocks, bavail, err := statfs()
+	if err != nil {
+		log.Debug("Could not emit tmp enhanced metrics")
+	}
+	tmpMax := blocks * bsize
+	tmpUsed := bsize * (blocks - bavail)
+
+	ticker := time.NewTicker(10 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-sendMetrics:
+			generateTmpEnhancedMetrics(generateTmpEnhancedMetricsArgs{
+				TmpMax:  tmpMax,
+				TmpUsed: tmpUsed,
+				Tags:    tags,
+				Demux:   metricAgent.Demux,
+				Time:    float64(time.Now().UnixNano()) / float64(time.Second),
+			})
+			return
+		case <-ticker.C:
+			bsize, blocks, bavail, err = statfs()
+			tmpUsed = math.Max(tmpUsed, bsize*(blocks-bavail))
+		}
+	}
+
 }
 
 // incrementEnhancedMetric sends an enhanced metric with a value of 1 to the metrics channel
