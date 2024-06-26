@@ -795,10 +795,10 @@ func InitConfig(config pkgconfigmodel.Config) {
 	// Network
 	config.BindEnv("network.id")
 
-	// OTel
-	config.BindEnvAndSetDefault("otel.enabled", false)
-	config.BindEnvAndSetDefault("otel.extension_url", "https://localhost:7777")
-	config.BindEnvAndSetDefault("otel.submit_dummy_metadata", false) // dev flag - to be removed
+	// OTel Collector
+	config.BindEnvAndSetDefault("otelcollector.enabled", false)
+	config.BindEnvAndSetDefault("otelcollector.extension_url", "https://localhost:7777")
+	config.BindEnvAndSetDefault("otelcollector.submit_dummy_metadata", false) // dev flag - to be removed
 
 	// inventories
 	config.BindEnvAndSetDefault("inventories_enabled", true)

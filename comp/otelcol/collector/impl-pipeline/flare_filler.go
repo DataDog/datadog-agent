@@ -24,13 +24,13 @@ import (
 )
 
 func (c *collectorImpl) fillFlare(fb flaretypes.FlareBuilder) error {
-	if !c.config.GetBool("otel.enabled") {
-		fb.AddFile("otel/otel-agent.log", []byte("'otel.enabled' is disabled in the configuration"))
+	if !c.config.GetBool("otelcollector.enabled") {
+		fb.AddFile("otel/otel-agent.log", []byte("'otelcollector.enabled' is disabled in the configuration"))
 		return nil
 	}
 
 	// request config from Otel-Agent
-	responseBytes, err := c.requestOtelConfigInfo(c.config.GetString("otel.extension_url"))
+	responseBytes, err := c.requestOtelConfigInfo(c.config.GetString("otelcollector.extension_url"))
 	if err != nil {
 		fb.AddFile("otel/otel-agent.log", []byte(fmt.Sprintf("did not get otel-agent configuration: %v", err)))
 		return nil
