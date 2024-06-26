@@ -5,6 +5,7 @@
 
 //go:build test
 
+//nolint:revive // TODO(AML) Fix revive linter
 package mock
 
 import (
@@ -16,16 +17,18 @@ import (
 type mockIntegrations struct {
 }
 
+// Subscribe returns an integrationLog channel
 func (l *mockIntegrations) Subscribe() chan integrations.IntegrationLog {
 	return make(chan integrations.IntegrationLog)
 }
 
-func (l *mockIntegrations) SendLog(log, integrationID string) {
+// SendLog does nothing
+func (l *mockIntegrations) SendLog(_, _ string) {
 
 }
 
 // Mock returns a mock for integrations component.
-func Mock(t *testing.T) integrations.Component {
+func Mock() integrations.Component {
 	// TODO: Implement the integrations mock
 	return &mockIntegrations{}
 }

@@ -79,7 +79,7 @@ type dependencies struct {
 	Hostname           hostname.Component
 	WMeta              optional.Option[workloadmeta.Component]
 	SchedulerProviders []schedulers.Scheduler `group:"log-agent-scheduler"`
-	logsIntegrations   logsIntegrations.Component
+	LogsIntegrations   logsIntegrations.Component
 }
 
 type provides struct {
