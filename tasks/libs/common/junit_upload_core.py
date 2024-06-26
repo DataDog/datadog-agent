@@ -32,7 +32,6 @@ if platform.system() == "Windows":
     DATADOG_CI_COMMAND = [r"c:\devtools\datadog-ci\datadog-ci", "junit", "upload"]
 else:
     DATADOG_CI_COMMAND = [which("datadog-ci"), "junit", "upload"]
-JOB_URL_FILE_NAME = "job_url.txt"
 JOB_ENV_FILE_NAME = "job_env.txt"
 TAGS_FILE_NAME = "tags.txt"
 
@@ -73,13 +72,13 @@ def junit_upload_from_tgz(junit_tgz, codeowners_path=".github/CODEOWNERS"):
     with open(codeowners_path) as f:
         codeowners = CodeOwners(f.read())
 
-    flaky_tests = get_flaky_from_test_output()
     junit_tgz = find_tarball(junit_tgz)
 
     with (
         gitlab_section(f"Uploading JUnit files for {junit_tgz}", collapsed=True),
         tempfile.TemporaryDirectory() as unpack_dir,
     ):
+        flaky_tests = get_flaky_from_test_output()
         working_dir = Path(unpack_dir)
         # unpack all files from archive
         with tarfile.open(junit_tgz) as tgz:
@@ -224,11 +223,13 @@ def upload_junitxmls(team_dir: Path):
         processes.append(Popen(DATADOG_CI_COMMAND + args, bufsize=-1, env=process_env, stdout=PIPE, stderr=PIPE))
 
     for process in processes:
-        _, stderr = process.communicate()
+        stdout, stderr = process.communicate()
+        print(stdout)
         print(f" Uploaded {len(tuple(team_dir.iterdir()))} files for {team_dir.name}")
         if stderr:
             print(f"Failed uploading junit:\n{stderr}", file=os.sys.stderr)
             raise CalledProcessError(process.returncode, DATADOG_CI_COMMAND)
+    return ""  # For ThreadPoolExecutor.map. Without this it prints None in the log output.
 
 
 def group_per_tags(team_dir: Path, additional_tags: list):
@@ -294,16 +295,9 @@ def set_tags(owner, flavor, flag: str, additional_tags, file_name):
 
 def _update_environ(unpack_dir: Path):
     """
-    Add job_url and job_env to current env if any, for the junit upload command
+    Add data from the job_env to current env if any, for the junit upload command
     """
     process_env = os.environ.copy()
-    # read job url (see comment in produce_junit_tar)
-    job_url = None
-    urlfile = unpack_dir / JOB_URL_FILE_NAME
-    if urlfile.exists():
-        with urlfile.open() as jf:
-            job_url = jf.read()
-        process_env["CI_JOB_URL"] = job_url
 
     job_env = {}
     envfile = unpack_dir / JOB_ENV_FILE_NAME
@@ -314,7 +308,6 @@ def _update_environ(unpack_dir: Path):
                     continue
                 key, val = line.strip().split('=', 1)
                 job_env[key] = val
-        print("\n".join(f"{k}={v}" for k, v in job_env.items()))
         process_env.update(job_env)
     return process_env
 
@@ -330,14 +323,12 @@ def produce_junit_tar(files, result_path):
     Produce a tgz file containing all given files JUnit XML files and add a special file
     with additional tags.
     """
-    # NOTE: for now, we can't pass CI_JOB_URL through `--tags`, because
+    # NOTE: for now, we can't pass CI_JOB_URL or CI_JOB_NAME through `--tags`, because
     # the parsing logic tags breaks on URLs, as they contain colons.
     # Therefore we pass it through environment variable.
     tags = {
         "os.platform": platform.system().lower(),
         "os.architecture": _normalize_architecture(platform.machine()),
-        "ci.job.name": os.environ.get("CI_JOB_NAME", ""),
-        # "ci.job.url": os.environ.get("CI_JOB_URL", ""),
     }
     with tarfile.open(result_path, "w:gz") as tgz:
         for f in files:
@@ -351,12 +342,17 @@ def produce_junit_tar(files, result_path):
         tags_file.seek(0)
         tgz.addfile(tags_info, tags_file)
 
-        job_url_file = io.BytesIO()
-        job_url_file.write(os.environ.get("CI_JOB_URL", "").encode("UTF-8"))
-        job_url_info = tarfile.TarInfo(JOB_URL_FILE_NAME)
-        job_url_info.size = job_url_file.getbuffer().nbytes
-        job_url_file.seek(0)
-        tgz.addfile(job_url_info, job_url_file)
+        job_env_file = io.BytesIO()
+        job_env_file.writelines(
+            [
+                f'CI_JOB_URL={os.environ.get("CI_JOB_URL", "")}\n'.encode(),
+                f'CI_JOB_NAME="{os.environ.get("CI_JOB_NAME", "")}"'.encode(),
+            ]
+        )
+        job_env_info = tarfile.TarInfo(JOB_ENV_FILE_NAME)
+        job_env_info.size = job_env_file.getbuffer().nbytes
+        job_env_file.seek(0)
+        tgz.addfile(job_env_info, job_env_file)
 
 
 def repack_macos_junit_tar(workflow_conclusion, infile, outfile):
@@ -372,14 +368,9 @@ def repack_macos_junit_tar(workflow_conclusion, infile, outfile):
         infp.extractall(tempd)
 
         # write the proper job url and job name
-        with open(os.path.join(tempd, JOB_URL_FILE_NAME), "w") as fp:
-            fp.write(os.environ.get("CI_JOB_URL", ""))
-        with open(os.path.join(tempd, TAGS_FILE_NAME)) as fp:
-            tags = fp.read()
-        job_name = os.environ.get("CI_JOB_NAME", "")
-        tags = tags.replace("ci.job.name:", f"ci.job.name:{job_name}")
-        with open(os.path.join(tempd, TAGS_FILE_NAME), "w") as fp:
-            fp.write(tags)
+        with open(os.path.join(tempd, JOB_ENV_FILE_NAME), "w") as fp:
+            fp.write(f'CI_JOB_URL={os.environ.get("CI_JOB_URL", "")}')
+            fp.write(f'CI_JOB_NAME={os.environ.get("CI_JOB_NAME", "")}')
 
         # pack all files to a new tarball
         for f in os.listdir(tempd):
