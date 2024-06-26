@@ -205,6 +205,7 @@
 /cmd/system-probe/modules/service_discover* @DataDog/apm-onboarding @DataDog/universal-service-monitoring
 /cmd/system-probe/modules/language_detection* @DataDog/processes @DataDog/universal-service-monitoring
 /cmd/system-probe/runtime/              @DataDog/agent-security
+/cmd/system-probe/modules/dynamic-instrumentation* @DataDog/debugger
 /cmd/system-probe/windows/              @DataDog/windows-kernel-integrations
 /cmd/system-probe/windows_resources/    @DataDog/windows-kernel-integrations
 /cmd/system-probe/main_windows*.go      @DataDog/windows-kernel-integrations
