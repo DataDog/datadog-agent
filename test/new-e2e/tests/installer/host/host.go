@@ -162,18 +162,6 @@ func (h *Host) InstallerVersion() string {
 	return strings.TrimSpace(h.remote.MustExecute("sudo datadog-installer version"))
 }
 
-// AgentVersion returns the version of the agent on the host.
-func (h *Host) AgentVersion() string {
-	rawVersion := h.remote.MustExecute("sudo datadog-agent version")
-	// Agent 7.54.0 - Commit: 1234abc - Serialization version: v5.0.114 - Go version: go1.21.9
-	splitVersion := strings.Split(rawVersion, " - ")
-	if len(splitVersion) < 1 {
-		return ""
-	}
-
-	return strings.TrimSpace(strings.TrimPrefix(splitVersion[0], "Agent "))
-}
-
 // AssertPackageInstalledByInstaller checks if a package is installed by the installer on the host.
 func (h *Host) AssertPackageInstalledByInstaller(pkgs ...string) {
 	for _, pkg := range pkgs {
