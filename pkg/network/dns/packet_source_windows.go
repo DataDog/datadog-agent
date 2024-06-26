@@ -31,7 +31,7 @@ func newWindowsPacketSource(telemetrycomp telemetry.Component) (packetSource, er
 	return &windowsPacketSource{di: di}, nil
 }
 
-func (p *windowsPacketSource) VisitPackets(exit <-chan struct{}, visit func([]byte, _uint8, time.Time) error) error {
+func (p *windowsPacketSource) VisitPackets(exit <-chan struct{}, visit func([]byte, _ uint8, time.Time) error) error {
 	for {
 		didReadPacket, err := p.di.ReadDNSPacket(visit)
 		if err != nil {
