@@ -23,7 +23,7 @@ type upgradeScenarioSuite struct {
 type packageEntry struct {
 	Package string `json:"package"`
 	Version string `json:"version"`
-	Url     string `json:"url"`
+	URL     string `json:"url"`
 }
 
 type catalog struct {
@@ -41,7 +41,7 @@ var testCatalog = catalog{
 		{
 			Package: "datadog-agent",
 			Version: latestAgentImageVersion,
-			Url:     fmt.Sprintf("oci://gcr.io/datadoghq/agent-package:%s", latestAgentImageVersion),
+			URL:     fmt.Sprintf("oci://gcr.io/datadoghq/agent-package:%s", latestAgentImageVersion),
 		},
 	},
 }
@@ -55,8 +55,8 @@ var testCatalog = catalog{
 var installerStatusRegex = regexp.MustCompile(`([a-zA-Z-]+)\n[ \t]+State:.([a-zA-Z-]+)\n[ \t]+Installed versions:\n[ \t]+..stable:.([a-zA-Z0-9-\.]+)\n[ \t]+..experiment:.([a-zA-Z0-9-\.]+)`)
 
 const (
-	latestAgentVersion      = "7.54.0"
-	latestAgentImageVersion = "7.54.0-1"
+	latestAgentVersion      = "7.54.1"
+	latestAgentImageVersion = "7.54.1-1"
 )
 
 func testUpgradeScenario(os e2eos.Descriptor, arch e2eos.Architecture) packageSuite {
@@ -101,6 +101,7 @@ func (s *upgradeScenarioSuite) promoteExperimentCommand() (string, error) {
 	return s.Env().RemoteHost.Execute(cmd)
 }
 
+//lint:ignore U1000 Ignore unused function for now
 func (s *upgradeScenarioSuite) stopExperimentCommand() (string, error) {
 	cmd := "sudo datadog-installer daemon stop-experiment datadog-agent"
 	s.T().Logf("Running stop command: %s", cmd)
@@ -138,6 +139,9 @@ func (s *upgradeScenarioSuite) assertSuccessfulStartExperiment(timestamp host.Jo
 
 	installerStatus := s.getInstallerStatus()
 	require.Equal(s.T(), version, installerStatus["datadog-agent"].ExperimentVersion)
+
+	// Agent version currently running
+	require.Equal(s.T(), strings.TrimSuffix(latestAgentVersion, "-1"), s.host.AgentVersion())
 }
 
 func (s *upgradeScenarioSuite) assertSuccessfulPromoteExperiment(timestamp host.JournaldTimestamp, version string) {
@@ -158,8 +162,12 @@ func (s *upgradeScenarioSuite) assertSuccessfulPromoteExperiment(timestamp host.
 	installerStatus := s.getInstallerStatus()
 	require.Equal(s.T(), version, installerStatus["datadog-agent"].StableVersion)
 	require.Equal(s.T(), "none", installerStatus["datadog-agent"].ExperimentVersion)
+
+	// Agent version currently running
+	require.Equal(s.T(), strings.TrimSuffix(latestAgentVersion, "-1"), s.host.AgentVersion())
 }
 
+//lint:ignore U1000 Ignore unused function for now
 func (s *upgradeScenarioSuite) assertSuccessfulStopExperiment(timestamp host.JournaldTimestamp) {
 	// Assert experiment is stopped
 	s.host.AssertSystemdEvents(timestamp, host.SystemdEvents().
