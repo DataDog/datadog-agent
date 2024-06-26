@@ -41,8 +41,11 @@ func (s *testUpgradeSuite) TestUpgrade() {
 	// to ensure upgrade places new config files.
 	configRoot, err := windowsAgent.GetConfigRootFromRegistry(vm)
 	s.Require().NoError(err)
-	err = vm.RemoveAll(filepath.Join(configRoot, "runtime-security.d"))
-	s.Require().NoError(err)
+	path := filepath.Join(configRoot, "runtime-security.d")
+	if _, err = vm.Lstat(path); err == nil {
+		err = vm.RemoveAll(path)
+		s.Require().NoError(err)
+	}
 
 	// upgrade to the new version
 	if !s.Run(fmt.Sprintf("upgrade to %s", s.AgentPackage.AgentVersion()), func() {
@@ -230,6 +233,7 @@ func (s *testUpgradeFromV5Suite) TestUpgrade5() {
 
 	// TODO: The import command creates datadog.yaml so it has Owner:Administrator Group:None,
 	//       and the permissions tests expect Owner:SYSTEM Group:System
+	s.cleanupOnSuccessInDevMode()
 }
 
 func (s *testUpgradeFromV5Suite) installAgent5() {
