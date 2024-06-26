@@ -13,21 +13,19 @@ import (
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 )
 
-type mock_integrations struct {
+type mockIntegrations struct {
 }
 
-// Subscribe ...
-func (l *mock_integrations) Subscribe() chan integrations.IntegrationLog {
+func (l *mockIntegrations) Subscribe() chan integrations.IntegrationLog {
 	return make(chan integrations.IntegrationLog)
 }
 
-// SendLog
-func (l *mock_integrations) SendLog(log, integrationID string) {
+func (l *mockIntegrations) SendLog(log, integrationID string) {
 
 }
 
 // Mock returns a mock for integrations component.
 func Mock(t *testing.T) integrations.Component {
 	// TODO: Implement the integrations mock
-	return &mock_integrations{}
+	return &mockIntegrations{}
 }

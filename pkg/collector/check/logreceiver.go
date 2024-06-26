@@ -45,7 +45,7 @@ func LogsReceiverSendLog(log, logID string) {
 	logRcv.lr.SendLog(log, logID)
 }
 
-// InitializeLogsReceiver
+// InitializeLogsReceiver initializes the logreceiver component to be used later.
 func InitializeLogsReceiver(lr integrations.Component) {
 	logReceiverMutex.Lock()
 	defer logReceiverMutex.Unlock()
