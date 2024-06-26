@@ -32,25 +32,8 @@ func NewSyncDestination(endpoint config.Endpoint,
 	telemetryName string,
 	cfg pkgconfigmodel.Reader) *SyncDestination {
 
-	return newSyncDestination(endpoint,
-		contentType,
-		destinationsContext,
-		time.Second*10,
-		senderDoneChan,
-		telemetryName,
-		cfg)
-}
-
-func newSyncDestination(endpoint config.Endpoint,
-	contentType string,
-	destinationsContext *client.DestinationsContext,
-	timeout time.Duration,
-	senderDoneChan chan *sync.WaitGroup,
-	telemetryName string,
-	cfg pkgconfigmodel.Reader) *SyncDestination {
-
 	return &SyncDestination{
-		destination:    newDestination(endpoint, contentType, destinationsContext, timeout, 1, false, telemetryName, cfg),
+		destination:    newDestination(endpoint, contentType, destinationsContext, time.Second*10, 1, false, telemetryName, cfg),
 		senderDoneChan: senderDoneChan,
 	}
 }
