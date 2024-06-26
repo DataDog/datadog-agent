@@ -37,7 +37,7 @@ func (w *workloadMetaMock) Notify(events []wmdef.CollectorEvent) {
 	w.handleEvents(events)
 }
 
-// SetEntity generates a Set event
+// Set generates a Set event
 func (w *workloadMetaMock) Set(e wmdef.Entity) {
 	w.Notify([]wmdef.CollectorEvent{
 		{
@@ -53,7 +53,7 @@ func (w *workloadMetaMock) GetConfig() pkgconfig.Reader {
 	return w.config
 }
 
-// UnsetEntity generates an Unset event
+// Unset generates an Unset event
 func (w *workloadMetaMock) Unset(e wmdef.Entity) {
 	w.Notify([]wmdef.CollectorEvent{
 		{
