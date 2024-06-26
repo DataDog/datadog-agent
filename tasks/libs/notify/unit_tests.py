@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import re
 import tempfile
 
 
@@ -36,3 +37,36 @@ def process_unit_tests_tarballs(ctx):
                 )  # We remove -repacked to have a correct job name macos
 
     return jobs_with_no_tests_run
+
+
+def comment_pr(msg, pipeline_id, branch_name, jobs_with_no_tests_run):
+    from tasks.libs.ciproviders.github_api import GithubAPI
+
+    pipeline_id_regex = re.compile(r"pipeline ([0-9]*)")
+
+    gh = GithubAPI("DataDog/datadog-agent")
+    prs = gh.get_pr_for_branch(branch_name)
+
+    if prs.totalCount == 0:
+        # If the branch is not linked to any PR we stop here
+        return
+    pr = prs[0]
+
+    comment = gh.find_comment(pr.number, "[Fast Unit Tests Report]")
+    if comment is None and len(jobs_with_no_tests_run) > 0:
+        gh.publish_comment(pr.number, msg)
+        return
+
+    if comment is None:
+        # If no tests are executed and no previous comment exists, we stop here
+        return
+
+    previous_comment_pipeline_id = pipeline_id_regex.findall(comment.body)
+    # An older pipeline should not edit a message corresponding to a newer pipeline
+    if previous_comment_pipeline_id and previous_comment_pipeline_id[0] > pipeline_id:
+        return
+
+    if len(jobs_with_no_tests_run) > 0:
+        comment.edit(msg)
+    else:
+        comment.delete()
