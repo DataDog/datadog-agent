@@ -48,6 +48,12 @@
   - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $AGENT_QA_PROFILE_SSM_NAME >> ~/.aws/config
   - export AWS_PROFILE=agent-qa-ci
 
+.define_if_collect_complexity:
+  - |
+    if [ "${TEST_SET}" = "no_usm" ] || [ "${TEST_SET}" = "all_tests" ]; then
+      export COLLECT_COMPLEXITY=yes
+    fi
+
 .collect_outcomes_kmt:
   - export DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $API_KEY_ORG2_SSM_NAME)
   - export MICRO_VM_IP=$(jq --exit-status --arg TAG $TAG --arg ARCH $ARCH --arg TEST_SET $TEST_SET -r '.[$ARCH].microvms | map(select(."vmset-tags"| index($TEST_SET))) | map(select(.tag==$TAG)) | .[].ip' $CI_PROJECT_DIR/stack.output)
@@ -64,8 +70,9 @@
   - ssh metal_instance "scp -r ${MICRO_VM_IP}:/tmp/test_pcaps /home/ubuntu/test_pcaps-${ARCH}-${TAG}-${TEST_SET}" || true
   - mkdir -p "$CI_PROJECT_DIR/pcaps" && scp -r "metal_instance:/home/ubuntu/test_pcaps-${ARCH}-${TAG}-${TEST_SET}" "$CI_PROJECT_DIR/pcaps/test_pcaps-${ARCH}-${TAG}-${TEST_SET}" || true
   # Retrieve complexity data
+  - !reference [.define_if_collect_complexity]
   - |
-    if [ "${TEST_SET}" = "only_tracersuite" ] || [ "${TEST_SET}" = "all_tests" ]; then
+    if [ "${COLLECT_COMPLEXITY}" = "yes" ]; then
       ssh metal_instance "scp ${MICRO_VM_IP}:/verifier-complexity.tar.gz /home/ubuntu/verifier-complexity-${ARCH}-${TAG}-${TEST_COMPONENT}.tar.gz" || true
       scp "/home/ubuntu/verifier-complexity-${ARCH}-${TAG}-${TEST_COMPONENT}.tar.gz" $DD_AGENT_TESTING_DIR/ || true
     fi
@@ -224,10 +231,7 @@
     - echo "CI_JOB_NAME=${CI_JOB_NAME}" >> $DD_AGENT_TESTING_DIR/job_env.txt
     - echo "CI_JOB_STAGE=${CI_JOB_STAGE}" >> $DD_AGENT_TESTING_DIR/job_env.txt
     - inv -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
-    - |
-      if [ "${TEST_SET}" = "only_tracersuite" ] || [ "${TEST_SET}" = "all_tests" ]; then
-        export COLLECT_COMPLEXITY=yes
-      fi
+    - !reference [.define_if_collect_complexity]
   script:
     - INSTANCE_IP=$(jq --exit-status --arg ARCH $ARCH -r '.[$ARCH].ip' $CI_PROJECT_DIR/stack.output)
     - !reference [.shared_filters_and_queries]
