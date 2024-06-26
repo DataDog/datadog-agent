@@ -89,6 +89,7 @@ func (d *SyncDestination) run(input chan *message.Payload, output chan *message.
 		}
 
 		if d.senderDoneChan != nil {
+			// Notify the sender that the payload has been sent
 			senderDoneWg := <-d.senderDoneChan
 			senderDoneWg.Done()
 		}
