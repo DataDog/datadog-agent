@@ -79,7 +79,6 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 
 func (c *collector) stream(ctx context.Context) {
 	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
 	health := health.RegisterLiveness(componentName)
 	for {
 		select {
@@ -95,6 +94,7 @@ func (c *collector) stream(ctx context.Context) {
 			if err != nil {
 				log.Warnf("error de-registering health check: %s", err)
 			}
+			cancel()
 			return
 		}
 	}

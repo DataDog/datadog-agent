@@ -57,6 +57,7 @@ func TestProcessCollector(t *testing.T) {
 	}
 
 	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
 	go processCollector.stream(ctx)
 
 	creationTime := time.Now().Unix()
@@ -129,8 +130,6 @@ func TestProcessCollector(t *testing.T) {
 		_, err = mockStore.GetProcess(1)
 		assert.Error(c, err)
 	}, time.Second, time.Millisecond*100)
-
-	cancel()
 }
 
 func TestProcessCollectorStart(t *testing.T) {
@@ -205,12 +204,11 @@ func TestProcessCollectorStart(t *testing.T) {
 			}
 
 			ctx, cancel := context.WithCancel(context.TODO())
+			defer cancel()
 
 			err := processCollector.Start(ctx, mockStore)
 			enabled := err == nil
 			assert.Equal(t, test.expectedEnabled, enabled)
-
-			cancel()
 		})
 	}
 }
