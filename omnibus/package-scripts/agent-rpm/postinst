@@ -20,8 +20,12 @@ if [ ! -f "$CONFIG_DIR/system-probe.yaml" ]; then
 fi
 
 # Make system-probe configs read-only
-chmod 0440 ${CONFIG_DIR}/system-probe.yaml.example || true
-chmod 0440 ${CONFIG_DIR}/system-probe.yaml || true
+chmod 0640 ${CONFIG_DIR}/system-probe.yaml.example || true
+chmod 0640 ${CONFIG_DIR}/system-probe.yaml || true
+
+# Set correct ownership for system-probe configs
+chown root:dd-agent ${CONFIG_DIR}/system-probe.yaml.example || true
+chown root:dd-agent ${CONFIG_DIR}/system-probe.yaml || true
 
 # Make security-agent config read-only
 chmod 0440 ${CONFIG_DIR}/security-agent.yaml.example || true
