@@ -182,62 +182,52 @@ func (s *testUpgradeChangeUserSuite) TestUpgradeChangeUser() {
 	s.uninstallAgentAndRunUninstallTests(t)
 }
 
-// TestUpgrade5to6to7 tests the upgrade path of Agent 5 -> Agent 6 -> Agent 7
-func TestUpgrade5to6to7(t *testing.T) {
+// TestUpgradeFromV5 tests upgrading from Agent 5 to WINDOWS_AGENT_VERSION
+func TestUpgradeFromV5(t *testing.T) {
 	var err error
-	s := &testUpgrade5to6to7Suite{}
+	s := &testUpgradeFromV5Suite{}
 	// last stable agent 5
 	s.agent5Package = &windowsAgent.Package{
 		Version: "5.32.8-1",
 	}
 	s.agent5Package.URL, err = windowsAgent.GetStableMSIURL(s.agent5Package.Version, "x86_64")
 	require.NoError(t, err)
-	// last stable agent 6
-	s.agent6Package = &windowsAgent.Package{
-		Version: "6.53.0-1",
-	}
-	s.agent6Package.URL, err = windowsAgent.GetStableMSIURL(s.agent6Package.Version, "x86_64")
-	require.NoError(t, err)
-	// agent 7 version comes from env as in other tests
 	run(t, s)
 }
 
-type testUpgrade5to6to7Suite struct {
+type testUpgradeFromV5Suite struct {
 	baseAgentMSISuite
 	agent5Package *windowsAgent.Package
-	agent6Package *windowsAgent.Package
 }
 
-func (s *testUpgrade5to6to7Suite) TestUpgrade5to6to7() {
+func (s *testUpgradeFromV5Suite) TestUpgrade5() {
 	host := s.Env().RemoteHost
-	var logFile string
 
 	// agent 5
-	if !s.installAgent5() {
+	s.installAgent5()
+
+	// upgrade to the new version
+	if !s.Run(fmt.Sprintf("upgrade to %s", s.AgentPackage.AgentVersion()), func() {
+		_, err := s.InstallAgent(host,
+			windowsAgent.WithPackage(s.AgentPackage),
+			windowsAgent.WithInstallLogFile(filepath.Join(s.OutputDir, "upgrade.log")),
+		)
+		s.Require().NoError(err, "should upgrade to agent %s", s.AgentPackage.AgentVersion())
+	}) {
 		s.T().FailNow()
 	}
 
-	// agent 6
-	logFile = filepath.Join(s.OutputDir, "upgrade-agent6.log")
-	_ = s.installAndTestPreviousAgentVersion(host, s.agent6Package,
-		windowsAgent.WithInstallLogFile(logFile),
-	)
-	if !s.migrateAgent5Config() {
-		s.T().FailNow()
-	}
-
-	// agent 7
-	logFile = filepath.Join(s.OutputDir, "upgrade-agent7.log")
-	_ = s.installAgentPackage(host, s.AgentPackage,
-		windowsAgent.WithInstallLogFile(logFile),
-	)
+	// migrate config and verify agent is running
+	s.migrateAgent5Config()
+	err := windowsCommon.RestartService(host, "DatadogAgent")
+	s.Require().NoError(err, "should restart agent service")
 	RequireAgentVersionRunningWithNoErrors(s.T(), s.NewTestClientForHost(host), s.AgentPackage.AgentVersion())
 
 	// TODO: The import command creates datadog.yaml so it has Owner:Administrator Group:None,
 	//       and the permissions tests expect Owner:SYSTEM Group:System
 }
 
-func (s *testUpgrade5to6to7Suite) installAgent5() bool {
+func (s *testUpgradeFromV5Suite) installAgent5() {
 	host := s.Env().RemoteHost
 	agentPackage := s.agent5Package
 
@@ -264,10 +254,12 @@ func (s *testUpgrade5to6to7Suite) installAgent5() bool {
 	s.Require().NoError(err, "should check if datadog.conf exists")
 	s.Assert().True(exists, "datadog.conf should exist")
 
-	return !s.T().Failed()
+	if s.T().Failed() {
+		s.T().FailNow()
+	}
 }
 
-func (s *testUpgrade5to6to7Suite) migrateAgent5Config() bool {
+func (s *testUpgradeFromV5Suite) migrateAgent5Config() {
 	host := s.Env().RemoteHost
 
 	installPath := windowsAgent.DefaultInstallPath
@@ -276,7 +268,5 @@ func (s *testUpgrade5to6to7Suite) migrateAgent5Config() bool {
 	out, err := host.Execute(cmd)
 	s.Require().NoError(err, "should migrate agent 5 config")
 	s.T().Logf("Migrate agent 5 config:\n%s", out)
-	s.Assert().Contains(out, "Success: imported the contents of", "migrate agent 5 config should succeed")
-
-	return !s.T().Failed()
+	s.Require().Contains(out, "Success: imported the contents of", "migrate agent 5 config should succeed")
 }

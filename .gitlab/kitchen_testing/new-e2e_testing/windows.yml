@@ -41,6 +41,7 @@
       - E2E_MSI_TEST: TestUpgrade
       - E2E_MSI_TEST: TestUpgradeRollback
       - E2E_MSI_TEST: TestUpgradeChangeUser
+      - E2E_MSI_TEST: TestUpgradeFromV5
       - E2E_MSI_TEST: TestAgentUser/user_only
       - E2E_MSI_TEST: TestAgentUser/dotslash_user
       - E2E_MSI_TEST: TestAgentUser/hostname_user
@@ -60,6 +61,7 @@
       - E2E_MSI_TEST: TestUpgrade
       - E2E_MSI_TEST: TestUpgradeRollback
       - E2E_MSI_TEST: TestUpgradeChangeUser
+      - E2E_MSI_TEST: TestUpgradeFromV5
       - E2E_MSI_TEST: TestAgentUser/user_only
       - E2E_MSI_TEST: TestAgentUser/dotslash_user
       - E2E_MSI_TEST: TestAgentUser/hostname_user
@@ -75,7 +77,6 @@
       - E2E_MSI_TEST: TestNPMUpgradeNPMToNPM
       - E2E_MSI_TEST: TestNPMInstallWithAddLocal
       - E2E_MSI_TEST: TestNPMUpgradeFromBeta
-      - E2E_MSI_TEST: TestUpgrade5to6to7
 
 new-e2e_windows_powershell_module_test:
   extends: .new_e2e_template
