@@ -11,7 +11,6 @@ import (
 	"flag"
 	"io"
 	"log"
-	"net"
 	"net/http"
 	"os"
 	"time"
