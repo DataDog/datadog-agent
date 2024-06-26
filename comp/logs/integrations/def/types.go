@@ -5,6 +5,8 @@
 
 package integrations
 
+// IntegrationLog represents the combined Log and IntegrationID for the
+// integration sending the log
 type IntegrationLog struct {
 	Log           string
 	IntegrationID string
