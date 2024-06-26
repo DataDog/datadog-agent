@@ -27,7 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/custommetrics"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
-	"github.com/DataDog/datadog-agent/comp/autoscaling/workload/def"
+	autoscaling "github.com/DataDog/datadog-agent/comp/autoscaling/workload/def"
 	autoscalingfx "github.com/DataDog/datadog-agent/comp/autoscaling/workload/fx"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/collector/collector/collectorimpl"
@@ -196,54 +196,11 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Provide(func() (context.Context, context.CancelFunc) {
 					return context.WithCancel(context.Background())
 				}),
-				// Initialize apiServer client
-				fx.Provide(func(ctx context.Context, logComp log.Component) (*apiserver.APIClient, error) {
-					logComp.Info("Waiting to obtain APIClient connection")
-					apiCl, err := apiserver.WaitForAPIClient(ctx) // make sure we can connect to the apiserver
-					if err != nil {
-						return nil, fmt.Errorf("Fatal error: Cannot connect to the apiserver: %v", err)
-					}
-					logComp.Infof("Got APIClient connection")
-					return apiCl, nil
-				}),
-				// Initialize hostname
-				fx.Provide(func(
-					ctx context.Context,
-					h hostnameinterface.Component,
-					logComp log.Component,
-					_ *apiserver.APIClient, // Called by hostname.Get
-				) (hostInfo, error) {
-					// Get hostname as aggregator requires hostname
-					hname, err := h.Get(ctx)
-					if err != nil {
-						return hostInfo{}, fmt.Errorf("Error while getting hostname, exiting: %v", err)
-					}
-					logComp.Infof("Hostname is: %s", hname)
-					return hostInfo{hname}, nil
-				}),
+				fx.Provide(initializeApiServerClient),
+				// Get hostname as aggregator requires hostname
+				fx.Provide(initializeHostName),
 				// Initialize clusterID and clusterName
-				fx.Provide(func(
-					logComp log.Component,
-					hostName hostInfo,
-					apiCl *apiserver.APIClient,
-				) (clusterInfo, error) {
-					cName := clustername.GetRFC1123CompliantClusterName(context.TODO(), hostName.hostName)
-					// Generate and persist a cluster ID
-					// this must be a UUID, and ideally be stable for the lifetime of a cluster,
-					// so we store it in a configmap that we try and read before generating a new one.
-					cID, err := apicommon.GetOrCreateClusterID(apiCl.Cl.CoreV1())
-					if err != nil {
-						logComp.Errorf("Failed to generate or retrieve the cluster ID, err: %v", err)
-					}
-					if cName == "" {
-						logComp.Warn("Failed to auto-detect a Kubernetes cluster name. We recommend you set it manually via the cluster_name config option")
-					}
-					logComp.Infof("Cluster ID: %s, Cluster Name: %s", cID, cName)
-					return clusterInfo{
-						name: cName,
-						id:   cID,
-					}, nil
-				}),
+				fx.Provide(initializeClusterInfo),
 				// Create the global leader engine, pass the API client to the leader engine
 				// so that the leaderEngine is created after the APIClient is ready
 				fx.Provide(func(mainCtx context.Context, _ *apiserver.APIClient) *leaderelection.LeaderEngine {
@@ -251,37 +208,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				}),
 				// TODO(Components): Initialize properly the rc client component
 				// Initialize and start remote configuration client
-				fx.Provide(func(
-					logComp log.Component,
-					cgc config.Component,
-					rcService optional.Option[rccomp.Component],
-					cInfo clusterInfo,
-				) optional.Option[*rcclient.Client] {
-					var rcClient *rcclient.Client
-					rcserv, isSet := rcService.Get()
-					// TODO(components): move helper function IsRemoteConfigEnabled
-					if pkgconfig.IsRemoteConfigEnabled(cgc) && isSet {
-						// TODO: Is APM Tracing always required? I am not sure
-						products := []string{state.ProductAPMTracing}
-
-						if cgc.GetBool("autoscaling.workload.enabled") {
-							products = append(products, state.ProductContainerAutoscalingSettings, state.ProductContainerAutoscalingValues)
-						}
-
-						var err error
-						rcClient, err = initializeRemoteConfigClient(rcserv, cgc, cInfo.name, cInfo.id, products...)
-						if err != nil {
-							logComp.Errorf("Failed to start remote-configuration: %v", err)
-						} else {
-							rcClient.Start()
-							defer func() {
-								rcClient.Close()
-							}()
-							return optional.NewOption[*rcclient.Client](rcClient)
-						}
-					}
-					return optional.NewNoneOption[*rcclient.Client]()
-				}),
+				fx.Provide(createRCClient),
 				autoscalingfx.Module(),
 				fx.Provide(func(c config.Component) settings.Params {
 					return settings.Params{
@@ -592,6 +519,74 @@ func initializeRemoteConfigClient(rcService rccomp.Component, config config.Comp
 	}
 
 	return rcClient, nil
+}
+
+func initializeApiServerClient(ctx context.Context, logComp log.Component) (*apiserver.APIClient, error) {
+	logComp.Info("Waiting to obtain APIClient connection")
+	apiCl, err := apiserver.WaitForAPIClient(ctx) // make sure we can connect to the apiserver
+	if err != nil {
+		return nil, fmt.Errorf("Fatal error: Cannot connect to the apiserver: %v", err)
+	}
+	logComp.Info("Got APIClient connection")
+	return apiCl, nil
+}
+
+func initializeHostName(ctx context.Context, h hostnameinterface.Component, logComp log.Component,
+	_ *apiserver.APIClient, // Called by hostname.Get
+) (hostInfo, error) {
+	hname, err := h.Get(ctx)
+	if err != nil {
+		return hostInfo{}, fmt.Errorf("Error while getting hostname, exiting: %v", err)
+	}
+	logComp.Infof("Hostname is: %s", hname)
+	return hostInfo{hname}, nil
+}
+
+func initializeClusterInfo(logComp log.Component, hostName hostInfo, apiCl *apiserver.APIClient) (clusterInfo, error) {
+	cName := clustername.GetRFC1123CompliantClusterName(context.TODO(), hostName.hostName)
+	// Generate and persist a cluster ID
+	// this must be a UUID, and ideally be stable for the lifetime of a cluster,
+	// so we store it in a configmap that we try and read before generating a new one.
+	cID, err := apicommon.GetOrCreateClusterID(apiCl.Cl.CoreV1())
+	if err != nil {
+		logComp.Errorf("Failed to generate or retrieve the cluster ID, err: %v", err)
+	}
+	if cName == "" {
+		logComp.Warn("Failed to auto-detect a Kubernetes cluster name. We recommend you set it manually via the cluster_name config option")
+	}
+	logComp.Infof("Cluster ID: %s, Cluster Name: %s", cID, cName)
+	return clusterInfo{
+		name: cName,
+		id:   cID,
+	}, nil
+}
+
+func createRCClient(logComp log.Component, cgc config.Component, rcService optional.Option[rccomp.Component], cInfo clusterInfo,
+) optional.Option[*rcclient.Client] {
+	var rcClient *rcclient.Client
+	rcserv, isSet := rcService.Get()
+	// TODO(components): move helper function IsRemoteConfigEnabled
+	if pkgconfig.IsRemoteConfigEnabled(cgc) && isSet {
+		// TODO: Is APM Tracing always required? I am not sure
+		products := []string{state.ProductAPMTracing}
+
+		if cgc.GetBool("autoscaling.workload.enabled") {
+			products = append(products, state.ProductContainerAutoscalingSettings, state.ProductContainerAutoscalingValues)
+		}
+
+		var err error
+		rcClient, err = initializeRemoteConfigClient(rcserv, cgc, cInfo.name, cInfo.id, products...)
+		if err != nil {
+			logComp.Errorf("Failed to start remote-configuration: %v", err)
+		} else {
+			rcClient.Start()
+			defer func() {
+				rcClient.Close()
+			}()
+			return optional.NewOption[*rcclient.Client](rcClient)
+		}
+	}
+	return optional.NewNoneOption[*rcclient.Client]()
 }
 
 func registerChecks() {
