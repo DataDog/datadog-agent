@@ -70,8 +70,8 @@ type testEvent struct {
 	Output  string
 }
 
-func testKey(test, pkg string) string {
-	return fmt.Sprintf("%s/%s", test, pkg)
+func testKey(te testEvent) string {
+	return fmt.Sprintf("%s/%s", te.Package, te.Test)
 }
 
 type reviewOutput struct {
@@ -99,7 +99,7 @@ func reviewTests(jsonFile string, flakyFile string) (*reviewOutput, error) {
 }
 
 func reviewTestsReaders(jf io.Reader, ff io.Reader) (*reviewOutput, error) {
-	var failedTests, flakyTests, rerunTests strings.Builder
+	var failedTestsOut, flakyTestsOut, rerunTestsOut strings.Builder
 	var kf *flake.KnownFlakyTests
 	var err error
 	if ff != nil {
@@ -128,40 +128,56 @@ func reviewTestsReaders(jf io.Reader, ff io.Reader) (*reviewOutput, error) {
 		if ev.Action != "pass" && ev.Action != "fail" {
 			continue
 		}
-		if res, ok := testResults[testKey(ev.Test, ev.Package)]; ok {
+		if res, ok := testResults[testKey(ev)]; ok {
 			// If the test is already recorded as passed, it means the test
 			// eventually succeeded.
 			if res.Action == "pass" {
 				continue
 			}
 			if res.Action == "fail" {
-				rerunTests.WriteString(fmt.Sprintf(rerunFormat, ev.Package, ev.Test, ev.Action))
+				rerunTestsOut.WriteString(fmt.Sprintf(rerunFormat, ev.Package, ev.Test, ev.Action))
 			}
 			// overwrite previously failed result
 			if res.Action == "fail" && ev.Action == "pass" {
-				testResults[testKey(ev.Test, ev.Package)] = ev
+				testResults[testKey(ev)] = ev
 			}
 		} else {
-			testResults[testKey(ev.Test, ev.Package)] = ev
+			testResults[testKey(ev)] = ev
 		}
 	}
 	if err := scanner.Err(); err != nil {
 		return nil, fmt.Errorf("json line scan: %s", err)
 	}
 
+	failedTests := make(map[string][]string)
 	for _, ev := range testResults {
 		if ev.Action == "fail" {
-			if kf.IsFlaky(ev.Package, ev.Test) {
-				flakyTests.WriteString(fmt.Sprintf(flakyFormat, ev.Package, ev.Test))
-			} else {
-				failedTests.WriteString(fmt.Sprintf(failFormat, ev.Package, ev.Test))
+			failedTests[ev.Package] = append(failedTests[ev.Package], ev.Test)
+		}
+	}
+
+	for pkg, tests := range failedTests {
+		for _, test := range tests {
+			if kf.IsFlaky(pkg, test) {
+				flakyTestsOut.WriteString(fmt.Sprintf(flakyFormat, pkg, test))
+				continue
 			}
+
+			// check if a subtest also failed and is marked as flaky
+			for _, failedTest := range tests {
+				if kf.IsFlaky(pkg, failedTest) && strings.HasPrefix(failedTest, test+"/") {
+					flakyTestsOut.WriteString(fmt.Sprintf(flakyFormat, pkg, test))
+					continue
+				}
+			}
+
+			failedTestsOut.WriteString(fmt.Sprintf(failFormat, pkg, test))
 		}
 	}
 
 	return &reviewOutput{
-		Failed: failedTests.String(),
-		ReRuns: rerunTests.String(),
-		Flaky:  flakyTests.String(),
+		Failed: failedTestsOut.String(),
+		ReRuns: rerunTestsOut.String(),
+		Flaky:  flakyTestsOut.String(),
 	}, nil
 }
