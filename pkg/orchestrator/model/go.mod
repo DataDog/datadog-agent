@@ -8,12 +8,12 @@ replace (
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/log v0.55.0-rc.8
+	github.com/DataDog/datadog-agent/pkg/util/log v0.55.0-rc.9
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.55.0-rc.8 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.55.0-rc.9 // indirect
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
