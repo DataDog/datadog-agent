@@ -20,21 +20,6 @@ import (
 
 // team: container-platform
 
-// MockModule defines the fx options for the mock component.
-func MockModule() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(wmimpl.NewWorkloadMetaMock),
-		fx.Provide(func(mock wmmock.Mock) wmdef.Component { return mock }),
-		fx.Provide(func(mock wmmock.Mock) optional.Option[wmdef.Component] {
-			return optional.NewOption[wmdef.Component](mock)
-		}),
-	)
-}
-
-// TODO(components): For consistency, let's add an isV2 field to
-//                   Params, and leverage that in the constructor
-//                   to return the right implementation.
-
 // MockModuleV2 defines the fx options for the mock component.
 func MockModuleV2() fxutil.Module {
 	return fxutil.Component(
