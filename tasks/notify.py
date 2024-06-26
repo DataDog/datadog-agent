@@ -56,11 +56,7 @@ def send_message(ctx, notification_type="merge", print_to_stdout=False):
         traceback.print_exc()
         raise Exit(code=1) from e
 
-    default_branch = os.environ["CI_DEFAULT_BRANCH"]
-    git_ref = os.environ["CI_COMMIT_REF_NAME"]
-    pipeline_status.send_message_and_metrics(
-        ctx, failed_jobs, messages_to_send, notification_type, print_to_stdout, git_ref, default_branch
-    )
+    pipeline_status.send_message_and_metrics(ctx, failed_jobs, messages_to_send, notification_type, print_to_stdout)
 
 
 @task
