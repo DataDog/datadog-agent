@@ -45,7 +45,7 @@ tags:
 
 extensions:
   datadoghq.com/sdp:
-    workday_team: "Agent Build And Releases"
+    workday_team: "Agent Delivery"
     conductor:
       slack: "datadog-agent-pipelines"
       targets:
