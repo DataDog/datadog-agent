@@ -15,7 +15,7 @@ replace (
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def v0.55.0-rc.9
+	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def v0.55.0-rc.10
 	github.com/open-telemetry/opentelemetry-collector-contrib/connector/countconnector v0.102.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/connector/exceptionsconnector v0.102.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/connector/grafanacloudconnector v0.102.0
