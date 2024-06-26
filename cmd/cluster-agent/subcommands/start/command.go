@@ -78,7 +78,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	apicommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/controllers"
@@ -215,7 +214,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					_ *apiserver.APIClient, // Called by hostname.Get
 				) (hostInfo, error) {
 					// Get hostname as aggregator requires hostname
-					hname, err := hostname.Get(ctx)
+					hname, err := h.Get(ctx)
 					if err != nil {
 						return hostInfo{}, fmt.Errorf("Error while getting hostname, exiting: %v", err)
 					}
