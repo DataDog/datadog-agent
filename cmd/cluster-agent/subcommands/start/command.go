@@ -332,8 +332,11 @@ func start(
 	// Retrieve rc client
 	var rcClient *rcclient.Client
 	rc, isSet := rcCl.Get()
-	if pkgconfig.IsRemoteConfigEnabled(config) && isSet {
-		rcClient = rc
+	if isSet {
+		defer rc.Close()
+		if pkgconfig.IsRemoteConfigEnabled(config) {
+			rcClient = rc
+		}
 	}
 
 	// FIXME: move LoadComponents and AC.LoadAndRun in their own package so we
@@ -580,9 +583,6 @@ func createRCClient(logComp log.Component, cgc config.Component, rcService optio
 			logComp.Errorf("Failed to start remote-configuration: %v", err)
 		} else {
 			rcClient.Start()
-			defer func() {
-				rcClient.Close()
-			}()
 			return optional.NewOption[*rcclient.Client](rcClient)
 		}
 	}
