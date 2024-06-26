@@ -25,9 +25,9 @@ func extractPath(r *http.Request) string {
 	return reqURL.Path
 }
 
-// extractStatusHandler is a middleware which extracts the status code from the response,
+// extractStatusCodeHandler is a middleware which extracts the status code from the response,
 // and stores it in the provided pointer.
-func extractStatusHandler(status *int) mux.MiddlewareFunc {
+func extractStatusCodeHandler(status *int) mux.MiddlewareFunc {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			lrw := negroni.NewResponseWriter(w)

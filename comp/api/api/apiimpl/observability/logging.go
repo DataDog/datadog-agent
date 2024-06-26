@@ -40,17 +40,17 @@ func LogResponseHandler(servername string) mux.MiddlewareFunc {
 func logResponseHandler(serverName string, getLogFunc func(int) logFunc, clock clock.Clock) mux.MiddlewareFunc {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			var code int
-			next = extractStatusHandler(&code)(next)
+			var statusCode int
+			next = extractStatusCodeHandler(&statusCode)(next)
 
 			var duration time.Duration
 			next = timeHandler(clock, &duration)(next)
 
 			next.ServeHTTP(w, r)
 
-			logFunc := getLogFunc(code)
+			logFunc := getLogFunc(statusCode)
 			path := extractPath(r)
-			logFunc(logFormat, serverName, r.Method, path, r.RemoteAddr, r.Host, duration, code)
+			logFunc(logFormat, serverName, r.Method, path, r.RemoteAddr, r.Host, duration, statusCode)
 		})
 	}
 }

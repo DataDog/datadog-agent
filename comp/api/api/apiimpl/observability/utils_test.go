@@ -49,8 +49,8 @@ func TestExtractStatusHandler(t *testing.T) {
 
 	for _, tcStatus := range testCases {
 		t.Run(http.StatusText(tcStatus), func(t *testing.T) {
-			var status int
-			statusMiddleware := extractStatusHandler(&status)
+			var statusCode int
+			statusMiddleware := extractStatusCodeHandler(&statusCode)
 
 			handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(tcStatus)

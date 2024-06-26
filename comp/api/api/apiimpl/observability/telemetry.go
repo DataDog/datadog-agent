@@ -35,8 +35,8 @@ type TelemetryMiddlewareFactory interface {
 func (th *telemetryMiddlewareFactory) Middleware(serverName string) mux.MiddlewareFunc {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			var code int
-			next = extractStatusHandler(&code)(next)
+			var statusCode int
+			next = extractStatusCodeHandler(&statusCode)(next)
 
 			var duration time.Duration
 			next = timeHandler(th.clock, &duration)(next)
@@ -44,7 +44,7 @@ func (th *telemetryMiddlewareFactory) Middleware(serverName string) mux.Middlewa
 			next.ServeHTTP(w, r)
 
 			path := extractPath(r)
-			metricWithTags := th.requestDuration.WithValues(serverName, strconv.Itoa(code), r.Method, path)
+			metricWithTags := th.requestDuration.WithValues(serverName, strconv.Itoa(statusCode), r.Method, path)
 			metricWithTags.Observe(duration.Seconds())
 		})
 	}
