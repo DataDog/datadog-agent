@@ -17,9 +17,11 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	extension "github.com/DataDog/datadog-agent/comp/otelcol/extension/def"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/gocolly/colly/v2"
 )
 
@@ -32,7 +34,9 @@ func (c *collectorImpl) fillFlare(fb flaretypes.FlareBuilder) error {
 	// request config from Otel-Agent
 	responseBytes, err := c.requestOtelConfigInfo(c.config.GetString("otelcollector.extension_url"))
 	if err != nil {
-		fb.AddFile("otel/otel-agent.log", []byte(fmt.Sprintf("did not get otel-agent configuration: %v", err)))
+		msg := fmt.Sprintf("did not get otel-agent configuration: %v", err)
+		log.Error(msg)
+		fb.AddFile("otel/otel-agent.log", []byte(msg))
 		return nil
 	}
 
@@ -40,7 +44,9 @@ func (c *collectorImpl) fillFlare(fb flaretypes.FlareBuilder) error {
 	fb.AddFile("otel/otel-response.json", responseBytes)
 	var responseInfo extension.Response
 	if err := json.Unmarshal(responseBytes, &responseInfo); err != nil {
-		fb.AddFile("otel/otel-agent.log", []byte(fmt.Sprintf("could not read sources from otel-agent response: %s, error: %v", responseBytes, err)))
+		msg := fmt.Sprintf("could not read sources from otel-agent response: %s, error: %v", responseBytes, err)
+		log.Error(msg)
+		fb.AddFile("otel/otel-agent.log", []byte(msg))
 		return nil
 	}
 	// BuildInfoResponse
@@ -113,8 +119,12 @@ func toJSON(it interface{}) string {
 	return string(data)
 }
 
-// Can be overridden for tests
-var overrideConfigResponse = ""
+var (
+	// Can be overridden for tests
+	overrideConfigResponse = ""
+	// Default timeout for reaching the OTel extension
+	defaultExtensionTimeout = 20
+)
 
 func (c *collectorImpl) requestOtelConfigInfo(endpointURL string) ([]byte, error) {
 	// Value to return for tests
@@ -127,7 +137,14 @@ func (c *collectorImpl) requestOtelConfigInfo(endpointURL string) ([]byte, error
 	}
 	client := &http.Client{Transport: tr}
 
+	timeoutSeconds := c.config.GetInt("otelcollector.extension_timeout")
+	if timeoutSeconds == 0 {
+		timeoutSeconds = defaultExtensionTimeout
+	}
+
 	ctx := context.TODO()
+	ctx, cancel := context.WithTimeout(ctx, time.Duration(timeoutSeconds)*time.Second)
+	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, "GET", endpointURL, nil)
 	if err != nil {
 		return nil, err

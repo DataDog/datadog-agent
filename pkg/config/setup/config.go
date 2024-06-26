@@ -798,6 +798,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	// OTel Collector
 	config.BindEnvAndSetDefault("otelcollector.enabled", false)
 	config.BindEnvAndSetDefault("otelcollector.extension_url", "https://localhost:7777")
+	config.BindEnvAndSetDefault("otelcollector.extension_timeout", 0)         // in seconds, 0 for default value
 	config.BindEnvAndSetDefault("otelcollector.submit_dummy_metadata", false) // dev flag - to be removed
 
 	// inventories
