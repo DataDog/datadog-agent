@@ -13,6 +13,7 @@ import (
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 	servicetest "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/install-test/service-test"
 
+	"github.com/stretchr/testify/require"
 	"testing"
 )
 
@@ -179,4 +180,103 @@ func (s *testUpgradeChangeUserSuite) TestUpgradeChangeUser() {
 	})
 
 	s.uninstallAgentAndRunUninstallTests(t)
+}
+
+// TestUpgrade5to6to7 tests the upgrade path of Agent 5 -> Agent 6 -> Agent 7
+func TestUpgrade5to6to7(t *testing.T) {
+	var err error
+	s := &testUpgrade5to6to7Suite{}
+	// last stable agent 5
+	s.agent5Package = &windowsAgent.Package{
+		Version: "5.32.8-1",
+	}
+	s.agent5Package.URL, err = windowsAgent.GetStableMSIURL(s.agent5Package.Version, "x86_64")
+	require.NoError(t, err)
+	// last stable agent 6
+	s.agent6Package = &windowsAgent.Package{
+		Version: "6.53.0-1",
+	}
+	s.agent6Package.URL, err = windowsAgent.GetStableMSIURL(s.agent6Package.Version, "x86_64")
+	require.NoError(t, err)
+	// agent 7 version comes from env as in other tests
+	run(t, s)
+}
+
+type testUpgrade5to6to7Suite struct {
+	baseAgentMSISuite
+	agent5Package *windowsAgent.Package
+	agent6Package *windowsAgent.Package
+}
+
+func (s *testUpgrade5to6to7Suite) TestUpgrade5to6to7() {
+	host := s.Env().RemoteHost
+	var logFile string
+
+	// agent 5
+	if !s.installAgent5() {
+		s.T().FailNow()
+	}
+
+	// agent 6
+	logFile = filepath.Join(s.OutputDir, "upgrade-agent6.log")
+	_ = s.installAndTestPreviousAgentVersion(host, s.agent6Package,
+		windowsAgent.WithInstallLogFile(logFile),
+	)
+	if !s.migrateAgent5Config() {
+		s.T().FailNow()
+	}
+
+	// agent 7
+	logFile = filepath.Join(s.OutputDir, "upgrade-agent7.log")
+	_ = s.installAgentPackage(host, s.AgentPackage,
+		windowsAgent.WithInstallLogFile(logFile),
+	)
+	RequireAgentVersionRunningWithNoErrors(s.T(), s.NewTestClientForHost(host), s.AgentPackage.AgentVersion())
+
+	// TODO: The import command creates datadog.yaml so it has Owner:Administrator Group:None,
+	//       and the permissions tests expect Owner:SYSTEM Group:System
+}
+
+func (s *testUpgrade5to6to7Suite) installAgent5() bool {
+	host := s.Env().RemoteHost
+	agentPackage := s.agent5Package
+
+	logFile := filepath.Join(s.OutputDir, "install-agent5.log")
+	_, err := s.InstallAgent(host,
+		windowsAgent.WithPackage(agentPackage),
+		windowsAgent.WithValidAPIKey(),
+		windowsAgent.WithInstallLogFile(logFile),
+	)
+	s.Require().NoError(err, "should install agent 5")
+
+	// get agent info
+	installPath := windowsAgent.DefaultInstallPath
+	cmd := fmt.Sprintf(`& "%s\embedded\python.exe" "%s\agent\agent.py" info`, installPath, installPath)
+	out, err := host.Execute(cmd)
+	s.Require().NoError(err, "should get agent info")
+	s.T().Logf("Agent 5 info:\n%s", out)
+
+	// basic checks to ensure agent is functioning
+	s.Assert().Contains(out, agentPackage.AgentVersion(), "info should have agent 5 version")
+	s.Assert().Contains(out, host.Address, "info should have IP address")
+	confPath := `C:\ProgramData\Datadog\datadog.conf`
+	exists, err := host.FileExists(confPath)
+	s.Require().NoError(err, "should check if datadog.conf exists")
+	s.Assert().True(exists, "datadog.conf should exist")
+
+	return !s.T().Failed()
+}
+
+func (s *testUpgrade5to6to7Suite) migrateAgent5Config() bool {
+	host := s.Env().RemoteHost
+
+	installPath := windowsAgent.DefaultInstallPath
+	configRoot := windowsAgent.DefaultConfigRoot
+	cmd := fmt.Sprintf(`& "%s\bin\agent.exe" import "%s" "%s" --force`, installPath, configRoot, configRoot)
+	out, err := host.Execute(cmd)
+	s.Require().NoError(err, "should migrate agent 5 config")
+	s.T().Logf("Migrate agent 5 config:\n%s", out)
+	s.Assert().Contains(out, "Success: imported the contents of", "migrate agent 5 config should succeed")
+
+	return !s.T().Failed()
 }

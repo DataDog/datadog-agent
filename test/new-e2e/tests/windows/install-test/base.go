@@ -138,7 +138,7 @@ func (s *baseAgentMSISuite) uninstallAgentAndRunUninstallTests(t *Tester) bool {
 	})
 }
 
-func (s *baseAgentMSISuite) installPreviousAgentVersion(vm *components.RemoteHost, agentPackage *windowsAgent.Package, options ...windowsAgent.InstallAgentOption) *Tester {
+func (s *baseAgentMSISuite) installAndTestPreviousAgentVersion(vm *components.RemoteHost, agentPackage *windowsAgent.Package, options ...windowsAgent.InstallAgentOption) *Tester {
 	// create the tester
 	t := s.newTester(vm,
 		WithAgentPackage(agentPackage),
@@ -161,7 +161,7 @@ func (s *baseAgentMSISuite) installLastStable(vm *components.RemoteHost, options
 	previousAgentPackage, err := windowsAgent.GetLastStablePackageFromEnv()
 	s.Require().NoError(err, "should get last stable agent package from env")
 
-	return s.installPreviousAgentVersion(vm, previousAgentPackage, options...)
+	return s.installAndTestPreviousAgentVersion(vm, previousAgentPackage, options...)
 }
 
 func (s *baseAgentMSISuite) readYamlConfig(host *components.RemoteHost, path string) (map[string]any, error) {
