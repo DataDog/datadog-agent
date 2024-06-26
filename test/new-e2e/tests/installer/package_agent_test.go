@@ -57,6 +57,12 @@ func (s *packageAgentSuite) assertUnits(state host.State, oldUnits bool) {
 	state.AssertUnitsRunning(agentUnit, traceUnit, processUnit, probeUnit)
 	state.AssertUnitsDead(securityUnit)
 
+	// TODO: just debugging
+	cmd := fmt.Sprintf("sudo systemctl status %s", probeUnit)
+	output := s.host.Run(cmd)
+	s.T().Logf("command %q output:", cmd)
+	s.T().Log(output)
+
 	systemdPath := "/etc/systemd/system"
 	if oldUnits {
 		pkgManager := s.host.GetPkgManager()
