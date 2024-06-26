@@ -86,7 +86,7 @@ func (e *ebpfTelemetry) Unlock() {
 }
 
 func (e *ebpfTelemetry) setup(opts *manager.Options) {
-	if (e.mapErrMap != nil || e.helperErrMap != nil) && opts.MapEditors != nil {
+	if (e.mapErrMap != nil || e.helperErrMap != nil) && opts.MapEditors == nil {
 		opts.MapEditors = make(map[string]*ebpf.Map)
 	}
 	// if the maps have already been loaded, setup editors to point to them
