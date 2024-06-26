@@ -3,6 +3,7 @@ schema-version: v2.1
 dd-service: datadog-agent-nightly
 contacts:
   - type: slack
+    # #agent-delivery-help
     contact: https://dd.slack.com/archives/C06PQ7H6PHP
   - type: email
     contact: team-agentdelivery@datadoghq.com
@@ -93,6 +94,7 @@ dd-service: datadog-cluster-agent
 team: container-integrations
 contacts:
   - type: slack
+    # #container-integrations
     contact: https://dd.slack.com/archives/C4TQDFK1P
   - type: email
     contact: team-containerintegrations@datadoghq.com
@@ -141,6 +143,7 @@ dd-service: datadog-agent-cluster-worker
 team: container-integrations
 contacts:
   - type: slack
+    # #container-integrations
     contact: https://dd.slack.com/archives/C4TQDFK1P
   - type: email
     contact: team-containerintegrations@datadoghq.com
