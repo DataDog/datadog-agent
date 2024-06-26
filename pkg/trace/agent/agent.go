@@ -595,7 +595,7 @@ func (a *Agent) runSamplers(now time.Time, ts *info.TagStats, pt traceutil.Proce
 			pt.TraceChunk.Tags[tagDecisionMaker] = probabilitySampling
 			// This is safe to do as we do not process empty traces (dropped at beginning of processing)
 			// We set this in both places until we can fully deprecate "root spans" and just use chunk level attributes
-			pt.TraceChunk.Spans[0].Meta[tagDecisionMaker] = probabilitySampling
+			traceutil.SetMeta(pt.TraceChunk.Spans[0], tagDecisionMaker, probabilitySampling)
 			return true, true
 		}
 		if traceContainsError(pt.TraceChunk.Spans) {
