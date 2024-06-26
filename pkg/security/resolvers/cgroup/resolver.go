@@ -166,7 +166,7 @@ func (cr *Resolver) checkTags(workload *cgroupModel.CacheEntry) {
 
 // fetchTags fetches tags for the provided workload
 func (cr *Resolver) fetchTags(workload *cgroupModel.CacheEntry) error {
-	newTags, err := cr.tagsResolver.ResolveWithErr(workload.ContainerID)
+	newTags, err := cr.tagsResolver.ResolveWithErr(string(workload.ContainerID))
 	if err != nil {
 		return fmt.Errorf("failed to resolve %s: %w", workload.ContainerID, err)
 	}
@@ -215,7 +215,7 @@ func (cr *Resolver) deleteWorkloadPID(pid uint32, workload *cgroupModel.CacheEnt
 
 	// check if the workload should be deleted
 	if len(workload.PIDs) <= 0 {
-		cr.workloads.Remove(workload.ContainerID)
+		cr.workloads.Remove(string(workload.ContainerID))
 	}
 }
 

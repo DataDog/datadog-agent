@@ -169,7 +169,7 @@ func (p *SecurityProfile) generateSyscallsFilters() [64]byte {
 // MatchesSelector is used to control how an event should be added to a profile
 func (p *SecurityProfile) MatchesSelector(entry *model.ProcessCacheEntry) bool {
 	for _, workload := range p.Instances {
-		if entry.ContainerID == workload.ContainerID {
+		if entry.ContainerID == string(workload.ContainerID) {
 			return true
 		}
 	}
@@ -273,7 +273,7 @@ func (p *SecurityProfile) ToSecurityProfileMessage() *api.SecurityProfileMessage
 
 	for _, inst := range p.Instances {
 		msg.Instances = append(msg.Instances, &api.InstanceMessage{
-			ContainerID: inst.ContainerID,
+			ContainerID: string(inst.ContainerID),
 			Tags:        inst.Tags,
 		})
 	}

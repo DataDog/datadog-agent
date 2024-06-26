@@ -87,7 +87,7 @@ func NewCacheEntry(containerID string, containerFlags uint64, pids ...uint32) (*
 		},
 		ContainerContext: model.ContainerContext{
 			Flags:       containerFlags,
-			ContainerID: containerID,
+			ContainerID: model.ContainerID(containerID),
 		},
 		PIDs: make(map[uint32]int8, 10),
 	}

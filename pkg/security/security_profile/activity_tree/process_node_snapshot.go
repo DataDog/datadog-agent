@@ -144,7 +144,7 @@ func (pn *ProcessNode) addFiles(files []string, stats *Stats, newEvent func() *m
 		evt.ProcessContext.Process = pn.Process
 		evt.CGroupContext.CGroupID = pn.Process.CGroup.ID
 		evt.ContainerContext.Flags = uint64(pn.Process.CGroup.Flags)
-		evt.ContainerContext.ContainerID = pn.Process.ContainerID
+		evt.ContainerContext.ContainerID = model.ContainerID(pn.Process.ContainerID)
 
 		var fileStats unix.Statx_t
 		if err := unix.Statx(unix.AT_FDCWD, fullPath, 0, unix.STATX_ALL, &fileStats); err != nil {

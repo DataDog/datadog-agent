@@ -1075,7 +1075,7 @@ func NewEventSerializer(event *model.Event, opts *eval.Opts) *EventSerializer {
 
 	if ctx, exists := event.FieldHandlers.ResolveContainerContext(event); exists {
 		s.ContainerContextSerializer = &ContainerContextSerializer{
-			ID:        ctx.ContainerID,
+			ID:        string(ctx.ContainerID),
 			CreatedAt: utils.NewEasyjsonTimeIfNotZero(time.Unix(0, int64(ctx.CreatedAt))),
 			Variables: newVariablesContext(event, opts, "container."),
 		}

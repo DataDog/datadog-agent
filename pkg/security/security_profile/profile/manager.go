@@ -371,7 +371,7 @@ func (m *SecurityProfileManager) FillProfileContextFromContainerID(id string, ct
 		profile.Lock()
 		for _, instance := range profile.Instances {
 			instance.Lock()
-			if instance.ContainerID == id {
+			if instance.ContainerID == model.ContainerID(id) {
 				ctx.Name = profile.Metadata.Name
 				profileContext, ok := profile.versionContexts[imageTag]
 				if ok { // should always be the case

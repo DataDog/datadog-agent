@@ -165,10 +165,10 @@ func (fh *EBPFLessFieldHandlers) ResolveContainerRuntime(_ *model.Event, _ *mode
 func (fh *EBPFLessFieldHandlers) ResolveContainerID(ev *model.Event, e *model.ContainerContext) string {
 	if len(e.ContainerID) == 0 {
 		if entry, _ := fh.ResolveProcessCacheEntry(ev); entry != nil {
-			e.ContainerID = entry.ContainerID
+			e.ContainerID = model.ContainerID(entry.ContainerID)
 		}
 	}
-	return e.ContainerID
+	return string(e.ContainerID)
 }
 
 // ResolveContainerCreatedAt resolves the container creation time of the event
@@ -184,7 +184,7 @@ func (fh *EBPFLessFieldHandlers) ResolveContainerCreatedAt(ev *model.Event, e *m
 // ResolveContainerTags resolves the container tags of the event
 func (fh *EBPFLessFieldHandlers) ResolveContainerTags(_ *model.Event, e *model.ContainerContext) []string {
 	if len(e.Tags) == 0 && e.ContainerID != "" {
-		e.Tags = fh.resolvers.TagsResolver.Resolve(e.ContainerID)
+		e.Tags = fh.resolvers.TagsResolver.Resolve(string(e.ContainerID))
 	}
 	return e.Tags
 }

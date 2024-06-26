@@ -72,15 +72,18 @@ type CGroupContext struct {
 	CGroupID string `field:"id,handler:ResolveCGroupID"` // SECLDoc[id] Definition:`ID of the cgroup`
 }
 
+type CGroupID string
+type ContainerID string
+
 // ContainerContext holds the container context of an event
 type ContainerContext struct {
 	Releasable
-	ContainerID string   `field:"id,handler:ResolveContainerID"`                              // SECLDoc[id] Definition:`ID of the container`
-	CreatedAt   uint64   `field:"created_at,handler:ResolveContainerCreatedAt"`               // SECLDoc[created_at] Definition:`Timestamp of the creation of the container``
-	Tags        []string `field:"tags,handler:ResolveContainerTags,opts:skip_ad,weight:9999"` // SECLDoc[tags] Definition:`Tags of the container`
-	Resolved    bool     `field:"-"`
-	Flags       uint64   `field:"-"`
-	Runtime     string   `field:"runtime,handler:ResolveContainerRuntime"` // SECLDoc[runtime] Definition:`Runtime managing the container`
+	ContainerID ContainerID `field:"id,handler:ResolveContainerID"`                              // SECLDoc[id] Definition:`ID of the container`
+	CreatedAt   uint64      `field:"created_at,handler:ResolveContainerCreatedAt"`               // SECLDoc[created_at] Definition:`Timestamp of the creation of the container``
+	Tags        []string    `field:"tags,handler:ResolveContainerTags,opts:skip_ad,weight:9999"` // SECLDoc[tags] Definition:`Tags of the container`
+	Resolved    bool        `field:"-"`
+	Flags       uint64      `field:"-"`
+	Runtime     string      `field:"runtime,handler:ResolveContainerRuntime"` // SECLDoc[runtime] Definition:`Runtime managing the container`
 }
 
 // SecurityProfileContext holds the security context of the profile
