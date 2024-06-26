@@ -13,25 +13,20 @@ import (
 )
 
 func TestNewComponent(t *testing.T) {
-	req := Requires{}
-	comp, err := NewComponent(req)
+	comp := NewComponent()
 
-	assert.NoError(t, err, "Error creating new integrations component.")
 	assert.NotNil(t, comp, "Integrations component nil.")
 }
 
 // TestSendandSubscribe tests sending a log through the integrations component.
 func TestSendandSubscribe(t *testing.T) {
-	req := Requires{}
-	comp, err := NewComponent(req)
-
-	assert.NoError(t, err)
+	comp := NewComponent()
 
 	go func() {
-		comp.Comp.SendLog("test log", "integration1")
+		comp.SendLog("test log", "integration1")
 	}()
 
-	log := <-comp.Comp.Subscribe()
+	log := <-comp.Subscribe()
 	assert.Equal(t, "test log", log.Log)
 	assert.Equal(t, "integration1", log.IntegrationID)
 }
