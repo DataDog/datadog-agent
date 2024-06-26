@@ -272,6 +272,9 @@ func (a *agentSuite) Test04SecurityAgentSIGTERM() {
 	if exited {
 		a.T().Logf("security-agent exited after %s", end.Sub(start).String())
 	}
+
+	// make sure the security-agent is running after this test
+	a.Env().RemoteHost.MustExecute("sudo systemctl start datadog-agent-security.service")
 }
 
 // test that the detection of CWS is properly working
