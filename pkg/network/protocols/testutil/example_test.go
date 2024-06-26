@@ -24,7 +24,14 @@ func ExampleWithPCAP_plaintext() {
 	_ = testutil.WithPCAP(t, "80", testutil.GetShortTestName("HTTP", "simple request"), false)
 
 	client := &http.Client{}
-	client.Get("http://httpbin.org/status/200")
+	resp, err := client.Get("http://httpbin.org/status/200")
+	if err != nil {
+		t.Errorf("error while making request")
+	}
+
+	if err = resp.Body.Close(); err != nil {
+		t.Errorf("error while closing request body")
+	}
 }
 
 func ExampleWithPCAP_tls() {
@@ -41,5 +48,12 @@ func ExampleWithPCAP_tls() {
 			},
 		},
 	}
-	client.Get("https://httpbin.org/status/200")
+	resp, err := client.Get("https://httpbin.org/status/200")
+	if err != nil {
+		t.Errorf("error while making request")
+	}
+
+	if err = resp.Body.Close(); err != nil {
+		t.Errorf("error while closing request body")
+	}
 }
