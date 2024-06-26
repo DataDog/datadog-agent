@@ -35,7 +35,9 @@ type collector struct {
 	processDiffCh <-chan *processwlm.ProcessCacheDiff
 }
 
-// NewCollector returns a new local process collector provider and an error
+// NewCollector returns a new local process collector provider and an error.
+// Currently, this is only used on Linux when language detection is enabled
+// and the process check is on the core agent.
 func NewCollector() (workloadmeta.CollectorProvider, error) {
 	return workloadmeta.CollectorProvider{
 		Collector: &collector{
@@ -64,7 +66,7 @@ func (c *collector) enabled() bool {
 
 func (c *collector) Start(ctx context.Context, store workloadmeta.Component) error {
 	if !c.enabled() {
-		return errors.NewDisabled(componentName, "core agent language detection not enabled")
+		return errors.NewDisabled(componentName, "language detection or core agent process collection is disabled")
 	}
 
 	c.store = store
@@ -77,6 +79,7 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 
 func (c *collector) stream(ctx context.Context) {
 	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 	health := health.RegisterLiveness(componentName)
 	for {
 		select {
@@ -92,7 +95,6 @@ func (c *collector) stream(ctx context.Context) {
 			if err != nil {
 				log.Warnf("error de-registering health check: %s", err)
 			}
-			cancel()
 			return
 		}
 	}
