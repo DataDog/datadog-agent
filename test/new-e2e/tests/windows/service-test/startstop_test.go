@@ -343,13 +343,17 @@ func (s *startStopTestSuite) stopAllServices() {
 	}
 }
 
-// expectedInstalledServices returns the list of user-mode services that should be installed by the agent
+// expectedInstalledServices returns the list of services that should be installed by the agent
 func (s *startStopTestSuite) expectedInstalledServices() []string {
 	return []string{
+		// user space
 		"datadogagent",
 		"datadog-trace-agent",
 		"datadog-process-agent",
 		"datadog-security-agent",
 		"datadog-system-probe",
+		// kernel space
+		"ddnpm",
+		"ddprocmon",
 	}
 }
