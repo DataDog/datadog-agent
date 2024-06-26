@@ -3,24 +3,34 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux_bpf
+
 package dynamicinstrumentation
 
 import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	di "github.com/DataDog/go-dynamic-instrumentation/pkg/di"
 )
 
 //nolint:revive // TODO(DEBUG) Fix revive linter
-type Module struct{}
+type Module struct {
+	godi *di.GoDI
+}
 
 //nolint:revive // TODO(DEBUG) Fix revive linter
 func NewModule(config *Config) (*Module, error) {
-	return &Module{}, nil
+	godi, err := di.RunDynamicInstrumentation(&di.DIOptions{})
+	if err != nil {
+		return nil, err
+	}
+	return &Module{godi}, nil
 }
 
 //nolint:revive // TODO(DEBUG) Fix revive linter
 func (m *Module) Close() {
 	log.Info("Closing user tracer module")
+	m.godi.Close()
 }
 
 //nolint:revive // TODO(DEBUG) Fix revive linter
