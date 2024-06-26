@@ -83,7 +83,7 @@ func TestInstallScript(t *testing.T) {
 				e2e.WithProvisioner(awshost.ProvisionerNoAgentNoFakeIntake(
 					awshost.WithEC2InstanceOptions(vmOpts...),
 				)),
-				e2e.WithStackName(fmt.Sprintf("install-script-test-%v-%v-%s-%s-%v", os.Getenv("CI_PIPELINE_ID"), osVers, *architecture, *flavor, *majorVersion)),
+				e2e.WithStackName(fmt.Sprintf("install-script-test-%v-%s-%s-%v", osVers, *architecture, *flavor, *majorVersion)),
 			)
 		})
 	}
@@ -136,8 +136,11 @@ func (is *installScriptSuite) AgentTest(flavor string) {
 	common.CheckAgentPython(is.T(), client, common.ExpectedPythonVersion3)
 	common.CheckApmEnabled(is.T(), client)
 	common.CheckApmDisabled(is.T(), client)
-	if flavor == "datadog-agent" && is.cwsSupported {
-		common.CheckCWSBehaviour(is.T(), client)
+	if flavor == "datadog-agent" {
+		common.CheckSystemProbeBehavior(is.T(), client)
+		if is.cwsSupported {
+			common.CheckCWSBehaviour(is.T(), client)
+		}
 	}
 	common.CheckInstallationInstallScript(is.T(), client)
 	is.testUninstall(client, flavor)

@@ -28,6 +28,11 @@ repos:
   hooks:
     - id: go-fmt
       args: [ "-w", "-s" ]
+-   repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: 2c9f875913ee60ca25ce70243dc24d5b6415598c # v4.6.0
+    hooks:
+      - id: end-of-file-fixer
+        files: release.json
 - repo: local
   hooks:
     - id: protected-branches
@@ -116,5 +121,11 @@ repos:
       name: update-go
       description: test formatting of files will allow go update
       entry: 'inv linter.update-go'
+      language: system
+      pass_filenames: false
+    - id: check-go-modules-in-python
+      name: check-go-modules-in-python
+      description: Validate all go modules are declared in Invoke tasks
+      entry: 'inv modules.validate'
       language: system
       pass_filenames: false

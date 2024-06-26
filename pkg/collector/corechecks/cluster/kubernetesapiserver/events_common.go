@@ -17,9 +17,9 @@ import (
 	"github.com/patrickmn/go-cache"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -51,7 +51,7 @@ func getInvolvedObjectTags(involvedObject v1.ObjectReference, taggerInstance tag
 	// NOTE: we now standardized on using kube_* tags, instead of
 	// non-namespaced ones, or kubernetes_*. The latter two are now
 	// considered deprecated.
-	tags := []string{
+	tagList := []string{
 		fmt.Sprintf("kube_kind:%s", involvedObject.Kind),
 		fmt.Sprintf("kube_name:%s", involvedObject.Name),
 
@@ -61,26 +61,26 @@ func getInvolvedObjectTags(involvedObject v1.ObjectReference, taggerInstance tag
 	}
 
 	if involvedObject.Namespace != "" {
-		tags = append(tags,
+		tagList = append(tagList,
 			fmt.Sprintf("kube_namespace:%s", involvedObject.Namespace),
 
 			// DEPRECATED:
 			fmt.Sprintf("namespace:%s", involvedObject.Namespace),
 		)
 
-		namespaceEntityID := fmt.Sprintf("namespace://%s", involvedObject.Namespace)
+		namespaceEntityID := fmt.Sprintf("kubernetes_metadata://namespaces//%s", involvedObject.Namespace)
 		namespaceEntity, err := taggerInstance.GetEntity(namespaceEntityID)
 		if err == nil {
-			tags = append(tags, namespaceEntity.GetTags(types.HighCardinality)...)
+			tagList = append(tagList, namespaceEntity.GetTags(types.HighCardinality)...)
 		}
 	}
 
 	kindTag := getKindTag(involvedObject.Kind, involvedObject.Name)
 	if kindTag != "" {
-		tags = append(tags, kindTag)
+		tagList = append(tagList, kindTag)
 	}
 
-	return tags
+	return tagList
 }
 
 const (
@@ -164,10 +164,12 @@ func getHostProviderID(nodename string) string {
 // object kinds are supported by the tagger. It returns an empty string if the
 // kind doesn't correspond to a known/supported kind tag.
 func getKindTag(kind, name string) string {
-	if tagName, found := kubernetes.KindToTagName[kind]; found {
-		return fmt.Sprintf("%s:%s", tagName, name)
+	tagName, err := tags.GetTagForKind(kind)
+	if err != nil {
+		return ""
 	}
-	return ""
+
+	return fmt.Sprintf("%s:%s", tagName, name)
 }
 
 func buildReadableKey(obj v1.ObjectReference) string {

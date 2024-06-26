@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -543,16 +544,16 @@ func (k *KSMCheck) processMetrics(sender sender.Sender, metrics map[string][]ksm
 			if transform, found := k.metricTransformers[metricFamily.Name]; found {
 				lMapperOverride := labelsMapperOverride(metricFamily.Name)
 				for _, m := range metricFamily.ListMetrics {
-					hostname, tags := k.hostnameAndTags(m.Labels, labelJoiner, lMapperOverride)
-					transform(sender, metricFamily.Name, m, hostname, tags, now)
+					hostname, tagList := k.hostnameAndTags(m.Labels, labelJoiner, lMapperOverride)
+					transform(sender, metricFamily.Name, m, hostname, tagList, now)
 				}
 				continue
 			}
 			if ddname, found := k.metricNamesMapper[metricFamily.Name]; found {
 				lMapperOverride := labelsMapperOverride(metricFamily.Name)
 				for _, m := range metricFamily.ListMetrics {
-					hostname, tags := k.hostnameAndTags(m.Labels, labelJoiner, lMapperOverride)
-					sender.Gauge(ksmMetricPrefix+ddname, m.Val, hostname, tags)
+					hostname, tagList := k.hostnameAndTags(m.Labels, labelJoiner, lMapperOverride)
+					sender.Gauge(ksmMetricPrefix+ddname, m.Val, hostname, tagList)
 				}
 				continue
 			}
@@ -583,7 +584,7 @@ func (k *KSMCheck) hostnameAndTags(labels map[string]string, labelJoiner *labelJ
 	labelsToAdd := labelJoiner.getLabelsToAdd(labels)
 
 	// generate a dedicated tags slice
-	tags := make([]string, 0, len(labels)+len(labelsToAdd))
+	tagList := make([]string, 0, len(labels)+len(labelsToAdd))
 
 	ownerKind, ownerName := "", ""
 	for key, value := range labels {
@@ -594,7 +595,7 @@ func (k *KSMCheck) hostnameAndTags(labels map[string]string, labelJoiner *labelJ
 			ownerName = value
 		default:
 			tag, hostTag := k.buildTag(key, value, lMapperOverride)
-			tags = append(tags, tag)
+			tagList = append(tagList, tag)
 			if hostTag != "" {
 				if k.clusterNameRFC1123 != "" {
 					hostname = hostTag + "-" + k.clusterNameRFC1123
@@ -614,7 +615,7 @@ func (k *KSMCheck) hostnameAndTags(labels map[string]string, labelJoiner *labelJ
 			ownerName = label.value
 		default:
 			tag, hostTag := k.buildTag(label.key, label.value, lMapperOverride)
-			tags = append(tags, tag)
+			tagList = append(tagList, tag)
 			if hostTag != "" {
 				if k.clusterNameRFC1123 != "" {
 					hostname = hostTag + "-" + k.clusterNameRFC1123
@@ -626,10 +627,10 @@ func (k *KSMCheck) hostnameAndTags(labels map[string]string, labelJoiner *labelJ
 	}
 
 	if owners := ownerTags(ownerKind, ownerName); len(owners) != 0 {
-		tags = append(tags, owners...)
+		tagList = append(tagList, owners...)
 	}
 
-	return hostname, tags
+	return hostname, tagList
 }
 
 // familyFilter is a metric families filter for label joins
@@ -954,25 +955,25 @@ func ownerTags(kind, name string) []string {
 		return nil
 	}
 
-	tagKey, found := kubernetes.KindToTagName[kind]
-	if !found {
+	tagKey, err := tags.GetTagForKind(kind)
+	if err != nil {
 		return nil
 	}
 
 	tagFormat := "%s:%s"
-	tags := []string{fmt.Sprintf(tagFormat, tagKey, name)}
+	tagList := []string{fmt.Sprintf(tagFormat, tagKey, name)}
 	switch kind {
 	case kubernetes.JobKind:
 		if cronjob, _ := kubernetes.ParseCronJobForJob(name); cronjob != "" {
-			return append(tags, fmt.Sprintf(tagFormat, kubernetes.CronJobTagName, cronjob))
+			return append(tagList, fmt.Sprintf(tagFormat, tags.KubeCronjob, cronjob))
 		}
 	case kubernetes.ReplicaSetKind:
 		if deployment := kubernetes.ParseDeploymentForReplicaSet(name); deployment != "" {
-			return append(tags, fmt.Sprintf(tagFormat, kubernetes.DeploymentTagName, deployment))
+			return append(tagList, fmt.Sprintf(tagFormat, tags.KubeDeployment, deployment))
 		}
 	}
 
-	return tags
+	return tagList
 }
 
 // labelsMapperOverride allows overriding the default label mapping for

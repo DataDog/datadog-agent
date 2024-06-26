@@ -65,7 +65,7 @@ github.com/DataDog/appsec-internal-go/netip
 github.com/DataDog/datadog-agent/cmd/agent/common/path
 github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice
 github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice/helper
-github.com/DataDog/datadog-agent/comp/api/api
+github.com/DataDog/datadog-agent/comp/api/api/def
 github.com/DataDog/datadog-agent/comp/api/api/utils
 github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration
 github.com/DataDog/datadog-agent/comp/core/config
@@ -82,8 +82,7 @@ github.com/DataDog/datadog-agent/comp/core/tagger/types
 github.com/DataDog/datadog-agent/comp/core/tagger/utils
 github.com/DataDog/datadog-agent/comp/core/telemetry
 github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl
-github.com/DataDog/datadog-agent/comp/core/workloadmeta
-github.com/DataDog/datadog-agent/comp/core/workloadmeta/telemetry
+github.com/DataDog/datadog-agent/comp/core/workloadmeta/def
 github.com/DataDog/datadog-agent/comp/def
 github.com/DataDog/datadog-agent/comp/dogstatsd/constants
 github.com/DataDog/datadog-agent/comp/dogstatsd/listeners
@@ -202,6 +201,7 @@ github.com/DataDog/datadog-agent/pkg/serverless/proc
 github.com/DataDog/datadog-agent/pkg/serverless/proxy
 github.com/DataDog/datadog-agent/pkg/serverless/random
 github.com/DataDog/datadog-agent/pkg/serverless/registration
+github.com/DataDog/datadog-agent/pkg/serverless/streamlogs
 github.com/DataDog/datadog-agent/pkg/serverless/tags
 github.com/DataDog/datadog-agent/pkg/serverless/trace
 github.com/DataDog/datadog-agent/pkg/serverless/trace/inferredspan
@@ -336,10 +336,12 @@ github.com/aws/aws-sdk-go-v2/feature/ec2/imds/internal/config
 github.com/aws/aws-sdk-go-v2/internal/auth
 github.com/aws/aws-sdk-go-v2/internal/auth/smithy
 github.com/aws/aws-sdk-go-v2/internal/configsources
+github.com/aws/aws-sdk-go-v2/internal/context
 github.com/aws/aws-sdk-go-v2/internal/endpoints
 github.com/aws/aws-sdk-go-v2/internal/endpoints/awsrulesfn
 github.com/aws/aws-sdk-go-v2/internal/endpoints/v2
 github.com/aws/aws-sdk-go-v2/internal/ini
+github.com/aws/aws-sdk-go-v2/internal/middleware
 github.com/aws/aws-sdk-go-v2/internal/rand
 github.com/aws/aws-sdk-go-v2/internal/sdk
 github.com/aws/aws-sdk-go-v2/internal/sdkio
@@ -387,7 +389,6 @@ github.com/aws/smithy-go/transport/http/internal/io
 github.com/benbjohnson/clock
 github.com/beorn7/perks/quantile
 github.com/briandowns/spinner
-github.com/cenkalti/backoff
 github.com/cenkalti/backoff/v4
 github.com/cespare/xxhash/v2
 github.com/cihub/seelog
@@ -495,7 +496,6 @@ github.com/richardartoul/molecule/src/protowire
 github.com/rivo/uniseg
 github.com/rs/cors
 github.com/rs/cors/internal
-github.com/samber/lo
 github.com/secure-systems-lab/go-securesystemslib/cjson
 github.com/shirou/gopsutil/v3/common
 github.com/shirou/gopsutil/v3/cpu
@@ -504,6 +504,12 @@ github.com/shirou/gopsutil/v3/internal/common
 github.com/shirou/gopsutil/v3/mem
 github.com/shirou/gopsutil/v3/net
 github.com/shirou/gopsutil/v3/process
+github.com/shirou/gopsutil/v4/common
+github.com/shirou/gopsutil/v4/cpu
+github.com/shirou/gopsutil/v4/internal/common
+github.com/shirou/gopsutil/v4/mem
+github.com/shirou/gopsutil/v4/net
+github.com/shirou/gopsutil/v4/process
 github.com/spf13/afero
 github.com/spf13/afero/internal/common
 github.com/spf13/afero/mem
@@ -518,8 +524,6 @@ github.com/tklauser/numcpus
 github.com/twmb/murmur3
 go.opencensus.io
 go.opencensus.io/internal
-go.opencensus.io/internal/tagencoding
-go.opencensus.io/metric
 go.opencensus.io/metric/metricdata
 go.opencensus.io/metric/metricproducer
 go.opencensus.io/resource
@@ -541,12 +545,13 @@ go.opentelemetry.io/collector/config/configtls
 go.opentelemetry.io/collector/config/internal
 go.opentelemetry.io/collector/confmap
 go.opentelemetry.io/collector/confmap/converter/expandconverter
+go.opentelemetry.io/collector/confmap/internal
+go.opentelemetry.io/collector/confmap/internal/envvar
 go.opentelemetry.io/collector/confmap/internal/mapstructure
 go.opentelemetry.io/collector/confmap/provider/envprovider
 go.opentelemetry.io/collector/confmap/provider/fileprovider
 go.opentelemetry.io/collector/confmap/provider/httpprovider
 go.opentelemetry.io/collector/confmap/provider/httpsprovider
-go.opentelemetry.io/collector/confmap/provider/internal
 go.opentelemetry.io/collector/confmap/provider/internal/configurablehttpprovider
 go.opentelemetry.io/collector/confmap/provider/yamlprovider
 go.opentelemetry.io/collector/connector
@@ -555,6 +560,7 @@ go.opentelemetry.io/collector/consumer/consumererror
 go.opentelemetry.io/collector/exporter
 go.opentelemetry.io/collector/exporter/exporterbatcher
 go.opentelemetry.io/collector/exporter/exporterhelper
+go.opentelemetry.io/collector/exporter/exporterhelper/internal/metadata
 go.opentelemetry.io/collector/exporter/exporterqueue
 go.opentelemetry.io/collector/exporter/internal/common
 go.opentelemetry.io/collector/exporter/internal/experr
@@ -569,6 +575,7 @@ go.opentelemetry.io/collector/extension/auth
 go.opentelemetry.io/collector/extension/experimental/storage
 go.opentelemetry.io/collector/featuregate
 go.opentelemetry.io/collector/internal/fanoutconsumer
+go.opentelemetry.io/collector/internal/featuregates
 go.opentelemetry.io/collector/internal/httphelper
 go.opentelemetry.io/collector/internal/localhostgate
 go.opentelemetry.io/collector/internal/obsreportconfig
@@ -600,6 +607,7 @@ go.opentelemetry.io/collector/processor
 go.opentelemetry.io/collector/processor/batchprocessor
 go.opentelemetry.io/collector/processor/batchprocessor/internal/metadata
 go.opentelemetry.io/collector/processor/processorhelper
+go.opentelemetry.io/collector/processor/processorhelper/internal/metadata
 go.opentelemetry.io/collector/receiver
 go.opentelemetry.io/collector/receiver/otlpreceiver
 go.opentelemetry.io/collector/receiver/otlpreceiver/internal/errors
@@ -608,6 +616,7 @@ go.opentelemetry.io/collector/receiver/otlpreceiver/internal/metadata
 go.opentelemetry.io/collector/receiver/otlpreceiver/internal/metrics
 go.opentelemetry.io/collector/receiver/otlpreceiver/internal/trace
 go.opentelemetry.io/collector/receiver/receiverhelper
+go.opentelemetry.io/collector/receiver/receiverhelper/internal/metadata
 go.opentelemetry.io/collector/semconv/v1.17.0
 go.opentelemetry.io/collector/semconv/v1.18.0
 go.opentelemetry.io/collector/semconv/v1.21.0
@@ -617,6 +626,7 @@ go.opentelemetry.io/collector/service/extensions
 go.opentelemetry.io/collector/service/internal/capabilityconsumer
 go.opentelemetry.io/collector/service/internal/components
 go.opentelemetry.io/collector/service/internal/graph
+go.opentelemetry.io/collector/service/internal/metadata
 go.opentelemetry.io/collector/service/internal/proctelemetry
 go.opentelemetry.io/collector/service/internal/resource
 go.opentelemetry.io/collector/service/internal/servicetelemetry
@@ -624,6 +634,7 @@ go.opentelemetry.io/collector/service/internal/status
 go.opentelemetry.io/collector/service/internal/zpages
 go.opentelemetry.io/collector/service/pipelines
 go.opentelemetry.io/collector/service/telemetry
+go.opentelemetry.io/collector/service/telemetry/internal
 go.opentelemetry.io/contrib/config
 go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc
 go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc/internal
@@ -690,7 +701,7 @@ go.opentelemetry.io/otel/sdk/trace
 go.opentelemetry.io/otel/sdk/trace/tracetest
 go.opentelemetry.io/otel/semconv/v1.17.0
 go.opentelemetry.io/otel/semconv/v1.20.0
-go.opentelemetry.io/otel/semconv/v1.24.0
+go.opentelemetry.io/otel/semconv/v1.25.0
 go.opentelemetry.io/otel/trace
 go.opentelemetry.io/otel/trace/embedded
 go.opentelemetry.io/otel/trace/noop

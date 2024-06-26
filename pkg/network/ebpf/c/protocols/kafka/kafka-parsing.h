@@ -83,6 +83,7 @@ int socket__kafka_filter(struct __sk_buff* skb) {
 
     pktbuf_t pkt = pktbuf_from_skb(skb, &skb_info);
 
+    kafka->event.transaction.tags = NO_TAGS;
     if (kafka_process_response(skb, &tup, kafka, pkt, &skb_info)) {
         return 0;
     }
@@ -108,13 +109,13 @@ int uprobe__kafka_tls_filter(struct pt_regs *ctx) {
     kafka_telemetry_t *kafka_tel = bpf_map_lookup_elem(&kafka_telemetry, &zero);
     if (kafka_tel == NULL) {
         return 0;
-    }    
+    }
 
     // On stack for 4.14
     conn_tuple_t tup = args->tup;
 
-    pktbuf_t pkt = pktbuf_from_tls(args);
-
+    pktbuf_t pkt = pktbuf_from_tls(ctx, args);
+    kafka->event.transaction.tags = (__u8)args->tags;
     if (kafka_process_response(ctx, &tup, kafka, pkt, NULL)) {
         return 0;
     }
@@ -981,17 +982,17 @@ static __always_inline void kafka_call_response_parser(void *ctx, conn_tuple_t *
         switch (level) {
         case PARSER_LEVEL_RECORD_BATCH:
             if (api_version >= 12) {
-                index = TLS_KAFKA_RESPONSE_RECORD_BATCH_PARSER_V12;
+                index = PROG_KAFKA_RESPONSE_RECORD_BATCH_PARSER_V12;
             } else {
-                index = TLS_KAFKA_RESPONSE_RECORD_BATCH_PARSER_V0;
+                index = PROG_KAFKA_RESPONSE_RECORD_BATCH_PARSER_V0;
             }
             break;
         case PARSER_LEVEL_PARTITION:
         default:
             if (api_version >= 12) {
-                index = TLS_KAFKA_RESPONSE_PARTITION_PARSER_V12;
+                index = PROG_KAFKA_RESPONSE_PARTITION_PARSER_V12;
             } else {
-                index = TLS_KAFKA_RESPONSE_PARTITION_PARSER_V0;
+                index = PROG_KAFKA_RESPONSE_PARTITION_PARSER_V0;
             }
             break;
         }
@@ -1239,7 +1240,7 @@ static __always_inline int __uprobe__kafka_tls_response_parser(struct pt_regs *c
 
     // Put tuple on stack for 4.14.
     conn_tuple_t tup = args->tup;
-    kafka_response_parser(kafka, ctx, &tup, pktbuf_from_tls(args), level, min_api_version, max_api_version);
+    kafka_response_parser(kafka, ctx, &tup, pktbuf_from_tls(ctx, args), level, min_api_version, max_api_version);
 
     return 0;
 }

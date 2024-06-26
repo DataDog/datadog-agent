@@ -12,6 +12,7 @@ import (
 	"fmt"
 
 	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/exporter/loggingexporter"
 	"go.opentelemetry.io/collector/exporter/otlpexporter"
@@ -33,6 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/datatype"
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/internal/configutils"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -102,7 +104,7 @@ func getComponents(s serializer.MetricSerializer, logsAgentChannel chan *message
 
 	exporterFactories := []exporter.Factory{
 		otlpexporter.NewFactory(),
-		serializerexporter.NewFactory(s, &tagEnricher{cardinality: types.LowCardinality}, hostname.Get),
+		serializerexporter.NewFactory(s, &tagEnricher{cardinality: types.LowCardinality}, hostname.Get, nil, nil),
 		loggingexporter.NewFactory(),
 	}
 
@@ -200,15 +202,15 @@ func NewPipeline(cfg PipelineConfig, s serializer.MetricSerializer, logsAgentCha
 	if err != nil {
 		return nil, fmt.Errorf("failed to get build info: %w", err)
 	}
-
+	zapCore := zapAgent.NewZapCore()
 	// Replace default core to use Agent logger
 	options := []zap.Option{
 		zap.WrapCore(func(zapcore.Core) zapcore.Core {
-			return zapAgent.NewZapCore()
+			return zapCore
 		}),
 	}
 
-	configProvider, err := newMapProvider(cfg)
+	cfgMap, err := buildMap(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build configuration provider: %w", err)
 	}
@@ -219,8 +221,18 @@ func NewPipeline(cfg PipelineConfig, s serializer.MetricSerializer, logsAgentCha
 		},
 		BuildInfo:               buildInfo,
 		DisableGracefulShutdown: true,
-		ConfigProvider:          configProvider,
-		LoggingOptions:          options,
+		ConfigProviderSettings: otelcol.ConfigProviderSettings{
+			ResolverSettings: confmap.ResolverSettings{
+				URIs: []string{"map:hardcoded"},
+				ProviderFactories: []confmap.ProviderFactory{
+					configutils.NewProviderFactory(cfgMap),
+				},
+				ProviderSettings: confmap.ProviderSettings{
+					Logger: zap.New(zapCore),
+				},
+			},
+		},
+		LoggingOptions: options,
 		// see https://github.com/DataDog/datadog-agent/commit/3f4a78e5f2e276c8cdd90fa7e60455a2374d41d0
 		SkipSettingGRPCLogger: true,
 	})
