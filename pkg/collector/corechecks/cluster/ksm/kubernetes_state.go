@@ -145,8 +145,8 @@ type KSMConfig struct {
 	// Private field containing the label joins configuration built from `LabelJoins`, `LabelsAsTags` and `AnnotationsAsTags`.
 	labelJoins map[string]*joinsConfig
 
-	// UseApiServerCache enables the use of the API server cache for the check
-	UseApiServerCache bool `yaml:"use_api_server_cache"`
+	// UseAPIServerCache enables the use of the API server cache for the check
+	UseAPIServerCache bool `yaml:"use_apiserver_cache"`
 }
 
 // KSMCheck wraps the config and the metric stores needed to run the check
@@ -236,7 +236,7 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 	k.mergeLabelsMapper(defaultLabelsMapper())
 
 	builder := kubestatemetrics.New()
-	builder.WithUsingAPIServerCache(k.instance.UseApiServerCache)
+	builder.WithUsingAPIServerCache(k.instance.UseAPIServerCache)
 
 	// Due to how init is done, we cannot use GetAPIClient in `Run()` method
 	// So we are waiting for a reasonable amount of time here in case.

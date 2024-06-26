@@ -14,6 +14,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/meta"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	vpaclientset "k8s.io/autoscaler/vertical-pod-autoscaler/pkg/client/clientset/versioned"
@@ -228,10 +229,10 @@ func (b *Builder) startReflector(
 	expectedType interface{},
 	store cache.Store,
 	listWatcher cache.ListerWatcher,
-	useApiServerCache bool,
+	useAPIServerCache bool,
 ) {
-	if useApiServerCache {
-		listWatcher = &cacheEnabledListerWatcher{ListerWatcher: listWatcher}
+	if useAPIServerCache {
+		listWatcher = newCacheEnabledListerWatcher(listWatcher)
 	}
 	reflector := cache.NewReflector(listWatcher, expectedType, store, b.resync*time.Second)
 	go reflector.Run(b.ctx.Done())
@@ -239,13 +240,30 @@ func (b *Builder) startReflector(
 
 type cacheEnabledListerWatcher struct {
 	cache.ListerWatcher
+	rv string
 }
 
-// List uses a resource version of "0" to list all resources.
-// The implementation is required to avoid a quorum from ETCD.
-// https://github.com/kubernetes/kubernetes/blob/dae37c21645c0fc04bbb0202ad1eba6ba4438d23/staging/src/k8s.io/apiserver/pkg/storage/cacher/cacher.go#L526-L527
-// Refer to https://github.com/kubernetes/kube-state-metrics/blob/7995d5fd23bcff7ae24ab6849f7c393d262fb025/pkg/watch/watch.go#L77
+func newCacheEnabledListerWatcher(lw cache.ListerWatcher) *cacheEnabledListerWatcher {
+	return &cacheEnabledListerWatcher{ListerWatcher: lw, rv: "0"}
+}
+
+// List uses `ResourceVersion` and `ResourceVersionMatch=NotOlderThan` to avoid a quorum from ETCD.
+// https://kubernetes.io/docs/reference/using-api/api-concepts/#resource-versions
+// The first list will use RV=0, and the subsequent list will use the RV from the previous list.
+// The APIServer will return any data more recent than the rv, preferring the latest one.
+// The implementation differs from kube-state-metrics that uses rv = 0 for list operations.
+// https://github.com/kubernetes/kube-state-metrics/blob/7995d5fd23bcff7ae24ab6849f7c393d262fb025/pkg/watch/watch.go#L77
 func (c *cacheEnabledListerWatcher) List(options v1.ListOptions) (runtime.Object, error) {
-	options.ResourceVersion = "0"
-	return c.ListerWatcher.List(options)
+	options.ResourceVersion = c.rv
+	options.ResourceVersionMatch = v1.ResourceVersionMatchNotOlderThan
+	res, err := c.ListerWatcher.List(options)
+	if err == nil {
+		metadataAccessor, err := meta.ListAccessor(res)
+		if err != nil {
+			return nil, err
+		}
+		c.rv = metadataAccessor.GetResourceVersion()
+	}
+
+	return res, err
 }

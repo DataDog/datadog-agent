@@ -1,5 +1,5 @@
 ---
 enhancements:
   - |
-    Add the `use_api_server_cache` option to the `kubernetes_state_metrics` check
-    to reduce the pressure on the underlying storage engine `etcd`.
+    Add the `use_apiserver_cache` option to the `kubernetes_state_metrics` check
+    to reduce the pressure on the underlying storage engine `etcd`. Requires Kubernetes 1.19+.
