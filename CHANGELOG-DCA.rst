@@ -4,7 +4,7 @@ Release Notes
 
 .. _Release Notes_7.54.1:
 
-7.54.1 / 6.54.1
+7.54.1
 ================
 
 .. _Release Notes_7.54.1_Prelude:
@@ -17,7 +17,7 @@ Pinned to datadog-agent v7.54.1: `CHANGELOG <https://github.com/DataDog/datadog-
 
 .. _Release Notes_7.54.0:
 
-7.54.0 / 6.54.0
+7.54.0
 ================
 
 .. _Release Notes_7.54.0_Prelude:
