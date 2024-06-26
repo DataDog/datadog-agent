@@ -446,7 +446,6 @@ workflow:
 .on_main_always:
   - <<: *if_main_branch
     when: always
-    allow_failure: true
 
 .on_tag_or_a7:
   - !reference [.except_mergequeue]
@@ -574,7 +573,6 @@ workflow:
     when: never
   - <<: *if_deploy
     when: always
-    allow_failure: true
 
 .on_deploy_stable_or_beta_repo_branch:
   - <<: *if_not_stable_or_beta_repo_branch
