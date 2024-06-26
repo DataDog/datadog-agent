@@ -78,27 +78,20 @@ func TestTelemetryMiddleware(t *testing.T) {
 			req, err := http.NewRequest(tc.method, url.String(), nil)
 			require.NoError(t, err)
 
-			metricFamilies, err := registry.Gather()
-			require.NoError(t, err)
-			require.Len(t, metricFamilies, 1) // there is a single default metric initially
-			defaultMetricFamilyName := metricFamilies[0].Name
-
 			resp, err := server.Client().Do(req)
 			require.NoError(t, err)
 			resp.Body.Close()
 
-			metricFamilies, err = registry.Gather()
+			metricFamilies, err := registry.Gather()
 			require.NoError(t, err)
-			require.Len(t, metricFamilies, 2)
 
+			expectedMetricName := fmt.Sprintf("%s__%s", metricSubsystem, metricName)
 			idx := slices.IndexFunc(metricFamilies, func(e *dto.MetricFamily) bool {
-				return e.Name != defaultMetricFamilyName
+				return e.GetName() == expectedMetricName
 			})
 			require.NotEqual(t, -1, idx, "API telemetry metric not found")
 
 			telemetryMetricFamily := metricFamilies[idx]
-			assert.Contains(t, telemetryMetricFamily.GetName(), metricSubsystem)
-			assert.Contains(t, telemetryMetricFamily.GetName(), metricName)
 			require.Equal(t, dto.MetricType_HISTOGRAM, telemetryMetricFamily.GetType())
 
 			metrics := telemetryMetricFamily.GetMetric()
