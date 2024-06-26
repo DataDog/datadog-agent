@@ -13,6 +13,7 @@ import (
 	"github.com/cilium/ebpf"
 	"github.com/prometheus/client_golang/prometheus"
 
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/failure"
@@ -74,10 +75,10 @@ type Tracer interface {
 }
 
 // NewTracer returns a new Tracer
-func NewTracer(cfg *config.Config) (Tracer, error) {
+func NewTracer(cfg *config.Config, telemetryComp telemetry.Component) (Tracer, error) {
 	if cfg.EnableEbpfless {
 		return newEbpfLessTracer(cfg)
 	}
 
-	return newEbpfTracer(cfg)
+	return newEbpfTracer(cfg, telemetryComp)
 }

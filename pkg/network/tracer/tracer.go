@@ -169,6 +169,7 @@ func newTracer(cfg *config.Config, telemetryComponent telemetryComponent.Compone
 	if !cfg.EnableEbpfless {
 		if tr.bpfErrorsCollector = ebpftelemetry.NewEBPFErrorsCollector(); tr.bpfErrorsCollector != nil {
 			telemetry.GetCompatComponent().RegisterCollector(tr.bpfErrorsCollector)
+		}
 	}
 
 	if tr.bpfErrorsCollector == nil {
@@ -270,7 +271,7 @@ func newConntracker(cfg *config.Config, telemetryComponent telemetryComponent.Co
 			}
 		}
 		if cfg.EnableEbpfConntracker {
-			if c, err = NewEBPFConntracker(cfg); err == nil {
+			if c, err = NewEBPFConntracker(cfg, telemetryComponent); err == nil {
 				return c, nil
 			}
 			log.Warnf("error initializing ebpf conntracker: %s", err)
@@ -281,7 +282,7 @@ func newConntracker(cfg *config.Config, telemetryComponent telemetryComponent.Co
 		log.Info("falling back to netlink conntracker")
 	}
 
-	if c, err = netlink.NewConntracker(cfg); err == nil {
+	if c, err = netlink.NewConntracker(cfg, telemetryComponent); err == nil {
 		return c, nil
 	}
 

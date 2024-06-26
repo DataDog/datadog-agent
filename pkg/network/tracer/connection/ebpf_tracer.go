@@ -22,6 +22,7 @@ import (
 	"go.uber.org/atomic"
 	"golang.org/x/sys/unix"
 
+	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/maps"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
@@ -30,6 +31,7 @@ import (
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/failure"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/fentry"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -290,7 +292,7 @@ func (t *ebpfTracer) Start(callback func([]network.ConnectionStats)) (err error)
 		}
 	}()
 
-	err = initializePortBindingMaps(t.config, t.m)
+	err = t.initializePortBindingMaps()
 	if err != nil {
 		return fmt.Errorf("error initializing port binding maps: %s", err)
 	}

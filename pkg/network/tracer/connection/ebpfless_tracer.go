@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/filter"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/ebpfless"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/failure"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -332,6 +333,9 @@ func (t *ebpfLessTracer) Describe(_ chan<- *prometheus.Desc) {}
 
 // Collect returns the current state of all metrics of the collector
 func (t *ebpfLessTracer) Collect(_ chan<- prometheus.Metric) {}
+
+// GetFailedConnections returns the underlying map used to store failed connections
+func (t *ebpfLessTracer) GetFailedConnections() *failure.FailedConns { return nil }
 
 var _ Tracer = &ebpfLessTracer{}
 
