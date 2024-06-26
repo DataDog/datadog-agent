@@ -23,8 +23,6 @@ import (
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/ksm/customresources"
-
-	//nolint:revive // TODO(CINT) Fix revive linter
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	kubestatemetrics "github.com/DataDog/datadog-agent/pkg/kubestatemetrics/builder"
@@ -147,6 +145,9 @@ type KSMConfig struct {
 
 	// Private field containing the label joins configuration built from `LabelJoins`, `LabelsAsTags` and `AnnotationsAsTags`.
 	labelJoins map[string]*joinsConfig
+
+	// UseAPIServerCache enables the use of the API server cache for the check
+	UseAPIServerCache bool `yaml:"use_apiserver_cache"`
 }
 
 // KSMCheck wraps the config and the metric stores needed to run the check
@@ -236,6 +237,7 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 	k.mergeLabelsMapper(defaultLabelsMapper())
 
 	builder := kubestatemetrics.New()
+	builder.WithUsingAPIServerCache(k.instance.UseAPIServerCache)
 
 	// Due to how init is done, we cannot use GetAPIClient in `Run()` method
 	// So we are waiting for a reasonable amount of time here in case.
