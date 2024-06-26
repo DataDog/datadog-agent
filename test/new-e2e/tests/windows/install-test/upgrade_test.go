@@ -17,20 +17,25 @@ import (
 	"testing"
 )
 
+// TestUpgrade tests upgrading the agent from LAST_STABLE_VERSION to WINDOWS_AGENT_VERSION
 func TestUpgrade(t *testing.T) {
 	s := &testUpgradeSuite{}
+	previousAgentPackage, err := windowsAgent.GetLastStablePackageFromEnv()
+	s.Require().NoError(err, "should get last stable agent package from env")
+	s.previousAgentPackge = previousAgentPackage
 	run(t, s)
 }
 
 type testUpgradeSuite struct {
 	baseAgentMSISuite
+	previousAgentPackge *windowsAgent.Package
 }
 
 func (s *testUpgradeSuite) TestUpgrade() {
 	vm := s.Env().RemoteHost
 
 	// install previous version
-	_ = s.installLastStable(vm)
+	_ = s.installAndTestPreviousAgentVersion(vm, s.previousAgentPackge)
 
 	// simulate upgrading from a version that didn't have the runtime-security.d directory
 	// to ensure upgrade places new config files.
@@ -269,4 +274,17 @@ func (s *testUpgradeFromV5Suite) migrateAgent5Config() {
 	s.Require().NoError(err, "should migrate agent 5 config")
 	s.T().Logf("Migrate agent 5 config:\n%s", out)
 	s.Require().Contains(out, "Success: imported the contents of", "migrate agent 5 config should succeed")
+}
+
+// TestUpgradeFromV6 tests upgrading from Agent 6 to WINDOWS_AGENT_VERSION
+func TestUpgradeFromV6(t *testing.T) {
+	var err error
+	s := &testUpgradeSuite{}
+	s.previousAgentPackge = &windowsAgent.Package{
+		Version: "6.53.0-1",
+		Arch:    "x86_64",
+	}
+	s.previousAgentPackge.URL, err = windowsAgent.GetStableMSIURL(s.previousAgentPackge.Version, s.previousAgentPackge.Arch)
+	require.NoError(t, err)
+	run(t, s)
 }

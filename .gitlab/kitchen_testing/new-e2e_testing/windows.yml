@@ -77,6 +77,7 @@
       - E2E_MSI_TEST: TestNPMUpgradeNPMToNPM
       - E2E_MSI_TEST: TestNPMInstallWithAddLocal
       - E2E_MSI_TEST: TestNPMUpgradeFromBeta
+      - E2E_MSI_TEST: TestUpgradeFromV6
 
 new-e2e_windows_powershell_module_test:
   extends: .new_e2e_template
