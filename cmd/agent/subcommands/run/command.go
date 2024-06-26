@@ -98,6 +98,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs/adscheduler/adschedulerimpl"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	logsIntegration "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
+	logsIntegrationFx "github.com/DataDog/datadog-agent/comp/logs/integrations/fx"
 	"github.com/DataDog/datadog-agent/comp/metadata"
 	"github.com/DataDog/datadog-agent/comp/metadata/host"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
@@ -485,6 +486,7 @@ func getSharedFxOption() fx.Option {
 		settingsimpl.Module(),
 		agenttelemetryimpl.Module(),
 		networkpath.Bundle(),
+		logsIntegrationFx.Module(),
 	)
 }
 
