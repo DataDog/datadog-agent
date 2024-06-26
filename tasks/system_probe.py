@@ -343,6 +343,19 @@ def ninja_test_ebpf_programs(nw: NinjaWriter, build_dir):
         )  # All test ebpf programs are just for testing, so we always build them with debug symbols
 
 
+def ninja_gpu_ebpf_programs(nw: NinjaWriter, co_re_build_dir: Path | str):
+    gpu_programs_co_re_dir = Path("pkg/gpu/ebpf/c")
+    gpu_programs_co_re_flags = f"-I{gpu_programs_co_re_dir}"
+    gpu_programs_co_re_programs = ["gpu"]
+
+    for prog in gpu_programs_co_re_programs:
+        infile = os.path.join(gpu_programs_co_re_dir, f"{prog}.c")
+        outfile = os.path.join(co_re_build_dir, f"{prog}.o")
+        ninja_ebpf_co_re_program(nw, infile, outfile, {"flags": gpu_programs_co_re_flags})
+        root, ext = os.path.splitext(outfile)
+        ninja_ebpf_co_re_program(nw, infile, f"{root}-debug{ext}", {"flags": gpu_programs_co_re_flags + " -DDEBUG=1"})
+
+
 def ninja_container_integrations_ebpf_programs(nw: NinjaWriter, co_re_build_dir):
     container_integrations_co_re_dir = os.path.join("pkg", "collector", "corechecks", "ebpf", "c", "runtime")
     container_integrations_co_re_flags = f"-I{container_integrations_co_re_dir}"
@@ -574,6 +587,7 @@ def ninja_generate(
             ninja_container_integrations_ebpf_programs(nw, co_re_build_dir)
             ninja_runtime_compilation_files(nw, gobin)
             ninja_telemetry_ebpf_programs(nw, build_dir, co_re_build_dir)
+            ninja_gpu_ebpf_programs(nw, co_re_build_dir)
 
         ninja_cgo_type_files(nw)
 

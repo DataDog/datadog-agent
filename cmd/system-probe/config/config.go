@@ -43,6 +43,7 @@ const (
 	PingModule                   types.ModuleName = "ping"
 	TracerouteModule             types.ModuleName = "traceroute"
 	DiscoveryModule              types.ModuleName = "discovery"
+	GPUMonitoringModule          types.ModuleName = "gpu_monitoring"
 )
 
 // New creates a config object for system-probe. It assumes no configuration has been loaded as this point.
@@ -162,6 +163,10 @@ func load() (*types.Config, error) {
 	if cfg.GetBool(discoveryNS("enabled")) {
 		c.EnabledModules[DiscoveryModule] = struct{}{}
 	}
+	if cfg.GetBool(gpuNS("enabled")) {
+		c.EnabledModules[GPUMonitoringModule] = struct{}{}
+	}
+
 	if cfg.GetBool(wcdNS("enabled")) {
 		c.EnabledModules[WindowsCrashDetectModule] = struct{}{}
 	}
