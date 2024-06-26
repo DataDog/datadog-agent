@@ -25,11 +25,15 @@ func init() {
 
 // SupportedBuildModes returns the build modes supported on the current host
 func SupportedBuildModes() []BuildMode {
-	modes := []BuildMode{Prebuilt, RuntimeCompiled, CORE, Ebpfless}
+	modes := []BuildMode{Prebuilt, RuntimeCompiled, CORE}
 	if os.Getenv("TEST_FENTRY_OVERRIDE") == "true" ||
 		(runtime.GOARCH == "amd64" && (hostPlatform == "amazon" || hostPlatform == "amzn") && kv.Major() == 5 && kv.Minor() == 10) {
 		modes = append(modes, Fentry)
 	}
+	if os.Getenv("TEST_EBPF_LESS_OVERRIDE") == "true" {
+		modes = append(modes, Ebpfless)
+	}
+
 	return modes
 }
 
