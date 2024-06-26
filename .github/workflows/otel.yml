@@ -8,7 +8,12 @@ on:
   pull_request:
     branches:
       - main
+      - jaime/oteluabuild
       - "[0-9]+.[0-9]+.x"
+
+env:
+  DOCKERHUB_USERNAME: datadog
+
 
 jobs:
   OTel-Build:
@@ -62,6 +67,5 @@ jobs:
         with:
           context: Dockerfiles/agent
           file: Dockerfiles/github/Dockerfile
+          tags: ${{ vars.DOCKERHUB_USERNAME }}/datadog-agent:latest-otel
           push: false
-          tags: datadog/agent:latest-otel
-            # tags: ${{ vars.DOCKERHUB_USERNAME }}/datadog-agent:latest-otel
