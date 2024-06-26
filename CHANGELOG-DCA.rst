@@ -4,7 +4,7 @@ Release Notes
 
 .. _Release Notes_7.54.0:
 
-7.54.0 / 6.54.0
+7.54.0
 ================
 
 .. _Release Notes_7.54.0_Prelude:
