@@ -162,12 +162,8 @@ github.com/DataDog/datadog-agent/pkg/logs/internal/tag
 github.com/DataDog/datadog-agent/pkg/logs/internal/util
 github.com/DataDog/datadog-agent/pkg/logs/launchers
 github.com/DataDog/datadog-agent/pkg/logs/launchers/channel
-github.com/DataDog/datadog-agent/pkg/logs/launchers/container
 github.com/DataDog/datadog-agent/pkg/logs/launchers/file
 github.com/DataDog/datadog-agent/pkg/logs/launchers/file/provider
-github.com/DataDog/datadog-agent/pkg/logs/launchers/journald
-github.com/DataDog/datadog-agent/pkg/logs/launchers/listener
-github.com/DataDog/datadog-agent/pkg/logs/launchers/windowsevent
 github.com/DataDog/datadog-agent/pkg/logs/message
 github.com/DataDog/datadog-agent/pkg/logs/metrics
 github.com/DataDog/datadog-agent/pkg/logs/pipeline
@@ -184,7 +180,6 @@ github.com/DataDog/datadog-agent/pkg/logs/status/utils
 github.com/DataDog/datadog-agent/pkg/logs/tailers
 github.com/DataDog/datadog-agent/pkg/logs/tailers/channel
 github.com/DataDog/datadog-agent/pkg/logs/tailers/file
-github.com/DataDog/datadog-agent/pkg/logs/tailers/socket
 github.com/DataDog/datadog-agent/pkg/metrics
 github.com/DataDog/datadog-agent/pkg/metrics/event
 github.com/DataDog/datadog-agent/pkg/metrics/servicecheck
