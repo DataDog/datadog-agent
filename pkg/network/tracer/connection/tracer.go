@@ -15,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/failure"
 )
 
 // TracerType is the type of the underlying tracer
@@ -36,7 +37,7 @@ const (
 const (
 	// maxActive configures the maximum number of instances of the kretprobe-probed functions handled simultaneously.
 	// This value should be enough for typical workloads (e.g. some amount of processes blocked on the `accept` syscall).
-	maxActive = 128
+	maxActive = 512
 )
 
 // Tracer is the common interface implemented by all connection tracers.
@@ -50,6 +51,8 @@ type Tracer interface {
 	GetConnections(buffer *network.ConnectionBuffer, filter func(*network.ConnectionStats) bool) error
 	// FlushPending forces any closed connections waiting for batching to be processed immediately.
 	FlushPending()
+	// GetFailedConnections returns the underlying map used to store failed connections
+	GetFailedConnections() *failure.FailedConns
 	// Remove deletes the connection from tracking state.
 	// It does not prevent the connection from re-appearing later, if additional traffic occurs.
 	Remove(conn *network.ConnectionStats) error

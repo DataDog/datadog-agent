@@ -9,16 +9,8 @@ The payload is sent every 10min (see `inventories_max_interval` in the config).
 
 ## System-probe Configuration
 
-System-probe configurations are scrubbed from any sensitive information (same logic than for the flare).
-This include the following:
-`full_configuration`
-`provided_configuration`
-`file_configuration`
-`environment_variable_configuration`
-`agent_runtime_configuration`
-`remote_configuration`
-`cli_configuration`
-`source_local_configuration`
+The agent configurations are scrubbed from any sensitive information (same logic than for the flare). The `Format`
+section goes into more default about what configuration is sent.
 
 Sending System-Probe configuration can be disabled using `inventories_configuration_enabled`.
 
@@ -59,9 +51,11 @@ Here an example of an inventory payload:
         "full_configuration": "<entire yaml configuration for system-probe>",
         "provided_configuration": "system_probe_config:\n  sysprobe_socket: /tmp/sysprobe.sock",
         "file_configuration": "system_probe_config:\n  sysprobe_socket: /tmp/sysprobe.sock",
+        "agent_runtime_configuration": "runtime_block_profile_rate: 5000",
         "environment_variable_configuration": "{}",
         "remote_configuration": "{}",
-        "cli_configuration": "{}"
+        "cli_configuration": "{}",
+        "source_local_configuration": "{}"
     }
     "hostname": "my-host",
     "timestamp": 1631281754507358895

@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"os"
 	"slices"
+	"strconv"
 
 	admiv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -191,6 +192,10 @@ func getDefaultSidecarTemplate(containerRegistry string) *corev1.Container {
 						FieldPath:  "spec.nodeName",
 					},
 				},
+			},
+			{
+				Name:  "DD_LANGUAGE_DETECTION_ENABLED",
+				Value: strconv.FormatBool(config.Datadog().GetBool("language_detection.enabled") && config.Datadog().GetBool("language_detection.reporting.enabled")),
 			},
 		},
 		Image:           fmt.Sprintf("%s/%s:%s", containerRegistry, imageName, imageTag),

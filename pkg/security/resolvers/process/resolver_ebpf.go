@@ -98,7 +98,7 @@ type EBPFResolver struct {
 	inodeErrStats             *atomic.Int64
 
 	entryCache    map[uint32]*model.ProcessCacheEntry
-	argsEnvsCache *simplelru.LRU[uint32, *argsEnvsCacheEntry]
+	argsEnvsCache *simplelru.LRU[uint64, *argsEnvsCacheEntry]
 
 	processCacheEntryPool *Pool
 
@@ -1378,7 +1378,7 @@ func NewEBPFResolver(manager *manager.Manager, config *config.Config, statsdClie
 	scrubber *procutil.DataScrubber, containerResolver *container.Resolver, mountResolver mount.ResolverInterface,
 	cgroupResolver *cgroup.Resolver, userGroupResolver *usergroup.Resolver, timeResolver *stime.Resolver,
 	pathResolver spath.ResolverInterface, opts *ResolverOpts) (*EBPFResolver, error) {
-	argsEnvsCache, err := simplelru.NewLRU[uint32, *argsEnvsCacheEntry](maxParallelArgsEnvs, nil)
+	argsEnvsCache, err := simplelru.NewLRU[uint64, *argsEnvsCacheEntry](maxParallelArgsEnvs, nil)
 	if err != nil {
 		return nil, err
 	}

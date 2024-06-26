@@ -38,8 +38,10 @@ func (s *packageInstallerSuite) TestInstall() {
 	state.AssertDirExists("/var/log/datadog", 0755, "dd-agent", "dd-agent")
 	state.AssertDirExists("/var/run/datadog-installer", 0755, "dd-agent", "dd-agent")
 	state.AssertDirExists("/var/run/datadog-installer/locks", 0777, "root", "root")
+	state.AssertDirExists("/var/run/datadog", 0755, "dd-agent", "dd-agent")
 
 	state.AssertDirExists("/opt/datadog-installer", 0755, "root", "root")
+	state.AssertDirExists("/opt/datadog-installer/tmp", 0755, "dd-agent", "dd-agent")
 	state.AssertDirExists("/opt/datadog-packages", 0755, "root", "root")
 	state.AssertDirExists("/opt/datadog-packages/datadog-installer", 0755, "root", "root")
 
@@ -47,6 +49,8 @@ func (s *packageInstallerSuite) TestInstall() {
 	state.AssertSymlinkExists("/usr/bin/datadog-installer", "/opt/datadog-packages/datadog-installer/stable/bin/installer/installer", "root", "root")
 
 	state.AssertUnitsNotLoaded("datadog-installer.service", "datadog-installer-exp.service")
+
+	state.AssertFileExists("/etc/systemd/system/datadog-agent.service.d/datadog_runtime_config.conf", 0644, "root", "root")
 }
 
 func (s *packageInstallerSuite) TestInstallWithRemoteUpdates() {
@@ -97,4 +101,23 @@ func (s *packageInstallerSuite) TestReInstall() {
 
 	assert.Equal(s.T(), installerBinBefore.ModTime, installerBinAfter.ModTime)
 	s.host.AssertPackageInstalledByInstaller("datadog-installer")
+}
+
+func (s *packageInstallerSuite) TestUpdateInstallerOCI() {
+	// Install prod
+	err := s.RunInstallScriptProdOci(
+		envForceVersion("datadog-installer", "7.55.0-installer-0.2.1-1"),
+	)
+	defer s.Purge()
+	assert.NoError(s.T(), err)
+
+	version := s.Env().RemoteHost.MustExecute("/opt/datadog-packages/datadog-installer/stable/bin/installer/installer version")
+	assert.Equal(s.T(), "7.55.0-installer-0.2.1\n", version)
+
+	// Install from QA registry
+	err = s.RunInstallScriptWithError()
+	assert.NoError(s.T(), err)
+
+	version = s.Env().RemoteHost.MustExecute("/opt/datadog-packages/datadog-installer/stable/bin/installer/installer version")
+	assert.Contains(s.T(), version, "-devel+git")
 }

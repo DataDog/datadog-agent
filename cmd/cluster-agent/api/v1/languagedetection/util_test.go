@@ -596,13 +596,13 @@ func TestHandleKubeAPIServerUnsetEvents(t *testing.T) {
 		},
 	}
 
-	evBundle := mockStore.Subscribe("language-detection-handler", workloadmeta.NormalPriority, workloadmeta.NewFilter(
-		&workloadmeta.FilterParams{
-			Kinds:     []workloadmeta.Kind{workloadmeta.KindKubernetesDeployment},
-			Source:    "kubeapiserver",
-			EventType: workloadmeta.EventTypeUnset,
-		},
-	))
+	filter := workloadmeta.NewFilterBuilder().
+		SetSource("kubeapiserver").
+		SetEventType(workloadmeta.EventTypeUnset).
+		AddKind(workloadmeta.KindKubernetesDeployment).
+		Build()
+
+	evBundle := mockStore.Subscribe("language-detection-handler", workloadmeta.NormalPriority, filter)
 	defer mockStore.Unsubscribe(evBundle)
 
 	go func() {

@@ -18,6 +18,7 @@ type Mock interface {
 	wmdef.Component
 
 	// The following are for testing purposes and should maybe be revisited
+
 	// Set allows setting an entity in the workloadmeta store
 	Set(entity wmdef.Entity)
 
@@ -26,10 +27,4 @@ type Mock interface {
 
 	// GetConfig returns a Config Reader for the internal injected config
 	GetConfig() config.Reader
-
-	// GetConfig returns a Config Reader for the internal injected config
-	GetNotifiedEvents() []wmdef.CollectorEvent
-
-	// SubscribeToEvents returns a channel that receives events
-	SubscribeToEvents() chan wmdef.CollectorEvent
 }

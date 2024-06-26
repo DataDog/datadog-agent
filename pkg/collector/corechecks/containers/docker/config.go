@@ -29,16 +29,15 @@ type DockerConfig struct {
 	CappedMetrics            map[string]float64 `yaml:"capped_metrics"`
 
 	// Event collection configuration
-	CollectEvent   bool `yaml:"collect_events"`
-	UnbundleEvents bool `yaml:"unbundle_events"`
+	CollectEvent            bool `yaml:"collect_events"`
+	UnbundleEvents          bool `yaml:"unbundle_events"`
+	BundleUnspecifiedEvents bool `yaml:"bundle_unspecified_events"`
 
 	// FilteredEventTypes is a slice of docker event types that works as a
-	// deny list of events to filter out. Only effective when
-	// UnbundleEvents = false
+	// deny list of events to filter out.
 	FilteredEventType []string `yaml:"filtered_event_types"`
 
 	// CollectedEventTypes is a slice of docker event types to collect.
-	// Only effective when UnbundleEvents = true
 	CollectedEventTypes []string `yaml:"collected_event_types"`
 }
 

@@ -35,7 +35,7 @@ func StartServer(cfg *sysconfigtypes.Config, telemetry telemetry.Component, wmet
 
 	mux := gorilla.NewRouter()
 
-	err = module.Register(cfg, mux, modules.All, wmeta)
+	err = module.Register(cfg, mux, modules.All, wmeta, telemetry)
 	if err != nil {
 		return fmt.Errorf("failed to create system probe: %s", err)
 	}
@@ -48,7 +48,7 @@ func StartServer(cfg *sysconfigtypes.Config, telemetry telemetry.Component, wmet
 	setupConfigHandlers(mux, settings)
 
 	// Module-restart handler
-	mux.HandleFunc("/module-restart/{module-name}", func(w http.ResponseWriter, r *http.Request) { restartModuleHandler(w, r, wmeta) }).Methods("POST")
+	mux.HandleFunc("/module-restart/{module-name}", func(w http.ResponseWriter, r *http.Request) { restartModuleHandler(w, r, wmeta, telemetry) }).Methods("POST")
 
 	mux.PathPrefix("/debug/pprof").Handler(http.DefaultServeMux)
 	mux.Handle("/debug/vars", http.DefaultServeMux)

@@ -12,7 +12,8 @@ import (
 	"time"
 
 	"github.com/benbjohnson/clock"
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -20,8 +21,6 @@ import (
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-
-	"go.uber.org/fx"
 )
 
 type testDeps struct {
@@ -45,10 +44,8 @@ func TestHostCollector(t *testing.T) {
 		core.MockBundle(),
 		fx.Supply(workloadmeta.NewParams()),
 		fx.Supply(context.Background()),
-		workloadmetafxmock.MockModule(),
+		workloadmetafxmock.MockModuleV2(),
 	))
-
-	eventChan := deps.Wml.SubscribeToEvents()
 
 	mockClock := clock.NewMock()
 	c := collector{
@@ -56,19 +53,46 @@ func TestHostCollector(t *testing.T) {
 		clock:  mockClock,
 	}
 
-	c.Start(ctx, deps.Wml)
-	c.Pull(ctx)
+	err := c.Start(ctx, deps.Wml)
+	require.NoError(t, err)
 
-	assertTags(t, (<-eventChan).Entity, expectedTags)
+	go func() { assertTagsAreInWorkloadmeta(t, deps.Wml, 10*time.Second, expectedTags) }()
+	err = c.Pull(ctx)
+	require.NoError(t, err)
 
 	mockClock.Add(11 * time.Minute)
 	mockClock.WaitForAllTimers()
-	c.Pull(ctx)
 
-	assertTags(t, (<-eventChan).Entity, []string{})
+	go func() { assertTagsAreInWorkloadmeta(t, deps.Wml, 10*time.Second, []string{}) }()
+	err = c.Pull(ctx)
+	require.NoError(t, err)
 }
 
-func assertTags(t *testing.T, entity workloadmeta.Entity, expectedTags []string) {
-	e := entity.(*workloadmeta.HostTags)
-	assert.ElementsMatch(t, e.HostTags, expectedTags)
+func assertTagsAreInWorkloadmeta(t *testing.T, wlmeta workloadmeta.Component, timeout time.Duration, expectedTags []string) {
+	eventChan := wlmeta.Subscribe(
+		"host-test",
+		workloadmeta.NormalPriority,
+		workloadmeta.NewFilterBuilder().AddKind(workloadmeta.KindHost).Build(),
+	)
+	defer wlmeta.Unsubscribe(eventChan)
+
+	for {
+		select {
+		case eventBundle := <-eventChan:
+			eventBundle.Acknowledge()
+
+			// It's possible to receive an empty event bundle if the collector
+			// didn't have time to run yet.
+			if len(eventBundle.Events) == 0 {
+				break
+			}
+
+			require.Len(t, eventBundle.Events, 1)
+			require.ElementsMatch(t, expectedTags, eventBundle.Events[0].Entity.(*workloadmeta.HostTags).HostTags)
+			return
+
+		case <-time.After(timeout):
+			require.Fail(t, "timed out waiting for event")
+		}
+	}
 }

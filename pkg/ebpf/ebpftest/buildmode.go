@@ -7,6 +7,7 @@ package ebpftest
 
 import (
 	"fmt"
+	"os"
 )
 
 // TODO I don't love fentry as a buildmode here...
@@ -111,4 +112,23 @@ func (e ebpfless) Env() map[string]string {
 		"DD_ALLOW_PRECOMPILED_FALLBACK":      "false",
 		"DD_NETWORK_CONFIG_ENABLE_EBPF_LESS": "true",
 	}
+}
+
+// GetBuildMode returns which build mode the current environment matches, if any
+func GetBuildMode() BuildMode {
+	for _, mode := range []BuildMode{Prebuilt, RuntimeCompiled, CORE, Fentry} {
+		if hasBuildModeEnv(mode) {
+			return mode
+		}
+	}
+	return nil
+}
+
+func hasBuildModeEnv(mode BuildMode) bool {
+	for k, v := range mode.Env() {
+		if os.Getenv(k) != v {
+			return false
+		}
+	}
+	return true
 }

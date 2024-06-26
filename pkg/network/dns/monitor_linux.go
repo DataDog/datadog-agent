@@ -15,7 +15,8 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	filterpkg "github.com/DataDog/datadog-agent/pkg/network/filter"
@@ -29,7 +30,7 @@ type dnsMonitor struct {
 }
 
 // NewReverseDNS starts snooping on DNS traffic to allow IP -> domain reverse resolution
-func NewReverseDNS(cfg *config.Config) (ReverseDNS, error) {
+func NewReverseDNS(cfg *config.Config, _ telemetry.Component) (ReverseDNS, error) {
 	// Create the RAW_SOCKET inside the root network namespace
 	var (
 		packetSrc *filterpkg.AFPacketSource
@@ -110,7 +111,7 @@ func (m *dnsMonitor) Start() error {
 func (m *dnsMonitor) Close() {
 	m.socketFilterSnooper.Close()
 	if m.p != nil {
-		ebpfcheck.RemoveNameMappings(m.p.Manager)
+		ddebpf.RemoveNameMappings(m.p.Manager)
 		_ = m.p.Stop(manager.CleanAll)
 	}
 }
