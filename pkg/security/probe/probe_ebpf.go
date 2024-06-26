@@ -504,8 +504,10 @@ func (p *EBPFProbe) unmarshalProcessCacheEntry(ev *model.Event, data []byte) (in
 		return n, err
 	}
 
-	entry.Process.CGroup.ID, entry.Process.ContainerID = containerutils.GetCGroupContext(string(ev.ContainerContext.ContainerID), ev.ContainerContext.Flags)
+	var containerID string
+	entry.Process.CGroup.ID, containerID = containerutils.GetCGroupContext(string(ev.ContainerContext.ContainerID), ev.ContainerContext.Flags)
 	entry.Process.CGroup.Flags = uint32(ev.ContainerContext.Flags)
+	entry.Process.ContainerID = model.ContainerID(containerID)
 	entry.Source = model.ProcessCacheEntryFromEvent
 
 	return n, nil

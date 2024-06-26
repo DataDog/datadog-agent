@@ -189,8 +189,8 @@ type Process struct {
 
 	FileEvent FileEvent `field:"file,check:IsNotKworker"`
 
-	CGroup      CGroup `field:"cgroup"`
-	ContainerID string `field:"container.id,handler:ResolveProcessContainerID"` // SECLDoc[container.id] Definition:`Container ID`
+	CGroup      CGroup      `field:"cgroup"`
+	ContainerID ContainerID `field:"container.id,handler:ResolveProcessContainerID"` // SECLDoc[container.id] Definition:`Container ID`
 
 	SpanID  uint64 `field:"-"`
 	TraceID uint64 `field:"-"`

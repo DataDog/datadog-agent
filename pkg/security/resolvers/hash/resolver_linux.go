@@ -234,7 +234,7 @@ func (resolver *Resolver) hash(eventType model.EventType, process *model.Process
 	// check if the hash(es) of this file is in cache
 	fileKey := LRUCacheKey{
 		path:        file.PathnameStr,
-		containerID: process.ContainerID,
+		containerID: string(process.ContainerID),
 		inode:       file.Inode,
 		pathID:      file.PathKey.PathID,
 	}
@@ -250,7 +250,7 @@ func (resolver *Resolver) hash(eventType model.EventType, process *model.Process
 
 	rootPIDs := []uint32{process.Pid}
 	if resolver.cgroupResolver != nil {
-		w, ok := resolver.cgroupResolver.GetWorkload(process.ContainerID)
+		w, ok := resolver.cgroupResolver.GetWorkload(string(process.ContainerID))
 		if ok {
 			rootPIDs = w.GetPIDs()
 		}

@@ -119,7 +119,7 @@ func (cr *Resolver) AddPID(process *model.ProcessCacheEntry) {
 	cr.Lock()
 	defer cr.Unlock()
 
-	entry, exists := cr.workloads.Get(process.ContainerID)
+	entry, exists := cr.workloads.Get(string(process.ContainerID))
 	if exists {
 		entry.AddPID(process.Pid)
 		return
@@ -127,7 +127,7 @@ func (cr *Resolver) AddPID(process *model.ProcessCacheEntry) {
 
 	var err error
 	// create new entry now
-	newCGroup, err := cgroupModel.NewCacheEntry(process.ContainerID, uint64(process.CGroup.Flags), process.Pid)
+	newCGroup, err := cgroupModel.NewCacheEntry(string(process.ContainerID), uint64(process.CGroup.Flags), process.Pid)
 	if err != nil {
 		seclog.Errorf("couldn't create new cgroup_resolver cache entry: %v", err)
 		return
@@ -135,7 +135,7 @@ func (cr *Resolver) AddPID(process *model.ProcessCacheEntry) {
 	newCGroup.CreatedAt = uint64(process.ProcessContext.ExecTime.UnixNano())
 
 	// add the new CGroup to the cache
-	cr.workloads.Add(process.ContainerID, newCGroup)
+	cr.workloads.Add(string(process.ContainerID), newCGroup)
 
 	// check the tags of this workload
 	cr.checkTags(newCGroup)

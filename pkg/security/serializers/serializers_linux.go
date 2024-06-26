@@ -698,7 +698,7 @@ func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer 
 
 		if len(ps.ContainerID) != 0 {
 			psSerializer.Container = &ContainerContextSerializer{
-				ID:        ps.ContainerID,
+				ID:        string(ps.ContainerID),
 				CreatedAt: utils.NewEasyjsonTimeIfNotZero(time.Unix(0, int64(e.GetContainerCreatedAt()))),
 			}
 		}

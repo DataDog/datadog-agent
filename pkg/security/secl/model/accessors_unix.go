@@ -30217,6 +30217,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ContainerContext == nil {
 			ev.BaseEvent.ContainerContext = &ContainerContext{}
 		}
+		rv, ok := value.(ContainerID)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ContainerContext.ContainerID"}
+		}
+		ev.BaseEvent.ContainerContext.ContainerID = rv
+		return nil
 	case "container.runtime":
 		if ev.BaseEvent.ContainerContext == nil {
 			ev.BaseEvent.ContainerContext = &ContainerContext{}
@@ -30439,7 +30445,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Exec.Process == nil {
 			ev.Exec.Process = &Process{}
 		}
-		rv, ok := value.(string)
+		rv, ok := value.(ContainerID)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.ContainerID"}
 		}
@@ -31224,7 +31230,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Exit.Process == nil {
 			ev.Exit.Process = &Process{}
 		}
-		rv, ok := value.(string)
+		rv, ok := value.(ContainerID)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.ContainerID"}
 		}
@@ -33130,7 +33136,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext.Ancestor == nil {
 			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
 		}
-		rv, ok := value.(string)
+		rv, ok := value.(ContainerID)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.ContainerID"}
 		}
@@ -34089,7 +34095,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext == nil {
 			ev.BaseEvent.ProcessContext = &ProcessContext{}
 		}
-		rv, ok := value.(string)
+		rv, ok := value.(ContainerID)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.ContainerID"}
 		}
@@ -34793,7 +34799,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ProcessContext.Parent == nil {
 			ev.BaseEvent.ProcessContext.Parent = &Process{}
 		}
-		rv, ok := value.(string)
+		rv, ok := value.(ContainerID)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.ContainerID"}
 		}
@@ -35892,7 +35898,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee.Ancestor == nil {
 			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
-		rv, ok := value.(string)
+		rv, ok := value.(ContainerID)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.ContainerID"}
 		}
@@ -36851,7 +36857,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
 		}
-		rv, ok := value.(string)
+		rv, ok := value.(ContainerID)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.ContainerID"}
 		}
@@ -37555,7 +37561,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee.Parent == nil {
 			ev.PTrace.Tracee.Parent = &Process{}
 		}
-		rv, ok := value.(string)
+		rv, ok := value.(ContainerID)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.ContainerID"}
 		}
@@ -39487,7 +39493,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target.Ancestor == nil {
 			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
-		rv, ok := value.(string)
+		rv, ok := value.(ContainerID)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.ContainerID"}
 		}
@@ -40446,7 +40452,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
 		}
-		rv, ok := value.(string)
+		rv, ok := value.(ContainerID)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.ContainerID"}
 		}
@@ -41150,7 +41156,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target.Parent == nil {
 			ev.Signal.Target.Parent = &Process{}
 		}
-		rv, ok := value.(string)
+		rv, ok := value.(ContainerID)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.ContainerID"}
 		}

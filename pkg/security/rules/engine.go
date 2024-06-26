@@ -440,7 +440,7 @@ func (e *RuleEngine) RuleMatch(rule *rules.Rule, event eval.Event) bool {
 		// the container tags might not be resolved yet
 		if time.Unix(0, int64(ev.ContainerContext.CreatedAt)).Add(TagMaxResolutionDelay).After(time.Now()) {
 			extTagsCb = func() []string {
-				return e.probe.GetEventTags(containerID)
+				return e.probe.GetEventTags(string(containerID))
 			}
 		}
 	}

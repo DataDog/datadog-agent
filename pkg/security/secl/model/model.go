@@ -72,7 +72,7 @@ type CGroupContext struct {
 	CGroupID string `field:"id,handler:ResolveCGroupID"` // SECLDoc[id] Definition:`ID of the cgroup`
 }
 
-type CGroupID string
+// ContainerID represents a container ID
 type ContainerID string
 
 // ContainerContext holds the container context of an event

@@ -137,7 +137,7 @@ func (p *EBPFLessResolver) NewEntry(key CacheResolverKey, ppid uint32, file stri
 		entry.Process.FileEvent.PathnameStr = file
 		entry.Process.FileEvent.BasenameStr = filepath.Base(entry.Process.FileEvent.PathnameStr)
 	}
-	entry.Process.ContainerID = ctrID
+	entry.Process.ContainerID = model.ContainerID(ctrID)
 
 	entry.ExecTime = time.Unix(0, int64(ts))
 

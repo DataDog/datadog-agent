@@ -462,7 +462,7 @@ func (r *Resolver) OnWorkloadSelectorResolvedEvent(cgroup *cgroupModel.CacheEntr
 		return
 	}
 
-	id := cgroup.ContainerID
+	id := string(cgroup.ContainerID)
 	// We don't scan hosts for now
 	if len(id) == 0 {
 		return
