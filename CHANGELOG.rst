@@ -4,7 +4,7 @@ Release Notes
 
 .. _Release Notes_7.54.1:
 
-7.54.1 / 6.54.1
+7.54.1
 ================
 
 .. _Release Notes_7.54.1_Prelude:
@@ -19,7 +19,7 @@ Release on: 2024-06-18
 
 .. _Release Notes_7.54.0:
 
-7.54.0 / 6.54.0
+7.54.0
 ================
 
 .. _Release Notes_7.54.0_Prelude:

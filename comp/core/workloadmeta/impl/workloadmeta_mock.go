@@ -32,10 +32,9 @@ type workloadMetaMock struct {
 	log    log.Component
 	config config.Component
 
-	mu             sync.RWMutex
-	store          map[wmdef.Kind]map[string]wmdef.Entity
-	notifiedEvents []wmdef.CollectorEvent
-	eventsChan     chan wmdef.CollectorEvent
+	mu         sync.RWMutex
+	store      map[wmdef.Kind]map[string]wmdef.Entity
+	eventsChan chan wmdef.CollectorEvent
 }
 
 // NewWorkloadMetaMock returns a new workloadMetaMock.
@@ -312,8 +311,6 @@ func (w *workloadMetaMock) Notify(events []wmdef.CollectorEvent) {
 			w.eventsChan <- event
 		}
 	}
-
-	w.notifiedEvents = append(w.notifiedEvents, events...)
 }
 
 // Push pushes events from an external source into workloadmeta store
@@ -330,26 +327,6 @@ func (w *workloadMetaMock) Push(source wmdef.Source, events ...wmdef.Event) erro
 
 	w.Notify(collectorEvents)
 	return nil
-}
-
-// GetNotifiedEvents returns all registered notification events.
-func (w *workloadMetaMock) GetNotifiedEvents() []wmdef.CollectorEvent {
-	w.mu.RLock()
-	defer w.mu.RUnlock()
-
-	var events []wmdef.CollectorEvent
-	events = append(events, w.notifiedEvents...)
-
-	return events
-}
-
-// SubscribeToEvents returns a channel that receives events
-func (w *workloadMetaMock) SubscribeToEvents() chan wmdef.CollectorEvent {
-	w.mu.RLock()
-	defer w.mu.RUnlock()
-
-	w.eventsChan = make(chan wmdef.CollectorEvent, 100)
-	return w.eventsChan
 }
 
 // Dump is not implemented in the testing store.
@@ -421,16 +398,6 @@ func NewWorkloadMetaMockV2(deps dependencies) wmmock.Mock {
 // Notify overrides store to allow for synchronous event processing
 func (w *workloadMetaMockV2) Notify(events []wmdef.CollectorEvent) {
 	w.handleEvents(events)
-}
-
-// GetNotifiedEvents is not implemented for V2 mocks.
-func (w *workloadMetaMockV2) GetNotifiedEvents() []wmdef.CollectorEvent {
-	panic("not implemented")
-}
-
-// SubscribeToEvents is not implemented for V2 mocks.
-func (w *workloadMetaMockV2) SubscribeToEvents() chan wmdef.CollectorEvent {
-	panic("not implemented")
 }
 
 // SetEntity generates a Set event

@@ -25,6 +25,7 @@ import (
 
 	redis2 "github.com/go-redis/redis/v9"
 	gorilla "github.com/gorilla/mux"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"github.com/twmb/franz-go/pkg/kgo"
@@ -486,7 +487,7 @@ func testTLSClassification(t *testing.T, tr *Tracer, clientHost, targetHost, ser
 }
 
 func testHTTPSClassification(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
-	skipFunc := composeSkips(skipIfHTTPSNotSupported)
+	skipFunc := composeSkips(skipIfHTTPSNotSupported, skipIfGoTLSNotSupported)
 	skipFunc(t, testContext{
 		serverAddress: serverHost,
 		serverPort:    httpsPort,
@@ -497,6 +498,15 @@ func testHTTPSClassification(t *testing.T, tr *Tracer, clientHost, targetHost, s
 		LocalAddr: &net.TCPAddr{
 			IP: net.ParseIP(clientHost),
 		},
+	}
+
+	// makeRequest is a helper that makes a GET request and handle the response.
+	makeRequest := func(t require.TestingT, client *nethttp.Client, url string) {
+		r, err := client.Get(url)
+		assert.NoError(t, err)
+		_, _ = io.Copy(io.Discard, r.Body)
+		_ = r.Body.Close()
+		client.CloseIdleConnections()
 	}
 
 	serverAddress := net.JoinHostPort(serverHost, httpsPort)
@@ -511,52 +521,30 @@ func testHTTPSClassification(t *testing.T, tr *Tracer, clientHost, targetHost, s
 				extras:        make(map[string]interface{}),
 			},
 			preTracerSetup: func(t *testing.T, ctx testContext) {
-				cmd := testutil.HTTPPythonServer(t, ctx.serverAddress, testutil.Options{
-					EnableKeepAlive: false,
-					EnableTLS:       true,
-				})
+				cmd := gotlstestutil.NewGoTLSServer(t, ctx.serverAddress)
 				ctx.extras["cmd"] = cmd
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
 				cmd := ctx.extras["cmd"].(*exec.Cmd)
-				utils.WaitForProgramsToBeTraced(t, "shared_libraries", cmd.Process.Pid)
-				client := nethttp.Client{
+				goTLSAttachPID(t, cmd.Process.Pid)
+				t.Cleanup(func() {
+					goTLSDetachPID(t, cmd.Process.Pid)
+				})
+
+				client := &nethttp.Client{
 					Transport: &nethttp.Transport{
 						TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 						DialContext:     defaultDialer.DialContext,
 					},
 				}
 
-				// Ensure that we see HTTPS requests being traced *before* the actual test assertions
-				// This is done to reduce test test flakiness due to uprobe attachment delays
-				require.Eventually(t, func() bool {
-					resp, err := client.Get(fmt.Sprintf("https://%s/200/warm-up", ctx.targetAddress))
-					if err != nil {
-						return false
-					}
-					_, _ = io.Copy(io.Discard, resp.Body)
-					_ = resp.Body.Close()
+				requestURL := fmt.Sprintf("https://%s/200/request", ctx.targetAddress)
 
-					conns := getConnections(t, tr)
-					for _, c := range conns.Conns {
-						for _, httpData := range c.HTTPStats {
-							if httpData.Key.Path.Content.Get() == resp.Request.URL.Path {
-								return true
-							}
-						}
-					}
-
-					return false
-				}, 5*time.Second, 100*time.Millisecond, "couldn't detect HTTPS traffic being traced (test setup validation)")
-
-				t.Log("run 3 clients request as we can have a race between the closing tcp socket and the http response")
-				for i := 0; i < 3; i++ {
-					resp, err := client.Get(fmt.Sprintf("https://%s/200/request-1", ctx.targetAddress))
-					require.NoError(t, err)
-					_, _ = io.Copy(io.Discard, resp.Body)
-					_ = resp.Body.Close()
-					client.CloseIdleConnections()
-				}
+				// The server might not be ready to accept connection just yet, so we
+				// try until it starts accepting them.
+				require.EventuallyWithT(t, func(c *assert.CollectT) {
+					makeRequest(c, client, requestURL)
+				}, 5*time.Second, 100*time.Millisecond)
 			},
 			validation: func(t *testing.T, ctx testContext, tr *Tracer) {
 				waitForConnectionsWithProtocol(t, tr, ctx.targetAddress, ctx.serverAddress, &protocols.Stack{Encryption: protocols.TLS, Application: protocols.HTTP})

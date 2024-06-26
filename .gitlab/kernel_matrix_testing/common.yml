@@ -61,6 +61,8 @@
   - scp "metal_instance:/home/ubuntu/junit-${ARCH}-${TAG}-${TEST_SET}.tar.gz" $DD_AGENT_TESTING_DIR/ || true
   - ssh metal_instance "scp ${MICRO_VM_IP}:/ci-visibility/testjson.tar.gz /home/ubuntu/testjson-${ARCH}-${TAG}-${TEST_SET}.tar.gz" || true
   - scp "metal_instance:/home/ubuntu/testjson-${ARCH}-${TAG}-${TEST_SET}.tar.gz" $DD_AGENT_TESTING_DIR/ || true
+  - ssh metal_instance "scp -r ${MICRO_VM_IP}:/tmp/test_pcaps /home/ubuntu/test_pcaps-${ARCH}-${TAG}-${TEST_SET}" || true
+  - mkdir -p "$CI_PROJECT_DIR/pcaps" && scp -r "metal_instance:/home/ubuntu/test_pcaps-${ARCH}-${TAG}-${TEST_SET}" "$CI_PROJECT_DIR/pcaps/test_pcaps-${ARCH}-${TAG}-${TEST_SET}" || true
   - !reference [.tag_kmt_ci_job]
 
 .upload_junit_kmt:
@@ -242,6 +244,7 @@
       - $DD_AGENT_TESTING_DIR/junit-$ARCH-$TAG-$TEST_SET.tar.gz
       - $DD_AGENT_TESTING_DIR/testjson-$ARCH-$TAG-$TEST_SET.tar.gz
       - $CI_PROJECT_DIR/logs
+      - $CI_PROJECT_DIR/pcaps
     reports:
       annotations:
         - $EXTERNAL_LINKS_PATH
