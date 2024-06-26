@@ -74,7 +74,7 @@
   - |
     if [ "${COLLECT_COMPLEXITY}" = "yes" ]; then
       ssh metal_instance "scp ${MICRO_VM_IP}:/verifier-complexity.tar.gz /home/ubuntu/verifier-complexity-${ARCH}-${TAG}-${TEST_COMPONENT}.tar.gz" || true
-      scp "/home/ubuntu/verifier-complexity-${ARCH}-${TAG}-${TEST_COMPONENT}.tar.gz" $DD_AGENT_TESTING_DIR/ || true
+      scp "metal_instance:/home/ubuntu/verifier-complexity-${ARCH}-${TAG}-${TEST_COMPONENT}.tar.gz" $DD_AGENT_TESTING_DIR/ || true
     fi
   - !reference [.tag_kmt_ci_job]
 
