@@ -9,8 +9,6 @@
 package mock
 
 import (
-	"testing"
-
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 )
 
