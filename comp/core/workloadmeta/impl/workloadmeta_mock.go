@@ -20,25 +20,25 @@ const (
 )
 
 // MockStore is a store designed to be used in unit tests
-type workloadMetaMockV2 struct {
+type workloadMetaMock struct {
 	*workloadmeta
 }
 
-// NewWorkloadMetaMockV2 returns a Mock
-func NewWorkloadMetaMockV2(deps dependencies) wmmock.Mock {
-	w := &workloadMetaMockV2{
+// NewWorkloadMetaMock returns a Mock
+func NewWorkloadMetaMock(deps dependencies) wmmock.Mock {
+	w := &workloadMetaMock{
 		workloadmeta: NewWorkloadMeta(deps).Comp.(*workloadmeta),
 	}
 	return w
 }
 
 // Notify overrides store to allow for synchronous event processing
-func (w *workloadMetaMockV2) Notify(events []wmdef.CollectorEvent) {
+func (w *workloadMetaMock) Notify(events []wmdef.CollectorEvent) {
 	w.handleEvents(events)
 }
 
 // SetEntity generates a Set event
-func (w *workloadMetaMockV2) Set(e wmdef.Entity) {
+func (w *workloadMetaMock) Set(e wmdef.Entity) {
 	w.Notify([]wmdef.CollectorEvent{
 		{
 			Type:   wmdef.EventTypeSet,
@@ -49,12 +49,12 @@ func (w *workloadMetaMockV2) Set(e wmdef.Entity) {
 }
 
 // GetConfig returns a Config Reader for the internal injected config
-func (w *workloadMetaMockV2) GetConfig() pkgconfig.Reader {
+func (w *workloadMetaMock) GetConfig() pkgconfig.Reader {
 	return w.config
 }
 
 // UnsetEntity generates an Unset event
-func (w *workloadMetaMockV2) Unset(e wmdef.Entity) {
+func (w *workloadMetaMock) Unset(e wmdef.Entity) {
 	w.Notify([]wmdef.CollectorEvent{
 		{
 			Type:   wmdef.EventTypeUnset,

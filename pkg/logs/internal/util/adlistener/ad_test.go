@@ -28,7 +28,7 @@ func TestListenersGetScheduleCalls(t *testing.T) {
 	ac := fxutil.Test[autodiscovery.Mock](t,
 		fx.Supply(autodiscoveryimpl.MockParams{Scheduler: adsched}),
 		autodiscoveryimpl.MockModule(),
-		workloadmetafxmock.MockModuleV2(),
+		workloadmetafxmock.MockModule(),
 		fx.Supply(workloadmeta.NewParams()),
 		core.MockBundle(),
 		fx.Provide(taggerimpl.NewMock),

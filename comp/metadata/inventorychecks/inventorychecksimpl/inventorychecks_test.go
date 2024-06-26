@@ -131,7 +131,7 @@ func TestGetPayload(t *testing.T) {
 			}),
 			collectorimpl.MockModule(),
 			core.MockBundle(),
-			workloadmetafxmock.MockModuleV2(),
+			workloadmetafxmock.MockModule(),
 			fx.Supply(workloadmeta.NewParams()),
 		)
 
@@ -149,7 +149,7 @@ func TestGetPayload(t *testing.T) {
 		src.Status.Error(fmt.Errorf("No such file or directory"))
 		logSources.AddSource(src)
 		mockLogAgent := fxutil.Test[optional.Option[logagent.Mock]](
-			t, agentimpl.MockModule(), core.MockBundle(), inventoryagentimpl.MockModule(), workloadmetafxmock.MockModuleV2(), fx.Supply(workloadmeta.NewParams()),
+			t, agentimpl.MockModule(), core.MockBundle(), inventoryagentimpl.MockModule(), workloadmetafxmock.MockModule(), fx.Supply(workloadmeta.NewParams()),
 		)
 		logsAgent, _ := mockLogAgent.Get()
 		logsAgent.SetSources(logSources)

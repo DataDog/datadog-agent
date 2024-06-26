@@ -598,7 +598,7 @@ func TestProcessEvents(t *testing.T) {
 	wmeta := fxutil.Test[optional.Option[workloadmeta.Component]](t, fx.Options(
 		core.MockBundle(),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmetafxmock.MockModuleV2(),
+		workloadmetafxmock.MockModule(),
 		fx.Replace(configcomp.MockParams{
 			Overrides: map[string]interface{}{
 				"sbom.cache_directory":         cacheDir,
@@ -618,7 +618,7 @@ func TestProcessEvents(t *testing.T) {
 				configcomp.MockModule(),
 				fx.Supply(context.Background()),
 				fx.Supply(workloadmeta.NewParams()),
-				workloadmetafxmock.MockModuleV2(),
+				workloadmetafxmock.MockModule(),
 			))
 
 			sender := mocksender.NewMockSender("")

@@ -392,7 +392,7 @@ func (suite *AgentTestSuite) createDeps() dependencies {
 		hostnameimpl.MockModule(),
 		fx.Replace(configComponent.MockParams{Overrides: suite.configOverrides}),
 		inventoryagentimpl.MockModule(),
-		workloadmetafxmock.MockModuleV2(),
+		workloadmetafxmock.MockModule(),
 		fx.Supply(workloadmeta.NewParams()),
 	))
 }

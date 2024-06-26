@@ -94,7 +94,7 @@ func newTestWorkloadmetaListener(t *testing.T) *testWorkloadmetaListener {
 		config.MockModule(),
 		fx.Supply(context.Background()),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmetafxmock.MockModuleV2(),
+		workloadmetafxmock.MockModule(),
 	))
 
 	return &testWorkloadmetaListener{

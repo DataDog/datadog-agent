@@ -238,7 +238,7 @@ func FakeStoreWithDeployment(t *testing.T, deployments []MockDeployment) workloa
 		coreconfig.MockModule(),
 		fx.Supply(workloadmeta.NewParams()),
 		fx.Supply(context.Background()),
-		workloadmetafxmock.MockModuleV2(),
+		workloadmetafxmock.MockModule(),
 	))
 
 	for _, d := range deployments {

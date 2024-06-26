@@ -29,7 +29,7 @@ func setup(t *testing.T) (scheduler *Scheduler, ac autodiscovery.Component, spy 
 	ac = fxutil.Test[autodiscovery.Mock](t,
 		fx.Supply(autodiscoveryimpl.MockParams{}),
 		autodiscoveryimpl.MockModule(),
-		workloadmetafxmock.MockModuleV2(),
+		workloadmetafxmock.MockModule(),
 		fx.Supply(workloadmeta.NewParams()),
 		core.MockBundle(),
 		fx.Supply(tagger.NewFakeTaggerParams()),
