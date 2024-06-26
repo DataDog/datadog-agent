@@ -13,9 +13,10 @@ import (
 	"path"
 )
 
-// BuildUnixTransparentProxyServer builds the unix transparent proxy server binary and returns the path to the binary.
-// If the binary is already built (meanly in the CI), it returns the path to the binary.
-func BuildUnixTransparentProxyServer(curDir, binaryDir string) (string, error) {
+// BuildGoBinaryWrapper builds a Go binary and returns the path to it.
+// If the binary is already built (meanly in the CI), it returns the
+// path to the binary.
+func BuildGoBinaryWrapper(curDir, binaryDir string) (string, error) {
 	serverSrcDir := path.Join(curDir, binaryDir)
 	cachedServerBinaryPath := path.Join(serverSrcDir, binaryDir)
 
