@@ -38,11 +38,13 @@ func NewKey(saddr, daddr util.Address, sport, dport uint16, topicName string, re
 
 // RequestStat stores stats for Kafka requests to a particular key
 type RequestStat struct {
-	Count int
+	Count      int
+	StaticTags uint64
 }
 
 // CombineWith merges the data in 2 RequestStats objects
 // newStats is kept as it is, while the method receiver gets mutated
 func (r *RequestStat) CombineWith(newStats *RequestStat) {
 	r.Count += newStats.Count
+	r.StaticTags |= newStats.StaticTags
 }

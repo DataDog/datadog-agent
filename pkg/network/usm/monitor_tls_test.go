@@ -105,7 +105,7 @@ func (s *tlsSuite) TestHTTPSViaLibraryIntegration() {
 				dir, err := testutil.CurDir()
 				require.NoError(t, err)
 
-				dir = path.Join(dir, "..", "protocols", "tls", "openssl", "testdata", "musl")
+				dir = path.Join(dir, "testdata", "musl")
 				protocolsUtils.RunDockerServer(t, "musl-alpine", path.Join(dir, "/docker-compose.yml"),
 					nil, regexp.MustCompile("started"), protocolsUtils.DefaultTimeout, 3)
 
@@ -252,7 +252,7 @@ func generateTemporaryFile(t *testing.T) string {
 func buildPrefetchFileBin(t *testing.T) string {
 	curDir, err := testutil.CurDir()
 	require.NoError(t, err)
-	serverBin, err := usmtestutil.BuildUnixTransparentProxyServer(filepath.Join(curDir, "testutil"), "prefetch_file")
+	serverBin, err := usmtestutil.BuildGoBinaryWrapper(filepath.Join(curDir, "testutil"), "prefetch_file")
 	require.NoError(t, err)
 	return serverBin
 }

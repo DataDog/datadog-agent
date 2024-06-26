@@ -14,7 +14,7 @@ import (
 	"path"
 )
 
-// Note that these files are placed in the build directory by the tasks/security_agent.py:copy_bundled_ebpf_files
+// Note that these files are placed in the build directory by the tasks/system_probe.py:copy_bundled_ebpf_files
 // function, called by the tasks that build the object files. This function copies those files from the
 // architecture-specific build directory as we cannot use variables in these directives
 

@@ -122,6 +122,7 @@ def trigger_agent_pipeline(
     deploy=False,
     all_builds=False,
     e2e_tests=False,
+    kmt_tests=False,
     rc_build=False,
     rc_k8s_deployments=False,
 ) -> ProjectPipeline:
@@ -151,6 +152,8 @@ def trigger_agent_pipeline(
     else:
         args["RUN_E2E_TESTS"] = "off"
 
+    args["RUN_KMT_TESTS"] = "on" if kmt_tests else "off"
+
     if release_version_6 is not None:
         args["RELEASE_VERSION_6"] = release_version_6
 
@@ -177,9 +180,9 @@ def trigger_agent_pipeline(
         return repo.pipelines.create({'ref': ref, 'variables': variables})
     except GitlabError as e:
         if "filtered out by workflow rules" in e.error_message:
-            raise FilteredOutException
+            raise FilteredOutException from e
 
-        raise RuntimeError(f"Invalid response from Gitlab API: {e}")
+        raise RuntimeError(f"Invalid response from Gitlab API: {e}") from e
 
 
 def wait_for_pipeline(
@@ -222,7 +225,7 @@ def loop_status(callable, timeout_sec):
     Utility to loop a function that takes a status and returns [done, status], until done is True.
     """
     start = time()
-    status = dict()
+    status = {}
     while True:
         done, status = callable(status)
         if done:

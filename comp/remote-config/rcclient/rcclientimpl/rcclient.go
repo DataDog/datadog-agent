@@ -352,6 +352,7 @@ func (rc rcClient) agentTaskUpdateCallback(updates map[string]state.RawConfig, a
 					// Check if the task was processed at least once
 					processed = oneProcessed || processed
 					if oneErr != nil {
+						pkglog.Errorf("Error while processing agent task %s: %s", configPath, oneErr)
 						if err == nil {
 							err = oneErr
 						} else {

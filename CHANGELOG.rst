@@ -2,9 +2,24 @@
 Release Notes
 =============
 
+.. _Release Notes_7.54.1:
+
+7.54.1
+================
+
+.. _Release Notes_7.54.1_Prelude:
+
+Prelude
+-------
+
+Release on: 2024-06-18
+
+- Please refer to the `7.54.1 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7541>`_ for the list of changes on the Core Checks
+
+
 .. _Release Notes_7.54.0:
 
-7.54.0 / 6.54.0
+7.54.0
 ================
 
 .. _Release Notes_7.54.0_Prelude:

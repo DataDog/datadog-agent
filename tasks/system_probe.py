@@ -34,9 +34,9 @@ from tasks.libs.common.utils import (
     get_build_flags,
     get_common_test_args,
     get_gobin,
-    get_version_numeric_only,
     parse_kernel_version,
 )
+from tasks.libs.releasing.version import get_version_numeric_only
 from tasks.libs.types.arch import ALL_ARCHS, Arch
 from tasks.windows_resources import MESSAGESTRINGS_MC_PATH
 
@@ -80,8 +80,6 @@ arch_mapping = {
 CURRENT_ARCH = arch_mapping.get(platform.machine(), "x64")
 CLANG_VERSION_RUNTIME = "12.0.1"
 CLANG_VERSION_SYSTEM_PREFIX = "12.0"
-
-extra_cflags = []
 
 
 def get_ebpf_build_dir(arch: Arch) -> Path:
@@ -262,6 +260,26 @@ def ninja_network_ebpf_program(nw: NinjaWriter, infile, outfile, flags):
     ninja_ebpf_program(nw, infile, f"{root}-debug{ext}", {"flags": flags + " -DDEBUG=1"})
 
 
+def ninja_telemetry_ebpf_co_re_programs(nw, infile, outfile, flags):
+    ninja_ebpf_co_re_program(nw, infile, outfile, {"flags": flags})
+    root, ext = os.path.splitext(outfile)
+
+
+def ninja_telemetry_ebpf_programs(nw, build_dir, co_re_build_dir):
+    src_dir = os.path.join("pkg", "ebpf", "c")
+
+    telemetry_co_re_programs = [
+        "lock_contention",
+        "ksyms_iter",
+    ]
+    for prog in telemetry_co_re_programs:
+        infile = os.path.join(src_dir, f"{prog}.c")
+        outfile = os.path.join(co_re_build_dir, f"{prog}.c")
+
+        co_re_flags = [f"-I{src_dir}"]
+        ninja_telemetry_ebpf_co_re_programs(nw, infile, outfile, ' '.join(co_re_flags))
+
+
 def ninja_network_ebpf_co_re_program(nw: NinjaWriter, infile, outfile, flags):
     ninja_ebpf_co_re_program(nw, infile, outfile, {"flags": flags})
     root, ext = os.path.splitext(outfile)
@@ -272,14 +290,17 @@ def ninja_network_ebpf_programs(nw: NinjaWriter, build_dir, co_re_build_dir):
     network_bpf_dir = os.path.join("pkg", "network", "ebpf")
     network_c_dir = os.path.join(network_bpf_dir, "c")
 
-    network_flags = ["-Ipkg/network/ebpf/c", "-g"]
+    network_flags = "-Ipkg/network/ebpf/c -g"
     network_programs = [
+        "prebuilt/dns",
+        "prebuilt/offset-guess",
         "tracer",
         "prebuilt/usm",
         "prebuilt/usm_events_test",
         "prebuilt/shared-libraries",
         "prebuilt/conntrack",
     ]
+
     network_co_re_programs = [
         "tracer",
         "co-re/tracer-fentry",
@@ -287,26 +308,20 @@ def ninja_network_ebpf_programs(nw: NinjaWriter, build_dir, co_re_build_dir):
         "runtime/shared-libraries",
         "runtime/conntrack",
     ]
-    network_programs_wo_instrumentation = ["prebuilt/dns", "prebuilt/offset-guess"]
 
     for prog in network_programs:
         infile = os.path.join(network_c_dir, f"{prog}.c")
         outfile = os.path.join(build_dir, f"{os.path.basename(prog)}.o")
-        ninja_network_ebpf_program(nw, infile, outfile, ' '.join(network_flags + extra_cflags))
-
-    for prog in network_programs_wo_instrumentation:
-        infile = os.path.join(network_c_dir, f"{prog}.c")
-        outfile = os.path.join(build_dir, f"{os.path.basename(prog)}.o")
-        ninja_network_ebpf_program(nw, infile, outfile, ' '.join(network_flags))
+        ninja_network_ebpf_program(nw, infile, outfile, network_flags)
 
     for prog_path in network_co_re_programs:
         prog = os.path.basename(prog_path)
         src_dir = os.path.join(network_c_dir, os.path.dirname(prog_path))
-        network_co_re_flags = [f"-I{src_dir}", "-Ipkg/network/ebpf/c"] + extra_cflags
+        network_co_re_flags = f"-I{src_dir} -Ipkg/network/ebpf/c"
 
         infile = os.path.join(src_dir, f"{prog}.c")
         outfile = os.path.join(co_re_build_dir, f"{prog}.o")
-        ninja_network_ebpf_co_re_program(nw, infile, outfile, ' '.join(network_co_re_flags))
+        ninja_network_ebpf_co_re_program(nw, infile, outfile, network_co_re_flags)
 
 
 def ninja_test_ebpf_programs(nw: NinjaWriter, build_dir):
@@ -464,6 +479,9 @@ def ninja_cgo_type_files(nw: NinjaWriter):
             "pkg/collector/corechecks/ebpf/probe/ebpfcheck/c_types.go": [
                 "pkg/collector/corechecks/ebpf/c/runtime/ebpf-kern-user.h"
             ],
+            "pkg/ebpf/types.go": [
+                "pkg/ebpf/c/lock_contention.h",
+            ],
         }
         nw.rule(
             name="godefs",
@@ -540,6 +558,7 @@ def ninja_generate(
             ninja_security_ebpf_programs(nw, build_dir, debug, kernel_release, arch=arch)
             ninja_container_integrations_ebpf_programs(nw, co_re_build_dir)
             ninja_runtime_compilation_files(nw, gobin)
+            ninja_telemetry_ebpf_programs(nw, build_dir, co_re_build_dir)
 
         ninja_cgo_type_files(nw)
 
@@ -560,7 +579,6 @@ def build(
     strip_binary=False,
     with_unit_test=False,
     bundle=True,
-    instrument_trampoline=False,
 ):
     """
     Build the system-probe
@@ -573,7 +591,7 @@ def build(
             debug=debug,
             strip_object_files=strip_object_files,
             with_unit_test=with_unit_test,
-            instrument_trampoline=instrument_trampoline,
+            bundle_ebpf=bundle_ebpf,
         )
 
     build_sysprobe_binary(
@@ -698,7 +716,6 @@ def test(
         build_object_files(
             ctx,
             kernel_release=kernel_release,
-            instrument_trampoline=False,
         )
 
     build_tags = get_sysprobe_buildtags(is_windows, bundle_ebpf)
@@ -717,7 +734,7 @@ def test(
     if go_root:
         args["go"] = os.path.join(go_root, "bin", "go")
 
-    failed_pkgs = list()
+    failed_pkgs = []
     package_dirs = go_package_dirs(packages.split(" "), build_tags)
     # we iterate over the packages here to get the nice streaming test output
     for pdir in package_dirs:
@@ -767,7 +784,6 @@ def test_debug(
         build_object_files(
             ctx,
             kernel_release=kernel_release,
-            instrument_trampoline=False,
         )
 
     build_tags = [NPM_TAG]
@@ -912,7 +928,14 @@ def kitchen_prepare(ctx, kernel_release=None, ci=False, packages=""):
         if pkg.endswith("java"):
             shutil.copy(os.path.join(pkg, "agent-usm.jar"), os.path.join(target_path, "agent-usm.jar"))
 
-        for gobin in ["gotls_client", "grpc_external_server", "external_unix_proxy_server", "fmapper", "prefetch_file"]:
+        for gobin in [
+            "external_unix_proxy_server",
+            "fmapper",
+            "gotls_client",
+            "gotls_server",
+            "grpc_external_server",
+            "prefetch_file",
+        ]:
             src_file_path = os.path.join(pkg, f"{gobin}.go")
             if not is_windows and os.path.isdir(pkg) and os.path.isfile(src_file_path):
                 binary_path = os.path.join(target_path, gobin)
@@ -1427,7 +1450,7 @@ def build_object_files(
     debug=False,
     strip_object_files=False,
     with_unit_test=False,
-    instrument_trampoline=False,
+    bundle_ebpf=False,
 ) -> None:
     arch_obj = Arch.from_str(arch)
     build_dir = get_ebpf_build_dir(arch_obj)
@@ -1446,10 +1469,6 @@ def build_object_files(
         ctx.run(f"mkdir -p -m 0755 {runtime_dir}")
         ctx.run(f"mkdir -p -m 0755 {build_dir}/co-re")
 
-    global extra_cflags
-    if instrument_trampoline:
-        extra_cflags = extra_cflags + ["-pg", "-DINSTRUMENTATION_ENABLED"]
-
     run_ninja(
         ctx,
         explain=True,
@@ -1460,6 +1479,9 @@ def build_object_files(
         with_unit_test=with_unit_test,
         arch=arch,
     )
+
+    if bundle_ebpf:
+        copy_bundled_ebpf_files(ctx, arch=arch)
 
     validate_object_file_metadata(ctx, build_dir)
 
@@ -1501,6 +1523,22 @@ def build_object_files(
                 ctx.run(f"{sudo} find ./ -maxdepth 1 -type f -name '*.c' {cp_cmd('runtime')}")
 
 
+def copy_bundled_ebpf_files(
+    ctx,
+    arch: str | Arch = CURRENT_ARCH,
+):
+    # If we're bundling eBPF files, we need to copy the ebpf files to the right location,
+    # as we cannot use the go:embed directive with variables that depend on the build architecture
+    arch = Arch.from_str(arch)
+    ebpf_build_dir = get_ebpf_build_dir(arch)
+
+    # Parse the files to copy from the go:embed directive, to avoid having duplicate places
+    # where the files are listed
+    ctx.run(
+        f"grep -E '^//go:embed' pkg/ebpf/bytecode/asset_reader_bindata.go | sed -E 's#//go:embed build/##' | xargs -I@ cp -v {ebpf_build_dir}/@ pkg/ebpf/bytecode/build/"
+    )
+
+
 def build_cws_object_files(
     ctx,
     major_version='7',
@@ -1522,23 +1560,12 @@ def build_cws_object_files(
     )
 
     if bundle_ebpf:
-        # If we're bundling eBPF files, we need to copy the ebpf files to the right location,
-        # as we cannot use the go:embed directive with variables that depend on the build architecture
-        arch = Arch.from_str(arch)
-        ebpf_build_dir = get_ebpf_build_dir(arch)
-
-        # Parse the files to copy from the go:embed directive, to avoid having duplicate places
-        # where the files are listed
-        ctx.run(
-            f"grep -E '^//go:embed' pkg/ebpf/bytecode/asset_reader_bindata.go | sed -E 's#//go:embed build/##' | xargs -I@ cp -v {ebpf_build_dir}/@ pkg/ebpf/bytecode/build/"
-        )
+        copy_bundled_ebpf_files(ctx, arch=arch)
 
 
 @task
 def object_files(ctx, kernel_release=None, with_unit_test=False, arch: str = CURRENT_ARCH):
-    build_object_files(
-        ctx, kernel_release=kernel_release, with_unit_test=with_unit_test, instrument_trampoline=False, arch=arch
-    )
+    build_object_files(ctx, kernel_release=kernel_release, with_unit_test=with_unit_test, arch=arch)
 
 
 def clean_object_files(ctx, major_version='7', kernel_release=None, debug=False, strip_object_files=False):
@@ -1618,7 +1645,7 @@ def kitchen_prepare_btfs(ctx, files_dir, arch=CURRENT_ARCH):
             ctx,
             source_dir=f"{btf_dir}/kitchen-btfs-{arch}",
             output_dir=f"{btf_dir}/minimized-btfs",
-            input_bpf_programs=co_re_programs,
+            bpf_programs=co_re_programs,
         )
 
         ctx.run(
@@ -1628,6 +1655,10 @@ def kitchen_prepare_btfs(ctx, files_dir, arch=CURRENT_ARCH):
         )
     else:
         ctx.run(f"cp {btf_dir}/kitchen-btfs-{arch}.tar.xz {files_dir}/minimized-btfs.tar.xz")
+
+
+# list of programs we do not want to minimize against
+no_minimize = ["lock_contention.o"]
 
 
 @task(iterable=['bpf_programs'])
@@ -1648,6 +1679,14 @@ def generate_minimized_btfs(ctx, source_dir, output_dir, bpf_programs):
         programs_dir = os.path.abspath(bpf_programs[0])
         print(f"using all object files from directory {programs_dir}")
         bpf_programs = glob.glob(f"{programs_dir}/*.o")
+
+    newlist = []
+    for prog_path in bpf_programs:
+        prog = os.path.basename(prog_path)
+        if prog not in no_minimize:
+            newlist.append(prog_path)
+
+    bpf_programs = newlist
 
     ctx.run(f"mkdir -p {output_dir}")
 
@@ -1895,6 +1934,7 @@ def _test_docker_image_list():
     import yaml
 
     docker_compose_paths = glob.glob("./pkg/network/protocols/**/*/docker-compose.yml", recursive=True)
+    docker_compose_paths.extend(glob.glob("./pkg/network/usm/**/*/docker-compose.yml", recursive=True))
     # Add relative docker-compose paths
     # For example:
     #   docker_compose_paths.append("./pkg/network/protocols/dockers/testdata/docker-compose.yml")
@@ -1905,9 +1945,6 @@ def _test_docker_image_list():
             docker_compose = yaml.safe_load(f.read())
         for component in docker_compose["services"]:
             images.add(docker_compose["services"][component]["image"])
-
-    # Java tests have dynamic images in docker-compose.yml
-    images.update(["menci/archlinuxarm:base"])
 
     # Special use-case in javatls
     images.remove("${IMAGE_VERSION}")

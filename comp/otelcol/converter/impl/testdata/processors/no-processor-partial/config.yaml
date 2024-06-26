@@ -1,0 +1,41 @@
+receivers:
+    otlp:
+    prometheus/user-defined:
+      config:
+        scrape_configs:
+          - job_name: 'otelcol'
+            scrape_interval: 10s
+            static_configs:
+              - targets: ['0.0.0.0:8888']
+
+exporters:
+    datadog:
+      api:
+        key: 12345
+
+processors:
+    k8sattributes:
+    infraattributes/user-defined:
+
+extensions:
+  pprof/user-defined:
+  health_check/user-defined:
+  zpages/user-defined:
+    endpoint: "localhost:55679"
+  datadog/user-defined:
+   
+service:
+    extensions: [pprof/user-defined, zpages/user-defined, health_check/user-defined, datadog/user-defined]
+    pipelines:
+        traces:
+            receivers: [nop]
+            processors: [k8sattributes]
+            exporters: [datadog]
+        metrics:
+            receivers: [nop, prometheus/user-defined]
+            processors: [k8sattributes, infraattributes/user-defined]
+            exporters: [datadog]
+        logs:
+            receivers: [nop]
+            processors: [k8sattributes]
+            exporters: [datadog]
