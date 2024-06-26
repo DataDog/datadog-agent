@@ -186,7 +186,7 @@ func easyjson6151911dDecodeGithubComDataDogDatadogAgentPkgSecurityRulesMonitor1(
 				in.Delim('[')
 				if out.Actions == nil {
 					if !in.IsDelim(']') {
-						out.Actions = make([]RuleAction, 0, 2)
+						out.Actions = make([]RuleAction, 0, 1)
 					} else {
 						out.Actions = []RuleAction{}
 					}
@@ -522,6 +522,16 @@ func easyjson6151911dDecodeGithubComDataDogDatadogAgentPkgSecurityRulesMonitor4(
 				}
 				(*out.Hash).UnmarshalEasyJSON(in)
 			}
+		case "coredump":
+			if in.IsNull() {
+				in.Skip()
+				out.CoreDump = nil
+			} else {
+				if out.CoreDump == nil {
+					out.CoreDump = new(CoreDumpAction)
+				}
+				(*out.CoreDump).UnmarshalEasyJSON(in)
+			}
 		default:
 			in.SkipRecursive()
 		}
@@ -571,6 +581,16 @@ func easyjson6151911dEncodeGithubComDataDogDatadogAgentPkgSecurityRulesMonitor4(
 			out.RawString(prefix)
 		}
 		(*in.Hash).MarshalEasyJSON(out)
+	}
+	if in.CoreDump != nil {
+		const prefix string = ",\"coredump\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		(*in.CoreDump).MarshalEasyJSON(out)
 	}
 	out.RawByte('}')
 }
@@ -833,4 +853,93 @@ func (v HashAction) MarshalEasyJSON(w *jwriter.Writer) {
 // UnmarshalEasyJSON supports easyjson.Unmarshaler interface
 func (v *HashAction) UnmarshalEasyJSON(l *jlexer.Lexer) {
 	easyjson6151911dDecodeGithubComDataDogDatadogAgentPkgSecurityRulesMonitor7(l, v)
+}
+func easyjson6151911dDecodeGithubComDataDogDatadogAgentPkgSecurityRulesMonitor8(in *jlexer.Lexer, out *CoreDumpAction) {
+	isTopLevel := in.IsStart()
+	if in.IsNull() {
+		if isTopLevel {
+			in.Consumed()
+		}
+		in.Skip()
+		return
+	}
+	in.Delim('{')
+	for !in.IsDelim('}') {
+		key := in.UnsafeFieldName(false)
+		in.WantColon()
+		if in.IsNull() {
+			in.Skip()
+			in.WantComma()
+			continue
+		}
+		switch key {
+		case "process":
+			out.Process = bool(in.Bool())
+		case "mount":
+			out.Mount = bool(in.Bool())
+		case "dentry":
+			out.Dentry = bool(in.Bool())
+		case "no_compression":
+			out.NoCompression = bool(in.Bool())
+		default:
+			in.SkipRecursive()
+		}
+		in.WantComma()
+	}
+	in.Delim('}')
+	if isTopLevel {
+		in.Consumed()
+	}
+}
+func easyjson6151911dEncodeGithubComDataDogDatadogAgentPkgSecurityRulesMonitor8(out *jwriter.Writer, in CoreDumpAction) {
+	out.RawByte('{')
+	first := true
+	_ = first
+	if in.Process {
+		const prefix string = ",\"process\":"
+		first = false
+		out.RawString(prefix[1:])
+		out.Bool(bool(in.Process))
+	}
+	if in.Mount {
+		const prefix string = ",\"mount\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		out.Bool(bool(in.Mount))
+	}
+	if in.Dentry {
+		const prefix string = ",\"dentry\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		out.Bool(bool(in.Dentry))
+	}
+	if in.NoCompression {
+		const prefix string = ",\"no_compression\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		out.Bool(bool(in.NoCompression))
+	}
+	out.RawByte('}')
+}
+
+// MarshalEasyJSON supports easyjson.Marshaler interface
+func (v CoreDumpAction) MarshalEasyJSON(w *jwriter.Writer) {
+	easyjson6151911dEncodeGithubComDataDogDatadogAgentPkgSecurityRulesMonitor8(w, v)
+}
+
+// UnmarshalEasyJSON supports easyjson.Unmarshaler interface
+func (v *CoreDumpAction) UnmarshalEasyJSON(l *jlexer.Lexer) {
+	easyjson6151911dDecodeGithubComDataDogDatadogAgentPkgSecurityRulesMonitor8(l, v)
 }
