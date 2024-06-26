@@ -130,8 +130,8 @@ func (s *upgradeScenarioSuite) assertSuccessfulStartExperiment(timestamp host.Jo
 			Stopped(traceUnit).
 			Stopped(processUnit),
 		).
-		Starting(agentUnitXP).
 		Unordered(host.SystemdEvents().
+			Starting(agentUnitXP).
 			Started(traceUnitXP).
 			Started(processUnitXP),
 		),
@@ -142,6 +142,8 @@ func (s *upgradeScenarioSuite) assertSuccessfulStartExperiment(timestamp host.Jo
 }
 
 func (s *upgradeScenarioSuite) assertSuccessfulPromoteExperiment(timestamp host.JournaldTimestamp, version string) {
+	s.host.WaitForUnitActive(agentUnit)
+
 	// Assert experiment is promoted
 	s.host.AssertSystemdEvents(timestamp, host.SystemdEvents().
 		Unordered(host.SystemdEvents().
