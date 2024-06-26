@@ -48,8 +48,6 @@ extensions:
     workday_team: "Agent Build And Releases"
     conductor:
       slack: "datadog-agent-pipelines"
-      options:
-        disable_bia: true
       targets:
         - name: "beta-build-full"
           # For now, this config is mandatory, even if the target is not a ci_pipeline CNAB object.
