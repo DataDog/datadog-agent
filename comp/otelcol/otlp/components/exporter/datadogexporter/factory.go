@@ -40,11 +40,12 @@ type factory struct {
 	attributesErr          error
 	onceSetupTraceAgentCmp sync.Once
 
-	registry      *featuregate.Registry
-	s             serializer.MetricSerializer
-	logsAgent     logsagentpipeline.Component
-	h             serializerexporter.SourceProviderFunc
-	traceagentcmp traceagent.Component
+	registry       *featuregate.Registry
+	s              serializer.MetricSerializer
+	logsAgent      logsagentpipeline.Component
+	h              serializerexporter.SourceProviderFunc
+	traceagentcmp  traceagent.Component
+	mclientwrapper *metricsclient.StatsdClientWrapper
 }
 
 // setupTraceAgentCmp sets up the trace agent component.
@@ -58,8 +59,8 @@ func (f *factory) setupTraceAgentCmp(set component.TelemetrySettings) error {
 			return
 		}
 		f.traceagentcmp.SetOTelAttributeTranslator(attributesTranslator)
-		// TODO(OASIS-12): use this statsd client in trace agent
-		_ = metricsclient.InitializeMetricClient(set.MeterProvider, metricsclient.ExporterSourceTag)
+		otelmclient := metricsclient.InitializeMetricClient(set.MeterProvider, metricsclient.ExporterSourceTag)
+		f.mclientwrapper.SetDelegate(otelmclient)
 	})
 	return f.attributesErr
 }
@@ -70,13 +71,15 @@ func newFactoryWithRegistry(
 	s serializer.MetricSerializer,
 	logsagent logsagentpipeline.Component,
 	h serializerexporter.SourceProviderFunc,
+	mclientwrapper *metricsclient.StatsdClientWrapper,
 ) exporter.Factory {
 	f := &factory{
-		registry:      registry,
-		s:             s,
-		logsAgent:     logsagent,
-		traceagentcmp: traceagentcmp,
-		h:             h,
+		registry:       registry,
+		s:              s,
+		logsAgent:      logsagent,
+		traceagentcmp:  traceagentcmp,
+		h:              h,
+		mclientwrapper: mclientwrapper,
 	}
 
 	return exporter.NewFactory(
@@ -108,8 +111,9 @@ func NewFactory(
 	s serializer.MetricSerializer,
 	logsAgent logsagentpipeline.Component,
 	h serializerexporter.SourceProviderFunc,
+	mclientwrapper *metricsclient.StatsdClientWrapper,
 ) exporter.Factory {
-	return newFactoryWithRegistry(featuregate.GlobalRegistry(), traceagentcmp, s, logsAgent, h)
+	return newFactoryWithRegistry(featuregate.GlobalRegistry(), traceagentcmp, s, logsAgent, h, mclientwrapper)
 }
 
 func defaultClientConfig() confighttp.ClientConfig {
@@ -185,7 +189,7 @@ func checkAndCastConfig(c component.Config, logger *zap.Logger) *Config {
 // createTracesExporter creates a trace exporter based on this config.
 func (f *factory) createTracesExporter(
 	ctx context.Context,
-	set exporter.CreateSettings,
+	set exporter.Settings,
 	c component.Config,
 ) (exporter.Traces, error) {
 	cfg := checkAndCastConfig(c, set.TelemetrySettings.Logger)
@@ -217,7 +221,7 @@ func (f *factory) createTracesExporter(
 // createMetricsExporter creates a metrics exporter based on this config.
 func (f *factory) createMetricsExporter(
 	ctx context.Context,
-	set exporter.CreateSettings,
+	set exporter.Settings,
 	c component.Config,
 ) (exporter.Metrics, error) {
 	cfg := checkAndCastConfig(c, set.Logger)
@@ -273,7 +277,7 @@ func (f *factory) consumeStatsPayload(ctx context.Context, wg *sync.WaitGroup, s
 // createLogsExporter creates a logs exporter based on the config.
 func (f *factory) createLogsExporter(
 	ctx context.Context,
-	set exporter.CreateSettings,
+	set exporter.Settings,
 	_ component.Config,
 ) (exporter.Logs, error) {
 	var logch chan *message.Message

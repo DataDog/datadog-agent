@@ -632,7 +632,7 @@ def simple_match(word):
             'helm',
         ],
         "agent-metrics-logs": ['logs', 'metric', 'log-ag', 'statsd', 'tags', 'hostnam'],
-        "agent-build-and-releases": ['omnibus', 'packaging', 'script'],
+        "agent-delivery": ['omnibus', 'packaging', 'script'],
         "remote-config": ['installer', 'oci'],
         "agent-cspm": ['cspm'],
         "ebpf-platform": ['ebpf', 'system-prob', 'sys-prob'],

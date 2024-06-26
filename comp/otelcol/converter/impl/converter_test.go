@@ -141,6 +141,7 @@ func TestConvert(t *testing.T) {
 }
 
 func TestGetConfDump(t *testing.T) {
+
 	converter, err := NewConverter()
 	assert.NoError(t, err)
 
@@ -151,6 +152,22 @@ func TestGetConfDump(t *testing.T) {
 
 	converter.Convert(context.Background(), conf)
 
-	assert.Equal(t, "not supported", converter.GetProvidedConf())
-	assert.Equal(t, "not supported", converter.GetEnhancedConf())
+	t.Run("provided", func(t *testing.T) {
+		conf := converter.GetProvidedConf()
+		assert.NotNil(t, conf)
+
+		confStr, err := converter.GetProvidedConfAsString()
+		assert.NotEqual(t, "", confStr)
+		assert.Nil(t, err)
+	})
+
+	t.Run("enhanced", func(t *testing.T) {
+		conf := converter.GetEnhancedConf()
+		assert.NotNil(t, conf)
+
+		confStr, err := converter.GetEnhancedConfAsString()
+		assert.NotEqual(t, "", confStr)
+		assert.Nil(t, err)
+	})
+
 }

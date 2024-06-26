@@ -157,6 +157,8 @@ DEFAULT_MODULES = {
     "comp/otelcol/collector-contrib/impl": GoModule(
         "comp/otelcol/collector-contrib/impl", independent=True, used_by_otel=True
     ),
+    "comp/otelcol/extension/def": GoModule("comp/otelcol/extension/def", independent=True, used_by_otel=True),
+    "comp/otelcol/extension/impl": GoModule("comp/otelcol/extension/impl", independent=True, used_by_otel=True),
     "comp/otelcol/logsagentpipeline": GoModule("comp/otelcol/logsagentpipeline", independent=True, used_by_otel=True),
     "comp/otelcol/logsagentpipeline/logsagentpipelineimpl": GoModule(
         "comp/otelcol/logsagentpipeline/logsagentpipelineimpl", independent=True, used_by_otel=True
@@ -273,8 +275,6 @@ DEFAULT_MODULES = {
 
 # Folder containing a `go.mod` file but that should not be added to the DEFAULT_MODULES
 IGNORED_MODULE_PATHS = [
-    # Will be removed soon
-    "./comp/otelcol/otlp/example/metric",
     # Test files
     "./internal/tools/modparser/testdata/badformat",
     "./internal/tools/modparser/testdata/match",
