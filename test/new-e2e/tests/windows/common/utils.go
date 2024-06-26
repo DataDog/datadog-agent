@@ -44,9 +44,11 @@ func TrimTrailingSlashesAndLower(path string) string {
 
 // MeasureCommand uses Measure-Command and returns time taken (in milliseconds), out, err
 func MeasureCommand(host *components.RemoteHost, command string) (time.Duration, string, error) {
+	// *>&1 redirects all streams
+	// https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_redirection
 	powershellCommand := fmt.Sprintf(`
 		$ErrorActionPreference = "Stop"
-		$taken = Measure-Command { $cmdout = $( %s ) | Out-String }
+		$taken = Measure-Command { $cmdout = $( %s ) *>&1 | Out-String }
 		@{
 			TotalMilliseconds=$taken.TotalMilliseconds
 			Output=$cmdout
