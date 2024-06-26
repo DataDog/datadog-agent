@@ -99,7 +99,7 @@ func evalCommands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(evalArgs),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams("", config.WithConfigMissingOK(true)),
-					SecretParams: secrets.NewEnabledParams(),
+					SecretParams: secrets.NewDisabledParams(),
 					LogParams:    logimpl.ForOneShot("SYS-PROBE", "info", true)}),
 				core.Bundle(),
 			)
@@ -132,7 +132,7 @@ func commonCheckPoliciesCommands(globalParams *command.GlobalParams) []*cobra.Co
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams("", config.WithConfigMissingOK(true)),
-					SecretParams: secrets.NewEnabledParams(),
+					SecretParams: secrets.NewDisabledParams(),
 					LogParams:    logimpl.ForOneShot("SYS-PROBE", "info", true)}),
 				core.Bundle(),
 			)
@@ -156,7 +156,7 @@ func commonReloadPoliciesCommands(_ *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(reloadRuntimePolicies,
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams("", config.WithConfigMissingOK(true)),
-					SecretParams: secrets.NewEnabledParams(),
+					SecretParams: secrets.NewDisabledParams(),
 					LogParams:    logimpl.ForOneShot("SYS-PROBE", "info", true)}),
 				core.Bundle(),
 			)
@@ -174,7 +174,7 @@ func selfTestCommands(_ *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(runRuntimeSelfTest,
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams("", config.WithConfigMissingOK(true)),
-					SecretParams: secrets.NewEnabledParams(),
+					SecretParams: secrets.NewDisabledParams(),
 					LogParams:    logimpl.ForOneShot("SYS-PROBE", "info", true)}),
 				core.Bundle(),
 			)
@@ -205,7 +205,7 @@ func downloadPolicyCommands(globalParams *command.GlobalParams) []*cobra.Command
 				fx.Supply(downloadPolicyArgs),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath),
-					SecretParams: secrets.NewEnabledParams(),
+					SecretParams: secrets.NewDisabledParams(),
 					LogParams:    logimpl.ForOneShot("SYS-PROBE", "info", true)}),
 				core.Bundle(),
 			)
@@ -240,7 +240,7 @@ func processCacheCommands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams("", config.WithConfigMissingOK(true)),
-					SecretParams: secrets.NewEnabledParams(),
+					SecretParams: secrets.NewDisabledParams(),
 					LogParams:    logimpl.ForOneShot("SYS-PROBE", "info", true)}),
 				core.Bundle(),
 			)
@@ -278,7 +278,7 @@ func networkNamespaceCommands(globalParams *command.GlobalParams) []*cobra.Comma
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams("", config.WithConfigMissingOK(true)),
-					SecretParams: secrets.NewEnabledParams(),
+					SecretParams: secrets.NewDisabledParams(),
 					LogParams:    logimpl.ForOneShot("SYS-PROBE", "info", true)}),
 				core.Bundle(),
 			)
@@ -305,7 +305,7 @@ func discardersCommands(_ *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(dumpDiscarders,
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams("", config.WithConfigMissingOK(true)),
-					SecretParams: secrets.NewEnabledParams(),
+					SecretParams: secrets.NewDisabledParams(),
 					LogParams:    logimpl.ForOneShot("SYS-PROBE", "info", true)}),
 				core.Bundle(),
 			)

@@ -62,7 +62,7 @@ func securityProfileShowCommands(globalParams *command.GlobalParams) []*cobra.Co
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams("", config.WithConfigMissingOK(true)),
-					SecretParams: secrets.NewEnabledParams(),
+					SecretParams: secrets.NewDisabledParams(),
 					LogParams:    logimpl.ForOneShot("SYS-PROBE", "info", true)}),
 				core.Bundle(),
 			)
@@ -108,7 +108,7 @@ func listSecurityProfileCommands(globalParams *command.GlobalParams) []*cobra.Co
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams("", config.WithConfigMissingOK(true)),
-					SecretParams: secrets.NewEnabledParams(),
+					SecretParams: secrets.NewDisabledParams(),
 					LogParams:    logimpl.ForOneShot("SYS-PROBE", "info", true)}),
 				core.Bundle(),
 			)
@@ -215,7 +215,7 @@ func saveSecurityProfileCommands(globalParams *command.GlobalParams) []*cobra.Co
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams("", config.WithConfigMissingOK(true)),
-					SecretParams: secrets.NewEnabledParams(),
+					SecretParams: secrets.NewDisabledParams(),
 					LogParams:    logimpl.ForOneShot("SYS-PROBE", "info", true)}),
 				core.Bundle(),
 			)

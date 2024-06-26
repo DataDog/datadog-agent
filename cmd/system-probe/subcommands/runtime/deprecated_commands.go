@@ -34,7 +34,7 @@ func checkPoliciesCommands(globalParams *command.GlobalParams) []*cobra.Command 
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams("", config.WithConfigMissingOK(true)),
-					SecretParams: secrets.NewEnabledParams(),
+					SecretParams: secrets.NewDisabledParams(),
 					LogParams:    logimpl.ForOneShot("SYS-PROBE", "info", true)}),
 				core.Bundle(),
 			)
@@ -56,7 +56,7 @@ func reloadPoliciesCommands(_ *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(reloadRuntimePolicies,
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams("", config.WithConfigMissingOK(true)),
-					SecretParams: secrets.NewEnabledParams(),
+					SecretParams: secrets.NewDisabledParams(),
 					LogParams:    logimpl.ForOneShot("SYS-PROBE", "info", true)}),
 				core.Bundle(),
 			)
