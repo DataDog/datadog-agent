@@ -10,27 +10,15 @@ import (
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 )
 
-type Requires struct {
-}
-
-type Provides struct {
-	Comp integrations.Component
-}
-
 type logsintegration struct {
 	logChan chan integrations.IntegrationLog
 }
 
 // NewComponent creates a new integrations component
-func NewComponent(reqs Requires) (Provides, error) {
-	logsInt := &logsintegration{
+func NewComponent() integrations.Component {
+	return &logsintegration{
 		logChan: make(chan integrations.IntegrationLog),
 	}
-
-	provides := Provides{
-		Comp: logsInt,
-	}
-	return provides, nil
 }
 
 // SendLog sends a log to any subscribers
