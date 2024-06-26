@@ -199,6 +199,7 @@ def generate_flake_finder_pipeline(_, n=3):
         for i in range(n):
             new_job = copy.deepcopy(kept_job[job])
             new_job["stage"] = f"flake-finder-{i}"
+            new_job["dependencies"] = []
             if 'variables' in new_job:
                 if 'E2E_PIPELINE_ID' in new_job['variables']:
                     new_job['variables']['E2E_PIPELINE_ID'] = "$PARENT_PIPELINE_ID"
