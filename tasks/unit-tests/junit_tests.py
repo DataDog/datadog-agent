@@ -46,7 +46,7 @@ class TestSplitJUnitXML(unittest.TestCase):
                 shutil.rmtree(dir, ignore_errors=True)
 
     def test_without_split(self):
-        xml_file = Path("./tasks/unit-tests/testdata/secret.tar.gz/kitchen-rspec-win2016-azure-x86_64.xml")
+        xml_file = Path("./tasks/unit-tests/testdata/secret.tar.gz/bedroom-rspec-win2016-azure-x86_64.xml")
         owners = read_owners(".github/CODEOWNERS")
         self.assertEqual(junit.split_junitxml(xml_file.parent, xml_file, owners, []), 1)
         generated_folder = xml_file.parent / "windows-agent_base"
