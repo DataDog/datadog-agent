@@ -89,6 +89,31 @@ func (s *upgradeScenarioSuite) TestUpgradeSuccessful() {
 	s.assertSuccessfulPromoteExperiment(timestamp, latestAgentImageVersion)
 }
 
+func (s *upgradeScenarioSuite) TestBackendFailure() {
+	s.RunInstallScript("DD_REMOTE_UPDATES=true")
+	defer s.Purge()
+	s.host.WaitForUnitActive(
+		"datadog-agent.service",
+		"datadog-agent-trace.service",
+		"datadog-agent-process.service",
+		"datadog-installer.service",
+	)
+
+	_, err := s.setCatalog(testCatalog)
+	require.NoError(s.T(), err)
+
+	timestamp := s.host.LastJournaldTimestamp()
+	_, err = s.startExperimentCommand(latestAgentImageVersion)
+	require.NoError(s.T(), err)
+	s.assertSuccessfulStartExperiment(timestamp, latestAgentImageVersion)
+
+	// Receive a failure from the backend, stops the experiment
+	timestamp = s.host.LastJournaldTimestamp()
+	_, err = s.stopExperimentCommand()
+	require.NoError(s.T(), err)
+	s.assertSuccessfulStopExperiment(timestamp)
+}
+
 func (s *upgradeScenarioSuite) startExperimentCommand(version string) (string, error) {
 	cmd := fmt.Sprintf("sudo datadog-installer daemon start-experiment datadog-agent %s", version)
 	s.T().Logf("Running start command: %s", cmd)
@@ -101,7 +126,6 @@ func (s *upgradeScenarioSuite) promoteExperimentCommand() (string, error) {
 	return s.Env().RemoteHost.Execute(cmd)
 }
 
-//lint:ignore U1000 Ignore unused function for now
 func (s *upgradeScenarioSuite) stopExperimentCommand() (string, error) {
 	cmd := "sudo datadog-installer daemon stop-experiment datadog-agent"
 	s.T().Logf("Running stop command: %s", cmd)
@@ -161,7 +185,6 @@ func (s *upgradeScenarioSuite) assertSuccessfulPromoteExperiment(timestamp host.
 	require.Equal(s.T(), "none", installerStatus["datadog-agent"].ExperimentVersion)
 }
 
-//lint:ignore U1000 Ignore unused function for now
 func (s *upgradeScenarioSuite) assertSuccessfulStopExperiment(timestamp host.JournaldTimestamp) {
 	// Assert experiment is stopped
 	s.host.AssertSystemdEvents(timestamp, host.SystemdEvents().
