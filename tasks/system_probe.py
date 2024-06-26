@@ -591,6 +591,7 @@ def build(
             debug=debug,
             strip_object_files=strip_object_files,
             with_unit_test=with_unit_test,
+            bundle_ebpf=bundle_ebpf,
         )
 
     build_sysprobe_binary(
@@ -1442,6 +1443,7 @@ def build_object_files(
     debug=False,
     strip_object_files=False,
     with_unit_test=False,
+    bundle_ebpf=False,
 ) -> None:
     arch_obj = Arch.from_str(arch)
     build_dir = get_ebpf_build_dir(arch_obj)
@@ -1470,6 +1472,9 @@ def build_object_files(
         with_unit_test=with_unit_test,
         arch=arch,
     )
+
+    if bundle_ebpf:
+        copy_bundled_ebpf_files(ctx, arch=arch)
 
     validate_object_file_metadata(ctx, build_dir)
 
@@ -1511,6 +1516,22 @@ def build_object_files(
                 ctx.run(f"{sudo} find ./ -maxdepth 1 -type f -name '*.c' {cp_cmd('runtime')}")
 
 
+def copy_bundled_ebpf_files(
+    ctx,
+    arch: str | Arch = CURRENT_ARCH,
+):
+    # If we're bundling eBPF files, we need to copy the ebpf files to the right location,
+    # as we cannot use the go:embed directive with variables that depend on the build architecture
+    arch = Arch.from_str(arch)
+    ebpf_build_dir = get_ebpf_build_dir(arch)
+
+    # Parse the files to copy from the go:embed directive, to avoid having duplicate places
+    # where the files are listed
+    ctx.run(
+        f"grep -E '^//go:embed' pkg/ebpf/bytecode/asset_reader_bindata.go | sed -E 's#//go:embed build/##' | xargs -I@ cp -v {ebpf_build_dir}/@ pkg/ebpf/bytecode/build/"
+    )
+
+
 def build_cws_object_files(
     ctx,
     major_version='7',
@@ -1532,16 +1553,7 @@ def build_cws_object_files(
     )
 
     if bundle_ebpf:
-        # If we're bundling eBPF files, we need to copy the ebpf files to the right location,
-        # as we cannot use the go:embed directive with variables that depend on the build architecture
-        arch = Arch.from_str(arch)
-        ebpf_build_dir = get_ebpf_build_dir(arch)
-
-        # Parse the files to copy from the go:embed directive, to avoid having duplicate places
-        # where the files are listed
-        ctx.run(
-            f"grep -E '^//go:embed' pkg/ebpf/bytecode/asset_reader_bindata.go | sed -E 's#//go:embed build/##' | xargs -I@ cp -v {ebpf_build_dir}/@ pkg/ebpf/bytecode/build/"
-        )
+        copy_bundled_ebpf_files(ctx, arch=arch)
 
 
 @task
