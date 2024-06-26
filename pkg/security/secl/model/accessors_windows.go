@@ -2897,7 +2897,7 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	switch field {
 	case "cgroup.id":
-		rv, ok := value.(string)
+		rv, ok := value.(CGroupID)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.CGroupContext.CGroupID"}
 		}

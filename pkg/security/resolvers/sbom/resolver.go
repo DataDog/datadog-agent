@@ -489,7 +489,7 @@ func (r *Resolver) GetWorkload(id string) *SBOM {
 
 // OnCGroupDeletedEvent is used to handle a CGroupDeleted event
 func (r *Resolver) OnCGroupDeletedEvent(cgroup *cgroupModel.CacheEntry) {
-	r.Delete(cgroup.CGroupID)
+	r.Delete(string(cgroup.CGroupID))
 }
 
 // Delete removes the SBOM of the provided cgroup id

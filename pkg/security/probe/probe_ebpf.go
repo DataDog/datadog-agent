@@ -472,9 +472,9 @@ func (p *EBPFProbe) unmarshalContexts(data []byte, event *model.Event) (int, err
 		return 0, err
 	}
 
-	var containerID string
-	event.CGroupContext.CGroupID, containerID = containerutils.GetCGroupContext(string(event.ContainerContext.ContainerID), event.ContainerContext.Flags)
-	event.ContainerContext.ContainerID = model.ContainerID(containerID)
+	var cgroupID model.CGroupID
+	cgroupID, event.ContainerContext.ContainerID = containerutils.GetCGroupContext(event.ContainerContext.ContainerID, event.ContainerContext.Flags)
+	event.CGroupContext.CGroupID = cgroupID
 
 	return read, nil
 }
@@ -504,10 +504,10 @@ func (p *EBPFProbe) unmarshalProcessCacheEntry(ev *model.Event, data []byte) (in
 		return n, err
 	}
 
-	var containerID string
-	entry.Process.CGroup.ID, containerID = containerutils.GetCGroupContext(string(ev.ContainerContext.ContainerID), ev.ContainerContext.Flags)
+	var cgroupID model.CGroupID
+	cgroupID, entry.Process.ContainerID = containerutils.GetCGroupContext(ev.ContainerContext.ContainerID, ev.ContainerContext.Flags)
 	entry.Process.CGroup.Flags = uint32(ev.ContainerContext.Flags)
-	entry.Process.ContainerID = model.ContainerID(containerID)
+	entry.Process.CGroup.CGroupID = string(cgroupID)
 	entry.Source = model.ProcessCacheEntryFromEvent
 
 	return n, nil

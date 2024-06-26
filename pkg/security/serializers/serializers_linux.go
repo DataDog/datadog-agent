@@ -1083,7 +1083,7 @@ func NewEventSerializer(event *model.Event, opts *eval.Opts) *EventSerializer {
 
 	if cgroupID := event.FieldHandlers.ResolveCGroupID(event, &event.CGroupContext); cgroupID != "" {
 		s.CGroupContextSerializer = &CGroupContextSerializer{
-			ID: event.CGroupContext.CGroupID,
+			ID: string(event.CGroupContext.CGroupID),
 		}
 	}
 

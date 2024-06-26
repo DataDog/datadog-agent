@@ -67,9 +67,12 @@ func (r *Releasable) AppendReleaseCallback(callback func()) {
 	}
 }
 
+// CGroupID represents a cgroup ID
+type CGroupID string
+
 // CGroupContext holds the cgroup context of an event
 type CGroupContext struct {
-	CGroupID string `field:"id,handler:ResolveCGroupID"` // SECLDoc[id] Definition:`ID of the cgroup`
+	CGroupID CGroupID `field:"id,handler:ResolveCGroupID"` // SECLDoc[id] Definition:`ID of the cgroup`
 }
 
 // ContainerID represents a container ID

@@ -211,8 +211,8 @@ func (r *Resolver) ResolveGroup(gid int, containerID string) (string, error) {
 
 // OnCGroupDeletedEvent is used to handle a CGroupDeleted event
 func (r *Resolver) OnCGroupDeletedEvent(sbom *cgroupModel.CacheEntry) {
-	r.nsGroupCache.Remove(sbom.CGroupID)
-	r.nsUserCache.Remove(sbom.CGroupID)
+	r.nsGroupCache.Remove(string(sbom.CGroupID))
+	r.nsUserCache.Remove(string(sbom.CGroupID))
 }
 
 // NewResolver instantiates a new user and group resolver

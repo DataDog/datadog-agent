@@ -5,7 +5,7 @@
 
 //go:build unix
 
-//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors -tags unix -types-file model.go -output accessors_unix.go -field-handlers field_handlers_unix.go -doc ../../../../docs/cloud-workload-security/secl_linux.json -field-accessors-output field_accessors_unix.go
+//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors -tags unix -types-file model.go -output accessors_unix.go -field-handlers field_handlers_unix.go -doc ../../../../docs/cloud-workload-security/secl_linux.json -field-accessors-output field_accessors_unix.go -verbose
 
 // Package model holds model related files
 package model
@@ -179,8 +179,8 @@ type LinuxBinprm struct {
 
 // CGroup represent a control group
 type CGroup struct {
-	ID    string `field:"id"` // SECLDoc[id] Definition:`Cgroup ID`
-	Flags uint32 `field:"-"`
+	CGroupID string `field:"id"` // SECLDoc[id] Definition:`Cgroup ID`
+	Flags    uint32 `field:"-"`
 }
 
 // Process represents a process

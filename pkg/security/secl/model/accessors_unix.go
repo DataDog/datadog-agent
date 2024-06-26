@@ -1100,7 +1100,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
-				return ev.Exec.Process.CGroup.ID
+				return ev.Exec.Process.CGroup.CGroupID
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -1918,7 +1918,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
-				return ev.Exit.Process.CGroup.ID
+				return ev.Exit.Process.CGroup.CGroupID
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -4328,7 +4328,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				value := iterator.Front(ctx)
 				for value != nil {
 					element := (*ProcessCacheEntry)(value)
-					result := element.ProcessContext.Process.CGroup.ID
+					result := element.ProcessContext.Process.CGroup.CGroupID
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -5975,7 +5975,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
-				return ev.BaseEvent.ProcessContext.Process.CGroup.ID
+				return ev.BaseEvent.ProcessContext.Process.CGroup.CGroupID
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -6721,7 +6721,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				if !ev.BaseEvent.ProcessContext.HasParent() {
 					return ""
 				}
-				return ev.BaseEvent.ProcessContext.Parent.CGroup.ID
+				return ev.BaseEvent.ProcessContext.Parent.CGroup.CGroupID
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -7910,7 +7910,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				value := iterator.Front(ctx)
 				for value != nil {
 					element := (*ProcessCacheEntry)(value)
-					result := element.ProcessContext.Process.CGroup.ID
+					result := element.ProcessContext.Process.CGroup.CGroupID
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -9557,7 +9557,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
-				return ev.PTrace.Tracee.Process.CGroup.ID
+				return ev.PTrace.Tracee.Process.CGroup.CGroupID
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -10303,7 +10303,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				if !ev.PTrace.Tracee.HasParent() {
 					return ""
 				}
-				return ev.PTrace.Tracee.Parent.CGroup.ID
+				return ev.PTrace.Tracee.Parent.CGroup.CGroupID
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -12628,7 +12628,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				value := iterator.Front(ctx)
 				for value != nil {
 					element := (*ProcessCacheEntry)(value)
-					result := element.ProcessContext.Process.CGroup.ID
+					result := element.ProcessContext.Process.CGroup.CGroupID
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -14275,7 +14275,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
-				return ev.Signal.Target.Process.CGroup.ID
+				return ev.Signal.Target.Process.CGroup.CGroupID
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -15021,7 +15021,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				if !ev.Signal.Target.HasParent() {
 					return ""
 				}
-				return ev.Signal.Target.Parent.CGroup.ID
+				return ev.Signal.Target.Parent.CGroup.CGroupID
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -18193,7 +18193,7 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "exec.cap_permitted":
 		return int(ev.Exec.Process.Credentials.CapPermitted), nil
 	case "exec.cgroup.id":
-		return ev.Exec.Process.CGroup.ID, nil
+		return ev.Exec.Process.CGroup.CGroupID, nil
 	case "exec.comm":
 		return ev.Exec.Process.Comm, nil
 	case "exec.container.id":
@@ -18457,7 +18457,7 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "exit.cause":
 		return int(ev.Exit.Cause), nil
 	case "exit.cgroup.id":
-		return ev.Exit.Process.CGroup.ID, nil
+		return ev.Exit.Process.CGroup.CGroupID, nil
 	case "exit.code":
 		return int(ev.Exit.Code), nil
 	case "exit.comm":
@@ -19133,7 +19133,7 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
 			element := (*ProcessCacheEntry)(ptr)
-			result := element.ProcessContext.Process.CGroup.ID
+			result := element.ProcessContext.Process.CGroup.CGroupID
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -19959,7 +19959,7 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "process.cap_permitted":
 		return int(ev.BaseEvent.ProcessContext.Process.Credentials.CapPermitted), nil
 	case "process.cgroup.id":
-		return ev.BaseEvent.ProcessContext.Process.CGroup.ID, nil
+		return ev.BaseEvent.ProcessContext.Process.CGroup.CGroupID, nil
 	case "process.comm":
 		return ev.BaseEvent.ProcessContext.Process.Comm, nil
 	case "process.container.id":
@@ -20228,7 +20228,7 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		if !ev.BaseEvent.ProcessContext.HasParent() {
 			return "", &eval.ErrNotSupported{Field: field}
 		}
-		return ev.BaseEvent.ProcessContext.Parent.CGroup.ID, nil
+		return ev.BaseEvent.ProcessContext.Parent.CGroup.CGroupID, nil
 	case "process.parent.comm":
 		if !ev.BaseEvent.ProcessContext.HasParent() {
 			return "", &eval.ErrNotSupported{Field: field}
@@ -20785,7 +20785,7 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
 			element := (*ProcessCacheEntry)(ptr)
-			result := element.ProcessContext.Process.CGroup.ID
+			result := element.ProcessContext.Process.CGroup.CGroupID
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -21611,7 +21611,7 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "ptrace.tracee.cap_permitted":
 		return int(ev.PTrace.Tracee.Process.Credentials.CapPermitted), nil
 	case "ptrace.tracee.cgroup.id":
-		return ev.PTrace.Tracee.Process.CGroup.ID, nil
+		return ev.PTrace.Tracee.Process.CGroup.CGroupID, nil
 	case "ptrace.tracee.comm":
 		return ev.PTrace.Tracee.Process.Comm, nil
 	case "ptrace.tracee.container.id":
@@ -21880,7 +21880,7 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		if !ev.PTrace.Tracee.HasParent() {
 			return "", &eval.ErrNotSupported{Field: field}
 		}
-		return ev.PTrace.Tracee.Parent.CGroup.ID, nil
+		return ev.PTrace.Tracee.Parent.CGroup.CGroupID, nil
 	case "ptrace.tracee.parent.comm":
 		if !ev.PTrace.Tracee.HasParent() {
 			return "", &eval.ErrNotSupported{Field: field}
@@ -22685,7 +22685,7 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
 			element := (*ProcessCacheEntry)(ptr)
-			result := element.ProcessContext.Process.CGroup.ID
+			result := element.ProcessContext.Process.CGroup.CGroupID
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -23511,7 +23511,7 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "signal.target.cap_permitted":
 		return int(ev.Signal.Target.Process.Credentials.CapPermitted), nil
 	case "signal.target.cgroup.id":
-		return ev.Signal.Target.Process.CGroup.ID, nil
+		return ev.Signal.Target.Process.CGroup.CGroupID, nil
 	case "signal.target.comm":
 		return ev.Signal.Target.Process.Comm, nil
 	case "signal.target.container.id":
@@ -23780,7 +23780,7 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		if !ev.Signal.Target.HasParent() {
 			return "", &eval.ErrNotSupported{Field: field}
 		}
-		return ev.Signal.Target.Parent.CGroup.ID, nil
+		return ev.Signal.Target.Parent.CGroup.CGroupID, nil
 	case "signal.target.parent.comm":
 		if !ev.Signal.Target.HasParent() {
 			return "", &eval.ErrNotSupported{Field: field}
@@ -29714,7 +29714,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		ev.Capset.CapPermitted = uint64(rv)
 		return nil
 	case "cgroup.id":
-		rv, ok := value.(string)
+		rv, ok := value.(CGroupID)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.CGroupContext.CGroupID"}
 		}
@@ -30427,9 +30427,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.CGroup.ID"}
+			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.CGroup.CGroupID"}
 		}
-		ev.Exec.Process.CGroup.ID = rv
+		ev.Exec.Process.CGroup.CGroupID = rv
 		return nil
 	case "exec.comm":
 		if ev.Exec.Process == nil {
@@ -31205,9 +31205,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.CGroup.ID"}
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.CGroup.CGroupID"}
 		}
-		ev.Exit.Process.CGroup.ID = rv
+		ev.Exit.Process.CGroup.CGroupID = rv
 		return nil
 	case "exit.code":
 		rv, ok := value.(int)
@@ -33112,9 +33112,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.CGroup.ID"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.CGroup.CGroupID"}
 		}
-		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.CGroup.ID = rv
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.CGroup.CGroupID = rv
 		return nil
 	case "process.ancestors.comm":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -34077,9 +34077,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.CGroup.ID"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.CGroup.CGroupID"}
 		}
-		ev.BaseEvent.ProcessContext.Process.CGroup.ID = rv
+		ev.BaseEvent.ProcessContext.Process.CGroup.CGroupID = rv
 		return nil
 	case "process.comm":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -34775,9 +34775,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.CGroup.ID"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.CGroup.CGroupID"}
 		}
-		ev.BaseEvent.ProcessContext.Parent.CGroup.ID = rv
+		ev.BaseEvent.ProcessContext.Parent.CGroup.CGroupID = rv
 		return nil
 	case "process.parent.comm":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -35874,9 +35874,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.CGroup.ID"}
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.CGroup.CGroupID"}
 		}
-		ev.PTrace.Tracee.Ancestor.ProcessContext.Process.CGroup.ID = rv
+		ev.PTrace.Tracee.Ancestor.ProcessContext.Process.CGroup.CGroupID = rv
 		return nil
 	case "ptrace.tracee.ancestors.comm":
 		if ev.PTrace.Tracee == nil {
@@ -36839,9 +36839,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.CGroup.ID"}
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.CGroup.CGroupID"}
 		}
-		ev.PTrace.Tracee.Process.CGroup.ID = rv
+		ev.PTrace.Tracee.Process.CGroup.CGroupID = rv
 		return nil
 	case "ptrace.tracee.comm":
 		if ev.PTrace.Tracee == nil {
@@ -37537,9 +37537,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.CGroup.ID"}
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.CGroup.CGroupID"}
 		}
-		ev.PTrace.Tracee.Parent.CGroup.ID = rv
+		ev.PTrace.Tracee.Parent.CGroup.CGroupID = rv
 		return nil
 	case "ptrace.tracee.parent.comm":
 		if ev.PTrace.Tracee == nil {
@@ -39469,9 +39469,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.CGroup.ID"}
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.CGroup.CGroupID"}
 		}
-		ev.Signal.Target.Ancestor.ProcessContext.Process.CGroup.ID = rv
+		ev.Signal.Target.Ancestor.ProcessContext.Process.CGroup.CGroupID = rv
 		return nil
 	case "signal.target.ancestors.comm":
 		if ev.Signal.Target == nil {
@@ -40434,9 +40434,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.CGroup.ID"}
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.CGroup.CGroupID"}
 		}
-		ev.Signal.Target.Process.CGroup.ID = rv
+		ev.Signal.Target.Process.CGroup.CGroupID = rv
 		return nil
 	case "signal.target.comm":
 		if ev.Signal.Target == nil {
@@ -41132,9 +41132,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.CGroup.ID"}
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.CGroup.CGroupID"}
 		}
-		ev.Signal.Target.Parent.CGroup.ID = rv
+		ev.Signal.Target.Parent.CGroup.CGroupID = rv
 		return nil
 	case "signal.target.parent.comm":
 		if ev.Signal.Target == nil {
