@@ -62,7 +62,7 @@ def generate_pr_body(
     pr_body = f"""This PR was automatically created by the [Update buildimages Github Workflow]({buildimages_workflow_url}).
 
 ### Buildimages update
-This PR updates the current buildimages (`{old_build_image_tag}`) to `{new_build_image_tag}`{test_version_str}, [here is the full changelog]({compare_url}).  
+This PR updates the current buildimages (`{old_build_image_tag}`) to `{new_build_image_tag}`{test_version_str}, [here is the full changelog]({compare_url}).
 """
 
     if old_go_version != new_go_version:
