@@ -29,6 +29,8 @@ type Pool struct {
 	packetsTelemetry *TelemetryStore
 }
 
+var usedByTestTelemetry = false
+
 // NewPool creates a new pool with a specified buffer size
 func NewPool(bufferSize int, packetsTelemetry *TelemetryStore) *Pool {
 	return &Pool{
@@ -43,7 +45,7 @@ func NewPool(bufferSize int, packetsTelemetry *TelemetryStore) *Pool {
 			},
 		},
 		// telemetry
-		tlmEnabled:       utils.IsTelemetryEnabled(config.Datadog()),
+		tlmEnabled:       usedByTestTelemetry || utils.IsTelemetryEnabled(config.Datadog()),
 		packetsTelemetry: packetsTelemetry,
 	}
 }

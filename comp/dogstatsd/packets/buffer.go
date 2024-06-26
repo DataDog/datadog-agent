@@ -85,7 +85,6 @@ func (pb *Buffer) flush() {
 	}
 	pb.telemetryStore.tlmBufferSize.Set(float64(len(pb.packets)), pb.listenerID)
 	pb.telemetryStore.tlmChannelSize.Set(float64(len(pb.outputChannel)))
-
 }
 
 // Close closes the packet buffer

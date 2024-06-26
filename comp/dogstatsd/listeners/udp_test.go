@@ -17,6 +17,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
+	dto "github.com/prometheus/client_model/go"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
@@ -58,6 +60,67 @@ func TestNewUDPListener(t *testing.T) {
 	assert.Nil(t, err)
 
 	s.Stop()
+}
+
+func TestUDPListenerTelemetry(t *testing.T) {
+	port, err := getAvailableUDPPort()
+	require.Nil(t, err)
+	cfg := map[string]interface{}{}
+	cfg["dogstatsd_port"] = port
+	cfg["dogstatsd_non_local_traffic"] = false
+
+	packetChannel := make(chan packets.Packets)
+	deps := fulfillDepsWithConfig(t, cfg)
+	telemetryStore := NewTelemetryStore(nil, deps.Telemetry)
+	packetsTelemetryStore := packets.NewTelemetryStore(nil, deps.Telemetry)
+	s, err := NewUDPListener(packetChannel, newPacketPoolManagerUDP(deps.Config, packetsTelemetryStore), deps.Config, nil, telemetryStore, packetsTelemetryStore)
+	require.NotNil(t, s)
+
+	assert.Nil(t, err)
+
+	s.Listen()
+	defer s.Stop()
+
+	fmt.Println(fmt.Sprintf("127.0.0.1:%d", port))
+	conn, err := net.Dial("udp", fmt.Sprintf("127.0.0.1:%d", port))
+	defer conn.Close()
+	assert.Nil(t, err)
+	n, err := conn.Write([]byte("hello world"))
+	fmt.Println(n)
+	assert.Nil(t, err)
+
+	select {
+	case pkts := <-packetChannel:
+		packet := pkts[0]
+		assert.NotNil(t, packet)
+
+		telemetryMock, ok := deps.Telemetry.(telemetry.Mock)
+		assert.True(t, ok)
+
+		registry := telemetryMock.GetRegistry()
+		var packetsMetric []*dto.Metric
+		var bytesCountMetric []*dto.Metric
+		metricsFamily, err := registry.Gather()
+		assert.Nil(t, err)
+
+		for _, metric := range metricsFamily {
+			if metric.GetName() == "dogstatsd__udp_packets" {
+				packetsMetric = metric.GetMetric()
+			}
+			if metric.GetName() == "dogstatsd__udp_packets_bytes" {
+				bytesCountMetric = metric.GetMetric()
+			}
+		}
+
+		assert.NotNil(t, packetsMetric)
+		assert.NotNil(t, bytesCountMetric)
+
+		assert.Equal(t, float64(1), packetsMetric[0].GetCounter().GetValue())
+		assert.Equal(t, float64(1), bytesCountMetric[0].GetCounter().GetValue())
+
+	case <-time.After(2 * time.Second):
+		assert.FailNow(t, "Timeout on receive channel")
+	}
 }
 
 func TestStartStopUDPListener(t *testing.T) {
@@ -190,6 +253,37 @@ func TestUDPReceive(t *testing.T) {
 		assert.Equal(t, contents, packet.Contents)
 		assert.Equal(t, "", packet.Origin)
 		assert.Equal(t, packet.Source, packets.UDP)
+
+		telemetryMock, ok := deps.Telemetry.(telemetry.Mock)
+		assert.True(t, ok)
+
+		registry := telemetryMock.GetRegistry()
+		var packetsMetric []*dto.Metric
+		var bytesCountMetric []*dto.Metric
+		var histogramMetric []*dto.Metric
+		metricsFamily, err := registry.Gather()
+		assert.Nil(t, err)
+
+		for _, metric := range metricsFamily {
+			if metric.GetName() == "dogstatsd__udp_packets" {
+				packetsMetric = metric.GetMetric()
+			}
+			if metric.GetName() == "dogstatsd__udp_packets_bytes" {
+				bytesCountMetric = metric.GetMetric()
+			}
+
+			if metric.GetName() == "dogstatsd__listener_read_latency" {
+				histogramMetric = metric.GetMetric()
+			}
+		}
+
+		assert.NotNil(t, packetsMetric)
+		assert.NotNil(t, bytesCountMetric)
+		assert.NotNil(t, histogramMetric)
+
+		assert.Equal(t, float64(1), packetsMetric[0].GetCounter().GetValue())
+		assert.Equal(t, float64(len(contents)), bytesCountMetric[0].GetCounter().GetValue())
+		assert.NotEqual(t, 0, histogramMetric[0].GetHistogram().GetSampleSum())
 	case <-time.After(2 * time.Second):
 		assert.FailNow(t, "Timeout on receive channel")
 	}

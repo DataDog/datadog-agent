@@ -22,7 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
-	telemetrynoop "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -41,7 +41,7 @@ func MakeMockBundle(logParams, logger fx.Option) fxutil.BundleOptions {
 		// Since the telemetry component uses globals we hit the error
 		// for duplicates prometheus metrics.
 		// Once we are not using globals replace with telemetryimpl.MockModule()
-		telemetrynoop.Module(),
+		telemetryimpl.MockModule(),
 		hostnameimpl.MockModule(),
 	)
 }
