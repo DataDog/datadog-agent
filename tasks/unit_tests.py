@@ -21,14 +21,14 @@ def invoke_unit_tests(ctx, tests: str = '', flags: str = '-b'):
                 print()
             print(color_message('Running tests from module', Color.BLUE), color_message(f'{test}_tests', Color.BOLD))
 
-            pattern = '*_tests.py' if len(tests) == 0 else tests[0] + '_tests.py'
+            pattern = '*_tests.py' if len(tests) == 0 else test + '_tests.py'
             command = f"'{sys.executable}' -m unittest discover {flags} -s tasks -p '{pattern}'"
             if not run_unit_tests_command(ctx, command):
                 error = True
 
         # Throw error if more than one module fails
         if error and len(tests) > 1:
-            raise Exit('Some tests are failing')
+            raise Exit(color_message('Some tests are failing', Color.RED))
     else:
         command = f"'{sys.executable}' -m unittest discover {flags} -s tasks -p '*_tests.py'"
         run_unit_tests_command(ctx, command)
@@ -44,4 +44,5 @@ def run_unit_tests_command(ctx, command):
             'CI_DEFAULT_BRANCH': 'themainbranch',
             'CI_PIPELINE_ID': '42',
         },
+        warn=True,
     )
