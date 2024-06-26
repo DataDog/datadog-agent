@@ -44,9 +44,9 @@ func main() {
 		statusCode := testutil.StatusFromPath(req.URL.Path)
 		if statusCode == 0 {
 			log.Printf("wrong request format %s", req.URL.Path)
-		} else {
-			w.WriteHeader(int(statusCode))
+			statusCode = 400
 		}
+		w.WriteHeader(int(statusCode))
 
 		defer req.Body.Close()
 		_, err := io.Copy(w, req.Body)
@@ -60,21 +60,13 @@ func main() {
 		Handler:      http.HandlerFunc(handler),
 		ReadTimeout:  time.Second,
 		WriteTimeout: time.Second,
+		// Disabling http2
+		TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler)),
 	}
 
-	// Disabling http2
-	srv.TLSNextProto = make(map[string]func(*http.Server, *tls.Conn, http.Handler))
 	srv.SetKeepAlivesEnabled(true)
 
-	listenFn := func() error {
-		ln, err := net.Listen("tcp", srv.Addr)
-		if err == nil {
-			_ = srv.ServeTLS(ln, crtPath, keyPath)
-		}
-		return err
-	}
-
-	if err := listenFn(); err != nil {
+	if err := srv.ListenAndServeTLS(crtPath, keyPath); err != nil {
 		log.Fatalf("server listen: %s", err)
 	}
 }
