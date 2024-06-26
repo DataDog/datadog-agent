@@ -503,7 +503,7 @@ func testHTTPSClassification(t *testing.T, tr *Tracer, clientHost, targetHost, s
 	// makeRequest is a helper that makes a GET request and handle the response.
 	makeRequest := func(t require.TestingT, client *nethttp.Client, url string) {
 		r, err := client.Get(url)
-		require.NoError(t, err)
+		assert.NoError(t, err)
 		_, _ = io.Copy(io.Discard, r.Body)
 		_ = r.Body.Close()
 		client.CloseIdleConnections()
@@ -538,14 +538,13 @@ func testHTTPSClassification(t *testing.T, tr *Tracer, clientHost, targetHost, s
 					},
 				}
 
-				// The server might not be ready to accept connection just yet, so we
-				// wait until it starts accepting them.
-				warmupURL := fmt.Sprintf("https://%s/200/warmup", ctx.targetAddress)
-				require.EventuallyWithT(t, func(c *assert.CollectT) {
-					makeRequest(c, client, warmupURL)
-				}, 5*time.Second, 100*time.Millisecond)
+				requestURL := fmt.Sprintf("https://%s/200/request", ctx.targetAddress)
 
-				makeRequest(t, client, fmt.Sprintf("https://%s/200/request-1", ctx.targetAddress))
+				// The server might not be ready to accept connection just yet, so we
+				// try until it starts accepting them.
+				require.EventuallyWithT(t, func(c *assert.CollectT) {
+					makeRequest(c, client, requestURL)
+				}, 5*time.Second, 100*time.Millisecond)
 			},
 			validation: func(t *testing.T, ctx testContext, tr *Tracer) {
 				waitForConnectionsWithProtocol(t, tr, ctx.targetAddress, ctx.serverAddress, &protocols.Stack{Encryption: protocols.TLS, Application: protocols.HTTP})
