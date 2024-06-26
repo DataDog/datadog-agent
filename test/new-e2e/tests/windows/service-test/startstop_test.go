@@ -128,7 +128,7 @@ func (s *startStopTestSuite) TestHardExitEventLogEntry() {
 	s.requireAllServicesRunning()
 
 	// kill the agent
-	for _, serviceName := range s.expectedInstalledServices() {
+	for _, serviceName := range s.expectedUserServices() {
 		// get pid
 		pid, err := windowsCommon.GetServicePID(host, serviceName)
 		s.Require().NoError(err, "should get the PID for %s", serviceName)
@@ -142,8 +142,8 @@ func (s *startStopTestSuite) TestHardExitEventLogEntry() {
 	}
 
 	// collect display names for services
-	displayNames := make([]string, 0, len(s.expectedInstalledServices()))
-	for _, serviceName := range s.expectedInstalledServices() {
+	displayNames := make([]string, 0, len(s.expectedUserServices()))
+	for _, serviceName := range s.expectedUserServices() {
 		conf, err := windowsCommon.GetServiceConfig(host, serviceName)
 		s.Require().NoError(err, "should get the configuration for %s", serviceName)
 		displayNames = append(displayNames, conf.DisplayName)
@@ -327,17 +327,23 @@ func (s *startStopTestSuite) stopAllServices() {
 	}
 }
 
-// expectedInstalledServices returns the list of services that should be installed by the agent
-func (s *startStopTestSuite) expectedInstalledServices() []string {
+// expectedUserServices returns the list of user-mode services
+func (s *startStopTestSuite) expectedUserServices() []string {
 	return []string{
-		// user space
 		"datadogagent",
 		"datadog-trace-agent",
 		"datadog-process-agent",
 		"datadog-security-agent",
 		"datadog-system-probe",
-		// kernel space
+	}
+}
+
+// expectedInstalledServices returns the list of services that should be installed by the agent
+func (s *startStopTestSuite) expectedInstalledServices() []string {
+	user := s.expectedUserServices()
+	kernel := []string{
 		"ddnpm",
 		"ddprocmon",
 	}
+	return append(user, kernel...)
 }
