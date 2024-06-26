@@ -487,7 +487,7 @@ func testTLSClassification(t *testing.T, tr *Tracer, clientHost, targetHost, ser
 }
 
 func testHTTPSClassification(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
-	skipFunc := composeSkips(skipIfHTTPSNotSupported)
+	skipFunc := composeSkips(skipIfHTTPSNotSupported, skipIfGoTLSNotSupported)
 	skipFunc(t, testContext{
 		serverAddress: serverHost,
 		serverPort:    httpsPort,
