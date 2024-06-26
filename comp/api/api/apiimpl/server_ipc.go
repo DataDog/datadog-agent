@@ -13,7 +13,6 @@ import (
 
 	configendpoint "github.com/DataDog/datadog-agent/comp/api/api/apiimpl/internal/config"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/observability"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
@@ -22,7 +21,7 @@ const ipcServerShortName string = "IPC"
 
 var ipcListener net.Listener
 
-func startIPCServer(ipcServerAddr string, tlsConfig *tls.Config, telemetry telemetry.Component) (err error) {
+func startIPCServer(ipcServerAddr string, tlsConfig *tls.Config, tmf observability.TelemetryMiddlewareFactory) (err error) {
 	ipcListener, err = getListener(ipcServerAddr)
 	if err != nil {
 		return err
@@ -37,7 +36,7 @@ func startIPCServer(ipcServerAddr string, tlsConfig *tls.Config, telemetry telem
 		http.StripPrefix("/config/v1", configEndpointMux))
 
 	// add some observability
-	ipcMuxHandler := observability.TelemetryHandler(telemetry, ipcServerShortName)(ipcMux)
+	ipcMuxHandler := tmf.Middleware(ipcServerShortName)(ipcMux)
 	ipcMuxHandler = observability.LogResponseHandler(ipcServerName)(ipcMuxHandler)
 
 	ipcServer := &http.Server{

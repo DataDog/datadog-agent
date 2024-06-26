@@ -25,7 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-func TestTelemetryHandler(t *testing.T) {
+func TestTelemetryMiddleware(t *testing.T) {
 	testCases := []struct {
 		method   string
 		path     string
@@ -58,7 +58,8 @@ func TestTelemetryHandler(t *testing.T) {
 		t.Run(testName, func(t *testing.T) {
 			clock := clock.NewMock()
 			telemetry := fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule())
-			telemetryHandler := telemetryHandler(telemetry, serverName, clock)
+			tm := newTelemetryMiddlewareFactory(telemetry, clock)
+			telemetryHandler := tm.Middleware(serverName)
 			registry := telemetry.GetRegistry()
 
 			var tcHandler http.HandlerFunc = func(w http.ResponseWriter, r *http.Request) {
@@ -127,9 +128,9 @@ func TestTelemetryHandler(t *testing.T) {
 	}
 }
 
-func TestTelemetryHandlerShort(t *testing.T) {
+func TestTelemetryMiddlewareDuration(t *testing.T) {
 	telemetry := fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule())
-	telemetryHandler := TelemetryHandler(telemetry, "test")
+	telemetryHandler := NewTelemetryMiddlewareFactory(telemetry).Middleware("test")
 
 	var tcHandler http.HandlerFunc = func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -145,4 +146,12 @@ func TestTelemetryHandlerShort(t *testing.T) {
 
 	duration := time.Since(start).Milliseconds()
 	require.LessOrEqual(t, duration, 100*time.Millisecond)
+}
+
+func TestTelemetryMiddlewareTwice(t *testing.T) {
+	telemetry := fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule())
+	tm := NewTelemetryMiddlewareFactory(telemetry)
+
+	_ = tm.Middleware("test1")
+	_ = tm.Middleware("test2")
 }

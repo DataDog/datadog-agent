@@ -14,6 +14,7 @@ import (
 
 	"github.com/cihub/seelog"
 
+	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/observability"
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
@@ -96,6 +97,8 @@ func StartServers(
 		MinVersion:   tls.VersionTLS12,
 	}
 
+	tmf := observability.NewTelemetryMiddlewareFactory(telemetry)
+
 	// start the CMD server
 	if err := startCMDServer(
 		apiAddr,
@@ -114,14 +117,14 @@ func StartServers(
 		collector,
 		ac,
 		providers,
-		telemetry,
+		tmf,
 	); err != nil {
 		return fmt.Errorf("unable to start CMD API server: %v", err)
 	}
 
 	// start the IPC server
 	if ipcServerEnabled {
-		if err := startIPCServer(ipcServerHostPort, tlsConfig, telemetry); err != nil {
+		if err := startIPCServer(ipcServerHostPort, tlsConfig, tmf); err != nil {
 			// if we fail to start the IPC server, we should stop the CMD server
 			StopServers()
 			return fmt.Errorf("unable to start IPC API server: %v", err)
