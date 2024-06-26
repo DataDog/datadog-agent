@@ -21,7 +21,7 @@ import (
 func TestUpgrade(t *testing.T) {
 	s := &testUpgradeSuite{}
 	previousAgentPackage, err := windowsAgent.GetLastStablePackageFromEnv()
-	s.Require().NoError(err, "should get last stable agent package from env")
+	require.NoError(t, err, "should get last stable agent package from env")
 	s.previousAgentPackge = previousAgentPackage
 	run(t, s)
 }
