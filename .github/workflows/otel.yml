@@ -48,11 +48,11 @@ jobs:
           cp bin/otel-agent/otel-agent Dockerfiles/agent/
           cp bin/otel-agent/dist/otel-config.yaml Dockerfiles/agent/otel-config.yaml.example
 
-      - name: Login to Docker Hub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ vars.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          # - name: Login to Docker Hub
+          #   uses: docker/login-action@v3
+          #   with:
+          #     username: ${{ vars.DOCKERHUB_USERNAME }}
+          #     password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -63,4 +63,5 @@ jobs:
           context: Dockerfiles/agent
           file: Dockerfiles/github/Dockerfile
           push: false
-          tags: ${{ vars.DOCKERHUB_USERNAME }}/datadog-agent:latest-otel
+          tags: datadog/agent:latest-otel
+            # tags: ${{ vars.DOCKERHUB_USERNAME }}/datadog-agent:latest-otel
