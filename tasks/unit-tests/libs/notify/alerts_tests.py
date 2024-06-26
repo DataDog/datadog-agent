@@ -220,8 +220,8 @@ class TestAlertsSendNotification(unittest.TestCase):
 
         # Verify that we send the right number of jobs per channel
         expected_team_njobs = {
-            '#agent-build-and-releases': 2,
-            '#agent-developer-experience': 2,
+            '#agent-delivery-ops': 2,
+            '#agent-devx-ops': 2,
             '#agent-platform-ops': 4,
             '#security-and-compliance-agent-ops': 1,
         }
@@ -238,9 +238,9 @@ class TestAlertsSendNotification(unittest.TestCase):
         mock_metrics.assert_called_once()
         expected_metrics = {
             '@datadog/agent-security': 1,
-            '@datadog/agent-build-and-releases': 2,
-            '@datadog/agent-ci-experience': 2,
-            '@datadog/agent-developer-tools': 2,
+            '@datadog/agent-delivery': 2,
+            '@datadog/agent-devx-infra': 2,
+            '@datadog/agent-devx-loops': 2,
             '@datadog/documentation': 2,
             '@datadog/agent-platform': 2,
         }
