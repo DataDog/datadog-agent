@@ -40,11 +40,9 @@ def send_message(ctx, notification_type="merge", print_to_stdout=False):
     Use the --print-to-stdout option to test this locally, without sending
     real slack messages.
     """
-    default_branch = os.getenv("CI_DEFAULT_BRANCH")
-    git_ref = os.getenv("CI_COMMIT_REF_NAME")
 
     try:
-        failed_jobs = get_failed_jobs(PROJECT_NAME, os.getenv("CI_PIPELINE_ID"))
+        failed_jobs = get_failed_jobs(PROJECT_NAME, os.environ["CI_PIPELINE_ID"])
         messages_to_send = pipeline_status.generate_failure_messages(PROJECT_NAME, failed_jobs)
     except Exception as e:
         buffer = io.StringIO()
@@ -58,6 +56,8 @@ def send_message(ctx, notification_type="merge", print_to_stdout=False):
         traceback.print_exc()
         raise Exit(code=1) from e
 
+    default_branch = os.environ["CI_DEFAULT_BRANCH"]
+    git_ref = os.environ["CI_COMMIT_REF_NAME"]
     pipeline_status.send_message_and_metrics(
         ctx, failed_jobs, messages_to_send, notification_type, print_to_stdout, git_ref, default_branch
     )
@@ -104,9 +104,9 @@ def check_consistent_failures(ctx, job_failures_file="job_executions.v2.json"):
     job_executions = alerts.retrieve_job_executions(ctx, job_failures_file)
 
     # By-pass if the pipeline chronological order is not respected
-    if job_executions.pipeline_id > int(os.getenv("CI_PIPELINE_ID")):
+    if job_executions.pipeline_id > int(os.environ["CI_PIPELINE_ID"]):
         return
-    job_executions.pipeline_id = int(os.getenv("CI_PIPELINE_ID"))
+    job_executions.pipeline_id = int(os.environ["CI_PIPELINE_ID"])
 
     alert_jobs, job_executions = alerts.update_statistics(job_executions)
 

@@ -155,18 +155,18 @@ class TestSendMessage(unittest.TestCase):
             )
         )
         jobowners = """\
-        job1 @DataDog/agent-ci-experience
-        job2 @DataDog/agent-ci-experience
-        job3 @DataDog/agent-ci-experience @DataDog/agent-developer-tools
-        not* @DataDog/agent-build-and-releases
+        job1 @DataDog/agent-devx-infra
+        job2 @DataDog/agent-devx-infra
+        job3 @DataDog/agent-devx-infra @DataDog/agent-devx-loops
+        not* @DataDog/agent-delivery
         """
         read_owners_mock.return_value = CodeOwners(jobowners)
         owners = find_job_owners(failed)
         # Should send notifications to agent-e2e-testing and ci-experience
         self.assertIn("@DataDog/agent-e2e-testing", owners)
-        self.assertIn("@DataDog/agent-ci-experience", owners)
-        self.assertNotIn("@DataDog/agent-developer-tools", owners)
-        self.assertNotIn("@DataDog/agent-build-and-releases", owners)
+        self.assertIn("@DataDog/agent-devx-infra", owners)
+        self.assertNotIn("@DataDog/agent-devx-loops", owners)
+        self.assertNotIn("@DataDog/agent-delivery", owners)
 
     @patch('tasks.libs.ciproviders.gitlab_api.get_gitlab_api')
     def test_merge_with_get_failed_call(self, api_mock):
@@ -245,7 +245,7 @@ class TestJobOwners(unittest.TestCase):
         self.assertEqual(
             partition,
             [
-                ('@DataDog/agent-ci-experience', {'hello_world'}),
+                ('@DataDog/agent-devx-infra', {'hello_world'}),
                 ('@DataDog/agent-security', {'security_go_generate_check'}),
                 ('@DataDog/ebpf-platform', {'tests_ebpf'}),
                 ('@DataDog/multiple', {'tests_hello', 'tests_hello_world'}),

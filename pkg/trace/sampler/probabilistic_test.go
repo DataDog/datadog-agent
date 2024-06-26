@@ -88,11 +88,13 @@ func TestProbabilisticSampler(t *testing.T) {
 			ProbabilisticSamplerSamplingPercentage: 40,
 		}
 		sampler := NewProbabilisticSampler(conf, &statsd.NoOpClient{})
-		sampled := sampler.Sample(&trace.Span{
+		span := &trace.Span{
 			TraceID: 555,
 			Meta:    map[string]string{},
-		})
+		}
+		sampled := sampler.Sample(span)
 		assert.True(t, sampled)
+		assert.EqualValues(t, .4, span.Metrics["_dd.prob_sr"])
 	})
 	t.Run("drop-dd-64", func(t *testing.T) {
 		conf := &config.AgentConfig{
@@ -128,7 +130,7 @@ func FuzzConsistentWithOtel(f *testing.F) {
 	hashSeed := uint32(555666)
 	samplingPercent := float32(50)
 	pspFactory := probabilisticsamplerprocessor.NewFactory()
-	cfg := processortest.NewNopCreateSettings()
+	cfg := processortest.NewNopSettings()
 	pspCfg := &probabilisticsamplerprocessor.Config{
 		SamplingPercentage: samplingPercent,
 		HashSeed:           hashSeed,

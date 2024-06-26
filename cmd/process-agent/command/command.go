@@ -41,6 +41,9 @@ type GlobalParams struct {
 	// file, to allow overrides from the command line
 	ConfFilePath string
 
+	// ExtraConfFilePath represents the paths to additional configuration files.
+	ExtraConfFilePath []string
+
 	// SysProbeConfFilePath holds the path to the folder containing the system-probe
 	// configuration file, to allow overrides from the command line
 	SysProbeConfFilePath string
@@ -148,7 +151,7 @@ func SetHostMountEnv(logger logComponent.Component) {
 //nolint:revive // TODO(PROC) Fix revive linter
 func GetCoreBundleParamsForOneShot(globalParams *GlobalParams) core.BundleParams {
 	return core.BundleParams{
-		ConfigParams:         configComponent.NewAgentParams(globalParams.ConfFilePath),
+		ConfigParams:         configComponent.NewAgentParams(globalParams.ConfFilePath, configComponent.WithExtraConfFiles(globalParams.ExtraConfFilePath)),
 		SecretParams:         secrets.NewEnabledParams(),
 		SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath)),
 		LogParams:            OneShotLogParams,

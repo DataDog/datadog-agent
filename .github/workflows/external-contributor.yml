@@ -27,7 +27,7 @@ jobs:
         run: pip install -r requirements.txt -r tasks/requirements.txt
       - name: Set label on external contributor PRs
         run: |
-          gh issue edit "$NUMBER" --milestone "$MILESTONE"
+          gh issue edit "$NUMBER"
           inv -e github.handle-community-pr --repo="$GH_REPO" --pr-id="$NUMBER" --labels="$LABELS"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -36,5 +36,4 @@ jobs:
           GH_REPO: ${{ github.repository }}
           NUMBER: ${{ github.event.number }}
           # labels is a comma-separated list of tags
-          LABELS: community,team/triage
-          MILESTONE: Triage
+          LABELS: community

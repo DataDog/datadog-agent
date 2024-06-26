@@ -88,6 +88,8 @@ func CompleteFlare(fb flaretypes.FlareBuilder, diagnoseDeps diagnose.SuitesDeps)
 	fb.AddFileFromFunc("go-routine-dump.log", func() ([]byte, error) { return getHTTPCallContent(pprofURL) })                                     //nolint:errcheck
 	fb.AddFileFromFunc("docker_inspect.log", func() ([]byte, error) { return getDockerSelfInspect(diagnoseDeps.GetWMeta()) })                     //nolint:errcheck
 	fb.AddFileFromFunc("docker_ps.log", getDockerPs)                                                                                              //nolint:errcheck
+	fb.AddFileFromFunc("k8s/kubelet_config.yaml", getKubeletConfig)                                                                               //nolint:errcheck
+	fb.AddFileFromFunc("k8s/kubelet_pods.yaml", getKubeletPods)                                                                                   //nolint:errcheck
 
 	getRegistryJSON(fb)
 

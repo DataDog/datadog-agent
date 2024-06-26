@@ -95,6 +95,8 @@ linters-settings:
             # the goal is just to limit the risk of accidental imports
           - pkg: "gotest.tools/assert"
             desc: "Not really forbidden to use, but it is usually imported by mistake instead of github.com/stretchr/testify/assert"
+          - pkg: "github.com/tj/assert"
+            desc: "Not really forbidden to use, but it is usually imported by mistake instead of github.com/stretchr/testify/assert, and confusing since it actually has the behavior of github.com/stretchr/testify/require"
 
   errcheck:
     # Disable warnings for `fmt`, `log` and `seelog` packages. Also ignore `Write` functions from `net/http` package.
