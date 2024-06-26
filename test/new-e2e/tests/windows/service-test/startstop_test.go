@@ -10,6 +10,8 @@ import (
 	_ "embed"
 	"fmt"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
@@ -76,10 +78,26 @@ func (s *startStopTestSuite) TestStopTimeout() {
 	}
 	// stop them one by one, measuring the time it takes to stop each one using Measure-Command
 	for _, serviceName := range services {
-		cmd := fmt.Sprintf(`Measure-Command { Stop-Service -Force -Name '%s' | Write-Host }`, serviceName)
+		cmd := fmt.Sprintf(`(Measure-Command { Stop-Service -Force -Name '%s' -ErrorAction Stop | Write-Host }).TotalSeconds`, serviceName)
 		out, err := host.Execute(cmd)
 		s.Require().NoError(err, "should stop %s", serviceName)
+		out = strings.TrimSpace(out)
 		s.T().Logf("Stop-Service output for %s:\n%s", serviceName, out)
+		// get last non-empty line from output
+		//  - stop-service may print status messages to stdout, we only want the time taken
+		var timeTaken float64
+		lines := strings.Split(out, "\n")
+		for i := len(lines) - 1; i >= 0; i-- {
+			line := strings.TrimSpace(lines[i])
+			if line != "" {
+				timeTaken, err = strconv.ParseFloat(line, 64)
+				s.Require().NoError(err, "should parse time taken to stop %s", serviceName)
+				break
+			}
+		}
+		s.T().Logf("Time taken to stop %s: %f seconds", serviceName, timeTaken)
+		// check if the time taken is less than the hard stop timeout
+		s.Assert().Lessf(timeTaken, 15.0, "should stop %s within 15 seconds", serviceName)
 	}
 
 	// test all services are stopped
