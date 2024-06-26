@@ -111,7 +111,7 @@ notify_failure_summary_on_pipeline:
   rules:
     - if: $CI_PIPELINE_SOURCE != "push" && $CI_PIPELINE_SOURCE != "schedule"
       when: never
-    - !reference [.on_main]
+    - !reference [.on_main_always]
   script:
     - !reference [.failure_summary_setup]
     - inv -e notify.failure-summary-upload-pipeline-data
