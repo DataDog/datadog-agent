@@ -59,9 +59,9 @@ def generate_pr_body(
     buildimages_workflow_url = "https://github.com/DataDog/datadog-agent/actions/workflows/buildimages-update.yml"
     test_version_str = "(test version)" if test_version else ""
     compare_url = f"https://github.com/DataDog/datadog-agent-buildimages/compare/{old_build_image_tag.split('-')[1]}...{new_build_image_tag.split('-')[1]}"
-    pr_body = f"""This PR was automatically created by the [Update buildimages Github Workflow]({buildimages_workflow_url}).  
+    pr_body = f"""This PR was automatically created by the [Update buildimages Github Workflow]({buildimages_workflow_url}).
 
-### Buildimages update  
+### Buildimages update
 This PR updates the current buildimages (`{old_build_image_tag}`) to `{new_build_image_tag}`{test_version_str}, [here is the full changelog]({compare_url}).  
 """
 
