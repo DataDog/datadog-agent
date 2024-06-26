@@ -207,6 +207,17 @@ func (s *startStopTestSuite) BeforeTest(suiteName, testName string) {
 		err := windowsCommon.ClearEventLog(host, logName)
 		s.Require().NoError(err, "should clear %s event log", logName)
 	}
+	// Clear agent logs
+	s.T().Logf("Clearing agent logs")
+	logsFolder, err := host.GetLogsFolder()
+	s.Require().NoError(err, "should get logs folder")
+	entries, err := host.ReadDir(logsFolder)
+	if s.Assert().NoError(err, "should read log folder") {
+		for _, entry := range entries {
+			err = host.Remove(filepath.Join(logsFolder, entry.Name()))
+			s.Assert().NoError(err, "should remove %s", entry.Name())
+		}
+	}
 }
 
 func (s *startStopTestSuite) AfterTest(suiteName, testName string) {
@@ -221,19 +232,47 @@ func (s *startStopTestSuite) AfterTest(suiteName, testName string) {
 			s.T().Fatalf("should get output dir")
 		}
 		s.T().Logf("Output dir: %s", outputDir)
-		vm := s.Env().RemoteHost
+		host := s.Env().RemoteHost
 		for _, logName := range []string{"System", "Application"} {
 			// collect the full event log as an evtx file
 			s.T().Logf("Exporting %s event log", logName)
 			outputPath := filepath.Join(outputDir, fmt.Sprintf("%s.evtx", logName))
-			err := windowsCommon.ExportEventLog(vm, logName, outputPath)
+			err := windowsCommon.ExportEventLog(host, logName, outputPath)
 			s.Assert().NoError(err, "should export %s event log", logName)
 			// Log errors and warnings to the screen for easy access
-			out, err := windowsCommon.GetEventLogErrorsAndWarnings(vm, logName)
+			out, err := windowsCommon.GetEventLogErrorsAndWarnings(host, logName)
 			if s.Assert().NoError(err, "should get errors and warnings from %s event log", logName) && out != "" {
 				s.T().Logf("Errors and warnings from %s event log:\n%s", logName, out)
 			}
 		}
+		// collect agent logs
+		s.collectAgentLogs()
+	}
+}
+
+func (s *startStopTestSuite) collectAgentLogs() {
+	host := s.Env().RemoteHost
+	outputDir, err := runner.GetTestOutputDir(runner.GetProfile(), s.T())
+	if err != nil {
+		s.T().Fatalf("should get output dir")
+	}
+
+	s.T().Logf("Collecting agent logs")
+	logsFolder, err := host.GetLogsFolder()
+	if !s.Assert().NoError(err, "should get logs folder") {
+		return
+	}
+	entries, err := host.ReadDir(logsFolder)
+	if !s.Assert().NoError(err, "should read log folder") {
+		return
+	}
+	for _, entry := range entries {
+		s.T().Logf("Found log file: %s", entry.Name())
+		err = host.GetFile(
+			filepath.Join(logsFolder, entry.Name()),
+			filepath.Join(outputDir, entry.Name()),
+		)
+		s.Assert().NoError(err, "should download %s", entry.Name())
 	}
 }
 
@@ -296,7 +335,7 @@ func (s *startStopTestSuite) stopAllServices() {
 			status, err := windowsCommon.GetServiceStatus(host, serviceName)
 			require.NoError(c, err)
 			if !assert.Equal(c, "Stopped", status, "%s should be stopped", serviceName) {
-				s.T().Logf("%s still running", serviceName)
+				s.T().Logf("%s still running, sending stop cmd", serviceName)
 				err := windowsCommon.StopService(host, serviceName)
 				assert.NoError(c, err, "should stop %s", serviceName)
 			}
