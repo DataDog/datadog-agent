@@ -21,7 +21,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	telemetrynoop "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/listeners"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
@@ -79,7 +79,7 @@ func testUDSOriginDetection(t *testing.T, network string) {
 	))
 
 	telemetryComponent := fxutil.Test[telemetry.Component](t, fx.Options(
-		telemetrynoop.Module(),
+		telemetryimpl.MockModule(),
 	))
 
 	// Start DSD
