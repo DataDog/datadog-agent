@@ -5,7 +5,7 @@
 
 //go:build !linux_bpf
 
-package dynamicinstrumentation
+package module
 
 import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"

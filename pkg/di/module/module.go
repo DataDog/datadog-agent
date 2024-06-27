@@ -5,7 +5,7 @@
 
 //go:build linux_bpf
 
-package dynamicinstrumentation
+package module
 
 import (
 	"net/http"
@@ -15,7 +15,7 @@ import (
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	di "github.com/DataDog/go-dynamic-instrumentation/pkg/di"
+	di "github.com/DataDog/datadog-agent/pkg/di"
 )
 
 //nolint:revive // TODO(DEBUG) Fix revive linter

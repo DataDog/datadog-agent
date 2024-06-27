@@ -1,0 +1,1660 @@
+{
+    "service": "security-monitoring-entity-reducer",
+    "message": "Emitting entity with score",
+    "duration": 0,
+    "ddsource": "dd_debugger",
+    "ddtags": "env:prod,service:security-monitoring-entity-reducer",
+    "debugger": {
+        "snapshot": {
+            "stack": [
+                {
+                    "fileName": "EntityStatsOutput.java",
+                    "function": "com.dd.logs.security_analytics.EntityStatsOutput.toByteString",
+                    "lineNumber": 205
+                },
+                {
+                    "fileName": "InternalIntakeReducerOutputEncoder.java",
+                    "function": "com.dd.logs.rule_engine.outputs.internal_intake.InternalIntakeReducerOutputEncoder.encode",
+                    "lineNumber": 31
+                },
+                {
+                    "fileName": "InternalIntakeProducer.java",
+                    "function": "com.dd.logs.internal_intake.producer.InternalIntakeProducer.processDatum",
+                    "lineNumber": 116
+                },
+                {
+                    "fileName": "WorkloadProcessor.java",
+                    "function": "com.fsmatic.workload.WorkloadProcessor.onReceive",
+                    "lineNumber": 332
+                },
+                {
+                    "fileName": "AbstractActor.scala",
+                    "function": "akka.actor.UntypedAbstractActor$$anonfun$receive$1.applyOrElse",
+                    "lineNumber": 339
+                },
+                {
+                    "fileName": "Actor.scala",
+                    "function": "akka.actor.Actor.aroundReceive",
+                    "lineNumber": 539
+                },
+                {
+                    "fileName": "ActorSupport.java",
+                    "function": "com.fsmatic.akka.ActorSupport.lambda$aroundReceive$0",
+                    "lineNumber": 30
+                },
+                {
+                    "function": "com.fsmatic.akka.ActorSupport$$Lambda/0x000000100176eaa8.accept",
+                    "lineNumber": -1
+                },
+                {
+                    "fileName": "MdcContextActor.java",
+                    "function": "com.fsmatic.mdc.MdcContextActor.wrapReceive",
+                    "lineNumber": 37
+                },
+                {
+                    "fileName": "ActorSupport.java",
+                    "function": "com.fsmatic.akka.ActorSupport.aroundReceive",
+                    "lineNumber": 30
+                },
+                {
+                    "fileName": "AActor.java",
+                    "function": "com.fsmatic.akka.AActor.aroundReceive",
+                    "lineNumber": 34
+                },
+                {
+                    "fileName": "ActorCell.scala",
+                    "function": "akka.actor.ActorCell.receiveMessage",
+                    "lineNumber": 614
+                },
+                {
+                    "fileName": "ActorCell.scala",
+                    "function": "akka.actor.ActorCell.invoke",
+                    "lineNumber": 583
+                },
+                {
+                    "fileName": "Mailbox.scala",
+                    "function": "akka.dispatch.Mailbox.processMailbox",
+                    "lineNumber": 268
+                },
+                {
+                    "fileName": "Mailbox.scala",
+                    "function": "akka.dispatch.Mailbox.run",
+                    "lineNumber": 229
+                },
+                {
+                    "fileName": "Mailbox.scala",
+                    "function": "akka.dispatch.Mailbox.exec",
+                    "lineNumber": 241
+                },
+                {
+                    "fileName": "ForkJoinTask.java",
+                    "function": "akka.dispatch.forkjoin.ForkJoinTask.doExec",
+                    "lineNumber": 260
+                },
+                {
+                    "fileName": "ForkJoinPool.java",
+                    "function": "akka.dispatch.forkjoin.ForkJoinPool$WorkQueue.runTask",
+                    "lineNumber": 1339
+                },
+                {
+                    "fileName": "ForkJoinPool.java",
+                    "function": "akka.dispatch.forkjoin.ForkJoinPool.runWorker",
+                    "lineNumber": 1979
+                },
+                {
+                    "fileName": "ForkJoinWorkerThread.java",
+                    "function": "akka.dispatch.forkjoin.ForkJoinWorkerThread.run",
+                    "lineNumber": 107
+                }
+            ],
+            "captures": {
+                "lines": {
+                    "205": {
+                        "arguments": {
+                            "this": {
+                                "type": "com.dd.logs.security_analytics.ImmutableEntityStatsOutput",
+                                "fields": {
+                                    "projectionAttributes": {
+                                        "size": "0",
+                                        "notCapturedReason": "java.lang.RuntimeException: Unsupported Map type: com.google.common.collect.RegularImmutableMap",
+                                        "type": "com.google.common.collect.RegularImmutableMap"
+                                    },
+                                    "signalScore": {
+                                        "type": "long",
+                                        "value": "1"
+                                    },
+                                    "logger": {
+                                        "type": "com.dd.logging.BasicLogger",
+                                        "fields": {
+                                            "metas": {
+                                                "isNull": true,
+                                                "type": "java.util.Map"
+                                            },
+                                            "logger": {
+                                                "type": "ch.qos.logback.classic.Logger",
+                                                "fields": {
+                                                    "parent": {
+                                                        "notCapturedReason": "depth",
+                                                        "type": "ch.qos.logback.classic.Logger"
+                                                    },
+                                                    "level": {
+                                                        "isNull": true,
+                                                        "type": "ch.qos.logback.classic.Level"
+                                                    },
+                                                    "name": {
+                                                        "type": "java.lang.String",
+                                                        "value": "com.dd.logs.security_analytics.EntityStatsOutput"
+                                                    },
+                                                    "aai": {
+                                                        "isNull": true,
+                                                        "type": "ch.qos.logback.core.spi.AppenderAttachableImpl"
+                                                    },
+                                                    "childrenList": {
+                                                        "isNull": true,
+                                                        "type": "java.util.List"
+                                                    },
+                                                    "loggerContext": {
+                                                        "notCapturedReason": "depth",
+                                                        "type": "ch.qos.logback.classic.LoggerContext"
+                                                    },
+                                                    "effectiveLevelInt": {
+                                                        "type": "int",
+                                                        "value": "20000"
+                                                    },
+                                                    "additive": {
+                                                        "type": "boolean",
+                                                        "value": "true"
+                                                    }
+                                                }
+                                            },
+                                            "name": {
+                                                "type": "java.lang.String",
+                                                "value": "com.dd.logs.security_analytics.EntityStatsOutput"
+                                            }
+                                        }
+                                    },
+                                    "count": {
+                                        "type": "long",
+                                        "value": "1"
+                                    },
+                                    "projectionTags": {
+                                        "size": "0",
+                                        "notCapturedReason": "java.lang.RuntimeException: Unsupported Map type: com.google.common.collect.SingletonImmutableBiMap",
+                                        "type": "com.google.common.collect.SingletonImmutableBiMap"
+                                    },
+                                    "internalIntakeTimestamp": {
+                                        "type": "long",
+                                        "value": "1709233217857"
+                                    },
+                                    "id": {
+                                        "type": "java.lang.String",
+                                        "value": "AY318mP5AAB-QSHUZlx-FQAA"
+                                    },
+                                    "trackKey": {
+                                        "type": "com.dd.logs.Track$Key",
+                                        "fields": {
+                                            "type": {
+                                                "type": "com.dd.logs.TrackType",
+                                                "fields": {
+                                                    "name": {
+                                                        "type": "java.lang.String",
+                                                        "value": "entitystat"
+                                                    }
+                                                }
+                                            },
+                                            "orgId": {
+                                                "type": "long",
+                                                "value": "2"
+                                            }
+                                        }
+                                    },
+                                    "entity": {
+                                        "type": "com.dd.cloudsecurityplatform.pb.EntityOutput",
+                                        "fields": {
+                                            "id_": {
+                                                "type": "java.lang.String",
+                                                "value": "10.154.142.130"
+                                            },
+                                            "memoizedHashCode": {
+                                                "type": "int",
+                                                "value": "0"
+                                            },
+                                            "typeString_": {
+                                                "type": "java.lang.String",
+                                                "value": "ip_address"
+                                            },
+                                            "memoizedIsInitialized": {
+                                                "type": "byte",
+                                                "value": "1"
+                                            },
+                                            "alwaysUseFieldBuilders": {
+                                                "type": "boolean",
+                                                "value": "false"
+                                            },
+                                            "unknownFields": {
+                                                "type": "com.google.protobuf.UnknownFieldSet",
+                                                "fields": {
+                                                    "fields": {
+                                                        "notCapturedReason": "depth",
+                                                        "type": "java.util.TreeMap"
+                                                    }
+                                                }
+                                            },
+                                            "memoizedSize": {
+                                                "type": "int",
+                                                "value": "-1"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        "locals": {
+                            "ipAttributes": {
+                                "type": "com.dd.cloudsecurityplatform.pb.EntityStatsPayload$StringProjectionValues$Builder",
+                                "fields": {
+                                    "unknownFieldsOrBuilder": {
+                                        "type": "com.google.protobuf.UnknownFieldSet",
+                                        "fields": {
+                                            "fields": {
+                                                "size": "0",
+                                                "type": "java.util.TreeMap"
+                                            }
+                                        }
+                                    },
+                                    "isClean": {
+                                        "type": "boolean",
+                                        "value": "false"
+                                    },
+                                    "bitField0_": {
+                                        "type": "int",
+                                        "value": "0"
+                                    },
+                                    "meAsParent": {
+                                        "isNull": true,
+                                        "type": "com.google.protobuf.GeneratedMessageV3$Builder$BuilderParentImpl"
+                                    },
+                                    "value_": {
+                                        "size": "0",
+                                        "notCapturedReason": "java.lang.RuntimeException: Unsupported Collection type: com.google.protobuf.LazyStringArrayList",
+                                        "type": "com.google.protobuf.LazyStringArrayList"
+                                    },
+                                    "builderParent": {
+                                        "isNull": true,
+                                        "type": "com.google.protobuf.GeneratedMessageV3$BuilderParent"
+                                    }
+                                }
+                            },
+                            "outputBuilder": {
+                                "type": "com.dd.cloudsecurityplatform.pb.EntityStatsPayload$Builder",
+                                "fields": {
+                                    "entity_": {
+                                        "type": "com.dd.cloudsecurityplatform.pb.EntityOutput",
+                                        "fields": {
+                                            "id_": {
+                                                "type": "java.lang.String",
+                                                "value": "10.154.142.130"
+                                            },
+                                            "memoizedHashCode": {
+                                                "type": "int",
+                                                "value": "0"
+                                            },
+                                            "typeString_": {
+                                                "type": "java.lang.String",
+                                                "value": "ip_address"
+                                            },
+                                            "memoizedIsInitialized": {
+                                                "type": "byte",
+                                                "value": "1"
+                                            },
+                                            "alwaysUseFieldBuilders": {
+                                                "type": "boolean",
+                                                "value": "false"
+                                            },
+                                            "unknownFields": {
+                                                "type": "com.google.protobuf.UnknownFieldSet",
+                                                "fields": {
+                                                    "fields": {
+                                                        "notCapturedReason": "depth",
+                                                        "type": "java.util.TreeMap"
+                                                    }
+                                                }
+                                            },
+                                            "memoizedSize": {
+                                                "type": "int",
+                                                "value": "-1"
+                                            }
+                                        }
+                                    },
+                                    "stringProjections_": {
+                                        "type": "com.google.protobuf.MapField",
+                                        "fields": {
+                                            "mode": {
+                                                "type": "com.google.protobuf.MapField$StorageMode",
+                                                "value": "MAP"
+                                            },
+                                            "mapData": {
+                                                "size": "0",
+                                                "notCapturedReason": "java.lang.RuntimeException: Unsupported Map type: com.google.protobuf.MapField$MutabilityAwareMap",
+                                                "type": "com.google.protobuf.MapField$MutabilityAwareMap"
+                                            },
+                                            "isMutable": {
+                                                "type": "boolean",
+                                                "value": "true"
+                                            },
+                                            "listData": {
+                                                "isNull": true,
+                                                "type": "java.util.List"
+                                            },
+                                            "converter": {
+                                                "type": "com.google.protobuf.MapField$ImmutableMessageConverter",
+                                                "fields": {
+                                                    "defaultEntry": {
+                                                        "notCapturedReason": "depth",
+                                                        "type": "com.google.protobuf.MapEntry"
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    },
+                                    "threatIntelIndicatorsMatched_": {
+                                        "size": "0",
+                                        "notCapturedReason": "java.lang.RuntimeException: Unsupported Collection type: com.google.protobuf.LazyStringArrayList",
+                                        "type": "com.google.protobuf.LazyStringArrayList"
+                                    },
+                                    "bitField0_": {
+                                        "type": "int",
+                                        "value": "54"
+                                    },
+                                    "entityBuilder_": {
+                                        "isNull": true,
+                                        "type": "com.google.protobuf.SingleFieldBuilderV3"
+                                    },
+                                    "threatIntelResults_": {
+                                        "size": "9",
+                                        "elements": [
+                                            {
+                                                "type": "com.dd.cloudsecurityplatform.pb.EntityStatsPayload$ThreatIntelResult",
+                                                "fields": {
+                                                    "category_": {
+                                                        "type": "java.lang.String",
+                                                        "value": ""
+                                                    },
+                                                    "sourceName_": {
+                                                        "type": "java.lang.String",
+                                                        "value": ""
+                                                    },
+                                                    "memoizedHashCode": {
+                                                        "type": "int",
+                                                        "value": "0"
+                                                    },
+                                                    "indicator_": {
+                                                        "type": "java.lang.String",
+                                                        "value": "15.158.54.42"
+                                                    },
+                                                    "sourceUrl_": {
+                                                        "type": "java.lang.String",
+                                                        "value": ""
+                                                    },
+                                                    "memoizedIsInitialized": {
+                                                        "type": "byte",
+                                                        "value": "1"
+                                                    },
+                                                    "alwaysUseFieldBuilders": {
+                                                        "type": "boolean",
+                                                        "value": "false"
+                                                    },
+                                                    "attribute_": {
+                                                        "type": "java.lang.String",
+                                                        "value": ""
+                                                    },
+                                                    "type_": {
+                                                        "type": "java.lang.String",
+                                                        "value": "IP"
+                                                    },
+                                                    "intention_": {
+                                                        "type": "java.lang.String",
+                                                        "value": ""
+                                                    },
+                                                    "unknownFields": {
+                                                        "notCapturedReason": "depth",
+                                                        "type": "com.google.protobuf.UnknownFieldSet"
+                                                    },
+                                                    "memoizedSize": {
+                                                        "type": "int",
+                                                        "value": "-1"
+                                                    }
+                                                }
+                                            },
+                                            {
+                                                "type": "com.dd.cloudsecurityplatform.pb.EntityStatsPayload$ThreatIntelResult",
+                                                "fields": {
+                                                    "category_": {
+                                                        "type": "java.lang.String",
+                                                        "value": "residential_proxy"
+                                                    },
+                                                    "sourceName_": {
+                                                        "type": "java.lang.String",
+                                                        "value": "spur"
+                                                    },
+                                                    "memoizedHashCode": {
+                                                        "type": "int",
+                                                        "value": "0"
+                                                    },
+                                                    "indicator_": {
+                                                        "type": "java.lang.String",
+                                                        "value": "199.66.15.4"
+                                                    },
+                                                    "sourceUrl_": {
+                                                        "type": "java.lang.String",
+                                                        "value": "https://spur.us"
+                                                    },
+                                                    "memoizedIsInitialized": {
+                                                        "type": "byte",
+                                                        "value": "1"
+                                                    },
+                                                    "alwaysUseFieldBuilders": {
+                                                        "type": "boolean",
+                                                        "value": "false"
+                                                    },
+                                                    "attribute_": {
+                                                        "type": "java.lang.String",
+                                                        "value": ""
+                                                    },
+                                                    "type_": {
+                                                        "type": "java.lang.String",
+                                                        "value": "IP"
+                                                    },
+                                                    "intention_": {
+                                                        "type": "java.lang.String",
+                                                        "value": "suspicious"
+                                                    },
+                                                    "unknownFields": {
+                                                        "notCapturedReason": "depth",
+                                                        "type": "com.google.protobuf.UnknownFieldSet"
+                                                    },
+                                                    "memoizedSize": {
+                                                        "type": "int",
+                                                        "value": "-1"
+                                                    }
+                                                }
+                                            },
+                                            {
+                                                "type": "com.dd.cloudsecurityplatform.pb.EntityStatsPayload$ThreatIntelResult",
+                                                "fields": {
+                                                    "category_": {
+                                                        "type": "java.lang.String",
+                                                        "value": ""
+                                                    },
+                                                    "sourceName_": {
+                                                        "type": "java.lang.String",
+                                                        "value": ""
+                                                    },
+                                                    "memoizedHashCode": {
+                                                        "type": "int",
+                                                        "value": "0"
+                                                    },
+                                                    "indicator_": {
+                                                        "type": "java.lang.String",
+                                                        "value": "64.252.144.155"
+                                                    },
+                                                    "sourceUrl_": {
+                                                        "type": "java.lang.String",
+                                                        "value": ""
+                                                    },
+                                                    "memoizedIsInitialized": {
+                                                        "type": "byte",
+                                                        "value": "1"
+                                                    },
+                                                    "alwaysUseFieldBuilders": {
+                                                        "type": "boolean",
+                                                        "value": "false"
+                                                    },
+                                                    "attribute_": {
+                                                        "type": "java.lang.String",
+                                                        "value": ""
+                                                    },
+                                                    "type_": {
+                                                        "type": "java.lang.String",
+                                                        "value": "IP"
+                                                    },
+                                                    "intention_": {
+                                                        "type": "java.lang.String",
+                                                        "value": ""
+                                                    },
+                                                    "unknownFields": {
+                                                        "notCapturedReason": "depth",
+                                                        "type": "com.google.protobuf.UnknownFieldSet"
+                                                    },
+                                                    "memoizedSize": {
+                                                        "type": "int",
+                                                        "value": "-1"
+                                                    }
+                                                }
+                                            },
+                                            {
+                                                "type": "com.dd.cloudsecurityplatform.pb.EntityStatsPayload$ThreatIntelResult",
+                                                "fields": {
+                                                    "category_": {
+                                                        "type": "java.lang.String",
+                                                        "value": ""
+                                                    },
+                                                    "sourceName_": {
+                                                        "type": "java.lang.String",
+                                                        "value": ""
+                                                    },
+                                                    "memoizedHashCode": {
+                                                        "type": "int",
+                                                        "value": "0"
+                                                    },
+                                                    "indicator_": {
+                                                        "type": "java.lang.String",
+                                                        "value": "70.132.18.132"
+                                                    },
+                                                    "sourceUrl_": {
+                                                        "type": "java.lang.String",
+                                                        "value": ""
+                                                    },
+                                                    "memoizedIsInitialized": {
+                                                        "type": "byte",
+                                                        "value": "1"
+                                                    },
+                                                    "alwaysUseFieldBuilders": {
+                                                        "type": "boolean",
+                                                        "value": "false"
+                                                    },
+                                                    "attribute_": {
+                                                        "type": "java.lang.String",
+                                                        "value": ""
+                                                    },
+                                                    "type_": {
+                                                        "type": "java.lang.String",
+                                                        "value": "IP"
+                                                    },
+                                                    "intention_": {
+                                                        "type": "java.lang.String",
+                                                        "value": ""
+                                                    },
+                                                    "unknownFields": {
+                                                        "notCapturedReason": "depth",
+                                                        "type": "com.google.protobuf.UnknownFieldSet"
+                                                    },
+                                                    "memoizedSize": {
+                                                        "type": "int",
+                                                        "value": "-1"
+                                                    }
+                                                }
+                                            },
+                                            {
+                                                "type": "com.dd.cloudsecurityplatform.pb.EntityStatsPayload$ThreatIntelResult",
+                                                "fields": {
+                                                    "category_": {
+                                                        "type": "java.lang.String",
+                                                        "value": ""
+                                                    },
+                                                    "sourceName_": {
+                                                        "type": "java.lang.String",
+                                                        "value": ""
+                                                    },
+                                                    "memoizedHashCode": {
+                                                        "type": "int",
+                                                        "value": "0"
+                                                    },
+                                                    "indicator_": {
+                                                        "type": "java.lang.String",
+                                                        "value": "130.176.185.207"
+                                                    },
+                                                    "sourceUrl_": {
+                                                        "type": "java.lang.String",
+                                                        "value": ""
+                                                    },
+                                                    "memoizedIsInitialized": {
+                                                        "type": "byte",
+                                                        "value": "1"
+                                                    },
+                                                    "alwaysUseFieldBuilders": {
+                                                        "type": "boolean",
+                                                        "value": "false"
+                                                    },
+                                                    "attribute_": {
+                                                        "type": "java.lang.String",
+                                                        "value": ""
+                                                    },
+                                                    "type_": {
+                                                        "type": "java.lang.String",
+                                                        "value": "IP"
+                                                    },
+                                                    "intention_": {
+                                                        "type": "java.lang.String",
+                                                        "value": ""
+                                                    },
+                                                    "unknownFields": {
+                                                        "notCapturedReason": "depth",
+                                                        "type": "com.google.protobuf.UnknownFieldSet"
+                                                    },
+                                                    "memoizedSize": {
+                                                        "type": "int",
+                                                        "value": "-1"
+                                                    }
+                                                }
+                                            },
+                                            {
+                                                "type": "com.dd.cloudsecurityplatform.pb.EntityStatsPayload$ThreatIntelResult",
+                                                "fields": {
+                                                    "category_": {
+                                                        "type": "java.lang.String",
+                                                        "value": ""
+                                                    },
+                                                    "sourceName_": {
+                                                        "type": "java.lang.String",
+                                                        "value": ""
+                                                    },
+                                                    "memoizedHashCode": {
+                                                        "type": "int",
+                                                        "value": "0"
+                                                    },
+                                                    "indicator_": {
+                                                        "type": "java.lang.String",
+                                                        "value": "15.158.41.133"
+                                                    },
+                                                    "sourceUrl_": {
+                                                        "type": "java.lang.String",
+                                                        "value": ""
+                                                    },
+                                                    "memoizedIsInitialized": {
+                                                        "type": "byte",
+                                                        "value": "1"
+                                                    },
+                                                    "alwaysUseFieldBuilders": {
+                                                        "type": "boolean",
+                                                        "value": "false"
+                                                    },
+                                                    "attribute_": {
+                                                        "type": "java.lang.String",
+                                                        "value": ""
+                                                    },
+                                                    "type_": {
+                                                        "type": "java.lang.String",
+                                                        "value": "IP"
+                                                    },
+                                                    "intention_": {
+                                                        "type": "java.lang.String",
+                                                        "value": ""
+                                                    },
+                                                    "unknownFields": {
+                                                        "notCapturedReason": "depth",
+                                                        "type": "com.google.protobuf.UnknownFieldSet"
+                                                    },
+                                                    "memoizedSize": {
+                                                        "type": "int",
+                                                        "value": "-1"
+                                                    }
+                                                }
+                                            },
+                                            {
+                                                "type": "com.dd.cloudsecurityplatform.pb.EntityStatsPayload$ThreatIntelResult",
+                                                "fields": {
+                                                    "category_": {
+                                                        "type": "java.lang.String",
+                                                        "value": ""
+                                                    },
+                                                    "sourceName_": {
+                                                        "type": "java.lang.String",
+                                                        "value": ""
+                                                    },
+                                                    "memoizedHashCode": {
+                                                        "type": "int",
+                                                        "value": "0"
+                                                    },
+                                                    "indicator_": {
+                                                        "type": "java.lang.String",
+                                                        "value": "130.176.135.146"
+                                                    },
+                                                    "sourceUrl_": {
+                                                        "type": "java.lang.String",
+                                                        "value": ""
+                                                    },
+                                                    "memoizedIsInitialized": {
+                                                        "type": "byte",
+                                                        "value": "1"
+                                                    },
+                                                    "alwaysUseFieldBuilders": {
+                                                        "type": "boolean",
+                                                        "value": "false"
+                                                    },
+                                                    "attribute_": {
+                                                        "type": "java.lang.String",
+                                                        "value": ""
+                                                    },
+                                                    "type_": {
+                                                        "type": "java.lang.String",
+                                                        "value": "IP"
+                                                    },
+                                                    "intention_": {
+                                                        "type": "java.lang.String",
+                                                        "value": ""
+                                                    },
+                                                    "unknownFields": {
+                                                        "notCapturedReason": "depth",
+                                                        "type": "com.google.protobuf.UnknownFieldSet"
+                                                    },
+                                                    "memoizedSize": {
+                                                        "type": "int",
+                                                        "value": "-1"
+                                                    }
+                                                }
+                                            },
+                                            {
+                                                "type": "com.dd.cloudsecurityplatform.pb.EntityStatsPayload$ThreatIntelResult",
+                                                "fields": {
+                                                    "category_": {
+                                                        "type": "java.lang.String",
+                                                        "value": ""
+                                                    },
+                                                    "sourceName_": {
+                                                        "type": "java.lang.String",
+                                                        "value": ""
+                                                    },
+                                                    "memoizedHashCode": {
+                                                        "type": "int",
+                                                        "value": "0"
+                                                    },
+                                                    "indicator_": {
+                                                        "type": "java.lang.String",
+                                                        "value": "3.172.1.71"
+                                                    },
+                                                    "sourceUrl_": {
+                                                        "type": "java.lang.String",
+                                                        "value": ""
+                                                    },
+                                                    "memoizedIsInitialized": {
+                                                        "type": "byte",
+                                                        "value": "1"
+                                                    },
+                                                    "alwaysUseFieldBuilders": {
+                                                        "type": "boolean",
+                                                        "value": "false"
+                                                    },
+                                                    "attribute_": {
+                                                        "type": "java.lang.String",
+                                                        "value": ""
+                                                    },
+                                                    "type_": {
+                                                        "type": "java.lang.String",
+                                                        "value": "IP"
+                                                    },
+                                                    "intention_": {
+                                                        "type": "java.lang.String",
+                                                        "value": ""
+                                                    },
+                                                    "unknownFields": {
+                                                        "notCapturedReason": "depth",
+                                                        "type": "com.google.protobuf.UnknownFieldSet"
+                                                    },
+                                                    "memoizedSize": {
+                                                        "type": "int",
+                                                        "value": "-1"
+                                                    }
+                                                }
+                                            },
+                                            {
+                                                "type": "com.dd.cloudsecurityplatform.pb.EntityStatsPayload$ThreatIntelResult",
+                                                "fields": {
+                                                    "category_": {
+                                                        "type": "java.lang.String",
+                                                        "value": ""
+                                                    },
+                                                    "sourceName_": {
+                                                        "type": "java.lang.String",
+                                                        "value": ""
+                                                    },
+                                                    "memoizedHashCode": {
+                                                        "type": "int",
+                                                        "value": "0"
+                                                    },
+                                                    "indicator_": {
+                                                        "type": "java.lang.String",
+                                                        "value": "130.176.130.132"
+                                                    },
+                                                    "sourceUrl_": {
+                                                        "type": "java.lang.String",
+                                                        "value": ""
+                                                    },
+                                                    "memoizedIsInitialized": {
+                                                        "type": "byte",
+                                                        "value": "1"
+                                                    },
+                                                    "alwaysUseFieldBuilders": {
+                                                        "type": "boolean",
+                                                        "value": "false"
+                                                    },
+                                                    "attribute_": {
+                                                        "type": "java.lang.String",
+                                                        "value": ""
+                                                    },
+                                                    "type_": {
+                                                        "type": "java.lang.String",
+                                                        "value": "IP"
+                                                    },
+                                                    "intention_": {
+                                                        "type": "java.lang.String",
+                                                        "value": ""
+                                                    },
+                                                    "unknownFields": {
+                                                        "notCapturedReason": "depth",
+                                                        "type": "com.google.protobuf.UnknownFieldSet"
+                                                    },
+                                                    "memoizedSize": {
+                                                        "type": "int",
+                                                        "value": "-1"
+                                                    }
+                                                }
+                                            }
+                                        ],
+                                        "type": "java.util.ArrayList"
+                                    },
+                                    "builderParent": {
+                                        "isNull": true,
+                                        "type": "com.google.protobuf.GeneratedMessageV3$BuilderParent"
+                                    },
+                                    "unknownFieldsOrBuilder": {
+                                        "type": "com.google.protobuf.UnknownFieldSet",
+                                        "fields": {
+                                            "fields": {
+                                                "size": "0",
+                                                "type": "java.util.TreeMap"
+                                            }
+                                        }
+                                    },
+                                    "geoIpMetadataBuilder_": {
+                                        "isNull": true,
+                                        "type": "com.google.protobuf.RepeatedFieldBuilderV3"
+                                    },
+                                    "isClean": {
+                                        "type": "boolean",
+                                        "value": "false"
+                                    },
+                                    "count_": {
+                                        "type": "long",
+                                        "value": "1"
+                                    },
+                                    "tagProjections_": {
+                                        "type": "com.google.protobuf.MapField",
+                                        "fields": {
+                                            "mode": {
+                                                "type": "com.google.protobuf.MapField$StorageMode",
+                                                "value": "MAP"
+                                            },
+                                            "mapData": {
+                                                "size": "0",
+                                                "notCapturedReason": "java.lang.RuntimeException: Unsupported Map type: com.google.protobuf.MapField$MutabilityAwareMap",
+                                                "type": "com.google.protobuf.MapField$MutabilityAwareMap"
+                                            },
+                                            "isMutable": {
+                                                "type": "boolean",
+                                                "value": "true"
+                                            },
+                                            "listData": {
+                                                "isNull": true,
+                                                "type": "java.util.List"
+                                            },
+                                            "converter": {
+                                                "type": "com.google.protobuf.MapField$ImmutableMessageConverter",
+                                                "fields": {
+                                                    "defaultEntry": {
+                                                        "notCapturedReason": "depth",
+                                                        "type": "com.google.protobuf.MapEntry"
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    },
+                                    "geoIpMetadata_": {
+                                        "size": "0",
+                                        "type": "java.util.ArrayList"
+                                    },
+                                    "ip_": {
+                                        "type": "java.lang.String",
+                                        "value": ""
+                                    },
+                                    "meAsParent": {
+                                        "isNull": true,
+                                        "type": "com.google.protobuf.GeneratedMessageV3$Builder$BuilderParentImpl"
+                                    },
+                                    "threatIntelResultsBuilder_": {
+                                        "isNull": true,
+                                        "type": "com.google.protobuf.RepeatedFieldBuilderV3"
+                                    },
+                                    "hosts_": {
+                                        "size": "0",
+                                        "notCapturedReason": "java.lang.RuntimeException: Unsupported Collection type: com.google.protobuf.LazyStringArrayList",
+                                        "type": "com.google.protobuf.LazyStringArrayList"
+                                    },
+                                    "signalScore_": {
+                                        "type": "long",
+                                        "value": "1"
+                                    }
+                                }
+                            },
+                            "geoIpMetadata": {
+                                "size": "0",
+                                "type": "java.util.ArrayList"
+                            },
+                            "hosts": {
+                                "size": "5",
+                                "elements": [
+                                    {
+                                        "type": "java.lang.String",
+                                        "value": "i-02d87409e6596f562"
+                                    },
+                                    {
+                                        "type": "java.lang.String",
+                                        "value": "i-0f42b05f770544642"
+                                    },
+                                    {
+                                        "type": "java.lang.String",
+                                        "value": "i-0ab705684278ad06b"
+                                    },
+                                    {
+                                        "type": "java.lang.String",
+                                        "value": "i-0218eea919deb6e1a"
+                                    },
+                                    {
+                                        "type": "java.lang.String",
+                                        "value": "i-0405eec023d49f192"
+                                    }
+                                ],
+                                "type": "java.util.ArrayList"
+                            },
+                            "tagProjections": {
+                                "entries": [
+                                    [
+                                        {
+                                            "type": "java.lang.String",
+                                            "value": "source"
+                                        },
+                                        {
+                                            "type": "com.dd.cloudsecurityplatform.pb.EntityStatsPayload$StringProjectionValues",
+                                            "fields": {
+                                                "memoizedHashCode": {
+                                                    "type": "int",
+                                                    "value": "0"
+                                                },
+                                                "value_": {
+                                                    "size": "0",
+                                                    "notCapturedReason": "java.lang.RuntimeException: Unsupported Collection type: com.google.protobuf.UnmodifiableLazyStringList",
+                                                    "type": "com.google.protobuf.UnmodifiableLazyStringList"
+                                                },
+                                                "memoizedIsInitialized": {
+                                                    "type": "byte",
+                                                    "value": "1"
+                                                },
+                                                "alwaysUseFieldBuilders": {
+                                                    "type": "boolean",
+                                                    "value": "false"
+                                                },
+                                                "unknownFields": {
+                                                    "type": "com.google.protobuf.UnknownFieldSet",
+                                                    "fields": {
+                                                        "fields": {
+                                                            "notCapturedReason": "depth",
+                                                            "type": "java.util.TreeMap"
+                                                        }
+                                                    }
+                                                },
+                                                "memoizedSize": {
+                                                    "type": "int",
+                                                    "value": "-1"
+                                                }
+                                            }
+                                        }
+                                    ]
+                                ],
+                                "size": "1",
+                                "type": "java.util.HashMap"
+                            },
+                            "stringProjections": {
+                                "entries": [
+                                    [
+                                        {
+                                            "type": "java.lang.String",
+                                            "value": "service"
+                                        },
+                                        {
+                                            "type": "com.dd.cloudsecurityplatform.pb.EntityStatsPayload$StringProjectionValues",
+                                            "fields": {
+                                                "memoizedHashCode": {
+                                                    "type": "int",
+                                                    "value": "0"
+                                                },
+                                                "value_": {
+                                                    "size": "0",
+                                                    "notCapturedReason": "java.lang.RuntimeException: Unsupported Collection type: com.google.protobuf.UnmodifiableLazyStringList",
+                                                    "type": "com.google.protobuf.UnmodifiableLazyStringList"
+                                                },
+                                                "memoizedIsInitialized": {
+                                                    "type": "byte",
+                                                    "value": "1"
+                                                },
+                                                "alwaysUseFieldBuilders": {
+                                                    "type": "boolean",
+                                                    "value": "false"
+                                                },
+                                                "unknownFields": {
+                                                    "type": "com.google.protobuf.UnknownFieldSet",
+                                                    "fields": {
+                                                        "fields": {
+                                                            "notCapturedReason": "depth",
+                                                            "type": "java.util.TreeMap"
+                                                        }
+                                                    }
+                                                },
+                                                "memoizedSize": {
+                                                    "type": "int",
+                                                    "value": "-1"
+                                                }
+                                            }
+                                        }
+                                    ],
+                                    [
+                                        {
+                                            "type": "java.lang.String",
+                                            "value": "custom.usr.id"
+                                        },
+                                        {
+                                            "type": "com.dd.cloudsecurityplatform.pb.EntityStatsPayload$StringProjectionValues",
+                                            "fields": {
+                                                "memoizedHashCode": {
+                                                    "type": "int",
+                                                    "value": "0"
+                                                },
+                                                "value_": {
+                                                    "size": "0",
+                                                    "notCapturedReason": "java.lang.RuntimeException: Unsupported Collection type: com.google.protobuf.UnmodifiableLazyStringList",
+                                                    "type": "com.google.protobuf.UnmodifiableLazyStringList"
+                                                },
+                                                "memoizedIsInitialized": {
+                                                    "type": "byte",
+                                                    "value": "1"
+                                                },
+                                                "alwaysUseFieldBuilders": {
+                                                    "type": "boolean",
+                                                    "value": "false"
+                                                },
+                                                "unknownFields": {
+                                                    "type": "com.google.protobuf.UnknownFieldSet",
+                                                    "fields": {
+                                                        "fields": {
+                                                            "notCapturedReason": "depth",
+                                                            "type": "java.util.TreeMap"
+                                                        }
+                                                    }
+                                                },
+                                                "memoizedSize": {
+                                                    "type": "int",
+                                                    "value": "-1"
+                                                }
+                                            }
+                                        }
+                                    ]
+                                ],
+                                "size": "2",
+                                "type": "java.util.HashMap"
+                            },
+                            "threatIntelResults": {
+                                "size": "9",
+                                "elements": [
+                                    {
+                                        "type": "com.dd.cloudsecurityplatform.pb.EntityStatsPayload$ThreatIntelResult",
+                                        "fields": {
+                                            "category_": {
+                                                "type": "java.lang.String",
+                                                "value": ""
+                                            },
+                                            "sourceName_": {
+                                                "type": "java.lang.String",
+                                                "value": ""
+                                            },
+                                            "memoizedHashCode": {
+                                                "type": "int",
+                                                "value": "0"
+                                            },
+                                            "indicator_": {
+                                                "type": "java.lang.String",
+                                                "value": "15.158.54.42"
+                                            },
+                                            "sourceUrl_": {
+                                                "type": "java.lang.String",
+                                                "value": ""
+                                            },
+                                            "memoizedIsInitialized": {
+                                                "type": "byte",
+                                                "value": "1"
+                                            },
+                                            "alwaysUseFieldBuilders": {
+                                                "type": "boolean",
+                                                "value": "false"
+                                            },
+                                            "attribute_": {
+                                                "type": "java.lang.String",
+                                                "value": ""
+                                            },
+                                            "type_": {
+                                                "type": "java.lang.String",
+                                                "value": "IP"
+                                            },
+                                            "intention_": {
+                                                "type": "java.lang.String",
+                                                "value": ""
+                                            },
+                                            "unknownFields": {
+                                                "type": "com.google.protobuf.UnknownFieldSet",
+                                                "fields": {
+                                                    "fields": {
+                                                        "notCapturedReason": "depth",
+                                                        "type": "java.util.TreeMap"
+                                                    }
+                                                }
+                                            },
+                                            "memoizedSize": {
+                                                "type": "int",
+                                                "value": "-1"
+                                            }
+                                        }
+                                    },
+                                    {
+                                        "type": "com.dd.cloudsecurityplatform.pb.EntityStatsPayload$ThreatIntelResult",
+                                        "fields": {
+                                            "category_": {
+                                                "type": "java.lang.String",
+                                                "value": "residential_proxy"
+                                            },
+                                            "sourceName_": {
+                                                "type": "java.lang.String",
+                                                "value": "spur"
+                                            },
+                                            "memoizedHashCode": {
+                                                "type": "int",
+                                                "value": "0"
+                                            },
+                                            "indicator_": {
+                                                "type": "java.lang.String",
+                                                "value": "199.66.15.4"
+                                            },
+                                            "sourceUrl_": {
+                                                "type": "java.lang.String",
+                                                "value": "https://spur.us"
+                                            },
+                                            "memoizedIsInitialized": {
+                                                "type": "byte",
+                                                "value": "1"
+                                            },
+                                            "alwaysUseFieldBuilders": {
+                                                "type": "boolean",
+                                                "value": "false"
+                                            },
+                                            "attribute_": {
+                                                "type": "java.lang.String",
+                                                "value": ""
+                                            },
+                                            "type_": {
+                                                "type": "java.lang.String",
+                                                "value": "IP"
+                                            },
+                                            "intention_": {
+                                                "type": "java.lang.String",
+                                                "value": "suspicious"
+                                            },
+                                            "unknownFields": {
+                                                "type": "com.google.protobuf.UnknownFieldSet",
+                                                "fields": {
+                                                    "fields": {
+                                                        "notCapturedReason": "depth",
+                                                        "type": "java.util.TreeMap"
+                                                    }
+                                                }
+                                            },
+                                            "memoizedSize": {
+                                                "type": "int",
+                                                "value": "-1"
+                                            }
+                                        }
+                                    },
+                                    {
+                                        "type": "com.dd.cloudsecurityplatform.pb.EntityStatsPayload$ThreatIntelResult",
+                                        "fields": {
+                                            "category_": {
+                                                "type": "java.lang.String",
+                                                "value": ""
+                                            },
+                                            "sourceName_": {
+                                                "type": "java.lang.String",
+                                                "value": ""
+                                            },
+                                            "memoizedHashCode": {
+                                                "type": "int",
+                                                "value": "0"
+                                            },
+                                            "indicator_": {
+                                                "type": "java.lang.String",
+                                                "value": "64.252.144.155"
+                                            },
+                                            "sourceUrl_": {
+                                                "type": "java.lang.String",
+                                                "value": ""
+                                            },
+                                            "memoizedIsInitialized": {
+                                                "type": "byte",
+                                                "value": "1"
+                                            },
+                                            "alwaysUseFieldBuilders": {
+                                                "type": "boolean",
+                                                "value": "false"
+                                            },
+                                            "attribute_": {
+                                                "type": "java.lang.String",
+                                                "value": ""
+                                            },
+                                            "type_": {
+                                                "type": "java.lang.String",
+                                                "value": "IP"
+                                            },
+                                            "intention_": {
+                                                "type": "java.lang.String",
+                                                "value": ""
+                                            },
+                                            "unknownFields": {
+                                                "type": "com.google.protobuf.UnknownFieldSet",
+                                                "fields": {
+                                                    "fields": {
+                                                        "notCapturedReason": "depth",
+                                                        "type": "java.util.TreeMap"
+                                                    }
+                                                }
+                                            },
+                                            "memoizedSize": {
+                                                "type": "int",
+                                                "value": "-1"
+                                            }
+                                        }
+                                    },
+                                    {
+                                        "type": "com.dd.cloudsecurityplatform.pb.EntityStatsPayload$ThreatIntelResult",
+                                        "fields": {
+                                            "category_": {
+                                                "type": "java.lang.String",
+                                                "value": ""
+                                            },
+                                            "sourceName_": {
+                                                "type": "java.lang.String",
+                                                "value": ""
+                                            },
+                                            "memoizedHashCode": {
+                                                "type": "int",
+                                                "value": "0"
+                                            },
+                                            "indicator_": {
+                                                "type": "java.lang.String",
+                                                "value": "70.132.18.132"
+                                            },
+                                            "sourceUrl_": {
+                                                "type": "java.lang.String",
+                                                "value": ""
+                                            },
+                                            "memoizedIsInitialized": {
+                                                "type": "byte",
+                                                "value": "1"
+                                            },
+                                            "alwaysUseFieldBuilders": {
+                                                "type": "boolean",
+                                                "value": "false"
+                                            },
+                                            "attribute_": {
+                                                "type": "java.lang.String",
+                                                "value": ""
+                                            },
+                                            "type_": {
+                                                "type": "java.lang.String",
+                                                "value": "IP"
+                                            },
+                                            "intention_": {
+                                                "type": "java.lang.String",
+                                                "value": ""
+                                            },
+                                            "unknownFields": {
+                                                "type": "com.google.protobuf.UnknownFieldSet",
+                                                "fields": {
+                                                    "fields": {
+                                                        "notCapturedReason": "depth",
+                                                        "type": "java.util.TreeMap"
+                                                    }
+                                                }
+                                            },
+                                            "memoizedSize": {
+                                                "type": "int",
+                                                "value": "-1"
+                                            }
+                                        }
+                                    },
+                                    {
+                                        "type": "com.dd.cloudsecurityplatform.pb.EntityStatsPayload$ThreatIntelResult",
+                                        "fields": {
+                                            "category_": {
+                                                "type": "java.lang.String",
+                                                "value": ""
+                                            },
+                                            "sourceName_": {
+                                                "type": "java.lang.String",
+                                                "value": ""
+                                            },
+                                            "memoizedHashCode": {
+                                                "type": "int",
+                                                "value": "0"
+                                            },
+                                            "indicator_": {
+                                                "type": "java.lang.String",
+                                                "value": "130.176.185.207"
+                                            },
+                                            "sourceUrl_": {
+                                                "type": "java.lang.String",
+                                                "value": ""
+                                            },
+                                            "memoizedIsInitialized": {
+                                                "type": "byte",
+                                                "value": "1"
+                                            },
+                                            "alwaysUseFieldBuilders": {
+                                                "type": "boolean",
+                                                "value": "false"
+                                            },
+                                            "attribute_": {
+                                                "type": "java.lang.String",
+                                                "value": ""
+                                            },
+                                            "type_": {
+                                                "type": "java.lang.String",
+                                                "value": "IP"
+                                            },
+                                            "intention_": {
+                                                "type": "java.lang.String",
+                                                "value": ""
+                                            },
+                                            "unknownFields": {
+                                                "type": "com.google.protobuf.UnknownFieldSet",
+                                                "fields": {
+                                                    "fields": {
+                                                        "notCapturedReason": "depth",
+                                                        "type": "java.util.TreeMap"
+                                                    }
+                                                }
+                                            },
+                                            "memoizedSize": {
+                                                "type": "int",
+                                                "value": "-1"
+                                            }
+                                        }
+                                    },
+                                    {
+                                        "type": "com.dd.cloudsecurityplatform.pb.EntityStatsPayload$ThreatIntelResult",
+                                        "fields": {
+                                            "category_": {
+                                                "type": "java.lang.String",
+                                                "value": ""
+                                            },
+                                            "sourceName_": {
+                                                "type": "java.lang.String",
+                                                "value": ""
+                                            },
+                                            "memoizedHashCode": {
+                                                "type": "int",
+                                                "value": "0"
+                                            },
+                                            "indicator_": {
+                                                "type": "java.lang.String",
+                                                "value": "15.158.41.133"
+                                            },
+                                            "sourceUrl_": {
+                                                "type": "java.lang.String",
+                                                "value": ""
+                                            },
+                                            "memoizedIsInitialized": {
+                                                "type": "byte",
+                                                "value": "1"
+                                            },
+                                            "alwaysUseFieldBuilders": {
+                                                "type": "boolean",
+                                                "value": "false"
+                                            },
+                                            "attribute_": {
+                                                "type": "java.lang.String",
+                                                "value": ""
+                                            },
+                                            "type_": {
+                                                "type": "java.lang.String",
+                                                "value": "IP"
+                                            },
+                                            "intention_": {
+                                                "type": "java.lang.String",
+                                                "value": ""
+                                            },
+                                            "unknownFields": {
+                                                "type": "com.google.protobuf.UnknownFieldSet",
+                                                "fields": {
+                                                    "fields": {
+                                                        "notCapturedReason": "depth",
+                                                        "type": "java.util.TreeMap"
+                                                    }
+                                                }
+                                            },
+                                            "memoizedSize": {
+                                                "type": "int",
+                                                "value": "-1"
+                                            }
+                                        }
+                                    },
+                                    {
+                                        "type": "com.dd.cloudsecurityplatform.pb.EntityStatsPayload$ThreatIntelResult",
+                                        "fields": {
+                                            "category_": {
+                                                "type": "java.lang.String",
+                                                "value": ""
+                                            },
+                                            "sourceName_": {
+                                                "type": "java.lang.String",
+                                                "value": ""
+                                            },
+                                            "memoizedHashCode": {
+                                                "type": "int",
+                                                "value": "0"
+                                            },
+                                            "indicator_": {
+                                                "type": "java.lang.String",
+                                                "value": "130.176.135.146"
+                                            },
+                                            "sourceUrl_": {
+                                                "type": "java.lang.String",
+                                                "value": ""
+                                            },
+                                            "memoizedIsInitialized": {
+                                                "type": "byte",
+                                                "value": "1"
+                                            },
+                                            "alwaysUseFieldBuilders": {
+                                                "type": "boolean",
+                                                "value": "false"
+                                            },
+                                            "attribute_": {
+                                                "type": "java.lang.String",
+                                                "value": ""
+                                            },
+                                            "type_": {
+                                                "type": "java.lang.String",
+                                                "value": "IP"
+                                            },
+                                            "intention_": {
+                                                "type": "java.lang.String",
+                                                "value": ""
+                                            },
+                                            "unknownFields": {
+                                                "type": "com.google.protobuf.UnknownFieldSet",
+                                                "fields": {
+                                                    "fields": {
+                                                        "notCapturedReason": "depth",
+                                                        "type": "java.util.TreeMap"
+                                                    }
+                                                }
+                                            },
+                                            "memoizedSize": {
+                                                "type": "int",
+                                                "value": "-1"
+                                            }
+                                        }
+                                    },
+                                    {
+                                        "type": "com.dd.cloudsecurityplatform.pb.EntityStatsPayload$ThreatIntelResult",
+                                        "fields": {
+                                            "category_": {
+                                                "type": "java.lang.String",
+                                                "value": ""
+                                            },
+                                            "sourceName_": {
+                                                "type": "java.lang.String",
+                                                "value": ""
+                                            },
+                                            "memoizedHashCode": {
+                                                "type": "int",
+                                                "value": "0"
+                                            },
+                                            "indicator_": {
+                                                "type": "java.lang.String",
+                                                "value": "3.172.1.71"
+                                            },
+                                            "sourceUrl_": {
+                                                "type": "java.lang.String",
+                                                "value": ""
+                                            },
+                                            "memoizedIsInitialized": {
+                                                "type": "byte",
+                                                "value": "1"
+                                            },
+                                            "alwaysUseFieldBuilders": {
+                                                "type": "boolean",
+                                                "value": "false"
+                                            },
+                                            "attribute_": {
+                                                "type": "java.lang.String",
+                                                "value": ""
+                                            },
+                                            "type_": {
+                                                "type": "java.lang.String",
+                                                "value": "IP"
+                                            },
+                                            "intention_": {
+                                                "type": "java.lang.String",
+                                                "value": ""
+                                            },
+                                            "unknownFields": {
+                                                "type": "com.google.protobuf.UnknownFieldSet",
+                                                "fields": {
+                                                    "fields": {
+                                                        "notCapturedReason": "depth",
+                                                        "type": "java.util.TreeMap"
+                                                    }
+                                                }
+                                            },
+                                            "memoizedSize": {
+                                                "type": "int",
+                                                "value": "-1"
+                                            }
+                                        }
+                                    },
+                                    {
+                                        "type": "com.dd.cloudsecurityplatform.pb.EntityStatsPayload$ThreatIntelResult",
+                                        "fields": {
+                                            "category_": {
+                                                "type": "java.lang.String",
+                                                "value": ""
+                                            },
+                                            "sourceName_": {
+                                                "type": "java.lang.String",
+                                                "value": ""
+                                            },
+                                            "memoizedHashCode": {
+                                                "type": "int",
+                                                "value": "0"
+                                            },
+                                            "indicator_": {
+                                                "type": "java.lang.String",
+                                                "value": "130.176.130.132"
+                                            },
+                                            "sourceUrl_": {
+                                                "type": "java.lang.String",
+                                                "value": ""
+                                            },
+                                            "memoizedIsInitialized": {
+                                                "type": "byte",
+                                                "value": "1"
+                                            },
+                                            "alwaysUseFieldBuilders": {
+                                                "type": "boolean",
+                                                "value": "false"
+                                            },
+                                            "attribute_": {
+                                                "type": "java.lang.String",
+                                                "value": ""
+                                            },
+                                            "type_": {
+                                                "type": "java.lang.String",
+                                                "value": "IP"
+                                            },
+                                            "intention_": {
+                                                "type": "java.lang.String",
+                                                "value": ""
+                                            },
+                                            "unknownFields": {
+                                                "type": "com.google.protobuf.UnknownFieldSet",
+                                                "fields": {
+                                                    "fields": {
+                                                        "notCapturedReason": "depth",
+                                                        "type": "java.util.TreeMap"
+                                                    }
+                                                }
+                                            },
+                                            "memoizedSize": {
+                                                "type": "int",
+                                                "value": "-1"
+                                            }
+                                        }
+                                    }
+                                ],
+                                "type": "java.util.ArrayList"
+                            }
+                        }
+                    }
+                }
+            },
+            "language": "java",
+            "id": "d7141999-c5bd-4887-b855-66c7a4dbb9a4",
+            "probe": {
+                "location": {
+                    "file": "domains/cloud-security-platform/apps/security-monitoring-entity-reducer/src/main/java/com/dd/logs/security_analytics/EntityStatsOutput.java",
+                    "method": "toByteString",
+                    "lines": [
+                        "205"
+                    ],
+                    "type": "com.dd.logs.security_analytics.EntityStatsOutput"
+                },
+                "id": "13da639f-2b81-475c-9366-5aa227a07302",
+                "version": 1
+            },
+            "timestamp": 1709233217858
+        }
+    },
+    "logger": {
+        "thread_id": 120,
+        "method": "toByteString",
+        "thread_name": "FsmaticDataCluster-fsmatic.workload.default.work-dispatcher-42",
+        "name": "com.dd.logs.security_analytics.EntityStatsOutput",
+        "version": 2
+    }
+}

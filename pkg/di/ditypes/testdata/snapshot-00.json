@@ -1,0 +1,403 @@
+{
+    "service": "debugger-backend-api-monitor",
+    "ddsource": "dd_debugger",
+    "message": "Log probe executed successfully",
+    "duration": 763602,
+    "ddtags": "tag:value",
+    "logger": {
+      "thread_id": 91,
+      "method": "emitSnapshot",
+      "thread_name": "scheduled-executor-thread-16",
+      "name": "com.datadog.debugger.apimonitor.SnapshotReadAfterWriteMonitorJob",
+      "version": 2
+    },
+    "debugger": {
+      "snapshot": {
+        "stack": [
+          {
+            "fileName": "SnapshotReadAfterWriteMonitorJob.kt",
+            "function": "com.datadog.debugger.apimonitor.SnapshotReadAfterWriteMonitorJob.emitSnapshot",
+            "lineNumber": 89
+          },
+          {
+            "fileName": "SnapshotReadAfterWriteMonitorJob.kt",
+            "function": "com.datadog.debugger.apimonitor.SnapshotReadAfterWriteMonitorJob.access$emitSnapshot",
+            "lineNumber": 31
+          },
+          {
+            "fileName": "SnapshotReadAfterWriteMonitorJob.kt",
+            "function": "com.datadog.debugger.apimonitor.SnapshotReadAfterWriteMonitorJob$run$1.invoke",
+            "lineNumber": 63
+          },
+          {
+            "fileName": "SnapshotReadAfterWriteMonitorJob.kt",
+            "function": "com.datadog.debugger.apimonitor.SnapshotReadAfterWriteMonitorJob$run$1.invoke",
+            "lineNumber": 55
+          },
+          {
+            "fileName": "MonitoredTask.kt",
+            "function": "com.datadog.debugger.MonitoredTask$ExecutionState.run",
+            "lineNumber": 30
+          },
+          {
+            "fileName": "MonitoredTask.kt",
+            "function": "com.datadog.debugger.MonitoredTask.run",
+            "lineNumber": 89
+          },
+          {
+            "fileName": "SnapshotReadAfterWriteMonitorJob.kt",
+            "function": "com.datadog.debugger.apimonitor.SnapshotReadAfterWriteMonitorJob.run",
+            "lineNumber": 55
+          },
+          {
+            "function": "com.datadog.debugger.apimonitor.$SnapshotReadAfterWriteMonitorJob$Definition$Exec.dispatch",
+            "lineNumber": -1
+          },
+          {
+            "fileName": "AbstractExecutableMethodsDefinition.java",
+            "function": "io.micronaut.context.AbstractExecutableMethodsDefinition$DispatchedExecutableMethod.invoke",
+            "lineNumber": 378
+          },
+          {
+            "fileName": "DelegatingExecutableMethod.java",
+            "function": "io.micronaut.inject.DelegatingExecutableMethod.invoke",
+            "lineNumber": 76
+          },
+          {
+            "fileName": "ScheduledMethodProcessor.java",
+            "function": "io.micronaut.scheduling.processor.ScheduledMethodProcessor.lambda$process$5",
+            "lineNumber": 127
+          },
+          {
+            "fileName": "Executors.java",
+            "function": "java.util.concurrent.Executors$RunnableAdapter.call",
+            "lineNumber": 577
+          },
+          {
+            "fileName": "FutureTask.java",
+            "function": "java.util.concurrent.FutureTask.runAndReset",
+            "lineNumber": 358
+          },
+          {
+            "fileName": "ScheduledThreadPoolExecutor.java",
+            "function": "java.util.concurrent.ScheduledThreadPoolExecutor$ScheduledFutureTask.run",
+            "lineNumber": 305
+          },
+          {
+            "fileName": "ThreadPoolExecutor.java",
+            "function": "java.util.concurrent.ThreadPoolExecutor.runWorker",
+            "lineNumber": 1144
+          },
+          {
+            "fileName": "ThreadPoolExecutor.java",
+            "function": "java.util.concurrent.ThreadPoolExecutor$Worker.run",
+            "lineNumber": 642
+          },
+          {
+            "fileName": "Thread.java",
+            "function": "java.lang.Thread.run",
+            "lineNumber": 1589
+          }
+        ],
+        "captures": {
+          "entry": {
+            "arguments": {
+              "apiMonitorStr": {
+                "type": "java.lang.String",
+                "value": "red"
+              },
+              "this": {
+                "type": "com.datadog.debugger.apimonitor.SnapshotReadAfterWriteMonitorJob",
+                "fields": {
+                  "apiClient": {
+                    "type": "com.datadog.debugger.monitor.utils.DebuggerConfigurationApiClient",
+                    "fields": {
+                      "converter": {
+                        "type": "com.datadog.debugger.monitor.utils.JsonApiConverter",
+                        "fields": {
+                          "mapper": {
+                            "notCapturedReason": "depth",
+                            "type": "com.fasterxml.jackson.databind.ObjectMapper"
+                          }
+                        }
+                      },
+                      "rcApiClient": {
+                        "type": "com.datadog.debugger.monitor.utils.AuthenticatingRcApiClient",
+                        "fields": {
+                          "apiClient": {
+                            "notCapturedReason": "depth",
+                            "type": "com.datadog.debugger.monitor.utils.RcApiClient$Intercepted"
+                          },
+                          "mcnultyJobConfig": {
+                            "notCapturedReason": "depth",
+                            "type": "java.util.LinkedHashMap"
+                          },
+                          "secretManager": {
+                            "notCapturedReason": "depth",
+                            "type": "com.datadog.debugger.monitor.utils.VaultSecretManager"
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "metrics": {
+                    "type": "com.datadog.debugger.Metrics",
+                    "fields": {
+                      "statsd": {
+                        "type": "com.timgroup.statsd.NonBlockingStatsDClient",
+                        "fields": {
+                          "clientChannel": {
+                            "notCapturedReason": "depth",
+                            "type": "com.timgroup.statsd.UnixDatagramClientChannel"
+                          },
+                          "handler": {
+                            "notCapturedReason": "depth",
+                            "type": "com.timgroup.statsd.NonBlockingStatsDClient$1"
+                          },
+                          "constantTagsRendered": {
+                            "type": "java.lang.String",
+                            "value": "|#version:v13250988-a801c320,env:prod,service:debugger-backend-api-monitor,dd.internal.entity_id:d1239294-1fe7-4188-9646-1bb7f59eb0b0"
+                          },
+                          "statsDSender": {
+                            "notCapturedReason": "depth",
+                            "type": "com.timgroup.statsd.StatsDSender"
+                          },
+                          "telemetryClientChannel": {
+                            "notCapturedReason": "depth",
+                            "type": "com.timgroup.statsd.UnixDatagramClientChannel"
+                          },
+                          "prefix": {
+                            "type": "java.lang.String",
+                            "value": "dd.debugger_backend_api_monitor."
+                          },
+                          "telemetryStatsDProcessor": {
+                            "notCapturedReason": "depth",
+                            "type": "com.timgroup.statsd.StatsDNonBlockingProcessor"
+                          },
+                          "blocking": {
+                            "type": "boolean",
+                            "value": "false"
+                          },
+                          "statsDProcessor": {
+                            "notCapturedReason": "depth",
+                            "type": "com.timgroup.statsd.StatsDNonBlockingProcessor"
+                          },
+                          "telemetryStatsDSender": {
+                            "notCapturedReason": "depth",
+                            "type": "com.timgroup.statsd.StatsDSender"
+                          },
+                          "telemetry": {
+                            "notCapturedReason": "depth",
+                            "type": "com.timgroup.statsd.Telemetry"
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "jobConfiguration": {
+                    "type": "com.datadog.debugger.apimonitor.ApiMonitorJobConfigurations$SnapshotReadAfterWriteJobConfiguration",
+                    "fields": {
+                      "pollInterval": {
+                        "type": "java.time.Duration",
+                        "value": "PT1S"
+                      },
+                      "orgId": {
+                        "type": "long",
+                        "value": "2"
+                      },
+                      "timeout": {
+                        "type": "java.time.Duration",
+                        "value": "PT1M"
+                      }
+                    }
+                  },
+                  "eventPlatformQueryClient": {
+                    "type": "com.datadog.debugger.monitor.utils.EventPlatformQueryClientImpl",
+                    "fields": {
+                      "httpClient": {
+                        "type": "com.datadog.debugger.monitor.utils.EventPlatformApiHttpClient$Intercepted",
+                        "fields": {
+                          "$interceptors": {
+                            "notCapturedReason": "depth",
+                            "type": "io.micronaut.aop.Interceptor[][]"
+                          },
+                          "$proxyMethods": {
+                            "notCapturedReason": "depth",
+                            "type": "io.micronaut.inject.ExecutableMethod[]"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "apiMonitorInt": {
+                "type": "int",
+                "value": "86"
+              }
+            }
+          },
+          "return": {
+            "arguments": {
+              "apiMonitorStr": {
+                "type": "java.lang.String",
+                "value": "red"
+              },
+              "this": {
+                "type": "com.datadog.debugger.apimonitor.SnapshotReadAfterWriteMonitorJob",
+                "fields": {
+                  "apiClient": {
+                    "type": "com.datadog.debugger.monitor.utils.DebuggerConfigurationApiClient",
+                    "fields": {
+                      "converter": {
+                        "type": "com.datadog.debugger.monitor.utils.JsonApiConverter",
+                        "fields": {
+                          "mapper": {
+                            "notCapturedReason": "depth",
+                            "type": "com.fasterxml.jackson.databind.ObjectMapper"
+                          }
+                        }
+                      },
+                      "rcApiClient": {
+                        "type": "com.datadog.debugger.monitor.utils.AuthenticatingRcApiClient",
+                        "fields": {
+                          "apiClient": {
+                            "notCapturedReason": "depth",
+                            "type": "com.datadog.debugger.monitor.utils.RcApiClient$Intercepted"
+                          },
+                          "mcnultyJobConfig": {
+                            "notCapturedReason": "depth",
+                            "type": "java.util.LinkedHashMap"
+                          },
+                          "secretManager": {
+                            "notCapturedReason": "depth",
+                            "type": "com.datadog.debugger.monitor.utils.VaultSecretManager"
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "metrics": {
+                    "type": "com.datadog.debugger.Metrics",
+                    "fields": {
+                      "statsd": {
+                        "type": "com.timgroup.statsd.NonBlockingStatsDClient",
+                        "fields": {
+                          "clientChannel": {
+                            "notCapturedReason": "depth",
+                            "type": "com.timgroup.statsd.UnixDatagramClientChannel"
+                          },
+                          "handler": {
+                            "notCapturedReason": "depth",
+                            "type": "com.timgroup.statsd.NonBlockingStatsDClient$1"
+                          },
+                          "constantTagsRendered": {
+                            "type": "java.lang.String",
+                            "value": "|#version:v13250988-a801c320,env:prod,service:debugger-backend-api-monitor,dd.internal.entity_id:d1239294-1fe7-4188-9646-1bb7f59eb0b0"
+                          },
+                          "statsDSender": {
+                            "notCapturedReason": "depth",
+                            "type": "com.timgroup.statsd.StatsDSender"
+                          },
+                          "telemetryClientChannel": {
+                            "notCapturedReason": "depth",
+                            "type": "com.timgroup.statsd.UnixDatagramClientChannel"
+                          },
+                          "prefix": {
+                            "type": "java.lang.String",
+                            "value": "dd.debugger_backend_api_monitor."
+                          },
+                          "telemetryStatsDProcessor": {
+                            "notCapturedReason": "depth",
+                            "type": "com.timgroup.statsd.StatsDNonBlockingProcessor"
+                          },
+                          "blocking": {
+                            "type": "boolean",
+                            "value": "false"
+                          },
+                          "statsDProcessor": {
+                            "notCapturedReason": "depth",
+                            "type": "com.timgroup.statsd.StatsDNonBlockingProcessor"
+                          },
+                          "telemetryStatsDSender": {
+                            "notCapturedReason": "depth",
+                            "type": "com.timgroup.statsd.StatsDSender"
+                          },
+                          "telemetry": {
+                            "notCapturedReason": "depth",
+                            "type": "com.timgroup.statsd.Telemetry"
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "jobConfiguration": {
+                    "type": "com.datadog.debugger.apimonitor.ApiMonitorJobConfigurations$SnapshotReadAfterWriteJobConfiguration",
+                    "fields": {
+                      "pollInterval": {
+                        "type": "java.time.Duration",
+                        "value": "PT1S"
+                      },
+                      "orgId": {
+                        "type": "long",
+                        "value": "2"
+                      },
+                      "timeout": {
+                        "type": "java.time.Duration",
+                        "value": "PT1M"
+                      }
+                    }
+                  },
+                  "eventPlatformQueryClient": {
+                    "type": "com.datadog.debugger.monitor.utils.EventPlatformQueryClientImpl",
+                    "fields": {
+                      "httpClient": {
+                        "type": "com.datadog.debugger.monitor.utils.EventPlatformApiHttpClient$Intercepted",
+                        "fields": {
+                          "$interceptors": {
+                            "notCapturedReason": "depth",
+                            "type": "io.micronaut.aop.Interceptor[][]"
+                          },
+                          "$proxyMethods": {
+                            "notCapturedReason": "depth",
+                            "type": "io.micronaut.inject.ExecutableMethod[]"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "apiMonitorInt": {
+                "type": "int",
+                "value": "86"
+              }
+            },
+            "locals": {
+              "uuid": {
+                "type": "java.lang.String",
+                "value": "328a0839-de9b-40fb-8c7f-f02972a0bceb"
+              },
+              "@return": {
+                "type": "java.lang.String",
+                "value": "328a0839-de9b-40fb-8c7f-f02972a0bceb"
+              }
+            }
+          }
+        },
+        "language": "java",
+        "id": "6e34e113-2bb3-44be-9330-79de17fab0fc",
+        "probe": {
+          "evaluateAt": "DEFAULT",
+          "location": {
+            "method": "emitSnapshot",
+            "type": "com.datadog.debugger.apimonitor.SnapshotReadAfterWriteMonitorJob"
+          },
+          "id": "59e78a5b-fa9a-4056-a2bf-a4384769d1ae",
+          "version": 1
+        },
+        "timestamp": 1676045474719
+      }
+    }
+  }
+  
