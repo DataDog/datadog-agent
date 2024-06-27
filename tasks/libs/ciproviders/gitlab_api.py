@@ -319,15 +319,20 @@ def filter_gitlab_ci_configuration(yml: dict, job: str | None = None) -> dict:
     return {node[0]: node[1] for node in (filter_yaml(k, v) for k, v in yml.items()) if node is not None}
 
 
-def print_gitlab_ci_configuration(yml: dict, sort: bool):
+def print_gitlab_ci_configuration(yml: dict, sort_jobs: bool):
+    """
+    Prints a gitlab ci as yaml.
+
+    - sort_jobs: Sort jobs by name (the job keys are always sorted)
+    """
     jobs = yml.items()
-    if sort:
+    if sort_jobs:
         jobs = sorted(jobs)
 
     for i, (job, content) in enumerate(jobs):
         if i > 0:
             print()
-        yaml.safe_dump({job: content}, sys.stdout, default_flow_style=False, sort_keys=False, indent=2)
+        yaml.safe_dump({job: content}, sys.stdout, default_flow_style=False, sort_keys=True, indent=2)
 
 
 def get_gitlab_ci_configuration(

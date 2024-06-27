@@ -390,7 +390,7 @@ def get_full_gitlab_ci(
         yml = flatten_gitlab_ci_configuration(yml)
 
     # Print
-    print_gitlab_ci_configuration(yml, sort=sort)
+    print_gitlab_ci_configuration(yml, sort_jobs=sort)
 
 
 @task
