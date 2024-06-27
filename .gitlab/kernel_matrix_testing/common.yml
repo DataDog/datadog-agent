@@ -49,10 +49,12 @@
   - export AWS_PROFILE=agent-qa-ci
 
 .define_if_collect_complexity:
+  - UNSUPPORTED_COMPLEXITY_PLATFORMS="suse_12.5 amazon_4.14 centos_7.9 debian_9 ubuntu_16.04"
   - |
-    if [ "${TEST_SET}" = "no_usm" ] || [ "${TEST_SET}" = "all_tests" ]; then
+    if ( [ "${TEST_SET}" = "no_usm" ] || [ "${TEST_SET}" = "all_tests" ] ) && ! echo "${UNSUPPORTED_COMPLEXITY_PLATFORMS}" | grep -qw "${TAG}" ; then
       export COLLECT_COMPLEXITY=yes
     fi
+  - echo "COLLECT_COMPLEXITY=${COLLECT_COMPLEXITY}"
 
 .collect_outcomes_kmt:
   - export DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $API_KEY_ORG2_SSM_NAME)
