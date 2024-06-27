@@ -1,6 +1,11 @@
 import unittest
 
-from tasks.libs.ciproviders.gitlab_api import generate_gitlab_full_configuration, read_includes
+from tasks.libs.ciproviders.gitlab_api import (
+    filter_gitlab_ci_configuration,
+    flatten_gitlab_ci_configuration,
+    generate_gitlab_full_configuration,
+    read_includes,
+)
 
 
 class TestReadIncludes(unittest.TestCase):
@@ -45,3 +50,97 @@ class TestGitlabYaml(unittest.TestCase):
 
     def test_extends_reference(self):
         self.make_test("tasks/unit-tests/testdata/yaml_extends_reference.yml")
+
+
+class TestGitlabCiConfig(unittest.TestCase):
+    def test_filter(self):
+        yml = {
+            '.wrapper': {'before_script': 'echo "start"'},
+            'job1': {'script': 'echo "hello"'},
+            'job2': {'script': 'echo "world"'},
+        }
+        expected_yml = {
+            'job1': {'script': 'echo "hello"'},
+            'job2': {'script': 'echo "world"'},
+        }
+
+        res = filter_gitlab_ci_configuration(yml)
+
+        self.assertDictEqual(res, expected_yml)
+
+    def test_filter_job(self):
+        yml = {
+            '.wrapper': {'before_script': 'echo "start"'},
+            'job1': {'script': 'echo "hello"'},
+            'job2': {'script': 'echo "world"'},
+        }
+        expected_yml = {
+            'job1': {'script': 'echo "hello"'},
+        }
+
+        res = filter_gitlab_ci_configuration(yml, job='job1')
+
+        self.assertDictEqual(res, expected_yml)
+
+    def test_flatten(self):
+        yml = {
+            'job': {'script': ['echo hello']},
+        }
+        expected_yml = {
+            'job': {'script': ['echo hello']},
+        }
+        res = flatten_gitlab_ci_configuration(yml)
+
+        self.assertDictEqual(res, expected_yml)
+
+    def test_flatten_nest1(self):
+        yml = {
+            'job': {
+                'script': [
+                    [
+                        'echo hello',
+                        'echo world',
+                    ],
+                    'echo "!"',
+                ]
+            },
+        }
+        expected_yml = {
+            'job': {
+                'script': [
+                    'echo hello',
+                    'echo world',
+                    'echo "!"',
+                ]
+            },
+        }
+        res = flatten_gitlab_ci_configuration(yml)
+
+        self.assertDictEqual(res, expected_yml)
+
+    def test_flatten_nest2(self):
+        yml = {
+            'job': {
+                'script': [
+                    [
+                        [['echo i am nested']],
+                        'echo hello',
+                        'echo world',
+                    ],
+                    'echo "!"',
+                ]
+            },
+        }
+        expected_yml = {
+            'job': {
+                'script': [
+                    'echo i am nested',
+                    'echo hello',
+                    'echo world',
+                    'echo "!"',
+                ]
+            },
+        }
+        res = flatten_gitlab_ci_configuration(yml)
+
+        self.assertDictEqual(res, expected_yml)
