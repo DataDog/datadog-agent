@@ -1,0 +1,5 @@
+Inter-|   Receive                                                |  Transmit
+face |bytes    packets errs drop fifo frame compressed multicast|bytes    packets errs drop fifo colls carrier compressed
+lo:    7490      63    0    0    0     0          0         0     7490      63    0    0    0     0       0          0
+vinternal_1:     180       3    0    0    0     0          0         0      254       4    0    0    0     0       0          0
+telemetry1_sb:   17284      50    0    0    0     0          0         0    15279      78    0    0    0     0       0          0
