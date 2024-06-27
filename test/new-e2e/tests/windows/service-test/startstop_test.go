@@ -10,6 +10,7 @@ import (
 	_ "embed"
 	"fmt"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
@@ -136,15 +137,17 @@ func (s *powerShellServiceCommandSuite) TestStopTimeout() {
 	// check the System event log for unexpected exit messages
 	// hard stop timeout should set SERVICE_STOPPED before exiting, so
 	// we should not see "terminated unexpectedly" messages in the event log
-	out, err := windowsCommon.GetEventLogErrorsAndWarnings(host, "System")
+	entries, err := windowsCommon.GetEventLogErrorAndWarningEntries(host, "System")
 	s.Require().NoError(err, "should get errors and warnings from System event log")
-	s.T().Logf("Errors and warnings from System event log:\n%s", out)
-	s.Assert().NotContains(out, "terminated unexpectedly", "should not have unexpected exit messages in the event log")
+	s.Require().Empty(windowsCommon.Filter(entries, func(entry windowsCommon.EventLogEntry) bool {
+		return strings.Contains(entry.Message, "terminated unexpectedly")
+	}), "should not have unexpected exit messages in the event log")
 	// check the Application event log for timeout messages
-	out, err = windowsCommon.GetEventLogErrorsAndWarnings(host, "Application")
+	entries, err = windowsCommon.GetEventLogErrorAndWarningEntries(host, "Application")
 	s.Require().NoError(err, "should get errors and warnings from Application event log")
-	s.T().Logf("Errors and warnings from Application event log:\n%s", out)
-	s.Assert().NotContains(out, "hard stopping service", "should not have timeout messages in the event log")
+	s.Require().Empty(windowsCommon.Filter(entries, func(entry windowsCommon.EventLogEntry) bool {
+		return strings.Contains(entry.Message, "hard stopping service")
+	}), "should not have timeout messages in the event log")
 }
 
 // TestHardExitEventLogEntry tests that the System event log contains an "unexpectedly terminated" message when a service is killed
@@ -177,12 +180,14 @@ func (s *powerShellServiceCommandSuite) TestHardExitEventLogEntry() {
 
 	// check the System event log for hard exit messages
 	s.Assert().EventuallyWithT(func(c *assert.CollectT) {
-		out, err := windowsCommon.GetEventLogErrorsAndWarnings(host, "System")
-		require.NoError(c, err, "should get errors and warnings from System event log")
-		s.T().Logf("Errors and warnings from System event log:\n%s", out)
+		entries, err := windowsCommon.GetEventLogErrorAndWarningEntries(host, "System")
+		s.Require().NoError(err, "should get errors and warnings from System event log")
 		for _, displayName := range displayNames {
 			match := fmt.Sprintf("The %s service terminated unexpectedly", displayName)
-			assert.Contains(c, out, match, "should have hard exit messages in the event log")
+			matching := windowsCommon.Filter(entries, func(entry windowsCommon.EventLogEntry) bool {
+				return strings.Contains(entry.Message, match)
+			})
+			assert.Len(c, matching, 1, "should have hard exit message for %s in the event log", displayName)
 		}
 	}, 1*time.Minute, 1*time.Second, "should have hard exit messages in the event log")
 }
