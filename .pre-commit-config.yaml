@@ -85,7 +85,7 @@ repos:
     - id: go-test
       name: go-test
       description: run go test on modified packages
-      entry: 'inv test --only-modified-packages'
+      entry: 'inv test --only-modified-packages --race'
       language: system
       require_serial: true
       always_run: true
