@@ -202,9 +202,15 @@ def generate_flake_finder_pipeline(_, n=3):
             new_job["stage"] = f"flake-finder-{i}"
             new_job["dependencies"] = []
             if 'variables' in new_job:
-                if 'E2E_PIPELINE_ID' in new_job['variables']:
+                if (
+                    'E2E_PIPELINE_ID' in new_job['variables']
+                    and new_job['variables']['E2E_PIPELINE_ID'] == "$CI_PIPELINE_ID"
+                ):
                     new_job['variables']['E2E_PIPELINE_ID'] = "$PARENT_PIPELINE_ID"
-                if 'E2E_COMMIT_SHA' in new_job['variables']:
+                if (
+                    'E2E_COMMIT_SHA' in new_job['variables']
+                    and new_job['variables']['E2E_COMMIT_SHA'] == "$CI_COMMIT_SHA"
+                ):
                     new_job['variables']['E2E_COMMIT_SHA'] = "$PARENT_COMMIT_SHA"
             new_job["rules"] = [{"when": "always"}]
             new_jobs[f"{job}-{i}"] = new_job
