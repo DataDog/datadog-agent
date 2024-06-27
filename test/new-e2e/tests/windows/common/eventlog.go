@@ -118,3 +118,8 @@ func GetEventLogEntriesWithFilterHashTable(host *components.RemoteHost, filterHa
 func GetEventLogErrorAndWarningEntries(host *components.RemoteHost, logName string) ([]EventLogEntry, error) {
 	return GetEventLogEntriesWithFilterHashTable(host, fmt.Sprintf(`@{ LogName='%s'; Level=1,2,3 }`, logName))
 }
+
+// GetEventLogEntriesFromProvider returns a list of event log entries from a specific provider
+func GetEventLogEntriesFromProvider(host *components.RemoteHost, logName string, providerName string) ([]EventLogEntry, error) {
+	return GetEventLogEntriesWithFilterHashTable(host, fmt.Sprintf(`@{ LogName='%s'; ProviderName='%s' }`, logName, providerName))
+}

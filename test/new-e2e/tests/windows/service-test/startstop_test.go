@@ -134,7 +134,7 @@ func (s *powerShellServiceCommandSuite) TestStopTimeout() {
 	// test all services are stopped
 	s.assertAllServicesState("Stopped")
 
-	// check the System event log for unexpected exit messages
+	// check there are no unexpected exit messages in System event log
 	// hard stop timeout should set SERVICE_STOPPED before exiting, so
 	// we should not see "terminated unexpectedly" messages in the event log
 	entries, err := windowsCommon.GetEventLogErrorAndWarningEntries(host, "System")
@@ -142,7 +142,8 @@ func (s *powerShellServiceCommandSuite) TestStopTimeout() {
 	s.Require().Empty(windowsCommon.Filter(entries, func(entry windowsCommon.EventLogEntry) bool {
 		return strings.Contains(entry.Message, "terminated unexpectedly")
 	}), "should not have unexpected exit messages in the event log")
-	// check the Application event log for timeout messages
+
+	// check there are no timeout messages in Application event log
 	entries, err = windowsCommon.GetEventLogErrorAndWarningEntries(host, "Application")
 	s.Require().NoError(err, "should get errors and warnings from Application event log")
 	s.Require().Empty(windowsCommon.Filter(entries, func(entry windowsCommon.EventLogEntry) bool {
@@ -152,6 +153,10 @@ func (s *powerShellServiceCommandSuite) TestStopTimeout() {
 
 // TestHardExitEventLogEntry tests that the System event log contains an "unexpectedly terminated" message when a service is killed
 func (s *powerShellServiceCommandSuite) TestHardExitEventLogEntry() {
+	s.T().Cleanup(func() {
+		// stop the drivers that are left running when agents are killed
+		s.stopAllServices()
+	})
 	host := s.Env().RemoteHost
 	s.startAgent()
 	s.requireAllServicesState("Running")
@@ -212,7 +217,7 @@ type baseStartStopSuite struct {
 	stopAgentCommand  func(host *components.RemoteHost) error
 }
 
-// TestAgentStartsAllServices tests that starting the agent starts all services
+// TestAgentStartsAllServices tests that starting the agent starts all services (as enabled)
 func (s *baseStartStopSuite) TestAgentStartsAllServices() {
 	s.startAgent()
 	s.requireAllServicesState("Running")
@@ -221,15 +226,55 @@ func (s *baseStartStopSuite) TestAgentStartsAllServices() {
 // TestAgentStopsAllServices tests that stopping the agent stops all services
 func (s *baseStartStopSuite) TestAgentStopsAllServices() {
 	host := s.Env().RemoteHost
-	s.startAgent()
-	s.requireAllServicesState("Running")
 
-	// stop the agent
-	err := s.stopAgentCommand(host)
-	s.Require().NoError(err, "should stop the datadogagent service")
+	// run the test multiple times to ensure the agent can be started and stopped repeatedly
+	N := 10
+	if testing.Short() {
+		N = 1
+	}
 
-	// ensure all services are stopped
-	s.assertAllServicesState("Stopped")
+	for i := 1; i <= N; i++ {
+		s.T().Logf("Test iteration %d/%d", i, N)
+
+		s.startAgent()
+		s.requireAllServicesState("Running")
+
+		// stop the agent
+		err := s.stopAgentCommand(host)
+		s.Require().NoError(err, "should stop the datadogagent service")
+
+		// ensure all services are stopped
+		s.requireAllServicesState("Stopped")
+
+		// ensure there are no errors in the event log from the agent services
+		entries, err := s.getAgentEventLogErrorsAndWarnings()
+		s.Require().NoError(err, "should get agent errors and warnings from Application event log")
+		s.Require().Empty(entries, "should not have errors or warnings from agents in the event log")
+	}
+
+	// check event log for N sets of start and stop messages from each service
+	for _, serviceName := range s.expectedUserServices() {
+		providerName := serviceName
+		entries, err := windowsCommon.GetEventLogEntriesFromProvider(host, "Application", providerName)
+		s.Require().NoError(err, "should get event log entries from %s", providerName)
+		// message IDs from pkg/util/winutil/messagestrings
+		startingMessages := windowsCommon.Filter(entries, func(entry windowsCommon.EventLogEntry) bool {
+			return entry.ID == 7
+		})
+		startedMessages := windowsCommon.Filter(entries, func(entry windowsCommon.EventLogEntry) bool {
+			return entry.ID == 3
+		})
+		stoppingMessages := windowsCommon.Filter(entries, func(entry windowsCommon.EventLogEntry) bool {
+			return entry.ID == 12
+		})
+		stoppedMessages := windowsCommon.Filter(entries, func(entry windowsCommon.EventLogEntry) bool {
+			return entry.ID == 4
+		})
+		s.Assert().Len(startingMessages, N, "should have %d starting message in the event log", N)
+		s.Assert().Len(startedMessages, N, "should have %d started message in the event log", N)
+		s.Assert().Len(stoppingMessages, N, "should have %d stopping message in the event log", N)
+		s.Assert().Len(stoppedMessages, N, "should have %d stopped message in the event log", N)
+	}
 }
 
 func (s *baseStartStopSuite) SetupSuite() {
@@ -403,4 +448,13 @@ func (s *baseStartStopSuite) expectedInstalledServices() []string {
 		"ddprocmon",
 	}
 	return append(user, kernel...)
+}
+
+// getAgentEventLogErrorsAndWarnings returns the errors and warnings from the agent services in the Application event log
+func (s *baseStartStopSuite) getAgentEventLogErrorsAndWarnings() ([]windowsCommon.EventLogEntry, error) {
+	host := s.Env().RemoteHost
+	providerNames := s.expectedUserServices()
+	providerNamesFilter := fmt.Sprintf(`"%s"`, strings.Join(providerNames, `","`))
+	filter := fmt.Sprintf(`@{ LogName='Application'; ProviderName=%s; Level=1,2,3 }`, providerNamesFilter)
+	return windowsCommon.GetEventLogEntriesWithFilterHashTable(host, filter)
 }
