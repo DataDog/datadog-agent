@@ -41,7 +41,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	timeresolver "github.com/DataDog/datadog-agent/pkg/security/resolvers/time"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -253,7 +252,7 @@ func (t *Tracer) start() error {
 func newConntracker(cfg *config.Config, telemetryComponent telemetryComponent.Component) (netlink.Conntracker, error) {
 	// conntrack is not supported on fargate currently since NET_ADMIN
 	// capability is not present
-	if !cfg.EnableConntrack || fargate.IsFargateInstance() {
+	if !cfg.EnableConntrack {
 		return netlink.NewNoOpConntracker(), nil
 	}
 
@@ -286,7 +285,7 @@ func newConntracker(cfg *config.Config, telemetryComponent telemetryComponent.Co
 		return c, nil
 	}
 
-	if cfg.IgnoreConntrackInitFailure {
+	if errors.Is(err, netlink.ErrNotPermitted) || cfg.IgnoreConntrackInitFailure {
 		log.Warnf("could not initialize conntrack, tracer will continue without NAT tracking: %s", err)
 		return netlink.NewNoOpConntracker(), nil
 	}
