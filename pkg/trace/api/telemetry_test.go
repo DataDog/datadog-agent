@@ -41,6 +41,10 @@ func newRequestRecorder(t *testing.T) (req *http.Request, rec *httptest.Response
 	return req, rec
 }
 
+func recordedStatusCode(rec *httptest.ResponseRecorder) int {
+	return rec.Result().StatusCode //nolint:bodyclose
+}
+
 func recordedResponse(t *testing.T, rec *httptest.ResponseRecorder) string {
 	resp := rec.Result()
 	responseBody, err := io.ReadAll(resp.Body)
@@ -91,7 +95,7 @@ func TestTelemetryBasicProxyRequest(t *testing.T) {
 	recv.buildMux().ServeHTTP(rec, req)
 	recv.telemetryForwarder.Stop()
 
-	assert.Equal(200, rec.Result().StatusCode)
+	assert.Equal(200, recordedStatusCode(rec))
 	assert.Equal("{}", recordedResponse(t, rec))
 	assert.Equal(uint64(1), endpointCalled.Load())
 
@@ -118,7 +122,7 @@ func TestGoogleCloudRun(t *testing.T) {
 	recv.buildMux().ServeHTTP(rec, req)
 	recv.telemetryForwarder.Stop()
 
-	assert.Equal(200, rec.Result().StatusCode)
+	assert.Equal(200, recordedStatusCode(rec))
 	assert.Equal("{}", recordedResponse(t, rec))
 	assert.Equal(uint64(1), endpointCalled.Load())
 }
@@ -147,7 +151,7 @@ func TestAzureAppService(t *testing.T) {
 	recv.buildMux().ServeHTTP(rec, req)
 	recv.telemetryForwarder.Stop()
 
-	assert.Equal(200, rec.Result().StatusCode)
+	assert.Equal(200, recordedStatusCode(rec))
 	assert.Equal("{}", recordedResponse(t, rec))
 	assert.Equal(uint64(1), endpointCalled.Load())
 }
@@ -176,7 +180,7 @@ func TestAzureContainerApp(t *testing.T) {
 	recv.buildMux().ServeHTTP(rec, req)
 	recv.telemetryForwarder.Stop()
 
-	assert.Equal(200, rec.Result().StatusCode)
+	assert.Equal(200, recordedStatusCode(rec))
 	assert.Equal("{}", recordedResponse(t, rec))
 	assert.Equal(uint64(1), endpointCalled.Load())
 }
@@ -215,7 +219,7 @@ func TestAWSFargate(t *testing.T) {
 	recv.buildMux().ServeHTTP(rec, req)
 	recv.telemetryForwarder.Stop()
 
-	assert.Equal(200, rec.Result().StatusCode)
+	assert.Equal(200, recordedStatusCode(rec))
 	assert.Equal("{}", recordedResponse(t, rec))
 	assert.Equal(uint64(1), endpointCalled.Load())
 }
@@ -273,7 +277,7 @@ func TestTelemetryProxyMultipleEndpoints(t *testing.T) {
 	recv.buildMux().ServeHTTP(rec, req)
 	recv.telemetryForwarder.Stop()
 
-	assert.Equal(200, rec.Result().StatusCode)
+	assert.Equal(200, recordedStatusCode(rec))
 	assert.Equal("{}", recordedResponse(t, rec))
 
 	// because we use number 2,3 both endpoints must be called to produce 5

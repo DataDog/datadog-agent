@@ -95,7 +95,7 @@ func NewTelemetryForwarder(conf *config.AgentConfig, containerIDProvider IDProvi
 	}
 }
 
-type Request struct {
+type forwardedRequest struct {
 	req  *http.Request
 	body []byte
 }
@@ -136,7 +136,7 @@ func (f *TelemetryForwarder) forwardTelemetryAsynchronously(r *http.Request) err
 		f.endRequest()
 		return err
 	}
-	req := Request{
+	req := forwardedRequest{
 		req:  r.Clone(context.Background()),
 		body: body,
 	}
@@ -167,19 +167,19 @@ func (r *HTTPReceiver) telemetryForwarderHandler() http.Handler {
 	forwarder := r.telemetryForwarder
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if accepted := forwarder.startRequest(); !accepted {
-			writeEmptyJson(w, 429)
+			writeEmptyJSON(w, 429)
 			return
 		}
 		err := forwarder.forwardTelemetryAsynchronously(r)
 		if err != nil {
-			writeEmptyJson(w, 400)
+			writeEmptyJSON(w, 400)
 			return
 		}
-		writeEmptyJson(w, 200)
+		writeEmptyJSON(w, 200)
 	})
 }
 
-func writeEmptyJson(w http.ResponseWriter, statusCode int) {
+func writeEmptyJSON(w http.ResponseWriter, statusCode int) {
 	w.WriteHeader(statusCode)
 	w.Write([]byte("{}"))
 }
@@ -252,7 +252,7 @@ func (f *TelemetryForwarder) setRequestHeader(req *http.Request) {
 //
 // All requests will be sent irregardless of any errors
 // If any request fails, the error will be logged.
-func (f *TelemetryForwarder) forwardTelemetry(ctx context.Context, req Request) {
+func (f *TelemetryForwarder) forwardTelemetry(ctx context.Context, req forwardedRequest) {
 	for i, e := range f.endpoints {
 		var newReq *http.Request
 		if i != len(f.endpoints)-1 {
@@ -265,7 +265,7 @@ func (f *TelemetryForwarder) forwardTelemetry(ctx context.Context, req Request) 
 		newReq.Body = io.NopCloser(bytes.NewReader(req.body))
 
 		if resp, err := f.forwardTelemetryEndpoint(newReq, e); err == nil {
-			io.Copy(io.Discard, resp.Body)
+			io.Copy(io.Discard, resp.Body) // nolint:errcheck
 			resp.Body.Close()
 		} else {
 			f.logger.Error("%v", err)
