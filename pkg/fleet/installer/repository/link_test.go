@@ -21,6 +21,13 @@ func createLink(t *testing.T, linkPath string, targetPath string) {
 func createTarget(t *testing.T, targetPath string) {
 	err := os.Mkdir(targetPath, 0755)
 	assert.NoError(t, err)
+	// Also create a file in the directory, to cover cases where
+	// the underlying OS would work only on an empty directory...
+	f, err := os.CreateTemp(targetPath, "test*.txt")
+	assert.NoError(t, err)
+	defer f.Close()
+	_, err = f.Write([]byte("hello Fleet Automation"))
+	assert.NoError(t, err)
 }
 
 func TestLinkRead(t *testing.T) {

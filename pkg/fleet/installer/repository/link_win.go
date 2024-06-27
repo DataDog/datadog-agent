@@ -14,10 +14,10 @@
 package repository
 
 import (
-	"errors"
 	"fmt"
 	"golang.org/x/sys/windows"
 	"os"
+	"runtime"
 	"syscall"
 	"unsafe"
 )
@@ -120,11 +120,6 @@ type _REPARSE_DATA_BUFFER struct {
 }
 
 func createDirLink(link string, rdb *_REPARSE_DATA_BUFFER) error {
-	err := os.Mkdir(link, 0777)
-	if err != nil && !errors.Is(err, syscall.ERROR_ALREADY_EXISTS) {
-		return err
-	}
-
 	linkp, err := syscall.UTF16FromString(link)
 	if err != nil {
 		return err
@@ -170,10 +165,18 @@ func setReparsePoint(target, link string) error {
 	var t reparseData
 	t.addPrintName(target)
 	t.addSubstituteName(`\??\` + target)
+	// isrelative is always false here because the paths in the installer are all absolute.
+	// Still, we keep the flag present in case that would change.
 	return createSymbolicLink(link, &t, false)
 }
 
 func symlinkWithImpersonation(target, link string, fn func(target, link string) error) error {
+	// The ImpersonateSelf function obtains an access token that impersonates the security context of the calling process.
+	// The token is assigned to the calling thread, so we need to lock the current goroutine to the OS thread where
+	// we impersonate.
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
 	err := windows.ImpersonateSelf(windows.SecurityImpersonation)
 	if err != nil {
 		return err
@@ -212,6 +215,18 @@ func enableCurrentThreadPrivilege(privilegeName string) error {
 	return windows.AdjustTokenPrivileges(t, false, &tp, 0, nil, nil)
 }
 
+// atomicSymlink wraps os.Symlink, replacing an existing symlink with the same name.
+// This function will also request the SeCreateSymbolicLinkPrivilege when the link already exists, so make sure to take
+// into account the considerations for that privilege:
+// https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-10/security/threat-protection/security-policy-settings/create-symbolic-links
 func atomicSymlink(oldname, newname string) error {
+	// Fast path: same as linux, if newname does not exist yet, we can skip the whole dance
+	// below.
+	if err := os.Symlink(oldname, newname); err == nil || !os.IsExist(err) {
+		return err
+	}
+	// symlinkWithImpersonation accepts a function because that allowed me to
+	// quickly test various algorithm for replacing the existing link by running them
+	// with and without impersonation.
 	return symlinkWithImpersonation(oldname, newname, setReparsePoint)
 }
