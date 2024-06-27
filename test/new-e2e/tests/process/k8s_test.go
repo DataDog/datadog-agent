@@ -75,7 +75,7 @@ func TestK8sTestSuite(t *testing.T) {
 			awskubernetes.WithWorkloadApp(func(e config.Env, kubeProvider *kubernetes.Provider) (*kubeComp.Workload, error) {
 				return cpustress.K8sAppDefinition(e, kubeProvider, "workload-stress")
 			}),
-			awskubernetes.WithAgentOptions(kubernetesagentparams.WithHelmValues(helmValues)),
+			awskubernetes.WithAgentOptions(kubernetesagentparams.WithHelmValues(helmValues), kubernetesagentparams.WithoutDualShipping()),
 		)),
 	}
 
