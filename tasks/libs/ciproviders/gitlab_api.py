@@ -276,6 +276,25 @@ def apply_yaml_postprocessing(config: ConfigNodeDict, node):
     apply_yaml_reference(config, node)
 
 
+def flatten_gitlab_ci_configuration(yml):
+    """
+    Flatten lists due to !reference tags
+    """
+    if isinstance(yml, list):
+        res = []
+        for v in yml:
+            if isinstance(v, list):
+                res.extend(flatten_gitlab_ci_configuration(v))
+            else:
+                res.append(v)
+
+        return res
+    elif isinstance(yml, dict):
+        return {k: flatten_gitlab_ci_configuration(v) for k, v in yml.items()}
+    else:
+        return yml
+
+
 def get_full_configuration(
     input_file: str = '.gitlab-ci.yml', return_dict: bool = True, ignore_errors: bool = False
 ) -> str | dict:

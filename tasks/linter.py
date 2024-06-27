@@ -16,6 +16,7 @@ from tasks.flavor import AgentFlavor
 from tasks.go import run_golangci_lint
 from tasks.libs.ciproviders.github_api import GithubAPI
 from tasks.libs.ciproviders.gitlab_api import (
+    flatten_gitlab_ci_configuration,
     generate_gitlab_full_configuration,
     get_full_configuration,
     get_gitlab_repo,
@@ -368,14 +369,16 @@ def is_get_parameter_call(file):
 
 
 @task
-def get_full_gitlab_ci(_, input_file: str = '.gitlab-ci.yml', job: str | None = None, sort: bool = False):
+def get_full_gitlab_ci(
+    _, input_file: str = '.gitlab-ci.yml', job: str | None = None, sort: bool = False, flatten: bool = True
+):
     """
     Print full gitlab ci configuration.
     - job: If provided, print only one job
+    - flatten: Flatten lists of lists (nesting due to !reference tags)
     """
 
     def print_yaml(yml: dict):
-        # TODO: Flatten scripts / rules
         jobs = yml.items()
         if sort:
             jobs = sorted(jobs)
@@ -403,6 +406,10 @@ def get_full_gitlab_ci(_, input_file: str = '.gitlab-ci.yml', job: str | None = 
         assert job in yml, f"Job {job} not found in the configuration"
 
     yml = {node[0]: node[1] for node in (filter_yaml(k, v) for k, v in yml.items()) if node is not None}
+
+    # Flatten
+    if flatten:
+        yml = flatten_gitlab_ci_configuration(yml)
 
     # Print
     print_yaml(yml)
