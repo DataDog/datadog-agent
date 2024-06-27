@@ -135,7 +135,4 @@ func V6AddressFromBytes(buf []byte) Address {
 }
 
 // IPBufferPool is meant to be used in conjunction with `NetIPFromAddress`
-var IPBufferPool = ddsync.NewTypedPool(func() *[]byte {
-	b := make([]byte, net.IPv6len)
-	return &b
-})
+var IPBufferPool = ddsync.NewSlicePool[byte](net.IPv6len, net.IPv6len)

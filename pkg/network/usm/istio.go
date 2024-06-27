@@ -84,10 +84,7 @@ var envoyCmd = []byte("/bin/envoy")
 // readBufferPool is used for reading /proc/<pid>/cmdline files.
 // We use a pointer to a slice to avoid allocations when casting
 // values to the empty interface during Put() calls.
-var readBufferPool = ddsync.NewTypedPool(func() *[]byte {
-	b := make([]byte, 128)
-	return &b
-})
+var readBufferPool = ddsync.NewSlicePool[byte](128, 128)
 
 // istioMonitor essentially scans for Envoy processes and attaches SSL uprobes
 // to them.

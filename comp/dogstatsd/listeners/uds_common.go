@@ -122,11 +122,7 @@ func setSocketWriteOnly(socketPath string) error {
 
 // NewUDSOobPoolManager returns an UDS OOB pool manager
 func NewUDSOobPoolManager() *packets.PoolManager[[]byte] {
-	pool := ddsync.NewTypedPool(func() *[]byte {
-		s := make([]byte, getUDSAncillarySize())
-		return &s
-	})
-
+	pool := ddsync.NewSlicePool[byte](getUDSAncillarySize(), getUDSAncillarySize())
 	return packets.NewPoolManager[[]byte](pool)
 }
 

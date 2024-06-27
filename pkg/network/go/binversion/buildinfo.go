@@ -61,10 +61,7 @@ const (
 )
 
 var (
-	dataRawBuildPool = ddsync.NewTypedPool(func() *[]byte {
-		b := make([]byte, maxSizeToRead)
-		return &b
-	})
+	dataRawBuildPool = ddsync.NewSlicePool[byte](maxSizeToRead, maxSizeToRead)
 )
 
 type exe interface {

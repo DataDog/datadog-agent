@@ -666,10 +666,7 @@ func (c *Consumer) throttle(numMessages int) error {
 
 func newBufferPool() *ddsync.TypedPool[[]byte] {
 	bufferSize := os.Getpagesize()
-	return ddsync.NewTypedPool(func() *[]byte {
-		b := make([]byte, bufferSize)
-		return &b
-	})
+	return ddsync.NewSlicePool[byte](bufferSize, bufferSize)
 }
 
 var (

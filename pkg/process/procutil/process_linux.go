@@ -747,10 +747,7 @@ func (p *probe) getLinkWithAuthCheck(pidPath string, file string) string {
 	return str
 }
 
-var fdDirentPool = ddsync.NewTypedPool(func() *[]byte {
-	s := make([]byte, blockSize)
-	return &s
-})
+var fdDirentPool = ddsync.NewSlicePool[byte](blockSize, blockSize)
 
 // getFDCount gets num_fds from /proc/(pid)/fd WITHOUT using the native Readdirnames(),
 // this will skip the step of returning all file names(we don't need) in a dir which takes a lot of memory

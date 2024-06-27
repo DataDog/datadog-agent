@@ -564,10 +564,7 @@ const (
 )
 
 var (
-	taskCommLenBufferPool = ddsync.NewTypedPool(func() *[]byte {
-		buf := make([]byte, taskCommLen)
-		return &buf
-	})
+	taskCommLenBufferPool = ddsync.NewSlicePool[byte](taskCommLen, taskCommLen)
 )
 
 func isContainerdTmpMount(path string) bool {

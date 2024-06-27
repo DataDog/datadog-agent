@@ -40,10 +40,7 @@ func writerTest(t *testing.T, z bool) {
 
 	// register pools
 	manager := packets.NewPoolManager[packets.Packet](packets.NewPool(cfg.GetInt("dogstatsd_buffer_size")))
-	oobManager := packets.NewPoolManager[[]byte](ddsync.NewTypedPool(func() *[]byte {
-		s := make([]byte, 32)
-		return &s
-	}))
+	oobManager := packets.NewPoolManager[[]byte](ddsync.NewSlicePool[byte](32, 32))
 
 	require.NoError(t, writer.RegisterSharedPoolManager(manager))
 	require.NoError(t, writer.RegisterOOBPoolManager(oobManager))

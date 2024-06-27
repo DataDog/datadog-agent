@@ -20,6 +20,14 @@ func NewDefaultTypedPool[K any]() *TypedPool[K] {
 	})
 }
 
+// NewSlicePool creates a TypedPool using `make` to create slices of specified size and capacity for instances of []K
+func NewSlicePool[K any](size int, capacity int) *TypedPool[[]K] {
+	return NewTypedPool(func() *[]K {
+		s := make([]K, size, capacity)
+		return &s
+	})
+}
+
 // NewTypedPool creates a TypedPool using the provided function to create instances of K
 func NewTypedPool[K any](f func() *K) *TypedPool[K] {
 	return &TypedPool[K]{
