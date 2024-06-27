@@ -74,9 +74,6 @@ func (s *upgradeScenarioSuite) TestUpgradeSuccessful() {
 	_, err := s.setCatalog(testCatalog)
 	require.NoError(s.T(), err)
 
-	_, err = s.stopExperimentCommand()
-	require.NoError(s.T(), err)
-
 	timestamp := s.host.LastJournaldTimestamp()
 	_, err = s.startExperimentCommand(latestAgentImageVersion)
 	require.NoError(s.T(), err)
