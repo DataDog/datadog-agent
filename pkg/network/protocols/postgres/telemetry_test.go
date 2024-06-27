@@ -23,34 +23,34 @@ type telemetryResults struct {
 }
 
 func Test_getBucketIndex(t *testing.T) {
-	for i := 0; i <= 34; i++ {
+	for i := 0; i <= 130; i++ {
 		require.Equal(t, 0, getBucketIndex(i))
 	}
-	for i := 35; i <= 49; i++ {
+	for i := 131; i <= 145; i++ {
 		require.Equal(t, 1, getBucketIndex(i))
 	}
-	for i := 50; i <= 64; i++ {
+	for i := 146; i <= 160; i++ {
 		require.Equal(t, 2, getBucketIndex(i))
 	}
-	for i := 65; i <= 79; i++ {
+	for i := 161; i <= 175; i++ {
 		require.Equal(t, 3, getBucketIndex(i))
 	}
-	for i := 80; i <= 94; i++ {
+	for i := 176; i <= 190; i++ {
 		require.Equal(t, 4, getBucketIndex(i))
 	}
-	for i := 95; i <= 109; i++ {
+	for i := 191; i <= 205; i++ {
 		require.Equal(t, 5, getBucketIndex(i))
 	}
-	for i := 110; i <= 124; i++ {
+	for i := 206; i <= 220; i++ {
 		require.Equal(t, 6, getBucketIndex(i))
 	}
-	for i := 125; i <= 139; i++ {
+	for i := 221; i <= 235; i++ {
 		require.Equal(t, 7, getBucketIndex(i))
 	}
-	for i := 140; i <= 154; i++ {
+	for i := 236; i <= 250; i++ {
 		require.Equal(t, 8, getBucketIndex(i))
 	}
-	for i := 155; i <= 1000; i++ {
+	for i := 251; i <= 300; i++ {
 		require.Equal(t, 9, getBucketIndex(i))
 	}
 }
@@ -67,52 +67,52 @@ func TestTelemetry_Count(t *testing.T) {
 			tx: []*EbpfEvent{
 				{
 					Tx: EbpfTx{
-						Original_query_size: 19,
+						Original_query_size: 100,
 					},
 				},
 				{
 					Tx: EbpfTx{
-						Original_query_size: 35,
+						Original_query_size: 131,
 					},
 				},
 				{
 					Tx: EbpfTx{
-						Original_query_size: 64,
+						Original_query_size: 160,
 					},
 				},
 				{
 					Tx: EbpfTx{
-						Original_query_size: 65,
+						Original_query_size: 161,
 					},
 				},
 				{
 					Tx: EbpfTx{
-						Original_query_size: 80,
+						Original_query_size: 176,
 					},
 				},
 				{
 					Tx: EbpfTx{
-						Original_query_size: 95,
+						Original_query_size: 191,
 					},
 				},
 				{
 					Tx: EbpfTx{
-						Original_query_size: 110,
+						Original_query_size: 206,
 					},
 				},
 				{
 					Tx: EbpfTx{
-						Original_query_size: 125,
+						Original_query_size: 221,
 					},
 				},
 				{
 					Tx: EbpfTx{
-						Original_query_size: 140,
+						Original_query_size: 236,
 					},
 				},
 				{
 					Tx: EbpfTx{
-						Original_query_size: 200,
+						Original_query_size: 251,
 					},
 				},
 			},
