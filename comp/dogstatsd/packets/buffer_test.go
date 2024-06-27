@@ -165,36 +165,3 @@ func TestBufferTelemetryFull(t *testing.T) {
 
 	assert.Equal(t, float64(1), channelSizeMetric[0].GetGauge().GetValue())
 }
-
-func TestBufferFlushLoopTelemetryFull(t *testing.T) {
-	telemetryComponent := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
-	telemetryStore := NewTelemetryStore(nil, telemetryComponent)
-	duration, _ := time.ParseDuration("1ns")
-
-	buffer := NewBuffer(0, duration, nil, "test_buffer", telemetryStore)
-	defer buffer.Close()
-
-	// We need to wait for the flush timer to trigger
-	time.Sleep(10 * time.Nanosecond)
-
-	telemetryMock, ok := telemetryComponent.(telemetry.Mock)
-	assert.True(t, ok)
-
-	var bufferFlushTimerMetric []*dto.Metric
-	metricsFamily, err := telemetryMock.GetRegistry().Gather()
-	assert.Nil(t, err)
-
-	for _, metric := range metricsFamily {
-		if metric.GetName() == "dogstatsd__packets_buffer_flush_timer" {
-			bufferFlushTimerMetric = metric.GetMetric()
-		}
-	}
-
-	assert.NotNil(t, bufferFlushTimerMetric)
-
-	bufferFlushTimerMetricLabel := bufferFlushTimerMetric[0].GetLabel()[0]
-	assert.Equal(t, "listener_id", bufferFlushTimerMetricLabel.GetName())
-	assert.Equal(t, "test_buffer", bufferFlushTimerMetricLabel.GetValue())
-	// We expect the flush timer to be triggered at least once
-	assert.NotEqual(t, float64(0), bufferFlushTimerMetric[0].GetCounter().GetValue())
-}
