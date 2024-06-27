@@ -250,8 +250,6 @@ func (t *Tracer) start() error {
 }
 
 func newConntracker(cfg *config.Config, telemetryComponent telemetryComponent.Component) (netlink.Conntracker, error) {
-	// conntrack is not supported on fargate currently since NET_ADMIN
-	// capability is not present
 	if !cfg.EnableConntrack {
 		return netlink.NewNoOpConntracker(), nil
 	}
