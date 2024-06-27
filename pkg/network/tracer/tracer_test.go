@@ -18,6 +18,7 @@ import (
 	"math/rand"
 	"net"
 	nethttp "net/http"
+	"net/netip"
 	"os"
 	"runtime"
 	"strconv"
@@ -1252,4 +1253,61 @@ func (s *TracerSuite) TestTCPDirection() {
 	assert.Equal(t, conn.Direction, network.OUTGOING, "connection direction must be outgoing: %s", conn)
 	conn = incomingConns[0]
 	assert.Equal(t, conn.Direction, network.INCOMING, "connection direction must be incoming: %s", conn)
+}
+
+func (s *TracerSuite) TestTCPFailureConnectionRefused() {
+	t := s.T()
+
+	checkSkipFailureConnectionsTests(t)
+
+	cfg := testConfig()
+	cfg.TCPFailedConnectionsEnabled = true
+	tr := setupTracer(t, cfg)
+
+	// try to connect to a port where no server is accepting connections
+	srvAddr := "127.0.0.1:9998"
+	conn, err := net.Dial("tcp", srvAddr)
+	if err == nil {
+		conn.Close() // If the connection unexpectedly succeeds, close it immediately.
+		require.Fail(t, "expected connection to be refused, but it succeeded")
+	}
+	require.Error(t, err, "expected connection refused error but got none")
+
+	// Check if the connection was recorded as refused
+	require.Eventually(t, func() bool {
+		conns := getConnections(t, tr)
+		// Check for the refusal record
+		return findFailedConnectionByRemoteAddr(srvAddr, conns, 111)
+	}, 3*time.Second, 100*time.Millisecond, "Failed connection not recorded properly")
+}
+
+// findFailedConnection is a utility function to find a failed connection based on specific TCP error codes
+func findFailedConnection(t *testing.T, local, remote string, conns *network.Connections, errorCode uint32) bool {
+	// Extract the address and port from the net.Addr types
+	localAddrPort, err := netip.ParseAddrPort(local)
+	if err != nil {
+		t.Logf("Failed to parse local address: %v", err)
+		return false
+	}
+	remoteAddrPort, err := netip.ParseAddrPort(remote)
+	if err != nil {
+		t.Logf("Failed to parse remote address: %v", err)
+		return false
+	}
+
+	failureFilter := func(cs network.ConnectionStats) bool {
+		localMatch := netip.AddrPortFrom(cs.Source.Addr, cs.SPort) == localAddrPort
+		remoteMatch := netip.AddrPortFrom(cs.Dest.Addr, cs.DPort) == remoteAddrPort
+		return localMatch && remoteMatch && cs.TCPFailures[errorCode] > 0
+	}
+
+	return network.FirstConnection(conns, failureFilter) != nil
+}
+
+// for some failed connections we don't know the local addr/port so we need to search by remote addr only
+func findFailedConnectionByRemoteAddr(remoteAddr string, conns *network.Connections, errorCode uint32) bool {
+	failureFilter := func(cs network.ConnectionStats) bool {
+		return netip.MustParseAddrPort(remoteAddr) == netip.AddrPortFrom(cs.Dest.Addr, cs.DPort) && cs.TCPFailures[errorCode] > 0
+	}
+	return network.FirstConnection(conns, failureFilter) != nil
 }
