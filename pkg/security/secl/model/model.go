@@ -412,8 +412,6 @@ func (ha HashAlgorithm) String() string {
 	}
 }
 
-var zeroProcessContext ProcessContext
-
 // ProcessCacheEntry this struct holds process context kept in the process tree
 type ProcessCacheEntry struct {
 	ProcessContext
@@ -425,12 +423,6 @@ type ProcessCacheEntry struct {
 // IsContainerRoot returns whether this is a top level process in the container ID
 func (pc *ProcessCacheEntry) IsContainerRoot() bool {
 	return pc.ContainerID != "" && pc.Ancestor != nil && pc.Ancestor.ContainerID == ""
-}
-
-// Reset the entry
-func (pc *ProcessCacheEntry) Reset() {
-	pc.ProcessContext = zeroProcessContext
-	pc.refCount = 0
 }
 
 // Retain increment ref counter
