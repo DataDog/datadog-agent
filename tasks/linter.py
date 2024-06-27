@@ -376,9 +376,14 @@ def get_full_gitlab_ci(_, input_file: str = '.gitlab-ci.yml', job: str | None = 
 
     def print_yaml(yml: dict):
         # TODO: Flatten scripts / rules
-        # TODO: Print colors
-        # TODO: Empty line between jobs
-        yaml.safe_dump(yml, sys.stdout, default_flow_style=False, sort_keys=False, indent=2)
+        jobs = yml.items()
+        if sort:
+            jobs = sorted(jobs)
+
+        for i, (job, content) in enumerate(jobs):
+            if i > 0:
+                print()
+            yaml.safe_dump({job: content}, sys.stdout, default_flow_style=False, sort_keys=False, indent=2)
 
     def filter_yaml(key: str, value) -> tuple[str, any] | None:
         # Print only jobs
@@ -398,10 +403,6 @@ def get_full_gitlab_ci(_, input_file: str = '.gitlab-ci.yml', job: str | None = 
         assert job in yml, f"Job {job} not found in the configuration"
 
     yml = {node[0]: node[1] for node in (filter_yaml(k, v) for k, v in yml.items()) if node is not None}
-
-    # Sort
-    if sort:
-        yml = dict(sorted(yml.items()))
 
     # Print
     print_yaml(yml)
