@@ -8,6 +8,7 @@ package fx
 
 import (
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/impl"
+	integrationsmock "github.com/DataDog/datadog-agent/comp/logs/integrations/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -16,6 +17,15 @@ func Module() fxutil.Module {
 	return fxutil.Component(
 		fxutil.ProvideComponentConstructor(
 			integrations.NewComponent,
+		),
+	)
+}
+
+// MockModule provides the mock integrations component to fx
+func MockModule() fxutil.Module {
+	return fxutil.Component(
+		fxutil.ProvideComponentConstructor(
+			integrationsmock.Mock,
 		),
 	)
 }

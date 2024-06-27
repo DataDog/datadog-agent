@@ -27,6 +27,5 @@ func (l *mockIntegrations) SendLog(_, _ string) {
 
 // Mock returns a mock for integrations component.
 func Mock() integrations.Component {
-	// TODO: Implement the integrations mock
 	return &mockIntegrations{}
 }
