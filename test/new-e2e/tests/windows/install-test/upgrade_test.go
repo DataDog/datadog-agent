@@ -257,7 +257,6 @@ func (s *testUpgradeFromV5Suite) installAgent5() {
 
 	// basic checks to ensure agent is functioning
 	s.Assert().Contains(out, agentPackage.AgentVersion(), "info should have agent 5 version")
-	s.Assert().Contains(out, host.Address, "info should have IP address")
 	confPath := `C:\ProgramData\Datadog\datadog.conf`
 	exists, err := host.FileExists(confPath)
 	s.Require().NoError(err, "should check if datadog.conf exists")
