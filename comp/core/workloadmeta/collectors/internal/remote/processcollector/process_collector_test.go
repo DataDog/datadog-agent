@@ -252,7 +252,7 @@ func TestCollection(t *testing.T) {
 				fx.Supply(workloadmeta.Params{
 					AgentType: workloadmeta.Remote,
 				}),
-				workloadmetafxmock.MockModuleV2(),
+				workloadmetafxmock.MockModule(),
 			))
 
 			time.Sleep(time.Second)

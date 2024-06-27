@@ -46,7 +46,7 @@ func TestHostCollector(t *testing.T) {
 		core.MockBundle(),
 		fx.Supply(workloadmeta.NewParams()),
 		fx.Supply(context.Background()),
-		workloadmetafxmock.MockModuleV2(),
+		workloadmetafxmock.MockModule(),
 	))
 
 	mockClock := clock.NewMock()
