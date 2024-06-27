@@ -428,6 +428,12 @@ func TestDefaultSidecarTemplateClusterAgentEnvVars(t *testing.T) {
 				mockConfig := config.Mock(t)
 				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.cluster_agent.enabled", false)
 			},
+			expectedEnvVars: []corev1.EnvVar{
+				{
+					Name:  "DD_LANGUAGE_DETECTION_ENABLED",
+					Value: "false",
+				},
+			},
 			unexpectedEnvVars: []string{
 				"DD_CLUSTER_AGENT_ENABLED",
 				"DD_CLUSTER_AGENT_AUTH_TOKEN",
@@ -465,6 +471,47 @@ func TestDefaultSidecarTemplateClusterAgentEnvVars(t *testing.T) {
 					Name:  "DD_ORCHESTRATOR_EXPLORER_ENABLED",
 					Value: "true",
 				},
+				{
+					Name:  "DD_LANGUAGE_DETECTION_ENABLED",
+					Value: "false",
+				},
+			},
+		},
+		{
+			name: "cluster agent enabled with language derection enabled",
+			setConfig: func() {
+				mockConfig := config.Mock(t)
+				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.cluster_agent.enabled", true)
+				mockConfig.SetWithoutSource("language_detection.enabled", true)
+			},
+			expectedEnvVars: []corev1.EnvVar{
+				{
+					Name:  "DD_CLUSTER_AGENT_ENABLED",
+					Value: "true",
+				},
+				{
+					Name: "DD_CLUSTER_AGENT_AUTH_TOKEN",
+					ValueFrom: &corev1.EnvVarSource{
+						SecretKeyRef: &corev1.SecretKeySelector{
+							Key: "token",
+							LocalObjectReference: corev1.LocalObjectReference{
+								Name: "datadog-secret",
+							},
+						},
+					},
+				},
+				{
+					Name:  "DD_CLUSTER_AGENT_URL",
+					Value: fmt.Sprintf("https://datadog-cluster-agent.%s.svc.cluster.local:5005", apicommon.GetMyNamespace()),
+				},
+				{
+					Name:  "DD_ORCHESTRATOR_EXPLORER_ENABLED",
+					Value: "true",
+				},
+				{
+					Name:  "DD_LANGUAGE_DETECTION_ENABLED",
+					Value: "true",
+				},
 			},
 		},
 		{
@@ -474,6 +521,7 @@ func TestDefaultSidecarTemplateClusterAgentEnvVars(t *testing.T) {
 				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.cluster_agent.enabled", true)
 				mockConfig.SetWithoutSource("cluster_agent.cmd_port", 12345)
 				mockConfig.SetWithoutSource("cluster_agent.kubernetes_service_name", "test-service-name")
+				mockConfig.SetWithoutSource("language_detection.enabled", "false")
 			},
 			expectedEnvVars: []corev1.EnvVar{
 				{
@@ -498,6 +546,10 @@ func TestDefaultSidecarTemplateClusterAgentEnvVars(t *testing.T) {
 				{
 					Name:  "DD_ORCHESTRATOR_EXPLORER_ENABLED",
 					Value: "true",
+				},
+				{
+					Name:  "DD_LANGUAGE_DETECTION_ENABLED",
+					Value: "false",
 				},
 			},
 		},

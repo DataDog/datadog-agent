@@ -22,6 +22,7 @@ GO_VERSION_REFERENCES: list[tuple[str, str, str, bool]] = [
     (GO_VERSION_FILE, "", "", True),  # the version is the only content of the file
     ("./tools/gdb/Dockerfile", "https://go.dev/dl/go", ".linux-amd64.tar.gz", True),
     ("./test/fakeintake/Dockerfile", "FROM golang:", "-alpine", True),
+    ("./tasks/unit-tests/modules_tests.py", 'Go": "', '",', False),
     ("./devenv/scripts/Install-DevEnv.ps1", '$go_version = "', '"', True),
     ("./docs/dev/agent_dev_env.md", "[install Golang](https://golang.org/doc/install) version `", "`", True),
     ("./tasks/go.py", '"go version go', ' linux/amd64"', True),
@@ -97,7 +98,7 @@ def update_go(
 
     # check the installed go version before running `tidy_all`
     res = ctx.run("go version")
-    if res.stdout.startswith(f"go version go{version} "):
+    if res and res.stdout.startswith(f"go version go{version} "):
         tidy(ctx)
     else:
         print(
@@ -212,6 +213,7 @@ enhancements:
 """
     # hiding stderr too because `reno` displays some warnings about the config
     res = ctx.run(f'reno new "bump go to {version}"', hide='both')
+    assert res, "Could not create release note"
     match = re.match("^Created new notes file in (.*)$", res.stdout, flags=re.MULTILINE)
     if not match:
         raise exceptions.Exit("Could not get created release note path")

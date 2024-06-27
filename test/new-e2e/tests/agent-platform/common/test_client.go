@@ -120,7 +120,8 @@ func (c *TestClient) SetConfig(confPath string, key string, value string) error 
 	return err
 }
 
-func (c *TestClient) getJSONStatus() (map[string]any, error) {
+// GetJSONStatus returns the status of the Agent in JSON format
+func (c *TestClient) GetJSONStatus() (map[string]any, error) {
 	statusJSON := map[string]any{}
 	ok := false
 	var statusString string
@@ -154,7 +155,7 @@ func (c *TestClient) getJSONStatus() (map[string]any, error) {
 
 // GetPythonVersion returns python version from the Agent status
 func (c *TestClient) GetPythonVersion() (string, error) {
-	statusJSON, err := c.getJSONStatus()
+	statusJSON, err := c.GetJSONStatus()
 	if err != nil {
 		return "", err
 	}
@@ -165,7 +166,7 @@ func (c *TestClient) GetPythonVersion() (string, error) {
 
 // GetAgentVersion returns agent version from the Agent status
 func (c *TestClient) GetAgentVersion() (string, error) {
-	statusJSON, err := c.getJSONStatus()
+	statusJSON, err := c.GetJSONStatus()
 	if err != nil {
 		return "", err
 	}

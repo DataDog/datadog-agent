@@ -111,7 +111,7 @@ def run_clang_format_diff_wrapper(args, file):
     except DiffError:
         raise
     except Exception as e:
-        raise UnexpectedError(f'{file}: {e.__class__.__name__}: {e}', e)
+        raise UnexpectedError(f'{file}: {e.__class__.__name__}: {e}', e) from e
 
 
 def run_clang_format_diff(args, file):
@@ -119,7 +119,7 @@ def run_clang_format_diff(args, file):
         with open(file, encoding='utf-8') as f:
             original = f.readlines()
     except OSError as exc:
-        raise DiffError(str(exc))
+        raise DiffError(str(exc)) from exc
 
     if args.in_place:
         invocation = [args.clang_format_executable, '-i', file]
@@ -160,7 +160,7 @@ def run_clang_format_diff(args, file):
             invocation, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True, **encoding_py3
         )
     except OSError as exc:
-        raise DiffError(f"Command '{subprocess.list2cmdline(invocation)}' failed to start: {exc}")
+        raise DiffError(f"Command '{subprocess.list2cmdline(invocation)}' failed to start: {exc}") from exc
     proc_stdout = proc.stdout
     proc_stderr = proc.stderr
     if sys.version_info[0] < 3:

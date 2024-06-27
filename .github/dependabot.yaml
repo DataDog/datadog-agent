@@ -110,7 +110,7 @@ updates:
                               # publish a new version exploiting that it runs automatically after it
                               # is updated to write to our repo.
       - dev/tooling
-      - team/agent-build-and-releases
+      - team/agent-delivery
       - changelog/no-changelog
       - qa/no-code-change
     milestone: 22
@@ -192,7 +192,7 @@ updates:
     labels:
       - dependencies
       - dependencies-github-actions
-      - team/agent-ci-experience
+      - team/agent-devx-infra
       - changelog/no-changelog
       - qa/no-code-change
       - dev/tooling

@@ -8,12 +8,30 @@
 package secretsimpl
 
 import (
+	"net/http"
+
 	"go.uber.org/fx"
 
+	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
+
+type testDeps struct {
+	fx.In
+
+	Telemetry telemetry.Component
+}
+
+// MockProvides is a mocked struct wrapping all the provided components
+type MockProvides struct {
+	fx.Out
+
+	Comp            secrets.Component
+	InfoEndpoint    api.AgentEndpointProvider
+	RefreshEndpoint api.AgentEndpointProvider
+}
 
 // MockSecretResolver is a mock of the secret Component useful for testing
 type MockSecretResolver struct {
@@ -21,6 +39,10 @@ type MockSecretResolver struct {
 }
 
 var _ secrets.Component = (*MockSecretResolver)(nil)
+
+func (m *MockSecretResolver) mockHandleRequest(w http.ResponseWriter, _ *http.Request) {
+	w.Write([]byte("OK"))
+}
 
 // SetBackendCommand sets the backend command for the mock
 func (m *MockSecretResolver) SetBackendCommand(command string) {
@@ -32,20 +54,20 @@ func (m *MockSecretResolver) SetFetchHookFunc(f func([]string) (map[string]strin
 	m.fetchHookFunc = f
 }
 
+// newMock returns a MockSecretResolver
+func newMock(testDeps testDeps) MockProvides {
+	r := &MockSecretResolver{
+		secretResolver: newEnabledSecretResolver(testDeps.Telemetry),
+	}
+	return MockProvides{
+		Comp:            r,
+		InfoEndpoint:    api.NewAgentEndpointProvider(r.mockHandleRequest, "/secrets", "GET"),
+		RefreshEndpoint: api.NewAgentEndpointProvider(r.mockHandleRequest, "/secret/refresh", "GET"),
+	}
+}
+
 // MockModule is a module containing the mock, useful for testing
 func MockModule() fxutil.Module {
 	return fxutil.Component(
 		fx.Provide(newMock))
-}
-
-type testDeps struct {
-	fx.In
-
-	Telemetry telemetry.Component
-}
-
-func newMock(testDeps testDeps) secrets.Component {
-	return &MockSecretResolver{
-		secretResolver: newEnabledSecretResolver(testDeps.Telemetry),
-	}
 }
