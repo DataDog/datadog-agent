@@ -336,10 +336,12 @@ github.com/aws/aws-sdk-go-v2/feature/ec2/imds/internal/config
 github.com/aws/aws-sdk-go-v2/internal/auth
 github.com/aws/aws-sdk-go-v2/internal/auth/smithy
 github.com/aws/aws-sdk-go-v2/internal/configsources
+github.com/aws/aws-sdk-go-v2/internal/context
 github.com/aws/aws-sdk-go-v2/internal/endpoints
 github.com/aws/aws-sdk-go-v2/internal/endpoints/awsrulesfn
 github.com/aws/aws-sdk-go-v2/internal/endpoints/v2
 github.com/aws/aws-sdk-go-v2/internal/ini
+github.com/aws/aws-sdk-go-v2/internal/middleware
 github.com/aws/aws-sdk-go-v2/internal/rand
 github.com/aws/aws-sdk-go-v2/internal/sdk
 github.com/aws/aws-sdk-go-v2/internal/sdkio
@@ -463,7 +465,9 @@ github.com/modern-go/concurrent
 github.com/modern-go/reflect2
 github.com/mohae/deepcopy
 github.com/mostynb/go-grpc-compression/internal/snappy
+github.com/mostynb/go-grpc-compression/internal/zstd
 github.com/mostynb/go-grpc-compression/nonclobbering/snappy
+github.com/mostynb/go-grpc-compression/nonclobbering/zstd
 github.com/olekukonko/tablewriter
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry
 github.com/opencontainers/go-digest
@@ -501,6 +505,12 @@ github.com/shirou/gopsutil/v3/internal/common
 github.com/shirou/gopsutil/v3/mem
 github.com/shirou/gopsutil/v3/net
 github.com/shirou/gopsutil/v3/process
+github.com/shirou/gopsutil/v4/common
+github.com/shirou/gopsutil/v4/cpu
+github.com/shirou/gopsutil/v4/internal/common
+github.com/shirou/gopsutil/v4/mem
+github.com/shirou/gopsutil/v4/net
+github.com/shirou/gopsutil/v4/process
 github.com/spf13/afero
 github.com/spf13/afero/internal/common
 github.com/spf13/afero/mem
@@ -527,7 +537,6 @@ go.opentelemetry.io/collector/component/componenttest
 go.opentelemetry.io/collector/config/configauth
 go.opentelemetry.io/collector/config/configcompression
 go.opentelemetry.io/collector/config/configgrpc
-go.opentelemetry.io/collector/config/configgrpc/internal
 go.opentelemetry.io/collector/config/confighttp
 go.opentelemetry.io/collector/config/confignet
 go.opentelemetry.io/collector/config/configopaque
@@ -537,13 +546,13 @@ go.opentelemetry.io/collector/config/configtls
 go.opentelemetry.io/collector/config/internal
 go.opentelemetry.io/collector/confmap
 go.opentelemetry.io/collector/confmap/converter/expandconverter
+go.opentelemetry.io/collector/confmap/internal
 go.opentelemetry.io/collector/confmap/internal/envvar
 go.opentelemetry.io/collector/confmap/internal/mapstructure
 go.opentelemetry.io/collector/confmap/provider/envprovider
 go.opentelemetry.io/collector/confmap/provider/fileprovider
 go.opentelemetry.io/collector/confmap/provider/httpprovider
 go.opentelemetry.io/collector/confmap/provider/httpsprovider
-go.opentelemetry.io/collector/confmap/provider/internal
 go.opentelemetry.io/collector/confmap/provider/internal/configurablehttpprovider
 go.opentelemetry.io/collector/confmap/provider/yamlprovider
 go.opentelemetry.io/collector/connector
@@ -567,6 +576,7 @@ go.opentelemetry.io/collector/extension/auth
 go.opentelemetry.io/collector/extension/experimental/storage
 go.opentelemetry.io/collector/featuregate
 go.opentelemetry.io/collector/internal/fanoutconsumer
+go.opentelemetry.io/collector/internal/featuregates
 go.opentelemetry.io/collector/internal/httphelper
 go.opentelemetry.io/collector/internal/localhostgate
 go.opentelemetry.io/collector/internal/obsreportconfig
@@ -617,6 +627,7 @@ go.opentelemetry.io/collector/service/extensions
 go.opentelemetry.io/collector/service/internal/capabilityconsumer
 go.opentelemetry.io/collector/service/internal/components
 go.opentelemetry.io/collector/service/internal/graph
+go.opentelemetry.io/collector/service/internal/metadata
 go.opentelemetry.io/collector/service/internal/proctelemetry
 go.opentelemetry.io/collector/service/internal/resource
 go.opentelemetry.io/collector/service/internal/servicetelemetry

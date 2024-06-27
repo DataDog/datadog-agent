@@ -117,6 +117,14 @@ func WithPreviousVersion() TesterOption {
 	}
 }
 
+// WithExpectedAgentUserName sets the expected user name the agent should run as
+// the domain remains the default for the host.
+func WithExpectedAgentUserName(user string) TesterOption {
+	return func(t *Tester) {
+		t.expectedUserName = user
+	}
+}
+
 // WithExpectedAgentUser sets the expected user the agent should run as
 func WithExpectedAgentUser(domain string, user string) TesterOption {
 	return func(t *Tester) {

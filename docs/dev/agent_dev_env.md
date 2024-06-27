@@ -138,7 +138,7 @@ This procedure ensures you not only get the correct version of `invoke`, but als
 
 ### Golang
 
-You must [install Golang](https://golang.org/doc/install) version `1.21.11` or
+You must [install Golang](https://golang.org/doc/install) version `1.22.4` or
 higher. Make sure that `$GOPATH/bin` is in your `$PATH` otherwise `invoke`
 cannot use any additional tool it might need.
 

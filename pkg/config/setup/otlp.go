@@ -28,7 +28,7 @@ const (
 )
 
 // OTLP related configuration.
-func OTLP(config pkgconfigmodel.Config) {
+func OTLP(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault(OTLPTracePort, 5003)
 	config.BindEnvAndSetDefault(OTLPMetricsEnabled, true)
 	config.BindEnvAndSetDefault(OTLPTracesEnabled, true)
@@ -59,7 +59,7 @@ func OTLP(config pkgconfigmodel.Config) {
 // since we get the configuration through GetStringMap
 //
 // We are missing TLS settings: since some of them need more work to work right they are not included here.
-func setupOTLPEnvironmentVariables(config pkgconfigmodel.Config) {
+func setupOTLPEnvironmentVariables(config pkgconfigmodel.Setup) {
 	// gRPC settings
 	config.BindEnv(OTLPSection + ".receiver.protocols.grpc.endpoint")
 	config.BindEnv(OTLPSection + ".receiver.protocols.grpc.transport")

@@ -16,9 +16,9 @@ import (
 var expvarsMap = expvar.NewMap("dogstatsd-named_pipe")
 
 type listenerTelemetry struct {
-	packetReadingErrors expvar.Int
-	packets             expvar.Int
-	bytes               expvar.Int
+	packetReadingErrors *expvar.Int
+	packets             *expvar.Int
+	bytes               *expvar.Int
 	expvars             *expvar.Map
 	tlmPackets          telemetry.Counter
 	tlmPacketsBytes     telemetry.Counter
@@ -39,10 +39,10 @@ func newListenerTelemetry(metricName string, name string, telemetry telemetry.Co
 
 	return &listenerTelemetry{
 		expvars:             expvarsMap,
-		packetReadingErrors: packetReadingErrors,
+		packetReadingErrors: &packetReadingErrors,
 		tlmPackets:          tlmPackets,
-		packets:             packets,
-		bytes:               bytes,
+		packets:             &packets,
+		bytes:               &bytes,
 		tlmPacketsBytes:     tlmPacketsBytes,
 	}
 }

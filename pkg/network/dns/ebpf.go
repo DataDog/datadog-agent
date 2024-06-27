@@ -13,7 +13,7 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 	"golang.org/x/sys/unix"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
@@ -85,7 +85,7 @@ func (e *ebpfProgram) Init() error {
 		BypassEnabled:             e.cfg.BypassEnabled,
 	})
 	if err == nil {
-		ebpfcheck.AddNameMappings(e.Manager, "npm_dns")
+		ddebpf.AddNameMappings(e.Manager, "npm_dns")
 	}
 	return err
 }

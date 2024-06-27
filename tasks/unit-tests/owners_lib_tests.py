@@ -16,12 +16,12 @@ class TestSearchCodeOwners(unittest.TestCase):
         self.assertListEqual(search_owners(".gitlab/security.yml", self.CODEOWNERS_FILE), ["@DataDog/agent-security"])
 
     def test_search_jobowners(self):
-        self.assertListEqual(search_owners("default_job", self.JOBOWNERS_FILE), ["@DataDog/agent-ci-experience"])
+        self.assertListEqual(search_owners("default_job", self.JOBOWNERS_FILE), ["@DataDog/agent-devx-infra"])
         self.assertListEqual(search_owners("tests_default", self.JOBOWNERS_FILE), ["@DataDog/multiple"])
         self.assertListEqual(search_owners("tests_ebpf_x64", self.JOBOWNERS_FILE), ["@DataDog/ebpf-platform"])
         self.assertListEqual(
             search_owners("security_go_generate_check", self.JOBOWNERS_FILE), ["@DataDog/agent-security"]
         )
         self.assertListEqual(
-            search_owners("security_go_generate_checks", self.JOBOWNERS_FILE), ["@DataDog/agent-ci-experience"]
+            search_owners("security_go_generate_checks", self.JOBOWNERS_FILE), ["@DataDog/agent-devx-infra"]
         )

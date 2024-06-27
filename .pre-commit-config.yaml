@@ -123,3 +123,9 @@ repos:
       entry: 'inv linter.update-go'
       language: system
       pass_filenames: false
+    - id: check-go-modules-in-python
+      name: check-go-modules-in-python
+      description: Validate all go modules are declared in Invoke tasks
+      entry: 'inv modules.validate'
+      language: system
+      pass_filenames: false

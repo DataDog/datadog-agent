@@ -45,6 +45,7 @@ type Daemon interface {
 	Start(ctx context.Context) error
 	Stop(ctx context.Context) error
 
+	SetCatalog(c catalog)
 	Install(ctx context.Context, url string, args []string) error
 	StartExperiment(ctx context.Context, url string) error
 	StopExperiment(ctx context.Context, pkg string) error
@@ -119,7 +120,7 @@ func (d *daemonImpl) GetAPMInjectionStatus() (status APMInjectionStatus, err err
 
 	// Host is instrumented if the ld.so.preload file contains the apm injector
 	ldPreloadContent, err := os.ReadFile("/etc/ld.so.preload")
-	if err != nil {
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return status, fmt.Errorf("could not read /etc/ld.so.preload: %w", err)
 	}
 	if bytes.Contains(ldPreloadContent, []byte("/opt/datadog-packages/datadog-apm-inject/stable/inject")) {
@@ -161,6 +162,13 @@ func (d *daemonImpl) GetPackage(pkg string, version string) (Package, error) {
 		return Package{}, fmt.Errorf("could not get package %s, %s for %s, %s", pkg, version, runtime.GOARCH, runtime.GOOS)
 	}
 	return catalogPackage, nil
+}
+
+// SetCatalog sets the catalog.
+func (d *daemonImpl) SetCatalog(c catalog) {
+	d.m.Lock()
+	defer d.m.Unlock()
+	d.catalog = c
 }
 
 // Start starts remote config and the garbage collector.
