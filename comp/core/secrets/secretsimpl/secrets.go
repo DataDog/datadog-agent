@@ -10,8 +10,10 @@ import (
 	"bufio"
 	"bytes"
 	_ "embed"
+	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -26,6 +28,7 @@ import (
 	"golang.org/x/exp/maps"
 	yaml "gopkg.in/yaml.v2"
 
+	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
@@ -39,8 +42,10 @@ const auditFileBasename = "secret-audit-file.json"
 type provides struct {
 	fx.Out
 
-	Comp          secrets.Component
-	FlareProvider flaretypes.Provider
+	Comp            secrets.Component
+	FlareProvider   flaretypes.Provider
+	InfoEndpoint    api.AgentEndpointProvider
+	RefreshEndpoint api.AgentEndpointProvider
 }
 
 type dependencies struct {
@@ -116,8 +121,10 @@ func newSecretResolverProvider(deps dependencies) provides {
 	resolver := newEnabledSecretResolver(deps.Telemetry)
 	resolver.enabled = deps.Params.Enabled
 	return provides{
-		Comp:          resolver,
-		FlareProvider: flaretypes.NewProvider(resolver.fillFlare),
+		Comp:            resolver,
+		FlareProvider:   flaretypes.NewProvider(resolver.fillFlare),
+		InfoEndpoint:    api.NewAgentEndpointProvider(resolver.writeDebugInfo, "/secrets", "GET"),
+		RefreshEndpoint: api.NewAgentEndpointProvider(resolver.handleRefresh, "/secret/refresh", "GET"),
 	}
 }
 
@@ -130,6 +137,27 @@ func (r *secretResolver) fillFlare(fb flaretypes.FlareBuilder) error {
 	fb.AddFile("secrets.log", buffer.Bytes()) //nolint:errcheck
 	fb.CopyFile(r.auditFilename)              //nolint:errcheck
 	return nil
+}
+
+func (r *secretResolver) writeDebugInfo(w http.ResponseWriter, _ *http.Request) {
+	r.GetDebugInfo(w)
+}
+
+func (r *secretResolver) handleRefresh(w http.ResponseWriter, _ *http.Request) {
+	result, err := r.Refresh()
+	if err != nil {
+		setJSONError(w, err, 500)
+		return
+	}
+	w.Write([]byte(result))
+}
+
+// setJSONError writes a server error as JSON with the correct http error code
+// NOTE: this is copied from comp/api/api/utils to avoid requiring that to be a go module
+func setJSONError(w http.ResponseWriter, err error, errorCode int) {
+	w.Header().Set("Content-Type", "application/json")
+	body, _ := json.Marshal(map[string]string{"error": err.Error()})
+	http.Error(w, string(body), errorCode)
 }
 
 // assocate with the handle itself the origin (filename) and path where the handle appears

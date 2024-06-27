@@ -119,11 +119,14 @@ def upload_to_codecov(
     distro_tag = get_distro()
     codecov_binary = "codecov" if platform.system() != "Windows" else "codecov.exe"
 
-    with gitlab_section("Upload coverage reports to Codecov", collapsed=True):
-        if pull_coverage_cache:
+    if pull_coverage_cache:
+        with gitlab_section("Applying missing coverage cache from S3", collapsed=True):
             apply_missing_coverage(ctx, from_commit_sha=get_main_parent_commit(ctx), debug=debug)
-        if push_coverage_cache:
+    if push_coverage_cache:
+        with gitlab_section("Uploading coverage files to S3", collapsed=True):
             upload_coverage_to_s3(ctx)
+
+    with gitlab_section("Upload coverage reports to Codecov", collapsed=True):
         ctx.run(f"{codecov_binary} -f {PROFILE_COV} -F {distro_tag}", warn=True)
 
 

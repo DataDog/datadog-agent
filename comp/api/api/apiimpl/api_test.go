@@ -21,8 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
-	"github.com/DataDog/datadog-agent/comp/core/status"
-	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
@@ -54,7 +52,6 @@ type testdeps struct {
 	DogstatsdServer       dogstatsdServer.Component
 	Capture               replay.Component
 	SecretResolver        secrets.Component
-	StatusComponent       status.Mock
 	RcService             optional.Option[rcservice.Component]
 	RcServiceMRF          optional.Option[rcservicemrf.Component]
 	AuthToken             authtoken.Component
@@ -76,7 +73,6 @@ func getComponentDependencies(t *testing.T) testdeps {
 		replaymock.MockModule(),
 		secretsimpl.MockModule(),
 		nooptelemetry.Module(),
-		statusimpl.MockModule(),
 		demultiplexerimpl.MockModule(),
 		fx.Supply(optional.NewNoneOption[rcservice.Component]()),
 		fx.Supply(optional.NewNoneOption[rcservicemrf.Component]()),
@@ -101,7 +97,6 @@ func getTestAPIServer(deps testdeps) api.Component {
 		DogstatsdServer:   deps.DogstatsdServer,
 		Capture:           deps.Capture,
 		SecretResolver:    deps.SecretResolver,
-		StatusComponent:   deps.StatusComponent,
 		RcService:         deps.RcService,
 		RcServiceMRF:      deps.RcServiceMRF,
 		AuthToken:         deps.AuthToken,

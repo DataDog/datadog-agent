@@ -34,6 +34,8 @@ import (
 	"github.com/cilium/ebpf/features"
 	"github.com/cilium/ebpf/rlimit"
 	"github.com/golang/mock/gomock"
+	"github.com/prometheus/client_golang/prometheus"
+	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	vnetns "github.com/vishvananda/netns"
@@ -1962,33 +1964,6 @@ func (s *TracerSuite) TestUDPIncomingDirectionFix() {
 	assert.Equal(t, network.OUTGOING, conn.Direction)
 }
 
-func (s *TracerSuite) TestGetMapsTelemetry() {
-	t := s.T()
-	if !httpsSupported() {
-		t.Skip("HTTPS feature not available/supported for this setup")
-	}
-
-	t.Setenv("DD_SYSTEM_PROBE_SERVICE_MONITORING_ENABLED", "true")
-	cfg := testConfig()
-	tr := setupTracer(t, cfg)
-
-	cmd := []string{"curl", "-k", "-o/dev/null", "example.com/[1-10]"}
-	err := exec.Command(cmd[0], cmd[1:]...).Run()
-	require.NoError(t, err)
-
-	ebpfTelemetryCollector, ok := tr.bpfErrorsCollector.(*ebpftelemetry.EBPFErrorsCollector)
-	require.True(t, ok)
-
-	telemetry, ok := ebpfTelemetryCollector.T.(*ebpftelemetry.EBPFTelemetry)
-	require.True(t, ok)
-	mapsTelemetry := telemetry.GetMapsTelemetry()
-	t.Logf("EBPF Maps telemetry: %v\n", mapsTelemetry)
-
-	tcpStatsErrors, ok := mapsTelemetry[probes.TCPStatsMap].(map[string]uint64)
-	require.True(t, ok)
-	assert.NotZero(t, tcpStatsErrors["EEXIST"])
-}
-
 func sysOpenAt2Supported() bool {
 	missing, err := ddebpf.VerifyKernelFuncs("do_sys_openat2")
 	if err == nil && len(missing) == 0 {
@@ -2003,19 +1978,19 @@ func sysOpenAt2Supported() bool {
 	return kversion >= kernel.VersionCode(5, 6, 0)
 }
 
-func (s *TracerSuite) TestGetHelpersTelemetry() {
+func (s *TracerSuite) TestEbpfTelemetry() {
 	t := s.T()
 
+	t.Setenv("DD_SYSTEM_PROBE_SERVICE_MONITORING_ENABLED", "true")
+	cfg := testConfig()
+	cfg.EnableNativeTLSMonitoring = true
+	cfg.EnableHTTPMonitoring = true
 	// We need the tracepoints on open syscall in order
 	// to test.
 	if !httpsSupported() {
 		t.Skip("HTTPS feature not available/supported for this setup")
 	}
 
-	t.Setenv("DD_SYSTEM_PROBE_SERVICE_MONITORING_ENABLED", "true")
-	cfg := testConfig()
-	cfg.EnableNativeTLSMonitoring = true
-	cfg.EnableHTTPMonitoring = true
 	tr := setupTracer(t, cfg)
 
 	expectedErrorTP := "tracepoint__syscalls__sys_enter_openat"
@@ -2034,23 +2009,69 @@ func (s *TracerSuite) TestGetHelpersTelemetry() {
 	t.Cleanup(func() {
 		syscall.Syscall(syscall.SYS_MUNMAP, uintptr(addr), uintptr(syscall.Getpagesize()), 0)
 	})
-	ebpfTelemetryCollector, ok := tr.bpfErrorsCollector.(*ebpftelemetry.EBPFErrorsCollector)
-	require.True(t, ok)
 
-	telemetry, ok := ebpfTelemetryCollector.T.(*ebpftelemetry.EBPFTelemetry)
-	require.True(t, ok)
-	helperTelemetry := telemetry.GetHelpersTelemetry()
-	t.Logf("EBPF helper telemetry: %v\n", helperTelemetry)
+	cmd := []string{"curl", "-k", "-o/dev/null", "example.com/[1-10]"}
+	err := exec.Command(cmd[0], cmd[1:]...).Run()
+	require.NoError(t, err)
 
-	openAtErrors, ok := helperTelemetry[expectedErrorTP].(map[string]interface{})
-	require.True(t, ok)
+	//trigger collector in a separate goroutine
+	ch := make(chan prometheus.Metric)
+	go func() {
+		tr.bpfErrorsCollector.Collect(ch)
+		close(ch)
+	}()
 
-	probeReadUserError, ok := openAtErrors["bpf_probe_read_user"].(map[string]uint64)
-	require.True(t, ok)
+	//collect metrics from the channel
+	var metrics []prometheus.Metric
+	for m := range ch {
+		metrics = append(metrics, m)
+	}
 
-	badAddressCnt, ok := probeReadUserError["EFAULT"]
-	require.True(t, ok)
-	assert.NotZero(t, badAddressCnt)
+	//parse received metrics to compare the values and labels
+	helperMatchingLabelsCount, mapMatchingLabelsCount := 0, 0
+	foundHelperMetric, foundMapMetric := false, false
+	for _, promMetric := range metrics {
+		dtoMetric := dto.Metric{}
+		assert.NoError(t, promMetric.Write(&dtoMetric), "Failed to parse metric %v", promMetric.Desc())
+		assert.NotNilf(t, dtoMetric.GetCounter(), "expected metric %v to be of a counter type", promMetric.Desc())
+
+		//check we found expected helper and map errors metrics by matching all relevant labels
+		helperMatchingLabelsCount = 0
+		mapMatchingLabelsCount = 0
+		for _, label := range dtoMetric.GetLabel() {
+			switch label.GetName() {
+			case "map_name":
+				if label.GetValue() == probes.TCPStatsMap {
+					mapMatchingLabelsCount++
+				}
+			case "probe_name":
+				if label.GetValue() == expectedErrorTP {
+					helperMatchingLabelsCount++
+				}
+			case "helper":
+				if label.GetValue() == "bpf_probe_read_user" {
+					helperMatchingLabelsCount++
+				}
+			case "error":
+				if label.GetValue() == "EFAULT" {
+					helperMatchingLabelsCount++
+				} else if label.GetValue() == "EEXIST" {
+					mapMatchingLabelsCount++
+				}
+			}
+		}
+		if helperMatchingLabelsCount == 3 {
+			foundHelperMetric = true
+			require.NotZero(t, dtoMetric.GetCounter().GetValue())
+		}
+		if mapMatchingLabelsCount == 2 {
+			foundMapMetric = true
+			require.NotZero(t, dtoMetric.GetCounter().GetValue())
+		}
+	}
+
+	require.Truef(t, foundHelperMetric, "didn't capture expected helper errors metric")
+	require.Truef(t, foundMapMetric, "didn't capture expected map errors metric")
 }
 
 func TestEbpfConntrackerFallback(t *testing.T) {

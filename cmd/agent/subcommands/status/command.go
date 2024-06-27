@@ -68,7 +68,7 @@ The --list flag can be used to list all available status sections.`,
 			return fxutil.OneShot(statusCmd,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams:         config.NewAgentParams(globalParams.ConfFilePath),
+					ConfigParams:         config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(globalParams.ExtraConfFilePath)),
 					SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath)),
 					LogParams:            logimpl.ForOneShot(command.LoggerName, "off", true)}),
 				core.Bundle(),

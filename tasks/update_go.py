@@ -98,7 +98,7 @@ def update_go(
 
     # check the installed go version before running `tidy_all`
     res = ctx.run("go version")
-    if res.stdout.startswith(f"go version go{version} "):
+    if res and res.stdout.startswith(f"go version go{version} "):
         tidy(ctx)
     else:
         print(
@@ -213,6 +213,7 @@ enhancements:
 """
     # hiding stderr too because `reno` displays some warnings about the config
     res = ctx.run(f'reno new "bump go to {version}"', hide='both')
+    assert res, "Could not create release note"
     match = re.match("^Created new notes file in (.*)$", res.stdout, flags=re.MULTILINE)
     if not match:
         raise exceptions.Exit("Could not get created release note path")

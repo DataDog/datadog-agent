@@ -2,10 +2,11 @@ import os
 import subprocess
 import sys
 from contextlib import contextmanager
+from pathlib import Path
 
 from invoke import Context, Exit, task
 
-from tasks.libs.common.color import color_message
+from tasks.libs.common.color import Color, color_message
 
 AGENT_MODULE_PATH_PREFIX = "github.com/DataDog/datadog-agent/"
 
@@ -157,6 +158,8 @@ DEFAULT_MODULES = {
     "comp/otelcol/collector-contrib/impl": GoModule(
         "comp/otelcol/collector-contrib/impl", independent=True, used_by_otel=True
     ),
+    "comp/otelcol/extension/def": GoModule("comp/otelcol/extension/def", independent=True, used_by_otel=True),
+    "comp/otelcol/extension/impl": GoModule("comp/otelcol/extension/impl", independent=True, used_by_otel=True),
     "comp/otelcol/logsagentpipeline": GoModule("comp/otelcol/logsagentpipeline", independent=True, used_by_otel=True),
     "comp/otelcol/logsagentpipeline/logsagentpipelineimpl": GoModule(
         "comp/otelcol/logsagentpipeline/logsagentpipelineimpl", independent=True, used_by_otel=True
@@ -266,10 +269,26 @@ DEFAULT_MODULES = {
         "test/new-e2e",
         independent=True,
         targets=["./pkg/runner", "./pkg/utils/e2e/client"],
-        lint_targets=[".", "./examples"],  # need to explictly list "examples", otherwise it is skipped
+        lint_targets=[".", "./examples"],  # need to explicitly list "examples", otherwise it is skipped
     ),
     "tools/retry_file_dump": GoModule("tools/retry_file_dump", condition=lambda: False, should_tag=False),
 }
+
+# Folder containing a `go.mod` file but that should not be added to the DEFAULT_MODULES
+IGNORED_MODULE_PATHS = [
+    # Test files
+    Path("./internal/tools/modparser/testdata/badformat"),
+    Path("./internal/tools/modparser/testdata/match"),
+    Path("./internal/tools/modparser/testdata/nomatch"),
+    Path("./internal/tools/modparser/testdata/patchgoversion"),
+    # This `go.mod` is a hack
+    Path("./pkg/process/procutil/resources"),
+    # We have test files in the tasks folder
+    Path("./tasks"),
+    # Test files
+    Path("./test/integration/serverless/recorder-extension"),
+    Path("./test/integration/serverless/src"),
+]
 
 MAIN_TEMPLATE = """package main
 
@@ -366,19 +385,25 @@ def for_each(ctx: Context, cmd: str, skip_untagged: bool = False):
 
 
 @task
-def validate(_: Context, fail_fast: bool = False):
+def validate(_: Context):
     """
     Test if every module was properly added in the DEFAULT_MODULES list.
     """
-    missing_modules = []
-    for module in DEFAULT_MODULES.values():
-        for dependency in module.dependencies:
-            if dependency not in DEFAULT_MODULES:
-                if fail_fast:
-                    raise Exit(f"{color_message('ERROR', 'red')}: {module.path} depends on missing {dependency}")
-                missing_modules.append((module, dependency))
+    missing_modules: list[str] = []
+    default_modules_paths = {Path(p) for p in DEFAULT_MODULES}
+
+    # Find all go.mod files and make sure they are registered in DEFAULT_MODULES
+    for root, dirs, files in os.walk("."):
+        dirs[:] = [d for d in dirs if Path(root) / d not in IGNORED_MODULE_PATHS]
+
+        if "go.mod" in files and Path(root) not in default_modules_paths:
+            missing_modules.append(root)
+
     if missing_modules:
-        message = f"{color_message('ERROR', 'red')}: some modules are missing from DEFAULT_MODULES\n"
-        for module, dependency in missing_modules:
-            message += f"  {module.path} depends on missing {dependency}\n"
+        message = f"{color_message('ERROR', Color.RED)}: some modules are missing from DEFAULT_MODULES\n"
+        for module in missing_modules:
+            message += f"  {module} is missing from DEFAULT_MODULES\n"
+
+        message += "Please add them to the DEFAULT_MODULES list or exclude them from the validation."
+
         raise Exit(message)
