@@ -61,9 +61,9 @@ func (s *packageAgentSuite) assertUnits(state host.State, oldUnits bool) {
 	unit, ok := state.Units[probeUnit]
 	if !ok || unit.SubState != host.Running {
 		s.T().Logf("unit is not running: %+v", unit)
-		cmd := fmt.Sprintf("sudo systemctl status %s", probeUnit)
+		cmd := fmt.Sprintf("sudo systemctl status %s || true", probeUnit)
+		s.T().Logf("running command %q output:", cmd)
 		output := s.host.Run(cmd)
-		s.T().Logf("command %q output:", cmd)
 		s.T().Log(output)
 		cmd = "sudo ls -l /etc/datadog-agent"
 		output = s.host.Run(cmd)
