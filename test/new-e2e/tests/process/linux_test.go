@@ -6,8 +6,6 @@
 package process
 
 import (
-	"os"
-	"strconv"
 	"testing"
 	"time"
 
@@ -26,17 +24,13 @@ type linuxTestSuite struct {
 }
 
 func TestLinuxTestSuite(t *testing.T) {
+	t.Parallel()
 	agentParams := []func(*agentparams.Params) error{
 		agentparams.WithAgentConfig(processCheckConfigStr),
 	}
 
 	options := []e2e.SuiteOption{
 		e2e.WithProvisioner(awshost.Provisioner(awshost.WithAgentOptions(agentParams...))),
-	}
-
-	devModeEnv, _ := os.LookupEnv("E2E_DEVMODE")
-	if devMode, err := strconv.ParseBool(devModeEnv); err == nil && devMode {
-		options = append(options, e2e.WithDevMode())
 	}
 
 	e2e.Run(t, &linuxTestSuite{}, options...)

@@ -15,6 +15,12 @@
   Paths
   =====
     Config File: {{if .conf_file}}{{.conf_file}}{{else}}There is no config file{{end}}
+    {{- if gt (len .extra_conf_file) 0 }}
+    Extra Config Files:
+    {{- range $_, $element := .extra_conf_file}}
+      - {{$element}}
+    {{- end}}
+    {{- end}}
     conf.d: {{.config.confd_path}}
     {{- if .config.additional_checksd }}
     checks.d: {{.config.additional_checksd}}

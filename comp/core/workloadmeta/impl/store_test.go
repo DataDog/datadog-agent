@@ -17,6 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	wmdef "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
@@ -1382,7 +1383,7 @@ func TestListKubernetesMetadata(t *testing.T) {
 	nodeMetadata := wmdef.KubernetesMetadata{
 		EntityID: wmdef.EntityID{
 			Kind: wmdef.KindKubernetesMetadata,
-			ID:   "nodes//node1",
+			ID:   string(util.GenerateKubeMetadataEntityID("nodes", "", "node1")),
 		},
 		EntityMeta: wmdef.EntityMeta{
 			Name:        "node1",

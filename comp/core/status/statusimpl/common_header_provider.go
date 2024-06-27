@@ -81,6 +81,7 @@ func newCommonHeaderProvider(params status.Params, config config.Component) stat
 	data["version"] = version.AgentVersion
 	data["flavor"] = flavor.GetFlavor()
 	data["conf_file"] = config.ConfigFileUsed()
+	data["extra_conf_file"] = config.ExtraConfigFilesUsed()
 	data["pid"] = os.Getpid()
 	data["go_version"] = runtime.Version()
 	data["agent_start_nano"] = startTimeProvider.UnixNano()

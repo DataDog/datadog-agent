@@ -50,8 +50,10 @@ def filter_by_ci_component(platforms: Platforms, component: Component) -> Platfo
 
         try:
             kernels = set(ci_config[job_name]["parallel"]["matrix"][0]["TAG"])
-        except (KeyError, IndexError):
-            raise Exit(f"Cannot find list of kernels (parallel.matrix[0].TAG) in {job_name} job in {target_file}")
+        except (KeyError, IndexError) as e:
+            raise Exit(
+                f"Cannot find list of kernels (parallel.matrix[0].TAG) in {job_name} job in {target_file}"
+            ) from e
 
         new_platforms[arch] = {k: v for k, v in new_platforms[arch].items() if k in kernels}
 

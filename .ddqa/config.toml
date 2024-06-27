@@ -30,24 +30,24 @@ exclude_members = ["sgnn7", "truthbk", "cmourot"]
 jira_project = "ADXT"
 jira_issue_type = "QA"
 jira_statuses = ["To Do", "In Progress", "Done"]
-github_team = "agent-developer-tools"
-github_labels = ["team/agent-developer-tools"]
+github_team = "agent-devx-loops"
+github_labels = ["team/agent-devx-loops"]
 exclude_members = []
 
 [teams."Agent CI Experience"]
 jira_project = "ACIX"
 jira_issue_type = "QA"
 jira_statuses = ["To Do", "In Progress", "Done"]
-github_team = "agent-ci-experience"
-github_labels = ["team/agent-ci-experience"]
+github_team = "agent-devx-infra"
+github_labels = ["team/agent-devx-infra"]
 exclude_members = []
 
 [teams."Agent Build and Releases Experience"]
 jira_project = "BARX"
 jira_issue_type = "Task"
 jira_statuses = ["To Do", "In Progress", "Done"]
-github_team = "agent-build-and-releases"
-github_labels = ["team/agent-build-and-releases"]
+github_team = "agent-delivery"
+github_labels = ["team/agent-delivery"]
 exclude_members = ["hithwen"]
 
 [teams."Universal Service Monitoring"]

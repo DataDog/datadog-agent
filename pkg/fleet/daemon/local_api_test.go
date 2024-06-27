@@ -70,6 +70,10 @@ func (m *testDaemon) GetAPMInjectionStatus() (APMInjectionStatus, error) {
 	return args.Get(0).(APMInjectionStatus), args.Error(1)
 }
 
+func (m *testDaemon) SetCatalog(catalog catalog) {
+	m.Called(catalog)
+}
+
 type testLocalAPI struct {
 	i *testDaemon
 	s *localAPIImpl

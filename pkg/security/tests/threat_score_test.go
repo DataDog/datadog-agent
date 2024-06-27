@@ -37,25 +37,25 @@ func TestActivityDumpsThreatScore(t *testing.T) {
 		{
 			ID:         "tag_rule_threat_score_file",
 			Expression: `open.file.name == "tag-open" && process.file.name == "touch"`,
-			Tags:       map[string]string{"ruleset": "threat_score"},
+			Tags:       map[string]string{"threat_score": "9"},
 			Version:    "4.5.6",
 		},
 		{
 			ID:         "tag_rule_threat_score_dns",
 			Expression: `dns.question.name == "foo.bar" && process.file.name == "nslookup"`,
-			Tags:       map[string]string{"ruleset": "threat_score"},
+			Tags:       map[string]string{"threat_score": "9"},
 			Version:    "4.5.6",
 		},
 		{
 			ID:         "tag_rule_threat_score_bind",
 			Expression: `bind.addr.family == AF_INET && process.file.name == "syscall_tester"`,
-			Tags:       map[string]string{"ruleset": "threat_score"},
+			Tags:       map[string]string{"threat_score": "9"},
 			Version:    "4.5.6",
 		},
 		{
 			ID:         "tag_rule_threat_score_process",
 			Expression: `exec.file.name == "syscall_tester"`,
-			Tags:       map[string]string{"ruleset": "threat_score"},
+			Tags:       map[string]string{"threat_score": "9"},
 			Version:    "4.5.6",
 		},
 	}

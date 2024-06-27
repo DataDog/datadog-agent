@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"fmt"
 	"runtime"
+	"sort"
 	"testing"
 	"time"
 
@@ -687,4 +688,24 @@ func TestGetProvidedConfiguration(t *testing.T) {
 	assert.Contains(t, payload.Metadata, "remote_configuration")
 	assert.Contains(t, payload.Metadata, "cli_configuration")
 	assert.Contains(t, payload.Metadata, "source_local_configuration")
+}
+
+func TestGetProvidedConfigurationOnly(t *testing.T) {
+	ia := getTestInventoryPayload(t, map[string]any{
+		"inventories_configuration_enabled": true,
+	}, nil)
+
+	data := make(agentMetadata)
+	ia.getConfigs(data)
+
+	keys := []string{}
+	for k := range data {
+		keys = append(keys, k)
+	}
+
+	sort.Strings(keys)
+	expected := []string{"provided_configuration", "full_configuration", "file_configuration", "environment_variable_configuration", "agent_runtime_configuration", "remote_configuration", "cli_configuration", "source_local_configuration"}
+	sort.Strings(expected)
+
+	assert.Equal(t, expected, keys)
 }

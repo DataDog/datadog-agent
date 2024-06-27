@@ -7,13 +7,17 @@ package model
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
+	"os"
 	"reflect"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"path/filepath"
 
 	"github.com/DataDog/viper"
 	"github.com/mohae/deepcopy"
@@ -102,6 +106,9 @@ type safeConfig struct {
 	// keys that have been used but are unknown
 	// used to warn (a single time) on use
 	unknownKeys map[string]struct{}
+
+	// extraConfigFilePaths represents additional configuration file paths that will be merged into the main configuration when ReadInConfig() is called.
+	extraConfigFilePaths []string
 }
 
 // OnUpdate adds a callback to the list receivers to be called each time a value is changed in the configuration
@@ -246,37 +253,6 @@ func (c *safeConfig) IsSet(key string) bool {
 	c.RLock()
 	defer c.RUnlock()
 	return c.Viper.IsSet(key)
-}
-
-// IsSet wraps Viper for concurrent access
-func (c *safeConfig) IsSetForSource(key string, source Source) bool {
-	c.RLock()
-	defer c.RUnlock()
-	return c.configSources[source].IsSet(key)
-}
-
-// IsSectionSet checks if a section is set by checking if either it
-// or any of its subkeys is set.
-func (c *safeConfig) IsSectionSet(section string) bool {
-	// The section is considered set if any of the keys
-	// inside it is set.
-	// This is needed when keys within the section
-	// are set through env variables.
-
-	// Add trailing . to make sure we don't take into account unrelated
-	// settings, eg. IsSectionSet("section") shouldn't return true
-	// if "section_key" is set.
-	sectionPrefix := section + "."
-
-	for _, key := range c.AllKeysLowercased() {
-		if strings.HasPrefix(key, sectionPrefix) && c.IsSet(key) {
-			return true
-		}
-	}
-
-	// If none of the keys are set, the section is still considered as set
-	// if it has been explicitly set in the config.
-	return c.IsSet(section)
 }
 
 func (c *safeConfig) AllKeysLowercased() []string {
@@ -582,11 +558,36 @@ func (c *safeConfig) UnmarshalExact(rawVal interface{}) error {
 func (c *safeConfig) ReadInConfig() error {
 	c.Lock()
 	defer c.Unlock()
-	err := c.Viper.ReadInConfig()
+	// ReadInConfig reset configuration with the main config file
+	err := errors.Join(c.Viper.ReadInConfig(), c.configSources[SourceFile].ReadInConfig())
 	if err != nil {
 		return err
 	}
-	return c.configSources[SourceFile].ReadInConfig()
+
+	type extraConf struct {
+		path    string
+		content []byte
+	}
+
+	// Read extra config files
+	extraConfContents := []extraConf{}
+	for _, path := range c.extraConfigFilePaths {
+		b, err := os.ReadFile(path)
+		if err != nil {
+			return fmt.Errorf("could not read extra config file '%s': %w", path, err)
+		}
+		extraConfContents = append(extraConfContents, extraConf{path: path, content: b})
+	}
+
+	// Merge with base config and 'file' config
+	for _, confFile := range extraConfContents {
+		err = errors.Join(c.Viper.MergeConfig(bytes.NewReader(confFile.content)), c.configSources[SourceFile].MergeConfig(bytes.NewReader(confFile.content)))
+		if err != nil {
+			return fmt.Errorf("error merging %s config file: %w", confFile.path, err)
+		}
+		log.Infof("extra configuration file %s was loaded successfully", confFile.path)
+	}
+	return nil
 }
 
 // ReadConfig wraps Viper for concurrent access
@@ -668,6 +669,35 @@ func (c *safeConfig) AddConfigPath(in string) {
 	defer c.Unlock()
 	c.configSources[SourceFile].AddConfigPath(in)
 	c.Viper.AddConfigPath(in)
+}
+
+// AddExtraConfigPaths allows adding additional configuration files
+// which will be merged into the main configuration during the ReadInConfig call.
+// Configuration files are merged sequentially. If a key already exists and the foreign value type matches the existing one, the foreign value overrides it.
+// If both the existing value and the new value are nested configurations, they are merged recursively following the same principles.
+func (c *safeConfig) AddExtraConfigPaths(ins []string) error {
+	if len(ins) == 0 {
+		return nil
+	}
+	c.Lock()
+	defer c.Unlock()
+	var pathsToAdd []string
+	var errs []error
+	for _, in := range ins {
+		in, err := filepath.Abs(in)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("could not get absolute path of extra config file '%s': %s", in, err))
+			continue
+		}
+		if slices.Index(c.extraConfigFilePaths, in) == -1 && slices.Index(pathsToAdd, in) == -1 {
+			pathsToAdd = append(pathsToAdd, in)
+		}
+	}
+	err := errors.Join(errs...)
+	if err == nil {
+		c.extraConfigFilePaths = append(c.extraConfigFilePaths, pathsToAdd...)
+	}
+	return err
 }
 
 // SetConfigName wraps Viper for concurrent access
@@ -805,4 +835,12 @@ func (c *safeConfig) GetProxies() *Proxy {
 
 	c.proxies = p
 	return c.proxies
+}
+
+func (c *safeConfig) ExtraConfigFilesUsed() []string {
+	c.Lock()
+	defer c.Unlock()
+	res := make([]string, len(c.extraConfigFilePaths))
+	copy(res, c.extraConfigFilePaths)
+	return res
 }

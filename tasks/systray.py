@@ -7,7 +7,8 @@ import sys
 
 from invoke import task
 
-from tasks.libs.common.utils import REPO_PATH, bin_name, get_version_ldflags, get_version_numeric_only
+from tasks.libs.common.utils import REPO_PATH, bin_name, get_version_ldflags
+from tasks.libs.releasing.version import get_version_numeric_only
 
 # constants
 BIN_PATH = os.path.join(".", "bin", "agent")

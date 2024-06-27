@@ -8,7 +8,7 @@
 #include "protocols/http/types.h"
 
 PKTBUF_READ_INTO_BUFFER(http2_preface, HTTP2_MARKER_SIZE, HTTP2_MARKER_SIZE)
-PKTBUF_READ_INTO_BUFFER(http2_frame_header, HTTP2_FRAME_HEADER_SIZE, HTTP2_FRAME_HEADER_SIZE)
+PKTBUF_READ_INTO_BUFFER_WITHOUT_TELEMETRY(http2_frame_header, HTTP2_FRAME_HEADER_SIZE, HTTP2_FRAME_HEADER_SIZE)
 PKTBUF_READ_INTO_BUFFER(path, HTTP2_MAX_PATH_LEN, BLK_SIZE)
 
 // Handles the dynamic table size update.
@@ -531,10 +531,17 @@ static __always_inline bool pktbuf_find_relevant_frames(pktbuf_t pkt, http2_tail
     bool is_headers_or_rst_frame, is_data_end_of_stream;
     http2_frame_t current_frame = {};
 
+    // The following if-clause could have been "simplified" into
+    // if (iteration_value->filter_iterations != 0) {
+    //    pktbuf_set_offset(pkt, iteration_value->data_off);
+    // }
+    // However, the compiler generates much more instructions in the code above, so we're using the following code.
+    __u32 current_offset = pktbuf_data_offset(pkt);
     // if we already processed part of the packet, we should start from the last offset we processed.
     if (iteration_value->filter_iterations != 0) {
-        pktbuf_set_offset(pkt, iteration_value->data_off);
+        current_offset = iteration_value->data_off;
     }
+    pktbuf_set_offset(pkt, current_offset);
 
    // If we have found enough interesting frames, we should not process any new frame.
    // The value of iteration_value->frames_count may potentially be greater than 0.
@@ -679,7 +686,7 @@ static __always_inline void handle_first_frame(pktbuf_t pkt, __u32 *external_dat
         },
         [PKTBUF_TLS] = {
             .prog_array_map = &tls_process_progs,
-            .index = TLS_HTTP2_FILTER,
+            .index = PROG_HTTP2_FRAME_FILTER,
         },
     };
     pktbuf_tail_call_compact(pkt, frame_filter_tail_call_array);
@@ -755,7 +762,7 @@ static __always_inline void filter_frame(pktbuf_t pkt, void *map_key, conn_tuple
             },
             [PKTBUF_TLS] = {
                 .prog_array_map = &tls_process_progs,
-                .index = TLS_HTTP2_FILTER,
+                .index = PROG_HTTP2_FRAME_FILTER,
             },
         };
         pktbuf_tail_call_compact(pkt, frame_filter_tail_call_array);
@@ -813,7 +820,7 @@ static __always_inline void filter_frame(pktbuf_t pkt, void *map_key, conn_tuple
             },
             [PKTBUF_TLS] = {
                 .prog_array_map = &tls_process_progs,
-                .index = TLS_HTTP2_HEADERS_PARSER,
+                .index = PROG_HTTP2_HEADERS_PARSER,
             },
         };
         pktbuf_tail_call_compact(pkt, headers_parser_tail_call_array);
@@ -934,7 +941,7 @@ static __always_inline void headers_parser(pktbuf_t pkt, void *map_key, conn_tup
             },
             [PKTBUF_TLS] = {
                 .prog_array_map = &tls_process_progs,
-                .index = TLS_HTTP2_HEADERS_PARSER,
+                .index = PROG_HTTP2_HEADERS_PARSER,
             },
         };
         pktbuf_tail_call_compact(pkt, tail_call_arr);
@@ -948,7 +955,7 @@ static __always_inline void headers_parser(pktbuf_t pkt, void *map_key, conn_tup
         },
         [PKTBUF_TLS] = {
             .prog_array_map = &tls_process_progs,
-            .index = TLS_HTTP2_DYNAMIC_TABLE_CLEANER,
+            .index = PROG_HTTP2_DYNAMIC_TABLE_CLEANER,
         },
     };
     pktbuf_tail_call_compact(pkt, tail_call_arr);
@@ -988,7 +995,7 @@ static __always_inline void dynamic_table_cleaner(pktbuf_t pkt, conn_tuple_t *tu
         },
         [PKTBUF_TLS] = {
             .prog_array_map = &tls_process_progs,
-            .index = TLS_HTTP2_EOS_PARSER,
+            .index = PROG_HTTP2_EOS_PARSER,
         },
     };
 
@@ -1146,7 +1153,7 @@ static __always_inline void eos_parser(pktbuf_t pkt, void *map_key, conn_tuple_t
             },
             [PKTBUF_TLS] = {
                 .prog_array_map = &tls_process_progs,
-                .index = TLS_HTTP2_EOS_PARSER,
+                .index = PROG_HTTP2_EOS_PARSER,
             },
         };
         pktbuf_tail_call_compact(pkt, eos_parser_tail_call_array);

@@ -242,7 +242,7 @@ int BPF_PROG(tcp_close, struct sock *sk, long timeout) {
     }
     log_debug("fentry/tcp_close: netns: %u, sport: %u, dport: %u", t.netns, t.sport, t.dport);
 
-    cleanup_conn(ctx, &t, sk);
+    cleanup_conn(ctx, &t, sk, false);
     return 0;
 }
 
@@ -529,7 +529,7 @@ static __always_inline int handle_udp_destroy_sock(void *ctx, struct sock *sk) {
 
     __u16 lport = 0;
     if (valid_tuple) {
-        cleanup_conn(ctx, &tup, sk);
+        cleanup_conn(ctx, &tup, sk, false);
         lport = tup.sport;
     } else {
         // get the port for the current sock
