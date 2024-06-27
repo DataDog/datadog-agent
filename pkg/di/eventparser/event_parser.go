@@ -4,8 +4,9 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
-	"log"
 	"reflect"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/di/ditypes"
 	"github.com/DataDog/datadog-agent/pkg/di/ratelimiter"

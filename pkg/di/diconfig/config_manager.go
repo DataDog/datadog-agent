@@ -3,7 +3,8 @@ package diconfig
 import (
 	"encoding/json"
 	"fmt"
-	"log"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/di/codegen"
 	"github.com/DataDog/datadog-agent/pkg/di/diagnostics"

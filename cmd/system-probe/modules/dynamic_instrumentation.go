@@ -16,7 +16,7 @@ import (
 	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/di/module"
+	dimod "github.com/DataDog/datadog-agent/pkg/di/module"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
@@ -26,12 +26,12 @@ var DynamicInstrumentation = module.Factory{
 	Name:             config.DynamicInstrumentationModule,
 	ConfigNamespaces: []string{},
 	Fn: func(agentConfiguration *sysconfigtypes.Config, _ optional.Option[workloadmeta.Component], _ telemetry.Component) (module.Module, error) {
-		config, err := module.NewConfig(agentConfiguration)
+		config, err := dimod.NewConfig(agentConfiguration)
 		if err != nil {
 			return nil, fmt.Errorf("invalid dynamic instrumentation module configuration: %w", err)
 		}
 
-		m, err := module.NewModule(config)
+		m, err := dimod.NewModule(config)
 		if errors.Is(err, ebpf.ErrNotImplemented) {
 			return nil, module.ErrNotEnabled
 		}

@@ -2,9 +2,10 @@ package uploader
 
 import (
 	"encoding/json"
-	"log"
 	"os"
 	"sync"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/di/diagnostics"
 	"github.com/DataDog/datadog-agent/pkg/di/ditypes"

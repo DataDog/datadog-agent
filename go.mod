@@ -672,7 +672,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/uuid v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/version v0.55.0-rc.3
-	github.com/DataDog/go-dynamic-instrumentation v0.0.0-20240613125530-3f911834ecf1
 	github.com/DataDog/go-libddwaf/v2 v2.3.1
 	github.com/DataDog/go-sqllexer v0.0.12
 	github.com/Datadog/dublin-traceroute v0.0.1
@@ -715,6 +714,7 @@ require (
 	go.opentelemetry.io/collector/service v0.103.0
 	go4.org/intern v0.0.0-20230525184215-6c62f75575cb
 	go4.org/mem v0.0.0-20220726221520-4f986261bf13
+	gotest.tools v2.2.0+incompatible
 	k8s.io/cli-runtime v0.29.0
 	k8s.io/kubectl v0.29.0
 )
