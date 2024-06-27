@@ -194,7 +194,7 @@ func getWorkloadList(w http.ResponseWriter, r *http.Request, wmeta workloadmeta.
 	response := wmeta.Dump(verbose)
 	jsonDump, err := json.Marshal(response)
 	if err != nil {
-		httputils.SetJSONError(w, log.Errorf("Unable to marshal workload list response: %w", err), 500)
+		httputils.SetJSONError(w, log.Errorf("Unable to marshal workload list response: %v", err), 500)
 		return
 	}
 
