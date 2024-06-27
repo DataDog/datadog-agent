@@ -58,10 +58,18 @@ func (s *packageAgentSuite) assertUnits(state host.State, oldUnits bool) {
 	state.AssertUnitsDead(securityUnit)
 
 	// TODO: just debugging
-	cmd := fmt.Sprintf("sudo systemctl status %s", probeUnit)
-	output := s.host.Run(cmd)
-	s.T().Logf("command %q output:", cmd)
-	s.T().Log(output)
+	unit, ok := state.Units[probeUnit]
+	if !ok || unit.SubState != host.Running {
+		s.T().Logf("unit is not running: %+v", unit)
+		cmd := fmt.Sprintf("sudo systemctl status %s", probeUnit)
+		output := s.host.Run(cmd)
+		s.T().Logf("command %q output:", cmd)
+		s.T().Log(output)
+		cmd = "sudo ls -l /etc/datadog-agent"
+		output = s.host.Run(cmd)
+		s.T().Logf("command %q output:", cmd)
+		s.T().Log(output)
+	}
 
 	systemdPath := "/etc/systemd/system"
 	if oldUnits {
