@@ -83,8 +83,6 @@ func TestK8sTestSuite(t *testing.T) {
 }
 
 func (s *K8sSuite) TestProcessCheck() {
-	// https://datadoghq.atlassian.net/browse/PROCS-4184
-	flake.Mark(s.T())
 	t := s.T()
 
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
