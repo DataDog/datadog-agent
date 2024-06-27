@@ -6,9 +6,6 @@
 package configrefresh
 
 import (
-	"bytes"
-	_ "embed"
-	"html/template"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -16,11 +13,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
@@ -29,34 +24,15 @@ import (
 	secrets "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-shared-components/secretsutils"
 )
 
-const (
-	agentIpcPort             = 5004
-	securityCmdPort          = 5010
-	apmCmdPort               = 5012
-	processCmdPort           = 6162
-	configRefreshIntervalSec = 10
-)
-
-//go:embed fixtures/config.yaml.tmpl
-var coreConfigTmpl string
-
-//go:embed fixtures/security-agent.yaml
-var securityAgentConfig string
-
-var (
-	apiKey1 = strings.Repeat("1", 32)
-	apiKey2 = strings.Repeat("2", 32)
-)
-
-type configRefreshSuite struct {
+type configRefreshLinuxSuite struct {
 	e2e.BaseSuite[environments.Host]
 }
 
-func TestConfigRefreshSuite(t *testing.T) {
-	e2e.Run(t, &configRefreshSuite{}, e2e.WithProvisioner(awshost.Provisioner()))
+func TestConfigRefreshLinuxSuite(t *testing.T) {
+	e2e.Run(t, &configRefreshLinuxSuite{}, e2e.WithProvisioner(awshost.Provisioner()), e2e.WithDevMode())
 }
 
-func (v *configRefreshSuite) TestConfigRefresh() {
+func (v *configRefreshLinuxSuite) TestConfigRefresh() {
 	rootDir := "/tmp/" + v.T().Name()
 	v.Env().RemoteHost.MkdirAll(rootDir)
 
@@ -78,6 +54,7 @@ func (v *configRefreshSuite) TestConfigRefresh() {
 		"ProcessCmdPort":           processCmdPort,
 		"SecurityCmdPort":          securityCmdPort,
 		"AgentIpcPort":             agentIpcPort,
+		"AllowGroupExecPermOption": "secret_backend_command_allow_group_exec_perm: true",
 	}
 	coreconfig := fillTmplConfig(v.T(), coreConfigTmpl, templateVars)
 
@@ -91,7 +68,7 @@ func (v *configRefreshSuite) TestConfigRefresh() {
 		),
 		awshost.WithAgentClientOptions(
 			agentclientparams.WithAuthTokenPath(authTokenFilePath),
-			agentclientparams.WithTraceAgentOnPort(apmCmdPort),
+			agentclientparams.WithTraceAgentOnPort(apmReceiverPort),
 			agentclientparams.WithProcessAgentOnPort(processCmdPort),
 			agentclientparams.WithSecurityAgentOnPort(securityCmdPort),
 		),
@@ -120,62 +97,4 @@ func (v *configRefreshSuite) TestConfigRefresh() {
 	require.EventuallyWithT(v.T(), func(t *assert.CollectT) {
 		assertAgentsUseKey(t, v.Env().RemoteHost, authtoken, apiKey2)
 	}, 2*configRefreshIntervalSec*time.Second, 1*time.Second)
-}
-
-// assertAgentsUseKey checks that all agents are using the given key.
-func assertAgentsUseKey(t assert.TestingT, host *components.RemoteHost, authtoken, key string) {
-	if h, ok := t.(testing.TB); ok {
-		h.Helper()
-	}
-
-	for _, endpoint := range []agentConfigEndpointInfo{
-		traceConfigEndpoint(apmCmdPort),
-		processConfigEndpoint(processCmdPort),
-		securityConfigEndpoint(securityCmdPort),
-	} {
-		cmd := endpoint.fetchCommand(authtoken)
-		cfg, err := host.Execute(cmd)
-		if assert.NoErrorf(t, err, "failed to fetch config from %s using cmd: %s", endpoint.name, cmd) {
-			assertConfigHasKey(t, cfg, key, "checking key used by "+endpoint.name)
-		}
-	}
-}
-
-// assertConfigHasKey checks that configYAML contains the given key.
-// As the config is scrubbed, it only checks the last 5 characters of the keys.
-func assertConfigHasKey(t assert.TestingT, configYAML, key string, context string) {
-	if h, ok := t.(testing.TB); ok {
-		h.Helper()
-	}
-
-	var cfg map[string]interface{}
-	err := yaml.Unmarshal([]byte(configYAML), &cfg)
-	if !assert.NoError(t, err, context) {
-		return
-	}
-
-	if !assert.Contains(t, cfg, "api_key", context) {
-		return
-	}
-
-	keyEnd := key[len(key)-5:]
-	actual := cfg["api_key"].(string)
-	actualEnd := actual[len(actual)-5:]
-
-	assert.Equal(t, keyEnd, actualEnd, context)
-}
-
-// fillTmplConfig fills the template with the given variables and returns the result.
-func fillTmplConfig(t *testing.T, tmplContent string, templateVars any) string {
-	t.Helper()
-
-	var buffer bytes.Buffer
-
-	tmpl, err := template.New("").Parse(tmplContent)
-	require.NoError(t, err)
-
-	err = tmpl.Execute(&buffer, templateVars)
-	require.NoError(t, err)
-
-	return buffer.String()
 }
