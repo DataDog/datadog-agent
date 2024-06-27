@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
 	"github.com/DataDog/test-infra-definitions/components/datadog/ecsagentparams"
 	fakeintakeComp "github.com/DataDog/test-infra-definitions/components/datadog/fakeintake"
+	ecsComp "github.com/DataDog/test-infra-definitions/components/ecs"
 	"github.com/DataDog/test-infra-definitions/resources/aws"
 	"github.com/DataDog/test-infra-definitions/resources/aws/ecs"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/fakeintake"
@@ -44,6 +45,7 @@ type ProvisionerParams struct {
 	ecsLinuxBottlerocketNodeGroup     bool
 	ecsWindowsNodeGroup               bool
 	infraShouldDeployFakeintakeWithLB bool
+	workloadAppFuncs                  []WorkloadAppFunc
 }
 
 func newProvisionerParams() *ProvisionerParams {
@@ -164,6 +166,17 @@ func WithoutAgent() ProvisionerOption {
 	}
 }
 
+// WorkloadAppFunc is a function that deploys a workload app to a kube provider
+type WorkloadAppFunc func(e aws.Environment, clusterArn pulumi.StringInput) (*ecsComp.Workload, error)
+
+// WithWorkloadApp adds a workload app to the environment
+func WithWorkloadApp(appFunc WorkloadAppFunc) ProvisionerOption {
+	return func(params *ProvisionerParams) error {
+		params.workloadAppFuncs = append(params.workloadAppFuncs, appFunc)
+		return nil
+	}
+}
+
 // Run deploys a ECS environment given a pulumi.Context
 func Run(ctx *pulumi.Context, env *environments.ECS, params *ProvisionerParams) error {
 	var awsEnv aws.Environment
@@ -278,6 +291,13 @@ func Run(ctx *pulumi.Context, env *environments.ECS, params *ProvisionerParams) 
 			ctx.Export("agent-ec2-linux-task-arn", agentDaemon.TaskDefinition.Arn())
 			ctx.Export("agent-ec2-linux-task-family", agentDaemon.TaskDefinition.Family())
 			ctx.Export("agent-ec2-linux-task-version", agentDaemon.TaskDefinition.Revision())
+		}
+	}
+
+	for _, appFunc := range params.workloadAppFuncs {
+		_, err := appFunc(awsEnv, ecsCluster.Arn)
+		if err != nil {
+			return err
 		}
 	}
 
