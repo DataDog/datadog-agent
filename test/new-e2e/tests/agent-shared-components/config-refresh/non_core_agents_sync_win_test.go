@@ -28,7 +28,7 @@ type configRefreshWindowsSuite struct {
 }
 
 func TestConfigRefreshWindowsSuite(t *testing.T) {
-	e2e.Run(t, &configRefreshWindowsSuite{}, e2e.WithProvisioner(awshost.Provisioner(awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)))), e2e.WithDevMode())
+	e2e.Run(t, &configRefreshWindowsSuite{}, e2e.WithProvisioner(awshost.Provisioner(awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)))))
 }
 
 func (v *configRefreshWindowsSuite) TestConfigRefresh() {

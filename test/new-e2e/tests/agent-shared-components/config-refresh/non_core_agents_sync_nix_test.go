@@ -29,7 +29,7 @@ type configRefreshLinuxSuite struct {
 }
 
 func TestConfigRefreshLinuxSuite(t *testing.T) {
-	e2e.Run(t, &configRefreshLinuxSuite{}, e2e.WithProvisioner(awshost.Provisioner()), e2e.WithDevMode())
+	e2e.Run(t, &configRefreshLinuxSuite{}, e2e.WithProvisioner(awshost.Provisioner()))
 }
 
 func (v *configRefreshLinuxSuite) TestConfigRefresh() {
