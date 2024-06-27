@@ -123,7 +123,7 @@ func (s *upgradeScenarioSuite) setCatalog(newCatalog catalog) (string, error) {
 func (s *upgradeScenarioSuite) assertSuccessfulStartExperiment(timestamp host.JournaldTimestamp, version string) {
 	s.host.WaitForUnitActivating(agentUnitXP)
 
-	s.T().Logf("Agent exp logs: %s", s.Env().RemoteHost.MustExecute("journalctl -u datadog-agent-exp --no-pager"))
+	s.T().Logf("Agent exp logs: %s", s.Env().RemoteHost.MustExecute("sudo journalctl -u datadog-agent-exp --no-pager"))
 
 	// Assert experiment is running
 	s.host.AssertSystemdEvents(timestamp, host.SystemdEvents().
@@ -146,7 +146,7 @@ func (s *upgradeScenarioSuite) assertSuccessfulStartExperiment(timestamp host.Jo
 func (s *upgradeScenarioSuite) assertSuccessfulPromoteExperiment(timestamp host.JournaldTimestamp, version string) {
 	s.host.WaitForUnitActive(agentUnit)
 
-	s.T().Logf("Agent exp logs: %s", s.Env().RemoteHost.MustExecute("journalctl -u datadog-agent-exp --no-pager"))
+	s.T().Logf("Agent exp logs promote: %s", s.Env().RemoteHost.MustExecute("sudo journalctl -u datadog-agent-exp --no-pager"))
 
 	// Assert experiment is promoted
 	s.host.AssertSystemdEvents(timestamp, host.SystemdEvents().
