@@ -19,8 +19,8 @@ import (
 	"github.com/containerd/containerd/errdefs"
 	"github.com/containerd/containerd/namespaces"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	cutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -55,6 +55,16 @@ func buildWorkloadMetaContainer(namespace string, container containerd.Container
 		} else {
 			imageID = imgConfig.Digest.String()
 		}
+	}
+
+	// Get Container PID
+	var pid int
+	task, err := container.Task(ctx, nil)
+	if err == nil {
+		pid = int(task.Pid())
+	} else {
+		pid = 0
+		log.Debugf("cannot get container %s's process PID: %v", container.ID(), err)
 	}
 
 	image, err := workloadmeta.NewContainerImage(imageID, info.Image)
@@ -118,7 +128,7 @@ func buildWorkloadMetaContainer(namespace string, container containerd.Container
 			FinishedAt: time.Time{},    // Not available
 		},
 		NetworkIPs: networkIPs,
-		PID:        0, // Not available
+		PID:        pid, // PID will be 0 for non-running containers
 	}
 
 	// Spec retrieval is slow if large due to JSON parsing
@@ -135,6 +145,9 @@ func buildWorkloadMetaContainer(namespace string, container containerd.Container
 
 		workloadContainer.EnvVars = envs
 		workloadContainer.Hostname = spec.Hostname
+		if spec.Linux != nil {
+			workloadContainer.CgroupPath = extractCgroupPath(spec.Linux.CgroupsPath)
+		}
 	} else if errors.Is(err, cutil.ErrSpecTooLarge) {
 		log.Warnf("Skipping parsing of container spec for container id: %s, spec is bigger than: %d", info.ID, cutil.DefaultAllowedSpecMaxSize)
 	} else {
@@ -142,6 +155,17 @@ func buildWorkloadMetaContainer(namespace string, container containerd.Container
 	}
 
 	return workloadContainer, nil
+}
+
+// Containerd applies some transformations to the cgroup path, we need to revert them
+// https://github.com/containerd/containerd/blob/b168147ca8fccf05003117324f493d40f97b6077/internal/cri/server/podsandbox/helpers_linux.go#L64-L65
+// See https://github.com/opencontainers/runc/blob/main/docs/systemd.md
+func extractCgroupPath(path string) string {
+	res := path
+	if l := strings.Split(path, ":"); len(l) == 3 {
+		res = l[0] + "/" + l[1] + "-" + l[2] + ".scope"
+	}
+	return res
 }
 
 func extractStatus(status containerd.ProcessStatus) workloadmeta.ContainerStatus {

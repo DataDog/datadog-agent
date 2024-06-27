@@ -10,6 +10,7 @@ from tasks.agent import build as agent_build
 from tasks.build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
 from tasks.flavor import AgentFlavor
 from tasks.libs.common.utils import REPO_PATH, bin_name, get_build_flags
+from tasks.system_probe import copy_ebpf_and_related_files
 from tasks.windows_resources import build_messagetable, build_rc, versioninfo_vars
 
 BIN_DIR = os.path.join(".", "bin", "process-agent")
@@ -138,14 +139,7 @@ def build_dev_image(ctx, image=None, push=False, base_image="datadog/agent:lates
             ctx.run(f"touch {docker_context}/agent")
             core_agent_dest = "/dev/null"
 
-        ctx.run(f"cp pkg/ebpf/bytecode/build/*.o {docker_context}")
-        ctx.run(f"mkdir {docker_context}/co-re")
-        ctx.run(f"cp pkg/ebpf/bytecode/build/co-re/*.o {docker_context}/co-re/")
-        ctx.run(f"cp pkg/ebpf/bytecode/build/runtime/*.c {docker_context}")
-        ctx.run(f"chmod 0444 {docker_context}/*.o {docker_context}/*.c {docker_context}/co-re/*.o")
-        ctx.run(f"cp /opt/datadog-agent/embedded/bin/clang-bpf {docker_context}")
-        ctx.run(f"cp /opt/datadog-agent/embedded/bin/llc-bpf {docker_context}")
-        ctx.run(f"cp pkg/network/protocols/tls/java/agent-usm.jar {docker_context}")
+        copy_ebpf_and_related_files(ctx, docker_context)
 
         with ctx.cd(docker_context):
             # --pull in the build will force docker to grab the latest base image

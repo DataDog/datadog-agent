@@ -17,7 +17,7 @@ import (
 
 // PopulateStatus populates the status stats
 func PopulateStatus(stats map[string]interface{}) {
-	endpoints, err := utils.GetMultipleEndpoints(config.Datadog)
+	endpoints, err := utils.GetMultipleEndpoints(config.Datadog())
 	if err != nil {
 		stats["endpointsInfos"] = nil
 		return

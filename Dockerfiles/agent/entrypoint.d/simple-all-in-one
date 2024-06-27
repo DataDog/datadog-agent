@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+
+# agent_pid is an associative array that maps agent PIDs to their names
+declare -A agent_pid
+
+# stop_everybody is a function that stops all agents and sets the stopping flag to true
+stopping=false
+function stop_everybody() {
+    if [[ $stopping == true ]]; then
+        return
+    fi
+    stopping=true
+
+    for pid in "${!agent_pid[@]}"; do
+        printf "===== STOPPING %s =====\n" "${agent_pid[$pid]}"
+        kill -TERM "$pid" ||:
+    done
+}
+
+trap stop_everybody TERM
+
+# Run all init scripts
+for init in /etc/cont-init.d/*.sh; do
+    if [[ -e $init ]]; then
+        printf "===== RUNNING %s =====\n" "$init"
+        $BASH "$init"
+    fi
+done
+
+# Start all agents in the background
+for agent in agent process-agent security-agent system-probe trace-agent; do
+    (
+        printf "===== STARTING %s =====\n" "$agent"
+        exec "$DIR/$agent"
+    ) &
+    agent_pid[$!]=$agent
+done
+
+global_exit_code=0
+
+# Wait for all agents to exit
+while [[ "${#agent_pid[@]}" -gt 0 ]]; do
+    set +e
+    wait -n -p pid "${!agent_pid[@]}"
+    exit_code=$?
+    set -e
+
+    if [[ -z ${pid+x} ]]; then
+        break
+    fi
+
+    printf "===== EXITED %s WITH CODE %d =====\n" "${agent_pid[$pid]}" $exit_code
+    unset "agent_pid[$pid]"
+
+    if [[ $exit_code -ne 0 && $stopping != true ]]; then
+        printf "===== EXITING DUE TO FAILURE =====\n"
+        global_exit_code=$exit_code
+        stop_everybody
+    fi
+done
+
+exit $global_exit_code

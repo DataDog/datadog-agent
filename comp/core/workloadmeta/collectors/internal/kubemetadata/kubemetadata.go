@@ -14,16 +14,16 @@ import (
 	"strings"
 	"time"
 
+	"go.uber.org/fx"
 	"k8s.io/apimachinery/pkg/util/sets"
 
-	"go.uber.org/fx"
-
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	apiv1 "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/controllers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
@@ -81,7 +81,7 @@ func (c *collector) Start(_ context.Context, store workloadmeta.Component) error
 
 	// If DCA is enabled and can't communicate with the DCA, let worloadmeta retry.
 	var errDCA error
-	if config.Datadog.GetBool("cluster_agent.enabled") {
+	if config.Datadog().GetBool("cluster_agent.enabled") {
 		c.dcaEnabled = false
 		c.dcaClient, errDCA = clusteragent.GetClusterAgentClient()
 		if errDCA != nil {
@@ -93,7 +93,7 @@ func (c *collector) Start(_ context.Context, store workloadmeta.Component) error
 			}
 
 			// We return the permanent fail only if fallback is disabled
-			if retry.IsErrPermaFail(errDCA) && !config.Datadog.GetBool("cluster_agent.tagging_fallback") {
+			if retry.IsErrPermaFail(errDCA) && !config.Datadog().GetBool("cluster_agent.tagging_fallback") {
 				return errDCA
 			}
 
@@ -104,7 +104,7 @@ func (c *collector) Start(_ context.Context, store workloadmeta.Component) error
 	}
 
 	// Fallback to local metamapper if DCA not enabled, or in permafail state with fallback enabled.
-	if !config.Datadog.GetBool("cluster_agent.enabled") || errDCA != nil {
+	if !config.Datadog().GetBool("cluster_agent.enabled") || errDCA != nil {
 		// Using GetAPIClient as error returned follows the IsErrWillRetry/IsErrPermaFail
 		// Workloadmeta will retry calling this method until permafail
 		c.apiClient, err = apiserver.GetAPIClient()
@@ -113,9 +113,9 @@ func (c *collector) Start(_ context.Context, store workloadmeta.Component) error
 		}
 	}
 
-	c.updateFreq = time.Duration(config.Datadog.GetInt("kubernetes_metadata_tag_update_freq")) * time.Second
-	c.collectNamespaceLabels = len(config.Datadog.GetStringMapString("kubernetes_namespace_labels_as_tags")) > 0
-	c.collectNamespaceAnnotations = len(config.Datadog.GetStringMapString("kubernetes_namespace_annotations_as_tags")) > 0
+	c.updateFreq = time.Duration(config.Datadog().GetInt("kubernetes_metadata_tag_update_freq")) * time.Second
+	c.collectNamespaceLabels = len(config.Datadog().GetStringMapString("kubernetes_namespace_labels_as_tags")) > 0
+	c.collectNamespaceAnnotations = len(config.Datadog().GetStringMapString("kubernetes_namespace_annotations_as_tags")) > 0
 
 	return err
 }
@@ -174,6 +174,7 @@ func (c *collector) Pull(ctx context.Context) error {
 func (c *collector) GetID() string {
 	return c.id
 }
+
 func (c *collector) GetTargetCatalog() workloadmeta.AgentType {
 	return c.catalog
 }
@@ -188,18 +189,21 @@ func (c *collector) parsePods(
 
 	var err error
 	var metadataByNsPods apiv1.NamespacesPodsStringsSet
-	if c.isDCAEnabled() && c.dcaClient.Version().Major >= 1 && c.dcaClient.Version().Minor >= 3 {
-		var nodeName string
-		nodeName, err = c.kubeUtil.GetNodename(ctx)
-		if err != nil {
-			log.Errorf("Could not retrieve the Nodename, err: %v", err)
-			return events, err
-		}
+	if c.isDCAEnabled() {
+		dcaVersion := c.dcaClient.Version(false)
+		if dcaVersion.Major >= 1 && dcaVersion.Minor >= 3 {
+			var nodeName string
+			nodeName, err = c.kubeUtil.GetNodename(ctx)
+			if err != nil {
+				log.Errorf("Could not retrieve the Nodename, err: %v", err)
+				return events, err
+			}
 
-		metadataByNsPods, err = c.dcaClient.GetPodsMetadataForNode(nodeName)
-		if err != nil {
-			log.Debugf("Could not pull the metadata map of pods on node %s from the Datadog Cluster Agent: %s", nodeName, err.Error())
-			return events, err
+			metadataByNsPods, err = c.dcaClient.GetPodsMetadataForNode(nodeName)
+			if err != nil {
+				log.Debugf("Could not pull the metadata map of pods on node %s from the Datadog Cluster Agent: %s", nodeName, err.Error())
+				return events, err
+			}
 		}
 	}
 
@@ -208,7 +212,7 @@ func (c *collector) parsePods(
 			continue
 		}
 
-		metadata, err := c.getMetadata(apiserver.GetPodMetadataNames, metadataByNsPods, pod)
+		metadata, err := c.getMetadata(controllers.GetPodMetadataNames, metadataByNsPods, pod)
 		if err != nil {
 			log.Debugf("Could not fetch metadata for pod %s/%s: %v", pod.Metadata.Namespace, pod.Metadata.Name, err)
 		}
@@ -232,7 +236,7 @@ func (c *collector) parsePods(
 
 		var nsLabels, nsAnnotations map[string]string
 
-		if c.dcaClient.SupportsNamespaceMetadataCollection() {
+		if c.isDCAEnabled() && c.dcaClient.SupportsNamespaceMetadataCollection() {
 			// Cluster agent with version 7.55+
 			var nsMetadata *clusteragent.Metadata
 			nsMetadata, err = c.getNamespaceMetadata(pod.Metadata.Namespace)
@@ -341,7 +345,7 @@ func (c *collector) getNamespaceMetadata(ns string) (*clusteragent.Metadata, err
 
 func (c *collector) isDCAEnabled() bool {
 	if c.dcaEnabled && c.dcaClient != nil {
-		v := c.dcaClient.Version()
+		v := c.dcaClient.Version(false)
 		if v.String() != "0.0.0" { // means not initialized
 			return true
 		}

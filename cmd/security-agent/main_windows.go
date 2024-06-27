@@ -39,8 +39,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl"
@@ -89,10 +90,10 @@ func (s *service) Run(svcctx context.Context) error {
 	params := &cliParams{}
 	err := fxutil.OneShot(
 		func(log log.Component, config config.Component, _ secrets.Component, statsd statsd.Component, sysprobeconfig sysprobeconfig.Component,
-			telemetry telemetry.Component, _ workloadmeta.Component, params *cliParams, statusComponent status.Component, _ autoexit.Component, settings settings.Component) error {
+			telemetry telemetry.Component, _ workloadmeta.Component, params *cliParams, statusComponent status.Component, _ autoexit.Component, settings settings.Component, wmeta workloadmeta.Component) error {
 			defer start.StopAgent(log)
 
-			err := start.RunAgent(log, config, telemetry, statusComponent, settings)
+			err := start.RunAgent(log, config, telemetry, statusComponent, settings, wmeta)
 			if err != nil {
 				return err
 			}
@@ -115,7 +116,7 @@ func (s *service) Run(svcctx context.Context) error {
 
 		// workloadmeta setup
 		collectors.GetCatalog(),
-		workloadmeta.Module(),
+		workloadmetafx.Module(),
 		fx.Provide(func(config config.Component) workloadmeta.Params {
 
 			catalog := workloadmeta.NodeAgent

@@ -1,6 +1,6 @@
 //go:generate go run github.com/mailru/easyjson/easyjson -gen_build_flags=-mod=mod -no_std_marshalers -build_tags linux $GOFILE
 //go:generate go run github.com/mailru/easyjson/easyjson -gen_build_flags=-mod=mod -no_std_marshalers -build_tags linux -output_filename serializers_base_linux_easyjson.go serializers_base.go
-//go:generate go run github.com/DataDog/datadog-agent/pkg/security/generators/backend_doc -output ../../../docs/cloud-workload-security/backend.schema.json
+//go:generate go run github.com/DataDog/datadog-agent/pkg/security/generators/backend_doc -output ../../../docs/cloud-workload-security/backend_linux.schema.json
 
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
@@ -456,6 +456,7 @@ type MountEventSerializer struct {
 }
 
 // SecurityProfileContextSerializer serializes the security profile context in an event
+// easyjson:json
 type SecurityProfileContextSerializer struct {
 	// Name of the security profile
 	Name string `json:"name"`
@@ -465,6 +466,8 @@ type SecurityProfileContextSerializer struct {
 	Tags []string `json:"tags"`
 	// True if the corresponding event is part of this profile
 	EventInProfile bool `json:"event_in_profile"`
+	// State of the event type in this profile
+	EventTypeState string `json:"event_type_state"`
 }
 
 // SyscallSerializer serializes a syscall
@@ -478,6 +481,61 @@ type SyscallSerializer struct {
 // SyscallsEventSerializer serializes the syscalls from a syscalls event
 type SyscallsEventSerializer []SyscallSerializer
 
+// AnomalyDetectionSyscallEventSerializer serializes an anomaly detection for a syscall event
+// easyjson:json
+type AnomalyDetectionSyscallEventSerializer struct {
+	// Name of the syscall that triggered the anomaly detection event
+	Syscall string `json:"syscall"`
+}
+
+// SyscallArgsSerializer args serializer
+// easyjson:json
+type SyscallArgsSerializer struct {
+	// Path argument
+	Path string `json:"path,omitempty"`
+	// Flags argument
+	Flags int `json:"flags,omitempty"`
+	// Mode argument
+	Mode int `json:"mode,omitempty"`
+}
+
+func newSyscallArgsSerializer(sc *model.SyscallContext, e *model.Event) *SyscallArgsSerializer {
+	e.FieldHandlers.ResolveSyscallCtxArgs(e, sc)
+
+	switch e.GetEventType() {
+	case model.FileChmodEventType:
+		return &SyscallArgsSerializer{
+			Path: e.FieldHandlers.ResolveSyscallCtxArgsStr1(e, sc),
+			Mode: e.FieldHandlers.ResolveSyscallCtxArgsInt2(e, sc),
+		}
+	case model.FileChdirEventType, model.ExecEventType:
+		return &SyscallArgsSerializer{
+			Path: e.FieldHandlers.ResolveSyscallCtxArgsStr1(e, sc),
+		}
+	case model.FileOpenEventType:
+		return &SyscallArgsSerializer{
+			Path:  e.FieldHandlers.ResolveSyscallCtxArgsStr1(e, sc),
+			Flags: e.FieldHandlers.ResolveSyscallCtxArgsInt2(e, sc),
+			Mode:  e.FieldHandlers.ResolveSyscallCtxArgsInt3(e, sc),
+		}
+	}
+
+	return nil
+}
+
+// SyscallContextSerializer serializes syscall context
+// easyjson:json
+type SyscallContextSerializer struct {
+	Chmod *SyscallArgsSerializer `json:"chmod,omitempty"`
+	Chdir *SyscallArgsSerializer `json:"chdir,omitempty"`
+	Exec  *SyscallArgsSerializer `json:"exec,omitempty"`
+	Open  *SyscallArgsSerializer `json:"open,omitempty"`
+}
+
+func newSyscallContextSerializer() *SyscallContextSerializer {
+	return &SyscallContextSerializer{}
+}
+
 // EventSerializer serializes an event to JSON
 // easyjson:json
 type EventSerializer struct {
@@ -487,20 +545,21 @@ type EventSerializer struct {
 	*DDContextSerializer              `json:"dd,omitempty"`
 	*SecurityProfileContextSerializer `json:"security_profile,omitempty"`
 
-	*SELinuxEventSerializer  `json:"selinux,omitempty"`
-	*BPFEventSerializer      `json:"bpf,omitempty"`
-	*MMapEventSerializer     `json:"mmap,omitempty"`
-	*MProtectEventSerializer `json:"mprotect,omitempty"`
-	*PTraceEventSerializer   `json:"ptrace,omitempty"`
-	*ModuleEventSerializer   `json:"module,omitempty"`
-	*SignalEventSerializer   `json:"signal,omitempty"`
-	*SpliceEventSerializer   `json:"splice,omitempty"`
-	*DNSEventSerializer      `json:"dns,omitempty"`
-	*IMDSEventSerializer     `json:"imds,omitempty"`
-	*BindEventSerializer     `json:"bind,omitempty"`
-	*MountEventSerializer    `json:"mount,omitempty"`
-	*SyscallsEventSerializer `json:"syscalls,omitempty"`
-	*UserContextSerializer   `json:"usr,omitempty"`
+	*SELinuxEventSerializer   `json:"selinux,omitempty"`
+	*BPFEventSerializer       `json:"bpf,omitempty"`
+	*MMapEventSerializer      `json:"mmap,omitempty"`
+	*MProtectEventSerializer  `json:"mprotect,omitempty"`
+	*PTraceEventSerializer    `json:"ptrace,omitempty"`
+	*ModuleEventSerializer    `json:"module,omitempty"`
+	*SignalEventSerializer    `json:"signal,omitempty"`
+	*SpliceEventSerializer    `json:"splice,omitempty"`
+	*DNSEventSerializer       `json:"dns,omitempty"`
+	*IMDSEventSerializer      `json:"imds,omitempty"`
+	*BindEventSerializer      `json:"bind,omitempty"`
+	*MountEventSerializer     `json:"mount,omitempty"`
+	*SyscallsEventSerializer  `json:"syscalls,omitempty"`
+	*UserContextSerializer    `json:"usr,omitempty"`
+	*SyscallContextSerializer `json:"syscall,omitempty"`
 }
 
 func newSyscallsEventSerializer(e *model.SyscallsEvent) *SyscallsEventSerializer {
@@ -972,6 +1031,7 @@ func newSecurityProfileContextSerializer(event *model.Event, e *model.SecurityPr
 		Version:        e.Version,
 		Tags:           tags,
 		EventInProfile: event.IsInProfile(),
+		EventTypeState: e.EventTypeState.String(),
 	}
 }
 
@@ -1032,6 +1092,8 @@ func NewEventSerializer(event *model.Event, opts *eval.Opts) *EventSerializer {
 			},
 		}
 		s.EventContextSerializer.Outcome = serializeOutcome(event.Chmod.Retval)
+		s.SyscallContextSerializer = newSyscallContextSerializer()
+		s.SyscallContextSerializer.Chmod = newSyscallArgsSerializer(&event.Chmod.SyscallContext, event)
 	case model.FileChownEventType:
 		s.FileEventSerializer = &FileEventSerializer{
 			FileSerializer: *newFileSerializer(&event.Chown.File, event),
@@ -1061,6 +1123,8 @@ func NewEventSerializer(event *model.Event, opts *eval.Opts) *EventSerializer {
 
 		s.FileSerializer.Flags = model.OpenFlags(event.Open.Flags).StringArray()
 		s.EventContextSerializer.Outcome = serializeOutcome(event.Open.Retval)
+		s.SyscallContextSerializer = newSyscallContextSerializer()
+		s.SyscallContextSerializer.Open = newSyscallArgsSerializer(&event.Open.SyscallContext, event)
 	case model.FileMkdirEventType:
 		s.FileEventSerializer = &FileEventSerializer{
 			FileSerializer: *newFileSerializer(&event.Mkdir.File, event),
@@ -1074,12 +1138,13 @@ func NewEventSerializer(event *model.Event, opts *eval.Opts) *EventSerializer {
 			FileSerializer: *newFileSerializer(&event.Rmdir.File, event),
 		}
 		s.EventContextSerializer.Outcome = serializeOutcome(event.Rmdir.Retval)
-
 	case model.FileChdirEventType:
 		s.FileEventSerializer = &FileEventSerializer{
 			FileSerializer: *newFileSerializer(&event.Chdir.File, event),
 		}
-		s.EventContextSerializer.Outcome = serializeOutcome(event.Mkdir.Retval)
+		s.EventContextSerializer.Outcome = serializeOutcome(event.Chdir.Retval)
+		s.SyscallContextSerializer = newSyscallContextSerializer()
+		s.SyscallContextSerializer.Chdir = newSyscallArgsSerializer(&event.Chdir.SyscallContext, event)
 	case model.FileUnlinkEventType:
 		s.FileEventSerializer = &FileEventSerializer{
 			FileSerializer: *newFileSerializer(&event.Unlink.File, event),
@@ -1212,6 +1277,13 @@ func NewEventSerializer(event *model.Event, opts *eval.Opts) *EventSerializer {
 	case model.IMDSEventType:
 		s.EventContextSerializer.Outcome = serializeOutcome(0)
 		s.IMDSEventSerializer = newIMDSEventSerializer(&event.IMDS)
+	case model.ExecEventType:
+		s.FileEventSerializer = &FileEventSerializer{
+			FileSerializer: *newFileSerializer(&event.ProcessContext.Process.FileEvent, event),
+		}
+		s.EventContextSerializer.Outcome = serializeOutcome(0)
+		s.SyscallContextSerializer = newSyscallContextSerializer()
+		s.SyscallContextSerializer.Exec = newSyscallArgsSerializer(&event.Exec.SyscallContext, event)
 	}
 
 	return s

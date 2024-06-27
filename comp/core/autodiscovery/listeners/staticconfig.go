@@ -50,7 +50,7 @@ func (l *StaticConfigListener) createServices() {
 		"container_lifecycle",
 		"sbom",
 	} {
-		if enabled := config.Datadog.GetBool(staticCheck + ".enabled"); enabled {
+		if enabled := config.Datadog().GetBool(staticCheck + ".enabled"); enabled {
 			l.newService <- &StaticConfigService{adIdentifier: "_" + staticCheck}
 		}
 	}

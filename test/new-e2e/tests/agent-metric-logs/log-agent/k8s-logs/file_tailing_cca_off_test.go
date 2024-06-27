@@ -17,7 +17,6 @@ import (
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/kubernetesagentparams"
 
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	kindfilelogger "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-metric-logs/kindfilelogging"
@@ -28,7 +27,6 @@ type k8sCCAOffSuite struct {
 }
 
 func TestK8sCCAOff(t *testing.T) {
-	flake.Mark(t)
 	e2e.Run(t, &k8sCCAOffSuite{}, e2e.WithProvisioner(kindfilelogger.Provisioner(kindfilelogger.WithAgentOptions(kubernetesagentparams.WithoutLogsContainerCollectAll()))))
 }
 

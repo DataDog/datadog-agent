@@ -188,6 +188,13 @@ type RuleAction struct {
 	Filter *string         `json:"filter,omitempty"`
 	Set    *RuleSetAction  `json:"set,omitempty"`
 	Kill   *RuleKillAction `json:"kill,omitempty"`
+	Hash   *HashAction     `json:"hash,omitempty"`
+}
+
+// HashAction is used to report 'hash' action
+// easyjson:json
+type HashAction struct {
+	Enabled bool `json:"enabled,omitempty"`
 }
 
 // RuleSetAction is used to report 'set' action
@@ -267,6 +274,10 @@ func RuleStateFromDefinition(def *rules.RuleDefinition, status string, message s
 				Append: action.Set.Append,
 				Scope:  string(action.Set.Scope),
 			}
+		case action.Hash != nil:
+			ruleAction.Hash = &HashAction{
+				Enabled: true,
+			}
 		}
 		ruleState.Actions = append(ruleState.Actions, ruleAction)
 	}
@@ -275,27 +286,25 @@ func RuleStateFromDefinition(def *rules.RuleDefinition, status string, message s
 }
 
 // NewPoliciesState returns the states of policies and rules
-func NewPoliciesState(ruleSets map[string]*rules.RuleSet, err *multierror.Error, includeInternalPolicies bool) []*PolicyState {
+func NewPoliciesState(rs *rules.RuleSet, err *multierror.Error, includeInternalPolicies bool) []*PolicyState {
 	mp := make(map[string]*PolicyState)
 
 	var policyState *PolicyState
 	var exists bool
 
-	for _, rs := range ruleSets {
-		for _, rule := range rs.GetRules() {
-			if rule.Definition.Policy.IsInternal && !includeInternalPolicies {
-				continue
-			}
-
-			ruleDef := rule.Definition
-			policyName := ruleDef.Policy.Name
-
-			if policyState, exists = mp[policyName]; !exists {
-				policyState = PolicyStateFromRuleDefinition(ruleDef)
-				mp[policyName] = policyState
-			}
-			policyState.Rules = append(policyState.Rules, RuleStateFromDefinition(ruleDef, "loaded", ""))
+	for _, rule := range rs.GetRules() {
+		if rule.Definition.Policy.IsInternal && !includeInternalPolicies {
+			continue
 		}
+
+		ruleDef := rule.Definition
+		policyName := ruleDef.Policy.Name
+
+		if policyState, exists = mp[policyName]; !exists {
+			policyState = PolicyStateFromRuleDefinition(ruleDef)
+			mp[policyName] = policyState
+		}
+		policyState.Rules = append(policyState.Rules, RuleStateFromDefinition(ruleDef, "loaded", ""))
 	}
 
 	// rules ignored due to errors

@@ -22,7 +22,7 @@ import (
 	"time"
 
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -59,12 +59,12 @@ func CompleteFlare(fb flaretypes.FlareBuilder, diagnoseDeps diagnose.SuitesDeps)
 		fb.AddFileFromFunc("tagger-list.json", getAgentTaggerList)                      //nolint:errcheck
 		fb.AddFileFromFunc("workload-list.log", getAgentWorkloadList)                   //nolint:errcheck
 		fb.AddFileFromFunc("process-agent_tagger-list.json", getProcessAgentTaggerList) //nolint:errcheck
-		if !config.Datadog.GetBool("process_config.run_in_core_agent.enabled") {
+		if !config.Datadog().GetBool("process_config.run_in_core_agent.enabled") {
 			getChecksFromProcessAgent(fb, config.GetProcessAPIAddressPort)
 		}
 	}
 
-	fb.RegisterFilePerm(security.GetAuthTokenFilepath(config.Datadog))
+	fb.RegisterFilePerm(security.GetAuthTokenFilepath(config.Datadog()))
 
 	systemProbeConfigBPFDir := config.SystemProbe.GetString("system_probe_config.bpf_dir")
 	if systemProbeConfigBPFDir != "" {
@@ -77,10 +77,10 @@ func CompleteFlare(fb flaretypes.FlareBuilder, diagnoseDeps diagnose.SuitesDeps)
 	}
 
 	pprofURL := fmt.Sprintf("http://127.0.0.1:%s/debug/pprof/goroutine?debug=2",
-		config.Datadog.GetString("expvar_port"))
+		config.Datadog().GetString("expvar_port"))
 
 	fb.AddFileFromFunc("process_agent_runtime_config_dump.yaml", getProcessAgentFullConfig)                                                       //nolint:errcheck
-	fb.AddFileFromFunc("runtime_config_dump.yaml", func() ([]byte, error) { return yaml.Marshal(config.Datadog.AllSettings()) })                  //nolint:errcheck
+	fb.AddFileFromFunc("runtime_config_dump.yaml", func() ([]byte, error) { return yaml.Marshal(config.Datadog().AllSettings()) })                //nolint:errcheck
 	fb.AddFileFromFunc("system_probe_runtime_config_dump.yaml", func() ([]byte, error) { return yaml.Marshal(config.SystemProbe.AllSettings()) }) //nolint:errcheck
 	fb.AddFileFromFunc("diagnose.log", getDiagnoses(fb.IsLocal(), diagnoseDeps))                                                                  //nolint:errcheck
 	fb.AddFileFromFunc("envvars.log", getEnvVars)                                                                                                 //nolint:errcheck
@@ -92,15 +92,15 @@ func CompleteFlare(fb flaretypes.FlareBuilder, diagnoseDeps diagnose.SuitesDeps)
 	getRegistryJSON(fb)
 
 	getVersionHistory(fb)
-	fb.CopyFile(installinfo.GetFilePath(config.Datadog)) //nolint:errcheck
+	fb.CopyFile(installinfo.GetFilePath(config.Datadog())) //nolint:errcheck
 
 	getExpVar(fb) //nolint:errcheck
 	getWindowsData(fb)
 
-	telemetryURL := fmt.Sprintf("http://127.0.0.1:%s/telemetry", config.Datadog.GetString("expvar_port"))
+	telemetryURL := fmt.Sprintf("http://127.0.0.1:%s/telemetry", config.Datadog().GetString("expvar_port"))
 	fb.AddFileFromFunc("telemetry.log", func() ([]byte, error) { return getHTTPCallContent(telemetryURL) }) //nolint:errcheck
 
-	if config.IsRemoteConfigEnabled(config.Datadog) {
+	if config.IsRemoteConfigEnabled(config.Datadog()) {
 		if err := exportRemoteConfig(fb); err != nil {
 			log.Errorf("Could not export remote-config state: %s", err)
 		}
@@ -109,11 +109,11 @@ func CompleteFlare(fb flaretypes.FlareBuilder, diagnoseDeps diagnose.SuitesDeps)
 }
 
 func getVersionHistory(fb flaretypes.FlareBuilder) {
-	fb.CopyFile(filepath.Join(config.Datadog.GetString("run_path"), "version-history.json")) //nolint:errcheck
+	fb.CopyFile(filepath.Join(config.Datadog().GetString("run_path"), "version-history.json")) //nolint:errcheck
 }
 
 func getRegistryJSON(fb flaretypes.FlareBuilder) {
-	fb.CopyFile(filepath.Join(config.Datadog.GetString("logs_config.run_path"), "registry.json")) //nolint:errcheck
+	fb.CopyFile(filepath.Join(config.Datadog().GetString("logs_config.run_path"), "registry.json")) //nolint:errcheck
 }
 
 func getLogFiles(fb flaretypes.FlareBuilder, logFileDir string) {
@@ -150,7 +150,7 @@ func getExpVar(fb flaretypes.FlareBuilder) error {
 		}
 	}
 
-	apmDebugPort := config.Datadog.GetInt("apm_config.debug.port")
+	apmDebugPort := config.Datadog().GetInt("apm_config.debug.port")
 	f := filepath.Join("expvar", "trace-agent")
 	resp, err := http.Get(fmt.Sprintf("http://127.0.0.1:%d/debug/vars", apmDebugPort))
 	if err != nil {
@@ -220,8 +220,8 @@ func getConfigFiles(fb flaretypes.FlareBuilder, confSearchPaths map[string]strin
 		})
 	}
 
-	if config.Datadog.ConfigFileUsed() != "" {
-		mainConfpath := config.Datadog.ConfigFileUsed()
+	if config.Datadog().ConfigFileUsed() != "" {
+		mainConfpath := config.Datadog().ConfigFileUsed()
 		confDir := filepath.Dir(mainConfpath)
 
 		// zip up the config file that was actually used, if one exists
@@ -247,7 +247,7 @@ func getChecksFromProcessAgent(fb flaretypes.FlareBuilder, getAddressPort func()
 	getCheck := func(checkName, setting string) {
 		filename := fmt.Sprintf("%s_check_output.json", checkName)
 
-		if !config.Datadog.GetBool(setting) {
+		if !config.Datadog().GetBool(setting) {
 			fb.AddFile(filename, []byte(fmt.Sprintf("'%s' is disabled", setting))) //nolint:errcheck
 			return
 		}
@@ -295,7 +295,7 @@ func getAgentTaggerList() ([]byte, error) {
 		return nil, err
 	}
 
-	taggerListURL := fmt.Sprintf("https://%v:%v/agent/tagger-list", ipcAddress, config.Datadog.GetInt("cmd_port"))
+	taggerListURL := fmt.Sprintf("https://%v:%v/agent/tagger-list", ipcAddress, config.Datadog().GetInt("cmd_port"))
 
 	return getTaggerList(taggerListURL)
 }
@@ -336,7 +336,7 @@ func getAgentWorkloadList() ([]byte, error) {
 		return nil, err
 	}
 
-	return getWorkloadList(fmt.Sprintf("https://%v:%v/agent/workload-list?verbose=true", ipcAddress, config.Datadog.GetInt("cmd_port")))
+	return getWorkloadList(fmt.Sprintf("https://%v:%v/agent/workload-list?verbose=true", ipcAddress, config.Datadog().GetInt("cmd_port")))
 }
 
 func getWorkloadList(url string) ([]byte, error) {

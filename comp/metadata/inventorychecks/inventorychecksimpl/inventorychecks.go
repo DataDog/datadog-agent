@@ -17,7 +17,7 @@ import (
 
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/api/api"
+	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/api/api/utils"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -243,9 +243,10 @@ func (ic *inventorychecksImpl) getPayload() marshaler.JSONMarshaler {
 						"error":  logSource.Status.GetError(),
 						"status": logSource.Status.String(),
 					},
-					"service": logSource.Config.Service,
-					"source":  logSource.Config.Source,
-					"tags":    tags,
+					"service":          logSource.Config.Service,
+					"source":           logSource.Config.Source,
+					"integration_name": logSource.Config.IntegrationName,
+					"tags":             tags,
 				})
 			}
 		}

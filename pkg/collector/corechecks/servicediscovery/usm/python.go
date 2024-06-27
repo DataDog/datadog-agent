@@ -57,10 +57,11 @@ func (p pythonDetector) detect(args []string) (ServiceMetadata, bool) {
 				return ServiceMetadata{}, false
 			}
 			stripped := absPath
+			var filename string
 			if !fi.IsDir() {
-				stripped = path.Dir(stripped)
+				stripped, filename = path.Split(stripped)
 			}
-			if value, ok := p.deducePackageName(stripped); ok {
+			if value, ok := p.deducePackageName(path.Clean(stripped), filename); ok {
 				return NewServiceMetadata(value), true
 			}
 			return NewServiceMetadata(p.findNearestTopLevel(stripped)), true
@@ -77,7 +78,7 @@ func (p pythonDetector) detect(args []string) (ServiceMetadata, bool) {
 }
 
 // deducePackageName is walking until a `__init__.py` is not found. All the dir traversed are joined then with `.`
-func (p pythonDetector) deducePackageName(fp string) (string, bool) {
+func (p pythonDetector) deducePackageName(fp string, fn string) (string, bool) {
 	up := path.Dir(fp)
 	current := fp
 	var traversed []string
@@ -88,6 +89,9 @@ func (p pythonDetector) deducePackageName(fp string) (string, bool) {
 		traversed = append([]string{path.Base(current)}, traversed...)
 		current = up
 		up = path.Dir(current)
+	}
+	if len(traversed) > 0 && len(fn) > 0 {
+		traversed = append(traversed, strings.TrimSuffix(fn, path.Ext(fn)))
 	}
 	return strings.Join(traversed, "."), len(traversed) > 0
 

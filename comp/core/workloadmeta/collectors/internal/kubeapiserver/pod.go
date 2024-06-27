@@ -18,7 +18,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -46,7 +46,7 @@ func newPodStore(ctx context.Context, wlm workloadmeta.Component, client kuberne
 }
 
 func newPodReflectorStore(wlmetaStore workloadmeta.Component) *reflectorStore {
-	annotationsExclude := config.Datadog.GetStringSlice("cluster_agent.kubernetes_resources_collection.pod_annotations_exclude")
+	annotationsExclude := config.Datadog().GetStringSlice("cluster_agent.kubernetes_resources_collection.pod_annotations_exclude")
 	parser, err := newPodParser(annotationsExclude)
 	if err != nil {
 		_ = log.Errorf("unable to parse all pod_annotations_exclude: %v, err:", err)

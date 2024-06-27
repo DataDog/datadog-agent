@@ -196,3 +196,81 @@ func shortPythonVersion(version string) string {
 func ExpectPython2Installed(majorVersion string) bool {
 	return majorVersion == "6"
 }
+
+// getBaseConfigRootSecurity returns the base security settings for the config root
+//   - SYSTEM full control, owner and group
+//   - Administrators full control
+//   - protected (inheritance disabled)
+func getBaseConfigRootSecurity() (windows.ObjectSecurity, error) {
+	// SYSTEM and Administrators have full control
+	return windows.NewProtectedSecurityInfo(
+		windows.GetIdentityForSID(windows.LocalSystemSID),
+		windows.GetIdentityForSID(windows.LocalSystemSID),
+		[]windows.AccessRule{
+			windows.NewExplicitAccessRuleWithFlags(
+				windows.GetIdentityForSID(windows.LocalSystemSID),
+				windows.FileFullControl,
+				windows.AccessControlTypeAllow,
+				windows.InheritanceFlagsContainer|windows.InheritanceFlagsObject,
+				windows.PropagationFlagsNone,
+			),
+			windows.NewExplicitAccessRuleWithFlags(
+				windows.GetIdentityForSID(windows.AdministratorsSID),
+				windows.FileFullControl,
+				windows.AccessControlTypeAllow,
+				windows.InheritanceFlagsContainer|windows.InheritanceFlagsObject,
+				windows.PropagationFlagsNone,
+			),
+		},
+	), nil
+}
+
+// getBaseInheritedConfigFileSecurity returns the base security settings for a config file that inherits permissions from the config root
+//   - (inherited) SYSTEM full control, owner and group
+//   - (inherited) Administrators full control
+func getBaseInheritedConfigFileSecurity() (windows.ObjectSecurity, error) {
+	// SYSTEM and Administrators have full control
+	return windows.NewInheritSecurityInfo(
+		windows.GetIdentityForSID(windows.LocalSystemSID),
+		windows.GetIdentityForSID(windows.LocalSystemSID),
+		[]windows.AccessRule{
+			windows.NewInheritedAccessRule(
+				windows.GetIdentityForSID(windows.LocalSystemSID),
+				windows.FileFullControl,
+				windows.AccessControlTypeAllow,
+			),
+			windows.NewInheritedAccessRule(
+				windows.GetIdentityForSID(windows.AdministratorsSID),
+				windows.FileFullControl,
+				windows.AccessControlTypeAllow,
+			),
+		},
+	), nil
+}
+
+// getBaseInheritedConfigDirSecurity returns the base security settings for a config dir that inherits permissions from the config root
+//   - (inherited) SYSTEM full control, owner and group
+//   - (inherited) Administrators full control
+func getBaseInheritedConfigDirSecurity() (windows.ObjectSecurity, error) {
+	// SYSTEM and Administrators have full control
+	return windows.NewInheritSecurityInfo(
+		windows.GetIdentityForSID(windows.LocalSystemSID),
+		windows.GetIdentityForSID(windows.LocalSystemSID),
+		[]windows.AccessRule{
+			windows.NewInheritedAccessRuleWithFlags(
+				windows.GetIdentityForSID(windows.LocalSystemSID),
+				windows.FileFullControl,
+				windows.AccessControlTypeAllow,
+				windows.InheritanceFlagsContainer|windows.InheritanceFlagsObject,
+				windows.PropagationFlagsNone,
+			),
+			windows.NewInheritedAccessRuleWithFlags(
+				windows.GetIdentityForSID(windows.AdministratorsSID),
+				windows.FileFullControl,
+				windows.AccessControlTypeAllow,
+				windows.InheritanceFlagsContainer|windows.InheritanceFlagsObject,
+				windows.PropagationFlagsNone,
+			),
+		},
+	), nil
+}

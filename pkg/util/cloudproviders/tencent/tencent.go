@@ -44,7 +44,7 @@ func GetHostAliases(ctx context.Context) ([]string, error) {
 var instanceIDFetcher = cachedfetch.Fetcher{
 	Name: "Tencent InstanceID",
 	Attempt: func(ctx context.Context) (interface{}, error) {
-		res, err := getMetadataItemWithMaxLength(ctx, metadataURL+"/meta-data/instance-id", config.Datadog.GetInt("metadata_endpoints_max_hostname_size"))
+		res, err := getMetadataItemWithMaxLength(ctx, metadataURL+"/meta-data/instance-id", config.Datadog().GetInt("metadata_endpoints_max_hostname_size"))
 		if err != nil {
 			return "", fmt.Errorf("unable to get TencentCloud CVM instanceID: %s", err)
 		}
@@ -83,7 +83,7 @@ func getMetadataItem(ctx context.Context, endpoint string) (string, error) {
 		return "", fmt.Errorf("cloud provider is disabled by configuration")
 	}
 
-	res, err := httputils.Get(ctx, endpoint, nil, timeout, config.Datadog)
+	res, err := httputils.Get(ctx, endpoint, nil, timeout, config.Datadog())
 	if err != nil {
 		return "", fmt.Errorf("unable to fetch Tencent Metadata API, %s", err)
 	}

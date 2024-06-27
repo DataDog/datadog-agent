@@ -9,6 +9,10 @@ package main
 
 import (
 	"context"
+	"os"
+	"sync"
+	"time"
+
 	serverlessInitLog "github.com/DataDog/datadog-agent/cmd/serverless-init/log"
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/mode"
 	"github.com/DataDog/datadog-agent/comp/core"
@@ -21,12 +25,13 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/pkg/serverless"
+
 	"go.uber.org/atomic"
-	"os"
-	"sync"
-	"time"
+	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice"
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/metric"
@@ -43,7 +48,6 @@ import (
 	tracelog "github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"go.uber.org/fx"
 )
 
 const datadogConfigPath = "datadog.yaml"
@@ -58,7 +62,7 @@ func main() {
 	err := fxutil.OneShot(
 		run,
 		autodiscoveryimpl.Module(),
-		workloadmeta.Module(),
+		workloadmetafx.Module(),
 		fx.Provide(func(config coreconfig.Component) healthprobeDef.Options {
 			return healthprobeDef.Options{
 				Port:           config.GetInt("health_port"),
@@ -96,7 +100,7 @@ func setup(mode.Conf) (cloudservice.CloudService, *serverlessInitLog.Config, *tr
 	tracelog.SetLogger(corelogger{})
 
 	// load proxy settings
-	pkgconfig.LoadProxyFromEnv(pkgconfig.Datadog)
+	pkgconfig.LoadProxyFromEnv(pkgconfig.Datadog())
 
 	cloudService := cloudservice.GetCloudServiceType()
 
@@ -108,7 +112,7 @@ func setup(mode.Conf) (cloudservice.CloudService, *serverlessInitLog.Config, *tr
 
 	tags := serverlessInitTag.GetBaseTagsMapWithMetadata(
 		serverlessTag.MergeWithOverwrite(
-			serverlessTag.ArrayToMap(configUtils.GetConfiguredTags(pkgconfig.Datadog, false)),
+			serverlessTag.ArrayToMap(configUtils.GetConfiguredTags(pkgconfig.Datadog(), false)),
 			cloudService.GetTags()),
 		modeConf.TagVersionMode)
 
@@ -137,7 +141,7 @@ func setup(mode.Conf) (cloudservice.CloudService, *serverlessInitLog.Config, *tr
 	return cloudService, agentLogConfig, traceAgent, metricAgent, logsAgent
 }
 func setupTraceAgent(traceAgent *trace.ServerlessTraceAgent, tags map[string]string) {
-	traceAgent.Start(pkgconfig.Datadog.GetBool("apm_config.enabled"), &trace.LoadConfig{Path: datadogConfigPath}, nil, random.Random.Uint64())
+	traceAgent.Start(pkgconfig.Datadog().GetBool("apm_config.enabled"), &trace.LoadConfig{Path: datadogConfigPath}, nil, random.Random.Uint64())
 	traceAgent.SetTags(tags)
 	for range time.Tick(3 * time.Second) {
 		traceAgent.Flush()
@@ -145,7 +149,7 @@ func setupTraceAgent(traceAgent *trace.ServerlessTraceAgent, tags map[string]str
 }
 
 func setupMetricAgent(tags map[string]string) *metrics.ServerlessMetricAgent {
-	pkgconfig.Datadog.Set("use_v2_api.series", false, model.SourceAgentRuntime)
+	pkgconfig.Datadog().Set("use_v2_api.series", false, model.SourceAgentRuntime)
 	metricAgent := &metrics.ServerlessMetricAgent{
 		SketchesBucketOffset: time.Second * 0,
 	}

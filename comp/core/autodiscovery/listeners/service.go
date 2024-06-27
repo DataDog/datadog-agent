@@ -13,7 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
@@ -83,7 +83,7 @@ func (s *service) GetPorts(_ context.Context) ([]ContainerPort, error) {
 
 // GetTags returns the tags associated with the service.
 func (s *service) GetTags() ([]string, error) {
-	return tagger.Tag(s.GetTaggerEntity(), tagger.ChecksCardinality)
+	return tagger.Tag(s.GetTaggerEntity(), tagger.ChecksCardinality())
 }
 
 // GetPid returns the process ID of the service.
@@ -171,7 +171,7 @@ func (s *service) filterTemplatesOverriddenChecks(configs map[string]integration
 // added by the config provider (AddContainerCollectAllConfigs) if the service
 // has any other templates containing logs config.
 func (s *service) filterTemplatesContainerCollectAll(configs map[string]integration.Config) {
-	if !config.Datadog.GetBool("logs_config.container_collect_all") {
+	if !config.Datadog().GetBool("logs_config.container_collect_all") {
 		return
 	}
 

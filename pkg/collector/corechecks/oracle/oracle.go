@@ -99,6 +99,7 @@ type Check struct {
 	dbInstanceLastRun                       time.Time
 	filePath                                string
 	sqlTraceRunsCount                       int
+	sqlSubstringLength                      int
 	connectedToPdb                          bool
 	fqtEmitted                              *cache.Cache
 	planEmitted                             *cache.Cache
@@ -107,7 +108,8 @@ type Check struct {
 	logPrompt                               string
 	initialized                             bool
 	multitenant                             bool
-	lastOracleRows                          []OracleRow // added for tests
+	lastOracleRows                          []OracleRow         // added for tests
+	lastOracleActivityRows                  []OracleActivityRow //added for tests
 	databaseRole                            string
 	openMode                                string
 	legacyIntegrationCompatibilityMode      bool
@@ -182,7 +184,7 @@ func (c *Check) Run() error {
 		c.connection = conn
 	}
 
-	dbInstanceIntervalExpired := checkIntervalExpired(&c.dbInstanceLastRun, 1800)
+	dbInstanceIntervalExpired := checkIntervalExpired(&c.dbInstanceLastRun, c.config.DatabaseInstanceCollectionInterval)
 
 	if dbInstanceIntervalExpired && !c.legacyIntegrationCompatibilityMode && !c.config.OnlyCustomQueries {
 		err := sendDbInstanceMetadata(c)
@@ -379,6 +381,7 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 	c.agentVersion = agentVersion.GetNumberAndPre()
 
 	c.checkInterval = float64(c.config.InitConfig.MinCollectionInterval)
+	c.sqlSubstringLength = MaxSQLFullTextVSQL
 
 	tags := make([]string, len(c.config.Tags))
 	copy(tags, c.config.Tags)

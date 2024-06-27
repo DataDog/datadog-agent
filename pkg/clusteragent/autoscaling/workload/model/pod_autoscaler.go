@@ -54,8 +54,8 @@ type PodAutoscalerInternal struct {
 	// VerticalLastAction is the last action taken by the Vertical Pod Autoscaler
 	VerticalLastAction *datadoghq.DatadogPodAutoscalerVerticalAction
 
-	// VerticalApplyError is the last error encountered on vertical scaling
-	VerticalApplyError error
+	// VerticalLastActionError is the last error encountered on vertical scaling
+	VerticalLastActionError error
 
 	// CurrentReplicas is the current number of PODs for the targetRef
 	CurrentReplicas *int32
@@ -197,7 +197,7 @@ func (p *PodAutoscalerInternal) UpdateFromStatus(status *datadoghq.DatadogPodAut
 		case cond.Type == datadoghq.DatadogPodAutoscalerHorizontalAbleToScaleCondition && cond.Status == corev1.ConditionFalse:
 			p.HorizontalLastActionError = errors.New(cond.Reason)
 		case cond.Type == datadoghq.DatadogPodAutoscalerVerticalAbleToApply && cond.Status == corev1.ConditionFalse:
-			p.VerticalApplyError = errors.New(cond.Reason)
+			p.VerticalLastActionError = errors.New(cond.Reason)
 		case cond.Type == datadoghq.DatadogPodAutoscalerHorizontalAbleToRecommendCondition && cond.Status == corev1.ConditionFalse:
 			p.ScalingValues.HorizontalError = errors.New(cond.Reason)
 		case cond.Type == datadoghq.DatadogPodAutoscalerVerticalAbleToRecommendCondition && cond.Status == corev1.ConditionFalse:
@@ -305,9 +305,9 @@ func (p *PodAutoscalerInternal) BuildStatus(currentTime metav1.Time, currentStat
 
 	var verticalReason string
 	rolloutStatus := corev1.ConditionUnknown
-	if p.VerticalApplyError != nil {
+	if p.VerticalLastActionError != nil {
 		rolloutStatus = corev1.ConditionFalse
-		verticalReason = p.VerticalApplyError.Error()
+		verticalReason = p.VerticalLastActionError.Error()
 	} else if p.VerticalLastAction != nil {
 		rolloutStatus = corev1.ConditionTrue
 	}

@@ -31,10 +31,9 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/DataDog/ebpf-manager/tracefs"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	aconfig "github.com/DataDog/datadog-agent/pkg/config"
-	commonebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
@@ -107,6 +106,9 @@ type EBPFProbe struct {
 	ctx       context.Context
 	cancelFnc context.CancelFunc
 	wg        sync.WaitGroup
+
+	// TC Classifier
+	newTCNetDevices chan model.NetDevice
 
 	// Ring
 	eventStream EventStream
@@ -323,7 +325,7 @@ func (p *EBPFProbe) Setup() error {
 	if err := p.Manager.Start(); err != nil {
 		return err
 	}
-	ebpfcheck.AddNameMappings(p.Manager, "cws")
+	ddebpf.AddNameMappings(p.Manager, "cws")
 
 	p.applyDefaultFilterPolicies()
 
@@ -342,6 +344,10 @@ func (p *EBPFProbe) Setup() error {
 func (p *EBPFProbe) Start() error {
 	// Apply rules to the snapshotted data before starting the event stream to avoid concurrency issues
 	p.playSnapshot()
+
+	// start new tc classifier loop
+	go p.startSetupNewTCClassifierLoop()
+
 	return p.eventStream.Start(&p.wg)
 }
 
@@ -472,10 +478,22 @@ func eventWithNoProcessContext(eventType model.EventType) bool {
 }
 
 func (p *EBPFProbe) unmarshalProcessCacheEntry(ev *model.Event, data []byte) (int, error) {
+	var sc model.SyscallContext
+
+	n, err := sc.UnmarshalBinary(data)
+	if err != nil {
+		return n, err
+	}
+
+	// don't provide a syscall context for Fork event for now
+	if ev.BaseEvent.Type == uint32(model.ExecEventType) {
+		ev.Exec.SyscallContext.ID = sc.ID
+	}
+
 	entry := p.Resolvers.ProcessResolver.NewProcessCacheEntry(ev.PIDContext)
 	ev.ProcessCacheEntry = entry
 
-	n, err := entry.Process.UnmarshalBinary(data)
+	n, err = entry.Process.UnmarshalBinary(data[n:])
 	if err != nil {
 		return n, err
 	}
@@ -903,13 +921,13 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			seclog.Errorf("failed to decode net_device event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
-		_ = p.setupNewTCClassifier(event.NetDevice.Device)
+		p.pushNewTCClassifierRequest(event.NetDevice.Device)
 	case model.VethPairEventType:
 		if _, err = event.VethPair.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode veth_pair event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
-		_ = p.setupNewTCClassifier(event.VethPair.PeerDevice)
+		p.pushNewTCClassifierRequest(event.VethPair.PeerDevice)
 	case model.DNSEventType:
 		if _, err = event.DNS.UnmarshalBinary(data[offset:]); err != nil {
 			if errors.Is(err, model.ErrDNSNameMalformatted) {
@@ -1146,6 +1164,13 @@ func (p *EBPFProbe) updateProbes(ruleEventTypes []eval.EventType, needRawSyscall
 		}
 	}
 
+	// if we are using tracepoints to probe syscall exits, i.e. if we are using an old kernel version (< 4.12)
+	// we need to use raw_syscall tracepoints for exits, as syscall are not trace when running an ia32 userspace
+	// process
+	if probes.ShouldUseSyscallExitTracepoints() {
+		activatedProbes = append(activatedProbes, &manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: probes.SecurityAgentUID, EBPFFuncName: "sys_exit"}})
+	}
+
 	activatedProbes = append(activatedProbes, p.Resolvers.TCResolver.SelectTCProbes())
 
 	if needRawSyscalls {
@@ -1290,10 +1315,12 @@ func (p *EBPFProbe) Close() error {
 	// perf map reader are ignored
 	p.cancelFnc()
 
+	close(p.newTCNetDevices)
+
 	// we wait until both the reorderer and the monitor are stopped
 	p.wg.Wait()
 
-	ebpfcheck.RemoveNameMappings(p.Manager)
+	ddebpf.RemoveNameMappings(p.Manager)
 	ebpftelemetry.UnregisterTelemetry(p.Manager)
 	// Stopping the manager will stop the perf map reader and unload eBPF programs
 	if err := p.Manager.Stop(manager.CleanAll); err != nil {
@@ -1312,6 +1339,37 @@ type QueuedNetworkDeviceError struct {
 
 func (err QueuedNetworkDeviceError) Error() string {
 	return err.msg
+}
+
+func (p *EBPFProbe) pushNewTCClassifierRequest(device model.NetDevice) {
+	select {
+	case p.newTCNetDevices <- device:
+		// do nothing
+	default:
+		seclog.Errorf("failed to slot new tc classifier request: %v", device)
+	}
+}
+
+func (p *EBPFProbe) startSetupNewTCClassifierLoop() {
+	for {
+		select {
+		case <-p.ctx.Done():
+			return
+		case netDevice, ok := <-p.newTCNetDevices:
+			if !ok {
+				return
+			}
+
+			if err := p.setupNewTCClassifier(netDevice); err != nil {
+				var qnde QueuedNetworkDeviceError
+				if errors.As(err, &qnde) {
+					seclog.Debugf("%v", err)
+				} else {
+					seclog.Errorf("error setting up new tc classifier: %v", err)
+				}
+			}
+		}
+	}
 }
 
 func (p *EBPFProbe) setupNewTCClassifier(device model.NetDevice) error {
@@ -1399,6 +1457,17 @@ func (p *EBPFProbe) applyDefaultFilterPolicies() {
 	}
 }
 
+func isKillActionPresent(rs *rules.RuleSet) bool {
+	for _, rule := range rs.GetRules() {
+		for _, action := range rule.Definition.Actions {
+			if action.Kill != nil {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // ApplyRuleSet apply the required update to handle the new ruleset
 func (p *EBPFProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetReport, error) {
 	if p.opts.SyscallsMonitorEnabled {
@@ -1421,21 +1490,29 @@ func (p *EBPFProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetRepor
 		}
 	}
 
+	eventTypes := rs.GetEventTypes()
+
+	// activity dump & security profiles
 	needRawSyscalls := p.isNeededForActivityDump(model.SyscallsEventType.String())
-	if !needRawSyscalls {
-		// Add syscall monitor probes if it's either activated or
-		// there is an 'kill' action in the ruleset
-		for _, rule := range rs.GetRules() {
-			for _, action := range rule.Definition.Actions {
-				if action.Kill != nil {
-					needRawSyscalls = true
-					break
+
+	// kill action
+	if p.config.RuntimeSecurity.EnforcementEnabled && isKillActionPresent(rs) {
+		if !p.config.RuntimeSecurity.EnforcementRawSyscallEnabled {
+			// force FIM and Process category so that we can catch most of the activity
+			categories := model.GetEventTypePerCategory(model.FIMCategory, model.ProcessCategory)
+			for _, list := range categories {
+				for _, eventType := range list {
+					if !slices.Contains(eventTypes, eventType) {
+						eventTypes = append(eventTypes, eventType)
+					}
 				}
 			}
+		} else {
+			needRawSyscalls = true
 		}
 	}
 
-	if err := p.updateProbes(rs.GetEventTypes(), needRawSyscalls); err != nil {
+	if err := p.updateProbes(eventTypes, needRawSyscalls); err != nil {
 		return nil, fmt.Errorf("failed to select probes: %w", err)
 	}
 
@@ -1488,6 +1565,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, wmeta optional
 		isRuntimeDiscarded:   !probe.Opts.DontDiscardRuntime,
 		ctx:                  ctx,
 		cancelFnc:            cancelFnc,
+		newTCNetDevices:      make(chan model.NetDevice, 16),
 		processKiller:        NewProcessKiller(),
 	}
 
@@ -1561,22 +1639,6 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, wmeta optional
 		manager.ConstantEditor{
 			Name:  constantfetch.OffsetNameSchedProcessForkParentPid,
 			Value: constantfetch.ReadTracepointFieldOffsetWithFallback("sched/sched_process_fork", "parent_pid", 24),
-		},
-		manager.ConstantEditor{
-			Name:  constantfetch.OffsetNameSysMmapOff,
-			Value: constantfetch.ReadTracepointFieldOffsetWithFallback("syscalls/sys_enter_mmap", "off", 56) + constantfetch.GetRHEL93MMapDelta(p.kernelVersion),
-		},
-		manager.ConstantEditor{
-			Name:  constantfetch.OffsetNameSysMmapLen,
-			Value: constantfetch.ReadTracepointFieldOffsetWithFallback("syscalls/sys_enter_mmap", "len", 24) + constantfetch.GetRHEL93MMapDelta(p.kernelVersion),
-		},
-		manager.ConstantEditor{
-			Name:  constantfetch.OffsetNameSysMmapProt,
-			Value: constantfetch.ReadTracepointFieldOffsetWithFallback("syscalls/sys_enter_mmap", "prot", 32) + constantfetch.GetRHEL93MMapDelta(p.kernelVersion),
-		},
-		manager.ConstantEditor{
-			Name:  constantfetch.OffsetNameSysMmapFlags,
-			Value: constantfetch.ReadTracepointFieldOffsetWithFallback("syscalls/sys_enter_mmap", "flags", 40) + constantfetch.GetRHEL93MMapDelta(p.kernelVersion),
 		},
 	)
 
@@ -1665,18 +1727,6 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, wmeta optional
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, DiscarderConstants...)
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, getCGroupWriteConstants())
 
-	// if we are using tracepoints to probe syscall exits, i.e. if we are using an old kernel version (< 4.12)
-	// we need to use raw_syscall tracepoints for exits, as syscall are not trace when running an ia32 userspace
-	// process
-	if probes.ShouldUseSyscallExitTracepoints() {
-		p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors,
-			manager.ConstantEditor{
-				Name:  "tracepoint_raw_syscall_fallback",
-				Value: utils.BoolTouint64(true),
-			},
-		)
-	}
-
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors,
 		manager.ConstantEditor{
 			Name:  "use_ring_buffer",
@@ -1735,8 +1785,12 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, wmeta optional
 		return nil, err
 	}
 
-	// TODO safchain change the fields handlers
-	p.fieldHandlers = &EBPFFieldHandlers{config: config, resolvers: p.Resolvers}
+	hostname, err := utils.GetHostname()
+	if err != nil || hostname == "" {
+		hostname = "unknown"
+	}
+
+	p.fieldHandlers = &EBPFFieldHandlers{config: config, resolvers: p.Resolvers, hostname: hostname}
 
 	if useRingBuffers {
 		p.eventStream = ringbuffer.New(p.handleEvent)
@@ -1840,7 +1894,7 @@ func getOvlPathInOvlInode(kernelVersion *kernel.Version) uint64 {
 		return 1
 	}
 
-	check, err := commonebpf.VerifyKernelFuncs(patchSentinel)
+	check, err := ddebpf.VerifyKernelFuncs(patchSentinel)
 	if err != nil {
 		return 0
 	}
@@ -1988,7 +2042,17 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 		case action.InternalCallback != nil && rule.ID == events.RefreshUserCacheRuleID:
 			_ = p.RefreshUserCache(ev.ContainerContext.ID)
 
+		case action.InternalCallback != nil && rule.ID == events.RefreshSBOMRuleID && p.Resolvers.SBOMResolver != nil && len(ev.ContainerContext.ID) > 0:
+			if err := p.Resolvers.SBOMResolver.RefreshSBOM(ev.ContainerContext.ID); err != nil {
+				seclog.Warnf("failed to refresh SBOM for container %s, triggered by %s: %s", ev.ContainerContext.ID, ev.ProcessContext.Comm, err)
+			}
+
 		case action.Kill != nil:
+			// do not handle kill action on event with error
+			if ev.Error != nil {
+				return
+			}
+
 			p.processKiller.KillAndReport(action.Kill.Scope, action.Kill.Signal, ev, func(pid uint32, sig uint32) error {
 				if p.supportsBPFSendSignal {
 					if err := p.killListMap.Put(uint32(pid), uint32(sig)); err != nil {
@@ -2005,6 +2069,9 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 
 				p.probe.DispatchCustomEvent(rule, event)
 			}
+		case action.Hash != nil:
+			// force the resolution as it will force the hash resolution as well
+			ev.ResolveFields()
 		}
 	}
 }

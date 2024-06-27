@@ -28,6 +28,7 @@ func (ev *Event) resolveFields(forADs bool) {
 	if !forADs {
 		_ = ev.FieldHandlers.ResolveContainerTags(ev, ev.BaseEvent.ContainerContext)
 	}
+	_ = ev.FieldHandlers.ResolveHostname(ev, &ev.BaseEvent)
 	_ = ev.FieldHandlers.ResolveService(ev, &ev.BaseEvent)
 	_ = ev.FieldHandlers.ResolveEventTimestamp(ev, &ev.BaseEvent)
 	_ = ev.FieldHandlers.ResolveProcessCmdLine(ev, &ev.BaseEvent.ProcessContext.Process)
@@ -60,6 +61,9 @@ func (ev *Event) resolveFields(forADs bool) {
 	_ = ev.FieldHandlers.ResolveUser(ev, &ev.BaseEvent.ProcessContext.Process)
 	// resolve event specific fields
 	switch ev.GetEventType().String() {
+	case "change_permission":
+		_ = ev.FieldHandlers.ResolveOldSecurityDescriptor(ev, &ev.ChangePermission)
+		_ = ev.FieldHandlers.ResolveNewSecurityDescriptor(ev, &ev.ChangePermission)
 	case "create":
 		_ = ev.FieldHandlers.ResolveFimFilePath(ev, &ev.CreateNewFile.File)
 		_ = ev.FieldHandlers.ResolveFileUserPath(ev, &ev.CreateNewFile.File)
@@ -113,6 +117,9 @@ type FieldHandlers interface {
 	ResolveFileUserPath(ev *Event, e *FimFileEvent) string
 	ResolveFimFileBasename(ev *Event, e *FimFileEvent) string
 	ResolveFimFilePath(ev *Event, e *FimFileEvent) string
+	ResolveHostname(ev *Event, e *BaseEvent) string
+	ResolveNewSecurityDescriptor(ev *Event, e *ChangePermissionEvent) string
+	ResolveOldSecurityDescriptor(ev *Event, e *ChangePermissionEvent) string
 	ResolveProcessCmdLine(ev *Event, e *Process) string
 	ResolveProcessCmdLineScrubbed(ev *Event, e *Process) string
 	ResolveProcessCreatedAt(ev *Event, e *Process) int
@@ -148,6 +155,13 @@ func (dfh *FakeFieldHandlers) ResolveFimFileBasename(ev *Event, e *FimFileEvent)
 }
 func (dfh *FakeFieldHandlers) ResolveFimFilePath(ev *Event, e *FimFileEvent) string {
 	return e.PathnameStr
+}
+func (dfh *FakeFieldHandlers) ResolveHostname(ev *Event, e *BaseEvent) string { return e.Hostname }
+func (dfh *FakeFieldHandlers) ResolveNewSecurityDescriptor(ev *Event, e *ChangePermissionEvent) string {
+	return e.NewSd
+}
+func (dfh *FakeFieldHandlers) ResolveOldSecurityDescriptor(ev *Event, e *ChangePermissionEvent) string {
+	return e.OldSd
 }
 func (dfh *FakeFieldHandlers) ResolveProcessCmdLine(ev *Event, e *Process) string { return e.CmdLine }
 func (dfh *FakeFieldHandlers) ResolveProcessCmdLineScrubbed(ev *Event, e *Process) string {

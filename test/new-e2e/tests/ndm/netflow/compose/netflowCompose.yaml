@@ -15,4 +15,4 @@ services:
     depends_on:
       agent:
         condition: service_healthy
-    image: ghcr.io/datadog/apps-netflow-generator:main
+    image: 669783387624.dkr.ecr.us-east-1.amazonaws.com/dockerhub/networkstatic/nflow-generator

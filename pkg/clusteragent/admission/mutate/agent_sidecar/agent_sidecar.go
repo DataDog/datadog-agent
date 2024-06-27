@@ -59,8 +59,8 @@ func NewWebhook() *Webhook {
 
 	return &Webhook{
 		name:              webhookName,
-		isEnabled:         config.Datadog.GetBool("admission_controller.agent_sidecar.enabled"),
-		endpoint:          config.Datadog.GetString("admission_controller.agent_sidecar.endpoint"),
+		isEnabled:         config.Datadog().GetBool("admission_controller.agent_sidecar.enabled"),
+		endpoint:          config.Datadog().GetString("admission_controller.agent_sidecar.endpoint"),
 		resources:         []string{"pods"},
 		operations:        []admiv1.OperationType{admiv1.Create},
 		namespaceSelector: nsSelector,
@@ -159,8 +159,8 @@ func getDefaultSidecarTemplate(containerRegistry string) *corev1.Container {
 		ddSite = config.DefaultSite
 	}
 
-	imageName := config.Datadog.GetString("admission_controller.agent_sidecar.image_name")
-	imageTag := config.Datadog.GetString("admission_controller.agent_sidecar.image_tag")
+	imageName := config.Datadog().GetString("admission_controller.agent_sidecar.image_name")
+	imageTag := config.Datadog().GetString("admission_controller.agent_sidecar.image_tag")
 
 	agentContainer := &corev1.Container{
 		Env: []corev1.EnvVar{
@@ -208,11 +208,11 @@ func getDefaultSidecarTemplate(containerRegistry string) *corev1.Container {
 		},
 	}
 
-	clusterAgentEnabled := config.Datadog.GetBool("admission_controller.agent_sidecar.cluster_agent.enabled")
+	clusterAgentEnabled := config.Datadog().GetBool("admission_controller.agent_sidecar.cluster_agent.enabled")
 
 	if clusterAgentEnabled {
-		clusterAgentCmdPort := config.Datadog.GetInt("cluster_agent.cmd_port")
-		clusterAgentServiceName := config.Datadog.GetString("cluster_agent.kubernetes_service_name")
+		clusterAgentCmdPort := config.Datadog().GetInt("cluster_agent.cmd_port")
+		clusterAgentServiceName := config.Datadog().GetString("cluster_agent.kubernetes_service_name")
 
 		_, _ = withEnvOverrides(agentContainer, corev1.EnvVar{
 			Name:  "DD_CLUSTER_AGENT_ENABLED",
@@ -242,7 +242,7 @@ func getDefaultSidecarTemplate(containerRegistry string) *corev1.Container {
 // labelSelectors returns the mutating webhooks object selectors based on the configuration
 func labelSelectors() (namespaceSelector, objectSelector *metav1.LabelSelector) {
 	// Read and parse selectors
-	selectorsJSON := config.Datadog.GetString("admission_controller.agent_sidecar.selectors")
+	selectorsJSON := config.Datadog().GetString("admission_controller.agent_sidecar.selectors")
 
 	// Get sidecar profiles
 	_, err := loadSidecarProfiles()
@@ -264,7 +264,7 @@ func labelSelectors() (namespaceSelector, objectSelector *metav1.LabelSelector) 
 		return nil, nil
 	}
 
-	provider := config.Datadog.GetString("admission_controller.agent_sidecar.provider")
+	provider := config.Datadog().GetString("admission_controller.agent_sidecar.provider")
 	if !providerIsSupported(provider) {
 		log.Errorf("agent sidecar provider is not supported: %v", provider)
 		return nil, nil

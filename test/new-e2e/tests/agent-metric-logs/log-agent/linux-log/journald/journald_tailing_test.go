@@ -8,8 +8,6 @@ package journaldlog
 import (
 	_ "embed"
 	"fmt"
-	"os"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -46,15 +44,11 @@ var randomLogger []byte
 
 // TestE2EVMFakeintakeSuite returns the stack definition required for the log agent test suite.
 func TestE2EVMFakeintakeSuite(t *testing.T) {
-	devModeEnv, _ := os.LookupEnv("E2E_DEVMODE")
 	options := []e2e.SuiteOption{
 		e2e.WithProvisioner(awshost.Provisioner(
 			awshost.WithAgentOptions(
 				agentparams.WithLogs(),
 				agentparams.WithIntegration("custom_logs.d", string(logBasicConfig))))),
-	}
-	if devMode, err := strconv.ParseBool(devModeEnv); err == nil && devMode {
-		options = append(options, e2e.WithDevMode())
 	}
 
 	e2e.Run(t, &LinuxJournaldFakeintakeSuite{}, options...)

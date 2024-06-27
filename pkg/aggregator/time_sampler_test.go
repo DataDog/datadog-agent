@@ -31,22 +31,21 @@ func generateSerieContextKey(serie *metrics.Serie) ckey.ContextKey {
 	return l.Generate(serie.Name, serie.Host, tagset.NewHashingTagsAccumulatorWithTags(tags))
 }
 
-func testTimeSampler() *TimeSampler {
-	sampler := NewTimeSampler(TimeSamplerID(0), 10, tags.NewStore(false, "test"), "host")
+func testTimeSampler(store *tags.Store) *TimeSampler {
+	sampler := NewTimeSampler(TimeSamplerID(0), 10, store, "host")
 	return sampler
 }
 
 // TimeSampler
 func TestCalculateBucketStart(t *testing.T) {
-	sampler := testTimeSampler()
+	sampler := testTimeSampler(tags.NewStore(true, "test"))
 
 	assert.Equal(t, int64(123450), sampler.calculateBucketStart(123456.5))
 	assert.Equal(t, int64(123460), sampler.calculateBucketStart(123460.5))
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
 func testBucketSampling(t *testing.T, store *tags.Store) {
-	sampler := testTimeSampler()
+	sampler := testTimeSampler(store)
 
 	mSample := metrics.MetricSample{
 		Name:       "my.metric.name",
@@ -79,9 +78,8 @@ func TestBucketSampling(t *testing.T) {
 	testWithTagsStore(t, testBucketSampling)
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
 func testContextSampling(t *testing.T, store *tags.Store) {
-	sampler := testTimeSampler()
+	sampler := testTimeSampler(store)
 
 	mSample1 := metrics.MetricSample{
 		Name:       "my.metric.name1",
@@ -147,9 +145,8 @@ func TestContextSampling(t *testing.T) {
 	testWithTagsStore(t, testContextSampling)
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
 func testCounterExpirySeconds(t *testing.T, store *tags.Store) {
-	sampler := testTimeSampler()
+	sampler := testTimeSampler(store)
 
 	math.Abs(1)
 	sampleCounter1 := &metrics.MetricSample{
@@ -284,14 +281,13 @@ func TestCounterExpirySeconds(t *testing.T) {
 	testWithTagsStore(t, testCounterExpirySeconds)
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
 func testSketch(t *testing.T, store *tags.Store) {
 	const (
 		defaultBucketSize = 10
 	)
 
 	var (
-		sampler = testTimeSampler()
+		sampler = testTimeSampler(store)
 
 		insert = func(t *testing.T, ts float64, name string, tags []string, host string, values ...float64) {
 			t.Helper()
@@ -358,9 +354,8 @@ func TestSketch(t *testing.T) {
 	testWithTagsStore(t, testSketch)
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
 func testSketchBucketSampling(t *testing.T, store *tags.Store) {
-	sampler := testTimeSampler()
+	sampler := testTimeSampler(store)
 
 	mSample1 := metrics.MetricSample{
 		Name:       "test.metric.name",
@@ -405,9 +400,8 @@ func TestSketchBucketSampling(t *testing.T) {
 	testWithTagsStore(t, testSketchBucketSampling)
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
 func testSketchContextSampling(t *testing.T, store *tags.Store) {
-	sampler := testTimeSampler()
+	sampler := testTimeSampler(store)
 
 	mSample1 := metrics.MetricSample{
 		Name:       "test.metric.name1",
@@ -459,9 +453,8 @@ func TestSketchContextSampling(t *testing.T) {
 	testWithTagsStore(t, testSketchContextSampling)
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
 func testBucketSamplingWithSketchAndSeries(t *testing.T, store *tags.Store) {
-	sampler := testTimeSampler()
+	sampler := testTimeSampler(store)
 
 	dSample1 := metrics.MetricSample{
 		Name:       "distribution.metric.name1",
@@ -519,8 +512,8 @@ func TestBucketSamplingWithSketchAndSeries(t *testing.T) {
 	testWithTagsStore(t, testBucketSamplingWithSketchAndSeries)
 }
 
-func TestFlushMissingContext(t *testing.T) {
-	sampler := testTimeSampler()
+func testFlushMissingContext(t *testing.T, store *tags.Store) {
+	sampler := testTimeSampler(store)
 	sampler.sample(&metrics.MetricSample{
 		Name:       "test.gauge",
 		Value:      1,
@@ -543,6 +536,9 @@ func TestFlushMissingContext(t *testing.T) {
 
 	assert.Len(t, metrics, 0)
 	assert.Len(t, sketches, 0)
+}
+func TestFlushMissingContext(t *testing.T) {
+	testWithTagsStore(t, testFlushMissingContext)
 }
 
 func benchmarkTimeSampler(b *testing.B, store *tags.Store) {

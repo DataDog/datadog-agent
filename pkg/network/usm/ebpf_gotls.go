@@ -26,7 +26,7 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
@@ -447,7 +447,7 @@ func attachHooks(mgr *manager.Manager, result *bininspect.Result, binPath string
 					return nil, fmt.Errorf("could not add return hook to function %q in offset %d due to: %w", function, offset, err)
 				}
 				probeIDs = append(probeIDs, returnProbeID)
-				ebpfcheck.AddProgramNameMapping(newProbe.ID(), newProbe.EBPFFuncName, "usm_gotls")
+				ddebpf.AddProgramNameMapping(newProbe.ID(), newProbe.EBPFFuncName, "usm_gotls")
 			}
 		}
 
@@ -466,7 +466,7 @@ func attachHooks(mgr *manager.Manager, result *bininspect.Result, binPath string
 				return nil, fmt.Errorf("could not add hook for %q in offset %d due to: %w", uprobes.functionInfo, result.Functions[function].EntryLocation, err)
 			}
 			probeIDs = append(probeIDs, probeID)
-			ebpfcheck.AddProgramNameMapping(newProbe.ID(), newProbe.EBPFFuncName, "usm_gotls")
+			ddebpf.AddProgramNameMapping(newProbe.ID(), newProbe.EBPFFuncName, "usm_gotls")
 		}
 	}
 

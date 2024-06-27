@@ -17,6 +17,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-operator/apis/datadoghq/v1alpha1"
 )
 
 type autoscalingSettingsProcessor struct {
@@ -66,12 +68,17 @@ func (p autoscalingSettingsProcessor) process(receivedTimestamp time.Time, confi
 func (p autoscalingSettingsProcessor) postProcess(errors []error) {
 	// We don't want to delete configs if we received incorrect data
 	if len(errors) > 0 {
+		log.Debugf("Skipping autoscaling settings clean up due to errors while processing new data: %v", errors)
 		return
 	}
 
 	// We first get all PodAutoscalers that were not part of the last update
 	var toDelete []string
 	_ = p.store.GetFiltered(func(pai model.PodAutoscalerInternal) bool {
+		if pai.Spec == nil || pai.Spec.Owner != v1alpha1.DatadogPodAutoscalerRemoteOwner {
+			return false
+		}
+
 		_, found := p.processed[pai.ID()]
 		if !found {
 			toDelete = append(toDelete, pai.ID())
@@ -85,6 +92,7 @@ func (p autoscalingSettingsProcessor) postProcess(errors []error) {
 		pai, found := p.store.LockRead(id, false)
 		if found {
 			pai.Deleted = true
+			log.Infof("PodAutoscaler %s was not part of the last update, flagging it as deleted", id)
 			p.store.UnlockSet(id, pai, configRetrieverStoreID)
 		}
 	}

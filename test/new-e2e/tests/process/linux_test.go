@@ -6,8 +6,6 @@
 package process
 
 import (
-	"os"
-	"strconv"
 	"testing"
 	"time"
 
@@ -34,11 +32,6 @@ func TestLinuxTestSuite(t *testing.T) {
 		e2e.WithProvisioner(awshost.Provisioner(awshost.WithAgentOptions(agentParams...))),
 	}
 
-	devModeEnv, _ := os.LookupEnv("E2E_DEVMODE")
-	if devMode, err := strconv.ParseBool(devModeEnv); err == nil && devMode {
-		options = append(options, e2e.WithDevMode())
-	}
-
 	e2e.Run(t, &linuxTestSuite{}, options...)
 }
 
@@ -54,7 +47,7 @@ func (s *linuxTestSuite) TestProcessCheck() {
 	t := s.T()
 
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
-		assertRunningChecks(collect, s.Env().RemoteHost, []string{"process", "rtprocess"}, false, "sudo datadog-agent status --json")
+		assertRunningChecks(collect, s.Env().Agent.Client, []string{"process", "rtprocess"}, false)
 	}, 2*time.Minute, 5*time.Second)
 
 	var payloads []*aggregator.ProcessPayload
@@ -75,7 +68,7 @@ func (s *linuxTestSuite) TestProcessDiscoveryCheck() {
 	s.UpdateEnv(awshost.Provisioner(awshost.WithAgentOptions(agentparams.WithAgentConfig(processDiscoveryCheckConfigStr))))
 
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
-		assertRunningChecks(collect, s.Env().RemoteHost, []string{"process_discovery"}, false, "sudo datadog-agent status --json")
+		assertRunningChecks(collect, s.Env().Agent.Client, []string{"process_discovery"}, false)
 	}, 1*time.Minute, 5*time.Second)
 
 	var payloads []*aggregator.ProcessDiscoveryPayload
@@ -97,7 +90,7 @@ func (s *linuxTestSuite) TestProcessCheckWithIO() {
 	s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
-		assertRunningChecks(collect, s.Env().RemoteHost, []string{"process", "rtprocess"}, true, "sudo datadog-agent status --json")
+		assertRunningChecks(collect, s.Env().Agent.Client, []string{"process", "rtprocess"}, true)
 	}, 1*time.Minute, 5*time.Second)
 
 	var payloads []*aggregator.ProcessPayload
@@ -118,7 +111,7 @@ func (s *linuxTestSuite) TestProcessChecksInCoreAgent() {
 	s.UpdateEnv(awshost.Provisioner(awshost.WithAgentOptions(agentparams.WithAgentConfig(processCheckInCoreAgentConfigStr))))
 
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
-		assertRunningChecks(collect, s.Env().RemoteHost, []string{}, false, "sudo datadog-agent status --json")
+		assertRunningChecks(collect, s.Env().Agent.Client, []string{}, false)
 	}, 1*time.Minute, 5*time.Second)
 
 	// Verify that the process agent is not running
@@ -151,7 +144,7 @@ func (s *linuxTestSuite) TestProcessChecksInCoreAgentWithNPM() {
 	s.UpdateEnv(awshost.Provisioner(awshost.WithAgentOptions(agentparams.WithAgentConfig(processCheckInCoreAgentConfigStr), agentparams.WithSystemProbeConfig(systemProbeNPMConfigStr))))
 
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
-		assertRunningChecks(collect, s.Env().RemoteHost, []string{"connections"}, false, "sudo datadog-agent status --json")
+		assertRunningChecks(collect, s.Env().Agent.Client, []string{"connections"}, false)
 	}, 1*time.Minute, 5*time.Second)
 
 	// Flush fake intake to remove any payloads which may have
@@ -175,7 +168,7 @@ func (s *linuxTestSuite) TestProcessChecksWithNPM() {
 	s.UpdateEnv(awshost.Provisioner(awshost.WithAgentOptions(agentparams.WithAgentConfig(processCheckConfigStr), agentparams.WithSystemProbeConfig(systemProbeNPMConfigStr))))
 
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
-		assertRunningChecks(collect, s.Env().RemoteHost, []string{"process", "rtprocess", "connections"}, false, "sudo datadog-agent status --json")
+		assertRunningChecks(collect, s.Env().Agent.Client, []string{"process", "rtprocess", "connections"}, false)
 	}, 1*time.Minute, 5*time.Second)
 
 	// Flush fake intake to remove any payloads which may have
@@ -207,7 +200,9 @@ func (s *linuxTestSuite) TestManualProcessDiscoveryCheck() {
 }
 
 func (s *linuxTestSuite) TestManualProcessCheckWithIO() {
-	s.UpdateEnv(awshost.Provisioner(awshost.WithAgentOptions(agentparams.WithAgentConfig(processCheckConfigStr), agentparams.WithSystemProbeConfig(systemProbeConfigStr))))
+	s.UpdateEnv(awshost.Provisioner(awshost.WithAgentOptions(
+		agentparams.WithAgentConfig(processCheckConfigStr),
+		agentparams.WithSystemProbeConfig(systemProbeConfigStr))))
 
 	check := s.Env().RemoteHost.MustExecute("sudo /opt/datadog-agent/embedded/bin/process-agent check process --json")
 

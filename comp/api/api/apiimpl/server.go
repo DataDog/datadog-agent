@@ -14,16 +14,14 @@ import (
 
 	"github.com/cihub/seelog"
 
-	"github.com/DataDog/datadog-agent/comp/api/api"
+	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
-	"github.com/DataDog/datadog-agent/comp/core/gui"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
+	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
@@ -69,10 +67,8 @@ func StartServers(
 	logsAgent optional.Option[logsAgent.Component],
 	senderManager sender.DiagnoseSenderManager,
 	secretResolver secrets.Component,
-	statusComponent status.Component,
 	collector optional.Option[collector.Component],
 	ac autodiscovery.Component,
-	gui optional.Option[gui.Component],
 	providers []api.EndpointProvider,
 ) error {
 	apiAddr, err := getIPCAddressPort()
@@ -113,10 +109,8 @@ func StartServers(
 		logsAgent,
 		senderManager,
 		secretResolver,
-		statusComponent,
 		collector,
 		ac,
-		gui,
 		providers,
 	); err != nil {
 		return fmt.Errorf("unable to start CMD API server: %v", err)

@@ -19,6 +19,13 @@ import (
 
 {{range $Name, $Field := .Fields}}
 
+{{if $Field.Ref}}
+{{$Ref := index $.Fields $Field.Ref}}
+    {{if $Ref}}
+        {{$Field = $Ref}}
+    {{end}}
+{{end}}
+
 {{ $pascalCaseName := PascalCaseFieldName $Name }}
 
 {{$accessorReturnType := $Field.OrigType}}

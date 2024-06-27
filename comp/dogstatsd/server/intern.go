@@ -74,7 +74,7 @@ func newStringInterner(maxSize int, internerID int) *stringInterner {
 		id:      fmt.Sprintf("interner_%d", internerID),
 		maxSize: maxSize,
 		telemetry: siTelemetry{
-			enabled: utils.IsTelemetryEnabled(config.Datadog),
+			enabled: utils.IsTelemetryEnabled(config.Datadog()),
 		},
 	}
 

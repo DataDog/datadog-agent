@@ -4,6 +4,7 @@ It logs the invoke task information to the DD_INVOKE_LOGS_PATH.
 This will then be uploaded to Datadog's backend with a correct Log Agent configuration.
 """
 
+import json
 import logging
 import os
 import sys
@@ -15,7 +16,7 @@ from time import perf_counter
 from invoke import Context
 
 from tasks.libs.common.color import color_message
-from tasks.libs.common.utils import running_in_ci
+from tasks.libs.common.utils import running_in_ci, running_in_pre_commit, running_in_pyapp
 
 DD_INVOKE_LOGS_FILE = "dd_invoke.log"
 WIN_TEMP_FOLDER = "C:\\Windows\\Temp"
@@ -44,9 +45,10 @@ def get_running_modes() -> list[str]:
     # When running the unit tests with the invoke command, the INVOKE_UNIT_TESTS env variable is set.
     is_running_ut = "unittest" in " ".join(sys.argv)
     running_modes = {
-        "pre_commit": os.environ.get("PRE_COMMIT", 0) == "1",
+        "pre_commit": running_in_pre_commit(),
         "invoke_unit_tests": is_running_ut or os.environ.get("INVOKE_UNIT_TESTS", 0) == "1",
         "ci": running_in_ci(),
+        "pyapp": running_in_pyapp(),
     }
     running_modes["manual"] = not (running_modes["pre_commit"] or running_modes["ci"])
     return [mode for mode, is_running in running_modes.items() if is_running]
@@ -77,8 +79,9 @@ def log_invoke_task(
         "duration": duration,
         "user": user,
         "result": task_result,
+        "python_version": f"{sys.version_info[0]}.{sys.version_info[1]}.{sys.version_info[2]}",
     }
-    logging.info(task_info)
+    logging.info(json.dumps(task_info, sort_keys=True))
 
 
 class InvokeLogger:

@@ -507,8 +507,8 @@ func TestGenerateCPUEnhancedMetrics(t *testing.T) {
 }
 
 func TestGenerateCPUEnhancedMetricsDisabled(t *testing.T) {
-	os.Setenv("DD_SYSTEM_METRICS", "false")
-	defer os.Setenv("DD_SYSTEM_METRICS", "true")
+	os.Setenv("DD_ENHANCED_METRICS", "false")
+	defer os.Setenv("DD_ENHANCED_METRICS", "true")
 
 	demux := createDemultiplexer(t)
 	tags := []string{"functionname:test-function"}

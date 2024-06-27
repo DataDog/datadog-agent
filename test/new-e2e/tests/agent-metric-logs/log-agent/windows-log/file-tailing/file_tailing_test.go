@@ -8,8 +8,6 @@ package windowsfiletailing
 import (
 	_ "embed"
 	"fmt"
-	"os"
-	"strconv"
 	"testing"
 	"time"
 
@@ -41,7 +39,6 @@ const (
 // TestE2EVMFakeintakeSuite runs the E2E test suite for the log agent with a VM and fake intake.
 func TestE2EVMFakeintakeSuite(t *testing.T) {
 	s := &WindowsFakeintakeSuite{}
-	devModeEnv, _ := os.LookupEnv("E2E_DEVMODE")
 	options := []e2e.SuiteOption{
 		e2e.WithProvisioner(awshost.Provisioner(
 			awshost.WithEC2InstanceOptions(ec2.WithOS(testos.WindowsDefault)),
@@ -50,9 +47,6 @@ func TestE2EVMFakeintakeSuite(t *testing.T) {
 				agentparams.WithIntegration("custom_logs.d", logConfig)))),
 	}
 
-	if devMode, err := strconv.ParseBool(devModeEnv); err == nil && devMode {
-		options = append(options, e2e.WithDevMode())
-	}
 	e2e.Run(t, s, options...)
 }
 

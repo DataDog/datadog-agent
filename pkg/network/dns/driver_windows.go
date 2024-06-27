@@ -18,9 +18,11 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/DataDog/datadog-agent/pkg/network/driver"
 	"github.com/pkg/errors"
 	"golang.org/x/sys/windows"
+
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/network/driver"
 )
 
 const (
@@ -43,18 +45,18 @@ type dnsDriver struct {
 	iocp        windows.Handle
 }
 
-func newDriver() (*dnsDriver, error) {
+func newDriver(telemetrycomp telemetry.Component) (*dnsDriver, error) {
 	d := &dnsDriver{}
-	err := d.setupDNSHandle()
+	err := d.setupDNSHandle(telemetrycomp)
 	if err != nil {
 		return nil, err
 	}
 	return d, nil
 }
 
-func (d *dnsDriver) setupDNSHandle() error {
+func (d *dnsDriver) setupDNSHandle(telemetrycomp telemetry.Component) error {
 	var err error
-	d.h, err = driver.NewHandle(windows.FILE_FLAG_OVERLAPPED, driver.DataHandle)
+	d.h, err = driver.NewHandle(windows.FILE_FLAG_OVERLAPPED, driver.DataHandle, telemetrycomp)
 	if err != nil {
 		return err
 	}

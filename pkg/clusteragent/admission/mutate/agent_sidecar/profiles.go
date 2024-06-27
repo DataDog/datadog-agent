@@ -34,7 +34,7 @@ type ProfileOverride struct {
 // one profile is configured
 func loadSidecarProfiles() ([]ProfileOverride, error) {
 	// Read and parse profiles
-	profilesJSON := config.Datadog.GetString("admission_controller.agent_sidecar.profiles")
+	profilesJSON := config.Datadog().GetString("admission_controller.agent_sidecar.profiles")
 
 	var profiles []ProfileOverride
 

@@ -136,8 +136,11 @@ func (is *installScriptSuite) AgentTest(flavor string) {
 	common.CheckAgentPython(is.T(), client, common.ExpectedPythonVersion3)
 	common.CheckApmEnabled(is.T(), client)
 	common.CheckApmDisabled(is.T(), client)
-	if flavor == "datadog-agent" && is.cwsSupported {
-		common.CheckCWSBehaviour(is.T(), client)
+	if flavor == "datadog-agent" {
+		common.CheckSystemProbeBehavior(is.T(), client)
+		if is.cwsSupported {
+			common.CheckCWSBehaviour(is.T(), client)
+		}
 	}
 	common.CheckInstallationInstallScript(is.T(), client)
 	is.testUninstall(client, flavor)

@@ -13,7 +13,14 @@ exporters:
   datadog/exp1:
     api:
       key: DATADOG_API_KEY
-      site: datadoghq.com
+      site: datadoghq.eu
+    traces:
+      span_name_as_resource_name: false
+      span_name_remappings:
+        io.opentelemetry.javaagent.spring.client: spring.client
+      ignore_resources: ["(GET|POST) /healthcheck"]
+      compute_top_level_by_span_kind: false
+      trace_buffer: 10      
 processors:
   batch:
     timeout: 10s

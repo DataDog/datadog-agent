@@ -111,6 +111,15 @@ func (rh readyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	healthHandler(rh.logsGoroutines, rh.log, health.GetReadyNonBlocking, w, r)
 }
 
+type startupHandler struct {
+	logsGoroutines bool
+	log            log.Component
+}
+
+func (sh startupHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	healthHandler(sh.logsGoroutines, sh.log, health.GetStartupNonBlocking, w, r)
+}
+
 func buildServer(options healthprobeComponent.Options, log log.Component) *http.Server {
 	r := mux.NewRouter()
 
@@ -124,8 +133,14 @@ func buildServer(options healthprobeComponent.Options, log log.Component) *http.
 		log:            log,
 	}
 
+	startupHandler := startupHandler{
+		logsGoroutines: options.LogsGoroutines,
+		log:            log,
+	}
+
 	r.Handle("/live", liveHandler)
 	r.Handle("/ready", readyHandler)
+	r.Handle("/startup", startupHandler)
 	// Default route for backward compatibility
 	r.NewRoute().Handler(liveHandler)
 

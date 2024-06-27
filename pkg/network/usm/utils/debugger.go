@@ -216,3 +216,11 @@ func init() {
 		attachers: make(map[string]Attacher),
 	}
 }
+
+// GetTracedProgramList returns a list of traced programs.
+func GetTracedProgramList() []TracedProgram {
+	if debugger == nil {
+		return nil
+	}
+	return debugger.GetTracedPrograms()
+}

@@ -32,8 +32,10 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
@@ -94,7 +96,7 @@ func MakeCommand(defaultLogFile string) *cobra.Command {
 
 	var socketPath string
 	startCmd.Flags().StringVarP(&socketPath, "socket", "s", "", "listen to this socket instead of UDP")
-	pkgconfig.Datadog.BindPFlag("dogstatsd_socket", startCmd.Flags().Lookup("socket")) //nolint:errcheck
+	pkgconfig.Datadog().BindPFlag("dogstatsd_socket", startCmd.Flags().Lookup("socket")) //nolint:errcheck
 
 	return startCmd
 }
@@ -120,6 +122,7 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 			return optional.NewOption[secrets.Component](comp)
 		}),
 		fx.Supply(secrets.NewEnabledParams()),
+		telemetryimpl.Module(),
 		fx.Supply(logComponent.ForDaemon(string(loggerName), "log_file", params.DefaultLogFile)),
 		config.Module(),
 		logComponent.Module(),
@@ -141,7 +144,7 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 				NoInstance: !instantiate,
 			}
 		}),
-		workloadmeta.Module(),
+		workloadmetafx.Module(),
 		compressionimpl.Module(),
 		demultiplexerimpl.Module(),
 		secretsimpl.Module(),

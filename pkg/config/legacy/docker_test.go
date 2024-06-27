@@ -97,15 +97,15 @@ func TestConvertDocker(t *testing.T) {
 
 	assert.Equal(t, dockerNewConf, string(newConf))
 
-	assert.Equal(t, true, config.Datadog.GetBool("exclude_pause_container"))
+	assert.Equal(t, true, config.Datadog().GetBool("exclude_pause_container"))
 	assert.Equal(t, []string{"name:test", "name:some_image.*", "image:some_image_2", "image:some_image_3"},
-		config.Datadog.GetStringSlice("ac_exclude"))
-	assert.Equal(t, []string{"image:some_image_3"}, config.Datadog.GetStringSlice("ac_include"))
+		config.Datadog().GetStringSlice("ac_exclude"))
+	assert.Equal(t, []string{"image:some_image_3"}, config.Datadog().GetStringSlice("ac_include"))
 
-	assert.Equal(t, "/host/test/proc", config.Datadog.GetString("container_proc_root"))
-	assert.Equal(t, "/host/test/sys/fs/cgroup", config.Datadog.GetString("container_cgroup_root"))
+	assert.Equal(t, "/host/test/proc", config.Datadog().GetString("container_proc_root"))
+	assert.Equal(t, "/host/test/sys/fs/cgroup", config.Datadog().GetString("container_cgroup_root"))
 	assert.Equal(t, map[string]string{"test1": "test1", "test2": "test2"},
-		config.Datadog.GetStringMapString("docker_labels_as_tags"))
+		config.Datadog().GetStringMapString("docker_labels_as_tags"))
 
 	// test overwrite
 	err = ImportDockerConf(src, dst, false, configConverter)

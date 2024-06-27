@@ -9,6 +9,7 @@
 package service
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -28,8 +29,8 @@ func TestSetSocketEnvs(t *testing.T) {
 			name:  "file doesn't exist",
 			input: "",
 			expected: map[string]string{
-				"DD_APM_RECEIVER_SOCKET": "/var/run/datadog/installer/apm.socket",
-				"DD_DOGSTATSD_SOCKET":    "/var/run/datadog/installer/dsd.socket",
+				"DD_APM_RECEIVER_SOCKET": "/var/run/datadog-installer/apm.socket",
+				"DD_DOGSTATSD_SOCKET":    "/var/run/datadog-installer/dsd.socket",
 				"DD_USE_DOGSTATSD":       "true",
 			},
 		},
@@ -37,8 +38,8 @@ func TestSetSocketEnvs(t *testing.T) {
 			name:  "keep other envs - missing newline",
 			input: "banana=true",
 			expected: map[string]string{
-				"DD_APM_RECEIVER_SOCKET": "/var/run/datadog/installer/apm.socket",
-				"DD_DOGSTATSD_SOCKET":    "/var/run/datadog/installer/dsd.socket",
+				"DD_APM_RECEIVER_SOCKET": "/var/run/datadog-installer/apm.socket",
+				"DD_DOGSTATSD_SOCKET":    "/var/run/datadog-installer/dsd.socket",
 				"DD_USE_DOGSTATSD":       "true",
 				"banana":                 "true",
 			},
@@ -47,8 +48,8 @@ func TestSetSocketEnvs(t *testing.T) {
 			name:  "keep envs - with newline",
 			input: "apple=false\nat=home\n",
 			expected: map[string]string{
-				"DD_APM_RECEIVER_SOCKET": "/var/run/datadog/installer/apm.socket",
-				"DD_DOGSTATSD_SOCKET":    "/var/run/datadog/installer/dsd.socket",
+				"DD_APM_RECEIVER_SOCKET": "/var/run/datadog-installer/apm.socket",
+				"DD_DOGSTATSD_SOCKET":    "/var/run/datadog-installer/dsd.socket",
 				"DD_USE_DOGSTATSD":       "true",
 				"apple":                  "false",
 				"at":                     "home",
@@ -59,14 +60,14 @@ func TestSetSocketEnvs(t *testing.T) {
 			input: "DD_APM_RECEIVER_SOCKET=/tmp/apm.socket",
 			expected: map[string]string{
 				"DD_APM_RECEIVER_SOCKET": "/tmp/apm.socket",
-				"DD_DOGSTATSD_SOCKET":    "/var/run/datadog/installer/dsd.socket",
+				"DD_DOGSTATSD_SOCKET":    "/var/run/datadog-installer/dsd.socket",
 				"DD_USE_DOGSTATSD":       "true",
 			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			res, err := setSocketEnvs([]byte(tt.input))
+			res, err := setSocketEnvs(context.TODO(), []byte(tt.input))
 			assert.NoError(t, err)
 			envVarsCount := 0
 			for _, line := range strings.Split(string(res), "\n") {

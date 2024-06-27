@@ -61,7 +61,7 @@ func createSecurityAgentArchive(fb flaretypes.FlareBuilder, logFilePath string, 
 }
 
 func getComplianceFiles(fb flaretypes.FlareBuilder) error {
-	compDir := config.Datadog.GetString("compliance_config.dir")
+	compDir := config.Datadog().GetString("compliance_config.dir")
 
 	return fb.CopyDirTo(compDir, "compliance.d", func(path string) bool {
 		f, err := os.Lstat(path)

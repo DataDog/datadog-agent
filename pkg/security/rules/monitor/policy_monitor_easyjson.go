@@ -512,6 +512,16 @@ func easyjson6151911dDecodeGithubComDataDogDatadogAgentPkgSecurityRulesMonitor4(
 				}
 				(*out.Kill).UnmarshalEasyJSON(in)
 			}
+		case "hash":
+			if in.IsNull() {
+				in.Skip()
+				out.Hash = nil
+			} else {
+				if out.Hash == nil {
+					out.Hash = new(HashAction)
+				}
+				(*out.Hash).UnmarshalEasyJSON(in)
+			}
 		default:
 			in.SkipRecursive()
 		}
@@ -551,6 +561,16 @@ func easyjson6151911dEncodeGithubComDataDogDatadogAgentPkgSecurityRulesMonitor4(
 			out.RawString(prefix)
 		}
 		(*in.Kill).MarshalEasyJSON(out)
+	}
+	if in.Hash != nil {
+		const prefix string = ",\"hash\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		(*in.Hash).MarshalEasyJSON(out)
 	}
 	out.RawByte('}')
 }
@@ -760,4 +780,57 @@ func (v HeartbeatEvent) MarshalEasyJSON(w *jwriter.Writer) {
 // UnmarshalEasyJSON supports easyjson.Unmarshaler interface
 func (v *HeartbeatEvent) UnmarshalEasyJSON(l *jlexer.Lexer) {
 	easyjson6151911dDecodeGithubComDataDogDatadogAgentPkgSecurityRulesMonitor6(l, v)
+}
+func easyjson6151911dDecodeGithubComDataDogDatadogAgentPkgSecurityRulesMonitor7(in *jlexer.Lexer, out *HashAction) {
+	isTopLevel := in.IsStart()
+	if in.IsNull() {
+		if isTopLevel {
+			in.Consumed()
+		}
+		in.Skip()
+		return
+	}
+	in.Delim('{')
+	for !in.IsDelim('}') {
+		key := in.UnsafeFieldName(false)
+		in.WantColon()
+		if in.IsNull() {
+			in.Skip()
+			in.WantComma()
+			continue
+		}
+		switch key {
+		case "enabled":
+			out.Enabled = bool(in.Bool())
+		default:
+			in.SkipRecursive()
+		}
+		in.WantComma()
+	}
+	in.Delim('}')
+	if isTopLevel {
+		in.Consumed()
+	}
+}
+func easyjson6151911dEncodeGithubComDataDogDatadogAgentPkgSecurityRulesMonitor7(out *jwriter.Writer, in HashAction) {
+	out.RawByte('{')
+	first := true
+	_ = first
+	if in.Enabled {
+		const prefix string = ",\"enabled\":"
+		first = false
+		out.RawString(prefix[1:])
+		out.Bool(bool(in.Enabled))
+	}
+	out.RawByte('}')
+}
+
+// MarshalEasyJSON supports easyjson.Marshaler interface
+func (v HashAction) MarshalEasyJSON(w *jwriter.Writer) {
+	easyjson6151911dEncodeGithubComDataDogDatadogAgentPkgSecurityRulesMonitor7(w, v)
+}
+
+// UnmarshalEasyJSON supports easyjson.Unmarshaler interface
+func (v *HashAction) UnmarshalEasyJSON(l *jlexer.Lexer) {
+	easyjson6151911dDecodeGithubComDataDogDatadogAgentPkgSecurityRulesMonitor7(l, v)
 }

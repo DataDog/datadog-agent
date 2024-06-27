@@ -25,11 +25,13 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/listeners"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap/pidmapimpl"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
+	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
+	replaymock "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/fx-mock"
 	serverdebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/serverdebugimpl"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
@@ -65,11 +67,11 @@ func fulfillDepsWithConfigOverrideAndFeatures(t testing.TB, overrides map[string
 			Features:  features,
 		}),
 		fx.Supply(Params{Serverless: false}),
-		replay.MockModule(),
+		replaymock.MockModule(),
 		compressionimpl.MockModule(),
 		pidmapimpl.Module(),
 		demultiplexerimpl.FakeSamplerMockModule(),
-		workloadmeta.MockModule(),
+		workloadmetafxmock.MockModule(),
 		fx.Supply(workloadmeta.NewParams()),
 		Module(),
 	))
@@ -87,11 +89,11 @@ func fulfillDepsWithConfigYaml(t testing.TB, yaml string) serverDeps {
 			Params: configComponent.Params{ConfFilePath: yaml},
 		}),
 		fx.Supply(Params{Serverless: false}),
-		replay.MockModule(),
+		replaymock.MockModule(),
 		compressionimpl.MockModule(),
 		pidmapimpl.Module(),
 		demultiplexerimpl.FakeSamplerMockModule(),
-		workloadmeta.MockModule(),
+		workloadmetafxmock.MockModule(),
 		fx.Supply(workloadmeta.NewParams()),
 		Module(),
 	))

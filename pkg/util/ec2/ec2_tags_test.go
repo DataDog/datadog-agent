@@ -37,7 +37,7 @@ func TestGetIAMRole(t *testing.T) {
 	}))
 	defer ts.Close()
 	metadataURL = ts.URL
-	config.Datadog.SetWithoutSource("ec2_metadata_timeout", 1000)
+	config.Datadog().SetWithoutSource("ec2_metadata_timeout", 1000)
 	defer resetPackageVars()
 
 	val, err := getIAMRole(ctx)
@@ -62,7 +62,7 @@ func TestGetSecurityCreds(t *testing.T) {
 	}))
 	defer ts.Close()
 	metadataURL = ts.URL
-	config.Datadog.SetWithoutSource("ec2_metadata_timeout", 1000)
+	config.Datadog().SetWithoutSource("ec2_metadata_timeout", 1000)
 	defer resetPackageVars()
 
 	cred, err := getSecurityCreds(ctx)
@@ -82,7 +82,7 @@ func TestGetInstanceIdentity(t *testing.T) {
 	}))
 	defer ts.Close()
 	instanceIdentityURL = ts.URL
-	config.Datadog.SetWithoutSource("ec2_metadata_timeout", 1000)
+	config.Datadog().SetWithoutSource("ec2_metadata_timeout", 1000)
 	defer resetPackageVars()
 
 	val, err := GetInstanceIdentity(ctx)
@@ -111,7 +111,7 @@ func TestFetchEc2TagsFromIMDS(t *testing.T) {
 	}))
 	defer ts.Close()
 	metadataURL = ts.URL
-	config.Datadog.SetWithoutSource("ec2_metadata_timeout", 1000)
+	config.Datadog().SetWithoutSource("ec2_metadata_timeout", 1000)
 	defer resetPackageVars()
 
 	confMock := config.Mock(t)
@@ -132,7 +132,7 @@ func TestFetchEc2TagsFromIMDSError(t *testing.T) {
 	}))
 	defer ts.Close()
 	metadataURL = ts.URL
-	config.Datadog.SetWithoutSource("ec2_metadata_timeout", 1000)
+	config.Datadog().SetWithoutSource("ec2_metadata_timeout", 1000)
 	defer resetPackageVars()
 
 	_, err := fetchEc2TagsFromIMDS(ctx)

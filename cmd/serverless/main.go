@@ -8,13 +8,16 @@ package main
 
 import (
 	"context"
-	"github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"os"
 	"os/signal"
 	"strconv"
 	"sync"
 	"syscall"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/trace/agent"
+
+	"github.com/DataDog/datadog-agent/pkg/trace/agent"
 
 	logConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -140,7 +143,7 @@ func runAgent() {
 
 	setupProxy(appsecProxyProcessor, ta, serverlessDaemon)
 
-	serverlessDaemon.ComputeGlobalTags(configUtils.GetConfiguredTags(config.Datadog, true))
+	serverlessDaemon.ComputeGlobalTags(configUtils.GetConfiguredTags(config.Datadog(), true))
 
 	stopCh := startInvocationLoop(serverlessDaemon, serverlessID)
 
@@ -206,7 +209,7 @@ func startMetricAgent(serverlessDaemon *daemon.Daemon, logChannel chan *logConfi
 	}
 	metricAgent.Start(daemon.FlushTimeout, &metrics.MetricConfig{}, &metrics.MetricDogStatsD{})
 	serverlessDaemon.SetStatsdServer(metricAgent)
-	serverlessDaemon.SetupLogCollectionHandler(logsAPICollectionRoute, logChannel, config.Datadog.GetBool("serverless.logs_enabled"), config.Datadog.GetBool("enhanced_metrics"), lambdaInitMetricChan)
+	serverlessDaemon.SetupLogCollectionHandler(logsAPICollectionRoute, logChannel, config.Datadog().GetBool("serverless.logs_enabled"), config.Datadog().GetBool("enhanced_metrics"), lambdaInitMetricChan)
 	return metricAgent
 }
 
@@ -252,7 +255,7 @@ func startCommunicationServer(startTime time.Time) *daemon.Daemon {
 
 func setupLambdaAgentOverrides() {
 	flavor.SetFlavor(flavor.ServerlessAgent)
-	config.Datadog.Set("use_v2_api.series", false, model.SourceAgentRuntime)
+	config.Datadog().Set("use_v2_api.series", false, model.SourceAgentRuntime)
 
 	// Disable remote configuration for now as it just spams the debug logs
 	// and provides no value.
@@ -329,7 +332,7 @@ func startOtlpAgent(wg *sync.WaitGroup, metricAgent *metrics.ServerlessMetricAge
 func startTraceAgent(wg *sync.WaitGroup, lambdaSpanChan chan *pb.Span, coldStartSpanId uint64, serverlessDaemon *daemon.Daemon) {
 	defer wg.Done()
 	traceAgent := &trace.ServerlessTraceAgent{}
-	traceAgent.Start(config.Datadog.GetBool("apm_config.enabled"), &trace.LoadConfig{Path: datadogConfigPath}, lambdaSpanChan, coldStartSpanId)
+	traceAgent.Start(config.Datadog().GetBool("apm_config.enabled"), &trace.LoadConfig{Path: datadogConfigPath}, lambdaSpanChan, coldStartSpanId)
 	serverlessDaemon.SetTraceAgent(traceAgent)
 }
 
@@ -352,7 +355,7 @@ func setupApiKey() bool {
 }
 
 func loadConfig() {
-	config.Datadog.SetConfigFile(datadogConfigPath)
+	config.Datadog().SetConfigFile(datadogConfigPath)
 	// Load datadog.yaml file into the config, so that metricAgent can pick these configurations
 	if _, err := config.LoadWithoutSecret(); err != nil {
 		log.Errorf("Error happened when loading configuration from datadog.yaml for metric agent: %s", err)

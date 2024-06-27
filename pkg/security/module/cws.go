@@ -280,7 +280,7 @@ func (c *CWSConsumer) sendStats() {
 		if counter > 0 {
 			tags := []string{
 				fmt.Sprintf("rule_id:%s", statsTags.RuleID),
-				fmt.Sprintf("tree_type:%s", statsTags.TreeType),
+				fmt.Sprintf("suppression_type:%s", statsTags.SuppressionType),
 			}
 			_ = c.statsdClient.Count(metrics.MetricRulesSuppressed, counter, tags, 1.0)
 		}

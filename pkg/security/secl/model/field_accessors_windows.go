@@ -13,6 +13,54 @@ import (
 	"time"
 )
 
+// GetChangePermissionNewSd returns the value of the field, resolving if necessary
+func (ev *Event) GetChangePermissionNewSd() string {
+	if ev.GetEventType().String() != "change_permission" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveNewSecurityDescriptor(ev, &ev.ChangePermission)
+}
+
+// GetChangePermissionOldSd returns the value of the field, resolving if necessary
+func (ev *Event) GetChangePermissionOldSd() string {
+	if ev.GetEventType().String() != "change_permission" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveOldSecurityDescriptor(ev, &ev.ChangePermission)
+}
+
+// GetChangePermissionPath returns the value of the field, resolving if necessary
+func (ev *Event) GetChangePermissionPath() string {
+	if ev.GetEventType().String() != "change_permission" {
+		return ""
+	}
+	return ev.ChangePermission.ObjectName
+}
+
+// GetChangePermissionType returns the value of the field, resolving if necessary
+func (ev *Event) GetChangePermissionType() string {
+	if ev.GetEventType().String() != "change_permission" {
+		return ""
+	}
+	return ev.ChangePermission.ObjectType
+}
+
+// GetChangePermissionUserDomain returns the value of the field, resolving if necessary
+func (ev *Event) GetChangePermissionUserDomain() string {
+	if ev.GetEventType().String() != "change_permission" {
+		return ""
+	}
+	return ev.ChangePermission.UserDomain
+}
+
+// GetChangePermissionUsername returns the value of the field, resolving if necessary
+func (ev *Event) GetChangePermissionUsername() string {
+	if ev.GetEventType().String() != "change_permission" {
+		return ""
+	}
+	return ev.ChangePermission.UserName
+}
+
 // GetContainerCreatedAt returns the value of the field, resolving if necessary
 func (ev *Event) GetContainerCreatedAt() int {
 	if ev.BaseEvent.ContainerContext == nil {
@@ -259,6 +307,11 @@ func (ev *Event) GetDeleteKeyRegistryKeyPathLength() int {
 		return 0
 	}
 	return len(ev.DeleteRegistryKey.Registry.KeyPath)
+}
+
+// GetEventHostname returns the value of the field, resolving if necessary
+func (ev *Event) GetEventHostname() string {
+	return ev.FieldHandlers.ResolveHostname(ev, &ev.BaseEvent)
 }
 
 // GetEventOrigin returns the value of the field, resolving if necessary

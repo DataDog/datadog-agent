@@ -26,10 +26,16 @@ BPF_HASH_MAP(tcp_retransmits, conn_tuple_t, __u32, 0)
 /* Will hold the PIDs initiating TCP connections */
 BPF_HASH_MAP(tcp_ongoing_connect_pid, struct sock *, __u64, 1024)
 
+/* Will hold a flag to indicate that closed connections have already been flushed */
+BPF_HASH_MAP(conn_close_flushed, struct sock *, __u64, 1024)
+
 /* Will hold the tcp/udp close events
  * The keys are the cpu number and the values a perf file descriptor for a perf event
  */
 BPF_PERF_EVENT_ARRAY_MAP(conn_close_event, __u32)
+
+/* Will hold TCP failed connections */
+BPF_PERF_EVENT_ARRAY_MAP(conn_fail_event, __u32)
 
 /* We use this map as a container for batching closed tcp/udp connections
  * The key represents the CPU core. Ideally we should use a BPF_MAP_TYPE_PERCPU_HASH map

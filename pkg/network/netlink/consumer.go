@@ -21,6 +21,7 @@ import (
 	"go.uber.org/atomic"
 	"golang.org/x/sys/unix"
 
+	telemetryComp "github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -128,7 +129,7 @@ var consumerTelemetry = struct {
 
 // NewConsumer creates a new Conntrack event consumer.
 // targetRateLimit represents the maximum number of netlink messages per second that can be read off the socket
-func NewConsumer(cfg *config.Config) (*Consumer, error) {
+func NewConsumer(cfg *config.Config, _ telemetryComp.Component) (*Consumer, error) {
 	ns, err := cfg.GetRootNetNs()
 	if err != nil {
 		return nil, err

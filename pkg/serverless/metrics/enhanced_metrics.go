@@ -49,7 +49,6 @@ const (
 	cpuUserTimeMetric     = "aws.lambda.enhanced.cpu_user_time"
 	cpuTotalTimeMetric    = "aws.lambda.enhanced.cpu_total_time"
 	enhancedMetricsEnvVar = "DD_ENHANCED_METRICS"
-	systemMetricsEnvVar   = "DD_SYSTEM_METRICS"
 )
 
 func getOutOfMemorySubstrings() []string {
@@ -256,7 +255,7 @@ type GenerateCPUEnhancedMetricsArgs struct {
 // GenerateCPUEnhancedMetrics generates enhanced metrics for CPU time spent running the function in kernel mode,
 // in user mode, and in total
 func GenerateCPUEnhancedMetrics(args GenerateCPUEnhancedMetricsArgs) {
-	if strings.ToLower(os.Getenv(systemMetricsEnvVar)) == "false" {
+	if strings.ToLower(os.Getenv(enhancedMetricsEnvVar)) == "false" {
 		return
 	}
 	timestamp := float64(args.Time.UnixNano()) / float64(time.Second)

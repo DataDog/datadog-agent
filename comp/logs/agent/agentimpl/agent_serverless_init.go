@@ -10,7 +10,7 @@ package agentimpl
 import (
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
@@ -18,13 +18,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers/channel"
-	"github.com/DataDog/datadog-agent/pkg/logs/launchers/container"
 	filelauncher "github.com/DataDog/datadog-agent/pkg/logs/launchers/file"
-	"github.com/DataDog/datadog-agent/pkg/logs/launchers/journald"
-	"github.com/DataDog/datadog-agent/pkg/logs/launchers/listener"
-	"github.com/DataDog/datadog-agent/pkg/logs/launchers/windowsevent"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
+	"github.com/DataDog/datadog-agent/pkg/serverless/streamlogs"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
@@ -42,14 +39,14 @@ func (a *logAgent) SetupPipeline(
 ) {
 	health := health.RegisterLiveness("logs-agent")
 
-	diagnosticMessageReceiver := diagnostic.NewBufferedMessageReceiver(nil, a.hostname)
+	diagnosticMessageReceiver := diagnostic.NewBufferedMessageReceiver(streamlogs.Formatter{}, nil)
 
 	// setup the a null auditor, not tracking data in any registry
 	a.auditor = auditor.NewNullAuditor()
 	destinationsCtx := client.NewDestinationsContext()
 
 	// setup the pipeline provider that provides pairs of processor and sender
-	pipelineProvider := pipeline.NewServerlessProvider(config.NumberOfPipelines, a.auditor, processingRules, a.endpoints, destinationsCtx, NewStatusProvider(), a.hostname, a.config)
+	pipelineProvider := pipeline.NewServerlessProvider(config.NumberOfPipelines, a.auditor, diagnosticMessageReceiver, processingRules, a.endpoints, destinationsCtx, NewStatusProvider(), a.hostname, a.config)
 
 	lnchrs := launchers.NewLaunchers(a.sources, pipelineProvider, a.auditor, a.tracker)
 	lnchrs.AddLauncher(channel.NewLauncher())
@@ -59,10 +56,6 @@ func (a *logAgent) SetupPipeline(
 		a.config.GetBool("logs_config.validate_pod_container_id"),
 		time.Duration(a.config.GetFloat64("logs_config.file_scan_period")*float64(time.Second)),
 		a.config.GetString("logs_config.file_wildcard_selection_mode"), a.flarecontroller))
-	lnchrs.AddLauncher(listener.NewLauncher(a.config.GetInt("logs_config.frame_size")))
-	lnchrs.AddLauncher(journald.NewLauncher(a.flarecontroller))
-	lnchrs.AddLauncher(windowsevent.NewLauncher())
-	lnchrs.AddLauncher(container.NewLauncher(a.sources, wmeta))
 
 	a.schedulers = schedulers.NewSchedulers(a.sources, a.services)
 	a.destinationsCtx = destinationsCtx

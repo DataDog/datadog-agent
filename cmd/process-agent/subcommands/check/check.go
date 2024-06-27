@@ -29,8 +29,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
@@ -82,12 +83,18 @@ func nextGroupID() func() int32 {
 // Commands returns a slice of subcommands for the `check` command in the Process Agent
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	checkAllowlist := []string{"process", "rtprocess", "container", "rtcontainer", "connections", "process_discovery", "process_events"}
-	return []*cobra.Command{MakeCommand(globalParams, "check", checkAllowlist)}
+	return []*cobra.Command{MakeCommand(func() *command.GlobalParams {
+		return &command.GlobalParams{
+			ConfFilePath:         globalParams.ConfFilePath,
+			ExtraConfFilePath:    globalParams.ExtraConfFilePath,
+			SysProbeConfFilePath: globalParams.SysProbeConfFilePath,
+		}
+	}, "check", checkAllowlist)}
 }
 
-func MakeCommand(globalParams *command.GlobalParams, name string, allowlist []string) *cobra.Command {
+func MakeCommand(globalParamsGetter func() *command.GlobalParams, name string, allowlist []string) *cobra.Command {
 	cliParams := &CliParams{
-		GlobalParams: globalParams,
+		GlobalParams: globalParamsGetter(),
 	}
 
 	checkCmd := &cobra.Command{
@@ -102,7 +109,7 @@ func MakeCommand(globalParams *command.GlobalParams, name string, allowlist []st
 				return fmt.Errorf("invalid check '%s'", cliParams.checkName)
 			}
 
-			bundleParams := command.GetCoreBundleParamsForOneShot(globalParams)
+			bundleParams := command.GetCoreBundleParamsForOneShot(globalParamsGetter())
 
 			// Disable logging if `--json` is specified. This way the check command will output proper json.
 			if cliParams.checkOutputJSON {
@@ -113,7 +120,7 @@ func MakeCommand(globalParams *command.GlobalParams, name string, allowlist []st
 				fx.Supply(cliParams, bundleParams),
 				core.Bundle(),
 				// Provide workloadmeta module
-				workloadmeta.Module(),
+				workloadmetafx.Module(),
 				// Provide eventplatformimpl module
 				eventplatformreceiverimpl.Module(),
 				eventplatformimpl.Module(),

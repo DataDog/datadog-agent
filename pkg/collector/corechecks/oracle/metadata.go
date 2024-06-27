@@ -28,7 +28,7 @@ type dbInstanceEvent struct {
 	AgentVersion       string             `json:"agent_version"`
 	Dbms               string             `json:"dbms"`
 	Kind               string             `json:"kind"`
-	CollectionInterval uint64             `json:"collection_interval"`
+	CollectionInterval int64              `json:"collection_interval"`
 	DbmsVersion        string             `json:"dbms_version"`
 	Tags               []string           `json:"tags"`
 	Timestamp          float64            `json:"timestamp"`

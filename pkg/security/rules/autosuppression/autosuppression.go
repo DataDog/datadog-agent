@@ -17,18 +17,23 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
-// isAllowAutosuppressionRule returns true if the given rule allows auto suppression
-func isAllowAutosuppressionRule(rule *rules.Rule) bool {
-	if val, ok := rule.Definition.GetTag("allow_autosuppression"); ok {
+// booleanTagEquals returns true if the given rule has the given tag set to a boolean and its value matches the given value
+func booleanTagEquals(rule *rules.Rule, tag string, value bool) bool {
+	if val, ok := rule.Definition.GetTag(tag); ok {
 		b, err := strconv.ParseBool(val)
-		return err == nil && b
+		return err == nil && b == value
 	}
 	return false
 }
 
+func isAllowAutosuppressionRule(rule *rules.Rule) bool {
+	return booleanTagEquals(rule, "allow_autosuppression", true)
+}
+
 const (
-	securityProfileTreeType = "security_profile"
-	activityDumpTreeType    = "activity_dump"
+	securityProfileSuppressionType = "security_profile"
+	activityDumpSuppressionType    = "activity_dump"
+	noWorkloadDriftSuppressionType = "no_workload_drift"
 )
 
 // Opts holds options for auto suppression
@@ -40,17 +45,16 @@ type Opts struct {
 
 // StatsTags holds tags for auto suppression stats
 type StatsTags struct {
-	RuleID   string
-	TreeType string
+	RuleID          string
+	SuppressionType string
 }
 
 // AutoSuppression is a struct that encapsulates the auto suppression logic
 type AutoSuppression struct {
-	once             sync.Once
-	opts             Opts
-	statsLock        sync.RWMutex
-	stats            map[StatsTags]*atomic.Int64
-	enabledTreeTypes []string
+	once      sync.Once
+	opts      Opts
+	statsLock sync.RWMutex
+	stats     map[StatsTags]*atomic.Int64
 }
 
 // Init initializes the auto suppression with the given options
@@ -58,42 +62,49 @@ func (as *AutoSuppression) Init(opts Opts) {
 	as.once.Do(func() {
 		as.opts = opts
 		as.stats = make(map[StatsTags]*atomic.Int64)
-		if opts.SecurityProfileAutoSuppressionEnabled {
-			as.enabledTreeTypes = append(as.enabledTreeTypes, securityProfileTreeType)
-		}
-		if opts.ActivityDumpAutoSuppressionEnabled {
-			as.enabledTreeTypes = append(as.enabledTreeTypes, activityDumpTreeType)
-		}
 	})
 }
 
 // Suppresses returns true if the event should be suppressed for the given rule, false otherwise. It also counts statistics depending on this result
 func (as *AutoSuppression) Suppresses(rule *rules.Rule, event *model.Event) bool {
-	if as.opts.SecurityProfileAutoSuppressionEnabled &&
-		event.IsInProfile() &&
-		slices.Contains(as.opts.EventTypes, event.GetEventType()) &&
-		isAllowAutosuppressionRule(rule) {
-		as.count(rule.ID, securityProfileTreeType)
-		return true
-	} else if as.opts.ActivityDumpAutoSuppressionEnabled &&
-		event.HasActiveActivityDump() &&
-		slices.Contains(as.opts.EventTypes, event.GetEventType()) &&
-		isAllowAutosuppressionRule(rule) {
-		as.count(rule.ID, activityDumpTreeType)
-		return true
+	if isAllowAutosuppressionRule(rule) && event.ContainerContext.ID != "" && slices.Contains(as.opts.EventTypes, event.GetEventType()) {
+		if as.opts.ActivityDumpAutoSuppressionEnabled {
+			if event.HasActiveActivityDump() {
+				as.count(rule.ID, activityDumpSuppressionType)
+				return true
+			} else if event.SecurityProfileContext.EventTypeState == model.NoProfile {
+				as.count(rule.ID, noWorkloadDriftSuppressionType)
+				return true
+			}
+		}
+		if as.opts.SecurityProfileAutoSuppressionEnabled {
+			if event.IsInProfile() {
+				as.count(rule.ID, securityProfileSuppressionType)
+				return true
+			}
+		}
 	}
 	return false
 }
 
 // Apply resets the auto suppression stats based on the given ruleset
 func (as *AutoSuppression) Apply(ruleSet *rules.RuleSet) {
+	var enabledSuppressionTypes []string
+	if as.opts.SecurityProfileAutoSuppressionEnabled {
+		enabledSuppressionTypes = append(enabledSuppressionTypes, securityProfileSuppressionType)
+	}
+	if as.opts.ActivityDumpAutoSuppressionEnabled {
+		enabledSuppressionTypes = append(enabledSuppressionTypes, activityDumpSuppressionType)
+		enabledSuppressionTypes = append(enabledSuppressionTypes, noWorkloadDriftSuppressionType)
+	}
+
 	tags := StatsTags{}
 	newStats := make(map[StatsTags]*atomic.Int64)
 	for _, rule := range ruleSet.GetRules() {
 		if isAllowAutosuppressionRule(rule) {
 			tags.RuleID = rule.ID
-			for _, treeType := range as.enabledTreeTypes {
-				tags.TreeType = treeType
+			for _, suppressionType := range enabledSuppressionTypes {
+				tags.SuppressionType = suppressionType
 				newStats[tags] = atomic.NewInt64(0)
 			}
 		}
@@ -104,13 +115,13 @@ func (as *AutoSuppression) Apply(ruleSet *rules.RuleSet) {
 	as.statsLock.Unlock()
 }
 
-func (as *AutoSuppression) count(ruleID string, treeType string) {
+func (as *AutoSuppression) count(ruleID string, suppressionType string) {
 	as.statsLock.RLock()
 	defer as.statsLock.RUnlock()
 
 	tags := StatsTags{
-		RuleID:   ruleID,
-		TreeType: treeType,
+		RuleID:          ruleID,
+		SuppressionType: suppressionType,
 	}
 
 	if stat, ok := as.stats[tags]; ok {

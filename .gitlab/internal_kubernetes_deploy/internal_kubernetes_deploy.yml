@@ -14,6 +14,8 @@ internal_kubernetes_deploy_experimental:
       when: never
     - if: $DDR != "true"
       when: never
+    - if: $APPS != "datadog-agent"
+      when: never
     - !reference [.on_deploy]
   needs:
     - job: docker_trigger_internal
@@ -55,6 +57,8 @@ notify-slack:
     - if: $CI_COMMIT_BRANCH != "main"
       when: never
     - if: $DDR != "true"
+      when: never
+    - if: $APPS != "datadog-agent"
       when: never
     - !reference [.on_deploy]
   tags: ["arch:amd64"]

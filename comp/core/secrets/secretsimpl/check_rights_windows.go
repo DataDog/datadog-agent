@@ -46,7 +46,7 @@ func checkRights(filename string, allowGroupExec bool) error {
 
 	// create the sids that are acceptable to us (local system account and
 	// administrators group)
-	localSystem, err := getLocalSystemSID()
+	localSystem, err := winutil.GetLocalSystemSID()
 	if err != nil {
 		return fmt.Errorf("could not query Local System SID: %s", err)
 	}
@@ -115,18 +115,6 @@ func getACL(filename string) (*winutil.ACL, error) {
 	return fileDacl, err
 }
 
-// getLocalSystemSID returns the SID of the Local System account
-func getLocalSystemSID() (*windows.SID, error) {
-	var localSystem *windows.SID
-	err := windows.AllocateAndInitializeSid(&windows.SECURITY_NT_AUTHORITY,
-		1, // local system has 1 valid subauth
-		windows.SECURITY_LOCAL_SYSTEM_RID,
-		0, 0, 0, 0, 0, 0, 0,
-		&localSystem)
-
-	return localSystem, err
-}
-
 // getAdministratorsSID returns the SID of the built-in Administrators group principal
 func getAdministratorsSID() (*windows.SID, error) {
 	var administrators *windows.SID
@@ -141,7 +129,7 @@ func getAdministratorsSID() (*windows.SID, error) {
 
 // getSecretUserSID returns the SID of the user running the secret backend
 func getSecretUserSID() (*windows.SID, error) {
-	localSystem, err := getLocalSystemSID()
+	localSystem, err := winutil.GetLocalSystemSID()
 	if err != nil {
 		return nil, fmt.Errorf("could not query Local System SID: %s", err)
 	}
