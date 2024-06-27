@@ -27,7 +27,11 @@ var (
 		[]string{"listener_id", "transport"}, "Dogstatsd UDS connections count")
 
 	tlmListener            = telemetry.NewHistogramNoOp()
-	defaultListenerBuckets = []float64{300, 500, 1000, 1500, 2000, 2500, 3000, 10000, 20000, 50000}
+	defaultListenerBuckets = []float64{
+		300, 500, 1000, // nanoseconds
+		1500, 2_000, 2_500, 3_000, 10_000, 20_000, 50_000, 100_000, 200_000, 500_000, // milliseconds
+		1_000_000, 2_000_000, 5_000_000, 10_000_000, 20_000_000, 50_000_000, 100_000_000, 200_000_000, 500_000_000, // milliseconds
+	}
 )
 
 // InitTelemetry initialize the telemetry.Histogram buckets for the internal
