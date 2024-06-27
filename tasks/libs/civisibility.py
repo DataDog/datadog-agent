@@ -67,8 +67,8 @@ def get_test_link_to_test_on_main(suite_name: str, test_name: str):
     query_params = {
         "test_level": "test",
         # wrapping in double quotes
-        "@ci.test.name": f'"{test_name}"',
-        "@ci.suite.name": f'"{suite_name}"',
+        "@test.name": f'"{test_name}"',
+        "@test.suite": f'"{suite_name}"',
         "@git.branch": "main",
         "@test.service": "datadog-agent",
     }
