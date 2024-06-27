@@ -49,6 +49,7 @@ func setupDropTrafficRule(tb testing.TB) (ns string) {
 		"powershell -c \"New-NetFirewallRule -DisplayName 'Datadog Test Rule' -Direction Outbound -Action Block -Profile Any -RemotePort 10000 -Protocol TCP\"",
 	}
 	testutil.RunCommands(tb, cmds, false)
+	return
 }
 
 func checkSkipFailureConnectionsTests(_ *testing.T) {
