@@ -166,7 +166,7 @@ func WithoutAgent() ProvisionerOption {
 	}
 }
 
-// WorkloadAppFunc is a function that deploys a workload app to a kube provider
+// WorkloadAppFunc is a function that deploys a workload app to an ECS cluster
 type WorkloadAppFunc func(e aws.Environment, clusterArn pulumi.StringInput) (*ecsComp.Workload, error)
 
 // WithWorkloadApp adds a workload app to the environment
