@@ -49,7 +49,7 @@ type UDPListener struct {
 }
 
 // NewUDPListener returns an idle UDP Statsd listener
-func NewUDPListener(packetOut chan packets.Packets, sharedPacketPoolManager *packets.PoolManager, cfg config.Reader, capture replay.Component) (*UDPListener, error) {
+func NewUDPListener(packetOut chan packets.Packets, sharedPacketPoolManager *packets.PoolManager[packets.Packet], cfg config.Reader, capture replay.Component) (*UDPListener, error) {
 	var err error
 	var url string
 

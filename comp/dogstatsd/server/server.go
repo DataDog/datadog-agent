@@ -119,7 +119,7 @@ type server struct {
 	captureChan             chan packets.Packets
 	serverlessFlushChan     chan bool
 	sharedPacketPool        *packets.Pool
-	sharedPacketPoolManager *packets.PoolManager
+	sharedPacketPoolManager *packets.PoolManager[packets.Packet]
 	sharedFloat64List       *float64ListPool
 	Statistics              *util.Stats
 	Started                 bool
@@ -350,14 +350,14 @@ func (s *server) start(context.Context) error {
 	// sharedPacketPool is used by the packet assembler to retrieve already allocated
 	// buffer in order to avoid allocation. The packets are pushed back by the server.
 	sharedPacketPool := packets.NewPool(s.config.GetInt("dogstatsd_buffer_size"))
-	sharedPacketPoolManager := packets.NewPoolManager(sharedPacketPool)
+	sharedPacketPoolManager := packets.NewPoolManager[packets.Packet](sharedPacketPool)
 
 	udsListenerRunning := false
 
 	socketPath := s.config.GetString("dogstatsd_socket")
 	socketStreamPath := s.config.GetString("dogstatsd_stream_socket")
 	originDetection := s.config.GetBool("dogstatsd_origin_detection")
-	var sharedUDSOobPoolManager *packets.PoolManager
+	var sharedUDSOobPoolManager *packets.PoolManager[[]byte]
 	if originDetection {
 		sharedUDSOobPoolManager = listeners.NewUDSOobPoolManager()
 	}

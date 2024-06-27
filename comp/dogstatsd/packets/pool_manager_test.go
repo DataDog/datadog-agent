@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func countPoolSize(p *PoolManager) int {
+func countPoolSize(p *PoolManager[Packet]) int {
 
 	i := 0
 	p.refs.Range(func(key, value interface{}) bool {
@@ -26,7 +26,7 @@ func countPoolSize(p *PoolManager) int {
 func TestPoolManager(t *testing.T) {
 
 	pool := NewPool(1024)
-	manager := NewPoolManager(pool)
+	manager := NewPoolManager[Packet](pool)
 
 	// passthru mode by default
 	assert.True(t, manager.IsPassthru())
@@ -57,7 +57,7 @@ func TestPoolManager(t *testing.T) {
 
 func BenchmarkPoolManagerPassthru(b *testing.B) {
 	pool := NewPool(1024)
-	manager := NewPoolManager(pool)
+	manager := NewPoolManager[Packet](pool)
 
 	for i := 0; i < b.N; i++ {
 		packet := pool.Get()
@@ -67,7 +67,7 @@ func BenchmarkPoolManagerPassthru(b *testing.B) {
 
 func BenchmarkPoolManagerNoPassthru(b *testing.B) {
 	pool := NewPool(1024)
-	manager := NewPoolManager(pool)
+	manager := NewPoolManager[Packet](pool)
 
 	for i := 0; i < b.N; i++ {
 		packet := pool.Get()
