@@ -2,11 +2,12 @@ package util
 
 import (
 	"io/fs"
-	"log"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/stretchr/testify/assert"
 )

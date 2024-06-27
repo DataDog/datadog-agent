@@ -1,9 +1,10 @@
 package util
 
 import (
-	"log"
 	"os"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type FileWatcher struct {

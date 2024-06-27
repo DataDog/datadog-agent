@@ -3,9 +3,10 @@ package ditypes
 import (
 	"encoding/json"
 	"io"
-	"log"
 	"os"
 	"testing"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/stretchr/testify/assert"
 )
