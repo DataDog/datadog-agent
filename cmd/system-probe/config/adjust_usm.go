@@ -18,7 +18,7 @@ const (
 )
 
 func adjustUSM(cfg config.Config) {
-	if cfg.GetBool(netNS("enable_ebpf_less")) && cfg.GetBool(smNS("enabled")) {
+	if cfg.GetBool(netNS("enable_ebpfless")) && cfg.GetBool(smNS("enabled")) {
 		log.Warn("disabling USM since ebpf-less network tracer is enabled")
 		cfg.Set(smNS("enabled"), false, model.SourceAgentRuntime)
 	}

@@ -24,7 +24,7 @@ const (
 )
 
 func adjustNetwork(cfg config.Config) {
-	ebpflessEnabled := cfg.GetBool(netNS("enable_ebpf_less"))
+	ebpflessEnabled := cfg.GetBool(netNS("enable_ebpfless"))
 
 	limitMaxInt(cfg, spNS("max_conns_per_message"), maxConnsMessageBatchSize)
 

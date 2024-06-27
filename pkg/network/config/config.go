@@ -395,7 +395,7 @@ func New() *Config {
 
 		EnableNPMConnectionRollup: cfg.GetBool(join(netNS, "enable_connection_rollup")),
 
-		EnableEbpfless: cfg.GetBool(join(netNS, "enable_ebpf_less")),
+		EnableEbpfless: cfg.GetBool(join(netNS, "enable_ebpfless")),
 
 		// Service Monitoring
 		EnableJavaTLSSupport:        cfg.GetBool(join(smjtNS, "enabled")),
