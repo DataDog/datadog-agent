@@ -1183,8 +1183,10 @@ func (p *EBPFProbe) updateProbes(ruleEventTypes []eval.EventType, needRawSyscall
 	activatedProbes = append(activatedProbes, p.Resolvers.TCResolver.SelectTCProbes())
 
 	// on-demand probes
-	p.onDemandManager.updateProbes()
-	activatedProbes = append(activatedProbes, p.onDemandManager.selectProbes())
+	if p.config.RuntimeSecurity.OnDemandEnabled {
+		p.onDemandManager.updateProbes()
+		activatedProbes = append(activatedProbes, p.onDemandManager.selectProbes())
+	}
 
 	if needRawSyscalls {
 		activatedProbes = append(activatedProbes, probes.SyscallMonitorSelectors...)
@@ -1525,7 +1527,9 @@ func (p *EBPFProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetRepor
 		}
 	}
 
-	p.onDemandManager.setHookPoints(rs.GetOnDemandHookPoints())
+	if p.config.RuntimeSecurity.OnDemandEnabled {
+		p.onDemandManager.setHookPoints(rs.GetOnDemandHookPoints())
+	}
 
 	if err := p.updateProbes(eventTypes, needRawSyscalls); err != nil {
 		return nil, fmt.Errorf("failed to select probes: %w", err)
@@ -1805,9 +1809,11 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, wmeta optional
 		hostname = "unknown"
 	}
 
-	p.onDemandManager = &OnDemandProbesManager{
-		probe:   p,
-		manager: p.Manager,
+	if config.RuntimeSecurity.OnDemandEnabled {
+		p.onDemandManager = &OnDemandProbesManager{
+			probe:   p,
+			manager: p.Manager,
+		}
 	}
 
 	p.fieldHandlers = &EBPFFieldHandlers{config: config, resolvers: p.Resolvers, hostname: hostname, onDemand: p.onDemandManager}

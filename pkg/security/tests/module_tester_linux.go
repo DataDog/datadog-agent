@@ -104,6 +104,8 @@ runtime_security_config:
     enabled: true
   remote_configuration:
     enabled: false
+  on_demand:
+    enabled: true
   socket: /tmp/test-runtime-security.sock
   sbom:
     enabled: {{ .SBOMEnabled }}
