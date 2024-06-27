@@ -13,30 +13,39 @@ import (
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 	servicetest "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/install-test/service-test"
 
+	"github.com/stretchr/testify/require"
 	"testing"
 )
 
+// TestUpgrade tests upgrading the agent from LAST_STABLE_VERSION to WINDOWS_AGENT_VERSION
 func TestUpgrade(t *testing.T) {
 	s := &testUpgradeSuite{}
+	previousAgentPackage, err := windowsAgent.GetLastStablePackageFromEnv()
+	require.NoError(t, err, "should get last stable agent package from env")
+	s.previousAgentPackge = previousAgentPackage
 	run(t, s)
 }
 
 type testUpgradeSuite struct {
 	baseAgentMSISuite
+	previousAgentPackge *windowsAgent.Package
 }
 
 func (s *testUpgradeSuite) TestUpgrade() {
 	vm := s.Env().RemoteHost
 
 	// install previous version
-	_ = s.installLastStable(vm)
+	_ = s.installAndTestPreviousAgentVersion(vm, s.previousAgentPackge)
 
 	// simulate upgrading from a version that didn't have the runtime-security.d directory
 	// to ensure upgrade places new config files.
 	configRoot, err := windowsAgent.GetConfigRootFromRegistry(vm)
 	s.Require().NoError(err)
-	err = vm.RemoveAll(filepath.Join(configRoot, "runtime-security.d"))
-	s.Require().NoError(err)
+	path := filepath.Join(configRoot, "runtime-security.d")
+	if _, err = vm.Lstat(path); err == nil {
+		err = vm.RemoveAll(path)
+		s.Require().NoError(err)
+	}
 
 	// upgrade to the new version
 	if !s.Run(fmt.Sprintf("upgrade to %s", s.AgentPackage.AgentVersion()), func() {
@@ -179,4 +188,107 @@ func (s *testUpgradeChangeUserSuite) TestUpgradeChangeUser() {
 	})
 
 	s.uninstallAgentAndRunUninstallTests(t)
+}
+
+// TestUpgradeFromV5 tests upgrading from Agent 5 to WINDOWS_AGENT_VERSION
+func TestUpgradeFromV5(t *testing.T) {
+	var err error
+	s := &testUpgradeFromV5Suite{}
+	// last stable agent 5
+	s.agent5Package = &windowsAgent.Package{
+		Version: "5.32.8-1",
+	}
+	s.agent5Package.URL, err = windowsAgent.GetStableMSIURL(s.agent5Package.Version, "x86_64")
+	require.NoError(t, err)
+	run(t, s)
+}
+
+type testUpgradeFromV5Suite struct {
+	baseAgentMSISuite
+	agent5Package *windowsAgent.Package
+}
+
+func (s *testUpgradeFromV5Suite) TestUpgrade5() {
+	host := s.Env().RemoteHost
+
+	// agent 5
+	s.installAgent5()
+
+	// upgrade to the new version
+	if !s.Run(fmt.Sprintf("upgrade to %s", s.AgentPackage.AgentVersion()), func() {
+		_, err := s.InstallAgent(host,
+			windowsAgent.WithPackage(s.AgentPackage),
+			windowsAgent.WithInstallLogFile(filepath.Join(s.OutputDir, "upgrade.log")),
+		)
+		s.Require().NoError(err, "should upgrade to agent %s", s.AgentPackage.AgentVersion())
+	}) {
+		s.T().FailNow()
+	}
+
+	// migrate config and verify agent is running
+	s.migrateAgent5Config()
+	err := windowsCommon.RestartService(host, "DatadogAgent")
+	s.Require().NoError(err, "should restart agent service")
+	RequireAgentVersionRunningWithNoErrors(s.T(), s.NewTestClientForHost(host), s.AgentPackage.AgentVersion())
+
+	// TODO: The import command creates datadog.yaml so it has Owner:Administrator Group:None,
+	//       and the permissions tests expect Owner:SYSTEM Group:System
+	s.cleanupOnSuccessInDevMode()
+}
+
+func (s *testUpgradeFromV5Suite) installAgent5() {
+	host := s.Env().RemoteHost
+	agentPackage := s.agent5Package
+
+	logFile := filepath.Join(s.OutputDir, "install-agent5.log")
+	_, err := s.InstallAgent(host,
+		windowsAgent.WithPackage(agentPackage),
+		windowsAgent.WithValidAPIKey(),
+		windowsAgent.WithInstallLogFile(logFile),
+	)
+	s.Require().NoError(err, "should install agent 5")
+
+	// get agent info
+	installPath := windowsAgent.DefaultInstallPath
+	cmd := fmt.Sprintf(`& "%s\embedded\python.exe" "%s\agent\agent.py" info`, installPath, installPath)
+	out, err := host.Execute(cmd)
+	s.Require().NoError(err, "should get agent info")
+	s.T().Logf("Agent 5 info:\n%s", out)
+
+	// basic checks to ensure agent is functioning
+	s.Assert().Contains(out, agentPackage.AgentVersion(), "info should have agent 5 version")
+	s.Assert().Contains(out, host.Address, "info should have IP address")
+	confPath := `C:\ProgramData\Datadog\datadog.conf`
+	exists, err := host.FileExists(confPath)
+	s.Require().NoError(err, "should check if datadog.conf exists")
+	s.Assert().True(exists, "datadog.conf should exist")
+
+	if s.T().Failed() {
+		s.T().FailNow()
+	}
+}
+
+func (s *testUpgradeFromV5Suite) migrateAgent5Config() {
+	host := s.Env().RemoteHost
+
+	installPath := windowsAgent.DefaultInstallPath
+	configRoot := windowsAgent.DefaultConfigRoot
+	cmd := fmt.Sprintf(`& "%s\bin\agent.exe" import "%s" "%s" --force`, installPath, configRoot, configRoot)
+	out, err := host.Execute(cmd)
+	s.Require().NoError(err, "should migrate agent 5 config")
+	s.T().Logf("Migrate agent 5 config:\n%s", out)
+	s.Require().Contains(out, "Success: imported the contents of", "migrate agent 5 config should succeed")
+}
+
+// TestUpgradeFromV6 tests upgrading from Agent 6 to WINDOWS_AGENT_VERSION
+func TestUpgradeFromV6(t *testing.T) {
+	var err error
+	s := &testUpgradeSuite{}
+	s.previousAgentPackge = &windowsAgent.Package{
+		Version: "6.53.0-1",
+		Arch:    "x86_64",
+	}
+	s.previousAgentPackge.URL, err = windowsAgent.GetStableMSIURL(s.previousAgentPackge.Version, s.previousAgentPackge.Arch)
+	require.NoError(t, err)
+	run(t, s)
 }

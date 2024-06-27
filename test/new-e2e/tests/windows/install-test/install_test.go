@@ -158,6 +158,7 @@ func (s *testRepairSuite) TestRepair() {
 
 	// install the agent
 	_ = s.installAgentPackage(vm, s.AgentPackage)
+	RequireAgentVersionRunningWithNoErrors(s.T(), s.NewTestClientForHost(vm), s.AgentPackage.AgentVersion())
 
 	err := windowsCommon.StopService(t.host, "DatadogAgent")
 	s.Require().NoError(err)
@@ -230,6 +231,7 @@ func (s *testInstallOptsSuite) TestInstallOpts() {
 	}
 
 	_ = s.installAgentPackage(vm, s.AgentPackage, installOpts...)
+	RequireAgentVersionRunningWithNoErrors(s.T(), s.NewTestClientForHost(vm), s.AgentPackage.AgentVersion())
 
 	// read the config file and check the options
 	confYaml, err := s.readAgentConfig(vm)
