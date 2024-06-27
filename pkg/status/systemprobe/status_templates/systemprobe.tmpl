@@ -19,7 +19,7 @@
     Last Check: {{ formatUnixTime .network_tracer.universal_service_monitoring.last_check }}
   {{- end }}
   {{- if .network_tracer.universal_service_monitoring.traced_programs }}
-    Traced Programs: {{ formatJSON .network_tracer.universal_service_monitoring.traced_programs 6 }}
+    Traced Programs: {{ formatJSON .network_tracer.universal_service_monitoring.traced_programs 4 }}
   {{- end }}
 
   NPM

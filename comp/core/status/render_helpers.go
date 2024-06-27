@@ -184,11 +184,11 @@ func formatUnixTime(unixTime any) string {
 
 // formatJSON formats the given value as JSON. The indent parameter is used to indent the entire JSON output.
 func formatJSON(value interface{}, indent int) string {
-	b, err := json.MarshalIndent(value, "", "  ")
+	b, err := json.MarshalIndent(value, strings.Repeat(" ", indent), "  ")
 	if err != nil {
 		return fmt.Sprintf("Error formatting JSON: %s", err)
 	}
-	return strings.Join(strings.Split(string(b), "\n"), "\n"+strings.Repeat(" ", indent))
+	return string(b)
 }
 
 // PrintDashes repeats the pattern (dash) for the length of s
