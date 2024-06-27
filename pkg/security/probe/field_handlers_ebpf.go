@@ -600,6 +600,9 @@ func (fh *EBPFFieldHandlers) ResolveHostname(_ *model.Event, _ *model.BaseEvent)
 
 // ResolveOnDemandName resolves the on-demand event name
 func (fh *EBPFFieldHandlers) ResolveOnDemandName(_ *model.Event, e *model.OnDemandEvent) string {
+	if fh.onDemand == nil {
+		return ""
+	}
 	return fh.onDemand.getHookNameFromID(int(e.ID))
 }
 
