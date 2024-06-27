@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-// Package integrations the integrations component for the Datadog Agent
+// Package integrations adds a go interface for integrations to send logs.
 //
 // The integrations component is a basic interface for integrations to send logs
 // from one place to another. It has two faces: integrations can use the
