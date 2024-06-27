@@ -5,7 +5,7 @@ import os
 import traceback
 from datetime import timedelta
 
-from invoke import task
+from invoke import Context, task
 from invoke.exceptions import Exit
 
 import tasks.libs.notify.unit_tests as unit_tests_utils
@@ -34,7 +34,7 @@ def check_teams(_):
 
 
 @task
-def send_message(ctx, notification_type="merge", print_to_stdout=False):
+def send_message(ctx: Context, notification_type: str = "merge", print_to_stdout: bool = False):
     """
     Send notifications for the current pipeline. CI-only task.
     Use the --print-to-stdout option to test this locally, without sending

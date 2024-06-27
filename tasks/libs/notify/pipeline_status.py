@@ -75,6 +75,8 @@ def send_message_and_metrics(ctx, failed_jobs, messages_to_send, notification_ty
         header = f"{header_icon} :merged: datadog-agent merge"
     elif notification_type == "deploy":
         header = f"{header_icon} :rocket: datadog-agent deploy"
+    elif notification_type == "trigger":
+        header = f"{header_icon} :arrow_forward: datadog-agent triggered"
     base = base_message(header, state)
 
     # Send messages
