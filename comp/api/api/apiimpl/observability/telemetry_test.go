@@ -85,7 +85,7 @@ func TestTelemetryMiddleware(t *testing.T) {
 			metricFamilies, err := registry.Gather()
 			require.NoError(t, err)
 
-			expectedMetricName := fmt.Sprintf("%s__%s", metricSubsystem, metricName)
+			expectedMetricName := fmt.Sprintf("%s__%s", MetricSubsystem, MetricName)
 			idx := slices.IndexFunc(metricFamilies, func(e *dto.MetricFamily) bool {
 				return e.GetName() == expectedMetricName
 			})

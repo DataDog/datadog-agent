@@ -17,9 +17,11 @@ import (
 )
 
 const (
-	metricSubsystem = "api_server"
-	metricName      = "request_duration_seconds"
-	metricHelp      = "Request duration distribution by server, method, path, and status (in seconds)."
+	// MetricSubsystem is the subsystem for the metric
+	MetricSubsystem = "api_server"
+	// MetricName is the name of the metric
+	MetricName = "request_duration_seconds"
+	metricHelp = "Request duration distribution by server, method, path, and status (in seconds)."
 )
 
 type telemetryMiddlewareFactory struct {
@@ -52,7 +54,7 @@ func (th *telemetryMiddlewareFactory) Middleware(serverName string) mux.Middlewa
 func newTelemetryMiddlewareFactory(telemetry telemetry.Component, clock clock.Clock) TelemetryMiddlewareFactory {
 	tags := []string{"servername", "status_code", "method", "path"}
 	var buckets []float64 // use default buckets
-	requestDuration := telemetry.NewHistogram(metricSubsystem, metricName, tags, metricHelp, buckets)
+	requestDuration := telemetry.NewHistogram(MetricSubsystem, MetricName, tags, metricHelp, buckets)
 
 	return &telemetryMiddlewareFactory{
 		requestDuration,
