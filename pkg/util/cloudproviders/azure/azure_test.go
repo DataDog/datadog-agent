@@ -43,14 +43,14 @@ func TestGetAlias(t *testing.T) {
 		},
 	}
 	var lastRequest *http.Request
-	tsVm := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		responses[responseIdx](w, r)
 		responseIdx++
 		lastRequest = r
 	}))
 
-	defer tsVm.Close()
-	metadataURL = tsVm.URL
+	defer ts.Close()
+	metadataURL = ts.URL
 
 	aliases, err := GetHostAliases(ctx)
 	assert.NoError(t, err)
