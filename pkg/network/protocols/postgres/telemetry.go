@@ -39,7 +39,7 @@ type Telemetry struct {
 }
 
 // createQueryLengthBuckets initializes the query length buckets
-// Bucket 1: 116 - 130 query length
+// Bucket 1: <= 130    query length
 // Bucket 2: 131 - 145 query length
 // Bucket 3: 146 - 160 query length
 // Bucket 4: 161 - 175 query length
