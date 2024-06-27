@@ -61,8 +61,8 @@ var (
 )
 
 var packagesConfig = []testPackageConfig{
-	{name: "datadog-installer", defaultVersion: fmt.Sprintf("pipeline-%v", os.Getenv("CI_PIPELINE_ID")), registry: "669783387624.dkr.ecr.us-east-1.amazonaws.com", auth: "ecr"},
-	{name: "datadog-agent", defaultVersion: fmt.Sprintf("pipeline-%v", os.Getenv("CI_PIPELINE_ID")), registry: "669783387624.dkr.ecr.us-east-1.amazonaws.com", auth: "ecr"},
+	{name: "datadog-installer", defaultVersion: fmt.Sprintf("pipeline-%v", os.Getenv("E2E_PIPELINE_ID")), registry: "669783387624.dkr.ecr.us-east-1.amazonaws.com", auth: "ecr"},
+	{name: "datadog-agent", defaultVersion: fmt.Sprintf("pipeline-%v", os.Getenv("E2E_PIPELINE_ID")), registry: "669783387624.dkr.ecr.us-east-1.amazonaws.com", auth: "ecr"},
 	{name: "datadog-apm-inject", defaultVersion: "latest"},
 	{name: "datadog-apm-library-java", defaultVersion: "latest"},
 	{name: "datadog-apm-library-ruby", defaultVersion: "latest"},
@@ -81,6 +81,12 @@ func shouldSkip(flavors []e2eos.Descriptor, flavor e2eos.Descriptor) bool {
 }
 
 func TestPackages(t *testing.T) {
+
+	if _, ok := os.LookupEnv("E2E_PIPELINE_ID"); !ok {
+		t.Log("E2E_PIPELINE_ID env var is not set, this test requires this variable to be set to work")
+		t.FailNow()
+	}
+
 	var flavors []e2eos.Descriptor
 	for _, flavor := range amd64Flavors {
 		flavor.Architecture = e2eos.AMD64Arch
@@ -210,6 +216,12 @@ func (s *packageBaseSuite) setupFakeIntake() {
 	for _, e := range env {
 		s.Env().RemoteHost.MustExecute(fmt.Sprintf(`echo "%s" | sudo tee -a /etc/environment`, e))
 	}
+
+	if _, err := s.Env().RemoteHost.Execute("which systemctl"); err != nil {
+		// If systemctl isn't on the system we rely on /etc/environment being read
+		return
+	}
+
 	s.Env().RemoteHost.MustExecute("sudo mkdir -p /etc/systemd/system/datadog-agent.service.d")
 	s.Env().RemoteHost.MustExecute("sudo mkdir -p /etc/systemd/system/datadog-agent-trace.service.d")
 	s.Env().RemoteHost.MustExecute(`printf "[Service]\nEnvironmentFile=-/etc/environment\n" | sudo tee /etc/systemd/system/datadog-agent-trace.service.d/fake-intake.conf`)
@@ -228,9 +240,9 @@ func installScriptPackageManagerEnv(env map[string]string, arch e2eos.Architectu
 	env["DD_INSTALLER"] = "true"
 	env["TESTING_KEYS_URL"] = "keys.datadoghq.com"
 	env["TESTING_APT_URL"] = "apttesting.datad0g.com"
-	env["TESTING_APT_REPO_VERSION"] = fmt.Sprintf("pipeline-%s-a7-%s 7", os.Getenv("CI_PIPELINE_ID"), arch)
+	env["TESTING_APT_REPO_VERSION"] = fmt.Sprintf("pipeline-%s-a7-%s 7", os.Getenv("E2E_PIPELINE_ID"), arch)
 	env["TESTING_YUM_URL"] = "yumtesting.datad0g.com"
-	env["TESTING_YUM_VERSION_PATH"] = fmt.Sprintf("testing/pipeline-%s-a7/7", os.Getenv("CI_PIPELINE_ID"))
+	env["TESTING_YUM_VERSION_PATH"] = fmt.Sprintf("testing/pipeline-%s-a7/7", os.Getenv("E2E_PIPELINE_ID"))
 
 }
 

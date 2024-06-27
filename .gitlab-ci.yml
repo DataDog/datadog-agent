@@ -443,6 +443,10 @@ workflow:
     when: manual
     allow_failure: true
 
+.on_main_always:
+  - <<: *if_main_branch
+    when: always
+
 .on_tag_or_a7:
   - !reference [.except_mergequeue]
   - <<: *if_tagged_commit
