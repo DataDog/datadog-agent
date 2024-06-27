@@ -7,6 +7,11 @@
 
 package repository
 
+import (
+	"os"
+	"path/filepath"
+)
+
 // atomicSymlink wraps os.Symlink, replacing an existing symlink with the same name
 // atomically (os.Symlink fails when newname already exists, at least on Linux).
 //
