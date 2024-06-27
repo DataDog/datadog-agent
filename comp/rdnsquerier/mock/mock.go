@@ -26,7 +26,9 @@ func NewMock() rdnsquerier.Component {
 	return &rdnsQuerierMock{}
 }
 
-func (q *rdnsQuerierMock) GetHostname(ipAddr []byte, updateHostname func(string)) {
+// GetHostnameAsync simulates resolving the hostname for the given IP address.  If the IP address is in the private address
+// space the updateHostname function will be called asynchronously with the simulated hostname.
+func (q *rdnsQuerierMock) GetHostnameAsync(ipAddr []byte, updateHostname func(string)) {
 	ipaddr, ok := netip.AddrFromSlice(ipAddr)
 	if !ok || !ipaddr.IsPrivate() {
 		return

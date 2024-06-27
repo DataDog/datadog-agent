@@ -162,7 +162,7 @@ func (f *flowAccumulator) add(flowToAdd *common.Flow) {
 }
 
 func (f *flowAccumulator) addRDNSEnrichment(aggHash uint64, srcAddr []byte, dstAddr []byte) {
-	f.rdnsQuerier.GetHostname(
+	f.rdnsQuerier.GetHostnameAsync(
 		srcAddr,
 		func(hostname string) {
 			f.flowsMutex.Lock()
@@ -174,7 +174,7 @@ func (f *flowAccumulator) addRDNSEnrichment(aggHash uint64, srcAddr []byte, dstA
 			}
 		},
 	)
-	f.rdnsQuerier.GetHostname(
+	f.rdnsQuerier.GetHostnameAsync(
 		dstAddr,
 		func(hostname string) {
 			f.flowsMutex.Lock()

@@ -78,13 +78,13 @@ func NewComponent(reqs Requires) (Provides, error) {
 	}, nil
 }
 
-// GetHostname attempts to use reverse DNS lookup to resolve the hostname for the given IP address.
-// If the IP address is in the private address space and the lookup is successful then the updateHostname
-// function will be called with the hostname.
-func (q *rdnsQuerierImpl) GetHostname(ipAddr []byte, updateHostname func(string)) {
+// GetHostnameAsync attempts to resolve the hostname for the given IP address.  If the IP address is in the private address
+// space then a reverse DNS lookup is processed asynchronously.  If the lookup is successful then the updateHostname function
+// will be called asynchronously with the hostname.
+func (q *rdnsQuerierImpl) GetHostnameAsync(ipAddr []byte, updateHostname func(string)) {
 	ipaddr, ok := netip.AddrFromSlice(ipAddr)
 	if !ok {
-		// IP address is invalid
+		q.logger.Tracef("Reverse DNS Enrichment IP address %v is invalid", ipAddr)
 		return
 	}
 
@@ -103,7 +103,7 @@ func (q *rdnsQuerierImpl) start(context.Context) error {
 		q.wg.Add(1)
 		go q.worker(i)
 	}
-	q.logger.Tracef("Started %d rdnsquerier workers", numWorkers)
+	q.logger.Infof("Reverse DNS Enrichment started %d rdnsquerier workers", numWorkers)
 
 	return nil
 }
@@ -111,7 +111,7 @@ func (q *rdnsQuerierImpl) start(context.Context) error {
 func (q *rdnsQuerierImpl) stop(context.Context) error {
 	close(q.stopChan)
 	q.wg.Wait()
-	q.logger.Infof("Stopped rdnsquerier workers")
+	q.logger.Infof("Reverse DNS Enrichment stopped rdnsquerier workers")
 
 	return nil
 }
@@ -121,7 +121,7 @@ func (q *rdnsQuerierImpl) worker(num int) {
 	for {
 		select {
 		case query := <-q.rdnsQueryChan:
-			q.logger.Tracef("worker[%d] processing rdnsQuery for IP address %v", num, query.addr)
+			q.logger.Tracef("Reverse DNS Enrichment worker[%d] processing rdnsQuery for IP address %v", num, query.addr)
 			q.getHostname(query)
 		case <-q.stopChan:
 			return
@@ -138,19 +138,19 @@ func (q *rdnsQuerierImpl) getHostname(query *rdnsQuery) {
 	if err != nil {
 		if dnsErr, ok := err.(*net.DNSError); ok {
 			if dnsErr.IsNotFound {
-				q.logger.Tracef("net.LookupAddr returned not found error '%v' for IP address %v", err, query.addr)
+				q.logger.Tracef("Reverse DNS Enrichment net.LookupAddr returned not found error '%v' for IP address %v", err, query.addr)
 				return
 			}
 			if dnsErr.IsTimeout {
-				q.logger.Tracef("net.LookupAddr returned timeout error '%v' for IP address %v", err, query.addr)
+				q.logger.Tracef("Reverse DNS Enrichment net.LookupAddr returned timeout error '%v' for IP address %v", err, query.addr)
 				return
 			}
 			if dnsErr.IsTemporary {
-				q.logger.Tracef("net.LookupAddr returned temporary error '%v' for IP address %v", err, query.addr)
+				q.logger.Tracef("Reverse DNS Enrichment net.LookupAddr returned temporary error '%v' for IP address %v", err, query.addr)
 				return
 			}
 		}
-		q.logger.Tracef("net.LookupAddr returned unknown error '%v' for IP address %v", err, query.addr)
+		q.logger.Tracef("Reverse DNS Enrichment net.LookupAddr returned unknown error '%v' for IP address %v", err, query.addr)
 		return
 	}
 
