@@ -20,7 +20,7 @@ import (
 	"go.uber.org/fx"
 	"gopkg.in/yaml.v2"
 
-	"github.com/DataDog/datadog-agent/comp/api/api"
+	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/api/api/utils"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -408,18 +408,7 @@ func (ia *inventoryagent) marshalAndScrub(data interface{}) (string, error) {
 	return string(scrubbed), nil
 }
 
-func (ia *inventoryagent) getPayload() marshaler.JSONMarshaler {
-	ia.m.Lock()
-	defer ia.m.Unlock()
-
-	ia.refreshMetadata()
-
-	// Create a static copy of agentMetadata for the payload
-	data := make(agentMetadata)
-	for k, v := range ia.data {
-		data[k] = v
-	}
-
+func (ia *inventoryagent) getConfigs(data agentMetadata) {
 	if ia.conf.GetBool("inventories_configuration_enabled") {
 		layers := ia.conf.AllSettingsBySource()
 		layersName := map[model.Source]string{
@@ -433,14 +422,31 @@ func (ia *inventoryagent) getPayload() marshaler.JSONMarshaler {
 		}
 
 		for source, conf := range layers {
-			if yaml, err := ia.marshalAndScrub(conf); err == nil {
-				data[layersName[source]] = yaml
+			if layer, ok := layersName[source]; ok {
+				if yaml, err := ia.marshalAndScrub(conf); err == nil {
+					data[layer] = yaml
+				}
 			}
 		}
 		if yaml, err := ia.marshalAndScrub(ia.conf.AllSettings()); err == nil {
 			data["full_configuration"] = yaml
 		}
 	}
+}
+
+func (ia *inventoryagent) getPayload() marshaler.JSONMarshaler {
+	ia.m.Lock()
+	defer ia.m.Unlock()
+
+	ia.refreshMetadata()
+
+	// Create a static copy of agentMetadata for the payload
+	data := make(agentMetadata)
+	for k, v := range ia.data {
+		data[k] = v
+	}
+
+	ia.getConfigs(data)
 
 	return &Payload{
 		Hostname:  ia.hostname,

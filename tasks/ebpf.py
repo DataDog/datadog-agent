@@ -550,8 +550,8 @@ def generate_html_report(ctx: Context, dest_folder: str | Path):
     """Generate an HTML report with the complexity data"""
     try:
         from jinja2 import Environment, FileSystemLoader, select_autoescape
-    except ImportError:
-        raise Exit("jinja2 is required to generate the HTML report")
+    except ImportError as e:
+        raise Exit("jinja2 is required to generate the HTML report") from e
 
     if not VERIFIER_STATS.exists() or not COMPLEXITY_DATA_DIR.exists():
         print("[!] No verifier stats found, regenerating them...")

@@ -6,8 +6,6 @@
 package process
 
 import (
-	"os"
-	"strconv"
 	"testing"
 	"time"
 
@@ -15,7 +13,6 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
@@ -27,9 +24,6 @@ type dockerTestSuite struct {
 }
 
 func TestDockerTestSuite(t *testing.T) {
-	// Tracked by ADXT-348
-	flake.Mark(t)
-
 	t.Parallel()
 	agentOpts := []dockeragentparams.Option{
 		dockeragentparams.WithAgentServiceEnvVariable("DD_PROCESS_CONFIG_PROCESS_COLLECTION_ENABLED", pulumi.StringPtr("true")),
@@ -43,11 +37,6 @@ func TestDockerTestSuite(t *testing.T) {
 		e2e.WithProvisioner(awsdocker.Provisioner(
 			awsdocker.WithAgentOptions(agentOpts...),
 		)),
-	}
-
-	devModeEnv, _ := os.LookupEnv("E2E_DEVMODE")
-	if devMode, err := strconv.ParseBool(devModeEnv); err == nil && devMode {
-		options = append(options, e2e.WithDevMode())
 	}
 
 	e2e.Run(t, &dockerTestSuite{}, options...)

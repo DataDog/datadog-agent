@@ -5,7 +5,6 @@
 
 //go:build trivy
 
-// Package util contains utility functions for image metadata collection
 package util
 
 import (
@@ -14,9 +13,10 @@ import (
 	"testing"
 
 	"github.com/CycloneDX/cyclonedx-go"
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	trivycore "github.com/aquasecurity/trivy/pkg/sbom/core"
 	trivydx "github.com/aquasecurity/trivy/pkg/sbom/cyclonedx"
+
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 )
 
 func Test_UpdateSBOMRepoMetadata(t *testing.T) {

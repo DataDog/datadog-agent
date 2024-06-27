@@ -54,7 +54,7 @@ func testCollectEvent(t *testing.T, createResource func(*fake.Clientset) error, 
 	))
 	ctx := context.TODO()
 
-	store, _ := newStore(ctx, wlm, client)
+	store, _ := newStore(ctx, wlm, wlm.GetConfig(), client)
 	stopStore := make(chan struct{})
 	go store.Run(stopStore)
 
@@ -124,7 +124,7 @@ func testCollectMetadataEvent(t *testing.T, createObjects func() []runtime.Objec
 	response, err := metadataclient.Resource(gvr).List(ctx, v1.ListOptions{})
 	assert.NoError(t, err)
 	fmt.Println("metadata client listing: ", response.String())
-	store, _ := newMetadataStore(ctx, wlm, metadataclient, gvr)
+	store, _ := newMetadataStore(ctx, wlm, wlm.GetConfig(), metadataclient, gvr)
 
 	stopStore := make(chan struct{})
 	go store.Run(stopStore)

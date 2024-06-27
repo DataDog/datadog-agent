@@ -33,8 +33,7 @@ type ProfileDefinition struct {
 
 	// Version is the profile version.
 	// It is currently used only with downloaded/RC profiles.
-	// It's not exposed as yaml field since not necessary.
-	Version uint64 `yaml:"-" json:"version"`
+	Version uint64 `yaml:"version,omitempty" json:"version"`
 }
 
 // DeviceProfileRcConfig represent the profile stored in remote config.

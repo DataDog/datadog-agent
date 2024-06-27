@@ -69,25 +69,41 @@ jobs:
         id: compare
         run: |
           OUTPUT=$(( ${{ steps.current.outputs.result }} - ${{ steps.previous.outputs.result }} ))
+          echo "binary size changed by $OUTPUT bytes"
           echo "diff=$OUTPUT" >> $GITHUB_OUTPUT
 
           OUTPUT=$(( $OUTPUT / 100000 ))
+          echo "cold start time changed by $OUTPUT ms"
           echo "coldstart=$OUTPUT" >> $GITHUB_OUTPUT
 
-      ### Steps below only run if size diff > SIZE_ALLOWANCE ###
+      - name: Should post comment
+        id: should
+        run: |
+          cd go/src/github.com/DataDog/datadog-agent
+          if test $(
+            git diff $GITHUB_BASE_REF..$GITHUB_SHA --name-only | grep dependencies_linux_amd64.txt
+          ); then
+            echo "should_run=true" >> $GITHUB_OUTPUT
+          elif [[ ${{ steps.compare.outputs.diff }} > env.SIZE_ALLOWANCE ]]; then
+            echo "should_run=true" >> $GITHUB_OUTPUT
+          else
+            echo "should_run=false" >> $GITHUB_OUTPUT
+          fi
+
+      ### Steps below run if size diff > SIZE_ALLOWANCE or file dependencies_linux_amd64.txt changed ###
 
       - name: Install graphviz
         uses: ts-graphviz/setup-graphviz@b1de5da23ed0a6d14e0aeee8ed52fdd87af2363c # v2.0.2
-        if: steps.compare.outputs.diff > env.SIZE_ALLOWANCE
+        if: steps.should.outputs.should_run == 'true'
 
       - name: Install digraph
-        if: steps.compare.outputs.diff > env.SIZE_ALLOWANCE
+        if: steps.should.outputs.should_run == 'true'
         run: |
           GOPATH=$(pwd)/go go install golang.org/x/tools/cmd/digraph@latest
 
       - name: List new dependencies
         id: deps
-        if: steps.compare.outputs.diff > env.SIZE_ALLOWANCE
+        if: steps.should.outputs.should_run == 'true'
         run: |
           echo "deps<<EOF" >> $GITHUB_OUTPUT
           for dep in $(echo "${{ steps.current.outputs.deps }}"); do
@@ -98,7 +114,7 @@ jobs:
           echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Create dependency graphs
-        if: steps.compare.outputs.diff > env.SIZE_ALLOWANCE
+        if: steps.should.outputs.should_run == 'true'
         run: |
           export PATH=$(pwd)/go/bin:$PATH
           cd go/src/github.com/DataDog/datadog-lambda-extension
@@ -110,15 +126,16 @@ jobs:
 
       - name: Archive dependency graphs
         uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808 # v4.3.3
-        if: steps.compare.outputs.diff > env.SIZE_ALLOWANCE
+        if: steps.should.outputs.should_run == 'true'
         with:
           name: dependency-graphs
           path: go/src/github.com/DataDog/datadog-lambda-extension/graphs
 
       - name: Post comment
         uses: marocchino/sticky-pull-request-comment@331f8f5b4215f0445d3c07b4967662a32a2d3e31 # v2.9.0
-        if: steps.compare.outputs.diff > env.SIZE_ALLOWANCE
+        if: steps.should.outputs.should_run == 'true'
         with:
+          header: serverless-binary-size
           hide_and_recreate: true
           hide_classify: "RESOLVED"
           message: |

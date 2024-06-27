@@ -27,7 +27,6 @@ import (
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	ebpfkernel "github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/maps"
@@ -326,7 +325,7 @@ func (e *ebpfConntracker) GetTelemetryMap() *ebpf.Map {
 }
 
 func (e *ebpfConntracker) Close() {
-	ebpfcheck.RemoveNameMappings(e.m)
+	ddebpf.RemoveNameMappings(e.m)
 	err := e.m.Stop(manager.CleanAll)
 	if err != nil {
 		log.Warnf("error cleaning up ebpf conntrack: %s", err)
@@ -460,7 +459,7 @@ func getManager(cfg *config.Config, buf io.ReaderAt, opts manager.Options) (*man
 	if err != nil {
 		return nil, err
 	}
-	ebpfcheck.AddNameMappings(mgr.Manager, "npm_conntracker")
+	ddebpf.AddNameMappings(mgr.Manager, "npm_conntracker")
 	return mgr.Manager, nil
 }
 

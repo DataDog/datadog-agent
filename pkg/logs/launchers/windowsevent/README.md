@@ -1,7 +1,7 @@
 # How to setup a windows eventlog dev environment
 
 Cross compilation from mac is not easy, an easier path is to use a linux vm for that (for instance `ubuntu/trusty64` vagrant vm).
-Requirements are to install go 1.21+, and to install `mingw-w64` with apt.
+Requirements are to install go 1.22+, and to install `mingw-w64` with apt.
 
 Once those requirements are met, to build, run:
 ```
