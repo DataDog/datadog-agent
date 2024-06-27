@@ -28,6 +28,7 @@
   script:
     - !reference [.retrieve_linux_go_tools_deps]
     - inv -e install-tools
+    - inv -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
     - FAST_TESTS_FLAG=""
     - if [[ "$FAST_TESTS" == "true" ]]; then FAST_TESTS_FLAG="--only-impacted-packages"; fi
     - inv -e sds.build-library
@@ -36,7 +37,6 @@
     # Upload coverage files to Codecov. Never fail on coverage upload.
     - export CODECOV_TOKEN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $CODECOV_TOKEN_SSM_NAME)
     - inv -e coverage.upload-to-codecov $COVERAGE_CACHE_FLAG || true
-    - inv -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
   artifacts:
     expire_in: 2 weeks
     when: always
