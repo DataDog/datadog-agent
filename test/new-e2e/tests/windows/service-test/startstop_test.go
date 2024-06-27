@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-// Package windows contains the code to run the e2e tests on Windows
-package windows
+// Package servicetest contains tests for Windows Agent service behavior
+package servicetest
 
 import (
 	_ "embed"
@@ -14,12 +14,14 @@ import (
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awsHostWindows "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host/windows"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclientparams"
 	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
+	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 
 	"testing"
 
@@ -37,28 +39,72 @@ var systemProbeConfig string
 //go:embed fixtures/security-agent.yaml
 var securityAgentConfig string
 
-func TestServiceBehavior(t *testing.T) {
-	s := &startStopTestSuite{}
-	opts := []e2e.SuiteOption{e2e.WithProvisioner(awsHostWindows.ProvisionerNoFakeIntake(
-		awsHostWindows.WithAgentOptions(
-			agentparams.WithAgentConfig(agentConfig),
-			agentparams.WithSystemProbeConfig(systemProbeConfig),
-			agentparams.WithSecurityAgentConfig(securityAgentConfig),
-		),
-		awsHostWindows.WithAgentClientOptions(
-			agentclientparams.WithSkipWaitForAgentReady(),
-		),
-	))}
-	e2e.Run(t, s, opts...)
+// TestServiceBehaviorAgentCommand tests the service behavior when controlled by Agent commands
+func TestServiceBehaviorAgentCommand(t *testing.T) {
+	s := &agentServicCommandSuite{}
+	run(t, s)
 }
 
-type startStopTestSuite struct {
-	e2e.BaseSuite[environments.WindowsHost]
+type agentServicCommandSuite struct {
+	baseStartStopSuite
+}
+
+func (s *agentServicCommandSuite) SetupSuite() {
+	if setupSuite, ok := any(&s.baseStartStopSuite).(suite.SetupAllSuite); ok {
+		setupSuite.SetupSuite()
+	}
+
+	installPath, err := windowsAgent.GetInstallPathFromRegistry(s.Env().RemoteHost)
+	s.Require().NoError(err, "should get install path from registry")
+
+	s.startAgentCommand = func(host *components.RemoteHost) error {
+		cmd := fmt.Sprintf(`& "%s\bin\agent.exe" start-service`, installPath)
+		out, err := host.Execute(cmd)
+		if err == nil {
+			s.T().Logf("agent start-service output:\n%s", out)
+		}
+		return err
+	}
+	s.stopAgentCommand = func(host *components.RemoteHost) error {
+		cmd := fmt.Sprintf(`& "%s\bin\agent.exe" stop-service`, installPath)
+		out, err := host.Execute(cmd)
+		if err == nil {
+			s.T().Logf("agent stop-service output:\n%s", out)
+		}
+		return err
+	}
+}
+
+// TestServiceBehaviorAgentCommand tests the service behavior when controlled by PowerShell commands
+func TestServiceBehaviorPowerShell(t *testing.T) {
+	s := &powerShellServiceCommandSuite{}
+	run(t, s)
+}
+
+type powerShellServiceCommandSuite struct {
+	baseStartStopSuite
+}
+
+func (s *powerShellServiceCommandSuite) SetupSuite() {
+	if setupSuite, ok := any(&s.baseStartStopSuite).(suite.SetupAllSuite); ok {
+		setupSuite.SetupSuite()
+	}
+
+	s.startAgentCommand = func(host *components.RemoteHost) error {
+		cmd := `Start-Service -Name datadogagent`
+		_, err := host.Execute(cmd)
+		return err
+	}
+	s.stopAgentCommand = func(host *components.RemoteHost) error {
+		cmd := `Stop-Service -Force -Name datadogagent`
+		_, err := host.Execute(cmd)
+		return err
+	}
 }
 
 // TestStopTimeout tests that each service stops without hitting its hard stop timeout, which
 // results in a message in the Application event log.
-func (s *startStopTestSuite) TestStopTimeout() {
+func (s *powerShellServiceCommandSuite) TestStopTimeout() {
 	host := s.Env().RemoteHost
 
 	// ensure all services are running
@@ -101,28 +147,8 @@ func (s *startStopTestSuite) TestStopTimeout() {
 	s.Assert().NotContains(out, "hard stopping service", "should not have timeout messages in the event log")
 }
 
-// TestAgentStartsAllServices tests that starting the agent starts all services
-func (s *startStopTestSuite) TestAgentStartsAllServices() {
-	s.startAgent()
-	s.requireAllServicesState("Running")
-}
-
-// TestAgentStopsAllServices tests that stopping the agent stops all services
-func (s *startStopTestSuite) TestAgentStopsAllServices() {
-	host := s.Env().RemoteHost
-	s.startAgent()
-	s.requireAllServicesState("Running")
-
-	// stop the agent
-	err := windowsCommon.StopService(host, "datadogagent")
-	s.Require().NoError(err, "should stop the datadogagent service")
-
-	// ensure all services are stopped
-	s.assertAllServicesState("Stopped")
-}
-
 // TestHardExitEventLogEntry tests that the System event log contains an "unexpectedly terminated" message when a service is killed
-func (s *startStopTestSuite) TestHardExitEventLogEntry() {
+func (s *powerShellServiceCommandSuite) TestHardExitEventLogEntry() {
 	host := s.Env().RemoteHost
 	s.startAgent()
 	s.requireAllServicesState("Running")
@@ -161,7 +187,47 @@ func (s *startStopTestSuite) TestHardExitEventLogEntry() {
 	}, 1*time.Minute, 1*time.Second, "should have hard exit messages in the event log")
 }
 
-func (s *startStopTestSuite) SetupSuite() {
+func run[Env any](t *testing.T, s e2e.Suite[Env]) {
+	opts := []e2e.SuiteOption{e2e.WithProvisioner(awsHostWindows.ProvisionerNoFakeIntake(
+		awsHostWindows.WithAgentOptions(
+			agentparams.WithAgentConfig(agentConfig),
+			agentparams.WithSystemProbeConfig(systemProbeConfig),
+			agentparams.WithSecurityAgentConfig(securityAgentConfig),
+		),
+		awsHostWindows.WithAgentClientOptions(
+			agentclientparams.WithSkipWaitForAgentReady(),
+		),
+	))}
+	e2e.Run(t, s, opts...)
+}
+
+type baseStartStopSuite struct {
+	e2e.BaseSuite[environments.WindowsHost]
+	startAgentCommand func(host *components.RemoteHost) error
+	stopAgentCommand  func(host *components.RemoteHost) error
+}
+
+// TestAgentStartsAllServices tests that starting the agent starts all services
+func (s *baseStartStopSuite) TestAgentStartsAllServices() {
+	s.startAgent()
+	s.requireAllServicesState("Running")
+}
+
+// TestAgentStopsAllServices tests that stopping the agent stops all services
+func (s *baseStartStopSuite) TestAgentStopsAllServices() {
+	host := s.Env().RemoteHost
+	s.startAgent()
+	s.requireAllServicesState("Running")
+
+	// stop the agent
+	err := s.stopAgentCommand(host)
+	s.Require().NoError(err, "should stop the datadogagent service")
+
+	// ensure all services are stopped
+	s.assertAllServicesState("Stopped")
+}
+
+func (s *baseStartStopSuite) SetupSuite() {
 	if setupSuite, ok := any(&s.BaseSuite).(suite.SetupAllSuite); ok {
 		setupSuite.SetupSuite()
 	}
@@ -175,7 +241,7 @@ func (s *startStopTestSuite) SetupSuite() {
 	}
 }
 
-func (s *startStopTestSuite) BeforeTest(suiteName, testName string) {
+func (s *baseStartStopSuite) BeforeTest(suiteName, testName string) {
 	if beforeTest, ok := any(&s.BaseSuite).(suite.BeforeTest); ok {
 		beforeTest.BeforeTest(suiteName, testName)
 	}
@@ -204,7 +270,7 @@ func (s *startStopTestSuite) BeforeTest(suiteName, testName string) {
 	}
 }
 
-func (s *startStopTestSuite) AfterTest(suiteName, testName string) {
+func (s *baseStartStopSuite) AfterTest(suiteName, testName string) {
 	if afterTest, ok := any(&s.BaseSuite).(suite.AfterTest); ok {
 		afterTest.AfterTest(suiteName, testName)
 	}
@@ -234,7 +300,7 @@ func (s *startStopTestSuite) AfterTest(suiteName, testName string) {
 	}
 }
 
-func (s *startStopTestSuite) collectAgentLogs() {
+func (s *baseStartStopSuite) collectAgentLogs() {
 	host := s.Env().RemoteHost
 	outputDir, err := runner.GetTestOutputDir(runner.GetProfile(), s.T())
 	if err != nil {
@@ -260,13 +326,13 @@ func (s *startStopTestSuite) collectAgentLogs() {
 	}
 }
 
-func (s *startStopTestSuite) startAgent() {
+func (s *baseStartStopSuite) startAgent() {
 	host := s.Env().RemoteHost
-	err := windowsCommon.StartService(host, "datadogagent")
-	s.Require().NoError(err, "should start the datadogagent service")
+	err := s.startAgentCommand(host)
+	s.Require().NoError(err, "should start the agent")
 }
 
-func (s *startStopTestSuite) requireAllServicesState(expected string) {
+func (s *baseStartStopSuite) requireAllServicesState(expected string) {
 	// ensure all services are running
 	s.assertAllServicesState(expected)
 
@@ -276,7 +342,7 @@ func (s *startStopTestSuite) requireAllServicesState(expected string) {
 	}
 }
 
-func (s *startStopTestSuite) assertAllServicesState(expected string) {
+func (s *baseStartStopSuite) assertAllServicesState(expected string) {
 	host := s.Env().RemoteHost
 
 	for _, serviceName := range s.expectedInstalledServices() {
@@ -290,13 +356,13 @@ func (s *startStopTestSuite) assertAllServicesState(expected string) {
 	}
 }
 
-func (s *startStopTestSuite) stopAllServices() {
+func (s *baseStartStopSuite) stopAllServices() {
 	host := s.Env().RemoteHost
 
 	// stop agent first, it should stop all services
 	s.T().Logf("Stopping the agent service...")
-	err := windowsCommon.StopService(host, "datadogagent")
-	s.Require().NoError(err, "should stop the datadogagent service")
+	err := s.stopAgentCommand(host)
+	s.Require().NoError(err, "should stop the agent")
 	s.T().Logf("Agent service stopped")
 
 	// ensure all services are stopped
@@ -314,7 +380,7 @@ func (s *startStopTestSuite) stopAllServices() {
 }
 
 // expectedUserServices returns the list of user-mode services
-func (s *startStopTestSuite) expectedUserServices() []string {
+func (s *baseStartStopSuite) expectedUserServices() []string {
 	return []string{
 		"datadogagent",
 		"datadog-trace-agent",
@@ -325,7 +391,7 @@ func (s *startStopTestSuite) expectedUserServices() []string {
 }
 
 // expectedInstalledServices returns the list of services that should be installed by the agent
-func (s *startStopTestSuite) expectedInstalledServices() []string {
+func (s *baseStartStopSuite) expectedInstalledServices() []string {
 	user := s.expectedUserServices()
 	kernel := []string{
 		"ddnpm",
