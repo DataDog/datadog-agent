@@ -316,7 +316,7 @@ require (
 	k8s.io/klog/v2 v2.120.1
 	k8s.io/kube-aggregator v0.28.6
 	k8s.io/kube-openapi v0.0.0-20231010175941-2dd684a91f00
-	k8s.io/kube-state-metrics/v2 v2.8.2
+	k8s.io/kube-state-metrics/v2 v2.12.0
 	k8s.io/kubelet v0.29.3
 	k8s.io/metrics v0.28.6
 	k8s.io/utils v0.0.0-20240502163921-fe8a2dddb1d0
@@ -1293,6 +1293,7 @@ require (
 	honnef.co/go/tools v0.4.5 // indirect
 	howett.net/plist v1.0.0 // indirect
 	k8s.io/kms v0.29.0 // indirect
+	k8s.io/sample-controller v0.29.3 // indirect
 	lukechampine.com/uint128 v1.3.0 // indirect
 	modernc.org/strutil v1.2.0 // indirect
 	modernc.org/token v1.1.0 // indirect

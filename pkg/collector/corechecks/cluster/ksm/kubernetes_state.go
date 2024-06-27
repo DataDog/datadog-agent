@@ -274,7 +274,9 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 		allowedAnnotations[collector] = []string{"*"}
 	}
 
-	builder.WithAllowAnnotations(allowedAnnotations)
+	if err := builder.WithAllowAnnotations(allowedAnnotations); err != nil {
+		log.Warnf("Failed to set allowed annotations: %v: %s", allowedAnnotations, err)
+	}
 
 	// Prepare watched namespaces
 	namespaces := k.instance.Namespaces
@@ -297,8 +299,6 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 	builder.WithFamilyGeneratorFilter(allowDenyList)
 
 	builder.WithKubeClient(c.InformerCl)
-
-	builder.WithVPAClient(c.VPAInformerClient)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	k.cancel = cancel

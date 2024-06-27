@@ -17,7 +17,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	vpaclientset "k8s.io/autoscaler/vertical-pod-autoscaler/pkg/client/clientset/versioned"
 	clientset "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 	ksmbuild "k8s.io/kube-state-metrics/v2/pkg/builder"
@@ -39,7 +38,6 @@ type Builder struct {
 
 	customResourceClients map[string]interface{}
 	kubeClient            clientset.Interface
-	vpaClient             vpaclientset.Interface
 	namespaces            options.NamespaceList
 	fieldSelectorFilter   string
 	ctx                   context.Context
@@ -87,12 +85,6 @@ func (b *Builder) WithCustomResourceClients(clients map[string]interface{}) {
 	b.ksmBuilder.WithCustomResourceClients(clients)
 }
 
-// WithVPAClient sets the vpaClient property of a Builder so that the verticalpodautoscaler collector can query VPA objects.
-func (b *Builder) WithVPAClient(c vpaclientset.Interface) {
-	b.vpaClient = c
-	b.ksmBuilder.WithVPAClient(c)
-}
-
 // WithMetrics sets the metrics property of a Builder.
 func (b *Builder) WithMetrics(r prometheus.Registerer) {
 	b.ksmBuilder.WithMetrics(r)
@@ -131,8 +123,8 @@ func (b *Builder) WithAllowLabels(l map[string][]string) error {
 }
 
 // WithAllowAnnotations configures which annotations can be returned for metrics
-func (b *Builder) WithAllowAnnotations(l map[string][]string) {
-	b.ksmBuilder.WithAllowAnnotations(l)
+func (b *Builder) WithAllowAnnotations(l map[string][]string) error {
+	return b.ksmBuilder.WithAllowAnnotations(l)
 }
 
 // Build initializes and registers all enabled stores.

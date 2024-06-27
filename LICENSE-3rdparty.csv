@@ -4756,6 +4756,7 @@ core,k8s.io/kube-state-metrics/v2/pkg/metric_generator,Apache-2.0,Copyright 2014
 core,k8s.io/kube-state-metrics/v2/pkg/metrics_store,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kube-state-metrics/v2/pkg/options,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kube-state-metrics/v2/pkg/sharding,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/kube-state-metrics/v2/pkg/util,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kube-state-metrics/v2/pkg/watch,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kubectl/pkg/cmd/util,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kubectl/pkg/cmd/util/podcmd,Apache-2.0,Copyright 2014 The Kubernetes Authors.
@@ -4768,6 +4769,8 @@ core,k8s.io/metrics/pkg/apis/custom_metrics/v1beta2,Apache-2.0,Copyright 2014 Th
 core,k8s.io/metrics/pkg/apis/external_metrics,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/metrics/pkg/apis/external_metrics/install,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/metrics/pkg/apis/external_metrics/v1beta1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/sample-controller/pkg/apis/samplecontroller,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/sample-controller/pkg/apis/samplecontroller/v1alpha1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/utils/buffer,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/utils/clock,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/utils/clock/testing,Apache-2.0,Copyright 2014 The Kubernetes Authors.

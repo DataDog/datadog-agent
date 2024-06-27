@@ -52,7 +52,7 @@ func (f *apiserviceFactory) Name() string {
 	return "apiservices"
 }
 
-func (f *apiserviceFactory) MetricFamilyGenerators(allowAnnotationsList, allowLabelsList []string) []generator.FamilyGenerator {
+func (f *apiserviceFactory) MetricFamilyGenerators() []generator.FamilyGenerator {
 	return []generator.FamilyGenerator{
 		*generator.NewFamilyGeneratorWithStability(
 			descAPIServiceAnnotationsName,
@@ -61,7 +61,7 @@ func (f *apiserviceFactory) MetricFamilyGenerators(allowAnnotationsList, allowLa
 			basemetrics.ALPHA,
 			"",
 			wrapAPIServiceFunc(func(a *v1.APIService) *metric.Family {
-				annotationKeys, annotationValues := createPrometheusLabelKeysValues("annotation", a.Annotations, allowAnnotationsList)
+				annotationKeys, annotationValues := kubeMapToPrometheusLabels("annotation", a.Annotations)
 				return &metric.Family{
 					Metrics: []*metric.Metric{
 						{
@@ -80,7 +80,7 @@ func (f *apiserviceFactory) MetricFamilyGenerators(allowAnnotationsList, allowLa
 			basemetrics.ALPHA,
 			"",
 			wrapAPIServiceFunc(func(a *v1.APIService) *metric.Family {
-				labelKeys, labelValues := createPrometheusLabelKeysValues("label", a.Labels, allowLabelsList)
+				labelKeys, labelValues := kubeMapToPrometheusLabels("label", a.Labels)
 				return &metric.Family{
 					Metrics: []*metric.Metric{
 						{
