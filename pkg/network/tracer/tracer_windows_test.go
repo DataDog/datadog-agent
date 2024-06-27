@@ -34,10 +34,11 @@ func testConfig() *config.Config {
 	return cfg
 }
 
+// nolint:unused   // this function currently unused but will be.
 func setupDropTrafficRule(tb testing.TB) (ns string) {
 	//
 	// note.  This does not seem to function as advertised; localhost traffic is not being
-	// blocked.  More re
+	// blocked.  More testing is necessary.
 	tb.Cleanup(func() {
 		cmds := []string{
 			"powershell -c \"Remove-NetFirewallRule -DisplayName 'Datadog Test Rule'\"",
@@ -48,9 +49,7 @@ func setupDropTrafficRule(tb testing.TB) (ns string) {
 		"powershell -c \"New-NetFirewallRule -DisplayName 'Datadog Test Rule' -Direction Outbound -Action Block -Profile Any -RemotePort 10000 -Protocol TCP\"",
 	}
 	testutil.RunCommands(tb, cmds, false)
-	return
 }
 
-func checkSkipFailureConnectionsTests(t *testing.T) {
-	return
+func checkSkipFailureConnectionsTests(_ *testing.T) {
 }

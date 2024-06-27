@@ -1282,7 +1282,7 @@ func (s *TracerSuite) TestTCPFailureConnectionRefused() {
 }
 
 // findFailedConnection is a utility function to find a failed connection based on specific TCP error codes
-func findFailedConnection(t *testing.T, local, remote string, conns *network.Connections, errorCode uint32) bool {
+func findFailedConnection(t *testing.T, local, remote string, conns *network.Connections, errorCode uint32) bool { // nolint:unused
 	// Extract the address and port from the net.Addr types
 	localAddrPort, err := netip.ParseAddrPort(local)
 	if err != nil {

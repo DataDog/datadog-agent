@@ -2403,11 +2403,7 @@ func (s *TracerSuite) TestTCPFailureConnectionTimeout() {
 	t.Cleanup(func() { syscall.Close(sfd) })
 
 	//syscall.TCP_USER_TIMEOUT is 18 but not defined in our linter. Set it to 500ms
-	if runtime.GOOS == "windows" {
-		err = syscall.SetsockoptInt(sfd, syscall.SOL_SOCKET, 0x1005, 500)
-	} else {
-		err = syscall.SetsockoptInt(sfd, syscall.IPPROTO_TCP, 18, 500)
-	}
+	err = syscall.SetsockoptInt(sfd, syscall.IPPROTO_TCP, 18, 500)
 	require.NoError(t, err)
 
 	err = syscall.Connect(sfd, &addr)
