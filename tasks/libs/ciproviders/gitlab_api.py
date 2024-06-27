@@ -4,6 +4,7 @@ import json
 import os
 import platform
 import subprocess
+import sys
 from functools import lru_cache
 
 import gitlab
@@ -262,7 +263,7 @@ def apply_yaml_reference(config: dict, node):
         node.extend(results)
 
 
-# TODO: Deprecate this in favor of get_full_configuration
+# TODO: Deprecate this in favor of get_gitlab_ci_configuration
 @lru_cache(maxsize=None)
 def apply_yaml_postprocessing(config: ConfigNodeDict, node):
     if isinstance(node, dict):
@@ -295,7 +296,41 @@ def flatten_gitlab_ci_configuration(yml):
         return yml
 
 
-def get_full_configuration(
+def filter_gitlab_ci_configuration(yml: dict, job: str | None = None) -> dict:
+    """
+    Filters gitlab-ci configuration jobs
+
+    - job: If provided, retrieve only this job
+    """
+
+    def filter_yaml(key, value):
+        # Print only jobs
+        if key.startswith('.'):
+            return None
+
+        if job is not None:
+            return (key, value) if key == job else None
+
+        return key, value
+
+    if job is not None:
+        assert job in yml, f"Job {job} not found in the configuration"
+
+    return {node[0]: node[1] for node in (filter_yaml(k, v) for k, v in yml.items()) if node is not None}
+
+
+def print_gitlab_ci_configuration(yml: dict, sort: bool):
+    jobs = yml.items()
+    if sort:
+        jobs = sorted(jobs)
+
+    for i, (job, content) in enumerate(jobs):
+        if i > 0:
+            print()
+        yaml.safe_dump({job: content}, sys.stdout, default_flow_style=False, sort_keys=False, indent=2)
+
+
+def get_gitlab_ci_configuration(
     input_file: str = '.gitlab-ci.yml', return_dict: bool = True, ignore_errors: bool = False
 ) -> str | dict:
     """

@@ -7,7 +7,6 @@ from collections import defaultdict
 from glob import glob
 from os.path import dirname, exists, join, relpath
 
-import yaml
 from invoke import Exit, task
 
 from tasks.build_tags import compute_build_tags_for_flavor
@@ -16,12 +15,14 @@ from tasks.flavor import AgentFlavor
 from tasks.go import run_golangci_lint
 from tasks.libs.ciproviders.github_api import GithubAPI
 from tasks.libs.ciproviders.gitlab_api import (
+    filter_gitlab_ci_configuration,
     flatten_gitlab_ci_configuration,
     generate_gitlab_full_configuration,
-    get_full_configuration,
+    get_gitlab_ci_configuration,
     get_gitlab_repo,
     get_preset_contexts,
     load_context,
+    print_gitlab_ci_configuration,
     read_includes,
 )
 from tasks.libs.common.check_tools_version import check_tools_version
@@ -378,41 +379,18 @@ def get_full_gitlab_ci(
     - flatten: Flatten lists of lists (nesting due to !reference tags)
     """
 
-    def print_yaml(yml: dict):
-        jobs = yml.items()
-        if sort:
-            jobs = sorted(jobs)
-
-        for i, (job, content) in enumerate(jobs):
-            if i > 0:
-                print()
-            yaml.safe_dump({job: content}, sys.stdout, default_flow_style=False, sort_keys=False, indent=2)
-
-    def filter_yaml(key: str, value) -> tuple[str, any] | None:
-        # Print only jobs
-        if key.startswith('.'):
-            return None
-
-        if job is not None:
-            return (key, value) if key == job else None
-
-        return key, value
-
     # Make full configuration
-    yml = get_full_configuration(input_file)
+    yml = get_gitlab_ci_configuration(input_file)
 
     # Filter
-    if job is not None:
-        assert job in yml, f"Job {job} not found in the configuration"
-
-    yml = {node[0]: node[1] for node in (filter_yaml(k, v) for k, v in yml.items()) if node is not None}
+    yml = filter_gitlab_ci_configuration(yml, job)
 
     # Flatten
     if flatten:
         yml = flatten_gitlab_ci_configuration(yml)
 
     # Print
-    print_yaml(yml)
+    print_gitlab_ci_configuration(yml, sort=sort)
 
 
 @task
