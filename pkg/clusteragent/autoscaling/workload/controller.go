@@ -276,7 +276,12 @@ func (c *Controller) handleScaling(ctx context.Context, podAutoscaler *datadoghq
 		return horizontalRes, err
 	}
 
-	return c.verticalController.sync(ctx, podAutoscaler, podAutoscalerInternal)
+	verticalRes, err := c.verticalController.sync(ctx, podAutoscaler, podAutoscalerInternal)
+	if err != nil {
+		return verticalRes, err
+	}
+
+	return horizontalRes.Merge(verticalRes), nil
 }
 
 func (c *Controller) createPodAutoscaler(ctx context.Context, podAutoscalerInternal model.PodAutoscalerInternal) error {

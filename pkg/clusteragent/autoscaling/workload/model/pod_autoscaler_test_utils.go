@@ -9,6 +9,8 @@ package model
 
 import (
 	"reflect"
+	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -20,6 +22,7 @@ import (
 	datadoghq "github.com/DataDog/datadog-operator/apis/datadoghq/v1alpha1"
 )
 
+// FakePodAutoscalerInternal is a fake PodAutoscalerInternal object.
 type FakePodAutoscalerInternal struct {
 	Namespace                 string
 	Name                      string
@@ -27,8 +30,10 @@ type FakePodAutoscalerInternal struct {
 	Spec                      *datadoghq.DatadogPodAutoscalerSpec
 	SettingsTimestamp         time.Time
 	ScalingValues             ScalingValues
-	HorizontalLastAction      *datadoghq.DatadogPodAutoscalerHorizontalAction
+	HorizontalLastActions     []datadoghq.DatadogPodAutoscalerHorizontalAction
+	HorizontalLastLimitReason string
 	HorizontalLastActionError error
+	HorizontalEventsRetention time.Duration
 	VerticalLastAction        *datadoghq.DatadogPodAutoscalerVerticalAction
 	VerticalLastActionError   error
 	CurrentReplicas           *int32
@@ -38,6 +43,7 @@ type FakePodAutoscalerInternal struct {
 	TargetGVK                 schema.GroupVersionKind
 }
 
+// Build creates a PodAutoscalerInternal object from the FakePodAutoscalerInternal.
 func (f FakePodAutoscalerInternal) Build() PodAutoscalerInternal {
 	return PodAutoscalerInternal{
 		namespace:                 f.Namespace,
@@ -46,8 +52,10 @@ func (f FakePodAutoscalerInternal) Build() PodAutoscalerInternal {
 		spec:                      f.Spec,
 		settingsTimestamp:         f.SettingsTimestamp,
 		scalingValues:             f.ScalingValues,
-		horizontalLastAction:      f.HorizontalLastAction,
+		horizontalLastActions:     f.HorizontalLastActions,
+		horizontalLastLimitReason: f.HorizontalLastLimitReason,
 		horizontalLastActionError: f.HorizontalLastActionError,
+		horizontalEventsRetention: f.HorizontalEventsRetention,
 		verticalLastAction:        f.VerticalLastAction,
 		verticalLastActionError:   f.VerticalLastActionError,
 		currentReplicas:           f.CurrentReplicas,
@@ -58,6 +66,12 @@ func (f FakePodAutoscalerInternal) Build() PodAutoscalerInternal {
 	}
 }
 
+// AddHorizontalAction mimics the behavior of adding an horizontal event.
+func (f *FakePodAutoscalerInternal) AddHorizontalAction(currentTime time.Time, action *datadoghq.DatadogPodAutoscalerHorizontalAction) {
+	f.HorizontalLastActions = addHorizontalAction(currentTime, f.HorizontalEventsRetention, f.HorizontalLastActions, action)
+}
+
+// NewFakePodAutoscalerInternal creates a new FakePodAutoscalerInternal object.
 func NewFakePodAutoscalerInternal(ns, name string, fake *FakePodAutoscalerInternal) PodAutoscalerInternal {
 	if fake == nil {
 		fake = &FakePodAutoscalerInternal{}
@@ -72,9 +86,7 @@ func NewFakePodAutoscalerInternal(ns, name string, fake *FakePodAutoscalerIntern
 func ComparePodAutoscalers(expected any, actual any) string {
 	return cmp.Diff(
 		expected, actual,
-		cmpopts.SortSlices(func(a, b PodAutoscalerInternal) bool {
-			return a.ID() < b.ID()
-		}),
+		cmpopts.EquateErrors(),
 		cmp.Exporter(func(t reflect.Type) bool {
 			return t == reflect.TypeOf(PodAutoscalerInternal{})
 		}),
@@ -90,8 +102,8 @@ func ComparePodAutoscalers(expected any, actual any) string {
 				return false
 			},
 			cmp.Transformer("model.FakeToInternal", func(x any) PodAutoscalerInternal {
-				if real, ok := x.(PodAutoscalerInternal); ok {
-					return real
+				if actual, ok := x.(PodAutoscalerInternal); ok {
+					return actual
 				}
 				if fake, ok := x.(FakePodAutoscalerInternal); ok {
 					return fake.Build()
@@ -111,17 +123,21 @@ func ComparePodAutoscalers(expected any, actual any) string {
 				return false
 			},
 			cmp.Transformer("model.FakeToInternalList", func(x any) []PodAutoscalerInternal {
-				if real, ok := x.([]PodAutoscalerInternal); ok {
-					return real
-				}
-				if fake, ok := x.([]FakePodAutoscalerInternal); ok {
-					var result []PodAutoscalerInternal
+				var autoscalers []PodAutoscalerInternal
+				if actual, ok := x.([]PodAutoscalerInternal); ok {
+					autoscalers = actual
+				} else if fake, ok := x.([]FakePodAutoscalerInternal); ok {
 					for _, f := range fake {
-						result = append(result, f.Build())
+						autoscalers = append(autoscalers, f.Build())
 					}
-					return result
+				} else {
+					panic("filter on  failed - unexpected type")
 				}
-				panic("filer failed - unexpected type")
+
+				slices.SortStableFunc(autoscalers, func(a, b PodAutoscalerInternal) int {
+					return strings.Compare(a.ID(), b.ID())
+				})
+				return autoscalers
 			}),
 		),
 	)

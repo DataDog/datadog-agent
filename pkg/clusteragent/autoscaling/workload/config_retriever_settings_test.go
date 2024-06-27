@@ -104,7 +104,7 @@ func TestConfigRetriverAutoscalingSettingsLeader(t *testing.T) {
 			Name:       "deploy3",
 		},
 		Policy: &datadoghq.DatadogPodAutoscalerPolicy{
-			ApplyMode: datadoghq.DatadogPodAutoscalerAllApplyNone,
+			ApplyMode: datadoghq.DatadogPodAutoscalerNoneApplyMode,
 			Update: &datadoghq.DatadogPodAutoscalerUpdatePolicy{
 				Strategy: datadoghq.DatadogPodAutoscalerAutoUpdateStrategy,
 			},

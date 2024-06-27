@@ -188,6 +188,11 @@ func TestLeaderCreateDeleteRemote(t *testing.T) {
 					LastTransitionTime: metav1.NewTime(testTime),
 				},
 				{
+					Type:               datadoghq.DatadogPodAutoscalerHorizontalScalingLimitedCondition,
+					Status:             corev1.ConditionFalse,
+					LastTransitionTime: metav1.NewTime(testTime),
+				},
+				{
 					Type:               datadoghq.DatadogPodAutoscalerHorizontalAbleToScaleCondition,
 					Status:             corev1.ConditionUnknown,
 					LastTransitionTime: metav1.NewTime(testTime),
