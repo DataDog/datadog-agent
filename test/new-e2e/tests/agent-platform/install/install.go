@@ -52,7 +52,7 @@ func Unix(t *testing.T, client *common.TestClient, options ...installparams.Opti
 		apikey = "aaaaaaaaaa"
 
 		// If the API key is not provided, disable the telemetry to avoid 403 errors
-		commandLine += fmt.Sprint("DD_INSTRUMENTATION_TELEMETRY_ENABLED=false")
+		commandLine += "DD_INSTRUMENTATION_TELEMETRY_ENABLED=false"
 	}
 
 	t.Run("Installing the agent", func(tt *testing.T) {
