@@ -99,7 +99,7 @@ func (d *dnsDriver) SetDataFilters(filters []driver.FilterDefinition) error {
 }
 
 // ReadDNSPacket visits a raw DNS packet if one is available.
-func (d *dnsDriver) ReadDNSPacket(visit func([]byte, time.Time) error) (didRead bool, err error) {
+func (d *dnsDriver) ReadDNSPacket(visit func([]byte, uint8, time.Time) error) (didRead bool, err error) {
 	var bytesRead uint32
 	var key uintptr // returned by GetQueuedCompletionStatus, then ignored
 	var ol *windows.Overlapped
