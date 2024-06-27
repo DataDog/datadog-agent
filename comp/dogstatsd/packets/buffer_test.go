@@ -24,7 +24,7 @@ func TestBufferTelemetry(t *testing.T) {
 	telemetryStore := NewTelemetryStore(nil, telemetryComponent)
 	// We need a high enough duration to avoid the buffer to flush
 	// And cause the program to deadlock on the packetChannel
-	duration, _ := time.ParseDuration("10s")
+	duration := 10 * time.Second
 	packetChannel := make(chan Packets)
 	buffer := NewBuffer(3, duration, packetChannel, "test_buffer", telemetryStore)
 	defer buffer.Close()
@@ -75,7 +75,7 @@ func TestBufferTelemetry(t *testing.T) {
 func TestBufferTelemetryFull(t *testing.T) {
 	telemetryComponent := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
 	telemetryStore := NewTelemetryStore(nil, telemetryComponent)
-	duration, _ := time.ParseDuration("10s")
+	duration := 10 * time.Second
 	packetChannel := make(chan Packets, 1)
 	buffer := NewBuffer(0, duration, packetChannel, "test_buffer", telemetryStore)
 	defer buffer.Close()
@@ -174,9 +174,8 @@ func TestBufferFlushLoopTelemetryFull(t *testing.T) {
 	buffer := NewBuffer(0, duration, nil, "test_buffer", telemetryStore)
 	defer buffer.Close()
 
-	select {
-	case <-time.After(5 * time.Nanosecond):
-	}
+	// We need to wait for the flush timer to trigger
+	time.Sleep(10 * time.Nanosecond)
 
 	telemetryMock, ok := telemetryComponent.(telemetry.Mock)
 	assert.True(t, ok)

@@ -81,13 +81,16 @@ func TestUDPListenerTelemetry(t *testing.T) {
 	s.Listen()
 	defer s.Stop()
 
-	fmt.Println(fmt.Sprintf("127.0.0.1:%d", port))
 	conn, err := net.Dial("udp", fmt.Sprintf("127.0.0.1:%d", port))
-	defer conn.Close()
-	assert.Nil(t, err)
-	n, err := conn.Write([]byte("hello world"))
-	fmt.Println(n)
-	assert.Nil(t, err)
+	require.Nil(t, err)
+
+	defer func() {
+		err := conn.Close()
+		assert.Nil(t, err)
+	}()
+
+	_, err = conn.Write([]byte("hello world"))
+	require.Nil(t, err)
 
 	select {
 	case pkts := <-packetChannel:

@@ -21,10 +21,10 @@ import (
 // copy of aggregator.MetricSamplePoolBatchSize to avoid cycling import
 const sampleBatchSize = 32
 
-func buildPacketAssembler(telemetrySTore *TelemetryStore) (*Assembler, chan Packets) {
+func buildPacketAssembler(telemetryStore *TelemetryStore) (*Assembler, chan Packets) {
 	out := make(chan Packets, 16)
-	psb := NewBuffer(1, 1*time.Hour, out, "", telemetrySTore)
-	pp := NewPool(sampleBatchSize, telemetrySTore)
+	psb := NewBuffer(1, 1*time.Hour, out, "", telemetryStore)
+	pp := NewPool(sampleBatchSize, telemetryStore)
 	pb := NewAssembler(100*time.Millisecond, psb, NewPoolManager(pp), UDP)
 	return pb, out
 }
