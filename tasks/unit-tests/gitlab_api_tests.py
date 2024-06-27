@@ -1,8 +1,8 @@
 import unittest
 
 from tasks.libs.ciproviders.gitlab_api import (
+    clean_gitlab_ci_configuration,
     filter_gitlab_ci_configuration,
-    flatten_gitlab_ci_configuration,
     generate_gitlab_full_configuration,
     read_includes,
 )
@@ -82,18 +82,18 @@ class TestGitlabCiConfig(unittest.TestCase):
 
         self.assertDictEqual(res, expected_yml)
 
-    def test_flatten(self):
+    def test_clean_nop(self):
         yml = {
             'job': {'script': ['echo hello']},
         }
         expected_yml = {
             'job': {'script': ['echo hello']},
         }
-        res = flatten_gitlab_ci_configuration(yml)
+        res = clean_gitlab_ci_configuration(yml)
 
         self.assertDictEqual(res, expected_yml)
 
-    def test_flatten_nest1(self):
+    def test_clean_flatten_nest1(self):
         yml = {
             'job': {
                 'script': [
@@ -114,11 +114,11 @@ class TestGitlabCiConfig(unittest.TestCase):
                 ]
             },
         }
-        res = flatten_gitlab_ci_configuration(yml)
+        res = clean_gitlab_ci_configuration(yml)
 
         self.assertDictEqual(res, expected_yml)
 
-    def test_flatten_nest2(self):
+    def test_clean_flatten_nest2(self):
         yml = {
             'job': {
                 'script': [
@@ -141,6 +141,17 @@ class TestGitlabCiConfig(unittest.TestCase):
                 ]
             },
         }
-        res = flatten_gitlab_ci_configuration(yml)
+        res = clean_gitlab_ci_configuration(yml)
+
+        self.assertDictEqual(res, expected_yml)
+
+    def test_clean_extends(self):
+        yml = {
+            'job': {'extends': '.mywrapper', 'script': ['echo hello']},
+        }
+        expected_yml = {
+            'job': {'script': ['echo hello']},
+        }
+        res = clean_gitlab_ci_configuration(yml)
 
         self.assertDictEqual(res, expected_yml)

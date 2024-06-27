@@ -277,23 +277,37 @@ def apply_yaml_postprocessing(config: ConfigNodeDict, node):
     apply_yaml_reference(config, node)
 
 
-def flatten_gitlab_ci_configuration(yml):
+def clean_gitlab_ci_configuration(yml):
     """
-    Flatten lists due to !reference tags
+    - Remove `extends` tags
+    - Flatten lists of lists
     """
-    if isinstance(yml, list):
-        res = []
-        for v in yml:
-            if isinstance(v, list):
-                res.extend(flatten_gitlab_ci_configuration(v))
-            else:
-                res.append(v)
 
-        return res
-    elif isinstance(yml, dict):
-        return {k: flatten_gitlab_ci_configuration(v) for k, v in yml.items()}
-    else:
-        return yml
+    def flatten(yml):
+        """
+        Flatten lists (nesting due to !reference tags)
+        """
+        if isinstance(yml, list):
+            res = []
+            for v in yml:
+                if isinstance(v, list):
+                    res.extend(flatten(v))
+                else:
+                    res.append(v)
+
+            return res
+        elif isinstance(yml, dict):
+            return {k: flatten(v) for k, v in yml.items()}
+        else:
+            return yml
+
+    # Remove extends
+    for content in yml.values():
+        if 'extends' in content:
+            del content['extends']
+
+    # Flatten
+    return flatten(yml)
 
 
 def filter_gitlab_ci_configuration(yml: dict, job: str | None = None) -> dict:
@@ -304,8 +318,8 @@ def filter_gitlab_ci_configuration(yml: dict, job: str | None = None) -> dict:
     """
 
     def filter_yaml(key, value):
-        # Print only jobs
-        if key.startswith('.'):
+        # Not a job
+        if key.startswith('.') or 'script' not in value:
             return None
 
         if job is not None:

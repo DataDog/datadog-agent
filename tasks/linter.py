@@ -15,8 +15,8 @@ from tasks.flavor import AgentFlavor
 from tasks.go import run_golangci_lint
 from tasks.libs.ciproviders.github_api import GithubAPI
 from tasks.libs.ciproviders.gitlab_api import (
+    clean_gitlab_ci_configuration,
     filter_gitlab_ci_configuration,
-    flatten_gitlab_ci_configuration,
     generate_gitlab_full_configuration,
     get_gitlab_ci_configuration,
     get_gitlab_repo,
@@ -371,12 +371,13 @@ def is_get_parameter_call(file):
 
 @task
 def get_full_gitlab_ci(
-    _, input_file: str = '.gitlab-ci.yml', job: str | None = None, sort: bool = False, flatten: bool = True
+    _, input_file: str = '.gitlab-ci.yml', job: str | None = None, sort: bool = False, clean: bool = True
 ):
     """
     Print full gitlab ci configuration.
+
     - job: If provided, print only one job
-    - flatten: Flatten lists of lists (nesting due to !reference tags)
+    - clean: Apply post processing to make output more readable (remove extends, flatten lists of lists...)
     """
 
     # Make full configuration
@@ -385,9 +386,9 @@ def get_full_gitlab_ci(
     # Filter
     yml = filter_gitlab_ci_configuration(yml, job)
 
-    # Flatten
-    if flatten:
-        yml = flatten_gitlab_ci_configuration(yml)
+    # Clean
+    if clean:
+        yml = clean_gitlab_ci_configuration(yml)
 
     # Print
     print_gitlab_ci_configuration(yml, sort_jobs=sort)
