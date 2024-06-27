@@ -7,6 +7,7 @@
 package util
 
 import (
+	"crypto/subtle"
 	"fmt"
 	"net"
 	"net/http"
@@ -104,12 +105,16 @@ func Validate(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 
-	if len(tok) < 2 || tok[1] != GetAuthToken() {
+	if len(tok) < 2 || constantTimeCompareTokens(tok[1], GetAuthToken()) {
 		err = fmt.Errorf("invalid session token")
 		http.Error(w, err.Error(), 403)
 	}
 
 	return err
+}
+
+func constantTimeCompareTokens(src, tgt string) bool {
+	return subtle.ConstantTimeCompare([]byte(src), []byte(tgt)) == 1
 }
 
 // ValidateDCARequest is used for the exposed endpoints of the DCA.
