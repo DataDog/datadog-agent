@@ -136,7 +136,7 @@ func TestInfraAttributesMetricProcessor(t *testing.T) {
 			factory := NewFactory(fakeTagger)
 			fmp, err := factory.CreateMetricsProcessor(
 				context.Background(),
-				processortest.NewNopCreateSettings(),
+				processortest.NewNopSettings(),
 				cfg,
 				next,
 			)

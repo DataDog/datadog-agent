@@ -45,7 +45,7 @@ func newPacketPoolManagerUDP(cfg config.Component) *packets.PoolManager {
 }
 
 func TestNewUDPListener(t *testing.T) {
-	deps := fulfillDepsWithConfig(t, map[string]interface{}{})
+	deps := fulfillDepsWithConfig(t, map[string]interface{}{"dogstatsd_port": "__random__"})
 	s, err := NewUDPListener(nil, newPacketPoolManagerUDP(deps.Config), deps.Config, nil)
 	assert.NotNil(t, s)
 	assert.Nil(t, err)

@@ -11,11 +11,10 @@ package collector
 
 import (
 	"bytes"
-	"context"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
+	"net/http/httptest"
 	"strconv"
 	"sync"
 	"testing"
@@ -32,18 +31,11 @@ import (
 )
 
 func createFakeOTelExtensionHTTPServer() (string, func()) {
-	listener, err := net.Listen("tcp", ":0")
-	if err != nil {
-		panic(err)
-	}
-	usingPort := listener.Addr().(*net.TCPAddr).Port
-	serverURL := fmt.Sprintf("http://localhost:%d", usingPort)
-
 	waitServerDone := &sync.WaitGroup{}
 	waitServerDone.Add(1)
 
-	mux := http.NewServeMux()
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+	testServerURL := ""
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/one" {
 			io.WriteString(w, "data-source-1")
 			return
@@ -51,26 +43,17 @@ func createFakeOTelExtensionHTTPServer() (string, func()) {
 			io.WriteString(w, "data-source-2")
 			return
 		} else if r.URL.Path == "/three" {
-			pageTmpl := `<body>Another source is <a href="http://localhost:%d/secret">here</a></body>`
-			io.WriteString(w, fmt.Sprintf(pageTmpl, usingPort))
+			pageTmpl := `<body>Another source is <a href="%s/secret">here</a></body>`
+			io.WriteString(w, fmt.Sprintf(pageTmpl, testServerURL))
 			return
 		} else if r.URL.Path == "/four" {
 			io.WriteString(w, "data-source-4")
 			return
 		}
 		http.NotFound(w, r)
-	})
-	srv := &http.Server{Addr: fmt.Sprintf("localhost:%d", usingPort), Handler: mux}
-
-	go func() {
-		defer waitServerDone.Done()
-		srv.ListenAndServe()
-	}()
-
-	shutdowner := func() {
-		srv.Shutdown(context.TODO())
-	}
-	return serverURL, shutdowner
+	}))
+	testServerURL = ts.URL
+	return testServerURL, func() { ts.Close() }
 }
 
 var startupConfig = map[string]string{
@@ -94,8 +77,8 @@ var environment = map[string]string{
 }
 
 func TestOTelExtFlareBuilder(t *testing.T) {
-	localServerURL, shutdowner := createFakeOTelExtensionHTTPServer()
-	defer shutdowner()
+	localServerURL, shutdown := createFakeOTelExtensionHTTPServer()
+	defer shutdown()
 
 	// Override the response that the flare builder gets from the otel extension
 	overrideConfigResponseTemplate := `{
@@ -114,7 +97,7 @@ func TestOTelExtFlareBuilder(t *testing.T) {
 			"crawl": false
 		},
 		{
-			"name": "healthcheck",
+			"name": "health_check",
 			"url": "{{.url}}/three",
 			"crawl": true
 		},
@@ -162,17 +145,16 @@ func TestOTelExtFlareBuilder(t *testing.T) {
 
 	f.AssertFileExists("otel", "otel-response.json")
 
-	// TODO: (components) Test behavior is flaky in CI, investigate the cause and determine a fix
 	// Template for the crawable page
-	// pageTmpl := `<body>Another source is <a href="%s/secret">here</a></body>`
+	pageTmpl := `<body>Another source is <a href="%s/secret">here</a></body>`
 
-	// f.AssertFileContent("data-source-1", "otel/otel-flare/prometheus.dat")
-	// f.AssertFileContent("data-source-2", "otel/otel-flare/zpages.dat")
-	// f.AssertFileContent(fmt.Sprintf(pageTmpl, localServerURL), "otel/otel-flare/healthcheck.dat")
-	// f.AssertFileContent("data-source-4", "otel/otel-flare/pprof.dat")
+	f.AssertFileContent("data-source-1", "otel/otel-flare/prometheus.dat")
+	f.AssertFileContent("data-source-2", "otel/otel-flare/zpages.dat")
+	f.AssertFileContent(fmt.Sprintf(pageTmpl, localServerURL), "otel/otel-flare/health_check.dat")
+	f.AssertFileContent("data-source-4", "otel/otel-flare/pprof.dat")
 
-	// f.AssertFileContent(toJSON(startupConfig), "otel/otel-flare/startup.cfg")
-	// f.AssertFileContent(toJSON(runtimeConfig), "otel/otel-flare/runtime.cfg")
-	// f.AssertFileContent(toJSON(environment), "otel/otel-flare/environment.cfg")
-	// f.AssertFileContent(cmdline, "otel/otel-flare/cmdline.txt")
+	f.AssertFileContent(toJSON(startupConfig), "otel/otel-flare/startup.cfg")
+	f.AssertFileContent(toJSON(runtimeConfig), "otel/otel-flare/runtime.cfg")
+	f.AssertFileContent(toJSON(environment), "otel/otel-flare/environment.cfg")
+	f.AssertFileContent(cmdline, "otel/otel-flare/cmdline.txt")
 }

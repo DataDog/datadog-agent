@@ -129,7 +129,7 @@ def get_image_list(distro: bool, custom: bool) -> list[list[str]]:
         "Alternative names",
         "Example VM tags to use with --vms (fuzzy matching)",
     ]
-    custom_kernels: list[list[str]] = list()
+    custom_kernels: list[list[str]] = []
     for k in sorted(kernels, key=lambda x: tuple(map(int, x.split('.')))):
         if lte_414(k):
             custom_kernels.append(
@@ -140,7 +140,7 @@ def get_image_list(distro: bool, custom: bool) -> list[list[str]]:
                 [f"custom-{k}", "debian", "Debian", "Custom", k, TICK, TICK, "", f"custom-{k}-x86_64"]
             )
 
-    distro_kernels: list[list[str]] = list()
+    distro_kernels: list[list[str]] = []
     platforms = get_platforms()
     mappings = get_distribution_mappings()
     # Group kernels by name and kernel version, show whether one or two architectures are supported
@@ -208,7 +208,7 @@ def empty_config(file_path: str):
 
 def get_distribution_mappings() -> dict[str, str]:
     platforms = get_platforms()
-    distro_mappings: dict[str, str] = dict()
+    distro_mappings: dict[str, str] = {}
     alternative_spellings = {"amzn": ["amazon", "al"]}
     mapping_candidates: dict[str, set[str]] = defaultdict(
         set
@@ -253,7 +253,7 @@ def list_possible() -> list[str]:
     distros = list(get_distribution_mappings().keys())
     archs: list[str] = list(ARCH_AMD64.spellings) + list(ARCH_ARM64.spellings) + [local_arch]
 
-    result: list[str] = list()
+    result: list[str] = []
     possible = list(itertools.product(["custom"], kernels, archs)) + list(itertools.product(["distro"], distros, archs))
     for p in possible:
         result.append(f"{p[0]}-{p[1]}-{p[2]}")
@@ -382,16 +382,16 @@ def add_custom_vmset(vmset: VMSet, vm_config: VMConfig):
 
     new_set = cast(
         'VMSetDict',
-        dict(
-            tags=list(vmset.tags),
-            recipe=f"{vmset.recipe}-{vmset.arch}",
-            arch=vmset.arch,
-            kernels=list(),
-            image={
+        {
+            "tags": list(vmset.tags),
+            "recipe": f"{vmset.recipe}-{vmset.arch}",
+            "arch": vmset.arch,
+            "kernels": [],
+            "image": {
                 "image_path": image_path,
                 "image_source": f"https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/{image_path}",
             },
-        ),
+        },
     )
 
     vm_config["vmsets"].append(new_set)
@@ -405,7 +405,8 @@ def add_vmset(vmset: VMSet, vm_config: VMConfig):
         return add_custom_vmset(vmset, vm_config)
 
     new_set = cast(
-        'VMSetDict', dict(tags=list(vmset.tags), recipe=f"{vmset.recipe}-{vmset.arch}", arch=vmset.arch, kernels=list())
+        'VMSetDict',
+        {"tags": list(vmset.tags), "recipe": f"{vmset.recipe}-{vmset.arch}", "arch": vmset.arch, "kernels": []},
     )
 
     vm_config["vmsets"].append(new_set)
@@ -418,7 +419,7 @@ def add_kernel(vm_config: VMConfig, kernel: Kernel, tags: set[str]):
 
         if not kernel_in_vmset(vmset, kernel):
             if "kernels" not in vmset:
-                vmset["kernels"] = list()
+                vmset["kernels"] = []
             vmset["kernels"].append(kernel)
             return
 
@@ -510,7 +511,7 @@ class VMSet:
         self.arch: KMTArchNameOrLocal = arch
         self.recipe: Recipe = recipe
         self.tags: set[str] = tags
-        self.vms: list[VM] = list()
+        self.vms: list[VM] = []
 
     def __eq__(self, other: Any):
         if not isinstance(other, VMSet):
@@ -525,7 +526,7 @@ class VMSet:
         return hash('-'.join(self.tags))
 
     def __repr__(self):
-        vm_str = list()
+        vm_str = []
         for vm in self.vms:
             vm_str.append(vm.version)
         return f"<VMSet> tags={'-'.join(self.tags)} arch={self.arch} vms={','.join(vm_str)}"
@@ -615,7 +616,7 @@ def generate_vmconfig(
 
 
 def ls_to_int(ls: list[Any]) -> list[int]:
-    int_ls: list[int] = list()
+    int_ls: list[int] = []
     for elem in ls:
         int_ls.append(int(elem))
 
@@ -692,7 +693,7 @@ def list_all_distro_normalized_vms(archs: list[KMTArchName], component: Componen
     if component is not None:
         platforms = filter_by_ci_component(platforms, component)
 
-    vms: list[VMDef] = list()
+    vms: list[VMDef] = []
     for arch in archs:
         for distro in platforms[arch]:
             vms.append(("distro", distro, arch))
@@ -719,7 +720,7 @@ def gen_config(
     memory_ls = memory.split(',')
 
     check_memory_and_vcpus(memory_ls, vcpu_ls)
-    set_ls = list()
+    set_ls = []
     if sets != "":
         set_ls = sets.split(",")
 

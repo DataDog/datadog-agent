@@ -1,6 +1,6 @@
 //go:generate go run github.com/mailru/easyjson/easyjson -gen_build_flags=-mod=mod -no_std_marshalers -build_tags linux $GOFILE
 //go:generate go run github.com/mailru/easyjson/easyjson -gen_build_flags=-mod=mod -no_std_marshalers -build_tags linux -output_filename serializers_base_linux_easyjson.go serializers_base.go
-//go:generate go run github.com/DataDog/datadog-agent/pkg/security/generators/backend_doc -output ../../../docs/cloud-workload-security/backend.schema.json
+//go:generate go run github.com/DataDog/datadog-agent/pkg/security/generators/backend_doc -output ../../../docs/cloud-workload-security/backend_linux.schema.json
 
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
@@ -493,6 +493,8 @@ type AnomalyDetectionSyscallEventSerializer struct {
 type SyscallArgsSerializer struct {
 	// Path argument
 	Path string `json:"path,omitempty"`
+	// Flags argument
+	Flags int `json:"flags,omitempty"`
 	// Mode argument
 	Mode int `json:"mode,omitempty"`
 }
@@ -510,6 +512,12 @@ func newSyscallArgsSerializer(sc *model.SyscallContext, e *model.Event) *Syscall
 		return &SyscallArgsSerializer{
 			Path: e.FieldHandlers.ResolveSyscallCtxArgsStr1(e, sc),
 		}
+	case model.FileOpenEventType:
+		return &SyscallArgsSerializer{
+			Path:  e.FieldHandlers.ResolveSyscallCtxArgsStr1(e, sc),
+			Flags: e.FieldHandlers.ResolveSyscallCtxArgsInt2(e, sc),
+			Mode:  e.FieldHandlers.ResolveSyscallCtxArgsInt3(e, sc),
+		}
 	}
 
 	return nil
@@ -521,6 +529,7 @@ type SyscallContextSerializer struct {
 	Chmod *SyscallArgsSerializer `json:"chmod,omitempty"`
 	Chdir *SyscallArgsSerializer `json:"chdir,omitempty"`
 	Exec  *SyscallArgsSerializer `json:"exec,omitempty"`
+	Open  *SyscallArgsSerializer `json:"open,omitempty"`
 }
 
 func newSyscallContextSerializer() *SyscallContextSerializer {
@@ -1114,6 +1123,8 @@ func NewEventSerializer(event *model.Event, opts *eval.Opts) *EventSerializer {
 
 		s.FileSerializer.Flags = model.OpenFlags(event.Open.Flags).StringArray()
 		s.EventContextSerializer.Outcome = serializeOutcome(event.Open.Retval)
+		s.SyscallContextSerializer = newSyscallContextSerializer()
+		s.SyscallContextSerializer.Open = newSyscallArgsSerializer(&event.Open.SyscallContext, event)
 	case model.FileMkdirEventType:
 		s.FileEventSerializer = &FileEventSerializer{
 			FileSerializer: *newFileSerializer(&event.Mkdir.File, event),

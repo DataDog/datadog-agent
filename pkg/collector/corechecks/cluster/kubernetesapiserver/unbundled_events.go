@@ -19,7 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func newUnbundledTransformer(clusterName string, taggerInstance tagger.Component, types []collectedEventType, bundleUnspecifedEvents bool) eventTransformer {
+func newUnbundledTransformer(clusterName string, taggerInstance tagger.Component, types []collectedEventType, bundleUnspecifiedEvents bool) eventTransformer {
 	collectedTypes := make([]collectedEventType, 0, len(types))
 	for _, f := range types {
 		if f.Kind == "" && f.Source == "" {
@@ -31,25 +31,25 @@ func newUnbundledTransformer(clusterName string, taggerInstance tagger.Component
 	}
 
 	var t eventTransformer = noopEventTransformer{}
-	if bundleUnspecifedEvents {
+	if bundleUnspecifiedEvents {
 		t = newBundledTransformer(clusterName, taggerInstance)
 	}
 
 	return &unbundledTransformer{
-		clusterName:            clusterName,
-		collectedTypes:         collectedTypes,
-		taggerInstance:         taggerInstance,
-		bundledTransformer:     t,
-		bundleUnspecifedEvents: bundleUnspecifedEvents,
+		clusterName:             clusterName,
+		collectedTypes:          collectedTypes,
+		taggerInstance:          taggerInstance,
+		bundledTransformer:      t,
+		bundleUnspecifiedEvents: bundleUnspecifiedEvents,
 	}
 }
 
 type unbundledTransformer struct {
-	clusterName            string
-	collectedTypes         []collectedEventType
-	taggerInstance         tagger.Component
-	bundledTransformer     eventTransformer
-	bundleUnspecifedEvents bool
+	clusterName             string
+	collectedTypes          []collectedEventType
+	taggerInstance          tagger.Component
+	bundledTransformer      eventTransformer
+	bundleUnspecifiedEvents bool
 }
 
 func (c *unbundledTransformer) Transform(events []*v1.Event) ([]event.Event, []error) {
@@ -68,7 +68,7 @@ func (c *unbundledTransformer) Transform(events []*v1.Event) ([]event.Event, []e
 		)
 
 		if !c.shouldCollect(ev) {
-			if c.bundleUnspecifedEvents {
+			if c.bundleUnspecifiedEvents {
 				eventsToBundle = append(eventsToBundle, ev)
 			}
 			continue

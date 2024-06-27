@@ -267,6 +267,9 @@ type Config struct {
 	// classifying the L7 protocols being used.
 	ProtocolClassificationEnabled bool
 
+	// TCPFailedConnectionsEnabled specifies whether the tracer will track & report TCP error codes
+	TCPFailedConnectionsEnabled bool
+
 	// EnableHTTPStatsByStatusCode specifies if the HTTP stats should be aggregated by the actual status code
 	// instead of the status code family.
 	EnableHTTPStatsByStatusCode bool
@@ -327,6 +330,7 @@ func New() *Config {
 		ExcludedSourceConnections:      cfg.GetStringMapStringSlice(join(spNS, "source_excludes")),
 		ExcludedDestinationConnections: cfg.GetStringMapStringSlice(join(spNS, "dest_excludes")),
 
+		TCPFailedConnectionsEnabled:    cfg.GetBool(join(netNS, "enable_tcp_failed_connections")),
 		MaxTrackedConnections:          uint32(cfg.GetInt64(join(spNS, "max_tracked_connections"))),
 		MaxClosedConnectionsBuffered:   uint32(cfg.GetInt64(join(spNS, "max_closed_connections_buffered"))),
 		ClosedConnectionFlushThreshold: cfg.GetInt(join(spNS, "closed_connection_flush_threshold")),
@@ -435,6 +439,18 @@ func New() *Config {
 	return c
 }
 
+// RingBufferSupportedNPM returns true if the kernel supports ring buffers and the config enables them
 func (c *Config) RingBufferSupportedNPM() bool {
 	return (features.HaveMapType(cebpf.RingBuf) == nil) && c.NPMRingbuffersEnabled
+}
+
+// FailedConnectionsSupported returns true if the config & TCP v4 || v6 is enabled
+func (c *Config) FailedConnectionsSupported() bool {
+	if !c.TCPFailedConnectionsEnabled {
+		return false
+	}
+	if !c.CollectTCPv4Conns && !c.CollectTCPv6Conns {
+		return false
+	}
+	return true
 }

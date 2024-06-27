@@ -6,8 +6,6 @@
 package process
 
 import (
-	"os"
-	"strconv"
 	"testing"
 	"time"
 
@@ -39,11 +37,6 @@ func TestDockerTestSuite(t *testing.T) {
 		e2e.WithProvisioner(awsdocker.Provisioner(
 			awsdocker.WithAgentOptions(agentOpts...),
 		)),
-	}
-
-	devModeEnv, _ := os.LookupEnv("E2E_DEVMODE")
-	if devMode, err := strconv.ParseBool(devModeEnv); err == nil && devMode {
-		options = append(options, e2e.WithDevMode())
 	}
 
 	e2e.Run(t, &dockerTestSuite{}, options...)

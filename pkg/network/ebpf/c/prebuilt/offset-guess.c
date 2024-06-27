@@ -100,13 +100,11 @@ static __always_inline int guess_offsets(tracer_status_t* status, char* subject)
         new_status.offset_family = aligned_offset(subject, status->offset_family, SIZEOF_FAMILY);
         bpf_probe_read_kernel(&new_status.family, sizeof(new_status.family), subject + new_status.offset_family);
         break;
-    case GUESS_SPORT:
-        new_status.offset_sport = aligned_offset(subject, status->offset_sport, SIZEOF_SPORT);
-        bpf_probe_read_kernel(&new_status.sport, sizeof(new_status.sport), subject + new_status.offset_sport);
-        break;
     case GUESS_DPORT:
         new_status.offset_dport = aligned_offset(subject, status->offset_dport, SIZEOF_DPORT);
+        new_status.offset_sport = aligned_offset(subject, status->offset_dport+SIZEOF_DPORT, SIZEOF_SPORT);
         bpf_probe_read_kernel(&new_status.dport, sizeof(new_status.dport), subject + new_status.offset_dport);
+        bpf_probe_read_kernel(&new_status.sport, sizeof(new_status.sport), subject + new_status.offset_sport);
         break;
     case GUESS_SADDR_FL4:
         new_status.offset_saddr_fl4 = aligned_offset(subject, status->offset_saddr_fl4, SIZEOF_SADDR_FL4);
@@ -162,6 +160,8 @@ static __always_inline int guess_offsets(tracer_status_t* status, char* subject)
     case GUESS_RTT:
         new_status.offset_rtt = aligned_offset(subject, status->offset_rtt, SIZEOF_RTT);
         bpf_probe_read_kernel(&new_status.rtt, sizeof(new_status.rtt), subject + new_status.offset_rtt);
+        break;
+    case GUESS_RTT_VAR:
         new_status.offset_rtt_var = aligned_offset(subject, status->offset_rtt_var, SIZEOF_RTT_VAR);
         bpf_probe_read_kernel(&new_status.rtt_var, sizeof(new_status.rtt_var), subject + new_status.offset_rtt_var);
         break;

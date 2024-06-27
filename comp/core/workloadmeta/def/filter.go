@@ -112,7 +112,8 @@ func (f *Filter) MatchEntity(entity *Entity) bool {
 	entityKind := (*entity).GetID().Kind
 
 	if entityFilterFunc, found := f.kinds[entityKind]; found {
-		return entityFilterFunc(*entity)
+		// A nil filter should match
+		return entityFilterFunc == nil || entityFilterFunc(*entity)
 	}
 
 	return false

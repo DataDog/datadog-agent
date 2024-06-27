@@ -19,11 +19,13 @@ import (
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	processCommand.OneShotLogParams = logimpl.ForOneShot(string(command.LoggerName), "info", true)
 	checkAllowlist := []string{"process", "rtprocess", "container", "rtcontainer", "process_discovery"}
-	cmd := check.MakeCommand(
-		&processCommand.GlobalParams{
+	cmd := check.MakeCommand(func() *processCommand.GlobalParams {
+		return &processCommand.GlobalParams{
 			ConfFilePath:         globalParams.ConfFilePath,
+			ExtraConfFilePath:    globalParams.ExtraConfFilePath,
 			SysProbeConfFilePath: globalParams.SysProbeConfFilePath,
-		},
+		}
+	},
 		"processchecks",
 		checkAllowlist,
 	)

@@ -111,8 +111,9 @@ type testNetwork struct {
 }
 
 type testEvent struct {
-	id   string
-	kind string
+	id     string
+	kind   string
+	retval int
 
 	process testProcess
 	network testNetwork
@@ -478,6 +479,13 @@ func (m *testModel) GetEvaluator(field Field, _ RegisterID) (Evaluator, error) {
 			Field: field,
 		}, nil
 
+	case "retval":
+
+		return &IntEvaluator{
+			EvalFnc: func(ctx *Context) int { return ctx.Event.(*testEvent).retval },
+			Field:   field,
+		}, nil
+
 	case "mkdir.filename":
 
 		return &StringEvaluator{
@@ -544,6 +552,10 @@ func (e *testEvent) GetFieldValue(field Field) (interface{}, error) {
 	case "open.filename":
 
 		return e.open.filename, nil
+
+	case "retval":
+
+		return e.retval, nil
 
 	case "open.flags":
 
@@ -653,6 +665,10 @@ func (e *testEvent) GetFieldEventType(field Field) (string, error) {
 
 		return "open", nil
 
+	case "retval":
+
+		return "*", nil
+
 	case "open.flags":
 
 		return "open", nil
@@ -738,6 +754,11 @@ func (e *testEvent) SetFieldValue(field Field, value interface{}) error {
 	case "open.filename":
 
 		e.open.filename = value.(string)
+		return nil
+
+	case "retval":
+
+		e.retval = value.(int)
 		return nil
 
 	case "open.flags":
@@ -835,6 +856,10 @@ func (e *testEvent) GetFieldType(field Field) (reflect.Kind, error) {
 
 		return reflect.String, nil
 
+	case "retval":
+
+		return reflect.Int, nil
+
 	case "open.flags":
 
 		return reflect.Int, nil
@@ -870,4 +895,14 @@ var testConstants = map[string]interface{}{
 	"O_EXCL":   &IntEvaluator{Value: syscall.O_EXCL},
 	"O_SYNC":   &IntEvaluator{Value: syscall.O_SYNC},
 	"O_TRUNC":  &IntEvaluator{Value: syscall.O_TRUNC},
+
+	// retval
+	"EPERM":        &IntEvaluator{Value: int(syscall.EPERM)},
+	"EACCES":       &IntEvaluator{Value: int(syscall.EACCES)},
+	"EPFNOSUPPORT": &IntEvaluator{Value: int(syscall.EPFNOSUPPORT)},
+	"EPIPE":        &IntEvaluator{Value: int(syscall.EPIPE)},
+
+	// string constants
+	"my_constant_1": &StringEvaluator{Value: "my_constant_1"},
+	"my_constant_2": &StringEvaluator{Value: "my_constant_2"},
 }

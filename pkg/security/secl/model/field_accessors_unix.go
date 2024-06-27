@@ -891,6 +891,11 @@ func (ev *Event) GetEventAsync() bool {
 	return ev.FieldHandlers.ResolveAsync(ev)
 }
 
+// GetEventHostname returns the value of the field, resolving if necessary
+func (ev *Event) GetEventHostname() string {
+	return ev.FieldHandlers.ResolveHostname(ev, &ev.BaseEvent)
+}
+
 // GetEventOrigin returns the value of the field, resolving if necessary
 func (ev *Event) GetEventOrigin() string {
 	return ev.BaseEvent.Origin
@@ -4267,6 +4272,78 @@ func (ev *Event) GetOpenRetval() int64 {
 		return int64(0)
 	}
 	return ev.Open.SyscallEvent.Retval
+}
+
+// GetOpenSyscallFlags returns the value of the field, resolving if necessary
+func (ev *Event) GetOpenSyscallFlags() int {
+	if ev.GetEventType().String() != "open" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsInt2(ev, &ev.Open.SyscallContext)
+}
+
+// GetOpenSyscallInt1 returns the value of the field, resolving if necessary
+func (ev *Event) GetOpenSyscallInt1() int {
+	if ev.GetEventType().String() != "open" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsInt1(ev, &ev.Open.SyscallContext)
+}
+
+// GetOpenSyscallInt2 returns the value of the field, resolving if necessary
+func (ev *Event) GetOpenSyscallInt2() int {
+	if ev.GetEventType().String() != "open" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsInt2(ev, &ev.Open.SyscallContext)
+}
+
+// GetOpenSyscallInt3 returns the value of the field, resolving if necessary
+func (ev *Event) GetOpenSyscallInt3() int {
+	if ev.GetEventType().String() != "open" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsInt3(ev, &ev.Open.SyscallContext)
+}
+
+// GetOpenSyscallMode returns the value of the field, resolving if necessary
+func (ev *Event) GetOpenSyscallMode() int {
+	if ev.GetEventType().String() != "open" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsInt3(ev, &ev.Open.SyscallContext)
+}
+
+// GetOpenSyscallPath returns the value of the field, resolving if necessary
+func (ev *Event) GetOpenSyscallPath() string {
+	if ev.GetEventType().String() != "open" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Open.SyscallContext)
+}
+
+// GetOpenSyscallStr1 returns the value of the field, resolving if necessary
+func (ev *Event) GetOpenSyscallStr1() string {
+	if ev.GetEventType().String() != "open" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Open.SyscallContext)
+}
+
+// GetOpenSyscallStr2 returns the value of the field, resolving if necessary
+func (ev *Event) GetOpenSyscallStr2() string {
+	if ev.GetEventType().String() != "open" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsStr2(ev, &ev.Open.SyscallContext)
+}
+
+// GetOpenSyscallStr3 returns the value of the field, resolving if necessary
+func (ev *Event) GetOpenSyscallStr3() string {
+	if ev.GetEventType().String() != "open" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsStr3(ev, &ev.Open.SyscallContext)
 }
 
 // GetProcessAncestorsArgs returns the value of the field, resolving if necessary

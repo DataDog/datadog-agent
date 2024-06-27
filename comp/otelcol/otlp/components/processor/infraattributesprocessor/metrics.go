@@ -26,7 +26,7 @@ type infraAttributesMetricProcessor struct {
 	cardinality types.TagCardinality
 }
 
-func newInfraAttributesMetricProcessor(set processor.CreateSettings, cfg *Config, tagger tagger.Component) (*infraAttributesMetricProcessor, error) {
+func newInfraAttributesMetricProcessor(set processor.Settings, cfg *Config, tagger tagger.Component) (*infraAttributesMetricProcessor, error) {
 	iamp := &infraAttributesMetricProcessor{
 		logger:      set.Logger,
 		tagger:      tagger,

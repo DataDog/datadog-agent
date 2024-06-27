@@ -913,7 +913,7 @@ api_key:
   # container_collect_all: false
 
   ## @param logs_dd_url - string - optional
-  ## @env DD_LOGS_CONFIG_DD_URL - string - optional
+  ## @env DD_LOGS_CONFIG_LOGS_DD_URL - string - optional
   ## Define the endpoint and port to hit when using a proxy for logs. The logs are forwarded in TCP
   ## therefore the proxy must be able to handle TCP connections.
   #

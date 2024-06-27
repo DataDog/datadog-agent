@@ -1,0 +1,27 @@
+exporters:
+    datadog:
+      api:
+        key: 12345
+
+extensions:
+  pprof/user-defined:
+  health_check/user-defined:
+  zpages/user-defined:
+    endpoint: "localhost:55679"
+  datadog/user-defined:
+    
+processors:
+  infraattributes/user-defined:
+
+service:
+    extensions: [pprof/user-defined, zpages/user-defined, health_check/user-defined, datadog/user-defined]
+    pipelines:
+        traces:
+            processors: [infraattributes/user-defined]
+            exporters: [datadog]
+        metrics:
+            processors: [infraattributes/user-defined]
+            exporters: [datadog]
+        logs:
+            processors: [infraattributes/user-defined]
+            exporters: [datadog]
