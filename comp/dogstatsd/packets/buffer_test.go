@@ -166,13 +166,17 @@ func TestBufferTelemetryFull(t *testing.T) {
 	assert.Equal(t, float64(1), channelSizeMetric[0].GetGauge().GetValue())
 }
 
-func TestBufferFLushLoopTelemetryFull(t *testing.T) {
+func TestBufferFlushLoopTelemetryFull(t *testing.T) {
 	telemetryComponent := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
 	telemetryStore := NewTelemetryStore(nil, telemetryComponent)
 	duration, _ := time.ParseDuration("1ns")
 
 	buffer := NewBuffer(0, duration, nil, "test_buffer", telemetryStore)
 	defer buffer.Close()
+
+	select {
+	case <-time.After(5 * time.Nanosecond):
+	}
 
 	telemetryMock, ok := telemetryComponent.(telemetry.Mock)
 	assert.True(t, ok)

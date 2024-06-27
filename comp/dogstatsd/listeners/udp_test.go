@@ -116,7 +116,7 @@ func TestUDPListenerTelemetry(t *testing.T) {
 		assert.NotNil(t, bytesCountMetric)
 
 		assert.Equal(t, float64(1), packetsMetric[0].GetCounter().GetValue())
-		assert.Equal(t, float64(1), bytesCountMetric[0].GetCounter().GetValue())
+		assert.Equal(t, float64(11), bytesCountMetric[0].GetCounter().GetValue())
 
 	case <-time.After(2 * time.Second):
 		assert.FailNow(t, "Timeout on receive channel")
