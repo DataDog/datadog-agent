@@ -11,6 +11,7 @@ import yaml
 from gitlab.v4.objects import Project, ProjectPipeline
 from invoke.exceptions import Exit
 
+from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.utils import retry_function
 
 BASE_URL = "https://gitlab.ddbuild.io"
@@ -261,6 +262,7 @@ def apply_yaml_reference(config: dict, node):
         node.extend(results)
 
 
+# TODO: Deprecate this in favor of get_full_configuration
 @lru_cache(maxsize=None)
 def apply_yaml_postprocessing(config: ConfigNodeDict, node):
     if isinstance(node, dict):
@@ -272,6 +274,33 @@ def apply_yaml_postprocessing(config: ConfigNodeDict, node):
 
     apply_yaml_extends(config, node)
     apply_yaml_reference(config, node)
+
+
+def get_full_configuration(
+    input_file: str = '.gitlab-ci.yml', return_dict: bool = True, ignore_errors: bool = False
+) -> str | dict:
+    """
+    Returns the full gitlab-ci configuration by resolving all includes and applying postprocessing (extends / !reference)
+    Uses the /lint endpoint from the gitlab api to apply postprocessing
+    """
+    # Update loader/dumper to handle !reference tag
+    yaml.SafeLoader.add_constructor(ReferenceTag.yaml_tag, ReferenceTag.from_yaml)
+    yaml.SafeDumper.add_representer(YamlReferenceTagList, ReferenceTag.to_yaml)
+
+    # Read includes
+    concat_config = read_includes(input_file)
+
+    agent = get_gitlab_repo()
+    res = agent.ci_lint.create({"content": concat_config, "dry_run": True, "include_jobs": True})
+
+    if not ignore_errors and not res.valid:
+        errors = '; '.join(res.errors)
+        raise RuntimeError(f"{color_message('Invalid configuration', Color.RED)}: {errors}")
+
+    if return_dict:
+        return yaml.safe_load(res.merged_yaml)
+    else:
+        return res.merged_yaml
 
 
 def generate_gitlab_full_configuration(

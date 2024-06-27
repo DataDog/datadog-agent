@@ -7,6 +7,7 @@ from collections import defaultdict
 from glob import glob
 from os.path import dirname, exists, join, relpath
 
+import yaml
 from invoke import Exit, task
 
 from tasks.build_tags import compute_build_tags_for_flavor
@@ -16,6 +17,7 @@ from tasks.go import run_golangci_lint
 from tasks.libs.ciproviders.github_api import GithubAPI
 from tasks.libs.ciproviders.gitlab_api import (
     generate_gitlab_full_configuration,
+    get_full_configuration,
     get_gitlab_repo,
     get_preset_contexts,
     load_context,
@@ -363,6 +365,46 @@ def is_get_parameter_call(file):
                         return SSMParameterCall(file, nb, with_wrapper=True, with_env_var=False)
         except UnicodeDecodeError:
             pass
+
+
+@task
+def get_full_gitlab_ci(_, input_file: str = '.gitlab-ci.yml', job: str | None = None, sort: bool = False):
+    """
+    Print full gitlab ci configuration.
+    - job: If provided, print only one job
+    """
+
+    def print_yaml(yml: dict):
+        # TODO: Flatten scripts / rules
+        # TODO: Print colors
+        # TODO: Empty line between jobs
+        yaml.safe_dump(yml, sys.stdout, default_flow_style=False, sort_keys=False, indent=2)
+
+    def filter_yaml(key: str, value) -> tuple[str, any] | None:
+        # Print only jobs
+        if key.startswith('.'):
+            return None
+
+        if job is not None:
+            return (key, value) if key == job else None
+
+        return key, value
+
+    # Make full configuration
+    yml = get_full_configuration(input_file)
+
+    # Filter
+    if job is not None:
+        assert job in yml, f"Job {job} not found in the configuration"
+
+    yml = {node[0]: node[1] for node in (filter_yaml(k, v) for k, v in yml.items()) if node is not None}
+
+    # Sort
+    if sort:
+        yml = dict(sorted(yml.items()))
+
+    # Print
+    print_yaml(yml)
 
 
 @task
