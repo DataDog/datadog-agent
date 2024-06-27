@@ -18,7 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
@@ -68,7 +67,6 @@ func StartServers(
 	logsAgent optional.Option[logsAgent.Component],
 	senderManager sender.DiagnoseSenderManager,
 	secretResolver secrets.Component,
-	statusComponent status.Component,
 	collector optional.Option[collector.Component],
 	ac autodiscovery.Component,
 	providers []api.EndpointProvider,
@@ -90,16 +88,19 @@ func StartServers(
 		return fmt.Errorf("unable to initialize TLS: %v", err)
 	}
 
-	tlsConfig := &tls.Config{
-		Certificates: []tls.Certificate{*tlsKeyPair},
-		NextProtos:   []string{"h2"},
-		MinVersion:   tls.VersionTLS12,
+	// tls.Config is written to when serving, so it has to be cloned for each server
+	tlsConfig := func() *tls.Config {
+		return &tls.Config{
+			Certificates: []tls.Certificate{*tlsKeyPair},
+			NextProtos:   []string{"h2"},
+			MinVersion:   tls.VersionTLS12,
+		}
 	}
 
 	// start the CMD server
 	if err := startCMDServer(
 		apiAddr,
-		tlsConfig,
+		tlsConfig(),
 		tlsCertPool,
 		configService,
 		configServiceMRF,
@@ -111,7 +112,6 @@ func StartServers(
 		logsAgent,
 		senderManager,
 		secretResolver,
-		statusComponent,
 		collector,
 		ac,
 		providers,
@@ -121,7 +121,7 @@ func StartServers(
 
 	// start the IPC server
 	if ipcServerEnabled {
-		if err := startIPCServer(ipcServerHostPort, tlsConfig); err != nil {
+		if err := startIPCServer(ipcServerHostPort, tlsConfig()); err != nil {
 			// if we fail to start the IPC server, we should stop the CMD server
 			StopServers()
 			return fmt.Errorf("unable to start IPC API server: %v", err)

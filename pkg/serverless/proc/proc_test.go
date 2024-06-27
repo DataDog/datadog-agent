@@ -115,3 +115,31 @@ func TestGetUptime(t *testing.T) {
 	assert.NotNil(t, err)
 	assert.Equal(t, float64(0), uptime)
 }
+
+func TestGetNetworkData(t *testing.T) {
+	path := "./testData/net/valid_dev"
+	networkData, err := getNetworkData(path)
+	assert.Nil(t, err)
+	assert.Equal(t, float64(180), networkData.RxBytes)
+	assert.Equal(t, float64(254), networkData.TxBytes)
+
+	path = "./testData/net/invalid_dev_malformed"
+	networkData, err = getNetworkData(path)
+	assert.NotNil(t, err)
+	assert.Nil(t, networkData)
+
+	path = "./testData/net/invalid_dev_non_numerical_value"
+	networkData, err = getNetworkData(path)
+	assert.NotNil(t, err)
+	assert.Nil(t, networkData)
+
+	path = "./testData/net/missing_interface_dev"
+	networkData, err = getNetworkData(path)
+	assert.NotNil(t, err)
+	assert.Nil(t, networkData)
+
+	path = "./testData/net/nonexistent_dev"
+	networkData, err = getNetworkData(path)
+	assert.NotNil(t, err)
+	assert.Nil(t, networkData)
+}

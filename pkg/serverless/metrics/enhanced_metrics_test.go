@@ -604,6 +604,72 @@ func TestGenerateCPUUtilizationEnhancedMetrics(t *testing.T) {
 	assert.Len(t, timedMetrics, 0)
 }
 
+func TestGenerateNetworkEnhancedMetrics(t *testing.T) {
+	demux := createDemultiplexer(t)
+	tags := []string{"functionname:test-function"}
+	now := float64(time.Now().UnixNano()) / float64(time.Second)
+	args := generateNetworkEnhancedMetricArgs{
+		RxBytesOffset: 10,
+		RxBytes:       100,
+		TxBytesOffset: 20,
+		TxBytes:       50,
+		Tags:          tags,
+		Demux:         demux,
+		Time:          now,
+	}
+	go generateNetworkEnhancedMetrics(args)
+	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(3, 0, 100*time.Millisecond)
+	assert.Equal(t, []metrics.MetricSample{
+		{
+			Name:       rxBytesMetric,
+			Value:      90,
+			Mtype:      metrics.DistributionType,
+			Tags:       tags,
+			SampleRate: 1,
+			Timestamp:  now,
+		},
+		{
+			Name:       txBytesMetric,
+			Value:      30,
+			Mtype:      metrics.DistributionType,
+			Tags:       tags,
+			SampleRate: 1,
+			Timestamp:  now,
+		},
+		{
+			Name:       totalNetworkMetric,
+			Value:      120,
+			Mtype:      metrics.DistributionType,
+			Tags:       tags,
+			SampleRate: 1,
+			Timestamp:  now,
+		}},
+		generatedMetrics,
+	)
+	assert.Len(t, timedMetrics, 0)
+}
+
+func TestNetworkEnhancedMetricsDisabled(t *testing.T) {
+	var wg sync.WaitGroup
+	enhancedMetricsDisabled = true
+	demux := createDemultiplexer(t)
+	tags := []string{"functionname:test-function"}
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		SendNetworkEnhancedMetrics(&proc.NetworkData{}, tags, demux)
+	}()
+
+	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(1, 0, 100*time.Millisecond)
+
+	assert.Len(t, generatedMetrics, 0)
+	assert.Len(t, timedMetrics, 0)
+
+	wg.Wait()
+	enhancedMetricsDisabled = false
+}
+
 func createDemultiplexer(t *testing.T) demultiplexer.FakeSamplerMock {
 	return fxutil.Test[demultiplexer.FakeSamplerMock](t, logimpl.MockModule(), compressionimpl.MockModule(), demultiplexerimpl.FakeSamplerMockModule(), hostnameimpl.MockModule())
 }

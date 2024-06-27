@@ -18,6 +18,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient => ./../../comp/otelcol/otlp/components/metricsclient
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/statsprocessor => ./../../comp/otelcol/otlp/components/statsprocessor
 	github.com/DataDog/datadog-agent/comp/serializer/compression => ./../../comp/serializer/compression
+	github.com/DataDog/datadog-agent/comp/trace/agent/def => ./../../comp/trace/agent/def
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ./../../pkg/collector/check/defaults
 	github.com/DataDog/datadog-agent/pkg/config/env => ./../../pkg/config/env
 	github.com/DataDog/datadog-agent/pkg/config/model => ./../../pkg/config/model

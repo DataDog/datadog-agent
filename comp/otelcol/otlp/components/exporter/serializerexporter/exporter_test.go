@@ -181,7 +181,7 @@ func Test_ConsumeMetrics_Tags(t *testing.T) {
 			cfg.Metrics.Tags = strings.Join(tt.extraTags, ",")
 			exp, err := f.CreateMetricsExporter(
 				ctx,
-				exportertest.NewNopCreateSettings(),
+				exportertest.NewNopSettings(),
 				cfg,
 			)
 			require.NoError(t, err)
