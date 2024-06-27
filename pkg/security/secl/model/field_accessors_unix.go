@@ -1047,7 +1047,7 @@ func (ev *Event) GetExecCgroupId() string {
 	if ev.Exec.Process == nil {
 		return ""
 	}
-	return ev.Exec.Process.CGroup.CGroupID
+	return ev.FieldHandlers.ResolveCGroupID(ev, &ev.Exec.Process.CGroup)
 }
 
 // GetExecCmdargv returns the value of the field, resolving if necessary
@@ -2121,7 +2121,7 @@ func (ev *Event) GetExitCgroupId() string {
 	if ev.Exit.Process == nil {
 		return ""
 	}
-	return ev.Exit.Process.CGroup.CGroupID
+	return ev.FieldHandlers.ResolveCGroupID(ev, &ev.Exit.Process.CGroup)
 }
 
 // GetExitCmdargv returns the value of the field, resolving if necessary
@@ -4605,7 +4605,7 @@ func (ev *Event) GetProcessAncestorsCgroupId() []string {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := element.ProcessContext.Process.CGroup.CGroupID
+		result := ev.FieldHandlers.ResolveCGroupID(ev, &element.ProcessContext.Process.CGroup)
 		values = append(values, result)
 		ptr = iterator.Next()
 	}
@@ -6125,7 +6125,7 @@ func (ev *Event) GetProcessCgroupId() string {
 	if ev.BaseEvent.ProcessContext == nil {
 		return ""
 	}
-	return ev.BaseEvent.ProcessContext.Process.CGroup.CGroupID
+	return ev.FieldHandlers.ResolveCGroupID(ev, &ev.BaseEvent.ProcessContext.Process.CGroup)
 }
 
 // GetProcessCmdargv returns the value of the field, resolving if necessary
@@ -6883,7 +6883,7 @@ func (ev *Event) GetProcessParentCgroupId() string {
 	if !ev.BaseEvent.ProcessContext.HasParent() {
 		return ""
 	}
-	return ev.BaseEvent.ProcessContext.Parent.CGroup.CGroupID
+	return ev.FieldHandlers.ResolveCGroupID(ev, &ev.BaseEvent.ProcessContext.Parent.CGroup)
 }
 
 // GetProcessParentCmdargv returns the value of the field, resolving if necessary
@@ -8279,7 +8279,7 @@ func (ev *Event) GetPtraceTraceeAncestorsCgroupId() []string {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := element.ProcessContext.Process.CGroup.CGroupID
+		result := ev.FieldHandlers.ResolveCGroupID(ev, &element.ProcessContext.Process.CGroup)
 		values = append(values, result)
 		ptr = iterator.Next()
 	}
@@ -10036,7 +10036,7 @@ func (ev *Event) GetPtraceTraceeCgroupId() string {
 	if ev.PTrace.Tracee == nil {
 		return ""
 	}
-	return ev.PTrace.Tracee.Process.CGroup.CGroupID
+	return ev.FieldHandlers.ResolveCGroupID(ev, &ev.PTrace.Tracee.Process.CGroup)
 }
 
 // GetPtraceTraceeCmdargv returns the value of the field, resolving if necessary
@@ -11013,7 +11013,7 @@ func (ev *Event) GetPtraceTraceeParentCgroupId() string {
 	if !ev.PTrace.Tracee.HasParent() {
 		return ""
 	}
-	return ev.PTrace.Tracee.Parent.CGroup.CGroupID
+	return ev.FieldHandlers.ResolveCGroupID(ev, &ev.PTrace.Tracee.Parent.CGroup)
 }
 
 // GetPtraceTraceeParentCmdargv returns the value of the field, resolving if necessary
@@ -13632,7 +13632,7 @@ func (ev *Event) GetSignalTargetAncestorsCgroupId() []string {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := element.ProcessContext.Process.CGroup.CGroupID
+		result := ev.FieldHandlers.ResolveCGroupID(ev, &element.ProcessContext.Process.CGroup)
 		values = append(values, result)
 		ptr = iterator.Next()
 	}
@@ -15389,7 +15389,7 @@ func (ev *Event) GetSignalTargetCgroupId() string {
 	if ev.Signal.Target == nil {
 		return ""
 	}
-	return ev.Signal.Target.Process.CGroup.CGroupID
+	return ev.FieldHandlers.ResolveCGroupID(ev, &ev.Signal.Target.Process.CGroup)
 }
 
 // GetSignalTargetCmdargv returns the value of the field, resolving if necessary
@@ -16366,7 +16366,7 @@ func (ev *Event) GetSignalTargetParentCgroupId() string {
 	if !ev.Signal.Target.HasParent() {
 		return ""
 	}
-	return ev.Signal.Target.Parent.CGroup.CGroupID
+	return ev.FieldHandlers.ResolveCGroupID(ev, &ev.Signal.Target.Parent.CGroup)
 }
 
 // GetSignalTargetParentCmdargv returns the value of the field, resolving if necessary

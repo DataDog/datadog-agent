@@ -35,16 +35,26 @@ type BinaryUnmarshaler interface {
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
+func (e *CGroupContext) UnmarshalBinary(data []byte) (int, error) {
+	if len(data) < 8 {
+		return 0, ErrNotEnoughData
+	}
+
+	e.CGroupFlags = binary.NativeEndian.Uint64(data[:8])
+
+	return 8, nil
+}
+
+// UnmarshalBinary unmarshalls a binary representation of itself
 func (e *ContainerContext) UnmarshalBinary(data []byte) (int, error) {
 	id, err := UnmarshalString(data, ContainerIDLen)
 	if err != nil {
 		return 0, err
 	}
 
-	e.Flags = binary.NativeEndian.Uint64(data[ContainerIDLen : ContainerIDLen+8])
 	e.ContainerID = ContainerID(id)
 
-	return ContainerIDLen + 8, nil
+	return ContainerIDLen, nil
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
@@ -1036,6 +1046,7 @@ func (e *DNSEvent) UnmarshalBinary(data []byte) (int, error) {
 	var err error
 	e.Name, err = decodeDNSName(data[10:])
 	if err != nil {
+		fmt.Printf("Failed to decode %s (id: %d, count: %d, type:%d, size:%d)\n", data[10:], e.ID, e.Count, e.Type, e.Size)
 		return 0, err
 	}
 	if err = validateDNSName(e.Name); err != nil {

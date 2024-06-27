@@ -83,10 +83,10 @@ func NewCacheEntry(containerID string, containerFlags uint64, pids ...uint32) (*
 	newCGroup := CacheEntry{
 		Deleted: atomic.NewBool(false),
 		CGroupContext: model.CGroupContext{
-			CGroupID: model.GetCgroupFromContainer(model.ContainerID(containerID), containerFlags),
+			CGroupID:    model.GetCgroupFromContainer(model.ContainerID(containerID), containerFlags),
+			CGroupFlags: containerFlags,
 		},
 		ContainerContext: model.ContainerContext{
-			Flags:       containerFlags,
 			ContainerID: model.ContainerID(containerID),
 		},
 		PIDs: make(map[uint32]int8, 10),

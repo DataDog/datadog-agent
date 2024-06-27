@@ -467,14 +467,12 @@ func (p *EBPFProbe) EventMarshallerCtor(event *model.Event) func() events.EventM
 }
 
 func (p *EBPFProbe) unmarshalContexts(data []byte, event *model.Event) (int, error) {
-	read, err := model.UnmarshalBinary(data, &event.PIDContext, &event.SpanContext, event.ContainerContext)
+	read, err := model.UnmarshalBinary(data, &event.PIDContext, &event.SpanContext, event.ContainerContext, &event.CGroupContext)
 	if err != nil {
 		return 0, err
 	}
 
-	var cgroupID model.CGroupID
-	cgroupID, event.ContainerContext.ContainerID = containerutils.GetCGroupContext(event.ContainerContext.ContainerID, event.ContainerContext.Flags)
-	event.CGroupContext.CGroupID = cgroupID
+	event.CGroupContext.CGroupID, event.ContainerContext.ContainerID = containerutils.GetCGroupContext(event.ContainerContext.ContainerID, event.CGroupContext.CGroupFlags)
 
 	return read, nil
 }
@@ -504,10 +502,8 @@ func (p *EBPFProbe) unmarshalProcessCacheEntry(ev *model.Event, data []byte) (in
 		return n, err
 	}
 
-	var cgroupID model.CGroupID
-	cgroupID, entry.Process.ContainerID = containerutils.GetCGroupContext(ev.ContainerContext.ContainerID, ev.ContainerContext.Flags)
-	entry.Process.CGroup.Flags = uint32(ev.ContainerContext.Flags)
-	entry.Process.CGroup.CGroupID = string(cgroupID)
+	entry.Process.CGroup.CGroupID, entry.Process.ContainerID = containerutils.GetCGroupContext(ev.ContainerContext.ContainerID, ev.CGroupContext.CGroupFlags)
+	entry.Process.CGroup.CGroupFlags = ev.CGroupContext.CGroupFlags
 	entry.Source = model.ProcessCacheEntryFromEvent
 
 	return n, nil
@@ -943,9 +939,9 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			if errors.Is(err, model.ErrDNSNameMalformatted) {
 				seclog.Debugf("failed to validate DNS event: %s", event.DNS.Name)
 			} else if errors.Is(err, model.ErrDNSNamePointerNotSupported) {
-				seclog.Tracef("failed to decode DNS event: %s (offset %d, len %d)", err, offset, len(data))
+				seclog.Tracef("failed to decode DNS event: %s (offset %d, len %d, data %s)", err, offset, len(data), string(data[offset:]))
 			} else {
-				seclog.Errorf("failed to decode DNS event: %s (offset %d, len %d)", err, offset, len(data))
+				seclog.Errorf("failed to decode DNS event: %s (offset %d, len %d, data %s))", err, offset, len(data), string(data[offset:]))
 			}
 
 			return

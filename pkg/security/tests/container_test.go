@@ -88,7 +88,7 @@ func TestContainerCreatedAt(t *testing.T) {
 			assertTriggeredRule(t, rule, "test_container_created_at_delay")
 			assertFieldEqual(t, event, "open.file.path", testFileDelay)
 			assertFieldNotEmpty(t, event, "container.id", "container id shouldn't be empty")
-			assert.Equal(t, event.ContainerContext.Flags, model.CGroupManagerDocker)
+			assert.Equal(t, event.CGroupContext.CGroupFlags, model.CGroupManagerDocker)
 			createdAtNano, _ := event.GetFieldValue("container.created_at")
 			createdAt := time.Unix(0, int64(createdAtNano.(int)))
 			assert.True(t, time.Since(createdAt) > 3*time.Second)
@@ -104,7 +104,7 @@ func TestContainerFlags(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_container_flags",
-			Expression: `container.id != "" && open.file.path == "{{.Root}}/test-open" && container.runtime == "docker" && cgroup.id =~ "docker-*"`,
+			Expression: `container.runtime == "docker" && container.id != "" && open.file.path == "{{.Root}}/test-open" && cgroup.id =~ "docker*"`,
 		},
 	}
 	test, err := newTestModule(t, nil, ruleDefs)
@@ -139,7 +139,7 @@ func TestContainerFlags(t *testing.T) {
 			assertFieldNotEmpty(t, event, "container.id", "container id shouldn't be empty")
 			assertFieldEqual(t, event, "container.runtime", "docker")
 			assertFieldEqual(t, event, "cgroup.id", event.GetProcessCgroupId())
-			assert.Equal(t, model.CGroupManagerDocker, event.ContainerContext.Flags)
+			assert.Equal(t, model.CGroupManagerDocker, event.CGroupContext.CGroupFlags)
 
 			test.validateOpenSchema(t, event)
 		})
@@ -227,14 +227,14 @@ func TestCGroupID(t *testing.T) {
 	}
 	defer test.Close()
 
-	if err := os.MkdirAll("/sys/fs/cgroup/cg1", 0700); err != nil {
+	if err := os.MkdirAll("/sys/fs/cgroup/memory/cg1", 0700); err != nil {
 		t.Fatal(err)
 	}
 
-	if err := os.WriteFile("/sys/fs/cgroup/cg1/cgroup.procs", []byte(strconv.Itoa(os.Getpid())), 0700); err != nil {
+	if err := os.WriteFile("/sys/fs/cgroup/memory/cg1/cgroup.procs", []byte(strconv.Itoa(os.Getpid())), 0700); err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll("/sys/fs/cgroup/cg1")
+	defer os.RemoveAll("/sys/fs/cgroup/memory/cg1")
 
 	testFile, testFilePtr, err := test.Path("test-open")
 	if err != nil {
@@ -254,7 +254,7 @@ func TestCGroupID(t *testing.T) {
 			assertFieldEqual(t, event, "open.file.path", testFile)
 			assertFieldEqual(t, event, "container.id", "")
 			assertFieldEqual(t, event, "container.runtime", "")
-			assert.Equal(t, uint64(0), event.ContainerContext.Flags)
+			assert.Equal(t, uint64(0), event.CGroupContext.CGroupFlags)
 			assertFieldEqual(t, event, "cgroup.id", "cg1")
 
 			test.validateOpenSchema(t, event)

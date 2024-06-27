@@ -128,7 +128,7 @@ func (fh *FieldHandlers) ResolveContainerCreatedAt(_ *model.Event, e *model.Cont
 
 // ResolveContainerID resolves the container ID of the event
 func (fh *FieldHandlers) ResolveContainerID(_ *model.Event, e *model.ContainerContext) string {
-	return e.ContainerID
+	return string(e.ContainerID)
 }
 
 // ResolveContainerTags resolves the container tags of the event

@@ -188,7 +188,7 @@ func (fh *EBPFFieldHandlers) ResolveContainerRuntime(ev *model.Event, _ *model.C
 		return ""
 	}
 
-	return containerutils.GetContainerRuntime((ev.ContainerContext.Flags))
+	return containerutils.GetContainerRuntime((ev.CGroupContext.CGroupFlags))
 }
 
 // ResolveRights resolves the rights of a file
@@ -491,7 +491,7 @@ func (fh *EBPFFieldHandlers) ResolveHashes(eventType model.EventType, process *m
 func (fh *EBPFFieldHandlers) ResolveCGroupID(ev *model.Event, e *model.CGroupContext) string {
 	if len(e.CGroupID) == 0 {
 		if entry, _ := fh.ResolveProcessCacheEntry(ev); entry != nil {
-			e.CGroupID = model.GetCgroupFromContainer(entry.ContainerID, uint64(entry.CGroup.Flags))
+			e.CGroupID = model.GetCgroupFromContainer(entry.ContainerID, uint64(entry.CGroup.CGroupFlags))
 			return string(e.CGroupID)
 		}
 	}

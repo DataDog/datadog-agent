@@ -127,7 +127,7 @@ func (cr *Resolver) AddPID(process *model.ProcessCacheEntry) {
 
 	var err error
 	// create new entry now
-	newCGroup, err := cgroupModel.NewCacheEntry(string(process.ContainerID), uint64(process.CGroup.Flags), process.Pid)
+	newCGroup, err := cgroupModel.NewCacheEntry(string(process.ContainerID), uint64(process.CGroup.CGroupFlags), process.Pid)
 	if err != nil {
 		seclog.Errorf("couldn't create new cgroup_resolver cache entry: %v", err)
 		return

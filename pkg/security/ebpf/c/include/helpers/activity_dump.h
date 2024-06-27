@@ -100,7 +100,7 @@ __attribute__((always_inline)) u64 trace_new_cgroup(void *ctx, u64 now, char cgr
         return 0;
     }
     copy_container_id(cgroup, evt->container.container_id);
-    evt->container.flags = cgroup_flags;
+    evt->container.cgroup_context.cgroup_flags = cgroup_flags;
     evt->cookie = cookie;
     evt->config = config;
     send_event_ptr(ctx, EVENT_CGROUP_TRACING, evt);
@@ -408,7 +408,7 @@ __attribute__((always_inline)) u32 is_activity_dump_running(void *ctx, u32 pid, 
 
     struct proc_cache_t *pc = get_proc_cache(pid);
     if (pc) {
-        cookie = should_trace_new_process(ctx, now, (pc->container.flags<<32)|pid, pc->container.container_id, pc->entry.comm);
+        cookie = should_trace_new_process(ctx, now, (pc->container.cgroup_context.cgroup_flags<<32)|pid, pc->container.container_id, pc->entry.comm);
     }
 
     if (cookie != 0) {

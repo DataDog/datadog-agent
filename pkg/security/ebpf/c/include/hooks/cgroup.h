@@ -32,6 +32,8 @@ static __attribute__((always_inline)) int trace__cgroup_write(ctx_t *ctx) {
         return 0;
     }
 
+    bpf_printk("trace__cgroup_write %d\n", pid);
+
     struct proc_cache_t new_entry = {};
     struct proc_cache_t *old_entry;
     u8 new_cookie = 0;
@@ -56,6 +58,10 @@ static __attribute__((always_inline)) int trace__cgroup_write(ctx_t *ctx) {
     struct qstr container_qstr;
     char *container_id;
 
+    int check_validity = 0;
+    u32 container_flags = 0;
+    char prefix[15];
+
     switch (cgroup_write_type) {
     case CGROUP_DEFAULT: {
         // Retrieve the container ID from the cgroup path.
@@ -68,6 +74,22 @@ static __attribute__((always_inline)) int trace__cgroup_write(ctx_t *ctx) {
         bpf_probe_read(&container_d, sizeof(container_d), &dentry->d_parent);
         bpf_probe_read(&container_qstr, sizeof(container_qstr), &container_d->d_name);
         container_id = (void *)container_qstr.name;
+
+        struct dentry *parent_d;
+        struct qstr parent_qstr;
+
+        // We may not have a prefix for the cgroup so we look at the parent folder
+        // (for instance Amazon Linux 2 + Docker)
+        bpf_probe_read(&parent_d, sizeof(parent_d), &container_d->d_parent);
+        if (parent_d != NULL) {
+            bpf_probe_read(&parent_qstr, sizeof(parent_qstr), &parent_d->d_name);
+            bpf_probe_read(&prefix, sizeof(prefix), parent_qstr.name);
+            if (prefix[0] == 'd' && prefix[1] == 'o' && prefix[2] == 'c' && prefix[3] == 'k' && prefix[4] == 'e' && prefix[5] == 'r') {
+                container_flags |= CGROUP_MANAGER_DOCKER;
+                check_validity = 1;
+            }
+        }
+
         break;
     }
     case CGROUP_CENTOS_7: {
@@ -82,37 +104,47 @@ static __attribute__((always_inline)) int trace__cgroup_write(ctx_t *ctx) {
         return 0;
     }
 
-    u32 container_flags = 0;
-    char prefix[15];
     bpf_probe_read(&prefix, sizeof(prefix), container_id);
 
     if (prefix[0] == 'd' && prefix[1] == 'o' && prefix[2] == 'c' && prefix[3] == 'k' && prefix[4] == 'e'
         && prefix[5] == 'r' && prefix[6] == '-') {
         container_id += 7; // skip "docker-"
         container_flags |= CGROUP_MANAGER_DOCKER;
+        check_validity = 1;
     }
     else if (prefix[0] == 'c' && prefix[1] == 'r' && prefix[2] == 'i' && prefix[3] == 'o' && prefix[4] == '-') {
         container_id += 5; // skip "crio-"
         container_flags |= CGROUP_MANAGER_CRIO;
+        check_validity = 1;
     }
     else if (prefix[0] == 'l' && prefix[1] == 'i' && prefix[2] == 'b' && prefix[3] == 'p' && prefix[4] == 'o'
         && prefix[5] == 'd' && prefix[6] == '-') {
         container_id += 7; // skip "libpod-"
         container_flags |= CGROUP_MANAGER_PODMAN;
+        check_validity = 1;
     }
     else if (prefix[0] == 'c' && prefix[1] == 'r' && prefix[2] == 'i' && prefix[3] == '-' && prefix[4] == 'c'
         && prefix[5] == 'o' && prefix[6] == 'n' && prefix[7] == 't' && prefix[8] == 'a' && prefix[9] == 'i'
         && prefix[10] == 'n' && prefix[11] == 'e' && prefix[12] == 'r' && prefix[13] == 'd' && prefix[14] == '-') {
         container_id += 15; // skip "cri-containerd-"
         container_flags |= CGROUP_MANAGER_CRI;
+        check_validity = 1;
     }
+
+#if defined(DEBUG) && defined(DEBUG_CGROUP)
+    bpf_printk("container id: %s\n", container_qstr.name);
+#endif
 
     bpf_probe_read(&new_entry.container.container_id, sizeof(new_entry.container.container_id), container_id);
-    new_entry.container.flags = container_flags;
+    new_entry.container.cgroup_context.cgroup_flags = container_flags;
 
-    if (!is_container_id_valid(new_entry.container.container_id)) {
+    if (check_validity && !is_container_id_valid(new_entry.container.container_id)) {
         return 0;
     }
+
+#if defined(DEBUG) && defined(DEBUG_CGROUP)
+    bpf_printk("container flags: %d: %s\n", container_flags, prefix);
+#endif
 
     bpf_map_update_elem(&proc_cache, &cookie, &new_entry, BPF_ANY);
 
@@ -122,26 +154,31 @@ static __attribute__((always_inline)) int trace__cgroup_write(ctx_t *ctx) {
         };
         bpf_map_update_elem(&pid_cache, &pid, &new_pid_entry, BPF_ANY);
     }
+
     return 0;
 }
 
 HOOK_ENTRY("cgroup_procs_write")
 int hook_cgroup_procs_write(ctx_t *ctx) {
+    bpf_printk("cgroup_procs_write\n");
     return trace__cgroup_write(ctx);
 }
 
 HOOK_ENTRY("cgroup1_procs_write")
 int hook_cgroup1_procs_write(ctx_t *ctx) {
+    bpf_printk("hook_cgroup1_procs_write\n");
     return trace__cgroup_write(ctx);
 }
 
 HOOK_ENTRY("cgroup_tasks_write")
 int hook_cgroup_tasks_write(ctx_t *ctx) {
+    bpf_printk("cgroup_tasks_write\n");
     return trace__cgroup_write(ctx);
 }
 
 HOOK_ENTRY("cgroup1_tasks_write")
 int hook_cgroup1_tasks_write(ctx_t *ctx) {
+    bpf_printk("cgroup1_tasks_write\n");
     return trace__cgroup_write(ctx);
 }
 

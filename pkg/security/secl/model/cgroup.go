@@ -32,6 +32,7 @@ const (
 
 // RuntimePrefixes holds the cgroup prefixed used by the different runtimes
 var RuntimePrefixes = map[string]uint64{
+	"docker/":         CGroupManagerDocker, // On Amazon Linux 2 with Docker, 'docker' is the folder name and not a prefix
 	"docker-":         CGroupManagerDocker,
 	"cri-containerd-": CGroupManagerCRI,
 	"crio-":           CGroupManagerCRIO,

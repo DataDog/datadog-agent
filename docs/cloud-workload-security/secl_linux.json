@@ -10,7 +10,7 @@
         {
           "name": "cgroup.id",
           "definition": "ID of the cgroup",
-          "property_doc_link": "cgroup-id-doc"
+          "property_doc_link": "common-cgroupcontext-id-doc"
         },
         {
           "name": "container.created_at",
@@ -104,8 +104,8 @@
         },
         {
           "name": "process.ancestors.cgroup.id",
-          "definition": "Cgroup ID",
-          "property_doc_link": "common-cgroup-id-doc"
+          "definition": "ID of the cgroup",
+          "property_doc_link": "common-cgroupcontext-id-doc"
         },
         {
           "name": "process.ancestors.comm",
@@ -484,8 +484,8 @@
         },
         {
           "name": "process.cgroup.id",
-          "definition": "Cgroup ID",
-          "property_doc_link": "common-cgroup-id-doc"
+          "definition": "ID of the cgroup",
+          "property_doc_link": "common-cgroupcontext-id-doc"
         },
         {
           "name": "process.comm",
@@ -819,8 +819,8 @@
         },
         {
           "name": "process.parent.cgroup.id",
-          "definition": "Cgroup ID",
-          "property_doc_link": "common-cgroup-id-doc"
+          "definition": "ID of the cgroup",
+          "property_doc_link": "common-cgroupcontext-id-doc"
         },
         {
           "name": "process.parent.comm",
@@ -1831,8 +1831,8 @@
         },
         {
           "name": "exec.cgroup.id",
-          "definition": "Cgroup ID",
-          "property_doc_link": "common-cgroup-id-doc"
+          "definition": "ID of the cgroup",
+          "property_doc_link": "common-cgroupcontext-id-doc"
         },
         {
           "name": "exec.comm",
@@ -2230,8 +2230,8 @@
         },
         {
           "name": "exit.cgroup.id",
-          "definition": "Cgroup ID",
-          "property_doc_link": "common-cgroup-id-doc"
+          "definition": "ID of the cgroup",
+          "property_doc_link": "common-cgroupcontext-id-doc"
         },
         {
           "name": "exit.code",
@@ -3481,8 +3481,8 @@
         },
         {
           "name": "ptrace.tracee.ancestors.cgroup.id",
-          "definition": "Cgroup ID",
-          "property_doc_link": "common-cgroup-id-doc"
+          "definition": "ID of the cgroup",
+          "property_doc_link": "common-cgroupcontext-id-doc"
         },
         {
           "name": "ptrace.tracee.ancestors.comm",
@@ -3861,8 +3861,8 @@
         },
         {
           "name": "ptrace.tracee.cgroup.id",
-          "definition": "Cgroup ID",
-          "property_doc_link": "common-cgroup-id-doc"
+          "definition": "ID of the cgroup",
+          "property_doc_link": "common-cgroupcontext-id-doc"
         },
         {
           "name": "ptrace.tracee.comm",
@@ -4196,8 +4196,8 @@
         },
         {
           "name": "ptrace.tracee.parent.cgroup.id",
-          "definition": "Cgroup ID",
-          "property_doc_link": "common-cgroup-id-doc"
+          "definition": "ID of the cgroup",
+          "property_doc_link": "common-cgroupcontext-id-doc"
         },
         {
           "name": "ptrace.tracee.parent.comm",
@@ -5323,8 +5323,8 @@
         },
         {
           "name": "signal.target.ancestors.cgroup.id",
-          "definition": "Cgroup ID",
-          "property_doc_link": "common-cgroup-id-doc"
+          "definition": "ID of the cgroup",
+          "property_doc_link": "common-cgroupcontext-id-doc"
         },
         {
           "name": "signal.target.ancestors.comm",
@@ -5703,8 +5703,8 @@
         },
         {
           "name": "signal.target.cgroup.id",
-          "definition": "Cgroup ID",
-          "property_doc_link": "common-cgroup-id-doc"
+          "definition": "ID of the cgroup",
+          "property_doc_link": "common-cgroupcontext-id-doc"
         },
         {
           "name": "signal.target.comm",
@@ -6038,8 +6038,8 @@
         },
         {
           "name": "signal.target.parent.cgroup.id",
-          "definition": "Cgroup ID",
-          "property_doc_link": "common-cgroup-id-doc"
+          "definition": "ID of the cgroup",
+          "property_doc_link": "common-cgroupcontext-id-doc"
         },
         {
           "name": "signal.target.parent.comm",
@@ -7636,10 +7636,11 @@
     },
     {
       "name": "*.id",
-      "link": "common-cgroup-id-doc",
+      "link": "common-cgroupcontext-id-doc",
       "type": "string",
-      "definition": "Cgroup ID",
+      "definition": "ID of the cgroup",
       "prefixes": [
+        "cgroup",
         "exec.cgroup",
         "exit.cgroup",
         "process.ancestors.cgroup",
@@ -8848,18 +8849,6 @@
       ],
       "constants": "Kernel Capability constants",
       "constants_link": "kernel-capability-constants",
-      "examples": []
-    },
-    {
-      "name": "cgroup.id",
-      "link": "cgroup-id-doc",
-      "type": "string",
-      "definition": "ID of the cgroup",
-      "prefixes": [
-        "cgroup"
-      ],
-      "constants": "",
-      "constants_link": "",
       "examples": []
     },
     {

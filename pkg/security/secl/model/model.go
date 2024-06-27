@@ -72,7 +72,8 @@ type CGroupID string
 
 // CGroupContext holds the cgroup context of an event
 type CGroupContext struct {
-	CGroupID CGroupID `field:"id,handler:ResolveCGroupID"` // SECLDoc[id] Definition:`ID of the cgroup`
+	CGroupID    CGroupID `field:"id,handler:ResolveCGroupID"` // SECLDoc[id] Definition:`ID of the cgroup`
+	CGroupFlags uint64   `field:"-"`
 }
 
 // ContainerID represents a container ID
@@ -85,7 +86,6 @@ type ContainerContext struct {
 	CreatedAt   uint64      `field:"created_at,handler:ResolveContainerCreatedAt"`               // SECLDoc[created_at] Definition:`Timestamp of the creation of the container``
 	Tags        []string    `field:"tags,handler:ResolveContainerTags,opts:skip_ad,weight:9999"` // SECLDoc[tags] Definition:`Tags of the container`
 	Resolved    bool        `field:"-"`
-	Flags       uint64      `field:"-"`
 	Runtime     string      `field:"runtime,handler:ResolveContainerRuntime"` // SECLDoc[runtime] Definition:`Runtime managing the container`
 }
 
