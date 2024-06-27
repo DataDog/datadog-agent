@@ -37,10 +37,6 @@ func MakeMockBundle(logParams, logger fx.Option) fxutil.BundleOptions {
 		logger,
 		fx.Provide(func(params BundleParams) sysprobeconfigimpl.Params { return params.SysprobeConfigParams }),
 		sysprobeconfigimpl.MockModule(),
-		// TODO: (components)
-		// Since the telemetry component uses globals we hit the error
-		// for duplicates prometheus metrics.
-		// Once we are not using globals replace with telemetryimpl.MockModule()
 		telemetryimpl.MockModule(),
 		hostnameimpl.MockModule(),
 	)
