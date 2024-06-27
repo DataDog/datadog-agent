@@ -23,13 +23,13 @@ import (
 )
 
 const (
-	//nolint:revive keep original name.
+	//nolint:revive // keep original name.
 	SYMLINK_FLAG_RELATIVE = 1
 )
 
 // REPARSE_DATA_BUFFER_HEADER is a common part of REPARSE_DATA_BUFFER structure.
 //
-//nolint:revive keep original name.
+//nolint:revive // keep original name.
 type REPARSE_DATA_BUFFER_HEADER struct {
 	ReparseTag uint32
 	// The size, in bytes, of the reparse data that follows
@@ -91,20 +91,6 @@ func (rd *reparseData) addPrintName(name string) {
 	rd.printName.offset, rd.printName.length = rd.addString(name)
 }
 
-func (rd *reparseData) addStringNoNUL(s string) (offset, length uint16) {
-	p, _ := syscall.UTF16FromString(s)
-	p = p[:len(p)-1]
-	return rd.addUTF16s(p), uint16(len(p)) * 2
-}
-
-func (rd *reparseData) addSubstituteNameNoNUL(name string) {
-	rd.substituteName.offset, rd.substituteName.length = rd.addStringNoNUL(name)
-}
-
-func (rd *reparseData) addPrintNameNoNUL(name string) {
-	rd.printName.offset, rd.printName.length = rd.addStringNoNUL(name)
-}
-
 // pathBuffeLen returns length of rd pathBuf in bytes.
 func (rd *reparseData) pathBuffeLen() uint16 {
 	return uint16(len(rd.pathBuf)) * 2
@@ -114,6 +100,8 @@ func (rd *reparseData) pathBuffeLen() uint16 {
 // translated into Go directly. _REPARSE_DATA_BUFFER type is to help
 // construct alternative versions of Windows REPARSE_DATA_BUFFER with
 // union part of symbolicLinkReparseBuffer or MountPointReparseBuffer type.
+//
+//nolint:revive // keep original name.
 type _REPARSE_DATA_BUFFER struct {
 	header REPARSE_DATA_BUFFER_HEADER
 	detail [syscall.MAXIMUM_REPARSE_DATA_BUFFER_SIZE]byte
@@ -181,7 +169,8 @@ func symlinkWithImpersonation(target, link string, fn func(target, link string) 
 	if err != nil {
 		return err
 	}
-	defer windows.RevertToSelf()
+
+	defer func() { _ = windows.RevertToSelf() }()
 
 	err = enableCurrentThreadPrivilege("SeCreateSymbolicLinkPrivilege")
 	if err != nil {
