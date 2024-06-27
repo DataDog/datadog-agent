@@ -174,7 +174,7 @@ def auto_cancel_previous_pipelines(ctx):
     if not os.environ.get('GITLAB_TOKEN'):
         raise Exit("GITLAB_TOKEN variable needed to cancel pipelines on the same ref.", 1)
 
-    git_ref = os.getenv("CI_COMMIT_REF_NAME")
+    git_ref = os.environ["CI_COMMIT_REF_NAME"]
     git_sha = os.getenv("CI_COMMIT_SHA")
 
     repo = get_gitlab_repo()
@@ -215,7 +215,7 @@ def auto_cancel_previous_pipelines(ctx):
                 gracefully_cancel_pipeline(repo, pipeline, force_cancel_stages=force_cancel_stages)
         else:
             print(is_ancestor.stderr)
-            raise Exit(1)
+            raise Exit(code=1)
 
 
 @task
@@ -822,6 +822,27 @@ def update_circleci_config(file_path, image_tag, test_version):
     image = f"{image_name}_test_only" if test_version else image_name
     with open(file_path, "w") as circle:
         circle.write(circle_ci.replace(f"{match.group(0)}", f"{image}:{image_tag}\n"))
+
+
+@task(
+    help={
+        "file_path": "path of the Gitlab configuration YAML file",
+    },
+    autoprint=True,
+)
+def get_gitlab_config_image_tag(_, file_path=".gitlab-ci.yml"):
+    """
+    Print the current image tag of the given Gitlab configuration file (default: ".gitlab-ci.yml")
+    """
+    with open(file_path) as gl:
+        file_content = gl.readlines()
+    gitlab_ci = yaml.load("".join(file_content), Loader=GitlabYamlLoader())
+    if "variables" not in gitlab_ci or "DATADOG_AGENT_BUILDIMAGES" not in gitlab_ci["variables"]:
+        raise Exit(
+            color_message(f"Impossible to find the version of image in {file_path} configuration file", "red"),
+            code=1,
+        )
+    return gitlab_ci["variables"]["DATADOG_AGENT_BUILDIMAGES"]
 
 
 def trigger_build(ctx, branch_name=None, create_branch=False):

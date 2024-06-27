@@ -140,16 +140,18 @@ def get_omnibus_env(
 
     # We need to override the workers variable in omnibus build when running on Kubernetes runners,
     # otherwise, ohai detect the number of CPU on the host and run the make jobs with all the CPU.
-    if os.environ.get('KUBERNETES_CPU_REQUEST'):
-        env['OMNIBUS_WORKERS_OVERRIDE'] = str(int(os.environ.get('KUBERNETES_CPU_REQUEST')) + 1)
+    kubernetes_cpu_request = os.environ.get('KUBERNETES_CPU_REQUEST')
+    if kubernetes_cpu_request:
+        env['OMNIBUS_WORKERS_OVERRIDE'] = str(int(kubernetes_cpu_request) + 1)
     # Forward the DEPLOY_AGENT variable so that we can use a higher compression level for deployed artifacts
-    if os.environ.get('DEPLOY_AGENT'):
-        env['DEPLOY_AGENT'] = os.environ.get('DEPLOY_AGENT')
+    deploy_agent = os.environ.get('DEPLOY_AGENT')
+    if deploy_agent:
+        env['DEPLOY_AGENT'] = deploy_agent
     if 'PACKAGE_ARCH' in os.environ:
-        env['PACKAGE_ARCH'] = os.environ.get('PACKAGE_ARCH')
+        env['PACKAGE_ARCH'] = os.environ['PACKAGE_ARCH']
     if 'INSTALL_DIR' in os.environ:
         print('Forwarding INSTALL_DIR')
-        env['INSTALL_DIR'] = os.environ.get('INSTALL_DIR')
+        env['INSTALL_DIR'] = os.environ['INSTALL_DIR']
 
     return env
 

@@ -87,7 +87,7 @@ func reviewTests(jsonFile string, flakyFile string) (*reviewOutput, error) {
 	}
 	defer jf.Close()
 
-	var ff *os.File
+	var ff io.ReadCloser
 	if flakyFile != "" {
 		ff, err = os.Open(flakyFile)
 		if err != nil {
