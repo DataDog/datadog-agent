@@ -160,39 +160,50 @@ namespace Datadog.CustomActions
             }
         }
 
+        // <summary>
+        // Sets driver-specific properties to 1 if the driver services should be removed on rollback.
+        // </summary>
+        // <remarks>
+        // Previous versions of the installer did not remove the driver services on rollback.
+        // In order to remain compatible with these versions, we must not remove the driver services
+        // when rolling back to these versions.
         public void SetDDDriverRollback()
         {
             var upgradeDetected = _session["WIX_UPGRADE_DETECTED"];
 
-            if (!string.IsNullOrEmpty(upgradeDetected))
+            if (!string.IsNullOrEmpty(upgradeDetected)) // This is an upgrade, conditionally set rollback flags.
             {
                 var versionString = _nativeMethods.GetVersionString(upgradeDetected);
-                // Using Version class 
+                // Using Version class
                 // https://learn.microsoft.com/en-us/dotnet/api/system.version?view=net-8.0
                 var currentVersion = new Version(versionString);
-                Version version_53;
-                Version minimumVersion;
+                Version procmonDriverMinimumVersion;
+                Version driverRollbackMinimumVersion;
 
                 // Check major version
                 if (versionString[0] == '7')
                 {
-                    version_53 = new Version("7.53");
-                    minimumVersion = new Version("7.56");
+                    procmonDriverMinimumVersion = new Version("7.53");
+                    driverRollbackMinimumVersion = new Version("7.56");
                 }
                 else
                 {
-                    version_53 = new Version("6.53");
-                    minimumVersion = new Version("6.56");
+                    procmonDriverMinimumVersion = new Version("6.53");
+                    driverRollbackMinimumVersion = new Version("6.56");
                 }
 
-                var compareResult = currentVersion.CompareTo(minimumVersion);
+                var compareResult = currentVersion.CompareTo(driverRollbackMinimumVersion);
                 if (compareResult < 0) // currentVersion is less than minimumVersion
                 {
+                    // case: upgrading from a version that did not implement driver rollback
+                    // Clear NPM flag to ensure NPM service is not deleted on rollback.
                     _session["DDDRIVERROLLBACK_NPM"] = "";
 
-                    var compare_53 = currentVersion.CompareTo(version_53);
+                    var compare_53 = currentVersion.CompareTo(procmonDriverMinimumVersion);
                     if (compare_53 < 0) //currentVersion is less than 6.53/7.53
                     {
+                        // case: upgrading from a version that did not the include procmon driver
+                        // Set PROCMON flag to ensure procmon driver is deleted on rollback.
                         _session["DDDRIVERROLLBACK_PROCMON"] = "1";
                     }
                     else
@@ -206,7 +217,7 @@ namespace Datadog.CustomActions
                     _session["DDDRIVERROLLBACK_PROCMON"] = "1";
                 }
             }
-            else  // This is a fresh install
+            else  // This is a fresh install, set rollback flags to ensure drivers are deleted on rollback.
             {
                 _session["DDDRIVERROLLBACK_NPM"] = "1";
                 _session["DDDRIVERROLLBACK_PROCMON"] = "1";
