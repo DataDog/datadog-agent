@@ -7,6 +7,7 @@
 package host
 
 import (
+	"encoding/json"
 	"fmt"
 	"io/fs"
 	"os/user"
@@ -168,6 +169,29 @@ func (h *Host) BootstraperVersion() string {
 // InstallerVersion returns the version of the installer on the host.
 func (h *Host) InstallerVersion() string {
 	return strings.TrimSpace(h.remote.MustExecute("sudo datadog-installer version"))
+}
+
+func (h *Host) AgentVersion() string {
+	// Needs sudo to read the auth token
+	authTokenRaw := h.remote.MustExecute("sudo cat /etc/datadog-agent/auth_token")
+	authToken := strings.TrimSpace(string(authTokenRaw))
+
+	requestHeader := fmt.Sprintf(" -H 'Content-Type: application/json' -H 'Authorization: Bearer %s' ", authToken)
+	response := h.remote.MustExecute(fmt.Sprintf(
+		"curl -s --insecure https://localhost:5001/agent/version %s",
+		requestHeader,
+	))
+
+	var versionParsed struct {
+		Major int `json:"Major"`
+		Minor int `json:"Minor"`
+		Patch int `json:"Patch"`
+	}
+	require.NoError(h.t, json.Unmarshal([]byte(response), &versionParsed))
+
+	ver := fmt.Sprintf("%d.%d.%d", versionParsed.Major, versionParsed.Minor, versionParsed.Patch)
+
+	return ver
 }
 
 // AssertPackageInstalledByInstaller checks if a package is installed by the installer on the host.
