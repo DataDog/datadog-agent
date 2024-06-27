@@ -618,7 +618,7 @@ func TestProcessEvents(t *testing.T) {
 				configcomp.MockModule(),
 				fx.Supply(context.Background()),
 				fx.Supply(workloadmeta.NewParams()),
-				workloadmetafxmock.MockModuleV2(),
+				workloadmetafxmock.MockModule(),
 			))
 
 			sender := mocksender.NewMockSender("")

@@ -13,8 +13,9 @@ import (
 	"net/http"
 	"time"
 
+	"go.uber.org/fx"
+
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
-	apiutils "github.com/DataDog/datadog-agent/comp/api/api/utils"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/log"
@@ -33,9 +34,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/dmi"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
+	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/uuid"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"go.uber.org/fx"
 )
 
 // Module defines the fx options for this component.
@@ -265,7 +266,7 @@ func (ih *invHost) writePayloadAsJSON(w http.ResponseWriter, _ *http.Request) {
 	// GetAsJSON already return scrubbed data
 	scrubbed, err := ih.GetAsJSON()
 	if err != nil {
-		apiutils.SetJSONError(w, err, 500)
+		httputils.SetJSONError(w, err, 500)
 		return
 	}
 	w.Write(scrubbed)

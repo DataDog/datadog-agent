@@ -99,14 +99,14 @@ func (tc *trafficCapture) StopCapture() {
 }
 
 // RegisterSharedPoolManager registers the shared pool manager with the TrafficCapture.
-func (tc *trafficCapture) RegisterSharedPoolManager(p *packets.PoolManager) error {
+func (tc *trafficCapture) RegisterSharedPoolManager(p *packets.PoolManager[packets.Packet]) error {
 	tc.Lock()
 	defer tc.Unlock()
 	return tc.writer.RegisterSharedPoolManager(p)
 }
 
 // RegisterOOBPoolManager registers the OOB shared pool manager with the TrafficCapture.
-func (tc *trafficCapture) RegisterOOBPoolManager(p *packets.PoolManager) error {
+func (tc *trafficCapture) RegisterOOBPoolManager(p *packets.PoolManager[[]byte]) error {
 	tc.Lock()
 	defer tc.Unlock()
 	return tc.writer.RegisterOOBPoolManager(p)

@@ -249,24 +249,24 @@ func (rs *RuleSet) AddMacro(parsingContext *ast.ParsingContext, macroDef *MacroD
 		return nil, &ErrMacroLoad{Definition: macroDef, Err: ErrDefinitionIDConflict}
 	}
 
-	macro := &Macro{Definition: macroDef}
+	var macro *eval.Macro
 
 	switch {
 	case macroDef.Expression != "" && len(macroDef.Values) > 0:
 		return nil, &ErrMacroLoad{Definition: macroDef, Err: errors.New("only one of 'expression' and 'values' can be defined")}
 	case macroDef.Expression != "":
-		if macro.Macro, err = eval.NewMacro(macroDef.ID, macroDef.Expression, rs.model, parsingContext, rs.evalOpts); err != nil {
+		if macro, err = eval.NewMacro(macroDef.ID, macroDef.Expression, rs.model, parsingContext, rs.evalOpts); err != nil {
 			return nil, &ErrMacroLoad{Definition: macroDef, Err: err}
 		}
 	default:
-		if macro.Macro, err = eval.NewStringValuesMacro(macroDef.ID, macroDef.Values, rs.evalOpts); err != nil {
+		if macro, err = eval.NewStringValuesMacro(macroDef.ID, macroDef.Values, rs.evalOpts); err != nil {
 			return nil, &ErrMacroLoad{Definition: macroDef, Err: err}
 		}
 	}
 
-	rs.evalOpts.MacroStore.Add(macro.Macro)
+	rs.evalOpts.MacroStore.Add(macro)
 
-	return macro.Macro, nil
+	return macro, nil
 }
 
 // AddRules adds rules to the ruleset and generate their partials

@@ -73,7 +73,7 @@ func TestBuildCollectorEvent(t *testing.T) {
 		config.MockModule(),
 		fx.Supply(context.Background()),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmetafxmock.MockModuleV2(),
+		workloadmetafxmock.MockModule(),
 	))
 	workloadMetaContainer, err := buildWorkloadMetaContainer(namespace, &container, &client, workloadmetaStore)
 	workloadMetaContainer.Namespace = namespace

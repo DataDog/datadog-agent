@@ -97,6 +97,7 @@ func (s *testNPMInstallWithAddLocalSuite) TestNPMInstallWithAddLocal() {
 		s.AgentPackage,
 		windowsAgent.WithAddLocal("NPM"),
 	)
+	RequireAgentVersionRunningWithNoErrors(s.T(), s.NewTestClientForHost(s.Env().RemoteHost), s.AgentPackage.AgentVersion())
 
 	// run tests
 	s.Require().True(s.isNPMInstalled(), "NPM should be installed")
@@ -156,7 +157,7 @@ func (s *testNPMInstallSuite) installPreviousAgentVersion(vm *components.RemoteH
 		Version: s.previousVersion,
 		URL:     s.url,
 	}
-	return s.baseAgentMSISuite.installPreviousAgentVersion(vm, previousAgentPackage, options...)
+	return s.baseAgentMSISuite.installAndTestPreviousAgentVersion(vm, previousAgentPackage, options...)
 }
 
 func (s *testNPMInstallSuite) isNPMInstalled() bool {
@@ -223,17 +224,8 @@ func (s *testNPMInstallSuite) upgradeAgent(host *components.RemoteHost, agentPac
 	}
 
 	if !s.Run(fmt.Sprintf("test %s", agentPackage.AgentVersion()), func() {
-		// check version
 		client := s.NewTestClientForHost(host)
-		if !s.Run("running expected agent version", func() {
-			installedVersion, err := client.GetAgentVersion()
-			s.Require().NoError(err, "should get agent version")
-			windowsAgent.TestAgentVersion(s.T(), agentPackage.AgentVersion(), installedVersion)
-		}) {
-			s.T().FailNow()
-		}
-		// check no errors
-		RequireAgentRunningWithNoErrors(s.T(), client)
+		RequireAgentVersionRunningWithNoErrors(s.T(), client, agentPackage.AgentVersion())
 	}) {
 		s.T().FailNow()
 	}

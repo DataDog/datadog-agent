@@ -15,8 +15,9 @@ import (
 	"strings"
 	"time"
 
+	"go.uber.org/fx"
+
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
-	"github.com/DataDog/datadog-agent/comp/api/api/utils"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/log"
@@ -31,7 +32,6 @@ import (
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/uuid"
-	"go.uber.org/fx"
 )
 
 // Module defines the fx options for this component.
@@ -191,7 +191,7 @@ func (is *pkgSigning) writePayloadAsJSON(w http.ResponseWriter, _ *http.Request)
 	// GetAsJSON already return scrubbed data
 	scrubbed, err := is.GetAsJSON()
 	if err != nil {
-		utils.SetJSONError(w, err, 500)
+		httputils.SetJSONError(w, err, 500)
 		return
 	}
 	w.Write(scrubbed)

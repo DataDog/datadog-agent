@@ -18,8 +18,11 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -143,4 +146,28 @@ func AddBoolConst(options *manager.Options, name string, flag bool) {
 			Value: val,
 		},
 	)
+}
+
+// ConnStatsToTuple converts a ConnectionStats to a ConnTuple
+func ConnStatsToTuple(c *network.ConnectionStats, tup *netebpf.ConnTuple) {
+	tup.Sport = c.SPort
+	tup.Dport = c.DPort
+	tup.Netns = c.NetNS
+	tup.Pid = c.Pid
+	if c.Family == network.AFINET {
+		tup.SetFamily(netebpf.IPv4)
+	} else {
+		tup.SetFamily(netebpf.IPv6)
+	}
+	if c.Type == network.TCP {
+		tup.SetType(netebpf.TCP)
+	} else {
+		tup.SetType(netebpf.UDP)
+	}
+	if !c.Source.IsZero() {
+		tup.Saddr_l, tup.Saddr_h = util.ToLowHigh(c.Source)
+	}
+	if !c.Dest.IsZero() {
+		tup.Daddr_l, tup.Daddr_h = util.ToLowHigh(c.Dest)
+	}
 }

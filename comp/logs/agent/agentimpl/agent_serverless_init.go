@@ -8,6 +8,8 @@
 package agentimpl
 
 import (
+	"time"
+
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgConfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -59,5 +61,11 @@ func (a *logAgent) SetupPipeline(
 
 // buildEndpoints builds endpoints for the logs agent
 func buildEndpoints(coreConfig pkgConfig.Reader) (*config.Endpoints, error) {
-	return config.BuildServerlessEndpoints(coreConfig, intakeTrackType, config.DefaultIntakeProtocol)
+	config, err := config.BuildServerlessEndpoints(coreConfig, intakeTrackType, config.DefaultIntakeProtocol)
+	if err != nil {
+		return nil, err
+	}
+	// in serverless mode, we never want the batch strategy to flush with a tick
+	config.BatchWait = 365 * 24 * time.Hour
+	return config, nil
 }

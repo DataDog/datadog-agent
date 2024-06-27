@@ -65,7 +65,7 @@ func TestRun(t *testing.T) {
 	mockStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		core.MockBundle(),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmetafxmock.MockModuleV2(),
+		workloadmetafxmock.MockModule(),
 	))
 	mocklogger := fxutil.Test[log.Component](t, logimpl.MockModule())
 
@@ -300,7 +300,7 @@ func TestPatcherRetriesFailedPatches(t *testing.T) {
 	mockStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		core.MockBundle(),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmetafxmock.MockModuleV2(),
+		workloadmetafxmock.MockModule(),
 	))
 	mocklogger := fxutil.Test[log.Component](t, logimpl.MockModule())
 

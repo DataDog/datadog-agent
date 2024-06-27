@@ -33,7 +33,8 @@ import (
 
 type baseAgentMSISuite struct {
 	windows.BaseAgentInstallerSuite[environments.WindowsHost]
-	beforeInstall *windowsCommon.FileSystemSnapshot
+	beforeInstall      *windowsCommon.FileSystemSnapshot
+	beforeInstallPerms map[string]string // path -> SDDL
 }
 
 // NOTE: BeforeTest is not called before subtests
@@ -46,6 +47,8 @@ func (s *baseAgentMSISuite) BeforeTest(suiteName, testName string) {
 	var err error
 	// If necessary (for example for parallelization), store the snapshot per suite/test in a map
 	s.beforeInstall, err = windowsCommon.NewFileSystemSnapshot(vm, SystemPaths())
+	s.Require().NoError(err)
+	s.beforeInstallPerms, err = SnapshotPermissionsForPaths(vm, SystemPathsForPermissionsValidation())
 	s.Require().NoError(err)
 
 	// Clear the event logs before each test
@@ -134,11 +137,15 @@ func (s *baseAgentMSISuite) uninstallAgentAndRunUninstallTests(t *Tester) bool {
 
 		AssertDoesNotRemoveSystemFiles(s.T(), s.Env().RemoteHost, s.beforeInstall)
 
+		s.Run("uninstall does not change system file permissions", func() {
+			AssertDoesNotChangePathPermissions(s.T(), s.Env().RemoteHost, s.beforeInstallPerms)
+		})
+
 		t.TestUninstallExpectations(tt)
 	})
 }
 
-func (s *baseAgentMSISuite) installPreviousAgentVersion(vm *components.RemoteHost, agentPackage *windowsAgent.Package, options ...windowsAgent.InstallAgentOption) *Tester {
+func (s *baseAgentMSISuite) installAndTestPreviousAgentVersion(vm *components.RemoteHost, agentPackage *windowsAgent.Package, options ...windowsAgent.InstallAgentOption) *Tester {
 	// create the tester
 	t := s.newTester(vm,
 		WithAgentPackage(agentPackage),
@@ -161,7 +168,7 @@ func (s *baseAgentMSISuite) installLastStable(vm *components.RemoteHost, options
 	previousAgentPackage, err := windowsAgent.GetLastStablePackageFromEnv()
 	s.Require().NoError(err, "should get last stable agent package from env")
 
-	return s.installPreviousAgentVersion(vm, previousAgentPackage, options...)
+	return s.installAndTestPreviousAgentVersion(vm, previousAgentPackage, options...)
 }
 
 func (s *baseAgentMSISuite) readYamlConfig(host *components.RemoteHost, path string) (map[string]any, error) {

@@ -7,6 +7,7 @@ package sender
 
 import (
 	"strconv"
+	"sync"
 	"time"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
@@ -29,23 +30,27 @@ var (
 // the auditor or block the pipeline if they fail. There will always be at
 // least 1 reliable destination (the main destination).
 type Sender struct {
-	config       pkgconfigmodel.Reader
-	inputChan    chan *message.Payload
-	outputChan   chan *message.Payload
-	destinations *client.Destinations
-	done         chan struct{}
-	bufferSize   int
+	config         pkgconfigmodel.Reader
+	inputChan      chan *message.Payload
+	outputChan     chan *message.Payload
+	destinations   *client.Destinations
+	done           chan struct{}
+	bufferSize     int
+	senderDoneChan chan *sync.WaitGroup
+	flushDoneChan  chan struct{}
 }
 
 // NewSender returns a new sender.
-func NewSender(config pkgconfigmodel.Reader, inputChan chan *message.Payload, outputChan chan *message.Payload, destinations *client.Destinations, bufferSize int) *Sender {
+func NewSender(config pkgconfigmodel.Reader, inputChan chan *message.Payload, outputChan chan *message.Payload, destinations *client.Destinations, bufferSize int, senderDoneChan chan *sync.WaitGroup, flushDoneChan chan struct{}) *Sender {
 	return &Sender{
-		config:       config,
-		inputChan:    inputChan,
-		outputChan:   outputChan,
-		destinations: destinations,
-		done:         make(chan struct{}),
-		bufferSize:   bufferSize,
+		config:         config,
+		inputChan:      inputChan,
+		outputChan:     outputChan,
+		destinations:   destinations,
+		done:           make(chan struct{}),
+		bufferSize:     bufferSize,
+		senderDoneChan: senderDoneChan,
+		flushDoneChan:  flushDoneChan,
 	}
 }
 
@@ -69,12 +74,17 @@ func (s *Sender) run() {
 
 	for payload := range s.inputChan {
 		var startInUse = time.Now()
+		senderDoneWg := &sync.WaitGroup{}
 
 		sent := false
 		for !sent {
 			for _, destSender := range reliableDestinations {
 				if destSender.Send(payload) {
 					sent = true
+					if s.senderDoneChan != nil {
+						senderDoneWg.Add(1)
+						s.senderDoneChan <- senderDoneWg
+					}
 				}
 			}
 
@@ -102,11 +112,21 @@ func (s *Sender) run() {
 			if !destSender.NonBlockingSend(payload) {
 				tlmPayloadsDropped.Inc("false", strconv.Itoa(i))
 				tlmMessagesDropped.Add(float64(len(payload.Messages)), "false", strconv.Itoa(i))
+				if s.senderDoneChan != nil {
+					senderDoneWg.Add(1)
+					s.senderDoneChan <- senderDoneWg
+				}
 			}
 		}
 
 		inUse := float64(time.Since(startInUse) / time.Millisecond)
 		tlmSendWaitTime.Add(inUse)
+
+		if s.senderDoneChan != nil {
+			senderDoneWg.Wait()
+			// In serverless ensure the payload is sent to all destinations to sync with a flush
+			s.flushDoneChan <- struct{}{}
+		}
 	}
 
 	// Cleanup the destinations

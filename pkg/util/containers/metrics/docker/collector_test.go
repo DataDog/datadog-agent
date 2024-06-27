@@ -89,7 +89,7 @@ func TestGetContainerIDForPID(t *testing.T) {
 		config.MockModule(),
 		logimpl.MockModule(),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmetafxmock.MockModuleV2(),
+		workloadmetafxmock.MockModule(),
 	))
 
 	collector := dockerCollector{

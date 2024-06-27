@@ -30,7 +30,7 @@ func TestTagBuilder(t *testing.T) {
 		logimpl.MockModule(),
 		config.MockModule(),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmetafxmock.MockModuleV2(),
+		workloadmetafxmock.MockModule(),
 	))
 	tagger := NewTagger(store)
 	tagger.Start(context.Background())

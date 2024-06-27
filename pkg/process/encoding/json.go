@@ -29,7 +29,7 @@ func (j jsonSerializer) Marshal(stats map[int32]*procutil.StatsWithPerm) ([]byte
 	}
 
 	for pid, s := range stats {
-		stat := statPool.Get().(*model.ProcStatsWithPerm)
+		stat := statPool.Get()
 		stat.OpenFDCount = s.OpenFdCount
 		stat.ReadCount = s.IOStat.ReadCount
 		stat.WriteCount = s.IOStat.WriteCount

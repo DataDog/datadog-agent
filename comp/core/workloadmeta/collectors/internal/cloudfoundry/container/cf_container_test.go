@@ -24,7 +24,7 @@ func TestStartError(t *testing.T) {
 	workloadmetaStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		core.MockBundle(),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmetafxmock.MockModuleV2(),
+		workloadmetafxmock.MockModule(),
 	))
 	c := collector{
 		store: workloadmetaStore,
@@ -38,7 +38,7 @@ func TestPull(t *testing.T) {
 	workloadmetaStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		core.MockBundle(),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmetafxmock.MockModuleV2(),
+		workloadmetafxmock.MockModule(),
 	))
 	fakeNodeName := "fake-hostname"
 

@@ -47,12 +47,12 @@ func (tc *noopTrafficCapture) StopCapture() {
 }
 
 // RegisterSharedPoolManager does nothing
-func (tc *noopTrafficCapture) RegisterSharedPoolManager(_ *packets.PoolManager) error {
+func (tc *noopTrafficCapture) RegisterSharedPoolManager(_ *packets.PoolManager[packets.Packet]) error {
 	return nil
 }
 
 // RegisterOOBPoolManager does nothing
-func (tc *noopTrafficCapture) RegisterOOBPoolManager(_ *packets.PoolManager) error {
+func (tc *noopTrafficCapture) RegisterOOBPoolManager(_ *packets.PoolManager[[]byte]) error {
 	return nil
 }
 

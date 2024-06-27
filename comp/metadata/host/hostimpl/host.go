@@ -16,7 +16,6 @@ import (
 	"go.uber.org/fx"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
-	apiutils "github.com/DataDog/datadog-agent/comp/api/api/utils"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/log"
@@ -30,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
+	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
@@ -139,13 +139,13 @@ func (h *host) fillFlare(fb flaretypes.FlareBuilder) error {
 func (h *host) writePayloadAsJSON(w http.ResponseWriter, _ *http.Request) {
 	jsonPayload, err := h.GetPayloadAsJSON(context.Background())
 	if err != nil {
-		apiutils.SetJSONError(w, h.log.Errorf("Unable to marshal v5 metadata payload: %s", err), 500)
+		httputils.SetJSONError(w, h.log.Errorf("Unable to marshal v5 metadata payload: %s", err), 500)
 		return
 	}
 
 	scrubbed, err := scrubber.ScrubBytes(jsonPayload)
 	if err != nil {
-		apiutils.SetJSONError(w, h.log.Errorf("Unable to scrub metadata payload: %s", err), 500)
+		httputils.SetJSONError(w, h.log.Errorf("Unable to scrub metadata payload: %s", err), 500)
 		return
 	}
 	w.Write(scrubbed)
@@ -155,13 +155,13 @@ func (h *host) writeGohaiPayload(w http.ResponseWriter, _ *http.Request) {
 	payload := gohai.GetPayloadWithProcesses(pkgconfig.IsContainerized())
 	jsonPayload, err := json.MarshalIndent(payload, "", "  ")
 	if err != nil {
-		apiutils.SetJSONError(w, h.log.Errorf("Unable to marshal gohai metadata payload: %s", err), 500)
+		httputils.SetJSONError(w, h.log.Errorf("Unable to marshal gohai metadata payload: %s", err), 500)
 		return
 	}
 
 	scrubbed, err := scrubber.ScrubBytes(jsonPayload)
 	if err != nil {
-		apiutils.SetJSONError(w, h.log.Errorf("Unable to scrub gohai metadata payload: %s", err), 500)
+		httputils.SetJSONError(w, h.log.Errorf("Unable to scrub gohai metadata payload: %s", err), 500)
 		return
 	}
 	w.Write(scrubbed)

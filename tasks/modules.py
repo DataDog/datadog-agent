@@ -222,10 +222,8 @@ DEFAULT_MODULES = {
     "pkg/process/util/api": GoModule("pkg/process/util/api", independent=True, used_by_otel=True),
     "pkg/proto": GoModule("pkg/proto", independent=True, used_by_otel=True),
     "pkg/remoteconfig/state": GoModule("pkg/remoteconfig/state", independent=True, used_by_otel=True),
-    "pkg/security/secl": GoModule("pkg/security/secl", independent=True, legacy_go_mod_version=True),
-    "pkg/security/seclwin": GoModule(
-        "pkg/security/seclwin", independent=True, condition=lambda: False, legacy_go_mod_version=True
-    ),
+    "pkg/security/secl": GoModule("pkg/security/secl", independent=True),
+    "pkg/security/seclwin": GoModule("pkg/security/seclwin", independent=True, condition=lambda: False),
     "pkg/serializer": GoModule("pkg/serializer", independent=True, used_by_otel=True),
     "pkg/status/health": GoModule("pkg/status/health", independent=True, used_by_otel=True),
     "pkg/tagger/types": GoModule("pkg/tagger/types", independent=True, used_by_otel=True),

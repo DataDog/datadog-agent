@@ -493,7 +493,7 @@ func newMockWorkloadMeta(t *testing.T) workloadmeta.Component {
 			logimpl.MockModule(),
 			config.MockModule(),
 			fx.Supply(workloadmeta.NewParams()),
-			workloadmetafxmock.MockModuleV2(),
+			workloadmetafxmock.MockModule(),
 		),
 	)
 }

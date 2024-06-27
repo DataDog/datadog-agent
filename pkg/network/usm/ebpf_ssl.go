@@ -18,7 +18,6 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 	"unsafe"
 
@@ -37,6 +36,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
 
 const (
@@ -564,12 +564,7 @@ const (
 )
 
 var (
-	taskCommLenBufferPool = sync.Pool{
-		New: func() any {
-			buf := make([]byte, taskCommLen)
-			return &buf
-		},
-	}
+	taskCommLenBufferPool = ddsync.NewSlicePool[byte](taskCommLen, taskCommLen)
 )
 
 func isContainerdTmpMount(path string) bool {
@@ -592,7 +587,7 @@ func isBuildKit(procRoot string, pid uint32) bool {
 		}
 	}
 
-	buf := taskCommLenBufferPool.Get().(*[]byte)
+	buf := taskCommLenBufferPool.Get()
 	defer taskCommLenBufferPool.Put(buf)
 	n, err := file.Read(*buf)
 	if err != nil {
