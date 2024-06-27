@@ -7,13 +7,13 @@ extensions:
     workday_team: "Agent Build And Releases"
     conductor:
       slack: "datadog-agent-pipelines"
-      schedule: "0 3 * * 1-5"
       options:
         disable_bia: true
       targets:
         - name: "staging"
           ci_pipeline: "//fake_placeholder:fake_placeholder"
           branch: "main"
+          schedule: "0 3 * * 1-5"
         - name: "conductor-sandbox"
           ci_pipeline: "//fake_placeholder:fake_placeholder"
           branch: "chouquette/conductor"
