@@ -40,6 +40,8 @@ const (
 )
 
 var defaultBuckets = []float64{10, 25, 50, 75, 100, 250, 500, 1000, 10000}
+
+// ErrNotPermitted is the error returned when the current process does not have the required permissions for netlink conntracker
 var ErrNotPermitted = errors.New("netlink conntracker requires NET_ADMIN capability")
 
 // Conntracker is a wrapper around go-conntracker that keeps a record of all connections in user space
