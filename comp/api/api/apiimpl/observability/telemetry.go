@@ -44,8 +44,7 @@ func (th *telemetryMiddlewareFactory) Middleware(serverName string) mux.Middlewa
 			next.ServeHTTP(w, r)
 
 			path := extractPath(r)
-			metricWithTags := th.requestDuration.WithValues(serverName, strconv.Itoa(statusCode), r.Method, path)
-			metricWithTags.Observe(duration.Seconds())
+			th.requestDuration.Observe(duration.Seconds(), serverName, strconv.Itoa(statusCode), r.Method, path)
 		})
 	}
 }
@@ -62,6 +61,9 @@ func newTelemetryMiddlewareFactory(telemetry telemetry.Component, clock clock.Cl
 }
 
 // NewTelemetryMiddlewareFactory creates a new TelemetryMiddlewareFactory
+//
+// This function must be called only once for a given telemetry Component,
+// as it creates a new metric, and Prometheus panics if the same metric is registered twice.
 func NewTelemetryMiddlewareFactory(telemetry telemetry.Component) TelemetryMiddlewareFactory {
 	return newTelemetryMiddlewareFactory(telemetry, clock.New())
 }

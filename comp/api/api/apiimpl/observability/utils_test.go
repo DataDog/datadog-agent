@@ -63,7 +63,7 @@ func TestExtractStatusHandler(t *testing.T) {
 			require.NoError(t, err)
 			resp.Body.Close()
 
-			assert.Equal(t, tcStatus, resp.StatusCode)
+			assert.Equal(t, tcStatus, statusCode)
 		})
 	}
 }

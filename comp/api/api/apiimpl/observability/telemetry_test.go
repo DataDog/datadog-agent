@@ -145,6 +145,9 @@ func TestTelemetryMiddlewareTwice(t *testing.T) {
 	telemetry := fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule())
 	tm := NewTelemetryMiddlewareFactory(telemetry)
 
+	// test that we can create multiple middleware instances
+	// Prometheus metrics can be registered only once, this test enforces that the metric
+	// is not created in the Middleware itself
 	_ = tm.Middleware("test1")
 	_ = tm.Middleware("test2")
 }
