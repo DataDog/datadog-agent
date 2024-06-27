@@ -311,16 +311,18 @@ type AgentConfig struct {
 	ProbabilisticSamplerSamplingPercentage float32
 
 	// Receiver
-	ReceiverHost    string
-	ReceiverPort    int
-	ReceiverSocket  string // if not empty, UDS will be enabled on unix://<receiver_socket>
-	ConnectionLimit int    // for rate-limiting, how many unique connections to allow in a lease period (30s)
-	ReceiverTimeout int
-	MaxRequestBytes int64 // specifies the maximum allowed request size for incoming trace payloads
-	TraceBuffer     int   // specifies the number of traces to buffer before blocking.
-	Decoders        int   // specifies the number of traces that can be concurrently decoded.
-	MaxConnections  int   // specifies the maximum number of concurrent incoming connections allowed.
-	DecoderTimeout  int   // specifies the maximum time in milliseconds that the decoders will wait for a turn to accept a payload before returning 429
+	ReceiverEnabled       bool // specifies whether Receiver listeners are enabled. Unless OTLPReceiver is used, this should always be true.
+	ReceiverHost          string
+	ReceiverPort          int
+	ReceiverSocket        string // if not empty, UDS will be enabled on unix://<receiver_socket>
+	ReceiverDefaultSocket string // An always-enabled socket on unix://var/run/datadog/apm.socket
+	ConnectionLimit       int    // for rate-limiting, how many unique connections to allow in a lease period (30s)
+	ReceiverTimeout       int
+	MaxRequestBytes       int64 // specifies the maximum allowed request size for incoming trace payloads
+	TraceBuffer           int   // specifies the number of traces to buffer before blocking.
+	Decoders              int   // specifies the number of traces that can be concurrently decoded.
+	MaxConnections        int   // specifies the maximum number of concurrent incoming connections allowed.
+	DecoderTimeout        int   // specifies the maximum time in milliseconds that the decoders will wait for a turn to accept a payload before returning 429
 
 	WindowsPipeName        string
 	PipeBufferSize         int
@@ -485,12 +487,14 @@ func New() *AgentConfig {
 		RareSamplerCooldownPeriod: 5 * time.Minute,
 		RareSamplerCardinality:    200,
 
+		ReceiverEnabled:        true,
 		ReceiverHost:           "localhost",
 		ReceiverPort:           8126,
 		MaxRequestBytes:        25 * 1024 * 1024, // 25MB
 		PipeBufferSize:         1_000_000,
 		PipeSecurityDescriptor: "D:AI(A;;GA;;;WD)",
 		GUIPort:                "5002",
+		ReceiverDefaultSocket:  "/var/run/datadog/apm.socket",
 
 		StatsWriter:             new(WriterConfig),
 		TraceWriter:             new(WriterConfig),
