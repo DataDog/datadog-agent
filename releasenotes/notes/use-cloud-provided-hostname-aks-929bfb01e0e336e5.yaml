@@ -8,5 +8,5 @@
 ---
 enhancements:
   - |
-    Use cloud-provided hostname as default when running the agent
+    Use cloud-provided hostname as default when running the Agent
     in AKS.
