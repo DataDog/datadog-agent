@@ -105,6 +105,7 @@ func Validate(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 
+	// The following comparison must be evaluated in constant time
 	if len(tok) < 2 || !constantCompareStrings(tok[1], GetAuthToken()) {
 		err = fmt.Errorf("invalid session token")
 		http.Error(w, err.Error(), 403)
@@ -133,6 +134,7 @@ func ValidateDCARequest(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 
+	// The following comparison must be evaluated in constant time
 	if len(tok) != 2 || !constantCompareStrings(tok[1], GetDCAAuthToken()) {
 		err = fmt.Errorf("invalid session token")
 		http.Error(w, err.Error(), 403)
