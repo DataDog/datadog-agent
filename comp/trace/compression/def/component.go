@@ -14,4 +14,5 @@ import "io"
 type Component interface {
 	NewWriter(w io.Writer) (io.WriteCloser, error)
 	NewReader(w io.Reader) (io.ReadCloser, error)
+	Encoding() string
 }

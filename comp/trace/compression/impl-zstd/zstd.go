@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-//go:build zstd
-
 // Package impl implements the compression component interface
 package implzstd
 
@@ -16,7 +14,7 @@ import (
 	"github.com/DataDog/zstd"
 )
 
-const ZstdAvailable = true
+const encoding = "zstd"
 
 type compressor struct{}
 
@@ -31,4 +29,8 @@ func (c *compressor) NewWriter(w io.Writer) (io.WriteCloser, error) {
 
 func (c *compressor) NewReader(w io.Reader) (io.ReadCloser, error) {
 	return zstd.NewReader(w), nil
+}
+
+func (c *compressor) Encoding() string {
+	return "zstd"
 }

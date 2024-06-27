@@ -13,8 +13,6 @@ import (
 	"time"
 
 	compression "github.com/DataDog/datadog-agent/comp/trace/compression/def"
-	gzip "github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip"
-	zstd "github.com/DataDog/datadog-agent/comp/trace/compression/impl-zstd"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
@@ -84,10 +82,10 @@ type TraceWriter struct {
 
 	telemetryCollector telemetry.TelemetryCollector
 
-	easylog *log.ThrottledLogger
-	statsd  statsd.ClientInterface
-	timing  timing.Reporter
-	useZstd bool
+	easylog    *log.ThrottledLogger
+	statsd     statsd.ClientInterface
+	timing     timing.Reporter
+	compressor compression.Component
 }
 
 // NewTraceWriter returns a new TraceWriter. It is created for the given agent configuration and
@@ -99,7 +97,8 @@ func NewTraceWriter(
 	rareSampler samplerEnabledReader,
 	telemetryCollector telemetry.TelemetryCollector,
 	statsd statsd.ClientInterface,
-	timing timing.Reporter) *TraceWriter {
+	timing timing.Reporter,
+	compressor compression.Component) *TraceWriter {
 	tw := &TraceWriter{
 		In:                 make(chan *SampledChunks, 1),
 		Serialize:          make(chan *pb.AgentPayload, 1),
@@ -118,7 +117,7 @@ func NewTraceWriter(
 		telemetryCollector: telemetryCollector,
 		statsd:             statsd,
 		timing:             timing,
-		useZstd:            cfg.HasFeature("zstd-encoding"),
+		compressor:         compressor,
 	}
 	climit := cfg.TraceWriter.ConnectionLimit
 	if climit == 0 {
@@ -286,27 +285,15 @@ func (w *TraceWriter) serializer() {
 			}
 
 			w.stats.BytesUncompressed.Add(int64(len(b)))
-			var p *payload
-			var compressor compression.Component
 
-			if w.useZstd && zstd.ZstdAvailable {
-				p = newPayload(map[string]string{
-					"Content-Type":     "application/x-protobuf",
-					"Content-Encoding": "zstd",
-					headerLanguages:    strings.Join(info.Languages(), "|"),
-				})
-				compressor = zstd.NewComponent()
-			} else {
-				p = newPayload(map[string]string{
-					"Content-Type":     "application/x-protobuf",
-					"Content-Encoding": "gzip",
-					headerLanguages:    strings.Join(info.Languages(), "|"),
-				})
-				compressor = gzip.NewComponent()
-			}
+			p := newPayload(map[string]string{
+				"Content-Type":     "application/x-protobuf",
+				"Content-Encoding": w.compressor.Encoding(),
+				headerLanguages:    strings.Join(info.Languages(), "|"),
+			})
 
 			p.body.Grow(len(b) / 2)
-			writer, err := compressor.NewWriter(p.body)
+			writer, err := w.compressor.NewWriter(p.body)
 			if err != nil {
 				// it will never happen, unless an invalid compression is chosen;
 				// we know gzip.BestSpeed is valid.

@@ -14,6 +14,8 @@ import (
 	"compress/gzip"
 )
 
+const encoding = "gzip"
+
 type compressor struct{}
 
 // NewComponent creates a new compression component
@@ -27,4 +29,8 @@ func (c *compressor) NewWriter(w io.Writer) (io.WriteCloser, error) {
 
 func (c *compressor) NewReader(w io.Reader) (io.ReadCloser, error) {
 	return gzip.NewReader(w)
+}
+
+func (c *compressor) Encoding() string {
+	return "zstd"
 }

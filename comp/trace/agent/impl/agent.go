@@ -25,6 +25,9 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
+	compression "github.com/DataDog/datadog-agent/comp/trace/compression/def"
+	gzip "github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip"
+	zstd "github.com/DataDog/datadog-agent/comp/trace/compression/impl-zstd"
 	"github.com/DataDog/datadog-agent/comp/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	pkgagent "github.com/DataDog/datadog-agent/pkg/trace/agent"
@@ -99,11 +102,18 @@ func NewAgent(deps dependencies) (traceagent.Component, error) {
 		return nil, err
 	}
 	setupShutdown(ctx, deps.Shutdowner, statsdCl)
+	var compressor compression.Component
+	if tracecfg.HasFeature("zstd-encoding") {
+		compressor = zstd.NewComponent()
+	} else {
+		compressor = gzip.NewComponent()
+	}
 	ag.Agent = pkgagent.NewAgent(
 		ctx,
 		ag.config.Object(),
 		ag.telemetryCollector,
 		statsdCl,
+		compressor,
 	)
 
 	deps.Lc.Append(fx.Hook{
