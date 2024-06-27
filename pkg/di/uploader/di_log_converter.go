@@ -3,9 +3,10 @@ package uploader
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"strings"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/di/ditypes"
 

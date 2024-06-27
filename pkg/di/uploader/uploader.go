@@ -3,11 +3,12 @@ package uploader
 import (
 	"bytes"
 	"encoding/json"
-	"log"
 	"mime/multipart"
 	"net/http"
 	"net/textproto"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/di/diagnostics"
 	"github.com/DataDog/datadog-agent/pkg/di/ditypes"

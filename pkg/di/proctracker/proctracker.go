@@ -3,7 +3,6 @@ package proctracker
 import (
 	"debug/elf"
 	"errors"
-	"log"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -11,6 +10,8 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/di/ditypes"
 	"github.com/cilium/ebpf"

@@ -3,9 +3,10 @@ package ditypes
 import (
 	"debug/dwarf"
 	"fmt"
-	"log"
 	"strconv"
 	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/di/ratelimiter"
 	"github.com/cilium/ebpf"
