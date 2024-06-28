@@ -61,7 +61,8 @@ func (s *agentServiceCommandSuite) SetupSuite() {
 	s.startAgentCommand = func(host *components.RemoteHost) error {
 		cmd := fmt.Sprintf(`& "%s\bin\agent.exe" start-service`, installPath)
 		out, err := host.Execute(cmd)
-		if err == nil {
+		out = strings.TrimSpace(out)
+		if err == nil && out != "" {
 			s.T().Logf("agent start-service output:\n%s", out)
 		}
 		return err
@@ -69,7 +70,8 @@ func (s *agentServiceCommandSuite) SetupSuite() {
 	s.stopAgentCommand = func(host *components.RemoteHost) error {
 		cmd := fmt.Sprintf(`& "%s\bin\agent.exe" stop-service`, installPath)
 		out, err := host.Execute(cmd)
-		if err == nil {
+		out = strings.TrimSpace(out)
+		if err == nil && out != "" {
 			s.T().Logf("agent stop-service output:\n%s", out)
 		}
 		return err
@@ -93,12 +95,20 @@ func (s *powerShellServiceCommandSuite) SetupSuite() {
 
 	s.startAgentCommand = func(host *components.RemoteHost) error {
 		cmd := `Start-Service -Name datadogagent`
-		_, err := host.Execute(cmd)
+		out, err := host.Execute(cmd)
+		out = strings.TrimSpace(out)
+		if err == nil && out != "" {
+			s.T().Logf("PowerShell Start-Service output:\n%s", out)
+		}
 		return err
 	}
 	s.stopAgentCommand = func(host *components.RemoteHost) error {
 		cmd := `Stop-Service -Force -Name datadogagent`
-		_, err := host.Execute(cmd)
+		out, err := host.Execute(cmd)
+		out = strings.TrimSpace(out)
+		if err == nil && out != "" {
+			s.T().Logf("PowerShell Stop-Service output:\n%s", out)
+		}
 		return err
 	}
 }
