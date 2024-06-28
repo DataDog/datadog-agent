@@ -520,6 +520,14 @@ func TestGenerateCPUEnhancedMetricsDisabled(t *testing.T) {
 	assert.Len(t, timedMetrics, 0)
 }
 
+func TestSendFailoverReasonMetric(t *testing.T) {
+	demux := createDemultiplexer(t)
+	tags := []string{"reason:test-reason"}
+	go SendFailoverReasonMetric(tags, demux)
+	generatedMetrics, _ := demux.WaitForNumberOfSamples(1, 0, 100*time.Millisecond)
+	assert.Len(t, generatedMetrics, 1)
+}
+
 func createDemultiplexer(t *testing.T) demultiplexer.FakeSamplerMock {
 	return fxutil.Test[demultiplexer.FakeSamplerMock](t, logimpl.MockModule(), compressionimpl.MockModule(), demultiplexerimpl.FakeSamplerMockModule(), hostnameimpl.MockModule())
 }
