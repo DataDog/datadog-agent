@@ -97,9 +97,7 @@ func (t *telemetryImplMock) GetRegistry() *prometheus.Registry {
 }
 
 func (t *telemetryImplMock) GetCountMetric(subsystem, name string) ([]telemetry.Metric, error) {
-	t.mutex.Lock()
-	defer t.mutex.Unlock()
-	metricFamily, err := t.registry.Gather()
+	metricFamily, err := t.GetRegistry().Gather()
 	if err != nil {
 		return nil, err
 	}
@@ -108,9 +106,7 @@ func (t *telemetryImplMock) GetCountMetric(subsystem, name string) ([]telemetry.
 }
 
 func (t *telemetryImplMock) GetGaugeMetric(subsystem, name string) ([]telemetry.Metric, error) {
-	t.mutex.Lock()
-	defer t.mutex.Unlock()
-	metricFamily, err := t.registry.Gather()
+	metricFamily, err := t.GetRegistry().Gather()
 	if err != nil {
 		return nil, err
 	}
@@ -119,9 +115,7 @@ func (t *telemetryImplMock) GetGaugeMetric(subsystem, name string) ([]telemetry.
 }
 
 func (t *telemetryImplMock) GetHistogramMetric(subsystem, name string) ([]telemetry.Metric, error) {
-	t.mutex.Lock()
-	defer t.mutex.Unlock()
-	metricFamily, err := t.registry.Gather()
+	metricFamily, err := t.GetRegistry().Gather()
 	if err != nil {
 		return nil, err
 	}
