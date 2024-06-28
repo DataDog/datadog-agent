@@ -527,9 +527,6 @@ func testHTTPSClassification(t *testing.T, tr *Tracer, clientHost, targetHost, s
 			postTracerSetup: func(t *testing.T, ctx testContext) {
 				cmd := ctx.extras["cmd"].(*exec.Cmd)
 				goTLSAttachPID(t, cmd.Process.Pid)
-				t.Cleanup(func() {
-					goTLSDetachPID(t, cmd.Process.Pid)
-				})
 
 				client := &nethttp.Client{
 					Transport: &nethttp.Transport{
