@@ -943,7 +943,8 @@ func hashMapNumberOfEntriesWithHelper(mp *ebpf.Map, mapid ebpf.MapID, mphCache *
 		return 0, err
 	}
 
-	res, _, err := prog.Test(make([]byte, 32))
+	var buf [32]byte
+	res, _, err := prog.Test(buf[:])
 	if err != nil {
 		return 0, err
 	}
