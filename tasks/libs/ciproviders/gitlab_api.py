@@ -5,6 +5,7 @@ import os
 import platform
 import subprocess
 import sys
+from difflib import Differ
 from functools import lru_cache
 
 import gitlab
@@ -93,6 +94,7 @@ class GitlabCIDiff:
         """
         self.before = before
         self.after = after
+        self.added_contents = {}
         self.modified_diffs = {}
 
         self.make_diff()
@@ -104,11 +106,6 @@ class GitlabCIDiff:
         """
         Compute the diff between the two gitlab ci configurations
         """
-        # TODO
-        from difflib import Differ
-
-        import yaml
-
         # Find added / removed jobs by names
         unmoved = self.before.keys() & self.after.keys()
         self.removed = self.before.keys() - unmoved
@@ -124,6 +121,10 @@ class GitlabCIDiff:
         for before_job, after_job in self.renamed:
             self.removed.remove(before_job)
             self.added.remove(after_job)
+
+        # Added jobs contents
+        for job in self.added:
+            self.added_contents[job] = yaml.safe_dump(self.after[job])
 
         # Find modified jobs
         self.modified = set()
@@ -176,6 +177,9 @@ class GitlabCIDiff:
             else:
                 return f'* {job_before} -> {job_after}'
 
+        def str_job_content(content: str) -> list[str]:
+            return content.splitlines()
+
         def str_diff(diff: list[str]) -> str:
             if cli:
                 from tasks.libs.common.color import Color, color_message
@@ -214,8 +218,9 @@ class GitlabCIDiff:
             if res:
                 res.append('')
             res.append(str_section('Added Jobs'))
-            for job in sorted(self.added):
+            for job, content in sorted(self.added_contents.items()):
                 res.append(str_job(job, 'GREEN'))
+                res.extend(str_job_content(content))
 
         if self.removed:
             if res:

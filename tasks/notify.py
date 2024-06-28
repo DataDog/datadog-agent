@@ -170,27 +170,34 @@ def print_gitlab_ci(
 
 
 @task
-def gitlab_ci_diff(ctx, before: str | None = DEFAULT_BRANCH, current: str | None = None, pr_comment: bool = False):
+def gitlab_ci_diff(ctx, before: str | None = DEFAULT_BRANCH, after: str | None = None, pr_comment: bool = False):
     """
     Creates a diff from two gitlab-ci configurations.
 
     - before: Git ref without new changes
-    - current: Git ref with new changes, None for current local configuration
+    - after: Git ref with new changes, None for current local configuration
     - pr_comment: If True, post the diff as a comment in the PR
     """
-    print('Getting current config')
-    current_config = get_gitlab_ci_configuration(ctx, git_ref=current)
+    # TODO : Try catch error
 
-    print('Getting before config')
+    before_name = before or "local files"
+    after_name = after or "local files"
+
+    print(f'Getting after changes config ({color_message(after_name, Color.BOLD)})')
+    after_config = get_gitlab_ci_configuration(ctx, git_ref=after)
+
+    print(f'Getting before changes config ({color_message(before_name, Color.BOLD)})')
     before_config = get_gitlab_ci_configuration(ctx, git_ref=before)
 
-    diff = GitlabCIDiff(before_config, current_config)
+    diff = GitlabCIDiff(before_config, after_config)
 
     if not diff:
         print(color_message("No changes in the gitlab-ci configuration", Color.GREEN))
         return
 
     # Display diff
+    print('\nGitlab CI configuration diff:')
     print(diff.display(cli=True))
 
     # todo: pr comment
+    print('\nSent / updated PR comment')
