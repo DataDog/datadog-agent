@@ -42,15 +42,15 @@ var securityAgentConfig string
 
 // TestServiceBehaviorAgentCommand tests the service behavior when controlled by Agent commands
 func TestServiceBehaviorAgentCommand(t *testing.T) {
-	s := &agentServicCommandSuite{}
+	s := &agentServiceCommandSuite{}
 	run(t, s)
 }
 
-type agentServicCommandSuite struct {
+type agentServiceCommandSuite struct {
 	baseStartStopSuite
 }
 
-func (s *agentServicCommandSuite) SetupSuite() {
+func (s *agentServiceCommandSuite) SetupSuite() {
 	if setupSuite, ok := any(&s.baseStartStopSuite).(suite.SetupAllSuite); ok {
 		setupSuite.SetupSuite()
 	}
