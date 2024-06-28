@@ -11,11 +11,18 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"strconv"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
+
+const (
+	ProcStatPath           = "/proc/stat"
+	ProcNetDevPath         = "/proc/net/dev"
+	lambdaNetworkInterface = "vinternal_1"
 )
 
 func getPidList(procPath string) []int {
@@ -73,7 +80,11 @@ func SearchProcsForEnvVariable(procPath string, envName string) []string {
 }
 
 // GetCPUData collects CPU usage data, returning total user CPU time, total system CPU time, error
-func GetCPUData(path string) (float64, float64, error) {
+func GetCPUData() (float64, float64, error) {
+	return getCPUData(ProcStatPath)
+}
+
+func getCPUData(path string) (float64, float64, error) {
 	file, err := os.Open(path)
 	if err != nil {
 		return 0, 0, err
@@ -113,4 +124,41 @@ func GetCPUData(path string) (float64, float64, error) {
 	systemCPUTimeMs := (1000 * systemCPUTime) / float64(clcktck)
 
 	return userCPUTimeMs, systemCPUTimeMs, nil
+}
+
+type NetworkData struct {
+	RxBytes float64
+	TxBytes float64
+}
+
+// GetNetworkData collects bytes sent and received by the function
+func GetNetworkData() (*NetworkData, error) {
+	return getNetworkData(ProcNetDevPath)
+}
+
+func getNetworkData(path string) (*NetworkData, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	var interfaceName string
+	var rxBytes, rxPackets, rxErrs, rxDrop, rxFifo, rxFrame, rxCompressed, rxMulticast, txBytes,
+		txPackets, txErrs, txDrop, txFifo, txColls, txCarrier, txCompressed float64
+	for {
+		_, err = fmt.Fscanln(file, &interfaceName, &rxBytes, &rxPackets, &rxErrs, &rxDrop, &rxFifo, &rxFrame,
+			&rxCompressed, &rxMulticast, &txBytes, &txPackets, &txErrs, &txDrop, &txFifo, &txColls, &txCarrier,
+			&txCompressed)
+		if errors.Is(err, io.EOF) {
+			return nil, fmt.Errorf("network data not found in file '%s'", path)
+		}
+		if err == nil && strings.HasPrefix(interfaceName, lambdaNetworkInterface) {
+			return &NetworkData{
+				RxBytes: rxBytes,
+				TxBytes: txBytes,
+			}, nil
+		}
+	}
+
 }

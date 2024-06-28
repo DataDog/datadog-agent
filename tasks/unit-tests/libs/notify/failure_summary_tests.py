@@ -9,8 +9,8 @@ from gitlab.v4.objects import ProjectPipeline, ProjectPipelineJob
 from invoke.context import Context, MockContext
 
 from tasks.github_tasks import ALL_TEAMS
-from tasks.libs.pipeline import failure_summary
-from tasks.libs.pipeline.failure_summary import SummaryData, SummaryStats
+from tasks.libs.notify import failure_summary
+from tasks.libs.notify.failure_summary import SummaryData, SummaryStats
 from tasks.libs.pipeline.notifications import load_and_validate
 
 TEST_DIR = '/tmp/summary'
@@ -31,9 +31,9 @@ class TestFailureSummary(TestCase):
         os.makedirs(TEST_DIR, exist_ok=True)
 
         self.patches = [
-            patch('tasks.libs.pipeline.failure_summary.write_file', self.write_file),
-            patch('tasks.libs.pipeline.failure_summary.read_file', self.read_file),
-            patch('tasks.libs.pipeline.failure_summary.list_files', self.list_files),
+            patch('tasks.libs.notify.failure_summary.write_file', self.write_file),
+            patch('tasks.libs.notify.failure_summary.read_file', self.read_file),
+            patch('tasks.libs.notify.failure_summary.list_files', self.list_files),
             patch('tasks.owners.GITHUB_SLACK_MAP', self.github_slack_map),
         ]
         for p in self.patches:
@@ -66,9 +66,7 @@ class TestFailureSummary(TestCase):
 
     @contextmanager
     def patch_fetch_jobs(self, job_ids: list[int]):
-        p = patch(
-            'tasks.libs.pipeline.failure_summary.fetch_jobs', return_value=self.get_dummy_summary_data_ids(job_ids)
-        )
+        p = patch('tasks.libs.notify.failure_summary.fetch_jobs', return_value=self.get_dummy_summary_data_ids(job_ids))
         mock = p.start()
 
         try:
@@ -251,7 +249,7 @@ class TestModule(TestFailureSummary):
             self.assertEqual(summary.jobs[0].id, 1)
             self.assertEqual(summary.jobs[1].id, 2)
 
-    @patch("tasks.libs.pipeline.failure_summary.send_summary_slack_notification")
+    @patch("tasks.libs.notify.failure_summary.send_summary_slack_notification")
     def test_send_summary_messages(self, mock_slack: MagicMock = None):
         # Verify that we send the right number of jobs per channel
         expected_team_njobs = {
@@ -305,7 +303,7 @@ class TestModule(TestFailureSummary):
             ],
         )
 
-        with patch('tasks.libs.pipeline.failure_summary.fetch_summaries', return_value=summary):
+        with patch('tasks.libs.notify.failure_summary.fetch_summaries', return_value=summary):
             failure_summary.send_summary_messages(
                 MockContext(),
                 allow_failure=False,
