@@ -3,6 +3,7 @@ module github.com/DataDog/datadog-agent/pkg/trace/stats/oteltest
 go 1.21.0
 
 require (
+	github.com/DataDog/datadog-agent/comp/trace/compression v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/proto v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/trace v0.55.0-rc.3
 	github.com/DataDog/datadog-go/v5 v5.5.0
@@ -17,7 +18,6 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/trace/compression v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.55.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.55.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.55.0-rc.3 // indirect
