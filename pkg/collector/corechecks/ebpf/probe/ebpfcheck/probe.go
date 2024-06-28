@@ -98,7 +98,9 @@ func NewProbe(cfg *ddebpf.Config) (*Probe, error) {
 	probe.mapBuffers.iterationRestartDetectionEntries = ddconfig.SystemProbe.GetInt("ebpf_check.entry_count.entries_for_iteration_restart_detection")
 	probe.entryCountMaxRestarts = ddconfig.SystemProbe.GetInt("ebpf_check.entry_count.max_restarts")
 
-	probe.mphCache = newMapProgHelperCache()
+	if isForEachElemHelperAvailable() {
+		probe.mphCache = newMapProgHelperCache()
+	}
 
 	log.Debugf("successfully loaded ebpf check probe")
 	return probe, nil
@@ -916,7 +918,7 @@ func hashMapNumberOfEntries(mp *ebpf.Map, mapid ebpf.MapID, mphCache *mapProgHel
 
 	var numElements int64
 	var err error
-	if mphCache != nil && isForEachElemHelperAvailable() && mp.Type() != ebpf.HashOfMaps && mapid != 0 {
+	if mphCache != nil && mp.Type() != ebpf.HashOfMaps && mapid != 0 {
 		numElements, err = hashMapNumberOfEntriesWithHelper(mp, mapid, mphCache)
 	} else if ddmaps.BatchAPISupported() && mp.Type() != ebpf.HashOfMaps { // HashOfMaps doesn't work with batch API
 		numElements, err = hashMapNumberOfEntriesWithBatch(mp, buffers, maxRestarts)

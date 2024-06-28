@@ -175,6 +175,10 @@ func (c *mapProgHelperCache) newHelperProgramForFd(fd int) (helperProgData, erro
 }
 
 func (c *mapProgHelperCache) Close() {
+	if c == nil {
+		return
+	}
+
 	c.Lock()
 	defer c.Unlock()
 
@@ -188,6 +192,10 @@ func (c *mapProgHelperCache) Close() {
 }
 
 func (c *mapProgHelperCache) clearLiveMapIDs() {
+	if c == nil {
+		return
+	}
+
 	c.Lock()
 	defer c.Unlock()
 
@@ -195,6 +203,10 @@ func (c *mapProgHelperCache) clearLiveMapIDs() {
 }
 
 func (c *mapProgHelperCache) addLiveMapID(id ebpf.MapID) {
+	if c == nil {
+		return
+	}
+
 	c.Lock()
 	defer c.Unlock()
 
@@ -202,6 +214,10 @@ func (c *mapProgHelperCache) addLiveMapID(id ebpf.MapID) {
 }
 
 func (c *mapProgHelperCache) closeUnusedPrograms() {
+	if c == nil {
+		return
+	}
+
 	c.Lock()
 	defer c.Unlock()
 
