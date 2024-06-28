@@ -50,13 +50,13 @@ func TestBufferTelemetry(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, bufferSizeMetrics, 1)
 
-	bufferSizeMetricLabel := bufferSizeMetrics[0].GetTags()
+	bufferSizeMetricLabel := bufferSizeMetrics[0].Tags()
 	assert.Equal(t, bufferSizeMetricLabel["listener_id"], "test_buffer")
-	assert.Equal(t, float64(2), bufferSizeMetrics[0].GetValue())
+	assert.Equal(t, float64(2), bufferSizeMetrics[0].Value())
 
-	bufferSizeBytesMetricLabel := bufferSizeBytesMetrics[0].GetTags()
+	bufferSizeBytesMetricLabel := bufferSizeBytesMetrics[0].Tags()
 	assert.Equal(t, bufferSizeBytesMetricLabel["listener_id"], "test_buffer")
-	assert.Equal(t, float64(246), bufferSizeBytesMetrics[0].GetValue())
+	assert.Equal(t, float64(246), bufferSizeBytesMetrics[0].Value())
 }
 
 func TestBufferTelemetryFull(t *testing.T) {
@@ -105,25 +105,25 @@ func TestBufferTelemetryFull(t *testing.T) {
 	require.Len(t, channelPacketsBytesMetrics, 1)
 
 	// buffer size metrcis get reset when buffer is full
-	bufferSizeMetricLabel := bufferSizeMetrics[0].GetTags()
+	bufferSizeMetricLabel := bufferSizeMetrics[0].Tags()
 	assert.Equal(t, bufferSizeMetricLabel["listener_id"], "test_buffer")
-	assert.Equal(t, float64(0), bufferSizeMetrics[0].GetValue())
+	assert.Equal(t, float64(0), bufferSizeMetrics[0].Value())
 
-	bufferSizeBytesMetricLabel := bufferSizeBytesMetrics[0].GetTags()
+	bufferSizeBytesMetricLabel := bufferSizeBytesMetrics[0].Tags()
 	assert.Equal(t, bufferSizeBytesMetricLabel["listener_id"], "test_buffer")
-	assert.Equal(t, float64(0), bufferSizeBytesMetrics[0].GetValue())
+	assert.Equal(t, float64(0), bufferSizeBytesMetrics[0].Value())
 
-	bufferFullMetricLabel := bufferFullMetrics[0].GetTags()
+	bufferFullMetricLabel := bufferFullMetrics[0].Tags()
 	assert.Equal(t, bufferFullMetricLabel["listener_id"], "test_buffer")
-	assert.Equal(t, float64(1), bufferFullMetrics[0].GetValue())
+	assert.Equal(t, float64(1), bufferFullMetrics[0].Value())
 
-	channelPacketsCountMetricLabel := channelPacketsCountMetrics[0].GetTags()
+	channelPacketsCountMetricLabel := channelPacketsCountMetrics[0].Tags()
 	assert.Equal(t, channelPacketsCountMetricLabel["listener_id"], "test_buffer")
-	assert.Equal(t, float64(1), channelPacketsCountMetrics[0].GetValue())
+	assert.Equal(t, float64(1), channelPacketsCountMetrics[0].Value())
 
-	channelPacketsBytesMetricLabel := channelPacketsBytesMetrics[0].GetTags()
+	channelPacketsBytesMetricLabel := channelPacketsBytesMetrics[0].Tags()
 	assert.Equal(t, channelPacketsBytesMetricLabel["listener_id"], "test_buffer")
-	assert.Equal(t, float64(123), channelPacketsBytesMetrics[0].GetValue())
+	assert.Equal(t, float64(123), channelPacketsBytesMetrics[0].Value())
 
-	assert.Equal(t, float64(1), channelSizeMetrics[0].GetValue())
+	assert.Equal(t, float64(1), channelSizeMetrics[0].Value())
 }

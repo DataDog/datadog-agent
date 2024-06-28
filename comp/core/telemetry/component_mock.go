@@ -14,10 +14,10 @@ import (
 
 // Metric interface defines the retrieval functions to extract information from a metric
 type Metric interface {
-	// GetTags returns the tags associated with the metric
-	GetTags() map[string]string
-	// GetValue returns the metric value
-	GetValue() float64
+	// Tags returns the tags associated with the metric
+	Tags() map[string]string
+	// Value returns the metric value
+	Value() float64
 }
 
 // Mock implements mock-specific methods.

@@ -85,9 +85,9 @@ func TestTelemetryMiddleware(t *testing.T) {
 			require.Len(t, observabilityMetric, 1)
 
 			metric := observabilityMetric[0]
-			assert.EqualValues(t, tc.duration.Seconds(), metric.GetValue())
+			assert.EqualValues(t, tc.duration.Seconds(), metric.Value())
 
-			labels := metric.GetTags()
+			labels := metric.Tags()
 
 			expected := map[string]string{
 				"servername":  serverName,

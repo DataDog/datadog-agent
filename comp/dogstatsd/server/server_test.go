@@ -932,14 +932,14 @@ func TestParseEventMessageTelemetry(t *testing.T) {
 	require.NoError(t, err)
 
 	for _, metric := range processedEvents {
-		labels := metric.GetTags()
+		labels := metric.Tags()
 
 		if labels["message_type"] == "events" && labels["state"] == "ok" {
-			assert.Equal(t, float64(3), metric.GetValue())
+			assert.Equal(t, float64(3), metric.Value())
 		}
 
 		if labels["message_type"] == "events" && labels["state"] == "error" {
-			assert.Equal(t, float64(1), metric.GetValue())
+			assert.Equal(t, float64(1), metric.Value())
 		}
 	}
 }
@@ -983,14 +983,14 @@ func TestParseServiceCheckMessageTelemetry(t *testing.T) {
 	require.NoError(t, err)
 
 	for _, metric := range processedEvents {
-		labels := metric.GetTags()
+		labels := metric.Tags()
 
 		if labels["message_type"] == "service_checks" && labels["state"] == "ok" {
-			assert.Equal(t, float64(3), metric.GetValue())
+			assert.Equal(t, float64(3), metric.Value())
 		}
 
 		if labels["message_type"] == "service_checks" && labels["state"] == "error" {
-			assert.Equal(t, float64(1), metric.GetValue())
+			assert.Equal(t, float64(1), metric.Value())
 		}
 	}
 }

@@ -66,7 +66,7 @@ type internalMetric struct {
 	metricType dto.MetricType
 }
 
-func (m *internalMetric) GetTags() map[string]string {
+func (m *internalMetric) Tags() map[string]string {
 	labels := m.metric.GetLabel()
 	labelMap := make(map[string]string, len(labels))
 	for _, label := range labels {
@@ -75,7 +75,7 @@ func (m *internalMetric) GetTags() map[string]string {
 	return labelMap
 }
 
-func (m *internalMetric) GetValue() float64 {
+func (m *internalMetric) Value() float64 {
 	var value float64
 	switch m.metricType {
 	case dto.MetricType_COUNTER:

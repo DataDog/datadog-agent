@@ -105,8 +105,8 @@ func TestUDPListenerTelemetry(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, bytesCountMetrics, 1)
 
-		assert.Equal(t, float64(1), packetsMetrics[0].GetValue())
-		assert.Equal(t, float64(11), bytesCountMetrics[0].GetValue())
+		assert.Equal(t, float64(1), packetsMetrics[0].Value())
+		assert.Equal(t, float64(11), bytesCountMetrics[0].Value())
 
 	case <-time.After(2 * time.Second):
 		assert.FailNow(t, "Timeout on receive channel")
@@ -257,9 +257,9 @@ func TestUDPReceive(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, histogramMetrics, 1)
 
-		assert.Equal(t, float64(1), packetsMetrics[0].GetValue())
-		assert.Equal(t, float64(len(contents)), bytesCountMetrics[0].GetValue())
-		assert.NotEqual(t, 0, histogramMetrics[0].GetValue())
+		assert.Equal(t, float64(1), packetsMetrics[0].Value())
+		assert.Equal(t, float64(len(contents)), bytesCountMetrics[0].Value())
+		assert.NotEqual(t, 0, histogramMetrics[0].Value())
 	case <-time.After(2 * time.Second):
 		assert.FailNow(t, "Timeout on receive channel")
 	}

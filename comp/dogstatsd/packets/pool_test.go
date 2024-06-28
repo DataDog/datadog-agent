@@ -46,8 +46,8 @@ func TestPoolTelemetry(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, pollPutMetrics, 1)
 
-	assert.Equal(t, float64(-1), poolMetrics[0].GetValue())
-	assert.Equal(t, float64(1), pollPutMetrics[0].GetValue())
+	assert.Equal(t, float64(-1), poolMetrics[0].Value())
+	assert.Equal(t, float64(1), pollPutMetrics[0].Value())
 
 	pool.Get()
 
@@ -58,7 +58,7 @@ func TestPoolTelemetry(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, pollGetMetrics, 1)
 
-	assert.Equal(t, float64(0), poolMetrics[0].GetValue())
-	assert.Equal(t, float64(1), pollGetMetrics[0].GetValue())
+	assert.Equal(t, float64(0), poolMetrics[0].Value())
+	assert.Equal(t, float64(1), pollGetMetrics[0].Value())
 
 }

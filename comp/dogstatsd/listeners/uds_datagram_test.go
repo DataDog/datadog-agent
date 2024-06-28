@@ -107,28 +107,28 @@ func TestUDSDatagramReceive(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, readLatencyMetrics, 1)
 
-		udsConnectionsMetricLabel := udsConnectionsMetrics[0].GetTags()
+		udsConnectionsMetricLabel := udsConnectionsMetrics[0].Tags()
 		assert.Equal(t, udsConnectionsMetricLabel["listener_id"], "uds-unixgram")
 		assert.Equal(t, udsConnectionsMetricLabel["transport"], "unixgram")
 
-		assert.Equal(t, float64(1), udsConnectionsMetrics[0].GetValue())
+		assert.Equal(t, float64(1), udsConnectionsMetrics[0].Value())
 
-		readLatencyMetricLabel := readLatencyMetrics[0].GetTags()
+		readLatencyMetricLabel := readLatencyMetrics[0].Tags()
 		assert.Equal(t, readLatencyMetricLabel["listener_id"], "uds-unixgram")
 		assert.Equal(t, readLatencyMetricLabel["listener_type"], "uds")
 		assert.Equal(t, readLatencyMetricLabel["transport"], "unixgram")
-		assert.NotEqual(t, float64(0), readLatencyMetrics[0].GetValue())
+		assert.NotEqual(t, float64(0), readLatencyMetrics[0].Value())
 
-		udsPacketsMetricLabel := udsPacketsMetrics[0].GetTags()
+		udsPacketsMetricLabel := udsPacketsMetrics[0].Tags()
 		assert.Equal(t, udsPacketsMetricLabel["listener_id"], "uds-unixgram")
 		assert.Equal(t, udsPacketsMetricLabel["state"], "ok")
 		assert.Equal(t, udsPacketsMetricLabel["transport"], "unixgram")
-		assert.Equal(t, float64(3), udsPacketsMetrics[0].GetValue())
+		assert.Equal(t, float64(3), udsPacketsMetrics[0].Value())
 
-		udsPacketsBytesMetricLabel := udsPacketsBytesMetrics[0].GetTags()
+		udsPacketsBytesMetricLabel := udsPacketsBytesMetrics[0].Tags()
 		assert.Equal(t, udsPacketsBytesMetricLabel["listener_id"], "uds-unixgram")
 		assert.Equal(t, udsPacketsBytesMetricLabel["transport"], "unixgram")
-		assert.Equal(t, float64(86), udsPacketsBytesMetrics[0].GetValue())
+		assert.Equal(t, float64(86), udsPacketsBytesMetrics[0].Value())
 	case <-time.After(2 * time.Second):
 		assert.FailNow(t, "Timeout on receive channel")
 	}

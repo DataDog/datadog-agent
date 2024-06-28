@@ -49,11 +49,11 @@ func TestCounterInitializer(t *testing.T) {
 	assert.NoError(t, err)
 	require.Len(t, metrics, 1)
 
-	metricLabels := metrics[0].GetTags()
+	metricLabels := metrics[0].Tags()
 	assert.Equal(t, metricLabels["check_name"], "mycheck")
 	assert.Equal(t, metricLabels["state"], "mystate")
 
-	assert.Equal(t, metrics[0].GetValue(), 0.0)
+	assert.Equal(t, metrics[0].Value(), 0.0)
 }
 
 func TestGetCounterValue(t *testing.T) {
