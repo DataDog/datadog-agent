@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
@@ -42,17 +43,20 @@ func TestBufferTelemetry(t *testing.T) {
 	assert.True(t, ok)
 
 	bufferSizeBytesMetrics, err := telemetryMock.GetGaugeMetric("dogstatsd", "packets_buffer_size_bytes")
-	assert.Nil(t, err)
+	require.NoError(t, err)
+	require.Len(t, bufferSizeBytesMetrics, 1)
+
 	bufferSizeMetrics, err := telemetryMock.GetGaugeMetric("dogstatsd", "packets_buffer_size")
-	assert.Nil(t, err)
+	require.NoError(t, err)
+	require.Len(t, bufferSizeMetrics, 1)
 
-	bufferSizeMetricLabel := bufferSizeMetrics[0].Labels()
+	bufferSizeMetricLabel := bufferSizeMetrics[0].GetTags()
 	assert.Equal(t, bufferSizeMetricLabel["listener_id"], "test_buffer")
-	assert.Equal(t, float64(2), bufferSizeMetrics[0].Value())
+	assert.Equal(t, float64(2), bufferSizeMetrics[0].GetValue())
 
-	bufferSizeBytesMetricLabel := bufferSizeBytesMetrics[0].Labels()
+	bufferSizeBytesMetricLabel := bufferSizeBytesMetrics[0].GetTags()
 	assert.Equal(t, bufferSizeBytesMetricLabel["listener_id"], "test_buffer")
-	assert.Equal(t, float64(246), bufferSizeBytesMetrics[0].Value())
+	assert.Equal(t, float64(246), bufferSizeBytesMetrics[0].GetValue())
 }
 
 func TestBufferTelemetryFull(t *testing.T) {
@@ -77,38 +81,49 @@ func TestBufferTelemetryFull(t *testing.T) {
 	assert.True(t, ok)
 
 	bufferSizeBytesMetrics, err := telemetryMock.GetGaugeMetric("dogstatsd", "packets_buffer_size_bytes")
-	assert.Nil(t, err)
+	require.NoError(t, err)
+	require.Len(t, bufferSizeBytesMetrics, 1)
+
 	bufferSizeMetrics, err := telemetryMock.GetGaugeMetric("dogstatsd", "packets_buffer_size")
-	assert.Nil(t, err)
+	require.NoError(t, err)
+	require.Len(t, bufferSizeMetrics, 1)
+
 	bufferFullMetrics, err := telemetryMock.GetCountMetric("dogstatsd", "packets_buffer_flush_full")
-	assert.Nil(t, err)
+	require.NoError(t, err)
+	require.Len(t, bufferFullMetrics, 1)
+
 	channelSizeMetrics, err := telemetryMock.GetGaugeMetric("dogstatsd", "packets_channel_size")
-	assert.Nil(t, err)
+	require.NoError(t, err)
+	require.Len(t, channelSizeMetrics, 1)
+
 	channelPacketsCountMetrics, err := telemetryMock.GetGaugeMetric("dogstatsd", "packets_channel_packets_count")
-	assert.Nil(t, err)
+	require.NoError(t, err)
+	require.Len(t, channelPacketsCountMetrics, 1)
+
 	channelPacketsBytesMetrics, err := telemetryMock.GetGaugeMetric("dogstatsd", "packets_channel_packets_bytes")
-	assert.Nil(t, err)
+	require.NoError(t, err)
+	require.Len(t, channelPacketsBytesMetrics, 1)
 
 	// buffer size metrcis get reset when buffer is full
-	bufferSizeMetricLabel := bufferSizeMetrics[0].Labels()
+	bufferSizeMetricLabel := bufferSizeMetrics[0].GetTags()
 	assert.Equal(t, bufferSizeMetricLabel["listener_id"], "test_buffer")
-	assert.Equal(t, float64(0), bufferSizeMetrics[0].Value())
+	assert.Equal(t, float64(0), bufferSizeMetrics[0].GetValue())
 
-	bufferSizeBytesMetricLabel := bufferSizeBytesMetrics[0].Labels()
+	bufferSizeBytesMetricLabel := bufferSizeBytesMetrics[0].GetTags()
 	assert.Equal(t, bufferSizeBytesMetricLabel["listener_id"], "test_buffer")
-	assert.Equal(t, float64(0), bufferSizeBytesMetrics[0].Value())
+	assert.Equal(t, float64(0), bufferSizeBytesMetrics[0].GetValue())
 
-	bufferFullMetricLabel := bufferFullMetrics[0].Labels()
+	bufferFullMetricLabel := bufferFullMetrics[0].GetTags()
 	assert.Equal(t, bufferFullMetricLabel["listener_id"], "test_buffer")
-	assert.Equal(t, float64(1), bufferFullMetrics[0].Value())
+	assert.Equal(t, float64(1), bufferFullMetrics[0].GetValue())
 
-	channelPacketsCountMetricLabel := channelPacketsCountMetrics[0].Labels()
+	channelPacketsCountMetricLabel := channelPacketsCountMetrics[0].GetTags()
 	assert.Equal(t, channelPacketsCountMetricLabel["listener_id"], "test_buffer")
-	assert.Equal(t, float64(1), channelPacketsCountMetrics[0].Value())
+	assert.Equal(t, float64(1), channelPacketsCountMetrics[0].GetValue())
 
-	channelPacketsBytesMetricLabel := channelPacketsBytesMetrics[0].Labels()
+	channelPacketsBytesMetricLabel := channelPacketsBytesMetrics[0].GetTags()
 	assert.Equal(t, channelPacketsBytesMetricLabel["listener_id"], "test_buffer")
-	assert.Equal(t, float64(123), channelPacketsBytesMetrics[0].Value())
+	assert.Equal(t, float64(123), channelPacketsBytesMetrics[0].GetValue())
 
-	assert.Equal(t, float64(1), channelSizeMetrics[0].Value())
+	assert.Equal(t, float64(1), channelSizeMetrics[0].GetValue())
 }

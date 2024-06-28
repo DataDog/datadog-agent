@@ -11,6 +11,7 @@ import (
 
 	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -46,12 +47,13 @@ func TestCounterInitializer(t *testing.T) {
 
 	metrics, err := telemetry.GetCountMetric("subsystem", "test")
 	assert.NoError(t, err)
+	require.Len(t, metrics, 1)
 
-	metricLabels := metrics[0].Labels()
+	metricLabels := metrics[0].GetTags()
 	assert.Equal(t, metricLabels["check_name"], "mycheck")
 	assert.Equal(t, metricLabels["state"], "mystate")
 
-	assert.Equal(t, metrics[0].Value(), 0.0)
+	assert.Equal(t, metrics[0].GetValue(), 0.0)
 }
 
 func TestGetCounterValue(t *testing.T) {

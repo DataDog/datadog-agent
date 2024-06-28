@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
@@ -39,21 +40,25 @@ func TestPoolTelemetry(t *testing.T) {
 	assert.True(t, ok)
 
 	poolMetrics, err := telemetryMock.GetGaugeMetric("dogstatsd", "packet_pool")
-	assert.Nil(t, err)
+	require.NoError(t, err)
+	require.Len(t, poolMetrics, 1)
 	pollPutMetrics, err := telemetryMock.GetCountMetric("dogstatsd", "packet_pool_put")
-	assert.Nil(t, err)
+	require.NoError(t, err)
+	require.Len(t, pollPutMetrics, 1)
 
-	assert.Equal(t, float64(-1), poolMetrics[0].Value())
-	assert.Equal(t, float64(1), pollPutMetrics[0].Value())
+	assert.Equal(t, float64(-1), poolMetrics[0].GetValue())
+	assert.Equal(t, float64(1), pollPutMetrics[0].GetValue())
 
 	pool.Get()
 
 	poolMetrics, err = telemetryMock.GetGaugeMetric("dogstatsd", "packet_pool")
-	assert.Nil(t, err)
+	require.NoError(t, err)
+	require.Len(t, poolMetrics, 1)
 	pollGetMetrics, err := telemetryMock.GetCountMetric("dogstatsd", "packet_pool_get")
-	assert.Nil(t, err)
+	require.NoError(t, err)
+	require.Len(t, pollGetMetrics, 1)
 
-	assert.Equal(t, float64(0), poolMetrics[0].Value())
-	assert.Equal(t, float64(1), pollGetMetrics[0].Value())
+	assert.Equal(t, float64(0), poolMetrics[0].GetValue())
+	assert.Equal(t, float64(1), pollGetMetrics[0].GetValue())
 
 }

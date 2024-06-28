@@ -929,17 +929,17 @@ func TestParseEventMessageTelemetry(t *testing.T) {
 	assert.Error(t, err)
 
 	processedEvents, err := telemetryMock.GetCountMetric("dogstatsd", "processed")
-	assert.Nil(t, err)
+	require.NoError(t, err)
 
 	for _, metric := range processedEvents {
-		labels := metric.Labels()
+		labels := metric.GetTags()
 
 		if labels["message_type"] == "events" && labels["state"] == "ok" {
-			assert.Equal(t, float64(3), metric.Value())
+			assert.Equal(t, float64(3), metric.GetValue())
 		}
 
 		if labels["message_type"] == "events" && labels["state"] == "error" {
-			assert.Equal(t, float64(1), metric.Value())
+			assert.Equal(t, float64(1), metric.GetValue())
 		}
 	}
 }
@@ -980,17 +980,17 @@ func TestParseServiceCheckMessageTelemetry(t *testing.T) {
 	assert.Error(t, err)
 
 	processedEvents, err := telemetryMock.GetCountMetric("dogstatsd", "processed")
-	assert.Nil(t, err)
+	require.NoError(t, err)
 
 	for _, metric := range processedEvents {
-		labels := metric.Labels()
+		labels := metric.GetTags()
 
 		if labels["message_type"] == "service_checks" && labels["state"] == "ok" {
-			assert.Equal(t, float64(3), metric.Value())
+			assert.Equal(t, float64(3), metric.GetValue())
 		}
 
 		if labels["message_type"] == "service_checks" && labels["state"] == "error" {
-			assert.Equal(t, float64(1), metric.Value())
+			assert.Equal(t, float64(1), metric.GetValue())
 		}
 	}
 }

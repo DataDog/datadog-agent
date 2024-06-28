@@ -12,10 +12,12 @@ import (
 	sdk "go.opentelemetry.io/otel/sdk/metric"
 )
 
-// Metric interface defines the retrival functions to extract information from a metric
+// Metric interface defines the retrieval functions to extract information from a metric
 type Metric interface {
-	Labels() map[string]string
-	Value() float64
+	// GetTags returns the tags associated with the metric
+	GetTags() map[string]string
+	// GetValue returns the metric value
+	GetValue() float64
 }
 
 // Mock implements mock-specific methods.

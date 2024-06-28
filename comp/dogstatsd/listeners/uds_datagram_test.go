@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
@@ -90,38 +91,44 @@ func TestUDSDatagramReceive(t *testing.T) {
 		telemetryMock, ok := deps.Telemetry.(telemetry.Mock)
 		assert.True(t, ok)
 
-		udsConnectionsMetrics, err := telemetryMock.GetCountMetric("dogstatsd", "uds_connections")
-		assert.Nil(t, err)
-		udsPacketsMetrics, err := telemetryMock.GetCountMetric("dogstatsd", "uds_packets")
-		assert.Nil(t, err)
-		udsPacketsBytesMetrics, err := telemetryMock.GetCountMetric("dogstatsd", "uds_packets_bytes")
-		assert.Nil(t, err)
-		readLatencyMetrics, err := telemetryMock.GetHistogramMetric("dogstatsd", "listener_read_latency")
-		assert.Nil(t, err)
+		udsConnectionsMetrics, err := telemetryMock.GetGaugeMetric("dogstatsd", "uds_connections")
+		require.NoError(t, err)
+		require.Len(t, udsConnectionsMetrics, 1)
 
-		udsConnectionsMetricLabel := udsConnectionsMetrics[0].Labels()
+		udsPacketsMetrics, err := telemetryMock.GetCountMetric("dogstatsd", "uds_packets")
+		require.NoError(t, err)
+		require.Len(t, udsPacketsMetrics, 1)
+
+		udsPacketsBytesMetrics, err := telemetryMock.GetCountMetric("dogstatsd", "uds_packets_bytes")
+		require.NoError(t, err)
+		require.Len(t, udsPacketsBytesMetrics, 1)
+
+		readLatencyMetrics, err := telemetryMock.GetHistogramMetric("dogstatsd", "listener_read_latency")
+		require.NoError(t, err)
+		require.Len(t, readLatencyMetrics, 1)
+
+		udsConnectionsMetricLabel := udsConnectionsMetrics[0].GetTags()
 		assert.Equal(t, udsConnectionsMetricLabel["listener_id"], "uds-unixgram")
 		assert.Equal(t, udsConnectionsMetricLabel["transport"], "unixgram")
 
-		// For each packet we increment and decrement the counter, so the counter being at zero means we received all the packets
-		assert.Equal(t, float64(0), udsConnectionsMetrics[0].Value())
+		assert.Equal(t, float64(1), udsConnectionsMetrics[0].GetValue())
 
-		readLatencyMetricLabel := readLatencyMetrics[0].Labels()
+		readLatencyMetricLabel := readLatencyMetrics[0].GetTags()
 		assert.Equal(t, readLatencyMetricLabel["listener_id"], "uds-unixgram")
 		assert.Equal(t, readLatencyMetricLabel["listener_type"], "uds")
 		assert.Equal(t, readLatencyMetricLabel["transport"], "unixgram")
-		assert.NotEqual(t, float64(0), readLatencyMetrics[0].Value())
+		assert.NotEqual(t, float64(0), readLatencyMetrics[0].GetValue())
 
-		udsPacketsMetricLabel := udsPacketsMetrics[0].Labels()
+		udsPacketsMetricLabel := udsPacketsMetrics[0].GetTags()
 		assert.Equal(t, udsPacketsMetricLabel["listener_id"], "uds-unixgram")
 		assert.Equal(t, udsPacketsMetricLabel["state"], "ok")
 		assert.Equal(t, udsPacketsMetricLabel["transport"], "unixgram")
-		assert.Equal(t, float64(3), udsPacketsMetrics[0].Value())
+		assert.Equal(t, float64(3), udsPacketsMetrics[0].GetValue())
 
-		udsPacketsBytesMetricLabel := udsPacketsBytesMetrics[0].Labels()
+		udsPacketsBytesMetricLabel := udsPacketsBytesMetrics[0].GetTags()
 		assert.Equal(t, udsPacketsBytesMetricLabel["listener_id"], "uds-unixgram")
 		assert.Equal(t, udsPacketsBytesMetricLabel["transport"], "unixgram")
-		assert.Equal(t, float64(86), udsPacketsBytesMetrics[0].Value())
+		assert.Equal(t, float64(86), udsPacketsBytesMetrics[0].GetValue())
 	case <-time.After(2 * time.Second):
 		assert.FailNow(t, "Timeout on receive channel")
 	}

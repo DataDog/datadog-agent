@@ -10,6 +10,7 @@ package telemetryimpl
 import (
 	"context"
 	"fmt"
+	"slices"
 
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
@@ -62,13 +63,11 @@ func newMock(deps testDependencies) telemetry.Mock {
 
 type internalMetric struct {
 	metric     *dto.Metric
-	metricType string
+	metricType dto.MetricType
 }
 
-func (m *internalMetric) Labels() map[string]string {
+func (m *internalMetric) GetTags() map[string]string {
 	labels := m.metric.GetLabel()
-	// labels are not necessarily in the order they were declared
-	// so we use a map to compare them
 	labelMap := make(map[string]string, len(labels))
 	for _, label := range labels {
 		labelMap[label.GetName()] = label.GetValue()
@@ -76,14 +75,14 @@ func (m *internalMetric) Labels() map[string]string {
 	return labelMap
 }
 
-func (m *internalMetric) Value() float64 {
+func (m *internalMetric) GetValue() float64 {
 	var value float64
 	switch m.metricType {
-	case "count":
+	case dto.MetricType_COUNTER:
 		value = m.metric.GetCounter().GetValue()
-	case "gauge":
+	case dto.MetricType_GAUGE:
 		value = m.metric.GetGauge().GetValue()
-	case "histogram":
+	case dto.MetricType_HISTOGRAM:
 		value = m.metric.GetHistogram().GetSampleSum()
 	}
 
@@ -97,50 +96,51 @@ func (t *telemetryImplMock) GetRegistry() *prometheus.Registry {
 }
 
 func (t *telemetryImplMock) GetCountMetric(subsystem, name string) ([]telemetry.Metric, error) {
-	metricFamily, err := t.GetRegistry().Gather()
-	if err != nil {
-		return nil, err
-	}
-
-	return getMetric(metricFamily, "count", subsystem, name)
+	return t.getMetric(dto.MetricType_COUNTER, subsystem, name)
 }
 
 func (t *telemetryImplMock) GetGaugeMetric(subsystem, name string) ([]telemetry.Metric, error) {
-	metricFamily, err := t.GetRegistry().Gather()
-	if err != nil {
-		return nil, err
-	}
-
-	return getMetric(metricFamily, "gauge", subsystem, name)
+	return t.getMetric(dto.MetricType_GAUGE, subsystem, name)
 }
 
 func (t *telemetryImplMock) GetHistogramMetric(subsystem, name string) ([]telemetry.Metric, error) {
+	return t.getMetric(dto.MetricType_HISTOGRAM, subsystem, name)
+}
+
+func (t *telemetryImplMock) getMetric(metricType dto.MetricType, subsystem, name string) ([]telemetry.Metric, error) {
 	metricFamily, err := t.GetRegistry().Gather()
 	if err != nil {
 		return nil, err
 	}
-	return getMetric(metricFamily, "histogram", subsystem, name)
-}
 
-func getMetric(metricFamily []*dto.MetricFamily, metricType, subsystem, name string) ([]telemetry.Metric, error) {
 	metricName := fmt.Sprintf("%s__%s", subsystem, name)
-	for _, mf := range metricFamily {
-		if mf.GetName() == metricName {
-			metrics := mf.GetMetric()
-			internalMetrics := make([]telemetry.Metric, len(metrics))
+	idx := slices.IndexFunc(metricFamily, func(mf *dto.MetricFamily) bool {
+		return mf.GetName() == metricName
+	})
 
-			for i, metric := range metrics {
-				internalMetrics[i] = &internalMetric{
-					metric:     metric,
-					metricType: metricType,
-				}
-			}
+	if idx == -1 {
+		return nil, fmt.Errorf("metric: %s not found", metricName)
+	}
 
-			return internalMetrics, nil
+	dtoMetric := metricFamily[idx]
+
+	metrics := dtoMetric.GetMetric()
+	dtoMetricType := dtoMetric.GetType()
+
+	if dtoMetricType != metricType {
+		return nil, fmt.Errorf("metric: %s is not %s, but %s", metricName, metricType.String(), dtoMetricType.String())
+	}
+
+	internalMetrics := make([]telemetry.Metric, len(metrics))
+
+	for i, metric := range metrics {
+		internalMetrics[i] = &internalMetric{
+			metric:     metric,
+			metricType: dtoMetricType,
 		}
 	}
 
-	return nil, fmt.Errorf("%s metric %s not found", metricType, metricName)
+	return internalMetrics, nil
 }
 
 func (t *telemetryImplMock) GetMeterProvider() *sdk.MeterProvider {
