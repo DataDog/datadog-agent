@@ -32,5 +32,5 @@ func (c *compressor) NewReader(w io.Reader) (io.ReadCloser, error) {
 }
 
 func (c *compressor) Encoding() string {
-	return "zstd"
+	return encoding
 }

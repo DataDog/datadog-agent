@@ -47,10 +47,10 @@ var mockSampler = MockSampler{TargetTPS: 5, Enabled: true}
 
 func TestTraceWriter(t *testing.T) {
 	testCases := []struct {
-		useZstd bool
+		compressor compression.Component
 	}{
-		{false},
-		{true},
+		{gzip.NewComponent()},
+		{zstd.NewComponent()},
 	}
 
 	for _, tc := range testCases {
@@ -64,11 +64,8 @@ func TestTraceWriter(t *testing.T) {
 			}},
 			TraceWriter: &config.WriterConfig{ConnectionLimit: 200, QueueSize: 40},
 		}
-		if tc.useZstd {
-			cfg.Features = map[string]struct{}{"zstd-encoding": {}}
-		}
 
-		t.Run(fmt.Sprintf("zstd_%t", tc.useZstd), func(t *testing.T) {
+		t.Run(fmt.Sprintf("encoding:%s", tc.compressor.Encoding()), func(t *testing.T) {
 			testSpans := []*SampledChunks{
 				randomSampledSpans(20, 8),
 				randomSampledSpans(10, 0),
@@ -77,7 +74,7 @@ func TestTraceWriter(t *testing.T) {
 			// Use a flush threshold that allows the first two entries to not overflow,
 			// but overflow on the third.
 			defer useFlushThreshold(testSpans[0].Size + testSpans[1].Size + 10)()
-			tw := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{})
+			tw := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, tc.compressor)
 			tw.In = make(chan *SampledChunks)
 			go tw.Run()
 			for _, ss := range testSpans {
@@ -87,7 +84,7 @@ func TestTraceWriter(t *testing.T) {
 			// One payload flushes due to overflowing the threshold, and the second one
 			// because of stop.
 			assert.Equal(t, 2, srv.Accepted())
-			payloadsContain(t, srv.Payloads(), testSpans, tc.useZstd)
+			payloadsContain(t, srv.Payloads(), testSpans, tc.compressor)
 		})
 	}
 }
@@ -119,7 +116,7 @@ func TestTraceWriterMultipleEndpointsConcurrent(t *testing.T) {
 		randomSampledSpans(10, 0),
 		randomSampledSpans(40, 5),
 	}
-	tw := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{})
+	tw := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, gzip.NewComponent())
 	tw.In = make(chan *SampledChunks, 100)
 	go tw.Run()
 
@@ -138,7 +135,7 @@ func TestTraceWriterMultipleEndpointsConcurrent(t *testing.T) {
 
 	wg.Wait()
 	tw.Stop()
-	payloadsContain(t, srv.Payloads(), testSpans, false)
+	payloadsContain(t, srv.Payloads(), testSpans, tw.compressor)
 }
 
 // useFlushThreshold sets n as the number of bytes to be used as the flush threshold
@@ -161,22 +158,16 @@ func randomSampledSpans(spans, events int) *SampledChunks {
 }
 
 // payloadsContain checks that the given payloads contain the given set of sampled spans.
-func payloadsContain(t *testing.T, payloads []*payload, sampledSpans []*SampledChunks, shouldUseZstd bool) {
+func payloadsContain(t *testing.T, payloads []*payload, sampledSpans []*SampledChunks, compressor compression.Component) {
 	t.Helper()
 	var all pb.AgentPayload
 	for _, p := range payloads {
 		assert := assert.New(t)
 		var slurp []byte
-		var compressor compression.Component
-
-		if shouldUseZstd && zstd.ZstdAvailable {
-			compressor = zstd.NewComponent()
-		} else {
-			compressor = gzip.NewComponent()
-		}
 
 		reader, err := compressor.NewReader(p.body)
 		assert.NoError(err)
+		defer reader.Close()
 
 		slurp, err = io.ReadAll(reader)
 
@@ -223,7 +214,7 @@ func TestTraceWriterFlushSync(t *testing.T) {
 			randomSampledSpans(10, 0),
 			randomSampledSpans(40, 5),
 		}
-		tw := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{})
+		tw := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, gzip.NewComponent())
 		go tw.Run()
 		for _, ss := range testSpans {
 			tw.In <- ss
@@ -234,7 +225,7 @@ func TestTraceWriterFlushSync(t *testing.T) {
 		tw.FlushSync()
 		// Now all trace payloads should be sent
 		assert.Equal(t, 1, srv.Accepted())
-		payloadsContain(t, srv.Payloads(), testSpans, false)
+		payloadsContain(t, srv.Payloads(), testSpans, tw.compressor)
 	})
 }
 
@@ -251,7 +242,7 @@ func TestResetBuffer(t *testing.T) {
 		SynchronousFlushing: true,
 	}
 
-	w := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{})
+	w := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, gzip.NewComponent())
 
 	runtime.GC()
 	var m runtime.MemStats
@@ -292,7 +283,7 @@ func TestTraceWriterSyncStop(t *testing.T) {
 			randomSampledSpans(10, 0),
 			randomSampledSpans(40, 5),
 		}
-		tw := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{})
+		tw := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, gzip.NewComponent())
 		go tw.Run()
 		for _, ss := range testSpans {
 			tw.In <- ss
@@ -303,7 +294,7 @@ func TestTraceWriterSyncStop(t *testing.T) {
 		tw.Stop()
 		// Now all trace payloads should be sent
 		assert.Equal(t, 1, srv.Accepted())
-		payloadsContain(t, srv.Payloads(), testSpans, false)
+		payloadsContain(t, srv.Payloads(), testSpans, tw.compressor)
 	})
 }
 
@@ -320,7 +311,7 @@ func TestTraceWriterSyncNoop(t *testing.T) {
 		SynchronousFlushing: false,
 	}
 	t.Run("ok", func(t *testing.T) {
-		tw := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{})
+		tw := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, gzip.NewComponent())
 		err := tw.FlushSync()
 		assert.NotNil(t, err)
 	})
@@ -347,9 +338,9 @@ func TestTraceWriterAgentPayload(t *testing.T) {
 		assert.Nil(t, err)
 	}
 	// helper function to parse the received payload and inspect the TPS that were filled by the writer
-	assertExpectedTps := func(t *testing.T, priorityTps float64, errorTps float64, rareEnabled bool) {
+	assertExpectedTps := func(t *testing.T, priorityTps float64, errorTps float64, rareEnabled bool, compressor compression.Component) {
 		require.Len(t, srv.payloads, 1)
-		ap, err := deserializePayload(*srv.payloads[0], false)
+		ap, err := deserializePayload(*srv.payloads[0], compressor)
 		assert.Nil(t, err)
 		assert.Equal(t, priorityTps, ap.TargetTPS)
 		assert.Equal(t, errorTps, ap.ErrorTPS)
@@ -358,11 +349,11 @@ func TestTraceWriterAgentPayload(t *testing.T) {
 	}
 
 	t.Run("static TPS config", func(t *testing.T) {
-		tw := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{})
+		tw := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, gzip.NewComponent())
 		go tw.Run()
 		defer tw.Stop()
 		sendRandomSpanAndFlush(t, tw)
-		assertExpectedTps(t, 5, 5, true)
+		assertExpectedTps(t, 5, 5, true, tw.compressor)
 	})
 
 	t.Run("dynamic TPS config", func(t *testing.T) {
@@ -370,11 +361,11 @@ func TestTraceWriterAgentPayload(t *testing.T) {
 		errorSampler := &MockSampler{TargetTPS: 6}
 		rareSampler := &MockSampler{Enabled: false}
 
-		tw := NewTraceWriter(cfg, prioritySampler, errorSampler, rareSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{})
+		tw := NewTraceWriter(cfg, prioritySampler, errorSampler, rareSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, gzip.NewComponent())
 		go tw.Run()
 		defer tw.Stop()
 		sendRandomSpanAndFlush(t, tw)
-		assertExpectedTps(t, 5, 6, false)
+		assertExpectedTps(t, 5, 6, false, tw.compressor)
 
 		// simulate a remote config update
 		prioritySampler.TargetTPS = 42
@@ -382,20 +373,12 @@ func TestTraceWriterAgentPayload(t *testing.T) {
 		rareSampler.Enabled = true
 
 		sendRandomSpanAndFlush(t, tw)
-		assertExpectedTps(t, 42, 15, true)
+		assertExpectedTps(t, 42, 15, true, tw.compressor)
 	})
 }
 
 // deserializePayload decompresses a payload and deserializes it into a pb.AgentPayload.
-func deserializePayload(p payload, shouldUseZstd bool) (*pb.AgentPayload, error) {
-	var compressor compression.Component
-
-	if shouldUseZstd && zstd.ZstdAvailable {
-		compressor = zstd.NewComponent()
-	} else {
-		compressor = gzip.NewComponent()
-	}
-
+func deserializePayload(p payload, compressor compression.Component) (*pb.AgentPayload, error) {
 	reader, err := compressor.NewReader(p.body)
 	if err != nil {
 		return nil, err
