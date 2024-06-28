@@ -49,6 +49,9 @@ const (
 	cpuUserTimeMetric     = "aws.lambda.enhanced.cpu_user_time"
 	cpuTotalTimeMetric    = "aws.lambda.enhanced.cpu_total_time"
 	enhancedMetricsEnvVar = "DD_ENHANCED_METRICS"
+
+	// Bottlecap
+	bottlecapFailoverMetric = "datadog.serverless.bottlecap.failover"
 )
 
 func getOutOfMemorySubstrings() []string {
@@ -282,6 +285,17 @@ func GenerateCPUEnhancedMetrics(args GenerateCPUEnhancedMetricsArgs) {
 		Tags:       args.Tags,
 		SampleRate: 1,
 		Timestamp:  timestamp,
+	})
+}
+
+func SendFailoverReasonMetric(tags []string, demux aggregator.Demultiplexer) {
+	demux.AggregateSample(metrics.MetricSample{
+		Name:       bottlecapFailoverMetric,
+		Value:      1.0,
+		Mtype:      metrics.DistributionType,
+		Tags:       tags,
+		SampleRate: 1,
+		Timestamp:  float64(time.Now().UnixNano()) / float64(time.Second),
 	})
 }
 
