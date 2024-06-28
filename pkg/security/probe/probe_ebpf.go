@@ -74,6 +74,10 @@ type EventStream interface {
 	Resume() error
 }
 
+// MaxOnDemandEventsPerSecond represents the maximum number of on demand events per second
+// allowed before we switch off the subsystem
+const MaxOnDemandEventsPerSecond = 1_000_000
+
 var (
 	// defaultEventTypes event types used whatever the event handlers or the rules
 	defaultEventTypes = []eval.EventType{
@@ -138,7 +142,9 @@ type EBPFProbe struct {
 	useSyscallWrapper  bool
 	useFentry          bool
 
-	onDemandManager *OnDemandProbesManager
+	// On demand
+	onDemandManager     *OnDemandProbesManager
+	onDemandRateLimiter *rate.Limiter
 }
 
 func (p *EBPFProbe) detectKernelVersion() error {
@@ -961,6 +967,12 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			return
 		}
 	case model.OnDemandEventType:
+		if !p.onDemandRateLimiter.Allow() {
+			seclog.Errorf("on-demand event rate limit reached, disabling on-demand probes to protect the system")
+			p.onDemandManager.disable()
+			return
+		}
+
 		if _, err = event.OnDemand.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode on-demand event for syscall event: %s (offset %d, len %d)", err, offset, len(data))
 			return
@@ -1586,6 +1598,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, wmeta optional
 		cancelFnc:            cancelFnc,
 		newTCNetDevices:      make(chan model.NetDevice, 16),
 		processKiller:        NewProcessKiller(),
+		onDemandRateLimiter:  rate.NewLimiter(MaxOnDemandEventsPerSecond, 1),
 	}
 
 	if err := p.detectKernelVersion(); err != nil {
@@ -2112,6 +2125,19 @@ type OnDemandProbesManager struct {
 	manager      *manager.Manager
 	probes       []*manager.Probe
 	probeCounter uint16
+}
+
+func (sm *OnDemandProbesManager) disable() {
+	sm.Lock()
+	defer sm.Unlock()
+
+	sm.hookPoints = nil
+
+	for _, p := range sm.probes {
+		if err := sm.manager.DetachHook(p.ProbeIdentificationPair); err != nil {
+			seclog.Errorf("error disabling on-demand probe: %v", err)
+		}
+	}
 }
 
 func (sm *OnDemandProbesManager) setHookPoints(hps []rules.OnDemandHookPoint) {
