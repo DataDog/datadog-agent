@@ -11,6 +11,7 @@ import (
 	"context"
 	"encoding/json"
 
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	dd_config "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
@@ -30,7 +31,7 @@ type WindowsTraceroute struct {
 
 // New creates a new instance of WindowsTraceroute
 // based on an input configuration
-func New(cfg Config) (*WindowsTraceroute, error) {
+func New(cfg Config, _ telemetry.Component) (*WindowsTraceroute, error) {
 	return &WindowsTraceroute{
 		cfg: cfg,
 	}, nil

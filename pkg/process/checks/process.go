@@ -17,7 +17,7 @@ import (
 	"github.com/shirou/gopsutil/v3/cpu"
 	"go.uber.org/atomic"
 
-	workloadmetacomp "github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmetacomp "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata/parser"
@@ -618,7 +618,8 @@ func skipProcess(
 	}
 	if _, ok := lastProcs[fp.Pid]; !ok {
 		// Skipping any processes that didn't exist in the previous run.
-		// This means short-lived processes (<2s) will never be captured.
+		// The check runs every 10 seconds by default, so this means
+		// processes that live less than 20 seconds may not be captured.
 		return true
 	}
 	// Skipping zombie processes (defined in docs as Status = "Z") if the config

@@ -15,10 +15,11 @@ import (
 	utilserror "k8s.io/apimachinery/pkg/util/errors"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
+	adtypes "github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	confad "github.com/DataDog/datadog-agent/pkg/config/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/util/jsonquery"
@@ -278,7 +279,7 @@ func waitForConfigsFromAD(ctx context.Context,
 	stopChan := make(chan struct{})
 	// add the scheduler in a goroutine, since it will schedule any "catch-up" immediately,
 	// placing items in configChan
-	go ac.AddScheduler("check-cmd", schedulerFunc(func(configs []integration.Config) {
+	go ac.AddScheduler(adtypes.CheckCmdName, schedulerFunc(func(configs []integration.Config) {
 		var errorList []error
 		for _, cfg := range configs {
 			if instanceFilter != "" {

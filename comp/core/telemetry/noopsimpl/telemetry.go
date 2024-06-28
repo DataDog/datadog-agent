@@ -9,9 +9,10 @@ package noopsimpl
 import (
 	"net/http"
 
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"go.uber.org/fx"
 )
 
 type noopImpl struct{}
@@ -23,7 +24,7 @@ func newTelemetry() telemetry.Component {
 type dummy struct{}
 
 func (d *dummy) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
-	w.Write([]byte("Telemtry is not enabled"))
+	w.Write([]byte("Telemetry is not enabled"))
 	w.WriteHeader(200)
 }
 

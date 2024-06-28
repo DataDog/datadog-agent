@@ -29,7 +29,7 @@ jobs:
     - name: Install Python dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install -r requirements.txt -r tasks/libs/requirements-github.txt -r tasks/requirements-release-tasks.txt
+        pip install -r requirements.txt -r tasks/libs/requirements-github.txt -r tasks/requirements_release_tasks.txt
     - name: Create release schedule
       env:
         ATLASSIAN_USERNAME : ${{ secrets.ATLASSIAN_USERNAME }}

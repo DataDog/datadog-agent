@@ -62,6 +62,24 @@ const (
 	MetricSourceSnmp
 
 	// Python Checks
+	MetricSourceKubernetesClusterAutoscaler
+	MetricSourceTraefikMesh
+	MetricSourceWeaviate
+	MetricSourceTorchserve
+	MetricSourceTemporal
+	MetricSourceTeleport
+	MetricSourceTekton
+	MetricSourceStrimzi
+	MetricSourceRay
+	MetricSourceNvidiaTriton
+	MetricSourceKarpenter
+	MetricSourceFluxcd
+	MetricSourceEsxi
+	MetricSourceDcgm
+	MetricSourceDatadogClusterAgent
+	MetricSourceCloudera
+	MetricSourceArgoWorkflows
+	MetricSourceArgoRollouts
 	MetricSourceActiveDirectory
 	MetricSourceActivemqXML
 	MetricSourceAerospike
@@ -580,6 +598,42 @@ func (ms MetricSource) String() string {
 		return "yarn"
 	case MetricSourceZk:
 		return "zk"
+	case MetricSourceArgoRollouts:
+		return "argo_rollouts"
+	case MetricSourceArgoWorkflows:
+		return "argo_workflows"
+	case MetricSourceCloudera:
+		return "cloudera"
+	case MetricSourceDatadogClusterAgent:
+		return "datadog_cluster_agent"
+	case MetricSourceDcgm:
+		return "dcgm"
+	case MetricSourceEsxi:
+		return "esxi"
+	case MetricSourceFluxcd:
+		return "fluxcd"
+	case MetricSourceKarpenter:
+		return "karpenter"
+	case MetricSourceNvidiaTriton:
+		return "nvidia_triton"
+	case MetricSourceRay:
+		return "ray"
+	case MetricSourceStrimzi:
+		return "strimzi"
+	case MetricSourceTekton:
+		return "tekton"
+	case MetricSourceTeleport:
+		return "teleport"
+	case MetricSourceTemporal:
+		return "temporal"
+	case MetricSourceTorchserve:
+		return "torchserve"
+	case MetricSourceWeaviate:
+		return "weaviate"
+	case MetricSourceTraefikMesh:
+		return "traefik_mesh"
+	case MetricSourceKubernetesClusterAutoscaler:
+		return "kubernetes_cluster_autoscaler"
 	default:
 		return "<unknown>"
 	}
@@ -926,6 +980,42 @@ func CheckNameToMetricSource(name string) MetricSource {
 		return MetricSourceYarn
 	case "zk":
 		return MetricSourceZk
+	case "argo_rollouts":
+		return MetricSourceArgoRollouts
+	case "argo_workflows":
+		return MetricSourceArgoWorkflows
+	case "cloudera":
+		return MetricSourceCloudera
+	case "datadog_cluster_agent":
+		return MetricSourceDatadogClusterAgent
+	case "dcgm":
+		return MetricSourceDcgm
+	case "esxi":
+		return MetricSourceEsxi
+	case "fluxcd":
+		return MetricSourceFluxcd
+	case "karpenter":
+		return MetricSourceKarpenter
+	case "nvidia_triton":
+		return MetricSourceNvidiaTriton
+	case "ray":
+		return MetricSourceRay
+	case "strimzi":
+		return MetricSourceStrimzi
+	case "tekton":
+		return MetricSourceTekton
+	case "teleport":
+		return MetricSourceTeleport
+	case "temporal":
+		return MetricSourceTemporal
+	case "torchserve":
+		return MetricSourceTorchserve
+	case "weaviate":
+		return MetricSourceWeaviate
+	case "traefik_mesh":
+		return MetricSourceTraefikMesh
+	case "kubernetes_cluster_autoscaler":
+		return MetricSourceKubernetesClusterAutoscaler
 	default:
 		return MetricSourceUnknown
 	}

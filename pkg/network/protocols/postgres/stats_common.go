@@ -38,12 +38,14 @@ type RequestStat struct {
 	Latencies          *ddsketch.DDSketch
 	FirstLatencySample float64
 	Count              int
+	StaticTags         uint64
 }
 
 // CombineWith merges the data in 2 RequestStats objects
 // newStats is kept as it is, while the method receiver gets mutated
 func (r *RequestStat) CombineWith(newStats *RequestStat) {
 	r.Count += newStats.Count
+	r.StaticTags |= newStats.StaticTags
 	// If the receiver has no latency sample, use the newStats sample
 	if r.FirstLatencySample == 0 {
 		r.FirstLatencySample = newStats.FirstLatencySample

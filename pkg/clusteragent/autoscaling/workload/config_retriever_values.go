@@ -87,12 +87,13 @@ func (p autoscalingValuesProcessor) processValues(values *kubeAutoscaling.Worklo
 func (p autoscalingValuesProcessor) postProcess(errors []error) {
 	// We don't want to delete configs if we received incorrect data
 	if len(errors) > 0 {
+		log.Debugf("Skipping autoscaling values clean up due to errors while processing new data: %v", errors)
 		return
 	}
 
 	// Clear values for all configs that were removed
 	p.store.Update(func(podAutoscaler model.PodAutoscalerInternal) (model.PodAutoscalerInternal, bool) {
-		if _, found := p.processed[autoscaling.BuildObjectID(podAutoscaler.Namespace, podAutoscaler.Name)]; !found {
+		if _, found := p.processed[podAutoscaler.ID()]; !found {
 			log.Infof("Autoscaling not present from remote values, removing values for PodAutoscaler %s", podAutoscaler.ID())
 			podAutoscaler.RemoveValues()
 			return podAutoscaler, true

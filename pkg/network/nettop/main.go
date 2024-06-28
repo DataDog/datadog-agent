@@ -38,7 +38,7 @@ func main() {
 	fmt.Printf("-- Config: %+v --\n", cfg)
 	cfg.BPFDebug = true
 
-	t, err := tracer.NewTracer(cfg)
+	t, err := tracer.NewTracer(cfg, nil)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
 		os.Exit(1)

@@ -29,6 +29,7 @@ func (ev *Event) resolveFields(forADs bool) {
 		_ = ev.FieldHandlers.ResolveContainerTags(ev, ev.BaseEvent.ContainerContext)
 	}
 	_ = ev.FieldHandlers.ResolveAsync(ev)
+	_ = ev.FieldHandlers.ResolveHostname(ev, &ev.BaseEvent)
 	_ = ev.FieldHandlers.ResolveService(ev, &ev.BaseEvent)
 	_ = ev.FieldHandlers.ResolveEventTimestamp(ev, &ev.BaseEvent)
 	_ = ev.FieldHandlers.ResolveProcessArgs(ev, &ev.BaseEvent.ProcessContext.Process)
@@ -492,6 +493,9 @@ func (ev *Event) resolveFields(forADs bool) {
 		if !forADs {
 			_ = ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Open.File)
 		}
+		_ = ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Open.SyscallContext)
+		_ = ev.FieldHandlers.ResolveSyscallCtxArgsInt2(ev, &ev.Open.SyscallContext)
+		_ = ev.FieldHandlers.ResolveSyscallCtxArgsInt3(ev, &ev.Open.SyscallContext)
 	case "ptrace":
 		if ev.PTrace.Tracee.Process.IsNotKworker() {
 			_ = ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.PTrace.Tracee.Process.FileEvent.FileFields)
@@ -975,6 +979,7 @@ type FieldHandlers interface {
 	ResolveFileFilesystem(ev *Event, e *FileEvent) string
 	ResolveFilePath(ev *Event, e *FileEvent) string
 	ResolveHashesFromEvent(ev *Event, e *FileEvent) []string
+	ResolveHostname(ev *Event, e *BaseEvent) string
 	ResolveK8SGroups(ev *Event, e *UserSessionContext) []string
 	ResolveK8SUID(ev *Event, e *UserSessionContext) string
 	ResolveK8SUsername(ev *Event, e *UserSessionContext) string
@@ -1051,6 +1056,7 @@ func (dfh *FakeFieldHandlers) ResolveFilePath(ev *Event, e *FileEvent) string { 
 func (dfh *FakeFieldHandlers) ResolveHashesFromEvent(ev *Event, e *FileEvent) []string {
 	return e.Hashes
 }
+func (dfh *FakeFieldHandlers) ResolveHostname(ev *Event, e *BaseEvent) string { return e.Hostname }
 func (dfh *FakeFieldHandlers) ResolveK8SGroups(ev *Event, e *UserSessionContext) []string {
 	return e.K8SGroups
 }

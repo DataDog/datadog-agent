@@ -7,7 +7,6 @@ include:
   - .gitlab/functional_test/security_agent.yml
   - .gitlab/functional_test/serverless.yml
   - .gitlab/functional_test/regression_detector.yml
-  - .gitlab/functional_test/workload_checks.yml
   - .gitlab/functional_test/system_probe_windows.yml
   - .gitlab/kernel_matrix_testing/common.yml
   - .gitlab/kernel_matrix_testing/system_probe.yml

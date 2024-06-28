@@ -62,6 +62,24 @@ func metricSourceToOriginCategory(ms metrics.MetricSource) int32 {
 		metrics.MetricSourceNetwork,
 		metrics.MetricSourceSnmp,
 		// Python Checks
+		metrics.MetricSourceKubernetesClusterAutoscaler,
+		metrics.MetricSourceTraefikMesh,
+		metrics.MetricSourceWeaviate,
+		metrics.MetricSourceTorchserve,
+		metrics.MetricSourceTemporal,
+		metrics.MetricSourceTeleport,
+		metrics.MetricSourceTekton,
+		metrics.MetricSourceStrimzi,
+		metrics.MetricSourceRay,
+		metrics.MetricSourceNvidiaTriton,
+		metrics.MetricSourceKarpenter,
+		metrics.MetricSourceFluxcd,
+		metrics.MetricSourceEsxi,
+		metrics.MetricSourceDcgm,
+		metrics.MetricSourceDatadogClusterAgent,
+		metrics.MetricSourceCloudera,
+		metrics.MetricSourceArgoWorkflows,
+		metrics.MetricSourceArgoRollouts,
 		metrics.MetricSourceActiveDirectory,
 		metrics.MetricSourceActivemqXML,
 		metrics.MetricSourceAerospike,
@@ -586,6 +604,42 @@ func metricSourceToOriginService(ms metrics.MetricSource) int32 {
 		return 203
 	case metrics.MetricSourceInternal:
 		return 212
+	case metrics.MetricSourceArgoRollouts:
+		return 314
+	case metrics.MetricSourceArgoWorkflows:
+		return 315
+	case metrics.MetricSourceCloudera:
+		return 316
+	case metrics.MetricSourceDatadogClusterAgent:
+		return 317
+	case metrics.MetricSourceDcgm:
+		return 318
+	case metrics.MetricSourceEsxi:
+		return 319
+	case metrics.MetricSourceFluxcd:
+		return 320
+	case metrics.MetricSourceKarpenter:
+		return 321
+	case metrics.MetricSourceNvidiaTriton:
+		return 322
+	case metrics.MetricSourceRay:
+		return 323
+	case metrics.MetricSourceStrimzi:
+		return 324
+	case metrics.MetricSourceTekton:
+		return 325
+	case metrics.MetricSourceTeleport:
+		return 326
+	case metrics.MetricSourceTemporal:
+		return 327
+	case metrics.MetricSourceTorchserve:
+		return 328
+	case metrics.MetricSourceWeaviate:
+		return 329
+	case metrics.MetricSourceTraefikMesh:
+		return 330
+	case metrics.MetricSourceKubernetesClusterAutoscaler:
+		return 331
 	default:
 		return 0
 	}

@@ -10,13 +10,17 @@ package service
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"os"
 	"syscall"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
+
+var rollbackNoop = func() error { return nil }
 
 // fileMutator is a struct used to transform a file
 // creating backups, replacing original files and setting permissions
@@ -25,13 +29,13 @@ type fileMutator struct {
 	path             string
 	pathTmp          string
 	pathBackup       string
-	transformContent func(existing []byte) ([]byte, error)
+	transformContent func(ctx context.Context, existing []byte) ([]byte, error)
 	validateTemp     func() error
 	validateFinal    func() error
 }
 
 // newFileMutator creates a new fileMutator
-func newFileMutator(path string, transform func(existing []byte) ([]byte, error), validateTemp, validateFinal func() error) *fileMutator {
+func newFileMutator(path string, transform func(ctx context.Context, existing []byte) ([]byte, error), validateTemp, validateFinal func() error) *fileMutator {
 	return &fileMutator{
 		path:             path,
 		pathTmp:          path + ".datadog.prep",
@@ -42,7 +46,11 @@ func newFileMutator(path string, transform func(existing []byte) ([]byte, error)
 	}
 }
 
-func (ft *fileMutator) mutate() (rollback func() error, err error) {
+func (ft *fileMutator) mutate(ctx context.Context) (rollback func() error, err error) {
+	span, ctx := tracer.StartSpanFromContext(ctx, "mutate_file")
+	defer func() { span.Finish(tracer.WithError(err)) }()
+	span.SetTag("file", ft.path)
+
 	defer os.Remove(ft.pathTmp)
 
 	originalFileExists := true
@@ -67,14 +75,14 @@ func (ft *fileMutator) mutate() (rollback func() error, err error) {
 		return nil, fmt.Errorf("could not read file %s: %s", ft.pathTmp, err)
 	}
 
-	res, err := ft.transformContent(data)
+	res, err := ft.transformContent(ctx, data)
 	if err != nil {
 		return nil, fmt.Errorf("could not transform file %s: %s", ft.pathTmp, err)
 	}
 
 	// no changes needed
 	if bytes.Equal(data, res) {
-		return nil, nil
+		return rollbackNoop, nil
 	}
 
 	if err := writeFile(ft.pathTmp, res); err != nil {

@@ -98,6 +98,11 @@ func (c *PGClient) RunDropQuery() error {
 	return runTimedQuery(c.db.NewDropTable().Model((*DummyTable)(nil)).IfExists().Exec)
 }
 
+// RunTruncateQuery truncates a table.
+func (c *PGClient) RunTruncateQuery() error {
+	return runTimedQuery(c.db.NewTruncateTable().Model(dummyModel).Exec)
+}
+
 // RunInsertQuery inserts a new row in the table.
 func (c *PGClient) RunInsertQuery(id int64) error {
 	model := *dummyModel

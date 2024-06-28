@@ -5,7 +5,7 @@
 
 int __attribute__((always_inline)) mnt_want_write_predicate(u64 type) {
     return type == EVENT_UTIME || type == EVENT_CHMOD || type == EVENT_CHOWN || type == EVENT_RENAME ||
-        type == EVENT_RMDIR || type == EVENT_UNLINK || type == EVENT_SETXATTR || type == EVENT_REMOVEXATTR;
+           type == EVENT_RMDIR || type == EVENT_UNLINK || type == EVENT_SETXATTR || type == EVENT_REMOVEXATTR;
 }
 
 int __attribute__((always_inline)) mnt_want_write_file_predicate(u64 type) {

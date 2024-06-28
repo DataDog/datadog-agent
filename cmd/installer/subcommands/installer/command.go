@@ -46,7 +46,18 @@ const (
 
 // Commands returns the installer subcommands.
 func Commands(_ *command.GlobalParams) []*cobra.Command {
-	return []*cobra.Command{bootstrapCommand(), installCommand(), removeCommand(), installExperimentCommand(), removeExperimentCommand(), promoteExperimentCommand(), garbageCollectCommand(), purgeCommand(), isInstalledCommand()}
+	return []*cobra.Command{
+		bootstrapCommand(),
+		installCommand(),
+		removeCommand(),
+		installExperimentCommand(),
+		removeExperimentCommand(),
+		promoteExperimentCommand(),
+		garbageCollectCommand(),
+		purgeCommand(),
+		isInstalledCommand(),
+		apmCommands(),
+	}
 }
 
 // UnprivilegedCommands returns the unprivileged installer subcommands.

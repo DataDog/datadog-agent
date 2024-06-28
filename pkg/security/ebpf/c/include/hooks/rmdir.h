@@ -44,47 +44,47 @@ int hook_security_inode_rmdir(ctx_t *ctx) {
     struct dentry *dentry = NULL;
 
     switch (syscall->type) {
-        case EVENT_RMDIR:
-            if (syscall->rmdir.file.path_key.ino) {
-                return 0;
-            }
-
-            // we resolve all the information before the file is actually removed
-            dentry = (struct dentry *)CTX_PARM2(ctx);
-            set_file_inode(dentry, &syscall->rmdir.file, 1);
-            fill_file(dentry, &syscall->rmdir.file);
-
-            // the mount id of path_key is resolved by kprobe/mnt_want_write. It is already set by the time we reach this probe.
-            key = syscall->rmdir.file.path_key;
-
-            syscall->rmdir.dentry = dentry;
-            if (filter_syscall(syscall, rmdir_approvers)) {
-                return mark_as_discarded(syscall);
-            }
-
-            break;
-        case EVENT_UNLINK:
-            if (syscall->unlink.file.path_key.ino) {
-                return 0;
-            }
-
-            // we resolve all the information before the file is actually removed
-            dentry = (struct dentry *) CTX_PARM2(ctx);
-            set_file_inode(dentry, &syscall->unlink.file, 1);
-            fill_file(dentry, &syscall->unlink.file);
-
-            // the mount id of path_key is resolved by kprobe/mnt_want_write. It is already set by the time we reach this probe.
-            key = syscall->unlink.file.path_key;
-
-            syscall->unlink.dentry = dentry;
-            syscall->policy = fetch_policy(EVENT_RMDIR);
-            if (filter_syscall(syscall, rmdir_approvers)) {
-                return mark_as_discarded(syscall);
-            }
-
-            break;
-        default:
+    case EVENT_RMDIR:
+        if (syscall->rmdir.file.path_key.ino) {
             return 0;
+        }
+
+        // we resolve all the information before the file is actually removed
+        dentry = (struct dentry *)CTX_PARM2(ctx);
+        set_file_inode(dentry, &syscall->rmdir.file, 1);
+        fill_file(dentry, &syscall->rmdir.file);
+
+        // the mount id of path_key is resolved by kprobe/mnt_want_write. It is already set by the time we reach this probe.
+        key = syscall->rmdir.file.path_key;
+
+        syscall->rmdir.dentry = dentry;
+        if (filter_syscall(syscall, rmdir_approvers)) {
+            return mark_as_discarded(syscall);
+        }
+
+        break;
+    case EVENT_UNLINK:
+        if (syscall->unlink.file.path_key.ino) {
+            return 0;
+        }
+
+        // we resolve all the information before the file is actually removed
+        dentry = (struct dentry *)CTX_PARM2(ctx);
+        set_file_inode(dentry, &syscall->unlink.file, 1);
+        fill_file(dentry, &syscall->unlink.file);
+
+        // the mount id of path_key is resolved by kprobe/mnt_want_write. It is already set by the time we reach this probe.
+        key = syscall->unlink.file.path_key;
+
+        syscall->unlink.dentry = dentry;
+        syscall->policy = fetch_policy(EVENT_RMDIR);
+        if (filter_syscall(syscall, rmdir_approvers)) {
+            return mark_as_discarded(syscall);
+        }
+
+        break;
+    default:
+        return 0;
     }
 
     if (is_discarded_by_process(syscall->policy.mode, syscall->type)) {

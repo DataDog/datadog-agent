@@ -904,6 +904,7 @@ func TestLoadEnv(t *testing.T) {
 			{"DD_RECEIVER_PORT", "DD_APM_RECEIVER_PORT", "apm_config.receiver_port"},
 			{"DD_MAX_EPS", "DD_MAX_EPS", "apm_config.max_events_per_second"},
 			{"DD_MAX_TPS", "DD_APM_MAX_TPS", "apm_config.max_traces_per_second"},
+			{"DD_APM_MAX_TPS", "DD_APM_TARGET_TPS", "apm_config.target_traces_per_second"},
 			{"DD_IGNORE_RESOURCE", "DD_APM_IGNORE_RESOURCES", "apm_config.ignore_resources"},
 		} {
 			t.Setenv(tt.envOld, "1,2,3")
@@ -1414,9 +1415,30 @@ func TestLoadEnv(t *testing.T) {
 	}
 
 	for _, envKey := range []string{
-		"DD_MAX_TPS", // deprecated
-		"DD_APM_MAX_TPS",
+		"DD_MAX_TPS",     // deprecated
+		"DD_APM_MAX_TPS", // deprecated
+		"DD_APM_TARGET_TPS",
 	} {
+		// First load the yaml file with the deprecated max_traces_per_second
+		t.Run(envKey, func(t *testing.T) {
+			t.Setenv(envKey, "6")
+
+			c := fxutil.Test[Component](t, fx.Options(
+				corecomp.MockModule(),
+				fx.Replace(corecomp.MockParams{
+					Params:      corecomp.Params{ConfFilePath: "./testdata/deprecated-max-tps-apm.yaml"},
+					SetupConfig: true,
+				}),
+				MockModule(),
+			))
+			cfg := c.Object()
+
+			assert.NotNil(t, cfg)
+			assert.Equal(t, 6., cfg.TargetTPS)
+		})
+
+		// Load the yaml file with the updated target_traces_per_second. When both the deprecated setting and the
+		// new one are present, the new one takes precedence.
 		t.Run(envKey, func(t *testing.T) {
 			t.Setenv(envKey, "6")
 
@@ -1431,7 +1453,12 @@ func TestLoadEnv(t *testing.T) {
 			cfg := c.Object()
 
 			assert.NotNil(t, cfg)
-			assert.Equal(t, 6., cfg.TargetTPS)
+			if envKey == "DD_APM_TARGET_TPS" {
+				assert.Equal(t, 6., cfg.TargetTPS)
+			} else {
+				// target_traces_per_second from yaml config takes precedence over deprecated env vars.
+				assert.Equal(t, 5., cfg.TargetTPS)
+			}
 		})
 	}
 

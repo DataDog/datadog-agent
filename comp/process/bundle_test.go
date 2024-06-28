@@ -17,15 +17,15 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/status"
+	coreStatusImpl "github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl"
 	"github.com/DataDog/datadog-agent/comp/process/runner"
-
-	coreStatusImpl "github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
 	"github.com/DataDog/datadog-agent/comp/process/status/statusimpl"
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
@@ -43,7 +43,7 @@ func TestBundleDependencies(t *testing.T) {
 		fx.Supply(workloadmeta.NewParams()),
 		fx.Provide(func() types.CheckComponent { return nil }),
 		core.MockBundle(),
-		workloadmeta.Module(),
+		workloadmetafx.Module(),
 		coreStatusImpl.Module(),
 		settingsimpl.MockModule(),
 		statusimpl.Module(),
@@ -91,7 +91,7 @@ func TestBundleOneShot(t *testing.T) {
 		}}),
 		core.MockBundle(),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.Module(),
+		workloadmetafx.Module(),
 		eventplatformreceiverimpl.Module(),
 		eventplatformimpl.Module(),
 		fx.Supply(eventplatformimpl.NewDefaultParams()),

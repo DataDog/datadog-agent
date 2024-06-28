@@ -17,6 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/serverless/executioncontext"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
+	serverlessStreamLogs "github.com/DataDog/datadog-agent/pkg/serverless/streamlogs"
 	"github.com/DataDog/datadog-agent/pkg/serverless/tags"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -200,6 +201,11 @@ func (lc *LambdaLogsCollector) processLogMessages(messages []LambdaLogAPIMessage
 				continue
 			}
 
+			// Don't collect stream-logs output
+			if serverlessStreamLogs.Is(message.stringRecord) {
+				continue
+			}
+
 			isErrorLog := message.logType == logTypeFunction && serverlessMetrics.ContainsOutOfMemoryLog(message.stringRecord)
 			if message.objectRecord.requestID != "" {
 				lc.out <- logConfig.NewChannelMessageFromLambda([]byte(message.stringRecord), message.time, lc.arn, message.objectRecord.requestID, isErrorLog)
@@ -310,6 +316,15 @@ func (lc *LambdaLogsCollector) processMessage(
 				})
 			lc.invocationEndTime = message.time
 			lc.executionContext.UpdateEndTime(message.time)
+
+			// The state is saved when a shutdown event is received. A shutdown event can occur before the
+			// runtimeDone log message is received so we save the state again to properly store the end time
+			if lc.executionContext.IsStateSaved() {
+				err := lc.executionContext.SaveCurrentExecutionContext()
+				if err != nil {
+					log.Warnf("Unable to save the current state. Failed with: %s", err)
+				}
+			}
 		}
 		if outOfMemoryRequestId != "" {
 			lc.lastOOMRequestID = outOfMemoryRequestId

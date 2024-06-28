@@ -7,22 +7,25 @@ package settingsimpl
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"html"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
+
+	"github.com/gorilla/mux"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/gorilla/mux"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/fx"
 )
 
 type runtimeTestSetting struct {
@@ -134,6 +137,64 @@ func TestRuntimeSettings(t *testing.T) {
 			},
 		},
 		{
+			"GetFullConfigBySource with http_replace_rules",
+			func(t *testing.T, comp settings.Component) {
+				// system-probe config contains []map[interface{}]interface{}, which 'encode/json'
+				// cannot marshal. Using "github.com/json-iterator/go" instead fix the issue.
+				//
+				// This test verify that this is correctly handle byt settingsimpl.
+				s := comp.(*settingsRegistry)
+				s.config.Set(
+					"service_monitoring_config.http_replace_rules",
+					[]map[interface{}]interface{}{
+						{
+							"pattern": "/v\\d{1}\\.\\d{1}/traces",
+						},
+						{
+							"pattern": "/v\\d{1}\\.\\d{1}/config",
+						},
+					},
+					model.SourceUnknown)
+
+				responseRecorder := httptest.NewRecorder()
+				request := httptest.NewRequest("GET", "http://agent.host/test/", nil)
+
+				comp.GetFullConfigBySource()(responseRecorder, request)
+				resp := responseRecorder.Result()
+				defer resp.Body.Close()
+				body, _ := io.ReadAll(resp.Body)
+
+				assert.Equal(t, 200, responseRecorder.Code)
+				// The full config is too big to assert against
+				// Ensure the response body is not empty to validate we wrote something
+				assert.NotEqual(t, "", string(body))
+			},
+		},
+		{
+			"GetFullConfigBySource with big config layers",
+			func(t *testing.T, comp settings.Component) {
+				layerMaxSize := 1024 * 60
+				config := comp.(*settingsRegistry).config
+				config.Set("big_config_value", strings.Repeat("a", layerMaxSize), model.SourceEnvVar)
+				config.Set("big_config_value", strings.Repeat("b", layerMaxSize), model.SourceFile)
+				config.Set("big_config_value", strings.Repeat("c", layerMaxSize), model.SourceAgentRuntime)
+
+				responseRecorder := httptest.NewRecorder()
+				request := httptest.NewRequest("GET", "http://agent.host/test/", nil)
+				comp.GetFullConfigBySource()(responseRecorder, request)
+
+				resp := responseRecorder.Result()
+				defer resp.Body.Close()
+				body, err := io.ReadAll(resp.Body)
+				require.NoError(t, err)
+
+				assert.Equal(t, 200, responseRecorder.Code)
+				// The full config is too big to assert against
+				// Ensure the response body is not empty to validate we wrote something
+				assert.NotEqual(t, "", string(body))
+			},
+		},
+		{
 			"ListConfigurable",
 			func(t *testing.T, comp settings.Component) {
 				responseRecorder := httptest.NewRecorder()
@@ -145,7 +206,16 @@ func TestRuntimeSettings(t *testing.T) {
 				body, _ := io.ReadAll(resp.Body)
 
 				assert.Equal(t, 200, responseRecorder.Code)
-				assert.Equal(t, "{\"bar\":{\"Description\":\"bar settings\",\"Hidden\":false},\"foo\":{\"Description\":\"foo settings\",\"Hidden\":false},\"hidden setting\":{\"Description\":\"hidden setting\",\"Hidden\":true}}", string(body))
+
+				// Order of the map is not guaranteed by "github.com/json-iterator/go" so we can't
+				// simply compare strings.
+				expected := map[string]interface{}{}
+				actual := map[string]interface{}{}
+				json.Unmarshal([]byte("{\"foo\":{\"Description\":\"foo settings\",\"Hidden\":false},\"hidden setting\":{\"Description\":\"hidden setting\",\"Hidden\":true},\"bar\":{\"Description\":\"bar settings\",\"Hidden\":false}}"), &expected)
+				err := json.Unmarshal(body, &actual)
+
+				require.NoError(t, err, fmt.Sprintf("error loading JSON body: %s", err))
+				assert.Equal(t, expected, actual)
 			},
 		},
 		{
@@ -176,7 +246,16 @@ func TestRuntimeSettings(t *testing.T) {
 				resp.Body.Close()
 
 				assert.Equal(t, 200, resp.StatusCode)
-				assert.Equal(t, "{\"sources_value\":[{\"Source\":\"default\",\"Value\":null},{\"Source\":\"unknown\",\"Value\":null},{\"Source\":\"file\",\"Value\":null},{\"Source\":\"environment-variable\",\"Value\":null},{\"Source\":\"agent-runtime\",\"Value\":null},{\"Source\":\"local-config-process\",\"Value\":null},{\"Source\":\"remote-config\",\"Value\":null},{\"Source\":\"cli\",\"Value\":null}],\"value\":{\"Value\":\"\",\"Source\":\"\"}}", string(body))
+
+				// Order of the map is not guaranteed by "github.com/json-iterator/go" so we can't
+				// simply compare strings.
+				expected := map[string]interface{}{}
+				actual := map[string]interface{}{}
+				json.Unmarshal([]byte("{\"value\":{\"Value\":\"\",\"Source\":\"\"},\"sources_value\":[{\"Source\":\"default\",\"Value\":null},{\"Source\":\"unknown\",\"Value\":null},{\"Source\":\"file\",\"Value\":null},{\"Source\":\"environment-variable\",\"Value\":null},{\"Source\":\"agent-runtime\",\"Value\":null},{\"Source\":\"local-config-process\",\"Value\":null},{\"Source\":\"remote-config\",\"Value\":null},{\"Source\":\"cli\",\"Value\":null}]}"), &expected)
+				err = json.Unmarshal(body, &actual)
+
+				require.NoError(t, err, fmt.Sprintf("error loading JSON body: %s", err))
+				assert.Equal(t, expected, actual)
 
 				unknownSettingRequest, err := http.NewRequest("GET", ts.URL+"/config/non_existing", nil)
 				require.NoError(t, err)

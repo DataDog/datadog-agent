@@ -1304,6 +1304,108 @@ func TestRuntimeMetricsMatchLogsProactiveInit(t *testing.T) {
 	assert.Len(t, timedMetrics, 0)
 }
 
+func TestRuntimeMetricsOnTimeout(t *testing.T) {
+	// This tests that if a SHUTDOWN event occurs before a runtimeDone log is received, enhanced metrics and
+	// REPORT log attributes are still reported correctly on the next invocation when the REPORT log is processed
+	demux := createDemultiplexer(t)
+
+	// Always use a unique temp file to test saving the execution context
+	tempfile, err := os.CreateTemp(t.TempDir(), "dd-lambda-extension-cache-*.json")
+	assert.Nil(t, err)
+	defer os.Remove(tempfile.Name())
+	defer tempfile.Close()
+
+	runtimeDurationMs := 10.0
+	postRuntimeDurationMs := 90.0
+	durationMs := runtimeDurationMs + postRuntimeDurationMs
+
+	startTime := time.Now()
+	endTime := startTime.Add(time.Duration(runtimeDurationMs) * time.Millisecond)
+	reportLogTime := endTime.Add(time.Duration(postRuntimeDurationMs) * time.Millisecond)
+
+	requestID := "1a2b3c"
+	mockExecutionContext := &executioncontext.ExecutionContext{}
+	mockExecutionContext.UpdatePersistedStateFilePath(tempfile.Name())
+	mockExecutionContext.SetInitializationTime(startTime.Add(-15 * time.Second))
+	mockExecutionContext.SetFromInvocation("arn not used", requestID)
+	mockExecutionContext.UpdateStartTime(startTime)
+	computeEnhancedMetrics := true
+	tags := Tags{
+		Tags: []string{},
+	}
+
+	startMessage := &LambdaLogAPIMessage{
+		time:    startTime,
+		logType: logTypePlatformStart,
+		objectRecord: platformObjectRecord{
+			requestID: requestID,
+		},
+	}
+	doneMessage := &LambdaLogAPIMessage{
+		time:    endTime,
+		logType: logTypePlatformRuntimeDone,
+		objectRecord: platformObjectRecord{
+			requestID: requestID,
+		},
+	}
+	reportMessage := &LambdaLogAPIMessage{
+		time:    reportLogTime,
+		logType: logTypePlatformReport,
+		objectRecord: platformObjectRecord{
+			requestID: requestID,
+			reportLogItem: reportLogMetrics{
+				durationMs: durationMs,
+			},
+		},
+	}
+	lc := NewLambdaLogCollector(make(chan<- *config.ChannelMessage), demux, &tags, true, computeEnhancedMetrics, mockExecutionContext, func() {}, make(chan<- *LambdaInitMetric))
+
+	lc.processMessage(startMessage)
+	// A shutdown can occur in the current invocation, causing the state to be saved without an endTime
+	saveErr := mockExecutionContext.SaveCurrentExecutionContext()
+	assert.Nil(t, saveErr)
+	assert.True(t, mockExecutionContext.GetCurrentState().EndTime.IsZero())
+	assert.True(t, mockExecutionContext.IsStateSaved())
+	// When the runtimeDone log is processed, the endTime is updated and must be saved to the state on disk
+	lc.processMessage(doneMessage)
+	assert.False(t, mockExecutionContext.GetCurrentState().EndTime.IsZero())
+	// In the next invocation, the state is restored and the previous invocation's REPORT log is processed
+	restoreErr := mockExecutionContext.RestoreCurrentStateFromFile()
+	assert.Nil(t, restoreErr)
+	lc.processMessage(reportMessage)
+
+	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(10, 0, 100*time.Millisecond)
+	postRuntimeMetricTimestamp := float64(reportLogTime.UnixNano()) / float64(time.Second)
+	runtimeMetricTimestamp := float64(endTime.UnixNano()) / float64(time.Second)
+	assert.Equal(t, generatedMetrics[0], metrics.MetricSample{
+		Name:       "aws.lambda.enhanced.runtime_duration",
+		Value:      runtimeDurationMs, // in milliseconds
+		Mtype:      metrics.DistributionType,
+		Tags:       []string{"cold_start:false", "proactive_initialization:true"},
+		SampleRate: 1,
+		Timestamp:  runtimeMetricTimestamp,
+	})
+	assert.Equal(t, generatedMetrics[7], metrics.MetricSample{
+		Name:       "aws.lambda.enhanced.duration",
+		Value:      durationMs / 1000, // in seconds
+		Mtype:      metrics.DistributionType,
+		Tags:       []string{"cold_start:false", "proactive_initialization:true"},
+		SampleRate: 1,
+		Timestamp:  postRuntimeMetricTimestamp,
+	})
+	assert.Equal(t, generatedMetrics[9], metrics.MetricSample{
+		Name:       "aws.lambda.enhanced.post_runtime_duration",
+		Value:      postRuntimeDurationMs, // in milliseconds
+		Mtype:      metrics.DistributionType,
+		Tags:       []string{"cold_start:false", "proactive_initialization:true"},
+		SampleRate: 1,
+		Timestamp:  postRuntimeMetricTimestamp,
+	})
+	expectedStringRecord := fmt.Sprintf("REPORT RequestId: 1a2b3c\tDuration: %.2f ms\tRuntime Duration: %.2f ms\tPost Runtime Duration: %.2f ms\tBilled Duration: 0 ms\tMemory Size: 0 MB\tMax Memory Used: 0 MB", durationMs, runtimeDurationMs, postRuntimeDurationMs)
+	assert.Equal(t, reportMessage.stringRecord, expectedStringRecord)
+	assert.Len(t, timedMetrics, 0)
+}
+
 func TestMultipleStartLogCollection(t *testing.T) {
 	demux := createDemultiplexer(t)
 

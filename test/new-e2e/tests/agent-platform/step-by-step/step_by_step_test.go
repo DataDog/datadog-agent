@@ -109,7 +109,7 @@ func TestStepByStepScript(t *testing.T) {
 				e2e.WithProvisioner(awshost.ProvisionerNoAgentNoFakeIntake(
 					awshost.WithEC2InstanceOptions(vmOpts...),
 				)),
-				e2e.WithStackName(fmt.Sprintf("step-by-step-test-%v-%v-%s-%s", os.Getenv("CI_PIPELINE_ID"), osVers, *architecture, *majorVersion)),
+				e2e.WithStackName(fmt.Sprintf("step-by-step-test-%v-%s-%s", osVers, *architecture, *majorVersion)),
 			)
 		})
 	}
@@ -160,8 +160,11 @@ func (is *stepByStepSuite) CheckStepByStepAgentInstallation(VMclient *common.Tes
 	}
 	common.CheckApmEnabled(is.T(), VMclient)
 	common.CheckApmDisabled(is.T(), VMclient)
-	if *flavorName == "datadog-agent" && is.cwsSupported {
-		common.CheckCWSBehaviour(is.T(), VMclient)
+	if *flavorName == "datadog-agent" {
+		common.CheckSystemProbeBehavior(is.T(), VMclient)
+		if is.cwsSupported {
+			common.CheckCWSBehaviour(is.T(), VMclient)
+		}
 	}
 
 	is.T().Run("remove the agent", func(tt *testing.T) {
@@ -176,7 +179,7 @@ func (is *stepByStepSuite) StepByStepDebianTest(VMclient *common.TestClient) {
 	aptTrustedDKeyring := "/etc/apt/trusted.gpg.d/datadog-archive-keyring.gpg"
 	aptUsrShareKeyring := "/usr/share/keyrings/datadog-archive-keyring.gpg"
 	aptrepo := "[signed-by=/usr/share/keyrings/datadog-archive-keyring.gpg] http://apttesting.datad0g.com/"
-	aptrepoDist := fmt.Sprintf("pipeline-%s-a%s-%s", os.Getenv("CI_PIPELINE_ID"), *majorVersion, *architecture)
+	aptrepoDist := fmt.Sprintf("pipeline-%s-a%s-%s", os.Getenv("E2E_PIPELINE_ID"), *majorVersion, *architecture)
 	fileManager := VMclient.FileManager
 	var err error
 
@@ -212,7 +215,7 @@ func (is *stepByStepSuite) StepByStepRhelTest(VMclient *common.TestClient) {
 		arch = *architecture
 	}
 	yumrepo := fmt.Sprintf("http://yumtesting.datad0g.com/testing/pipeline-%s-a%s/%s/%s/",
-		os.Getenv("CI_PIPELINE_ID"), *majorVersion, *majorVersion, arch)
+		os.Getenv("E2E_PIPELINE_ID"), *majorVersion, *majorVersion, arch)
 	fileManager := VMclient.FileManager
 	var err error
 
@@ -254,9 +257,13 @@ func (is *stepByStepSuite) StepByStepSuseTest(VMclient *common.TestClient) {
 	}
 
 	suseRepo := fmt.Sprintf("http://yumtesting.datad0g.com/suse/testing/pipeline-%s-a%s/%s/%s/",
-		os.Getenv("CI_PIPELINE_ID"), *majorVersion, *majorVersion, arch)
+		os.Getenv("E2E_PIPELINE_ID"), *majorVersion, *majorVersion, arch)
 	fileManager := VMclient.FileManager
 	var err error
+
+	// Disable all existing non-datadog repos to avoid issues during refresh (which is hard to prevent zypper from doing spontaneously);
+	// we don't need them to install the Agent anyway
+	ExecuteWithoutError(nil, VMclient, "sudo rm /etc/zypp/repos.d/*.repo")
 
 	fileContent := fmt.Sprintf("[datadog]\n"+
 		"name = Datadog, Inc.\n"+

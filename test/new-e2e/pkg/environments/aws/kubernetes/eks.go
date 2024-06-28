@@ -7,6 +7,9 @@
 package awskubernetes
 
 import (
+	"context"
+	"fmt"
+
 	"github.com/DataDog/test-infra-definitions/common/config"
 	"github.com/DataDog/test-infra-definitions/common/utils"
 	"github.com/DataDog/test-infra-definitions/components"
@@ -34,6 +37,14 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
+func eksDiagnoseFunc(ctx context.Context, stackName string) (string, error) {
+	dumpResult, err := dumpEKSClusterState(ctx, stackName)
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("Dumping EKS cluster state:\n%s", dumpResult), nil
+}
+
 // EKSProvisioner creates a new provisioner
 func EKSProvisioner(opts ...ProvisionerOption) e2e.TypedProvisioner[environments.AwsKubernetes] {
 	// We ALWAYS need to make a deep copy of `params`, as the provisioner can be called multiple times.
@@ -49,6 +60,8 @@ func EKSProvisioner(opts ...ProvisionerOption) e2e.TypedProvisioner[environments
 
 		return EKSRunFunc(ctx, env, params)
 	}, params.extraConfigParams)
+
+	provisioner.SetDiagnoseFunc(eksDiagnoseFunc)
 
 	return provisioner
 }
@@ -312,11 +325,9 @@ func EKSRunFunc(ctx *pulumi.Context, env *environments.AwsKubernetes, params *Pr
 			}
 
 			helmComponent, err := agent.NewHelmInstallation(&awsEnv, agent.HelmInstallationArgs{
-				KubeProvider: eksKubeProvider,
-				Namespace:    "datadog",
-				ValuesYAML: pulumi.AssetOrArchiveArray{
-					pulumi.NewStringAsset(paramsAgent.HelmValues),
-				},
+				KubeProvider:  eksKubeProvider,
+				Namespace:     "datadog",
+				ValuesYAML:    paramsAgent.HelmValues,
 				Fakeintake:    fakeIntake,
 				DeployWindows: params.eksWindowsNodeGroup,
 			}, dependsOnSetup)

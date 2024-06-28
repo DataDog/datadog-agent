@@ -20,9 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// Consider multibyte charactersets where a single special character can take several bytes
-const maxFullTextWithSafetyMargin = 3500
-
 // ActivitySnapshot is a payload containing database activity samples. It is parsed from the intake payload.
 // easyjson:json
 type ActivitySnapshot struct {
@@ -167,11 +164,12 @@ func (c *Check) getSQLRow(SQLID sql.NullString, forceMatchingSignature *string, 
 //nolint:revive // TODO(DBM) Fix revive linter
 func (c *Check) SampleSession() error {
 	start := time.Now()
+	copy(c.lastOracleActivityRows, []OracleActivityRow{})
 
 	var sessionRows []OracleActivityRow
 	sessionSamples := []OracleActivityRowDB{}
 	var activityQuery string
-	maxSQLTextLength := maxFullTextWithSafetyMargin
+	maxSQLTextLength := c.sqlSubstringLength
 	if c.hostingType == selfManaged {
 		if isDbVersionGreaterOrEqualThan(c, minMultitenantVersion) {
 			activityQuery = activityQueryOnView12
@@ -186,9 +184,16 @@ func (c *Check) SampleSession() error {
 		activityQuery = fmt.Sprintf("%s %s", activityQuery, " OR 1=1")
 	}
 
-	err := selectWrapper(c, &sessionSamples, activityQuery)
+	err := selectWrapper(c, &sessionSamples, activityQuery, maxSQLTextLength, maxSQLTextLength)
 
 	if err != nil {
+		if strings.Contains(err.Error(), "ORA-06502") {
+			if c.sqlSubstringLength > 1000 {
+				c.sqlSubstringLength = max(c.sqlSubstringLength-500, 1000)
+				sendMetricWithDefaultTags(c, count, "dd.oracle.activity.decrease_sql_substring_length", float64(c.sqlSubstringLength))
+				return nil
+			}
+		}
 		return fmt.Errorf("failed to collect session sampling activity: %w \n%s", err, activityQuery)
 	}
 
@@ -386,6 +391,9 @@ func (c *Check) SampleSession() error {
 		OracleActivityRows: sessionRows,
 	}
 
+	c.lastOracleActivityRows = make([]OracleActivityRow, len(sessionRows))
+	copy(c.lastOracleActivityRows, sessionRows)
+
 	payloadBytes, err := json.Marshal(payload)
 	if err != nil {
 		log.Errorf("%s Error marshalling activity payload: %s", c.logPrompt, err)
@@ -400,7 +408,7 @@ func (c *Check) SampleSession() error {
 		return err
 	}
 	sender.EventPlatformEvent(payloadBytes, "dbm-activity")
-	sendMetricWithDefaultTags(c, count, "dd.oracle.activity.samples_count", float64(len(sessionRows)))
+	sendMetric(c, count, "dd.oracle.activity.samples_count", float64(len(sessionRows)), append(c.tags, fmt.Sprintf("sql_substring_length:%d", c.sqlSubstringLength)))
 	sendMetricWithDefaultTags(c, gauge, "dd.oracle.activity.time_ms", float64(time.Since(start).Milliseconds()))
 	sender.Commit()
 

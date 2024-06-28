@@ -18,6 +18,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	cmd := check.MakeCommand(func() check.GlobalParams {
 		return check.GlobalParams{
 			ConfFilePath:         globalParams.ConfFilePath,
+			ExtraConfFilePaths:   globalParams.ExtraConfFilePath,
 			SysProbeConfFilePath: globalParams.SysProbeConfFilePath,
 			ConfigName:           command.ConfigName,
 			LoggerName:           command.LoggerName,

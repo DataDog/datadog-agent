@@ -14,7 +14,8 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/utils"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
@@ -37,19 +38,16 @@ type ContainerListener struct {
 func NewContainerListener(_ Config, wmeta optional.Option[workloadmeta.Component]) (ServiceListener, error) {
 	const name = "ad-containerlistener"
 	l := &ContainerListener{}
-	filterParams := workloadmeta.FilterParams{
-		Kinds:     []workloadmeta.Kind{workloadmeta.KindContainer},
-		Source:    workloadmeta.SourceRuntime,
-		EventType: workloadmeta.EventTypeAll,
-	}
-	f := workloadmeta.NewFilter(&filterParams)
+	filter := workloadmeta.NewFilterBuilder().
+		SetSource(workloadmeta.SourceAll).
+		AddKind(workloadmeta.KindContainer).Build()
 
 	wmetaInstance, ok := wmeta.Get()
 	if !ok {
 		return nil, errors.New("workloadmeta store is not initialized")
 	}
 	var err error
-	l.workloadmetaListener, err = newWorkloadmetaListener(name, f, l.createContainerService, wmetaInstance)
+	l.workloadmetaListener, err = newWorkloadmetaListener(name, filter, l.createContainerService, wmetaInstance)
 	if err != nil {
 		return nil, err
 	}
@@ -112,7 +110,8 @@ func (l *ContainerListener) createContainerService(entity workloadmeta.Entity) {
 	})
 
 	svc := &service{
-		entity: container,
+		entity:   container,
+		tagsHash: tagger.GetEntityHash(containers.BuildTaggerEntityName(container.ID), tagger.ChecksCardinality()),
 		adIdentifiers: computeContainerServiceIDs(
 			containers.BuildEntityName(string(container.Runtime), container.ID),
 			containerImg.RawName,

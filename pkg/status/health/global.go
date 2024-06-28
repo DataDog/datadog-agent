@@ -12,7 +12,7 @@ import (
 
 var readinessAndLivenessCatalog = newCatalog()
 var readinessOnlyCatalog = newCatalog()
-var startupOnlyCatalog = newCatalog()
+var startupOnlyCatalog = newStartupCatalog()
 
 // RegisterReadiness registers a component for readiness check with the default 30 seconds timeout, returns a token
 func RegisterReadiness(name string) *Handle {
@@ -26,7 +26,6 @@ func RegisterLiveness(name string) *Handle {
 
 // RegisterStartup registers a component for startup check, returns a token
 func RegisterStartup(name string) *Handle {
-	startupOnlyCatalog.startup = true
 	return startupOnlyCatalog.register(name)
 }
 

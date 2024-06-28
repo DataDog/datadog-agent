@@ -111,7 +111,7 @@ func dogstatsdReplay(log log.Component, config config.Component, cliParams *cliP
 		InsecureSkipVerify: true,
 	})
 
-	apiconn, err := grpc.DialContext(
+	apiconn, err := grpc.DialContext( //nolint:staticcheck // TODO (ASC) fix grpc.DialContext is deprecated
 		ctx,
 		fmt.Sprintf(":%v", pkgconfig.Datadog().GetInt("cmd_port")),
 		grpc.WithTransportCredentials(creds),
