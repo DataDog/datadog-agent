@@ -11,9 +11,8 @@ github.com/client9/misspell v0.3.4/go.mod h1:qj6jICC3Q7zFZvVWo7KLAzC3yx5G7kyvSDk
 github.com/cncf/udpa/go v0.0.0-20191209042840-269d4d468f6f/go.mod h1:M8M6+tZqaGXZJjfX53e64911xZQV5JYwmTeXPW+k8Sc=
 github.com/cpuguy83/go-md2man/v2 v2.0.3/go.mod h1:tgQtvFlXSQOSOSIRvRPT7W67SCa46tRHOmNcaadrF8o=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
+github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
-github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc h1:U9qPSI2PIWSS1VwoXQT9A3Wy9MM3WgvqSxFWenqJduM=
-github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/envoyproxy/go-control-plane v0.9.0/go.mod h1:YTl/9mNaCwkRvm6d1a2C3ymFceY/DCBVvsKhRF0iEA4=
 github.com/envoyproxy/go-control-plane v0.9.1-0.20191026205805-5f8ba28d4473/go.mod h1:YTl/9mNaCwkRvm6d1a2C3ymFceY/DCBVvsKhRF0iEA4=
 github.com/envoyproxy/go-control-plane v0.9.4/go.mod h1:6rpuAdCZL397s3pYoYcLgu1mIlRU8Am5FuJP05cCM98=
@@ -95,9 +94,8 @@ github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd h1:TRLaZ9cD/w
 github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd/go.mod h1:6dJC0mAP4ikYIbvyc7fijjWJddQyLn8Ig3JB5CqoB9Q=
 github.com/modern-go/reflect2 v1.0.2 h1:xBagoLtFs94CBntxluKeaWgTMpvLxC4ur3nMaC9Gz0M=
 github.com/modern-go/reflect2 v1.0.2/go.mod h1:yWuevngMOJpCy52FWWMvUC8ws7m/LJsjYzDa0/r8luk=
+github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
-github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 h1:Jamvg5psRIccs7FGNTlIRMkT8wgtp5eCXdBlqhYGL6U=
-github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/power-devops/perfstat v0.0.0-20210106213030-5aafc221ea8c h1:ncq/mPwQF4JjgDlrVEn3C11VoGHZN7m8qihwgMEtzYw=
 github.com/power-devops/perfstat v0.0.0-20210106213030-5aafc221ea8c/go.mod h1:OmDBASR4679mdNQnz2pUhc2G8CO2JrUAVFDRBDP/hJE=
 github.com/prometheus/client_golang v1.19.1 h1:wZWJDwK+NameRJuPGDhlnFgx8e8HN3XHQeLaYJFJBOE=
@@ -147,14 +145,6 @@ go.opentelemetry.io/collector v0.103.0 h1:mssWo1y31p1F/SRsSBnVUX6YocgawCqM1blpE+
 go.opentelemetry.io/collector v0.103.0/go.mod h1:mgqdTFB7QCYiOeEdJSSEktovPqy+2fw4oTKJzyeSB0U=
 go.opentelemetry.io/collector/component v0.103.0 h1:j52YAsp8EmqYUotVUwhovkqFZGuxArEkk65V4TI46NE=
 go.opentelemetry.io/collector/component v0.103.0/go.mod h1:jKs19tGtCO8Hr5/YM0F+PoFcl8SVe/p4Ge30R6srkbc=
-go.opentelemetry.io/collector/config/configauth v0.103.0 h1:tv2Ilj0X9T8ZsDd4mB8Sl+nXQ8CG8MJVQ1Lo4mmE0Pk=
-go.opentelemetry.io/collector/config/configauth v0.103.0/go.mod h1:VIo8DpFeyOOCMUVoQsBdq3t2snUiBBECP0UxW1bwz/o=
-go.opentelemetry.io/collector/config/configcompression v1.10.0 h1:ClkAY1rzaxFawmC53BUf3TjTWKOGx+2xnpqOJIkg6Tk=
-go.opentelemetry.io/collector/config/configcompression v1.10.0/go.mod h1:6+m0GKCv7JKzaumn7u80A2dLNCuYf5wdR87HWreoBO0=
-go.opentelemetry.io/collector/config/confighttp v0.103.0 h1:tgCWMKuIorSr4+iQOv0A8Ya/8do73hiG5KHinWaz63Q=
-go.opentelemetry.io/collector/config/confighttp v0.103.0/go.mod h1:xMXoLsTGTJlftu+VAL3iadEs4gkmqFrvuPPnpNi6ETo=
-go.opentelemetry.io/collector/config/configopaque v1.10.0 h1:FAxj6ggLpJE/kFnR1ezYwjRdo6gHo2+CjlIsHVCFVnQ=
-go.opentelemetry.io/collector/config/configopaque v1.10.0/go.mod h1:0xURn2sOy5j4fbaocpEYfM97HPGsiffkkVudSPyTJlM=
 go.opentelemetry.io/collector/config/configauth v0.103.0 h1:tv2Ilj0X9T8ZsDd4mB8Sl+nXQ8CG8MJVQ1Lo4mmE0Pk=
 go.opentelemetry.io/collector/config/configauth v0.103.0/go.mod h1:VIo8DpFeyOOCMUVoQsBdq3t2snUiBBECP0UxW1bwz/o=
 go.opentelemetry.io/collector/config/configcompression v1.10.0 h1:ClkAY1rzaxFawmC53BUf3TjTWKOGx+2xnpqOJIkg6Tk=
