@@ -93,14 +93,12 @@ class GitlabCIDiff:
         """
         self.before = before
         self.after = after
-
-        # self.added = set()
-        # self.removed = set()
-        # self.modified = set()
         self.modified_diffs = {}
-        # self.renamed = set()
 
         self.make_diff()
+
+    def __bool__(self) -> bool:
+        return bool(self.added or self.removed or self.modified or self.renamed)
 
     def make_diff(self):
         """

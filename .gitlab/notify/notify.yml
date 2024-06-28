@@ -16,7 +16,12 @@ notify-on-tagged-success:
     *$CI_COMMIT_REF_NAME* is available in the staging repositories."
     postmessage "#agent-release-sync" "$MESSAGE_TEXT"
 
-notify:
+
+ah:
+  stage: notify
+  script: echo toto is real
+
+notify_renamed:
   extends: .slack-notifier-base
   stage: notify
   rules: !reference [.on_main_or_release_branch_or_deploy_always]

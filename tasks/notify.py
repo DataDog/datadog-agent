@@ -10,9 +10,12 @@ from invoke.exceptions import Exit
 
 import tasks.libs.notify.unit_tests as unit_tests_utils
 from tasks.libs.ciproviders.gitlab_api import (
+    GitlabCIDiff,
     get_gitlab_ci_configuration,
     print_gitlab_ci_configuration,
 )
+from tasks.libs.common.color import Color, color_message
+from tasks.libs.common.constants import DEFAULT_BRANCH
 from tasks.libs.common.datadog_api import send_metrics
 from tasks.libs.notify import alerts, failure_summary, pipeline_status
 from tasks.libs.notify.utils import PROJECT_NAME
@@ -164,3 +167,30 @@ def print_gitlab_ci(
 
     # Print
     print_gitlab_ci_configuration(yml, sort_jobs=sort)
+
+
+@task
+def gitlab_ci_diff(ctx, before: str | None = DEFAULT_BRANCH, current: str | None = None, pr_comment: bool = False):
+    """
+    Creates a diff from two gitlab-ci configurations.
+
+    - before: Git ref without new changes
+    - current: Git ref with new changes, None for current local configuration
+    - pr_comment: If True, post the diff as a comment in the PR
+    """
+    print('Getting current config')
+    current_config = get_gitlab_ci_configuration(ctx, git_ref=current)
+
+    print('Getting before config')
+    before_config = get_gitlab_ci_configuration(ctx, git_ref=before)
+
+    diff = GitlabCIDiff(before_config, current_config)
+
+    if not diff:
+        print(color_message("No changes in the gitlab-ci configuration", Color.GREEN))
+        return
+
+    # Display diff
+    print(diff.display(cli=True))
+
+    # todo: pr comment
