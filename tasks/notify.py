@@ -588,3 +588,106 @@ def process_unit_tests_tarballs(ctx):
                 )  # We remove -repacked to have a correct job name macos
 
     return jobs_with_no_tests_run
+
+
+# TODO
+@task
+def tst(_):
+    from difflib import Differ
+
+    import yaml
+
+    # a = """
+    # hello
+    # world
+    # !
+    # """.strip().splitlines()
+
+    # b = """
+    # bonjour
+    # !
+    # world
+    # """.strip().splitlines()
+
+    # diff = difflib.context_diff(a, b)
+    # sys.stdout.writelines(diff)
+
+    before = {
+        'job1': {
+            'script': 'echo "hello"',
+        },
+        'job2': {
+            'script': 'echo "world"',
+        },
+        'job3': {
+            'script': 'echo "!"',
+        },
+        'job4': {
+            'script': 'echo "?"',
+        },
+    }
+    after = {
+        'job1': {
+            'script': 'echo "bonjour"',
+        },
+        'job2_renamed': {
+            'script': 'echo "world"',
+        },
+        'job3': {
+            'script': 'echo "!"',
+        },
+        'job5': {
+            'script': 'echo "???"',
+        },
+    }
+
+    # Find added / removed jobs by names
+    unmoved = before.keys() & after.keys()
+    removed = before.keys() - unmoved
+    added = after.keys() - unmoved
+    renamed = set()
+
+    # Find jobs that have been renamed
+    for before_job in removed:
+        for after_job in added:
+            if before[before_job] == after[after_job]:
+                renamed.add((before_job, after_job))
+
+    for before_job, after_job in renamed:
+        removed.remove(before_job)
+        added.remove(after_job)
+
+    # Find modified jobs
+    modified = set()
+    for job in unmoved:
+        if before[job] != after[job]:
+            modified.add(job)
+
+    print('removed', removed)
+    print('added', added)
+    print('renamed', {f'{before} -> {after}' for before, after in renamed})
+    print('modified:')
+    differ = Differ()
+    for job in modified:
+        if before[job] == after[job]:
+            continue
+
+        print('*', job)
+
+        before_content = yaml.safe_dump(before[job], default_flow_style=False, sort_keys=True)
+        after_content = yaml.safe_dump(after[job], default_flow_style=False, sort_keys=True)
+
+        # print(before_content)
+        # print(after_content)
+
+        # diff = context_diff(before_content.splitlines(), after_content.splitlines(), fromfile='before', tofile='after')
+        # sys.stdout.writelines(diff)
+
+        before_content = before_content.splitlines()
+        after_content = after_content.splitlines()
+
+        diff = list(differ.compare(before_content, after_content))
+        # from pprint import pprint
+        # pprint(diff)
+        # print(diff)
+        print('\n'.join(diff))
