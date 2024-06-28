@@ -892,6 +892,7 @@ def kmt_sysprobe_prepare(
 
             for gobin in [
                 "gotls_client",
+                "gotls_server",
                 "grpc_external_server",
                 "external_unix_proxy_server",
                 "fmapper",

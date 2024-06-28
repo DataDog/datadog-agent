@@ -12,19 +12,20 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"sync"
 	"syscall"
 	"unsafe"
 
 	"go4.org/mem"
 	"golang.org/x/sys/unix"
+
+	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
 
 func init() {
 	osWalkShallow = linuxWalkShallow
 }
 
-var dirEntPool = &sync.Pool{New: func() any { return new(linuxDirEnt) }}
+var dirEntPool = ddsync.NewDefaultTypedPool[linuxDirEnt]()
 
 func linuxWalkShallow(dirName mem.RO, fn walkFunc) error {
 	const blockSize = 8 << 10
@@ -42,7 +43,7 @@ func linuxWalkShallow(dirName mem.RO, fn walkFunc) error {
 	bufp := 0 // starting read position in buf
 	nbuf := 0 // end valid data in buf
 
-	de := dirEntPool.Get().(*linuxDirEnt)
+	de := dirEntPool.Get()
 	defer de.cleanAndPutInPool()
 	de.root = dirName
 
