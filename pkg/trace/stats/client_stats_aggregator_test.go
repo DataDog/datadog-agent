@@ -37,14 +37,14 @@ func newTestAggregator() *ClientStatsAggregator {
 
 type noopStatsWriter struct{}
 
-func (noopStatsWriter) Add(*proto.StatsPayload) {}
+func (noopStatsWriter) Write(*proto.StatsPayload) {}
 
 type mockStatsWriter struct {
 	payloads []*proto.StatsPayload
 	mu       sync.Mutex
 }
 
-func (w *mockStatsWriter) Add(p *proto.StatsPayload) {
+func (w *mockStatsWriter) Write(p *proto.StatsPayload) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	w.payloads = append(w.payloads, p)

@@ -47,7 +47,7 @@ type mockStatsAdder struct {
 	out chan *pb.StatsPayload
 }
 
-func (msa *mockStatsAdder) Add(payload *pb.StatsPayload) {
+func (msa *mockStatsAdder) Write(payload *pb.StatsPayload) {
 	msa.out <- payload
 }
 

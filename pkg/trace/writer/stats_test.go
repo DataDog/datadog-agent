@@ -96,8 +96,8 @@ func TestStatsWriter(t *testing.T) {
 				}},
 			},
 		}
-		sw.Add(testSets[0])
-		sw.Add(testSets[1])
+		sw.Write(testSets[0])
+		sw.Write(testSets[1])
 		sw.Stop()
 		assertPayload(assert, testSets, srv.Payloads())
 	})
@@ -288,8 +288,8 @@ func TestStatsSyncWriter(t *testing.T) {
 				}},
 			},
 		}
-		sw.Add(testSets[0])
-		sw.Add(testSets[1])
+		sw.Write(testSets[0])
+		sw.Write(testSets[1])
 		err := sw.FlushSync()
 		assert.Nil(err)
 		assertPayload(assert, testSets, srv.Payloads())
@@ -324,8 +324,8 @@ func TestStatsSyncWriter(t *testing.T) {
 				}},
 			},
 		}
-		sw.Add(testSets[0])
-		sw.Add(testSets[1])
+		sw.Write(testSets[0])
+		sw.Write(testSets[1])
 		sw.Stop()
 		assertPayload(assert, testSets, srv.Payloads())
 	})
