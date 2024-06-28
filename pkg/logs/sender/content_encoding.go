@@ -31,10 +31,12 @@ func (c *identityContentType) encode(payload []byte) ([]byte, error) {
 	return payload, nil
 }
 
+// ZstdContentEncoding encodes the payload using zstd algorithm
 type ZstdContentEncoding struct {
 	level int
 }
 
+// NewZstdContentEncoding creates a new Zstd content type
 func NewZstdContentEncoding(level int) *ZstdContentEncoding {
 	return &ZstdContentEncoding{
 		level,

@@ -52,6 +52,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/telemetry v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/log v0.55.0-rc.3
+	github.com/DataDog/zstd v1.5.5
 	github.com/benbjohnson/clock v1.3.5
 	github.com/stretchr/testify v1.9.0
 )
