@@ -192,8 +192,8 @@ func (w *WebhookForCommands) Operations() []admiv1.OperationType {
 
 // LabelSelectors returns the label selectors that specify when the webhook
 // should be invoked
-func (w *WebhookForCommands) LabelSelectors(useNamespaceSelector bool) (namespaceSelector *metav1.LabelSelector, objectSelector *metav1.LabelSelector) {
-	return labelSelectors(useNamespaceSelector)
+func (w *WebhookForCommands) LabelSelectors(_ bool) (namespaceSelector *metav1.LabelSelector, objectSelector *metav1.LabelSelector) {
+	return nil, nil
 }
 
 // MutateFunc returns the function that mutates the resources
