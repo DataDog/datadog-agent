@@ -26,6 +26,7 @@ import (
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
 
 func writerTest(t *testing.T, z bool) {
@@ -45,11 +46,11 @@ func writerTest(t *testing.T, z bool) {
 
 	// register pools
 
-	manager := packets.NewPoolManager(packets.NewPool(cfg.GetInt("dogstatsd_buffer_size"), telemetryStore))
-	oobManager := packets.NewPoolManager(packets.NewPool(32, telemetryStore))
+	manager := packets.NewPoolManager[packets.Packet](packets.NewPool(cfg.GetInt("dogstatsd_buffer_size"), telemetryStore))
+	oobManager := packets.NewPoolManager[[]byte](ddsync.NewSlicePool[byte](32, 32))
 
-	writer.RegisterSharedPoolManager(manager)
-	writer.RegisterOOBPoolManager(oobManager)
+	require.NoError(t, writer.RegisterSharedPoolManager(manager))
+	require.NoError(t, writer.RegisterOOBPoolManager(oobManager))
 
 	var wg sync.WaitGroup
 	const (
@@ -74,7 +75,7 @@ func writerTest(t *testing.T, z bool) {
 
 			for i := 0; i < iterations; i++ {
 				buff := new(replay.CaptureBuffer)
-				pkt := manager.Get().(*packets.Packet)
+				pkt := manager.Get()
 				pkt.Buffer = []byte("foo.bar|5|#some:tag")
 				pkt.Source = packets.UDS
 				pkt.Contents = pkt.Buffer

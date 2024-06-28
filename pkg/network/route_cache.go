@@ -250,8 +250,8 @@ func (n *netlinkRouter) Route(source, dest util.Address, netns uint32) (Route, b
 
 	var iifIndex int
 
-	srcBuf := util.IPBufferPool.Get().(*[]byte)
-	dstBuf := util.IPBufferPool.Get().(*[]byte)
+	srcBuf := util.IPBufferPool.Get()
+	dstBuf := util.IPBufferPool.Get()
 	defer func() {
 		util.IPBufferPool.Put(srcBuf)
 		util.IPBufferPool.Put(dstBuf)

@@ -26,7 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
 )
 
-type udsListenerFactory func(packetOut chan packets.Packets, manager *packets.PoolManager, cfg config.Component, pidMap pidmap.Component, telemetryStore *TelemetryStore, packetsTelemetryStore *packets.TelemetryStore, telemetry telemetry.Component) (StatsdListener, error)
+type udsListenerFactory func(packetOut chan packets.Packets, manager *packets.PoolManager[packets.Packet], cfg config.Component, pidMap pidmap.Component, telemetryStore *TelemetryStore, packetsTelemetryStore *packets.TelemetryStore, telemetry telemetry.Component) (StatsdListener, error)
 
 func socketPathConfKey(transport string) string {
 	if transport == "unix" {
@@ -42,9 +42,9 @@ func testSocketPath(t *testing.T) string {
 	return path
 }
 
-func newPacketPoolManagerUDS(cfg config.Component, packetsTelemetryStore *packets.TelemetryStore) *packets.PoolManager {
+func newPacketPoolManagerUDS(cfg config.Component, packetsTelemetryStore *packets.TelemetryStore) *packets.PoolManager[packets.Packet] {
 	packetPoolUDS := packets.NewPool(cfg.GetInt("dogstatsd_buffer_size"), packetsTelemetryStore)
-	return packets.NewPoolManager(packetPoolUDS)
+	return packets.NewPoolManager[packets.Packet](packetPoolUDS)
 }
 
 func testFileExistsNewUDSListener(t *testing.T, socketPath string, cfg map[string]interface{}, listenerFactory udsListenerFactory) {

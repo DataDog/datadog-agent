@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
 
 var (
@@ -50,8 +51,8 @@ func init() {
 // Origin detection will be implemented for UDS.
 type UDSListener struct {
 	packetOut               chan packets.Packets
-	sharedPacketPoolManager *packets.PoolManager
-	oobPoolManager          *packets.PoolManager
+	sharedPacketPoolManager *packets.PoolManager[packets.Packet]
+	oobPoolManager          *packets.PoolManager[[]byte]
 	trafficCapture          replay.Component
 	pidMap                  pidmap.Component
 	OriginDetection         bool
@@ -126,19 +127,13 @@ func setSocketWriteOnly(socketPath string) error {
 }
 
 // NewUDSOobPoolManager returns an UDS OOB pool manager
-func NewUDSOobPoolManager() *packets.PoolManager {
-	pool := &sync.Pool{
-		New: func() interface{} {
-			s := make([]byte, getUDSAncillarySize())
-			return &s
-		},
-	}
-
-	return packets.NewPoolManager(pool)
+func NewUDSOobPoolManager() *packets.PoolManager[[]byte] {
+	pool := ddsync.NewSlicePool[byte](getUDSAncillarySize(), getUDSAncillarySize())
+	return packets.NewPoolManager[[]byte](pool)
 }
 
 // NewUDSListener returns an idle UDS Statsd listener
-func NewUDSListener(packetOut chan packets.Packets, sharedPacketPoolManager *packets.PoolManager, sharedOobPacketPoolManager *packets.PoolManager, cfg config.Reader, capture replay.Component, transport string, wmeta optional.Option[workloadmeta.Component], pidMap pidmap.Component, telemetryStore *TelemetryStore, packetsTelemetryStore *packets.TelemetryStore, telemetry telemetry.Component) (*UDSListener, error) {
+func NewUDSListener(packetOut chan packets.Packets, sharedPacketPoolManager *packets.PoolManager[packets.Packet], sharedOobPacketPoolManager *packets.PoolManager[[]byte], cfg config.Reader, capture replay.Component, transport string, wmeta optional.Option[workloadmeta.Component], pidMap pidmap.Component, telemetryStore *TelemetryStore, packetsTelemetryStore *packets.TelemetryStore, telemetry telemetry.Component) (*UDSListener, error) {
 	originDetection := cfg.GetBool("dogstatsd_origin_detection")
 
 	listener := &UDSListener{
@@ -230,7 +225,7 @@ func (l *UDSListener) handleConnection(conn *net.UnixConn, closeFunc CloseFuncti
 
 		// retrieve an available packet from the packet pool,
 		// which will be pushed back by the server when processed.
-		packet := l.sharedPacketPoolManager.Get().(*packets.Packet)
+		packet := l.sharedPacketPoolManager.Get()
 		udsPackets.Add(1)
 
 		var capBuff *replay.CaptureBuffer
@@ -246,7 +241,7 @@ func (l *UDSListener) handleConnection(conn *net.UnixConn, closeFunc CloseFuncti
 
 		if l.OriginDetection {
 			// Read datagram + credentials in ancillary data
-			oob = l.oobPoolManager.Get().(*[]byte)
+			oob = l.oobPoolManager.Get()
 			oobS = *oob
 		}
 

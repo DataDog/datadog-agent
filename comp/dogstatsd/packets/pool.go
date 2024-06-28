@@ -6,10 +6,9 @@
 package packets
 
 import (
-	"sync"
-
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
+	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
 
 // Pool wraps the sync.Pool class for *Packet type.
@@ -23,7 +22,7 @@ import (
 // Strings extracted with `string(Contents[n:m]) don't share the
 // origin []byte storage, so they will be unaffected.
 type Pool struct {
-	pool sync.Pool
+	pool *ddsync.TypedPool[Packet]
 	// telemetry
 	tlmEnabled       bool
 	packetsTelemetry *TelemetryStore
@@ -34,16 +33,14 @@ var usedByTestTelemetry = false
 // NewPool creates a new pool with a specified buffer size
 func NewPool(bufferSize int, packetsTelemetry *TelemetryStore) *Pool {
 	return &Pool{
-		pool: sync.Pool{
-			New: func() interface{} {
-				packet := &Packet{
-					Buffer: make([]byte, bufferSize),
-					Origin: NoOrigin,
-				}
-				packet.Contents = packet.Buffer[0:0]
-				return packet
-			},
-		},
+		pool: ddsync.NewTypedPool(func() *Packet {
+			packet := &Packet{
+				Buffer: make([]byte, bufferSize),
+				Origin: NoOrigin,
+			}
+			packet.Contents = packet.Buffer[0:0]
+			return packet
+		}),
 		// telemetry
 		tlmEnabled:       usedByTestTelemetry || utils.IsTelemetryEnabled(config.Datadog()),
 		packetsTelemetry: packetsTelemetry,
@@ -51,7 +48,7 @@ func NewPool(bufferSize int, packetsTelemetry *TelemetryStore) *Pool {
 }
 
 // Get gets a Packet object read for use.
-func (p *Pool) Get() interface{} {
+func (p *Pool) Get() *Packet {
 	if p.tlmEnabled {
 		p.packetsTelemetry.tlmPoolGet.Inc()
 		p.packetsTelemetry.tlmPool.Inc()
@@ -60,14 +57,12 @@ func (p *Pool) Get() interface{} {
 }
 
 // Put resets the Packet origin and puts it back in the pool.
-func (p *Pool) Put(x interface{}) {
-	if x == nil {
+func (p *Pool) Put(packet *Packet) {
+	if packet == nil {
 		return
 	}
 
-	// we don't really need the assertion of the user is sensible
-	packet, ok := x.(*Packet)
-	if ok && packet.Origin != NoOrigin {
+	if packet.Origin != NoOrigin {
 		packet.Origin = NoOrigin
 	}
 	if p.tlmEnabled {

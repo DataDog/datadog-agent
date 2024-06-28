@@ -15,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-func countPoolSize(p *PoolManager) int {
+func countPoolSize(p *PoolManager[Packet]) int {
 
 	i := 0
 	p.refs.Range(func(key, value interface{}) bool {
@@ -31,7 +31,7 @@ func TestPoolManager(t *testing.T) {
 	telemetryComponent := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
 	packetsTelemetryStore := NewTelemetryStore(nil, telemetryComponent)
 	pool := NewPool(1024, packetsTelemetryStore)
-	manager := NewPoolManager(pool)
+	manager := NewPoolManager[Packet](pool)
 
 	// passthru mode by default
 	assert.True(t, manager.IsPassthru())
@@ -64,19 +64,18 @@ func BenchmarkPoolManagerPassthru(b *testing.B) {
 	telemetryComponent := fxutil.Test[telemetry.Component](b, telemetryimpl.MockModule())
 	packetsTelemetryStore := NewTelemetryStore(nil, telemetryComponent)
 	pool := NewPool(1024, packetsTelemetryStore)
-	manager := NewPoolManager(pool)
+	manager := NewPoolManager[Packet](pool)
 
 	for i := 0; i < b.N; i++ {
 		packet := pool.Get()
 		manager.Put(packet)
 	}
 }
-
 func BenchmarkPoolManagerNoPassthru(b *testing.B) {
 	telemetryComponent := fxutil.Test[telemetry.Component](b, telemetryimpl.MockModule())
 	packetsTelemetryStore := NewTelemetryStore(nil, telemetryComponent)
 	pool := NewPool(1024, packetsTelemetryStore)
-	manager := NewPoolManager(pool)
+	manager := NewPoolManager[Packet](pool)
 
 	for i := 0; i < b.N; i++ {
 		packet := pool.Get()

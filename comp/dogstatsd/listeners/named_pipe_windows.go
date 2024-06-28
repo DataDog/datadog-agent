@@ -42,7 +42,7 @@ type NamedPipeListener struct {
 
 // NewNamedPipeListener returns an named pipe Statsd listener
 func NewNamedPipeListener(pipeName string, packetOut chan packets.Packets,
-	sharedPacketPoolManager *packets.PoolManager, cfg config.Reader, capture replay.Component, telemetryStore *TelemetryStore, packetsTelemetryStore *packets.TelemetryStore, telemetrycomp telemetry.Component) (*NamedPipeListener, error) {
+	sharedPacketPoolManager *packets.PoolManager[packets.Packet], cfg config.Reader, capture replay.Component, telemetryStore *TelemetryStore, packetsTelemetryStore *packets.TelemetryStore, telemetrycomp telemetry.Component) (*NamedPipeListener, error) {
 
 	bufferSize := cfg.GetInt("dogstatsd_buffer_size")
 	return newNamedPipeListener(

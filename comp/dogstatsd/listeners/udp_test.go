@@ -45,9 +45,9 @@ func fulfillDepsWithConfig(t testing.TB, overrides map[string]interface{}) liste
 	))
 }
 
-func newPacketPoolManagerUDP(cfg config.Component, packetsTelemetryStore *packets.TelemetryStore) *packets.PoolManager {
+func newPacketPoolManagerUDP(cfg config.Component, packetsTelemetryStore *packets.TelemetryStore) *packets.PoolManager[packets.Packet] {
 	packetPoolUDP := packets.NewPool(cfg.GetInt("dogstatsd_buffer_size"), packetsTelemetryStore)
-	return packets.NewPoolManager(packetPoolUDP)
+	return packets.NewPoolManager[packets.Packet](packetPoolUDP)
 }
 
 func TestNewUDPListener(t *testing.T) {

@@ -90,7 +90,7 @@ func testUDSOriginDetection(t *testing.T, network string) {
 	packetsTelemetryStore := packets.NewTelemetryStore(nil, telemetryComponent)
 	listenersTelemetryStore := listeners.NewTelemetryStore(nil, telemetryComponent)
 	sharedPacketPool := packets.NewPool(32, packetsTelemetryStore)
-	sharedPacketPoolManager := packets.NewPoolManager(sharedPacketPool)
+	sharedPacketPoolManager := packets.NewPoolManager[packets.Packet](sharedPacketPool)
 	var err error
 	var s listeners.StatsdListener
 	if network == "unixgram" {
