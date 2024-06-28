@@ -14,6 +14,7 @@ import (
 
 	logConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	json "github.com/json-iterator/go"
 
 	"github.com/DataDog/datadog-agent/pkg/serverless/executioncontext"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
@@ -25,6 +26,9 @@ import (
 const (
 	// The maximum number of logs that will be buffered during the init phase before the first invocation
 	maxBufferedLogs = 2000
+
+	// Bottlecap Failover
+	bottlecapFailoverReasonEnvVar = "DD_EXTENSION_FAILOVER_REASON"
 )
 
 // Tags contains the actual array of Tags (useful for passing it via reference)
@@ -279,6 +283,22 @@ func (lc *LambdaLogsCollector) processMessage(
 				outOfMemoryRequestId = lc.lastRequestID
 			}
 		}
+
+		// Bottlecap Failover
+		if message.logType == logTypeExtension {
+			var r map[string]interface{}
+			record := message.stringRecord
+			err := json.Unmarshal([]byte(record), &r)
+
+			if err == nil {
+				if reason, exist := r[bottlecapFailoverReasonEnvVar]; exist {
+					tags = append(tags, fmt.Sprintf("reason:%v", reason))
+					serverlessMetrics.SendFailoverReasonMetric(tags, lc.demux)
+					message.stringRecord = "" // Avoid sending the log to the intake
+				}
+			}
+		}
+
 		if message.logType == logTypePlatformReport {
 			memorySize := message.objectRecord.reportLogItem.memorySizeMB
 			memoryUsed := message.objectRecord.reportLogItem.maxMemoryUsedMB
