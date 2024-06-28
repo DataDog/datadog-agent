@@ -16,11 +16,13 @@ import (
 	"golang.org/x/exp/maps"
 
 	manager "github.com/DataDog/ebpf-manager"
+	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/rlimit"
 
 	"github.com/DataDog/datadog-agent/comp/updater/telemetry"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
+	gpuebpf "github.com/DataDog/datadog-agent/pkg/gpu/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -28,10 +30,15 @@ import (
 // TODO: Set a minimum kernel version
 var minimumKernelVersion = kernel.VersionCode(5, 0, 0)
 
+const (
+	cudaKernelLaunchMap = "cuda_kernel_launches"
+)
+
 // Probe represents the GPU monitoring probe
 type Probe struct {
-	mgr *ddebpf.Manager
-	cfg *Config
+	mgr      *ddebpf.Manager
+	cfg      *Config
+	consumer *gpuebpf.CudaLaunckKernelConsumer
 }
 
 // NewProbe starts the GPU monitoring probe
@@ -110,6 +117,18 @@ func startGPUProbe(buf bytecode.AssetReader, opts manager.Options, telemetryComp
 		Manager: &manager.Manager{},
 	}
 
+	if opts.MapSpecEditors == nil {
+		opts.MapSpecEditors = make(map[string]manager.MapSpecEditor)
+	}
+
+	opts.MapSpecEditors[cudaKernelLaunchMap] = manager.MapSpecEditor{
+		Type:       ebpf.RingBuf,
+		MaxEntries: 4096,
+		KeySize:    0,
+		ValueSize:  0,
+		EditorFlag: manager.EditType | manager.EditMaxEntries | manager.EditKeyValue,
+	}
+
 	uprobeToLibrary := map[string]string{
 		"uprobe_cudaLaunchKernel": "libcudart.so",
 	}
@@ -143,6 +162,19 @@ func startGPUProbe(buf bytecode.AssetReader, opts manager.Options, telemetryComp
 		return nil, err
 	}
 
+	handler := ddebpf.NewRingBufferHandler(4096)
+	rb := &manager.RingBuffer{
+		Map: manager.Map{Name: cudaKernelLaunchMap},
+		RingBufferOptions: manager.RingBufferOptions{
+			RingBufferSize: 4096,
+			RecordHandler:  handler.RecordHandler,
+			RecordGetter:   handler.RecordGetter,
+		},
+	}
+	mgr.RingBuffers = append(mgr.RingBuffers, rb)
+	consumer := gpuebpf.NewCudaLaunckKernelConsumer(handler)
+	consumer.Start()
+
 	if err := mgr.InitWithOptions(buf, &opts); err != nil {
 		return nil, fmt.Errorf("failed to init manager: %w", err)
 	}
@@ -154,14 +186,16 @@ func startGPUProbe(buf bytecode.AssetReader, opts manager.Options, telemetryComp
 	log.Infof("[gpu] GPU monitoring probe started, loaded %d probes", len(mgr.Probes))
 
 	return &Probe{
-		mgr: mgr,
-		cfg: cfg,
+		mgr:      mgr,
+		cfg:      cfg,
+		consumer: consumer,
 	}, nil
 }
 
 // Close stops the probe
 func (p *Probe) Close() {
 	_ = p.mgr.Stop(manager.CleanAll)
+	p.consumer.Stop()
 }
 
 // GetAndFlush returns the GPU stats
