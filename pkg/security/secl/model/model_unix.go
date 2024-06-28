@@ -437,8 +437,14 @@ type SetXAttrEvent struct {
 // UnlinkEvent represents an unlink event
 type UnlinkEvent struct {
 	SyscallEvent
+	SyscallContext
 	File  FileEvent `field:"file"`
 	Flags uint32    `field:"flags"` // SECLDoc[flags] Definition:`Flags of the unlink syscall` Constants:`Unlink flags`
+
+	// Syscall context aliases
+	SyscallDirFd uint64 `field:"syscall.dirfd,ref:unlink.syscall.int1"` // SECLDoc[syscall.dirfd] Definition:`Directory file descriptor argument of the syscall`
+	SyscallPath  string `field:"syscall.path,ref:unlink.syscall.str2"`  // SECLDoc[syscall.path] Definition:`Path argument of the syscall`
+	SyscallFlags uint64 `field:"syscall.flags,ref:unlink.syscall.int3"` // SECLDoc[syscall.flags] Definition:`Flags argument of the syscall`
 }
 
 // UmountEvent represents an umount event
