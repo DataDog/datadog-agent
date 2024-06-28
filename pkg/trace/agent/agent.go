@@ -91,7 +91,7 @@ type Agent struct {
 	ProbabilisticSampler  *sampler.ProbabilisticSampler
 	EventProcessor        *event.Processor
 	TraceWriter           TraceWriter
-	StatsWriter           *writer.StatsWriter
+	StatsWriter           *writer.DatadogStatsWriter
 	RemoteConfigHandler   *remoteconfighandler.RemoteConfigHandler
 	TelemetryCollector    telemetry.TelemetryCollector
 	DebugServer           *api.DebugServer

@@ -38,21 +38,21 @@ type TraceAgent struct {
 	exit chan struct{}
 }
 
-// OtelStatsAdder implements the trace-agent's `Adder` interface via an `out` channel
+// OtelStatsWriter implements the trace-agent's `stats.Writer` interface via an `out` channel
 // This provides backwards compatibility for otel components that do not yet use the latest agent version
 // where these channels have been dropped
-type OtelStatsAdder struct {
+type OtelStatsWriter struct {
 	out chan *pb.StatsPayload
 }
 
 // Add this payload to be written
-func (a *OtelStatsAdder) Add(payload *pb.StatsPayload) {
+func (a *OtelStatsWriter) Write(payload *pb.StatsPayload) {
 	a.out <- payload
 }
 
-// NewOTelStatsAdder makes an OtelStatsAdder that writes to the given `out` chan
-func NewOTelStatsAdder(out chan *pb.StatsPayload) *OtelStatsAdder {
-	return &OtelStatsAdder{out}
+// NewOTelStatsAdder makes an OtelStatsWriter that writes to the given `out` chan
+func NewOTelStatsAdder(out chan *pb.StatsPayload) *OtelStatsWriter {
+	return &OtelStatsWriter{out}
 }
 
 type noopTraceWriter struct{}

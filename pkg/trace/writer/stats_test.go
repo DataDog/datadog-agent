@@ -331,7 +331,7 @@ func TestStatsSyncWriter(t *testing.T) {
 	})
 }
 
-func testStatsWriter() (*StatsWriter, *testServer) {
+func testStatsWriter() (*DatadogStatsWriter, *testServer) {
 	srv := newTestServer()
 	cfg := &config.AgentConfig{
 		Endpoints:     []*config.Endpoint{{Host: srv.URL, APIKey: "123"}},
@@ -341,7 +341,7 @@ func testStatsWriter() (*StatsWriter, *testServer) {
 	return NewStatsWriter(cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}), srv
 }
 
-func testStatsSyncWriter() (*StatsWriter, *testServer) {
+func testStatsSyncWriter() (*DatadogStatsWriter, *testServer) {
 	srv := newTestServer()
 	cfg := &config.AgentConfig{
 		Endpoints:           []*config.Endpoint{{Host: srv.URL, APIKey: "123"}},
