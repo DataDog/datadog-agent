@@ -32,10 +32,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	runtimeCmd.AddCommand(networkNamespaceCommands(globalParams)...)
 	runtimeCmd.AddCommand(discardersCommands(globalParams)...)
 
-	// Deprecated
-	runtimeCmd.AddCommand(checkPoliciesCommands(globalParams)...)
-	runtimeCmd.AddCommand(reloadPoliciesCommands(globalParams)...)
-
 	return []*cobra.Command{runtimeCmd}
 }
 

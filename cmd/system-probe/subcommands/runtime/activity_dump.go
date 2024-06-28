@@ -46,7 +46,6 @@ type activityDumpCliParams struct {
 	localStorageCompression  bool
 	remoteStorageFormats     []string
 	remoteStorageCompression bool
-	remoteRequest            bool
 }
 
 func activityDumpCommands(globalParams *command.GlobalParams) []*cobra.Command {
@@ -269,12 +268,6 @@ func generateEncodingCommands(globalParams *command.GlobalParams) []*cobra.Comma
 		[]string{},
 		fmt.Sprintf("remote storage output formats. Available options are %v.", secconfig.AllStorageFormats()),
 	)
-	activityDumpGenerateEncodingCmd.Flags().BoolVar(
-		&cliParams.remoteRequest,
-		"remote",
-		false,
-		"when set, the transcoding will be done by system-probe instead of the current security-agent instance",
-	)
 
 	return []*cobra.Command{activityDumpGenerateEncodingCmd}
 }
@@ -489,66 +482,42 @@ func generateActivityDump(_ log.Component, _ config.Component, _ secrets.Compone
 func generateEncodingFromActivityDump(_ log.Component, _ config.Component, _ secrets.Component, activityDumpArgs *activityDumpCliParams) error {
 	var output *api.TranscodingRequestMessage
 
-	if activityDumpArgs.remoteRequest {
-		// send the encoding request to system-probe
-		client, err := secagent.NewRuntimeSecurityClient()
-		if err != nil {
-			return fmt.Errorf("encoding generation failed: %w", err)
-		}
-		defer client.Close()
+	// encoding request will be handled locally
+	ad := dump.NewEmptyActivityDump(nil)
 
-		// parse encoding request
-		storage, err := parseStorageRequest(activityDumpArgs)
-		if err != nil {
-			return err
-		}
-
-		output, err = client.GenerateEncoding(&api.TranscodingRequestParams{
-			ActivityDumpFile: activityDumpArgs.file,
-			Storage:          storage,
-		})
-		if err != nil {
-			return fmt.Errorf("couldn't send request to system-probe: %w", err)
-		}
-
-	} else {
-		// encoding request will be handled locally
-		ad := dump.NewEmptyActivityDump(nil)
-
-		// open and parse input file
-		if err := ad.Decode(activityDumpArgs.file); err != nil {
-			return err
-		}
-		parsedRequests, err := parseStorageRequest(activityDumpArgs)
-		if err != nil {
-			return err
-		}
-
-		storageRequests, err := secconfig.ParseStorageRequests(parsedRequests)
-		if err != nil {
-			return fmt.Errorf("couldn't parse transcoding request for [%s]: %v", ad.GetSelectorStr(), err)
-		}
-		for _, request := range storageRequests {
-			ad.AddStorageRequest(request)
-		}
-
-		cfg, err := secconfig.NewConfig()
-		if err != nil {
-			return fmt.Errorf("couldn't load configuration: %w", err)
-
-		}
-		storage, err := dump.NewAgentCommandStorageManager(cfg)
-		if err != nil {
-			return fmt.Errorf("couldn't instantiate storage manager: %w", err)
-		}
-
-		err = storage.Persist(ad)
-		if err != nil {
-			return fmt.Errorf("couldn't persist dump from %s: %w", activityDumpArgs.file, err)
-		}
-
-		output = ad.ToTranscodingRequestMessage()
+	// open and parse input file
+	if err := ad.Decode(activityDumpArgs.file); err != nil {
+		return err
 	}
+	parsedRequests, err := parseStorageRequest(activityDumpArgs)
+	if err != nil {
+		return err
+	}
+
+	storageRequests, err := secconfig.ParseStorageRequests(parsedRequests)
+	if err != nil {
+		return fmt.Errorf("couldn't parse transcoding request for [%s]: %v", ad.GetSelectorStr(), err)
+	}
+	for _, request := range storageRequests {
+		ad.AddStorageRequest(request)
+	}
+
+	cfg, err := secconfig.NewConfig()
+	if err != nil {
+		return fmt.Errorf("couldn't load configuration: %w", err)
+
+	}
+	storage, err := dump.NewAgentCommandStorageManager(cfg)
+	if err != nil {
+		return fmt.Errorf("couldn't instantiate storage manager: %w", err)
+	}
+
+	err = storage.Persist(ad)
+	if err != nil {
+		return fmt.Errorf("couldn't persist dump from %s: %w", activityDumpArgs.file, err)
+	}
+
+	output = ad.ToTranscodingRequestMessage()
 
 	if len(output.GetError()) > 0 {
 		return fmt.Errorf("encoding generation failed: %s", output.GetError())
