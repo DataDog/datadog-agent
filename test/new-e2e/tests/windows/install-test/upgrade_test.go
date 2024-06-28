@@ -35,7 +35,7 @@ func (s *testUpgradeSuite) TestUpgrade() {
 	vm := s.Env().RemoteHost
 
 	// install previous version
-	_ = s.installAndTestPreviousAgentVersion(vm, s.previousAgentPackge)
+	s.installAndTestPreviousAgentVersion(vm, s.previousAgentPackge)
 
 	// simulate upgrading from a version that didn't have the runtime-security.d directory
 	// to ensure upgrade places new config files.
@@ -81,7 +81,7 @@ func (s *testUpgradeRollbackSuite) TestUpgradeRollback() {
 	vm := s.Env().RemoteHost
 
 	// install previous version
-	previousTester := s.installLastStable(vm)
+	previousAgentPackage := s.installAndTestLastStable(vm)
 
 	// upgrade to the new version, but intentionally fail
 	if !s.Run(fmt.Sprintf("upgrade to %s with rollback", s.AgentPackage.AgentVersion()), func() {
@@ -101,11 +101,9 @@ func (s *testUpgradeRollbackSuite) TestUpgradeRollback() {
 	s.Require().NoError(err, "agent service should start after rollback")
 
 	// the previous version should be functional
-	if !previousTester.TestInstallExpectations(s.T()) {
-		s.T().FailNow()
-	}
+	RequireAgentVersionRunningWithNoErrors(s.T(), s.NewTestClientForHost(vm), previousAgentPackage.AgentVersion())
 
-	s.uninstallAgentAndRunUninstallTests(previousTester)
+	s.uninstallAgent()
 }
 
 func TestUpgradeChangeUser(t *testing.T) {
@@ -125,7 +123,7 @@ func (s *testUpgradeChangeUserSuite) TestUpgradeChangeUser() {
 	s.Require().NotEqual(oldUserName, newUserName, "new user name should be different from the default")
 
 	// install previous version with defaults
-	_ = s.installLastStable(host)
+	s.installAndTestLastStable(host)
 
 	// upgrade to the new version
 	if !s.Run(fmt.Sprintf("upgrade to %s", s.AgentPackage.AgentVersion()), func() {

@@ -35,8 +35,7 @@ type Tester struct {
 	host              *components.RemoteHost
 	InstallTestClient *common.TestClient
 
-	agentPackage      *windowsAgent.Package
-	isPreviousVersion bool
+	agentPackage *windowsAgent.Package
 
 	expectedUserName   string
 	expectedUserDomain string
@@ -106,14 +105,6 @@ func WithAgentPackage(agentPackage *windowsAgent.Package) TesterOption {
 		t.agentPackage = agentPackage
 		t.expectedAgentVersion = agentPackage.AgentVersion()
 		t.expectedAgentMajorVersion = strings.Split(t.expectedAgentVersion, ".")[0]
-	}
-}
-
-// WithPreviousVersion sets the Tester to expect a previous version of the agent to be installed
-// and will not run all tests since expectations may have changed.
-func WithPreviousVersion() TesterOption {
-	return func(t *Tester) {
-		t.isPreviousVersion = true
 	}
 }
 
@@ -260,25 +251,6 @@ func (t *Tester) TestUninstallExpectations(tt *testing.T) {
 			tt.Skip("WINA-852: skipping known failure, install rollback leaves different permissions behind")
 		}
 		t.testUninstalledFilePermissions(tt)
-	})
-}
-
-// Only do some basic checks on the agent since it's a previous version
-func (t *Tester) testPreviousVersionExpectations(tt *testing.T) {
-	RequireAgentRunningWithNoErrors(tt, t.InstallTestClient)
-
-	serviceTester, err := servicetest.NewTester(t.host,
-		servicetest.WithExpectedAgentUser(t.expectedUserDomain, t.expectedUserName),
-		servicetest.WithExpectedInstallPath(t.expectedInstallPath),
-		servicetest.WithExpectedConfigRoot(t.expectedConfigRoot),
-	)
-	require.NoError(tt, err)
-	tt.Run("service config", func(tt *testing.T) {
-		actual, err := windows.GetServiceConfigMap(t.host, servicetest.ExpectedInstalledServices())
-		require.NoError(tt, err)
-		expected, err := serviceTester.ExpectedServiceConfig()
-		require.NoError(tt, err)
-		servicetest.AssertEqualServiceConfigValues(tt, expected, actual)
 	})
 }
 
@@ -597,10 +569,6 @@ func (t *Tester) TestInstallExpectations(tt *testing.T) bool {
 		}) {
 			tt.FailNow()
 		}
-		if t.isPreviousVersion {
-			t.testPreviousVersionExpectations(tt)
-		} else {
-			t.testCurrentVersionExpectations(tt)
-		}
+		t.testCurrentVersionExpectations(tt)
 	})
 }
