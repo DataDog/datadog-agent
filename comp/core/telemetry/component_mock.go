@@ -12,7 +12,7 @@ import (
 	sdk "go.opentelemetry.io/otel/sdk/metric"
 )
 
-// Metrcis interface defines the retrival functions to extract information from a metric
+// Metric interface defines the retrival functions to extract information from a metric
 type Metric interface {
 	Labels() map[string]string
 	Value() float64
