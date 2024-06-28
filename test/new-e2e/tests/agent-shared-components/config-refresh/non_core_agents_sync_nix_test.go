@@ -54,7 +54,7 @@ func (v *configRefreshLinuxSuite) TestConfigRefresh() {
 		"ProcessCmdPort":           processCmdPort,
 		"SecurityCmdPort":          securityCmdPort,
 		"AgentIpcPort":             agentIpcPort,
-		"SecretBackendCommandAllowGroupExecPermOption": "secret_backend_command_allow_group_exec_perm: true",
+		"SecretBackendCommandAllowGroupExecPermOption": "true",
 	}
 	coreconfig := fillTmplConfig(v.T(), coreConfigTmpl, templateVars)
 
