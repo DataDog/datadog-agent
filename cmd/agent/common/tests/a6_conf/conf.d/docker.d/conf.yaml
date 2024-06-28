@@ -12,4 +12,5 @@ instances:
   filtered_event_types: []
   capped_metrics: {}
   unbundle_events: false
+  bundle_unspecified_events: false
   collected_event_types: []

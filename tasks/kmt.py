@@ -60,8 +60,8 @@ from tasks.system_probe import (
 )
 
 if TYPE_CHECKING:
-    from tasks.kernel_matrix_testing.types import (  # noqa: F401
-        Component,
+    from tasks.kernel_matrix_testing.types import (
+        Component,  # noqa: F401
         DependenciesLayout,
         KMTArchNameOrLocal,
         PathOrStr,
@@ -892,6 +892,7 @@ def kmt_sysprobe_prepare(
 
             for gobin in [
                 "gotls_client",
+                "gotls_server",
                 "grpc_external_server",
                 "external_unix_proxy_server",
                 "fmapper",

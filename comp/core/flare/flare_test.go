@@ -27,7 +27,7 @@ import (
 func TestFlareCreation(t *testing.T) {
 	realProvider := func(fb types.FlareBuilder) error { return nil }
 
-	f, _ := newFlare(
+	f := newFlare(
 		fxutil.Test[dependencies](
 			t,
 			logimpl.MockModule(),
