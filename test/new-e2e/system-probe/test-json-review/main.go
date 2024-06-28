@@ -11,34 +11,54 @@ package main
 import (
 	"bufio"
 	"encoding/json"
+	"flag"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"strings"
 	"time"
 
 	"github.com/fatih/color"
+
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
+)
+
+var flakyTestFile string
+
+const (
+	flakyFormat = "FLAKY: %s %s\n"
+	failFormat  = "FAIL: %s %s\n"
+	rerunFormat = "re-ran %s %s: %s\n"
 )
 
 func init() {
 	color.NoColor = false
+	flag.StringVar(&flakyTestFile, "flakes", "", "Path to flaky test file")
 }
 
 func main() {
-	failedTests, err := reviewTests("/ci-visibility/testjson/out.json")
+	flag.Parse()
+	out, err := reviewTests("/ci-visibility/testjson/out.json", flakyTestFile)
 	if err != nil {
 		log.Fatal(err)
 	}
-	if failedTests != "" {
-		fmt.Println(color.RedString(failedTests))
-	} else {
+	if out.ReRuns != "" {
+		fmt.Println(out.ReRuns)
+	}
+	if out.Failed == "" && out.Flaky == "" {
 		fmt.Println(color.GreenString("All tests passed."))
 		return
 	}
-
-	// We want to make sure the exit code is correctly set to
-	// failed here, so that the CI job also fails.
-	os.Exit(1)
+	if out.Flaky != "" {
+		fmt.Println(color.YellowString(out.Flaky))
+	}
+	if out.Failed != "" {
+		fmt.Println(color.RedString(out.Failed))
+		// We want to make sure the exit code is correctly set to
+		// failed here, so that the CI job also fails.
+		os.Exit(1)
+	}
 }
 
 type testEvent struct {
@@ -54,13 +74,42 @@ func testKey(test, pkg string) string {
 	return fmt.Sprintf("%s/%s", test, pkg)
 }
 
-func reviewTests(jsonFile string) (string, error) {
-	var failedTests strings.Builder
+type reviewOutput struct {
+	Failed string
+	ReRuns string
+	Flaky  string
+}
+
+func reviewTests(jsonFile string, flakyFile string) (*reviewOutput, error) {
 	jf, err := os.Open(jsonFile)
 	if err != nil {
-		return "", fmt.Errorf("open %s: %s", jsonFile, err)
+		return nil, fmt.Errorf("open %s: %s", jsonFile, err)
 	}
 	defer jf.Close()
+
+	var ff io.ReadCloser
+	if flakyFile != "" {
+		ff, err = os.Open(flakyFile)
+		if err != nil {
+			return nil, fmt.Errorf("open %s: %s", flakyFile, err)
+		}
+		defer ff.Close()
+	}
+	return reviewTestsReaders(jf, ff)
+}
+
+func reviewTestsReaders(jf io.Reader, ff io.Reader) (*reviewOutput, error) {
+	var failedTests, flakyTests, rerunTests strings.Builder
+	var kf *flake.KnownFlakyTests
+	var err error
+	if ff != nil {
+		kf, err = flake.Parse(ff)
+		if err != nil {
+			return nil, fmt.Errorf("parse flakes.yaml: %s", err)
+		}
+	} else {
+		kf = &flake.KnownFlakyTests{}
+	}
 
 	scanner := bufio.NewScanner(jf)
 	testResults := make(map[string]testEvent)
@@ -68,9 +117,15 @@ func reviewTests(jsonFile string) (string, error) {
 		var ev testEvent
 		data := scanner.Bytes()
 		if err := json.Unmarshal(data, &ev); err != nil {
-			return "", fmt.Errorf("json unmarshal `%s`: %s", string(data), err)
+			return nil, fmt.Errorf("json unmarshal `%s`: %s", string(data), err)
 		}
-		if ev.Test == "" || (ev.Action != "pass" && ev.Action != "fail") {
+		if ev.Test == "" {
+			continue
+		}
+		if ev.Action == "output" && flake.HasFlakyTestMarker(ev.Output) {
+			kf.Add(ev.Package, ev.Test)
+		}
+		if ev.Action != "pass" && ev.Action != "fail" {
 			continue
 		}
 		if res, ok := testResults[testKey(ev.Test, ev.Package)]; ok {
@@ -80,8 +135,9 @@ func reviewTests(jsonFile string) (string, error) {
 				continue
 			}
 			if res.Action == "fail" {
-				fmt.Printf("re-ran %s %s: %s\n", ev.Package, ev.Test, ev.Action)
+				rerunTests.WriteString(fmt.Sprintf(rerunFormat, ev.Package, ev.Test, ev.Action))
 			}
+			// overwrite previously failed result
 			if res.Action == "fail" && ev.Action == "pass" {
 				testResults[testKey(ev.Test, ev.Package)] = ev
 			}
@@ -90,14 +146,22 @@ func reviewTests(jsonFile string) (string, error) {
 		}
 	}
 	if err := scanner.Err(); err != nil {
-		return "", fmt.Errorf("json line scan: %s", err)
+		return nil, fmt.Errorf("json line scan: %s", err)
 	}
 
 	for _, ev := range testResults {
 		if ev.Action == "fail" {
-			failedTests.WriteString(fmt.Sprintf("FAIL: %s %s\n", ev.Package, ev.Test))
+			if kf.IsFlaky(ev.Package, ev.Test) {
+				flakyTests.WriteString(fmt.Sprintf(flakyFormat, ev.Package, ev.Test))
+			} else {
+				failedTests.WriteString(fmt.Sprintf(failFormat, ev.Package, ev.Test))
+			}
 		}
 	}
 
-	return failedTests.String(), nil
+	return &reviewOutput{
+		Failed: failedTests.String(),
+		ReRuns: rerunTests.String(),
+		Flaky:  flakyTests.String(),
+	}, nil
 }

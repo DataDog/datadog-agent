@@ -89,7 +89,7 @@ func TestGetLibListFromDeploymentAnnotations(t *testing.T) {
 		logimpl.MockModule(),
 		config.MockModule(),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmetafxmock.MockModuleV2(),
+		workloadmetafxmock.MockModule(),
 	))
 
 	//java, js, python, dotnet, ruby

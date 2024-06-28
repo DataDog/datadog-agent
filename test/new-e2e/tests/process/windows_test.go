@@ -26,6 +26,7 @@ type windowsTestSuite struct {
 }
 
 func TestWindowsTestSuite(t *testing.T) {
+	t.Parallel()
 	e2e.Run(t, &windowsTestSuite{},
 		e2e.WithProvisioner(
 			awshost.Provisioner(
@@ -113,6 +114,11 @@ func (s *windowsTestSuite) TestProcessCheckIO() {
 }
 
 func (s *windowsTestSuite) TestManualProcessCheck() {
+	s.T().Skip("skipping due to flakiness")
+	// Skipping due to flakiness
+	// Responses with more than 100 processes end up being chunked, which fails JSON unmarshalling
+	// Fix tracked in https://datadoghq.atlassian.net/browse/PROCS-3613
+
 	check := s.Env().RemoteHost.
 		MustExecute("& \"C:\\Program Files\\Datadog\\Datadog Agent\\bin\\agent\\process-agent.exe\" check process --json")
 
@@ -120,8 +126,10 @@ func (s *windowsTestSuite) TestManualProcessCheck() {
 }
 
 func (s *windowsTestSuite) TestManualProcessDiscoveryCheck() {
+	s.T().Skip("skipping due to flakiness")
 	// Skipping due to flakiness
 	// Responses with more than 100 processes end up being chunked, which fails JSON unmarshalling
+	// Fix tracked in https://datadoghq.atlassian.net/browse/PROCS-3613
 
 	check := s.Env().RemoteHost.
 		MustExecute("& \"C:\\Program Files\\Datadog\\Datadog Agent\\bin\\agent\\process-agent.exe\" check process_discovery --json")

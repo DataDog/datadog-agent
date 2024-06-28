@@ -35,14 +35,8 @@ select = [
     "W",
 ]
 ignore = [
-    # - style options: E501
-    # - Unnecessary dict call: C408
-    # - complex-structure : C901
-    # - raise-without-from-inside-except: B904
-    "E501",
-    "C408",
-    "C901",
-    "B904",
+    "E501", # line-too-long
+    "C901", # complex-structure
     "UP033", # Ignore the lru_cache for now
     "UP017", # Ignore datetime.UTC for now
 ]
@@ -57,3 +51,22 @@ ban-relative-imports = "all"
 [tool.ruff.format]
 # Enable preview style formatting.
 quote-style = "preserve"
+
+[tool.mypy]
+# Follows imports and type-check imported modules.
+follow_imports = "normal"
+# Ignore errors about imported packages that don't provide type hints.
+ignore_missing_imports = true
+# Don't require that all functions be annotated, as it would create
+# a lot of noise for imported modules that aren't annotated yet.
+# Note that this is the default behavior, but we're making our choice explicit here.
+disallow_untyped_defs = false
+# Include column numbers in errors.
+show_column_numbers = true
+# Exclude unit tests for now
+exclude = ['tasks/unit-tests']
+
+[tool.vulture]
+ignore_decorators = ["@task"]
+ignore_names = ["test_*", "Test*"]
+paths = ["tasks"]

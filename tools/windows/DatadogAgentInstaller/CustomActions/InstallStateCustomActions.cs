@@ -160,6 +160,13 @@ namespace Datadog.CustomActions
             return new InstallStateCustomActions(new SessionWrapper(session)).ReadInstallState();
         }
 
+        [CustomAction]
+        public static ActionResult ReadWindowsVersion(Session session)
+        {
+            new InstallStateCustomActions(new SessionWrapper(session)).GetWindowsBuildVersion();
+            return ActionResult.Success;
+        }
+
         /// <summary>
         /// Deferred custom action that stores properties in the registry
         /// </summary>

@@ -78,8 +78,6 @@ func (l *LoadConfig) Load() (*config.AgentConfig, error) {
 	c, err := compcorecfg.NewServerlessConfig(l.Path)
 	if err != nil {
 		return nil, err
-	} else if c == nil {
-		return nil, fmt.Errorf("No error, but no configuration component was produced - bailing out")
 	}
 	return comptracecfg.LoadConfigFile(l.Path, c)
 }

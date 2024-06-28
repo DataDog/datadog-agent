@@ -4,6 +4,7 @@ go 1.21.0
 
 replace (
 	github.com/DataDog/datadog-agent/cmd/agent/common/path => ../../../cmd/agent/common/path
+	github.com/DataDog/datadog-agent/comp/api/api/def => ../../api/api/def
 	github.com/DataDog/datadog-agent/comp/core/config => ../../core/config
 	github.com/DataDog/datadog-agent/comp/core/flare/builder => ../../core/flare/builder
 	github.com/DataDog/datadog-agent/comp/core/flare/types => ../../core/flare/types
@@ -38,6 +39,8 @@ require (
 )
 
 require (
+	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.55.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/comp/core/flare/types v0.55.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets v0.55.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/comp/def v0.55.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.55.0-rc.3 // indirect
@@ -82,7 +85,7 @@ require (
 	github.com/tklauser/numcpus v0.6.1 // indirect
 	github.com/yusufpapurcu/wmi v1.2.3 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
-	go.uber.org/dig v1.17.0 // indirect
+	go.uber.org/dig v1.17.1 // indirect
 	go.uber.org/multierr v1.10.0 // indirect
 	go.uber.org/zap v1.26.0 // indirect
 	golang.org/x/exp v0.0.0-20240222234643-814bf88cf225 // indirect

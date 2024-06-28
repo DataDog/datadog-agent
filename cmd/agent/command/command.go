@@ -34,6 +34,9 @@ type GlobalParams struct {
 	// file, to allow overrides from the command line
 	ConfFilePath string
 
+	// ExtraConfFilePath represents the paths to additional configuration files.
+	ExtraConfFilePath []string
+
 	// SysProbeConfFilePath holds the path to the folder containing the system-probe
 	// configuration file, to allow overrides from the command line
 	SysProbeConfFilePath string
@@ -52,7 +55,7 @@ type SubcommandFactory func(globalParams *GlobalParams) []*cobra.Command
 // without secrets and logger disabled).
 func GetDefaultCoreBundleParams(globalParams *GlobalParams) core.BundleParams {
 	return core.BundleParams{
-		ConfigParams: config.NewAgentParams(globalParams.ConfFilePath),
+		ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(globalParams.ExtraConfFilePath)),
 		LogParams:    logimpl.ForOneShot(LoggerName, "off", true)}
 }
 
@@ -77,6 +80,7 @@ monitoring and performance data.`,
 	}
 
 	agentCmd.PersistentFlags().StringVarP(&globalParams.ConfFilePath, "cfgpath", "c", "", "path to directory containing datadog.yaml")
+	agentCmd.PersistentFlags().StringArrayVarP(&globalParams.ExtraConfFilePath, "extracfgpath", "E", []string{}, "specify additional configuration files to be loaded sequentially after the main datadog.yaml")
 	agentCmd.PersistentFlags().StringVarP(&globalParams.SysProbeConfFilePath, "sysprobecfgpath", "", "", "path to directory containing system-probe.yaml")
 
 	// github.com/fatih/color sets its global color.NoColor to a default value based on
