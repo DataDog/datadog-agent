@@ -695,7 +695,6 @@ func TestSubscribe(t *testing.T) {
 
 			<-doneCh
 			assert.Equal(t, tt.expected, actual)
-			assert.Equal(t, tt.expected, actual)
 		})
 	}
 }
