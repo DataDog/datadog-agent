@@ -2201,6 +2201,7 @@ func bindEnvAndSetLogsConfigKeys(config pkgconfigmodel.Config, prefix string) {
 	config.BindEnv(prefix + "dd_url")
 	config.BindEnv(prefix + "additional_endpoints")
 	config.BindEnvAndSetDefault(prefix+"use_compression", true)
+	config.BindEnvAndSetDefault(prefix+"compression_kind", "gzip")
 	config.BindEnvAndSetDefault(prefix+"compression_level", 6) // Default level for the gzip/deflate algorithm
 	config.BindEnvAndSetDefault(prefix+"batch_wait", DefaultBatchWait)
 	config.BindEnvAndSetDefault(prefix+"connection_reset_interval", 0) // in seconds, 0 means disabled

@@ -408,7 +408,11 @@ func newHTTPPassthroughPipeline(coreConfig pkgconfig.Reader, eventPlatformReceiv
 
 	encoder := sender.IdentityContentType
 	if endpoints.Main.UseCompression {
-		encoder = sender.NewGzipContentEncoding(endpoints.Main.CompressionLevel)
+		if endpoints.Main.CompressionKind == "zstd" {
+			encoder = sender.NewZstdContentEncoding(endpoints.Main.CompressionLevel)
+		} else {
+			encoder = sender.NewGzipContentEncoding(endpoints.Main.CompressionLevel)
+		}
 	}
 
 	var strategy sender.Strategy
