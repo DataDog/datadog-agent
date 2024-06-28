@@ -53,7 +53,4 @@ def set_buildtags(
     use_tags = get_build_tags(build_include, build_exclude)
 
     with open(".dir-locals.el", "w") as f:
-        f.write(f'((go-mode . ((lsp-go-build-flags . ["-tags", "{",".join(sorted(use_tags))}"])\n')
-        f.write(
-            '             (eval . (lsp-register-custom-settings \'(("gopls.allowImplicitNetworkAccess" t t)))))))\n'
-        )
+        f.write(f'((go-mode . ((lsp-go-build-flags . ["-tags" "{",".join(sorted(use_tags))}"]))))\n')
