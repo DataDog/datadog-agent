@@ -17,8 +17,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
@@ -41,7 +41,6 @@ type apiServer struct {
 	capture           replay.Component
 	pidMap            pidmap.Component
 	secretResolver    secrets.Component
-	statusComponent   status.Component
 	rcService         optional.Option[rcservice.Component]
 	rcServiceMRF      optional.Option[rcservicemrf.Component]
 	authToken         authtoken.Component
@@ -51,6 +50,7 @@ type apiServer struct {
 	wmeta             workloadmeta.Component
 	collector         optional.Option[collector.Component]
 	senderManager     diagnosesendermanager.Component
+	telemetry         telemetry.Component
 	endpointProviders []api.EndpointProvider
 }
 
@@ -61,7 +61,6 @@ type dependencies struct {
 	Capture               replay.Component
 	PidMap                pidmap.Component
 	SecretResolver        secrets.Component
-	StatusComponent       status.Component
 	RcService             optional.Option[rcservice.Component]
 	RcServiceMRF          optional.Option[rcservicemrf.Component]
 	AuthToken             authtoken.Component
@@ -71,6 +70,7 @@ type dependencies struct {
 	WorkloadMeta          workloadmeta.Component
 	Collector             optional.Option[collector.Component]
 	DiagnoseSenderManager diagnosesendermanager.Component
+	Telemetry             telemetry.Component
 	EndpointProviders     []api.EndpointProvider `group:"agent_endpoint"`
 }
 
@@ -82,7 +82,6 @@ func newAPIServer(deps dependencies) api.Component {
 		capture:           deps.Capture,
 		pidMap:            deps.PidMap,
 		secretResolver:    deps.SecretResolver,
-		statusComponent:   deps.StatusComponent,
 		rcService:         deps.RcService,
 		rcServiceMRF:      deps.RcServiceMRF,
 		authToken:         deps.AuthToken,
@@ -92,6 +91,7 @@ func newAPIServer(deps dependencies) api.Component {
 		wmeta:             deps.WorkloadMeta,
 		collector:         deps.Collector,
 		senderManager:     deps.DiagnoseSenderManager,
+		telemetry:         deps.Telemetry,
 		endpointProviders: fxutil.GetAndFilterGroup(deps.EndpointProviders),
 	}
 }
@@ -109,10 +109,10 @@ func (server *apiServer) StartServer() error {
 		server.logsAgentComp,
 		server.senderManager,
 		server.secretResolver,
-		server.statusComponent,
 		server.collector,
 		server.autoConfig,
 		server.endpointProviders,
+		server.telemetry,
 	)
 }
 

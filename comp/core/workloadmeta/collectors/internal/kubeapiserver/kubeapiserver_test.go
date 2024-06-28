@@ -9,17 +9,18 @@ package kubeapiserver
 
 import (
 	"reflect"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/fx"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	fakediscovery "k8s.io/client-go/discovery/fake"
 	fakeclientset "k8s.io/client-go/kubernetes/fake"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestStoreGenerators(t *testing.T) {
@@ -88,22 +89,22 @@ func TestStoreGenerators(t *testing.T) {
 	// Run test for each testcase
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
-			for k, v := range tt.cfg {
-				cfg.SetWithoutSource(k, v)
-			}
-			expectedStores := collectResultStoreGenerator(tt.expectedStoresGenerator)
-			stores := collectResultStoreGenerator(storeGenerators(cfg))
+			cfg := fxutil.Test[config.Component](t, fx.Options(
+				config.MockModule(),
+				fx.Replace(config.MockParams{Overrides: tt.cfg}),
+			))
+			expectedStores := collectResultStoreGenerator(tt.expectedStoresGenerator, cfg)
+			stores := collectResultStoreGenerator(storeGenerators(cfg), cfg)
 
 			assert.Equal(t, expectedStores, stores)
 		})
 	}
 }
 
-func collectResultStoreGenerator(funcs []storeGenerator) []*reflectorStore {
+func collectResultStoreGenerator(funcs []storeGenerator, config config.Reader) []*reflectorStore {
 	var stores []*reflectorStore
 	for _, f := range funcs {
-		_, s := f(nil, nil, nil)
+		_, s := f(nil, nil, config, nil)
 		stores = append(stores, s)
 	}
 	return stores
@@ -333,10 +334,10 @@ func Test_metadataCollectionGVRs_WithFunctionalDiscovery(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(tt *testing.T) {
-			cfg := config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
-			for k, v := range test.cfg {
-				cfg.SetWithoutSource(k, v)
-			}
+			cfg := fxutil.Test[config.Component](t, fx.Options(
+				config.MockModule(),
+				fx.Replace(config.MockParams{Overrides: test.cfg}),
+			))
 
 			client := fakeclientset.NewSimpleClientset()
 			fakeDiscoveryClient, ok := client.Discovery().(*fakediscovery.FakeDiscovery)
@@ -438,10 +439,10 @@ func TestResourcesWithMetadataCollectionEnabled(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(tt *testing.T) {
-			cfg := config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
-			for k, v := range test.cfg {
-				cfg.SetWithoutSource(k, v)
-			}
+			cfg := fxutil.Test[config.Component](t, fx.Options(
+				config.MockModule(),
+				fx.Replace(config.MockParams{Overrides: test.cfg}),
+			))
 
 			assert.ElementsMatch(t, test.expectedResources, resourcesWithMetadataCollectionEnabled(cfg))
 		})

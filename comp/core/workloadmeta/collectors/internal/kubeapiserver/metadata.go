@@ -18,13 +18,13 @@ import (
 	"k8s.io/client-go/metadata"
 	"k8s.io/client-go/tools/cache"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func newMetadataStore(ctx context.Context, wlmetaStore workloadmeta.Component, metadataclient metadata.Interface, gvr schema.GroupVersionResource) (*cache.Reflector, *reflectorStore) {
+func newMetadataStore(ctx context.Context, wlmetaStore workloadmeta.Component, config config.Reader, metadataclient metadata.Interface, gvr schema.GroupVersionResource) (*cache.Reflector, *reflectorStore) {
 	metadataListerWatcher := &cache.ListWatch{
 		ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
 			return metadataclient.Resource(gvr).List(ctx, options)
@@ -34,7 +34,7 @@ func newMetadataStore(ctx context.Context, wlmetaStore workloadmeta.Component, m
 		},
 	}
 
-	annotationsExclude := config.Datadog().GetStringSlice("cluster_agent.kube_metadata_collection.resource_annotations_exclude")
+	annotationsExclude := config.GetStringSlice("cluster_agent.kube_metadata_collection.resource_annotations_exclude")
 	parser, err := newMetadataParser(gvr, annotationsExclude)
 	if err != nil {
 		_ = log.Errorf("unable to parse all resource_annotations_exclude: %v, err:", err)

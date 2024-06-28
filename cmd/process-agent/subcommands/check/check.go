@@ -83,12 +83,18 @@ func nextGroupID() func() int32 {
 // Commands returns a slice of subcommands for the `check` command in the Process Agent
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	checkAllowlist := []string{"process", "rtprocess", "container", "rtcontainer", "connections", "process_discovery", "process_events"}
-	return []*cobra.Command{MakeCommand(globalParams, "check", checkAllowlist)}
+	return []*cobra.Command{MakeCommand(func() *command.GlobalParams {
+		return &command.GlobalParams{
+			ConfFilePath:         globalParams.ConfFilePath,
+			ExtraConfFilePath:    globalParams.ExtraConfFilePath,
+			SysProbeConfFilePath: globalParams.SysProbeConfFilePath,
+		}
+	}, "check", checkAllowlist)}
 }
 
-func MakeCommand(globalParams *command.GlobalParams, name string, allowlist []string) *cobra.Command {
+func MakeCommand(globalParamsGetter func() *command.GlobalParams, name string, allowlist []string) *cobra.Command {
 	cliParams := &CliParams{
-		GlobalParams: globalParams,
+		GlobalParams: globalParamsGetter(),
 	}
 
 	checkCmd := &cobra.Command{
@@ -103,7 +109,7 @@ func MakeCommand(globalParams *command.GlobalParams, name string, allowlist []st
 				return fmt.Errorf("invalid check '%s'", cliParams.checkName)
 			}
 
-			bundleParams := command.GetCoreBundleParamsForOneShot(globalParams)
+			bundleParams := command.GetCoreBundleParamsForOneShot(globalParamsGetter())
 
 			// Disable logging if `--json` is specified. This way the check command will output proper json.
 			if cliParams.checkOutputJSON {
