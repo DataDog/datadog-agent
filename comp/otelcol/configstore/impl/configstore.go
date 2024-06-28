@@ -36,14 +36,20 @@ func (c *configStoreImpl) AddEnhancedConf(config *otelcol.Config) {
 // GetProvidedConf returns a string representing the enhanced collector configuration.
 func (c *configStoreImpl) GetProvidedConf() (*confmap.Conf, error) {
 	conf := confmap.New()
-	conf.Marshal(c.provided)
+	err := conf.Marshal(c.provided)
+	if err != nil {
+		return nil, err
+	}
 	return conf, nil
 }
 
 // GetEnhancedConf returns a string representing the enhanced collector configuration.
 func (c *configStoreImpl) GetEnhancedConf() (*confmap.Conf, error) {
 	conf := confmap.New()
-	conf.Marshal(c.enhanced)
+	err := conf.Marshal(c.enhanced)
+	if err != nil {
+		return nil, err
+	}
 	return conf, nil
 }
 

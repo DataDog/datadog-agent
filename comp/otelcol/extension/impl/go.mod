@@ -2,6 +2,8 @@ module github.com/DataDog/datadog-agent/comp/otelcol/extension/impl
 
 go 1.22.0
 
+toolchain go1.22.4
+
 require (
 	github.com/DataDog/datadog-agent/comp/otelcol/configstore/def v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/otelcol/configstore/impl v0.0.0-00010101000000-000000000000
