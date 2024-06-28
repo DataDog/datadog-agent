@@ -15,13 +15,13 @@ import (
 	"go.uber.org/fx"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
-	"github.com/DataDog/datadog-agent/comp/api/api/utils"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	wmdef "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
@@ -159,7 +159,7 @@ func (wm *workloadmeta) writeResponse(w http.ResponseWriter, r *http.Request) {
 	response := wm.Dump(verbose)
 	jsonDump, err := json.Marshal(response)
 	if err != nil {
-		utils.SetJSONError(w, wm.log.Errorf("Unable to marshal workload list response: %v", err), 500)
+		httputils.SetJSONError(w, wm.log.Errorf("Unable to marshal workload list response: %v", err), 500)
 		return
 	}
 

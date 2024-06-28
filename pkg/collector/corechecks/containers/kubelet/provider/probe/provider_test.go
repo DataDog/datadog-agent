@@ -264,7 +264,7 @@ func TestProvider_Provide(t *testing.T) {
 				core.MockBundle(),
 				fx.Supply(context.Background()),
 				fx.Supply(workloadmeta.NewParams()),
-				workloadmetafxmock.MockModuleV2(),
+				workloadmetafxmock.MockModule(),
 			))
 
 			mockSender := mocksender.NewMockSender(checkid.ID(t.Name()))

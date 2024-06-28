@@ -15,6 +15,7 @@ import traceback
 from collections import defaultdict
 from collections.abc import Iterable
 from pathlib import Path
+from time import sleep
 
 from invoke import task
 from invoke.exceptions import Exit
@@ -108,13 +109,20 @@ def deps(ctx, verbose=False):
     """
     Setup Go dependencies
     """
-
+    max_retry = 3
     print("downloading dependencies")
     with timed("go mod download"):
         verbosity = ' -x' if verbose else ''
         for mod in DEFAULT_MODULES.values():
             with ctx.cd(mod.full_path()):
-                ctx.run(f"go mod download{verbosity}")
+                for retry in range(max_retry):
+                    result = ctx.run(f"go mod download{verbosity}")
+                    if result.exited is None or result.exited > 0:
+                        wait = 10 ** (retry + 1)
+                        print(f"[{(retry + 1) / max_retry}] Failed downloading {mod.path}, retrying in {wait} seconds")
+                        sleep(wait)
+                        continue
+                    break
 
 
 @task

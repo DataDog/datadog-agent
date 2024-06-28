@@ -19,7 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/util"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -32,7 +32,7 @@ var (
 	}
 
 	telemetryModuleName = "network_tracer__tcp_failure"
-	mapTTL              = 60 * time.Second.Nanoseconds()
+	mapTTL              = 10 * time.Millisecond.Nanoseconds()
 )
 
 var failureTelemetry = struct {
@@ -62,7 +62,8 @@ type FailedConnMap map[ebpf.ConnTuple]*FailedConnStats
 // FailedConns is a struct to hold failed connections
 type FailedConns struct {
 	FailedConnMap map[ebpf.ConnTuple]*FailedConnStats
-	mapCleaner    *ddebpf.MapCleaner[uint64, int64]
+	failureTuple  *ebpf.ConnTuple
+	mapCleaner    *ddebpf.MapCleaner[ebpf.ConnTuple, int64]
 	sync.RWMutex
 }
 
@@ -70,6 +71,7 @@ type FailedConns struct {
 func NewFailedConns(m *manager.Manager) *FailedConns {
 	fc := &FailedConns{
 		FailedConnMap: make(map[ebpf.ConnTuple]*FailedConnStats),
+		failureTuple:  &ebpf.ConnTuple{},
 	}
 	fc.setupMapCleaner(m)
 	return fc
@@ -105,12 +107,12 @@ func (fc *FailedConns) MatchFailedConn(conn *network.ConnectionStats) {
 	if conn.Type != network.TCP {
 		return
 	}
-	connTuple := connStatsToTuple(conn)
+	util.ConnStatsToTuple(conn, fc.failureTuple)
 
 	fc.RLock()
 	defer fc.RUnlock()
 
-	if failedConn, ok := fc.FailedConnMap[connTuple]; ok {
+	if failedConn, ok := fc.FailedConnMap[*fc.failureTuple]; ok {
 		// found matching failed connection
 		conn.TCPFailures = make(map[uint32]uint32)
 
@@ -142,45 +144,19 @@ func (fc *FailedConns) RemoveExpired() {
 	failureTelemetry.failedConnOrphans.Add(float64(removed))
 }
 
-// connStatsToTuple converts a ConnectionStats to a ConnTuple
-func connStatsToTuple(c *network.ConnectionStats) ebpf.ConnTuple {
-	var tup ebpf.ConnTuple
-	tup.Sport = c.SPort
-	tup.Dport = c.DPort
-	tup.Netns = c.NetNS
-	tup.Pid = c.Pid
-	if c.Family == network.AFINET {
-		tup.SetFamily(ebpf.IPv4)
-	} else {
-		tup.SetFamily(ebpf.IPv6)
-	}
-	if c.Type == network.TCP {
-		tup.SetType(ebpf.TCP)
-	} else {
-		tup.SetType(ebpf.UDP)
-	}
-	if !c.Source.IsZero() {
-		tup.Saddr_l, tup.Saddr_h = util.ToLowHigh(c.Source)
-	}
-	if !c.Dest.IsZero() {
-		tup.Daddr_l, tup.Daddr_h = util.ToLowHigh(c.Dest)
-	}
-	return tup
-}
-
 func (fc *FailedConns) setupMapCleaner(m *manager.Manager) {
 	connCloseFlushMap, _, err := m.GetMap(probes.ConnCloseFlushed)
 	if err != nil {
 		log.Errorf("error getting %v map: %s", probes.ConnCloseFlushed, err)
 		return
 	}
-	mapCleaner, err := ddebpf.NewMapCleaner[uint64, int64](connCloseFlushMap, 1024)
+	mapCleaner, err := ddebpf.NewMapCleaner[ebpf.ConnTuple, int64](connCloseFlushMap, 1024)
 	if err != nil {
 		log.Errorf("error creating map cleaner: %s", err)
 		return
 	}
 
-	mapCleaner.Clean(time.Minute*5, nil, nil, func(now int64, _key uint64, val int64) bool {
+	mapCleaner.Clean(time.Second*1, nil, nil, func(now int64, _key ebpf.ConnTuple, val int64) bool {
 		return val > 0 && now-val > mapTTL
 	})
 

@@ -27,7 +27,7 @@ func TestProcessEvents(t *testing.T) {
 		config.MockModule(),
 		logimpl.MockModule(),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmetafxmock.MockModuleV2(),
+		workloadmetafxmock.MockModule(),
 	))
 
 	cp := &ContainerConfigProvider{
@@ -416,7 +416,7 @@ func TestGenerateConfig(t *testing.T) {
 				logimpl.MockModule(),
 				fx.Replace(config.MockParams{Overrides: overrides}),
 				fx.Supply(workloadmeta.NewParams()),
-				workloadmetafxmock.MockModuleV2(),
+				workloadmetafxmock.MockModule(),
 			))
 
 			if pod, ok := tt.entity.(*workloadmeta.KubernetesPod); ok {
