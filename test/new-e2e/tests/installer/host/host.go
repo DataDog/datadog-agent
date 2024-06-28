@@ -171,6 +171,7 @@ func (h *Host) InstallerVersion() string {
 	return strings.TrimSpace(h.remote.MustExecute("sudo datadog-installer version"))
 }
 
+// AgentVersion returns the version of the agent on the host
 func (h *Host) AgentVersion() string {
 	// Needs sudo to read the auth token
 	authTokenRaw := h.remote.MustExecute("sudo cat /etc/datadog-agent/auth_token")
