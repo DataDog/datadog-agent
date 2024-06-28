@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-// Package configstore defines the otel agent converter component.
+// Package configstore defines the otel agent configstore component.
 package configstore
 
 import (

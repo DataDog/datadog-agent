@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-// Package configstoreimpl provides the implementation of the otel-agent converter.
+// Package configstoreimpl provides the implementation of the otel-agent configstore.
 package configstoreimpl
 
 import (

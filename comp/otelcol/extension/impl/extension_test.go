@@ -13,7 +13,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	converter "github.com/DataDog/datadog-agent/comp/otelcol/converter/impl"
+	configstore "github.com/DataDog/datadog-agent/comp/otelcol/configstore/impl"
 	extension "github.com/DataDog/datadog-agent/comp/otelcol/extension/def"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -22,14 +22,14 @@ import (
 )
 
 func getExtensionTestConfig(t *testing.T) *Config {
-	conv, err := converter.NewConverter()
+	conv, err := configstore.NewConfigStore()
 	assert.NoError(t, err)
 
 	return &Config{
 		HTTPConfig: &confighttp.ServerConfig{
 			Endpoint: "localhost:0",
 		},
-		Converter: conv,
+		ConfigStore: conv,
 	}
 }
 
