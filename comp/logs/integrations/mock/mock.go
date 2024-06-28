@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-//nolint:revive // TODO(AML) Fix revive linter
+// Package mock implements a fake integrations component to be used in tests
 package mock
 
 import (
