@@ -317,8 +317,13 @@ func (k *Probe) getMapStats(stats *model.EBPFStats) error {
 	ebpfmaps := make(map[string]*model.EBPFMapStats)
 	defer clear(ebpfmaps)
 
+	// instruct the cache to start a new iteration
+	k.mphCache.clearLiveMapIDs()
+
 	mapid := ebpf.MapID(0)
 	for mapid, err = ebpf.MapGetNextID(mapid); err == nil; mapid, err = ebpf.MapGetNextID(mapid) {
+		k.mphCache.addLiveMapID(mapid)
+
 		mp, err := ebpf.NewMapFromID(mapid)
 		if err != nil {
 			log.Debugf("unable to get map map_id=%d: %s", mapid, err)

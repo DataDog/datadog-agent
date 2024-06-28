@@ -19,8 +19,11 @@ import (
 )
 
 type mapProgHelperCache struct {
-	cacheLock sync.Mutex
-	cache     map[ebpf.MapID]helperProgData
+	sync.Mutex
+
+	cache map[ebpf.MapID]helperProgData
+
+	liveMapIds map[ebpf.MapID]struct{}
 
 	entryBtf    *btf.Func
 	callbackBtf *btf.Func
@@ -70,7 +73,8 @@ func newMapProgHelperCache() *mapProgHelperCache {
 	}
 
 	return &mapProgHelperCache{
-		cache: make(map[ebpf.MapID]helperProgData),
+		cache:      make(map[ebpf.MapID]helperProgData),
+		liveMapIds: make(map[ebpf.MapID]struct{}),
 
 		entryBtf:    entryBtf,
 		callbackBtf: callbackBtf,
@@ -78,8 +82,8 @@ func newMapProgHelperCache() *mapProgHelperCache {
 }
 
 func (c *mapProgHelperCache) newCachedProgramForMap(mp *ebpf.Map, mapid ebpf.MapID) (*ebpf.Program, error) {
-	c.cacheLock.Lock()
-	defer c.cacheLock.Unlock()
+	c.Lock()
+	defer c.Unlock()
 
 	if data, ok := c.cache[mapid]; ok {
 		return data.prog, nil
@@ -171,8 +175,8 @@ func (c *mapProgHelperCache) newHelperProgramForFd(fd int) (helperProgData, erro
 }
 
 func (c *mapProgHelperCache) Close() {
-	c.cacheLock.Lock()
-	defer c.cacheLock.Unlock()
+	c.Lock()
+	defer c.Unlock()
 
 	for _, data := range c.cache {
 		if err := data.prog.Close(); err != nil {
@@ -183,13 +187,26 @@ func (c *mapProgHelperCache) Close() {
 	clear(c.cache)
 }
 
+func (c *mapProgHelperCache) clearLiveMapIDs() {
+	c.Lock()
+	defer c.Unlock()
+
+	clear(c.liveMapIds)
+}
+
+func (c *mapProgHelperCache) addLiveMapID(id ebpf.MapID) {
+	c.Lock()
+	defer c.Unlock()
+
+	c.liveMapIds[id] = struct{}{}
+}
+
 func (c *mapProgHelperCache) closeUnusedPrograms() {
-	c.cacheLock.Lock()
-	defer c.cacheLock.Unlock()
+	c.Lock()
+	defer c.Unlock()
 
 	for id, data := range c.cache {
-		_, err := ddebpf.GetMapNameFromMapID(uint32(id))
-		if err != nil {
+		if _, alive := c.liveMapIds[id]; !alive {
 			// the mapping is no longer existent so we can safely remove the program
 			if err := data.prog.Close(); err != nil {
 				log.Warnf("failed to close helper program: %v", err)
