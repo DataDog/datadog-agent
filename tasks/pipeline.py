@@ -462,7 +462,7 @@ def trigger_child_pipeline(_, git_ref, project_name, variable=None, follow=True)
     if follow:
         print("Waiting for child pipeline to finish...", flush=True)
 
-        wait_for_pipeline(repo, pipeline)
+        wait_for_pipeline(repo, pipeline, pipeline_finish_timeout_sec=2700)
 
         # Check pipeline status
         refresh_pipeline(pipeline)
