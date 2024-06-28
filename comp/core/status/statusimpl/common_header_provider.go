@@ -85,7 +85,10 @@ func newCommonHeaderProvider(params status.Params, config config.Component) stat
 	data["pid"] = os.Getpid()
 	data["go_version"] = runtime.Version()
 	data["agent_start_nano"] = startTimeProvider.UnixNano()
-	pythonVersion := params.PythonVersionGetFunc()
+	var pythonVersion string
+	if params.PythonVersionGetFunc != nil {
+		pythonVersion = params.PythonVersionGetFunc()
+	}
 	data["python_version"] = strings.Split(pythonVersion, " ")[0]
 	data["build_arch"] = runtime.GOARCH
 	data["config"] = populateConfig(config)

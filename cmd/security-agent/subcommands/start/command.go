@@ -54,7 +54,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl"
-	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	pkgCompliance "github.com/DataDog/datadog-agent/pkg/compliance"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -164,11 +163,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					// TODO - components: Do not remove complianceAgent ref until "github.com/DataDog/datadog-agent/pkg/compliance" is a component so they're not GCed
 					return status.NewInformationProvider(complianceAgent.StatusProvider()), complianceAgent, nil
 				}),
-				fx.Supply(
-					status.Params{
-						PythonVersionGetFunc: python.GetPythonVersion,
-					},
-				),
+				fx.Supply(status.Params{}),
 				fx.Provide(func(config config.Component) status.HeaderInformationProvider {
 					return status.NewHeaderInformationProvider(hostimpl.StatusProvider{
 						Config: config,

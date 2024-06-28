@@ -47,7 +47,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/security/agent"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
@@ -155,11 +154,7 @@ func (s *service) Run(svcctx context.Context) error {
 			// TODO - components: Do not remove runtimeAgent ref until "github.com/DataDog/datadog-agent/pkg/security/agent" is a component so they're not GCed
 			return status.NewInformationProvider(runtimeAgent.StatusProvider()), runtimeAgent, nil
 		}),
-		fx.Supply(
-			status.Params{
-				PythonVersionGetFunc: python.GetPythonVersion,
-			},
-		),
+		fx.Supply(status.Params{}),
 		fx.Provide(func(config config.Component) status.HeaderInformationProvider {
 			return status.NewHeaderInformationProvider(hostimpl.StatusProvider{
 				Config: config,
