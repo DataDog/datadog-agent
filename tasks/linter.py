@@ -15,14 +15,10 @@ from tasks.flavor import AgentFlavor
 from tasks.go import run_golangci_lint
 from tasks.libs.ciproviders.github_api import GithubAPI
 from tasks.libs.ciproviders.gitlab_api import (
-    clean_gitlab_ci_configuration,
-    filter_gitlab_ci_configuration,
     generate_gitlab_full_configuration,
-    get_gitlab_ci_configuration,
     get_gitlab_repo,
     get_preset_contexts,
     load_context,
-    print_gitlab_ci_configuration,
     read_includes,
 )
 from tasks.libs.common.check_tools_version import check_tools_version
@@ -370,31 +366,6 @@ def is_get_parameter_call(file):
 
 
 @task
-def get_full_gitlab_ci(
-    _, input_file: str = '.gitlab-ci.yml', job: str | None = None, sort: bool = False, clean: bool = True
-):
-    """
-    Print full gitlab ci configuration.
-
-    - job: If provided, print only one job
-    - clean: Apply post processing to make output more readable (remove extends, flatten lists of lists...)
-    """
-
-    # Make full configuration
-    yml = get_gitlab_ci_configuration(input_file)
-
-    # Filter
-    yml = filter_gitlab_ci_configuration(yml, job)
-
-    # Clean
-    if clean:
-        yml = clean_gitlab_ci_configuration(yml)
-
-    # Print
-    print_gitlab_ci_configuration(yml, sort_jobs=sort)
-
-
-@task
 def gitlab_ci(_, test="all", custom_context=None):
     """
     Lint Gitlab CI files in the datadog-agent repository.
@@ -451,7 +422,7 @@ def update_go(_):
 
 
 @task(iterable=['job_files'])
-def test_change_path(_, job_files=None):
+def test_change_path(ctx, job_files=None):
     """
     Verify that the jobs defined within job_files contain a change path rule.
     """
@@ -461,7 +432,7 @@ def test_change_path(_, job_files=None):
     config = generate_gitlab_full_configuration(".gitlab-ci.yml", {}, return_dump=False, apply_postprocessing=True)
 
     # Fetch all test jobs
-    test_config = read_includes(job_files, return_config=True, add_file_path=True)
+    test_config = read_includes(ctx, job_files, return_config=True, add_file_path=True)
     tests = [(test, data['_file_path']) for test, data in test_config.items() if test[0] != '.']
 
     def contains_valid_change_rule(rule):

@@ -80,7 +80,7 @@ func TestRetryLogic_Error(t *testing.T) {
 		compConfig.MockModule(),
 		fx.Supply(context.Background()),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmetafxmock.MockModuleV2(),
+		workloadmetafxmock.MockModule(),
 	))
 
 	// Store the image
@@ -162,7 +162,7 @@ func TestRetryLogic_ImageDeleted(t *testing.T) {
 		compConfig.MockModule(),
 		fx.Supply(context.Background()),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmetafxmock.MockModuleV2(),
+		workloadmetafxmock.MockModule(),
 	))
 
 	// Store the image
@@ -229,7 +229,7 @@ func TestRetryChannelFull(t *testing.T) {
 		compConfig.MockModule(),
 		fx.Supply(context.Background()),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmetafxmock.MockModuleV2(),
+		workloadmetafxmock.MockModule(),
 	))
 
 	// Store the image

@@ -509,8 +509,12 @@ def print_gitlab_ci_configuration(yml: dict, sort_jobs: bool):
         yaml.safe_dump({job: content}, sys.stdout, default_flow_style=False, sort_keys=True, indent=2)
 
 
-def get_gitlab_ci_configuration(
-    input_file: str = '.gitlab-ci.yml', return_dict: bool = True, ignore_errors: bool = False
+def get_full_gitlab_ci_configuration(
+    ctx,
+    input_file: str = '.gitlab-ci.yml',
+    return_dict: bool = True,
+    ignore_errors: bool = False,
+    git_ref: str | None = None,
 ) -> str | dict:
     """
     Returns the full gitlab-ci configuration by resolving all includes and applying postprocessing (extends / !reference)
@@ -521,10 +525,11 @@ def get_gitlab_ci_configuration(
     yaml.SafeDumper.add_representer(YamlReferenceTagList, ReferenceTag.to_yaml)
 
     # Read includes
-    concat_config = read_includes(input_file)
+    concat_config = read_includes(ctx, input_file, return_config=True, git_ref=git_ref)
+    assert concat_config
 
     agent = get_gitlab_repo()
-    res = agent.ci_lint.create({"content": concat_config, "dry_run": True, "include_jobs": True})
+    res = agent.ci_lint.create({"content": yaml.safe_dump(concat_config), "dry_run": True, "include_jobs": True})
 
     if not ignore_errors and not res.valid:
         errors = '; '.join(res.errors)
@@ -534,6 +539,31 @@ def get_gitlab_ci_configuration(
         return yaml.safe_load(res.merged_yaml)
     else:
         return res.merged_yaml
+
+
+def get_gitlab_ci_configuration(
+    ctx,
+    input_file: str = '.gitlab-ci.yml',
+    ignore_errors: bool = False,
+    job: str | None = None,
+    clean: bool = True,
+    git_ref: str | None = None,
+) -> dict:
+    """
+    Creates, filters and processes the gitlab-ci configuration
+    """
+
+    # Make full configuration
+    yml = get_full_gitlab_ci_configuration(ctx, input_file, ignore_errors=ignore_errors, git_ref=git_ref)
+
+    # Filter
+    yml = filter_gitlab_ci_configuration(yml, job)
+
+    # Clean
+    if clean:
+        yml = clean_gitlab_ci_configuration(yml)
+
+    return yml
 
 
 def generate_gitlab_full_configuration(
@@ -552,7 +582,7 @@ def generate_gitlab_full_configuration(
     yaml.SafeLoader.add_constructor(ReferenceTag.yaml_tag, ReferenceTag.from_yaml)
     yaml.SafeDumper.add_representer(YamlReferenceTagList, ReferenceTag.to_yaml)
 
-    full_configuration = read_includes(input_file, return_config=True)
+    full_configuration = read_includes(None, input_file, return_config=True)
 
     # Override some variables with a dedicated context
     if context:
@@ -585,7 +615,7 @@ def generate_gitlab_full_configuration(
     return yaml.safe_dump(full_configuration) if return_dump else full_configuration
 
 
-def read_includes(yaml_files, includes=None, return_config=False, add_file_path=False):
+def read_includes(ctx, yaml_files, includes=None, return_config=False, add_file_path=False, git_ref: str | None = None):
     """
     Recursive method to read all includes from yaml files and store them in a list
     - add_file_path: add the file path to each object of the parsed file
@@ -597,7 +627,7 @@ def read_includes(yaml_files, includes=None, return_config=False, add_file_path=
         yaml_files = [yaml_files]
 
     for yaml_file in yaml_files:
-        current_file = read_content(yaml_file)
+        current_file = read_content(ctx, yaml_file, git_ref=git_ref)
 
         if add_file_path:
             for value in current_file.values():
@@ -607,7 +637,7 @@ def read_includes(yaml_files, includes=None, return_config=False, add_file_path=
         if 'include' not in current_file:
             includes.append(current_file)
         else:
-            read_includes(current_file['include'], includes, add_file_path=add_file_path)
+            read_includes(ctx, current_file['include'], includes, add_file_path=add_file_path, git_ref=git_ref)
             del current_file['include']
             includes.append(current_file)
 
@@ -620,7 +650,7 @@ def read_includes(yaml_files, includes=None, return_config=False, add_file_path=
         return full_configuration
 
 
-def read_content(file_path):
+def read_content(ctx, file_path, git_ref: str | None = None):
     """
     Read the content of a file, either from a local file or from an http endpoint
     """
@@ -630,6 +660,8 @@ def read_content(file_path):
         response = requests.get(file_path)
         response.raise_for_status()
         content = response.text
+    elif git_ref:
+        content = ctx.run(f"git show '{git_ref}:{file_path}'", hide=True).stdout
     else:
         with open(file_path) as f:
             content = f.read()
