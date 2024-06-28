@@ -689,9 +689,15 @@ func (w *workloadmeta) handleEvents(evs []wmdef.CollectorEvent) {
 
 		for _, sub := range w.subscribers {
 			filter := sub.filter
-			if !filter.MatchEntity(&ev.Entity) || !filter.MatchSource(ev.Source) || !filter.MatchEventType(ev.Type) {
+
+			// Notice that we cannot call filter.MatchEntity() here because
+			// the entity included in the event might be incomplete if it's
+			// an unset event. Some collectors only send the entity ID in
+			// unset events, for example. The call to filter.MatchEntity()
+			// is done below using the cached entity.
+			if !filter.MatchSource(ev.Source) || !filter.MatchEventType(ev.Type) {
 				// event should be filtered out because it
-				// doesn't match the filter
+				// doesn't match the filter.
 				continue
 			}
 
@@ -705,6 +711,10 @@ func (w *workloadmeta) handleEvents(evs []wmdef.CollectorEvent) {
 			}
 
 			entity := cachedEntity.get(filter.Source())
+			if !filter.MatchEntity(&entity) {
+				continue
+			}
+
 			if isEventTypeSet {
 				filteredEvents[sub] = append(filteredEvents[sub], wmdef.Event{
 					Type:   wmdef.EventTypeSet,
@@ -731,12 +741,14 @@ func (w *workloadmeta) handleEvents(evs []wmdef.CollectorEvent) {
 	// process an event.
 	w.storeMut.Unlock()
 
-	for sub, evs := range filteredEvents {
-		if len(evs) == 0 {
-			continue
-		}
+	for _, sub := range w.subscribers {
+		if evs, found := filteredEvents[sub]; found {
+			if len(evs) == 0 {
+				continue
+			}
 
-		w.notifyChannel(sub.name, sub.ch, evs, true)
+			w.notifyChannel(sub.name, sub.ch, evs, true)
+		}
 	}
 }
 

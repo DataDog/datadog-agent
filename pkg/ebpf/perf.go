@@ -13,13 +13,11 @@ import (
 	"github.com/cilium/ebpf/perf"
 
 	manager "github.com/DataDog/ebpf-manager"
+
+	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
 
-var recordPool = sync.Pool{
-	New: func() interface{} {
-		return new(perf.Record)
-	},
-}
+var recordPool = ddsync.NewDefaultTypedPool[perf.Record]()
 
 // PerfHandler implements EventHandler
 // this line is just a static check of the interface
@@ -39,7 +37,7 @@ type PerfHandler struct {
 func NewPerfHandler(dataChannelSize int) *PerfHandler {
 	return &PerfHandler{
 		RecordGetter: func() *perf.Record {
-			return recordPool.Get().(*perf.Record)
+			return recordPool.Get()
 		},
 		dataChannel: make(chan *DataEvent, dataChannelSize),
 		lostChannel: make(chan uint64, 10),
