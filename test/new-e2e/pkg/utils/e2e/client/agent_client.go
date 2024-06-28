@@ -185,7 +185,7 @@ func sendRequestCommand(endpoint string, authToken string, osFamily osComp.Famil
 	}
 
 	return fmt.Sprintf(
-		`curl -L -s -k -H "authorization: Bearer %s" "%s"`,
+		`curl -L -s -k --fail-with-body -H "authorization: Bearer %s" "%s"`,
 		authToken,
 		endpoint,
 	)
