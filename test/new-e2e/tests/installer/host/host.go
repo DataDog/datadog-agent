@@ -152,6 +152,13 @@ func (h *Host) WaitForUnitActivating(units ...string) {
 	}
 }
 
+func (h *Host) WaitForFileExists(filePaths ...string) {
+	for _, path := range filePaths {
+		_, err := h.remote.Execute(fmt.Sprintf("timeout=30; file=%s; while [ ! -f $file ] && [ $timeout -gt 0 ]; do sleep 1; ((timeout--)); done; [ $timeout -ne 0 ]", path))
+		require.NoError(h.t, err, "file %s did not exist", path)
+	}
+}
+
 // BootstraperVersion returns the version of the bootstraper on the host.
 func (h *Host) BootstraperVersion() string {
 	return strings.TrimSpace(h.remote.MustExecute("sudo datadog-bootstrap version"))

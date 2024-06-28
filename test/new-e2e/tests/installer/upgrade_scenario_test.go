@@ -122,6 +122,7 @@ func (s *upgradeScenarioSuite) setCatalog(newCatalog catalog) (string, error) {
 
 func (s *upgradeScenarioSuite) assertSuccessfulStartExperiment(timestamp host.JournaldTimestamp, version string) {
 	s.host.WaitForUnitActivating(agentUnitXP)
+	s.host.WaitForFileExists("/opt/datadog-packages/datadog-agent/experiment/run/agent.pid")
 
 	s.T().Logf("Agent exp logs: %s", s.Env().RemoteHost.MustExecute("sudo journalctl -u datadog-agent-exp --no-pager"))
 	s.T().Logf("Installer start logs: %s", s.Env().RemoteHost.MustExecute("sudo journalctl -u datadog-installer --no-pager"))
