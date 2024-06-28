@@ -20,7 +20,8 @@ from tasks.owners import make_partition
 """
 A summary contains a list of jobs from gitlab pipelines.
 At the end of each pipeline, a summary is created and uploaded to a file in an s3 bucket (upload_summary).
-Every week day, a summary is created for all the pipelines of the last 24 hours (send_summary_messages) out of the summaries on the s3 bucket.
+Every week day, a summary is created for all the pipelines of the last 24 hours (send_summary_messages)
+out of the summaries on the s3 bucket.
 Once a week, a failure summary with allow to fail jobs is sent to the teams (send_summary_messages).
 """
 
