@@ -62,74 +62,74 @@ func metricSourceToOriginCategory(ms metrics.MetricSource) int32 {
 		metrics.MetricSourceNetwork,
 		metrics.MetricSourceSnmp,
 		// Python Checks
-    	metrics.MetricSourceZenohRouter,
-    	metrics.MetricSourceZabbix,
-    	metrics.MetricSourceWayfinder,
-    	metrics.MetricSourceVespa,
-    	metrics.MetricSourceUpsc,
-    	metrics.MetricSourceUpboundUxp,
-    	metrics.MetricSourceUnifiConsole,
-    	metrics.MetricSourceUnbound,
-    	metrics.MetricSourceTraefik,
-    	metrics.MetricSourceTidb,
-    	metrics.MetricSourceSyncthing,
-    	metrics.MetricSourceStorm,
-    	metrics.MetricSourceStardog,
-    	metrics.MetricSourceSpeedtest,
-    	metrics.MetricSourceSortdb,
-    	metrics.MetricSourceSonarr,
-    	metrics.MetricSourceSnmpwalk,
-    	metrics.MetricSourceSendmail,
-    	metrics.MetricSourceScalr,
-    	metrics.MetricSourceRiakRepl,
-    	metrics.MetricSourceRedpanda,
-    	metrics.MetricSourceRedisenterprise,
-    	metrics.MetricSourceRedisSentinel,
-    	metrics.MetricSourceRebootRequired,
-    	metrics.MetricSourceRadarr,
-    	metrics.MetricSourcePurefb,
-    	metrics.MetricSourcePurefa,
-    	metrics.MetricSourcePuma,
-    	metrics.MetricSourcePortworx,
-    	metrics.MetricSourcePing,
-    	metrics.MetricSourcePihole,
-    	metrics.MetricSourcePhpOpcache,
-    	metrics.MetricSourcePhpApcu,
-    	metrics.MetricSourceOpenPolicyAgent,
-    	metrics.MetricSourceOctoprint,
-    	metrics.MetricSourceNvml,
-    	metrics.MetricSourceNs1,
-    	metrics.MetricSourceNnSdwan,
-    	metrics.MetricSourceNextcloud,
-    	metrics.MetricSourceNeutrona,
-    	metrics.MetricSourceNeo4j,
-    	metrics.MetricSourceMergify,
-    	metrics.MetricSourceLogstash,
-    	metrics.MetricSourceLighthouse,
-    	metrics.MetricSourceKernelcare,
-    	metrics.MetricSourceJfrogPlatformSelfHosted,
-    	metrics.MetricSourceHikaricp,
-    	metrics.MetricSourceGrpcCheck,
-    	metrics.MetricSourceGoPprofScraper,
-    	metrics.MetricSourceGnatsdStreaming,
-    	metrics.MetricSourceGnatsd,
-    	metrics.MetricSourceGitea,
-    	metrics.MetricSourceGatekeeper,
-    	metrics.MetricSourceFluentbit,
-    	metrics.MetricSourceFilemage,
-    	metrics.MetricSourceFilebeat,
-    	metrics.MetricSourceFiddler,
-    	metrics.MetricSourceExim,
-    	metrics.MetricSourceEventstore,
-    	metrics.MetricSourceEmqx,
-    	metrics.MetricSourceCyral,
-    	metrics.MetricSourceCybersixgillActionableAlerts,
-    	metrics.MetricSourceCloudsmith,
-    	metrics.MetricSourceCloudnatix,
-    	metrics.MetricSourceCfssl,
-    	metrics.MetricSourceBind9,
-    	metrics.MetricSourceAwsPricing,
-    	metrics.MetricSourceAqua,
+		metrics.MetricSourceZenohRouter,
+		metrics.MetricSourceZabbix,
+		metrics.MetricSourceWayfinder,
+		metrics.MetricSourceVespa,
+		metrics.MetricSourceUpsc,
+		metrics.MetricSourceUpboundUxp,
+		metrics.MetricSourceUnifiConsole,
+		metrics.MetricSourceUnbound,
+		metrics.MetricSourceTraefik,
+		metrics.MetricSourceTidb,
+		metrics.MetricSourceSyncthing,
+		metrics.MetricSourceStorm,
+		metrics.MetricSourceStardog,
+		metrics.MetricSourceSpeedtest,
+		metrics.MetricSourceSortdb,
+		metrics.MetricSourceSonarr,
+		metrics.MetricSourceSnmpwalk,
+		metrics.MetricSourceSendmail,
+		metrics.MetricSourceScalr,
+		metrics.MetricSourceRiakRepl,
+		metrics.MetricSourceRedpanda,
+		metrics.MetricSourceRedisenterprise,
+		metrics.MetricSourceRedisSentinel,
+		metrics.MetricSourceRebootRequired,
+		metrics.MetricSourceRadarr,
+		metrics.MetricSourcePurefb,
+		metrics.MetricSourcePurefa,
+		metrics.MetricSourcePuma,
+		metrics.MetricSourcePortworx,
+		metrics.MetricSourcePing,
+		metrics.MetricSourcePihole,
+		metrics.MetricSourcePhpOpcache,
+		metrics.MetricSourcePhpApcu,
+		metrics.MetricSourceOpenPolicyAgent,
+		metrics.MetricSourceOctoprint,
+		metrics.MetricSourceNvml,
+		metrics.MetricSourceNs1,
+		metrics.MetricSourceNnSdwan,
+		metrics.MetricSourceNextcloud,
+		metrics.MetricSourceNeutrona,
+		metrics.MetricSourceNeo4j,
+		metrics.MetricSourceMergify,
+		metrics.MetricSourceLogstash,
+		metrics.MetricSourceLighthouse,
+		metrics.MetricSourceKernelcare,
+		metrics.MetricSourceJfrogPlatformSelfHosted,
+		metrics.MetricSourceHikaricp,
+		metrics.MetricSourceGrpcCheck,
+		metrics.MetricSourceGoPprofScraper,
+		metrics.MetricSourceGnatsdStreaming,
+		metrics.MetricSourceGnatsd,
+		metrics.MetricSourceGitea,
+		metrics.MetricSourceGatekeeper,
+		metrics.MetricSourceFluentbit,
+		metrics.MetricSourceFilemage,
+		metrics.MetricSourceFilebeat,
+		metrics.MetricSourceFiddler,
+		metrics.MetricSourceExim,
+		metrics.MetricSourceEventstore,
+		metrics.MetricSourceEmqx,
+		metrics.MetricSourceCyral,
+		metrics.MetricSourceCybersixgillActionableAlerts,
+		metrics.MetricSourceCloudsmith,
+		metrics.MetricSourceCloudnatix,
+		metrics.MetricSourceCfssl,
+		metrics.MetricSourceBind9,
+		metrics.MetricSourceAwsPricing,
+		metrics.MetricSourceAqua,
 		metrics.MetricSourceKubernetesClusterAutoscaler,
 		metrics.MetricSourceTraefikMesh,
 		metrics.MetricSourceWeaviate,
@@ -708,141 +708,141 @@ func metricSourceToOriginService(ms metrics.MetricSource) int32 {
 		return 330
 	case metrics.MetricSourceKubernetesClusterAutoscaler:
 		return 331
-    case metrics.MetricSourceAqua:
+	case metrics.MetricSourceAqua:
 		return 332
-    case metrics.MetricSourceAwsPricing:
+	case metrics.MetricSourceAwsPricing:
 		return 333
-    case metrics.MetricSourceBind9:
+	case metrics.MetricSourceBind9:
 		return 334
-    case metrics.MetricSourceCfssl:
+	case metrics.MetricSourceCfssl:
 		return 335
-    case metrics.MetricSourceCloudnatix:
+	case metrics.MetricSourceCloudnatix:
 		return 336
-    case metrics.MetricSourceCloudsmith:
+	case metrics.MetricSourceCloudsmith:
 		return 337
-    case metrics.MetricSourceCybersixgillActionableAlerts:
+	case metrics.MetricSourceCybersixgillActionableAlerts:
 		return 338
-    case metrics.MetricSourceCyral:
+	case metrics.MetricSourceCyral:
 		return 339
-    case metrics.MetricSourceEmqx:
+	case metrics.MetricSourceEmqx:
 		return 340
-    case metrics.MetricSourceEventstore:
+	case metrics.MetricSourceEventstore:
 		return 341
-    case metrics.MetricSourceExim:
+	case metrics.MetricSourceExim:
 		return 342
-    case metrics.MetricSourceFiddler:
+	case metrics.MetricSourceFiddler:
 		return 343
-    case metrics.MetricSourceFilebeat:
+	case metrics.MetricSourceFilebeat:
 		return 344
-    case metrics.MetricSourceFilemage:
+	case metrics.MetricSourceFilemage:
 		return 345
-    case metrics.MetricSourceFluentbit:
+	case metrics.MetricSourceFluentbit:
 		return 346
-    case metrics.MetricSourceGatekeeper:
+	case metrics.MetricSourceGatekeeper:
 		return 347
-    case metrics.MetricSourceGitea:
+	case metrics.MetricSourceGitea:
 		return 348
-    case metrics.MetricSourceGnatsd:
+	case metrics.MetricSourceGnatsd:
 		return 349
-    case metrics.MetricSourceGnatsdStreaming:
+	case metrics.MetricSourceGnatsdStreaming:
 		return 350
-    case metrics.MetricSourceGoPprofScraper:
+	case metrics.MetricSourceGoPprofScraper:
 		return 351
-    case metrics.MetricSourceGrpcCheck:
+	case metrics.MetricSourceGrpcCheck:
 		return 352
-    case metrics.MetricSourceHikaricp:
+	case metrics.MetricSourceHikaricp:
 		return 353
-    case metrics.MetricSourceJfrogPlatformSelfHosted:
+	case metrics.MetricSourceJfrogPlatformSelfHosted:
 		return 354
-    case metrics.MetricSourceKernelcare:
+	case metrics.MetricSourceKernelcare:
 		return 355
-    case metrics.MetricSourceLighthouse:
+	case metrics.MetricSourceLighthouse:
 		return 356
-    case metrics.MetricSourceLogstash:
+	case metrics.MetricSourceLogstash:
 		return 357
-    case metrics.MetricSourceMergify:
+	case metrics.MetricSourceMergify:
 		return 358
-    case metrics.MetricSourceNeo4j:
+	case metrics.MetricSourceNeo4j:
 		return 359
-    case metrics.MetricSourceNeutrona:
+	case metrics.MetricSourceNeutrona:
 		return 360
-    case metrics.MetricSourceNextcloud:
+	case metrics.MetricSourceNextcloud:
 		return 361
-    case metrics.MetricSourceNnSdwan:
+	case metrics.MetricSourceNnSdwan:
 		return 362
-    case metrics.MetricSourceNs1:
+	case metrics.MetricSourceNs1:
 		return 363
-    case metrics.MetricSourceNvml:
+	case metrics.MetricSourceNvml:
 		return 364
-    case metrics.MetricSourceOctoprint:
+	case metrics.MetricSourceOctoprint:
 		return 365
-    case metrics.MetricSourceOpenPolicyAgent:
+	case metrics.MetricSourceOpenPolicyAgent:
 		return 366
-    case metrics.MetricSourcePhpApcu:
+	case metrics.MetricSourcePhpApcu:
 		return 367
-    case metrics.MetricSourcePhpOpcache:
+	case metrics.MetricSourcePhpOpcache:
 		return 368
-    case metrics.MetricSourcePihole:
+	case metrics.MetricSourcePihole:
 		return 369
-    case metrics.MetricSourcePing:
+	case metrics.MetricSourcePing:
 		return 370
-    case metrics.MetricSourcePortworx:
+	case metrics.MetricSourcePortworx:
 		return 371
-    case metrics.MetricSourcePuma:
+	case metrics.MetricSourcePuma:
 		return 372
-    case metrics.MetricSourcePurefa:
+	case metrics.MetricSourcePurefa:
 		return 373
-    case metrics.MetricSourcePurefb:
+	case metrics.MetricSourcePurefb:
 		return 374
-    case metrics.MetricSourceRadarr:
+	case metrics.MetricSourceRadarr:
 		return 375
-    case metrics.MetricSourceRebootRequired:
+	case metrics.MetricSourceRebootRequired:
 		return 376
-    case metrics.MetricSourceRedisSentinel:
+	case metrics.MetricSourceRedisSentinel:
 		return 377
-    case metrics.MetricSourceRedisenterprise:
+	case metrics.MetricSourceRedisenterprise:
 		return 378
-    case metrics.MetricSourceRedpanda:
+	case metrics.MetricSourceRedpanda:
 		return 379
-    case metrics.MetricSourceRiakRepl:
+	case metrics.MetricSourceRiakRepl:
 		return 380
-    case metrics.MetricSourceScalr:
+	case metrics.MetricSourceScalr:
 		return 381
-    case metrics.MetricSourceSendmail:
+	case metrics.MetricSourceSendmail:
 		return 382
-    case metrics.MetricSourceSnmpwalk:
+	case metrics.MetricSourceSnmpwalk:
 		return 383
-    case metrics.MetricSourceSonarr:
+	case metrics.MetricSourceSonarr:
 		return 384
-    case metrics.MetricSourceSortdb:
+	case metrics.MetricSourceSortdb:
 		return 385
-    case metrics.MetricSourceSpeedtest:
+	case metrics.MetricSourceSpeedtest:
 		return 386
-    case metrics.MetricSourceStardog:
+	case metrics.MetricSourceStardog:
 		return 387
-    case metrics.MetricSourceStorm:
+	case metrics.MetricSourceStorm:
 		return 388
-    case metrics.MetricSourceSyncthing:
+	case metrics.MetricSourceSyncthing:
 		return 389
-    case metrics.MetricSourceTidb:
+	case metrics.MetricSourceTidb:
 		return 390
-    case metrics.MetricSourceTraefik:
+	case metrics.MetricSourceTraefik:
 		return 391
-    case metrics.MetricSourceUnbound:
+	case metrics.MetricSourceUnbound:
 		return 392
-    case metrics.MetricSourceUnifiConsole:
+	case metrics.MetricSourceUnifiConsole:
 		return 393
-    case metrics.MetricSourceUpboundUxp:
+	case metrics.MetricSourceUpboundUxp:
 		return 394
-    case metrics.MetricSourceUpsc:
+	case metrics.MetricSourceUpsc:
 		return 395
-    case metrics.MetricSourceVespa:
+	case metrics.MetricSourceVespa:
 		return 396
-    case metrics.MetricSourceWayfinder:
+	case metrics.MetricSourceWayfinder:
 		return 397
-    case metrics.MetricSourceZabbix:
+	case metrics.MetricSourceZabbix:
 		return 398
-    case metrics.MetricSourceZenohRouter:
+	case metrics.MetricSourceZenohRouter:
 		return 399
 	default:
 		return 0
