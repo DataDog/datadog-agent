@@ -287,14 +287,15 @@ func (lc *LambdaLogsCollector) processMessage(
 		// Bottlecap Failover
 		if message.logType == logTypeExtension {
 			var r map[string]interface{}
-			record := message.stringRecord
-			err := json.Unmarshal([]byte(record), &r)
+			if strings.HasPrefix(message.stringRecord, fmt.Sprintf("{\"%s\"", bottlecapFailoverReasonEnvVar)) {
+				err := json.Unmarshal([]byte(message.stringRecord), &r)
 
-			if err == nil {
-				if reason, exist := r[bottlecapFailoverReasonEnvVar]; exist {
-					tags = append(tags, fmt.Sprintf("reason:%v", reason))
-					serverlessMetrics.SendFailoverReasonMetric(tags, lc.demux)
-					message.stringRecord = "" // Avoid sending the log to the intake
+				if err == nil {
+					if reason, exist := r[bottlecapFailoverReasonEnvVar]; exist {
+						tags = append(tags, fmt.Sprintf("reason:%v", reason))
+						serverlessMetrics.SendFailoverReasonMetric(tags, lc.demux)
+						message.stringRecord = "" // Avoid sending the log to the intake
+					}
 				}
 			}
 		}
