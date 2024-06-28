@@ -8,7 +8,6 @@ package packets
 import (
 	"testing"
 
-	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
@@ -39,48 +38,22 @@ func TestPoolTelemetry(t *testing.T) {
 	telemetryMock, ok := telemetryComponent.(telemetry.Mock)
 	assert.True(t, ok)
 
-	var poolMetric []*dto.Metric
-	var pollPutMetric []*dto.Metric
-	var pollGetMetric []*dto.Metric
-
-	metricsFamily, err := telemetryMock.GetRegistry().Gather()
+	poolMetrics, err := telemetryMock.GetGaugeMetric("dogstatsd", "packet_pool")
+	assert.Nil(t, err)
+	pollPutMetrics, err := telemetryMock.GetCountMetric("dogstatsd", "packet_pool_put")
 	assert.Nil(t, err)
 
-	for _, metric := range metricsFamily {
-		if metric.GetName() == "dogstatsd__packet_pool" {
-			poolMetric = metric.GetMetric()
-		}
-
-		if metric.GetName() == "dogstatsd__packet_pool_put" {
-			pollPutMetric = metric.GetMetric()
-		}
-	}
-
-	assert.NotNil(t, poolMetric)
-	assert.NotNil(t, pollPutMetric)
-
-	assert.Equal(t, float64(-1), poolMetric[0].GetGauge().GetValue())
-	assert.Equal(t, float64(1), pollPutMetric[0].GetCounter().GetValue())
+	assert.Equal(t, float64(-1), poolMetrics[0].Value())
+	assert.Equal(t, float64(1), pollPutMetrics[0].Value())
 
 	pool.Get()
 
-	metricsFamily, err = telemetryMock.GetRegistry().Gather()
+	poolMetrics, err = telemetryMock.GetGaugeMetric("dogstatsd", "packet_pool")
+	assert.Nil(t, err)
+	pollGetMetrics, err := telemetryMock.GetCountMetric("dogstatsd", "packet_pool_get")
 	assert.Nil(t, err)
 
-	for _, metric := range metricsFamily {
-		if metric.GetName() == "dogstatsd__packet_pool" {
-			poolMetric = metric.GetMetric()
-		}
-
-		if metric.GetName() == "dogstatsd__packet_pool_get" {
-			pollGetMetric = metric.GetMetric()
-		}
-	}
-
-	assert.NotNil(t, pollGetMetric)
-	assert.NotNil(t, poolMetric)
-
-	assert.Equal(t, float64(0), poolMetric[0].GetGauge().GetValue())
-	assert.Equal(t, float64(1), pollGetMetric[0].GetCounter().GetValue())
+	assert.Equal(t, float64(0), poolMetrics[0].Value())
+	assert.Equal(t, float64(1), pollGetMetrics[0].Value())
 
 }

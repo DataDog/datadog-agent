@@ -17,7 +17,6 @@ import (
 )
 
 func TestCounterInitializer(t *testing.T) {
-
 	telemetry := fxutil.Test[telemetry.Mock](t, MockModule())
 
 	counter := telemetry.NewCounter("subsystem", "test", []string{"check_name", "state"}, "help docs")
@@ -45,26 +44,14 @@ func TestCounterInitializer(t *testing.T) {
 		return
 	}
 
-	var metricFamily *dto.MetricFamily
+	metrics, err := telemetry.GetCountMetric("subsystem", "test")
+	assert.NoError(t, err)
 
-	for _, m := range endMetrics {
-		if m.GetName() == "subsystem__test" {
-			metricFamily = m
-		}
-	}
+	metricLabels := metrics[0].Labels()
+	assert.Equal(t, metricLabels["check_name"], "mycheck")
+	assert.Equal(t, metricLabels["state"], "mystate")
 
-	if !assert.Equal(t, len(metricFamily.GetMetric()), 1) {
-		return
-	}
-
-	metric := metricFamily.GetMetric()[0]
-	assert.Equal(t, metric.GetLabel()[0].GetName(), "check_name")
-	assert.Equal(t, metric.GetLabel()[0].GetValue(), "mycheck")
-
-	assert.Equal(t, metric.GetLabel()[1].GetName(), "state")
-	assert.Equal(t, metric.GetLabel()[1].GetValue(), "mystate")
-
-	assert.Equal(t, metric.GetCounter().GetValue(), 0.0)
+	assert.Equal(t, metrics[0].Value(), 0.0)
 }
 
 func TestGetCounterValue(t *testing.T) {
@@ -141,7 +128,6 @@ func TestGetHistogramValue(t *testing.T) {
 }
 
 func TestMeterProvider(t *testing.T) {
-
 	telemetry := fxutil.Test[telemetry.Mock](t, MockModule())
 
 	counter, _ := telemetry.Meter("foo").Int64Counter("bar")
