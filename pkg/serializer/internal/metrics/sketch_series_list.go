@@ -79,6 +79,54 @@ func (sl SketchSeriesList) MarshalSplitCompress(bufferContext *marshaler.BufferC
 	return pb.payloads, nil
 }
 
+func (sl SketchSeriesList) MarshalSplitCompressMultiple(config config.Component, strategy compression.Component, filterFunc func(ss *metrics.SketchSeries) bool) (transaction.BytesPayloads, transaction.BytesPayloads, error) {
+	var err error
+
+	bufferContext := marshaler.NewBufferContext()
+	bufferContext2 := marshaler.NewBufferContext()
+
+	pb := newPayloadsBuilder(bufferContext, config, strategy)
+	pb2 := newPayloadsBuilder(bufferContext2, config, strategy)
+
+	// start things off
+	err = pb.startPayload()
+	if err != nil {
+		return nil, nil, err
+	}
+	err = pb2.startPayload()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	for sl.MoveNext() {
+		ss := sl.Current()
+		err = pb.marshal(ss)
+		if err != nil {
+			return nil, nil, err
+		}
+		if filterFunc(ss) {
+			err = pb2.marshal(ss)
+			if err != nil {
+				return nil, nil, err
+			}
+		}
+	}
+
+	err = pb.finishPayload()
+	if err != nil {
+		log.Debugf("Failed to finish payload with err %v", err)
+		return nil, nil, err
+	}
+
+	err = pb2.finishPayload()
+	if err != nil {
+		log.Debugf("Failed to finish payload with err %v", err)
+		return nil, nil, err
+	}
+
+	return pb.payloads, pb2.payloads, nil
+}
+
 func newPayloadsBuilder(bufferContext *marshaler.BufferContext, config config.Component, strategy compression.Component) payloadsBuilder {
 	buf := bufferContext.PrecompressionBuf
 	pb := payloadsBuilder{
