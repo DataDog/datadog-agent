@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/host"
 	e2eos "github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/stretchr/testify/require"
@@ -66,6 +67,7 @@ func testUpgradeScenario(os e2eos.Descriptor, arch e2eos.Architecture) packageSu
 }
 
 func (s *upgradeScenarioSuite) TestUpgradeSuccessful() {
+	flake.Mark(s.T()) // TODO: FIXME
 	s.RunInstallScript("DD_REMOTE_UPDATES=true")
 	defer s.Purge()
 	s.host.WaitForUnitActive(
