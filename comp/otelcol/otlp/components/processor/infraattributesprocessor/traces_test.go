@@ -133,7 +133,7 @@ func TestInfraAttributesTraceProcessor(t *testing.T) {
 			factory := NewFactory(fakeTagger)
 			fmp, err := factory.CreateTracesProcessor(
 				context.Background(),
-				processortest.NewNopCreateSettings(),
+				processortest.NewNopSettings(),
 				cfg,
 				next,
 			)
