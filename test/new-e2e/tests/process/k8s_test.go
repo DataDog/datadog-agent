@@ -107,8 +107,6 @@ func (s *K8sSuite) TestProcessCheck() {
 }
 
 func (s *K8sSuite) TestProcessDiscoveryCheck() {
-	s.T().Skip("WIP: test is failing as process collection is still enabled with 'DD_PROCESS_AGENT_ENABLED=true'." +
-		"The bug appears to be in test-infra-definitions and it's default helm values taking precedence")
 	t := s.T()
 	helmValues, err := createHelmValues(helmConfig{
 		ProcessAgentEnabled:        true,
