@@ -1964,6 +1964,8 @@ core,github.com/netsampler/goflow2/producer,BSD-3-Clause,"Copyright (c) 2021, Ne
 core,github.com/netsampler/goflow2/transport,BSD-3-Clause,"Copyright (c) 2021, NetSampler"
 core,github.com/netsampler/goflow2/utils,BSD-3-Clause,"Copyright (c) 2021, NetSampler"
 core,github.com/nginxinc/nginx-prometheus-exporter/client,Apache-2.0,"Copyright 2018 Nginx, Inc"
+core,github.com/observiq/bindplane-agent/receiver/telemetrygeneratorreceiver,Apache-2.0,Copyright observIQ Inc
+core,github.com/observiq/bindplane-agent/receiver/telemetrygeneratorreceiver/internal/metadata,Apache-2.0,Copyright observIQ Inc
 core,github.com/oklog/ulid,Apache-2.0,- Peter Bourgon (@peterbourgon) | - Tomás Senart (@tsenart)
 core,github.com/oklog/ulid/v2,Apache-2.0,- Peter Bourgon (@peterbourgon) | - Tomás Senart (@tsenart)
 core,github.com/olekukonko/tablewriter,MIT,Copyright (C) 2014 by Oleku Konko

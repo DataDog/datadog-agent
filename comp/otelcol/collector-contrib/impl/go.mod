@@ -2,12 +2,13 @@
 
 module github.com/DataDog/comp/otelcol/collector-contrib
 
-go 1.21.0
+go 1.21.9
 
 toolchain go1.22.4
 
 require (
 	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def v0.0.0-00010101000000-000000000000
+	github.com/observiq/bindplane-agent/receiver/telemetrygeneratorreceiver v1.54.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/connector/countconnector v0.103.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/connector/datadogconnector v0.103.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/connector/exceptionsconnector v0.103.0
