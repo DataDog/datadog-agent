@@ -129,12 +129,15 @@ func TestStartServer(t *testing.T) {
 }
 
 func TestStartBothServers(t *testing.T) {
-	tmpDir := t.TempDir()
-	authToken, err := os.CreateTemp(tmpDir, "auth_token")
+	authToken, err := os.CreateTemp("", "auth_token")
 	require.NoError(t, err)
-	authTokenValue := strings.Repeat("a", 64)
+	defer os.Remove(authToken.Name())
 
+	authTokenValue := strings.Repeat("a", 64)
 	_, err = io.WriteString(authToken, authTokenValue)
+	require.NoError(t, err)
+
+	err = authToken.Close()
 	require.NoError(t, err)
 
 	deps := getComponentDependencies(t)
