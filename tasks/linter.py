@@ -15,8 +15,6 @@ from tasks.flavor import AgentFlavor
 from tasks.go import run_golangci_lint
 from tasks.libs.ciproviders.github_api import GithubAPI
 from tasks.libs.ciproviders.gitlab_api import (
-    clean_gitlab_ci_configuration,
-    filter_gitlab_ci_configuration,
     generate_gitlab_full_configuration,
     get_gitlab_ci_configuration,
     get_gitlab_repo,
@@ -370,25 +368,27 @@ def is_get_parameter_call(file):
 
 
 @task
-def get_full_gitlab_ci(
-    _, input_file: str = '.gitlab-ci.yml', job: str | None = None, sort: bool = False, clean: bool = True
+def print_gitlab_ci(
+    ctx,
+    input_file: str = '.gitlab-ci.yml',
+    job: str | None = None,
+    sort: bool = False,
+    clean: bool = True,
+    git_ref: str | None = None,
+    ignore_errors: bool = False,
 ):
     """
-    Print full gitlab ci configuration.
+    Prints the full gitlab ci configuration.
 
     - job: If provided, print only one job
     - clean: Apply post processing to make output more readable (remove extends, flatten lists of lists...)
+    - ignore_errors: If True, ignore errors in the gitlab configuration (only process yaml)
+    - git_ref: If provided, use this git reference to fetch the configuration
     """
 
-    # Make full configuration
-    yml = get_gitlab_ci_configuration(input_file)
-
-    # Filter
-    yml = filter_gitlab_ci_configuration(yml, job)
-
-    # Clean
-    if clean:
-        yml = clean_gitlab_ci_configuration(yml)
+    yml = get_gitlab_ci_configuration(
+        ctx, input_file, job=job, clean=clean, git_ref=git_ref, ignore_errors=ignore_errors
+    )
 
     # Print
     print_gitlab_ci_configuration(yml, sort_jobs=sort)
@@ -451,7 +451,7 @@ def update_go(_):
 
 
 @task(iterable=['job_files'])
-def test_change_path(_, job_files=None):
+def test_change_path(ctx, job_files=None):
     """
     Verify that the jobs defined within job_files contain a change path rule.
     """
@@ -461,7 +461,7 @@ def test_change_path(_, job_files=None):
     config = generate_gitlab_full_configuration(".gitlab-ci.yml", {}, return_dump=False, apply_postprocessing=True)
 
     # Fetch all test jobs
-    test_config = read_includes(job_files, return_config=True, add_file_path=True)
+    test_config = read_includes(ctx, job_files, return_config=True, add_file_path=True)
     tests = [(test, data['_file_path']) for test, data in test_config.items() if test[0] != '.']
 
     def contains_valid_change_rule(rule):
