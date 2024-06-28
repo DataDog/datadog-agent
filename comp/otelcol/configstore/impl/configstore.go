@@ -7,6 +7,8 @@
 package configstoreimpl
 
 import (
+	"sync"
+
 	configstore "github.com/DataDog/datadog-agent/comp/otelcol/configstore/def"
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/otelcol"
@@ -16,6 +18,7 @@ import (
 type configStoreImpl struct {
 	provided *otelcol.Config
 	enhanced *otelcol.Config
+	mu       sync.RWMutex
 }
 
 // NewConfigStore currently only supports a single URI in the uris slice, and this URI needs to be a file path.
@@ -25,16 +28,25 @@ func NewConfigStore() (configstore.Component, error) {
 
 // AddProvidedConf stores the config into configStoreImpl.
 func (c *configStoreImpl) AddProvidedConf(config *otelcol.Config) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	c.provided = config
 }
 
 // AddEnhancedConf stores the config into configStoreImpl.
 func (c *configStoreImpl) AddEnhancedConf(config *otelcol.Config) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	c.enhanced = config
 }
 
 // GetProvidedConf returns a string representing the enhanced collector configuration.
 func (c *configStoreImpl) GetProvidedConf() (*confmap.Conf, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	conf := confmap.New()
 	err := conf.Marshal(c.provided)
 	if err != nil {
@@ -45,6 +57,9 @@ func (c *configStoreImpl) GetProvidedConf() (*confmap.Conf, error) {
 
 // GetEnhancedConf returns a string representing the enhanced collector configuration.
 func (c *configStoreImpl) GetEnhancedConf() (*confmap.Conf, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	conf := confmap.New()
 	err := conf.Marshal(c.enhanced)
 	if err != nil {
@@ -55,16 +70,18 @@ func (c *configStoreImpl) GetEnhancedConf() (*confmap.Conf, error) {
 
 // GetProvidedConf returns a string representing the enhanced collector configuration.
 func (c *configStoreImpl) GetProvidedConfAsString() (string, error) {
-	confstr, err := confToString(c.provided)
+	c.mu.Lock()
+	defer c.mu.Unlock()
 
-	return confstr, err
+	return confToString(c.provided)
 }
 
 // GetEnhancedConf returns a string representing the enhanced collector configuration.
 func (c *configStoreImpl) GetEnhancedConfAsString() (string, error) {
-	confstr, err := confToString(c.enhanced)
+	c.mu.Lock()
+	defer c.mu.Unlock()
 
-	return confstr, err
+	return confToString(c.enhanced)
 }
 
 func confToString(conf *otelcol.Config) (string, error) {
