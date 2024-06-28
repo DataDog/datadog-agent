@@ -54,7 +54,7 @@ const (
 	enhancedMetricsEnvVar = "DD_ENHANCED_METRICS"
 
 	// Bottlecap
-	bottlecapFailoverMetric = "datadog.serverless.bottlecap.failover"
+	failoverMetric = "datadog.serverless.extension.failover"
 )
 
 var enhancedMetricsDisabled = strings.ToLower(os.Getenv(enhancedMetricsEnvVar)) == "false"
@@ -295,7 +295,7 @@ func GenerateCPUEnhancedMetrics(args GenerateCPUEnhancedMetricsArgs) {
 
 func SendFailoverReasonMetric(tags []string, demux aggregator.Demultiplexer) {
 	demux.AggregateSample(metrics.MetricSample{
-		Name:       bottlecapFailoverMetric,
+		Name:       failoverMetric,
 		Value:      1.0,
 		Mtype:      metrics.DistributionType,
 		Tags:       tags,
