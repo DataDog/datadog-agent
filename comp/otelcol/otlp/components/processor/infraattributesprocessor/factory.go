@@ -88,7 +88,7 @@ func (f *factory) createTracesProcessor(
 	cfg component.Config,
 	nextConsumer consumer.Traces,
 ) (processor.Traces, error) {
-	iap, err := newInfraAttributesSpanProcessor(set, cfg.(*Config))
+	iap, err := newInfraAttributesSpanProcessor(set, cfg.(*Config), f.tagger)
 	if err != nil {
 		return nil, err
 	}
