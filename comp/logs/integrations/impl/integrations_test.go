@@ -8,7 +8,6 @@ package integrations
 import (
 	"testing"
 
-	// "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/stretchr/testify/assert"
 )
 
