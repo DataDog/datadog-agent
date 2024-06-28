@@ -22,7 +22,7 @@ type infraAttributesSpanProcessor struct {
 	cardinality types.TagCardinality
 }
 
-func newInfraAttributesSpanProcessor(set processor.CreateSettings, cfg *Config, tagger tagger.Component) (*infraAttributesSpanProcessor, error) {
+func newInfraAttributesSpanProcessor(set processor.Settings, cfg *Config, tagger tagger.Component) (*infraAttributesSpanProcessor, error) {
 	iasp := &infraAttributesSpanProcessor{
 		logger:      set.Logger,
 		tagger:      tagger,
