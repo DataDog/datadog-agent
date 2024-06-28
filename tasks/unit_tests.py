@@ -5,6 +5,17 @@ from invoke.exceptions import Exit
 
 from tasks.libs.common.color import Color, color_message
 
+TEST_ENV = {
+    "INVOKE_UNIT_TESTS": "1",
+    "GITLAB_TOKEN": "fake_token",
+    'CI_COMMIT_REF_NAME': 'mybranch',
+    'CI_COMMIT_SHA': 'abcdef42',
+    'CI_DEFAULT_BRANCH': 'themainbranch',
+    'CI_PIPELINE_ID': '42',
+    'CI_JOB_TOKEN': '618',
+    'CI_PROJECT_DIR': '.',
+}
+
 
 @task
 def invoke_unit_tests(ctx, tests: str = '', flags: str = '-b'):
@@ -37,12 +48,6 @@ def invoke_unit_tests(ctx, tests: str = '', flags: str = '-b'):
 def run_unit_tests_command(ctx, command):
     return ctx.run(
         command,
-        env={
-            "INVOKE_UNIT_TESTS": "1",
-            "GITLAB_TOKEN": "fake_token",
-            'CI_COMMIT_REF_NAME': 'mybranch',
-            'CI_DEFAULT_BRANCH': 'themainbranch',
-            'CI_PIPELINE_ID': '42',
-        },
+        env=TEST_ENV,
         warn=True,
     )
