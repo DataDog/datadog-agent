@@ -91,10 +91,13 @@ func StartServers(
 		return fmt.Errorf("unable to initialize TLS: %v", err)
 	}
 
-	tlsConfig := &tls.Config{
-		Certificates: []tls.Certificate{*tlsKeyPair},
-		NextProtos:   []string{"h2"},
-		MinVersion:   tls.VersionTLS12,
+	// tls.Config is written to when serving, so it has to be cloned for each server
+	tlsConfig := func() *tls.Config {
+		return &tls.Config{
+			Certificates: []tls.Certificate{*tlsKeyPair},
+			NextProtos:   []string{"h2"},
+			MinVersion:   tls.VersionTLS12,
+		}
 	}
 
 	tmf := observability.NewTelemetryMiddlewareFactory(telemetry)
@@ -102,7 +105,7 @@ func StartServers(
 	// start the CMD server
 	if err := startCMDServer(
 		apiAddr,
-		tlsConfig,
+		tlsConfig(),
 		tlsCertPool,
 		configService,
 		configServiceMRF,
@@ -124,7 +127,7 @@ func StartServers(
 
 	// start the IPC server
 	if ipcServerEnabled {
-		if err := startIPCServer(ipcServerHostPort, tlsConfig, tmf); err != nil {
+		if err := startIPCServer(ipcServerHostPort, tlsConfig(), tmf); err != nil {
 			// if we fail to start the IPC server, we should stop the CMD server
 			StopServers()
 			return fmt.Errorf("unable to start IPC API server: %v", err)

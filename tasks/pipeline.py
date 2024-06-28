@@ -824,6 +824,27 @@ def update_circleci_config(file_path, image_tag, test_version):
         circle.write(circle_ci.replace(f"{match.group(0)}", f"{image}:{image_tag}\n"))
 
 
+@task(
+    help={
+        "file_path": "path of the Gitlab configuration YAML file",
+    },
+    autoprint=True,
+)
+def get_gitlab_config_image_tag(_, file_path=".gitlab-ci.yml"):
+    """
+    Print the current image tag of the given Gitlab configuration file (default: ".gitlab-ci.yml")
+    """
+    with open(file_path) as gl:
+        file_content = gl.readlines()
+    gitlab_ci = yaml.load("".join(file_content), Loader=GitlabYamlLoader())
+    if "variables" not in gitlab_ci or "DATADOG_AGENT_BUILDIMAGES" not in gitlab_ci["variables"]:
+        raise Exit(
+            color_message(f"Impossible to find the version of image in {file_path} configuration file", "red"),
+            code=1,
+        )
+    return gitlab_ci["variables"]["DATADOG_AGENT_BUILDIMAGES"]
+
+
 def trigger_build(ctx, branch_name=None, create_branch=False):
     """
     Trigger a pipeline from current branch on-demand (useful for test image)

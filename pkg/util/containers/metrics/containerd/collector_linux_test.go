@@ -287,7 +287,7 @@ func TestGetContainerStats_Containerd(t *testing.T) {
 				config.MockModule(),
 				fx.Supply(context.Background()),
 				fx.Supply(workloadmeta.NewParams()),
-				workloadmetafxmock.MockModuleV2(),
+				workloadmetafxmock.MockModule(),
 			))
 
 			workloadmetaStore.Set(&workloadmeta.Container{
@@ -386,7 +386,7 @@ func TestGetContainerNetworkStats_Containerd(t *testing.T) {
 				config.MockModule(),
 				fx.Supply(context.Background()),
 				fx.Supply(workloadmeta.NewParams()),
-				workloadmetafxmock.MockModuleV2(),
+				workloadmetafxmock.MockModule(),
 			))
 
 			workloadmetaStore.Set(&workloadmeta.Container{

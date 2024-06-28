@@ -144,13 +144,16 @@ func hasLabelValue(labels []*dto.LabelPair, name string, value string) bool {
 	return false
 }
 
-func TestStartServerObservability(t *testing.T) {
-	tmpDir := t.TempDir()
-	authToken, err := os.CreateTemp(tmpDir, "auth_token")
+func TestStartBothServersWithObservability(t *testing.T) {
+	authToken, err := os.CreateTemp("", "auth_token")
 	require.NoError(t, err)
-	authTokenValue := strings.Repeat("a", 64)
+	defer os.Remove(authToken.Name())
 
+	authTokenValue := strings.Repeat("a", 64)
 	_, err = io.WriteString(authToken, authTokenValue)
+	require.NoError(t, err)
+
+	err = authToken.Close()
 	require.NoError(t, err)
 
 	deps := getComponentDependencies(t)
@@ -185,7 +188,7 @@ func TestStartServerObservability(t *testing.T) {
 	expectedMetricName := fmt.Sprintf("%s__%s", observability.MetricSubsystem, observability.MetricName)
 	for _, tc := range testCases {
 		t.Run(tc.serverName, func(t *testing.T) {
-			url := fmt.Sprintf("https://%s/this_doesnt_exist", tc.addr)
+			url := fmt.Sprintf("https://%s/this_does_not_exist", tc.addr)
 			req, err := http.NewRequest(http.MethodGet, url, nil)
 			require.NoError(t, err)
 
@@ -194,12 +197,12 @@ func TestStartServerObservability(t *testing.T) {
 			require.NoError(t, err)
 			defer resp.Body.Close()
 
-			assert.Equal(t, http.StatusNotFound, resp.StatusCode)
-
 			// for debug purpose
-			content, err := io.ReadAll(resp.Body)
-			require.NoError(t, err)
-			t.Log(string(content))
+			if content, err := io.ReadAll(resp.Body); assert.NoError(t, err) {
+				t.Log(string(content))
+			}
+
+			assert.Equal(t, http.StatusNotFound, resp.StatusCode)
 
 			metricFamilies, err := registry.Gather()
 			require.NoError(t, err)
@@ -224,7 +227,7 @@ func TestStartServerObservability(t *testing.T) {
 			t.Log(metric.GetLabel())
 			assert.True(t, hasLabelValue(metric.GetLabel(), "status_code", strconv.Itoa(http.StatusNotFound)))
 			assert.True(t, hasLabelValue(metric.GetLabel(), "method", http.MethodGet))
-			assert.True(t, hasLabelValue(metric.GetLabel(), "path", "/this_doesnt_exist"))
+			assert.True(t, hasLabelValue(metric.GetLabel(), "path", "/this_does_not_exist"))
 		})
 	}
 }

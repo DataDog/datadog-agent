@@ -47,13 +47,15 @@ func (s *packageApmInjectSuite) TestInstall() {
 	s.host.AssertPackageNotInstalledByPackageManager("datadog-agent", "datadog-apm-inject", "datadog-apm-library-python")
 	state := s.host.State()
 	state.AssertFileExists("/var/run/datadog-installer/environment", 0644, "root", "root")
+	state.AssertSymlinkExists("/etc/default/datadog-agent", "/var/run/datadog-installer/environment", "root", "root")
+	state.AssertSymlinkExists("/etc/default/datadog-agent-trace", "/var/run/datadog-installer/environment", "root", "root")
 	state.AssertDirExists("/var/log/datadog/dotnet", 0777, "root", "root")
 	state.AssertFileExists("/etc/ld.so.preload", 0644, "root", "root")
 	state.AssertFileExists("/usr/bin/dd-host-install", 0755, "root", "root")
 	state.AssertFileExists("/usr/bin/dd-container-install", 0755, "root", "root")
 	state.AssertDirExists("/etc/datadog-agent/inject", 0755, "root", "root")
 	s.assertLDPreloadInstrumented(injectOCIPath)
-	s.assertSocketPath("/var/run/datadog-installer/apm.socket")
+	s.assertSocketPath("/var/run/datadog/apm.socket")
 	s.assertDockerdInstrumented(injectOCIPath)
 
 	traceID := rand.Uint64()
@@ -143,7 +145,7 @@ func (s *packageApmInjectSuite) TestSystemdReload() {
 	assert.NoError(s.T(), err)
 	s.host.WaitForUnitActive("datadog-agent.service", "datadog-agent-trace.service")
 	s.assertLDPreloadInstrumented(injectOCIPath)
-	s.assertSocketPath("/var/run/datadog-installer/apm.socket")
+	s.assertSocketPath("/var/run/datadog/apm.socket")
 	s.assertDockerdInstrumented(injectOCIPath)
 }
 
@@ -203,7 +205,7 @@ func (s *packageApmInjectSuite) TestUpgrade_InjectorOCI_To_InjectorDeb() {
 	defer s.Purge()
 
 	s.assertLDPreloadInstrumented(injectOCIPath)
-	s.assertSocketPath("/var/run/datadog-installer/apm.socket")
+	s.assertSocketPath("/var/run/datadog/apm.socket")
 	s.assertDockerdInstrumented(injectOCIPath)
 
 	// Deb install using today's defaults
@@ -223,7 +225,7 @@ func (s *packageApmInjectSuite) TestUpgrade_InjectorOCI_To_InjectorDeb() {
 
 	// OCI musn't be overridden
 	s.assertLDPreloadInstrumented(injectOCIPath)
-	s.assertSocketPath("/var/run/datadog-installer/apm.socket")
+	s.assertSocketPath("/var/run/datadog/apm.socket")
 	s.assertDockerdInstrumented(injectOCIPath)
 }
 
@@ -302,7 +304,7 @@ func (s *packageApmInjectSuite) TestInstrument() {
 	)
 	defer s.Purge()
 	s.assertLDPreloadInstrumented(injectOCIPath)
-	s.assertSocketPath("/var/run/datadog-installer/apm.socket")
+	s.assertSocketPath("/var/run/datadog/apm.socket")
 	s.assertDockerdNotInstrumented()
 
 	s.host.InstallDocker()
@@ -311,7 +313,7 @@ func (s *packageApmInjectSuite) TestInstrument() {
 	assert.NoError(s.T(), err)
 
 	s.assertLDPreloadInstrumented(injectOCIPath)
-	s.assertSocketPath("/var/run/datadog-installer/apm.socket")
+	s.assertSocketPath("/var/run/datadog/apm.socket")
 	s.assertDockerdInstrumented(injectOCIPath)
 }
 
@@ -330,7 +332,7 @@ func (s *packageApmInjectSuite) TestPackagePinning() {
 	assert.NoError(s.T(), err)
 
 	s.assertLDPreloadInstrumented(injectOCIPath)
-	s.assertSocketPath("/var/run/datadog-installer/apm.socket")
+	s.assertSocketPath("/var/run/datadog/apm.socket")
 	s.assertDockerdInstrumented(injectOCIPath)
 
 	s.host.AssertPackageInstalledByInstaller("datadog-apm-library-python", "datadog-apm-library-dotnet")
@@ -349,7 +351,7 @@ func (s *packageApmInjectSuite) TestUninstrument() {
 	defer s.Purge()
 
 	s.assertLDPreloadInstrumented(injectOCIPath)
-	s.assertSocketPath("/var/run/datadog-installer/apm.socket")
+	s.assertSocketPath("/var/run/datadog/apm.socket")
 	s.assertDockerdInstrumented(injectOCIPath)
 
 	_, err := s.Env().RemoteHost.Execute("sudo datadog-installer apm uninstrument")
@@ -418,7 +420,7 @@ func (s *packageApmInjectSuite) TestInstrumentDockerInactive() {
 	s.Env().RemoteHost.MustExecute("sudo systemctl start docker")
 
 	s.assertLDPreloadInstrumented(injectOCIPath)
-	s.assertSocketPath("/var/run/datadog-installer/apm.socket")
+	s.assertSocketPath("/var/run/datadog/apm.socket")
 	s.assertDockerdInstrumented(injectOCIPath)
 }
 
