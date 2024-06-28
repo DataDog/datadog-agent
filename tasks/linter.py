@@ -16,11 +16,9 @@ from tasks.go import run_golangci_lint
 from tasks.libs.ciproviders.github_api import GithubAPI
 from tasks.libs.ciproviders.gitlab_api import (
     generate_gitlab_full_configuration,
-    get_gitlab_ci_configuration,
     get_gitlab_repo,
     get_preset_contexts,
     load_context,
-    print_gitlab_ci_configuration,
     read_includes,
 )
 from tasks.libs.common.check_tools_version import check_tools_version
@@ -365,33 +363,6 @@ def is_get_parameter_call(file):
                         return SSMParameterCall(file, nb, with_wrapper=True, with_env_var=False)
         except UnicodeDecodeError:
             pass
-
-
-@task
-def print_gitlab_ci(
-    ctx,
-    input_file: str = '.gitlab-ci.yml',
-    job: str | None = None,
-    sort: bool = False,
-    clean: bool = True,
-    git_ref: str | None = None,
-    ignore_errors: bool = False,
-):
-    """
-    Prints the full gitlab ci configuration.
-
-    - job: If provided, print only one job
-    - clean: Apply post processing to make output more readable (remove extends, flatten lists of lists...)
-    - ignore_errors: If True, ignore errors in the gitlab configuration (only process yaml)
-    - git_ref: If provided, use this git reference to fetch the configuration
-    """
-
-    yml = get_gitlab_ci_configuration(
-        ctx, input_file, job=job, clean=clean, git_ref=git_ref, ignore_errors=ignore_errors
-    )
-
-    # Print
-    print_gitlab_ci_configuration(yml, sort_jobs=sort)
 
 
 @task

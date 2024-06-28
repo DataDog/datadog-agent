@@ -9,6 +9,10 @@ from invoke import Context, task
 from invoke.exceptions import Exit
 
 import tasks.libs.notify.unit_tests as unit_tests_utils
+from tasks.libs.ciproviders.gitlab_api import (
+    get_gitlab_ci_configuration,
+    print_gitlab_ci_configuration,
+)
 from tasks.libs.common.datadog_api import send_metrics
 from tasks.libs.notify import alerts, failure_summary, pipeline_status
 from tasks.libs.notify.utils import PROJECT_NAME
@@ -133,3 +137,30 @@ def unit_tests(ctx, pipeline_id, pipeline_url, branch_name):
     jobs_with_no_tests_run = unit_tests_utils.process_unit_tests_tarballs(ctx)
     msg = unit_tests_utils.create_msg(pipeline_id, pipeline_url, jobs_with_no_tests_run)
     unit_tests_utils.comment_pr(msg, pipeline_id, branch_name, jobs_with_no_tests_run)
+
+
+@task
+def print_gitlab_ci(
+    ctx,
+    input_file: str = '.gitlab-ci.yml',
+    job: str | None = None,
+    sort: bool = False,
+    clean: bool = True,
+    git_ref: str | None = None,
+    ignore_errors: bool = False,
+):
+    """
+    Prints the full gitlab ci configuration.
+
+    - job: If provided, print only one job
+    - clean: Apply post processing to make output more readable (remove extends, flatten lists of lists...)
+    - ignore_errors: If True, ignore errors in the gitlab configuration (only process yaml)
+    - git_ref: If provided, use this git reference to fetch the configuration
+    """
+
+    yml = get_gitlab_ci_configuration(
+        ctx, input_file, job=job, clean=clean, git_ref=git_ref, ignore_errors=ignore_errors
+    )
+
+    # Print
+    print_gitlab_ci_configuration(yml, sort_jobs=sort)
