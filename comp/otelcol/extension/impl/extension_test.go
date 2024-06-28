@@ -19,17 +19,23 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/confighttp"
+	"go.opentelemetry.io/collector/otelcol"
 )
 
+var testOtelConfig = &otelcol.Config{}
+
 func getExtensionTestConfig(t *testing.T) *Config {
-	conv, err := configstore.NewConfigStore()
+	cf, err := configstore.NewConfigStore()
 	assert.NoError(t, err)
+
+	cf.AddEnhancedConf(testOtelConfig)
+	cf.AddProvidedConf(testOtelConfig)
 
 	return &Config{
 		HTTPConfig: &confighttp.ServerConfig{
 			Endpoint: "localhost:0",
 		},
-		ConfigStore: conv,
+		ConfigStore: cf,
 	}
 }
 
