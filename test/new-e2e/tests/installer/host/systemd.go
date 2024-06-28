@@ -116,6 +116,11 @@ func (h *Host) AssertSystemdEvents(since JournaldTimestamp, events SystemdEventS
 	}
 }
 
+func (h *Host) AssertNoSystemdEvents(since JournaldTimestamp) {
+	logs := h.journaldLogsSince(since)
+	require.Empty(h.t, logs)
+}
+
 // SystemdEvent represents a systemd event
 type SystemdEvent struct {
 	Unit    string

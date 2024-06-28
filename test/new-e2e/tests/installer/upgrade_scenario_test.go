@@ -114,6 +114,25 @@ func (s *upgradeScenarioSuite) TestBackendFailure() {
 	s.assertSuccessfulStopExperiment(timestamp)
 }
 
+func (s *upgradeScenarioSuite) TestStopWithoutExperiment() {
+	s.RunInstallScript("DD_REMOTE_UPDATES=true")
+	defer s.Purge()
+	s.host.WaitForUnitActive(
+		"datadog-agent.service",
+		"datadog-agent-trace.service",
+		"datadog-agent-process.service",
+		"datadog-installer.service",
+	)
+
+	beforeStatus := s.getInstallerStatus()["datadog-agent"]
+
+	_, err := s.stopExperimentCommand()
+	require.NoError(s.T(), err)
+
+	afterStatus := s.getInstallerStatus()["datadog-agent"]
+	require.Equal(s.T(), beforeStatus, afterStatus)
+}
+
 func (s *upgradeScenarioSuite) startExperimentCommand(version string) (string, error) {
 	cmd := fmt.Sprintf("sudo datadog-installer daemon start-experiment datadog-agent %s", version)
 	s.T().Logf("Running start command: %s", cmd)
