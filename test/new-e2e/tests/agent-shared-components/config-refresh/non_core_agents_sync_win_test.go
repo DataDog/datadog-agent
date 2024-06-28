@@ -74,6 +74,8 @@ func (v *configRefreshWindowsSuite) TestConfigRefresh() {
 		),
 	))
 
+	// Currently the framework does not restart the security agent on Windows so we need to do it manually.
+	// When the framework will support it, remove the line below and add `agentclientparams.WithSecurityAgentOnPort(securityCmdPort)` to the agent options.
 	v.Env().RemoteHost.MustExecute("Restart-Service datadog-security-agent")
 	// get auth token
 	v.T().Log("Getting the authentication token")
