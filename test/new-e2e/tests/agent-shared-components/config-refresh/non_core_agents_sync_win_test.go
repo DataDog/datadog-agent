@@ -52,7 +52,7 @@ func (v *configRefreshWindowsSuite) TestConfigRefresh() {
 		"ProcessCmdPort":           processCmdPort,
 		"SecurityCmdPort":          securityCmdPort,
 		"AgentIpcPort":             agentIpcPort,
-		"AllowGroupExecPermOption": "", // this is not supported on Windows
+		"SecretBackendCommandAllowGroupExecPermOption": "", // this is not supported on Windows
 	}
 	coreconfig := fillTmplConfig(v.T(), coreConfigTmpl, templateVars)
 

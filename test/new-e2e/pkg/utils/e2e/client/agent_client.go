@@ -149,7 +149,7 @@ func makeStatusEndpointCommand(params *agentclientparams.Params, osFamily osComp
 	}
 
 	statusEndpoint := fmt.Sprintf(url, port)
-	return curlCommand(statusEndpoint, params.AuthToken, osFamily), true, nil
+	return sendRequestCommand(statusEndpoint, params.AuthToken, osFamily), true, nil
 }
 
 func ensureAuthToken(params *agentclientparams.Params, osFamily osComp.Family, host *Host) error {
@@ -175,7 +175,7 @@ func fetchAuthTokenCommand(authTokenPath string, osFamily osComp.Family) string 
 	return fmt.Sprintf("sudo cat %s", authTokenPath)
 }
 
-func curlCommand(endpoint string, authToken string, osFamily osComp.Family) string {
+func sendRequestCommand(endpoint string, authToken string, osFamily osComp.Family) string {
 	if osFamily == osComp.WindowsFamily {
 		return fmt.Sprintf(
 			`Invoke-WebRequest -Uri "%s" -Headers @{"authorization"="Bearer %s"} -Method GET -UseBasicParsing`,
