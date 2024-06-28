@@ -45,6 +45,16 @@ const (
 	cloudResourceIdentifierHeader string            = "dd-cloud-resource-identifier"
 )
 
+// This number was chosen because requests on the EVP are accepted with sizes up to 5Mb, so we
+// want to be able to buffer at least a few max size requests before exerting backpressure.
+//
+// And using 25Mb at most per host seems not too unreasonnable.
+//
+// Looking at payload size distribution, the max requests we get is about than 1Mb anyway,
+// the biggest p99 per language is around 350Kb for nodejs and p95 is around 13Kb.
+// So it should provide enough in normal cases before we start dropping requests.
+const maxInflightBytes = 25 * 1000 * 1000
+
 // TelemetryForwarder sends HTTP requests to multiple targets.
 // The handler returns immediately and the forwarding is done in the background.
 //
@@ -53,9 +63,9 @@ type TelemetryForwarder struct {
 	endpoints []*config.Endpoint
 	conf      *config.AgentConfig
 
-	inflightWaiter sync.WaitGroup
-	inflightCount  atomic.Int32
-	maxConcurrent  int32
+	inflightWaiter   sync.WaitGroup
+	inflightCount    atomic.Int64
+	maxInflightBytes int64
 
 	containerIDProvider IDProvider
 	client              *config.ResetClient
@@ -84,9 +94,9 @@ func NewTelemetryForwarder(conf *config.AgentConfig, containerIDProvider IDProvi
 		endpoints: endpoints,
 		conf:      conf,
 
-		inflightWaiter: sync.WaitGroup{},
-		inflightCount:  atomic.Int32{},
-		maxConcurrent:  100,
+		inflightWaiter:   sync.WaitGroup{},
+		inflightCount:    atomic.Int64{},
+		maxInflightBytes: maxInflightBytes,
 
 		containerIDProvider: containerIDProvider,
 		client:              conf.NewHTTPClient(),
@@ -114,42 +124,32 @@ func (f *TelemetryForwarder) Stop() {
 	}
 }
 
-func (f *TelemetryForwarder) startRequest() (accepted bool) {
+func (f *TelemetryForwarder) startRequest(size int64) (accepted bool) {
 	for {
 		inflight := f.inflightCount.Load()
-		if inflight >= f.maxConcurrent {
+		newInflight := inflight + size
+		if newInflight >= f.maxInflightBytes {
 			return false
 		}
-		if f.inflightCount.CompareAndSwap(inflight, inflight+1) {
+		if f.inflightCount.CompareAndSwap(inflight, newInflight) {
 			return true
 		}
 	}
 }
 
-func (f *TelemetryForwarder) endRequest() {
-	f.inflightCount.Add(-1)
+func (f *TelemetryForwarder) endRequest(req forwardedRequest) {
+	f.inflightCount.Add(-int64(len(req.body)))
 }
 
-func (f *TelemetryForwarder) forwardTelemetryAsynchronously(r *http.Request) error {
-	body, err := io.ReadAll(r.Body)
-	if err != nil {
-		f.endRequest()
-		return err
-	}
-	req := forwardedRequest{
-		req:  r.Clone(context.Background()),
-		body: body,
-	}
-
+func (f *TelemetryForwarder) forwardTelemetryAsynchronously(req forwardedRequest) {
 	f.inflightWaiter.Add(1)
 	go func() {
 		defer f.inflightWaiter.Done()
-		defer f.endRequest()
+		defer f.endRequest(req)
 
 		f.setRequestHeader(req.req)
 		f.forwardTelemetry(context.Background(), req)
 	}()
-	return nil
 }
 
 // telemetryForwarderHandler returns a new HTTP handler which will proxy requests to the configured intakes.
@@ -166,15 +166,21 @@ func (r *HTTPReceiver) telemetryForwarderHandler() http.Handler {
 
 	forwarder := r.telemetryForwarder
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if accepted := forwarder.startRequest(); !accepted {
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			writeEmptyJSON(w, 500)
+			return
+		}
+
+		if accepted := forwarder.startRequest(int64(len(body))); !accepted {
 			writeEmptyJSON(w, 429)
 			return
 		}
-		err := forwarder.forwardTelemetryAsynchronously(r)
-		if err != nil {
-			writeEmptyJSON(w, 400)
-			return
-		}
+
+		forwarder.forwardTelemetryAsynchronously(forwardedRequest{
+			req:  r.Clone(context.Background()),
+			body: body,
+		})
 		writeEmptyJSON(w, 200)
 	})
 }
