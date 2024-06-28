@@ -280,14 +280,14 @@ dev_branch-otel:
     IMG_REGISTRIES: dev
   parallel:
     matrix:
-      - IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-ua-amd64
+      - IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-ua-amd64
         IMG_DESTINATIONS: agent-dev:${CI_COMMIT_REF_SLUG}
-      - IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-ua-jmx-amd64
-        IMG_DESTINATIONS: agent-dev:${CI_COMMIT_REF_SLUG}-ua-jmx
+      - IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-ua-jmx-amd64
+        IMG_DESTINATIONS: agent-dev:${CI_COMMIT_REF_SLUG}-7-ua-jmx
       - IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-ua-arm64
         IMG_DESTINATIONS: agent-dev:${CI_COMMIT_REF_SLUG}
       - IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-ua-jmx-arm64
-        IMG_DESTINATIONS: agent-dev:${CI_COMMIT_REF_SLUG}-ua-jmx
+        IMG_DESTINATIONS: agent-dev:${CI_COMMIT_REF_SLUG}-7-ua-jmx
 
 qa_dca:
   extends: .docker_publish_job_definition
