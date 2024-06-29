@@ -139,12 +139,12 @@ func (pi *ProcessInfo) CloseUprobeLink(probeID ProbeID) error {
 func (pi *ProcessInfo) CloseAllUprobeLinks() {
 	for probeID := range pi.InstrumentationUprobes {
 		if err := pi.CloseUprobeLink(probeID); err != nil {
-			log.Println("Failed to close uprobe link for probe", pi.BinaryPath, pi.PID, probeID, err)
+			log.Info("Failed to close uprobe link for probe", pi.BinaryPath, pi.PID, probeID, err)
 		}
 	}
 	err := pi.CloseConfigUprobe()
 	if err != nil {
-		log.Println("Failed to close config uprobe for process", pi.BinaryPath, pi.PID, err)
+		log.Info("Failed to close config uprobe for process", pi.BinaryPath, pi.PID, err)
 	}
 }
 

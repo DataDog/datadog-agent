@@ -57,7 +57,7 @@ entryLoop:
 			}
 			ranges, err := dwarfData.Ranges(entry)
 			if err != nil {
-				log.Printf("couldnt retrieve ranges for compile unit %s: %s", name, err)
+				log.Infof("couldnt retrieve ranges for compile unit %s: %s", name, err)
 				continue entryLoop
 			}
 

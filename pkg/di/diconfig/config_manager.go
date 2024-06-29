@@ -49,7 +49,7 @@ type RCConfigManager struct {
 }
 
 func NewRCConfigManager() (*RCConfigManager, error) {
-	log.Println("Creating new config manager")
+	log.Info("Creating new config manager")
 	cm := &RCConfigManager{
 		callback: applyConfigUpdate,
 	}
@@ -95,7 +95,7 @@ func (cm *RCConfigManager) updateProcesses(runningProcs ditypes.DIProcs) {
 			cm.diProcs[pid] = runningProcInfo
 			err := cm.installConfigProbe(runningProcInfo)
 			if err != nil {
-				log.Printf("could not install config probe for service %s (pid %d): %s", runningProcInfo.ServiceName, runningProcInfo.PID, err)
+				log.Infof("could not install config probe for service %s (pid %d): %s", runningProcInfo.ServiceName, runningProcInfo.PID, err)
 			}
 		}
 	}
@@ -146,32 +146,32 @@ func (cm *RCConfigManager) installConfigProbe(procInfo *ditypes.ProcessInfo) err
 
 func (cm *RCConfigManager) readConfigs(r *ringbuf.Reader, procInfo *ditypes.ProcessInfo) {
 	for {
-		log.Println("Waiting for configs")
+		log.Info("Waiting for configs")
 		record, err := r.Read()
 		if err != nil {
-			log.Printf("error reading raw configuration from bpf: %s", err)
+			log.Infof("error reading raw configuration from bpf: %s", err)
 			continue
 		}
 
 		configEventParams, err := eventparser.ParseParams(record.RawSample)
 		if err != nil {
-			log.Printf("error parsing configuration for PID %d: %s", procInfo.PID, err)
+			log.Infof("error parsing configuration for PID %d: %s", procInfo.PID, err)
 			continue
 		}
 		if len(configEventParams) != 3 {
-			log.Printf("error parsing configuration for PID %d: not enough arguments", procInfo.PID)
+			log.Infof("error parsing configuration for PID %d: not enough arguments", procInfo.PID)
 			continue
 		}
 
 		runtimeID, err := uuid.ParseBytes([]byte(configEventParams[0].ValueStr))
 		if err != nil {
-			log.Printf("Runtime ID \"%s\" is not a UUID: %s)\n", runtimeID, err)
+			log.Infof("Runtime ID \"%s\" is not a UUID: %s)\n", runtimeID, err)
 			continue
 		}
 
 		configPath, err := ditypes.ParseConfigPath(string(configEventParams[1].ValueStr))
 		if err != nil {
-			log.Printf("couldn't parse config path: %v", err)
+			log.Infof("couldn't parse config path: %v", err)
 			continue
 		}
 
@@ -185,7 +185,7 @@ func (cm *RCConfigManager) readConfigs(r *ringbuf.Reader, procInfo *ditypes.Proc
 		err = json.Unmarshal([]byte(configEventParams[2].ValueStr), &conf)
 		if err != nil {
 			diagnostics.Diagnostics.SetError(procInfo.ServiceName, procInfo.RuntimeID, configPath.ProbeUUID.String(), "ATTACH_ERROR", err.Error())
-			log.Printf("could not unmarshal configuration, cannot apply: %s (Probe-ID: %s)\n", err, configPath.ProbeUUID)
+			log.Infof("could not unmarshal configuration, cannot apply: %s (Probe-ID: %s)\n", err, configPath.ProbeUUID)
 			continue
 		}
 
@@ -210,28 +210,28 @@ func (cm *RCConfigManager) readConfigs(r *ringbuf.Reader, procInfo *ditypes.Proc
 }
 
 func applyConfigUpdate(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) {
-	log.Println("Applying config update", probe)
+	log.Info("Applying config update", probe)
 	err := analyzeBinary(procInfo)
 	if err != nil {
-		log.Printf("couldn't inspect binary: %s\n", err)
+		log.Infof("couldn't inspect binary: %s\n", err)
 		return
 	}
 
 	err = codegen.GenerateBPFProgram(procInfo, probe)
 	if err != nil {
-		log.Println("Couldn't generate BPF programs", err)
+		log.Info("Couldn't generate BPF programs", err)
 		return
 	}
 
 	err = ebpf.CompileBPFProgram(procInfo, probe)
 	if err != nil {
-		log.Println("Couldn't compile BPF objects", err)
+		log.Info("Couldn't compile BPF objects", err)
 		return
 	}
 
 	err = ebpf.AttachBPFUprobe(procInfo, probe)
 	if err != nil {
-		log.Println("Errors while attaching bpf programs", err)
+		log.Info("Errors while attaching bpf programs", err)
 		return
 	}
 }

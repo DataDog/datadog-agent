@@ -30,14 +30,14 @@ var (
 func SetupRingBufferAndHeaders() {
 	tempDir, err := os.MkdirTemp("/tmp", "dd-go-di*")
 	if err != nil {
-		log.Println(err)
+		log.Info(err)
 	}
 
 	globalTempDirPath = tempDir
 
 	err = setupRingbufferAndHeaders()
 	if err != nil {
-		log.Fatalf("couldn't establish bpf ringbuffer: %s", err)
+		log.Errorf("couldn't establish bpf ringbuffer: %s", err)
 	}
 }
 

@@ -3,8 +3,9 @@ package diconfig
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"reflect"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/di/ditypes"
 	"github.com/DataDog/datadog-agent/pkg/di/proctracker"
@@ -66,20 +67,20 @@ func NewFileWatchingConfigTracker(configFile string, onConfigUpdate fileConfigCa
 // and operate on the new global state of services/configs
 // via cm.callback
 func (cm *FileWatchingConfigManager) updateServiceConfigs(configs configsByService) {
-	log.Println("Updating config from file:", configs)
+	log.Info("Updating config from file:", configs)
 	cm.configs = configs
 	err := cm.update()
 	if err != nil {
-		log.Println(err)
+		log.Info(err)
 	}
 }
 
 func (cm *FileWatchingConfigManager) updateProcessInfo(procs ditypes.DIProcs) {
-	log.Println("Updating procs", procs)
+	log.Info("Updating procs", procs)
 	cm.configTracker.UpdateProcesses(procs)
 	err := cm.update()
 	if err != nil {
-		log.Println(err)
+		log.Info(err)
 	}
 }
 
@@ -105,7 +106,7 @@ func (ct *configTracker) Start() error {
 				conf := map[string]map[string]rcConfig{}
 				err = json.Unmarshal(rawConfigBytes, &conf)
 				if err != nil {
-					log.Printf("invalid config read from %s: %s", ct.ConfigPath, err)
+					log.Infof("invalid config read from %s: %s", ct.ConfigPath, err)
 					continue
 				}
 				ct.configCallback(conf)
@@ -154,4 +155,59 @@ func (cm *FileWatchingConfigManager) update() error {
 		for pid, procInfo := range cm.state {
 			// cleanup dead procs
 			if _, running := updatedState[pid]; !running {
-				procInfo.Clos
+				procInfo.CloseAllUprobeLinks()
+				delete(cm.state, pid)
+			}
+		}
+
+		for pid, procInfo := range updatedState {
+			if _, tracked := cm.state[pid]; !tracked {
+				for _, probe := range procInfo.GetProbes() {
+					// install all probes from new process
+					cm.callback(procInfo, probe)
+				}
+			} else {
+				for _, existingProbe := range cm.state[pid].GetProbes() {
+					updatedProbe := procInfo.GetProbe(existingProbe.ID)
+					if updatedProbe == nil {
+						// delete old probes
+						cm.state[pid].DeleteProbe(existingProbe.ID)
+					}
+				}
+				for _, updatedProbe := range procInfo.GetProbes() {
+					existingProbe := cm.state[pid].GetProbe(updatedProbe.ID)
+					if !reflect.DeepEqual(existingProbe, updatedProbe) {
+						// update existing probes that changed
+						cm.callback(procInfo, updatedProbe)
+					}
+				}
+			}
+		}
+		cm.state = updatedState
+	}
+	return nil
+}
+
+func convert(service string, configsByID map[ditypes.ProbeID]rcConfig) map[ditypes.ProbeID]*ditypes.Probe {
+	probesByID := map[ditypes.ProbeID]*ditypes.Probe{}
+	for id, config := range configsByID {
+		probesByID[id] = config.toProbe(service)
+	}
+	return probesByID
+}
+
+func (rc *rcConfig) toProbe(service string) *ditypes.Probe {
+	return &ditypes.Probe{
+		ID:                  rc.ID,
+		ServiceName:         service,
+		FuncName:            fmt.Sprintf("%s.%s", rc.Where.TypeName, rc.Where.MethodName),
+		InstrumentationInfo: &ditypes.InstrumentationInfo{InstrumentationOptions: defaultInstrumentationOptions()},
+	}
+}
+
+func defaultInstrumentationOptions() *ditypes.InstrumentationOptions {
+	return &ditypes.InstrumentationOptions{
+		ArgumentsMaxSize: ditypes.ArgumentsMaxSize,
+		StringMaxSize:    ditypes.StringMaxSize,
+	}
+}

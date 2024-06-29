@@ -55,13 +55,13 @@ func (s *OfflineSerializer[T]) Enqueue(item *T) bool {
 	defer s.mu.Unlock()
 	bs, err := json.Marshal(item)
 	if err != nil {
-		log.Println("Failed to marshal item", item)
+		log.Info("Failed to marshal item", item)
 		return false
 	}
 
 	_, err = s.outputFile.WriteString(string(bs) + "\n")
 	if err != nil {
-		log.Fatalln(err)
+		log.Error(err)
 	}
 	return true
 }

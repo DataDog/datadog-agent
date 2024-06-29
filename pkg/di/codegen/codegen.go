@@ -48,7 +48,7 @@ func GenerateBPFProgram(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) err
 		return err
 	}
 
-	log.Println(buf.String())
+	log.Info(buf.String())
 	probe.InstrumentationInfo.BPFSourceCode = buf.String()
 
 	return nil

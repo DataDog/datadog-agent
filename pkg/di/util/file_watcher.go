@@ -38,7 +38,7 @@ func (fw *FileWatcher) Watch() (<-chan []byte, error) {
 		for range ticker.C {
 			content, err := fw.readFile()
 			if err != nil {
-				log.Printf("Error reading file %s: %s", fw.filePath, err)
+				log.Infof("Error reading file %s: %s", fw.filePath, err)
 				return
 			}
 			if len(content) > 0 && string(content) != string(prevContent) {

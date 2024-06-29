@@ -72,7 +72,7 @@ func (u *Uploader[T]) Enqueue(item *T) bool {
 	case u.buffer <- item:
 		return true
 	default:
-		log.Printf("Uploader buffer full, dropping message %+v", item)
+		log.Infof("Uploader buffer full, dropping message %+v", item)
 		return false
 	}
 }
@@ -125,18 +125,18 @@ func (u *Uploader[T]) uploadLogBatch(batch []*T) {
 	body, _ := json.Marshal(batch)
 	req, err := http.NewRequest("POST", url, bytes.NewReader(body))
 	if err != nil {
-		log.Println("Failed to build request", err)
+		log.Info("Failed to build request", err)
 		return
 	}
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := u.client.Do(req)
 	if err != nil {
-		log.Println("Error uploading log batch", err)
+		log.Info("Error uploading log batch", err)
 		return
 	}
 	defer resp.Body.Close()
-	log.Println("HTTP", resp.StatusCode, url)
+	log.Info("HTTP", resp.StatusCode, url)
 }
 
 func (u *Uploader[T]) uploadDiagnosticBatch(batch []*T) {
@@ -148,7 +148,7 @@ func (u *Uploader[T]) uploadDiagnosticBatch(batch []*T) {
 
 	diagnosticJSON, err := json.Marshal(batch)
 	if err != nil {
-		log.Println("Failed to marshal diagnostic batch", err, batch)
+		log.Info("Failed to marshal diagnostic batch", err, batch)
 		return
 	}
 
@@ -157,13 +157,13 @@ func (u *Uploader[T]) uploadDiagnosticBatch(batch []*T) {
 	header.Set("Content-Type", "application/json")
 	fw, err := w.CreatePart(header)
 	if err != nil {
-		log.Println("Failed to create form file", err)
+		log.Info("Failed to create form file", err)
 		return
 	}
 
 	// Write the JSON data to the form-data part
 	if _, err = fw.Write(diagnosticJSON); err != nil {
-		log.Println("Failed to write data to form file", err)
+		log.Info("Failed to write data to form file", err)
 		return
 	}
 
@@ -173,7 +173,7 @@ func (u *Uploader[T]) uploadDiagnosticBatch(batch []*T) {
 	// Create a new request
 	req, err := http.NewRequest("POST", url, &b)
 	if err != nil {
-		log.Println("Failed to build request", err)
+		log.Info("Failed to build request", err)
 		return
 	}
 
@@ -181,10 +181,10 @@ func (u *Uploader[T]) uploadDiagnosticBatch(batch []*T) {
 	req.Header.Set("Content-Type", w.FormDataContentType())
 	resp, err := u.client.Do(req)
 	if err != nil {
-		log.Println("Error uploading diagnostic batch", err)
+		log.Info("Error uploading diagnostic batch", err)
 		return
 	}
 	defer resp.Body.Close()
 
-	log.Println("HTTP", resp.StatusCode, url)
+	log.Info("HTTP", resp.StatusCode, url)
 }
