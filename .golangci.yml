@@ -155,3 +155,7 @@ linters-settings:
       - name: var-naming
       # non-default rules:
       - name: duplicated-imports
+  custom:
+    pkgconfig:
+      type: "module"
+      description: "Ensure pkg/config is not used in the comp folder"
