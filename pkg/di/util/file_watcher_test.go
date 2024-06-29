@@ -87,7 +87,7 @@ func TestFileWatcherDeletedFile(t *testing.T) {
 			panic(err)
 		}
 		m = info.Mode()
-		log.Println(m)
+		log.Info(m)
 
 		fc, ok := <-ch
 		assert.True(t, ok, "expected channel to be open")

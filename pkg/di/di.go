@@ -110,9 +110,9 @@ func (goDI *GoDI) printSnapshot(event *ditypes.DIEvent) {
 	}
 
 	if err != nil {
-		log.Println(err)
+		log.Info(err)
 	}
-	log.Println(string(bs))
+	log.Info(string(bs))
 }
 
 func (goDI *GoDI) uploadSnapshot(event *ditypes.DIEvent) {

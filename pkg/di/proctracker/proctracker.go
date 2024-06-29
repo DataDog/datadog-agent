@@ -109,14 +109,14 @@ func (pt *ProcessTracker) inspectBinary(exePath string, pid uint32) {
 	f, err := os.Open(binPath)
 	if err != nil {
 		// this should be a debug log, it's noisy and not very useful
-		// log.Printf("could not open file %s, %s", binPath, err)
+		// log.Infof("could not open file %s, %s", binPath, err)
 		return
 	}
 	defer f.Close()
 
 	elfFile, err := elf.NewFile(f)
 	if err != nil {
-		log.Printf("file %s could not be parsed as an ELF file: %s", binPath, err)
+		log.Infof("file %s could not be parsed as an ELF file: %s", binPath, err)
 		return
 	}
 
@@ -127,13 +127,13 @@ func (pt *ProcessTracker) inspectBinary(exePath string, pid uint32) {
 		return
 	}
 	if err != nil {
-		log.Printf("error reading exe: %s", err)
+		log.Infof("error reading exe: %s", err)
 		return
 	}
 
 	var stat syscall.Stat_t
 	if err = syscall.Stat(binPath, &stat); err != nil {
-		log.Printf("could not stat binary path %s: %s", binPath, err)
+		log.Infof("could not stat binary path %s: %s", binPath, err)
 		return
 	}
 	binID := binaryID{
