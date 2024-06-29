@@ -15,12 +15,12 @@ import (
 
 func NewDILog(procInfo *ditypes.ProcessInfo, event *ditypes.DIEvent) *ditypes.SnapshotUpload {
 	if procInfo == nil {
-		log.Printf("Process with pid %d not found, ignoring event", event.PID)
+		log.Infof("Process with pid %d not found, ignoring event", event.PID)
 		return nil
 	}
 	probe := procInfo.GetProbe(event.ProbeID)
 	if probe == nil {
-		log.Println("Probe ID not found, ignoring event", event.ProbeID)
+		log.Info("Probe ID not found, ignoring event", event.ProbeID)
 		return nil
 	}
 
@@ -30,7 +30,7 @@ func NewDILog(procInfo *ditypes.ProcessInfo, event *ditypes.DIEvent) *ditypes.Sn
 	capturesJSON, _ := json.Marshal(captures)
 	stackTrace, err := parseStackTrace(procInfo, event.StackPCs)
 	if err != nil {
-		log.Printf("event from pid/probe %d/%s does not include stack trace: %s\n", event.PID, event.ProbeID, err)
+		log.Infof("event from pid/probe %d/%s does not include stack trace: %s\n", event.PID, event.ProbeID, err)
 	}
 	return &ditypes.SnapshotUpload{
 		Service:  probe.ServiceName,
