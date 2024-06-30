@@ -1130,6 +1130,97 @@ func (s *KafkaProtocolParsingSuite) TestKafkaFetchRaw() {
 	})
 }
 
+func testKafkaProduceRaw(t *testing.T, tls bool, apiVersion int) {
+	tests := []struct {
+		name               string
+		topic              string
+		buildRequest       func(string) kmsg.ProduceRequest
+		numProducedRecords int
+	}{
+		{
+			name:  "basic",
+			topic: strings.Repeat("a", 254) + "b",
+			buildRequest: func(topic string) kmsg.ProduceRequest {
+				// Make record batch over 16KiB for larger varint size
+				record := makeRecordWithVal(make([]byte, 10000))
+				records := []kmsg.Record{record, record}
+				recordBatch := makeRecordBatch(records...)
+
+				partition := kmsg.NewProduceRequestTopicPartition()
+				partition.Records = recordBatch.AppendTo(partition.Records)
+
+				reqTopic := kmsg.NewProduceRequestTopic()
+				reqTopic.Partitions = append(reqTopic.Partitions, partition)
+				reqTopic.Topic = topic
+
+				req := kmsg.NewProduceRequest()
+				req.SetVersion(int16(apiVersion))
+				transactionID := "transaction-id"
+				req.TransactionID = &transactionID
+				req.TimeoutMillis = 99999999
+				req.Topics = append(req.Topics, reqTopic)
+
+				return req
+			},
+			numProducedRecords: 2,
+		},
+	}
+
+	can := newCannedClientServer(t, tls)
+	can.runServer()
+	proxyPid := can.runProxy()
+
+	monitor := newKafkaMonitor(t, getDefaultTestConfiguration(tls))
+	if tls {
+		utils.WaitForProgramsToBeTraced(t, "go-tls", proxyPid)
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Cleanup(func() {
+				cleanProtocolMaps(t, "kafka", monitor.ebpfProgram.Manager.Manager)
+			})
+			req := tt.buildRequest(tt.topic)
+			formatter := kmsg.NewRequestFormatter(kmsg.FormatterClientID("kgo"))
+			data := formatter.AppendRequest(make([]byte, 0), &req, int32(99))
+			msgs := []Message{{request: data}}
+
+			can.runClient(msgs)
+
+			getAndValidateKafkaStats(t, monitor, 1, tt.topic, kafkaParsingValidation{
+				expectedNumberOfProduceRequests: tt.numProducedRecords,
+				expectedAPIVersionProduce:       apiVersion,
+				tlsEnabled:                      tls,
+			})
+		})
+	}
+}
+
+func (s *KafkaProtocolParsingSuite) TestKafkaProduceRaw() {
+	t := s.T()
+	versions := []int{8}
+
+	t.Run("without TLS", func(t *testing.T) {
+		for _, version := range versions {
+			t.Run(fmt.Sprintf("api%d", version), func(t *testing.T) {
+				testKafkaProduceRaw(t, false, version)
+			})
+		}
+	})
+
+	t.Run("with TLS", func(t *testing.T) {
+		if !gotlsutils.GoTLSSupported(t, config.New()) {
+			t.Skip("GoTLS not supported for this setup")
+		}
+
+		for _, version := range versions {
+			t.Run(fmt.Sprintf("api%d", version), func(t *testing.T) {
+				testKafkaProduceRaw(t, true, version)
+			})
+		}
+	})
+}
+
 func TestKafkaInFlightMapCleaner(t *testing.T) {
 	skipTestIfKernelNotSupported(t)
 	cfg := getDefaultTestConfiguration(false)
