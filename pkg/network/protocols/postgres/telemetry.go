@@ -23,7 +23,6 @@ const (
 	// We add 1 in order to include telemetryBaseBufferSize as the upper boundary of the third bucket.
 	// Then the first three buckets will include query lengths shorter or equal to telemetryBaseBufferSize,
 	// and the rest will include sizes equal to or above the buffer size.
-	firstBucketLowerBoundary = telemetryBaseBufferSize - numberOfBucketsSmallerThanMaxBufferSize*bucketLength + 1
 )
 
 // Telemetry is a struct to hold the telemetry for the postgres protocol
@@ -36,6 +35,11 @@ type Telemetry struct {
 	failedTableNameExtraction *libtelemetry.Counter
 	// failedOperationExtraction holds the counter for the failed operation extraction
 	failedOperationExtraction *libtelemetry.Counter
+}
+
+// CountOptions holds the options for the Count function.
+type CountOptions struct {
+	TelemetryBufferSize int
 }
 
 // createQueryLengthBuckets initializes the query length buckets
@@ -70,16 +74,20 @@ func NewTelemetry() *Telemetry {
 }
 
 // getBucketIndex returns the index of the bucket for the given query size
-func getBucketIndex(querySize int) int {
+func getBucketIndex(querySize int, options ...CountOptions) int {
+	firstBucketLowerBoundary := telemetryBaseBufferSize - numberOfBucketsSmallerThanMaxBufferSize*bucketLength + 1
+	if len(options) > 0 {
+		firstBucketLowerBoundary = options[0].TelemetryBufferSize - numberOfBucketsSmallerThanMaxBufferSize*bucketLength + 1
+	}
 	bucketIndex := max(0, querySize-firstBucketLowerBoundary) / bucketLength
 	return min(bucketIndex, numberOfBuckets-1)
 }
 
 // Count increments the telemetry counters based on the event data
-func (t *Telemetry) Count(tx *EbpfEvent, eventWrapper *EventWrapper) {
+func (t *Telemetry) Count(tx *EbpfEvent, eventWrapper *EventWrapper, options ...CountOptions) {
 	querySize := int(tx.Tx.Original_query_size)
 
-	bucketIndex := getBucketIndex(querySize)
+	bucketIndex := getBucketIndex(querySize, options...)
 	if bucketIndex >= 0 && bucketIndex < len(t.queryLengthBuckets) {
 		t.queryLengthBuckets[bucketIndex].Add(1)
 	}
