@@ -516,7 +516,7 @@ func TestCloseCycleScan(t *testing.T) {
 
 		go func() {
 			for {
-				for k, _ := range tests {
+				for k := range tests {
 					msg := message.Message{}
 					s.Scan([]byte(k), &msg)
 				}

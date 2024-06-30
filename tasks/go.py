@@ -12,7 +12,10 @@ import shutil
 import sys
 import textwrap
 import traceback
+from collections import defaultdict
+from collections.abc import Iterable
 from pathlib import Path
+from time import sleep
 
 from invoke import task
 from invoke.exceptions import Exit
@@ -106,13 +109,20 @@ def deps(ctx, verbose=False):
     """
     Setup Go dependencies
     """
-
+    max_retry = 3
     print("downloading dependencies")
     with timed("go mod download"):
         verbosity = ' -x' if verbose else ''
         for mod in DEFAULT_MODULES.values():
             with ctx.cd(mod.full_path()):
-                ctx.run(f"go mod download{verbosity}")
+                for retry in range(max_retry):
+                    result = ctx.run(f"go mod download{verbosity}")
+                    if result.exited is None or result.exited > 0:
+                        wait = 10 ** (retry + 1)
+                        print(f"[{(retry + 1) / max_retry}] Failed downloading {mod.path}, retrying in {wait} seconds")
+                        sleep(wait)
+                        continue
+                    break
 
 
 @task
@@ -486,7 +496,7 @@ def get_deps(ctx, path):
         return deps
 
 
-def add_replaces(ctx, path, replaces: list[str]):
+def add_replaces(ctx, path, replaces: Iterable[str]):
     repo_path = posixpath.abspath('.')
     with ctx.cd(path):
         for repo_local_path in replaces:
@@ -514,6 +524,7 @@ def add_go_module(path):
     modulespy_regex = re.compile(r"DEFAULT_MODULES = {\n(.+?)\n}", re.DOTALL | re.MULTILINE)
 
     all_modules_match = modulespy_regex.search(modulespy)
+    assert all_modules_match, "Could not find DEFAULT_MODULES in modules.py"
     all_modules = all_modules_match.group(1)
     all_modules = all_modules.split('\n')
     indent = ' ' * 4
@@ -525,7 +536,9 @@ def add_go_module(path):
     for i, line in enumerate(all_modules):
         # This line is the start of a module (not a comment / middle of a module declaration)
         if line.startswith(f'{indent}"'):
-            module = re.search(rf'{indent}"([^"]*)"', line).group(1)
+            results = re.search(rf'{indent}"([^"]*)"', line)
+            assert results, f"Could not find module name in line '{line}'"
+            module = results.group(1)
             if module < path:
                 insert_line = i
             else:
@@ -650,3 +663,70 @@ def create_module(ctx, path: str, no_verify: bool = False):
         print(color_message("Not removing changed files", "red"))
 
         raise Exit(code=1) from e
+
+
+@task(iterable=['targets'])
+def mod_diffs(_, targets):
+    """
+    Lists differences in versions of libraries in the repo,
+    optionally compared to a list of target go.mod files.
+
+    Parameters:
+    - targets: list of paths to target go.mod files.
+    """
+    # Find all go.mod files in the repo
+    all_go_mod_files = []
+    for module in DEFAULT_MODULES:
+        all_go_mod_files.append(os.path.join(module, 'go.mod'))
+
+    # Validate the provided targets
+    for target in targets:
+        if target not in all_go_mod_files:
+            raise Exit(f"Error: Target go.mod file '{target}' not found.")
+
+    for target in targets:
+        all_go_mod_files.remove(target)
+
+    # Dictionary to store library versions
+    library_versions = defaultdict(lambda: defaultdict(set))
+
+    # Regular expression to match require statements in go.mod
+    require_pattern = re.compile(r'^\s*([a-zA-Z0-9.\-/]+)\s+([a-zA-Z0-9.\-+]+)')
+
+    # Process each go.mod file
+    for go_mod_file in all_go_mod_files + targets:
+        with open(go_mod_file) as f:
+            inside_require_block = False
+            for line in f:
+                line = line.strip()
+                if line == "require (":
+                    inside_require_block = True
+                    continue
+                elif inside_require_block and line == ")":
+                    inside_require_block = False
+                    continue
+                if inside_require_block or line.startswith("require "):
+                    match = require_pattern.match(line)
+                    if match:
+                        library, version = match.groups()
+                        if not library.startswith("github.com/DataDog/datadog-agent/"):
+                            library_versions[library][version].add(go_mod_file)
+
+    # List libraries with multiple versions
+    for library, versions in library_versions.items():
+        if targets:
+            relevant_paths = {path for version_paths in versions.values() for path in version_paths if path in targets}
+            if relevant_paths:
+                print(f"Library {library} differs in:")
+                for version, paths in versions.items():
+                    intersecting_paths = set(paths).intersection(targets)
+                    if intersecting_paths:
+                        print(f"  - Version {version} in:")
+                        for path in intersecting_paths:
+                            print(f"    * {path}")
+        elif len(versions) > 1:
+            print(f"Library {library} has different versions:")
+            for version, paths in versions.items():
+                print(f"  - Version {version} in:")
+                for path in paths:
+                    print(f"    * {path}")

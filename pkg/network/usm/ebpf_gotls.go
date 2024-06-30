@@ -291,7 +291,13 @@ func GoTLSAttachPID(pid pid) error {
 		return errors.New("GoTLS is not enabled")
 	}
 
-	return goTLSSpec.Instance.(*goTLSProgram).AttachPID(pid)
+	err := goTLSSpec.Instance.(*goTLSProgram).AttachPID(pid)
+	if errors.Is(err, utils.ErrPathIsAlreadyRegistered) {
+		// The process monitor has attached the process before us.
+		return nil
+	}
+
+	return err
 }
 
 // GoTLSDetachPID detaches Go TLS hooks on the binary of process with

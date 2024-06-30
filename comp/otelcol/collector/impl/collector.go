@@ -26,9 +26,11 @@ import (
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	collectorcontrib "github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def"
 	collector "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
+	ddextension "github.com/DataDog/datadog-agent/comp/otelcol/extension/impl"
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter"
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/datatype"
 	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
@@ -52,15 +54,16 @@ type Requires struct {
 	Lc compdef.Lifecycle
 
 	// Log specifies the logging component.
-	Log              corelog.Component
-	Provider         confmap.Converter
-	CollectorContrib collectorcontrib.Component
-	Serializer       serializer.MetricSerializer
-	TraceAgent       traceagent.Component
-	LogsAgent        optional.Option[logsagentpipeline.Component]
-	SourceProvider   serializerexporter.SourceProviderFunc
-	Tagger           tagger.Component
-	URIs             []string
+	Log                 corelog.Component
+	Provider            confmap.Converter
+	CollectorContrib    collectorcontrib.Component
+	Serializer          serializer.MetricSerializer
+	TraceAgent          traceagent.Component
+	LogsAgent           optional.Option[logsagentpipeline.Component]
+	SourceProvider      serializerexporter.SourceProviderFunc
+	Tagger              tagger.Component
+	StatsdClientWrapper *metricsclient.StatsdClientWrapper
+	URIs                []string
 }
 
 // Provides declares the output types from the constructor
@@ -99,11 +102,12 @@ func NewComponent(reqs Requires) (Provides, error) {
 				return otelcol.Factories{}, err
 			}
 			if v, ok := reqs.LogsAgent.Get(); ok {
-				factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(reqs.TraceAgent, reqs.Serializer, v, reqs.SourceProvider)
+				factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(reqs.TraceAgent, reqs.Serializer, v, reqs.SourceProvider, reqs.StatsdClientWrapper)
 			} else {
-				factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(reqs.TraceAgent, reqs.Serializer, nil, reqs.SourceProvider)
+				factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(reqs.TraceAgent, reqs.Serializer, nil, reqs.SourceProvider, reqs.StatsdClientWrapper)
 			}
 			factories.Processors[infraattributesprocessor.Type] = infraattributesprocessor.NewFactory(reqs.Tagger)
+			factories.Extensions[ddextension.Type] = ddextension.NewFactory(reqs.Provider)
 			return factories, nil
 		},
 		ConfigProviderSettings: otelcol.ConfigProviderSettings{
