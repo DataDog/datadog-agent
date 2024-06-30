@@ -1,5 +1,6 @@
 using System;
 using System.DirectoryServices.ActiveDirectory;
+using System.Linq;
 using System.Security.Cryptography;
 using System.Security.Principal;
 using System.Windows.Forms;
@@ -170,9 +171,9 @@ namespace Datadog.CustomActions
             // We do not use CredUIParseUserName because it does not handle some cases nicely.
             // e.g. CredUIParseUserName(host.ddev.net\user) returns userName=.ddev.net domain=host.ddev.net
             // e.g. CredUIParseUserName(.\user) returns userName=.\user domain=
-            if (account.Contains("\\"))
+            var sepChars = new[] { '\\', '@' };
+            foreach (var parts in sepChars.Where(account.Contains).Select(s => account.Split(s)))
             {
-                var parts = account.Split('\\');
                 domain = parts[0];
                 userName = parts[1];
                 if (NameUsesDefaultPart(domain))
