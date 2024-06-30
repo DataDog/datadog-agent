@@ -24,12 +24,13 @@ RUN if [ "$CIBUILD" = "true" ]; then \
   fi
 
 ENV DEBIAN_FRONTEND=noninteractive
-RUN apt update
 
 FROM baseimage AS nosys-seccomp
 COPY nosys-seccomp/nosys.c   /tmp/nosys.c
 COPY nosys-seccomp/nosys.sym /tmp/nosys.sym
-RUN apt install --no-install-recommends -y gcc libc6-dev libseccomp-dev
+RUN apt update \
+  && apt install --no-install-recommends -y gcc libc6-dev libseccomp-dev \
+  && rm -rf /var/lib/apt-lists/*
 RUN gcc -pipe -Wall -Wextra -O2 -shared -fPIC -Wl,--version-script=/tmp/nosys.sym -o /tmp/nosys.so /tmp/nosys.c  -lseccomp
 
 ############################################
@@ -51,7 +52,9 @@ WORKDIR /output
 ENV S6_VERSION v2.2.0.3
 ENV JUST_CONTAINERS_DOWNLOAD_LOCATION=${GENERAL_ARTIFACTS_CACHE_BUCKET_URL:+${GENERAL_ARTIFACTS_CACHE_BUCKET_URL}/s6-overlay}
 ENV JUST_CONTAINERS_DOWNLOAD_LOCATION=${JUST_CONTAINERS_DOWNLOAD_LOCATION:-https://github.com/just-containers/s6-overlay/releases/download}
-RUN apt install --no-install-recommends -y curl ca-certificates
+RUN apt update \
+  && apt install --no-install-recommends -y curl ca-certificates \
+  && rm -rf /var/lib/apt-lists/*
 RUN S6ARCH=$([ "$TARGETARCH" = "amd64" ] && echo "amd64" || echo "aarch64") && curl -L ${JUST_CONTAINERS_DOWNLOAD_LOCATION}/${S6_VERSION}/s6-overlay-${S6ARCH}.tar.gz -o /output/s6.tgz
 COPY s6.$TARGETARCH.sha256 /output/s6.$TARGETARCH.sha256
 # To calculate S6_SHA256SUM for a specific version, run:
@@ -127,24 +130,28 @@ ENV DOCKER_DD_AGENT=true \
     DD_SECRET_BACKEND_COMMAND_ALLOW_GROUP_EXEC_PERM="true"
 
 # make sure we have recent dependencies -- CVE-fixing time!
-RUN apt full-upgrade -y \
+RUN apt update \
+  && apt full-upgrade -y \
   # Install iproute2 package for the ss utility that is used by the network check.
   # When the network check will have switched from using ss to directly parsing /proc/net/tcp,
   # this can be removed
   # Install libssl-dev as it's required by some Python checks and we rely on system version
   # Install libseccomp2 as required by `nosys-seccomp` wrapper
-  && apt install -y iproute2 libssl-dev libseccomp2 tzdata adduser
+  && apt install -y iproute2 libssl-dev libseccomp2 tzdata adduser \
+  && rm -rf /var/lib/apt-lists/*
 
 # Install openjdk-11-jre-headless on jmx flavor
 RUN if [ -n "$WITH_JMX" ]; then echo "Pulling openjdk-11 from testing" \
   && mkdir -p /usr/share/man/man1 \
+  && apt update \
   && apt install --no-install-recommends -y openjdk-11-jre-headless \
+  && rm -rf /var/lib/apt-lists/* \
   && apt clean; fi
 
 # cleaning up
 # We remove /etc/ssl because in JMX images, openjdk triggers installation of ca-certificates-java
 # which writes to /etc/ssl. Yet, in the Agent we only rely on certs shipped in the Agent package.
-RUN rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* /etc/ssl
+RUN rm -rf /tmp/* /var/tmp/* /etc/ssl
 RUN ln -sf /opt/datadog-agent/embedded/ssl /etc/ssl
 
 # Copy agent from extract stage
