@@ -362,7 +362,7 @@ func RandomSpan() *pb.Span {
 }
 
 // GetTestSpan returns a Span with different fields set
-func GetTestSpan() *pb.Span {
+func GetTestSpan(metacount, metanamesize, metavalsize int) *pb.Span {
 	span := &pb.Span{
 		TraceID:  42,
 		SpanID:   52,
@@ -389,9 +389,21 @@ func GetTestSpan() *pb.Span {
 			},
 		},
 	}
+	for i := 0; i < metacount; i++ {
+		span.Meta[randString(metanamesize)] = randString(metavalsize)
+		span.Metrics[randString(metanamesize)] = rand.Float64()
+	}
 	trace := pb.Trace{span}
 	traceutil.ComputeTopLevel(trace)
 	return trace[0]
+}
+
+func randString(n int) string {
+	bs := make([]rune, n)
+	for i := 0; i < n; i++ {
+		bs[i] = rune(rand.Intn(94) + 33) // interval [33, 127), printable ascii characters
+	}
+	return string(bs)
 }
 
 // TestSpan returns a fix span with hardcoded info, useful for reproducible tests

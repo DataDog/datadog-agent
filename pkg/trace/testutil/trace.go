@@ -100,6 +100,10 @@ func RandomTraceChunk(maxLevels, maxSpans int) *pb.TraceChunk {
 // GetTestTraces returns a []Trace that is composed by “traceN“ number
 // of traces, each one composed by “size“ number of spans.
 func GetTestTraces(traceN, size int, realisticIDs bool) pb.Traces {
+	return GetTestTracesWithMeta(traceN, size, 0, 0, 0, realisticIDs)
+}
+
+func GetTestTracesWithMeta(traceN, size, metacount, metanamesize, metavalsize int, realisticIDs bool) pb.Traces {
 	traces := pb.Traces{}
 
 	r := rand.New(rand.NewSource(42))
@@ -112,7 +116,7 @@ func GetTestTraces(traceN, size int, realisticIDs bool) pb.Traces {
 
 		trace := pb.Trace{}
 		for j := 0; j < size; j++ {
-			span := GetTestSpan()
+			span := GetTestSpan(metacount, metanamesize, metavalsize)
 			if realisticIDs {
 				// Need to have different span IDs else traces are rejected
 				// because they are not correct (indeed, a trace with several

@@ -2585,3 +2585,324 @@ func TestProcessedTrace(t *testing.T) {
 		assert.Equal(t, expectedPt, pt)
 	})
 }
+
+func BenchmarkE2E(b *testing.B) {
+	//log.SetLogger(&stdoutlogger{})
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.Copy(io.Discard, r.Body)
+		r.Body.Close()
+	}))
+	defer ts.Close()
+
+	cfg := config.New()
+	cfg.Endpoints[0].APIKey = "test"
+	cfg.Endpoints[0].Host = ts.URL
+	cfg.MaxCPU = 8
+	cfg.MaxConnections = 1000
+	cfg.Ignore["resource"] = []string{"^INSERT.*"}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	a := NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{})
+	go a.Run()
+
+	defaultHeaders := map[string]string{
+		"Datadog-Meta-Lang":             "go",
+		"Datadog-Meta-Lang-Version":     strings.TrimPrefix(runtime.Version(), "go"),
+		"Datadog-Meta-Lang-Interpreter": runtime.Compiler + "-" + runtime.GOARCH + "-" + runtime.GOOS,
+		"Datadog-Meta-Tracer-Version":   "0.0.1-alpha",
+		"Content-Type":                  "application/msgpack",
+	}
+	time.Sleep(1 * time.Second)
+
+	for _, tt := range []struct {
+		name               string
+		tracecount         int
+		spansPerTrace      int
+		metaMetricsPerSpan int
+		metaNameSize       int
+		metaValSize        int
+	}{
+		{
+			name:               "tinytiny",
+			tracecount:         2,
+			spansPerTrace:      1,
+			metaMetricsPerSpan: 0,
+		},
+		{
+			name:               "tinytrace",
+			tracecount:         200,
+			spansPerTrace:      2,
+			metaMetricsPerSpan: 0,
+		},
+		{
+			name:               "smalltrace",
+			tracecount:         100,
+			spansPerTrace:      10,
+			metaMetricsPerSpan: 0,
+		},
+		{
+			name:               "bigtrace",
+			tracecount:         10,
+			spansPerTrace:      100,
+			metaMetricsPerSpan: 0,
+		},
+		{
+			name:               "tinytiny+smallmetrics",
+			tracecount:         2,
+			spansPerTrace:      1,
+			metaMetricsPerSpan: 10,
+			metaNameSize:       10, // reasonable name size, e.g. "http.path"
+			metaValSize:        20, // reasonable value size, e.g. "http://example.com/"
+		},
+		{
+			name:               "tinytrace+smallmetrics",
+			tracecount:         200,
+			spansPerTrace:      2,
+			metaMetricsPerSpan: 10,
+			metaNameSize:       10, // reasonable name size, e.g. "http.path"
+			metaValSize:        20, // reasonable value size, e.g. "http://example.com/"
+		},
+		{
+			name:               "smalltrace+smallmetrics",
+			tracecount:         100,
+			spansPerTrace:      10,
+			metaMetricsPerSpan: 10,
+			metaNameSize:       10, // reasonable name size, e.g. "http.path"
+			metaValSize:        20, // reasonable value size, e.g. "http://example.com/"
+		},
+		{
+			name:               "bigtrace+smallmetrics",
+			tracecount:         10,
+			spansPerTrace:      100,
+			metaMetricsPerSpan: 10,
+			metaNameSize:       10, // reasonable name size, e.g. "http.path"
+			metaValSize:        20, // reasonable value size, e.g. "http://example.com/"
+		},
+		{
+			name:               "tinytiny+bigmetrics",
+			tracecount:         2,
+			spansPerTrace:      1,
+			metaMetricsPerSpan: 50,
+			metaNameSize:       10, // reasonable name size, e.g. "http.path"
+			metaValSize:        20, // reasonable value size, e.g. "http://example.com/"
+		},
+		{
+			name:               "tinytrace+bigmetrics",
+			tracecount:         200,
+			spansPerTrace:      2,
+			metaMetricsPerSpan: 50,
+			metaNameSize:       10, // reasonable name size, e.g. "http.path"
+			metaValSize:        20, // reasonable value size, e.g. "http://example.com/"
+		},
+		{
+			name:               "smalltrace+bigmetrics",
+			tracecount:         100,
+			spansPerTrace:      10,
+			metaMetricsPerSpan: 50,
+			metaNameSize:       10, // reasonable name size, e.g. "http.path"
+			metaValSize:        20, // reasonable value size, e.g. "http://example.com/"
+		},
+		{
+			name:               "bigtrace+bigmetrics",
+			tracecount:         10,
+			spansPerTrace:      100,
+			metaMetricsPerSpan: 50,
+			metaNameSize:       10, // reasonable name size, e.g. "http.path"
+			metaValSize:        20, // reasonable value size, e.g. "http://example.com/"
+		},
+		{
+			name:               "tinytiny+smallmetrics+bigname",
+			tracecount:         2,
+			spansPerTrace:      1,
+			metaMetricsPerSpan: 10,
+			metaNameSize:       100,
+			metaValSize:        20,
+		},
+		{
+			name:               "tinytrace+smallmetrics+bigname",
+			tracecount:         200,
+			spansPerTrace:      2,
+			metaMetricsPerSpan: 10,
+			metaNameSize:       100,
+			metaValSize:        20,
+		},
+		{
+			name:               "smalltrace+smallmetrics+bigname",
+			tracecount:         100,
+			spansPerTrace:      10,
+			metaMetricsPerSpan: 10,
+			metaNameSize:       100,
+			metaValSize:        20,
+		},
+		{
+			name:               "bigtrace+smallmetrics+bigname",
+			tracecount:         10,
+			spansPerTrace:      100,
+			metaMetricsPerSpan: 10,
+			metaNameSize:       100,
+			metaValSize:        20,
+		},
+		{
+			name:               "tinytiny+bigmetrics+bigname",
+			tracecount:         2,
+			spansPerTrace:      1,
+			metaMetricsPerSpan: 50,
+			metaNameSize:       100,
+			metaValSize:        20,
+		},
+		{
+			name:               "tinytrace+bigmetrics+bigname",
+			tracecount:         200,
+			spansPerTrace:      2,
+			metaMetricsPerSpan: 50,
+			metaNameSize:       100,
+			metaValSize:        20,
+		},
+		{
+			name:               "smalltrace+bigmetrics+bigname",
+			tracecount:         100,
+			spansPerTrace:      10,
+			metaMetricsPerSpan: 50,
+			metaNameSize:       100,
+			metaValSize:        20,
+		},
+		{
+			name:               "bigtrace+bigmetrics+bigname",
+			tracecount:         10,
+			spansPerTrace:      100,
+			metaMetricsPerSpan: 50,
+			metaNameSize:       100,
+			metaValSize:        20,
+		},
+		{
+			name:               "tinytiny+smallmetrics+bigvalue",
+			tracecount:         2,
+			spansPerTrace:      1,
+			metaMetricsPerSpan: 10,
+			metaNameSize:       10,
+			metaValSize:        1000,
+		},
+		{
+			name:               "tinytrace+smallmetrics+bigvalue",
+			tracecount:         200,
+			spansPerTrace:      2,
+			metaMetricsPerSpan: 10,
+			metaNameSize:       10,
+			metaValSize:        1000,
+		},
+		{
+			name:               "smalltrace+smallmetrics+bigvalue",
+			tracecount:         100,
+			spansPerTrace:      10,
+			metaMetricsPerSpan: 10,
+			metaNameSize:       10,
+			metaValSize:        1000,
+		},
+		{
+			name:               "bigtrace+smallmetrics+bigvalue",
+			tracecount:         10,
+			spansPerTrace:      100,
+			metaMetricsPerSpan: 10,
+			metaNameSize:       10,
+			metaValSize:        1000,
+		},
+		{
+			name:               "tinytiny+bigmetrics+bigvalue",
+			tracecount:         2,
+			spansPerTrace:      1,
+			metaMetricsPerSpan: 20,
+			metaNameSize:       10,
+			metaValSize:        1000,
+		},
+		{
+			name:               "tinytrace+bigmetrics+bigvalue",
+			tracecount:         200,
+			spansPerTrace:      2,
+			metaMetricsPerSpan: 20,
+			metaNameSize:       10,
+			metaValSize:        1000,
+		},
+		{
+			name:               "smalltrace+bigmetrics+bigvalue",
+			tracecount:         100,
+			spansPerTrace:      10,
+			metaMetricsPerSpan: 20,
+			metaNameSize:       10,
+			metaValSize:        1000,
+		},
+		{
+			name:               "bigtrace+bigmetrics+bigvalue",
+			tracecount:         10,
+			spansPerTrace:      100,
+			metaMetricsPerSpan: 20,
+			metaNameSize:       10,
+			metaValSize:        1000,
+		},
+	} {
+		b.Run(tt.name, func(b *testing.B) {
+			bts, err := testutil.GetTestTracesWithMeta(tt.tracecount, tt.spansPerTrace, tt.metaMetricsPerSpan, tt.metaNameSize, tt.metaValSize, true).MarshalMsg(nil)
+			if err != nil {
+				b.Fatal(err)
+			}
+
+			b.ResetTimer()
+			b.ReportAllocs()
+			for i := 0; i < b.N; i++ {
+				req, err := http.NewRequest("POST", "http://localhost:8126/v0.4/traces", bytes.NewReader(bts))
+				if err != nil {
+					b.Fatal(err)
+				}
+				for header, value := range defaultHeaders {
+					req.Header.Set(header, value)
+				}
+				req.Header.Set("X-Datadog-Trace-Count", strconv.Itoa(tt.tracecount))
+				req.Header.Set("Content-Length", strconv.Itoa(len(bts)))
+
+				resp, err := http.DefaultClient.Do(req)
+				if err != nil {
+					b.Fatal(err)
+				}
+				io.Copy(io.Discard, resp.Body)
+				resp.Body.Close()
+			}
+		})
+	}
+
+}
+
+type stdoutlogger struct{}
+
+func (l *stdoutlogger) Trace(v ...interface{})                      { stdlog(v) }
+func (l *stdoutlogger) Tracef(format string, params ...interface{}) { stdlogf(format, params) }
+func (l *stdoutlogger) Debug(v ...interface{})                      { stdlog(v) }
+func (l *stdoutlogger) Debugf(format string, params ...interface{}) { stdlogf(format, params) }
+func (l *stdoutlogger) Info(v ...interface{})                       { stdlog(v) }
+func (l *stdoutlogger) Infof(format string, params ...interface{})  { stdlogf(format, params) }
+func (l *stdoutlogger) Warn(v ...interface{}) error                 { stdlog(v); return nil }
+func (l *stdoutlogger) Warnf(format string, params ...interface{}) error {
+	stdlogf(format, params)
+	return nil
+}
+func (l *stdoutlogger) Error(v ...interface{}) error { stdlog(v); return nil }
+func (l *stdoutlogger) Errorf(format string, params ...interface{}) error {
+	stdlogf(format, params)
+	return nil
+}
+func (l *stdoutlogger) Critical(v ...interface{}) error { stdlog(v); return nil }
+func (l *stdoutlogger) Criticalf(format string, params ...interface{}) error {
+	stdlogf(format, params)
+	return nil
+}
+func (l *stdoutlogger) Flush() {}
+
+func stdlog(v []interface{}) {
+	fmt.Print("++++++++++++++++++++")
+	fmt.Print(v...)
+	fmt.Print("\n")
+}
+
+func stdlogf(format string, params []interface{}) {
+	fmt.Printf("++++++++++++++++++++"+format+"\n", params...)
+}
