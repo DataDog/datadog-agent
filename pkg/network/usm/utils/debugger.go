@@ -37,7 +37,7 @@ type TracedProgram struct {
 // BlockedProcess represents an active uprobe-based program and its blocked PIDs.
 type BlockedProcess struct {
 	ProgramType     string
-	PathIdentifiers []PathIdentifier
+	PathIdentifiers []PathIdentifierWithSamplePath
 }
 
 // TracedProgramsEndpoint generates a summary of all active uprobe-based
@@ -135,7 +135,7 @@ func (d *tlsDebugger) GetAllBlockedPathIDs() []BlockedProcess {
 
 // GetBlockedPathIDs returns a list of PathIdentifiers blocked in the
 // registry for the specified program type.
-func (d *tlsDebugger) GetBlockedPathIDs(programType string) []PathIdentifier {
+func (d *tlsDebugger) GetBlockedPathIDs(programType string) []PathIdentifierWithSamplePath {
 	d.mux.Lock()
 	defer d.mux.Unlock()
 

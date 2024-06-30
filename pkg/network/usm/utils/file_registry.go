@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 	"sync"
 
 	"github.com/hashicorp/golang-lru/v2/simplelru"
@@ -49,9 +50,15 @@ type FileRegistry struct {
 	byPID    map[uint32]pathIdentifierSet
 
 	// if we can't execute a callback for a given file we don't try more than once
-	blocklistByID *simplelru.LRU[PathIdentifier, struct{}]
+	blocklistByID *simplelru.LRU[PathIdentifierWithSamplePath, struct{}]
 
 	telemetry registryTelemetry
+}
+
+// PathIdentifierWithSamplePath is a tuple of a `PathIdentifier` and a sample path
+type PathIdentifierWithSamplePath struct {
+	PathIdentifier PathIdentifier
+	SamplePath     string
 }
 
 // FilePath represents the location of a file from the *root* namespace view
@@ -82,7 +89,7 @@ type callback func(FilePath) error
 
 // NewFileRegistry creates a new `FileRegistry` instance
 func NewFileRegistry(programName string) *FileRegistry {
-	blocklistByID, err := simplelru.NewLRU[PathIdentifier, struct{}](2000, nil)
+	blocklistByID, err := simplelru.NewLRU[PathIdentifierWithSamplePath, struct{}](2000, nil)
 	if err != nil {
 		log.Warnf("running without block cache list, creation error: %s", err)
 		blocklistByID = nil
@@ -113,6 +120,18 @@ var (
 	ErrPathIsAlreadyRegistered = errors.New("path is already registered")
 )
 
+// getSamplePath returns a sample path for a given path without the prefix /usr.
+func getSamplePath(path string) string {
+	index := strings.Index(path, "/usr")
+	samplePath := path
+
+	if index != -1 {
+		samplePath = path[index+len("/usr"):]
+	}
+
+	return samplePath
+}
+
 // Register inserts or updates a new file registration within to the `FileRegistry`;
 //
 // If no current registration exists for the given `PathIdentifier`, we execute
@@ -136,7 +155,7 @@ func (r *FileRegistry) Register(namespacedPath string, pid uint32, activationCB,
 	}
 
 	if r.blocklistByID != nil {
-		if _, found := r.blocklistByID.Get(pathID); found {
+		if _, found := r.blocklistByID.Get(PathIdentifierWithSamplePath{pathID, getSamplePath(path.HostPath)}); found {
 			r.telemetry.fileBlocked.Add(1)
 			return errPathIsBlocked
 		}
@@ -167,7 +186,7 @@ func (r *FileRegistry) Register(namespacedPath string, pid uint32, activationCB,
 		if r.blocklistByID != nil {
 			// add `pathID` to blocklist so we don't attempt to re-register files
 			// that are problematic for some reason
-			r.blocklistByID.Add(pathID, struct{}{})
+			r.blocklistByID.Add(PathIdentifierWithSamplePath{pathID, getSamplePath(path.HostPath)}, struct{}{})
 		}
 		r.telemetry.fileHookFailed.Add(1)
 		return err
