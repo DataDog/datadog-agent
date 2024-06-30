@@ -164,7 +164,7 @@ static __always_inline bool skip_varint_number_of_topics(pktbuf_t pkt, u32 *offs
     return true;
 }
 
-static __always_inline bool skip_varint(pktbuf_t pkt, u32 *offset, u32 max_bytes) {
+static __always_inline __maybe_unused bool skip_varint(pktbuf_t pkt, u32 *offset, u32 max_bytes) {
     u8 bytes[4] = {};
 
     if (*offset + max_bytes > pktbuf_data_end(pkt)) {
