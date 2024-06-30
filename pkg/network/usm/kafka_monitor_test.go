@@ -119,8 +119,8 @@ func (s *KafkaProtocolParsingSuite) TestKafkaProtocolParsing() {
 	var versions []*kversion.Versions
 	versions = append(versions, kversion.V2_5_0())
 
-	fetch12 := kversion.V3_4_0()
-	fetch12.SetMaxKeyVersion(kafka.ProduceAPIKey, 8)
+	fetch12 := kversion.V3_7_0()
+	fetch12.SetMaxKeyVersion(kafka.ProduceAPIKey, 10)
 	fetch12.SetMaxKeyVersion(kafka.FetchAPIKey, 12)
 	versions = append(versions, fetch12)
 
@@ -1202,7 +1202,7 @@ func testKafkaProduceRaw(t *testing.T, tls bool, apiVersion int) {
 
 func (s *KafkaProtocolParsingSuite) TestKafkaProduceRaw() {
 	t := s.T()
-	versions := []int{8}
+	versions := []int{8, 9, 10}
 
 	t.Run("without TLS", func(t *testing.T) {
 		for _, version := range versions {
