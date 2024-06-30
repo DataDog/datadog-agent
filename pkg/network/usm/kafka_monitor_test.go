@@ -183,7 +183,11 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 		return count * 2
 	}
 
-	tmp, found := version.LookupMaxKeyVersion(kafka.FetchAPIKey)
+	tmp, found := version.LookupMaxKeyVersion(kafka.ProduceAPIKey)
+	require.True(t, found)
+	expectedAPIVersionProduce := int(tmp)
+
+	tmp, found = version.LookupMaxKeyVersion(kafka.FetchAPIKey)
 	require.True(t, found)
 	expectedAPIVersionFetch := int(tmp)
 
@@ -233,7 +237,7 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 				getAndValidateKafkaStats(t, monitor, fixCount(2), topicName, kafkaParsingValidation{
 					expectedNumberOfProduceRequests: fixCount(1),
 					expectedNumberOfFetchRequests:   fixCount(1),
-					expectedAPIVersionProduce:       8,
+					expectedAPIVersionProduce:       expectedAPIVersionProduce,
 					expectedAPIVersionFetch:         expectedAPIVersionFetch,
 					tlsEnabled:                      tls,
 				})
@@ -312,7 +316,7 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 				getAndValidateKafkaStats(t, monitor, fixCount(1), topicName, kafkaParsingValidation{
 					expectedNumberOfProduceRequests: fixCount(numberOfIterations),
 					expectedNumberOfFetchRequests:   0,
-					expectedAPIVersionProduce:       8,
+					expectedAPIVersionProduce:       expectedAPIVersionProduce,
 					expectedAPIVersionFetch:         0,
 					tlsEnabled:                      tls,
 				})
@@ -362,7 +366,7 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 				getAndValidateKafkaStats(t, monitor, fixCount(2), topicName, kafkaParsingValidation{
 					expectedNumberOfProduceRequests: fixCount(2),
 					expectedNumberOfFetchRequests:   fixCount(2),
-					expectedAPIVersionProduce:       8,
+					expectedAPIVersionProduce:       expectedAPIVersionProduce,
 					expectedAPIVersionFetch:         expectedAPIVersionFetch,
 					tlsEnabled:                      tls,
 				})
@@ -427,7 +431,7 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 				getAndValidateKafkaStats(t, monitor, fixCount(2), topicName, kafkaParsingValidation{
 					expectedNumberOfProduceRequests: fixCount(5 + 2*2),
 					expectedNumberOfFetchRequests:   fixCount(5 + 2*2),
-					expectedAPIVersionProduce:       8,
+					expectedAPIVersionProduce:       expectedAPIVersionProduce,
 					expectedAPIVersionFetch:         expectedAPIVersionFetch,
 					tlsEnabled:                      tls,
 				})
