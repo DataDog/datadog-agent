@@ -185,7 +185,7 @@ static __always_inline __maybe_unused bool skip_varint(pktbuf_t pkt, u32 *offset
         current_byte = bytes[i];
     }
 
-    if ((i == max_bytes - 1) && isMSBSet(current_byte)) {
+    if (i == max_bytes && isMSBSet(current_byte)) {
         return false;
     }
 
