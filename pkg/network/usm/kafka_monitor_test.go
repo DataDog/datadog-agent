@@ -87,8 +87,8 @@ type kafkaParsingValidation struct {
 }
 
 type kafkaParsingValidationWithErrorCodes struct {
-	expectedNumberOfProduceRequests map[int8]int
-	expectedNumberOfFetchRequests   map[int8]int
+	expectedNumberOfProduceRequests map[int32]int
+	expectedNumberOfFetchRequests   map[int32]int
 	expectedAPIVersionProduce       int
 	expectedAPIVersionFetch         int
 }
@@ -1050,7 +1050,7 @@ func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
 			name:  "with different error codes",
 			topic: defaultTopic,
 			produceFetchValidationWithErrorCode: &kafkaParsingValidationWithErrorCodes{
-				expectedNumberOfFetchRequests: map[int8]int{
+				expectedNumberOfFetchRequests: map[int32]int{
 					0: 5 * 4 * 2,
 					1: 5 * 4 * 1,
 					3: 5 * 4 * 1,
@@ -1089,7 +1089,7 @@ func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
 			name:  "error code limits",
 			topic: defaultTopic,
 			produceFetchValidationWithErrorCode: &kafkaParsingValidationWithErrorCodes{
-				expectedNumberOfFetchRequests: map[int8]int{
+				expectedNumberOfFetchRequests: map[int32]int{
 					-1:  5 * 4 * 1,
 					119: 5 * 4 * 1,
 				},
@@ -1214,7 +1214,7 @@ func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
 			can.runClient(msgs)
 
 			if tt.produceFetchValidationWithErrorCode != nil {
-				tempFetchValidation := make(map[int8]int, len(tt.produceFetchValidationWithErrorCode.expectedNumberOfFetchRequests))
+				tempFetchValidation := make(map[int32]int, len(tt.produceFetchValidationWithErrorCode.expectedNumberOfFetchRequests))
 				for k, v := range tt.produceFetchValidationWithErrorCode.expectedNumberOfFetchRequests {
 					tempFetchValidation[k] = v * splitIdx
 				}
