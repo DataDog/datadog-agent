@@ -49,6 +49,8 @@
   - export AWS_PROFILE=agent-qa-ci
 
 .define_if_collect_complexity:
+  # These platforms do not support complexity collection due to old kernel versions, exclude them
+  # so that we can monitor real collection failures with logs/CI tags.
   - UNSUPPORTED_COMPLEXITY_PLATFORMS="suse_12.5 amazon_4.14 centos_7.9 debian_9 ubuntu_16.04"
   - |
     if ( [ "${TEST_SET}" = "no_usm" ] || [ "${TEST_SET}" = "all_tests" ] ) && ! echo "${UNSUPPORTED_COMPLEXITY_PLATFORMS}" | grep -qw "${TAG}" ; then
