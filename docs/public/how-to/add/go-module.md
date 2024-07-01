@@ -31,7 +31,7 @@ The repository contains a few submodules. To add a new one and ensure it is test
     ```
     DEFAULT_MODULES = (
     ...,
-    "mymodule": GoModule("mymodule", independent=True, should_tag=False, targets=["."]),
+    "path/to/mymodule": GoModule("path/to/mymodule", independent=True, should_tag=False, targets=["."]),
     )
     ```
     - `independent` should it be importable as an independent module?
