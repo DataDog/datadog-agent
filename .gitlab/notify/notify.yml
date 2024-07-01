@@ -96,6 +96,21 @@ notify_github:
     - cat "$messagefile" | /usr/local/bin/pr-commenter --for-pr="$CI_COMMIT_REF_NAME" --header="Test changes on VM"
     - rm "$messagefile"
 
+notify_gitlab_ci_changes:
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  stage: notify
+  needs: []
+  rules:
+    - if: $CI_PIPELINE_SOURCE != "push"
+      when: never
+    - changes:
+        paths:
+          - .gitlab-ci.yml
+          - .gitlab/**/*.yml
+        compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+  script:
+    - inv -e notify.gitlab-ci-diff
+
 .failure_summary_job:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   stage: notify

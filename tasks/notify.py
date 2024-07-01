@@ -18,6 +18,7 @@ from tasks.libs.ciproviders.gitlab_api import (
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.constants import DEFAULT_BRANCH
 from tasks.libs.common.datadog_api import send_metrics
+from tasks.libs.common.utils import gitlab_section
 from tasks.libs.notify import alerts, failure_summary, pipeline_status
 from tasks.libs.notify.utils import PROJECT_NAME
 from tasks.libs.pipeline.data import get_failed_jobs
@@ -201,7 +202,8 @@ def gitlab_ci_diff(ctx, before: str | None = DEFAULT_BRANCH, after: str | None =
 
         # Display diff
         print('\nGitlab CI configuration diff:')
-        print(diff.display(cli=True))
+        with gitlab_section('Gitlab CI configuration diff'):
+            print(diff.display(cli=True))
 
         if pr_comment:
             print('\nSending / updating PR comment')
