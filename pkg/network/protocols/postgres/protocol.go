@@ -200,7 +200,7 @@ func (p *protocol) processPostgres(events []EbpfEvent) {
 		tx := &events[i]
 		eventWrapper := NewEventWrapper(tx)
 		p.statskeeper.Process(eventWrapper)
-		if p.cfg.MaxPostgresTelemetryBuffer > 0 {
+		if p.cfg.MaxPostgresTelemetryBuffer > telemetryBaseBufferSize {
 			p.telemetry.Count(tx, eventWrapper, CountOptions{TelemetryBufferSize: p.cfg.MaxPostgresTelemetryBuffer})
 		} else {
 			p.telemetry.Count(tx, eventWrapper)

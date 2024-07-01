@@ -1264,6 +1264,13 @@ service_monitoring_config:
 
 		assert.Equal(t, 30000, cfg.MaxPostgresTelemetryBuffer)
 	})
+
+	t.Run("default", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+
+		cfg := New()
+		assert.Equal(t, 160, cfg.MaxPostgresTelemetryBuffer)
+	})
 }
 
 func TestMaxPostgresStatsBuffered(t *testing.T) {
