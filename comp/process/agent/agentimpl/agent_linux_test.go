@@ -117,7 +117,6 @@ func TestProcessAgentComponentOnLinux(t *testing.T) {
 				hostinfoimpl.MockModule(),
 				submitterimpl.MockModule(),
 				taggerimpl.MockModule(),
-				telemetryimpl.Module(),
 				statsd.MockModule(),
 				Module(),
 
