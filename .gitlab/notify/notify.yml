@@ -111,6 +111,9 @@ notify_gitlab_ci_changes:
           - .gitlab/**/*.yml
         compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
   script:
+    - export GITHUB_APP_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITHUB_PR_COMMENTER_APP_KEY_SSM_NAME)
+    - export GITHUB_INTEGRATION_ID=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITHUB_PR_COMMENTER_INTEGRATION_ID_SSM_NAME)
+    - export GITHUB_INSTALLATION_ID=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITHUB_PR_COMMENTER_INSTALLATION_ID_SSM_NAME)
     - inv -e notify.gitlab-ci-diff
 
 .failure_summary_job:
