@@ -143,7 +143,7 @@ def build(
     """
     flavor = AgentFlavor[flavor]
 
-    if flavor.is_ua():
+    if flavor.is_ot():
         # for agent build purposes the UA agent is just like base
         flavor = AgentFlavor.base
 
