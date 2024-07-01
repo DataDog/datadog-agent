@@ -138,7 +138,11 @@ func runAgent() {
 			log.Errorf("Can't start Lambda Runtime API Proxy for AppSec: %v", err)
 		}
 		if shutdownAppSec != nil {
-			defer shutdownAppSec(ctx)
+			defer func() {
+				if err := shutdownAppSec(ctx); err != nil {
+					log.Warnf("Failed to shut down AppSec proxy: %v", err)
+				}
+			}()
 		}
 
 		// we still need to register the extension but let's return after (no-op)
