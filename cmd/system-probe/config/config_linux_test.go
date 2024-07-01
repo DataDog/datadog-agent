@@ -11,9 +11,10 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 func TestNetworkProcessEventMonitoring(t *testing.T) {
@@ -69,5 +70,33 @@ func TestEventStreamEnabledForSupportedKernelsLinux(t *testing.T) {
 		require.True(t, cfg.GetBool("event_monitoring_config.network_process.enabled"))
 	} else {
 		require.False(t, cfg.GetBool("event_monitoring_config.network_process.enabled"))
+	}
+}
+
+func TestNPMEnabled(t *testing.T) {
+	tests := []struct {
+		npm, usm, ccm bool
+		npmEnabled    bool
+	}{
+		{false, false, false, false},
+		{false, false, true, true},
+		{false, true, false, true},
+		{false, true, true, true},
+		{true, false, false, true},
+		{true, false, true, true},
+		{true, true, false, true},
+		{true, true, true, true},
+	}
+
+	newConfig(t)
+	for _, te := range tests {
+		t.Run("", func(t *testing.T) {
+			t.Setenv("DD_SYSTEM_PROBE_NETWORK_ENABLED", strconv.FormatBool(te.npm))
+			t.Setenv("DD_SYSTEM_PROBE_SERVICE_MONITORING_ENABLED", strconv.FormatBool(te.usm))
+			t.Setenv("DD_CCM_NETWORK_CONFIG_ENABLED", strconv.FormatBool(te.ccm))
+			cfg, err := New("")
+			require.NoError(t, err)
+			assert.Equal(t, te.npmEnabled, cfg.ModuleIsEnabled(NetworkTracerModule), "unexpected network tracer module enablement: npm: %v, usm: %v, ccm: %v", te.npm, te.usm, te.ccm)
+		})
 	}
 }

@@ -33,7 +33,7 @@ func (fh *FlareHelper) FillFlare(fb flaretypes.FlareBuilder) error {
 
 		checkName := check.Name()
 		filename := fmt.Sprintf("%s_check_output.json", checkName)
-		fb.AddFileFromFunc(filename, func() ([]byte, error) {
+		fb.AddFileFromFunc(filename, func() ([]byte, error) { //nolint:errcheck
 			checkOutput, ok := checks.GetCheckOutput(checkName)
 			if !ok {
 				return []byte(checkName + " check is not running or has not been scheduled yet\n"), nil

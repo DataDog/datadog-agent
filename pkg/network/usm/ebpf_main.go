@@ -98,6 +98,8 @@ func newEBPFProgram(c *config.Config, connectionProtocolMap *ebpf.Map) (*ebpfPro
 		Maps: []*manager.Map{
 			{Name: protocols.TLSDispatcherProgramsMap},
 			{Name: protocols.ProtocolDispatcherProgramsMap},
+			{Name: protocols.ProtocolDispatcherClassificationPrograms},
+			{Name: protocols.TLSProtocolDispatcherClassificationPrograms},
 			{Name: connectionStatesMap},
 			{Name: sockFDLookupArgsMap},
 			{Name: tupleByPidFDMap},
@@ -422,6 +424,7 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 	options.DefaultKProbeMaxActive = maxActive
 	options.DefaultKprobeAttachMethod = kprobeAttachMethod
 	options.VerifierOptions.Programs.LogSize = 10 * 1024 * 1024
+	options.BypassEnabled = e.cfg.BypassEnabled
 
 	supported, notSupported := e.getProtocolsForBuildMode()
 	cleanup := e.configureManagerWithSupportedProtocols(supported)
@@ -433,6 +436,10 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 		for _, pm := range e.PerfMaps {
 			pm.TelemetryEnabled = true
 			ebpftelemetry.ReportPerfMapTelemetry(pm)
+		}
+		for _, rb := range e.RingBuffers {
+			rb.TelemetryEnabled = true
+			ebpftelemetry.ReportRingBufferTelemetry(rb)
 		}
 	}
 

@@ -20,7 +20,7 @@ import (
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -140,7 +140,7 @@ func extractTimestamp(t time.Time) int64 {
 	return t.Unix()
 }
 
-func extractExitCode(exitCode *uint32) *model.ECSContainerExitCode {
+func extractExitCode(exitCode *int64) *model.ECSContainerExitCode {
 	if exitCode == nil {
 		return nil
 	}

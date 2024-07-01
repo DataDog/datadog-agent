@@ -248,4 +248,5 @@ type Array struct {
 	StringMembers []StringMember `parser:"| \"[\" @@ { \",\" @@ } \"]\""`
 	CIDRMembers   []CIDRMember   `parser:"| \"[\" @@ { \",\" @@ } \"]\""`
 	Numbers       []int          `parser:"| \"[\" @Int { \",\" @Int } \"]\""`
+	Idents        []string       `parser:"| \"[\" @Ident { \",\" @Ident } \"]\""`
 }

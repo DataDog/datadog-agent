@@ -17,6 +17,7 @@ type Client interface {
 	Set(key string, value string) (bool, error)
 	List() (map[string]settings.RuntimeSettingResponse, error)
 	FullConfig() (string, error)
+	FullConfigBySource() (string, error)
 }
 
 // ClientBuilder represents a function returning a runtime settings API client

@@ -42,7 +42,7 @@ apm_config:
   connection_limit: 123
   apm_non_local_traffic: yes
   extra_sample_rate: 0.5
-  max_traces_per_second: 5
+  target_traces_per_second: 5
   max_events_per_second: 50
   max_remote_traces_per_second: 9999
   ignore_resources:

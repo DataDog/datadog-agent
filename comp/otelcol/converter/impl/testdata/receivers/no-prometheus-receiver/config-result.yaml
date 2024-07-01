@@ -1,0 +1,43 @@
+receivers:
+    otlp:
+    prometheus/dd-autoconfigured:
+      config:
+        scrape_configs:
+          - job_name: 'otelcol'
+            scrape_interval: 10s
+            static_configs:
+              - targets: ['0.0.0.0:8888']
+
+exporters:
+    datadog:
+      api:
+        key: 12345
+
+extensions:
+  pprof/user-defined:
+  health_check/user-defined:
+  zpages/user-defined:
+    endpoint: "localhost:55679"
+  datadog/user-defined:
+    
+processors:
+  infraattributes/user-defined:
+
+service:
+    extensions: [pprof/user-defined, zpages/user-defined, health_check/user-defined, datadog/user-defined]
+    pipelines:
+        traces:
+            receivers: [nop]
+            processors: [infraattributes/user-defined]
+            exporters: [datadog]
+        metrics:
+            receivers: [nop]
+            processors: [infraattributes/user-defined]
+            exporters: [datadog]
+        logs:
+            receivers: [nop]
+            processors: [infraattributes/user-defined]
+            exporters: [datadog]
+        metrics/dd-autoconfigured/datadog:
+            receivers: [prometheus/dd-autoconfigured]
+            exporters: [datadog]

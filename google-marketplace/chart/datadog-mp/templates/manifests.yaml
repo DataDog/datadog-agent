@@ -55,6 +55,239 @@ spec:
                         agentCommunicationMode:
                           description: AgentCommunicationMode corresponds to the mode used by the Datadog application libraries to communicate with the Agent. It can be "hostip", "service", or "socket".
                           type: string
+                        agentSidecarInjection:
+                          description: AgentSidecarInjection contains Agent sidecar injection configurations.
+                          properties:
+                            clusterAgentCommunicationEnabled:
+                              description: 'ClusterAgentCommunicationEnabled enables communication between Agent sidecars and the Cluster Agent. Default : true'
+                              type: boolean
+                            enabled:
+                              description: 'Enabled enables Sidecar injections. Default: false'
+                              type: boolean
+                            image:
+                              description: Image overrides the default Agent image name and tag for the Agent sidecar.
+                              properties:
+                                jmxEnabled:
+                                  description: Define whether the Agent image should support JMX. To be used if the Name field does not correspond to a full image string.
+                                  type: boolean
+                                name:
+                                  description: 'Define the image to use: Use "gcr.io/datadoghq/agent:latest" for Datadog Agent 7. Use "datadog/dogstatsd:latest" for standalone Datadog Agent DogStatsD 7. Use "gcr.io/datadoghq/cluster-agent:latest" for Datadog Cluster Agent. Use "agent" with the registry and tag configurations for <registry>/agent:<tag>. Use "cluster-agent" with the registry and tag configurations for <registry>/cluster-agent:<tag>. If the name is the full image string—`<name>:<tag>` or `<registry>/<name>:<tag>`, then `tag`, `jmxEnabled`, and `global.registry` values are ignored. Otherwise, image string is created by overriding default settings with supplied `name`, `tag`, and `jmxEnabled` values; image string is created using default registry unless `global.registry` is configured.'
+                                  type: string
+                                pullPolicy:
+                                  description: 'The Kubernetes pull policy: Use Always, Never, or IfNotPresent.'
+                                  type: string
+                                pullSecrets:
+                                  description: It is possible to specify Docker registry credentials. See https://kubernetes.io/docs/concepts/containers/images/#specifying-imagepullsecrets-on-a-pod
+                                  items:
+                                    description: LocalObjectReference contains enough information to let you locate the referenced object inside the same namespace.
+                                    properties:
+                                      name:
+                                        description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names TODO: Add other useful fields. apiVersion, kind, uid?'
+                                        type: string
+                                    type: object
+                                  type: array
+                                tag:
+                                  description: Define the image tag to use. To be used if the Name field does not correspond to a full image string.
+                                  type: string
+                              type: object
+                            profiles:
+                              description: Profiles define the sidecar configuration override. Only one profile is supported.
+                              items:
+                                description: Profile defines a sidecar configuration override.
+                                properties:
+                                  env:
+                                    description: EnvVars specifies the environment variables for the profile.
+                                    items:
+                                      description: EnvVar represents an environment variable present in a Container.
+                                      properties:
+                                        name:
+                                          description: Name of the environment variable. Must be a C_IDENTIFIER.
+                                          type: string
+                                        value:
+                                          description: 'Variable references $(VAR_NAME) are expanded using the previously defined environment variables in the container and any service environment variables. If a variable cannot be resolved, the reference in the input string will be unchanged. Double $$ are reduced to a single $, which allows for escaping the $(VAR_NAME) syntax: i.e. "$$(VAR_NAME)" will produce the string literal "$(VAR_NAME)". Escaped references will never be expanded, regardless of whether the variable exists or not. Defaults to "".'
+                                          type: string
+                                        valueFrom:
+                                          description: Source for the environment variable's value. Cannot be used if value is not empty.
+                                          properties:
+                                            configMapKeyRef:
+                                              description: Selects a key of a ConfigMap.
+                                              properties:
+                                                key:
+                                                  description: The key to select.
+                                                  type: string
+                                                name:
+                                                  description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names TODO: Add other useful fields. apiVersion, kind, uid?'
+                                                  type: string
+                                                optional:
+                                                  description: Specify whether the ConfigMap or its key must be defined
+                                                  type: boolean
+                                              required:
+                                                - key
+                                              type: object
+                                            fieldRef:
+                                              description: 'Selects a field of the pod: supports metadata.name, metadata.namespace, `metadata.labels[''<KEY>'']`, `metadata.annotations[''<KEY>'']`, spec.nodeName, spec.serviceAccountName, status.hostIP, status.podIP, status.podIPs.'
+                                              properties:
+                                                apiVersion:
+                                                  description: Version of the schema the FieldPath is written in terms of, defaults to "v1".
+                                                  type: string
+                                                fieldPath:
+                                                  description: Path of the field to select in the specified API version.
+                                                  type: string
+                                              required:
+                                                - fieldPath
+                                              type: object
+                                            resourceFieldRef:
+                                              description: 'Selects a resource of the container: only resources limits and requests (limits.cpu, limits.memory, limits.ephemeral-storage, requests.cpu, requests.memory and requests.ephemeral-storage) are currently supported.'
+                                              properties:
+                                                containerName:
+                                                  description: 'Container name: required for volumes, optional for env vars'
+                                                  type: string
+                                                divisor:
+                                                  anyOf:
+                                                    - type: integer
+                                                    - type: string
+                                                  description: Specifies the output format of the exposed resources, defaults to "1"
+                                                  pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                                                  x-kubernetes-int-or-string: true
+                                                resource:
+                                                  description: 'Required: resource to select'
+                                                  type: string
+                                              required:
+                                                - resource
+                                              type: object
+                                            secretKeyRef:
+                                              description: Selects a key of a secret in the pod's namespace
+                                              properties:
+                                                key:
+                                                  description: The key of the secret to select from.  Must be a valid secret key.
+                                                  type: string
+                                                name:
+                                                  description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names TODO: Add other useful fields. apiVersion, kind, uid?'
+                                                  type: string
+                                                optional:
+                                                  description: Specify whether the Secret or its key must be defined
+                                                  type: boolean
+                                              required:
+                                                - key
+                                              type: object
+                                          type: object
+                                      required:
+                                        - name
+                                      type: object
+                                    type: array
+                                    x-kubernetes-list-map-keys:
+                                      - name
+                                    x-kubernetes-list-type: map
+                                  resources:
+                                    description: ResourceRequirements specifies the resource requirements for the profile.
+                                    properties:
+                                      limits:
+                                        additionalProperties:
+                                          anyOf:
+                                            - type: integer
+                                            - type: string
+                                          pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                                          x-kubernetes-int-or-string: true
+                                        description: 'Limits describes the maximum amount of compute resources allowed. More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/'
+                                        type: object
+                                      requests:
+                                        additionalProperties:
+                                          anyOf:
+                                            - type: integer
+                                            - type: string
+                                          pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                                          x-kubernetes-int-or-string: true
+                                        description: 'Requests describes the minimum amount of compute resources required. If Requests is omitted for a container, it defaults to Limits if that is explicitly specified, otherwise to an implementation-defined value. More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/'
+                                        type: object
+                                    type: object
+                                type: object
+                              type: array
+                              x-kubernetes-list-type: atomic
+                            provider:
+                              description: 'Provider is used to add infrastructure provider-specific configurations to the Agent sidecar. Currently only "fargate" is supported. To use the feature in other environments (including local testing) omit the config. See also: https://docs.datadoghq.com/integrations/eks_fargate'
+                              type: string
+                            registry:
+                              description: Registry overrides the default registry for the sidecar Agent.
+                              type: string
+                            selectors:
+                              description: Selectors define the pod selector for sidecar injection. Only one rule is supported.
+                              items:
+                                description: Selectors define a pod selector for sidecar injection.
+                                properties:
+                                  namespaceSelector:
+                                    description: NamespaceSelector specifies the label selector for namespaces.
+                                    properties:
+                                      matchExpressions:
+                                        description: matchExpressions is a list of label selector requirements. The requirements are ANDed.
+                                        items:
+                                          description: A label selector requirement is a selector that contains values, a key, and an operator that relates the key and values.
+                                          properties:
+                                            key:
+                                              description: key is the label key that the selector applies to.
+                                              type: string
+                                            operator:
+                                              description: operator represents a key's relationship to a set of values. Valid operators are In, NotIn, Exists and DoesNotExist.
+                                              type: string
+                                            values:
+                                              description: values is an array of string values. If the operator is In or NotIn, the values array must be non-empty. If the operator is Exists or DoesNotExist, the values array must be empty. This array is replaced during a strategic merge patch.
+                                              items:
+                                                type: string
+                                              type: array
+                                          required:
+                                            - key
+                                            - operator
+                                          type: object
+                                        type: array
+                                      matchLabels:
+                                        additionalProperties:
+                                          type: string
+                                        description: matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels map is equivalent to an element of matchExpressions, whose key field is "key", the operator is "In", and the values array contains only "value". The requirements are ANDed.
+                                        type: object
+                                    type: object
+                                  objectSelector:
+                                    description: ObjectSelector specifies the label selector for objects.
+                                    properties:
+                                      matchExpressions:
+                                        description: matchExpressions is a list of label selector requirements. The requirements are ANDed.
+                                        items:
+                                          description: A label selector requirement is a selector that contains values, a key, and an operator that relates the key and values.
+                                          properties:
+                                            key:
+                                              description: key is the label key that the selector applies to.
+                                              type: string
+                                            operator:
+                                              description: operator represents a key's relationship to a set of values. Valid operators are In, NotIn, Exists and DoesNotExist.
+                                              type: string
+                                            values:
+                                              description: values is an array of string values. If the operator is In or NotIn, the values array must be non-empty. If the operator is Exists or DoesNotExist, the values array must be empty. This array is replaced during a strategic merge patch.
+                                              items:
+                                                type: string
+                                              type: array
+                                          required:
+                                            - key
+                                            - operator
+                                          type: object
+                                        type: array
+                                      matchLabels:
+                                        additionalProperties:
+                                          type: string
+                                        description: matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels map is equivalent to an element of matchExpressions, whose key field is "key", the operator is "In", and the values array contains only "value". The requirements are ANDed.
+                                        type: object
+                                    type: object
+                                type: object
+                              type: array
+                              x-kubernetes-list-type: atomic
+                          type: object
+                        cwsInstrumentation:
+                          description: CWSInstrumentation holds the CWS Instrumentation endpoint configuration
+                          properties:
+                            enabled:
+                              description: 'Enable the CWS Instrumentation admission controller endpoint. Default: false'
+                              type: boolean
+                            mode:
+                              description: 'Mode defines the behavior of the CWS Instrumentation endpoint, and can be either "init_container" or "remote_copy". Default: "remote_copy"'
+                              type: string
+                          type: object
                         enabled:
                           description: 'Enabled enables the Admission Controller. Default: true'
                           type: boolean
@@ -64,6 +297,9 @@ spec:
                         mutateUnlabelled:
                           description: 'MutateUnlabelled enables config injection without the need of pod label ''admission.datadoghq.com/enabled="true"''. Default: false'
                           type: boolean
+                        registry:
+                          description: Registry defines an image registry for the admission controller.
+                          type: string
                         serviceName:
                           description: ServiceName corresponds to the webhook service name.
                           type: string
@@ -121,6 +357,31 @@ spec:
                             path:
                               description: Path defines the socket path used when enabled.
                               type: string
+                          type: object
+                      type: object
+                    asm:
+                      description: ASM (Application Security Management) configuration.
+                      properties:
+                        iast:
+                          description: 'IAST configures Interactive Application Security Testing. Enabled Default: false'
+                          properties:
+                            enabled:
+                              description: 'Enabled enables Interactive Application Security Testing (IAST). Default: false'
+                              type: boolean
+                          type: object
+                        sca:
+                          description: 'SCA configures Software Composition Analysis. Enabled Default: false'
+                          properties:
+                            enabled:
+                              description: 'Enabled enables Software Composition Analysis (SCA). Default: false'
+                              type: boolean
+                          type: object
+                        threats:
+                          description: 'Threats configures ASM App & API Protection. Enabled Default: false'
+                          properties:
+                            enabled:
+                              description: 'Enabled enables ASM App & API Protection. Default: false'
+                              type: boolean
                           type: object
                       type: object
                     clusterChecks:
@@ -1053,6 +1314,13 @@ spec:
                       additionalProperties:
                         type: string
                       description: 'Provide a mapping of Kubernetes Node Labels to Datadog Tags. <KUBERNETES_NODE_LABEL>: <DATADOG_TAG_KEY>'
+                      type: object
+                    originDetectionUnified:
+                      description: OriginDetectionUnified defines the origin detection unified mechanism behavior.
+                      properties:
+                        enabled:
+                          description: 'Enabled enables unified mechanism for origin detection. Default: false'
+                          type: boolean
                       type: object
                     podAnnotationsAsTags:
                       additionalProperties:
@@ -3580,6 +3848,920 @@ spec:
                   x-kubernetes-list-map-keys:
                     - type
                   x-kubernetes-list-type: map
+                remoteConfigConfiguration:
+                  description: RemoteConfigConfiguration stores the configuration received from RemoteConfig.
+                  properties:
+                    features:
+                      description: DatadogFeatures are features running on the Agent and Cluster Agent.
+                      properties:
+                        admissionController:
+                          description: AdmissionController configuration.
+                          properties:
+                            agentCommunicationMode:
+                              description: AgentCommunicationMode corresponds to the mode used by the Datadog application libraries to communicate with the Agent. It can be "hostip", "service", or "socket".
+                              type: string
+                            agentSidecarInjection:
+                              description: AgentSidecarInjection contains Agent sidecar injection configurations.
+                              properties:
+                                clusterAgentCommunicationEnabled:
+                                  description: 'ClusterAgentCommunicationEnabled enables communication between Agent sidecars and the Cluster Agent. Default : true'
+                                  type: boolean
+                                enabled:
+                                  description: 'Enabled enables Sidecar injections. Default: false'
+                                  type: boolean
+                                image:
+                                  description: Image overrides the default Agent image name and tag for the Agent sidecar.
+                                  properties:
+                                    jmxEnabled:
+                                      description: Define whether the Agent image should support JMX. To be used if the Name field does not correspond to a full image string.
+                                      type: boolean
+                                    name:
+                                      description: 'Define the image to use: Use "gcr.io/datadoghq/agent:latest" for Datadog Agent 7. Use "datadog/dogstatsd:latest" for standalone Datadog Agent DogStatsD 7. Use "gcr.io/datadoghq/cluster-agent:latest" for Datadog Cluster Agent. Use "agent" with the registry and tag configurations for <registry>/agent:<tag>. Use "cluster-agent" with the registry and tag configurations for <registry>/cluster-agent:<tag>. If the name is the full image string—`<name>:<tag>` or `<registry>/<name>:<tag>`, then `tag`, `jmxEnabled`, and `global.registry` values are ignored. Otherwise, image string is created by overriding default settings with supplied `name`, `tag`, and `jmxEnabled` values; image string is created using default registry unless `global.registry` is configured.'
+                                      type: string
+                                    pullPolicy:
+                                      description: 'The Kubernetes pull policy: Use Always, Never, or IfNotPresent.'
+                                      type: string
+                                    pullSecrets:
+                                      description: It is possible to specify Docker registry credentials. See https://kubernetes.io/docs/concepts/containers/images/#specifying-imagepullsecrets-on-a-pod
+                                      items:
+                                        description: LocalObjectReference contains enough information to let you locate the referenced object inside the same namespace.
+                                        properties:
+                                          name:
+                                            description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names TODO: Add other useful fields. apiVersion, kind, uid?'
+                                            type: string
+                                        type: object
+                                      type: array
+                                    tag:
+                                      description: Define the image tag to use. To be used if the Name field does not correspond to a full image string.
+                                      type: string
+                                  type: object
+                                profiles:
+                                  description: Profiles define the sidecar configuration override. Only one profile is supported.
+                                  items:
+                                    description: Profile defines a sidecar configuration override.
+                                    properties:
+                                      env:
+                                        description: EnvVars specifies the environment variables for the profile.
+                                        items:
+                                          description: EnvVar represents an environment variable present in a Container.
+                                          properties:
+                                            name:
+                                              description: Name of the environment variable. Must be a C_IDENTIFIER.
+                                              type: string
+                                            value:
+                                              description: 'Variable references $(VAR_NAME) are expanded using the previously defined environment variables in the container and any service environment variables. If a variable cannot be resolved, the reference in the input string will be unchanged. Double $$ are reduced to a single $, which allows for escaping the $(VAR_NAME) syntax: i.e. "$$(VAR_NAME)" will produce the string literal "$(VAR_NAME)". Escaped references will never be expanded, regardless of whether the variable exists or not. Defaults to "".'
+                                              type: string
+                                            valueFrom:
+                                              description: Source for the environment variable's value. Cannot be used if value is not empty.
+                                              properties:
+                                                configMapKeyRef:
+                                                  description: Selects a key of a ConfigMap.
+                                                  properties:
+                                                    key:
+                                                      description: The key to select.
+                                                      type: string
+                                                    name:
+                                                      description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names TODO: Add other useful fields. apiVersion, kind, uid?'
+                                                      type: string
+                                                    optional:
+                                                      description: Specify whether the ConfigMap or its key must be defined
+                                                      type: boolean
+                                                  required:
+                                                    - key
+                                                  type: object
+                                                fieldRef:
+                                                  description: 'Selects a field of the pod: supports metadata.name, metadata.namespace, `metadata.labels[''<KEY>'']`, `metadata.annotations[''<KEY>'']`, spec.nodeName, spec.serviceAccountName, status.hostIP, status.podIP, status.podIPs.'
+                                                  properties:
+                                                    apiVersion:
+                                                      description: Version of the schema the FieldPath is written in terms of, defaults to "v1".
+                                                      type: string
+                                                    fieldPath:
+                                                      description: Path of the field to select in the specified API version.
+                                                      type: string
+                                                  required:
+                                                    - fieldPath
+                                                  type: object
+                                                resourceFieldRef:
+                                                  description: 'Selects a resource of the container: only resources limits and requests (limits.cpu, limits.memory, limits.ephemeral-storage, requests.cpu, requests.memory and requests.ephemeral-storage) are currently supported.'
+                                                  properties:
+                                                    containerName:
+                                                      description: 'Container name: required for volumes, optional for env vars'
+                                                      type: string
+                                                    divisor:
+                                                      anyOf:
+                                                        - type: integer
+                                                        - type: string
+                                                      description: Specifies the output format of the exposed resources, defaults to "1"
+                                                      pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                                                      x-kubernetes-int-or-string: true
+                                                    resource:
+                                                      description: 'Required: resource to select'
+                                                      type: string
+                                                  required:
+                                                    - resource
+                                                  type: object
+                                                secretKeyRef:
+                                                  description: Selects a key of a secret in the pod's namespace
+                                                  properties:
+                                                    key:
+                                                      description: The key of the secret to select from.  Must be a valid secret key.
+                                                      type: string
+                                                    name:
+                                                      description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names TODO: Add other useful fields. apiVersion, kind, uid?'
+                                                      type: string
+                                                    optional:
+                                                      description: Specify whether the Secret or its key must be defined
+                                                      type: boolean
+                                                  required:
+                                                    - key
+                                                  type: object
+                                              type: object
+                                          required:
+                                            - name
+                                          type: object
+                                        type: array
+                                        x-kubernetes-list-map-keys:
+                                          - name
+                                        x-kubernetes-list-type: map
+                                      resources:
+                                        description: ResourceRequirements specifies the resource requirements for the profile.
+                                        properties:
+                                          limits:
+                                            additionalProperties:
+                                              anyOf:
+                                                - type: integer
+                                                - type: string
+                                              pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                                              x-kubernetes-int-or-string: true
+                                            description: 'Limits describes the maximum amount of compute resources allowed. More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/'
+                                            type: object
+                                          requests:
+                                            additionalProperties:
+                                              anyOf:
+                                                - type: integer
+                                                - type: string
+                                              pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                                              x-kubernetes-int-or-string: true
+                                            description: 'Requests describes the minimum amount of compute resources required. If Requests is omitted for a container, it defaults to Limits if that is explicitly specified, otherwise to an implementation-defined value. More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/'
+                                            type: object
+                                        type: object
+                                    type: object
+                                  type: array
+                                  x-kubernetes-list-type: atomic
+                                provider:
+                                  description: 'Provider is used to add infrastructure provider-specific configurations to the Agent sidecar. Currently only "fargate" is supported. To use the feature in other environments (including local testing) omit the config. See also: https://docs.datadoghq.com/integrations/eks_fargate'
+                                  type: string
+                                registry:
+                                  description: Registry overrides the default registry for the sidecar Agent.
+                                  type: string
+                                selectors:
+                                  description: Selectors define the pod selector for sidecar injection. Only one rule is supported.
+                                  items:
+                                    description: Selectors define a pod selector for sidecar injection.
+                                    properties:
+                                      namespaceSelector:
+                                        description: NamespaceSelector specifies the label selector for namespaces.
+                                        properties:
+                                          matchExpressions:
+                                            description: matchExpressions is a list of label selector requirements. The requirements are ANDed.
+                                            items:
+                                              description: A label selector requirement is a selector that contains values, a key, and an operator that relates the key and values.
+                                              properties:
+                                                key:
+                                                  description: key is the label key that the selector applies to.
+                                                  type: string
+                                                operator:
+                                                  description: operator represents a key's relationship to a set of values. Valid operators are In, NotIn, Exists and DoesNotExist.
+                                                  type: string
+                                                values:
+                                                  description: values is an array of string values. If the operator is In or NotIn, the values array must be non-empty. If the operator is Exists or DoesNotExist, the values array must be empty. This array is replaced during a strategic merge patch.
+                                                  items:
+                                                    type: string
+                                                  type: array
+                                              required:
+                                                - key
+                                                - operator
+                                              type: object
+                                            type: array
+                                          matchLabels:
+                                            additionalProperties:
+                                              type: string
+                                            description: matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels map is equivalent to an element of matchExpressions, whose key field is "key", the operator is "In", and the values array contains only "value". The requirements are ANDed.
+                                            type: object
+                                        type: object
+                                      objectSelector:
+                                        description: ObjectSelector specifies the label selector for objects.
+                                        properties:
+                                          matchExpressions:
+                                            description: matchExpressions is a list of label selector requirements. The requirements are ANDed.
+                                            items:
+                                              description: A label selector requirement is a selector that contains values, a key, and an operator that relates the key and values.
+                                              properties:
+                                                key:
+                                                  description: key is the label key that the selector applies to.
+                                                  type: string
+                                                operator:
+                                                  description: operator represents a key's relationship to a set of values. Valid operators are In, NotIn, Exists and DoesNotExist.
+                                                  type: string
+                                                values:
+                                                  description: values is an array of string values. If the operator is In or NotIn, the values array must be non-empty. If the operator is Exists or DoesNotExist, the values array must be empty. This array is replaced during a strategic merge patch.
+                                                  items:
+                                                    type: string
+                                                  type: array
+                                              required:
+                                                - key
+                                                - operator
+                                              type: object
+                                            type: array
+                                          matchLabels:
+                                            additionalProperties:
+                                              type: string
+                                            description: matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels map is equivalent to an element of matchExpressions, whose key field is "key", the operator is "In", and the values array contains only "value". The requirements are ANDed.
+                                            type: object
+                                        type: object
+                                    type: object
+                                  type: array
+                                  x-kubernetes-list-type: atomic
+                              type: object
+                            cwsInstrumentation:
+                              description: CWSInstrumentation holds the CWS Instrumentation endpoint configuration
+                              properties:
+                                enabled:
+                                  description: 'Enable the CWS Instrumentation admission controller endpoint. Default: false'
+                                  type: boolean
+                                mode:
+                                  description: 'Mode defines the behavior of the CWS Instrumentation endpoint, and can be either "init_container" or "remote_copy". Default: "remote_copy"'
+                                  type: string
+                              type: object
+                            enabled:
+                              description: 'Enabled enables the Admission Controller. Default: true'
+                              type: boolean
+                            failurePolicy:
+                              description: FailurePolicy determines how unrecognized and timeout errors are handled.
+                              type: string
+                            mutateUnlabelled:
+                              description: 'MutateUnlabelled enables config injection without the need of pod label ''admission.datadoghq.com/enabled="true"''. Default: false'
+                              type: boolean
+                            registry:
+                              description: Registry defines an image registry for the admission controller.
+                              type: string
+                            serviceName:
+                              description: ServiceName corresponds to the webhook service name.
+                              type: string
+                            webhookName:
+                              description: 'WebhookName is a custom name for the MutatingWebhookConfiguration. Default: "datadog-webhook"'
+                              type: string
+                          type: object
+                        apm:
+                          description: APM (Application Performance Monitoring) configuration.
+                          properties:
+                            enabled:
+                              description: 'Enabled enables Application Performance Monitoring. Default: true'
+                              type: boolean
+                            hostPortConfig:
+                              description: 'HostPortConfig contains host port configuration. Enabled Default: false Port Default: 8126'
+                              properties:
+                                enabled:
+                                  description: 'Enabled enables host port configuration Default: false'
+                                  type: boolean
+                                hostPort:
+                                  description: Port takes a port number (0 < x < 65536) to expose on the host. (Most containers do not need this.) If HostNetwork is enabled, this value must match the ContainerPort.
+                                  format: int32
+                                  type: integer
+                              type: object
+                            instrumentation:
+                              description: 'SingleStepInstrumentation allows the agent to inject the Datadog APM libraries into all pods in the cluster. Feature is in beta. See also: https://docs.datadoghq.com/tracing/trace_collection/single-step-apm Enabled Default: false'
+                              properties:
+                                disabledNamespaces:
+                                  description: DisabledNamespaces disables injecting the Datadog APM libraries into pods in specific namespaces.
+                                  items:
+                                    type: string
+                                  type: array
+                                  x-kubernetes-list-type: set
+                                enabled:
+                                  description: 'Enabled enables injecting the Datadog APM libraries into all pods in the cluster. Default: false'
+                                  type: boolean
+                                enabledNamespaces:
+                                  description: EnabledNamespaces enables injecting the Datadog APM libraries into pods in specific namespaces.
+                                  items:
+                                    type: string
+                                  type: array
+                                  x-kubernetes-list-type: set
+                                libVersions:
+                                  additionalProperties:
+                                    type: string
+                                  description: 'LibVersions configures injection of specific tracing library versions with Single Step Instrumentation. <Library>: <Version> ex: "java": "v1.18.0"'
+                                  type: object
+                              type: object
+                            unixDomainSocketConfig:
+                              description: 'UnixDomainSocketConfig contains socket configuration. See also: https://docs.datadoghq.com/agent/kubernetes/apm/?tab=helm#agent-environment-variables Enabled Default: true Path Default: `/var/run/datadog/apm.socket`'
+                              properties:
+                                enabled:
+                                  description: 'Enabled enables Unix Domain Socket. Default: true'
+                                  type: boolean
+                                path:
+                                  description: Path defines the socket path used when enabled.
+                                  type: string
+                              type: object
+                          type: object
+                        asm:
+                          description: ASM (Application Security Management) configuration.
+                          properties:
+                            iast:
+                              description: 'IAST configures Interactive Application Security Testing. Enabled Default: false'
+                              properties:
+                                enabled:
+                                  description: 'Enabled enables Interactive Application Security Testing (IAST). Default: false'
+                                  type: boolean
+                              type: object
+                            sca:
+                              description: 'SCA configures Software Composition Analysis. Enabled Default: false'
+                              properties:
+                                enabled:
+                                  description: 'Enabled enables Software Composition Analysis (SCA). Default: false'
+                                  type: boolean
+                              type: object
+                            threats:
+                              description: 'Threats configures ASM App & API Protection. Enabled Default: false'
+                              properties:
+                                enabled:
+                                  description: 'Enabled enables ASM App & API Protection. Default: false'
+                                  type: boolean
+                              type: object
+                          type: object
+                        clusterChecks:
+                          description: ClusterChecks configuration.
+                          properties:
+                            enabled:
+                              description: 'Enables Cluster Checks scheduling in the Cluster Agent. Default: true'
+                              type: boolean
+                            useClusterChecksRunners:
+                              description: 'Enabled enables Cluster Checks Runners to run all Cluster Checks. Default: false'
+                              type: boolean
+                          type: object
+                        cspm:
+                          description: CSPM (Cloud Security Posture Management) configuration.
+                          properties:
+                            checkInterval:
+                              description: CheckInterval defines the check interval.
+                              type: string
+                            customBenchmarks:
+                              description: CustomBenchmarks contains CSPM benchmarks. The content of the ConfigMap will be merged with the benchmarks bundled with the agent. Any benchmarks with the same name as those existing in the agent will take precedence.
+                              properties:
+                                configData:
+                                  description: ConfigData corresponds to the configuration file content.
+                                  type: string
+                                configMap:
+                                  description: ConfigMap references an existing ConfigMap with the configuration file content.
+                                  properties:
+                                    items:
+                                      description: Items maps a ConfigMap data `key` to a file `path` mount.
+                                      items:
+                                        description: Maps a string key to a path within a volume.
+                                        properties:
+                                          key:
+                                            description: key is the key to project.
+                                            type: string
+                                          mode:
+                                            description: 'mode is Optional: mode bits used to set permissions on this file. Must be an octal value between 0000 and 0777 or a decimal value between 0 and 511. YAML accepts both octal and decimal values, JSON requires decimal values for mode bits. If not specified, the volume defaultMode will be used. This might be in conflict with other options that affect the file mode, like fsGroup, and the result can be other mode bits set.'
+                                            format: int32
+                                            type: integer
+                                          path:
+                                            description: path is the relative path of the file to map the key to. May not be an absolute path. May not contain the path element '..'. May not start with the string '..'.
+                                            type: string
+                                        required:
+                                          - key
+                                          - path
+                                        type: object
+                                      type: array
+                                      x-kubernetes-list-map-keys:
+                                        - key
+                                      x-kubernetes-list-type: map
+                                    name:
+                                      description: Name is the name of the ConfigMap.
+                                      type: string
+                                  type: object
+                              type: object
+                            enabled:
+                              description: 'Enabled enables Cloud Security Posture Management. Default: false'
+                              type: boolean
+                            hostBenchmarks:
+                              description: HostBenchmarks contains configuration for host benchmarks.
+                              properties:
+                                enabled:
+                                  description: 'Enabled enables host benchmarks. Default: false'
+                                  type: boolean
+                              type: object
+                          type: object
+                        cws:
+                          description: CWS (Cloud Workload Security) configuration.
+                          properties:
+                            customPolicies:
+                              description: CustomPolicies contains security policies. The content of the ConfigMap will be merged with the policies bundled with the agent. Any policies with the same name as those existing in the agent will take precedence.
+                              properties:
+                                configData:
+                                  description: ConfigData corresponds to the configuration file content.
+                                  type: string
+                                configMap:
+                                  description: ConfigMap references an existing ConfigMap with the configuration file content.
+                                  properties:
+                                    items:
+                                      description: Items maps a ConfigMap data `key` to a file `path` mount.
+                                      items:
+                                        description: Maps a string key to a path within a volume.
+                                        properties:
+                                          key:
+                                            description: key is the key to project.
+                                            type: string
+                                          mode:
+                                            description: 'mode is Optional: mode bits used to set permissions on this file. Must be an octal value between 0000 and 0777 or a decimal value between 0 and 511. YAML accepts both octal and decimal values, JSON requires decimal values for mode bits. If not specified, the volume defaultMode will be used. This might be in conflict with other options that affect the file mode, like fsGroup, and the result can be other mode bits set.'
+                                            format: int32
+                                            type: integer
+                                          path:
+                                            description: path is the relative path of the file to map the key to. May not be an absolute path. May not contain the path element '..'. May not start with the string '..'.
+                                            type: string
+                                        required:
+                                          - key
+                                          - path
+                                        type: object
+                                      type: array
+                                      x-kubernetes-list-map-keys:
+                                        - key
+                                      x-kubernetes-list-type: map
+                                    name:
+                                      description: Name is the name of the ConfigMap.
+                                      type: string
+                                  type: object
+                              type: object
+                            enabled:
+                              description: 'Enabled enables Cloud Workload Security. Default: false'
+                              type: boolean
+                            network:
+                              properties:
+                                enabled:
+                                  description: 'Enabled enables Cloud Workload Security Network detections. Default: true'
+                                  type: boolean
+                              type: object
+                            remoteConfiguration:
+                              properties:
+                                enabled:
+                                  description: 'Enabled enables Remote Configuration for Cloud Workload Security. Default: true'
+                                  type: boolean
+                              type: object
+                            securityProfiles:
+                              properties:
+                                enabled:
+                                  description: 'Enabled enables Security Profiles collection for Cloud Workload Security. Default: true'
+                                  type: boolean
+                              type: object
+                            syscallMonitorEnabled:
+                              description: 'SyscallMonitorEnabled enables Syscall Monitoring (recommended for troubleshooting only). Default: false'
+                              type: boolean
+                          type: object
+                        dogstatsd:
+                          description: Dogstatsd configuration.
+                          properties:
+                            hostPortConfig:
+                              description: 'HostPortConfig contains host port configuration. Enabled Default: false Port Default: 8125'
+                              properties:
+                                enabled:
+                                  description: 'Enabled enables host port configuration Default: false'
+                                  type: boolean
+                                hostPort:
+                                  description: Port takes a port number (0 < x < 65536) to expose on the host. (Most containers do not need this.) If HostNetwork is enabled, this value must match the ContainerPort.
+                                  format: int32
+                                  type: integer
+                              type: object
+                            mapperProfiles:
+                              description: 'Configure the Dogstasd Mapper Profiles. Can be passed as raw data or via a json encoded string in a config map. See also: https://docs.datadoghq.com/developers/dogstatsd/dogstatsd_mapper/'
+                              properties:
+                                configData:
+                                  description: ConfigData corresponds to the configuration file content.
+                                  type: string
+                                configMap:
+                                  description: ConfigMap references an existing ConfigMap with the configuration file content.
+                                  properties:
+                                    items:
+                                      description: Items maps a ConfigMap data `key` to a file `path` mount.
+                                      items:
+                                        description: Maps a string key to a path within a volume.
+                                        properties:
+                                          key:
+                                            description: key is the key to project.
+                                            type: string
+                                          mode:
+                                            description: 'mode is Optional: mode bits used to set permissions on this file. Must be an octal value between 0000 and 0777 or a decimal value between 0 and 511. YAML accepts both octal and decimal values, JSON requires decimal values for mode bits. If not specified, the volume defaultMode will be used. This might be in conflict with other options that affect the file mode, like fsGroup, and the result can be other mode bits set.'
+                                            format: int32
+                                            type: integer
+                                          path:
+                                            description: path is the relative path of the file to map the key to. May not be an absolute path. May not contain the path element '..'. May not start with the string '..'.
+                                            type: string
+                                        required:
+                                          - key
+                                          - path
+                                        type: object
+                                      type: array
+                                      x-kubernetes-list-map-keys:
+                                        - key
+                                      x-kubernetes-list-type: map
+                                    name:
+                                      description: Name is the name of the ConfigMap.
+                                      type: string
+                                  type: object
+                              type: object
+                            originDetectionEnabled:
+                              description: 'OriginDetectionEnabled enables origin detection for container tagging. See also: https://docs.datadoghq.com/developers/dogstatsd/unix_socket/#using-origin-detection-for-container-tagging'
+                              type: boolean
+                            tagCardinality:
+                              description: 'TagCardinality configures tag cardinality for the metrics collected using origin detection (`low`, `orchestrator` or `high`). See also: https://docs.datadoghq.com/getting_started/tagging/assigning_tags/?tab=containerizedenvironments#environment-variables Cardinality default: low'
+                              type: string
+                            unixDomainSocketConfig:
+                              description: 'UnixDomainSocketConfig contains socket configuration. See also: https://docs.datadoghq.com/agent/kubernetes/apm/?tab=helm#agent-environment-variables Enabled Default: true Path Default: `/var/run/datadog/dsd.socket`'
+                              properties:
+                                enabled:
+                                  description: 'Enabled enables Unix Domain Socket. Default: true'
+                                  type: boolean
+                                path:
+                                  description: Path defines the socket path used when enabled.
+                                  type: string
+                              type: object
+                          type: object
+                        ebpfCheck:
+                          description: EBPFCheck configuration.
+                          properties:
+                            enabled:
+                              description: 'Enables the eBPF check. Default: false'
+                              type: boolean
+                          type: object
+                        eventCollection:
+                          description: EventCollection configuration.
+                          properties:
+                            collectKubernetesEvents:
+                              description: 'CollectKubernetesEvents enables Kubernetes event collection. Default: true'
+                              type: boolean
+                          type: object
+                        externalMetricsServer:
+                          description: ExternalMetricsServer configuration.
+                          properties:
+                            enabled:
+                              description: 'Enabled enables the External Metrics Server. Default: false'
+                              type: boolean
+                            endpoint:
+                              description: 'Override the API endpoint for the External Metrics Server. URL Default: "https://app.datadoghq.com".'
+                              properties:
+                                credentials:
+                                  description: Credentials defines the Datadog credentials used to submit data to/query data from Datadog.
+                                  properties:
+                                    apiKey:
+                                      description: 'APIKey configures your Datadog API key. See also: https://app.datadoghq.com/account/settings#agent/kubernetes'
+                                      type: string
+                                    apiSecret:
+                                      description: APISecret references an existing Secret which stores the API key instead of creating a new one. If set, this parameter takes precedence over "APIKey".
+                                      properties:
+                                        keyName:
+                                          description: KeyName is the key of the secret to use.
+                                          type: string
+                                        secretName:
+                                          description: SecretName is the name of the secret.
+                                          type: string
+                                      required:
+                                        - secretName
+                                      type: object
+                                    appKey:
+                                      description: AppKey configures your Datadog application key. If you are using features.externalMetricsServer.enabled = true, you must set a Datadog application key for read access to your metrics.
+                                      type: string
+                                    appSecret:
+                                      description: AppSecret references an existing Secret which stores the application key instead of creating a new one. If set, this parameter takes precedence over "AppKey".
+                                      properties:
+                                        keyName:
+                                          description: KeyName is the key of the secret to use.
+                                          type: string
+                                        secretName:
+                                          description: SecretName is the name of the secret.
+                                          type: string
+                                      required:
+                                        - secretName
+                                      type: object
+                                  type: object
+                                url:
+                                  description: URL defines the endpoint URL.
+                                  type: string
+                              type: object
+                            port:
+                              description: 'Port specifies the metricsProvider External Metrics Server service port. Default: 8443'
+                              format: int32
+                              type: integer
+                            registerAPIService:
+                              description: 'RegisterAPIService registers the External Metrics endpoint as an APIService Default: true'
+                              type: boolean
+                            useDatadogMetrics:
+                              description: 'UseDatadogMetrics enables usage of the DatadogMetrics CRD (allowing one to scale on arbitrary Datadog metric queries). Default: true'
+                              type: boolean
+                            wpaController:
+                              description: 'WPAController enables the informer and controller of the Watermark Pod Autoscaler. NOTE: The Watermark Pod Autoscaler controller needs to be installed. See also: https://github.com/DataDog/watermarkpodautoscaler. Default: false'
+                              type: boolean
+                          type: object
+                        helmCheck:
+                          description: HelmCheck configuration.
+                          properties:
+                            collectEvents:
+                              description: 'CollectEvents set to `true` enables event collection in the Helm check (Requires Agent 7.36.0+ and Cluster Agent 1.20.0+) Default: false'
+                              type: boolean
+                            enabled:
+                              description: 'Enabled enables the Helm check. Default: false'
+                              type: boolean
+                            valuesAsTags:
+                              additionalProperties:
+                                type: string
+                              description: 'ValuesAsTags collects Helm values from a release and uses them as tags (Requires Agent and Cluster Agent 7.40.0+). Default: {}'
+                              type: object
+                          type: object
+                        kubeStateMetricsCore:
+                          description: KubeStateMetricsCore check configuration.
+                          properties:
+                            conf:
+                              description: Conf overrides the configuration for the default Kubernetes State Metrics Core check. This must point to a ConfigMap containing a valid cluster check configuration.
+                              properties:
+                                configData:
+                                  description: ConfigData corresponds to the configuration file content.
+                                  type: string
+                                configMap:
+                                  description: ConfigMap references an existing ConfigMap with the configuration file content.
+                                  properties:
+                                    items:
+                                      description: Items maps a ConfigMap data `key` to a file `path` mount.
+                                      items:
+                                        description: Maps a string key to a path within a volume.
+                                        properties:
+                                          key:
+                                            description: key is the key to project.
+                                            type: string
+                                          mode:
+                                            description: 'mode is Optional: mode bits used to set permissions on this file. Must be an octal value between 0000 and 0777 or a decimal value between 0 and 511. YAML accepts both octal and decimal values, JSON requires decimal values for mode bits. If not specified, the volume defaultMode will be used. This might be in conflict with other options that affect the file mode, like fsGroup, and the result can be other mode bits set.'
+                                            format: int32
+                                            type: integer
+                                          path:
+                                            description: path is the relative path of the file to map the key to. May not be an absolute path. May not contain the path element '..'. May not start with the string '..'.
+                                            type: string
+                                        required:
+                                          - key
+                                          - path
+                                        type: object
+                                      type: array
+                                      x-kubernetes-list-map-keys:
+                                        - key
+                                      x-kubernetes-list-type: map
+                                    name:
+                                      description: Name is the name of the ConfigMap.
+                                      type: string
+                                  type: object
+                              type: object
+                            enabled:
+                              description: 'Enabled enables Kube State Metrics Core. Default: true'
+                              type: boolean
+                          type: object
+                        liveContainerCollection:
+                          description: LiveContainerCollection configuration.
+                          properties:
+                            enabled:
+                              description: 'Enables container collection for the Live Container View. Default: true'
+                              type: boolean
+                          type: object
+                        liveProcessCollection:
+                          description: LiveProcessCollection configuration.
+                          properties:
+                            enabled:
+                              description: 'Enabled enables Process monitoring. Default: false'
+                              type: boolean
+                            scrubProcessArguments:
+                              description: 'ScrubProcessArguments enables scrubbing of sensitive data in process command-lines (passwords, tokens, etc. ). Default: true'
+                              type: boolean
+                            stripProcessArguments:
+                              description: 'StripProcessArguments enables stripping of all process arguments. Default: false'
+                              type: boolean
+                          type: object
+                        logCollection:
+                          description: LogCollection configuration.
+                          properties:
+                            containerCollectAll:
+                              description: 'ContainerCollectAll enables Log collection from all containers. Default: false'
+                              type: boolean
+                            containerCollectUsingFiles:
+                              description: 'ContainerCollectUsingFiles enables log collection from files in `/var/log/pods instead` of using the container runtime API. Collecting logs from files is usually the most efficient way of collecting logs. See also: https://docs.datadoghq.com/agent/basic_agent_usage/kubernetes/#log-collection-setup Default: true'
+                              type: boolean
+                            containerLogsPath:
+                              description: 'ContainerLogsPath allows log collection from the container log path. Set to a different path if you are not using the Docker runtime. See also: https://docs.datadoghq.com/agent/kubernetes/daemonset_setup/?tab=k8sfile#create-manifest Default: `/var/lib/docker/containers`'
+                              type: string
+                            containerSymlinksPath:
+                              description: 'ContainerSymlinksPath allows log collection to use symbolic links in this directory to validate container ID -> pod. Default: `/var/log/containers`'
+                              type: string
+                            enabled:
+                              description: 'Enabled enables Log collection. Default: false'
+                              type: boolean
+                            openFilesLimit:
+                              description: 'OpenFilesLimit sets the maximum number of log files that the Datadog Agent tails. Increasing this limit can increase resource consumption of the Agent. See also: https://docs.datadoghq.com/agent/basic_agent_usage/kubernetes/#log-collection-setup Default: 100'
+                              format: int32
+                              type: integer
+                            podLogsPath:
+                              description: 'PodLogsPath allows log collection from a pod log path. Default: `/var/log/pods`'
+                              type: string
+                            tempStoragePath:
+                              description: 'TempStoragePath (always mounted from the host) is used by the Agent to store information about processed log files. If the Agent is restarted, it starts tailing the log files immediately. Default: `/var/lib/datadog-agent/logs`'
+                              type: string
+                          type: object
+                        npm:
+                          description: NPM (Network Performance Monitoring) configuration.
+                          properties:
+                            collectDNSStats:
+                              description: 'CollectDNSStats enables DNS stat collection. Default: false'
+                              type: boolean
+                            enableConntrack:
+                              description: 'EnableConntrack enables the system-probe agent to connect to the netlink/conntrack subsystem to add NAT information to connection data. See also: http://conntrack-tools.netfilter.org/ Default: false'
+                              type: boolean
+                            enabled:
+                              description: 'Enabled enables Network Performance Monitoring. Default: false'
+                              type: boolean
+                          type: object
+                        oomKill:
+                          description: OOMKill configuration.
+                          properties:
+                            enabled:
+                              description: 'Enables the OOMKill eBPF-based check. Default: false'
+                              type: boolean
+                          type: object
+                        orchestratorExplorer:
+                          description: OrchestratorExplorer check configuration.
+                          properties:
+                            conf:
+                              description: Conf overrides the configuration for the default Orchestrator Explorer check. This must point to a ConfigMap containing a valid cluster check configuration.
+                              properties:
+                                configData:
+                                  description: ConfigData corresponds to the configuration file content.
+                                  type: string
+                                configMap:
+                                  description: ConfigMap references an existing ConfigMap with the configuration file content.
+                                  properties:
+                                    items:
+                                      description: Items maps a ConfigMap data `key` to a file `path` mount.
+                                      items:
+                                        description: Maps a string key to a path within a volume.
+                                        properties:
+                                          key:
+                                            description: key is the key to project.
+                                            type: string
+                                          mode:
+                                            description: 'mode is Optional: mode bits used to set permissions on this file. Must be an octal value between 0000 and 0777 or a decimal value between 0 and 511. YAML accepts both octal and decimal values, JSON requires decimal values for mode bits. If not specified, the volume defaultMode will be used. This might be in conflict with other options that affect the file mode, like fsGroup, and the result can be other mode bits set.'
+                                            format: int32
+                                            type: integer
+                                          path:
+                                            description: path is the relative path of the file to map the key to. May not be an absolute path. May not contain the path element '..'. May not start with the string '..'.
+                                            type: string
+                                        required:
+                                          - key
+                                          - path
+                                        type: object
+                                      type: array
+                                      x-kubernetes-list-map-keys:
+                                        - key
+                                      x-kubernetes-list-type: map
+                                    name:
+                                      description: Name is the name of the ConfigMap.
+                                      type: string
+                                  type: object
+                              type: object
+                            customResources:
+                              description: '`CustomResources` defines custom resources for the orchestrator explorer to collect. Each item should follow the convention `group/version/kind`. For example, `datadoghq.com/v1alpha1/datadogmetrics`.'
+                              items:
+                                type: string
+                              type: array
+                              x-kubernetes-list-type: set
+                            ddUrl:
+                              description: 'Override the API endpoint for the Orchestrator Explorer. URL Default: "https://orchestrator.datadoghq.com".'
+                              type: string
+                            enabled:
+                              description: 'Enabled enables the Orchestrator Explorer. Default: true'
+                              type: boolean
+                            extraTags:
+                              description: Additional tags to associate with the collected data in the form of `a b c`. This is a Cluster Agent option distinct from DD_TAGS that is used in the Orchestrator Explorer.
+                              items:
+                                type: string
+                              type: array
+                              x-kubernetes-list-type: set
+                            scrubContainers:
+                              description: 'ScrubContainers enables scrubbing of sensitive container data (passwords, tokens, etc. ). Default: true'
+                              type: boolean
+                          type: object
+                        otlp:
+                          description: OTLP ingest configuration
+                          properties:
+                            receiver:
+                              description: Receiver contains configuration for the OTLP ingest receiver.
+                              properties:
+                                protocols:
+                                  description: Protocols contains configuration for the OTLP ingest receiver protocols.
+                                  properties:
+                                    grpc:
+                                      description: GRPC contains configuration for the OTLP ingest OTLP/gRPC receiver.
+                                      properties:
+                                        enabled:
+                                          description: Enable the OTLP/gRPC endpoint.
+                                          type: boolean
+                                        endpoint:
+                                          description: 'Endpoint for OTLP/gRPC. gRPC supports several naming schemes: https://github.com/grpc/grpc/blob/master/doc/naming.md The Datadog Operator supports only ''host:port'' (usually `0.0.0.0:port`). Default: `0.0.0.0:4317`.'
+                                          type: string
+                                      type: object
+                                    http:
+                                      description: HTTP contains configuration for the OTLP ingest OTLP/HTTP receiver.
+                                      properties:
+                                        enabled:
+                                          description: Enable the OTLP/HTTP endpoint.
+                                          type: boolean
+                                        endpoint:
+                                          description: 'Endpoint for OTLP/HTTP. Default: ''0.0.0.0:4318''.'
+                                          type: string
+                                      type: object
+                                  type: object
+                              type: object
+                          type: object
+                        processDiscovery:
+                          description: ProcessDiscovery configuration.
+                          properties:
+                            enabled:
+                              description: 'Enabled enables the Process Discovery check in the Agent. Default: true'
+                              type: boolean
+                          type: object
+                        prometheusScrape:
+                          description: PrometheusScrape configuration.
+                          properties:
+                            additionalConfigs:
+                              description: AdditionalConfigs allows adding advanced Prometheus check configurations with custom discovery rules.
+                              type: string
+                            enableServiceEndpoints:
+                              description: 'EnableServiceEndpoints enables generating dedicated checks for service endpoints. Default: false'
+                              type: boolean
+                            enabled:
+                              description: 'Enable autodiscovery of pods and services exposing Prometheus metrics. Default: false'
+                              type: boolean
+                            version:
+                              description: 'Version specifies the version of the OpenMetrics check. Default: 2'
+                              type: integer
+                          type: object
+                        remoteConfiguration:
+                          description: Remote Configuration configuration.
+                          properties:
+                            enabled:
+                              description: 'Enable this option to activate Remote Configuration. Default: true'
+                              type: boolean
+                          type: object
+                        sbom:
+                          description: SBOM collection configuration.
+                          properties:
+                            containerImage:
+                              description: SBOMTypeConfig contains configuration for a SBOM collection type.
+                              properties:
+                                analyzers:
+                                  description: Analyzers to use for SBOM collection.
+                                  items:
+                                    type: string
+                                  type: array
+                                  x-kubernetes-list-type: set
+                                enabled:
+                                  description: 'Enable this option to activate SBOM collection. Default: false'
+                                  type: boolean
+                              type: object
+                            enabled:
+                              description: 'Enable this option to activate SBOM collection. Default: false'
+                              type: boolean
+                            host:
+                              description: SBOMTypeConfig contains configuration for a SBOM collection type.
+                              properties:
+                                analyzers:
+                                  description: Analyzers to use for SBOM collection.
+                                  items:
+                                    type: string
+                                  type: array
+                                  x-kubernetes-list-type: set
+                                enabled:
+                                  description: 'Enable this option to activate SBOM collection. Default: false'
+                                  type: boolean
+                              type: object
+                          type: object
+                        tcpQueueLength:
+                          description: TCPQueueLength configuration.
+                          properties:
+                            enabled:
+                              description: 'Enables the TCP queue length eBPF-based check. Default: false'
+                              type: boolean
+                          type: object
+                        usm:
+                          description: USM (Universal Service Monitoring) configuration.
+                          properties:
+                            enabled:
+                              description: 'Enabled enables Universal Service Monitoring. Default: false'
+                              type: boolean
+                          type: object
+                      type: object
+                  type: object
               type: object
           type: object
       served: true
@@ -3611,7 +4793,17 @@ spec:
     singular: datadogagentprofile
   scope: Namespaced
   versions:
-    - name: v1alpha1
+    - additionalPrinterColumns:
+        - jsonPath: .status.valid
+          name: valid
+          type: string
+        - jsonPath: .status.applied
+          name: applied
+          type: string
+        - jsonPath: .metadata.creationTimestamp
+          name: age
+          type: date
+      name: v1alpha1
       schema:
         openAPIV3Schema:
           description: DatadogAgentProfile is the Schema for the datadogagentprofiles API
@@ -3692,6 +4884,67 @@ spec:
               type: object
             status:
               description: DatadogAgentProfileStatus defines the observed state of DatadogAgentProfile
+              properties:
+                applied:
+                  description: Applied shows whether the DatadogAgentProfile conflicts with an existing DatadogAgentProfile.
+                  type: string
+                conditions:
+                  description: Conditions represents the latest available observations of a DatadogAgentProfile's current state.
+                  items:
+                    description: "Condition contains details for one aspect of the current state of this API Resource. --- This struct is intended for direct use as an array at the field path .status.conditions.  For example, type FooStatus struct{     // Represents the observations of a foo's current state.     // Known .status.conditions.type are: \"Available\", \"Progressing\", and \"Degraded\"     // +patchMergeKey=type     // +patchStrategy=merge     // +listType=map     // +listMapKey=type     Conditions []metav1.Condition `json:\"conditions,omitempty\" patchStrategy:\"merge\" patchMergeKey:\"type\" protobuf:\"bytes,1,rep,name=conditions\"` \n     // other fields }"
+                    properties:
+                      lastTransitionTime:
+                        description: lastTransitionTime is the last time the condition transitioned from one status to another. This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
+                        format: date-time
+                        type: string
+                      message:
+                        description: message is a human readable message indicating details about the transition. This may be an empty string.
+                        maxLength: 32768
+                        type: string
+                      observedGeneration:
+                        description: observedGeneration represents the .metadata.generation that the condition was set based upon. For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date with respect to the current state of the instance.
+                        format: int64
+                        minimum: 0
+                        type: integer
+                      reason:
+                        description: reason contains a programmatic identifier indicating the reason for the condition's last transition. Producers of specific condition types may define expected values and meanings for this field, and whether the values are considered a guaranteed API. The value should be a CamelCase string. This field may not be empty.
+                        maxLength: 1024
+                        minLength: 1
+                        pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                        type: string
+                      status:
+                        description: status of the condition, one of True, False, Unknown.
+                        enum:
+                          - "True"
+                          - "False"
+                          - Unknown
+                        type: string
+                      type:
+                        description: type of condition in CamelCase or in foo.example.com/CamelCase. --- Many .condition.type values are consistent across resources like Available, but because arbitrary conditions can be useful (see .node.status.conditions), the ability to deconflict is important. The regex it matches is (dns1123SubdomainFmt/)?(qualifiedNameFmt)
+                        maxLength: 316
+                        pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                        type: string
+                    required:
+                      - lastTransitionTime
+                      - message
+                      - reason
+                      - status
+                      - type
+                    type: object
+                  type: array
+                  x-kubernetes-list-map-keys:
+                    - type
+                  x-kubernetes-list-type: map
+                currentHash:
+                  description: CurrentHash is the stored hash of the DatadogAgentProfile.
+                  type: string
+                lastUpdate:
+                  description: LastUpdate is the last time the status was updated.
+                  format: date-time
+                  type: string
+                valid:
+                  description: Valid shows if the DatadogAgentProfile has a valid config spec.
+                  type: string
               type: object
           type: object
       served: true

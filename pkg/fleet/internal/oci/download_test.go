@@ -10,7 +10,6 @@ package oci
 
 import (
 	"context"
-	"net/http"
 	"os"
 	"strings"
 	"testing"
@@ -52,7 +51,6 @@ func (s *testDownloadServer) Image(f fixtures.Fixture) oci.Image {
 
 func TestDownload(t *testing.T) {
 	s := newTestDownloadServer(t)
-	defer s.Close()
 	d := s.Downloader()
 
 	downloadedPackage, err := d.Download(context.Background(), s.PackageURL(fixtures.FixtureSimpleV1))
@@ -68,7 +66,6 @@ func TestDownload(t *testing.T) {
 
 func TestDownloadLayout(t *testing.T) {
 	s := newTestDownloadServer(t)
-	defer s.Close()
 	d := s.Downloader()
 
 	downloadedPackage, err := d.Download(context.Background(), s.PackageLayoutURL(fixtures.FixtureSimpleV1))
@@ -84,7 +81,6 @@ func TestDownloadLayout(t *testing.T) {
 
 func TestDownloadInvalidHash(t *testing.T) {
 	s := newTestDownloadServer(t)
-	defer s.Close()
 	d := s.Downloader()
 
 	pkgURL := s.PackageURL(fixtures.FixtureSimpleV1)
@@ -95,7 +91,6 @@ func TestDownloadInvalidHash(t *testing.T) {
 
 func TestDownloadPlatformNotAvailable(t *testing.T) {
 	s := newTestDownloadServer(t)
-	defer s.Close()
 	d := s.Downloader()
 
 	pkg := s.PackageURL(fixtures.FixtureSimpleV1Linux2Amd128)
@@ -189,8 +184,7 @@ func TestGetRefAndKeychain(t *testing.T) {
 			RegistryAuthOverride:        tt.registryAuthOverride,
 			RegistryAuthOverrideByImage: tt.regAuthOverrideByImage,
 		}
-		d := NewDownloader(env, http.DefaultClient)
-		actual := d.getRefAndKeychain(tt.url)
+		actual := getRefAndKeychain(env, tt.url)
 		assert.Equal(t, tt.expectedRef, actual.ref)
 		assert.Equal(t, tt.expectedKeychain, actual.keychain)
 	}

@@ -5,7 +5,7 @@
 .new-e2e_install_script:
   variables:
     TARGETS: ./tests/agent-platform/install-script
-    TEAM: agent-build-and-releases
+    TEAM: agent-delivery
     EXTRA_PARAMS: --osversion $E2E_OSVERS --platform $E2E_PLATFORM --cws-supported-osversion $E2E_CWS_SUPPORTED_OSVERS --major-version $AGENT_MAJOR_VERSION --arch $E2E_ARCH --flavor $FLAVOR
 
 .new-e2e_suse_a6_x86_64:
@@ -63,7 +63,7 @@ new-e2e-agent-platform-install-script-suse-a7-arm64:
     - .new-e2e_os_suse
     - .new-e2e_suse_a7_arm64
     - .new-e2e_agent_a7
-  rules: !reference [.on_all_new_e2e_tests]
+  rules: !reference [.on_all_install_script_tests]
   variables:
     FLAVOR: datadog-agent
 

@@ -47,7 +47,6 @@ func main() {
 	timeout.Stop()
 
 	log.Printf("🏃 Fake intake running at %s", fi.URL())
-
 	<-sigs
 	log.Println("Stopping fake intake")
 	err := fi.Stop()
@@ -57,4 +56,5 @@ func main() {
 
 	log.Println("Fake intake is stopped")
 	log.Println("👋 Bye bye")
+
 }

@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
@@ -130,8 +131,8 @@ func getExpectedConnections(encodedWithQueryType bool, httpOutBlob []byte) *mode
 				DnsStatsByDomain:            dnsByDomain,
 				DnsStatsByDomainByQueryType: dnsByDomainByQuerytype,
 				DnsSuccessfulResponses:      1, // TODO: verify why this was needed
-
-				RouteIdx: -1,
+				TcpFailuresByErrCode:        map[uint32]uint32{110: 1},
+				RouteIdx:                    -1,
 				Protocol: &model.ProtocolStack{
 					Stack: []model.ProtocolType{model.ProtocolType_protocolTLS, model.ProtocolType_protocolHTTP2},
 				},
@@ -264,6 +265,9 @@ func testSerialization(t *testing.T, aggregateByStatusCode bool) {
 								CountByRcode:      map[uint32]uint32{0: 1},
 							},
 						},
+					},
+					TCPFailures: map[uint32]uint32{
+						110: 1,
 					},
 				},
 			},

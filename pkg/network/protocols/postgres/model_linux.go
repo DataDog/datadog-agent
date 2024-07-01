@@ -13,8 +13,11 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/DataDog/go-sqllexer"
+
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/types"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // EventWrapper wraps an ebpf event and provides additional methods to extract information from it.
@@ -26,6 +29,15 @@ type EventWrapper struct {
 	operation    Operation
 	tableNameSet bool
 	tableName    string
+	normalizer   *sqllexer.Normalizer
+}
+
+// NewEventWrapper creates a new EventWrapper from an ebpf event.
+func NewEventWrapper(e *EbpfEvent) *EventWrapper {
+	return &EventWrapper{
+		EbpfEvent:  e,
+		normalizer: sqllexer.NewNormalizer(sqllexer.WithCollectTables(true)),
+	}
 }
 
 // ConnTuple returns the connection tuple for the transaction
@@ -60,29 +72,28 @@ func (e *EventWrapper) Operation() Operation {
 	return e.operation
 }
 
-var (
-	regexMapper = map[Operation]*regexp.Regexp{
-		CreateTableOP: regexp.MustCompile(`CREATE TABLE (\S+)`),
-		InsertOP:      regexp.MustCompile(`INSERT INTO (\S+)`),
-		DropTableOP:   regexp.MustCompile(`DROP TABLE(\s*IF\s+EXISTS\s+)?(\S+)`),
-		UpdateOP:      regexp.MustCompile(`UPDATE (\S+)`),
-		SelectOP:      regexp.MustCompile(`SELECT .* FROM (\S+)`),
-	}
-)
+var re = regexp.MustCompile(`(?i)if\s+exists`)
 
 // extractTableName extracts the table name from the query.
 func (e *EventWrapper) extractTableName() string {
-	regex, ok := regexMapper[e.Operation()]
-	if ok {
-		if matches := regex.FindSubmatch(e.Tx.getFragment()); len(matches) > 1 {
-			return string(
-				bytes.Trim( // Remove leading and trailing quotes from the table name
-					bytes.ReplaceAll(matches[len(matches)-1], []byte{0}, []byte{}), // Remove null bytes
-					"\""),
-			)
-		}
+	fragment := string(e.Tx.getFragment())
+	// Temp solution for the fact that ObfuscateSQLString does not support "IF EXISTS" or "if exists", so we remove
+	// it from the fragment if found.
+	fragment = re.ReplaceAllString(fragment, "")
+
+	// Normalize the query without obfuscating it.
+	_, statementMetadata, err := e.normalizer.Normalize(fragment, sqllexer.WithDBMS(sqllexer.DBMSPostgres))
+	if err != nil {
+		log.Debugf("unable to normalize due to: %s", err)
+		return "UNKNOWN"
 	}
-	return "UNKNOWN"
+	if statementMetadata.Size == 0 {
+		return "UNKNOWN"
+	}
+
+	// Currently, we do not support complex queries with multiple tables. Therefore, we will return only a single table.
+	return statementMetadata.Tables[0]
+
 }
 
 // TableName returns the name of the table the query is operating on.

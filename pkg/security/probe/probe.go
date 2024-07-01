@@ -362,33 +362,19 @@ func (p *Probe) GetService(ev *model.Event) string {
 	return p.Config.RuntimeSecurity.HostServiceName
 }
 
-// NewEvaluationSet returns a new evaluation set with rule sets tagged by the passed-in tag values for the "ruleset" tag key
-func (p *Probe) NewEvaluationSet(eventTypeEnabled map[eval.EventType]bool, ruleSetTagValues []string) (*rules.EvaluationSet, error) {
-	var ruleSetsToInclude []*rules.RuleSet
-	for _, ruleSetTagValue := range ruleSetTagValues {
-		ruleOpts, evalOpts := rules.NewBothOpts(eventTypeEnabled)
+// NewRuleSet returns a new ruleset
+func (p *Probe) NewRuleSet(eventTypeEnabled map[eval.EventType]bool) *rules.RuleSet {
+	ruleOpts, evalOpts := rules.NewBothOpts(eventTypeEnabled)
+	ruleOpts.WithLogger(seclog.DefaultLogger)
+	ruleOpts.WithReservedRuleIDs(events.AllCustomRuleIDs())
+	ruleOpts.WithSupportedDiscarders(SupportedDiscarders)
+	ruleOpts.WithSupportedMultiDiscarder(SupportedMultiDiscarder)
 
-		ruleOpts.WithLogger(seclog.DefaultLogger)
-		ruleOpts.WithReservedRuleIDs(events.AllCustomRuleIDs())
-		if ruleSetTagValue == rules.DefaultRuleSetTagValue {
-			ruleOpts.WithSupportedDiscarders(SupportedDiscarders)
-			ruleOpts.WithSupportedMultiDiscarder(SupportedMultiDiscarder)
-		}
-
-		eventCtor := func() eval.Event {
-			return p.PlatformProbe.NewEvent()
-		}
-
-		rs := rules.NewRuleSet(p.PlatformProbe.NewModel(), eventCtor, ruleOpts.WithRuleSetTag(ruleSetTagValue), evalOpts)
-		ruleSetsToInclude = append(ruleSetsToInclude, rs)
+	eventCtor := func() eval.Event {
+		return p.PlatformProbe.NewEvent()
 	}
 
-	evaluationSet, err := rules.NewEvaluationSet(ruleSetsToInclude)
-	if err != nil {
-		return nil, err
-	}
-
-	return evaluationSet, nil
+	return rules.NewRuleSet(p.PlatformProbe.NewModel(), eventCtor, ruleOpts, evalOpts)
 }
 
 // IsNetworkEnabled returns whether network is enabled

@@ -145,14 +145,14 @@ func NewStats(c StatsCheck) *Stats {
 		CheckVersion:             c.Version(),
 		CheckConfigSource:        c.ConfigSource(),
 		Interval:                 c.Interval(),
-		telemetry:                utils.IsCheckTelemetryEnabled(c.String(), config.Datadog),
+		telemetry:                utils.IsCheckTelemetryEnabled(c.String(), config.Datadog()),
 		EventPlatformEvents:      make(map[string]int64),
 		TotalEventPlatformEvents: make(map[string]int64),
 	}
 
 	// We are interested in a check's run state values even when they are 0 so we
 	// initialize them here explicitly
-	if stats.telemetry && utils.IsTelemetryEnabled(config.Datadog) {
+	if stats.telemetry && utils.IsTelemetryEnabled(config.Datadog()) {
 		tlmRuns.InitializeToZero(stats.CheckName, runCheckFailureTag)
 		tlmRuns.InitializeToZero(stats.CheckName, runCheckSuccessTag)
 	}

@@ -267,6 +267,16 @@ func TestGetOTelResource(t *testing.T) {
 			expected: "res",
 		},
 		{
+			name:     "HTTP request method resource",
+			sattrs:   map[string]string{"http.request.method": "GET"},
+			expected: "GET",
+		},
+		{
+			name:     "HTTP method and route resource",
+			sattrs:   map[string]string{semconv.AttributeHTTPMethod: "GET", semconv.AttributeHTTPRoute: "/"},
+			expected: "GET /",
+		},
+		{
 			name:      "truncate long resource",
 			sattrs:    map[string]string{"resource.name": strings.Repeat("a", MaxResourceLen+1)},
 			normalize: true,
@@ -417,6 +427,9 @@ func TestGetOTelStatusCode(t *testing.T) {
 	assert.Equal(t, uint32(0), GetOTelStatusCode(span))
 	span.Attributes().PutInt(semconv.AttributeHTTPStatusCode, 200)
 	assert.Equal(t, uint32(200), GetOTelStatusCode(span))
+	span.Attributes().Remove(semconv.AttributeHTTPStatusCode)
+	span.Attributes().PutInt("http.response.status_code", 404)
+	assert.Equal(t, uint32(404), GetOTelStatusCode(span))
 }
 
 func TestGetOTelContainerTags(t *testing.T) {
@@ -425,5 +438,7 @@ func TestGetOTelContainerTags(t *testing.T) {
 	res.Attributes().PutStr(semconv.AttributeContainerName, "cname")
 	res.Attributes().PutStr(semconv.AttributeContainerImageName, "ciname")
 	res.Attributes().PutStr(semconv.AttributeContainerImageTag, "citag")
-	assert.Contains(t, GetOTelContainerTags(res.Attributes()), "container_id:cid", "container_name:cname", "image_name:ciname", "image_tag:citag")
+	res.Attributes().PutStr("az", "my-az")
+	assert.Contains(t, GetOTelContainerTags(res.Attributes(), []string{"az", semconv.AttributeContainerID, semconv.AttributeContainerName, semconv.AttributeContainerImageName, semconv.AttributeContainerImageTag}), "container_id:cid", "container_name:cname", "image_name:ciname", "image_tag:citag", "az:my-az")
+	assert.Contains(t, GetOTelContainerTags(res.Attributes(), []string{"az"}), "az:my-az")
 }

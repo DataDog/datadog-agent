@@ -14,7 +14,11 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
+	"go.uber.org/atomic"
+
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	telemetryComp "github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/common"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/pathteststore"
@@ -24,8 +28,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkpath/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
-	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
-	"go.uber.org/atomic"
 )
 
 type npCollectorImpl struct {
@@ -54,11 +56,14 @@ type npCollectorImpl struct {
 	runDone       chan struct{}
 	flushInterval time.Duration
 
+	// Telemetry component
+	telemetrycomp telemetryComp.Component
+
 	// structures needed to ease mocking/testing
 	TimeNowFn func() time.Time
 	// TODO: instead of mocking traceroute via function replacement like this
 	//       we should ideally create a fake/mock traceroute instance that can be passed/injected in NpCollector
-	runTraceroute func(cfg traceroute.Config) (payload.NetworkPath, error)
+	runTraceroute func(cfg traceroute.Config, telemetrycomp telemetryComp.Component) (payload.NetworkPath, error)
 }
 
 func newNoopNpCollectorImpl() *npCollectorImpl {
@@ -67,7 +72,7 @@ func newNoopNpCollectorImpl() *npCollectorImpl {
 	}
 }
 
-func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *collectorConfigs, logger log.Component) *npCollectorImpl {
+func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *collectorConfigs, logger log.Component, telemetrycomp telemetryComp.Component) *npCollectorImpl {
 	logger.Infof("New NpCollector (workers=%d input_chan_size=%d processing_chan_size=%d pathtest_ttl=%s pathtest_interval=%s flush_interval=%s)",
 		collectorConfigs.workers,
 		collectorConfigs.pathtestInputChanSize,
@@ -87,17 +92,15 @@ func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *c
 		flushInterval:          collectorConfigs.flushInterval,
 		workers:                collectorConfigs.workers,
 
-		metricSender: metricsender.NewMetricSenderStatsd(statsd.Client),
-
 		receivedPathtestCount:    atomic.NewUint64(0),
 		processedTracerouteCount: atomic.NewUint64(0),
 		TimeNowFn:                time.Now,
 
+		telemetrycomp: telemetrycomp,
+
 		stopChan:      make(chan struct{}),
 		runDone:       make(chan struct{}),
 		flushLoopDone: make(chan struct{}),
-
-		statsdClient: statsd.Client,
 
 		runTraceroute: runTraceroute,
 	}
@@ -113,8 +116,10 @@ func (s *npCollectorImpl) ScheduleConns(conns []*model.Connection) {
 			continue
 		}
 		remoteAddr := conn.Raddr
-		remotePort := uint16(conn.Raddr.Port)
-		err := s.scheduleOne(remoteAddr.Ip, remotePort)
+		remotePort := uint16(conn.Raddr.GetPort())
+		protocol := conn.GetType().String()
+		sourceContainer := conn.Laddr.GetContainerId()
+		err := s.scheduleOne(remoteAddr.GetIp(), remotePort, protocol, sourceContainer)
 		if err != nil {
 			s.logger.Errorf("Error scheduling pathtests: %s", err)
 		}
@@ -126,15 +131,17 @@ func (s *npCollectorImpl) ScheduleConns(conns []*model.Connection) {
 
 // scheduleOne schedules pathtests.
 // It shouldn't block, if the input channel is full, an error is returned.
-func (s *npCollectorImpl) scheduleOne(hostname string, port uint16) error {
+func (s *npCollectorImpl) scheduleOne(hostname string, port uint16, protocol string, sourceContainerID string) error {
 	if s.pathtestInputChan == nil {
 		return errors.New("no input channel, please check that network path is enabled")
 	}
 	s.logger.Debugf("Schedule traceroute for: hostname=%s port=%d", hostname, port)
 
 	ptest := &common.Pathtest{
-		Hostname: hostname,
-		Port:     port,
+		Hostname:          hostname,
+		Port:              port,
+		Protocol:          protocol,
+		SourceContainerID: sourceContainerID,
 	}
 	select {
 	case s.pathtestInputChan <- ptest:
@@ -148,10 +155,18 @@ func (s *npCollectorImpl) start() error {
 		return errors.New("server already started")
 	}
 	s.running = true
+
 	s.logger.Info("Start NpCollector")
+
+	// Assigning statsd.Client in start() stage since we can't do it in newNpCollectorImpl
+	// due to statsd.Client not being configured yet.
+	s.metricSender = metricsender.NewMetricSenderStatsd(statsd.Client)
+	s.statsdClient = statsd.Client
+
 	go s.listenPathtests()
 	go s.flushLoop()
 	s.startWorkers()
+
 	return nil
 }
 
@@ -191,9 +206,10 @@ func (s *npCollectorImpl) runTracerouteForPath(ptest *pathteststore.PathtestCont
 		DestPort:     ptest.Pathtest.Port,
 		MaxTTL:       0, // TODO: make it configurable, setting 0 to use default value for now
 		TimeoutMs:    0, // TODO: make it configurable, setting 0 to use default value for now
+		Protocol:     ptest.Pathtest.Protocol,
 	}
 
-	path, err := s.runTraceroute(cfg)
+	path, err := s.runTraceroute(cfg, s.telemetrycomp)
 	if err != nil {
 		s.logger.Errorf("%s", err)
 		return
@@ -214,8 +230,8 @@ func (s *npCollectorImpl) runTracerouteForPath(ptest *pathteststore.PathtestCont
 	}
 }
 
-func runTraceroute(cfg traceroute.Config) (payload.NetworkPath, error) {
-	tr, err := traceroute.New(cfg)
+func runTraceroute(cfg traceroute.Config, telemetry telemetryComp.Component) (payload.NetworkPath, error) {
+	tr, err := traceroute.New(cfg, telemetry)
 	if err != nil {
 		return payload.NetworkPath{}, fmt.Errorf("new traceroute error: %s", err)
 	}
@@ -228,7 +244,6 @@ func runTraceroute(cfg traceroute.Config) (payload.NetworkPath, error) {
 
 func (s *npCollectorImpl) flushLoop() {
 	s.logger.Debugf("Starting flush loop")
-	defer s.logger.Debugf("Stopped flush loop")
 
 	flushTicker := time.NewTicker(s.flushInterval)
 
@@ -237,7 +252,7 @@ func (s *npCollectorImpl) flushLoop() {
 		select {
 		// stop sequence
 		case <-s.stopChan:
-			s.logger.Info("Stop flush loop")
+			s.logger.Info("Stopped flush loop")
 			s.flushLoopDone <- struct{}{}
 			flushTicker.Stop()
 			return

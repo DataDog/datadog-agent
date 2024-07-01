@@ -48,17 +48,16 @@ cache. Cache invalidation is triggered by the collectors (or source) by either:
 Tagger entities are identified by a string-typed ID, with one of the following forms:
 
 <!-- NOTE: a similar table appears in comp/core/autodiscovery/README.md; please keep both in sync -->
-| *Entity*                                | *ID*                               |
-|-----------------------------------------|------------------------------------|
-| workloadmeta.KindContainer              | `container_id://<sha>`             |
-| workloadmeta.KindContainerImageMetadata | `container_image_metadata://<sha>` |
-| workloadmeta.KindECSTask                | `ecs_task://<task-id>`             |
-| workloadmeta.KindHost                   | `host`                             |
-| workloadmeta.KindKubernetesDeployment   | `deployment://<namespace>/<name>`  |
-| workloadmeta.KindKubernetesNamespace    | `namespace://<name>`               |
-| workloadmeta.KindKubernetesNode         | `kubernetes_node_uid://<name>`     |
-| workloadmeta.KindKubernetesPod          | `kubernetes_pod_uid://<uid>`       |
-| workloadmeta.KindProcess                | `process://<pid>`                  |
+| *Entity*                                | *ID*                                                                                                         |
+|-----------------------------------------|--------------------------------------------------------------------------------------------------------------|
+| workloadmeta.KindContainer              | `container_id://<sha>`                                                                                       |
+| workloadmeta.KindContainerImageMetadata | `container_image_metadata://<sha>`                                                                           |
+| workloadmeta.KindECSTask                | `ecs_task://<task-id>`                                                                                       |
+| workloadmeta.KindHost                   | `host`                                                                                                       |
+| workloadmeta.KindKubernetesDeployment   | `deployment://<namespace>/<name>`                                                                            |
+| workloadmeta.KindKubernetesMetadata     | `kubernetes_metadata://<resourceType>/<namespace>/<name>` (`<namespace>` is empty in cluster-scoped objects) |
+| workloadmeta.KindKubernetesPod          | `kubernetes_pod_uid://<uid>`                                                                                 |
+| workloadmeta.KindProcess                | `process://<pid>`                                                                                            |
 
 ## Tagger
 

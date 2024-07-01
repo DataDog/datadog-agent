@@ -67,7 +67,7 @@ func procMount() error {
 	if !haveEgid {
 		groups = append(groups, egid)
 	}
-	path := config.Datadog.GetString("container_proc_root")
+	path := config.Datadog().GetString("container_proc_root")
 	if config.IsContainerized() && path != "/proc" {
 		path = filepath.Join(path, "1/mounts")
 	} else {

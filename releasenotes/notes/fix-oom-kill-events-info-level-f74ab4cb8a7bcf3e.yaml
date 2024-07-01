@@ -1,0 +1,3 @@
+enhancements:
+  - |
+    OOM kill events in the OOM kill check are now reported at ERROR level instead of INFO level.

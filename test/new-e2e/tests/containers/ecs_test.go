@@ -62,7 +62,12 @@ func (suite *ecsSuite) SetupSuite() {
 		"ddtestworkload:deploy":                      auto.ConfigValue{Value: "true"},
 	}
 
-	_, stackOutput, err := infra.GetStackManager().GetStackNoDeleteOnFailure(ctx, "ecs-cluster", stackConfig, ecs.Run, false, nil, nil)
+	_, stackOutput, err := infra.GetStackManager().GetStackNoDeleteOnFailure(
+		ctx,
+		"ecs-cluster",
+		ecs.Run,
+		infra.WithConfigMap(stackConfig),
+	)
 	suite.Require().NoError(err)
 
 	fakeintake := &components.FakeIntake{}
@@ -522,7 +527,7 @@ func (suite *ecsSuite) testTrace(taskName string) {
 				regexp.MustCompile(`^task_family:.*-` + regexp.QuoteMeta(taskName) + `-ec2$`),
 				regexp.MustCompile(`^task_name:.*-` + regexp.QuoteMeta(taskName) + `-ec2$`),
 				regexp.MustCompile(`^task_version:[[:digit:]]+$`),
-			}, false)
+			}, []*regexp.Regexp{}, false)
 			if err == nil {
 				break
 			}

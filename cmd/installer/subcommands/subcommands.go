@@ -22,6 +22,7 @@ func InstallerSubcommands() []command.SubcommandFactory {
 	return []command.SubcommandFactory{
 		withDatadogAgent(daemon.Commands),
 		withRoot(installer.Commands),
+		installer.UnprivilegedCommands,
 	}
 }
 

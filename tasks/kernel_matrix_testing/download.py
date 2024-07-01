@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import os
-import platform
 import tempfile
 from typing import TYPE_CHECKING
 
@@ -9,19 +8,17 @@ from invoke.context import Context
 
 from tasks.kernel_matrix_testing.platforms import get_platforms
 from tasks.kernel_matrix_testing.tool import Exit, debug, info, warn
-from tasks.kernel_matrix_testing.vars import arch_mapping
+from tasks.kernel_matrix_testing.vars import KMT_SUPPORTED_ARCHS
 from tasks.kernel_matrix_testing.vmconfig import get_vmconfig_template
+from tasks.libs.types.arch import Arch
 
 if TYPE_CHECKING:
-    from tasks.kernel_matrix_testing.types import ArchOrLocal  # noqa: F401
+    from tasks.kernel_matrix_testing.types import KMTArchName, PathOrStr
 
 try:
     import requests
 except ImportError:
     requests = None
-
-if TYPE_CHECKING:
-    from tasks.kernel_matrix_testing.types import Arch, PathOrStr
 
 
 def requires_update(url_base: str, rootfs_dir: PathOrStr, image: str, branch: str):
@@ -48,7 +45,7 @@ def download_rootfs(
     ctx: Context,
     rootfs_dir: PathOrStr,
     vmconfig_template_name: str,
-    arch: Arch | None = None,
+    arch: KMTArchName | None = None,
     images: str | None = None,
 ):
     platforms = get_platforms()
@@ -57,30 +54,29 @@ def download_rootfs(
     url_base = platforms["url_base"]
 
     if arch is None:
-        arch = arch_mapping[platform.machine()]
-    to_download: list[str] = list()
-    file_ls: list[str] = list()
-    branch_mapping: dict[str, str] = dict()
+        arch = Arch.local().kmt_arch
+    to_download: list[str] = []
+    file_ls: list[str] = []
+    branch_mapping: dict[str, str] = {}
 
-    images_to_download = dict()
-    if images is not None:
-        for td in images.split(","):
-            id_version = td.split("-")
-            assert (
-                len(id_version) == 2
-            ), f"Invalid format for image to download: {td}. Format should be <os_id>-<os_version>"
-            images_to_download[id_version[0]] = id_version[1]
+    selected_image_list = images.split(",") if images is not None else []
 
     for tag in platforms[arch]:
         platinfo = platforms[arch][tag]
         if "image" not in platinfo:
             raise Exit("image is not defined in platform info")
 
-        if len(images_to_download) > 0:
-            if platinfo["os_id"] not in images_to_download:
+        if images is not None:
+            image_possible_names = [tag] + platinfo.get("alt_version_names", [])
+            if "os_id" in platinfo and "os_version" in platinfo:
+                image_possible_names.append(f"{platinfo['os_id']}-{platinfo['os_version']}")
+
+            matching_names = set(selected_image_list) & set(image_possible_names)
+            if len(matching_names) == 0:
                 continue
-            if platinfo["os_version"] != images_to_download[platinfo["os_id"]]:
-                continue
+
+            info(f"[+] Image {tag} matched filters: {', '.join(matching_names)}")
+            selected_image_list = list(set(selected_image_list) - matching_names)
 
         path = os.path.basename(platinfo["image"])
         if path.endswith(".xz"):
@@ -88,6 +84,9 @@ def download_rootfs(
 
         branch_mapping[path] = platinfo.get('image_version', 'master')
         file_ls.append(os.path.basename(path))
+
+    if len(selected_image_list) > 0:
+        raise Exit(f"Couldn't find images for the following names: {', '.join(selected_image_list)}")
 
     # if file does not exist download it.
     for f in file_ls:
@@ -171,25 +170,14 @@ def download_rootfs(
         raise Exit("Failed to set permissions 0766 to rootfs")
 
 
-def full_arch(arch: str) -> Arch:
-    if arch == "local":
-        return arch_mapping[platform.machine()]
-    else:
-        try:
-            return arch_mapping[arch]
-        except KeyError:
-            raise Exit(f"Invalid architecture {arch}, valid values are {', '.join(arch_mapping.keys())}")
-
-
 def update_rootfs(
     ctx: Context, rootfs_dir: PathOrStr, vmconfig_template: str, all_archs: bool = False, images: str | None = None
 ):
     if all_archs:
-        arch_ls: list[Arch] = ["x86_64", "arm64"]
-        for arch in arch_ls:
+        for arch in KMT_SUPPORTED_ARCHS:
             info(f"[+] Updating root filesystem for {arch}")
             download_rootfs(ctx, rootfs_dir, vmconfig_template, arch, images)
     else:
-        download_rootfs(ctx, rootfs_dir, vmconfig_template, full_arch("local"), images)
+        download_rootfs(ctx, rootfs_dir, vmconfig_template, Arch.local().kmt_arch, images)
 
     info("[+] Root filesystem and bootables images updated")

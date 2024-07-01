@@ -366,7 +366,7 @@ func (adm *ActivityDumpManager) prepareContextTags() {
 	adm.contextTags = append(adm.contextTags, fmt.Sprintf("host:%s", adm.hostname))
 
 	// merge tags from config
-	for _, tag := range configUtils.GetConfiguredTags(coreconfig.Datadog, true) {
+	for _, tag := range configUtils.GetConfiguredTags(coreconfig.Datadog(), true) {
 		if strings.HasPrefix(tag, "host") {
 			continue
 		}
@@ -738,10 +738,16 @@ func (pces *processCacheEntrySearcher) SearchTracedProcessCacheEntry(entry *mode
 
 	imageTag := utils.GetTagValue("image_tag", pces.ad.Tags)
 	for _, parent = range ancestors {
-		_, _, err := pces.ad.ActivityTree.CreateProcessNode(parent, imageTag, activity_tree.Snapshot, false, pces.adm.resolvers)
+		node, _, err := pces.ad.ActivityTree.CreateProcessNode(parent, imageTag, activity_tree.Snapshot, false, pces.adm.resolvers)
 		if err != nil {
 			// if one of the parents wasn't inserted, leave now
 			break
+		}
+		if node != nil {
+			// This step is important to populate the kernel space "traced_pids" map. Some traced event types use this
+			// map directly (as opposed to "traced_cgroups") to determine if their events should be tagged as dump
+			// samples.
+			pces.ad.updateTracedPid(node.Process.Pid)
 		}
 	}
 }

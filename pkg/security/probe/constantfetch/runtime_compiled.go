@@ -116,7 +116,7 @@ func (cf *RuntimeCompilationConstantFetcher) FinishAndGetResults() (map[string]u
 		return nil, err
 	}
 
-	elfFile, err := runtime.ConstantFetcher.Compile(cf.config, cCode, nil /* cflags */, nil /* llc flags */, cf.statsdClient)
+	elfFile, err := runtime.ConstantFetcher.Compile(cf.config, cCode, nil, cf.statsdClient)
 	if err != nil {
 		return nil, err
 	}

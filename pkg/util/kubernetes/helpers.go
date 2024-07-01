@@ -8,8 +8,6 @@ package kubernetes
 import (
 	"strconv"
 	"strings"
-
-	"github.com/DataDog/datadog-agent/comp/core/tagger/utils"
 )
 
 // KubeAllowedEncodeStringAlphaNums holds the charactes allowed in replicaset names from as parent deployment
@@ -33,7 +31,7 @@ func ParseDeploymentForReplicaSet(name string) string {
 		return ""
 	}
 
-	if !utils.StringInRuneset(suffix, Digits) && !utils.StringInRuneset(suffix, KubeAllowedEncodeStringAlphaNums) {
+	if !stringInRuneset(suffix, Digits) && !stringInRuneset(suffix, KubeAllowedEncodeStringAlphaNums) {
 		// Invalid suffix
 		return ""
 	}
@@ -56,7 +54,7 @@ func ParseCronJobForJob(name string) (string, int) {
 		return "", 0
 	}
 
-	if !utils.StringInRuneset(suffix, Digits) {
+	if !stringInRuneset(suffix, Digits) {
 		// Invalid suffix
 		return "", 0
 	}
@@ -68,4 +66,16 @@ func ParseCronJobForJob(name string) (string, int) {
 	}
 
 	return name[:lastDash], id
+}
+
+// stringInRuneset tests whether all runes of a string are in a given subset
+// returns false if any rune in the string is not found in the subset
+func stringInRuneset(name, subset string) bool {
+	for _, r := range name {
+		if !strings.ContainsRune(subset, r) {
+			// Found an unexpected rune in suffix
+			return false
+		}
+	}
+	return true
 }

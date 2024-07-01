@@ -234,6 +234,22 @@ func (ms *SDWanSender) SendDeviceStatusMetrics(deviceStatus map[string]float64) 
 	}
 }
 
+// SendHardwareMetrics sends hardware metrics
+func (ms *SDWanSender) SendHardwareMetrics(hardwareEnvironments []client.HardwareEnvironment) {
+	for _, entry := range hardwareEnvironments {
+		devIndex := fmt.Sprintf("%d", entry.HwDevIndex)
+
+		tags := ms.getDeviceTags(entry.VmanageSystemIP)
+		tags = append(tags, "status:"+entry.Status, "class:"+entry.HwClass, "item:"+entry.HwItem, "dev_index:"+devIndex)
+
+		status := 0
+		if entry.Status == "OK" {
+			status = 1
+		}
+		ms.sender.Gauge(ciscoSDWANMetricPrefix+"hardware.status_ok", float64(status), "", tags)
+	}
+}
+
 // Commit commits to the sender
 func (ms *SDWanSender) Commit() {
 	ms.sender.Commit()

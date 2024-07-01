@@ -48,7 +48,21 @@ const (
 var Spec = &protocols.ProtocolSpec{
 	Factory: newHTTPProtocol,
 	Maps: []*manager.Map{
-		{Name: inFlightMap},
+		{
+			Name: inFlightMap,
+		},
+		{
+			Name: "http_scratch_buffer",
+		},
+		{
+			Name: "http_batch_events",
+		},
+		{
+			Name: "http_batch_state",
+		},
+		{
+			Name: "http_batches",
+		},
 	},
 	TailCalls: []manager.TailCallRoute{
 		{
@@ -60,14 +74,14 @@ var Spec = &protocols.ProtocolSpec{
 		},
 		{
 			ProgArrayName: protocols.TLSDispatcherProgramsMap,
-			Key:           uint32(protocols.ProgramTLSHTTPProcess),
+			Key:           uint32(protocols.ProgramHTTP),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: tlsProcessTailCall,
 			},
 		},
 		{
 			ProgArrayName: protocols.TLSDispatcherProgramsMap,
-			Key:           uint32(protocols.ProgramTLSHTTPTermination),
+			Key:           uint32(protocols.ProgramHTTPTermination),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: tlsTerminationTailCall,
 			},

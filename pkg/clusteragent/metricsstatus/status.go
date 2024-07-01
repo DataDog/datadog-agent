@@ -61,7 +61,7 @@ func populateStatus(stats map[string]interface{}) {
 		stats["custommetrics"] = custommetrics.GetStatus(apiCl.Cl)
 	}
 
-	if config.Datadog.GetBool("external_metrics_provider.use_datadogmetric_crd") {
+	if config.Datadog().GetBool("external_metrics_provider.use_datadogmetric_crd") {
 		stats["externalmetrics"] = externalmetrics.GetStatus()
 	} else {
 		stats["externalmetrics"] = apiserver.GetStatus()

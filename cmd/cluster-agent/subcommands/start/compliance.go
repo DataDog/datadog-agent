@@ -14,7 +14,7 @@ import (
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/compliance"
@@ -44,12 +44,12 @@ func runCompliance(ctx context.Context, senderManager sender.SenderManager, wmet
 }
 
 func newLogContext(logsConfig *config.LogsConfigKeys, endpointPrefix string) (*config.Endpoints, *client.DestinationsContext, error) {
-	endpoints, err := config.BuildHTTPEndpointsWithConfig(coreconfig.Datadog, logsConfig, endpointPrefix, intakeTrackType, config.AgentJSONIntakeProtocol, config.DefaultIntakeOrigin)
+	endpoints, err := config.BuildHTTPEndpointsWithConfig(coreconfig.Datadog(), logsConfig, endpointPrefix, intakeTrackType, config.AgentJSONIntakeProtocol, config.DefaultIntakeOrigin)
 	if err != nil {
-		endpoints, err = config.BuildHTTPEndpoints(coreconfig.Datadog, intakeTrackType, config.AgentJSONIntakeProtocol, config.DefaultIntakeOrigin)
+		endpoints, err = config.BuildHTTPEndpoints(coreconfig.Datadog(), intakeTrackType, config.AgentJSONIntakeProtocol, config.DefaultIntakeOrigin)
 		if err == nil {
-			httpConnectivity := logshttp.CheckConnectivity(endpoints.Main, coreconfig.Datadog)
-			endpoints, err = config.BuildEndpoints(coreconfig.Datadog, httpConnectivity, intakeTrackType, config.AgentJSONIntakeProtocol, config.DefaultIntakeOrigin)
+			httpConnectivity := logshttp.CheckConnectivity(endpoints.Main, coreconfig.Datadog())
+			endpoints, err = config.BuildEndpoints(coreconfig.Datadog(), httpConnectivity, intakeTrackType, config.AgentJSONIntakeProtocol, config.DefaultIntakeOrigin)
 		}
 	}
 
@@ -68,7 +68,7 @@ func newLogContext(logsConfig *config.LogsConfigKeys, endpointPrefix string) (*c
 }
 
 func newLogContextCompliance() (*config.Endpoints, *client.DestinationsContext, error) {
-	logsConfigComplianceKeys := config.NewLogsConfigKeys("compliance_config.endpoints.", coreconfig.Datadog)
+	logsConfigComplianceKeys := config.NewLogsConfigKeys("compliance_config.endpoints.", coreconfig.Datadog())
 	return newLogContext(logsConfigComplianceKeys, "cspm-intake.")
 }
 
@@ -79,8 +79,8 @@ func startCompliance(senderManager sender.SenderManager, wmeta workloadmeta.Comp
 	}
 	stopper.Add(ctx)
 
-	configDir := coreconfig.Datadog.GetString("compliance_config.dir")
-	checkInterval := coreconfig.Datadog.GetDuration("compliance_config.check_interval")
+	configDir := coreconfig.Datadog().GetString("compliance_config.dir")
+	checkInterval := coreconfig.Datadog().GetDuration("compliance_config.check_interval")
 
 	hname, err := hostname.Get(context.TODO())
 	if err != nil {

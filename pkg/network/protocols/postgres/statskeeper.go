@@ -48,6 +48,7 @@ func (s *StatKeeper) Process(tx *EventWrapper) {
 		requestStats = new(RequestStat)
 		s.stats[key] = requestStats
 	}
+	requestStats.StaticTags = uint64(tx.Tx.Tags)
 	requestStats.Count++
 	if requestStats.Count == 1 {
 		requestStats.FirstLatencySample = tx.RequestLatency()
@@ -55,6 +56,9 @@ func (s *StatKeeper) Process(tx *EventWrapper) {
 	}
 	if requestStats.Latencies == nil {
 		if err := requestStats.initSketch(); err != nil {
+			return
+		}
+		if err := requestStats.Latencies.Add(requestStats.FirstLatencySample); err != nil {
 			return
 		}
 	}
