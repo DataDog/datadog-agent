@@ -169,7 +169,7 @@ func (c *Consumer[V]) Start() {
 	}()
 }
 
-// Sync userpace with kernelspace by fetching all buffered data on eBPF
+// Sync userspace with kernelspace by fetching all buffered data on eBPF
 // Calling this will block until all eBPF map data has been fetched and processed
 func (c *Consumer[V]) Sync() {
 	c.mux.Lock()

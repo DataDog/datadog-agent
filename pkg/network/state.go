@@ -111,8 +111,8 @@ type State interface {
 	// RemoveConnections removes the given keys from the state
 	RemoveConnections(conns []*ConnectionStats)
 
-	// StoreClosedConnections stores a batch of closed connections
-	StoreClosedConnections(connections []ConnectionStats)
+	// StoreClosedConnection stores a batch of closed connections
+	StoreClosedConnection(connection ConnectionStats)
 
 	// GetStats returns a map of statistics about the current network state
 	GetStats() map[string]interface{}
@@ -583,27 +583,25 @@ func (ns *networkState) mergeByCookie(conns []ConnectionStats) ([]ConnectionStat
 	return conns, connsByKey
 }
 
-// StoreClosedConnections wraps the unexported method while locking state
-func (ns *networkState) StoreClosedConnections(closed []ConnectionStats) {
+// StoreClosedConnection wraps the unexported method while locking state
+func (ns *networkState) StoreClosedConnection(closed ConnectionStats) {
 	ns.Lock()
 	defer ns.Unlock()
 
-	ns.storeClosedConnections(closed)
+	ns.storeClosedConnection(closed)
 }
 
 // storeClosedConnection stores the given connection for every client
-func (ns *networkState) storeClosedConnections(conns []ConnectionStats) {
+func (ns *networkState) storeClosedConnection(c ConnectionStats) {
 	for _, client := range ns.clients {
-		for _, c := range conns {
-			if i, ok := client.closed.byCookie[c.Cookie]; ok {
-				if ns.mergeConnectionStats(&client.closed.conns[i], &c) {
-					stateTelemetry.statsCookieCollisions.Inc()
-					client.closed.replaceAt(i, c)
-				}
-				continue
+		if i, ok := client.closed.byCookie[c.Cookie]; ok {
+			if ns.mergeConnectionStats(&client.closed.conns[i], &c) {
+				stateTelemetry.statsCookieCollisions.Inc()
+				client.closed.replaceAt(i, c)
 			}
-			client.closed.insert(c, ns.maxClosedConns)
+			continue
 		}
+		client.closed.insert(c, ns.maxClosedConns)
 	}
 }
 

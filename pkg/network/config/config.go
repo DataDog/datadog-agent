@@ -10,6 +10,9 @@ import (
 	"strings"
 	"time"
 
+	cebpf "github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/features"
+
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
@@ -438,8 +441,7 @@ func New() *Config {
 
 // RingBufferSupportedNPM returns true if the kernel supports ring buffers and the config enables them
 func (c *Config) RingBufferSupportedNPM() bool {
-	return false
-	//return (features.HaveMapType(cebpf.RingBuf) == nil) && c.NPMRingbuffersEnabled
+	return (features.HaveMapType(cebpf.RingBuf) == nil) && c.NPMRingbuffersEnabled
 }
 
 // FailedConnectionsSupported returns true if the config & TCP v4 || v6 is enabled

@@ -8,13 +8,16 @@ package network
 import (
 	"encoding/binary"
 	"fmt"
+	"math"
 	"strings"
 	"time"
+	"unsafe"
 
 	"github.com/dustin/go-humanize"
 	"go4.org/intern"
 
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
+	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
@@ -308,6 +311,86 @@ type IPTranslation struct {
 	ReplDstIP   util.Address
 	ReplSrcPort uint16
 	ReplDstPort uint16
+}
+
+// UnmarshalBinary converts a raw byte slice to a ConnectionStats object
+func (c *ConnectionStats) UnmarshalBinary(data []byte) error {
+	if len(data) < netebpf.SizeofConn {
+		return fmt.Errorf("binary data too small, received %d but expected %d bytes", len(data), netebpf.SizeofConn)
+	}
+
+	ct := (*netebpf.Conn)(unsafe.Pointer(&data[0]))
+	c.FromTupleAndStats(&ct.Tup, &ct.Conn_stats)
+	c.FromTCPStats(&ct.Tcp_stats, ct.Tcp_retransmits)
+	return nil
+}
+
+func (c *ConnectionStats) FromTupleAndStats(t *netebpf.ConnTuple, s *netebpf.ConnStats) {
+	*c = ConnectionStats{
+		Pid:    t.Pid,
+		NetNS:  t.Netns,
+		Source: t.SourceAddress(),
+		Dest:   t.DestAddress(),
+		SPort:  t.Sport,
+		DPort:  t.Dport,
+		Monotonic: StatCounters{
+			SentBytes:   s.Sent_bytes,
+			RecvBytes:   s.Recv_bytes,
+			SentPackets: uint64(s.Sent_packets),
+			RecvPackets: uint64(s.Recv_packets),
+		},
+		LastUpdateEpoch: s.Timestamp,
+		IsAssured:       s.IsAssured(),
+		Cookie:          StatCookie(s.Cookie),
+	}
+
+	if s.Duration <= uint64(math.MaxInt64) {
+		c.Duration = time.Duration(s.Duration) * time.Nanosecond
+	}
+
+	c.ProtocolStack = protocols.Stack{
+		API:         protocols.API(s.Protocol_stack.Api),
+		Application: protocols.Application(s.Protocol_stack.Application),
+		Encryption:  protocols.Encryption(s.Protocol_stack.Encryption),
+	}
+
+	if t.Type() == netebpf.TCP {
+		c.Type = TCP
+	} else {
+		c.Type = UDP
+	}
+
+	switch t.Family() {
+	case netebpf.IPv4:
+		c.Family = AFINET
+	case netebpf.IPv6:
+		c.Family = AFINET6
+	}
+
+	c.SPortIsEphemeral = IsPortInEphemeralRange(c.Family, c.Type, t.Sport)
+
+	switch s.ConnectionDirection() {
+	case netebpf.Incoming:
+		c.Direction = INCOMING
+	case netebpf.Outgoing:
+		c.Direction = OUTGOING
+	default:
+		c.Direction = OUTGOING
+	}
+}
+
+func (c *ConnectionStats) FromTCPStats(tcpStats *netebpf.TCPStats, retransmits uint32) {
+	if c.Type != TCP {
+		return
+	}
+
+	c.Monotonic.Retransmits = retransmits
+	if tcpStats != nil {
+		c.Monotonic.TCPEstablished = uint32(tcpStats.State_transitions >> netebpf.Established & 1)
+		c.Monotonic.TCPClosed = uint32(tcpStats.State_transitions >> netebpf.Close & 1)
+		c.RTT = tcpStats.Rtt
+		c.RTTVar = tcpStats.Rtt_var
+	}
 }
 
 func (c ConnectionStats) String() string {

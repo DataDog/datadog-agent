@@ -14,10 +14,13 @@ import (
 	"syscall"
 
 	manager "github.com/DataDog/ebpf-manager"
+	"github.com/cilium/ebpf"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/perf"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/util"
@@ -30,7 +33,7 @@ const probeUID = "net"
 var ErrorNotSupported = errors.New("fentry tracer is only supported on Fargate")
 
 // LoadTracer loads a new tracer
-func LoadTracer(config *config.Config, mgrOpts manager.Options, connCloseEventHandler ddebpf.EventHandler) (*manager.Manager, func(), error) {
+func LoadTracer(config *config.Config, mgrOpts manager.Options, connCloseEventHandler *perf.EventHandler[network.ConnectionStats]) (*manager.Manager, func(), error) {
 	if !fargate.IsFargateInstance() {
 		return nil, nil, ErrorNotSupported
 	}
@@ -47,7 +50,7 @@ func LoadTracer(config *config.Config, mgrOpts manager.Options, connCloseEventHa
 			return fmt.Errorf("invalid probe configuration: %v", err)
 		}
 
-		initManager(m, connCloseEventHandler, config)
+		initManager(m)
 
 		file, err := os.Stat("/proc/self/ns/pid")
 
@@ -57,7 +60,6 @@ func LoadTracer(config *config.Config, mgrOpts manager.Options, connCloseEventHa
 
 		device := file.Sys().(*syscall.Stat_t).Dev
 		inode := file.Sys().(*syscall.Stat_t).Ino
-		ringbufferEnabled := config.RingBufferSupportedNPM()
 
 		o.ConstantEditors = append(o.ConstantEditors, manager.ConstantEditor{
 			Name:  "systemprobe_device",
@@ -67,10 +69,6 @@ func LoadTracer(config *config.Config, mgrOpts manager.Options, connCloseEventHa
 			Name:  "systemprobe_ino",
 			Value: inode,
 		})
-		util.AddBoolConst(&o, "ringbuffers_enabled", ringbufferEnabled)
-		if ringbufferEnabled {
-			util.EnableRingbuffersViaMapEditor(&mgrOpts)
-		}
 
 		// exclude all non-enabled probes to ensure we don't run into problems with unsupported probe types
 		for _, p := range m.Probes {
@@ -89,7 +87,14 @@ func LoadTracer(config *config.Config, mgrOpts manager.Options, connCloseEventHa
 				})
 		}
 
-		return m.InitWithOptions(ar, &o)
+		if err := m.LoadELF(ar); err != nil {
+			return fmt.Errorf("failed to load ELF with ebpf manager: %w", err)
+		}
+		if err := connCloseEventHandler.Init(m.Manager, &mgrOpts); err != nil {
+			return fmt.Errorf("error initializing closed connections event handler: %w", err)
+		}
+		util.AddBoolConst(&mgrOpts, "ringbuffers_enabled", connCloseEventHandler.MapType() == ebpf.RingBuf)
+		return m.InitWithOptions(nil, &o)
 	})
 
 	if err != nil {

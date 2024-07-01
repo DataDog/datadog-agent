@@ -12,12 +12,10 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
-	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/util"
 )
 
-func initManager(mgr *ddebpf.Manager, connCloseEventHandler ddebpf.EventHandler, cfg *config.Config) {
+func initManager(mgr *ddebpf.Manager) {
 	mgr.Maps = []*manager.Map{
 		{Name: probes.ConnMap},
 		{Name: probes.TCPStatsMap},
@@ -33,7 +31,6 @@ func initManager(mgr *ddebpf.Manager, connCloseEventHandler ddebpf.EventHandler,
 		{Name: probes.MapErrTelemetryMap},
 		{Name: probes.HelperErrTelemetryMap},
 	}
-	util.SetupClosedConnHandler(connCloseEventHandler, mgr, cfg)
 	for funcName := range programs {
 		p := &manager.Probe{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
