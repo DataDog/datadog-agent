@@ -177,9 +177,7 @@ func (r *FileRegistry) Register(namespacedPath string, pid uint32, activationCB,
 		// we are calling `deactivationCB` here as some uprobes could be already attached
 		err = deactivationCB(FilePath{ID: pathID})
 		if r.blocklistByID != nil {
-			// add `pathID` to blocklist so we don't attempt to re-register files
-			// that are problematic for some reason
-			r.blocklistByID.Add(PathIdentifierWithSamplePath{pathID, getSamplePath(path.HostPath)}, struct{}{})
+			r.addToBlocklist(pathID, path.HostPath)
 		}
 		r.telemetry.fileHookFailed.Add(1)
 		return err
@@ -196,6 +194,17 @@ func (r *FileRegistry) Register(namespacedPath string, pid uint32, activationCB,
 	r.telemetry.totalPIDs.Set(int64(len(r.byPID)))
 	log.Debugf("registering file %s path %s by pid %d", pathID.String(), path.HostPath, pid)
 	return nil
+}
+
+// addToBlocklist adds the pathID and matching sample path to the blocklist.
+func (r *FileRegistry) addToBlocklist(pathID PathIdentifier, hostPath string) {
+	for _, entry := range r.blocklistByID.Keys() {
+		if entry.PathIdentifier == pathID {
+			return
+		}
+	}
+
+	r.blocklistByID.Add(PathIdentifierWithSamplePath{pathID, getSamplePath(hostPath)}, struct{}{})
 }
 
 // Unregister a PID if it exists
