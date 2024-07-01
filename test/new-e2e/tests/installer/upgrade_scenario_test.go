@@ -71,6 +71,8 @@ func (s *upgradeScenarioSuite) TestUpgradeSuccessful() {
 		"datadog-installer.service",
 	)
 
+	s.host.WaitForFileExists(true, "/var/run/datadog-installer/installer.sock")
+
 	_, err := s.setCatalog(testCatalog)
 	require.NoError(s.T(), err)
 
@@ -118,7 +120,7 @@ func (s *upgradeScenarioSuite) setCatalog(newCatalog catalog) (string, error) {
 
 func (s *upgradeScenarioSuite) assertSuccessfulStartExperiment(timestamp host.JournaldTimestamp, version string) {
 	s.host.WaitForUnitActivating(agentUnitXP)
-	s.host.WaitForFileExists("/opt/datadog-packages/datadog-agent/experiment/run/agent.pid")
+	s.host.WaitForFileExists(false, "/opt/datadog-packages/datadog-agent/experiment/run/agent.pid")
 
 	// Assert experiment is running
 	s.host.AssertSystemdEvents(timestamp, host.SystemdEvents().

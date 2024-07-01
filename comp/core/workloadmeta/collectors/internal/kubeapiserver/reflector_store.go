@@ -119,12 +119,15 @@ func (r *reflectorStore) Replace(list []interface{}, _ string) error {
 	}
 
 	for _, entityID := range seenBefore {
+		entity, err := entityFromEntityID(entityID)
+		if err != nil {
+			return err
+		}
+
 		events = append(events, workloadmeta.CollectorEvent{
 			Type:   workloadmeta.EventTypeUnset,
 			Source: collectorID,
-			Entity: &workloadmeta.KubernetesPod{
-				EntityID: entityID,
-			},
+			Entity: entity,
 		})
 	}
 
@@ -206,4 +209,26 @@ func (r *reflectorStore) GetByKey(_ string) (item interface{}, exists bool, err 
 // Resync is not implemented
 func (r *reflectorStore) Resync() error {
 	panic("not implemented")
+}
+
+func entityFromEntityID(entityID workloadmeta.EntityID) (workloadmeta.Entity, error) {
+	// All the supported objects need to be in this switch statement
+	switch entityID.Kind {
+	case workloadmeta.KindKubernetesDeployment:
+		return &workloadmeta.KubernetesDeployment{
+			EntityID: entityID,
+		}, nil
+
+	case workloadmeta.KindKubernetesPod:
+		return &workloadmeta.KubernetesPod{
+			EntityID: entityID,
+		}, nil
+
+	case workloadmeta.KindKubernetesMetadata:
+		return &workloadmeta.KubernetesMetadata{
+			EntityID: entityID,
+		}, nil
+	}
+
+	return nil, fmt.Errorf("unsupported entity kind: %s", entityID.Kind)
 }
