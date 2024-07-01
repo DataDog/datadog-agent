@@ -45,7 +45,7 @@ func ParseProcessPayload(payload api.Payload) ([]*ProcessPayload, error) {
 	case *agentmodel.CollectorProc:
 		return []*ProcessPayload{{CollectorProc: *m, collectedTime: payload.Timestamp}}, nil
 	case *agentmodel.CollectorRealTime:
-		// skip real-time payloads
+		// PROCS-4185 - skip real-time payloads
 		return nil, nil
 	default:
 		return nil, fmt.Errorf("unexpected type %s", msg.Header.Type)

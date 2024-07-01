@@ -45,7 +45,7 @@ func ParseContainerPayload(payload api.Payload) ([]*ContainerPayload, error) {
 	case *agentmodel.CollectorContainer:
 		return []*ContainerPayload{{CollectorContainer: *m, collectedTime: payload.Timestamp}}, nil
 	case *agentmodel.CollectorContainerRealTime:
-		// skip real-time payloads
+		// PROCS-4185 - skip real-time payloads
 		return nil, nil
 	default:
 		return nil, fmt.Errorf("unexpected type %s", msg.Header.Type)
