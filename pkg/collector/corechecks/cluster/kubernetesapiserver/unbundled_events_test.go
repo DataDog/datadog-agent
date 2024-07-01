@@ -18,13 +18,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/local"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/telemetry"
-	coretelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestUnbundledEventsTransform(t *testing.T) {
@@ -123,8 +118,7 @@ func TestUnbundledEventsTransform(t *testing.T) {
 		},
 	}
 
-	telemetryComponent := fxutil.Test[coretelemetry.Component](t, telemetryimpl.MockModule())
-	telemetryStore := telemetry.NewStore(telemetryComponent)
+	taggerInstance := taggerimpl.SetupFakeTagger(t)
 
 	tests := []struct {
 		name                    string
@@ -421,7 +415,7 @@ func TestUnbundledEventsTransform(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			transformer := newUnbundledTransformer("test-cluster", local.NewFakeTagger(telemetryStore), tt.collectedEventTypes, tt.bundleUnspecifiedEvents)
+			transformer := newUnbundledTransformer("test-cluster", taggerInstance, tt.collectedEventTypes, tt.bundleUnspecifiedEvents)
 
 			events, errors := transformer.Transform(incomingEvents)
 
@@ -482,8 +476,7 @@ func TestGetTagsFromTagger(t *testing.T) {
 }
 
 func TestUnbundledEventsShouldCollect(t *testing.T) {
-	telemetryComponent := fxutil.Test[coretelemetry.Component](t, telemetryimpl.MockModule())
-	telemetryStore := telemetry.NewStore(telemetryComponent)
+	taggerInstance := taggerimpl.SetupFakeTagger(t)
 
 	tests := []struct {
 		name     string
@@ -556,7 +549,7 @@ func TestUnbundledEventsShouldCollect(t *testing.T) {
 				},
 			}
 
-			transformer := newUnbundledTransformer("test-cluster", local.NewFakeTagger(telemetryStore), collectedTypes, false)
+			transformer := newUnbundledTransformer("test-cluster", taggerInstance, collectedTypes, false)
 			got := transformer.(*unbundledTransformer).shouldCollect(tt.event)
 			assert.Equal(t, tt.expected, got)
 		})
