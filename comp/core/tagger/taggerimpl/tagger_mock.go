@@ -20,7 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/local"
-	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -69,7 +69,7 @@ func MockModule() fxutil.Module {
 		sysprobeconfigimpl.MockModule(),
 		fx.Supply(tagger.NewFakeTaggerParams()),
 		fx.Supply(workloadmeta.NewParams()),
-		nooptelemetry.Module(),
+		telemetryimpl.MockModule(),
 		workloadmetafx.Module(),
 	)
 }
