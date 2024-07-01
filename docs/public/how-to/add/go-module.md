@@ -41,7 +41,7 @@ The repository contains a few submodules. To add a new one and ensure it is test
 
 5.  If you use your module in another module within `datadog-agent`, add the `require` and `replace` directives in `go.mod`.
 
-    From the other module root, Install the dependency with `go get`
+    From the other module root, install the dependency with `go get`:
     ```
     go get github.com/DataDog/datadog-agent/mymodule
     ```
