@@ -28,7 +28,7 @@ var podGVR = corev1.SchemeGroupVersion.WithResource("pods")
 
 // PodPatcher allows a workload patcher to patch a workload with the recommendations from the autoscaler
 type PodPatcher interface {
-	// ApplyRecommendation applies the recommendation to the given pod
+	// ApplyRecommendations applies the recommendation to the given pod
 	ApplyRecommendations(pod *corev1.Pod) (bool, error)
 
 	// shouldObserverPod returns true if the pod should be observed by the pod watcher

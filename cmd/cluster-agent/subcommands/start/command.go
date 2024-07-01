@@ -197,7 +197,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Provide(func() (context.Context, context.CancelFunc) {
 					return context.WithCancel(context.Background())
 				}),
-				fx.Provide(initializeApiServerClient),
+				fx.Provide(initializeAPIServerClient),
 				// Get hostname as aggregator requires hostname
 				fx.Provide(initializeHostName),
 				// Initialize clusterID and clusterName
@@ -525,7 +525,7 @@ func initializeRemoteConfigClient(rcService rccomp.Component, config config.Comp
 	return rcClient, nil
 }
 
-func initializeApiServerClient(ctx context.Context, logComp log.Component) (*apiserver.APIClient, error) {
+func initializeAPIServerClient(ctx context.Context, logComp log.Component) (*apiserver.APIClient, error) {
 	logComp.Info("Waiting to obtain APIClient connection")
 	apiCl, err := apiserver.WaitForAPIClient(ctx) // make sure we can connect to the apiserver
 	if err != nil {
