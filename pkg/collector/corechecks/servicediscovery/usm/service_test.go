@@ -123,6 +123,16 @@ func TestExtractServiceMetadata(t *testing.T) {
 			expectedServiceTag: "td-agent",
 		},
 		{
+			name: "Ruby on Rails with a valid application.rb file",
+			cmdline: []string{
+				"ruby",
+				"bin/rails",
+				"server",
+			},
+			envs:               []string{"PWD=testdata/rails"},
+			expectedServiceTag: "my_http_rails_app_x",
+		},
+		{
 			name: "java using the -jar flag to define the service",
 			cmdline: []string{
 				"java", "-Xmx4000m", "-Xms4000m", "-XX:ReservedCodeCacheSize=256m", "-jar", "/opt/sheepdog/bin/myservice.jar",
