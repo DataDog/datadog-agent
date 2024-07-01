@@ -15,7 +15,6 @@ import (
 
 	serverlessInitLog "github.com/DataDog/datadog-agent/cmd/serverless-init/log"
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/mode"
-	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
@@ -23,6 +22,7 @@ import (
 	healthprobeFx "github.com/DataDog/datadog-agent/comp/core/healthprobe/fx"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 
@@ -73,11 +73,12 @@ func main() {
 		healthprobeFx.Module(),
 		fx.Supply(workloadmeta.NewParams()),
 		fx.Supply(tagger.NewTaggerParams()),
-		fx.Supply(core.BundleParams{
-			ConfigParams: coreconfig.NewParams("", coreconfig.WithConfigMissingOK(true)),
-			SecretParams: secrets.NewEnabledParams(),
-			LogParams:    logimpl.ForOneShot(modeConf.LoggerName, "off", true)}),
-		core.Bundle(),
+		fx.Supply(coreconfig.NewParams("", coreconfig.WithConfigMissingOK(true))),
+		coreconfig.Module(),
+		fx.Supply(secrets.NewEnabledParams()),
+		secretsimpl.Module(),
+		fx.Supply(logimpl.ForOneShot(modeConf.LoggerName, "off", true)),
+		logimpl.Module(),
 	)
 
 	if err != nil {
