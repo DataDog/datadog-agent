@@ -16,7 +16,7 @@ import (
 type streamStrategy struct {
 	inputChan       chan *message.Message
 	outputChan      chan *message.Payload
-	contentEncoding ContentEncoding
+	contentEncoding *Compressor
 	done            chan struct{}
 }
 
@@ -25,7 +25,7 @@ func NewStreamStrategy(inputChan chan *message.Message, outputChan chan *message
 	return &streamStrategy{
 		inputChan:       inputChan,
 		outputChan:      outputChan,
-		contentEncoding: contentEncoding,
+		contentEncoding: NewCompressor(contentEncoding),
 		done:            make(chan struct{}),
 	}
 }
