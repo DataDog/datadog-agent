@@ -19,6 +19,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -152,6 +153,7 @@ func TestGetStatus(t *testing.T) {
 
 	deps := fxutil.Test[dependencies](t, fx.Options(
 		config.MockModule(),
+		logimpl.MockModule(),
 		fx.Supply(
 			agentParams,
 			status.NewInformationProvider(mockProvider{
@@ -483,6 +485,7 @@ func TestGetStatusDoNotRenderHeaderIfNoProviders(t *testing.T) {
 
 	deps := fxutil.Test[dependencies](t, fx.Options(
 		config.MockModule(),
+		logimpl.MockModule(),
 		fx.Supply(
 			agentParams,
 			status.NewInformationProvider(mockProvider{
@@ -547,6 +550,7 @@ func TestGetStatusWithErrors(t *testing.T) {
 
 	deps := fxutil.Test[dependencies](t, fx.Options(
 		config.MockModule(),
+		logimpl.MockModule(),
 		fx.Supply(
 			agentParams,
 			status.NewInformationProvider(mockProvider{
@@ -640,6 +644,7 @@ Status render errors
 func TestGetStatusBySection(t *testing.T) {
 	deps := fxutil.Test[dependencies](t, fx.Options(
 		config.MockModule(),
+		logimpl.MockModule(),
 		fx.Supply(
 			agentParams,
 			status.NewInformationProvider(mockProvider{
@@ -815,6 +820,7 @@ func TestGetStatusBySectionsWithErrors(t *testing.T) {
 
 	deps := fxutil.Test[dependencies](t, fx.Options(
 		config.MockModule(),
+		logimpl.MockModule(),
 		fx.Supply(
 			agentParams,
 			status.NewInformationProvider(mockProvider{
@@ -957,6 +963,7 @@ func TestGetStatusByMultipleSections(t *testing.T) {
 
 	deps := fxutil.Test[dependencies](t, fx.Options(
 		config.MockModule(),
+		logimpl.MockModule(),
 		fx.Supply(
 			agentParams,
 			status.NewInformationProvider(mockProvider{
@@ -1084,6 +1091,7 @@ func TestFlareProvider(t *testing.T) {
 
 	deps := fxutil.Test[dependencies](t, fx.Options(
 		config.MockModule(),
+		logimpl.MockModule(),
 		fx.Supply(agentParams),
 	))
 
@@ -1096,6 +1104,7 @@ func TestFlareProvider(t *testing.T) {
 func TestGetStatusBySectionIncorrect(t *testing.T) {
 	deps := fxutil.Test[dependencies](t, fx.Options(
 		config.MockModule(),
+		logimpl.MockModule(),
 		fx.Supply(
 			agentParams,
 			status.NewInformationProvider(mockProvider{

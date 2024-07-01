@@ -17,6 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	wmdef "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
@@ -124,6 +125,26 @@ func TestSubscribe(t *testing.T) {
 		EntityID: wmdef.EntityID{
 			Kind: wmdef.KindContainer,
 			ID:   "baz",
+		},
+	}
+
+	testNodeMetadata := wmdef.KubernetesMetadata{
+		EntityID: wmdef.EntityID{
+			Kind: wmdef.KindKubernetesMetadata,
+			ID:   string(util.GenerateKubeMetadataEntityID("nodes", "", "test-node")),
+		},
+		EntityMeta: wmdef.EntityMeta{
+			Name: "test-node",
+			Labels: map[string]string{
+				"test-label": "test-value",
+			},
+			Annotations: map[string]string{
+				"test-annotation": "test-value",
+			},
+		},
+		GVR: schema.GroupVersionResource{
+			Version:  "v1",
+			Resource: "nodes",
 		},
 	}
 
@@ -580,6 +601,60 @@ func TestSubscribe(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "set and unset with a filter that matches entities",
+			// The purpose of this test is to check that a filter that matches
+			// entities using an attribute that is not present in the unset
+			// event still works.
+			// We need to support this case because some collectors do not send
+			// the whole entity in "unset" events and only send an ID instead.
+			preEvents: []wmdef.CollectorEvent{},
+			postEvents: [][]wmdef.CollectorEvent{
+				{
+					{
+						Type:   wmdef.EventTypeSet,
+						Source: fooSource,
+						Entity: &testNodeMetadata,
+					},
+					{
+						Type:   wmdef.EventTypeUnset,
+						Source: fooSource,
+						// Notice that this unset event does not contain the
+						// full entity.
+						Entity: &wmdef.KubernetesMetadata{
+							EntityID: wmdef.EntityID{
+								Kind: wmdef.KindKubernetesMetadata,
+								ID:   testNodeMetadata.ID,
+							},
+						},
+					},
+				},
+			},
+			filter: wmdef.NewFilterBuilder().AddKindWithEntityFilter(
+				wmdef.KindKubernetesMetadata,
+				func(entity wmdef.Entity) bool {
+					metadata := entity.(*wmdef.KubernetesMetadata)
+					// Notice that this filter relies on data that is not
+					// available in the unset event.
+					return wmdef.IsNodeMetadata(metadata)
+				},
+			).Build(),
+			expected: []wmdef.EventBundle{
+				{},
+				{
+					Events: []wmdef.Event{
+						{
+							Type:   wmdef.EventTypeSet,
+							Entity: &testNodeMetadata,
+						},
+						{
+							Type:   wmdef.EventTypeUnset,
+							Entity: &testNodeMetadata,
+						},
+					},
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -619,7 +694,6 @@ func TestSubscribe(t *testing.T) {
 			s.Unsubscribe(ch)
 
 			<-doneCh
-			assert.Equal(t, tt.expected, actual)
 			assert.Equal(t, tt.expected, actual)
 		})
 	}
@@ -1382,7 +1456,7 @@ func TestListKubernetesMetadata(t *testing.T) {
 	nodeMetadata := wmdef.KubernetesMetadata{
 		EntityID: wmdef.EntityID{
 			Kind: wmdef.KindKubernetesMetadata,
-			ID:   "nodes//node1",
+			ID:   string(util.GenerateKubeMetadataEntityID("nodes", "", "node1")),
 		},
 		EntityMeta: wmdef.EntityMeta{
 			Name:        "node1",

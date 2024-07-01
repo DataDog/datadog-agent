@@ -16,7 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
@@ -27,9 +26,8 @@ func TestProcessEvents(t *testing.T) {
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		config.MockModule(),
 		logimpl.MockModule(),
-		collectors.GetCatalog(),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmetafxmock.MockModuleV2(),
+		workloadmetafxmock.MockModule(),
 	))
 
 	cp := &ContainerConfigProvider{
@@ -417,9 +415,8 @@ func TestGenerateConfig(t *testing.T) {
 				config.MockModule(),
 				logimpl.MockModule(),
 				fx.Replace(config.MockParams{Overrides: overrides}),
-				collectors.GetCatalog(),
 				fx.Supply(workloadmeta.NewParams()),
-				workloadmetafxmock.MockModuleV2(),
+				workloadmetafxmock.MockModule(),
 			))
 
 			if pod, ok := tt.entity.(*workloadmeta.KubernetesPod); ok {

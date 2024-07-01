@@ -27,20 +27,14 @@ const (
 	DispatcherKafkaProg DispatcherProgramType = C.DISPATCHER_KAFKA_PROG
 )
 
-// TLSDispatcherProgramType is a C type to represent the eBPF programs used for TLS tail calls.
-type TLSDispatcherProgramType C.tls_dispatcher_prog_t
-
-const (
-	// TLSDispatcherKafkaProg is the Golang representation of the C.TLS_DISPATCHER_KAFKA_PROG enum.
-	TLSDispatcherKafkaProg TLSDispatcherProgramType = C.TLS_DISPATCHER_KAFKA_PROG
-)
-
 // ProgramType is a C type to represent the eBPF programs used for tail calls.
 type ProgramType C.protocol_prog_t
 
 const (
 	// ProgramHTTP is the Golang representation of the C.PROG_HTTP enum
 	ProgramHTTP ProgramType = C.PROG_HTTP
+	// ProgramHTTPTermination is tail call to process http termination.
+	ProgramHTTPTermination ProgramType = C.PROG_HTTP_TERMINATION
 	// ProgramHTTP2HandleFirstFrame is the Golang representation of the C.PROG_HTTP2_HANDLE_FIRST_FRAME enum
 	ProgramHTTP2HandleFirstFrame ProgramType = C.PROG_HTTP2_HANDLE_FIRST_FRAME
 	// ProgramHTTP2FrameFilter is the Golang representation of the C.PROG_HTTP2_HANDLE_FRAME enum
@@ -51,6 +45,8 @@ const (
 	ProgramHTTP2DynamicTableCleaner ProgramType = C.PROG_HTTP2_DYNAMIC_TABLE_CLEANER
 	// ProgramHTTP2EOSParser is the Golang representation of the C.PROG_HTTP2_EOS_PARSER enum
 	ProgramHTTP2EOSParser ProgramType = C.PROG_HTTP2_EOS_PARSER
+	// ProgramHTTP2Termination is tail call to process HTTP2 termination.
+	ProgramHTTP2Termination ProgramType = C.PROG_HTTP2_TERMINATION
 	// ProgramKafka is the Golang representation of the C.PROG_KAFKA enum
 	ProgramKafka ProgramType = C.PROG_KAFKA
 	// ProgramKafkaResponsePartitionParserV0 is the Golang representation of the C.PROG_KAFKA_RESPONSE_PARTITION_PARSER_v0 enum
@@ -61,10 +57,14 @@ const (
 	ProgramKafkaResponseRecordBatchParserV0 ProgramType = C.PROG_KAFKA_RESPONSE_RECORD_BATCH_PARSER_V0
 	// ProgramKafkaResponseRecordBatchParserV12 is the Golang representation of the C.PROG_KAFKA_RESPONSE_RECORD_BATCH_PARSER_v0 enum
 	ProgramKafkaResponseRecordBatchParserV12 ProgramType = C.PROG_KAFKA_RESPONSE_RECORD_BATCH_PARSER_V12
+	// ProgramKafkaTermination is tail call to process Kafka termination.
+	ProgramKafkaTermination ProgramType = C.PROG_KAFKA_TERMINATION
 	// ProgramPostgres is the Golang representation of the C.PROG_POSTGRES enum
 	ProgramPostgres ProgramType = C.PROG_POSTGRES
 	// ProgramPostgresParseMessage is the Golang representation of the C.PROG_POSTGRES_PROCESS_PARSE_MESSAGE enum
 	ProgramPostgresParseMessage ProgramType = C.PROG_POSTGRES_PROCESS_PARSE_MESSAGE
+	// ProgramPostgresTermination is tail call to process Postgres termination.
+	ProgramPostgresTermination ProgramType = C.PROG_POSTGRES_TERMINATION
 )
 
 // Application layer of the protocol stack.
@@ -116,44 +116,3 @@ func toProtocolType(protoNum uint8, layerBit uint16) ProtocolType {
 		return Unknown
 	}
 }
-
-// TLSProgramType is a C type to represent the eBPF programs used for tail calls
-// in TLS traffic decoding
-type TLSProgramType C.tls_prog_t
-
-const (
-	// ProgramTLSHTTPProcess is tail call to process http traffic.
-	ProgramTLSHTTPProcess TLSProgramType = C.TLS_HTTP_PROCESS
-	// ProgramTLSHTTPTermination is tail call to process http termination.
-	ProgramTLSHTTPTermination TLSProgramType = C.TLS_HTTP_TERMINATION
-	// ProgramTLSHTTP2FirstFrame is tail call and the entry point of the TLS HTTP2 decoding.
-	ProgramTLSHTTP2FirstFrame TLSProgramType = C.TLS_HTTP2_FIRST_FRAME
-	// ProgramTLSHTTP2Filter is tail call to filter http2 frames.
-	ProgramTLSHTTP2Filter TLSProgramType = C.TLS_HTTP2_FILTER
-	// ProgramTLSHTTP2HeaderParser is tail call to parse the previously filtered http2 header frames.
-	ProgramTLSHTTP2HeaderParser TLSProgramType = C.TLS_HTTP2_HEADERS_PARSER
-	// ProgramTLSHTTP2DynamicTableCleaner is tail call to clean the dynamic table.
-	ProgramTLSHTTP2DynamicTableCleaner TLSProgramType = C.TLS_HTTP2_DYNAMIC_TABLE_CLEANER
-	// ProgramTLSHTTP2EOSParser is tail call to process End-Of-Stream frames.
-	ProgramTLSHTTP2EOSParser TLSProgramType = C.TLS_HTTP2_EOS_PARSER
-	// ProgramTLSHTTP2Termination is tail call to process TLS HTTP2 termination.
-	ProgramTLSHTTP2Termination TLSProgramType = C.TLS_HTTP2_TERMINATION
-	// ProgramTLSKafka is tail call to process Kafka TLS frames,
-	ProgramTLSKafka TLSProgramType = C.TLS_KAFKA
-	// ProgramTLSKafkaResponsePartitionParserV0 is the Golang representation of the C.TLS_KAFKA_RESPONSE_PARTITION_PARSER_v0 enum
-	ProgramTLSKafkaResponsePartitionParserV0 ProgramType = C.TLS_KAFKA_RESPONSE_PARTITION_PARSER_V0
-	// ProgramTLSKafkaResponsePartitionParserV12 is the Golang representation of the C.TLS_KAFKA_RESPONSE_PARTITION_PARSER_v0 enum
-	ProgramTLSKafkaResponsePartitionParserV12 ProgramType = C.TLS_KAFKA_RESPONSE_PARTITION_PARSER_V12
-	// ProgramTLSKafkaResponseRecordBatchParserV0 is the Golang representation of the C.TLS_KAFKA_RESPONSE_RECORD_BATCH_PARSER_v0 enum
-	ProgramTLSKafkaResponseRecordBatchParserV0 ProgramType = C.TLS_KAFKA_RESPONSE_RECORD_BATCH_PARSER_V0
-	// ProgramTLSKafkaResponseRecordBatchParserV12 is the Golang representation of the C.TLS_KAFKA_RESPONSE_RECORD_BATCH_PARSER_v0 enum
-	ProgramTLSKafkaResponseRecordBatchParserV12 ProgramType = C.TLS_KAFKA_RESPONSE_RECORD_BATCH_PARSER_V12
-	// ProgramTLSKafkaTermination is tail call to process Kafka TLS termination.
-	ProgramTLSKafkaTermination TLSProgramType = C.TLS_KAFKA_TERMINATION
-	// ProgramTLSPostgres is tail call to process Postgres TLS frames.
-	ProgramTLSPostgres TLSProgramType = C.TLS_POSTGRES
-	// ProgramTLSPostgresParseMessage is tail call to process Parse message of Postgres frames.
-	ProgramTLSPostgresParseMessage TLSProgramType = C.TLS_PROG_POSTGRES_PROCESS_PARSE_MESSAGE
-	// ProgramTLSPostgresTermination is tail call to process Postgres TLS termination.
-	ProgramTLSPostgresTermination TLSProgramType = C.TLS_POSTGRES_TERMINATION
-)

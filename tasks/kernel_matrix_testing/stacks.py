@@ -330,7 +330,7 @@ def destroy_stack_force(ctx: Context, stack: str):
     stack_dir = os.path.join(get_kmt_os().stacks_dir, stack)
     vm_config = os.path.join(stack_dir, VMCONFIG)
 
-    if local_vms_in_config(vm_config):
+    if os.path.exists(vm_config) and local_vms_in_config(vm_config):
         if libvirt is None:
             raise NoLibvirt()
 

@@ -1,4 +1,4 @@
-$omnibusOutput = "c:\buildroot\datadog-agent\omnibus\pkg\"
+$omnibusOutput = "$($Env:REPO_ROOT)\omnibus\pkg\"
 
 if (-not (Test-Path C:\tools\datadog-package.exe)) {
     Write-Host "Downloading datadog-package.exe"

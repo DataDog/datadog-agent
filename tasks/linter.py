@@ -58,7 +58,7 @@ def python(ctx):
         ctx.run("ruff format .")
         ctx.run("ruff check --fix .")
 
-    ctx.run("vulture --ignore-decorators @task --ignore-names 'test_*,Test*' tasks")
+    ctx.run("vulture")
 
 
 @task
