@@ -5,7 +5,7 @@
 
 //go:build !kubeapiserver
 
-//nolint:revive // TODO(CINT) Fix revive linter
+// Package apiserver provides an API client for the Kubernetes API server.
 package apiserver
 
 import (
@@ -42,14 +42,6 @@ func GetAPIClient() (*APIClient, error) {
 func WaitForAPIClient(ctx context.Context) (*APIClient, error) {
 	log.Errorf("WaitForAPIClient not implemented %s", ErrNotCompiled.Error())
 	return &APIClient{}, nil
-}
-
-// GetPodMetadataNames is used when the API endpoint of the DCA to get the services of a pod is hit.
-//
-//nolint:revive // TODO(CINT) Fix revive linter
-func GetPodMetadataNames(nodeName, ns, podName string) ([]string, error) {
-	log.Errorf("GetPodMetadataNames not implemented %s", ErrNotCompiled.Error())
-	return nil, nil
 }
 
 // GetMetadataMapBundleOnNode is used for the CLI svcmap command to output given a nodeName

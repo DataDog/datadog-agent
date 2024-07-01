@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/stretchr/testify/assert"
@@ -21,6 +22,11 @@ import (
 
 func TestContainerCreatedAt(t *testing.T) {
 	SkipIfNotAvailable(t)
+
+	checkKernelCompatibility(t, "OpenSUSE 15.3 kernel", func(kv *kernel.Version) bool {
+		// because of some strange btrfs subvolume error
+		return kv.IsOpenSUSELeap15_3Kernel()
+	})
 
 	ruleDefs := []*rules.RuleDefinition{
 		{
@@ -52,6 +58,10 @@ func TestContainerCreatedAt(t *testing.T) {
 	if err != nil {
 		t.Skip("Skipping created time in containers tests: Docker not available")
 		return
+	}
+
+	if _, err := dockerWrapper.start(); err != nil {
+		t.Fatal(err)
 	}
 	defer dockerWrapper.stop()
 

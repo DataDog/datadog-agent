@@ -96,6 +96,7 @@ func TestExtractPod(t *testing.T) {
 						{
 							Name:         "container-1",
 							Image:        "container-1-image",
+							ImageID:      "container-1-image:latest",
 							ContainerID:  "docker://1",
 							RestartCount: 13,
 							State: v1.ContainerState{
@@ -107,6 +108,7 @@ func TestExtractPod(t *testing.T) {
 						{
 							Name:         "container-2",
 							Image:        "container-2-image",
+							ImageID:      "container-2-image:latest",
 							ContainerID:  "docker://2",
 							RestartCount: 10,
 							State: v1.ContainerState{
@@ -119,6 +121,7 @@ func TestExtractPod(t *testing.T) {
 						{
 							Name:         "container-3",
 							Image:        "container-3-image",
+							ImageID:      "container-3-image:latest",
 							ContainerID:  "docker://3",
 							RestartCount: 19,
 							State: v1.ContainerState{
@@ -194,6 +197,8 @@ func TestExtractPod(t *testing.T) {
 						RestartCount: 13,
 						Name:         "container-1",
 						ContainerID:  "docker://1",
+						Image:        "container-1-image",
+						ImageID:      "container-1-image:latest",
 					},
 					{
 						State:        "Waiting",
@@ -201,6 +206,8 @@ func TestExtractPod(t *testing.T) {
 						RestartCount: 10,
 						Name:         "container-2",
 						ContainerID:  "docker://2",
+						Image:        "container-2-image",
+						ImageID:      "container-2-image:latest",
 					},
 					{
 						State:        "Terminated",
@@ -208,6 +215,8 @@ func TestExtractPod(t *testing.T) {
 						RestartCount: 19,
 						Name:         "container-3",
 						ContainerID:  "docker://3",
+						Image:        "container-3-image",
+						ImageID:      "container-3-image:latest",
 					},
 				},
 				Conditions: []*model.PodCondition{
@@ -304,6 +313,7 @@ func TestExtractPod(t *testing.T) {
 					{
 						Name:        "container-1",
 						ContainerID: "docker://1",
+						Image:       "container-1-image",
 					},
 					{
 						State:        "Waiting",
@@ -311,6 +321,7 @@ func TestExtractPod(t *testing.T) {
 						RestartCount: 10,
 						Name:         "container-2",
 						ContainerID:  "docker://2",
+						Image:        "container-2-image",
 					},
 					{
 						Name: "container-3",
@@ -402,6 +413,7 @@ func TestExtractPod(t *testing.T) {
 					{
 						Name:        "container-1",
 						ContainerID: "docker://1",
+						Image:       "container-1-image",
 					},
 					{
 						State:        "Waiting",
@@ -409,6 +421,7 @@ func TestExtractPod(t *testing.T) {
 						RestartCount: 10,
 						Name:         "container-2",
 						ContainerID:  "docker://2",
+						Image:        "container-2-image",
 					},
 					{
 						Name: "container-3",
@@ -487,6 +500,7 @@ func TestExtractPod(t *testing.T) {
 						RestartCount: 10,
 						Name:         "container-2",
 						ContainerID:  "docker://2",
+						Image:        "container-2-image",
 					},
 				},
 				ResourceRequirements: []*model.ResourceRequirements{

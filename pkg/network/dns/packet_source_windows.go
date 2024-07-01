@@ -12,6 +12,8 @@ import (
 
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
+
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 )
 
 var _ packetSource = &windowsPacketSource{}
@@ -21,8 +23,8 @@ type windowsPacketSource struct {
 }
 
 // newWindowsPacketSource constructs a new packet source
-func newWindowsPacketSource() (packetSource, error) {
-	di, err := newDriver()
+func newWindowsPacketSource(telemetrycomp telemetry.Component) (packetSource, error) {
+	di, err := newDriver(telemetrycomp)
 	if err != nil {
 		return nil, err
 	}

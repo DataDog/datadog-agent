@@ -119,13 +119,13 @@ func NewListenerConfig() (ListenerConfig, error) {
 	snmpConfig.CollectDeviceMetadata = true
 	snmpConfig.CollectTopology = true
 
-	if coreconfig.Datadog.IsSet("network_devices.autodiscovery") {
-		err := coreconfig.Datadog.UnmarshalKey("network_devices.autodiscovery", &snmpConfig, opt)
+	if coreconfig.Datadog().IsSet("network_devices.autodiscovery") {
+		err := coreconfig.Datadog().UnmarshalKey("network_devices.autodiscovery", &snmpConfig, opt)
 		if err != nil {
 			return snmpConfig, err
 		}
-	} else if coreconfig.Datadog.IsSet("snmp_listener") {
-		err := coreconfig.Datadog.UnmarshalKey("snmp_listener", &snmpConfig, opt)
+	} else if coreconfig.Datadog().IsSet("snmp_listener") {
+		err := coreconfig.Datadog().UnmarshalKey("snmp_listener", &snmpConfig, opt)
 		if err != nil {
 			return snmpConfig, err
 		}
@@ -182,7 +182,7 @@ func NewListenerConfig() (ListenerConfig, error) {
 		config.PingConfig.Timeout = firstNonNil(config.PingConfig.Timeout, snmpConfig.PingConfig.Timeout)
 		config.PingConfig.Count = firstNonNil(config.PingConfig.Count, snmpConfig.PingConfig.Count)
 
-		config.Namespace = firstNonEmpty(config.Namespace, snmpConfig.Namespace, coreconfig.Datadog.GetString("network_devices.namespace"))
+		config.Namespace = firstNonEmpty(config.Namespace, snmpConfig.Namespace, coreconfig.Datadog().GetString("network_devices.namespace"))
 		config.Community = firstNonEmpty(config.Community, config.CommunityLegacy)
 		config.AuthKey = firstNonEmpty(config.AuthKey, config.AuthKeyLegacy)
 		config.AuthProtocol = firstNonEmpty(config.AuthProtocol, config.AuthProtocolLegacy)

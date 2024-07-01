@@ -123,3 +123,28 @@ func TestGetHealthy(t *testing.T) {
 	assert.Len(t, status.Healthy, 2)
 	assert.Len(t, status.Unhealthy, 0)
 }
+
+func TestStartupCatalog(t *testing.T) {
+	cat := newStartupCatalog()
+	token := cat.register("test1")
+
+	// Start unhealthy
+	status := cat.getStatus()
+	assert.Len(t, status.Healthy, 1)
+	assert.Contains(t, status.Healthy, "healthcheck")
+	assert.Len(t, status.Unhealthy, 1)
+	assert.Contains(t, status.Unhealthy, "test1")
+
+	// Get healthy
+	<-token.C
+	cat.pingComponents(time.Time{}) // First ping will make component healthy and fill the channel again.
+	status = cat.getStatus()
+	assert.Len(t, status.Healthy, 2)
+	assert.Contains(t, status.Healthy, "test1")
+
+	// Make sure that we stay health even if we don't ping.
+	cat.pingComponents(time.Time{})
+	status = cat.getStatus()
+	assert.Len(t, status.Healthy, 2)
+	assert.Contains(t, status.Healthy, "test1")
+}

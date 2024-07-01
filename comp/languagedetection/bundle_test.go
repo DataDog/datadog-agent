@@ -8,16 +8,18 @@ package languagedetection
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/comp/languagedetection/client"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/fx"
 )
 
 func TestBundleDependencies(t *testing.T) {
@@ -28,12 +30,12 @@ func TestBundleDependencies(t *testing.T) {
 		fx.Supply(config.Params{}),
 		telemetryimpl.Module(),
 		logimpl.Module(),
-		fx.Provide(func() optional.Option[secrets.Component] {
-			return optional.NewOption[secrets.Component](secretsimpl.NewMock())
+		fx.Provide(func(secretResolver secrets.Component) optional.Option[secrets.Component] {
+			return optional.NewOption[secrets.Component](secretResolver)
 		}),
 		secretsimpl.MockModule(),
 		fx.Supply(logimpl.Params{}),
-		workloadmeta.Module(),
+		workloadmetafx.Module(),
 		fx.Supply(workloadmeta.NewParams()),
 		fx.Invoke(func(client.Component) {}),
 		Bundle(),

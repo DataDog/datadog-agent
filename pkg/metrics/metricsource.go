@@ -60,6 +60,167 @@ const (
 	MetricSourceDisk
 	MetricSourceNetwork
 	MetricSourceSnmp
+
+	// Python Checks
+	MetricSourceKubernetesClusterAutoscaler
+	MetricSourceTraefikMesh
+	MetricSourceWeaviate
+	MetricSourceTorchserve
+	MetricSourceTemporal
+	MetricSourceTeleport
+	MetricSourceTekton
+	MetricSourceStrimzi
+	MetricSourceRay
+	MetricSourceNvidiaTriton
+	MetricSourceKarpenter
+	MetricSourceFluxcd
+	MetricSourceEsxi
+	MetricSourceDcgm
+	MetricSourceDatadogClusterAgent
+	MetricSourceCloudera
+	MetricSourceArgoWorkflows
+	MetricSourceArgoRollouts
+	MetricSourceActiveDirectory
+	MetricSourceActivemqXML
+	MetricSourceAerospike
+	MetricSourceAirflow
+	MetricSourceAmazonMsk
+	MetricSourceAmbari
+	MetricSourceApache
+	MetricSourceArangodb
+	MetricSourceArgocd
+	MetricSourceAspdotnet
+	MetricSourceAviVantage
+	MetricSourceAzureIotEdge
+	MetricSourceBoundary
+	MetricSourceBtrfs
+	MetricSourceCacti
+	MetricSourceCalico
+	MetricSourceCassandraNodetool
+	MetricSourceCeph
+	MetricSourceCertManager
+	MetricSourceCilium
+	MetricSourceCitrixHypervisor
+	MetricSourceClickhouse
+	MetricSourceCloudFoundryAPI
+	MetricSourceCockroachdb
+	MetricSourceConsul
+	MetricSourceCoredns
+	MetricSourceCouch
+	MetricSourceCouchbase
+	MetricSourceCrio
+	MetricSourceDirectory
+	MetricSourceDNSCheck
+	MetricSourceDotnetclr
+	MetricSourceDruid
+	MetricSourceEcsFargate
+	MetricSourceEksFargate
+	MetricSourceElastic
+	MetricSourceEnvoy
+	MetricSourceEtcd
+	MetricSourceExchangeServer
+	MetricSourceExternalDNS
+	MetricSourceFluentd
+	MetricSourceFoundationdb
+	MetricSourceGearmand
+	MetricSourceGitlab
+	MetricSourceGitlabRunner
+	MetricSourceGlusterfs
+	MetricSourceGoExpvar
+	MetricSourceGunicorn
+	MetricSourceHaproxy
+	MetricSourceHarbor
+	MetricSourceHdfsDatanode
+	MetricSourceHdfsNamenode
+	MetricSourceHTTPCheck
+	MetricSourceHyperv
+	MetricSourceIbmAce
+	MetricSourceIbmDb2
+	MetricSourceIbmI
+	MetricSourceIbmMq
+	MetricSourceIbmWas
+	MetricSourceIis
+	MetricSourceImpala
+	MetricSourceIstio
+	MetricSourceKafkaConsumer
+	MetricSourceKong
+	MetricSourceKubeAPIserverMetrics
+	MetricSourceKubeControllerManager
+	MetricSourceKubeDNS
+	MetricSourceKubeMetricsServer
+	MetricSourceKubeProxy
+	MetricSourceKubeScheduler
+	MetricSourceKubelet
+	MetricSourceKubernetesState
+	MetricSourceKyototycoon
+	MetricSourceLighttpd
+	MetricSourceLinkerd
+	MetricSourceLinuxProcExtras
+	MetricSourceMapr
+	MetricSourceMapreduce
+	MetricSourceMarathon
+	MetricSourceMarklogic
+	MetricSourceMcache
+	MetricSourceMesosMaster
+	MetricSourceMesosSlave
+	MetricSourceMongo
+	MetricSourceMysql
+	MetricSourceNagios
+	MetricSourceNfsstat
+	MetricSourceNginx
+	MetricSourceNginxIngressController
+	MetricSourceOpenldap
+	MetricSourceOpenmetrics
+	MetricSourceOpenstack
+	MetricSourceOpenstackController
+	MetricSourceOracle
+	MetricSourcePdhCheck
+	MetricSourcePgbouncer
+	MetricSourcePhpFpm
+	MetricSourcePostfix
+	MetricSourcePostgres
+	MetricSourcePowerdnsRecursor
+	MetricSourceProcess
+	MetricSourcePrometheus
+	MetricSourceProxysql
+	MetricSourcePulsar
+	MetricSourceRabbitmq
+	MetricSourceRedisdb
+	MetricSourceRethinkdb
+	MetricSourceRiak
+	MetricSourceRiakcs
+	MetricSourceSapHana
+	MetricSourceScylla
+	MetricSourceSilk
+	MetricSourceSinglestore
+	MetricSourceSnowflake
+	MetricSourceSpark
+	MetricSourceSqlserver
+	MetricSourceSquid
+	MetricSourceSSHCheck
+	MetricSourceStatsd
+	MetricSourceSupervisord
+	MetricSourceSystemCore
+	MetricSourceSystemSwap
+	MetricSourceTCPCheck
+	MetricSourceTeamcity
+	MetricSourceTeradata
+	MetricSourceTLS
+	MetricSourceTokumx
+	MetricSourceTrafficServer
+	MetricSourceTwemproxy
+	MetricSourceTwistlock
+	MetricSourceVarnish
+	MetricSourceVault
+	MetricSourceVertica
+	MetricSourceVoltdb
+	MetricSourceVsphere
+	MetricSourceWin32EventLog
+	MetricSourceWindowsPerformanceCounters
+	MetricSourceWindowsService
+	MetricSourceWmiCheck
+	MetricSourceYarn
+	MetricSourceZk
 )
 
 // String returns a string representation of MetricSource
@@ -155,14 +316,331 @@ func (ms MetricSource) String() string {
 		return "snmp"
 	case MetricSourceInternal:
 		return "internal"
+	case MetricSourceActiveDirectory:
+		return "active_directory"
+	case MetricSourceActivemqXML:
+		return "activemq_xml"
+	case MetricSourceAerospike:
+		return "aerospike"
+	case MetricSourceAirflow:
+		return "airflow"
+	case MetricSourceAmazonMsk:
+		return "amazon_msk"
+	case MetricSourceAmbari:
+		return "ambari"
+	case MetricSourceApache:
+		return "apache"
+	case MetricSourceArangodb:
+		return "arangodb"
+	case MetricSourceArgocd:
+		return "argocd"
+	case MetricSourceAspdotnet:
+		return "aspdotnet"
+	case MetricSourceAviVantage:
+		return "avi_vantage"
+	case MetricSourceAzureIotEdge:
+		return "azure_iot_edge"
+	case MetricSourceBoundary:
+		return "boundary"
+	case MetricSourceBtrfs:
+		return "btrfs"
+	case MetricSourceCacti:
+		return "cacti"
+	case MetricSourceCalico:
+		return "calico"
+	case MetricSourceCassandraNodetool:
+		return "cassandra_nodetool"
+	case MetricSourceCeph:
+		return "ceph"
+	case MetricSourceCertManager:
+		return "cert_manager"
+	case MetricSourceCilium:
+		return "cilium"
+	case MetricSourceCitrixHypervisor:
+		return "citrix_hypervisor"
+	case MetricSourceClickhouse:
+		return "clickhouse"
+	case MetricSourceCloudFoundryAPI:
+		return "cloud_foundry_api"
+	case MetricSourceCockroachdb:
+		return "cockroachdb"
+	case MetricSourceConsul:
+		return "consul"
+	case MetricSourceCoredns:
+		return "coredns"
+	case MetricSourceCouch:
+		return "couch"
+	case MetricSourceCouchbase:
+		return "couchbase"
+	case MetricSourceCrio:
+		return "crio"
+	case MetricSourceDirectory:
+		return "directory"
+	case MetricSourceDNSCheck:
+		return "dns_check"
+	case MetricSourceDotnetclr:
+		return "dotnetclr"
+	case MetricSourceDruid:
+		return "druid"
+	case MetricSourceEcsFargate:
+		return "ecs_fargate"
+	case MetricSourceEksFargate:
+		return "eks_fargate"
+	case MetricSourceElastic:
+		return "elastic"
+	case MetricSourceEnvoy:
+		return "envoy"
+	case MetricSourceEtcd:
+		return "etcd"
+	case MetricSourceExchangeServer:
+		return "exchange_server"
+	case MetricSourceExternalDNS:
+		return "external_dns"
+	case MetricSourceFluentd:
+		return "fluentd"
+	case MetricSourceFoundationdb:
+		return "foundationdb"
+	case MetricSourceGearmand:
+		return "gearmand"
+	case MetricSourceGitlab:
+		return "gitlab"
+	case MetricSourceGitlabRunner:
+		return "gitlab_runner"
+	case MetricSourceGlusterfs:
+		return "glusterfs"
+	case MetricSourceGoExpvar:
+		return "go_expvar"
+	case MetricSourceGunicorn:
+		return "gunicorn"
+	case MetricSourceHaproxy:
+		return "haproxy"
+	case MetricSourceHarbor:
+		return "harbor"
+	case MetricSourceHdfsDatanode:
+		return "hdfs_datanode"
+	case MetricSourceHdfsNamenode:
+		return "hdfs_namenode"
+	case MetricSourceHTTPCheck:
+		return "http_check"
+	case MetricSourceHyperv:
+		return "hyperv"
+	case MetricSourceIbmAce:
+		return "ibm_ace"
+	case MetricSourceIbmDb2:
+		return "ibm_db2"
+	case MetricSourceIbmI:
+		return "ibm_i"
+	case MetricSourceIbmMq:
+		return "ibm_mq"
+	case MetricSourceIbmWas:
+		return "ibm_was"
+	case MetricSourceIis:
+		return "iis"
+	case MetricSourceImpala:
+		return "impala"
+	case MetricSourceIstio:
+		return "istio"
+	case MetricSourceKafkaConsumer:
+		return "kafka_consumer"
+	case MetricSourceKong:
+		return "kong"
+	case MetricSourceKubeAPIserverMetrics:
+		return "kube_apiserver_metrics"
+	case MetricSourceKubeControllerManager:
+		return "kube_controller_manager"
+	case MetricSourceKubeDNS:
+		return "kube_dns"
+	case MetricSourceKubeMetricsServer:
+		return "kube_metrics_server"
+	case MetricSourceKubeProxy:
+		return "kube_proxy"
+	case MetricSourceKubeScheduler:
+		return "kube_scheduler"
+	case MetricSourceKubelet:
+		return "kubelet"
+	case MetricSourceKubernetesState:
+		return "kubernetes_state"
+	case MetricSourceKyototycoon:
+		return "kyototycoon"
+	case MetricSourceLighttpd:
+		return "lighttpd"
+	case MetricSourceLinkerd:
+		return "linkerd"
+	case MetricSourceLinuxProcExtras:
+		return "linux_proc_extras"
+	case MetricSourceMapr:
+		return "mapr"
+	case MetricSourceMapreduce:
+		return "mapreduce"
+	case MetricSourceMarathon:
+		return "marathon"
+	case MetricSourceMarklogic:
+		return "marklogic"
+	case MetricSourceMcache:
+		return "mcache"
+	case MetricSourceMesosMaster:
+		return "mesos_master"
+	case MetricSourceMesosSlave:
+		return "mesos_slave"
+	case MetricSourceMongo:
+		return "mongo"
+	case MetricSourceMysql:
+		return "mysql"
+	case MetricSourceNagios:
+		return "nagios"
+	case MetricSourceNfsstat:
+		return "nfsstat"
+	case MetricSourceNginx:
+		return "nginx"
+	case MetricSourceNginxIngressController:
+		return "nginx_ingress_controller"
+	case MetricSourceOpenldap:
+		return "openldap"
+	case MetricSourceOpenmetrics:
+		return "openmetrics"
+	case MetricSourceOpenstack:
+		return "openstack"
+	case MetricSourceOpenstackController:
+		return "openstack_controller"
+	case MetricSourceOracle:
+		return "oracle"
+	case MetricSourcePdhCheck:
+		return "pdh_check"
+	case MetricSourcePgbouncer:
+		return "pgbouncer"
+	case MetricSourcePhpFpm:
+		return "php_fpm"
+	case MetricSourcePostfix:
+		return "postfix"
+	case MetricSourcePostgres:
+		return "postgres"
+	case MetricSourcePowerdnsRecursor:
+		return "powerdns_recursor"
+	case MetricSourceProcess:
+		return "process"
+	case MetricSourcePrometheus:
+		return "prometheus"
+	case MetricSourceProxysql:
+		return "proxysql"
+	case MetricSourcePulsar:
+		return "pulsar"
+	case MetricSourceRabbitmq:
+		return "rabbitmq"
+	case MetricSourceRedisdb:
+		return "redisdb"
+	case MetricSourceRethinkdb:
+		return "rethinkdb"
+	case MetricSourceRiak:
+		return "riak"
+	case MetricSourceRiakcs:
+		return "riakcs"
+	case MetricSourceSapHana:
+		return "sap_hana"
+	case MetricSourceScylla:
+		return "scylla"
+	case MetricSourceSilk:
+		return "silk"
+	case MetricSourceSinglestore:
+		return "singlestore"
+	case MetricSourceSnowflake:
+		return "snowflake"
+	case MetricSourceSpark:
+		return "spark"
+	case MetricSourceSqlserver:
+		return "sqlserver"
+	case MetricSourceSquid:
+		return "squid"
+	case MetricSourceSSHCheck:
+		return "ssh_check"
+	case MetricSourceStatsd:
+		return "statsd"
+	case MetricSourceSupervisord:
+		return "supervisord"
+	case MetricSourceSystemCore:
+		return "system_core"
+	case MetricSourceSystemSwap:
+		return "system_swap"
+	case MetricSourceTCPCheck:
+		return "tcp_check"
+	case MetricSourceTeamcity:
+		return "teamcity"
+	case MetricSourceTeradata:
+		return "teradata"
+	case MetricSourceTLS:
+		return "tls"
+	case MetricSourceTokumx:
+		return "tokumx"
+	case MetricSourceTrafficServer:
+		return "traffic_server"
+	case MetricSourceTwemproxy:
+		return "twemproxy"
+	case MetricSourceTwistlock:
+		return "twistlock"
+	case MetricSourceVarnish:
+		return "varnish"
+	case MetricSourceVault:
+		return "vault"
+	case MetricSourceVertica:
+		return "vertica"
+	case MetricSourceVoltdb:
+		return "voltdb"
+	case MetricSourceVsphere:
+		return "vsphere"
+	case MetricSourceWin32EventLog:
+		return "win32_event_log"
+	case MetricSourceWindowsPerformanceCounters:
+		return "windows_performance_counters"
+	case MetricSourceWindowsService:
+		return "windows_service"
+	case MetricSourceWmiCheck:
+		return "wmi_check"
+	case MetricSourceYarn:
+		return "yarn"
+	case MetricSourceZk:
+		return "zk"
+	case MetricSourceArgoRollouts:
+		return "argo_rollouts"
+	case MetricSourceArgoWorkflows:
+		return "argo_workflows"
+	case MetricSourceCloudera:
+		return "cloudera"
+	case MetricSourceDatadogClusterAgent:
+		return "datadog_cluster_agent"
+	case MetricSourceDcgm:
+		return "dcgm"
+	case MetricSourceEsxi:
+		return "esxi"
+	case MetricSourceFluxcd:
+		return "fluxcd"
+	case MetricSourceKarpenter:
+		return "karpenter"
+	case MetricSourceNvidiaTriton:
+		return "nvidia_triton"
+	case MetricSourceRay:
+		return "ray"
+	case MetricSourceStrimzi:
+		return "strimzi"
+	case MetricSourceTekton:
+		return "tekton"
+	case MetricSourceTeleport:
+		return "teleport"
+	case MetricSourceTemporal:
+		return "temporal"
+	case MetricSourceTorchserve:
+		return "torchserve"
+	case MetricSourceWeaviate:
+		return "weaviate"
+	case MetricSourceTraefikMesh:
+		return "traefik_mesh"
+	case MetricSourceKubernetesClusterAutoscaler:
+		return "kubernetes_cluster_autoscaler"
 	default:
 		return "<unknown>"
-
 	}
 }
 
-// CoreCheckToMetricSource returns a MetricSource given the name
-func CoreCheckToMetricSource(name string) MetricSource {
+// CheckNameToMetricSource returns a MetricSource given the name
+func CheckNameToMetricSource(name string) MetricSource {
 	switch name {
 	case "container":
 		return MetricSourceContainer
@@ -220,6 +698,324 @@ func CoreCheckToMetricSource(name string) MetricSource {
 		return MetricSourceSnmp
 	case "telemetry":
 		return MetricSourceInternal
+	case "active_directory":
+		return MetricSourceActiveDirectory
+	case "activemq_xml":
+		return MetricSourceActivemqXML
+	case "aerospike":
+		return MetricSourceAerospike
+	case "airflow":
+		return MetricSourceAirflow
+	case "amazon_msk":
+		return MetricSourceAmazonMsk
+	case "ambari":
+		return MetricSourceAmbari
+	case "apache":
+		return MetricSourceApache
+	case "arangodb":
+		return MetricSourceArangodb
+	case "argocd":
+		return MetricSourceArgocd
+	case "aspdotnet":
+		return MetricSourceAspdotnet
+	case "avi_vantage":
+		return MetricSourceAviVantage
+	case "azure_iot_edge":
+		return MetricSourceAzureIotEdge
+	case "boundary":
+		return MetricSourceBoundary
+	case "btrfs":
+		return MetricSourceBtrfs
+	case "cacti":
+		return MetricSourceCacti
+	case "calico":
+		return MetricSourceCalico
+	case "cassandra_nodetool":
+		return MetricSourceCassandraNodetool
+	case "ceph":
+		return MetricSourceCeph
+	case "cert_manager":
+		return MetricSourceCertManager
+	case "cilium":
+		return MetricSourceCilium
+	case "citrix_hypervisor":
+		return MetricSourceCitrixHypervisor
+	case "clickhouse":
+		return MetricSourceClickhouse
+	case "cloud_foundry_api":
+		return MetricSourceCloudFoundryAPI
+	case "cockroachdb":
+		return MetricSourceCockroachdb
+	case "consul":
+		return MetricSourceConsul
+	case "coredns":
+		return MetricSourceCoredns
+	case "couch":
+		return MetricSourceCouch
+	case "couchbase":
+		return MetricSourceCouchbase
+	case "crio":
+		return MetricSourceCrio
+	case "directory":
+		return MetricSourceDirectory
+	case "dns_check":
+		return MetricSourceDNSCheck
+	case "dotnetclr":
+		return MetricSourceDotnetclr
+	case "druid":
+		return MetricSourceDruid
+	case "ecs_fargate":
+		return MetricSourceEcsFargate
+	case "eks_fargate":
+		return MetricSourceEksFargate
+	case "elastic":
+		return MetricSourceElastic
+	case "envoy":
+		return MetricSourceEnvoy
+	case "etcd":
+		return MetricSourceEtcd
+	case "exchange_server":
+		return MetricSourceExchangeServer
+	case "external_dns":
+		return MetricSourceExternalDNS
+	case "fluentd":
+		return MetricSourceFluentd
+	case "foundationdb":
+		return MetricSourceFoundationdb
+	case "gearmand":
+		return MetricSourceGearmand
+	case "gitlab":
+		return MetricSourceGitlab
+	case "gitlab_runner":
+		return MetricSourceGitlabRunner
+	case "glusterfs":
+		return MetricSourceGlusterfs
+	case "go_expvar":
+		return MetricSourceGoExpvar
+	case "gunicorn":
+		return MetricSourceGunicorn
+	case "haproxy":
+		return MetricSourceHaproxy
+	case "harbor":
+		return MetricSourceHarbor
+	case "hdfs_datanode":
+		return MetricSourceHdfsDatanode
+	case "hdfs_namenode":
+		return MetricSourceHdfsNamenode
+	case "http_check":
+		return MetricSourceHTTPCheck
+	case "hyperv":
+		return MetricSourceHyperv
+	case "ibm_ace":
+		return MetricSourceIbmAce
+	case "ibm_db2":
+		return MetricSourceIbmDb2
+	case "ibm_i":
+		return MetricSourceIbmI
+	case "ibm_mq":
+		return MetricSourceIbmMq
+	case "ibm_was":
+		return MetricSourceIbmWas
+	case "iis":
+		return MetricSourceIis
+	case "impala":
+		return MetricSourceImpala
+	case "istio":
+		return MetricSourceIstio
+	case "kafka_consumer":
+		return MetricSourceKafkaConsumer
+	case "kong":
+		return MetricSourceKong
+	case "kube_apiserver_metrics":
+		return MetricSourceKubeAPIserverMetrics
+	case "kube_controller_manager":
+		return MetricSourceKubeControllerManager
+	case "kube_dns":
+		return MetricSourceKubeDNS
+	case "kube_metrics_server":
+		return MetricSourceKubeMetricsServer
+	case "kube_proxy":
+		return MetricSourceKubeProxy
+	case "kube_scheduler":
+		return MetricSourceKubeScheduler
+	case "kubelet":
+		return MetricSourceKubelet
+	case "kubernetes_state":
+		return MetricSourceKubernetesState
+	case "kyototycoon":
+		return MetricSourceKyototycoon
+	case "lighttpd":
+		return MetricSourceLighttpd
+	case "linkerd":
+		return MetricSourceLinkerd
+	case "linux_proc_extras":
+		return MetricSourceLinuxProcExtras
+	case "mapr":
+		return MetricSourceMapr
+	case "mapreduce":
+		return MetricSourceMapreduce
+	case "marathon":
+		return MetricSourceMarathon
+	case "marklogic":
+		return MetricSourceMarklogic
+	case "mcache":
+		return MetricSourceMcache
+	case "mesos_master":
+		return MetricSourceMesosMaster
+	case "mesos_slave":
+		return MetricSourceMesosSlave
+	case "mongo":
+		return MetricSourceMongo
+	case "mysql":
+		return MetricSourceMysql
+	case "nagios":
+		return MetricSourceNagios
+	case "nfsstat":
+		return MetricSourceNfsstat
+	case "nginx":
+		return MetricSourceNginx
+	case "nginx_ingress_controller":
+		return MetricSourceNginxIngressController
+	case "openldap":
+		return MetricSourceOpenldap
+	case "openmetrics":
+		return MetricSourceOpenmetrics
+	case "openstack":
+		return MetricSourceOpenstack
+	case "openstack_controller":
+		return MetricSourceOpenstackController
+	case "oracle":
+		return MetricSourceOracle
+	case "pdh_check":
+		return MetricSourcePdhCheck
+	case "pgbouncer":
+		return MetricSourcePgbouncer
+	case "php_fpm":
+		return MetricSourcePhpFpm
+	case "postfix":
+		return MetricSourcePostfix
+	case "postgres":
+		return MetricSourcePostgres
+	case "powerdns_recursor":
+		return MetricSourcePowerdnsRecursor
+	case "process":
+		return MetricSourceProcess
+	case "prometheus":
+		return MetricSourcePrometheus
+	case "proxysql":
+		return MetricSourceProxysql
+	case "pulsar":
+		return MetricSourcePulsar
+	case "rabbitmq":
+		return MetricSourceRabbitmq
+	case "redisdb":
+		return MetricSourceRedisdb
+	case "rethinkdb":
+		return MetricSourceRethinkdb
+	case "riak":
+		return MetricSourceRiak
+	case "riakcs":
+		return MetricSourceRiakcs
+	case "sap_hana":
+		return MetricSourceSapHana
+	case "scylla":
+		return MetricSourceScylla
+	case "silk":
+		return MetricSourceSilk
+	case "singlestore":
+		return MetricSourceSinglestore
+	case "snowflake":
+		return MetricSourceSnowflake
+	case "spark":
+		return MetricSourceSpark
+	case "sqlserver":
+		return MetricSourceSqlserver
+	case "squid":
+		return MetricSourceSquid
+	case "ssh_check":
+		return MetricSourceSSHCheck
+	case "statsd":
+		return MetricSourceStatsd
+	case "supervisord":
+		return MetricSourceSupervisord
+	case "system_core":
+		return MetricSourceSystemCore
+	case "system_swap":
+		return MetricSourceSystemSwap
+	case "tcp_check":
+		return MetricSourceTCPCheck
+	case "teamcity":
+		return MetricSourceTeamcity
+	case "teradata":
+		return MetricSourceTeradata
+	case "tls":
+		return MetricSourceTLS
+	case "tokumx":
+		return MetricSourceTokumx
+	case "traffic_server":
+		return MetricSourceTrafficServer
+	case "twemproxy":
+		return MetricSourceTwemproxy
+	case "twistlock":
+		return MetricSourceTwistlock
+	case "varnish":
+		return MetricSourceVarnish
+	case "vault":
+		return MetricSourceVault
+	case "vertica":
+		return MetricSourceVertica
+	case "voltdb":
+		return MetricSourceVoltdb
+	case "vsphere":
+		return MetricSourceVsphere
+	case "win32_event_log":
+		return MetricSourceWin32EventLog
+	case "windows_performance_counters":
+		return MetricSourceWindowsPerformanceCounters
+	case "windows_service":
+		return MetricSourceWindowsService
+	case "wmi_check":
+		return MetricSourceWmiCheck
+	case "yarn":
+		return MetricSourceYarn
+	case "zk":
+		return MetricSourceZk
+	case "argo_rollouts":
+		return MetricSourceArgoRollouts
+	case "argo_workflows":
+		return MetricSourceArgoWorkflows
+	case "cloudera":
+		return MetricSourceCloudera
+	case "datadog_cluster_agent":
+		return MetricSourceDatadogClusterAgent
+	case "dcgm":
+		return MetricSourceDcgm
+	case "esxi":
+		return MetricSourceEsxi
+	case "fluxcd":
+		return MetricSourceFluxcd
+	case "karpenter":
+		return MetricSourceKarpenter
+	case "nvidia_triton":
+		return MetricSourceNvidiaTriton
+	case "ray":
+		return MetricSourceRay
+	case "strimzi":
+		return MetricSourceStrimzi
+	case "tekton":
+		return MetricSourceTekton
+	case "teleport":
+		return MetricSourceTeleport
+	case "temporal":
+		return MetricSourceTemporal
+	case "torchserve":
+		return MetricSourceTorchserve
+	case "weaviate":
+		return MetricSourceWeaviate
+	case "traefik_mesh":
+		return MetricSourceTraefikMesh
+	case "kubernetes_cluster_autoscaler":
+		return MetricSourceKubernetesClusterAutoscaler
 	default:
 		return MetricSourceUnknown
 	}

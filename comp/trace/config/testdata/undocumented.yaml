@@ -3,7 +3,7 @@ hostname: thing
 apm_config:
   extra_sample_rate: 0.33
   dd_agent_bin: /path/to/bin
-  max_traces_per_second: 100.0
+  target_traces_per_second: 100.0
   errors_per_second: 37.0
   enable_rare_sampler: true
   max_remote_traces_per_second: 127

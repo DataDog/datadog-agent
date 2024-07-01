@@ -37,9 +37,9 @@ type endpoint struct {
 
 // NewDatadogClient configures and returns a new DatadogClient
 func NewDatadogClient() (DatadogClient, error) {
-	if config.Datadog.IsSet(metricsRedundantEndpointConfig) {
+	if config.Datadog().IsSet(metricsRedundantEndpointConfig) {
 		var endpoints []endpoint
-		if err := config.Datadog.UnmarshalKey(metricsRedundantEndpointConfig, &endpoints); err != nil {
+		if err := config.Datadog().UnmarshalKey(metricsRedundantEndpointConfig, &endpoints); err != nil {
 			return nil, log.Errorf("could not parse %s: %v", metricsRedundantEndpointConfig, err)
 		}
 
@@ -51,14 +51,14 @@ func NewDatadogClient() (DatadogClient, error) {
 
 // NewDatadogSingleClient generates a new client to query metrics from Datadog
 func newDatadogSingleClient() (*datadog.Client, error) {
-	apiKey := utils.SanitizeAPIKey(config.Datadog.GetString("external_metrics_provider.api_key"))
+	apiKey := utils.SanitizeAPIKey(config.Datadog().GetString("external_metrics_provider.api_key"))
 	if apiKey == "" {
-		apiKey = utils.SanitizeAPIKey(config.Datadog.GetString("api_key"))
+		apiKey = utils.SanitizeAPIKey(config.Datadog().GetString("api_key"))
 	}
 
-	appKey := utils.SanitizeAPIKey(config.Datadog.GetString("external_metrics_provider.app_key"))
+	appKey := utils.SanitizeAPIKey(config.Datadog().GetString("external_metrics_provider.app_key"))
 	if appKey == "" {
-		appKey = utils.SanitizeAPIKey(config.Datadog.GetString("app_key"))
+		appKey = utils.SanitizeAPIKey(config.Datadog().GetString("app_key"))
 	}
 
 	// DATADOG_HOST used to be the only way to set the external metrics
@@ -68,8 +68,8 @@ func newDatadogSingleClient() (*datadog.Client, error) {
 	//   - DATADOG_HOST
 	//   - DD_SITE
 	ddEndpoint := os.Getenv("DATADOG_HOST")
-	if config.Datadog.GetString(metricsEndpointConfig) != "" || ddEndpoint == "" {
-		ddEndpoint = utils.GetMainEndpoint(config.Datadog, metricsEndpointPrefix, metricsEndpointConfig)
+	if config.Datadog().GetString(metricsEndpointConfig) != "" || ddEndpoint == "" {
+		ddEndpoint = utils.GetMainEndpoint(config.Datadog(), metricsEndpointPrefix, metricsEndpointConfig)
 	}
 
 	if appKey == "" || apiKey == "" {
@@ -79,7 +79,7 @@ func newDatadogSingleClient() (*datadog.Client, error) {
 	log.Infof("Initialized the Datadog Client for HPA with endpoint %q", ddEndpoint)
 
 	client := datadog.NewClient(apiKey, appKey)
-	client.HttpClient.Transport = httputils.CreateHTTPTransport(config.Datadog)
+	client.HttpClient.Transport = httputils.CreateHTTPTransport(config.Datadog())
 	client.RetryTimeout = 3 * time.Second
 	client.ExtraHeader["User-Agent"] = "Datadog-Cluster-Agent"
 	client.SetBaseUrl(ddEndpoint)
@@ -128,7 +128,7 @@ func newDatadogFallbackClient(endpoints []endpoint) (*datadogFallbackClient, err
 	}
 	for _, e := range endpoints {
 		client := datadog.NewClient(e.APIKey, e.APPKey)
-		client.HttpClient.Transport = httputils.CreateHTTPTransport(config.Datadog)
+		client.HttpClient.Transport = httputils.CreateHTTPTransport(config.Datadog())
 		client.RetryTimeout = 3 * time.Second
 		client.ExtraHeader["User-Agent"] = "Datadog-Cluster-Agent"
 		client.SetBaseUrl(e.URL)

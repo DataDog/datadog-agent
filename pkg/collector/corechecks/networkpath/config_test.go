@@ -15,7 +15,7 @@ import (
 )
 
 func TestNewCheckConfig(t *testing.T) {
-	coreconfig.Datadog.SetDefault("network_devices.namespace", "my-namespace")
+	coreconfig.Datadog().SetDefault("network_devices.namespace", "my-namespace")
 	tests := []struct {
 		name           string
 		rawInstance    integration.Data
@@ -91,6 +91,22 @@ hostname: 1.2.3.4
 			expectedConfig: &CheckConfig{
 				DestHostname:          "1.2.3.4",
 				MinCollectionInterval: time.Duration(1) * time.Minute,
+				Namespace:             "my-namespace",
+			},
+		},
+		{
+			name: "source and destination service config",
+			rawInstance: []byte(`
+hostname: 1.2.3.4
+source_service: service-a
+destination_service: service-b
+`),
+			rawInitConfig: []byte(``),
+			expectedConfig: &CheckConfig{
+				DestHostname:          "1.2.3.4",
+				SourceService:         "service-a",
+				DestinationService:    "service-b",
+				MinCollectionInterval: time.Duration(60) * time.Second,
 				Namespace:             "my-namespace",
 			},
 		},

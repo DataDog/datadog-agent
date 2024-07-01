@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<domain xsi:schemaLocation="http://xmlns.oracle.com/weblogic/security/wls http://xmlns.oracle.com/weblogic/security/wls/1.0/wls.xsd http://xmlns.oracle.com/weblogic/domain http://xmlns.oracle.com/weblogic/1.0/domain.xsd http://xmlns.oracle.com/weblogic/security http://xmlns.oracle.com/weblogic/1.0/security.xsd http://xmlns.oracle.com/weblogic/security/xacml http://xmlns.oracle.com/weblogic/security/xacml/1.0/xacml.xsd"
+        xmlns="http://xmlns.oracle.com/weblogic/domain" xmlns:sec="http://xmlns.oracle.com/weblogic/security"
+        xmlns:wls="http://xmlns.oracle.com/weblogic/security/wls" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+    <name>base_domain</name>
+    <domain-version>12.2.1.4.0</domain-version>
+    <security-configuration xmlns:xacml="http://xmlns.oracle.com/weblogic/security/xacml"
+                            xmlns:pas="http://xmlns.oracle.com/weblogic/security/providers/passwordvalidator">
+        <name>base_domain</name>
+        <realm>
+            <sec:authentication-provider xsi:type="wls:default-authenticatorType">
+                <sec:name>DefaultAuthenticator</sec:name>
+            </sec:authentication-provider>
+            <sec:authentication-provider xsi:type="wls:default-identity-asserterType">
+                <sec:name>DefaultIdentityAsserter</sec:name>
+                <sec:active-type>AuthenticatedUser</sec:active-type>
+                <sec:active-type>weblogic-jwt-token</sec:active-type>
+            </sec:authentication-provider>
+            <sec:role-mapper xsi:type="xacml:xacml-role-mapperType">
+                <sec:name>XACMLRoleMapper</sec:name>
+            </sec:role-mapper>
+            <sec:authorizer xsi:type="xacml:xacml-authorizerType">
+                <sec:name>XACMLAuthorizer</sec:name>
+            </sec:authorizer>
+            <sec:adjudicator xsi:type="wls:default-adjudicatorType">
+                <sec:name>DefaultAdjudicator</sec:name>
+            </sec:adjudicator>
+            <sec:credential-mapper xsi:type="wls:default-credential-mapperType">
+                <sec:name>DefaultCredentialMapper</sec:name>
+            </sec:credential-mapper>
+            <sec:cert-path-provider xsi:type="wls:web-logic-cert-path-providerType">
+                <sec:name>WebLogicCertPathProvider</sec:name>
+            </sec:cert-path-provider>
+            <sec:cert-path-builder>WebLogicCertPathProvider</sec:cert-path-builder>
+            <sec:name>myrealm</sec:name>
+            <sec:password-validator xsi:type="pas:system-password-validatorType">
+                <sec:name>SystemPasswordValidator</sec:name>
+                <pas:min-password-length>8</pas:min-password-length>
+                <pas:min-numeric-or-special-characters>1</pas:min-numeric-or-special-characters>
+            </sec:password-validator>
+        </realm>
+        <default-realm>myrealm</default-realm>
+        <node-manager-username>weblogic</node-manager-username>
+    </security-configuration>
+    <server>
+        <name>AdminServer</name>
+        <ssl>
+            <name>AdminServer</name>
+            <enabled>true</enabled>
+        </ssl>
+        <listen-address/>
+        <server-life-cycle-timeout-val>30</server-life-cycle-timeout-val>
+        <startup-timeout>0</startup-timeout>
+    </server>
+    <embedded-ldap>
+        <name>base_domain</name>
+    </embedded-ldap>
+    <administration-port-enabled>true</administration-port-enabled>
+    <configuration-version>12.2.1.4.0</configuration-version>
+    <app-deployment>
+        <name>sample</name>
+        <target>AdminServer</target>
+        <module-type>war</module-type>
+        <source-path>../testdata/b/test.war</source-path>
+        <security-dd-model>DDOnly</security-dd-model>
+        <staging-mode>stage</staging-mode>
+        <plan-staging-mode>stage</plan-staging-mode>
+        <cache-in-app-directory>false</cache-in-app-directory>
+    </app-deployment>
+    <app-deployment>
+        <name>sample2</name>
+        <target>AnotherServer</target>
+        <module-type>war</module-type>
+        <source-path>/u01/oracle/user_projects/tmp/sample2.war</source-path>
+        <security-dd-model>DDOnly</security-dd-model>
+        <staging-mode>stage</staging-mode>
+        <plan-staging-mode>stage</plan-staging-mode>
+        <cache-in-app-directory>false</cache-in-app-directory>
+    </app-deployment>
+    <app-deployment>
+        <name>sample3</name>
+        <target>AdminServer</target>
+        <module-type>war</module-type>
+        <source-path>./sample3.war</source-path>
+        <security-dd-model>DDOnly</security-dd-model>
+        <staging-mode>unstaged</staging-mode>
+        <plan-staging-mode>unstaged</plan-staging-mode>
+        <cache-in-app-directory>false</cache-in-app-directory>
+    </app-deployment>
+    <app-deployment>
+        <name>sample4</name>
+        <target>AdminServer</target>
+        <module-type>war</module-type>
+        <source-path>/u01/oracle/user_projects/tmp/sample4.war</source-path>
+        <security-dd-model>DDOnly</security-dd-model>
+        <staging-mode>stage</staging-mode>
+        <plan-staging-mode>stage</plan-staging-mode>
+        <cache-in-app-directory>false</cache-in-app-directory>
+    </app-deployment>
+    <app-deployment>
+        <name>some_ear</name>
+        <target>AdminServer</target>
+        <module-type>ear</module-type>
+        <source-path>../testdata/b/test.ear</source-path>
+        <security-dd-model>DDOnly</security-dd-model>
+        <staging-mode>stage</staging-mode>
+        <plan-staging-mode>stage</plan-staging-mode>
+        <cache-in-app-directory>false</cache-in-app-directory>
+    </app-deployment>
+    <admin-server-name>AdminServer</admin-server-name>
+</domain>

@@ -5,11 +5,10 @@
 
 //go:build !trivy
 
-// Package util contains utility functions for image metadata collection
 package util
 
 import (
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 )
 
 // UpdateSBOMRepoMetadata does nothing

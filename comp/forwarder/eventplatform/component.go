@@ -31,6 +31,9 @@ const (
 	EventTypeContainerImages = "container-images"
 	// EventTypeContainerSBOM represents a container SBOM event
 	EventTypeContainerSBOM = "container-sbom"
+
+	// EventTypeServiceDiscovery represents an instrumentation-telemetry event
+	EventTypeServiceDiscovery = "service-discovery"
 )
 
 // Component is the interface of the event platform forwarder component.

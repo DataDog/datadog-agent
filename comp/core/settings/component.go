@@ -38,6 +38,8 @@ type Params struct {
 	Settings map[string]RuntimeSetting
 	// The config object in which the settings would apply operations
 	Config config.Component
+	// Optional namespace restriction that GetFullConfig would return settings for
+	Namespaces []string
 }
 
 // Component is the component type.
@@ -51,12 +53,15 @@ type Component interface {
 
 	// API related functions
 	// Todo: (Components) Remove these functions once we can register routes using FX value groups
+
 	// GetFullConfig returns the full config
 	GetFullConfig(namespaces ...string) http.HandlerFunc
+	// GetFullConfigBySource returns the full config by sources (config, default, env vars ...)
+	GetFullConfigBySource() http.HandlerFunc
 	// GetValue allows to retrieve the runtime setting
-	GetValue(setting string, w http.ResponseWriter, r *http.Request)
+	GetValue(w http.ResponseWriter, r *http.Request)
 	// SetValue allows to modify the runtime setting
-	SetValue(setting string, w http.ResponseWriter, r *http.Request)
+	SetValue(w http.ResponseWriter, r *http.Request)
 	// ListConfigurable returns the list of configurable setting at runtime
 	ListConfigurable(w http.ResponseWriter, r *http.Request)
 }

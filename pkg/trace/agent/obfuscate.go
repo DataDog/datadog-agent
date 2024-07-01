@@ -16,6 +16,7 @@ const (
 	tagMemcachedCommand = "memcached.command"
 	tagMongoDBQuery     = "mongodb.query"
 	tagElasticBody      = "elasticsearch.body"
+	tagOpenSearchBody   = "opensearch.body"
 	tagSQLQuery         = "sql.query"
 	tagHTTPURL          = "http.url"
 )
@@ -29,7 +30,10 @@ func (a *Agent) obfuscateSpan(span *pb.Span) {
 
 	if a.conf.Obfuscation != nil && a.conf.Obfuscation.CreditCards.Enabled {
 		for k, v := range span.Meta {
-			span.Meta[k] = o.ObfuscateCreditCardNumber(k, v)
+			newV := o.ObfuscateCreditCardNumber(k, v)
+			if v != newV {
+				span.Meta[k] = newV
+			}
 		}
 	}
 
@@ -85,14 +89,20 @@ func (a *Agent) obfuscateSpan(span *pb.Span) {
 			return
 		}
 		span.Meta[tagMongoDBQuery] = o.ObfuscateMongoDBString(span.Meta[tagMongoDBQuery])
-	case "elasticsearch":
-		if !a.conf.Obfuscation.ES.Enabled {
+	case "elasticsearch", "opensearch":
+		if span.Meta == nil {
 			return
 		}
-		if span.Meta == nil || span.Meta[tagElasticBody] == "" {
-			return
+		if a.conf.Obfuscation.ES.Enabled {
+			if span.Meta[tagElasticBody] != "" {
+				span.Meta[tagElasticBody] = o.ObfuscateElasticSearchString(span.Meta[tagElasticBody])
+			}
 		}
-		span.Meta[tagElasticBody] = o.ObfuscateElasticSearchString(span.Meta[tagElasticBody])
+		if a.conf.Obfuscation.OpenSearch.Enabled {
+			if span.Meta[tagOpenSearchBody] != "" {
+				span.Meta[tagOpenSearchBody] = o.ObfuscateOpenSearchString(span.Meta[tagOpenSearchBody])
+			}
+		}
 	}
 }
 

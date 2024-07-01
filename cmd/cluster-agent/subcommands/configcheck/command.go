@@ -20,6 +20,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	cmd := dcaconfigcheck.MakeCommand(func() dcaconfigcheck.GlobalParams {
 		return dcaconfigcheck.GlobalParams{
 			ConfFilePath: globalParams.ConfFilePath,
+			NoColor:      globalParams.NoColor,
 		}
 	})
 

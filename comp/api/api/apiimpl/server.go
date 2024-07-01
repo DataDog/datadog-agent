@@ -14,27 +14,18 @@ import (
 
 	"github.com/cihub/seelog"
 
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
-	"github.com/DataDog/datadog-agent/comp/api/api"
+	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/observability"
+	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
-	"github.com/DataDog/datadog-agent/comp/core/gui"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	"github.com/DataDog/datadog-agent/comp/core/settings"
-	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
+	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
-	dogstatsddebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
-	"github.com/DataDog/datadog-agent/comp/metadata/host"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
-	"github.com/DataDog/datadog-agent/comp/metadata/packagesigning"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -73,25 +64,15 @@ func StartServers(
 	dogstatsdServer dogstatsdServer.Component,
 	capture replay.Component,
 	pidMap pidmap.Component,
-	serverDebug dogstatsddebug.Component,
 	wmeta workloadmeta.Component,
 	taggerComp tagger.Component,
 	logsAgent optional.Option[logsAgent.Component],
 	senderManager sender.DiagnoseSenderManager,
-	hostMetadata host.Component,
-	invAgent inventoryagent.Component,
-	demux demultiplexer.Component,
-	invHost inventoryhost.Component,
 	secretResolver secrets.Component,
-	invChecks inventorychecks.Component,
-	pkgSigning packagesigning.Component,
-	statusComponent status.Component,
 	collector optional.Option[collector.Component],
-	eventPlatformReceiver eventplatformreceiver.Component,
 	ac autodiscovery.Component,
-	gui optional.Option[gui.Component],
-	settings settings.Component,
 	providers []api.EndpointProvider,
+	telemetry telemetry.Component,
 ) error {
 	apiAddr, err := getIPCAddressPort()
 	if err != nil {
@@ -110,48 +91,43 @@ func StartServers(
 		return fmt.Errorf("unable to initialize TLS: %v", err)
 	}
 
-	tlsConfig := &tls.Config{
-		Certificates: []tls.Certificate{*tlsKeyPair},
-		NextProtos:   []string{"h2"},
-		MinVersion:   tls.VersionTLS12,
+	// tls.Config is written to when serving, so it has to be cloned for each server
+	tlsConfig := func() *tls.Config {
+		return &tls.Config{
+			Certificates: []tls.Certificate{*tlsKeyPair},
+			NextProtos:   []string{"h2"},
+			MinVersion:   tls.VersionTLS12,
+		}
 	}
+
+	tmf := observability.NewTelemetryMiddlewareFactory(telemetry)
 
 	// start the CMD server
 	if err := startCMDServer(
 		apiAddr,
-		tlsConfig,
+		tlsConfig(),
 		tlsCertPool,
 		configService,
 		configServiceMRF,
 		dogstatsdServer,
 		capture,
 		pidMap,
-		serverDebug,
 		wmeta,
 		taggerComp,
 		logsAgent,
 		senderManager,
-		hostMetadata,
-		invAgent,
-		demux,
-		invHost,
 		secretResolver,
-		invChecks,
-		pkgSigning,
-		statusComponent,
 		collector,
-		eventPlatformReceiver,
 		ac,
-		gui,
-		settings,
 		providers,
+		tmf,
 	); err != nil {
 		return fmt.Errorf("unable to start CMD API server: %v", err)
 	}
 
 	// start the IPC server
 	if ipcServerEnabled {
-		if err := startIPCServer(ipcServerHostPort, tlsConfig); err != nil {
+		if err := startIPCServer(ipcServerHostPort, tlsConfig(), tmf); err != nil {
 			// if we fail to start the IPC server, we should stop the CMD server
 			StopServers()
 			return fmt.Errorf("unable to start IPC API server: %v", err)

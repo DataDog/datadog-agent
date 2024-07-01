@@ -26,8 +26,8 @@ import (
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	errorspkg "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/sbom/scanner"
@@ -321,13 +321,13 @@ func (c *collector) buildCollectorEvent(ctx context.Context, ev *docker.Containe
 		}
 
 	case events.ActionDie, docker.ActionDied:
-		var exitCode *uint32
+		var exitCode *int64
 		if exitCodeString, found := ev.Attributes["exitCode"]; found {
-			exitCodeInt, err := strconv.ParseInt(exitCodeString, 10, 32)
+			exitCodeInt, err := strconv.ParseInt(exitCodeString, 10, 64)
 			if err != nil {
 				log.Debugf("Cannot convert exit code %q: %v", exitCodeString, err)
 			} else {
-				exitCode = pointer.Ptr(uint32(exitCodeInt))
+				exitCode = pointer.Ptr(exitCodeInt)
 			}
 		}
 

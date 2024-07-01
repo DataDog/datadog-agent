@@ -25,7 +25,7 @@ import (
 	"k8s.io/client-go/util/workqueue"
 
 	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	langUtil "github.com/DataDog/datadog-agent/pkg/languagedetection/util"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -66,8 +66,8 @@ func newLanguagePatcher(ctx context.Context, store workloadmeta.Component, logge
 		logger:    logger,
 		queue: workqueue.NewRateLimitingQueueWithConfig(
 			workqueue.NewItemExponentialFailureRateLimiter(
-				config.Datadog.GetDuration("cluster_agent.language_detection.patcher.base_backoff"),
-				config.Datadog.GetDuration("cluster_agent.language_detection.patcher.max_backoff"),
+				config.Datadog().GetDuration("cluster_agent.language_detection.patcher.base_backoff"),
+				config.Datadog().GetDuration("cluster_agent.language_detection.patcher.max_backoff"),
 			),
 			workqueue.RateLimitingQueueConfig{
 				Name:            subsystem,
@@ -122,19 +122,15 @@ func (lp *languagePatcher) run(ctx context.Context) {
 	lp.startProcessingPatchingRequests(ctx)
 
 	// Capture all set events
-	filterParams := workloadmeta.FilterParams{
-		Kinds: []workloadmeta.Kind{
-			// Currently only deployments are supported
-			workloadmeta.KindKubernetesDeployment,
-		},
-		Source:    workloadmeta.SourceLanguageDetectionServer,
-		EventType: workloadmeta.EventTypeAll,
-	}
+	filter := workloadmeta.NewFilterBuilder().
+		SetSource(workloadmeta.SourceLanguageDetectionServer).
+		AddKind(workloadmeta.KindKubernetesDeployment).
+		Build()
 
 	eventCh := lp.store.Subscribe(
 		subscriber,
 		workloadmeta.NormalPriority,
-		workloadmeta.NewFilter(&filterParams),
+		filter,
 	)
 	defer lp.store.Unsubscribe(eventCh)
 

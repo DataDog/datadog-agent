@@ -1,0 +1,69 @@
+---
+.heroku_build_base:
+  stage: package_build
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["arch:amd64"]
+  needs:
+    [
+      "go_mod_tidy_check",
+      "build_system-probe-x64",
+      "go_deps",
+      "generate_minimized_btfs_x64",
+    ]
+  script:
+    - source /root/.bashrc
+    - !reference [.setup_ruby_mirror_linux]
+    - !reference [.setup_python_mirror_linux]
+    - !reference [.retrieve_linux_go_deps]
+    - !reference [.cache_omnibus_ruby_deps, setup]
+    - echo "About to build for $RELEASE_VERSION"
+    # remove artifacts from previous pipelines that may come from the cache
+    - rm -rf $OMNIBUS_PACKAGE_DIR/*
+    # Artifacts and cache must live within project directory but we run omnibus in a neutral directory.
+    # Thus, we move the artifacts at the end in a gitlab-friendly dir.
+    - !reference [.setup_deb_signing_key]
+    - tar -xf $CI_PROJECT_DIR/sysprobe-build-outputs.tar.xz
+    - mkdir -p /tmp/system-probe
+    - $S3_CP_CMD $S3_PERMANENT_ARTIFACTS_URI/clang-$CLANG_LLVM_VER.${PACKAGE_ARCH} /tmp/system-probe/clang-bpf
+    - $S3_CP_CMD $S3_PERMANENT_ARTIFACTS_URI/llc-$CLANG_LLVM_VER.${PACKAGE_ARCH} /tmp/system-probe/llc-bpf
+    - cp $CI_PROJECT_DIR/minimized-btfs.tar.xz /tmp/system-probe/minimized-btfs.tar.xz
+    - chmod 0744 /tmp/system-probe/clang-bpf /tmp/system-probe/llc-bpf
+    - inv -e omnibus.build --release-version "$RELEASE_VERSION" --major-version "$AGENT_MAJOR_VERSION" --python-runtimes "$PYTHON_RUNTIMES" --base-dir $OMNIBUS_BASE_DIR ${USE_S3_CACHING} --skip-deps --go-mod-cache="$GOPATH/pkg/mod" --system-probe-bin=/tmp/system-probe --flavor heroku
+    - ls -la $OMNIBUS_PACKAGE_DIR
+    - !reference [.lint_linux_packages]
+    - $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog-heroku-agent_*_${PACKAGE_ARCH}.deb $S3_ARTIFACTS_URI/$DESTINATION_DEB
+    - $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog-heroku-agent-dbg_*_${PACKAGE_ARCH}.deb $S3_ARTIFACTS_URI/$DESTINATION_DBG_DEB
+    - !reference [.upload_sbom_artifacts]
+  variables:
+    KUBERNETES_MEMORY_REQUEST: "32Gi"
+    KUBERNETES_MEMORY_LIMIT: "32Gi"
+    KUBERNETES_CPU_REQUEST: 16
+    DD_PKG_ARCH: "x86_64"
+    PACKAGE_ARCH: "amd64"
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+      - $OMNIBUS_PACKAGE_DIR
+  cache:
+    - !reference [.cache_omnibus_ruby_deps, cache]
+
+agent_heroku_deb-x64-a6:
+  extends: .heroku_build_base
+  variables:
+    DESTINATION_DEB: "datadog-heroku-agent_6_amd64.deb"
+    DESTINATION_DBG_DEB: "datadog-heroku-agent-dbg_6_amd64.deb"
+    RELEASE_VERSION: $RELEASE_VERSION_6
+    AGENT_MAJOR_VERSION: 6
+    PYTHON_RUNTIMES: "2,3"
+
+agent_heroku_deb-x64-a7:
+  extends: .heroku_build_base
+  variables:
+    DESTINATION_DEB: "datadog-heroku-agent_7_amd64.deb"
+    DESTINATION_DBG_DEB: "datadog-heroku-agent-dbg_7_amd64.deb"
+    RELEASE_VERSION: $RELEASE_VERSION_7
+    AGENT_MAJOR_VERSION: 7
+    PYTHON_RUNTIMES: "3"

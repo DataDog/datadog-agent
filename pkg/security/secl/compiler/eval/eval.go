@@ -171,6 +171,42 @@ func arrayToEvaluator(array *ast.Array, opts *Opts, state *State) (interface{}, 
 
 		// could be an iterator
 		return identToEvaluator(&ident{Pos: array.Pos, Ident: array.Ident}, opts, state)
+	} else if len(array.Idents) != 0 {
+		// Only "Constants" idents are supported, and only string, int and boolean constants are expected.
+		// Determine the type with the first ident
+		switch reflect.TypeOf(opts.Constants[array.Idents[0]]) {
+		case reflect.TypeOf(&IntEvaluator{}):
+			var evaluator IntArrayEvaluator
+			for _, item := range array.Idents {
+				itemEval, ok := opts.Constants[item].(*IntEvaluator)
+				if !ok {
+					return nil, array.Pos, fmt.Errorf("can't mix constants types in arrays: `%s` is not of type int", item)
+				}
+				evaluator.AppendValues(itemEval.Value)
+			}
+			return &evaluator, array.Pos, nil
+		case reflect.TypeOf(&StringEvaluator{}):
+			var evaluator StringValuesEvaluator
+			for _, item := range array.Idents {
+				itemEval, ok := opts.Constants[item].(*StringEvaluator)
+				if !ok {
+					return nil, array.Pos, fmt.Errorf("can't mix constants types in arrays: `%s` is not of type string", item)
+				}
+				evaluator.AppendMembers(ast.StringMember{String: &itemEval.Value})
+			}
+			return &evaluator, array.Pos, nil
+		case reflect.TypeOf(&BoolEvaluator{}):
+			var evaluator BoolArrayEvaluator
+			for _, item := range array.Idents {
+				itemEval, ok := opts.Constants[item].(*BoolEvaluator)
+				if !ok {
+					return nil, array.Pos, fmt.Errorf("can't mix constants types in arrays: `%s` is not of type bool", item)
+				}
+				evaluator.AppendValues(itemEval.Value)
+			}
+			return &evaluator, array.Pos, nil
+		}
+		return nil, array.Pos, fmt.Errorf("array of unsupported identifiers (ident type: `%s`)", reflect.TypeOf(opts.Constants[array.Idents[0]]))
 	} else if array.Variable != nil {
 		varName, ok := isVariableName(*array.Variable)
 		if !ok {

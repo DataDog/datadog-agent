@@ -13,7 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/agent/cloudfoundrycontainer"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	cloudfoundrycontainertagger "github.com/DataDog/datadog-agent/pkg/cloudfoundry/containertagger"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	pkgcommon "github.com/DataDog/datadog-agent/pkg/util/common"

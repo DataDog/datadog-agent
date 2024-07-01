@@ -113,7 +113,7 @@ int hook_mnt_want_write_file_path(ctx_t *ctx) {
     return trace__mnt_want_write_file(ctx);
 }
 
-HOOK_SYSCALL_COMPAT_ENTRY3(mount, const char*, source, const char*, target, const char*, fstype) {
+HOOK_SYSCALL_COMPAT_ENTRY3(mount, const char *, source, const char *, target, const char *, fstype) {
     struct syscall_cache_t syscall = {
         .type = EVENT_MOUNT,
     };
@@ -215,7 +215,7 @@ void __attribute__((always_inline)) fill_mount_fields(struct syscall_cache_t *sy
     mfields->mountpoint_key = syscall->mount.mountpoint_key;
     mfields->device = syscall->mount.device;
     mfields->bind_src_mount_id = syscall->mount.bind_src_mount_id;
-    bpf_probe_read_str(&mfields->fstype, sizeof(mfields->fstype), (void*)syscall->mount.fstype);
+    bpf_probe_read_str(&mfields->fstype, sizeof(mfields->fstype), (void *)syscall->mount.fstype);
 }
 
 int __attribute__((always_inline)) dr_mount_stage_two_callback(void *ctx) {
@@ -237,7 +237,7 @@ int __attribute__((always_inline)) dr_mount_stage_two_callback(void *ctx) {
         pop_syscall(EVENT_MOUNT);
         send_event(ctx, EVENT_MOUNT, event);
     } else if (syscall->type == EVENT_UNSHARE_MNTNS) {
-        struct unshare_mntns_event_t event = {0};
+        struct unshare_mntns_event_t event = { 0 };
 
         fill_mount_fields(syscall, &event.mountfields);
 

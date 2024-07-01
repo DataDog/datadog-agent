@@ -38,7 +38,7 @@ func (fc *FlareController) FillFlare(fb flaretypes.FlareBuilder) error {
 	if len(fc.allFiles) == 0 && len(fc.journalFiles) == 0 {
 		return nil
 	}
-	fb.AddFileFromFunc("logs_file_permissions.log", func() ([]byte, error) {
+	fb.AddFileFromFunc("logs_file_permissions.log", func() ([]byte, error) { //nolint:errcheck
 		var writer []byte
 		var fileInfo string
 		// Timer to prevent function from running too long in the event that the
@@ -47,7 +47,6 @@ func (fc *FlareController) FillFlare(fb flaretypes.FlareBuilder) error {
 		combinedFiles := append(fc.allFiles, fc.journalFiles...)
 
 		for _, file := range combinedFiles {
-
 			select {
 			case t := <-timer.C:
 				fileInfo = fmt.Sprintf("Timed out on %s while getting file permissions\n", t)
@@ -62,7 +61,6 @@ func (fc *FlareController) FillFlare(fb flaretypes.FlareBuilder) error {
 				}
 				writer = append(writer, []byte(fileInfo)...)
 			}
-
 		}
 
 		return writer, nil

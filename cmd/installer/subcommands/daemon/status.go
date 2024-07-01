@@ -8,8 +8,8 @@ package daemon
 import (
 	_ "embed"
 	"fmt"
+	"html/template"
 	"os"
-	"text/template"
 
 	"github.com/DataDog/datadog-agent/cmd/installer/command"
 	"github.com/DataDog/datadog-agent/comp/core"
@@ -59,6 +59,10 @@ var functions = template.FuncMap{
 	"yellowText": color.YellowString,
 	"redText":    color.RedString,
 	"boldText":   color.New(color.Bold).Sprint,
+	"italicText": color.New(color.Italic).Sprint,
+	"htmlSafe": func(html string) template.HTML {
+		return template.HTML(html)
+	},
 }
 
 func status(client localapiclient.Component) error {

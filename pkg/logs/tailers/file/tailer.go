@@ -147,8 +147,8 @@ func NewTailer(opts *TailerOptions) *Tailer {
 	}
 
 	forwardContext, stopForward := context.WithCancel(context.Background())
-	closeTimeout := coreConfig.Datadog.GetDuration("logs_config.close_timeout") * time.Second
-	windowsOpenFileTimeout := coreConfig.Datadog.GetDuration("logs_config.windows_open_file_timeout") * time.Second
+	closeTimeout := coreConfig.Datadog().GetDuration("logs_config.close_timeout") * time.Second
+	windowsOpenFileTimeout := coreConfig.Datadog().GetDuration("logs_config.windows_open_file_timeout") * time.Second
 
 	bytesRead := status.NewCountInfo("Bytes Read")
 	fileRotated := opts.Rotated

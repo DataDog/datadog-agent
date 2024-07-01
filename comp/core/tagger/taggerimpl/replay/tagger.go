@@ -10,6 +10,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger/proto"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/empty"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/tagstore"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/telemetry"
@@ -17,7 +18,6 @@ import (
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	pbutils "github.com/DataDog/datadog-agent/pkg/util/proto"
 )
 
 // Tagger stores tags to entity as stored in a replay state.
@@ -115,7 +115,7 @@ func (t *Tagger) LoadState(state map[string]*pb.Entity) {
 
 	// better stores these as the native type
 	for id, entity := range state {
-		entityID, err := pbutils.Pb2TaggerEntityID(entity.Id)
+		entityID, err := proto.Pb2TaggerEntityID(entity.Id)
 		if err != nil {
 			log.Errorf("Error getting identity ID for %v: %v", id, err)
 			continue
