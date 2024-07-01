@@ -114,7 +114,9 @@ notify_gitlab_ci_changes:
     GIT_DEPTH: 0
   script:
     - source /root/.bashrc
-    - git fetch
+    - git fetch origin
+    - git branch -a
+    - git branch
     - git --no-pager diff main -- .gitlab/notify/notify.yml
     - python3 -m pip install -r tasks/libs/requirements-github.txt
     - export GITHUB_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITHUB_PR_COMMENTER_APP_KEY_SSM_NAME)
