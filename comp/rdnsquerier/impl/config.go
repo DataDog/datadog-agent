@@ -74,7 +74,7 @@ func (c *rdnsQuerierConfig) setDefaults() {
 		c.workers = defaultWorkers
 	}
 
-	if c.chanSize < 0 {
+	if c.chanSize <= 0 {
 		c.chanSize = defaultChanSize
 	}
 

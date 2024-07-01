@@ -6,29 +6,75 @@
 package rdnsquerierimpl
 
 import (
-	"golang.org/x/time/rate"
+	"sync"
+	"time"
+
+	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 )
 
 type cacheEntry struct {
-	hostname       string
-	bool           queryInProgress
-	callbacks      []func(string)
-	expirationtime time.Time
+	hostname        string
+	queryInProgress bool
+	callbacks       []func(string)
+	expirationTime  time.Time
 }
 
 type cache interface {
-	add(string, string)
-	get(string) (string, mbool)
+	get(string, func(string)) (string, bool)
 }
 
-func newCache(config *rdnsQuerierConfig) cache {
+// Cache implementation for when rdnsquerier cache is enabled
+type cacheImpl struct {
+	config         *rdnsQuerierConfig
+	logger         log.Component
+	cacheTelemetry *cacheTelemetry
+
+	mutex sync.Mutex
+	data  map[string]*cacheEntry
+	//JMWexit chan struct{}
+	//JMWPARMS
+
+	rdnsQueryChan chan *rdnsQuery
+}
+
+type cacheTelemetry = struct {
+	hit             telemetry.Counter
+	hitExpired      telemetry.Counter
+	hitInProgress   telemetry.Counter
+	miss            telemetry.Counter
+	chanAdded       telemetry.Counter
+	droppedChanFull telemetry.Counter
+}
+
+const cacheModuleName = "reverse_dns_enrichment_cache" //JMWNAME JMWMOVE
+
+func newCache(config *rdnsQuerierConfig, logger log.Component, telemetry telemetry.Component, rdnsQueryChan chan *rdnsQuery) cache {
 	if !config.cacheEnabled {
-		return &cacheNone{}
+		logger.Debugf("JMW Cache disabled - returning cacheNone")
+		return &cacheNone{
+			rdnsQueryChan: rdnsQueryChan,
+		}
 	}
+
+	cacheTelemetry := &cacheTelemetry{
+		telemetry.NewCounter(cacheModuleName, "hit", []string{}, "Counter measuring the number of successful rDNS cache hits"),
+		telemetry.NewCounter(cacheModuleName, "hit_expired", []string{}, "Counter measuring the number of expired rDNS cache hits"),
+		telemetry.NewCounter(cacheModuleName, "hit_inprogress", []string{}, "Counter measuring the number of in progress rDNS cache hits"),
+		telemetry.NewCounter(cacheModuleName, "miss", []string{}, "Counter measuring the number of rDNS cache misses"),
+		telemetry.NewCounter(cacheModuleName, "chan_added", []string{}, "Counter measuring the number of rDNS requests added to the channel"),
+		telemetry.NewCounter(cacheModuleName, "dropped_chan_full", []string{}, "Counter measuring the number of rDNS requests dropped because the channel was full"),
+	}
+
 	cache := &cacheImpl{
-		data: make(map[string]string),
-		exit: make(chan struct{}),
-		//JMWPARMS
+		config:         config,
+		logger:         logger,
+		cacheTelemetry: cacheTelemetry,
+
+		data: make(map[string]*cacheEntry),
+		//JMWexit: make(chan struct{}), // JMW or pass ctx like ratelimiter?
+
+		rdnsQueryChan: rdnsQueryChan,
 	}
 
 	/*JMW
@@ -45,65 +91,58 @@ func newCache(config *rdnsQuerierConfig) cache {
 		}
 	}()
 	*/
+	logger.Debugf("JMW Cache enabled - returning cacheImpl")
 	return cache
-}
-
-// Real cache for when rdnsquerier cache is enabled
-type cacheImpl struct {
-	mux  sync.Mutex
-	data map[string]*cacheEntry
-	exit chan struct{}
-	//JMWPARMS
-}
-
-func (c *cacheImpl) add(addr string) bool {
-	if addr == "" {
-		return
-	}
-
-	c.mux.Lock()
-	defer c.mux.Unlock()
-
 }
 
 // JMW read-thru cache, if it exists return it, if not check if query is already in progress, if not initiate query to get it and add callback to list of callbacks to call when it is successfully queried
 // returns hostname, true if a cache hit occurs
 // JMW returns "", false if a cache miss occurs, in which case a query request was made and updateHostname is added to a list of callbacks that will be made if/when the query succeeds, at which time the entry is also placed in the cache
 func (c *cacheImpl) get(addr string, updateHostname func(string)) (string, bool) {
-	//JMW
-	c.mux.Lock()
-	defer c.mux.Unlock()
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
 
 	if entry, ok := c.data[addr]; ok {
-		if entry.inProgress {
+		if entry.queryInProgress {
 			//JMWCOMMENT
 			//JMWTELEMETRY cache_inprogress hit
+			c.cacheTelemetry.hitInProgress.Inc()
 			//JMW add updateHostname callback to entry
+			entry.callbacks = append(entry.callbacks, updateHostname)
+			c.logger.Debugf("JMW Cache hit (in progress) for %s - added callback - callbacks slice size %d", addr, len(entry.callbacks))
 			return "", false
 		}
 
 		if entry.expirationTime.After(time.Now()) {
 			//JMWTELEMETRY cache hit, not expired
-			return hostname, nil
+			c.cacheTelemetry.hit.Inc()
+			c.logger.Debugf("JMW Cache hit (not expired) for addr %s hostname %s", addr, entry.hostname)
+			return entry.hostname, true
 		}
 
 		// JMWTELEMETRY cache hit, expired - remove cache entry, then fall thru and process as if cache miss
+		//JMW assert !entry.queryInProgress
+		c.cacheTelemetry.hitExpired.Inc()
+		c.logger.Debugf("JMW Cache hit (expired) for addr %s - falling thru to cache miss path", addr)
 		delete(c.data, addr)
 	}
 
 	//JMWTELEMETRY cache miss
+	c.cacheTelemetry.miss.Inc()
 	c.data[addr] = &cacheEntry{
 		hostname:        "",
 		queryInProgress: true,
 		callbacks:       []func(string){updateHostname},
-		expirationTime:  time.Now() + config.cacheEntryTTL*time.Second,
+		expirationTime:  time.Now().Add(time.Duration(c.config.cacheEntryTTL) * time.Second),
 	}
+	c.logger.Debugf("JMW Cache miss for addr %s - created cacheEntry %+v - cache size %d", addr, c.data[addr], len(c.data))
 
-	f.rdnsQuerier.GetHostnameAsync(
+	//JMWDUP
+	query := &rdnsQuery{
 		addr,
 		func(hostname string) {
-			c.mux.Lock()
-			defer c.mux.Unlock()
+			c.mutex.Lock()
+			defer c.mutex.Unlock()
 
 			if entry, ok := c.data[addr]; ok {
 				//JMW assert queryInProgress
@@ -111,24 +150,48 @@ func (c *cacheImpl) get(addr string, updateHostname func(string)) (string, bool)
 				entry.hostname = hostname
 
 				//JMW
-				for callback := range callbacks {
+				c.logger.Debugf("JMW lookup successful - Cache entry updated for addr %s hostname %s - calling %d callbacks", addr, hostname, len(entry.callbacks))
+				for _, callback := range entry.callbacks {
 					callback(hostname)
 				}
 			} else {
 				//JMW log should never happen
+				c.logger.Debugf("JMW lookup successful - Cache entry not found for addr %s hostname %s - shouldn't happen", addr, hostname)
 			}
 		},
-	)
+	}
+
+	select {
+	case c.rdnsQueryChan <- query:
+		c.cacheTelemetry.chanAdded.Inc()
+	default:
+		c.cacheTelemetry.droppedChanFull.Inc()
+		c.logger.Debugf("Reverse DNS Enrichment channel is full, dropping query for IP address %s", query.addr)
+	}
+
+	return "", false
 }
 
 // Noop cache for when rdnsquerier cache is disabled
-type cacheNone struct{}
-
-func (c *cacheNone) add() bool {
-	// noop
+type cacheNone struct {
+	rdnsQueryChan chan *rdnsQuery
 }
 
-func (c *cacheNone) get(addr string) (string, bool) {
+func (c *cacheNone) get(addr string, updateHostname func(string)) (string, bool) {
+	//JMWDUP
+	query := &rdnsQuery{
+		addr,
+		updateHostname,
+	}
+
+	select {
+	case c.rdnsQueryChan <- query:
+		//JMWJMWc.cacheTelemetry.chanAdded.Inc()
+	default:
+		//JMWJMWc.cacheTelemetry.droppedChanFull.Inc()
+		//JMWJMWc.logger.Debugf("Reverse DNS Enrichment channel is full, dropping query for IP address %s", query.addr)
+	}
+
 	return "", false
 }
 
@@ -139,26 +202,30 @@ func (c *reverseDNSCache) Close() {
 
 func (c *reverseDNSCache) Expire(now time.Time) {
 	expired := 0
-	c.mux.Lock()
-	for addr, val := range c.data {
-		if val.inUse {
+	c.mutex.Lock()
+	for addr, entry := range c.data {
+		if entry.queryInProgress {
 			continue
 		}
 
-		for ip, deadline := range val.names {
+		if entry.inUse {
+			continue
+		}
+
+		for ip, deadline := range entry.names {
 			if deadline.Before(now) {
-				delete(val.names, ip)
+				delete(entry.names, ip)
 			}
 		}
 
-		if len(val.names) != 0 {
+		if len(entry.names) != 0 {
 			continue
 		}
 		expired++
 		delete(c.data, addr)
 	}
 	total := len(c.data)
-	c.mux.Unlock()
+	c.mutex.Unlock()
 
 	cacheTelemetry.expired.Add(int64(expired))
 	cacheTelemetry.length.Set(int64(total))
@@ -166,5 +233,6 @@ func (c *reverseDNSCache) Expire(now time.Time) {
 		"dns entries expired. took=%s total=%d expired=%d\n",
 		time.Since(now), total, expired,
 	)
+    //JMWTELEMETRY set cache size gauge?
 }
 */

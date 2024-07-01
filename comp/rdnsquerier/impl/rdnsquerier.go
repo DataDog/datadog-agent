@@ -62,6 +62,7 @@ type rdnsQuerierImpl struct {
 
 	resolver    resolver
 	rateLimiter rateLimiter
+	cache       cache
 
 	rdnsQueryChan chan *rdnsQuery
 	wg            sync.WaitGroup
@@ -107,6 +108,9 @@ func NewComponent(reqs Requires) (Provides, error) {
 		reqs.Telemetry.NewCounter(moduleName, "successful", []string{}, "Counter measuring the number of successful rDNS requests"),
 	}
 
+	//JMWJMW split querier out of rdnsquerierimpl (rename to rdnsenricher?) (or just keep it rdnsquerierimpl and have a querier layer)
+	rdnsQueryChan := make(chan *rdnsQuery, config.chanSize)
+
 	q := &rdnsQuerierImpl{
 		logger:            reqs.Logger,
 		config:            config,
@@ -114,8 +118,9 @@ func NewComponent(reqs Requires) (Provides, error) {
 
 		resolver:    newResolver(config),
 		rateLimiter: newRateLimiter(config),
+		cache:       newCache(config, reqs.Logger, reqs.Telemetry, rdnsQueryChan),
 
-		rdnsQueryChan: make(chan *rdnsQuery, config.chanSize),
+		rdnsQueryChan: rdnsQueryChan,
 	}
 
 	reqs.Lifecycle.Append(compdef.Hook{
@@ -131,10 +136,10 @@ func NewComponent(reqs Requires) (Provides, error) {
 // GetHostnameAsync attempts to resolve the hostname for the given IP address.  If the IP address is in the private address
 // space then a reverse DNS lookup is processed asynchronously.  If the lookup is successful then the updateHostname function
 // will be called asynchronously with the hostname.
-func (q *rdnsQuerierImpl) GetHostnameAsync(ipAddr []byte, updateHostname func(string)) {
+func (q *rdnsQuerierImpl) GetHostnameAsync(ipAddr []byte, updateHostname func(string)) { //JMWNAME ipAddr is []byte
 	q.internalTelemetry.total.Inc()
 
-	ipaddr, ok := netip.AddrFromSlice(ipAddr)
+	ipaddr, ok := netip.AddrFromSlice(ipAddr) //JMWNAME ipaddr is netip.addr
 	if !ok {
 		q.internalTelemetry.invalidIPAddress.Inc()
 		q.logger.Debugf("Reverse DNS Enrichment IP address %v is invalid", ipAddr)
@@ -146,6 +151,16 @@ func (q *rdnsQuerierImpl) GetHostnameAsync(ipAddr []byte, updateHostname func(st
 	}
 	q.internalTelemetry.private.Inc()
 
+	hostname, ok := q.cache.get(ipaddr.String(), updateHostname)
+	if ok {
+		//JMWJMW change to synchronously return hostname if cache hit
+		q.logger.Debugf("JMW GetHostnameAsync() Cache hit for %s - calling updateHostname() with hostname %s", ipaddr.String(), hostname)
+		go updateHostname(hostname)
+		return
+	}
+
+	/*JMWJMW
+	// cache miss, the cache will have already done this
 	query := &rdnsQuery{
 		addr:           ipaddr.String(),
 		updateHostname: updateHostname,
@@ -158,6 +173,7 @@ func (q *rdnsQuerierImpl) GetHostnameAsync(ipAddr []byte, updateHostname func(st
 		q.internalTelemetry.droppedChanFull.Inc()
 		q.logger.Debugf("Reverse DNS Enrichment channel is full, dropping query for IP address %s", query.addr)
 	}
+	*/
 }
 
 func (q *rdnsQuerierImpl) start(_ context.Context) error {
@@ -252,5 +268,6 @@ func (q *rdnsQuerierImpl) getHostname(ctx context.Context, query *rdnsQuery) {
 	}
 
 	q.internalTelemetry.successful.Inc()
+	q.logger.Tracef("JMW Reverse DNS Enrichment net.LookupAddr successfully returned hostname '%s' for IP address %v - calling updateHostname() callback", hostname, query.addr)
 	query.updateHostname(hostname)
 }
