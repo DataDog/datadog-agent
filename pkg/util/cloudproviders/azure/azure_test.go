@@ -27,6 +27,10 @@ func TestGetAlias(t *testing.T) {
 	responseIdx := 0
 	responses := []func(w http.ResponseWriter, r *http.Request){
 		func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "text/plain")
+			io.WriteString(w, expectedVM)
+		},
+		func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 			io.WriteString(w, fmt.Sprintf(`{
 				"name": "vm-name",
@@ -36,10 +40,6 @@ func TestGetAlias(t *testing.T) {
 				"osProfile": {"computerName":"%s"},
 				"tagsList": [{"name":"aks-managed-orchestrator","value":"Kubernetes"}]
 			}`, expectedNodeName))
-		},
-		func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Set("Content-Type", "text/plain")
-			io.WriteString(w, expectedVM)
 		},
 	}
 	var lastRequest *http.Request
@@ -55,10 +55,10 @@ func TestGetAlias(t *testing.T) {
 	aliases, err := GetHostAliases(ctx)
 	assert.NoError(t, err)
 	require.Len(t, aliases, 2)
-	assert.Equal(t, expectedNodeName, aliases[0])
-	assert.Equal(t, expectedVM, aliases[1])
-	assert.Equal(t, lastRequest.URL.Path, "/metadata/instance/compute/vmId")
-	assert.Equal(t, lastRequest.URL.RawQuery, "api-version=2017-04-02&format=text")
+	assert.Equal(t, expectedVM, aliases[0])
+	assert.Equal(t, expectedNodeName, aliases[1])
+	assert.Equal(t, lastRequest.URL.Path, "/metadata/instance/compute")
+	assert.Equal(t, lastRequest.URL.RawQuery, "api-version=2021-02-01")
 }
 
 func TestGetClusterName(t *testing.T) {

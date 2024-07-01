@@ -17,7 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/cachedfetch"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // declare these as vars not const to ease testing
@@ -76,7 +75,7 @@ var vmIDFetcher = cachedfetch.Fetcher{
 			metadataURL+"/metadata/instance/compute/vmId?api-version=2017-04-02&format=text",
 			config.Datadog().GetInt("metadata_endpoints_max_hostname_size"))
 		if err != nil {
-			return nil, fmt.Errorf("Azure HostAliases: unable to query metadata endpoint: %s", err)
+			return nil, fmt.Errorf("Azure HostAliases: unable to query metadata VM ID endpoint: %s", err)
 		}
 		return []string{res}, nil
 	},
@@ -85,18 +84,16 @@ var vmIDFetcher = cachedfetch.Fetcher{
 // GetHostAliases returns the VM ID from the Azure Metadata api
 func GetHostAliases(ctx context.Context) ([]string, error) {
 	aliases := []string{}
-
-	metadata, err := getMetadata(ctx)
-	if err != nil {
-		log.Debugf("Could not get metadata: %s", err)
-	} else {
-		if isKubernetesTag(metadata.TagsList) {
-			aliases = append(aliases, metadata.OsProfile.ComputerName)
-		}
-	}
-
 	vm, err := vmIDFetcher.FetchStringSlice(ctx)
 	aliases = append(aliases, vm...)
+
+	metadata, metadataErr := getMetadata(ctx)
+	if err != nil {
+		return aliases, fmt.Errorf("%s; Azure HostAliases: unable to query metadata endpoint: %s", err, metadataErr)
+	}
+	if isKubernetesTag(metadata.TagsList) {
+		aliases = append(aliases, metadata.OsProfile.ComputerName)
+	}
 	return aliases, err
 }
 
