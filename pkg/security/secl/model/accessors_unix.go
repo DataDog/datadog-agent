@@ -16558,6 +16558,15 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
+	case "utimes.syscall.path":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Utimes.SyscallContext)
+			},
+			Field:  field,
+			Weight: 900 * eval.HandlerWeight,
+		}, nil
 	}
 	return nil, &eval.ErrFieldNotFound{Field: field}
 }
@@ -17863,6 +17872,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"utimes.file.uid",
 		"utimes.file.user",
 		"utimes.retval",
+		"utimes.syscall.path",
 	}
 }
 func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
@@ -24224,6 +24234,8 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Utimes.File.FileFields), nil
 	case "utimes.retval":
 		return int(ev.Utimes.SyscallEvent.Retval), nil
+	case "utimes.syscall.path":
+		return ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Utimes.SyscallContext), nil
 	}
 	return nil, &eval.ErrFieldNotFound{Field: field}
 }
@@ -26828,6 +26840,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "utimes.file.user":
 		return "utimes", nil
 	case "utimes.retval":
+		return "utimes", nil
+	case "utimes.syscall.path":
 		return "utimes", nil
 	}
 	return "", &eval.ErrFieldNotFound{Field: field}
@@ -29434,6 +29448,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.String, nil
 	case "utimes.retval":
 		return reflect.Int, nil
+	case "utimes.syscall.path":
+		return reflect.String, nil
 	}
 	return reflect.Invalid, &eval.ErrFieldNotFound{Field: field}
 }
@@ -42303,6 +42319,13 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Utimes.SyscallEvent.Retval"}
 		}
 		ev.Utimes.SyscallEvent.Retval = int64(rv)
+		return nil
+	case "utimes.syscall.path":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Utimes.SyscallContext.StrArg1"}
+		}
+		ev.Utimes.SyscallContext.StrArg1 = rv
 		return nil
 	}
 	return &eval.ErrFieldNotFound{Field: field}
