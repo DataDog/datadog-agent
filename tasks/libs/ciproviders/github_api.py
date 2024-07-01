@@ -298,8 +298,9 @@ class GithubAPI:
             gh_installation_id = os.environ['GITHUB_INSTALLATION_ID']
 
             ghi = GithubIntegration(integration_id=gh_integration_id, private_key=gh_app_key)
+            token = ghi.get_access_token(gh_installation_id)
             print("AUTH !")
-            return ghi.get_access_token(gh_installation_id)
+            return Auth.Token(token)
         if "GITHUB_APP_ID" in os.environ and "GITHUB_KEY_B64" in os.environ:
             appAuth = Auth.AppAuth(
                 os.environ['GITHUB_APP_ID'], base64.b64decode(os.environ['GITHUB_KEY_B64']).decode('ascii')
