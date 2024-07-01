@@ -1115,3 +1115,11 @@ workflow:
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
   - when: manual
     allow_failure: true
+
+.on_otel_or_e2e_changes:
+  - !reference [.except_mergequeue]
+  - changes:
+      paths:
+        - comp/otelcol/**/*
+        - test/new-e2e/tests/otel/**/*
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
