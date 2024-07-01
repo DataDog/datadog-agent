@@ -440,7 +440,7 @@ func TestHashMapNumberOfEntriesNoMemoryCorruption(t *testing.T) {
 
 		mapInfo, err := m.Info()
 		require.NoError(t, err)
-		mapid, _ := mapInfo.ID()
+		mapid, mapidok := mapInfo.ID()
 
 		keys := make([]byte, keySize)
 		values := make([]byte, valueSize)
@@ -503,7 +503,7 @@ func TestHashMapNumberOfEntriesNoMemoryCorruption(t *testing.T) {
 		buffers.cursor = addMargin(buffers.cursor)
 		validateMargin(t)
 
-		if isForEachElemHelperAvailable() && mapType != ebpf.HashOfMaps {
+		if isForEachElemHelperAvailable() && mapType != ebpf.HashOfMaps && mapidok {
 			t.Run("Helper", func(t *testing.T) {
 				num, err := hashMapNumberOfEntriesWithHelper(m, mapid, mphCache)
 				require.NoError(t, err)
