@@ -290,3 +290,29 @@ func getEventSource(controllerName string, sourceComponent string) string {
 	}
 	return defaultEventSource
 }
+
+func shouldCollect(ev *v1.Event, collectedTypes []collectedEventType) bool {
+	involvedObject := ev.InvolvedObject
+
+	for _, f := range collectedTypes {
+		if f.Kind != "" && f.Kind != involvedObject.Kind {
+			continue
+		}
+
+		if f.Source != "" && f.Source != ev.Source.Component {
+			continue
+		}
+
+		if len(f.Reasons) == 0 {
+			return true
+		}
+
+		for _, r := range f.Reasons {
+			if ev.Reason == r {
+				return true
+			}
+		}
+	}
+
+	return false
+}

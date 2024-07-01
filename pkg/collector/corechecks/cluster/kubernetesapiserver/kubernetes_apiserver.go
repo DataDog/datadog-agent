@@ -87,6 +87,7 @@ type KubeASConfig struct {
 	// CollectedEventTypes specifies which events to collect.
 	// Only effective when UnbundleEvents = true
 	CollectedEventTypes []collectedEventType `yaml:"collected_event_types"`
+	FilteringEnabled    bool                 `yaml:"filtering_enabled"`
 }
 
 type collectedEventType struct {
@@ -119,6 +120,51 @@ type KubeASCheck struct {
 	eventCollection eventCollection
 	ac              *apiserver.APIClient
 	oshiftAPILevel  apiserver.OpenShiftAPILevel
+}
+
+var integrationCollectedEventTypes = []collectedEventType{
+	// Kubernetes events
+	{
+		Kind:    "Pod",
+		Reasons: []string{"Failed", "BackOff", "Unhealthy", "FailedScheduling", "FailedMount", "FailedAttachVolume"},
+	},
+	{
+		Kind:    "Node",
+		Reasons: []string{"TerminatingEvictedPod", "NodeNotReady", "Rebooted", "HostPortConflict"},
+	},
+	{
+		Kind:    "CronJob",
+		Reasons: []string{"SawCompletedJob"},
+	},
+	// Integrations
+	{
+		Source: "karpenter",
+		// Reasons: []string{},
+	},
+	{
+		Source: "datadog-operator",
+	},
+	{
+		Source: "amazon elb",
+	},
+	{
+		Source: "cilium",
+	},
+	{
+		Source: "fluxcd",
+	},
+	{
+		Source: "kubernetes cluster autoscaler",
+	},
+	{
+		Source: "spark",
+	},
+	{
+		Source: "vault",
+	},
+	{
+		Reasons: []string{"BackOff"}, // Change tracking consumes all CLB events
+	},
 }
 
 func (c *KubeASConfig) parse(data []byte) error {
@@ -172,11 +218,18 @@ func (k *KubeASCheck) Configure(senderManager sender.SenderManager, _ uint64, co
 	hostnameDetected, _ := hostname.Get(context.TODO())
 	clusterName := clustername.GetRFC1123CompliantClusterName(context.TODO(), hostnameDetected)
 
+	// TODO: prior to appending events to k.instance.CollectedEventTypes, we need a way to identify
+	// events in the config as added by the user (i.e. user should be billed for collection)
+
 	// Automatically add events based on activated Datadog products
 	if ddConfig.Datadog().GetBool("autoscaling.workload.enabled") {
 		k.instance.CollectedEventTypes = append(k.instance.CollectedEventTypes, collectedEventType{
 			Source: "datadog-workload-autoscaler",
 		})
+	}
+
+	if k.instance.FilteringEnabled {
+		k.instance.CollectedEventTypes = append(k.instance.CollectedEventTypes, integrationCollectedEventTypes...)
 	}
 
 	// When we use both bundled and unbundled transformers, we apply two filters: filtered_event_types and collected_event_types.
@@ -189,7 +242,7 @@ func (k *KubeASCheck) Configure(senderManager sender.SenderManager, _ uint64, co
 	if k.instance.UnbundleEvents {
 		k.eventCollection.Transformer = newUnbundledTransformer(clusterName, tagger.GetTaggerInstance(), k.instance.CollectedEventTypes, k.instance.BundleUnspecifiedEvents)
 	} else {
-		k.eventCollection.Transformer = newBundledTransformer(clusterName, tagger.GetTaggerInstance())
+		k.eventCollection.Transformer = newBundledTransformer(clusterName, tagger.GetTaggerInstance(), k.instance.CollectedEventTypes, k.instance.FilteringEnabled)
 	}
 
 	return nil

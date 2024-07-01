@@ -32,7 +32,7 @@ func newUnbundledTransformer(clusterName string, taggerInstance tagger.Component
 
 	var t eventTransformer = noopEventTransformer{}
 	if bundleUnspecifiedEvents {
-		t = newBundledTransformer(clusterName, taggerInstance)
+		t = newBundledTransformer(clusterName, taggerInstance, collectedTypes, false)
 	}
 
 	return &unbundledTransformer{
@@ -166,27 +166,5 @@ func (c *unbundledTransformer) getTagsFromTagger(obj v1.ObjectReference, tagsAcc
 }
 
 func (c *unbundledTransformer) shouldCollect(ev *v1.Event) bool {
-	involvedObject := ev.InvolvedObject
-
-	for _, f := range c.collectedTypes {
-		if f.Kind != "" && f.Kind != involvedObject.Kind {
-			continue
-		}
-
-		if f.Source != "" && f.Source != ev.Source.Component {
-			continue
-		}
-
-		if len(f.Reasons) == 0 {
-			return true
-		}
-
-		for _, r := range f.Reasons {
-			if ev.Reason == r {
-				return true
-			}
-		}
-	}
-
-	return false
+	return shouldCollect(ev, c.collectedTypes)
 }

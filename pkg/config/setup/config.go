@@ -1521,6 +1521,7 @@ func kubernetes(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("kubelet_core_check_enabled", true)
 	config.BindEnvAndSetDefault("collect_kubernetes_events", false)
 	config.BindEnvAndSetDefault("kubernetes_events_source_detection.enabled", false)
+	config.BindEnvAndSetDefault("kubernetes_events_filtering.enabled", false)
 	config.BindEnvAndSetDefault("kubelet_client_ca", "")
 
 	config.BindEnvAndSetDefault("kubelet_auth_token_path", "")
