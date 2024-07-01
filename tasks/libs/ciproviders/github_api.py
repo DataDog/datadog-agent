@@ -401,7 +401,7 @@ Make sure that milestone is open before trying again.""",
     labels = [
         "changelog/no-changelog",
         "qa/no-code-change",
-        "team/agent-build-and-releases",
+        "team/agent-delivery",
         "team/agent-release-management",
         "category/release_operations",
     ]

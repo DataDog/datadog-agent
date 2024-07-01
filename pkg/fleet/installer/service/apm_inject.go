@@ -125,20 +125,33 @@ func (a *apmInjectorInstaller) Setup(ctx context.Context) error {
 	if err := a.configureSocketsEnv(ctx); err != nil {
 		return err
 	}
-	if err := addSystemDEnvOverrides(ctx, agentUnit); err != nil {
-		return err
+	// Symlinks for sysvinit
+	if err := os.Symlink(envFilePath, "/etc/default/datadog-agent-trace"); err != nil && !os.IsExist(err) {
+		return fmt.Errorf("failed to symlink %s to /etc/default/datadog-agent-trace: %w", envFilePath, err)
 	}
-	if err := addSystemDEnvOverrides(ctx, agentExp); err != nil {
-		return err
+	if err := os.Symlink(envFilePath, "/etc/default/datadog-agent"); err != nil && !os.IsExist(err) {
+		return fmt.Errorf("failed to symlink %s to /etc/default/datadog-agent: %w", envFilePath, err)
 	}
-	if err := addSystemDEnvOverrides(ctx, traceAgentUnit); err != nil {
-		return err
+	systemdRunning, err := isSystemdRunning()
+	if err != nil {
+		return fmt.Errorf("failed to check if systemd is running: %w", err)
 	}
-	if err := addSystemDEnvOverrides(ctx, traceAgentExp); err != nil {
-		return err
-	}
-	if err := systemdReload(ctx); err != nil {
-		return err
+	if systemdRunning {
+		if err := addSystemDEnvOverrides(ctx, agentUnit); err != nil {
+			return err
+		}
+		if err := addSystemDEnvOverrides(ctx, agentExp); err != nil {
+			return err
+		}
+		if err := addSystemDEnvOverrides(ctx, traceAgentUnit); err != nil {
+			return err
+		}
+		if err := addSystemDEnvOverrides(ctx, traceAgentExp); err != nil {
+			return err
+		}
+		if err := systemdReload(ctx); err != nil {
+			return err
+		}
 	}
 
 	// Create mandatory dirs

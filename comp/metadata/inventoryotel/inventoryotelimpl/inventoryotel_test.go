@@ -45,8 +45,8 @@ func getTestInventoryPayload(t *testing.T, confOverrides map[string]any) *invent
 
 func TestGetPayload(t *testing.T) {
 	overrides := map[string]any{
-		"otel.enabled":               true,
-		"otel.submit_dummy_metadata": true,
+		"otelcollector.enabled":               true,
+		"otelcollector.submit_dummy_metadata": true,
 	}
 
 	io := getTestInventoryPayload(t, overrides)
@@ -70,8 +70,8 @@ func TestGetPayload(t *testing.T) {
 
 func TestGet(t *testing.T) {
 	overrides := map[string]any{
-		"otel.enabled":               true,
-		"otel.submit_dummy_metadata": true,
+		"otelcollector.enabled":               true,
+		"otelcollector.submit_dummy_metadata": true,
 	}
 	io := getTestInventoryPayload(t, overrides)
 

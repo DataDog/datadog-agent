@@ -31,7 +31,6 @@ type protocol struct {
 	statkeeper         *StatKeeper
 	inFlightMapCleaner *ddebpf.MapCleaner[KafkaTransactionKey, KafkaTransaction]
 	eventsConsumer     *events.Consumer[EbpfTx]
-	mgr                *manager.Manager
 
 	kernelTelemetry            *kernelTelemetry
 	kernelTelemetryStopChannel chan struct{}
@@ -141,49 +140,49 @@ var Spec = &protocols.ProtocolSpec{
 		},
 		{
 			ProgArrayName: protocols.TLSDispatcherProgramsMap,
-			Key:           uint32(protocols.ProgramTLSKafka),
+			Key:           uint32(protocols.ProgramKafka),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: tlsFilterTailCall,
 			},
 		},
 		{
 			ProgArrayName: protocols.TLSDispatcherProgramsMap,
-			Key:           uint32(protocols.ProgramTLSKafkaResponsePartitionParserV0),
+			Key:           uint32(protocols.ProgramKafkaResponsePartitionParserV0),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: tlsResponsePartitionParserV0TailCall,
 			},
 		},
 		{
 			ProgArrayName: protocols.TLSDispatcherProgramsMap,
-			Key:           uint32(protocols.ProgramTLSKafkaResponsePartitionParserV12),
+			Key:           uint32(protocols.ProgramKafkaResponsePartitionParserV12),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: tlsResponsePartitionParserV12TailCall,
 			},
 		},
 		{
 			ProgArrayName: protocols.TLSDispatcherProgramsMap,
-			Key:           uint32(protocols.ProgramTLSKafkaResponseRecordBatchParserV0),
+			Key:           uint32(protocols.ProgramKafkaResponseRecordBatchParserV0),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: tlsResponseRecordBatchParserV0TailCall,
 			},
 		},
 		{
 			ProgArrayName: protocols.TLSDispatcherProgramsMap,
-			Key:           uint32(protocols.ProgramTLSKafkaResponseRecordBatchParserV12),
+			Key:           uint32(protocols.ProgramKafkaResponseRecordBatchParserV12),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: tlsResponseRecordBatchParserV12TailCall,
 			},
 		},
 		{
 			ProgArrayName: protocols.TLSDispatcherProgramsMap,
-			Key:           uint32(protocols.ProgramTLSKafkaTermination),
+			Key:           uint32(protocols.ProgramKafkaTermination),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: tlsTerminationTailCall,
 			},
 		},
 		{
 			ProgArrayName: protocols.TLSProtocolDispatcherClassificationPrograms,
-			Key:           uint32(protocols.TLSDispatcherKafkaProg),
+			Key:           uint32(protocols.DispatcherKafkaProg),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: tlsDispatcherTailCall,
 			},
@@ -227,7 +226,6 @@ func (p *protocol) ConfigureOptions(mgr *manager.Manager, opts *manager.Options)
 
 // PreStart creates the kafka events consumer and starts it.
 func (p *protocol) PreStart(mgr *manager.Manager) error {
-	p.mgr = mgr
 	var err error
 	p.eventsConsumer, err = events.NewConsumer(
 		eventStreamName,

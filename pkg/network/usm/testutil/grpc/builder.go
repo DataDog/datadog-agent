@@ -50,7 +50,7 @@ func buildGRPCServerBin(t *testing.T) string {
 
 	curDir, err := testutil.CurDir()
 	require.NoError(t, err)
-	serverBin, err := usmtestutil.BuildUnixTransparentProxyServer(curDir, serverSrcPath)
+	serverBin, err := usmtestutil.BuildGoBinaryWrapper(curDir, serverSrcPath)
 	require.NoError(t, err)
 
 	return serverBin

@@ -160,6 +160,11 @@ func testDecoding(t *testing.T, isTLS bool) {
 		return count * 2
 	}
 
+	monitor := setupUSMTLSMonitor(t, getPostgresDefaultTestConfiguration(isTLS))
+	if isTLS {
+		utils.WaitForProgramsToBeTraced(t, "go-tls", os.Getpid())
+	}
+
 	tests := []postgresParsingTestAttributes{
 		{
 			name: "create table",
@@ -469,14 +474,14 @@ func testDecoding(t *testing.T, isTLS bool) {
 				pg := pgEntry.(*postgres.PGXClient)
 				defer pg.Close()
 				_ = pg.RunQuery(dropTableQuery)
+				cleanProtocolMaps(t, "postgres", monitor.ebpfProgram.Manager.Manager)
 			})
+			require.NoError(t, monitor.Pause())
 			if tt.preMonitorSetup != nil {
 				tt.preMonitorSetup(t, tt.context)
 			}
-			monitor := setupUSMTLSMonitor(t, getPostgresDefaultTestConfiguration(isTLS))
-			if isTLS {
-				utils.WaitForProgramsToBeTraced(t, "go-tls", os.Getpid())
-			}
+			require.NoError(t, monitor.Resume())
+
 			obj, ok := tt.context.extras["pg"]
 			require.True(t, ok)
 			pgClient := obj.(*postgres.PGXClient)
@@ -485,6 +490,7 @@ func testDecoding(t *testing.T, isTLS bool) {
 			// That's a workaround until we can classify the 'Parse' message.
 			require.NoError(t, pgClient.Ping())
 			tt.postMonitorSetup(t, tt.context)
+			require.NoError(t, monitor.Pause())
 			tt.validation(t, tt.context, monitor)
 		})
 	}
@@ -563,6 +569,7 @@ func getPostgresDefaultTestConfiguration(enableTLS bool) *config.Config {
 	// If GO TLS is enabled, we need to allow self traffic to be captured.
 	// If GO TLS is disabled, the value is irrelevant.
 	cfg.GoTLSExcludeSelf = false
+	cfg.BypassEnabled = true
 	return cfg
 }
 
