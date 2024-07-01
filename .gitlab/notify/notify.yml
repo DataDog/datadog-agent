@@ -131,10 +131,10 @@ notify_failure_summary_daily:
         exit
       fi
     # Daily
-    - inv -e notify.failure-summary-send-notifications --is-daily-summary=true
+    - inv -e notify.failure-summary-send-notifications --daily-summary
     # Send weekly if necessary (note that this workflow is usually triggered early in the morning)
     - |
       if [ "$weekday" = "Friday" ]; then
         echo 'Sending weekly summary'
-        inv -e notify.failure-summary-send-notifications --is-daily-summary=false
+        inv -e notify.failure-summary-send-notifications --weekly-summary
       fi
