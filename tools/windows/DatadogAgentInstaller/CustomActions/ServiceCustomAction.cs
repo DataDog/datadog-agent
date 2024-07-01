@@ -8,7 +8,7 @@ using System.ServiceProcess;
 using Datadog.CustomActions.Extensions;
 using Datadog.CustomActions.Interfaces;
 using Datadog.CustomActions.Native;
-using Datadog.CustomActions.RollbackData;
+using Datadog.CustomActions.Rollback;
 using Microsoft.Deployment.WindowsInstaller;
 using Microsoft.Win32;
 using ServiceController = Datadog.CustomActions.Native.ServiceController;

@@ -45,6 +45,8 @@ In theory, the max memory usage of this Go buffered channel is:
 * `dogstatsd_packer_buffer_size` * `dogstatsd_buffer_size` * `dogstatsd_queue_size`
 * 32 * 8192 * 1024 =  256MB
 
+To this we can add per-listener buffers: `dogstatsd_packer_buffer_size` * `dogstatsd_buffer_size` * `connections`. `connections` will be 1 for `uds` and `udp` and one per client for `uds-stream`.
+
 ## Worker
 
 - Input: slice of Packets

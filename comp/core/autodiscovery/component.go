@@ -38,6 +38,6 @@ type Component interface {
 	Start()
 	Stop()
 	// TODO (component): once cluster agent uses the API component remove this function
-	GetConfigCheck(verbose bool) []byte
+	GetConfigCheck(verbose bool, noColor bool) []byte
 	IsStarted() bool
 }

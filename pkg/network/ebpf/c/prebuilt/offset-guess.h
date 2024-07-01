@@ -36,6 +36,7 @@ static const __u8 GUESS_CT_TUPLE_ORIGIN = 20;
 static const __u8 GUESS_CT_TUPLE_REPLY = 21;
 static const __u8 GUESS_CT_STATUS = 22;
 static const __u8 GUESS_CT_NET = 23;
+static const __u8 GUESS_RTT_VAR = 24;
 
 static const __u8 STATE_UNINITIALIZED = 0;
 static const __u8 STATE_CHECKING = 1;

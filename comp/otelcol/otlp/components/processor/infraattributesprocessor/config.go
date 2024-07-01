@@ -7,6 +7,8 @@ package infraattributesprocessor
 
 import (
 	"go.opentelemetry.io/collector/component"
+
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 )
 
 // Config defines configuration for processor.
@@ -14,6 +16,8 @@ type Config struct {
 	Metrics MetricInfraAttributes `mapstructure:"metrics"`
 	Logs    LogInfraAttributes    `mapstructure:"logs"`
 	Traces  TraceInfraAttributes  `mapstructure:"traces"`
+
+	Cardinality types.TagCardinality `mapstructure:"cardinality"`
 }
 
 // MetricInfraAttributes - configuration for metrics.

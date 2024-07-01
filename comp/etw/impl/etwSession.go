@@ -166,11 +166,21 @@ func (e *etwSession) StopTracing() error {
 		globalError = errors.Join(globalError, e.DisableProvider(guid))
 	}
 	ptp := (C.PEVENT_TRACE_PROPERTIES)(unsafe.Pointer(&e.propertiesBuf[0]))
-	ret := windows.Errno(C.ControlTraceW(
-		e.hSession,
-		nil,
-		ptp,
-		C.EVENT_TRACE_CONTROL_STOP))
+	var ret windows.Errno
+	if e.wellKnown {
+		if e.hTraceHandle == C.INVALID_PROCESSTRACE_HANDLE {
+			return windows.ERROR_INVALID_HANDLE
+		}
+		ret = windows.Errno(C.CloseTrace(e.hTraceHandle))
+
+	} else {
+		ret = windows.Errno(C.ControlTraceW(
+			e.hSession,
+			nil,
+			ptp,
+			C.EVENT_TRACE_CONTROL_STOP))
+	}
+
 	if !(ret == windows.ERROR_MORE_DATA ||
 		ret == windows.ERROR_SUCCESS) {
 		return errors.Join(ret, globalError)

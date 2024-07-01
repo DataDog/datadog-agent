@@ -11,6 +11,8 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
+	procmon "github.com/DataDog/datadog-agent/pkg/process/monitor"
 )
 
 // EventMonitor - Event monitor Factory
@@ -21,4 +23,8 @@ var EventMonitor = module.Factory{
 	NeedsEBPF: func() bool {
 		return !coreconfig.SystemProbe.GetBool("runtime_security_config.ebpfless.enabled")
 	},
+}
+
+func createProcessMonitorConsumer(evm *eventmonitor.EventMonitor) (eventmonitor.EventConsumerInterface, error) {
+	return procmon.NewProcessMonitorEventConsumer(evm)
 }

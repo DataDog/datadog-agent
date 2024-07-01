@@ -22,6 +22,7 @@ func (m *Model) GetIterator(field eval.Field) (eval.Iterator, error) {
 }
 func (m *Model) GetEventTypes() []eval.EventType {
 	return []eval.EventType{
+		eval.EventType("change_permission"),
 		eval.EventType("create"),
 		eval.EventType("create_key"),
 		eval.EventType("delete"),
@@ -36,6 +37,60 @@ func (m *Model) GetEventTypes() []eval.EventType {
 }
 func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Evaluator, error) {
 	switch field {
+	case "change_permission.new_sd":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveNewSecurityDescriptor(ev, &ev.ChangePermission)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "change_permission.old_sd":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveOldSecurityDescriptor(ev, &ev.ChangePermission)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "change_permission.path":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.ChangePermission.ObjectName
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "change_permission.type":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.ChangePermission.ObjectType
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "change_permission.user_domain":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.ChangePermission.UserDomain
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "change_permission.username":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.ChangePermission.UserName
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
 	case "container.created_at":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -334,6 +389,15 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+		}, nil
+	case "event.hostname":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveHostname(ev, &ev.BaseEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
 		}, nil
 	case "event.origin":
 		return &eval.StringEvaluator{
@@ -1575,6 +1639,12 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 }
 func (ev *Event) GetFields() []eval.Field {
 	return []eval.Field{
+		"change_permission.new_sd",
+		"change_permission.old_sd",
+		"change_permission.path",
+		"change_permission.type",
+		"change_permission.user_domain",
+		"change_permission.username",
 		"container.created_at",
 		"container.id",
 		"container.tags",
@@ -1606,6 +1676,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"delete_key.registry.key_name.length",
 		"delete_key.registry.key_path",
 		"delete_key.registry.key_path.length",
+		"event.hostname",
 		"event.origin",
 		"event.os",
 		"event.service",
@@ -1721,6 +1792,18 @@ func (ev *Event) GetFields() []eval.Field {
 }
 func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	switch field {
+	case "change_permission.new_sd":
+		return ev.FieldHandlers.ResolveNewSecurityDescriptor(ev, &ev.ChangePermission), nil
+	case "change_permission.old_sd":
+		return ev.FieldHandlers.ResolveOldSecurityDescriptor(ev, &ev.ChangePermission), nil
+	case "change_permission.path":
+		return ev.ChangePermission.ObjectName, nil
+	case "change_permission.type":
+		return ev.ChangePermission.ObjectType, nil
+	case "change_permission.user_domain":
+		return ev.ChangePermission.UserDomain, nil
+	case "change_permission.username":
+		return ev.ChangePermission.UserName, nil
 	case "container.created_at":
 		return int(ev.FieldHandlers.ResolveContainerCreatedAt(ev, ev.BaseEvent.ContainerContext)), nil
 	case "container.id":
@@ -1783,6 +1866,8 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return ev.DeleteRegistryKey.Registry.KeyPath, nil
 	case "delete_key.registry.key_path.length":
 		return len(ev.DeleteRegistryKey.Registry.KeyPath), nil
+	case "event.hostname":
+		return ev.FieldHandlers.ResolveHostname(ev, &ev.BaseEvent), nil
 	case "event.origin":
 		return ev.BaseEvent.Origin, nil
 	case "event.os":
@@ -2173,6 +2258,18 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 }
 func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	switch field {
+	case "change_permission.new_sd":
+		return "change_permission", nil
+	case "change_permission.old_sd":
+		return "change_permission", nil
+	case "change_permission.path":
+		return "change_permission", nil
+	case "change_permission.type":
+		return "change_permission", nil
+	case "change_permission.user_domain":
+		return "change_permission", nil
+	case "change_permission.username":
+		return "change_permission", nil
 	case "container.created_at":
 		return "*", nil
 	case "container.id":
@@ -2235,6 +2332,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "delete_key", nil
 	case "delete_key.registry.key_path.length":
 		return "delete_key", nil
+	case "event.hostname":
+		return "*", nil
 	case "event.origin":
 		return "*", nil
 	case "event.os":
@@ -2462,6 +2561,18 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 }
 func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	switch field {
+	case "change_permission.new_sd":
+		return reflect.String, nil
+	case "change_permission.old_sd":
+		return reflect.String, nil
+	case "change_permission.path":
+		return reflect.String, nil
+	case "change_permission.type":
+		return reflect.String, nil
+	case "change_permission.user_domain":
+		return reflect.String, nil
+	case "change_permission.username":
+		return reflect.String, nil
 	case "container.created_at":
 		return reflect.Int, nil
 	case "container.id":
@@ -2524,6 +2635,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.String, nil
 	case "delete_key.registry.key_path.length":
 		return reflect.Int, nil
+	case "event.hostname":
+		return reflect.String, nil
 	case "event.origin":
 		return reflect.String, nil
 	case "event.os":
@@ -2751,6 +2864,48 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 }
 func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	switch field {
+	case "change_permission.new_sd":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ChangePermission.NewSd"}
+		}
+		ev.ChangePermission.NewSd = rv
+		return nil
+	case "change_permission.old_sd":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ChangePermission.OldSd"}
+		}
+		ev.ChangePermission.OldSd = rv
+		return nil
+	case "change_permission.path":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ChangePermission.ObjectName"}
+		}
+		ev.ChangePermission.ObjectName = rv
+		return nil
+	case "change_permission.type":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ChangePermission.ObjectType"}
+		}
+		ev.ChangePermission.ObjectType = rv
+		return nil
+	case "change_permission.user_domain":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ChangePermission.UserDomain"}
+		}
+		ev.ChangePermission.UserDomain = rv
+		return nil
+	case "change_permission.username":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ChangePermission.UserName"}
+		}
+		ev.ChangePermission.UserName = rv
+		return nil
 	case "container.created_at":
 		if ev.BaseEvent.ContainerContext == nil {
 			ev.BaseEvent.ContainerContext = &ContainerContext{}
@@ -2910,6 +3065,13 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return nil
 	case "delete_key.registry.key_path.length":
 		return &eval.ErrFieldReadOnly{Field: "delete_key.registry.key_path.length"}
+	case "event.hostname":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.Hostname"}
+		}
+		ev.BaseEvent.Hostname = rv
+		return nil
 	case "event.origin":
 		rv, ok := value.(string)
 		if !ok {

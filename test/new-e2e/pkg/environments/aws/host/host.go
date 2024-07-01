@@ -168,19 +168,26 @@ func ProvisionerNoFakeIntake(opts ...ProvisionerOption) e2e.TypedProvisioner[env
 	return Provisioner(mergedOpts...)
 }
 
+// RunParams is a set of parameters for the Run function.
+type RunParams struct {
+	Environment       *aws.Environment
+	ProvisionerParams *ProvisionerParams
+}
+
 // Run deploys a environment given a pulumi.Context
-func Run(ctx *pulumi.Context, env *environments.Host, params *ProvisionerParams) error {
+func Run(ctx *pulumi.Context, env *environments.Host, runParams RunParams) error {
 	var awsEnv aws.Environment
-	var err error
-	if env.AwsEnvironment != nil {
-		awsEnv = *env.AwsEnvironment
-	} else {
+	if runParams.Environment == nil {
+		var err error
 		awsEnv, err = aws.NewEnvironment(ctx)
 		if err != nil {
 			return err
 		}
+	} else {
+		awsEnv = *runParams.Environment
 	}
 
+	params := runParams.ProvisionerParams
 	host, err := ec2.NewVM(awsEnv, params.name, params.instanceOptions...)
 	if err != nil {
 		return err
@@ -275,7 +282,7 @@ func Provisioner(opts ...ProvisionerOption) e2e.TypedProvisioner[environments.Ho
 		// We ALWAYS need to make a deep copy of `params`, as the provisioner can be called multiple times.
 		// and it's easy to forget about it, leading to hard to debug issues.
 		params := GetProvisionerParams(opts...)
-		return Run(ctx, env, params)
+		return Run(ctx, env, RunParams{ProvisionerParams: params})
 	}, params.extraConfigParams)
 
 	return provisioner

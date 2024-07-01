@@ -424,6 +424,7 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 	options.DefaultKProbeMaxActive = maxActive
 	options.DefaultKprobeAttachMethod = kprobeAttachMethod
 	options.VerifierOptions.Programs.LogSize = 10 * 1024 * 1024
+	options.BypassEnabled = e.cfg.BypassEnabled
 
 	supported, notSupported := e.getProtocolsForBuildMode()
 	cleanup := e.configureManagerWithSupportedProtocols(supported)
@@ -435,6 +436,10 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 		for _, pm := range e.PerfMaps {
 			pm.TelemetryEnabled = true
 			ebpftelemetry.ReportPerfMapTelemetry(pm)
+		}
+		for _, rb := range e.RingBuffers {
+			rb.TelemetryEnabled = true
+			ebpftelemetry.ReportRingBufferTelemetry(rb)
 		}
 	}
 

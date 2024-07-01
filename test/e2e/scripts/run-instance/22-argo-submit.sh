@@ -53,9 +53,6 @@ argo_submit_cws_cspm() {
 }
 
 case "$ARGO_WORKFLOW" in
-    "cws")
-        argo_submit_cws_cspm cws-workflow.yaml
-        ;;
     "cspm")
         argo_submit_cws_cspm cspm-workflow.yaml
         ;;

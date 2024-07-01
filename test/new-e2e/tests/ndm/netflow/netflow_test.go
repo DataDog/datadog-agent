@@ -69,8 +69,7 @@ func netflowDockerProvisioner() e2e.Provisioner {
 			return strings.ReplaceAll(datadogYaml, "FAKEINTAKE_URL", url)
 		}).(pulumi.StringOutput)
 
-		dontUseSudo := false
-		configCommand, err := filemanager.CopyInlineFile(datadogYamlContent, path.Join(configPath, "datadog.yaml"), dontUseSudo,
+		configCommand, err := filemanager.CopyInlineFile(datadogYamlContent, path.Join(configPath, "datadog.yaml"),
 			pulumi.DependsOn([]pulumi.Resource{createConfigDirCommand}))
 		if err != nil {
 			return err

@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -49,7 +50,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{stopCmd}
 }
 
-func stop(config config.Component, _ *cliParams) error {
+func stop(config config.Component, _ *cliParams, _ log.Component) error {
 	// Global Agent configuration
 	c := util.GetClient(false) // FIX: get certificates right then make this true
 

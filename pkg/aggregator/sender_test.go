@@ -371,6 +371,21 @@ func TestSenderPopulatingMetricSampleSource(t *testing.T) {
 			checkID:              "uptime:1",
 			expectedMetricSource: metrics.MetricSourceUptime,
 		},
+		{
+			name:                 "checkid http_check:1 should have MetricSourceHTTPCheck",
+			checkID:              "http_check:1",
+			expectedMetricSource: metrics.MetricSourceHTTPCheck,
+		},
+		{
+			name:                 "checkid postgres:1 should have MetricSourcePostgres",
+			checkID:              "postgres:1",
+			expectedMetricSource: metrics.MetricSourcePostgres,
+		},
+		{
+			name:                 "checkid tls:1 should have MetricSourceTLS",
+			checkID:              "tls:1",
+			expectedMetricSource: metrics.MetricSourceTLS,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

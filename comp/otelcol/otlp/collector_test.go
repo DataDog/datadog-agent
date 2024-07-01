@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -23,13 +24,17 @@ import (
 )
 
 func TestGetComponents(t *testing.T) {
-	_, err := getComponents(&serializer.MockSerializer{}, make(chan *message.Message))
+	fakeTagger := taggerimpl.SetupFakeTagger(t)
+	defer fakeTagger.ResetTagger()
+	_, err := getComponents(&serializer.MockSerializer{}, make(chan *message.Message), fakeTagger)
 	// No duplicate component
 	require.NoError(t, err)
 }
 
 func AssertSucessfulRun(t *testing.T, pcfg PipelineConfig) {
-	p, err := NewPipeline(pcfg, &serializer.MockSerializer{}, make(chan *message.Message))
+	fakeTagger := taggerimpl.SetupFakeTagger(t)
+	defer fakeTagger.ResetTagger()
+	p, err := NewPipeline(pcfg, &serializer.MockSerializer{}, make(chan *message.Message), fakeTagger)
 	require.NoError(t, err)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -54,7 +59,9 @@ func AssertSucessfulRun(t *testing.T, pcfg PipelineConfig) {
 }
 
 func AssertFailedRun(t *testing.T, pcfg PipelineConfig, expected string) {
-	p, err := NewPipeline(pcfg, &serializer.MockSerializer{}, make(chan *message.Message))
+	fakeTagger := taggerimpl.SetupFakeTagger(t)
+	defer fakeTagger.ResetTagger()
+	p, err := NewPipeline(pcfg, &serializer.MockSerializer{}, make(chan *message.Message), fakeTagger)
 	require.NoError(t, err)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -62,16 +69,16 @@ func AssertFailedRun(t *testing.T, pcfg PipelineConfig, expected string) {
 }
 
 func TestStartPipeline(t *testing.T) {
-	config.Datadog.SetWithoutSource("hostname", "otlp-testhostname")
-	defer config.Datadog.SetWithoutSource("hostname", "")
+	config.Datadog().SetWithoutSource("hostname", "otlp-testhostname")
+	defer config.Datadog().SetWithoutSource("hostname", "")
 
 	pcfg := getTestPipelineConfig()
 	AssertSucessfulRun(t, pcfg)
 }
 
 func TestStartPipelineFromConfig(t *testing.T) {
-	config.Datadog.SetWithoutSource("hostname", "otlp-testhostname")
-	defer config.Datadog.SetWithoutSource("hostname", "")
+	config.Datadog().SetWithoutSource("hostname", "otlp-testhostname")
+	defer config.Datadog().SetWithoutSource("hostname", "")
 
 	// TODO (AP-1723): Disable changing the gRPC logger before re-enabling.
 	if runtime.GOOS == "windows" {

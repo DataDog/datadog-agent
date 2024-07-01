@@ -65,7 +65,7 @@ func NewKubeServiceConfigProvider(*config.ConfigurationProviders) (ConfigProvide
 		return nil, fmt.Errorf("cannot add event handler to services informer: %s", err)
 	}
 
-	if config.Datadog.GetBool("cluster_checks.support_hybrid_ignore_ad_tags") {
+	if config.Datadog().GetBool("cluster_checks.support_hybrid_ignore_ad_tags") {
 		log.Warnf("The `cluster_checks.support_hybrid_ignore_ad_tags` flag is" +
 			" deprecated and will be removed in a future version. Please replace " +
 			"`ad.datadoghq.com/service.ignore_autodiscovery_tags` in your service annotations" +
@@ -90,7 +90,7 @@ func (k *KubeServiceConfigProvider) Collect(ctx context.Context) ([]integration.
 	}
 	k.upToDate = true
 
-	return k.parseServiceAnnotations(services, config.Datadog)
+	return k.parseServiceAnnotations(services, config.Datadog())
 }
 
 // IsUpToDate allows to cache configs as long as no changes are detected in the apiserver

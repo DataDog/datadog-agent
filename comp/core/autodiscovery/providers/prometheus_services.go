@@ -80,7 +80,7 @@ func NewPrometheusServicesConfigProvider(*config.ConfigurationProviders) (Config
 	var endpointsInformer infov1.EndpointsInformer
 	var endpointsLister listersv1.EndpointsLister
 
-	collectEndpoints := config.Datadog.GetBool("prometheus_scrape.service_endpoints")
+	collectEndpoints := config.Datadog().GetBool("prometheus_scrape.service_endpoints")
 	if collectEndpoints {
 		endpointsInformer = ac.InformerFactory.Core().V1().Endpoints()
 		if endpointsInformer == nil {

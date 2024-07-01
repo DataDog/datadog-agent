@@ -19,6 +19,7 @@ import (
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/suite"
 	"testing"
 )
 
@@ -39,6 +40,11 @@ func (s *testInstallSuite) TestInstall() {
 
 	// install the agent
 	remoteMSIPath := s.installAgentPackage(vm, s.AgentPackage)
+
+	// check system dir permissions are same after install
+	s.Run("install does not change system file permissions", func() {
+		AssertDoesNotChangePathPermissions(s.T(), vm, s.beforeInstallPerms)
+	})
 
 	// run tests
 	if !t.TestInstallExpectations(s.T()) {
@@ -152,6 +158,7 @@ func (s *testRepairSuite) TestRepair() {
 
 	// install the agent
 	_ = s.installAgentPackage(vm, s.AgentPackage)
+	RequireAgentVersionRunningWithNoErrors(s.T(), s.NewTestClientForHost(vm), s.AgentPackage.AgentVersion())
 
 	err := windowsCommon.StopService(t.host, "DatadogAgent")
 	s.Require().NoError(err)
@@ -224,6 +231,7 @@ func (s *testInstallOptsSuite) TestInstallOpts() {
 	}
 
 	_ = s.installAgentPackage(vm, s.AgentPackage, installOpts...)
+	RequireAgentVersionRunningWithNoErrors(s.T(), s.NewTestClientForHost(vm), s.AgentPackage.AgentVersion())
 
 	// read the config file and check the options
 	confYaml, err := s.readAgentConfig(vm)
@@ -300,6 +308,25 @@ type testInstallFailSuite struct {
 	baseAgentMSISuite
 }
 
+func (s *testInstallFailSuite) BeforeTest(suiteName, testName string) {
+	if beforeTest, ok := any(&s.baseAgentMSISuite).(suite.BeforeTest); ok {
+		beforeTest.BeforeTest(suiteName, testName)
+	}
+
+	host := s.Env().RemoteHost
+
+	// Create another dir in the parent dir of install path to simulate having another Datadog
+	// product installed, such as the APM Profiler, as the path already existing impacts how
+	// Windows Installer treats the path (see SystemPathsForPermissionsValidation())
+	basePath := `C:\Program Files\Datadog`
+	err := host.MkdirAll(filepath.Join(basePath, "NotARealProduct"))
+	s.Require().NoError(err)
+	// collect perms and add to map for later comparison
+	beforeInstall, err := SnapshotPermissionsForPaths(host, []string{basePath})
+	s.Require().NoError(err)
+	s.beforeInstallPerms[basePath] = beforeInstall[basePath]
+}
+
 // TC-INS-007
 //
 // Runs the installer with WIXFAILWHENDEFERRED=1 to trigger a failure at the very end of the installer.
@@ -322,4 +349,9 @@ func (s *testInstallFailSuite) TestInstallFail() {
 	// currently the install failure tests are the same as the uninstall tests
 	t := s.newTester(vm)
 	t.TestUninstallExpectations(s.T())
+
+	// check system dir permissions are same after rollback
+	s.Run("rollback does not change system file permissions", func() {
+		AssertDoesNotChangePathPermissions(s.T(), vm, s.beforeInstallPerms)
+	})
 }

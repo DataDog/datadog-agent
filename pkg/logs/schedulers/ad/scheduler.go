@@ -153,7 +153,7 @@ func (s *Scheduler) createSources(config integration.Config) ([]*sourcesPkg.LogS
 		// config attached to a container label or a pod annotation
 		configs, err = logsConfig.ParseJSON(config.LogsConfig)
 	case names.RemoteConfig:
-		if pkgconfig.Datadog.GetBool("remote_configuration.agent_integrations.allow_log_config_scheduling") {
+		if pkgconfig.Datadog().GetBool("remote_configuration.agent_integrations.allow_log_config_scheduling") {
 			// config supplied by remote config
 			configs, err = logsConfig.ParseJSON(config.LogsConfig)
 		} else {
@@ -210,6 +210,13 @@ func (s *Scheduler) createSources(config integration.Config) ([]*sourcesPkg.LogS
 		}
 
 		source := sourcesPkg.NewLogSource(configName, cfg)
+		if source.Config.IntegrationName == "" {
+			// If the log integration comes from a config file, we try to match it with the config name
+			// that is most likely the integration name.
+			// If it comes from a container environment, the name was computed based on the `check_names`
+			// labels attached to the same container.
+			source.Config.IntegrationName = configName
+		}
 		sources = append(sources, source)
 		if err := cfg.Validate(); err != nil {
 			log.Warnf("Invalid logs configuration: %v", err)

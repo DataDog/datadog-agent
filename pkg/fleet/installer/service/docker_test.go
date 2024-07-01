@@ -9,6 +9,7 @@
 package service
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -63,7 +64,7 @@ func TestSetDockerConfig(t *testing.T) {
     }
 }`,
 	} {
-		output, err := a.setDockerConfigContent([]byte(input))
+		output, err := a.setDockerConfigContent(context.TODO(), []byte(input))
 		assert.Nil(t, err)
 		assert.Equal(t, expected, string(output))
 	}
@@ -168,7 +169,7 @@ func TestRemoveDockerConfig(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			output, err := a.deleteDockerConfigContent([]byte(tc.input))
+			output, err := a.deleteDockerConfigContent(context.TODO(), []byte(tc.input))
 			assert.Nil(t, err)
 			assert.Equal(t, tc.expected, string(output))
 		})

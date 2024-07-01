@@ -373,11 +373,11 @@ func resolvePythonExecPath(pythonVersion string, ignoreErrors bool) (string, err
 
 //nolint:revive // TODO(AML) Fix revive linter
 func Initialize(paths ...string) error {
-	pythonVersion := config.Datadog.GetString("python_version")
-	allowPathHeuristicsFailure := config.Datadog.GetBool("allow_python_path_heuristics_failure")
+	pythonVersion := config.Datadog().GetString("python_version")
+	allowPathHeuristicsFailure := config.Datadog().GetBool("allow_python_path_heuristics_failure")
 
 	// Memory related RTLoader-global initialization
-	if config.Datadog.GetBool("memtrack_enabled") {
+	if config.Datadog().GetBool("memtrack_enabled") {
 		C.initMemoryTracker()
 	}
 
@@ -423,7 +423,7 @@ func Initialize(paths ...string) error {
 		return err
 	}
 
-	if config.Datadog.GetBool("telemetry.enabled") && config.Datadog.GetBool("telemetry.python_memory") {
+	if config.Datadog().GetBool("telemetry.enabled") && config.Datadog().GetBool("telemetry.python_memory") {
 		initPymemTelemetry()
 	}
 

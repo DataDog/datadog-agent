@@ -172,7 +172,7 @@ func (d *dispatcher) moveCheck(src, dest, checkID string) error {
 }
 
 func (d *dispatcher) rebalance(force bool) []types.RebalanceResponse {
-	if config.Datadog.GetBool("cluster_checks.rebalance_with_utilization") {
+	if config.Datadog().GetBool("cluster_checks.rebalance_with_utilization") {
 		return d.rebalanceUsingUtilization(force)
 	}
 
@@ -339,7 +339,7 @@ func (d *dispatcher) rebalanceUsingUtilization(force bool) []types.RebalanceResp
 	// checks.
 	currentUtilizationStdDev := currentChecksDistribution.utilizationStdDev()
 	proposedUtilizationStdDev := proposedDistribution.utilizationStdDev()
-	minPercImprovement := config.Datadog.GetInt("cluster_checks.rebalance_min_percentage_improvement")
+	minPercImprovement := config.Datadog().GetInt("cluster_checks.rebalance_min_percentage_improvement")
 
 	if force || rebalanceIsWorthIt(currentChecksDistribution, proposedDistribution, minPercImprovement) {
 

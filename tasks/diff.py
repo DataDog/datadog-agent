@@ -12,7 +12,7 @@ from tasks.build_tags import get_default_build_tags
 from tasks.flavor import AgentFlavor
 from tasks.go import GOARCH_MAPPING, GOOS_MAPPING
 from tasks.libs.common.color import color_message
-from tasks.libs.common.utils import check_uncommitted_changes
+from tasks.libs.common.git import check_uncommitted_changes, get_commit_sha, get_current_branch
 from tasks.release import _get_release_json_value
 
 BINARIES = {
@@ -77,10 +77,10 @@ def go_deps(ctx, baseline_ref=None, report_file=None):
             ),
             code=1,
         )
-    current_branch = ctx.run("git rev-parse --abbrev-ref HEAD", hide=True).stdout.strip()
+    current_branch = get_current_branch(ctx)
     commit_sha = os.getenv("CI_COMMIT_SHA")
     if commit_sha is None:
-        commit_sha = ctx.run("git rev-parse HEAD", hide=True).stdout.strip()
+        commit_sha = get_commit_sha(ctx)
 
     if not baseline_ref:
         base_branch = _get_release_json_value("base_branch")
@@ -99,7 +99,7 @@ def go_deps(ctx, baseline_ref=None, report_file=None):
 
                 for binary, details in BINARIES.items():
                     with ctx.cd(details.get("entrypoint")):
-                        for combo in details.get("platforms"):
+                        for combo in details["platforms"]:
                             platform, arch = combo.split("/")
                             goos, goarch = GOOS_MAPPING.get(platform), GOARCH_MAPPING.get(arch)
                             target = f"{binary}-{goos}-{goarch}"
@@ -108,14 +108,15 @@ def go_deps(ctx, baseline_ref=None, report_file=None):
                             flavor = details.get("flavor", AgentFlavor.base)
                             build = details.get("build", binary)
                             build_tags = get_default_build_tags(build=build, platform=platform, flavor=flavor)
-                            env = {"GOOS": goos, "GOARCH": goarch}
+                            # need to explicitly enable CGO to also include CGO-only deps when checking different platforms
+                            env = {"GOOS": goos, "GOARCH": goarch, "CGO_ENABLED": "1"}
                             ctx.run(f"{dep_cmd} -tags \"{' '.join(build_tags)}\" > {depsfile}", env=env)
         finally:
             ctx.run(f"git checkout -q {current_branch}")
 
         # compute diffs for each target
         for binary, details in BINARIES.items():
-            for combo in details.get("platforms"):
+            for combo in details["platforms"]:
                 platform, arch = combo.split("/")
                 goos, goarch = GOOS_MAPPING.get(platform), GOARCH_MAPPING.get(arch)
                 target = f"{binary}-{goos}-{goarch}"
@@ -136,7 +137,7 @@ def go_deps(ctx, baseline_ref=None, report_file=None):
                 "<table><thead><tr><th>binary</th><th>os</th><th>arch</th><th>change</th></tr></thead><tbody>",
             ]
             for binary, details in BINARIES.items():
-                for combo in details.get("platforms"):
+                for combo in details["platforms"]:
                     platform, arch = combo.split("/")
                     goos, goarch = GOOS_MAPPING.get(platform), GOARCH_MAPPING.get(arch)
                     target = f"{binary}-{goos}-{goarch}"

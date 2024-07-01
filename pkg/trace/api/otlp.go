@@ -7,7 +7,6 @@ package api
 
 import (
 	"context"
-	"encoding/binary"
 	"encoding/hex"
 	"fmt"
 	"math"
@@ -181,6 +180,11 @@ func (o *OTLPReceiver) sample(tid uint64) sampler.SamplingPriority {
 	return sampler.PriorityAutoDrop
 }
 
+// SetOTelAttributeTranslator sets the attribute translator to be used by this OTLPReceiver
+func (o *OTLPReceiver) SetOTelAttributeTranslator(attrstrans *attributes.Translator) {
+	o.conf.OTLPReceiver.AttributesTranslator = attrstrans
+}
+
 // ReceiveResourceSpans processes the given rspans and returns the source that it identified from processing them.
 func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.ResourceSpans, httpHeader http.Header) source.Source {
 	// each rspans is coming from a different resource and should be considered
@@ -232,7 +236,7 @@ func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.R
 		for i := 0; i < libspans.Spans().Len(); i++ {
 			spancount++
 			span := libspans.Spans().At(i)
-			traceID := traceIDToUint64(span.TraceID())
+			traceID := traceutil.OTelTraceIDToUint64(span.TraceID())
 			if tracesByID[traceID] == nil {
 				tracesByID[traceID] = pb.Trace{}
 			}
@@ -509,9 +513,9 @@ func setMetricOTLP(s *pb.Span, k string, v float64) {
 func (o *OTLPReceiver) convertSpan(rattr map[string]string, lib pcommon.InstrumentationScope, in ptrace.Span) *pb.Span {
 	traceID := [16]byte(in.TraceID())
 	span := &pb.Span{
-		TraceID:  traceIDToUint64(traceID),
-		SpanID:   spanIDToUint64(in.SpanID()),
-		ParentID: spanIDToUint64(in.ParentSpanID()),
+		TraceID:  traceutil.OTelTraceIDToUint64(traceID),
+		SpanID:   traceutil.OTelSpanIDToUint64(in.SpanID()),
+		ParentID: traceutil.OTelSpanIDToUint64(in.ParentSpanID()),
 		Start:    int64(in.StartTimestamp()),
 		Duration: int64(in.EndTimestamp()) - int64(in.StartTimestamp()),
 		Meta:     make(map[string]string, len(rattr)),
@@ -527,7 +531,7 @@ func (o *OTLPReceiver) convertSpan(rattr map[string]string, lib pcommon.Instrume
 	}
 
 	setMetaOTLP(span, "otel.trace_id", hex.EncodeToString(traceID[:]))
-	setMetaOTLP(span, "span.kind", spanKindName(spanKind))
+	setMetaOTLP(span, "span.kind", traceutil.OTelSpanKindName(spanKind))
 	if _, ok := span.Meta["version"]; !ok {
 		if ver := rattr[string(semconv.AttributeServiceVersion)]; ver != "" {
 			setMetaOTLP(span, "version", ver)
@@ -605,7 +609,7 @@ func (o *OTLPReceiver) convertSpan(rattr map[string]string, lib pcommon.Instrume
 	if span.Name == "" {
 		name := in.Name()
 		if !o.conf.OTLPReceiver.SpanNameAsResourceName {
-			name = spanKindName(in.Kind())
+			name = traceutil.OTelSpanKindName(in.Kind())
 			if lib.Name() != "" {
 				name = lib.Name() + "." + name
 			} else {
@@ -737,32 +741,6 @@ func spanKind2Type(kind ptrace.SpanKind, span *pb.Span) string {
 		typ = "custom"
 	}
 	return typ
-}
-
-func traceIDToUint64(b [16]byte) uint64 {
-	return binary.BigEndian.Uint64(b[len(b)-8:])
-}
-
-func spanIDToUint64(b [8]byte) uint64 {
-	return binary.BigEndian.Uint64(b[:])
-}
-
-var spanKindNames = map[int32]string{
-	0: "unspecified",
-	1: "internal",
-	2: "server",
-	3: "client",
-	4: "producer",
-	5: "consumer",
-}
-
-// spanKindName converts the given SpanKind to a valid Datadog span name.
-func spanKindName(k ptrace.SpanKind) string {
-	name, ok := spanKindNames[int32(k)]
-	if !ok {
-		return "unknown"
-	}
-	return name
 }
 
 // computeTopLevelAndMeasured updates the span's top-level and measured attributes.

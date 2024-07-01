@@ -98,7 +98,7 @@ def compute_binary_dependencies_list(
     flavor: AgentFlavor,
     platform: str,
     arch: str,
-):
+) -> list[str]:
     """
     Compute binary import list for the given build/flavor/platform/arch.
     """
@@ -116,7 +116,7 @@ def compute_binary_dependencies_list(
     )
     assert res
 
-    return res.stdout.strip()
+    return [dep for dep in res.stdout.strip().splitlines() if not dep.startswith("internal/")]
 
 
 @task
@@ -180,19 +180,19 @@ def test_list(
                 filename = os.path.join(ctx.cwd, f"dependencies_{goos}_{goarch}.txt")
                 if not os.path.isfile(filename):
                     print(
-                        f"File {filename} does not exist. To execute the dependencies list check for the {binary} binary, please run the task `inv -e go-deps.generate --binaries {binary}"
+                        f"File {filename} does not exist. To execute the dependencies list check for the {binary} binary, please run the task `inv -e go-deps.generate"
                     )
                     continue
 
                 deps_file = open(filename)
-                deps = deps_file.read()
+                deps = deps_file.read().strip().splitlines()
                 deps_file.close()
 
                 list = compute_binary_dependencies_list(ctx, build, flavor, platform, arch)
 
                 if list != deps:
-                    new_dependencies_lines = len(list.splitlines())
-                    recorded_dependencies_lines = len(deps.splitlines())
+                    new_dependencies_lines = len(list)
+                    recorded_dependencies_lines = len(deps)
 
                     mismatch_binaries.add(
                         MisMacthBinary(binary, goos, goarch, new_dependencies_lines - recorded_dependencies_lines)
@@ -252,5 +252,44 @@ def generate(
                 list = compute_binary_dependencies_list(ctx, build, flavor, platform, arch)
 
                 f = open(filename, "w")
-                f.write(list)
+                f.write('\n'.join(list))
                 f.close()
+
+
+def key_for_value(map: dict[str, str], value: str) -> str:
+    """Return the key from a value in a dictionary."""
+    for k, v in map.items():
+        if v == value:
+            return k
+    raise ValueError(f"Unknown value {value}")
+
+
+@task(
+    help={
+        'build': f'The agent build to use, one of {", ".join(BINARIES.keys())}',
+        'flavor': f'The agent flavor to use, one of {", ".join(AgentFlavor.__members__.keys())}. Defaults to base',
+        'os': f'The OS to use, one of {", ".join(GOOS_MAPPING.keys())}. Defaults to host platform',
+        'arch': f'The architecture to use, one of {", ".join(GOARCH_MAPPING.keys())}. Defaults to host architecture',
+    }
+)
+def show(ctx: Context, build: str, flavor: str = AgentFlavor.base.name, os: str | None = None, arch: str | None = None):
+    """
+    Print the Go dependency list for the given agent build/flavor/os/arch.
+    """
+
+    if os is None:
+        goos = ctx.run("go env GOOS", hide=True)
+        assert goos
+        os = key_for_value(GOOS_MAPPING, goos.stdout.strip())
+
+    if arch is None:
+        goarch = ctx.run("go env GOARCH", hide=True)
+        assert goarch
+        arch = key_for_value(GOARCH_MAPPING, goarch.stdout.strip())
+
+    entrypoint = BINARIES[build]["entrypoint"]
+    with ctx.cd(entrypoint):
+        deps = compute_binary_dependencies_list(ctx, build, AgentFlavor[flavor], os, arch)
+
+    for dep in deps:
+        print(dep)

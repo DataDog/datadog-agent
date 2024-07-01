@@ -9,15 +9,15 @@ replace (
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/config/model v0.54.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/util/log v0.54.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.54.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/config/model v0.55.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/log v0.55.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.55.0-rc.3
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575
 	github.com/stretchr/testify v1.9.0
 )
 
 require (
-	github.com/DataDog/viper v1.13.3 // indirect
+	github.com/DataDog/viper v1.13.5 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/fsnotify/fsnotify v1.7.0 // indirect
 	github.com/google/go-cmp v0.6.0 // indirect

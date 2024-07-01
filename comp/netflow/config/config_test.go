@@ -58,6 +58,7 @@ network_devices:
         namespace: |
           my-ns2<abc
           zz
+    reverse_dns_enrichment_enabled: true
 `,
 			expectedConfig: NetflowConfig{
 				Enabled:                                true,
@@ -86,6 +87,7 @@ network_devices:
 						Namespace: "my-ns2-abczz",
 					},
 				},
+				ReverseDNSEnrichmentEnabled: true,
 			},
 		},
 		{
@@ -115,6 +117,7 @@ network_devices:
 						Namespace: "default",
 					},
 				},
+				ReverseDNSEnrichmentEnabled: false,
 			},
 		},
 		{
@@ -145,6 +148,7 @@ network_devices:
 						Namespace: "default",
 					},
 				},
+				ReverseDNSEnrichmentEnabled: false,
 			},
 		},
 		{
@@ -209,16 +213,17 @@ network_devices:
 						},
 					},
 				},
+				ReverseDNSEnrichmentEnabled: false,
 			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			config.Datadog.SetConfigType("yaml")
-			err := config.Datadog.ReadConfig(strings.NewReader(tt.configYaml))
+			config.Datadog().SetConfigType("yaml")
+			err := config.Datadog().ReadConfig(strings.NewReader(tt.configYaml))
 			require.NoError(t, err)
 
-			readConfig, err := ReadConfig(config.Datadog, logger)
+			readConfig, err := ReadConfig(config.Datadog(), logger)
 			if tt.expectedError != "" {
 				assert.ErrorContains(t, err, tt.expectedError)
 				assert.Nil(t, readConfig)

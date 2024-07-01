@@ -5,7 +5,7 @@ setup_agent_version:
   tags: ["arch:amd64"]
   script:
     - source /root/.bashrc
-    - inv -e agent.version --version-cached
+    - inv -e agent.version --cache-version
     - $S3_CP_CMD $CI_PROJECT_DIR/agent-version.cache $S3_ARTIFACTS_URI/agent-version.cache
   needs: []
 

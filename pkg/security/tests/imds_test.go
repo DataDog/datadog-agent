@@ -28,7 +28,7 @@ func TestAWSIMDSv1Request(t *testing.T) {
 
 	checkKernelCompatibility(t, "RHEL, SLES and Oracle kernels", func(kv *kernel.Version) bool {
 		// TODO: Oracle because we are missing offsets
-		return kv.IsRH7Kernel() || kv.IsOracleUEKKernel() || kv.IsSLESKernel()
+		return kv.IsRH7Kernel() || kv.IsOracleUEKKernel() || kv.IsSLESKernel() || kv.IsOpenSUSELeapKernel()
 	})
 
 	if testEnvironment != DockerEnvironment && !config.IsContainerized() {
@@ -101,7 +101,7 @@ func TestAWSIMDSv1Response(t *testing.T) {
 
 	checkKernelCompatibility(t, "RHEL, SLES and Oracle kernels", func(kv *kernel.Version) bool {
 		// TODO: Oracle because we are missing offsets
-		return kv.IsRH7Kernel() || kv.IsOracleUEKKernel() || kv.IsSLESKernel()
+		return kv.IsRH7Kernel() || kv.IsOracleUEKKernel() || kv.IsSLESKernel() || kv.IsOpenSUSELeapKernel()
 	})
 
 	if testEnvironment != DockerEnvironment && !config.IsContainerized() {
@@ -182,7 +182,7 @@ func TestNoAWSIMDSv1Response(t *testing.T) {
 
 	checkKernelCompatibility(t, "RHEL, SLES and Oracle kernels", func(kv *kernel.Version) bool {
 		// TODO: Oracle because we are missing offsets
-		return kv.IsRH7Kernel() || kv.IsOracleUEKKernel() || kv.IsSLESKernel()
+		return kv.IsRH7Kernel() || kv.IsOracleUEKKernel() || kv.IsSLESKernel() || kv.IsOpenSUSELeapKernel()
 	})
 
 	if testEnvironment != DockerEnvironment && !config.IsContainerized() {
@@ -249,7 +249,7 @@ func TestAWSIMDSv2Request(t *testing.T) {
 
 	checkKernelCompatibility(t, "RHEL, SLES and Oracle kernels", func(kv *kernel.Version) bool {
 		// TODO: Oracle because we are missing offsets
-		return kv.IsRH7Kernel() || kv.IsOracleUEKKernel() || kv.IsSLESKernel()
+		return kv.IsRH7Kernel() || kv.IsOracleUEKKernel() || kv.IsSLESKernel() || kv.IsOpenSUSELeapKernel()
 	})
 
 	if testEnvironment != DockerEnvironment && !config.IsContainerized() {
@@ -332,7 +332,7 @@ func TestGCPIMDS(t *testing.T) {
 
 	checkKernelCompatibility(t, "RHEL, SLES and Oracle kernels", func(kv *kernel.Version) bool {
 		// TODO: Oracle because we are missing offsets
-		return kv.IsRH7Kernel() || kv.IsOracleUEKKernel() || kv.IsSLESKernel()
+		return kv.IsRH7Kernel() || kv.IsOracleUEKKernel() || kv.IsSLESKernel() || kv.IsOpenSUSELeapKernel()
 	})
 
 	if testEnvironment != DockerEnvironment && !config.IsContainerized() {
@@ -410,7 +410,7 @@ func TestAzureIMDS(t *testing.T) {
 
 	checkKernelCompatibility(t, "RHEL, SLES and Oracle kernels", func(kv *kernel.Version) bool {
 		// TODO: Oracle because we are missing offsets
-		return kv.IsRH7Kernel() || kv.IsOracleUEKKernel() || kv.IsSLESKernel()
+		return kv.IsRH7Kernel() || kv.IsOracleUEKKernel() || kv.IsSLESKernel() || kv.IsOpenSUSELeapKernel()
 	})
 
 	if testEnvironment != DockerEnvironment && !config.IsContainerized() {
@@ -488,7 +488,7 @@ func TestIBMIMDS(t *testing.T) {
 
 	checkKernelCompatibility(t, "RHEL, SLES and Oracle kernels", func(kv *kernel.Version) bool {
 		// TODO: Oracle because we are missing offsets
-		return kv.IsRH7Kernel() || kv.IsOracleUEKKernel() || kv.IsSLESKernel()
+		return kv.IsRH7Kernel() || kv.IsOracleUEKKernel() || kv.IsSLESKernel() || kv.IsOpenSUSELeapKernel()
 	})
 
 	if testEnvironment != DockerEnvironment && !config.IsContainerized() {
@@ -566,7 +566,7 @@ func TestOracleIMDS(t *testing.T) {
 
 	checkKernelCompatibility(t, "RHEL, SLES and Oracle kernels", func(kv *kernel.Version) bool {
 		// TODO: Oracle because we are missing offsets
-		return kv.IsRH7Kernel() || kv.IsOracleUEKKernel() || kv.IsSLESKernel()
+		return kv.IsRH7Kernel() || kv.IsOracleUEKKernel() || kv.IsSLESKernel() || kv.IsOpenSUSELeapKernel()
 	})
 
 	if testEnvironment != DockerEnvironment && !config.IsContainerized() {
@@ -644,7 +644,7 @@ func TestIMDSProcessContext(t *testing.T) {
 
 	checkKernelCompatibility(t, "RHEL, SLES and Oracle kernels", func(kv *kernel.Version) bool {
 		// TODO: Oracle because we are missing offsets
-		return kv.IsRH7Kernel() || kv.IsOracleUEKKernel() || kv.IsSLESKernel()
+		return kv.IsRH7Kernel() || kv.IsOracleUEKKernel() || kv.IsSLESKernel() || kv.IsOpenSUSELeapKernel()
 	})
 
 	if testEnvironment != DockerEnvironment && !config.IsContainerized() {

@@ -176,7 +176,7 @@ func (o *OrchestratorCheck) Run() error {
 	// we also do a safety check for dedicated runners to avoid trying the leader election
 	if !o.isCLCRunner || !o.instance.LeaderSkip {
 		// Only run if Leader Election is enabled.
-		if !config.Datadog.GetBool("leader_election") {
+		if !config.Datadog().GetBool("leader_election") {
 			return log.Errorc("Leader Election not enabled. The cluster-agent will not run the check.", orchestrator.ExtraLogContext...)
 		}
 

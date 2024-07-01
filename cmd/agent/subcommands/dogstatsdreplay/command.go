@@ -111,9 +111,9 @@ func dogstatsdReplay(log log.Component, config config.Component, cliParams *cliP
 		InsecureSkipVerify: true,
 	})
 
-	apiconn, err := grpc.DialContext(
+	apiconn, err := grpc.DialContext( //nolint:staticcheck // TODO (ASC) fix grpc.DialContext is deprecated
 		ctx,
-		fmt.Sprintf(":%v", pkgconfig.Datadog.GetInt("cmd_port")),
+		fmt.Sprintf(":%v", pkgconfig.Datadog().GetInt("cmd_port")),
 		grpc.WithTransportCredentials(creds),
 	)
 	if err != nil {
@@ -133,7 +133,7 @@ func dogstatsdReplay(log log.Component, config config.Component, cliParams *cliP
 		return err
 	}
 
-	s := pkgconfig.Datadog.GetString("dogstatsd_socket")
+	s := pkgconfig.Datadog().GetString("dogstatsd_socket")
 	if s == "" {
 		return fmt.Errorf("Dogstatsd UNIX socket disabled")
 	}
@@ -150,7 +150,7 @@ func dogstatsdReplay(log log.Component, config config.Component, cliParams *cliP
 	defer syscall.Close(sk)
 
 	err = syscall.SetsockoptInt(sk, syscall.SOL_SOCKET, syscall.SO_SNDBUF,
-		pkgconfig.Datadog.GetInt("dogstatsd_buffer_size"))
+		pkgconfig.Datadog().GetInt("dogstatsd_buffer_size"))
 	if err != nil {
 		return err
 	}

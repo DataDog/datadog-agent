@@ -25,7 +25,7 @@ type testTypeOutput struct {
 type testTypeWrapper struct {
 	testTypeOutput
 
-	unrelatedField string //nolint:unused, mimic actual struct to validate reflection code
+	unrelatedField string //nolint:unused // mimic actual struct to validate reflection code
 }
 
 var _ Initializable = &testTypeWrapper{}

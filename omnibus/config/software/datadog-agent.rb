@@ -34,7 +34,6 @@ build do
 
   # set GOPATH on the omnibus source dir for this software
   gopath = Pathname.new(project_dir) + '../../../..'
-  etc_dir = "/etc/datadog-agent"
   if windows_target?
     env = {
         'GOPATH' => gopath.to_path,
@@ -191,90 +190,6 @@ build do
       command "inv agent.generate-config --build-type apm-injection --output-file ./bin/agent/dist/apm-inject.yaml", :env => env
       move 'bin/agent/dist/apm-inject.yaml', "#{conf_dir}/apm-inject.yaml.example"
     end
-  end
-  if linux_target?
-    if debian_target?
-      erb source: "upstart_debian.conf.erb",
-          dest: "#{install_dir}/scripts/datadog-agent.conf",
-          mode: 0644,
-          vars: { install_dir: install_dir, etc_dir: etc_dir }
-      erb source: "upstart_debian.process.conf.erb",
-          dest: "#{install_dir}/scripts/datadog-agent-process.conf",
-          mode: 0644,
-          vars: { install_dir: install_dir, etc_dir: etc_dir }
-      erb source: "upstart_debian.sysprobe.conf.erb",
-          dest: "#{install_dir}/scripts/datadog-agent-sysprobe.conf",
-          mode: 0644,
-          vars: { install_dir: install_dir, etc_dir: etc_dir }
-      erb source: "upstart_debian.trace.conf.erb",
-          dest: "#{install_dir}/scripts/datadog-agent-trace.conf",
-          mode: 0644,
-          vars: { install_dir: install_dir, etc_dir: etc_dir }
-      erb source: "upstart_debian.security.conf.erb",
-          dest: "#{install_dir}/scripts/datadog-agent-security.conf",
-          mode: 0644,
-          vars: { install_dir: install_dir, etc_dir: etc_dir }
-      erb source: "sysvinit_debian.erb",
-          dest: "#{install_dir}/scripts/datadog-agent",
-          mode: 0755,
-          vars: { install_dir: install_dir, etc_dir: etc_dir }
-      erb source: "sysvinit_debian.process.erb",
-          dest: "#{install_dir}/scripts/datadog-agent-process",
-          mode: 0755,
-          vars: { install_dir: install_dir, etc_dir: etc_dir }
-      erb source: "sysvinit_debian.trace.erb",
-          dest: "#{install_dir}/scripts/datadog-agent-trace",
-          mode: 0755,
-          vars: { install_dir: install_dir, etc_dir: etc_dir }
-      erb source: "sysvinit_debian.security.erb",
-          dest: "#{install_dir}/scripts/datadog-agent-security",
-          mode: 0755,
-          vars: { install_dir: install_dir, etc_dir: etc_dir }
-    elsif redhat_target? || suse_target?
-      # Ship a different upstart job definition on RHEL to accommodate the old
-      # version of upstart (0.6.5) that RHEL 6 provides.
-      erb source: "upstart_redhat.conf.erb",
-          dest: "#{install_dir}/scripts/datadog-agent.conf",
-          mode: 0644,
-          vars: { install_dir: install_dir, etc_dir: etc_dir }
-      erb source: "upstart_redhat.process.conf.erb",
-          dest: "#{install_dir}/scripts/datadog-agent-process.conf",
-          mode: 0644,
-          vars: { install_dir: install_dir, etc_dir: etc_dir }
-      erb source: "upstart_redhat.sysprobe.conf.erb",
-          dest: "#{install_dir}/scripts/datadog-agent-sysprobe.conf",
-          mode: 0644,
-          vars: { install_dir: install_dir, etc_dir: etc_dir }
-      erb source: "upstart_redhat.trace.conf.erb",
-          dest: "#{install_dir}/scripts/datadog-agent-trace.conf",
-          mode: 0644,
-          vars: { install_dir: install_dir, etc_dir: etc_dir }
-      erb source: "upstart_redhat.security.conf.erb",
-          dest: "#{install_dir}/scripts/datadog-agent-security.conf",
-          mode: 0644,
-          vars: { install_dir: install_dir, etc_dir: etc_dir }
-    end
-
-    erb source: "systemd.service.erb",
-        dest: "#{install_dir}/scripts/datadog-agent.service",
-        mode: 0644,
-        vars: { install_dir: install_dir, etc_dir: etc_dir }
-    erb source: "systemd.process.service.erb",
-        dest: "#{install_dir}/scripts/datadog-agent-process.service",
-        mode: 0644,
-        vars: { install_dir: install_dir, etc_dir: etc_dir }
-    erb source: "systemd.sysprobe.service.erb",
-        dest: "#{install_dir}/scripts/datadog-agent-sysprobe.service",
-        mode: 0644,
-        vars: { install_dir: install_dir, etc_dir: etc_dir }
-    erb source: "systemd.trace.service.erb",
-        dest: "#{install_dir}/scripts/datadog-agent-trace.service",
-        mode: 0644,
-        vars: { install_dir: install_dir, etc_dir: etc_dir }
-    erb source: "systemd.security.service.erb",
-        dest: "#{install_dir}/scripts/datadog-agent-security.service",
-        mode: 0644,
-        vars: { install_dir: install_dir, etc_dir: etc_dir }
   end
 
   if osx_target?

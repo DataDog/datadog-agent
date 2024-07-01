@@ -60,8 +60,8 @@ int hook_vfs_rename(ctx_t *ctx) {
     } else {
         struct renamedata *rename_data = (struct renamedata *)CTX_PARM1(ctx);
 
-        bpf_probe_read(&src_dentry, sizeof(src_dentry), (void *) rename_data + get_vfs_rename_src_dentry_offset());
-        bpf_probe_read(&target_dentry, sizeof(target_dentry), (void *) rename_data + get_vfs_rename_target_dentry_offset());
+        bpf_probe_read(&src_dentry, sizeof(src_dentry), (void *)rename_data + get_vfs_rename_src_dentry_offset());
+        bpf_probe_read(&target_dentry, sizeof(target_dentry), (void *)rename_data + get_vfs_rename_target_dentry_offset());
     }
 
     syscall->rename.src_dentry = src_dentry;
@@ -78,7 +78,7 @@ int hook_vfs_rename(ctx_t *ctx) {
     set_file_inode(src_dentry, &syscall->rename.target_file, 1);
 
     // we generate a fake source key as the inode is (can be ?) reused
-    syscall->rename.src_file.path_key.ino = FAKE_INODE_MSW<<32 | bpf_get_prandom_u32();
+    syscall->rename.src_file.path_key.ino = FAKE_INODE_MSW << 32 | bpf_get_prandom_u32();
 
     // if destination already exists invalidate
     u64 inode = get_dentry_ino(target_dentry);

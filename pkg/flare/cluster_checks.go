@@ -23,13 +23,13 @@ import (
 
 // GetClusterChecks dumps the clustercheck dispatching state to the writer
 func GetClusterChecks(w io.Writer, checkName string) error {
-	urlstr := fmt.Sprintf("https://localhost:%v/api/v1/clusterchecks", config.Datadog.GetInt("cluster_agent.cmd_port"))
+	urlstr := fmt.Sprintf("https://localhost:%v/api/v1/clusterchecks", config.Datadog().GetInt("cluster_agent.cmd_port"))
 
 	if w != color.Output {
 		color.NoColor = true
 	}
 
-	if !config.Datadog.GetBool("cluster_checks.enabled") {
+	if !config.Datadog().GetBool("cluster_checks.enabled") {
 		fmt.Fprintln(w, "Cluster-checks are not enabled")
 		return nil
 	}
@@ -37,7 +37,7 @@ func GetClusterChecks(w io.Writer, checkName string) error {
 	c := util.GetClient(false) // FIX: get certificates right then make this true
 
 	// Set session token
-	err := util.SetAuthToken(config.Datadog)
+	err := util.SetAuthToken(config.Datadog())
 	if err != nil {
 		return err
 	}
@@ -115,7 +115,7 @@ func GetEndpointsChecks(w io.Writer, checkName string) error {
 		return nil
 	}
 
-	urlstr := fmt.Sprintf("https://localhost:%v/api/v1/endpointschecks/configs", config.Datadog.GetInt("cluster_agent.cmd_port"))
+	urlstr := fmt.Sprintf("https://localhost:%v/api/v1/endpointschecks/configs", config.Datadog().GetInt("cluster_agent.cmd_port"))
 
 	if w != color.Output {
 		color.NoColor = true
@@ -124,7 +124,7 @@ func GetEndpointsChecks(w io.Writer, checkName string) error {
 	c := util.GetClient(false) // FIX: get certificates right then make this true
 
 	// Set session token
-	if err := util.SetAuthToken(config.Datadog); err != nil {
+	if err := util.SetAuthToken(config.Datadog()); err != nil {
 		return err
 	}
 
@@ -154,7 +154,7 @@ func GetEndpointsChecks(w io.Writer, checkName string) error {
 }
 
 func endpointschecksEnabled() bool {
-	for _, provider := range config.Datadog.GetStringSlice("extra_config_providers") {
+	for _, provider := range config.Datadog().GetStringSlice("extra_config_providers") {
 		if provider == names.KubeEndpointsRegisterName {
 			return true
 		}

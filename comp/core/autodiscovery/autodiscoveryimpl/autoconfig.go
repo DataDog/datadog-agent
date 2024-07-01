@@ -21,8 +21,7 @@ import (
 
 	"github.com/fatih/color"
 
-	"github.com/DataDog/datadog-agent/comp/api/api"
-	"github.com/DataDog/datadog-agent/comp/api/api/utils"
+	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
@@ -37,12 +36,13 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
@@ -70,7 +70,7 @@ type AutoConfig struct {
 	listeners                []listeners.ServiceListener
 	listenerCandidates       map[string]*listenerCandidate
 	listenerRetryStop        chan struct{}
-	scheduler                *scheduler.MetaScheduler
+	schedulerController      *scheduler.Controller
 	listenerStop             chan struct{}
 	healthListening          *health.Handle
 	newService               chan listeners.Service
@@ -81,6 +81,7 @@ type AutoConfig struct {
 	providerCatalog          map[string]providers.ConfigProviderFactory
 	started                  bool
 	wmeta                    optional.Option[workloadmeta.Component]
+	taggerComp               tagger.Component
 
 	// m covers the `configPollers`, `listenerCandidates`, `listeners`, and `listenerRetryStop`, but
 	// not the values they point to.
@@ -133,7 +134,7 @@ func (l *listenerCandidate) try() (listeners.ServiceListener, error) {
 
 // newAutoConfig creates an AutoConfig instance and starts it.
 func newAutoConfig(deps dependencies) autodiscovery.Component {
-	ac := createNewAutoConfig(scheduler.NewMetaScheduler(), deps.Secrets, deps.WMeta)
+	ac := createNewAutoConfig(scheduler.NewController(), deps.Secrets, deps.WMeta, deps.TaggerComp)
 	deps.Lc.Append(fx.Hook{
 		OnStart: func(c context.Context) error {
 			ac.Start()
@@ -148,7 +149,7 @@ func newAutoConfig(deps dependencies) autodiscovery.Component {
 }
 
 // createNewAutoConfig creates an AutoConfig instance (without starting).
-func createNewAutoConfig(scheduler *scheduler.MetaScheduler, secretResolver secrets.Component, wmeta optional.Option[workloadmeta.Component]) *AutoConfig {
+func createNewAutoConfig(schedulerController *scheduler.Controller, secretResolver secrets.Component, wmeta optional.Option[workloadmeta.Component], taggerComp tagger.Component) *AutoConfig {
 	cfgMgr := newReconcilingConfigManager(secretResolver)
 	ac := &AutoConfig{
 		configPollers:            make([]*configPoller, 0, 9),
@@ -160,12 +161,13 @@ func createNewAutoConfig(scheduler *scheduler.MetaScheduler, secretResolver secr
 		delService:               make(chan listeners.Service),
 		store:                    newStore(),
 		cfgMgr:                   cfgMgr,
-		scheduler:                scheduler,
+		schedulerController:      schedulerController,
 		ranOnce:                  atomic.NewBool(false),
 		serviceListenerFactories: make(map[string]listeners.ServiceListenerFactory),
 		providerCatalog:          make(map[string]providers.ConfigProviderFactory),
 		started:                  false,
 		wmeta:                    wmeta,
+		taggerComp:               taggerComp,
 	}
 	return ac
 }
@@ -175,9 +177,6 @@ func createNewAutoConfig(scheduler *scheduler.MetaScheduler, secretResolver secr
 // checks the tags on existing services are up to date.
 func (ac *AutoConfig) serviceListening() {
 	ctx, cancel := context.WithCancel(context.Background())
-
-	tagFreshnessTicker := time.NewTicker(15 * time.Second) // we can miss tags for one run
-	defer tagFreshnessTicker.Stop()
 
 	for {
 		select {
@@ -192,38 +191,14 @@ func (ac *AutoConfig) serviceListening() {
 			ac.processNewService(ctx, svc)
 		case svc := <-ac.delService:
 			ac.processDelService(ctx, svc)
-		case <-tagFreshnessTicker.C:
-			ac.checkTagFreshness(ctx)
 		}
-	}
-}
-
-func (ac *AutoConfig) checkTagFreshness(ctx context.Context) {
-	// check if services tags are up to date
-	var servicesToRefresh []listeners.Service
-	for _, service := range ac.store.getServices() {
-		previousHash := ac.store.getTagsHashForService(service.GetTaggerEntity())
-		// TODO(components) (tagger): GetEntityHash is still called via global taggerClient instance instead of tagger.Component
-		// because GetEntityHash is not part of the tagger.Component interface yet.
-		currentHash := tagger.GetEntityHash(service.GetTaggerEntity(), tagger.ChecksCardinality)
-		// Since an empty hash is a valid value, and we are not able to differentiate
-		// an empty tagger or store with an empty value.
-		// So we only look at the difference between current and previous
-		if currentHash != previousHash {
-			ac.store.setTagsHashForService(service.GetTaggerEntity(), currentHash)
-			servicesToRefresh = append(servicesToRefresh, service)
-		}
-	}
-	for _, service := range servicesToRefresh {
-		log.Debugf("Tags changed for service %s, rescheduling associated checks if any", service.GetTaggerEntity())
-		ac.processDelService(ctx, service)
-		ac.processNewService(ctx, service)
 	}
 }
 
 func (ac *AutoConfig) writeConfigCheck(w http.ResponseWriter, r *http.Request) {
 	verbose := r.URL.Query().Get("verbose") == "true"
-	bytes := ac.GetConfigCheck(verbose)
+	noColor := r.URL.Query().Get("nocolor") == "true"
+	bytes := ac.GetConfigCheck(verbose, noColor)
 
 	w.Write(bytes)
 }
@@ -242,7 +217,7 @@ func (ac *AutoConfig) writeConfigCheckRaw(w http.ResponseWriter, _ *http.Request
 
 	jsonConfig, err := json.Marshal(response)
 	if err != nil {
-		utils.SetJSONError(w, err, 500)
+		httputils.SetJSONError(w, err, 500)
 		return
 	}
 
@@ -252,14 +227,14 @@ func (ac *AutoConfig) writeConfigCheckRaw(w http.ResponseWriter, _ *http.Request
 // fillFlare add the config-checks log to flares.
 func (ac *AutoConfig) fillFlare(fb flaretypes.FlareBuilder) error {
 	fb.AddFileFromFunc("config-check.log", func() ([]byte, error) { //nolint:errcheck
-		bytes := ac.GetConfigCheck(true)
+		bytes := ac.GetConfigCheck(true, true)
 		return bytes, nil
 	})
 	return nil
 }
 
 // GetConfigCheck returns scrubbed information from all configuration providers
-func (ac *AutoConfig) GetConfigCheck(verbose bool) []byte {
+func (ac *AutoConfig) GetConfigCheck(verbose bool, noColor bool) []byte {
 	writer := new(bytes.Buffer)
 
 	configSlice := ac.LoadedConfigs()
@@ -270,6 +245,12 @@ func (ac *AutoConfig) GetConfigCheck(verbose bool) []byte {
 	resolveWarnings := GetResolveWarnings()
 	configErrors := GetConfigErrors()
 	unresolved := ac.GetUnresolvedTemplates()
+
+	originalNoColor := color.NoColor
+	color.NoColor = noColor
+	defer func() {
+		color.NoColor = originalNoColor
+	}()
 
 	if len(configErrors) > 0 {
 		fmt.Fprintf(writer, "=== Configuration %s ===\n", color.RedString("errors"))
@@ -337,7 +318,7 @@ func (ac *AutoConfig) Stop() {
 	ac.listenerStop <- struct{}{}
 
 	// stop the meta scheduler
-	ac.scheduler.Stop()
+	ac.schedulerController.Stop()
 
 	ac.m.RLock()
 	defer ac.m.RUnlock()
@@ -535,12 +516,12 @@ func (ac *AutoConfig) retryListenerCandidates() {
 // unscheduled can be replayed with the replayConfigs flag.  This replay occurs
 // immediately, before the AddScheduler call returns.
 func (ac *AutoConfig) AddScheduler(name string, s scheduler.Scheduler, replayConfigs bool) {
-	ac.scheduler.Register(name, s, replayConfigs)
+	ac.schedulerController.Register(name, s, replayConfigs)
 }
 
 // RemoveScheduler allows to remove a scheduler from the AD system.
 func (ac *AutoConfig) RemoveScheduler(name string) {
-	ac.scheduler.Deregister(name)
+	ac.schedulerController.Deregister(name)
 }
 
 func (ac *AutoConfig) processRemovedConfigs(configs []integration.Config) {
@@ -601,13 +582,6 @@ func (ac *AutoConfig) GetProviderCatalog() map[string]providers.ConfigProviderFa
 // processNewService takes a service, tries to match it against templates and
 // triggers scheduling events if it finds a valid config for it.
 func (ac *AutoConfig) processNewService(ctx context.Context, svc listeners.Service) {
-	// in any case, register the service and store its tag hash
-	ac.store.setServiceForEntity(svc, svc.GetServiceID())
-	ac.store.setTagsHashForService(
-		svc.GetTaggerEntity(),
-		tagger.GetEntityHash(svc.GetTaggerEntity(), tagger.ChecksCardinality),
-	)
-
 	// get all the templates matching service identifiers
 	ADIdentifiers, err := svc.GetADIdentifiers(ctx)
 	if err != nil {
@@ -621,9 +595,7 @@ func (ac *AutoConfig) processNewService(ctx context.Context, svc listeners.Servi
 
 // processDelService takes a service, stops its associated checks, and updates the cache
 func (ac *AutoConfig) processDelService(ctx context.Context, svc listeners.Service) {
-	ac.store.removeServiceForEntity(svc.GetServiceID())
 	changes := ac.cfgMgr.processDelService(ctx, svc)
-	ac.store.removeTagsHashForService(svc.GetTaggerEntity())
 	ac.applyChanges(changes)
 }
 
@@ -646,19 +618,18 @@ func (ac *AutoConfig) GetAutodiscoveryErrors() map[string]map[string]providers.E
 func (ac *AutoConfig) applyChanges(changes integration.ConfigChanges) {
 	if len(changes.Unschedule) > 0 {
 		for _, conf := range changes.Unschedule {
+			log.Tracef("Unscheduling %s\n", conf.Dump(false))
 			telemetry.ScheduledConfigs.Dec(conf.Provider, configType(conf))
 		}
-
-		ac.scheduler.Unschedule(changes.Unschedule)
 	}
 
 	if len(changes.Schedule) > 0 {
 		for _, conf := range changes.Schedule {
+			log.Tracef("Scheduling %s\n", conf.Dump(false))
 			telemetry.ScheduledConfigs.Inc(conf.Provider, configType(conf))
 		}
-
-		ac.scheduler.Schedule(changes.Schedule)
 	}
+	ac.schedulerController.ApplyChanges(changes)
 }
 
 func (ac *AutoConfig) deleteMappingsOfCheckIDsWithSecrets(configs []integration.Config) {
@@ -721,10 +692,10 @@ func OptionalModule() fxutil.Module {
 
 // newOptionalAutoConfig creates an optional AutoConfig instance if tagger is available
 func newOptionalAutoConfig(deps optionalModuleDeps) optional.Option[autodiscovery.Component] {
-	_, ok := deps.TaggerComp.Get()
+	taggerComp, ok := deps.TaggerComp.Get()
 	if !ok {
 		return optional.NewNoneOption[autodiscovery.Component]()
 	}
 	return optional.NewOption[autodiscovery.Component](
-		createNewAutoConfig(scheduler.NewMetaScheduler(), deps.Secrets, deps.WMeta))
+		createNewAutoConfig(scheduler.NewController(), deps.Secrets, deps.WMeta, taggerComp))
 }

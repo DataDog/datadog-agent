@@ -13,7 +13,7 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -106,7 +106,7 @@ func Factory(store workloadmeta.Component) optional.Option[func() check.Check] {
 
 // Configure parses the check configuration and initializes the container_image check
 func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, initConfig integration.Data, source string) error {
-	if !ddConfig.Datadog.GetBool("container_image.enabled") {
+	if !ddConfig.Datadog().GetBool("container_image.enabled") {
 		return errors.New("collection of container images is disabled")
 	}
 
@@ -133,15 +133,15 @@ func (c *Check) Run() error {
 	log.Infof("Starting long-running check %q", c.ID())
 	defer log.Infof("Shutting down long-running check %q", c.ID())
 
-	filterParams := workloadmeta.FilterParams{
-		Kinds:     []workloadmeta.Kind{workloadmeta.KindContainerImageMetadata},
-		Source:    workloadmeta.SourceAll,
-		EventType: workloadmeta.EventTypeSet, // We don’t care about images removal because we just have to wait for them to expire on BE side once we stopped refreshing them periodically.
-	}
+	filter := workloadmeta.NewFilterBuilder().
+		SetEventType(workloadmeta.EventTypeSet). // We don’t care about images removal because we just have to wait for them to expire on BE side once we stopped refreshing them periodically.
+		AddKind(workloadmeta.KindContainerImageMetadata).
+		Build()
+
 	imgEventsCh := c.workloadmetaStore.Subscribe(
 		CheckName,
 		workloadmeta.NormalPriority,
-		workloadmeta.NewFilter(&filterParams),
+		filter,
 	)
 
 	imgRefreshTicker := time.NewTicker(time.Duration(c.instance.PeriodicRefreshSeconds) * time.Second)

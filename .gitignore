@@ -35,7 +35,11 @@ Dockerfiles/cluster-agent/nosys-seccomp
 !.python-version
 
 # specific pre-commit hooks
-.pre-commit-config-devagent.yaml
+.pre-commit-config-*.yaml
+
+# Utility tools
+devagent
+deva
 
 # go-generated files
 datadog.yaml
@@ -182,6 +186,9 @@ pkg/network/netlink/testdata/message_dump*
 # Emacs
 *~
 .dir-locals.el
+
+# Vim
+.vimrc
 
 # etags
 /TAGS

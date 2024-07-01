@@ -22,7 +22,7 @@ import (
 
 // SetupConfigForTest fires up the configuration system and returns warnings if any.
 func SetupConfigForTest(confFilePath string) (*config.Warnings, error) {
-	cfg := config.Datadog
+	cfg := config.Datadog()
 	origin := "datadog.yaml"
 	// set the paths where a config file is expected
 	if len(confFilePath) != 0 {
