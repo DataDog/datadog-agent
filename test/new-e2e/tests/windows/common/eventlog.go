@@ -72,7 +72,7 @@ func GetEventLogErrorsAndWarnings(host *components.RemoteHost, logName string) (
 }
 
 // runs provided command and ignores "No events were found that match the specified selection criteria" error.
-// command must invlude `-ErrorAction Stop` to ensure that the error is raised.
+// command must include `-ErrorAction Stop` to ensure that the error is raised.
 func runCommandAndIgnoreNoEventsError(host *components.RemoteHost, cmd string) (string, error) {
 	// ignore powershell exception if no events are found
 	cmd = fmt.Sprintf(`

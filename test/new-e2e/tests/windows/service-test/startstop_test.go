@@ -51,9 +51,7 @@ type agentServiceCommandSuite struct {
 }
 
 func (s *agentServiceCommandSuite) SetupSuite() {
-	if setupSuite, ok := any(&s.baseStartStopSuite).(suite.SetupAllSuite); ok {
-		setupSuite.SetupSuite()
-	}
+	s.baseStartStopSuite.SetupSuite()
 
 	installPath, err := windowsAgent.GetInstallPathFromRegistry(s.Env().RemoteHost)
 	s.Require().NoError(err, "should get install path from registry")
@@ -89,9 +87,7 @@ type powerShellServiceCommandSuite struct {
 }
 
 func (s *powerShellServiceCommandSuite) SetupSuite() {
-	if setupSuite, ok := any(&s.baseStartStopSuite).(suite.SetupAllSuite); ok {
-		setupSuite.SetupSuite()
-	}
+	s.baseStartStopSuite.SetupSuite()
 
 	s.startAgentCommand = func(host *components.RemoteHost) error {
 		cmd := `Start-Service -Name datadogagent`
@@ -288,9 +284,7 @@ func (s *baseStartStopSuite) TestAgentStopsAllServices() {
 }
 
 func (s *baseStartStopSuite) SetupSuite() {
-	if setupSuite, ok := any(&s.BaseSuite).(suite.SetupAllSuite); ok {
-		setupSuite.SetupSuite()
-	}
+	s.BaseSuite.SetupSuite()
 
 	// Disable failure actions (auto restart service) so they don't interfere with the tests
 	host := s.Env().RemoteHost
@@ -331,9 +325,7 @@ func (s *baseStartStopSuite) BeforeTest(suiteName, testName string) {
 }
 
 func (s *baseStartStopSuite) AfterTest(suiteName, testName string) {
-	if afterTest, ok := any(&s.BaseSuite).(suite.AfterTest); ok {
-		afterTest.AfterTest(suiteName, testName)
-	}
+	s.BaseSuite.AfterTest(suiteName, testName)
 
 	if s.T().Failed() {
 		// If the test failed, export the event logs for debugging
