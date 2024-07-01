@@ -8,13 +8,17 @@ package installtest
 import (
 	"fmt"
 	"path/filepath"
+	"slices"
+	"strings"
 
 	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 	servicetest "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/install-test/service-test"
 
-	"github.com/stretchr/testify/require"
 	"testing"
+
+	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/suite"
 )
 
 // TestUpgrade tests upgrading the agent from LAST_STABLE_VERSION to WINDOWS_AGENT_VERSION
@@ -102,6 +106,86 @@ func (s *testUpgradeRollbackSuite) TestUpgradeRollback() {
 
 	// the previous version should be functional
 	RequireAgentVersionRunningWithNoErrors(s.T(), s.NewTestClientForHost(vm), previousAgentPackage.AgentVersion())
+
+	// Ensure services are still installed
+	// NOTE: will need to update this if we add or remove services
+	_, err = windowsCommon.GetServiceConfigMap(vm, servicetest.ExpectedInstalledServices())
+	s.Assert().NoError(err, "services should still be installed")
+
+	s.uninstallAgent()
+}
+
+// TestUpgradeRollbackWithoutCWS tests that when upgrading the agent from X.51 to WINDOWS_AGENT_VERSION
+// rolls back, that the ddprocmon service is not installed.
+func TestUpgradeRollbackWithoutCWS(t *testing.T) {
+	s := &testUpgradeRollbackWithoutCWSSuite{}
+	run(t, s)
+}
+
+type testUpgradeRollbackWithoutCWSSuite struct {
+	baseAgentMSISuite
+	previousAgentPackage *windowsAgent.Package
+}
+
+func (s *testUpgradeRollbackWithoutCWSSuite) SetupSuite() {
+	if setupSuite, ok := any(&s.baseAgentMSISuite).(suite.SetupAllSuite); ok {
+		setupSuite.SetupSuite()
+	}
+
+	// CWS was GA in X.52, so start by installing X.51
+	// match X to the major version from WINDOWS_AGENT_VERSION
+	var err error
+	majorVersion := strings.Split(s.AgentPackage.Version, ".")[0]
+	s.previousAgentPackage = &windowsAgent.Package{
+		Version: fmt.Sprintf("%s.51.0-1", majorVersion),
+		Arch:    "x86_64",
+	}
+	s.previousAgentPackage.URL, err = windowsAgent.GetStableMSIURL(s.previousAgentPackage.Version, s.previousAgentPackage.Arch)
+	s.Require().NoError(err, "should get stable agent package URL")
+}
+
+func (s *testUpgradeRollbackWithoutCWSSuite) TestUpgradeRollbackWithoutCWS() {
+	vm := s.Env().RemoteHost
+
+	// install previous version
+	s.installAndTestPreviousAgentVersion(vm, s.previousAgentPackage)
+
+	// upgrade to the new version, but intentionally fail
+	if !s.Run(fmt.Sprintf("upgrade to %s with rollback", s.AgentPackage.AgentVersion()), func() {
+		_, err := windowsAgent.InstallAgent(vm,
+			windowsAgent.WithPackage(s.AgentPackage),
+			windowsAgent.WithWixFailWhenDeferred(),
+			windowsAgent.WithInstallLogFile(filepath.Join(s.OutputDir, "upgrade.log")),
+		)
+		s.Require().Error(err, "should fail to install agent %s", s.AgentPackage.AgentVersion())
+	}) {
+		s.T().FailNow()
+	}
+
+	// TODO: we shouldn't have to start the agent manually after rollback
+	//       but the kitchen tests did too.
+	err := windowsCommon.StartService(vm, "DatadogAgent")
+	s.Require().NoError(err, "agent service should start after rollback")
+
+	// the previous version should be functional
+	RequireAgentVersionRunningWithNoErrors(s.T(), s.NewTestClientForHost(vm), s.previousAgentPackage.AgentVersion())
+
+	// Ensure CWS services are not installed, but other services are
+	cwsServices := []string{
+		"ddprocmon",
+		"datadog-security-agent",
+	}
+	// NOTE: will need to update this if we add or remove services
+	expectedServices := servicetest.ExpectedInstalledServices()
+	expectedServices = slices.DeleteFunc(expectedServices, func(s string) bool {
+		return slices.Contains(cwsServices, s)
+	})
+	_, err = windowsCommon.GetServiceConfigMap(vm, expectedServices)
+	s.Assert().NoError(err, "services should still be installed")
+	for _, service := range cwsServices {
+		_, err = windowsCommon.GetServiceConfig(vm, service)
+		s.Assert().Error(err, "service %s should not be installed", service)
+	}
 
 	s.uninstallAgent()
 }
