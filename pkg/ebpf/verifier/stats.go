@@ -235,6 +235,9 @@ func generateLoadFunction(file string, opts *StatsOptions, results *StatsResult,
 						}
 						results.Complexity[progName] = compl
 					}
+
+					// Set to empty string to avoid the GC from keeping the verifier log in memory
+					p.VerifierLog = ""
 				default:
 					return fmt.Errorf("Unexpected type %T", field)
 				}
