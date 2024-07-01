@@ -7,9 +7,11 @@
 package host
 
 import (
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io/fs"
+	"net/http"
 	"os/user"
 	"path/filepath"
 	"sort"
@@ -177,18 +179,28 @@ func (h *Host) AgentVersion() string {
 	authTokenRaw := h.remote.MustExecute("sudo cat /etc/datadog-agent/auth_token")
 	authToken := strings.TrimSpace(string(authTokenRaw))
 
-	requestHeader := fmt.Sprintf(" -H 'Content-Type: application/json' -H 'Authorization: Bearer %s' ", authToken)
-	response := h.remote.MustExecute(fmt.Sprintf(
-		"curl -s --insecure https://localhost:5001/agent/version %s",
-		requestHeader,
-	))
+	request, err := http.NewRequest("GET", "https://localhost:5001/agent/version", nil)
+	require.NoError(h.t, err)
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("Authorization", "Bearer "+authToken)
+	client := &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		},
+	}
+	response, err := client.Do(request)
+	require.NoError(h.t, err)
+	defer response.Body.Close()
+	body := make([]byte, response.ContentLength)
+	_, err = response.Body.Read(body)
+	require.NoError(h.t, err)
 
 	var versionParsed struct {
 		Major int `json:"Major"`
 		Minor int `json:"Minor"`
 		Patch int `json:"Patch"`
 	}
-	require.NoError(h.t, json.Unmarshal([]byte(response), &versionParsed))
+	require.NoError(h.t, json.Unmarshal([]byte(body), &versionParsed))
 
 	ver := fmt.Sprintf("%d.%d.%d", versionParsed.Major, versionParsed.Minor, versionParsed.Patch)
 
