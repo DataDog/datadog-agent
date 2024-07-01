@@ -55,10 +55,10 @@ type FileRegistry struct {
 	telemetry registryTelemetry
 }
 
-// PathIdentifierWithSamplePath is a tuple of a `PathIdentifier` and a sample path
+// PathIdentifierWithSamplePath extends `PathIdentifier` to have a sample path
 type PathIdentifierWithSamplePath struct {
-	PathIdentifier PathIdentifier
-	SamplePath     string
+	PathIdentifier
+	SamplePath string
 }
 
 // FilePath represents the location of a file from the *root* namespace view
@@ -122,14 +122,7 @@ var (
 
 // getSamplePath returns a sample path for a given path without the prefix /usr.
 func getSamplePath(path string) string {
-	index := strings.Index(path, "/usr")
-	samplePath := path
-
-	if index != -1 {
-		samplePath = path[index+len("/usr"):]
-	}
-
-	return samplePath
+	return strings.TrimPrefix(path, "/proc")
 }
 
 // Register inserts or updates a new file registration within to the `FileRegistry`;
