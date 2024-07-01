@@ -43,16 +43,16 @@ type traceAgent struct {
 	exit chan struct{}
 }
 
-type mockStatsAdder struct {
+type mockStatsWriter struct {
 	out chan *pb.StatsPayload
 }
 
-func (msa *mockStatsAdder) Write(payload *pb.StatsPayload) {
+func (msa *mockStatsWriter) Write(payload *pb.StatsPayload) {
 	msa.out <- payload
 }
 
 // newAgentWithConfig creates a new traceagent with the given config cfg. Used in tests; use newAgent instead.
-func newAgentWithConfig(ctx context.Context, cfg *traceconfig.AgentConfig, out *mockStatsAdder, now time.Time) *traceAgent {
+func newAgentWithConfig(ctx context.Context, cfg *traceconfig.AgentConfig, out *mockStatsWriter, now time.Time) *traceAgent {
 	// disable the HTTP receiver
 	cfg.ReceiverPort = 0
 	// set the API key to succeed startup; it is never used nor needed

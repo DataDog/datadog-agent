@@ -45,13 +45,13 @@ type OtelStatsWriter struct {
 	out chan *pb.StatsPayload
 }
 
-// Add this payload to be written
+// Write this payload to the `out` channel
 func (a *OtelStatsWriter) Write(payload *pb.StatsPayload) {
 	a.out <- payload
 }
 
-// NewOTelStatsAdder makes an OtelStatsWriter that writes to the given `out` chan
-func NewOTelStatsAdder(out chan *pb.StatsPayload) *OtelStatsWriter {
+// NewOtelStatsWriter makes an OtelStatsWriter that writes to the given `out` chan
+func NewOtelStatsWriter(out chan *pb.StatsPayload) *OtelStatsWriter {
 	return &OtelStatsWriter{out}
 }
 
@@ -85,11 +85,11 @@ func NewAgentWithConfig(ctx context.Context, cfg *traceconfig.AgentConfig, out c
 	a := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector(), metricsClient)
 	// replace the Concentrator (the component which computes and flushes APM Stats from incoming
 	// traces) with our own, which uses the 'out' channel.
-	statsAdder := NewOTelStatsAdder(out)
-	a.Concentrator = stats.NewConcentrator(cfg, statsAdder, time.Now(), metricsClient)
+	statsWriter := NewOtelStatsWriter(out)
+	a.Concentrator = stats.NewConcentrator(cfg, statsWriter, time.Now(), metricsClient)
 	// ...and the same for the ClientStatsAggregator; we don't use it here, but it is also a source
 	// of stats which should be available to us.
-	a.ClientStatsAggregator = stats.NewClientStatsAggregator(cfg, statsAdder, metricsClient)
+	a.ClientStatsAggregator = stats.NewClientStatsAggregator(cfg, statsWriter, metricsClient)
 	// lastly, start the OTLP receiver, which will be used to introduce ResourceSpans into the traceagent,
 	// so that we can transform them to Datadog spans and receive stats.
 	a.OTLPReceiver = api.NewOTLPReceiver(pchan, cfg, metricsClient, timingReporter)
