@@ -1459,6 +1459,10 @@
         "mode": {
           "type": "integer",
           "description": "Mode argument"
+        },
+        "destination_path": {
+          "type": "string",
+          "description": "Destination path argument"
         }
       },
       "additionalProperties": false,
@@ -1477,6 +1481,9 @@
           "$ref": "#/$defs/SyscallArgs"
         },
         "open": {
+          "$ref": "#/$defs/SyscallArgs"
+        },
+        "link": {
           "$ref": "#/$defs/SyscallArgs"
         }
       },

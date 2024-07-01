@@ -352,6 +352,16 @@ func easyjsonDdc0fdbeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers2(i
 				}
 				(*out.Open).UnmarshalEasyJSON(in)
 			}
+		case "link":
+			if in.IsNull() {
+				in.Skip()
+				out.Link = nil
+			} else {
+				if out.Link == nil {
+					out.Link = new(SyscallArgsSerializer)
+				}
+				(*out.Link).UnmarshalEasyJSON(in)
+			}
 		default:
 			in.SkipRecursive()
 		}
@@ -402,6 +412,16 @@ func easyjsonDdc0fdbeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers2(o
 		}
 		(*in.Open).MarshalEasyJSON(out)
 	}
+	if in.Link != nil {
+		const prefix string = ",\"link\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		(*in.Link).MarshalEasyJSON(out)
+	}
 	out.RawByte('}')
 }
 
@@ -434,11 +454,29 @@ func easyjsonDdc0fdbeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers3(i
 		}
 		switch key {
 		case "path":
-			out.Path = string(in.String())
+			if in.IsNull() {
+				in.Skip()
+				out.Path = nil
+			} else {
+				if out.Path == nil {
+					out.Path = new(string)
+				}
+				*out.Path = string(in.String())
+			}
 		case "flags":
 			out.Flags = int(in.Int())
 		case "mode":
 			out.Mode = int(in.Int())
+		case "destination_path":
+			if in.IsNull() {
+				in.Skip()
+				out.DestinationPath = nil
+			} else {
+				if out.DestinationPath == nil {
+					out.DestinationPath = new(string)
+				}
+				*out.DestinationPath = string(in.String())
+			}
 		default:
 			in.SkipRecursive()
 		}
@@ -453,11 +491,11 @@ func easyjsonDdc0fdbeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers3(o
 	out.RawByte('{')
 	first := true
 	_ = first
-	if in.Path != "" {
+	if in.Path != nil {
 		const prefix string = ",\"path\":"
 		first = false
 		out.RawString(prefix[1:])
-		out.String(string(in.Path))
+		out.String(string(*in.Path))
 	}
 	if in.Flags != 0 {
 		const prefix string = ",\"flags\":"
@@ -478,6 +516,16 @@ func easyjsonDdc0fdbeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers3(o
 			out.RawString(prefix)
 		}
 		out.Int(int(in.Mode))
+	}
+	if in.DestinationPath != nil {
+		const prefix string = ",\"destination_path\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		out.String(string(*in.DestinationPath))
 	}
 	out.RawByte('}')
 }
