@@ -13,5 +13,6 @@ package ebpf
 import "C"
 
 type CudaKernelLaunch C.cuda_kernel_launch_t
+type Dim3 C.dim3
 
 const SizeofCudaKernelLaunch = C.sizeof_cuda_kernel_launch_t

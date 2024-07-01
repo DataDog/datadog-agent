@@ -9,9 +9,14 @@ type CudaKernelLaunch struct {
 	Probe_id        uint16
 	Stream_id       uint64
 	Ktime_ns        uint64
-	Grid_size       uint64
-	Block_size      uint64
 	Shared_mem_size uint64
+	Grid_size       Dim3
+	Block_size      Dim3
+}
+type Dim3 struct {
+	X uint32
+	Y uint32
+	Z uint32
 }
 
-const SizeofCudaKernelLaunch = 0x40
+const SizeofCudaKernelLaunch = 0x48
