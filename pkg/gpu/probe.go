@@ -32,13 +32,15 @@ var minimumKernelVersion = kernel.VersionCode(5, 0, 0)
 
 const (
 	cudaKernelLaunchMap = "cuda_kernel_launches"
+	cudaMemEventMap     = "cuda_memory_events"
 )
 
 // Probe represents the GPU monitoring probe
 type Probe struct {
-	mgr      *ddebpf.Manager
-	cfg      *Config
-	consumer *gpuebpf.CudaLaunckKernelConsumer
+	mgr                  *ddebpf.Manager
+	cfg                  *Config
+	kernelLaunchConsumer *gpuebpf.CudaLaunchKernelConsumer
+	memEventConsumer     *gpuebpf.CudaMemEventConsumer
 }
 
 // NewProbe starts the GPU monitoring probe
@@ -129,8 +131,17 @@ func startGPUProbe(buf bytecode.AssetReader, opts manager.Options, telemetryComp
 		EditorFlag: manager.EditType | manager.EditMaxEntries | manager.EditKeyValue,
 	}
 
+	opts.MapSpecEditors[cudaMemEventMap] = manager.MapSpecEditor{
+		Type:       ebpf.RingBuf,
+		MaxEntries: 4096,
+		KeySize:    0,
+		ValueSize:  0,
+		EditorFlag: manager.EditType | manager.EditMaxEntries | manager.EditKeyValue,
+	}
+
 	uprobeToLibrary := map[string]string{
 		"uprobe_cudaLaunchKernel": "libcudart.so",
+		"uprobe_cudaMalloc":       "libcudart.so",
 	}
 
 	for uprobe, library := range uprobeToLibrary {
@@ -162,18 +173,13 @@ func startGPUProbe(buf bytecode.AssetReader, opts manager.Options, telemetryComp
 		return nil, err
 	}
 
-	handler := ddebpf.NewRingBufferHandler(4096)
-	rb := &manager.RingBuffer{
-		Map: manager.Map{Name: cudaKernelLaunchMap},
-		RingBufferOptions: manager.RingBufferOptions{
-			RingBufferSize: 4096,
-			RecordHandler:  handler.RecordHandler,
-			RecordGetter:   handler.RecordGetter,
-		},
+	p := &Probe{
+		mgr: mgr,
+		cfg: cfg,
 	}
-	mgr.RingBuffers = append(mgr.RingBuffers, rb)
-	consumer := gpuebpf.NewCudaLaunckKernelConsumer(handler)
-	consumer.Start()
+
+	p.startKernelLaunchConsumer()
+	p.startMemEventConsumer()
 
 	if err := mgr.InitWithOptions(buf, &opts); err != nil {
 		return nil, fmt.Errorf("failed to init manager: %w", err)
@@ -185,20 +191,52 @@ func startGPUProbe(buf bytecode.AssetReader, opts manager.Options, telemetryComp
 
 	log.Infof("[gpu] GPU monitoring probe started, loaded %d probes", len(mgr.Probes))
 
-	return &Probe{
-		mgr:      mgr,
-		cfg:      cfg,
-		consumer: consumer,
-	}, nil
+	return p, nil
 }
 
 // Close stops the probe
 func (p *Probe) Close() {
 	_ = p.mgr.Stop(manager.CleanAll)
-	p.consumer.Stop()
+
+	if p.kernelLaunchConsumer != nil {
+		p.kernelLaunchConsumer.Stop()
+	}
+	if p.memEventConsumer != nil {
+		p.memEventConsumer.Stop()
+	}
 }
 
 // GetAndFlush returns the GPU stats
 func (p *Probe) GetAndFlush() (results GPUStats) {
 	return GPUStats{}
+}
+
+func (p *Probe) startKernelLaunchConsumer() {
+	handler := ddebpf.NewRingBufferHandler(4096)
+	rb := &manager.RingBuffer{
+		Map: manager.Map{Name: cudaKernelLaunchMap},
+		RingBufferOptions: manager.RingBufferOptions{
+			RingBufferSize: 4096,
+			RecordHandler:  handler.RecordHandler,
+			RecordGetter:   handler.RecordGetter,
+		},
+	}
+	p.mgr.RingBuffers = append(p.mgr.RingBuffers, rb)
+	p.kernelLaunchConsumer = gpuebpf.NewCudaLaunchKernelConsumer(handler)
+	p.kernelLaunchConsumer.Start()
+}
+
+func (p *Probe) startMemEventConsumer() {
+	handler := ddebpf.NewRingBufferHandler(4096)
+	rb := &manager.RingBuffer{
+		Map: manager.Map{Name: cudaMemEventMap},
+		RingBufferOptions: manager.RingBufferOptions{
+			RingBufferSize: 4096,
+			RecordHandler:  handler.RecordHandler,
+			RecordGetter:   handler.RecordGetter,
+		},
+	}
+	p.mgr.RingBuffers = append(p.mgr.RingBuffers, rb)
+	p.memEventConsumer = gpuebpf.NewCudaMemEventConsumer(handler)
+	p.memEventConsumer.Start()
 }

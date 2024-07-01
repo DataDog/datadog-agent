@@ -19,4 +19,15 @@ type Dim3 struct {
 	Z uint32
 }
 
+type CudaMemEvent struct {
+	Pid_tgid  uint64
+	Probe_id  uint16
+	Size      uint64
+	Addr      uint64
+	Type      uint32
+	Pad_cgo_0 [4]byte
+}
+type CudaMemEventType uint32
+
 const SizeofCudaKernelLaunch = 0x48
+const SizeofCudaMemEvent = 0x28

@@ -14,6 +14,7 @@
 char __license[] SEC("license") = "GPL";
 
 BPF_PERF_EVENT_ARRAY_MAP(cuda_kernel_launches, cuda_kernel_launch_t);
+BPF_PERF_EVENT_ARRAY_MAP(cuda_memory_events, cuda_memory_event_t);
 
 SEC("uprobe/cudaLaunchKernel")
 int BPF_UPROBE(uprobe_cudaLaunchKernel, const void *func, dim3 *gridDim, dim3 *blockDim, void **args, size_t sharedMem, void *stream) {
@@ -37,6 +38,27 @@ int BPF_UPROBE(uprobe_cudaLaunchKernel, const void *func, dim3 *gridDim, dim3 *b
     launch_data.shared_mem_size = sharedMem;
 
     bpf_ringbuf_output(&cuda_kernel_launches, &launch_data, sizeof(launch_data), 0);
+
+    return 0;
+}
+
+SEC("uprobe/cudaMalloc")
+int BPF_UPROBE(uprobe_cudaMalloc, void **devPtr, size_t size) {
+    uint64_t probe_id = 0;
+    cuda_memory_event_t mem_data;
+    LOAD_CONSTANT("probe_id", probe_id);
+
+    __builtin_memset(&mem_data, 0, sizeof(mem_data));
+
+    if (bpf_probe_read_user(&mem_data.addr, sizeof(void *), devPtr))
+        return 0;
+
+    mem_data.pid_tgid = bpf_get_current_pid_tgid();
+    mem_data.probe_id = probe_id;
+    mem_data.size = size;
+    mem_data.type = cudaMalloc;
+
+    bpf_ringbuf_output(&cuda_memory_events, &mem_data, sizeof(mem_data), 0);
 
     return 0;
 }

@@ -14,21 +14,21 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-type CudaLaunckKernelConsumer struct {
+type CudaMemEventConsumer struct {
 	eventHandler ddebpf.EventHandler
 	requests     chan chan struct{}
 	once         sync.Once
 	closed       chan struct{}
 }
 
-func NewCudaLaunckKernelConsumer(eventHandler ddebpf.EventHandler) *CudaLaunckKernelConsumer {
-	return &CudaLaunckKernelConsumer{
+func NewCudaMemEventConsumer(eventHandler ddebpf.EventHandler) *CudaMemEventConsumer {
+	return &CudaMemEventConsumer{
 		eventHandler: eventHandler,
 		closed:       make(chan struct{}),
 	}
 }
 
-func (c *CudaLaunckKernelConsumer) FlushPending() {
+func (c *CudaMemEventConsumer) FlushPending() {
 	if c == nil {
 		return
 	}
@@ -47,7 +47,7 @@ func (c *CudaLaunckKernelConsumer) FlushPending() {
 	}
 }
 
-func (c *CudaLaunckKernelConsumer) Stop() {
+func (c *CudaMemEventConsumer) Stop() {
 	if c == nil {
 		return
 	}
@@ -57,7 +57,7 @@ func (c *CudaLaunckKernelConsumer) Stop() {
 	})
 }
 
-func (c *CudaLaunckKernelConsumer) Start() {
+func (c *CudaMemEventConsumer) Start() {
 	if c == nil {
 		return
 	}
@@ -86,13 +86,13 @@ func (c *CudaLaunckKernelConsumer) Start() {
 
 				log.Infof("Rx data\n")
 
-				if len(batchData.Data) != SizeofCudaKernelLaunch {
+				if len(batchData.Data) != SizeofCudaMemEvent {
 					log.Errorf("unknown type received from perf buffer, skipping. data size=%d, expecting %d", len(batchData.Data), SizeofCudaKernelLaunch)
 				}
 
-				ckl := (*CudaKernelLaunch)(unsafe.Pointer(&batchData.Data[0]))
+				ckl := (*CudaMemEvent)(unsafe.Pointer(&batchData.Data[0]))
 
-				log.Infof("cuda kernel launch: %+v", ckl)
+				log.Infof("cuda mem event launch: %+v", ckl)
 
 				batchData.Done()
 			// lost events only occur when using perf buffers
