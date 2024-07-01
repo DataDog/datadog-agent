@@ -44,6 +44,23 @@ type metadata struct {
 	}
 }
 
+func (metadata metadata) GetFromStyle(style string) (string, error) {
+	switch style {
+	case "vmid":
+		return metadata.VMID, nil
+	case "name":
+		return metadata.Name, nil
+	case "name_and_resource_group":
+		return fmt.Sprintf("%s.%s", metadata.Name, metadata.ResourceGroupName), nil
+	case "full":
+		return fmt.Sprintf("%s.%s.%s", metadata.Name, metadata.ResourceGroupName, metadata.SubscriptionID), nil
+	case "os_computer_name":
+		return strings.ToLower(metadata.OsProfile.ComputerName), nil
+	default:
+		return "", fmt.Errorf("invalid azure_hostname_style value: %s", style)
+	}
+}
+
 // IsRunningOn returns true if the agent is running on Azure
 func IsRunningOn(ctx context.Context) bool {
 	if _, err := GetHostAliases(ctx); err == nil {
@@ -197,20 +214,9 @@ func getHostnameWithConfig(ctx context.Context, config config.Config) (string, e
 		}
 	}
 
-	var name string
-	switch style {
-	case "vmid":
-		name = metadata.VMID
-	case "name":
-		name = metadata.Name
-	case "name_and_resource_group":
-		name = fmt.Sprintf("%s.%s", metadata.Name, metadata.ResourceGroupName)
-	case "full":
-		name = fmt.Sprintf("%s.%s.%s", metadata.Name, metadata.ResourceGroupName, metadata.SubscriptionID)
-	case "os_computer_name":
-		name = strings.ToLower(metadata.OsProfile.ComputerName)
-	default:
-		return "", fmt.Errorf("invalid azure_hostname_style value: %s", style)
+	name, err := metadata.GetFromStyle(style)
+	if err != nil {
+		return "", err
 	}
 
 	if err := validate.ValidHostname(name); err != nil {
