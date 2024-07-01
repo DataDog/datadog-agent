@@ -195,12 +195,12 @@ def gitlab_ci_diff(ctx, before: str | None = DEFAULT_BRANCH, after: str | None =
     # gh = Github(token)
     # print(gh.get_user())
 
-    # from tasks.libs.ciproviders.github_api import GithubAPI
+    from tasks.libs.ciproviders.github_api import GithubAPI
 
-    # print(len(os.environ['GITHUB_TOKEN']))
+    print(len(os.environ['GITHUB_TOKEN']))
 
-    # gh = GithubAPI()
-    # print(gh._github.get_user())
+    gh = GithubAPI()
+    print(gh._github.get_user())
 
     # exit()
 
