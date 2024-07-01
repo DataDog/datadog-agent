@@ -16,6 +16,7 @@ notify-on-tagged-success:
     *$CI_COMMIT_REF_NAME* is available in the staging repositories."
     postmessage "#agent-release-sync" "$MESSAGE_TEXT"
 
+# TODO
 ah:
   stage: notify
   script: echo toto is real
@@ -100,6 +101,7 @@ notify_gitlab_ci_changes:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   stage: notify
   needs: []
+  tags: ["arch:amd64"]
   rules:
     - if: $CI_PIPELINE_SOURCE != "push"
       when: never
