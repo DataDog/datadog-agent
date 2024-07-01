@@ -38,10 +38,10 @@ func TestOTelAPMStatsMatch(t *testing.T) {
 
 	// Set up 2 output channels for APM stats, and start 2 fake trace agent to conduct a comparison test
 	now := time.Now()
-	mockStats1 := &mockStatsAdder{out: make(chan *pb.StatsPayload, 100)}
+	mockStats1 := &mockStatsWriter{out: make(chan *pb.StatsPayload, 100)}
 	fakeAgent1 := getAndStartFakeAgent(ctx, tcfg, mockStats1, now)
 	defer fakeAgent1.Stop()
-	mockStats2 := &mockStatsAdder{out: make(chan *pb.StatsPayload, 100)}
+	mockStats2 := &mockStatsWriter{out: make(chan *pb.StatsPayload, 100)}
 	fakeAgent2 := getAndStartFakeAgent(ctx, tcfg, mockStats2, now)
 	defer fakeAgent2.Stop()
 
@@ -107,7 +107,7 @@ func getTraceAgentCfg(attributesTranslator *attributes.Translator) *traceconfig.
 	return acfg
 }
 
-func getAndStartFakeAgent(ctx context.Context, tcfg *traceconfig.AgentConfig, statschan *mockStatsAdder, now time.Time) *traceAgent {
+func getAndStartFakeAgent(ctx context.Context, tcfg *traceconfig.AgentConfig, statschan *mockStatsWriter, now time.Time) *traceAgent {
 	fakeAgent := newAgentWithConfig(ctx, tcfg, statschan, now)
 	fakeAgent.Start()
 	return fakeAgent
