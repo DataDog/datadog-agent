@@ -43,7 +43,7 @@
 #define KAFKA_MAX_ABORTED_TRANSACTIONS 10000
 
 // This controls the number of Kafka transactions read from userspace at a time
-#define KAFKA_BATCH_SIZE 28
+#define KAFKA_BATCH_SIZE 26
 
 // The amount of buckets we have for the kafka topic name length telemetry.
 #define KAFKA_TELEMETRY_TOPIC_NAME_NUM_OF_BUCKETS 10
