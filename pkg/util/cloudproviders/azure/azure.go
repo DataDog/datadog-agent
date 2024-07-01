@@ -30,6 +30,8 @@ var (
 )
 
 const hostnameStyleSetting = "azure_hostname_style"
+const aksManagedOrchestratorTag = "aks-managed-orchestrator"
+const kubernetesTagValue = "Kubernetes"
 
 type metadata struct {
 	VMID              string
@@ -157,7 +159,7 @@ var instanceMetaFetcher = cachedfetch.Fetcher{
 
 func isKubernetesTag(tagsList []map[string]string) bool {
 	for _, tag := range tagsList {
-		if tag["name"] == "aks-managed-orchestrator" && strings.Contains(tag["value"], "Kubernetes") {
+		if tag["name"] == aksManagedOrchestratorTag && strings.Contains(tag["value"], kubernetesTagValue) {
 			return true
 		}
 	}
