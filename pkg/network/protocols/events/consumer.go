@@ -15,7 +15,6 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 
-	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/maps"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -36,7 +35,7 @@ type Consumer[V any] struct {
 	proto       string
 	syncRequest chan (chan struct{})
 	offsets     *offsetManager
-	handler     ddebpf.EventHandler
+	dataChannel <-chan *batch
 	batchReader *batchReader
 	callback    func([]V)
 
@@ -109,7 +108,7 @@ func NewConsumer[V any](proto string, ebpf *manager.Manager, callback func([]V))
 		callback:    callback,
 		syncRequest: make(chan chan struct{}),
 		offsets:     offsets,
-		handler:     handler,
+		dataChannel: handler,
 		batchReader: batchReader,
 
 		// telemetry
@@ -126,34 +125,17 @@ func (c *Consumer[V]) Start() {
 	c.eventLoopWG.Add(1)
 	go func() {
 		defer c.eventLoopWG.Done()
-		dataChannel := c.handler.DataChannel()
-		lostChannel := c.handler.LostChannel()
 		for {
 			select {
-			case dataEvent, ok := <-dataChannel:
+			case b, ok := <-c.dataChannel:
 				if !ok {
 					return
-				}
-
-				b, err := batchFromEventData(dataEvent.Data)
-
-				if err != nil {
-					c.invalidEventsCount.Add(1)
-					dataEvent.Done()
-					break
 				}
 
 				c.failedFlushesCount.Add(int64(b.Failed_flushes))
 				c.kernelDropsCount.Add(int64(b.Dropped_events))
 				c.process(b, false)
-				dataEvent.Done()
-			case _, ok := <-lostChannel:
-				if !ok {
-					return
-				}
-
-				// we have our own telemetry to track failed flushes so we don't
-				// do anything here other than draining this channel
+				batchPool.Put(b)
 			case done, ok := <-c.syncRequest:
 				if !ok {
 					return
@@ -197,7 +179,7 @@ func (c *Consumer[V]) Stop() {
 
 	c.stopped = true
 	c.batchReader.Stop()
-	c.handler.Stop()
+	//c.handler.Stop()
 	c.eventLoopWG.Wait()
 	close(c.syncRequest)
 }
@@ -235,7 +217,7 @@ func (c *Consumer[V]) process(b *batch, syncing bool) {
 	c.callback(events)
 }
 
-func batchFromEventData(data []byte) (*batch, error) {
+func (b *batch) UnmarshalBinary(data []byte) error {
 	if len(data) < sizeOfBatch {
 		// For some reason the eBPF program sent us a perf event with a size
 		// different from what we're expecting.
@@ -246,10 +228,14 @@ func batchFromEventData(data []byte) (*batch, error) {
 		// bytes are coming from, but I already validated that is not padding
 		// coming from the clang/LLVM toolchain for alignment purposes, so it's
 		// something happening *after* the call to bpf_perf_event_output.
-		return nil, errInvalidPerfEvent
+		return errInvalidPerfEvent
 	}
 
-	return (*batch)(unsafe.Pointer(&data[0])), nil
+	// TODO we may be creating two copies of the data now:
+	// 1. *perf.Record has []byte that will get released right after this function
+	// 2. The temporary *batch we create with New in the EventHandler
+	*b = *(*batch)(unsafe.Pointer(&data[0]))
+	return nil
 }
 
 func pointerToElement[V any](b *batch, elementIdx int) *V {
