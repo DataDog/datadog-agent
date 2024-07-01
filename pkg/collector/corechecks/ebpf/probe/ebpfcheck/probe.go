@@ -918,7 +918,7 @@ func hashMapNumberOfEntries(mp *ebpf.Map, mapid ebpf.MapID, mphCache *mapProgHel
 
 	var numElements int64
 	var err error
-	if mphCache != nil && mp.Type() != ebpf.HashOfMaps {
+	if mphCache != nil && isForEachElemHelperAvailable() && mp.Type() != ebpf.HashOfMaps {
 		numElements, err = hashMapNumberOfEntriesWithHelper(mp, mapid, mphCache)
 	} else if ddmaps.BatchAPISupported() && mp.Type() != ebpf.HashOfMaps { // HashOfMaps doesn't work with batch API
 		numElements, err = hashMapNumberOfEntriesWithBatch(mp, buffers, maxRestarts)
