@@ -352,6 +352,16 @@ func easyjsonDdc0fdbeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers2(i
 				}
 				(*out.Open).UnmarshalEasyJSON(in)
 			}
+		case "utimes":
+			if in.IsNull() {
+				in.Skip()
+				out.Utimes = nil
+			} else {
+				if out.Utimes == nil {
+					out.Utimes = new(SyscallArgsSerializer)
+				}
+				(*out.Utimes).UnmarshalEasyJSON(in)
+			}
 		default:
 			in.SkipRecursive()
 		}
@@ -402,6 +412,16 @@ func easyjsonDdc0fdbeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers2(o
 		}
 		(*in.Open).MarshalEasyJSON(out)
 	}
+	if in.Utimes != nil {
+		const prefix string = ",\"utimes\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		(*in.Utimes).MarshalEasyJSON(out)
+	}
 	out.RawByte('}')
 }
 
@@ -434,7 +454,15 @@ func easyjsonDdc0fdbeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers3(i
 		}
 		switch key {
 		case "path":
-			out.Path = string(in.String())
+			if in.IsNull() {
+				in.Skip()
+				out.Path = nil
+			} else {
+				if out.Path == nil {
+					out.Path = new(string)
+				}
+				*out.Path = string(in.String())
+			}
 		case "flags":
 			out.Flags = int(in.Int())
 		case "mode":
@@ -453,11 +481,11 @@ func easyjsonDdc0fdbeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers3(o
 	out.RawByte('{')
 	first := true
 	_ = first
-	if in.Path != "" {
+	if in.Path != nil {
 		const prefix string = ",\"path\":"
 		first = false
 		out.RawString(prefix[1:])
-		out.String(string(in.Path))
+		out.String(string(*in.Path))
 	}
 	if in.Flags != 0 {
 		const prefix string = ",\"flags\":"

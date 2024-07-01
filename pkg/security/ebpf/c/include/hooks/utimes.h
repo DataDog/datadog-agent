@@ -5,7 +5,7 @@
 #include "helpers/discarders.h"
 #include "helpers/syscalls.h"
 
-int __attribute__((always_inline)) trace__sys_utimes() {
+int __attribute__((always_inline)) trace__sys_utimes(const char *filename) {
     struct policy_t policy = fetch_policy(EVENT_UTIME);
     if (is_discarded_by_process(policy.mode, EVENT_UTIME)) {
         return 0;
@@ -16,6 +16,7 @@ int __attribute__((always_inline)) trace__sys_utimes() {
         .policy = policy,
     };
 
+    collect_syscall_ctx(&syscall, SYSCALL_CTX_ARG_STR(0), (void *)filename, NULL, NULL);
     cache_syscall(&syscall);
 
     return 0;
@@ -23,24 +24,24 @@ int __attribute__((always_inline)) trace__sys_utimes() {
 
 // On old kernels, we have sys_utime and compat_sys_utime.
 // On new kernels, we have _x64_sys_utime32, __ia32_sys_utime32, __x64_sys_utime, __ia32_sys_utime
-HOOK_SYSCALL_COMPAT_ENTRY0(utime) {
-    return trace__sys_utimes();
+HOOK_SYSCALL_COMPAT_ENTRY1(utime, const char *, filename) {
+    return trace__sys_utimes(filename);
 }
 
-HOOK_SYSCALL_ENTRY0(utime32) {
-    return trace__sys_utimes();
+HOOK_SYSCALL_ENTRY1(utime32, const char *, filename) {
+    return trace__sys_utimes(filename);
 }
 
-HOOK_SYSCALL_COMPAT_TIME_ENTRY0(utimes) {
-    return trace__sys_utimes();
+HOOK_SYSCALL_COMPAT_TIME_ENTRY1(utimes, const char *, filename) {
+    return trace__sys_utimes(filename);
 }
 
-HOOK_SYSCALL_COMPAT_TIME_ENTRY0(utimensat) {
-    return trace__sys_utimes();
+HOOK_SYSCALL_COMPAT_TIME_ENTRY2(utimensat, int, dirfd, const char *, filename) {
+    return trace__sys_utimes(filename);
 }
 
-HOOK_SYSCALL_COMPAT_TIME_ENTRY0(futimesat) {
-    return trace__sys_utimes();
+HOOK_SYSCALL_COMPAT_TIME_ENTRY2(futimesat, int, dirfd, const char *, filename) {
+    return trace__sys_utimes(filename);
 }
 
 int __attribute__((always_inline)) sys_utimes_ret(void *ctx, int retval) {
@@ -55,6 +56,7 @@ int __attribute__((always_inline)) sys_utimes_ret(void *ctx, int retval) {
 
     struct utimes_event_t event = {
         .syscall.retval = retval,
+        .syscall_ctx.id = syscall->ctx_id,
         .atime = syscall->setattr.atime,
         .mtime = syscall->setattr.mtime,
         .file = syscall->setattr.file,

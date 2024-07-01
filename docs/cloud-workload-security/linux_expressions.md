@@ -1624,6 +1624,7 @@ Change file access/modification times
 | [`utimes.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`utimes.file.user`](#common-filefields-user-doc) | User of the file's owner |
 | [`utimes.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
+| [`utimes.syscall.path`](#utimes-syscall-path-doc) | Path argument of the syscall |
 
 
 ## Attributes documentation
@@ -2987,6 +2988,13 @@ Constants: [Unlink flags](#unlink-flags)
 Type: string
 
 Definition: Name of the kernel module that was deleted
+
+
+
+### `utimes.syscall.path` {#utimes-syscall-path-doc}
+Type: string
+
+Definition: Path argument of the syscall
 
 
 
