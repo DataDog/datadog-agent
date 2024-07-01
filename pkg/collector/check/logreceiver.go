@@ -10,7 +10,7 @@ import (
 	"sync"
 
 	"github.com/DataDog/datadog-agent/comp/logs/integrations/def"
-	ddLog "github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var lr integrations.Component
@@ -29,16 +29,16 @@ func GetLogsReceiver() (integrations.Component, error) {
 }
 
 // LogsReceiverSendLog wraps the SendLog function on the integrations component.
-func LogsReceiverSendLog(log, logID string) {
+func LogsReceiverSendLog(logLine, logID string) {
 	logReceiverMutex.Lock()
 	defer logReceiverMutex.Unlock()
 
 	if lr == nil {
-		ddLog.Error("LogsReceiverSendLog called when logReciever nil or uninitialized.")
+		log.Error("LogsReceiverSendLog called when logReciever nil or uninitialized.")
 		return
 	}
 
-	lr.SendLog(log, logID)
+	lr.SendLog(logLine, logID)
 }
 
 // InitializeLogsReceiver initializes the logreceiver component to be used later.
