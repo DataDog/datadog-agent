@@ -397,10 +397,10 @@ def pr_commenter(
 
     # Created / updated / deleted comment
     action = ''
-    header = f'## {title}\n'
-    content = f'{header}\n{body}'
+    header = f'## {title}'
+    content = f'{header}\n\n{body}'
 
-    comment = github.find_comment(pr, header)
+    comment = github.find_comment(pr, header, is_line=True)
 
     if comment:
         if delete:

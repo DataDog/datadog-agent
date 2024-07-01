@@ -180,36 +180,46 @@ def gitlab_ci_diff(ctx, before: str | None = DEFAULT_BRANCH, after: str | None =
     - pr_comment: If True, post the diff as a comment in the PR
     """
 
-    # import difflib
-    # differ = difflib.HtmlDiff(tabsize=2)
-    # t = differ.make_table('Hello\nWorld\n!'.splitlines(), 'Hallo\nWorld'.splitlines())
-    # print(t)
-    # return
+    pr_comment_head = 'Gitlab CI Configuration Changes'
+    job_url = os.environ['CI_JOB_URL']
 
-    # TODO : Try catch error
+    try:
+        before_name = before or "local files"
+        after_name = after or "local files"
 
-    before_name = before or "local files"
-    after_name = after or "local files"
+        print(f'Getting after changes config ({color_message(after_name, Color.BOLD)})')
+        after_config = get_gitlab_ci_configuration(ctx, git_ref=after)
 
-    print(f'Getting after changes config ({color_message(after_name, Color.BOLD)})')
-    after_config = get_gitlab_ci_configuration(ctx, git_ref=after)
+        print(f'Getting before changes config ({color_message(before_name, Color.BOLD)})')
+        before_config = get_gitlab_ci_configuration(ctx, git_ref=before)
 
-    print(f'Getting before changes config ({color_message(before_name, Color.BOLD)})')
-    before_config = get_gitlab_ci_configuration(ctx, git_ref=before)
+        diff = GitlabCIDiff(before_config, after_config)
 
-    diff = GitlabCIDiff(before_config, after_config)
+        if not diff:
+            print(color_message("No changes in the gitlab-ci configuration", Color.GREEN))
+            return
 
-    if not diff:
-        print(color_message("No changes in the gitlab-ci configuration", Color.GREEN))
-        return
+        # Display diff
+        print('\nGitlab CI configuration diff:')
+        print(diff.display(cli=True))
 
-    # Display diff
-    print('\nGitlab CI configuration diff:')
-    print(diff.display(cli=True))
+        if pr_comment:
+            print('\nSending / updating PR comment')
+            comment = diff.display(cli=False)
+            try:
+                pr_commenter(ctx, pr_comment_head, comment)
+            except Exception:
+                print(color_message('Warning: Failed to send full diff, sending only job link', Color.ORANGE))
 
-    if pr_comment:
-        comment = diff.display(cli=False)
-        print('\n\n')
-        print(comment)
-        pr_commenter(ctx, 'Gitlab CI Configuration Changes', comment)
-        print(color_message('\nSent / updated PR comment', Color.GREEN))
+                pr_commenter(ctx, pr_comment_head, f'Too many changes, see the [job log]({job_url}) for details')
+
+            print(color_message('Sent / updated PR comment', Color.GREEN))
+    except Exception:
+        # Send message
+        pr_commenter(
+            ctx,
+            pr_comment_head,
+            f':warning: *Failed to display Gitlab CI configuration changes, see the [job log]({job_url}) for details.*',
+        )
+
+        raise

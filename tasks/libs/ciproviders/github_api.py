@@ -215,12 +215,12 @@ class GithubAPI:
 
         pr.create_issue_comment(comment)
 
-    def find_comment(self, pr, content):
+    def find_comment(self, pr, content, is_line=False):
         """
         Get a comment that contains content on a given PR.
 
         - pr: PR number or PR object
-        - is_prefix: If True, the comment must start with the content.
+        - is_line: If True, the content is a line number
         """
 
         if not isinstance(pr, PullRequest.PullRequest):
@@ -228,7 +228,7 @@ class GithubAPI:
 
         comments = pr.get_issue_comments()
         for comment in comments:
-            if content in comment.body:
+            if is_line and content in comment.body.splitlines() or not is_line and content in comment.body:
                 return comment
 
     def get_pr(self, pr_id: int):

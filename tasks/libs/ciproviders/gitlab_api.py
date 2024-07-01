@@ -186,7 +186,6 @@ class GitlabCIDiff:
 
                 res = []
                 for line in diff:
-                    # TODO : ??? lines
                     if line.startswith('+'):
                         res.append(color_message(line, Color.GREEN))
                     elif line.startswith('-'):
@@ -196,8 +195,12 @@ class GitlabCIDiff:
 
                 return '\n'.join(res)
             else:
+                # Wrap diff in markdown code block and in details html tags
                 difftxt = '\n'.join(diff)
-                return f"```diff\n{difftxt}\n```"
+                difftxt = f"```diff\n{difftxt}\n```"
+                difftxt = f"<details>\n\n{difftxt}\n\n</details>"
+
+                return difftxt
 
         def str_color(text: str, color: str) -> str:
             if cli:
