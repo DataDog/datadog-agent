@@ -38,7 +38,7 @@ if ENV.has_key?("OMNIBUS_GIT_CACHE_DIR") && !BUILD_OCIRU
 end
 
 if windows_target?
-  if ua_target?
+  if ot_target?
     raise UnknownPlatform
   end
 

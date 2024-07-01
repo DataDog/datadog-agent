@@ -184,7 +184,7 @@ build do
   end
 
   # OTel agent - can never be bundled
-  if ua_target?
+  if ot_target?
     unless windows_target?
       command "invoke -e otel-agent.build", :env => env
       copy 'bin/otel-agent/otel-agent', "#{install_dir}/embedded/bin"

@@ -111,7 +111,7 @@ build do
               end
             end
 
-            if ua_target?
+            if ot_target?
               move "#{install_dir}/etc/datadog-agent/otel-config.yaml.example", "/etc/datadog-agent"
             end
 

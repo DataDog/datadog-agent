@@ -46,8 +46,8 @@ def heroku_target?()
     return ENV['AGENT_FLAVOR'] == 'heroku'
 end
 
-def ua_target?()
-    return ENV['AGENT_FLAVOR'] == 'ua'
+def ot_target?()
+    return ENV['AGENT_FLAVOR'] == 'ot'
 end
 
 def os
