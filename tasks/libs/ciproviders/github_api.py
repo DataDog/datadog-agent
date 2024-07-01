@@ -346,7 +346,6 @@ class GithubAPI:
         app_id = os.environ.get(app_id_env)
         app_key_b64 = os.environ.get(pkey_env)
         # app_key = base64.b64decode(app_key_b64).decode("ascii")
-        # TODO
         app_key = os.environ.get(pkey_env)
 
         auth = Auth.AppAuth(app_id, app_key)
