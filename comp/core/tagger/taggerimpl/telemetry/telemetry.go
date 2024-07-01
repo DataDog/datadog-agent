@@ -7,6 +7,8 @@
 package telemetry
 
 import (
+	"sync"
+
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 )
@@ -65,65 +67,73 @@ type Store struct {
 	UnknownCardinalityQueries      CardinalityTelemetry
 }
 
+var initializeOnce sync.Once
+var store *Store
+
 // NewStore returns a new Store.
 func NewStore(telemetryComp telemetry.Component) *Store {
-	// queries tracks the number of queries made against the tagger.
-	queries := telemetryComp.NewCounterWithOpts(subsystem, "queries",
-		[]string{"cardinality", "status"}, "Queries made against the tagger.",
-		telemetry.Options{NoDoubleUnderscoreSep: true})
+	initializeOnce.Do(func() {
+		// queries tracks the number of queries made against the tagger.
+		queries := telemetryComp.NewCounterWithOpts(subsystem, "queries",
+			[]string{"cardinality", "status"}, "Queries made against the tagger.",
+			telemetry.Options{NoDoubleUnderscoreSep: true})
 
-	return &Store{
-		StoredEntities: telemetryComp.NewGaugeWithOpts(subsystem, "stored_entities",
-			[]string{"source", "prefix"}, "Number of entities in the store.",
-			telemetry.Options{NoDoubleUnderscoreSep: true}),
+		store = &Store{
+			StoredEntities: telemetryComp.NewGaugeWithOpts(subsystem, "stored_entities",
+				[]string{"source", "prefix"}, "Number of entities in the store.",
+				telemetry.Options{NoDoubleUnderscoreSep: true}),
 
-		// UpdatedEntities tracks the number of updates to tagger entities.
-		// Remote
-		UpdatedEntities: telemetryComp.NewCounterWithOpts(subsystem, "updated_entities",
-			[]string{}, "Number of updates made to entities.",
-			telemetry.Options{NoDoubleUnderscoreSep: true}),
+			// UpdatedEntities tracks the number of updates to tagger entities.
+			// Remote
+			UpdatedEntities: telemetryComp.NewCounterWithOpts(subsystem, "updated_entities",
+				[]string{}, "Number of updates made to entities.",
+				telemetry.Options{NoDoubleUnderscoreSep: true}),
 
-		// PrunedEntities tracks the number of pruned tagger entities.
-		// Remote
-		PrunedEntities: telemetryComp.NewGaugeWithOpts(subsystem, "pruned_entities",
-			[]string{}, "Number of pruned tagger entities.",
-			telemetry.Options{NoDoubleUnderscoreSep: true}),
+			// PrunedEntities tracks the number of pruned tagger entities.
+			// Remote
+			PrunedEntities: telemetryComp.NewGaugeWithOpts(subsystem, "pruned_entities",
+				[]string{}, "Number of pruned tagger entities.",
+				telemetry.Options{NoDoubleUnderscoreSep: true}),
 
-		// ClientStreamErrors tracks how many errors were received when streaming
-		// tagger events.
-		// Remote
-		ClientStreamErrors: telemetryComp.NewCounterWithOpts(subsystem, "client_stream_errors",
-			[]string{}, "Errors received when streaming tagger events",
-			telemetry.Options{NoDoubleUnderscoreSep: true}),
+			// ClientStreamErrors tracks how many errors were received when streaming
+			// tagger events.
+			// Remote
+			ClientStreamErrors: telemetryComp.NewCounterWithOpts(subsystem, "client_stream_errors",
+				[]string{}, "Errors received when streaming tagger events",
+				telemetry.Options{NoDoubleUnderscoreSep: true}),
 
-		// Subscribers tracks how many subscribers the tagger has.
-		Subscribers: telemetryComp.NewGaugeWithOpts(subsystem, "subscribers",
-			[]string{}, "Number of channels subscribing to tagger events",
-			telemetry.Options{NoDoubleUnderscoreSep: true}),
+			// Subscribers tracks how many subscribers the tagger has.
+			Subscribers: telemetryComp.NewGaugeWithOpts(subsystem, "subscribers",
+				[]string{}, "Number of channels subscribing to tagger events",
+				telemetry.Options{NoDoubleUnderscoreSep: true}),
 
-		// Events tracks the number of tagger events being sent out.
-		Events: telemetryComp.NewCounterWithOpts(subsystem, "events",
-			[]string{"cardinality"}, "Number of tagger events being sent out",
-			telemetry.Options{NoDoubleUnderscoreSep: true}),
+			// Events tracks the number of tagger events being sent out.
+			Events: telemetryComp.NewCounterWithOpts(subsystem, "events",
+				[]string{"cardinality"}, "Number of tagger events being sent out",
+				telemetry.Options{NoDoubleUnderscoreSep: true}),
 
-		// Sends tracks the number of times the tagger has sent a
-		// notification with a group of events.
-		Sends: telemetryComp.NewCounterWithOpts(subsystem, "sends",
-			[]string{}, "Number of of times the tagger has sent a notification with a group of events",
-			telemetry.Options{NoDoubleUnderscoreSep: true}),
+			// Sends tracks the number of times the tagger has sent a
+			// notification with a group of events.
+			Sends: telemetryComp.NewCounterWithOpts(subsystem, "sends",
+				[]string{}, "Number of of times the tagger has sent a notification with a group of events",
+				telemetry.Options{NoDoubleUnderscoreSep: true}),
 
-		// Receives tracks the number of times the tagger has received a
-		// notification with a group of events.
-		// Remote
-		Receives: telemetryComp.NewCounterWithOpts(subsystem, "receives",
-			[]string{}, "Number of of times the tagger has received a notification with a group of events",
-			telemetry.Options{NoDoubleUnderscoreSep: true}),
+			// Receives tracks the number of times the tagger has received a
+			// notification with a group of events.
+			// Remote
+			Receives: telemetryComp.NewCounterWithOpts(subsystem, "receives",
+				[]string{}, "Number of of times the tagger has received a notification with a group of events",
+				telemetry.Options{NoDoubleUnderscoreSep: true}),
 
-		LowCardinalityQueries:          newCardinalityTelemetry(queries, types.LowCardinalityString),
-		OrchestratorCardinalityQueries: newCardinalityTelemetry(queries, types.OrchestratorCardinalityString),
-		HighCardinalityQueries:         newCardinalityTelemetry(queries, types.HighCardinalityString),
-		UnknownCardinalityQueries:      newCardinalityTelemetry(queries, types.UnknownCardinalityString),
-	}
+			LowCardinalityQueries:          newCardinalityTelemetry(queries, types.LowCardinalityString),
+			OrchestratorCardinalityQueries: newCardinalityTelemetry(queries, types.OrchestratorCardinalityString),
+			HighCardinalityQueries:         newCardinalityTelemetry(queries, types.HighCardinalityString),
+			UnknownCardinalityQueries:      newCardinalityTelemetry(queries, types.UnknownCardinalityString),
+		}
+
+	})
+
+	return store
 }
 
 // QueriesByCardinality returns a set of counters for a given cardinality level.

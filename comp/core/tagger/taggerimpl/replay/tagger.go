@@ -29,14 +29,18 @@ type Tagger struct {
 	cancel context.CancelFunc
 
 	telemetryTicker *time.Ticker
+	telemetryStore  *taggerTelemetry.Store
 	empty.Tagger
 }
 
 // NewTagger returns an allocated tagger. You still have to run Init()
 // once the config package is ready.
 func NewTagger(telemetry telemetry.Component) *Tagger {
+	telemetryStore := taggerTelemetry.NewStore(telemetry)
+
 	return &Tagger{
-		store: tagstore.NewTagStore(taggerTelemetry.NewStore(telemetry)),
+		store:          tagstore.NewTagStore(telemetryStore),
+		telemetryStore: telemetryStore,
 	}
 }
 
@@ -72,11 +76,11 @@ func (t *Tagger) AccumulateTagsFor(entityID string, cardinality types.TagCardina
 	tags := t.store.LookupHashed(entityID, cardinality)
 
 	if tags.Len() == 0 {
-		// telemetry.QueriesByCardinality(cardinality).EmptyTags.Inc()
+		t.telemetryStore.QueriesByCardinality(cardinality).EmptyTags.Inc()
 		return nil
 	}
 
-	// telemetry.QueriesByCardinality(cardinality).Success.Inc()
+	t.telemetryStore.QueriesByCardinality(cardinality).Success.Inc()
 	tb.AppendHashed(tags)
 
 	return nil
