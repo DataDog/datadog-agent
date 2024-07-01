@@ -86,7 +86,7 @@ agent_deb-arm64-a7:
     DESTINATION_DEB: "datadog-agent_7_arm64.deb"
     DD_PROJECT: "agent"
 
-.package_ua_deb_common:
+.package_ot_deb_common:
   extends: [.package_deb_common]
   script:
     - source /root/.bashrc
@@ -98,8 +98,8 @@ agent_deb-arm64-a7:
     - !reference [.lint_linux_packages]
     - $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog-ua-agent_*_${PACKAGE_ARCH}.deb $S3_ARTIFACTS_URI/$DESTINATION_DEB
 
-ua_agent_deb-x64-a7:
-  extends: [.package_ua_deb_common, .package_deb_x86, .package_deb_agent_7]
+ot_agent_deb-x64-a7:
+  extends: [.package_ot_deb_common, .package_deb_x86, .package_deb_agent_7]
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
@@ -108,8 +108,8 @@ ua_agent_deb-x64-a7:
     DESTINATION_DEB: "datadog-ua-agent_7_amd64.deb"
     DD_PROJECT: "agent"
 
-ua_agent_deb-arm64-a7:
-  extends: [.package_ua_deb_common, .package_deb_arm64, .package_deb_agent_7]
+ot_agent_deb-arm64-a7:
+  extends: [.package_ot_deb_common, .package_deb_arm64, .package_deb_agent_7]
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
