@@ -131,12 +131,21 @@ func runAgent() {
 
 	if err := apikey.HandleEnv(); err != nil {
 		log.Errorf("Can't start the Datadog extension as no API Key has been detected, or API Key could not be decrypted. Data will not be sent to Datadog.")
+		ctx := context.Background()
+
+		_, shutdownAppSec, err := appsec.NewWithShutdown(nil)
+		if err != nil {
+			log.Errorf("Can't start Lambda Runtime API Proxy for AppSec: %v", err)
+		}
+		if shutdownAppSec != nil {
+			defer shutdownAppSec(ctx)
+		}
+
 		// we still need to register the extension but let's return after (no-op)
 		id, _, registrationError := registration.RegisterExtension(extensionRegistrationRoute, extensionRegistrationTimeout)
 		if registrationError != nil {
 			log.Errorf("Can't register as a serverless agent: %s", registrationError)
 		}
-		ctx := context.Background()
 		processError := registration.NoOpProcessEvent(ctx, id)
 		if processError != nil {
 			log.Errorf("Can't process events: %s", processError)
