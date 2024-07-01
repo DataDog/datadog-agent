@@ -14,7 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/executable"
 )
 
-const DocURL = "https://docs.datadoghq.com/agent/basic_agent_usage/windows"
+const docURL = "https://docs.datadoghq.com/agent/basic_agent_usage/windows"
 
 func restartEnabled() bool {
 	return true
@@ -51,5 +51,5 @@ Please ensure you access the Datadog Agent Manager as follows:
 
 <h4>Be Aware of Token Expiration</h4>
 The Datadog Agent parameter <code>GUI_session_expiration</code> (set in <code>datadog.yaml</code>) allows you to define a time expiration for the Datadog Agent Manager sessions.`,
-		DocURL, DocURL)
+		docURL, docURL)
 }

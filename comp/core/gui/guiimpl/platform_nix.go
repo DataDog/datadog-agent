@@ -11,7 +11,7 @@ import (
 	"fmt"
 )
 
-const DocURL = "https://docs.datadoghq.com/agent/basic_agent_usage/?tab=Linux"
+const docURL = "https://docs.datadoghq.com/agent/basic_agent_usage/?tab=Linux"
 
 func restartEnabled() bool {
 	return false
@@ -28,5 +28,5 @@ func logginInstructions() string {
 
 <h4>Be Aware of Token Expiration</h4>
 The Datadog Agent parameter <code>GUI_session_expiration</code> (set in <code>datadog.yaml</code>) allows you to define a time expiration for the Datadog Agent Manager sessions.`,
-		DocURL, DocURL)
+		docURL, docURL)
 }
