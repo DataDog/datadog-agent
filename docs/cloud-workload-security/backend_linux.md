@@ -1482,6 +1482,10 @@ CSM Threats event for Linux systems have the following JSON schema:
                 "dirfd": {
                     "type": "integer",
                     "description": "Directory file descriptor argument"
+                },
+                "destination_path": {
+                    "type": "string",
+                    "description": "Destination path argument"
                 }
             },
             "additionalProperties": false,
@@ -1506,6 +1510,9 @@ CSM Threats event for Linux systems have the following JSON schema:
                     "$ref": "#/$defs/SyscallArgs"
                 },
                 "unlink": {
+                    "$ref": "#/$defs/SyscallArgs"
+                },
+                "link": {
                     "$ref": "#/$defs/SyscallArgs"
                 }
             },
@@ -3880,6 +3887,10 @@ CSM Threats event for Linux systems have the following JSON schema:
         "dirfd": {
             "type": "integer",
             "description": "Directory file descriptor argument"
+        },
+        "destination_path": {
+            "type": "string",
+            "description": "Destination path argument"
         }
     },
     "additionalProperties": false,
@@ -3897,6 +3908,7 @@ CSM Threats event for Linux systems have the following JSON schema:
 | `uid` | UID argument |
 | `gid` | GID argument |
 | `dirfd` | Directory file descriptor argument |
+| `destination_path` | Destination path argument |
 
 
 ## `SyscallContext`
@@ -3922,6 +3934,9 @@ CSM Threats event for Linux systems have the following JSON schema:
         },
         "unlink": {
             "$ref": "#/$defs/SyscallArgs"
+        },
+        "link": {
+            "$ref": "#/$defs/SyscallArgs"
         }
     },
     "additionalProperties": false,
@@ -3934,6 +3949,7 @@ CSM Threats event for Linux systems have the following JSON schema:
 
 | References |
 | ---------- |
+| [SyscallArgs](#syscallargs) |
 | [SyscallArgs](#syscallargs) |
 | [SyscallArgs](#syscallargs) |
 | [SyscallArgs](#syscallargs) |

@@ -738,6 +738,8 @@ Create a new name/alias for a file
 | [`link.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`link.file.user`](#common-filefields-user-doc) | User of the file's owner |
 | [`link.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
+| [`link.syscall.destination.path`](#link-syscall-destination-path-doc) | Destination path argument of the syscall |
+| [`link.syscall.path`](#link-syscall-path-doc) | Path argument of the syscall |
 
 ### Event `load_module`
 
@@ -2632,6 +2634,20 @@ Definition: the queried IMDS URL
 Type: string
 
 Definition: the user agent of the HTTP client
+
+
+
+### `link.syscall.destination.path` {#link-syscall-destination-path-doc}
+Type: string
+
+Definition: Destination path argument of the syscall
+
+
+
+### `link.syscall.path` {#link-syscall-path-doc}
+Type: string
+
+Definition: Path argument of the syscall
 
 
 

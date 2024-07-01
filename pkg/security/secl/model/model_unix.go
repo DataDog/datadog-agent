@@ -321,8 +321,13 @@ type MountReleasedEvent struct {
 // LinkEvent represents a link event
 type LinkEvent struct {
 	SyscallEvent
+	SyscallContext
 	Source FileEvent `field:"file"`
 	Target FileEvent `field:"file.destination"`
+
+	// Syscall context aliases
+	SyscallPath            string `field:"syscall.path,ref:link.syscall.str1"`             // SECLDoc[syscall.path] Definition:`Path argument of the syscall`
+	SyscallDestinationPath string `field:"syscall.destination.path,ref:link.syscall.str2"` // SECLDoc[syscall.destination.path] Definition:`Destination path argument of the syscall`
 }
 
 // MkdirEvent represents a mkdir event
