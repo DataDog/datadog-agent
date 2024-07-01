@@ -75,6 +75,8 @@ func (s *upgradeScenarioSuite) TestUpgradeSuccessful() {
 		"datadog-installer.service",
 	)
 
+	s.host.WaitForFileExists(true, "/var/run/datadog-installer/installer.sock")
+
 	_, err := s.setCatalog(testCatalog)
 	require.NoError(s.T(), err)
 
@@ -98,6 +100,8 @@ func (s *upgradeScenarioSuite) TestBackendFailure() {
 		"datadog-agent-process.service",
 		"datadog-installer.service",
 	)
+
+	s.host.WaitForFileExists(true, "/var/run/datadog-installer/installer.sock")
 
 	_, err := s.setCatalog(testCatalog)
 	require.NoError(s.T(), err)
@@ -123,6 +127,8 @@ func (s *upgradeScenarioSuite) TestStopWithoutExperiment() {
 		"datadog-agent-process.service",
 		"datadog-installer.service",
 	)
+
+	s.host.WaitForFileExists(true, "/var/run/datadog-installer/installer.sock")
 
 	beforeStatus := s.getInstallerStatus()["datadog-agent"]
 
