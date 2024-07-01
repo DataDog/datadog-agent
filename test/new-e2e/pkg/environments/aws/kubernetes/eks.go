@@ -346,6 +346,7 @@ func EKSRunFunc(ctx *pulumi.Context, env *environments.AwsKubernetes, params *Pr
 
 		// Deploy the OTel agent
 		if params.otelAgentOptions != nil {
+			// TODO: replace with kubernetesotelagentparams
 			paramsAgent, err := kubernetesagentparams.NewParams(&awsEnv, params.otelAgentOptions...)
 			if err != nil {
 				return err

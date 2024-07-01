@@ -158,6 +158,7 @@ agents:
   useHostNetwork: true
 `, kindClusterName)
 
+		// TODO: replace with kubernetesotelagentparams
 		newOpts := []kubernetesagentparams.Option{kubernetesagentparams.WithHelmValues(helmValues)}
 		params.otelAgentOptions = append(newOpts, params.otelAgentOptions...)
 		// TODO: replace with otelagent.NewKubernetesAgent
