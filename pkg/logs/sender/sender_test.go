@@ -50,7 +50,7 @@ func TestSender(t *testing.T) {
 	destinations := client.NewDestinations([]client.Destination{destination}, nil)
 
 	cfg := getNewConfig()
-	sender := NewSender(cfg, input, output, destinations, 0)
+	sender := NewSender(cfg, input, output, destinations, 0, nil, nil)
 	sender.Start()
 
 	expectedMessage := newMessage([]byte("fake line"), source, "")
@@ -78,7 +78,7 @@ func TestSenderSingleDestination(t *testing.T) {
 
 	destinations := client.NewDestinations([]client.Destination{server.Destination}, nil)
 
-	sender := NewSender(cfg, input, output, destinations, 10)
+	sender := NewSender(cfg, input, output, destinations, 10, nil, nil)
 	sender.Start()
 
 	input <- &message.Payload{}
@@ -108,7 +108,7 @@ func TestSenderDualReliableDestination(t *testing.T) {
 
 	destinations := client.NewDestinations([]client.Destination{server1.Destination, server2.Destination}, nil)
 
-	sender := NewSender(cfg, input, output, destinations, 10)
+	sender := NewSender(cfg, input, output, destinations, 10, nil, nil)
 	sender.Start()
 
 	input <- &message.Payload{}
@@ -143,7 +143,7 @@ func TestSenderUnreliableAdditionalDestination(t *testing.T) {
 
 	destinations := client.NewDestinations([]client.Destination{server1.Destination}, []client.Destination{server2.Destination})
 
-	sender := NewSender(cfg, input, output, destinations, 10)
+	sender := NewSender(cfg, input, output, destinations, 10, nil, nil)
 	sender.Start()
 
 	input <- &message.Payload{}
@@ -175,7 +175,7 @@ func TestSenderUnreliableStopsWhenMainFails(t *testing.T) {
 
 	destinations := client.NewDestinations([]client.Destination{reliableServer.Destination}, []client.Destination{unreliableServer.Destination})
 
-	sender := NewSender(cfg, input, output, destinations, 10)
+	sender := NewSender(cfg, input, output, destinations, 10, nil, nil)
 	sender.Start()
 
 	input <- &message.Payload{}
@@ -224,7 +224,7 @@ func TestSenderReliableContinuseWhenOneFails(t *testing.T) {
 
 	destinations := client.NewDestinations([]client.Destination{reliableServer1.Destination, reliableServer2.Destination}, nil)
 
-	sender := NewSender(cfg, input, output, destinations, 10)
+	sender := NewSender(cfg, input, output, destinations, 10, nil, nil)
 	sender.Start()
 
 	input <- &message.Payload{}
@@ -270,7 +270,7 @@ func TestSenderReliableWhenOneFailsAndRecovers(t *testing.T) {
 
 	destinations := client.NewDestinations([]client.Destination{reliableServer1.Destination, reliableServer2.Destination}, nil)
 
-	sender := NewSender(cfg, input, output, destinations, 10)
+	sender := NewSender(cfg, input, output, destinations, 10, nil, nil)
 	sender.Start()
 
 	input <- &message.Payload{}
