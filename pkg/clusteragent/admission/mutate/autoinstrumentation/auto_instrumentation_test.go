@@ -2118,6 +2118,44 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 				wConfig("admission_controller.auto_instrumentation.asm_sca.enabled", false),
 			},
 		},
+		{
+			name: "Single Step Instrumentation: enable profiling",
+			pod: common.FakePodWithParent(
+				"ns",
+				map[string]string{},
+				map[string]string{},
+				[]corev1.EnvVar{},
+				"replicaset", "test-app-123",
+			),
+			expectedEnvs: append(append(injectAllEnvs(), expBasicConfig()...),
+				corev1.EnvVar{
+					Name:  "DD_INSTRUMENTATION_INSTALL_TYPE",
+					Value: "k8s_single_step",
+				},
+				corev1.EnvVar{
+					Name:  "DD_SERVICE",
+					Value: "test-app",
+				},
+				corev1.EnvVar{
+					Name:  "DD_INSTRUMENTATION_INSTALL_TIME",
+					Value: installTime,
+				},
+				corev1.EnvVar{
+					Name:  "DD_INSTRUMENTATION_INSTALL_ID",
+					Value: uuid,
+				},
+				corev1.EnvVar{
+					Name:  "DD_PROFILING_ENABLED",
+					Value: "auto",
+				},
+			),
+			expectedInjectedLibraries: map[string]string{"java": "latest", "python": "latest", "js": "latest", "ruby": "latest", "dotnet": "latest"},
+			wantErr:                   false,
+			setupConfig: funcs{
+				enableAPMInstrumentation,
+				wConfig("admission_controller.auto_instrumentation.profiling.enabled", "auto"),
+			},
+		},
 	}
 
 	for _, tt := range tests {

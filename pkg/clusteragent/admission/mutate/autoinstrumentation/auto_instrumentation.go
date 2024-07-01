@@ -328,6 +328,7 @@ func (w *Webhook) inject(pod *corev1.Pod, _ string, _ dynamic.Interface) (bool, 
 		return false, nil
 	}
 	injectSecurityClientLibraryConfig(pod)
+	injectProfilingClientLibraryConfig(pod)
 	// Inject env variables used for Onboarding KPIs propagation
 	var injectionType string
 	if w.isEnabledInNamespace(pod.Namespace) {
@@ -354,17 +355,36 @@ func (w *Webhook) inject(pod *corev1.Pod, _ string, _ dynamic.Interface) (bool, 
 // * true - product activated, not overridable remotely
 // * false - product disactivated, not overridable remotely
 func injectSecurityClientLibraryConfig(pod *corev1.Pod) {
-	injectEnvVarIfConfigKeySet(pod, "admission_controller.auto_instrumentation.asm.enabled", "DD_APPSEC_ENABLED")
-	injectEnvVarIfConfigKeySet(pod, "admission_controller.auto_instrumentation.iast.enabled", "DD_IAST_ENABLED")
-	injectEnvVarIfConfigKeySet(pod, "admission_controller.auto_instrumentation.asm_sca.enabled", "DD_APPSEC_SCA_ENABLED")
+	injectEnvVarIfBoolConfigKeySet(pod, "admission_controller.auto_instrumentation.asm.enabled", "DD_APPSEC_ENABLED")
+	injectEnvVarIfBoolConfigKeySet(pod, "admission_controller.auto_instrumentation.iast.enabled", "DD_IAST_ENABLED")
+	injectEnvVarIfBoolConfigKeySet(pod, "admission_controller.auto_instrumentation.asm_sca.enabled", "DD_APPSEC_SCA_ENABLED")
 }
 
-func injectEnvVarIfConfigKeySet(pod *corev1.Pod, configKey string, envVarKey string) {
+// The config for profiling has four states: <unset> | "auto" | "true" | "false".
+// * <unset> - profiling not activated, but can be activated remotely
+// * "true" - profiling activated unconditionally, not overridable remotely
+// * "false" - profiling deactivated, not overridable remotely
+// * "auto" - profiling activates per-process heuristically, not overridable remotely
+func injectProfilingClientLibraryConfig(pod *corev1.Pod) {
+	injectEnvVarIfStringConfigKeySet(pod, "admission_controller.auto_instrumentation.profiling.enabled", "DD_PROFILING_ENABLED")
+}
+
+func injectEnvVarIfBoolConfigKeySet(pod *corev1.Pod, configKey string, envVarKey string) {
 	if config.Datadog().IsSet(configKey) {
 		enabledValue := config.Datadog().GetBool(configKey)
 		_ = mutatecommon.InjectEnv(pod, corev1.EnvVar{
 			Name:  envVarKey,
 			Value: strconv.FormatBool(enabledValue),
+		})
+	}
+}
+
+func injectEnvVarIfStringConfigKeySet(pod *corev1.Pod, configKey string, envVarKey string) {
+	if config.Datadog().IsSet(configKey) {
+		configValue := config.Datadog().GetString(configKey)
+		_ = mutatecommon.InjectEnv(pod, corev1.EnvVar{
+			Name:  envVarKey,
+			Value: configValue,
 		})
 	}
 }
