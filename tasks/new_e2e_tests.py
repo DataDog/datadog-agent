@@ -23,6 +23,17 @@ from tasks.libs.common.utils import REPO_PATH, color_message, running_in_ci
 from tasks.modules import DEFAULT_MODULES
 
 
+def get_aws_wrapper(
+    command: str,
+    aws_account: str,
+    use_aws_vault: bool,
+) -> str:
+    if not running_in_ci() and use_aws_vault:
+        return f"aws-vault exec sso-{aws_account}-account-admin -- " + command
+
+    return command
+
+
 @task(
     iterable=['tags', 'targets', 'configparams'],
     help={
@@ -33,14 +44,15 @@ from tasks.modules import DEFAULT_MODULES
         'verbose': 'Verbose output: log all tests as they are run (same as gotest -v) [default: True]',
         'run': 'Only run tests matching the regular expression',
         'skip': 'Only run tests not matching the regular expression',
+        'use_aws_vault': 'Wrap aws command with aws-vault, default to True if not running in CI',
     },
 )
 def run(
     ctx,
     profile="",
-    tags=[],  # noqa: B006
-    targets=[],  # noqa: B006
-    configparams=[],  # noqa: B006
+    tags=None,
+    targets=None,
+    configparams=None,
     verbose=True,
     run="",
     skip="",
@@ -58,6 +70,7 @@ def run(
     junit_tar="",
     test_run_name="",
     test_washer=False,
+    use_aws_vault: bool = True,
 ):
     """
     Run E2E Tests based on test-infra-definitions infrastructure provisioning.
@@ -67,6 +80,15 @@ def run(
             "pulumi CLI not found, Pulumi needs to be installed on the system (see https://github.com/DataDog/test-infra-definitions/blob/main/README.md)",
             1,
         )
+
+    if not tags:
+        tags = []
+
+    if not targets:
+        targets = []
+
+    if not configparams:
+        configparams = []
 
     e2e_module = DEFAULT_MODULES["test/new-e2e"]
     e2e_module.condition = lambda: True
@@ -95,6 +117,7 @@ def run(
 
     cmd = f'gotestsum --format {gotestsum_format} '
     cmd += '{junit_file_flag} {json_flag} --packages="{packages}" -- -ldflags="-X {REPO_PATH}/test/new-e2e/tests/containers.GitCommit={commit}" {verbose} -mod={go_mod} -vet=off -timeout {timeout} -tags "{go_build_tags}" {nocache} {run} {skip} {test_run_arg} -args {osversion} {platform} {major_version} {arch} {flavor} {cws_supported_osversion} {src_agent_version} {dest_agent_version} {keep_stacks} {extra_flags}'
+    cmd = get_aws_wrapper(cmd, "agent-sandbox", use_aws_vault)
 
     args = {
         "go_mod": "mod",
@@ -162,14 +185,16 @@ def run(
         'locks': 'Cleans up lock files, default True',
         'stacks': 'Cleans up local stack state, default False',
         'output': 'Cleans up local test output directory, default False',
+        'use_aws_vault': 'Wrap aws command with aws-vault, default to True',
     },
 )
-def clean(ctx, locks=True, stacks=False, output=False):
+def clean(ctx: Context, locks: bool = True, stacks: bool = False, output: bool = False, use_aws_vault=True):
     """
     Clean any environment created with invoke tasks or e2e tests
     By default removes only lock files.
     """
-    if not _is_local_state(_get_pulumi_about(ctx)):
+
+    if not _is_local_state(_get_pulumi_about(ctx, use_aws_vault)):
         print("Cleanup supported for local state only, run `pulumi login --local` to switch to local state")
         return
 
@@ -246,23 +271,27 @@ def _clean_locks():
             print(f"🗑️  Deleted lock: {path}")
 
 
-def _clean_stacks(ctx: Context):
+def _clean_stacks(ctx: Context, use_aws_vault: bool = True):
     print("🧹 Clean up stack")
-    stacks = _get_existing_stacks(ctx)
+    stacks = _get_existing_stacks(ctx, use_aws_vault)
 
     for stack in stacks:
         print(f"🗑️  Destroying stack {stack}")
-        _destroy_stack(ctx, stack)
+        _destroy_stack(ctx, stack, use_aws_vault)
 
     stacks = _get_existing_stacks(ctx)
     for stack in stacks:
         print(f"🗑️ Cleaning up stack {stack}")
-        _remove_stack(ctx, stack)
+        _remove_stack(ctx, stack, use_aws_vault)
 
 
-def _get_existing_stacks(ctx: Context) -> list[str]:
+def _get_existing_stacks(ctx: Context, use_aws_vault: bool = True) -> list[str]:
     e2e_stacks: list[str] = []
-    output = ctx.run("pulumi stack ls --all --project e2elocal --json", hide=True, env=_get_default_env())
+    output = ctx.run(
+        get_aws_wrapper("pulumi stack ls --all --project e2elocal --json", "agent-sandbox", use_aws_vault),
+        hide=True,
+        env=_get_default_env(),
+    )
     if output is None or not output:
         return []
     stacks_data = json.loads(output.stdout)
@@ -276,13 +305,15 @@ def _get_existing_stacks(ctx: Context) -> list[str]:
     return e2e_stacks
 
 
-def _destroy_stack(ctx: Context, stack: str):
+def _destroy_stack(ctx: Context, stack: str, use_aws_vault: bool = True):
     # running in temp dir as this is where datadog-agent test
     # stacks are stored. It is expected to fail on stacks existing locally
     # with resources removed by agent-sandbox clean up job
     with ctx.cd(tempfile.gettempdir()):
         ret = ctx.run(
-            f"pulumi destroy --stack {stack} --yes --remove --skip-preview",
+            get_aws_wrapper(
+                f"pulumi destroy --stack {stack} --yes --remove --skip-preview", "agent-sandbox", use_aws_vault
+            ),
             warn=True,
             hide=True,
             env=_get_default_env(),
@@ -301,7 +332,9 @@ def _destroy_stack(ctx: Context, stack: str):
                 )
             # run with refresh on first destroy attempt failure
             ret = ctx.run(
-                f"pulumi destroy --stack {stack} -r --yes --remove --skip-preview",
+                get_aws_wrapper(
+                    f"pulumi destroy --stack {stack} -r --yes --remove --skip-preview", "agent-sandbox", use_aws_vault
+                ),
                 warn=True,
                 hide=True,
                 env=_get_default_env(),
@@ -310,12 +343,18 @@ def _destroy_stack(ctx: Context, stack: str):
             raise Exit(color_message(f"Failed to destroy stack {stack}: {ret.stdout}", "red"), 1)
 
 
-def _remove_stack(ctx: Context, stack: str):
-    ctx.run(f"pulumi stack rm --force --yes --stack {stack}", hide=True, env=_get_default_env())
+def _remove_stack(ctx: Context, stack: str, use_aws_vault: bool = True):
+    ctx.run(
+        get_aws_wrapper(f"pulumi stack rm --force --yes --stack {stack}", "agent-sandbox", use_aws_vault),
+        hide=True,
+        env=_get_default_env(),
+    )
 
 
-def _get_pulumi_about(ctx: Context) -> dict:
-    output = ctx.run("pulumi about --json", hide=True, env=_get_default_env())
+def _get_pulumi_about(ctx: Context, use_aws_vault: bool = True) -> dict:
+    output = ctx.run(
+        get_aws_wrapper("pulumi about --json", "agent-sandbox", use_aws_vault), hide=True, env=_get_default_env()
+    )
     if output is None or not output:
         return {}
     return json.loads(output.stdout)
