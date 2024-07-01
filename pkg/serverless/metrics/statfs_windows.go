@@ -7,6 +7,6 @@
 
 package metrics
 
-func statfs() (float64, float64, float64, error) {
+func statfs(_ string) (float64, float64, float64, error) {
 	return 0, 0, 0, nil
 }

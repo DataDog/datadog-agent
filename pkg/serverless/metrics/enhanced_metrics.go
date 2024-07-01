@@ -26,7 +26,7 @@ const (
 	armLambdaPricePerGbSecond = 0.0000133334
 	msToSec                   = 0.001
 
-	//tmp path
+	// tmp directory path
 	tmpPath = "/tmp/"
 
 	// Enhanced metrics
@@ -528,9 +528,10 @@ func SendTmpEnhancedMetrics(sendMetrics chan bool, tags []string, metricAgent *S
 		return
 	}
 
-	bsize, blocks, bavail, err := statfs()
+	bsize, blocks, bavail, err := statfs(tmpPath)
 	if err != nil {
 		log.Debug("Could not emit tmp enhanced metrics")
+		return
 	}
 	tmpMax := blocks * bsize
 	tmpUsed := bsize * (blocks - bavail)
@@ -549,7 +550,11 @@ func SendTmpEnhancedMetrics(sendMetrics chan bool, tags []string, metricAgent *S
 			})
 			return
 		case <-ticker.C:
-			bsize, blocks, bavail, err = statfs()
+			bsize, blocks, bavail, err = statfs(tmpPath)
+			if err != nil {
+				log.Debug("Could not emit tmp enhanced metrics")
+				return
+			}
 			tmpUsed = math.Max(tmpUsed, bsize*(blocks-bavail))
 		}
 	}
