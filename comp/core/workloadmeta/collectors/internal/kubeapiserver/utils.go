@@ -10,7 +10,6 @@ package kubeapiserver
 import (
 	"fmt"
 	"regexp"
-	"slices"
 
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	utilserror "k8s.io/apimachinery/pkg/util/errors"
@@ -58,7 +57,7 @@ func filterToRegex(filter string) (*regexp.Regexp, error) {
 	return r, nil
 }
 
-func discoverGVRs(discoveryClient discovery.DiscoveryInterface, resources []string, excludedResources []string) ([]schema.GroupVersionResource, error) {
+func discoverGVRs(discoveryClient discovery.DiscoveryInterface, resources []string) ([]schema.GroupVersionResource, error) {
 	discoveredResources, err := discoverResources(discoveryClient)
 	if err != nil {
 		return nil, err
@@ -66,12 +65,6 @@ func discoverGVRs(discoveryClient discovery.DiscoveryInterface, resources []stri
 
 	gvrs := make([]schema.GroupVersionResource, 0, len(resources))
 	for _, resource := range resources {
-
-		// TODO: Remove this after implementing collector factory which specifies which collector should be registered for each specific resource type
-		if slices.Contains(excludedResources, resource) {
-			continue
-		}
-
 		gv, found := discoveredResources[resource]
 		if found {
 			gvrs = append(gvrs, schema.GroupVersionResource{Group: gv.Group, Version: gv.Version, Resource: resource})

@@ -14,7 +14,11 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
+	"go.uber.org/atomic"
+
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	telemetryComp "github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/common"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/pathteststore"
@@ -24,8 +28,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkpath/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
-	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
-	"go.uber.org/atomic"
 )
 
 type npCollectorImpl struct {
@@ -54,11 +56,14 @@ type npCollectorImpl struct {
 	runDone       chan struct{}
 	flushInterval time.Duration
 
+	// Telemetry component
+	telemetrycomp telemetryComp.Component
+
 	// structures needed to ease mocking/testing
 	TimeNowFn func() time.Time
 	// TODO: instead of mocking traceroute via function replacement like this
 	//       we should ideally create a fake/mock traceroute instance that can be passed/injected in NpCollector
-	runTraceroute func(cfg traceroute.Config) (payload.NetworkPath, error)
+	runTraceroute func(cfg traceroute.Config, telemetrycomp telemetryComp.Component) (payload.NetworkPath, error)
 }
 
 func newNoopNpCollectorImpl() *npCollectorImpl {
@@ -67,7 +72,7 @@ func newNoopNpCollectorImpl() *npCollectorImpl {
 	}
 }
 
-func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *collectorConfigs, logger log.Component) *npCollectorImpl {
+func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *collectorConfigs, logger log.Component, telemetrycomp telemetryComp.Component) *npCollectorImpl {
 	logger.Infof("New NpCollector (workers=%d input_chan_size=%d processing_chan_size=%d pathtest_ttl=%s pathtest_interval=%s flush_interval=%s)",
 		collectorConfigs.workers,
 		collectorConfigs.pathtestInputChanSize,
@@ -91,6 +96,8 @@ func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *c
 		processedTracerouteCount: atomic.NewUint64(0),
 		TimeNowFn:                time.Now,
 
+		telemetrycomp: telemetrycomp,
+
 		stopChan:      make(chan struct{}),
 		runDone:       make(chan struct{}),
 		flushLoopDone: make(chan struct{}),
@@ -109,9 +116,10 @@ func (s *npCollectorImpl) ScheduleConns(conns []*model.Connection) {
 			continue
 		}
 		remoteAddr := conn.Raddr
-		remotePort := uint16(conn.Raddr.Port)
-		protocol := conn.Type.String()
-		err := s.scheduleOne(remoteAddr.Ip, remotePort, protocol)
+		remotePort := uint16(conn.Raddr.GetPort())
+		protocol := conn.GetType().String()
+		sourceContainer := conn.Laddr.GetContainerId()
+		err := s.scheduleOne(remoteAddr.GetIp(), remotePort, protocol, sourceContainer)
 		if err != nil {
 			s.logger.Errorf("Error scheduling pathtests: %s", err)
 		}
@@ -123,16 +131,17 @@ func (s *npCollectorImpl) ScheduleConns(conns []*model.Connection) {
 
 // scheduleOne schedules pathtests.
 // It shouldn't block, if the input channel is full, an error is returned.
-func (s *npCollectorImpl) scheduleOne(hostname string, port uint16, protocol string) error {
+func (s *npCollectorImpl) scheduleOne(hostname string, port uint16, protocol string, sourceContainerID string) error {
 	if s.pathtestInputChan == nil {
 		return errors.New("no input channel, please check that network path is enabled")
 	}
 	s.logger.Debugf("Schedule traceroute for: hostname=%s port=%d", hostname, port)
 
 	ptest := &common.Pathtest{
-		Hostname: hostname,
-		Port:     port,
-		Protocol: protocol,
+		Hostname:          hostname,
+		Port:              port,
+		Protocol:          protocol,
+		SourceContainerID: sourceContainerID,
 	}
 	select {
 	case s.pathtestInputChan <- ptest:
@@ -200,7 +209,7 @@ func (s *npCollectorImpl) runTracerouteForPath(ptest *pathteststore.PathtestCont
 		Protocol:     ptest.Pathtest.Protocol,
 	}
 
-	path, err := s.runTraceroute(cfg)
+	path, err := s.runTraceroute(cfg, s.telemetrycomp)
 	if err != nil {
 		s.logger.Errorf("%s", err)
 		return
@@ -221,8 +230,8 @@ func (s *npCollectorImpl) runTracerouteForPath(ptest *pathteststore.PathtestCont
 	}
 }
 
-func runTraceroute(cfg traceroute.Config) (payload.NetworkPath, error) {
-	tr, err := traceroute.New(cfg)
+func runTraceroute(cfg traceroute.Config, telemetry telemetryComp.Component) (payload.NetworkPath, error) {
+	tr, err := traceroute.New(cfg, telemetry)
 	if err != nil {
 		return payload.NetworkPath{}, fmt.Errorf("new traceroute error: %s", err)
 	}

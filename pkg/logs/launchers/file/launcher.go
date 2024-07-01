@@ -284,13 +284,10 @@ func (s *Launcher) launchTailers(source *sources.LogSource) {
 			continue
 		}
 
-		mode, _ := config.TailingModeFromString(source.Config.TailingMode)
-
-		if source.Config.Identifier != "" {
-			// only sources generated from a service discovery will contain a config identifier,
-			// in which case we want to collect all logs.
-			// FIXME: better detect a source that has been generated from a service discovery.
+		mode, isSet := config.TailingModeFromString(source.Config.TailingMode)
+		if !isSet && source.Config.Identifier != "" {
 			mode = config.Beginning
+			source.Config.TailingMode = mode.String()
 		}
 
 		s.startNewTailer(file, mode)
@@ -310,7 +307,6 @@ func (s *Launcher) startNewTailer(file *tailer.File, m config.TailingMode) bool 
 	var offset int64
 	var whence int
 	mode := s.handleTailingModeChange(tailer.Identifier(), m)
-
 	offset, whence, err := Position(s.registry, tailer.Identifier(), mode)
 	if err != nil {
 		log.Warnf("Could not recover offset for file with path %v: %v", file.Path, err)

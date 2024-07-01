@@ -538,8 +538,8 @@ func TestETWFileNotifications(t *testing.T) {
 	testfilerename := ex + ".testfilerename"
 
 	wp, err := createTestProbe()
-	wp.disableApprovers = true
 	require.NoError(t, err)
+	wp.config.Probe.EnableApprovers = false
 
 	// teardownTestProe calls the stop function on etw, which will
 	// in turn wait on wp.fimgw

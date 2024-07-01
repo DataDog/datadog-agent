@@ -38,8 +38,10 @@ func (s *packageInstallerSuite) TestInstall() {
 	state.AssertDirExists("/var/log/datadog", 0755, "dd-agent", "dd-agent")
 	state.AssertDirExists("/var/run/datadog-installer", 0755, "dd-agent", "dd-agent")
 	state.AssertDirExists("/var/run/datadog-installer/locks", 0777, "root", "root")
+	state.AssertDirExists("/var/run/datadog", 0755, "dd-agent", "dd-agent")
 
 	state.AssertDirExists("/opt/datadog-installer", 0755, "root", "root")
+	state.AssertDirExists("/opt/datadog-installer/tmp", 0755, "dd-agent", "dd-agent")
 	state.AssertDirExists("/opt/datadog-packages", 0755, "root", "root")
 	state.AssertDirExists("/opt/datadog-packages/datadog-installer", 0755, "root", "root")
 
@@ -47,6 +49,8 @@ func (s *packageInstallerSuite) TestInstall() {
 	state.AssertSymlinkExists("/usr/bin/datadog-installer", "/opt/datadog-packages/datadog-installer/stable/bin/installer/installer", "root", "root")
 
 	state.AssertUnitsNotLoaded("datadog-installer.service", "datadog-installer-exp.service")
+
+	state.AssertFileExists("/etc/systemd/system/datadog-agent.service.d/datadog_runtime_config.conf", 0644, "root", "root")
 }
 
 func (s *packageInstallerSuite) TestInstallWithRemoteUpdates() {
@@ -86,13 +90,34 @@ func (s *packageInstallerSuite) TestUninstall() {
 func (s *packageInstallerSuite) TestReInstall() {
 	s.RunInstallScript("DD_NO_AGENT_INSTALL=true")
 	defer s.Purge()
+	stateBefre := s.host.State()
+	installerBinBefore, ok := stateBefre.Stat("/usr/bin/datadog-installer")
+	assert.True(s.T(), ok)
 
-	// remove an installer directory and re-install it. Given that the installer is already installed,
-	// it should not be re-installed and the directory should not be re-created.
-	s.host.DeletePath("/opt/datadog-packages/datadog-installer/stable/systemd")
 	s.RunInstallScript("DD_NO_AGENT_INSTALL=true")
+	stateAfter := s.host.State()
+	installerBinAfter, ok := stateAfter.Stat("/usr/bin/datadog-installer")
+	assert.True(s.T(), ok)
 
-	state := s.host.State()
-	state.AssertPathDoesNotExist("/opt/datadog-packages/datadog-installer/stable/systemd")
+	assert.Equal(s.T(), installerBinBefore.ModTime, installerBinAfter.ModTime)
 	s.host.AssertPackageInstalledByInstaller("datadog-installer")
+}
+
+func (s *packageInstallerSuite) TestUpdateInstallerOCI() {
+	// Install prod
+	err := s.RunInstallScriptProdOci(
+		envForceVersion("datadog-installer", "7.55.0-installer-0.2.1-1"),
+	)
+	defer s.Purge()
+	assert.NoError(s.T(), err)
+
+	version := s.Env().RemoteHost.MustExecute("/opt/datadog-packages/datadog-installer/stable/bin/installer/installer version")
+	assert.Equal(s.T(), "7.55.0-installer-0.2.1\n", version)
+
+	// Install from QA registry
+	err = s.RunInstallScriptWithError()
+	assert.NoError(s.T(), err)
+
+	version = s.Env().RemoteHost.MustExecute("/opt/datadog-packages/datadog-installer/stable/bin/installer/installer version")
+	assert.Contains(s.T(), version, "-devel+git")
 }

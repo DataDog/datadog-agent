@@ -7,6 +7,7 @@ package api
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 )
@@ -22,6 +23,10 @@ type Endpoint struct {
 	// Hidden reports whether this endpoint should be hidden in the /info
 	// discovery endpoint.
 	Hidden bool
+
+	// TimeoutOverride lets you specify a timeout for this endpoint that will be used
+	// instead of the default one from conf.ReceiverTimeout
+	TimeoutOverride func(conf *config.AgentConfig) time.Duration
 
 	// IsEnabled specifies a function which reports whether this endpoint should be enabled
 	// based on the given config conf.
@@ -109,20 +114,24 @@ var endpoints = []Endpoint{
 		Handler: func(r *HTTPReceiver) http.Handler { return r.pipelineStatsProxyHandler() },
 	},
 	{
-		Pattern: "/evp_proxy/v1/",
-		Handler: func(r *HTTPReceiver) http.Handler { return r.evpProxyHandler(1) },
+		Pattern:         "/evp_proxy/v1/",
+		Handler:         func(r *HTTPReceiver) http.Handler { return r.evpProxyHandler(1) },
+		TimeoutOverride: getConfiguredEVPRequestTimeoutDuration,
 	},
 	{
-		Pattern: "/evp_proxy/v2/",
-		Handler: func(r *HTTPReceiver) http.Handler { return r.evpProxyHandler(2) },
+		Pattern:         "/evp_proxy/v2/",
+		Handler:         func(r *HTTPReceiver) http.Handler { return r.evpProxyHandler(2) },
+		TimeoutOverride: getConfiguredEVPRequestTimeoutDuration,
 	},
 	{
-		Pattern: "/evp_proxy/v3/",
-		Handler: func(r *HTTPReceiver) http.Handler { return r.evpProxyHandler(3) },
+		Pattern:         "/evp_proxy/v3/",
+		Handler:         func(r *HTTPReceiver) http.Handler { return r.evpProxyHandler(3) },
+		TimeoutOverride: getConfiguredEVPRequestTimeoutDuration,
 	},
 	{
-		Pattern: "/evp_proxy/v4/",
-		Handler: func(r *HTTPReceiver) http.Handler { return r.evpProxyHandler(4) },
+		Pattern:         "/evp_proxy/v4/",
+		Handler:         func(r *HTTPReceiver) http.Handler { return r.evpProxyHandler(4) },
+		TimeoutOverride: getConfiguredEVPRequestTimeoutDuration,
 	},
 	{
 		Pattern: "/debugger/v1/input",

@@ -127,6 +127,7 @@ func (c *LogsConfig) Dump(multiline bool) string {
 		fmt.Fprintf(&b, ws("Label: %#v,"), c.Label)
 		fmt.Fprintf(&b, ws("Name: %#v,"), c.Name)
 		fmt.Fprintf(&b, ws("Identifier: %#v,"), c.Identifier)
+		fmt.Fprintf(&b, ws("TailingMode: %#v,"), c.TailingMode)
 	case JournaldType:
 		fmt.Fprintf(&b, ws("Path: %#v,"), c.Path)
 		fmt.Fprintf(&b, ws("IncludeSystemUnits: %#v,"), c.IncludeSystemUnits)

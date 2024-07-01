@@ -27,11 +27,11 @@ static __attribute__((always_inline)) u32 copy_tty_name(const char src[TTY_NAME_
         return 0;
     }
 
-    bpf_probe_read(dst, TTY_NAME_LEN, (void*)src);
+    bpf_probe_read(dst, TTY_NAME_LEN, (void *)src);
     return TTY_NAME_LEN;
 }
 
-void __attribute__((always_inline)) copy_proc_entry(struct process_entry_t* src, struct process_entry_t* dst) {
+void __attribute__((always_inline)) copy_proc_entry(struct process_entry_t *src, struct process_entry_t *dst) {
     dst->executable = src->executable;
     dst->exec_timestamp = src->exec_timestamp;
     copy_tty_name(src->tty_name, dst->tty_name);
@@ -43,11 +43,11 @@ void __attribute__((always_inline)) copy_proc_cache(struct proc_cache_t *src, st
     copy_proc_entry(&src->entry, &dst->entry);
 }
 
-void __attribute__((always_inline)) copy_credentials(struct credentials_t* src, struct credentials_t* dst) {
+void __attribute__((always_inline)) copy_credentials(struct credentials_t *src, struct credentials_t *dst) {
     *dst = *src;
 }
 
-void __attribute__((always_inline)) copy_pid_cache_except_exit_ts(struct pid_cache_t* src, struct pid_cache_t* dst) {
+void __attribute__((always_inline)) copy_pid_cache_except_exit_ts(struct pid_cache_t *src, struct pid_cache_t *dst) {
     dst->cookie = src->cookie;
     dst->user_session_id = src->user_session_id;
     dst->ppid = src->ppid;
@@ -55,7 +55,7 @@ void __attribute__((always_inline)) copy_pid_cache_except_exit_ts(struct pid_cac
     dst->credentials = src->credentials;
 }
 
-struct proc_cache_t __attribute__((always_inline)) *get_proc_from_cookie(u64 cookie) {
+struct proc_cache_t __attribute__((always_inline)) * get_proc_from_cookie(u64 cookie) {
     if (!cookie) {
         return NULL;
     }
@@ -63,11 +63,11 @@ struct proc_cache_t __attribute__((always_inline)) *get_proc_from_cookie(u64 coo
     return bpf_map_lookup_elem(&proc_cache, &cookie);
 }
 
-struct pid_cache_t * __attribute__((always_inline)) get_pid_cache(u32 tgid) {
-    return (struct pid_cache_t *) bpf_map_lookup_elem(&pid_cache, &tgid);
+struct pid_cache_t *__attribute__((always_inline)) get_pid_cache(u32 tgid) {
+    return (struct pid_cache_t *)bpf_map_lookup_elem(&pid_cache, &tgid);
 }
 
-struct proc_cache_t * __attribute__((always_inline)) get_proc_cache(u32 tgid) {
+struct proc_cache_t *__attribute__((always_inline)) get_proc_cache(u32 tgid) {
     struct pid_cache_t *pid_entry = get_pid_cache(tgid);
     if (!pid_entry) {
         return NULL;
@@ -77,7 +77,7 @@ struct proc_cache_t * __attribute__((always_inline)) get_proc_cache(u32 tgid) {
     return get_proc_from_cookie(pid_entry->cookie);
 }
 
-static struct proc_cache_t * __attribute__((always_inline)) fill_process_context_with_pid_tgid(struct process_context_t *data, u64 pid_tgid) {
+static struct proc_cache_t *__attribute__((always_inline)) fill_process_context_with_pid_tgid(struct process_context_t *data, u64 pid_tgid) {
     u32 tgid = pid_tgid >> 32;
 
     // https://github.com/iovisor/bcc/blob/master/docs/reference_guide.md#4-bpf_get_current_pid_tgid
@@ -105,7 +105,7 @@ static struct proc_cache_t * __attribute__((always_inline)) fill_process_context
     return pc;
 }
 
-static struct proc_cache_t * __attribute__((always_inline)) fill_process_context(struct process_context_t *data) {
+static struct proc_cache_t *__attribute__((always_inline)) fill_process_context(struct process_context_t *data) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     return fill_process_context_with_pid_tgid(data, pid_tgid);
 }
@@ -162,10 +162,7 @@ __attribute__((always_inline)) struct process_event_t *new_process_event(u8 is_f
 bool __attribute__((always_inline)) is_current_kworker_dying() {
     char comm[16];
     bpf_get_current_comm(comm, sizeof(comm));
-    return comm[0] == 'k' && comm[1] == 'w' && comm[2] == 'o' && comm[3] == 'r'
-        && comm[4] == 'k' && comm[5] == 'e' && comm[6] == 'r' && comm[7] == '/'
-        && comm[8] == 'd' && comm[9] == 'y' && comm[10] == 'i' && comm[11] == 'n'
-        && comm[12] == 'g';
+    return comm[0] == 'k' && comm[1] == 'w' && comm[2] == 'o' && comm[3] == 'r' && comm[4] == 'k' && comm[5] == 'e' && comm[6] == 'r' && comm[7] == '/' && comm[8] == 'd' && comm[9] == 'y' && comm[10] == 'i' && comm[11] == 'n' && comm[12] == 'g';
 }
 
 #endif

@@ -65,7 +65,7 @@ func kernelHeaderPaths(headerDirs []string) []string {
 }
 
 // CompileToObjectFile compiles an eBPF program
-func CompileToObjectFile(inFile, outputFile string, cflags, llcFlags, headerDirs []string) error {
+func CompileToObjectFile(inFile, outputFile string, cflags []string, headerDirs []string) error {
 	if len(headerDirs) == 0 {
 		return fmt.Errorf("unable to find kernel headers")
 	}
@@ -87,7 +87,7 @@ func CompileToObjectFile(inFile, outputFile string, cflags, llcFlags, headerDirs
 	if err := clang(cflags, WithStdout(clangOut)); err != nil {
 		return fmt.Errorf("compiling asset to bytecode: %w", err)
 	}
-	if err := llc(clangOut, outputFile, llcFlags); err != nil {
+	if err := llc(clangOut, outputFile); err != nil {
 		return fmt.Errorf("error compiling bytecode to object file: %w", err)
 	}
 	return nil
@@ -140,13 +140,12 @@ func clang(cflags []string, options ...func(*exec.Cmd)) error {
 	return nil
 }
 
-func llc(in io.Reader, outputFile string, llcFlags []string) error {
+func llc(in io.Reader, outputFile string) error {
 	var llcErr bytes.Buffer
 	llcCtx, llcCancel := context.WithTimeout(context.Background(), compilationStepTimeout)
 	defer llcCancel()
 
-	llcArgs := append(llcFlags, "-march=bpf", "-filetype=obj", "-o", outputFile, "-")
-	bcToObj := exec.CommandContext(llcCtx, llcBinPath, llcArgs...)
+	bcToObj := exec.CommandContext(llcCtx, llcBinPath, "-march=bpf", "-filetype=obj", "-o", outputFile, "-")
 	bcToObj.Stdin = in
 	bcToObj.Stdout = nil
 	bcToObj.Stderr = &llcErr

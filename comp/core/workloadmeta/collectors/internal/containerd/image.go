@@ -13,8 +13,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/containerd/containerd"

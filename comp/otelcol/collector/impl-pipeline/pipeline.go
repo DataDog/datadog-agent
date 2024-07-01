@@ -12,6 +12,7 @@ import (
 	"context"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	corelog "github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
@@ -61,6 +62,7 @@ type Provides struct {
 	compdef.Out
 
 	Comp           collector.Component
+	FlareProvider  flaretypes.Provider
 	StatusProvider status.InformationProvider
 }
 
@@ -135,6 +137,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 
 	return Provides{
 		Comp:           collector,
+		FlareProvider:  flaretypes.NewProvider(collector.fillFlare),
 		StatusProvider: status.NewInformationProvider(collector),
 	}, nil
 }

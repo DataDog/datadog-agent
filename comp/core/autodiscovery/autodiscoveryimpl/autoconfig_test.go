@@ -12,7 +12,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -27,7 +26,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -384,9 +384,9 @@ func TestResolveTemplate(t *testing.T) {
 	}
 	// there are no template vars but it's ok
 	ac.processNewService(ctx, &service) // processNewService applies changes
-	clk := clock.NewMock()
-	clk.Add(2000 * time.Millisecond)
-	assert.Equal(t, sch.scheduledSize(), 1)
+	assert.Eventually(t, func() bool {
+		return sch.scheduledSize() == 1
+	}, 5*time.Second, 10*time.Millisecond)
 }
 
 func countLoadedConfigs(ac *AutoConfig) int {
@@ -537,5 +537,5 @@ type Deps struct {
 }
 
 func createDeps(t *testing.T) Deps {
-	return fxutil.Test[Deps](t, core.MockBundle(), workloadmeta.MockModule(), fx.Supply(workloadmeta.NewParams()), fx.Supply(tagger.NewFakeTaggerParams()), taggerimpl.Module())
+	return fxutil.Test[Deps](t, core.MockBundle(), workloadmetafxmock.MockModule(), fx.Supply(workloadmeta.NewParams()), fx.Supply(tagger.NewFakeTaggerParams()), taggerimpl.Module())
 }

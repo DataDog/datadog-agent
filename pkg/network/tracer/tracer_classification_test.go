@@ -144,10 +144,11 @@ func testHTTPProtocolClassification(t *testing.T, tr *Tracer, clientHost, target
 				resp.Body.Close()
 			},
 			teardown: func(t *testing.T, ctx testContext) {
-				srv := ctx.extras["server"].(*nethttp.Server)
-				timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
-				defer cancel()
-				_ = srv.Shutdown(timedContext)
+				if srv, ok := ctx.extras["server"].(*nethttp.Server); ok {
+					timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+					defer cancel()
+					_ = srv.Shutdown(timedContext)
+				}
 			},
 			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.HTTP}),
 		},
@@ -167,9 +168,8 @@ func testEdgeCasesProtocolClassification(t *testing.T, tr *Tracer, clientHost, t
 	}
 
 	teardown := func(t *testing.T, ctx testContext) {
-		server, ok := ctx.extras["server"].(*TCPServer)
-		if ok {
-			server.Shutdown()
+		if srv, ok := ctx.extras["server"].(*TCPServer); ok {
+			srv.Shutdown()
 		}
 	}
 

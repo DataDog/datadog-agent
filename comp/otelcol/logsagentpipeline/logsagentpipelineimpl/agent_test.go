@@ -175,11 +175,12 @@ func TestAgentTestSuite(t *testing.T) {
 }
 
 func TestBuildEndpoints(t *testing.T) {
-	config := fxutil.Test[configComponent.Component](t, fx.Options(
+	deps := fxutil.Test[testDeps](t, fx.Options(
 		configComponent.MockModule(),
+		logimpl.MockModule(),
 	))
 
-	endpoints, err := buildEndpoints(config)
+	endpoints, err := buildEndpoints(deps.Config, deps.Log)
 	assert.Nil(t, err)
 	assert.Equal(t, "agent-intake.logs.datadoghq.com", endpoints.Main.Host)
 }

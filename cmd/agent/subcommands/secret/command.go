@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -57,7 +58,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{secretInfoCommand}
 }
 
-func showSecretInfo(config config.Component) error {
+func showSecretInfo(config config.Component, _ log.Component) error {
 	res, err := callIPCEndpoint(config, "agent/secrets")
 	if err != nil {
 		return err
@@ -66,7 +67,7 @@ func showSecretInfo(config config.Component) error {
 	return nil
 }
 
-func secretRefresh(config config.Component) error {
+func secretRefresh(config config.Component, _ log.Component) error {
 	res, err := callIPCEndpoint(config, "agent/secret/refresh")
 	if err != nil {
 		return err

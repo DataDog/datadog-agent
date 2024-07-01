@@ -14,14 +14,15 @@ import (
 
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/api/api"
+	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/local"
 	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -68,8 +69,8 @@ func MockModule() fxutil.Module {
 		sysprobeconfigimpl.MockModule(),
 		fx.Supply(tagger.NewFakeTaggerParams()),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.Module(),
 		nooptelemetry.Module(),
+		workloadmetafx.Module(),
 	)
 }
 

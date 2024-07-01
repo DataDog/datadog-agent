@@ -34,27 +34,31 @@ func newKafkaEncoder(kafkaPayloads map[kafka.Key]*kafka.RequestStat) *kafkaEncod
 	}
 }
 
-func (e *kafkaEncoder) WriteKafkaAggregations(c network.ConnectionStats, builder *model.ConnectionBuilder) {
+func (e *kafkaEncoder) WriteKafkaAggregations(c network.ConnectionStats, builder *model.ConnectionBuilder) uint64 {
 	if e == nil {
-		return
+		return 0
 	}
 
 	connectionData := e.byConnection.Find(c)
 	if connectionData == nil || len(connectionData.Data) == 0 || connectionData.IsPIDCollision(c) {
-		return
+		return 0
 	}
 
+	staticTags := uint64(0)
 	builder.SetDataStreamsAggregations(func(b *bytes.Buffer) {
-		e.encodeData(connectionData, b)
+		staticTags = e.encodeData(connectionData, b)
 	})
+	return staticTags
 }
 
-func (e *kafkaEncoder) encodeData(connectionData *USMConnectionData[kafka.Key, *kafka.RequestStat], w io.Writer) {
+func (e *kafkaEncoder) encodeData(connectionData *USMConnectionData[kafka.Key, *kafka.RequestStat], w io.Writer) uint64 {
+	var staticTags uint64
 	e.kafkaAggregationsBuilder.Reset(w)
 
 	for _, kv := range connectionData.Data {
 		key := kv.Key
 		stats := kv.Value
+		staticTags |= stats.StaticTags
 		e.kafkaAggregationsBuilder.AddKafkaAggregations(func(builder *model.KafkaAggregationBuilder) {
 			builder.SetHeader(func(header *model.KafkaRequestHeaderBuilder) {
 				header.SetRequest_type(uint32(key.RequestAPIKey))
@@ -64,6 +68,7 @@ func (e *kafkaEncoder) encodeData(connectionData *USMConnectionData[kafka.Key, *
 			builder.SetCount(uint32(stats.Count))
 		})
 	}
+	return staticTags
 }
 
 func (e *kafkaEncoder) Close() {

@@ -11,7 +11,7 @@ import (
 	"context"
 	"sync"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -75,15 +75,12 @@ func (pw *podWatcherImpl) GetPodsForOwner(owner NamespacedPodOwner) []*workloadm
 // Start subscribes to workloadmeta events and indexes pods by their owner.
 func (pw *podWatcherImpl) Run(ctx context.Context) {
 	log.Debug("Starting PodWatcher")
-	filterParams := workloadmeta.FilterParams{
-		Kinds:     []workloadmeta.Kind{workloadmeta.KindKubernetesPod},
-		Source:    workloadmeta.SourceAll,
-		EventType: workloadmeta.EventTypeAll,
-	}
+
+	filter := workloadmeta.NewFilterBuilder().AddKind(workloadmeta.KindKubernetesPod).Build()
 	ch := pw.wlm.Subscribe(
 		"app-autoscaler-pod-watcher",
 		workloadmeta.NormalPriority,
-		workloadmeta.NewFilter(&filterParams),
+		filter,
 	)
 	defer pw.wlm.Unsubscribe(ch)
 

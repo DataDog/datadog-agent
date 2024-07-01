@@ -11,7 +11,7 @@ package admission
 import (
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/controllers/secret"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/controllers/webhook"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"

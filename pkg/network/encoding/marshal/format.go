@@ -109,14 +109,23 @@ func FormatConnection(builder *model.ConnectionBuilder, conn network.ConnectionS
 	builder.SetRouteIdx(formatRouteIdx(conn.Via, routes))
 	dnsFormatter.FormatConnectionDNS(conn, builder)
 
+	if len(conn.TCPFailures) > 0 {
+		builder.AddTcpFailuresByErrCode(func(w *model.Connection_TcpFailuresByErrCodeEntryBuilder) {
+			for k, v := range conn.TCPFailures {
+				w.SetKey(k)
+				w.SetValue(v)
+			}
+		})
+	}
+
 	httpStaticTags, httpDynamicTags := httpEncoder.GetHTTPAggregationsAndTags(conn, builder)
 	http2StaticTags, http2DynamicTags := http2Encoder.WriteHTTP2AggregationsAndTags(conn, builder)
 
 	staticTags := httpStaticTags | http2StaticTags
 	dynamicTags := mergeDynamicTags(httpDynamicTags, http2DynamicTags)
 
-	kafkaEncoder.WriteKafkaAggregations(conn, builder)
-	postgresEncoder.WritePostgresAggregations(conn, builder)
+	staticTags |= kafkaEncoder.WriteKafkaAggregations(conn, builder)
+	staticTags |= postgresEncoder.WritePostgresAggregations(conn, builder)
 
 	conn.StaticTags |= staticTags
 	tags, tagChecksum := formatTags(conn, tagsSet, dynamicTags)

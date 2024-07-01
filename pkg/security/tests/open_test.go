@@ -64,6 +64,10 @@ func TestOpen(t *testing.T) {
 			value, _ := event.GetFieldValue("event.async")
 			assert.Equal(t, value.(bool), false)
 			assertInode(t, event.Open.File.Inode, getInode(t, testFile))
+
+			validateSyscallContext(t, event, "$.syscall.open.path")
+			validateSyscallContext(t, event, "$.syscall.open.flags")
+			validateSyscallContext(t, event, "$.syscall.open.mode")
 		})
 	}))
 
@@ -429,7 +433,7 @@ func TestOpenApproverZero(t *testing.T) {
 		Expression: `open.flags == 0 && process.file.name == "testsuite"`,
 	}
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule})
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, withStaticOpts(testOpts{disableBundledRules: true}))
 	if err != nil {
 		t.Fatal(err)
 	}

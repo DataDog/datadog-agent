@@ -13,7 +13,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	v1 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v1"
 	"github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v3or4"
 )

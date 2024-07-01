@@ -5,6 +5,7 @@ Invoke entrypoint, import here all the tasks we want to make available
 import os
 import pathlib
 from collections import namedtuple
+from collections.abc import Iterable
 from string import Template
 
 from invoke import task
@@ -16,18 +17,18 @@ Component = namedtuple('Component', ['path', 'doc', 'team'])
 Bundle = namedtuple('Bundle', ['path', 'doc', 'team', 'components'])
 
 
-def find_team(content):
-    for l in content:
-        if l.startswith('// team: '):
-            return l.split(':', 2)[1].strip()
+def find_team(content: Iterable[str]) -> str:
+    for line in content:
+        if line.startswith('// team: '):
+            return line.split(':', 2)[1].strip()
 
 
-def find_doc(content):
+def find_doc(content) -> str:
     comment_block = []
-    for l in content:
-        if l.startswith('//'):
-            comment_block.append(l[3:])
-        elif l.startswith('package '):
+    for line in content:
+        if line.startswith('//'):
+            comment_block.append(line[3:])
+        elif line.startswith('package '):
             try:
                 i = comment_block.index('')
                 comment_block = comment_block[:i]
@@ -38,8 +39,8 @@ def find_doc(content):
             comment_block = []
 
 
-def has_type_component(content):
-    return any(l.startswith('type Component interface') for l in content)
+def has_type_component(content) -> bool:
+    return any(line.startswith('type Component interface') for line in content)
 
 
 # // TODO: (components)
@@ -84,14 +85,14 @@ def check_component_contents_and_file_hiearchy(entry_point):
     file = entry_point.file
     directory = entry_point.dir
 
-    if not any(l.startswith('type Component interface') or l.startswith('type Component = ') for l in content):
+    if not any(line.startswith('type Component interface') or line.startswith('type Component = ') for line in content):
         return f"** {file} does not define a Component interface; skipping"
 
     if str(file) in components_to_migrate:
         return ""
 
     for implemenation_definition in implementation_definitions:
-        if any(l.startswith(implemenation_definition) for l in content):
+        if any(line.startswith(implemenation_definition) for line in content):
             return f"** {file} define '{implemenation_definition}' which is not allow in {file}. See docs/components/defining-components.md; skipping"
 
     component_name = directory.stem
@@ -365,10 +366,10 @@ def new_component(_, comp_path, overwrite=False, team="/* TODO: add team name */
     create_components_framework_files(
         comp_path,
         [
-            ("component.go", "component.go"),
-            ("component_mock.go", "component_mock.go"),
-            (os.path.join(f"{component_name}impl", f"{component_name}.go"), "impl/component.go"),
-            (os.path.join(f"{component_name}impl", f"{component_name}_mock.go"), "impl/component_mock.go"),
+            ("def/component.go", "def/component.go"),
+            ("fx/fx.go", "fx/fx.go"),
+            (os.path.join("impl", f"{component_name}.go"), "impl/component.go"),
+            ("mock/mock.go", "mock/mock.go"),
         ],
         template_var_mapping,
         overwrite,

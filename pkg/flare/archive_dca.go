@@ -151,7 +151,7 @@ func getClusterAgentConfigCheck(fb flaretypes.FlareBuilder) error {
 	var b bytes.Buffer
 
 	writer := bufio.NewWriter(&b)
-	GetClusterAgentConfigCheck(writer, true) //nolint:errcheck
+	GetClusterAgentConfigCheck(writer, true, true) //nolint:errcheck
 	writer.Flush()
 
 	return fb.AddFile("config-check.log", b.Bytes())

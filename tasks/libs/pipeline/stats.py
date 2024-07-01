@@ -51,7 +51,7 @@ def compute_failed_jobs_series(project_name: str):
         print("Found exception when generating statistics:")
         print(e)
         traceback.print_exc(limit=-1)
-        raise Exit(code=1)
+        raise Exit(code=1) from e
 
     timestamp = int(datetime.now().timestamp())
     series = []

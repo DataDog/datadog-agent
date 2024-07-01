@@ -5,12 +5,17 @@ import json
 import os
 import platform
 import subprocess
+from collections.abc import Iterable
 from functools import lru_cache
 
 import requests
 
+from tasks.libs.common.color import color_message
+from tasks.libs.common.constants import GITHUB_REPO_NAME
+
 try:
     from github import Auth, Github, GithubException, GithubIntegration, GithubObject
+    from github.NamedUser import NamedUser
 except ImportError:
     # PyGithub isn't available on some build images, ignore it for now
     # and fail hard if it gets used.
@@ -30,6 +35,8 @@ class GithubAPI:
     def __init__(self, repository="DataDog/datadog-agent", public_repo=False):
         self._auth = self._chose_auth(public_repo)
         self._github = Github(auth=self._auth)
+        org = repository.split("/")
+        self._organization = org[0] if len(org) > 1 else None
         self._repository = self._github.get_repo(repository)
 
     @property
@@ -137,7 +144,7 @@ class GithubAPI:
         if workflow is None:
             return False
         if inputs is None:
-            inputs = dict()
+            inputs = {}
         return workflow.create_dispatch(ref, inputs)
 
     def workflow_run(self, run_id):
@@ -241,6 +248,22 @@ class GithubAPI:
 
         return [f.filename for f in pr.get_files()]
 
+    def get_team_members(self, team_slug: str) -> Iterable[NamedUser]:
+        """
+        Get the members of a team.
+        """
+        assert self._organization
+        org = self._github.get_organization(self._organization)
+        team = org.get_team_by_slug(team_slug)
+        return team.get_members()
+
+    def search_issues(self, query: str):
+        """
+        Search for issues with the given query.
+        By default this is not scoped to the repository, it is a global Github search.
+        """
+        return self._github.search_issues(query)
+
     def is_organization_member(self, user):
         organization = self._repository.organization
         return (user.company and 'datadog' in user.company.casefold()) or organization.has_in_members(user)
@@ -338,3 +361,67 @@ def get_user_query(login):
     query = '{"query": "query GetUserTeam($login: String!, $org: String!) { user(login: $login) {organization(login: $org) { teams(first:10, userLogins: [$login]){ nodes { slug } } } } }", '
     string_var = f'"variables": {json.dumps(variables)}'
     return query + string_var
+
+
+def create_release_pr(title, base_branch, target_branch, version, changelog_pr=False):
+    print(color_message("Creating PR", "bold"))
+
+    github = GithubAPI(repository=GITHUB_REPO_NAME)
+
+    # Find milestone based on what the next final version is. If the milestone does not exist, fail.
+    milestone_name = str(version)
+
+    milestone = github.get_milestone_by_name(milestone_name)
+
+    if not milestone or not milestone.number:
+        raise Exit(
+            color_message(
+                f"""Could not find milestone {milestone_name} in the Github repository. Response: {milestone}
+Make sure that milestone is open before trying again.""",
+                "red",
+            ),
+            code=1,
+        )
+
+    pr = github.create_pr(
+        pr_title=title,
+        pr_body="",
+        base_branch=base_branch,
+        target_branch=target_branch,
+    )
+
+    if not pr:
+        raise Exit(
+            color_message(f"Could not create PR in the Github repository. Response: {pr}", "red"),
+            code=1,
+        )
+
+    print(color_message(f"Created PR #{pr.number}", "bold"))
+
+    labels = [
+        "changelog/no-changelog",
+        "qa/no-code-change",
+        "team/agent-delivery",
+        "team/agent-release-management",
+        "category/release_operations",
+    ]
+
+    if changelog_pr:
+        labels.append("backport/main")
+
+    updated_pr = github.update_pr(
+        pull_number=pr.number,
+        milestone_number=milestone.number,
+        labels=labels,
+    )
+
+    if not updated_pr or not updated_pr.number or not updated_pr.html_url:
+        raise Exit(
+            color_message(f"Could not update PR in the Github repository. Response: {updated_pr}", "red"),
+            code=1,
+        )
+
+    print(color_message(f"Set labels and milestone for PR #{updated_pr.number}", "bold"))
+    print(color_message(f"Done creating new PR. Link: {updated_pr.html_url}", "bold"))
+
+    return updated_pr.html_url

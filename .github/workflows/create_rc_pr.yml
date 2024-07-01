@@ -1,6 +1,7 @@
 name: Create RC PR
 
 on:
+  workflow_dispatch:
   schedule:
     - cron: '0 14 * * 1,3,5' # Run on Monday, Wednesday, and Friday at 14:00 UTC
 
