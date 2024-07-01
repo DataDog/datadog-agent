@@ -7,7 +7,6 @@ package rdnsquerierimpl
 
 import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
 )
 
 type rdnsQuerierConfig struct {
@@ -16,8 +15,7 @@ type rdnsQuerierConfig struct {
 	chanSize int
 
 	rateLimiterEnabled bool
-	rateLimiterLimit   int
-	rateLimiterBurst   int
+	rateLimitPerSec    int
 
 	cacheEnabled         bool
 	cacheEntryTTL        int
@@ -30,7 +28,18 @@ type rdnsQuerierConfig struct {
 	lookupDelayMs                int
 }
 
-func newConfig(agentConfig config.Component, logger log.Component) *rdnsQuerierConfig {
+const (
+	defaultWorkers  = 10
+	defaultChanSize = 1000
+
+	defaultRateLimitPerSec = 1000
+
+	defaultCacheEntryTTL        = 60 * 60 // in seconds - 1 hour
+	defaultCacheCleanInterval   = 30 * 60 // in seconds - 30 minutes
+	defaultCachePersistInterval = 30 * 60 // in seconds - 30 minutes
+)
+
+func newConfig(agentConfig config.Component) *rdnsQuerierConfig {
 	netflowRDNSEnrichmentEnabled := agentConfig.GetBool("network_devices.netflow.reverse_dns_enrichment_enabled")
 
 	c := &rdnsQuerierConfig{
@@ -39,8 +48,7 @@ func newConfig(agentConfig config.Component, logger log.Component) *rdnsQuerierC
 		chanSize: agentConfig.GetInt("reverse_dns_enrichment.chan_size"),
 
 		rateLimiterEnabled: agentConfig.GetBool("reverse_dns_enrichment.rate_limiter.enabled"),
-		rateLimiterLimit:   agentConfig.GetInt("reverse_dns_enrichment.rate_limiter.limit"),
-		rateLimiterBurst:   agentConfig.GetInt("reverse_dns_enrichment.rate_limiter.burst"),
+		rateLimitPerSec:    agentConfig.GetInt("reverse_dns_enrichment.rate_limiter.limit_per_sec"),
 
 		cacheEnabled:         agentConfig.GetBool("reverse_dns_enrichment.cache.enabled"),
 		cacheEntryTTL:        agentConfig.GetInt("reverse_dns_enrichment.cache.entry_ttl"),
@@ -52,52 +60,39 @@ func newConfig(agentConfig config.Component, logger log.Component) *rdnsQuerierC
 		lookupDelayMs:                agentConfig.GetInt("reverse_dns_enrichment.lookup_delay_ms"),
 	}
 
-	c.validateConfig(logger)
+	c.setDefaults()
 
 	return c
 }
 
-func (c *rdnsQuerierConfig) validateConfig(logger log.Component) {
-	if c.enabled {
-		logger.Infof("Reverse DNS Enrichment component is enabled")
-	} else {
-		logger.Infof("Reverse DNS Enrichment component is disabled")
+func (c *rdnsQuerierConfig) setDefaults() {
+	if !c.enabled {
 		return
 	}
 
 	if c.workers <= 0 {
-		logger.Warnf("Reverse DNS Enrichment: Invalid number of workers %d, setting to 1", c.workers)
-		c.workers = 1
+		c.workers = defaultWorkers
 	}
 
 	if c.chanSize < 0 {
-		logger.Warnf("Reverse DNS Enrichment: Invalid channel size %d, setting to 0 (unbuffered)", c.chanSize)
-		c.chanSize = 0
+		c.chanSize = defaultChanSize
 	}
 
 	if c.rateLimiterEnabled {
-		if c.rateLimiterLimit <= 0 {
-			logger.Warnf("Reverse DNS Enrichment: Invalid rate limiter limit %d, setting to 1000", c.rateLimiterLimit)
-			c.rateLimiterLimit = 1000
-		}
-		if c.rateLimiterBurst < 0 {
-			logger.Warnf("Reverse DNS Enrichment: Invalid rate limiter burst %d, setting to 1", c.rateLimiterBurst)
-			c.rateLimiterBurst = 1
+		if c.rateLimitPerSec <= 0 {
+			c.rateLimitPerSec = defaultRateLimitPerSec
 		}
 	}
 
 	if c.cacheEnabled {
 		if c.cacheEntryTTL <= 0 {
-			logger.Warnf("Reverse DNS Enrichment: Invalid cache entry TTL, setting to 60 minutes")
-			c.cacheEntryTTL = 60 * 60
+			c.cacheEntryTTL = defaultCacheEntryTTL
 		}
 		if c.cacheCleanInterval <= 0 {
-			logger.Warnf("Reverse DNS Enrichment: Invalid cache clean interval, setting to 30 minutes")
-			c.cacheCleanInterval = 30 * 60
+			c.cacheCleanInterval = defaultCacheCleanInterval
 		}
 		if c.cachePersistInterval <= 0 {
-			logger.Warnf("Reverse DNS Enrichment: Invalid cache persist interval, setting to 30 minutes")
-			c.cachePersistInterval = 30 * 60
+			c.cachePersistInterval = defaultCachePersistInterval
 		}
 	}
 }

@@ -925,15 +925,14 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("djm_config.enabled", false)
 
 	// Reverse DNS Enrichment
-	config.BindEnvAndSetDefault("reverse_dns_enrichment.workers", 10)
-	config.BindEnvAndSetDefault("reverse_dns_enrichment.chan_size", 1000)
+	config.SetKnown("reverse_dns_enrichment.workers")
+	config.SetKnown("reverse_dns_enrichment.chan_size")
 	config.BindEnvAndSetDefault("reverse_dns_enrichment.rate_limiter.enabled", true)
-	config.BindEnvAndSetDefault("reverse_dns_enrichment.rate_limiter.limit", 1000)
-	config.BindEnvAndSetDefault("reverse_dns_enrichment.rate_limiter.burst", 1)
+	config.SetKnown("reverse_dns_enrichment.rate_limiter.limit_per_sec")
 	config.BindEnvAndSetDefault("reverse_dns_enrichment.cache.enabled", true)
-	config.BindEnvAndSetDefault("reverse_dns_enrichment.cache.entry_ttl", 60*60)
-	config.BindEnvAndSetDefault("reverse_dns_enrichment.cache.clean_interval", 30*60)
-	config.BindEnvAndSetDefault("reverse_dns_enrichment.cache.persist_interval", 30*60)
+	config.SetKnown("reverse_dns_enrichment.cache.entry_ttl")
+	config.SetKnown("reverse_dns_enrichment.cache.clean_interval")
+	config.SetKnown("reverse_dns_enrichment.cache.persist_interval")
 }
 
 func agent(config pkgconfigmodel.Setup) {

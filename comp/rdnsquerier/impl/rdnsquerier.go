@@ -70,14 +70,13 @@ type rdnsQuerierImpl struct {
 
 // NewComponent creates a new rdnsquerier component
 func NewComponent(reqs Requires) (Provides, error) {
-	config := newConfig(reqs.AgentConfig, reqs.Logger)
-	reqs.Logger.Infof("Reverse DNS Enrichment config: (enabled=%t workers=%d chan_size=%d rate_limiter.enabled=%t rate_limiter.limit=%d rate_limiter.burst=%d cache.enabled=%t cache.entry_ttl=%d cache.clean_interval=%d cache.persist_interval=%d)",
+	config := newConfig(reqs.AgentConfig)
+	reqs.Logger.Infof("Reverse DNS Enrichment config: (enabled=%t workers=%d chan_size=%d rate_limiter.enabled=%t rate_limiter.limit_per_sec=%d cache.enabled=%t cache.entry_ttl=%d cache.clean_interval=%d cache.persist_interval=%d)",
 		config.enabled,
 		config.workers,
 		config.chanSize,
 		config.rateLimiterEnabled,
-		config.rateLimiterLimit,
-		config.rateLimiterBurst,
+		config.rateLimitPerSec,
 		config.cacheEnabled,
 		config.cacheEntryTTL,
 		config.cacheCleanInterval,

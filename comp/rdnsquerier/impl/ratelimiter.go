@@ -11,6 +11,8 @@ import (
 	"golang.org/x/time/rate"
 )
 
+const rateLimiterBurst = 1 // burst of 1 is sufficient since wait() requests permission to perform a single operation
+
 type rateLimiter interface {
 	wait(context.Context) error
 }
@@ -20,7 +22,7 @@ func newRateLimiter(config *rdnsQuerierConfig) rateLimiter {
 		return &rateLimiterNone{}
 	}
 	return &rateLimiterImpl{
-		limiter: rate.NewLimiter(rate.Limit(config.rateLimiterLimit), config.rateLimiterBurst),
+		limiter: rate.NewLimiter(rate.Limit(config.rateLimitPerSec), rateLimiterBurst),
 	}
 }
 
