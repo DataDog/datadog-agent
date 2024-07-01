@@ -64,6 +64,10 @@ func TestOpen(t *testing.T) {
 			value, _ := event.GetFieldValue("event.async")
 			assert.Equal(t, value.(bool), false)
 			assertInode(t, event.Open.File.Inode, getInode(t, testFile))
+
+			validateSyscallContext(t, event, "$.syscall.open.path")
+			validateSyscallContext(t, event, "$.syscall.open.flags")
+			validateSyscallContext(t, event, "$.syscall.open.mode")
 		})
 	}))
 

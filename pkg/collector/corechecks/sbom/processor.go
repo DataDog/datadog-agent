@@ -318,7 +318,7 @@ func (p *processor) processImageSBOM(img *workloadmeta.ContainerImageMetadata) {
 		}
 
 		if len(repoDigests) == 0 {
-			log.Errorf("The image %s has no repo digest for repo %s", img.ID, repo)
+			log.Infof("The image %s has no repo digest for repo %s", img.ID, repo)
 			continue
 		}
 

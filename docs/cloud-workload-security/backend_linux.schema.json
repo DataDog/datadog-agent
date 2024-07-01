@@ -1452,6 +1452,10 @@
           "type": "string",
           "description": "Path argument"
         },
+        "flags": {
+          "type": "integer",
+          "description": "Flags argument"
+        },
         "mode": {
           "type": "integer",
           "description": "Mode argument"
@@ -1470,6 +1474,9 @@
           "$ref": "#/$defs/SyscallArgs"
         },
         "exec": {
+          "$ref": "#/$defs/SyscallArgs"
+        },
+        "open": {
           "$ref": "#/$defs/SyscallArgs"
         }
       },

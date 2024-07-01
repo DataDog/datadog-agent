@@ -16,6 +16,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 )
@@ -82,7 +83,7 @@ func TestParse_ParsePartialObjectMetadata(t *testing.T) {
 			expected: &workloadmeta.KubernetesMetadata{
 				EntityID: workloadmeta.EntityID{
 					Kind: workloadmeta.KindKubernetesMetadata,
-					ID:   "namespaces//test-namespace",
+					ID:   string(util.GenerateKubeMetadataEntityID("namespaces", "", "test-namespace")),
 				},
 				EntityMeta: workloadmeta.EntityMeta{
 					Name:        "test-namespace",
@@ -116,7 +117,7 @@ func TestParse_ParsePartialObjectMetadata(t *testing.T) {
 			expected: &workloadmeta.KubernetesMetadata{
 				EntityID: workloadmeta.EntityID{
 					Kind: workloadmeta.KindKubernetesMetadata,
-					ID:   "namespaces//test-namespace",
+					ID:   string(util.GenerateKubeMetadataEntityID("namespaces", "", "test-namespace")),
 				},
 				EntityMeta: workloadmeta.EntityMeta{
 					Name:        "test-namespace",
@@ -152,7 +153,7 @@ func TestParse_ParsePartialObjectMetadata(t *testing.T) {
 			expected: &workloadmeta.KubernetesMetadata{
 				EntityID: workloadmeta.EntityID{
 					Kind: workloadmeta.KindKubernetesMetadata,
-					ID:   "namespaces//test-namespace",
+					ID:   string(util.GenerateKubeMetadataEntityID("namespaces", "", "test-namespace")),
 				},
 				EntityMeta: workloadmeta.EntityMeta{
 					Name:        "test-namespace",
