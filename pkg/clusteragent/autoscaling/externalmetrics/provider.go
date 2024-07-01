@@ -42,6 +42,10 @@ type datadogMetricProvider struct {
 	autogenNamespace string
 }
 
+var (
+	metricsMaxAge int64
+)
+
 // NewDatadogMetricProvider configures and returns a new datadogMetricProvider
 func NewDatadogMetricProvider(ctx context.Context, apiCl *apiserver.APIClient) (provider.ExternalMetricsProvider, error) {
 	if apiCl == nil {
@@ -58,7 +62,7 @@ func NewDatadogMetricProvider(ctx context.Context, apiCl *apiserver.APIClient) (
 	setQueryConfigValues(aggregator, rollup)
 
 	refreshPeriod := config.Datadog().GetInt64("external_metrics_provider.refresh_period")
-	retrieverMetricsMaxAge := int64(math.Max(config.Datadog().GetFloat64("external_metrics_provider.max_age"), float64(3*rollup)))
+	metricsMaxAge = int64(math.Max(config.Datadog().GetFloat64("external_metrics_provider.max_age"), float64(3*rollup)))
 	splitBatchBackoffOnErrors := config.Datadog().GetBool("external_metrics_provider.split_batches_with_backoff")
 	autogenNamespace := common.GetResourcesNamespace()
 	autogenEnabled := config.Datadog().GetBool("external_metrics_provider.enable_datadogmetric_autogen")
@@ -76,7 +80,7 @@ func NewDatadogMetricProvider(ctx context.Context, apiCl *apiserver.APIClient) (
 		return nil, fmt.Errorf("Unable to create DatadogMetricProvider as DatadogClient failed with: %v", err)
 	}
 
-	metricsRetriever, err := NewMetricsRetriever(refreshPeriod, retrieverMetricsMaxAge, autoscalers.NewProcessor(datadogClient), le.IsLeader, &provider.store, splitBatchBackoffOnErrors)
+	metricsRetriever, err := NewMetricsRetriever(refreshPeriod, metricsMaxAge, autoscalers.NewProcessor(datadogClient), le.IsLeader, &provider.store, splitBatchBackoffOnErrors)
 	if err != nil {
 		return nil, fmt.Errorf("Unable to create DatadogMetricProvider as MetricsRetriever failed with: %v", err)
 	}
@@ -158,7 +162,7 @@ func (p *datadogMetricProvider) getExternalMetric(namespace string, metricSelect
 		return nil, log.Warnf("DatadogMetric not found for metric name: %s, datadogmetricid: %s", info.Metric, datadogMetricID)
 	}
 
-	externalMetric, err := datadogMetric.ToExternalMetricFormat(info.Metric)
+	externalMetric, err := datadogMetric.ToExternalMetricFormat(info.Metric, metricsMaxAge)
 	if err != nil {
 		return nil, err
 	}
