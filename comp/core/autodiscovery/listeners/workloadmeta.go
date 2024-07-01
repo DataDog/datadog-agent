@@ -104,7 +104,7 @@ func (l *workloadmetaListenerImpl) AddService(svcID string, svc Service, parentS
 	}
 
 	if old, found := l.services[svcID]; found {
-		if svcEqual(old, svc) {
+		if svc.Equal(old) {
 			log.Tracef("%s received a duplicated service '%s', ignoring", l.name, svc.GetServiceID())
 			return
 		}

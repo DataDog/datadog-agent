@@ -346,7 +346,7 @@ def produce_junit_tar(files, result_path):
         job_env_file.writelines(
             [
                 f'CI_JOB_URL={os.environ.get("CI_JOB_URL", "")}\n'.encode(),
-                f'CI_JOB_NAME="{os.environ.get("CI_JOB_NAME", "")}"'.encode(),
+                f'CI_JOB_NAME={os.environ.get("CI_JOB_NAME", "")}'.encode(),
             ]
         )
         job_env_info = tarfile.TarInfo(JOB_ENV_FILE_NAME)

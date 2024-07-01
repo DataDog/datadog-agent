@@ -596,15 +596,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 				execWebhook := webhook(
 					"datadog.webhook.cws.exec.instrumentation",
 					"/inject-command-cws",
-					&metav1.LabelSelector{
-						MatchExpressions: []metav1.LabelSelectorRequirement{
-							{
-								Key:      cwsinstrumentation.PodLabelEnabled,
-								Operator: metav1.LabelSelectorOpNotIn,
-								Values:   []string{"false"},
-							},
-						},
-					},
+					nil,
 					nil,
 					[]admiv1beta1.OperationType{admiv1beta1.Connect},
 					[]string{"pods/exec"},
@@ -641,11 +633,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 				execWebhook := webhook(
 					"datadog.webhook.cws.exec.instrumentation",
 					"/inject-command-cws",
-					&metav1.LabelSelector{
-						MatchLabels: map[string]string{
-							cwsinstrumentation.PodLabelEnabled: "true",
-						},
-					},
+					nil,
 					nil,
 					[]admiv1beta1.OperationType{admiv1beta1.Connect},
 					[]string{"pods/exec"},
@@ -687,15 +675,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 					"datadog.webhook.cws.exec.instrumentation",
 					"/inject-command-cws",
 					nil,
-					&metav1.LabelSelector{
-						MatchExpressions: []metav1.LabelSelectorRequirement{
-							{
-								Key:      cwsinstrumentation.PodLabelEnabled,
-								Operator: metav1.LabelSelectorOpNotIn,
-								Values:   []string{"false"},
-							},
-						},
-					},
+					nil,
 					[]admiv1beta1.OperationType{admiv1beta1.Connect},
 					[]string{"pods/exec"},
 				)
@@ -732,11 +712,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 					"datadog.webhook.cws.exec.instrumentation",
 					"/inject-command-cws",
 					nil,
-					&metav1.LabelSelector{
-						MatchLabels: map[string]string{
-							cwsinstrumentation.PodLabelEnabled: "true",
-						},
-					},
+					nil,
 					[]admiv1beta1.OperationType{admiv1beta1.Connect},
 					[]string{"pods/exec"},
 				)
