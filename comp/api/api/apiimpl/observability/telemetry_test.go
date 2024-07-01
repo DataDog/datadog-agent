@@ -10,13 +10,11 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"slices"
 	"strconv"
 	"testing"
 	"time"
 
 	"github.com/benbjohnson/clock"
-	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -60,7 +58,6 @@ func TestTelemetryMiddleware(t *testing.T) {
 			telemetry := fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule())
 			tm := newTelemetryMiddlewareFactory(telemetry, clock)
 			telemetryHandler := tm.Middleware(serverName)
-			registry := telemetry.GetRegistry()
 
 			var tcHandler http.HandlerFunc = func(w http.ResponseWriter, r *http.Request) {
 				clock.Add(tc.duration)
@@ -82,33 +79,15 @@ func TestTelemetryMiddleware(t *testing.T) {
 			require.NoError(t, err)
 			resp.Body.Close()
 
-			metricFamilies, err := registry.Gather()
+			observabilityMetric, err := telemetry.GetHistogramMetric(MetricSubsystem, MetricName)
 			require.NoError(t, err)
 
-			expectedMetricName := fmt.Sprintf("%s__%s", MetricSubsystem, MetricName)
-			idx := slices.IndexFunc(metricFamilies, func(e *dto.MetricFamily) bool {
-				return e.GetName() == expectedMetricName
-			})
-			require.NotEqual(t, -1, idx, "API telemetry metric not found")
+			require.Len(t, observabilityMetric, 1)
 
-			telemetryMetricFamily := metricFamilies[idx]
-			require.Equal(t, dto.MetricType_HISTOGRAM, telemetryMetricFamily.GetType())
+			metric := observabilityMetric[0]
+			assert.EqualValues(t, tc.duration.Seconds(), metric.Value())
 
-			metrics := telemetryMetricFamily.GetMetric()
-			require.Len(t, metrics, 1)
-
-			metric := metrics[0]
-			histogram := metric.GetHistogram()
-			assert.EqualValues(t, 1, histogram.GetSampleCount())
-			assert.EqualValues(t, tc.duration.Seconds(), histogram.GetSampleSum())
-
-			labels := metric.GetLabel()
-			// labels are not necessarily in the order they were declared
-			// so we use a map to compare them
-			labelMap := make(map[string]string, len(labels))
-			for _, label := range labels {
-				labelMap[label.GetName()] = label.GetValue()
-			}
+			labels := metric.Tags()
 
 			expected := map[string]string{
 				"servername":  serverName,
@@ -116,7 +95,7 @@ func TestTelemetryMiddleware(t *testing.T) {
 				"method":      tc.method,
 				"path":        tc.path,
 			}
-			assert.Equal(t, expected, labelMap)
+			assert.Equal(t, expected, labels)
 		})
 	}
 }

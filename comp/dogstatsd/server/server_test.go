@@ -20,8 +20,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
-	dto "github.com/prometheus/client_model/go"
-
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
@@ -922,8 +920,6 @@ func TestParseEventMessageTelemetry(t *testing.T) {
 	telemetryMock, ok := deps.Telemetry.(telemetry.Mock)
 	assert.True(t, ok)
 
-	registry := telemetryMock.GetRegistry()
-
 	// three successful events
 	s.parseEventMessage(parser, []byte("_e{10,10}:event title|test\\ntext|c:event-container"), "")
 	s.parseEventMessage(parser, []byte("_e{10,10}:event title|test\\ntext|c:event-container"), "")
@@ -932,41 +928,18 @@ func TestParseEventMessageTelemetry(t *testing.T) {
 	_, err := s.parseEventMessage(parser, nil, "")
 	assert.Error(t, err)
 
-	metricFamily, err := registry.Gather()
-	assert.NoError(t, err)
+	processedEvents, err := telemetryMock.GetCountMetric("dogstatsd", "processed")
+	require.NoError(t, err)
 
-	var processedEvents *dto.MetricFamily
-	for _, family := range metricFamily {
-		if family.GetName() == "dogstatsd__processed" {
-			processedEvents = family
+	for _, metric := range processedEvents {
+		labels := metric.Tags()
+
+		if labels["message_type"] == "events" && labels["state"] == "ok" {
+			assert.Equal(t, float64(3), metric.Value())
 		}
-	}
 
-	var eventMetrics []*dto.Metric
-
-	for _, metric := range processedEvents.GetMetric() {
-		labels := metric.GetLabel()
-
-		for _, label := range labels {
-			if label.GetName() == "message_type" && label.GetValue() == "events" {
-				eventMetrics = append(eventMetrics, metric)
-			}
-		}
-	}
-
-	assert.Len(t, eventMetrics, 2)
-
-	for _, event := range eventMetrics {
-		labels := event.GetLabel()
-
-		for _, label := range labels {
-			if label.GetName() == "state" && label.GetValue() == "ok" {
-				assert.Equal(t, float64(3), event.GetCounter().GetValue())
-			}
-
-			if label.GetName() == "state" && label.GetValue() == "error" {
-				assert.Equal(t, float64(1), event.GetCounter().GetValue())
-			}
+		if labels["message_type"] == "events" && labels["state"] == "error" {
+			assert.Equal(t, float64(1), metric.Value())
 		}
 	}
 }
@@ -998,7 +971,6 @@ func TestParseServiceCheckMessageTelemetry(t *testing.T) {
 	telemetryMock, ok := deps.Telemetry.(telemetry.Mock)
 	assert.True(t, ok)
 
-	registry := telemetryMock.GetRegistry()
 	// three successful events
 	s.parseServiceCheckMessage(parser, []byte("_sc|service-check.name|0|c:service-check-container"), "")
 	s.parseServiceCheckMessage(parser, []byte("_sc|service-check.name|0|c:service-check-container"), "")
@@ -1007,41 +979,18 @@ func TestParseServiceCheckMessageTelemetry(t *testing.T) {
 	_, err := s.parseServiceCheckMessage(parser, nil, "")
 	assert.Error(t, err)
 
-	metricFamily, err := registry.Gather()
-	assert.NoError(t, err)
+	processedEvents, err := telemetryMock.GetCountMetric("dogstatsd", "processed")
+	require.NoError(t, err)
 
-	var processedEvents *dto.MetricFamily
-	for _, family := range metricFamily {
-		if family.GetName() == "dogstatsd__processed" {
-			processedEvents = family
+	for _, metric := range processedEvents {
+		labels := metric.Tags()
+
+		if labels["message_type"] == "service_checks" && labels["state"] == "ok" {
+			assert.Equal(t, float64(3), metric.Value())
 		}
-	}
 
-	var eventMetrics []*dto.Metric
-
-	for _, metric := range processedEvents.GetMetric() {
-		labels := metric.GetLabel()
-
-		for _, label := range labels {
-			if label.GetName() == "message_type" && label.GetValue() == "service_checks" {
-				eventMetrics = append(eventMetrics, metric)
-			}
-		}
-	}
-
-	assert.Len(t, eventMetrics, 2)
-
-	for _, event := range eventMetrics {
-		labels := event.GetLabel()
-
-		for _, label := range labels {
-			if label.GetName() == "state" && label.GetValue() == "ok" {
-				assert.Equal(t, float64(3), event.GetCounter().GetValue())
-			}
-
-			if label.GetName() == "state" && label.GetValue() == "error" {
-				assert.Equal(t, float64(1), event.GetCounter().GetValue())
-			}
+		if labels["message_type"] == "service_checks" && labels["state"] == "error" {
+			assert.Equal(t, float64(1), metric.Value())
 		}
 	}
 }
