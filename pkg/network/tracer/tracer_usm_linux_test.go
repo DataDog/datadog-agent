@@ -96,7 +96,11 @@ func httpsSupported() bool {
 	if isFentry() {
 		return false
 	}
-	return http.TLSSupported(testConfig())
+	cfg := testConfig()
+	if cfg.EnableEbpfless {
+		return false
+	}
+	return http.TLSSupported(cfg)
 }
 
 func classificationSupported(config *config.Config) bool {

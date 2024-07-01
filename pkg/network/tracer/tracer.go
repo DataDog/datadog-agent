@@ -123,8 +123,10 @@ func NewTracer(config *config.Config, telemetryComponent telemetryComponent.Comp
 // newTracer is an internal function used by tests primarily
 // (and NewTracer above)
 func newTracer(cfg *config.Config, telemetryComponent telemetryComponent.Component) (_ *Tracer, reterr error) {
-	if _, err := tracefs.Root(); err != nil {
-		return nil, fmt.Errorf("system-probe unsupported: %s", err)
+	if !cfg.EnableEbpfless {
+		if _, err := tracefs.Root(); err != nil {
+			return nil, fmt.Errorf("system-probe unsupported: %s", err)
+		}
 	}
 
 	// check if current platform is using old kernel API because it affects what kprobe are we going to enable
@@ -163,9 +165,13 @@ func newTracer(cfg *config.Config, telemetryComponent telemetryComponent.Compone
 		}
 	}()
 
-	if tr.bpfErrorsCollector = ebpftelemetry.NewEBPFErrorsCollector(); tr.bpfErrorsCollector != nil {
-		telemetry.GetCompatComponent().RegisterCollector(tr.bpfErrorsCollector)
-	} else {
+	if !cfg.EnableEbpfless {
+		if tr.bpfErrorsCollector = ebpftelemetry.NewEBPFErrorsCollector(); tr.bpfErrorsCollector != nil {
+			telemetry.GetCompatComponent().RegisterCollector(tr.bpfErrorsCollector)
+		}
+	}
+
+	if tr.bpfErrorsCollector == nil {
 		log.Debug("eBPF telemetry not supported")
 	}
 
@@ -251,30 +257,33 @@ func newConntracker(cfg *config.Config, telemetryComponent telemetryComponent.Co
 	var c netlink.Conntracker
 	var err error
 
-	ns, err := cfg.GetRootNetNs()
-	if err != nil {
-		log.Warnf("error fetching root net namespace, will not attempt to load nf_conntrack_netlink module: %s", err)
-	} else {
-		defer ns.Close()
-		if err = netlink.LoadNfConntrackKernelModule(ns); err != nil {
-			log.Warnf("failed to load conntrack kernel module, though it may already be loaded: %s", err)
+	if !cfg.EnableEbpfless {
+		ns, err := cfg.GetRootNetNs()
+		if err != nil {
+			log.Warnf("error fetching root net namespace, will not attempt to load nf_conntrack_netlink module: %s", err)
+		} else {
+			defer ns.Close()
+			if err = netlink.LoadNfConntrackKernelModule(ns); err != nil {
+				log.Warnf("failed to load conntrack kernel module, though it may already be loaded: %s", err)
+			}
 		}
-	}
-	if cfg.EnableEbpfConntracker {
-		if c, err = NewEBPFConntracker(cfg, telemetryComponent); err == nil {
-			return c, nil
+		if cfg.EnableEbpfConntracker {
+			if c, err = NewEBPFConntracker(cfg, telemetryComponent); err == nil {
+				return c, nil
+			}
+			log.Warnf("error initializing ebpf conntracker: %s", err)
+		} else {
+			log.Info("ebpf conntracker disabled")
 		}
-		log.Warnf("error initializing ebpf conntracker: %s", err)
-	} else {
-		log.Info("ebpf conntracker disabled")
+
+		log.Info("falling back to netlink conntracker")
 	}
 
-	log.Info("falling back to netlink conntracker")
 	if c, err = netlink.NewConntracker(cfg, telemetryComponent); err == nil {
 		return c, nil
 	}
 
-	if cfg.IgnoreConntrackInitFailure {
+	if errors.Is(err, netlink.ErrNotPermitted) || cfg.IgnoreConntrackInitFailure {
 		log.Warnf("could not initialize conntrack, tracer will continue without NAT tracking: %s", err)
 		return netlink.NewNoOpConntracker(), nil
 	}
