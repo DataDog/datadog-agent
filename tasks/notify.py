@@ -197,6 +197,8 @@ def gitlab_ci_diff(ctx, before: str | None = DEFAULT_BRANCH, after: str | None =
 
     from tasks.libs.ciproviders.github_api import GithubAPI
 
+    print(len(os.environ['GITHUB_TOKEN']))
+
     gh = GithubAPI()
     print(gh._github.get_user())
 

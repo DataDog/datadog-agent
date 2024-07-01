@@ -288,19 +288,20 @@ class GithubAPI:
         """
         if "GITHUB_TOKEN" in os.environ:
             return Auth.Token(os.environ["GITHUB_TOKEN"])
-        if (
-            "GITHUB_APP_KEY" in os.environ
-            and "GITHUB_INTEGRATION_ID" in os.environ
-            and "GITHUB_INSTALLATION_ID" in os.environ
-        ):
-            gh_app_key = os.environ['GITHUB_APP_KEY']
-            gh_integration_id = os.environ['GITHUB_INTEGRATION_ID']
-            gh_installation_id = os.environ['GITHUB_INSTALLATION_ID']
+        # TODO
+        # if (
+        #     "GITHUB_APP_KEY" in os.environ
+        #     and "GITHUB_INTEGRATION_ID" in os.environ
+        #     and "GITHUB_INSTALLATION_ID" in os.environ
+        # ):
+        #     gh_app_key = os.environ['GITHUB_APP_KEY']
+        #     gh_integration_id = os.environ['GITHUB_INTEGRATION_ID']
+        #     gh_installation_id = os.environ['GITHUB_INSTALLATION_ID']
 
-            ghi = GithubIntegration(integration_id=gh_integration_id, private_key=gh_app_key)
-            token = ghi.get_access_token(gh_installation_id)
-            print("AUTH !")
-            return Auth.Token(token)
+        #     ghi = GithubIntegration(integration_id=gh_integration_id, private_key=gh_app_key)
+        #     token = ghi.get_access_token(gh_installation_id)
+        #     print("AUTH !")
+        #     return Auth.Token(token)
         if "GITHUB_APP_ID" in os.environ and "GITHUB_KEY_B64" in os.environ:
             appAuth = Auth.AppAuth(
                 os.environ['GITHUB_APP_ID'], base64.b64decode(os.environ['GITHUB_KEY_B64']).decode('ascii')
@@ -344,7 +345,9 @@ class GithubAPI:
     def get_token_from_app(app_id_env='GITHUB_APP_ID', pkey_env='GITHUB_KEY_B64'):
         app_id = os.environ.get(app_id_env)
         app_key_b64 = os.environ.get(pkey_env)
-        app_key = base64.b64decode(app_key_b64).decode("ascii")
+        # app_key = base64.b64decode(app_key_b64).decode("ascii")
+        # TODO
+        app_key = os.environ.get(pkey_env)
 
         auth = Auth.AppAuth(app_id, app_key)
         integration = GithubIntegration(auth=auth)
