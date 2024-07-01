@@ -116,19 +116,21 @@ func (s *baseAgentMSISuite) installAgentPackage(vm *components.RemoteHost, agent
 	return remoteMSIPath
 }
 
+func (s *baseAgentMSISuite) cleanupConfigAfterTest(t *testing.T, host *components.RemoteHost) {
+	// get config dir now, before agent is uninstalled
+	configDir, err := windowsAgent.GetConfigRootFromRegistry(host)
+	s.Require().NoError(err)
+	t.Cleanup(func() {
+		// remove the agent config for a cleaner uninstall
+		t.Logf("Removing agent configuration files")
+		err = host.RemoveAll(configDir)
+		s.Require().NoError(err)
+	})
+}
+
 func (s *baseAgentMSISuite) uninstallAgent() bool {
 	host := s.Env().RemoteHost
 	return s.T().Run("uninstall the agent", func(tt *testing.T) {
-		// Get config dir from registry before uninstalling
-		configDir, err := windowsAgent.GetConfigRootFromRegistry(host)
-		require.NoError(tt, err)
-		tt.Cleanup(func() {
-			// remove the agent config for a cleaner uninstall
-			tt.Logf("Removing agent configuration files")
-			err = host.RemoveAll(configDir)
-			require.NoError(tt, err)
-		})
-
 		if !tt.Run("uninstall", func(tt *testing.T) {
 			err := windowsAgent.UninstallAgent(host, filepath.Join(s.OutputDir, "uninstall.log"))
 			require.NoError(tt, err, "should uninstall the agent")
@@ -139,15 +141,18 @@ func (s *baseAgentMSISuite) uninstallAgent() bool {
 }
 
 func (s *baseAgentMSISuite) uninstallAgentAndRunUninstallTests(t *Tester) bool {
+	host := s.Env().RemoteHost
+
+	s.cleanupConfigAfterTest(s.T(), host)
 	if !s.uninstallAgent() {
 		return false
 	}
 
 	return s.T().Run("validate uninstall", func(tt *testing.T) {
-		AssertDoesNotRemoveSystemFiles(s.T(), s.Env().RemoteHost, s.beforeInstall)
+		AssertDoesNotRemoveSystemFiles(s.T(), host, s.beforeInstall)
 
 		s.Run("uninstall does not change system file permissions", func() {
-			AssertDoesNotChangePathPermissions(s.T(), s.Env().RemoteHost, s.beforeInstallPerms)
+			AssertDoesNotChangePathPermissions(s.T(), host, s.beforeInstallPerms)
 		})
 
 		t.TestUninstallExpectations(tt)

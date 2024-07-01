@@ -112,6 +112,7 @@ func (s *testUpgradeRollbackSuite) TestUpgradeRollback() {
 	_, err = windowsCommon.GetServiceConfigMap(vm, servicetest.ExpectedInstalledServices())
 	s.Assert().NoError(err, "services should still be installed")
 
+	s.cleanupConfigAfterTest(s.T(), vm)
 	s.uninstallAgent()
 }
 
@@ -187,6 +188,7 @@ func (s *testUpgradeRollbackWithoutCWSSuite) TestUpgradeRollbackWithoutCWS() {
 		s.Assert().Error(err, "service %s should not be installed", service)
 	}
 
+	s.cleanupConfigAfterTest(s.T(), vm)
 	s.uninstallAgent()
 }
 
