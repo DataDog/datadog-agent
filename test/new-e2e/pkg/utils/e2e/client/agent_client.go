@@ -7,11 +7,12 @@ package client
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"regexp"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
 	osComp "github.com/DataDog/test-infra-definitions/components/os"
@@ -67,6 +68,7 @@ func NewHostAgentClientWithParams(context e2e.Context, hostOutput remote.HostOut
 			return nil, err
 		}
 	}
+
 	waitForAgentsReady(context.T(), hostOutput.OSFamily, host, params)
 
 	return commandRunner, nil
@@ -120,20 +122,6 @@ func waitForAgentsReady(tt *testing.T, osFamily osComp.Family, host *Host, param
 	}, params.WaitForDuration, params.WaitForTick)
 }
 
-func ensureAuthToken(params *agentclientparams.Params, _ osComp.Family, host *Host) error {
-	if params.AuthToken != "" {
-		return nil
-	}
-
-	authToken, err := host.Execute("sudo cat " + params.AuthTokenPath)
-	if err != nil {
-		return fmt.Errorf("could not read auth token file: %v", err)
-	}
-	params.AuthToken = strings.TrimSpace(authToken)
-
-	return nil
-}
-
 func processAgentCommand(params *agentclientparams.Params, osFamily osComp.Family, host *Host) (string, bool, error) {
 	return makeStatusEndpointCommand(params, osFamily, host, "http://localhost:%d/agent/status", params.ProcessAgentPort)
 }
@@ -151,7 +139,7 @@ func makeStatusEndpointCommand(params *agentclientparams.Params, osFamily osComp
 		return "", false, nil
 	}
 
-	if osFamily != osComp.LinuxFamily {
+	if osFamily != osComp.LinuxFamily && osFamily != osComp.WindowsFamily {
 		return "", true, fmt.Errorf("waiting for non-core agents is not implemented for OS family %d", osFamily)
 	}
 
@@ -161,12 +149,43 @@ func makeStatusEndpointCommand(params *agentclientparams.Params, osFamily osComp
 	}
 
 	statusEndpoint := fmt.Sprintf(url, port)
-	return curlCommand(statusEndpoint, params.AuthToken), true, nil
+	return sendRequestCommand(statusEndpoint, params.AuthToken, osFamily), true, nil
 }
 
-func curlCommand(endpoint string, authToken string) string {
+func ensureAuthToken(params *agentclientparams.Params, osFamily osComp.Family, host *Host) error {
+	if params.AuthToken != "" {
+		return nil
+	}
+
+	getAuthTokenCmd := fetchAuthTokenCommand(params.AuthTokenPath, osFamily)
+	authToken, err := host.Execute(getAuthTokenCmd)
+	if err != nil {
+		return fmt.Errorf("could not read auth token file: %v", err)
+	}
+	params.AuthToken = strings.TrimSpace(authToken)
+
+	return nil
+}
+
+func fetchAuthTokenCommand(authTokenPath string, osFamily osComp.Family) string {
+	if osFamily == osComp.WindowsFamily {
+		return fmt.Sprintf("Get-Content -Raw -Path %s", authTokenPath)
+	}
+
+	return fmt.Sprintf("sudo cat %s", authTokenPath)
+}
+
+func sendRequestCommand(endpoint string, authToken string, osFamily osComp.Family) string {
+	if osFamily == osComp.WindowsFamily {
+		return fmt.Sprintf(
+			`Invoke-WebRequest -Uri "%s" -Headers @{"authorization"="Bearer %s"} -Method GET -UseBasicParsing`,
+			endpoint,
+			authToken,
+		)
+	}
+
 	return fmt.Sprintf(
-		`curl -L -s -k -H "authorization: Bearer %s" "%s"`,
+		`curl -L -s -k --fail-with-body -H "authorization: Bearer %s" "%s"`,
 		authToken,
 		endpoint,
 	)
