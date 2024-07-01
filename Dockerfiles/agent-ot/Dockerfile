@@ -9,7 +9,7 @@ FROM baseimage
 
 # copy otel requirements
 COPY otel-agent /opt/datadog-agent/embedded/bin/
-COPY otel-config.yaml.example /etc/datadog-agent/
+COPY otel-config.yaml /etc/datadog-agent/otel-config.yaml.example
 
 RUN mkdir -p /etc/services-available.d/
 COPY s6-services-opt /etc/services-available.d/
