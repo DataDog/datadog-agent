@@ -37,6 +37,7 @@ def build(ctx):
 
     shutil.copy("./cmd/otel-agent/dist/otel-config.yaml", os.path.join(dist_folder, "otel-config.yaml"))
 
+
 @task
 def image_build(ctx, arch='amd64', base_version='latest', tag=OT_AGENT_TAG, push=False):
     """
@@ -56,7 +57,9 @@ def image_build(ctx, arch='amd64', base_version='latest', tag=OT_AGENT_TAG, push
     shutil.copy2(otel_binary, build_context)
     shutil.copy2(config_file, build_context)
 
-    common_build_opts = f"-t {OT_AGENT_IMAGE_NAME}:{tag} -f {dockerfile} --build-arg=\"BASE_IMAGE_DD_VERSION={base_version}\""
+    common_build_opts = (
+        f"-t {OT_AGENT_IMAGE_NAME}:{tag} -f {dockerfile} --build-arg=\"BASE_IMAGE_DD_VERSION={base_version}\""
+    )
     ctx.run(f"docker build {common_build_opts} --platform linux/{arch} {build_context}")
     if push:
         ctx.run(f"docker push {tag}")
