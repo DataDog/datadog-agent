@@ -18,21 +18,26 @@ namespace Datadog.CustomActions
         private readonly IRegistryServices _registryServices;
         private readonly IServiceController _serviceController;
 
+        private readonly INativeMethods _nativeMethods;
+
         public InstallStateCustomActions(
             ISession session,
             IRegistryServices registryServices,
-            IServiceController serviceController)
+            IServiceController serviceController,
+            INativeMethods nativeMethods)
         {
             _session = session;
             _registryServices = registryServices;
             _serviceController = serviceController;
+            _nativeMethods = nativeMethods;
         }
 
         public InstallStateCustomActions(ISession session)
             : this(
                 session,
                 new RegistryServices(),
-                new ServiceController())
+                new ServiceController(),
+                new Win32NativeMethods())
         {
         }
 
@@ -122,6 +127,7 @@ namespace Datadog.CustomActions
                 }
 
                 GetWindowsBuildVersion();
+                SetDDDriverRollback();
             }
             catch (Exception e)
             {
@@ -152,6 +158,73 @@ namespace Datadog.CustomActions
             {
                 _session.Log("WindowsBuild not found");
             }
+        }
+
+        // <summary>
+        // Sets driver-specific properties to 1 if the driver services should be removed on rollback.
+        // </summary>
+        // <remarks>
+        // Previous versions of the installer did not remove the driver services on rollback.
+        // In order to remain compatible with these versions, we must not remove the driver services
+        // when rolling back to these versions.
+        // </remarks>
+        public void SetDDDriverRollback()
+        {
+            var upgradeDetected = _session["WIX_UPGRADE_DETECTED"];
+
+            if (!string.IsNullOrEmpty(upgradeDetected)) // This is an upgrade, conditionally set rollback flags.
+            {
+                var versionString = _nativeMethods.GetVersionString(upgradeDetected);
+                // Using Version class
+                // https://learn.microsoft.com/en-us/dotnet/api/system.version?view=net-8.0
+                var currentVersion = new Version(versionString);
+                Version procmonDriverMinimumVersion;
+                Version driverRollbackMinimumVersion;
+
+                // Check major version
+                if (versionString[0] == '7')
+                {
+                    procmonDriverMinimumVersion = new Version("7.52");
+                    driverRollbackMinimumVersion = new Version("7.56");
+                }
+                else
+                {
+                    procmonDriverMinimumVersion = new Version("6.52");
+                    driverRollbackMinimumVersion = new Version("6.56");
+                }
+
+                var compareResult = currentVersion.CompareTo(driverRollbackMinimumVersion);
+                if (compareResult < 0) // currentVersion is less than minimumVersion
+                {
+                    // case: upgrading from a version that did not implement driver rollback
+                    // Clear NPM flag to ensure NPM service is not deleted on rollback.
+                    _session["DDDRIVERROLLBACK_NPM"] = "";
+
+                    var compare_52 = currentVersion.CompareTo(procmonDriverMinimumVersion);
+                    if (compare_52 < 0) //currentVersion is less than 6.52/7.52
+                    {
+                        // case: upgrading from a version that did not the include procmon driver
+                        // Set PROCMON flag to ensure procmon driver is deleted on rollback.
+                        _session["DDDRIVERROLLBACK_PROCMON"] = "1";
+                    }
+                    else
+                    {
+                        _session["DDDRIVERROLLBACK_PROCMON"] = "";
+                    }
+                }
+                else // currentVersion is not less than minimumVersion
+                {
+                    _session["DDDRIVERROLLBACK_NPM"] = "1";
+                    _session["DDDRIVERROLLBACK_PROCMON"] = "1";
+                }
+            }
+            else  // This is a fresh install, set rollback flags to ensure drivers are deleted on rollback.
+            {
+                _session["DDDRIVERROLLBACK_NPM"] = "1";
+                _session["DDDRIVERROLLBACK_PROCMON"] = "1";
+            }
+            _session.Log($"DDDriverRollback_NPM: {_session["DDDRIVERROLLBACK_NPM"]}");
+            _session.Log($"DDDriverRollback_Procmon: {_session["DDDRIVERROLLBACK_PROCMON"]}");
         }
 
         [CustomAction]

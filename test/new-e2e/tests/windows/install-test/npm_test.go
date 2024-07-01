@@ -147,7 +147,7 @@ func (s *testNPMInstallSuite) TearDownSuite() {
 	s.cleanupOnSuccessInDevMode()
 }
 
-func (s *testNPMInstallSuite) installPreviousAgentVersion(vm *components.RemoteHost, options ...windowsAgent.InstallAgentOption) *Tester {
+func (s *testNPMInstallSuite) installPreviousAgentVersion(vm *components.RemoteHost, options ...windowsAgent.InstallAgentOption) {
 	if s.url == "" {
 		url, err := windowsAgent.GetStableMSIURL(s.previousVersion, "x86_64")
 		s.Require().NoError(err, "should get MSI URL for version %s", s.previousVersion)
@@ -157,7 +157,7 @@ func (s *testNPMInstallSuite) installPreviousAgentVersion(vm *components.RemoteH
 		Version: s.previousVersion,
 		URL:     s.url,
 	}
-	return s.baseAgentMSISuite.installAndTestPreviousAgentVersion(vm, previousAgentPackage, options...)
+	s.baseAgentMSISuite.installAndTestPreviousAgentVersion(vm, previousAgentPackage, options...)
 }
 
 func (s *testNPMInstallSuite) isNPMInstalled() bool {
