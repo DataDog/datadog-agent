@@ -388,9 +388,7 @@ def pr_commenter(
     github = GithubAPI()
 
     if pr_id is None:
-        # branch = os.environ["CI_COMMIT_BRANCH"]
-        # TODO
-        branch = 'celian/gitlab-config-diff-acix-311'
+        branch = os.environ["CI_COMMIT_BRANCH"]
         prs = list(github.get_pr_for_branch(branch))
         assert len(prs) == 1, f"Expected 1 PR for branch {branch}, found {len(prs)} PRs"
         pr = prs[0]
@@ -402,7 +400,7 @@ def pr_commenter(
     header = f'## {title}\n'
     content = f'{header}\n{body}'
 
-    comment = github.find_comment(pr, header, is_prefix=True)
+    comment = github.find_comment(pr, header)
 
     if comment:
         if delete:

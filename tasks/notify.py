@@ -9,6 +9,7 @@ from invoke import Context, task
 from invoke.exceptions import Exit
 
 import tasks.libs.notify.unit_tests as unit_tests_utils
+from tasks.github_tasks import pr_commenter
 from tasks.libs.ciproviders.gitlab_api import (
     GitlabCIDiff,
     get_gitlab_ci_configuration,
@@ -178,6 +179,13 @@ def gitlab_ci_diff(ctx, before: str | None = DEFAULT_BRANCH, after: str | None =
     - after: Git ref with new changes, None for current local configuration
     - pr_comment: If True, post the diff as a comment in the PR
     """
+
+    # import difflib
+    # differ = difflib.HtmlDiff(tabsize=2)
+    # t = differ.make_table('Hello\nWorld\n!'.splitlines(), 'Hallo\nWorld'.splitlines())
+    # print(t)
+    # return
+
     # TODO : Try catch error
 
     before_name = before or "local files"
@@ -199,5 +207,9 @@ def gitlab_ci_diff(ctx, before: str | None = DEFAULT_BRANCH, after: str | None =
     print('\nGitlab CI configuration diff:')
     print(diff.display(cli=True))
 
-    # todo: pr comment
-    print('\nSent / updated PR comment')
+    if pr_comment:
+        comment = diff.display(cli=False)
+        print('\n\n')
+        print(comment)
+        pr_commenter(ctx, 'Gitlab CI Configuration Changes', comment)
+        print(color_message('\nSent / updated PR comment', Color.GREEN))

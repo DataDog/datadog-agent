@@ -215,7 +215,7 @@ class GithubAPI:
 
         pr.create_issue_comment(comment)
 
-    def find_comment(self, pr, content, is_prefix: bool = False):
+    def find_comment(self, pr, content):
         """
         Get a comment that contains content on a given PR.
 
@@ -228,7 +228,7 @@ class GithubAPI:
 
         comments = pr.get_issue_comments()
         for comment in comments:
-            if is_prefix and comment.body.startswith(content) or not is_prefix and content in comment.body:
+            if content in comment.body:
                 return comment
 
     def get_pr(self, pr_id: int):

@@ -124,7 +124,7 @@ class GitlabCIDiff:
 
         # Added jobs contents
         for job in self.added:
-            self.added_contents[job] = yaml.safe_dump(self.after[job])
+            self.added_contents[job] = yaml.safe_dump({job: self.after[job]})
 
         # Find modified jobs
         self.modified = set()
@@ -134,18 +134,18 @@ class GitlabCIDiff:
 
         # Modified jobs
         if self.modified:
-            differ = Differ()
+            differcli = Differ()
             for job in self.modified:
                 if self.before[job] == self.after[job]:
                     continue
 
                 # Make diff
-                before_content = yaml.safe_dump(self.before[job], default_flow_style=False, sort_keys=True)
-                after_content = yaml.safe_dump(self.after[job], default_flow_style=False, sort_keys=True)
+                before_content = yaml.safe_dump({job: self.before[job]}, default_flow_style=False, sort_keys=True)
+                after_content = yaml.safe_dump({job: self.after[job]}, default_flow_style=False, sort_keys=True)
                 before_content = before_content.splitlines()
                 after_content = after_content.splitlines()
 
-                diff = [line.rstrip('\n') for line in differ.compare(before_content, after_content)]
+                diff = [line.rstrip('\n') for line in differcli.compare(before_content, after_content)]
                 self.modified_diffs[job] = diff
 
     def display(self, cli: bool = True) -> str:
@@ -159,7 +159,7 @@ class GitlabCIDiff:
 
                 return f'--- {color_message(title, Color.BOLD)} ---'
             else:
-                return f'--- {title} ---'
+                return f'### {title}'
 
         def str_job(title, color):
             if cli:
@@ -167,7 +167,7 @@ class GitlabCIDiff:
 
                 return f'* {color_message(title, getattr(Color, color))}'
             else:
-                return f'* {title}'
+                return f'- **{title}**'
 
         def str_rename(job_before, job_after):
             if cli:
@@ -175,10 +175,10 @@ class GitlabCIDiff:
 
                 return f'* {color_message(job_before, Color.GREY)} -> {color_message(job_after, Color.BLUE)}'
             else:
-                return f'* {job_before} -> {job_after}'
+                return f'- {job_before} -> **{job_after}**'
 
         def str_job_content(content: str) -> list[str]:
-            return content.splitlines()
+            return ['```yaml', *content.splitlines(), '```']
 
         def str_diff(diff: list[str]) -> str:
             if cli:
@@ -196,7 +196,8 @@ class GitlabCIDiff:
 
                 return '\n'.join(res)
             else:
-                return '\n'.join(diff)
+                difftxt = '\n'.join(diff)
+                return f"```diff\n{difftxt}\n```"
 
         def str_color(text: str, color: str) -> str:
             if cli:
@@ -205,6 +206,22 @@ class GitlabCIDiff:
                 return color_message(text, getattr(Color, color))
             else:
                 return text
+
+        def str_summary() -> str:
+            if cli:
+                res = ''
+                res += f'{len(self.removed)} {str_color("removed", "RED")}'
+                res += f' | {len(self.modified)} {str_color("modified", "ORANGE")}'
+                res += f' | {len(self.added)} {str_color("added", "GREEN")}'
+                res += f' | {len(self.renamed)} {str_color("renamed", "BLUE")}'
+
+                return res
+            else:
+                res = '| Removed | Modified | Added | Renamed |\n'
+                res += '| ------- | -------- | ----- | ------- |\n'
+                res += f'| {" | ".join(str(len(changes)) for changes in [self.removed, self.modified, self.added, self.renamed])} |'
+
+                return res
 
         res = []
 
@@ -240,11 +257,7 @@ class GitlabCIDiff:
             if res:
                 res.append('')
             res.append(str_section('Changes'))
-            res.append('')
-            res[-1] += f'{len(self.removed)} {str_color("removed", "RED")}'
-            res[-1] += f' | {len(self.modified)} {str_color("modified", "ORANGE")}'
-            res[-1] += f' | {len(self.added)} {str_color("added", "GREEN")}'
-            res[-1] += f' | {len(self.renamed)} {str_color("renamed", "BLUE")}'
+            res.append(str_summary())
 
         return '\n'.join(res)
 
