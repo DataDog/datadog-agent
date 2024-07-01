@@ -12,7 +12,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"sync"
 	"time"
 
 	"github.com/cihub/seelog"
@@ -24,12 +23,10 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 
 	telemetryComp "github.com/DataDog/datadog-agent/comp/core/telemetry"
-	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
-	ebpfkernel "github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
-
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/maps"
+	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
@@ -37,18 +34,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	ebpfkernel "github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
 
 var zero uint32
 
-var tuplePool = sync.Pool{
-	New: func() interface{} {
-		return new(netebpf.ConntrackTuple)
-	},
-}
+var tuplePool = ddsync.NewDefaultTypedPool[netebpf.ConntrackTuple]()
 
 const ebpfConntrackerModuleName = "network_tracer__ebpf_conntracker"
 
@@ -235,7 +230,7 @@ func (e *ebpfConntracker) GetType() string {
 
 func (e *ebpfConntracker) GetTranslationForConn(stats network.ConnectionStats) *network.IPTranslation {
 	start := time.Now()
-	src := tuplePool.Get().(*netebpf.ConntrackTuple)
+	src := tuplePool.Get()
 	defer tuplePool.Put(src)
 
 	toConntrackTupleFromStats(src, &stats)
@@ -279,7 +274,7 @@ func (*ebpfConntracker) IsSampling() bool {
 }
 
 func (e *ebpfConntracker) get(src *netebpf.ConntrackTuple) *netebpf.ConntrackTuple {
-	dst := tuplePool.Get().(*netebpf.ConntrackTuple)
+	dst := tuplePool.Get()
 	if err := e.ctMap.Lookup(src, dst); err != nil {
 		if !errors.Is(err, ebpf.ErrKeyNotExist) {
 			log.Warnf("error looking up connection in ebpf conntrack map: %s", err)
@@ -307,7 +302,7 @@ func (e *ebpfConntracker) delete(key *netebpf.ConntrackTuple) {
 }
 
 func (e *ebpfConntracker) DeleteTranslation(stats network.ConnectionStats) {
-	key := tuplePool.Get().(*netebpf.ConntrackTuple)
+	key := tuplePool.Get()
 	defer tuplePool.Put(key)
 
 	toConntrackTupleFromStats(key, &stats)
@@ -335,9 +330,9 @@ func (e *ebpfConntracker) Close() {
 
 // DumpCachedTable dumps the cached conntrack NAT entries grouped by network namespace
 func (e *ebpfConntracker) DumpCachedTable(ctx context.Context) (map[uint32][]netlink.DebugConntrackEntry, error) {
-	src := tuplePool.Get().(*netebpf.ConntrackTuple)
+	src := tuplePool.Get()
 	defer tuplePool.Put(src)
-	dst := tuplePool.Get().(*netebpf.ConntrackTuple)
+	dst := tuplePool.Get()
 	defer tuplePool.Put(dst)
 
 	entries := make(map[uint32][]netlink.DebugConntrackEntry)
