@@ -1506,6 +1506,9 @@
         },
         "utimes": {
           "$ref": "#/$defs/SyscallArgs"
+        },
+        "rename": {
+          "$ref": "#/$defs/SyscallArgs"
         }
       },
       "additionalProperties": false,

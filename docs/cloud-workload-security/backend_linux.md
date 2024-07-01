@@ -1517,6 +1517,9 @@ CSM Threats event for Linux systems have the following JSON schema:
                 },
                 "utimes": {
                     "$ref": "#/$defs/SyscallArgs"
+                },
+                "rename": {
+                    "$ref": "#/$defs/SyscallArgs"
                 }
             },
             "additionalProperties": false,
@@ -3943,6 +3946,9 @@ CSM Threats event for Linux systems have the following JSON schema:
         },
         "utimes": {
             "$ref": "#/$defs/SyscallArgs"
+        },
+        "rename": {
+            "$ref": "#/$defs/SyscallArgs"
         }
     },
     "additionalProperties": false,
@@ -3955,6 +3961,7 @@ CSM Threats event for Linux systems have the following JSON schema:
 
 | References |
 | ---------- |
+| [SyscallArgs](#syscallargs) |
 | [SyscallArgs](#syscallargs) |
 | [SyscallArgs](#syscallargs) |
 | [SyscallArgs](#syscallargs) |

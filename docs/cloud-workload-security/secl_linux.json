@@ -4891,6 +4891,16 @@
           "name": "rename.retval",
           "definition": "Return value of the syscall",
           "property_doc_link": "common-syscallevent-retval-doc"
+        },
+        {
+          "name": "rename.syscall.destination.path",
+          "definition": "Destination path argument of the syscall",
+          "property_doc_link": "rename-syscall-destination-path-doc"
+        },
+        {
+          "name": "rename.syscall.path",
+          "definition": "Path argument of the syscall",
+          "property_doc_link": "rename-syscall-path-doc"
         }
       ]
     },
@@ -9598,6 +9608,30 @@
       ],
       "constants": "Ptrace constants",
       "constants_link": "ptrace-constants",
+      "examples": []
+    },
+    {
+      "name": "rename.syscall.destination.path",
+      "link": "rename-syscall-destination-path-doc",
+      "type": "string",
+      "definition": "Destination path argument of the syscall",
+      "prefixes": [
+        "rename"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "rename.syscall.path",
+      "link": "rename-syscall-path-doc",
+      "type": "string",
+      "definition": "Path argument of the syscall",
+      "prefixes": [
+        "rename"
+      ],
+      "constants": "",
+      "constants_link": "",
       "examples": []
     },
     {
