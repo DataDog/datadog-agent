@@ -11,7 +11,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"strings"
 	"sync"
 
 	"github.com/hashicorp/golang-lru/v2/simplelru"
@@ -120,11 +119,6 @@ var (
 	ErrPathIsAlreadyRegistered = errors.New("path is already registered")
 )
 
-// getSamplePath returns a sample path for a given path without the prefix /usr.
-func getSamplePath(path string) string {
-	return strings.TrimPrefix(path, "/proc")
-}
-
 // Register inserts or updates a new file registration within to the `FileRegistry`;
 //
 // If no current registration exists for the given `PathIdentifier`, we execute
@@ -148,7 +142,7 @@ func (r *FileRegistry) Register(namespacedPath string, pid uint32, activationCB,
 	}
 
 	if r.blocklistByID != nil {
-		if _, found := r.blocklistByID.Get(PathIdentifierWithSamplePath{pathID, getSamplePath(path.HostPath)}); found {
+		if _, found := r.blocklistByID.Get(PathIdentifierWithSamplePath{pathID, path.HostPath}); found {
 			r.telemetry.fileBlocked.Add(1)
 			return errPathIsBlocked
 		}
@@ -204,7 +198,7 @@ func (r *FileRegistry) addToBlocklist(pathID PathIdentifier, hostPath string) {
 		}
 	}
 
-	r.blocklistByID.Add(PathIdentifierWithSamplePath{pathID, getSamplePath(hostPath)}, struct{}{})
+	r.blocklistByID.Add(PathIdentifierWithSamplePath{pathID, hostPath}, struct{}{})
 }
 
 // Unregister a PID if it exists
