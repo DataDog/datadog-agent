@@ -15,7 +15,9 @@ package integrations
 
 // Component is the component type.
 type Component interface {
+	// Subscribe subscribes returns a channel for a subscriber to receive logs from integrations.
 	Subscribe() chan IntegrationLog
 
+	// SendLog allows integrations to send logs to any subscribers.
 	SendLog(log, integrationID string)
 }

@@ -596,7 +596,7 @@ func startAgent(
 
 	// TODO: (components) - Until the checks are components we set there context so they can depends on components.
 	check.InitializeInventoryChecksContext(invChecks)
-	// Initialize logsReceiver, needed in order to call from RTLoader
+	// TODO: (components) - Initialize logsReceiver, needed in order to call from RTLoader
 	check.InitializeLogsReceiver(logsReceiver)
 
 	// Init JMX runner and inject dogstatsd component

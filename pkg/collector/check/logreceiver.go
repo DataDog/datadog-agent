@@ -10,6 +10,7 @@ import (
 	"sync"
 
 	"github.com/DataDog/datadog-agent/comp/logs/integrations/def"
+	ddLog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var lr integrations.Component
@@ -31,6 +32,11 @@ func GetLogsReceiver() (integrations.Component, error) {
 func LogsReceiverSendLog(log, logID string) {
 	logReceiverMutex.Lock()
 	defer logReceiverMutex.Unlock()
+
+	if lr == nil {
+		ddLog.Error("LogsReceiverSendLog called when logReciever nil or uninitialized.")
+		return
+	}
 
 	lr.SendLog(log, logID)
 }
