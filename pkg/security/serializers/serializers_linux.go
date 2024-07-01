@@ -530,6 +530,13 @@ func newSyscallArgsSerializer(sc *model.SyscallContext, e *model.Event) *Syscall
 			Path:            &path,
 			DestinationPath: &destinationPath,
 		}
+	case model.FileRenameEventType:
+		path := e.FieldHandlers.ResolveSyscallCtxArgsStr1(e, sc)
+		destinationPath := e.FieldHandlers.ResolveSyscallCtxArgsStr2(e, sc)
+		return &SyscallArgsSerializer{
+			Path:            &path,
+			DestinationPath: &destinationPath,
+		}
 	}
 
 	return nil
@@ -538,11 +545,12 @@ func newSyscallArgsSerializer(sc *model.SyscallContext, e *model.Event) *Syscall
 // SyscallContextSerializer serializes syscall context
 // easyjson:json
 type SyscallContextSerializer struct {
-	Chmod *SyscallArgsSerializer `json:"chmod,omitempty"`
-	Chdir *SyscallArgsSerializer `json:"chdir,omitempty"`
-	Exec  *SyscallArgsSerializer `json:"exec,omitempty"`
-	Open  *SyscallArgsSerializer `json:"open,omitempty"`
-	Link  *SyscallArgsSerializer `json:"link,omitempty"`
+	Chmod  *SyscallArgsSerializer `json:"chmod,omitempty"`
+	Chdir  *SyscallArgsSerializer `json:"chdir,omitempty"`
+	Exec   *SyscallArgsSerializer `json:"exec,omitempty"`
+	Open   *SyscallArgsSerializer `json:"open,omitempty"`
+	Link   *SyscallArgsSerializer `json:"link,omitempty"`
+	Rename *SyscallArgsSerializer `json:"rename,omitempty"`
 }
 
 func newSyscallContextSerializer() *SyscallContextSerializer {
@@ -1173,6 +1181,8 @@ func NewEventSerializer(event *model.Event, opts *eval.Opts) *EventSerializer {
 			Destination:    newFileSerializer(&event.Rename.New, event),
 		}
 		s.EventContextSerializer.Outcome = serializeOutcome(event.Rename.Retval)
+		s.SyscallContextSerializer = newSyscallContextSerializer()
+		s.SyscallContextSerializer.Rename = newSyscallArgsSerializer(&event.Rename.SyscallContext, event)
 	case model.FileRemoveXAttrEventType:
 		s.FileEventSerializer = &FileEventSerializer{
 			FileSerializer: *newFileSerializer(&event.RemoveXAttr.File, event),
