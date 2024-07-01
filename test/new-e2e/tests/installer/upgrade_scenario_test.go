@@ -75,6 +75,8 @@ func (s *upgradeScenarioSuite) TestUpgradeSuccessful() {
 		"datadog-installer.service",
 	)
 
+	s.host.WaitForFileExists("/var/run/datadog-installer/installer.sock")
+
 	_, err := s.setCatalog(testCatalog)
 	require.NoError(s.T(), err)
 
