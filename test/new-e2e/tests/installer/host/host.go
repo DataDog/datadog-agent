@@ -153,9 +153,13 @@ func (h *Host) WaitForUnitActivating(units ...string) {
 }
 
 // WaitForFileExists waits for a file to exist on the host
-func (h *Host) WaitForFileExists(filePaths ...string) {
+func (h *Host) WaitForFileExists(useSudo bool, filePaths ...string) {
+	sudo := ""
+	if useSudo {
+		sudo = "sudo"
+	}
 	for _, path := range filePaths {
-		_, err := h.remote.Execute(fmt.Sprintf("timeout=30; file=%s; while [ ! -f $file ] && [ $timeout -gt 0 ]; do sleep 1; ((timeout--)); done; [ $timeout -ne 0 ]", path))
+		_, err := h.remote.Execute(fmt.Sprintf("timeout=30; file=%s; while [ ! %s -f $file ] && [ $timeout -gt 0 ]; do sleep 1; ((timeout--)); done; [ $timeout -ne 0 ]", path, sudo))
 		require.NoError(h.t, err, "file %s did not exist", path)
 	}
 }
