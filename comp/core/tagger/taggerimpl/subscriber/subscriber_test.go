@@ -13,7 +13,7 @@ import (
 	taggerTelemetry "github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -36,7 +36,7 @@ func TestSubscriber(t *testing.T) {
 			EventType: types.EventTypeDeleted,
 		},
 	}
-	tel := fxutil.Test[telemetry.Component](t, nooptelemetry.Module())
+	tel := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
 	telemetryStore := taggerTelemetry.NewStore(tel)
 	s := NewSubscriber(telemetryStore)
 

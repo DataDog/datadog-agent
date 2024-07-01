@@ -19,7 +19,7 @@ import (
 	taggerTelemetry "github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -30,7 +30,7 @@ type StoreTestSuite struct {
 }
 
 func (s *StoreTestSuite) SetupTest() {
-	tel := fxutil.Test[telemetry.Component](s.T(), nooptelemetry.Module())
+	tel := fxutil.Test[telemetry.Component](s.T(), telemetryimpl.MockModule())
 	telemetryStore := taggerTelemetry.NewStore(tel)
 	s.clock = clock.NewMock()
 	// set the mock clock to the current time
@@ -427,7 +427,7 @@ type entityEventExpectation struct {
 }
 
 func TestSubscribe(t *testing.T) {
-	tel := fxutil.Test[telemetry.Component](t, nooptelemetry.Module())
+	tel := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
 	telemetryStore := taggerTelemetry.NewStore(tel)
 	clock := clock.NewMock()
 	store := newTagStoreWithClock(clock, telemetryStore)
