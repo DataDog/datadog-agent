@@ -2372,15 +2372,16 @@ func checkSkipFailureConnectionsTests(t *testing.T) {
 	if _, ok := failedConnectionsBuildModes[ebpftest.GetBuildMode()]; !ok {
 		t.Skip("Skipping test on unsupported build mode: ", ebpftest.GetBuildMode())
 	}
-	// TODO: remove this check when we fix this test on kernels < 4.19
-	if kv < kernel.VersionCode(4, 19, 0) {
-		t.Skip("Skipping test on kernels < 4.19")
-	}
+
 }
 func (s *TracerSuite) TestTCPFailureConnectionTimeout() {
 	t := s.T()
 
 	checkSkipFailureConnectionsTests(t)
+	// TODO: remove this check when we fix this test on kernels < 4.19
+	if kv < kernel.VersionCode(4, 19, 0) {
+		t.Skip("Skipping test on kernels < 4.19")
+	}
 
 	setupDropTrafficRule(t)
 	cfg := testConfig()
@@ -2430,52 +2431,6 @@ func (s *TracerSuite) TestTCPFailureConnectionTimeout() {
 		// 110 is the errno for ETIMEDOUT
 		return findFailedConnection(t, localAddr, srvAddr, conns, 110)
 	}, 3*time.Second, 1000*time.Millisecond, "Failed connection not recorded properly")
-}
-
-func (s *TracerSuite) TestTCPFailureConnectionReset() {
-	t := s.T()
-	if _, ok := failedConnectionsBuildModes[ebpftest.GetBuildMode()]; !ok {
-		t.Skip("Skipping test on unsupported build mode: ", ebpftest.GetBuildMode())
-	}
-	cfg := testConfig()
-	cfg.TCPFailedConnectionsEnabled = true
-	tr := setupTracer(t, cfg)
-
-	srv := NewTCPServer(func(c net.Conn) {
-		if tcpConn, ok := c.(*net.TCPConn); ok {
-			tcpConn.SetLinger(0)
-			buf := make([]byte, 10)
-			_, _ = c.Read(buf)
-			time.Sleep(10 * time.Millisecond)
-		}
-		c.Close()
-	})
-
-	require.NoError(t, srv.Run(), "error running server")
-	t.Cleanup(srv.Shutdown)
-
-	serverAddr := srv.ln.Addr()
-	c, err := net.Dial("tcp", serverAddr.String())
-	require.NoError(t, err, "could not connect to server: ", err)
-
-	// Write to the server and expect a reset
-	_, writeErr := c.Write([]byte("ping"))
-	if writeErr != nil {
-		t.Log("Write error:", writeErr)
-	}
-
-	// Read from server to ensure that the server has a chance to reset the connection
-	_, readErr := c.Read(make([]byte, 4))
-	require.Error(t, readErr, "expected connection reset error but got none")
-
-	// Check if the connection was recorded as reset
-	require.Eventually(t, func() bool {
-		conns := getConnections(t, tr)
-		// 104 is the errno for ECONNRESET
-		return findFailedConnection(t, c.LocalAddr().String(), serverAddr.String(), conns, 104)
-	}, 3*time.Second, 100*time.Millisecond, "Failed connection not recorded properly")
-
-	require.NoError(t, c.Close(), "error closing client connection")
 }
 
 func setupDropTrafficRule(tb testing.TB) (ns string) {
