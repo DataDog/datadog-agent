@@ -85,12 +85,15 @@ var vmIDFetcher = cachedfetch.Fetcher{
 func GetHostAliases(ctx context.Context) ([]string, error) {
 	aliases := []string{}
 	vm, err := vmIDFetcher.FetchStringSlice(ctx)
-	aliases = append(aliases, vm...)
-
-	metadata, metadataErr := getMetadata(ctx)
-	if err != nil {
-		return aliases, fmt.Errorf("%s; Azure HostAliases: unable to query metadata endpoint: %s", err, metadataErr)
+	if err == nil {
+		aliases = append(aliases, vm...)
 	}
+
+	metadata, err := getMetadata(ctx)
+	if err != nil {
+		return aliases, fmt.Errorf("Azure GetHostAliases: unable to query metadata endpoint: %s", err)
+	}
+
 	if isKubernetesTag(metadata.TagsList) {
 		aliases = append(aliases, metadata.OsProfile.ComputerName)
 	}
