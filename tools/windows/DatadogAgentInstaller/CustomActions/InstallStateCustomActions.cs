@@ -183,12 +183,12 @@ namespace Datadog.CustomActions
                 // Check major version
                 if (versionString[0] == '7')
                 {
-                    procmonDriverMinimumVersion = new Version("7.53");
+                    procmonDriverMinimumVersion = new Version("7.52");
                     driverRollbackMinimumVersion = new Version("7.56");
                 }
                 else
                 {
-                    procmonDriverMinimumVersion = new Version("6.53");
+                    procmonDriverMinimumVersion = new Version("6.52");
                     driverRollbackMinimumVersion = new Version("6.56");
                 }
 
@@ -199,8 +199,8 @@ namespace Datadog.CustomActions
                     // Clear NPM flag to ensure NPM service is not deleted on rollback.
                     _session["DDDRIVERROLLBACK_NPM"] = "";
 
-                    var compare_53 = currentVersion.CompareTo(procmonDriverMinimumVersion);
-                    if (compare_53 < 0) //currentVersion is less than 6.53/7.53
+                    var compare_52 = currentVersion.CompareTo(procmonDriverMinimumVersion);
+                    if (compare_52 < 0) //currentVersion is less than 6.52/7.52
                     {
                         // case: upgrading from a version that did not the include procmon driver
                         // Set PROCMON flag to ensure procmon driver is deleted on rollback.

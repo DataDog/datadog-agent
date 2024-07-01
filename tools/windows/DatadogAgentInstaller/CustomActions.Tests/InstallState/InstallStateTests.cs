@@ -58,9 +58,9 @@ namespace CustomActions.Tests.InstallState
         }
 
         [Theory]
-        [InlineData("7.54", "", "")]
-        [InlineData("6.53", "", "")]
-        [InlineData("7.50", "", "1")]
+        [InlineData("7.53", "", "")]
+        [InlineData("6.52", "", "")]
+        [InlineData("7.51", "", "1")]
         [InlineData("6.58", "1", "1")]
         [InlineData("7.56", "1", "1")]
         public void ReadDD_Driver_Rollback_Upgrade(string version, string NPMExpectedRollback, string procmonExopectedRollback)
