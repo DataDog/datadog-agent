@@ -126,9 +126,9 @@ def create_release_table(version, freeze_date, teams):
                 with tag('td', colspan="2"), tag('p', style="text-align: center;"):
                     with tag('ac:structured-macro', ('ac:name', "status"), ('ac:schema-version', "1")):
                         with tag('ac:parameter', ('ac:name', "title")):
-                            text('QA')
+                            text('Development')
                         with tag('ac:parameter', ('ac:name', "colour")):
-                            text('Purple')
+                            text('Blue')
             with tag('tr'):
                 with tag('td'), tag('p'):
                     text('Release date')
