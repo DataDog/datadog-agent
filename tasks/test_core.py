@@ -7,6 +7,7 @@ from collections import defaultdict
 from collections.abc import Iterable
 
 from tasks.flavor import AgentFlavor
+from tasks.libs.civisibility import get_test_link_to_test_on_main
 from tasks.libs.common.color import color_message
 from tasks.modules import DEFAULT_MODULES, GoModule
 
@@ -114,6 +115,7 @@ class ModuleTestResult(ModuleResult):
                     else:
                         for name in sorted(tests):
                             failure_string += f"- {package} {name}\n"
+                            failure_string += f"  See this test name on main in Test Visibility at {get_test_link_to_test_on_main(package, name)}\n"
             else:
                 failure_string += "The test command failed, but no test failures detected in the result json."
 

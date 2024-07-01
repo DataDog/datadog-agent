@@ -12,7 +12,6 @@ import (
 	"bytes"
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 )
@@ -29,7 +28,7 @@ func (manager *ActivityDumpStorageManager) PersistRaw(_ []config.StorageRequest,
 func (manager *ActivityDumpStorageManager) SendTelemetry() {}
 
 // NewAgentStorageManager returns a new instance of ActivityDumpStorageManager
-func NewAgentStorageManager(_ sender.SenderManager) (*ActivityDumpStorageManager, error) {
+func NewAgentStorageManager() (*ActivityDumpStorageManager, error) {
 	return nil, fmt.Errorf("the activity dump manager is unsupported on this platform")
 }
 

@@ -580,12 +580,13 @@
 /test/new-e2e/tests/process                   @DataDog/processes
 /test/new-e2e/tests/sysprobe-functional     @DataDog/windows-kernel-integrations
 /test/new-e2e/tests/cws                       @DataDog/agent-security
-/test/new-e2e/tests/agent-metric-logs   @DataDog/agent-metrics-logs
+/test/new-e2e/tests/agent-metrics-logs   @DataDog/agent-metrics-logs
 /test/new-e2e/tests/windows                   @DataDog/windows-agent @DataDog/windows-kernel-integrations
 /test/new-e2e/tests/apm                       @DataDog/agent-apm
 /test/new-e2e/tests/remote-config             @DataDog/remote-config
 /test/new-e2e/tests/updater                   @DataDog/fleet
 /test/new-e2e/tests/installer                 @DataDog/fleet
+/test/otel/                                   @DataDog/opentelemetry
 /test/system/                                 @DataDog/agent-shared-components
 /test/system/dogstatsd/                       @DataDog/agent-metrics-logs
 /test/benchmarks/apm_scripts/                 @DataDog/agent-apm

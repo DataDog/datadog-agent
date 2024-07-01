@@ -22,7 +22,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/internal/agent"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/internal/check"
-	apiutils "github.com/DataDog/datadog-agent/comp/api/api/apiimpl/utils"
+	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/observability"
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
@@ -45,6 +45,7 @@ import (
 )
 
 const cmdServerName string = "CMD API Server"
+const cmdServerShortName string = "CMD"
 
 var cmdListener net.Listener
 
@@ -65,6 +66,7 @@ func startCMDServer(
 	collector optional.Option[collector.Component],
 	ac autodiscovery.Component,
 	providers []api.EndpointProvider,
+	tmf observability.TelemetryMiddlewareFactory,
 ) (err error) {
 	// get the transport we're going to use under HTTP
 	cmdListener, err = getListener(cmdAddr)
@@ -143,7 +145,8 @@ func startCMDServer(
 	cmdMux.Handle("/", gwmux)
 
 	// Add some observability in the API server
-	cmdMuxHandler := apiutils.LogResponseHandler(cmdServerName)(cmdMux)
+	cmdMuxHandler := tmf.Middleware(cmdServerShortName)(cmdMux)
+	cmdMuxHandler = observability.LogResponseHandler(cmdServerName)(cmdMuxHandler)
 
 	srv := grpcutil.NewMuxedGRPCServer(
 		cmdAddr,

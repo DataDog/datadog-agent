@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -27,7 +28,7 @@ import (
 // `freeOSMemoryRateLimiter` provides a way to dynamically update the rate at which `FreeOSMemory` is
 // called when the soft limit is reached.
 type MemBasedRateLimiter struct {
-	telemetry               telemetry
+	telemetry               telemetryInterface
 	memoryUsage             memoryUsage
 	lowSoftLimitRate        float64
 	highSoftLimitRate       float64
@@ -40,14 +41,12 @@ type memoryUsage interface {
 	getMemoryStats() (float64, float64, error)
 }
 
-var memBasedRateLimiterTml = newMemBasedRateLimiterTelemetry()
-
 // Ballast is a way to trick the GC. `ballast` is never read or written.
 var ballast []byte //nolint:unused
 var ballastOnce sync.Once
 
 // BuildMemBasedRateLimiter builds a new instance of *MemBasedRateLimiter
-func BuildMemBasedRateLimiter(cfg config.Reader) (*MemBasedRateLimiter, error) {
+func BuildMemBasedRateLimiter(cfg config.Reader, telemetry telemetry.Component) (*MemBasedRateLimiter, error) {
 	var memoryUsage memoryUsage
 	var err error
 	if memoryUsage, err = newCgroupMemoryUsage(); err == nil {
@@ -65,6 +64,8 @@ func BuildMemBasedRateLimiter(cfg config.Reader) (*MemBasedRateLimiter, error) {
 			log.Infof("ballast size %vMB", ballastSize/1024/1024)
 		}
 	})
+
+	memBasedRateLimiterTml := newMemBasedRateLimiterTelemetry(telemetry)
 
 	usage, limit, err := memoryUsage.getMemoryStats()
 	if err != nil {
@@ -96,7 +97,7 @@ func getConfigFloat(cfg config.Reader, subkey string) float64 {
 
 // NewMemBasedRateLimiter creates a new instance of MemBasedRateLimiter.
 func NewMemBasedRateLimiter(
-	telemetry telemetry,
+	telemetry telemetryInterface,
 	memoryUsage memoryUsage,
 	lowSoftLimitRate float64,
 	highSoftLimitRate float64,
