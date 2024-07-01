@@ -65,6 +65,7 @@ const (
 	sockFDLookupArgsMap                    = "sockfd_lookup_args"
 	tupleByPidFDMap                        = "tuple_by_pid_fd"
 	pidFDByTupleMap                        = "pid_fd_by_tuple"
+	tlsClassDebugMap                       = "tls_class_debug_trace"
 
 	sockFDLookup    = "kprobe__sockfd_lookup_light"
 	sockFDLookupRet = "kretprobe__sockfd_lookup_light"
@@ -530,6 +531,15 @@ func (e *ebpfProgram) dumpMapsHandler(w io.Writer, _ *manager.Manager, mapName s
 		iter := currentMap.Iterate()
 		var key http.ConnTuple
 		var value netebpf.PIDFD
+		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
+			spew.Fdump(w, key, value)
+		}
+
+	case tlsClassDebugMap: // maps/tls_class_debug_trace (BPF_MAP_TYPE_HASH), key C.conn_tuple_t, value C.__u64
+		io.WriteString(w, "Map: '"+mapName+"', key: 'C.conn_tuple_t', value: 'C.__u64'\n")
+		iter := currentMap.Iterate()
+		var key http.ConnTuple
+		var value uint64
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
 			spew.Fdump(w, key, value)
 		}

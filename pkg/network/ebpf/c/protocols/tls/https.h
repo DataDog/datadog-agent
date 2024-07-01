@@ -15,6 +15,7 @@
 #endif
 
 #include "bpf_builtins.h"
+#include "map-defs.h"
 #include "port_range.h"
 #include "sock.h"
 
@@ -33,6 +34,20 @@
 #include "protocols/tls/tags-types.h"
 #include "protocols/tls/tls-maps.h"
 
+// [tuple]count
+BPF_HASH_MAP(tls_class_debug_trace, conn_tuple_t, u64, 64);
+
+static __always_inline void trace_classification(conn_tuple_t *t) {
+    const u64 init = 1;
+    u64 *count = bpf_map_lookup_elem(&tls_class_debug_trace, t);
+    if (!count) {
+        bpf_map_update_elem(&tls_class_debug_trace, t, &init, BPF_NOEXIST);
+        return;
+    }
+
+    (*count)++;
+}
+
 static __always_inline void http_process(http_event_t *event, skb_info_t *skb_info, __u64 tags);
 
 /* this function is called by all TLS hookpoints (OpenSSL, GnuTLS and GoTLS, JavaTLS) and */
@@ -40,6 +55,9 @@ static __always_inline void http_process(http_event_t *event, skb_info_t *skb_in
 static __always_inline void classify_decrypted_payload(protocol_stack_t *stack, conn_tuple_t *t, void *buffer, size_t len) {
     // we're in the context of TLS hookpoints, thus the protocol is TLS.
     set_protocol(stack, PROTOCOL_TLS);
+
+    log_debug("[%d<->%d] Classifying TLS payload", t->sport, t->dport);
+    trace_classification(t);
 
     if (is_protocol_layer_known(stack, LAYER_APPLICATION)) {
         // No classification is needed.
@@ -66,7 +84,7 @@ update_stack:
 }
 
 static __always_inline void tls_process(struct pt_regs *ctx, conn_tuple_t *t, void *buffer_ptr, size_t len, __u64 tags) {
-    conn_tuple_t final_tuple = {0};
+    conn_tuple_t final_tuple = { 0 };
     conn_tuple_t normalized_tuple = *t;
     normalize_tuple(&normalized_tuple);
     normalized_tuple.pid = 0;
@@ -142,8 +160,7 @@ static __always_inline void tls_process(struct pt_regs *ctx, conn_tuple_t *t, vo
     bpf_tail_call_compat(ctx, &tls_process_progs, prog);
 }
 
-static __always_inline void tls_dispatch_kafka(struct pt_regs *ctx)
-{
+static __always_inline void tls_dispatch_kafka(struct pt_regs *ctx) {
     const __u32 zero = 0;
     tls_dispatcher_arguments_t *args = bpf_map_lookup_elem(&tls_dispatcher_arguments, &zero);
     if (args == NULL) {
@@ -176,7 +193,7 @@ static __always_inline void tls_dispatch_kafka(struct pt_regs *ctx)
 }
 
 static __always_inline void tls_finish(struct pt_regs *ctx, conn_tuple_t *t, bool skip_http) {
-    conn_tuple_t final_tuple = {0};
+    conn_tuple_t final_tuple = { 0 };
     conn_tuple_t normalized_tuple = *t;
     normalize_tuple(&normalized_tuple);
     normalized_tuple.pid = 0;
@@ -195,7 +212,9 @@ static __always_inline void tls_finish(struct pt_regs *ctx, conn_tuple_t *t, boo
         // The termination, both for TLS and plaintext, for HTTP traffic is taken care of in the socket filter.
         // Until we split the TLS and plaintext management for HTTP traffic, there are flows (such as those being called from tcp_close)
         // in which we don't want to terminate HTTP traffic, but instead leave it to the socket filter.
-        if (skip_http) {return;}
+        if (skip_http) {
+            return;
+        }
         prog = TLS_HTTP_TERMINATION;
         final_tuple = normalized_tuple;
         break;
@@ -226,7 +245,7 @@ static __always_inline void tls_finish(struct pt_regs *ctx, conn_tuple_t *t, boo
     bpf_tail_call_compat(ctx, &tls_process_progs, prog);
 }
 
-static __always_inline conn_tuple_t* tup_from_ssl_ctx(void *ssl_ctx, u64 pid_tgid) {
+static __always_inline conn_tuple_t *tup_from_ssl_ctx(void *ssl_ctx, u64 pid_tgid) {
     ssl_sock_t *ssl_sock = bpf_map_lookup_elem(&ssl_sock_by_ctx, &ssl_ctx);
     if (ssl_sock == NULL) {
         // Best-effort fallback mechanism to guess the socket address without
@@ -255,7 +274,7 @@ static __always_inline conn_tuple_t* tup_from_ssl_ctx(void *ssl_ctx, u64 pid_tgi
     };
 
     conn_tuple_t *t = bpf_map_lookup_elem(&tuple_by_pid_fd, &pid_fd);
-    if (t == NULL)  {
+    if (t == NULL) {
         return NULL;
     }
 
@@ -291,8 +310,8 @@ static __always_inline void map_ssl_ctx_to_sock(struct sock *skp) {
  * get_offsets_data retrieves the result of binary analysis for the
  * current task binary's inode number.
  */
-static __always_inline tls_offsets_data_t* get_offsets_data() {
-    struct task_struct *t = (struct task_struct *) bpf_get_current_task();
+static __always_inline tls_offsets_data_t *get_offsets_data() {
+    struct task_struct *t = (struct task_struct *)bpf_get_current_task();
     struct inode *inode;
     go_tls_offsets_data_key_t key;
     dev_t dev_id;

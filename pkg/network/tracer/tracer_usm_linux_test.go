@@ -516,6 +516,9 @@ func testHTTPSClassification(t *testing.T, tr *Tracer, clientHost, targetHost, s
 			},
 			validation: func(t *testing.T, ctx testContext, tr *Tracer) {
 				waitForConnectionsWithProtocol(t, tr, ctx.targetAddress, ctx.serverAddress, &protocols.Stack{Encryption: protocols.TLS, Application: protocols.HTTP})
+
+				ebpftest.DumpMapsTestHelper(t, tr.usmMonitor.DumpMaps, "tls_class_debug_trace")
+
 			},
 		},
 	}
