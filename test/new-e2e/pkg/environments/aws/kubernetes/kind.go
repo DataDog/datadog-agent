@@ -113,6 +113,7 @@ func KindRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Prov
 			params.agentOptions = append(newOpts, params.agentOptions...)
 		}
 		if params.otelAgentOptions != nil {
+			// TODO: replace with kubernetesotelagentparams
 			newOpts := []kubernetesagentparams.Option{kubernetesagentparams.WithFakeintake(fakeIntake)}
 			params.otelAgentOptions = append(newOpts, params.otelAgentOptions...)
 		}
