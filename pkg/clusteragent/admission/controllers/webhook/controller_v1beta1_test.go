@@ -949,8 +949,8 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 			mockConfig.SetWithoutSource("kube_resources_namespace", "nsfoo")
 
 			tt.setupConfig(mockConfig)
-			autoinstrumentation.UnsetWebhook()       // Ensure that the webhook uses the config set above
-			defer autoinstrumentation.UnsetWebhook() // So other tests are not impacted
+			autoinstrumentation.UnsetInjectionFilter()       // Ensure that the webhook uses the config set above
+			defer autoinstrumentation.UnsetInjectionFilter() // So other tests are not impacted
 
 			c := &ControllerV1beta1{}
 			c.config = tt.configFunc()
