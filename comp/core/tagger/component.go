@@ -16,6 +16,7 @@ package tagger
 import (
 	"context"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	taggertypes "github.com/DataDog/datadog-agent/pkg/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
@@ -36,6 +37,7 @@ type Component interface {
 	Start(ctx context.Context) error
 	Stop() error
 	ReplayTagger() ReplayTagger
+	GetTaggerTelemetryStore() *telemetry.Store
 	Tag(entity string, cardinality types.TagCardinality) ([]string, error)
 	AccumulateTagsFor(entity string, cardinality types.TagCardinality, tb tagset.TagsAccumulator) error
 	Standard(entity string) ([]string, error)

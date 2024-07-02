@@ -86,12 +86,12 @@ func newAPIServer(deps dependencies) api.Component {
 		rcServiceMRF:      deps.RcServiceMRF,
 		authToken:         deps.AuthToken,
 		taggerComp:        deps.Tagger,
-		telemetry:         deps.Telemetry,
 		autoConfig:        deps.AutoConfig,
 		logsAgentComp:     deps.LogsAgentComp,
 		wmeta:             deps.WorkloadMeta,
 		collector:         deps.Collector,
 		senderManager:     deps.DiagnoseSenderManager,
+		telemetry:         deps.Telemetry,
 		endpointProviders: fxutil.GetAndFilterGroup(deps.EndpointProviders),
 	}
 }

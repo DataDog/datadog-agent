@@ -24,7 +24,7 @@ import (
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/empty"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -193,6 +193,11 @@ func (t *Tagger) Stop() error {
 // This is a no-op for the remote tagger
 func (t *Tagger) ReplayTagger() tagger.ReplayTagger {
 	return nil
+}
+
+// GetTaggerTelemetryStore returns tagger telemetry store
+func (t *Tagger) GetTaggerTelemetryStore() *telemetry.Store {
+	return t.telemetryStore
 }
 
 // Tag returns tags for a given entity at the desired cardinality.

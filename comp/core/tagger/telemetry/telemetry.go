@@ -70,6 +70,7 @@ type Store struct {
 var initializeOnce sync.Once
 var store *Store
 
+// GetStore returns the global store.
 func GetStore() *Store {
 	return store
 }
@@ -97,6 +98,12 @@ func NewStore(telemetryComp telemetry.Component) *Store {
 			// Remote
 			PrunedEntities: telemetryComp.NewGaugeWithOpts(subsystem, "pruned_entities",
 				[]string{}, "Number of pruned tagger entities.",
+				telemetry.Options{NoDoubleUnderscoreSep: true}),
+
+			// ServerStreamErrors tracks how many errors happened when streaming
+			// out tagger events.
+			ServerStreamErrors: telemetryComp.NewCounterWithOpts(subsystem, "server_stream_errors",
+				[]string{}, "Errors when streaming out tagger events",
 				telemetry.Options{NoDoubleUnderscoreSep: true}),
 
 			// ClientStreamErrors tracks how many errors were received when streaming

@@ -23,7 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/local"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/remote"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/replay"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/utils"
 	coretelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry"
@@ -226,6 +226,11 @@ func (t *TaggerClient) Stop() error {
 // ReplayTagger returns the replay tagger instance
 func (t *TaggerClient) ReplayTagger() taggerComp.ReplayTagger {
 	return replay.NewTagger(t.telemetryStore)
+}
+
+// GetTaggerTelemetryStore returns tagger telemetry store
+func (t *TaggerClient) GetTaggerTelemetryStore() *telemetry.Store {
+	return t.telemetryStore
 }
 
 // GetDefaultTagger returns the default Tagger in current instance

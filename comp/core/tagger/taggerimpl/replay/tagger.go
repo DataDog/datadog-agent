@@ -13,7 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/empty"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/tagstore"
-	taggerTelemetry "github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -27,13 +27,13 @@ type Tagger struct {
 	cancel context.CancelFunc
 
 	telemetryTicker *time.Ticker
-	telemetryStore  *taggerTelemetry.Store
+	telemetryStore  *telemetry.Store
 	empty.Tagger
 }
 
 // NewTagger returns an allocated tagger. You still have to run Init()
 // once the config package is ready.
-func NewTagger(telemetryStore *taggerTelemetry.Store) *Tagger {
+func NewTagger(telemetryStore *telemetry.Store) *Tagger {
 	return &Tagger{
 		store:          tagstore.NewTagStore(telemetryStore),
 		telemetryStore: telemetryStore,
@@ -111,6 +111,11 @@ func (t *Tagger) Unsubscribe(chan []types.EntityEvent) {
 // ReplayTagger returns the replay tagger instance
 func (t *Tagger) ReplayTagger() tagger.ReplayTagger {
 	return t
+}
+
+// GetTaggerTelemetryStore returns tagger telemetry store
+func (t *Tagger) GetTaggerTelemetryStore() *telemetry.Store {
+	return t.telemetryStore
 }
 
 // LoadState loads the state for the tagger from the supplied map.

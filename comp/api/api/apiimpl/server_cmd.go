@@ -29,7 +29,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	taggerserver "github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/server"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetaServer "github.com/DataDog/datadog-agent/comp/core/workloadmeta/server"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
@@ -67,7 +66,6 @@ func startCMDServer(
 	collector optional.Option[collector.Component],
 	ac autodiscovery.Component,
 	providers []api.EndpointProvider,
-	telemetry telemetry.Component,
 	tmf observability.TelemetryMiddlewareFactory,
 ) (err error) {
 	// get the transport we're going to use under HTTP
@@ -91,7 +89,7 @@ func startCMDServer(
 	pb.RegisterAgentSecureServer(s, &serverSecure{
 		configService:    configService,
 		configServiceMRF: configServiceMRF,
-		taggerServer:     taggerserver.NewServer(taggerComp, telemetry),
+		taggerServer:     taggerserver.NewServer(taggerComp),
 		taggerComp:       taggerComp,
 		// TODO(components): decide if workloadmetaServer should be componentized itself
 		workloadmetaServer: workloadmetaServer.NewServer(wmeta),

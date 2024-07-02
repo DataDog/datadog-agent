@@ -120,7 +120,6 @@ func StartServers(
 		collector,
 		ac,
 		providers,
-		telemetry,
 		tmf,
 	); err != nil {
 		return fmt.Errorf("unable to start CMD API server: %v", err)
