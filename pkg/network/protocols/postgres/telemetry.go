@@ -15,14 +15,14 @@ import (
 )
 
 const (
+	telemetryBaseBufferSize                 = 160
 	numberOfBuckets                         = 10
 	bucketLength                            = 15
 	numberOfBucketsSmallerThanMaxBufferSize = 3
 	// firstBucketLowerBoundary is the lower boundary of the first bucket.
-	// We add 1 in order to include BufferSize as the upper boundary of the third bucket.
-	// Then the first three buckets will include query lengths shorter or equal to BufferSize,
+	// We add 1 in order to include telemetryBaseBufferSize as the upper boundary of the third bucket.
+	// Then the first three buckets will include query lengths shorter or equal to telemetryBaseBufferSize,
 	// and the rest will include sizes equal to or above the buffer size.
-	firstBucketLowerBoundary = BufferSize - numberOfBucketsSmallerThanMaxBufferSize*bucketLength + 1
 )
 
 // Telemetry is a struct to hold the telemetry for the postgres protocol
@@ -37,17 +37,22 @@ type Telemetry struct {
 	failedOperationExtraction *libtelemetry.Counter
 }
 
+// CountOptions holds the options for the Count function.
+type CountOptions struct {
+	TelemetryBufferSize int
+}
+
 // createQueryLengthBuckets initializes the query length buckets
-// Bucket 1: <= 34   query length
-// Bucket 2: 35 - 49 query length
-// Bucket 3: 50 - 64 query length
-// Bucket 4: 65 - 79 query length
-// Bucket 5: 80 - 94 query length
-// Bucket 6: 95 - 109 query length
-// Bucket 7: 110 - 124 query length
-// Bucket 8: 125 - 139 query length
-// Bucket 9: 140 - 154 query length
-// Bucket 10: >= 155 query length
+// Bucket 1: <= 130    query length
+// Bucket 2: 131 - 145 query length
+// Bucket 3: 146 - 160 query length
+// Bucket 4: 161 - 175 query length
+// Bucket 5: 176 - 190 query length
+// Bucket 6: 191 - 205 query length
+// Bucket 7: 206 - 220 query length
+// Bucket 8: 221 - 235 query length
+// Bucket 9: 236 - 250 query length
+// Bucket 10: >= 251   query length
 func createQueryLengthBuckets(metricGroup *libtelemetry.MetricGroup) [numberOfBuckets]*libtelemetry.Counter {
 	var buckets [numberOfBuckets]*libtelemetry.Counter
 	for i := 0; i < numberOfBuckets; i++ {
@@ -69,16 +74,20 @@ func NewTelemetry() *Telemetry {
 }
 
 // getBucketIndex returns the index of the bucket for the given query size
-func getBucketIndex(querySize int) int {
+func getBucketIndex(querySize int, options ...CountOptions) int {
+	firstBucketLowerBoundary := telemetryBaseBufferSize - numberOfBucketsSmallerThanMaxBufferSize*bucketLength + 1
+	if len(options) > 0 {
+		firstBucketLowerBoundary = options[0].TelemetryBufferSize - numberOfBucketsSmallerThanMaxBufferSize*bucketLength + 1
+	}
 	bucketIndex := max(0, querySize-firstBucketLowerBoundary) / bucketLength
 	return min(bucketIndex, numberOfBuckets-1)
 }
 
 // Count increments the telemetry counters based on the event data
-func (t *Telemetry) Count(tx *EbpfEvent, eventWrapper *EventWrapper) {
+func (t *Telemetry) Count(tx *EbpfEvent, eventWrapper *EventWrapper, options ...CountOptions) {
 	querySize := int(tx.Tx.Original_query_size)
 
-	bucketIndex := getBucketIndex(querySize)
+	bucketIndex := getBucketIndex(querySize, options...)
 	if bucketIndex >= 0 && bucketIndex < len(t.queryLengthBuckets) {
 		t.queryLengthBuckets[bucketIndex].Add(1)
 	}
