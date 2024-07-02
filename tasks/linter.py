@@ -97,7 +97,6 @@ def python_local_imports(ctx):
         with open(file) as f:
             content = f.read()
         matches = re_imports.findall(content) + re_imports2.findall(content)
-        # TODO : Get line
         imports.extend([(file, match[0]) for match in matches])
 
     def verify_import(import_statement: str) -> bool:
