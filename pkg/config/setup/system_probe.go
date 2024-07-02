@@ -10,6 +10,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -30,6 +31,7 @@ const (
 	wcdNS                        = "windows_crash_detection"
 	pngNS                        = "ping"
 	tracerouteNS                 = "traceroute"
+	serviceDiscoveryNS           = "service_discovery"
 	defaultConnsMessageBatchSize = 600
 
 	// defaultServiceMonitoringJavaAgentArgs is default arguments that are passing to the injected java USM agent
@@ -378,6 +380,9 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 
 	// CCM config
 	cfg.BindEnvAndSetDefault(join(ccmNS, "enabled"), false)
+
+	// service_discovery module
+	cfg.BindEnvAndSetDefault(join(serviceDiscoveryNS, "enabled"), runtime.GOOS == "linux")
 
 	initCWSSystemProbeConfig(cfg)
 }

@@ -60,3 +60,8 @@ func pngNS(k ...string) string {
 func tracerouteNS(k ...string) string {
 	return nskey("traceroute", k...)
 }
+
+// serviceDiscoveryNS adds `service_discovery` namespace to config key
+func serviceDiscoveryNS(k ...string) string {
+	return nskey("service_discovery", k...)
+}

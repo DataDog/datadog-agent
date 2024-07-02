@@ -47,6 +47,11 @@ func Adjust(cfg config.Config) {
 	adjustUSM(cfg)
 	adjustSecurity(cfg)
 
+	if config.IsContainerized() {
+		// service_discovery is not supported in containerized environments
+		cfg.Set(serviceDiscoveryNS("enabled"), false, model.SourceAgentRuntime)
+	}
+
 	if cfg.GetBool(spNS("process_service_inference", "enabled")) &&
 		!usmEnabled &&
 		!npmEnabled {

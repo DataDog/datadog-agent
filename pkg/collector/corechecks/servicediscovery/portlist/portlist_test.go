@@ -35,5 +35,4 @@ func TestPoller(t *testing.T) {
 	for i, p := range pl {
 		t.Logf("[%d] %+v", i, p)
 	}
-	t.Logf("As String: %s", pl)
 }

@@ -29,6 +29,7 @@ var All = []module.Factory{
 	ComplianceModule,
 	Pinger,
 	Traceroute,
+	ServiceDiscoveryModule,
 }
 
 func inactivityEventLog(_ time.Duration) {

@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"runtime"
+	"strings"
 	"time"
 
 	"gopkg.in/yaml.v2"
@@ -18,8 +19,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/portlist"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
+	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
@@ -61,7 +62,7 @@ type serviceEvents struct {
 
 type discoveredServices struct {
 	aliveProcsCount int
-	openPorts       portlist.List
+	openPorts       []*model.Port
 
 	ignoreProcs     map[int]bool
 	potentials      map[int]*serviceInfo
@@ -119,17 +120,24 @@ func newCheck() check.Check {
 
 // Configure parses the check configuration and initializes the check
 func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, instanceConfig, initConfig integration.Data, source string) error {
-	if !pkgconfig.Datadog().GetBool("service_discovery.enabled") {
-		return errors.New("service discovery is disabled")
+	if !ddconfig.Datadog().GetBool("service_discovery.enabled") {
+		return errors.New("service_discovery check is disabled")
 	}
 	if newOSImpl == nil {
 		return errors.New("service_discovery check not implemented on " + runtime.GOOS)
+	}
+	if ddconfig.IsContainerized() {
+		return errors.New("service_discovery check is not supported in containerized environments")
 	}
 	if err := c.CommonConfigure(senderManager, initConfig, instanceConfig, source); err != nil {
 		return err
 	}
 	if err := c.cfg.Parse(instanceConfig); err != nil {
 		return fmt.Errorf("failed to parse config: %w", err)
+	}
+
+	if !ddconfig.SystemProbe.GetBool("service_discovery.enabled") {
+		return errors.New("system-probe service_discovery module is not enabled")
 	}
 
 	ignoreCfg := map[string]bool{}
@@ -170,7 +178,7 @@ func (c *Check) Run() error {
 		len(disc.ignoreProcs),
 		len(disc.runningServices),
 		len(disc.potentials),
-		disc.openPorts.String(),
+		portsStr(disc.openPorts),
 	)
 	metricDiscoveredServices.Set(float64(len(disc.runningServices)))
 
@@ -189,7 +197,7 @@ func (c *Check) Run() error {
 			err := fmt.Errorf("found repeated service name: %s", svc.meta.Name)
 			telemetryFromError(errWithCode{
 				err:  err,
-				code: errorCodeRepeatedServiceName,
+				code: errorCodeServiceNameRepeated,
 				svc:  &svc.meta,
 			})
 			// track the PID, so we don't increase this counter in every run of the check.
@@ -213,7 +221,7 @@ func (c *Check) Run() error {
 	for _, p := range disc.events.stop {
 		if potentialNames[p.meta.Name] {
 			// we consider this situation a restart, so we skip the stop event.
-			log.Debugf("there is a potential service with the same name as a stopped one, skipping end-service event (name: %q)", p.meta.Name)
+			log.Debugf("restart detected, skipping end-service event (name: %q)", p.meta.Name)
 			continue
 		}
 		eventsByName.addStop(p)
@@ -276,6 +284,18 @@ func (m eventsByNameMap) addStop(svc serviceInfo) {
 // Interval returns how often the check should run.
 func (c *Check) Interval() time.Duration {
 	return refreshInterval
+}
+
+func portsStr(ports []*model.Port) string {
+	out := make([]string, len(ports))
+	for i, v := range ports {
+		val := fmt.Sprintf("%s:%d", v.Proto, v.Port)
+		if v.PID != 0 {
+			val += fmt.Sprintf("(pid:%d)", v.PID)
+		}
+		out[i] = val
+	}
+	return strings.Join(out, ",")
 }
 
 type timer interface {

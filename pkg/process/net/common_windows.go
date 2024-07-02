@@ -14,13 +14,15 @@ import (
 )
 
 const (
-	connectionsURL       = "http://localhost:3333/" + string(sysconfig.NetworkTracerModule) + "/connections"
-	registerURL          = "http://localhost:3333/" + string(sysconfig.NetworkTracerModule) + "/register"
-	languageDetectionURL = "http://localhost:3333/" + string(sysconfig.LanguageDetectionModule) + "/detect"
-	statsURL             = "http://localhost:3333/debug/stats"
-	pprofURL             = "http://localhost:3333/debug/pprof"
-	tracerouteURL        = "http://localhost:3333/" + string(sysconfig.TracerouteModule) + "/traceroute/"
-	netType              = "tcp"
+	connectionsURL               = "http://localhost:3333/" + string(sysconfig.NetworkTracerModule) + "/connections"
+	registerURL                  = "http://localhost:3333/" + string(sysconfig.NetworkTracerModule) + "/register"
+	languageDetectionURL         = "http://localhost:3333/" + string(sysconfig.LanguageDetectionModule) + "/detect"
+	statsURL                     = "http://localhost:3333/debug/stats"
+	pprofURL                     = "http://localhost:3333/debug/pprof"
+	tracerouteURL                = "http://localhost:3333/" + string(sysconfig.TracerouteModule) + "/traceroute/"
+	serviceDiscoveryOpenPortsURL = "http://localhost:3333/" + string(sysconfig.ServiceDiscoveryModule) + "/open_ports"
+	serviceDiscoveryGetProcURL   = "http://localhost:3333/" + string(sysconfig.ServiceDiscoveryModule) + "/procs/%d"
+	netType                      = "tcp"
 
 	// procStatsURL is not used in windows, the value is added to avoid compilation error in windows
 	procStatsURL = "http://localhost:3333/" + string(sysconfig.ProcessModule) + "stats"
