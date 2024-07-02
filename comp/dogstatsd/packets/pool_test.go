@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-func TestPoolTelemetry(t *testing.T) {
+func TestPoolTelemetry(t *testing.T) { //JMWTELEMETRY
 	usedByTestTelemetry = true
 	defer func() {
 		usedByTestTelemetry = false
