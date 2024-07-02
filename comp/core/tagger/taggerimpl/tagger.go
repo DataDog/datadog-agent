@@ -549,10 +549,11 @@ func (t *TaggerClient) Unsubscribe(ch chan []types.EntityEvent) {
 type optionalTaggerDeps struct {
 	fx.In
 
-	Lc     fx.Lifecycle
-	Config configComponent.Component
-	Log    logComp.Component
-	Wmeta  optional.Option[workloadmeta.Component]
+	Lc        fx.Lifecycle
+	Config    configComponent.Component
+	Log       logComp.Component
+	Wmeta     optional.Option[workloadmeta.Component]
+	Telemetry coretelemetry.Component
 }
 
 // OptionalModule defines the fx options when tagger should be used as an optional
@@ -579,5 +580,6 @@ func NewOptionalTagger(deps optionalTaggerDeps) optional.Option[taggerComp.Compo
 		Params: taggerComp.Params{
 			AgentTypeForTagger: taggerComp.LocalTaggerAgent,
 		},
+		Telemetry: deps.Telemetry,
 	}).Comp)
 }
