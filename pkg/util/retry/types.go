@@ -22,6 +22,8 @@ const (
 	FailWillRetry
 	// PermaFail informs the user the object will not be available.
 	PermaFail
+	// Scheduled informs the user the object is waiting for next retry.
+	Scheduled
 )
 
 // Strategy sets how the Retrier should handle failure
