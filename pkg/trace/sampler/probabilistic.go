@@ -41,6 +41,12 @@ type ProbabilisticSampler struct {
 	hashSeed                 []byte
 	scaledSamplingPercentage uint32
 	samplingPercentage       float64
+	// fullTraceIDMode looks at the full 128-bit trace ID to make the sampling decision
+	// This can be useful when trying to run this probabilistic sampler alongside the
+	// OTEL probabilistic sampler processor which always looks at the full 128-bit trace id.
+	// This is disabled by default to ensure compatibility in distributed systems where legacy applications may
+	// drop the top 64 bits of the trace ID.
+	fullTraceIDMode bool
 
 	statsd     statsd.ClientInterface
 	tracesSeen *atomic.Int64
@@ -58,6 +64,7 @@ type ProbabilisticSampler struct {
 func NewProbabilisticSampler(conf *config.AgentConfig, statsd statsd.ClientInterface) *ProbabilisticSampler {
 	hashSeedBytes := make([]byte, 4)
 	binary.LittleEndian.PutUint32(hashSeedBytes, conf.ProbabilisticSamplerHashSeed)
+	_, fullTraceIDMode := conf.Features["probabilistic_sampler_full_trace_id"]
 	return &ProbabilisticSampler{
 		enabled:                  conf.ProbabilisticSamplerEnabled,
 		hashSeed:                 hashSeedBytes,
@@ -69,6 +76,7 @@ func NewProbabilisticSampler(conf *config.AgentConfig, statsd statsd.ClientInter
 		tags:                     []string{"sampler:probabilistic"},
 		stop:                     make(chan struct{}),
 		stopped:                  make(chan struct{}),
+		fullTraceIDMode:          fullTraceIDMode,
 	}
 }
 
@@ -114,7 +122,13 @@ func (ps *ProbabilisticSampler) Sample(root *trace.Span) bool {
 	}
 	ps.tracesSeen.Add(1)
 
-	tid, err := get128BitTraceID(root)
+	tid := make([]byte, 16)
+	var err error
+	if !ps.fullTraceIDMode {
+		binary.BigEndian.PutUint64(tid, root.TraceID)
+	} else {
+		tid, err = get128BitTraceID(root)
+	}
 	if err != nil {
 		log.Errorf("Unable to probabilistically sample, failed to determine 128-bit trace ID from incoming span: %v", err)
 		return false
