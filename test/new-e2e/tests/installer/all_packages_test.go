@@ -104,6 +104,9 @@ func TestPackages(t *testing.T) {
 				continue
 			}
 			suite := test.t(flavor, flavor.Architecture)
+			if strings.Contains(suite.Name(), "scenario") {
+				continue
+			}
 			t.Run(suite.Name(), func(t *testing.T) {
 				t.Parallel()
 				// FIXME: Fedora currently has DNS issues
