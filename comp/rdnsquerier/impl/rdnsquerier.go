@@ -248,7 +248,7 @@ func (q *rdnsQuerierImpl) getHostname(ctx context.Context, query *rdnsQuery) {
 				q.internalTelemetry.lookupErrNotFound.Inc()
 				q.logger.Debugf("Reverse DNS Enrichment net.LookupAddr returned not found error '%v' for IP address %v", err, query.addr)
 				// no match was found for the requested IP address, so call updateHostname() to make the caller aware of that fact
-				query.updateHostname(hostname)
+				query.updateHostname("")
 				return
 			}
 			if dnsErr.IsTimeout {

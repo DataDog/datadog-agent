@@ -67,7 +67,7 @@ func newCache(config *rdnsQuerierConfig, logger log.Component, telemetry telemet
 	}
 
 	cache := &cacheImpl{
-		config:         config,
+		config:         config, //JMW needed in here?
 		logger:         logger,
 		cacheTelemetry: cacheTelemetry,
 
@@ -154,6 +154,7 @@ func (c *cacheImpl) get(addr string, updateHostname func(string)) (string, bool)
 				for _, callback := range entry.callbacks {
 					callback(hostname)
 				}
+				entry.callbacks = nil
 			} else {
 				//JMW log should never happen
 				c.logger.Debugf("JMW lookup successful - Cache entry not found for addr %s hostname %s - shouldn't happen", addr, hostname)
