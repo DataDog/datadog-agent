@@ -255,6 +255,11 @@ static __always_inline bool validate_first_topic_name(pktbuf_t pkt, bool flexibl
     CHECK_STRING_VALID_TOPIC_NAME(TOPIC_NAME_MAX_STRING_SIZE_TO_VALIDATE, topic_name_size, topic_name);
 }
 
+// Flexible API version can have an arbitrary number of tagged fields.  We don't
+// need to handle these but we do need to skip them to get at the normal fields
+// which we are interested in.  However, we would need to parse the list of fields
+// to find out how much we need to skip over.  For now, we assume (and assert)
+// that there are no tagged fields.
 static __always_inline bool skip_request_tagged_fields(pktbuf_t pkt, u32 *offset) {
     if (*offset >= pktbuf_data_end(pkt)) {
         return false;
