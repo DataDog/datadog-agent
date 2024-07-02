@@ -9,6 +9,7 @@ package listeners
 
 import (
 	"errors"
+	"runtime/debug"
 	"sort"
 	"time"
 
@@ -52,6 +53,8 @@ func NewKubeletListener(_ Config, wmeta optional.Option[workloadmeta.Component])
 }
 
 func (l *KubeletListener) processPod(entity workloadmeta.Entity) {
+	processPodStart := time.Now()
+	defer log.Debugf("KubeletListener processes pod in %s, entity: %+v | %s", time.Since(processPodStart), entity, debug.Stack())
 	pod := entity.(*workloadmeta.KubernetesPod)
 
 	wlmContainers := pod.GetAllContainers()

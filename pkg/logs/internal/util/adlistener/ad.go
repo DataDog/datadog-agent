@@ -7,9 +7,12 @@
 package adlistener
 
 import (
+	"runtime/debug"
+	
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // ADListener implements comp/core/autodiscovery/scheduler.Scheduler.
@@ -59,10 +62,12 @@ func (l *ADListener) Stop() {}
 
 // Schedule implements comp/core/autodiscovery/scheduler.Scheduler#Schedule.
 func (l *ADListener) Schedule(configs []integration.Config) {
+	log.Debugf("ADListener %s schedules configs, %#v | %s", l.name, configs, debug.Stack())
 	l.schedule(configs)
 }
 
 // Unschedule implements comp/core/autodiscovery/scheduler.Scheduler#Unschedule.
 func (l *ADListener) Unschedule(configs []integration.Config) {
+	log.Debugf("ADListener %s unschedules configs, %#v | %s", l.name, configs, debug.Stack())
 	l.unschedule(configs)
 }

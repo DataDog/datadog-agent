@@ -109,8 +109,10 @@ func (s *Launcher) run() {
 	for {
 		select {
 		case source := <-s.addedSources:
+			log.Debugf("file.Launcher adds source: %#v", source)
 			s.addSource(source)
 		case source := <-s.removedSources:
+			log.Debugf("file.Launcher removes source: %#v", source)
 			s.removeSource(source)
 		case <-scanTicker.C:
 			s.cleanUpRotatedTailers()

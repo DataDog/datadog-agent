@@ -8,6 +8,7 @@ package ad
 
 import (
 	"fmt"
+	"runtime/debug"
 	"strings"
 
 	yaml "gopkg.in/yaml.v2"
@@ -60,6 +61,7 @@ func (s *Scheduler) Stop() {
 // while an integration config can be mapped to a service when it contains an Entity.
 // An entity represents a unique identifier for a process that be reused to query logs.
 func (s *Scheduler) Schedule(configs []integration.Config) {
+	log.Debugf("ad.Scheduler schedules configs, %+v, %+v | %s", s.listener, configs, debug.Stack())
 	for _, config := range configs {
 		if !config.IsLogConfig() {
 			continue
@@ -76,6 +78,7 @@ func (s *Scheduler) Schedule(configs []integration.Config) {
 				log.Warnf("Invalid configuration: %v", err)
 				continue
 			}
+			log.Debugf("Scheduler adds sources, mgr: %+v, sources: %+v | %s", s.mgr, sources, debug.Stack())
 			for _, source := range sources {
 				s.mgr.AddSource(source)
 			}
@@ -88,6 +91,7 @@ func (s *Scheduler) Schedule(configs []integration.Config) {
 
 // Unschedule removes all the sources and services matching the integration configs.
 func (s *Scheduler) Unschedule(configs []integration.Config) {
+	log.Debugf("ad.Scheduler unschedules configs, %+v | %s", configs, debug.Stack())
 	for _, config := range configs {
 		if !config.IsLogConfig() || config.HasFilter(containers.LogsFilter) {
 			continue
@@ -110,7 +114,9 @@ func (s *Scheduler) Unschedule(configs []integration.Config) {
 			// This may also remove sources not added by this scheduler, for
 			// example sources added by other schedulers or sources added by
 			// launchers.
-			for _, source := range s.mgr.GetSources() {
+			sources := s.mgr.GetSources()
+			log.Debugf("schedulers.SourceManager removes sources, identifier: %s, mgr: %#v, sources: %#v | %s", identifier, s.mgr, sources, debug.Stack())
+			for _, source := range sources {
 				if identifier == source.Config.Identifier {
 					s.mgr.RemoveSource(source)
 				}

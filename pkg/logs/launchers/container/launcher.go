@@ -113,9 +113,11 @@ func (l *Launcher) run(ctx context.Context, sourceProvider launchers.SourceProvi
 func (l *Launcher) loop(ctx context.Context, addedSources, removedSources chan *sourcesPkg.LogSource) bool {
 	select {
 	case source := <-addedSources:
+		log.Debugf("container.Launcher starts source after receiving source, source: %#v", source)
 		l.startSource(source)
 
 	case source := <-removedSources:
+		log.Debugf("container.Launcher stops source after receiving source, source: %#v", source)
 		l.stopSource(source)
 
 	case <-ctx.Done():

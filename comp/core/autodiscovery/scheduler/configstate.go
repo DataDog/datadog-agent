@@ -6,9 +6,11 @@
 package scheduler
 
 import (
+	"runtime/debug"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/mohae/deepcopy"
 )
 
@@ -65,6 +67,7 @@ func NewConfigStateStore() *ConfigStateStore {
 
 // UpdateDesiredState update the desiredState of the config immediately
 func (store *ConfigStateStore) UpdateDesiredState(changes integration.ConfigChanges) []Digest {
+	log.Debugf("ConfigStateStore update desired state: %+v | %s", changes, debug.Stack())
 	store.configsLock.Lock()
 	defer store.configsLock.Unlock()
 	digests := make([]Digest, 0, len(changes.Unschedule)+len(changes.Schedule))
@@ -114,6 +117,7 @@ func (store *ConfigStateStore) GetConfigState(configDigest Digest) (ConfigStateD
 // Cleanup if config desired states is Unscheduled, we remove it after it has been unscheduled by controller
 // during this cleanup operation, the store is locked to avoid race condition from updateDesiredState
 func (store *ConfigStateStore) Cleanup(configDigest Digest) {
+	log.Debugf("ConfigStateStore cleans up %+v | %s", configDigest, debug.Stack())
 	store.configsLock.Lock()
 	defer store.configsLock.Unlock()
 	configStateData, found := store.configStateMap[configDigest]

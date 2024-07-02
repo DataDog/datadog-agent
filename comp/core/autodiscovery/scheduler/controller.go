@@ -6,6 +6,7 @@
 package scheduler
 
 import (
+	"runtime/debug"
 	"sync"
 	"time"
 
@@ -75,6 +76,7 @@ func (ms *Controller) start() {
 // unscheduled can be replayed with the replayConfigs flag.  This replay occurs
 // immediately, before the Register call returns.
 func (ms *Controller) Register(name string, s Scheduler, replayConfigs bool) {
+	log.Debugf("scheduler.Controller registers %s with replayConfigs=%v and scheduler=%+v | %s", name, replayConfigs, s, debug.Stack())
 	ms.m.Lock()
 	defer ms.m.Unlock()
 	if _, ok := ms.activeSchedulers[name]; ok {
@@ -111,6 +113,7 @@ func (ms *Controller) Register(name string, s Scheduler, replayConfigs bool) {
 
 // Deregister a scheduler in the schedulerController to dispatch to
 func (ms *Controller) Deregister(name string) {
+	log.Debugf("scheduler.Controller deregisters %s | %s", name, debug.Stack())
 	ms.m.Lock()
 	defer ms.m.Unlock()
 	if _, ok := ms.activeSchedulers[name]; !ok {
@@ -122,6 +125,8 @@ func (ms *Controller) Deregister(name string) {
 
 // ApplyChanges add configDigests to the workqueue
 func (ms *Controller) ApplyChanges(changes integration.ConfigChanges) {
+	start := time.Now()
+	log.Debugf("scheduler.Controller finished ApplyChanges in %s, changes: %+v | %s", time.Since(start), changes, debug.Stack())
 	//update desired state immediately
 	digests := ms.configStateStore.UpdateDesiredState(changes)
 	//add digest to workqueue for processing later
