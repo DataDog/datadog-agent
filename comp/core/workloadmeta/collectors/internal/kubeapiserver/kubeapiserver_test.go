@@ -132,7 +132,7 @@ func Test_metadataCollectionGVRs_WithFunctionalDiscovery(t *testing.T) {
 			expectedGVRs:          []schema.GroupVersionResource{},
 			cfg: map[string]interface{}{
 				"cluster_agent.kube_metadata_collection.enabled":   true,
-				"cluster_agent.kube_metadata_collection.resources": "deployments",
+				"cluster_agent.kube_metadata_collection.resources": "deployments.apps",
 			},
 		},
 		{
@@ -152,7 +152,7 @@ func Test_metadataCollectionGVRs_WithFunctionalDiscovery(t *testing.T) {
 			expectedGVRs: []schema.GroupVersionResource{{Resource: "deployments", Group: "apps", Version: "v1"}},
 			cfg: map[string]interface{}{
 				"cluster_agent.kube_metadata_collection.enabled":   true,
-				"cluster_agent.kube_metadata_collection.resources": "deployments",
+				"cluster_agent.kube_metadata_collection.resources": "deployments.apps",
 			},
 		},
 		{
@@ -172,7 +172,7 @@ func Test_metadataCollectionGVRs_WithFunctionalDiscovery(t *testing.T) {
 			expectedGVRs: []schema.GroupVersionResource{},
 			cfg: map[string]interface{}{
 				"cluster_agent.kube_metadata_collection.enabled":   true,
-				"cluster_agent.kube_metadata_collection.resources": "daemonsets",
+				"cluster_agent.kube_metadata_collection.resources": "daemonsets.apps",
 			},
 		},
 		{
@@ -225,7 +225,7 @@ func Test_metadataCollectionGVRs_WithFunctionalDiscovery(t *testing.T) {
 			},
 			cfg: map[string]interface{}{
 				"cluster_agent.kube_metadata_collection.enabled":   true,
-				"cluster_agent.kube_metadata_collection.resources": "deployments statefulsets",
+				"cluster_agent.kube_metadata_collection.resources": "deployments.apps statefulsets.apps",
 			},
 		},
 		{
@@ -275,7 +275,7 @@ func Test_metadataCollectionGVRs_WithFunctionalDiscovery(t *testing.T) {
 			expectedGVRs: []schema.GroupVersionResource{{Resource: "deployments", Group: "apps", Version: "v1"}},
 			cfg: map[string]interface{}{
 				"cluster_agent.kube_metadata_collection.enabled":   true,
-				"cluster_agent.kube_metadata_collection.resources": "deployments",
+				"cluster_agent.kube_metadata_collection.resources": "deployments.apps",
 			},
 		},
 		{
@@ -327,7 +327,7 @@ func Test_metadataCollectionGVRs_WithFunctionalDiscovery(t *testing.T) {
 			},
 			cfg: map[string]interface{}{
 				"cluster_agent.kube_metadata_collection.enabled":   true,
-				"cluster_agent.kube_metadata_collection.resources": "deployments statefulsetsy",
+				"cluster_agent.kube_metadata_collection.resources": "deployments.apps statefulsetsy.apps",
 			},
 		},
 	}

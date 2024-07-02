@@ -57,26 +57,37 @@ func filterToRegex(filter string) (*regexp.Regexp, error) {
 	return r, nil
 }
 
-func discoverGVRs(discoveryClient discovery.DiscoveryInterface, resources []string) ([]schema.GroupVersionResource, error) {
-	discoveredResources, err := discoverResources(discoveryClient)
+// getGVRsForGroupResources auto discovers groups versions of a list of requested group resources and converts it to a list of GVRs
+// each item of requestedGroupResources is of the form {resourceName.apiGroup} (or simply {resourceName} if belonging to the empty api group)
+// items that don't respect this format are skipped
+func getGVRsForGroupResources(discoveryClient discovery.DiscoveryInterface, groupResources []string) ([]schema.GroupVersionResource, error) {
+	groupResourceToVersion, err := discoverGroupResourceVersions(discoveryClient)
 	if err != nil {
 		return nil, err
 	}
 
-	gvrs := make([]schema.GroupVersionResource, 0, len(resources))
-	for _, resource := range resources {
-		gv, found := discoveredResources[resource]
+	gvrs := make([]schema.GroupVersionResource, 0, len(groupResources))
+	for _, groupResourceAsString := range groupResources {
+		parsedGroupResource := schema.ParseGroupResource(groupResourceAsString)
+		version, found := groupResourceToVersion[parsedGroupResource]
 		if found {
-			gvrs = append(gvrs, schema.GroupVersionResource{Group: gv.Group, Version: gv.Version, Resource: resource})
+			gvrs = append(gvrs, schema.GroupVersionResource{
+				Resource: parsedGroupResource.Resource,
+				Group:    parsedGroupResource.Group,
+				Version:  version,
+			})
 		} else {
-			log.Errorf("failed to auto-discover group/version of resource %s,", resource)
+			log.Errorf("failed to auto-discover version of group resource %s,", groupResourceAsString)
 		}
 	}
 
 	return gvrs, nil
 }
 
-func discoverResources(discoveryClient discovery.DiscoveryInterface) (map[string]schema.GroupVersion, error) {
+// discoverGroupResourceVersions discovers groups, resources, and versions in the kubernetes api server and returns a mapping
+// from GroupResource to Version.
+// A group resource is mapped to the version that is considered the preferred version by the API Server.
+func discoverGroupResourceVersions(discoveryClient discovery.DiscoveryInterface) (map[schema.GroupResource]string, error) {
 	apiGroups, apiResourceLists, err := discoveryClient.ServerGroupsAndResources()
 	if err != nil {
 		return nil, err
@@ -87,17 +98,22 @@ func discoverResources(discoveryClient discovery.DiscoveryInterface) (map[string
 		preferredGroupVersions[group.PreferredVersion.GroupVersion] = struct{}{}
 	}
 
-	discoveredResources := map[string]schema.GroupVersion{}
+	// groupResourceToVersion maps a group resource to discovered preferred group version
+	groupResourceToVersion := map[schema.GroupResource]string{}
 	for _, resourceList := range apiResourceLists {
 		_, found := preferredGroupVersions[resourceList.GroupVersion]
 		if found {
 			for _, resource := range resourceList.APIResources {
 				// No need to handle error because we are sure it is correctly formatted
 				gv, _ := schema.ParseGroupVersion(resourceList.GroupVersion)
-				discoveredResources[resource.Name] = gv
+
+				groupResourceToVersion[schema.GroupResource{
+					Resource: resource.Name,
+					Group:    gv.Group,
+				}] = gv.Version
 			}
 		}
 	}
 
-	return discoveredResources, nil
+	return groupResourceToVersion, nil
 }
