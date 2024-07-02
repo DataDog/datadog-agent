@@ -41,7 +41,7 @@ func TestGetEnvoyPathWithConfig(t *testing.T) {
 	monitor := newIstioTestMonitor(t)
 
 	t.Run("an actual envoy process", func(t *testing.T) {
-		path := monitor.getEnvoyPath(uint32(1))
+		path := monitor.getEnvoyPath(uint32(4))
 		assert.Equal(t, "/usr/local/envoy", path)
 	})
 }
@@ -210,11 +210,11 @@ func createFakeProcFS(t *testing.T) (procRoot string) {
 
 	// PID 4
 	createFile(t,
-		filepath.Join(procRoot, "1", "cmdline"),
+		filepath.Join(procRoot, "4", "cmdline"),
 		envoyTestCmdline,
 	)
 	createFile(t,
-		filepath.Join(procRoot, "1", "root/usr/local/envoy"),
+		filepath.Join(procRoot, "4", "root/usr/local/envoy"),
 		"",
 	)
 
