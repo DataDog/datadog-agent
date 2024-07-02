@@ -91,9 +91,9 @@ func NewComponent(reqs Requires) (Provides, error) {
 	}
 	set := otelcol.CollectorSettings{
 		BuildInfo: component.BuildInfo{
-			Version:     "v0.102.0",
+			Version:     "v0.104.0",
 			Command:     "otel-agent",
-			Description: "Datadog Agent OpenTelemetry Collector Distribution",
+			Description: "Datadog Agent OpenTelemetry Collector",
 		},
 		LoggingOptions: options,
 		Factories: func() (otelcol.Factories, error) {
