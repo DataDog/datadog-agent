@@ -119,9 +119,8 @@ func runTraceAgentProcess(ctx context.Context, cliParams *Params, defaultConfPat
 		fx.Provide(func(cfg config.Component) compression.Component {
 			if cfg.Object().HasFeature("zstd-encoding") {
 				return zstd.NewComponent()
-			} else {
-				return gzip.NewComponent()
 			}
+			return gzip.NewComponent()
 		}),
 		trace.Bundle(),
 		fetchonlyimpl.Module(),
