@@ -100,11 +100,6 @@ type TaggerClient struct {
 	telemetryStore             *telemetry.Store
 }
 
-// we use to pull tagger metrics in dogstatsd. Pulling it later in the
-// pipeline improve memory allocation. We kept the old name to be
-// backward compatible and because origin detection only affect
-// dogstatsd metrics.
-
 // newTaggerClient returns a Component based on provided params, once it is provided,
 // fx will cache the component which is effectively a singleton instance, cached by fx.
 // it should be deprecated and removed
@@ -162,6 +157,10 @@ func newTaggerClient(deps dependencies) provides {
 	taggerClient.datadogConfig.dogstatsdEntityIDPrecedenceEnabled = deps.Config.GetBool("dogstatsd_entity_id_precedence")
 	taggerClient.datadogConfig.originDetectionUnifiedEnabled = deps.Config.GetBool("origin_detection_unified")
 	taggerClient.datadogConfig.dogstatsdOptOutEnabled = deps.Config.GetBool("dogstatsd_origin_optout_enabled")
+	// we use to pull tagger metrics in dogstatsd. Pulling it later in the
+	// pipeline improve memory allocation. We kept the old name to be
+	// backward compatible and because origin detection only affect
+	// dogstatsd metrics.
 	taggerClient.tlmUDPOriginDetectionError = deps.Telemetry.NewCounter("dogstatsd", "udp_origin_detection_error", nil, "Dogstatsd UDP origin detection error count")
 	taggerClient.telemetryStore = telemetryStore
 
