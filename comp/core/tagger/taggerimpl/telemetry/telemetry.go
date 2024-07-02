@@ -70,6 +70,10 @@ type Store struct {
 var initializeOnce sync.Once
 var store *Store
 
+func GetStore() *Store {
+	return store
+}
+
 // NewStore returns a new Store.
 func NewStore(telemetryComp telemetry.Component) *Store {
 	initializeOnce.Do(func() {
