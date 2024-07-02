@@ -9,9 +9,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/host"
 	e2eos "github.com/DataDog/test-infra-definitions/components/os"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -71,15 +73,10 @@ func (s *upgradeScenarioSuite) TestUpgradeSuccessful() {
 		"datadog-installer.service",
 	)
 
-	s.host.WaitForFileExists(true, "/var/run/datadog-installer/installer.sock")
-	state := s.host.State()
-	state.AssertUnitsRunning("datadog-installer.service")
-
-	_, err := s.setCatalog(testCatalog)
-	require.NoError(s.T(), err)
+	s.setCatalog(testCatalog)
 
 	timestamp := s.host.LastJournaldTimestamp()
-	_, err = s.startExperimentCommand(latestAgentImageVersion)
+	_, err := s.startExperimentCommand(latestAgentImageVersion)
 	require.NoError(s.T(), err)
 	s.assertSuccessfulStartExperiment(timestamp, latestAgentImageVersion)
 
@@ -87,6 +84,51 @@ func (s *upgradeScenarioSuite) TestUpgradeSuccessful() {
 	_, err = s.promoteExperimentCommand()
 	require.NoError(s.T(), err)
 	s.assertSuccessfulPromoteExperiment(timestamp, latestAgentImageVersion)
+}
+
+func (s *upgradeScenarioSuite) TestBackendFailure() {
+	s.RunInstallScript("DD_REMOTE_UPDATES=true")
+	defer s.Purge()
+	s.host.WaitForUnitActive(
+		"datadog-agent.service",
+		"datadog-agent-trace.service",
+		"datadog-agent-process.service",
+		"datadog-installer.service",
+	)
+
+	s.setCatalog(testCatalog)
+
+	timestamp := s.host.LastJournaldTimestamp()
+	_, err := s.startExperimentCommand(latestAgentImageVersion)
+	require.NoError(s.T(), err)
+	s.assertSuccessfulStartExperiment(timestamp, latestAgentImageVersion)
+
+	// Receive a failure from the backend, stops the experiment
+	timestamp = s.host.LastJournaldTimestamp()
+	_, err = s.stopExperimentCommand()
+	require.NoError(s.T(), err)
+	s.assertSuccessfulStopExperiment(timestamp)
+}
+
+func (s *upgradeScenarioSuite) TestStopWithoutExperiment() {
+	s.RunInstallScript("DD_REMOTE_UPDATES=true")
+	defer s.Purge()
+	s.host.WaitForUnitActive(
+		"datadog-agent.service",
+		"datadog-agent-trace.service",
+		"datadog-agent-process.service",
+		"datadog-installer.service",
+	)
+
+	s.setCatalog(testCatalog)
+
+	beforeStatus := s.getInstallerStatus()
+
+	_, err := s.stopExperimentCommand()
+	require.NoError(s.T(), err)
+
+	afterStatus := s.getInstallerStatus()
+	require.Equal(s.T(), beforeStatus.Packages["datadog-agent"], afterStatus.Packages["datadog-agent"])
 }
 
 func (s *upgradeScenarioSuite) startExperimentCommand(version string) (string, error) {
@@ -101,23 +143,26 @@ func (s *upgradeScenarioSuite) promoteExperimentCommand() (string, error) {
 	return s.Env().RemoteHost.Execute(cmd)
 }
 
-//lint:ignore U1000 Ignore unused function for now
 func (s *upgradeScenarioSuite) stopExperimentCommand() (string, error) {
 	cmd := "sudo datadog-installer daemon stop-experiment datadog-agent"
 	s.T().Logf("Running stop command: %s", cmd)
 	return s.Env().RemoteHost.Execute(cmd)
 }
 
-func (s *upgradeScenarioSuite) setCatalog(newCatalog catalog) (string, error) {
+func (s *upgradeScenarioSuite) setCatalog(newCatalog catalog) {
 	serializedCatalog, err := json.Marshal(newCatalog)
 	if err != nil {
 		s.T().Fatal(err)
 	}
 	s.T().Logf("Running: daemon set-catalog '%s'", string(serializedCatalog))
 
-	return s.Env().RemoteHost.Execute(fmt.Sprintf(
-		"sudo datadog-installer daemon set-catalog '%s'", serializedCatalog),
-	)
+	assert.Eventually(s.T(), func() bool {
+		_, err := s.Env().RemoteHost.Execute(fmt.Sprintf(
+			"sudo datadog-installer daemon set-catalog '%s'", serializedCatalog),
+		)
+
+		return err == nil
+	}, time.Second*30, time.Second*1)
 }
 
 func (s *upgradeScenarioSuite) assertSuccessfulStartExperiment(timestamp host.JournaldTimestamp, version string) {
@@ -172,7 +217,6 @@ func (s *upgradeScenarioSuite) assertSuccessfulPromoteExperiment(timestamp host.
 	require.Equal(s.T(), strings.TrimSuffix(version, "-1"), v)
 }
 
-//lint:ignore U1000 Ignore unused function for now
 func (s *upgradeScenarioSuite) assertSuccessfulStopExperiment(timestamp host.JournaldTimestamp) {
 	// Assert experiment is stopped
 	s.host.AssertSystemdEvents(timestamp, host.SystemdEvents().

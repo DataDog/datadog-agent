@@ -77,7 +77,7 @@ func SetDefaultCommandIfNonePresent(rootCmd *cobra.Command) {
 	args := []string{os.Args[0], "run"}
 	if len(os.Args) > 1 {
 		potentialCommand := os.Args[1]
-		if potentialCommand == "help" || potentialCommand == "completion" {
+		if potentialCommand == "help" || potentialCommand == "-h" || potentialCommand == "completion" {
 			return
 		}
 
