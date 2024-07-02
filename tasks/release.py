@@ -574,7 +574,8 @@ def unfreeze(ctx, base_directory="~/dd", major_versions="6,7", upstream="origin"
 
     current = current_version(ctx, max(list_major_versions))
     next = current.next_version(bump_minor=True)
-    next.devel = True
+    current.rc = False
+    next.devel = False
 
     # Strings with proper branch/tag names
     release_branch = current.branch()
@@ -606,16 +607,14 @@ def unfreeze(ctx, base_directory="~/dd", major_versions="6,7", upstream="origin"
         milestone_branch = "release_milestone"
         ctx.run(f"git switch -c {milestone_branch}")
         rj = _load_release_json()
-        next.devel = False
         rj["current_milestone"] = f"{next}"
         _save_release_json(rj)
         create_release_pr(
             f"[release] Update current milestone to {next}",
             "main",
             milestone_branch,
-            current,
+            next,
         )
-        next.devel = True
 
         # Step 2.1 - Update release.json
         update_branch = f"{release_branch}-updates"
