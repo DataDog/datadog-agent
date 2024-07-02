@@ -696,7 +696,7 @@ require (
 	github.com/judwhite/go-svc v1.2.1
 	github.com/kr/pretty v0.3.1
 	github.com/planetscale/vtprotobuf v0.6.0
-	github.com/prometheus-community/pro-bing v0.3.0
+	github.com/prometheus-community/pro-bing v0.4.0
 	github.com/rickar/props v1.0.0
 	github.com/sijms/go-ora/v2 v2.8.19
 	github.com/swaggest/jsonschema-go v0.3.70
