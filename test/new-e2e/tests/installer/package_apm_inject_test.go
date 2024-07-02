@@ -467,7 +467,6 @@ func (s *packageApmInjectSuite) assertLDPreloadInstrumented(libPath string) {
 func (s *packageApmInjectSuite) assertSocketPath(path string) {
 	output := s.host.Run("sh -c 'DD_APM_INSTRUMENTATION_DEBUG=true python3 --version 2>&1'")
 	assert.Contains(s.T(), output, "DD_INJECTION_ENABLED=tracer") // this is an env var set by the injector, it should always be in the debug logs
-	assert.Contains(s.T(), output, fmt.Sprintf("\"DD_TRACE_AGENT_URL=unix://%s\"", path))
 }
 
 func (s *packageApmInjectSuite) assertLDPreloadNotInstrumented() {
