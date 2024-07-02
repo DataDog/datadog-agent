@@ -21,6 +21,7 @@ import (
 	apiv1 "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/errors"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/controllers"
@@ -326,7 +327,13 @@ func (c *collector) getNamespaceLabels(ns string) (map[string]string, error) {
 		return nil, nil
 	}
 
-	return c.dcaClient.GetNamespaceLabels(ns)
+	return cache.GetWithExpiration[map[string]string](
+		cache.BuildAgentKey(componentName, "getNamespaceLabels", ns),
+		func() (map[string]string, error) {
+			return c.dcaClient.GetNamespaceLabels(ns)
+		},
+		c.updateFreq,
+	)
 }
 
 // getNamespaceMetadata returns the namespace metadata
@@ -340,7 +347,14 @@ func (c *collector) getNamespaceMetadata(ns string) (*clusteragent.Metadata, err
 	if !c.isDCAEnabled() {
 		return nil, fmt.Errorf("cluster agent should be enabled in order to allow fetching namespace metadata")
 	}
-	return c.dcaClient.GetNamespaceMetadata(ns)
+
+	return cache.GetWithExpiration[*clusteragent.Metadata](
+		cache.BuildAgentKey(componentName, "getNamespaceMetadata", ns),
+		func() (*clusteragent.Metadata, error) {
+			return c.dcaClient.GetNamespaceMetadata(ns)
+		},
+		c.updateFreq,
+	)
 }
 
 func (c *collector) isDCAEnabled() bool {
