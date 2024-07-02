@@ -718,6 +718,12 @@ require (
 	k8s.io/kubectl v0.29.0
 )
 
+replace (
+	// NDM: Temporary fork until pro-bing merges the PR
+	github.com/prometheus-community/pro-bing => github.com/ken-schneider/pro-bing v0.0.0-20240702002736-76fe9e144a90
+)
+
+
 require (
 	bitbucket.org/atlassian/go-asap/v2 v2.8.0 // indirect
 	cloud.google.com/go/auth v0.5.1 // indirect
