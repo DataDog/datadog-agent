@@ -76,7 +76,7 @@ type EventStream interface {
 
 // MaxOnDemandEventsPerSecond represents the maximum number of on demand events per second
 // allowed before we switch off the subsystem
-const MaxOnDemandEventsPerSecond = 1_000_000
+const MaxOnDemandEventsPerSecond = 1_000
 
 var (
 	// defaultEventTypes event types used whatever the event handlers or the rules
