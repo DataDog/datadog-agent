@@ -10,6 +10,8 @@ import (
 	"net"
 	"net/url"
 	"strconv"
+
+	osComp "github.com/DataDog/test-infra-definitions/components/os"
 )
 
 type agentConfigEndpointInfo struct {
@@ -39,13 +41,31 @@ func (endpointInfo *agentConfigEndpointInfo) url() *url.URL {
 	}
 }
 
-func (endpointInfo *agentConfigEndpointInfo) fetchCommand(authtoken string) string {
+func (endpointInfo *agentConfigEndpointInfo) fetchCommand(authtoken string, osFamily osComp.Family) string {
+	if osFamily == osComp.WindowsFamily {
+		// This piece of code is here to mimic -SkipCertificateCheck option which is only available with PowerShell 6.0+
+		return fmt.Sprintf(
+			`class TrustAllCertsPolicy : System.Net.ICertificatePolicy {
+				[bool] CheckValidationResult([System.Net.ServicePoint] $a,
+											 [System.Security.Cryptography.X509Certificates.X509Certificate] $b,
+											 [System.Net.WebRequest] $c,
+											 [int] $d) {
+					return $true
+				}
+			}
+			[System.Net.ServicePointManager]::CertificatePolicy = [TrustAllCertsPolicy]::new()
+			(Invoke-WebRequest -Uri "%s" -Headers @{"authorization"="Bearer %s"} -Method GET -UseBasicParsing).Content`,
+			endpointInfo.url().String(),
+			authtoken,
+		)
+	}
+
 	// -L: follow redirects
 	// -s: silent
 	// -k: allow insecure server connections
 	// -H: add a header
 	return fmt.Sprintf(
-		`curl -L -s -k -H "authorization: Bearer %s" "%s"`,
+		`curl -L -s -k -H "authorization: Bearer %s" --fail-with-body "%s"`,
 		authtoken,
 		endpointInfo.url().String(),
 	)
