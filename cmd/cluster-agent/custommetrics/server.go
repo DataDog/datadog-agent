@@ -21,6 +21,7 @@ import (
 	basecmd "sigs.k8s.io/custom-metrics-apiserver/pkg/cmd"
 	"sigs.k8s.io/custom-metrics-apiserver/pkg/provider"
 
+	"github.com/DataDog/datadog-agent/comp/core/datadogclient"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/custommetrics"
 	generatedopenapi "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/custommetrics/api/generated/openapi"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/externalmetrics"
@@ -47,7 +48,7 @@ const (
 )
 
 // RunServer creates and start a k8s custom metrics API server
-func RunServer(ctx context.Context, apiCl *as.APIClient) error {
+func RunServer(ctx context.Context, apiCl *as.APIClient, datadogCl datadogclient.Component) error {
 	defer clearServerResources()
 	if apiCl == nil {
 		return fmt.Errorf("unable to run server with nil APIClient")

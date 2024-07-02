@@ -21,6 +21,7 @@ import (
 	"sigs.k8s.io/custom-metrics-apiserver/pkg/provider"
 	"sigs.k8s.io/custom-metrics-apiserver/pkg/provider/defaults"
 
+	"github.com/DataDog/datadog-agent/comp/core/datadogclient"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
@@ -43,9 +44,13 @@ type datadogMetricProvider struct {
 }
 
 // NewDatadogMetricProvider configures and returns a new datadogMetricProvider
-func NewDatadogMetricProvider(ctx context.Context, apiCl *apiserver.APIClient) (provider.ExternalMetricsProvider, error) {
+func NewDatadogMetricProvider(ctx context.Context, apiCl *apiserver.APIClient, datadogClient datadogclient.Component) (provider.ExternalMetricsProvider, error) {
 	if apiCl == nil {
 		return nil, fmt.Errorf("Impossible to create DatadogMetricProvider without valid APIClient")
+	}
+	// Start MetricsRetriever, only leader will do refresh metrics
+	if datadogClient == nil {
+		return nil, fmt.Errorf("Unable to create DatadogMetricProvider as DatadogClient is nil")
 	}
 
 	le, err := leaderelection.GetLeaderEngine()
@@ -68,12 +73,6 @@ func NewDatadogMetricProvider(ctx context.Context, apiCl *apiserver.APIClient) (
 		apiCl:            apiCl,
 		store:            NewDatadogMetricsInternalStore(),
 		autogenNamespace: autogenNamespace,
-	}
-
-	// Start MetricsRetriever, only leader will do refresh metrics
-	datadogClient, err = autoscalers.NewDatadogClient()
-	if err != nil {
-		return nil, fmt.Errorf("Unable to create DatadogMetricProvider as DatadogClient failed with: %v", err)
 	}
 
 	metricsRetriever, err := NewMetricsRetriever(refreshPeriod, retrieverMetricsMaxAge, autoscalers.NewProcessor(datadogClient), le.IsLeader, &provider.store, splitBatchBackoffOnErrors)
