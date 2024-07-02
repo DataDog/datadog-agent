@@ -14,6 +14,7 @@ from invoke.exceptions import Exit
 
 from tasks.github_tasks import ALL_TEAMS, GITHUB_SLACK_MAP
 from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
+from tasks.libs.notify.utils import AWS_S3_CP_CMD, AWS_S3_LS_CMD, NOTIFICATION_DISCLAIMER, get_ci_visibility_job_url
 from tasks.libs.pipeline.data import get_infra_failure_info
 from tasks.owners import make_partition
 
@@ -151,8 +152,6 @@ class SummaryStats:
 
 
 def write_file(ctx: Context, name: str, data: str):
-    from tasks.libs.notify.utils import AWS_S3_CP_CMD
-
     with open(FAILURE_SUMMARY_TMP_FILE, 'w') as f:
         f.write(data)
 
@@ -160,8 +159,6 @@ def write_file(ctx: Context, name: str, data: str):
 
 
 def read_file(ctx: Context, name: str) -> str:
-    from tasks.libs.notify.utils import AWS_S3_CP_CMD
-
     ctx.run(f"{AWS_S3_CP_CMD} {FAILURE_SUMMARY_S3_BUCKET_URL}/{name} {FAILURE_SUMMARY_TMP_FILE}", hide="stdout")
 
     with open(FAILURE_SUMMARY_TMP_FILE) as f:
@@ -171,8 +168,6 @@ def read_file(ctx: Context, name: str) -> str:
 
 
 def list_files(ctx: Context) -> list[str]:
-    from tasks.libs.notify.utils import AWS_S3_LS_CMD
-
     listing = ctx.run(
         AWS_S3_LS_CMD.format(bucket=FAILURE_SUMMARY_S3_BUCKET, prefix=FAILURE_SUMMARY_S3_PREFIX), hide="stdout"
     ).stdout
@@ -246,8 +241,6 @@ def send_summary_slack_notification(channel: str, stats: list[dict], allow_failu
     """
     # Avoid circular dependency
     from slack_sdk import WebClient
-
-    from tasks.notify import NOTIFICATION_DISCLAIMER, get_ci_visibility_job_url
 
     # Do not send notification
     if not stats:
