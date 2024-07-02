@@ -183,29 +183,6 @@ def gitlab_ci_diff(ctx, before: str | None = DEFAULT_BRANCH, after: str | None =
     - NOTE: This requires a full api token access level to the repository
     """
 
-    # gh_app_key = os.environ['GITHUB_APP_KEY']
-    # gh_integration_id = os.environ['GITHUB_INTEGRATION_ID']
-    # gh_installation_id = os.environ['GITHUB_INSTALLATION_ID']
-
-    # from github import Github, GithubIntegration
-
-    # ghi = GithubIntegration(integration_id=gh_integration_id, private_key=gh_app_key)
-    # auth = ghi.get_access_token(gh_installation_id)
-    # token = auth.token
-
-    # print('token ok', len(token))
-    # gh = Github(token)
-    # print(gh.get_user())
-
-    # from tasks.libs.ciproviders.github_api import GithubAPI
-
-    # print(len(os.environ['GITHUB_TOKEN']))
-
-    # gh = GithubAPI()
-    # print(gh._github.get_user())
-
-    # exit()
-
     pr_comment_head = 'Gitlab CI Configuration Changes'
     job_url = os.environ['CI_JOB_URL']
 

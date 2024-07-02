@@ -342,7 +342,9 @@ class GithubAPI:
         )
 
     @staticmethod
-    def get_token_from_app(app_id_env='GITHUB_APP_ID', pkey_env='GITHUB_KEY_B64', installation_id=None, no_base64=False):
+    def get_token_from_app(
+        app_id_env='GITHUB_APP_ID', pkey_env='GITHUB_KEY_B64', installation_id=None, no_base64=False
+    ):
         app_id = os.environ.get(app_id_env)
         app_key_b64 = os.environ.get(pkey_env)
         app_key = app_key_b64 if no_base64 else base64.b64decode(app_key_b64).decode("ascii")
