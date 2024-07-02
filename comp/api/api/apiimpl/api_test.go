@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap/pidmapimpl"
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	replaymock "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/fx-mock"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
@@ -38,7 +39,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 
 	// third-party dependencies
-	"github.com/stretchr/testify/assert"
+
 	"go.uber.org/fx"
 )
 
@@ -64,10 +65,12 @@ type testdeps struct {
 	EndpointProviders     []api.EndpointProvider `group:"agent_endpoint"`
 }
 
-func getComponentDependencies(t *testing.T) testdeps {
+func getComponentDependencies(t *testing.T) api.Component {
 	// TODO: this fxutil.Test[T] can take a component and return the component
-	return fxutil.Test[testdeps](
+	return fxutil.Test[api.Component](
 		t,
+		Module(),
+		pidmapimpl.Module(),
 		hostnameimpl.MockModule(),
 		dogstatsdServer.MockModule(),
 		replaymock.MockModule(),
@@ -79,8 +82,10 @@ func getComponentDependencies(t *testing.T) testdeps {
 		fetchonlyimpl.MockModule(),
 		fx.Supply(context.Background()),
 		taggerimpl.MockModule(),
+		fx.Provide(func(mock tagger.Mock) tagger.Component { return mock }),
 		fx.Supply(autodiscoveryimpl.MockParams{Scheduler: nil}),
 		autodiscoveryimpl.MockModule(),
+		fx.Provide(func(mock autodiscovery.Mock) autodiscovery.Component { return mock }),
 		fx.Supply(optional.NewNoneOption[logsAgent.Component]()),
 		fx.Supply(optional.NewNoneOption[collector.Component]()),
 		// Ensure we pass a nil endpoint to test that we always filter out nil endpoints
@@ -92,29 +97,6 @@ func getComponentDependencies(t *testing.T) testdeps {
 	)
 }
 
-func getTestAPIServer(deps testdeps) api.Component {
-	apideps := dependencies{
-		DogstatsdServer:   deps.DogstatsdServer,
-		Capture:           deps.Capture,
-		SecretResolver:    deps.SecretResolver,
-		RcService:         deps.RcService,
-		RcServiceMRF:      deps.RcServiceMRF,
-		AuthToken:         deps.AuthToken,
-		Tagger:            deps.Tagger,
-		LogsAgentComp:     deps.Logs,
-		WorkloadMeta:      deps.WorkloadMeta,
-		Collector:         deps.Collector,
-		EndpointProviders: deps.EndpointProviders,
-	}
-	return newAPIServer(apideps)
-}
-
 func TestStartServer(t *testing.T) {
-	deps := getComponentDependencies(t)
-
-	srv := getTestAPIServer(deps)
-	err := srv.StartServer()
-	defer srv.StopServer()
-
-	assert.NoError(t, err, "could not start api component servers: %v", err)
+	getComponentDependencies(t)
 }
