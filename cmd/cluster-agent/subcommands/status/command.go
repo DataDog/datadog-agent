@@ -78,7 +78,7 @@ func run(log log.Component, config config.Component, cliParams *cliParams) error
 
 	url := url.URL{
 		Scheme:   "https",
-		Host:     fmt.Sprintf("localhost:%v", pkgconfig.Datadog.GetInt("cluster_agent.cmd_port")),
+		Host:     fmt.Sprintf("localhost:%v", pkgconfig.Datadog().GetInt("cluster_agent.cmd_port")),
 		Path:     "/status",
 		RawQuery: v.Encode(),
 	}

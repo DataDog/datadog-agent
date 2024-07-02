@@ -1939,7 +1939,7 @@ func (m *ClientGroupedStats) UnmarshalVT(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				m.IsTraceRoot |= TraceRootFlag(b&0x7F) << shift
+				m.IsTraceRoot |= Trilean(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}

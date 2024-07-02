@@ -9,7 +9,6 @@
 package rules
 
 import (
-	"fmt"
 	"reflect"
 	"strings"
 	"syscall"
@@ -24,19 +23,6 @@ type testFieldValues map[string][]interface{}
 
 type testHandler struct {
 	filters map[string]testFieldValues
-}
-
-// SetRuleSetTag sets the value of the "ruleset" tag, which is the tag of the rules that belong in this rule set. This method is only used for testing.
-func (rs *RuleSet) setRuleSetTagValue(value eval.RuleSetTagValue) error {
-	if len(rs.GetRules()) > 0 {
-		return ErrCannotChangeTagAfterLoading
-	}
-	if _, ok := rs.opts.RuleSetTag[RuleSetTagKey]; !ok {
-		rs.opts.RuleSetTag = map[string]eval.RuleSetTagValue{RuleSetTagKey: ""}
-	}
-	rs.opts.RuleSetTag[RuleSetTagKey] = value
-
-	return nil
 }
 
 func (f *testHandler) RuleMatch(_ *Rule, _ eval.Event) bool {
@@ -75,31 +61,12 @@ func (f *testHandler) EventDiscarderFound(_ *RuleSet, event eval.Event, field st
 	values[field] = discarders
 }
 
-func addRuleExpr(t *testing.T, rs *RuleSet, exprs ...string) {
-	var ruleDefs []*RuleDefinition
-
-	for i, expr := range exprs {
-		ruleDef := &RuleDefinition{
-			ID:         fmt.Sprintf("ID%d", i),
-			Expression: expr,
-			Tags:       make(map[string]string),
-		}
-		ruleDefs = append(ruleDefs, ruleDef)
-	}
-
-	pc := ast.NewParsingContext()
-
-	if err := rs.AddRules(pc, ruleDefs); err != nil {
-		t.Fatal(err)
-	}
-}
-
 func newFakeEvent() eval.Event {
 	return model.NewFakeEvent()
 }
 
 func newRuleSet() *RuleSet {
-	ruleOpts, evalOpts := NewEvalOpts(map[eval.EventType]bool{"*": true})
+	ruleOpts, evalOpts := NewBothOpts(map[eval.EventType]bool{"*": true})
 	return NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
 }
 
@@ -110,7 +77,7 @@ func TestRuleBuckets(t *testing.T) {
 	}
 
 	rs := newRuleSet()
-	addRuleExpr(t, rs, exprs...)
+	AddTestRuleExpr(t, rs, exprs...)
 
 	if bucket, ok := rs.eventRuleBuckets["open"]; !ok || len(bucket.rules) != 1 {
 		t.Fatal("unable to find `open` rules or incorrect number of rules")
@@ -142,7 +109,7 @@ func TestRuleSetDiscarders(t *testing.T) {
 		`(mkdir.file.path =~ "/var/run/*") && process.uid != 0`,
 	}
 
-	addRuleExpr(t, rs, exprs...)
+	AddTestRuleExpr(t, rs, exprs...)
 
 	ev1 := model.NewFakeEvent()
 	ev1.Type = uint32(model.FileOpenEventType)
@@ -189,7 +156,7 @@ func TestRuleSetDiscarders(t *testing.T) {
 
 func TestRuleSetApprovers1(t *testing.T) {
 	rs := newRuleSet()
-	addRuleExpr(t, rs, `open.file.path in ["/etc/passwd", "/etc/shadow"] && (process.uid == 0 && process.gid == 0)`)
+	AddTestRuleExpr(t, rs, `open.file.path in ["/etc/passwd", "/etc/shadow"] && (process.uid == 0 && process.gid == 0)`)
 
 	caps := FieldCapabilities{
 		{
@@ -245,7 +212,7 @@ func TestRuleSetApprovers2(t *testing.T) {
 	}
 
 	rs := newRuleSet()
-	addRuleExpr(t, rs, exprs...)
+	AddTestRuleExpr(t, rs, exprs...)
 
 	caps := FieldCapabilities{
 		{
@@ -288,7 +255,7 @@ func TestRuleSetApprovers2(t *testing.T) {
 
 func TestRuleSetApprovers3(t *testing.T) {
 	rs := newRuleSet()
-	addRuleExpr(t, rs, `open.file.path in ["/etc/passwd", "/etc/shadow"] && (process.uid == process.gid)`)
+	AddTestRuleExpr(t, rs, `open.file.path in ["/etc/passwd", "/etc/shadow"] && (process.uid == process.gid)`)
 
 	caps := FieldCapabilities{
 		{
@@ -309,7 +276,7 @@ func TestRuleSetApprovers3(t *testing.T) {
 
 func TestRuleSetApprovers4(t *testing.T) {
 	rs := newRuleSet()
-	addRuleExpr(t, rs, `open.file.path =~ "/etc/passwd" && process.uid == 0`)
+	AddTestRuleExpr(t, rs, `open.file.path =~ "/etc/passwd" && process.uid == 0`)
 
 	caps := FieldCapabilities{
 		{
@@ -336,7 +303,7 @@ func TestRuleSetApprovers4(t *testing.T) {
 
 func TestRuleSetApprovers5(t *testing.T) {
 	rs := newRuleSet()
-	addRuleExpr(t, rs, `(open.flags & O_CREAT > 0 || open.flags & O_EXCL > 0) && open.flags & O_RDWR > 0`)
+	AddTestRuleExpr(t, rs, `(open.flags & O_CREAT > 0 || open.flags & O_EXCL > 0) && open.flags & O_RDWR > 0`)
 
 	caps := FieldCapabilities{
 		{
@@ -359,7 +326,7 @@ func TestRuleSetApprovers5(t *testing.T) {
 
 func TestRuleSetApprovers6(t *testing.T) {
 	rs := newRuleSet()
-	addRuleExpr(t, rs, `open.file.name == "123456"`)
+	AddTestRuleExpr(t, rs, `open.file.name == "123456"`)
 
 	caps := FieldCapabilities{
 		{
@@ -392,7 +359,7 @@ func TestRuleSetApprovers6(t *testing.T) {
 
 func TestRuleSetApprovers7(t *testing.T) {
 	rs := newRuleSet()
-	addRuleExpr(t, rs, `open.flags & (O_CREAT | O_EXCL) == O_CREAT`)
+	AddTestRuleExpr(t, rs, `open.flags & (O_CREAT | O_EXCL) == O_CREAT`)
 
 	caps := FieldCapabilities{
 		{
@@ -413,7 +380,7 @@ func TestRuleSetApprovers7(t *testing.T) {
 
 func TestRuleSetApprovers8(t *testing.T) {
 	rs := newRuleSet()
-	addRuleExpr(t, rs, `open.flags & (O_CREAT | O_EXCL) == O_CREAT && open.file.path in ["/etc/passwd", "/etc/shadow"]`)
+	AddTestRuleExpr(t, rs, `open.flags & (O_CREAT | O_EXCL) == O_CREAT && open.file.path in ["/etc/passwd", "/etc/shadow"]`)
 
 	caps := FieldCapabilities{
 		{
@@ -443,7 +410,7 @@ func TestRuleSetApprovers8(t *testing.T) {
 
 func TestRuleSetApprovers9(t *testing.T) {
 	rs := newRuleSet()
-	addRuleExpr(t, rs, `open.flags & (O_CREAT | O_EXCL) == O_CREAT && open.file.path not in ["/etc/passwd", "/etc/shadow"]`)
+	AddTestRuleExpr(t, rs, `open.flags & (O_CREAT | O_EXCL) == O_CREAT && open.file.path not in ["/etc/passwd", "/etc/shadow"]`)
 
 	caps := FieldCapabilities{
 		{
@@ -473,7 +440,7 @@ func TestRuleSetApprovers9(t *testing.T) {
 
 func TestRuleSetApprovers10(t *testing.T) {
 	rs := newRuleSet()
-	addRuleExpr(t, rs, `open.file.path in [~"/etc/passwd", "/etc/shadow"]`)
+	AddTestRuleExpr(t, rs, `open.file.path in [~"/etc/passwd", "/etc/shadow"]`)
 
 	caps := FieldCapabilities{
 		{
@@ -491,7 +458,7 @@ func TestRuleSetApprovers10(t *testing.T) {
 
 func TestRuleSetApprovers11(t *testing.T) {
 	rs := newRuleSet()
-	addRuleExpr(t, rs, `open.file.path in [~"/etc/passwd", "/etc/shadow"]`)
+	AddTestRuleExpr(t, rs, `open.file.path in [~"/etc/passwd", "/etc/shadow"]`)
 
 	caps := FieldCapabilities{
 		{
@@ -514,7 +481,7 @@ func TestRuleSetApprovers12(t *testing.T) {
 	}
 
 	rs := newRuleSet()
-	addRuleExpr(t, rs, exprs...)
+	AddTestRuleExpr(t, rs, exprs...)
 
 	caps := FieldCapabilities{
 		{
@@ -532,7 +499,7 @@ func TestRuleSetApprovers12(t *testing.T) {
 
 func TestRuleSetApprovers13(t *testing.T) {
 	rs := newRuleSet()
-	addRuleExpr(t, rs, `open.flags & (O_CREAT | O_EXCL) == O_RDWR`)
+	AddTestRuleExpr(t, rs, `open.flags & (O_CREAT | O_EXCL) == O_RDWR`)
 
 	caps := FieldCapabilities{
 		{
@@ -554,7 +521,7 @@ func TestRuleSetApprovers14(t *testing.T) {
 	}
 
 	rs := newRuleSet()
-	addRuleExpr(t, rs, exprs...)
+	AddTestRuleExpr(t, rs, exprs...)
 
 	caps := FieldCapabilities{
 		{
@@ -567,6 +534,28 @@ func TestRuleSetApprovers14(t *testing.T) {
 	approvers, _ := rs.GetEventApprovers("open", caps)
 	if len(approvers) != 1 || len(approvers["open.file.path"]) != 2 {
 		t.Fatalf("shouldn't get an approver for `open.file.path`: %v", approvers)
+	}
+}
+
+func TestRuleSetApprovers15(t *testing.T) {
+	exprs := []string{
+		`open.file.name =~ "*.dll"`,
+	}
+
+	rs := newRuleSet()
+	AddTestRuleExpr(t, rs, exprs...)
+
+	caps := FieldCapabilities{
+		{
+			Field:        "open.file.name",
+			Types:        eval.ScalarValueType | eval.PatternValueType,
+			FilterWeight: 3,
+		},
+	}
+
+	approvers, _ := rs.GetEventApprovers("open", caps)
+	if len(approvers) != 1 || len(approvers["open.file.name"]) != 1 {
+		t.Fatalf("shouldn't get an approver for `open.file.name`: %v", approvers)
 	}
 }
 

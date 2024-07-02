@@ -36,6 +36,12 @@ func benchParsePackets(b *testing.B, rawPacket []byte) {
 	// our logger will log dogstatsd packet by default if nothing is setup
 	pkgconfig.SetupLogger("", "off", "", "", false, true, false)
 
+	histogram := deps.Telemetry.NewHistogram("test-dogstatsd",
+		"channel_latency",
+		[]string{"shard", "message_type"},
+		"Time in nanosecond to push metrics to the aggregator input buffer",
+		defaultChannelBuckets)
+
 	demux := deps.Demultiplexer
 	defer demux.Stop(false)
 
@@ -49,8 +55,8 @@ func benchParsePackets(b *testing.B, rawPacket []byte) {
 	defer close(done)
 
 	b.RunParallel(func(pb *testing.PB) {
-		batcher := newBatcher(demux)
-		parser := newParser(deps.Config, newFloat64ListPool(), 1, deps.WMeta)
+		batcher := newBatcher(demux, histogram)
+		parser := newParser(deps.Config, s.sharedFloat64List, 1, deps.WMeta, s.stringInternerTelemetry)
 		packet := packets.Packet{
 			Contents: rawPacket,
 			Origin:   packets.NoOrigin,
@@ -94,7 +100,8 @@ func BenchmarkPbarseMetricMessage(b *testing.B) {
 	}()
 	defer close(done)
 
-	parser := newParser(deps.Config, newFloat64ListPool(), 1, deps.WMeta)
+	stringInternerTelemetry := newSiTelemetry(false, deps.Telemetry)
+	parser := newParser(deps.Config, newFloat64ListPool(deps.Telemetry), 1, deps.WMeta, stringInternerTelemetry)
 	message := []byte("daemon:666|h|@0.5|#sometag1:somevalue1,sometag2:somevalue2")
 
 	b.RunParallel(func(pb *testing.PB) {
@@ -136,6 +143,12 @@ func benchmarkMapperControl(b *testing.B, yaml string) {
 
 	demux := deps.Demultiplexer
 
+	histogram := deps.Telemetry.NewHistogram("dogstatsd",
+		"channel_latency",
+		[]string{"shard", "message_type"},
+		"Time in nanosecond to push metrics to the aggregator input buffer",
+		defaultChannelBuckets)
+
 	done := make(chan struct{})
 	go func() {
 		s, l := demux.WaitForSamples(time.Millisecond * 1)
@@ -145,8 +158,9 @@ func benchmarkMapperControl(b *testing.B, yaml string) {
 	}()
 	defer close(done)
 
-	batcher := newBatcher(demux)
-	parser := newParser(deps.Config, newFloat64ListPool(), 1, deps.WMeta)
+	batcher := newBatcher(demux, histogram)
+	stringInternerTelemetry := newSiTelemetry(false, deps.Telemetry)
+	parser := newParser(deps.Config, newFloat64ListPool(deps.Telemetry), 1, deps.WMeta, stringInternerTelemetry)
 
 	samples := make([]metrics.MetricSample, 0, 512)
 	for n := 0; n < b.N; n++ {

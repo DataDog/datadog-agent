@@ -83,6 +83,9 @@ type Config struct {
 	// EnableKafkaMonitoring specifies whether the tracer should monitor Kafka traffic
 	EnableKafkaMonitoring bool
 
+	// EnablePostgresMonitoring specifies whether the tracer should monitor Postgres traffic.
+	EnablePostgresMonitoring bool
+
 	// EnableNativeTLSMonitoring specifies whether the USM should monitor HTTPS traffic via native libraries.
 	// Supported libraries: OpenSSL, GnuTLS, LibCrypto.
 	EnableNativeTLSMonitoring bool
@@ -179,6 +182,10 @@ type Config struct {
 	// get flushed on every client request (default 30s check interval)
 	MaxKafkaStatsBuffered int
 
+	// MaxPostgresStatsBuffered represents the maximum number of Postgres stats we'll buffer in memory. These stats
+	// get flushed on every client request (default 30s check interval)
+	MaxPostgresStatsBuffered int
+
 	// MaxConnectionsStateBuffered represents the maximum number of state objects that we'll store in memory. These state objects store
 	// the stats for a connection so we can accurately determine traffic change between client requests.
 	MaxConnectionsStateBuffered int
@@ -260,6 +267,9 @@ type Config struct {
 	// classifying the L7 protocols being used.
 	ProtocolClassificationEnabled bool
 
+	// TCPFailedConnectionsEnabled specifies whether the tracer will track & report TCP error codes
+	TCPFailedConnectionsEnabled bool
+
 	// EnableHTTPStatsByStatusCode specifies if the HTTP stats should be aggregated by the actual status code
 	// instead of the status code family.
 	EnableHTTPStatsByStatusCode bool
@@ -281,6 +291,14 @@ type Config struct {
 	// Defaults to true. Setting this to false on a Kernel that supports ring
 	// buffers (>=5.8) will result in forcing the use of Perf Maps instead.
 	EnableUSMRingBuffers bool
+
+	// EnableUSMEventStream enables USM to use the event stream instead
+	// of netlink for receiving process events.
+	EnableUSMEventStream bool
+
+	// BypassEnabled is used in tests only.
+	// It enables a ebpf-manager feature to bypass programs on-demand for controlled visibility.
+	BypassEnabled bool
 }
 
 func join(pieces ...string) string {
@@ -312,6 +330,7 @@ func New() *Config {
 		ExcludedSourceConnections:      cfg.GetStringMapStringSlice(join(spNS, "source_excludes")),
 		ExcludedDestinationConnections: cfg.GetStringMapStringSlice(join(spNS, "dest_excludes")),
 
+		TCPFailedConnectionsEnabled:    cfg.GetBool(join(netNS, "enable_tcp_failed_connections")),
 		MaxTrackedConnections:          uint32(cfg.GetInt64(join(spNS, "max_tracked_connections"))),
 		MaxClosedConnectionsBuffered:   uint32(cfg.GetInt64(join(spNS, "max_closed_connections_buffered"))),
 		ClosedConnectionFlushThreshold: cfg.GetInt(join(spNS, "closed_connection_flush_threshold")),
@@ -334,12 +353,14 @@ func New() *Config {
 		EnableHTTPMonitoring:      cfg.GetBool(join(smNS, "enable_http_monitoring")),
 		EnableHTTP2Monitoring:     cfg.GetBool(join(smNS, "enable_http2_monitoring")),
 		EnableKafkaMonitoring:     cfg.GetBool(join(smNS, "enable_kafka_monitoring")),
+		EnablePostgresMonitoring:  cfg.GetBool(join(smNS, "enable_postgres_monitoring")),
 		EnableNativeTLSMonitoring: cfg.GetBool(join(smNS, "tls", "native", "enabled")),
 		EnableIstioMonitoring:     cfg.GetBool(join(smNS, "tls", "istio", "enabled")),
 		EnableNodeJSMonitoring:    cfg.GetBool(join(smNS, "tls", "nodejs", "enabled")),
 		MaxUSMConcurrentRequests:  uint32(cfg.GetInt(join(smNS, "max_concurrent_requests"))),
 		MaxHTTPStatsBuffered:      cfg.GetInt(join(smNS, "max_http_stats_buffered")),
 		MaxKafkaStatsBuffered:     cfg.GetInt(join(smNS, "max_kafka_stats_buffered")),
+		MaxPostgresStatsBuffered:  cfg.GetInt(join(smNS, "max_postgres_stats_buffered")),
 
 		MaxTrackedHTTPConnections: cfg.GetInt64(join(smNS, "max_tracked_http_connections")),
 		HTTPNotificationThreshold: cfg.GetInt64(join(smNS, "http_notification_threshold")),
@@ -385,6 +406,7 @@ func New() *Config {
 		EnableUSMQuantization:       cfg.GetBool(join(smNS, "enable_quantization")),
 		EnableUSMConnectionRollup:   cfg.GetBool(join(smNS, "enable_connection_rollup")),
 		EnableUSMRingBuffers:        cfg.GetBool(join(smNS, "enable_ring_buffers")),
+		EnableUSMEventStream:        cfg.GetBool(join(smNS, "enable_event_stream")),
 	}
 
 	httpRRKey := join(smNS, "http_replace_rules")
@@ -417,6 +439,18 @@ func New() *Config {
 	return c
 }
 
+// RingBufferSupportedNPM returns true if the kernel supports ring buffers and the config enables them
 func (c *Config) RingBufferSupportedNPM() bool {
 	return (features.HaveMapType(cebpf.RingBuf) == nil) && c.NPMRingbuffersEnabled
+}
+
+// FailedConnectionsSupported returns true if the config & TCP v4 || v6 is enabled
+func (c *Config) FailedConnectionsSupported() bool {
+	if !c.TCPFailedConnectionsEnabled {
+		return false
+	}
+	if !c.CollectTCPv4Conns && !c.CollectTCPv6Conns {
+		return false
+	}
+	return true
 }

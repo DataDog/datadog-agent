@@ -302,6 +302,62 @@ func (ev *Event) GetChdirRetval() int64 {
 	return ev.Chdir.SyscallEvent.Retval
 }
 
+// GetChdirSyscallInt1 returns the value of the field, resolving if necessary
+func (ev *Event) GetChdirSyscallInt1() int {
+	if ev.GetEventType().String() != "chdir" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsInt1(ev, &ev.Chdir.SyscallContext)
+}
+
+// GetChdirSyscallInt2 returns the value of the field, resolving if necessary
+func (ev *Event) GetChdirSyscallInt2() int {
+	if ev.GetEventType().String() != "chdir" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsInt2(ev, &ev.Chdir.SyscallContext)
+}
+
+// GetChdirSyscallInt3 returns the value of the field, resolving if necessary
+func (ev *Event) GetChdirSyscallInt3() int {
+	if ev.GetEventType().String() != "chdir" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsInt3(ev, &ev.Chdir.SyscallContext)
+}
+
+// GetChdirSyscallPath returns the value of the field, resolving if necessary
+func (ev *Event) GetChdirSyscallPath() string {
+	if ev.GetEventType().String() != "chdir" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Chdir.SyscallContext)
+}
+
+// GetChdirSyscallStr1 returns the value of the field, resolving if necessary
+func (ev *Event) GetChdirSyscallStr1() string {
+	if ev.GetEventType().String() != "chdir" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Chdir.SyscallContext)
+}
+
+// GetChdirSyscallStr2 returns the value of the field, resolving if necessary
+func (ev *Event) GetChdirSyscallStr2() string {
+	if ev.GetEventType().String() != "chdir" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsStr2(ev, &ev.Chdir.SyscallContext)
+}
+
+// GetChdirSyscallStr3 returns the value of the field, resolving if necessary
+func (ev *Event) GetChdirSyscallStr3() string {
+	if ev.GetEventType().String() != "chdir" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsStr3(ev, &ev.Chdir.SyscallContext)
+}
+
 // GetChmodFileChangeTime returns the value of the field, resolving if necessary
 func (ev *Event) GetChmodFileChangeTime() uint64 {
 	if ev.GetEventType().String() != "chmod" {
@@ -484,6 +540,70 @@ func (ev *Event) GetChmodRetval() int64 {
 		return int64(0)
 	}
 	return ev.Chmod.SyscallEvent.Retval
+}
+
+// GetChmodSyscallInt1 returns the value of the field, resolving if necessary
+func (ev *Event) GetChmodSyscallInt1() int {
+	if ev.GetEventType().String() != "chmod" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsInt1(ev, &ev.Chmod.SyscallContext)
+}
+
+// GetChmodSyscallInt2 returns the value of the field, resolving if necessary
+func (ev *Event) GetChmodSyscallInt2() int {
+	if ev.GetEventType().String() != "chmod" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsInt2(ev, &ev.Chmod.SyscallContext)
+}
+
+// GetChmodSyscallInt3 returns the value of the field, resolving if necessary
+func (ev *Event) GetChmodSyscallInt3() int {
+	if ev.GetEventType().String() != "chmod" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsInt3(ev, &ev.Chmod.SyscallContext)
+}
+
+// GetChmodSyscallMode returns the value of the field, resolving if necessary
+func (ev *Event) GetChmodSyscallMode() int {
+	if ev.GetEventType().String() != "chmod" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsInt2(ev, &ev.Chmod.SyscallContext)
+}
+
+// GetChmodSyscallPath returns the value of the field, resolving if necessary
+func (ev *Event) GetChmodSyscallPath() string {
+	if ev.GetEventType().String() != "chmod" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Chmod.SyscallContext)
+}
+
+// GetChmodSyscallStr1 returns the value of the field, resolving if necessary
+func (ev *Event) GetChmodSyscallStr1() string {
+	if ev.GetEventType().String() != "chmod" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Chmod.SyscallContext)
+}
+
+// GetChmodSyscallStr2 returns the value of the field, resolving if necessary
+func (ev *Event) GetChmodSyscallStr2() string {
+	if ev.GetEventType().String() != "chmod" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsStr2(ev, &ev.Chmod.SyscallContext)
+}
+
+// GetChmodSyscallStr3 returns the value of the field, resolving if necessary
+func (ev *Event) GetChmodSyscallStr3() string {
+	if ev.GetEventType().String() != "chmod" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsStr3(ev, &ev.Chmod.SyscallContext)
 }
 
 // GetChownFileChangeTime returns the value of the field, resolving if necessary
@@ -771,6 +891,11 @@ func (ev *Event) GetEventAsync() bool {
 	return ev.FieldHandlers.ResolveAsync(ev)
 }
 
+// GetEventHostname returns the value of the field, resolving if necessary
+func (ev *Event) GetEventHostname() string {
+	return ev.FieldHandlers.ResolveHostname(ev, &ev.BaseEvent)
+}
+
 // GetEventOrigin returns the value of the field, resolving if necessary
 func (ev *Event) GetEventOrigin() string {
 	return ev.BaseEvent.Origin
@@ -899,6 +1024,17 @@ func (ev *Event) GetExecCapPermitted() uint64 {
 		return uint64(0)
 	}
 	return ev.Exec.Process.Credentials.CapPermitted
+}
+
+// GetExecCmdargv returns the value of the field, resolving if necessary
+func (ev *Event) GetExecCmdargv() []string {
+	if ev.GetEventType().String() != "exec" {
+		return []string{}
+	}
+	if ev.Exec.Process == nil {
+		return []string{}
+	}
+	return ev.FieldHandlers.ResolveProcessCmdArgv(ev, ev.Exec.Process)
 }
 
 // GetExecComm returns the value of the field, resolving if necessary
@@ -1702,6 +1838,62 @@ func (ev *Event) GetExecPpid() uint32 {
 	return ev.Exec.Process.PPid
 }
 
+// GetExecSyscallInt1 returns the value of the field, resolving if necessary
+func (ev *Event) GetExecSyscallInt1() int {
+	if ev.GetEventType().String() != "exec" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsInt1(ev, &ev.Exec.SyscallContext)
+}
+
+// GetExecSyscallInt2 returns the value of the field, resolving if necessary
+func (ev *Event) GetExecSyscallInt2() int {
+	if ev.GetEventType().String() != "exec" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsInt2(ev, &ev.Exec.SyscallContext)
+}
+
+// GetExecSyscallInt3 returns the value of the field, resolving if necessary
+func (ev *Event) GetExecSyscallInt3() int {
+	if ev.GetEventType().String() != "exec" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsInt3(ev, &ev.Exec.SyscallContext)
+}
+
+// GetExecSyscallPath returns the value of the field, resolving if necessary
+func (ev *Event) GetExecSyscallPath() string {
+	if ev.GetEventType().String() != "exec" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Exec.SyscallContext)
+}
+
+// GetExecSyscallStr1 returns the value of the field, resolving if necessary
+func (ev *Event) GetExecSyscallStr1() string {
+	if ev.GetEventType().String() != "exec" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Exec.SyscallContext)
+}
+
+// GetExecSyscallStr2 returns the value of the field, resolving if necessary
+func (ev *Event) GetExecSyscallStr2() string {
+	if ev.GetEventType().String() != "exec" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsStr2(ev, &ev.Exec.SyscallContext)
+}
+
+// GetExecSyscallStr3 returns the value of the field, resolving if necessary
+func (ev *Event) GetExecSyscallStr3() string {
+	if ev.GetEventType().String() != "exec" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsStr3(ev, &ev.Exec.SyscallContext)
+}
+
 // GetExecTid returns the value of the field, resolving if necessary
 func (ev *Event) GetExecTid() uint32 {
 	if ev.GetEventType().String() != "exec" {
@@ -1895,6 +2087,17 @@ func (ev *Event) GetExitCause() uint32 {
 		return uint32(0)
 	}
 	return ev.Exit.Cause
+}
+
+// GetExitCmdargv returns the value of the field, resolving if necessary
+func (ev *Event) GetExitCmdargv() []string {
+	if ev.GetEventType().String() != "exit" {
+		return []string{}
+	}
+	if ev.Exit.Process == nil {
+		return []string{}
+	}
+	return ev.FieldHandlers.ResolveProcessCmdArgv(ev, ev.Exit.Process)
 }
 
 // GetExitCode returns the value of the field, resolving if necessary
@@ -2783,6 +2986,70 @@ func (ev *Event) GetExitUserSessionK8sUsername() string {
 	return ev.FieldHandlers.ResolveK8SUsername(ev, &ev.Exit.Process.UserSession)
 }
 
+// GetImdsAwsIsImdsV2 returns the value of the field, resolving if necessary
+func (ev *Event) GetImdsAwsIsImdsV2() bool {
+	if ev.GetEventType().String() != "imds" {
+		return false
+	}
+	return ev.IMDS.AWS.IsIMDSv2
+}
+
+// GetImdsAwsSecurityCredentialsType returns the value of the field, resolving if necessary
+func (ev *Event) GetImdsAwsSecurityCredentialsType() string {
+	if ev.GetEventType().String() != "imds" {
+		return ""
+	}
+	return ev.IMDS.AWS.SecurityCredentials.Type
+}
+
+// GetImdsCloudProvider returns the value of the field, resolving if necessary
+func (ev *Event) GetImdsCloudProvider() string {
+	if ev.GetEventType().String() != "imds" {
+		return ""
+	}
+	return ev.IMDS.CloudProvider
+}
+
+// GetImdsHost returns the value of the field, resolving if necessary
+func (ev *Event) GetImdsHost() string {
+	if ev.GetEventType().String() != "imds" {
+		return ""
+	}
+	return ev.IMDS.Host
+}
+
+// GetImdsServer returns the value of the field, resolving if necessary
+func (ev *Event) GetImdsServer() string {
+	if ev.GetEventType().String() != "imds" {
+		return ""
+	}
+	return ev.IMDS.Server
+}
+
+// GetImdsType returns the value of the field, resolving if necessary
+func (ev *Event) GetImdsType() string {
+	if ev.GetEventType().String() != "imds" {
+		return ""
+	}
+	return ev.IMDS.Type
+}
+
+// GetImdsUrl returns the value of the field, resolving if necessary
+func (ev *Event) GetImdsUrl() string {
+	if ev.GetEventType().String() != "imds" {
+		return ""
+	}
+	return ev.IMDS.URL
+}
+
+// GetImdsUserAgent returns the value of the field, resolving if necessary
+func (ev *Event) GetImdsUserAgent() string {
+	if ev.GetEventType().String() != "imds" {
+		return ""
+	}
+	return ev.IMDS.UserAgent
+}
+
 // GetLinkFileChangeTime returns the value of the field, resolving if necessary
 func (ev *Event) GetLinkFileChangeTime() uint64 {
 	if ev.GetEventType().String() != "link" {
@@ -3664,17 +3931,17 @@ func (ev *Event) GetMmapFileUser() string {
 }
 
 // GetMmapFlags returns the value of the field, resolving if necessary
-func (ev *Event) GetMmapFlags() int {
+func (ev *Event) GetMmapFlags() uint64 {
 	if ev.GetEventType().String() != "mmap" {
-		return 0
+		return uint64(0)
 	}
 	return ev.MMap.Flags
 }
 
 // GetMmapProtection returns the value of the field, resolving if necessary
-func (ev *Event) GetMmapProtection() int {
+func (ev *Event) GetMmapProtection() uint64 {
 	if ev.GetEventType().String() != "mmap" {
-		return 0
+		return uint64(0)
 	}
 	return ev.MMap.Protection
 }
@@ -4007,6 +4274,78 @@ func (ev *Event) GetOpenRetval() int64 {
 	return ev.Open.SyscallEvent.Retval
 }
 
+// GetOpenSyscallFlags returns the value of the field, resolving if necessary
+func (ev *Event) GetOpenSyscallFlags() int {
+	if ev.GetEventType().String() != "open" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsInt2(ev, &ev.Open.SyscallContext)
+}
+
+// GetOpenSyscallInt1 returns the value of the field, resolving if necessary
+func (ev *Event) GetOpenSyscallInt1() int {
+	if ev.GetEventType().String() != "open" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsInt1(ev, &ev.Open.SyscallContext)
+}
+
+// GetOpenSyscallInt2 returns the value of the field, resolving if necessary
+func (ev *Event) GetOpenSyscallInt2() int {
+	if ev.GetEventType().String() != "open" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsInt2(ev, &ev.Open.SyscallContext)
+}
+
+// GetOpenSyscallInt3 returns the value of the field, resolving if necessary
+func (ev *Event) GetOpenSyscallInt3() int {
+	if ev.GetEventType().String() != "open" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsInt3(ev, &ev.Open.SyscallContext)
+}
+
+// GetOpenSyscallMode returns the value of the field, resolving if necessary
+func (ev *Event) GetOpenSyscallMode() int {
+	if ev.GetEventType().String() != "open" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsInt3(ev, &ev.Open.SyscallContext)
+}
+
+// GetOpenSyscallPath returns the value of the field, resolving if necessary
+func (ev *Event) GetOpenSyscallPath() string {
+	if ev.GetEventType().String() != "open" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Open.SyscallContext)
+}
+
+// GetOpenSyscallStr1 returns the value of the field, resolving if necessary
+func (ev *Event) GetOpenSyscallStr1() string {
+	if ev.GetEventType().String() != "open" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Open.SyscallContext)
+}
+
+// GetOpenSyscallStr2 returns the value of the field, resolving if necessary
+func (ev *Event) GetOpenSyscallStr2() string {
+	if ev.GetEventType().String() != "open" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsStr2(ev, &ev.Open.SyscallContext)
+}
+
+// GetOpenSyscallStr3 returns the value of the field, resolving if necessary
+func (ev *Event) GetOpenSyscallStr3() string {
+	if ev.GetEventType().String() != "open" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsStr3(ev, &ev.Open.SyscallContext)
+}
+
 // GetProcessAncestorsArgs returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsArgs() []string {
 	if ev.BaseEvent.ProcessContext == nil {
@@ -4212,6 +4551,27 @@ func (ev *Event) GetProcessAncestorsCapPermitted() []uint64 {
 		element := (*ProcessCacheEntry)(ptr)
 		result := element.ProcessContext.Process.Credentials.CapPermitted
 		values = append(values, result)
+		ptr = iterator.Next()
+	}
+	return values
+}
+
+// GetProcessAncestorsCmdargv returns the value of the field, resolving if necessary
+func (ev *Event) GetProcessAncestorsCmdargv() []string {
+	if ev.BaseEvent.ProcessContext == nil {
+		return []string{}
+	}
+	if ev.BaseEvent.ProcessContext.Ancestor == nil {
+		return []string{}
+	}
+	var values []string
+	ctx := eval.NewContext(ev)
+	iterator := &ProcessAncestorsIterator{}
+	ptr := iterator.Front(ctx)
+	for ptr != nil {
+		element := (*ProcessCacheEntry)(ptr)
+		result := ev.FieldHandlers.ResolveProcessCmdArgv(ev, &element.ProcessContext.Process)
+		values = append(values, result...)
 		ptr = iterator.Next()
 	}
 	return values
@@ -5704,6 +6064,14 @@ func (ev *Event) GetProcessCapPermitted() uint64 {
 	return ev.BaseEvent.ProcessContext.Process.Credentials.CapPermitted
 }
 
+// GetProcessCmdargv returns the value of the field, resolving if necessary
+func (ev *Event) GetProcessCmdargv() []string {
+	if ev.BaseEvent.ProcessContext == nil {
+		return []string{}
+	}
+	return ev.FieldHandlers.ResolveProcessCmdArgv(ev, &ev.BaseEvent.ProcessContext.Process)
+}
+
 // GetProcessComm returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessComm() string {
 	if ev.BaseEvent.ProcessContext == nil {
@@ -6438,6 +6806,20 @@ func (ev *Event) GetProcessParentCapPermitted() uint64 {
 		return uint64(0)
 	}
 	return ev.BaseEvent.ProcessContext.Parent.Credentials.CapPermitted
+}
+
+// GetProcessParentCmdargv returns the value of the field, resolving if necessary
+func (ev *Event) GetProcessParentCmdargv() []string {
+	if ev.BaseEvent.ProcessContext == nil {
+		return []string{}
+	}
+	if ev.BaseEvent.ProcessContext.Parent == nil {
+		return []string{}
+	}
+	if !ev.BaseEvent.ProcessContext.HasParent() {
+		return []string{}
+	}
+	return ev.FieldHandlers.ResolveProcessCmdArgv(ev, ev.BaseEvent.ProcessContext.Parent)
 }
 
 // GetProcessParentComm returns the value of the field, resolving if necessary
@@ -7797,6 +8179,30 @@ func (ev *Event) GetPtraceTraceeAncestorsCapPermitted() []uint64 {
 		element := (*ProcessCacheEntry)(ptr)
 		result := element.ProcessContext.Process.Credentials.CapPermitted
 		values = append(values, result)
+		ptr = iterator.Next()
+	}
+	return values
+}
+
+// GetPtraceTraceeAncestorsCmdargv returns the value of the field, resolving if necessary
+func (ev *Event) GetPtraceTraceeAncestorsCmdargv() []string {
+	if ev.GetEventType().String() != "ptrace" {
+		return []string{}
+	}
+	if ev.PTrace.Tracee == nil {
+		return []string{}
+	}
+	if ev.PTrace.Tracee.Ancestor == nil {
+		return []string{}
+	}
+	var values []string
+	ctx := eval.NewContext(ev)
+	iterator := &ProcessAncestorsIterator{}
+	ptr := iterator.Front(ctx)
+	for ptr != nil {
+		element := (*ProcessCacheEntry)(ptr)
+		result := ev.FieldHandlers.ResolveProcessCmdArgv(ev, &element.ProcessContext.Process)
+		values = append(values, result...)
 		ptr = iterator.Next()
 	}
 	return values
@@ -9520,6 +9926,17 @@ func (ev *Event) GetPtraceTraceeCapPermitted() uint64 {
 	return ev.PTrace.Tracee.Process.Credentials.CapPermitted
 }
 
+// GetPtraceTraceeCmdargv returns the value of the field, resolving if necessary
+func (ev *Event) GetPtraceTraceeCmdargv() []string {
+	if ev.GetEventType().String() != "ptrace" {
+		return []string{}
+	}
+	if ev.PTrace.Tracee == nil {
+		return []string{}
+	}
+	return ev.FieldHandlers.ResolveProcessCmdArgv(ev, &ev.PTrace.Tracee.Process)
+}
+
 // GetPtraceTraceeComm returns the value of the field, resolving if necessary
 func (ev *Event) GetPtraceTraceeComm() string {
 	if ev.GetEventType().String() != "ptrace" {
@@ -10467,6 +10884,23 @@ func (ev *Event) GetPtraceTraceeParentCapPermitted() uint64 {
 		return uint64(0)
 	}
 	return ev.PTrace.Tracee.Parent.Credentials.CapPermitted
+}
+
+// GetPtraceTraceeParentCmdargv returns the value of the field, resolving if necessary
+func (ev *Event) GetPtraceTraceeParentCmdargv() []string {
+	if ev.GetEventType().String() != "ptrace" {
+		return []string{}
+	}
+	if ev.PTrace.Tracee == nil {
+		return []string{}
+	}
+	if ev.PTrace.Tracee.Parent == nil {
+		return []string{}
+	}
+	if !ev.PTrace.Tracee.HasParent() {
+		return []string{}
+	}
+	return ev.FieldHandlers.ResolveProcessCmdArgv(ev, ev.PTrace.Tracee.Parent)
 }
 
 // GetPtraceTraceeParentComm returns the value of the field, resolving if necessary
@@ -13051,6 +13485,30 @@ func (ev *Event) GetSignalTargetAncestorsCapPermitted() []uint64 {
 	return values
 }
 
+// GetSignalTargetAncestorsCmdargv returns the value of the field, resolving if necessary
+func (ev *Event) GetSignalTargetAncestorsCmdargv() []string {
+	if ev.GetEventType().String() != "signal" {
+		return []string{}
+	}
+	if ev.Signal.Target == nil {
+		return []string{}
+	}
+	if ev.Signal.Target.Ancestor == nil {
+		return []string{}
+	}
+	var values []string
+	ctx := eval.NewContext(ev)
+	iterator := &ProcessAncestorsIterator{}
+	ptr := iterator.Front(ctx)
+	for ptr != nil {
+		element := (*ProcessCacheEntry)(ptr)
+		result := ev.FieldHandlers.ResolveProcessCmdArgv(ev, &element.ProcessContext.Process)
+		values = append(values, result...)
+		ptr = iterator.Next()
+	}
+	return values
+}
+
 // GetSignalTargetAncestorsComm returns the value of the field, resolving if necessary
 func (ev *Event) GetSignalTargetAncestorsComm() []string {
 	if ev.GetEventType().String() != "signal" {
@@ -14769,6 +15227,17 @@ func (ev *Event) GetSignalTargetCapPermitted() uint64 {
 	return ev.Signal.Target.Process.Credentials.CapPermitted
 }
 
+// GetSignalTargetCmdargv returns the value of the field, resolving if necessary
+func (ev *Event) GetSignalTargetCmdargv() []string {
+	if ev.GetEventType().String() != "signal" {
+		return []string{}
+	}
+	if ev.Signal.Target == nil {
+		return []string{}
+	}
+	return ev.FieldHandlers.ResolveProcessCmdArgv(ev, &ev.Signal.Target.Process)
+}
+
 // GetSignalTargetComm returns the value of the field, resolving if necessary
 func (ev *Event) GetSignalTargetComm() string {
 	if ev.GetEventType().String() != "signal" {
@@ -15716,6 +16185,23 @@ func (ev *Event) GetSignalTargetParentCapPermitted() uint64 {
 		return uint64(0)
 	}
 	return ev.Signal.Target.Parent.Credentials.CapPermitted
+}
+
+// GetSignalTargetParentCmdargv returns the value of the field, resolving if necessary
+func (ev *Event) GetSignalTargetParentCmdargv() []string {
+	if ev.GetEventType().String() != "signal" {
+		return []string{}
+	}
+	if ev.Signal.Target == nil {
+		return []string{}
+	}
+	if ev.Signal.Target.Parent == nil {
+		return []string{}
+	}
+	if !ev.Signal.Target.HasParent() {
+		return []string{}
+	}
+	return ev.FieldHandlers.ResolveProcessCmdArgv(ev, ev.Signal.Target.Parent)
 }
 
 // GetSignalTargetParentComm returns the value of the field, resolving if necessary

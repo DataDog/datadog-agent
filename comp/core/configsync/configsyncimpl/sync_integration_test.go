@@ -21,24 +21,6 @@ import (
 )
 
 func TestRunWithChan(t *testing.T) {
-	t.Run("server error", func(t *testing.T) {
-		var called bool
-		handler := func(w http.ResponseWriter, r *http.Request) {
-			called = true
-			w.WriteHeader(http.StatusInternalServerError)
-		}
-
-		ctx, cancel := context.WithCancel(context.Background())
-		cs := makeConfigSyncWithServer(t, ctx, handler)
-
-		ch := make(chan time.Time, 1)
-		ch <- time.Now()
-		time.AfterFunc(100*time.Millisecond, cancel)
-		cs.runWithChan(ch)
-
-		require.True(t, called)
-	})
-
 	t.Run("success", func(t *testing.T) {
 		var called bool
 		handler := func(w http.ResponseWriter, r *http.Request) {
@@ -91,15 +73,17 @@ func TestRunWithChan(t *testing.T) {
 
 		for i := 1; i <= errnums; i++ {
 			ch <- time.Now()
-			time.Sleep(50 * time.Millisecond)
-			require.EqualValues(t, i, callnb.Load())
-			require.Equal(t, "not-value1", cs.Config.GetString("key1"))
+			require.EventuallyWithT(t, func(t *assert.CollectT) {
+				assert.EqualValues(t, i, callnb.Load())
+				assert.Equal(t, "not-value1", cs.Config.GetString("key1"))
+			}, 100*time.Millisecond, 10*time.Millisecond)
 		}
 
 		ch <- time.Now()
-		time.Sleep(50 * time.Millisecond)
-		require.EqualValues(t, errnums+1, callnb.Load())
-		assertConfigIsSet(t, cs.Config, "key1", "value1")
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
+			assert.EqualValues(t, errnums+1, callnb.Load())
+			assertConfigIsSet(t, cs.Config, "key1", "value1")
+		}, 100*time.Millisecond, 10*time.Millisecond)
 	})
 }
 

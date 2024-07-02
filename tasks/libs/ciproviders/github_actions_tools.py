@@ -26,6 +26,7 @@ def trigger_macos_workflow(
     version_cache_file_content=None,
     concurrency_key=None,
     fast_tests=None,
+    test_washer=False,
     integrations_core_ref=None,
 ):
     """
@@ -62,6 +63,9 @@ def trigger_macos_workflow(
 
     if integrations_core_ref is not None:
         inputs["integrations_core_ref"] = integrations_core_ref
+
+    if test_washer:
+        inputs["test_washer"] = "true"
 
     # Test-only input, only to be passed to the test workflow
     if "GO_TEST_SKIP_FLAKE" in os.environ and workflow_name == "test.yaml":
@@ -152,7 +156,7 @@ def follow_workflow_run(run):
             print(f"Workflow run not found, retrying in 15 seconds (failure {failures}/{MAX_FAILURES})")
             print("Error: ", e)
             if failures == MAX_FAILURES:
-                raise Exit(code=1)
+                raise Exit(code=1) from e
             sleep(15)
             continue
 

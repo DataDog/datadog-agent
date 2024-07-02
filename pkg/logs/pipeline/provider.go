@@ -8,6 +8,7 @@ package pipeline
 import (
 	"context"
 
+	"github.com/hashicorp/go-multierror"
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
@@ -60,8 +61,8 @@ func NewProvider(numberOfPipelines int, auditor auditor.Auditor, diagnosticMessa
 }
 
 // NewServerlessProvider returns a new Provider in serverless mode
-func NewServerlessProvider(numberOfPipelines int, auditor auditor.Auditor, processingRules []*config.ProcessingRule, endpoints *config.Endpoints, destinationsContext *client.DestinationsContext, status statusinterface.Status, hostname hostnameinterface.Component, cfg pkgconfigmodel.Reader) Provider {
-	return newProvider(numberOfPipelines, auditor, &diagnostic.NoopMessageReceiver{}, processingRules, endpoints, destinationsContext, true, status, hostname, cfg)
+func NewServerlessProvider(numberOfPipelines int, auditor auditor.Auditor, diagnosticMessageReceiver diagnostic.MessageReceiver, processingRules []*config.ProcessingRule, endpoints *config.Endpoints, destinationsContext *client.DestinationsContext, status statusinterface.Status, hostname hostnameinterface.Component, cfg pkgconfigmodel.Reader) Provider {
+	return newProvider(numberOfPipelines, auditor, diagnosticMessageReceiver, processingRules, endpoints, destinationsContext, true, status, hostname, cfg)
 }
 
 // NewMockProvider creates a new provider that will not provide any pipelines.
@@ -133,7 +134,7 @@ func (p *provider) reconfigureSDS(config []byte, orderType sds.ReconfigureOrderT
 	for _, response := range responses {
 		err := <-response
 		if err != nil {
-			rerr = err
+			rerr = multierror.Append(rerr, err)
 		}
 		close(response)
 	}

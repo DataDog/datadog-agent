@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serverless/random"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 )
 
 func setupTraceAgentTest(t *testing.T) {
@@ -90,6 +91,7 @@ func TestStartEnabledTrueValidConfigValidPath(t *testing.T) {
 }
 
 func TestLoadConfigShouldBeFast(t *testing.T) {
+	flake.Mark(t)
 	setupTraceAgentTest(t)
 
 	startTime := time.Now()

@@ -2,6 +2,7 @@
 #include "offset-guess.h"
 #include "bpf_tracing.h"
 #include "map-defs.h"
+#include "bpf_metadata.h"
 
 #include <net/net_namespace.h>
 #include <net/sock.h>
@@ -159,6 +160,8 @@ static __always_inline int guess_offsets(tracer_status_t* status, char* subject)
     case GUESS_RTT:
         new_status.offset_rtt = aligned_offset(subject, status->offset_rtt, SIZEOF_RTT);
         bpf_probe_read_kernel(&new_status.rtt, sizeof(new_status.rtt), subject + new_status.offset_rtt);
+        break;
+    case GUESS_RTT_VAR:
         new_status.offset_rtt_var = aligned_offset(subject, status->offset_rtt_var, SIZEOF_RTT_VAR);
         bpf_probe_read_kernel(&new_status.rtt_var, sizeof(new_status.rtt_var), subject + new_status.offset_rtt_var);
         break;

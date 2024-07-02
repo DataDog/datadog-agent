@@ -24,7 +24,7 @@ import (
 // Returns true if `namespace_selector_fallback` is enabled and k8s version is between 1.10 and 1.14 (included).
 // Kubernetes 1.15+ supports object selectors.
 func useNamespaceSelector(discoveryCl discovery.DiscoveryInterface) (bool, error) {
-	if !config.Datadog.GetBool("admission_controller.namespace_selector_fallback") {
+	if !config.Datadog().GetBool("admission_controller.namespace_selector_fallback") {
 		return false, nil
 	}
 

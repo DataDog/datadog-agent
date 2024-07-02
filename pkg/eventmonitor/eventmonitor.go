@@ -10,7 +10,6 @@ package eventmonitor
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net"
 	"slices"
@@ -21,7 +20,7 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor/config"
 	procstatsd "github.com/DataDog/datadog-agent/pkg/process/statsd"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
@@ -33,7 +32,7 @@ import (
 )
 
 var (
-	// allowedEventTypes defines allowed event type for subscribers
+	// allowedEventTypes defines allowed event type for consumers
 	allowedEventTypes = []model.EventType{model.ForkEventType, model.ExecEventType, model.ExitEventType}
 )
 
@@ -56,33 +55,12 @@ type EventMonitor struct {
 	ctx            context.Context
 	cancelFnc      context.CancelFunc
 	sendStatsChan  chan chan bool
-	eventConsumers []EventConsumer
+	eventConsumers []EventConsumerInterface
 	netListener    net.Listener
 	wg             sync.WaitGroup
 }
 
 var _ module.Module = &EventMonitor{}
-
-// EventConsumer defines an event consumer
-type EventConsumer interface {
-	// ID returns the ID of the event consumer
-	ID() string
-	// Start starts the event consumer
-	Start() error
-	// Stop stops the event consumer
-	Stop()
-}
-
-// EventConsumerPostProbeStartHandler defines an event consumer that can respond to PostProbeStart events
-type EventConsumerPostProbeStartHandler interface {
-	// PostProbeStart is called after the event stream (the probe) is started
-	PostProbeStart() error
-}
-
-// EventTypeHandler event type based handler
-type EventTypeHandler interface {
-	probe.EventHandler
-}
 
 // Register the event monitoring module
 func (m *EventMonitor) Register(_ *module.Router) error {
@@ -93,17 +71,19 @@ func (m *EventMonitor) Register(_ *module.Router) error {
 	return m.Start()
 }
 
-// AddEventTypeHandler registers an event handler
-func (m *EventMonitor) AddEventTypeHandler(eventType model.EventType, handler EventTypeHandler) error {
-	if !slices.Contains(allowedEventTypes, eventType) {
-		return errors.New("event type not allowed")
+// AddEventConsumer registers an event handler
+func (m *EventMonitor) AddEventConsumer(consumer EventConsumer) error {
+	for _, eventType := range consumer.EventTypes() {
+		if !slices.Contains(allowedEventTypes, eventType) {
+			return fmt.Errorf("event type (%s) not allowed", eventType)
+		}
 	}
 
-	return m.Probe.AddEventHandler(eventType, handler)
+	return m.Probe.AddEventConsumer(consumer)
 }
 
 // RegisterEventConsumer registers an event consumer
-func (m *EventMonitor) RegisterEventConsumer(consumer EventConsumer) {
+func (m *EventMonitor) RegisterEventConsumer(consumer EventConsumerInterface) {
 	m.eventConsumers = append(m.eventConsumers, consumer)
 }
 

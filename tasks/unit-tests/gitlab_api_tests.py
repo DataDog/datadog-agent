@@ -1,108 +1,24 @@
 import unittest
-from itertools import cycle
-from unittest import mock
 
-from invoke.exceptions import Exit
+from invoke.context import MockContext
 
-from tasks.libs.ciproviders.gitlab import Gitlab, generate_gitlab_full_configuration, get_gitlab_token, read_includes
-from tasks.libs.common.remote_api import APIError
-
-
-class MockResponse:
-    def __init__(self, content, status_code):
-        self.content = content
-        self.status_code = status_code
-
-    def json(self):
-        return self.content
-
-
-#################### FAIL REQUEST  #####################
-
-
-def fail_not_found_request(*_args, **_kwargs):
-    return MockResponse([], 404)
-
-
-##################### MOCKED GITLAB #####################
-
-
-def mocked_502_gitlab_requests(*_args, **_kwargs):
-    return MockResponse(
-        "<html>\r\n<head><title>502 Bad Gateway</title></head>\r\n<body>\r\n<center><h1>502 Bad Gateway</h1></center>\r\n</body>\r\n</html>\r\n",
-        502,
-    )
-
-
-def mocked_gitlab_project_request(*_args, **_kwargs):
-    return MockResponse("name", 200)
-
-
-class SideEffect:
-    def __init__(self, *fargs):
-        self.functions = cycle(fargs)
-
-    def __call__(self, *args, **kwargs):
-        func = next(self.functions)
-        return func(*args, **kwargs)
-
-
-class TestStatusCode5XX(unittest.TestCase):
-    @mock.patch('requests.get', side_effect=SideEffect(mocked_502_gitlab_requests, mocked_gitlab_project_request))
-    def test_gitlab_one_fail_one_success(self, _):
-        gitlab = Gitlab(api_token=get_gitlab_token())
-        gitlab.requests_sleep_time = 0
-        gitlab.test_project_found()
-
-    @mock.patch(
-        'requests.get',
-        side_effect=SideEffect(
-            mocked_502_gitlab_requests,
-            mocked_502_gitlab_requests,
-            mocked_502_gitlab_requests,
-            mocked_502_gitlab_requests,
-            mocked_gitlab_project_request,
-        ),
-    )
-    def test_gitlab_last_one_success(self, _):
-        gitlab = Gitlab(api_token=get_gitlab_token())
-        gitlab.requests_sleep_time = 0
-        gitlab.test_project_found()
-
-    @mock.patch('requests.get', side_effect=SideEffect(mocked_502_gitlab_requests))
-    def test_gitlab_full_fail(self, _):
-        failed = False
-        try:
-            gitlab = Gitlab(api_token=get_gitlab_token())
-            gitlab.requests_sleep_time = 0
-            gitlab.test_project_found()
-        except Exit:
-            failed = True
-        if not failed:
-            Exit("GitlabAPI was expected to fail")
-
-    @mock.patch('requests.get', side_effect=SideEffect(fail_not_found_request, mocked_gitlab_project_request))
-    def test_gitlab_real_fail(self, _):
-        failed = False
-        try:
-            gitlab = Gitlab(api_token=get_gitlab_token())
-            gitlab.requests_sleep_time = 0
-            gitlab.test_project_found()
-        except APIError:
-            failed = True
-        if not failed:
-            Exit("GitlabAPI was expected to fail")
+from tasks.libs.ciproviders.gitlab_api import (
+    clean_gitlab_ci_configuration,
+    filter_gitlab_ci_configuration,
+    generate_gitlab_full_configuration,
+    read_includes,
+)
 
 
 class TestReadIncludes(unittest.TestCase):
     def test_with_includes(self):
         includes = []
-        read_includes("tasks/unit-tests/testdata/in.yml", includes)
+        read_includes(MockContext(), "tasks/unit-tests/testdata/in.yml", includes)
         self.assertEqual(len(includes), 4)
 
     def test_without_includes(self):
         includes = []
-        read_includes("tasks/unit-tests/testdata/b.yml", includes)
+        read_includes(MockContext(), "tasks/unit-tests/testdata/b.yml", includes)
         self.assertEqual(len(includes), 1)
 
 
@@ -120,3 +36,124 @@ class TestGenerateGitlabFullConfiguration(unittest.TestCase):
         with open("tasks/unit-tests/testdata/expected.yml") as f:
             expected = f.read()
         self.assertEqual(full_configuration, expected)
+
+
+class TestGitlabYaml(unittest.TestCase):
+    def make_test(self, file):
+        config = generate_gitlab_full_configuration(file, return_dump=False, apply_postprocessing=True)
+
+        self.assertDictEqual(config['target'], config['expected'])
+
+    def test_reference(self):
+        self.make_test("tasks/unit-tests/testdata/yaml_reference.yml")
+
+    def test_extends(self):
+        self.make_test("tasks/unit-tests/testdata/yaml_extends.yml")
+
+    def test_extends_reference(self):
+        self.make_test("tasks/unit-tests/testdata/yaml_extends_reference.yml")
+
+
+class TestGitlabCiConfig(unittest.TestCase):
+    def test_filter(self):
+        yml = {
+            '.wrapper': {'before_script': 'echo "start"'},
+            'job1': {'script': 'echo "hello"'},
+            'job2': {'script': 'echo "world"'},
+        }
+        expected_yml = {
+            'job1': {'script': 'echo "hello"'},
+            'job2': {'script': 'echo "world"'},
+        }
+
+        res = filter_gitlab_ci_configuration(yml)
+
+        self.assertDictEqual(res, expected_yml)
+
+    def test_filter_job(self):
+        yml = {
+            '.wrapper': {'before_script': 'echo "start"'},
+            'job1': {'script': 'echo "hello"'},
+            'job2': {'script': 'echo "world"'},
+        }
+        expected_yml = {
+            'job1': {'script': 'echo "hello"'},
+        }
+
+        res = filter_gitlab_ci_configuration(yml, job='job1')
+
+        self.assertDictEqual(res, expected_yml)
+
+    def test_clean_nop(self):
+        yml = {
+            'job': {'script': ['echo hello']},
+        }
+        expected_yml = {
+            'job': {'script': ['echo hello']},
+        }
+        res = clean_gitlab_ci_configuration(yml)
+
+        self.assertDictEqual(res, expected_yml)
+
+    def test_clean_flatten_nest1(self):
+        yml = {
+            'job': {
+                'script': [
+                    [
+                        'echo hello',
+                        'echo world',
+                    ],
+                    'echo "!"',
+                ]
+            },
+        }
+        expected_yml = {
+            'job': {
+                'script': [
+                    'echo hello',
+                    'echo world',
+                    'echo "!"',
+                ]
+            },
+        }
+        res = clean_gitlab_ci_configuration(yml)
+
+        self.assertDictEqual(res, expected_yml)
+
+    def test_clean_flatten_nest2(self):
+        yml = {
+            'job': {
+                'script': [
+                    [
+                        [['echo i am nested']],
+                        'echo hello',
+                        'echo world',
+                    ],
+                    'echo "!"',
+                ]
+            },
+        }
+        expected_yml = {
+            'job': {
+                'script': [
+                    'echo i am nested',
+                    'echo hello',
+                    'echo world',
+                    'echo "!"',
+                ]
+            },
+        }
+        res = clean_gitlab_ci_configuration(yml)
+
+        self.assertDictEqual(res, expected_yml)
+
+    def test_clean_extends(self):
+        yml = {
+            'job': {'extends': '.mywrapper', 'script': ['echo hello']},
+        }
+        expected_yml = {
+            'job': {'script': ['echo hello']},
+        }
+        res = clean_gitlab_ci_configuration(yml)
+
+        self.assertDictEqual(res, expected_yml)

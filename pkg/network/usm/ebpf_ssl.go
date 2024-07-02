@@ -15,9 +15,9 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 	"unsafe"
 
@@ -25,7 +25,7 @@ import (
 	"github.com/cilium/ebpf"
 	"github.com/davecgh/go-spew/spew"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
@@ -36,6 +36,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
 
 const (
@@ -563,13 +564,12 @@ const (
 )
 
 var (
-	taskCommLenBufferPool = sync.Pool{
-		New: func() any {
-			buf := make([]byte, taskCommLen)
-			return &buf
-		},
-	}
+	taskCommLenBufferPool = ddsync.NewSlicePool[byte](taskCommLen, taskCommLen)
 )
+
+func isContainerdTmpMount(path string) bool {
+	return strings.Contains(path, "tmpmounts/containerd-mount")
+}
 
 func isBuildKit(procRoot string, pid uint32) bool {
 	filePath := filepath.Join(procRoot, strconv.Itoa(int(pid)), "comm")
@@ -587,7 +587,7 @@ func isBuildKit(procRoot string, pid uint32) bool {
 		}
 	}
 
-	buf := taskCommLenBufferPool.Get().(*[]byte)
+	buf := taskCommLenBufferPool.Get()
 	defer taskCommLenBufferPool.Put(buf)
 	n, err := file.Read(*buf)
 	if err != nil {
@@ -601,6 +601,8 @@ func addHooks(m *manager.Manager, procRoot string, probes []manager.ProbesSelect
 	return func(fpath utils.FilePath) error {
 		if isBuildKit(procRoot, fpath.PID) {
 			return fmt.Errorf("process %d is buildkitd, skipping", fpath.PID)
+		} else if isContainerdTmpMount(fpath.HostPath) {
+			return fmt.Errorf("path %s from process %d is tempmount of containerd, skipping", fpath.HostPath, fpath.PID)
 		}
 
 		uid := getUID(fpath.ID)
@@ -610,6 +612,25 @@ func addHooks(m *manager.Manager, procRoot string, probes []manager.ProbesSelect
 			return err
 		}
 		defer elfFile.Close()
+
+		// This only allows amd64 and arm64 and not the 32-bit variants, but that
+		// is fine since we don't monitor 32-bit applications at all in the shared
+		// library watcher since compat syscalls aren't supported by the syscall
+		// trace points.  We do actually monitor 32-bit applications for istio and
+		// nodejs monitoring, but our uprobe hooks only properly support 64-bit
+		// applications, so there's no harm in rejecting 32-bit applications here.
+		arch, err := bininspect.GetArchitecture(elfFile)
+		if err != nil {
+			return err
+		}
+
+		// Ignore foreign architectures.  This can happen when running stuff under
+		// qemu-user, for example, and installing a uprobe will lead to segfaults
+		// since the foreign instructions will be patched with the native break
+		// instruction.
+		if string(arch) != runtime.GOARCH {
+			return fmt.Errorf("unspported architecture: %s", arch)
+		}
 
 		symbolsSet := make(common.StringSet)
 		symbolsSetBestEffort := make(common.StringSet)
@@ -679,7 +700,7 @@ func addHooks(m *manager.Manager, procRoot string, probes []manager.ProbesSelect
 					HookFuncName:            symbol,
 				}
 				if err := m.AddHook("", newProbe); err == nil {
-					ebpfcheck.AddProgramNameMapping(newProbe.ID(), newProbe.EBPFFuncName, "usm_tls")
+					ddebpf.AddProgramNameMapping(newProbe.ID(), newProbe.EBPFFuncName, "usm_tls")
 				}
 			}
 			if err := singleProbe.RunValidator(m); err != nil {

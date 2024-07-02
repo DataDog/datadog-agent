@@ -16,14 +16,9 @@ import (
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
 	"google.golang.org/grpc"
+
+	grpccontext "github.com/DataDog/datadog-agent/pkg/util/grpc/context"
 )
-
-type contextKey struct {
-	key string
-}
-
-// ConnContextKey is a contextKey with http-connection key
-var ConnContextKey = &contextKey{"http-connection"}
 
 // NewMuxedGRPCServer returns an http.Server that multiplexes connections
 // between a gRPC server and an HTTP handler.
@@ -45,7 +40,7 @@ func NewMuxedGRPCServer(addr string, tlsConfig *tls.Config, grpcServer *grpc.Ser
 		TLSConfig: tlsConfig,
 		ConnContext: func(ctx context.Context, c net.Conn) context.Context {
 			// Store the connection in the context so requests can reference it if needed
-			return context.WithValue(ctx, ConnContextKey, c)
+			return context.WithValue(ctx, grpccontext.ConnContextKey, c)
 		},
 	}
 }
@@ -57,7 +52,7 @@ func TimeoutHandlerFunc(httpHandler http.Handler, timeout time.Duration) http.Ha
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		deadline := time.Now().Add(timeout)
 
-		conn := r.Context().Value(ConnContextKey).(net.Conn)
+		conn := r.Context().Value(grpccontext.ConnContextKey).(net.Conn)
 		_ = conn.SetWriteDeadline(deadline)
 
 		httpHandler.ServeHTTP(w, r)

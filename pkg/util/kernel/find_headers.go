@@ -25,9 +25,9 @@ import (
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/DataDog/nikos/types"
-	"github.com/mholt/archiver/v3"
 	"golang.org/x/exp/maps"
 
+	"github.com/DataDog/datadog-agent/pkg/util/archive"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -397,8 +397,7 @@ func getSysfsHeaderDirs(v Version) ([]string, error) {
 		}
 	}
 
-	txz := archiver.NewTarXz()
-	if err = txz.Unarchive(sysfsHeadersPath, tmpPath); err != nil {
+	if err = archive.TarXZExtractAll(sysfsHeadersPath, tmpPath); err != nil {
 		return nil, fmt.Errorf("unable to extract kernel headers: %w", err)
 	}
 	log.Debugf("found valid kernel headers at %s", tmpPath)

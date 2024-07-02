@@ -28,14 +28,13 @@ func buildGoOraURL(c *Check) string {
 
 // Connect establishes a connection to an Oracle instance and returns an open connection to the database.
 func (c *Check) Connect() (*sqlx.DB, error) {
-
 	var connStr string
 	var oracleDriver string
 	if c.config.TnsAlias != "" {
 		connStr = fmt.Sprintf(`user="%s" password="%s" connectString="%s"`, c.config.Username, c.config.Password, c.config.TnsAlias)
 		oracleDriver = "godror"
 	} else {
-		//godror ezconnect string
+		// godror ezconnect string
 		if c.config.InstanceConfig.OracleClient {
 			oracleDriver = "godror"
 			protocolString := ""
@@ -109,7 +108,7 @@ func closeDatabase(c *Check, db *sqlx.DB) {
 
 // Building a dedicated go-ora connection for dealing with LOBs, see https://github.com/sijms/go-ora/issues/439
 func connectGoOra(c *Check) (*go_ora.Connection, error) {
-	conn, err := go_ora.NewConnection(buildGoOraURL(c))
+	conn, err := go_ora.NewConnection(buildGoOraURL(c), nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect with the oracle driver %w", err)
 	}

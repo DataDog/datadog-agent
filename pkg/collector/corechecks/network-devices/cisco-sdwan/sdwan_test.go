@@ -69,6 +69,7 @@ use_http: true
 namespace: test
 min_collection_interval: 180
 collect_bfd_session_status: true
+collect_hardware_status: true
 `)
 
 	// Use ID to ensure the mock sender gets registered
@@ -155,7 +156,7 @@ collect_bfd_session_status: true
 	})
 
 	// Assert OMP Peer metrics
-	sender.AssertMetric(t, "Gauge", "cisco_sdwan.omp_peer.status", 1, "", []string{"system_ip:10.10.1.5", "remote_system_ip:10.10.1.13", "legit:yes", "refresh:supported", "type:vedge", "state:up"})
+	sender.AssertMetric(t, "Gauge", "cisco_sdwan.omp_peer.status", 1, "", []string{"system_ip:10.10.1.5", "remote_system_ip:10.10.1.13", "legit:yes", "refresh:supported", "state:up"})
 
 	// Assert BFD Session metrics
 	sender.AssertMetric(t, "Gauge", "cisco_sdwan.bfd_session.status", 1, "", []string{"system_ip:10.10.1.11", "remote_system_ip:10.10.1.13", "local_color:public-internet", "remote_color:public-internet", "proto:ipsec", "state:up"})
@@ -167,6 +168,9 @@ collect_bfd_session_status: true
 	// Assert device status metrics
 	sender.AssertMetric(t, "Gauge", "cisco_sdwan.device.reachable", 1, "", []string{"device_vendor:cisco", "device_namespace:test", "hostname:Manager", "system_ip:10.10.1.1", "site_id:101", "type:vmanage"})
 
+	// Assert hardware status metrics
+	sender.AssertMetric(t, "Gauge", "cisco_sdwan.hardware.status_ok", 1, "", []string{"system_ip:10.10.1.11", "status:OK", "class:Fans", "item:Tray 0 fan", "dev_index:1"})
+
 	// Assert metadata
 	// language=json
 	event := []byte(`
@@ -176,6 +180,7 @@ collect_bfd_session_status: true
     {
       "id": "test:10.10.1.1",
       "id_tags": [
+        "device_namespace:test",
         "system_ip:10.10.1.1"
       ],
       "tags": [
@@ -283,4 +288,46 @@ namespace: test
 	require.NoError(t, err)
 
 	sender.AssertNotCalled(t, "Gauge", "cisco_sdwan.bfd_session.status", mock.Anything, mock.Anything, mock.Anything)
+}
+
+func TestHardwareStatusConfig(t *testing.T) {
+	payload.TimeNow = mockTimeNow
+	report.TimeNow = mockTimeNow
+
+	apiMockServer := client.SetupMockAPIServer()
+	defer apiMockServer.Close()
+
+	deps := createDeps(t)
+	chk := newCheck()
+	senderManager := deps.Demultiplexer
+
+	url := strings.TrimPrefix(apiMockServer.URL, "http://")
+
+	// language=yaml
+	rawInstanceConfig := []byte(`
+vmanage_endpoint: ` + url + `
+username: admin
+password: 'test-password'
+use_http: true
+namespace: test
+`)
+
+	// Use ID to ensure the mock sender gets registered
+	id := checkid.BuildID(CheckName, integration.FakeConfigHash, rawInstanceConfig, []byte(``))
+	sender := mocksender.NewMockSenderWithSenderManager(id, senderManager)
+	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	sender.On("GaugeWithTimestamp", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	sender.On("CountWithTimestamp", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
+
+	sender.On("Commit").Return()
+
+	err := chk.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
+	require.NoError(t, err)
+
+	err = chk.Run()
+	require.NoError(t, err)
+
+	sender.AssertNotCalled(t, "Gauge", "cisco_sdwan.hardware.status", mock.Anything, mock.Anything, mock.Anything)
 }

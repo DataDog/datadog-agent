@@ -89,8 +89,8 @@ const (
 	UnshareMountNsEventType
 	// SyscallsEventType Syscalls event
 	SyscallsEventType
-	// AnomalyDetectionSyscallEventType Anomaly Detection Syscall event
-	AnomalyDetectionSyscallEventType
+	// IMDSEventType is sent when an IMDS request or qnswer is captured
+	IMDSEventType
 	// MaxKernelEventType is used internally to get the maximum number of kernel events.
 	MaxKernelEventType
 
@@ -110,7 +110,7 @@ const (
 	LastApproverEventType = SpliceEventType
 
 	// CustomLostReadEventType is the custom event used to report lost events detected in user space
-	CustomLostReadEventType = iota
+	CustomLostReadEventType EventType = iota
 	// CustomLostWriteEventType is the custom event used to report lost events detected in kernel space
 	CustomLostWriteEventType
 	// CustomRulesetLoadedEventType is the custom event used to report that a new ruleset was loaded
@@ -138,7 +138,8 @@ const (
 	SetRegistryKeyValueEventType
 	// DeleteRegistryKeyEventType event
 	DeleteRegistryKeyEventType
-
+	// ChangePermissionEventType event
+	ChangePermissionEventType
 	// MaxAllEventType is used internally to get the maximum number of events.
 	MaxAllEventType
 )
@@ -223,8 +224,8 @@ func (t EventType) String() string {
 		return "unshare_mntns"
 	case SyscallsEventType:
 		return "syscalls"
-	case AnomalyDetectionSyscallEventType:
-		return "anomaly_detection_syscall"
+	case IMDSEventType:
+		return "imds"
 
 	case CustomLostReadEventType:
 		return "lost_events_read"
@@ -252,6 +253,8 @@ func (t EventType) String() string {
 		return "set_key_value"
 	case DeleteRegistryKeyEventType:
 		return "delete_key"
+	case ChangePermissionEventType:
+		return "change_permission"
 	default:
 		return "unknown"
 	}

@@ -9,13 +9,14 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	taggertypes "github.com/DataDog/datadog-agent/pkg/tagger/types"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 var (
@@ -31,7 +32,8 @@ var (
 
 func parseAndEnrichSingleMetricMessage(t *testing.T, message []byte, conf enrichConfig) (metrics.MetricSample, error) {
 	deps := newServerDeps(t)
-	parser := newParser(deps.Config, newFloat64ListPool(), 1, deps.WMeta)
+	stringInternerTelemetry := newSiTelemetry(false, deps.Telemetry)
+	parser := newParser(deps.Config, newFloat64ListPool(deps.Telemetry), 1, deps.WMeta, stringInternerTelemetry)
 	parsed, err := parser.parseMetricSample(message)
 	if err != nil {
 		return metrics.MetricSample{}, err
@@ -47,7 +49,8 @@ func parseAndEnrichSingleMetricMessage(t *testing.T, message []byte, conf enrich
 
 func parseAndEnrichMultipleMetricMessage(t *testing.T, message []byte, conf enrichConfig) ([]metrics.MetricSample, error) {
 	deps := newServerDeps(t)
-	parser := newParser(deps.Config, newFloat64ListPool(), 1, deps.WMeta)
+	stringInternerTelemetry := newSiTelemetry(false, deps.Telemetry)
+	parser := newParser(deps.Config, newFloat64ListPool(deps.Telemetry), 1, deps.WMeta, stringInternerTelemetry)
 	parsed, err := parser.parseMetricSample(message)
 	if err != nil {
 		return []metrics.MetricSample{}, err
@@ -59,7 +62,8 @@ func parseAndEnrichMultipleMetricMessage(t *testing.T, message []byte, conf enri
 
 func parseAndEnrichServiceCheckMessage(t *testing.T, message []byte, conf enrichConfig) (*servicecheck.ServiceCheck, error) {
 	deps := newServerDeps(t)
-	parser := newParser(deps.Config, newFloat64ListPool(), 1, deps.WMeta)
+	stringInternerTelemetry := newSiTelemetry(false, deps.Telemetry)
+	parser := newParser(deps.Config, newFloat64ListPool(deps.Telemetry), 1, deps.WMeta, stringInternerTelemetry)
 	parsed, err := parser.parseServiceCheck(message)
 	if err != nil {
 		return nil, err
@@ -69,7 +73,8 @@ func parseAndEnrichServiceCheckMessage(t *testing.T, message []byte, conf enrich
 
 func parseAndEnrichEventMessage(t *testing.T, message []byte, conf enrichConfig) (*event.Event, error) {
 	deps := newServerDeps(t)
-	parser := newParser(deps.Config, newFloat64ListPool(), 1, deps.WMeta)
+	stringInternerTelemetry := newSiTelemetry(false, deps.Telemetry)
+	parser := newParser(deps.Config, newFloat64ListPool(deps.Telemetry), 1, deps.WMeta, stringInternerTelemetry)
 	parsed, err := parser.parseEvent(message)
 	if err != nil {
 		return nil, err
@@ -588,10 +593,10 @@ func TestConvertEventMinimal(t *testing.T) {
 	assert.Equal(t, "test title", e.Title)
 	assert.Equal(t, "test text", e.Text)
 	assert.Equal(t, int64(0), e.Ts)
-	assert.Equal(t, event.EventPriorityNormal, e.Priority)
+	assert.Equal(t, event.PriorityNormal, e.Priority)
 	assert.Equal(t, "default-hostname", e.Host)
 	assert.Equal(t, []string(nil), e.Tags)
-	assert.Equal(t, event.EventAlertTypeInfo, e.AlertType)
+	assert.Equal(t, event.AlertTypeInfo, e.AlertType)
 	assert.Equal(t, "", e.AggregationKey)
 	assert.Equal(t, "", e.SourceTypeName)
 	assert.Equal(t, "", e.EventType)
@@ -610,10 +615,10 @@ func TestConvertEventMultilinesText(t *testing.T) {
 	assert.Equal(t, "test title", e.Title)
 	assert.Equal(t, "test\\line1\nline2\nline3", e.Text)
 	assert.Equal(t, int64(0), e.Ts)
-	assert.Equal(t, event.EventPriorityNormal, e.Priority)
+	assert.Equal(t, event.PriorityNormal, e.Priority)
 	assert.Equal(t, "default-hostname", e.Host)
 	assert.Equal(t, []string(nil), e.Tags)
-	assert.Equal(t, event.EventAlertTypeInfo, e.AlertType)
+	assert.Equal(t, event.AlertTypeInfo, e.AlertType)
 	assert.Equal(t, "", e.AggregationKey)
 	assert.Equal(t, "", e.SourceTypeName)
 	assert.Equal(t, "", e.EventType)
@@ -632,10 +637,10 @@ func TestConvertEventPipeInTitle(t *testing.T) {
 	assert.Equal(t, "test|title", e.Title)
 	assert.Equal(t, "test\\line1\nline2\nline3", e.Text)
 	assert.Equal(t, int64(0), e.Ts)
-	assert.Equal(t, event.EventPriorityNormal, e.Priority)
+	assert.Equal(t, event.PriorityNormal, e.Priority)
 	assert.Equal(t, "default-hostname", e.Host)
 	assert.Equal(t, []string(nil), e.Tags)
-	assert.Equal(t, event.EventAlertTypeInfo, e.AlertType)
+	assert.Equal(t, event.AlertTypeInfo, e.AlertType)
 	assert.Equal(t, "", e.AggregationKey)
 	assert.Equal(t, "", e.SourceTypeName)
 	assert.Equal(t, "", e.EventType)
@@ -722,10 +727,10 @@ func TestConvertEventMetadataTimestamp(t *testing.T) {
 	assert.Equal(t, "test title", e.Title)
 	assert.Equal(t, "test text", e.Text)
 	assert.Equal(t, int64(21), e.Ts)
-	assert.Equal(t, event.EventPriorityNormal, e.Priority)
+	assert.Equal(t, event.PriorityNormal, e.Priority)
 	assert.Equal(t, "default-hostname", e.Host)
 	assert.Equal(t, []string(nil), e.Tags)
-	assert.Equal(t, event.EventAlertTypeInfo, e.AlertType)
+	assert.Equal(t, event.AlertTypeInfo, e.AlertType)
 	assert.Equal(t, "", e.AggregationKey)
 	assert.Equal(t, "", e.SourceTypeName)
 	assert.Equal(t, "", e.EventType)
@@ -744,10 +749,10 @@ func TestConvertEventMetadataPriority(t *testing.T) {
 	assert.Equal(t, "test title", e.Title)
 	assert.Equal(t, "test text", e.Text)
 	assert.Equal(t, int64(0), e.Ts)
-	assert.Equal(t, event.EventPriorityLow, e.Priority)
+	assert.Equal(t, event.PriorityLow, e.Priority)
 	assert.Equal(t, "default-hostname", e.Host)
 	assert.Equal(t, []string(nil), e.Tags)
-	assert.Equal(t, event.EventAlertTypeInfo, e.AlertType)
+	assert.Equal(t, event.AlertTypeInfo, e.AlertType)
 	assert.Equal(t, "", e.AggregationKey)
 	assert.Equal(t, "", e.SourceTypeName)
 	assert.Equal(t, "", e.EventType)
@@ -766,10 +771,10 @@ func TestConvertEventMetadataHostname(t *testing.T) {
 	assert.Equal(t, "test title", e.Title)
 	assert.Equal(t, "test text", e.Text)
 	assert.Equal(t, int64(0), e.Ts)
-	assert.Equal(t, event.EventPriorityNormal, e.Priority)
+	assert.Equal(t, event.PriorityNormal, e.Priority)
 	assert.Equal(t, "localhost", e.Host)
 	assert.Equal(t, []string(nil), e.Tags)
-	assert.Equal(t, event.EventAlertTypeInfo, e.AlertType)
+	assert.Equal(t, event.AlertTypeInfo, e.AlertType)
 	assert.Equal(t, "", e.AggregationKey)
 	assert.Equal(t, "", e.SourceTypeName)
 	assert.Equal(t, "", e.EventType)
@@ -788,10 +793,10 @@ func TestConvertEventMetadataHostnameInTag(t *testing.T) {
 	assert.Equal(t, "test title", e.Title)
 	assert.Equal(t, "test text", e.Text)
 	assert.Equal(t, int64(0), e.Ts)
-	assert.Equal(t, event.EventPriorityNormal, e.Priority)
+	assert.Equal(t, event.PriorityNormal, e.Priority)
 	assert.Equal(t, "localhost", e.Host)
 	assert.Equal(t, []string{}, e.Tags)
-	assert.Equal(t, event.EventAlertTypeInfo, e.AlertType)
+	assert.Equal(t, event.AlertTypeInfo, e.AlertType)
 	assert.Equal(t, "", e.AggregationKey)
 	assert.Equal(t, "", e.SourceTypeName)
 	assert.Equal(t, "", e.EventType)
@@ -810,10 +815,10 @@ func TestConvertEventMetadataEmptyHostTag(t *testing.T) {
 	assert.Equal(t, "test title", e.Title)
 	assert.Equal(t, "test text", e.Text)
 	assert.Equal(t, int64(0), e.Ts)
-	assert.Equal(t, event.EventPriorityNormal, e.Priority)
+	assert.Equal(t, event.PriorityNormal, e.Priority)
 	assert.Equal(t, "", e.Host)
 	assert.Equal(t, []string{"other:tag"}, e.Tags)
-	assert.Equal(t, event.EventAlertTypeInfo, e.AlertType)
+	assert.Equal(t, event.AlertTypeInfo, e.AlertType)
 	assert.Equal(t, "", e.AggregationKey)
 	assert.Equal(t, "", e.SourceTypeName)
 	assert.Equal(t, "", e.EventType)
@@ -832,10 +837,10 @@ func TestConvertEventMetadataAlertType(t *testing.T) {
 	assert.Equal(t, "test title", e.Title)
 	assert.Equal(t, "test text", e.Text)
 	assert.Equal(t, int64(0), e.Ts)
-	assert.Equal(t, event.EventPriorityNormal, e.Priority)
+	assert.Equal(t, event.PriorityNormal, e.Priority)
 	assert.Equal(t, "default-hostname", e.Host)
 	assert.Equal(t, []string(nil), e.Tags)
-	assert.Equal(t, event.EventAlertTypeWarning, e.AlertType)
+	assert.Equal(t, event.AlertTypeWarning, e.AlertType)
 	assert.Equal(t, "", e.AggregationKey)
 	assert.Equal(t, "", e.SourceTypeName)
 	assert.Equal(t, "", e.EventType)
@@ -854,10 +859,10 @@ func TestConvertEventMetadataAggregatioKey(t *testing.T) {
 	assert.Equal(t, "test title", e.Title)
 	assert.Equal(t, "test text", e.Text)
 	assert.Equal(t, int64(0), e.Ts)
-	assert.Equal(t, event.EventPriorityNormal, e.Priority)
+	assert.Equal(t, event.PriorityNormal, e.Priority)
 	assert.Equal(t, "default-hostname", e.Host)
 	assert.Equal(t, []string(nil), e.Tags)
-	assert.Equal(t, event.EventAlertTypeInfo, e.AlertType)
+	assert.Equal(t, event.AlertTypeInfo, e.AlertType)
 	assert.Equal(t, "some aggregation key", e.AggregationKey)
 	assert.Equal(t, "", e.SourceTypeName)
 	assert.Equal(t, "", e.EventType)
@@ -876,10 +881,10 @@ func TestConvertEventMetadataSourceType(t *testing.T) {
 	assert.Equal(t, "test title", e.Title)
 	assert.Equal(t, "test text", e.Text)
 	assert.Equal(t, int64(0), e.Ts)
-	assert.Equal(t, event.EventPriorityNormal, e.Priority)
+	assert.Equal(t, event.PriorityNormal, e.Priority)
 	assert.Equal(t, "default-hostname", e.Host)
 	assert.Equal(t, []string(nil), e.Tags)
-	assert.Equal(t, event.EventAlertTypeInfo, e.AlertType)
+	assert.Equal(t, event.AlertTypeInfo, e.AlertType)
 	assert.Equal(t, "", e.AggregationKey)
 	assert.Equal(t, "this is the source", e.SourceTypeName)
 	assert.Equal(t, "", e.EventType)
@@ -898,10 +903,10 @@ func TestConvertEventMetadataTags(t *testing.T) {
 	assert.Equal(t, "test title", e.Title)
 	assert.Equal(t, "test text", e.Text)
 	assert.Equal(t, int64(0), e.Ts)
-	assert.Equal(t, event.EventPriorityNormal, e.Priority)
+	assert.Equal(t, event.PriorityNormal, e.Priority)
 	assert.Equal(t, "default-hostname", e.Host)
 	assert.Equal(t, []string{"tag1", "tag2:test"}, e.Tags)
-	assert.Equal(t, event.EventAlertTypeInfo, e.AlertType)
+	assert.Equal(t, event.AlertTypeInfo, e.AlertType)
 	assert.Equal(t, "", e.AggregationKey)
 	assert.Equal(t, "", e.SourceTypeName)
 	assert.Equal(t, "", e.EventType)
@@ -920,10 +925,10 @@ func TestConvertEventMetadataMultiple(t *testing.T) {
 	assert.Equal(t, "test title", e.Title)
 	assert.Equal(t, "test text", e.Text)
 	assert.Equal(t, int64(12345), e.Ts)
-	assert.Equal(t, event.EventPriorityLow, e.Priority)
+	assert.Equal(t, event.PriorityLow, e.Priority)
 	assert.Equal(t, "some.host", e.Host)
 	assert.Equal(t, []string{"tag1", "tag2:test"}, e.Tags)
-	assert.Equal(t, event.EventAlertTypeWarning, e.AlertType)
+	assert.Equal(t, event.AlertTypeWarning, e.AlertType)
 	assert.Equal(t, "aggKey", e.AggregationKey)
 	assert.Equal(t, "source test", e.SourceTypeName)
 	assert.Equal(t, "", e.EventType)
@@ -942,10 +947,10 @@ func TestEventOriginTag(t *testing.T) {
 	assert.Equal(t, "test title", e.Title)
 	assert.Equal(t, "test text", e.Text)
 	assert.Equal(t, int64(12345), e.Ts)
-	assert.Equal(t, event.EventPriorityLow, e.Priority)
+	assert.Equal(t, event.PriorityLow, e.Priority)
 	assert.Equal(t, "some.host", e.Host)
 	assert.Equal(t, []string{"tag1", "tag2:test"}, e.Tags)
-	assert.Equal(t, event.EventAlertTypeWarning, e.AlertType)
+	assert.Equal(t, event.AlertTypeWarning, e.AlertType)
 	assert.Equal(t, "aggKey", e.AggregationKey)
 	assert.Equal(t, "source test", e.SourceTypeName)
 	assert.Equal(t, "", e.EventType)
@@ -994,7 +999,8 @@ func TestMetricBlocklistShouldBlock(t *testing.T) {
 	}
 
 	deps := newServerDeps(t)
-	parser := newParser(deps.Config, newFloat64ListPool(), 1, deps.WMeta)
+	stringInternerTelemetry := newSiTelemetry(false, deps.Telemetry)
+	parser := newParser(deps.Config, newFloat64ListPool(deps.Telemetry), 1, deps.WMeta, stringInternerTelemetry)
 	parsed, err := parser.parseMetricSample(message)
 	assert.NoError(t, err)
 	samples := []metrics.MetricSample{}
@@ -1011,7 +1017,8 @@ func TestServerlessModeShouldSetEmptyHostname(t *testing.T) {
 
 	message := []byte("custom.metric.a:21|ms")
 	deps := newServerDeps(t)
-	parser := newParser(deps.Config, newFloat64ListPool(), 1, deps.WMeta)
+	stringInternerTelemetry := newSiTelemetry(false, deps.Telemetry)
+	parser := newParser(deps.Config, newFloat64ListPool(deps.Telemetry), 1, deps.WMeta, stringInternerTelemetry)
 	parsed, err := parser.parseMetricSample(message)
 	assert.NoError(t, err)
 	samples := []metrics.MetricSample{}
@@ -1031,7 +1038,8 @@ func TestMetricBlocklistShouldNotBlock(t *testing.T) {
 		defaultHostname: "default",
 	}
 	deps := newServerDeps(t)
-	parser := newParser(deps.Config, newFloat64ListPool(), 1, deps.WMeta)
+	stringInternerTelemetry := newSiTelemetry(false, deps.Telemetry)
+	parser := newParser(deps.Config, newFloat64ListPool(deps.Telemetry), 1, deps.WMeta, stringInternerTelemetry)
 	parsed, err := parser.parseMetricSample(message)
 	assert.NoError(t, err)
 	samples := []metrics.MetricSample{}

@@ -328,12 +328,11 @@ func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tags []st
 	if err != nil {
 		return nil, err
 	}
-	site := cfg.GetString("site")
 	configRoot := options.configRootOverride
 	directorRoot := options.directorRootOverride
 	opt := []uptane.ClientOption{
-		uptane.WithConfigRootOverride(site, configRoot),
-		uptane.WithDirectorRootOverride(site, directorRoot),
+		uptane.WithConfigRootOverride(options.site, configRoot),
+		uptane.WithDirectorRootOverride(options.site, directorRoot),
 	}
 	if authKeys.rcKeySet {
 		opt = append(opt, uptane.WithOrgIDCheck(authKeys.rcKey.OrgID))

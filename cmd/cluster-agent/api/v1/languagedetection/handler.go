@@ -17,7 +17,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 )
 
@@ -57,11 +57,13 @@ func (handler *languageDetectionHandler) startCleanupInBackground(ctx context.Co
 	go func() {
 		cleanupTicker := time.NewTicker(handler.cfg.cleanupPeriod)
 		defer cleanupTicker.Stop()
-		select {
-		case <-cleanupTicker.C:
-			handler.ownersLanguages.cleanExpiredLanguages(handler.wlm)
-		case <-ctx.Done():
-			break
+		for {
+			select {
+			case <-cleanupTicker.C:
+				handler.ownersLanguages.cleanExpiredLanguages(handler.wlm)
+			case <-ctx.Done():
+				break
+			}
 		}
 	}()
 

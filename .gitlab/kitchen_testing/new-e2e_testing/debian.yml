@@ -76,7 +76,7 @@ new-e2e-agent-platform-install-script-debian-a7-arm64:
     - .new-e2e_os_debian
     - .new-e2e_debian_a7_arm64
     - .new-e2e_agent_a7
-  rules: !reference [.on_all_new_e2e_tests]
+  rules: !reference [.on_all_install_script_tests]
   variables:
     FLAVOR: datadog-agent
 

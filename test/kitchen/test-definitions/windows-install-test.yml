@@ -22,28 +22,3 @@ suites:
           APM_ENABLED=true
       dd-agent-rspec:
         skip_windows_signing_test: &skip_windows_signing_test <%= ENV['SKIP_SIGNATURE_TEST'] || false %>
-
-  - name: win-install-fail
-    run_list:
-      - "recipe[dd-agent-install::_install_windows_base]"
-    attributes:
-      datadog:
-        <% dd_agent_config.each do |key, value| %>
-        <%= key %>: "<%= value %>"
-        <% end %>
-      dd-agent-install:
-        <% if ENV['AGENT_VERSION'] %>
-        windows_version: "<%= ENV['AGENT_VERSION'] %>"
-        <% end %>
-        windows_agent_url: <%= windows_agent_url %>
-        <% if ENV['WINDOWS_AGENT_FILE'] %>
-        windows_agent_filename: "<%= ENV['WINDOWS_AGENT_FILE'] %>"
-        <% end %>
-        agent_install_options: >
-          APIKEY=<%= api_key %>
-          LOGS_ENABLED=false
-          PROCESS_ENABLED=true
-          APM_ENABLED=true
-          WIXFAILWHENDEFERRED=1
-      dd-agent-rspec:
-        skip_windows_signing_test: &skip_windows_signing_test <%= ENV['SKIP_SIGNATURE_TEST'] || false %>

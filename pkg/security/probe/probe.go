@@ -9,20 +9,29 @@
 package probe
 
 import (
+	"context"
 	"errors"
+	"fmt"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
+	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
+	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/kfilters"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
+)
+
+const (
+	defaultConsumerChanSize = 50
 )
 
 // PlatformProbe defines a platform dependant probe
@@ -47,15 +56,42 @@ type PlatformProbe interface {
 	GetEventTags(_ string) []string
 }
 
-// FullAccessEventHandler represents a handler for events sent by the probe that needs access to all the fields in the SECL model
-type FullAccessEventHandler interface {
+// EventHandler represents a handler for events sent by the probe that needs access to all the fields in the SECL model
+type EventHandler interface {
 	HandleEvent(event *model.Event)
 }
 
-// EventHandler represents a handler for events sent by the probe. This handler makes a copy of the event upon receipt
-type EventHandler interface {
-	HandleEvent(event any)
+// EventConsumerInterface represents a handler for events sent by the probe. This handler makes a copy of the event upon receipt
+type EventConsumerInterface interface {
+	ID() string
+	ChanSize() int
+	HandleEvent(_ any)
 	Copy(_ *model.Event) any
+	EventTypes() []model.EventType
+}
+
+// EventConsumer defines a probe event consumer
+type EventConsumer struct {
+	consumer     EventConsumerInterface
+	eventCh      chan any
+	eventDropped *atomic.Int64
+}
+
+// Start the consumer
+func (p *EventConsumer) Start(ctx context.Context, wg *sync.WaitGroup) {
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case event := <-p.eventCh:
+				p.consumer.HandleEvent(event)
+			}
+		}
+	}()
 }
 
 // CustomEventHandler represents an handler for the custom events sent by the probe
@@ -75,15 +111,28 @@ type Probe struct {
 	Opts         Opts
 	Config       *config.Config
 	StatsdClient statsd.ClientInterface
-	startTime    time.Time
 
 	// internals
-	scrubber *procutil.DataScrubber
+	ctx       context.Context
+	cancelFnc func()
+	wg        sync.WaitGroup
+	startTime time.Time
+	scrubber  *procutil.DataScrubber
 
 	// Events section
-	fullAccessEventHandlers [model.MaxAllEventType][]FullAccessEventHandler
-	eventHandlers           [model.MaxAllEventType][]EventHandler
-	customEventHandlers     [model.MaxAllEventType][]CustomEventHandler
+	consumers           []*EventConsumer
+	eventHandlers       [model.MaxAllEventType][]EventHandler
+	eventConsumers      [model.MaxAllEventType][]*EventConsumer
+	customEventHandlers [model.MaxAllEventType][]CustomEventHandler
+}
+
+func newProbe(config *config.Config, opts Opts) *Probe {
+	return &Probe{
+		Opts:         opts,
+		Config:       config,
+		StatsdClient: opts.StatsdClient,
+		scrubber:     newProcScrubber(config.Probe.CustomSensitiveWords),
+	}
 }
 
 // Init initializes the probe
@@ -99,11 +148,36 @@ func (p *Probe) Setup() error {
 
 // Start plays the snapshot data and then start the event stream
 func (p *Probe) Start() error {
+	p.ctx, p.cancelFnc = context.WithCancel(context.Background())
+
+	for _, pc := range p.consumers {
+		pc.Start(p.ctx, &p.wg)
+	}
+
 	return p.PlatformProbe.Start()
+}
+
+func (p *Probe) sendConsumerStats() error {
+	for _, consumer := range p.consumers {
+		dropped := consumer.eventDropped.Swap(0)
+		if dropped > 0 {
+			tags := []string{
+				fmt.Sprintf("consumer_id:%s", consumer.consumer.ID()),
+			}
+			if err := p.StatsdClient.Count(metrics.MetricEventMonitoringEventsDropped, dropped, tags, 1.0); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
 }
 
 // SendStats sends statistics about the probe to Datadog
 func (p *Probe) SendStats() error {
+	if err := p.sendConsumerStats(); err != nil {
+		return err
+	}
 	return p.PlatformProbe.SendStats()
 }
 
@@ -114,6 +188,9 @@ func (p *Probe) Close() error {
 
 // Stop the probe
 func (p *Probe) Stop() {
+	p.cancelFnc()
+	p.wg.Wait()
+
 	p.PlatformProbe.Stop()
 }
 
@@ -166,20 +243,35 @@ func (p *Probe) HandleActions(rule *rules.Rule, event eval.Event) {
 	p.PlatformProbe.HandleActions(ctx, rule)
 }
 
-// AddEventHandler sets a probe event handler
-func (p *Probe) AddEventHandler(eventType model.EventType, handler EventHandler) error {
-	if eventType >= model.MaxAllEventType {
-		return errors.New("unsupported event type")
+// AddEventConsumer sets a probe event consumer
+func (p *Probe) AddEventConsumer(consumer EventConsumerInterface) error {
+	chanSize := consumer.ChanSize()
+	if chanSize <= 0 {
+		chanSize = defaultConsumerChanSize
 	}
 
-	p.eventHandlers[eventType] = append(p.eventHandlers[eventType], handler)
+	pc := &EventConsumer{
+		consumer:     consumer,
+		eventCh:      make(chan any, chanSize),
+		eventDropped: atomic.NewInt64(0),
+	}
+
+	for _, eventType := range consumer.EventTypes() {
+		if eventType >= model.MaxAllEventType {
+			return fmt.Errorf("event type (%s) not allowed", eventType)
+		}
+
+		p.eventConsumers[eventType] = append(p.eventConsumers[eventType], pc)
+	}
+
+	p.consumers = append(p.consumers, pc)
 
 	return nil
 }
 
-// AddFullAccessEventHandler sets a probe event handler for the UnknownEventType which requires access to all the struct fields
-func (p *Probe) AddFullAccessEventHandler(handler FullAccessEventHandler) error {
-	p.fullAccessEventHandlers[model.UnknownEventType] = append(p.fullAccessEventHandlers[model.UnknownEventType], handler)
+// AddEventHandler sets a probe event handler for the UnknownEventType which requires access to all the struct fields
+func (p *Probe) AddEventHandler(handler EventHandler) error {
+	p.eventHandlers[model.UnknownEventType] = append(p.eventHandlers[model.UnknownEventType], handler)
 
 	return nil
 }
@@ -195,15 +287,21 @@ func (p *Probe) AddCustomEventHandler(eventType model.EventType, handler CustomE
 	return nil
 }
 
-func (p *Probe) sendEventToWildcardHandlers(event *model.Event) {
-	for _, handler := range p.fullAccessEventHandlers[model.UnknownEventType] {
+func (p *Probe) sendEventToHandlers(event *model.Event) {
+	for _, handler := range p.eventHandlers[model.UnknownEventType] {
 		handler.HandleEvent(event)
 	}
 }
 
-func (p *Probe) sendEventToSpecificEventTypeHandlers(event *model.Event) {
-	for _, handler := range p.eventHandlers[event.GetEventType()] {
-		handler.HandleEvent(handler.Copy(event))
+func (p *Probe) sendEventToConsumers(event *model.Event) {
+	for _, pc := range p.eventConsumers[event.GetEventType()] {
+		if copied := pc.consumer.Copy(event); copied != nil {
+			select {
+			case pc.eventCh <- copied:
+			default:
+				pc.eventDropped.Inc()
+			}
+		}
 	}
 }
 
@@ -264,33 +362,19 @@ func (p *Probe) GetService(ev *model.Event) string {
 	return p.Config.RuntimeSecurity.HostServiceName
 }
 
-// NewEvaluationSet returns a new evaluation set with rule sets tagged by the passed-in tag values for the "ruleset" tag key
-func (p *Probe) NewEvaluationSet(eventTypeEnabled map[eval.EventType]bool, ruleSetTagValues []string) (*rules.EvaluationSet, error) {
-	var ruleSetsToInclude []*rules.RuleSet
-	for _, ruleSetTagValue := range ruleSetTagValues {
-		ruleOpts, evalOpts := rules.NewEvalOpts(eventTypeEnabled)
+// NewRuleSet returns a new ruleset
+func (p *Probe) NewRuleSet(eventTypeEnabled map[eval.EventType]bool) *rules.RuleSet {
+	ruleOpts, evalOpts := rules.NewBothOpts(eventTypeEnabled)
+	ruleOpts.WithLogger(seclog.DefaultLogger)
+	ruleOpts.WithReservedRuleIDs(events.AllCustomRuleIDs())
+	ruleOpts.WithSupportedDiscarders(SupportedDiscarders)
+	ruleOpts.WithSupportedMultiDiscarder(SupportedMultiDiscarder)
 
-		ruleOpts.WithLogger(seclog.DefaultLogger)
-		ruleOpts.WithReservedRuleIDs(events.AllCustomRuleIDs())
-		if ruleSetTagValue == rules.DefaultRuleSetTagValue {
-			ruleOpts.WithSupportedDiscarders(SupportedDiscarders)
-			ruleOpts.WithSupportedMultiDiscarder(SupportedMultiDiscarder)
-		}
-
-		eventCtor := func() eval.Event {
-			return p.PlatformProbe.NewEvent()
-		}
-
-		rs := rules.NewRuleSet(p.PlatformProbe.NewModel(), eventCtor, ruleOpts.WithRuleSetTag(ruleSetTagValue), evalOpts)
-		ruleSetsToInclude = append(ruleSetsToInclude, rs)
+	eventCtor := func() eval.Event {
+		return p.PlatformProbe.NewEvent()
 	}
 
-	evaluationSet, err := rules.NewEvaluationSet(ruleSetsToInclude)
-	if err != nil {
-		return nil, err
-	}
-
-	return evaluationSet, nil
+	return rules.NewRuleSet(p.PlatformProbe.NewModel(), eventCtor, ruleOpts, evalOpts)
 }
 
 // IsNetworkEnabled returns whether network is enabled

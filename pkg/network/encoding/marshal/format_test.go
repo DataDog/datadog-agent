@@ -11,6 +11,7 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/stretchr/testify/require"
+	"go4.org/intern"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 )
@@ -89,4 +90,19 @@ func BenchmarkConnectionReset(b *testing.B) {
 		c.Reset()
 	}
 	runtime.KeepAlive(c)
+}
+
+func BenchmarkFormatTags(b *testing.B) {
+	tagSet := network.NewTagsSet()
+	var c network.ConnectionStats
+	c.Tags = map[*intern.Value]struct{}{
+		intern.GetByString("env:env"):         {},
+		intern.GetByString("version:version"): {},
+		intern.GetByString("service:service"): {},
+	}
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		formatTags(c, tagSet, nil)
+	}
 }

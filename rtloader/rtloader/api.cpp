@@ -572,6 +572,11 @@ void set_get_process_start_time_cb(rtloader_t *rtloader, cb_get_process_start_ti
     AS_TYPE(RtLoader, rtloader)->setGetProcessStartTimeCb(cb);
 }
 
+void set_obfuscate_mongodb_string_cb(rtloader_t *rtloader, cb_obfuscate_mongodb_string_t cb)
+{
+    AS_TYPE(RtLoader, rtloader)->setObfuscateMongoDBStringCb(cb);
+}
+
 /*
  * _util API
  */

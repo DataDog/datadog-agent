@@ -9,6 +9,7 @@
 package service
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -63,7 +64,7 @@ func TestSetDockerConfig(t *testing.T) {
     }
 }`,
 	} {
-		output, err := a.setDockerConfigContent([]byte(input))
+		output, err := a.setDockerConfigContent(context.TODO(), []byte(input))
 		assert.Nil(t, err)
 		assert.Equal(t, expected, string(output))
 	}
@@ -74,26 +75,37 @@ func TestRemoveDockerConfig(t *testing.T) {
 		installPath: "/tmp/stable",
 	}
 
-	for input, expected := range map[string]string{
-		// Empty file, shouldn't happen but still tested
-		"": `{
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:  "EmptyFile",
+			input: "",
+			expected: `{
     "default-runtime": "runc",
     "runtimes": {}
 }`,
-		// File only contains the injected content
-		`{
-			"default-runtime": "dd-shim",
-			"runtimes": {
-				"dd-shim": {
-					"path": "/tmp/stable/inject/auto_inject_runc"
-				}
-			}
-		}`: `{
+		},
+		{
+			name: "FileOnlyWithInjectedContent",
+			input: `{
+    "default-runtime": "dd-shim",
+    "runtimes": {
+        "dd-shim": {
+            "path": "/tmp/stable/inject/auto_inject_runc"
+        }
+    }
+}`,
+			expected: `{
     "default-runtime": "runc",
     "runtimes": {}
 }`,
-		// File contained unrelated entries
-		`{
+		},
+		{
+			name: "FileWithUnrelatedEntries",
+			input: `{
     "cgroup-parent": "abc",
     "default-runtime": "dd-shim",
     "raw-logs": false,
@@ -102,14 +114,17 @@ func TestRemoveDockerConfig(t *testing.T) {
             "path": "/tmp/stable/inject/auto_inject_runc"
         }
     }
-}`: `{
+}`,
+			expected: `{
     "cgroup-parent": "abc",
     "default-runtime": "runc",
     "raw-logs": false,
     "runtimes": {}
 }`,
-		// File had already overridden the default runtime
-		`{
+		},
+		{
+			name: "FileWithOverriddenDefaultRuntime",
+			input: `{
     "default-runtime": "containerd",
     "runtimes": {
         "containerd": {
@@ -119,7 +134,8 @@ func TestRemoveDockerConfig(t *testing.T) {
             "path": "/tmp/stable/inject/auto_inject_runc"
         }
     }
-}`: `{
+}`,
+			expected: `{
     "default-runtime": "containerd",
     "runtimes": {
         "containerd": {
@@ -127,9 +143,35 @@ func TestRemoveDockerConfig(t *testing.T) {
         }
     }
 }`,
-	} {
-		output, err := a.deleteDockerConfigContent([]byte(input))
-		assert.Nil(t, err)
-		assert.Equal(t, expected, string(output))
+		},
+		{
+			name: "ReplaceOldInjectedContent",
+			input: `{
+    "default-runtime": "containerd",
+    "runtimes": {
+        "containerd": {
+            "path": "/usr/bin/containerd"
+        },
+        "dd-shim": {
+            "path": "/tmp/stable/inject/auto_inject_runc"
+        }
+    }
+}`,
+			expected: `{
+    "default-runtime": "containerd",
+    "runtimes": {
+        "containerd": {
+            "path": "/usr/bin/containerd"
+        }
+    }
+}`,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			output, err := a.deleteDockerConfigContent(context.TODO(), []byte(tc.input))
+			assert.Nil(t, err)
+			assert.Equal(t, tc.expected, string(output))
+		})
 	}
 }

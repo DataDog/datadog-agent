@@ -42,12 +42,12 @@ func TestEvents(t *testing.T) {
 			"image_name:datadog/docker-library",
 			"short_image:docker-library",
 			"image_tag:busybox_1_28_0",
-			"container_name:events_recordingevent0_1",
-			"container_name:events_recordingevent1_1",
+			"container_name:events-recordingevent0-1",
+			"container_name:events-recordingevent1-1",
 		}...),
 		AggregationKey: "docker:datadog/docker-library:busybox_1_28_0",
 		SourceTypeName: "docker",
-		Priority:       event.EventPriorityNormal,
+		Priority:       event.PriorityNormal,
 		Host:           localHostname,
 	}
 	sender.AssertEvent(t, expectedBusyboxEvent, time.Minute)
@@ -60,11 +60,11 @@ func TestEvents(t *testing.T) {
 			"image_name:datadog/docker-library",
 			"short_image:docker-library",
 			"image_tag:redis_3_2_11-alpine",
-			"container_name:events_recordingevent2_1",
+			"container_name:events-recordingevent2-1",
 		}...),
 		AggregationKey: "docker:datadog/docker-library:redis_3_2_11-alpine",
 		SourceTypeName: "docker",
-		Priority:       event.EventPriorityNormal,
+		Priority:       event.PriorityNormal,
 		Host:           localHostname,
 	}
 	sender.AssertEvent(t, expectedRedisEvent, time.Minute)

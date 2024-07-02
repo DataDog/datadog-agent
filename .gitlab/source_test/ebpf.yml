@@ -22,7 +22,7 @@
     - inv -e system-probe.object-files
     - invoke -e linter.go --build system-probe-unit-tests --cpus 4 --targets ./pkg
     - invoke -e security-agent.run-ebpf-unit-tests --verbose
-    - invoke -e linter.go --targets=./pkg/security/tests --cpus 4 --build-tags="functionaltests stresstests trivy containerd linux_bpf ebpf_bindata" --arch=$TASK_ARCH
+    - invoke -e linter.go --targets=./pkg/security/tests --cpus 4 --build-tags="functionaltests stresstests trivy containerd linux_bpf ebpf_bindata"
 
 tests_ebpf_x64:
   extends: .tests_linux_ebpf

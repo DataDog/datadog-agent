@@ -1,7 +1,7 @@
 single-machine-performance-regression_detector:
   stage: functional_test
   rules:
-    - !reference [.except_mergequeue]
+    - !reference [.except_main_or_release_branch]
     - when: on_success
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/docker_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:docker"]
@@ -17,7 +17,7 @@ single-machine-performance-regression_detector:
       - outputs/report.html # for debugging, also on S3
     when: always
   variables:
-    SMP_VERSION: 0.13.0
+    SMP_VERSION: 0.15.1
   # At present we require two artifacts to exist for the 'baseline' and the
   # 'comparison'. We are guaranteed by the structure of the pipeline that
   # 'comparison' exists, not so much with 'baseline' as it has to come from main
@@ -78,14 +78,12 @@ single-machine-performance-regression_detector:
     # Wait for job to complete.
     - RUST_LOG="${RUST_LOG}" ./smp --team-id ${SMP_AGENT_TEAM_ID} --api-base ${SMP_API} --aws-named-profile ${AWS_NAMED_PROFILE}
       job status
-      --use-consignor welch
       --wait
       --wait-delay-seconds 60
       --submission-metadata submission_metadata
     # Now that the job is completed pull the analysis report, output it to stdout.
     - RUST_LOG="${RUST_LOG}" ./smp --team-id ${SMP_AGENT_TEAM_ID} --api-base ${SMP_API} --aws-named-profile ${AWS_NAMED_PROFILE}
       job sync
-      --use-consignor welch
       --submission-metadata submission_metadata
       --output-path outputs
     # Replace empty lines in the output with lines containing various unicode
@@ -98,5 +96,4 @@ single-machine-performance-regression_detector:
     # Finally, exit 1 if the job signals a regression else 0.
     - RUST_LOG="${RUST_LOG}" ./smp --team-id ${SMP_AGENT_TEAM_ID} --api-base ${SMP_API} --aws-named-profile ${AWS_NAMED_PROFILE}
       job result
-      --use-consignor welch
       --submission-metadata submission_metadata

@@ -7,9 +7,7 @@
 package probe
 
 import (
-	"time"
-
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
@@ -19,20 +17,13 @@ const (
 	EBPFOrigin = "ebpf"
 	// EBPFLessOrigin eBPF less origin
 	EBPFLessOrigin = "ebpfless"
-
-	defaultKillActionFlushDelay = 2 * time.Second
 )
 
 // NewProbe instantiates a new runtime security agent probe
 func NewProbe(config *config.Config, opts Opts, wmeta optional.Option[workloadmeta.Component]) (*Probe, error) {
 	opts.normalize()
 
-	p := &Probe{
-		Opts:         opts,
-		Config:       config,
-		StatsdClient: opts.StatsdClient,
-		scrubber:     newProcScrubber(config.Probe.CustomSensitiveWords),
-	}
+	p := newProbe(config, opts)
 
 	if opts.EBPFLessEnabled {
 		pp, err := NewEBPFLessProbe(p, config, opts)

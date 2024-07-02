@@ -148,4 +148,39 @@ func TestUtimes(t *testing.T) {
 			assert.Equal(t, value.(bool), false)
 		})
 	})
+
+	t.Run("utimensat-nil", func(t *testing.T) {
+		fileMode := 0o447
+		testFile, _, err := test.CreateWithOptions("test-utime", 98, 99, fileMode)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer os.Remove(testFile)
+		file, err := os.Open(testFile)
+		if err != nil {
+			t.Fatal(err)
+		}
+		fd := file.Fd()
+		defer file.Close()
+
+		test.WaitSignal(t, func() error {
+			if _, _, errno := syscall.Syscall6(syscall.SYS_UTIMENSAT, fd, 0, 0, 0, 0, 0); errno != 0 {
+				if errno == syscall.EINVAL {
+					return ErrSkipTest{"utimensat not supported"}
+				}
+				return error(errno)
+			}
+			return nil
+		}, func(event *model.Event, rule *rules.Rule) {
+			assert.Equal(t, "utimes", event.GetType(), "wrong event type")
+			assertNearTime(t, uint64(event.Utimes.Mtime.UnixNano()))
+			assertNearTime(t, uint64(event.Utimes.Atime.UnixNano()))
+			assertInode(t, event.Utimes.File.Inode, getInode(t, testFile))
+			assertNearTime(t, event.Utimes.File.MTime)
+			assertNearTime(t, event.Utimes.File.CTime)
+
+			value, _ := event.GetFieldValue("event.async")
+			assert.Equal(t, value.(bool), false)
+		})
+	})
 }

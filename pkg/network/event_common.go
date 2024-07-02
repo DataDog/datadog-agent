@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/postgres"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
@@ -137,6 +138,7 @@ type Connections struct {
 	HTTP                        map[http.Key]*http.RequestStats
 	HTTP2                       map[http.Key]*http.RequestStats
 	Kafka                       map[kafka.Key]*kafka.RequestStat
+	Postgres                    map[postgres.Key]*postgres.RequestStat
 }
 
 // NewConnections create a new Connections object
@@ -272,7 +274,7 @@ type ConnectionStats struct {
 	Direction        ConnectionDirection
 	SPortIsEphemeral EphemeralPortType
 	StaticTags       uint64
-	Tags             map[string]struct{}
+	Tags             map[*intern.Value]struct{}
 
 	IntraHost bool
 	IsAssured bool
@@ -285,6 +287,9 @@ type ConnectionStats struct {
 	ProtocolStack protocols.Stack
 
 	DNSStats map[dns.Hostname]map[dns.QueryType]dns.Stats
+
+	// TCPFailures stores the number of failures for a POSIX error code
+	TCPFailures map[uint32]uint32
 }
 
 // Via has info about the routing decision for a flow
@@ -413,6 +418,7 @@ func ConnectionSummary(c *ConnectionStats, names map[util.Address][]dns.Hostname
 	str += fmt.Sprintf(", protocol: %+v", c.ProtocolStack)
 	str += fmt.Sprintf(", netns: %d", c.NetNS)
 	str += fmt.Sprintf(", duration: %+v", c.Duration)
+	str += fmt.Sprintf(", failures: %v", c.TCPFailures)
 
 	return str
 }

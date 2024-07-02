@@ -67,7 +67,7 @@ func vmSuiteOpts(tr transport, opts ...awshost.ProvisionerOption) []e2e.SuiteOpt
 	opts = vmProvisionerOpts(opts...)
 	options := []e2e.SuiteOption{
 		e2e.WithProvisioner(awshost.Provisioner(opts...)),
-		e2e.WithStackName(fmt.Sprintf("apm-vm-suite-%s-%v", tr, os.Getenv("CI_PIPELINE_ID"))),
+		e2e.WithStackName(fmt.Sprintf("apm-vm-suite-%s", tr)),
 	}
 	return options
 }
@@ -332,7 +332,7 @@ func waitRemotePort(v *VMFakeintakeSuite, port uint16) error {
 	v.Eventually(func() bool {
 		v.T().Logf("Waiting for remote:%v", port)
 		// TODO: Use the e2e context
-		c, err = v.Env().RemoteHost.DialRemotePort(port)
+		c, err = v.Env().RemoteHost.DialPort(port)
 		if err != nil {
 			v.T().Logf("Failed to dial remote:%v: %s\n", port, err)
 			return false

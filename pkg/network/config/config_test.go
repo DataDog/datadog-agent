@@ -256,6 +256,35 @@ service_monitoring_config:
 	})
 }
 
+func TestEnablePostgresMonitoring(t *testing.T) {
+	t.Run("via YAML", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		cfg := configurationFromYAML(t, `
+service_monitoring_config:
+  enable_postgres_monitoring: true
+`)
+
+		assert.True(t, cfg.EnablePostgresMonitoring)
+	})
+
+	t.Run("via ENV variable", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_ENABLE_POSTGRES_MONITORING", "true")
+		_, err := sysconfig.New("")
+		require.NoError(t, err)
+		cfg := New()
+
+		assert.True(t, cfg.EnablePostgresMonitoring)
+	})
+
+	t.Run("default", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		cfg := New()
+
+		assert.False(t, cfg.EnablePostgresMonitoring)
+	})
+}
+
 func TestDefaultDisabledJavaTLSSupport(t *testing.T) {
 	aconfig.ResetSystemProbeConfig(t)
 
@@ -1217,6 +1246,33 @@ service_monitoring_config:
 	})
 }
 
+func TestMaxPostgresStatsBuffered(t *testing.T) {
+	t.Run("value set through env var", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_MAX_POSTGRES_STATS_BUFFERED", "50000")
+
+		cfg := New()
+		assert.Equal(t, 50000, cfg.MaxPostgresStatsBuffered)
+	})
+
+	t.Run("value set through yaml", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		cfg := configurationFromYAML(t, `
+service_monitoring_config:
+  max_postgres_stats_buffered: 30000
+`)
+
+		assert.Equal(t, 30000, cfg.MaxPostgresStatsBuffered)
+	})
+
+	t.Run("default", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+
+		cfg := New()
+		assert.Equal(t, 100000, cfg.MaxPostgresStatsBuffered)
+	})
+}
+
 func TestNetworkConfigEnabled(t *testing.T) {
 	ys := true
 
@@ -1310,6 +1366,31 @@ service_monitoring_config:
 
 		cfg := New()
 		assert.True(t, cfg.EnableNodeJSMonitoring)
+	})
+}
+
+func TestUSMEventStream(t *testing.T) {
+	t.Run("default value", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		cfg := New()
+		assert.False(t, cfg.EnableUSMEventStream)
+	})
+
+	t.Run("via yaml", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		cfg := configurationFromYAML(t, `
+service_monitoring_config:
+  enable_event_stream: true
+`)
+		assert.True(t, cfg.EnableUSMEventStream)
+	})
+
+	t.Run("via deprecated ENV variable", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_ENABLE_EVENT_STREAM", "true")
+
+		cfg := New()
+		assert.True(t, cfg.EnableUSMEventStream)
 	})
 }
 

@@ -6,5 +6,8 @@
 // Package compdef defines basic types used for components
 package compdef
 
+// In has no semantic meaning, but makes conversion a bit easier
+type In struct{}
+
 // Out can be put in a struct that represents a collection of Components
 type Out struct{}

@@ -23,12 +23,12 @@ jobs:
     name: ${{ matrix.suite }} on ${{ matrix.architecture }}
     steps:
       - name: Checkout datadog-agent repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
         with:
           path: go/src/github.com/DataDog/datadog-agent
 
       - name: Set up Node 20
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8 # v4.0.2
         with:
           node-version: 20
 
@@ -36,20 +36,20 @@ jobs:
         run: sudo yarn global add serverless@^3.36.0 --prefix /usr/local
 
       - name: Checkout the datadog-lambda-extension repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
         with:
           repository: DataDog/datadog-lambda-extension
           path: go/src/github.com/DataDog/datadog-lambda-extension
 
       - name: Set up QEMU
         id: qemu
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@68827325e0b33c7199eb31dd4e31fbe9023e06e3 # v3.0.0
         with:
           image: tonistiigi/binfmt:latest
           platforms: amd64,arm64
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@d70bba72b1f3fd22344832f00baa16ece964efeb # v3.3.0
 
       - name: Create raw logs directory
         id: rawlogs
@@ -59,7 +59,7 @@ jobs:
 
       - name: Run tests if AWS credentials are available
         id: test
-        uses: nick-fields/retry@v3
+        uses: nick-fields/retry@7152eba30c6575329ac0576536151aca5a72780e # v3.0.0
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.SERVERLESS_AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.SERVERLESS_AWS_SECRET_ACCESS_KEY }}
@@ -74,7 +74,7 @@ jobs:
 
       - name: Archive raw logs
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808 # v4.3.3
         with:
           name: rawlogs-${{ matrix.suite }}-${{ matrix.architecture }}
           path: ${{ steps.rawlogs.outputs.dir }}

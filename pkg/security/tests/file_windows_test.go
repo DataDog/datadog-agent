@@ -25,7 +25,7 @@ func TestBasicFileTest(t *testing.T) {
 	//ebpftest.LogLevel(t, "info")
 	cfn := &rules.RuleDefinition{
 		ID:         "test_create_file",
-		Expression: `create.file.name =~ "test.bad" && create.file.path =~ "\Device\*\Temp\**"`,
+		Expression: `create.file.name =~ "test.bad" && create.file.path =~ "C:\Temp\**"`,
 	}
 	opts := testOpts{
 		enableFIM: true,
@@ -68,7 +68,7 @@ func TestRenameFileEvent(t *testing.T) {
 	// ebpftest.LogLevel(t, "info")
 	cfn := &rules.RuleDefinition{
 		ID:         "test_rename_file",
-		Expression: `rename.file.name =~ "test.bad" && rename.file.path =~ "\Device\*\Temp\**"`,
+		Expression: `rename.file.name =~ "test.bad" && rename.file.path =~ "C:\Temp\**"`,
 	}
 	opts := testOpts{
 		enableFIM: true,
@@ -105,7 +105,7 @@ func TestDeleteFileEvent(t *testing.T) {
 	// ebpftest.LogLevel(t, "info")
 	cfn := &rules.RuleDefinition{
 		ID:         "test_delete_file",
-		Expression: `delete.file.name =~ "test.bad" && delete.file.path =~ "\Device\*\Temp\**"`,
+		Expression: `delete.file.name =~ "test.bad" && delete.file.path =~ "C:\Temp\**"`,
 	}
 	opts := testOpts{
 		enableFIM: true,
@@ -141,7 +141,7 @@ func TestWriteFileEvent(t *testing.T) {
 	// ebpftest.LogLevel(t, "info")
 	cfn := &rules.RuleDefinition{
 		ID:         "test_write_file",
-		Expression: `write.file.name =~ "test.bad" && write.file.path =~ "\Device\*\Temp\**"`,
+		Expression: `write.file.name =~ "test.bad" && write.file.path =~ "C:\Temp\**"`,
 	}
 	opts := testOpts{
 		enableFIM: true,
@@ -164,7 +164,55 @@ func TestWriteFileEvent(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	test.Run(t, "delete", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	test.Run(t, "write", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		test.WaitSignal(t, func() error {
+			f, err := os.OpenFile("C:\\Temp\\test.bad", os.O_WRONLY, 0755)
+			if err != nil {
+				return err
+			}
+			if _, err := f.WriteString("test"); err != nil {
+				return err
+			}
+			return f.Close()
+		}, test.validateFileEvent(t, noWrapperType, func(event *model.Event, rule *rules.Rule) {
+			assertFieldEqualCaseInsensitve(t, event, "write.file.name", "test.bad", event, "write.file.name file didn't match")
+		}))
+	})
+}
+
+func TestWriteFileEventWithCreate(t *testing.T) {
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_create_polute",
+			Expression: `create.file.name =~ "*.dll"`,
+		},
+		{
+			ID:         "test_write_file",
+			Expression: `write.file.name =~ "test.bad" && write.file.path =~ "C:\Temp\**"`,
+		},
+	}
+	opts := testOpts{
+		enableFIM: true,
+	}
+	test, err := newTestModule(t, nil, ruleDefs, withStaticOpts(opts))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+	// this is kinda hokey.  ETW (which is what FIM is based on) takes an indeterminant amount of time to start up.
+	// so wait around for it to start
+	time.Sleep(5 * time.Second)
+
+	os.MkdirAll("C:\\Temp", 0755)
+	f, err := os.Create("C:\\Temp\\test.bad")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := f.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	test.Run(t, "write", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		test.WaitSignal(t, func() error {
 			f, err := os.OpenFile("C:\\Temp\\test.bad", os.O_WRONLY, 0755)
 			if err != nil {

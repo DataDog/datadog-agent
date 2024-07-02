@@ -69,7 +69,7 @@ func NewClientStatsAggregator(conf *config.AgentConfig, out chan *pb.StatsPayloa
 		agentEnv:            conf.DefaultEnv,
 		agentHostname:       conf.Hostname,
 		agentVersion:        conf.AgentVersion,
-		peerTagsAggregation: conf.PeerTagsAggregation,
+		peerTagsAggregation: conf.PeerServiceAggregation || conf.PeerTagsAggregation,
 		oldestTs:            alignAggTs(time.Now().Add(bucketDuration - oldestBucketStart)),
 		exit:                make(chan struct{}),
 		done:                make(chan struct{}),

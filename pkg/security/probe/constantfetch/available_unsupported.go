@@ -9,6 +9,8 @@
 package constantfetch
 
 import (
+	"errors"
+
 	"github.com/DataDog/datadog-go/v5/statsd"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
@@ -31,4 +33,9 @@ func GetAvailableConstantFetchers(_ *config.Config, kv *kernel.Version, _ statsd
 	fetchers = append(fetchers, fallbackConstantFetcher)
 
 	return fetchers
+}
+
+// GetHasUsernamespaceFirstArgWithBtf uses BTF to check if the security_inode_setattr function has a user namespace as its first argument
+func GetHasUsernamespaceFirstArgWithBtf() (bool, error) {
+	return false, errors.New("unsupported BTF request")
 }

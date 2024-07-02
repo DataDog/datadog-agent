@@ -1,0 +1,28 @@
+---
+.build_otel_agent_binary_common:
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  stage: binary_build
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
+  script:
+    - !reference [.retrieve_linux_go_deps]
+    - inv -e otel-agent.build
+  needs: ["go_deps"]
+  variables:
+    KUBERNETES_MEMORY_REQUEST: "16Gi"
+    KUBERNETES_MEMORY_LIMIT: "16Gi"
+  artifacts:
+    expire_in: 1 day
+    paths:
+      - $CI_PROJECT_DIR/bin/otel-agent/otel-agent
+
+build_otel_agent_binary_x64:
+  extends: .build_otel_agent_binary_common
+  tags: ["arch:amd64"]
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+
+build_otel_agent_binary_arm64:
+  extends: .build_otel_agent_binary_common
+  tags: ["arch:arm64"]
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES

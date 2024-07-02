@@ -469,6 +469,15 @@ public:
     {
     }
 
+    //! setObfuscateMongoDBStringCb member.
+    /*!
+      \param A cb_obfuscate_mongodb_string_t function pointer to the CGO callback.
+
+      This allows us to set the relevant CGO callback that will allow retrieving value for
+      specific check instances.
+    */
+    virtual void setObfuscateMongoDBStringCb(cb_obfuscate_mongodb_string_t) = 0;
+
 protected:
     //! _allocateInternalErrorDiagnoses member.
     /*!

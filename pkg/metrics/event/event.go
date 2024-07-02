@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive // TODO(AML) Fix revive linter
+// Package event provides the event type and its serialization to the DD agent 5 intake format.
 package event
 
 import (
@@ -13,55 +13,51 @@ import (
 	taggertypes "github.com/DataDog/datadog-agent/pkg/tagger/types"
 )
 
-// EventPriority represents the priority of an event
-//
-//nolint:revive // TODO(AML) Fix revive linter
-type EventPriority string
+// Priority represents the priority of an event
+type Priority string
 
 // Enumeration of the existing event priorities, and their values
 const (
-	EventPriorityNormal EventPriority = "normal"
-	EventPriorityLow    EventPriority = "low"
+	PriorityNormal Priority = "normal"
+	PriorityLow    Priority = "low"
 )
 
-// GetEventPriorityFromString returns the EventPriority from its string representation
-func GetEventPriorityFromString(val string) (EventPriority, error) {
+// GetEventPriorityFromString returns the Priority from its string representation
+func GetEventPriorityFromString(val string) (Priority, error) {
 	switch val {
-	case string(EventPriorityNormal):
-		return EventPriorityNormal, nil
-	case string(EventPriorityLow):
-		return EventPriorityLow, nil
+	case string(PriorityNormal):
+		return PriorityNormal, nil
+	case string(PriorityLow):
+		return PriorityLow, nil
 	default:
 		return "", fmt.Errorf("Invalid event priority: '%s'", val)
 	}
 }
 
-// EventAlertType represents the alert type of an event
-//
-//nolint:revive // TODO(AML) Fix revive linter
-type EventAlertType string
+// AlertType represents the alert type of an event
+type AlertType string
 
 // Enumeration of the existing event alert types, and their values
 const (
-	EventAlertTypeError   EventAlertType = "error"
-	EventAlertTypeWarning EventAlertType = "warning"
-	EventAlertTypeInfo    EventAlertType = "info"
-	EventAlertTypeSuccess EventAlertType = "success"
+	AlertTypeError   AlertType = "error"
+	AlertTypeWarning AlertType = "warning"
+	AlertTypeInfo    AlertType = "info"
+	AlertTypeSuccess AlertType = "success"
 )
 
-// GetAlertTypeFromString returns the EventAlertType from its string representation
-func GetAlertTypeFromString(val string) (EventAlertType, error) {
+// GetAlertTypeFromString returns the AlertType from its string representation
+func GetAlertTypeFromString(val string) (AlertType, error) {
 	switch val {
-	case string(EventAlertTypeError):
-		return EventAlertTypeError, nil
-	case string(EventAlertTypeWarning):
-		return EventAlertTypeWarning, nil
-	case string(EventAlertTypeInfo):
-		return EventAlertTypeInfo, nil
-	case string(EventAlertTypeSuccess):
-		return EventAlertTypeSuccess, nil
+	case string(AlertTypeError):
+		return AlertTypeError, nil
+	case string(AlertTypeWarning):
+		return AlertTypeWarning, nil
+	case string(AlertTypeInfo):
+		return AlertTypeInfo, nil
+	case string(AlertTypeSuccess):
+		return AlertTypeSuccess, nil
 	default:
-		return EventAlertTypeInfo, fmt.Errorf("Invalid alert type: '%s'", val)
+		return AlertTypeInfo, fmt.Errorf("Invalid alert type: '%s'", val)
 	}
 }
 
@@ -70,10 +66,10 @@ type Event struct {
 	Title          string                 `json:"msg_title"`
 	Text           string                 `json:"msg_text"`
 	Ts             int64                  `json:"timestamp"`
-	Priority       EventPriority          `json:"priority,omitempty"`
+	Priority       Priority               `json:"priority,omitempty"`
 	Host           string                 `json:"host"`
 	Tags           []string               `json:"tags,omitempty"`
-	AlertType      EventAlertType         `json:"alert_type,omitempty"`
+	AlertType      AlertType              `json:"alert_type,omitempty"`
 	AggregationKey string                 `json:"aggregation_key,omitempty"`
 	SourceTypeName string                 `json:"source_type_name,omitempty"`
 	EventType      string                 `json:"event_type,omitempty"`

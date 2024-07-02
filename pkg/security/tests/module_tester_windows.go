@@ -18,7 +18,7 @@ import (
 
 	"github.com/hashicorp/go-multierror"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
@@ -278,17 +278,15 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 
 		testMod.eventMonitor.RegisterEventConsumer(cws)
 
-		testMod.ruleEngine.SetRulesetLoadedCallback(func(es *rules.EvaluationSet, err *multierror.Error) {
+		testMod.ruleEngine.SetRulesetLoadedCallback(func(rs *rules.RuleSet, err *multierror.Error) {
 			ruleSetloadedErr = err
 			log.Infof("Adding test module as listener")
-			for _, ruleSet := range es.RuleSets {
-				ruleSet.AddListener(testMod)
-			}
+			rs.AddListener(testMod)
 		})
 	}
 
 	// listen to probe event
-	if err := testMod.probe.AddFullAccessEventHandler(testMod); err != nil {
+	if err := testMod.probe.AddEventHandler(testMod); err != nil {
 		return nil, err
 	}
 

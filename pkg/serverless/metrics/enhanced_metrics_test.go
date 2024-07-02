@@ -2,14 +2,14 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
-
 package metrics
 
 import (
-	"os"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/serverless/proc"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
@@ -250,17 +250,24 @@ func TestSendInvocationEnhancedMetric(t *testing.T) {
 }
 
 func TestDisableEnhancedMetrics(t *testing.T) {
-	os.Setenv("DD_ENHANCED_METRICS", "false")
-	defer os.Setenv("DD_ENHANCED_METRICS", "true")
+	var wg sync.WaitGroup
+	enhancedMetricsDisabled = true
 	demux := createDemultiplexer(t)
 	tags := []string{"functionname:test-function"}
 
-	go SendInvocationEnhancedMetric(tags, demux)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		SendInvocationEnhancedMetric(tags, demux)
+	}()
 
 	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(1, 0, 100*time.Millisecond)
 
 	assert.Len(t, generatedMetrics, 0)
 	assert.Len(t, timedMetrics, 0)
+
+	wg.Wait()
+	enhancedMetricsDisabled = false
 }
 
 func TestSendOutOfMemoryEnhancedMetric(t *testing.T) {
@@ -469,6 +476,206 @@ func TestGenerateEnhancedMetricsFromRuntimeDoneLogOK(t *testing.T) {
 		Timestamp:  float64(endTime.UnixNano()) / float64(time.Second),
 	}})
 	assert.Len(t, timedMetrics, 0)
+}
+
+func TestGenerateCPUEnhancedMetrics(t *testing.T) {
+	demux := createDemultiplexer(t)
+	tags := []string{"functionname:test-function"}
+	now := float64(time.Now().UnixNano()) / float64(time.Second)
+	args := generateCPUEnhancedMetricsArgs{100, 53, 200, tags, demux, now}
+	go generateCPUEnhancedMetrics(args)
+	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(4, 0, 100*time.Millisecond)
+	assert.Equal(t, []metrics.MetricSample{
+		{
+			Name:       cpuSystemTimeMetric,
+			Value:      53,
+			Mtype:      metrics.DistributionType,
+			Tags:       tags,
+			SampleRate: 1,
+			Timestamp:  now,
+		},
+		{
+			Name:       cpuUserTimeMetric,
+			Value:      100,
+			Mtype:      metrics.DistributionType,
+			Tags:       tags,
+			SampleRate: 1,
+			Timestamp:  now,
+		},
+		{
+			Name:       cpuTotalTimeMetric,
+			Value:      153,
+			Mtype:      metrics.DistributionType,
+			Tags:       tags,
+			SampleRate: 1,
+			Timestamp:  now,
+		}},
+		generatedMetrics,
+	)
+	assert.Len(t, timedMetrics, 0)
+}
+
+func TestDisableCPUEnhancedMetrics(t *testing.T) {
+	var wg sync.WaitGroup
+	enhancedMetricsDisabled = true
+	demux := createDemultiplexer(t)
+	tags := []string{"functionname:test-function"}
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		SendCPUEnhancedMetrics(&proc.CPUData{}, 0, tags, demux)
+	}()
+
+	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(1, 0, 100*time.Millisecond)
+
+	assert.Len(t, generatedMetrics, 0)
+	assert.Len(t, timedMetrics, 0)
+	wg.Wait()
+	enhancedMetricsDisabled = false
+}
+
+func TestGenerateCPUUtilizationEnhancedMetrics(t *testing.T) {
+	demux := createDemultiplexer(t)
+	tags := []string{"functionname:test-function"}
+	now := float64(time.Now().UnixNano()) / float64(time.Second)
+	args := GenerateCPUUtilizationEnhancedMetricArgs{
+		IndividualCPUIdleTimes: map[string]float64{
+			"cpu0": 30,
+			"cpu1": 80,
+		},
+		IndividualCPUIdleOffsetTimes: map[string]float64{
+			"cpu0": 10,
+			"cpu1": 20,
+		},
+		IdleTimeMs:       100,
+		IdleTimeOffsetMs: 20,
+		UptimeMs:         150,
+		UptimeOffsetMs:   50,
+		Tags:             tags,
+		Demux:            demux,
+		Time:             now,
+	}
+	go GenerateCPUUtilizationEnhancedMetrics(args)
+	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(5, 0, 100*time.Millisecond)
+	assert.Equal(t, []metrics.MetricSample{
+		{
+			Name:       cpuTotalUtilizationPctMetric,
+			Value:      60,
+			Mtype:      metrics.DistributionType,
+			Tags:       tags,
+			SampleRate: 1,
+			Timestamp:  now,
+		},
+		{
+			Name:       cpuTotalUtilizationMetric,
+			Value:      1.2,
+			Mtype:      metrics.DistributionType,
+			Tags:       tags,
+			SampleRate: 1,
+			Timestamp:  now,
+		},
+		{
+			Name:       numCoresMetric,
+			Value:      2,
+			Mtype:      metrics.DistributionType,
+			Tags:       tags,
+			SampleRate: 1,
+			Timestamp:  now,
+		},
+		{
+			Name:       cpuMaxUtilizationMetric,
+			Value:      80,
+			Mtype:      metrics.DistributionType,
+			Tags:       tags,
+			SampleRate: 1,
+			Timestamp:  now,
+		},
+		{
+			Name:       cpuMinUtilizationMetric,
+			Value:      40,
+			Mtype:      metrics.DistributionType,
+			Tags:       tags,
+			SampleRate: 1,
+			Timestamp:  now,
+		}},
+		generatedMetrics,
+	)
+	assert.Len(t, timedMetrics, 0)
+}
+
+func TestGenerateNetworkEnhancedMetrics(t *testing.T) {
+	demux := createDemultiplexer(t)
+	tags := []string{"functionname:test-function"}
+	now := float64(time.Now().UnixNano()) / float64(time.Second)
+	args := generateNetworkEnhancedMetricArgs{
+		RxBytesOffset: 10,
+		RxBytes:       100,
+		TxBytesOffset: 20,
+		TxBytes:       50,
+		Tags:          tags,
+		Demux:         demux,
+		Time:          now,
+	}
+	go generateNetworkEnhancedMetrics(args)
+	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(3, 0, 100*time.Millisecond)
+	assert.Equal(t, []metrics.MetricSample{
+		{
+			Name:       rxBytesMetric,
+			Value:      90,
+			Mtype:      metrics.DistributionType,
+			Tags:       tags,
+			SampleRate: 1,
+			Timestamp:  now,
+		},
+		{
+			Name:       txBytesMetric,
+			Value:      30,
+			Mtype:      metrics.DistributionType,
+			Tags:       tags,
+			SampleRate: 1,
+			Timestamp:  now,
+		},
+		{
+			Name:       totalNetworkMetric,
+			Value:      120,
+			Mtype:      metrics.DistributionType,
+			Tags:       tags,
+			SampleRate: 1,
+			Timestamp:  now,
+		}},
+		generatedMetrics,
+	)
+	assert.Len(t, timedMetrics, 0)
+}
+
+func TestNetworkEnhancedMetricsDisabled(t *testing.T) {
+	var wg sync.WaitGroup
+	enhancedMetricsDisabled = true
+	demux := createDemultiplexer(t)
+	tags := []string{"functionname:test-function"}
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		SendNetworkEnhancedMetrics(&proc.NetworkData{}, tags, demux)
+	}()
+
+	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(1, 0, 100*time.Millisecond)
+
+	assert.Len(t, generatedMetrics, 0)
+	assert.Len(t, timedMetrics, 0)
+
+	wg.Wait()
+	enhancedMetricsDisabled = false
+}
+
+func TestSendFailoverReasonMetric(t *testing.T) {
+	demux := createDemultiplexer(t)
+	tags := []string{"reason:test-reason"}
+	go SendFailoverReasonMetric(tags, demux)
+	generatedMetrics, _ := demux.WaitForNumberOfSamples(1, 0, 100*time.Millisecond)
+	assert.Len(t, generatedMetrics, 1)
 }
 
 func createDemultiplexer(t *testing.T) demultiplexer.FakeSamplerMock {

@@ -32,54 +32,12 @@ build do
   env = with_embedded_path(env)
 
   if linux_target?
-    command "invoke installer.build --rebuild --install-path=#{install_dir}", env: env
+    command "invoke installer.build --rebuild --run-path=/var/run/datadog-installer --install-path=#{install_dir}", env: env
     mkdir "#{install_dir}/bin"
-    mkdir "#{install_dir}/run/"
-    mkdir "#{install_dir}/systemd/"
     copy 'bin/installer', "#{install_dir}/bin/"
-
-    systemdPath = "#{install_dir}/systemd/"
-    erb source: "datadog-installer.service.erb",
-       dest: systemdPath + "datadog-installer.service",
-       mode: 0644,
-       vars: { installer_dir: "/opt/datadog-packages/datadog-installer/stable", etc_dir: etc_dir}
-
-    erb source: "datadog-installer-exp.service.erb",
-       dest: systemdPath + "datadog-installer-exp.service",
-       mode: 0644,
-       vars: { installer_dir: "/opt/datadog-packages/datadog-installer/experiment", etc_dir: etc_dir}
-
-    # Add stable agent units
-    templateToFile = {
-      "datadog-agent.service.erb" => "datadog-agent.service",
-      "datadog-agent-trace.service.erb" => "datadog-agent-trace.service",
-      "datadog-agent-process.service.erb" => "datadog-agent-process.service",
-      "datadog-agent-security.service.erb" => "datadog-agent-security.service",
-      "datadog-agent-sysprobe.service.erb" => "datadog-agent-sysprobe.service",
-    }
-    templateToFile.each do |template, file|
-      agent_dir = "/opt/datadog-packages/datadog-agent/stable"
-      erb source: template,
-         dest: systemdPath + file,
-         mode: 0644,
-         vars: { install_dir: install_dir, etc_dir: etc_dir, agent_dir: agent_dir }
-    end
-    # Add experiment agent units
-    expTemplateToFile = {
-      "datadog-agent-exp.service.erb" => "datadog-agent-exp.service",
-      "datadog-agent-trace-exp.service.erb" => "datadog-agent-trace-exp.service",
-      "datadog-agent-process-exp.service.erb" => "datadog-agent-process-exp.service",
-      "datadog-agent-security-exp.service.erb" => "datadog-agent-security-exp.service",
-      "datadog-agent-sysprobe-exp.service.erb" => "datadog-agent-sysprobe-exp.service",
-    }
-    expTemplateToFile.each do |template, file|
-      agent_dir = "/opt/datadog-packages/datadog-agent/experiment"
-      erb source: template,
-         dest: systemdPath + file,
-         mode: 0644,
-         vars: { etc_dir: etc_dir, agent_dir: agent_dir }
-    end
-
+  elsif windows_target?
+    command "inv -e installer.build --rebuild --install-path=#{install_dir}", env: env
+    copy 'bin/installer/installer.exe', "#{install_dir}/datadog-installer.exe"
   end
 
   # Remove empty/unneeded folders

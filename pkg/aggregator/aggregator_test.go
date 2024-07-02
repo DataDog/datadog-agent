@@ -188,10 +188,10 @@ func TestAddEventDefaultValues(t *testing.T) {
 		Title:          "Another event occurred",
 		Text:           "Other event description",
 		Ts:             12345,
-		Priority:       event.EventPriorityNormal,
+		Priority:       event.PriorityNormal,
 		Host:           "my-hostname",
 		Tags:           []string{"foo", "bar", "foo"},
-		AlertType:      event.EventAlertTypeError,
+		AlertType:      event.AlertTypeError,
 		AggregationKey: "my_agg_key",
 		SourceTypeName: "custom_source_type",
 	})
@@ -213,9 +213,9 @@ func TestAddEventDefaultValues(t *testing.T) {
 	assert.Equal(t, "Another event occurred", event2.Title)
 	assert.Equal(t, "my-hostname", event2.Host)
 	assert.Equal(t, int64(12345), event2.Ts)
-	assert.Equal(t, event.EventPriorityNormal, event2.Priority)
+	assert.Equal(t, event.PriorityNormal, event2.Priority)
 	assert.ElementsMatch(t, []string{"foo", "bar"}, event2.Tags)
-	assert.Equal(t, event.EventAlertTypeError, event2.AlertType)
+	assert.Equal(t, event.AlertTypeError, event2.AlertType)
 	assert.Equal(t, "my_agg_key", event2.AggregationKey)
 	assert.Equal(t, "custom_source_type", event2.SourceTypeName)
 }
@@ -569,8 +569,8 @@ func TestTags(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			defer pkgconfig.Datadog.SetWithoutSource("basic_telemetry_add_container_tags", nil)
-			pkgconfig.Datadog.SetWithoutSource("basic_telemetry_add_container_tags", tt.tlmContainerTagsEnabled)
+			defer pkgconfig.Datadog().SetWithoutSource("basic_telemetry_add_container_tags", nil)
+			pkgconfig.Datadog().SetWithoutSource("basic_telemetry_add_container_tags", tt.tlmContainerTagsEnabled)
 			agg := NewBufferedAggregator(nil, nil, tt.hostname, time.Second)
 			agg.agentTags = tt.agentTags
 			agg.globalTags = tt.globalTags
@@ -580,9 +580,9 @@ func TestTags(t *testing.T) {
 }
 
 func TestTimeSamplerFlush(t *testing.T) {
-	pc := pkgconfig.Datadog.GetInt("dogstatsd_pipeline_count")
-	pkgconfig.Datadog.SetWithoutSource("dogstatsd_pipeline_count", 1)
-	defer pkgconfig.Datadog.SetWithoutSource("dogstatsd_pipeline_count", pc)
+	pc := pkgconfig.Datadog().GetInt("dogstatsd_pipeline_count")
+	pkgconfig.Datadog().SetWithoutSource("dogstatsd_pipeline_count", 1)
+	defer pkgconfig.Datadog().SetWithoutSource("dogstatsd_pipeline_count", pc)
 
 	s := &MockSerializerIterableSerie{}
 	s.On("SendServiceChecks", mock.Anything).Return(nil)
@@ -593,6 +593,30 @@ func TestTimeSamplerFlush(t *testing.T) {
 	demux.sharedSerializer = s
 	expectedSeries := flushSomeSamples(demux)
 	assertSeriesEqual(t, s.series, expectedSeries)
+}
+
+func TestAddDJMRecurrentSeries(t *testing.T) {
+	// this test IS USING globals (recurrentSeries)
+	// -
+
+	djmEnabled := pkgconfig.Datadog().GetBool("djm_config.enabled")
+	pkgconfig.Datadog().SetWithoutSource("djm_config.enabled", true)
+	defer pkgconfig.Datadog().SetWithoutSource("djm_config.enabled", djmEnabled)
+
+	s := &MockSerializerIterableSerie{}
+	// NewBufferedAggregator with DJM enable will create a new recurrentSeries
+	NewBufferedAggregator(s, nil, "hostname", DefaultFlushInterval)
+
+	expectedRecurrentSeries := metrics.Series{&metrics.Serie{
+		Name:   "datadog.djm.agent_host",
+		Points: []metrics.Point{{Value: 1.0}},
+		MType:  metrics.APIGaugeType,
+	}}
+
+	require.EqualValues(t, expectedRecurrentSeries, recurrentSeries)
+
+	// Reset recurrentSeries
+	recurrentSeries = metrics.Series{}
 }
 
 // The implementation of MockSerializer.SendIterableSeries uses `s.Called(series).Error(0)`.

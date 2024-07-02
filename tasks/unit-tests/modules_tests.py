@@ -1,8 +1,10 @@
+from __future__ import annotations
+
 import json
 import os
 import subprocess
 import unittest
-from typing import Any, Dict, Set
+from typing import Any
 
 from tasks.modules import AGENT_MODULE_PATH_PREFIX, DEFAULT_MODULES
 
@@ -11,7 +13,7 @@ Here is an abstract of the go.mod file format:
 
 {
     "Module": {"Path": "github.com/DataDog/datadog-agent"},
-    "Go": "1.21",
+    "Go": "1.22",
     "Require": [
         {"Path": "github.com/DataDog/datadog-agent/pkg/config/logs", "Version": "v0.51.0-rc.2"},
         {"Path": "k8s.io/kms", "Version": "v0.27.6", "Indirect": true},
@@ -44,7 +46,7 @@ class TestModules(unittest.TestCase):
 
         return json.loads(res.stdout)
 
-    def get_agent_required(self, module: Dict) -> Set[str]:
+    def get_agent_required(self, module: dict) -> set[str]:
         """Returns the set of required datadog-agent modules"""
         if "Require" not in module:
             return set()
@@ -66,7 +68,7 @@ class TestModules(unittest.TestCase):
 
         return results
 
-    def get_agent_replaced(self, module: Dict) -> Set[str]:
+    def get_agent_replaced(self, module: dict) -> set[str]:
         """Returns the set of replaced datadog-agent modules"""
         if "Replace" not in module:
             return set()

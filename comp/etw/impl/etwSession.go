@@ -30,6 +30,7 @@ type etwSession struct {
 	propertiesBuf []byte
 	providers     map[windows.GUID]etw.ProviderConfiguration
 	utf16name     []uint16
+	sessionConfig etw.SessionConfiguration
 }
 
 func (e *etwSession) ConfigureProvider(providerGUID windows.GUID, configurations ...etw.ProviderConfigurationFunc) {
@@ -60,6 +61,28 @@ func (e *etwSession) EnableProvider(providerGUID windows.GUID) error {
 		pids = (*C.ULONG)(unsafe.SliceData(cfg.PIDs))
 		pidCount = C.ULONG(len(cfg.PIDs))
 	}
+	/*
+	 * the enabled list and disabled list are mutually exclusive; the API
+	 * allows you to send one or the other but not both.
+	 */
+	if len(cfg.EnabledIDs) > 0 && len(cfg.DisabledIDs) > 0 {
+		return fmt.Errorf("cannot enable and disable the same provider at the same time")
+	}
+	var enabledFilters *C.USHORT
+	var enabledFilterCount C.ULONG
+
+	if len(cfg.EnabledIDs) > 0 {
+		enabledFilters = (*C.USHORT)(unsafe.SliceData(cfg.EnabledIDs))
+		enabledFilterCount = C.ULONG(len(cfg.EnabledIDs))
+	}
+
+	var disabledFilters *C.USHORT
+	var disabledFilterCount C.ULONG
+
+	if len(cfg.DisabledIDs) > 0 {
+		disabledFilters = (*C.USHORT)(unsafe.SliceData(cfg.DisabledIDs))
+		disabledFilterCount = C.ULONG(len(cfg.DisabledIDs))
+	}
 
 	ret := windows.Errno(C.DDEnableTrace(
 		e.hSession,
@@ -74,6 +97,10 @@ func (e *etwSession) EnableProvider(providerGUID windows.GUID) error {
 		// and re-assemble them in C-land using our helper DDEnableTrace.
 		pids,
 		pidCount,
+		enabledFilters,
+		enabledFilterCount,
+		disabledFilters,
+		disabledFilterCount,
 	))
 
 	if ret != windows.ERROR_SUCCESS {
@@ -139,16 +166,50 @@ func (e *etwSession) StopTracing() error {
 		globalError = errors.Join(globalError, e.DisableProvider(guid))
 	}
 	ptp := (C.PEVENT_TRACE_PROPERTIES)(unsafe.Pointer(&e.propertiesBuf[0]))
-	ret := windows.Errno(C.ControlTraceW(
-		e.hSession,
-		nil,
-		ptp,
-		C.EVENT_TRACE_CONTROL_STOP))
+	var ret windows.Errno
+	if e.wellKnown {
+		if e.hTraceHandle == C.INVALID_PROCESSTRACE_HANDLE {
+			return windows.ERROR_INVALID_HANDLE
+		}
+		ret = windows.Errno(C.CloseTrace(e.hTraceHandle))
+
+	} else {
+		ret = windows.Errno(C.ControlTraceW(
+			e.hSession,
+			nil,
+			ptp,
+			C.EVENT_TRACE_CONTROL_STOP))
+	}
+
 	if !(ret == windows.ERROR_MORE_DATA ||
 		ret == windows.ERROR_SUCCESS) {
 		return errors.Join(ret, globalError)
 	}
 	return globalError
+}
+
+func (e *etwSession) GetSessionStatistics() (etw.SessionStatistics, error) {
+	var stats etw.SessionStatistics
+	// it is not clear if we can safely reuse the properties buffer here
+	// so we allocate a new one
+	_, ptp := initializeRealtimeSessionProperties(e)
+
+	ret := windows.Errno(C.ControlTraceW(
+		e.hSession,
+		nil,
+		ptp,
+		C.EVENT_TRACE_CONTROL_QUERY))
+	if ret != windows.ERROR_SUCCESS {
+		return stats, ret
+	}
+
+	stats.NumberOfBuffers = uint32(ptp.NumberOfBuffers)
+	stats.FreeBuffers = uint32(ptp.FreeBuffers)
+	stats.EventsLost = uint32(ptp.EventsLost)
+	stats.BuffersWritten = uint32(ptp.BuffersWritten)
+	stats.LogBuffersLost = uint32(ptp.LogBuffersLost)
+	stats.RealTimeBuffersLost = uint32(ptp.RealTimeBuffersLost)
+	return stats, nil
 }
 
 // deleteEtwSession deletes an ETW session by name, typically after a crash since we don't have access to the session
@@ -179,7 +240,7 @@ func deleteEtwSession(name string) error {
 	return ret
 }
 
-func createEtwSession(name string) (*etwSession, error) {
+func createEtwSession(name string, f etw.SessionConfigurationFunc) (*etwSession, error) {
 	_ = deleteEtwSession(name)
 
 	utf16SessionName, err := windows.UTF16FromString(name)
@@ -193,16 +254,16 @@ func createEtwSession(name string) (*etwSession, error) {
 	if err != nil {
 		return nil, fmt.Errorf("incorrect session name; %w", err)
 	}
-	sessionNameSize := (len(utf16SessionName) * int(unsafe.Sizeof(utf16SessionName[0])))
-	bufSize := int(unsafe.Sizeof(C.EVENT_TRACE_PROPERTIES{})) + sessionNameSize
-	propertiesBuf := make([]byte, bufSize)
 
-	pProperties := (C.PEVENT_TRACE_PROPERTIES)(unsafe.Pointer(&propertiesBuf[0]))
-	pProperties.Wnode.BufferSize = C.ulong(bufSize)
-	pProperties.Wnode.ClientContext = 1
-	pProperties.Wnode.Flags = C.WNODE_FLAG_TRACED_GUID
+	// get any caller supplied configuration
+	if f != nil {
+		f(&s.sessionConfig)
+		if s.sessionConfig.MaxBuffers != 0 && s.sessionConfig.MaxBuffers < s.sessionConfig.MinBuffers {
+			return nil, fmt.Errorf("max buffers must be greater than or equal to min buffers")
+		}
+	}
 
-	pProperties.LogFileMode = C.EVENT_TRACE_REAL_TIME_MODE
+	propertiesBuf, pProperties := initializeRealtimeSessionProperties(s)
 
 	ret := windows.Errno(C.StartTraceW(
 		&s.hSession,
@@ -223,7 +284,7 @@ func createEtwSession(name string) (*etwSession, error) {
 	return nil, fmt.Errorf("StartTraceW failed; %w", err)
 }
 
-func createWellKnownEtwSession(name string) (*etwSession, error) {
+func createWellKnownEtwSession(name string, f etw.SessionConfigurationFunc) (*etwSession, error) {
 	utf16SessionName, err := windows.UTF16FromString(name)
 	if err != nil {
 		return nil, fmt.Errorf("incorrect session name; %w", err)
@@ -234,7 +295,21 @@ func createWellKnownEtwSession(name string) (*etwSession, error) {
 		utf16name: utf16SessionName,
 		wellKnown: true,
 	}
-	sessionNameSize := (len(utf16SessionName) * int(unsafe.Sizeof(utf16SessionName[0])))
+
+	// get any caller supplied configuration
+	if f != nil {
+		f(&s.sessionConfig)
+		if s.sessionConfig.MaxBuffers != 0 && s.sessionConfig.MaxBuffers < s.sessionConfig.MinBuffers {
+			return nil, fmt.Errorf("max buffers must be greater than or equal to min buffers")
+		}
+	}
+
+	s.propertiesBuf, _ = initializeRealtimeSessionProperties(s)
+	return s, nil
+}
+
+func initializeRealtimeSessionProperties(s *etwSession) ([]byte, C.PEVENT_TRACE_PROPERTIES) {
+	sessionNameSize := (len(s.utf16name) * int(unsafe.Sizeof(s.utf16name[0])))
 	bufSize := int(unsafe.Sizeof(C.EVENT_TRACE_PROPERTIES{})) + sessionNameSize
 	propertiesBuf := make([]byte, bufSize)
 
@@ -244,6 +319,11 @@ func createWellKnownEtwSession(name string) (*etwSession, error) {
 	pProperties.Wnode.Flags = C.WNODE_FLAG_TRACED_GUID
 
 	pProperties.LogFileMode = C.EVENT_TRACE_REAL_TIME_MODE
-	s.propertiesBuf = propertiesBuf
-	return s, nil
+	if s.sessionConfig.MaxBuffers > 0 {
+		pProperties.MaximumBuffers = C.ulong(s.sessionConfig.MaxBuffers)
+	}
+	if s.sessionConfig.MinBuffers > 0 {
+		pProperties.MinimumBuffers = C.ulong(s.sessionConfig.MinBuffers)
+	}
+	return propertiesBuf, pProperties
 }

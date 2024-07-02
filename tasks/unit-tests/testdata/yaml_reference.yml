@@ -1,0 +1,28 @@
+.colors:
+  - red
+  - green
+  - blue
+
+.extended:
+  colors:
+    - yellow
+    - magenta
+    - cyan
+
+.name: Joseph
+
+target:
+  name: !reference [.name]
+  colors: !reference [.colors]
+  extended_colors: !reference [.extended, colors]
+
+expected:
+  name: Joseph
+  colors:
+    - red
+    - green
+    - blue
+  extended_colors:
+    - yellow
+    - magenta
+    - cyan

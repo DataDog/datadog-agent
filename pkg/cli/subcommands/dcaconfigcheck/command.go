@@ -7,7 +7,9 @@
 package dcaconfigcheck
 
 import (
-	"github.com/fatih/color"
+	"bytes"
+	"fmt"
+
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
@@ -25,6 +27,7 @@ import (
 // are not valid until Cobra calls the subcommand's Run or RunE function.
 type GlobalParams struct {
 	ConfFilePath string
+	NoColor      bool
 }
 
 type cliParams struct {
@@ -45,6 +48,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 
 			return fxutil.OneShot(run,
 				fx.Supply(cliParams),
+				fx.Supply(globalParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewClusterAgentParams(globalParams.ConfFilePath),
 					LogParams:    logimpl.ForOneShot("CLUSTER", "off", true),
@@ -59,6 +63,13 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 	return cmd
 }
 
-func run(_ log.Component, _ config.Component, cliParams *cliParams) error {
-	return flare.GetClusterAgentConfigCheck(color.Output, cliParams.verbose)
+func run(_ log.Component, _ config.Component, cliParams *cliParams, globalParams GlobalParams) error {
+	var b bytes.Buffer
+
+	if err := flare.GetClusterAgentConfigCheck(&b, globalParams.NoColor, cliParams.verbose); err != nil {
+		return fmt.Errorf("the agent ran into an error while checking config: %w", err)
+	}
+
+	fmt.Println(b.String())
+	return nil
 }

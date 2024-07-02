@@ -30,7 +30,7 @@ int __attribute__((always_inline)) approve_by_basename(struct dentry *dentry, u6
     get_dentry_name(dentry, &basename, sizeof(basename));
 
     struct basename_filter_t *filter = bpf_map_lookup_elem(&basename_approvers, &basename);
-    if (filter && filter->event_mask & (1 << (event_type-1))) {
+    if (filter && filter->event_mask & (1 << (event_type - 1))) {
         monitor_event_approved(event_type, BASENAME_APPROVER_TYPE);
         return 1;
     }
@@ -64,8 +64,12 @@ int __attribute__((always_inline)) approve_mmap_by_flags(struct syscall_cache_t 
 
 int __attribute__((always_inline)) approve_mmap_by_protection(struct syscall_cache_t *syscall) {
     u32 key = 0;
-    u32 *flags = bpf_map_lookup_elem(&mmap_protection_approvers, &key);
-    if (flags != NULL && (syscall->mmap.protection & *flags) > 0) {
+    u32 *flags_ptr = bpf_map_lookup_elem(&mmap_protection_approvers, &key);
+    if (flags_ptr == NULL) {
+        return 0;
+    }
+    u32 flags = *flags_ptr;
+    if ((flags == 0 && syscall->mmap.protection == 0) || (syscall->mmap.protection & flags) > 0) {
         monitor_event_approved(syscall->type, FLAG_APPROVER_TYPE);
         return 1;
     }
@@ -137,8 +141,13 @@ int __attribute__((always_inline)) mprotect_approvers(struct syscall_cache_t *sy
 
 int __attribute__((always_inline)) approve_by_flags(struct syscall_cache_t *syscall) {
     u32 key = 0;
-    u32 *flags = bpf_map_lookup_elem(&open_flags_approvers, &key);
-    if (flags != NULL && (syscall->open.flags & *flags) > 0) {
+    u32 *flags_ptr = bpf_map_lookup_elem(&open_flags_approvers, &key);
+    if (flags_ptr == NULL) {
+        return 0;
+    }
+
+    u32 flags = *flags_ptr;
+    if ((flags == 0 && syscall->open.flags == 0) || ((syscall->open.flags & flags) > 0)) {
         monitor_event_approved(syscall->type, FLAG_APPROVER_TYPE);
 #ifdef DEBUG
         bpf_printk("open flags %d approved", syscall->open.flags);

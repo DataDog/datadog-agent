@@ -1,0 +1,5 @@
+{{- if .snmpProfiles -}}
+{{- range $key, $value := .snmpProfiles}}
+  {{$key}}: {{$value}}
+{{- end }}
+{{- end -}}

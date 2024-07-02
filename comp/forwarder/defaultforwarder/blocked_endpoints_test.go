@@ -115,7 +115,7 @@ func TestRecoveryIntervalValid(t *testing.T) {
 
 	// Verify default
 	defaultValue := policy.RecoveryInterval
-	recoveryReset := pkgconfigsetup.Datadog.GetBool("forwarder_recovery_reset")
+	recoveryReset := pkgconfigsetup.Datadog().GetBool("forwarder_recovery_reset")
 	assert.Equal(t, 2, defaultValue)
 	assert.Equal(t, false, recoveryReset)
 

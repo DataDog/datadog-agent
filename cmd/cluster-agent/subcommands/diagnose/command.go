@@ -14,20 +14,13 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/command"
-	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
-	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager/diagnosesendermanagerimpl"
-	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 	"github.com/DataDog/datadog-agent/pkg/diagnose"
-	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 // Commands returns a slice of subcommands for the 'cluster-agent' command.
@@ -45,7 +38,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				}),
 				core.Bundle(),
 				compressionimpl.Module(),
-				diagnosesendermanagerimpl.Module(),
 			)
 		},
 	}
@@ -53,7 +45,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{cmd}
 }
 
-func run(diagnoseSenderManager diagnosesendermanager.Component, secretResolver secrets.Component) error {
+func run(_ config.Component) error {
 	// Verbose:  true - to show details like if was done a while ago
 	// RunLocal: true - do not attept to run in actual running agent but
 	//                  may need to implement it in future
@@ -61,12 +53,5 @@ func run(diagnoseSenderManager diagnosesendermanager.Component, secretResolver s
 	//                  diagnose suite as it was done in this agent for
 	//                  a while. Most likely need to relax or add more
 	//                  diagnose suites in the future
-	diagCfg := diagnosis.Config{
-		Verbose:  true, // show details
-		RunLocal: true, // do not attept to run in actual runnin agent (may need to implement it in future)
-		Include:  []string{"connectivity-datadog-autodiscovery"},
-	}
-	diagnoseDeps := diagnose.NewSuitesDeps(diagnoseSenderManager, optional.NewNoneOption[collector.Component](), secretResolver, optional.NewNoneOption[workloadmeta.Component](), optional.NewNoneOption[autodiscovery.Component]())
-
-	return diagnose.RunStdOut(color.Output, diagCfg, diagnoseDeps)
+	return diagnose.RunStdOutLocalCheck(color.Output, true, diagnose.RegisterConnectivityAutodiscovery)
 }

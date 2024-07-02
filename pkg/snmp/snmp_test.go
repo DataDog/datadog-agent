@@ -89,10 +89,10 @@ func TestBuildSNMPParams(t *testing.T) {
 }
 
 func TestNewListenerConfig(t *testing.T) {
-	config.Datadog.SetConfigType("yaml")
+	config.Datadog().SetConfigType("yaml")
 
 	// default collect_device_metadata should be true
-	err := config.Datadog.ReadConfig(strings.NewReader(`
+	err := config.Datadog().ReadConfig(strings.NewReader(`
 snmp_listener:
   configs:
    - network: 127.0.0.1/30
@@ -114,7 +114,7 @@ snmp_listener:
 	assert.Equal(t, false, conf.Configs[2].CollectDeviceMetadata)
 
 	// collect_device_metadata: false
-	err = config.Datadog.ReadConfig(strings.NewReader(`
+	err = config.Datadog().ReadConfig(strings.NewReader(`
 snmp_listener:
   collect_device_metadata: false
   configs:
@@ -137,7 +137,7 @@ snmp_listener:
 	assert.Equal(t, false, conf.Configs[2].CollectDeviceMetadata)
 
 	// collect_device_metadata: true
-	err = config.Datadog.ReadConfig(strings.NewReader(`
+	err = config.Datadog().ReadConfig(strings.NewReader(`
 snmp_listener:
   collect_device_metadata: true
   configs:
@@ -161,10 +161,10 @@ snmp_listener:
 }
 
 func TestNewNetworkDevicesListenerConfig(t *testing.T) {
-	config.Datadog.SetConfigType("yaml")
+	config.Datadog().SetConfigType("yaml")
 
 	// default collect_device_metadata should be true
-	err := config.Datadog.ReadConfig(strings.NewReader(`
+	err := config.Datadog().ReadConfig(strings.NewReader(`
 network_devices:
   autodiscovery:
     configs:
@@ -187,7 +187,7 @@ network_devices:
 	assert.Equal(t, false, conf.Configs[2].CollectDeviceMetadata)
 
 	// collect_device_metadata: false
-	err = config.Datadog.ReadConfig(strings.NewReader(`
+	err = config.Datadog().ReadConfig(strings.NewReader(`
 network_devices:
   autodiscovery:
     collect_device_metadata: false
@@ -211,7 +211,7 @@ network_devices:
 	assert.Equal(t, false, conf.Configs[2].CollectDeviceMetadata)
 
 	// collect_device_metadata: true
-	err = config.Datadog.ReadConfig(strings.NewReader(`
+	err = config.Datadog().ReadConfig(strings.NewReader(`
 network_devices:
   autodiscovery:
     collect_device_metadata: true
@@ -236,10 +236,10 @@ network_devices:
 }
 
 func TestBothListenersConfig(t *testing.T) {
-	config.Datadog.SetConfigType("yaml")
+	config.Datadog().SetConfigType("yaml")
 
 	// check that network_devices config override the snmp_listener config
-	err := config.Datadog.ReadConfig(strings.NewReader(`
+	err := config.Datadog().ReadConfig(strings.NewReader(`
 snmp_listener:
   collect_device_metadata: true
   configs:
@@ -272,7 +272,7 @@ network_devices:
 	assert.Equal(t, true, conf.Configs[2].CollectDeviceMetadata)
 
 	// incorrect snmp_listener config and correct network_devices config
-	err = config.Datadog.ReadConfig(strings.NewReader(`
+	err = config.Datadog().ReadConfig(strings.NewReader(`
 snmp_listener:
   configs:
    - foo: bar
@@ -299,7 +299,7 @@ network_devices:
 	assert.Equal(t, true, conf.Configs[2].CollectDeviceMetadata)
 
 	// incorrect snmp_listener config and correct network_devices config
-	err = config.Datadog.ReadConfig(strings.NewReader(`
+	err = config.Datadog().ReadConfig(strings.NewReader(`
 snmp_listener:
   configs:
   - network: 127.0.0.4/30
@@ -318,8 +318,8 @@ network_devices:
 }
 
 func Test_LoaderConfig(t *testing.T) {
-	config.Datadog.SetConfigType("yaml")
-	err := config.Datadog.ReadConfig(strings.NewReader(`
+	config.Datadog().SetConfigType("yaml")
+	err := config.Datadog().ReadConfig(strings.NewReader(`
 network_devices:
   autodiscovery:
     configs:
@@ -338,7 +338,7 @@ network_devices:
 	assert.Equal(t, "core", conf.Configs[1].Loader)
 	assert.Equal(t, "python", conf.Configs[2].Loader)
 
-	err = config.Datadog.ReadConfig(strings.NewReader(`
+	err = config.Datadog().ReadConfig(strings.NewReader(`
 network_devices:
   autodiscovery:
     loader: core
@@ -361,8 +361,8 @@ network_devices:
 }
 
 func Test_MinCollectionInterval(t *testing.T) {
-	config.Datadog.SetConfigType("yaml")
-	err := config.Datadog.ReadConfig(strings.NewReader(`
+	config.Datadog().SetConfigType("yaml")
+	err := config.Datadog().ReadConfig(strings.NewReader(`
 network_devices:
   autodiscovery:
     min_collection_interval: 60
@@ -381,8 +381,8 @@ network_devices:
 }
 
 func Test_Configs(t *testing.T) {
-	config.Datadog.SetConfigType("yaml")
-	err := config.Datadog.ReadConfig(strings.NewReader(`
+	config.Datadog().SetConfigType("yaml")
+	err := config.Datadog().ReadConfig(strings.NewReader(`
 network_devices:
   autodiscovery:
     workers: 10
@@ -438,7 +438,7 @@ network_devices:
 	/////////////////
 	// legacy configs
 	/////////////////
-	err = config.Datadog.ReadConfig(strings.NewReader(`
+	err = config.Datadog().ReadConfig(strings.NewReader(`
 network_devices:
   autodiscovery:
     allowed_failures: 15
@@ -468,8 +468,8 @@ network_devices:
 
 func Test_NamespaceConfig(t *testing.T) {
 	// Default Namespace
-	config.Datadog.SetConfigType("yaml")
-	err := config.Datadog.ReadConfig(strings.NewReader(`
+	config.Datadog().SetConfigType("yaml")
+	err := config.Datadog().ReadConfig(strings.NewReader(`
 network_devices:
   autodiscovery:
     configs:
@@ -483,8 +483,8 @@ network_devices:
 	assert.Equal(t, "default", networkConf.Namespace)
 
 	// Custom Namespace in network_devices
-	config.Datadog.SetConfigType("yaml")
-	err = config.Datadog.ReadConfig(strings.NewReader(`
+	config.Datadog().SetConfigType("yaml")
+	err = config.Datadog().ReadConfig(strings.NewReader(`
 network_devices:
   namespace: ponyo
   autodiscovery:
@@ -499,8 +499,8 @@ network_devices:
 	assert.Equal(t, "ponyo", networkConf.Namespace)
 
 	// Custom Namespace in snmp_listener
-	config.Datadog.SetConfigType("yaml")
-	err = config.Datadog.ReadConfig(strings.NewReader(`
+	config.Datadog().SetConfigType("yaml")
+	err = config.Datadog().ReadConfig(strings.NewReader(`
 network_devices:
   autodiscovery:
     namespace: totoro
@@ -528,8 +528,8 @@ func TestFirstNonEmpty(t *testing.T) {
 }
 
 func Test_UseDeviceIDAsHostname(t *testing.T) {
-	config.Datadog.SetConfigType("yaml")
-	err := config.Datadog.ReadConfig(strings.NewReader(`
+	config.Datadog().SetConfigType("yaml")
+	err := config.Datadog().ReadConfig(strings.NewReader(`
 network_devices:
   autodiscovery:
     use_device_id_as_hostname: true
@@ -548,8 +548,8 @@ network_devices:
 }
 
 func Test_CollectTopology_withRootCollectTopologyFalse(t *testing.T) {
-	config.Datadog.SetConfigType("yaml")
-	err := config.Datadog.ReadConfig(strings.NewReader(`
+	config.Datadog().SetConfigType("yaml")
+	err := config.Datadog().ReadConfig(strings.NewReader(`
 network_devices:
   autodiscovery:
     collect_topology: false
@@ -571,8 +571,8 @@ network_devices:
 }
 
 func Test_CollectTopology_withRootCollectTopologyTrue(t *testing.T) {
-	config.Datadog.SetConfigType("yaml")
-	err := config.Datadog.ReadConfig(strings.NewReader(`
+	config.Datadog().SetConfigType("yaml")
+	err := config.Datadog().ReadConfig(strings.NewReader(`
 network_devices:
   autodiscovery:
     collect_topology: true
@@ -594,8 +594,8 @@ network_devices:
 }
 
 func Test_CollectTopology_withRootCollectTopologyUnset(t *testing.T) {
-	config.Datadog.SetConfigType("yaml")
-	err := config.Datadog.ReadConfig(strings.NewReader(`
+	config.Datadog().SetConfigType("yaml")
+	err := config.Datadog().ReadConfig(strings.NewReader(`
 network_devices:
   autodiscovery:
     configs:

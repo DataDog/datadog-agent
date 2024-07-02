@@ -36,10 +36,10 @@ func TestMarshal(t *testing.T) {
 			Title:          "test title",
 			Text:           "test text",
 			Ts:             12345,
-			Priority:       event.EventPriorityNormal,
+			Priority:       event.PriorityNormal,
 			Host:           "test.localhost",
 			Tags:           []string{"tag1", "tag2:yes"},
-			AlertType:      event.EventAlertTypeError,
+			AlertType:      event.AlertTypeError,
 			AggregationKey: "test aggregation",
 			SourceTypeName: "test source",
 			OriginInfo:     taggertypes.OriginInfo{},
@@ -59,12 +59,12 @@ func TestMarshal(t *testing.T) {
 	assert.Equal(t, newPayload.Events[0].Title, "test title")
 	assert.Equal(t, newPayload.Events[0].Text, "test text")
 	assert.Equal(t, newPayload.Events[0].Ts, int64(12345))
-	assert.Equal(t, newPayload.Events[0].Priority, string(event.EventPriorityNormal))
+	assert.Equal(t, newPayload.Events[0].Priority, string(event.PriorityNormal))
 	assert.Equal(t, newPayload.Events[0].Host, "test.localhost")
 	require.Len(t, newPayload.Events[0].Tags, 2)
 	assert.Equal(t, newPayload.Events[0].Tags[0], "tag1")
 	assert.Equal(t, newPayload.Events[0].Tags[1], "tag2:yes")
-	assert.Equal(t, newPayload.Events[0].AlertType, string(event.EventAlertTypeError))
+	assert.Equal(t, newPayload.Events[0].AlertType, string(event.AlertTypeError))
 	assert.Equal(t, newPayload.Events[0].AggregationKey, "test aggregation")
 	assert.Equal(t, newPayload.Events[0].SourceTypeName, "test source")
 }
@@ -75,10 +75,10 @@ func TestMarshalJSON(t *testing.T) {
 			Title:          "An event occurred",
 			Text:           "event description",
 			Ts:             12345,
-			Priority:       event.EventPriorityNormal,
+			Priority:       event.PriorityNormal,
 			Host:           "my-hostname",
 			Tags:           []string{"tag1", "tag2:yes"},
-			AlertType:      event.EventAlertTypeError,
+			AlertType:      event.AlertTypeError,
 			AggregationKey: "my_agg_key",
 			SourceTypeName: "custom_source_type",
 			OriginInfo:     taggertypes.OriginInfo{},
@@ -120,10 +120,10 @@ func TestSplitEvents(t *testing.T) {
 			Title:          "An event occurred",
 			Text:           "event description",
 			Ts:             12345,
-			Priority:       event.EventPriorityNormal,
+			Priority:       event.PriorityNormal,
 			Host:           "my-hostname",
 			Tags:           []string{"tag1", "tag2:yes"},
-			AlertType:      event.EventAlertTypeError,
+			AlertType:      event.AlertTypeError,
 			AggregationKey: "my_agg_key",
 			SourceTypeName: "custom_source_type",
 			OriginInfo:     taggertypes.OriginInfo{},
@@ -232,10 +232,10 @@ func createEvent(sourceTypeName string) *event.Event {
 		Title:          "1",
 		Text:           "2",
 		Ts:             3,
-		Priority:       event.EventPriorityNormal,
+		Priority:       event.PriorityNormal,
 		Host:           "5",
 		Tags:           []string{"6", "7"},
-		AlertType:      event.EventAlertTypeError,
+		AlertType:      event.AlertTypeError,
 		AggregationKey: "9",
 		SourceTypeName: sourceTypeName,
 		EventType:      "10",

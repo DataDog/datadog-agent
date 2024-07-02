@@ -584,6 +584,7 @@ func TestTagDecisionMaker(t *testing.T) {
 	traceutil.SetMeta(chunk.Spans[2], tagDecisionMaker, "wrong")
 	setChunkAttributes(chunk, root)
 	assert.Equal("right", chunk.Tags[tagDecisionMaker])
+	assert.Equal("right", chunk.Spans[1].Meta[tagDecisionMaker])
 }
 
 func BenchmarkNormalization(b *testing.B) {

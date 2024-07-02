@@ -95,7 +95,7 @@ func readAPIKeyFromKMS(cipherText string) (string, error) {
 	cfg, err := awsconfig.LoadDefaultConfig(
 		context.TODO(),
 		awsconfig.WithHTTPClient(&http.Client{
-			Transport: datadogHttp.CreateHTTPTransport(config.Datadog),
+			Transport: datadogHttp.CreateHTTPTransport(config.Datadog()),
 		}),
 	)
 	if err != nil {
@@ -125,7 +125,7 @@ func readAPIKeyFromSecretsManager(arn string) (string, error) {
 
 	cfg, err := awsconfig.LoadDefaultConfig(context.TODO(),
 		awsconfig.WithHTTPClient(&http.Client{
-			Transport: datadogHttp.CreateHTTPTransport(config.Datadog),
+			Transport: datadogHttp.CreateHTTPTransport(config.Datadog()),
 		}),
 		awsconfig.WithRegion(region),
 	)

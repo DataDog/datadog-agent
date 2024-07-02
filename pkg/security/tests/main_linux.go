@@ -96,6 +96,7 @@ func SkipIfNotAvailable(t *testing.T) {
 			"TestLoadModule/load_module_with_truncated_params",
 			"~TestChown32",
 			"TestMountEvent/mount-in-container-root",
+			"TestChdir/syscall-context",
 		}
 
 		if disableSeccomp {

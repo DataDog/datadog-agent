@@ -76,6 +76,7 @@ func TextFmap() ttemplate.FuncMap {
 			"lastErrorMessage":   lastErrorMessage,
 			"printDashes":        PrintDashes,
 			"formatUnixTime":     formatUnixTime,
+			"formatJSON":         formatJSON,
 			"humanize":           mkHuman,
 			"humanizeDuration":   mkHumanDuration,
 			"toUnsortedList":     toUnsortedList,
@@ -268,6 +269,15 @@ func formatUnixTime(unixTime int64) string {
 	// default:
 	// 	return fmt.Sprintf("Invalid time parameter %T", v)
 	// }
+}
+
+// formatJSON formats the given value as JSON. The indent parameter is used to indent the entire JSON output.
+func formatJSON(value interface{}, indent int) string {
+	b, err := json.MarshalIndent(value, strings.Repeat(" ", indent), "  ")
+	if err != nil {
+		return fmt.Sprintf("Error formatting JSON: %s", err)
+	}
+	return string(b)
 }
 
 // PrintDashes repeats the pattern (dash) for the length of s

@@ -155,8 +155,8 @@ func (c *JetsonCheck) Run() error {
 }
 
 // Configure the GPU check
-func (c *JetsonCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
-	err := c.CommonConfigure(senderManager, integrationConfigDigest, initConfig, data, source)
+func (c *JetsonCheck) Configure(senderManager sender.SenderManager, _ uint64, data integration.Data, initConfig integration.Data, source string) error {
+	err := c.CommonConfigure(senderManager, initConfig, data, source)
 	if err != nil {
 		return err
 	}

@@ -137,6 +137,8 @@ typedef char *(*cb_obfuscate_sql_t)(char *, char *, char **);
 typedef char *(*cb_obfuscate_sql_exec_plan_t)(char *, bool, char **);
 // ()
 typedef double (*cb_get_process_start_time_t)(void);
+// (cmd, error_message)
+typedef char *(*cb_obfuscate_mongodb_string_t)(char *, char **);
 
 // _util
 // (argv, env, stdout, stderr, ret_code, exception)

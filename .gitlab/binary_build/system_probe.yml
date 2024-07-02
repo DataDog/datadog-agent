@@ -24,6 +24,7 @@
     expire_in: 2 weeks
     paths:
       - $CI_PROJECT_DIR/sysprobe-build-outputs.tar.xz
+      - $CI_PROJECT_DIR/sysprobe-build-outputs.tar.xz.sum
 
 build_system-probe-x64:
   stage: binary_build

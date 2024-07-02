@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -23,4 +25,14 @@ func Test_CopyStrings(t *testing.T) {
 func Test_BoolToFloat64(t *testing.T) {
 	assert.Equal(t, BoolToFloat64(true), 1.0)
 	assert.Equal(t, BoolToFloat64(false), 0.0)
+}
+
+func Test_getAgentTags(t *testing.T) {
+	config.Datadog().SetWithoutSource("hostname", "my-host")
+	defer config.Datadog().SetWithoutSource("hostname", "")
+
+	assert.Equal(t, []string{
+		"agent_host:my-host",
+		"agent_version:" + version.AgentVersion,
+	}, GetCommonAgentTags())
 }

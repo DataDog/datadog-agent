@@ -512,7 +512,7 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	} else if initConfig.Namespace != "" {
 		c.Namespace = initConfig.Namespace
 	} else {
-		c.Namespace = coreconfig.Datadog.GetString("network_devices.namespace")
+		c.Namespace = coreconfig.Datadog().GetString("network_devices.namespace")
 	}
 
 	c.Namespace, err = utils.NormalizeNamespace(c.Namespace)

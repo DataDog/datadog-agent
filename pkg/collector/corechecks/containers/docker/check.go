@@ -21,7 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -47,6 +47,12 @@ const (
 
 type eventTransformer interface {
 	Transform([]*docker.ContainerEvent) ([]event.Event, []error)
+}
+
+type noopEventTransformer struct{}
+
+func (noopEventTransformer) Transform([]*docker.ContainerEvent) ([]event.Event, []error) {
+	return nil, nil
 }
 
 // DockerCheck grabs docker metrics
@@ -76,9 +82,16 @@ func Factory(store workloadmeta.Component) optional.Option[func() check.Check] {
 	})
 }
 
+var defaultFilteredEventTypes = []string{
+	"top",
+	"exec_create",
+	"exec_start",
+	"exec_die",
+}
+
 // Configure parses the check configuration and init the check
-func (d *DockerCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
-	err := d.CommonConfigure(senderManager, integrationConfigDigest, initConfig, config, source)
+func (d *DockerCheck) Configure(senderManager sender.SenderManager, _ uint64, config, initConfig integration.Data, source string) error {
+	err := d.CommonConfigure(senderManager, initConfig, config, source)
 	if err != nil {
 		return err
 	}
@@ -93,19 +106,22 @@ func (d *DockerCheck) Configure(senderManager sender.SenderManager, integrationC
 		log.Warnf("Can't get hostname from docker, events will not have it: %v", err)
 	}
 
-	if d.instance.UnbundleEvents {
-		d.eventTransformer = newUnbundledTransformer(d.dockerHostname, d.instance.CollectedEventTypes)
-	} else {
-		filteredEventTypes := d.instance.FilteredEventType
-		if len(filteredEventTypes) == 0 {
-			filteredEventTypes = []string{
-				"top",
-				"exec_create",
-				"exec_start",
-				"exec_die",
-			}
-		}
+	filteredEventTypes := d.instance.FilteredEventType
+	if len(filteredEventTypes) == 0 {
+		filteredEventTypes = defaultFilteredEventTypes
+	}
 
+	if d.instance.UnbundleEvents {
+		var bundledTransformer eventTransformer = noopEventTransformer{}
+		if d.instance.BundleUnspecifiedEvents {
+			bundledTransformer = newBundledTransformer(
+				d.dockerHostname,
+				// Don't bundle events that are unbundled already.
+				append(filteredEventTypes, d.instance.CollectedEventTypes...),
+			)
+		}
+		d.eventTransformer = newUnbundledTransformer(d.dockerHostname, d.instance.CollectedEventTypes, bundledTransformer)
+	} else {
 		d.eventTransformer = newBundledTransformer(d.dockerHostname, filteredEventTypes)
 	}
 

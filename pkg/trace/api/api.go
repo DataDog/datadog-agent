@@ -40,6 +40,14 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
+// defaultReceiverBufferSize is used as a default for the initial size of http body buffer
+// if no content-length is provided (Content-Encoding: Chunked) which happens in some tracers.
+//
+// This value has been picked as a "safe" default. Most real life traces should be at least a few KiB
+// so allocating 8KiB should provide a big enough buffer to prevent initial resizing, without blowing
+// up memory usage of the tracer.
+const defaultReceiverBufferSize = 8192 // 8KiB
+
 var bufferPool = sync.Pool{
 	New: func() interface{} {
 		return new(bytes.Buffer)
@@ -54,6 +62,26 @@ func getBuffer() *bytes.Buffer {
 
 func putBuffer(buffer *bytes.Buffer) {
 	bufferPool.Put(buffer)
+}
+
+func copyRequestBody(buf *bytes.Buffer, req *http.Request) (written int64, err error) {
+	reserveBodySize(buf, req)
+	return io.Copy(buf, req.Body)
+}
+
+func reserveBodySize(buf *bytes.Buffer, req *http.Request) {
+	var err error
+	bufferSize := 0
+	if contentSize := req.Header.Get("Content-Length"); contentSize != "" {
+		bufferSize, err = strconv.Atoi(contentSize)
+		if err != nil {
+			log.Debugf("could not parse Content-Length header value as integer: %v", err)
+		}
+	}
+	if bufferSize == 0 {
+		bufferSize = defaultReceiverBufferSize
+	}
+	buf.Grow(bufferSize)
 }
 
 // HTTPReceiver is a collector that uses HTTP protocol and just holds
@@ -142,15 +170,32 @@ func NewHTTPReceiver(
 	}
 }
 
+// timeoutMiddleware sets a timeout for a handler. This lets us have different
+// timeout values for each handler
+func timeoutMiddleware(timeout time.Duration, h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), timeout)
+		defer cancel()
+		r = r.WithContext(ctx)
+		h.ServeHTTP(w, r)
+	})
+}
+
 func (r *HTTPReceiver) buildMux() *http.ServeMux {
 	mux := http.NewServeMux()
+
+	defaultTimeout := getConfiguredRequestTimeoutDuration(r.conf)
 
 	hash, infoHandler := r.makeInfoHandler()
 	for _, e := range endpoints {
 		if e.IsEnabled != nil && !e.IsEnabled(r.conf) {
 			continue
 		}
-		mux.Handle(e.Pattern, replyWithVersion(hash, r.conf.AgentVersion, e.Handler(r)))
+		timeout := defaultTimeout
+		if e.TimeoutOverride != nil {
+			timeout = e.TimeoutOverride(r.conf)
+		}
+		mux.Handle(e.Pattern, replyWithVersion(hash, r.conf.AgentVersion, timeoutMiddleware(timeout, e.Handler(r))))
 	}
 	mux.HandleFunc("/info", infoHandler)
 
@@ -167,6 +212,22 @@ func replyWithVersion(hash string, version string, h http.Handler) http.Handler 
 	})
 }
 
+func getConfiguredRequestTimeoutDuration(conf *config.AgentConfig) time.Duration {
+	timeout := 5 * time.Second
+	if conf.ReceiverTimeout > 0 {
+		timeout = time.Duration(conf.ReceiverTimeout) * time.Second
+	}
+	return timeout
+}
+
+func getConfiguredEVPRequestTimeoutDuration(conf *config.AgentConfig) time.Duration {
+	timeout := 30 * time.Second
+	if conf.EVPProxy.ReceiverTimeout > 0 {
+		timeout = time.Duration(conf.EVPProxy.ReceiverTimeout) * time.Second
+	}
+	return timeout
+}
+
 // Start starts doing the HTTP server and is ready to receive traces
 func (r *HTTPReceiver) Start() {
 	if r.conf.ReceiverPort == 0 &&
@@ -177,17 +238,13 @@ func (r *HTTPReceiver) Start() {
 		return
 	}
 
-	timeout := 5 * time.Second
-	if r.conf.ReceiverTimeout > 0 {
-		timeout = time.Duration(r.conf.ReceiverTimeout) * time.Second
-	}
 	httpLogger := log.NewThrottled(5, 10*time.Second) // limit to 5 messages every 10 seconds
 	r.server = &http.Server{
-		ReadTimeout:  timeout,
-		WriteTimeout: timeout,
-		ErrorLog:     stdlog.New(httpLogger, "http.Server: ", 0),
-		Handler:      r.buildMux(),
-		ConnContext:  connContext,
+		// Note: We don't set WriteTimeout since we want to have different timeouts per-handler
+		ReadTimeout: getConfiguredRequestTimeoutDuration(r.conf),
+		ErrorLog:    stdlog.New(httpLogger, "http.Server: ", 0),
+		Handler:     r.buildMux(),
+		ConnContext: connContext,
 	}
 
 	if r.conf.ReceiverPort > 0 {
@@ -387,7 +444,7 @@ func decodeTracerPayload(v Version, req *http.Request, cIDProvider IDProvider, l
 	case v05:
 		buf := getBuffer()
 		defer putBuffer(buf)
-		if _, err = io.Copy(buf, req.Body); err != nil {
+		if _, err = copyRequestBody(buf, req); err != nil {
 			return nil, false, err
 		}
 		var traces pb.Traces
@@ -402,7 +459,7 @@ func decodeTracerPayload(v Version, req *http.Request, cIDProvider IDProvider, l
 	case V07:
 		buf := getBuffer()
 		defer putBuffer(buf)
-		if _, err = io.Copy(buf, req.Body); err != nil {
+		if _, err = copyRequestBody(buf, req); err != nil {
 			return nil, false, err
 		}
 		var tracerPayload pb.TracerPayload
@@ -719,7 +776,7 @@ func decodeRequest(req *http.Request, dest *pb.Traces) (ranHook bool, err error)
 	case "application/msgpack":
 		buf := getBuffer()
 		defer putBuffer(buf)
-		_, err = io.Copy(buf, req.Body)
+		_, err = copyRequestBody(buf, req)
 		if err != nil {
 			return false, err
 		}
@@ -737,7 +794,7 @@ func decodeRequest(req *http.Request, dest *pb.Traces) (ranHook bool, err error)
 		if err1 := json.NewDecoder(req.Body).Decode(&dest); err1 != nil {
 			buf := getBuffer()
 			defer putBuffer(buf)
-			_, err2 := io.Copy(buf, req.Body)
+			_, err2 := copyRequestBody(buf, req)
 			if err2 != nil {
 				return false, err2
 			}
@@ -758,6 +815,7 @@ func traceChunksFromSpans(spans []*pb.Span) []*pb.TraceChunk {
 		traceChunks = append(traceChunks, &pb.TraceChunk{
 			Priority: int32(sampler.PriorityNone),
 			Spans:    t,
+			Tags:     make(map[string]string),
 		})
 	}
 	return traceChunks
@@ -769,6 +827,7 @@ func traceChunksFromTraces(traces pb.Traces) []*pb.TraceChunk {
 		traceChunks = append(traceChunks, &pb.TraceChunk{
 			Priority: int32(sampler.PriorityNone),
 			Spans:    trace,
+			Tags:     make(map[string]string),
 		})
 	}
 

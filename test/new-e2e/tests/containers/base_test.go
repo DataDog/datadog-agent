@@ -50,9 +50,18 @@ func (suite *baseSuite) TearDownSuite() {
 	suite.endTime = time.Now()
 }
 
+func (suite *baseSuite) BeforeTest(suiteName, testName string) {
+	suite.T().Logf("START  %s/%s %s", suiteName, testName, time.Now())
+}
+
+func (suite *baseSuite) AfterTest(suiteName, testName string) {
+	suite.T().Logf("FINISH %s/%s %s", suiteName, testName, time.Now())
+}
+
 type testMetricArgs struct {
-	Filter testMetricFilterArgs
-	Expect testMetricExpectArgs
+	Filter   testMetricFilterArgs
+	Expect   testMetricExpectArgs
+	Optional testMetricExpectArgs
 }
 
 type testMetricFilterArgs struct {
@@ -95,6 +104,11 @@ func (suite *baseSuite) testMetric(args *testMetricArgs) {
 		var expectedTags []*regexp.Regexp
 		if args.Expect.Tags != nil {
 			expectedTags = lo.Map(*args.Expect.Tags, func(tag string, _ int) *regexp.Regexp { return regexp.MustCompile(tag) })
+		}
+
+		var optionalTags []*regexp.Regexp
+		if args.Optional.Tags != nil {
+			optionalTags = lo.Map(*args.Optional.Tags, func(tag string, _ int) *regexp.Regexp { return regexp.MustCompile(tag) })
 		}
 
 		sendEvent := func(alertType, text string) {
@@ -175,7 +189,7 @@ func (suite *baseSuite) testMetric(args *testMetricArgs) {
 
 			// Check tags
 			if expectedTags != nil {
-				err := assertTags(metrics[len(metrics)-1].GetTags(), expectedTags, args.Expect.AcceptUnexpectedTags)
+				err := assertTags(metrics[len(metrics)-1].GetTags(), expectedTags, optionalTags, args.Expect.AcceptUnexpectedTags)
 				assert.NoErrorf(c, err, "Tags mismatch on `%s`", prettyMetricQuery)
 			}
 
@@ -304,7 +318,7 @@ func (suite *baseSuite) testLog(args *testLogArgs) {
 
 			// Check tags
 			if expectedTags != nil {
-				err := assertTags(logs[len(logs)-1].GetTags(), expectedTags, false)
+				err := assertTags(logs[len(logs)-1].GetTags(), expectedTags, []*regexp.Regexp{}, false)
 				assert.NoErrorf(c, err, "Tags mismatch on `%s`", prettyLogQuery)
 			}
 

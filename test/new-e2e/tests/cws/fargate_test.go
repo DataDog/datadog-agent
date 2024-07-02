@@ -85,7 +85,7 @@ func TestECSFargate(t *testing.T) {
 
 			// Setup agent API key
 			apiKeyParam, err := ssm.NewParameter(ctx, awsEnv.Namer.ResourceName("agent-apikey"), &ssm.ParameterArgs{
-				Name:  awsEnv.CommonNamer.DisplayName(1011, pulumi.String("agent-apikey")),
+				Name:  awsEnv.CommonNamer().DisplayName(1011, pulumi.String("agent-apikey")),
 				Type:  ssm.ParameterTypeSecureString,
 				Value: awsEnv.AgentAPIKey(),
 			}, awsEnv.WithProviders(configCommon.ProviderAWS, configCommon.ProviderAWSX))
@@ -122,6 +122,10 @@ func TestECSFargate(t *testing.T) {
 							ecsx.TaskDefinitionKeyValuePairArgs{
 								Name:  pulumi.StringPtr("DD_RUNTIME_SECURITY_CONFIG_EBPFLESS_ENABLED"),
 								Value: pulumi.StringPtr("true"),
+							},
+							ecsx.TaskDefinitionKeyValuePairArgs{
+								Name:  pulumi.StringPtr("DD_RUNTIME_SECURITY_CONFIG_USE_SECRUNTIME_TRACK"),
+								Value: pulumi.StringPtr("false"),
 							},
 						},
 						Secrets: ecsx.TaskDefinitionSecretArray{
@@ -219,7 +223,7 @@ func TestECSFargate(t *testing.T) {
 				TaskRole: &awsx.DefaultRoleWithPolicyArgs{
 					RoleArn: pulumi.StringPtr(awsEnv.ECSTaskRole()),
 				},
-				Family: awsEnv.CommonNamer.DisplayName(255, pulumi.String("cws-task")),
+				Family: awsEnv.CommonNamer().DisplayName(255, pulumi.String("cws-task")),
 			}, awsEnv.WithProviders(configCommon.ProviderAWS, configCommon.ProviderAWSX))
 			if err != nil {
 				return err

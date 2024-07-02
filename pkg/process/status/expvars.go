@@ -11,7 +11,6 @@ package status
 import (
 	"bufio"
 	"expvar"
-	"net/http"
 	"os"
 	"strings"
 	"sync"
@@ -21,7 +20,6 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
@@ -248,7 +246,7 @@ func publishDropCheckPayloads() interface{} {
 }
 
 // InitExpvars initializes expvars
-func InitExpvars(config ddconfig.Reader, telemetry telemetry.Component, hostname string, processModuleEnabled, languageDetectionEnabled bool, eps []apicfg.Endpoint) {
+func InitExpvars(config ddconfig.Reader, hostname string, processModuleEnabled, languageDetectionEnabled bool, eps []apicfg.Endpoint) {
 	infoOnce.Do(func() {
 		processExpvars := expvar.NewMap("process_agent")
 		hostString := expvar.NewString("host")
@@ -284,9 +282,4 @@ func InitExpvars(config ddconfig.Reader, telemetry telemetry.Component, hostname
 		processExpvars.Set("workloadmeta_extractor_stale_diffs", publishInt(&infoWlmExtractorStaleDiffs))
 		processExpvars.Set("workloadmeta_extractor_diffs_dropped", publishInt(&infoWlmExtractorDiffsDropped))
 	})
-
-	// Run a profile & telemetry server.
-	if config.GetBool("telemetry.enabled") {
-		http.Handle("/telemetry", telemetry.Handler())
-	}
 }

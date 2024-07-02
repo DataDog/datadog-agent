@@ -10,12 +10,13 @@ package kubelet
 
 import (
 	"context"
+	stdErrors "errors"
 	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/internal/third_party/golang/expansion"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -217,7 +218,7 @@ func (c *collector) parsePodContainers(
 
 		image, err := workloadmeta.NewContainerImage(imageID, container.Image)
 		if err != nil {
-			if err == containers.ErrImageIsSha256 {
+			if stdErrors.Is(err, containers.ErrImageIsSha256) {
 				// try the resolved image ID if the image name in the container
 				// status is a SHA256. this seems to happen sometimes when
 				// pinning the image to a SHA256

@@ -25,7 +25,6 @@
       -e AWS_NETWORKING=true
       -e PY_RUNTIMES="$PYTHON_RUNTIMES"
       -e GOMODCACHE="c:\modcache"
-      -e JUNIT_TAR="c:\mnt\junit-${CI_JOB_NAME}.tgz"
       -e VCPKG_BINARY_SOURCES="clear;x-azblob,${vcpkgBlobSaSUrl}"
       -e PIP_INDEX_URL=${PIP_INDEX_URL}
       486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_1809_${ARCH}${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES}

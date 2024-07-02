@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"math"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/beevik/ntp"
@@ -41,6 +42,8 @@ var (
 
 	tlmNtpOffset = telemetry.NewGauge("check", "ntp_offset",
 		nil, "Ntp offset")
+
+	defaultDatadogPool = []string{"0.datadog.pool.ntp.org", "1.datadog.pool.ntp.org", "2.datadog.pool.ntp.org", "3.datadog.pool.ntp.org"}
 )
 
 // NTPCheck only has sender and config
@@ -48,7 +51,6 @@ type NTPCheck struct {
 	core.CheckBase
 	cfg            *ntpConfig
 	lastCollection time.Time
-	errCount       int
 }
 
 type ntpInstanceConfig struct {
@@ -87,8 +89,8 @@ func (c *ntpConfig) parse(data []byte, initData []byte, getLocalServers func() (
 
 	// Default to our domains on pool.ntp.org if no cloud provider detected
 	if defaultHosts == nil {
-		log.Debug("No cloud provider detected, using default ntp pool.")
-		defaultHosts = []string{"0.datadog.pool.ntp.org", "1.datadog.pool.ntp.org", "2.datadog.pool.ntp.org", "3.datadog.pool.ntp.org"}
+		log.Debugf("No cloud provider detected, using default ntp pool: [ %s ]", strings.Join(defaultDatadogPool, ", "))
+		defaultHosts = defaultDatadogPool
 	}
 
 	if err := yaml.Unmarshal(data, &instance); err != nil {
@@ -107,7 +109,7 @@ func (c *ntpConfig) parse(data []byte, initData []byte, getLocalServers func() (
 		if err != nil {
 			return err
 		}
-		log.Infof("Use local defined servers: %v", localNtpServers)
+		log.Debugf("Detected local defined servers: [ %s ]", strings.Join(defaultDatadogPool, ", "))
 	}
 
 	if len(localNtpServers) > 0 {
@@ -125,6 +127,9 @@ func (c *ntpConfig) parse(data []byte, initData []byte, getLocalServers func() (
 	if c.instance.Hosts == nil {
 		c.instance.Hosts = defaultHosts
 	}
+
+	log.Infof("Using NTP servers: [ %s ]", strings.Join(c.instance.Hosts, ", "))
+
 	if c.instance.Port == 0 {
 		c.instance.Port = defaultPort
 	}
@@ -154,7 +159,7 @@ func (c *NTPCheck) Configure(senderManager sender.SenderManager, integrationConf
 	c.BuildID(integrationConfigDigest, data, initConfig)
 	c.cfg = cfg
 
-	err = c.CommonConfigure(senderManager, integrationConfigDigest, initConfig, data, source)
+	err = c.CommonConfigure(senderManager, initConfig, data, source)
 	if err != nil {
 		return err
 	}
@@ -208,16 +213,9 @@ func (c *NTPCheck) queryOffset() (float64, error) {
 	for _, host := range c.cfg.instance.Hosts {
 		response, err := ntpQuery(host, ntp.QueryOptions{Version: c.cfg.instance.Version, Port: c.cfg.instance.Port, Timeout: time.Duration(c.cfg.instance.Timeout) * time.Second})
 		if err != nil {
-			if c.errCount >= 10 {
-				c.errCount = 0
-				log.Warnf("Couldn't query the ntp host %s for 10 times in a row: %s", host, err)
-			} else {
-				c.errCount++
-				log.Debugf("There was an error querying the ntp host %s: %s", host, err)
-			}
+			log.Debugf("There was an error querying the ntp host %s: %s", host, err)
 			continue
 		}
-		c.errCount = 0
 		err = response.Validate()
 		if err != nil {
 			log.Infof("The ntp response is not valid for host %s: %s", host, err)
@@ -227,7 +225,7 @@ func (c *NTPCheck) queryOffset() (float64, error) {
 	}
 
 	if len(offsets) == 0 {
-		return .0, fmt.Errorf("Failed to get clock offset from any ntp host")
+		return .0, fmt.Errorf("failed to get clock offset from any ntp host: [ %s ]", strings.Join(c.cfg.instance.Hosts, ", "))
 	}
 
 	var median float64

@@ -7,8 +7,6 @@ package marshal
 
 import (
 	"math"
-	"reflect"
-	"unsafe"
 
 	"github.com/twmb/murmur3"
 
@@ -52,7 +50,9 @@ func mergeDynamicTags(dynamicTags ...map[string]struct{}) (out map[string]struct
 }
 
 // FormatConnection converts a ConnectionStats into an model.Connection
-func FormatConnection(builder *model.ConnectionBuilder, conn network.ConnectionStats, routes map[string]RouteIdx, httpEncoder *httpEncoder, http2Encoder *http2Encoder, kafkaEncoder *kafkaEncoder, dnsFormatter *dnsFormatter, ipc ipCache, tagsSet *network.TagsSet) {
+func FormatConnection(builder *model.ConnectionBuilder, conn network.ConnectionStats, routes map[string]RouteIdx,
+	httpEncoder *httpEncoder, http2Encoder *http2Encoder, kafkaEncoder *kafkaEncoder, postgresEncoder *postgresEncoder,
+	dnsFormatter *dnsFormatter, ipc ipCache, tagsSet *network.TagsSet) {
 
 	builder.SetPid(int32(conn.Pid))
 
@@ -109,13 +109,23 @@ func FormatConnection(builder *model.ConnectionBuilder, conn network.ConnectionS
 	builder.SetRouteIdx(formatRouteIdx(conn.Via, routes))
 	dnsFormatter.FormatConnectionDNS(conn, builder)
 
+	if len(conn.TCPFailures) > 0 {
+		builder.AddTcpFailuresByErrCode(func(w *model.Connection_TcpFailuresByErrCodeEntryBuilder) {
+			for k, v := range conn.TCPFailures {
+				w.SetKey(k)
+				w.SetValue(v)
+			}
+		})
+	}
+
 	httpStaticTags, httpDynamicTags := httpEncoder.GetHTTPAggregationsAndTags(conn, builder)
 	http2StaticTags, http2DynamicTags := http2Encoder.WriteHTTP2AggregationsAndTags(conn, builder)
 
 	staticTags := httpStaticTags | http2StaticTags
 	dynamicTags := mergeDynamicTags(httpDynamicTags, http2DynamicTags)
 
-	kafkaEncoder.WriteKafkaAggregations(conn, builder)
+	staticTags |= kafkaEncoder.WriteKafkaAggregations(conn, builder)
+	staticTags |= postgresEncoder.WritePostgresAggregations(conn, builder)
 
 	conn.StaticTags |= staticTags
 	tags, tagChecksum := formatTags(conn, tagsSet, dynamicTags)
@@ -267,39 +277,29 @@ func routeKey(v *network.Via) string {
 	return v.Subnet.Alias
 }
 
-func formatTags(c network.ConnectionStats, tagsSet *network.TagsSet, connDynamicTags map[string]struct{}) (tagsIdx []uint32, checksum uint32) {
-	mm := murmur3.New32()
-	for _, tag := range network.GetStaticTags(c.StaticTags) {
-		mm.Reset()
-		_, _ = mm.Write(unsafeStringSlice(tag))
-		checksum ^= mm.Sum32()
+func formatTags(c network.ConnectionStats, tagsSet *network.TagsSet, connDynamicTags map[string]struct{}) ([]uint32, uint32) {
+	var checksum uint32
+
+	staticTags := network.GetStaticTags(c.StaticTags)
+	tagsIdx := make([]uint32, 0, len(staticTags)+len(connDynamicTags)+len(c.Tags))
+
+	for _, tag := range staticTags {
+		checksum ^= murmur3.StringSum32(tag)
 		tagsIdx = append(tagsIdx, tagsSet.Add(tag))
 	}
 
 	// Dynamic tags
 	for tag := range connDynamicTags {
-		mm.Reset()
-		_, _ = mm.Write(unsafeStringSlice(tag))
-		checksum ^= mm.Sum32()
+		checksum ^= murmur3.StringSum32(tag)
 		tagsIdx = append(tagsIdx, tagsSet.Add(tag))
 	}
 
 	// other tags, e.g., from process env vars like DD_ENV, etc.
 	for tag := range c.Tags {
-		mm.Reset()
-		_, _ = mm.Write(unsafeStringSlice(tag))
-		checksum ^= mm.Sum32()
-		tagsIdx = append(tagsIdx, tagsSet.Add(tag))
+		t := tag.Get().(string)
+		checksum ^= murmur3.StringSum32(t)
+		tagsIdx = append(tagsIdx, tagsSet.Add(t))
 	}
 
-	return
-}
-
-func unsafeStringSlice(key string) []byte {
-	if len(key) == 0 {
-		return nil
-	}
-	// Reinterpret the string as bytes. This is safe because we don't write into the byte array.
-	sh := (*reflect.StringHeader)(unsafe.Pointer(&key)) //nolint:staticcheck // TODO (WINA) fix reflect.StringHeader has been deprecated: Use unsafe.String or unsafe.StringData instead
-	return unsafe.Slice((*byte)(unsafe.Pointer(sh.Data)), len(key))
+	return tagsIdx, checksum
 }

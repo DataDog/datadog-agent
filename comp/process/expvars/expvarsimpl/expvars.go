@@ -53,10 +53,15 @@ type dependencies struct {
 
 func newExpvarServer(deps dependencies) (expvars.Component, error) {
 	// Initialize status
-	err := InitProcessStatus(deps.Config, deps.SysProbeConfig, deps.HostInfo, deps.Log, deps.Telemetry)
+	err := InitProcessStatus(deps.Config, deps.SysProbeConfig, deps.HostInfo, deps.Log)
 	if err != nil {
 		_ = deps.Log.Critical("Failed to initialize status server:", err)
 		return struct{}{}, err
+	}
+
+	// Run a profile & telemetry server.
+	if deps.Config.GetBool("telemetry.enabled") {
+		http.Handle("/telemetry", deps.Telemetry.Handler())
 	}
 
 	expvarPort := getExpvarPort(deps)
@@ -98,7 +103,6 @@ func InitProcessStatus(
 	SysProbeConfig sysprobeconfig.Component,
 	HostInfo hostinfo.Component,
 	Log log.Component,
-	Telemetry telemetry.Component,
 ) error {
 	// update docker socket path in info
 	dockerSock, err := util.GetDockerSocketPath()
@@ -114,6 +118,7 @@ func InitProcessStatus(
 		_ = Log.Criticalf("Failed to initialize Api Endpoints: %s", err.Error())
 	}
 	languageDetectionEnabled := Config.GetBool("language_detection.enabled")
-	status.InitExpvars(Config, Telemetry, HostInfo.Object().HostName, processModuleEnabled, languageDetectionEnabled, eps)
+	status.InitExpvars(Config, HostInfo.Object().HostName, processModuleEnabled, languageDetectionEnabled, eps)
+
 	return nil
 }

@@ -10,8 +10,6 @@ import (
 	_ "embed"
 	"errors"
 	"fmt"
-	"os"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -41,11 +39,6 @@ func TestLanguageDetectionSuite(t *testing.T) {
 		e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(awshost.WithAgentOptions(agentParams...))),
 	}
 
-	devModeEnv, _ := os.LookupEnv("E2E_DEVMODE")
-	if devMode, err := strconv.ParseBool(devModeEnv); err == nil && devMode {
-		options = append(options, e2e.WithDevMode())
-	}
-
 	e2e.Run(t, &languageDetectionSuite{}, options...)
 }
 
@@ -56,7 +49,7 @@ func (s *languageDetectionSuite) checkDetectedLanguage(command string, language 
 			pid = s.getPidForCommand(command)
 			return len(pid) > 0
 		},
-		1*time.Second, 10*time.Millisecond,
+		10*time.Second, 10*time.Millisecond,
 		fmt.Sprintf("pid not found for command %s", command),
 	)
 
@@ -80,7 +73,10 @@ func (s *languageDetectionSuite) getPidForCommand(command string) string {
 	if err != nil {
 		return ""
 	}
-	return strings.TrimSpace(pid)
+	pid = strings.TrimSpace(pid)
+	// special handling in case multiple commands match
+	pids := strings.Split(pid, "\n")
+	return pids[0]
 }
 
 func (s *languageDetectionSuite) getLanguageForPid(pid string) (string, error) {

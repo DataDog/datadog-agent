@@ -202,6 +202,18 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		defaultBatchMaxSize:           pkgconfig.DefaultBatchMaxSize,
 		defaultInputChanSize:          pkgconfig.DefaultInputChanSize,
 	},
+	{
+		eventType:                     eventplatform.EventTypeServiceDiscovery,
+		category:                      "Service Discovery",
+		contentType:                   logshttp.JSONContentType,
+		endpointsConfigPrefix:         "service_discovery.forwarder.",
+		hostnameEndpointPrefix:        "instrumentation-telemetry-intake.",
+		intakeTrackType:               "apmtelemetry",
+		defaultBatchMaxConcurrentSend: 10,
+		defaultBatchMaxContentSize:    pkgconfig.DefaultBatchMaxContentSize,
+		defaultBatchMaxSize:           pkgconfig.DefaultBatchMaxSize,
+		defaultInputChanSize:          pkgconfig.DefaultInputChanSize,
+	},
 }
 
 type defaultEventPlatformForwarder struct {
@@ -234,8 +246,8 @@ func Diagnose() []diagnosis.Diagnosis {
 	var diagnoses []diagnosis.Diagnosis
 
 	for _, desc := range passthroughPipelineDescs {
-		configKeys := config.NewLogsConfigKeys(desc.endpointsConfigPrefix, pkgconfig.Datadog)
-		endpoints, err := config.BuildHTTPEndpointsWithConfig(pkgconfig.Datadog, configKeys, desc.hostnameEndpointPrefix, desc.intakeTrackType, config.DefaultIntakeProtocol, config.DefaultIntakeOrigin)
+		configKeys := config.NewLogsConfigKeys(desc.endpointsConfigPrefix, pkgconfig.Datadog())
+		endpoints, err := config.BuildHTTPEndpointsWithConfig(pkgconfig.Datadog(), configKeys, desc.hostnameEndpointPrefix, desc.intakeTrackType, config.DefaultIntakeProtocol, config.DefaultIntakeOrigin)
 		if err != nil {
 			diagnoses = append(diagnoses, diagnosis.Diagnosis{
 				Result:      diagnosis.DiagnosisFail,
@@ -247,7 +259,7 @@ func Diagnose() []diagnosis.Diagnosis {
 			continue
 		}
 
-		url, err := logshttp.CheckConnectivityDiagnose(endpoints.Main, pkgconfig.Datadog)
+		url, err := logshttp.CheckConnectivityDiagnose(endpoints.Main, pkgconfig.Datadog())
 		name := fmt.Sprintf("Connectivity to %s", url)
 		if err == nil {
 			diagnoses = append(diagnoses, diagnosis.Diagnosis{
@@ -359,8 +371,8 @@ type passthroughPipelineDesc struct {
 // newHTTPPassthroughPipeline creates a new HTTP-only event platform pipeline that sends messages directly to intake
 // without any of the processing that exists in regular logs pipelines.
 func newHTTPPassthroughPipeline(coreConfig pkgconfig.Reader, eventPlatformReceiver eventplatformreceiver.Component, desc passthroughPipelineDesc, destinationsContext *client.DestinationsContext, pipelineID int) (p *passthroughPipeline, err error) {
-	configKeys := config.NewLogsConfigKeys(desc.endpointsConfigPrefix, pkgconfig.Datadog)
-	endpoints, err := config.BuildHTTPEndpointsWithConfig(pkgconfig.Datadog, configKeys, desc.hostnameEndpointPrefix, desc.intakeTrackType, config.DefaultIntakeProtocol, config.DefaultIntakeOrigin)
+	configKeys := config.NewLogsConfigKeys(desc.endpointsConfigPrefix, pkgconfig.Datadog())
+	endpoints, err := config.BuildHTTPEndpointsWithConfig(pkgconfig.Datadog(), configKeys, desc.hostnameEndpointPrefix, desc.intakeTrackType, config.DefaultIntakeProtocol, config.DefaultIntakeOrigin)
 	if err != nil {
 		return nil, err
 	}
@@ -383,12 +395,12 @@ func newHTTPPassthroughPipeline(coreConfig pkgconfig.Reader, eventPlatformReceiv
 	reliable := []client.Destination{}
 	for i, endpoint := range endpoints.GetReliableEndpoints() {
 		telemetryName := fmt.Sprintf("%s_%d_reliable_%d", desc.eventType, pipelineID, i)
-		reliable = append(reliable, logshttp.NewDestination(endpoint, desc.contentType, destinationsContext, endpoints.BatchMaxConcurrentSend, true, telemetryName, pkgconfig.Datadog))
+		reliable = append(reliable, logshttp.NewDestination(endpoint, desc.contentType, destinationsContext, endpoints.BatchMaxConcurrentSend, true, telemetryName, pkgconfig.Datadog()))
 	}
 	additionals := []client.Destination{}
 	for i, endpoint := range endpoints.GetUnReliableEndpoints() {
 		telemetryName := fmt.Sprintf("%s_%d_unreliable_%d", desc.eventType, pipelineID, i)
-		additionals = append(additionals, logshttp.NewDestination(endpoint, desc.contentType, destinationsContext, endpoints.BatchMaxConcurrentSend, false, telemetryName, pkgconfig.Datadog))
+		additionals = append(additionals, logshttp.NewDestination(endpoint, desc.contentType, destinationsContext, endpoints.BatchMaxConcurrentSend, false, telemetryName, pkgconfig.Datadog()))
 	}
 	destinations := client.NewDestinations(reliable, additionals)
 	inputChan := make(chan *message.Message, endpoints.InputChanSize)
@@ -406,6 +418,8 @@ func newHTTPPassthroughPipeline(coreConfig pkgconfig.Reader, eventPlatformReceiv
 		strategy = sender.NewBatchStrategy(inputChan,
 			senderInput,
 			make(chan struct{}),
+			false,
+			nil,
 			sender.ArraySerializer,
 			endpoints.BatchWait,
 			endpoints.BatchMaxSize,
@@ -418,7 +432,7 @@ func newHTTPPassthroughPipeline(coreConfig pkgconfig.Reader, eventPlatformReceiv
 	log.Debugf("Initialized event platform forwarder pipeline. eventType=%s mainHosts=%s additionalHosts=%s batch_max_concurrent_send=%d batch_max_content_size=%d batch_max_size=%d, input_chan_size=%d",
 		desc.eventType, joinHosts(endpoints.GetReliableEndpoints()), joinHosts(endpoints.GetUnReliableEndpoints()), endpoints.BatchMaxConcurrentSend, endpoints.BatchMaxContentSize, endpoints.BatchMaxSize, endpoints.InputChanSize)
 	return &passthroughPipeline{
-		sender:                sender.NewSender(coreConfig, senderInput, a.Channel(), destinations, 10),
+		sender:                sender.NewSender(coreConfig, senderInput, a.Channel(), destinations, 10, nil, nil),
 		strategy:              strategy,
 		in:                    inputChan,
 		auditor:               a,
@@ -509,7 +523,7 @@ func NewNoopEventPlatformForwarder(hostname hostnameinterface.Component) eventpl
 }
 
 func newNoopEventPlatformForwarder(hostname hostnameinterface.Component) *defaultEventPlatformForwarder {
-	f := newDefaultEventPlatformForwarder(pkgconfig.Datadog, eventplatformreceiverimpl.NewReceiver(hostname))
+	f := newDefaultEventPlatformForwarder(pkgconfig.Datadog(), eventplatformreceiverimpl.NewReceiver(hostname).Comp)
 	// remove the senders
 	for _, p := range f.pipelines {
 		p.strategy = nil

@@ -17,13 +17,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-shared-components/secretsutils"
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -188,11 +189,11 @@ func (v *apiSuite) TestDefaultAgentAPIEndpoints() {
 			},
 		},
 		{
-			name: "config check",
+			name: "config check raw",
 			agentEndpointInfo: agentEndpointInfo{
 				scheme:   "https",
 				port:     agentCmdPort,
-				endpoint: "/agent/config-check",
+				endpoint: "/agent/config-check/raw",
 				method:   "GET",
 				data:     "",
 			},
@@ -203,7 +204,20 @@ func (v *apiSuite) TestDefaultAgentAPIEndpoints() {
 				var have Config
 				err := json.Unmarshal([]byte(resp), &have)
 				assert.NoError(ct, err)
-				assert.NotEmpty(ct, have.Checks, "%s %s returned: %s, expected \"configs\" checks to be present", e.method, e.endpoint, resp)
+				assert.NotEmpty(ct, have.Checks, "%s %s returned: %s, expected \"configs\" checks raw to be present", e.method, e.endpoint, resp)
+			},
+		},
+		{
+			name: "config check",
+			agentEndpointInfo: agentEndpointInfo{
+				scheme:   "https",
+				port:     agentCmdPort,
+				endpoint: "/agent/config-check",
+				method:   "GET",
+				data:     "",
+			},
+			assert: func(ct *assert.CollectT, e agentEndpointInfo, resp string) {
+				assert.NotEmpty(ct, resp, "%s %s returned: %s, expected \"configs\" checks to be present", e.method, e.endpoint, resp)
 			},
 		},
 		{

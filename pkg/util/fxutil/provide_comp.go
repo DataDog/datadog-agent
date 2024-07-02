@@ -9,12 +9,16 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"slices"
 
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"go.uber.org/fx"
 )
 
 var (
+	compLifecycleType = reflect.TypeOf((*compdef.Lifecycle)(nil)).Elem()
+
+	compInType  = reflect.TypeOf((*compdef.In)(nil)).Elem()
 	compOutType = reflect.TypeOf((*compdef.Out)(nil)).Elem()
 	fxInType    = reflect.TypeOf(fx.In{})
 	fxOutType   = reflect.TypeOf(fx.Out{})
@@ -62,15 +66,15 @@ func ProvideComponentConstructor(compCtorFunc interface{}) fx.Option {
 	}
 	hasZeroArg := ctorFuncType.NumIn() == 0
 
-	inFxType, outFxType, hasErrRet, err := constructFxInAndOut(ctorFuncType)
+	ctorTypes, err := getConstructorTypes(ctorFuncType)
 	if err != nil {
 		return fx.Error(err)
 	}
 
 	// build reflect.Type of the constructor function that will be provided to `fx.Provide`
-	funcFxType := reflect.FuncOf([]reflect.Type{inFxType}, []reflect.Type{outFxType}, false)
-	if hasErrRet {
-		funcFxType = reflect.FuncOf([]reflect.Type{inFxType}, []reflect.Type{outFxType, errorInterface}, false)
+	funcFxType := reflect.FuncOf([]reflect.Type{ctorTypes.inFx}, []reflect.Type{ctorTypes.outFx}, false)
+	if ctorTypes.hasErrRet {
+		funcFxType = reflect.FuncOf([]reflect.Type{ctorTypes.inFx}, []reflect.Type{ctorTypes.outFx, errorInterface}, false)
 	}
 
 	// wrapper that receives fx-aware requirements, converts them into regular requirements, and calls the
@@ -79,12 +83,12 @@ func ProvideComponentConstructor(compCtorFunc interface{}) fx.Option {
 		// invoke the regular constructor with the correct arguments
 		var ctorArgs []reflect.Value
 		if !hasZeroArg {
-			ctorArgs = makeConstructorArgs(args[0])
+			ctorArgs = makeConstructorArgs(args[0], ctorTypes.inPlain)
 		}
 		plainOuts := reflect.ValueOf(compCtorFunc).Call(ctorArgs)
 		// create return value, an fx-ware provides struct and an optional error
-		res := []reflect.Value{makeFxAwareProvides(plainOuts[0], outFxType)}
-		if hasErrRet {
+		res := []reflect.Value{makeFxAwareProvides(plainOuts[0], ctorTypes.outFx)}
+		if ctorTypes.hasErrRet {
 			res = append(res, plainOuts[1])
 		}
 		return res
@@ -145,23 +149,42 @@ func hasEmbedField(typ, embed reflect.Type) bool {
 	return false
 }
 
-// construct fx-aware types for the input and output of the given constructor function
-func constructFxInAndOut(ctorFuncType reflect.Type) (reflect.Type, reflect.Type, bool, error) {
+type ctorTypes struct {
+	inPlain   reflect.Type
+	inFx      reflect.Type
+	outFx     reflect.Type
+	hasErrRet bool
+}
+
+// get the set of types for the input and output of the given constructor function
+func getConstructorTypes(ctorFuncType reflect.Type) (*ctorTypes, error) {
 	ctorInType, err1 := asStruct(getWithinLimit(0, ctorFuncType.In, ctorFuncType.NumIn))
 	ctorOutType, err2 := asStruct(ctorFuncType.Out(0))
 	hasErrRet, err3 := ensureErrorOrNil(getWithinLimit(1, ctorFuncType.Out, ctorFuncType.NumOut))
 	if err := errors.Join(err1, err2, err3); err != nil {
-		return nil, nil, false, err
+		return nil, err
+	}
+
+	if err := ensureFieldsNotAllowed(ctorInType, []reflect.Type{compOutType, fxOutType, fxInType}); err != nil {
+		return nil, err
+	}
+	if err := ensureFieldsNotAllowed(ctorOutType, []reflect.Type{compInType, compLifecycleType, fxInType, fxOutType}); err != nil {
+		return nil, err
 	}
 
 	// create types that have fx-aware embed-fields
 	// these are used to construct a function that can build the fx graph
 	inFxType, err := constructFxInType(ctorInType)
 	if err != nil {
-		return nil, nil, hasErrRet, err
+		return nil, err
 	}
 	outFxType, err := constructFxOutType(ctorOutType)
-	return inFxType, outFxType, hasErrRet, err
+	return &ctorTypes{
+		inPlain:   ctorInType,
+		inFx:      inFxType,
+		outFx:     outFxType,
+		hasErrRet: hasErrRet,
+	}, err
 }
 
 func constructFxInType(plainType reflect.Type) (reflect.Type, error) {
@@ -179,6 +202,7 @@ func constructFxAwareStruct(plainType reflect.Type, isOut bool) (reflect.Type, e
 		oldEmbed = compOutType
 		newEmbed = fxOutType
 	} else {
+		oldEmbed = compInType
 		newEmbed = fxInType
 	}
 	if plainType == nil {
@@ -192,6 +216,16 @@ func constructFxAwareStruct(plainType reflect.Type, isOut bool) (reflect.Type, e
 		return nil, fmt.Errorf("bad type: %T", plainType)
 	}
 	return replaceStructEmbeds(plainType, oldEmbed, newEmbed, true), nil
+}
+
+func ensureFieldsNotAllowed(typ reflect.Type, badEmbeds []reflect.Type) error {
+	for n := 0; n < typ.NumField(); n++ {
+		field := typ.Field(n)
+		if slices.Contains(badEmbeds, field.Type) {
+			return fmt.Errorf("invalid embedded field: %v", field.Type)
+		}
+	}
+	return nil
 }
 
 // replaceStructEmbeds copies a struct type to a newly created struct type, removing
@@ -223,12 +257,11 @@ func replaceStructEmbeds(typ, oldEmbed, newEmbed reflect.Type, assumeEmbed bool)
 
 // create arguments that are ready to be passed to the plain constructor by
 // removing fx specific fields from the fx-aware requires struct
-func makeConstructorArgs(fxAwareReqs reflect.Value) []reflect.Value {
+func makeConstructorArgs(fxAwareReqs reflect.Value, plainType reflect.Type) []reflect.Value {
 	if fxAwareReqs.Kind() != reflect.Struct {
 		panic("pre-condition failure: must be called with Struct")
 	}
-	plainType := replaceStructEmbeds(fxAwareReqs.Type(), fxInType, nil, false)
-	return []reflect.Value{coerceStructTo(fxAwareReqs, plainType, fxOutType, nil)}
+	return []reflect.Value{coerceStructTo(fxAwareReqs, plainType, fxInType, compInType)}
 }
 
 // change the return value from the plain constructor into an fx-aware provides struct

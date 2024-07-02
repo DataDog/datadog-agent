@@ -4,9 +4,11 @@
 // Copyright 2016-present Datadog, Inc.
 
 // Package tagger implements the Tagger component. The Tagger is the central
-// source of truth for client-side entity tagging. It runs Collectors that
-// detect entities and collect their tags. Tags are then stored in memory (by
-// the TagStore) and can be queried by the tagger.Tag() method.
+// source of truth for client-side entity tagging. It subscribes to workloadmeta
+// to get updates for all the entity kinds (containers, kubernetes pods,
+// kubernetes nodes, etc.) and extracts the tags for each of them. Tags are then
+// stored in memory (by the TagStore) and can be queried by the tagger.Tag()
+// method.
 
 // Package tagger provides the tagger component for the Datadog Agent
 package tagger
@@ -38,4 +40,6 @@ type Component interface {
 	SetNewCaptureTagger(newCaptureTagger Component)
 	ResetCaptureTagger()
 	EnrichTags(tb tagset.TagsAccumulator, originInfo taggertypes.OriginInfo)
+	ChecksCardinality() types.TagCardinality
+	DogstatsdCardinality() types.TagCardinality
 }

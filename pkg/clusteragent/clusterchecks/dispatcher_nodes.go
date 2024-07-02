@@ -198,7 +198,7 @@ func (d *dispatcher) updateRunnersStats() {
 		ip := node.clientIP
 		node.RUnlock()
 
-		if config.Datadog.GetBool("cluster_checks.rebalance_with_utilization") {
+		if config.Datadog().GetBool("cluster_checks.rebalance_with_utilization") {
 			workers, err := d.clcRunnersClient.GetRunnerWorkers(ip)
 			if err != nil {
 				// This can happen in old versions of the runners that do not expose this information.

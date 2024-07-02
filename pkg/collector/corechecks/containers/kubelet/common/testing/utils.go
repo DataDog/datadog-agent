@@ -10,6 +10,7 @@ package testing
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -17,7 +18,8 @@ import (
 
 	tmock "github.com/stretchr/testify/mock"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -157,7 +159,7 @@ func CreateKubeletMock(response EndpointResponse, endpoint string) (*mock.Kubele
 }
 
 // StorePopulatedFromFile populates a workloadmeta.Store based on pod data from a given file.
-func StorePopulatedFromFile(store workloadmeta.Mock, filename string, podUtils *common.PodUtils) error {
+func StorePopulatedFromFile(store workloadmetamock.Mock, filename string, podUtils *common.PodUtils) error {
 	if filename == "" {
 		return nil
 	}
@@ -185,7 +187,7 @@ func StorePopulatedFromFile(store workloadmeta.Mock, filename string, podUtils *
 
 			image, err := workloadmeta.NewContainerImage(container.ImageID, container.Image)
 			if err != nil {
-				if err == containers.ErrImageIsSha256 {
+				if errors.Is(err, containers.ErrImageIsSha256) {
 					// try the resolved image ID if the image name in the container
 					// status is a SHA256. this seems to happen sometimes when
 					// pinning the image to a SHA256

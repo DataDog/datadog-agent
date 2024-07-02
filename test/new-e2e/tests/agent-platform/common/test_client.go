@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
 	boundport "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/bound-port"
@@ -119,7 +120,8 @@ func (c *TestClient) SetConfig(confPath string, key string, value string) error 
 	return err
 }
 
-func (c *TestClient) getJSONStatus() (map[string]any, error) {
+// GetJSONStatus returns the status of the Agent in JSON format
+func (c *TestClient) GetJSONStatus() (map[string]any, error) {
 	statusJSON := map[string]any{}
 	ok := false
 	var statusString string
@@ -153,7 +155,7 @@ func (c *TestClient) getJSONStatus() (map[string]any, error) {
 
 // GetPythonVersion returns python version from the Agent status
 func (c *TestClient) GetPythonVersion() (string, error) {
-	statusJSON, err := c.getJSONStatus()
+	statusJSON, err := c.GetJSONStatus()
 	if err != nil {
 		return "", err
 	}
@@ -164,7 +166,7 @@ func (c *TestClient) GetPythonVersion() (string, error) {
 
 // GetAgentVersion returns agent version from the Agent status
 func (c *TestClient) GetAgentVersion() (string, error) {
-	statusJSON, err := c.getJSONStatus()
+	statusJSON, err := c.GetJSONStatus()
 	if err != nil {
 		return "", err
 	}
@@ -190,10 +192,11 @@ func (c *TestClient) ExecuteWithRetry(cmd string) (string, error) {
 }
 
 // NewWindowsTestClient create a TestClient for Windows VM
-func NewWindowsTestClient(t *testing.T, host *components.RemoteHost) *TestClient {
+func NewWindowsTestClient(context e2e.Context, host *components.RemoteHost) *TestClient {
 	fileManager := filemanager.NewRemoteHost(host)
+	t := context.T()
 
-	agentClient, err := client.NewHostAgentClient(t, host, false)
+	agentClient, err := client.NewHostAgentClient(context, host.HostOutput, false)
 	require.NoError(t, err)
 
 	helper := helpers.NewWindowsHelper()

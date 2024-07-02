@@ -22,6 +22,7 @@ import (
 
 	"github.com/gorilla/mux"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/env"
 	"github.com/DataDog/datadog-agent/pkg/internaltelemetry"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	traceconfig "github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -54,15 +55,15 @@ type Telemetry struct {
 }
 
 // NewTelemetry creates a new telemetry instance
-func NewTelemetry(apiKey string, site string, service string) (*Telemetry, error) {
+func NewTelemetry(env *env.Env, service string) (*Telemetry, error) {
 	endpoint := &traceconfig.Endpoint{
-		Host:   fmt.Sprintf("https://%s.%s", telemetrySubdomain, strings.TrimSpace(site)),
-		APIKey: apiKey,
+		Host:   fmt.Sprintf("https://%s.%s", telemetrySubdomain, strings.TrimSpace(env.Site)),
+		APIKey: env.APIKey,
 	}
 	listener := newTelemetryListener()
 	t := &Telemetry{
-		telemetryClient: internaltelemetry.NewClient(http.DefaultClient, []*traceconfig.Endpoint{endpoint}, service, site == "datad0g.com"),
-		site:            site,
+		telemetryClient: internaltelemetry.NewClient(http.DefaultClient, []*traceconfig.Endpoint{endpoint}, service, env.Site == "datad0g.com"),
+		site:            env.Site,
 		service:         service,
 		listener:        listener,
 		server:          &http.Server{},
@@ -89,7 +90,7 @@ func (t *Telemetry) Start(_ context.Context) error {
 		env = "staging"
 	}
 	tracer.Start(
-		tracer.WithServiceName(t.service),
+		tracer.WithService(t.service),
 		tracer.WithServiceVersion(version.AgentVersion),
 		tracer.WithEnv(env),
 		tracer.WithGlobalTag("site", t.site),

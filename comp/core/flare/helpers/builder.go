@@ -15,9 +15,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mholt/archiver/v3"
-
 	"github.com/DataDog/datadog-agent/comp/core/flare/types"
+	"github.com/DataDog/datadog-agent/pkg/util/archive"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
@@ -148,9 +147,7 @@ func (fb *builder) Save() (string, error) {
 	// We first create the archive in our fb.tmpDir directory which is only readable by the current user (and
 	// SYSTEM/ADMIN on Windows). Then we retrict the archive permissions before moving it to the system temporary
 	// directory. This prevents other users from being able to read local flares.
-
-	// File format is determined based on archivePath extension, so zip
-	err := archiver.Archive([]string{fb.flareDir}, archiveTmpPath)
+	err := archive.Zip([]string{fb.flareDir}, archiveTmpPath)
 	if err != nil {
 		return "", err
 	}

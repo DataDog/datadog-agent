@@ -9,127 +9,40 @@ package bootstraper
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"os"
-	"path/filepath"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/env"
+	"github.com/DataDog/datadog-agent/pkg/fleet/internal/bootstrap"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/exec"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/oci"
 )
 
 const (
 	installerPackage = "datadog-installer"
-	installerBinPath = "bin/installer/installer"
 )
 
-// Option are the options for the bootstraper.
-type Option func(*options)
-
-type options struct {
-	installerVersion string
-	registryAuth     string
-	registry         string
-	apiKey           string
-	site             string
-}
-
-func newOptions() *options {
-	return &options{
-		installerVersion: "latest",
-		registryAuth:     oci.RegistryAuthDefault,
-		registry:         "",
-		apiKey:           "",
-		site:             "datadoghq.com",
+// Bootstrap bootstraps the installer and uses it to install the default packages.
+func Bootstrap(ctx context.Context, env *env.Env) error {
+	version := "latest"
+	if env.DefaultPackagesVersionOverride[installerPackage] != "" {
+		version = env.DefaultPackagesVersionOverride[installerPackage]
 	}
-}
-
-// WithInstallerVersion sets the installer version.
-func WithInstallerVersion(installerVersion string) Option {
-	return func(o *options) {
-		o.installerVersion = installerVersion
-	}
-}
-
-// WithRegistryAuth sets the registry authentication method.
-func WithRegistryAuth(registryAuth string) Option {
-	return func(o *options) {
-		o.registryAuth = registryAuth
-	}
-}
-
-// WithRegistry sets the registry URL.
-func WithRegistry(registry string) Option {
-	return func(o *options) {
-		o.registry = registry
-	}
-}
-
-// WithAPIKey sets the API key.
-func WithAPIKey(apiKey string) Option {
-	return func(o *options) {
-		o.apiKey = apiKey
-	}
-}
-
-// WithSite sets the site.
-func WithSite(site string) Option {
-	return func(o *options) {
-		o.site = site
-	}
-}
-
-// Bootstrap installs a first version of the installer on the disk.
-//
-// The bootstrap process is composed of the following steps:
-// 1. Download the installer package from the registry.
-// 2. Export the installer image as an OCI layout on the disk.
-// 3. Extract the installer image layers on the disk.
-// 4. Run the installer from the extract layer with `install file://<layout-path>`.
-func Bootstrap(ctx context.Context, opts ...Option) error {
-	o := newOptions()
-	for _, opt := range opts {
-		opt(o)
-	}
-
-	// 1. Download the installer package from the registry.
-	downloader := oci.NewDownloader(http.DefaultClient, o.registry, o.registryAuth)
-	installerURL := oci.PackageURL(o.site, installerPackage, o.installerVersion)
-	downloadedPackage, err := downloader.Download(ctx, installerURL)
+	installerURL := oci.PackageURL(env, installerPackage, version)
+	err := bootstrap.Install(ctx, env, installerURL)
 	if err != nil {
-		return fmt.Errorf("failed to download installer package: %w", err)
-	}
-	if downloadedPackage.Name != installerPackage {
-		return fmt.Errorf("unexpected package name: %s, expected %s", downloadedPackage.Name, installerPackage)
+		return fmt.Errorf("failed to bootstrap the installer: %w", err)
 	}
 
-	// 2. Export the installer image as an OCI layout on the disk.
-	layoutTmpDir, err := os.MkdirTemp("", "")
+	cmd := exec.NewInstallerExec(env, exec.StableInstallerPath)
+	defaultPackages, err := cmd.DefaultPackages(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to create temporary directory: %w", err)
+		return fmt.Errorf("failed to get default packages: %w", err)
 	}
-	defer os.RemoveAll(layoutTmpDir)
-	err = downloadedPackage.WriteOCILayout(layoutTmpDir)
-	if err != nil {
-		return fmt.Errorf("failed to write OCI layout: %w", err)
-	}
-
-	// 3. Extract the installer image layers on the disk.
-	binTmpDir, err := os.MkdirTemp("", "")
-	if err != nil {
-		return fmt.Errorf("failed to create temporary directory: %w", err)
-	}
-	defer os.RemoveAll(binTmpDir)
-	err = downloadedPackage.ExtractLayers(oci.DatadogPackageLayerMediaType, binTmpDir)
-	if err != nil {
-		return fmt.Errorf("failed to extract layers: %w", err)
-	}
-
-	// 4. Run the installer from the extract layer with `install file://<layout-path>`.
-	installerBinPath := filepath.Join(binTmpDir, installerBinPath)
-	cmd := exec.NewInstallerExec(installerBinPath, o.registry, o.registryAuth, o.apiKey, o.site)
-	err = cmd.Install(ctx, fmt.Sprintf("file://%s", layoutTmpDir))
-	if err != nil {
-		return fmt.Errorf("failed to run installer: %w", err)
+	for _, url := range defaultPackages {
+		err = cmd.Install(ctx, url, nil)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "failed to install package %s: %v\n", url, err)
+		}
 	}
 	return nil
 }

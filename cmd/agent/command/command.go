@@ -34,9 +34,18 @@ type GlobalParams struct {
 	// file, to allow overrides from the command line
 	ConfFilePath string
 
+	// ExtraConfFilePath represents the paths to additional configuration files.
+	ExtraConfFilePath []string
+
 	// SysProbeConfFilePath holds the path to the folder containing the system-probe
 	// configuration file, to allow overrides from the command line
 	SysProbeConfFilePath string
+
+	// LogStreamFilePath holds the path to the logstream log path
+	LogStreamFilePath string
+
+	// NoColor is a flag to disable color output
+	NoColor bool
 }
 
 // SubcommandFactory is a callable that will return a slice of subcommands.
@@ -46,7 +55,7 @@ type SubcommandFactory func(globalParams *GlobalParams) []*cobra.Command
 // without secrets and logger disabled).
 func GetDefaultCoreBundleParams(globalParams *GlobalParams) core.BundleParams {
 	return core.BundleParams{
-		ConfigParams: config.NewAgentParams(globalParams.ConfFilePath),
+		ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(globalParams.ExtraConfFilePath)),
 		LogParams:    logimpl.ForOneShot(LoggerName, "off", true)}
 }
 
@@ -71,15 +80,15 @@ monitoring and performance data.`,
 	}
 
 	agentCmd.PersistentFlags().StringVarP(&globalParams.ConfFilePath, "cfgpath", "c", "", "path to directory containing datadog.yaml")
+	agentCmd.PersistentFlags().StringArrayVarP(&globalParams.ExtraConfFilePath, "extracfgpath", "E", []string{}, "specify additional configuration files to be loaded sequentially after the main datadog.yaml")
 	agentCmd.PersistentFlags().StringVarP(&globalParams.SysProbeConfFilePath, "sysprobecfgpath", "", "", "path to directory containing system-probe.yaml")
 
 	// github.com/fatih/color sets its global color.NoColor to a default value based on
 	// whether the process is running in a tty.  So, we only want to override that when
 	// the value is true.
-	var noColorFlag bool
-	agentCmd.PersistentFlags().BoolVarP(&noColorFlag, "no-color", "n", false, "disable color output")
+	agentCmd.PersistentFlags().BoolVarP(&globalParams.NoColor, "no-color", "n", false, "disable color output")
 	agentCmd.PersistentPreRun = func(*cobra.Command, []string) {
-		if noColorFlag {
+		if globalParams.NoColor {
 			color.NoColor = true
 		}
 	}

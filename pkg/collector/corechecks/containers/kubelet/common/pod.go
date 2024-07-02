@@ -14,15 +14,16 @@ import (
 	"github.com/prometheus/common/model"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var (
-	volumeTagKeysToExclude = []string{"persistentvolumeclaim", "pod_phase"}
+	volumeTagKeysToExclude = []string{tags.KubePersistentVolumeClaim, tags.PodPhase}
 )
 
 type podMetadata struct {

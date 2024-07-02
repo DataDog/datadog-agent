@@ -12,24 +12,6 @@
 #include "protocols/http/types.h"
 #include "protocols/read_into_buffer.h"
 
-#define PAGESIZE 4096
-
-#define READ_INTO_USER_BUFFER_INTERNAL(name, total_size, fn)                                                            \
-    static __always_inline void read_into_user_buffer_##name(char *dst, char *src) {                                    \
-        bpf_memset(dst, 0, total_size);                                                                                 \
-        long ret = fn(dst, total_size, src);                                                                            \
-        if (ret >= 0) {                                                                                                 \
-            return;                                                                                                     \
-        }                                                                                                               \
-        const __u64 read_size_until_end_of_page = PAGESIZE - ((__u64)src % PAGESIZE);                                   \
-        const __u64 size_to_read = read_size_until_end_of_page < total_size ? read_size_until_end_of_page : total_size; \
-        fn(dst, size_to_read, src);                                                                                     \
-        return;                                                                                                         \
-    }
-
-#define READ_INTO_USER_BUFFER(name, total_size) READ_INTO_USER_BUFFER_INTERNAL(name, total_size, bpf_probe_read_user_with_telemetry)
-#define READ_INTO_USER_BUFFER_WITHOUT_TELEMETRY(name, total_size) READ_INTO_USER_BUFFER_INTERNAL(name, total_size, bpf_probe_read_user)
-
 READ_INTO_USER_BUFFER(http, HTTP_BUFFER_SIZE)
 READ_INTO_USER_BUFFER(classification, CLASSIFICATION_MAX_BUFFER)
 

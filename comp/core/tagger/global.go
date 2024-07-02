@@ -22,14 +22,6 @@ var (
 	// initOnce ensures that the global tagger is only initialized once.  It is reset every
 	// time the default tagger is set.
 	initOnce sync.Once
-
-	// ChecksCardinality defines the cardinality of tags we should send for check metrics
-	// this can still be overridden when calling get_tags in python checks.
-	ChecksCardinality types.TagCardinality
-
-	// DogstatsdCardinality defines the cardinality of tags we should send for metrics from
-	// dogstatsd.
-	DogstatsdCardinality types.TagCardinality
 )
 
 // SetGlobalTaggerClient sets the global taggerClient instance
@@ -132,4 +124,20 @@ func EnrichTags(tb tagset.TagsAccumulator, originInfo taggertypes.OriginInfo) {
 	if globalTagger != nil {
 		globalTagger.EnrichTags(tb, originInfo)
 	}
+}
+
+// ChecksCardinality is an interface function that queries taggerclient singleton
+func ChecksCardinality() types.TagCardinality {
+	if globalTagger != nil {
+		return globalTagger.ChecksCardinality()
+	}
+	return types.LowCardinality
+}
+
+// DogstatsdCardinality is an interface function that queries taggerclient singleton
+func DogstatsdCardinality() types.TagCardinality {
+	if globalTagger != nil {
+		return globalTagger.DogstatsdCardinality()
+	}
+	return types.LowCardinality
 }

@@ -11,7 +11,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector"
 	"github.com/DataDog/datadog-agent/comp/process/connectionscheck"
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
@@ -33,9 +34,10 @@ type check struct {
 type dependencies struct {
 	fx.In
 
-	Sysconfig sysprobeconfig.Component
-	Config    config.Component
-	WMeta     workloadmeta.Component
+	Sysconfig   sysprobeconfig.Component
+	Config      config.Component
+	WMeta       workloadmeta.Component
+	NpCollector npcollector.Component
 }
 
 type result struct {
@@ -47,7 +49,7 @@ type result struct {
 
 func newCheck(deps dependencies) result {
 	c := &check{
-		connectionsCheck: checks.NewConnectionsCheck(deps.Config, deps.Sysconfig, deps.Sysconfig.SysProbeObject(), deps.WMeta),
+		connectionsCheck: checks.NewConnectionsCheck(deps.Config, deps.Sysconfig, deps.Sysconfig.SysProbeObject(), deps.WMeta, deps.NpCollector),
 	}
 	return result{
 		Check: types.ProvidesCheck{

@@ -37,6 +37,10 @@ The payload is a JSON dict with the following fields
     - `state` - **dict of string**: the current state of the log source.
       - `status` - **string**: one of `pending`, `error` or `success`.
       - `error` - **string**: the error description if any.
+    - `integration_name` - **string**: the name of the integration, can be empty.
+    - `service` - **string**: the service name of the log source.
+    - `source` - **string**: the log source name.
+    - `tags` - **list of string**: a list of tags attached to the log source.
 
 ("scrubbed" indicates that secrets are removed from the field value just as they are in logs)
 
@@ -116,6 +120,7 @@ Here an example of an inventory payload:
         "redisdb": [
             {
                 "config": "{\"path\":\"/var/log/redis_6379.log\",\"service\":\"myredis2\",\"source\":\"redis\",\"type\":\"file\",\"tags\":[\"env:prod\"]}",
+                "integration_name": "redis",
                 "service": "awesome_cache",
                 "source": "source1",
                 "state": {
@@ -128,6 +133,7 @@ Here an example of an inventory payload:
         "nginx": [
             {
                 "config": "{\"path\":\"/var/log/nginx/access.log\",\"service\":\"nginx\",\"source\":\"nginx\",\"type\":\"file\"}",
+                "integration_name": "nginx",
                 "service": "nginx",
                 "source": "source2",
                 "state": {
