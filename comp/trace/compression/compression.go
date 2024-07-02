@@ -3,5 +3,5 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-// Package compression provides a compression implementation based on the configuration or available build tags.
+// Package compression provides a compression implementation for trace payloads.
 package compression

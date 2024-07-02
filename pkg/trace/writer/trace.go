@@ -131,7 +131,7 @@ func NewTraceWriter(
 		tw.tick = time.Duration(s*1000) * time.Millisecond
 	}
 	qsize := 1
-	log.Infof("Trace writer initialized (climit=%d qsize=%d)", climit, qsize)
+	log.Infof("Trace writer initialized (climit=%d qsize=%d compression=%s)", climit, qsize, compressor.Encoding())
 	tw.senders = newSenders(cfg, tw, pathTraces, climit, qsize, telemetryCollector, statsd)
 	for i := 0; i < runtime.GOMAXPROCS(0); i++ {
 		tw.wg.Add(1)

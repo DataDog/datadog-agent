@@ -13,6 +13,7 @@ import (
 	agentConfig "github.com/DataDog/datadog-agent/cmd/otel-agent/config"
 	"github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/remotehostnameimpl"
@@ -43,6 +44,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl/strategy"
 	tracecomp "github.com/DataDog/datadog-agent/comp/trace"
 	traceagentcomp "github.com/DataDog/datadog-agent/comp/trace/agent/impl"
+	tracecompression "github.com/DataDog/datadog-agent/comp/trace/compression/def"
+	gzip "github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip"
 	traceconfig "github.com/DataDog/datadog-agent/comp/trace/config"
 	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -164,6 +167,9 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 		taggerimpl.Module(),
 		fx.Provide(func(cfg traceconfig.Component) telemetry.TelemetryCollector {
 			return telemetry.NewCollector(cfg.Object())
+		}),
+		fx.Provide(func(cfg config.Component) tracecompression.Component {
+			return gzip.NewComponent()
 		}),
 
 		// ctx is required to be supplied from here, as Windows needs to inject its own context
