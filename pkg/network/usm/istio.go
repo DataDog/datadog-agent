@@ -95,6 +95,7 @@ var readBufferPool = ddsync.NewSlicePool[byte](128, 128)
 type istioMonitor struct {
 	registry *utils.FileRegistry
 	procRoot string
+	envoyCmd []byte
 
 	// `utils.FileRegistry` callbacks
 	registerCB   func(utils.FilePath) error
@@ -114,9 +115,14 @@ func newIstioMonitor(c *config.Config, mgr *manager.Manager) *istioMonitor {
 	}
 
 	procRoot := kernel.ProcFSRoot()
+	envoyCommand := envoyCmd
+	if c.EnvoyPath != "" {
+		envoyCommand = []byte(c.EnvoyPath)
+	}
 	return &istioMonitor{
 		registry: utils.NewFileRegistry("istio"),
 		procRoot: procRoot,
+		envoyCmd: envoyCommand,
 		done:     make(chan struct{}),
 
 		// Callbacks
@@ -285,11 +291,11 @@ func (m *istioMonitor) getEnvoyPath(pid uint32) string {
 	}
 
 	buffer = buffer[:n]
-	i := bytes.Index(buffer, envoyCmd)
+	i := bytes.Index(buffer, m.envoyCmd)
 	if i < 0 {
 		return ""
 	}
 
-	executable := buffer[:i+len(envoyCmd)]
+	executable := buffer[:i+len(m.envoyCmd)]
 	return string(executable)
 }

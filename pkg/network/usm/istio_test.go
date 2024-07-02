@@ -34,6 +34,18 @@ func TestGetEnvoyPath(t *testing.T) {
 	})
 }
 
+func TestGetEnvoyPathWithConfig(t *testing.T) {
+	t.Setenv("DD_SERVICE_MONITORING_CONFIG_TLS_ISTIO_ENVOY_PATH", "/envoy")
+
+	_ = createFakeProcFS(t)
+	monitor := newIstioTestMonitor(t)
+
+	t.Run("an actual envoy process", func(t *testing.T) {
+		path := monitor.getEnvoyPath(uint32(4))
+		assert.Equal(t, "/usr/local/envoy", path)
+	})
+}
+
 func TestIstioSync(t *testing.T) {
 	t.Run("calling sync for the first time", func(t *testing.T) {
 		procRoot := createFakeProcFS(t)
@@ -160,6 +172,16 @@ func createFakeProcFS(t *testing.T) (procRoot string) {
 		"--allow-unknown-static-fields" +
 		"--log-format"
 
+	const envoyTestCmdline = "/usr/local/envoy" +
+		"-cetc/istio/proxy/envoy-rev.json" +
+		"--drain-time-s45" +
+		"--drain-strategyimmediate" +
+		"--local-address-ip-versionv4" +
+		"--file-flush-interval-msec1000" +
+		"--disable-hot-restart" +
+		"--allow-unknown-static-fields" +
+		"--log-format"
+
 	// PID 1
 	createFile(t,
 		filepath.Join(procRoot, "1", "cmdline"),
@@ -183,6 +205,16 @@ func createFakeProcFS(t *testing.T) (procRoot string) {
 	)
 	createFile(t,
 		filepath.Join(procRoot, "3", "root/usr/local/bin/envoy"),
+		"",
+	)
+
+	// PID 4
+	createFile(t,
+		filepath.Join(procRoot, "4", "cmdline"),
+		envoyTestCmdline,
+	)
+	createFile(t,
+		filepath.Join(procRoot, "4", "root/usr/local/envoy"),
 		"",
 	)
 
