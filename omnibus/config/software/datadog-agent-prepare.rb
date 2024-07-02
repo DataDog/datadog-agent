@@ -4,7 +4,7 @@
 # Copyright 2016-present Datadog, Inc.
 
 name "datadog-agent-prepare"
-description "steps required to preprare the build"
+description "steps required to prepare the build"
 default_version "1.0.0"
 
 skip_transitive_dependency_licensing true
