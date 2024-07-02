@@ -29,7 +29,10 @@ import (
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/connectivity"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
+<<<<<<< HEAD
+=======
 	"github.com/DataDog/datadog-agent/pkg/diagnose/ports"
+>>>>>>> 2fd2af5f17 (add port-conflict diagnose suite (#25209))
 )
 
 // Overall running statistics
@@ -407,7 +410,9 @@ func runStdOut(w io.Writer, diagCfg diagnosis.Config, run func(diagnosis.Config)
 		color.NoColor = true
 	}
 
-	fmt.Fprintf(w, "=== Starting diagnose ===\n")
+	if !diagCfg.JSON {
+		fmt.Fprintf(w, "=== Starting diagnose ===\n")
+	}
 
 	diagnoses, err := run(diagCfg)
 	if err != nil && !diagCfg.RunLocal {
@@ -421,6 +426,74 @@ func runStdOut(w io.Writer, diagCfg diagnosis.Config, run func(diagnosis.Config)
 
 	if err != nil {
 		fmt.Fprintln(w, color.RedString(fmt.Sprintf("Error running diagnose: %s", err)))
+		return nil, err
+	}
+
+	return diagnoses, nil
+}
+
+// RunJSON enumerate registered Diagnose suites and get their diagnoses
+// for human consumption in json format output
+func RunJSON(w io.Writer, diagCfg diagnosis.Config, deps SuitesDeps) error {
+	/* Define JSON output structure in the shape of:
+	{
+		"<category name>" : {
+			"<diagnose name>": {
+			diagnosis: string
+			statusCode: int
+			isOk: bool
+			},
+		},
+	}
+	*/
+	// Diagnosis represents the innermost data structure
+	type diagnosis struct {
+		Diagnosis  string `json:"diagnosis"`
+		StatusCode int    `json:"statusCode"`
+		IsOk       bool   `json:"isOk"`
+	}
+	// Category maps a diagnosis name to its details
+	type categoryName map[string]diagnosis
+	// JSONOutput maps a category name to its details
+	type JSONOutput map[string]categoryName
+
+	diagnose, err := runDiagnose(w, diagCfg, deps)
+	if err != nil {
+		// Make new error with JSON format
+		newErr := fmt.Errorf("{\"error\": \"%s\"}", err.Error())
+		return newErr
+	}
+
+	jsonOutput := make(JSONOutput)
+	for _, ds := range diagnose {
+		category := make(categoryName)
+		for _, d := range ds.SuiteDiagnoses {
+			category[d.Name] = diagnosis{
+				Diagnosis:  d.Diagnosis,
+				StatusCode: d.ResultCode,
+				IsOk:       d.Result == 0,
+			}
+		}
+		jsonOutput[ds.SuiteName] = category
+	}
+
+	// Print json on stdout with w
+	jsonBytes, err := json.MarshalIndent(jsonOutput, "", "  ")
+	if err != nil {
+		return fmt.Errorf("error while encoding diagnose results to JSON: %w", err)
+	}
+	fmt.Fprintln(w, string(jsonBytes))
+
+	return nil
+}
+
+// Enumerate registered Diagnose suites and get their diagnoses
+// for human consumption
+//
+//nolint:revive // TODO(CINT) Fix revive linter
+func RunStdOut(w io.Writer, diagCfg diagnosis.Config, deps SuitesDeps) error {
+	diagnoses, err := runDiagnose(w, diagCfg, deps)
+	if err != nil {
 		return err
 	}
 

@@ -53,6 +53,9 @@ type cliParams struct {
 	// it is the, value of the --verbose flag
 	verbose bool
 
+	// json will output the diagnosis results in JSON format, value of the --json flag
+	json bool
+
 	// run diagnose in the context of CLI process instead of running in the context of agent service irunni, value of the --local flag
 	runLocal bool
 
@@ -114,6 +117,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	// Normally a successful diagnosis is printed as a single dot character. If verbose option is specified
 	// successful diagnosis is printed fully. With verbose option diagnosis description is also printed.
 	diagnoseCommand.PersistentFlags().BoolVarP(&cliParams.verbose, "verbose", "v", false, "verbose output, includes passed diagnoses, and diagnoses description")
+
+	// Output format can be changed to JSON. In this case diagnosis results will be printed in JSON format.
+	diagnoseCommand.PersistentFlags().BoolVarP(&cliParams.json, "json", "j", false, "output diagnosis results in JSON format")
 
 	// List names of all registered diagnose suites. Output also will be filtered if include and or exclude
 	// options are specified
@@ -287,6 +293,7 @@ func cmdDiagnose(cliParams *cliParams,
 	_ log.Component,
 ) error {
 	diagCfg := diagnosis.Config{
+		JSON:     cliParams.json,
 		Verbose:  cliParams.verbose,
 		RunLocal: cliParams.runLocal,
 		Include:  cliParams.include,
@@ -296,11 +303,13 @@ func cmdDiagnose(cliParams *cliParams,
 	// Is it List command
 	if cliParams.listSuites {
 		diagnose.ListStdOut(color.Output, diagCfg)
+		diagnose.ListStdOut(color.Output, diagCfg)
 		return nil
 	}
 
 	diagnoseDeps := diagnose.NewSuitesDepsInCLIProcess(senderManager, secretResolver, wmeta, ac)
 	// Run command
+	return diagnose.RunStdOutInCLIProcess(color.Output, diagCfg, diagnoseDeps)
 	return diagnose.RunStdOutInCLIProcess(color.Output, diagCfg, diagnoseDeps)
 }
 

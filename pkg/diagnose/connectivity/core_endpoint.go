@@ -66,12 +66,13 @@ func Diagnose(diagCfg diagnosis.Config) []diagnosis.Diagnosis {
 				Diagnosis:   "Misconfiguration of agent endpoints",
 				Remediation: "Please validate agent configuration",
 				RawError:    err.Error(),
+				ResultCode:  400, // Hardcoded 400 status code since error is not nil
 			})
 		} else {
 			url, err := logshttp.CheckConnectivityDiagnose(endpoints.Main, config.Datadog())
 
 			name := fmt.Sprintf("Connectivity to %s", url)
-			diag := createDiagnosis(name, url, "", err)
+			diag := createDiagnosis(url, 200, name, url, "", err) // Hardcoded 200 status code since error is nil
 
 			diagnoses = append(diagnoses, diag)
 		}
@@ -91,6 +92,7 @@ func Diagnose(diagCfg diagnosis.Config) []diagnosis.Diagnosis {
 				var err error
 				var statusCode int
 				var httpTraces []string
+				endpointName := endpointInfo.Endpoint.Name
 
 				if endpointInfo.Method == "HEAD" {
 					logURL = endpointInfo.Endpoint.Route
@@ -106,7 +108,7 @@ func Diagnose(diagCfg diagnosis.Config) []diagnosis.Diagnosis {
 				// Check if there is a response and if it's valid
 				report, reportErr := verifyEndpointResponse(diagCfg, statusCode, responseBody, err)
 				diagnosisName := "Connectivity to " + logURL
-				d := createDiagnosis(diagnosisName, logURL, report, reportErr)
+				d := createDiagnosis(endpointName, statusCode, diagnosisName, logURL, report, reportErr)
 
 				// Prepend http trace on error or if in verbose mode
 				if len(httpTraces) > 0 && (diagCfg.Verbose || reportErr != nil) {
@@ -119,10 +121,12 @@ func Diagnose(diagCfg diagnosis.Config) []diagnosis.Diagnosis {
 	return diagnoses
 }
 
-func createDiagnosis(name string, logURL string, report string, err error) diagnosis.Diagnosis {
+func createDiagnosis(endpointName string, statusCode int, name string, logURL string, report string, err error) diagnosis.Diagnosis {
 	d := diagnosis.Diagnosis{
-		Name: name,
+		Name:       name,
+		ResultCode: statusCode,
 	}
+	d.Name = endpointName
 
 	if err == nil {
 		d.Result = diagnosis.DiagnosisSuccess
