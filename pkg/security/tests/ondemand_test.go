@@ -30,7 +30,7 @@ func TestOnDemandOpen(t *testing.T) {
 			Args: []rules.HookPointArg{
 				{
 					N:    1,
-					Kind: "int",
+					Kind: "uint",
 				},
 				{
 					N:    2,
