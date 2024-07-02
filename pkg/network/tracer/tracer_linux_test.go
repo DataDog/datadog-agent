@@ -1991,7 +1991,9 @@ func (s *TracerSuite) TestEbpfTelemetry() {
 		t.Skip("HTTPS feature not available/supported for this setup")
 	}
 
-	tr := setupTracer(t, cfg)
+	_ = setupTracer(t, cfg)
+	c := ebpftelemetry.NewEBPFErrorsCollector()
+	require.NotNilf(t, c, "Failed to initialize ebpf telemetry collector")
 
 	expectedErrorTP := "tracepoint__syscalls__sys_enter_openat"
 	syscallNumber := syscall.SYS_OPENAT
@@ -2001,7 +2003,6 @@ func (s *TracerSuite) TestEbpfTelemetry() {
 		// printf SYS_openat2 | gcc -include sys/syscall.h -E -
 		syscallNumber = 437
 	}
-
 	// Ensure `bpf_probe_read_user` fails by passing an address guaranteed to pagefault to open syscall.
 	addr, _, sysErr := syscall.Syscall6(syscall.SYS_MMAP, uintptr(0), uintptr(syscall.Getpagesize()), syscall.PROT_READ|syscall.PROT_WRITE, syscall.MAP_ANON|syscall.MAP_PRIVATE, 0, 0)
 	require.Zero(t, sysErr)
@@ -2014,10 +2015,14 @@ func (s *TracerSuite) TestEbpfTelemetry() {
 	err := exec.Command(cmd[0], cmd[1:]...).Run()
 	require.NoError(t, err)
 
+	validateMetrics(c, t, expectedErrorTP)
+}
+
+func validateMetrics(c prometheus.Collector, t *testing.T, expectedErrorTP string) {
 	//trigger collector in a separate goroutine
 	ch := make(chan prometheus.Metric)
 	go func() {
-		tr.bpfErrorsCollector.Collect(ch)
+		c.Collect(ch)
 		close(ch)
 	}()
 
@@ -2032,8 +2037,8 @@ func (s *TracerSuite) TestEbpfTelemetry() {
 	foundHelperMetric, foundMapMetric := false, false
 	for _, promMetric := range metrics {
 		dtoMetric := dto.Metric{}
-		assert.NoError(t, promMetric.Write(&dtoMetric), "Failed to parse metric %v", promMetric.Desc())
-		assert.NotNilf(t, dtoMetric.GetCounter(), "expected metric %v to be of a counter type", promMetric.Desc())
+		require.NoError(t, promMetric.Write(&dtoMetric), "Failed to parse metric %v", promMetric.Desc())
+		require.NotNilf(t, dtoMetric.GetCounter(), "expected metric %v to be of a counter type", promMetric.Desc())
 
 		//check we found expected helper and map errors metrics by matching all relevant labels
 		helperMatchingLabelsCount = 0
