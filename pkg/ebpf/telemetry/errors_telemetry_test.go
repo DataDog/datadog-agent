@@ -14,7 +14,10 @@ import (
 
 	"golang.org/x/sys/unix"
 
+	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	aconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
+
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
@@ -40,6 +43,19 @@ var m = &manager.Manager{
 	},
 }
 
+type config struct {
+	bpfDir string
+}
+
+func testConfig() *config {
+	cfg := aconfig.SystemProbe
+	sysconfig.Adjust(cfg)
+
+	return &config{
+		bpfDir: cfg.GetString("system_probe_config.bpf_dir"),
+	}
+}
+
 func skipTestIfEBPFTelemetryNotSupported(t *testing.T) {
 	ok, err := ebpfTelemetrySupported()
 	require.NoError(t, err)
@@ -49,10 +65,9 @@ func skipTestIfEBPFTelemetryNotSupported(t *testing.T) {
 }
 
 func triggerTestAndGetTelemetry(t *testing.T) []prometheus.Metric {
-	bpfDir := os.Getenv("DD_SYSTEM_PROBE_BPF_DIR")
-	require.True(t, bpfDir != "")
+	cfg := testConfig()
 
-	buf, err := bytecode.GetReader(bpfDir, "error_telemetry.o")
+	buf, err := bytecode.GetReader(cfg.bpfDir, "error_telemetry.o")
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = buf.Close })
 
