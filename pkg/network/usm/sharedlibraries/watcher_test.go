@@ -48,7 +48,6 @@ func launchProcessMonitor(t *testing.T, useEventStream bool) {
 
 type SharedLibrarySuite struct {
 	suite.Suite
-	useEventStream bool
 }
 
 func TestSharedLibrary(t *testing.T) {
