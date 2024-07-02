@@ -1478,6 +1478,10 @@ CSM Threats event for Linux systems have the following JSON schema:
                 "gid": {
                     "type": "integer",
                     "description": "GID argument"
+                },
+                "dirfd": {
+                    "type": "integer",
+                    "description": "Directory file descriptor argument"
                 }
             },
             "additionalProperties": false,
@@ -1499,6 +1503,9 @@ CSM Threats event for Linux systems have the following JSON schema:
                     "$ref": "#/$defs/SyscallArgs"
                 },
                 "open": {
+                    "$ref": "#/$defs/SyscallArgs"
+                },
+                "unlink": {
                     "$ref": "#/$defs/SyscallArgs"
                 }
             },
@@ -3869,6 +3876,10 @@ CSM Threats event for Linux systems have the following JSON schema:
         "gid": {
             "type": "integer",
             "description": "GID argument"
+        },
+        "dirfd": {
+            "type": "integer",
+            "description": "Directory file descriptor argument"
         }
     },
     "additionalProperties": false,
@@ -3885,6 +3896,7 @@ CSM Threats event for Linux systems have the following JSON schema:
 | `mode` | Mode argument |
 | `uid` | UID argument |
 | `gid` | GID argument |
+| `dirfd` | Directory file descriptor argument |
 
 
 ## `SyscallContext`
@@ -3907,6 +3919,9 @@ CSM Threats event for Linux systems have the following JSON schema:
         },
         "open": {
             "$ref": "#/$defs/SyscallArgs"
+        },
+        "unlink": {
+            "$ref": "#/$defs/SyscallArgs"
         }
     },
     "additionalProperties": false,
@@ -3919,6 +3934,7 @@ CSM Threats event for Linux systems have the following JSON schema:
 
 | References |
 | ---------- |
+| [SyscallArgs](#syscallargs) |
 | [SyscallArgs](#syscallargs) |
 | [SyscallArgs](#syscallargs) |
 | [SyscallArgs](#syscallargs) |

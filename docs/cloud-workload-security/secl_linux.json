@@ -6618,6 +6618,21 @@
           "name": "unlink.retval",
           "definition": "Return value of the syscall",
           "property_doc_link": "common-syscallevent-retval-doc"
+        },
+        {
+          "name": "unlink.syscall.dirfd",
+          "definition": "Directory file descriptor argument of the syscall",
+          "property_doc_link": "unlink-syscall-dirfd-doc"
+        },
+        {
+          "name": "unlink.syscall.flags",
+          "definition": "Flags argument of the syscall",
+          "property_doc_link": "unlink-syscall-flags-doc"
+        },
+        {
+          "name": "unlink.syscall.path",
+          "definition": "Path argument of the syscall",
+          "property_doc_link": "unlink-syscall-path-doc"
         }
       ]
     },
@@ -9796,6 +9811,42 @@
       ],
       "constants": "Unlink flags",
       "constants_link": "unlink-flags",
+      "examples": []
+    },
+    {
+      "name": "unlink.syscall.dirfd",
+      "link": "unlink-syscall-dirfd-doc",
+      "type": "int",
+      "definition": "Directory file descriptor argument of the syscall",
+      "prefixes": [
+        "unlink"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "unlink.syscall.flags",
+      "link": "unlink-syscall-flags-doc",
+      "type": "int",
+      "definition": "Flags argument of the syscall",
+      "prefixes": [
+        "unlink"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "unlink.syscall.path",
+      "link": "unlink-syscall-path-doc",
+      "type": "string",
+      "definition": "Path argument of the syscall",
+      "prefixes": [
+        "unlink"
+      ],
+      "constants": "",
+      "constants_link": "",
       "examples": []
     },
     {

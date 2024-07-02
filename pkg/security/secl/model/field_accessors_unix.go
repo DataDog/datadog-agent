@@ -17983,6 +17983,78 @@ func (ev *Event) GetUnlinkRetval() int64 {
 	return ev.Unlink.SyscallEvent.Retval
 }
 
+// GetUnlinkSyscallDirfd returns the value of the field, resolving if necessary
+func (ev *Event) GetUnlinkSyscallDirfd() int {
+	if ev.GetEventType().String() != "unlink" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsInt1(ev, &ev.Unlink.SyscallContext)
+}
+
+// GetUnlinkSyscallFlags returns the value of the field, resolving if necessary
+func (ev *Event) GetUnlinkSyscallFlags() int {
+	if ev.GetEventType().String() != "unlink" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsInt3(ev, &ev.Unlink.SyscallContext)
+}
+
+// GetUnlinkSyscallInt1 returns the value of the field, resolving if necessary
+func (ev *Event) GetUnlinkSyscallInt1() int {
+	if ev.GetEventType().String() != "unlink" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsInt1(ev, &ev.Unlink.SyscallContext)
+}
+
+// GetUnlinkSyscallInt2 returns the value of the field, resolving if necessary
+func (ev *Event) GetUnlinkSyscallInt2() int {
+	if ev.GetEventType().String() != "unlink" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsInt2(ev, &ev.Unlink.SyscallContext)
+}
+
+// GetUnlinkSyscallInt3 returns the value of the field, resolving if necessary
+func (ev *Event) GetUnlinkSyscallInt3() int {
+	if ev.GetEventType().String() != "unlink" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsInt3(ev, &ev.Unlink.SyscallContext)
+}
+
+// GetUnlinkSyscallPath returns the value of the field, resolving if necessary
+func (ev *Event) GetUnlinkSyscallPath() string {
+	if ev.GetEventType().String() != "unlink" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsStr2(ev, &ev.Unlink.SyscallContext)
+}
+
+// GetUnlinkSyscallStr1 returns the value of the field, resolving if necessary
+func (ev *Event) GetUnlinkSyscallStr1() string {
+	if ev.GetEventType().String() != "unlink" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Unlink.SyscallContext)
+}
+
+// GetUnlinkSyscallStr2 returns the value of the field, resolving if necessary
+func (ev *Event) GetUnlinkSyscallStr2() string {
+	if ev.GetEventType().String() != "unlink" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsStr2(ev, &ev.Unlink.SyscallContext)
+}
+
+// GetUnlinkSyscallStr3 returns the value of the field, resolving if necessary
+func (ev *Event) GetUnlinkSyscallStr3() string {
+	if ev.GetEventType().String() != "unlink" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsStr3(ev, &ev.Unlink.SyscallContext)
+}
+
 // GetUnloadModuleName returns the value of the field, resolving if necessary
 func (ev *Event) GetUnloadModuleName() string {
 	if ev.GetEventType().String() != "unload_module" {

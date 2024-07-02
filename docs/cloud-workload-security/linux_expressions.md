@@ -1589,6 +1589,9 @@ A file was deleted
 | [`unlink.file.user`](#common-filefields-user-doc) | User of the file's owner |
 | [`unlink.flags`](#unlink-flags-doc) | Flags of the unlink syscall |
 | [`unlink.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
+| [`unlink.syscall.dirfd`](#unlink-syscall-dirfd-doc) | Directory file descriptor argument of the syscall |
+| [`unlink.syscall.flags`](#unlink-syscall-flags-doc) | Flags argument of the syscall |
+| [`unlink.syscall.path`](#unlink-syscall-path-doc) | Path argument of the syscall |
 
 ### Event `unload_module`
 
@@ -3003,6 +3006,27 @@ Definition: Flags of the unlink syscall
 
 
 Constants: [Unlink flags](#unlink-flags)
+
+
+
+### `unlink.syscall.dirfd` {#unlink-syscall-dirfd-doc}
+Type: int
+
+Definition: Directory file descriptor argument of the syscall
+
+
+
+### `unlink.syscall.flags` {#unlink-syscall-flags-doc}
+Type: int
+
+Definition: Flags argument of the syscall
+
+
+
+### `unlink.syscall.path` {#unlink-syscall-path-doc}
+Type: string
+
+Definition: Path argument of the syscall
 
 
 

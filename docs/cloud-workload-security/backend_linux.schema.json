@@ -1467,6 +1467,10 @@
         "gid": {
           "type": "integer",
           "description": "GID argument"
+        },
+        "dirfd": {
+          "type": "integer",
+          "description": "Directory file descriptor argument"
         }
       },
       "additionalProperties": false,
@@ -1488,6 +1492,9 @@
           "$ref": "#/$defs/SyscallArgs"
         },
         "open": {
+          "$ref": "#/$defs/SyscallArgs"
+        },
+        "unlink": {
           "$ref": "#/$defs/SyscallArgs"
         }
       },
