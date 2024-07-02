@@ -29,12 +29,11 @@ type TimeSamplerID int
 
 // TimeSampler aggregates metrics by buckets of 'interval' seconds
 type TimeSampler struct {
-	interval                    int64
-	contextResolver             *timestampContextResolver
-	metricsByTimestamp          map[int64]metrics.ContextMetrics
-	counterLastSampledByContext map[ckey.ContextKey]float64
-	lastCutOffTime              int64
-	sketchMap                   sketchMap
+	interval           int64
+	contextResolver    *timestampContextResolver
+	metricsByTimestamp map[int64]metrics.ContextMetrics
+	lastCutOffTime     int64
+	sketchMap          sketchMap
 
 	// id is a number to differentiate multiple time samplers
 	// since we start running more than one with the demultiplexer introduction
@@ -53,15 +52,17 @@ func NewTimeSampler(id TimeSamplerID, interval int64, cache *tags.Store, hostnam
 	idString := strconv.Itoa(int(id))
 	log.Infof("Creating TimeSampler #%s", idString)
 
+	contextExpireTime := config.Datadog().GetInt64("dogstatsd_context_expiry_seconds")
+	counterExpireTime := contextExpireTime + config.Datadog().GetInt64("dogstatsd_expiry_seconds")
+
 	s := &TimeSampler{
-		interval:                    interval,
-		contextResolver:             newTimestampContextResolver(cache, idString),
-		metricsByTimestamp:          map[int64]metrics.ContextMetrics{},
-		counterLastSampledByContext: map[ckey.ContextKey]float64{},
-		sketchMap:                   make(sketchMap),
-		id:                          id,
-		idString:                    idString,
-		hostname:                    hostname,
+		interval:           interval,
+		contextResolver:    newTimestampContextResolver(cache, idString, contextExpireTime, counterExpireTime),
+		metricsByTimestamp: map[int64]metrics.ContextMetrics{},
+		sketchMap:          make(sketchMap),
+		id:                 id,
+		idString:           idString,
+		hostname:           hostname,
 	}
 
 	return s
@@ -82,7 +83,7 @@ func (s *TimeSampler) sample(metricSample *metrics.MetricSample, timestamp float
 	}
 
 	// Keep track of the context
-	contextKey := s.contextResolver.trackContext(metricSample, timestamp)
+	contextKey := s.contextResolver.trackContext(metricSample, int64(timestamp))
 	bucketStart := s.calculateBucketStart(timestamp)
 
 	switch metricSample.Mtype {
@@ -95,11 +96,6 @@ func (s *TimeSampler) sample(metricSample *metrics.MetricSample, timestamp float
 			bucketMetrics = metrics.MakeContextMetrics()
 			s.metricsByTimestamp[bucketStart] = bucketMetrics
 		}
-		// Update LastSampled timestamp for counters
-		if metricSample.Mtype == metrics.CounterType {
-			s.counterLastSampledByContext[contextKey] = timestamp
-		}
-
 		// Add sample to bucket
 		if err := bucketMetrics.AddSample(contextKey, metricSample, timestamp, s.interval, nil, config.Datadog()); err != nil {
 			log.Debugf("TimeSampler #%d Ignoring sample '%s' on host '%s' and tags '%s': %s", s.id, metricSample.Name, metricSample.Host, metricSample.Tags, err)
@@ -129,7 +125,6 @@ func (s *TimeSampler) newSketchSeries(ck ckey.ContextKey, points []metrics.Sketc
 
 func (s *TimeSampler) flushSeries(cutoffTime int64, series metrics.SerieSink) {
 	// Map to hold the expired contexts that will need to be deleted after the flush so that we stop sending zeros
-	counterContextsToDelete := map[ckey.ContextKey]struct{}{}
 	contextMetricsFlusher := metrics.NewContextMetricsFlusher()
 
 	if len(s.metricsByTimestamp) > 0 {
@@ -141,7 +136,7 @@ func (s *TimeSampler) flushSeries(cutoffTime int64, series metrics.SerieSink) {
 
 			// Add a 0 sample to all the counters that are not expired.
 			// It is ok to add 0 samples to a counter that was already sampled for real in the bucket, since it won't change its value
-			s.countersSampleZeroValue(bucketTimestamp, contextMetrics, counterContextsToDelete)
+			s.countersSampleZeroValue(bucketTimestamp, contextMetrics)
 			contextMetricsFlusher.Append(float64(bucketTimestamp), contextMetrics)
 
 			delete(s.metricsByTimestamp, bucketTimestamp)
@@ -152,7 +147,7 @@ func (s *TimeSampler) flushSeries(cutoffTime int64, series metrics.SerieSink) {
 
 		contextMetrics := metrics.MakeContextMetrics()
 
-		s.countersSampleZeroValue(cutoffTime-s.interval, contextMetrics, counterContextsToDelete)
+		s.countersSampleZeroValue(cutoffTime-s.interval, contextMetrics)
 		contextMetricsFlusher.Append(float64(cutoffTime-s.interval), contextMetrics)
 	}
 
@@ -162,11 +157,6 @@ func (s *TimeSampler) flushSeries(cutoffTime int64, series metrics.SerieSink) {
 		// Note: rawSeries is reused at each call
 		s.dedupSerieBySerieSignature(rawSeries, series, serieBySignature)
 	})
-
-	// Delete the contexts associated to an expired counter
-	for context := range counterContextsToDelete {
-		delete(s.counterLastSampledByContext, context)
-	}
 }
 
 func (s *TimeSampler) dedupSerieBySerieSignature(
@@ -233,13 +223,8 @@ func (s *TimeSampler) flush(timestamp float64, series metrics.SerieSink, sketche
 
 	s.flushSeries(cutoffTime, series)
 	s.flushSketches(cutoffTime, sketches)
-
 	// expiring contexts
-	s.contextResolver.expireContexts(timestamp-config.Datadog().GetFloat64("dogstatsd_context_expiry_seconds"),
-		func(k ckey.ContextKey) bool {
-			_, ok := s.counterLastSampledByContext[k]
-			return ok
-		})
+	s.contextResolver.expireContexts(int64(timestamp))
 	s.lastCutOffTime = cutoffTime
 
 	s.updateMetrics()
@@ -278,10 +263,10 @@ func (s *TimeSampler) flushContextMetrics(contextMetricsFlusher *metrics.Context
 	}
 }
 
-func (s *TimeSampler) countersSampleZeroValue(timestamp int64, contextMetrics metrics.ContextMetrics, counterContextsToDelete map[ckey.ContextKey]struct{}) {
-	expirySeconds := config.Datadog().GetFloat64("dogstatsd_expiry_seconds")
-	for counterContext, lastSampled := range s.counterLastSampledByContext {
-		if expirySeconds+lastSampled > float64(timestamp) {
+func (s *TimeSampler) countersSampleZeroValue(timestamp int64, contextMetrics metrics.ContextMetrics) {
+	expirySeconds := config.Datadog().GetInt64("dogstatsd_expiry_seconds")
+	for counterContext, entry := range s.contextResolver.resolver.contextsByKey {
+		if entry.lastSeen+expirySeconds > timestamp && entry.context.mtype == metrics.CounterType {
 			sample := &metrics.MetricSample{
 				Name:       "",
 				Value:      0.0,
@@ -295,16 +280,6 @@ func (s *TimeSampler) countersSampleZeroValue(timestamp int64, contextMetrics me
 			// Add a zero value sample to the counter
 			// It is ok to add a 0 sample to a counter that was already sampled in the bucket, it won't change its value
 			contextMetrics.AddSample(counterContext, sample, float64(timestamp), s.interval, nil, config.Datadog()) //nolint:errcheck
-
-			// Update the tracked context so that the contextResolver doesn't expire counter contexts too early
-			// i.e. while we are still sending zeros for them
-			err := s.contextResolver.updateTrackedContext(counterContext, float64(timestamp))
-			if err != nil {
-				log.Errorf("Error updating context: %s", err)
-			}
-		} else {
-			// Register the context to be deleted
-			counterContextsToDelete[counterContext] = struct{}{}
 		}
 	}
 }
