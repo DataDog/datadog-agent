@@ -153,40 +153,36 @@ class GitlabCIDiff:
         Display in cli or markdown
         """
 
+        from tasks.libs.common.color import Color, color_message
+
         def str_section(title):
             if cli:
-                from tasks.libs.common.color import Color, color_message
-
                 return f'--- {color_message(title, Color.BOLD)} ---'
             else:
                 return f'### {title}'
 
         def str_job(title, color):
             if cli:
-                from tasks.libs.common.color import Color, color_message
-
                 return f'* {color_message(title, getattr(Color, color))}'
             else:
                 return f'- **{title}**'
 
         def str_rename(job_before, job_after):
             if cli:
-                from tasks.libs.common.color import Color, color_message
-
                 return f'* {color_message(job_before, Color.GREY)} -> {color_message(job_after, Color.BLUE)}'
             else:
                 return f'- {job_before} -> **{job_after}**'
 
         def str_job_content(content: str) -> list[str]:
             if cli:
-                return ['', *content.splitlines(), '']
+                content = [color_message(line, Color.GREY) for line in content.splitlines()]
+
+                return ['', *content, '']
 
             return ['```yaml', *content.splitlines(), '```']
 
         def str_diff(diff: list[str]) -> str:
             if cli:
-                from tasks.libs.common.color import Color, color_message
-
                 res = []
                 for line in diff:
                     if line.startswith('+'):
@@ -207,8 +203,6 @@ class GitlabCIDiff:
 
         def str_color(text: str, color: str) -> str:
             if cli:
-                from tasks.libs.common.color import Color, color_message
-
                 return color_message(text, getattr(Color, color))
             else:
                 return text
