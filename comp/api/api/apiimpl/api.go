@@ -50,6 +50,8 @@ type apiServer struct {
 	wmeta             workloadmeta.Component
 	collector         optional.Option[collector.Component]
 	senderManager     diagnosesendermanager.Component
+	cmdListener       net.Listener
+	ipcListener       net.Listener
 	telemetry         telemetry.Component
 	endpointProviders []api.EndpointProvider
 }
@@ -107,5 +109,5 @@ func newAPIServer(deps dependencies) api.Component {
 
 // ServerAddress returns the server address.
 func (server *apiServer) ServerAddress() *net.TCPAddr {
-	return ServerAddress()
+	return server.cmdListener.Addr().(*net.TCPAddr)
 }

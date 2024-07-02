@@ -15,6 +15,8 @@ import (
 
 	"github.com/cihub/seelog"
 
+	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/observability"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -43,7 +45,7 @@ func stopServer(listener net.Listener, name string) {
 }
 
 // StartServers creates certificates and starts API + IPC servers
-func (server *apiServer) startServers(_ context.Context) error {
+func (server *apiServer) startServers(ctx context.Context) error {
 	apiAddr, err := getIPCAddressPort()
 	if err != nil {
 		return fmt.Errorf("unable to get IPC address and port: %v", err)
@@ -70,35 +72,23 @@ func (server *apiServer) startServers(_ context.Context) error {
 		}
 	}
 
-	tmf := observability.NewTelemetryMiddlewareFactory(telemetry)
+	tmf := observability.NewTelemetryMiddlewareFactory(server.telemetry)
 
 	// start the CMD server
-	if err := startCMDServer(
+	if err := server.startCMDServer(
 		apiAddr,
 		tlsConfig(),
 		tlsCertPool,
-		server.rcService,
-		server.rcServiceMRF,
-		server.dogstatsdServer,
-		server.capture,
-		server.pidMap,
-		server.wmeta,
-		server.taggerComp,
-		server.logsAgentComp,
-		server.senderManager,
-		server.secretResolver,
-		server.collector,
-		server.autoConfig,
-		server.endpointProviders,
+		tmf,
 	); err != nil {
 		return fmt.Errorf("unable to start CMD API server: %v", err)
 	}
 
 	// start the IPC server
 	if ipcServerEnabled {
-		if err := startIPCServer(ipcServerHostPort, tlsConfig(), tmf); err != nil {
+		if err := server.startIPCServer(ipcServerHostPort, tlsConfig(), tmf); err != nil {
 			// if we fail to start the IPC server, we should stop the CMD server
-			StopServers()
+			server.stopServers(ctx)
 			return fmt.Errorf("unable to start IPC API server: %v", err)
 		}
 	}
@@ -107,7 +97,8 @@ func (server *apiServer) startServers(_ context.Context) error {
 }
 
 // StopServers closes the connections and the servers
-func StopServers() {
-	stopCMDServer()
-	stopIPCServer()
+func (server *apiServer) stopServers(_ context.Context) error {
+	stopServer(server.cmdListener, cmdServerName)
+	stopServer(server.ipcListener, ipcServerName)
+	return nil
 }
