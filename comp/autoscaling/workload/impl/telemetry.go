@@ -5,7 +5,7 @@
 
 //go:build kubeapiserver
 
-package workload
+package workloadimpl
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/telemetry"

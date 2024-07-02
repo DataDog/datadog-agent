@@ -24,6 +24,7 @@ import (
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes/fake"
 
+	autoscaling "github.com/DataDog/datadog-agent/comp/autoscaling/workload/def"
 	"github.com/DataDog/datadog-agent/comp/core"
 	configComp "github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -34,6 +35,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/certificate"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 var v1beta1Cfg = NewConfig(false, false)
@@ -954,7 +956,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 
 			c := &ControllerV1beta1{}
 			c.config = tt.configFunc()
-			c.mutatingWebhooks = mutatingWebhooks(wmeta, nil)
+			c.mutatingWebhooks = mutatingWebhooks(wmeta, optional.NewNoneOption[autoscaling.Component]())
 			c.generateTemplates()
 
 			assert.EqualValues(t, tt.want(), c.webhookTemplates)
@@ -1089,7 +1091,7 @@ func (f *fixtureV1beta1) createController() (*ControllerV1beta1, informers.Share
 		make(chan struct{}),
 		v1beta1Cfg,
 		wmeta,
-		nil,
+		optional.NewNoneOption[autoscaling.Component](),
 	), factory
 }
 

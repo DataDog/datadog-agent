@@ -5,7 +5,7 @@
 
 //go:build kubeapiserver && test
 
-package workload
+package workloadimpl
 
 import (
 	"context"

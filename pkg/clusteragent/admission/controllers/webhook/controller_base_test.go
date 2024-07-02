@@ -16,10 +16,12 @@ import (
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes/fake"
 
+	autoscaling "github.com/DataDog/datadog-agent/comp/autoscaling/workload/def"
 	"github.com/DataDog/datadog-agent/comp/core"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 func TestNewController(t *testing.T) {
@@ -36,7 +38,7 @@ func TestNewController(t *testing.T) {
 		make(chan struct{}),
 		v1Cfg,
 		wmeta,
-		nil,
+		optional.NewNoneOption[autoscaling.Component](),
 	)
 
 	assert.IsType(t, &ControllerV1{}, controller)
@@ -50,7 +52,7 @@ func TestNewController(t *testing.T) {
 		make(chan struct{}),
 		v1beta1Cfg,
 		wmeta,
-		nil,
+		optional.NewNoneOption[autoscaling.Component](),
 	)
 
 	assert.IsType(t, &ControllerV1beta1{}, controller)
