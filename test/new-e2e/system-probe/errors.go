@@ -11,13 +11,15 @@ package systemprobe
 import (
 	"fmt"
 	"log"
+	"os"
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/system-probe/connector/metric"
 	"github.com/DataDog/datadog-api-client-go/api/v1/datadog"
 	"github.com/DataDog/datadog-api-client-go/v2/api/datadogV2"
 	"github.com/sethvargo/go-retry"
+
+	"github.com/DataDog/datadog-agent/test/new-e2e/system-probe/connector/metric"
 )
 
 const (
@@ -26,6 +28,9 @@ const (
 	emitMetric = 0x2 // 0b10
 
 	aria2cMissingStatusErrorStr = "error: wait: remote command exited without exit status or exit signal: running \" aria2c"
+
+	retryCountFile  = "/tmp/e2e-retry-count"
+	errorReasonFile = "/tmp/e2e-error-reason"
 )
 
 type scenarioError int
@@ -79,12 +84,20 @@ var handledErrorsLs = []handledError{
 	{
 		errorType:   ioTimeout,
 		errorString: "i/o timeout",
-		action:      retryStack,
+		metric:      "io-timeout",
+		action:      retryStack | emitMetric,
 	},
 	{
 		errorType:   tcp22ConnectionRefused,
 		errorString: "failed attempts: dial tcp :22: connect: connection refused",
-		action:      retryStack,
+		metric:      "ssh-connection-refused",
+		action:      retryStack | emitMetric,
+	},
+	{
+		errorType:   tcp22ConnectionRefused,
+		errorString: "failed attempts: ssh: rejected: connect failed",
+		metric:      "ssh-connection-refused",
+		action:      retryStack | emitMetric,
 	},
 }
 
@@ -124,6 +137,10 @@ func handleScenarioFailure(err error, changeRetryState func(handledError)) error
 			if submitError != nil {
 				log.Printf("failed to submit environment setup error metrics: %v\n", submitError)
 			}
+
+			if storeErr := storeErrorReasonForCITags(e.metric); storeErr != nil {
+				log.Printf("failed to store error reason for CI tags: %v\n", storeErr)
+			}
 		}
 
 		if (e.action & retryStack) != 0 {
@@ -135,5 +152,27 @@ func handleScenarioFailure(err error, changeRetryState func(handledError)) error
 	}
 
 	log.Printf("environment setup error: %v. Failing stack.\n", err)
+	return err
+}
+
+func storeErrorReasonForCITags(reason string) error {
+	f, err := os.Open(errorReasonFile)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	_, err = f.WriteString(reason)
+	return err
+}
+
+func storeNumberOfRetriesForCITags(retries int) error {
+	f, err := os.Open(retryCountFile)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	_, err = f.WriteString(fmt.Sprintf("%d", retries))
 	return err
 }

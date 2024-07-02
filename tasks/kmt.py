@@ -1861,9 +1861,17 @@ def tag_ci_job(ctx: Context):
         elif "upload_secagent_tests" in job_name or "upload_sysprobe_tests" in job_name:
             tags["setup_stage"] = "tests"
 
-        instance_not_found_marker = Path.cwd() / ".instance_not_found"
+        instance_not_found_marker = Path("/tmp/instance_not_found")
+        e2e_fail_marker = Path("/tmp/e2e-retry-count")
         if instance_not_found_marker.is_file():
             tags["failure_reason"] = "infra_instance-not-found"
+        elif e2e_fail_marker.is_file():
+            e2e_fail = e2e_fail_marker.read_text().strip()
+            tags["failure_reason"] = f"infra_e2e_{e2e_fail}"
+
+        e2e_retry_count = Path("/tmp/e2e-retry-count")
+        if e2e_retry_count.is_file():
+            tags["e2e_retry_count"] = e2e_retry_count.read_text().strip()
 
     tag_prefix = "kmt."
     tags_str = " ".join(f"--tags '{tag_prefix}{k}:{v}'" for k, v in tags.items())
