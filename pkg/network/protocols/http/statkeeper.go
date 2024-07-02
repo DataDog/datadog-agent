@@ -209,8 +209,8 @@ func (h *StatKeeper) clearEphemeralPorts(aggregator *utils.ConnectionAggregator,
 	// Re-index entries that were generated from multiple connections
 	// See comments on `ConnectionAggregator.ClearEphemeralPort()` for more context
 	for key, aggregation := range stats {
-		newConnKey := aggregator.ClearEphemeralPort(key.ConnectionKey)
-		if newConnKey == key.ConnectionKey {
+		newConnKey, modified := aggregator.ClearEphemeralPort(key.ConnectionKey)
+		if !modified {
 			continue
 		}
 
