@@ -640,7 +640,7 @@ func assertFieldStringArrayIndexedOneOf(tb *testing.T, e *model.Event, field str
 	return false
 }
 
-func setTestPolicy(dir string, macros []*rules.MacroDefinition, rules []*rules.RuleDefinition) (string, error) {
+func setTestPolicy(dir string, onDemandProbes []rules.OnDemandHookPoint, macros []*rules.MacroDefinition, rules []*rules.RuleDefinition) (string, error) {
 	testPolicyFile, err := os.Create(path.Join(dir, "secagent-policy.policy"))
 	if err != nil {
 		return "", err
@@ -658,8 +658,9 @@ func setTestPolicy(dir string, macros []*rules.MacroDefinition, rules []*rules.R
 
 	buffer := new(bytes.Buffer)
 	if err := tmpl.Execute(buffer, map[string]interface{}{
-		"Rules":  rules,
-		"Macros": macros,
+		"OnDemandProbes": onDemandProbes,
+		"Rules":          rules,
+		"Macros":         macros,
 	}); err != nil {
 		return "", fail(err)
 	}
