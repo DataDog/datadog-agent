@@ -24,11 +24,10 @@ func (c *Scrubber) ScrubJSON(input []byte) ([]byte, error) {
 
 		newInput, err := json.Marshal(data)
 		if err == nil {
-			input = newInput
-		} else {
-			// Since the scrubber is a dependency of the logger we can use it here.
-			fmt.Fprintf(os.Stderr, "error scrubbing json, falling back on text scrubber: %s\n", err)
+			return newInput, nil
 		}
+		// Since the scrubber is a dependency of the logger we can't use it here.
+		fmt.Fprintf(os.Stderr, "error scrubbing json, falling back on text scrubber: %s\n", err)
 	}
 	return c.ScrubBytes(input)
 }

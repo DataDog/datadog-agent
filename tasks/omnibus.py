@@ -13,7 +13,8 @@ from tasks.libs.common.omnibus import (
     send_cache_miss_event,
     should_retry_bundle_install,
 )
-from tasks.libs.common.utils import collapsed_section, get_version, load_release_versions, timed
+from tasks.libs.common.utils import gitlab_section, timed
+from tasks.libs.releasing.version import get_version, load_release_versions
 from tasks.ssm import get_pfx_pass, get_signing_cert
 
 
@@ -50,7 +51,7 @@ def omnibus_run_task(
             "populate_s3_cache": populate_s3_cache,
         }
 
-        with collapsed_section(f"Running omnibus task {task}"):
+        with gitlab_section(f"Running omnibus task {task}", collapsed=True):
             ctx.run(cmd.format(**args), env=env, err_stream=sys.stdout)
 
 
@@ -66,7 +67,7 @@ def bundle_install_omnibus(ctx, gem_path=None, env=None, max_try=2):
         if gem_path:
             cmd += f" --path {gem_path}"
 
-        with collapsed_section("Bundle install omnibus"):
+        with gitlab_section("Bundle install omnibus", collapsed=True):
             for trial in range(max_try):
                 res = ctx.run(cmd, env=env, warn=True, err_stream=sys.stdout)
                 if res.ok:
@@ -139,16 +140,18 @@ def get_omnibus_env(
 
     # We need to override the workers variable in omnibus build when running on Kubernetes runners,
     # otherwise, ohai detect the number of CPU on the host and run the make jobs with all the CPU.
-    if os.environ.get('KUBERNETES_CPU_REQUEST'):
-        env['OMNIBUS_WORKERS_OVERRIDE'] = str(int(os.environ.get('KUBERNETES_CPU_REQUEST')) + 1)
+    kubernetes_cpu_request = os.environ.get('KUBERNETES_CPU_REQUEST')
+    if kubernetes_cpu_request:
+        env['OMNIBUS_WORKERS_OVERRIDE'] = str(int(kubernetes_cpu_request) + 1)
     # Forward the DEPLOY_AGENT variable so that we can use a higher compression level for deployed artifacts
-    if os.environ.get('DEPLOY_AGENT'):
-        env['DEPLOY_AGENT'] = os.environ.get('DEPLOY_AGENT')
+    deploy_agent = os.environ.get('DEPLOY_AGENT')
+    if deploy_agent:
+        env['DEPLOY_AGENT'] = deploy_agent
     if 'PACKAGE_ARCH' in os.environ:
-        env['PACKAGE_ARCH'] = os.environ.get('PACKAGE_ARCH')
+        env['PACKAGE_ARCH'] = os.environ['PACKAGE_ARCH']
     if 'INSTALL_DIR' in os.environ:
         print('Forwarding INSTALL_DIR')
-        env['INSTALL_DIR'] = os.environ.get('INSTALL_DIR')
+        env['INSTALL_DIR'] = os.environ['INSTALL_DIR']
 
     return env
 
@@ -259,7 +262,7 @@ def build(
         # Individual developers are still able to leverage the cache by providing
         # the OMNIBUS_GIT_CACHE_DIR env variable, but they won't pull from the CI
         # generated one.
-        with collapsed_section("Manage omnibus cache"):
+        with gitlab_section("Manage omnibus cache", collapsed=True):
             use_remote_cache = remote_cache_name is not None
             if use_remote_cache:
                 cache_state = None

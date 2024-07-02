@@ -10,18 +10,12 @@ import (
 	"io"
 	"net/url"
 
-	"github.com/fatih/color"
-
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 // GetClusterAgentConfigCheck gets config check from the server
-func GetClusterAgentConfigCheck(w io.Writer, withDebug bool) error {
-	if w != color.Output {
-		color.NoColor = true
-	}
-
+func GetClusterAgentConfigCheck(w io.Writer, noColor bool, withDebug bool) error {
 	c := util.GetClient(false) // FIX: get certificates right then make this true
 
 	// Set session token
@@ -33,6 +27,12 @@ func GetClusterAgentConfigCheck(w io.Writer, withDebug bool) error {
 	v := url.Values{}
 	if withDebug {
 		v.Set("verbose", "true")
+	}
+
+	if noColor {
+		v.Set("nocolor", "true")
+	} else {
+		v.Set("nocolor", "false")
 	}
 
 	targetURL := url.URL{
@@ -50,5 +50,7 @@ func GetClusterAgentConfigCheck(w io.Writer, withDebug bool) error {
 		return fmt.Errorf("failed to query the agent (running?): %s", err)
 	}
 
-	return nil
+	_, err = w.Write(r)
+
+	return err
 }

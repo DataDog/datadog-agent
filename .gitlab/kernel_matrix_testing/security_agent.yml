@@ -71,6 +71,9 @@ kmt_setup_env_secagent_x64:
     - popd
     # upload connector to metal instance
     - scp $CI_PROJECT_DIR/connector-${ARCH} metal_instance:/home/ubuntu/connector
+  after_script:
+    - export DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $API_KEY_ORG2_SSM_NAME)
+    - !reference [.tag_kmt_ci_job]
   variables:
     AWS_EC2_SSH_KEY_FILE: $CI_PROJECT_DIR/ssh_key
     TEST_COMPONENT: security-agent
@@ -128,8 +131,10 @@ kmt_run_secagent_tests_x64:
           - "ubuntu_22.04"
           - "ubuntu_23.10"
           - "ubuntu_24.04"
+          - "amazon_4.14"
           - "amazon_5.4"
           - "amazon_5.10"
+          - "amazon_2023"
           - "fedora_37"
           - "fedora_38"
           - "debian_10"
@@ -168,6 +173,7 @@ kmt_run_secagent_tests_arm64:
           - "ubuntu_24.04"
           - "amazon_5.4"
           - "amazon_5.10"
+          - "amazon_2023"
           - "fedora_37"
           - "fedora_38"
           - "debian_11"
@@ -176,7 +182,6 @@ kmt_run_secagent_tests_arm64:
           - "oracle_9.3"
           - "rocky_8.5"
           - "rocky_9.3"
-          - "opensuse_15.3"
           - "opensuse_15.5"
         TEST_SET: ["all_tests"]
   after_script:

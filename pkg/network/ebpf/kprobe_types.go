@@ -20,6 +20,7 @@ type ConnTuple C.conn_tuple_t
 type TCPStats C.tcp_stats_t
 type ConnStats C.conn_stats_ts_t
 type Conn C.conn_t
+type FailedConn C.conn_failed_t
 type Batch C.batch_t
 type Telemetry C.telemetry_t
 type PortBinding C.port_binding_t
@@ -52,7 +53,12 @@ const (
 const BatchSize = C.CONN_CLOSED_BATCH_SIZE
 const SizeofBatch = C.sizeof_batch_t
 
+const TCPFailureConnReset = C.TCP_CONN_FAILED_RESET
+const TCPFailureConnTimeout = C.TCP_CONN_FAILED_TIMEOUT
+const TCPFailureConnRefused = C.TCP_CONN_FAILED_REFUSED
+
 const SizeofConn = C.sizeof_conn_t
+const SizeofFailedConn = C.sizeof_conn_failed_t
 
 type ClassificationProgram = uint32
 

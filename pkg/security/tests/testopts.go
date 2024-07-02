@@ -58,6 +58,7 @@ type testOpts struct {
 	snapshotRuleMatchHandler                   func(*testModule, *model.Event, *rules.Rule)
 	enableFIM                                  bool // only valid on windows
 	networkIngressEnabled                      bool
+	disableBundledRules                        bool
 }
 
 type dynamicTestOpts struct {

@@ -10,11 +10,13 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/exec"
 	"path"
+	"path/filepath"
 
-	"github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/service/embedded"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
@@ -55,7 +57,12 @@ func loadUnit(ctx context.Context, unit string) error {
 	span, _ := tracer.StartSpanFromContext(ctx, "load_unit")
 	defer span.Finish()
 	span.SetTag("unit", unit)
-	return exec.CommandContext(ctx, "cp", "-f", path.Join(setup.InstallPath, "systemd", unit), path.Join(systemdPath, unit)).Run()
+	content, err := embedded.FS.ReadFile(unit)
+	if err != nil {
+		return fmt.Errorf("error reading embedded unit %s: %w", unit, err)
+	}
+	unitPath := filepath.Join(systemdPath, unit)
+	return os.WriteFile(unitPath, content, 0644)
 }
 
 func removeUnit(ctx context.Context, unit string) error {

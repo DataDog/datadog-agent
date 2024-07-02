@@ -25,13 +25,11 @@ long __attribute__((always_inline)) trace__sys_chdir(const char *path) {
     return 0;
 }
 
-HOOK_SYSCALL_ENTRY1(chdir, const char*, path)
-{
+HOOK_SYSCALL_ENTRY1(chdir, const char *, path) {
     return trace__sys_chdir(path);
 }
 
-HOOK_SYSCALL_ENTRY1(fchdir, unsigned int, fd)
-{
+HOOK_SYSCALL_ENTRY1(fchdir, unsigned int, fd) {
     return trace__sys_chdir(NULL);
 }
 

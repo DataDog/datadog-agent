@@ -17,3 +17,9 @@ func SetupAPMInjector(_ context.Context) error {
 
 // RemoveAPMInjector noop
 func RemoveAPMInjector(_ context.Context) error { return nil }
+
+// InstrumentAPMInjector noop
+func InstrumentAPMInjector(_ context.Context, _ string) error { return nil }
+
+// UninstrumentAPMInjector noop
+func UninstrumentAPMInjector(_ context.Context, _ string) error { return nil }

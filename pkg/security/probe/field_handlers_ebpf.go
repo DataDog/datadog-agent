@@ -26,6 +26,7 @@ import (
 type EBPFFieldHandlers struct {
 	config    *config.Config
 	resolvers *resolvers.EBPFResolvers
+	hostname  string
 }
 
 // ResolveProcessCacheEntry queries the ProcessResolver to retrieve the ProcessContext of the event
@@ -176,7 +177,7 @@ func (fh *EBPFFieldHandlers) ResolveContainerContext(ev *model.Event) (*model.Co
 			ev.ContainerContext.Resolved = true
 		}
 	}
-	return ev.ContainerContext, ev.ContainerContext != nil
+	return ev.ContainerContext, ev.ContainerContext.Resolved
 }
 
 // ResolveRights resolves the rights of a file
@@ -589,4 +590,9 @@ func (fh *EBPFFieldHandlers) ResolveSyscallCtxArgsInt2(ev *model.Event, e *model
 func (fh *EBPFFieldHandlers) ResolveSyscallCtxArgsInt3(ev *model.Event, e *model.SyscallContext) int {
 	fh.ResolveSyscallCtxArgs(ev, e)
 	return int(e.IntArg3)
+}
+
+// ResolveHostname resolve the hostname
+func (fh *EBPFFieldHandlers) ResolveHostname(_ *model.Event, _ *model.BaseEvent) string {
+	return fh.hostname
 }

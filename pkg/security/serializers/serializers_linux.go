@@ -1,6 +1,6 @@
 //go:generate go run github.com/mailru/easyjson/easyjson -gen_build_flags=-mod=mod -no_std_marshalers -build_tags linux $GOFILE
 //go:generate go run github.com/mailru/easyjson/easyjson -gen_build_flags=-mod=mod -no_std_marshalers -build_tags linux -output_filename serializers_base_linux_easyjson.go serializers_base.go
-//go:generate go run github.com/DataDog/datadog-agent/pkg/security/generators/backend_doc -output ../../../docs/cloud-workload-security/backend.schema.json
+//go:generate go run github.com/DataDog/datadog-agent/pkg/security/generators/backend_doc -output ../../../docs/cloud-workload-security/backend_linux.schema.json
 
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
@@ -493,8 +493,14 @@ type AnomalyDetectionSyscallEventSerializer struct {
 type SyscallArgsSerializer struct {
 	// Path argument
 	Path string `json:"path,omitempty"`
+	// Flags argument
+	Flags int `json:"flags,omitempty"`
 	// Mode argument
 	Mode int `json:"mode,omitempty"`
+	// UID argument
+	UID *int `json:"uid,omitempty"`
+	// GID argument
+	GID *int `json:"gid,omitempty"`
 }
 
 func newSyscallArgsSerializer(sc *model.SyscallContext, e *model.Event) *SyscallArgsSerializer {
@@ -510,6 +516,20 @@ func newSyscallArgsSerializer(sc *model.SyscallContext, e *model.Event) *Syscall
 		return &SyscallArgsSerializer{
 			Path: e.FieldHandlers.ResolveSyscallCtxArgsStr1(e, sc),
 		}
+	case model.FileOpenEventType:
+		return &SyscallArgsSerializer{
+			Path:  e.FieldHandlers.ResolveSyscallCtxArgsStr1(e, sc),
+			Flags: e.FieldHandlers.ResolveSyscallCtxArgsInt2(e, sc),
+			Mode:  e.FieldHandlers.ResolveSyscallCtxArgsInt3(e, sc),
+		}
+	case model.FileChownEventType:
+		uid := e.FieldHandlers.ResolveSyscallCtxArgsInt2(e, sc)
+		gid := e.FieldHandlers.ResolveSyscallCtxArgsInt3(e, sc)
+		return &SyscallArgsSerializer{
+			Path: e.FieldHandlers.ResolveSyscallCtxArgsStr1(e, sc),
+			UID:  &uid,
+			GID:  &gid,
+		}
 	}
 
 	return nil
@@ -519,8 +539,10 @@ func newSyscallArgsSerializer(sc *model.SyscallContext, e *model.Event) *Syscall
 // easyjson:json
 type SyscallContextSerializer struct {
 	Chmod *SyscallArgsSerializer `json:"chmod,omitempty"`
+	Chown *SyscallArgsSerializer `json:"chown,omitempty"`
 	Chdir *SyscallArgsSerializer `json:"chdir,omitempty"`
 	Exec  *SyscallArgsSerializer `json:"exec,omitempty"`
+	Open  *SyscallArgsSerializer `json:"open,omitempty"`
 }
 
 func newSyscallContextSerializer() *SyscallContextSerializer {
@@ -1094,6 +1116,8 @@ func NewEventSerializer(event *model.Event, opts *eval.Opts) *EventSerializer {
 			},
 		}
 		s.EventContextSerializer.Outcome = serializeOutcome(event.Chown.Retval)
+		s.SyscallContextSerializer = newSyscallContextSerializer()
+		s.SyscallContextSerializer.Chown = newSyscallArgsSerializer(&event.Chown.SyscallContext, event)
 	case model.FileLinkEventType:
 		// use the source inode as the target one is a fake inode
 		s.FileEventSerializer = &FileEventSerializer{
@@ -1114,6 +1138,8 @@ func NewEventSerializer(event *model.Event, opts *eval.Opts) *EventSerializer {
 
 		s.FileSerializer.Flags = model.OpenFlags(event.Open.Flags).StringArray()
 		s.EventContextSerializer.Outcome = serializeOutcome(event.Open.Retval)
+		s.SyscallContextSerializer = newSyscallContextSerializer()
+		s.SyscallContextSerializer.Open = newSyscallArgsSerializer(&event.Open.SyscallContext, event)
 	case model.FileMkdirEventType:
 		s.FileEventSerializer = &FileEventSerializer{
 			FileSerializer: *newFileSerializer(&event.Mkdir.File, event),

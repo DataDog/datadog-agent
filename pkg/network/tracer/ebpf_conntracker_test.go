@@ -42,7 +42,7 @@ func TestEbpfConntrackerLoadTriggersOffsetGuessing(t *testing.T) {
 	cfg := testConfig()
 	cfg.EnableRuntimeCompiler = false
 	cfg.EnableCORE = false
-	conntracker, err := NewEBPFConntracker(cfg)
+	conntracker, err := NewEBPFConntracker(cfg, nil)
 	assert.NoError(t, err)
 	require.NotNil(t, conntracker)
 	t.Cleanup(conntracker.Close)
@@ -62,7 +62,7 @@ func TestEbpfConntrackerSkipsLoadOnOlderKernels(t *testing.T) {
 	cfg := testConfig()
 	cfg.EnableRuntimeCompiler = false
 	cfg.EnableCORE = false
-	conntracker, err := NewEBPFConntracker(cfg)
+	conntracker, err := NewEBPFConntracker(cfg, nil)
 	assert.Error(t, err)
 	assert.ErrorIs(t, err, errPrebuiltConntrackerUnsupported)
 	require.Nil(t, conntracker)
@@ -79,7 +79,7 @@ func TestCOREEbpfConntrackerSkipsLoadOnOlderKernels(t *testing.T) {
 	cfg.EnableRuntimeCompiler = false
 	cfg.EnableCORE = true
 	cfg.AllowPrecompiledFallback = false
-	conntracker, err := NewEBPFConntracker(cfg)
+	conntracker, err := NewEBPFConntracker(cfg, nil)
 	assert.Error(t, err)
 	assert.ErrorIs(t, err, errCOREConntrackerUnsupported)
 	require.Nil(t, conntracker)

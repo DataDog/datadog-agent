@@ -46,6 +46,14 @@ func newCatalog() *catalog {
 	}
 }
 
+func newStartupCatalog() *catalog {
+	return &catalog{
+		components: make(map[*Handle]*component),
+		latestRun:  time.Now(), // Start healthy
+		startup:    true,
+	}
+}
+
 // register a component with the default 30 seconds timeout, returns a token
 func (c *catalog) register(name string) *Handle {
 	c.Lock()

@@ -2,6 +2,7 @@
 #include "bpf_telemetry.h"
 #include "bpf_endian.h"
 #include "bpf_tracing.h"
+#include "bpf_metadata.h"
 
 #include "ip.h"
 #include "ipv6.h"
