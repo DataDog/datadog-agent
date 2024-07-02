@@ -179,7 +179,7 @@ class GitlabCIDiff:
 
                 return ['', *content, '']
 
-            return ['```yaml', *content.splitlines(), '```']
+            return ['<details>', '', '```yaml', *content.splitlines(), '```', '', '</details>']
 
         def str_diff(diff: list[str]) -> str:
             if cli:

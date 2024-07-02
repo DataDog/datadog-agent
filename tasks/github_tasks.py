@@ -366,6 +366,7 @@ def pr_commenter(
     pr_id: int | None = None,
     verbose: bool = True,
     delete: bool = False,
+    force_delete: bool = False,
     echo: bool = False,
 ) -> str:
     """
@@ -374,6 +375,8 @@ def pr_commenter(
 
     - pr_id: If None, will use $CI_COMMIT_BRANCH to identify which PR to comment on.
     - delete: If True and the body is empty, will delete the comment.
+    - force_delete: Won't throw error if the comment to delete is not found.
+    - echo: Print comment content to stdout.
 
     Inspired by the pr-commenter binary from <https://github.com/DataDog/devtools>
     """
@@ -410,7 +413,12 @@ def pr_commenter(
             comment.edit(content)
             action = 'Updated'
     else:
-        assert not delete, 'Comment to delete not found'
+        if delete and force_delete:
+            if verbose:
+                print('Comment to delete not found, skipping')
+            return
+        else:
+            assert not delete, 'Comment to delete not found'
 
         github.publish_comment(pr, content)
         action = 'Created'
