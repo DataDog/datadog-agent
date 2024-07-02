@@ -1093,6 +1093,7 @@ func TestSampling(t *testing.T) {
 			Start:    time.Now().UnixNano(),
 			Duration: (100 * time.Millisecond).Nanoseconds(),
 			Metrics:  map[string]float64{"_top_level": 1},
+			Meta:     map[string]string{},
 		}
 		if hasErrors {
 			root.Error = 1
@@ -1102,8 +1103,9 @@ func TestSampling(t *testing.T) {
 		return pt
 	}
 	type samplingTestCase struct {
-		trace       traceutil.ProcessedTrace
-		wantSampled bool
+		trace                traceutil.ProcessedTrace
+		wantSampled          bool
+		alteredDecisionMaker string
 	}
 
 	for name, tt := range map[string]struct {
@@ -1195,7 +1197,7 @@ func TestSampling(t *testing.T) {
 		"probabilistic-no-prio-100": {
 			agentConfig: agentConfig{noPrioritySampled: false, rareSamplerDisabled: true, probabilisticSampler: true, probabilisticSamplerSamplingPercentage: 100},
 			testCases: []samplingTestCase{
-				{trace: generateProcessedTrace(sampler.PriorityNone, false), wantSampled: true},
+				{trace: generateProcessedTrace(sampler.PriorityNone, false), wantSampled: true, alteredDecisionMaker: "-9"},
 			},
 		},
 		"probabilistic-no-prio-0": {
@@ -1207,7 +1209,7 @@ func TestSampling(t *testing.T) {
 		"probabilistic-prio-drop-100": {
 			agentConfig: agentConfig{noPrioritySampled: false, rareSamplerDisabled: true, probabilisticSampler: true, probabilisticSamplerSamplingPercentage: 100},
 			testCases: []samplingTestCase{
-				{trace: generateProcessedTrace(sampler.PriorityUserDrop, false), wantSampled: true},
+				{trace: generateProcessedTrace(sampler.PriorityUserDrop, false), wantSampled: true, alteredDecisionMaker: "-9"},
 			},
 		},
 		"probabilistic-prio-drop-0": {
@@ -1219,7 +1221,7 @@ func TestSampling(t *testing.T) {
 		"probabilistic-prio-keep-100": {
 			agentConfig: agentConfig{noPrioritySampled: false, rareSamplerDisabled: true, probabilisticSampler: true, probabilisticSamplerSamplingPercentage: 100},
 			testCases: []samplingTestCase{
-				{trace: generateProcessedTrace(sampler.PriorityUserKeep, false), wantSampled: true},
+				{trace: generateProcessedTrace(sampler.PriorityUserKeep, false), wantSampled: true, alteredDecisionMaker: "-9"},
 			},
 		},
 		"probabilistic-prio-keep-0": {
@@ -1249,7 +1251,7 @@ func TestSampling(t *testing.T) {
 		"probabilistic-error-100": {
 			agentConfig: agentConfig{noPrioritySampled: false, rareSamplerDisabled: true, probabilisticSampler: true, errorsSampled: true, probabilisticSamplerSamplingPercentage: 100},
 			testCases: []samplingTestCase{
-				{trace: generateProcessedTrace(sampler.PriorityAutoDrop, true), wantSampled: true},
+				{trace: generateProcessedTrace(sampler.PriorityAutoDrop, true), wantSampled: true, alteredDecisionMaker: "-9"},
 			},
 		},
 		"probabilistic-error-0": {
@@ -1263,6 +1265,10 @@ func TestSampling(t *testing.T) {
 			a := configureAgent(tt.agentConfig)
 			for _, tc := range tt.testCases {
 				sampled, _ := a.traceSampling(time.Now(), &info.TagStats{}, &tc.trace)
+				if tc.alteredDecisionMaker != "" {
+					assert.Equal(t, tc.alteredDecisionMaker, tc.trace.TraceChunk.Spans[0].Meta["_dd.p.dm"])
+					assert.Equal(t, tc.alteredDecisionMaker, tc.trace.TraceChunk.Tags["_dd.p.dm"])
+				}
 				assert.EqualValues(t, tc.wantSampled, sampled)
 			}
 		})
