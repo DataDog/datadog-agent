@@ -12,6 +12,7 @@ import (
 	"time"
 
 	ddLog "github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
@@ -37,9 +38,9 @@ type Launcher struct {
 	addedSources        chan *sources.LogSource
 	removedSources      chan *sources.LogSource
 	stop                chan struct{}
+	done                chan struct{}
 	runPath             string
 	tailers             *tailers.TailerContainer[*tailer.Tailer]
-	// tailers         []*tailer.Tailer
 }
 
 // NewLauncher returns a new launcher
@@ -48,12 +49,12 @@ func NewLauncher(runPath string, tailersSleepDuration time.Duration) *Launcher {
 		runPath:             runPath,
 		tailers:             tailers.NewTailerContainer[*tailer.Tailer](),
 		stop:                make(chan struct{}),
+		done:                make(chan struct{}),
 		tailerSleepDuration: tailersSleepDuration,
-		// done:    make(chan struct{}),
 	}
 }
 
-// Start starts the launcher
+// Start starts the launcher and launches the run loop in a go function
 func (s *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvider pipeline.Provider, registry auditor.Registry, tracker *tailers.TailerTracker) {
 	s.piplineProvider = pipelineProvider
 	s.addedSources, s.removedSources = sourceProvider.SubscribeForType(config.IntegrationType)
@@ -66,29 +67,46 @@ func (s *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvid
 // Stop stops the scanner tailers
 func (s *Launcher) Stop() {
 	s.stop <- struct{}{}
+	<-s.done
 }
 
 // run checks if there are new files to tail and tails them
 func (s *Launcher) run() {
 	scanTicker := time.NewTicker(time.Second * 1)
-	// Add some functionality in here to detect when the agent is sent a log??
-	// Maybe call createFile() whenever log is sent?
+	defer func() {
+		scanTicker.Stop()
+		close(s.done)
+	}()
+
 	for {
 		select {
 		case source := <-s.addedSources:
 			filePath := s.createFile(source)
+			// TODO move this into case where for receiving log from go interface
 			s.addSource(source, filePath)
-		case <-s.stop:
-			return
+		// TODO Add case for receiving log from go interface once #26753 gets merged
 		case <-scanTicker.C:
+		case <-s.stop:
+			s.cleanup()
 			return
 		}
 	}
 }
 
+// cleanup stops and removes all tailers
+func (s *Launcher) cleanup() {
+	stopper := startstop.NewParallelStopper()
+
+	for _, tailer := range s.tailers.All() {
+		stopper.Add(tailer)
+		s.tailers.Remove(tailer)
+	}
+
+	stopper.Stop()
+}
+
 // addSource adds the sources to active sources and launches tailers for the source
 func (s *Launcher) addSource(source *sources.LogSource, filePath string) {
-	// check if source is already being tailed here instead of startNewTailer
 	s.startNewTailer(source, filePath)
 }
 
@@ -98,8 +116,7 @@ func (s *Launcher) startNewTailer(source *sources.LogSource, filePath string) {
 
 	tailer := s.createTailer(file, s.piplineProvider.NextPipelineChan())
 
-	// Not sure if these are necessary yet, should the feature overwrite any file
-	// that's there? Or continue adding to it?
+	// TODO Implement registry / offset
 	var offset int64
 	var whence int
 
@@ -125,14 +142,15 @@ func (s *Launcher) createTailer(file *tailer.File, outputChan chan *message.Mess
 	tailerOptions := &tailer.TailerOptions{
 		OutputChan:    outputChan,
 		File:          file,
-		Info:          tailerInfo,
 		SleepDuration: DefaultSleepDuration,
 		Decoder:       decoder.NewDecoderFromSource(file.Source, tailerInfo),
+		Info:          tailerInfo,
 	}
 
 	return tailer.NewTailer(tailerOptions)
 }
 
+// TODO Change file naming to reflect ID once logs from go interfaces gets merged.
 // createFile creates a file for the logsource
 func (s *Launcher) createFile(source *sources.LogSource) string {
 	fileName := source.Config.Source + ".log"
