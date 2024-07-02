@@ -17,7 +17,7 @@ var (
 	insnRegex           = regexp.MustCompile(`^([0-9]+): \([0-9a-f]+\) ([^;]*)\s*(; R[0-9]+.*)?`)
 	regStateRegex       = regexp.MustCompile(`^([0-9]+): (R[0-9]+.*)`)
 	singleRegStateRegex = regexp.MustCompile(`R([0-9]+)(_[^=]+)?=([^ ]+)`)
-	regInfoRegex        = regexp.MustCompile(`^([a-z_]+)?(P)?(-?[0-9]+|\((.*)\))`)
+	regInfoRegex        = regexp.MustCompile(`^(P)?([a-z_]+)?(P)?(-?[0-9]+|\((.*)\))`)
 )
 
 // verifierLogParser is a struct that maintains the state necessary to parse the verifier log
@@ -204,7 +204,7 @@ func parseRegisterState(regMatch []string) (*RegisterState, error) {
 		return nil, fmt.Errorf("Cannot parse register value %v", regValue)
 	}
 
-	regType := regInfoGroups[1]
+	regType := regInfoGroups[2]
 	if regType == "inv" || regType == "" {
 		// Depending on the kernel version, we might see scalars represented either
 		// as "scalar" type, as "inv" type or as a raw number with no type
@@ -224,7 +224,7 @@ func parseRegisterState(regMatch []string) (*RegisterState, error) {
 		Live:     liveness,
 		Type:     regType,
 		Value:    regValue,
-		Precise:  regInfoGroups[2] == "P",
+		Precise:  regInfoGroups[1] == "P" || regInfoGroups[3] == "P", // depending on the kernel version, the precise marker might be before or after the type
 	}, nil
 }
 
@@ -232,8 +232,8 @@ func parseRegisterState(regMatch []string) (*RegisterState, error) {
 // human-readable value.
 func parseRegisterScalarValue(regInfoGroups []string) string {
 	// Scalar values are either a raw numeric value, or a list of key-value pairs within parenthesis
-	regRawValue := regInfoGroups[3]
-	regAttributes := regInfoGroups[4]
+	regRawValue := regInfoGroups[4]
+	regAttributes := regInfoGroups[5]
 
 	if regAttributes == "" {
 		if regRawValue == "()" {
@@ -247,7 +247,7 @@ func parseRegisterScalarValue(regInfoGroups []string) string {
 	maxValue := int64(0)
 	hasRange := false
 
-	for _, kv := range strings.Split(regInfoGroups[4], ",") {
+	for _, kv := range strings.Split(regInfoGroups[5], ",") {
 		kvParts := strings.Split(kv, "=")
 		if strings.Contains(kvParts[0], "min") {
 			// Ignore errors here, mostly due to sizes (can't parse UINT_MAX in INT64) and for now we don't care
