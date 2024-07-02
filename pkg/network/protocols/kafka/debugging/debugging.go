@@ -7,6 +7,7 @@
 package debugging
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
@@ -32,36 +33,38 @@ type Stats struct {
 }
 
 // Kafka returns a debug-friendly representation of map[kafka.Key]kafka.RequestStats
-func Kafka(stats map[kafka.Key]*kafka.RequestStat) []RequestSummary {
-	all := make([]RequestSummary, 0, len(stats))
+func Kafka(cs *network.Connections) []RequestSummary {
+	var all []RequestSummary
 
-	for key, requestStat := range stats {
-		clientAddr := formatIP(key.SrcIPLow, key.SrcIPHigh)
-		serverAddr := formatIP(key.DstIPLow, key.DstIPHigh)
+	for _, c := range cs.Conns {
+		for _, s := range c.KafkaStats {
+			clientAddr := formatIP(s.Key.SrcIPLow, s.Key.SrcIPHigh)
+			serverAddr := formatIP(s.Key.DstIPLow, s.Key.DstIPHigh)
 
-		byRequestAPI := make(map[string]int)
-		switch key.RequestAPIKey {
-		case kafka.ProduceAPIKey:
-			byRequestAPI["produce"] = requestStat.Count
-		case kafka.FetchAPIKey:
-			byRequestAPI["fetch"] = requestStat.Count
+			byRequestAPI := make(map[string]int)
+			switch s.Key.RequestAPIKey {
+			case kafka.ProduceAPIKey:
+				byRequestAPI["produce"] = s.Value.Count
+			case kafka.FetchAPIKey:
+				byRequestAPI["fetch"] = s.Value.Count
+			}
+
+			debug := RequestSummary{
+				Client: Address{
+					IP:   clientAddr.String(),
+					Port: s.Key.SrcPort,
+				},
+				Server: Address{
+					IP:   serverAddr.String(),
+					Port: s.Key.DstPort,
+				},
+
+				ByRequestAPI: byRequestAPI,
+				TopicName:    s.Key.TopicName,
+			}
+
+			all = append(all, debug)
 		}
-
-		debug := RequestSummary{
-			Client: Address{
-				IP:   clientAddr.String(),
-				Port: key.SrcPort,
-			},
-			Server: Address{
-				IP:   serverAddr.String(),
-				Port: key.DstPort,
-			},
-
-			ByRequestAPI: byRequestAPI,
-			TopicName:    key.TopicName,
-		}
-
-		all = append(all, debug)
 	}
 
 	return all

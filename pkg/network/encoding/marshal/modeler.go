@@ -39,9 +39,9 @@ type ConnectionsModeler struct {
 func NewConnectionsModeler(conns *network.Connections) *ConnectionsModeler {
 	ipc := make(ipCache, len(conns.Conns)/2)
 	return &ConnectionsModeler{
-		httpEncoder:     newHTTPEncoder(conns.HTTP),
-		http2Encoder:    newHTTP2Encoder(conns.HTTP2),
-		kafkaEncoder:    newKafkaEncoder(conns.Kafka),
+		httpEncoder:     newHTTPEncoder(),
+		http2Encoder:    newHTTP2Encoder(),
+		kafkaEncoder:    newKafkaEncoder(),
 		postgresEncoder: newPostgresEncoder(conns.Postgres),
 		ipc:             ipc,
 		dnsFormatter:    newDNSFormatter(conns, ipc),

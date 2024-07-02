@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/postgres"
 	"github.com/DataDog/datadog-agent/pkg/network/slice"
+	"github.com/DataDog/datadog-agent/pkg/network/types"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -124,9 +125,6 @@ type State interface {
 // Delta represents a delta of network data compared to the last call to State.
 type Delta struct {
 	Conns    []ConnectionStats
-	HTTP     map[http.Key]*http.RequestStats
-	HTTP2    map[http.Key]*http.RequestStats
-	Kafka    map[kafka.Key]*kafka.RequestStat
 	Postgres map[postgres.Key]*postgres.RequestStat
 }
 
@@ -390,17 +388,6 @@ func (ns *networkState) GetDelta(
 		ns.storeDNSStats(dnsStats)
 	}
 
-	aggr := newConnectionAggregator((len(closed)+len(active))/2, ns.enableConnectionRollup, ns.processEventConsumerEnabled, client.dnsStats)
-	active = filterConnections(active, func(c *ConnectionStats) bool {
-		return !aggr.Aggregate(c)
-	})
-
-	closed = filterConnections(closed, func(c *ConnectionStats) bool {
-		return !aggr.Aggregate(c)
-	})
-
-	aggr.finalize()
-
 	for protocolType, protocolStats := range usmStats {
 		switch protocolType {
 		case protocols.HTTP:
@@ -418,11 +405,31 @@ func (ns *networkState) GetDelta(
 		}
 	}
 
+	aggr := newConnectionAggregator(
+		(len(closed)+len(active))/2,
+		ns.enableConnectionRollup,
+		ns.processEventConsumerEnabled,
+		client.dnsStats,
+		client.httpStatsDelta,
+		client.kafkaStatsDelta,
+		client.http2StatsDelta,
+	)
+	defer aggr.Close()
+
+	active = filterConnections(active, func(c *ConnectionStats) bool {
+		return !aggr.Aggregate(c)
+	})
+
+	closed = filterConnections(closed, func(c *ConnectionStats) bool {
+		return !aggr.Aggregate(c)
+	})
+
+	aggr.finalize()
+
+	ns.determineConnectionIntraHost(slice.NewChain(active, closed))
+
 	return Delta{
 		Conns:    append(active, closed...),
-		HTTP:     client.httpStatsDelta,
-		HTTP2:    client.http2StatsDelta,
-		Kafka:    client.kafkaStatsDelta,
 		Postgres: client.postgresStatsDelta,
 	}
 }
@@ -1186,19 +1193,47 @@ type aggregationKey struct {
 type connectionAggregator struct {
 	conns                       map[aggregationKey][]*aggregateConnection
 	buf                         []byte
-	dnsStats                    dns.StatsByKeyByNameByType
 	enablePortRollups           bool
 	processEventConsumerEnabled bool
+	stats                       struct {
+		dns   dns.StatsByKeyByNameByType
+		http  *USMConnectionIndex[http.Key, *http.RequestStats]
+		http2 *USMConnectionIndex[http.Key, *http.RequestStats]
+		kafka *USMConnectionIndex[kafka.Key, *kafka.RequestStat]
+	}
 }
 
-func newConnectionAggregator(size int, enablePortRollups, processEventConsumerEnabled bool, dnsStats dns.StatsByKeyByNameByType) *connectionAggregator {
-	return &connectionAggregator{
+func newConnectionAggregator(size int,
+	enablePortRollups, processEventConsumerEnabled bool,
+	dnsStats dns.StatsByKeyByNameByType,
+	httpStats map[http.Key]*http.RequestStats,
+	kafkaStats map[kafka.Key]*kafka.RequestStat,
+	http2Stats map[http.Key]*http.RequestStats,
+) *connectionAggregator {
+	ca := &connectionAggregator{
 		conns:                       make(map[aggregationKey][]*aggregateConnection, size),
 		buf:                         make([]byte, ConnectionByteKeyMaxLen),
-		dnsStats:                    dnsStats,
 		enablePortRollups:           enablePortRollups,
 		processEventConsumerEnabled: processEventConsumerEnabled,
 	}
+
+	ca.stats.dns = dnsStats
+	ca.stats.http = GroupByConnection("http", httpStats, func(key http.Key) types.ConnectionKey {
+		return key.ConnectionKey
+	})
+	ca.stats.http2 = GroupByConnection("http2", http2Stats, func(key http.Key) types.ConnectionKey {
+		return key.ConnectionKey
+	})
+	ca.stats.kafka = GroupByConnection("kafka", kafkaStats, func(key kafka.Key) types.ConnectionKey {
+		return key.ConnectionKey
+	})
+	return ca
+}
+
+func (a *connectionAggregator) Close() {
+	a.stats.http.Close()
+	a.stats.http2.Close()
+	a.stats.kafka.Close()
 }
 
 func (a *connectionAggregator) key(c *ConnectionStats) (key aggregationKey, sportRolledUp, dportRolledUp bool) {
@@ -1293,9 +1328,17 @@ func (a *connectionAggregator) dns(c *ConnectionStats) map[dns.Hostname]map[dns.
 		return nil
 	}
 
-	if stats, ok := a.dnsStats[key]; ok {
-		delete(a.dnsStats, key)
+	if stats, ok := a.stats.dns[key]; ok {
+		delete(a.stats.dns, key)
 		return stats
+	}
+
+	return nil
+}
+
+func usmStat[K comparable, V any](stats *USMConnectionIndex[K, V], c *ConnectionStats) []USMKeyValue[K, V] {
+	if data := stats.Find(*c); data != nil && len(data.Data) > 0 && !data.IsPIDCollision(*c) {
+		return data.Data
 	}
 
 	return nil
@@ -1312,11 +1355,13 @@ func (a *connectionAggregator) dns(c *ConnectionStats) map[dns.Hostname]map[dns.
 //   - the other connection's protocol stack is unknown
 //   - the other connection's protocol stack is not unknown AND equal
 func (a *connectionAggregator) Aggregate(c *ConnectionStats) bool {
-	key, sportRolledUp, dportRolledUp := a.key(c)
-
 	// get dns stats for connection
 	c.DNSStats = a.dns(c)
+	c.HTTPStats = usmStat(a.stats.http, c)
+	c.HTTP2Stats = usmStat(a.stats.http2, c)
+	c.KafkaStats = usmStat(a.stats.kafka, c)
 
+	key, sportRolledUp, dportRolledUp := a.key(c)
 	aggrConns, ok := a.conns[key]
 	if !ok {
 		a.conns[key] = []*aggregateConnection{
@@ -1384,31 +1429,77 @@ func (ac *aggregateConnection) merge(c *ConnectionStats) {
 	}
 
 	ac.ProtocolStack.MergeWith(c.ProtocolStack)
+	ac.mergeDNSStats(c)
+	ac.mergeUSMStats(c)
+}
 
-	if ac.DNSStats == nil {
+func mergeUSMStat[K comparable, V any](first, second []USMKeyValue[K, V], combineFunc func(_, _ V)) []USMKeyValue[K, V] {
+	if len(first) == 0 {
+		return second
+	}
+
+	if len(second) == 0 {
+		return first
+	}
+
+	for f := range first {
+		for s := range second {
+			if first[f].Key != second[s].Key {
+				continue
+			}
+
+			combineFunc(first[f].Value, second[s].Value)
+			second[s] = second[len(second)-1]
+			second = second[:len(second)-1]
+			break
+		}
+	}
+
+	return append(first, second...)
+}
+
+func (ac *aggregateConnection) mergeUSMStats(c *ConnectionStats) {
+	ac.HTTPStats = mergeUSMStat(ac.HTTPStats, c.HTTPStats, func(v1, v2 *http.RequestStats) {
+		v1.CombineWith(v2)
+	})
+	ac.HTTP2Stats = mergeUSMStat(ac.HTTP2Stats, c.HTTP2Stats, func(v1, v2 *http.RequestStats) {
+		v1.CombineWith(v2)
+	})
+	ac.KafkaStats = mergeUSMStat(ac.KafkaStats, c.KafkaStats, func(v1, v2 *kafka.RequestStat) {
+		v1.CombineWith(v2)
+	})
+	c.HTTP2Stats = nil
+	c.HTTPStats = nil
+	c.KafkaStats = nil
+}
+
+func (ac *aggregateConnection) mergeDNSStats(c *ConnectionStats) {
+	if len(ac.DNSStats) == 0 {
 		ac.DNSStats = c.DNSStats
-	} else {
-		for hostname, statsByQuery := range c.DNSStats {
-			hostStats := ac.DNSStats[hostname]
-			if hostStats == nil {
-				hostStats = make(map[dns.QueryType]dns.Stats)
-				ac.DNSStats[hostname] = hostStats
-			}
-			for q, stats := range statsByQuery {
-				queryStats, ok := hostStats[q]
-				if !ok {
-					hostStats[q] = stats
-					continue
-				}
+		c.DNSStats = nil
+		return
+	}
 
-				queryStats.FailureLatencySum += stats.FailureLatencySum
-				queryStats.SuccessLatencySum += stats.SuccessLatencySum
-				queryStats.Timeouts += stats.Timeouts
-				for rcode, count := range stats.CountByRcode {
-					queryStats.CountByRcode[rcode] += count
-				}
-				hostStats[q] = queryStats
+	for hostname, statsByQuery := range c.DNSStats {
+		hostStats := ac.DNSStats[hostname]
+		if hostStats == nil {
+			hostStats = make(map[dns.QueryType]dns.Stats)
+			ac.DNSStats[hostname] = hostStats
+		}
+		for q, stats := range statsByQuery {
+			queryStats, ok := hostStats[q]
+			if !ok {
+				hostStats[q] = stats
+				continue
 			}
+
+			queryStats.FailureLatencySum += stats.FailureLatencySum
+			queryStats.SuccessLatencySum += stats.SuccessLatencySum
+			queryStats.Timeouts += stats.Timeouts
+			for rcode, count := range stats.CountByRcode {
+				queryStats.CountByRcode[rcode] += count
+			}
+			hostStats[q] = queryStats
 		}
 	}
 

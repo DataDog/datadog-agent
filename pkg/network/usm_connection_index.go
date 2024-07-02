@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package marshal
+package network
 
 import (
 	"fmt"
@@ -12,7 +12,6 @@ import (
 	"github.com/cihub/seelog"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -20,7 +19,7 @@ import (
 
 // USMConnectionIndex provides a generic container for USM data pre-aggregated by connection
 type USMConnectionIndex[K comparable, V any] struct {
-	lookupFn func(network.ConnectionStats, map[types.ConnectionKey]*USMConnectionData[K, V]) *USMConnectionData[K, V]
+	lookupFn func(ConnectionStats, map[types.ConnectionKey]*USMConnectionData[K, V]) *USMConnectionData[K, V]
 	data     map[types.ConnectionKey]*USMConnectionData[K, V]
 	protocol string
 	once     sync.Once
@@ -94,9 +93,9 @@ func GroupByConnection[K comparable, V any](protocol string, data map[K]V, keyGe
 
 // Find returns a `USMConnectionData` object associated to given `network.ConnectionStats`
 // The returned object will include all USM aggregation associated to this connection
-func (bc *USMConnectionIndex[K, V]) Find(c network.ConnectionStats) *USMConnectionData[K, V] {
+func (bc *USMConnectionIndex[K, V]) Find(c ConnectionStats) *USMConnectionData[K, V] {
 	// Early return because USM currently doesn't support any protocol over UDP
-	if c.Type != network.TCP {
+	if c.Type != TCP {
 		return nil
 	}
 
@@ -110,7 +109,7 @@ func (bc *USMConnectionIndex[K, V]) Find(c network.ConnectionStats) *USMConnecti
 	return result
 }
 
-func (bc *USMConnectionIndex[K, V]) find(c network.ConnectionStats) *USMConnectionData[K, V] {
+func (bc *USMConnectionIndex[K, V]) find(c ConnectionStats) *USMConnectionData[K, V] {
 	result := bc.lookupFn(c, bc.data)
 	if result != nil || !bc.enableConnectionRollup {
 		return result
@@ -151,7 +150,7 @@ func (bc *USMConnectionIndex[K, V]) find(c network.ConnectionStats) *USMConnecti
 // Notice that this PID collision scenario is typical in the context pre-forked
 // webservers such as NGINX, where multiple worker processes will share the same
 // listen socket.
-func (gd *USMConnectionData[K, V]) IsPIDCollision(c network.ConnectionStats) bool {
+func (gd *USMConnectionData[K, V]) IsPIDCollision(c ConnectionStats) bool {
 	if gd.sport == 0 && gd.dport == 0 {
 		// This is the first time a ConnectionStats claim this data. In this
 		// case we return the value and save the source and destination ports

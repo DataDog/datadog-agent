@@ -5,16 +5,15 @@
 
 //go:build windows
 
-package marshal
+package network
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/types"
 )
 
 // USMLookup determines the strategy for associating a given connection to USM
-func USMLookup[K comparable, V any](c network.ConnectionStats, data map[types.ConnectionKey]*USMConnectionData[K, V]) *USMConnectionData[K, V] {
-	for _, key := range network.ConnectionKeysFromConnectionStats(c) {
+func USMLookup[K comparable, V any](c ConnectionStats, data map[types.ConnectionKey]*USMConnectionData[K, V]) *USMConnectionData[K, V] {
+	for _, key := range ConnectionKeysFromConnectionStats(c) {
 		if v, ok := data[key]; ok {
 			return v
 		}
