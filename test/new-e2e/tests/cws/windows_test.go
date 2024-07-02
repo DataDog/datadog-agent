@@ -237,8 +237,8 @@ func (a *agentSuiteWindows) Test03CreateFileSignal() {
 
 // test that the detection of CWS is properly working
 // this test can be quite long so run it last
-// func (a *agentSuiteWindows) Test99CWSEnabled() {
-// 	assert.EventuallyWithTf(a.T(), func(c *assert.CollectT) {
-// 		testCwsEnabled(c, a)
-// 	}, 20*time.Minute, 30*time.Second, "cws activation test timed out for host %s", a.Env().Agent.Client.Hostname())
-// }
+func (a *agentSuiteWindows) Test99CWSEnabled() {
+	assert.EventuallyWithTf(a.T(), func(c *assert.CollectT) {
+		testCwsEnabled(c, a)
+	}, 20*time.Minute, 30*time.Second, "cws activation test timed out for host %s", a.Env().Agent.Client.Hostname())
+}
