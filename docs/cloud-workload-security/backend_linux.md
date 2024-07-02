@@ -1470,6 +1470,10 @@ CSM Threats event for Linux systems have the following JSON schema:
                 "mode": {
                     "type": "integer",
                     "description": "Mode argument"
+                },
+                "destination_path": {
+                    "type": "string",
+                    "description": "Destination path argument"
                 }
             },
             "additionalProperties": false,
@@ -1488,6 +1492,9 @@ CSM Threats event for Linux systems have the following JSON schema:
                     "$ref": "#/$defs/SyscallArgs"
                 },
                 "open": {
+                    "$ref": "#/$defs/SyscallArgs"
+                },
+                "link": {
                     "$ref": "#/$defs/SyscallArgs"
                 }
             },
@@ -3850,6 +3857,10 @@ CSM Threats event for Linux systems have the following JSON schema:
         "mode": {
             "type": "integer",
             "description": "Mode argument"
+        },
+        "destination_path": {
+            "type": "string",
+            "description": "Destination path argument"
         }
     },
     "additionalProperties": false,
@@ -3864,6 +3875,7 @@ CSM Threats event for Linux systems have the following JSON schema:
 | `path` | Path argument |
 | `flags` | Flags argument |
 | `mode` | Mode argument |
+| `destination_path` | Destination path argument |
 
 
 ## `SyscallContext`
@@ -3883,6 +3895,9 @@ CSM Threats event for Linux systems have the following JSON schema:
         },
         "open": {
             "$ref": "#/$defs/SyscallArgs"
+        },
+        "link": {
+            "$ref": "#/$defs/SyscallArgs"
         }
     },
     "additionalProperties": false,
@@ -3895,6 +3910,7 @@ CSM Threats event for Linux systems have the following JSON schema:
 
 | References |
 | ---------- |
+| [SyscallArgs](#syscallargs) |
 | [SyscallArgs](#syscallargs) |
 | [SyscallArgs](#syscallargs) |
 | [SyscallArgs](#syscallargs) |

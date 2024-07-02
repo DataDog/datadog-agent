@@ -3064,6 +3064,24 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
+	case "link.syscall.destination.path":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveSyscallCtxArgsStr2(ev, &ev.Link.SyscallContext)
+			},
+			Field:  field,
+			Weight: 900 * eval.HandlerWeight,
+		}, nil
+	case "link.syscall.path":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Link.SyscallContext)
+			},
+			Field:  field,
+			Weight: 900 * eval.HandlerWeight,
+		}, nil
 	case "load_module.args":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -16796,6 +16814,8 @@ func (ev *Event) GetFields() []eval.Field {
 		"link.file.uid",
 		"link.file.user",
 		"link.retval",
+		"link.syscall.destination.path",
+		"link.syscall.path",
 		"load_module.args",
 		"load_module.args_truncated",
 		"load_module.argv",
@@ -18617,6 +18637,10 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Link.Source.FileFields), nil
 	case "link.retval":
 		return int(ev.Link.SyscallEvent.Retval), nil
+	case "link.syscall.destination.path":
+		return ev.FieldHandlers.ResolveSyscallCtxArgsStr2(ev, &ev.Link.SyscallContext), nil
+	case "link.syscall.path":
+		return ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Link.SyscallContext), nil
 	case "load_module.args":
 		return ev.FieldHandlers.ResolveModuleArgs(ev, &ev.LoadModule), nil
 	case "load_module.args_truncated":
@@ -24743,6 +24767,10 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "link", nil
 	case "link.retval":
 		return "link", nil
+	case "link.syscall.destination.path":
+		return "link", nil
+	case "link.syscall.path":
+		return "link", nil
 	case "load_module.args":
 		return "load_module", nil
 	case "load_module.args_truncated":
@@ -27332,6 +27360,10 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.String, nil
 	case "link.retval":
 		return reflect.Int, nil
+	case "link.syscall.destination.path":
+		return reflect.String, nil
+	case "link.syscall.path":
+		return reflect.String, nil
 	case "load_module.args":
 		return reflect.String, nil
 	case "load_module.args_truncated":
@@ -31880,6 +31912,20 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Link.SyscallEvent.Retval"}
 		}
 		ev.Link.SyscallEvent.Retval = int64(rv)
+		return nil
+	case "link.syscall.destination.path":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Link.SyscallContext.StrArg2"}
+		}
+		ev.Link.SyscallContext.StrArg2 = rv
+		return nil
+	case "link.syscall.path":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Link.SyscallContext.StrArg1"}
+		}
+		ev.Link.SyscallContext.StrArg1 = rv
 		return nil
 	case "load_module.args":
 		rv, ok := value.(string)
