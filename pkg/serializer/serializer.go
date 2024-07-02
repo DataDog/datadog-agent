@@ -350,7 +350,7 @@ func (s *Serializer) SendIterableSeries(serieSource metrics.SerieSource) error {
 	} else if useV1API && !s.enableJSONStream {
 		seriesBytesPayloads, extraHeaders, err = s.serializePayloadJSON(seriesSerializer, true)
 	} else {
-		failoverActive, allowlist := getFailoverAllowlist(s)
+		failoverActive, allowlist := s.getFailoverAllowlist()
 
 		if failoverActive && len(allowlist) > 0 {
 			var filtered transaction.BytesPayloads
