@@ -164,6 +164,14 @@ static __always_inline bool skip_varint_number_of_topics(pktbuf_t pkt, u32 *offs
     return true;
 }
 
+// Skips a varint of up to `max_bytes` (4).  The `skip_varint_number_of_topics`
+// above could potentially be merged with this, although that leads to a small
+// growth in the number of instructions processed.
+//
+// Note there is an assumption that there are at least `max_bytes` available in
+// the packet (even if the varint actually occupies a lesser amount of space).
+//
+// A return value of false indicates an error in reading the varint.
 static __always_inline __maybe_unused bool skip_varint(pktbuf_t pkt, u32 *offset, u32 max_bytes) {
     u8 bytes[4] = {};
 
