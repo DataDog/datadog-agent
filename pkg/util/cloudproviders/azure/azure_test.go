@@ -111,9 +111,27 @@ func TestGetNTPHosts(t *testing.T) {
 	ctx := context.Background()
 	expectedHosts := []string{"time.windows.com"}
 
+	responseIdx := 0
+	responses := []func(w http.ResponseWriter, r *http.Request){
+		func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "text/plain")
+			io.WriteString(w, "test")
+		},
+		func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			io.WriteString(w, fmt.Sprintf(`{
+				"name": "vm-name",
+				"resourceGroupName": "my-resource-group",
+				"subscriptionId": "2370ac56-5683-45f8-a2d4-d1054292facb",
+				"vmId": "b33fa46-6aff-4dfa-be0a-9e922ca3ac6d",
+				"osProfile": {"computerName":"%s"},
+				"tagsList": [{"name":"aks-managed-orchestrator","value":"Kubernetes"}]
+			}`, "node-name-a"))
+		},
+	}
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "text/plain")
-		io.WriteString(w, "test")
+		responses[responseIdx](w, r)
+		responseIdx++
 	}))
 	defer ts.Close()
 
