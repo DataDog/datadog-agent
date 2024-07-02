@@ -1,3 +1,4 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
@@ -7,7 +8,6 @@ package cws
 
 import (
 	_ "embed"
-	fp "path/filepath"
 
 	"fmt"
 	"path"
@@ -98,7 +98,7 @@ func (a *agentSuiteWindows) Test01RulesetLoadedDefaultRC() {
 func (a *agentSuiteWindows) Test02Selftests() {
 	assert.EventuallyWithT(a.T(), func(c *assert.CollectT) {
 		testSelftestsEvent(c, a, func(event *api.SelftestsEvent) {
-			assert.Contains(c, event.SucceededTests, "datadog_agent_cws_self_test_rule__windows_create_file", "missing selftest result")
+			assert.Contains(c, event.SucceededTests, "datadog_agent_cws_self_test_rule_windows_create_file", "missing selftest result")
 			assert.Contains(c, event.SucceededTests, "datadog_agent_cws_self_test_rule_windows_open_registry_key_name", "missing selftest result")
 		})
 	}, 4*time.Minute, 10*time.Second)
@@ -124,13 +124,13 @@ func (a *agentSuiteWindows) Test03CreateFileSignal() {
 	// Create temporary directory
 	cmd := "New-Item -ItemType Directory -Path $env:TEMP -Name ([Guid]::NewGuid().Guid) | Select-Object -ExpandProperty FullName"
 	tempDir := a.Env().RemoteHost.MustExecute(cmd)
-	dirname = strings.TrimSuffix(tempDir, "\n")
-	filepath := fmt.Sprintf("%s/secret", dirname)
+	dirname = strings.TrimSpace(tempDir)
+	filepath := fmt.Sprintf("%s\\secret", dirname)
 	desc := fmt.Sprintf("e2e test rule %s", a.testID)
 	agentRuleName := fmt.Sprintf("new_e2e_agent_rule_%s", a.testID)
 
 	// Create CWS Agent rule
-	rule := fmt.Sprintf(`create.file.name == "%s" && create.file.path == "%s"`, fp.Base(filepath), filepath)
+	rule := fmt.Sprintf(`create.file.path == "%s"`, filepath)
 	res, err := a.apiClient.CreateCWSAgentRule(agentRuleName, desc, rule, []string{`os == "windows"`})
 	require.NoError(a.T(), err, "Agent rule creation failed")
 	agentRuleID = res.Data.GetId()
@@ -171,7 +171,7 @@ func (a *agentSuiteWindows) Test03CreateFileSignal() {
 
 	var policies string
 	require.EventuallyWithT(a.T(), func(c *assert.CollectT) {
-		policies = a.Env().RemoteHost.MustExecute(fmt.Sprintf("$env:DD_APP_KEY='%s'; $env:DD_API_KEY='%s'; %s runtime policy download | Out-File temp.txt; Get-Content temp.txt", appKey, apiKey, securityAgentPathWindows))
+		policies = a.Env().RemoteHost.MustExecute(fmt.Sprintf("$env:DD_APP_KEY='%s'; $env:DD_API_KEY='%s'; & '%s' runtime policy download | Out-File temp.txt; Get-Content temp.txt", appKey, apiKey, securityAgentPathWindows))
 		assert.NotEmpty(c, policies, "should not be empty")
 	}, 1*time.Minute, 1*time.Second)
 
@@ -179,12 +179,12 @@ func (a *agentSuiteWindows) Test03CreateFileSignal() {
 	require.Contains(a.T(), policies, desc, "The policies should contain the created rule")
 
 	// Push policies
-	a.Env().RemoteHost.MustExecute(fmt.Sprintf("sudo cp temp.txt %s && rm temp.txt", policiesPathWindows))
+	a.Env().RemoteHost.MustExecute(fmt.Sprintf("cp temp.txt '%s'; rm temp.txt", policiesPathWindows))
 	policiesFile := a.Env().RemoteHost.MustExecute(fmt.Sprintf("cat %s", policiesPathWindows))
 	require.Contains(a.T(), policiesFile, desc, "The policies file should contain the created rule")
 
 	// Reload policies
-	a.Env().RemoteHost.MustExecute(fmt.Sprintf("sudo %s runtime policy reload", securityAgentPathWindows))
+	a.Env().RemoteHost.MustExecute(fmt.Sprintf("& '%s' runtime policy reload", securityAgentPathWindows))
 
 	// Check if the policy is loaded
 	policyName := path.Base(policiesPathWindows)
@@ -198,12 +198,12 @@ func (a *agentSuiteWindows) Test03CreateFileSignal() {
 	}, 4*time.Minute, 5*time.Second)
 
 	// Trigger agent event
-	a.Env().RemoteHost.MustExecute(fmt.Sprintf("New-Item %s -ItemType File", filepath))
+	a.Env().RemoteHost.MustExecute(fmt.Sprintf("New-Item '%s' -ItemType File", filepath))
 
 	// Check app event
 	assert.EventuallyWithT(a.T(), func(c *assert.CollectT) {
 		testRuleEvent(c, a, agentRuleName, func(e *api.RuleEvent) {
-			assert.Equal(c, "create-file", e.Evt.Name, "event name should be create-file")
+			assert.Equal(c, "create", e.Evt.Name, "event name should be create")
 			assert.Equal(c, filepath, e.File.Path, "file path does not match")
 			assert.Contains(c, e.Tags, "tag1", "missing event tag")
 			assert.Contains(c, e.Tags, "tag2", "missing event tag")
@@ -237,8 +237,8 @@ func (a *agentSuiteWindows) Test03CreateFileSignal() {
 
 // test that the detection of CWS is properly working
 // this test can be quite long so run it last
-// func (a *agentSuiteWindows) Test99CWSEnabled() {
-// 	assert.EventuallyWithTf(a.T(), func(c *assert.CollectT) {
-// 		testCwsEnabled(c, a)
-// 	}, 20*time.Minute, 30*time.Second, "cws activation test timed out for host %s", a.Env().Agent.Client.Hostname())
-// }
+func (a *agentSuiteWindows) Test99CWSEnabled() {
+	assert.EventuallyWithTf(a.T(), func(c *assert.CollectT) {
+		testCwsEnabled(c, a)
+	}, 20*time.Minute, 30*time.Second, "cws activation test timed out for host %s", a.Env().Agent.Client.Hostname())
+}
