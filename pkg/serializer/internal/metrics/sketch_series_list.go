@@ -79,6 +79,12 @@ func (sl SketchSeriesList) MarshalSplitCompress(bufferContext *marshaler.BufferC
 	return pb.payloads, nil
 }
 
+// MarshalSplitCompressMultiple uses the stream compressor to marshal and
+// compress one sketch list into two sets of payloads.  One set of payloads
+// contains all metrics, and the other contains only those that pass the
+// provided filter function.  This function exists because we need a way to
+// build both payloads in a single pass over the input data, which cannot be
+// iterated over twice.
 func (sl SketchSeriesList) MarshalSplitCompressMultiple(config config.Component, strategy compression.Component, filterFunc func(ss *metrics.SketchSeries) bool) (transaction.BytesPayloads, transaction.BytesPayloads, error) {
 	var err error
 
