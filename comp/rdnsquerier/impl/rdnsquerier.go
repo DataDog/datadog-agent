@@ -8,6 +8,7 @@ package rdnsquerierimpl
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"net/netip"
 	"sync"
@@ -59,6 +60,7 @@ type rdnsQuerierImpl struct {
 	config            *rdnsQuerierConfig
 	internalTelemetry *rdnsQuerierTelemetry
 
+	started     bool
 	resolver    resolver
 	rateLimiter rateLimiter
 
@@ -88,7 +90,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 	}
 
 	internalTelemetry := &rdnsQuerierTelemetry{
-		reqs.Telemetry.NewCounter(moduleName, "total", []string{}, "Counter measuring the total number of rDNS requests made"),
+		reqs.Telemetry.NewCounter(moduleName, "total", []string{}, "Counter measuring the total number of rDNS requests"),
 		reqs.Telemetry.NewCounter(moduleName, "private", []string{}, "Counter measuring the number of rDNS requests in the private address space"),
 		reqs.Telemetry.NewCounter(moduleName, "chan_added", []string{}, "Counter measuring the number of rDNS requests added to the channel"),
 		reqs.Telemetry.NewCounter(moduleName, "dropped_chan_full", []string{}, "Counter measuring the number of rDNS requests dropped because the channel was full"),
@@ -106,10 +108,9 @@ func NewComponent(reqs Requires) (Provides, error) {
 		config:            config,
 		internalTelemetry: internalTelemetry,
 
+		started:     false,
 		resolver:    newResolver(config),
 		rateLimiter: newRateLimiter(config),
-
-		rdnsQueryChan: make(chan *rdnsQuery, config.chanSize),
 	}
 
 	reqs.Lifecycle.Append(compdef.Hook{
@@ -122,21 +123,24 @@ func NewComponent(reqs Requires) (Provides, error) {
 	}, nil
 }
 
-// GetHostnameAsync attempts to resolve the hostname for the given IP address.  If the IP address is in the private address
-// space then a reverse DNS lookup is processed asynchronously.  If the lookup is successful then the updateHostname function
-// will be called asynchronously with the hostname.
-func (q *rdnsQuerierImpl) GetHostnameAsync(ipAddr []byte, updateHostname func(string)) {
+// GetHostnameAsync attempts to resolve the hostname for the given IP address.
+// If the IP address is invalid then an error is returned.
+// If the IP address is not in the private address space then it is ignored - no lookup is performed and no error is returned.
+// If the IP address is in the private address space then a reverse DNS lookup request is sent to a channel to be processed asynchronously.
+// If the channel is full then an error is returned.
+// When the lookup request completes the updateHostname function will be called asynchronously with the results.
+func (q *rdnsQuerierImpl) GetHostnameAsync(ipAddr []byte, updateHostname func(string)) error {
 	q.internalTelemetry.total.Inc()
 
 	ipaddr, ok := netip.AddrFromSlice(ipAddr)
 	if !ok {
 		q.internalTelemetry.invalidIPAddress.Inc()
-		q.logger.Debugf("Reverse DNS Enrichment IP address %v is invalid", ipAddr)
-		return
+		return fmt.Errorf("invalid IP address %v", ipAddr)
 	}
 
 	if !ipaddr.IsPrivate() {
-		return
+		q.logger.Tracef("Reverse DNS Enrichment IP address %s is not in the private address space", ipaddr)
+		return nil
 	}
 	q.internalTelemetry.private.Inc()
 
@@ -150,26 +154,45 @@ func (q *rdnsQuerierImpl) GetHostnameAsync(ipAddr []byte, updateHostname func(st
 		q.internalTelemetry.chanAdded.Inc()
 	default:
 		q.internalTelemetry.droppedChanFull.Inc()
-		q.logger.Debugf("Reverse DNS Enrichment channel is full, dropping query for IP address %s", query.addr)
+		return fmt.Errorf("channel is full, dropping query for IP address %s", query.addr)
 	}
+	return nil
 }
 
 func (q *rdnsQuerierImpl) start(_ context.Context) error {
+	if q.started {
+		q.logger.Debugf("Reverse DNS Enrichment already started")
+		return nil
+	}
+
+	// A context is needed by the rate limiter and we also use its Done() channel for shutting down worker goroutines.
+	// We don't use the context passed in because it has a deadline set, which we don't want.
 	var ctx context.Context
 	ctx, q.cancel = context.WithCancel(context.Background())
+
+	q.rdnsQueryChan = make(chan *rdnsQuery, q.config.chanSize)
+
 	for range q.config.workers {
 		q.wg.Add(1)
 		go q.worker(ctx)
 	}
 	q.logger.Infof("Reverse DNS Enrichment started %d rdnsquerier workers", q.config.workers)
+	q.started = true
 
 	return nil
 }
 
 func (q *rdnsQuerierImpl) stop(context.Context) error {
+	if !q.started {
+		q.logger.Debugf("Reverse DNS Enrichment already stopped")
+		return nil
+	}
+
 	q.cancel()
 	q.wg.Wait()
+
 	q.logger.Infof("Reverse DNS Enrichment stopped rdnsquerier workers")
+	q.started = false
 
 	return nil
 }
