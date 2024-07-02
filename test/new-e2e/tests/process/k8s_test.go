@@ -26,6 +26,7 @@ import (
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kubeClient "k8s.io/client-go/kubernetes"
 
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
@@ -82,6 +83,8 @@ func TestK8sTestSuite(t *testing.T) {
 }
 
 func (s *K8sSuite) TestProcessCheck() {
+	// https://datadoghq.atlassian.net/browse/PROCS-4184
+	flake.Mark(s.T())
 	t := s.T()
 
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {

@@ -63,7 +63,7 @@ func build(t *testing.T) string {
 
 	curDir, err := testutil.CurDir()
 	require.NoError(t, err)
-	serverBin, err := usmtestutil.BuildUnixTransparentProxyServer(curDir, "fmapper")
+	serverBin, err := usmtestutil.BuildGoBinaryWrapper(curDir, "fmapper")
 	require.NoError(t, err)
 	return serverBin
 }

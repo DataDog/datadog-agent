@@ -2,11 +2,10 @@ import unittest
 from urllib.parse import quote
 
 from tasks.gitlab_helpers import (
-    CI_VISIBILITY_URL,
-    TEST_VISIBILITY_URL,
     create_gitlab_annotations_report,
 )
 from tasks.libs.ciproviders.gitlab_api import BASE_URL as GITLAB_BASE_URL
+from tasks.libs.civisibility import CI_VISIBILITY_URL, TEST_VISIBILITY_URL
 
 
 class TestCreateGitlabAnnotations(unittest.TestCase):

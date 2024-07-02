@@ -11,6 +11,7 @@ import (
 	"bytes"
 	"os/exec"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -53,6 +54,7 @@ func IptablesRestore(tb testing.TB, state []byte) {
 		if restoreErr == nil {
 			return
 		}
+		time.Sleep(time.Second)
 	}
 	assert.NoError(tb, restoreErr)
 }
