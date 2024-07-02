@@ -112,6 +112,11 @@ func newAPIServer(deps dependencies) api.Component {
 }
 
 // ServerAddress returns the server address.
-func (server *apiServer) ServerAddress() *net.TCPAddr {
+func (server *apiServer) CMDServerAddress() *net.TCPAddr {
 	return server.cmdListener.Addr().(*net.TCPAddr)
+}
+
+// ServerAddress returns the server address.
+func (server *apiServer) IPCServerAddress() *net.TCPAddr {
+	return server.ipcListener.Addr().(*net.TCPAddr)
 }
