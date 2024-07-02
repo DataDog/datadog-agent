@@ -198,6 +198,7 @@ def gitlab_ci_diff(ctx, before: str | None = DEFAULT_BRANCH, after: str | None =
 
         diff = GitlabCIDiff(before_config, after_config)
 
+        # TODO : Remove comment if no changes
         if not diff:
             print(color_message("No changes in the gitlab-ci configuration", Color.GREEN))
             return
