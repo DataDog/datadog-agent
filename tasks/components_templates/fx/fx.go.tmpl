@@ -1,0 +1,18 @@
+${COPYRIGHT_HEADER}
+
+// Package fx provides the fx module for the ${COMPONENT_NAME} component
+package fx
+
+import (
+	${COMPONENT_NAME}impl "github.com/DataDog/datadog-agent/${COMPONENT_PATH}/impl"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+)
+
+// Module defines the fx options for this component
+func Module() fxutil.Module {
+	return fxutil.Component(
+		fxutil.ProvideComponentConstructor(
+			${COMPONENT_NAME}impl.NewComponent,
+		),
+	)
+}

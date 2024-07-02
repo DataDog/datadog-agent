@@ -96,10 +96,10 @@ func (c *APMCheck) run() error {
 	hname, _ := hostname.Get(context.TODO())
 
 	env := os.Environ()
-	env = append(env, fmt.Sprintf("DD_API_KEY=%s", utils.SanitizeAPIKey(config.Datadog.GetString("api_key"))))
+	env = append(env, fmt.Sprintf("DD_API_KEY=%s", utils.SanitizeAPIKey(config.Datadog().GetString("api_key"))))
 	env = append(env, fmt.Sprintf("DD_HOSTNAME=%s", hname))
-	env = append(env, fmt.Sprintf("DD_DOGSTATSD_PORT=%s", config.Datadog.GetString("dogstatsd_port")))
-	env = append(env, fmt.Sprintf("DD_LOG_LEVEL=%s", config.Datadog.GetString("log_level")))
+	env = append(env, fmt.Sprintf("DD_DOGSTATSD_PORT=%s", config.Datadog().GetString("dogstatsd_port")))
+	env = append(env, fmt.Sprintf("DD_LOG_LEVEL=%s", config.Datadog().GetString("log_level")))
 	cmd.Env = env
 
 	// forward the standard output to the Agent logger
@@ -176,7 +176,7 @@ func (c *APMCheck) Configure(_ sender.SenderManager, _ uint64, data integration.
 		c.binPath = defaultBinPath
 	}
 
-	configFile := config.Datadog.ConfigFileUsed()
+	configFile := config.Datadog().ConfigFileUsed()
 
 	c.commandOpts = []string{}
 
@@ -186,7 +186,7 @@ func (c *APMCheck) Configure(_ sender.SenderManager, _ uint64, data integration.
 	}
 
 	c.source = source
-	c.telemetry = utils.IsCheckTelemetryEnabled("apm", config.Datadog)
+	c.telemetry = utils.IsCheckTelemetryEnabled("apm", config.Datadog())
 	c.initConfig = string(initConfig)
 	c.instanceConfig = string(data)
 	return nil

@@ -28,15 +28,20 @@ import (
 
 const (
 	// InFlightMap is the name of the in-flight map.
-	InFlightMap      = "postgres_in_flight"
-	scratchBufferMap = "postgres_scratch_buffer"
-	processTailCall  = "socket__postgres_process"
-	eventStream      = "postgres"
+	InFlightMap             = "postgres_in_flight"
+	scratchBufferMap        = "postgres_scratch_buffer"
+	processTailCall         = "socket__postgres_process"
+	parseMessageTailCall    = "socket__postgres_process_parse_message"
+	tlsProcessTailCall      = "uprobe__postgres_tls_process"
+	tlsParseMessageTailCall = "uprobe__postgres_tls_process_parse_message"
+	tlsTerminationTailCall  = "uprobe__postgres_tls_termination"
+	eventStream             = "postgres"
 )
 
 // protocol holds the state of the postgres protocol monitoring.
 type protocol struct {
 	cfg            *config.Config
+	telemetry      *Telemetry
 	eventsConsumer *events.Consumer[EbpfEvent]
 	mapCleaner     *ddebpf.MapCleaner[netebpf.ConnTuple, EbpfTx]
 	statskeeper    *StatKeeper
@@ -70,6 +75,34 @@ var Spec = &protocols.ProtocolSpec{
 				EBPFFuncName: processTailCall,
 			},
 		},
+		{
+			ProgArrayName: protocols.ProtocolDispatcherProgramsMap,
+			Key:           uint32(protocols.ProgramPostgresParseMessage),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: parseMessageTailCall,
+			},
+		},
+		{
+			ProgArrayName: protocols.TLSDispatcherProgramsMap,
+			Key:           uint32(protocols.ProgramPostgres),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: tlsProcessTailCall,
+			},
+		},
+		{
+			ProgArrayName: protocols.TLSDispatcherProgramsMap,
+			Key:           uint32(protocols.ProgramPostgresParseMessage),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: tlsParseMessageTailCall,
+			},
+		},
+		{
+			ProgArrayName: protocols.TLSDispatcherProgramsMap,
+			Key:           uint32(protocols.ProgramPostgresTermination),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: tlsTerminationTailCall,
+			},
+		},
 	},
 }
 
@@ -80,6 +113,7 @@ func newPostgresProtocol(cfg *config.Config) (protocols.Protocol, error) {
 
 	return &protocol{
 		cfg:         cfg,
+		telemetry:   NewTelemetry(),
 		statskeeper: NewStatkeeper(cfg),
 	}, nil
 }
@@ -164,7 +198,9 @@ func (*protocol) IsBuildModeSupported(buildmode.Type) bool {
 func (p *protocol) processPostgres(events []EbpfEvent) {
 	for i := range events {
 		tx := &events[i]
-		p.statskeeper.Process(NewEventWrapper(tx))
+		eventWrapper := NewEventWrapper(tx)
+		p.statskeeper.Process(eventWrapper)
+		p.telemetry.Count(tx, eventWrapper)
 	}
 }
 

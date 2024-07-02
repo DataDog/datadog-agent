@@ -33,7 +33,7 @@ func SetConfdPathAndCleanProfiles() {
 	if !pathExists(file) {
 		file, _ = filepath.Abs(filepath.Join(".", "internal", "test", "conf.d"))
 	}
-	config.Datadog.SetWithoutSource("confd_path", file)
+	config.Datadog().SetWithoutSource("confd_path", file)
 }
 
 // FixtureProfileDefinitionMap returns a fixture of ProfileConfigMap with `f5-big-ip` profile

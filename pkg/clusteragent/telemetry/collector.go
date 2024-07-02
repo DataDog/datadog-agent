@@ -101,7 +101,7 @@ func httpClientFactory(timeout time.Duration) func() *http.Client {
 		return &http.Client{
 			Timeout: timeout,
 			// reusing core agent HTTP transport to benefit from proxy settings.
-			Transport: httputils.CreateHTTPTransport(config.Datadog),
+			Transport: httputils.CreateHTTPTransport(config.Datadog()),
 		}
 	}
 }
@@ -112,7 +112,7 @@ func httpClientFactory(timeout time.Duration) func() *http.Client {
 func NewCollector(rcClientId string, kubernetesClusterId string) TelemetryCollector {
 	return &telemetryCollector{
 		client:              httputils.NewResetClient(httpClientResetInterval, httpClientFactory(httpClientTimeout)),
-		host:                utils.GetMainEndpoint(config.Datadog, mainEndpointPrefix, mainEndpointUrlKey),
+		host:                utils.GetMainEndpoint(config.Datadog(), mainEndpointPrefix, mainEndpointUrlKey),
 		userAgent:           "Datadog Cluster Agent",
 		rcClientId:          rcClientId,
 		kubernetesClusterId: kubernetesClusterId,
@@ -154,12 +154,12 @@ func (tc *telemetryCollector) sendRemoteConfigEvent(eventName string, event ApmR
 		log.Errorf("Error while trying to create a web request for a remote config event: %v", err)
 		return
 	}
-	if !config.Datadog.IsSet("api_key") {
+	if !config.Datadog().IsSet("api_key") {
 		return
 	}
 	req.Header.Add("Content-Type", "application/json")
 	req.Header.Add("User-Agent", tc.userAgent)
-	req.Header.Add("DD-API-KEY", config.Datadog.GetString("api_key"))
+	req.Header.Add("DD-API-KEY", config.Datadog().GetString("api_key"))
 	req.Header.Add("Content-Length", bodyLen)
 
 	resp, err := tc.client.Do(req)

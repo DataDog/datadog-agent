@@ -25,6 +25,21 @@ func TestExtractTableFunction(t *testing.T) {
 			tablesName: "test1",
 		},
 		{
+			name:       "extra space between if exists",
+			query:      `DROP TABLE  IF  EXISTS test1`,
+			tablesName: "test1",
+		},
+		{
+			name:       "single table name with small caps",
+			query:      `drop table if exists test1`,
+			tablesName: "test1",
+		},
+		{
+			name:       "single table name with mixed caps",
+			query:      `drop TablE iF ExISts test1`,
+			tablesName: "test1",
+		},
+		{
 			name:       "validate unknown table name",
 			query:      `DROP TABLE`,
 			tablesName: "UNKNOWN",

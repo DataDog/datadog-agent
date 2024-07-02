@@ -20,23 +20,25 @@ func newTestDB(t *testing.T) *PackagesDB {
 	return db
 }
 
-func TestCreatePackage(t *testing.T) {
+func TestSetPackage(t *testing.T) {
 	db := newTestDB(t)
 	defer db.Close()
 
-	err := db.CreatePackage("test")
+	testPackage := Package{Name: "test", Version: "1.2.3", InstallerVersion: "4.5.6"}
+	err := db.SetPackage(testPackage)
 	assert.NoError(t, err)
 	packages, err := db.ListPackages()
 	assert.NoError(t, err)
 	assert.Len(t, packages, 1)
-	assert.Equal(t, "test", packages[0])
+	assert.Equal(t, testPackage, packages[0])
 }
 
 func TestDeletePackage(t *testing.T) {
 	db := newTestDB(t)
 	defer db.Close()
 
-	err := db.CreatePackage("test")
+	testPackage := Package{Name: "test", Version: "1.2.3", InstallerVersion: "4.5.6"}
+	err := db.SetPackage(testPackage)
 	assert.NoError(t, err)
 	err = db.DeletePackage("test")
 	assert.NoError(t, err)
@@ -53,15 +55,52 @@ func TestListPackages(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Len(t, packages, 0)
 
-	err = db.CreatePackage("test1")
+	testPackage1 := Package{Name: "test1", Version: "1.2.3", InstallerVersion: "4.5.6"}
+	err = db.SetPackage(testPackage1)
 	assert.NoError(t, err)
-	err = db.CreatePackage("test2")
+	testPackage2 := Package{Name: "test2", Version: "1.2.3", InstallerVersion: "4.5.6"}
+	err = db.SetPackage(testPackage2)
 	assert.NoError(t, err)
 	packages, err = db.ListPackages()
 	assert.NoError(t, err)
 	assert.Len(t, packages, 2)
-	assert.Contains(t, packages, "test1")
-	assert.Contains(t, packages, "test2")
+	assert.Contains(t, packages, testPackage1)
+	assert.Contains(t, packages, testPackage2)
+}
+
+func TestGetPackage(t *testing.T) {
+	db := newTestDB(t)
+	defer db.Close()
+
+	testPackage := Package{Name: "test", Version: "1.2.3", InstallerVersion: "4.5.6"}
+	err := db.SetPackage(testPackage)
+	assert.NoError(t, err)
+	p, err := db.GetPackage("test")
+	assert.NoError(t, err)
+	assert.Equal(t, testPackage, p)
+}
+
+func TestGetPackageNotFound(t *testing.T) {
+	db := newTestDB(t)
+	defer db.Close()
+
+	_, err := db.GetPackage("test")
+	assert.ErrorIs(t, err, ErrPackageNotFound)
+}
+
+func TestHasPackage(t *testing.T) {
+	db := newTestDB(t)
+	defer db.Close()
+
+	testPackage := Package{Name: "test", Version: "1.2.3", InstallerVersion: "4.5.6"}
+	err := db.SetPackage(testPackage)
+	assert.NoError(t, err)
+	has, err := db.HasPackage("test")
+	assert.NoError(t, err)
+	assert.True(t, has)
+	has, err = db.HasPackage("test2")
+	assert.NoError(t, err)
+	assert.False(t, has)
 }
 
 func TestTimeout(t *testing.T) {

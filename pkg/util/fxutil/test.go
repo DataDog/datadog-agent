@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build test
+
 package fxutil
 
 import (
@@ -20,10 +22,6 @@ import (
 type NoDependencies struct {
 	fx.In
 }
-
-// fxAppTestOverride allows TestRunCommand and TestOneShotSubcommand to
-// override the Run and OneShot functions.  It is always nil in production.
-var fxAppTestOverride func(interface{}, []fx.Option) error
 
 // Test starts an app and returns fulfilled dependencies
 //

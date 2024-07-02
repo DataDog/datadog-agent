@@ -1,0 +1,36 @@
+receivers:
+    otlp:
+
+exporters:
+    datadog:
+      api:
+        key: 12345
+
+extensions:
+  pprof/user-defined:
+  health_check/user-defined:
+  zpages/user-defined:
+    endpoint: "localhost:55679"
+  datadog/user-defined:
+    
+processors:
+  infraattributes/user-defined:
+
+service:
+  telemetry:
+    metrics:
+      address: "localhost:1234"
+  extensions: [pprof/user-defined, zpages/user-defined, health_check/user-defined, datadog/user-defined]
+  pipelines:
+      traces:
+          receivers: [nop]
+          processors: [infraattributes/user-defined]
+          exporters: [datadog]
+      metrics:
+          receivers: [nop]
+          processors: [infraattributes/user-defined]
+          exporters: [datadog]
+      logs:
+          receivers: [nop]
+          processors: [infraattributes/user-defined]
+          exporters: [datadog]

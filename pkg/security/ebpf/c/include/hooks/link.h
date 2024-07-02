@@ -34,7 +34,7 @@ HOOK_SYSCALL_ENTRY0(linkat) {
 
 HOOK_ENTRY("do_linkat")
 int hook_do_linkat(ctx_t *ctx) {
-    struct syscall_cache_t* syscall = peek_syscall(EVENT_LINK);
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_LINK);
     if (!syscall) {
         return trace__sys_link(ASYNC_SYSCALL);
     }
@@ -60,7 +60,7 @@ int hook_vfs_link(ctx_t *ctx) {
     if (get_vfs_link_target_dentry_position() == VFS_ARG_POSITION4) {
         // prevent the verifier from whining
         bpf_probe_read(&syscall->link.target_dentry, sizeof(syscall->link.target_dentry), &syscall->link.target_dentry);
-        syscall->link.target_dentry = (struct dentry *) CTX_PARM4(ctx);
+        syscall->link.target_dentry = (struct dentry *)CTX_PARM4(ctx);
     }
 
     // this is a hard link, source and target dentries are on the same filesystem & mount point
@@ -78,7 +78,7 @@ int hook_vfs_link(ctx_t *ctx) {
     syscall->link.target_file.metadata = syscall->link.src_file.metadata;
 
     // we generate a fake target key as the inode is the same
-    syscall->link.target_file.path_key.ino = FAKE_INODE_MSW<<32 | bpf_get_prandom_u32();
+    syscall->link.target_file.path_key.ino = FAKE_INODE_MSW << 32 | bpf_get_prandom_u32();
     syscall->link.target_file.path_key.mount_id = syscall->link.src_file.path_key.mount_id;
     if (is_overlayfs(src_dentry)) {
         syscall->link.target_file.flags |= UPPER_LAYER;

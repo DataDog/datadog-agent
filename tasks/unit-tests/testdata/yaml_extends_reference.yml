@@ -1,0 +1,37 @@
+.name: Joseph
+
+.a:
+  name: !reference [.name]
+
+.all_colors:
+  colors:
+    - red
+    - green
+    - blue
+    - yellow
+    - magenta
+    - cyan
+
+.colors:
+  extends: .all_colors
+
+.b:
+  colors: !reference [.colors]
+
+.name2: Alice
+
+target:
+  extends:
+    - .a
+    - .b
+  names:
+    - !reference [.name]
+    - !reference [.name2]
+
+expected:
+  name: Joseph
+  names:
+    - Joseph
+    - Alice
+  colors:
+    colors: [red, green, blue, yellow, magenta, cyan]

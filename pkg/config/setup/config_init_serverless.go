@@ -8,5 +8,5 @@
 package setup
 
 func initConfig() {
-	initCommonWithServerless(Datadog)
+	initCommonWithServerless(Datadog())
 }

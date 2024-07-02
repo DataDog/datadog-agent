@@ -1,0 +1,20 @@
+[Unit]
+Description=Datadog Agent Experiment
+After=network.target
+OnFailure=datadog-agent.service
+Conflicts=datadog-agent.service
+Before=datadog-agent.service
+JobTimeoutSec=3000
+Wants=datadog-agent-trace-exp.service datadog-agent-process-exp.service datadog-agent-sysprobe-exp.service datadog-agent-security-exp.service
+
+[Service]
+Type=oneshot
+PIDFile=/opt/datadog-packages/datadog-agent/experiment/run/agent.pid
+User=dd-agent
+EnvironmentFile=-/etc/datadog-agent/environment
+ExecStart=/opt/datadog-packages/datadog-agent/experiment/bin/agent/agent run -p /opt/datadog-packages/datadog-agent/experiment/run/agent.pid
+ExecStart=/bin/false
+ExecStop=/bin/false
+
+[Install]
+WantedBy=multi-user.target

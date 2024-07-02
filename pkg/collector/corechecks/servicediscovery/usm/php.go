@@ -8,7 +8,7 @@ package usm
 import (
 	"strings"
 
-	"golang.org/x/exp/slices"
+	"slices"
 )
 
 const (

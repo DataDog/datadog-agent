@@ -203,7 +203,7 @@ func TestDefaultValues(t *testing.T) {
 	configConverter := config.NewConfigConverter()
 	agentConfig := make(Config)
 	FromAgentConfig(agentConfig, configConverter)
-	assert.Equal(t, true, config.Datadog.GetBool("hostname_fqdn"))
+	assert.Equal(t, true, config.Datadog().GetBool("hostname_fqdn"))
 }
 
 func TestTraceIgnoreResources(t *testing.T) {
@@ -225,7 +225,7 @@ func TestTraceIgnoreResources(t *testing.T) {
 		cfg["trace.ignore.resource"] = c.config
 		err := FromAgentConfig(cfg, configConverter)
 		require.NoError(err)
-		require.Equal(c.expected, config.Datadog.GetStringSlice("apm_config.ignore_resources"))
+		require.Equal(c.expected, config.Datadog().GetStringSlice("apm_config.ignore_resources"))
 
 	}
 }
@@ -237,8 +237,7 @@ func TestConverter(t *testing.T) {
 	require.NoError(err)
 	err = FromAgentConfig(cfg, configConverter)
 	require.NoError(err)
-	c := config.Datadog
-
+	c := config.Datadog()
 	require.Equal([]string{
 		"GET|POST /healthcheck",
 		"GET /V1",
@@ -296,11 +295,11 @@ func TestConverter(t *testing.T) {
 
 	// float64 values
 	for k, v := range map[string]float64{
-		"apm_config.extra_sample_rate":     1.,     // trace.sampler.extra_sample_rate
-		"apm_config.max_traces_per_second": 10.,    // trace.sampler.max_traces_per_second
-		"apm_config.max_events_per_second": 10.4,   // trace.sampler.max_events_per_second
-		"apm_config.max_memory":            1234.5, // trace.watchdog.max_memory
-		"apm_config.max_cpu_percent":       85.4,   // trace.watchdog.max_cpu_percent
+		"apm_config.extra_sample_rate":        1.,     // trace.sampler.extra_sample_rate
+		"apm_config.target_traces_per_second": 10.,    // trace.sampler.max_traces_per_second
+		"apm_config.max_events_per_second":    10.4,   // trace.sampler.max_events_per_second
+		"apm_config.max_memory":               1234.5, // trace.watchdog.max_memory
+		"apm_config.max_cpu_percent":          85.4,   // trace.watchdog.max_cpu_percent
 	} {
 		require.True(c.IsSet(k), k)
 		require.Equal(v, c.GetFloat64(k), k)
@@ -331,28 +330,28 @@ func TestExtractURLAPIKeys(t *testing.T) {
 	agentConfig["api_key"] = ""
 	err := extractURLAPIKeys(agentConfig, configConverter)
 	assert.NoError(t, err)
-	assert.Equal(t, "", config.Datadog.GetString("dd_url"))
-	assert.Equal(t, "", config.Datadog.GetString("api_key"))
-	assert.Empty(t, config.Datadog.GetStringMapStringSlice("additional_endpoints"))
+	assert.Equal(t, "", config.Datadog().GetString("dd_url"))
+	assert.Equal(t, "", config.Datadog().GetString("api_key"))
+	assert.Empty(t, config.Datadog().GetStringMapStringSlice("additional_endpoints"))
 
 	// one url and one key
 	agentConfig["dd_url"] = "https://datadoghq.com"
 	agentConfig["api_key"] = "123456789"
 	err = extractURLAPIKeys(agentConfig, configConverter)
 	assert.NoError(t, err)
-	assert.Equal(t, "https://datadoghq.com", config.Datadog.GetString("dd_url"))
-	assert.Equal(t, "123456789", config.Datadog.GetString("api_key"))
-	assert.Empty(t, config.Datadog.GetStringMapStringSlice("additional_endpoints"))
+	assert.Equal(t, "https://datadoghq.com", config.Datadog().GetString("dd_url"))
+	assert.Equal(t, "123456789", config.Datadog().GetString("api_key"))
+	assert.Empty(t, config.Datadog().GetStringMapStringSlice("additional_endpoints"))
 
 	// multiple dd_url and api_key
 	agentConfig["dd_url"] = "https://datadoghq.com,https://datadoghq.com,https://datadoghq.com,https://staging.com"
 	agentConfig["api_key"] = "123456789,abcdef,secret_key,secret_key2"
 	err = extractURLAPIKeys(agentConfig, configConverter)
 	assert.NoError(t, err)
-	assert.Equal(t, "https://datadoghq.com", config.Datadog.GetString("dd_url"))
-	assert.Equal(t, "123456789", config.Datadog.GetString("api_key"))
+	assert.Equal(t, "https://datadoghq.com", config.Datadog().GetString("dd_url"))
+	assert.Equal(t, "123456789", config.Datadog().GetString("api_key"))
 
-	endpoints := config.Datadog.GetStringMapStringSlice("additional_endpoints")
+	endpoints := config.Datadog().GetStringMapStringSlice("additional_endpoints")
 	assert.Equal(t, 2, len(endpoints))
 	assert.Equal(t, []string{"abcdef", "secret_key"}, endpoints["https://datadoghq.com"])
 	assert.Equal(t, []string{"secret_key2"}, endpoints["https://staging.com"])

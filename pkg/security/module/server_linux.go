@@ -31,7 +31,12 @@ func (a *APIServer) DumpDiscarders(_ context.Context, _ *api.DumpDiscardersParam
 
 // DumpProcessCache handles process cache dump requests
 func (a *APIServer) DumpProcessCache(_ context.Context, params *api.DumpProcessCacheParams) (*api.SecurityDumpProcessCacheMessage, error) {
-	filename, err := a.probe.DumpProcessCache(params.WithArgs)
+	p, ok := a.probe.PlatformProbe.(*probe.EBPFProbe)
+	if !ok {
+		return nil, fmt.Errorf("not supported")
+	}
+
+	filename, err := p.Resolvers.ProcessResolver.ToDot(params.WithArgs)
 	if err != nil {
 		return nil, err
 	}

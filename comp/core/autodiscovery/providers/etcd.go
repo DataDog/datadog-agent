@@ -8,13 +8,13 @@
 package providers
 
 import (
+	"context"
 	"fmt"
 	"math"
 	"strings"
 	"time"
 
 	"go.etcd.io/etcd/client/v2"
-	"golang.org/x/net/context"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/utils"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"

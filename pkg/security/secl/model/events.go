@@ -89,6 +89,8 @@ const (
 	UnshareMountNsEventType
 	// SyscallsEventType Syscalls event
 	SyscallsEventType
+	// IMDSEventType is sent when an IMDS request or qnswer is captured
+	IMDSEventType
 	// MaxKernelEventType is used internally to get the maximum number of kernel events.
 	MaxKernelEventType
 
@@ -136,7 +138,8 @@ const (
 	SetRegistryKeyValueEventType
 	// DeleteRegistryKeyEventType event
 	DeleteRegistryKeyEventType
-
+	// ChangePermissionEventType event
+	ChangePermissionEventType
 	// MaxAllEventType is used internally to get the maximum number of events.
 	MaxAllEventType
 )
@@ -221,6 +224,8 @@ func (t EventType) String() string {
 		return "unshare_mntns"
 	case SyscallsEventType:
 		return "syscalls"
+	case IMDSEventType:
+		return "imds"
 
 	case CustomLostReadEventType:
 		return "lost_events_read"
@@ -248,6 +253,8 @@ func (t EventType) String() string {
 		return "set_key_value"
 	case DeleteRegistryKeyEventType:
 		return "delete_key"
+	case ChangePermissionEventType:
+		return "change_permission"
 	default:
 		return "unknown"
 	}

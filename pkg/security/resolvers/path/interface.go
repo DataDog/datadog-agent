@@ -8,12 +8,14 @@
 // Package path holds path related files
 package path
 
-import "github.com/DataDog/datadog-agent/pkg/security/secl/model"
+import (
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+)
 
 // ResolverInterface defines the resolver interface
 type ResolverInterface interface {
 	ResolveBasename(e *model.FileFields) string
-	ResolveFileFieldsPath(e *model.FileFields, pidCtx *model.PIDContext, ctrCtx *model.ContainerContext) (string, error)
+	ResolveFileFieldsPath(e *model.FileFields, pidCtx *model.PIDContext, ctrCtx *model.ContainerContext) (string, string, model.MountSource, model.MountOrigin, error)
 	SetMountRoot(ev *model.Event, e *model.Mount) error
 	ResolveMountRoot(ev *model.Event, e *model.Mount) (string, error)
 	SetMountPoint(ev *model.Event, e *model.Mount) error

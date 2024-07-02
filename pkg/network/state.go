@@ -15,6 +15,7 @@ import (
 	"github.com/cihub/seelog"
 	"go4.org/intern"
 
+	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
@@ -285,7 +286,7 @@ type networkState struct {
 }
 
 // NewState creates a new network state
-func NewState(clientExpiry time.Duration, maxClosedConns uint32, maxClientStats, maxDNSStats, maxHTTPStats, maxKafkaStats, maxPostgresStats int, enableConnectionRollup bool, processEventConsumerEnabled bool) State {
+func NewState(_ telemetryComponent.Component, clientExpiry time.Duration, maxClosedConns uint32, maxClientStats, maxDNSStats, maxHTTPStats, maxKafkaStats, maxPostgresStats int, enableConnectionRollup bool, processEventConsumerEnabled bool) State {
 	ns := &networkState{
 		clients:                map[string]*client{},
 		clientExpiry:           clientExpiry,
@@ -582,6 +583,7 @@ func (ns *networkState) mergeByCookie(conns []ConnectionStats) ([]ConnectionStat
 	return conns, connsByKey
 }
 
+// StoreClosedConnections wraps the unexported method while locking state
 func (ns *networkState) StoreClosedConnections(closed []ConnectionStats) {
 	ns.Lock()
 	defer ns.Unlock()
@@ -1452,5 +1454,5 @@ func (ns *networkState) mergeConnectionStats(a, b *ConnectionStats) (collision b
 func isEmpty(conn ConnectionStats) bool {
 	return conn.Monotonic.RecvBytes == 0 && conn.Monotonic.RecvPackets == 0 &&
 		conn.Monotonic.SentBytes == 0 && conn.Monotonic.SentPackets == 0 &&
-		conn.Monotonic.Retransmits == 0
+		conn.Monotonic.Retransmits == 0 && len(conn.TCPFailures) == 0
 }

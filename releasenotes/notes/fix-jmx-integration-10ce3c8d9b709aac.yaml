@@ -1,0 +1,2 @@
+fixes:
+  - Fix an issue where the Agent incorrectly reports JMX integrations as having issues.

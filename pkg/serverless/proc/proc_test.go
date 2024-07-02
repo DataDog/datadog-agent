@@ -51,3 +51,95 @@ func TestSearchProcsForEnvVariableNotFound(t *testing.T) {
 	result := SearchProcsForEnvVariable("./testData", "xxx")
 	assert.Equal(t, 0, len(result))
 }
+
+func TestGetCPUData(t *testing.T) {
+	path := "./testData/stat/valid_stat"
+	cpuData, err := getCPUData(path)
+	assert.Nil(t, err)
+	assert.Equal(t, float64(23370), cpuData.TotalUserTimeMs)
+	assert.Equal(t, float64(1880), cpuData.TotalSystemTimeMs)
+	assert.Equal(t, float64(178380), cpuData.TotalIdleTimeMs)
+	assert.Equal(t, 2, len(cpuData.IndividualCPUIdleTimes))
+	assert.Equal(t, float64(91880), cpuData.IndividualCPUIdleTimes["cpu0"])
+	assert.Equal(t, float64(86490), cpuData.IndividualCPUIdleTimes["cpu1"])
+
+	path = "./testData/stat/invalid_stat_non_numerical_value_1"
+	cpuData, err = getCPUData(path)
+	assert.NotNil(t, err)
+	assert.Nil(t, cpuData)
+
+	path = "./testData/stat/invalid_stat_non_numerical_value_2"
+	cpuData, err = getCPUData(path)
+	assert.NotNil(t, err)
+	assert.Nil(t, cpuData)
+
+	path = "./testData/stat/invalid_stat_malformed_first_line"
+	cpuData, err = getCPUData(path)
+	assert.NotNil(t, err)
+	assert.Nil(t, cpuData)
+
+	path = "./testData/stat/invalid_stat_malformed_per_cpu_line"
+	cpuData, err = getCPUData(path)
+	assert.NotNil(t, err)
+	assert.Nil(t, cpuData)
+
+	path = "./testData/stat/invalid_stat_missing_cpun_data"
+	cpuData, err = getCPUData(path)
+	assert.NotNil(t, err)
+	assert.Nil(t, cpuData)
+
+	path = "./testData/stat/nonexistent_stat"
+	cpuData, err = getCPUData(path)
+	assert.NotNil(t, err)
+	assert.Nil(t, cpuData)
+}
+
+func TestGetUptime(t *testing.T) {
+	path := "./testData/uptime/valid_uptime"
+	uptime, err := getUptime(path)
+	assert.Nil(t, err)
+	assert.Equal(t, float64(3213103123000), uptime)
+
+	path = "./testData/uptime/invalid_data_uptime"
+	uptime, err = getUptime(path)
+	assert.NotNil(t, err)
+	assert.Equal(t, float64(0), uptime)
+
+	path = "./testData/uptime/malformed_uptime"
+	uptime, err = getUptime(path)
+	assert.NotNil(t, err)
+	assert.Equal(t, float64(0), uptime)
+
+	path = "./testData/uptime/nonexistent_uptime"
+	uptime, err = getUptime(path)
+	assert.NotNil(t, err)
+	assert.Equal(t, float64(0), uptime)
+}
+
+func TestGetNetworkData(t *testing.T) {
+	path := "./testData/net/valid_dev"
+	networkData, err := getNetworkData(path)
+	assert.Nil(t, err)
+	assert.Equal(t, float64(180), networkData.RxBytes)
+	assert.Equal(t, float64(254), networkData.TxBytes)
+
+	path = "./testData/net/invalid_dev_malformed"
+	networkData, err = getNetworkData(path)
+	assert.NotNil(t, err)
+	assert.Nil(t, networkData)
+
+	path = "./testData/net/invalid_dev_non_numerical_value"
+	networkData, err = getNetworkData(path)
+	assert.NotNil(t, err)
+	assert.Nil(t, networkData)
+
+	path = "./testData/net/missing_interface_dev"
+	networkData, err = getNetworkData(path)
+	assert.NotNil(t, err)
+	assert.Nil(t, networkData)
+
+	path = "./testData/net/nonexistent_dev"
+	networkData, err = getNetworkData(path)
+	assert.NotNil(t, err)
+	assert.Nil(t, networkData)
+}

@@ -13,7 +13,7 @@ import (
 
 	"github.com/CycloneDX/cyclonedx-go"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors"
@@ -23,7 +23,7 @@ import (
 )
 
 func sbomCollectionIsEnabled() bool {
-	return imageMetadataCollectionIsEnabled() && config.Datadog.GetBool("sbom.container_image.enabled")
+	return imageMetadataCollectionIsEnabled() && config.Datadog().GetBool("sbom.container_image.enabled")
 }
 
 func (c *collector) startSBOMCollection(ctx context.Context) error {
@@ -36,15 +36,15 @@ func (c *collector) startSBOMCollection(ctx context.Context) error {
 		return fmt.Errorf("error retrieving global SBOM scanner")
 	}
 
-	filterParams := workloadmeta.FilterParams{
-		Kinds:     []workloadmeta.Kind{workloadmeta.KindContainerImageMetadata},
-		Source:    workloadmeta.SourceAll,
-		EventType: workloadmeta.EventTypeSet,
-	}
+	filter := workloadmeta.NewFilterBuilder().
+		SetEventType(workloadmeta.EventTypeSet).
+		AddKind(workloadmeta.KindContainerImageMetadata).
+		Build()
+
 	imgEventsCh := c.store.Subscribe(
 		"SBOM collector",
 		workloadmeta.NormalPriority,
-		workloadmeta.NewFilter(&filterParams),
+		filter,
 	)
 	scanner := collectors.GetContainerdScanner()
 	if scanner == nil {

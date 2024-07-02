@@ -18,14 +18,8 @@ func TestFromEnv(t *testing.T) {
 		expected *Env
 	}{
 		{
-			name: "Empty environment variables",
-			envVars: map[string]string{
-				envAPIKey:                "",
-				envSite:                  "",
-				envRegistryURL:           "",
-				envRegistryAuth:          "",
-				envDefaultPackageVersion: "",
-			},
+			name:    "Empty environment variables",
+			envVars: map[string]string{},
 			expected: &Env{
 				APIKey:                         "",
 				Site:                           "datadoghq.com",
@@ -35,6 +29,10 @@ func TestFromEnv(t *testing.T) {
 				RegistryAuthOverrideByImage:    map[string]string{},
 				DefaultPackagesInstallOverride: map[string]bool{},
 				DefaultPackagesVersionOverride: map[string]string{},
+				ApmLibraries:                   map[ApmLibLanguage]ApmLibVersion{},
+				InstallScript: InstallScriptEnv{
+					APMInstrumentationEnabled: APMInstrumentationNotSet,
+				},
 			},
 		},
 		{
@@ -42,6 +40,7 @@ func TestFromEnv(t *testing.T) {
 			envVars: map[string]string{
 				envAPIKey:                                     "123456",
 				envSite:                                       "datadoghq.eu",
+				envRemoteUpdates:                              "true",
 				envRegistryURL:                                "registry.example.com",
 				envRegistryAuth:                               "auth",
 				envRegistryURL + "_IMAGE":                     "another.registry.example.com",
@@ -52,10 +51,13 @@ func TestFromEnv(t *testing.T) {
 				envDefaultPackageInstall + "_ANOTHER_PACKAGE": "false",
 				envDefaultPackageVersion + "_PACKAGE":         "1.2.3",
 				envDefaultPackageVersion + "_ANOTHER_PACKAGE": "4.5.6",
+				envApmLibraries:                               "java,dotnet:latest,ruby:1.2",
+				envApmInstrumentationEnabled:                  "all",
 			},
 			expected: &Env{
 				APIKey:               "123456",
 				Site:                 "datadoghq.eu",
+				RemoteUpdates:        true,
 				RegistryOverride:     "registry.example.com",
 				RegistryAuthOverride: "auth",
 				RegistryOverrideByImage: map[string]string{
@@ -74,6 +76,14 @@ func TestFromEnv(t *testing.T) {
 					"package":         "1.2.3",
 					"another-package": "4.5.6",
 				},
+				ApmLibraries: map[ApmLibLanguage]ApmLibVersion{
+					"java":   "",
+					"dotnet": "latest",
+					"ruby":   "1.2",
+				},
+				InstallScript: InstallScriptEnv{
+					APMInstrumentationEnabled: APMInstrumentationEnabledAll,
+				},
 			},
 		},
 	}
@@ -85,7 +95,7 @@ func TestFromEnv(t *testing.T) {
 				defer os.Unsetenv(key)
 			}
 			result := FromEnv()
-			assert.Equal(t, tt.expected, result)
+			assert.Equal(t, tt.expected, result, "failed %v", tt.name)
 		})
 	}
 }
@@ -106,6 +116,7 @@ func TestToEnv(t *testing.T) {
 			env: &Env{
 				APIKey:               "123456",
 				Site:                 "datadoghq.eu",
+				RemoteUpdates:        true,
 				RegistryOverride:     "registry.example.com",
 				RegistryAuthOverride: "auth",
 				RegistryOverrideByImage: map[string]string{
@@ -124,12 +135,19 @@ func TestToEnv(t *testing.T) {
 					"package":         "1.2.3",
 					"another-package": "4.5.6",
 				},
+				ApmLibraries: map[ApmLibLanguage]ApmLibVersion{
+					"java":   "",
+					"dotnet": "latest",
+					"ruby":   "1.2",
+				},
 			},
 			expected: []string{
 				"DD_API_KEY=123456",
 				"DD_SITE=datadoghq.eu",
+				"DD_REMOTE_UPDATES=true",
 				"DD_INSTALLER_REGISTRY_URL=registry.example.com",
 				"DD_INSTALLER_REGISTRY_AUTH=auth",
+				"DD_APM_INSTRUMENTATION_LIBRARIES=dotnet:latest,java,ruby:1.2",
 				"DD_INSTALLER_REGISTRY_URL_IMAGE=another.registry.example.com",
 				"DD_INSTALLER_REGISTRY_URL_ANOTHER_IMAGE=yet.another.registry.example.com",
 				"DD_INSTALLER_REGISTRY_AUTH_IMAGE=another.auth",

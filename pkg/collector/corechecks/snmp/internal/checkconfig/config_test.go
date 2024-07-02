@@ -1430,7 +1430,7 @@ collect_topology: true
 }
 
 func Test_buildConfig_namespace(t *testing.T) {
-	defer coreconfig.Datadog.SetWithoutSource("network_devices.namespace", "default")
+	defer coreconfig.Datadog().SetWithoutSource("network_devices.namespace", "default")
 
 	// Should use namespace defined in instance config
 	// language=yaml
@@ -1475,7 +1475,7 @@ ip_address: 1.2.3.4
 community_string: "abc"
 `)
 	rawInitConfig = []byte(``)
-	coreconfig.Datadog.SetWithoutSource("network_devices.namespace", "totoro")
+	coreconfig.Datadog().SetWithoutSource("network_devices.namespace", "totoro")
 	conf, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
 	assert.Nil(t, err)
 	assert.Equal(t, "totoro", conf.Namespace)
@@ -1503,7 +1503,7 @@ community_string: "abc"
 `)
 	rawInitConfig = []byte(`
 namespace: `)
-	coreconfig.Datadog.SetWithoutSource("network_devices.namespace", "mononoke")
+	coreconfig.Datadog().SetWithoutSource("network_devices.namespace", "mononoke")
 	conf, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
 	assert.Nil(t, err)
 	assert.Equal(t, "mononoke", conf.Namespace)
@@ -1515,7 +1515,7 @@ ip_address: 1.2.3.4
 community_string: "abc"
 `)
 	rawInitConfig = []byte(``)
-	coreconfig.Datadog.SetWithoutSource("network_devices.namespace", "")
+	coreconfig.Datadog().SetWithoutSource("network_devices.namespace", "")
 	_, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
 	assert.EqualError(t, err, "namespace cannot be empty")
 }
@@ -2392,7 +2392,7 @@ func TestCheckConfig_getResolvedSubnetName(t *testing.T) {
 }
 
 func TestCheckConfig_GetStaticTags(t *testing.T) {
-	coreconfig.Datadog.SetWithoutSource("hostname", "my-hostname")
+	coreconfig.Datadog().SetWithoutSource("hostname", "my-hostname")
 	tests := []struct {
 		name         string
 		config       CheckConfig

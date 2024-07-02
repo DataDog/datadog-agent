@@ -14,9 +14,11 @@ import (
 	"os"
 	"os/exec"
 	"os/user"
+	"path/filepath"
 	"strconv"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
 
 const (
@@ -45,7 +47,7 @@ func SetupInstaller(ctx context.Context) (err error) {
 	defer func() {
 		if err != nil {
 			log.Errorf("Failed to setup installer: %s, reverting", err)
-			RemoveInstaller(ctx)
+			err = RemoveInstaller(ctx)
 		}
 	}()
 
@@ -71,18 +73,18 @@ func SetupInstaller(ctx context.Context) (err error) {
 	if err != nil {
 		return fmt.Errorf("error creating /var/log/datadog: %w", err)
 	}
-	err = os.MkdirAll("/var/run/datadog/installer", 0755)
+	err = os.MkdirAll("/var/run/datadog-installer", 0755)
 	if err != nil {
-		return fmt.Errorf("error creating /var/run/datadog/installer: %w", err)
+		return fmt.Errorf("error creating /var/run/datadog-installer: %w", err)
 	}
-	err = os.MkdirAll("/var/run/datadog/installer/locks", 0777)
+	err = os.MkdirAll("/var/run/datadog-installer/locks", 0777)
 	if err != nil {
-		return fmt.Errorf("error creating /var/run/datadog/installer/locks: %w", err)
+		return fmt.Errorf("error creating /var/run/datadog-installer/locks: %w", err)
 	}
 	// Locks directory can already be created by a package install
-	err = os.Chmod("/var/run/datadog/installer/locks", 0777)
+	err = os.Chmod("/var/run/datadog-installer/locks", 0777)
 	if err != nil {
-		return fmt.Errorf("error changing permissions of /var/run/datadog/installer/locks: %w", err)
+		return fmt.Errorf("error changing permissions of /var/run/datadog-installer/locks: %w", err)
 	}
 	err = os.Chown("/etc/datadog-agent", ddAgentUID, ddAgentGID)
 	if err != nil {
@@ -92,13 +94,25 @@ func SetupInstaller(ctx context.Context) (err error) {
 	if err != nil {
 		return fmt.Errorf("error changing owner of /var/log/datadog: %w", err)
 	}
-	err = os.Chown("/var/run/datadog", ddAgentUID, ddAgentGID)
+	err = os.Chown("/var/run/datadog-installer", ddAgentUID, ddAgentGID)
 	if err != nil {
-		return fmt.Errorf("error changing owner of /var/run/datadog: %w", err)
+		return fmt.Errorf("error changing owner of /var/run/datadog-installer: %w", err)
 	}
-	err = os.Chown("/var/run/datadog/installer", ddAgentUID, ddAgentGID)
+	if err = os.MkdirAll("/var/run/datadog", 0755); err != nil {
+		return fmt.Errorf("failed to create /var/run/datadog: %v", err)
+	}
+	if err = os.Chown("/var/run/datadog", ddAgentUID, ddAgentGID); err != nil {
+		return fmt.Errorf("failed to chown /var/run/datadog: %v", err)
+	}
+	// Enforce that the directory exists. It should be created by the bootstrapper but
+	// older versions don't do it
+	err = os.MkdirAll("/opt/datadog-installer/tmp", 0755)
 	if err != nil {
-		return fmt.Errorf("error changing owner of /var/run/datadog/installer: %w", err)
+		return fmt.Errorf("error creating /opt/datadog-installer/tmp: %w", err)
+	}
+	err = os.Chown("/opt/datadog-installer/tmp", ddAgentUID, ddAgentGID)
+	if err != nil {
+		return fmt.Errorf("error changing owner of /opt/datadog-installer/tmp: %w", err)
 	}
 
 	// Create installer path symlink
@@ -109,28 +123,6 @@ func SetupInstaller(ctx context.Context) (err error) {
 		return fmt.Errorf("error creating symlink to /usr/bin/datadog-installer: %w", err)
 	}
 
-	// Set up defaults for packages interacting with each other
-	if err = configureSocketsEnv(); err != nil {
-		return
-	}
-	if err = addSystemDEnvOverrides(agentUnit); err != nil {
-		return
-	}
-	if err = addSystemDEnvOverrides(agentExp); err != nil {
-		return
-	}
-	if err = addSystemDEnvOverrides(traceAgentUnit); err != nil {
-		return
-	}
-	if err = addSystemDEnvOverrides(traceAgentExp); err != nil {
-		return
-	}
-
-	// FIXME(Arthur): enable the daemon unit by default and use the same strategy as the system probe
-	if os.Getenv("DD_REMOTE_UPDATES") != "true" {
-		return nil
-	}
-
 	// Check if systemd is running, if not return early
 	systemdRunning, err := isSystemdRunning()
 	if err != nil {
@@ -138,6 +130,23 @@ func SetupInstaller(ctx context.Context) (err error) {
 	}
 	if !systemdRunning {
 		log.Infof("Installer: systemd is not running, skipping unit setup")
+		return nil
+	}
+
+	err = os.MkdirAll(systemdPath, 0755)
+	if err != nil {
+		return fmt.Errorf("error creating %s: %w", systemdPath, err)
+	}
+
+	if err = addSystemDRuntimeConfigOverride(ctx); err != nil {
+		return err
+	}
+
+	// FIXME(Arthur): enable the daemon unit by default and use the same strategy as the system probe
+	if os.Getenv("DD_REMOTE_UPDATES") != "true" {
+		if err = systemdReload(ctx); err != nil {
+			return err
+		}
 		return nil
 	}
 
@@ -181,11 +190,20 @@ func getAgentIDs() (uid, gid int, err error) {
 
 // startInstallerStable starts the stable systemd units for the installer
 func startInstallerStable(ctx context.Context) (err error) {
+	_, err = os.Stat("/etc/datadog-agent/datadog.yaml")
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	// this is expected during a fresh install with the install script / asible / chef / etc...
+	// the config is populated afterwards by the install method and the agent is restarted
+	if os.IsNotExist(err) {
+		return nil
+	}
 	return startUnit(ctx, installerUnit)
 }
 
 // RemoveInstaller removes the installer systemd units
-func RemoveInstaller(ctx context.Context) {
+func RemoveInstaller(ctx context.Context) error {
 	for _, unit := range installerUnits {
 		if err := stopUnit(ctx, unit); err != nil {
 			exitErr, ok := err.(*exec.ExitError)
@@ -208,14 +226,42 @@ func RemoveInstaller(ctx context.Context) {
 	if err := os.Remove("/usr/bin/datadog-installer"); err != nil {
 		log.Warnf("Failed to remove /usr/bin/datadog-installer: %s", err)
 	}
+
+	// TODO: return error to caller?
+	return nil
 }
 
 // StartInstallerExperiment installs the experimental systemd units for the installer
 func StartInstallerExperiment(ctx context.Context) error {
-	return startUnit(ctx, installerUnitExp)
+	return startUnit(ctx, installerUnitExp, "--no-block")
 }
 
 // StopInstallerExperiment starts the stable systemd units for the installer
 func StopInstallerExperiment(ctx context.Context) error {
 	return startUnit(ctx, installerUnit)
+}
+
+// addSystemDRuntimeConfigOverride removes RuntimeConfig from the agent unit
+// to avoid folder deletion on agent stop
+func addSystemDRuntimeConfigOverride(ctx context.Context) (err error) {
+	span, _ := tracer.StartSpanFromContext(ctx, "add_systemd_runtime_config_override")
+	defer func() { span.Finish(tracer.WithError(err)) }()
+
+	content := []byte("[Service]\nRuntimeConfig=\n")
+
+	// We don't need a file mutator here as we're fully hard coding the content.
+	// We don't really need to remove the file either as it'll just be ignored once the
+	// unit is removed.
+	path := filepath.Join(systemdPath, "datadog-agent.service.d", "datadog_runtime_config.conf")
+	err = os.Mkdir(filepath.Dir(path), 0755)
+	if err != nil && !os.IsExist(err) {
+		err = fmt.Errorf("error creating systemd environment override directory: %w", err)
+		return err
+	}
+	err = os.WriteFile(path, content, 0644)
+	if err != nil {
+		err = fmt.Errorf("error writing systemd runtime config override: %w", err)
+		return err
+	}
+	return nil
 }

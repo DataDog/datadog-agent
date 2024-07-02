@@ -40,4 +40,6 @@ type Component interface {
 	SetNewCaptureTagger(newCaptureTagger Component)
 	ResetCaptureTagger()
 	EnrichTags(tb tagset.TagsAccumulator, originInfo taggertypes.OriginInfo)
+	ChecksCardinality() types.TagCardinality
+	DogstatsdCardinality() types.TagCardinality
 }

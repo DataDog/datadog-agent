@@ -46,7 +46,18 @@ const (
 
 // Commands returns the installer subcommands.
 func Commands(_ *command.GlobalParams) []*cobra.Command {
-	return []*cobra.Command{bootstrapCommand(), installCommand(), removeCommand(), installExperimentCommand(), removeExperimentCommand(), promoteExperimentCommand(), garbageCollectCommand(), purgeCommand(), isInstalledCommand()}
+	return []*cobra.Command{
+		bootstrapCommand(),
+		installCommand(),
+		removeCommand(),
+		installExperimentCommand(),
+		removeExperimentCommand(),
+		promoteExperimentCommand(),
+		garbageCollectCommand(),
+		purgeCommand(),
+		isInstalledCommand(),
+		apmCommands(),
+	}
 }
 
 // UnprivilegedCommands returns the unprivileged installer subcommands.
@@ -202,6 +213,7 @@ func bootstrapCommand() *cobra.Command {
 }
 
 func installCommand() *cobra.Command {
+	var installArgs []string
 	cmd := &cobra.Command{
 		Use:     "install <url>",
 		Short:   "Install a package",
@@ -214,9 +226,10 @@ func installCommand() *cobra.Command {
 			}
 			defer func() { i.Stop(err) }()
 			i.span.SetTag("params.url", args[0])
-			return i.Install(i.ctx, args[0])
+			return i.Install(i.ctx, args[0], installArgs)
 		},
 	}
+	cmd.Flags().StringArrayVarP(&installArgs, "install_args", "A", nil, "Arguments to pass to the package")
 	return cmd
 }
 

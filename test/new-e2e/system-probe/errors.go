@@ -35,6 +35,8 @@ const (
 	insufficientCapacityError
 	aria2cMissingStatusError
 	ec2StateChangeTimeoutError
+	ioTimeout
+	tcp22ConnectionRefused
 )
 
 type handledError struct {
@@ -73,6 +75,16 @@ var handledErrorsLs = []handledError{
 		errorString: "timeout while waiting for state to become 'running'",
 		metric:      "ec2-timeout-state-change",
 		action:      retryStack | emitMetric,
+	},
+	{
+		errorType:   ioTimeout,
+		errorString: "i/o timeout",
+		action:      retryStack,
+	},
+	{
+		errorType:   tcp22ConnectionRefused,
+		errorString: "failed attempts: dial tcp :22: connect: connection refused",
+		action:      retryStack,
 	},
 }
 

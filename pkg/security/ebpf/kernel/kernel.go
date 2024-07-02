@@ -260,6 +260,16 @@ func (k *Version) IsSLESKernel() bool {
 	return k.OsRelease["ID"] == "sles"
 }
 
+// IsOpenSUSELeapKernel returns whether the kernel is an opensuse kernel
+func (k *Version) IsOpenSUSELeapKernel() bool {
+	return k.OsRelease["ID"] == "opensuse-leap"
+}
+
+// IsOpenSUSELeap15_3Kernel returns whether the kernel is an opensuse 15.3 kernel
+func (k *Version) IsOpenSUSELeap15_3Kernel() bool {
+	return k.IsOpenSUSELeapKernel() && strings.HasPrefix(k.OsRelease["VERSION_ID"], "15.3")
+}
+
 // IsOracleUEKKernel returns whether the kernel is an oracle uek kernel
 func (k *Version) IsOracleUEKKernel() bool {
 	return k.OsRelease["ID"] == "ol" && k.Code >= Kernel5_4

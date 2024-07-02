@@ -3,13 +3,13 @@ include:
   - .gitlab/common/container_publish_job_templates.yml
 
 .deploy_packages_oci:
-  resource_group: oci_bucket
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/gitlab_agent_deploy$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   stage: deploy_packages
   rules:
     - !reference [.on_deploy]
-    - !reference [.on_installer_or_e2e_changes_or_manual]
+    - !reference [.on_installer_or_e2e_changes]
+    - !reference [.manual]
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
   script:
@@ -45,7 +45,8 @@ qa_agent_oci:
   extends: .docker_publish_job_definition
   stage: deploy_packages
   rules:
-    - !reference [.on_installer_or_e2e_changes_or_manual]
+    - !reference [.on_installer_or_e2e_changes]
+    - !reference [.manual]
   needs:
     - deploy_agent_oci
   variables:
@@ -57,7 +58,8 @@ qa_installer_oci:
   extends: .docker_publish_job_definition
   stage: deploy_packages
   rules:
-    - !reference [.on_installer_or_e2e_changes_or_manual]
+    - !reference [.on_installer_or_e2e_changes]
+    - !reference [.manual]
   needs:
     - deploy_installer_oci
   variables:

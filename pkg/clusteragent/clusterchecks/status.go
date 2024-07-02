@@ -49,7 +49,7 @@ func (Provider) HTML(_ bool, _ io.Writer) error {
 }
 
 func populateStatus(stats map[string]interface{}) {
-	if config.Datadog.GetBool("cluster_checks.enabled") {
+	if config.Datadog().GetBool("cluster_checks.enabled") {
 		if cchecks, err := GetStats(); err == nil {
 			stats["clusterchecks"] = cchecks
 		}

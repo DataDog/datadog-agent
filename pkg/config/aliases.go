@@ -29,8 +29,6 @@ type (
 	Writer = model.Writer
 	// ReaderWriter is alias to model.ReaderWriter
 	ReaderWriter = model.ReaderWriter
-	// Loader is alias to model.Loader
-	Loader = model.Loader
 	// Config is alias to model.Config
 	Config = model.Config
 )
@@ -88,7 +86,7 @@ var (
 
 // IsAutoconfigEnabled is alias for model.IsAutoconfigEnabled
 func IsAutoconfigEnabled() bool {
-	return env.IsAutoconfigEnabled(Datadog)
+	return env.IsAutoconfigEnabled(Datadog())
 }
 
 // Aliases for config overrides
@@ -110,32 +108,32 @@ var (
 
 // SetupLogger Alias using Datadog config
 func SetupLogger(loggerName LoggerName, logLevel, logFile, syslogURI string, syslogRFC, logToConsole, jsonFormat bool) error {
-	return logs.SetupLogger(loggerName, logLevel, logFile, syslogURI, syslogRFC, logToConsole, jsonFormat, Datadog)
+	return logs.SetupLogger(loggerName, logLevel, logFile, syslogURI, syslogRFC, logToConsole, jsonFormat, Datadog())
 }
 
 // SetupJMXLogger Alias using Datadog config
 func SetupJMXLogger(logFile, syslogURI string, syslogRFC, logToConsole, jsonFormat bool) error {
-	return logs.SetupJMXLogger(logFile, syslogURI, syslogRFC, logToConsole, jsonFormat, Datadog)
+	return logs.SetupJMXLogger(logFile, syslogURI, syslogRFC, logToConsole, jsonFormat, Datadog())
 }
 
 // GetSyslogURI Alias using Datadog config
 func GetSyslogURI() string {
-	return logs.GetSyslogURI(Datadog)
+	return logs.GetSyslogURI(Datadog())
 }
 
 // SetupDogstatsdLogger Alias using Datadog config
 func SetupDogstatsdLogger(logFile string) (slog.LoggerInterface, error) {
-	return logs.SetupDogstatsdLogger(logFile, Datadog)
+	return logs.SetupDogstatsdLogger(logFile, Datadog())
 }
 
 // IsCloudProviderEnabled Alias using Datadog config
 func IsCloudProviderEnabled(cloudProvider string) bool {
-	return pkgconfigsetup.IsCloudProviderEnabled(cloudProvider, Datadog)
+	return pkgconfigsetup.IsCloudProviderEnabled(cloudProvider, Datadog())
 }
 
 // GetIPCAddress Alias using Datadog config
 func GetIPCAddress() (string, error) {
-	return pkgconfigsetup.GetIPCAddress(Datadog)
+	return pkgconfigsetup.GetIPCAddress(Datadog())
 }
 
 // Datatype Aliases
@@ -193,7 +191,7 @@ type (
 
 // GetObsPipelineURL Alias using Datadog config
 func GetObsPipelineURL(datatype pkgconfigsetup.DataType) (string, error) {
-	return pkgconfigsetup.GetObsPipelineURL(datatype, Datadog)
+	return pkgconfigsetup.GetObsPipelineURL(datatype, Datadog())
 }
 
 // LoadCustom Alias
@@ -208,12 +206,12 @@ func LoadDatadogCustom(config model.Config, origin string, secretResolver option
 
 // GetValidHostAliases Alias using Datadog config
 func GetValidHostAliases(ctx context.Context) ([]string, error) {
-	return pkgconfigsetup.GetValidHostAliases(ctx, Datadog)
+	return pkgconfigsetup.GetValidHostAliases(ctx, Datadog())
 }
 
 // IsCLCRunner Alias using Datadog config
 func IsCLCRunner() bool {
-	return pkgconfigsetup.IsCLCRunner(Datadog)
+	return pkgconfigsetup.IsCLCRunner(Datadog())
 }
 
 // GetBindHostFromConfig Alias using Datadog config
@@ -223,12 +221,12 @@ func GetBindHostFromConfig(config model.Reader) string {
 
 // GetBindHost Alias using Datadog config
 func GetBindHost() string {
-	return pkgconfigsetup.GetBindHost(Datadog)
+	return pkgconfigsetup.GetBindHost(Datadog())
 }
 
 // GetDogstatsdMappingProfiles Alias using Datadog config
 func GetDogstatsdMappingProfiles() ([]MappingProfile, error) {
-	return pkgconfigsetup.GetDogstatsdMappingProfiles(Datadog)
+	return pkgconfigsetup.GetDogstatsdMappingProfiles(Datadog())
 }
 
 var (
@@ -256,10 +254,10 @@ var (
 
 // LoadWithoutSecret Alias using Datadog config
 func LoadWithoutSecret() (*model.Warnings, error) {
-	return pkgconfigsetup.LoadDatadogCustom(Datadog, "datadog.yaml", optional.NewNoneOption[secrets.Component](), SystemProbe.GetEnvVars())
+	return pkgconfigsetup.LoadDatadogCustom(Datadog(), "datadog.yaml", optional.NewNoneOption[secrets.Component](), SystemProbe.GetEnvVars())
 }
 
 // GetProcessAPIAddressPort Alias using Datadog config
 func GetProcessAPIAddressPort() (string, error) {
-	return pkgconfigsetup.GetProcessAPIAddressPort(Datadog)
+	return pkgconfigsetup.GetProcessAPIAddressPort(Datadog())
 }
