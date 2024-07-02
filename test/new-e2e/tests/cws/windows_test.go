@@ -1,3 +1,4 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
@@ -179,12 +180,12 @@ func (a *agentSuiteWindows) Test03CreateFileSignal() {
 	require.Contains(a.T(), policies, desc, "The policies should contain the created rule")
 
 	// Push policies
-	a.Env().RemoteHost.MustExecute(fmt.Sprintf("sudo cp temp.txt %s && rm temp.txt", policiesPathWindows))
+	a.Env().RemoteHost.MustExecute(fmt.Sprintf("cp temp.txt '%s'; rm temp.txt", policiesPathWindows))
 	policiesFile := a.Env().RemoteHost.MustExecute(fmt.Sprintf("cat %s", policiesPathWindows))
 	require.Contains(a.T(), policiesFile, desc, "The policies file should contain the created rule")
 
 	// Reload policies
-	a.Env().RemoteHost.MustExecute(fmt.Sprintf("sudo %s runtime policy reload", securityAgentPathWindows))
+	a.Env().RemoteHost.MustExecute(fmt.Sprintf("& '%s' runtime policy reload", securityAgentPathWindows))
 
 	// Check if the policy is loaded
 	policyName := path.Base(policiesPathWindows)
