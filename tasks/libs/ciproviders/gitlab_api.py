@@ -178,6 +178,9 @@ class GitlabCIDiff:
                 return f'- {job_before} -> **{job_after}**'
 
         def str_job_content(content: str) -> list[str]:
+            if cli:
+                return ['', *content.splitlines(), '']
+
             return ['```yaml', *content.splitlines(), '```']
 
         def str_diff(diff: list[str]) -> str:
