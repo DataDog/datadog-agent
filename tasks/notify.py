@@ -161,6 +161,7 @@ def print_gitlab_ci(
     - clean: Apply post processing to make output more readable (remove extends, flatten lists of lists...)
     - ignore_errors: If True, ignore errors in the gitlab configuration (only process yaml)
     - git_ref: If provided, use this git reference to fetch the configuration
+    - NOTE: This requires a full api token access level to the repository
     """
 
     yml = get_gitlab_ci_configuration(
@@ -179,6 +180,7 @@ def gitlab_ci_diff(ctx, before: str | None = DEFAULT_BRANCH, after: str | None =
     - before: Git ref without new changes
     - after: Git ref with new changes, None for current local configuration
     - pr_comment: If True, post the diff as a comment in the PR
+    - NOTE: This requires a full api token access level to the repository
     """
 
     # gh_app_key = os.environ['GITHUB_APP_KEY']
