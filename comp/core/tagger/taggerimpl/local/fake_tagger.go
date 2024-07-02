@@ -10,26 +10,30 @@ import (
 	"strconv"
 	"sync"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/collectors"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/empty"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/tagstore"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
 // FakeTagger implements the Tagger interface
 type FakeTagger struct {
-	errors map[string]error
-	store  *tagstore.TagStore
+	errors         map[string]error
+	store          *tagstore.TagStore
+	telemetryStore *telemetry.Store
 	sync.RWMutex
 	empty.Tagger
 }
 
 // NewFakeTagger returns a new fake Tagger
-func NewFakeTagger() *FakeTagger {
+func NewFakeTagger(telemetryStore *telemetry.Store) *FakeTagger {
 	return &FakeTagger{
-		errors: make(map[string]error),
-		store:  tagstore.NewTagStore(),
+		errors:         make(map[string]error),
+		store:          tagstore.NewTagStore(telemetryStore),
+		telemetryStore: telemetryStore,
 	}
 }
 
@@ -78,6 +82,17 @@ func (f *FakeTagger) Start(_ context.Context) error {
 // Stop not implemented in fake tagger
 func (f *FakeTagger) Stop() error {
 	return nil
+}
+
+// ReplayTagger returns the replay tagger instance
+// This is a no-op for the fake tagger
+func (f *FakeTagger) ReplayTagger() tagger.ReplayTagger {
+	return nil
+}
+
+// GetTaggerTelemetryStore returns tagger telemetry store
+func (f *FakeTagger) GetTaggerTelemetryStore() *telemetry.Store {
+	return f.telemetryStore
 }
 
 // Tag fake implementation

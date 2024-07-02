@@ -90,6 +90,7 @@ func startCMDServer(
 		configService:    configService,
 		configServiceMRF: configServiceMRF,
 		taggerServer:     taggerserver.NewServer(taggerComp),
+		taggerComp:       taggerComp,
 		// TODO(components): decide if workloadmetaServer should be componentized itself
 		workloadmetaServer: workloadmetaServer.NewServer(wmeta),
 		dogstatsdServer:    dogstatsdServer,

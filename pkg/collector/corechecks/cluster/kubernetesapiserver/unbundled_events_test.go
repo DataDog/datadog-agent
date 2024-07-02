@@ -17,7 +17,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/local"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
@@ -117,6 +117,8 @@ func TestUnbundledEventsTransform(t *testing.T) {
 			Count:          1,
 		},
 	}
+
+	taggerInstance := taggerimpl.SetupFakeTagger(t)
 
 	tests := []struct {
 		name                    string
@@ -413,7 +415,7 @@ func TestUnbundledEventsTransform(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			transformer := newUnbundledTransformer("test-cluster", local.NewFakeTagger(), tt.collectedEventTypes, tt.bundleUnspecifiedEvents)
+			transformer := newUnbundledTransformer("test-cluster", taggerInstance, tt.collectedEventTypes, tt.bundleUnspecifiedEvents)
 
 			events, errors := transformer.Transform(incomingEvents)
 
@@ -429,7 +431,7 @@ func TestUnbundledEventsTransform(t *testing.T) {
 }
 
 func TestGetTagsFromTagger(t *testing.T) {
-	taggerInstance := local.NewFakeTagger()
+	taggerInstance := taggerimpl.SetupFakeTagger(t)
 	taggerInstance.SetTags("kubernetes_pod_uid://nginx", "workloadmeta-kubernetes_pod", nil, []string{"pod_name:nginx"}, nil, nil)
 	taggerInstance.SetGlobalTags([]string{"global:here"}, nil, nil, nil)
 
@@ -474,6 +476,8 @@ func TestGetTagsFromTagger(t *testing.T) {
 }
 
 func TestUnbundledEventsShouldCollect(t *testing.T) {
+	taggerInstance := taggerimpl.SetupFakeTagger(t)
+
 	tests := []struct {
 		name     string
 		event    *v1.Event
@@ -545,7 +549,7 @@ func TestUnbundledEventsShouldCollect(t *testing.T) {
 				},
 			}
 
-			transformer := newUnbundledTransformer("test-cluster", local.NewFakeTagger(), collectedTypes, false)
+			transformer := newUnbundledTransformer("test-cluster", taggerInstance, collectedTypes, false)
 			got := transformer.(*unbundledTransformer).shouldCollect(tt.event)
 			assert.Equal(t, tt.expected, got)
 		})
