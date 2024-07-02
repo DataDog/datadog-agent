@@ -1,0 +1,11 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    Change the owner "root" in "/etc/s6/init/init-stage2-fixattrs.txt" to "100:0" to eliminate error logs when starting the container with the dd-agent (UID:100) user.
