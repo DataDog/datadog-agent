@@ -10,9 +10,11 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/host"
 	e2eos "github.com/DataDog/test-infra-definitions/components/os"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -75,13 +77,10 @@ func (s *upgradeScenarioSuite) TestUpgradeSuccessful() {
 		"datadog-installer.service",
 	)
 
-	s.host.WaitForFileExists(true, "/var/run/datadog-installer/installer.sock")
-
-	_, err := s.setCatalog(testCatalog)
-	require.NoError(s.T(), err)
+	s.setCatalog(testCatalog)
 
 	timestamp := s.host.LastJournaldTimestamp()
-	_, err = s.startExperimentCommand(latestAgentImageVersion)
+	_, err := s.startExperimentCommand(latestAgentImageVersion)
 	require.NoError(s.T(), err)
 	s.assertSuccessfulStartExperiment(timestamp, latestAgentImageVersion)
 
@@ -101,13 +100,10 @@ func (s *upgradeScenarioSuite) TestBackendFailure() {
 		"datadog-installer.service",
 	)
 
-	s.host.WaitForFileExists(true, "/var/run/datadog-installer/installer.sock")
-
-	_, err := s.setCatalog(testCatalog)
-	require.NoError(s.T(), err)
+	s.setCatalog(testCatalog)
 
 	timestamp := s.host.LastJournaldTimestamp()
-	_, err = s.startExperimentCommand(latestAgentImageVersion)
+	_, err := s.startExperimentCommand(latestAgentImageVersion)
 	require.NoError(s.T(), err)
 	s.assertSuccessfulStartExperiment(timestamp, latestAgentImageVersion)
 
@@ -128,7 +124,7 @@ func (s *upgradeScenarioSuite) TestStopWithoutExperiment() {
 		"datadog-installer.service",
 	)
 
-	s.host.WaitForFileExists(true, "/var/run/datadog-installer/installer.sock")
+	s.setCatalog(testCatalog)
 
 	beforeStatus := s.getInstallerStatus()["datadog-agent"]
 
@@ -157,16 +153,20 @@ func (s *upgradeScenarioSuite) stopExperimentCommand() (string, error) {
 	return s.Env().RemoteHost.Execute(cmd)
 }
 
-func (s *upgradeScenarioSuite) setCatalog(newCatalog catalog) (string, error) {
+func (s *upgradeScenarioSuite) setCatalog(newCatalog catalog) {
 	serializedCatalog, err := json.Marshal(newCatalog)
 	if err != nil {
 		s.T().Fatal(err)
 	}
 	s.T().Logf("Running: daemon set-catalog '%s'", string(serializedCatalog))
 
-	return s.Env().RemoteHost.Execute(fmt.Sprintf(
-		"sudo datadog-installer daemon set-catalog '%s'", serializedCatalog),
-	)
+	assert.Eventually(s.T(), func() bool {
+		_, err := s.Env().RemoteHost.Execute(fmt.Sprintf(
+			"sudo datadog-installer daemon set-catalog '%s'", serializedCatalog),
+		)
+
+		return err == nil
+	}, time.Second*30, time.Second*1)
 }
 
 func (s *upgradeScenarioSuite) assertSuccessfulStartExperiment(timestamp host.JournaldTimestamp, version string) {
