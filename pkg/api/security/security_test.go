@@ -30,7 +30,7 @@ func initMockConf(t *testing.T) (model.Config, string) {
 	})
 
 	mockConfig := model.NewConfig("datadog", "fake-datadog-yaml", strings.NewReplacer(".", "_"))
-	mockConfig.SetConfigFile(f.Name())
+	mockConfig.SetWithoutSource("run_path", testDir)
 	mockConfig.SetWithoutSource("auth_token", "")
 
 	return mockConfig, filepath.Join(testDir, "auth_token")
