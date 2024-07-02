@@ -11,7 +11,7 @@
         },
         "ec2": {
             "x86_64": {
-                "centos-79": "ami-0db0376aef6830be3",
+                "centos-79": "ami-036de472bb001ae9c",
                 "rhel-86": "ami-031eff1ae75bb87e4",
                 "rocky-92": "ami-08f362c39d03a4eb5"
             },
