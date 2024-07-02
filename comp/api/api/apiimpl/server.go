@@ -96,8 +96,7 @@ func (server *apiServer) startServers() error {
 }
 
 // StopServers closes the connections and the servers
-func (server *apiServer) stopServers() error {
+func (server *apiServer) stopServers() {
 	stopServer(server.cmdListener, cmdServerName)
 	stopServer(server.ipcListener, ipcServerName)
-	return nil
 }
