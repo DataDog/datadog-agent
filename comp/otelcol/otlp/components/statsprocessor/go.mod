@@ -4,6 +4,7 @@ go 1.21.0
 
 replace (
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient => ../metricsclient
+	github.com/DataDog/datadog-agent/comp/trace/compression => ../../../../../comp/trace/compression
 	github.com/DataDog/datadog-agent/pkg/obfuscate => ../../../../../pkg/obfuscate
 	github.com/DataDog/datadog-agent/pkg/proto => ../../../../../pkg/proto
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state => ../../../../../pkg/remoteconfig/state
@@ -16,6 +17,7 @@ replace (
 
 require (
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient v0.55.0-rc.3
+	github.com/DataDog/datadog-agent/comp/trace/compression v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/proto v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/trace v0.55.0-rc.3
 	github.com/DataDog/datadog-go/v5 v5.5.0

@@ -6,13 +6,13 @@
 package writer
 
 import (
-	"compress/gzip"
 	"errors"
 	"runtime"
 	"strings"
 	"sync"
 	"time"
 
+	compression "github.com/DataDog/datadog-agent/comp/trace/compression/def"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
@@ -69,7 +69,7 @@ type TraceWriter struct {
 	senders      []*sender
 	stop         chan struct{}
 	stats        *info.TraceWriterInfo
-	wg           sync.WaitGroup // waits for gzippers
+	wg           sync.WaitGroup // waits for compressors
 	tick         time.Duration  // flush frequency
 	agentVersion string
 
@@ -82,9 +82,10 @@ type TraceWriter struct {
 
 	telemetryCollector telemetry.TelemetryCollector
 
-	easylog *log.ThrottledLogger
-	statsd  statsd.ClientInterface
-	timing  timing.Reporter
+	easylog    *log.ThrottledLogger
+	statsd     statsd.ClientInterface
+	timing     timing.Reporter
+	compressor compression.Component
 }
 
 // NewTraceWriter returns a new TraceWriter. It is created for the given agent configuration and
@@ -96,7 +97,8 @@ func NewTraceWriter(
 	rareSampler samplerEnabledReader,
 	telemetryCollector telemetry.TelemetryCollector,
 	statsd statsd.ClientInterface,
-	timing timing.Reporter) *TraceWriter {
+	timing timing.Reporter,
+	compressor compression.Component) *TraceWriter {
 	tw := &TraceWriter{
 		In:                 make(chan *SampledChunks, 1),
 		Serialize:          make(chan *pb.AgentPayload, 1),
@@ -115,6 +117,7 @@ func NewTraceWriter(
 		telemetryCollector: telemetryCollector,
 		statsd:             statsd,
 		timing:             timing,
+		compressor:         compressor,
 	}
 	climit := cfg.TraceWriter.ConnectionLimit
 	if climit == 0 {
@@ -128,7 +131,7 @@ func NewTraceWriter(
 		tw.tick = time.Duration(s*1000) * time.Millisecond
 	}
 	qsize := 1
-	log.Infof("Trace writer initialized (climit=%d qsize=%d)", climit, qsize)
+	log.Infof("Trace writer initialized (climit=%d qsize=%d compression=%s)", climit, qsize, compressor.Encoding())
 	tw.senders = newSenders(cfg, tw, pathTraces, climit, qsize, telemetryCollector, statsd)
 	for i := 0; i < runtime.GOMAXPROCS(0); i++ {
 		tw.wg.Add(1)
@@ -282,25 +285,29 @@ func (w *TraceWriter) serializer() {
 			}
 
 			w.stats.BytesUncompressed.Add(int64(len(b)))
+
 			p := newPayload(map[string]string{
 				"Content-Type":     "application/x-protobuf",
-				"Content-Encoding": "gzip",
+				"Content-Encoding": w.compressor.Encoding(),
 				headerLanguages:    strings.Join(info.Languages(), "|"),
 			})
+
 			p.body.Grow(len(b) / 2)
-			gzipw, err := gzip.NewWriterLevel(p.body, gzip.BestSpeed)
+			writer, err := w.compressor.NewWriter(p.body)
 			if err != nil {
 				// it will never happen, unless an invalid compression is chosen;
 				// we know gzip.BestSpeed is valid.
-				log.Errorf("gzip.NewWriterLevel: %d", err)
+				log.Errorf("Failed to compress trace paylod: %s", err)
 				return
 			}
-			if _, err := gzipw.Write(b); err != nil {
-				log.Errorf("Error gzipping trace payload: %v", err)
+
+			if _, err := writer.Write(b); err != nil {
+				log.Errorf("Error compressing trace payload: %v", err)
 			}
-			if err := gzipw.Close(); err != nil {
-				log.Errorf("Error closing gzip stream when writing trace payload: %v", err)
+			if err := writer.Close(); err != nil {
+				log.Errorf("Error closing compressed stream when writing trace payload: %v", err)
 			}
+
 			sendPayloads(w.senders, p, w.syncMode)
 		}()
 	}

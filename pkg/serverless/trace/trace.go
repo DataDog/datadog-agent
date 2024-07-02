@@ -12,6 +12,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice"
 	compcorecfg "github.com/DataDog/datadog-agent/comp/core/config"
+	compression "github.com/DataDog/datadog-agent/comp/trace/compression/def"
+	gzip "github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip"
+	zstd "github.com/DataDog/datadog-agent/comp/trace/compression/impl-zstd"
 	comptracecfg "github.com/DataDog/datadog-agent/comp/trace/config"
 	ddConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -99,7 +102,13 @@ func (s *ServerlessTraceAgent) Start(enabled bool, loadConfig Load, lambdaSpanCh
 			context, cancel := context.WithCancel(context.Background())
 			tc.Hostname = ""
 			tc.SynchronousFlushing = true
-			s.ta = agent.NewAgent(context, tc, telemetry.NewNoopCollector(), &statsd.NoOpClient{})
+			var compressor compression.Component
+			if tc.HasFeature("zstd-encoding") {
+				compressor = zstd.NewComponent()
+			} else {
+				compressor = gzip.NewComponent()
+			}
+			s.ta = agent.NewAgent(context, tc, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, compressor)
 			s.spanModifier = &spanModifier{
 				coldStartSpanId: coldStartSpanId,
 				lambdaSpanChan:  lambdaSpanChan,
