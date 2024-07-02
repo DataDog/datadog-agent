@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
@@ -48,6 +49,7 @@ import (
 	tracelog "github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 const datadogConfigPath = "datadog.yaml"
@@ -77,8 +79,10 @@ func main() {
 		coreconfig.Module(),
 		fx.Supply(secrets.NewEnabledParams()),
 		secretsimpl.Module(),
+		fx.Provide(func(secrets secrets.Component) optional.Option[secrets.Component] { return optional.NewOption(secrets) }),
 		fx.Supply(logimpl.ForOneShot(modeConf.LoggerName, "off", true)),
 		logimpl.Module(),
+		nooptelemetry.Module(),
 	)
 
 	if err != nil {
