@@ -52,6 +52,9 @@ type SubcommandFactory func(globalParams *GlobalParams) []*cobra.Command
 func MakeCommand(subcommandFactories []SubcommandFactory) *cobra.Command {
 	globalParams := GlobalParams{
 		ConfFilePath: config.DefaultUpdaterLogFile,
+		// github.com/fatih/color sets its global color.NoColor to a default value based on
+		// whether the process is running in a tty
+		NoColor: color.NoColor,
 	}
 
 	// AgentCmd is the root command
@@ -90,7 +93,7 @@ Datadog Installer installs datadog-packages based on your commands.`,
 	// whether the process is running in a tty.  So, we only want to override that when
 	// the value is true.
 	var noColorFlag bool
-	agentCmd.PersistentFlags().BoolVarP(&noColorFlag, "no-color", "n", false, "disable color output")
+	agentCmd.PersistentFlags().BoolVarP(&noColorFlag, "no-color", "n", globalParams.NoColor, "disable color output")
 	agentCmd.PersistentPreRun = func(*cobra.Command, []string) {
 		if globalParams.NoColor {
 			color.NoColor = true
