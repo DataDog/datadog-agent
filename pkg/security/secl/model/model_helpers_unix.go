@@ -134,7 +134,7 @@ func (c *Credentials) Equals(o *Credentials) bool {
 }
 
 // SetSpan sets the span
-func (p *Process) SetSpan(spanID mathutil.Int128, traceID mathutil.Int128) {
+func (p *Process) SetSpan(spanID uint64, traceID mathutil.Int128) {
 	p.SpanID = spanID
 	p.TraceID = traceID
 }

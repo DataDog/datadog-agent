@@ -186,7 +186,7 @@ type Process struct {
 
 	ContainerID string `field:"container.id"` // SECLDoc[container.id] Definition:`Container ID`
 
-	SpanID  mathutil.Int128 `field:"-"`
+	SpanID  uint64          `field:"-"`
 	TraceID mathutil.Int128 `field:"-"`
 
 	TTYName     string      `field:"tty_name"`                         // SECLDoc[tty_name] Definition:`Name of the TTY associated with the process`

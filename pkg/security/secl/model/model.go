@@ -105,7 +105,7 @@ type NetworkContext struct {
 
 // SpanContext describes a span context
 type SpanContext struct {
-	SpanID  mathutil.Int128 `field:"_"`
+	SpanID  uint64          `field:"_"`
 	TraceID mathutil.Int128 `field:"_"`
 }
 

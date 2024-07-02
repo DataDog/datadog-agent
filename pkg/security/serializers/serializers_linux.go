@@ -986,7 +986,7 @@ func newProcessContextSerializer(pc *model.ProcessContext, e *model.Event) *Proc
 func newDDContextSerializer(e *model.Event) *DDContextSerializer {
 
 	s := &DDContextSerializer{
-		SpanID:  e.SpanContext.SpanID.String(),
+		SpanID:  fmt.Sprint(e.SpanContext.SpanID),
 		TraceID: e.SpanContext.TraceID.String(),
 	}
 	if s.SpanID != "0" || s.TraceID != "0" {
@@ -1000,8 +1000,8 @@ func newDDContextSerializer(e *model.Event) *DDContextSerializer {
 	for ptr != nil {
 		pce := (*model.ProcessCacheEntry)(ptr)
 
-		if pce.SpanID.Hi != 0 || pce.TraceID.Hi != 0 || pce.SpanID.Lo != 0 || pce.TraceID.Lo != 0 {
-			s.SpanID = pce.SpanID.String()
+		if pce.SpanID != 0 || pce.TraceID.Hi != 0 || pce.TraceID.Lo != 0 {
+			s.SpanID = fmt.Sprint(pce.SpanID)
 			s.TraceID = pce.TraceID.String()
 			break
 		}

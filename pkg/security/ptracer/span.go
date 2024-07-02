@@ -38,21 +38,18 @@ func fillSpanContext(tracer *Tracer, pid int, tid int, span *SpanTLS) *ebpfless.
 	if span == nil {
 		return nil
 	}
-	offset := uint64((tid % int(span.maxThreads)) * 2 * 16)
+	offset := uint64((tid % int(span.maxThreads)) * (16 + 8))
 
-	pSpan, err := tracer.readData(pid, uint64(span.base)+offset, 32 /*sizeof uint128 x2*/)
+	pSpan, err := tracer.readData(pid, uint64(span.base)+offset, 24 /*sizeof uint128 + sizeof uint64*/)
 	if err != nil {
 		return nil
 	}
 
 	return &ebpfless.SpanContext{
-		SpanID: mathutil.Int128{
-			Lo: int64(binary.NativeEndian.Uint64(pSpan[0:8])),
-			Hi: int64(binary.NativeEndian.Uint64(pSpan[8:16])),
-		},
+		SpanID: binary.NativeEndian.Uint64(pSpan[0:8]),
 		TraceID: mathutil.Int128{
-			Lo: int64(binary.NativeEndian.Uint64(pSpan[16:24])),
-			Hi: int64(binary.NativeEndian.Uint64(pSpan[24:32])),
+			Lo: int64(binary.NativeEndian.Uint64(pSpan[8:16])),
+			Hi: int64(binary.NativeEndian.Uint64(pSpan[16:24])),
 		},
 	}
 }

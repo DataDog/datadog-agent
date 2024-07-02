@@ -20,7 +20,7 @@ struct syscall_context_t {
 };
 
 struct span_context_t {
-   u64 span_id[2];
+   u64 span_id;
    u64 trace_id[2];
 };
 

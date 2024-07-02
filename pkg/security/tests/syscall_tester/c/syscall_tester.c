@@ -48,9 +48,9 @@ struct thread_opts {
 
 void *register_tls() {
     uint64_t max_threads = 100;
-    uint64_t len = max_threads * sizeof(__int128) * 2;
+    uint64_t len = max_threads * (sizeof(uint64_t) + sizeof(__int128));
 
-    __int128 *base = (__int128 *)malloc(len);
+    void *base = (void *)malloc(len);
     if (base == NULL)
         return NULL;
     bzero(base, len);
@@ -73,11 +73,10 @@ void *register_tls() {
 }
 
 void register_span(struct span_tls_t *tls, unsigned trace_id, unsigned span_id) {
-    int offset = (gettid() % tls->max_threads) * 2;
+    int offset = (gettid() % tls->max_threads) * 24; // sizeof uint64 + sizeof int128
 
-    __int128 *base = tls->base;
-    base[offset] = span_id;
-    base[offset + 1] = trace_id;
+    *(uint64_t*)(tls->base + offset) = span_id;
+    *(__int128*)(tls->base + offset + 8) = trace_id;
 }
 
 static void *thread_span_exec(void *data) {

@@ -266,7 +266,7 @@ type UnloadModuleSyscallMsg struct {
 
 // SpanContext stores a span context (if any)
 type SpanContext struct {
-	SpanID  mathutil.Int128
+	SpanID  uint64
 	TraceID mathutil.Int128
 }
 
