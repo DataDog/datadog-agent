@@ -1,0 +1,13 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+upgrade:
+  - |
+    Disables default injection of the a dotnet profiler dependency when kubernetes
+    auto_instrumentation is on. It is now dependent on the env `DD_PROFILING_ENABLED=1` being
+    set on the container spec of the pod being injected.
