@@ -30,7 +30,8 @@ var (
 	// recordedRecordTypes defines a map of DNS types that we'll capture by default.
 	// add additional types here to change the default.
 	defaultRecordedQueryTypes = map[layers.DNSType]struct{}{
-		layers.DNSTypeA: {},
+		layers.DNSTypeA:    {},
+		layers.DNSTypeAAAA: {},
 	}
 
 	// map for translating config strings back to the typed value
