@@ -35,19 +35,19 @@ var dockerLogsBasePathNix = "/var/lib/docker"
 var dockerLogsBasePathWin = "c:\\programdata\\docker"
 var podmanLogsBasePath = "/var/lib/containers"
 
-// makeFileTailer makes a file-based tailer for the given source, or returns
+// makeFileOrNetworkProtocolSource makes a file, udp, or tcp tailer for the given source, or returns
 // an error if it cannot do so (e.g., due to permission errors)
-func (tf *factory) makeFileTailer(source *sources.LogSource) (Tailer, error) {
-	fileSource, err := tf.makeFileSource(source)
+func (tf *factory) makeFileOrNetworkProtocolTailer(source *sources.LogSource) (Tailer, error) {
+	fileOrNetworkProtocolsource, err := tf.makeFileOrNetworkProtocolSource(source)
 	if err != nil {
 		return nil, err
 	}
-	return tf.attachChildSource(source, fileSource)
+	return tf.attachChildSource(source, fileOrNetworkProtocolsource)
 }
 
-// makeFileSource makes a new LogSource with Config.Type=="file" to log the
+// makeFileOrNetworkProtocolSource makes a new LogSource with Config.Type equal to "file" or "tcp" or "udp" to log the
 // given source.
-func (tf *factory) makeFileSource(source *sources.LogSource) (*sources.LogSource, error) {
+func (tf *factory) makeFileOrNetworkProtocolSource(source *sources.LogSource) (*sources.LogSource, error) {
 	// The user configuration consulted is different depending on what we are
 	// logging.  Note that we assume that by the time we have gotten a source
 	// from AD, it is clear what we are logging.  The `Wait` here should return
@@ -59,16 +59,13 @@ func (tf *factory) makeFileSource(source *sources.LogSource) (*sources.LogSource
 		// determine what the type of file source to create depending on the
 		// container runtime
 		switch source.Config.Type {
-		case "docker":
-			return tf.makeDockerFileSource(source)
-		case "podman":
-			return tf.makeDockerFileSource(source)
+		case "docker", "podman", "tcp", "udp":
+			return tf.makeDockerFileOrNetworkProtocolSource(source)
 		default:
 			return nil, fmt.Errorf("file tailing is not supported for source type %s", source.Config.Type)
 		}
-
 	case containersorpods.LogPods:
-		return tf.makeK8sFileSource(source)
+		return tf.makeK8sFileOrNetworkProtocolSource(source)
 
 	default:
 		// if this occurs, then sources have been arriving before the
@@ -104,8 +101,8 @@ func (tf *factory) attachChildSource(source, childSource *sources.LogSource) (Ta
 	}, nil
 }
 
-// makeDockerFileSource makes a LogSource with Config.Type="file" for a docker container.
-func (tf *factory) makeDockerFileSource(source *sources.LogSource) (*sources.LogSource, error) {
+// makeDockerFileOrNetworkProtocolSource makes a LogSource with Config.Type equal to "file" or "tcp", or "udp" for a docker container.
+func (tf *factory) makeDockerFileOrNetworkProtocolSource(source *sources.LogSource) (*sources.LogSource, error) {
 	containerID := source.Config.Identifier
 
 	path := tf.findDockerLogPath(containerID)
@@ -120,10 +117,13 @@ func (tf *factory) makeDockerFileSource(source *sources.LogSource) (*sources.Log
 	f.Close()
 
 	sourceName, serviceName := tf.defaultSourceAndService(source, containersorpods.LogContainers)
-
+	configType := config.FileType
+	if source.Config.Type == "udp" || source.Config.Type == "tcp" {
+		configType = source.Config.Type
+	}
 	// New file source that inherits most of its parent's properties
-	fileSource := sources.NewLogSource(source.Name, &config.LogsConfig{
-		Type:                        config.FileType,
+	fileOrNetworkProtocolsource := sources.NewLogSource(source.Name, &config.LogsConfig{
+		Type:                        configType,
 		TailingMode:                 source.Config.TailingMode,
 		Identifier:                  containerID,
 		Path:                        path,
@@ -138,9 +138,9 @@ func (tf *factory) makeDockerFileSource(source *sources.LogSource) (*sources.Log
 
 	// inform the file launcher that it should expect docker-formatted content
 	// in this file
-	fileSource.SetSourceType(sources.DockerSourceType)
+	fileOrNetworkProtocolsource.SetSourceType(sources.DockerSourceType)
 
-	return fileSource, nil
+	return fileOrNetworkProtocolsource, nil
 }
 
 // findDockerLogPath returns a path for the given container.
@@ -171,8 +171,8 @@ func (tf *factory) findDockerLogPath(containerID string) string {
 	}
 }
 
-// makeK8sFileSource makes a LogSource with Config.Type="file" for a container in a K8s pod.
-func (tf *factory) makeK8sFileSource(source *sources.LogSource) (*sources.LogSource, error) {
+// makeK8sFileOrNetworkProtocolSource makes a LogSource with Config.Type equal to file or UDP or TCP for a container in a K8s pod.
+func (tf *factory) makeK8sFileOrNetworkProtocolSource(source *sources.LogSource) (*sources.LogSource, error) {
 	containerID := source.Config.Identifier
 
 	wmeta, ok := tf.workloadmetaStore.Get()
@@ -209,11 +209,16 @@ func (tf *factory) makeK8sFileSource(source *sources.LogSource) (*sources.LogSou
 	// kubernetes-launcher behavior.
 
 	sourceName, serviceName := tf.defaultSourceAndService(source, containersorpods.LogPods)
+
+	configType := config.FileType
+	if source.Config.Type == "udp" || source.Config.Type == "tcp" {
+		configType = source.Config.Type
+	}
 	// New file source that inherits most of its parent's properties
-	fileSource := sources.NewLogSource(
+	fileOrNetworkProtocolsource := sources.NewLogSource(
 		fmt.Sprintf("%s/%s/%s", pod.Namespace, pod.Name, container.Name),
 		&config.LogsConfig{
-			Type:                        config.FileType,
+			Type:                        configType,
 			TailingMode:                 source.Config.TailingMode,
 			Identifier:                  containerID,
 			Path:                        path,
@@ -229,13 +234,13 @@ func (tf *factory) makeK8sFileSource(source *sources.LogSource) (*sources.LogSou
 	switch source.Config.Type {
 	case config.DockerType:
 		// docker runtime uses SourceType "docker"
-		fileSource.SetSourceType(sources.DockerSourceType)
+		fileOrNetworkProtocolsource.SetSourceType(sources.DockerSourceType)
 	default:
 		// containerd runtime uses SourceType "kubernetes"
-		fileSource.SetSourceType(sources.KubernetesSourceType)
+		fileOrNetworkProtocolsource.SetSourceType(sources.KubernetesSourceType)
 	}
 
-	return fileSource, nil
+	return fileOrNetworkProtocolsource, nil
 }
 
 // findK8sLogPath returns a wildcard matching logs files for the given container in pod.

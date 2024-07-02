@@ -35,7 +35,7 @@ import (
 
 var platformDockerLogsBasePath string
 
-func fileTestSetup(t *testing.T) {
+func testSetup(t *testing.T) {
 	dockerutilPkg.EnableTestingMode()
 	tmp := t.TempDir()
 	var oldPodLogsBasePath, oldDockerLogsBasePathNix, oldDockerLogsBasePathWin, oldPodmanLogsBasePath string
@@ -97,7 +97,7 @@ func makeTestPod() (*workloadmeta.KubernetesPod, *workloadmeta.Container) {
 }
 
 func TestMakeFileSource_docker_success(t *testing.T) {
-	fileTestSetup(t)
+	testSetup(t)
 
 	p := filepath.Join(platformDockerLogsBasePath, filepath.FromSlash("containers/abc/abc-json.log"))
 	require.NoError(t, os.MkdirAll(filepath.Dir(p), 0o777))
@@ -117,7 +117,7 @@ func TestMakeFileSource_docker_success(t *testing.T) {
 		AutoMultiLineSampleSize:     123,
 		AutoMultiLineMatchThreshold: 0.123,
 	})
-	child, err := tf.makeFileSource(source)
+	child, err := tf.makeFileOrNetworkProtocolSource(source)
 	require.NoError(t, err)
 	require.Equal(t, source.Name, child.Name)
 	require.Equal(t, "file", child.Config.Type)
@@ -133,7 +133,7 @@ func TestMakeFileSource_docker_success(t *testing.T) {
 }
 
 func TestMakeFileSource_podman_success(t *testing.T) {
-	fileTestSetup(t)
+	testSetup(t)
 	mockConfig := coreConfig.Mock(t)
 	mockConfig.SetWithoutSource("logs_config.use_podman_logs", true)
 
@@ -162,7 +162,7 @@ func TestMakeFileSource_podman_success(t *testing.T) {
 		AutoMultiLineSampleSize:     321,
 		AutoMultiLineMatchThreshold: 0.321,
 	})
-	child, err := tf.makeFileSource(source)
+	child, err := tf.makeFileOrNetworkProtocolSource(source)
 	require.NoError(t, err)
 	require.Equal(t, source.Name, child.Name)
 	require.Equal(t, "file", child.Config.Type)
@@ -177,8 +177,60 @@ func TestMakeFileSource_podman_success(t *testing.T) {
 	require.Equal(t, source.Config.AutoMultiLineMatchThreshold, 0.321)
 }
 
+func TestMakeTCPSource(t *testing.T) {
+	testSetup(t)
+
+	p := filepath.Join(platformDockerLogsBasePath, filepath.FromSlash("containers/abc/abc-json.log"))
+	require.NoError(t, os.MkdirAll(filepath.Dir(p), 0o777))
+	require.NoError(t, os.WriteFile(p, []byte("{}"), 0o666))
+
+	tf := &factory{
+		pipelineProvider: pipeline.NewMockProvider(),
+		cop:              containersorpods.NewDecidedChooser(containersorpods.LogContainers),
+	}
+	source := sources.NewLogSource("test", &config.LogsConfig{
+		Type:                        "tcp",
+		Identifier:                  "abc",
+		Source:                      "src",
+		Service:                     "svc",
+		Tags:                        []string{"tag!"},
+		AutoMultiLine:               pointer.Ptr(true),
+		AutoMultiLineSampleSize:     123,
+		AutoMultiLineMatchThreshold: 0.123,
+	})
+	child, err := tf.makeFileOrNetworkProtocolSource(source)
+	require.NoError(t, err)
+	require.Equal(t, "tcp", child.Config.Type)
+}
+
+func TestMakeUDPSource(t *testing.T) {
+	testSetup(t)
+
+	p := filepath.Join(platformDockerLogsBasePath, filepath.FromSlash("containers/abc/abc-json.log"))
+	require.NoError(t, os.MkdirAll(filepath.Dir(p), 0o777))
+	require.NoError(t, os.WriteFile(p, []byte("{}"), 0o666))
+
+	tf := &factory{
+		pipelineProvider: pipeline.NewMockProvider(),
+		cop:              containersorpods.NewDecidedChooser(containersorpods.LogContainers),
+	}
+	source := sources.NewLogSource("test", &config.LogsConfig{
+		Type:                        "udp",
+		Identifier:                  "abc",
+		Source:                      "src",
+		Service:                     "svc",
+		Tags:                        []string{"tag!"},
+		AutoMultiLine:               pointer.Ptr(true),
+		AutoMultiLineSampleSize:     123,
+		AutoMultiLineMatchThreshold: 0.123,
+	})
+	child, err := tf.makeFileOrNetworkProtocolSource(source)
+	require.NoError(t, err)
+	require.Equal(t, "udp", child.Config.Type)
+}
+
 func TestMakeFileSource_docker_no_file(t *testing.T) {
-	fileTestSetup(t)
+	testSetup(t)
 
 	p := filepath.Join(platformDockerLogsBasePath, filepath.FromSlash("containers/abc/abc-json.log"))
 
@@ -192,7 +244,7 @@ func TestMakeFileSource_docker_no_file(t *testing.T) {
 		Source:     "src",
 		Service:    "svc",
 	})
-	child, err := tf.makeFileSource(source)
+	child, err := tf.makeFileOrNetworkProtocolSource(source)
 	require.Nil(t, child)
 	require.Error(t, err)
 	switch runtime.GOOS {
@@ -226,7 +278,7 @@ func TestDockerOverride(t *testing.T) {
 
 	tf.findDockerLogPath(source.Config.Identifier)
 
-	child, err := tf.makeFileSource(source)
+	child, err := tf.makeFileOrNetworkProtocolSource(source)
 
 	require.NoError(t, err)
 	require.Equal(t, "file", child.Config.Type)
@@ -234,7 +286,7 @@ func TestDockerOverride(t *testing.T) {
 }
 
 func TestMakeK8sSource(t *testing.T) {
-	fileTestSetup(t)
+	testSetup(t)
 
 	dir := filepath.Join(podLogsBasePath, filepath.FromSlash("podns_podname_poduuid/cname"))
 	require.NoError(t, os.MkdirAll(dir, 0o777))
@@ -270,7 +322,7 @@ func TestMakeK8sSource(t *testing.T) {
 				AutoMultiLineSampleSize:     123,
 				AutoMultiLineMatchThreshold: 0.123,
 			})
-			child, err := tf.makeK8sFileSource(source)
+			child, err := tf.makeK8sFileOrNetworkProtocolSource(source)
 			require.NoError(t, err)
 			require.Equal(t, "podns/podname/cname", child.Name)
 			require.Equal(t, "file", child.Config.Type)
@@ -293,7 +345,7 @@ func TestMakeK8sSource(t *testing.T) {
 }
 
 func TestMakeK8sSource_pod_not_found(t *testing.T) {
-	fileTestSetup(t)
+	testSetup(t)
 
 	p := filepath.Join(platformDockerLogsBasePath, "containers/abc/abc-json.log")
 	require.NoError(t, os.MkdirAll(filepath.Dir(p), 0o777))
@@ -316,14 +368,14 @@ func TestMakeK8sSource_pod_not_found(t *testing.T) {
 		Type:       "docker",
 		Identifier: "abc",
 	})
-	child, err := tf.makeK8sFileSource(source)
+	child, err := tf.makeK8sFileOrNetworkProtocolSource(source)
 	require.Nil(t, child)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "cannot find pod for container")
 }
 
 func TestFindK8sLogPath(t *testing.T) {
-	fileTestSetup(t)
+	testSetup(t)
 
 	tests := []struct{ name, pathExists, expectedPattern string }{
 		{"..v1.9", "poduuid/cname_1.log", "poduuid/cname_*.log"},

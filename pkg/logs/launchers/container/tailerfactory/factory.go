@@ -67,14 +67,14 @@ func New(sources *sources.LogSources, pipelineProvider pipeline.Provider, regist
 
 // MakeTailer implements Factory#MakeTailer.
 func (tf *factory) MakeTailer(source *sources.LogSource) (Tailer, error) {
-	return tf.makeTailer(source, tf.useFile, tf.makeFileTailer, tf.makeSocketTailer)
+	return tf.makeTailer(source, tf.useFile, tf.makeFileOrNetworkProtocolTailer, tf.makeSocketTailer)
 }
 
 // makeTailer makes a new tailer, using function pointers to allow testing.
 func (tf *factory) makeTailer(
 	source *sources.LogSource,
 	useFile func(*sources.LogSource) bool,
-	makeFileTailer func(*sources.LogSource) (Tailer, error),
+	makeFileOrNetworkProtocolTailer func(*sources.LogSource) (Tailer, error),
 	makeSocketTailer func(*sources.LogSource) (Tailer, error),
 ) (Tailer, error) {
 
@@ -83,7 +83,7 @@ func (tf *factory) makeTailer(
 
 	switch useFile(source) {
 	case true:
-		t, err := makeFileTailer(source)
+		t, err := makeFileOrNetworkProtocolTailer(source)
 		if err == nil {
 			return t, nil
 		}
@@ -98,7 +98,7 @@ func (tf *factory) makeTailer(
 		}
 		source.Messages.AddMessage("socketTailerError", "The socket tailer could not be made, falling back to file")
 		log.Warnf("Could not make socket tailer for source %s (falling back to file): %v", source.Name, err)
-		return makeFileTailer(source)
+		return makeFileOrNetworkProtocolTailer(source)
 	}
 	return nil, nil // unreachable
 }
