@@ -11,7 +11,6 @@ import (
 	"net"
 	"net/netip"
 	"sync"
-	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
@@ -81,11 +80,6 @@ func NewComponent(reqs Requires) (Provides, error) {
 		config.cacheEntryTTL,
 		config.cacheCleanInterval,
 		config.cachePersistInterval)
-
-	reqs.Logger.Debugf("Reverse DNS Enrichment debug config: (fake_resolver=%t generate_fake_queries=%t lookup_delay_ms=%d)",
-		config.fakeResolver,
-		config.generateFakeQueriesPerSecond,
-		config.lookupDelayMs)
 
 	if !config.enabled {
 		return Provides{
@@ -169,11 +163,6 @@ func (q *rdnsQuerierImpl) start(_ context.Context) error {
 	}
 	q.logger.Infof("Reverse DNS Enrichment started %d rdnsquerier workers", q.config.workers)
 
-	if q.config.generateFakeQueriesPerSecond > 0 {
-		q.wg.Add(1)
-		go q.generateFakeQueries(ctx)
-	}
-
 	return nil
 }
 
@@ -193,26 +182,6 @@ func (q *rdnsQuerierImpl) worker(ctx context.Context) {
 			q.getHostname(ctx, query)
 		case <-ctx.Done():
 			return
-		}
-	}
-}
-
-func (q *rdnsQuerierImpl) generateFakeQueries(ctx context.Context) {
-	defer q.wg.Done()
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-time.After(time.Second):
-			q.logger.Debugf("Reverse DNS Enrichment generating %d fake queries", q.config.generateFakeQueriesPerSecond)
-			for i := range q.config.generateFakeQueriesPerSecond {
-				q.GetHostnameAsync(
-					[]byte{192, 168, 1, byte(i)},
-					func(hostname string) {
-						// noop
-					},
-				)
-			}
 		}
 	}
 }

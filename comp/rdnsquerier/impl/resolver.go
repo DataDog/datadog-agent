@@ -8,20 +8,13 @@ package rdnsquerierimpl
 import (
 	"fmt"
 	"net"
-	"time"
 )
 
 type resolver interface {
 	lookup(string) (string, error)
 }
 
-func newResolver(config *rdnsQuerierConfig) resolver {
-	if config.fakeResolver {
-		return &resolverFake{
-			config: config,
-		}
-	}
-
+func newResolver(_ *rdnsQuerierConfig) resolver {
 	return &resolverImpl{}
 }
 
@@ -45,17 +38,4 @@ func (r *resolverImpl) lookup(addr string) (string, error) {
 	}
 
 	return hostnames[0], nil
-}
-
-// Fake resolver for debug and test purposes
-type resolverFake struct {
-	config *rdnsQuerierConfig
-}
-
-func (r *resolverFake) lookup(addr string) (string, error) {
-	if r.config.lookupDelayMs > 0 {
-		time.Sleep(time.Duration(r.config.lookupDelayMs) * time.Millisecond)
-	}
-
-	return "fakehostname-" + addr, nil
 }

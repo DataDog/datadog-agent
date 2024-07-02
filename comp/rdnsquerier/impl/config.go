@@ -21,11 +21,6 @@ type rdnsQuerierConfig struct {
 	cacheEntryTTL        int
 	cacheCleanInterval   int
 	cachePersistInterval int
-
-	// debug - TODO remove
-	fakeResolver                 bool
-	generateFakeQueriesPerSecond int
-	lookupDelayMs                int
 }
 
 const (
@@ -54,10 +49,6 @@ func newConfig(agentConfig config.Component) *rdnsQuerierConfig {
 		cacheEntryTTL:        agentConfig.GetInt("reverse_dns_enrichment.cache.entry_ttl"),
 		cacheCleanInterval:   agentConfig.GetInt("reverse_dns_enrichment.cache.clean_interval"),
 		cachePersistInterval: agentConfig.GetInt("reverse_dns_enrichment.cache.persist_interval"),
-
-		fakeResolver:                 agentConfig.GetBool("reverse_dns_enrichment.fake_resolver"),
-		generateFakeQueriesPerSecond: agentConfig.GetInt("reverse_dns_enrichment.generate_fake_queries_per_second"),
-		lookupDelayMs:                agentConfig.GetInt("reverse_dns_enrichment.lookup_delay_ms"),
 	}
 
 	c.setDefaults()
