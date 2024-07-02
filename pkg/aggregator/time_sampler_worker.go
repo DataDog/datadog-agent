@@ -26,6 +26,7 @@ type timeSamplerWorker struct {
 
 	// flushInterval is the automatic flush interval
 	flushInterval time.Duration
+	flushAsync    bool
 
 	// parallel serialization configuration
 	parallelSerialization FlushAndSerializeInParallel
@@ -49,9 +50,10 @@ type dumpTrigger struct {
 	done chan error
 }
 
-func newTimeSamplerWorker(sampler *TimeSampler, flushInterval time.Duration, bufferSize int,
+func newTimeSamplerWorker(sampler *TimeSampler, flushInterval time.Duration, flushAsync bool, bufferSize int,
 	metricSamplePool *metrics.MetricSamplePool,
 	parallelSerialization FlushAndSerializeInParallel, tagsStore *tags.Store) *timeSamplerWorker {
+
 	return &timeSamplerWorker{
 		sampler: sampler,
 
@@ -59,6 +61,7 @@ func newTimeSamplerWorker(sampler *TimeSampler, flushInterval time.Duration, buf
 		parallelSerialization: parallelSerialization,
 
 		flushInterval: flushInterval,
+		flushAsync:    flushAsync,
 
 		samplesChan: make(chan []metrics.MetricSample, bufferSize),
 		stopChan:    make(chan struct{}),
@@ -105,8 +108,12 @@ func (w *timeSamplerWorker) stop() {
 }
 
 func (w *timeSamplerWorker) triggerFlush(trigger flushTrigger) {
-	w.sampler.flush(float64(trigger.time.Unix()), trigger.seriesSink, trigger.sketchesSink)
-	trigger.blockChan <- struct{}{}
+	if w.flushAsync {
+		w.sampler.flushAsync(float64(trigger.time.Unix()), trigger.seriesSink, trigger.sketchesSink, trigger.blockChan)
+	} else {
+		w.sampler.flush(float64(trigger.time.Unix()), trigger.seriesSink, trigger.sketchesSink)
+		trigger.blockChan <- struct{}{}
+	}
 }
 
 func (w *timeSamplerWorker) dumpContexts(dest io.Writer) error {

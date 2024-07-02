@@ -156,7 +156,6 @@ func testCounterExpirySeconds(t *testing.T, store *tags.Store) {
 		Tags:       []string{"foo", "bar"},
 		SampleRate: 1,
 	}
-	contextCounter1 := generateContextKey(sampleCounter1)
 
 	sampleCounter2 := &metrics.MetricSample{
 		Name:       "my.counter2",
@@ -165,7 +164,6 @@ func testCounterExpirySeconds(t *testing.T, store *tags.Store) {
 		Tags:       []string{"foo", "bar"},
 		SampleRate: 1,
 	}
-	contextCounter2 := generateContextKey(sampleCounter2)
 
 	sampleGauge3 := &metrics.MetricSample{
 		Name:       "my.gauge",
@@ -178,8 +176,6 @@ func testCounterExpirySeconds(t *testing.T, store *tags.Store) {
 	sampler.sample(sampleCounter1, 1004.0)
 	sampler.sample(sampleCounter2, 1002.0)
 	sampler.sample(sampleGauge3, 1003.0)
-	// counterLastSampledByContext should be populated when a sample is added
-	assert.Equal(t, 2, len(sampler.counterLastSampledByContext))
 
 	series, _ := flushSerie(sampler, 1010.0)
 
@@ -214,10 +210,7 @@ func testCounterExpirySeconds(t *testing.T, store *tags.Store) {
 	}
 	expectedSeries := metrics.Series{expectedSerie1, expectedSerie2, expectedSerie3}
 
-	require.Equal(t, 2, len(sampler.counterLastSampledByContext))
 	metrics.AssertSeriesEqual(t, expectedSeries, series)
-	assert.Equal(t, 1004.0, sampler.counterLastSampledByContext[contextCounter1])
-	assert.Equal(t, 1002.0, sampler.counterLastSampledByContext[contextCounter2])
 
 	sampleCounter1 = &metrics.MetricSample{
 		Name:       "my.counter1",
@@ -268,13 +261,11 @@ func testCounterExpirySeconds(t *testing.T, store *tags.Store) {
 	// Counter1 should have stopped reporting but the context is not expired yet
 	// Counter2 should still report
 	assert.Equal(t, 1, len(series))
-	assert.Equal(t, 1, len(sampler.counterLastSampledByContext))
-	assert.Equal(t, 1, len(sampler.contextResolver.resolver.contextsByKey))
+	assert.Equal(t, 2, len(sampler.contextResolver.resolver.contextsByKey))
 
 	series, _ = flushSerie(sampler, 1800.0)
 	// Everything stopped reporting and is expired
 	assert.Equal(t, 0, len(series))
-	assert.Equal(t, 0, len(sampler.counterLastSampledByContext))
 	assert.Equal(t, 0, len(sampler.contextResolver.resolver.contextsByKey))
 }
 func TestCounterExpirySeconds(t *testing.T) {
@@ -528,7 +519,7 @@ func testFlushMissingContext(t *testing.T, store *tags.Store) {
 	}, 1000)
 
 	// Simulate a sutation where contexts are expired prematurely.
-	sampler.contextResolver.expireContexts(10000, nil)
+	sampler.contextResolver.expireContexts(10000)
 
 	assert.Len(t, sampler.contextResolver.resolver.contextsByKey, 0)
 
@@ -564,6 +555,8 @@ func flushSerie(sampler *TimeSampler, timestamp float64) (metrics.Series, metric
 	var series metrics.Series
 	var sketches metrics.SketchSeriesList
 
-	sampler.flush(timestamp, &series, &sketches)
+	blockChan := make(chan struct{})
+	sampler.flushAsync(timestamp, &series, &sketches, blockChan)
+	<-blockChan
 	return series, sketches
 }
