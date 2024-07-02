@@ -1861,6 +1861,10 @@ def tag_ci_job(ctx: Context):
         elif "upload_secagent_tests" in job_name or "upload_sysprobe_tests" in job_name:
             tags["setup_stage"] = "tests"
 
+        instance_not_found_marker = Path.cwd() / ".instance_not_found"
+        if instance_not_found_marker.is_file():
+            tags["failure_reason"] = "infra_instance-not-found"
+
     tag_prefix = "kmt."
     tags_str = " ".join(f"--tags '{tag_prefix}{k}:{v}'" for k, v in tags.items())
 
