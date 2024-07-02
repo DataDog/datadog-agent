@@ -12,7 +12,12 @@ from invoke import task
 from invoke.exceptions import Exit
 
 from tasks.libs.ciproviders.github_api import GithubAPI
-from tasks.libs.ciproviders.gitlab_api import get_gitlab_bot_token, get_gitlab_repo, refresh_pipeline
+from tasks.libs.ciproviders.gitlab_api import (
+    get_gitlab_bot_token,
+    get_gitlab_repo,
+    gitlab_configuration_is_modified,
+    refresh_pipeline,
+)
 from tasks.libs.common.color import color_message
 from tasks.libs.common.constants import DEFAULT_BRANCH, GITHUB_REPO_NAME
 from tasks.libs.common.git import check_clean_branch_state, get_commit_sha, get_current_branch
@@ -999,6 +1004,9 @@ def compare_to_itself(ctx):
     Create a new branch with 'compare_to_itself' in gitlab-ci.yml and trigger a pipeline
     """
     agent = get_gitlab_repo()
+    if not gitlab_configuration_is_modified(ctx):
+        # Do not run this test if there is no modification of the gitlab configuration
+        return
     current_branch = ctx.run("git rev-parse --abbrev-ref HEAD", hide=True).stdout.strip()
     new_branch = f"compare/{current_branch}"
     ctx.run(f"git checkout -b {new_branch}", hide=True)

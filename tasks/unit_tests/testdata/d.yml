@@ -1,0 +1,5 @@
+---
+new_job:
+  stage: wembley
+  needs: queen
+  rules: 1985
