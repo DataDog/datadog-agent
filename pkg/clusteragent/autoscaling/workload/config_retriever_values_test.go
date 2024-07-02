@@ -31,16 +31,16 @@ func TestConfigRetriverAutoscalingValuesFollower(t *testing.T) {
 	cr, mockRCClient := newMockConfigRetriever(t, false, clock.NewFakeClock(testTime))
 
 	// Dummy objects in store
-	dummy2 := model.PodAutoscalerInternal{
+	dummy2 := model.FakePodAutoscalerInternal{
 		Namespace: "ns",
 		Name:      "name2",
 	}
-	dummy3 := model.PodAutoscalerInternal{
+	dummy3 := model.FakePodAutoscalerInternal{
 		Namespace: "ns",
 		Name:      "name3",
 	}
-	cr.store.Set("ns/name2", dummy2, "unittest")
-	cr.store.Set("ns/name3", dummy3, "unittest")
+	cr.store.Set("ns/name2", dummy2.Build(), "unittest")
+	cr.store.Set("ns/name3", dummy3.Build(), "unittest")
 
 	// Object specs
 	value1 := &kubeAutoscaling.WorkloadValues{
@@ -71,7 +71,7 @@ func TestConfigRetriverAutoscalingValuesFollower(t *testing.T) {
 
 	assert.Equal(t, 1, stateCallbackCalled)
 	podAutoscalers := cr.store.GetAll()
-	model.AssertPodAutoscalersEqual(t, []model.PodAutoscalerInternal{dummy2, dummy3}, podAutoscalers)
+	model.AssertPodAutoscalersEqual(t, []model.FakePodAutoscalerInternal{dummy2, dummy3}, podAutoscalers)
 }
 
 func TestConfigRetriverAutoscalingValuesLeader(t *testing.T) {
@@ -79,18 +79,18 @@ func TestConfigRetriverAutoscalingValuesLeader(t *testing.T) {
 	cr, mockRCClient := newMockConfigRetriever(t, true, clock.NewFakeClock(testTime))
 
 	// Dummy objects in store
-	cr.store.Set("ns/name1", model.PodAutoscalerInternal{
+	cr.store.Set("ns/name1", model.FakePodAutoscalerInternal{
 		Namespace: "ns",
 		Name:      "name1",
-	}, "unittest")
-	cr.store.Set("ns/name2", model.PodAutoscalerInternal{
+	}.Build(), "unittest")
+	cr.store.Set("ns/name2", model.FakePodAutoscalerInternal{
 		Namespace: "ns",
 		Name:      "name2",
-	}, "unittest")
-	cr.store.Set("ns/name3", model.PodAutoscalerInternal{
+	}.Build(), "unittest")
+	cr.store.Set("ns/name3", model.FakePodAutoscalerInternal{
 		Namespace: "ns",
 		Name:      "name3",
-	}, "unittest")
+	}.Build(), "unittest")
 
 	// Object specs
 	value1 := &kubeAutoscaling.WorkloadValues{
@@ -206,7 +206,7 @@ func TestConfigRetriverAutoscalingValuesLeader(t *testing.T) {
 	assert.Equal(t, 2, stateCallbackCalled)
 	podAutoscalers := cr.store.GetAll()
 
-	model.AssertPodAutoscalersEqual(t, []model.PodAutoscalerInternal{
+	model.AssertPodAutoscalersEqual(t, []model.FakePodAutoscalerInternal{
 		{
 			Namespace: "ns",
 			Name:      "name1",
@@ -298,7 +298,7 @@ func TestConfigRetriverAutoscalingValuesLeader(t *testing.T) {
 	assert.Equal(t, 2, stateCallbackCalled)
 
 	podAutoscalers = cr.store.GetAll()
-	model.AssertPodAutoscalersEqual(t, []model.PodAutoscalerInternal{
+	model.AssertPodAutoscalersEqual(t, []model.FakePodAutoscalerInternal{
 		{
 			Namespace:     "ns",
 			Name:          "name1",
@@ -360,7 +360,7 @@ func TestConfigRetriverAutoscalingValuesLeader(t *testing.T) {
 	assert.Equal(t, 1, stateCallbackCalled)
 
 	podAutoscalers = cr.store.GetAll()
-	model.AssertPodAutoscalersEqual(t, []model.PodAutoscalerInternal{
+	model.AssertPodAutoscalersEqual(t, []model.FakePodAutoscalerInternal{
 		{
 			Namespace:     "ns",
 			Name:          "name1",
@@ -422,7 +422,7 @@ func TestConfigRetriverAutoscalingValuesLeader(t *testing.T) {
 	assert.Equal(t, 1, stateCallbackCalled)
 
 	podAutoscalers = cr.store.GetAll()
-	model.AssertPodAutoscalersEqual(t, []model.PodAutoscalerInternal{
+	model.AssertPodAutoscalersEqual(t, []model.FakePodAutoscalerInternal{
 		{
 			Namespace: "ns",
 			Name:      "name1",

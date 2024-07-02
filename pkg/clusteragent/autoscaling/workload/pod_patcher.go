@@ -68,7 +68,7 @@ func (pa podPatcher) ApplyRecommendations(pod *corev1.Pod) (bool, error) {
 	}
 
 	// Check if the autoscaler has recommendations
-	if autoscaler.ScalingValues.Vertical == nil || autoscaler.ScalingValues.Vertical.ResourcesHash == "" || len(autoscaler.ScalingValues.Vertical.ContainerResources) == 0 {
+	if autoscaler.ScalingValues().Vertical == nil || autoscaler.ScalingValues().Vertical.ResourcesHash == "" || len(autoscaler.ScalingValues().Vertical.ContainerResources) == 0 {
 		log.Debugf("Autoscaler %s has no vertical recommendations for POD %s/%s, not patching", autoscaler.ID(), pod.Namespace, pod.Name)
 		return false, nil
 	}
@@ -86,8 +86,8 @@ func (pa podPatcher) ApplyRecommendations(pod *corev1.Pod) (bool, error) {
 		pod.Annotations = map[string]string{}
 	}
 
-	if pod.Annotations[model.RecommendationIDAnnotation] != autoscaler.ScalingValues.Vertical.ResourcesHash {
-		pod.Annotations[model.RecommendationIDAnnotation] = autoscaler.ScalingValues.Vertical.ResourcesHash
+	if pod.Annotations[model.RecommendationIDAnnotation] != autoscaler.ScalingValues().Vertical.ResourcesHash {
+		pod.Annotations[model.RecommendationIDAnnotation] = autoscaler.ScalingValues().Vertical.ResourcesHash
 		patched = true
 	}
 
@@ -98,7 +98,7 @@ func (pa podPatcher) ApplyRecommendations(pod *corev1.Pod) (bool, error) {
 	}
 
 	// Even if annotation matches, we still verify the resources are correct, in case the POD was modified.
-	for _, reco := range autoscaler.ScalingValues.Vertical.ContainerResources {
+	for _, reco := range autoscaler.ScalingValues().Vertical.ContainerResources {
 		for i := range pod.Spec.Containers {
 			cont := &pod.Spec.Containers[i]
 			if cont.Name != reco.Name {
@@ -147,10 +147,10 @@ func (pa podPatcher) findAutoscaler(pod *corev1.Pod) (*model.PodAutoscalerIntern
 
 	// TODO: Implementation is slow
 	podAutoscalers := pa.store.GetFiltered(func(podAutoscaler model.PodAutoscalerInternal) bool {
-		if podAutoscaler.Namespace == pod.Namespace &&
-			podAutoscaler.Spec.TargetRef.Name == ownerRef.Name &&
-			podAutoscaler.Spec.TargetRef.Kind == ownerRef.Kind &&
-			podAutoscaler.Spec.TargetRef.APIVersion == ownerRef.APIVersion {
+		if podAutoscaler.Namespace() == pod.Namespace &&
+			podAutoscaler.Spec().TargetRef.Name == ownerRef.Name &&
+			podAutoscaler.Spec().TargetRef.Kind == ownerRef.Kind &&
+			podAutoscaler.Spec().TargetRef.APIVersion == ownerRef.APIVersion {
 			return true
 		}
 		return false
