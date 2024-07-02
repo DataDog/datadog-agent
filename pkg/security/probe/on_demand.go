@@ -111,17 +111,27 @@ func (sm *OnDemandProbesManager) selectProbes() manager.ProbesSelector {
 	return &activatedProbes
 }
 
+// onDemandParamKind needs to stay in sync with `enum param_kind_t`
+// from pkg/security/ebpf/c/include/hooks/on_demand.h
+type onDemandParamKind int
+
+const (
+	onDemandParamKindNoAction onDemandParamKind = iota
+	onDemandParamKindInt
+	onDemandParamKindNullTerminatedString
+)
+
 func buildArgsEditors(args []rules.HookPointArg) []manager.ConstantEditor {
-	argKinds := make(map[int]int)
+	argKinds := make(map[int]onDemandParamKind)
 	for _, arg := range args {
-		var kind int
+		kind := onDemandParamKindNoAction
 		switch arg.Kind {
 		case "int":
-			kind = 1
+			kind = onDemandParamKindInt
 		case "null-terminated-string":
-			kind = 2
+			kind = onDemandParamKindNullTerminatedString
 		default:
-			panic(fmt.Errorf("unknown kind for arg: %s", arg.Kind))
+			seclog.Errorf("unknown kind for arg: %s", arg.Kind)
 		}
 
 		argKinds[arg.N] = kind
