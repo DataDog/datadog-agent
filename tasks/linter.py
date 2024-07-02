@@ -22,7 +22,7 @@ from tasks.libs.ciproviders.gitlab_api import (
     read_includes,
 )
 from tasks.libs.common.check_tools_version import check_tools_version
-from tasks.libs.common.color import color_message
+from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.constants import DEFAULT_BRANCH, GITHUB_REPO_NAME
 from tasks.libs.common.git import get_staged_files
 from tasks.libs.common.utils import (
@@ -79,6 +79,55 @@ def copyrights(ctx, fix=False, dry_run=False, debug=False, only_staged_files=Fal
     except LintFailure:
         # the linter prints useful messages on its own, so no need to print the exception
         sys.exit(1)
+
+
+@task
+def python_local_imports(ctx):
+    """
+    Verify that local imports within functions from this module are all resolved
+    """
+    print('Checking python local imports')
+
+    # Find imports
+    re_imports = re.compile(r'\s+(from tasks(\.[^ ]+)? import [^(\n]*(\([^)]+\))?)$', re.MULTILINE)
+    re_imports2 = re.compile(r'\s+(import tasks\.+)$', re.MULTILINE)
+    files = glob('tasks/**/*.py', recursive=True)
+    imports = []
+    for file in sorted(files):
+        with open(file) as f:
+            content = f.read()
+        matches = re_imports.findall(content) + re_imports2.findall(content)
+        # TODO : Get line
+        imports.extend([(file, match[0]) for match in matches])
+
+    def verify_import(import_statement: str) -> bool:
+        """
+        Will verify that the import statement is correctly resolved by importing it.
+        Made in a function to avoid polluting the namespace.
+        """
+        try:
+            exec(import_statement)
+
+            return True
+        except ImportError:
+            return False
+
+    errors = False
+    for f, imp in imports:
+        if not verify_import(imp):
+            print(
+                color_message('Error:', Color.RED),
+                f'Import in {color_message(f, Color.BOLD)} not correctly resolved',
+                file=sys.stderr,
+            )
+            print('  ', imp, file=sys.stderr)
+            errors = True
+
+    if errors:
+        print(color_message('Import errors found', Color.RED), file=sys.stderr)
+        raise Exit(code=1)
+
+    print(color_message('No import errors found', Color.GREEN))
 
 
 @task
