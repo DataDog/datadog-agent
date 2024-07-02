@@ -1200,6 +1200,8 @@ A file/directory was renamed
 | [`rename.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`rename.file.user`](#common-filefields-user-doc) | User of the file's owner |
 | [`rename.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
+| [`rename.syscall.destination.path`](#rename-syscall-destination-path-doc) | Destination path argument of the syscall |
+| [`rename.syscall.path`](#rename-syscall-path-doc) | Path argument of the syscall |
 
 ### Event `rmdir`
 
@@ -2837,6 +2839,20 @@ Definition: ptrace request
 
 
 Constants: [Ptrace constants](#ptrace-constants)
+
+
+
+### `rename.syscall.destination.path` {#rename-syscall-destination-path-doc}
+Type: string
+
+Definition: Destination path argument of the syscall
+
+
+
+### `rename.syscall.path` {#rename-syscall-path-doc}
+Type: string
+
+Definition: Path argument of the syscall
 
 
 
