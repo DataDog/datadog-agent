@@ -11,8 +11,8 @@ package collectors
 import (
 	"go.uber.org/fx"
 
-	cf_container "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/cloudfoundry/container"
-	cf_vm "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/cloudfoundry/vm"
+	cfcontainer "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/cloudfoundry/container"
+	cfvm "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/cloudfoundry/vm"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/containerd"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/docker"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/ecs"
@@ -31,8 +31,8 @@ import (
 // GetCatalog returns the set of FX options to populate the catalog
 func GetCatalog() fx.Option {
 	options := []fx.Option{
-		cf_container.GetFxOptions(),
-		cf_vm.GetFxOptions(),
+		cfcontainer.GetFxOptions(),
+		cfvm.GetFxOptions(),
 		containerd.GetFxOptions(),
 		docker.GetFxOptions(),
 		ecs.GetFxOptions(),
