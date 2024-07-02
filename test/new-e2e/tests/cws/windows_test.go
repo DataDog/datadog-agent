@@ -98,7 +98,7 @@ func (a *agentSuiteWindows) Test01RulesetLoadedDefaultRC() {
 func (a *agentSuiteWindows) Test02Selftests() {
 	assert.EventuallyWithT(a.T(), func(c *assert.CollectT) {
 		testSelftestsEvent(c, a, func(event *api.SelftestsEvent) {
-			assert.Contains(c, event.SucceededTests, "datadog_agent_cws_self_test_rule__windows_create_file", "missing selftest result")
+			assert.Contains(c, event.SucceededTests, "datadog_agent_cws_self_test_rule_windows_create_file", "missing selftest result")
 			assert.Contains(c, event.SucceededTests, "datadog_agent_cws_self_test_rule_windows_open_registry_key_name", "missing selftest result")
 		})
 	}, 4*time.Minute, 10*time.Second)
@@ -171,7 +171,7 @@ func (a *agentSuiteWindows) Test03CreateFileSignal() {
 
 	var policies string
 	require.EventuallyWithT(a.T(), func(c *assert.CollectT) {
-		policies = a.Env().RemoteHost.MustExecute(fmt.Sprintf("$env:DD_APP_KEY='%s'; $env:DD_API_KEY='%s'; %s runtime policy download | Out-File temp.txt; Get-Content temp.txt", appKey, apiKey, securityAgentPathWindows))
+		policies = a.Env().RemoteHost.MustExecute(fmt.Sprintf("$env:DD_APP_KEY='%s'; $env:DD_API_KEY='%s'; & '%s' runtime policy download | Out-File temp.txt; Get-Content temp.txt", appKey, apiKey, securityAgentPathWindows))
 		assert.NotEmpty(c, policies, "should not be empty")
 	}, 1*time.Minute, 1*time.Second)
 
