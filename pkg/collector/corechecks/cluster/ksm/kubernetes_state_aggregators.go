@@ -8,7 +8,10 @@
 package ksm
 
 import (
+	"cmp"
 	"fmt"
+	"slices"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	ksmstore "github.com/DataDog/datadog-agent/pkg/kubestatemetrics/store"
@@ -18,23 +21,61 @@ import (
 )
 
 type metricAggregator interface {
-	accumulate(ksmstore.DDMetric)
+	accumulate(ksmstore.DDMetric, *labelJoiner)
 	flush(sender.Sender, *KSMCheck, *labelJoiner)
 }
 
-// maxNumberOfAllowedLabels contains the maximum number of labels that can be used to aggregate metrics.
-// The only reason why there is a maximum is because the `accumulator` map is indexed on the label values
-// and GO accepts arrays as valid map key type, but not slices.
-// This hard coded limit is fine because the metrics to aggregate and the label list to use are hardcoded
-// in the code and cannot be arbitrarily set by the end-user.
-const maxNumberOfAllowedLabels = 4
+const accumulateDelimiter = "|"
+
+// accumulateKey is a key used to accumulate metrics in the aggregator.
+// Go does not allow slices or map as valid map keys, so we make string instaed of slice of label keys and values.
+// E.g., for labels: {key:"a",value:"1"}, {key:"b",value:"2"}, {key:"c",value:"3"}, the accumulate key will be "a|b|c" and "1|2|3".
+type accumulateKey struct {
+	keys   string
+	values string
+}
+
+func makeAccumulateKey(labels []label) accumulateKey {
+	keys := make([]string, len(labels))
+	vals := make([]string, len(labels))
+	// Sort labels to ensure the order is deterministic.
+	slices.SortFunc(labels, func(a, b label) int {
+		v := cmp.Compare(a.key, b.key)
+		if v == 0 {
+			return cmp.Compare(a.value, b.value)
+		}
+		return v
+	})
+	for i, l := range labels {
+		keys[i] = l.key
+		vals[i] = l.value
+	}
+	return accumulateKey{
+		keys:   strings.Join(keys, accumulateDelimiter),
+		values: strings.Join(vals, accumulateDelimiter),
+	}
+}
+
+func (a accumulateKey) labels() map[string]string {
+	keys := strings.Split(a.keys, accumulateDelimiter)
+	values := strings.Split(a.values, accumulateDelimiter)
+	if len(keys) != len(values) {
+		log.Errorf("BUG in KSM metric aggregator: keys and values have different lengths")
+		return nil
+	}
+	labels := make(map[string]string, len(keys))
+	for i := range keys {
+		labels[keys[i]] = values[i]
+	}
+	return labels
+
+}
 
 type counterAggregator struct {
 	ddMetricName  string
 	ksmMetricName string
-	allowedLabels []string
 
-	accumulator map[[maxNumberOfAllowedLabels]string]float64
+	accumulator map[accumulateKey]float64
 }
 
 type sumValuesAggregator struct {
@@ -51,15 +92,9 @@ type resourceAggregator struct {
 	ddMetricPrefix   string
 	ddMetricSuffix   string
 	ksmMetricName    string
-	allowedLabels    []string
 	allowedResources []string
 
-	accumulators map[string]map[[maxNumberOfAllowedLabels]string]float64
-}
-
-type cronJob struct {
-	namespace string
-	name      string
+	accumulators map[string]map[accumulateKey]float64
 }
 
 type cronJobState struct {
@@ -68,7 +103,7 @@ type cronJobState struct {
 }
 
 type lastCronJobAggregator struct {
-	accumulator map[cronJob]cronJobState
+	accumulator map[accumulateKey]cronJobState
 }
 
 type lastCronJobCompleteAggregator struct {
@@ -79,60 +114,36 @@ type lastCronJobFailedAggregator struct {
 	aggregator *lastCronJobAggregator
 }
 
-func newSumValuesAggregator(ddMetricName, ksmMetricName string, allowedLabels []string) metricAggregator {
-	if len(allowedLabels) > maxNumberOfAllowedLabels {
-		// `maxNumberOfAllowedLabels` is hardcoded to the maximum number of labels passed to this function from the metricsAggregators definition below.
-		// The only possibility to arrive here is to add a new aggregator in `metricAggregator` below and to forget to update `maxNumberOfAllowedLabels` accordingly.
-		log.Error("BUG in KSM metric aggregator")
-		return nil
-	}
-
+func newSumValuesAggregator(ddMetricName, ksmMetricName string) metricAggregator {
 	return &sumValuesAggregator{
 		counterAggregator{
 			ddMetricName:  ddMetricName,
 			ksmMetricName: ksmMetricName,
-			allowedLabels: allowedLabels,
-			accumulator:   make(map[[maxNumberOfAllowedLabels]string]float64),
+			accumulator:   make(map[accumulateKey]float64),
 		},
 	}
 }
 
-func newCountObjectsAggregator(ddMetricName, ksmMetricName string, allowedLabels []string) metricAggregator {
-	if len(allowedLabels) > maxNumberOfAllowedLabels {
-		// `maxNumberOfAllowedLabels` is hardcoded to the maximum number of labels passed to this function from the metricsAggregators definition below.
-		// The only possibility to arrive here is to add a new aggregator in `metricAggregator` below and to forget to update `maxNumberOfAllowedLabels` accordingly.
-		log.Error("BUG in KSM metric aggregator")
-		return nil
-	}
-
+func newCountObjectsAggregator(ddMetricName, ksmMetricName string) metricAggregator {
 	return &countObjectsAggregator{
 		counterAggregator{
 			ddMetricName:  ddMetricName,
 			ksmMetricName: ksmMetricName,
-			allowedLabels: allowedLabels,
-			accumulator:   make(map[[maxNumberOfAllowedLabels]string]float64),
+			accumulator:   make(map[accumulateKey]float64),
 		},
 	}
 }
 
-func newResourceValuesAggregator(ddMetricPrefix, ddMetricSuffix, ksmMetricName string, allowedLabels, allowedResources []string) metricAggregator {
-	if len(allowedLabels) > maxNumberOfAllowedLabels {
-		// `maxNumberOfAllowedLabels` is hardcoded to the maximum number of labels passed to this function from the metricsAggregators definition below.
-		// The only possibility to arrive here is to add a new aggregator in `metricAggregator` below and to forget to update `maxNumberOfAllowedLabels` accordingly.
-		log.Error("BUG in KSM metric aggregator")
-		return nil
-	}
-
-	accumulators := make(map[string]map[[maxNumberOfAllowedLabels]string]float64)
+func newResourceValuesAggregator(ddMetricPrefix, ddMetricSuffix, ksmMetricName string, allowedResources []string) metricAggregator {
+	accumulators := make(map[string]map[accumulateKey]float64)
 	for _, allowedResource := range allowedResources {
-		accumulators[allowedResource] = make(map[[maxNumberOfAllowedLabels]string]float64)
+		accumulators[allowedResource] = make(map[accumulateKey]float64)
 	}
 
 	return &resourceAggregator{
 		ddMetricPrefix:   ddMetricPrefix,
 		ddMetricSuffix:   ddMetricSuffix,
 		ksmMetricName:    ksmMetricName,
-		allowedLabels:    allowedLabels,
 		allowedResources: allowedResources,
 		accumulators:     accumulators,
 	}
@@ -140,69 +151,40 @@ func newResourceValuesAggregator(ddMetricPrefix, ddMetricSuffix, ksmMetricName s
 
 func newLastCronJobAggregator() *lastCronJobAggregator {
 	return &lastCronJobAggregator{
-		accumulator: make(map[cronJob]cronJobState),
+		accumulator: make(map[accumulateKey]cronJobState),
 	}
 }
 
-func (a *sumValuesAggregator) accumulate(metric ksmstore.DDMetric) {
-	var labelValues [maxNumberOfAllowedLabels]string
-
-	for i, allowedLabel := range a.allowedLabels {
-		if allowedLabel == "" {
-			break
-		}
-
-		labelValues[i] = metric.Labels[allowedLabel]
-	}
-
-	a.accumulator[labelValues] += metric.Val
+func (a *sumValuesAggregator) accumulate(metric ksmstore.DDMetric, lj *labelJoiner) {
+	a.accumulator[makeAccumulateKey(lj.getLabelsToAdd(metric.Labels))] += metric.Val
 }
 
-func (a *countObjectsAggregator) accumulate(metric ksmstore.DDMetric) {
-	var labelValues [maxNumberOfAllowedLabels]string
-
-	for i, allowedLabel := range a.allowedLabels {
-		if allowedLabel == "" {
-			break
-		}
-
-		labelValues[i] = metric.Labels[allowedLabel]
-	}
-
-	a.accumulator[labelValues]++
+func (a *countObjectsAggregator) accumulate(metric ksmstore.DDMetric, lj *labelJoiner) {
+	a.accumulator[makeAccumulateKey(lj.getLabelsToAdd(metric.Labels))]++
 }
 
-func (a *resourceAggregator) accumulate(metric ksmstore.DDMetric) {
+func (a *resourceAggregator) accumulate(metric ksmstore.DDMetric, lj *labelJoiner) {
 	resource := renameResource(metric.Labels["resource"])
 
 	if _, ok := a.accumulators[resource]; !ok {
 		return
 	}
 
-	var labelValues [maxNumberOfAllowedLabels]string
-
-	for i, allowedLabel := range a.allowedLabels {
-		if allowedLabel == "" {
-			break
-		}
-
-		labelValues[i] = metric.Labels[allowedLabel]
-	}
-
+	ls := lj.getLabelsToAdd(metric.Labels)
 	if _, ok := a.accumulators[resource]; ok {
-		a.accumulators[resource][labelValues] += metric.Val
+		a.accumulators[resource][makeAccumulateKey(ls)] += metric.Val
 	}
 }
 
-func (a *lastCronJobCompleteAggregator) accumulate(metric ksmstore.DDMetric) {
-	a.aggregator.accumulate(metric, servicecheck.ServiceCheckOK)
+func (a *lastCronJobCompleteAggregator) accumulate(metric ksmstore.DDMetric, lj *labelJoiner) {
+	a.aggregator.accumulate(metric, servicecheck.ServiceCheckOK, lj)
 }
 
-func (a *lastCronJobFailedAggregator) accumulate(metric ksmstore.DDMetric) {
-	a.aggregator.accumulate(metric, servicecheck.ServiceCheckCritical)
+func (a *lastCronJobFailedAggregator) accumulate(metric ksmstore.DDMetric, lj *labelJoiner) {
+	a.aggregator.accumulate(metric, servicecheck.ServiceCheckCritical, lj)
 }
 
-func (a *lastCronJobAggregator) accumulate(metric ksmstore.DDMetric, state servicecheck.ServiceCheckStatus) {
+func (a *lastCronJobAggregator) accumulate(metric ksmstore.DDMetric, state servicecheck.ServiceCheckStatus, lj *labelJoiner) {
 	if condition, found := metric.Labels["condition"]; !found || condition != "true" {
 		return
 	}
@@ -210,7 +192,7 @@ func (a *lastCronJobAggregator) accumulate(metric ksmstore.DDMetric, state servi
 		return
 	}
 
-	namespace, found := metric.Labels["namespace"]
+	_, found := metric.Labels["namespace"]
 	if !found {
 		return
 	}
@@ -226,8 +208,9 @@ func (a *lastCronJobAggregator) accumulate(metric ksmstore.DDMetric, state servi
 		return
 	}
 
-	if lastCronJob, found := a.accumulator[cronJob{namespace: namespace, name: cronjobName}]; !found || lastCronJob.id < id {
-		a.accumulator[cronJob{namespace: namespace, name: cronjobName}] = cronJobState{
+	key := makeAccumulateKey(lj.getLabelsToAdd(metric.Labels))
+	if lastCronJob, found := a.accumulator[key]; !found || lastCronJob.id < id {
+		a.accumulator[key] = cronJobState{
 			id:    id,
 			state: state,
 		}
@@ -235,42 +218,21 @@ func (a *lastCronJobAggregator) accumulate(metric ksmstore.DDMetric, state servi
 }
 
 func (a *counterAggregator) flush(sender sender.Sender, k *KSMCheck, labelJoiner *labelJoiner) {
-	for labelValues, count := range a.accumulator {
-
-		labels := make(map[string]string)
-		for i, allowedLabel := range a.allowedLabels {
-			if allowedLabel == "" {
-				break
-			}
-
-			labels[allowedLabel] = labelValues[i]
-		}
-
-		hostname, tags := k.hostnameAndTags(labels, labelJoiner, labelsMapperOverride(a.ksmMetricName))
-
+	for accumulatorKey, count := range a.accumulator {
+		hostname, tags := k.hostnameAndTags(accumulatorKey.labels(), labelJoiner, labelsMapperOverride(a.ksmMetricName))
 		sender.Gauge(ksmMetricPrefix+a.ddMetricName, count, hostname, tags)
 	}
-
-	a.accumulator = make(map[[maxNumberOfAllowedLabels]string]float64)
+	a.accumulator = make(map[accumulateKey]float64)
 }
 
 func (a *resourceAggregator) flush(sender sender.Sender, k *KSMCheck, labelJoiner *labelJoiner) {
 	for _, resource := range a.allowedResources {
 		metricName := fmt.Sprintf("%s%s.%s_%s", ksmMetricPrefix, a.ddMetricPrefix, resource, a.ddMetricSuffix)
-		for labelValues, count := range a.accumulators[resource] {
-			labels := make(map[string]string)
-			for i, allowedLabel := range a.allowedLabels {
-				if allowedLabel == "" {
-					break
-				}
-
-				labels[allowedLabel] = labelValues[i]
-			}
-
-			hostname, tags := k.hostnameAndTags(labels, labelJoiner, labelsMapperOverride(a.ksmMetricName))
+		for key, count := range a.accumulators[resource] {
+			hostname, tags := k.hostnameAndTags(key.labels(), labelJoiner, labelsMapperOverride(a.ksmMetricName))
 			sender.Gauge(metricName, count, hostname, tags)
 		}
-		a.accumulators[resource] = make(map[[maxNumberOfAllowedLabels]string]float64)
+		a.accumulators[resource] = make(map[accumulateKey]float64)
 	}
 }
 
@@ -283,20 +245,12 @@ func (a *lastCronJobFailedAggregator) flush(sender sender.Sender, k *KSMCheck, l
 }
 
 func (a *lastCronJobAggregator) flush(sender sender.Sender, k *KSMCheck, labelJoiner *labelJoiner) {
-	for cronjob, state := range a.accumulator {
-		hostname, tags := k.hostnameAndTags(
-			map[string]string{
-				"namespace": cronjob.namespace,
-				"cronjob":   cronjob.name,
-			},
-			labelJoiner,
-			nil,
-		)
-
+	for accumulatorKey, state := range a.accumulator {
+		hostname, tags := k.hostnameAndTags(accumulatorKey.labels(), labelJoiner, map[string]string{"job_name": "cronjob"})
 		sender.ServiceCheck(ksmMetricPrefix+"cronjob.complete", state.state, hostname, tags, "")
 	}
 
-	a.accumulator = make(map[cronJob]cronJobState)
+	a.accumulator = make(map[accumulateKey]cronJobState)
 }
 
 func defaultMetricAggregators() map[string]metricAggregator {
@@ -306,97 +260,78 @@ func defaultMetricAggregators() map[string]metricAggregator {
 		"kube_configmap_info": newCountObjectsAggregator(
 			"configmap.count",
 			"kube_configmap_info",
-			[]string{"namespace"},
 		),
 		"kube_secret_info": newCountObjectsAggregator(
 			"secret.count",
 			"kube_secret_info",
-			[]string{"namespace"},
 		),
 		"kube_apiservice_labels": newCountObjectsAggregator(
 			"apiservice.count",
 			"kube_apiservice_labels",
-			[]string{},
 		),
 		"kube_customresourcedefinition_labels": newCountObjectsAggregator(
 			"crd.count",
 			"kube_customresourcedefinition_labels",
-			[]string{},
 		),
 		"kube_persistentvolume_status_phase": newSumValuesAggregator(
 			"persistentvolumes.by_phase",
 			"kube_persistentvolume_status_phase",
-			[]string{"storageclass", "phase"},
 		),
 		"kube_service_spec_type": newCountObjectsAggregator(
 			"service.count",
 			"kube_service_spec_type",
-			[]string{"namespace", "type"},
 		),
 		"kube_namespace_status_phase": newSumValuesAggregator(
 			"namespace.count",
 			"kube_namespace_status_phase",
-			[]string{"phase"},
 		),
 		"kube_replicaset_owner": newCountObjectsAggregator(
 			"replicaset.count",
 			"kube_replicaset_owner",
-			[]string{"namespace", "owner_name", "owner_kind"},
 		),
 		"kube_job_owner": newCountObjectsAggregator(
 			"job.count",
 			"kube_job_owner",
-			[]string{"namespace", "owner_name", "owner_kind"},
 		),
 		"kube_deployment_labels": newCountObjectsAggregator(
 			"deployment.count",
 			"kube_deployment_labels",
-			[]string{"namespace"},
 		),
 		"kube_daemonset_labels": newCountObjectsAggregator(
 			"daemonset.count",
 			"kube_daemonset_labels",
-			[]string{"namespace"},
 		),
 		"kube_statefulset_labels": newCountObjectsAggregator(
 			"statefulset.count",
 			"kube_statefulset_labels",
-			[]string{"namespace"},
 		),
 		"kube_cronjob_labels": newCountObjectsAggregator(
 			"cronjob.count",
 			"kube_cronjob_labels",
-			[]string{"namespace"},
 		),
 		"kube_endpoint_labels": newCountObjectsAggregator(
 			"endpoint.count",
 			"kube_endpoint_labels",
-			[]string{"namespace"},
 		),
 		"kube_horizontalpodautoscaler_labels": newCountObjectsAggregator(
 			"hpa.count",
 			"kube_horizontalpodautoscaler_labels",
-			[]string{"namespace"},
 		),
 		"kube_verticalpodautoscaler_labels": newCountObjectsAggregator(
 			"vpa.count",
 			"kube_verticalpodautoscaler_labels",
-			[]string{"namespace"},
 		),
 		"kube_node_info": newCountObjectsAggregator(
 			"node.count",
 			"kube_node_info",
-			[]string{"kubelet_version", "container_runtime_version", "kernel_version", "os_image"},
 		),
 		"kube_pod_info": newCountObjectsAggregator(
 			"pod.count",
 			"kube_pod_info",
-			[]string{"node", "namespace", "created_by_kind", "created_by_name"},
 		),
 		"kube_ingress_labels": newCountObjectsAggregator(
 			"ingress.count",
 			"kube_ingress_labels",
-			[]string{"namespace"},
 		),
 		"kube_job_complete": &lastCronJobCompleteAggregator{aggregator: cronJobAggregator},
 		"kube_job_failed":   &lastCronJobFailedAggregator{aggregator: cronJobAggregator},
@@ -404,29 +339,25 @@ func defaultMetricAggregators() map[string]metricAggregator {
 			"node",
 			"allocatable.total",
 			"kube_node_status_allocatable",
-			[]string{},
 			[]string{"cpu", "memory", "gpu", "mig"},
 		),
 		"kube_node_status_capacity": newResourceValuesAggregator(
 			"node",
 			"capacity.total",
 			"kube_node_status_capacity",
-			[]string{},
 			[]string{"cpu", "memory", "gpu", "mig"},
 		),
 		"kube_pod_container_resource_with_owner_tag_requests": newResourceValuesAggregator(
 			"container",
 			"requested.total",
 			"kube_pod_container_resource_with_owner_tag_requests",
-			[]string{"namespace", "container", "owner_name", "owner_kind"},
 			[]string{"cpu", "memory"},
 		),
 		"kube_pod_container_resource_with_owner_tag_limits": newResourceValuesAggregator(
 			"container",
 			"limit.total",
 			"kube_pod_container_resource_with_owner_tag_limits",
-			[]string{"namespace", "container", "owner_name", "owner_kind"},
-			[]string{"cpu", "memory", "gpu", "mig"},
+			[]string{"cpu", "memory"},
 		),
 	}
 }
