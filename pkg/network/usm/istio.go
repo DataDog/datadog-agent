@@ -115,13 +115,14 @@ func newIstioMonitor(c *config.Config, mgr *manager.Manager) *istioMonitor {
 	}
 
 	procRoot := kernel.ProcFSRoot()
+	envoyCommand := envoyCmd
 	if c.EnvoyPath != "" {
-		envoyCmd = []byte(c.EnvoyPath)
+		envoyCommand = []byte(c.EnvoyPath)
 	}
 	return &istioMonitor{
 		registry: utils.NewFileRegistry("istio"),
 		procRoot: procRoot,
-		envoyCmd: envoyCmd,
+		envoyCmd: envoyCommand,
 		done:     make(chan struct{}),
 
 		// Callbacks
