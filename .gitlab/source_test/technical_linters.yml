@@ -6,6 +6,7 @@ lint_python:
   script:
     - source /root/.bashrc
     - inv -e linter.python
+    - inv -e linter.python-local-imports
 
 lint_update_go:
   stage: source_test
