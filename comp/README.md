@@ -128,6 +128,12 @@ component temporarily wraps pkg/config.
 
 Package configsync implements synchronizing the configuration using the core agent config API
 
+### [comp/core/datadogclient](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/datadogclient)
+
+*Datadog Team*: container-platform
+
+Package datadogclient provides the datadog client component for the calling datadog API
+
 ### [comp/core/flare](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/flare)
 
 Package flare implements a component to generate flares from the agent.

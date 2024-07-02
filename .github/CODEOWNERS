@@ -265,6 +265,7 @@
 /comp/checks/winregistry @DataDog/windows-agent
 /comp/core/agenttelemetry @DataDog/agent-metrics-logs
 /comp/core/autodiscovery @DataDog/container-platform
+/comp/core/datadogclient @DataDog/container-platform
 /comp/core/sysprobeconfig @DataDog/ebpf-platform
 /comp/core/tagger @DataDog/container-platform
 /comp/core/workloadmeta @DataDog/container-platform
