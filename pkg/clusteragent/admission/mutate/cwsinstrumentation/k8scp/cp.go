@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -24,14 +25,19 @@ import (
 	"k8s.io/kubectl/pkg/scheme"
 
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var (
 	// CWSRemoteCopyCommand is the command used to copy cws-instrumentation, arguments are split on purpose
 	// to try to differentiate this kubectl cp from others
-	CWSRemoteCopyCommand = []string{"tar", "-x", "-m", "-f", "-"}
+	CWSRemoteCopyCommand = []string{"tar", "-x", "-m", "-f", "-", "--totals"}
 )
+
+// StreamOptions contains option for the remote stream
+type StreamOptions struct {
+	Stdin bool
+	genericiooptions.IOStreams
+}
 
 // Copy perform remote copy operations
 type Copy struct {
@@ -39,7 +45,6 @@ type Copy struct {
 	Namespace string
 
 	apiClient *apiserver.APIClient
-	streams   genericiooptions.IOStreams
 	in        *bytes.Buffer
 	out       *bytes.Buffer
 	errOut    *bytes.Buffer
@@ -47,14 +52,23 @@ type Copy struct {
 
 // NewCopy creates a Command instance
 func NewCopy(apiClient *apiserver.APIClient) *Copy {
-	ioStreams, in, out, errOut := genericiooptions.NewTestIOStreams()
 	return &Copy{
-		streams:   ioStreams,
-		in:        in,
-		out:       out,
-		errOut:    errOut,
+		in:        &bytes.Buffer{},
+		out:       &bytes.Buffer{},
+		errOut:    &bytes.Buffer{},
 		apiClient: apiClient,
 	}
+}
+
+func (o *Copy) prepareCommand(destFile remotePath) []string {
+	// arguments are split on purpose to try to differentiate this kubectl cp from others
+	cmdArr := make([]string, len(CWSRemoteCopyCommand))
+	copy(cmdArr, CWSRemoteCopyCommand)
+	destFileDir := destFile.Dir().String()
+	if len(destFileDir) > 0 {
+		cmdArr = append(cmdArr, "-C", destFileDir)
+	}
+	return cmdArr
 }
 
 // CopyToPod copies the provided local file to the provided container
@@ -70,20 +84,15 @@ func (o *Copy) CopyToPod(localFile string, remoteFile string, pod *corev1.Pod, c
 	srcFile := newLocalPath(localFile)
 	destFile := newRemotePath(remoteFile)
 
+	tarErrChan := make(chan error, 1)
 	go func(src localPath, dest remotePath, writer io.WriteCloser) {
 		defer writer.Close()
 		if err := makeTar(src, dest, writer); err != nil {
-			log.Debugf("failed to tar local file: %v", err)
+			tarErrChan <- fmt.Errorf("failed to tar local file: %v", err)
+		} else {
+			tarErrChan <- nil
 		}
 	}(srcFile, destFile, writer)
-
-	// arguments are split on purpose to try to differentiate this kubectl cp from others
-	cmdArr := make([]string, len(CWSRemoteCopyCommand))
-	copy(cmdArr, CWSRemoteCopyCommand)
-	destFileDir := destFile.Dir().String()
-	if len(destFileDir) > 0 {
-		cmdArr = append(cmdArr, "-C", destFileDir)
-	}
 
 	streamOptions := StreamOptions{
 		IOStreams: genericiooptions.IOStreams{
@@ -93,66 +102,63 @@ func (o *Copy) CopyToPod(localFile string, remoteFile string, pod *corev1.Pod, c
 		},
 		Stdin: true,
 	}
-	return o.execute(pod, cmdArr, streamOptions)
+
+	if err := o.execute(pod, o.prepareCommand(destFile), streamOptions); err != nil {
+		return err
+	}
+
+	// close pipe, wait for tar chan to finish and check tar error
+	_ = reader.Close()
+	tarErr := <-tarErrChan
+	if tarErr != nil && len(tarErr.Error()) > 0 {
+		return tarErr
+	}
+
+	// check stdout and stderr from tar
+	outData := o.errOut.String() + o.out.String()
+	if !strings.HasPrefix(outData, "Total bytes read:") {
+		return fmt.Errorf("unexpected output: %s", outData)
+	}
+	return nil
 }
 
 func (o *Copy) execute(pod *corev1.Pod, command []string, streamOptions StreamOptions) error {
-	// ensure we can recover the terminal while attached
-	t := streamOptions.SetupTTY()
-
-	var sizeQueue remotecommand.TerminalSizeQueue
-	if t.Raw {
-		// this call spawns a goroutine to monitor/update the terminal size
-		sizeQueue = t.MonitorSize(t.GetSize())
-
-		// unset p.Err if it was previously set because both stdout and stderr go over p.Out when tty is
-		// true
-		streamOptions.ErrOut = nil
+	restClient, err := o.apiClient.RESTClient(
+		"/api",
+		&schema.GroupVersion{Version: "v1"},
+		serializer.WithoutConversionCodecFactory{CodecFactory: scheme.Codecs},
+	)
+	if err != nil {
+		return err
 	}
 
-	fn := func() error {
-		restClient, err := o.apiClient.RESTClient(
-			"/api",
-			&schema.GroupVersion{Version: "v1"},
-			serializer.WithoutConversionCodecFactory{CodecFactory: scheme.Codecs},
-		)
-		if err != nil {
-			return err
-		}
+	req := restClient.Post().
+		Resource("pods").
+		Name(pod.Name).
+		Namespace(pod.Namespace).
+		SubResource("exec")
+	req.VersionedParams(&corev1.PodExecOptions{
+		Container: o.Container,
+		Command:   command,
+		Stdin:     streamOptions.Stdin,
+		Stdout:    streamOptions.Out != nil,
+		Stderr:    streamOptions.ErrOut != nil,
+	}, scheme.ParameterCodec)
 
-		req := restClient.Post().
-			Resource("pods").
-			Name(pod.Name).
-			Namespace(pod.Namespace).
-			SubResource("exec")
-		req.VersionedParams(&corev1.PodExecOptions{
-			Container: o.Container,
-			Command:   command,
-			Stdin:     streamOptions.Stdin,
-			Stdout:    streamOptions.Out != nil,
-			Stderr:    streamOptions.ErrOut != nil,
-			TTY:       t.Raw,
-		}, scheme.ParameterCodec)
-
-		exec, err := o.apiClient.NewSPDYExecutor(
-			"/api",
-			&schema.GroupVersion{Version: "v1"},
-			serializer.WithoutConversionCodecFactory{CodecFactory: scheme.Codecs},
-			"POST",
-			req.URL(),
-		)
-		if err != nil {
-			return err
-		}
-
-		return exec.StreamWithContext(context.Background(), remotecommand.StreamOptions{
-			Stdin:             streamOptions.In,
-			Stdout:            streamOptions.Out,
-			Stderr:            streamOptions.ErrOut,
-			Tty:               t.Raw,
-			TerminalSizeQueue: sizeQueue,
-		})
+	exec, err := o.apiClient.NewSPDYExecutor(
+		"/api",
+		&schema.GroupVersion{Version: "v1"},
+		serializer.WithoutConversionCodecFactory{CodecFactory: scheme.Codecs},
+		"POST",
+		req.URL(),
+	)
+	if err != nil {
+		return err
 	}
 
-	return t.Safe(fn)
+	return exec.StreamWithContext(context.Background(), remotecommand.StreamOptions{
+		Stdin:  streamOptions.In,
+		Stdout: streamOptions.Out,
+		Stderr: streamOptions.ErrOut,
+	})
 }

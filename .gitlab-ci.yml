@@ -443,6 +443,10 @@ workflow:
     when: manual
     allow_failure: true
 
+.on_main_always:
+  - <<: *if_main_branch
+    when: always
+
 .on_tag_or_a7:
   - !reference [.except_mergequeue]
   - <<: *if_tagged_commit
@@ -893,8 +897,29 @@ workflow:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
-        # TODO: Add paths that should trigger tests for AML
         - test/new-e2e/tests/agent-metrics-logs/**/*
+        - cmd/agent/subcommands/dogstatsd*/*
+        - cmd/agent/subcommands/streamlogs/*
+        - cmd/dogstatsd/**/*
+        - comp/agent/jmxlogger/**/*
+        - comp/aggregator/**/*
+        - comp/collector/**/*
+        - comp/core/agenttelemetry/**/*
+        - comp/core/autodiscovery/providers/config_reader*.go
+        - comp/core/autodiscovery/providers/file*.go
+        - comp/forwarder/**/*
+        - comp/logs/**/*
+        - comp/serializer/compression/**/*
+        - pkg/aggregator/**/*
+        - pkg/collector/**/*
+        - pkg/commonchecks/**/*
+        - pkg/dogstatsd/**/*
+        - pkg/jmxfetch/**/*
+        - pkg/logs/**/*
+        - pkg/metrics/**/*
+        - pkg/persistentcache/**/*
+        - pkg/serializer/**/*
+        - rtloader/**/*
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
 
 .on_cws_or_e2e_changes:
@@ -1085,3 +1110,12 @@ workflow:
       paths:
         - test/kitchen/tasks/**/*
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+
+.on_powershell_module_or_e2e_changes_or_manual:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        - test/new-e2e/tests/windows/powershell-module-test/*
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+  - when: manual
+    allow_failure: true

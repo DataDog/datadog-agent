@@ -13,6 +13,7 @@ from tasks import (
     buildimages,
     cluster_agent,
     cluster_agent_cloudfoundry,
+    collector,
     components,
     coverage,
     cws_instrumentation,
@@ -72,6 +73,7 @@ from tasks.go import (
     go_fix,
     internal_deps_checker,
     lint_licenses,
+    mod_diffs,
     reset,
     tidy,
     tidy_all,
@@ -138,6 +140,7 @@ ns.add_task(build_messagetable)
 ns.add_task(get_impacted_packages)
 ns.add_task(get_modified_packages)
 ns.add_task(send_unit_tests_stats)
+ns.add_task(mod_diffs)
 # To deprecate
 ns.add_task(lint_go)
 
@@ -189,6 +192,7 @@ ns.add_collection(modules)
 ns.add_collection(pre_commit)
 ns.add_collection(devcontainer)
 ns.add_collection(omnibus)
+ns.add_collection(collector)
 ns.configure(
     {
         "run": {

@@ -247,7 +247,7 @@ func TestMakeK8sSource(t *testing.T) {
 		compConfig.MockModule(),
 		fx.Supply(context.Background()),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmetafxmock.MockModuleV2(),
+		workloadmetafxmock.MockModule(),
 	))
 	pod, container := makeTestPod()
 	store.Set(pod)
@@ -304,7 +304,7 @@ func TestMakeK8sSource_pod_not_found(t *testing.T) {
 		compConfig.MockModule(),
 		fx.Supply(context.Background()),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmetafxmock.MockModuleV2(),
+		workloadmetafxmock.MockModule(),
 	))
 
 	tf := &factory{

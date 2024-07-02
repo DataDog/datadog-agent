@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/listeners"
@@ -41,6 +42,21 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
+// This is a copy of the serverDeps struct, but without the server field.
+// We need this to avoid starting multiple server with the same test.
+type depsWithoutServer struct {
+	fx.In
+
+	Config        configComponent.Component
+	Log           log.Component
+	Demultiplexer demultiplexer.FakeSamplerMock
+	Replay        replay.Component
+	PidMap        pidmap.Component
+	Debug         serverdebug.Component
+	WMeta         optional.Option[workloadmeta.Component]
+	Telemetry     telemetry.Component
+}
+
 type serverDeps struct {
 	fx.In
 
@@ -51,6 +67,7 @@ type serverDeps struct {
 	PidMap        pidmap.Component
 	Debug         serverdebug.Component
 	WMeta         optional.Option[workloadmeta.Component]
+	Telemetry     telemetry.Component
 	Server        Component
 }
 
@@ -113,9 +130,22 @@ func TestStopServer(t *testing.T) {
 
 	cfg["dogstatsd_port"] = listeners.RandomPortName
 
-	deps := fulfillDepsWithConfigOverride(t, cfg)
+	deps := fxutil.Test[depsWithoutServer](t, fx.Options(
+		core.MockBundle(),
+		serverdebugimpl.MockModule(),
+		fx.Replace(configComponent.MockParams{
+			Overrides: cfg,
+		}),
+		fx.Supply(Params{Serverless: false}),
+		replaymock.MockModule(),
+		compressionimpl.MockModule(),
+		pidmapimpl.Module(),
+		demultiplexerimpl.FakeSamplerMockModule(),
+		workloadmetafxmock.MockModule(),
+		fx.Supply(workloadmeta.NewParams()),
+	))
 
-	s := newServerCompat(deps.Config, deps.Log, deps.Replay, deps.Debug, false, deps.Demultiplexer, deps.WMeta, deps.PidMap)
+	s := newServerCompat(deps.Config, deps.Log, deps.Replay, deps.Debug, false, deps.Demultiplexer, deps.WMeta, deps.PidMap, deps.Telemetry)
 	s.start(context.TODO())
 	requireStart(t, s)
 
@@ -146,7 +176,27 @@ func TestStopServer(t *testing.T) {
 //nolint:revive // TODO(AML) Fix revive linter
 func TestNoRaceOriginTagMaps(t *testing.T) {
 	const N = 100
-	s := &server{cachedOriginCounters: make(map[string]cachedOriginCounter)}
+	cfg := make(map[string]interface{})
+
+	cfg["dogstatsd_port"] = listeners.RandomPortName
+
+	deps := fxutil.Test[depsWithoutServer](t, fx.Options(
+		core.MockBundle(),
+		serverdebugimpl.MockModule(),
+		fx.Replace(configComponent.MockParams{
+			Overrides: cfg,
+		}),
+		fx.Supply(Params{Serverless: false}),
+		replaymock.MockModule(),
+		compressionimpl.MockModule(),
+		pidmapimpl.Module(),
+		demultiplexerimpl.FakeSamplerMockModule(),
+		workloadmetafxmock.MockModule(),
+		fx.Supply(workloadmeta.NewParams()),
+	))
+
+	s := newServerCompat(deps.Config, deps.Log, deps.Replay, deps.Debug, false, deps.Demultiplexer, deps.WMeta, deps.PidMap, deps.Telemetry)
+
 	sync := make(chan struct{})
 	done := make(chan struct{}, N)
 	for i := 0; i < N; i++ {
@@ -672,10 +722,51 @@ func TestNoMappingsConfig(t *testing.T) {
 
 	assert.Nil(t, s.mapper)
 
-	parser := newParser(deps.Config, newFloat64ListPool(), 1, deps.WMeta)
+	parser := newParser(deps.Config, s.sharedFloat64List, 1, deps.WMeta, s.stringInternerTelemetry)
 	samples, err := s.parseMetricMessage(samples, parser, []byte("test.metric:666|g"), "", "", false)
 	assert.NoError(t, err)
 	assert.Len(t, samples, 1)
+}
+
+func TestParseMetricMessageTelemetry(t *testing.T) {
+	cfg := make(map[string]interface{})
+
+	cfg["dogstatsd_port"] = listeners.RandomPortName
+
+	deps := fxutil.Test[depsWithoutServer](t, fx.Options(
+		core.MockBundle(),
+		serverdebugimpl.MockModule(),
+		fx.Replace(configComponent.MockParams{
+			Overrides: cfg,
+		}),
+		fx.Supply(Params{Serverless: false}),
+		replaymock.MockModule(),
+		compressionimpl.MockModule(),
+		pidmapimpl.Module(),
+		demultiplexerimpl.FakeSamplerMockModule(),
+		workloadmetafxmock.MockModule(),
+		fx.Supply(workloadmeta.NewParams()),
+	))
+
+	s := newServerCompat(deps.Config, deps.Log, deps.Replay, deps.Debug, false, deps.Demultiplexer, deps.WMeta, deps.PidMap, deps.Telemetry)
+
+	assert.Nil(t, s.mapper)
+
+	samples := []metrics.MetricSample{}
+
+	parser := newParser(deps.Config, s.sharedFloat64List, 1, deps.WMeta, s.stringInternerTelemetry)
+
+	assert.Equal(t, float64(0), s.tlmProcessedOk.Get())
+	samples, err := s.parseMetricMessage(samples, parser, []byte("test.metric:666|g"), "", "", false)
+	assert.NoError(t, err)
+	assert.Len(t, samples, 1)
+	assert.Equal(t, float64(1), s.tlmProcessedOk.Get())
+
+	assert.Equal(t, float64(0), s.tlmProcessedError.Get())
+	samples, err = s.parseMetricMessage(samples, parser, nil, "", "", false)
+	assert.Error(t, err, "invalid dogstatsd message format")
+	assert.Len(t, samples, 1)
+	assert.Equal(t, float64(1), s.tlmProcessedError.Get())
 }
 
 type MetricSample struct {
@@ -784,7 +875,7 @@ dogstatsd_mapper_profiles:
 
 			var actualSamples []MetricSample
 			for _, p := range scenario.packets {
-				parser := newParser(deps.Config, newFloat64ListPool(), 1, deps.WMeta)
+				parser := newParser(deps.Config, s.sharedFloat64List, 1, deps.WMeta, s.stringInternerTelemetry)
 				samples, err := s.parseMetricMessage(samples, parser, []byte(p), "", "", false)
 				assert.NoError(t, err, "Case `%s` failed. parseMetricMessage should not return error %v", err)
 				for _, sample := range samples {
@@ -799,6 +890,108 @@ dogstatsd_mapper_profiles:
 			}
 			assert.Equal(t, scenario.expectedSamples, actualSamples, "Case `%s` failed. `%s` should be `%s`", scenario.name, actualSamples, scenario.expectedSamples)
 		})
+	}
+}
+
+func TestParseEventMessageTelemetry(t *testing.T) {
+	cfg := make(map[string]interface{})
+
+	cfg["dogstatsd_port"] = listeners.RandomPortName
+
+	deps := fxutil.Test[depsWithoutServer](t, fx.Options(
+		core.MockBundle(),
+		serverdebugimpl.MockModule(),
+		fx.Replace(configComponent.MockParams{
+			Overrides: cfg,
+		}),
+		fx.Supply(Params{Serverless: false}),
+		replaymock.MockModule(),
+		compressionimpl.MockModule(),
+		pidmapimpl.Module(),
+		demultiplexerimpl.FakeSamplerMockModule(),
+		workloadmetafxmock.MockModule(),
+		fx.Supply(workloadmeta.NewParams()),
+	))
+
+	s := newServerCompat(deps.Config, deps.Log, deps.Replay, deps.Debug, false, deps.Demultiplexer, deps.WMeta, deps.PidMap, deps.Telemetry)
+
+	parser := newParser(deps.Config, s.sharedFloat64List, 1, deps.WMeta, s.stringInternerTelemetry)
+
+	telemetryMock, ok := deps.Telemetry.(telemetry.Mock)
+	assert.True(t, ok)
+
+	// three successful events
+	s.parseEventMessage(parser, []byte("_e{10,10}:event title|test\\ntext|c:event-container"), "")
+	s.parseEventMessage(parser, []byte("_e{10,10}:event title|test\\ntext|c:event-container"), "")
+	s.parseEventMessage(parser, []byte("_e{10,10}:event title|test\\ntext|c:event-container"), "")
+	// one error event
+	_, err := s.parseEventMessage(parser, nil, "")
+	assert.Error(t, err)
+
+	processedEvents, err := telemetryMock.GetCountMetric("dogstatsd", "processed")
+	require.NoError(t, err)
+
+	for _, metric := range processedEvents {
+		labels := metric.Tags()
+
+		if labels["message_type"] == "events" && labels["state"] == "ok" {
+			assert.Equal(t, float64(3), metric.Value())
+		}
+
+		if labels["message_type"] == "events" && labels["state"] == "error" {
+			assert.Equal(t, float64(1), metric.Value())
+		}
+	}
+}
+
+func TestParseServiceCheckMessageTelemetry(t *testing.T) {
+	cfg := make(map[string]interface{})
+
+	cfg["dogstatsd_port"] = listeners.RandomPortName
+
+	deps := fxutil.Test[depsWithoutServer](t, fx.Options(
+		core.MockBundle(),
+		serverdebugimpl.MockModule(),
+		fx.Replace(configComponent.MockParams{
+			Overrides: cfg,
+		}),
+		fx.Supply(Params{Serverless: false}),
+		replaymock.MockModule(),
+		compressionimpl.MockModule(),
+		pidmapimpl.Module(),
+		demultiplexerimpl.FakeSamplerMockModule(),
+		workloadmetafxmock.MockModule(),
+		fx.Supply(workloadmeta.NewParams()),
+	))
+
+	s := newServerCompat(deps.Config, deps.Log, deps.Replay, deps.Debug, false, deps.Demultiplexer, deps.WMeta, deps.PidMap, deps.Telemetry)
+
+	parser := newParser(deps.Config, s.sharedFloat64List, 1, deps.WMeta, s.stringInternerTelemetry)
+
+	telemetryMock, ok := deps.Telemetry.(telemetry.Mock)
+	assert.True(t, ok)
+
+	// three successful events
+	s.parseServiceCheckMessage(parser, []byte("_sc|service-check.name|0|c:service-check-container"), "")
+	s.parseServiceCheckMessage(parser, []byte("_sc|service-check.name|0|c:service-check-container"), "")
+	s.parseServiceCheckMessage(parser, []byte("_sc|service-check.name|0|c:service-check-container"), "")
+	// one error event
+	_, err := s.parseServiceCheckMessage(parser, nil, "")
+	assert.Error(t, err)
+
+	processedEvents, err := telemetryMock.GetCountMetric("dogstatsd", "processed")
+	require.NoError(t, err)
+
+	for _, metric := range processedEvents {
+		labels := metric.Tags()
+
+		if labels["message_type"] == "service_checks" && labels["state"] == "ok" {
+			assert.Equal(t, float64(3), metric.Value())
+		}
+
+		if labels["message_type"] == "service_checks" && labels["state"] == "error" {
+			assert.Equal(t, float64(1), metric.Value())
+		}
 	}
 }
 
@@ -831,7 +1024,6 @@ func TestNewServerExtraTags(t *testing.T) {
 }
 
 func TestProcessedMetricsOrigin(t *testing.T) {
-
 	for _, enabled := range []bool{true, false} {
 		cfg := make(map[string]interface{})
 		cfg["dogstatsd_origin_optout_enabled"] = enabled
@@ -846,7 +1038,7 @@ func TestProcessedMetricsOrigin(t *testing.T) {
 		assert.Len(s.cachedOriginCounters, 0, "this cache must be empty")
 		assert.Len(s.cachedOrder, 0, "this cache list must be empty")
 
-		parser := newParser(deps.Config, newFloat64ListPool(), 1, deps.WMeta)
+		parser := newParser(deps.Config, s.sharedFloat64List, 1, deps.WMeta, s.stringInternerTelemetry)
 		samples := []metrics.MetricSample{}
 		samples, err := s.parseMetricMessage(samples, parser, []byte("test.metric:666|g"), "test_container", "1", false)
 		assert.NoError(err)
@@ -921,7 +1113,7 @@ func testContainerIDParsing(t *testing.T, cfg map[string]interface{}) {
 	assert := assert.New(t)
 	requireStart(t, s)
 
-	parser := newParser(deps.Config, newFloat64ListPool(), 1, deps.WMeta)
+	parser := newParser(deps.Config, s.sharedFloat64List, 1, deps.WMeta, s.stringInternerTelemetry)
 	parser.dsdOriginEnabled = true
 
 	// Metric
@@ -965,7 +1157,7 @@ func TestOrigin(t *testing.T) {
 
 		requireStart(t, s)
 
-		parser := newParser(deps.Config, newFloat64ListPool(), 1, deps.WMeta)
+		parser := newParser(deps.Config, s.sharedFloat64List, 1, deps.WMeta, s.stringInternerTelemetry)
 		parser.dsdOriginEnabled = true
 
 		// Metric

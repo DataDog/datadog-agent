@@ -38,6 +38,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/logsagentpipelineimpl"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter"
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl/strategy"
 	tracecomp "github.com/DataDog/datadog-agent/comp/trace"
@@ -50,6 +51,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/spf13/cobra"
 	"go.opentelemetry.io/collector/confmap"
 
@@ -93,7 +95,10 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 		tracelogimpl.Module(), // cannot have corelogimpl and tracelogimpl at the same time
 		inventoryagentimpl.Module(),
 		workloadmetafx.Module(),
-		statsd.Module(),
+		fx.Supply(metricsclient.NewStatsdClientWrapper(&ddgostatsd.NoOpClient{})),
+		fx.Provide(func(client *metricsclient.StatsdClientWrapper) statsd.Component {
+			return statsd.NewOTelStatsd(client)
+		}),
 		sysprobeconfig.NoneModule(),
 		fetchonlyimpl.Module(),
 		collectorfx.Module(),

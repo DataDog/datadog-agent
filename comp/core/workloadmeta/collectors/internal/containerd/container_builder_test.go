@@ -245,7 +245,7 @@ func TestBuildWorkloadMetaContainer(t *testing.T) {
 		config.MockModule(),
 		fx.Supply(context.Background()),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmetafxmock.MockModuleV2(),
+		workloadmetafxmock.MockModule(),
 	))
 
 	imageMetadata := &workloadmeta.ContainerImageMetadata{
@@ -273,7 +273,6 @@ func TestBuildWorkloadMetaContainer(t *testing.T) {
 	}
 }
 
-/*
 func TestExtractCgroupPath(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -341,4 +340,3 @@ func TestExtractRuntimeFlavor(t *testing.T) {
 		})
 	}
 }
-*/
