@@ -288,6 +288,8 @@ def build(
                         )
 
     with timed(quiet=True) as durations['Omnibus']:
+        omni_flavor = env.get('AGENT_FLAVOR')
+        print(f'We are building omnibus with flavor: {omni_flavor}')
         omnibus_run_task(
             ctx=ctx,
             task="build",
