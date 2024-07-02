@@ -63,3 +63,12 @@ func IsErrWillRetry(err error) bool {
 	}
 	return (e.RetryStatus == FailWillRetry)
 }
+
+// IsScheduled checks whether an `error` is a Retrier scheduled retry
+func IsScheduled(err error) bool {
+	ok, e := IsRetryError(err)
+	if !ok {
+		return false
+	}
+	return (e.RetryStatus == Scheduled)
+}

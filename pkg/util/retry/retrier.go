@@ -108,6 +108,7 @@ func (r *Retrier) TriggerRetry() *Error {
 func (r *Retrier) doTry() *Error {
 	r.RLock()
 	if !r.nextTry.IsZero() && r.cfg.now().Before(r.nextTry) {
+		r.status = Scheduled
 		r.RUnlock()
 		return r.errorf("try delay not elapsed yet")
 	}
