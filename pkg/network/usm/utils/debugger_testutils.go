@@ -64,7 +64,7 @@ func WaitForPathToBeBlocked(t *testing.T, programType string, path string) {
 	require.Eventuallyf(t, func() bool {
 		blocked := debugger.GetBlockedPathIDs(programType)
 		for _, id := range blocked {
-			if id == pathID {
+			if id.PathIdentifier == pathID {
 				return true
 			}
 		}

@@ -49,9 +49,15 @@ type FileRegistry struct {
 	byPID    map[uint32]pathIdentifierSet
 
 	// if we can't execute a callback for a given file we don't try more than once
-	blocklistByID *simplelru.LRU[PathIdentifier, struct{}]
+	blocklistByID *simplelru.LRU[PathIdentifierWithSamplePath, struct{}]
 
 	telemetry registryTelemetry
+}
+
+// PathIdentifierWithSamplePath extends `PathIdentifier` to have a sample path
+type PathIdentifierWithSamplePath struct {
+	PathIdentifier
+	SamplePath string
 }
 
 // FilePath represents the location of a file from the *root* namespace view
@@ -82,7 +88,7 @@ type callback func(FilePath) error
 
 // NewFileRegistry creates a new `FileRegistry` instance
 func NewFileRegistry(programName string) *FileRegistry {
-	blocklistByID, err := simplelru.NewLRU[PathIdentifier, struct{}](2000, nil)
+	blocklistByID, err := simplelru.NewLRU[PathIdentifierWithSamplePath, struct{}](2000, nil)
 	if err != nil {
 		log.Warnf("running without block cache list, creation error: %s", err)
 		blocklistByID = nil
@@ -136,7 +142,7 @@ func (r *FileRegistry) Register(namespacedPath string, pid uint32, activationCB,
 	}
 
 	if r.blocklistByID != nil {
-		if _, found := r.blocklistByID.Get(pathID); found {
+		if _, found := r.blocklistByID.Get(PathIdentifierWithSamplePath{pathID, path.HostPath}); found {
 			r.telemetry.fileBlocked.Add(1)
 			return errPathIsBlocked
 		}
@@ -165,9 +171,7 @@ func (r *FileRegistry) Register(namespacedPath string, pid uint32, activationCB,
 		// we are calling `deactivationCB` here as some uprobes could be already attached
 		err = deactivationCB(FilePath{ID: pathID})
 		if r.blocklistByID != nil {
-			// add `pathID` to blocklist so we don't attempt to re-register files
-			// that are problematic for some reason
-			r.blocklistByID.Add(pathID, struct{}{})
+			r.addToBlocklist(pathID, path.HostPath)
 		}
 		r.telemetry.fileHookFailed.Add(1)
 		return err
@@ -184,6 +188,17 @@ func (r *FileRegistry) Register(namespacedPath string, pid uint32, activationCB,
 	r.telemetry.totalPIDs.Set(int64(len(r.byPID)))
 	log.Debugf("registering file %s path %s by pid %d", pathID.String(), path.HostPath, pid)
 	return nil
+}
+
+// addToBlocklist adds the pathID and matching sample path to the blocklist.
+func (r *FileRegistry) addToBlocklist(pathID PathIdentifier, hostPath string) {
+	for _, entry := range r.blocklistByID.Keys() {
+		if entry.PathIdentifier == pathID {
+			return
+		}
+	}
+
+	r.blocklistByID.Add(PathIdentifierWithSamplePath{pathID, hostPath}, struct{}{})
 }
 
 // Unregister a PID if it exists
