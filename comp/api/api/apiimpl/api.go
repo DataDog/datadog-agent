@@ -7,6 +7,7 @@
 package apiimpl
 
 import (
+	"context"
 	"net"
 
 	"go.uber.org/fx"
@@ -57,6 +58,7 @@ type apiServer struct {
 type dependencies struct {
 	fx.In
 
+	Lc                    fx.Lifecycle
 	DogstatsdServer       dogstatsdServer.Component
 	Capture               replay.Component
 	PidMap                pidmap.Component
@@ -77,7 +79,8 @@ type dependencies struct {
 var _ api.Component = (*apiServer)(nil)
 
 func newAPIServer(deps dependencies) api.Component {
-	return &apiServer{
+
+	server := apiServer{
 		dogstatsdServer:   deps.DogstatsdServer,
 		capture:           deps.Capture,
 		pidMap:            deps.PidMap,
@@ -94,26 +97,15 @@ func newAPIServer(deps dependencies) api.Component {
 		telemetry:         deps.Telemetry,
 		endpointProviders: fxutil.GetAndFilterGroup(deps.EndpointProviders),
 	}
-}
 
-// StartServer creates the router and starts the HTTP server
-func (server *apiServer) StartServer() error {
-	return StartServers(
-		server.rcService,
-		server.rcServiceMRF,
-		server.dogstatsdServer,
-		server.capture,
-		server.pidMap,
-		server.wmeta,
-		server.taggerComp,
-		server.logsAgentComp,
-		server.senderManager,
-		server.secretResolver,
-		server.collector,
-		server.autoConfig,
-		server.endpointProviders,
-		server.telemetry,
-	)
+	deps.Lc.Append(fx.Hook{
+		OnStart: server.startServers,
+		OnStop: func(_ context.Context) error {
+			return nil
+		},
+	})
+
+	return &server
 }
 
 // StopServer closes the connection and the server
