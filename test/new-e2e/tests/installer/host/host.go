@@ -144,6 +144,27 @@ func (h *Host) WaitForUnitActive(units ...string) {
 	}
 }
 
+// WaitForUnitActivating waits for a systemd unit to be activating
+func (h *Host) WaitForUnitActivating(units ...string) {
+	for _, unit := range units {
+		_, err := h.remote.Execute(fmt.Sprintf("timeout=30; unit=%s; while ! grep -q \"Active: activating\" <(sudo systemctl status $unit) && [ $timeout -gt 0 ]; do sleep 1; ((timeout--)); done; [ $timeout -ne 0 ]", unit))
+		require.NoError(h.t, err, "unit %s did not become active", unit)
+	}
+}
+
+// WaitForFileExists waits for a file to exist on the host
+func (h *Host) WaitForFileExists(useSudo bool, filePaths ...string) {
+	sudo := ""
+	if useSudo {
+		sudo = "sudo"
+	}
+
+	for _, path := range filePaths {
+		_, err := h.remote.Execute(fmt.Sprintf("timeout=30; file=%s; while [ ! %s -f $file ] && [ $timeout -gt 0 ]; do sleep 1; ((timeout--)); done; [ $timeout -ne 0 ]", path, sudo))
+		require.NoError(h.t, err, "file %s did not exist", path)
+	}
+}
+
 // BootstraperVersion returns the version of the bootstraper on the host.
 func (h *Host) BootstraperVersion() string {
 	return strings.TrimSpace(h.remote.MustExecute("sudo datadog-bootstrap version"))

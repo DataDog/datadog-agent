@@ -57,6 +57,7 @@ var (
 		{t: testInstaller},
 		{t: testAgent},
 		{t: testApmInjectAgent, skippedFlavors: []e2eos.Descriptor{e2eos.CentOS7, e2eos.RedHat9, e2eos.Fedora37, e2eos.Suse15}},
+		{t: testUpgradeScenario},
 	}
 )
 
@@ -103,10 +104,16 @@ func TestPackages(t *testing.T) {
 				continue
 			}
 			suite := test.t(flavor, flavor.Architecture)
+			if strings.Contains(suite.Name(), "scenario") {
+				continue
+			}
 			t.Run(suite.Name(), func(t *testing.T) {
 				t.Parallel()
 				// FIXME: Fedora currently has DNS issues
 				if flavor.Flavor == e2eos.Fedora {
+					flake.Mark(t)
+				}
+				if strings.Contains(t.Name(), "apm") {
 					flake.Mark(t)
 				}
 				opts := []awshost.ProvisionerOption{

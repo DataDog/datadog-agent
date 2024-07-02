@@ -67,8 +67,6 @@ type Entity struct {
 	OrchestratorCardinalityTags []string
 	LowCardinalityTags          []string
 	StandardTags                []string
-
-	hash string
 }
 
 // GetTags flattens all tags from all cardinalities into a single slice of tag
@@ -86,15 +84,6 @@ func (e Entity) GetTags(cardinality TagCardinality) []string {
 	}
 
 	return utils.ConcatenateTags(tagArrays...)
-}
-
-// GetHash returns a computed hash of all of the entity's tags.
-func (e Entity) GetHash() string {
-	if e.hash == "" {
-		e.hash = utils.ComputeTagsHash(e.GetTags(HighCardinality))
-	}
-
-	return e.hash
 }
 
 // Copy returns a copy of the Entity containing only tags at the supplied

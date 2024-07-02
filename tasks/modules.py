@@ -28,7 +28,6 @@ class GoModule:
         independent=False,
         lint_targets=None,
         used_by_otel=False,
-        legacy_go_mod_version=False,
     ):
         self.path = path
         self.targets = targets if targets else ["."]
@@ -42,7 +41,6 @@ class GoModule:
         self.importable = importable
         self.independent = independent
         self.used_by_otel = used_by_otel
-        self.legacy_go_mod_version = legacy_go_mod_version
 
         self._dependencies = None
 
