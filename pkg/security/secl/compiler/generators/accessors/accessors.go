@@ -1076,7 +1076,7 @@ func init() {
 	flag.StringVar(&typesFile, "types-file", os.Getenv("TYPESFILE"), "Go type file to use with the model file")
 	flag.StringVar(&pkgname, "package", pkgPrefix+"/"+os.Getenv("GOPACKAGE"), "Go package name")
 	flag.StringVar(&buildTags, "tags", "unix", "build tags used for parsing")
-	flag.StringVar(&fieldAccessorsOutput, "field-accessors-output", "field_accessors_unix.go", "Generated per-field accessors output file")
-	flag.StringVar(&output, "output", "accessors_unix.go", "Go generated file")
+	flag.StringVar(&fieldAccessorsOutput, "field-accessors-output", "field_accessors_linux.go", "Generated per-field accessors output file")
+	flag.StringVar(&output, "output", "accessors_linux.go", "Go generated file")
 	flag.Parse()
 }
