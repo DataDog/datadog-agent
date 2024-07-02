@@ -72,6 +72,16 @@ func DiagnosePortSuite() []diagnosis.Diagnosis {
 			continue
 		}
 
+		// if the port is used by a process that is not run by the same user as the agent, we cannot retrieve the proc id
+		if port.Pid == 0 {
+			diagnoses = append(diagnoses, diagnosis.Diagnosis{
+				Name:      key,
+				Result:    diagnosis.DiagnosisFail,
+				Diagnosis: fmt.Sprintf("Required port %d is already used by an another process.", value),
+			})
+			continue
+		}
+
 		diagnoses = append(diagnoses, diagnosis.Diagnosis{
 			Name:      key,
 			Result:    diagnosis.DiagnosisFail,
