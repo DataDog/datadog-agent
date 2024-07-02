@@ -267,8 +267,8 @@ static __always_inline bool skip_request_tagged_fields(pktbuf_t pkt, u32 *offset
 
     u8 num_tagged_fields = 0;
 
-    pktbuf_load_bytes(pkt, *offset, &num_tagged_fields, 1);
-    *offset += 1;
+    pktbuf_load_bytes(pkt, *offset, &num_tagged_fields, sizeof(num_tagged_fields));
+    *offset += sizeof(num_tagged_fields);
 
     // We don't support parsing tagged fields for now.
     return num_tagged_fields == 0;
