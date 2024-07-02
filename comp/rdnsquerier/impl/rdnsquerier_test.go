@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"go.uber.org/fx"
 
 	"github.com/stretchr/testify/assert"
 
@@ -26,7 +27,35 @@ import (
 
 func TestRDNSQuerierStartStop(t *testing.T) {
 	lc := compdef.NewTestLifecycle()
-	config := fxutil.Test[config.Component](t, config.MockModule())
+
+	overrides := map[string]interface{}{
+		"network_devices.netflow.reverse_dns_enrichment_enabled": true,
+	}
+
+	config := fxutil.Test[config.Component](t, fx.Options(
+		config.MockModule(),
+		fx.Replace(config.MockParams{Overrides: overrides}),
+		//JMWMockModule(),
+	))
+
+	/*
+	   config := fxutil.Test[Component](t, fx.Options(
+	         corecomp.MockModule(),
+	         fx.Replace(corecomp.MockParams{Overrides: overrides}),
+	         MockModule(),
+	     ))
+	*/
+	/*
+			datadogYaml := `
+		network_devices:
+		  netflow:
+		    reverse_dns_enrichment_enabled: true
+		`
+			config.SetConfigType("yaml")
+			err := config.ReadConfig(bytes.NewBuffer([]byte(datadogYaml)))
+			assert.NoError(t, err)
+	*/
+
 	logger := fxutil.Test[log.Component](t, logimpl.MockModule())
 	telemetry := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
 	//JMWpacketsTelemetryStore := NewTelemetryStore(nil, telemetryComponent)
