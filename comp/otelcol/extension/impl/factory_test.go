@@ -10,7 +10,7 @@ import (
 	"context"
 	"testing"
 
-	converter "github.com/DataDog/datadog-agent/comp/otelcol/converter/impl"
+	configstore "github.com/DataDog/datadog-agent/comp/otelcol/configstore/impl"
 	"github.com/DataDog/datadog-agent/comp/otelcol/extension/impl/internal/metadata"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -18,11 +18,10 @@ import (
 )
 
 func getTestFactory(t *testing.T) extension.Factory {
-	conv, err := converter.NewConverter()
+	conv, err := configstore.NewConfigStore()
 	require.NoError(t, err)
 
 	return NewFactory(conv)
-
 }
 
 func TestNewFactory(t *testing.T) {
