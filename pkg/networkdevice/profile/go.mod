@@ -3,7 +3,7 @@ module github.com/DataDog/datadog-agent/pkg/networkdevice/profile
 go 1.22.0
 
 require (
-	github.com/invopop/jsonschema v0.10.0
+	github.com/invopop/jsonschema v0.12.0
 	github.com/santhosh-tekuri/jsonschema/v5 v5.3.1
 	github.com/stretchr/testify v1.9.0
 	gopkg.in/yaml.v2 v2.4.0
