@@ -51,7 +51,7 @@ nav:
   - Documentation: guidelines/docs.md
 - How-to:
   - Go:
-    - Add module: how-to/add/go-module.md
+    - Add module: how-to/go/add-module.md
 - Components:
   - Overview: components/overview.md
   - Components:
