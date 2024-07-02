@@ -175,6 +175,51 @@ func TestOpen(t *testing.T) {
 		})
 	})
 
+	t.Run("ftruncate", func(t *testing.T) {
+		SkipIfNotAvailable(t)
+
+		defer os.Remove(testFile)
+
+		var f *os.File
+		test.WaitSignal(t, func() error {
+			f, err = os.OpenFile(testFile, os.O_RDWR|os.O_CREATE, 0755)
+			if err != nil {
+				return err
+			}
+
+			_, err = syscall.Write(int(f.Fd()), []byte("this data will soon be truncated\n"))
+			if err != nil {
+				return err
+			}
+
+			return nil
+		}, func(event *model.Event, r *rules.Rule) {})
+
+		if f != nil {
+			defer f.Close()
+		}
+
+		test.WaitSignal(t, func() error {
+			if f == nil {
+				return fmt.Errorf("failed to open test file")
+			}
+			// ftruncate
+			_, _, errno := syscall.Syscall(syscall.SYS_FTRUNCATE, f.Fd(), uintptr(4), 0)
+			if errno != 0 {
+				return error(errno)
+			}
+
+			return nil
+		}, func(event *model.Event, r *rules.Rule) {
+			assert.Equal(t, "open", event.GetType(), "wrong event type")
+			assert.Equal(t, syscall.O_CREAT|syscall.O_WRONLY|syscall.O_TRUNC, int(event.Open.Flags), "wrong flags")
+			assert.Equal(t, getInode(t, testFile), event.Open.File.Inode, "wrong inode")
+
+			value, _ := event.GetFieldValue("event.async")
+			assert.Equal(t, value.(bool), false)
+		})
+	})
+
 	t.Run("open_by_handle_at", func(t *testing.T) {
 		defer os.Remove(testFile)
 
