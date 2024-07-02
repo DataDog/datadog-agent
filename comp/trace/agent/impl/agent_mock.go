@@ -20,6 +20,22 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
+type noopTraceWriter struct{}
+
+func (n *noopTraceWriter) Run() {}
+
+func (n *noopTraceWriter) Stop() {}
+
+func (n *noopTraceWriter) WriteChunks(_ *writer.SampledChunks) {}
+
+func (n *noopTraceWriter) FlushSync() error { return nil }
+
+type noopConcentrator struct{}
+
+func (c *noopConcentrator) Start()            {}
+func (c *noopConcentrator) Stop()             {}
+func (c *noopConcentrator) Add(_ stats.Input) {}
+
 // NewMock creates a new mock agent component.
 func NewMock(deps dependencies, t testing.TB) traceagent.Component { //nolint:revive // TODO fix revive unused-parameter
 	telemetryCollector := telemetry.NewCollector(deps.Config.Object())
@@ -40,8 +56,8 @@ func NewMock(deps dependencies, t testing.TB) traceagent.Component { //nolint:re
 	}
 
 	// Temporary copy of pkg/trace/agent.NewTestAgent
-	ag.TraceWriter.In = make(chan *writer.SampledChunks, 1000)
-	ag.Concentrator.In = make(chan stats.Input, 1000)
+	ag.TraceWriter = &noopTraceWriter{}
+	ag.Concentrator = &noopConcentrator{}
 
 	return component{}
 }

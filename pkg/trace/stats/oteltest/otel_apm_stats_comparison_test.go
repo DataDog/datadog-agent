@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
+
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component/componenttest"
@@ -37,11 +38,11 @@ func TestOTelAPMStatsMatch(t *testing.T) {
 
 	// Set up 2 output channels for APM stats, and start 2 fake trace agent to conduct a comparison test
 	now := time.Now()
-	statschan1 := make(chan *pb.StatsPayload, 100)
-	fakeAgent1 := getAndStartFakeAgent(ctx, tcfg, statschan1, now)
+	mockStats1 := &mockStatsWriter{out: make(chan *pb.StatsPayload, 100)}
+	fakeAgent1 := getAndStartFakeAgent(ctx, tcfg, mockStats1, now)
 	defer fakeAgent1.Stop()
-	statschan2 := make(chan *pb.StatsPayload, 100)
-	fakeAgent2 := getAndStartFakeAgent(ctx, tcfg, statschan2, now)
+	mockStats2 := &mockStatsWriter{out: make(chan *pb.StatsPayload, 100)}
+	fakeAgent2 := getAndStartFakeAgent(ctx, tcfg, mockStats2, now)
 	defer fakeAgent2.Stop()
 
 	traces := getTestTraces()
@@ -60,7 +61,7 @@ func TestOTelAPMStatsMatch(t *testing.T) {
 	var payload2 *pb.StatsPayload
 	for payload1 == nil || payload2 == nil {
 		select {
-		case sp1 := <-statschan1:
+		case sp1 := <-mockStats1.out:
 			if len(sp1.Stats) > 0 {
 				payload1 = sp1
 				for _, csb := range sp1.Stats {
@@ -71,7 +72,7 @@ func TestOTelAPMStatsMatch(t *testing.T) {
 					})
 				}
 			}
-		case sp2 := <-statschan2:
+		case sp2 := <-mockStats2.out:
 			if len(sp2.Stats) > 0 {
 				payload2 = sp2
 				for _, csb := range sp2.Stats {
@@ -106,7 +107,7 @@ func getTraceAgentCfg(attributesTranslator *attributes.Translator) *traceconfig.
 	return acfg
 }
 
-func getAndStartFakeAgent(ctx context.Context, tcfg *traceconfig.AgentConfig, statschan chan *pb.StatsPayload, now time.Time) *traceAgent {
+func getAndStartFakeAgent(ctx context.Context, tcfg *traceconfig.AgentConfig, statschan *mockStatsWriter, now time.Time) *traceAgent {
 	fakeAgent := newAgentWithConfig(ctx, tcfg, statschan, now)
 	fakeAgent.Start()
 	return fakeAgent

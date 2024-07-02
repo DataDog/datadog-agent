@@ -6,11 +6,13 @@
 package stats
 
 import (
+	"sync"
 	"testing"
 	"time"
 
 	fuzz "github.com/google/gofuzz"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/runtime/protoiface"
 
 	proto "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
@@ -27,10 +29,33 @@ func newTestAggregator() *ClientStatsAggregator {
 		DefaultEnv: "agentEnv",
 		Hostname:   "agentHostname",
 	}
-	a := NewClientStatsAggregator(conf, make(chan *proto.StatsPayload, 100), &statsd.NoOpClient{})
+	a := NewClientStatsAggregator(conf, noopStatsWriter{}, &statsd.NoOpClient{})
 	a.Start()
 	a.flushTicker.Stop()
 	return a
+}
+
+type noopStatsWriter struct{}
+
+func (noopStatsWriter) Write(*proto.StatsPayload) {}
+
+type mockStatsWriter struct {
+	payloads []*proto.StatsPayload
+	mu       sync.Mutex
+}
+
+func (w *mockStatsWriter) Write(p *proto.StatsPayload) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.payloads = append(w.payloads, p)
+}
+
+func (w *mockStatsWriter) Reset() []*proto.StatsPayload {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	ret := w.payloads
+	w.payloads = nil
+	return ret
 }
 
 func wrapPayload(p *proto.ClientStatsPayload) *proto.StatsPayload {
@@ -150,17 +175,20 @@ func agg2Counts(insertionTime time.Time, p *proto.ClientStatsPayload) *proto.Cli
 func TestAggregatorFlushTime(t *testing.T) {
 	assert := assert.New(t)
 	a := newTestAggregator()
+	msw := &mockStatsWriter{}
+	a.writer = msw
 	testTime := time.Now()
 	a.flushOnTime(testTime)
-	assert.Len(a.out, 0)
+	assert.Len(msw.payloads, 0)
 	testPayload := getTestStatsWithStart(testTime)
 	a.add(testTime, deepCopy(testPayload))
 	a.flushOnTime(testTime)
-	assert.Len(a.out, 0)
+	assert.Len(msw.payloads, 0)
 	a.flushOnTime(testTime.Add(oldestBucketStart - bucketDuration))
-	assert.Len(a.out, 0)
+	assert.Len(msw.payloads, 0)
 	a.flushOnTime(testTime.Add(oldestBucketStart))
-	s := <-a.out
+	require.NotEmpty(t, msw.payloads)
+	s := msw.payloads[0]
 	assert.Equal(s.String(), wrapPayload(testPayload).String())
 	assert.Len(a.buckets, 0)
 }
@@ -169,6 +197,8 @@ func TestMergeMany(t *testing.T) {
 	assert := assert.New(t)
 	for i := 0; i < 10; i++ {
 		a := newTestAggregator()
+		msw := &mockStatsWriter{}
+		a.writer = msw
 		payloadTime := time.Now().Truncate(bucketDuration)
 		merge1 := getTestStatsWithStart(payloadTime)
 		merge2 := getTestStatsWithStart(payloadTime.Add(time.Nanosecond))
@@ -180,16 +210,16 @@ func TestMergeMany(t *testing.T) {
 		a.add(insertionTime, deepCopy(merge2))
 		a.add(insertionTime, deepCopy(other))
 		a.add(insertionTime, deepCopy(merge3))
-		assert.Len(a.out, 2)
+		assert.Len(msw.payloads, 2)
 		a.flushOnTime(payloadTime.Add(oldestBucketStart - time.Nanosecond))
-		assert.Len(a.out, 3)
+		assert.Len(msw.payloads, 3)
 		a.flushOnTime(payloadTime.Add(oldestBucketStart))
-		assert.Len(a.out, 4)
-		assertDistribPayload(t, wrapPayloads([]*proto.ClientStatsPayload{merge1, merge2}), <-a.out)
-		assertDistribPayload(t, wrapPayload(merge3), <-a.out)
-		s := <-a.out
+		assert.Len(msw.payloads, 4)
+		assertDistribPayload(t, wrapPayloads([]*proto.ClientStatsPayload{merge1, merge2}), msw.payloads[0])
+		assertDistribPayload(t, wrapPayload(merge3), msw.payloads[1])
+		s := msw.payloads[2]
 		assert.Equal(wrapPayload(other).String(), s.String())
-		assertAggCountsPayload(t, <-a.out)
+		assertAggCountsPayload(t, msw.payloads[3])
 		assert.Len(a.buckets, 0)
 	}
 }
@@ -227,18 +257,20 @@ func TestTimeShifts(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			assert := assert.New(t)
 			a := newTestAggregator()
+			msw := &mockStatsWriter{}
+			a.writer = msw
 			agentTime := alignAggTs(time.Now())
 			payloadTime := agentTime.Add(tc.shift)
 
 			stats := getTestStatsWithStart(payloadTime)
 			a.add(agentTime, deepCopy(stats))
 			a.flushOnTime(agentTime)
-			assert.Len(a.out, 0)
+			assert.Len(msw.payloads, 0)
 			a.flushOnTime(agentTime.Add(oldestBucketStart + time.Nanosecond))
-			assert.Len(a.out, 1)
+			require.Len(t, msw.payloads, 1)
 			stats.Stats[0].AgentTimeShift = -tc.expectedShift.Nanoseconds()
 			stats.Stats[0].Start -= uint64(tc.expectedShift.Nanoseconds())
-			s := <-a.out
+			s := msw.payloads[0]
 			assert.Equal(wrapPayload(stats).String(), s.String())
 		})
 	}
@@ -248,6 +280,8 @@ func TestFuzzCountFields(t *testing.T) {
 	assert := assert.New(t)
 	for i := 0; i < 30; i++ {
 		a := newTestAggregator()
+		msw := &mockStatsWriter{}
+		a.writer = msw
 		// Ensure that peer tags aggregation is on. Some tests may expect non-empty values the peer tags.
 		a.peerTagsAggregation = true
 		payloadTime := time.Now().Truncate(bucketDuration)
@@ -256,11 +290,11 @@ func TestFuzzCountFields(t *testing.T) {
 		insertionTime := payloadTime.Add(time.Second)
 		a.add(insertionTime, deepCopy(merge1))
 		a.add(insertionTime, deepCopy(merge1))
-		assert.Len(a.out, 1)
+		assert.Len(msw.payloads, 1)
 		a.flushOnTime(payloadTime.Add(oldestBucketStart))
-		assert.Len(a.out, 2)
-		assertDistribPayload(t, wrapPayloads([]*proto.ClientStatsPayload{deepCopy(merge1), deepCopy(merge1)}), <-a.out)
-		aggCounts := <-a.out
+		require.Len(t, msw.payloads, 2)
+		assertDistribPayload(t, wrapPayloads([]*proto.ClientStatsPayload{deepCopy(merge1), deepCopy(merge1)}), msw.payloads[0])
+		aggCounts := msw.payloads[1]
 		expectedAggCounts := wrapPayload(agg2Counts(insertionTime, merge1))
 
 		// map gives random orders post aggregation
@@ -330,6 +364,8 @@ func TestCountAggregation(t *testing.T) {
 	for _, tc := range tts {
 		t.Run(tc.name, func(t *testing.T) {
 			a := newTestAggregator()
+			msw := &mockStatsWriter{}
+			a.writer = msw
 			testTime := time.Unix(time.Now().Unix(), 0)
 
 			c1 := payloadWithCounts(testTime, tc.k, "", "test-version", "", "", 11, 7, 100)
@@ -338,19 +374,19 @@ func TestCountAggregation(t *testing.T) {
 			keyDefault := BucketsAggregationKey{}
 			cDefault := payloadWithCounts(testTime, keyDefault, "", "test-version", "", "", 0, 2, 4)
 
-			assert.Len(a.out, 0)
+			assert.Len(msw.payloads, 0)
 			a.add(testTime, deepCopy(c1))
 			a.add(testTime, deepCopy(c2))
 			a.add(testTime, deepCopy(c3))
 			a.add(testTime, deepCopy(cDefault))
-			assert.Len(a.out, 3)
+			assert.Len(msw.payloads, 3)
 			a.flushOnTime(testTime.Add(oldestBucketStart + time.Nanosecond))
-			assert.Len(a.out, 4)
+			require.Len(t, msw.payloads, 4)
 
-			assertDistribPayload(t, wrapPayloads([]*proto.ClientStatsPayload{c1, c2}), <-a.out)
-			assertDistribPayload(t, wrapPayload(c3), <-a.out)
-			assertDistribPayload(t, wrapPayload(cDefault), <-a.out)
-			aggCounts := <-a.out
+			assertDistribPayload(t, wrapPayloads([]*proto.ClientStatsPayload{c1, c2}), msw.payloads[0])
+			assertDistribPayload(t, wrapPayload(c3), msw.payloads[1])
+			assertDistribPayload(t, wrapPayload(cDefault), msw.payloads[2])
+			aggCounts := msw.payloads[3]
 			assertAggCountsPayload(t, aggCounts)
 
 			tc.res.Hits = 43
@@ -399,6 +435,8 @@ func TestCountAggregationPeerTags(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			assert := assert.New(t)
 			a := newTestAggregator()
+			msw := &mockStatsWriter{}
+			a.writer = msw
 			a.peerTagsAggregation = tc.enablePeerTagsAgg
 			testTime := time.Unix(time.Now().Unix(), 0)
 
@@ -411,19 +449,19 @@ func TestCountAggregationPeerTags(t *testing.T) {
 			keyDefault := BucketsAggregationKey{}
 			cDefault := payloadWithCounts(testTime, keyDefault, "", "test-version", "", "", 0, 2, 4)
 
-			assert.Len(a.out, 0)
+			assert.Len(msw.payloads, 0)
 			a.add(testTime, deepCopy(c1))
 			a.add(testTime, deepCopy(c2))
 			a.add(testTime, deepCopy(c3))
 			a.add(testTime, deepCopy(cDefault))
-			assert.Len(a.out, 3)
+			assert.Len(msw.payloads, 3)
 			a.flushOnTime(testTime.Add(oldestBucketStart + time.Nanosecond))
-			assert.Len(a.out, 4)
+			require.Len(t, msw.payloads, 4)
 
-			assertDistribPayload(t, wrapPayloads([]*proto.ClientStatsPayload{c1, c2}), <-a.out)
-			assertDistribPayload(t, wrapPayload(c3), <-a.out)
-			assertDistribPayload(t, wrapPayload(cDefault), <-a.out)
-			aggCounts := <-a.out
+			assertDistribPayload(t, wrapPayloads([]*proto.ClientStatsPayload{c1, c2}), msw.payloads[0])
+			assertDistribPayload(t, wrapPayload(c3), msw.payloads[1])
+			assertDistribPayload(t, wrapPayload(cDefault), msw.payloads[2])
+			aggCounts := msw.payloads[3]
 			assertAggCountsPayload(t, aggCounts)
 
 			tc.res.Hits = 43
@@ -449,6 +487,8 @@ func TestAggregationVersionData(t *testing.T) {
 	t.Run("all version data provided in payload", func(t *testing.T) {
 		assert := assert.New(t)
 		a := newTestAggregator()
+		msw := &mockStatsWriter{}
+		a.writer = msw
 		testTime := time.Unix(time.Now().Unix(), 0)
 
 		bak := BucketsAggregationKey{Service: "s", Name: "test.op"}
@@ -458,19 +498,19 @@ func TestAggregationVersionData(t *testing.T) {
 		keyDefault := BucketsAggregationKey{}
 		cDefault := payloadWithCounts(testTime, keyDefault, "1", "test-version", "abc", "abc123", 0, 2, 4)
 
-		assert.Len(a.out, 0)
+		assert.Len(msw.payloads, 0)
 		a.add(testTime, deepCopy(c1))
 		a.add(testTime, deepCopy(c2))
 		a.add(testTime, deepCopy(c3))
 		a.add(testTime, deepCopy(cDefault))
-		assert.Len(a.out, 3)
+		assert.Len(msw.payloads, 3)
 		a.flushOnTime(testTime.Add(oldestBucketStart + time.Nanosecond))
-		assert.Len(a.out, 4)
+		require.Len(t, msw.payloads, 4)
 
-		assertDistribPayload(t, wrapPayloads([]*proto.ClientStatsPayload{c1, c2}), <-a.out)
-		assertDistribPayload(t, wrapPayload(c3), <-a.out)
-		assertDistribPayload(t, wrapPayload(cDefault), <-a.out)
-		aggCounts := <-a.out
+		assertDistribPayload(t, wrapPayloads([]*proto.ClientStatsPayload{c1, c2}), msw.payloads[0])
+		assertDistribPayload(t, wrapPayload(c3), msw.payloads[1])
+		assertDistribPayload(t, wrapPayload(cDefault), msw.payloads[2])
+		aggCounts := msw.payloads[3]
 		assertAggCountsPayload(t, aggCounts)
 
 		expectedRes := &proto.ClientGroupedStats{
@@ -499,6 +539,8 @@ func TestAggregationVersionData(t *testing.T) {
 	t.Run("git commit sha and image tag come from container tags", func(t *testing.T) {
 		assert := assert.New(t)
 		a := newTestAggregator()
+		msw := &mockStatsWriter{}
+		a.writer = msw
 		cfg := config.New()
 		cfg.ContainerTags = func(cid string) ([]string, error) {
 			return []string{"git.commit.sha:sha-from-container-tags", "image_tag:image-tag-from-container-tags"}, nil
@@ -513,14 +555,14 @@ func TestAggregationVersionData(t *testing.T) {
 		keyDefault := BucketsAggregationKey{}
 		cDefault := payloadWithCounts(testTime, keyDefault, "1", "", "", "", 0, 2, 4)
 
-		assert.Len(a.out, 0)
+		assert.Len(msw.payloads, 0)
 		a.add(testTime, deepCopy(c1))
 		a.add(testTime, deepCopy(c2))
 		a.add(testTime, deepCopy(c3))
 		a.add(testTime, deepCopy(cDefault))
-		assert.Len(a.out, 3)
+		assert.Len(msw.payloads, 3)
 		a.flushOnTime(testTime.Add(oldestBucketStart + time.Nanosecond))
-		assert.Len(a.out, 4)
+		require.Len(t, msw.payloads, 4)
 
 		// Add the expected gitCommitSha and imageTag on c1, c2, c3, and cDefault for these assertions.
 		c1.GitCommitSha = "sha-from-container-tags"
@@ -531,10 +573,10 @@ func TestAggregationVersionData(t *testing.T) {
 		c3.ImageTag = "image-tag-from-container-tags"
 		cDefault.GitCommitSha = "sha-from-container-tags"
 		cDefault.ImageTag = "image-tag-from-container-tags"
-		assertDistribPayload(t, wrapPayloads([]*proto.ClientStatsPayload{c1, c2}), <-a.out)
-		assertDistribPayload(t, wrapPayload(c3), <-a.out)
-		assertDistribPayload(t, wrapPayload(cDefault), <-a.out)
-		aggCounts := <-a.out
+		assertDistribPayload(t, wrapPayloads([]*proto.ClientStatsPayload{c1, c2}), msw.payloads[0])
+		assertDistribPayload(t, wrapPayload(c3), msw.payloads[1])
+		assertDistribPayload(t, wrapPayload(cDefault), msw.payloads[2])
+		aggCounts := msw.payloads[3]
 		assertAggCountsPayload(t, aggCounts)
 
 		expectedRes := &proto.ClientGroupedStats{
@@ -563,6 +605,8 @@ func TestAggregationVersionData(t *testing.T) {
 	t.Run("payload git commit sha and image tag override container tags", func(t *testing.T) {
 		assert := assert.New(t)
 		a := newTestAggregator()
+		msw := &mockStatsWriter{}
+		a.writer = msw
 		cfg := config.New()
 		cfg.ContainerTags = func(cid string) ([]string, error) {
 			return []string{"git.commit.sha:overrideThisSha", "image_tag:overrideThisImageTag"}, nil
@@ -577,19 +621,19 @@ func TestAggregationVersionData(t *testing.T) {
 		keyDefault := BucketsAggregationKey{}
 		cDefault := payloadWithCounts(testTime, keyDefault, "1", "test-version", "abc", "abc123", 0, 2, 4)
 
-		assert.Len(a.out, 0)
+		assert.Len(msw.payloads, 0)
 		a.add(testTime, deepCopy(c1))
 		a.add(testTime, deepCopy(c2))
 		a.add(testTime, deepCopy(c3))
 		a.add(testTime, deepCopy(cDefault))
-		assert.Len(a.out, 3)
+		assert.Len(msw.payloads, 3)
 		a.flushOnTime(testTime.Add(oldestBucketStart + time.Nanosecond))
-		assert.Len(a.out, 4)
+		require.Len(t, msw.payloads, 4)
 
-		assertDistribPayload(t, wrapPayloads([]*proto.ClientStatsPayload{c1, c2}), <-a.out)
-		assertDistribPayload(t, wrapPayload(c3), <-a.out)
-		assertDistribPayload(t, wrapPayload(cDefault), <-a.out)
-		aggCounts := <-a.out
+		assertDistribPayload(t, wrapPayloads([]*proto.ClientStatsPayload{c1, c2}), msw.payloads[0])
+		assertDistribPayload(t, wrapPayload(c3), msw.payloads[1])
+		assertDistribPayload(t, wrapPayload(cDefault), msw.payloads[2])
+		aggCounts := msw.payloads[3]
 		assertAggCountsPayload(t, aggCounts)
 
 		expectedRes := &proto.ClientGroupedStats{

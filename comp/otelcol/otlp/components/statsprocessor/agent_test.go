@@ -8,6 +8,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/component/componenttest"
+	"go.opentelemetry.io/otel/sdk/metric"
+
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	traceconfig "github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -15,9 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/timing"
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
-	"github.com/stretchr/testify/require"
-	"go.opentelemetry.io/collector/component/componenttest"
-	"go.opentelemetry.io/otel/sdk/metric"
 )
 
 func setupMetricClient() (*metric.ManualReader, statsd.ClientInterface, timing.Reporter) {
@@ -34,11 +35,10 @@ func TestTraceAgentConfig(t *testing.T) {
 
 	out := make(chan *pb.StatsPayload)
 	_, metricClient, timingReporter := setupMetricClient()
-	agnt := NewAgentWithConfig(context.Background(), cfg, out, metricClient, timingReporter)
+	_ = NewAgentWithConfig(context.Background(), cfg, out, metricClient, timingReporter)
 	require.Zero(t, cfg.ReceiverPort)
 	require.NotEmpty(t, cfg.Endpoints[0].APIKey)
 	require.Equal(t, "__unset__", cfg.Hostname)
-	require.Equal(t, out, agnt.Concentrator.Out)
 }
 
 func TestTraceAgent(t *testing.T) {
@@ -90,10 +90,10 @@ loop:
 			t.Fatal("timed out")
 		}
 	}
+
 	require.Len(t, stats.Stats, 1)
 	require.Len(t, stats.Stats[0].Stats, 1)
 	// considering all spans in rspans have distinct aggregations, we should have an equal amount
 	// of groups
 	require.Len(t, stats.Stats[0].Stats[0].Stats, traces.SpanCount())
-	require.Len(t, a.TraceWriter.In, 0) // the trace writer channel should've been drained
 }
