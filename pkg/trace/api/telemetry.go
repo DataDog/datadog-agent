@@ -15,12 +15,13 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/header"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
+
+	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
@@ -55,6 +56,10 @@ const (
 // So it should provide enough in normal cases before we start dropping requests.
 const maxInflightBytes = 25 * 1000 * 1000
 
+// App instances are sending ~1 telemetry payload/minute so 500 payloads buffered should be
+// more than enough
+const maxInflightRequests = 500
+
 // TelemetryForwarder sends HTTP requests to multiple targets.
 // The handler returns immediately and the forwarding is done in the background.
 //
@@ -63,9 +68,14 @@ type TelemetryForwarder struct {
 	endpoints []*config.Endpoint
 	conf      *config.AgentConfig
 
+	forwardedReqChan chan forwardedRequest
 	inflightWaiter   sync.WaitGroup
 	inflightCount    atomic.Int64
 	maxInflightBytes int64
+
+	cancelCtx context.Context
+	cancelFn  context.CancelFunc
+	done      chan struct{}
 
 	containerIDProvider IDProvider
 	client              *config.ResetClient
@@ -90,18 +100,44 @@ func NewTelemetryForwarder(conf *config.AgentConfig, containerIDProvider IDProvi
 		endpoints = append(endpoints, endpoint)
 	}
 
-	return &TelemetryForwarder{
+	cancelCtx, cancelFn := context.WithCancel(context.Background())
+
+	forwarder := &TelemetryForwarder{
 		endpoints: endpoints,
 		conf:      conf,
 
+		forwardedReqChan: make(chan forwardedRequest),
 		inflightWaiter:   sync.WaitGroup{},
 		inflightCount:    atomic.Int64{},
 		maxInflightBytes: maxInflightBytes,
+
+		cancelCtx: cancelCtx,
+		cancelFn:  cancelFn,
+		done:      make(chan struct{}),
 
 		containerIDProvider: containerIDProvider,
 		client:              conf.NewHTTPClient(),
 		statsd:              statsd,
 		logger:              log.NewThrottled(5, 10*time.Second),
+	}
+	forwarder.start()
+	return forwarder
+}
+
+func (f *TelemetryForwarder) start() {
+	for i := 0; i < maxInflightRequests; i++ {
+		f.inflightWaiter.Add(1)
+		go func() {
+			defer f.inflightWaiter.Done()
+			for {
+				select {
+				case <-f.done:
+					return
+				case req := <-f.forwardedReqChan:
+					f.forwardTelemetry(req)
+				}
+			}
+		}()
 	}
 }
 
@@ -112,6 +148,7 @@ type forwardedRequest struct {
 
 // Stop waits for up to 1s to end all telemetry forwarded requests.
 func (f *TelemetryForwarder) Stop() {
+	close(f.done)
 	done := make(chan any)
 	go func() {
 		f.inflightWaiter.Wait()
@@ -122,13 +159,14 @@ func (f *TelemetryForwarder) Stop() {
 	// Give a max 1s timeout to wait for all requests to end
 	case <-time.After(1 * time.Second):
 	}
+	f.cancelFn()
 }
 
 func (f *TelemetryForwarder) startRequest(size int64) (accepted bool) {
 	for {
 		inflight := f.inflightCount.Load()
 		newInflight := inflight + size
-		if newInflight >= f.maxInflightBytes {
+		if newInflight > f.maxInflightBytes {
 			return false
 		}
 		if f.inflightCount.CompareAndSwap(inflight, newInflight) {
@@ -139,17 +177,7 @@ func (f *TelemetryForwarder) startRequest(size int64) (accepted bool) {
 
 func (f *TelemetryForwarder) endRequest(req forwardedRequest) {
 	f.inflightCount.Add(-int64(len(req.body)))
-}
-
-func (f *TelemetryForwarder) forwardTelemetryAsynchronously(req forwardedRequest) {
-	f.inflightWaiter.Add(1)
-	go func() {
-		defer f.inflightWaiter.Done()
-		defer f.endRequest(req)
-
-		f.setRequestHeader(req.req)
-		f.forwardTelemetry(context.Background(), req)
-	}()
+	req.body = nil
 }
 
 // telemetryForwarderHandler returns a new HTTP handler which will proxy requests to the configured intakes.
@@ -157,7 +185,7 @@ func (f *TelemetryForwarder) forwardTelemetryAsynchronously(req forwardedRequest
 // return http.StatusInternalServerError along with a clarification.
 //
 // This proxying will happen asynchronously and the handler will respond automatically. To still have backpressure
-// we will responf with 429 if we have to many request being forwarded concurrently.
+// we will respond with StatusTooManyRequests if we have to many request being forwarded concurrently.
 func (r *HTTPReceiver) telemetryForwarderHandler() http.Handler {
 	if len(r.telemetryForwarder.endpoints) == 0 {
 		log.Error("None of the configured apm_config.telemetry endpoints are valid. Telemetry proxy is off")
@@ -166,22 +194,28 @@ func (r *HTTPReceiver) telemetryForwarderHandler() http.Handler {
 
 	forwarder := r.telemetryForwarder
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		body, err := io.ReadAll(r.Body)
+
+		// Read at most maxInflightBytes since we're going to throw out the result anyway if it's bigger
+		body, err := io.ReadAll(io.LimitReader(r.Body, forwarder.maxInflightBytes))
 		if err != nil {
-			writeEmptyJSON(w, 500)
+			writeEmptyJSON(w, http.StatusInternalServerError)
 			return
 		}
 
 		if accepted := forwarder.startRequest(int64(len(body))); !accepted {
-			writeEmptyJSON(w, 429)
+			writeEmptyJSON(w, http.StatusTooManyRequests)
 			return
 		}
 
-		forwarder.forwardTelemetryAsynchronously(forwardedRequest{
-			req:  r.Clone(context.Background()),
+		select {
+		case forwarder.forwardedReqChan <- forwardedRequest{
+			req:  r.Clone(forwarder.cancelCtx),
 			body: body,
-		})
-		writeEmptyJSON(w, 200)
+		}:
+			writeEmptyJSON(w, http.StatusOK)
+		default:
+			writeEmptyJSON(w, http.StatusTooManyRequests)
+		}
 	})
 }
 
@@ -258,11 +292,15 @@ func (f *TelemetryForwarder) setRequestHeader(req *http.Request) {
 //
 // All requests will be sent irregardless of any errors
 // If any request fails, the error will be logged.
-func (f *TelemetryForwarder) forwardTelemetry(ctx context.Context, req forwardedRequest) {
+func (f *TelemetryForwarder) forwardTelemetry(req forwardedRequest) {
+	defer f.endRequest(req)
+
+	f.setRequestHeader(req.req)
+
 	for i, e := range f.endpoints {
 		var newReq *http.Request
 		if i != len(f.endpoints)-1 {
-			newReq = req.req.Clone(ctx)
+			newReq = req.req.Clone(req.req.Context())
 		} else {
 			// don't clone the request for the last endpoint since we can use the
 			// one provided in args.
