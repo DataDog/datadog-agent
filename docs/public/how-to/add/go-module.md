@@ -16,7 +16,7 @@ The repository contains a few submodules. To add a new one and ensure it is test
 
 
 3.  Create a dummy root package file `doc.go`:
-    ```
+    ```bash
     cat >doc.go <<EOL
     // Unless explicitly stated otherwise all files in this repository are licensed
     // under the Apache License Version 2.0.
@@ -28,7 +28,7 @@ The repository contains a few submodules. To add a new one and ensure it is test
 
 
 4.  Add `mymodule` to the `DEFAULT_MODULES` in [tasks/modules.py](https://github.com/DataDog/datadog-agent/blob/main/tasks/modules.py):
-    ```
+    ```python
     DEFAULT_MODULES = (
     ...,
     "path/to/mymodule": GoModule("path/to/mymodule", independent=True, should_tag=False, targets=["."]),
