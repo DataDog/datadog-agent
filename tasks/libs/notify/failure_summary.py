@@ -20,7 +20,8 @@ from tasks.owners import make_partition
 """
 A summary contains a list of jobs from gitlab pipelines.
 At the end of each pipeline, a summary is created and uploaded to a file in an s3 bucket (upload_summary).
-Every week day, a summary is created for all the pipelines of the last 24 hours (send_summary_messages) out of the summaries on the s3 bucket.
+Every week day, a summary is created for all the pipelines of the last 24 hours (send_summary_messages)
+out of the summaries on the s3 bucket.
 Once a week, a failure summary with allow to fail jobs is sent to the teams (send_summary_messages).
 """
 
@@ -150,7 +151,7 @@ class SummaryStats:
 
 
 def write_file(ctx: Context, name: str, data: str):
-    from tasks.notify import AWS_S3_CP_CMD
+    from tasks.libs.notify.utils import AWS_S3_CP_CMD
 
     with open(FAILURE_SUMMARY_TMP_FILE, 'w') as f:
         f.write(data)
@@ -159,7 +160,7 @@ def write_file(ctx: Context, name: str, data: str):
 
 
 def read_file(ctx: Context, name: str) -> str:
-    from tasks.notify import AWS_S3_CP_CMD
+    from tasks.libs.notify.utils import AWS_S3_CP_CMD
 
     ctx.run(f"{AWS_S3_CP_CMD} {FAILURE_SUMMARY_S3_BUCKET_URL}/{name} {FAILURE_SUMMARY_TMP_FILE}", hide="stdout")
 
@@ -170,7 +171,7 @@ def read_file(ctx: Context, name: str) -> str:
 
 
 def list_files(ctx: Context) -> list[str]:
-    from tasks.notify import AWS_S3_LS_CMD
+    from tasks.libs.notify.utils import AWS_S3_LS_CMD
 
     listing = ctx.run(
         AWS_S3_LS_CMD.format(bucket=FAILURE_SUMMARY_S3_BUCKET, prefix=FAILURE_SUMMARY_S3_PREFIX), hide="stdout"

@@ -176,7 +176,9 @@ func (c *collector) Start(ctx context.Context, wlmetaStore workloadmeta.Componen
 		objectStores = append(objectStores, store)
 		go reflector.Run(ctx.Done())
 	}
-	go startReadiness(ctx, objectStores)
+
+	go runStartupCheck(ctx, objectStores)
+
 	return nil
 }
 
@@ -192,21 +194,15 @@ func (c *collector) GetTargetCatalog() workloadmeta.AgentType {
 	return c.catalog
 }
 
-func startReadiness(ctx context.Context, stores []*reflectorStore) {
-	log.Infof("Starting readiness waiting for %d k8s reflectors to sync", len(stores))
+func runStartupCheck(ctx context.Context, stores []*reflectorStore) {
+	log.Infof("Starting startup health check waiting for %d k8s reflectors to sync", len(stores))
 
 	// There is no way to ensure liveness correctly as it would need to be plugged inside the
 	// inner loop of Reflector.
-	// However we add Readiness when we got at least some data.
-	health := health.RegisterReadiness(componentName)
-	defer func() {
-		err := health.Deregister()
-		if err != nil {
-			log.Criticalf("Unable to deregister component: %s, readiness will likely fail until POD is replaced err: %v", componentName, err)
-		}
-	}()
+	// However, we add Startup when we got at least some data.
+	startupHealthCheck := health.RegisterStartup(componentName)
 
-	// Checked synced, in its own scope to cleanly unreference the syncTimer
+	// Checked synced, in its own scope to cleanly un-reference the syncTimer
 	{
 		syncTimer := time.NewTicker(time.Second)
 	OUTER:
@@ -229,14 +225,7 @@ func startReadiness(ctx context.Context, stores []*reflectorStore) {
 		syncTimer.Stop()
 	}
 
-	// Once synced, start answering to readiness probe
+	// Once synced, validate startup health check
 	log.Infof("All (%d) K8S reflectors synced to workloadmeta", len(stores))
-	for {
-		select {
-		case <-ctx.Done():
-			return
-
-		case <-health.C:
-		}
-	}
+	<-startupHealthCheck.C
 }
