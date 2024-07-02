@@ -41,6 +41,15 @@ var packageDependencies = map[string][]string{
 	"datadog-apm-library-python": {"datadog-apm-inject"},
 }
 
+var packageDefaultVersions = map[string]string{
+	"datadog-apm-inject":         "latest",
+	"datadog-apm-library-java":   "1-1",
+	"datadog-apm-library-ruby":   "1-1",
+	"datadog-apm-library-js":     "5-1",
+	"datadog-apm-library-dotnet": "2-1",
+	"datadog-apm-library-python": "2-1",
+}
+
 // DefaultPackages resolves the default packages URLs to install based on the environment.
 func DefaultPackages(env *env.Env) []string {
 	return defaultPackages(env, PackagesList)
@@ -62,6 +71,9 @@ func defaultPackages(env *env.Env, defaultPackages []Package) []string {
 		}
 
 		version := "latest"
+		if v, ok := packageDefaultVersions[p.Name]; ok {
+			version = v
+		}
 
 		// Respect pinned version of APM packages if we don't define any overwrite
 		if apmLibVersion, ok := env.ApmLibraries[packageToLanguage(p.Name)]; ok {
