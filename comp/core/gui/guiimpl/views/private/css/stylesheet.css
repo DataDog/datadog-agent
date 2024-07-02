@@ -195,6 +195,7 @@ a {
   position: absolute;
   top: 20px;
   left: 20px;
+  right: 20px;
   border: 1px solid #e4e4e4;
   background-color: white;
   box-shadow: 0px 0px 15px rgba(0, 0, 0, 0.22);
@@ -206,16 +207,7 @@ a {
 #main .error_page {
   width: auto;
   height: auto;
-
-  /* top: 20px; */
-  /* left: 20px;
-  border: 1px solid #e4e4e4; */
   background-color: #f9ecec;
-  /* box-shadow: 0px 0px 15px rgba(0, 0, 0, 0.22);
-  -moz-box-shadow: 0px 0px 15px rgba(0, 0, 0, 0.22);
-  -webkit-box-shadow: 0px 0px 15px rgba(0, 0, 0, 0.22); */
-  /* text-align: center; */
-  /* margin: 5vh; */
   padding: 5vh;
 }
  
