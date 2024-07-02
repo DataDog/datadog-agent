@@ -57,6 +57,7 @@ from tasks import (
     vim,
     vscode,
 )
+from tasks.assign_pr import add_labels_and_reviewers
 from tasks.build_tags import audit_tag_impact, print_default_build_tags
 from tasks.components import lint_components, lint_fxutil_oneshot_test
 from tasks.custom_task.custom_task import custom__call__
@@ -138,6 +139,8 @@ ns.add_task(fuzz)
 ns.add_task(go_fix)
 ns.add_task(build_messagetable)
 ns.add_task(get_impacted_packages)
+ns.add_task(modules.go_work)
+ns.add_task(add_labels_and_reviewers)
 ns.add_task(get_modified_packages)
 ns.add_task(send_unit_tests_stats)
 ns.add_task(mod_diffs)
