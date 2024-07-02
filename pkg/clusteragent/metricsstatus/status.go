@@ -13,47 +13,54 @@ import (
 	"embed"
 	"io"
 
+	"github.com/DataDog/datadog-agent/comp/core/datadogclient"
+	"github.com/DataDog/datadog-agent/comp/core/datadogclient/datadogclientimpl"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/custommetrics"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/externalmetrics"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 )
 
 // Provider provides the functionality to populate the status output
-type Provider struct{}
+type Provider struct {
+	dc datadogclient.Component
+}
+
+// GetProvider returns a new provider for metricsstatus
+func GetProvider(dogCl datadogclient.Component) Provider {
+	return Provider{dc: dogCl}
+}
 
 //go:embed status_templates
 var templatesFS embed.FS
 
 // Name returns the name
-func (Provider) Name() string {
+func (p Provider) Name() string {
 	return "Custom Metrics Server"
 }
 
 // Section return the section
-func (Provider) Section() string {
+func (p Provider) Section() string {
 	return "Custom Metrics Server"
 }
 
 // JSON populates the status map
-func (Provider) JSON(_ bool, stats map[string]interface{}) error {
-	populateStatus(stats)
+func (p Provider) JSON(_ bool, stats map[string]interface{}) error {
+	populateStatus(p.dc, stats)
 
 	return nil
 }
 
 // Text renders the text output
-func (Provider) Text(_ bool, buffer io.Writer) error {
-	return status.RenderText(templatesFS, "custommetrics.tmpl", buffer, getStatusInfo())
+func (p Provider) Text(_ bool, buffer io.Writer) error {
+	return status.RenderText(templatesFS, "custommetrics.tmpl", buffer, getStatusInfo(p.dc))
 }
 
 // HTML renders the html output
-func (Provider) HTML(_ bool, _ io.Writer) error {
+func (p Provider) HTML(_ bool, _ io.Writer) error {
 	return nil
 }
 
-func populateStatus(stats map[string]interface{}) {
+func populateStatus(dc datadogclient.Component, stats map[string]interface{}) {
 	apiCl, apiErr := apiserver.GetAPIClient()
 	if apiErr != nil {
 		stats["custommetrics"] = map[string]string{"Error": apiErr.Error()}
@@ -61,17 +68,13 @@ func populateStatus(stats map[string]interface{}) {
 		stats["custommetrics"] = custommetrics.GetStatus(apiCl.Cl)
 	}
 
-	if config.Datadog().GetBool("external_metrics_provider.use_datadogmetric_crd") {
-		stats["externalmetrics"] = externalmetrics.GetStatus()
-	} else {
-		stats["externalmetrics"] = apiserver.GetStatus()
-	}
+	stats["externalmetrics"] = datadogclientimpl.GetStatus(dc)
 }
 
-func getStatusInfo() map[string]interface{} {
+func getStatusInfo(dc datadogclient.Component) map[string]interface{} {
 	stats := make(map[string]interface{})
 
-	populateStatus(stats)
+	populateStatus(dc, stats)
 
 	return stats
 }

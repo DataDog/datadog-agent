@@ -38,6 +38,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/datadogclient"
+	"github.com/DataDog/datadog-agent/comp/core/datadogclient/datadogclientimpl"
 	healthprobe "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
 	healthprobefx "github.com/DataDog/datadog-agent/comp/core/healthprobe/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -161,12 +163,14 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 						PythonVersionGetFunc: python.GetPythonVersion,
 					},
 					status.NewInformationProvider(leaderelection.Provider{}),
-					status.NewInformationProvider(clusteragentMetricsStatus.Provider{}),
 					status.NewInformationProvider(admissionpkg.Provider{}),
 					status.NewInformationProvider(endpointsStatus.Provider{}),
 					status.NewInformationProvider(clusterchecks.Provider{}),
 					status.NewInformationProvider(orchestratorStatus.Provider{}),
 				),
+				fx.Provide(func(dogCl datadogclient.Component) status.InformationProvider {
+					return status.NewInformationProvider(clusteragentMetricsStatus.GetProvider(dogCl))
+				}),
 				fx.Provide(func(config config.Component) status.HeaderInformationProvider {
 					return status.NewHeaderInformationProvider(hostnameStatus.NewProvider(config))
 				}),
@@ -201,6 +205,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					}
 				}),
 				settingsimpl.Module(),
+				datadogclientimpl.Module(),
 			)
 		},
 	}
@@ -215,6 +220,7 @@ func start(log log.Component,
 	demultiplexer demultiplexer.Component,
 	wmeta workloadmeta.Component,
 	ac autodiscovery.Component,
+	dc datadogclient.Component,
 	secretResolver secrets.Component,
 	statusComponent status.Component,
 	collector collector.Component,
@@ -398,7 +404,7 @@ func start(log log.Component,
 		go func() {
 			defer wg.Done()
 
-			errServ := custommetrics.RunServer(mainCtx, apiCl)
+			errServ := custommetrics.RunServer(mainCtx, apiCl, dc)
 			if errServ != nil {
 				pkglog.Errorf("Error in the External Metrics API Server: %v", errServ)
 			}
