@@ -428,6 +428,51 @@ func TestMarshalSplitCompressPointsLimit(t *testing.T) {
 	}
 }
 
+func TestMarshalSplitCompressMultiplePointsLimit(t *testing.T) {
+	tests := map[string]struct {
+		kind string
+	}{
+		"zlib": {kind: compressionimpl.ZlibKind},
+		"zstd": {kind: compressionimpl.ZstdKind},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			mockConfig := pkgconfigsetup.Conf()
+			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
+			mockConfig.SetWithoutSource("serializer_max_series_points_per_payload", 100)
+
+			// 100 series, each with 5 points, so 20 should fit in each unfiltered payload
+			rawSeries := metrics.Series{}
+			for i := 0; i < 100; i++ {
+				point := metrics.Serie{
+					Points: []metrics.Point{
+						{Ts: 12345.0, Value: float64(21.21)},
+						{Ts: 67890.0, Value: float64(12.12)},
+						{Ts: 2222.0, Value: float64(22.12)},
+						{Ts: 333.0, Value: float64(32.12)},
+						{Ts: 444444.0, Value: float64(42.12)},
+					},
+					MType:    metrics.APIGaugeType,
+					Name:     fmt.Sprintf("test.metrics%d", i),
+					Interval: 1,
+					Host:     "localhost",
+					Tags:     tagset.CompositeTagsFromSlice([]string{"tag1", "tag2:yes"}),
+				}
+				rawSeries = append(rawSeries, &point)
+			}
+			series := CreateIterableSeries(CreateSerieSource(rawSeries))
+
+			payloads, filteredPayloads, err := series.MarshalSplitCompressMultiple(mockConfig, compressionimpl.NewCompressor(mockConfig), func(s *metrics.Serie) bool {
+				return s.Name == "test.metrics42"
+			})
+			require.NoError(t, err)
+			require.Equal(t, 5, len(payloads))
+			// only one serie should be present in the filtered payload, so 5 total points, which fits in one payload
+			require.Equal(t, 1, len(filteredPayloads))
+		})
+	}
+}
+
 func TestMarshalSplitCompressPointsLimitTooBig(t *testing.T) {
 	tests := map[string]struct {
 		kind string
