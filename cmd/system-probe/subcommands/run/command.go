@@ -268,7 +268,12 @@ func runSystemProbe(ctxChan <-chan context.Context, errChan chan error) error {
 		fx.Supply(optional.NewNoneOption[workloadmeta.Component]()),
 		// use system-probe config instead of agent config for logging
 		fx.Provide(func(lc fx.Lifecycle, params logimpl.Params, sysprobeconfig sysprobeconfig.Component) (log.Component, error) {
-			return logimpl.NewLogger(lc, params, sysprobeconfig)
+			// TODO comp: We should have a dedicated implementation for the sysprobe-logger
+			return logimpl.NewLogger(logimpl.Requires{
+				Lc:     lc,
+				Params: params,
+				Config: sysprobeconfig,
+			})
 		}),
 		fx.Provide(func(sysprobeconfig sysprobeconfig.Component) settings.Params {
 			profilingGoRoutines := commonsettings.NewProfilingGoroutines()

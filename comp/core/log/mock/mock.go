@@ -8,34 +8,17 @@
 package logimpl
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"strings"
 	"testing"
 
 	"github.com/cihub/seelog"
-	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
-
-// MockModule defines the fx options for the mock component.
-func MockModule() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newMockLogger),
-	)
-}
-
-// TraceMockModule defines the fx options for the mock component in its Trace variant.
-func TraceMockModule() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newTraceMockLogger),
-	)
-}
 
 // tbWriter is an implementation of io.Writer that sends lines to
 // testing.TB#Log.
@@ -51,7 +34,7 @@ func (tbw *tbWriter) Write(p []byte) (n int, err error) {
 	return len(p), nil
 }
 
-func newMockLogger(t testing.TB, lc fx.Lifecycle) (log.Component, error) {
+func New(t testing.TB) (log.Component, error) {
 	// Build a logger that only logs to t.Log(..)
 	iface, err := seelog.LoggerFromWriterWithMinLevelAndFormat(&tbWriter{t}, seelog.TraceLvl,
 		"%Date(2006-01-02 15:04:05 MST) | %LEVEL | (%ShortFilePath:%Line in %FuncShort) | %ExtraTextContext%Msg%n")
@@ -59,25 +42,23 @@ func newMockLogger(t testing.TB, lc fx.Lifecycle) (log.Component, error) {
 		return nil, err
 	}
 
-	// flush the seelog logger when the test app stops
-	lc.Append(fx.Hook{OnStop: func(context.Context) error {
+	t.Cleanup(func() {
 		// stop using the logger to avoid a race condition
 		pkglog.ChangeLogLevel(seelog.Default, "debug")
 		iface.Flush()
-		return nil
-	}})
+	})
 
 	// install the logger into pkg/util/log
 	pkglog.ChangeLogLevel(iface, "debug")
 
-	return &logger{}, nil
+	return pkglog.NewWrapper(2), nil
 }
 
-func newTraceMockLogger(t testing.TB, lc fx.Lifecycle, params Params, cfg config.Component) (log.Component, error) {
+func NewTrace(t testing.TB, params Params, cfg config.Component) (log.Component, error) {
 	// Make sure we are setting a default value on purpose.
 	logFilePath := params.logFileFn(cfg)
 	if logFilePath != os.Getenv("DDTEST_DEFAULT_LOG_FILE_PATH") {
 		return nil, fmt.Errorf("unexpected default log file path: %q", logFilePath)
 	}
-	return newMockLogger(t, lc)
+	return New(t)
 }
