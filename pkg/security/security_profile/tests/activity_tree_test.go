@@ -692,7 +692,10 @@ func TestActivityTree_CreateProcessNode(t *testing.T) {
 								at = activity_tree.NewActivityTree(profile, nil, "profile")
 								profile.ActivityTree = at
 								profile.Instances = append(profile.Instances, &cgroupModel.CacheEntry{
-									ContainerContext: model.ContainerContext{ID: contID},
+									ContainerContext: model.ContainerContext{
+										ContainerID: contID,
+									},
+									CGroupContext:    model.CGroupContext{CGroupID: contID},
 									WorkloadSelector: cgroupModel.WorkloadSelector{Image: "image", Tag: "tag"},
 								})
 							}

@@ -8,6 +8,11 @@
       "experimental": false,
       "properties": [
         {
+          "name": "cgroup.id",
+          "definition": "ID of the cgroup",
+          "property_doc_link": "cgroup-id-doc"
+        },
+        {
           "name": "container.created_at",
           "definition": "Timestamp of the creation of the container",
           "property_doc_link": "container-created_at-doc"
@@ -16,6 +21,11 @@
           "name": "container.id",
           "definition": "ID of the container",
           "property_doc_link": "container-id-doc"
+        },
+        {
+          "name": "container.runtime",
+          "definition": "Runtime managing the container",
+          "property_doc_link": "container-runtime-doc"
         },
         {
           "name": "container.tags",
@@ -1232,6 +1242,18 @@
       "examples": []
     },
     {
+      "name": "cgroup.id",
+      "link": "cgroup-id-doc",
+      "type": "string",
+      "definition": "ID of the cgroup",
+      "prefixes": [
+        "cgroup"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
       "name": "change_permission.new_sd",
       "link": "change_permission-new_sd-doc",
       "type": "string",
@@ -1320,6 +1342,18 @@
       "link": "container-id-doc",
       "type": "string",
       "definition": "ID of the container",
+      "prefixes": [
+        "container"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "container.runtime",
+      "link": "container-runtime-doc",
+      "type": "string",
+      "definition": "Runtime managing the container",
       "prefixes": [
         "container"
       ],

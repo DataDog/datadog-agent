@@ -85,6 +85,4023 @@ SECL expressions support several platforms. You can use the documentation below 
 * [Linux][2]
 * [Windows][3]
 
+<<<<<<< HEAD
 [1]: /security/threats/workload_security_rules/custom_rules
 [2]: /security/threats/linux_expressions
 [3]: /security/threats/windows_expressions
+=======
+{{< code-block lang="javascript" >}}
+open.file.path == "/proc/${process.pid}/maps"
+
+{{< /code-block >}}
+
+List of the available variables:
+
+| SECL Variable         |  Definition                           | Agent Version |
+|-----------------------|---------------------------------------|---------------|
+| `process.pid`         | Process PID                           | 7.33          |
+
+## CIDR and IP range
+CIDR and IP matching is possible in SECL. One can use operators such as `in`, `not in`, or `allin` combined with CIDR or IP notations.
+
+Such rules can be written as follows:
+
+
+{{< code-block lang="javascript" >}}
+dns.question.name == "example.com" && network.destination.ip in [192.168.1.25, 10.0.0.0/24]
+
+{{< /code-block >}}
+
+## Helpers
+Helpers exist in SECL that enable users to write advanced rules without needing to rely on generic techniques such as regex.
+
+### Command line arguments
+The *args_flags* and *args_options* are helpers to ease the writing of CSM Threats rules based on command line arguments.
+
+*args_flags* is used to catch arguments that start with either one or two hyphen characters but do not accept any associated value.
+
+Examples:
+* `version` is part of *args_flags* for the command `cat --version`
+* `l` and `n` both are in *args_flags* for the command `netstat -ln`
+
+
+*args_options* is used to catch arguments that start with either one or two hyphen characters and accepts a value either specified as the same argument but separated by the ‘=’ character or specified as the next argument.
+
+Examples:
+* `T=8` and `width=8` both are in *args_options* for the command `ls -T 8 --width=8`
+* `exec.args_options in [ r"s=.*\\" ]` can be used to detect `sudoedit` was launched with `-s` argument and a command that ends with a `\`
+
+### File rights
+
+The *file.rights* attribute can now be used in addition to *file.mode*. *file.mode* can hold values set by the kernel, while the *file.rights* only holds the values set by the user. These rights may be more familiar because they are in the `chmod` commands.
+
+## Event attributes
+
+### Common to all event types
+
+| Property | Definition |
+| -------- | ------------- |
+| [`container.created_at`](#container-created_at-doc) | Timestamp of the creation of the container |
+| [`container.flags`](#container-flags-doc) | Flags associated with the container |
+| [`container.id`](#container-id-doc) | ID of the container |
+| [`container.tags`](#container-tags-doc) | Tags of the container |
+| [`event.async`](#event-async-doc) | True if the syscall was asynchronous |
+| [`event.origin`](#event-origin-doc) | Origin of the event |
+| [`event.os`](#event-os-doc) | Operating system of the event |
+| [`event.service`](#event-service-doc) | Service associated with the event |
+| [`event.timestamp`](#event-timestamp-doc) | Timestamp of the event |
+| [`process.ancestors.args`](#common-process-args-doc) | Arguments of the process (as a string, excluding argv0) |
+| [`process.ancestors.args_flags`](#common-process-args_flags-doc) | Flags in the process arguments |
+| [`process.ancestors.args_options`](#common-process-args_options-doc) | Argument of the process as options |
+| [`process.ancestors.args_truncated`](#common-process-args_truncated-doc) | Indicator of arguments truncation |
+| [`process.ancestors.argv`](#common-process-argv-doc) | Arguments of the process (as an array, excluding argv0) |
+| [`process.ancestors.argv0`](#common-process-argv0-doc) | First argument of the process |
+| [`process.ancestors.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
+| [`process.ancestors.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
+| [`process.ancestors.comm`](#common-process-comm-doc) | Comm attribute of the process |
+| [`process.ancestors.container.id`](#common-process-container-id-doc) | Container ID |
+| [`process.ancestors.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
+| [`process.ancestors.egid`](#common-credentials-egid-doc) | Effective GID of the process |
+| [`process.ancestors.egroup`](#common-credentials-egroup-doc) | Effective group of the process |
+| [`process.ancestors.envp`](#common-process-envp-doc) | Environment variables of the process |
+| [`process.ancestors.envs`](#common-process-envs-doc) | Environment variable names of the process |
+| [`process.ancestors.envs_truncated`](#common-process-envs_truncated-doc) | Indicator of environment variables truncation |
+| [`process.ancestors.euid`](#common-credentials-euid-doc) | Effective UID of the process |
+| [`process.ancestors.euser`](#common-credentials-euser-doc) | Effective user of the process |
+| [`process.ancestors.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`process.ancestors.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
+| [`process.ancestors.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
+| [`process.ancestors.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`process.ancestors.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
+| [`process.ancestors.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
+| [`process.ancestors.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
+| [`process.ancestors.file.mode`](#common-filefields-mode-doc) | Mode of the file |
+| [`process.ancestors.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
+| [`process.ancestors.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`process.ancestors.file.name`](#common-fileevent-name-doc) | File's basename |
+| [`process.ancestors.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`process.ancestors.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
+| [`process.ancestors.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
+| [`process.ancestors.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
+| [`process.ancestors.file.path`](#common-fileevent-path-doc) | File's path |
+| [`process.ancestors.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`process.ancestors.file.rights`](#common-filefields-rights-doc) | Rights of the file |
+| [`process.ancestors.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
+| [`process.ancestors.file.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`process.ancestors.fsgid`](#common-credentials-fsgid-doc) | FileSystem-gid of the process |
+| [`process.ancestors.fsgroup`](#common-credentials-fsgroup-doc) | FileSystem-group of the process |
+| [`process.ancestors.fsuid`](#common-credentials-fsuid-doc) | FileSystem-uid of the process |
+| [`process.ancestors.fsuser`](#common-credentials-fsuser-doc) | FileSystem-user of the process |
+| [`process.ancestors.gid`](#common-credentials-gid-doc) | GID of the process |
+| [`process.ancestors.group`](#common-credentials-group-doc) | Group of the process |
+| [`process.ancestors.interpreter.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`process.ancestors.interpreter.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
+| [`process.ancestors.interpreter.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
+| [`process.ancestors.interpreter.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`process.ancestors.interpreter.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
+| [`process.ancestors.interpreter.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
+| [`process.ancestors.interpreter.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
+| [`process.ancestors.interpreter.file.mode`](#common-filefields-mode-doc) | Mode of the file |
+| [`process.ancestors.interpreter.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
+| [`process.ancestors.interpreter.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`process.ancestors.interpreter.file.name`](#common-fileevent-name-doc) | File's basename |
+| [`process.ancestors.interpreter.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`process.ancestors.interpreter.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
+| [`process.ancestors.interpreter.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
+| [`process.ancestors.interpreter.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
+| [`process.ancestors.interpreter.file.path`](#common-fileevent-path-doc) | File's path |
+| [`process.ancestors.interpreter.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`process.ancestors.interpreter.file.rights`](#common-filefields-rights-doc) | Rights of the file |
+| [`process.ancestors.interpreter.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
+| [`process.ancestors.interpreter.file.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`process.ancestors.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker |
+| [`process.ancestors.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
+| [`process.ancestors.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
+| [`process.ancestors.ppid`](#common-process-ppid-doc) | Parent process ID |
+| [`process.ancestors.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
+| [`process.ancestors.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
+| [`process.ancestors.uid`](#common-credentials-uid-doc) | UID of the process |
+| [`process.ancestors.user`](#common-credentials-user-doc) | User of the process |
+| [`process.ancestors.user_session.k8s_groups`](#common-usersessioncontext-k8s_groups-doc) | Kubernetes groups of the user that executed the process |
+| [`process.ancestors.user_session.k8s_uid`](#common-usersessioncontext-k8s_uid-doc) | Kubernetes UID of the user that executed the process |
+| [`process.ancestors.user_session.k8s_username`](#common-usersessioncontext-k8s_username-doc) | Kubernetes username of the user that executed the process |
+| [`process.args`](#common-process-args-doc) | Arguments of the process (as a string, excluding argv0) |
+| [`process.args_flags`](#common-process-args_flags-doc) | Flags in the process arguments |
+| [`process.args_options`](#common-process-args_options-doc) | Argument of the process as options |
+| [`process.args_truncated`](#common-process-args_truncated-doc) | Indicator of arguments truncation |
+| [`process.argv`](#common-process-argv-doc) | Arguments of the process (as an array, excluding argv0) |
+| [`process.argv0`](#common-process-argv0-doc) | First argument of the process |
+| [`process.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
+| [`process.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
+| [`process.comm`](#common-process-comm-doc) | Comm attribute of the process |
+| [`process.container.id`](#common-process-container-id-doc) | Container ID |
+| [`process.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
+| [`process.egid`](#common-credentials-egid-doc) | Effective GID of the process |
+| [`process.egroup`](#common-credentials-egroup-doc) | Effective group of the process |
+| [`process.envp`](#common-process-envp-doc) | Environment variables of the process |
+| [`process.envs`](#common-process-envs-doc) | Environment variable names of the process |
+| [`process.envs_truncated`](#common-process-envs_truncated-doc) | Indicator of environment variables truncation |
+| [`process.euid`](#common-credentials-euid-doc) | Effective UID of the process |
+| [`process.euser`](#common-credentials-euser-doc) | Effective user of the process |
+| [`process.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`process.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
+| [`process.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
+| [`process.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`process.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
+| [`process.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
+| [`process.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
+| [`process.file.mode`](#common-filefields-mode-doc) | Mode of the file |
+| [`process.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
+| [`process.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`process.file.name`](#common-fileevent-name-doc) | File's basename |
+| [`process.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`process.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
+| [`process.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
+| [`process.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
+| [`process.file.path`](#common-fileevent-path-doc) | File's path |
+| [`process.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`process.file.rights`](#common-filefields-rights-doc) | Rights of the file |
+| [`process.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
+| [`process.file.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`process.fsgid`](#common-credentials-fsgid-doc) | FileSystem-gid of the process |
+| [`process.fsgroup`](#common-credentials-fsgroup-doc) | FileSystem-group of the process |
+| [`process.fsuid`](#common-credentials-fsuid-doc) | FileSystem-uid of the process |
+| [`process.fsuser`](#common-credentials-fsuser-doc) | FileSystem-user of the process |
+| [`process.gid`](#common-credentials-gid-doc) | GID of the process |
+| [`process.group`](#common-credentials-group-doc) | Group of the process |
+| [`process.interpreter.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`process.interpreter.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
+| [`process.interpreter.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
+| [`process.interpreter.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`process.interpreter.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
+| [`process.interpreter.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
+| [`process.interpreter.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
+| [`process.interpreter.file.mode`](#common-filefields-mode-doc) | Mode of the file |
+| [`process.interpreter.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
+| [`process.interpreter.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`process.interpreter.file.name`](#common-fileevent-name-doc) | File's basename |
+| [`process.interpreter.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`process.interpreter.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
+| [`process.interpreter.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
+| [`process.interpreter.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
+| [`process.interpreter.file.path`](#common-fileevent-path-doc) | File's path |
+| [`process.interpreter.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`process.interpreter.file.rights`](#common-filefields-rights-doc) | Rights of the file |
+| [`process.interpreter.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
+| [`process.interpreter.file.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`process.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker |
+| [`process.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
+| [`process.parent.args`](#common-process-args-doc) | Arguments of the process (as a string, excluding argv0) |
+| [`process.parent.args_flags`](#common-process-args_flags-doc) | Flags in the process arguments |
+| [`process.parent.args_options`](#common-process-args_options-doc) | Argument of the process as options |
+| [`process.parent.args_truncated`](#common-process-args_truncated-doc) | Indicator of arguments truncation |
+| [`process.parent.argv`](#common-process-argv-doc) | Arguments of the process (as an array, excluding argv0) |
+| [`process.parent.argv0`](#common-process-argv0-doc) | First argument of the process |
+| [`process.parent.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
+| [`process.parent.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
+| [`process.parent.comm`](#common-process-comm-doc) | Comm attribute of the process |
+| [`process.parent.container.id`](#common-process-container-id-doc) | Container ID |
+| [`process.parent.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
+| [`process.parent.egid`](#common-credentials-egid-doc) | Effective GID of the process |
+| [`process.parent.egroup`](#common-credentials-egroup-doc) | Effective group of the process |
+| [`process.parent.envp`](#common-process-envp-doc) | Environment variables of the process |
+| [`process.parent.envs`](#common-process-envs-doc) | Environment variable names of the process |
+| [`process.parent.envs_truncated`](#common-process-envs_truncated-doc) | Indicator of environment variables truncation |
+| [`process.parent.euid`](#common-credentials-euid-doc) | Effective UID of the process |
+| [`process.parent.euser`](#common-credentials-euser-doc) | Effective user of the process |
+| [`process.parent.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`process.parent.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
+| [`process.parent.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
+| [`process.parent.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`process.parent.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
+| [`process.parent.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
+| [`process.parent.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
+| [`process.parent.file.mode`](#common-filefields-mode-doc) | Mode of the file |
+| [`process.parent.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
+| [`process.parent.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`process.parent.file.name`](#common-fileevent-name-doc) | File's basename |
+| [`process.parent.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`process.parent.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
+| [`process.parent.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
+| [`process.parent.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
+| [`process.parent.file.path`](#common-fileevent-path-doc) | File's path |
+| [`process.parent.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`process.parent.file.rights`](#common-filefields-rights-doc) | Rights of the file |
+| [`process.parent.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
+| [`process.parent.file.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`process.parent.fsgid`](#common-credentials-fsgid-doc) | FileSystem-gid of the process |
+| [`process.parent.fsgroup`](#common-credentials-fsgroup-doc) | FileSystem-group of the process |
+| [`process.parent.fsuid`](#common-credentials-fsuid-doc) | FileSystem-uid of the process |
+| [`process.parent.fsuser`](#common-credentials-fsuser-doc) | FileSystem-user of the process |
+| [`process.parent.gid`](#common-credentials-gid-doc) | GID of the process |
+| [`process.parent.group`](#common-credentials-group-doc) | Group of the process |
+| [`process.parent.interpreter.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`process.parent.interpreter.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
+| [`process.parent.interpreter.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
+| [`process.parent.interpreter.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`process.parent.interpreter.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
+| [`process.parent.interpreter.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
+| [`process.parent.interpreter.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
+| [`process.parent.interpreter.file.mode`](#common-filefields-mode-doc) | Mode of the file |
+| [`process.parent.interpreter.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
+| [`process.parent.interpreter.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`process.parent.interpreter.file.name`](#common-fileevent-name-doc) | File's basename |
+| [`process.parent.interpreter.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`process.parent.interpreter.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
+| [`process.parent.interpreter.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
+| [`process.parent.interpreter.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
+| [`process.parent.interpreter.file.path`](#common-fileevent-path-doc) | File's path |
+| [`process.parent.interpreter.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`process.parent.interpreter.file.rights`](#common-filefields-rights-doc) | Rights of the file |
+| [`process.parent.interpreter.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
+| [`process.parent.interpreter.file.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`process.parent.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker |
+| [`process.parent.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
+| [`process.parent.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
+| [`process.parent.ppid`](#common-process-ppid-doc) | Parent process ID |
+| [`process.parent.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
+| [`process.parent.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
+| [`process.parent.uid`](#common-credentials-uid-doc) | UID of the process |
+| [`process.parent.user`](#common-credentials-user-doc) | User of the process |
+| [`process.parent.user_session.k8s_groups`](#common-usersessioncontext-k8s_groups-doc) | Kubernetes groups of the user that executed the process |
+| [`process.parent.user_session.k8s_uid`](#common-usersessioncontext-k8s_uid-doc) | Kubernetes UID of the user that executed the process |
+| [`process.parent.user_session.k8s_username`](#common-usersessioncontext-k8s_username-doc) | Kubernetes username of the user that executed the process |
+| [`process.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
+| [`process.ppid`](#common-process-ppid-doc) | Parent process ID |
+| [`process.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
+| [`process.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
+| [`process.uid`](#common-credentials-uid-doc) | UID of the process |
+| [`process.user`](#common-credentials-user-doc) | User of the process |
+| [`process.user_session.k8s_groups`](#common-usersessioncontext-k8s_groups-doc) | Kubernetes groups of the user that executed the process |
+| [`process.user_session.k8s_uid`](#common-usersessioncontext-k8s_uid-doc) | Kubernetes UID of the user that executed the process |
+| [`process.user_session.k8s_username`](#common-usersessioncontext-k8s_username-doc) | Kubernetes username of the user that executed the process |
+
+### Event `bind`
+
+A bind was executed
+
+| Property | Definition |
+| -------- | ------------- |
+| [`bind.addr.family`](#bind-addr-family-doc) | Address family |
+| [`bind.addr.ip`](#common-ipportcontext-ip-doc) | IP address |
+| [`bind.addr.port`](#common-ipportcontext-port-doc) | Port number |
+| [`bind.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
+
+### Event `bpf`
+
+A BPF command was executed
+
+| Property | Definition |
+| -------- | ------------- |
+| [`bpf.cmd`](#bpf-cmd-doc) | BPF command name |
+| [`bpf.map.name`](#bpf-map-name-doc) | Name of the eBPF map (added in 7.35) |
+| [`bpf.map.type`](#bpf-map-type-doc) | Type of the eBPF map |
+| [`bpf.prog.attach_type`](#bpf-prog-attach_type-doc) | Attach type of the eBPF program |
+| [`bpf.prog.helpers`](#bpf-prog-helpers-doc) | eBPF helpers used by the eBPF program (added in 7.35) |
+| [`bpf.prog.name`](#bpf-prog-name-doc) | Name of the eBPF program (added in 7.35) |
+| [`bpf.prog.tag`](#bpf-prog-tag-doc) | Hash (sha1) of the eBPF program (added in 7.35) |
+| [`bpf.prog.type`](#bpf-prog-type-doc) | Type of the eBPF program |
+| [`bpf.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
+
+### Event `capset`
+
+A process changed its capacity set
+
+| Property | Definition |
+| -------- | ------------- |
+| [`capset.cap_effective`](#capset-cap_effective-doc) | Effective capability set of the process |
+| [`capset.cap_permitted`](#capset-cap_permitted-doc) | Permitted capability set of the process |
+
+### Event `chdir`
+
+_This event type is experimental and may change in the future._
+
+A process changed the current directory
+
+| Property | Definition |
+| -------- | ------------- |
+| [`chdir.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`chdir.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
+| [`chdir.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
+| [`chdir.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`chdir.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
+| [`chdir.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
+| [`chdir.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
+| [`chdir.file.mode`](#common-filefields-mode-doc) | Mode of the file |
+| [`chdir.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
+| [`chdir.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`chdir.file.name`](#common-fileevent-name-doc) | File's basename |
+| [`chdir.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`chdir.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
+| [`chdir.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
+| [`chdir.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
+| [`chdir.file.path`](#common-fileevent-path-doc) | File's path |
+| [`chdir.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`chdir.file.rights`](#common-filefields-rights-doc) | Rights of the file |
+| [`chdir.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
+| [`chdir.file.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`chdir.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
+| [`chdir.syscall.path`](#chdir-syscall-path-doc) | path argument of the syscall |
+
+### Event `chmod`
+
+A file’s permissions were changed
+
+| Property | Definition |
+| -------- | ------------- |
+| [`chmod.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`chmod.file.destination.mode`](#chmod-file-destination-mode-doc) | New mode of the chmod-ed file |
+| [`chmod.file.destination.rights`](#chmod-file-destination-rights-doc) | New rights of the chmod-ed file |
+| [`chmod.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
+| [`chmod.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
+| [`chmod.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`chmod.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
+| [`chmod.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
+| [`chmod.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
+| [`chmod.file.mode`](#common-filefields-mode-doc) | Mode of the file |
+| [`chmod.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
+| [`chmod.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`chmod.file.name`](#common-fileevent-name-doc) | File's basename |
+| [`chmod.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`chmod.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
+| [`chmod.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
+| [`chmod.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
+| [`chmod.file.path`](#common-fileevent-path-doc) | File's path |
+| [`chmod.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`chmod.file.rights`](#common-filefields-rights-doc) | Rights of the file |
+| [`chmod.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
+| [`chmod.file.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`chmod.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
+| [`chmod.syscall.mode`](#chmod-syscall-mode-doc) | mode argument of the syscall |
+| [`chmod.syscall.path`](#chmod-syscall-path-doc) | path argument of the syscall |
+
+### Event `chown`
+
+A file’s owner was changed
+
+| Property | Definition |
+| -------- | ------------- |
+| [`chown.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`chown.file.destination.gid`](#chown-file-destination-gid-doc) | New GID of the chown-ed file's owner |
+| [`chown.file.destination.group`](#chown-file-destination-group-doc) | New group of the chown-ed file's owner |
+| [`chown.file.destination.uid`](#chown-file-destination-uid-doc) | New UID of the chown-ed file's owner |
+| [`chown.file.destination.user`](#chown-file-destination-user-doc) | New user of the chown-ed file's owner |
+| [`chown.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
+| [`chown.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
+| [`chown.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`chown.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
+| [`chown.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
+| [`chown.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
+| [`chown.file.mode`](#common-filefields-mode-doc) | Mode of the file |
+| [`chown.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
+| [`chown.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`chown.file.name`](#common-fileevent-name-doc) | File's basename |
+| [`chown.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`chown.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
+| [`chown.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
+| [`chown.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
+| [`chown.file.path`](#common-fileevent-path-doc) | File's path |
+| [`chown.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`chown.file.rights`](#common-filefields-rights-doc) | Rights of the file |
+| [`chown.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
+| [`chown.file.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`chown.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
+
+### Event `dns`
+
+A DNS request was sent
+
+| Property | Definition |
+| -------- | ------------- |
+| [`dns.id`](#dns-id-doc) | [Experimental] the DNS request ID |
+| [`dns.question.class`](#dns-question-class-doc) | the class looked up by the DNS question |
+| [`dns.question.count`](#dns-question-count-doc) | the total count of questions in the DNS request |
+| [`dns.question.length`](#dns-question-length-doc) | the total DNS request size in bytes |
+| [`dns.question.name`](#dns-question-name-doc) | the queried domain name |
+| [`dns.question.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`dns.question.type`](#dns-question-type-doc) | a two octet code which specifies the DNS question type |
+| [`network.destination.ip`](#common-ipportcontext-ip-doc) | IP address |
+| [`network.destination.port`](#common-ipportcontext-port-doc) | Port number |
+| [`network.device.ifindex`](#network-device-ifindex-doc) | interface ifindex |
+| [`network.device.ifname`](#network-device-ifname-doc) | interface ifname |
+| [`network.l3_protocol`](#network-l3_protocol-doc) | l3 protocol of the network packet |
+| [`network.l4_protocol`](#network-l4_protocol-doc) | l4 protocol of the network packet |
+| [`network.size`](#network-size-doc) | size in bytes of the network packet |
+| [`network.source.ip`](#common-ipportcontext-ip-doc) | IP address |
+| [`network.source.port`](#common-ipportcontext-port-doc) | Port number |
+
+### Event `exec`
+
+A process was executed or forked
+
+| Property | Definition |
+| -------- | ------------- |
+| [`exec.args`](#common-process-args-doc) | Arguments of the process (as a string, excluding argv0) |
+| [`exec.args_flags`](#common-process-args_flags-doc) | Flags in the process arguments |
+| [`exec.args_options`](#common-process-args_options-doc) | Argument of the process as options |
+| [`exec.args_truncated`](#common-process-args_truncated-doc) | Indicator of arguments truncation |
+| [`exec.argv`](#common-process-argv-doc) | Arguments of the process (as an array, excluding argv0) |
+| [`exec.argv0`](#common-process-argv0-doc) | First argument of the process |
+| [`exec.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
+| [`exec.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
+| [`exec.comm`](#common-process-comm-doc) | Comm attribute of the process |
+| [`exec.container.id`](#common-process-container-id-doc) | Container ID |
+| [`exec.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
+| [`exec.egid`](#common-credentials-egid-doc) | Effective GID of the process |
+| [`exec.egroup`](#common-credentials-egroup-doc) | Effective group of the process |
+| [`exec.envp`](#common-process-envp-doc) | Environment variables of the process |
+| [`exec.envs`](#common-process-envs-doc) | Environment variable names of the process |
+| [`exec.envs_truncated`](#common-process-envs_truncated-doc) | Indicator of environment variables truncation |
+| [`exec.euid`](#common-credentials-euid-doc) | Effective UID of the process |
+| [`exec.euser`](#common-credentials-euser-doc) | Effective user of the process |
+| [`exec.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`exec.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
+| [`exec.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
+| [`exec.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`exec.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
+| [`exec.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
+| [`exec.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
+| [`exec.file.mode`](#common-filefields-mode-doc) | Mode of the file |
+| [`exec.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
+| [`exec.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`exec.file.name`](#common-fileevent-name-doc) | File's basename |
+| [`exec.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`exec.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
+| [`exec.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
+| [`exec.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
+| [`exec.file.path`](#common-fileevent-path-doc) | File's path |
+| [`exec.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`exec.file.rights`](#common-filefields-rights-doc) | Rights of the file |
+| [`exec.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
+| [`exec.file.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`exec.fsgid`](#common-credentials-fsgid-doc) | FileSystem-gid of the process |
+| [`exec.fsgroup`](#common-credentials-fsgroup-doc) | FileSystem-group of the process |
+| [`exec.fsuid`](#common-credentials-fsuid-doc) | FileSystem-uid of the process |
+| [`exec.fsuser`](#common-credentials-fsuser-doc) | FileSystem-user of the process |
+| [`exec.gid`](#common-credentials-gid-doc) | GID of the process |
+| [`exec.group`](#common-credentials-group-doc) | Group of the process |
+| [`exec.interpreter.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`exec.interpreter.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
+| [`exec.interpreter.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
+| [`exec.interpreter.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`exec.interpreter.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
+| [`exec.interpreter.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
+| [`exec.interpreter.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
+| [`exec.interpreter.file.mode`](#common-filefields-mode-doc) | Mode of the file |
+| [`exec.interpreter.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
+| [`exec.interpreter.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`exec.interpreter.file.name`](#common-fileevent-name-doc) | File's basename |
+| [`exec.interpreter.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`exec.interpreter.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
+| [`exec.interpreter.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
+| [`exec.interpreter.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
+| [`exec.interpreter.file.path`](#common-fileevent-path-doc) | File's path |
+| [`exec.interpreter.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`exec.interpreter.file.rights`](#common-filefields-rights-doc) | Rights of the file |
+| [`exec.interpreter.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
+| [`exec.interpreter.file.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`exec.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker |
+| [`exec.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
+| [`exec.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
+| [`exec.ppid`](#common-process-ppid-doc) | Parent process ID |
+| [`exec.syscall.path`](#exec-syscall-path-doc) | path argument of the syscall |
+| [`exec.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
+| [`exec.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
+| [`exec.uid`](#common-credentials-uid-doc) | UID of the process |
+| [`exec.user`](#common-credentials-user-doc) | User of the process |
+| [`exec.user_session.k8s_groups`](#common-usersessioncontext-k8s_groups-doc) | Kubernetes groups of the user that executed the process |
+| [`exec.user_session.k8s_uid`](#common-usersessioncontext-k8s_uid-doc) | Kubernetes UID of the user that executed the process |
+| [`exec.user_session.k8s_username`](#common-usersessioncontext-k8s_username-doc) | Kubernetes username of the user that executed the process |
+
+### Event `exit`
+
+A process was terminated
+
+| Property | Definition |
+| -------- | ------------- |
+| [`exit.args`](#common-process-args-doc) | Arguments of the process (as a string, excluding argv0) |
+| [`exit.args_flags`](#common-process-args_flags-doc) | Flags in the process arguments |
+| [`exit.args_options`](#common-process-args_options-doc) | Argument of the process as options |
+| [`exit.args_truncated`](#common-process-args_truncated-doc) | Indicator of arguments truncation |
+| [`exit.argv`](#common-process-argv-doc) | Arguments of the process (as an array, excluding argv0) |
+| [`exit.argv0`](#common-process-argv0-doc) | First argument of the process |
+| [`exit.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
+| [`exit.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
+| [`exit.cause`](#exit-cause-doc) | Cause of the process termination (one of EXITED, SIGNALED, COREDUMPED) |
+| [`exit.code`](#exit-code-doc) | Exit code of the process or number of the signal that caused the process to terminate |
+| [`exit.comm`](#common-process-comm-doc) | Comm attribute of the process |
+| [`exit.container.id`](#common-process-container-id-doc) | Container ID |
+| [`exit.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
+| [`exit.egid`](#common-credentials-egid-doc) | Effective GID of the process |
+| [`exit.egroup`](#common-credentials-egroup-doc) | Effective group of the process |
+| [`exit.envp`](#common-process-envp-doc) | Environment variables of the process |
+| [`exit.envs`](#common-process-envs-doc) | Environment variable names of the process |
+| [`exit.envs_truncated`](#common-process-envs_truncated-doc) | Indicator of environment variables truncation |
+| [`exit.euid`](#common-credentials-euid-doc) | Effective UID of the process |
+| [`exit.euser`](#common-credentials-euser-doc) | Effective user of the process |
+| [`exit.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`exit.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
+| [`exit.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
+| [`exit.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`exit.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
+| [`exit.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
+| [`exit.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
+| [`exit.file.mode`](#common-filefields-mode-doc) | Mode of the file |
+| [`exit.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
+| [`exit.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`exit.file.name`](#common-fileevent-name-doc) | File's basename |
+| [`exit.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`exit.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
+| [`exit.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
+| [`exit.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
+| [`exit.file.path`](#common-fileevent-path-doc) | File's path |
+| [`exit.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`exit.file.rights`](#common-filefields-rights-doc) | Rights of the file |
+| [`exit.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
+| [`exit.file.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`exit.fsgid`](#common-credentials-fsgid-doc) | FileSystem-gid of the process |
+| [`exit.fsgroup`](#common-credentials-fsgroup-doc) | FileSystem-group of the process |
+| [`exit.fsuid`](#common-credentials-fsuid-doc) | FileSystem-uid of the process |
+| [`exit.fsuser`](#common-credentials-fsuser-doc) | FileSystem-user of the process |
+| [`exit.gid`](#common-credentials-gid-doc) | GID of the process |
+| [`exit.group`](#common-credentials-group-doc) | Group of the process |
+| [`exit.interpreter.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`exit.interpreter.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
+| [`exit.interpreter.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
+| [`exit.interpreter.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`exit.interpreter.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
+| [`exit.interpreter.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
+| [`exit.interpreter.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
+| [`exit.interpreter.file.mode`](#common-filefields-mode-doc) | Mode of the file |
+| [`exit.interpreter.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
+| [`exit.interpreter.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`exit.interpreter.file.name`](#common-fileevent-name-doc) | File's basename |
+| [`exit.interpreter.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`exit.interpreter.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
+| [`exit.interpreter.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
+| [`exit.interpreter.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
+| [`exit.interpreter.file.path`](#common-fileevent-path-doc) | File's path |
+| [`exit.interpreter.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`exit.interpreter.file.rights`](#common-filefields-rights-doc) | Rights of the file |
+| [`exit.interpreter.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
+| [`exit.interpreter.file.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`exit.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker |
+| [`exit.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
+| [`exit.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
+| [`exit.ppid`](#common-process-ppid-doc) | Parent process ID |
+| [`exit.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
+| [`exit.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
+| [`exit.uid`](#common-credentials-uid-doc) | UID of the process |
+| [`exit.user`](#common-credentials-user-doc) | User of the process |
+| [`exit.user_session.k8s_groups`](#common-usersessioncontext-k8s_groups-doc) | Kubernetes groups of the user that executed the process |
+| [`exit.user_session.k8s_uid`](#common-usersessioncontext-k8s_uid-doc) | Kubernetes UID of the user that executed the process |
+| [`exit.user_session.k8s_username`](#common-usersessioncontext-k8s_username-doc) | Kubernetes username of the user that executed the process |
+
+### Event `imds`
+
+An IMDS event was captured
+
+| Property | Definition |
+| -------- | ------------- |
+| [`imds.aws.is_imds_v2`](#imds-aws-is_imds_v2-doc) | a boolean which specifies if the IMDS event follows IMDSv1 or IMDSv2 conventions |
+| [`imds.aws.security_credentials.type`](#imds-aws-security_credentials-type-doc) | the security credentials type |
+| [`imds.cloud_provider`](#imds-cloud_provider-doc) | the intended cloud provider of the IMDS event |
+| [`imds.host`](#imds-host-doc) | the host of the HTTP protocol |
+| [`imds.server`](#imds-server-doc) | the server header of a response |
+| [`imds.type`](#imds-type-doc) | the type of IMDS event |
+| [`imds.url`](#imds-url-doc) | the queried IMDS URL |
+| [`imds.user_agent`](#imds-user_agent-doc) | the user agent of the HTTP client |
+
+### Event `link`
+
+Create a new name/alias for a file
+
+| Property | Definition |
+| -------- | ------------- |
+| [`link.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`link.file.destination.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`link.file.destination.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
+| [`link.file.destination.gid`](#common-filefields-gid-doc) | GID of the file's owner |
+| [`link.file.destination.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`link.file.destination.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
+| [`link.file.destination.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
+| [`link.file.destination.inode`](#common-pathkey-inode-doc) | Inode of the file |
+| [`link.file.destination.mode`](#common-filefields-mode-doc) | Mode of the file |
+| [`link.file.destination.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
+| [`link.file.destination.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`link.file.destination.name`](#common-fileevent-name-doc) | File's basename |
+| [`link.file.destination.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`link.file.destination.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
+| [`link.file.destination.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
+| [`link.file.destination.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
+| [`link.file.destination.path`](#common-fileevent-path-doc) | File's path |
+| [`link.file.destination.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`link.file.destination.rights`](#common-filefields-rights-doc) | Rights of the file |
+| [`link.file.destination.uid`](#common-filefields-uid-doc) | UID of the file's owner |
+| [`link.file.destination.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`link.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
+| [`link.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
+| [`link.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`link.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
+| [`link.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
+| [`link.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
+| [`link.file.mode`](#common-filefields-mode-doc) | Mode of the file |
+| [`link.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
+| [`link.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`link.file.name`](#common-fileevent-name-doc) | File's basename |
+| [`link.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`link.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
+| [`link.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
+| [`link.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
+| [`link.file.path`](#common-fileevent-path-doc) | File's path |
+| [`link.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`link.file.rights`](#common-filefields-rights-doc) | Rights of the file |
+| [`link.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
+| [`link.file.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`link.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
+
+### Event `load_module`
+
+A new kernel module was loaded
+
+| Property | Definition |
+| -------- | ------------- |
+| [`load_module.args`](#load_module-args-doc) | Parameters (as a string) of the new kernel module |
+| [`load_module.args_truncated`](#load_module-args_truncated-doc) | Indicates if the arguments were truncated or not |
+| [`load_module.argv`](#load_module-argv-doc) | Parameters (as an array) of the new kernel module |
+| [`load_module.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`load_module.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
+| [`load_module.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
+| [`load_module.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`load_module.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
+| [`load_module.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
+| [`load_module.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
+| [`load_module.file.mode`](#common-filefields-mode-doc) | Mode of the file |
+| [`load_module.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
+| [`load_module.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`load_module.file.name`](#common-fileevent-name-doc) | File's basename |
+| [`load_module.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`load_module.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
+| [`load_module.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
+| [`load_module.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
+| [`load_module.file.path`](#common-fileevent-path-doc) | File's path |
+| [`load_module.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`load_module.file.rights`](#common-filefields-rights-doc) | Rights of the file |
+| [`load_module.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
+| [`load_module.file.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`load_module.loaded_from_memory`](#load_module-loaded_from_memory-doc) | Indicates if the kernel module was loaded from memory |
+| [`load_module.name`](#load_module-name-doc) | Name of the new kernel module |
+| [`load_module.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
+
+### Event `mkdir`
+
+A directory was created
+
+| Property | Definition |
+| -------- | ------------- |
+| [`mkdir.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`mkdir.file.destination.mode`](#mkdir-file-destination-mode-doc) | Mode of the new directory |
+| [`mkdir.file.destination.rights`](#mkdir-file-destination-rights-doc) | Rights of the new directory |
+| [`mkdir.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
+| [`mkdir.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
+| [`mkdir.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`mkdir.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
+| [`mkdir.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
+| [`mkdir.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
+| [`mkdir.file.mode`](#common-filefields-mode-doc) | Mode of the file |
+| [`mkdir.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
+| [`mkdir.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`mkdir.file.name`](#common-fileevent-name-doc) | File's basename |
+| [`mkdir.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`mkdir.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
+| [`mkdir.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
+| [`mkdir.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
+| [`mkdir.file.path`](#common-fileevent-path-doc) | File's path |
+| [`mkdir.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`mkdir.file.rights`](#common-filefields-rights-doc) | Rights of the file |
+| [`mkdir.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
+| [`mkdir.file.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`mkdir.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
+
+### Event `mmap`
+
+A mmap command was executed
+
+| Property | Definition |
+| -------- | ------------- |
+| [`mmap.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`mmap.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
+| [`mmap.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
+| [`mmap.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`mmap.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
+| [`mmap.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
+| [`mmap.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
+| [`mmap.file.mode`](#common-filefields-mode-doc) | Mode of the file |
+| [`mmap.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
+| [`mmap.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`mmap.file.name`](#common-fileevent-name-doc) | File's basename |
+| [`mmap.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`mmap.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
+| [`mmap.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
+| [`mmap.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
+| [`mmap.file.path`](#common-fileevent-path-doc) | File's path |
+| [`mmap.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`mmap.file.rights`](#common-filefields-rights-doc) | Rights of the file |
+| [`mmap.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
+| [`mmap.file.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`mmap.flags`](#mmap-flags-doc) | memory segment flags |
+| [`mmap.protection`](#mmap-protection-doc) | memory segment protection |
+| [`mmap.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
+
+### Event `mount`
+
+_This event type is experimental and may change in the future._
+
+A filesystem was mounted
+
+| Property | Definition |
+| -------- | ------------- |
+| [`mount.fs_type`](#mount-fs_type-doc) | Type of the mounted file system |
+| [`mount.mountpoint.path`](#mount-mountpoint-path-doc) | Path of the mount point |
+| [`mount.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
+| [`mount.root.path`](#mount-root-path-doc) | Root path of the mount |
+| [`mount.source.path`](#mount-source-path-doc) | Source path of a bind mount |
+
+### Event `mprotect`
+
+A mprotect command was executed
+
+| Property | Definition |
+| -------- | ------------- |
+| [`mprotect.req_protection`](#mprotect-req_protection-doc) | new memory segment protection |
+| [`mprotect.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
+| [`mprotect.vm_protection`](#mprotect-vm_protection-doc) | initial memory segment protection |
+
+### Event `open`
+
+A file was opened
+
+| Property | Definition |
+| -------- | ------------- |
+| [`open.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`open.file.destination.mode`](#open-file-destination-mode-doc) | Mode of the created file |
+| [`open.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
+| [`open.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
+| [`open.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`open.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
+| [`open.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
+| [`open.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
+| [`open.file.mode`](#common-filefields-mode-doc) | Mode of the file |
+| [`open.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
+| [`open.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`open.file.name`](#common-fileevent-name-doc) | File's basename |
+| [`open.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`open.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
+| [`open.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
+| [`open.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
+| [`open.file.path`](#common-fileevent-path-doc) | File's path |
+| [`open.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`open.file.rights`](#common-filefields-rights-doc) | Rights of the file |
+| [`open.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
+| [`open.file.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`open.flags`](#open-flags-doc) | Flags used when opening the file |
+| [`open.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
+
+### Event `ptrace`
+
+A ptrace command was executed
+
+| Property | Definition |
+| -------- | ------------- |
+| [`ptrace.request`](#ptrace-request-doc) | ptrace request |
+| [`ptrace.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
+| [`ptrace.tracee.ancestors.args`](#common-process-args-doc) | Arguments of the process (as a string, excluding argv0) |
+| [`ptrace.tracee.ancestors.args_flags`](#common-process-args_flags-doc) | Flags in the process arguments |
+| [`ptrace.tracee.ancestors.args_options`](#common-process-args_options-doc) | Argument of the process as options |
+| [`ptrace.tracee.ancestors.args_truncated`](#common-process-args_truncated-doc) | Indicator of arguments truncation |
+| [`ptrace.tracee.ancestors.argv`](#common-process-argv-doc) | Arguments of the process (as an array, excluding argv0) |
+| [`ptrace.tracee.ancestors.argv0`](#common-process-argv0-doc) | First argument of the process |
+| [`ptrace.tracee.ancestors.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
+| [`ptrace.tracee.ancestors.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
+| [`ptrace.tracee.ancestors.comm`](#common-process-comm-doc) | Comm attribute of the process |
+| [`ptrace.tracee.ancestors.container.id`](#common-process-container-id-doc) | Container ID |
+| [`ptrace.tracee.ancestors.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
+| [`ptrace.tracee.ancestors.egid`](#common-credentials-egid-doc) | Effective GID of the process |
+| [`ptrace.tracee.ancestors.egroup`](#common-credentials-egroup-doc) | Effective group of the process |
+| [`ptrace.tracee.ancestors.envp`](#common-process-envp-doc) | Environment variables of the process |
+| [`ptrace.tracee.ancestors.envs`](#common-process-envs-doc) | Environment variable names of the process |
+| [`ptrace.tracee.ancestors.envs_truncated`](#common-process-envs_truncated-doc) | Indicator of environment variables truncation |
+| [`ptrace.tracee.ancestors.euid`](#common-credentials-euid-doc) | Effective UID of the process |
+| [`ptrace.tracee.ancestors.euser`](#common-credentials-euser-doc) | Effective user of the process |
+| [`ptrace.tracee.ancestors.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`ptrace.tracee.ancestors.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
+| [`ptrace.tracee.ancestors.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
+| [`ptrace.tracee.ancestors.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`ptrace.tracee.ancestors.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
+| [`ptrace.tracee.ancestors.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
+| [`ptrace.tracee.ancestors.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
+| [`ptrace.tracee.ancestors.file.mode`](#common-filefields-mode-doc) | Mode of the file |
+| [`ptrace.tracee.ancestors.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
+| [`ptrace.tracee.ancestors.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`ptrace.tracee.ancestors.file.name`](#common-fileevent-name-doc) | File's basename |
+| [`ptrace.tracee.ancestors.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`ptrace.tracee.ancestors.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
+| [`ptrace.tracee.ancestors.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
+| [`ptrace.tracee.ancestors.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
+| [`ptrace.tracee.ancestors.file.path`](#common-fileevent-path-doc) | File's path |
+| [`ptrace.tracee.ancestors.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`ptrace.tracee.ancestors.file.rights`](#common-filefields-rights-doc) | Rights of the file |
+| [`ptrace.tracee.ancestors.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
+| [`ptrace.tracee.ancestors.file.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`ptrace.tracee.ancestors.fsgid`](#common-credentials-fsgid-doc) | FileSystem-gid of the process |
+| [`ptrace.tracee.ancestors.fsgroup`](#common-credentials-fsgroup-doc) | FileSystem-group of the process |
+| [`ptrace.tracee.ancestors.fsuid`](#common-credentials-fsuid-doc) | FileSystem-uid of the process |
+| [`ptrace.tracee.ancestors.fsuser`](#common-credentials-fsuser-doc) | FileSystem-user of the process |
+| [`ptrace.tracee.ancestors.gid`](#common-credentials-gid-doc) | GID of the process |
+| [`ptrace.tracee.ancestors.group`](#common-credentials-group-doc) | Group of the process |
+| [`ptrace.tracee.ancestors.interpreter.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`ptrace.tracee.ancestors.interpreter.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
+| [`ptrace.tracee.ancestors.interpreter.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
+| [`ptrace.tracee.ancestors.interpreter.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`ptrace.tracee.ancestors.interpreter.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
+| [`ptrace.tracee.ancestors.interpreter.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
+| [`ptrace.tracee.ancestors.interpreter.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
+| [`ptrace.tracee.ancestors.interpreter.file.mode`](#common-filefields-mode-doc) | Mode of the file |
+| [`ptrace.tracee.ancestors.interpreter.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
+| [`ptrace.tracee.ancestors.interpreter.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`ptrace.tracee.ancestors.interpreter.file.name`](#common-fileevent-name-doc) | File's basename |
+| [`ptrace.tracee.ancestors.interpreter.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`ptrace.tracee.ancestors.interpreter.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
+| [`ptrace.tracee.ancestors.interpreter.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
+| [`ptrace.tracee.ancestors.interpreter.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
+| [`ptrace.tracee.ancestors.interpreter.file.path`](#common-fileevent-path-doc) | File's path |
+| [`ptrace.tracee.ancestors.interpreter.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`ptrace.tracee.ancestors.interpreter.file.rights`](#common-filefields-rights-doc) | Rights of the file |
+| [`ptrace.tracee.ancestors.interpreter.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
+| [`ptrace.tracee.ancestors.interpreter.file.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`ptrace.tracee.ancestors.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker |
+| [`ptrace.tracee.ancestors.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
+| [`ptrace.tracee.ancestors.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
+| [`ptrace.tracee.ancestors.ppid`](#common-process-ppid-doc) | Parent process ID |
+| [`ptrace.tracee.ancestors.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
+| [`ptrace.tracee.ancestors.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
+| [`ptrace.tracee.ancestors.uid`](#common-credentials-uid-doc) | UID of the process |
+| [`ptrace.tracee.ancestors.user`](#common-credentials-user-doc) | User of the process |
+| [`ptrace.tracee.ancestors.user_session.k8s_groups`](#common-usersessioncontext-k8s_groups-doc) | Kubernetes groups of the user that executed the process |
+| [`ptrace.tracee.ancestors.user_session.k8s_uid`](#common-usersessioncontext-k8s_uid-doc) | Kubernetes UID of the user that executed the process |
+| [`ptrace.tracee.ancestors.user_session.k8s_username`](#common-usersessioncontext-k8s_username-doc) | Kubernetes username of the user that executed the process |
+| [`ptrace.tracee.args`](#common-process-args-doc) | Arguments of the process (as a string, excluding argv0) |
+| [`ptrace.tracee.args_flags`](#common-process-args_flags-doc) | Flags in the process arguments |
+| [`ptrace.tracee.args_options`](#common-process-args_options-doc) | Argument of the process as options |
+| [`ptrace.tracee.args_truncated`](#common-process-args_truncated-doc) | Indicator of arguments truncation |
+| [`ptrace.tracee.argv`](#common-process-argv-doc) | Arguments of the process (as an array, excluding argv0) |
+| [`ptrace.tracee.argv0`](#common-process-argv0-doc) | First argument of the process |
+| [`ptrace.tracee.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
+| [`ptrace.tracee.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
+| [`ptrace.tracee.comm`](#common-process-comm-doc) | Comm attribute of the process |
+| [`ptrace.tracee.container.id`](#common-process-container-id-doc) | Container ID |
+| [`ptrace.tracee.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
+| [`ptrace.tracee.egid`](#common-credentials-egid-doc) | Effective GID of the process |
+| [`ptrace.tracee.egroup`](#common-credentials-egroup-doc) | Effective group of the process |
+| [`ptrace.tracee.envp`](#common-process-envp-doc) | Environment variables of the process |
+| [`ptrace.tracee.envs`](#common-process-envs-doc) | Environment variable names of the process |
+| [`ptrace.tracee.envs_truncated`](#common-process-envs_truncated-doc) | Indicator of environment variables truncation |
+| [`ptrace.tracee.euid`](#common-credentials-euid-doc) | Effective UID of the process |
+| [`ptrace.tracee.euser`](#common-credentials-euser-doc) | Effective user of the process |
+| [`ptrace.tracee.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`ptrace.tracee.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
+| [`ptrace.tracee.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
+| [`ptrace.tracee.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`ptrace.tracee.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
+| [`ptrace.tracee.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
+| [`ptrace.tracee.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
+| [`ptrace.tracee.file.mode`](#common-filefields-mode-doc) | Mode of the file |
+| [`ptrace.tracee.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
+| [`ptrace.tracee.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`ptrace.tracee.file.name`](#common-fileevent-name-doc) | File's basename |
+| [`ptrace.tracee.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`ptrace.tracee.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
+| [`ptrace.tracee.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
+| [`ptrace.tracee.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
+| [`ptrace.tracee.file.path`](#common-fileevent-path-doc) | File's path |
+| [`ptrace.tracee.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`ptrace.tracee.file.rights`](#common-filefields-rights-doc) | Rights of the file |
+| [`ptrace.tracee.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
+| [`ptrace.tracee.file.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`ptrace.tracee.fsgid`](#common-credentials-fsgid-doc) | FileSystem-gid of the process |
+| [`ptrace.tracee.fsgroup`](#common-credentials-fsgroup-doc) | FileSystem-group of the process |
+| [`ptrace.tracee.fsuid`](#common-credentials-fsuid-doc) | FileSystem-uid of the process |
+| [`ptrace.tracee.fsuser`](#common-credentials-fsuser-doc) | FileSystem-user of the process |
+| [`ptrace.tracee.gid`](#common-credentials-gid-doc) | GID of the process |
+| [`ptrace.tracee.group`](#common-credentials-group-doc) | Group of the process |
+| [`ptrace.tracee.interpreter.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`ptrace.tracee.interpreter.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
+| [`ptrace.tracee.interpreter.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
+| [`ptrace.tracee.interpreter.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`ptrace.tracee.interpreter.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
+| [`ptrace.tracee.interpreter.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
+| [`ptrace.tracee.interpreter.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
+| [`ptrace.tracee.interpreter.file.mode`](#common-filefields-mode-doc) | Mode of the file |
+| [`ptrace.tracee.interpreter.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
+| [`ptrace.tracee.interpreter.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`ptrace.tracee.interpreter.file.name`](#common-fileevent-name-doc) | File's basename |
+| [`ptrace.tracee.interpreter.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`ptrace.tracee.interpreter.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
+| [`ptrace.tracee.interpreter.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
+| [`ptrace.tracee.interpreter.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
+| [`ptrace.tracee.interpreter.file.path`](#common-fileevent-path-doc) | File's path |
+| [`ptrace.tracee.interpreter.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`ptrace.tracee.interpreter.file.rights`](#common-filefields-rights-doc) | Rights of the file |
+| [`ptrace.tracee.interpreter.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
+| [`ptrace.tracee.interpreter.file.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`ptrace.tracee.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker |
+| [`ptrace.tracee.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
+| [`ptrace.tracee.parent.args`](#common-process-args-doc) | Arguments of the process (as a string, excluding argv0) |
+| [`ptrace.tracee.parent.args_flags`](#common-process-args_flags-doc) | Flags in the process arguments |
+| [`ptrace.tracee.parent.args_options`](#common-process-args_options-doc) | Argument of the process as options |
+| [`ptrace.tracee.parent.args_truncated`](#common-process-args_truncated-doc) | Indicator of arguments truncation |
+| [`ptrace.tracee.parent.argv`](#common-process-argv-doc) | Arguments of the process (as an array, excluding argv0) |
+| [`ptrace.tracee.parent.argv0`](#common-process-argv0-doc) | First argument of the process |
+| [`ptrace.tracee.parent.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
+| [`ptrace.tracee.parent.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
+| [`ptrace.tracee.parent.comm`](#common-process-comm-doc) | Comm attribute of the process |
+| [`ptrace.tracee.parent.container.id`](#common-process-container-id-doc) | Container ID |
+| [`ptrace.tracee.parent.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
+| [`ptrace.tracee.parent.egid`](#common-credentials-egid-doc) | Effective GID of the process |
+| [`ptrace.tracee.parent.egroup`](#common-credentials-egroup-doc) | Effective group of the process |
+| [`ptrace.tracee.parent.envp`](#common-process-envp-doc) | Environment variables of the process |
+| [`ptrace.tracee.parent.envs`](#common-process-envs-doc) | Environment variable names of the process |
+| [`ptrace.tracee.parent.envs_truncated`](#common-process-envs_truncated-doc) | Indicator of environment variables truncation |
+| [`ptrace.tracee.parent.euid`](#common-credentials-euid-doc) | Effective UID of the process |
+| [`ptrace.tracee.parent.euser`](#common-credentials-euser-doc) | Effective user of the process |
+| [`ptrace.tracee.parent.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`ptrace.tracee.parent.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
+| [`ptrace.tracee.parent.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
+| [`ptrace.tracee.parent.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`ptrace.tracee.parent.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
+| [`ptrace.tracee.parent.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
+| [`ptrace.tracee.parent.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
+| [`ptrace.tracee.parent.file.mode`](#common-filefields-mode-doc) | Mode of the file |
+| [`ptrace.tracee.parent.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
+| [`ptrace.tracee.parent.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`ptrace.tracee.parent.file.name`](#common-fileevent-name-doc) | File's basename |
+| [`ptrace.tracee.parent.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`ptrace.tracee.parent.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
+| [`ptrace.tracee.parent.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
+| [`ptrace.tracee.parent.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
+| [`ptrace.tracee.parent.file.path`](#common-fileevent-path-doc) | File's path |
+| [`ptrace.tracee.parent.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`ptrace.tracee.parent.file.rights`](#common-filefields-rights-doc) | Rights of the file |
+| [`ptrace.tracee.parent.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
+| [`ptrace.tracee.parent.file.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`ptrace.tracee.parent.fsgid`](#common-credentials-fsgid-doc) | FileSystem-gid of the process |
+| [`ptrace.tracee.parent.fsgroup`](#common-credentials-fsgroup-doc) | FileSystem-group of the process |
+| [`ptrace.tracee.parent.fsuid`](#common-credentials-fsuid-doc) | FileSystem-uid of the process |
+| [`ptrace.tracee.parent.fsuser`](#common-credentials-fsuser-doc) | FileSystem-user of the process |
+| [`ptrace.tracee.parent.gid`](#common-credentials-gid-doc) | GID of the process |
+| [`ptrace.tracee.parent.group`](#common-credentials-group-doc) | Group of the process |
+| [`ptrace.tracee.parent.interpreter.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`ptrace.tracee.parent.interpreter.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
+| [`ptrace.tracee.parent.interpreter.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
+| [`ptrace.tracee.parent.interpreter.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`ptrace.tracee.parent.interpreter.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
+| [`ptrace.tracee.parent.interpreter.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
+| [`ptrace.tracee.parent.interpreter.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
+| [`ptrace.tracee.parent.interpreter.file.mode`](#common-filefields-mode-doc) | Mode of the file |
+| [`ptrace.tracee.parent.interpreter.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
+| [`ptrace.tracee.parent.interpreter.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`ptrace.tracee.parent.interpreter.file.name`](#common-fileevent-name-doc) | File's basename |
+| [`ptrace.tracee.parent.interpreter.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`ptrace.tracee.parent.interpreter.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
+| [`ptrace.tracee.parent.interpreter.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
+| [`ptrace.tracee.parent.interpreter.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
+| [`ptrace.tracee.parent.interpreter.file.path`](#common-fileevent-path-doc) | File's path |
+| [`ptrace.tracee.parent.interpreter.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`ptrace.tracee.parent.interpreter.file.rights`](#common-filefields-rights-doc) | Rights of the file |
+| [`ptrace.tracee.parent.interpreter.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
+| [`ptrace.tracee.parent.interpreter.file.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`ptrace.tracee.parent.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker |
+| [`ptrace.tracee.parent.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
+| [`ptrace.tracee.parent.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
+| [`ptrace.tracee.parent.ppid`](#common-process-ppid-doc) | Parent process ID |
+| [`ptrace.tracee.parent.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
+| [`ptrace.tracee.parent.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
+| [`ptrace.tracee.parent.uid`](#common-credentials-uid-doc) | UID of the process |
+| [`ptrace.tracee.parent.user`](#common-credentials-user-doc) | User of the process |
+| [`ptrace.tracee.parent.user_session.k8s_groups`](#common-usersessioncontext-k8s_groups-doc) | Kubernetes groups of the user that executed the process |
+| [`ptrace.tracee.parent.user_session.k8s_uid`](#common-usersessioncontext-k8s_uid-doc) | Kubernetes UID of the user that executed the process |
+| [`ptrace.tracee.parent.user_session.k8s_username`](#common-usersessioncontext-k8s_username-doc) | Kubernetes username of the user that executed the process |
+| [`ptrace.tracee.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
+| [`ptrace.tracee.ppid`](#common-process-ppid-doc) | Parent process ID |
+| [`ptrace.tracee.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
+| [`ptrace.tracee.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
+| [`ptrace.tracee.uid`](#common-credentials-uid-doc) | UID of the process |
+| [`ptrace.tracee.user`](#common-credentials-user-doc) | User of the process |
+| [`ptrace.tracee.user_session.k8s_groups`](#common-usersessioncontext-k8s_groups-doc) | Kubernetes groups of the user that executed the process |
+| [`ptrace.tracee.user_session.k8s_uid`](#common-usersessioncontext-k8s_uid-doc) | Kubernetes UID of the user that executed the process |
+| [`ptrace.tracee.user_session.k8s_username`](#common-usersessioncontext-k8s_username-doc) | Kubernetes username of the user that executed the process |
+
+### Event `removexattr`
+
+Remove extended attributes
+
+| Property | Definition |
+| -------- | ------------- |
+| [`removexattr.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`removexattr.file.destination.name`](#common-setxattrevent-file-destination-name-doc) | Name of the extended attribute |
+| [`removexattr.file.destination.namespace`](#common-setxattrevent-file-destination-namespace-doc) | Namespace of the extended attribute |
+| [`removexattr.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
+| [`removexattr.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
+| [`removexattr.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`removexattr.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
+| [`removexattr.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
+| [`removexattr.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
+| [`removexattr.file.mode`](#common-filefields-mode-doc) | Mode of the file |
+| [`removexattr.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
+| [`removexattr.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`removexattr.file.name`](#common-fileevent-name-doc) | File's basename |
+| [`removexattr.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`removexattr.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
+| [`removexattr.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
+| [`removexattr.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
+| [`removexattr.file.path`](#common-fileevent-path-doc) | File's path |
+| [`removexattr.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`removexattr.file.rights`](#common-filefields-rights-doc) | Rights of the file |
+| [`removexattr.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
+| [`removexattr.file.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`removexattr.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
+
+### Event `rename`
+
+A file/directory was renamed
+
+| Property | Definition |
+| -------- | ------------- |
+| [`rename.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`rename.file.destination.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`rename.file.destination.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
+| [`rename.file.destination.gid`](#common-filefields-gid-doc) | GID of the file's owner |
+| [`rename.file.destination.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`rename.file.destination.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
+| [`rename.file.destination.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
+| [`rename.file.destination.inode`](#common-pathkey-inode-doc) | Inode of the file |
+| [`rename.file.destination.mode`](#common-filefields-mode-doc) | Mode of the file |
+| [`rename.file.destination.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
+| [`rename.file.destination.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`rename.file.destination.name`](#common-fileevent-name-doc) | File's basename |
+| [`rename.file.destination.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`rename.file.destination.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
+| [`rename.file.destination.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
+| [`rename.file.destination.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
+| [`rename.file.destination.path`](#common-fileevent-path-doc) | File's path |
+| [`rename.file.destination.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`rename.file.destination.rights`](#common-filefields-rights-doc) | Rights of the file |
+| [`rename.file.destination.uid`](#common-filefields-uid-doc) | UID of the file's owner |
+| [`rename.file.destination.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`rename.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
+| [`rename.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
+| [`rename.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`rename.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
+| [`rename.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
+| [`rename.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
+| [`rename.file.mode`](#common-filefields-mode-doc) | Mode of the file |
+| [`rename.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
+| [`rename.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`rename.file.name`](#common-fileevent-name-doc) | File's basename |
+| [`rename.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`rename.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
+| [`rename.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
+| [`rename.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
+| [`rename.file.path`](#common-fileevent-path-doc) | File's path |
+| [`rename.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`rename.file.rights`](#common-filefields-rights-doc) | Rights of the file |
+| [`rename.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
+| [`rename.file.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`rename.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
+
+### Event `rmdir`
+
+A directory was removed
+
+| Property | Definition |
+| -------- | ------------- |
+| [`rmdir.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`rmdir.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
+| [`rmdir.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
+| [`rmdir.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`rmdir.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
+| [`rmdir.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
+| [`rmdir.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
+| [`rmdir.file.mode`](#common-filefields-mode-doc) | Mode of the file |
+| [`rmdir.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
+| [`rmdir.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`rmdir.file.name`](#common-fileevent-name-doc) | File's basename |
+| [`rmdir.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`rmdir.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
+| [`rmdir.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
+| [`rmdir.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
+| [`rmdir.file.path`](#common-fileevent-path-doc) | File's path |
+| [`rmdir.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`rmdir.file.rights`](#common-filefields-rights-doc) | Rights of the file |
+| [`rmdir.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
+| [`rmdir.file.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`rmdir.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
+
+### Event `selinux`
+
+An SELinux operation was run
+
+| Property | Definition |
+| -------- | ------------- |
+| [`selinux.bool.name`](#selinux-bool-name-doc) | SELinux boolean name |
+| [`selinux.bool.state`](#selinux-bool-state-doc) | SELinux boolean new value |
+| [`selinux.bool_commit.state`](#selinux-bool_commit-state-doc) | Indicator of a SELinux boolean commit operation |
+| [`selinux.enforce.status`](#selinux-enforce-status-doc) | SELinux enforcement status (one of "enforcing", "permissive", "disabled") |
+
+### Event `setgid`
+
+A process changed its effective gid
+
+| Property | Definition |
+| -------- | ------------- |
+| [`setgid.egid`](#setgid-egid-doc) | New effective GID of the process |
+| [`setgid.egroup`](#setgid-egroup-doc) | New effective group of the process |
+| [`setgid.fsgid`](#setgid-fsgid-doc) | New FileSystem GID of the process |
+| [`setgid.fsgroup`](#setgid-fsgroup-doc) | New FileSystem group of the process |
+| [`setgid.gid`](#setgid-gid-doc) | New GID of the process |
+| [`setgid.group`](#setgid-group-doc) | New group of the process |
+
+### Event `setuid`
+
+A process changed its effective uid
+
+| Property | Definition |
+| -------- | ------------- |
+| [`setuid.euid`](#setuid-euid-doc) | New effective UID of the process |
+| [`setuid.euser`](#setuid-euser-doc) | New effective user of the process |
+| [`setuid.fsuid`](#setuid-fsuid-doc) | New FileSystem UID of the process |
+| [`setuid.fsuser`](#setuid-fsuser-doc) | New FileSystem user of the process |
+| [`setuid.uid`](#setuid-uid-doc) | New UID of the process |
+| [`setuid.user`](#setuid-user-doc) | New user of the process |
+
+### Event `setxattr`
+
+Set exteneded attributes
+
+| Property | Definition |
+| -------- | ------------- |
+| [`setxattr.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`setxattr.file.destination.name`](#common-setxattrevent-file-destination-name-doc) | Name of the extended attribute |
+| [`setxattr.file.destination.namespace`](#common-setxattrevent-file-destination-namespace-doc) | Namespace of the extended attribute |
+| [`setxattr.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
+| [`setxattr.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
+| [`setxattr.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`setxattr.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
+| [`setxattr.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
+| [`setxattr.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
+| [`setxattr.file.mode`](#common-filefields-mode-doc) | Mode of the file |
+| [`setxattr.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
+| [`setxattr.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`setxattr.file.name`](#common-fileevent-name-doc) | File's basename |
+| [`setxattr.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`setxattr.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
+| [`setxattr.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
+| [`setxattr.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
+| [`setxattr.file.path`](#common-fileevent-path-doc) | File's path |
+| [`setxattr.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`setxattr.file.rights`](#common-filefields-rights-doc) | Rights of the file |
+| [`setxattr.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
+| [`setxattr.file.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`setxattr.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
+
+### Event `signal`
+
+A signal was sent
+
+| Property | Definition |
+| -------- | ------------- |
+| [`signal.pid`](#signal-pid-doc) | Target PID |
+| [`signal.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
+| [`signal.target.ancestors.args`](#common-process-args-doc) | Arguments of the process (as a string, excluding argv0) |
+| [`signal.target.ancestors.args_flags`](#common-process-args_flags-doc) | Flags in the process arguments |
+| [`signal.target.ancestors.args_options`](#common-process-args_options-doc) | Argument of the process as options |
+| [`signal.target.ancestors.args_truncated`](#common-process-args_truncated-doc) | Indicator of arguments truncation |
+| [`signal.target.ancestors.argv`](#common-process-argv-doc) | Arguments of the process (as an array, excluding argv0) |
+| [`signal.target.ancestors.argv0`](#common-process-argv0-doc) | First argument of the process |
+| [`signal.target.ancestors.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
+| [`signal.target.ancestors.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
+| [`signal.target.ancestors.comm`](#common-process-comm-doc) | Comm attribute of the process |
+| [`signal.target.ancestors.container.id`](#common-process-container-id-doc) | Container ID |
+| [`signal.target.ancestors.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
+| [`signal.target.ancestors.egid`](#common-credentials-egid-doc) | Effective GID of the process |
+| [`signal.target.ancestors.egroup`](#common-credentials-egroup-doc) | Effective group of the process |
+| [`signal.target.ancestors.envp`](#common-process-envp-doc) | Environment variables of the process |
+| [`signal.target.ancestors.envs`](#common-process-envs-doc) | Environment variable names of the process |
+| [`signal.target.ancestors.envs_truncated`](#common-process-envs_truncated-doc) | Indicator of environment variables truncation |
+| [`signal.target.ancestors.euid`](#common-credentials-euid-doc) | Effective UID of the process |
+| [`signal.target.ancestors.euser`](#common-credentials-euser-doc) | Effective user of the process |
+| [`signal.target.ancestors.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`signal.target.ancestors.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
+| [`signal.target.ancestors.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
+| [`signal.target.ancestors.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`signal.target.ancestors.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
+| [`signal.target.ancestors.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
+| [`signal.target.ancestors.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
+| [`signal.target.ancestors.file.mode`](#common-filefields-mode-doc) | Mode of the file |
+| [`signal.target.ancestors.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
+| [`signal.target.ancestors.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`signal.target.ancestors.file.name`](#common-fileevent-name-doc) | File's basename |
+| [`signal.target.ancestors.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`signal.target.ancestors.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
+| [`signal.target.ancestors.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
+| [`signal.target.ancestors.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
+| [`signal.target.ancestors.file.path`](#common-fileevent-path-doc) | File's path |
+| [`signal.target.ancestors.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`signal.target.ancestors.file.rights`](#common-filefields-rights-doc) | Rights of the file |
+| [`signal.target.ancestors.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
+| [`signal.target.ancestors.file.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`signal.target.ancestors.fsgid`](#common-credentials-fsgid-doc) | FileSystem-gid of the process |
+| [`signal.target.ancestors.fsgroup`](#common-credentials-fsgroup-doc) | FileSystem-group of the process |
+| [`signal.target.ancestors.fsuid`](#common-credentials-fsuid-doc) | FileSystem-uid of the process |
+| [`signal.target.ancestors.fsuser`](#common-credentials-fsuser-doc) | FileSystem-user of the process |
+| [`signal.target.ancestors.gid`](#common-credentials-gid-doc) | GID of the process |
+| [`signal.target.ancestors.group`](#common-credentials-group-doc) | Group of the process |
+| [`signal.target.ancestors.interpreter.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`signal.target.ancestors.interpreter.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
+| [`signal.target.ancestors.interpreter.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
+| [`signal.target.ancestors.interpreter.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`signal.target.ancestors.interpreter.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
+| [`signal.target.ancestors.interpreter.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
+| [`signal.target.ancestors.interpreter.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
+| [`signal.target.ancestors.interpreter.file.mode`](#common-filefields-mode-doc) | Mode of the file |
+| [`signal.target.ancestors.interpreter.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
+| [`signal.target.ancestors.interpreter.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`signal.target.ancestors.interpreter.file.name`](#common-fileevent-name-doc) | File's basename |
+| [`signal.target.ancestors.interpreter.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`signal.target.ancestors.interpreter.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
+| [`signal.target.ancestors.interpreter.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
+| [`signal.target.ancestors.interpreter.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
+| [`signal.target.ancestors.interpreter.file.path`](#common-fileevent-path-doc) | File's path |
+| [`signal.target.ancestors.interpreter.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`signal.target.ancestors.interpreter.file.rights`](#common-filefields-rights-doc) | Rights of the file |
+| [`signal.target.ancestors.interpreter.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
+| [`signal.target.ancestors.interpreter.file.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`signal.target.ancestors.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker |
+| [`signal.target.ancestors.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
+| [`signal.target.ancestors.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
+| [`signal.target.ancestors.ppid`](#common-process-ppid-doc) | Parent process ID |
+| [`signal.target.ancestors.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
+| [`signal.target.ancestors.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
+| [`signal.target.ancestors.uid`](#common-credentials-uid-doc) | UID of the process |
+| [`signal.target.ancestors.user`](#common-credentials-user-doc) | User of the process |
+| [`signal.target.ancestors.user_session.k8s_groups`](#common-usersessioncontext-k8s_groups-doc) | Kubernetes groups of the user that executed the process |
+| [`signal.target.ancestors.user_session.k8s_uid`](#common-usersessioncontext-k8s_uid-doc) | Kubernetes UID of the user that executed the process |
+| [`signal.target.ancestors.user_session.k8s_username`](#common-usersessioncontext-k8s_username-doc) | Kubernetes username of the user that executed the process |
+| [`signal.target.args`](#common-process-args-doc) | Arguments of the process (as a string, excluding argv0) |
+| [`signal.target.args_flags`](#common-process-args_flags-doc) | Flags in the process arguments |
+| [`signal.target.args_options`](#common-process-args_options-doc) | Argument of the process as options |
+| [`signal.target.args_truncated`](#common-process-args_truncated-doc) | Indicator of arguments truncation |
+| [`signal.target.argv`](#common-process-argv-doc) | Arguments of the process (as an array, excluding argv0) |
+| [`signal.target.argv0`](#common-process-argv0-doc) | First argument of the process |
+| [`signal.target.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
+| [`signal.target.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
+| [`signal.target.comm`](#common-process-comm-doc) | Comm attribute of the process |
+| [`signal.target.container.id`](#common-process-container-id-doc) | Container ID |
+| [`signal.target.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
+| [`signal.target.egid`](#common-credentials-egid-doc) | Effective GID of the process |
+| [`signal.target.egroup`](#common-credentials-egroup-doc) | Effective group of the process |
+| [`signal.target.envp`](#common-process-envp-doc) | Environment variables of the process |
+| [`signal.target.envs`](#common-process-envs-doc) | Environment variable names of the process |
+| [`signal.target.envs_truncated`](#common-process-envs_truncated-doc) | Indicator of environment variables truncation |
+| [`signal.target.euid`](#common-credentials-euid-doc) | Effective UID of the process |
+| [`signal.target.euser`](#common-credentials-euser-doc) | Effective user of the process |
+| [`signal.target.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`signal.target.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
+| [`signal.target.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
+| [`signal.target.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`signal.target.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
+| [`signal.target.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
+| [`signal.target.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
+| [`signal.target.file.mode`](#common-filefields-mode-doc) | Mode of the file |
+| [`signal.target.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
+| [`signal.target.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`signal.target.file.name`](#common-fileevent-name-doc) | File's basename |
+| [`signal.target.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`signal.target.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
+| [`signal.target.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
+| [`signal.target.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
+| [`signal.target.file.path`](#common-fileevent-path-doc) | File's path |
+| [`signal.target.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`signal.target.file.rights`](#common-filefields-rights-doc) | Rights of the file |
+| [`signal.target.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
+| [`signal.target.file.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`signal.target.fsgid`](#common-credentials-fsgid-doc) | FileSystem-gid of the process |
+| [`signal.target.fsgroup`](#common-credentials-fsgroup-doc) | FileSystem-group of the process |
+| [`signal.target.fsuid`](#common-credentials-fsuid-doc) | FileSystem-uid of the process |
+| [`signal.target.fsuser`](#common-credentials-fsuser-doc) | FileSystem-user of the process |
+| [`signal.target.gid`](#common-credentials-gid-doc) | GID of the process |
+| [`signal.target.group`](#common-credentials-group-doc) | Group of the process |
+| [`signal.target.interpreter.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`signal.target.interpreter.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
+| [`signal.target.interpreter.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
+| [`signal.target.interpreter.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`signal.target.interpreter.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
+| [`signal.target.interpreter.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
+| [`signal.target.interpreter.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
+| [`signal.target.interpreter.file.mode`](#common-filefields-mode-doc) | Mode of the file |
+| [`signal.target.interpreter.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
+| [`signal.target.interpreter.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`signal.target.interpreter.file.name`](#common-fileevent-name-doc) | File's basename |
+| [`signal.target.interpreter.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`signal.target.interpreter.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
+| [`signal.target.interpreter.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
+| [`signal.target.interpreter.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
+| [`signal.target.interpreter.file.path`](#common-fileevent-path-doc) | File's path |
+| [`signal.target.interpreter.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`signal.target.interpreter.file.rights`](#common-filefields-rights-doc) | Rights of the file |
+| [`signal.target.interpreter.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
+| [`signal.target.interpreter.file.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`signal.target.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker |
+| [`signal.target.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
+| [`signal.target.parent.args`](#common-process-args-doc) | Arguments of the process (as a string, excluding argv0) |
+| [`signal.target.parent.args_flags`](#common-process-args_flags-doc) | Flags in the process arguments |
+| [`signal.target.parent.args_options`](#common-process-args_options-doc) | Argument of the process as options |
+| [`signal.target.parent.args_truncated`](#common-process-args_truncated-doc) | Indicator of arguments truncation |
+| [`signal.target.parent.argv`](#common-process-argv-doc) | Arguments of the process (as an array, excluding argv0) |
+| [`signal.target.parent.argv0`](#common-process-argv0-doc) | First argument of the process |
+| [`signal.target.parent.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
+| [`signal.target.parent.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
+| [`signal.target.parent.comm`](#common-process-comm-doc) | Comm attribute of the process |
+| [`signal.target.parent.container.id`](#common-process-container-id-doc) | Container ID |
+| [`signal.target.parent.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
+| [`signal.target.parent.egid`](#common-credentials-egid-doc) | Effective GID of the process |
+| [`signal.target.parent.egroup`](#common-credentials-egroup-doc) | Effective group of the process |
+| [`signal.target.parent.envp`](#common-process-envp-doc) | Environment variables of the process |
+| [`signal.target.parent.envs`](#common-process-envs-doc) | Environment variable names of the process |
+| [`signal.target.parent.envs_truncated`](#common-process-envs_truncated-doc) | Indicator of environment variables truncation |
+| [`signal.target.parent.euid`](#common-credentials-euid-doc) | Effective UID of the process |
+| [`signal.target.parent.euser`](#common-credentials-euser-doc) | Effective user of the process |
+| [`signal.target.parent.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`signal.target.parent.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
+| [`signal.target.parent.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
+| [`signal.target.parent.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`signal.target.parent.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
+| [`signal.target.parent.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
+| [`signal.target.parent.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
+| [`signal.target.parent.file.mode`](#common-filefields-mode-doc) | Mode of the file |
+| [`signal.target.parent.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
+| [`signal.target.parent.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`signal.target.parent.file.name`](#common-fileevent-name-doc) | File's basename |
+| [`signal.target.parent.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`signal.target.parent.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
+| [`signal.target.parent.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
+| [`signal.target.parent.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
+| [`signal.target.parent.file.path`](#common-fileevent-path-doc) | File's path |
+| [`signal.target.parent.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`signal.target.parent.file.rights`](#common-filefields-rights-doc) | Rights of the file |
+| [`signal.target.parent.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
+| [`signal.target.parent.file.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`signal.target.parent.fsgid`](#common-credentials-fsgid-doc) | FileSystem-gid of the process |
+| [`signal.target.parent.fsgroup`](#common-credentials-fsgroup-doc) | FileSystem-group of the process |
+| [`signal.target.parent.fsuid`](#common-credentials-fsuid-doc) | FileSystem-uid of the process |
+| [`signal.target.parent.fsuser`](#common-credentials-fsuser-doc) | FileSystem-user of the process |
+| [`signal.target.parent.gid`](#common-credentials-gid-doc) | GID of the process |
+| [`signal.target.parent.group`](#common-credentials-group-doc) | Group of the process |
+| [`signal.target.parent.interpreter.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`signal.target.parent.interpreter.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
+| [`signal.target.parent.interpreter.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
+| [`signal.target.parent.interpreter.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`signal.target.parent.interpreter.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
+| [`signal.target.parent.interpreter.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
+| [`signal.target.parent.interpreter.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
+| [`signal.target.parent.interpreter.file.mode`](#common-filefields-mode-doc) | Mode of the file |
+| [`signal.target.parent.interpreter.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
+| [`signal.target.parent.interpreter.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`signal.target.parent.interpreter.file.name`](#common-fileevent-name-doc) | File's basename |
+| [`signal.target.parent.interpreter.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`signal.target.parent.interpreter.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
+| [`signal.target.parent.interpreter.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
+| [`signal.target.parent.interpreter.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
+| [`signal.target.parent.interpreter.file.path`](#common-fileevent-path-doc) | File's path |
+| [`signal.target.parent.interpreter.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`signal.target.parent.interpreter.file.rights`](#common-filefields-rights-doc) | Rights of the file |
+| [`signal.target.parent.interpreter.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
+| [`signal.target.parent.interpreter.file.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`signal.target.parent.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker |
+| [`signal.target.parent.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
+| [`signal.target.parent.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
+| [`signal.target.parent.ppid`](#common-process-ppid-doc) | Parent process ID |
+| [`signal.target.parent.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
+| [`signal.target.parent.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
+| [`signal.target.parent.uid`](#common-credentials-uid-doc) | UID of the process |
+| [`signal.target.parent.user`](#common-credentials-user-doc) | User of the process |
+| [`signal.target.parent.user_session.k8s_groups`](#common-usersessioncontext-k8s_groups-doc) | Kubernetes groups of the user that executed the process |
+| [`signal.target.parent.user_session.k8s_uid`](#common-usersessioncontext-k8s_uid-doc) | Kubernetes UID of the user that executed the process |
+| [`signal.target.parent.user_session.k8s_username`](#common-usersessioncontext-k8s_username-doc) | Kubernetes username of the user that executed the process |
+| [`signal.target.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
+| [`signal.target.ppid`](#common-process-ppid-doc) | Parent process ID |
+| [`signal.target.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
+| [`signal.target.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
+| [`signal.target.uid`](#common-credentials-uid-doc) | UID of the process |
+| [`signal.target.user`](#common-credentials-user-doc) | User of the process |
+| [`signal.target.user_session.k8s_groups`](#common-usersessioncontext-k8s_groups-doc) | Kubernetes groups of the user that executed the process |
+| [`signal.target.user_session.k8s_uid`](#common-usersessioncontext-k8s_uid-doc) | Kubernetes UID of the user that executed the process |
+| [`signal.target.user_session.k8s_username`](#common-usersessioncontext-k8s_username-doc) | Kubernetes username of the user that executed the process |
+| [`signal.type`](#signal-type-doc) | Signal type (ex: SIGHUP, SIGINT, SIGQUIT, etc) |
+
+### Event `splice`
+
+A splice command was executed
+
+| Property | Definition |
+| -------- | ------------- |
+| [`splice.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`splice.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
+| [`splice.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
+| [`splice.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`splice.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
+| [`splice.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
+| [`splice.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
+| [`splice.file.mode`](#common-filefields-mode-doc) | Mode of the file |
+| [`splice.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
+| [`splice.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`splice.file.name`](#common-fileevent-name-doc) | File's basename |
+| [`splice.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`splice.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
+| [`splice.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
+| [`splice.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
+| [`splice.file.path`](#common-fileevent-path-doc) | File's path |
+| [`splice.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`splice.file.rights`](#common-filefields-rights-doc) | Rights of the file |
+| [`splice.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
+| [`splice.file.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`splice.pipe_entry_flag`](#splice-pipe_entry_flag-doc) | Entry flag of the "fd_out" pipe passed to the splice syscall |
+| [`splice.pipe_exit_flag`](#splice-pipe_exit_flag-doc) | Exit flag of the "fd_out" pipe passed to the splice syscall |
+| [`splice.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
+
+### Event `unlink`
+
+A file was deleted
+
+| Property | Definition |
+| -------- | ------------- |
+| [`unlink.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`unlink.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
+| [`unlink.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
+| [`unlink.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`unlink.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
+| [`unlink.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
+| [`unlink.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
+| [`unlink.file.mode`](#common-filefields-mode-doc) | Mode of the file |
+| [`unlink.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
+| [`unlink.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`unlink.file.name`](#common-fileevent-name-doc) | File's basename |
+| [`unlink.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`unlink.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
+| [`unlink.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
+| [`unlink.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
+| [`unlink.file.path`](#common-fileevent-path-doc) | File's path |
+| [`unlink.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`unlink.file.rights`](#common-filefields-rights-doc) | Rights of the file |
+| [`unlink.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
+| [`unlink.file.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`unlink.flags`](#unlink-flags-doc) | Flags of the unlink syscall |
+| [`unlink.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
+
+### Event `unload_module`
+
+A kernel module was deleted
+
+| Property | Definition |
+| -------- | ------------- |
+| [`unload_module.name`](#unload_module-name-doc) | Name of the kernel module that was deleted |
+| [`unload_module.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
+
+### Event `utimes`
+
+Change file access/modification times
+
+| Property | Definition |
+| -------- | ------------- |
+| [`utimes.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
+| [`utimes.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
+| [`utimes.file.gid`](#common-filefields-gid-doc) | GID of the file's owner |
+| [`utimes.file.group`](#common-filefields-group-doc) | Group of the file's owner |
+| [`utimes.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
+| [`utimes.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
+| [`utimes.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
+| [`utimes.file.mode`](#common-filefields-mode-doc) | Mode of the file |
+| [`utimes.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
+| [`utimes.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
+| [`utimes.file.name`](#common-fileevent-name-doc) | File's basename |
+| [`utimes.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`utimes.file.package.name`](#common-fileevent-package-name-doc) | [Experimental] Name of the package that provided this file |
+| [`utimes.file.package.source_version`](#common-fileevent-package-source_version-doc) | [Experimental] Full version of the source package of the package that provided this file |
+| [`utimes.file.package.version`](#common-fileevent-package-version-doc) | [Experimental] Full version of the package that provided this file |
+| [`utimes.file.path`](#common-fileevent-path-doc) | File's path |
+| [`utimes.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`utimes.file.rights`](#common-filefields-rights-doc) | Rights of the file |
+| [`utimes.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
+| [`utimes.file.user`](#common-filefields-user-doc) | User of the file's owner |
+| [`utimes.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
+
+
+## Attributes documentation
+
+
+### `*.args` {#common-process-args-doc}
+Type: string
+
+Definition: Arguments of the process (as a string, excluding argv0)
+
+`*.args` has 11 possible prefixes:
+`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+
+
+
+Example:
+
+{{< code-block lang="javascript" >}}
+exec.args == "-sV -p 22,53,110,143,4564 198.116.0-255.1-127"
+{{< /code-block >}}
+
+Matches any process with these exact arguments.
+
+Example:
+
+{{< code-block lang="javascript" >}}
+exec.args =~ "* -F * http*"
+{{< /code-block >}}
+
+Matches any process that has the "-F" argument anywhere before an argument starting with "http".
+
+### `*.args_flags` {#common-process-args_flags-doc}
+Type: string
+
+Definition: Flags in the process arguments
+
+`*.args_flags` has 11 possible prefixes:
+`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+
+
+
+Example:
+
+{{< code-block lang="javascript" >}}
+exec.args_flags in ["s"] && exec.args_flags in ["V"]
+{{< /code-block >}}
+
+Matches any process with both "-s" and "-V" flags in its arguments. Also matches "-sV".
+
+### `*.args_options` {#common-process-args_options-doc}
+Type: string
+
+Definition: Argument of the process as options
+
+`*.args_options` has 11 possible prefixes:
+`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+
+
+
+Example:
+
+{{< code-block lang="javascript" >}}
+exec.args_options in ["p=0-1024"]
+{{< /code-block >}}
+
+Matches any process that has either "-p 0-1024" or "--p=0-1024" in its arguments.
+
+### `*.args_truncated` {#common-process-args_truncated-doc}
+Type: bool
+
+Definition: Indicator of arguments truncation
+
+`*.args_truncated` has 11 possible prefixes:
+`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+
+
+### `*.argv` {#common-process-argv-doc}
+Type: string
+
+Definition: Arguments of the process (as an array, excluding argv0)
+
+`*.argv` has 11 possible prefixes:
+`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+
+
+
+Example:
+
+{{< code-block lang="javascript" >}}
+exec.argv in ["127.0.0.1"]
+{{< /code-block >}}
+
+Matches any process that has this IP address as one of its arguments.
+
+### `*.argv0` {#common-process-argv0-doc}
+Type: string
+
+Definition: First argument of the process
+
+`*.argv0` has 11 possible prefixes:
+`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+
+
+### `*.cap_effective` {#common-credentials-cap_effective-doc}
+Type: int
+
+Definition: Effective capability set of the process
+
+`*.cap_effective` has 11 possible prefixes:
+`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+
+Constants: [Kernel Capability constants](#kernel-capability-constants)
+
+
+
+### `*.cap_permitted` {#common-credentials-cap_permitted-doc}
+Type: int
+
+Definition: Permitted capability set of the process
+
+`*.cap_permitted` has 11 possible prefixes:
+`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+
+Constants: [Kernel Capability constants](#kernel-capability-constants)
+
+
+
+### `*.change_time` {#common-filefields-change_time-doc}
+Type: int
+
+Definition: Change time (ctime) of the file
+
+`*.change_time` has 39 possible prefixes:
+`chdir.file` `chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
+
+
+### `*.comm` {#common-process-comm-doc}
+Type: string
+
+Definition: Comm attribute of the process
+
+`*.comm` has 11 possible prefixes:
+`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+
+
+### `*.container.id` {#common-process-container-id-doc}
+Type: string
+
+Definition: Container ID
+
+`*.container.id` has 11 possible prefixes:
+`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+
+
+### `*.created_at` {#common-process-created_at-doc}
+Type: int
+
+Definition: Timestamp of the creation of the process
+
+`*.created_at` has 11 possible prefixes:
+`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+
+
+### `*.egid` {#common-credentials-egid-doc}
+Type: int
+
+Definition: Effective GID of the process
+
+`*.egid` has 11 possible prefixes:
+`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+
+
+### `*.egroup` {#common-credentials-egroup-doc}
+Type: string
+
+Definition: Effective group of the process
+
+`*.egroup` has 11 possible prefixes:
+`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+
+
+### `*.envp` {#common-process-envp-doc}
+Type: string
+
+Definition: Environment variables of the process
+
+`*.envp` has 11 possible prefixes:
+`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+
+
+### `*.envs` {#common-process-envs-doc}
+Type: string
+
+Definition: Environment variable names of the process
+
+`*.envs` has 11 possible prefixes:
+`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+
+
+### `*.envs_truncated` {#common-process-envs_truncated-doc}
+Type: bool
+
+Definition: Indicator of environment variables truncation
+
+`*.envs_truncated` has 11 possible prefixes:
+`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+
+
+### `*.euid` {#common-credentials-euid-doc}
+Type: int
+
+Definition: Effective UID of the process
+
+`*.euid` has 11 possible prefixes:
+`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+
+
+### `*.euser` {#common-credentials-euser-doc}
+Type: string
+
+Definition: Effective user of the process
+
+`*.euser` has 11 possible prefixes:
+`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+
+
+### `*.file.destination.name` {#common-setxattrevent-file-destination-name-doc}
+Type: string
+
+Definition: Name of the extended attribute
+
+`*.file.destination.name` has 2 possible prefixes:
+`removexattr` `setxattr`
+
+
+### `*.file.destination.namespace` {#common-setxattrevent-file-destination-namespace-doc}
+Type: string
+
+Definition: Namespace of the extended attribute
+
+`*.file.destination.namespace` has 2 possible prefixes:
+`removexattr` `setxattr`
+
+
+### `*.filesystem` {#common-fileevent-filesystem-doc}
+Type: string
+
+Definition: File's filesystem
+
+`*.filesystem` has 39 possible prefixes:
+`chdir.file` `chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
+
+
+### `*.fsgid` {#common-credentials-fsgid-doc}
+Type: int
+
+Definition: FileSystem-gid of the process
+
+`*.fsgid` has 11 possible prefixes:
+`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+
+
+### `*.fsgroup` {#common-credentials-fsgroup-doc}
+Type: string
+
+Definition: FileSystem-group of the process
+
+`*.fsgroup` has 11 possible prefixes:
+`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+
+
+### `*.fsuid` {#common-credentials-fsuid-doc}
+Type: int
+
+Definition: FileSystem-uid of the process
+
+`*.fsuid` has 11 possible prefixes:
+`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+
+
+### `*.fsuser` {#common-credentials-fsuser-doc}
+Type: string
+
+Definition: FileSystem-user of the process
+
+`*.fsuser` has 11 possible prefixes:
+`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+
+
+### `*.gid` {#common-credentials-gid-doc}
+Type: int
+
+Definition: GID of the process
+
+`*.gid` has 11 possible prefixes:
+`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+
+
+### `*.gid` {#common-filefields-gid-doc}
+Type: int
+
+Definition: GID of the file's owner
+
+`*.gid` has 39 possible prefixes:
+`chdir.file` `chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
+
+
+### `*.group` {#common-credentials-group-doc}
+Type: string
+
+Definition: Group of the process
+
+`*.group` has 11 possible prefixes:
+`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+
+
+### `*.group` {#common-filefields-group-doc}
+Type: string
+
+Definition: Group of the file's owner
+
+`*.group` has 39 possible prefixes:
+`chdir.file` `chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
+
+
+### `*.hashes` {#common-fileevent-hashes-doc}
+Type: string
+
+Definition: [Experimental] List of cryptographic hashes computed for this file
+
+`*.hashes` has 39 possible prefixes:
+`chdir.file` `chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
+
+
+### `*.in_upper_layer` {#common-filefields-in_upper_layer-doc}
+Type: bool
+
+Definition: Indicator of the file layer, for example, in an OverlayFS
+
+`*.in_upper_layer` has 39 possible prefixes:
+`chdir.file` `chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
+
+
+### `*.inode` {#common-pathkey-inode-doc}
+Type: int
+
+Definition: Inode of the file
+
+`*.inode` has 39 possible prefixes:
+`chdir.file` `chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
+
+
+### `*.ip` {#common-ipportcontext-ip-doc}
+Type: IP/CIDR
+
+Definition: IP address
+
+`*.ip` has 3 possible prefixes:
+`bind.addr` `network.destination` `network.source`
+
+
+### `*.is_kworker` {#common-pidcontext-is_kworker-doc}
+Type: bool
+
+Definition: Indicates whether the process is a kworker
+
+`*.is_kworker` has 11 possible prefixes:
+`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+
+
+### `*.is_thread` {#common-process-is_thread-doc}
+Type: bool
+
+Definition: Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)
+
+`*.is_thread` has 11 possible prefixes:
+`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+
+
+### `*.k8s_groups` {#common-usersessioncontext-k8s_groups-doc}
+Type: string
+
+Definition: Kubernetes groups of the user that executed the process
+
+`*.k8s_groups` has 11 possible prefixes:
+`exec.user_session` `exit.user_session` `process.ancestors.user_session` `process.parent.user_session` `process.user_session` `ptrace.tracee.ancestors.user_session` `ptrace.tracee.parent.user_session` `ptrace.tracee.user_session` `signal.target.ancestors.user_session` `signal.target.parent.user_session` `signal.target.user_session`
+
+
+### `*.k8s_uid` {#common-usersessioncontext-k8s_uid-doc}
+Type: string
+
+Definition: Kubernetes UID of the user that executed the process
+
+`*.k8s_uid` has 11 possible prefixes:
+`exec.user_session` `exit.user_session` `process.ancestors.user_session` `process.parent.user_session` `process.user_session` `ptrace.tracee.ancestors.user_session` `ptrace.tracee.parent.user_session` `ptrace.tracee.user_session` `signal.target.ancestors.user_session` `signal.target.parent.user_session` `signal.target.user_session`
+
+
+### `*.k8s_username` {#common-usersessioncontext-k8s_username-doc}
+Type: string
+
+Definition: Kubernetes username of the user that executed the process
+
+`*.k8s_username` has 11 possible prefixes:
+`exec.user_session` `exit.user_session` `process.ancestors.user_session` `process.parent.user_session` `process.user_session` `ptrace.tracee.ancestors.user_session` `ptrace.tracee.parent.user_session` `ptrace.tracee.user_session` `signal.target.ancestors.user_session` `signal.target.parent.user_session` `signal.target.user_session`
+
+
+### `*.length` {#common-string-length-doc}
+Type: int
+
+Definition: Length of the corresponding string
+
+`*.length` has 79 possible prefixes:
+`chdir.file.name` `chdir.file.path` `chmod.file.name` `chmod.file.path` `chown.file.name` `chown.file.path` `dns.question.name` `exec.file.name` `exec.file.path` `exec.interpreter.file.name` `exec.interpreter.file.path` `exit.file.name` `exit.file.path` `exit.interpreter.file.name` `exit.interpreter.file.path` `link.file.destination.name` `link.file.destination.path` `link.file.name` `link.file.path` `load_module.file.name` `load_module.file.path` `mkdir.file.name` `mkdir.file.path` `mmap.file.name` `mmap.file.path` `open.file.name` `open.file.path` `process.ancestors.file.name` `process.ancestors.file.path` `process.ancestors.interpreter.file.name` `process.ancestors.interpreter.file.path` `process.file.name` `process.file.path` `process.interpreter.file.name` `process.interpreter.file.path` `process.parent.file.name` `process.parent.file.path` `process.parent.interpreter.file.name` `process.parent.interpreter.file.path` `ptrace.tracee.ancestors.file.name` `ptrace.tracee.ancestors.file.path` `ptrace.tracee.ancestors.interpreter.file.name` `ptrace.tracee.ancestors.interpreter.file.path` `ptrace.tracee.file.name` `ptrace.tracee.file.path` `ptrace.tracee.interpreter.file.name` `ptrace.tracee.interpreter.file.path` `ptrace.tracee.parent.file.name` `ptrace.tracee.parent.file.path` `ptrace.tracee.parent.interpreter.file.name` `ptrace.tracee.parent.interpreter.file.path` `removexattr.file.name` `removexattr.file.path` `rename.file.destination.name` `rename.file.destination.path` `rename.file.name` `rename.file.path` `rmdir.file.name` `rmdir.file.path` `setxattr.file.name` `setxattr.file.path` `signal.target.ancestors.file.name` `signal.target.ancestors.file.path` `signal.target.ancestors.interpreter.file.name` `signal.target.ancestors.interpreter.file.path` `signal.target.file.name` `signal.target.file.path` `signal.target.interpreter.file.name` `signal.target.interpreter.file.path` `signal.target.parent.file.name` `signal.target.parent.file.path` `signal.target.parent.interpreter.file.name` `signal.target.parent.interpreter.file.path` `splice.file.name` `splice.file.path` `unlink.file.name` `unlink.file.path` `utimes.file.name` `utimes.file.path`
+
+
+### `*.mode` {#common-filefields-mode-doc}
+Type: int
+
+Definition: Mode of the file
+
+`*.mode` has 39 possible prefixes:
+`chdir.file` `chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
+
+Constants: [Inode mode constants](#inode-mode-constants)
+
+
+
+### `*.modification_time` {#common-filefields-modification_time-doc}
+Type: int
+
+Definition: Modification time (mtime) of the file
+
+`*.modification_time` has 39 possible prefixes:
+`chdir.file` `chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
+
+
+### `*.mount_id` {#common-pathkey-mount_id-doc}
+Type: int
+
+Definition: Mount ID of the file
+
+`*.mount_id` has 39 possible prefixes:
+`chdir.file` `chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
+
+
+### `*.name` {#common-fileevent-name-doc}
+Type: string
+
+Definition: File's basename
+
+`*.name` has 39 possible prefixes:
+`chdir.file` `chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
+
+
+
+Example:
+
+{{< code-block lang="javascript" >}}
+exec.file.name == "apt"
+{{< /code-block >}}
+
+Matches the execution of any file named apt.
+
+### `*.package.name` {#common-fileevent-package-name-doc}
+Type: string
+
+Definition: [Experimental] Name of the package that provided this file
+
+`*.package.name` has 39 possible prefixes:
+`chdir.file` `chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
+
+
+### `*.package.source_version` {#common-fileevent-package-source_version-doc}
+Type: string
+
+Definition: [Experimental] Full version of the source package of the package that provided this file
+
+`*.package.source_version` has 39 possible prefixes:
+`chdir.file` `chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
+
+
+### `*.package.version` {#common-fileevent-package-version-doc}
+Type: string
+
+Definition: [Experimental] Full version of the package that provided this file
+
+`*.package.version` has 39 possible prefixes:
+`chdir.file` `chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
+
+
+### `*.path` {#common-fileevent-path-doc}
+Type: string
+
+Definition: File's path
+
+`*.path` has 39 possible prefixes:
+`chdir.file` `chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
+
+
+
+Example:
+
+{{< code-block lang="javascript" >}}
+exec.file.path == "/usr/bin/apt"
+{{< /code-block >}}
+
+Matches the execution of the file located at /usr/bin/apt
+
+Example:
+
+{{< code-block lang="javascript" >}}
+open.file.path == "/etc/passwd"
+{{< /code-block >}}
+
+Matches any process opening the /etc/passwd file.
+
+### `*.pid` {#common-pidcontext-pid-doc}
+Type: int
+
+Definition: Process ID of the process (also called thread group ID)
+
+`*.pid` has 11 possible prefixes:
+`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+
+
+### `*.port` {#common-ipportcontext-port-doc}
+Type: int
+
+Definition: Port number
+
+`*.port` has 3 possible prefixes:
+`bind.addr` `network.destination` `network.source`
+
+
+### `*.ppid` {#common-process-ppid-doc}
+Type: int
+
+Definition: Parent process ID
+
+`*.ppid` has 11 possible prefixes:
+`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+
+
+### `*.retval` {#common-syscallevent-retval-doc}
+Type: int
+
+Definition: Return value of the syscall
+
+`*.retval` has 22 possible prefixes:
+`bind` `bpf` `chdir` `chmod` `chown` `link` `load_module` `mkdir` `mmap` `mount` `mprotect` `open` `ptrace` `removexattr` `rename` `rmdir` `setxattr` `signal` `splice` `unlink` `unload_module` `utimes`
+
+Constants: [Error constants](#error-constants)
+
+
+
+### `*.rights` {#common-filefields-rights-doc}
+Type: int
+
+Definition: Rights of the file
+
+`*.rights` has 39 possible prefixes:
+`chdir.file` `chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
+
+Constants: [File mode constants](#file-mode-constants)
+
+
+
+### `*.tid` {#common-pidcontext-tid-doc}
+Type: int
+
+Definition: Thread ID of the thread
+
+`*.tid` has 11 possible prefixes:
+`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+
+
+### `*.tty_name` {#common-process-tty_name-doc}
+Type: string
+
+Definition: Name of the TTY associated with the process
+
+`*.tty_name` has 11 possible prefixes:
+`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+
+
+### `*.uid` {#common-credentials-uid-doc}
+Type: int
+
+Definition: UID of the process
+
+`*.uid` has 11 possible prefixes:
+`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+
+
+### `*.uid` {#common-filefields-uid-doc}
+Type: int
+
+Definition: UID of the file's owner
+
+`*.uid` has 39 possible prefixes:
+`chdir.file` `chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
+
+
+### `*.user` {#common-credentials-user-doc}
+Type: string
+
+Definition: User of the process
+
+`*.user` has 11 possible prefixes:
+`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+
+
+
+Example:
+
+{{< code-block lang="javascript" >}}
+process.user == "root"
+{{< /code-block >}}
+
+Constrain an event to be triggered by a process running as the root user.
+
+### `*.user` {#common-filefields-user-doc}
+Type: string
+
+Definition: User of the file's owner
+
+`*.user` has 39 possible prefixes:
+`chdir.file` `chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
+
+
+### `bind.addr.family` {#bind-addr-family-doc}
+Type: int
+
+Definition: Address family
+
+
+
+### `bpf.cmd` {#bpf-cmd-doc}
+Type: int
+
+Definition: BPF command name
+
+
+Constants: [BPF commands](#bpf-commands)
+
+
+
+### `bpf.map.name` {#bpf-map-name-doc}
+Type: string
+
+Definition: Name of the eBPF map (added in 7.35)
+
+
+
+### `bpf.map.type` {#bpf-map-type-doc}
+Type: int
+
+Definition: Type of the eBPF map
+
+
+Constants: [BPF map types](#bpf-map-types)
+
+
+
+### `bpf.prog.attach_type` {#bpf-prog-attach_type-doc}
+Type: int
+
+Definition: Attach type of the eBPF program
+
+
+Constants: [BPF attach types](#bpf-attach-types)
+
+
+
+### `bpf.prog.helpers` {#bpf-prog-helpers-doc}
+Type: int
+
+Definition: eBPF helpers used by the eBPF program (added in 7.35)
+
+
+Constants: [BPF helper functions](#bpf-helper-functions)
+
+
+
+### `bpf.prog.name` {#bpf-prog-name-doc}
+Type: string
+
+Definition: Name of the eBPF program (added in 7.35)
+
+
+
+### `bpf.prog.tag` {#bpf-prog-tag-doc}
+Type: string
+
+Definition: Hash (sha1) of the eBPF program (added in 7.35)
+
+
+
+### `bpf.prog.type` {#bpf-prog-type-doc}
+Type: int
+
+Definition: Type of the eBPF program
+
+
+Constants: [BPF program types](#bpf-program-types)
+
+
+
+### `capset.cap_effective` {#capset-cap_effective-doc}
+Type: int
+
+Definition: Effective capability set of the process
+
+
+Constants: [Kernel Capability constants](#kernel-capability-constants)
+
+
+
+### `capset.cap_permitted` {#capset-cap_permitted-doc}
+Type: int
+
+Definition: Permitted capability set of the process
+
+
+Constants: [Kernel Capability constants](#kernel-capability-constants)
+
+
+
+### `chdir.syscall.path` {#chdir-syscall-path-doc}
+Type: string
+
+Definition: path argument of the syscall
+
+
+
+### `chmod.file.destination.mode` {#chmod-file-destination-mode-doc}
+Type: int
+
+Definition: New mode of the chmod-ed file
+
+
+Constants: [File mode constants](#file-mode-constants)
+
+
+
+### `chmod.file.destination.rights` {#chmod-file-destination-rights-doc}
+Type: int
+
+Definition: New rights of the chmod-ed file
+
+
+Constants: [File mode constants](#file-mode-constants)
+
+
+
+### `chmod.syscall.mode` {#chmod-syscall-mode-doc}
+Type: int
+
+Definition: mode argument of the syscall
+
+
+
+### `chmod.syscall.path` {#chmod-syscall-path-doc}
+Type: string
+
+Definition: path argument of the syscall
+
+
+
+### `chown.file.destination.gid` {#chown-file-destination-gid-doc}
+Type: int
+
+Definition: New GID of the chown-ed file's owner
+
+
+
+### `chown.file.destination.group` {#chown-file-destination-group-doc}
+Type: string
+
+Definition: New group of the chown-ed file's owner
+
+
+
+### `chown.file.destination.uid` {#chown-file-destination-uid-doc}
+Type: int
+
+Definition: New UID of the chown-ed file's owner
+
+
+
+### `chown.file.destination.user` {#chown-file-destination-user-doc}
+Type: string
+
+Definition: New user of the chown-ed file's owner
+
+
+
+### `container.created_at` {#container-created_at-doc}
+Type: int
+
+Definition: Timestamp of the creation of the container
+
+
+
+### `container.flags` {#container-flags-doc}
+Type: int
+
+Definition: Flags associated with the container
+
+
+
+### `container.id` {#container-id-doc}
+Type: string
+
+Definition: ID of the container
+
+
+
+### `container.tags` {#container-tags-doc}
+Type: string
+
+Definition: Tags of the container
+
+
+
+### `dns.id` {#dns-id-doc}
+Type: int
+
+Definition: [Experimental] the DNS request ID
+
+
+
+### `dns.question.class` {#dns-question-class-doc}
+Type: int
+
+Definition: the class looked up by the DNS question
+
+
+Constants: [DNS qclasses](#dns-qclasses)
+
+
+
+### `dns.question.count` {#dns-question-count-doc}
+Type: int
+
+Definition: the total count of questions in the DNS request
+
+
+
+### `dns.question.length` {#dns-question-length-doc}
+Type: int
+
+Definition: the total DNS request size in bytes
+
+
+
+### `dns.question.name` {#dns-question-name-doc}
+Type: string
+
+Definition: the queried domain name
+
+
+
+### `dns.question.type` {#dns-question-type-doc}
+Type: int
+
+Definition: a two octet code which specifies the DNS question type
+
+
+Constants: [DNS qtypes](#dns-qtypes)
+
+
+
+### `event.async` {#event-async-doc}
+Type: bool
+
+Definition: True if the syscall was asynchronous
+
+
+
+### `event.origin` {#event-origin-doc}
+Type: string
+
+Definition: Origin of the event
+
+
+
+### `event.os` {#event-os-doc}
+Type: string
+
+Definition: Operating system of the event
+
+
+
+### `event.service` {#event-service-doc}
+Type: string
+
+Definition: Service associated with the event
+
+
+
+### `event.timestamp` {#event-timestamp-doc}
+Type: int
+
+Definition: Timestamp of the event
+
+
+
+### `exec.syscall.path` {#exec-syscall-path-doc}
+Type: string
+
+Definition: path argument of the syscall
+
+
+
+### `exit.cause` {#exit-cause-doc}
+Type: int
+
+Definition: Cause of the process termination (one of EXITED, SIGNALED, COREDUMPED)
+
+
+
+### `exit.code` {#exit-code-doc}
+Type: int
+
+Definition: Exit code of the process or number of the signal that caused the process to terminate
+
+
+
+### `imds.aws.is_imds_v2` {#imds-aws-is_imds_v2-doc}
+Type: bool
+
+Definition: a boolean which specifies if the IMDS event follows IMDSv1 or IMDSv2 conventions
+
+
+
+### `imds.aws.security_credentials.type` {#imds-aws-security_credentials-type-doc}
+Type: string
+
+Definition: the security credentials type
+
+
+
+### `imds.cloud_provider` {#imds-cloud_provider-doc}
+Type: string
+
+Definition: the intended cloud provider of the IMDS event
+
+
+
+### `imds.host` {#imds-host-doc}
+Type: string
+
+Definition: the host of the HTTP protocol
+
+
+
+### `imds.server` {#imds-server-doc}
+Type: string
+
+Definition: the server header of a response
+
+
+
+### `imds.type` {#imds-type-doc}
+Type: string
+
+Definition: the type of IMDS event
+
+
+
+### `imds.url` {#imds-url-doc}
+Type: string
+
+Definition: the queried IMDS URL
+
+
+
+### `imds.user_agent` {#imds-user_agent-doc}
+Type: string
+
+Definition: the user agent of the HTTP client
+
+
+
+### `load_module.args` {#load_module-args-doc}
+Type: string
+
+Definition: Parameters (as a string) of the new kernel module
+
+
+
+### `load_module.args_truncated` {#load_module-args_truncated-doc}
+Type: bool
+
+Definition: Indicates if the arguments were truncated or not
+
+
+
+### `load_module.argv` {#load_module-argv-doc}
+Type: string
+
+Definition: Parameters (as an array) of the new kernel module
+
+
+
+### `load_module.loaded_from_memory` {#load_module-loaded_from_memory-doc}
+Type: bool
+
+Definition: Indicates if the kernel module was loaded from memory
+
+
+
+### `load_module.name` {#load_module-name-doc}
+Type: string
+
+Definition: Name of the new kernel module
+
+
+
+### `mkdir.file.destination.mode` {#mkdir-file-destination-mode-doc}
+Type: int
+
+Definition: Mode of the new directory
+
+
+Constants: [File mode constants](#file-mode-constants)
+
+
+
+### `mkdir.file.destination.rights` {#mkdir-file-destination-rights-doc}
+Type: int
+
+Definition: Rights of the new directory
+
+
+Constants: [File mode constants](#file-mode-constants)
+
+
+
+### `mmap.flags` {#mmap-flags-doc}
+Type: int
+
+Definition: memory segment flags
+
+
+Constants: [MMap flags](#mmap-flags)
+
+
+
+### `mmap.protection` {#mmap-protection-doc}
+Type: int
+
+Definition: memory segment protection
+
+
+Constants: [Protection constants](#protection-constants)
+
+
+
+### `mount.fs_type` {#mount-fs_type-doc}
+Type: string
+
+Definition: Type of the mounted file system
+
+
+
+### `mount.mountpoint.path` {#mount-mountpoint-path-doc}
+Type: string
+
+Definition: Path of the mount point
+
+
+
+### `mount.root.path` {#mount-root-path-doc}
+Type: string
+
+Definition: Root path of the mount
+
+
+
+### `mount.source.path` {#mount-source-path-doc}
+Type: string
+
+Definition: Source path of a bind mount
+
+
+
+### `mprotect.req_protection` {#mprotect-req_protection-doc}
+Type: int
+
+Definition: new memory segment protection
+
+
+Constants: [Virtual Memory flags](#virtual-memory-flags)
+
+
+
+### `mprotect.vm_protection` {#mprotect-vm_protection-doc}
+Type: int
+
+Definition: initial memory segment protection
+
+
+Constants: [Virtual Memory flags](#virtual-memory-flags)
+
+
+
+### `network.device.ifindex` {#network-device-ifindex-doc}
+Type: int
+
+Definition: interface ifindex
+
+
+
+### `network.device.ifname` {#network-device-ifname-doc}
+Type: string
+
+Definition: interface ifname
+
+
+
+### `network.l3_protocol` {#network-l3_protocol-doc}
+Type: int
+
+Definition: l3 protocol of the network packet
+
+
+Constants: [L3 protocols](#l3-protocols)
+
+
+
+### `network.l4_protocol` {#network-l4_protocol-doc}
+Type: int
+
+Definition: l4 protocol of the network packet
+
+
+Constants: [L4 protocols](#l4-protocols)
+
+
+
+### `network.size` {#network-size-doc}
+Type: int
+
+Definition: size in bytes of the network packet
+
+
+
+### `open.file.destination.mode` {#open-file-destination-mode-doc}
+Type: int
+
+Definition: Mode of the created file
+
+
+Constants: [File mode constants](#file-mode-constants)
+
+
+
+### `open.flags` {#open-flags-doc}
+Type: int
+
+Definition: Flags used when opening the file
+
+
+Constants: [Open flags](#open-flags)
+
+
+
+### `ptrace.request` {#ptrace-request-doc}
+Type: int
+
+Definition: ptrace request
+
+
+Constants: [Ptrace constants](#ptrace-constants)
+
+
+
+### `selinux.bool.name` {#selinux-bool-name-doc}
+Type: string
+
+Definition: SELinux boolean name
+
+
+
+### `selinux.bool.state` {#selinux-bool-state-doc}
+Type: string
+
+Definition: SELinux boolean new value
+
+
+
+### `selinux.bool_commit.state` {#selinux-bool_commit-state-doc}
+Type: bool
+
+Definition: Indicator of a SELinux boolean commit operation
+
+
+
+### `selinux.enforce.status` {#selinux-enforce-status-doc}
+Type: string
+
+Definition: SELinux enforcement status (one of "enforcing", "permissive", "disabled")
+
+
+
+### `setgid.egid` {#setgid-egid-doc}
+Type: int
+
+Definition: New effective GID of the process
+
+
+
+### `setgid.egroup` {#setgid-egroup-doc}
+Type: string
+
+Definition: New effective group of the process
+
+
+
+### `setgid.fsgid` {#setgid-fsgid-doc}
+Type: int
+
+Definition: New FileSystem GID of the process
+
+
+
+### `setgid.fsgroup` {#setgid-fsgroup-doc}
+Type: string
+
+Definition: New FileSystem group of the process
+
+
+
+### `setgid.gid` {#setgid-gid-doc}
+Type: int
+
+Definition: New GID of the process
+
+
+
+### `setgid.group` {#setgid-group-doc}
+Type: string
+
+Definition: New group of the process
+
+
+
+### `setuid.euid` {#setuid-euid-doc}
+Type: int
+
+Definition: New effective UID of the process
+
+
+
+### `setuid.euser` {#setuid-euser-doc}
+Type: string
+
+Definition: New effective user of the process
+
+
+
+### `setuid.fsuid` {#setuid-fsuid-doc}
+Type: int
+
+Definition: New FileSystem UID of the process
+
+
+
+### `setuid.fsuser` {#setuid-fsuser-doc}
+Type: string
+
+Definition: New FileSystem user of the process
+
+
+
+### `setuid.uid` {#setuid-uid-doc}
+Type: int
+
+Definition: New UID of the process
+
+
+
+### `setuid.user` {#setuid-user-doc}
+Type: string
+
+Definition: New user of the process
+
+
+
+### `signal.pid` {#signal-pid-doc}
+Type: int
+
+Definition: Target PID
+
+
+
+### `signal.type` {#signal-type-doc}
+Type: int
+
+Definition: Signal type (ex: SIGHUP, SIGINT, SIGQUIT, etc)
+
+
+Constants: [Signal constants](#signal-constants)
+
+
+
+### `splice.pipe_entry_flag` {#splice-pipe_entry_flag-doc}
+Type: int
+
+Definition: Entry flag of the "fd_out" pipe passed to the splice syscall
+
+
+Constants: [Pipe buffer flags](#pipe-buffer-flags)
+
+
+
+### `splice.pipe_exit_flag` {#splice-pipe_exit_flag-doc}
+Type: int
+
+Definition: Exit flag of the "fd_out" pipe passed to the splice syscall
+
+
+Constants: [Pipe buffer flags](#pipe-buffer-flags)
+
+
+
+### `unlink.flags` {#unlink-flags-doc}
+Type: int
+
+Definition: Flags of the unlink syscall
+
+
+Constants: [Unlink flags](#unlink-flags)
+
+
+
+### `unload_module.name` {#unload_module-name-doc}
+Type: string
+
+Definition: Name of the kernel module that was deleted
+
+
+
+## Constants
+
+Constants are used to improve the readability of your rules. Some constants are common to all architectures, others are specific to some architectures.
+
+### `BPF attach types` {#bpf-attach-types}
+BPF attach types are the supported eBPF program attach types.
+
+| Name | Architectures |
+| ---- |---------------|
+| `BPF_CGROUP_INET_INGRESS` | all |
+| `BPF_CGROUP_INET_EGRESS` | all |
+| `BPF_CGROUP_INET_SOCK_CREATE` | all |
+| `BPF_CGROUP_SOCK_OPS` | all |
+| `BPF_SK_SKB_STREAM_PARSER` | all |
+| `BPF_SK_SKB_STREAM_VERDICT` | all |
+| `BPF_CGROUP_DEVICE` | all |
+| `BPF_SK_MSG_VERDICT` | all |
+| `BPF_CGROUP_INET4_BIND` | all |
+| `BPF_CGROUP_INET6_BIND` | all |
+| `BPF_CGROUP_INET4_CONNECT` | all |
+| `BPF_CGROUP_INET6_CONNECT` | all |
+| `BPF_CGROUP_INET4_POST_BIND` | all |
+| `BPF_CGROUP_INET6_POST_BIND` | all |
+| `BPF_CGROUP_UDP4_SENDMSG` | all |
+| `BPF_CGROUP_UDP6_SENDMSG` | all |
+| `BPF_LIRC_MODE2` | all |
+| `BPF_FLOW_DISSECTOR` | all |
+| `BPF_CGROUP_SYSCTL` | all |
+| `BPF_CGROUP_UDP4_RECVMSG` | all |
+| `BPF_CGROUP_UDP6_RECVMSG` | all |
+| `BPF_CGROUP_GETSOCKOPT` | all |
+| `BPF_CGROUP_SETSOCKOPT` | all |
+| `BPF_TRACE_RAW_TP` | all |
+| `BPF_TRACE_FENTRY` | all |
+| `BPF_TRACE_FEXIT` | all |
+| `BPF_MODIFY_RETURN` | all |
+| `BPF_LSM_MAC` | all |
+| `BPF_TRACE_ITER` | all |
+| `BPF_CGROUP_INET4_GETPEERNAME` | all |
+| `BPF_CGROUP_INET6_GETPEERNAME` | all |
+| `BPF_CGROUP_INET4_GETSOCKNAME` | all |
+| `BPF_CGROUP_INET6_GETSOCKNAME` | all |
+| `BPF_XDP_DEVMAP` | all |
+| `BPF_CGROUP_INET_SOCK_RELEASE` | all |
+| `BPF_XDP_CPUMAP` | all |
+| `BPF_SK_LOOKUP` | all |
+| `BPF_XDP` | all |
+| `BPF_SK_SKB_VERDICT` | all |
+
+### `BPF commands` {#bpf-commands}
+BPF commands are used to specify a command to a bpf syscall.
+
+| Name | Architectures |
+| ---- |---------------|
+| `BPF_MAP_CREATE` | all |
+| `BPF_MAP_LOOKUP_ELEM` | all |
+| `BPF_MAP_UPDATE_ELEM` | all |
+| `BPF_MAP_DELETE_ELEM` | all |
+| `BPF_MAP_GET_NEXT_KEY` | all |
+| `BPF_PROG_LOAD` | all |
+| `BPF_OBJ_PIN` | all |
+| `BPF_OBJ_GET` | all |
+| `BPF_PROG_ATTACH` | all |
+| `BPF_PROG_DETACH` | all |
+| `BPF_PROG_TEST_RUN` | all |
+| `BPF_PROG_RUN` | all |
+| `BPF_PROG_GET_NEXT_ID` | all |
+| `BPF_MAP_GET_NEXT_ID` | all |
+| `BPF_PROG_GET_FD_BY_ID` | all |
+| `BPF_MAP_GET_FD_BY_ID` | all |
+| `BPF_OBJ_GET_INFO_BY_FD` | all |
+| `BPF_PROG_QUERY` | all |
+| `BPF_RAW_TRACEPOINT_OPEN` | all |
+| `BPF_BTF_LOAD` | all |
+| `BPF_BTF_GET_FD_BY_ID` | all |
+| `BPF_TASK_FD_QUERY` | all |
+| `BPF_MAP_LOOKUP_AND_DELETE_ELEM` | all |
+| `BPF_MAP_FREEZE` | all |
+| `BPF_BTF_GET_NEXT_ID` | all |
+| `BPF_MAP_LOOKUP_BATCH` | all |
+| `BPF_MAP_LOOKUP_AND_DELETE_BATCH` | all |
+| `BPF_MAP_UPDATE_BATCH` | all |
+| `BPF_MAP_DELETE_BATCH` | all |
+| `BPF_LINK_CREATE` | all |
+| `BPF_LINK_UPDATE` | all |
+| `BPF_LINK_GET_FD_BY_ID` | all |
+| `BPF_LINK_GET_NEXT_ID` | all |
+| `BPF_ENABLE_STATS` | all |
+| `BPF_ITER_CREATE` | all |
+| `BPF_LINK_DETACH` | all |
+| `BPF_PROG_BIND_MAP` | all |
+
+### `BPF helper functions` {#bpf-helper-functions}
+BPF helper functions are the supported BPF helper functions.
+
+| Name | Architectures |
+| ---- |---------------|
+| `BPF_UNSPEC` | all |
+| `BPF_MAP_LOOKUP_ELEM` | all |
+| `BPF_MAP_UPDATE_ELEM` | all |
+| `BPF_MAP_DELETE_ELEM` | all |
+| `BPF_PROBE_READ` | all |
+| `BPF_KTIME_GET_NS` | all |
+| `BPF_TRACE_PRINTK` | all |
+| `BPF_GET_PRANDOM_U32` | all |
+| `BPF_GET_SMP_PROCESSOR_ID` | all |
+| `BPF_SKB_STORE_BYTES` | all |
+| `BPF_L3_CSUM_REPLACE` | all |
+| `BPF_L4_CSUM_REPLACE` | all |
+| `BPF_TAIL_CALL` | all |
+| `BPF_CLONE_REDIRECT` | all |
+| `BPF_GET_CURRENT_PID_TGID` | all |
+| `BPF_GET_CURRENT_UID_GID` | all |
+| `BPF_GET_CURRENT_COMM` | all |
+| `BPF_GET_CGROUP_CLASSID` | all |
+| `BPF_SKB_VLAN_PUSH` | all |
+| `BPF_SKB_VLAN_POP` | all |
+| `BPF_SKB_GET_TUNNEL_KEY` | all |
+| `BPF_SKB_SET_TUNNEL_KEY` | all |
+| `BPF_PERF_EVENT_READ` | all |
+| `BPF_REDIRECT` | all |
+| `BPF_GET_ROUTE_REALM` | all |
+| `BPF_PERF_EVENT_OUTPUT` | all |
+| `BPF_SKB_LOAD_BYTES` | all |
+| `BPF_GET_STACKID` | all |
+| `BPF_CSUM_DIFF` | all |
+| `BPF_SKB_GET_TUNNEL_OPT` | all |
+| `BPF_SKB_SET_TUNNEL_OPT` | all |
+| `BPF_SKB_CHANGE_PROTO` | all |
+| `BPF_SKB_CHANGE_TYPE` | all |
+| `BPF_SKB_UNDER_CGROUP` | all |
+| `BPF_GET_HASH_RECALC` | all |
+| `BPF_GET_CURRENT_TASK` | all |
+| `BPF_PROBE_WRITE_USER` | all |
+| `BPF_CURRENT_TASK_UNDER_CGROUP` | all |
+| `BPF_SKB_CHANGE_TAIL` | all |
+| `BPF_SKB_PULL_DATA` | all |
+| `BPF_CSUM_UPDATE` | all |
+| `BPF_SET_HASH_INVALID` | all |
+| `BPF_GET_NUMA_NODE_ID` | all |
+| `BPF_SKB_CHANGE_HEAD` | all |
+| `BPF_XDP_ADJUST_HEAD` | all |
+| `BPF_PROBE_READ_STR` | all |
+| `BPF_GET_SOCKET_COOKIE` | all |
+| `BPF_GET_SOCKET_UID` | all |
+| `BPF_SET_HASH` | all |
+| `BPF_SETSOCKOPT` | all |
+| `BPF_SKB_ADJUST_ROOM` | all |
+| `BPF_REDIRECT_MAP` | all |
+| `BPF_SK_REDIRECT_MAP` | all |
+| `BPF_SOCK_MAP_UPDATE` | all |
+| `BPF_XDP_ADJUST_META` | all |
+| `BPF_PERF_EVENT_READ_VALUE` | all |
+| `BPF_PERF_PROG_READ_VALUE` | all |
+| `BPF_GETSOCKOPT` | all |
+| `BPF_OVERRIDE_RETURN` | all |
+| `BPF_SOCK_OPS_CB_FLAGS_SET` | all |
+| `BPF_MSG_REDIRECT_MAP` | all |
+| `BPF_MSG_APPLY_BYTES` | all |
+| `BPF_MSG_CORK_BYTES` | all |
+| `BPF_MSG_PULL_DATA` | all |
+| `BPF_BIND` | all |
+| `BPF_XDP_ADJUST_TAIL` | all |
+| `BPF_SKB_GET_XFRM_STATE` | all |
+| `BPF_GET_STACK` | all |
+| `BPF_SKB_LOAD_BYTES_RELATIVE` | all |
+| `BPF_FIB_LOOKUP` | all |
+| `BPF_SOCK_HASH_UPDATE` | all |
+| `BPF_MSG_REDIRECT_HASH` | all |
+| `BPF_SK_REDIRECT_HASH` | all |
+| `BPF_LWT_PUSH_ENCAP` | all |
+| `BPF_LWT_SEG6_STORE_BYTES` | all |
+| `BPF_LWT_SEG6_ADJUST_SRH` | all |
+| `BPF_LWT_SEG6_ACTION` | all |
+| `BPF_RC_REPEAT` | all |
+| `BPF_RC_KEYDOWN` | all |
+| `BPF_SKB_CGROUP_ID` | all |
+| `BPF_GET_CURRENT_CGROUP_ID` | all |
+| `BPF_GET_LOCAL_STORAGE` | all |
+| `BPF_SK_SELECT_REUSEPORT` | all |
+| `BPF_SKB_ANCESTOR_CGROUP_ID` | all |
+| `BPF_SK_LOOKUP_TCP` | all |
+| `BPF_SK_LOOKUP_UDP` | all |
+| `BPF_SK_RELEASE` | all |
+| `BPF_MAP_PUSH_ELEM` | all |
+| `BPF_MAP_POP_ELEM` | all |
+| `BPF_MAP_PEEK_ELEM` | all |
+| `BPF_MSG_PUSH_DATA` | all |
+| `BPF_MSG_POP_DATA` | all |
+| `BPF_RC_POINTER_REL` | all |
+| `BPF_SPIN_LOCK` | all |
+| `BPF_SPIN_UNLOCK` | all |
+| `BPF_SK_FULLSOCK` | all |
+| `BPF_TCP_SOCK` | all |
+| `BPF_SKB_ECN_SET_CE` | all |
+| `BPF_GET_LISTENER_SOCK` | all |
+| `BPF_SKC_LOOKUP_TCP` | all |
+| `BPF_TCP_CHECK_SYNCOOKIE` | all |
+| `BPF_SYSCTL_GET_NAME` | all |
+| `BPF_SYSCTL_GET_CURRENT_VALUE` | all |
+| `BPF_SYSCTL_GET_NEW_VALUE` | all |
+| `BPF_SYSCTL_SET_NEW_VALUE` | all |
+| `BPF_STRTOL` | all |
+| `BPF_STRTOUL` | all |
+| `BPF_SK_STORAGE_GET` | all |
+| `BPF_SK_STORAGE_DELETE` | all |
+| `BPF_SEND_SIGNAL` | all |
+| `BPF_TCP_GEN_SYNCOOKIE` | all |
+| `BPF_SKB_OUTPUT` | all |
+| `BPF_PROBE_READ_USER` | all |
+| `BPF_PROBE_READ_KERNEL` | all |
+| `BPF_PROBE_READ_USER_STR` | all |
+| `BPF_PROBE_READ_KERNEL_STR` | all |
+| `BPF_TCP_SEND_ACK` | all |
+| `BPF_SEND_SIGNAL_THREAD` | all |
+| `BPF_JIFFIES64` | all |
+| `BPF_READ_BRANCH_RECORDS` | all |
+| `BPF_GET_NS_CURRENT_PID_TGID` | all |
+| `BPF_XDP_OUTPUT` | all |
+| `BPF_GET_NETNS_COOKIE` | all |
+| `BPF_GET_CURRENT_ANCESTOR_CGROUP_ID` | all |
+| `BPF_SK_ASSIGN` | all |
+| `BPF_KTIME_GET_BOOT_NS` | all |
+| `BPF_SEQ_PRINTF` | all |
+| `BPF_SEQ_WRITE` | all |
+| `BPF_SK_CGROUP_ID` | all |
+| `BPF_SK_ANCESTOR_CGROUP_ID` | all |
+| `BPF_RINGBUF_OUTPUT` | all |
+| `BPF_RINGBUF_RESERVE` | all |
+| `BPF_RINGBUF_SUBMIT` | all |
+| `BPF_RINGBUF_DISCARD` | all |
+| `BPF_RINGBUF_QUERY` | all |
+| `BPF_CSUM_LEVEL` | all |
+| `BPF_SKC_TO_TCP6_SOCK` | all |
+| `BPF_SKC_TO_TCP_SOCK` | all |
+| `BPF_SKC_TO_TCP_TIMEWAIT_SOCK` | all |
+| `BPF_SKC_TO_TCP_REQUEST_SOCK` | all |
+| `BPF_SKC_TO_UDP6_SOCK` | all |
+| `BPF_GET_TASK_STACK` | all |
+| `BPF_LOAD_HDR_OPT` | all |
+| `BPF_STORE_HDR_OPT` | all |
+| `BPF_RESERVE_HDR_OPT` | all |
+| `BPF_INODE_STORAGE_GET` | all |
+| `BPF_INODE_STORAGE_DELETE` | all |
+| `BPF_D_PATH` | all |
+| `BPF_COPY_FROM_USER` | all |
+| `BPF_SNPRINTF_BTF` | all |
+| `BPF_SEQ_PRINTF_BTF` | all |
+| `BPF_SKB_CGROUP_CLASSID` | all |
+| `BPF_REDIRECT_NEIGH` | all |
+| `BPF_PER_CPU_PTR` | all |
+| `BPF_THIS_CPU_PTR` | all |
+| `BPF_REDIRECT_PEER` | all |
+| `BPF_TASK_STORAGE_GET` | all |
+| `BPF_TASK_STORAGE_DELETE` | all |
+| `BPF_GET_CURRENT_TASK_BTF` | all |
+| `BPF_BPRM_OPTS_SET` | all |
+| `BPF_KTIME_GET_COARSE_NS` | all |
+| `BPF_IMA_INODE_HASH` | all |
+| `BPF_SOCK_FROM_FILE` | all |
+| `BPF_CHECK_MTU` | all |
+| `BPF_FOR_EACH_MAP_ELEM` | all |
+| `BPF_SNPRINTF` | all |
+
+### `BPF map types` {#bpf-map-types}
+BPF map types are the supported eBPF map types.
+
+| Name | Architectures |
+| ---- |---------------|
+| `BPF_MAP_TYPE_UNSPEC` | all |
+| `BPF_MAP_TYPE_HASH` | all |
+| `BPF_MAP_TYPE_ARRAY` | all |
+| `BPF_MAP_TYPE_PROG_ARRAY` | all |
+| `BPF_MAP_TYPE_PERF_EVENT_ARRAY` | all |
+| `BPF_MAP_TYPE_PERCPU_HASH` | all |
+| `BPF_MAP_TYPE_PERCPU_ARRAY` | all |
+| `BPF_MAP_TYPE_STACK_TRACE` | all |
+| `BPF_MAP_TYPE_CGROUP_ARRAY` | all |
+| `BPF_MAP_TYPE_LRU_HASH` | all |
+| `BPF_MAP_TYPE_LRU_PERCPU_HASH` | all |
+| `BPF_MAP_TYPE_LPM_TRIE` | all |
+| `BPF_MAP_TYPE_ARRAY_OF_MAPS` | all |
+| `BPF_MAP_TYPE_HASH_OF_MAPS` | all |
+| `BPF_MAP_TYPE_DEVMAP` | all |
+| `BPF_MAP_TYPE_SOCKMAP` | all |
+| `BPF_MAP_TYPE_CPUMAP` | all |
+| `BPF_MAP_TYPE_XSKMAP` | all |
+| `BPF_MAP_TYPE_SOCKHASH` | all |
+| `BPF_MAP_TYPE_CGROUP_STORAGE` | all |
+| `BPF_MAP_TYPE_REUSEPORT_SOCKARRAY` | all |
+| `BPF_MAP_TYPE_PERCPU_CGROUP_STORAGE` | all |
+| `BPF_MAP_TYPE_QUEUE` | all |
+| `BPF_MAP_TYPE_STACK` | all |
+| `BPF_MAP_TYPE_SK_STORAGE` | all |
+| `BPF_MAP_TYPE_DEVMAP_HASH` | all |
+| `BPF_MAP_TYPE_STRUCT_OPS` | all |
+| `BPF_MAP_TYPE_RINGBUF` | all |
+| `BPF_MAP_TYPE_INODE_STORAGE` | all |
+| `BPF_MAP_TYPE_TASK_STORAGE` | all |
+
+### `BPF program types` {#bpf-program-types}
+BPF program types are the supported eBPF program types.
+
+| Name | Architectures |
+| ---- |---------------|
+| `BPF_PROG_TYPE_UNSPEC` | all |
+| `BPF_PROG_TYPE_SOCKET_FILTER` | all |
+| `BPF_PROG_TYPE_KPROBE` | all |
+| `BPF_PROG_TYPE_SCHED_CLS` | all |
+| `BPF_PROG_TYPE_SCHED_ACT` | all |
+| `BPF_PROG_TYPE_TRACEPOINT` | all |
+| `BPF_PROG_TYPE_XDP` | all |
+| `BPF_PROG_TYPE_PERF_EVENT` | all |
+| `BPF_PROG_TYPE_CGROUP_SKB` | all |
+| `BPF_PROG_TYPE_CGROUP_SOCK` | all |
+| `BPF_PROG_TYPE_LWT_IN` | all |
+| `BPF_PROG_TYPE_LWT_OUT` | all |
+| `BPF_PROG_TYPE_LWT_XMIT` | all |
+| `BPF_PROG_TYPE_SOCK_OPS` | all |
+| `BPF_PROG_TYPE_SK_SKB` | all |
+| `BPF_PROG_TYPE_CGROUP_DEVICE` | all |
+| `BPF_PROG_TYPE_SK_MSG` | all |
+| `BPF_PROG_TYPE_RAW_TRACEPOINT` | all |
+| `BPF_PROG_TYPE_CGROUP_SOCK_ADDR` | all |
+| `BPF_PROG_TYPE_LWT_SEG6LOCAL` | all |
+| `BPF_PROG_TYPE_LIRC_MODE2` | all |
+| `BPF_PROG_TYPE_SK_REUSEPORT` | all |
+| `BPF_PROG_TYPE_FLOW_DISSECTOR` | all |
+| `BPF_PROG_TYPE_CGROUP_SYSCTL` | all |
+| `BPF_PROG_TYPE_RAW_TRACEPOINT_WRITABLE` | all |
+| `BPF_PROG_TYPE_CGROUP_SOCKOPT` | all |
+| `BPF_PROG_TYPE_TRACING` | all |
+| `BPF_PROG_TYPE_STRUCT_OPS` | all |
+| `BPF_PROG_TYPE_EXT` | all |
+| `BPF_PROG_TYPE_LSM` | all |
+| `BPF_PROG_TYPE_SK_LOOKUP` | all |
+
+### `Boolean constants` {#boolean-constants}
+Boolean constants are the supported boolean constants.
+
+| Name | Architectures |
+| ---- |---------------|
+| `true` | all |
+| `false` | all |
+
+### `ContainerFlags flags` {#containerflags-flags}
+Container flags are the supported flags for a container.
+
+| Name | Architectures |
+| ---- |---------------|
+| `MANAGED_BY_DOCKER` | all |
+| `MANAGED_BY_CRI_CONTAINERD` | all |
+| `MANAGED_BY_CRIO` | all |
+| `MANAGED_BY_PODMAN` | all |
+| `MANAGED_BY_SYSTEMD` | all |
+
+### `DNS qclasses` {#dns-qclasses}
+DNS qclasses are the supported DNS query classes.
+
+| Name | Architectures |
+| ---- |---------------|
+| `CLASS_INET` | all |
+| `CLASS_CSNET` | all |
+| `CLASS_CHAOS` | all |
+| `CLASS_HESIOD` | all |
+| `CLASS_NONE` | all |
+| `CLASS_ANY` | all |
+
+### `DNS qtypes` {#dns-qtypes}
+DNS qtypes are the supported DNS query types.
+
+| Name | Architectures |
+| ---- |---------------|
+| `None` | all |
+| `A` | all |
+| `NS` | all |
+| `MD` | all |
+| `MF` | all |
+| `CNAME` | all |
+| `SOA` | all |
+| `MB` | all |
+| `MG` | all |
+| `MR` | all |
+| `NULL` | all |
+| `PTR` | all |
+| `HINFO` | all |
+| `MINFO` | all |
+| `MX` | all |
+| `TXT` | all |
+| `RP` | all |
+| `AFSDB` | all |
+| `X25` | all |
+| `ISDN` | all |
+| `RT` | all |
+| `NSAPPTR` | all |
+| `SIG` | all |
+| `KEY` | all |
+| `PX` | all |
+| `GPOS` | all |
+| `AAAA` | all |
+| `LOC` | all |
+| `NXT` | all |
+| `EID` | all |
+| `NIMLOC` | all |
+| `SRV` | all |
+| `ATMA` | all |
+| `NAPTR` | all |
+| `KX` | all |
+| `CERT` | all |
+| `DNAME` | all |
+| `OPT` | all |
+| `APL` | all |
+| `DS` | all |
+| `SSHFP` | all |
+| `RRSIG` | all |
+| `NSEC` | all |
+| `DNSKEY` | all |
+| `DHCID` | all |
+| `NSEC3` | all |
+| `NSEC3PARAM` | all |
+| `TLSA` | all |
+| `SMIMEA` | all |
+| `HIP` | all |
+| `NINFO` | all |
+| `RKEY` | all |
+| `TALINK` | all |
+| `CDS` | all |
+| `CDNSKEY` | all |
+| `OPENPGPKEY` | all |
+| `CSYNC` | all |
+| `ZONEMD` | all |
+| `SVCB` | all |
+| `HTTPS` | all |
+| `SPF` | all |
+| `UINFO` | all |
+| `UID` | all |
+| `GID` | all |
+| `UNSPEC` | all |
+| `NID` | all |
+| `L32` | all |
+| `L64` | all |
+| `LP` | all |
+| `EUI48` | all |
+| `EUI64` | all |
+| `URI` | all |
+| `CAA` | all |
+| `AVC` | all |
+| `TKEY` | all |
+| `TSIG` | all |
+| `IXFR` | all |
+| `AXFR` | all |
+| `MAILB` | all |
+| `MAILA` | all |
+| `ANY` | all |
+| `TA` | all |
+| `DLV` | all |
+| `Reserved` | all |
+
+### `Error constants` {#error-constants}
+Error constants are the supported error constants.
+
+| Name | Architectures |
+| ---- |---------------|
+| `E2BIG` | all |
+| `EACCES` | all |
+| `EADDRINUSE` | all |
+| `EADDRNOTAVAIL` | all |
+| `EADV` | all |
+| `EAFNOSUPPORT` | all |
+| `EAGAIN` | all |
+| `EALREADY` | all |
+| `EBADE` | all |
+| `EBADF` | all |
+| `EBADFD` | all |
+| `EBADMSG` | all |
+| `EBADR` | all |
+| `EBADRQC` | all |
+| `EBADSLT` | all |
+| `EBFONT` | all |
+| `EBUSY` | all |
+| `ECANCELED` | all |
+| `ECHILD` | all |
+| `ECHRNG` | all |
+| `ECOMM` | all |
+| `ECONNABORTED` | all |
+| `ECONNREFUSED` | all |
+| `ECONNRESET` | all |
+| `EDEADLK` | all |
+| `EDEADLOCK` | all |
+| `EDESTADDRREQ` | all |
+| `EDOM` | all |
+| `EDOTDOT` | all |
+| `EDQUOT` | all |
+| `EEXIST` | all |
+| `EFAULT` | all |
+| `EFBIG` | all |
+| `EHOSTDOWN` | all |
+| `EHOSTUNREACH` | all |
+| `EIDRM` | all |
+| `EILSEQ` | all |
+| `EINPROGRESS` | all |
+| `EINTR` | all |
+| `EINVAL` | all |
+| `EIO` | all |
+| `EISCONN` | all |
+| `EISDIR` | all |
+| `EISNAM` | all |
+| `EKEYEXPIRED` | all |
+| `EKEYREJECTED` | all |
+| `EKEYREVOKED` | all |
+| `EL2HLT` | all |
+| `EL2NSYNC` | all |
+| `EL3HLT` | all |
+| `EL3RST` | all |
+| `ELIBACC` | all |
+| `ELIBBAD` | all |
+| `ELIBEXEC` | all |
+| `ELIBMAX` | all |
+| `ELIBSCN` | all |
+| `ELNRNG` | all |
+| `ELOOP` | all |
+| `EMEDIUMTYPE` | all |
+| `EMFILE` | all |
+| `EMLINK` | all |
+| `EMSGSIZE` | all |
+| `EMULTIHOP` | all |
+| `ENAMETOOLONG` | all |
+| `ENAVAIL` | all |
+| `ENETDOWN` | all |
+| `ENETRESET` | all |
+| `ENETUNREACH` | all |
+| `ENFILE` | all |
+| `ENOANO` | all |
+| `ENOBUFS` | all |
+| `ENOCSI` | all |
+| `ENODATA` | all |
+| `ENODEV` | all |
+| `ENOENT` | all |
+| `ENOEXEC` | all |
+| `ENOKEY` | all |
+| `ENOLCK` | all |
+| `ENOLINK` | all |
+| `ENOMEDIUM` | all |
+| `ENOMEM` | all |
+| `ENOMSG` | all |
+| `ENONET` | all |
+| `ENOPKG` | all |
+| `ENOPROTOOPT` | all |
+| `ENOSPC` | all |
+| `ENOSR` | all |
+| `ENOSTR` | all |
+| `ENOSYS` | all |
+| `ENOTBLK` | all |
+| `ENOTCONN` | all |
+| `ENOTDIR` | all |
+| `ENOTEMPTY` | all |
+| `ENOTNAM` | all |
+| `ENOTRECOVERABLE` | all |
+| `ENOTSOCK` | all |
+| `ENOTSUP` | all |
+| `ENOTTY` | all |
+| `ENOTUNIQ` | all |
+| `ENXIO` | all |
+| `EOPNOTSUPP` | all |
+| `EOVERFLOW` | all |
+| `EOWNERDEAD` | all |
+| `EPERM` | all |
+| `EPFNOSUPPORT` | all |
+| `EPIPE` | all |
+| `EPROTO` | all |
+| `EPROTONOSUPPORT` | all |
+| `EPROTOTYPE` | all |
+| `ERANGE` | all |
+| `EREMCHG` | all |
+| `EREMOTE` | all |
+| `EREMOTEIO` | all |
+| `ERESTART` | all |
+| `ERFKILL` | all |
+| `EROFS` | all |
+| `ESHUTDOWN` | all |
+| `ESOCKTNOSUPPORT` | all |
+| `ESPIPE` | all |
+| `ESRCH` | all |
+| `ESRMNT` | all |
+| `ESTALE` | all |
+| `ESTRPIPE` | all |
+| `ETIME` | all |
+| `ETIMEDOUT` | all |
+| `ETOOMANYREFS` | all |
+| `ETXTBSY` | all |
+| `EUCLEAN` | all |
+| `EUNATCH` | all |
+| `EUSERS` | all |
+| `EWOULDBLOCK` | all |
+| `EXDEV` | all |
+| `EXFULL` | all |
+
+### `File mode constants` {#file-mode-constants}
+File mode constants are the supported file permissions as well as constants for the set-user-ID, set-group-ID, and sticky bits.
+
+| Name | Architectures |
+| ---- |---------------|
+| `S_ISUID` | all |
+| `S_ISGID` | all |
+| `S_ISVTX` | all |
+| `S_IRWXU` | all |
+| `S_IRUSR` | all |
+| `S_IWUSR` | all |
+| `S_IXUSR` | all |
+| `S_IRWXG` | all |
+| `S_IRGRP` | all |
+| `S_IWGRP` | all |
+| `S_IXGRP` | all |
+| `S_IRWXO` | all |
+| `S_IROTH` | all |
+| `S_IWOTH` | all |
+| `S_IXOTH` | all |
+
+### `Inode mode constants` {#inode-mode-constants}
+Inode mode constants are the supported file type constants as well as the file mode constants.
+
+| Name | Architectures |
+| ---- |---------------|
+| `S_IFMT` | all |
+| `S_IFSOCK` | all |
+| `S_IFLNK` | all |
+| `S_IFREG` | all |
+| `S_IFBLK` | all |
+| `S_IFDIR` | all |
+| `S_IFCHR` | all |
+| `S_IFIFO` | all |
+| `S_ISUID` | all |
+| `S_ISGID` | all |
+| `S_ISVTX` | all |
+| `S_IRWXU` | all |
+| `S_IRUSR` | all |
+| `S_IWUSR` | all |
+| `S_IXUSR` | all |
+| `S_IRWXG` | all |
+| `S_IRGRP` | all |
+| `S_IWGRP` | all |
+| `S_IXGRP` | all |
+| `S_IRWXO` | all |
+| `S_IROTH` | all |
+| `S_IWOTH` | all |
+| `S_IXOTH` | all |
+
+### `Kernel Capability constants` {#kernel-capability-constants}
+Kernel Capability constants are the supported Linux Kernel Capability.
+
+| Name | Architectures |
+| ---- |---------------|
+| `CAP_AUDIT_CONTROL` | all |
+| `CAP_AUDIT_READ` | all |
+| `CAP_AUDIT_WRITE` | all |
+| `CAP_BLOCK_SUSPEND` | all |
+| `CAP_BPF` | all |
+| `CAP_CHECKPOINT_RESTORE` | all |
+| `CAP_CHOWN` | all |
+| `CAP_DAC_OVERRIDE` | all |
+| `CAP_DAC_READ_SEARCH` | all |
+| `CAP_FOWNER` | all |
+| `CAP_FSETID` | all |
+| `CAP_IPC_LOCK` | all |
+| `CAP_IPC_OWNER` | all |
+| `CAP_KILL` | all |
+| `CAP_LEASE` | all |
+| `CAP_LINUX_IMMUTABLE` | all |
+| `CAP_MAC_ADMIN` | all |
+| `CAP_MAC_OVERRIDE` | all |
+| `CAP_MKNOD` | all |
+| `CAP_NET_ADMIN` | all |
+| `CAP_NET_BIND_SERVICE` | all |
+| `CAP_NET_BROADCAST` | all |
+| `CAP_NET_RAW` | all |
+| `CAP_PERFMON` | all |
+| `CAP_SETFCAP` | all |
+| `CAP_SETGID` | all |
+| `CAP_SETPCAP` | all |
+| `CAP_SETUID` | all |
+| `CAP_SYSLOG` | all |
+| `CAP_SYS_ADMIN` | all |
+| `CAP_SYS_BOOT` | all |
+| `CAP_SYS_CHROOT` | all |
+| `CAP_SYS_MODULE` | all |
+| `CAP_SYS_NICE` | all |
+| `CAP_SYS_PACCT` | all |
+| `CAP_SYS_PTRACE` | all |
+| `CAP_SYS_RAWIO` | all |
+| `CAP_SYS_RESOURCE` | all |
+| `CAP_SYS_TIME` | all |
+| `CAP_SYS_TTY_CONFIG` | all |
+| `CAP_WAKE_ALARM` | all |
+
+### `L3 protocols` {#l3-protocols}
+L3 protocols are the supported Layer 3 protocols.
+
+| Name | Architectures |
+| ---- |---------------|
+| `ETH_P_LOOP` | all |
+| `ETH_P_PUP` | all |
+| `ETH_P_PUPAT` | all |
+| `ETH_P_TSN` | all |
+| `ETH_P_IP` | all |
+| `ETH_P_X25` | all |
+| `ETH_P_ARP` | all |
+| `ETH_P_BPQ` | all |
+| `ETH_P_IEEEPUP` | all |
+| `ETH_P_IEEEPUPAT` | all |
+| `ETH_P_BATMAN` | all |
+| `ETH_P_DEC` | all |
+| `ETH_P_DNADL` | all |
+| `ETH_P_DNARC` | all |
+| `ETH_P_DNART` | all |
+| `ETH_P_LAT` | all |
+| `ETH_P_DIAG` | all |
+| `ETH_P_CUST` | all |
+| `ETH_P_SCA` | all |
+| `ETH_P_TEB` | all |
+| `ETH_P_RARP` | all |
+| `ETH_P_ATALK` | all |
+| `ETH_P_AARP` | all |
+| `ETH_P_8021_Q` | all |
+| `ETH_P_ERSPAN` | all |
+| `ETH_P_IPX` | all |
+| `ETH_P_IPV6` | all |
+| `ETH_P_PAUSE` | all |
+| `ETH_P_SLOW` | all |
+| `ETH_P_WCCP` | all |
+| `ETH_P_MPLSUC` | all |
+| `ETH_P_MPLSMC` | all |
+| `ETH_P_ATMMPOA` | all |
+| `ETH_P_PPPDISC` | all |
+| `ETH_P_PPPSES` | all |
+| `ETH_P__LINK_CTL` | all |
+| `ETH_P_ATMFATE` | all |
+| `ETH_P_PAE` | all |
+| `ETH_P_AOE` | all |
+| `ETH_P_8021_AD` | all |
+| `ETH_P_802_EX1` | all |
+| `ETH_P_TIPC` | all |
+| `ETH_P_MACSEC` | all |
+| `ETH_P_8021_AH` | all |
+| `ETH_P_MVRP` | all |
+| `ETH_P_1588` | all |
+| `ETH_P_NCSI` | all |
+| `ETH_P_PRP` | all |
+| `ETH_P_FCOE` | all |
+| `ETH_P_IBOE` | all |
+| `ETH_P_TDLS` | all |
+| `ETH_P_FIP` | all |
+| `ETH_P_80221` | all |
+| `ETH_P_HSR` | all |
+| `ETH_P_NSH` | all |
+| `ETH_P_LOOPBACK` | all |
+| `ETH_P_QINQ1` | all |
+| `ETH_P_QINQ2` | all |
+| `ETH_P_QINQ3` | all |
+| `ETH_P_EDSA` | all |
+| `ETH_P_IFE` | all |
+| `ETH_P_AFIUCV` | all |
+| `ETH_P_8023_MIN` | all |
+| `ETH_P_IPV6_HOP_BY_HOP` | all |
+| `ETH_P_8023` | all |
+| `ETH_P_AX25` | all |
+| `ETH_P_ALL` | all |
+| `ETH_P_8022` | all |
+| `ETH_P_SNAP` | all |
+| `ETH_P_DDCMP` | all |
+| `ETH_P_WANPPP` | all |
+| `ETH_P_PPPMP` | all |
+| `ETH_P_LOCALTALK` | all |
+| `ETH_P_CAN` | all |
+| `ETH_P_CANFD` | all |
+| `ETH_P_PPPTALK` | all |
+| `ETH_P_TR8022` | all |
+| `ETH_P_MOBITEX` | all |
+| `ETH_P_CONTROL` | all |
+| `ETH_P_IRDA` | all |
+| `ETH_P_ECONET` | all |
+| `ETH_P_HDLC` | all |
+| `ETH_P_ARCNET` | all |
+| `ETH_P_DSA` | all |
+| `ETH_P_TRAILER` | all |
+| `ETH_P_PHONET` | all |
+| `ETH_P_IEEE802154` | all |
+| `ETH_P_CAIF` | all |
+| `ETH_P_XDSA` | all |
+| `ETH_P_MAP` | all |
+
+### `L4 protocols` {#l4-protocols}
+L4 protocols are the supported Layer 4 protocols.
+
+| Name | Architectures |
+| ---- |---------------|
+| `IP_PROTO_IP` | all |
+| `IP_PROTO_ICMP` | all |
+| `IP_PROTO_IGMP` | all |
+| `IP_PROTO_IPIP` | all |
+| `IP_PROTO_TCP` | all |
+| `IP_PROTO_EGP` | all |
+| `IP_PROTO_IGP` | all |
+| `IP_PROTO_PUP` | all |
+| `IP_PROTO_UDP` | all |
+| `IP_PROTO_IDP` | all |
+| `IP_PROTO_TP` | all |
+| `IP_PROTO_DCCP` | all |
+| `IP_PROTO_IPV6` | all |
+| `IP_PROTO_RSVP` | all |
+| `IP_PROTO_GRE` | all |
+| `IP_PROTO_ESP` | all |
+| `IP_PROTO_AH` | all |
+| `IP_PROTO_ICMPV6` | all |
+| `IP_PROTO_MTP` | all |
+| `IP_PROTO_BEETPH` | all |
+| `IP_PROTO_ENCAP` | all |
+| `IP_PROTO_PIM` | all |
+| `IP_PROTO_COMP` | all |
+| `IP_PROTO_SCTP` | all |
+| `IP_PROTO_UDPLITE` | all |
+| `IP_PROTO_MPLS` | all |
+| `IP_PROTO_RAW` | all |
+
+### `MMap flags` {#mmap-flags}
+MMap flags are the supported flags for the mmap syscall.
+
+| Name | Architectures |
+| ---- |---------------|
+| `MAP_SHARED` | all |
+| `MAP_PRIVATE` | all |
+| `MAP_SHARED_VALIDATE` | all |
+| `MAP_ANON` | all |
+| `MAP_ANONYMOUS` | all |
+| `MAP_DENYWRITE` | all |
+| `MAP_EXECUTABLE` | all |
+| `MAP_FIXED` | all |
+| `MAP_FIXED_NOREPLACE` | all |
+| `MAP_GROWSDOWN` | all |
+| `MAP_HUGETLB` | all |
+| `MAP_LOCKED` | all |
+| `MAP_NONBLOCK` | all |
+| `MAP_NORESERVE` | all |
+| `MAP_POPULATE` | all |
+| `MAP_STACK` | all |
+| `MAP_SYNC` | all |
+| `MAP_UNINITIALIZED` | all |
+| `MAP_HUGE_16KB` | all |
+| `MAP_HUGE_64KB` | all |
+| `MAP_HUGE_512KB` | all |
+| `MAP_HUGE_1MB` | all |
+| `MAP_HUGE_2MB` | all |
+| `MAP_HUGE_8MB` | all |
+| `MAP_HUGE_16MB` | all |
+| `MAP_HUGE_32MB` | all |
+| `MAP_HUGE_256MB` | all |
+| `MAP_HUGE_512MB` | all |
+| `MAP_HUGE_1GB` | all |
+| `MAP_HUGE_2GB` | all |
+| `MAP_HUGE_16GB` | all |
+| `MAP_32BIT` | amd64 |
+
+### `Network Address Family constants` {#network-address-family-constants}
+Network Address Family constants are the supported network address families.
+
+| Name | Architectures |
+| ---- |---------------|
+| `AF_UNSPEC` | all |
+| `AF_LOCAL` | all |
+| `AF_UNIX` | all |
+| `AF_FILE` | all |
+| `AF_INET` | all |
+| `AF_AX25` | all |
+| `AF_IPX` | all |
+| `AF_APPLETALK` | all |
+| `AF_NETROM` | all |
+| `AF_BRIDGE` | all |
+| `AF_ATMPVC` | all |
+| `AF_X25` | all |
+| `AF_INET6` | all |
+| `AF_ROSE` | all |
+| `AF_DECnet` | all |
+| `AF_NETBEUI` | all |
+| `AF_SECURITY` | all |
+| `AF_KEY` | all |
+| `AF_NETLINK` | all |
+| `AF_ROUTE` | all |
+| `AF_PACKET` | all |
+| `AF_ASH` | all |
+| `AF_ECONET` | all |
+| `AF_ATMSVC` | all |
+| `AF_RDS` | all |
+| `AF_SNA` | all |
+| `AF_IRDA` | all |
+| `AF_PPPOX` | all |
+| `AF_WANPIPE` | all |
+| `AF_LLC` | all |
+| `AF_IB` | all |
+| `AF_MPLS` | all |
+| `AF_CAN` | all |
+| `AF_TIPC` | all |
+| `AF_BLUETOOTH` | all |
+| `AF_IUCV` | all |
+| `AF_RXRPC` | all |
+| `AF_ISDN` | all |
+| `AF_PHONET` | all |
+| `AF_IEEE802154` | all |
+| `AF_CAIF` | all |
+| `AF_ALG` | all |
+| `AF_NFC` | all |
+| `AF_VSOCK` | all |
+| `AF_KCM` | all |
+| `AF_QIPCRTR` | all |
+| `AF_SMC` | all |
+| `AF_XDP` | all |
+| `AF_MAX` | all |
+
+### `Open flags` {#open-flags}
+Open flags are the supported flags for the open syscall.
+
+| Name | Architectures |
+| ---- |---------------|
+| `O_RDONLY` | all |
+| `O_WRONLY` | all |
+| `O_RDWR` | all |
+| `O_APPEND` | all |
+| `O_CREAT` | all |
+| `O_EXCL` | all |
+| `O_SYNC` | all |
+| `O_TRUNC` | all |
+| `O_ACCMODE` | all |
+| `O_ASYNC` | all |
+| `O_CLOEXEC` | all |
+| `O_DIRECT` | all |
+| `O_DIRECTORY` | all |
+| `O_DSYNC` | all |
+| `O_FSYNC` | all |
+| `O_NDELAY` | all |
+| `O_NOATIME` | all |
+| `O_NOCTTY` | all |
+| `O_NOFOLLOW` | all |
+| `O_NONBLOCK` | all |
+| `O_RSYNC` | all |
+
+### `Pipe buffer flags` {#pipe-buffer-flags}
+Pipe buffer flags are the supported flags for a pipe buffer.
+
+| Name | Architectures |
+| ---- |---------------|
+| `PIPE_BUF_FLAG_LRU` | all |
+| `PIPE_BUF_FLAG_ATOMIC` | all |
+| `PIPE_BUF_FLAG_GIFT` | all |
+| `PIPE_BUF_FLAG_PACKET` | all |
+| `PIPE_BUF_FLAG_CAN_MERGE` | all |
+| `PIPE_BUF_FLAG_WHOLE` | all |
+| `PIPE_BUF_FLAG_LOSS` | all |
+
+### `Protection constants` {#protection-constants}
+Protection constants are the supported protections for the mmap syscall.
+
+| Name | Architectures |
+| ---- |---------------|
+| `PROT_NONE` | all |
+| `PROT_READ` | all |
+| `PROT_WRITE` | all |
+| `PROT_EXEC` | all |
+| `PROT_GROWSDOWN` | all |
+| `PROT_GROWSUP` | all |
+
+### `Ptrace constants` {#ptrace-constants}
+Ptrace constants are the supported ptrace commands for the ptrace syscall.
+
+| Name | Architectures |
+| ---- |---------------|
+| `PTRACE_TRACEME` | all |
+| `PTRACE_PEEKTEXT` | all |
+| `PTRACE_PEEKDATA` | all |
+| `PTRACE_PEEKUSR` | all |
+| `PTRACE_POKETEXT` | all |
+| `PTRACE_POKEDATA` | all |
+| `PTRACE_POKEUSR` | all |
+| `PTRACE_CONT` | all |
+| `PTRACE_KILL` | all |
+| `PTRACE_SINGLESTEP` | all |
+| `PTRACE_ATTACH` | all |
+| `PTRACE_DETACH` | all |
+| `PTRACE_SYSCALL` | all |
+| `PTRACE_SETOPTIONS` | all |
+| `PTRACE_GETEVENTMSG` | all |
+| `PTRACE_GETSIGINFO` | all |
+| `PTRACE_SETSIGINFO` | all |
+| `PTRACE_GETREGSET` | all |
+| `PTRACE_SETREGSET` | all |
+| `PTRACE_SEIZE` | all |
+| `PTRACE_INTERRUPT` | all |
+| `PTRACE_LISTEN` | all |
+| `PTRACE_PEEKSIGINFO` | all |
+| `PTRACE_GETSIGMASK` | all |
+| `PTRACE_SETSIGMASK` | all |
+| `PTRACE_SECCOMP_GET_FILTER` | all |
+| `PTRACE_SECCOMP_GET_METADATA` | all |
+| `PTRACE_GET_SYSCALL_INFO` | all |
+| `PTRACE_GETFPREGS` | amd64, arm |
+| `PTRACE_SETFPREGS` | amd64, arm |
+| `PTRACE_GETFPXREGS` | amd64 |
+| `PTRACE_SETFPXREGS` | amd64 |
+| `PTRACE_OLDSETOPTIONS` | amd64, arm |
+| `PTRACE_GET_THREAD_AREA` | amd64, arm |
+| `PTRACE_SET_THREAD_AREA` | amd64 |
+| `PTRACE_ARCH_PRCTL` | amd64 |
+| `PTRACE_SYSEMU` | amd64, arm64 |
+| `PTRACE_SYSEMU_SINGLESTEP` | amd64, arm64 |
+| `PTRACE_SINGLEBLOCK` | amd64 |
+| `PTRACE_GETCRUNCHREGS` | arm |
+| `PTRACE_GETFDPIC` | arm |
+| `PTRACE_GETFDPIC_EXEC` | arm |
+| `PTRACE_GETFDPIC_INTERP` | arm |
+| `PTRACE_GETHBPREGS` | arm |
+| `PTRACE_GETVFPREGS` | arm |
+| `PTRACE_GETWMMXREGS` | arm |
+| `PTRACE_SETCRUNCHREGS` | arm |
+| `PTRACE_SETHBPREGS` | arm |
+| `PTRACE_SETVFPREGS` | arm |
+| `PTRACE_SETWMMXREGS` | arm |
+| `PTRACE_SET_SYSCALL` | arm |
+| `PTRACE_PEEKMTETAGS` | arm64 |
+| `PTRACE_POKEMTETAGS` | arm64 |
+
+### `Signal constants` {#signal-constants}
+Signal constants are the supported signals for the kill syscall.
+
+| Name | Architectures |
+| ---- |---------------|
+| `SIGHUP` | all |
+| `SIGINT` | all |
+| `SIGQUIT` | all |
+| `SIGILL` | all |
+| `SIGTRAP` | all |
+| `SIGABRT` | all |
+| `SIGIOT` | all |
+| `SIGBUS` | all |
+| `SIGFPE` | all |
+| `SIGKILL` | all |
+| `SIGUSR1` | all |
+| `SIGSEGV` | all |
+| `SIGUSR2` | all |
+| `SIGPIPE` | all |
+| `SIGALRM` | all |
+| `SIGTERM` | all |
+| `SIGSTKFLT` | all |
+| `SIGCHLD` | all |
+| `SIGCONT` | all |
+| `SIGSTOP` | all |
+| `SIGTSTP` | all |
+| `SIGTTIN` | all |
+| `SIGTTOU` | all |
+| `SIGURG` | all |
+| `SIGXCPU` | all |
+| `SIGXFSZ` | all |
+| `SIGVTALRM` | all |
+| `SIGPROF` | all |
+| `SIGWINCH` | all |
+| `SIGIO` | all |
+| `SIGPOLL` | all |
+| `SIGPWR` | all |
+| `SIGSYS` | all |
+
+### `Unlink flags` {#unlink-flags}
+Unlink flags are the supported flags for the unlink syscall.
+
+| Name | Architectures |
+| ---- |---------------|
+| `AT_REMOVEDIR` | all |
+
+### `Virtual Memory flags` {#virtual-memory-flags}
+Virtual Memory flags define the protection of a virtual memory segment.
+
+| Name | Architectures |
+| ---- |---------------|
+| `VM_NONE` | all |
+| `VM_READ` | all |
+| `VM_WRITE` | all |
+| `VM_EXEC` | all |
+| `VM_SHARED` | all |
+| `VM_MAYREAD` | all |
+| `VM_MAYWRITE` | all |
+| `VM_MAYEXEC` | all |
+| `VM_MAYSHARE` | all |
+| `VM_GROWSDOWN` | all |
+| `VM_UFFD_MISSING` | all |
+| `VM_PFNMAP` | all |
+| `VM_UFFD_WP` | all |
+| `VM_LOCKED` | all |
+| `VM_IO` | all |
+| `VM_SEQ_READ` | all |
+| `VM_RAND_READ` | all |
+| `VM_DONTCOPY` | all |
+| `VM_DONTEXPAND` | all |
+| `VM_LOCKONFAULT` | all |
+| `VM_ACCOUNT` | all |
+| `VM_NORESERVE` | all |
+| `VM_HUGETLB` | all |
+| `VM_SYNC` | all |
+| `VM_ARCH_1` | all |
+| `VM_WIPEONFORK` | all |
+| `VM_DONTDUMP` | all |
+| `VM_SOFTDIRTY` | all |
+| `VM_MIXEDMAP` | all |
+| `VM_HUGEPAGE` | all |
+| `VM_NOHUGEPAGE` | all |
+| `VM_MERGEABLE` | all |
+
+
+
+{{< partial name="whats-next/whats-next.html" >}}
+
+>>>>>>> 4f4578f5fd (Export container.flags to SECL)

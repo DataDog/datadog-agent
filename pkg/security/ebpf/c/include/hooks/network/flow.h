@@ -39,9 +39,9 @@ int hook_security_sk_classify_flow(ctx_t *ctx) {
 
         bpf_map_update_elem(&flow_pid, &key, &pid, BPF_ANY);
 
-#ifdef DEBUG
-        bpf_printk("# registered (flow) pid:%d netns:%u", pid, key.netns);
-        bpf_printk("# p:%d a:%d a:%d", key.port, key.addr[0], key.addr[1]);
+#if defined(DEBUG) && defined(DEBUG_FLOW)
+    bpf_printk("# registered (flow) pid:%d netns:%u", pid, key.netns);
+    bpf_printk("# p:%d a:%d a:%d", key.port, key.addr[0], key.addr[1]);
 #endif
     }
     return 0;

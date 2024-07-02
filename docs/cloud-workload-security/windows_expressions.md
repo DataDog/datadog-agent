@@ -64,8 +64,10 @@ List of the available variables:
 
 | Property | Definition |
 | -------- | ------------- |
+| [`cgroup.id`](#cgroup-id-doc) | ID of the cgroup |
 | [`container.created_at`](#container-created_at-doc) | Timestamp of the creation of the container |
 | [`container.id`](#container-id-doc) | ID of the container |
+| [`container.runtime`](#container-runtime-doc) | Runtime managing the container |
 | [`container.tags`](#container-tags-doc) | Tags of the container |
 | [`event.hostname`](#event-hostname-doc) | Hostname associated with the event |
 | [`event.origin`](#event-origin-doc) | Origin of the event |
@@ -528,6 +530,13 @@ Definition: Registry's value name
 `set` `set_key_value`
 
 
+### `cgroup.id` {#cgroup-id-doc}
+Type: string
+
+Definition: ID of the cgroup
+
+
+
 ### `change_permission.new_sd` {#change_permission-new_sd-doc}
 Type: string
 
@@ -581,6 +590,13 @@ Definition: Timestamp of the creation of the container
 Type: string
 
 Definition: ID of the container
+
+
+
+### `container.runtime` {#container-runtime-doc}
+Type: string
+
+Definition: Runtime managing the container
 
 
 

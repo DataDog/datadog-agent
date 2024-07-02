@@ -88,6 +88,7 @@ func TestFindContainerID(t *testing.T) {
 	}
 
 	for _, test := range testCases {
-		assert.Equal(t, test.output, FindContainerID(test.input))
+		containerID, _ := FindContainerID(test.input)
+		assert.Equal(t, test.output, containerID)
 	}
 }

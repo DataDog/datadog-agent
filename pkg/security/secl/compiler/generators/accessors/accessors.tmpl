@@ -393,7 +393,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			{{if $Field.IsLength}}
 				return &eval.ErrFieldReadOnly{Field: "{{$Name}}"}
 			{{else}}
-			{{- if eq $Field.OrigType "string"}}
+			{{- if eq $Field.BasicType "string"}}
 				{{- if $Field.IsArray}}
 					switch rv := value.(type) {
 						case string:
@@ -404,7 +404,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 							return &eval.ErrValueTypeMismatch{Field: "{{$Field.Name}}"}
 					}
 				{{else}}
-					rv, ok := value.(string)
+					rv, ok := value.({{$Field.OrigType}})
 					if !ok {
 						return &eval.ErrValueTypeMismatch{Field: "{{$Field.Name}}"}
 					}

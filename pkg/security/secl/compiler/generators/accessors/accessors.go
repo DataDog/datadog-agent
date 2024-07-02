@@ -100,6 +100,8 @@ func origTypeToBasicType(kind string) string {
 	switch kind {
 	case "int", "int8", "int16", "int32", "int64", "uint", "uint8", "uint16", "uint32", "uint64":
 		return "int"
+	case "ContainerID", "CGroupID":
+		return "string"
 	}
 	return kind
 }
@@ -952,7 +954,7 @@ func getHandlers(allFields map[string]*common.StructField) map[string]string {
 					handlers[handler] = fmt.Sprintf("{ return int(%s) }", name)
 				}
 			} else {
-				handlers[handler] = fmt.Sprintf("{ return %s }", name)
+				handlers[handler] = fmt.Sprintf("{ return %s(%s) }", returnType, name)
 			}
 		}
 	}
