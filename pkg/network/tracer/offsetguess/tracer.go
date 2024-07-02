@@ -26,7 +26,7 @@ import (
 	"github.com/DataDog/gopsutil/host"
 	"golang.org/x/sys/unix"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/maps"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
@@ -49,8 +49,7 @@ const (
 	// the offset for RTT (and RTTvar) should be greater than this
 	// since the rtt fields are deep in struct tcp_sock; tcp_sock
 	// nests inet_connection_sock
-	rttDefaultOffsetBytes    = 1280
-	rttVarDefaultOffsetBytes = 1280
+	rttDefaultOffsetBytes = 1280
 )
 
 var (
@@ -107,7 +106,7 @@ func (t *tracerOffsetGuesser) Manager() *manager.Manager {
 }
 
 func (t *tracerOffsetGuesser) Close() {
-	ebpfcheck.RemoveNameMappings(t.m)
+	ddebpf.RemoveNameMappings(t.m)
 	if err := t.m.Stop(manager.CleanAll); err != nil {
 		log.Warnf("error stopping tracer offset guesser: %s", err)
 	}
@@ -586,6 +585,11 @@ func (t *tracerOffsetGuesser) checkAndUpdateCurrentOffset(mp *maps.GenericMap[ui
 		// For more information on the bit shift operations see:
 		// https://elixir.bootlin.com/linux/v4.6/source/net/ipv4/tcp.c#L2686
 		if t.status.Rtt>>3 == expected.rtt {
+			// start rtt var offset just past the rtt offset.
+			// this loosens the previous assumption of the rtt var
+			// offset always being rtt offset + 4, since on
+			// newer kernels this assumption does not hold
+			t.status.Offset_rtt_var = t.status.Offset_rtt + 4
 			t.logAndAdvance(t.status.Offset_rtt, GuessRTTVar)
 			break
 		}
@@ -827,12 +831,11 @@ func newTracerStatus() *TracerStatus {
 	}
 
 	status := &TracerStatus{
-		State:          uint64(StateChecking),
-		Proc:           Proc{Comm: cProcName},
-		What:           uint64(GuessSAddr),
-		Offset_netns:   netNsDefaultOffsetBytes,
-		Offset_rtt:     rttDefaultOffsetBytes,
-		Offset_rtt_var: rttVarDefaultOffsetBytes,
+		State:        uint64(StateChecking),
+		Proc:         Proc{Comm: cProcName},
+		What:         uint64(GuessSAddr),
+		Offset_netns: netNsDefaultOffsetBytes,
+		Offset_rtt:   rttDefaultOffsetBytes,
 	}
 
 	var err error

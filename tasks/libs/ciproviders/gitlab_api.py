@@ -4,6 +4,7 @@ import json
 import os
 import platform
 import subprocess
+import sys
 from functools import lru_cache
 
 import gitlab
@@ -11,6 +12,7 @@ import yaml
 from gitlab.v4.objects import Project, ProjectPipeline
 from invoke.exceptions import Exit
 
+from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.utils import retry_function
 
 BASE_URL = "https://gitlab.ddbuild.io"
@@ -90,9 +92,10 @@ class ConfigNodeList(list):
     """
 
     def __init__(self, *args, **kwargs) -> None:
+        super().__init__()
         self.extend(*args, **kwargs)
 
-    def __hash__(self) -> int:
+    def __hash__(self):
         return id(self)
 
 
@@ -106,9 +109,10 @@ class ConfigNodeDict(dict):
     """
 
     def __init__(self, *args, **kwargs) -> None:
+        super().__init__()
         self.update(*args, **kwargs)
 
-    def __hash__(self) -> int:
+    def __hash__(self):
         return id(self)
 
 
@@ -143,6 +147,18 @@ def convert_to_config_node(json_data):
         return constructor([convert_to_config_node(v) for v in json_data])
     else:
         return json_data
+
+
+def convert_to_std_collections(config_node):
+    """
+    Convert ConfigNode to standard collections (list, dict)
+    """
+    if isinstance(config_node, ConfigNodeDict):
+        return {k: convert_to_std_collections(v) for k, v in config_node.items()}
+    elif isinstance(config_node, ConfigNodeList):
+        return [convert_to_std_collections(v) for v in config_node]
+    else:
+        return config_node
 
 
 def apply_yaml_extends(config: dict, node):
@@ -180,8 +196,19 @@ def apply_yaml_extends(config: dict, node):
             for key, value in parent.items():
                 if key not in node:
                     node[key] = value
+                elif key in node and isinstance(node[key], dict) and isinstance(value, dict):
+                    update_without_overwrite(node[key], value)
 
         del node['extends']
+
+
+def update_without_overwrite(d, u):
+    """
+    Update a dictionary without overwriting existing keys
+    """
+    for k, v in u.items():
+        if k not in d:
+            d[k] = v
 
 
 def apply_yaml_reference(config: dict, node):
@@ -233,10 +260,19 @@ def apply_yaml_reference(config: dict, node):
         for key, value in node.items():
             node[key] = apply_ref(value)
     elif isinstance(node, list):
-        for i, value in enumerate(node):
-            node[i] = apply_ref(value)
+        results = []
+        for value in node:
+            postprocessed_value = apply_ref(value)
+            # If list referenced within list, flatten lists
+            if isinstance(value, YamlReferenceTagList) and isinstance(postprocessed_value, list):
+                results.extend(postprocessed_value)
+            else:
+                results.append(postprocessed_value)
+        node.clear()
+        node.extend(results)
 
 
+# TODO: Deprecate this in favor of get_gitlab_ci_configuration
 @lru_cache(maxsize=None)
 def apply_yaml_postprocessing(config: ConfigNodeDict, node):
     if isinstance(node, dict):
@@ -248,6 +284,135 @@ def apply_yaml_postprocessing(config: ConfigNodeDict, node):
 
     apply_yaml_extends(config, node)
     apply_yaml_reference(config, node)
+
+
+def clean_gitlab_ci_configuration(yml):
+    """
+    - Remove `extends` tags
+    - Flatten lists of lists
+    """
+
+    def flatten(yml):
+        """
+        Flatten lists (nesting due to !reference tags)
+        """
+        if isinstance(yml, list):
+            res = []
+            for v in yml:
+                if isinstance(v, list):
+                    res.extend(flatten(v))
+                else:
+                    res.append(v)
+
+            return res
+        elif isinstance(yml, dict):
+            return {k: flatten(v) for k, v in yml.items()}
+        else:
+            return yml
+
+    # Remove extends
+    for content in yml.values():
+        if 'extends' in content:
+            del content['extends']
+
+    # Flatten
+    return flatten(yml)
+
+
+def filter_gitlab_ci_configuration(yml: dict, job: str | None = None) -> dict:
+    """
+    Filters gitlab-ci configuration jobs
+
+    - job: If provided, retrieve only this job
+    """
+
+    def filter_yaml(key, value):
+        # Not a job
+        if key.startswith('.') or 'script' not in value:
+            return None
+
+        if job is not None:
+            return (key, value) if key == job else None
+
+        return key, value
+
+    if job is not None:
+        assert job in yml, f"Job {job} not found in the configuration"
+
+    return {node[0]: node[1] for node in (filter_yaml(k, v) for k, v in yml.items()) if node is not None}
+
+
+def print_gitlab_ci_configuration(yml: dict, sort_jobs: bool):
+    """
+    Prints a gitlab ci as yaml.
+
+    - sort_jobs: Sort jobs by name (the job keys are always sorted)
+    """
+    jobs = yml.items()
+    if sort_jobs:
+        jobs = sorted(jobs)
+
+    for i, (job, content) in enumerate(jobs):
+        if i > 0:
+            print()
+        yaml.safe_dump({job: content}, sys.stdout, default_flow_style=False, sort_keys=True, indent=2)
+
+
+def get_full_gitlab_ci_configuration(
+    ctx,
+    input_file: str = '.gitlab-ci.yml',
+    return_dict: bool = True,
+    ignore_errors: bool = False,
+    git_ref: str | None = None,
+) -> str | dict:
+    """
+    Returns the full gitlab-ci configuration by resolving all includes and applying postprocessing (extends / !reference)
+    Uses the /lint endpoint from the gitlab api to apply postprocessing
+    """
+    # Update loader/dumper to handle !reference tag
+    yaml.SafeLoader.add_constructor(ReferenceTag.yaml_tag, ReferenceTag.from_yaml)
+    yaml.SafeDumper.add_representer(YamlReferenceTagList, ReferenceTag.to_yaml)
+
+    # Read includes
+    concat_config = read_includes(ctx, input_file, return_config=True, git_ref=git_ref)
+    assert concat_config
+
+    agent = get_gitlab_repo()
+    res = agent.ci_lint.create({"content": yaml.safe_dump(concat_config), "dry_run": True, "include_jobs": True})
+
+    if not ignore_errors and not res.valid:
+        errors = '; '.join(res.errors)
+        raise RuntimeError(f"{color_message('Invalid configuration', Color.RED)}: {errors}")
+
+    if return_dict:
+        return yaml.safe_load(res.merged_yaml)
+    else:
+        return res.merged_yaml
+
+
+def get_gitlab_ci_configuration(
+    ctx,
+    input_file: str = '.gitlab-ci.yml',
+    ignore_errors: bool = False,
+    job: str | None = None,
+    clean: bool = True,
+    git_ref: str | None = None,
+) -> dict:
+    """
+    Creates, filters and processes the gitlab-ci configuration
+    """
+
+    # Make full configuration
+    yml = get_full_gitlab_ci_configuration(ctx, input_file, ignore_errors=ignore_errors, git_ref=git_ref)
+
+    # Filter
+    yml = filter_gitlab_ci_configuration(yml, job)
+
+    # Clean
+    if clean:
+        yml = clean_gitlab_ci_configuration(yml)
+
+    return yml
 
 
 def generate_gitlab_full_configuration(
@@ -266,7 +431,7 @@ def generate_gitlab_full_configuration(
     yaml.SafeLoader.add_constructor(ReferenceTag.yaml_tag, ReferenceTag.from_yaml)
     yaml.SafeDumper.add_representer(YamlReferenceTagList, ReferenceTag.to_yaml)
 
-    full_configuration = read_includes(input_file, return_config=True)
+    full_configuration = read_includes(None, input_file, return_config=True)
 
     # Override some variables with a dedicated context
     if context:
@@ -295,10 +460,11 @@ def generate_gitlab_full_configuration(
         full_configuration = convert_to_config_node(full_configuration)
         apply_yaml_postprocessing(full_configuration, full_configuration)
 
+    full_configuration = convert_to_std_collections(full_configuration)
     return yaml.safe_dump(full_configuration) if return_dump else full_configuration
 
 
-def read_includes(yaml_files, includes=None, return_config=False, add_file_path=False):
+def read_includes(ctx, yaml_files, includes=None, return_config=False, add_file_path=False, git_ref: str | None = None):
     """
     Recursive method to read all includes from yaml files and store them in a list
     - add_file_path: add the file path to each object of the parsed file
@@ -310,7 +476,7 @@ def read_includes(yaml_files, includes=None, return_config=False, add_file_path=
         yaml_files = [yaml_files]
 
     for yaml_file in yaml_files:
-        current_file = read_content(yaml_file)
+        current_file = read_content(ctx, yaml_file, git_ref=git_ref)
 
         if add_file_path:
             for value in current_file.values():
@@ -320,7 +486,7 @@ def read_includes(yaml_files, includes=None, return_config=False, add_file_path=
         if 'include' not in current_file:
             includes.append(current_file)
         else:
-            read_includes(current_file['include'], includes, add_file_path=add_file_path)
+            read_includes(ctx, current_file['include'], includes, add_file_path=add_file_path, git_ref=git_ref)
             del current_file['include']
             includes.append(current_file)
 
@@ -333,20 +499,22 @@ def read_includes(yaml_files, includes=None, return_config=False, add_file_path=
         return full_configuration
 
 
-def read_content(file_path):
+def read_content(ctx, file_path, git_ref: str | None = None):
     """
     Read the content of a file, either from a local file or from an http endpoint
     """
-    content = None
     if file_path.startswith('http'):
         import requests
 
         response = requests.get(file_path)
         response.raise_for_status()
         content = response.text
+    elif git_ref:
+        content = ctx.run(f"git show '{git_ref}:{file_path}'", hide=True).stdout
     else:
         with open(file_path) as f:
             content = f.read()
+
     return yaml.safe_load(content)
 
 
@@ -440,5 +608,5 @@ def load_context(context):
         try:
             j = json.loads(context)
             return [list(j.items())]
-        except json.JSONDecodeError:
-            raise Exit(f"Invalid context: {context}, must be a valid json, or a path to a yaml file", 1)
+        except json.JSONDecodeError as e:
+            raise Exit(f"Invalid context: {context}, must be a valid json, or a path to a yaml file", 1) from e

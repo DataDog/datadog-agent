@@ -375,9 +375,15 @@ type ChdirEvent struct {
 // OpenEvent represents an open event
 type OpenEvent struct {
 	SyscallEvent
+	SyscallContext
 	File  FileEvent `field:"file"`
 	Flags uint32    `field:"flags"`                 // SECLDoc[flags] Definition:`Flags used when opening the file` Constants:`Open flags`
 	Mode  uint32    `field:"file.destination.mode"` // SECLDoc[file.destination.mode] Definition:`Mode of the created file` Constants:`File mode constants`
+
+	// Syscall context aliases
+	SyscallPath  string `field:"syscall.path,ref:open.syscall.str1"`  // SECLDoc[syscall.path] Definition:`Path argument of the syscall`
+	SyscallFlags uint32 `field:"syscall.flags,ref:open.syscall.int2"` // SECLDoc[syscall.flags] Definition:`Flags argument of the syscall`
+	SyscallMode  uint32 `field:"syscall.mode,ref:open.syscall.int3"`  // SECLDoc[syscall.mode] Definition:`Mode argument of the syscall`
 }
 
 // SELinuxEvent represents a selinux event

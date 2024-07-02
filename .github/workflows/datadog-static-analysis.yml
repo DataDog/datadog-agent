@@ -4,6 +4,7 @@ name: Datadog Static Analysis
 
 jobs:
   static-analysis:
+    if: github.triggering_actor != 'dependabot[bot]'
     runs-on: ubuntu-latest
     name: Datadog Static Analyzer
     steps:

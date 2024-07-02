@@ -982,17 +982,17 @@ static __always_inline void kafka_call_response_parser(void *ctx, conn_tuple_t *
         switch (level) {
         case PARSER_LEVEL_RECORD_BATCH:
             if (api_version >= 12) {
-                index = TLS_KAFKA_RESPONSE_RECORD_BATCH_PARSER_V12;
+                index = PROG_KAFKA_RESPONSE_RECORD_BATCH_PARSER_V12;
             } else {
-                index = TLS_KAFKA_RESPONSE_RECORD_BATCH_PARSER_V0;
+                index = PROG_KAFKA_RESPONSE_RECORD_BATCH_PARSER_V0;
             }
             break;
         case PARSER_LEVEL_PARTITION:
         default:
             if (api_version >= 12) {
-                index = TLS_KAFKA_RESPONSE_PARTITION_PARSER_V12;
+                index = PROG_KAFKA_RESPONSE_PARTITION_PARSER_V12;
             } else {
-                index = TLS_KAFKA_RESPONSE_PARTITION_PARSER_V0;
+                index = PROG_KAFKA_RESPONSE_PARTITION_PARSER_V0;
             }
             break;
         }
@@ -1438,27 +1438,28 @@ static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka
         if (!get_topic_offset_from_produce_request(&kafka_header, pkt, &offset)) {
             return false;
         }
-        // Skipping number of entries for now
-        offset += sizeof(s32);
+        flexible = kafka_header.api_version >= 9;
         break;
     case KAFKA_FETCH:
         if (!get_topic_offset_from_fetch_request(&kafka_header, pkt, &offset)) {
             return false;
         }
-        if (kafka_header.api_version >= 12) {
-            flexible = true;
-            if (!skip_varint_number_of_topics(pkt, &offset)) {
-                return false;
-            }
-        } else {
-            offset += sizeof(s32);
-        }
+        flexible = kafka_header.api_version >= 12;
         break;
     default:
         return false;
     }
 
-    s16 topic_name_size = read_first_topic_name_size(pkt, flexible, &offset);
+    // Skipping number of entries for now
+    if (flexible) {
+        if (!skip_varint_number_of_topics(pkt, &offset)) {
+            return false;
+        }
+    } else {
+        offset += sizeof(s32);
+    }
+
+    s16 topic_name_size = read_nullable_string_size(pkt, flexible, &offset);
     if (topic_name_size <= 0 || topic_name_size > TOPIC_NAME_MAX_ALLOWED_SIZE) {
         return false;
     }
@@ -1477,13 +1478,23 @@ static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka
     switch (kafka_header.api_key) {
     case KAFKA_PRODUCE:
     {
-        PKTBUF_READ_BIG_ENDIAN_WRAPPER(s32, number_of_partitions, pkt, offset);
-        if (number_of_partitions <= 0) {
-            return false;
-        }
-        if (number_of_partitions > 1) {
-            log_debug("Multiple partitions detected in produce request, current support limited to requests with a single partition");
-            return false;
+        if (flexible) {
+            PKTBUF_READ_BIG_ENDIAN_WRAPPER(s8, partition_count_varint, pkt, offset);
+
+            // Varints are stored as N+1 so this means 1 partition.
+            if (partition_count_varint != 2) {
+                return false;
+            }
+        } else {
+            PKTBUF_READ_BIG_ENDIAN_WRAPPER(s32, number_of_partitions, pkt, offset);
+            if (number_of_partitions <= 0) {
+                return false;
+            }
+
+            if (number_of_partitions > 1) {
+                log_debug("Multiple partitions detected in produce request, current support limited to requests with a single partition");
+                return false;
+            }
         }
         offset += sizeof(s32); // Skipping Partition ID
 
@@ -1493,7 +1504,15 @@ static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka
         // The old message format predates Kafka 0.11, released on September 27, 2017.
         // It's unlikely for us to encounter these older versions in practice.
 
-        offset += sizeof(s32); // Skipping record batch (message set in wireshark) size in bytes
+        // Skipping record batch (message set in wireshark) size in bytes
+        if (flexible) {
+            if (!skip_varint(pkt, &offset, VARINT_BYTES_RECORD_BATCHES_NUM_BYTES)) {
+                return false;
+            }
+        } else {
+            offset += sizeof(s32);
+        }
+
         offset += sizeof(s64); // Skipping record batch baseOffset
         offset += sizeof(s32); // Skipping record batch batchLength
         offset += sizeof(s32); // Skipping record batch partitionLeaderEpoch

@@ -180,9 +180,9 @@ def trigger_agent_pipeline(
         return repo.pipelines.create({'ref': ref, 'variables': variables})
     except GitlabError as e:
         if "filtered out by workflow rules" in e.error_message:
-            raise FilteredOutException
+            raise FilteredOutException from e
 
-        raise RuntimeError(f"Invalid response from Gitlab API: {e}")
+        raise RuntimeError(f"Invalid response from Gitlab API: {e}") from e
 
 
 def wait_for_pipeline(

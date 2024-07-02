@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/utils"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -38,7 +39,7 @@ func NewContainerListener(_ Config, wmeta optional.Option[workloadmeta.Component
 	const name = "ad-containerlistener"
 	l := &ContainerListener{}
 	filter := workloadmeta.NewFilterBuilder().
-		SetSource(workloadmeta.SourceRuntime).
+		SetSource(workloadmeta.SourceAll).
 		AddKind(workloadmeta.KindContainer).Build()
 
 	wmetaInstance, ok := wmeta.Get()
@@ -109,7 +110,8 @@ func (l *ContainerListener) createContainerService(entity workloadmeta.Entity) {
 	})
 
 	svc := &service{
-		entity: container,
+		entity:   container,
+		tagsHash: tagger.GetEntityHash(containers.BuildTaggerEntityName(container.ID), tagger.ChecksCardinality()),
 		adIdentifiers: computeContainerServiceIDs(
 			containers.BuildEntityName(string(container.Runtime), container.ID),
 			containerImg.RawName,

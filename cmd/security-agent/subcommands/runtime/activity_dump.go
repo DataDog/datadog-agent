@@ -537,7 +537,7 @@ func generateEncodingFromActivityDump(_ log.Component, _ config.Component, _ sec
 			return fmt.Errorf("couldn't load configuration: %w", err)
 
 		}
-		storage, err := dump.NewSecurityAgentCommandStorageManager(cfg)
+		storage, err := dump.NewAgentCommandStorageManager(cfg)
 		if err != nil {
 			return fmt.Errorf("couldn't instantiate storage manager: %w", err)
 		}
