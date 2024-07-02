@@ -11,22 +11,17 @@ import (
 
 	// component dependencies
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
-	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
-	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap/pidmapimpl"
-	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	replaymock "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/fx-mock"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
@@ -42,28 +37,6 @@ import (
 
 	"go.uber.org/fx"
 )
-
-type testdeps struct {
-	fx.In
-
-	// additional StartServer arguments
-	//
-	// TODO: remove these in the next PR once StartServer component arguments
-	//       are part of the api component dependency struct
-	DogstatsdServer       dogstatsdServer.Component
-	Capture               replay.Component
-	SecretResolver        secrets.Component
-	RcService             optional.Option[rcservice.Component]
-	RcServiceMRF          optional.Option[rcservicemrf.Component]
-	AuthToken             authtoken.Component
-	WorkloadMeta          workloadmeta.Component
-	Tagger                tagger.Mock
-	Autodiscovery         autodiscovery.Mock
-	Logs                  optional.Option[logsAgent.Component]
-	Collector             optional.Option[collector.Component]
-	DiagnoseSenderManager diagnosesendermanager.Component
-	EndpointProviders     []api.EndpointProvider `group:"agent_endpoint"`
-}
 
 func getComponentDependencies(t *testing.T) api.Component {
 	// TODO: this fxutil.Test[T] can take a component and return the component
