@@ -288,20 +288,6 @@ class GithubAPI:
         """
         if "GITHUB_TOKEN" in os.environ:
             return Auth.Token(os.environ["GITHUB_TOKEN"])
-        # TODO
-        # if (
-        #     "GITHUB_APP_KEY" in os.environ
-        #     and "GITHUB_INTEGRATION_ID" in os.environ
-        #     and "GITHUB_INSTALLATION_ID" in os.environ
-        # ):
-        #     gh_app_key = os.environ['GITHUB_APP_KEY']
-        #     gh_integration_id = os.environ['GITHUB_INTEGRATION_ID']
-        #     gh_installation_id = os.environ['GITHUB_INSTALLATION_ID']
-
-        #     ghi = GithubIntegration(integration_id=gh_integration_id, private_key=gh_app_key)
-        #     token = ghi.get_access_token(gh_installation_id)
-        #     print("AUTH !")
-        #     return Auth.Token(token)
         if "GITHUB_APP_ID" in os.environ and "GITHUB_KEY_B64" in os.environ:
             appAuth = Auth.AppAuth(
                 os.environ['GITHUB_APP_ID'], base64.b64decode(os.environ['GITHUB_KEY_B64']).decode('ascii')
@@ -357,7 +343,7 @@ class GithubAPI:
                 raise RuntimeError("Failed to list app installations")
             install_id = installations[0].id
         else:
-            install_id = os.environ.get(installation_id)
+            install_id = os.environ[installation_id]
         auth_token = integration.get_access_token(install_id)
         print(auth_token.token)
 

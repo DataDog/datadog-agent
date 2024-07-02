@@ -179,13 +179,13 @@ class GitlabCIDiff:
 
                 return [str_job(name, 'GREEN'), '', *content, '']
             else:
-                header = f'<summary><h3>{name}</h3></summary>'
+                header = f'<summary><h4>{name}</h4></summary>'
 
                 return ['<details>', header, '', '```yaml', *content.splitlines(), '```', '', '</details>']
 
-        def str_diff(diff: list[str]) -> str:
+        def str_modified_job(name: str, diff: list[str]) -> str:
             if cli:
-                res = []
+                res = [str_job(name, 'ORANGE')]
                 for line in diff:
                     if line.startswith('+'):
                         res.append(color_message(line, Color.GREEN))
@@ -197,9 +197,10 @@ class GitlabCIDiff:
                 return '\n'.join(res)
             else:
                 # Wrap diff in markdown code block and in details html tags
+                header = f'<summary><h4>{name}</h4></summary>'
                 difftxt = '\n'.join(diff)
                 difftxt = f"```diff\n{difftxt}\n```"
-                difftxt = f"<details>\n\n{difftxt}\n\n</details>"
+                difftxt = f"<details>{header}\n\n{difftxt}\n\n</details>"
 
                 return difftxt
 
@@ -230,8 +231,7 @@ class GitlabCIDiff:
         if self.modified:
             res.append(str_section('Modified Jobs'))
             for job, diff in sorted(self.modified_diffs.items()):
-                res.append(str_job(job, 'ORANGE'))
-                res.append(str_diff(diff))
+                res.extend(str_modified_job(job, diff))
 
         if self.added:
             if res:

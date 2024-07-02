@@ -180,7 +180,7 @@ def print_gitlab_ci(
 
 
 @task
-def gitlab_ci_diff(ctx, before: str | None = DEFAULT_BRANCH, after: str | None = None, pr_comment: bool = False):
+def gitlab_ci_diff(ctx, before: str | None = None, after: str | None = None, pr_comment: bool = False):
     """
     Creates a diff from two gitlab-ci configurations.
 
@@ -194,8 +194,9 @@ def gitlab_ci_diff(ctx, before: str | None = DEFAULT_BRANCH, after: str | None =
     job_url = os.environ['CI_JOB_URL']
 
     try:
-        before_name = before or ctx.run(f'git merge-base {DEFAULT_BRANCH} HEAD', hide=True).stdout.strip()
+        before_name = before or "merge base"
         after_name = after or "local files"
+        before = before or ctx.run(f'git merge-base {DEFAULT_BRANCH} HEAD', hide=True).stdout.strip()
 
         print(f'Getting after changes config ({color_message(after_name, Color.BOLD)})')
         after_config = get_gitlab_ci_configuration(ctx, git_ref=after)
