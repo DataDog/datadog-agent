@@ -1104,6 +1104,7 @@ def build(
     arch: str | None = None,
     component: Component = "system-probe",
     layout: str = "tasks/kernel_matrix_testing/build-layout.json",
+    compile_only=False,
 ):
     stack = check_and_get_stack(stack)
     assert stacks.stack_exists(
@@ -1113,34 +1114,38 @@ def build(
     if arch is None:
         arch = "local"
 
+    arch_obj = Arch.from_str(arch)
+    paths = KMTPaths(stack, arch_obj)
+    paths.arch_dir.mkdir(parents=True, exist_ok=True)
+
+    cc = get_compiler(ctx)
+
+    cc.exec(f"cd {CONTAINER_AGENT_PATH} && inv -e system-probe.object-files")
+
+    build_task = "build-sysprobe-binary" if component == "system-probe" else "build"
+    cc.exec(
+        f"cd {CONTAINER_AGENT_PATH} && git config --global --add safe.directory {CONTAINER_AGENT_PATH} && inv -e {component}.{build_task} --no-bundle --arch={arch_obj.name}",
+    )
+
+    cc.exec(f"tar cf {CONTAINER_AGENT_PATH}/kmt-deps/{stack}/build-embedded-dir.tar {EMBEDDED_SHARE_DIR}")
+
+    if compile_only:
+        return
+
     if vms is None:
         vms = ",".join(stacks.get_all_vms_in_stack(stack))
 
     assert os.path.exists(layout), f"File {layout} does not exist"
 
-    arch_obj = Arch.from_str(arch)
-    paths = KMTPaths(stack, arch_obj)
-    paths.arch_dir.mkdir(parents=True, exist_ok=True)
-
     ssh_key_obj = try_get_ssh_key(ctx, ssh_key)
     infra = build_infrastructure(stack, ssh_key_obj)
     domains = filter_target_domains(vms, infra, arch_obj)
-    cc = get_compiler(ctx)
 
     if not images_matching_ci(ctx, domains):
         if ask("Some VMs do not match version in CI. Continue anyway [y/N]") != "y":
             return
 
     assert len(domains) > 0, f"no vms found from list {vms}. Run `inv -e kmt.status` to see all VMs in current stack"
-
-    cc.exec(f"cd {CONTAINER_AGENT_PATH} && inv -e system-probe.object-files")
-
-    build_task = "build-sysprobe-binary" if component == "system-probe" else "build"
-    cc.exec(
-        f"cd {CONTAINER_AGENT_PATH} && git config --global --add safe.directory {CONTAINER_AGENT_PATH} && inv -e {component}.{build_task} --no-bundle",
-    )
-
-    cc.exec(f"tar cf {CONTAINER_AGENT_PATH}/kmt-deps/{stack}/build-embedded-dir.tar {EMBEDDED_SHARE_DIR}")
 
     build_layout(ctx, domains, layout, verbose)
     for d in domains:
