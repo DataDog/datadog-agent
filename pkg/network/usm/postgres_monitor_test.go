@@ -59,7 +59,7 @@ func generateSelectLimitQuery(limit int) string {
 	return fmt.Sprintf("SELECT * FROM dummy limit %d", limit)
 }
 
-// testContext shares the context of a given test.
+// pgTestContext shares the context of a given test.
 // It contains common variable used by all tests, and allows extending the context dynamically by setting more
 // attributes to the `extras` map.
 type pgTestContext struct {
