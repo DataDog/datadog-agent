@@ -184,7 +184,7 @@ def gitlab_ci_diff(ctx, before: str | None = DEFAULT_BRANCH, after: str | None =
     """
     Creates a diff from two gitlab-ci configurations.
 
-    - before: Git ref without new changes
+    - before: Git ref without new changes, None for LCA commit between HEAD and main
     - after: Git ref with new changes, None for current local configuration
     - pr_comment: If True, post the diff as a comment in the PR
     - NOTE: This requires a full api token access level to the repository
@@ -194,7 +194,7 @@ def gitlab_ci_diff(ctx, before: str | None = DEFAULT_BRANCH, after: str | None =
     job_url = os.environ['CI_JOB_URL']
 
     try:
-        before_name = before or "local files"
+        before_name = before or ctx.run(f'git merge-base {DEFAULT_BRANCH} HEAD', hide=True).stdout.strip()
         after_name = after or "local files"
 
         print(f'Getting after changes config ({color_message(after_name, Color.BOLD)})')

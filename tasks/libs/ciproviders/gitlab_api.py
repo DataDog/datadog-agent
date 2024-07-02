@@ -173,13 +173,15 @@ class GitlabCIDiff:
             else:
                 return f'- {job_before} -> **{job_after}**'
 
-        def str_job_content(content: str) -> list[str]:
+        def str_add_job(name: str, content: str) -> list[str]:
             if cli:
                 content = [color_message(line, Color.GREY) for line in content.splitlines()]
 
-                return ['', *content, '']
+                return [str_job(name, 'GREEN'), '', *content, '']
+            else:
+                header = f'<summary><h3>{name}</h3></summary>'
 
-            return ['<details>', '', '```yaml', *content.splitlines(), '```', '', '</details>']
+                return ['<details>', header, '', '```yaml', *content.splitlines(), '```', '', '</details>']
 
         def str_diff(diff: list[str]) -> str:
             if cli:
@@ -236,8 +238,7 @@ class GitlabCIDiff:
                 res.append('')
             res.append(str_section('Added Jobs'))
             for job, content in sorted(self.added_contents.items()):
-                res.append(str_job(job, 'GREEN'))
-                res.extend(str_job_content(content))
+                res.extend(str_add_job(job, content))
 
         if self.removed:
             if res:
