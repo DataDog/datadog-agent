@@ -49,6 +49,7 @@ type fileObjectPointer uint64
 
 var (
 	errDiscardedPath = errors.New("discarded path")
+	errEmptyPath     = errors.New("empty device path")
 )
 
 /*
@@ -541,6 +542,11 @@ func (wp *WindowsProbe) parseReadArgs(e *etw.DDEventRecord) (*readArgs, error) {
 		ra.fileName = s.fileName
 		ra.userFileName = s.userFileName
 	}
+
+	if ra.fileName == "" {
+		return nil, errEmptyPath
+	}
+
 	return ra, nil
 }
 
