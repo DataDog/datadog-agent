@@ -82,7 +82,7 @@ func TestSecurityProfile(t *testing.T) {
 		}
 		time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
 
-		err = test.StopActivityDump(dump.Name, "", "")
+		err = test.StopActivityDump(dump.Name, "")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -135,7 +135,7 @@ func TestSecurityProfile(t *testing.T) {
 		}
 		time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
 
-		err = test.StopActivityDump(dump.Name, "", "")
+		err = test.StopActivityDump(dump.Name, "")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -174,7 +174,7 @@ func TestSecurityProfile(t *testing.T) {
 		}
 		time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
 
-		err = test.StopActivityDump(dump.Name, "", "")
+		err = test.StopActivityDump(dump.Name, "")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -262,7 +262,7 @@ func TestAnomalyDetection(t *testing.T) {
 		}
 		time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
 
-		err = test.StopActivityDump(dump.Name, "", "")
+		err = test.StopActivityDump(dump.Name, "")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -295,7 +295,7 @@ func TestAnomalyDetection(t *testing.T) {
 		}
 		time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
 
-		err = test.StopActivityDump(dump.Name, "", "")
+		err = test.StopActivityDump(dump.Name, "")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -330,7 +330,7 @@ func TestAnomalyDetection(t *testing.T) {
 		}
 		time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
 
-		err = test.StopActivityDump(dump.Name, "", "")
+		err = test.StopActivityDump(dump.Name, "")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -367,7 +367,7 @@ func TestAnomalyDetection(t *testing.T) {
 		}
 		time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
 
-		err = test.StopActivityDump(dump.Name, "", "")
+		err = test.StopActivityDump(dump.Name, "")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -444,7 +444,7 @@ func TestAnomalyDetectionWarmup(t *testing.T) {
 	cmd.CombinedOutput()
 	time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
 
-	err = test.StopActivityDump(dump.Name, "", "")
+	err = test.StopActivityDump(dump.Name, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -619,7 +619,7 @@ func TestSecurityProfileReinsertionPeriod(t *testing.T) {
 		}
 		time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
 
-		err = test.StopActivityDump(dump.Name, "", "")
+		err = test.StopActivityDump(dump.Name, "")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -653,7 +653,7 @@ func TestSecurityProfileReinsertionPeriod(t *testing.T) {
 		}
 		time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
 
-		err = test.StopActivityDump(dump.Name, "", "")
+		err = test.StopActivityDump(dump.Name, "")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -683,7 +683,7 @@ func TestSecurityProfileReinsertionPeriod(t *testing.T) {
 		}
 		time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
 
-		err = test.StopActivityDump(dump.Name, "", "")
+		err = test.StopActivityDump(dump.Name, "")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -721,7 +721,7 @@ func TestSecurityProfileReinsertionPeriod(t *testing.T) {
 		}
 		time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
 
-		err = test.StopActivityDump(dump.Name, "", "")
+		err = test.StopActivityDump(dump.Name, "")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -856,7 +856,7 @@ func TestSecurityProfileAutoSuppression(t *testing.T) {
 		}
 	})
 
-	err = test.StopActivityDump(dump.Name, "", "")
+	err = test.StopActivityDump(dump.Name, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -997,7 +997,7 @@ func TestSecurityProfileDifferentiateArgs(t *testing.T) {
 	}
 	time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
 
-	err = test.StopActivityDump(dump.Name, "", "")
+	err = test.StopActivityDump(dump.Name, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1108,7 +1108,7 @@ func TestSecurityProfileLifeCycleExecs(t *testing.T) {
 	}
 	time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
 
-	err = test.StopActivityDump("", dockerInstanceV1.containerID, "")
+	err = test.StopActivityDump("", dockerInstanceV1.containerID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1284,7 +1284,7 @@ func TestSecurityProfileLifeCycleDNS(t *testing.T) {
 	}
 	time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
 
-	err = test.StopActivityDump("", dockerInstanceV1.containerID, "")
+	err = test.StopActivityDump("", dockerInstanceV1.containerID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1459,7 +1459,7 @@ func TestSecurityProfileLifeCycleEvictitonProcess(t *testing.T) {
 	}
 	time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
 
-	err = test.StopActivityDump("", dockerInstanceV1.containerID, "")
+	err = test.StopActivityDump("", dockerInstanceV1.containerID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1640,7 +1640,7 @@ func TestSecurityProfileLifeCycleEvictitonDNS(t *testing.T) {
 	}
 	time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
 
-	err = test.StopActivityDump("", dockerInstanceV1.containerID, "")
+	err = test.StopActivityDump("", dockerInstanceV1.containerID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1821,7 +1821,7 @@ func TestSecurityProfileLifeCycleEvictitonProcessUnstable(t *testing.T) {
 	}
 	time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
 
-	err = test.StopActivityDump("", dockerInstanceV1.containerID, "")
+	err = test.StopActivityDump("", dockerInstanceV1.containerID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1993,7 +1993,7 @@ func TestSecurityProfilePersistence(t *testing.T) {
 	}
 	defer dockerInstance1.stop()
 
-	err = test.StopActivityDump("", dockerInstance1.containerID, "")
+	err = test.StopActivityDump("", dockerInstance1.containerID)
 	if err != nil {
 		t.Fatal(err)
 	}

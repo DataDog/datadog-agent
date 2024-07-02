@@ -141,14 +141,6 @@ message StorageRequestParams {
     bool RemoteStorageCompression = 5;
 }
 
-message ActivityDumpParams {
-    string Comm = 1;
-    string Timeout = 2;
-    bool DifferentiateArgs = 4;
-    StorageRequestParams Storage = 5;
-    string ContainerID = 6;
-}
-
 message MetadataMessage {
     string AgentVersion = 1;
     string AgentCommit = 2;
@@ -159,7 +151,7 @@ message MetadataMessage {
     string Name = 6;
     string ProtobufVersion = 7;
     bool DifferentiateArgs = 8;
-    string Comm = 9;
+    string Comm = 9 [deprecated = true];
     string ContainerID = 10;
     string Start = 11;
     string Timeout = 12;
@@ -196,7 +188,6 @@ message ActivityDumpListMessage {
 message ActivityDumpStopParams {
     string Name = 1;
     string ContainerID = 2;
-    string Comm = 3;
 }
 
 message ActivityDumpStopMessage {
@@ -303,7 +294,6 @@ service SecurityModule {
     rpc DumpDiscarders(DumpDiscardersParams) returns (DumpDiscardersMessage) {}
 
     // Activity dumps
-    rpc DumpActivity(ActivityDumpParams) returns (ActivityDumpMessage) {}
     rpc ListActivityDumps(ActivityDumpListParams) returns (ActivityDumpListMessage) {}
     rpc StopActivityDump(ActivityDumpStopParams) returns (ActivityDumpStopMessage) {}
     rpc TranscodingRequest(TranscodingRequestParams) returns (TranscodingRequestMessage) {}

@@ -1139,41 +1139,7 @@ func checkKernelCompatibility(tb testing.TB, why string, skipCheck func(kv *kern
 	}
 }
 
-func (tm *testModule) StartActivityDumpComm(comm string, outputDir string, formats []string) ([]string, error) {
-	p, ok := tm.probe.PlatformProbe.(*sprobe.EBPFProbe)
-	if !ok {
-		return nil, errors.New("not supported")
-	}
-
-	managers := p.GetProfileManagers()
-	if managers == nil {
-		return nil, errors.New("no manager")
-	}
-	params := &api.ActivityDumpParams{
-		Comm:              comm,
-		Timeout:           "1m",
-		DifferentiateArgs: true,
-		Storage: &api.StorageRequestParams{
-			LocalStorageDirectory:    outputDir,
-			LocalStorageFormats:      formats,
-			LocalStorageCompression:  false,
-			RemoteStorageFormats:     []string{},
-			RemoteStorageCompression: false,
-		},
-	}
-	mess, err := managers.DumpActivity(params)
-	if err != nil || mess == nil || len(mess.Storage) < 1 {
-		return nil, fmt.Errorf("failed to start activity dump: err:%v message:%v len:%v", err, mess, len(mess.Storage))
-	}
-
-	var files []string
-	for _, s := range mess.Storage {
-		files = append(files, s.File)
-	}
-	return files, nil
-}
-
-func (tm *testModule) StopActivityDump(name, containerID, comm string) error {
+func (tm *testModule) StopActivityDump(name, containerID string) error {
 	p, ok := tm.probe.PlatformProbe.(*sprobe.EBPFProbe)
 	if !ok {
 		return errors.New("not supported")
@@ -1186,7 +1152,6 @@ func (tm *testModule) StopActivityDump(name, containerID, comm string) error {
 	params := &api.ActivityDumpStopParams{
 		Name:        name,
 		ContainerID: containerID,
-		Comm:        comm,
 	}
 	_, err := managers.StopActivityDump(params)
 	if err != nil {
@@ -1588,7 +1553,7 @@ func (tm *testModule) StopAllActivityDumps() error {
 		return nil
 	}
 	for _, dump := range dumps {
-		_ = tm.StopActivityDump(dump.Name, "", "")
+		_ = tm.StopActivityDump(dump.Name, "")
 	}
 	dumps, err = tm.ListActivityDumps()
 	if err != nil {

@@ -74,8 +74,6 @@ func easyjson9a9a4de6DecodeGithubComDataDogDatadogAgentPkgSecuritySecurityProfil
 			out.ProtobufVersion = string(in.String())
 		case "differentiate_args":
 			out.DifferentiateArgs = bool(in.Bool())
-		case "comm":
-			out.Comm = string(in.String())
 		case "start":
 			if data := in.Raw(); in.Ok() {
 				in.AddError((out.Start).UnmarshalJSON(data))
@@ -191,11 +189,6 @@ func easyjson9a9a4de6EncodeGithubComDataDogDatadogAgentPkgSecuritySecurityProfil
 		const prefix string = ",\"differentiate_args\":"
 		out.RawString(prefix)
 		out.Bool(bool(in.DifferentiateArgs))
-	}
-	if in.Comm != "" {
-		const prefix string = ",\"comm\":"
-		out.RawString(prefix)
-		out.String(string(in.Comm))
 	}
 	{
 		const prefix string = ",\"start\":"
