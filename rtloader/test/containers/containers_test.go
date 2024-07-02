@@ -31,8 +31,8 @@ func TestIsExcluded(t *testing.T) {
 	code := fmt.Sprintf(`
 	with open(r'%s', 'w') as f:
 		f.write("{},{}".format(
-			containers.is_excluded('foo', 'bar', 'ns'),
-			containers.is_excluded('baz', 'bar', 'ns'),
+			containers.is_excluded('a', 'foo', 'bar', 'ns'),
+			containers.is_excluded('a', 'baz', 'bar', 'ns'),
 		))
 	`, tmpfile.Name())
 	out, err := run(code)
@@ -54,7 +54,7 @@ func TestIsExcludedErrorTypeName(t *testing.T) {
 	code := fmt.Sprintf(`
 	with open(r'%s', 'w') as f:
 		f.write("{},{}".format(
-			containers.is_excluded(123, 'bar', 'ns'),
+			containers.is_excluded('a', 123, 'bar', 'ns'),
 		))
 	`, tmpfile.Name())
 	out, err := run(code)
@@ -62,7 +62,7 @@ func TestIsExcludedErrorTypeName(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if matched, err := regexp.Match("TypeError: argument 1 must be (str|string), not int", []byte(out)); err != nil && !matched {
+	if matched, err := regexp.Match("TypeError: argument 2 must be (str|string), not int", []byte(out)); err != nil && !matched {
 		t.Errorf("Unexpected printed value: '%s'", out)
 	}
 
@@ -77,14 +77,36 @@ func TestIsExcludedErrorTypeImage(t *testing.T) {
 	code := fmt.Sprintf(`
 	with open(r'%s', 'w') as f:
 		f.write("{},{}".format(
-			containers.is_excluded('foo', 123, 'ns'),
+			containers.is_excluded('a', 'foo', 123, 'ns'),
 		))
 	`, tmpfile.Name())
 	out, err := run(code)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if matched, err := regexp.Match("TypeError: argument 2 must be (str|string), not int", []byte(out)); err != nil && !matched {
+	if matched, err := regexp.Match("TypeError: argument 3 must be (str|string), not int", []byte(out)); err != nil && !matched {
+		t.Errorf("Unexpected printed value: '%s'", out)
+	}
+
+	// Check for leaks
+	helpers.AssertMemoryUsage(t)
+}
+
+func TestIsExcludedErrorTypeAnnotation(t *testing.T) {
+	// Reset memory counters
+	helpers.ResetMemoryStats()
+
+	code := fmt.Sprintf(`
+	with open(r'%s', 'w') as f:
+		f.write("{},{}".format(
+			containers.is_excluded(123, 'foo', 'bar', 'ns'),
+		))
+	`, tmpfile.Name())
+	out, err := run(code)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if matched, err := regexp.Match("TypeError: argument 1 must be (str|string), not int", []byte(out)); err != nil && !matched {
 		t.Errorf("Unexpected printed value: '%s'", out)
 	}
 
