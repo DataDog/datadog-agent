@@ -403,7 +403,7 @@ def pr_commenter(
     header = f'## {title}'
     content = f'{header}\n\n{body}'
 
-    comment = github.find_comment(pr, header, is_line=True)
+    comment = github.find_comment(pr, header)
 
     if comment:
         if delete:
