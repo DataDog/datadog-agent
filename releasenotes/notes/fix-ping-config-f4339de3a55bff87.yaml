@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    Fix issue where for ping init config took priority over instance config
+    Fix issue where init config for ping took priority over instance config.
