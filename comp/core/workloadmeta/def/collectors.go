@@ -23,10 +23,10 @@ type Collector interface {
 	// store.
 	Pull(context.Context) error
 
-	// Returns the identifier for the respective component.
+	// GetID returns the identifier for the respective component.
 	GetID() string
 
-	// Get the expected catalog
+	// GetTargetCatalog gets the expected catalog.
 	GetTargetCatalog() AgentType
 }
 
