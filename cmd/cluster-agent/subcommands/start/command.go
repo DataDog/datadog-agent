@@ -38,6 +38,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/datadogclient"
+	"github.com/DataDog/datadog-agent/comp/core/datadogclient/datadogclientimpl"
 	healthprobe "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
 	healthprobefx "github.com/DataDog/datadog-agent/comp/core/healthprobe/fx"
 	"github.com/DataDog/datadog-agent/comp/core/log"
@@ -198,6 +200,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					}
 				}),
 				settingsimpl.Module(),
+				datadogclientimpl.Module(),
 			)
 		},
 	}
@@ -212,6 +215,7 @@ func start(log log.Component,
 	demultiplexer demultiplexer.Component,
 	wmeta workloadmeta.Component,
 	ac autodiscovery.Component,
+	dc datadogclient.Component,
 	secretResolver secrets.Component,
 	statusComponent status.Component,
 	collector collector.Component,
@@ -394,7 +398,7 @@ func start(log log.Component,
 		go func() {
 			defer wg.Done()
 
-			errServ := custommetrics.RunServer(mainCtx, apiCl)
+			errServ := custommetrics.RunServer(mainCtx, apiCl, dc)
 			if errServ != nil {
 				pkglog.Errorf("Error in the External Metrics API Server: %v", errServ)
 			}
