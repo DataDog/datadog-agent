@@ -19,7 +19,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -111,8 +110,8 @@ func TestMapsTelemetry(t *testing.T) {
 	errorMapEntryFound, e2bigErrorFound := false, false
 	for _, promMetric := range mapsTelemetry {
 		dtoMetric := dto.Metric{}
-		assert.NoError(t, promMetric.Write(&dtoMetric), "Failed to parse metric %v", promMetric.Desc())
-		assert.NotNilf(t, dtoMetric.GetCounter(), "expected metric %v to be of a counter type", promMetric.Desc())
+		require.NoError(t, promMetric.Write(&dtoMetric), "Failed to parse metric %v", promMetric.Desc())
+		require.NotNilf(t, dtoMetric.GetCounter(), "expected metric %v to be of a counter type", promMetric.Desc())
 
 		for _, label := range dtoMetric.GetLabel() {
 			switch label.GetName() {
@@ -148,8 +147,8 @@ func TestMapsTelemetrySuppressError(t *testing.T) {
 	suppressMapEntryFound := false
 	for _, promMetric := range mapsTelemetry {
 		dtoMetric := dto.Metric{}
-		assert.NoError(t, promMetric.Write(&dtoMetric), "Failed to parse metric %v", promMetric.Desc())
-		assert.NotNilf(t, dtoMetric.GetCounter(), "expected metric %v to be of a counter type", promMetric.Desc())
+		require.NoError(t, promMetric.Write(&dtoMetric), "Failed to parse metric %v", promMetric.Desc())
+		require.NotNilf(t, dtoMetric.GetCounter(), "expected metric %v to be of a counter type", promMetric.Desc())
 
 		for _, label := range dtoMetric.GetLabel() {
 			switch label.GetName() {
@@ -175,8 +174,8 @@ func TestHelpersTelemetry(t *testing.T) {
 	probeReadHelperFound, efaultErrorFound := false, false
 	for _, promMetric := range helperTelemetry {
 		dtoMetric := dto.Metric{}
-		assert.NoError(t, promMetric.Write(&dtoMetric), "Failed to parse metric %v", promMetric.Desc())
-		assert.NotNilf(t, dtoMetric.GetCounter(), "expected metric %v to be of a counter type", promMetric.Desc())
+		require.NoError(t, promMetric.Write(&dtoMetric), "Failed to parse metric %v", promMetric.Desc())
+		require.NotNilf(t, dtoMetric.GetCounter(), "expected metric %v to be of a counter type", promMetric.Desc())
 
 		for _, label := range dtoMetric.GetLabel() {
 			switch label.GetName() {
