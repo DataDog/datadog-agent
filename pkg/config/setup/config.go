@@ -415,6 +415,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.SetKnown("network_devices.netflow.aggregator_rollup_tracker_refresh_interval")
 	config.BindEnvAndSetDefault("network_devices.netflow.enabled", "false")
 	bindEnvAndSetLogsConfigKeys(config, "network_devices.netflow.forwarder.")
+	config.BindEnvAndSetDefault("network_devices.netflow.reverse_dns_enrichment_enabled", false)
 
 	// Network Path
 	config.BindEnvAndSetDefault("network_path.connections_monitoring.enabled", false)
@@ -922,6 +923,16 @@ func InitConfig(config pkgconfigmodel.Config) {
 
 	// Data Jobs Monitoring config
 	config.BindEnvAndSetDefault("djm_config.enabled", false)
+
+	// Reverse DNS Enrichment
+	config.SetKnown("reverse_dns_enrichment.workers")
+	config.SetKnown("reverse_dns_enrichment.chan_size")
+	config.BindEnvAndSetDefault("reverse_dns_enrichment.rate_limiter.enabled", true)
+	config.SetKnown("reverse_dns_enrichment.rate_limiter.limit_per_sec")
+	config.BindEnvAndSetDefault("reverse_dns_enrichment.cache.enabled", true)
+	config.SetKnown("reverse_dns_enrichment.cache.entry_ttl")
+	config.SetKnown("reverse_dns_enrichment.cache.clean_interval")
+	config.SetKnown("reverse_dns_enrichment.cache.persist_interval")
 }
 
 func agent(config pkgconfigmodel.Setup) {
