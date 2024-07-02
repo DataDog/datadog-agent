@@ -11,7 +11,7 @@ The repository contains a few submodules. To add a new one and ensure it is test
 
 2. Initialize a new Go module:
     ```
-    cd mymodule && go mod init
+    cd path/to/mymodule && go mod init
     ```
 
 
@@ -43,16 +43,16 @@ The repository contains a few submodules. To add a new one and ensure it is test
 
     From the other module root, install the dependency with `go get`:
     ```
-    go get github.com/DataDog/datadog-agent/mymodule
+    go get github.com/DataDog/datadog-agent/path/to/mymodule
     ```
     Then add the [replace directive](https://go.dev/ref/mod#go-mod-file-replace) in the `go.mod` file:
     ```
     module github.com/DataDog/datadog-agent/myothermodule
     go 1.18
     // Replace with local version
-    replace github.com/DataDog/datadog-agent/mymodule => ../mymodule
+    replace github.com/DataDog/datadog-agent/path/to/mymodule => ../path/to/mymodule
     require (
-        github.com/DataDog/datadog-agent/mymodule v0.0.0-20230526143644-ed785d3a20d5
+        github.com/DataDog/datadog-agent/path/to/mymodule v0.0.0-20230526143644-ed785d3a20d5
     )
     ```
     Example PR: [#17350](https://github.com/DataDog/datadog-agent/pull/17350/files)
