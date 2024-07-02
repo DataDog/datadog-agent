@@ -1535,9 +1535,9 @@ func easyjsonA1e47abeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers12(
 		}
 		switch key {
 		case "span_id":
-			out.SpanID = uint64(in.Uint64())
+			out.SpanID = string(in.String())
 		case "trace_id":
-			out.TraceID = uint64(in.Uint64())
+			out.TraceID = string(in.String())
 		default:
 			in.SkipRecursive()
 		}
@@ -1552,13 +1552,13 @@ func easyjsonA1e47abeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers12(
 	out.RawByte('{')
 	first := true
 	_ = first
-	if in.SpanID != 0 {
+	if in.SpanID != "" {
 		const prefix string = ",\"span_id\":"
 		first = false
 		out.RawString(prefix[1:])
-		out.Uint64(uint64(in.SpanID))
+		out.String(string(in.SpanID))
 	}
-	if in.TraceID != 0 {
+	if in.TraceID != "" {
 		const prefix string = ",\"trace_id\":"
 		if first {
 			first = false
@@ -1566,7 +1566,7 @@ func easyjsonA1e47abeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers12(
 		} else {
 			out.RawString(prefix)
 		}
-		out.Uint64(uint64(in.TraceID))
+		out.String(string(in.TraceID))
 	}
 	out.RawByte('}')
 }

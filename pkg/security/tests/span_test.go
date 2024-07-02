@@ -71,8 +71,8 @@ func TestSpan(t *testing.T) {
 
 			test.validateSpanSchema(t, event)
 
-			assert.Equal(t, uint64(204), event.SpanContext.SpanID)
-			assert.Equal(t, uint64(104), event.SpanContext.TraceID)
+			assert.Equal(t, "204", fmt.Sprint(event.SpanContext.SpanID))
+			assert.Equal(t, "104", event.SpanContext.TraceID.String())
 		})
 	})
 
@@ -103,8 +103,8 @@ func TestSpan(t *testing.T) {
 
 			test.validateSpanSchema(t, event)
 
-			assert.Equal(t, uint64(204), event.SpanContext.SpanID)
-			assert.Equal(t, uint64(104), event.SpanContext.TraceID)
+			assert.Equal(t, "204", fmt.Sprint(event.SpanContext.SpanID))
+			assert.Equal(t, "104", event.SpanContext.TraceID.String())
 		})
 	})
 }

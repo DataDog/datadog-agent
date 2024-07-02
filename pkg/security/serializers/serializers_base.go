@@ -187,9 +187,9 @@ type DNSEventSerializer struct {
 // easyjson:json
 type DDContextSerializer struct {
 	// Span ID used for APM correlation
-	SpanID uint64 `json:"span_id,omitempty"`
+	SpanID string `json:"span_id,omitempty"`
 	// Trace ID used for APM correlation
-	TraceID uint64 `json:"trace_id,omitempty"`
+	TraceID string `json:"trace_id,omitempty"`
 }
 
 // ExitEventSerializer serializes an exit event to JSON

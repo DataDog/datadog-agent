@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"modernc.org/mathutil"
 )
 
 // MessageType defines the type of a message
@@ -266,7 +267,7 @@ type UnloadModuleSyscallMsg struct {
 // SpanContext stores a span context (if any)
 type SpanContext struct {
 	SpanID  uint64
-	TraceID uint64
+	TraceID mathutil.Int128
 }
 
 // MountSyscallMsg defines a mount message

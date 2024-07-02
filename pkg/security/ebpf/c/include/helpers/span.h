@@ -44,14 +44,15 @@ void __attribute__((always_inline)) fill_span_context(struct span_context_t *spa
         int ret = bpf_probe_read(span, sizeof(struct span_context_t), tls->base + offset);
         if (ret < 0) {
             span->span_id = 0;
-            span->trace_id = 0;
+            span->trace_id[0] = span->trace_id[1] = 0;
         }
     }
 }
 
 void __attribute__((always_inline)) copy_span_context(struct span_context_t *src, struct span_context_t *dst) {
     dst->span_id = src->span_id;
-    dst->trace_id = src->trace_id;
+    dst->trace_id[0] = src->trace_id[0];
+    dst->trace_id[1] = src->trace_id[1];
 }
 
 #endif
