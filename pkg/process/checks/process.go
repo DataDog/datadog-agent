@@ -163,14 +163,18 @@ func (p *ProcessCheck) Init(syscfg *SysProbeConfig, info *HostInfo, oneShot bool
 	p.extractors = append(p.extractors, p.serviceExtractor)
 
 	if !oneShot && workloadmeta.Enabled(p.config) {
-		p.workloadMetaExtractor = workloadmeta.NewWorkloadMetaExtractor(ddconfig.SystemProbe)
-		p.workloadMetaServer = workloadmeta.NewGRPCServer(p.config, p.workloadMetaExtractor)
-		err = p.workloadMetaServer.Start()
-		if err != nil {
-			return log.Error("Failed to start the workloadmeta process entity gRPC server:", err)
-		} else { //nolint:revive // TODO(PROC) Fix revive linter
-			p.extractors = append(p.extractors, p.workloadMetaExtractor)
+		p.workloadMetaExtractor = workloadmeta.GetSharedWorkloadMetaExtractor(ddconfig.SystemProbe)
+
+		// The server is only needed on the process agent
+		if !p.config.GetBool("process_config.run_in_core_agent.enabled") && flavor.GetFlavor() == flavor.ProcessAgent {
+			p.workloadMetaServer = workloadmeta.NewGRPCServer(p.config, p.workloadMetaExtractor)
+			err = p.workloadMetaServer.Start()
+			if err != nil {
+				return log.Error("Failed to start the workloadmeta process entity gRPC server:", err)
+			}
 		}
+
+		p.extractors = append(p.extractors, p.workloadMetaExtractor)
 	}
 	return nil
 }

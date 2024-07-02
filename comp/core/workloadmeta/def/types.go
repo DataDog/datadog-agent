@@ -88,6 +88,10 @@ const (
 
 	// SourceHost represents entities detected by the host such as host tags.
 	SourceHost Source = "host"
+
+	// SourceLocalProcessCollector reprents processes entities detected
+	// by the LocalProcessCollector.
+	SourceLocalProcessCollector Source = "local_process_collector"
 )
 
 // ContainerRuntime is the container runtime used by a container.
