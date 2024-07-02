@@ -8,7 +8,6 @@ package listeners
 import (
 	"context"
 	"errors"
-
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
