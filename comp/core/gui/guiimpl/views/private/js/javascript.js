@@ -19,8 +19,49 @@ function sendMessage(endpoint, data, method, callback, callbackErr){
     type: method,
     data: data,
     success: callback,
-    error: callbackErr
+    error: function(requestObject, error, errorThrown) {
+      try {
+        callbackErr(requestObject, error, errorThrown)
+      } catch (error) {
+        console.error(error)
+      }
+      $("#agent_status").html("Not connected<br> to Agent");
+      $("#agent_status").css({
+        "background": 'linear-gradient(to bottom, #c62d1f 5%, #f24437 100%)',
+        "background-color": '#c62d1f',
+        "border": '1px solid #d02718',
+        "text-shadow": '0px 1px 0px #810e05',
+        'left': '-180px'
+      })
+      // erase right side of the page
+      $(".page").hide();
+      $(".right").html("");
+      setError(requestObject.status, requestObject.responseText)
+    }
   })
+}
+
+// setError print the 
+/**
+ * Sets the error message and displays it on the page.
+ * @param {number} status - The status code of the error.
+ * @param {string} message - The error message.
+ */
+function setError(status, message) {
+  if (status == 0) {
+    message = "Unable to contact the Datadog Agent. Please ensure it is running."
+  }
+  else if (status == 401) {
+    message = `Not logged in. Please log in to access the Datadog Agent Manager. (initial message: ${message.trim()})`
+  }
+
+  $("#error_content").html(`<h3>Error</h3> ${DOMPurify.sanitize(message)}`)
+
+  $("#loggedout").hide();
+
+  if (status == 401)
+    $("#loggedout").css("display", "block");
+  $("#error").css("display", "block");
 }
 
 // Generates a CodeMirror text editor object and attaches it to the specific element
@@ -109,15 +150,6 @@ function checkStatus() {
       $("#restart_status").hide()
     }
     checkStatus.uptime = last_ts
-  },function() {
-    $("#agent_status").html("Not connected<br> to Agent");
-    $("#agent_status").css({
-      "background": 'linear-gradient(to bottom, #c62d1f 5%, #f24437 100%)',
-      "background-color": '#c62d1f',
-      "border": '1px solid #d02718',
-      "text-shadow": '0px 1px 0px #810e05',
-      'left': '-180px'
-    })
   });
 }
 
@@ -137,8 +169,6 @@ function loadStatus(page) {
   sendMessage("agent/status/" + page, "", "post",
   function(data, status, xhr){
       $("#" + page + "_status").html(DOMPurify.sanitize(data));
-  },function(requestObject, error, errorThrown){
-      $("#" + page + "_status").html("<span class='center'>An error occurred: " + DOMPurify.sanitize(errorThrown) + "</span>");
   });
 }
 
@@ -170,8 +200,6 @@ function loadLog(){
                     '</select></div>' +
                     '<div class="log_data">' + DOMPurify.sanitize(data) + ' </div>');
     $("#log_view_type").change(changeLogView);
-  }, function(requestObject, error, errorThrown){
-    $('#logs').html("<span class='center'>An error occurred: " + DOMPurify.sanitize(errorThrown) + "</span>");
   });
 }
 
@@ -242,8 +270,6 @@ function loadSettings() {
     var editor = attachEditor("settings_input", data);
 
     $("#submit_settings").click(function() { submitSettings(editor); });
-  }, function(requestObject, error, errorThrown){
-    $('#settings').html("<span class='center'>An error occurred: " + DOMPurify.sanitize(errorThrown) + "</span>");
   });
 }
 
@@ -307,8 +333,6 @@ function loadCheckConfigFiles() {
       $(".active_check").removeClass("active_check");
       $(this).addClass("active_check");
     })
-  }, function(requestObject, error, errorThrown) {
-    $("#checks_description").html("An error occurred: " + DOMPurify.sanitize(errorThrown) + "");
   });
 }
 
@@ -360,12 +384,8 @@ function loadNewChecks() {
         $(".active_check").removeClass("active_check");
         $(this).addClass("active_check");
       })
-    }, function(requestObject, error, errorThrown) {
-      $("#checks_description").html("An error occurred: " + DOMPurify.sanitize(errorThrown) + "");
     });
 
-  }, function(requestObject, error, errorThrown) {
-    $("#checks_description").html("An error occurred: " + DOMPurify.sanitize(errorThrown) + "");
   });
 }
 
@@ -404,9 +424,6 @@ function showCheckConfig(fileName) {
     var editor = attachEditor("check_input", data);
     $("#save_check").click(function() { saveCheckSettings(editor); });
     $("#disable_check").click(function() { disableCheckSettings(editor); });
-  }, function(requestObject, error, errorThrown) {
-    $("#checks_description").html("An error occurred: " + DOMPurify.sanitize(errorThrown) + "");
-    $(".right").html("");
   });
 }
 
@@ -438,9 +455,6 @@ function saveCheckSettings(editor) {
       $(".unsuccessful").delay(3000).fadeOut("slow");
       $("#checks_description").html(DOMPurify.sanitize(data));
     }
-  }, function(requestObject, error, errorThrown) {
-    $("#checks_description").html("An error occurred: " + DOMPurify.sanitize(errorThrown) + "");
-    $(".right").html("");
   });
 }
 
@@ -472,9 +486,6 @@ function disableCheckSettings(editor) {
       $(".unsuccessful").delay(3000).fadeOut("slow");
       $("#checks_description").html(DOMPurify.sanitize(data));
     }
-  }, function(requestObject, error, errorThrown) {
-    $("#checks_description").html("An error occurred: " + DOMPurify.sanitize(errorThrown) + "");
-    $(".right").html("");
   });
 }
 
@@ -503,9 +514,6 @@ function reloadCheck() {
     } else {
       $("#check_run_results").prepend('<div id="summary"> Check reloaded: <i class="fa fa-times red"></i></div>');
     }
-  }, function(requestObject, error, errorThrown) {
-    $("#checks_description").html("An error occurred: " + DOMPurify.sanitize(errorThrown) + "");
-    $(".right").html("");
   });
 }
 
@@ -533,24 +541,15 @@ function addCheck(checkToAdd) {
       sendMessage("checks/getConfig/" + disabledFile, "", "post",
       function(data, status, xhr){
         createNewConfigFile(checkToAdd, data);
-      }, function(requestObject, error, errorThrown) {
-        $(".right").html("");
-        $("#checks_description").html("An error occurred: " + DOMPurify.sanitize(errorThrown) + "");
       });
     } else if (exampleFile != "") {
       sendMessage("checks/getConfig/" + exampleFile, "", "post",
       function(data, status, xhr){
         createNewConfigFile(checkToAdd, data);
-      }, function(requestObject, error, errorThrown) {
-        $(".right").html("");
-        $("#checks_description").html("An error occurred: " + DOMPurify.sanitize(errorThrown) + "");
       });
     } else {
       createNewConfigFile(checkToAdd, "# Add your configuration here");
     }
-  }, function(requestObject, error, errorThrown) {
-    $(".right").html("");
-    $("#checks_description").html("An error occurred: " + DOMPurify.sanitize(errorThrown) + "");
   });
 }
 
@@ -584,9 +583,6 @@ function createNewConfigFile(checkName, data) {
       // Reload the display (once the config file is saved this check is now enabled,
       // so it gets moved to the 'Edit Running Checks' section)
       checkDropdown();
-    }, function(requestObject, error, errorThrown) {
-      $("#checks_description").html("An error occurred: " + DOMPurify.sanitize(errorThrown) + "");
-      $(".right").html("");
     });
   });
 }
@@ -641,9 +637,6 @@ function addNewCheck(editor, name) {
           '</div>');
       }
     });
-  }, function(requestObject, error, errorThrown) {
-    $("#checks_description").html("An error occurred: " + DOMPurify.sanitize(errorThrown) + "");
-    $(".right").html("");
   });
 }
 
@@ -660,8 +653,6 @@ function seeRunningChecks() {
   sendMessage("checks/running", "", "post",
   function(data, status, xhr){
     $("#running_checks").html(DOMPurify.sanitize(data));
-  }, function(requestObject, error, errorThrown) {
-    $("#running_checks").html("An error occurred: " + DOMPurify.sanitize(errorThrown) + "");
   });
 }
 
@@ -696,8 +687,6 @@ function submitFlare() {
     $("#email").val("");
     $(".flare_input").css("display", "none");
     $("#flare_description").html(DOMPurify.sanitize(data));
-  }, function(requestObject, error, errorThrown){
-    $('#flare_response').html("<span class='center'>An error occurred: " + DOMPurify.sanitize(errorThrown) + "</span>");
   });
 }
 
@@ -739,7 +728,6 @@ function restartAgent() {
   }, function(requestObject, error, errorThrown) {
     $(".loading_spinner").remove();
     $("#general_status").css("display", "block");
-    $('#general_status').html("<span class='center'>An error occurred: " + DOMPurify.sanitize(errorThrown) + "</span>");
     $("#restart_button").css("pointer-events", "auto");
   });
 }
