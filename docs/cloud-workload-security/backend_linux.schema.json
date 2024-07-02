@@ -1459,6 +1459,14 @@
         "mode": {
           "type": "integer",
           "description": "Mode argument"
+        },
+        "uid": {
+          "type": "integer",
+          "description": "UID argument"
+        },
+        "gid": {
+          "type": "integer",
+          "description": "GID argument"
         }
       },
       "additionalProperties": false,
@@ -1468,6 +1476,9 @@
     "SyscallContext": {
       "properties": {
         "chmod": {
+          "$ref": "#/$defs/SyscallArgs"
+        },
+        "chown": {
           "$ref": "#/$defs/SyscallArgs"
         },
         "chdir": {

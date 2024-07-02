@@ -497,6 +497,10 @@ type SyscallArgsSerializer struct {
 	Flags int `json:"flags,omitempty"`
 	// Mode argument
 	Mode int `json:"mode,omitempty"`
+	// UID argument
+	UID *int `json:"uid,omitempty"`
+	// GID argument
+	GID *int `json:"gid,omitempty"`
 }
 
 func newSyscallArgsSerializer(sc *model.SyscallContext, e *model.Event) *SyscallArgsSerializer {
@@ -518,6 +522,14 @@ func newSyscallArgsSerializer(sc *model.SyscallContext, e *model.Event) *Syscall
 			Flags: e.FieldHandlers.ResolveSyscallCtxArgsInt2(e, sc),
 			Mode:  e.FieldHandlers.ResolveSyscallCtxArgsInt3(e, sc),
 		}
+	case model.FileChownEventType:
+		uid := e.FieldHandlers.ResolveSyscallCtxArgsInt2(e, sc)
+		gid := e.FieldHandlers.ResolveSyscallCtxArgsInt3(e, sc)
+		return &SyscallArgsSerializer{
+			Path: e.FieldHandlers.ResolveSyscallCtxArgsStr1(e, sc),
+			UID:  &uid,
+			GID:  &gid,
+		}
 	}
 
 	return nil
@@ -527,6 +539,7 @@ func newSyscallArgsSerializer(sc *model.SyscallContext, e *model.Event) *Syscall
 // easyjson:json
 type SyscallContextSerializer struct {
 	Chmod *SyscallArgsSerializer `json:"chmod,omitempty"`
+	Chown *SyscallArgsSerializer `json:"chown,omitempty"`
 	Chdir *SyscallArgsSerializer `json:"chdir,omitempty"`
 	Exec  *SyscallArgsSerializer `json:"exec,omitempty"`
 	Open  *SyscallArgsSerializer `json:"open,omitempty"`
@@ -1103,6 +1116,8 @@ func NewEventSerializer(event *model.Event, opts *eval.Opts) *EventSerializer {
 			},
 		}
 		s.EventContextSerializer.Outcome = serializeOutcome(event.Chown.Retval)
+		s.SyscallContextSerializer = newSyscallContextSerializer()
+		s.SyscallContextSerializer.Chown = newSyscallArgsSerializer(&event.Chown.SyscallContext, event)
 	case model.FileLinkEventType:
 		// use the source inode as the target one is a fake inode
 		s.FileEventSerializer = &FileEventSerializer{
