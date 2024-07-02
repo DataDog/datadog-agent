@@ -29,6 +29,7 @@ import (
 	authtokenimpl "github.com/DataDog/datadog-agent/comp/api/authtoken/createandfetchimpl"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
+	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl"
@@ -297,7 +298,8 @@ func runJmxCommandConsole(config config.Component,
 	secretResolver secrets.Component,
 	agentAPI internalAPI.Component,
 	collector optional.Option[collector.Component],
-	jmxLogger jmxlogger.Component) error {
+	jmxLogger jmxlogger.Component,
+	logReceiver integrations.Component) error {
 	// This prevents log-spam from "comp/core/workloadmeta/collectors/internal/remote/process_collector/process_collector.go"
 	// It appears that this collector creates some contention in AD.
 	// Disabling it is both more efficient and gets rid of this log spam
@@ -314,7 +316,7 @@ func runJmxCommandConsole(config config.Component,
 
 	// Create the CheckScheduler, but do not attach it to
 	// AutoDiscovery.
-	pkgcollector.InitCheckScheduler(collector, senderManager)
+	pkgcollector.InitCheckScheduler(collector, senderManager, logReceiver)
 
 	// if cliSelectedChecks is empty, then we want to fetch all check configs;
 	// otherwise, we fetch only the matching cehck configs.

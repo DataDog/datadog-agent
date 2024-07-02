@@ -17,6 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
@@ -58,19 +59,21 @@ type CheckScheduler struct {
 	loaders        []check.Loader
 	collector      optional.Option[collector.Component]
 	senderManager  sender.SenderManager
+	logReceiver    integrations.Component
 	m              sync.RWMutex
 }
 
 // InitCheckScheduler creates and returns a check scheduler
-func InitCheckScheduler(collector optional.Option[collector.Component], senderManager sender.SenderManager) *CheckScheduler {
+func InitCheckScheduler(collector optional.Option[collector.Component], senderManager sender.SenderManager, logReceiver integrations.Component) *CheckScheduler {
 	checkScheduler = &CheckScheduler{
 		collector:      collector,
 		senderManager:  senderManager,
+		logReceiver:    logReceiver,
 		configToChecks: make(map[string][]checkid.ID),
-		loaders:        make([]check.Loader, 0, len(loaders.LoaderCatalog(senderManager))),
+		loaders:        make([]check.Loader, 0, len(loaders.LoaderCatalog(senderManager, logReceiver))),
 	}
 	// add the check loaders
-	for _, loader := range loaders.LoaderCatalog(senderManager) {
+	for _, loader := range loaders.LoaderCatalog(senderManager, logReceiver) {
 		checkScheduler.AddLoader(loader)
 		log.Debugf("Added %s to Check Scheduler", loader)
 	}

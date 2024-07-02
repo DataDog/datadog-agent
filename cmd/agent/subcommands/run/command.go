@@ -236,7 +236,7 @@ func run(log log.Component,
 	_ inventoryotel.Component,
 	_ secrets.Component,
 	invChecks inventorychecks.Component,
-	logsReceiver logsIntegration.Component,
+	logReceiver logsIntegration.Component,
 	_ netflowServer.Component,
 	_ snmptrapsServer.Component,
 	_ langDetectionCl.Component,
@@ -312,7 +312,7 @@ func run(log log.Component,
 		demultiplexer,
 		agentAPI,
 		invChecks,
-		logsReceiver,
+		logReceiver,
 		statusComponent,
 		collector,
 		cfg,
@@ -507,7 +507,7 @@ func startAgent(
 	demultiplexer demultiplexer.Component,
 	agentAPI internalAPI.Component,
 	invChecks inventorychecks.Component,
-	logsReceiver logsIntegration.Component,
+	logReceiver logsIntegration.Component,
 	_ status.Component,
 	collector collector.Component,
 	cfg config.Component,
@@ -596,16 +596,16 @@ func startAgent(
 
 	// TODO: (components) - Until the checks are components we set there context so they can depends on components.
 	check.InitializeInventoryChecksContext(invChecks)
-	// TODO: (components) - Initialize logsReceiver, needed in order to call from RTLoader
-	check.InitializeLogsReceiver(logsReceiver)
+	check.InitializeLogsReceiver(logReceiver)
 
 	// Init JMX runner and inject dogstatsd component
 	jmxfetch.InitRunner(server, jmxLogger)
 	jmxfetch.RegisterWith(ac)
 
+	// TODO: (components) - Initialize logReceiver, needed in order to call from RTLoader
 	// Set up check collector
 	commonchecks.RegisterChecks(wmeta, cfg, telemetry)
-	ac.AddScheduler("check", pkgcollector.InitCheckScheduler(optional.NewOption(collector), demultiplexer), true)
+	ac.AddScheduler("check", pkgcollector.InitCheckScheduler(optional.NewOption(collector), demultiplexer, logReceiver), true)
 
 	demultiplexer.AddAgentStartupTelemetry(version.AgentVersion)
 
