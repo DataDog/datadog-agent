@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import pathlib
 import unittest
+from collections import Counter
 from contextlib import contextmanager
 from unittest.mock import MagicMock, patch
 
@@ -14,7 +15,7 @@ from tasks import notify
 from tasks.libs.notify import alerts
 
 # TODO : Use absolute import when unit-tests will be renamed
-from ...notify_tests import get_fake_jobs
+from ...notify_tests import get_fake_jobs, get_github_slack_map
 
 
 @contextmanager
@@ -200,16 +201,19 @@ class TestAlertsSendNotification(unittest.TestCase):
     @patch("tasks.libs.notify.alerts.send_slack_message")
     @patch.object(alerts.ConsecutiveJobAlert, 'message', lambda self, ctx: '\n'.join(self.failures) + '\n')
     @patch.object(alerts.CumulativeJobAlert, 'message', lambda self: '\n'.join(self.failures))
+    @patch('tasks.owners.GITHUB_SLACK_MAP', get_github_slack_map())
+    @patch('tasks.libs.notify.alerts.CHANNEL_BROADCAST', '#channel-broadcast')
     def test_jobowners(self, mock_slack: MagicMock, mock_metrics: MagicMock):
         consecutive = {
             'tests_hello': [alerts.ExecutionsJobInfo(1)] * alerts.CONSECUTIVE_THRESHOLD,
-            'security_go_generate_check': [alerts.ExecutionsJobInfo(1)] * alerts.CONSECUTIVE_THRESHOLD,
+            'tests_team_a_1': [alerts.ExecutionsJobInfo(1)] * alerts.CONSECUTIVE_THRESHOLD,
+            'tests_letters_1': [alerts.ExecutionsJobInfo(1)] * alerts.CONSECUTIVE_THRESHOLD,
         }
         cumulative = {
-            'tests_release1': [
+            'tests_team_b_1': [
                 alerts.ExecutionsJobInfo(i, failing=i % 3 != 0) for i in range(alerts.CUMULATIVE_LENGTH)
             ],
-            'tests_release2': [
+            'tests_team_a_2': [
                 alerts.ExecutionsJobInfo(i, failing=i % 3 != 0) for i in range(alerts.CUMULATIVE_LENGTH)
             ],
         }
@@ -220,10 +224,10 @@ class TestAlertsSendNotification(unittest.TestCase):
 
         # Verify that we send the right number of jobs per channel
         expected_team_njobs = {
-            '#agent-delivery-ops': 2,
-            '#agent-devx-ops': 2,
-            '#agent-platform-ops': 4,
-            '#security-and-compliance-agent-ops': 1,
+            '#channel-a': 3,
+            '#channel-b': 2,
+            '#channel-everything': 1,
+            '#channel-broadcast': 5,
         }
 
         for call_args in mock_slack.call_args_list:
@@ -232,23 +236,24 @@ class TestAlertsSendNotification(unittest.TestCase):
             jobs = message.strip().split("\n")
             njobs = len(jobs)
 
-            self.assertEqual(expected_team_njobs.get(channel, None), njobs)
+            self.assertEqual(
+                expected_team_njobs.get(channel, None), njobs, f'Unexpected number of jobs for channel {channel}'
+            )
 
         # Verify metrics
         mock_metrics.assert_called_once()
         expected_metrics = {
-            '@datadog/agent-security': 1,
-            '@datadog/agent-delivery': 2,
-            '@datadog/agent-devx-infra': 2,
-            '@datadog/agent-devx-loops': 2,
-            '@datadog/documentation': 2,
-            '@datadog/agent-platform': 2,
+            '@datadog/team-a': 3,
+            '@datadog/team-b': 2,
+            '@datadog/team-everything': 1,
         }
+        current_metrics = Counter()
         for metric in mock_metrics.call_args[0][0]:
-            name = metric['metric']
             value = int(metric['points'][0]['value'])
             team = next(tag.removeprefix('team:') for tag in metric['tags'] if tag.startswith('team:'))
 
-            self.assertEqual(
-                value, expected_metrics.get(team), f'Unexpected metric value for metric {name} of team {team}'
-            )
+            current_metrics.update({team: value})
+
+        current_metrics = dict(current_metrics.items())
+
+        self.assertDictEqual(current_metrics, expected_metrics)

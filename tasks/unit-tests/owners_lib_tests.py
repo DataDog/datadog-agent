@@ -9,19 +9,14 @@ class TestSearchCodeOwners(unittest.TestCase):
 
     def test_search_codeowners(self):
         self.assertListEqual(search_owners("no_owners/file", self.CODEOWNERS_FILE), [])
-        self.assertListEqual(search_owners(".dotfile", self.CODEOWNERS_FILE), ["@DataDog/agent-platform"])
-        self.assertListEqual(
-            search_owners("doc.md", self.CODEOWNERS_FILE), ["@DataDog/agent-platform", "@DataDog/documentation"]
-        )
-        self.assertListEqual(search_owners(".gitlab/security.yml", self.CODEOWNERS_FILE), ["@DataDog/agent-security"])
+        self.assertListEqual(search_owners(".dotfile", self.CODEOWNERS_FILE), ["@DataDog/team-everything"])
+        self.assertListEqual(search_owners("doc.md", self.CODEOWNERS_FILE), ["@DataDog/team-a", "@DataDog/team-doc"])
+        self.assertListEqual(search_owners(".gitlab/security.yml", self.CODEOWNERS_FILE), ["@DataDog/team-b"])
 
     def test_search_jobowners(self):
-        self.assertListEqual(search_owners("default_job", self.JOBOWNERS_FILE), ["@DataDog/agent-devx-infra"])
-        self.assertListEqual(search_owners("tests_default", self.JOBOWNERS_FILE), ["@DataDog/multiple"])
-        self.assertListEqual(search_owners("tests_ebpf_x64", self.JOBOWNERS_FILE), ["@DataDog/ebpf-platform"])
+        self.assertListEqual(search_owners("default_job", self.JOBOWNERS_FILE), ["@DataDog/team-everything"])
+        self.assertListEqual(search_owners("tests_team_a_42", self.JOBOWNERS_FILE), ["@DataDog/team-a"])
+        self.assertListEqual(search_owners("tests_team_b_1618", self.JOBOWNERS_FILE), ["@DataDog/team-b"])
         self.assertListEqual(
-            search_owners("security_go_generate_check", self.JOBOWNERS_FILE), ["@DataDog/agent-security"]
-        )
-        self.assertListEqual(
-            search_owners("security_go_generate_checks", self.JOBOWNERS_FILE), ["@DataDog/agent-devx-infra"]
+            search_owners("tests_letters_314", self.JOBOWNERS_FILE), ["@DataDog/team-a", "@DataDog/team-b"]
         )

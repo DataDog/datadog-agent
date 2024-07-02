@@ -10,7 +10,7 @@ from invoke import MockContext
 
 from tasks import notify
 from tasks.libs.notify import pipeline_status
-from tasks.libs.pipeline.notifications import find_job_owners
+from tasks.libs.pipeline.notifications import find_job_owners, load_and_validate
 from tasks.libs.types.types import FailedJobReason, FailedJobs, FailedJobType
 
 
@@ -19,6 +19,15 @@ def get_fake_jobs() -> list[ProjectJob]:
         jobs = json.load(f)
 
     return [ProjectJob(MagicMock(), attrs=job) for job in jobs]
+
+
+def get_github_slack_map():
+    return load_and_validate(
+        "tasks/unit-tests/testdata/github_slack_map.yaml",
+        "DEFAULT_SLACK_CHANNEL",
+        '#channel-everything',
+        relpath=False,
+    )
 
 
 class TestSendMessage(unittest.TestCase):
@@ -237,7 +246,14 @@ class TestJobOwners(unittest.TestCase):
     def test_partition(self):
         from tasks.owners import make_partition
 
-        jobs = ['tests_hello', 'tests_ebpf', 'security_go_generate_check', 'hello_world', 'tests_hello_world']
+        jobs = [
+            'tests_team_a_42',
+            'tests_team_a_618',
+            'this_is_a_test',
+            'tests_team_b_1',
+            'tests_letters_0',
+            'hello_world',
+        ]
 
         partition = make_partition(jobs, "tasks/unit-tests/testdata/jobowners.txt")
         partition = sorted(partition.items())
@@ -245,9 +261,8 @@ class TestJobOwners(unittest.TestCase):
         self.assertEqual(
             partition,
             [
-                ('@DataDog/agent-devx-infra', {'hello_world'}),
-                ('@DataDog/agent-security', {'security_go_generate_check'}),
-                ('@DataDog/ebpf-platform', {'tests_ebpf'}),
-                ('@DataDog/multiple', {'tests_hello', 'tests_hello_world'}),
+                ('@DataDog/team-a', {'tests_team_a_42', 'tests_team_a_618', 'tests_letters_0'}),
+                ('@DataDog/team-b', {'tests_team_b_1', 'tests_letters_0'}),
+                ('@DataDog/team-everything', {'this_is_a_test', 'hello_world'}),
             ],
         )

@@ -4,7 +4,7 @@ from collections import defaultdict
 from datetime import datetime, timezone
 
 from tasks.libs.common.datadog_api import create_count, send_metrics
-from tasks.libs.notify.utils import NOTIFICATION_DISCLAIMER
+from tasks.libs.notify.utils import CHANNEL_PIPELINES, NOTIFICATION_DISCLAIMER
 from tasks.libs.pipeline.notifications import (
     GITHUB_SLACK_MAP,
     base_message,
@@ -86,13 +86,13 @@ def send_message_and_metrics(ctx, failed_jobs, messages_to_send, notification_ty
         channel = GITHUB_SLACK_MAP.get(owner.lower(), None)
         message.base_message = base
         if channel is None:
-            channel = "#datadog-agent-pipelines"
+            channel = CHANNEL_PIPELINES
             message.base_message += UNKNOWN_OWNER_TEMPLATE.format(owner=owner)
         message.coda = coda
         if print_to_stdout:
             print(f"Would send to {channel}:\n{str(message)}")
         else:
-            all_teams = channel == "#datadog-agent-pipelines"
+            all_teams = channel == CHANNEL_PIPELINES
             default_branch = os.environ["CI_DEFAULT_BRANCH"]
             git_ref = os.environ["CI_COMMIT_REF_NAME"]
             send_dm = not should_send_message_to_channel(git_ref, default_branch) and all_teams
