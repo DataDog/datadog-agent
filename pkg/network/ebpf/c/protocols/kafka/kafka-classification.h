@@ -278,13 +278,10 @@ static __always_inline bool skip_request_tagged_fields(pktbuf_t pkt, u32 *offset
 static __always_inline bool get_topic_offset_from_produce_request(const kafka_header_t *kafka_header, pktbuf_t pkt, u32 *out_offset) {
     const s16 api_version = kafka_header->api_version;
     u32 offset = *out_offset;
-    bool flexible = false;
+    bool flexible = api_version >= 9;
 
-    if (api_version >= 9) {
-        flexible = true;
-        if (!skip_request_tagged_fields(pkt, &offset)) {
-            return false;
-        }
+    if (flexible && !skip_request_tagged_fields(pkt, &offset)) {
+        return false;
     }
 
     if (api_version >= 3) {
