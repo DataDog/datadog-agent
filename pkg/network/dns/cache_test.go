@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 )
 
 var disableAutomaticExpiration = 1 * time.Hour
@@ -139,6 +140,7 @@ func TestDNSCacheExpiration(t *testing.T) {
 }
 
 func TestDNSCacheTelemetry(t *testing.T) {
+	flake.Mark(t)
 	cacheTelemetry.lookups.Delete()
 	cacheTelemetry.resolved.Delete()
 	cacheTelemetry.length.Set(0)
