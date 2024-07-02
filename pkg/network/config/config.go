@@ -93,6 +93,9 @@ type Config struct {
 	// EnableIstioMonitoring specifies whether USM should monitor Istio traffic
 	EnableIstioMonitoring bool
 
+	// EnvoyPath specifies the envoy path to be used for Istio monitoring
+	EnvoyPath string
+
 	// EnableNodeJSMonitoring specifies whether USM should monitor NodeJS TLS traffic
 	EnableNodeJSMonitoring bool
 
@@ -356,6 +359,7 @@ func New() *Config {
 		EnablePostgresMonitoring:  cfg.GetBool(join(smNS, "enable_postgres_monitoring")),
 		EnableNativeTLSMonitoring: cfg.GetBool(join(smNS, "tls", "native", "enabled")),
 		EnableIstioMonitoring:     cfg.GetBool(join(smNS, "tls", "istio", "enabled")),
+		EnvoyPath:                 cfg.GetString(join(smNS, "tls", "istio", "envoy_path")),
 		EnableNodeJSMonitoring:    cfg.GetBool(join(smNS, "tls", "nodejs", "enabled")),
 		MaxUSMConcurrentRequests:  uint32(cfg.GetInt(join(smNS, "max_concurrent_requests"))),
 		MaxHTTPStatsBuffered:      cfg.GetInt(join(smNS, "max_http_stats_buffered")),
