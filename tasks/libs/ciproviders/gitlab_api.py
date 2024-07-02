@@ -373,9 +373,18 @@ def apply_yaml_extends(config: dict, node):
                 if key not in node:
                     node[key] = value
                 elif key in node and isinstance(node[key], dict) and isinstance(value, dict):
-                    node[key].update(value)
+                    update_without_overwrite(node[key], value)
 
         del node['extends']
+
+
+def update_without_overwrite(d, u):
+    """
+    Update a dictionary without overwriting existing keys
+    """
+    for k, v in u.items():
+        if k not in d:
+            d[k] = v
 
 
 def apply_yaml_reference(config: dict, node):

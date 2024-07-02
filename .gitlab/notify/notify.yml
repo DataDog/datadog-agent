@@ -12,7 +12,7 @@ notify-on-tagged-success:
   dependencies: []
   tags: ["arch:amd64"]
   script: |
-    MESSAGE_TEXT=":uwu: Tagged build <$CI_PIPELINE_URL|$CI_PIPELINE_ID> succeeded.
+    MESSAGE_TEXT=":host-green: Tagged build <$CI_PIPELINE_URL|$CI_PIPELINE_ID> succeeded.
     *$CI_COMMIT_REF_NAME* is available in the staging repositories."
     postmessage "#agent-release-sync" "$MESSAGE_TEXT"
 
@@ -163,10 +163,10 @@ notify_failure_summary_daily:
         exit
       fi
     # Daily
-    - inv -e notify.failure-summary-send-notifications --is-daily-summary=true
+    - inv -e notify.failure-summary-send-notifications --daily-summary
     # Send weekly if necessary (note that this workflow is usually triggered early in the morning)
     - |
       if [ "$weekday" = "Friday" ]; then
         echo 'Sending weekly summary'
-        inv -e notify.failure-summary-send-notifications --is-daily-summary=false
+        inv -e notify.failure-summary-send-notifications --weekly-summary
       fi

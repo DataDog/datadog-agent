@@ -3,16 +3,15 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package utils implements utility functions for the API servers
-package utils
+// Package observability implements various observability handlers for the API servers
+package observability
 
 import (
 	"net/http"
-	"net/url"
 	"time"
 
+	"github.com/benbjohnson/clock"
 	"github.com/gorilla/mux"
-	"github.com/urfave/negroni"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -34,29 +33,24 @@ func getLogFunc(code int) logFunc {
 
 // LogResponseHandler is a middleware that logs the response code and other various information about the request
 func LogResponseHandler(servername string) mux.MiddlewareFunc {
-	return logResponseHandler(servername, getLogFunc)
+	return logResponseHandler(servername, getLogFunc, clock.New())
 }
 
 // logResponseHandler takes getLogFunc as a parameter to allow for testing
-func logResponseHandler(serverName string, getLogFunc func(int) logFunc) mux.MiddlewareFunc {
+func logResponseHandler(serverName string, getLogFunc func(int) logFunc, clock clock.Clock) mux.MiddlewareFunc {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			lrw := negroni.NewResponseWriter(w)
-			start := time.Now()
-			next.ServeHTTP(lrw, r)
-			duration := time.Since(start)
+			var statusCode int
+			next = extractStatusCodeHandler(&statusCode)(next)
 
-			code := lrw.Status()
-			logFunc := getLogFunc(code)
+			var duration time.Duration
+			next = timeHandler(clock, &duration)(next)
 
-			var path string
-			// can't use r.URL.Path because http.StripPrefix could have been used
-			if reqURL, err := url.ParseRequestURI(r.RequestURI); err == nil {
-				path = reqURL.Path
-			} else {
-				path = "<invalid url>" // redacted in case it contained sensitive information
-			}
-			logFunc(logFormat, serverName, r.Method, path, r.RemoteAddr, r.Host, duration, code)
+			next.ServeHTTP(w, r)
+
+			logFunc := getLogFunc(statusCode)
+			path := extractPath(r)
+			logFunc(logFormat, serverName, r.Method, path, r.RemoteAddr, r.Host, duration, statusCode)
 		})
 	}
 }
