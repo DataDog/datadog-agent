@@ -10,13 +10,11 @@ import (
 	"context"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger/proto"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/empty"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/tagstore"
 	taggerTelemetry "github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -35,9 +33,7 @@ type Tagger struct {
 
 // NewTagger returns an allocated tagger. You still have to run Init()
 // once the config package is ready.
-func NewTagger(telemetry telemetry.Component) *Tagger {
-	telemetryStore := taggerTelemetry.NewStore(telemetry)
-
+func NewTagger(telemetryStore *taggerTelemetry.Store) *Tagger {
 	return &Tagger{
 		store:          tagstore.NewTagStore(telemetryStore),
 		telemetryStore: telemetryStore,
@@ -112,23 +108,21 @@ func (t *Tagger) Unsubscribe(chan []types.EntityEvent) {
 	// NOP
 }
 
+// ReplayTagger returns the replay tagger instance
+func (t *Tagger) ReplayTagger() tagger.ReplayTagger {
+	return t
+}
+
 // LoadState loads the state for the tagger from the supplied map.
-func (t *Tagger) LoadState(state map[string]*pb.Entity) {
+func (t *Tagger) LoadState(state []types.Entity) {
 	if state == nil {
 		return
 	}
 
-	// better stores these as the native type
-	for id, entity := range state {
-		entityID, err := proto.Pb2TaggerEntityID(entity.Id)
-		if err != nil {
-			log.Errorf("Error getting identity ID for %v: %v", id, err)
-			continue
-		}
-
+	for _, entity := range state {
 		t.store.ProcessTagInfo([]*types.TagInfo{{
 			Source:               "replay",
-			Entity:               entityID,
+			Entity:               entity.ID,
 			HighCardTags:         entity.HighCardinalityTags,
 			OrchestratorCardTags: entity.OrchestratorCardinalityTags,
 			LowCardTags:          entity.LowCardinalityTags,

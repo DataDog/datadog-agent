@@ -23,10 +23,19 @@ import (
 
 // team: container-platform
 
+// ReplayTagger interface represent the tagger use for replaying dogstatsd events.
+type ReplayTagger interface {
+	Component
+
+	// LoadState loads the state of the replay tagger from a list of entities.
+	LoadState(state []types.Entity)
+}
+
 // Component is the component type.
 type Component interface {
 	Start(ctx context.Context) error
 	Stop() error
+	ReplayTagger() ReplayTagger
 	Tag(entity string, cardinality types.TagCardinality) ([]string, error)
 	AccumulateTagsFor(entity string, cardinality types.TagCardinality, tb tagset.TagsAccumulator) error
 	Standard(entity string) ([]string, error)

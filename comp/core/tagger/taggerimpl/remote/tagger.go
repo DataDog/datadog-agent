@@ -22,6 +22,7 @@ import (
 	"google.golang.org/grpc/metadata"
 
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/empty"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
@@ -179,6 +180,12 @@ func (t *Tagger) Stop() error {
 
 	log.Info("remote tagger stopped successfully")
 
+	return nil
+}
+
+// ReplayTagger returns the replay tagger instance
+// This is a no-op for the remote tagger
+func (t *Tagger) ReplayTagger() tagger.ReplayTagger {
 	return nil
 }
 

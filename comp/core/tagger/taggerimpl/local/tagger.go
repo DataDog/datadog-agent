@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/collectors"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/empty"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/tagstore"
@@ -128,4 +129,10 @@ func (t *Tagger) Subscribe(cardinality types.TagCardinality) chan []types.Entity
 // Unsubscribe ends a subscription to entity events and closes its channel.
 func (t *Tagger) Unsubscribe(ch chan []types.EntityEvent) {
 	t.tagStore.Unsubscribe(ch)
+}
+
+// ReplayTagger returns the replay tagger instance
+// This is a no-op for the local tagger
+func (t *Tagger) ReplayTagger() tagger.ReplayTagger {
+	return nil
 }

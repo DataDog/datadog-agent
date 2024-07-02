@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/collectors"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/local"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/remote"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/replay"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/utils"
@@ -96,6 +97,7 @@ type TaggerClient struct {
 	checksCardinality          types.TagCardinality
 	dogstatsdCardinality       types.TagCardinality
 	tlmUDPOriginDetectionError coretelemetry.Counter
+	telemetryStore             *telemetry.Store
 }
 
 // we use to pull tagger metrics in dogstatsd. Pulling it later in the
@@ -161,6 +163,7 @@ func newTaggerClient(deps dependencies) provides {
 	taggerClient.datadogConfig.originDetectionUnifiedEnabled = deps.Config.GetBool("origin_detection_unified")
 	taggerClient.datadogConfig.dogstatsdOptOutEnabled = deps.Config.GetBool("dogstatsd_origin_optout_enabled")
 	taggerClient.tlmUDPOriginDetectionError = deps.Telemetry.NewCounter("dogstatsd", "udp_origin_detection_error", nil, "Dogstatsd UDP origin detection error count")
+	taggerClient.telemetryStore = telemetryStore
 
 	deps.Log.Info("TaggerClient is created, defaultTagger type: ", reflect.TypeOf(taggerClient.defaultTagger))
 	taggerComp.SetGlobalTaggerClient(taggerClient)
@@ -218,6 +221,11 @@ func (t *TaggerClient) Start(ctx context.Context) error {
 // Stop calls defaultTagger.Stop
 func (t *TaggerClient) Stop() error {
 	return t.defaultTagger.Stop()
+}
+
+// ReplayTagger returns the replay tagger instance
+func (t *TaggerClient) ReplayTagger() taggerComp.ReplayTagger {
+	return replay.NewTagger(t.telemetryStore)
 }
 
 // GetDefaultTagger returns the default Tagger in current instance

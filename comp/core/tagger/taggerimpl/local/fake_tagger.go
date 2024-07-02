@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"sync"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/collectors"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/empty"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/tagstore"
@@ -78,6 +79,12 @@ func (f *FakeTagger) Start(_ context.Context) error {
 
 // Stop not implemented in fake tagger
 func (f *FakeTagger) Stop() error {
+	return nil
+}
+
+// ReplayTagger returns the replay tagger instance
+// This is a no-op for the fake tagger
+func (t *FakeTagger) ReplayTagger() tagger.ReplayTagger {
 	return nil
 }
 

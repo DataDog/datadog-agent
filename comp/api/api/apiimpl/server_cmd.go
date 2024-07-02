@@ -92,12 +92,12 @@ func startCMDServer(
 		configService:    configService,
 		configServiceMRF: configServiceMRF,
 		taggerServer:     taggerserver.NewServer(taggerComp, telemetry),
+		taggerComp:       taggerComp,
 		// TODO(components): decide if workloadmetaServer should be componentized itself
 		workloadmetaServer: workloadmetaServer.NewServer(wmeta),
 		dogstatsdServer:    dogstatsdServer,
 		capture:            capture,
 		pidMap:             pidMap,
-		telemetry:          telemetry,
 	})
 
 	dcreds := credentials.NewTLS(&tls.Config{
