@@ -110,7 +110,7 @@ func TestPackages(t *testing.T) {
 				if flavor.Flavor == e2eos.Fedora {
 					flake.Mark(t)
 				}
-				if strings.Contains(suite.Name(), "apm") {
+				if strings.Contains(t.Name(), "apm") {
 					flake.Mark(t)
 				}
 				opts := []awshost.ProvisionerOption{
