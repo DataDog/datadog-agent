@@ -177,23 +177,19 @@ static __always_inline __maybe_unused bool skip_varint(pktbuf_t pkt, u32 *offset
 
     pktbuf_load_bytes(pkt, *offset, bytes, max_bytes);
 
-    u32 i = 1;
-    u8 current_byte = bytes[0];
-
     #pragma unroll
-    for (; i < max_bytes; i++) {
+    for (u32 i = 0; i < max_bytes; i++) {
+        // Note that doing *offset += i + 1 before the return true instead of
+        // this leads to a compiler error due to the optimizer not being to
+        // unroll the loop.
         *offset += 1;
-        if (!isMSBSet(current_byte)) {
-            break;
+        if (!isMSBSet(bytes[i])) {
+            return true;
         }
-        current_byte = bytes[i];
     }
 
-    if (i == max_bytes && isMSBSet(current_byte)) {
-        return false;
-    }
-
-    return true;
+    // MSB set on last byte, so our max_bytes wasn't enough.
+    return false;
 }
 
 // `flexible` indicates that the API version is a flexible version as described in
