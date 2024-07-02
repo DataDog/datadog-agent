@@ -31,7 +31,7 @@ docker_trigger_internal:
         TMPL_SRC_REPO="${TMPL_SRC_REPO}-nightly"
       fi
     - if [ "$BUCKET_BRANCH" = "dev" ]; then RELEASE_TAG="dev-${RELEASE_TAG}-${CI_COMMIT_SHORT_SHA}"; fi
-    - "inv pipeline.trigger-child-pipeline --project-name DataDog/images --git-ref master
+    - "inv pipeline.trigger-child-pipeline --project-name DataDog/images --git-ref master --timeout 3600
       --variable IMAGE_VERSION
       --variable IMAGE_NAME
       --variable RELEASE_TAG
@@ -78,7 +78,7 @@ docker_trigger_cluster_agent_internal:
         TMPL_SRC_REPO="${TMPL_SRC_REPO}-nightly"
       fi
     - if [ "$BUCKET_BRANCH" = "dev" ]; then RELEASE_TAG="dev-${RELEASE_TAG}-${CI_COMMIT_SHORT_SHA}"; fi
-    - "inv pipeline.trigger-child-pipeline --project-name DataDog/images --git-ref master
+    - "inv pipeline.trigger-child-pipeline --project-name DataDog/images --git-ref master --timeout 3600
       --variable IMAGE_VERSION
       --variable IMAGE_NAME
       --variable RELEASE_TAG
@@ -125,7 +125,7 @@ docker_trigger_cws_instrumentation_internal:
         TMPL_SRC_REPO="${TMPL_SRC_REPO}-nightly"
       fi
     - if [ "$BUCKET_BRANCH" = "dev" ]; then RELEASE_TAG="dev-${RELEASE_TAG}-${CI_COMMIT_SHORT_SHA}"; fi
-    - "inv pipeline.trigger-child-pipeline --project-name DataDog/images --git-ref master
+    - "inv pipeline.trigger-child-pipeline --project-name DataDog/images --git-ref master --timeout 3600
       --variable IMAGE_VERSION
       --variable IMAGE_NAME
       --variable RELEASE_TAG

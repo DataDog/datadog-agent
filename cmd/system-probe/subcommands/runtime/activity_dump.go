@@ -15,7 +15,7 @@ import (
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
+	"github.com/DataDog/datadog-agent/cmd/system-probe/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
@@ -46,7 +46,6 @@ type activityDumpCliParams struct {
 	localStorageCompression  bool
 	remoteStorageFormats     []string
 	remoteStorageCompression bool
-	remoteRequest            bool
 }
 
 func activityDumpCommands(globalParams *command.GlobalParams) []*cobra.Command {
@@ -62,16 +61,16 @@ func activityDumpCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{activityDumpCmd}
 }
 
-func listCommands(globalParams *command.GlobalParams) []*cobra.Command {
+func listCommands(_ *command.GlobalParams) []*cobra.Command {
 	activityDumpListCmd := &cobra.Command{
 		Use:   "list",
 		Short: "get the list of running activity dumps",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return fxutil.OneShot(listActivityDumps,
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
-					SecretParams: secrets.NewEnabledParams(),
-					LogParams:    logimpl.ForOneShot(command.LoggerName, "info", true)}),
+					ConfigParams: config.NewAgentParams("", config.WithConfigMissingOK(true)),
+					SecretParams: secrets.NewDisabledParams(),
+					LogParams:    logimpl.ForOneShot("SYS-PROBE", "info", true)}),
 				core.Bundle(),
 			)
 		},
@@ -92,9 +91,9 @@ func stopCommands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(stopActivityDump,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
-					SecretParams: secrets.NewEnabledParams(),
-					LogParams:    logimpl.ForOneShot(command.LoggerName, "info", true)}),
+					ConfigParams: config.NewAgentParams("", config.WithConfigMissingOK(true)),
+					SecretParams: secrets.NewDisabledParams(),
+					LogParams:    logimpl.ForOneShot("SYS-PROBE", "info", true)}),
 				core.Bundle(),
 			)
 		},
@@ -146,9 +145,9 @@ func generateDumpCommands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(generateActivityDump,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
-					SecretParams: secrets.NewEnabledParams(),
-					LogParams:    logimpl.ForOneShot(command.LoggerName, "info", true)}),
+					ConfigParams: config.NewAgentParams("", config.WithConfigMissingOK(true)),
+					SecretParams: secrets.NewDisabledParams(),
+					LogParams:    logimpl.ForOneShot("SYS-PROBE", "info", true)}),
 				core.Bundle(),
 			)
 		},
@@ -224,9 +223,9 @@ func generateEncodingCommands(globalParams *command.GlobalParams) []*cobra.Comma
 			return fxutil.OneShot(generateEncodingFromActivityDump,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
-					SecretParams: secrets.NewEnabledParams(),
-					LogParams:    logimpl.ForOneShot(command.LoggerName, "info", true)}),
+					ConfigParams: config.NewAgentParams("", config.WithConfigMissingOK(true)),
+					SecretParams: secrets.NewDisabledParams(),
+					LogParams:    logimpl.ForOneShot("SYS-PROBE", "info", true)}),
 				core.Bundle(),
 			)
 		},
@@ -269,12 +268,6 @@ func generateEncodingCommands(globalParams *command.GlobalParams) []*cobra.Comma
 		[]string{},
 		fmt.Sprintf("remote storage output formats. Available options are %v.", secconfig.AllStorageFormats()),
 	)
-	activityDumpGenerateEncodingCmd.Flags().BoolVar(
-		&cliParams.remoteRequest,
-		"remote",
-		false,
-		"when set, the transcoding will be done by system-probe instead of the current security-agent instance",
-	)
 
 	return []*cobra.Command{activityDumpGenerateEncodingCmd}
 }
@@ -291,9 +284,9 @@ func diffCommands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(diffActivityDump,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
-					SecretParams: secrets.NewEnabledParams(),
-					LogParams:    logimpl.ForOneShot(command.LoggerName, "info", true)}),
+					ConfigParams: config.NewAgentParams("", config.WithConfigMissingOK(true)),
+					SecretParams: secrets.NewDisabledParams(),
+					LogParams:    logimpl.ForOneShot("SYS-PROBE", "info", true)}),
 				core.Bundle(),
 			)
 		},
@@ -489,66 +482,42 @@ func generateActivityDump(_ log.Component, _ config.Component, _ secrets.Compone
 func generateEncodingFromActivityDump(_ log.Component, _ config.Component, _ secrets.Component, activityDumpArgs *activityDumpCliParams) error {
 	var output *api.TranscodingRequestMessage
 
-	if activityDumpArgs.remoteRequest {
-		// send the encoding request to system-probe
-		client, err := secagent.NewRuntimeSecurityClient()
-		if err != nil {
-			return fmt.Errorf("encoding generation failed: %w", err)
-		}
-		defer client.Close()
+	// encoding request will be handled locally
+	ad := dump.NewEmptyActivityDump(nil)
 
-		// parse encoding request
-		storage, err := parseStorageRequest(activityDumpArgs)
-		if err != nil {
-			return err
-		}
-
-		output, err = client.GenerateEncoding(&api.TranscodingRequestParams{
-			ActivityDumpFile: activityDumpArgs.file,
-			Storage:          storage,
-		})
-		if err != nil {
-			return fmt.Errorf("couldn't send request to system-probe: %w", err)
-		}
-
-	} else {
-		// encoding request will be handled locally
-		ad := dump.NewEmptyActivityDump(nil)
-
-		// open and parse input file
-		if err := ad.Decode(activityDumpArgs.file); err != nil {
-			return err
-		}
-		parsedRequests, err := parseStorageRequest(activityDumpArgs)
-		if err != nil {
-			return err
-		}
-
-		storageRequests, err := secconfig.ParseStorageRequests(parsedRequests)
-		if err != nil {
-			return fmt.Errorf("couldn't parse transcoding request for [%s]: %v", ad.GetSelectorStr(), err)
-		}
-		for _, request := range storageRequests {
-			ad.AddStorageRequest(request)
-		}
-
-		cfg, err := secconfig.NewConfig()
-		if err != nil {
-			return fmt.Errorf("couldn't load configuration: %w", err)
-
-		}
-		storage, err := dump.NewAgentCommandStorageManager(cfg)
-		if err != nil {
-			return fmt.Errorf("couldn't instantiate storage manager: %w", err)
-		}
-
-		err = storage.Persist(ad)
-		if err != nil {
-			return fmt.Errorf("couldn't persist dump from %s: %w", activityDumpArgs.file, err)
-		}
-
-		output = ad.ToTranscodingRequestMessage()
+	// open and parse input file
+	if err := ad.Decode(activityDumpArgs.file); err != nil {
+		return err
 	}
+	parsedRequests, err := parseStorageRequest(activityDumpArgs)
+	if err != nil {
+		return err
+	}
+
+	storageRequests, err := secconfig.ParseStorageRequests(parsedRequests)
+	if err != nil {
+		return fmt.Errorf("couldn't parse transcoding request for [%s]: %v", ad.GetSelectorStr(), err)
+	}
+	for _, request := range storageRequests {
+		ad.AddStorageRequest(request)
+	}
+
+	cfg, err := secconfig.NewConfig()
+	if err != nil {
+		return fmt.Errorf("couldn't load configuration: %w", err)
+
+	}
+	storage, err := dump.NewAgentCommandStorageManager(cfg)
+	if err != nil {
+		return fmt.Errorf("couldn't instantiate storage manager: %w", err)
+	}
+
+	err = storage.Persist(ad)
+	if err != nil {
+		return fmt.Errorf("couldn't persist dump from %s: %w", activityDumpArgs.file, err)
+	}
+
+	output = ad.ToTranscodingRequestMessage()
 
 	if len(output.GetError()) > 0 {
 		return fmt.Errorf("encoding generation failed: %s", output.GetError())
