@@ -59,6 +59,8 @@ var installerStatusRegex = regexp.MustCompile(`([a-zA-Z-]+)\n[ \t]+State:.([a-zA
 const (
 	latestAgentVersion      = "7.54.1"
 	latestAgentImageVersion = "7.54.1-1"
+
+	unknownAgentImageVersion = "7.52.1-1"
 )
 
 func testUpgradeScenario(os e2eos.Descriptor, arch e2eos.Architecture) packageSuite {
@@ -112,6 +114,57 @@ func (s *upgradeScenarioSuite) TestBackendFailure() {
 	_, err = s.stopExperimentCommand()
 	require.NoError(s.T(), err)
 	s.assertSuccessfulStopExperiment(timestamp)
+}
+
+func (s *upgradeScenarioSuite) TestExperimentFailure() {
+	s.RunInstallScript("DD_REMOTE_UPDATES=true")
+	defer s.Purge()
+	s.host.WaitForUnitActive(
+		"datadog-agent.service",
+		"datadog-agent-trace.service",
+		"datadog-agent-process.service",
+		"datadog-installer.service",
+	)
+
+	s.setCatalog(testCatalog)
+
+	// Also tests if the version is not available in the catalog
+	_, err := s.startExperimentCommand(unknownAgentImageVersion)
+	require.Error(s.T(), err)
+
+	// Receive a failure from the experiment, stops the experiment
+	beforeStatus := s.getInstallerStatus()["datadog-agent"]
+	_, err = s.stopExperimentCommand()
+	require.NoError(s.T(), err)
+	afterStatus := s.getInstallerStatus()["datadog-agent"]
+
+	require.Equal(s.T(), beforeStatus, afterStatus)
+}
+
+func (s *upgradeScenarioSuite) TestExperimentCurrentVersion() {
+	s.RunInstallScript("DD_REMOTE_UPDATES=true")
+	defer s.Purge()
+	s.host.WaitForUnitActive(
+		"datadog-agent.service",
+		"datadog-agent-trace.service",
+		"datadog-agent-process.service",
+		"datadog-installer.service",
+	)
+
+	currentVersion := s.getInstallerStatus()["datadog-agent"].StableVersion
+	newCatalog := catalog{
+		Packages: []packageEntry{
+			{
+				Package: "datadog-agent",
+				Version: currentVersion,
+				URL:     fmt.Sprintf("oci://gcr.io/datadoghq/agent-package:%s", currentVersion),
+			},
+		},
+	}
+
+	s.setCatalog(newCatalog)
+	_, err := s.startExperimentCommand(unknownAgentImageVersion)
+	require.Error(s.T(), err)
 }
 
 func (s *upgradeScenarioSuite) TestStopWithoutExperiment() {
