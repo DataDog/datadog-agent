@@ -699,7 +699,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.command_endpoint", "/inject-command-cws")
 	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.include", []string{})
 	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.exclude", []string{})
-	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.mutate_unlabelled", true)
+	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.mutate_unlabelled", false)
 	config.BindEnv("admission_controller.cws_instrumentation.container_registry")
 	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.image_name", "cws-instrumentation")
 	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.image_tag", "latest")

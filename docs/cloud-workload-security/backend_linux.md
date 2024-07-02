@@ -1,6 +1,5 @@
 ---
 title: CSM Threats Linux Events Formats
-kind: documentation
 description: JSON schema documentation of the CSM Threats Linux backend event
 disable_edit: true
 ---
@@ -1471,6 +1470,14 @@ CSM Threats event for Linux systems have the following JSON schema:
                 "mode": {
                     "type": "integer",
                     "description": "Mode argument"
+                },
+                "uid": {
+                    "type": "integer",
+                    "description": "UID argument"
+                },
+                "gid": {
+                    "type": "integer",
+                    "description": "GID argument"
                 }
             },
             "additionalProperties": false,
@@ -1480,6 +1487,9 @@ CSM Threats event for Linux systems have the following JSON schema:
         "SyscallContext": {
             "properties": {
                 "chmod": {
+                    "$ref": "#/$defs/SyscallArgs"
+                },
+                "chown": {
                     "$ref": "#/$defs/SyscallArgs"
                 },
                 "chdir": {
@@ -3851,6 +3861,14 @@ CSM Threats event for Linux systems have the following JSON schema:
         "mode": {
             "type": "integer",
             "description": "Mode argument"
+        },
+        "uid": {
+            "type": "integer",
+            "description": "UID argument"
+        },
+        "gid": {
+            "type": "integer",
+            "description": "GID argument"
         }
     },
     "additionalProperties": false,
@@ -3865,6 +3883,8 @@ CSM Threats event for Linux systems have the following JSON schema:
 | `path` | Path argument |
 | `flags` | Flags argument |
 | `mode` | Mode argument |
+| `uid` | UID argument |
+| `gid` | GID argument |
 
 
 ## `SyscallContext`
@@ -3874,6 +3894,9 @@ CSM Threats event for Linux systems have the following JSON schema:
 {
     "properties": {
         "chmod": {
+            "$ref": "#/$defs/SyscallArgs"
+        },
+        "chown": {
             "$ref": "#/$defs/SyscallArgs"
         },
         "chdir": {
@@ -3896,6 +3919,7 @@ CSM Threats event for Linux systems have the following JSON schema:
 
 | References |
 | ---------- |
+| [SyscallArgs](#syscallargs) |
 | [SyscallArgs](#syscallargs) |
 | [SyscallArgs](#syscallargs) |
 | [SyscallArgs](#syscallargs) |
