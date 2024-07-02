@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
+	"github.com/DataDog/datadog-agent/comp/updater/telemetry/telemetryimpl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/docker"
@@ -134,6 +135,7 @@ func setup() (workloadmeta.Component, error) {
 		workloadmetafx.Module(),
 		taggerimpl.Module(),
 		fx.Supply(tagger.NewTaggerParams()),
+		telemetryimpl.Module(),
 	))
 	store := deps.Store
 
