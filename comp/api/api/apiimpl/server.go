@@ -6,7 +6,6 @@
 package apiimpl
 
 import (
-	"context"
 	"crypto/tls"
 	"fmt"
 	stdLog "log"
@@ -45,7 +44,7 @@ func stopServer(listener net.Listener, name string) {
 }
 
 // StartServers creates certificates and starts API + IPC servers
-func (server *apiServer) startServers(ctx context.Context) error {
+func (server *apiServer) startServers() error {
 	apiAddr, err := getIPCAddressPort()
 	if err != nil {
 		return fmt.Errorf("unable to get IPC address and port: %v", err)
@@ -88,7 +87,7 @@ func (server *apiServer) startServers(ctx context.Context) error {
 	if ipcServerEnabled {
 		if err := server.startIPCServer(ipcServerHostPort, tlsConfig(), tmf); err != nil {
 			// if we fail to start the IPC server, we should stop the CMD server
-			server.stopServers(ctx)
+			server.stopServers()
 			return fmt.Errorf("unable to start IPC API server: %v", err)
 		}
 	}
@@ -97,7 +96,7 @@ func (server *apiServer) startServers(ctx context.Context) error {
 }
 
 // StopServers closes the connections and the servers
-func (server *apiServer) stopServers(_ context.Context) error {
+func (server *apiServer) stopServers() error {
 	stopServer(server.cmdListener, cmdServerName)
 	stopServer(server.ipcListener, ipcServerName)
 	return nil

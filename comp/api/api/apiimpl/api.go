@@ -7,6 +7,7 @@
 package apiimpl
 
 import (
+	"context"
 	"net"
 
 	"go.uber.org/fx"
@@ -100,8 +101,11 @@ func newAPIServer(deps dependencies) api.Component {
 	}
 
 	deps.Lc.Append(fx.Hook{
-		OnStart: server.startServers,
-		OnStop:  server.stopServers,
+		OnStart: func(_ context.Context) error { return server.startServers() },
+		OnStop: func(_ context.Context) error {
+			server.stopServers()
+			return nil
+		},
 	})
 
 	return &server
