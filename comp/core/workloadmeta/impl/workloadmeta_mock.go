@@ -10,9 +10,9 @@ package workloadmeta
 // team: container-platform
 
 import (
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	wmdef "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	wmmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 )
 
 const (
@@ -49,7 +49,7 @@ func (w *workloadMetaMock) Set(e wmdef.Entity) {
 }
 
 // GetConfig returns a Config Reader for the internal injected config
-func (w *workloadMetaMock) GetConfig() pkgconfig.Reader {
+func (w *workloadMetaMock) GetConfig() config.Reader {
 	return w.config
 }
 
