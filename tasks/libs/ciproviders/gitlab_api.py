@@ -5,6 +5,7 @@ import os
 import platform
 import subprocess
 import sys
+from difflib import Differ
 from functools import lru_cache
 
 import gitlab
@@ -84,6 +85,182 @@ def refresh_pipeline(pipeline: ProjectPipeline):
     Refresh a pipeline, retries if there is an error
     """
     pipeline.refresh()
+
+
+class GitlabCIDiff:
+    def __init__(self, before: dict, after: dict) -> None:
+        """
+        Used to display job diffs between two gitlab ci configurations
+        """
+        self.before = before
+        self.after = after
+        self.added_contents = {}
+        self.modified_diffs = {}
+
+        self.make_diff()
+
+    def __bool__(self) -> bool:
+        return bool(self.added or self.removed or self.modified or self.renamed)
+
+    def make_diff(self):
+        """
+        Compute the diff between the two gitlab ci configurations
+        """
+        # Find added / removed jobs by names
+        unmoved = self.before.keys() & self.after.keys()
+        self.removed = self.before.keys() - unmoved
+        self.added = self.after.keys() - unmoved
+        self.renamed = set()
+
+        # Find jobs that have been renamed
+        for before_job in self.removed:
+            for after_job in self.added:
+                if self.before[before_job] == self.after[after_job]:
+                    self.renamed.add((before_job, after_job))
+
+        for before_job, after_job in self.renamed:
+            self.removed.remove(before_job)
+            self.added.remove(after_job)
+
+        # Added jobs contents
+        for job in self.added:
+            self.added_contents[job] = yaml.safe_dump({job: self.after[job]})
+
+        # Find modified jobs
+        self.modified = set()
+        for job in unmoved:
+            if self.before[job] != self.after[job]:
+                self.modified.add(job)
+
+        # Modified jobs
+        if self.modified:
+            differcli = Differ()
+            for job in self.modified:
+                if self.before[job] == self.after[job]:
+                    continue
+
+                # Make diff
+                before_content = yaml.safe_dump({job: self.before[job]}, default_flow_style=False, sort_keys=True)
+                after_content = yaml.safe_dump({job: self.after[job]}, default_flow_style=False, sort_keys=True)
+                before_content = before_content.splitlines()
+                after_content = after_content.splitlines()
+
+                diff = [line.rstrip('\n') for line in differcli.compare(before_content, after_content)]
+                self.modified_diffs[job] = diff
+
+    def display(self, cli: bool = True) -> str:
+        """
+        Display in cli or markdown
+        """
+
+        from tasks.libs.common.color import Color, color_message
+
+        def str_section(title):
+            if cli:
+                return f'--- {color_message(title, Color.BOLD)} ---'
+            else:
+                return f'### {title}'
+
+        def str_job(title, color):
+            if cli:
+                return f'* {color_message(title, getattr(Color, color))}'
+            else:
+                return f'- **{title}**'
+
+        def str_rename(job_before, job_after):
+            if cli:
+                return f'* {color_message(job_before, Color.GREY)} -> {color_message(job_after, Color.BLUE)}'
+            else:
+                return f'- {job_before} -> **{job_after}**'
+
+        def str_add_job(name: str, content: str) -> list[str]:
+            if cli:
+                content = [color_message(line, Color.GREY) for line in content.splitlines()]
+
+                return [str_job(name, 'GREEN'), '', *content, '']
+            else:
+                header = f'<summary><h4>{name}</h4></summary>'
+
+                return ['<details>', header, '', '```yaml', *content.splitlines(), '```', '', '</details>']
+
+        def str_modified_job(name: str, diff: list[str]) -> str:
+            if cli:
+                res = [str_job(name, 'ORANGE')]
+                for line in diff:
+                    if line.startswith('+'):
+                        res.append(color_message(line, Color.GREEN))
+                    elif line.startswith('-'):
+                        res.append(color_message(line, Color.RED))
+                    else:
+                        res.append(line)
+
+                return '\n'.join(res)
+            else:
+                # Wrap diff in markdown code block and in details html tags
+                header = f'<summary><h4>{name}</h4></summary>'
+                difftxt = '\n'.join(diff)
+                difftxt = f"```diff\n{difftxt}\n```"
+                difftxt = f"<details>{header}\n\n{difftxt}\n\n</details>"
+
+                return difftxt
+
+        def str_color(text: str, color: str) -> str:
+            if cli:
+                return color_message(text, getattr(Color, color))
+            else:
+                return text
+
+        def str_summary() -> str:
+            if cli:
+                res = ''
+                res += f'{len(self.removed)} {str_color("removed", "RED")}'
+                res += f' | {len(self.modified)} {str_color("modified", "ORANGE")}'
+                res += f' | {len(self.added)} {str_color("added", "GREEN")}'
+                res += f' | {len(self.renamed)} {str_color("renamed", "BLUE")}'
+
+                return res
+            else:
+                res = '| Removed | Modified | Added | Renamed |\n'
+                res += '| ------- | -------- | ----- | ------- |\n'
+                res += f'| {" | ".join(str(len(changes)) for changes in [self.removed, self.modified, self.added, self.renamed])} |'
+
+                return res
+
+        res = []
+
+        if self.modified:
+            res.append(str_section('Modified Jobs'))
+            for job, diff in sorted(self.modified_diffs.items()):
+                res.extend(str_modified_job(job, diff))
+
+        if self.added:
+            if res:
+                res.append('')
+            res.append(str_section('Added Jobs'))
+            for job, content in sorted(self.added_contents.items()):
+                res.extend(str_add_job(job, content))
+
+        if self.removed:
+            if res:
+                res.append('')
+            res.append(str_section('Removed Jobs'))
+            for job in sorted(self.removed):
+                res.append(str_job(job, 'RED'))
+
+        if self.renamed:
+            if res:
+                res.append('')
+            res.append(str_section('Renamed Jobs'))
+            for job_before, job_after in sorted(self.renamed):
+                res.append(str_rename(job_before, job_after))
+
+        if res:
+            if res:
+                res.append('')
+            res.append(str_section('Changes'))
+            res.append(str_summary())
+
+        return '\n'.join(res)
 
 
 class ConfigNodeList(list):

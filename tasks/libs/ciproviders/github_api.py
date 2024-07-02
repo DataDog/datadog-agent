@@ -14,7 +14,7 @@ from tasks.libs.common.color import color_message
 from tasks.libs.common.constants import GITHUB_REPO_NAME
 
 try:
-    from github import Auth, Github, GithubException, GithubIntegration, GithubObject
+    from github import Auth, Github, GithubException, GithubIntegration, GithubObject, PullRequest
     from github.NamedUser import NamedUser
 except ImportError:
     # PyGithub isn't available on some build images, ignore it for now
@@ -204,22 +204,30 @@ class GithubAPI:
         """
         return self._github.rate_limiting
 
-    def publish_comment(self, pull_number, comment):
+    def publish_comment(self, pr, comment):
         """
         Publish a comment on a given PR.
+
+        - pr: PR number or PR object
         """
-        pr = self._repository.get_pull(int(pull_number))
+        if not isinstance(pr, PullRequest.PullRequest):
+            pr = self._repository.get_pull(int(pr))
+
         pr.create_issue_comment(comment)
 
-    def find_comment(self, pull_number, content):
+    def find_comment(self, pr, content):
         """
         Get a comment that contains content on a given PR.
+
+        - pr: PR number or PR object
         """
-        pr = self._repository.get_pull(int(pull_number))
+
+        if not isinstance(pr, PullRequest.PullRequest):
+            pr = self._repository.get_pull(int(pr))
 
         comments = pr.get_issue_comments()
         for comment in comments:
-            if content in comment.body:
+            if content in comment.body.splitlines():
                 return comment
 
     def get_pr(self, pr_id: int):
