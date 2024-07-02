@@ -640,11 +640,15 @@ type PathKey struct {
 
 // OnDemandEvent identifies an on-demand event generated from on-demand probes
 type OnDemandEvent struct {
-	ID      uint32    `field:"-"`
-	Name    string    `field:"name,handler:ResolveOnDemandName"`
-	Data    [256]byte `field:"-"`
-	Arg1Str string    `field:"arg1.str,handler:ResolveOnDemandArg1Str"`
-	Arg2Str string    `field:"arg2.str,handler:ResolveOnDemandArg2Str"`
-	Arg3Str string    `field:"arg3.str,handler:ResolveOnDemandArg3Str"`
-	Arg4Str string    `field:"arg4.str,handler:ResolveOnDemandArg4Str"`
+	ID       uint32    `field:"-"`
+	Name     string    `field:"name,handler:ResolveOnDemandName"`
+	Data     [256]byte `field:"-"`
+	Arg1Str  string    `field:"arg1.str,handler:ResolveOnDemandArg1Str"`
+	Arg1Uint uint64    `field:"arg1.uint,handler:ResolveOnDemandArg1Uint"`
+	Arg2Str  string    `field:"arg2.str,handler:ResolveOnDemandArg2Str"`
+	Arg2Uint uint64    `field:"arg2.uint,handler:ResolveOnDemandArg2Uint"`
+	Arg3Str  string    `field:"arg3.str,handler:ResolveOnDemandArg3Str"`
+	Arg3Uint uint64    `field:"arg3.uint,handler:ResolveOnDemandArg3Uint"`
+	Arg4Str  string    `field:"arg4.str,handler:ResolveOnDemandArg4Str"`
+	Arg4Uint uint64    `field:"arg4.uint,handler:ResolveOnDemandArg4Uint"`
 }

@@ -9,6 +9,7 @@
 package tests
 
 import (
+	"fmt"
 	"os"
 	"syscall"
 	"testing"
@@ -124,5 +125,53 @@ func TestOnDemandChdir(t *testing.T) {
 
 		value, _ := event.GetFieldValue("ondemand.arg1.str")
 		assert.Equal(t, testFolder, value.(string))
+	})
+}
+
+func TestOnDemandMprotect(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	onDemands := []rules.OnDemandHookPoint{
+		{
+			Name: "security_file_mprotect",
+			Args: []rules.HookPointArg{
+				{
+					N:    2,
+					Kind: "uint",
+				},
+				{
+					N:    3,
+					Kind: "uint",
+				},
+			},
+		},
+	}
+
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_rule_mprotect",
+			Expression: `ondemand.name == "security_file_mprotect" && (ondemand.arg3.uint & (VM_READ|VM_WRITE)) == (VM_READ|VM_WRITE) && process.file.name == "testsuite"`,
+		},
+	}
+
+	test, err := newTestModuleWithOnDemandProbes(t, onDemands, nil, ruleDefs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	test.WaitSignal(t, func() error {
+		var data []byte
+		data, err = unix.Mmap(0, 0, os.Getpagesize(), unix.PROT_READ|unix.PROT_WRITE, unix.MAP_SHARED|unix.MAP_ANON)
+		if err != nil {
+			return fmt.Errorf("couldn't memory segment: %w", err)
+		}
+
+		if err = unix.Mprotect(data, unix.PROT_READ|unix.PROT_WRITE|unix.PROT_EXEC); err != nil {
+			return fmt.Errorf("couldn't mprotect segment: %w", err)
+		}
+		return nil
+	}, func(event *model.Event, r *rules.Rule) {
+		assert.Equal(t, "ondemand", event.GetType(), "wrong event type")
 	})
 }

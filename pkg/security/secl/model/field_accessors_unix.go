@@ -4234,12 +4234,28 @@ func (ev *Event) GetOndemandArg1Str() string {
 	return ev.FieldHandlers.ResolveOnDemandArg1Str(ev, &ev.OnDemand)
 }
 
+// GetOndemandArg1Uint returns the value of the field, resolving if necessary
+func (ev *Event) GetOndemandArg1Uint() int {
+	if ev.GetEventType().String() != "ondemand" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveOnDemandArg1Uint(ev, &ev.OnDemand)
+}
+
 // GetOndemandArg2Str returns the value of the field, resolving if necessary
 func (ev *Event) GetOndemandArg2Str() string {
 	if ev.GetEventType().String() != "ondemand" {
 		return ""
 	}
 	return ev.FieldHandlers.ResolveOnDemandArg2Str(ev, &ev.OnDemand)
+}
+
+// GetOndemandArg2Uint returns the value of the field, resolving if necessary
+func (ev *Event) GetOndemandArg2Uint() int {
+	if ev.GetEventType().String() != "ondemand" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveOnDemandArg2Uint(ev, &ev.OnDemand)
 }
 
 // GetOndemandArg3Str returns the value of the field, resolving if necessary
@@ -4250,12 +4266,28 @@ func (ev *Event) GetOndemandArg3Str() string {
 	return ev.FieldHandlers.ResolveOnDemandArg3Str(ev, &ev.OnDemand)
 }
 
+// GetOndemandArg3Uint returns the value of the field, resolving if necessary
+func (ev *Event) GetOndemandArg3Uint() int {
+	if ev.GetEventType().String() != "ondemand" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveOnDemandArg3Uint(ev, &ev.OnDemand)
+}
+
 // GetOndemandArg4Str returns the value of the field, resolving if necessary
 func (ev *Event) GetOndemandArg4Str() string {
 	if ev.GetEventType().String() != "ondemand" {
 		return ""
 	}
 	return ev.FieldHandlers.ResolveOnDemandArg4Str(ev, &ev.OnDemand)
+}
+
+// GetOndemandArg4Uint returns the value of the field, resolving if necessary
+func (ev *Event) GetOndemandArg4Uint() int {
+	if ev.GetEventType().String() != "ondemand" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveOnDemandArg4Uint(ev, &ev.OnDemand)
 }
 
 // GetOndemandName returns the value of the field, resolving if necessary

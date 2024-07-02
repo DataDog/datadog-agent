@@ -9,6 +9,7 @@
 package probe
 
 import (
+	"encoding/binary"
 	"path"
 	"strings"
 	"syscall"
@@ -613,11 +614,21 @@ func (fh *EBPFFieldHandlers) ResolveOnDemandArg1Str(_ *model.Event, e *model.OnD
 	return s
 }
 
+// ResolveOnDemandArg1Uint resolves the uint value of the first argument of hooked function
+func (fh *EBPFFieldHandlers) ResolveOnDemandArg1Uint(_ *model.Event, e *model.OnDemandEvent) int {
+	return int(binary.NativeEndian.Uint64(e.Data[0:8]))
+}
+
 // ResolveOnDemandArg2Str resolves the string value of the second argument of hooked function
 func (fh *EBPFFieldHandlers) ResolveOnDemandArg2Str(_ *model.Event, e *model.OnDemandEvent) string {
 	data := e.Data[64:128]
 	s := model.NullTerminatedString(data)
 	return s
+}
+
+// ResolveOnDemandArg2Uint resolves the uint value of the second argument of hooked function
+func (fh *EBPFFieldHandlers) ResolveOnDemandArg2Uint(_ *model.Event, e *model.OnDemandEvent) int {
+	return int(binary.NativeEndian.Uint64(e.Data[64 : 64+8]))
 }
 
 // ResolveOnDemandArg3Str resolves the string value of the third argument of hooked function
@@ -627,9 +638,19 @@ func (fh *EBPFFieldHandlers) ResolveOnDemandArg3Str(_ *model.Event, e *model.OnD
 	return s
 }
 
+// ResolveOnDemandArg3Uint resolves the uint value of the third argument of hooked function
+func (fh *EBPFFieldHandlers) ResolveOnDemandArg3Uint(_ *model.Event, e *model.OnDemandEvent) int {
+	return int(binary.NativeEndian.Uint64(e.Data[128 : 128+8]))
+}
+
 // ResolveOnDemandArg4Str resolves the string value of the fourth argument of hooked function
 func (fh *EBPFFieldHandlers) ResolveOnDemandArg4Str(_ *model.Event, e *model.OnDemandEvent) string {
 	data := e.Data[192:256]
 	s := model.NullTerminatedString(data)
 	return s
+}
+
+// ResolveOnDemandArg4Uint resolves the uint value of the fourth argument of hooked function
+func (fh *EBPFFieldHandlers) ResolveOnDemandArg4Uint(_ *model.Event, e *model.OnDemandEvent) int {
+	return int(binary.NativeEndian.Uint64(e.Data[192 : 192+8]))
 }

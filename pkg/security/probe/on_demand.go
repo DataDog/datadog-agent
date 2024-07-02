@@ -126,7 +126,7 @@ func buildArgsEditors(args []rules.HookPointArg) []manager.ConstantEditor {
 	for _, arg := range args {
 		kind := onDemandParamKindNoAction
 		switch arg.Kind {
-		case "int":
+		case "uint":
 			kind = onDemandParamKindInt
 		case "null-terminated-string":
 			kind = onDemandParamKindNullTerminatedString
