@@ -507,32 +507,11 @@ func TestExtractLibInfo(t *testing.T) {
 			},
 		},
 		{
-			name:                "all with mutate_unlabelled off",
-			pod:                 common.FakePodWithAnnotation("admission.datadoghq.com/all-lib.version", "latest"),
-			containerRegistry:   "registry",
-			expectedPodEligible: -1,
-			expectedLibsToInject: []libInfo{ // TODO: Add new entry when a new language is supported
-				{
-					lang:  "java",
-					image: "registry/dd-lib-java-init:latest",
-				},
-				{
-					lang:  "js",
-					image: "registry/dd-lib-js-init:latest",
-				},
-				{
-					lang:  "python",
-					image: "registry/dd-lib-python-init:latest",
-				},
-				{
-					lang:  "dotnet",
-					image: "registry/dd-lib-dotnet-init:latest",
-				},
-				{
-					lang:  "ruby",
-					image: "registry/dd-lib-ruby-init:latest",
-				},
-			},
+			name:                 "all with mutate_unlabelled off",
+			pod:                  common.FakePodWithAnnotation("admission.datadoghq.com/all-lib.version", "latest"),
+			containerRegistry:    "registry",
+			expectedPodEligible:  pointer.Ptr(false),
+			expectedLibsToInject: allLatestLibs,
 			setupConfig: func() {
 				mockConfig.SetWithoutSource("admission_controller.mutate_unlabelled", false)
 			},
@@ -549,30 +528,9 @@ func TestExtractLibInfo(t *testing.T) {
 					},
 				},
 			},
-			containerRegistry:   "registry",
-			expectedPodEligible: 1,
-			expectedLibsToInject: []libInfo{ // TODO: Add new entry when a new language is supported
-				{
-					lang:  "java",
-					image: "registry/dd-lib-java-init:latest",
-				},
-				{
-					lang:  "js",
-					image: "registry/dd-lib-js-init:latest",
-				},
-				{
-					lang:  "python",
-					image: "registry/dd-lib-python-init:latest",
-				},
-				{
-					lang:  "dotnet",
-					image: "registry/dd-lib-dotnet-init:latest",
-				},
-				{
-					lang:  "ruby",
-					image: "registry/dd-lib-ruby-init:latest",
-				},
-			},
+			containerRegistry:    "registry",
+			expectedPodEligible:  pointer.Ptr(true),
+			expectedLibsToInject: allLatestLibs,
 			setupConfig: func() {
 				mockConfig.SetWithoutSource("admission_controller.mutate_unlabelled", false)
 			},
@@ -596,60 +554,18 @@ func TestExtractLibInfo(t *testing.T) {
 			},
 		},
 		{
-			name:              "all with unsupported version",
-			pod:               common.FakePodWithAnnotation("admission.datadoghq.com/all-lib.version", "unsupported"),
-			containerRegistry: "registry",
-			expectedLibsToInject: []libInfo{
-				{
-					lang:  "java",
-					image: "registry/dd-lib-java-init:latest",
-				},
-				{
-					lang:  "js",
-					image: "registry/dd-lib-js-init:latest",
-				},
-				{
-					lang:  "python",
-					image: "registry/dd-lib-python-init:latest",
-				},
-				{
-					lang:  "dotnet",
-					image: "registry/dd-lib-dotnet-init:latest",
-				},
-				{
-					lang:  "ruby",
-					image: "registry/dd-lib-ruby-init:latest",
-				},
-			},
-			setupConfig: func() { mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", false) },
+			name:                 "all with unsupported version",
+			pod:                  common.FakePodWithAnnotation("admission.datadoghq.com/all-lib.version", "unsupported"),
+			containerRegistry:    "registry",
+			expectedLibsToInject: allLatestLibs,
+			setupConfig:          func() { mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", false) },
 		},
 		{
-			name:              "single step instrumentation with no pinned versions",
-			pod:               common.FakePodWithNamespaceAndLabel("ns", "", ""),
-			containerRegistry: "registry",
-			expectedLibsToInject: []libInfo{
-				{
-					lang:  "java",
-					image: "registry/dd-lib-java-init:latest",
-				},
-				{
-					lang:  "js",
-					image: "registry/dd-lib-js-init:latest",
-				},
-				{
-					lang:  "python",
-					image: "registry/dd-lib-python-init:latest",
-				},
-				{
-					lang:  "dotnet",
-					image: "registry/dd-lib-dotnet-init:latest",
-				},
-				{
-					lang:  "ruby",
-					image: "registry/dd-lib-ruby-init:latest",
-				},
-			},
-			setupConfig: func() { mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true) },
+			name:                 "single step instrumentation with no pinned versions",
+			pod:                  common.FakePodWithNamespaceAndLabel("ns", "", ""),
+			containerRegistry:    "registry",
+			expectedLibsToInject: allLatestLibs,
+			setupConfig:          func() { mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true) },
 		},
 		{
 			name:              "single step instrumentation with pinned java version",
@@ -2370,7 +2286,7 @@ func TestShouldInject(t *testing.T) {
 			UnsetWebhook()
 			webhook, errInitAPMInstrumentation := GetWebhook(wmeta)
 			require.NoError(t, errInitAPMInstrumentation)
-      
+
 			require.Equal(t, tt.want, ShouldInject(tt.pod, webhook.wmeta), "expected ShouldInject() to be %t", tt.want)
 			require.Equal(t, tt.want, webhook.isPodEligible(tt.pod), "expected webhook.isPodEligible() to be %t", tt.want)
 		})
