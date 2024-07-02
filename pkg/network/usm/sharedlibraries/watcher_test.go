@@ -57,13 +57,14 @@ func TestSharedLibrary(t *testing.T) {
 	}
 
 	ebpftest.TestBuildModes(t, []ebpftest.BuildMode{ebpftest.Prebuilt, ebpftest.RuntimeCompiled, ebpftest.CORE}, "", func(t *testing.T) {
-		launchProcessMonitor(t, false)
-		suite.Run(t, new(SharedLibrarySuite))
-	})
-
-	t.Run("event stream", func(t *testing.T) {
-		launchProcessMonitor(t, true)
-		suite.Run(t, new(SharedLibrarySuite))
+		t.Run("netlink", func(t *testing.T) {
+			launchProcessMonitor(t, false)
+			suite.Run(t, new(SharedLibrarySuite))
+		})
+		t.Run("event stream", func(t *testing.T) {
+			launchProcessMonitor(t, true)
+			suite.Run(t, new(SharedLibrarySuite))
+		})
 	})
 }
 
