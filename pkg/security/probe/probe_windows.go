@@ -10,6 +10,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"slices"
 	"sync"
@@ -186,6 +187,12 @@ type stats struct {
 	totalEtwNotifications uint64
 }
 
+var (
+	// ProbeETWFilterOnlyMyPID is exported so that it can be set to true for testing.
+	// should never be set at runtime
+	ProbeETWFilterOnlyMyPID = false
+)
+
 /*
  * callback function for every etw notification, after it's been parsed.
  * pid is provided for testing purposes, to allow filtering on pid.  it is
@@ -271,7 +278,10 @@ func (p *WindowsProbe) reconfigureProvider() error {
 		return nil
 	}
 
-	pidsList := make([]uint32, 0)
+	pidsList := make([]uint32, 1)
+	if ProbeETWFilterOnlyMyPID {
+		pidsList[0] = uint32(os.Getpid())
+	}
 
 	p.fimSession.ConfigureProvider(p.fileguid, func(cfg *etw.ProviderConfiguration) {
 		cfg.TraceLevel = etw.TRACE_LEVEL_VERBOSE

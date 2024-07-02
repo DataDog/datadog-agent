@@ -213,6 +213,9 @@ var commonCfgDir string
 
 func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []*rules.RuleDefinition, fopts ...optFunc) (*testModule, error) {
 
+	// this sets the windows ETW probe to filter only on messages from our own PID
+	sprobe.ProbeETWFilterOnlyMyPID = true
+
 	var opts tmOpts
 	for _, opt := range fopts {
 		opt(&opts)
