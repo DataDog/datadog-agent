@@ -22,7 +22,6 @@ import (
 
 // Component is the component type.
 type Component interface {
-	StopServer()
 	ServerAddress() *net.TCPAddr
 }
 

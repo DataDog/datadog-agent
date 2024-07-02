@@ -626,7 +626,6 @@ func stopAgent(agentAPI internalAPI.Component) {
 		pkglog.Warnf("Some components were unhealthy: %v", health.Unhealthy)
 	}
 
-	agentAPI.StopServer()
 	clcrunnerapi.StopCLCRunnerServer()
 	jmxfetch.StopJmxfetch()
 
