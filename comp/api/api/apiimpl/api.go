@@ -7,7 +7,6 @@
 package apiimpl
 
 import (
-	"context"
 	"net"
 
 	"go.uber.org/fx"
@@ -100,18 +99,10 @@ func newAPIServer(deps dependencies) api.Component {
 
 	deps.Lc.Append(fx.Hook{
 		OnStart: server.startServers,
-		OnStop: func(_ context.Context) error {
-			return nil
-		},
+		OnStop:  server.stopServers,
 	})
 
 	return &server
-}
-
-// StopServer closes the connection and the server
-// stops listening to new commands.
-func (server *apiServer) StopServer() {
-	StopServers()
 }
 
 // ServerAddress returns the server address.
