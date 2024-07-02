@@ -8,7 +8,6 @@ package status
 import (
 	"embed"
 	"encoding/json"
-	"errors"
 	"fmt"
 	htemplate "html/template"
 	"io"
@@ -40,7 +39,7 @@ var (
 // HTMLFmap return a map of utility functions for HTML templating
 func HTMLFmap() htemplate.FuncMap {
 	htmlFuncOnce.Do(func() {
-		htmlFuncMap = untypeFuncMap(htemplate.FuncMap{
+		htmlFuncMap = funcMapDynTypeChecker(htemplate.FuncMap{
 			"doNotEscape":        doNotEscape,
 			"lastError":          lastError,
 			"configError":        configError,
@@ -71,7 +70,7 @@ func HTMLFmap() htemplate.FuncMap {
 // TextFmap map of utility functions for text templating
 func TextFmap() ttemplate.FuncMap {
 	textFuncOnce.Do(func() {
-		textFuncMap = untypeFuncMap(ttemplate.FuncMap{
+		textFuncMap = funcMapDynTypeChecker(ttemplate.FuncMap{
 			"lastErrorTraceback": lastErrorTraceback,
 			"lastErrorMessage":   lastErrorMessage,
 			"printDashes":        PrintDashes,
@@ -98,7 +97,10 @@ func TextFmap() ttemplate.FuncMap {
 
 const timeFormat = "2006-01-02 15:04:05.999 MST"
 
-func untypeFuncMap(funcMap map[string]any) map[string]any {
+// funcMapDynTypeChecker takes a map of functions and returns a new map with a dynamic type-checking mechanism.
+// This mechanism ensures that when a type mismatch occurs during the execution of a template with one of the functions
+// from the returned map, an error message is provided instead of causing the template rendering to fail.
+func funcMapDynTypeChecker(funcMap map[string]any) map[string]any {
 	newFuncMap := make(map[string]any)
 
 	for name, function := range funcMap {
@@ -121,12 +123,17 @@ func untypeFuncMap(funcMap map[string]any) map[string]any {
 			// Convert input parameters
 			inValues := make([]reflect.Value, len(args))
 
-			var err error
+			var src any
+			var tgt reflect.Type
+
 			for i, v := range args {
-				inValues[i], err = castValue(v.Interface(), funcType.In(i))
-				if err != nil {
-					return []reflect.Value{reflect.ValueOf(err.Error())}
+				src = v.Interface()
+				tgt = funcType.In(i)
+
+				if !reflect.TypeOf(src).AssignableTo(tgt) {
+					return []reflect.Value{reflect.ValueOf(fmt.Sprintf("{{CAST_ERROR: unable to cast value of type %T to %s}}", src, tgt))}
 				}
+				inValues[i] = reflect.ValueOf(src)
 			}
 
 			// Call the original function
@@ -137,50 +144,6 @@ func untypeFuncMap(funcMap map[string]any) map[string]any {
 	}
 
 	return newFuncMap
-}
-
-func castValue(value interface{}, targetType reflect.Type) (reflect.Value, error) {
-	if reflect.TypeOf(value).AssignableTo(targetType) {
-		return reflect.ValueOf(value), nil
-	}
-
-	var o any = reflect.Value{}
-	var err = errors.New("")
-
-	switch targetType.Kind() {
-	case reflect.Int:
-		o, err = cast.ToIntE(value)
-	case reflect.Int8:
-		o, err = cast.ToInt8E(value)
-	case reflect.Int16:
-		o, err = cast.ToInt16E(value)
-	case reflect.Int32:
-		o, err = cast.ToInt32E(value)
-	case reflect.Int64:
-		o, err = cast.ToInt64E(value)
-	case reflect.Uint:
-		o, err = cast.ToUintE(value)
-	case reflect.Uint8:
-		o, err = cast.ToUint8E(value)
-	case reflect.Uint16:
-		o, err = cast.ToUint16E(value)
-	case reflect.Uint32:
-		o, err = cast.ToUint32E(value)
-	case reflect.Uint64:
-		o, err = cast.ToUint64E(value)
-	case reflect.Float32:
-		o, err = cast.ToFloat32E(value)
-	case reflect.Float64:
-		o, err = cast.ToFloat64E(value)
-	case reflect.String:
-		o, err = cast.ToStringE(value)
-	}
-
-	if err != nil {
-		err = fmt.Errorf("{{CAST_ERROR: unable to cast value of type \"%T\" to \"%s\"}}", value, targetType)
-	}
-
-	return reflect.ValueOf(o), err
 }
 
 // RenderHTML reads, parse and execute template from embed.FS
@@ -240,7 +203,7 @@ func lastErrorMessage(value string) string {
 }
 
 // formatUnixTime formats the unix time to make it more readable
-func formatUnixTime(unixTime int64) string {
+func formatUnixTime(unixTime any) string {
 	// Initially treat given unixTime is in nanoseconds
 	parseFunction := func(value int64) string {
 		t := time.Unix(0, value)
@@ -248,7 +211,6 @@ func formatUnixTime(unixTime int64) string {
 		if t.Year() == time.Unix(0, 0).Year() {
 			t = time.Unix(value, 0)
 		}
-
 		_, tzoffset := t.Zone()
 		result := t.Format(timeFormat)
 		if tzoffset != 0 {
@@ -259,16 +221,15 @@ func formatUnixTime(unixTime int64) string {
 
 		return result
 	}
-	return parseFunction(unixTime)
 
-	// switch v := unixTime.(type) {
-	// case int64:
-	// 	return parseFunction(v)
-	// case float64:
-	// 	return parseFunction(int64(v))
-	// default:
-	// 	return fmt.Sprintf("Invalid time parameter %T", v)
-	// }
+	switch v := unixTime.(type) {
+	case int64:
+		return parseFunction(v)
+	case float64:
+		return parseFunction(int64(v))
+	default:
+		return fmt.Sprintf("Invalid time parameter %T", v)
+	}
 }
 
 // formatJSON formats the given value as JSON. The indent parameter is used to indent the entire JSON output.
@@ -294,19 +255,19 @@ func toUnsortedList(s map[string]interface{}) string {
 }
 
 // mkHuman adds commas to large numbers to assist readability in status outputs
-func mkHuman(f float64) string {
-	return humanize.Commaf(f)
+func mkHuman(f interface{}) string {
+	return humanize.Commaf(cast.ToFloat64(f))
 }
 
 // mkHumanDuration makes time values more readable
-func mkHumanDuration(f float64, unit string) string {
+func mkHumanDuration(i interface{}, unit string) string {
+	f := cast.ToFloat64(i)
 	var duration time.Duration
 	if unit != "" {
 		duration, _ = time.ParseDuration(fmt.Sprintf("%f%s", f, unit))
 	} else {
 		duration = time.Duration(int64(f)) * time.Second
 	}
-
 	return duration.String()
 }
 

@@ -28,37 +28,35 @@ func TestMkHuman(t *testing.T) {
 	assert.Equal(t, "1,695,783", fStr, "Large number formatting is incorrectly adding commas in agent statuses")
 
 	assert.Equal(t, "1", mkHuman(1))
-
-	// assert.Equal(t, "1", textFuncMap["humanize"]("1"))
-	// assert.Equal(t, "1.5", mkHuman(float32(1.5)))
+	assert.Equal(t, "1", mkHuman("1"))
+	assert.Equal(t, "1.5", mkHuman(float32(1.5)))
 }
 
 func TestUntypeFuncMap(t *testing.T) {
-	templateText := `
-	{{ version .VersionValue }}
-	{{ doNotEscape .DoNotEscapeValue }}
-	{{ lastError .LastErrorValue }}
-	{{ configError .ConfigErrorValue }}
-	{{ printDashes .PrintDashesValue .PrintDashesValue2 }}
-	{{ .PrintDashesValue }}
-	{{ printDashes .PrintDashesValue .PrintDashesValue2 }}
-	{{ formatUnixTime .FormatUnixTimeValue }}
-	{{ humanize .HumanizeValue }}
-	{{ humanizeDuration .HumanizeDurationValue .HumanizeDurationValue2 }}
-	{{ toUnsortedList .ToUnsortedListValue }}
-	{{ formatTitle .FormatTitleValue }}
-	{{ add .AddValue1 .AddValue2 }}
-	{{ redText .RedTextValue }}
-	{{ yellowText .YellowTextValue }}
-	{{ greenText .GreenTextValue }}
-	{{ ntpWarning .NtpWarningValue }}
-	{{ percent .PercentValue }}
-	{{ complianceResult .ComplianceResultValue }}
-	{{ lastErrorTraceback .LastErrorTracebackValue }}
-	{{ lastErrorMessage .LastErrorMessageValue }}
-	{{ pythonLoaderError .PythonLoaderErrorValue }}
-	{{ status .StatusValue }}
-	`
+	templateText := `{{ version .VersionValue }}
+{{ doNotEscape .DoNotEscapeValue }}
+{{ lastError .LastErrorValue }}
+{{ configError .ConfigErrorValue }}
+{{ printDashes .PrintDashesValue .PrintDashesValue2 }}
+{{ .PrintDashesValue }}
+{{ printDashes .PrintDashesValue .PrintDashesValue2 }}
+{{ formatUnixTime .FormatUnixTimeValue }}
+{{ humanize .HumanizeValue }}
+{{ humanizeDuration .HumanizeDurationValue .HumanizeDurationValue2 }}
+{{ toUnsortedList .ToUnsortedListValue }}
+{{ formatTitle .FormatTitleValue }}
+{{ add .AddValue1 .AddValue2 }}
+{{ redText .RedTextValue }}
+{{ yellowText .YellowTextValue }}
+{{ greenText .GreenTextValue }}
+{{ ntpWarning .NtpWarningValue }}
+{{ percent .PercentValue }}
+{{ complianceResult .ComplianceResultValue }}
+{{ lastErrorTraceback .LastErrorTracebackValue }}
+{{ lastErrorMessage .LastErrorMessageValue }}
+{{ pythonLoaderError .PythonLoaderErrorValue }}
+{{ status .StatusValue }}`
+
 	valueStruct := struct {
 		DoNotEscapeValue        string
 		LastErrorValue          string
@@ -110,12 +108,39 @@ func TestUntypeFuncMap(t *testing.T) {
 		PythonLoaderErrorValue:  "mockPythonLoaderError",
 		StatusValue:             "mockStatus",
 	}
-	// Create a template, add the function map, and parse the text.
+
 	tmpl, err := template.New("titleTest").Funcs(HTMLFmap()).Parse(templateText)
 	assert.NoError(t, err)
 
 	var buf bytes.Buffer
 
+	expected := `{{CAST_ERROR: unable to cast value of type map[string]string to map[string]interface {}}}
+<>&
+mockLastError
+mockConfigError
+
+===
+&lt;&gt;&amp;
+===
+Invalid time parameter string
+0
+0s
+[key1 key2]
+Mock Format Title
+3
+mockRedText
+mockYellowText
+mockGreenText
+{{CAST_ERROR: unable to cast value of type string to float64}}
+50.0
+{{CAST_ERROR: unable to cast value of type int to string}}
+No traceback
+mockLastErrorMessage
+mockPythonLoaderError
+{{CAST_ERROR: unable to cast value of type string to map[string]interface {}}}`
+
 	err = tmpl.Execute(&buf, valueStruct)
+
 	assert.NoError(t, err)
+	assert.Equal(t, expected, buf.String())
 }
