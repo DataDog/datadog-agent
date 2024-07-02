@@ -62,6 +62,7 @@ import (
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
+	logsIntegration "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/host"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks"
@@ -117,6 +118,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			_ inventoryotel.Component,
 			_ secrets.Component,
 			invChecks inventorychecks.Component,
+			logsReceiver logsIntegration.Component,
 			_ netflowServer.Component,
 			_ trapserver.Component,
 			agentAPI internalAPI.Component,
@@ -151,6 +153,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 				demultiplexer,
 				agentAPI,
 				invChecks,
+				logsReceiver,
 				statusComponent,
 				collector,
 				config,

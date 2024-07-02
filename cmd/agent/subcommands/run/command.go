@@ -97,6 +97,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs"
 	"github.com/DataDog/datadog-agent/comp/logs/adscheduler/adschedulerimpl"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
+	logsIntegration "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/comp/metadata"
 	"github.com/DataDog/datadog-agent/comp/metadata/host"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
@@ -235,6 +236,7 @@ func run(log log.Component,
 	_ inventoryotel.Component,
 	_ secrets.Component,
 	invChecks inventorychecks.Component,
+	logsReceiver logsIntegration.Component,
 	_ netflowServer.Component,
 	_ snmptrapsServer.Component,
 	_ langDetectionCl.Component,
@@ -310,6 +312,7 @@ func run(log log.Component,
 		demultiplexer,
 		agentAPI,
 		invChecks,
+		logsReceiver,
 		statusComponent,
 		collector,
 		cfg,
@@ -504,6 +507,7 @@ func startAgent(
 	demultiplexer demultiplexer.Component,
 	agentAPI internalAPI.Component,
 	invChecks inventorychecks.Component,
+	logsReceiver logsIntegration.Component,
 	_ status.Component,
 	collector collector.Component,
 	cfg config.Component,
@@ -592,6 +596,8 @@ func startAgent(
 
 	// TODO: (components) - Until the checks are components we set there context so they can depends on components.
 	check.InitializeInventoryChecksContext(invChecks)
+	// TODO: (components) - Initialize logsReceiver, needed in order to call from RTLoader
+	check.InitializeLogsReceiver(logsReceiver)
 
 	// Init JMX runner and inject dogstatsd component
 	jmxfetch.InitRunner(server, jmxLogger)

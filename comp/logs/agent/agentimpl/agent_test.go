@@ -29,6 +29,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/fx"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 
 	flareController "github.com/DataDog/datadog-agent/comp/logs/agent/flare"
@@ -394,6 +395,7 @@ func (suite *AgentTestSuite) createDeps() dependencies {
 		inventoryagentimpl.MockModule(),
 		workloadmetafxmock.MockModule(),
 		fx.Supply(workloadmeta.NewParams()),
+		integrations.MockModule(),
 	))
 }
 
