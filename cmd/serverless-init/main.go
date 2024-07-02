@@ -55,12 +55,17 @@ func main() {
 
 	if err != nil {
 		logger.Error(err)
+		os.Exit(1)
 	}
 }
 
-func run(cliParams *cliParams) {
+func run(cliParams *cliParams) error {
 	cloudService, logConfig, traceAgent, metricAgent, logsAgent := setup()
-	initcontainer.Run(cloudService, logConfig, metricAgent, traceAgent, logsAgent, cliParams.args)
+	err := initcontainer.Run(cloudService, logConfig, metricAgent, traceAgent, logsAgent, cliParams.args)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func setup() (cloudservice.CloudService, *log.Config, *trace.ServerlessTraceAgent, *metrics.ServerlessMetricAgent, logsAgent.ServerlessLogsAgent) {

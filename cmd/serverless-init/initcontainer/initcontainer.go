@@ -41,14 +41,16 @@ func Run(
 	traceAgent *trace.ServerlessTraceAgent,
 	logsAgent logsAgent.ServerlessLogsAgent,
 	args []string,
-) {
+) error {
 	log.Debugf("Launching subprocess %v\n", args)
 	err := execute(logConfig, args)
-	if err != nil {
-		log.Debugf("Error exiting: %v\n", err)
-	}
 	metric.AddShutdownMetric(cloudService.GetPrefix(), metricAgent.GetExtraTags(), time.Now(), metricAgent.Demux)
 	flush(logConfig.FlushTimeout, metricAgent, traceAgent, logsAgent)
+	if err != nil {
+		log.Debugf("Error exiting: %v\n", err)
+		return err
+	}
+	return nil
 }
 
 func execute(logConfig *serverlessLog.Config, args []string) error {
