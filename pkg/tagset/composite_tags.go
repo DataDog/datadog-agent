@@ -7,6 +7,7 @@ package tagset
 
 import (
 	"encoding/json"
+	"sort"
 	"strings"
 )
 
@@ -59,6 +60,12 @@ func CombineCompositeTagsAndSlice(compositeTags CompositeTags, tags []string) Co
 // be copied. Prefer constructing a complete value in one go with NewCompositeTags instead.
 func (t *CompositeTags) CombineWithSlice(tags []string) {
 	*t = CombineCompositeTagsAndSlice(*t, tags)
+}
+
+// Hack
+func (t CompositeTags) Sort() {
+	sort.Strings(t.tags1)
+	sort.Strings(t.tags2)
 }
 
 // ForEach applies `callback` to each tag
