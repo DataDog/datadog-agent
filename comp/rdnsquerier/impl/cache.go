@@ -133,7 +133,6 @@ func (c *cacheImpl) get(addr string, updateHostname func(string)) (string, bool)
 		hostname:        "",
 		queryInProgress: true,
 		callbacks:       []func(string){updateHostname},
-		expirationTime:  time.Now().Add(time.Duration(c.config.cacheEntryTTL) * time.Second),
 	}
 	c.logger.Debugf("JMW Cache miss for addr %s - created cacheEntry %+v - cache size %d", addr, c.data[addr], len(c.data))
 
@@ -148,6 +147,7 @@ func (c *cacheImpl) get(addr string, updateHostname func(string)) (string, bool)
 				//JMW assert queryInProgress
 				entry.queryInProgress = false
 				entry.hostname = hostname
+				entry.expirationTime = time.Now().Add(time.Duration(c.config.cacheEntryTTL) * time.Second)
 
 				//JMW
 				c.logger.Debugf("JMW lookup successful - Cache entry updated for addr %s hostname %s - calling %d callbacks", addr, hostname, len(entry.callbacks))
