@@ -1342,6 +1342,33 @@ service_monitoring_config:
 	})
 }
 
+func TestEnvoyPathConfig(t *testing.T) {
+	t.Run("default value", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		cfg := New()
+		assert.Empty(t, cfg.EnvoyPath)
+	})
+
+	t.Run("via yaml", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		cfg := configurationFromYAML(t, `
+service_monitoring_config:
+  tls:
+    istio:
+      envoy_path: "/test/envoy"
+`)
+		assert.EqualValues(t, "/test/envoy", cfg.EnvoyPath)
+	})
+
+	t.Run("value set through env var", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_TLS_ISTIO_ENVOY_PATH", "/test/envoy")
+
+		cfg := New()
+		assert.EqualValues(t, "/test/envoy", cfg.EnvoyPath)
+	})
+}
+
 func TestNodeJSMonitoring(t *testing.T) {
 	t.Run("default value", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)

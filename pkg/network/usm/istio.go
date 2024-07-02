@@ -93,8 +93,9 @@ var readBufferPool = ddsync.NewSlicePool[byte](128, 128)
 // because the Envoy binary embedded in the Istio containers have debug symbols
 // whereas the "vanilla" Envoy images are distributed without them.
 type istioMonitor struct {
-	registry *utils.FileRegistry
-	procRoot string
+	registry  *utils.FileRegistry
+	procRoot  string
+	envoyPath string
 
 	// `utils.FileRegistry` callbacks
 	registerCB   func(utils.FilePath) error
@@ -115,9 +116,10 @@ func newIstioMonitor(c *config.Config, mgr *manager.Manager) *istioMonitor {
 
 	procRoot := kernel.ProcFSRoot()
 	return &istioMonitor{
-		registry: utils.NewFileRegistry("istio"),
-		procRoot: procRoot,
-		done:     make(chan struct{}),
+		registry:  utils.NewFileRegistry("istio"),
+		procRoot:  procRoot,
+		envoyPath: c.EnvoyPath,
+		done:      make(chan struct{}),
 
 		// Callbacks
 		registerCB:   addHooks(mgr, procRoot, istioProbes),
@@ -285,6 +287,10 @@ func (m *istioMonitor) getEnvoyPath(pid uint32) string {
 	}
 
 	buffer = buffer[:n]
+
+	if m.envoyPath != "" {
+		envoyCmd = []byte(m.envoyPath)
+	}
 	i := bytes.Index(buffer, envoyCmd)
 	if i < 0 {
 		return ""
