@@ -196,6 +196,7 @@ func (c *collector) pullImageReferences(namespace string, img containerd.Image) 
 	var refs []string
 	digest := img.Target().Digest.String()
 	if !strings.HasPrefix(digest, "sha256") {
+		log.Infof("workloadmeta.imagemeta: invalid image digest: %s", digest)
 		return refs // not a valid digest
 	}
 
@@ -204,10 +205,11 @@ func (c *collector) pullImageReferences(namespace string, img containerd.Image) 
 	if err == nil {
 		for _, image := range referenceImages {
 			imageName := image.Name()
+			log.Infof("workloadmeta.imagemeta: found reference image: %s, digest: %s", imageName, digest)
 			refs = append(refs, imageName)
 		}
 	} else {
-		log.Debugf("failed to get reference images for image: %s, repo digests will be missing: %v", img.Name(), err)
+		log.Infof("workloadmeta.imagemeta:failed to get reference images for image: %s, error: %v", img.Name(), err)
 	}
 	return refs
 }

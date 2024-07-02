@@ -99,7 +99,7 @@ func NewDefaultContainerProvider(wmeta workloadmeta.Component) ContainerProvider
 // GetContainers returns containers found on the machine
 func (p *containerProvider) GetContainers(cacheValidity time.Duration, previousContainers map[string]*ContainerRateMetrics) ([]*model.Container, map[string]*ContainerRateMetrics, map[int]string, error) {
 	containersMetadata := p.metadataStore.ListContainersWithFilter(workloadmeta.GetRunningContainers)
-
+	log.Infof("processContainers: GetContainers: found %d containers", len(containersMetadata))
 	processContainers := make([]*model.Container, 0)
 	rateStats := make(map[string]*ContainerRateMetrics)
 	pidToCid := make(map[int]string)
@@ -138,6 +138,7 @@ func (p *containerProvider) GetContainers(cacheValidity time.Duration, previousC
 			Addresses:  computeContainerAddrs(container),
 			RepoDigest: container.Image.RepoDigest,
 		}
+		log.Infof("processContainers: dump GetContainers: %s", processContainer.String())
 
 		// Always adding container if we have metadata as we do want to report containers without stats
 		processContainers = append(processContainers, processContainer)
