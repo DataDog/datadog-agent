@@ -31,6 +31,9 @@ RC_VERSION_RE = re.compile(r'\d+[.]\d+[.]\d+-rc\.\d+')
 # Regex matching minor release rc version tag like x.y.0-rc.1 (semver PATCH == 0), but not x.y.1-rc.1 (semver PATCH > 0)
 MINOR_RC_VERSION_RE = re.compile(r'\d+[.]\d+[.]0-rc\.\d+')
 
+# Regex matching the git describe output
+DESCRIBE_PATTERN = re.compile(r"^.*-(?P<commit_number>\d+)-g[0-9a-f]+$")
+
 
 def build_compatible_version_re(allowed_major_versions, minor_version):
     """
@@ -379,7 +382,7 @@ def query_version(ctx, major_version, git_sha_length=7, release=False):
     described_version = ctx.run(cmd, hide=True).stdout.strip()
 
     # for the example above, 6.0.0-beta.0-1-g4f19118, this will be 1
-    commit_number_match = re.match(r"^.*-(?P<commit_number>\d+)-g[0-9a-f]+$", described_version)
+    commit_number_match = DESCRIBE_PATTERN.match(described_version)
     commit_number = 0
     if commit_number_match:
         commit_number = int(commit_number_match.group('commit_number'))
