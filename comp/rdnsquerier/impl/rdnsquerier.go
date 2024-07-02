@@ -83,7 +83,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 		config.cacheCleanInterval,
 		config.cachePersistInterval)
 
-	reqs.Logger.Debugf("Reverse DNS Enrichment debug config: (fake_resolver=%t generate_fake_queries=%t lookup_delay_ms=%d)",
+	reqs.Logger.Debugf("Reverse DNS Enrichment debug config: (fake_resolver=%t generate_fake_queries_per_second=%d lookup_delay_ms=%d)",
 		config.fakeResolver,
 		config.generateFakeQueriesPerSecond,
 		config.lookupDelayMs)

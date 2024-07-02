@@ -166,7 +166,8 @@ func (c *cacheImpl) get(addr string, updateHostname func(string)) (string, bool)
 		c.cacheTelemetry.chanAdded.Inc()
 	default:
 		c.cacheTelemetry.droppedChanFull.Inc()
-		c.logger.Debugf("Reverse DNS Enrichment channel is full, dropping query for IP address %s", query.addr)
+		c.logger.Debugf("Reverse DNS Enrichment channel is full, dropping query for IP address %s - removing cache entry", addr)
+		delete(c.data, addr)
 	}
 
 	return "", false
