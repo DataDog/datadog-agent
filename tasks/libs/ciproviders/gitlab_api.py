@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import platform
+import re
 import subprocess
 from functools import lru_cache
 
@@ -467,3 +468,44 @@ def load_context(context):
             return [list(j.items())]
         except json.JSONDecodeError as e:
             raise Exit(f"Invalid context: {context}, must be a valid json, or a path to a yaml file", 1) from e
+
+
+def gitlab_configuration_is_modified(ctx):
+    diff = ctx.run("git diff HEAD^1..HEAD", hide=True).stdout.strip().splitlines()
+    modified_files = re.compile(r"^diff --git a/(.*) b/(.*)")
+    changed_lines = re.compile(r"^@@ -\d+,\d+ \+(\d+),(\d+) @@")
+    leading_space = re.compile(r"^(\s*).*$")
+    in_config = False
+    for line in diff:
+        if line.startswith("diff --git"):
+            files = modified_files.match(line)
+            new_file = files.group(1)
+            # Third condition is only for testing purposes
+            if (
+                new_file.startswith(".gitlab") and new_file.endswith(".yml")
+            ) or "testdata/yaml_configurations" in new_file:
+                in_config = True
+            else:
+                in_config = False
+        if in_config and line.startswith("@@"):
+            lines = changed_lines.match(line)
+            start = int(lines.group(1))
+            with open(new_file) as f:
+                content = f.readlines()
+                item = leading_space.match(content[start])
+                if item:
+                    for above_line in reversed(content[:start]):
+                        current = leading_space.match(above_line)
+                        if current[1] < item[1]:
+                            if "needs:" in above_line or "dependencies:" in above_line:
+                                return True
+                            else:
+                                break
+        if (
+            in_config
+            and line.startswith("+")
+            and ((len(line) > 1 and line[1].isalpha()) or "needs:" in line or "dependencies:" in line)
+        ):
+            return True
+
+    return False
