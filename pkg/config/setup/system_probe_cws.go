@@ -39,6 +39,7 @@ func initCWSSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.use_secruntime_track", false)
 	cfg.BindEnvAndSetDefault("runtime_security_config.compliance_module.enabled", false)
 	cfg.BindEnvAndSetDefault("runtime_security_config.on_demand.enabled", false)
+	cfg.BindEnvAndSetDefault("runtime_security_config.on_demand.rate_limiter.enabled", true)
 
 	cfg.SetDefault("runtime_security_config.windows_filename_cache_max", 16384)
 	cfg.SetDefault("runtime_security_config.windows_registry_cache_max", 4096)

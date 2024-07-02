@@ -1583,6 +1583,11 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, wmeta optional
 
 	ctx, cancelFnc := context.WithCancel(context.Background())
 
+	onDemandRate := rate.Limit(math.Inf(1))
+	if config.RuntimeSecurity.OnDemandRateLimiterEnabled {
+		onDemandRate = MaxOnDemandEventsPerSecond
+	}
+
 	p := &EBPFProbe{
 		probe:                probe,
 		config:               config,
@@ -1598,7 +1603,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, wmeta optional
 		cancelFnc:            cancelFnc,
 		newTCNetDevices:      make(chan model.NetDevice, 16),
 		processKiller:        NewProcessKiller(),
-		onDemandRateLimiter:  rate.NewLimiter(MaxOnDemandEventsPerSecond, 1),
+		onDemandRateLimiter:  rate.NewLimiter(onDemandRate, 1),
 	}
 
 	if err := p.detectKernelVersion(); err != nil {

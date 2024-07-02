@@ -106,6 +106,8 @@ runtime_security_config:
     enabled: false
   on_demand:
     enabled: true
+    rate_limiter:
+      enabled: false
   socket: /tmp/test-runtime-security.sock
   sbom:
     enabled: {{ .SBOMEnabled }}
