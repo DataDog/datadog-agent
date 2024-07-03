@@ -1,4 +1,4 @@
-// package fxzstd provides fx options for the compression component.
+// Package fxzstd provides fx options for the compression component.
 package fxzstd
 
 import (

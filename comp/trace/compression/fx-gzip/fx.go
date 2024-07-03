@@ -1,5 +1,5 @@
-// package fxzstd provides fx options for the compression component.
-package fxzstd
+// Package fxgzip provides fx options for the compression component.
+package fxgzip
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
