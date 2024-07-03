@@ -356,7 +356,7 @@ func Test_metadataCollectionGVRs_WithFunctionalDiscovery(t *testing.T) {
 			},
 			cfg: map[string]interface{}{
 				"cluster_agent.kube_metadata_collection.enabled":   true,
-				"cluster_agent.kube_metadata_collection.resources": "apps/deployments statefulsetsy.apps",
+				"cluster_agent.kube_metadata_collection.resources": "apps/deployments apps/statefulsetsy",
 			},
 		},
 	}
@@ -404,7 +404,7 @@ func TestResourcesWithMetadataCollectionEnabled(t *testing.T) {
 				"cluster_agent.kube_metadata_collection.enabled":   true,
 				"cluster_agent.kube_metadata_collection.resources": "apps/daemonsets apps/deployments",
 			},
-			expectedResources: []string{"daemonsets", "nodes"},
+			expectedResources: []string{"apps/daemonsets", "nodes"},
 		},
 		{
 			name: "pods needed for autoscaling should be excluded from metadata collection",
@@ -413,7 +413,7 @@ func TestResourcesWithMetadataCollectionEnabled(t *testing.T) {
 				"cluster_agent.kube_metadata_collection.enabled":   true,
 				"cluster_agent.kube_metadata_collection.resources": "apps/daemonsets pods",
 			},
-			expectedResources: []string{"daemonsets", "nodes"},
+			expectedResources: []string{"apps/daemonsets", "nodes"},
 		},
 		{
 			name: "resources explicitly requested",
@@ -421,7 +421,7 @@ func TestResourcesWithMetadataCollectionEnabled(t *testing.T) {
 				"cluster_agent.kube_metadata_collection.enabled":   true,
 				"cluster_agent.kube_metadata_collection.resources": "apps/deployments apps/statefulsets",
 			},
-			expectedResources: []string{"nodes", "deployments", "statefulsets"},
+			expectedResources: []string{"nodes", "apps/deployments", "apps/statefulsets"},
 		},
 		{
 			name: "namespaces needed for namespace labels as tags",
@@ -462,7 +462,7 @@ func TestResourcesWithMetadataCollectionEnabled(t *testing.T) {
 					"label1": "tag1",
 				},
 			},
-			expectedResources: []string{"nodes", "namespaces", "deployments"}, // namespaces are not duplicated
+			expectedResources: []string{"nodes", "namespaces", "apps/deployments"}, // namespaces are not duplicated
 		},
 	}
 

@@ -12,6 +12,7 @@ import (
 	"context"
 	"slices"
 	"sort"
+	"strings"
 	"time"
 
 	"go.uber.org/fx"
@@ -106,12 +107,12 @@ func resourcesWithExplicitMetadataCollectionEnabled(cfg config.Reader) []string 
 	var resources []string
 	requestedResources := cfg.GetStringSlice("cluster_agent.kube_metadata_collection.resources")
 	for _, resource := range requestedResources {
-		if resource == "pods" && shouldHavePodStore(cfg) {
+		if strings.HasSuffix(resource, "pods") && shouldHavePodStore(cfg) {
 			log.Debugf("skipping pods from metadata collection because a separate pod store is initialised in workload metadata store.")
 			continue
 		}
 
-		if resource == "deployments" && shouldHaveDeploymentStore(cfg) {
+		if strings.HasSuffix(resource, "deployments") && shouldHaveDeploymentStore(cfg) {
 			log.Debugf("skipping deployments from metadata collection because a separate deployment store is initialised in workload metadata store.")
 			continue
 		}

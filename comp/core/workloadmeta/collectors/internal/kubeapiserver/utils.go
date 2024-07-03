@@ -107,7 +107,6 @@ func getGVRsForRequestedResources(discoveryClient discovery.DiscoveryInterface, 
 
 		if parsedVersion != "" {
 			// no need to discover preferred version if the version is already known
-
 			gvrs = append(gvrs, schema.GroupVersionResource{
 				Resource: parsedResource,
 				Group:    parsedGroup,
