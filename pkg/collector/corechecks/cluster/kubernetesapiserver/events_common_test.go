@@ -16,6 +16,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/local"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 )
 
@@ -246,7 +247,8 @@ func Test_getEventSource(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		t.Setenv("DD_KUBERNETES_EVENTS_SOURCE_DETECTION_ENABLED", fmt.Sprintf("%t", tt.kubernetesEventSourceDetectionEnabled))
+		mockConfig := config.Mock(t)
+		mockConfig.SetWithoutSource("kubernetes_events_source_detection.enabled", tt.kubernetesEventSourceDetectionEnabled)
 		t.Run(tt.name, func(t *testing.T) {
 			if got := getEventSource(tt.controllerName, tt.sourceComponent); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("getEventSource() = %v, want %v", got, tt.want)
