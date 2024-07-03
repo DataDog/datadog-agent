@@ -7,6 +7,20 @@
 
 #include "protocols/tls/native-tls-maps.h"
 
+// [tuple]count
+BPF_HASH_MAP(tls_uprobe_entry_trace, u64, u64, 64);
+
+static __always_inline void trace_uprobe_entry(u64 *p) {
+    const u64 init = 1;
+    u64 *count = bpf_map_lookup_elem(&tls_uprobe_entry_trace, p);
+    if (!count) {
+        bpf_map_update_elem(&tls_uprobe_entry_trace, p, &init, BPF_NOEXIST);
+        return;
+    }
+
+    (*count)++;
+}
+
 SEC("uprobe/SSL_do_handshake")
 int BPF_BYPASSABLE_UPROBE(uprobe__SSL_do_handshake, void *ssl_ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
@@ -102,6 +116,7 @@ int BPF_BYPASSABLE_UPROBE(uprobe__SSL_read) {
 
 static __always_inline int SSL_read_ret(struct pt_regs *ctx, __u64 tags) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
+    trace_uprobe_entry(&pid_tgid);
     int len = (int)PT_REGS_RC(ctx);
     if (len <= 0) {
         log_debug("uretprobe/SSL_read: pid_tgid=%llx ret=%d", pid_tgid, len);
@@ -165,6 +180,7 @@ int BPF_BYPASSABLE_UPROBE(uprobe__SSL_write) {
 
 static __always_inline int SSL_write_ret(struct pt_regs* ctx, __u64 flags) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
+    trace_uprobe_entry(&pid_tgid);
     int write_len = (int)PT_REGS_RC(ctx);
     log_debug("uretprobe/SSL_write: pid_tgid=%llx len=%d", pid_tgid, write_len);
     if (write_len <= 0) {
@@ -229,6 +245,7 @@ int BPF_BYPASSABLE_UPROBE(uprobe__SSL_read_ex) {
 
 static __always_inline int SSL_read_ex_ret(struct pt_regs* ctx, __u64 tags) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
+    trace_uprobe_entry(&pid_tgid);
     const int return_code = (int)PT_REGS_RC(ctx);
     if (return_code != 1) {
         log_debug("uretprobe/SSL_read_ex: failed pid_tgid=%llx ret=%d", pid_tgid, return_code);
@@ -300,6 +317,7 @@ int BPF_BYPASSABLE_UPROBE(uprobe__SSL_write_ex) {
 
 static __always_inline int SSL_write_ex_ret(struct pt_regs* ctx, __u64 tags) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
+    trace_uprobe_entry(&pid_tgid);
     const int return_code = (int)PT_REGS_RC(ctx);
     if (return_code != 1) {
         log_debug("uretprobe/SSL_write_ex: failed pid_tgid=%llx len=%d", pid_tgid, return_code);
@@ -443,6 +461,7 @@ int BPF_BYPASSABLE_UPROBE(uprobe__gnutls_record_recv, void *ssl_session, void *d
 SEC("uretprobe/gnutls_record_recv")
 int BPF_BYPASSABLE_URETPROBE(uretprobe__gnutls_record_recv, ssize_t read_len) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
+    trace_uprobe_entry(&pid_tgid);
     if (read_len <= 0) {
         goto cleanup;
     }
@@ -491,6 +510,7 @@ int BPF_BYPASSABLE_UPROBE(uprobe__gnutls_record_send) {
 SEC("uretprobe/gnutls_record_send")
 int BPF_BYPASSABLE_URETPROBE(uretprobe__gnutls_record_send, ssize_t write_len) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
+    trace_uprobe_entry(&pid_tgid);
     log_debug("uretprobe/gnutls_record_send: pid=%llu len=%zd", pid_tgid, write_len);
     if (write_len <= 0) {
         goto cleanup;

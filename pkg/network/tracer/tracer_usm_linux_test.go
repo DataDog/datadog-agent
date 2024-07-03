@@ -496,6 +496,7 @@ func testHTTPSClassification(t *testing.T, tr *Tracer, clientHost, targetHost, s
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
 				cmd := ctx.extras["cmd"].(*exec.Cmd)
+				t.Logf("Server PID: %v", cmd.Process.Pid)
 				soTLSAttachPID(t, cmd.Process.Pid)
 				t.Cleanup(func() {
 					soTLSDetachPID(t, cmd.Process.Pid)
@@ -518,7 +519,7 @@ func testHTTPSClassification(t *testing.T, tr *Tracer, clientHost, targetHost, s
 				waitForConnectionsWithProtocol(t, tr, ctx.targetAddress, ctx.serverAddress, &protocols.Stack{Encryption: protocols.TLS, Application: protocols.HTTP})
 
 				ebpftest.DumpMapsTestHelper(t, tr.usmMonitor.DumpMaps, "tls_class_debug_trace")
-
+				ebpftest.DumpMapsTestHelper(t, tr.usmMonitor.DumpMaps, "tls_uprobe_entry_trace")
 			},
 		},
 	}
