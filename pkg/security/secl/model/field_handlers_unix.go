@@ -949,6 +949,9 @@ func (ev *Event) resolveFields(forADs bool) {
 		if !forADs {
 			_ = ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Unlink.File)
 		}
+		_ = ev.FieldHandlers.ResolveSyscallCtxArgsInt1(ev, &ev.Unlink.SyscallContext)
+		_ = ev.FieldHandlers.ResolveSyscallCtxArgsStr2(ev, &ev.Unlink.SyscallContext)
+		_ = ev.FieldHandlers.ResolveSyscallCtxArgsInt3(ev, &ev.Unlink.SyscallContext)
 	case "unload_module":
 	case "utimes":
 		_ = ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Utimes.File.FileFields)
