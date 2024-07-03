@@ -151,6 +151,9 @@ func (s *upgradeScenarioSuite) TestExperimentCurrentVersion() {
 		"datadog-installer.service",
 	)
 
+	// Temporary catalog to wait for the installer to be ready
+	s.setCatalog(testCatalog)
+
 	currentVersion := s.getInstallerStatus()["datadog-agent"].StableVersion
 	newCatalog := catalog{
 		Packages: []packageEntry{
@@ -163,7 +166,7 @@ func (s *upgradeScenarioSuite) TestExperimentCurrentVersion() {
 	}
 
 	s.setCatalog(newCatalog)
-	_, err := s.startExperimentCommand(unknownAgentImageVersion)
+	_, err := s.startExperimentCommand(currentVersion)
 	require.Error(s.T(), err)
 }
 
