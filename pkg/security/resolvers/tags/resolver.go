@@ -96,8 +96,8 @@ func NewResolver(config *config.Config) Resolver {
 			log.Errorf("unable to configure the remote tagger: %s", err)
 		} else {
 			return &DefaultResolver{
-				// TODO: components. We should use the telemetry component instead of nil
-				// Remove the use of nil once we have access to the telemetry component at this point
+				// TODO: components. We should propagate the tagger component to this function so we can pass the tagger telemetry store instead of nil.
+				// Remove the use of nil once we have access to the tagger component at this point
 				tagger: remote.NewTagger(options, nil),
 			}
 		}
