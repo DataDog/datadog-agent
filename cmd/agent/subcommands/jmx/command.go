@@ -152,6 +152,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			fx.Supply(optional.NewNoneOption[rcservicemrf.Component]()),
 			fx.Supply(optional.NewNoneOption[collector.Component]()),
 			fx.Supply(optional.NewNoneOption[logsAgent.Component]()),
+			fx.Supply(optional.NewNoneOption[integrations.Component]()),
 			fx.Provide(func() dogstatsdServer.Component { return nil }),
 			fx.Provide(func() pidmap.Component { return nil }),
 			fx.Provide(func() replay.Component { return nil }),
@@ -299,7 +300,7 @@ func runJmxCommandConsole(config config.Component,
 	agentAPI internalAPI.Component,
 	collector optional.Option[collector.Component],
 	jmxLogger jmxlogger.Component,
-	logReceiver integrations.Component) error {
+	logReceiver optional.Option[integrations.Component]) error {
 	// This prevents log-spam from "comp/core/workloadmeta/collectors/internal/remote/process_collector/process_collector.go"
 	// It appears that this collector creates some contention in AD.
 	// Disabling it is both more efficient and gets rid of this log spam

@@ -213,6 +213,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				fx.Supply(optional.NewNoneOption[rcservice.Component]()),
 				fx.Supply(optional.NewNoneOption[rcservicemrf.Component]()),
 				fx.Supply(optional.NewNoneOption[logagent.Component]()),
+				fx.Supply(optional.NewNoneOption[integrations.Component]()),
 				fx.Provide(func() server.Component { return nil }),
 				fx.Provide(func() replay.Component { return nil }),
 				fx.Provide(func() pidmap.Component { return nil }),
@@ -274,7 +275,7 @@ func run(
 	collector optional.Option[collector.Component],
 	jmxLogger jmxlogger.Component,
 	telemetry telemetry.Component,
-	logReceiver integrations.Component,
+	logReceiver optional.Option[integrations.Component],
 ) error {
 	previousIntegrationTracing := false
 	previousIntegrationTracingExhaustive := false

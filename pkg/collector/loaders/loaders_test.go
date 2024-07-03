@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 type LoaderOne struct{}
@@ -58,11 +59,15 @@ func (lt *LoaderThree) Load(senderManager sender.SenderManager, config integrati
 
 func TestLoaderCatalog(t *testing.T) {
 	l1 := LoaderOne{}
-	factory1 := func(sender.SenderManager, integrations.Component) (check.Loader, error) { return l1, nil }
+	factory1 := func(sender.SenderManager, optional.Option[integrations.Component]) (check.Loader, error) {
+		return l1, nil
+	}
 	l2 := LoaderTwo{}
-	factory2 := func(sender.SenderManager, integrations.Component) (check.Loader, error) { return l2, nil }
+	factory2 := func(sender.SenderManager, optional.Option[integrations.Component]) (check.Loader, error) {
+		return l2, nil
+	}
 	var l3 *LoaderThree
-	factory3 := func(sender.SenderManager, integrations.Component) (check.Loader, error) {
+	factory3 := func(sender.SenderManager, optional.Option[integrations.Component]) (check.Loader, error) {
 		return l3, errors.New("error")
 	}
 
@@ -70,8 +75,8 @@ func TestLoaderCatalog(t *testing.T) {
 	RegisterLoader(10, factory2)
 	RegisterLoader(30, factory3)
 	senderManager := mocksender.CreateDefaultDemultiplexer()
-	mockLogReceiver := mock.Mock()
-	require.Len(t, LoaderCatalog(senderManager, mockLogReceiver), 2)
-	assert.Equal(t, l1, LoaderCatalog(senderManager, mockLogReceiver)[1])
-	assert.Equal(t, l2, LoaderCatalog(senderManager, mockLogReceiver)[0])
+	logReceiver := optional.NewOption(mock.Mock())
+	require.Len(t, LoaderCatalog(senderManager, logReceiver), 2)
+	assert.Equal(t, l1, LoaderCatalog(senderManager, logReceiver)[1])
+	assert.Equal(t, l2, LoaderCatalog(senderManager, logReceiver)[0])
 }

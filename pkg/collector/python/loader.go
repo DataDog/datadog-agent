@@ -29,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 /*
@@ -59,7 +60,7 @@ const (
 )
 
 func init() {
-	factory := func(senderManager sender.SenderManager, logReceiver integrations.Component) (check.Loader, error) {
+	factory := func(senderManager sender.SenderManager, logReceiver optional.Option[integrations.Component]) (check.Loader, error) {
 		return NewPythonCheckLoader(senderManager, logReceiver)
 	}
 	loaders.RegisterLoader(20, factory)
@@ -87,7 +88,7 @@ func init() {
 type PythonCheckLoader struct{}
 
 // NewPythonCheckLoader creates an instance of the Python checks loader
-func NewPythonCheckLoader(senderManager sender.SenderManager, logReceiver integrations.Component) (*PythonCheckLoader, error) {
+func NewPythonCheckLoader(senderManager sender.SenderManager, logReceiver optional.Option[integrations.Component]) (*PythonCheckLoader, error) {
 	initializeCheckContext(senderManager, logReceiver)
 	return &PythonCheckLoader{}, nil
 }

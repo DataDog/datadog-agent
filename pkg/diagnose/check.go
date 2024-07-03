@@ -109,7 +109,7 @@ func diagnoseChecksInCLIProcess(_ diagnosis.Config, senderManager diagnosesender
 
 	// Create the CheckScheduler, but do not attach it to
 	// AutoDiscovery.
-	pkgcollector.InitCheckScheduler(optional.NewNoneOption[collector.Component](), senderManagerInstance, logReceiver)
+	pkgcollector.InitCheckScheduler(optional.NewNoneOption[collector.Component](), senderManagerInstance, optional.NewNoneOption[integrations.Component]())
 
 	// Load matching configurations (should we use common.AC.GetAllConfigs())
 	waitCtx, cancelTimeout := context.WithTimeout(context.Background(), time.Duration(5*time.Second))

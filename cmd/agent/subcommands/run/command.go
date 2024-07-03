@@ -97,6 +97,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs"
 	"github.com/DataDog/datadog-agent/comp/logs/adscheduler/adschedulerimpl"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
+	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	logsIntegration "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/comp/metadata"
 	"github.com/DataDog/datadog-agent/comp/metadata/host"
@@ -236,7 +237,7 @@ func run(log log.Component,
 	_ inventoryotel.Component,
 	_ secrets.Component,
 	invChecks inventorychecks.Component,
-	logReceiver logsIntegration.Component,
+	logReceiver optional.Option[logsIntegration.Component],
 	_ netflowServer.Component,
 	_ snmptrapsServer.Component,
 	_ langDetectionCl.Component,
@@ -447,6 +448,9 @@ func getSharedFxOption() fx.Option {
 		fx.Provide(func(ms serializer.MetricSerializer) optional.Option[serializer.MetricSerializer] {
 			return optional.NewOption[serializer.MetricSerializer](ms)
 		}),
+		fx.Provide(func(logReceiver integrations.Component) optional.Option[integrations.Component] {
+			return optional.NewOption[integrations.Component](logReceiver)
+		}),
 		ndmtmp.Bundle(),
 		netflow.Bundle(),
 		rdnsquerierfx.Module(),
@@ -507,7 +511,7 @@ func startAgent(
 	demultiplexer demultiplexer.Component,
 	agentAPI internalAPI.Component,
 	invChecks inventorychecks.Component,
-	logReceiver logsIntegration.Component,
+	logReceiver optional.Option[logsIntegration.Component],
 	_ status.Component,
 	collector collector.Component,
 	cfg config.Component,
@@ -596,7 +600,7 @@ func startAgent(
 
 	// TODO: (components) - Until the checks are components we set there context so they can depends on components.
 	check.InitializeInventoryChecksContext(invChecks)
-	check.InitializeLogsReceiver(logReceiver)
+	// check.InitializeLogsReceiver(logReceiver)
 
 	// Init JMX runner and inject dogstatsd component
 	jmxfetch.InitRunner(server, jmxLogger)

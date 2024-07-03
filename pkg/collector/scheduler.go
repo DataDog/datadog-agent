@@ -59,16 +59,14 @@ type CheckScheduler struct {
 	loaders        []check.Loader
 	collector      optional.Option[collector.Component]
 	senderManager  sender.SenderManager
-	logReceiver    integrations.Component
 	m              sync.RWMutex
 }
 
 // InitCheckScheduler creates and returns a check scheduler
-func InitCheckScheduler(collector optional.Option[collector.Component], senderManager sender.SenderManager, logReceiver integrations.Component) *CheckScheduler {
+func InitCheckScheduler(collector optional.Option[collector.Component], senderManager sender.SenderManager, logReceiver optional.Option[integrations.Component]) *CheckScheduler {
 	checkScheduler = &CheckScheduler{
 		collector:      collector,
 		senderManager:  senderManager,
-		logReceiver:    logReceiver,
 		configToChecks: make(map[string][]checkid.ID),
 		loaders:        make([]check.Loader, 0, len(loaders.LoaderCatalog(senderManager, logReceiver))),
 	}

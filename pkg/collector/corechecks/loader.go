@@ -82,7 +82,7 @@ func (gl *GoCheckLoader) String() string {
 }
 
 func init() {
-	factory := func(sender.SenderManager, integrations.Component) (check.Loader, error) {
+	factory := func(sender.SenderManager, optional.Option[integrations.Component]) (check.Loader, error) {
 		return NewGoCheckLoader()
 	}
 
