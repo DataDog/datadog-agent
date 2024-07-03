@@ -154,8 +154,14 @@ func (p *UnixTransparentProxyServer) handleConnection(unixSocketConn net.Conn) {
 			unixReader := bufio.NewReader(unixSocketConn)
 			remoteReader := bufio.NewReader(remoteConn)
 
+			// Reuse this buffer instead of allocating new ones every time both
+			// for efficiency and to attempt to work around some issues with
+			// page migration kicking in and leading to minor page faults in TLS
+			// probes and flaky tests on some kernel versions.
+			big := make([]byte, 1024*1024)
+
 			for {
-				buf := make([]byte, 8)
+				buf := big[0:8]
 				_, err := io.ReadFull(unixReader, buf)
 				if err != nil {
 					break
@@ -163,7 +169,7 @@ func (p *UnixTransparentProxyServer) handleConnection(unixSocketConn net.Conn) {
 				readSize := binary.BigEndian.Uint64(buf)
 
 				if readSize != 0 {
-					buf = make([]byte, readSize)
+					buf := big[0:readSize]
 					_, err = io.ReadFull(unixReader, buf)
 					if err != nil {
 						break
@@ -177,7 +183,7 @@ func (p *UnixTransparentProxyServer) handleConnection(unixSocketConn net.Conn) {
 					}
 				}
 
-				buf = make([]byte, 8)
+				buf = big[0:8]
 				_, err = io.ReadFull(unixReader, buf)
 				if err != nil {
 					break
@@ -185,7 +191,7 @@ func (p *UnixTransparentProxyServer) handleConnection(unixSocketConn net.Conn) {
 				readSize = binary.BigEndian.Uint64(buf)
 
 				if readSize != 0 {
-					buf = make([]byte, readSize)
+					buf := big[0:readSize]
 					_, err = io.ReadFull(remoteReader, buf)
 					if err != nil {
 						break
