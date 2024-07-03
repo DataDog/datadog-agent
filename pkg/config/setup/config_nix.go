@@ -15,9 +15,9 @@ var (
 	// It might be overridden at build time
 	InstallPath = "/opt/datadog-agent"
 
-	// defaultRunPath is the default path for the agent's runtime files
-	// It might be overridden at build time
-	defaultRunPath = "/opt/datadog-agent/run"
+	// defaultRunPath is the default run path
+	// It is set in osinit to take into account InstallPath overrides
+	defaultRunPath = ""
 )
 
 var (
@@ -48,4 +48,7 @@ const (
 // called by init in config.go, to ensure any os-specific config is done
 // in time
 func osinit() {
+	if defaultRunPath == "" {
+		defaultRunPath = filepath.Join(InstallPath, "run")
+	}
 }
