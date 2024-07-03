@@ -43,8 +43,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl/strategy"
 	tracecomp "github.com/DataDog/datadog-agent/comp/trace"
 	traceagentcomp "github.com/DataDog/datadog-agent/comp/trace/agent/impl"
-	tracecompression "github.com/DataDog/datadog-agent/comp/trace/compression/def"
-	gzip "github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip"
+	gzipfx "github.com/DataDog/datadog-agent/comp/trace/compression/fx-gzip"
 	traceconfig "github.com/DataDog/datadog-agent/comp/trace/config"
 	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -167,9 +166,7 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 		fx.Provide(func(cfg traceconfig.Component) telemetry.TelemetryCollector {
 			return telemetry.NewCollector(cfg.Object())
 		}),
-		fx.Provide(func(cfg traceconfig.Component) tracecompression.Component {
-			return gzip.NewComponent()
-		}),
+		gzipfx.Module(),
 
 		// ctx is required to be supplied from here, as Windows needs to inject its own context
 		// to allow the agent to work as a service.
