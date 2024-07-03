@@ -57,7 +57,7 @@ func (pt *ProcessTracker) Start() error {
 	pt.unsubscribe = append(pt.unsubscribe, unsubscribeExec)
 	pt.unsubscribe = append(pt.unsubscribe, unsubscribeExit)
 
-	err := pt.pm.Initialize(true)
+	err := pt.pm.Initialize(false)
 	if err != nil {
 		return err
 	}
