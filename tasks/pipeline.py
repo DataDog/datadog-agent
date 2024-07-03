@@ -1003,13 +1003,20 @@ def compare_to_itself(ctx):
     """
     Create a new branch with 'compare_to_itself' in gitlab-ci.yml and trigger a pipeline
     """
-    agent = get_gitlab_repo()
     if not gitlab_configuration_is_modified(ctx):
         # Do not run this test if there is no modification of the gitlab configuration
         return
+    agent = get_gitlab_repo()
+    gh = GithubAPI()
     current_branch = ctx.run("git rev-parse --abbrev-ref HEAD", hide=True).stdout.strip()
     new_branch = f"compare/{current_branch}"
-    ctx.run(f"git checkout -b {new_branch}", hide=True)
+    ctx.run(f"git switch -c {new_branch}", hide=True)
+    ctx.run(
+        f"git remote set-url origin https://x-access-token:{gh._auth.token}@github.com/DataDog/datadog-agent.git",
+        hide=True,
+    )
+    ctx.run("git config --global user.name 'github-app[bot]'")
+    ctx.run("git config --global user.email 'github-app[bot]@users.noreply.github.com'")
     ctx.run(f"git push origin {new_branch}", hide=True)
     for file in ['.gitlab-ci.yml', '.gitlab/notify/notify.yml']:
         with open(file) as f:
