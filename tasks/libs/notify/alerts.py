@@ -10,7 +10,13 @@ from invoke.exceptions import UnexpectedExit
 
 from tasks.libs.ciproviders.gitlab_api import BASE_URL
 from tasks.libs.common.datadog_api import create_count, send_metrics
-from tasks.libs.notify.utils import AWS_S3_CP_CMD, PROJECT_NAME, PROJECT_TITLE, get_ci_visibility_job_url
+from tasks.libs.notify.utils import (
+    AWS_S3_CP_CMD,
+    CHANNEL_BROADCAST,
+    PROJECT_NAME,
+    PROJECT_TITLE,
+    get_ci_visibility_job_url,
+)
 from tasks.libs.pipeline.data import get_failed_jobs
 from tasks.libs.pipeline.notifications import (
     get_pr_from_commit,
@@ -259,10 +265,10 @@ def send_notification(ctx: Context, alert_jobs, jobowners=".gitlab/JOBOWNERS"):
         )
         send_alert(channel, consecutive, cumulative)
 
-    # Send all alerts to #agent-platform-ops
+    # Send all alerts to CHANNEL_BROADCAST
     consecutive = ConsecutiveJobAlert(alert_jobs["consecutive"])
     cumulative = CumulativeJobAlert(alert_jobs["cumulative"])
-    send_alert('#agent-platform-ops', consecutive, cumulative)
+    send_alert(CHANNEL_BROADCAST, consecutive, cumulative)
 
     if metrics:
         send_metrics(metrics)

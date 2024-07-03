@@ -1392,12 +1392,12 @@ func (p *EBPFProbe) setupNewTCClassifier(device model.NetDevice) error {
 	if err != nil {
 		return err
 	}
-	if handle != nil {
-		if err := handle.Close(); err != nil {
-			return fmt.Errorf("could not close file [%s]: %w", handle.Name(), err)
-		}
+
+	if err := handle.Close(); err != nil {
+		return fmt.Errorf("could not close file [%s]: %w", handle.Name(), err)
 	}
-	return err
+
+	return nil
 }
 
 // FlushNetworkNamespace removes all references and stops all TC programs in the provided network namespace. This method

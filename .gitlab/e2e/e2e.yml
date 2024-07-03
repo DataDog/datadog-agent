@@ -391,6 +391,7 @@ generate-flakes-finder-pipeline:
     - qa_agent
   tags: ["arch:amd64"]
   script:
+    - export GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITLAB_FULL_API_TOKEN_SSM_NAME)
     - inv -e testwasher.generate-flake-finder-pipeline
   artifacts:
     paths:

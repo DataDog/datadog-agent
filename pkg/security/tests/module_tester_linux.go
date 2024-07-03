@@ -642,7 +642,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		return nil, err
 	}
 
-	if opts.staticOpts.disableBundledRules {
+	if opts.dynamicOpts.disableBundledRules {
 		ruleDefs = append(ruleDefs, &rules.RuleDefinition{
 			ID:       events.NeedRefreshSBOMRuleID,
 			Disabled: true,
