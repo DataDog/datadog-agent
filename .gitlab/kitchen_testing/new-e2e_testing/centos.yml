@@ -18,6 +18,22 @@
     E2E_BRANCH_OSVERS: "centos-79"
   needs: ["deploy_rpm_testing-a7_x64"]
 
+.new-e2e_centos_a6_arm64:
+  variables:
+    E2E_ARCH: arm64
+    E2E_OSVERS: "centos-79,rhel-86"
+    E2E_CWS_SUPPORTED_OSVERS: "centos-79,rhel-86"
+    E2E_BRANCH_OSVERS: "centos-79"
+  needs: ["deploy_rpm_testing-a6_arm64"]
+
+.new-e2e_centos_a7_arm64:
+  variables:
+    E2E_ARCH: arm64
+    E2E_OSVERS: "centos-79,rhel-86"
+    E2E_CWS_SUPPORTED_OSVERS: "centos-79,rhel-86"
+    E2E_BRANCH_OSVERS: "centos-79"
+  needs: ["deploy_rpm_testing-a7_arm64"]
+
 .new-e2e_centos-fips_a7_x86_64:
   variables:
     E2E_ARCH: x86_64
@@ -53,6 +69,17 @@ new-e2e-agent-platform-install-script-centos-a6-x86_64:
   variables:
     FLAVOR: datadog-agent
 
+new-e2e-agent-platform-install-script-centos-a6-arm64:
+  stage: kitchen_testing
+  extends:
+    - .new_e2e_template
+    - .new-e2e_install_script
+    - .new-e2e_os_centos
+    - .new-e2e_centos_a6_arm64
+    - .new-e2e_agent_a6
+  variables:
+    FLAVOR: datadog-agent
+
 new-e2e-agent-platform-install-script-centos-a7-x86_64:
   stage: kitchen_testing
   extends:
@@ -84,6 +111,41 @@ new-e2e-agent-platform-install-script-centos-dogstatsd-a7-x86_64:
     - .new-e2e_install_script
     - .new-e2e_os_centos
     - .new-e2e_centos_a7_x86_64
+    - .new-e2e_agent_a7
+  variables:
+    FLAVOR: datadog-dogstatsd
+
+new-e2e-agent-platform-install-script-centos-a7-arm64:
+  stage: kitchen_testing
+  extends:
+    - .new_e2e_template
+    - .new-e2e_install_script
+    - .new-e2e_os_centos
+    - .new-e2e_centos_a7_arm64
+    - .new-e2e_agent_a7
+  rules: !reference [.on_default_new_e2e_tests]
+  variables:
+    FLAVOR: datadog-agent
+
+new-e2e-agent-platform-install-script-centos-iot-agent-a7-arm64:
+  stage: kitchen_testing
+  extends:
+    - .new_e2e_template
+    - .new-e2e_install_script
+    - .new-e2e_os_centos
+    - .new-e2e_centos_a7_arm64
+    - .new-e2e_agent_a7
+  rules: !reference [.on_default_new_e2e_tests]
+  variables:
+    FLAVOR: datadog-iot-agent
+
+new-e2e-agent-platform-install-script-centos-dogstatsd-a7-arm64:
+  stage: kitchen_testing
+  extends:
+    - .new_e2e_template
+    - .new-e2e_install_script
+    - .new-e2e_os_centos
+    - .new-e2e_centos_a7_arm64
     - .new-e2e_agent_a7
   variables:
     FLAVOR: datadog-dogstatsd
@@ -146,6 +208,18 @@ new-e2e-agent-platform-step-by-step-centos-a6-x86_64:
   variables:
     FLAVOR: datadog-agent
 
+new-e2e-agent-platform-step-by-step-centos-a6-arm64:
+  stage: kitchen_testing
+  extends:
+    - .new_e2e_template
+    - .new-e2e_step_by_step
+    - .new-e2e_os_centos
+    - .new-e2e_centos_a6_arm64
+    - .new-e2e_agent_a6
+  rules: !reference [.on_deploy]
+  variables:
+    FLAVOR: datadog-agent
+
 new-e2e-agent-platform-step-by-step-centos-a7-x86_64:
   stage: kitchen_testing
   extends:
@@ -158,6 +232,18 @@ new-e2e-agent-platform-step-by-step-centos-a7-x86_64:
   variables:
     FLAVOR: datadog-agent
 
+new-e2e-agent-platform-step-by-step-centos-a7-arm64:
+  stage: kitchen_testing
+  extends:
+    - .new_e2e_template
+    - .new-e2e_step_by_step
+    - .new-e2e_os_centos
+    - .new-e2e_centos_a7_arm64
+    - .new-e2e_agent_a7
+  rules: !reference [.on_deploy]
+  variables:
+    FLAVOR: datadog-agent
+
 new-e2e-agent-platform-install-script-upgrade6-centos-x86_64:
   stage: kitchen_testing
   extends:
@@ -165,6 +251,17 @@ new-e2e-agent-platform-install-script-upgrade6-centos-x86_64:
     - .new-e2e_script_upgrade6
     - .new-e2e_os_centos
     - .new-e2e_centos_a6_x86_64
+    - .new-e2e_agent_a6
+  variables:
+    FLAVOR: datadog-agent
+
+new-e2e-agent-platform-install-script-upgrade6-centos-arm64:
+  stage: kitchen_testing
+  extends:
+    - .new_e2e_template
+    - .new-e2e_script_upgrade6
+    - .new-e2e_os_centos
+    - .new-e2e_centos_a6_arm64
     - .new-e2e_agent_a6
   variables:
     FLAVOR: datadog-agent
@@ -187,6 +284,32 @@ new-e2e-agent-platform-install-script-upgrade7-centos-iot-agent-x86_64:
     - .new-e2e_script_upgrade7
     - .new-e2e_os_centos
     - .new-e2e_centos_a7_x86_64
+    - .new-e2e_agent_a7
+  variables:
+    FLAVOR: datadog-iot-agent
+  parallel:
+    matrix:
+      - START_MAJOR_VERSION: [7]
+        END_MAJOR_VERSION: [7]
+
+new-e2e-agent-platform-install-script-upgrade7-centos-arm64:
+  stage: kitchen_testing
+  extends:
+    - .new_e2e_template
+    - .new-e2e_script_upgrade7
+    - .new-e2e_os_centos
+    - .new-e2e_centos_a7_arm64
+    - .new-e2e_agent_a7
+  variables:
+    FLAVOR: datadog-agent
+
+new-e2e-agent-platform-install-script-upgrade7-centos-iot-agent-arm64:
+  stage: kitchen_testing
+  extends:
+    - .new_e2e_template
+    - .new-e2e_script_upgrade7
+    - .new-e2e_os_centos
+    - .new-e2e_centos_a7_arm64
     - .new-e2e_agent_a7
   variables:
     FLAVOR: datadog-iot-agent
