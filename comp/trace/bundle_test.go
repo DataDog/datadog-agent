@@ -22,8 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
 	traceagentimpl "github.com/DataDog/datadog-agent/comp/trace/agent/impl"
-	compression "github.com/DataDog/datadog-agent/comp/trace/compression/def"
-	gzip "github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip"
+	gzipfx "github.com/DataDog/datadog-agent/comp/trace/compression/fx-gzip"
 	"github.com/DataDog/datadog-agent/comp/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -41,7 +40,7 @@ func TestBundleDependencies(t *testing.T) {
 		statsd.Module(),
 		fx.Provide(func(cfg config.Component) telemetry.TelemetryCollector { return telemetry.NewCollector(cfg.Object()) }),
 		fx.Supply(tagger.NewFakeTaggerParams()),
-		fx.Provide(func(cfg config.Component) compression.Component { return gzip.NewComponent() }),
+		gzipfx.Module(),
 		taggerimpl.Module(),
 		fx.Supply(&traceagentimpl.Params{}),
 	)
@@ -67,7 +66,7 @@ func TestMockBundleDependencies(t *testing.T) {
 		fx.Invoke(func(_ config.Component) {}),
 		fx.Provide(func(cfg config.Component) telemetry.TelemetryCollector { return telemetry.NewCollector(cfg.Object()) }),
 		statsd.MockModule(),
-		fx.Provide(func(cfg config.Component) compression.Component { return gzip.NewComponent() }),
+		gzipfx.Module(),
 		fx.Supply(&traceagentimpl.Params{}),
 		fx.Invoke(func(_ traceagent.Component) {}),
 		MockBundle(),
