@@ -50,18 +50,96 @@ components_to_migrate = [
     "comp/aggregator/demultiplexer/component.go",
     "comp/core/config/component.go",
     "comp/core/flare/component.go",
-    "comp/dogstatsd/replay/component.go",
     "comp/dogstatsd/server/component.go",
     "comp/forwarder/defaultforwarder/component.go",
     "comp/metadata/inventoryagent/component.go",
     "comp/netflow/config/component.go",
     "comp/netflow/server/component.go",
     "comp/remote-config/rcclient/component.go",
-    "comp/trace/agent/component.go",
     "comp/trace/config/component.go",
     "comp/process/apiserver/component.go",
-    "comp/core/workloadmeta/component.go",
 ]
+
+
+# List of components that use the classic style, where `comp/<component>/<component>impl` exists
+# New components should use the new style of `def`, `impl`, `fx` folders
+components_classic_style = [
+    'comp/agent/autoexit/autoexitimpl',
+    'comp/agent/cloudfoundrycontainer/cloudfoundrycontainerimpl',
+    'comp/agent/expvarserver/expvarserverimpl',
+    'comp/agent/jmxlogger/jmxloggerimpl',
+    'comp/aggregator/diagnosesendermanager/diagnosesendermanagerimpl',
+    'comp/api/api/apiimpl',
+    'comp/api/authtoken/fetchonlyimpl',
+    'comp/checks/agentcrashdetect/agentcrashdetectimpl',
+    'comp/checks/windowseventlog/windowseventlogimpl',
+    'comp/collector/collector/collectorimpl',
+    'comp/core/agenttelemetry/agenttelemetryimpl',
+    'comp/core/autodiscovery/autodiscoveryimpl',
+    'comp/core/configsync/configsyncimpl',
+    'comp/core/gui/guiimpl',
+    'comp/core/hostname/hostnameimpl',
+    'comp/core/log/tracelogimpl',
+    'comp/core/pid/pidimpl',
+    'comp/core/secrets/secretsimpl',
+    'comp/core/settings/settingsimpl',
+    'comp/core/status/statusimpl',
+    'comp/core/sysprobeconfig/sysprobeconfigimpl',
+    'comp/core/telemetry/noopsimpl',
+    'comp/dogstatsd/pidmap/pidmapimpl',
+    'comp/dogstatsd/serverDebug/serverdebugimpl',
+    'comp/dogstatsd/status/statusimpl',
+    'comp/forwarder/eventplatform/eventplatformimpl',
+    'comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl',
+    'comp/forwarder/orchestrator/orchestratorimpl',
+    'comp/languagedetection/client/clientimpl',
+    'comp/logs/adscheduler/adschedulerimpl',
+    'comp/logs/agent/agentimpl',
+    'comp/metadata/host/hostimpl',
+    'comp/metadata/inventorychecks/inventorychecksimpl',
+    'comp/metadata/inventoryhost/inventoryhostimpl',
+    'comp/metadata/inventoryotel/inventoryotelimpl',
+    'comp/metadata/packagesigning/packagesigningimpl',
+    'comp/metadata/resources/resourcesimpl',
+    'comp/metadata/runner/runnerimpl',
+    'comp/ndmtmp/forwarder/forwarderimpl',
+    'comp/networkpath/npcollector/npcollectorimpl',
+    'comp/otelcol/logsagentpipeline/logsagentpipelineimpl',
+    'comp/process/agent/agentimpl',
+    'comp/process/connectionscheck/connectionscheckimpl',
+    'comp/process/containercheck/containercheckimpl',
+    'comp/process/expvars/expvarsimpl',
+    'comp/process/forwarders/forwardersimpl',
+    'comp/process/hostinfo/hostinfoimpl',
+    'comp/process/processcheck/processcheckimpl',
+    'comp/process/processdiscoverycheck/processdiscoverycheckimpl',
+    'comp/process/processeventscheck/processeventscheckimpl',
+    'comp/process/profiler/profilerimpl',
+    'comp/process/rtcontainercheck/rtcontainercheckimpl',
+    'comp/process/runner/runnerimpl',
+    'comp/process/status/statusimpl',
+    'comp/process/submitter/submitterimpl',
+    'comp/remote-config/rcservice/rcserviceimpl',
+    'comp/remote-config/rcservicemrf/rcservicemrfimpl',
+    'comp/remote-config/rcstatus/rcstatusimpl',
+    'comp/remote-config/rctelemetryreporter/rctelemetryreporterimpl',
+    'comp/serializer/compression/compressionimpl',
+    'comp/snmptraps/config/configimpl',
+    'comp/snmptraps/formatter/formatterimpl',
+    'comp/snmptraps/forwarder/forwarderimpl',
+    'comp/snmptraps/listener/listenerimpl',
+    'comp/snmptraps/oidresolver/oidresolverimpl',
+    'comp/snmptraps/server/serverimpl',
+    'comp/snmptraps/status/statusimpl',
+    'comp/systray/systray/systrayimpl',
+    'comp/trace/etwtracer/etwtracerimpl',
+    'comp/trace/status/statusimpl',
+    'comp/updater/localapi/localapiimpl',
+    'comp/updater/localapiclient/localapiclientimpl',
+    'comp/updater/telemetry/telemetryimpl',
+    'comp/updater/updater/updaterimpl',
+]
+
 
 # // TODO: (components)
 # The migration of these components is in progresss.
@@ -81,6 +159,10 @@ implementation_definitions = [
 
 
 def check_component_contents_and_file_hiearchy(entry_point):
+    # TODO: validate that def/component.go exists and defines `package <component>`
+    # TODO: validate that each of impl[-suffix]/[any].go defines `package <component>impl`
+    # TODO: validate that fx/fx.go, if it exists, defines `package <component>fx` or `package fx`
+    # TODO: validate that `def` is fx-free, and that `impl` is fx-free *except* for tests
     content = entry_point.content
     file = entry_point.file
     directory = entry_point.dir
@@ -102,9 +184,17 @@ def check_component_contents_and_file_hiearchy(entry_point):
         return ""
 
     for folder in directory.iterdir():
+        # TODO: Check entry_point.version == 2 for new-style, and entry_point.version == 1 for classic (currently broken on some classic components)
+
+        # Check for component implementation using the new-style folder structure: comp/<comopnent>/impl[-suffix]
+        if folder.match('impl-*') or folder.match('impl'):
+            missing_implementation_folder = False
+            break
+        # Check for component implementation using the classic style: comp/<component>/<component>impl
         if folder.match('*impl'):
             missing_implementation_folder = False
-            # TODO: check that the implementation_definitions are present in any of the files of the impl folder
+            if str(folder) not in components_classic_style:
+                return f"** new component '{component_name}' should not use classic style, instead follow docs/components/defining-components.md; skipping"
             break
 
     if missing_implementation_folder:
@@ -186,7 +276,9 @@ class ComponentRoot:
         self.file = file
         self.dir = dir
         self.version = version
-        self.content = list(self.file.open())
+        fp = self.file.open()
+        self.content = list(fp)
+        fp.close()
 
 
 def locate_root(dir):
