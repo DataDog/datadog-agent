@@ -214,6 +214,8 @@ func (s *upgradeScenarioSuite) TestConcurrentExperiments() {
 	// Start a second experiment that overrides the first one
 	_, err = s.startExperimentCommand(oldAgentVersion)
 	require.NoError(s.T(), err)
+	installerStatus := s.getInstallerStatus()
+	require.Equal(s.T(), oldAgentVersion, installerStatus["datadog-agent"].ExperimentVersion)
 
 	// Stop the last experiment
 	timestamp = s.host.LastJournaldTimestamp()
