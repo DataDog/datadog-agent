@@ -67,8 +67,6 @@ RUN echo "$(cat /output/s6.$TARGETARCH.sha256) /output/s6.tgz" | sha256sum -c - 
 
 RUN find / -maxdepth 1 -type f -name "datadog-*_$TARGETARCH.deb" ! -name "$DD_AGENT_ARTIFACT" -exec rm {} \;
 
-RUN echo "Working on ${DD_AGENT_ARTIFACT}"
-RUN find / -maxdepth 1 -name "${DD_AGENT_ARTIFACT}"
 RUN find / -maxdepth 1 -name "${DD_AGENT_ARTIFACT}" -exec dpkg -x {} . \; \
  && rm -rf usr etc/init lib \
     opt/datadog-agent/sources \
