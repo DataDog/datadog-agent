@@ -143,7 +143,7 @@ jobs:
           # Create the PR
           gh pr create \
           --base ${{ github.ref }} \
-          --title $PR_TITLE \
+          --title "$PR_TITLE" \
           --body-file $TMP_PR_BODY_PATH \
-          --label $PR_LABELS \
+          --label "$PR_LABELS" \
           --draft \
