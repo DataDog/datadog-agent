@@ -2,11 +2,15 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
+
+// Package datadogclient provides the datadog client component for the calling datadog API
 package datadogclient
 
 import (
 	"gopkg.in/zorkian/go-datadog-api.v2"
 )
+
+// team: container-platform
 
 // Component is the component type.
 type Component interface {
