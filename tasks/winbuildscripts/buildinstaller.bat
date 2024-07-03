@@ -38,6 +38,12 @@ inv -e msi.build-installer || exit /b 2
 REM show output package directories (for debugging)
 dir \omnibus-ruby\pkg\
 
+dir %BUILD_ROOT%\datadog-agent\omnibus\pkg\
+
+REM copy resulting packages to expected location for collection by gitlab.
+if not exist c:\mnt\omnibus\pkg\ mkdir c:\mnt\omnibus\pkg\ || exit /b 5
+copy %BUILD_ROOT%\datadog-agent\omnibus\pkg\* c:\mnt\omnibus\pkg\ || exit /b 6
+
 REM show output binary directories (for debugging)
 dir C:\opt\datadog-installer\
 

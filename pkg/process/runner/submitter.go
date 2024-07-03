@@ -408,6 +408,7 @@ func (s *CheckSubmitter) messagesToCheckResult(start time.Time, name string, mes
 		extraHeaders.Set(headers.ContainerCountHeader, strconv.Itoa(getContainerCount(m)))
 		extraHeaders.Set(headers.ContentTypeHeader, headers.ProtobufContentType)
 		extraHeaders.Set(headers.AgentStartTime, strconv.FormatInt(s.agentStartTime, 10))
+		extraHeaders.Set(headers.PayloadSource, flavor.GetFlavor())
 
 		switch name {
 		case checks.ProcessEventsCheckName:

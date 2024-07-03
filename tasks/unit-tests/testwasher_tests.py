@@ -55,6 +55,22 @@ class TestUtils(unittest.TestCase):
             {"github.com/DataDog/datadog-agent/test/new-e2e/tests/containers": {"TestEKSSuite/TestMemory"}},
         )
 
+    def test_should_not_be_considered_flaky(self):
+        test_washer = TestWasher(
+            test_output_json_file="test_output_failure_only_parent.json",
+            flakes_file_path="tasks/unit-tests/testdata/flakes_3.yaml",
+        )
+        module_path = "tasks/unit-tests/testdata"
+        failing_tests, marked_flaky_tests = test_washer.parse_test_results(module_path)
+        non_flaky_failing_tests = test_washer.get_non_flaky_failing_tests(
+            failing_tests=failing_tests, flaky_marked_tests=marked_flaky_tests
+        )
+        print("TOTOTO", non_flaky_failing_tests)
+        self.assertEqual(
+            non_flaky_failing_tests,
+            {"github.com/DataDog/datadog-agent/test/new-e2e/tests/containers": {"TestEKSSuite"}},
+        )
+
 
 class TestMergeKnownFlakes(unittest.TestCase):
     def test_with_shared_keys(self):

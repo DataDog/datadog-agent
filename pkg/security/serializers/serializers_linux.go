@@ -492,11 +492,17 @@ type AnomalyDetectionSyscallEventSerializer struct {
 // easyjson:json
 type SyscallArgsSerializer struct {
 	// Path argument
-	Path string `json:"path,omitempty"`
+	Path *string `json:"path,omitempty"`
 	// Flags argument
-	Flags int `json:"flags,omitempty"`
+	Flags *int `json:"flags,omitempty"`
 	// Mode argument
-	Mode int `json:"mode,omitempty"`
+	Mode *int `json:"mode,omitempty"`
+	// UID argument
+	UID *int `json:"uid,omitempty"`
+	// GID argument
+	GID *int `json:"gid,omitempty"`
+	// Directory file descriptor argument
+	DirFd *int `json:"dirfd,omitempty"`
 }
 
 func newSyscallArgsSerializer(sc *model.SyscallContext, e *model.Event) *SyscallArgsSerializer {
@@ -504,19 +510,43 @@ func newSyscallArgsSerializer(sc *model.SyscallContext, e *model.Event) *Syscall
 
 	switch e.GetEventType() {
 	case model.FileChmodEventType:
+		path := e.FieldHandlers.ResolveSyscallCtxArgsStr1(e, sc)
+		mode := e.FieldHandlers.ResolveSyscallCtxArgsInt2(e, sc)
 		return &SyscallArgsSerializer{
-			Path: e.FieldHandlers.ResolveSyscallCtxArgsStr1(e, sc),
-			Mode: e.FieldHandlers.ResolveSyscallCtxArgsInt2(e, sc),
+			Path: &path,
+			Mode: &mode,
 		}
 	case model.FileChdirEventType, model.ExecEventType:
+		path := e.FieldHandlers.ResolveSyscallCtxArgsStr1(e, sc)
 		return &SyscallArgsSerializer{
-			Path: e.FieldHandlers.ResolveSyscallCtxArgsStr1(e, sc),
+			Path: &path,
 		}
 	case model.FileOpenEventType:
+		path := e.FieldHandlers.ResolveSyscallCtxArgsStr1(e, sc)
+		flags := e.FieldHandlers.ResolveSyscallCtxArgsInt2(e, sc)
+		mode := e.FieldHandlers.ResolveSyscallCtxArgsInt3(e, sc)
 		return &SyscallArgsSerializer{
-			Path:  e.FieldHandlers.ResolveSyscallCtxArgsStr1(e, sc),
-			Flags: e.FieldHandlers.ResolveSyscallCtxArgsInt2(e, sc),
-			Mode:  e.FieldHandlers.ResolveSyscallCtxArgsInt3(e, sc),
+			Path:  &path,
+			Flags: &flags,
+			Mode:  &mode,
+		}
+	case model.FileUnlinkEventType:
+		dirfd := e.FieldHandlers.ResolveSyscallCtxArgsInt1(e, sc)
+		path := e.FieldHandlers.ResolveSyscallCtxArgsStr2(e, sc)
+		flags := e.FieldHandlers.ResolveSyscallCtxArgsInt3(e, sc)
+		return &SyscallArgsSerializer{
+			DirFd: &dirfd,
+			Path:  &path,
+			Flags: &flags,
+		}
+	case model.FileChownEventType:
+		path := e.FieldHandlers.ResolveSyscallCtxArgsStr1(e, sc)
+		uid := e.FieldHandlers.ResolveSyscallCtxArgsInt2(e, sc)
+		gid := e.FieldHandlers.ResolveSyscallCtxArgsInt3(e, sc)
+		return &SyscallArgsSerializer{
+			Path: &path,
+			UID:  &uid,
+			GID:  &gid,
 		}
 	}
 
@@ -526,10 +556,12 @@ func newSyscallArgsSerializer(sc *model.SyscallContext, e *model.Event) *Syscall
 // SyscallContextSerializer serializes syscall context
 // easyjson:json
 type SyscallContextSerializer struct {
-	Chmod *SyscallArgsSerializer `json:"chmod,omitempty"`
-	Chdir *SyscallArgsSerializer `json:"chdir,omitempty"`
-	Exec  *SyscallArgsSerializer `json:"exec,omitempty"`
-	Open  *SyscallArgsSerializer `json:"open,omitempty"`
+	Chmod  *SyscallArgsSerializer `json:"chmod,omitempty"`
+	Chown  *SyscallArgsSerializer `json:"chown,omitempty"`
+	Chdir  *SyscallArgsSerializer `json:"chdir,omitempty"`
+	Exec   *SyscallArgsSerializer `json:"exec,omitempty"`
+	Open   *SyscallArgsSerializer `json:"open,omitempty"`
+	Unlink *SyscallArgsSerializer `json:"unlink,omitempty"`
 }
 
 func newSyscallContextSerializer() *SyscallContextSerializer {
@@ -1103,6 +1135,8 @@ func NewEventSerializer(event *model.Event, opts *eval.Opts) *EventSerializer {
 			},
 		}
 		s.EventContextSerializer.Outcome = serializeOutcome(event.Chown.Retval)
+		s.SyscallContextSerializer = newSyscallContextSerializer()
+		s.SyscallContextSerializer.Chown = newSyscallArgsSerializer(&event.Chown.SyscallContext, event)
 	case model.FileLinkEventType:
 		// use the source inode as the target one is a fake inode
 		s.FileEventSerializer = &FileEventSerializer{
@@ -1151,6 +1185,8 @@ func NewEventSerializer(event *model.Event, opts *eval.Opts) *EventSerializer {
 		}
 		s.FileSerializer.Flags = model.UnlinkFlags(event.Unlink.Flags).StringArray()
 		s.EventContextSerializer.Outcome = serializeOutcome(event.Unlink.Retval)
+		s.SyscallContextSerializer = newSyscallContextSerializer()
+		s.SyscallContextSerializer.Unlink = newSyscallArgsSerializer(&event.Unlink.SyscallContext, event)
 	case model.FileRenameEventType:
 		// use the new inode as the old one is a fake inode
 		s.FileEventSerializer = &FileEventSerializer{

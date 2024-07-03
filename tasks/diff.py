@@ -15,7 +15,7 @@ from tasks.libs.common.color import color_message
 from tasks.libs.common.git import check_uncommitted_changes, get_commit_sha, get_current_branch
 from tasks.release import _get_release_json_value
 
-BINARIES = {
+BINARIES: dict[str, dict] = {
     "agent": {
         "entrypoint": "cmd/agent",
         "platforms": ["linux/x64", "linux/arm64", "win32/x64", "darwin/x64", "darwin/arm64"],

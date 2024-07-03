@@ -177,7 +177,7 @@ func (fh *EBPFFieldHandlers) ResolveContainerContext(ev *model.Event) (*model.Co
 			ev.ContainerContext.Resolved = true
 		}
 	}
-	return ev.ContainerContext, ev.ContainerContext != nil
+	return ev.ContainerContext, ev.ContainerContext.Resolved
 }
 
 // ResolveRights resolves the rights of a file

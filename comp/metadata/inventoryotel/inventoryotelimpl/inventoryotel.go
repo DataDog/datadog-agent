@@ -118,12 +118,12 @@ func newInventoryOtelProvider(deps dependencies) (provides, error) {
 	}
 
 	getter := i.fetchRemoteOtelConfig
-	if i.conf.GetBool("otel.submit_dummy_metadata") {
+	if i.conf.GetBool("otelcollector.submit_dummy_metadata") {
 		getter = i.fetchDummyOtelConfig
 	}
 
 	var err error
-	i.f, err = newFreshConfig(deps.Config.GetString("otel.extension_url"), getter)
+	i.f, err = newFreshConfig(deps.Config.GetString("otelcollector.extension_url"), getter)
 	if err != nil {
 		// panic?
 		return provides{}, err
@@ -169,7 +169,7 @@ func (i *inventoryotel) parseResponseFromJSON(body []byte) (otelMetadata, error)
 
 func (i *inventoryotel) fetchRemoteOtelConfig(u *url.URL) (otelMetadata, error) {
 	// Create a Bearer string by appending string access token
-	var bearer = "Bearer " + i.authToken.Get()
+	bearer := "Bearer " + i.authToken.Get()
 
 	// Create a new request using http
 	req, err := http.NewRequest("GET", u.String(), nil)
@@ -195,7 +195,6 @@ func (i *inventoryotel) fetchRemoteOtelConfig(u *url.URL) (otelMetadata, error) 
 	}
 
 	return i.parseResponseFromJSON(body)
-
 }
 
 func (i *inventoryotel) fetchDummyOtelConfig(_ *url.URL) (otelMetadata, error) {
@@ -209,7 +208,7 @@ func (i *inventoryotel) fetchDummyOtelConfig(_ *url.URL) (otelMetadata, error) {
 }
 
 func (i *inventoryotel) fetchOtelAgentMetadata() {
-	isEnabled := i.conf.GetBool("otel.enabled")
+	isEnabled := i.conf.GetBool("otelcollector.enabled")
 
 	if !isEnabled {
 		i.log.Infof("OTel Metadata unavailable as OTel collector is disabled")
@@ -230,7 +229,6 @@ func (i *inventoryotel) fetchOtelAgentMetadata() {
 	}
 
 	i.data["enabled"] = isEnabled
-
 }
 
 func (i *inventoryotel) refreshMetadata() {
