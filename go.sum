@@ -2116,8 +2116,8 @@ github.com/karrick/godirwalk v1.17.0 h1:b4kY7nqDdioR/6qnbHQyDvmA17u5G1cZ6J+CZXwS
 github.com/karrick/godirwalk v1.17.0/go.mod h1:j4mkqPuvaLI8mp1DroR3P6ad7cyYd4c1qeJ3RV7ULlk=
 github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51 h1:Z9n2FFNUXsshfwJMBgNA0RU6/i7WVaAegv3PtuIHPMs=
 github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51/go.mod h1:CzGEWj7cYgsdH8dAjBGEr58BoE7ScuLd+fwFZ44+/x8=
-github.com/ken-schneider/pro-bing v0.0.0-20240702002736-76fe9e144a90 h1:5BKXndS8e7bpJGGNtDXyYU3p8S/2jaB/T3Gc5BmRchk=
-github.com/ken-schneider/pro-bing v0.0.0-20240702002736-76fe9e144a90/go.mod h1:2S6OC9H+JSEDb2st9eFlPDH74LNsvoLssXwGSjJI2fc=
+github.com/ken-schneider/pro-bing v0.0.0-20240702202240-4cb73c5b2d22 h1:DgkktDAnqyoAPf8Xnzs73Bia3VuZiUrgwI8l9eaMoa4=
+github.com/ken-schneider/pro-bing v0.0.0-20240702202240-4cb73c5b2d22/go.mod h1:2S6OC9H+JSEDb2st9eFlPDH74LNsvoLssXwGSjJI2fc=
 github.com/kennygrant/sanitize v1.2.4 h1:gN25/otpP5vAsO2djbMhF/LQX6R7+O1TB4yv8NzpJ3o=
 github.com/kennygrant/sanitize v1.2.4/go.mod h1:LGsjYYtgxbetdg5owWB2mpgUL6e2nfw2eObZ0u0qvak=
 github.com/kevinburke/ssh_config v1.2.0 h1:x584FjTGwHzMwvHx18PXxbBVzfnxogHaAReU4gf13a4=

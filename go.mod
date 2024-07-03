@@ -719,7 +719,7 @@ require (
 )
 
 // NDM: Temporary fork until pro-bing merges the PR
-replace github.com/prometheus-community/pro-bing => github.com/ken-schneider/pro-bing v0.0.0-20240702002736-76fe9e144a90
+replace github.com/prometheus-community/pro-bing => github.com/ken-schneider/pro-bing v0.0.0-20240702202240-4cb73c5b2d22
 
 require (
 	bitbucket.org/atlassian/go-asap/v2 v2.8.0 // indirect
