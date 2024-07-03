@@ -16,7 +16,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"gopkg.in/zorkian/go-datadog-api.v2"
 
+	"github.com/DataDog/datadog-agent/comp/core/datadogclient"
+	"github.com/DataDog/datadog-agent/comp/core/datadogclient/datadogclientimpl"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
@@ -247,10 +250,9 @@ func TestDatadogExternalQuery(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			cl := &fakeDatadogClient{
-				queryMetricsFunc: test.queryfunc,
-			}
-			p := Processor{datadogClient: cl}
+			datadogClientComp := fxutil.Test[datadogclient.MockComponent](t, datadogclientimpl.MockModule())
+			datadogClientComp.SetQueryMetricsFunc(test.queryfunc)
+			p := Processor{datadogClient: datadogClientComp}
 			points, err := p.queryDatadogExternal(test.metricName, time.Duration(config.Datadog().GetInt64("external_metrics_provider.bucket_size"))*time.Second)
 			if test.err != nil {
 				require.EqualError(t, test.err, err.Error())
