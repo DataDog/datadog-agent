@@ -232,19 +232,6 @@ func (w *TraceWriter) flush() {
 	w.flushPayloads(w.tracerPayloads)
 }
 
-// // This pool is used to save GC pressure from having to re-allocate compression writers for every compress operation.
-// var compressionPool = sync.Pool{}
-//
-// func getCompressionWriter(w io.Writer, compressor compression.Component) (io.WriteCloser, error) {
-// 	cw := compressionPool.Get()
-// 	if cw == nil {
-// 		return compressor.NewWriter(w)
-// 	}
-// 	cws := cw.(io.WriteCloser)
-// 	//cws.Reset(w)
-// 	return cws, nil
-// }
-
 // w does not need to be locked during flushPayloads.
 func (w *TraceWriter) flushPayloads(payloads []*pb.TracerPayload) {
 	w.flushTicker.Reset(w.tick) // reset the flush timer whenever we flush
@@ -301,7 +288,6 @@ func (w *TraceWriter) serialize(pl *pb.AgentPayload) {
 		headerLanguages:    strings.Join(info.Languages(), "|"),
 	})
 	p.body.Grow(len(b) / 2)
-	//writer, err := getCompressionWriter(p.body, w.compressor)
 	writer, err := w.compressor.NewWriter(p.body)
 	if err != nil {
 		// it will never happen, unless an invalid compression is chosen;
@@ -309,7 +295,6 @@ func (w *TraceWriter) serialize(pl *pb.AgentPayload) {
 		log.Errorf("Failed to initialize gzip writer. No traces can be sent: %v", err)
 		return
 	}
-	//defer compressionPool.Put(writer)
 	if _, err := writer.Write(b); err != nil {
 		log.Errorf("Error gzipping trace payload: %v", err)
 	}
