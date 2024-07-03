@@ -472,15 +472,20 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("cluster_agent.language_detection.cleanup.period", "10m")
 	config.BindEnvAndSetDefault("cluster_agent.kube_metadata_collection.enabled", false)
 	// list of kubernetes resources for which we collect metadata
-	// each resource is specified in the format `{resourceName}.{apiGroup}`
-	// resources that belong to the empty group can be specified simply as `{resourceName}`
+	// each resource is specified in the format `{group}/{version}/{resource}` or `{group}/{resource}`
+	// resources that belong to the empty group can be specified simply as `{resource}` or as `/{resource}`
 	//
-	// examples:
-	// - deployments.apps
-	// - daemonsets.apps
+	// the version is optional and can be left empty, and in this case, the agent will automatically assign
+	// the version that is considered by the api server as the preferred version for the related group.
+	//
+	// examples with version:
+	// - apps/v1/deployments
+	// - /v1/nodes
+	//
+	// examples without version:
+	// - apps/deployments
+	// - /nodes
 	// - nodes
-	//
-	// the version of the api group is chosen by the discovery client based on the api server preferred group version.
 	config.BindEnvAndSetDefault("cluster_agent.kube_metadata_collection.resources", []string{})
 	config.BindEnvAndSetDefault("cluster_agent.kube_metadata_collection.resource_annotations_exclude", []string{})
 

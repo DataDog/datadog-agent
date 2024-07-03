@@ -65,7 +65,7 @@ func storeGenerators(cfg config.Reader) []storeGenerator {
 }
 
 func metadataCollectionGVRs(cfg config.Reader, discoveryClient discovery.DiscoveryInterface) ([]schema.GroupVersionResource, error) {
-	return getGVRsForGroupResources(discoveryClient, resourcesWithMetadataCollectionEnabled(cfg))
+	return getGVRsForRequestedResources(discoveryClient, resourcesWithMetadataCollectionEnabled(cfg))
 }
 
 func resourcesWithMetadataCollectionEnabled(cfg config.Reader) []string {

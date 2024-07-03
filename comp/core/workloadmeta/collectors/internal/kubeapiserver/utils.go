@@ -10,6 +10,7 @@ package kubeapiserver
 import (
 	"fmt"
 	"regexp"
+	"strings"
 
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	utilserror "k8s.io/apimachinery/pkg/util/errors"
@@ -57,27 +58,74 @@ func filterToRegex(filter string) (*regexp.Regexp, error) {
 	return r, nil
 }
 
-// getGVRsForGroupResources auto discovers groups versions of a list of requested group resources and converts it to a list of GVRs
-// each item of requestedGroupResources is of the form {resourceName.apiGroup} (or simply {resourceName} if belonging to the empty api group)
-// items that don't respect this format are skipped
-func getGVRsForGroupResources(discoveryClient discovery.DiscoveryInterface, groupResources []string) ([]schema.GroupVersionResource, error) {
+func parseRequestedResource(requestedResource string) (group string, version string, resource string) {
+	parts := strings.Split(requestedResource, "/")
+
+	switch len(parts) {
+	case 1:
+		// format is `{resource}`
+		group = ""
+		version = ""
+		resource = parts[0]
+	case 2:
+		// format is `{group}/{resource}`
+		group = parts[0]
+		version = ""
+		resource = parts[1]
+	case 3:
+		// format is `{group}/{version}/{resource}`
+		group = parts[0]
+		version = parts[1]
+		resource = parts[2]
+	default:
+		// format is not correct
+		group = ""
+		version = ""
+		resource = ""
+	}
+
+	return group, version, resource
+}
+
+// getGVRsForRequestedResources converts a list of requested resources into a list of GVRs.
+//
+// If a requested resource doesn't include the api group version, it uses the preferred version discovered
+// by the discovery client for the related api group.
+//
+// Each requested resource should be in the form `{group}/{version}/{resource}`, where {version} is optional.
+//
+// Items that don't respect this format are skipped
+func getGVRsForRequestedResources(discoveryClient discovery.DiscoveryInterface, requestedResource []string) ([]schema.GroupVersionResource, error) {
 	groupResourceToVersion, err := discoverGroupResourceVersions(discoveryClient)
 	if err != nil {
 		return nil, err
 	}
 
-	gvrs := make([]schema.GroupVersionResource, 0, len(groupResources))
-	for _, groupResourceAsString := range groupResources {
-		parsedGroupResource := schema.ParseGroupResource(groupResourceAsString)
-		version, found := groupResourceToVersion[parsedGroupResource]
+	gvrs := make([]schema.GroupVersionResource, 0, len(requestedResource))
+	for _, requestedResource := range requestedResource {
+		parsedGroup, parsedVersion, parsedResource := parseRequestedResource(requestedResource)
+
+		if parsedVersion != "" {
+			// no need to discover preferred version if the version is already known
+
+			gvrs = append(gvrs, schema.GroupVersionResource{
+				Resource: parsedResource,
+				Group:    parsedGroup,
+				Version:  parsedVersion,
+			})
+
+			continue
+		}
+
+		preferredVersion, found := groupResourceToVersion[schema.GroupResource{Group: parsedGroup, Resource: parsedResource}]
 		if found {
 			gvrs = append(gvrs, schema.GroupVersionResource{
-				Resource: parsedGroupResource.Resource,
-				Group:    parsedGroupResource.Group,
-				Version:  version,
+				Resource: parsedResource,
+				Group:    parsedGroup,
+				Version:  preferredVersion,
 			})
 		} else {
-			log.Errorf("failed to auto-discover version of group resource %s,", groupResourceAsString)
+			log.Errorf("failed to auto-discover version of group resource %s.%s,", parsedResource, parsedGroup)
 		}
 	}
 
