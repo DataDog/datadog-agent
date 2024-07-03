@@ -174,7 +174,7 @@ def auto_cancel_previous_pipelines(ctx):
     if not os.environ.get('GITLAB_TOKEN'):
         raise Exit("GITLAB_TOKEN variable needed to cancel pipelines on the same ref.", 1)
 
-    git_ref = os.getenv("CI_COMMIT_REF_NAME")
+    git_ref = os.environ["CI_COMMIT_REF_NAME"]
     git_sha = os.getenv("CI_COMMIT_SHA")
 
     repo = get_gitlab_repo()
@@ -215,7 +215,7 @@ def auto_cancel_previous_pipelines(ctx):
                 gracefully_cancel_pipeline(repo, pipeline, force_cancel_stages=force_cancel_stages)
         else:
             print(is_ancestor.stderr)
-            raise Exit(1)
+            raise Exit(code=1)
 
 
 @task
@@ -401,7 +401,7 @@ def wait_for_pipeline_from_ref(repo: Project, ref):
 
 
 @task(iterable=['variable'])
-def trigger_child_pipeline(_, git_ref, project_name, variable=None, follow=True):
+def trigger_child_pipeline(_, git_ref, project_name, variable=None, follow=True, timeout=7200):
     """
     Trigger a child pipeline on a target repository and git ref.
     Used in CI jobs only (requires CI_JOB_TOKEN).
@@ -410,6 +410,8 @@ def trigger_child_pipeline(_, git_ref, project_name, variable=None, follow=True)
     You can pass the argument multiple times for each new variable you wish to forward
 
     Use --follow to make this task wait for the pipeline to finish, and return 1 if it fails. (requires GITLAB_TOKEN).
+
+    Use --timeout to set up a timeout shorter than the default 2 hours, to anticipate failures if any.
 
     Examples:
     inv pipeline.trigger-child-pipeline --git-ref "main" --project-name "DataDog/agent-release-management" --variable "RELEASE_VERSION"
@@ -461,8 +463,7 @@ def trigger_child_pipeline(_, git_ref, project_name, variable=None, follow=True)
 
     if follow:
         print("Waiting for child pipeline to finish...", flush=True)
-
-        wait_for_pipeline(repo, pipeline)
+        wait_for_pipeline(repo, pipeline, pipeline_finish_timeout_sec=timeout)
 
         # Check pipeline status
         refresh_pipeline(pipeline)
@@ -822,6 +823,27 @@ def update_circleci_config(file_path, image_tag, test_version):
     image = f"{image_name}_test_only" if test_version else image_name
     with open(file_path, "w") as circle:
         circle.write(circle_ci.replace(f"{match.group(0)}", f"{image}:{image_tag}\n"))
+
+
+@task(
+    help={
+        "file_path": "path of the Gitlab configuration YAML file",
+    },
+    autoprint=True,
+)
+def get_gitlab_config_image_tag(_, file_path=".gitlab-ci.yml"):
+    """
+    Print the current image tag of the given Gitlab configuration file (default: ".gitlab-ci.yml")
+    """
+    with open(file_path) as gl:
+        file_content = gl.readlines()
+    gitlab_ci = yaml.load("".join(file_content), Loader=GitlabYamlLoader())
+    if "variables" not in gitlab_ci or "DATADOG_AGENT_BUILDIMAGES" not in gitlab_ci["variables"]:
+        raise Exit(
+            color_message(f"Impossible to find the version of image in {file_path} configuration file", "red"),
+            code=1,
+        )
+    return gitlab_ci["variables"]["DATADOG_AGENT_BUILDIMAGES"]
 
 
 def trigger_build(ctx, branch_name=None, create_branch=False):

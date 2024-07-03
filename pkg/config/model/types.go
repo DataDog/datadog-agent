@@ -60,7 +60,6 @@ type Reader interface {
 	AllKeysLowercased() []string
 
 	IsSet(key string) bool
-	IsSetForSource(key string, source Source) bool
 
 	// UnmarshalKey Unmarshal a configuration key into a struct
 	UnmarshalKey(key string, rawVal interface{}, opts ...viper.DecoderConfigOption) error
@@ -76,10 +75,6 @@ type Reader interface {
 	// GetEnvVars returns a list of the env vars that the config supports.
 	// These have had the EnvPrefix applied, as well as the EnvKeyReplacer.
 	GetEnvVars() []string
-
-	// IsSectionSet checks if a given section is set by checking if any of
-	// its subkeys is set.
-	IsSectionSet(section string) bool
 
 	// Warnings returns pointer to a list of warnings (completes config.Component interface)
 	Warnings() *Warnings

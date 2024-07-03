@@ -66,7 +66,6 @@ github.com/DataDog/datadog-agent/cmd/agent/common/path
 github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice
 github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice/helper
 github.com/DataDog/datadog-agent/comp/api/api/def
-github.com/DataDog/datadog-agent/comp/api/api/utils
 github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration
 github.com/DataDog/datadog-agent/comp/core/config
 github.com/DataDog/datadog-agent/comp/core/flare/builder
@@ -250,7 +249,6 @@ github.com/DataDog/datadog-agent/pkg/util/fargate
 github.com/DataDog/datadog-agent/pkg/util/filesystem
 github.com/DataDog/datadog-agent/pkg/util/flavor
 github.com/DataDog/datadog-agent/pkg/util/fxutil
-github.com/DataDog/datadog-agent/pkg/util/grpc/context
 github.com/DataDog/datadog-agent/pkg/util/hostname
 github.com/DataDog/datadog-agent/pkg/util/hostname/validate
 github.com/DataDog/datadog-agent/pkg/util/http
@@ -268,6 +266,7 @@ github.com/DataDog/datadog-agent/pkg/util/scrubber
 github.com/DataDog/datadog-agent/pkg/util/sort
 github.com/DataDog/datadog-agent/pkg/util/startstop
 github.com/DataDog/datadog-agent/pkg/util/statstracker
+github.com/DataDog/datadog-agent/pkg/util/sync
 github.com/DataDog/datadog-agent/pkg/util/system
 github.com/DataDog/datadog-agent/pkg/util/system/socket
 github.com/DataDog/datadog-agent/pkg/util/tmplvar
@@ -280,6 +279,14 @@ github.com/DataDog/go-libddwaf/v2
 github.com/DataDog/go-libddwaf/v2/internal/lib
 github.com/DataDog/go-libddwaf/v2/internal/log
 github.com/DataDog/go-libddwaf/v2/internal/noopfree
+github.com/DataDog/go-libddwaf/v3
+github.com/DataDog/go-libddwaf/v3/errors
+github.com/DataDog/go-libddwaf/v3/internal/bindings
+github.com/DataDog/go-libddwaf/v3/internal/lib
+github.com/DataDog/go-libddwaf/v3/internal/log
+github.com/DataDog/go-libddwaf/v3/internal/support
+github.com/DataDog/go-libddwaf/v3/internal/unsafe
+github.com/DataDog/go-libddwaf/v3/timer
 github.com/DataDog/go-sqllexer
 github.com/DataDog/go-tuf/client
 github.com/DataDog/go-tuf/data
@@ -898,8 +905,6 @@ gopkg.in/DataDog/dd-trace-go.v1/internal
 gopkg.in/DataDog/dd-trace-go.v1/internal/appsec
 gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/config
 gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/dyngo
-gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/emitter/sharedsec
-gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/listener
 gopkg.in/DataDog/dd-trace-go.v1/internal/datastreams
 gopkg.in/DataDog/dd-trace-go.v1/internal/globalconfig
 gopkg.in/DataDog/dd-trace-go.v1/internal/hostname
@@ -943,6 +948,7 @@ math/big
 math/bits
 math/cmplx
 math/rand
+math/rand/v2
 mime
 mime/multipart
 mime/quotedprintable

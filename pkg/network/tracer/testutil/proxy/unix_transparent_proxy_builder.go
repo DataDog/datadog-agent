@@ -27,7 +27,7 @@ const (
 func newExternalUnixTransparentProxyServer(t *testing.T, unixPath, remoteAddr string, useTLS, useControl bool) (*exec.Cmd, context.CancelFunc) {
 	curDir, err := testutil.CurDir()
 	require.NoError(t, err)
-	serverBin, err := usmtestutil.BuildUnixTransparentProxyServer(curDir, serverSrcPath)
+	serverBin, err := usmtestutil.BuildGoBinaryWrapper(curDir, serverSrcPath)
 	require.NoError(t, err)
 
 	args := []string{serverBin, "-unix", unixPath, "-remote", remoteAddr}
