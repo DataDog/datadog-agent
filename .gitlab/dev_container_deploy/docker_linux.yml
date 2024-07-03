@@ -294,7 +294,7 @@ qa_agent_ot:
     - docker_build_ot_agent7_arm64
   variables:
     IMG_REGISTRIES: agent-qa
-    IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-ot-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-ot-arm64
+    IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-ot-beta-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-ot-beta-arm64
     IMG_DESTINATIONS: agent:${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-ot
 
 dev_branch-ot:
@@ -361,4 +361,3 @@ qa_cws_instrumentation:
   rules:
     - !reference [.on_cws_or_e2e_changes]
     - !reference [.manual]
-
