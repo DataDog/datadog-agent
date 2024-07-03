@@ -53,14 +53,13 @@ def python(ctx):
         # We want to the CI to fail if there are any issues
         ctx.run("ruff format --check .")
         ctx.run("ruff check .")
-        ctx.run("mypy")
     else:
         # Otherwise we just need to format the files
         ctx.run("ruff format .")
         ctx.run("ruff check --fix .")
-        ctx.run("mypy")
 
     ctx.run("vulture")
+    ctx.run("mypy")
 
 
 @task
