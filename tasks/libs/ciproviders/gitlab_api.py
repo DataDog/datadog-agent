@@ -148,18 +148,28 @@ class GitlabCIDiff:
                 diff = [line.rstrip('\n') for line in differcli.compare(before_content, after_content)]
                 self.modified_diffs[job] = diff
 
-    def display(self, cli: bool = True) -> str:
+    def display(self, cli: bool = True, max_detailed_jobs=6) -> str:
         """
         Display in cli or markdown
         """
 
         from tasks.libs.common.color import Color, color_message
 
-        def str_section(title):
+        def str_section(title, wrap=False) -> list[str]:
             if cli:
-                return f'--- {color_message(title, Color.BOLD)} ---'
+                return [f'--- {color_message(title, Color.BOLD)} ---']
+            elif wrap:
+                return ['<details>', f'<summary><h3>{title}</h3></summary>']
             else:
-                return f'### {title}'
+                return [f'### {title}']
+
+        def str_end_section(wrap: bool) -> list[str]:
+            if cli:
+                return []
+            elif wrap:
+                return ['</details>']
+            else:
+                return []
 
         def str_job(title, color):
             if cli:
@@ -179,11 +189,11 @@ class GitlabCIDiff:
 
                 return [str_job(name, 'GREEN'), '', *content, '']
             else:
-                header = f'<summary><h4>{name}</h4></summary>'
+                header = f'<summary><b>{name}</b></summary>'
 
                 return ['<details>', header, '', '```yaml', *content.splitlines(), '```', '', '</details>']
 
-        def str_modified_job(name: str, diff: list[str]) -> str:
+        def str_modified_job(name: str, diff: list[str]) -> list[str]:
             if cli:
                 res = [str_job(name, 'ORANGE')]
                 for line in diff:
@@ -194,15 +204,19 @@ class GitlabCIDiff:
                     else:
                         res.append(line)
 
-                return '\n'.join(res)
+                return res
             else:
                 # Wrap diff in markdown code block and in details html tags
-                header = f'<summary><h4>{name}</h4></summary>'
-                difftxt = '\n'.join(diff)
-                difftxt = f"```diff\n{difftxt}\n```"
-                difftxt = f"<details>{header}\n\n{difftxt}\n\n</details>"
-
-                return difftxt
+                return [
+                    '<details>',
+                    f'<summary><b>{name}</b></summary>',
+                    '',
+                    '```diff',
+                    *diff,
+                    '```',
+                    '',
+                    '</details>',
+                ]
 
         def str_color(text: str, color: str) -> str:
             if cli:
@@ -229,35 +243,39 @@ class GitlabCIDiff:
         res = []
 
         if self.modified:
-            res.append(str_section('Modified Jobs'))
+            wrap = len(self.modified) > max_detailed_jobs
+            res.extend(str_section('Modified Jobs', wrap=wrap))
             for job, diff in sorted(self.modified_diffs.items()):
                 res.extend(str_modified_job(job, diff))
+            res.extend(str_end_section(wrap=wrap))
 
         if self.added:
             if res:
                 res.append('')
-            res.append(str_section('Added Jobs'))
+            wrap = len(self.added) > max_detailed_jobs
+            res.extend(str_section('Added Jobs', wrap=wrap))
             for job, content in sorted(self.added_contents.items()):
                 res.extend(str_add_job(job, content))
+            res.extend(str_end_section(wrap=wrap))
 
         if self.removed:
             if res:
                 res.append('')
-            res.append(str_section('Removed Jobs'))
+            res.extend(str_section('Removed Jobs'))
             for job in sorted(self.removed):
                 res.append(str_job(job, 'RED'))
 
         if self.renamed:
             if res:
                 res.append('')
-            res.append(str_section('Renamed Jobs'))
+            res.extend(str_section('Renamed Jobs'))
             for job_before, job_after in sorted(self.renamed):
                 res.append(str_rename(job_before, job_after))
 
         if res:
             if res:
                 res.append('')
-            res.append(str_section('Changes'))
+            res.extend(str_section('Changes'))
             res.append(str_summary())
 
         return '\n'.join(res)

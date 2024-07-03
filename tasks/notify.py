@@ -191,7 +191,8 @@ def gitlab_ci_diff(ctx, before: str | None = None, after: str | None = None, pr_
     """
 
     pr_comment_head = 'Gitlab CI Configuration Changes'
-    job_url = os.environ['CI_JOB_URL']
+    if pr_comment:
+        job_url = os.environ['CI_JOB_URL']
 
     try:
         before_name = before or "merge base"
@@ -232,11 +233,12 @@ def gitlab_ci_diff(ctx, before: str | None = None, after: str | None = None, pr_
 
             print(color_message('Sent / updated PR comment', Color.GREEN))
     except Exception:
-        # Send message
-        pr_commenter(
-            ctx,
-            pr_comment_head,
-            f':warning: *Failed to display Gitlab CI configuration changes, see the [job log]({job_url}) for details.*',
-        )
+        if pr_comment:
+            # Send message
+            pr_commenter(
+                ctx,
+                pr_comment_head,
+                f':warning: *Failed to display Gitlab CI configuration changes, see the [job log]({job_url}) for details.*',
+            )
 
         raise
