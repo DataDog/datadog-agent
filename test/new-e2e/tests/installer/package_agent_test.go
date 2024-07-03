@@ -8,10 +8,13 @@ package installer
 import (
 	"fmt"
 	"path/filepath"
+	"strings"
 
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/host"
 	e2eos "github.com/DataDog/test-infra-definitions/components/os"
+	"github.com/stretchr/testify/assert"
+	"gopkg.in/yaml.v3"
 )
 
 const (
@@ -370,6 +373,20 @@ func (s *packageAgentSuite) TestExperimentStopped() {
 			),
 		)
 	}
+}
+
+func (s *packageAgentSuite) TestRunPath() {
+	s.RunInstallScript(envForceInstall("datadog-agent"))
+	defer s.Purge()
+	s.host.WaitForUnitActive("datadog-agent.service", "datadog-agent-trace.service", "datadog-agent-process.service")
+
+	rawConfig := s.host.AgentRuntimeConfig()
+	var config map[string]interface{}
+	err := yaml.Unmarshal([]byte(rawConfig), &config)
+	assert.NoError(s.T(), err)
+	runPath, ok := config["run_path"].(string)
+	assert.True(s.T(), ok, "run_path not found in runtime config")
+	assert.True(s.T(), strings.HasPrefix(runPath, "/opt/datadog-packages/datadog-agent/"), "run_path is not in the expected location: %s", runPath)
 }
 
 func (s *packageAgentSuite) purgeAgentDebInstall() {
