@@ -767,6 +767,7 @@ func genTestConfigs(cfgDir string, opts testOpts) (*emconfig.Config, *secconfig.
 		"EBPFLessEnabled":                            ebpfLessEnabled,
 		"FIMEnabled":                                 opts.enableFIM, // should only be enabled/disabled on windows
 		"NetworkIngressEnabled":                      opts.networkIngressEnabled,
+		"OnDemandRateLimiterEnabled":                 !opts.disableOnDemandRateLimiter,
 	}); err != nil {
 		return nil, nil, err
 	}

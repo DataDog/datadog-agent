@@ -58,6 +58,7 @@ type testOpts struct {
 	snapshotRuleMatchHandler                   func(*testModule, *model.Event, *rules.Rule)
 	enableFIM                                  bool // only valid on windows
 	networkIngressEnabled                      bool
+	disableOnDemandRateLimiter                 bool
 }
 
 type dynamicTestOpts struct {
@@ -128,5 +129,6 @@ func (to testOpts) Equal(opts testOpts) bool {
 		to.enableSBOM == opts.enableSBOM &&
 		to.snapshotRuleMatchHandler == nil && opts.snapshotRuleMatchHandler == nil &&
 		to.preStartCallback == nil && opts.preStartCallback == nil &&
-		to.networkIngressEnabled == opts.networkIngressEnabled
+		to.networkIngressEnabled == opts.networkIngressEnabled &&
+		to.disableOnDemandRateLimiter == opts.disableOnDemandRateLimiter
 }

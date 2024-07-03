@@ -47,7 +47,7 @@ func TestOnDemandOpen(t *testing.T) {
 		},
 	}
 
-	test, err := newTestModuleWithOnDemandProbes(t, onDemands, nil, ruleDefs)
+	test, err := newTestModuleWithOnDemandProbes(t, onDemands, nil, ruleDefs, withStaticOpts(testOpts{disableOnDemandRateLimiter: true}))
 	if err != nil {
 		t.Fatal(err)
 	}
