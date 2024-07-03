@@ -191,14 +191,23 @@ def gitlab_ci_diff(ctx, before: str | None = None, after: str | None = None, pr_
     - NOTE: This requires a full api token access level to the repository
     """
 
+    from tasks.libs.ciproviders.github_api import GithubAPI
+
     pr_comment_head = 'Gitlab CI Configuration Changes'
-    if pr_comment and "CI_COMMIT_BRANCH" not in os.environ:
-        print(
-            color_message("Warning: No PR found for current branch, skipping message", Color.ORANGE),
-            file=sys.stderr,
-        )
-        pr_comment = False
-    elif pr_comment:
+    if pr_comment:
+        github = GithubAPI()
+
+        if (
+            "CI_COMMIT_BRANCH" not in os.environ
+            or len(list(github.get_pr_for_branch(os.environ["CI_COMMIT_BRANCH"]))) != 1
+        ):
+            print(
+                color_message("Warning: No PR found for current branch, skipping message", Color.ORANGE),
+                file=sys.stderr,
+            )
+            pr_comment = False
+
+    if pr_comment:
         job_url = os.environ['CI_JOB_URL']
 
     try:
@@ -236,7 +245,9 @@ def gitlab_ci_diff(ctx, before: str | None = None, after: str | None = None, pr_
             except Exception:
                 print(color_message('Warning: Failed to send full diff, sending only job link', Color.ORANGE))
 
-                pr_commenter(ctx, pr_comment_head, f'Too many changes, see the [job log]({job_url}) for details')
+                pr_commenter(
+                    ctx, pr_comment_head, f'Cannot send full diff message, see the [job log]({job_url}) for details'
+                )
 
             print(color_message('Sent / updated PR comment', Color.GREEN))
     except Exception:
