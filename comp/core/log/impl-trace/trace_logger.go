@@ -33,7 +33,7 @@ type Provides struct {
 	Comp logdef.Component
 }
 
-// NewTraceLogger creates a pkglog.Component using the provided config
+// NewLogger creates a pkglog.Component using the provided config
 func NewLogger(deps Requires) (Provides, error) {
 	if !deps.Params.IsLogLevelFnSet() {
 		return Provides{}, errors.New("must call one of core.BundleParams.ForOneShot or ForDaemon")

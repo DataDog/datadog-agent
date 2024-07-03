@@ -3,19 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build test
-
-package logimpl
+package mock
 
 import (
-	"fmt"
-	"os"
 	"strings"
 	"testing"
 
 	"github.com/cihub/seelog"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -34,6 +29,7 @@ func (tbw *tbWriter) Write(p []byte) (n int, err error) {
 	return len(p), nil
 }
 
+// New returns a new mock for the log Component
 func New(t testing.TB) (log.Component, error) {
 	// Build a logger that only logs to t.Log(..)
 	iface, err := seelog.LoggerFromWriterWithMinLevelAndFormat(&tbWriter{t}, seelog.TraceLvl,
@@ -52,13 +48,4 @@ func New(t testing.TB) (log.Component, error) {
 	pkglog.ChangeLogLevel(iface, "debug")
 
 	return pkglog.NewWrapper(2), nil
-}
-
-func NewTrace(t testing.TB, params Params, cfg config.Component) (log.Component, error) {
-	// Make sure we are setting a default value on purpose.
-	logFilePath := params.logFileFn(cfg)
-	if logFilePath != os.Getenv("DDTEST_DEFAULT_LOG_FILE_PATH") {
-		return nil, fmt.Errorf("unexpected default log file path: %q", logFilePath)
-	}
-	return New(t)
 }

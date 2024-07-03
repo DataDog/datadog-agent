@@ -14,10 +14,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -54,7 +52,7 @@ func TestProcess(t *testing.T) {
 	client := &http.Client{}
 
 	mockConfig := pkgconfigmodel.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
-	log := fxutil.Test[log.Component](t, logimpl.MockModule())
+	log := logmock.New(t)
 	err := transaction.Process(context.Background(), mockConfig, log, client)
 	assert.NoError(t, err)
 }
@@ -69,7 +67,7 @@ func TestProcessInvalidDomain(t *testing.T) {
 	client := &http.Client{}
 
 	mockConfig := pkgconfigmodel.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
-	log := fxutil.Test[log.Component](t, logimpl.MockModule())
+	log := logmock.New(t)
 	err := transaction.Process(context.Background(), mockConfig, log, client)
 	assert.NoError(t, err)
 }
@@ -84,7 +82,7 @@ func TestProcessNetworkError(t *testing.T) {
 	client := &http.Client{}
 
 	mockConfig := pkgconfigmodel.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
-	log := fxutil.Test[log.Component](t, logimpl.MockModule())
+	log := logmock.New(t)
 	err := transaction.Process(context.Background(), mockConfig, log, client)
 	assert.NotNil(t, err)
 }
@@ -106,7 +104,7 @@ func TestProcessHTTPError(t *testing.T) {
 	client := &http.Client{}
 
 	mockConfig := pkgconfigmodel.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
-	log := fxutil.Test[log.Component](t, logimpl.MockModule())
+	log := logmock.New(t)
 	err := transaction.Process(context.Background(), mockConfig, log, client)
 	assert.NotNil(t, err)
 	assert.Contains(t, err.Error(), "error \"503 Service Unavailable\" while sending transaction")
@@ -138,7 +136,7 @@ func TestProcessCancel(t *testing.T) {
 	cancel()
 
 	mockConfig := pkgconfigmodel.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
-	log := fxutil.Test[log.Component](t, logimpl.MockModule())
+	log := logmock.New(t)
 	err := transaction.Process(ctx, mockConfig, log, client)
 	assert.NoError(t, err)
 }

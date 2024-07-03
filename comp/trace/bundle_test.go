@@ -14,7 +14,8 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -60,7 +61,7 @@ func TestMockBundleDependencies(t *testing.T) {
 	cfg := fxutil.Test[config.Component](t, fx.Options(
 		fx.Provide(func() context.Context { return context.TODO() }), // fx.Supply(ctx) fails with a missing type error.
 		fx.Supply(core.BundleParams{}),
-		traceMockBundle,
+		fx.Provide(func() log.Component { logmock.NewTraceLogger(t) }),
 		fx.Supply(workloadmeta.NewParams()),
 		workloadmetafx.Module(),
 		fx.Invoke(func(_ config.Component) {}),
@@ -76,10 +77,3 @@ func TestMockBundleDependencies(t *testing.T) {
 
 	require.NotNil(t, cfg.Object())
 }
-
-var traceMockBundle = core.MakeMockBundle(
-	fx.Provide(func() logimpl.Params {
-		return logimpl.ForDaemon("TRACE", "apm_config.log_file", config.DefaultLogFilePath)
-	}),
-	logimpl.TraceMockModule(),
-)

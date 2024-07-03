@@ -27,7 +27,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
@@ -67,7 +67,7 @@ func TestRun(t *testing.T) {
 		fx.Supply(workloadmeta.NewParams()),
 		workloadmetafxmock.MockModule(),
 	))
-	mocklogger := fxutil.Test[log.Component](t, logimpl.MockModule())
+	mocklogger := logmock.New(t)
 
 	ctx := context.Background()
 	lp := newMockLanguagePatcher(ctx, mockK8sClient, mockStore, mocklogger)
@@ -302,7 +302,7 @@ func TestPatcherRetriesFailedPatches(t *testing.T) {
 		fx.Supply(workloadmeta.NewParams()),
 		workloadmetafxmock.MockModule(),
 	))
-	mocklogger := fxutil.Test[log.Component](t, logimpl.MockModule())
+	mocklogger := logmock.New(t)
 
 	ctx := context.Background()
 	lp := newMockLanguagePatcher(ctx, mockK8sClient, mockStore, mocklogger)
