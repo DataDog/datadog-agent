@@ -59,6 +59,7 @@ type rdnsQuerierImpl struct {
 	config            *rdnsQuerierConfig
 	internalTelemetry *rdnsQuerierTelemetry
 
+	started     bool
 	resolver    resolver
 	rateLimiter rateLimiter
 
@@ -106,6 +107,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 		config:            config,
 		internalTelemetry: internalTelemetry,
 
+		started:     false,
 		resolver:    newResolver(config),
 		rateLimiter: newRateLimiter(config),
 
@@ -126,6 +128,12 @@ func NewComponent(reqs Requires) (Provides, error) {
 // space then a reverse DNS lookup is processed asynchronously.  If the lookup is successful then the updateHostname function
 // will be called asynchronously with the hostname.
 func (q *rdnsQuerierImpl) GetHostnameAsync(ipAddr []byte, updateHostname func(string)) {
+	//JMW - return error?
+	if !q.started {
+		q.logger.Debugf("Reverse DNS Enrichment not started - dropping request for IP address %v", ipAddr)
+		return
+	}
+
 	q.internalTelemetry.total.Inc()
 
 	ipaddr, ok := netip.AddrFromSlice(ipAddr)
@@ -155,6 +163,11 @@ func (q *rdnsQuerierImpl) GetHostnameAsync(ipAddr []byte, updateHostname func(st
 }
 
 func (q *rdnsQuerierImpl) start(_ context.Context) error {
+	//JMW comment why getting our own context, not using the one passed in, because we need it for cancelling and because one passed in has a deadline set
+	if q.started {
+		q.logger.Debugf("Reverse DNS Enrichment already started")
+		return nil
+	}
 	var ctx context.Context
 	ctx, q.cancel = context.WithCancel(context.Background())
 	for range q.config.workers {
@@ -162,11 +175,17 @@ func (q *rdnsQuerierImpl) start(_ context.Context) error {
 		go q.worker(ctx)
 	}
 	q.logger.Infof("Reverse DNS Enrichment started %d rdnsquerier workers", q.config.workers)
+	q.started = true
 
 	return nil
 }
 
 func (q *rdnsQuerierImpl) stop(context.Context) error {
+	if !q.started {
+		q.logger.Debugf("Reverse DNS Enrichment already stopped")
+		return nil
+	}
+
 	q.cancel()
 	q.wg.Wait()
 
@@ -174,6 +193,7 @@ func (q *rdnsQuerierImpl) stop(context.Context) error {
 	// panic: send on closed channel
 	//JMWclose(q.rdnsQueryChan)
 	q.logger.Infof("Reverse DNS Enrichment stopped rdnsquerier workers")
+	q.started = false
 
 	return nil
 }

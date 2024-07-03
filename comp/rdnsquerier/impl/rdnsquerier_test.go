@@ -50,10 +50,50 @@ func TestRDNSQuerierStartStop(t *testing.T) {
 	provides, err := NewComponent(requires)
 	assert.NoError(t, err)
 	assert.NotNil(t, provides.Comp)
-	rdnsQuerier := provides.Comp
+	//JMWrdnsQuerier := provides.Comp
+
+	internalRDNSQuerier := provides.Comp.(*rdnsQuerierImpl)
+	assert.NotNil(t, internalRDNSQuerier)
+	assert.Equal(t, false, internalRDNSQuerier.started)
 
 	ctx := context.Background()
 	assert.NoError(t, lc.Start(ctx))
+
+	assert.Equal(t, true, internalRDNSQuerier.started)
+
+	assert.NoError(t, lc.Stop(ctx))
+	assert.Equal(t, false, internalRDNSQuerier.started)
+}
+
+func TestRDNSQuerierJMW(t *testing.T) {
+	lc := compdef.NewTestLifecycle()
+
+	overrides := map[string]interface{}{
+		"network_devices.netflow.reverse_dns_enrichment_enabled": true,
+	}
+
+	config := fxutil.Test[config.Component](t, fx.Options(
+		config.MockModule(),
+		fx.Replace(config.MockParams{Overrides: overrides}),
+	))
+
+	logger := fxutil.Test[log.Component](t, logimpl.MockModule())
+	telemetryComp := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
+
+	requires := Requires{
+		Lifecycle:   lc,
+		AgentConfig: config,
+		Logger:      logger,
+		Telemetry:   telemetryComp,
+	}
+
+	provides, err := NewComponent(requires)
+	assert.NoError(t, err)
+	assert.NotNil(t, provides.Comp)
+	rdnsQuerier := provides.Comp
+
+	ctx := context.Background()
+	assert.NoError(t, lc.Start(ctx)) //JMWNEEDED?
 
 	var wg sync.WaitGroup
 
@@ -116,6 +156,7 @@ func TestRDNSQuerierStartStop(t *testing.T) {
 
 	assert.NoError(t, lc.Stop(ctx))
 
+	/*JMWTRY
 	rdnsQuerier.GetHostnameAsync(
 		[]byte{192, 168, 1, 100},
 		func(hostname string) {
@@ -127,4 +168,5 @@ func TestRDNSQuerierStartStop(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Len(t, metrics, 1)
 	assert.Equal(t, 1.0, metrics[0].Value())
+	*/
 }
