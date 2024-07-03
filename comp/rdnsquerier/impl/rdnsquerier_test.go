@@ -9,7 +9,7 @@ package rdnsquerierimpl
 
 import (
 	"context"
-	//JMWNEXT"sync"
+	"sync"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -35,31 +35,10 @@ func TestRDNSQuerierStartStop(t *testing.T) {
 	config := fxutil.Test[config.Component](t, fx.Options(
 		config.MockModule(),
 		fx.Replace(config.MockParams{Overrides: overrides}),
-		//JMWMockModule(),
 	))
-
-	/*
-	   config := fxutil.Test[Component](t, fx.Options(
-	         corecomp.MockModule(),
-	         fx.Replace(corecomp.MockParams{Overrides: overrides}),
-	         MockModule(),
-	     ))
-	*/
-	/*
-			datadogYaml := `
-		network_devices:
-		  netflow:
-		    reverse_dns_enrichment_enabled: true
-		`
-			config.SetConfigType("yaml")
-			err := config.ReadConfig(bytes.NewBuffer([]byte(datadogYaml)))
-			assert.NoError(t, err)
-	*/
 
 	logger := fxutil.Test[log.Component](t, logimpl.MockModule())
 	telemetry := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
-	//JMWpacketsTelemetryStore := NewTelemetryStore(nil, telemetryComponent)
-	//JMWpool := NewPool(1024, packetsTelemetryStore)
 
 	requires := Requires{
 		Lifecycle:   lc,
@@ -71,65 +50,55 @@ func TestRDNSQuerierStartStop(t *testing.T) {
 	provides, err := NewComponent(requires)
 	assert.NoError(t, err)
 	assert.NotNil(t, provides.Comp)
-	//JMWNEXTrdnsQuerier := provides.Comp
+	rdnsQuerier := provides.Comp
 
 	ctx := context.Background()
 	assert.NoError(t, lc.Start(ctx))
 
-	/*JMWNEXT
 	var wg sync.WaitGroup
+
+	// Invalid IP address
+	rdnsQuerier.GetHostnameAsync(
+		[]byte{1, 2, 3},
+		func(hostname string) {
+			assert.FailNow(t, "Callback should not have been called for invalid IP address")
+		},
+	)
+
+	// IP address not in private range
+	rdnsQuerier.GetHostnameAsync(
+		[]byte{8, 8, 8, 8},
+		func(hostname string) {
+			assert.FailNow(t, "Callback should not have been called for IP address not in private range")
+		},
+	)
+
+	// IP address in private range
 	wg.Add(1)
 	rdnsQuerier.GetHostnameAsync(
 		[]byte{192, 168, 1, 100},
 		func(hostname string) {
-			requires.Logger.Debugf("JMW Got hostname %s", hostname)
+			// Expect "" due to no match because we don't have a real DNS resolver
+			assert.Equal(t, "", hostname)
 			wg.Done()
 		},
 	)
-
 	wg.Wait()
+
+	//mock.go:50: 2024-07-02 17:50:41 MDT | DEBUG | (comp/rdnsquerier/impl/rdnsquerier_test.go:89 in TestRDNSQuerierStartStop) | rdnsQuerierImpl.internalTelemetry.total = &{pc:0x1400012c6b8}
+	rdnsQuerierImpl := provides.Comp.(*rdnsQuerierImpl)
+	logger.Debugf("rdnsQuerierImpl.internalTelemetry.total = %+v", rdnsQuerierImpl.internalTelemetry.total)
+
+	// comp/rdnsquerier/impl/rdnsquerier_test.go:94:44: telemetry.Mock is not a type
+	// FAIL	github.com/DataDog/datadog-agent/comp/rdnsquerier/impl [build failed]
+	/*
+		telemetryMock, ok := telemetry.(telemetry.Mock)
+		assert.True(t, ok)
+		metrics, err := telemetryMock.GetCountMetric(moduleName, "total")
+		assert.NoError(t, err)
+		assert.Len(t, metrics, 1)
+		assert.Equal(t, metrics[0].Value(), 1.0)
 	*/
 
 	assert.NoError(t, lc.Stop(ctx))
 }
-
-/*
-// testOptions is a fx collection of common dependencies for all tests
-var testOptions = fx.Options(
-	rdnsquerierfx.Module(),
-	core.MockBundle(),
-)
-
-func newTestRDNSQuerier(t *testing.T, agentConfigs map[string]any) (*fxtest.App, *rdnsQuerierImpl) {
-	var component rdnsquerier.Component
-	app := fxtest.New(t, fx.Options(
-		testOptions,
-		fx.Supply(fx.Annotate(t, fx.As(new(testing.TB)))),
-		fx.Replace(config.MockParams{Overrides: agentConfigs}),
-		fx.Populate(&component),
-	))
-	rdnsQuerier := component.(*rdnsQuerierImpl)
-
-	require.NotNil(t, rdnsQuerier)
-	require.NotNil(t, app)
-	return app, rdnsQuerier
-}
-
-func Test_RDNSQuerier_StartAndStop(t *testing.T) {
-	// GIVEN
-	agentConfigs := map[string]any{
-		"network_devices.netflow.reverse_dns_enrichment_enabled": true,
-	}
-	app, rdnsQuerier := newTestRDNSQuerier(t, agentConfigs)
-	app.RequireStart()
-	app.RequireStop()
-
-	// JMW validate logs and telemetry
-	//JMWmetrics, err := telemetry.GetCountMetric("reverse_dns_enrichment", "total")
-	//JMWassert.NoError(t, err)
-	//JMWrequire.Len(t, metrics, 1)
-	//JMWassert.Equal(t, metrics[0].Value(), 0.0)
-	//JMWassert.Equal(t, 0, rdnsQuerier.internalTelemetry.total.GetValue())
-	assert.Equal(t, rdnsQuerier.internalTelemetry.total.WithValues("").Get(), 0.0)
-}
-*/
