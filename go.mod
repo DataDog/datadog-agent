@@ -56,7 +56,9 @@ replace (
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil => ./comp/otelcol/otlp/testutil
 	github.com/DataDog/datadog-agent/comp/serializer/compression => ./comp/serializer/compression
 	github.com/DataDog/datadog-agent/comp/trace/agent/def => ./comp/trace/agent/def
-	github.com/DataDog/datadog-agent/comp/trace/compression => ./comp/trace/compression
+	github.com/DataDog/datadog-agent/comp/trace/compression/def => ./comp/trace/compression/def
+	github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip => ./comp/trace/compression/impl-gzip
+	github.com/DataDog/datadog-agent/comp/trace/compression/impl-zstd => ./comp/trace/compression/impl-zstd
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey => ./pkg/aggregator/ckey/
 	github.com/DataDog/datadog-agent/pkg/api => ./pkg/api
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ./pkg/collector/check/defaults
@@ -622,7 +624,9 @@ require (
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/comp/serializer/compression v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/comp/trace/agent/def v0.0.0-20240620192452-6ae09a69b21f
-	github.com/DataDog/datadog-agent/comp/trace/compression v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/comp/trace/compression/def v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/comp/trace/compression/impl-zstd v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/api v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.55.0-rc.3

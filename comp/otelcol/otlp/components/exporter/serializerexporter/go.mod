@@ -1,6 +1,8 @@
 module github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter
 
-go 1.21.0
+go 1.22.0
+
+toolchain go1.22.4
 
 replace (
 	github.com/DataDog/datadog-agent/cmd/agent/common/path => ../../../../../../cmd/agent/common/path

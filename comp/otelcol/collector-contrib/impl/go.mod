@@ -2,7 +2,7 @@
 
 module github.com/DataDog/comp/otelcol/collector-contrib
 
-go 1.21.0
+go 1.22.0
 
 toolchain go1.22.4
 
@@ -259,7 +259,8 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient v0.55.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/statsprocessor v0.0.0-20240525065430-d0b647bcb646 // indirect
-	github.com/DataDog/datadog-agent/comp/trace/compression v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/comp/trace/compression/def v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.55.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/proto v0.55.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.55.0-rc.3 // indirect
@@ -766,7 +767,11 @@ replace github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricscli
 
 replace github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/statsprocessor => ../../otlp/components/statsprocessor
 
-replace github.com/DataDog/datadog-agent/comp/trace/compression => ../../../trace/compression
+replace github.com/DataDog/datadog-agent/comp/trace/compression/def => ../../../trace/compression/def
+
+replace github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip => ../../../trace/compression/impl-gzip
+
+replace github.com/DataDog/datadog-agent/comp/trace/compression/impl-zstd => ../../../trace/compression/impl-zstd
 
 replace github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../../../pkg/collector/check/defaults
 
