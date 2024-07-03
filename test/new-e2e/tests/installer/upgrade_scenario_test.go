@@ -45,6 +45,11 @@ var testCatalog = catalog{
 			Version: latestAgentImageVersion,
 			URL:     fmt.Sprintf("oci://gcr.io/datadoghq/agent-package:%s", latestAgentImageVersion),
 		},
+		{
+			Package: "datadog-agent",
+			Version: oldAgentVersion,
+			URL:     fmt.Sprintf("oci://gcr.io/datadoghq/agent-package:%s", oldAgentVersion),
+		},
 	},
 }
 
@@ -60,6 +65,7 @@ const (
 	latestAgentVersion      = "7.54.1"
 	latestAgentImageVersion = "7.54.1-1"
 
+	oldAgentVersion          = "7.53.0-1"
 	unknownAgentImageVersion = "7.52.1-1"
 )
 
@@ -189,6 +195,36 @@ func (s *upgradeScenarioSuite) TestStopWithoutExperiment() {
 
 	afterStatus := s.getInstallerStatus()["datadog-agent"]
 	require.Equal(s.T(), beforeStatus, afterStatus)
+}
+
+func (s *upgradeScenarioSuite) TestConcurrentExperiments() {
+	s.RunInstallScript("DD_REMOTE_UPDATES=true")
+	defer s.Purge()
+	s.host.WaitForUnitActive(
+		"datadog-agent.service",
+		"datadog-agent-trace.service",
+		"datadog-agent-process.service",
+		"datadog-installer.service",
+	)
+
+	s.setCatalog(testCatalog)
+
+	timestamp := s.host.LastJournaldTimestamp()
+	_, err := s.startExperimentCommand(latestAgentImageVersion)
+	require.NoError(s.T(), err)
+	s.assertSuccessfulStartExperiment(timestamp, latestAgentImageVersion)
+
+	// Start a second experiment that overrides the first one
+	_, err = s.startExperimentCommand(oldAgentVersion)
+	require.NoError(s.T(), err)
+	installerStatus := s.getInstallerStatus()
+	require.Equal(s.T(), oldAgentVersion, installerStatus["datadog-agent"].ExperimentVersion)
+
+	// Stop the last experiment
+	timestamp = s.host.LastJournaldTimestamp()
+	_, err = s.stopExperimentCommand()
+	require.NoError(s.T(), err)
+	s.assertSuccessfulStopExperiment(timestamp)
 }
 
 func (s *upgradeScenarioSuite) startExperimentCommand(version string) (string, error) {
