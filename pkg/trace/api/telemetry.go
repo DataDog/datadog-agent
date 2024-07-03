@@ -135,7 +135,10 @@ func (f *TelemetryForwarder) start() {
 				select {
 				case <-f.done:
 					return
-				case req := <-f.forwardedReqChan:
+				case req, ok := <-f.forwardedReqChan:
+					if !ok {
+						return
+					}
 					f.forwardTelemetry(req)
 				}
 			}
