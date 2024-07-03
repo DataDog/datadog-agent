@@ -22,26 +22,26 @@ import (
 	"go.opentelemetry.io/collector/pdata/plog"
 )
 
-type exporter struct {
+type Exporter struct {
 	set              component.TelemetrySettings
 	logsAgentChannel chan *message.Message
 	logSource        *sources.LogSource
 	translator       *logsmapping.Translator
 }
 
-func newExporter(
+func NewExporter(
 	set component.TelemetrySettings,
 	cfg *Config,
 	logSource *sources.LogSource,
 	logsAgentChannel chan *message.Message,
 	attributesTranslator *attributes.Translator,
-) (*exporter, error) {
+) (*Exporter, error) {
 	translator, err := logsmapping.NewTranslator(set, attributesTranslator, cfg.OtelSource)
 	if err != nil {
 		return nil, err
 	}
 
-	return &exporter{
+	return &Exporter{
 		set:              set,
 		logsAgentChannel: logsAgentChannel,
 		logSource:        logSource,
@@ -49,7 +49,7 @@ func newExporter(
 	}, nil
 }
 
-func (e *exporter) ConsumeLogs(ctx context.Context, ld plog.Logs) (err error) {
+func (e *Exporter) ConsumeLogs(ctx context.Context, ld plog.Logs) (err error) {
 	defer func() {
 		if err != nil {
 			newErr, scrubbingErr := scrubber.ScrubString(err.Error())
