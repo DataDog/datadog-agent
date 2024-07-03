@@ -14,6 +14,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/datadogclient"
+	"github.com/DataDog/datadog-agent/comp/core/datadogclient/datadogclientimpl"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/zorkian/go-datadog-api.v2"
@@ -30,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/errors"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/autoscalers"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
@@ -88,7 +91,7 @@ func newFakeHorizontalPodAutoscaler(name, ns string, uid string, metricName stri
 	}
 }
 
-func newFakeAutoscalerController(t *testing.T, client kubernetes.Interface, isLeaderFunc func() bool, dcl autoscalers.DatadogClient) (*autoscalersController, informers.SharedInformerFactory) {
+func newFakeAutoscalerController(t *testing.T, client kubernetes.Interface, isLeaderFunc func() bool, dcl datadogclient.Component) (*autoscalersController, informers.SharedInformerFactory) {
 	informerFactory := informers.NewSharedInformerFactory(client, 0)
 
 	eventBroadcaster := record.NewBroadcaster()
@@ -108,11 +111,6 @@ func newFakeAutoscalerController(t *testing.T, client kubernetes.Interface, isLe
 }
 
 var alwaysLeader = func() bool { return true }
-
-type fakeDatadogClient struct {
-	queryMetricsFunc  func(from, to int64, query string) ([]datadog.Series, error)
-	getRateLimitsFunc func() map[string]datadog.RateLimit
-}
 
 type fakeProcessor struct {
 	updateMetricFunc func(emList map[string]custommetrics.ExternalMetricValue) (updated map[string]custommetrics.ExternalMetricValue)
@@ -136,20 +134,6 @@ func (h *fakeProcessor) ProcessEMList(metrics []custommetrics.ExternalMetricValu
 //nolint:revive // TODO(CAPP) Fix revive linter
 func (h *fakeProcessor) QueryExternalMetric(queries []string, timeWindow time.Duration) (map[string]autoscalers.Point, error) {
 	return nil, nil
-}
-
-func (d *fakeDatadogClient) QueryMetrics(from, to int64, query string) ([]datadog.Series, error) {
-	if d.queryMetricsFunc != nil {
-		return d.queryMetricsFunc(from, to, query)
-	}
-	return nil, nil
-}
-
-func (d *fakeDatadogClient) GetRateLimitStats() map[string]datadog.RateLimit {
-	if d.getRateLimitsFunc != nil {
-		return d.getRateLimitsFunc()
-	}
-	return nil
 }
 
 var maxAge = 30 * time.Second
@@ -190,7 +174,7 @@ func TestUpdate(t *testing.T) {
 
 	name := custommetrics.GetConfigmapName()
 	store, client := newFakeConfigMapStore(t, "nsfoo", name, nil)
-	d := &fakeDatadogClient{}
+	datadogClientComp := fxutil.Test[datadogclient.MockComponent](t, datadogclientimpl.MockModule())
 
 	p := &fakeProcessor{
 		updateMetricFunc: func(emList map[string]custommetrics.ExternalMetricValue) (updated map[string]custommetrics.ExternalMetricValue) {
@@ -203,7 +187,7 @@ func TestUpdate(t *testing.T) {
 		},
 	}
 
-	hctrl, _ := newFakeAutoscalerController(t, client, alwaysLeader, autoscalers.DatadogClient(d))
+	hctrl, _ := newFakeAutoscalerController(t, client, alwaysLeader, datadogClientComp)
 	hctrl.poller.refreshPeriod = 600
 	hctrl.poller.gcPeriodSeconds = 600
 	hctrl.autoscalers = make(chan interface{}, 1)
@@ -317,12 +301,13 @@ func TestAutoscalerController(t *testing.T) {
 			Scope: pointer.Ptr("foo:bar"),
 		},
 	}
-	d := &fakeDatadogClient{
-		queryMetricsFunc: func(from, to int64, query string) ([]datadog.Series, error) {
-			return ddSeries, nil
-		},
-	}
-	hctrl, inf := newFakeAutoscalerController(t, client, alwaysLeader, autoscalers.DatadogClient(d))
+
+	datadogClientComp := fxutil.Test[datadogclient.MockComponent](t, datadogclientimpl.MockModule())
+	datadogClientComp.SetQueryMetricsFunc(func(from, to int64, query string) ([]datadog.Series, error) {
+		return ddSeries, nil
+	})
+
+	hctrl, inf := newFakeAutoscalerController(t, client, alwaysLeader, datadogClientComp)
 	hctrl.poller.refreshPeriod = 600
 	hctrl.poller.gcPeriodSeconds = 600
 	hctrl.autoscalers = make(chan interface{}, 1)
@@ -495,8 +480,8 @@ func TestAutoscalerController(t *testing.T) {
 
 func TestAutoscalerSync(t *testing.T) {
 	client := newClient()
-	d := &fakeDatadogClient{}
-	hctrl, inf := newFakeAutoscalerController(t, client, alwaysLeader, d)
+	datadogClientComp := fxutil.Test[datadogclient.MockComponent](t, datadogclientimpl.MockModule())
+	hctrl, inf := newFakeAutoscalerController(t, client, alwaysLeader, datadogClientComp)
 	obj := newFakeHorizontalPodAutoscaler(
 		"hpa_1",
 		"default",
@@ -590,8 +575,8 @@ func TestAutoscalerControllerGC(t *testing.T) {
 	for i, testCase := range testCases {
 		t.Run(fmt.Sprintf("#%d %s", i, testCase.caseName), func(t *testing.T) {
 			store, client := newFakeConfigMapStore(t, "default", fmt.Sprintf("test-%d", i), testCase.metrics)
-			d := &fakeDatadogClient{}
-			hctrl, inf := newFakeAutoscalerController(t, client, alwaysLeader, d)
+			datadogClientComp := fxutil.Test[datadogclient.MockComponent](t, datadogclientimpl.MockModule())
+			hctrl, inf := newFakeAutoscalerController(t, client, alwaysLeader, datadogClientComp)
 
 			hctrl.store = store
 
