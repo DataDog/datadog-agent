@@ -200,7 +200,7 @@ def sanitize_env_vars():
             del os.environ[env]
 
 
-def process_test_result(test_results: ModuleTestResult, junit_tar: str, flavor: AgentFlavor, test_washer: bool) -> bool:
+def process_test_result(test_results, junit_tar: str, flavor: AgentFlavor, test_washer: bool) -> bool:
     if junit_tar:
         junit_files = [
             module_test_result.junit_file_path

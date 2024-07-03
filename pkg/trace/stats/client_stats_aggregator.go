@@ -41,7 +41,7 @@ const (
 // While distributions are not tied to the agent.
 type ClientStatsAggregator struct {
 	In      chan *pb.ClientStatsPayload
-	out     chan *pb.StatsPayload
+	writer  Writer
 	buckets map[int64]*bucket // buckets used to aggregate client stats
 	conf    *config.AgentConfig
 
@@ -59,13 +59,13 @@ type ClientStatsAggregator struct {
 }
 
 // NewClientStatsAggregator initializes a new aggregator ready to be started
-func NewClientStatsAggregator(conf *config.AgentConfig, out chan *pb.StatsPayload, statsd statsd.ClientInterface) *ClientStatsAggregator {
+func NewClientStatsAggregator(conf *config.AgentConfig, writer Writer, statsd statsd.ClientInterface) *ClientStatsAggregator {
 	c := &ClientStatsAggregator{
 		flushTicker:         time.NewTicker(time.Second),
 		In:                  make(chan *pb.ClientStatsPayload, 10),
 		buckets:             make(map[int64]*bucket, 20),
 		conf:                conf,
-		out:                 out,
+		writer:              writer,
 		agentEnv:            conf.DefaultEnv,
 		agentHostname:       conf.Hostname,
 		agentVersion:        conf.AgentVersion,
@@ -158,13 +158,13 @@ func (a *ClientStatsAggregator) flush(p []*pb.ClientStatsPayload) {
 		return
 	}
 
-	a.out <- &pb.StatsPayload{
+	a.writer.Write(&pb.StatsPayload{
 		Stats:          p,
 		AgentEnv:       a.agentEnv,
 		AgentHostname:  a.agentHostname,
 		AgentVersion:   a.agentVersion,
 		ClientComputed: true,
-	}
+	})
 }
 
 func (a *ClientStatsAggregator) setVersionDataFromContainerTags(p *pb.ClientStatsPayload) {
