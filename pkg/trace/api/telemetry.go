@@ -87,17 +87,19 @@ type TelemetryForwarder struct {
 func NewTelemetryForwarder(conf *config.AgentConfig, containerIDProvider IDProvider, statsd statsd.ClientInterface) *TelemetryForwarder {
 	// extract and validate Hostnames from configured endpoints
 	var endpoints []*config.Endpoint
-	for _, endpoint := range conf.TelemetryConfig.Endpoints {
-		u, err := url.Parse(endpoint.Host)
-		if err != nil {
-			log.Errorf("Error parsing apm_config.telemetry endpoint %q: %v", endpoint.Host, err)
-			continue
-		}
-		if u.Host != "" {
-			endpoint.Host = u.Host
-		}
+	if conf.TelemetryConfig != nil {
+		for _, endpoint := range conf.TelemetryConfig.Endpoints {
+			u, err := url.Parse(endpoint.Host)
+			if err != nil {
+				log.Errorf("Error parsing apm_config.telemetry endpoint %q: %v", endpoint.Host, err)
+				continue
+			}
+			if u.Host != "" {
+				endpoint.Host = u.Host
+			}
 
-		endpoints = append(endpoints, endpoint)
+			endpoints = append(endpoints, endpoint)
+		}
 	}
 
 	cancelCtx, cancelFn := context.WithCancel(context.Background())
