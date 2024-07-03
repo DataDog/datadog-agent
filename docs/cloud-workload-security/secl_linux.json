@@ -1665,6 +1665,21 @@
           "name": "chown.retval",
           "definition": "Return value of the syscall",
           "property_doc_link": "common-syscallevent-retval-doc"
+        },
+        {
+          "name": "chown.syscall.gid",
+          "definition": "GID argument of the syscall",
+          "property_doc_link": "chown-syscall-gid-doc"
+        },
+        {
+          "name": "chown.syscall.path",
+          "definition": "Path argument of the syscall",
+          "property_doc_link": "chown-syscall-path-doc"
+        },
+        {
+          "name": "chown.syscall.uid",
+          "definition": "UID argument of the syscall",
+          "property_doc_link": "chown-syscall-uid-doc"
         }
       ]
     },
@@ -8864,6 +8879,42 @@
       "link": "chown-file-destination-user-doc",
       "type": "string",
       "definition": "New user of the chown-ed file's owner",
+      "prefixes": [
+        "chown"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "chown.syscall.gid",
+      "link": "chown-syscall-gid-doc",
+      "type": "int",
+      "definition": "GID argument of the syscall",
+      "prefixes": [
+        "chown"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "chown.syscall.path",
+      "link": "chown-syscall-path-doc",
+      "type": "string",
+      "definition": "Path argument of the syscall",
+      "prefixes": [
+        "chown"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "chown.syscall.uid",
+      "link": "chown-syscall-uid-doc",
+      "type": "int",
+      "definition": "UID argument of the syscall",
       "prefixes": [
         "chown"
       ],

@@ -806,6 +806,78 @@ func (ev *Event) GetChownRetval() int64 {
 	return ev.Chown.SyscallEvent.Retval
 }
 
+// GetChownSyscallGid returns the value of the field, resolving if necessary
+func (ev *Event) GetChownSyscallGid() int {
+	if ev.GetEventType().String() != "chown" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsInt3(ev, &ev.Chown.SyscallContext)
+}
+
+// GetChownSyscallInt1 returns the value of the field, resolving if necessary
+func (ev *Event) GetChownSyscallInt1() int {
+	if ev.GetEventType().String() != "chown" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsInt1(ev, &ev.Chown.SyscallContext)
+}
+
+// GetChownSyscallInt2 returns the value of the field, resolving if necessary
+func (ev *Event) GetChownSyscallInt2() int {
+	if ev.GetEventType().String() != "chown" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsInt2(ev, &ev.Chown.SyscallContext)
+}
+
+// GetChownSyscallInt3 returns the value of the field, resolving if necessary
+func (ev *Event) GetChownSyscallInt3() int {
+	if ev.GetEventType().String() != "chown" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsInt3(ev, &ev.Chown.SyscallContext)
+}
+
+// GetChownSyscallPath returns the value of the field, resolving if necessary
+func (ev *Event) GetChownSyscallPath() string {
+	if ev.GetEventType().String() != "chown" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Chown.SyscallContext)
+}
+
+// GetChownSyscallStr1 returns the value of the field, resolving if necessary
+func (ev *Event) GetChownSyscallStr1() string {
+	if ev.GetEventType().String() != "chown" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Chown.SyscallContext)
+}
+
+// GetChownSyscallStr2 returns the value of the field, resolving if necessary
+func (ev *Event) GetChownSyscallStr2() string {
+	if ev.GetEventType().String() != "chown" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsStr2(ev, &ev.Chown.SyscallContext)
+}
+
+// GetChownSyscallStr3 returns the value of the field, resolving if necessary
+func (ev *Event) GetChownSyscallStr3() string {
+	if ev.GetEventType().String() != "chown" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsStr3(ev, &ev.Chown.SyscallContext)
+}
+
+// GetChownSyscallUid returns the value of the field, resolving if necessary
+func (ev *Event) GetChownSyscallUid() int {
+	if ev.GetEventType().String() != "chown" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsInt2(ev, &ev.Chown.SyscallContext)
+}
+
 // GetContainerCreatedAt returns the value of the field, resolving if necessary
 func (ev *Event) GetContainerCreatedAt() int {
 	if ev.BaseEvent.ContainerContext == nil {

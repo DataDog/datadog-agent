@@ -180,7 +180,7 @@ func testHistogramCountSampling(t *testing.T, store *tags.Store) {
 	checkSampler.addSample(&mSample3)
 
 	checkSampler.commit(12349.0)
-	require.Len(t, checkSampler.contextResolver.expireCountByKey, 1)
+	require.Equal(t, 1, checkSampler.contextResolver.length())
 	series, _ := checkSampler.flush()
 
 	// Check that the `.count` metric returns a raw count of the samples, with no interval normalization
@@ -205,7 +205,7 @@ func testHistogramCountSampling(t *testing.T, store *tags.Store) {
 
 	assert.True(t, foundCount)
 	checkSampler.commit(12349.0)
-	require.Len(t, checkSampler.contextResolver.expireCountByKey, 0)
+	require.Equal(t, 0, checkSampler.contextResolver.length())
 }
 
 func TestHistogramCountSampling(t *testing.T) {

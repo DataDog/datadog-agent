@@ -482,6 +482,9 @@ A file’s owner was changed
 | [`chown.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`chown.file.user`](#common-filefields-user-doc) | User of the file's owner |
 | [`chown.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
+| [`chown.syscall.gid`](#chown-syscall-gid-doc) | GID argument of the syscall |
+| [`chown.syscall.path`](#chown-syscall-path-doc) | Path argument of the syscall |
+| [`chown.syscall.uid`](#chown-syscall-uid-doc) | UID argument of the syscall |
 
 ### Event `dns`
 
@@ -2417,6 +2420,27 @@ Definition: New UID of the chown-ed file's owner
 Type: string
 
 Definition: New user of the chown-ed file's owner
+
+
+
+### `chown.syscall.gid` {#chown-syscall-gid-doc}
+Type: int
+
+Definition: GID argument of the syscall
+
+
+
+### `chown.syscall.path` {#chown-syscall-path-doc}
+Type: string
+
+Definition: Path argument of the syscall
+
+
+
+### `chown.syscall.uid` {#chown-syscall-uid-doc}
+Type: int
+
+Definition: UID argument of the syscall
 
 
 

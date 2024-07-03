@@ -860,6 +860,33 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
+	case "chown.syscall.gid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ev := ctx.Event.(*Event)
+				return int(ev.FieldHandlers.ResolveSyscallCtxArgsInt3(ev, &ev.Chown.SyscallContext))
+			},
+			Field:  field,
+			Weight: 900 * eval.HandlerWeight,
+		}, nil
+	case "chown.syscall.path":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Chown.SyscallContext)
+			},
+			Field:  field,
+			Weight: 900 * eval.HandlerWeight,
+		}, nil
+	case "chown.syscall.uid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ev := ctx.Event.(*Event)
+				return int(ev.FieldHandlers.ResolveSyscallCtxArgsInt2(ev, &ev.Chown.SyscallContext))
+			},
+			Field:  field,
+			Weight: 900 * eval.HandlerWeight,
+		}, nil
 	case "container.created_at":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -16578,6 +16605,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"chown.file.uid",
 		"chown.file.user",
 		"chown.retval",
+		"chown.syscall.gid",
+		"chown.syscall.path",
+		"chown.syscall.uid",
 		"container.created_at",
 		"container.id",
 		"container.tags",
@@ -17965,6 +17995,12 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Chown.File.FileFields), nil
 	case "chown.retval":
 		return int(ev.Chown.SyscallEvent.Retval), nil
+	case "chown.syscall.gid":
+		return int(ev.FieldHandlers.ResolveSyscallCtxArgsInt3(ev, &ev.Chown.SyscallContext)), nil
+	case "chown.syscall.path":
+		return ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Chown.SyscallContext), nil
+	case "chown.syscall.uid":
+		return int(ev.FieldHandlers.ResolveSyscallCtxArgsInt2(ev, &ev.Chown.SyscallContext)), nil
 	case "container.created_at":
 		return int(ev.FieldHandlers.ResolveContainerCreatedAt(ev, ev.BaseEvent.ContainerContext)), nil
 	case "container.id":
@@ -24307,6 +24343,12 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "chown", nil
 	case "chown.retval":
 		return "chown", nil
+	case "chown.syscall.gid":
+		return "chown", nil
+	case "chown.syscall.path":
+		return "chown", nil
+	case "chown.syscall.uid":
+		return "chown", nil
 	case "container.created_at":
 		return "*", nil
 	case "container.id":
@@ -26895,6 +26937,12 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "chown.file.user":
 		return reflect.String, nil
 	case "chown.retval":
+		return reflect.Int, nil
+	case "chown.syscall.gid":
+		return reflect.Int, nil
+	case "chown.syscall.path":
+		return reflect.String, nil
+	case "chown.syscall.uid":
 		return reflect.Int, nil
 	case "container.created_at":
 		return reflect.Int, nil
@@ -29903,6 +29951,27 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Chown.SyscallEvent.Retval"}
 		}
 		ev.Chown.SyscallEvent.Retval = int64(rv)
+		return nil
+	case "chown.syscall.gid":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Chown.SyscallContext.IntArg3"}
+		}
+		ev.Chown.SyscallContext.IntArg3 = int64(rv)
+		return nil
+	case "chown.syscall.path":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Chown.SyscallContext.StrArg1"}
+		}
+		ev.Chown.SyscallContext.StrArg1 = rv
+		return nil
+	case "chown.syscall.uid":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Chown.SyscallContext.IntArg2"}
+		}
+		ev.Chown.SyscallContext.IntArg2 = int64(rv)
 		return nil
 	case "container.created_at":
 		if ev.BaseEvent.ContainerContext == nil {
