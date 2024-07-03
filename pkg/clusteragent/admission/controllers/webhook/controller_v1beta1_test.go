@@ -2,8 +2,8 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
-
-//go:build kubeapiserver
+// Skip mac os test as cluster agent doesn't run on mac os
+//go:build kubeapiserver && !darwin
 
 package webhook
 
