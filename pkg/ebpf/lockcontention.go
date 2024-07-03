@@ -179,7 +179,7 @@ func NewLockContentionCollector() *LockContentionCollector {
 				Name:      "_max",
 				Help:      "gauge tracking maximum time a tracked lock was contended for",
 			},
-			[]string{"ebpf_name", "lock_type", "module"},
+			[]string{"resource_name", "lock_type", "module"},
 		),
 		avgContention: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
@@ -187,7 +187,7 @@ func NewLockContentionCollector() *LockContentionCollector {
 				Name:      "_avg",
 				Help:      "gauge tracking average time a tracked lock was contended for",
 			},
-			[]string{"ebpf_name", "lock_type", "module"},
+			[]string{"resource_name", "lock_type", "module"},
 		),
 		totalContention: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
@@ -195,7 +195,7 @@ func NewLockContentionCollector() *LockContentionCollector {
 				Name:      "_total",
 				Help:      "counter tracking total time a tracked lock was contended for",
 			},
-			[]string{"ebpf_name", "lock_type", "module"},
+			[]string{"resource_name", "lock_type", "module"},
 		),
 	}
 
