@@ -55,6 +55,7 @@ import (
 	"github.com/samber/lo"
 
 	agentmodel "github.com/DataDog/agent-payload/v5/process"
+
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 	"github.com/DataDog/datadog-agent/test/fakeintake/client/flare"
@@ -368,12 +369,27 @@ func (c *Client) FilterMetrics(name string, options ...MatchOpt[*aggregator.Metr
 	if err != nil {
 		return nil, err
 	}
+	return filterPayload(metrics, options...)
+}
+
+// FilterCheckRuns fetches fakeintake on `/api/v1/check_run` endpoint and returns
+// metrics matching `name` and any [MatchOpt](#MatchOpt) options
+func (c *Client) FilterCheckRuns(name string, options ...MatchOpt[*aggregator.CheckRun]) ([]*aggregator.CheckRun, error) {
+	checkRuns, err := c.GetCheckRun(name)
+	if err != nil {
+		return nil, err
+	}
+	return filterPayload(checkRuns, options...)
+}
+
+// filterPayload returns payloads matching any [MatchOpt](#MatchOpt) options
+func filterPayload[T aggregator.PayloadItem](payloads []T, options ...MatchOpt[T]) ([]T, error) {
 	// apply filters one after the other
-	filteredMetrics := []*aggregator.MetricSeries{}
-	for _, metric := range metrics {
+	filteredPayloads := make([]T, 0, len(payloads))
+	for _, payload := range payloads {
 		matchCount := 0
 		for _, matchOpt := range options {
-			isMatch, err := matchOpt(metric)
+			isMatch, err := matchOpt(payload)
 			if err != nil {
 				return nil, err
 			}
@@ -383,10 +399,10 @@ func (c *Client) FilterMetrics(name string, options ...MatchOpt[*aggregator.Metr
 			matchCount++
 		}
 		if matchCount == len(options) {
-			filteredMetrics = append(filteredMetrics, metric)
+			filteredPayloads = append(filteredPayloads, payload)
 		}
 	}
-	return filteredMetrics, nil
+	return filteredPayloads, nil
 }
 
 // WithTags filters by `tags`
@@ -474,24 +490,7 @@ func (c *Client) FilterLogs(service string, options ...MatchOpt[*aggregator.Log]
 		return nil, err
 	}
 	// apply filters one after the other
-	filteredLogs := []*aggregator.Log{}
-	for _, log := range logs {
-		matchCount := 0
-		for _, matchOpt := range options {
-			isMatch, err := matchOpt(log)
-			if err != nil {
-				return nil, err
-			}
-			if !isMatch {
-				break
-			}
-			matchCount++
-		}
-		if matchCount == len(options) {
-			filteredLogs = append(filteredLogs, log)
-		}
-	}
-	return filteredLogs, nil
+	return filterPayload(logs, options...)
 }
 
 // WithMessageContaining filters logs by message containing `content`
@@ -666,24 +665,7 @@ func (c *Client) FilterContainerImages(name string, options ...MatchOpt[*aggrega
 		return nil, err
 	}
 	// apply filters one after the other
-	filteredImages := []*aggregator.ContainerImagePayload{}
-	for _, image := range images {
-		matchCount := 0
-		for _, matchOpt := range options {
-			isMatch, err := matchOpt(image)
-			if err != nil {
-				return nil, err
-			}
-			if !isMatch {
-				break
-			}
-			matchCount++
-		}
-		if matchCount == len(options) {
-			filteredImages = append(filteredImages, image)
-		}
-	}
-	return filteredImages, nil
+	return filterPayload(images, options...)
 }
 
 // GetContainerLifecycleEvents fetches fakeintake on `/api/v2/contlcycle` endpoint and returns
