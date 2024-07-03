@@ -319,12 +319,7 @@ func (pb *PayloadsBuilder) writeSerie(serie *metrics.Serie) error {
 				return err
 			}
 
-			err = ps.String(resourceName, serie.Host)
-			if err != nil {
-				return err
-			}
-
-			return nil
+			return ps.String(resourceName, serie.Host)
 		})
 		if err != nil {
 			return err
@@ -337,12 +332,7 @@ func (pb *PayloadsBuilder) writeSerie(serie *metrics.Serie) error {
 					return err
 				}
 
-				err = ps.String(resourceName, serie.Device)
-				if err != nil {
-					return err
-				}
-
-				return nil
+				return ps.String(resourceName, serie.Device)
 			})
 			if err != nil {
 				return err
@@ -357,12 +347,7 @@ func (pb *PayloadsBuilder) writeSerie(serie *metrics.Serie) error {
 						return err
 					}
 
-					err = ps.String(resourceName, r.Name)
-					if err != nil {
-						return err
-					}
-
-					return nil
+					return ps.String(resourceName, r.Name)
 				})
 				if err != nil {
 					return err
@@ -418,7 +403,7 @@ func (pb *PayloadsBuilder) writeSerie(serie *metrics.Serie) error {
 			}
 		}
 
-		err = ps.Embedded(serieMetadata, func(ps *molecule.ProtoStream) error {
+		return ps.Embedded(serieMetadata, func(ps *molecule.ProtoStream) error {
 			return ps.Embedded(serieMetadataOrigin, func(ps *molecule.ProtoStream) error {
 				if serie.NoIndex {
 					err = ps.Int32(serieMetadataOriginMetricType, metryTypeNotIndexed)
@@ -437,10 +422,6 @@ func (pb *PayloadsBuilder) writeSerie(serie *metrics.Serie) error {
 				return ps.Int32(serieMetadataOriginOriginService, metricSourceToOriginService(serie.Source))
 			})
 		})
-		if err != nil {
-			return err
-		}
-		return nil
 	})
 	if err != nil {
 		return err
