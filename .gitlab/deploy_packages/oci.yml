@@ -3,7 +3,6 @@ include:
   - .gitlab/common/container_publish_job_templates.yml
 
 .deploy_packages_oci:
-  resource_group: oci_bucket
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/gitlab_agent_deploy$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   stage: deploy_packages
