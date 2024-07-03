@@ -7,11 +7,8 @@
 package host
 
 import (
-	"crypto/tls"
-	"encoding/json"
 	"fmt"
 	"io/fs"
-	"net/http"
 	"os/user"
 	"path/filepath"
 	"sort"
@@ -176,40 +173,6 @@ func (h *Host) BootstraperVersion() string {
 // InstallerVersion returns the version of the installer on the host.
 func (h *Host) InstallerVersion() string {
 	return strings.TrimSpace(h.remote.MustExecute("sudo datadog-installer version"))
-}
-
-// AgentVersion returns the version of the agent on the host
-func (h *Host) AgentVersion() string {
-	// Needs sudo to read the auth token
-	authTokenRaw := h.remote.MustExecute("sudo cat /etc/datadog-agent/auth_token")
-	authToken := strings.TrimSpace(string(authTokenRaw))
-
-	request, err := http.NewRequest("GET", "https://localhost:5001/agent/version", nil)
-	require.NoError(h.t, err)
-	request.Header.Set("Content-Type", "application/json")
-	request.Header.Set("Authorization", "Bearer "+authToken)
-	client := &http.Client{
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-		},
-	}
-	response, err := client.Do(request)
-	require.NoError(h.t, err)
-	defer response.Body.Close()
-	body := make([]byte, response.ContentLength)
-	_, err = response.Body.Read(body)
-	require.NoError(h.t, err)
-
-	var versionParsed struct {
-		Major int `json:"Major"`
-		Minor int `json:"Minor"`
-		Patch int `json:"Patch"`
-	}
-	require.NoError(h.t, json.Unmarshal([]byte(body), &versionParsed))
-
-	ver := fmt.Sprintf("%d.%d.%d", versionParsed.Major, versionParsed.Minor, versionParsed.Patch)
-
-	return ver
 }
 
 // AssertPackageInstalledByInstaller checks if a package is installed by the installer on the host.

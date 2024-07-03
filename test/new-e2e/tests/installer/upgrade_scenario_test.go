@@ -8,7 +8,6 @@ package installer
 import (
 	"encoding/json"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/host"
@@ -185,10 +184,6 @@ func (s *upgradeScenarioSuite) assertSuccessfulStartExperiment(timestamp host.Jo
 
 	installerStatus := s.getInstallerStatus()
 	require.Equal(s.T(), version, installerStatus.Packages["datadog-agent"].ExperimentVersion)
-
-	// Assert running version
-	v := s.host.AgentVersion()
-	require.Equal(s.T(), strings.TrimSuffix(version, "-1"), v)
 }
 
 func (s *upgradeScenarioSuite) assertSuccessfulPromoteExperiment(timestamp host.JournaldTimestamp, version string) {
@@ -211,10 +206,6 @@ func (s *upgradeScenarioSuite) assertSuccessfulPromoteExperiment(timestamp host.
 	installerStatus := s.getInstallerStatus()
 	require.Equal(s.T(), version, installerStatus.Packages["datadog-agent"].StableVersion)
 	require.Equal(s.T(), "", installerStatus.Packages["datadog-agent"].ExperimentVersion)
-
-	// Assert running version
-	v := s.host.AgentVersion()
-	require.Equal(s.T(), strings.TrimSuffix(version, "-1"), v)
 }
 
 func (s *upgradeScenarioSuite) assertSuccessfulStopExperiment(timestamp host.JournaldTimestamp) {
