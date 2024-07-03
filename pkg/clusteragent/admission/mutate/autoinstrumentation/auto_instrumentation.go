@@ -651,7 +651,7 @@ func (w *Webhook) injectAutoInstruConfig(pod *corev1.Pod, libsToInject []libInfo
 					valFunc: dotnetProfilingLdPreloadEnvValFunc,
 					isEligibleToInject: func(c corev1.Container) bool {
 						idx := mutatecommon.EnvIndex(c.Env, "DD_PROFILING_ENABLED")
-						return idx > -1 && c.Env[idx].Value == "1"
+						return idx != -1 && isTruthy(c.Env[idx].Value)
 					},
 				},
 			})
@@ -925,4 +925,13 @@ func dotnetProfilingLdPreloadEnvValFunc(predefinedVal string) string {
 
 func rubyEnvValFunc(predefinedVal string) string {
 	return predefinedVal + rubyOptValue
+}
+
+func isTruthy(value string) bool {
+	switch value {
+	case "1", "TRUE", "true":
+		return true
+	default:
+		return false
+	}
 }
