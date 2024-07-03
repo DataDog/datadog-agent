@@ -16,9 +16,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
-	"syscall"
 	"unsafe"
 
 	"go4.org/mem"
@@ -273,14 +271,6 @@ func (li *linuxImpl) findProcessNames(need map[string]*portMeta) error {
 		fdPath = mem.Append(fdPath, pid)
 		fdPath = mem.Append(fdPath, mem.S("/fd"))
 
-		// Android logs a bunch of audit violations in logcat
-		// if we try to open things we don't have access
-		// to. So on Android only, ask if we have permission
-		// rather than just trying it to determine whether we
-		// have permission.
-		if runtime.GOOS == "android" && syscall.Access(string(fdPath), unix.R_OK) != nil {
-			return nil
-		}
 		_ = walkShallow(mem.B(fdPath), func(fd mem.RO, de fs.DirEntry) error {
 			targetBuf := make([]byte, 64) // plenty big for "socket:[165614651]"
 
