@@ -183,8 +183,8 @@ func (h *Host) AssertPackageInstalledByInstaller(pkgs ...string) {
 }
 
 // AgentRuntimeConfig returns the runtime agent config on the host.
-func (h *Host) AgentRuntimeConfig() string {
-	return h.remote.MustExecute("sudo -u dd-agent datadog-agent config")
+func (h *Host) AgentRuntimeConfig() (string, error) {
+	return h.remote.Execute("sudo -u dd-agent datadog-agent config")
 }
 
 // AssertPackageVersion checks if a package is installed with the correct version

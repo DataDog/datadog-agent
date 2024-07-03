@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+	"time"
 
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/host"
@@ -380,9 +381,14 @@ func (s *packageAgentSuite) TestRunPath() {
 	defer s.Purge()
 	s.host.WaitForUnitActive("datadog-agent.service", "datadog-agent-trace.service", "datadog-agent-process.service")
 
-	rawConfig := s.host.AgentRuntimeConfig()
+	var rawConfig string
+	var err error
+	assert.Eventually(s.T(), func() bool {
+		rawConfig, err = s.host.AgentRuntimeConfig()
+		return err == nil
+	}, 30*time.Second, 5*time.Second, "failed to get agent runtime config: %v", err)
 	var config map[string]interface{}
-	err := yaml.Unmarshal([]byte(rawConfig), &config)
+	err = yaml.Unmarshal([]byte(rawConfig), &config)
 	assert.NoError(s.T(), err)
 	runPath, ok := config["run_path"].(string)
 	assert.True(s.T(), ok, "run_path not found in runtime config")
