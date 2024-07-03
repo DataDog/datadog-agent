@@ -68,6 +68,9 @@ func TestOnDemandOpen(t *testing.T) {
 		}
 		fd, _, errno := syscall.Syscall6(unix.SYS_OPENAT2, 0, uintptr(testFilePtr), uintptr(unsafe.Pointer(&openHow)), unix.SizeofOpenHow, 0, 0)
 		if errno != 0 {
+			if errno == unix.ENOSYS {
+				return ErrSkipTest{"openat2 is not supported"}
+			}
 			return err
 		}
 		return syscall.Close(int(fd))
