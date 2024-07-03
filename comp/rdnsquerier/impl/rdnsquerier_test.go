@@ -38,13 +38,13 @@ func TestRDNSQuerierStartStop(t *testing.T) {
 	))
 
 	logger := fxutil.Test[log.Component](t, logimpl.MockModule())
-	telemetry := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
+	telemetryComp := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
 
 	requires := Requires{
 		Lifecycle:   lc,
 		AgentConfig: config,
 		Logger:      logger,
-		Telemetry:   telemetry,
+		Telemetry:   telemetryComp,
 	}
 
 	provides, err := NewComponent(requires)
@@ -61,7 +61,7 @@ func TestRDNSQuerierStartStop(t *testing.T) {
 	rdnsQuerier.GetHostnameAsync(
 		[]byte{1, 2, 3},
 		func(hostname string) {
-			assert.FailNow(t, "Callback should not have been called for invalid IP address")
+			assert.FailNow(t, "Callback should be called for invalid IP address")
 		},
 	)
 
@@ -69,7 +69,7 @@ func TestRDNSQuerierStartStop(t *testing.T) {
 	rdnsQuerier.GetHostnameAsync(
 		[]byte{8, 8, 8, 8},
 		func(hostname string) {
-			assert.FailNow(t, "Callback should not have been called for IP address not in private range")
+			assert.FailNow(t, "Callback should not be called for IP address not in private range")
 		},
 	)
 
@@ -85,20 +85,46 @@ func TestRDNSQuerierStartStop(t *testing.T) {
 	)
 	wg.Wait()
 
-	//mock.go:50: 2024-07-02 17:50:41 MDT | DEBUG | (comp/rdnsquerier/impl/rdnsquerier_test.go:89 in TestRDNSQuerierStartStop) | rdnsQuerierImpl.internalTelemetry.total = &{pc:0x1400012c6b8}
-	rdnsQuerierImpl := provides.Comp.(*rdnsQuerierImpl)
-	logger.Debugf("rdnsQuerierImpl.internalTelemetry.total = %+v", rdnsQuerierImpl.internalTelemetry.total)
+	validateTelemetry := map[string]float64{
+		"total":                3.0,
+		"private":              1.0,
+		"chan_added":           1.0,
+		"dropped_chan_full":    0.0,
+		"dropped_rate_limiter": 0.0,
+		"invalid_ip_address":   1.0,
+		//JMW"lookup_err_not_found": 1.0, //JMW will be 1 on my laptop, could be 0 on other test runners
+		"lookup_err_timeout":   0.0,
+		"lookup_err_temporary": 0.0,
+		"lookup_err_other":     0.0,
+		//"successful": 0.0, //JMW will be 0 on my laptop, could be 1 on other test runners
+	}
 
-	// comp/rdnsquerier/impl/rdnsquerier_test.go:94:44: telemetry.Mock is not a type
-	// FAIL	github.com/DataDog/datadog-agent/comp/rdnsquerier/impl [build failed]
-	/*
-		telemetryMock, ok := telemetry.(telemetry.Mock)
-		assert.True(t, ok)
-		metrics, err := telemetryMock.GetCountMetric(moduleName, "total")
-		assert.NoError(t, err)
-		assert.Len(t, metrics, 1)
-		assert.Equal(t, metrics[0].Value(), 1.0)
-	*/
+	// Validate telemetry
+	telemetryMock, ok := telemetryComp.(telemetry.Mock)
+	assert.True(t, ok)
+	for name, expected := range validateTelemetry {
+		logger.Debugf("Validating metric %s", name)
+		metrics, err := telemetryMock.GetCountMetric(moduleName, name)
+		if expected == 0 {
+			assert.Error(t, err)
+		} else {
+			assert.NoError(t, err)
+			assert.Len(t, metrics, 1)
+			assert.Equal(t, expected, metrics[0].Value())
+		}
+	}
 
 	assert.NoError(t, lc.Stop(ctx))
+
+	rdnsQuerier.GetHostnameAsync(
+		[]byte{192, 168, 1, 100},
+		func(hostname string) {
+			assert.FailNow(t, "Callback should not be called since rdnsquerier is stopped")
+		},
+	)
+
+	metrics, err := telemetryMock.GetCountMetric(moduleName, "dropped_chan_full")
+	assert.NoError(t, err)
+	assert.Len(t, metrics, 1)
+	assert.Equal(t, 1.0, metrics[0].Value())
 }

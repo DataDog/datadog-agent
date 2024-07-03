@@ -88,7 +88,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 	}
 
 	internalTelemetry := &rdnsQuerierTelemetry{
-		reqs.Telemetry.NewCounter(moduleName, "total", []string{}, "Counter measuring the total number of rDNS requests made"),
+		reqs.Telemetry.NewCounter(moduleName, "total", []string{}, "Counter measuring the total number of rDNS requests"),
 		reqs.Telemetry.NewCounter(moduleName, "private", []string{}, "Counter measuring the number of rDNS requests in the private address space"),
 		reqs.Telemetry.NewCounter(moduleName, "chan_added", []string{}, "Counter measuring the number of rDNS requests added to the channel"),
 		reqs.Telemetry.NewCounter(moduleName, "dropped_chan_full", []string{}, "Counter measuring the number of rDNS requests dropped because the channel was full"),
@@ -169,6 +169,10 @@ func (q *rdnsQuerierImpl) start(_ context.Context) error {
 func (q *rdnsQuerierImpl) stop(context.Context) error {
 	q.cancel()
 	q.wg.Wait()
+
+	//JMW if I close the channel here and then send on it in GetHostnameAsync() I get a panic
+	// panic: send on closed channel
+	//JMWclose(q.rdnsQueryChan)
 	q.logger.Infof("Reverse DNS Enrichment stopped rdnsquerier workers")
 
 	return nil
