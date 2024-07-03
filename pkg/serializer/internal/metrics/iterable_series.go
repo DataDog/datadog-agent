@@ -475,10 +475,12 @@ func (pb *PayloadsBuilder) writeSerie(serie *metrics.Serie) error {
 		// Add it to the new compression buffer
 		err = addToPayload()
 		if err == stream.ErrItemTooBig {
-			// Item was too big, drop it
+			// Since it was too big to fit into a empty payload, there is
+			// nothing left to do but track the failure and drop the item.
+			// Returning nil here lets us continue adding any other items to the
+			// payload.
 			expvarsItemTooBig.Add(1)
 			tlmItemTooBig.Inc()
-			// TODO: was continue
 			return nil
 		}
 		if err != nil {
@@ -492,7 +494,8 @@ func (pb *PayloadsBuilder) writeSerie(serie *metrics.Serie) error {
 		expvarsItemTooBig.Add(1)
 		tlmItemTooBig.Add(1)
 	case nil:
-		return nil // TODO: was continue
+		// Item successfully written to payload
+		return nil
 	default:
 		// Unexpected error bail out
 		expvarsUnexpectedItemDrops.Add(1)
