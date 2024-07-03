@@ -8,7 +8,7 @@ import yaml
 from invoke import task
 
 from tasks.libs.ciproviders.gitlab_api import (
-    generate_gitlab_full_configuration,
+    get_full_gitlab_ci_configuration,
 )
 from tasks.test_core import ModuleTestResult
 
@@ -171,16 +171,14 @@ class TestWasher:
 
 
 @task()
-def generate_flake_finder_pipeline(_, n=3):
+def generate_flake_finder_pipeline(ctx, n=3):
     """
     Generate a child pipeline where jobs marked with SHOULD_RUN_IN_FLAKES_FINDER are run n times
     """
 
     # Read gitlab config
-    config = generate_gitlab_full_configuration(".gitlab-ci.yml", {}, return_dump=False, apply_postprocessing=True)
+    config = get_full_gitlab_ci_configuration(ctx, ".gitlab-ci.yml")
 
-    for job in config:
-        print(job)
     # Lets keep only variables and jobs with flake finder variable
     kept_job = {}
     for job, job_details in config.items():

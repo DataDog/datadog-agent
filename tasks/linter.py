@@ -59,6 +59,7 @@ def python(ctx):
         ctx.run("ruff check --fix .")
 
     ctx.run("vulture")
+    ctx.run("mypy")
 
 
 @task
