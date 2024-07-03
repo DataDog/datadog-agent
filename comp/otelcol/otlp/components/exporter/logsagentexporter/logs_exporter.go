@@ -22,6 +22,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/plog"
 )
 
+// Exporter defines fields for the logs agent exporter
 type Exporter struct {
 	set              component.TelemetrySettings
 	logsAgentChannel chan *message.Message
@@ -29,6 +30,7 @@ type Exporter struct {
 	translator       *logsmapping.Translator
 }
 
+// NewExporter initializes a new logs agent exporter with the given parameters
 func NewExporter(
 	set component.TelemetrySettings,
 	cfg *Config,
@@ -49,6 +51,7 @@ func NewExporter(
 	}, nil
 }
 
+// ConsumeLogs maps logs from OTLP to DD format and ingests them through the exporter channel
 func (e *Exporter) ConsumeLogs(ctx context.Context, ld plog.Logs) (err error) {
 	defer func() {
 		if err != nil {
