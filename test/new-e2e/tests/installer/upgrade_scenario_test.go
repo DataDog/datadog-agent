@@ -8,11 +8,11 @@ package installer
 import (
 	"encoding/json"
 	"fmt"
-	"regexp"
-	"strings"
+	"time"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/host"
 	e2eos "github.com/DataDog/test-infra-definitions/components/os"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -31,9 +31,14 @@ type catalog struct {
 }
 
 type packageStatus struct {
-	State             string `json:"state"`
-	StableVersion     string `json:"stable_version"`
-	ExperimentVersion string `json:"experiment_version"`
+	State             string `json:"State"`
+	StableVersion     string `json:"Stable"`
+	ExperimentVersion string `json:"Experiment"`
+}
+
+type installerStatus struct {
+	Version  string                   `json:"version"`
+	Packages map[string]packageStatus `json:"packages"`
 }
 
 var testCatalog = catalog{
@@ -45,14 +50,6 @@ var testCatalog = catalog{
 		},
 	},
 }
-
-// datadog-agent
-//
-//	State: OK
-//	Installed versions:
-//	  ● stable: v7.52.0-rc.1.git.15.6c19b17.pipeline.28815219-1
-//	  ● experiment: none
-var installerStatusRegex = regexp.MustCompile(`([a-zA-Z-]+)\n[ \t]+State:.([a-zA-Z-]+)\n[ \t]+Installed versions:\n[ \t]+..stable:.([a-zA-Z0-9-\.]+)\n[ \t]+..experiment:.([a-zA-Z0-9-\.]+)`)
 
 const (
 	latestAgentVersion      = "7.54.1"
@@ -75,13 +72,10 @@ func (s *upgradeScenarioSuite) TestUpgradeSuccessful() {
 		"datadog-installer.service",
 	)
 
-	s.host.WaitForFileExists(true, "/var/run/datadog-installer/installer.sock")
-
-	_, err := s.setCatalog(testCatalog)
-	require.NoError(s.T(), err)
+	s.setCatalog(testCatalog)
 
 	timestamp := s.host.LastJournaldTimestamp()
-	_, err = s.startExperimentCommand(latestAgentImageVersion)
+	_, err := s.startExperimentCommand(latestAgentImageVersion)
 	require.NoError(s.T(), err)
 	s.assertSuccessfulStartExperiment(timestamp, latestAgentImageVersion)
 
@@ -101,13 +95,10 @@ func (s *upgradeScenarioSuite) TestBackendFailure() {
 		"datadog-installer.service",
 	)
 
-	s.host.WaitForFileExists(true, "/var/run/datadog-installer/installer.sock")
-
-	_, err := s.setCatalog(testCatalog)
-	require.NoError(s.T(), err)
+	s.setCatalog(testCatalog)
 
 	timestamp := s.host.LastJournaldTimestamp()
-	_, err = s.startExperimentCommand(latestAgentImageVersion)
+	_, err := s.startExperimentCommand(latestAgentImageVersion)
 	require.NoError(s.T(), err)
 	s.assertSuccessfulStartExperiment(timestamp, latestAgentImageVersion)
 
@@ -128,15 +119,15 @@ func (s *upgradeScenarioSuite) TestStopWithoutExperiment() {
 		"datadog-installer.service",
 	)
 
-	s.host.WaitForFileExists(true, "/var/run/datadog-installer/installer.sock")
+	s.setCatalog(testCatalog)
 
-	beforeStatus := s.getInstallerStatus()["datadog-agent"]
+	beforeStatus := s.getInstallerStatus()
 
 	_, err := s.stopExperimentCommand()
 	require.NoError(s.T(), err)
 
-	afterStatus := s.getInstallerStatus()["datadog-agent"]
-	require.Equal(s.T(), beforeStatus, afterStatus)
+	afterStatus := s.getInstallerStatus()
+	require.Equal(s.T(), beforeStatus.Packages["datadog-agent"], afterStatus.Packages["datadog-agent"])
 }
 
 func (s *upgradeScenarioSuite) startExperimentCommand(version string) (string, error) {
@@ -157,16 +148,20 @@ func (s *upgradeScenarioSuite) stopExperimentCommand() (string, error) {
 	return s.Env().RemoteHost.Execute(cmd)
 }
 
-func (s *upgradeScenarioSuite) setCatalog(newCatalog catalog) (string, error) {
+func (s *upgradeScenarioSuite) setCatalog(newCatalog catalog) {
 	serializedCatalog, err := json.Marshal(newCatalog)
 	if err != nil {
 		s.T().Fatal(err)
 	}
 	s.T().Logf("Running: daemon set-catalog '%s'", string(serializedCatalog))
 
-	return s.Env().RemoteHost.Execute(fmt.Sprintf(
-		"sudo datadog-installer daemon set-catalog '%s'", serializedCatalog),
-	)
+	assert.Eventually(s.T(), func() bool {
+		_, err := s.Env().RemoteHost.Execute(fmt.Sprintf(
+			"sudo datadog-installer daemon set-catalog '%s'", serializedCatalog),
+		)
+
+		return err == nil
+	}, time.Second*30, time.Second*1)
 }
 
 func (s *upgradeScenarioSuite) assertSuccessfulStartExperiment(timestamp host.JournaldTimestamp, version string) {
@@ -188,7 +183,7 @@ func (s *upgradeScenarioSuite) assertSuccessfulStartExperiment(timestamp host.Jo
 	)
 
 	installerStatus := s.getInstallerStatus()
-	require.Equal(s.T(), version, installerStatus["datadog-agent"].ExperimentVersion)
+	require.Equal(s.T(), version, installerStatus.Packages["datadog-agent"].ExperimentVersion)
 }
 
 func (s *upgradeScenarioSuite) assertSuccessfulPromoteExperiment(timestamp host.JournaldTimestamp, version string) {
@@ -209,8 +204,8 @@ func (s *upgradeScenarioSuite) assertSuccessfulPromoteExperiment(timestamp host.
 	)
 
 	installerStatus := s.getInstallerStatus()
-	require.Equal(s.T(), version, installerStatus["datadog-agent"].StableVersion)
-	require.Equal(s.T(), "none", installerStatus["datadog-agent"].ExperimentVersion)
+	require.Equal(s.T(), version, installerStatus.Packages["datadog-agent"].StableVersion)
+	require.Equal(s.T(), "", installerStatus.Packages["datadog-agent"].ExperimentVersion)
 }
 
 func (s *upgradeScenarioSuite) assertSuccessfulStopExperiment(timestamp host.JournaldTimestamp) {
@@ -229,29 +224,26 @@ func (s *upgradeScenarioSuite) assertSuccessfulStopExperiment(timestamp host.Jou
 	)
 
 	installerStatus := s.getInstallerStatus()
-	require.Equal(s.T(), "none", installerStatus["datadog-agent"].ExperimentVersion)
+	require.Equal(s.T(), "", installerStatus.Packages["datadog-agent"].ExperimentVersion)
 }
 
-func (s *upgradeScenarioSuite) getInstallerStatus() map[string]packageStatus {
-	// 	Datadog Installer v7.55.0-devel+git.1079.69749ed
-	// datadog-agent
-	//   State: OK
-	//   Installed versions:
-	//     ● stable: v7.52.0-rc.1.git.15.6c19b17.pipeline.28815219-1
-	//     ● experiment: none
-	resp := s.Env().RemoteHost.MustExecute("sudo datadog-installer status")
-	status := make(map[string]packageStatus)
+func (s *upgradeScenarioSuite) getInstallerStatus() installerStatus {
+	socketPath := "/var/run/datadog-installer/installer.sock"
 
-	statusResponse := installerStatusRegex.FindAllStringSubmatch(resp, -1)
-	for _, st := range statusResponse {
-		if len(st) != 5 {
-			s.T().Fatal("unexpected status response")
-		}
-		status[st[1]] = packageStatus{
-			State:             st[2],
-			StableVersion:     strings.TrimPrefix(st[3], "v"),
-			ExperimentVersion: strings.TrimPrefix(st[4], "v"),
-		}
+	requestHeader := " -H 'Content-Type: application/json' -H 'Accept: application/json' "
+	response := s.Env().RemoteHost.MustExecute(fmt.Sprintf(
+		"sudo curl -s --unix-socket %s %s http://daemon/status",
+		socketPath,
+		requestHeader,
+	))
+
+	// {"version":"7.56.0-devel+git.446.acf2836","packages":{
+	//     "datadog-agent":{"Stable":"7.56.0-devel.git.446.acf2836.pipeline.37567760-1","Experiment":"7.54.1-1"},
+	//     "datadog-installer":{"Stable":"7.56.0-devel.git.446.acf2836.pipeline.37567760-1","Experiment":""}}}
+	var status installerStatus
+	err := json.Unmarshal([]byte(response), &status)
+	if err != nil {
+		s.T().Fatal(err)
 	}
 
 	return status

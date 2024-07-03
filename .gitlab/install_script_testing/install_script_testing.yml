@@ -10,7 +10,7 @@ test_install_script:
     - export TESTING_APT_URL=$DEB_TESTING_S3_BUCKET
     - export TESTING_YUM_URL=$RPM_TESTING_S3_BUCKET
     - export TEST_PIPELINE_ID=$CI_PIPELINE_ID
-    - "inv pipeline.trigger-child-pipeline --project-name DataDog/agent-linux-install-script --git-ref main
+    - "inv pipeline.trigger-child-pipeline --project-name DataDog/agent-linux-install-script --git-ref main --timeout 5400
       --variable TESTING_APT_URL
       --variable TESTING_YUM_URL
       --variable TEST_PIPELINE_ID"

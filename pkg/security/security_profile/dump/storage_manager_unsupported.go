@@ -27,8 +27,8 @@ func (manager *ActivityDumpStorageManager) PersistRaw(_ []config.StorageRequest,
 // SendTelemetry send telemetry of all storages
 func (manager *ActivityDumpStorageManager) SendTelemetry() {}
 
-// NewSecurityAgentStorageManager returns a new instance of ActivityDumpStorageManager
-func NewSecurityAgentStorageManager() (*ActivityDumpStorageManager, error) {
+// NewAgentStorageManager returns a new instance of ActivityDumpStorageManager
+func NewAgentStorageManager() (*ActivityDumpStorageManager, error) {
 	return nil, fmt.Errorf("the activity dump manager is unsupported on this platform")
 }
 

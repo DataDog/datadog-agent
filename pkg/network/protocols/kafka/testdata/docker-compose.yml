@@ -10,7 +10,7 @@ services:
     tmpfs:
       - /bitnami/zookeeper/data
   kafka:
-    image: bitnami/kafka:3.4
+    image: bitnami/kafka:3.7
     ports:
       - "${KAFKA_PORT:-9092}:9092"
       - "${KAFKA_TLS_PORT:-9093}:9093"

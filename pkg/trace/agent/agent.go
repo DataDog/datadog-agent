@@ -55,11 +55,33 @@ const (
 	tagDecisionMaker = "_dd.p.dm"
 )
 
+// TraceWriter provides a way to write trace chunks
+type TraceWriter interface {
+	// Stop stops the TraceWriter and attempts to flush whatever is left in the senders buffers.
+	Stop()
+
+	// WriteChunks to be written
+	WriteChunks(pkg *writer.SampledChunks)
+
+	// FlushSync blocks and sends pending payloads when syncMode is true
+	FlushSync() error
+}
+
+// Concentrator accepts stats input, 'concentrating' them together into buckets before flushing them
+type Concentrator interface {
+	// Start starts the Concentrator
+	Start()
+	// Stop stops the Concentrator and attempts to flush whatever is left in the buffers
+	Stop()
+	// Add a stats Input to be concentrated and flushed
+	Add(t stats.Input)
+}
+
 // Agent struct holds all the sub-routines structs and make the data flow between them
 type Agent struct {
 	Receiver              *api.HTTPReceiver
 	OTLPReceiver          *api.OTLPReceiver
-	Concentrator          *stats.Concentrator
+	Concentrator          Concentrator
 	ClientStatsAggregator *stats.ClientStatsAggregator
 	Blacklister           *filters.Blacklister
 	Replacer              *filters.Replacer
@@ -69,8 +91,8 @@ type Agent struct {
 	NoPrioritySampler     *sampler.NoPrioritySampler
 	ProbabilisticSampler  *sampler.ProbabilisticSampler
 	EventProcessor        *event.Processor
-	TraceWriter           *writer.TraceWriter
-	StatsWriter           *writer.StatsWriter
+	TraceWriter           TraceWriter
+	StatsWriter           *writer.DatadogStatsWriter
 	RemoteConfigHandler   *remoteconfighandler.RemoteConfigHandler
 	TelemetryCollector    telemetry.TelemetryCollector
 	DebugServer           *api.DebugServer
@@ -106,15 +128,15 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig, telemetryCollector 
 	dynConf := sampler.NewDynamicConfig()
 	log.Infof("Starting Agent with processor trace buffer of size %d", conf.TraceBuffer)
 	in := make(chan *api.Payload, conf.TraceBuffer)
-	statsChan := make(chan *pb.StatsPayload, 1)
 	oconf := conf.Obfuscation.Export(conf)
 	if oconf.Statsd == nil {
 		oconf.Statsd = statsd
 	}
 	timing := timing.New(statsd)
+	statsWriter := writer.NewStatsWriter(conf, telemetryCollector, statsd, timing)
 	agnt := &Agent{
-		Concentrator:          stats.NewConcentrator(conf, statsChan, time.Now(), statsd),
-		ClientStatsAggregator: stats.NewClientStatsAggregator(conf, statsChan, statsd),
+		Concentrator:          stats.NewConcentrator(conf, statsWriter, time.Now(), statsd),
+		ClientStatsAggregator: stats.NewClientStatsAggregator(conf, statsWriter, statsd),
 		Blacklister:           filters.NewBlacklister(conf.Ignore["resource"]),
 		Replacer:              filters.NewReplacer(conf.ReplaceTags),
 		PrioritySampler:       sampler.NewPrioritySampler(conf, dynConf, statsd),
@@ -123,7 +145,7 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig, telemetryCollector 
 		NoPrioritySampler:     sampler.NewNoPrioritySampler(conf, statsd),
 		ProbabilisticSampler:  sampler.NewProbabilisticSampler(conf, statsd),
 		EventProcessor:        newEventProcessor(conf, statsd),
-		StatsWriter:           writer.NewStatsWriter(conf, statsChan, telemetryCollector, statsd, timing),
+		StatsWriter:           statsWriter,
 		obfuscator:            obfuscate.NewObfuscator(oconf),
 		In:                    in,
 		conf:                  conf,
@@ -159,18 +181,18 @@ func (a *Agent) Run() {
 		starter.Start()
 	}
 
-	go a.TraceWriter.Run()
 	go a.StatsWriter.Run()
 
-	// Having GOMAXPROCS/2 processor threads is
-	// enough to keep the downstream writer busy.
+	// Having GOMAXPROCS processor threads is
+	// enough to keep the agent busy.
 	// Having more processor threads would not speed
 	// up processing, but just expand memory.
-	workers := runtime.GOMAXPROCS(0) / 2
+	workers := runtime.GOMAXPROCS(0)
 	if workers < 1 {
 		workers = 1
 	}
 
+	log.Infof("Processing Pipeline configured with %d workers", workers)
 	for i := 0; i < workers; i++ {
 		go a.work()
 	}
@@ -178,7 +200,7 @@ func (a *Agent) Run() {
 	a.loop()
 }
 
-// FlushSync flushes traces sychronously. This method only works when the agent is configured in synchronous flushing
+// FlushSync flushes traces synchronously. This method only works when the agent is configured in synchronous flushing
 // mode via the apm_config.sync_flush option.
 func (a *Agent) FlushSync() {
 	if !a.conf.SynchronousFlushing {
@@ -337,7 +359,7 @@ func (a *Agent) Process(p *api.Payload) {
 		a.setRootSpanTags(root)
 		if !p.ClientComputedTopLevel {
 			// Figure out the top-level spans now as it involves modifying the Metrics map
-			// which is not thread-safe while samplers and Concentrator might modify it too.
+			// which is not thread-safe while samplers and concentrator might modify it too.
 			traceutil.ComputeTopLevel(chunk.Spans)
 		}
 
@@ -373,17 +395,17 @@ func (a *Agent) Process(p *api.Payload) {
 			sampledChunks.TracerPayload = p.TracerPayload.Cut(i)
 			i = 0
 			sampledChunks.TracerPayload.Chunks = newChunksArray(sampledChunks.TracerPayload.Chunks)
-			a.TraceWriter.In <- sampledChunks
+			a.TraceWriter.WriteChunks(sampledChunks)
 			sampledChunks = new(writer.SampledChunks)
 		}
 	}
 	sampledChunks.TracerPayload = p.TracerPayload
 	sampledChunks.TracerPayload.Chunks = newChunksArray(p.TracerPayload.Chunks)
 	if sampledChunks.Size > 0 {
-		a.TraceWriter.In <- sampledChunks
+		a.TraceWriter.WriteChunks(sampledChunks)
 	}
 	if len(statsInput.Traces) > 0 {
-		a.Concentrator.In <- statsInput
+		a.Concentrator.Add(statsInput)
 	}
 }
 

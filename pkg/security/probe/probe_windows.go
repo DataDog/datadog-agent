@@ -1054,6 +1054,12 @@ func (p *WindowsProbe) SendStats() error {
 	if err := p.statsdClient.Gauge(metrics.MetricWindowsApproverRejects, float64(p.stats.createFileApproverRejects), nil, 1); err != nil {
 		return err
 	}
+	if p.fimSession == nil {
+		return nil
+	}
+
+	// all stats below this line only valid if the full ETW session is enabled
+
 	if etwstats, err := p.fimSession.GetSessionStatistics(); err == nil {
 		if err := p.statsdClient.Gauge(metrics.MetricWindowsETWNumberOfBuffers, float64(etwstats.NumberOfBuffers), nil, 1); err != nil {
 			return err
