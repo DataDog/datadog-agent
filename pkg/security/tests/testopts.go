@@ -58,12 +58,12 @@ type testOpts struct {
 	snapshotRuleMatchHandler                   func(*testModule, *model.Event, *rules.Rule)
 	enableFIM                                  bool // only valid on windows
 	networkIngressEnabled                      bool
-	disableBundledRules                        bool
 }
 
 type dynamicTestOpts struct {
 	testDir                  string
 	disableAbnormalPathCheck bool
+	disableBundledRules      bool
 }
 
 type tmOpts struct {

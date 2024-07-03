@@ -121,7 +121,10 @@ notify_failure_summary_on_pipeline:
 # Send failure summary notifications daily and weekly
 notify_failure_summary_daily:
   extends: .failure_summary_job
-  rules: !reference [.on_deploy_nightly_repo_branch_always]
+  rules:
+    - if: $CI_COMMIT_BRANCH != "main" || $CI_PIPELINE_SOURCE != "schedule"
+      when: never
+    - !reference [.on_deploy_nightly_repo_branch_always]
   script:
     - !reference [.failure_summary_setup]
     - weekday="$(date --utc '+%A')"
@@ -131,10 +134,10 @@ notify_failure_summary_daily:
         exit
       fi
     # Daily
-    - inv -e notify.failure-summary-send-notifications --is-daily-summary=true
+    - inv -e notify.failure-summary-send-notifications --daily-summary
     # Send weekly if necessary (note that this workflow is usually triggered early in the morning)
     - |
       if [ "$weekday" = "Friday" ]; then
         echo 'Sending weekly summary'
-        inv -e notify.failure-summary-send-notifications --is-daily-summary=false
+        inv -e notify.failure-summary-send-notifications --weekly-summary
       fi
