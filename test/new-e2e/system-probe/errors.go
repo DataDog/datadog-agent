@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path"
 	"strings"
 	"time"
 
@@ -29,8 +30,8 @@ const (
 
 	aria2cMissingStatusErrorStr = "error: wait: remote command exited without exit status or exit signal: running \" aria2c"
 
-	retryCountFile  = "/tmp/e2e-retry-count"
-	errorReasonFile = "/tmp/e2e-error-reason"
+	retryCountFile  = "e2e-retry-count"
+	errorReasonFile = "e2e-error-reason"
 )
 
 type scenarioError int
@@ -156,7 +157,7 @@ func handleScenarioFailure(err error, changeRetryState func(handledError)) error
 }
 
 func storeErrorReasonForCITags(reason string) error {
-	f, err := os.Open(errorReasonFile)
+	f, err := os.Open(path.Join(os.Getenv("CI_PROJECT_DIR"), errorReasonFile))
 	if err != nil {
 		return err
 	}
@@ -167,7 +168,7 @@ func storeErrorReasonForCITags(reason string) error {
 }
 
 func storeNumberOfRetriesForCITags(retries int) error {
-	f, err := os.Open(retryCountFile)
+	f, err := os.Open(path.Join(os.Getenv("CI_PROJECT_DIR"), retryCountFile))
 	if err != nil {
 		return err
 	}
