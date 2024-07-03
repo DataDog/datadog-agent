@@ -56,9 +56,9 @@ const (
 // So it should provide enough in normal cases before we start dropping requests.
 const maxInflightBytes = 25 * 1000 * 1000
 
-// App instances are sending ~1 telemetry payload/minute so 500 payloads buffered should be
-// more than enough
-const maxInflightRequests = 500
+const maxConcurrentRequests = 20
+
+const maxInflightRequests = 100
 
 // TelemetryForwarder sends HTTP requests to multiple targets.
 // The handler returns immediately and the forwarding is done in the background.
@@ -108,7 +108,7 @@ func NewTelemetryForwarder(conf *config.AgentConfig, containerIDProvider IDProvi
 		endpoints: endpoints,
 		conf:      conf,
 
-		forwardedReqChan: make(chan forwardedRequest),
+		forwardedReqChan: make(chan forwardedRequest, maxInflightRequests-maxConcurrentRequests),
 		inflightWaiter:   sync.WaitGroup{},
 		inflightCount:    atomic.Int64{},
 		maxInflightBytes: maxInflightBytes,
@@ -127,7 +127,7 @@ func NewTelemetryForwarder(conf *config.AgentConfig, containerIDProvider IDProvi
 }
 
 func (f *TelemetryForwarder) start() {
-	for i := 0; i < maxInflightRequests; i++ {
+	for i := 0; i < maxConcurrentRequests; i++ {
 		f.inflightWaiter.Add(1)
 		go func() {
 			defer f.inflightWaiter.Done()
