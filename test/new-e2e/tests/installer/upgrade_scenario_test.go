@@ -99,12 +99,11 @@ func (s *upgradeScenarioSuite) TestUpgradeFromExistingExperiment() {
 
 	s.host.WaitForFileExists(true, "/var/run/datadog-installer/installer.sock")
 
-	_, err := s.setCatalog(testCatalog)
-	require.NoError(s.T(), err)
+	s.setCatalog(testCatalog)
 
 	// Start with 7.54.0
 	timestamp := s.host.LastJournaldTimestamp()
-	_, err = s.startExperimentCommand(previousAgentImageVersion)
+	_, err := s.startExperimentCommand(previousAgentImageVersion)
 	require.NoError(s.T(), err)
 	s.assertSuccessfulStartExperiment(timestamp, previousAgentImageVersion)
 
