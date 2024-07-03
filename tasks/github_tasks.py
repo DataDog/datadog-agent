@@ -368,7 +368,7 @@ def pr_commenter(
     delete: bool = False,
     force_delete: bool = False,
     echo: bool = False,
-) -> str:
+):
     """
     Will comment or update current comment posted on the PR with the new data.
     The title is used to identify the comment to update.

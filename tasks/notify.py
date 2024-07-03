@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import io
 import os
+import sys
 import traceback
 from datetime import timedelta
 
@@ -191,7 +192,13 @@ def gitlab_ci_diff(ctx, before: str | None = None, after: str | None = None, pr_
     """
 
     pr_comment_head = 'Gitlab CI Configuration Changes'
-    if pr_comment:
+    if pr_comment and "CI_COMMIT_BRANCH" not in os.environ:
+        print(
+            color_message("Warning: No PR found for current branch, skipping message", Color.ORANGE),
+            file=sys.stderr,
+        )
+        pr_comment = False
+    elif pr_comment:
         job_url = os.environ['CI_JOB_URL']
 
     try:
