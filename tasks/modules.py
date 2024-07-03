@@ -183,8 +183,12 @@ DEFAULT_MODULES = {
     "comp/serializer/compression": GoModule("comp/serializer/compression", independent=True, used_by_otel=True),
     "comp/trace/agent/def": GoModule("comp/trace/agent/def", independent=True, used_by_otel=True),
     "comp/trace/compression/def": GoModule("comp/trace/compression/def", independent=True, used_by_otel=True),
-    "comp/trace/compression/impl-gzip": GoModule("comp/trace/compression/impl-gzip", independent=True, used_by_otel=True),
-    "comp/trace/compression/impl-zstd": GoModule("comp/trace/compression/impl-zstd", independent=True, used_by_otel=True),
+    "comp/trace/compression/impl-gzip": GoModule(
+        "comp/trace/compression/impl-gzip", independent=True, used_by_otel=True
+    ),
+    "comp/trace/compression/impl-zstd": GoModule(
+        "comp/trace/compression/impl-zstd", independent=True, used_by_otel=True
+    ),
     "internal/tools": GoModule("internal/tools", condition=lambda: False, should_tag=False),
     "internal/tools/independent-lint": GoModule(
         "internal/tools/independent-lint", condition=lambda: False, should_tag=False
