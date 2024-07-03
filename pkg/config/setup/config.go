@@ -779,7 +779,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("sbom.host.analyzers", []string{"os"})
 
 	// Service discovery configuration
-	config.BindEnvAndSetDefault("service_discovery.enabled", true)
+	config.BindEnvAndSetDefault("service_discovery.enabled", false)
 	bindEnvAndSetLogsConfigKeys(config, "service_discovery.forwarder.")
 
 	// Orchestrator Explorer - process agent
