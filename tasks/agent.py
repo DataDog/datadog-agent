@@ -74,7 +74,6 @@ AGENT_CORECHECKS = [
     "orchestrator_pod",
     "orchestrator_ecs",
     "cisco_sdwan",
-    "service_discovery",
 ]
 
 WINDOWS_CORECHECKS = [
