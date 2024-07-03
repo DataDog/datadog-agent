@@ -207,8 +207,6 @@ func Run(ctx *pulumi.Context, env *environments.ECS, params *ProvisionerParams) 
 	// Export cluster’s properties
 	ctx.Export("ecs-cluster-name", ecsCluster.Name)
 	ctx.Export("ecs-cluster-arn", ecsCluster.Arn)
-	env.ClusterName = ecsCluster.Name
-	env.ClusterArn = ecsCluster.Arn
 
 	// Handle capacity providers
 	capacityProviders := pulumi.StringArray{}
