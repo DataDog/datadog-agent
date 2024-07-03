@@ -407,7 +407,9 @@ def codecov(
     distro_tag = get_distro()
     codecov_binary = "codecov" if platform.system() != "Windows" else "codecov.exe"
     with gitlab_section("Upload coverage reports to Codecov", collapsed=True):
-        ctx.run(f"{codecov_binary} -f {PROFILE_COV} -F {distro_tag}", warn=True)
+        # Codecov uploads often last < 1 minute but the uploader binary sometimes hangs until the job timeout (2 hours).
+        # We set a timeout of 2 minutes to avoid this issue.
+        ctx.run(f"{codecov_binary} -f {PROFILE_COV} -F {distro_tag}", warn=True, timeout=2 * 60)
 
 
 @task
