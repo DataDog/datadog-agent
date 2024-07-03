@@ -64,7 +64,7 @@ def check_set_x(ctx):
             for nb, line in enumerate(f):
                 if re.search(r"set( +-[^ ])* +-[^ ]*(x|( +xtrace))", line):
                     errors.append(
-                        f"{color_message(file, 'magenta')}:{color_message(nb + 1, 'green')}: {color_message(line.strip(), 'red')}"
+                        f"{color_message(file, 'magenta')}:{color_message(str(nb + 1), 'green')}: {color_message(line.strip(), 'red')}"
                     )
 
     if errors:

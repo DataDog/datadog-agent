@@ -8,7 +8,7 @@ See the [Live Processes docs](https://docs.datadoghq.com/graphing/infrastructure
 
 Pre-requisites:
 
-* `go >= 1.21`
+* `go >= 1.22`
 * `invoke`
 
 Check out the repo in your `$GOPATH`

@@ -59,9 +59,9 @@ type ebpfErrorsTelemetry interface {
 	forEachHelperEntry(yield func(telemetryIndex, helperErrTelemetry) bool)
 }
 
-// EBPFTelemetry struct implements ebpfErrorsTelemetry interface and contains all the maps that
+// ebpfTelemetry struct implements ebpfErrorsTelemetry interface and contains all the maps that
 // are registered to have their telemetry collected.
-type EBPFTelemetry struct {
+type ebpfTelemetry struct {
 	mtx          sync.Mutex
 	mapErrMap    *maps.GenericMap[uint64, mapErrTelemetry]
 	helperErrMap *maps.GenericMap[uint64, helperErrTelemetry]
@@ -70,16 +70,16 @@ type EBPFTelemetry struct {
 }
 
 // Lock is part of the Locker interface implementation.
-func (e *EBPFTelemetry) Lock() {
+func (e *ebpfTelemetry) Lock() {
 	e.mtx.Lock()
 }
 
 // Unlock is part of the Locker interface implementation.
-func (e *EBPFTelemetry) Unlock() {
+func (e *ebpfTelemetry) Unlock() {
 	e.mtx.Unlock()
 }
 
-func (e *EBPFTelemetry) setup(opts *manager.Options) {
+func (e *ebpfTelemetry) setup(opts *manager.Options) {
 	if (e.mapErrMap != nil) || (e.helperErrMap != nil) {
 		if opts.MapEditors == nil {
 			opts.MapEditors = make(map[string]*ebpf.Map)
@@ -96,7 +96,7 @@ func (e *EBPFTelemetry) setup(opts *manager.Options) {
 
 // fill initializes the maps for holding telemetry info.
 // It must be called after the manager is initialized
-func (e *EBPFTelemetry) fill(m *manager.Manager) error {
+func (e *ebpfTelemetry) fill(m *manager.Manager) error {
 	e.mtx.Lock()
 	defer e.mtx.Unlock()
 
@@ -117,15 +117,15 @@ func (e *EBPFTelemetry) fill(m *manager.Manager) error {
 	return nil
 }
 
-func (e *EBPFTelemetry) setProbe(name string, hash uint64) {
+func (e *ebpfTelemetry) setProbe(name string, hash uint64) {
 	e.probeKeys[name] = hash
 }
 
-func (e *EBPFTelemetry) isInitialized() bool {
+func (e *ebpfTelemetry) isInitialized() bool {
 	return e.mapErrMap != nil && e.helperErrMap != nil
 }
 
-func (e *EBPFTelemetry) forEachMapEntry(yield func(index telemetryIndex, val mapErrTelemetry) bool) {
+func (e *ebpfTelemetry) forEachMapEntry(yield func(index telemetryIndex, val mapErrTelemetry) bool) {
 	var mval mapErrTelemetry
 	for m, k := range e.mapKeys {
 		err := e.mapErrMap.Lookup(&k, &mval)
@@ -139,7 +139,7 @@ func (e *EBPFTelemetry) forEachMapEntry(yield func(index telemetryIndex, val map
 	}
 }
 
-func (e *EBPFTelemetry) forEachHelperEntry(yield func(index telemetryIndex, val helperErrTelemetry) bool) {
+func (e *ebpfTelemetry) forEachHelperEntry(yield func(index telemetryIndex, val helperErrTelemetry) bool) {
 	var hval helperErrTelemetry
 	for probeName, k := range e.probeKeys {
 		err := e.helperErrMap.Lookup(&k, &hval)
@@ -153,16 +153,16 @@ func (e *EBPFTelemetry) forEachHelperEntry(yield func(index telemetryIndex, val 
 	}
 }
 
-// newEBPFTelemetry initializes a new EBPFTelemetry object
+// newEBPFTelemetry initializes a new ebpfTelemetry object
 func newEBPFTelemetry() ebpfErrorsTelemetry {
-	errorsTelemetry = &EBPFTelemetry{
+	errorsTelemetry = &ebpfTelemetry{
 		mapKeys:   make(map[string]uint64),
 		probeKeys: make(map[string]uint64),
 	}
 	return errorsTelemetry
 }
 
-func (e *EBPFTelemetry) initializeMapErrTelemetryMap(maps []*manager.Map) error {
+func (e *ebpfTelemetry) initializeMapErrTelemetryMap(maps []*manager.Map) error {
 	if e.mapErrMap == nil {
 		return nil
 	}
@@ -186,7 +186,7 @@ func (e *EBPFTelemetry) initializeMapErrTelemetryMap(maps []*manager.Map) error 
 	return nil
 }
 
-func (e *EBPFTelemetry) initializeHelperErrTelemetryMap() error {
+func (e *ebpfTelemetry) initializeHelperErrTelemetryMap() error {
 	if e.helperErrMap == nil {
 		return nil
 	}

@@ -67,7 +67,7 @@ func vmSuiteOpts(tr transport, opts ...awshost.ProvisionerOption) []e2e.SuiteOpt
 	opts = vmProvisionerOpts(opts...)
 	options := []e2e.SuiteOption{
 		e2e.WithProvisioner(awshost.Provisioner(opts...)),
-		e2e.WithStackName(fmt.Sprintf("apm-vm-suite-%s-%v", tr, os.Getenv("CI_PIPELINE_ID"))),
+		e2e.WithStackName(fmt.Sprintf("apm-vm-suite-%s", tr)),
 	}
 	return options
 }

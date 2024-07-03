@@ -150,7 +150,7 @@ func (a *apmInjectorInstaller) verifyDockerRuntime(ctx context.Context) (err err
 		if i > 0 {
 			time.Sleep(time.Second)
 		}
-		cmd := exec.Command("docker", "system", "info", "--format", "{{ .DefaultRuntime }}")
+		cmd := exec.CommandContext(ctx, "docker", "system", "info", "--format", "{{ .DefaultRuntime }}")
 		var outb bytes.Buffer
 		cmd.Stdout = &outb
 		err = cmd.Run()
@@ -176,8 +176,18 @@ func reloadDockerConfig(ctx context.Context) (err error) {
 		log.Warn("docker is inactive, skipping docker reload")
 		return nil
 	}
-	cmd := exec.Command("systemctl", "reload", "docker")
+	cmdPids := exec.CommandContext(ctx, "pidof", "dockerd")
+	buf := new(bytes.Buffer)
 	bufErr := new(bytes.Buffer)
+	cmdPids.Stdout = buf
+	cmdPids.Stderr = bufErr
+	err = cmdPids.Run()
+	if err != nil {
+		return fmt.Errorf("failed to get docker daemon pid (%s): %s", err.Error(), bufErr.String())
+	}
+
+	cmd := exec.CommandContext(ctx, "kill", "-1", strings.TrimSpace(buf.String())) // Send SIGHUP to the docker daemon
+	bufErr = new(bytes.Buffer)
 	cmd.Stderr = bufErr
 	err = cmd.Run()
 	if err != nil {
@@ -206,18 +216,8 @@ func isDockerInstalled(ctx context.Context) bool {
 	return true
 }
 
-// isDockerActive checks if docker is active on the system
+// isDockerActive checks if docker is started on the system
 func isDockerActive(ctx context.Context) bool {
-	cmd := exec.CommandContext(ctx, "systemctl", "is-active", "docker")
-	var outb bytes.Buffer
-	cmd.Stdout = &outb
-	err := cmd.Run()
-	if err != nil {
-		log.Warn("installer: failed to check if docker is active, assuming it isn't: ", err)
-		return false
-	}
-	if strings.TrimSpace(outb.String()) == "active" {
-		return true
-	}
-	return false
+	cmd := exec.CommandContext(ctx, "pidof", "dockerd")
+	return cmd.Run() == nil
 }

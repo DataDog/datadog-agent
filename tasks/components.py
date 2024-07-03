@@ -102,7 +102,8 @@ def check_component_contents_and_file_hiearchy(entry_point):
         return ""
 
     for folder in directory.iterdir():
-        if folder.match('*impl'):
+        # Allow implementation to be old style <component>impl or new style <component>/impl or <component>/impl-<suffix>
+        if folder.match('*impl') or folder.match('impl-*'):
             missing_implementation_folder = False
             # TODO: check that the implementation_definitions are present in any of the files of the impl folder
             break

@@ -41,6 +41,7 @@ const (
 // protocol holds the state of the postgres protocol monitoring.
 type protocol struct {
 	cfg            *config.Config
+	telemetry      *Telemetry
 	eventsConsumer *events.Consumer[EbpfEvent]
 	mapCleaner     *ddebpf.MapCleaner[netebpf.ConnTuple, EbpfTx]
 	statskeeper    *StatKeeper
@@ -83,21 +84,21 @@ var Spec = &protocols.ProtocolSpec{
 		},
 		{
 			ProgArrayName: protocols.TLSDispatcherProgramsMap,
-			Key:           uint32(protocols.ProgramTLSPostgres),
+			Key:           uint32(protocols.ProgramPostgres),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: tlsProcessTailCall,
 			},
 		},
 		{
 			ProgArrayName: protocols.TLSDispatcherProgramsMap,
-			Key:           uint32(protocols.ProgramTLSPostgresParseMessage),
+			Key:           uint32(protocols.ProgramPostgresParseMessage),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: tlsParseMessageTailCall,
 			},
 		},
 		{
 			ProgArrayName: protocols.TLSDispatcherProgramsMap,
-			Key:           uint32(protocols.ProgramTLSPostgresTermination),
+			Key:           uint32(protocols.ProgramPostgresTermination),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: tlsTerminationTailCall,
 			},
@@ -112,6 +113,7 @@ func newPostgresProtocol(cfg *config.Config) (protocols.Protocol, error) {
 
 	return &protocol{
 		cfg:         cfg,
+		telemetry:   NewTelemetry(),
 		statskeeper: NewStatkeeper(cfg),
 	}, nil
 }
@@ -196,7 +198,9 @@ func (*protocol) IsBuildModeSupported(buildmode.Type) bool {
 func (p *protocol) processPostgres(events []EbpfEvent) {
 	for i := range events {
 		tx := &events[i]
-		p.statskeeper.Process(NewEventWrapper(tx))
+		eventWrapper := NewEventWrapper(tx)
+		p.statskeeper.Process(eventWrapper)
+		p.telemetry.Count(tx, eventWrapper)
 	}
 }
 

@@ -20,7 +20,7 @@ type Assembler struct {
 	packetLength int
 	// assembled packets are pushed into this buffer
 	packetsBuffer           *Buffer
-	sharedPacketPoolManager *PoolManager
+	sharedPacketPoolManager *PoolManager[Packet]
 	flushTimer              *time.Ticker
 	closeChannel            chan struct{}
 	packetSourceType        SourceType
@@ -28,11 +28,11 @@ type Assembler struct {
 }
 
 // NewAssembler creates a new Assembler instance using the specified flush duration, buffer and pool manager
-func NewAssembler(flushTimer time.Duration, packetsBuffer *Buffer, sharedPacketPoolManager *PoolManager, packetSourceType SourceType) *Assembler {
+func NewAssembler(flushTimer time.Duration, packetsBuffer *Buffer, sharedPacketPoolManager *PoolManager[Packet], packetSourceType SourceType) *Assembler {
 	packetAssembler := &Assembler{
 		// retrieve an available packet from the packet pool,
 		// which will be pushed back by the server when processed.
-		packet:                  sharedPacketPoolManager.Get().(*Packet),
+		packet:                  sharedPacketPoolManager.Get(),
 		sharedPacketPoolManager: sharedPacketPoolManager,
 		packetsBuffer:           packetsBuffer,
 		flushTimer:              time.NewTicker(flushTimer),
@@ -81,7 +81,7 @@ func (p *Assembler) flush() {
 	p.packetsBuffer.Append(p.packet)
 	// retrieve an available packet from the packet pool,
 	// which will be pushed back by the server when processed.
-	p.packet = p.sharedPacketPoolManager.Get().(*Packet)
+	p.packet = p.sharedPacketPoolManager.Get()
 	p.packetLength = 0
 }
 

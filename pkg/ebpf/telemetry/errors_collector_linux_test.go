@@ -60,7 +60,7 @@ func (m *mockErrorsTelemetry) forEachHelperEntry(yield func(telemetryIndex, help
 func createTestCollector(telemetry ebpfErrorsTelemetry) prometheus.Collector {
 	collector := NewEBPFErrorsCollector().(*EBPFErrorsCollector)
 	if collector != nil {
-		collector.T = telemetry
+		collector.t = telemetry
 	}
 	return collector
 }
@@ -194,7 +194,7 @@ func TestEBPFErrorsCollector_DoubleCollect(t *testing.T) {
 	assert.Equal(t, len(expectedMetrics), len(metrics), "received unexpected number of metrics")
 
 	//increase the counters of the mock telemetry object before second collect
-	collector.(*EBPFErrorsCollector).T = &mockErrorsTelemetry{
+	collector.(*EBPFErrorsCollector).t = &mockErrorsTelemetry{
 		mapErrMap: map[telemetryIndex]mapErrTelemetry{
 			{key: 1, name: mockMapName}: {Count: [64]uint64{mapErrorsMockValue2}}},
 		helperErrMap: map[telemetryIndex]helperErrTelemetry{

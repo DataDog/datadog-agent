@@ -139,7 +139,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(connParams, globalParams, cmd),
 				fx.Provide(func() argsType { return args }),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath),
+					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(globalParams.ExtraConfFilePath)),
 					SecretParams: secrets.NewEnabledParams(),
 					LogParams:    logimpl.ForOneShot(command.LoggerName, "off", true)}),
 				core.Bundle(),
@@ -186,7 +186,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(connParams, globalParams, cmd),
 				fx.Provide(func() argsType { return args }),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath),
+					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(globalParams.ExtraConfFilePath)),
 					SecretParams: secrets.NewEnabledParams(),
 					LogParams:    logimpl.ForOneShot(command.LoggerName, "off", true)}),
 				core.Bundle(),
