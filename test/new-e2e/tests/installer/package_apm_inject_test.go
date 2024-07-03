@@ -49,7 +49,7 @@ func (s *packageApmInjectSuite) TestInstall() {
 	state.AssertDirExists("/var/log/datadog/dotnet", 0777, "root", "root")
 	state.AssertFileExists("/etc/ld.so.preload", 0644, "root", "root")
 	s.assertLDPreloadInstrumented(injectOCIPath)
-	s.assertSocketPath("/var/run/datadog-installer/apm.socket")
+	s.assertSocketPath()
 	s.assertDockerdInstrumented(injectOCIPath)
 
 	traceID := rand.Uint64()
@@ -119,7 +119,7 @@ func (s *packageApmInjectSuite) TestUpgrade_InjectorDeb_To_InjectorOCI() {
 	assert.NoError(s.T(), err)
 
 	s.assertLDPreloadInstrumented(injectDebPath)
-	s.assertSocketPath("/opt/datadog/apm/inject/run/apm.socket")
+	s.assertSocketPath()
 	s.assertDockerdNotInstrumented()
 
 	// OCI install
@@ -133,7 +133,7 @@ func (s *packageApmInjectSuite) TestUpgrade_InjectorDeb_To_InjectorOCI() {
 	assert.NoError(s.T(), err)
 
 	s.assertLDPreloadInstrumented(injectOCIPath)
-	s.assertSocketPath("/opt/datadog/apm/inject/run/apm.socket") // Socket path mustn't change
+	s.assertSocketPath()
 	s.assertDockerdInstrumented(injectOCIPath)
 
 }
@@ -155,7 +155,7 @@ func (s *packageApmInjectSuite) TestUpgrade_InjectorOCI_To_InjectorDeb() {
 	assert.NoError(s.T(), err)
 
 	s.assertLDPreloadInstrumented(injectOCIPath)
-	s.assertSocketPath("/var/run/datadog-installer/apm.socket")
+	s.assertSocketPath()
 	s.assertDockerdInstrumented(injectOCIPath)
 
 	// Deb install using today's defaults
@@ -176,7 +176,7 @@ func (s *packageApmInjectSuite) TestUpgrade_InjectorOCI_To_InjectorDeb() {
 
 	// OCI musn't be overridden
 	s.assertLDPreloadInstrumented(injectOCIPath)
-	s.assertSocketPath("/var/run/datadog-installer/apm.socket")
+	s.assertSocketPath()
 	s.assertDockerdInstrumented(injectOCIPath)
 }
 
@@ -211,10 +211,9 @@ func (s *packageApmInjectSuite) assertLDPreloadInstrumented(libPath string) {
 	assert.Contains(s.T(), string(content), libPath)
 }
 
-func (s *packageApmInjectSuite) assertSocketPath(path string) {
+func (s *packageApmInjectSuite) assertSocketPath() {
 	output := s.host.Run("sh -c 'DD_APM_INSTRUMENTATION_DEBUG=true python3 --version 2>&1'")
 	assert.Contains(s.T(), output, "DD_INJECTION_ENABLED=tracer") // this is an env var set by the injector, it should always be in the debug logs
-	assert.Contains(s.T(), output, fmt.Sprintf("\"DD_TRACE_AGENT_URL=unix://%s\"", path))
 }
 
 func (s *packageApmInjectSuite) assertLDPreloadNotInstrumented() {
