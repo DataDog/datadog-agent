@@ -30,6 +30,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/admission"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
@@ -65,6 +66,7 @@ const (
 	cwsExcludedResourceReason              = "excluded_resource"
 	cwsDescribePodErrorReason              = "describe_pod_error"
 	cwsExcludedByAnnotationReason          = "excluded_by_annotation"
+	cwsExcludedByLabelReason               = "excluded_by_label"
 	cwsPodNotInstrumentedReason            = "pod_not_instrumented"
 	cwsReadonlyFilesystemReason            = "readonly_filesystem"
 	cwsMissingArchReason                   = "missing_arch"
@@ -267,6 +269,8 @@ type CWSInstrumentation struct {
 	mode InstrumentationMode
 	// mountVolumeForRemoteCopy
 	mountVolumeForRemoteCopy bool
+	// directoryForRemoteCopy
+	directoryForRemoteCopy string
 	// clusterAgentServiceAccount holds the service account name of the cluster agent
 	clusterAgentServiceAccount string
 
@@ -316,6 +320,7 @@ func NewCWSInstrumentation(wmeta workloadmeta.Component) (*CWSInstrumentation, e
 		return nil, fmt.Errorf("can't initiatilize CWS Instrumentation: %v", err)
 	}
 	ci.mountVolumeForRemoteCopy = config.Datadog().GetBool("admission_controller.cws_instrumentation.remote_copy.mount_volume")
+	ci.directoryForRemoteCopy = config.Datadog().GetString("admission_controller.cws_instrumentation.remote_copy.directory")
 
 	if ci.mode == RemoteCopy {
 		// build the cluster agent service account
@@ -357,7 +362,9 @@ func (ci *CWSInstrumentation) injectForCommand(request *admission.MutateRequest)
 func (ci *CWSInstrumentation) resolveNodeArch(nodeName string, apiClient kubernetes.Interface) (string, error) {
 	var arch string
 	// try with the wmeta
-	out, err := ci.wmeta.GetKubernetesNode(nodeName)
+	entityID := util.GenerateKubeMetadataEntityID("nodes", "", nodeName)
+
+	out, err := ci.wmeta.GetKubernetesMetadata(entityID)
 	if err == nil && out != nil {
 		arch = out.Labels["kubernetes.io/arch"]
 	}
@@ -447,6 +454,12 @@ func (ci *CWSInstrumentation) injectCWSCommandInstrumentation(exec *corev1.PodEx
 		return false, errors.New(metrics.InternalError)
 	}
 
+	// is the pod excluded explicitly ? (we can filter out with labels in the webhook selector on pods / exec creation)
+	if pod.Labels != nil && pod.Labels[PodLabelEnabled] == "false" {
+		metrics.CWSExecInstrumentationAttempts.Observe(1, ci.mode.String(), "false", cwsExcludedByLabelReason)
+		return false, nil
+	}
+
 	// is the pod targeted by the instrumentation ?
 	if ci.filter.IsExcluded(pod.Annotations, "", "", "") {
 		metrics.CWSExecInstrumentationAttempts.Observe(1, ci.mode.String(), "false", cwsExcludedByAnnotationReason)
@@ -466,6 +479,8 @@ func (ci *CWSInstrumentation) injectCWSCommandInstrumentation(exec *corev1.PodEx
 			return false, nil
 		}
 	case RemoteCopy:
+		cwsInstrumentationRemotePath = filepath.Join(ci.directoryForRemoteCopy, "/cws-instrumentation")
+
 		// if we're using a shared volume, we need to make sure the pod is instrumented first
 		if ci.mountVolumeForRemoteCopy {
 			if !isPodCWSInstrumentationReady(pod.Annotations) {
@@ -474,7 +489,7 @@ func (ci *CWSInstrumentation) injectCWSCommandInstrumentation(exec *corev1.PodEx
 				metrics.CWSExecInstrumentationAttempts.Observe(1, ci.mode.String(), "false", cwsPodNotInstrumentedReason)
 				return false, nil
 			}
-			cwsInstrumentationRemotePath = filepath.Join(cwsMountPath, "cws-instrumentation")
+			cwsInstrumentationRemotePath = filepath.Join(cwsMountPath, cwsInstrumentationRemotePath)
 		} else {
 			// check if the target pod has a read only filesystem
 			if readOnly := ci.hasReadonlyRootfs(pod, exec.Container); readOnly {
@@ -483,7 +498,6 @@ func (ci *CWSInstrumentation) injectCWSCommandInstrumentation(exec *corev1.PodEx
 				metrics.CWSExecInstrumentationAttempts.Observe(1, ci.mode.String(), "false", cwsReadonlyFilesystemReason)
 				return false, errors.New(metrics.InvalidInput)
 			}
-			cwsInstrumentationRemotePath = "/cws-instrumentation"
 		}
 
 		arch, err := ci.resolveNodeArch(pod.Spec.NodeName, apiClient)
@@ -511,7 +525,7 @@ func (ci *CWSInstrumentation) injectCWSCommandInstrumentation(exec *corev1.PodEx
 
 		// copy CWS instrumentation directly to the target container
 		if err := ci.injectCWSCommandInstrumentationRemoteCopy(pod, container.Name, cwsInstrumentationLocalPath, cwsInstrumentationRemotePath); err != nil {
-			log.Errorf("Ignoring exec request into %s, remote copy failed: %v", common.PodString(pod), err)
+			log.Warnf("Ignoring exec request into %s, remote copy failed: %v", common.PodString(pod), err)
 			metrics.CWSExecInstrumentationAttempts.Observe(1, ci.mode.String(), "false", cwsRemoteCopyFailedReason)
 			return false, errors.New(metrics.InternalError)
 		}
@@ -766,10 +780,6 @@ func mutatePodExecOptions(rawPodExecOptions []byte, name string, ns string, muta
 	var exec corev1.PodExecOptions
 	if err := json.Unmarshal(rawPodExecOptions, &exec); err != nil {
 		return nil, fmt.Errorf("failed to decode raw object: %v", err)
-	}
-
-	if _, err := m(&exec, name, ns, userInfo, dc, apiClient); err != nil {
-		return nil, err
 	}
 
 	if injected, err := m(&exec, name, ns, userInfo, dc, apiClient); err != nil {

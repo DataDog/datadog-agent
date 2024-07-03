@@ -99,6 +99,9 @@ func (a *apmInjectorInstaller) Finish(err error) {
 	if err != nil {
 		// Run rollbacks in reverse order
 		for i := len(a.rollbacks) - 1; i >= 0; i-- {
+			if a.rollbacks[i] == nil {
+				continue
+			}
 			if rollbackErr := a.rollbacks[i](); rollbackErr != nil {
 				log.Warnf("rollback failed: %v", rollbackErr)
 			}
@@ -107,6 +110,9 @@ func (a *apmInjectorInstaller) Finish(err error) {
 
 	// Run cleanups in reverse order
 	for i := len(a.cleanups) - 1; i >= 0; i-- {
+		if a.cleanups[i] == nil {
+			continue
+		}
 		a.cleanups[i]()
 	}
 }
@@ -119,20 +125,36 @@ func (a *apmInjectorInstaller) Setup(ctx context.Context) error {
 	if err := a.configureSocketsEnv(ctx); err != nil {
 		return err
 	}
-	if err := addSystemDEnvOverrides(ctx, agentUnit); err != nil {
-		return err
+	// Symlinks for sysvinit
+	if err := os.Symlink(envFilePath, "/etc/default/datadog-agent-trace"); err != nil && !os.IsExist(err) {
+		return fmt.Errorf("failed to symlink %s to /etc/default/datadog-agent-trace: %w", envFilePath, err)
 	}
-	if err := addSystemDEnvOverrides(ctx, agentExp); err != nil {
-		return err
+	if err := os.Symlink(envFilePath, "/etc/default/datadog-agent"); err != nil && !os.IsExist(err) {
+		return fmt.Errorf("failed to symlink %s to /etc/default/datadog-agent: %w", envFilePath, err)
 	}
-	if err := addSystemDEnvOverrides(ctx, traceAgentUnit); err != nil {
-		return err
+	systemdRunning, err := isSystemdRunning()
+	if err != nil {
+		return fmt.Errorf("failed to check if systemd is running: %w", err)
 	}
-	if err := addSystemDEnvOverrides(ctx, traceAgentExp); err != nil {
-		return err
+	if systemdRunning {
+		if err := addSystemDEnvOverrides(ctx, agentUnit); err != nil {
+			return err
+		}
+		if err := addSystemDEnvOverrides(ctx, agentExp); err != nil {
+			return err
+		}
+		if err := addSystemDEnvOverrides(ctx, traceAgentUnit); err != nil {
+			return err
+		}
+		if err := addSystemDEnvOverrides(ctx, traceAgentExp); err != nil {
+			return err
+		}
+		if err := systemdReload(ctx); err != nil {
+			return err
+		}
 	}
 
-	// /var/log/datadog is created by default with datadog-installer install
+	// Create mandatory dirs
 	err = os.Mkdir("/var/log/datadog/dotnet", 0777)
 	if err != nil && !os.IsExist(err) {
 		return fmt.Errorf("error creating /var/log/datadog/dotnet: %w", err)
@@ -141,6 +163,10 @@ func (a *apmInjectorInstaller) Setup(ctx context.Context) error {
 	err = os.Chmod("/var/log/datadog/dotnet", 0777)
 	if err != nil {
 		return fmt.Errorf("error changing permissions on /var/log/datadog/dotnet: %w", err)
+	}
+	err = os.Mkdir("/etc/datadog-agent/inject", 0755)
+	if err != nil && !os.IsExist(err) {
+		return fmt.Errorf("error creating /etc/datadog-agent/inject: %w", err)
 	}
 
 	err = a.addInstrumentScripts(ctx)

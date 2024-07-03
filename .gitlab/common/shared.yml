@@ -49,7 +49,9 @@
         # This is coarser than needed, but there's no more convenient way
         # to get a hold of OMNIBUS_RUBY_VERSION and OMNIBUS_SOFTWARE version
         - release.json
-      prefix: omnibus-deps-$CI_JOB_NAME
+      # We still need to add the environment omnibus-related variables so that triggered pipelines
+      # don't get undesired cache hits
+      prefix: omnibus-deps-$CI_JOB_NAME-$OMNIBUS_RUBY_VERSION-$OMNIBUS_SOFTWARE
     paths:
       - omnibus/vendor/bundle
 

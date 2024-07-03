@@ -35,6 +35,9 @@ build do
     command "invoke installer.build --rebuild --run-path=/var/run/datadog-installer --install-path=#{install_dir}", env: env
     mkdir "#{install_dir}/bin"
     copy 'bin/installer', "#{install_dir}/bin/"
+  elsif windows_target?
+    command "inv -e installer.build --rebuild --install-path=#{install_dir}", env: env
+    copy 'bin/installer/installer.exe', "#{install_dir}/datadog-installer.exe"
   end
 
   # Remove empty/unneeded folders

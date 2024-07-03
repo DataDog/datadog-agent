@@ -47,12 +47,13 @@ static __always_inline bool read_message_header(pktbuf_t pkt, struct pg_message_
 // If a transaction already exists for the given connection, it is aborted.
 // Query message format - https://www.postgresql.org/docs/current/protocol-message-formats.html#PROTOCOL-MESSAGE-FORMATS-QUERY
 // the first 5 bytes are the message header, and the query is the rest of the payload.
-static __always_inline void handle_new_query(pktbuf_t pkt, conn_tuple_t *conn_tuple, __u32 query_len) {
+static __always_inline void handle_new_query(pktbuf_t pkt, conn_tuple_t *conn_tuple, __u32 query_len, __u8 tags) {
     postgres_transaction_t new_transaction = {};
     new_transaction.request_started = bpf_ktime_get_ns();
     u32 data_off = pktbuf_data_offset(pkt);
     pktbuf_read_into_buffer_postgres_query((char *)new_transaction.request_fragment, pkt, data_off);
     new_transaction.original_query_size = query_len;
+    new_transaction.tags = tags;
     bpf_map_update_elem(&postgres_in_flight, conn_tuple, &new_transaction, BPF_ANY);
 }
 
@@ -111,7 +112,7 @@ static int __always_inline skip_string(pktbuf_t pkt, int message_len) {
 // complete, it enqueues the transaction and deletes it from the in-flight map. If the message is not a command complete,
 // it tries to read up to POSTGRES_MAX_MESSAGES messages, looking for a command complete message.
 // If the message is not a new query or a command complete, it ignores the message.
-static __always_inline void postgres_entrypoint(pktbuf_t pkt, conn_tuple_t *conn_tuple, struct pg_message_header *header) {
+static __always_inline void postgres_entrypoint(pktbuf_t pkt, conn_tuple_t *conn_tuple, struct pg_message_header *header, __u8 tags) {
     // Read first message header
     // Advance the data offset to the end of the first message header.
     pktbuf_advance(pkt, sizeof(struct pg_message_header));
@@ -121,7 +122,7 @@ static __always_inline void postgres_entrypoint(pktbuf_t pkt, conn_tuple_t *conn
     if (header->message_tag == POSTGRES_QUERY_MAGIC_BYTE) {
         // message_len includes size of the payload, 4 bytes of the message length itself, but not the message tag.
         // So if we want to know the size of the payload, we need to subtract the size of the message length.
-        handle_new_query(pkt, conn_tuple, header->message_len - sizeof(__u32));
+        handle_new_query(pkt, conn_tuple, header->message_len - sizeof(__u32), tags);
         return;
     }
 
@@ -165,7 +166,7 @@ static __always_inline void postgres_entrypoint(pktbuf_t pkt, conn_tuple_t *conn
 
 // A dedicated function to handle the parse message. This function is called from a tail call from the main entrypoint.
 // The reason for this is that the main entrypoint is too large to be inlined, and the verifier has issues with it.
-static __always_inline void postgres_handle_parse_message(pktbuf_t pkt, conn_tuple_t *conn_tuple) {
+static __always_inline void postgres_handle_parse_message(pktbuf_t pkt, conn_tuple_t *conn_tuple, __u8 tags) {
     // Read first message header
     struct pg_message_header header;
     if (!read_message_header(pkt, &header)) {
@@ -190,7 +191,7 @@ static __always_inline void postgres_handle_parse_message(pktbuf_t pkt, conn_tup
 
     // message_len includes size of the payload, 4 bytes of the message length itself, but not the message tag.
     // So if we want to know the size of the payload, we need to subtract the size of the message length.
-    handle_new_query(pkt, conn_tuple, header.message_len - sizeof(__u32));
+    handle_new_query(pkt, conn_tuple, header.message_len - sizeof(__u32), tags);
     return;
 }
 
@@ -226,7 +227,7 @@ int socket__postgres_process(struct __sk_buff* skb) {
         return 0;
     }
 
-    postgres_entrypoint(pkt, &conn_tuple, &header);
+    postgres_entrypoint(pkt, &conn_tuple, &header, NO_TAGS);
     return 0;
 }
 
@@ -244,7 +245,7 @@ int socket__postgres_process_parse_message(struct __sk_buff* skb) {
     normalize_tuple(&conn_tuple);
 
     pktbuf_t pkt = pktbuf_from_skb(skb, &skb_info);
-    postgres_handle_parse_message(pkt, &conn_tuple);
+    postgres_handle_parse_message(pkt, &conn_tuple, NO_TAGS);
     return 0;
 }
 
@@ -271,10 +272,10 @@ int uprobe__postgres_tls_process(struct pt_regs *ctx) {
 
     // If the message is a parse message, we tail call to the dedicated function to handle it.
     if (header.message_tag == POSTGRES_PARSE_MAGIC_BYTE) {
-        bpf_tail_call_compat(ctx, &tls_process_progs, TLS_PROG_POSTGRES_PROCESS_PARSE_MESSAGE);
+        bpf_tail_call_compat(ctx, &tls_process_progs, PROG_POSTGRES_PROCESS_PARSE_MESSAGE);
         return 0;
     }
-    postgres_entrypoint(pkt, &tup, &header);
+    postgres_entrypoint(pkt, &tup, &header, (__u8)args->tags);
     return 0;
 }
 
@@ -293,7 +294,7 @@ int uprobe__postgres_tls_process_parse_message(struct pt_regs *ctx) {
     conn_tuple_t tup = args->tup;
 
     pktbuf_t pkt = pktbuf_from_tls(ctx, args);
-    postgres_handle_parse_message(pkt, &tup);
+    postgres_handle_parse_message(pkt, &tup, (__u8)args->tags);
     return 0;
 }
 

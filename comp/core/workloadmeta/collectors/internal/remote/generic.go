@@ -209,14 +209,7 @@ func (c *GenericCollector) Run() {
 			}, streamRecvTimeout)
 		}
 		if err != nil {
-			// at the end of stream, but its OK
-			if errors.Is(err, io.EOF) {
-				continue
-			}
-
 			c.streamCancel()
-
-			telemetry.RemoteClientErrors.Inc(c.CollectorID)
 
 			// when Recv() returns an error, the stream is aborted and the
 			// contents of our store are considered out of sync. The stream must
@@ -225,7 +218,10 @@ func (c *GenericCollector) Run() {
 			c.stream = nil
 			c.resyncNeeded = true
 
-			log.Warnf("error received from remote workloadmeta: %s", err)
+			if err != io.EOF {
+				telemetry.RemoteClientErrors.Inc(c.CollectorID)
+				log.Warnf("error received from remote workloadmeta: %s", err)
+			}
 
 			continue
 		}
@@ -239,9 +235,9 @@ func (c *GenericCollector) Run() {
 		if c.resyncNeeded {
 			c.StreamHandler.HandleResync(c.store, collectorEvents)
 			c.resyncNeeded = false
+		} else {
+			c.store.Notify(collectorEvents)
 		}
-
-		c.store.Notify(collectorEvents)
 	}
 }
 

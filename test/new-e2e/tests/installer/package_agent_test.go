@@ -8,10 +8,14 @@ package installer
 import (
 	"fmt"
 	"path/filepath"
+	"strings"
+	"time"
 
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/host"
 	e2eos "github.com/DataDog/test-infra-definitions/components/os"
+	"github.com/stretchr/testify/assert"
+	"gopkg.in/yaml.v3"
 )
 
 const (
@@ -128,7 +132,10 @@ func (s *packageAgentSuite) TestExperimentTimeout() {
 	defer s.Purge()
 	s.host.WaitForUnitActive("datadog-agent.service", "datadog-agent-trace.service", "datadog-agent-process.service")
 
-	s.host.SetupFakeAgentExp()
+	s.host.SetupFakeAgentExp().
+		SetStopWithSigtermExit0("core-agent").
+		SetStopWithSigtermExit0("process-agent").
+		SetStopWithSigtermExit0("trace-agent")
 
 	// assert timeout is already set
 	s.host.AssertUnitProperty("datadog-agent-exp.service", "JobTimeoutUSec", "50min")
@@ -367,6 +374,25 @@ func (s *packageAgentSuite) TestExperimentStopped() {
 			),
 		)
 	}
+}
+
+func (s *packageAgentSuite) TestRunPath() {
+	s.RunInstallScript(envForceInstall("datadog-agent"))
+	defer s.Purge()
+	s.host.WaitForUnitActive("datadog-agent.service", "datadog-agent-trace.service", "datadog-agent-process.service")
+
+	var rawConfig string
+	var err error
+	assert.Eventually(s.T(), func() bool {
+		rawConfig, err = s.host.AgentRuntimeConfig()
+		return err == nil
+	}, 30*time.Second, 5*time.Second, "failed to get agent runtime config: %v", err)
+	var config map[string]interface{}
+	err = yaml.Unmarshal([]byte(rawConfig), &config)
+	assert.NoError(s.T(), err)
+	runPath, ok := config["run_path"].(string)
+	assert.True(s.T(), ok, "run_path not found in runtime config")
+	assert.True(s.T(), strings.HasPrefix(runPath, "/opt/datadog-packages/datadog-agent/"), "run_path is not in the expected location: %s", runPath)
 }
 
 func (s *packageAgentSuite) purgeAgentDebInstall() {

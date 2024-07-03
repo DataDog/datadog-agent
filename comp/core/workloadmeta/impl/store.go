@@ -319,28 +319,6 @@ func (w *workloadmeta) GetKubernetesPodForContainer(containerID string) (*wmdef.
 	return pod.cached.(*wmdef.KubernetesPod), nil
 }
 
-// ListKubernetesNodes implements Store#ListKubernetesNodes
-func (w *workloadmeta) ListKubernetesNodes() []*wmdef.KubernetesNode {
-	entities := w.listEntitiesByKind(wmdef.KindKubernetesNode)
-
-	nodes := make([]*wmdef.KubernetesNode, 0, len(entities))
-	for i := range entities {
-		nodes = append(nodes, entities[i].(*wmdef.KubernetesNode))
-	}
-
-	return nodes
-}
-
-// GetKubernetesNode implements Store#GetKubernetesNode
-func (w *workloadmeta) GetKubernetesNode(id string) (*wmdef.KubernetesNode, error) {
-	entity, err := w.getEntityByKind(wmdef.KindKubernetesNode, id)
-	if err != nil {
-		return nil, err
-	}
-
-	return entity.(*wmdef.KubernetesNode), nil
-}
-
 // GetKubernetesDeployment implements Store#GetKubernetesDeployment
 func (w *workloadmeta) GetKubernetesDeployment(id string) (*wmdef.KubernetesDeployment, error) {
 	entity, err := w.getEntityByKind(wmdef.KindKubernetesDeployment, id)
@@ -398,13 +376,29 @@ func (w *workloadmeta) GetImage(id string) (*wmdef.ContainerImageMetadata, error
 }
 
 // GetKubernetesMetadata implements Store#GetKubernetesMetadata.
-func (w *workloadmeta) GetKubernetesMetadata(id string) (*wmdef.KubernetesMetadata, error) {
-	entity, err := w.getEntityByKind(wmdef.KindKubernetesMetadata, id)
+func (w *workloadmeta) GetKubernetesMetadata(id wmdef.KubeMetadataEntityID) (*wmdef.KubernetesMetadata, error) {
+	entity, err := w.getEntityByKind(wmdef.KindKubernetesMetadata, string(id))
 	if err != nil {
 		return nil, err
 	}
 
 	return entity.(*wmdef.KubernetesMetadata), nil
+}
+
+// ListKubernetesMetadata implements Store#ListKubernetesMetadata.
+func (w *workloadmeta) ListKubernetesMetadata(filterFunc wmdef.EntityFilterFunc[*wmdef.KubernetesMetadata]) []*wmdef.KubernetesMetadata {
+	entities := w.listEntitiesByKind(wmdef.KindKubernetesMetadata)
+
+	var metadata []*wmdef.KubernetesMetadata
+	for _, entity := range entities {
+		kubeMetadata := entity.(*wmdef.KubernetesMetadata)
+
+		if filterFunc == nil || filterFunc(kubeMetadata) {
+			metadata = append(metadata, kubeMetadata)
+		}
+	}
+
+	return metadata
 }
 
 // Notify implements Store#Notify
@@ -695,9 +689,15 @@ func (w *workloadmeta) handleEvents(evs []wmdef.CollectorEvent) {
 
 		for _, sub := range w.subscribers {
 			filter := sub.filter
-			if !filter.MatchEntity(&ev.Entity) || !filter.MatchSource(ev.Source) || !filter.MatchEventType(ev.Type) {
+
+			// Notice that we cannot call filter.MatchEntity() here because
+			// the entity included in the event might be incomplete if it's
+			// an unset event. Some collectors only send the entity ID in
+			// unset events, for example. The call to filter.MatchEntity()
+			// is done below using the cached entity.
+			if !filter.MatchSource(ev.Source) || !filter.MatchEventType(ev.Type) {
 				// event should be filtered out because it
-				// doesn't match the filter
+				// doesn't match the filter.
 				continue
 			}
 
@@ -711,6 +711,10 @@ func (w *workloadmeta) handleEvents(evs []wmdef.CollectorEvent) {
 			}
 
 			entity := cachedEntity.get(filter.Source())
+			if !filter.MatchEntity(&entity) {
+				continue
+			}
+
 			if isEventTypeSet {
 				filteredEvents[sub] = append(filteredEvents[sub], wmdef.Event{
 					Type:   wmdef.EventTypeSet,
@@ -737,12 +741,14 @@ func (w *workloadmeta) handleEvents(evs []wmdef.CollectorEvent) {
 	// process an event.
 	w.storeMut.Unlock()
 
-	for sub, evs := range filteredEvents {
-		if len(evs) == 0 {
-			continue
-		}
+	for _, sub := range w.subscribers {
+		if evs, found := filteredEvents[sub]; found {
+			if len(evs) == 0 {
+				continue
+			}
 
-		w.notifyChannel(sub.name, sub.ch, evs, true)
+			w.notifyChannel(sub.name, sub.ch, evs, true)
+		}
 	}
 }
 

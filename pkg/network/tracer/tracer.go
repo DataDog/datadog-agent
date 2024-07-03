@@ -67,12 +67,14 @@ var tracerTelemetry = struct {
 	closedConns          *telemetry.StatCounterWrapper
 	connStatsMapSize     telemetry.Gauge
 	payloadSizePerClient telemetry.Gauge
+	failedConnOrphans    telemetry.Counter
 }{
 	telemetry.NewCounter(tracerModuleName, "skipped_conns", []string{"ip_proto"}, "Counter measuring skipped connections"),
 	telemetry.NewCounter(tracerModuleName, "expired_tcp_conns", []string{}, "Counter measuring expired TCP connections"),
 	telemetry.NewStatCounterWrapper(tracerModuleName, "closed_conns", []string{"ip_proto"}, "Counter measuring closed TCP connections"),
 	telemetry.NewGauge(tracerModuleName, "conn_stats_map_size", []string{}, "Gauge measuring the size of the active connections map"),
 	telemetry.NewGauge(tracerModuleName, "payload_conn_count", []string{"client_id", "ip_proto"}, "Gauge measuring the number of connections in the system-probe payload"),
+	telemetry.NewCounter(tracerModuleName, "failed_conn_orphans", []string{}, "Counter measuring the number of orphans after associating failed connections with a closed connection"),
 }
 
 // Tracer implements the functionality of the network tracer
@@ -295,6 +297,11 @@ func newReverseDNS(c *config.Config, telemetrycomp telemetryComponent.Component)
 	return rdns
 }
 
+// storeClosedConnections is triggered when:
+// * the current closed connection batch fills up
+// * the client asks for the current connections
+// this function is responsible for storing the closed connections in the state and
+// matching failed connections to closed connections
 func (t *Tracer) storeClosedConnections(connections []network.ConnectionStats) {
 	var rejected int
 	for i := range connections {
@@ -316,6 +323,7 @@ func (t *Tracer) storeClosedConnections(connections []network.ConnectionStats) {
 		t.addProcessInfo(cs)
 
 		tracerTelemetry.closedConns.Inc(cs.Type.String())
+		t.ebpfTracer.GetFailedConnections().MatchFailedConn(cs)
 	}
 
 	connections = connections[rejected:]
@@ -557,6 +565,9 @@ func (t *Tracer) getConnections(activeBuffer *network.ConnectionBuffer) (latestU
 
 	// get rid of stale process entries in the cache
 	t.processCache.Trim()
+
+	// remove stale failed connections from map
+	t.ebpfTracer.GetFailedConnections().RemoveExpired()
 
 	entryCount := len(activeConnections)
 	if entryCount >= int(t.config.MaxTrackedConnections) {

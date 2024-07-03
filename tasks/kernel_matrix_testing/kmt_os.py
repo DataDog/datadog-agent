@@ -159,7 +159,7 @@ class MacOS:
             # Generate a plist file for virtlogd so that we can manage it wiht launchctl.
             # Values for the plist file are taken from the libvirt formula.
             plist_data = {
-                "EnvironmentVariables": dict(PATH=os.fspath(get_homebrew_prefix() / "bin")),
+                "EnvironmentVariables": {"PATH": os.fspath(get_homebrew_prefix() / "bin")},
                 "KeepAlive": True,
                 "Label": "org.libvirt.virtlogd",
                 "LimitLoadToSessionType": ["Aqua", "Background", "LoginWindow", "StandardIO", "System"],

@@ -244,6 +244,10 @@ github.com/bitnami/go-version/pkg/version: Copyright (c) 2023-2024 Carlos Rodrí
 github.com/kylelemons/godebug: Copyright (c) 2013-2020 Kyle Lemons
 github.com/santhosh-tekuri/jsonschema: Copyright (c) 2017-2024 Santhosh Kumar Tekuri
 github.com/chrusty/protoc-gen-jsonschema: Copyright (c) 2017 The Authors
+github.com/antchfx/htmlquery: Copyright (c) 2016 Zheng Chun
+github.com/antchfx/xmlquery: Copyright (c) 2016 Zheng Chun
+github.com/antchfx/xpath: Copyright (c) 2016 Zheng Chun
+
 
 # The Copyright information is not contained in the LICENSE file, but it can be found in other
 # files in the package, such as:
@@ -357,6 +361,7 @@ github.com/pquerna/cachecontrol/cacheobject: Copyright 2015 Paul Querna
 github.com/signalfx/sapm-proto/*: Copyright 2019 Splunk, Inc.
 go.mongodb.org/atlas/mongodbatlas: Copyright 2022 MongoDB Inc
 github.com/go-jose/go-jose/v4: Copyright 2014 Square Inc.
+github.com/gocolly/colly: Copyright 2018 Adam Tauber
 
 github.com/vibrantbyte/go-antpath/antpath: vibrantbyte <codingrun@163.com>|suchao <suchao@renrenche.com>
 github.com/vibrantbyte/go-antpath/extend: vibrantbyte <codingrun@163.com>|suchao <suchao@renrenche.com>

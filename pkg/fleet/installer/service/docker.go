@@ -140,11 +140,17 @@ func (a *apmInjectorInstaller) deleteDockerConfigContent(_ context.Context, prev
 func (a *apmInjectorInstaller) verifyDockerRuntime(ctx context.Context) (err error) {
 	span, _ := tracer.StartSpanFromContext(ctx, "verify_docker_runtime")
 	defer func() { span.Finish(tracer.WithError(err)) }()
+
+	if !isDockerActive(ctx) {
+		log.Warn("docker is inactive, skipping docker runtime verification")
+		return nil
+	}
+
 	for i := 0; i < 3; i++ {
 		if i > 0 {
 			time.Sleep(time.Second)
 		}
-		cmd := exec.Command("docker", "system", "info", "--format", "{{ .DefaultRuntime }}")
+		cmd := exec.CommandContext(ctx, "docker", "system", "info", "--format", "{{ .DefaultRuntime }}")
 		var outb bytes.Buffer
 		cmd.Stdout = &outb
 		err = cmd.Run()
@@ -166,7 +172,28 @@ func (a *apmInjectorInstaller) verifyDockerRuntime(ctx context.Context) (err err
 func reloadDockerConfig(ctx context.Context) (err error) {
 	span, _ := tracer.StartSpanFromContext(ctx, "reload_docker")
 	defer func() { span.Finish(tracer.WithError(err)) }()
-	return exec.CommandContext(ctx, "systemctl", "reload", "docker").Run()
+	if !isDockerActive(ctx) {
+		log.Warn("docker is inactive, skipping docker reload")
+		return nil
+	}
+	cmdPids := exec.CommandContext(ctx, "pidof", "dockerd")
+	buf := new(bytes.Buffer)
+	bufErr := new(bytes.Buffer)
+	cmdPids.Stdout = buf
+	cmdPids.Stderr = bufErr
+	err = cmdPids.Run()
+	if err != nil {
+		return fmt.Errorf("failed to get docker daemon pid (%s): %s", err.Error(), bufErr.String())
+	}
+
+	cmd := exec.CommandContext(ctx, "kill", "-1", strings.TrimSpace(buf.String())) // Send SIGHUP to the docker daemon
+	bufErr = new(bytes.Buffer)
+	cmd.Stderr = bufErr
+	err = cmd.Run()
+	if err != nil {
+		return fmt.Errorf("failed to reload docker (%s): %s", err.Error(), bufErr.String())
+	}
+	return nil
 }
 
 // isDockerInstalled checks if docker is installed on the system
@@ -187,4 +214,10 @@ func isDockerInstalled(ctx context.Context) bool {
 		return false
 	}
 	return true
+}
+
+// isDockerActive checks if docker is started on the system
+func isDockerActive(ctx context.Context) bool {
+	cmd := exec.CommandContext(ctx, "pidof", "dockerd")
+	return cmd.Run() == nil
 }

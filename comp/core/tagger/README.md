@@ -56,7 +56,6 @@ Tagger entities are identified by a string-typed ID, with one of the following f
 | workloadmeta.KindHost                   | `host`                                                                                                       |
 | workloadmeta.KindKubernetesDeployment   | `deployment://<namespace>/<name>`                                                                            |
 | workloadmeta.KindKubernetesMetadata     | `kubernetes_metadata://<resourceType>/<namespace>/<name>` (`<namespace>` is empty in cluster-scoped objects) |
-| workloadmeta.KindKubernetesNode         | `kubernetes_node_uid://<name>`                                                                               |
 | workloadmeta.KindKubernetesPod          | `kubernetes_pod_uid://<uid>`                                                                                 |
 | workloadmeta.KindProcess                | `process://<pid>`                                                                                            |
 

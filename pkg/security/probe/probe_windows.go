@@ -32,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
@@ -1053,6 +1054,12 @@ func (p *WindowsProbe) SendStats() error {
 	if err := p.statsdClient.Gauge(metrics.MetricWindowsApproverRejects, float64(p.stats.createFileApproverRejects), nil, 1); err != nil {
 		return err
 	}
+	if p.fimSession == nil {
+		return nil
+	}
+
+	// all stats below this line only valid if the full ETW session is enabled
+
 	if etwstats, err := p.fimSession.GetSessionStatistics(); err == nil {
 		if err := p.statsdClient.Gauge(metrics.MetricWindowsETWNumberOfBuffers, float64(etwstats.NumberOfBuffers), nil, 1); err != nil {
 			return err
@@ -1202,7 +1209,12 @@ func NewWindowsProbe(probe *Probe, config *config.Config, opts Opts) (*WindowsPr
 		return nil, err
 	}
 
-	p.fieldHandlers = &FieldHandlers{config: config, resolvers: p.Resolvers}
+	hostname, err := utils.GetHostname()
+	if err != nil || hostname == "" {
+		hostname = "unknown"
+	}
+
+	p.fieldHandlers = &FieldHandlers{config: config, resolvers: p.Resolvers, hostname: hostname}
 
 	p.event = p.NewEvent()
 

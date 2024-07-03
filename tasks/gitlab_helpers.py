@@ -4,13 +4,16 @@ Helper for generating links to CI Visibility for Gitlab CI jobs
 
 import json
 import os
-from urllib.parse import quote
 
 from invoke import task
 
+from tasks.libs.civisibility import (
+    get_pipeline_link_to_job_id,
+    get_pipeline_link_to_job_on_main,
+    get_test_link_to_job_id,
+    get_test_link_to_job_on_main,
+)
 from tasks.libs.common.color import Color, color_message
-
-CI_VISIBILITY_URL = "https://app.datadoghq.com/ci/pipeline-executions"
 
 
 @task
@@ -55,44 +58,26 @@ def create_gitlab_annotations_report(ci_job_id: str, ci_job_name: str):
             {
                 "external_link": {
                     "label": "CI Visibility: This job instance",
-                    "url": get_link_to_job_id(ci_job_id),
+                    "url": get_pipeline_link_to_job_id(ci_job_id),
+                }
+            },
+            {
+                "external_link": {
+                    "label": "Test Visibility: This job test runs",
+                    "url": get_test_link_to_job_id(ci_job_id),
                 }
             },
             {
                 "external_link": {
                     "label": "CI Visibility: This job on main",
-                    "url": get_link_to_job_on_main(ci_job_name),
+                    "url": get_pipeline_link_to_job_on_main(ci_job_name),
+                }
+            },
+            {
+                "external_link": {
+                    "label": "Test Visibility: This job test runs on main",
+                    "url": get_test_link_to_job_on_main(ci_job_name),
                 }
             },
         ]
     }
-
-
-def get_link_to_job_id(job_id: str):
-    query_params = {
-        "ci_level": "job",
-        "@ci.job.id": job_id,
-        "@ci.pipeline.name": "DataDog/datadog-agent",
-    }
-    query_string = to_query_string(query_params)
-    quoted_query_string = quote(string=query_string, safe="")
-    return f"{CI_VISIBILITY_URL}?query={quoted_query_string}"
-
-
-def get_link_to_job_on_main(job_name: str):
-    # explicitly escape double quotes
-    job_name = job_name.replace('"', '\\"')
-    query_params = {
-        "ci_level": "job",
-        # wrapping in double quotes
-        "@ci.job.name": f'"{job_name}"',
-        "@git.branch": "main",
-        "@ci.pipeline.name": "DataDog/datadog-agent",
-    }
-    query_string = to_query_string(query_params)
-    quoted_query_string = quote(string=query_string, safe="")
-    return f"{CI_VISIBILITY_URL}?query={quoted_query_string}"
-
-
-def to_query_string(params: dict):
-    return " ".join(f"{k}:{v}" for k, v in params.items())

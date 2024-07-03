@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/http"
 	"os"
 	"os/signal"
 	"runtime"
@@ -19,6 +20,7 @@ import (
 	"sync"
 	"syscall"
 
+	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
@@ -27,6 +29,7 @@ import (
 	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
 	"github.com/DataDog/datadog-agent/comp/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	pkgagent "github.com/DataDog/datadog-agent/pkg/trace/agent"
 	tracecfg "github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
@@ -35,6 +38,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
+	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
+	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes/source"
 )
 
 const messageAgentDisabled = `trace-agent not enabled. Set the environment variable
@@ -59,9 +64,21 @@ type dependencies struct {
 	Tagger             tagger.Component
 }
 
-type component struct{}
+var _ traceagent.Component = (*component)(nil)
 
-type agent struct {
+func (c component) SetOTelAttributeTranslator(attrstrans *attributes.Translator) {
+	c.Agent.OTLPReceiver.SetOTelAttributeTranslator(attrstrans)
+}
+
+func (c component) ReceiveOTLPSpans(ctx context.Context, rspans ptrace.ResourceSpans, httpHeader http.Header) source.Source {
+	return c.Agent.OTLPReceiver.ReceiveResourceSpans(ctx, rspans, httpHeader)
+}
+
+func (c component) SendStatsPayload(p *pb.StatsPayload) {
+	c.Agent.StatsWriter.SendPayload(p)
+}
+
+type component struct {
 	*pkgagent.Agent
 
 	cancel             context.CancelFunc
@@ -70,7 +87,7 @@ type agent struct {
 	tagger             tagger.Component
 	telemetryCollector telemetry.TelemetryCollector
 	workloadmeta       workloadmeta.Component
-	wg                 sync.WaitGroup
+	wg                 *sync.WaitGroup
 }
 
 // NewAgent creates a new Agent component.
@@ -85,37 +102,37 @@ func NewAgent(deps dependencies) (traceagent.Component, error) {
 		return c, nil
 	}
 	ctx, cancel := context.WithCancel(deps.Context) // Several related non-components require a shared context to gracefully stop.
-	ag := &agent{
+	c = component{
 		cancel:             cancel,
 		config:             deps.Config,
 		params:             deps.Params,
 		workloadmeta:       deps.Workloadmeta,
 		telemetryCollector: deps.TelemetryCollector,
 		tagger:             deps.Tagger,
-		wg:                 sync.WaitGroup{},
+		wg:                 &sync.WaitGroup{},
 	}
-	statsdCl, err := setupMetrics(deps.Statsd, ag.config, ag.telemetryCollector)
+	statsdCl, err := setupMetrics(deps.Statsd, c.config, c.telemetryCollector)
 	if err != nil {
 		return nil, err
 	}
 	setupShutdown(ctx, deps.Shutdowner, statsdCl)
-	ag.Agent = pkgagent.NewAgent(
+	c.Agent = pkgagent.NewAgent(
 		ctx,
-		ag.config.Object(),
-		ag.telemetryCollector,
+		c.config.Object(),
+		c.telemetryCollector,
 		statsdCl,
 	)
 
 	deps.Lc.Append(fx.Hook{
 		// Provided contexts have a timeout, so it can't be used for gracefully stopping long-running components.
 		// These contexts are cancelled on a deadline, so they would have side effects on the agent.
-		OnStart: func(_ context.Context) error { return start(ag) },
-		OnStop:  func(_ context.Context) error { return stop(ag) },
+		OnStart: func(_ context.Context) error { return start(c) },
+		OnStop:  func(_ context.Context) error { return stop(c) },
 	})
 	return c, nil
 }
 
-func start(ag *agent) error {
+func start(ag component) error {
 	if ag.params.CPUProfile != "" {
 		f, err := os.Create(ag.params.CPUProfile)
 		if err != nil {
@@ -163,7 +180,7 @@ func setupMetrics(statsd statsd.Component, cfg config.Component, telemetryCollec
 	return client, nil
 }
 
-func stop(ag *agent) error {
+func stop(ag component) error {
 	ag.cancel()
 	ag.wg.Wait()
 	if err := ag.Statsd.Flush(); err != nil {
