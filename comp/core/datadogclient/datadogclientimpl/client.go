@@ -66,13 +66,13 @@ func (d *datadogClient) GetRateLimitStats() map[string]datadog.RateLimit {
 func (d *datadogClient) refreshClient() {
 	d.mux.Lock()
 	defer d.mux.Unlock()
-	client, error := createDatadogClient(d.datadogConfig)
-	if error != nil {
-		log.Errorf("error refreshing datadog client: %v", error)
+	newClient, err := createDatadogClient(d.datadogConfig)
+	if err != nil {
+		log.Errorf("error refreshing datadog client: %v", err)
 		return
 	}
 	log.Infof("refreshed datadog client")
-	d.client = client
+	d.client = newClient
 }
 
 func createDatadogClient(cfg configComponent.Component) (datadogclient.Component, error) {
@@ -89,9 +89,9 @@ func createDatadogClient(cfg configComponent.Component) (datadogclient.Component
 
 // newDatadogClient configures and returns a new DatadogClient
 func newDatadogClient(deps dependencies) (datadogclient.Component, error) {
-	client, error := createDatadogClient(deps.Config)
-	if error != nil {
-		return nil, error
+	client, err := createDatadogClient(deps.Config)
+	if err != nil {
+		return nil, err
 	}
 	dc := &datadogClient{
 		datadogConfig: deps.Config,

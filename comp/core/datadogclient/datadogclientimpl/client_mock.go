@@ -16,11 +16,6 @@ import (
 	"gopkg.in/zorkian/go-datadog-api.v2"
 )
 
-type testDependencies struct {
-	fx.In
-	Lyfecycle fx.Lifecycle
-}
-
 // MockModule defines the fx options for the mock component.
 func MockModule() fxutil.Module {
 	return fxutil.Component(
@@ -65,7 +60,7 @@ func (d *mockDatadogClient) SetGetRateLimitsFunc(getRateLimitsFunc func() map[st
 }
 
 // NewMock returns a new mock datadogclient component
-func newMock(deps testDependencies) datadogclient.MockComponent {
+func newMock() datadogclient.MockComponent {
 	m := &mockDatadogClient{}
 	return m
 }

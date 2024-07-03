@@ -319,6 +319,7 @@ func start(log log.Component,
 		EventRecorder:          eventRecorder,
 		WorkloadMeta:           wmeta,
 		StopCh:                 stopCh,
+		DatadogClient:          dc,
 	}
 
 	if aggErr := controllers.StartControllers(ctx); aggErr != nil {

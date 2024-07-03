@@ -8,7 +8,7 @@ package datadogclient
 
 import "gopkg.in/zorkian/go-datadog-api.v2"
 
-// Mock implements mock-specific methods.
+// MockComponent implements mock-specific methods.
 type MockComponent interface {
 	Component
 	SetQueryMetricsFunc(queryMetricsFunc func(from, to int64, query string) ([]datadog.Series, error))

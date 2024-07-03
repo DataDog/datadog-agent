@@ -141,7 +141,7 @@ func startMetadataController(ctx ControllerContext, c chan error) {
 func startAutoscalersController(ctx ControllerContext, c chan error) {
 	var err error
 	if ctx.DatadogClient == nil {
-		c <- fmt.Errorf("DatadogClient is not initialized.")
+		c <- fmt.Errorf("datadog client is nil")
 		return
 	}
 	autoscalersController, err := newAutoscalersController(
