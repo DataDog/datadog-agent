@@ -29,7 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
-	logComp "github.com/DataDog/datadog-agent/comp/core/log"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
@@ -54,7 +54,7 @@ type dependencies struct {
 	fx.In
 	Lc         fx.Lifecycle
 	Config     configComponent.Component
-	Log        logComp.Component
+	Log        log.Component
 	TaggerComp tagger.Component
 	Secrets    secrets.Component
 	WMeta      optional.Option[workloadmeta.Component]
@@ -718,7 +718,7 @@ type optionalModuleDeps struct {
 	fx.In
 	Lc         fx.Lifecycle
 	Config     configComponent.Component
-	Log        logComp.Component
+	Log        log.Component
 	TaggerComp optional.Option[tagger.Component]
 	Secrets    secrets.Component
 	WMeta      optional.Option[workloadmeta.Component]

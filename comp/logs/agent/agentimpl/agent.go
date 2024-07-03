@@ -19,7 +19,7 @@ import (
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
-	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	statusComponent "github.com/DataDog/datadog-agent/comp/core/status"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/logs/agent"
@@ -73,7 +73,7 @@ type dependencies struct {
 	fx.In
 
 	Lc                 fx.Lifecycle
-	Log                logComponent.Component
+	Log                log.Component
 	Config             configComponent.Component
 	InventoryAgent     inventoryagent.Component
 	Hostname           hostname.Component
@@ -95,7 +95,7 @@ type provides struct {
 // processes and sends logs to the backend.  See the package README for
 // a description of its operation.
 type logAgent struct {
-	log            logComponent.Component
+	log            log.Component
 	config         pkgConfig.Reader
 	inventoryAgent inventoryagent.Component
 	hostname       hostname.Component

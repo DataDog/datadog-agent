@@ -33,7 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	healthprobe "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
 	healthprobefx "github.com/DataDog/datadog-agent/comp/core/healthprobe/fx"
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/pid"
 	"github.com/DataDog/datadog-agent/comp/core/pid/pidimpl"
@@ -88,7 +88,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(run,
 				fx.Supply(config.NewAgentParams("", config.WithConfigMissingOK(true))),
 				fx.Supply(sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.ConfFilePath))),
-				fx.Supply(logimpl.ForDaemon("SYS-PROBE", "log_file", common.DefaultLogFile)),
+				fx.Supply(log.ForDaemon("SYS-PROBE", "log_file", common.DefaultLogFile)),
 				fx.Supply(rcclient.Params{AgentName: "system-probe", AgentVersion: version.AgentVersion}),
 				fx.Supply(optional.NewNoneOption[secrets.Component]()),
 				compstatsd.Module(),
@@ -104,7 +104,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				}),
 				healthprobefx.Module(),
 				// use system-probe config instead of agent config for logging
-				fx.Provide(func(lc fx.Lifecycle, params logimpl.Params, sysprobeconfig sysprobeconfig.Component) (log.Component, error) {
+				fx.Provide(func(lc fx.Lifecycle, params log.Params, sysprobeconfig sysprobeconfig.Component) (log.Component, error) {
 					return logimpl.NewLogger(lc, params, sysprobeconfig)
 				}),
 				fx.Supply(optional.NewNoneOption[workloadmeta.Component]()),
@@ -250,7 +250,7 @@ func runSystemProbe(ctxChan <-chan context.Context, errChan chan error) error {
 		// no config file path specification in this situation
 		fx.Supply(config.NewAgentParams("", config.WithConfigMissingOK(true))),
 		fx.Supply(sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(""))),
-		fx.Supply(logimpl.ForDaemon("SYS-PROBE", "log_file", common.DefaultLogFile)),
+		fx.Supply(log.ForDaemon("SYS-PROBE", "log_file", common.DefaultLogFile)),
 		fx.Supply(rcclient.Params{AgentName: "system-probe", AgentVersion: version.AgentVersion}),
 		fx.Supply(optional.NewNoneOption[secrets.Component]()),
 		rcclientimpl.Module(),
@@ -267,7 +267,7 @@ func runSystemProbe(ctxChan <-chan context.Context, errChan chan error) error {
 		healthprobefx.Module(),
 		fx.Supply(optional.NewNoneOption[workloadmeta.Component]()),
 		// use system-probe config instead of agent config for logging
-		fx.Provide(func(lc fx.Lifecycle, params logimpl.Params, sysprobeconfig sysprobeconfig.Component) (log.Component, error) {
+		fx.Provide(func(lc fx.Lifecycle, params log.Params, sysprobeconfig sysprobeconfig.Component) (log.Component, error) {
 			// TODO comp: We should have a dedicated implementation for the sysprobe-logger
 			return logimpl.NewLogger(logimpl.Requires{
 				Lc:     lc,

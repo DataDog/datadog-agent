@@ -21,7 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/configsync"
 	"github.com/DataDog/datadog-agent/comp/core/configsync/configsyncimpl"
-	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/pid"
 	"github.com/DataDog/datadog-agent/comp/core/pid/pidimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
@@ -96,7 +96,7 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 	var appInitDeps struct {
 		fx.In
 
-		Logger logComponent.Component
+		Logger log.Component
 
 		Checks       []types.CheckComponent `group:"check"`
 		Syscfg       sysprobeconfig.Component
@@ -306,7 +306,7 @@ type miscDeps struct {
 	Syscfg       sysprobeconfig.Component
 	HostInfo     hostinfo.Component
 	WorkloadMeta workloadmeta.Component
-	Logger       logComponent.Component
+	Logger       log.Component
 }
 
 // initMisc initializes modules that cannot, or have not yet been componetized.

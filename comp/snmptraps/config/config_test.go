@@ -13,8 +13,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
-	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/gosnmp/gosnmp"
 	"github.com/mitchellh/mapstructure"
@@ -133,7 +133,7 @@ var testOptions = fx.Options(
 	fx.Provide(buildConfig),
 	hostnameimpl.MockModule(),
 	fx.Replace(hostnameimpl.MockHostname(mockedHostname)),
-	logimpl.MockModule(),
+	fx.Provide(func() log.Component { return logmock.New(t) }),
 )
 
 func TestFullConfig(t *testing.T) {

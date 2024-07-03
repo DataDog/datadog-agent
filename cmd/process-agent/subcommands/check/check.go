@@ -24,8 +24,7 @@ import (
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
@@ -113,7 +112,7 @@ func MakeCommand(globalParamsGetter func() *command.GlobalParams, name string, a
 
 			// Disable logging if `--json` is specified. This way the check command will output proper json.
 			if cliParams.checkOutputJSON {
-				bundleParams.LogParams = logimpl.ForOneShot(string(command.LoggerName), "off", true)
+				bundleParams.LogParams = log.ForOneShot(string(command.LoggerName), "off", true)
 			}
 
 			return fxutil.OneShot(RunCheckCmd,
