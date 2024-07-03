@@ -40,7 +40,6 @@ func ecsHttpbinEnvProvisioner() e2e.PulumiEnvRunFunc[ecsHttpbinEnv] {
 		if err != nil {
 			return err
 		}
-		env.ECS.AwsEnvironment = &awsEnv
 
 		vmName := "httpbinvm"
 		nginxHost, err := ec2.NewVM(awsEnv, vmName)
@@ -65,6 +64,7 @@ func ecsHttpbinEnvProvisioner() e2e.PulumiEnvRunFunc[ecsHttpbinEnv] {
 		}
 
 		params := envecs.GetProvisionerParams(
+			envecs.WithAwsEnv(&awsEnv),
 			envecs.WithECSLinuxECSOptimizedNodeGroup(),
 			envecs.WithAgentOptions(ecsagentparams.WithAgentServiceEnvVariable("DD_SYSTEM_PROBE_NETWORK_ENABLED", "true")),
 		)

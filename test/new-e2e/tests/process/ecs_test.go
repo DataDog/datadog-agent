@@ -35,9 +35,9 @@ func ecsCPUStressProvisioner() e2e.PulumiEnvRunFunc[ecsCPUStressEnv] {
 		if err != nil {
 			return err
 		}
-		env.ECS.AwsEnvironment = &awsEnv
 
 		params := ecs.GetProvisionerParams(
+			ecs.WithAwsEnv(&awsEnv),
 			ecs.WithECSLinuxECSOptimizedNodeGroup(),
 			ecs.WithAgentOptions(
 				ecsagentparams.WithAgentServiceEnvVariable("DD_PROCESS_CONFIG_PROCESS_COLLECTION_ENABLED", "true"),

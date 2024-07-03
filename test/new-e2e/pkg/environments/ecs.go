@@ -6,7 +6,6 @@
 package environments
 
 import (
-	"github.com/DataDog/test-infra-definitions/resources/aws"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/zorkian/go-datadog-api"
 
@@ -18,9 +17,8 @@ import (
 
 // ECS is an environment that contains a ECS deployed in a cluster, FakeIntake and Agent configured to talk to each other.
 type ECS struct {
-	AwsEnvironment *aws.Environment
-	ClusterName    pulumi.StringInput
-	ClusterArn     pulumi.StringInput
+	ClusterName pulumi.StringInput
+	ClusterArn  pulumi.StringInput
 
 	// Components
 	FakeIntake    *components.FakeIntake
