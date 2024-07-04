@@ -83,6 +83,23 @@ func (genType NodeGenerationType) String() string {
 	}
 }
 
+// Tag returns the metric tag associated with this generation type, it's basically
+// fmt.Sprintf("generation_type:%s", genType)
+func (genType NodeGenerationType) Tag() string {
+	switch genType {
+	case Runtime:
+		return "generation_type:runtime"
+	case Snapshot:
+		return "generation_type:snapshot"
+	case ProfileDrift:
+		return "generation_type:profile_drift"
+	case WorkloadWarmup:
+		return "generation_type:workload_warmup"
+	default:
+		return "generation_type:unknown"
+	}
+}
+
 // Owner is used to communicate with the owner of the activity tree
 type Owner interface {
 	MatchesSelector(entry *model.ProcessCacheEntry) bool
