@@ -125,7 +125,11 @@ func NewComponent(reqs Requires) (Provides, error) {
 	}
 	addFactories(reqs, factories)
 
-	reqs.ConfigStore.AddConfigs(newConfigProviderSettings(reqs, false), newConfigProviderSettings(reqs, true), factories)
+	err = reqs.ConfigStore.AddConfigs(newConfigProviderSettings(reqs, false), newConfigProviderSettings(reqs, true), factories)
+	if err != nil {
+		return Provides{}, err
+	}
+	
 	// Replace default core to use Agent logger
 	options := []zap.Option{
 		zap.WrapCore(func(zapcore.Core) zapcore.Core {
