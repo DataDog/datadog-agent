@@ -127,14 +127,14 @@ func TestDefaultPackages(t *testing.T) {
 			},
 			env: &env.Env{
 				ApmLibraries: map[env.ApmLibLanguage]env.ApmLibVersion{
-					"java": "1.0",
+					"java": "1.37.0",
 					"ruby": "",
 				},
 				InstallScript: env.InstallScriptEnv{
 					APMInstrumentationEnabled: "all",
 				},
 			},
-			expected: []pkg{{n: "datadog-apm-library-java", v: "1.0-1"}, {n: "datadog-apm-library-ruby", v: "latest"}},
+			expected: []pkg{{n: "datadog-apm-library-java", v: "1.37.0-1"}, {n: "datadog-apm-library-ruby", v: "latest"}},
 		},
 		{
 			name: "Package is a language with a pinned version",
@@ -166,7 +166,7 @@ func TestDefaultPackages(t *testing.T) {
 			},
 			env: &env.Env{
 				ApmLibraries: map[env.ApmLibLanguage]env.ApmLibVersion{
-					"java": "1.2",
+					"java": "1.2.3",
 				},
 				InstallScript: env.InstallScriptEnv{
 					APMInstrumentationEnabled: "all",
@@ -177,28 +177,48 @@ func TestDefaultPackages(t *testing.T) {
 				},
 			},
 			expected: []pkg{
-				{n: "datadog-apm-library-java", v: "1.2-1"},
+				{n: "datadog-apm-library-java", v: "1.2.3-1"},
 				{n: "datadog-apm-library-ruby", v: "latest"},
 			},
 		},
 		{
 			name: "Strip leading v in version",
 			packages: []Package{
-				{Name: "datadog-apm-library-java", released: false, condition: apmLanguageEnabled},
+				{Name: "datadog-apm-library-java", released: true, condition: apmLanguageEnabled},
 			},
 			env: &env.Env{
 				ApmLibraries: map[env.ApmLibLanguage]env.ApmLibVersion{
-					"java": "v1.2",
+					"java": "v1.2.3",
 				},
 				InstallScript: env.InstallScriptEnv{
 					APMInstrumentationEnabled: "all",
 				},
-				DefaultPackagesInstallOverride: map[string]bool{
-					"datadog-apm-library-java": true,
+			},
+			expected: []pkg{
+				{n: "datadog-apm-library-java", v: "1.2.3-1"},
+			},
+		},
+		{
+			name: "Add -1 prefix only for full version pin",
+			packages: []Package{
+				{Name: "datadog-apm-library-java", released: true, condition: apmLanguageEnabled},
+				{Name: "datadog-apm-library-python", released: true, condition: apmLanguageEnabled},
+				{Name: "datadog-apm-library-ruby", released: true, condition: apmLanguageEnabled},
+			},
+			env: &env.Env{
+				ApmLibraries: map[env.ApmLibLanguage]env.ApmLibVersion{
+					"java":   "1.2.3",
+					"python": "1",
+					"ruby":   "v1.2",
+				},
+				InstallScript: env.InstallScriptEnv{
+					APMInstrumentationEnabled: "all",
 				},
 			},
 			expected: []pkg{
-				{n: "datadog-apm-library-java", v: "1.2-1"},
+				{n: "datadog-apm-library-java", v: "1.2.3-1"},
+				{n: "datadog-apm-library-python", v: "1"},
+				{n: "datadog-apm-library-ruby", v: "1.2"},
 			},
 		},
 	}
