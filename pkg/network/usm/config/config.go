@@ -13,8 +13,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 )
 
-// NeedUSM returns true if USM is supported and enabled
-func NeedUSM(config *config.Config) bool {
+// IsUSMSupportedAndEnabled returns true if USM is supported and enabled
+func IsUSMSupportedAndEnabled(config *config.Config) bool {
 	// http.Supported is misleading, it should be named usm.Supported.
 	return config.ServiceMonitoringEnabled && http.Supported()
 }

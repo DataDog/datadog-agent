@@ -845,7 +845,7 @@ func (t *Tracer) DebugDumpProcessCache(_ context.Context) (interface{}, error) {
 }
 
 func newUSMMonitor(c *config.Config, tracer connection.Tracer) *usm.Monitor {
-	if !usmconfig.NeedUSM(c) {
+	if !usmconfig.IsUSMSupportedAndEnabled(c) {
 		// If USM is not supported, or if USM is not enabled, we should not start the USM monitor.
 		return nil
 	}
