@@ -15,8 +15,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/datadogclient"
-	"github.com/DataDog/datadog-agent/comp/core/datadogclient/datadogclientimpl"
+	"github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient"
+	"github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient/datadogclientimpl"
 	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"

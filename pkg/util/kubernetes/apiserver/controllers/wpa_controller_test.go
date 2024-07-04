@@ -38,8 +38,8 @@ import (
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/retry"
 
-	"github.com/DataDog/datadog-agent/comp/core/datadogclient"
-	"github.com/DataDog/datadog-agent/comp/core/datadogclient/datadogclientimpl"
+	"github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient"
+	"github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient/datadogclientimpl"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/errors"

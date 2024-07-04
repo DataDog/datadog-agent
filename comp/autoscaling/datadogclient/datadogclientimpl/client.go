@@ -9,8 +9,8 @@ package datadogclientimpl
 import (
 	"sync"
 
+	"github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/datadogclient"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"

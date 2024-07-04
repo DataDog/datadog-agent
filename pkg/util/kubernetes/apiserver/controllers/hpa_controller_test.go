@@ -14,8 +14,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/datadogclient"
-	"github.com/DataDog/datadog-agent/comp/core/datadogclient/datadogclientimpl"
+	"github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient"
+	"github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient/datadogclientimpl"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/zorkian/go-datadog-api.v2"
