@@ -8,10 +8,9 @@ package cws
 
 import (
 	_ "embed"
-	"errors"
+
 	"fmt"
 	"path"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -19,53 +18,43 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/crypto/ssh"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
+	testos "github.com/DataDog/test-infra-definitions/components/os"
+
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/cws/api"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/cws/config"
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 )
 
 const (
-	// ec2HostnamePrefix is the prefix of the hostname of the agent
-	ec2HostnamePrefix = "cws-e2e-ec2-host"
+	// windowsHostnamePrefix is the prefix of the hostname of the agent
+	windowsHostnamePrefix = "cws-e2e-windows"
 
-	// securityStartLog is the log corresponding to a successful start of the security-agent
-	securityStartLog = "Successfully connected to the runtime security module"
+	// securityAgentPathWindows is the path of the security-agent binary
+	securityAgentPathWindows = "C:/Program Files/Datadog/Datadog Agent/bin/agent/security-agent.exe"
 
-	// systemProbeStartLog is the log corresponding to a successful start of the system-probe
-	systemProbeStartLog = "runtime security started"
-
-	// securityAgentPath is the path of the security-agent binary
-	securityAgentPath = "/opt/datadog-agent/embedded/bin/security-agent"
-
-	// policiesPath is the path of the default runtime security policies
-	policiesPath = "/etc/datadog-agent/runtime-security.d/test.policy"
+	// policiesPathWindows is the path of the default runtime security policies
+	policiesPathWindows = "C:/ProgramData/Datadog/runtime-security.d/test.policy"
 )
 
-type agentSuite struct {
+type agentSuiteWindows struct {
 	e2e.BaseSuite[environments.Host]
 	apiClient *api.Client
 	testID    string
 }
 
-//go:embed config/e2e-system-probe.yaml
-var systemProbeConfig string
-
-//go:embed config/e2e-security-agent.yaml
-var securityAgentConfig string
-
-func TestAgentSuite(t *testing.T) {
+func TestAgentWindowsSuite(t *testing.T) {
 	testID := uuid.NewString()[:4]
-	ddHostname := fmt.Sprintf("%s-%s", ec2HostnamePrefix, testID)
+	ddHostname := fmt.Sprintf("%s-%s", windowsHostnamePrefix, testID)
 	agentConfig := config.GenDatadogAgentConfig(ddHostname, "tag1", "tag2")
-	e2e.Run[environments.Host](t, &agentSuite{testID: testID},
+	e2e.Run[environments.Host](t, &agentSuiteWindows{testID: testID},
 		e2e.WithProvisioner(
 			awshost.ProvisionerNoFakeIntake(
 				awshost.WithAgentOptions(
@@ -73,49 +62,49 @@ func TestAgentSuite(t *testing.T) {
 					agentparams.WithSecurityAgentConfig(securityAgentConfig),
 					agentparams.WithSystemProbeConfig(systemProbeConfig),
 				),
+				awshost.WithEC2InstanceOptions(ec2.WithOS(testos.WindowsDefault)),
 			),
 		),
 	)
 	t.Logf("Running testsuite with DD_HOSTNAME=%s", ddHostname)
+
 }
 
-func (a *agentSuite) SetupSuite() {
+func (a *agentSuiteWindows) SetupSuite() {
 	a.BaseSuite.SetupSuite()
 	a.apiClient = api.NewClient()
 }
 
-func (a *agentSuite) Hostname() string {
+func (a *agentSuiteWindows) Hostname() string {
 	return a.Env().Agent.Client.Hostname()
 }
 
-func (a *agentSuite) Client() *api.Client {
+func (a *agentSuiteWindows) Client() *api.Client {
 	return a.apiClient
 }
 
-func (a *agentSuite) Test00RulesetLoadedDefaultFile() {
+func (a *agentSuiteWindows) Test00RulesetLoadedDefaultFile() {
 	assert.EventuallyWithT(a.T(), func(c *assert.CollectT) {
 		testRulesetLoaded(c, a, "file", "default.policy")
 	}, 4*time.Minute, 10*time.Second)
 }
 
-func (a *agentSuite) Test01RulesetLoadedDefaultRC() {
+func (a *agentSuiteWindows) Test01RulesetLoadedDefaultRC() {
 	assert.EventuallyWithT(a.T(), func(c *assert.CollectT) {
 		testRulesetLoaded(c, a, "remote-config", "default.policy")
 	}, 4*time.Minute, 10*time.Second)
 }
 
-func (a *agentSuite) Test02Selftests() {
+func (a *agentSuiteWindows) Test02Selftests() {
 	assert.EventuallyWithT(a.T(), func(c *assert.CollectT) {
 		testSelftestsEvent(c, a, func(event *api.SelftestsEvent) {
-			assert.Contains(c, event.SucceededTests, "datadog_agent_cws_self_test_rule_open", "missing selftest result")
-			assert.Contains(c, event.SucceededTests, "datadog_agent_cws_self_test_rule_chmod", "missing selftest result")
-			assert.Contains(c, event.SucceededTests, "datadog_agent_cws_self_test_rule_chown", "missing selftest result")
-			validateEventSchema(c, &event.Event, "self_test_schema.json")
+			assert.Contains(c, event.SucceededTests, "datadog_agent_cws_self_test_rule_windows_create_file", "missing selftest result")
+			assert.Contains(c, event.SucceededTests, "datadog_agent_cws_self_test_rule_windows_open_registry_key_name", "missing selftest result")
 		})
 	}, 4*time.Minute, 10*time.Second)
 }
 
-func (a *agentSuite) Test03OpenSignal() {
+func (a *agentSuiteWindows) Test03CreateFileSignal() {
 	var agentRuleID, signalRuleID, dirname string
 	// Cleanup function
 	defer func() {
@@ -133,15 +122,16 @@ func (a *agentSuite) Test03OpenSignal() {
 	}()
 
 	// Create temporary directory
-	tempDir := a.Env().RemoteHost.MustExecute("mktemp -d")
-	dirname = strings.TrimSuffix(tempDir, "\n")
-	filepath := fmt.Sprintf("%s/secret", dirname)
+	cmd := "New-Item -ItemType Directory -Path $env:TEMP -Name ([Guid]::NewGuid().Guid) | Select-Object -ExpandProperty FullName"
+	tempDir := a.Env().RemoteHost.MustExecute(cmd)
+	dirname = strings.TrimSpace(tempDir)
+	filepath := fmt.Sprintf("%s\\secret", dirname)
 	desc := fmt.Sprintf("e2e test rule %s", a.testID)
 	agentRuleName := fmt.Sprintf("new_e2e_agent_rule_%s", a.testID)
 
 	// Create CWS Agent rule
-	rule := fmt.Sprintf("open.file.path == \"%s\"", filepath)
-	res, err := a.apiClient.CreateCWSAgentRule(agentRuleName, desc, rule, []string{`os == "linux"`})
+	rule := fmt.Sprintf(`create.file.path == "%s"`, filepath)
+	res, err := a.apiClient.CreateCWSAgentRule(agentRuleName, desc, rule, []string{`os == "windows"`})
 	require.NoError(a.T(), err, "Agent rule creation failed")
 	agentRuleID = res.Data.GetId()
 
@@ -156,7 +146,7 @@ func (a *agentSuite) Test03OpenSignal() {
 
 	// Check if system-probe has started
 	assert.EventuallyWithT(a.T(), func(c *assert.CollectT) {
-		output, err := a.Env().RemoteHost.Execute("cat /var/log/datadog/system-probe.log")
+		output, err := a.Env().RemoteHost.Execute("cat C:/ProgramData/Datadog/logs/system-probe.log")
 		if !assert.NoError(c, err) {
 			return
 		}
@@ -165,7 +155,7 @@ func (a *agentSuite) Test03OpenSignal() {
 
 	// Check if security-agent has started
 	assert.EventuallyWithT(a.T(), func(c *assert.CollectT) {
-		output, err := a.Env().RemoteHost.Execute("cat /var/log/datadog/security-agent.log")
+		output, err := a.Env().RemoteHost.Execute("cat C:/ProgramData/Datadog/logs/security-agent.log")
 		if !assert.NoError(c, err) {
 			return
 		}
@@ -181,7 +171,7 @@ func (a *agentSuite) Test03OpenSignal() {
 
 	var policies string
 	require.EventuallyWithT(a.T(), func(c *assert.CollectT) {
-		policies = a.Env().RemoteHost.MustExecute(fmt.Sprintf("DD_APP_KEY=%s DD_API_KEY=%s %s runtime policy download >| temp.txt && cat temp.txt", appKey, apiKey, securityAgentPath))
+		policies = a.Env().RemoteHost.MustExecute(fmt.Sprintf("$env:DD_APP_KEY='%s'; $env:DD_API_KEY='%s'; & '%s' runtime policy download | Out-File temp.txt; Get-Content temp.txt", appKey, apiKey, securityAgentPathWindows))
 		assert.NotEmpty(c, policies, "should not be empty")
 	}, 1*time.Minute, 1*time.Second)
 
@@ -189,15 +179,15 @@ func (a *agentSuite) Test03OpenSignal() {
 	require.Contains(a.T(), policies, desc, "The policies should contain the created rule")
 
 	// Push policies
-	a.Env().RemoteHost.MustExecute(fmt.Sprintf("sudo cp temp.txt %s && rm temp.txt", policiesPath))
-	policiesFile := a.Env().RemoteHost.MustExecute(fmt.Sprintf("cat %s", policiesPath))
+	a.Env().RemoteHost.MustExecute(fmt.Sprintf("cp temp.txt '%s'; rm temp.txt", policiesPathWindows))
+	policiesFile := a.Env().RemoteHost.MustExecute(fmt.Sprintf("cat %s", policiesPathWindows))
 	require.Contains(a.T(), policiesFile, desc, "The policies file should contain the created rule")
 
 	// Reload policies
-	a.Env().RemoteHost.MustExecute(fmt.Sprintf("sudo %s runtime policy reload", securityAgentPath))
+	a.Env().RemoteHost.MustExecute(fmt.Sprintf("& '%s' runtime policy reload", securityAgentPathWindows))
 
 	// Check if the policy is loaded
-	policyName := path.Base(policiesPath)
+	policyName := path.Base(policiesPathWindows)
 	require.EventuallyWithT(a.T(), func(c *assert.CollectT) {
 		testRulesetLoaded(c, a, "file", policyName)
 	}, 4*time.Minute, 5*time.Second)
@@ -207,17 +197,18 @@ func (a *agentSuite) Test03OpenSignal() {
 		testMetricExists(c, a, "datadog.security_agent.runtime.running", map[string]string{"host": a.Hostname()})
 	}, 4*time.Minute, 5*time.Second)
 
+	// Trigger agent event
+	a.Env().RemoteHost.MustExecute(fmt.Sprintf("New-Item '%s' -ItemType File", filepath))
+
 	// Check app event
 	assert.EventuallyWithT(a.T(), func(c *assert.CollectT) {
-		// Trigger agent event
-		a.Env().RemoteHost.MustExecute(fmt.Sprintf("touch %s", filepath))
 		testRuleEvent(c, a, agentRuleName, func(e *api.RuleEvent) {
-			assert.Equal(c, "open", e.Evt.Name, "event name should be open")
+			assert.Equal(c, "create", e.Evt.Name, "event name should be create")
 			assert.Equal(c, filepath, e.File.Path, "file path does not match")
 			assert.Contains(c, e.Tags, "tag1", "missing event tag")
 			assert.Contains(c, e.Tags, "tag2", "missing event tag")
 		})
-	}, 10*time.Minute, 30*time.Second)
+	}, 4*time.Minute, 10*time.Second)
 
 	// Check app signal
 	assert.EventuallyWithT(a.T(), func(c *assert.CollectT) {
@@ -244,42 +235,9 @@ func (a *agentSuite) Test03OpenSignal() {
 	}, 4*time.Minute, 10*time.Second)
 }
 
-func (a *agentSuite) Test04SecurityAgentSIGTERM() {
-	output := a.Env().RemoteHost.MustExecute("cat /opt/datadog-agent/run/security-agent.pid")
-	pid, err := strconv.ParseInt(strings.TrimSpace(output), 10, 64)
-	require.NoError(a.T(), err, "failed to parse security-agent pid")
-
-	var start, end time.Time
-	start = time.Now()
-	_, err = a.Env().RemoteHost.Execute(fmt.Sprintf("sudo kill -SIGTERM %d", pid))
-	require.NoError(a.T(), err, "failed to send SIGTERM to security-agent")
-	exited := assert.EventuallyWithT(a.T(), func(c *assert.CollectT) {
-		_, err := a.Env().RemoteHost.Execute("pgrep -x security-agent")
-		if err == nil {
-			c.Errorf("security-agent should not be running")
-			return
-		}
-
-		// pgrep exits with 1 if no process is found
-		var exitErr *ssh.ExitError
-		if errors.As(err, &exitErr) && exitErr.ExitStatus() == 1 {
-			end = time.Now()
-			return
-		}
-		assert.NoError(c, err, "failed to check the security-agent process state")
-	}, 30*time.Second, 1*time.Second)
-
-	if exited {
-		a.T().Logf("security-agent exited after %s", end.Sub(start).String())
-	}
-
-	// make sure the security-agent is running after this test
-	a.Env().RemoteHost.MustExecute("sudo systemctl start datadog-agent-security.service")
-}
-
 // test that the detection of CWS is properly working
 // this test can be quite long so run it last
-func (a *agentSuite) Test99CWSEnabled() {
+func (a *agentSuiteWindows) Test99CWSEnabled() {
 	assert.EventuallyWithTf(a.T(), func(c *assert.CollectT) {
 		testCwsEnabled(c, a)
 	}, 20*time.Minute, 30*time.Second, "cws activation test timed out for host %s", a.Env().Agent.Client.Hostname())
