@@ -1123,8 +1123,8 @@ func containerSyspath(config pkgconfigmodel.Setup) {
 	config.BindEnv("procfs_path")
 	config.BindEnv("container_proc_root")
 	config.BindEnv("container_cgroup_root")
+	config.BindEnv("container_pid_mapper")
 	config.BindEnvAndSetDefault("ignore_host_etc", false)
-
 	config.BindEnvAndSetDefault("proc_root", "/proc")
 }
 
