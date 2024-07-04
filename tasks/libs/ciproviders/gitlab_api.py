@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import platform
+import re
 import subprocess
 import sys
 from functools import lru_cache
@@ -373,10 +374,15 @@ def get_full_gitlab_ci_configuration(
     yaml.SafeLoader.add_constructor(ReferenceTag.yaml_tag, ReferenceTag.from_yaml)
     yaml.SafeDumper.add_representer(YamlReferenceTagList, ReferenceTag.to_yaml)
 
+    # HACK: The following line is a workaround to prevent yaml dumper from removing quote around comma separated numbers, otherwise Gitlab Lint API will remove the commas
+    yaml.SafeDumper.add_implicit_resolver(
+        'tag:yaml.org,2002:int', re.compile(r'''^([0-9]+,*[0-9]*)$'''), list('0213456789')
+    )
+
     # Read includes
     concat_config = read_includes(ctx, input_file, return_config=True, git_ref=git_ref)
     assert concat_config
-
+    print("CONFIGqqqqqqq", yaml.safe_dump(concat_config))
     agent = get_gitlab_repo()
     res = agent.ci_lint.create({"content": yaml.safe_dump(concat_config), "dry_run": True, "include_jobs": True})
 
