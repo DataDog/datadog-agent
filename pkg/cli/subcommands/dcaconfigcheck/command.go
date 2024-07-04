@@ -10,6 +10,7 @@ import (
 	"bytes"
 	"fmt"
 
+	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
@@ -66,7 +67,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 func run(_ log.Component, _ config.Component, cliParams *cliParams, globalParams GlobalParams) error {
 	var b bytes.Buffer
 
-	if err := flare.GetClusterAgentConfigCheck(&b, globalParams.NoColor, cliParams.verbose); err != nil {
+	if err := flare.GetClusterAgentConfigCheck(&b, (color.NoColor || globalParams.NoColor), cliParams.verbose); err != nil {
 		return fmt.Errorf("the agent ran into an error while checking config: %w", err)
 	}
 

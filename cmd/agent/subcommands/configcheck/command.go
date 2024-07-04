@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net/url"
 
+	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
@@ -62,7 +63,7 @@ func run(config config.Component, cliParams *cliParams) error {
 		v.Set("verbose", "true")
 	}
 
-	if cliParams.NoColor {
+	if color.NoColor || cliParams.NoColor {
 		v.Set("nocolor", "true")
 	} else {
 		v.Set("nocolor", "false")
