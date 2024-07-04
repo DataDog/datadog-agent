@@ -25,6 +25,8 @@ const (
 	envDefaultPackageVersion = "DD_INSTALLER_DEFAULT_PKG_VERSION"
 	envDefaultPackageInstall = "DD_INSTALLER_DEFAULT_PKG_INSTALL"
 	envApmLibraries          = "DD_APM_INSTRUMENTATION_LIBRARIES"
+	envAgentMajorVersion     = "DD_AGENT_MAJOR_VERSION"
+	envAgentMinorVersion     = "DD_AGENT_MINOR_VERSION"
 )
 
 var defaultEnv = Env{
@@ -76,6 +78,9 @@ type Env struct {
 
 	ApmLibraries map[ApmLibLanguage]ApmLibVersion
 
+	AgentMajorVersion string
+	AgentMinorVersion string
+
 	InstallScript InstallScriptEnv
 }
 
@@ -95,6 +100,9 @@ func FromEnv() *Env {
 		DefaultPackagesVersionOverride: overridesByNameFromEnv(envDefaultPackageVersion, func(s string) string { return s }),
 
 		ApmLibraries: parseApmLibrariesEnv(),
+
+		AgentMajorVersion: os.Getenv(envAgentMajorVersion),
+		AgentMinorVersion: os.Getenv(envAgentMinorVersion),
 
 		InstallScript: installScriptEnvFromEnv(),
 	}
