@@ -157,7 +157,7 @@ func handleScenarioFailure(err error, changeRetryState func(handledError)) error
 }
 
 func storeErrorReasonForCITags(reason string) error {
-	f, err := os.Open(path.Join(os.Getenv("CI_PROJECT_DIR"), errorReasonFile))
+	f, err := os.OpenFile(path.Join(os.Getenv("CI_PROJECT_DIR"), errorReasonFile), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
 	if err != nil {
 		return err
 	}
@@ -168,7 +168,7 @@ func storeErrorReasonForCITags(reason string) error {
 }
 
 func storeNumberOfRetriesForCITags(retries int) error {
-	f, err := os.Open(path.Join(os.Getenv("CI_PROJECT_DIR"), retryCountFile))
+	f, err := os.OpenFile(path.Join(os.Getenv("CI_PROJECT_DIR"), retryCountFile), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
 	if err != nil {
 		return err
 	}
