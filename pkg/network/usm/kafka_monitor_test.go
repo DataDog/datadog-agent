@@ -1321,7 +1321,7 @@ func testKafkaProduceRaw(t *testing.T, tls bool, apiVersion int) {
 				expectedNumberOfProduceRequests: tt.numProducedRecords,
 				expectedAPIVersionProduce:       apiVersion,
 				tlsEnabled:                      tls,
-			})
+			}, kafkaSuccessErrorCode)
 		})
 	}
 }
