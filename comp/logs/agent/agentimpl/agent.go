@@ -10,6 +10,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/hashicorp/go-multierror"
@@ -113,6 +114,9 @@ type logAgent struct {
 	wmeta                     optional.Option[workloadmeta.Component]
 	schedulerProviders        []schedulers.Scheduler
 
+	// make sure this is done only once, when we're ready
+	prepareSchedulers sync.Once
+
 	// started is true if the logs agent is running
 	started *atomic.Bool
 }
@@ -187,12 +191,6 @@ func (a *logAgent) start(context.Context) error {
 	}
 
 	a.startPipeline()
-	a.log.Info("logs-agent started")
-
-	for _, scheduler := range a.schedulerProviders {
-		a.AddScheduler(scheduler)
-	}
-
 	return nil
 }
 
@@ -243,6 +241,22 @@ func (a *logAgent) startPipeline() {
 		a.schedulers,
 	)
 	starter.Start()
+
+	if !sds.ShouldBlockCollectionUntilSDSConfiguration(a.config) {
+		a.startSchedulers()
+		a.log.Info("logs-agent started")
+	} else {
+		a.log.Info("logs-agent ready, schedulers not started")
+	}
+}
+
+func (a *logAgent) startSchedulers() {
+	a.prepareSchedulers.Do(func() {
+		for _, scheduler := range a.schedulerProviders {
+			a.AddScheduler(scheduler)
+		}
+		a.log.Info("logs-agent schedulers started")
+	})
 }
 
 func (a *logAgent) stop(context.Context) error {
@@ -315,50 +329,49 @@ func (a *logAgent) GetPipelineProvider() pipeline.Provider {
 }
 
 func (a *logAgent) onUpdateSDSRules(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) { //nolint:revive
-	var err error
-	for _, config := range updates {
-		if rerr := a.pipelineProvider.ReconfigureSDSStandardRules(config.Config); rerr != nil {
-			err = multierror.Append(err, rerr)
-		}
-	}
-
-	if err != nil {
-		log.Errorf("Can't update SDS standard rules: %v", err)
-	}
-
-	// Apply the new status to all configs
-	for cfgPath := range updates {
-		if err == nil {
-			applyStateCallback(cfgPath, state.ApplyStatus{State: state.ApplyStateAcknowledged})
-		} else {
-			applyStateCallback(cfgPath, state.ApplyStatus{
-				State: state.ApplyStateError,
-				Error: err.Error(),
-			})
-		}
-	}
-
+	a.onUpdateSDS(sds.StandardRules, updates, applyStateCallback)
 }
 
 func (a *logAgent) onUpdateSDSAgentConfig(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) { //nolint:revive
+	a.onUpdateSDS(sds.AgentConfig, updates, applyStateCallback)
+}
+
+func (a *logAgent) onUpdateSDS(reconfigType sds.ReconfigureOrderType, updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) { //nolint:revive
 	var err error
+	allScannersActiveWithAllUpdatesApplied := true
 
 	// We received a hit that new updates arrived, but if the list of updates
 	// is empty, it means we don't have any updates applying to this agent anymore
-	// Send a reconfiguration with an empty payload, indicating that
-	// the scanners have to be dropped.
+	// In this case, send the signal to stop the SDS processing.
 	if len(updates) == 0 {
-		err = a.pipelineProvider.ReconfigureSDSAgentConfig([]byte("{}"))
+		err = a.pipelineProvider.StopSDSProcessing()
 	} else {
 		for _, config := range updates {
-			if rerr := a.pipelineProvider.ReconfigureSDSAgentConfig(config.Config); rerr != nil {
+			var allScannersActive bool
+			var rerr error
+
+			if reconfigType == sds.AgentConfig {
+				allScannersActive, rerr = a.pipelineProvider.ReconfigureSDSAgentConfig(config.Config)
+			} else if reconfigType == sds.StandardRules {
+				allScannersActive, rerr = a.pipelineProvider.ReconfigureSDSStandardRules(config.Config)
+			}
+
+			if rerr != nil {
 				err = multierror.Append(err, rerr)
+			}
+
+			if !allScannersActive {
+				allScannersActiveWithAllUpdatesApplied = false
 			}
 		}
 	}
 
 	if err != nil {
 		log.Errorf("Can't update SDS configurations: %v", err)
+	}
+
+	if allScannersActiveWithAllUpdatesApplied && sds.ShouldBlockCollectionUntilSDSConfiguration(a.config) {
+		a.startSchedulers()
 	}
 
 	// Apply the new status to all configs

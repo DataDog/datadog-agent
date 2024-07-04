@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/processor"
+	"github.com/DataDog/datadog-agent/pkg/logs/sds"
 	"github.com/DataDog/datadog-agent/pkg/logs/sender"
 	"github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface"
 )
@@ -67,7 +68,11 @@ func NewPipeline(outputChan chan *message.Payload,
 	logsSender = sender.NewSender(cfg, senderInput, outputChan, mainDestinations, config.DestinationPayloadChanSize)
 
 	inputChan := make(chan *message.Message, config.ChanSize)
-	processor := processor.New(inputChan, strategyInput, processingRules, encoder, diagnosticMessageReceiver, hostname, pipelineID)
+
+	waitForSDSConfig := sds.ShouldBufferUntilSDSConfiguration(cfg)
+
+	processor := processor.New(cfg, inputChan, strategyInput, processingRules,
+		encoder, diagnosticMessageReceiver, hostname, pipelineID, waitForSDSConfig)
 
 	return &Pipeline{
 		InputChan: inputChan,

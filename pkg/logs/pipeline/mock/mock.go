@@ -35,8 +35,8 @@ func (p *mockProvider) ReconfigureSDSStandardRules(_ []byte) error {
 	return nil
 }
 
-func (p *mockProvider) ReconfigureSDSAgentConfig(_ []byte) error {
-	return nil
+func (p *mockProvider) ReconfigureSDSAgentConfig(_ []byte) (bool, error) {
+	return false, nil
 }
 
 // Flush does nothing
