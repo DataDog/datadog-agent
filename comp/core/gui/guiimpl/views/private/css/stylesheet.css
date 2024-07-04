@@ -156,20 +156,28 @@ a {
   font-size: 25px;
 }
 .top_bar #agent_status {
-  background: linear-gradient(to bottom, #89c403 5%, #77a809 100%);
-  background-color: #89c403;
-  background-color: red;
-  border: 1px solid #74b807;
-  text-shadow: 0px 1px 0px #528009;
   position: absolute;
   top: 50%;
   transform: translateY(-50%);
-  left: -150px;
   border-radius: 26px;
   color: #ffffff;
   padding: 6px 24px;
   text-decoration: none;
   text-align: center;
+}
+.connected {
+  background: linear-gradient(to bottom, #89c403 5%, #77a809 100%);
+  background-color: #89c403;
+  border: 1px solid #74b807;
+  text-shadow: 0px 1px 0px #528009;
+  left: -150px;
+}
+.disconnected {
+  background: linear-gradient(to bottom, #c62d1f 5%, #f24437 100%);
+  background-color: #c62d1f;
+  border: 1px solid #d02718;
+  text-shadow: 0px 1px 0px #810e05;
+  left: -180px;
 }
 .top_bar #restart_status {
   color: #ff0000;
@@ -204,11 +212,13 @@ a {
   display: none;
 }
 
-#main .error_page {
-  width: auto;
-  height: auto;
+#main #error.page {
+  width: calc(100% - 80px);
+  height: calc(100% - 80px);
+  padding: 20px;
+  overflow-y: scroll;
   background-color: #f9ecec;
-  padding: 5vh;
+  z-index: 6;
 }
  
 #main #settings_input, #main #check_input, #main #new_config_input {

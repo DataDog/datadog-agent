@@ -18,24 +18,35 @@ function sendMessage(endpoint, data, method, callback, callbackErr){
     url: window.location.href + endpoint,
     type: method,
     data: data,
-    success: callback,
+    success: function(data, status, xhr) {
+      // cleaning error layout before updating layour 
+      $("#error").hide()
+      $("#logged_out").hide();
+
+      // Set Agent state to "connected"
+      $("#agent_status").html("Connected <br> to Agent");
+      $("#agent_status").removeClass("disconnected")
+      $("#agent_status").addClass("connected")
+
+      try {
+        callback(data, status, xhr)
+      } catch (error) {
+        console.log(error)
+      }
+    },
     error: function(requestObject, error, errorThrown) {
       try {
         callbackErr(requestObject, error, errorThrown)
       } catch (error) {
-        console.error(error)
+        console.log(error)
       }
+
+      // Set Agent state to "disconnected"
       $("#agent_status").html("Not connected<br> to Agent");
-      $("#agent_status").css({
-        "background": 'linear-gradient(to bottom, #c62d1f 5%, #f24437 100%)',
-        "background-color": '#c62d1f',
-        "border": '1px solid #d02718',
-        "text-shadow": '0px 1px 0px #810e05',
-        'left': '-180px'
-      })
-      // erase right side of the page
-      $(".page").hide();
-      $(".right").html("");
+      $("#agent_status").removeClass("connected")
+      $("#agent_status").addClass("disconnected")
+
+      // Display error layout 
       setError(requestObject.status, requestObject.responseText)
     }
   })
@@ -52,15 +63,14 @@ function setError(status, message) {
     message = "Unable to contact the Datadog Agent. Please ensure it is running."
   }
   else if (status == 401) {
-    message = `Not logged in. Please log in to access the Datadog Agent Manager. (initial message: ${message.trim()})`
+    message = `Not logged in. Please ensure that your GUI session has not expired. (initial message: ${message.trim()})`
   }
 
   $("#error_content").html(`<h3>Error</h3> ${DOMPurify.sanitize(message)}`)
 
-  $("#loggedout").hide();
-
-  if (status == 401)
-    $("#loggedout").css("display", "block");
+  if (status == 401) {
+    $("#logged_out").css("display", "block");
+  }
   $("#error").css("display", "block");
 }
 
@@ -137,14 +147,6 @@ function checkStatus() {
   }
   sendMessage("agent/ping", "", "post",
   function(data, status, xhr) {
-    $("#agent_status").html("Connected <br>to Agent");
-    $("#agent_status").css({
-      "background": 'linear-gradient(to bottom, #89c403 5%, #77a809 100%)',
-      "background-color": '#89c403',
-      "border": '1px solid #74b807',
-      "text-shadow": '0px 1px 0px #528009',
-      'left': '-150px'
-    })
     last_ts = parseInt(data)
     if (checkStatus.uptime > last_ts) {
       $("#restart_status").hide()
@@ -702,13 +704,8 @@ function restartAgent() {
   $("#main").append('<i class="fa fa-spinner fa-pulse fa-3x fa-fw center loading_spinner"></i>');
 
   $("#agent_status").html("Not connected<br> to Agent");
-  $("#agent_status").css({
-    "background": 'linear-gradient(to bottom, #c62d1f 5%, #f24437 100%)',
-    "background-color": '#c62d1f',
-    "border": '1px solid #d02718',
-    "text-shadow": '0px 1px 0px #810e05',
-    'left': '-180px'
-  });
+  $("#agent_status").removeClass("connected")
+  $("#agent_status").addClass("disconnected")
 
   // Disable the restart button to prevent multiple consecutive clicks
   $("#restart_button").css("pointer-events", "none");
