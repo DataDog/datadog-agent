@@ -11,6 +11,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"path/filepath"
 	"sort"
 	"strings"
 	"testing"
@@ -476,9 +477,10 @@ func TestUDSReceive(t *testing.T) {
 		defaultSocket = socket
 	}()
 
-	defaultSocket = "/tmp/dsd.socket"               // default socket
-	customSocket := "/tmp/dsd_custom.socket"        // custom socket
-	cfg["dogstatsd_no_aggregation_pipeline"] = true // another test may have turned it off
+	dir := t.TempDir()
+	defaultSocket = filepath.Join(dir, "dsd.socket")        // default socket
+	customSocket := filepath.Join(dir, "dsd_custom.socket") // custom socket
+	cfg["dogstatsd_no_aggregation_pipeline"] = true         // another test may have turned it off
 	cfg["dogstatsd_socket"] = customSocket
 
 	deps := fulfillDepsWithConfigOverride(t, cfg)
