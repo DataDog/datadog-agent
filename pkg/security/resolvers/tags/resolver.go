@@ -10,7 +10,9 @@ import (
 	"context"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/remote"
+	taggerTelemetry "github.com/DataDog/datadog-agent/comp/core/tagger/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -89,16 +91,14 @@ func (t *DefaultResolver) Stop() error {
 }
 
 // NewResolver returns a new tags resolver
-func NewResolver(config *config.Config) Resolver {
+func NewResolver(config *config.Config, telemetry telemetry.Component) Resolver {
 	if config.RemoteTaggerEnabled {
 		options, err := remote.NodeAgentOptionsForSecruityResolvers()
 		if err != nil {
 			log.Errorf("unable to configure the remote tagger: %s", err)
 		} else {
 			return &DefaultResolver{
-				// TODO: components. We should propagate the tagger component to this function so we can pass the tagger telemetry store instead of nil.
-				// Remove the use of nil once we have access to the tagger component at this point
-				tagger: remote.NewTagger(options, nil),
+				tagger: remote.NewTagger(options, taggerTelemetry.NewStore(telemetry)),
 			}
 		}
 	}

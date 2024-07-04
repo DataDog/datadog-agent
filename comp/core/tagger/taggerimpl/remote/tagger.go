@@ -112,12 +112,6 @@ func CLCRunnerOptions(config configComponent.Component) (Options, error) {
 // NewTagger returns an allocated tagger. You still have to run Init()
 // once the config package is ready.
 func NewTagger(options Options, telemetryStore *telemetry.Store) *Tagger {
-	// TODO: Components. Once system and security agent propagate the tagger component down all their packages we can
-	// pass the telemetry store using `GetTaggerTelemetryStore`.
-	if telemetryStore == nil {
-		telemetryStore = telemetry.GetStore()
-	}
-
 	return &Tagger{
 		options:        options,
 		store:          newTagStore(telemetryStore),
