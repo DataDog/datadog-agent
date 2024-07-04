@@ -4,6 +4,7 @@ Helper for generating links to CI Visibility for Gitlab CI jobs
 
 import json
 import os
+import tempfile
 
 from invoke import task
 
@@ -97,7 +98,11 @@ def print_gitlab_object(
 
         if jq:
             jq_flags = "-C" if jq_colors else ""
-            ctx.run(f"echo '{obj.to_json()}' | jq {jq_flags} '{jq}'")
+            with tempfile.NamedTemporaryFile('w', delete=True) as f:
+                f.write(obj.to_json())
+                f.flush()
+
+                ctx.run(f"cat '{f.name}' | jq {jq_flags} '{jq}'")
         else:
             obj.pprint()
 
