@@ -22,7 +22,7 @@ type PolicyDef struct {
 	Version            string              `yaml:"version"`
 	Rules              []*RuleDefinition   `yaml:"rules"`
 	Macros             []*MacroDefinition  `yaml:"macros"`
-	OnDemandHookPoints []OnDemandHookPoint `yaml:"on_demand"`
+	OnDemandHookPoints []OnDemandHookPoint `yaml:"hooks"`
 }
 
 // Policy represents a policy file which is composed of a list of rules and macros

@@ -186,7 +186,7 @@ runtime_security_config:
 const testPolicy = `---
 version: 1.2.3
 
-on_demand:
+hooks:
 {{range $OnDemandProbe := .OnDemandProbes}}
   - name: {{$OnDemandProbe.Name}}
     syscall: {{$OnDemandProbe.IsSyscall}}
