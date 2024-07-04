@@ -70,6 +70,8 @@ func TestLink(t *testing.T) {
 			assert.Equal(t, value.(bool), false)
 
 			test.validateLinkSchema(t, event)
+			validateSyscallContext(t, event, "$.syscall.link.path")
+			validateSyscallContext(t, event, "$.syscall.link.destination_path")
 		})
 
 		if err = os.Remove(testNewFile); err != nil {
@@ -98,6 +100,8 @@ func TestLink(t *testing.T) {
 			assert.Equal(t, value.(bool), false)
 
 			test.validateLinkSchema(t, event)
+			validateSyscallContext(t, event, "$.syscall.link.path")
+			validateSyscallContext(t, event, "$.syscall.link.destination_path")
 		})
 
 		if err = os.Remove(testNewFile); err != nil {

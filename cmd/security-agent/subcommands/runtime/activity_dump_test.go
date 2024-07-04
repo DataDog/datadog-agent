@@ -30,14 +30,6 @@ func TestStopActivityDumpCommand(t *testing.T) {
 		func() {})
 }
 
-func TestGenerateActivityDumpCommand(t *testing.T) {
-	fxutil.TestOneShotSubcommand(t,
-		Commands(&command.GlobalParams{}),
-		[]string{"runtime", "activity-dump", "generate", "dump"},
-		generateActivityDump,
-		func() {})
-}
-
 func TestGenerateEncodingFromActivityDumpCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
 		Commands(&command.GlobalParams{}),
