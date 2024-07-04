@@ -2,9 +2,9 @@
 
 module github.com/DataDog/comp/otelcol/collector-contrib
 
-go 1.21.0
+go 1.22.0
 
-toolchain go1.22.4
+toolchain go1.22.5
 
 require (
 	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def v0.0.0-00010101000000-000000000000

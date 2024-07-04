@@ -1,6 +1,8 @@
 module github.com/DataDog/datadog-agent/pkg/util/system
 
-go 1.21.0
+go 1.22.0
+
+toolchain go1.22.5
 
 replace (
 	github.com/DataDog/datadog-agent/pkg/util/filesystem => ../filesystem
