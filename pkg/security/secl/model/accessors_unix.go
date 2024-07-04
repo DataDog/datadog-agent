@@ -43,6 +43,7 @@ func (m *Model) GetEventTypes() []eval.EventType {
 		eval.EventType("mmap"),
 		eval.EventType("mount"),
 		eval.EventType("mprotect"),
+		eval.EventType("ondemand"),
 		eval.EventType("open"),
 		eval.EventType("ptrace"),
 		eval.EventType("removexattr"),
@@ -3921,6 +3922,87 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+		}, nil
+	case "ondemand.arg1.str":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveOnDemandArg1Str(ev, &ev.OnDemand)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "ondemand.arg1.uint":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ev := ctx.Event.(*Event)
+				return int(ev.FieldHandlers.ResolveOnDemandArg1Uint(ev, &ev.OnDemand))
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "ondemand.arg2.str":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveOnDemandArg2Str(ev, &ev.OnDemand)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "ondemand.arg2.uint":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ev := ctx.Event.(*Event)
+				return int(ev.FieldHandlers.ResolveOnDemandArg2Uint(ev, &ev.OnDemand))
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "ondemand.arg3.str":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveOnDemandArg3Str(ev, &ev.OnDemand)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "ondemand.arg3.uint":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ev := ctx.Event.(*Event)
+				return int(ev.FieldHandlers.ResolveOnDemandArg3Uint(ev, &ev.OnDemand))
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "ondemand.arg4.str":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveOnDemandArg4Str(ev, &ev.OnDemand)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "ondemand.arg4.uint":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ev := ctx.Event.(*Event)
+				return int(ev.FieldHandlers.ResolveOnDemandArg4Uint(ev, &ev.OnDemand))
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "ondemand.name":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveOnDemandName(ev, &ev.OnDemand)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
 		}, nil
 	case "open.file.change_time":
 		return &eval.IntEvaluator{
@@ -16962,6 +17044,15 @@ func (ev *Event) GetFields() []eval.Field {
 		"network.size",
 		"network.source.ip",
 		"network.source.port",
+		"ondemand.arg1.str",
+		"ondemand.arg1.uint",
+		"ondemand.arg2.str",
+		"ondemand.arg2.uint",
+		"ondemand.arg3.str",
+		"ondemand.arg3.uint",
+		"ondemand.arg4.str",
+		"ondemand.arg4.uint",
+		"ondemand.name",
 		"open.file.change_time",
 		"open.file.destination.mode",
 		"open.file.filesystem",
@@ -18885,6 +18976,24 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return ev.NetworkContext.Source.IPNet, nil
 	case "network.source.port":
 		return int(ev.NetworkContext.Source.Port), nil
+	case "ondemand.arg1.str":
+		return ev.FieldHandlers.ResolveOnDemandArg1Str(ev, &ev.OnDemand), nil
+	case "ondemand.arg1.uint":
+		return int(ev.FieldHandlers.ResolveOnDemandArg1Uint(ev, &ev.OnDemand)), nil
+	case "ondemand.arg2.str":
+		return ev.FieldHandlers.ResolveOnDemandArg2Str(ev, &ev.OnDemand), nil
+	case "ondemand.arg2.uint":
+		return int(ev.FieldHandlers.ResolveOnDemandArg2Uint(ev, &ev.OnDemand)), nil
+	case "ondemand.arg3.str":
+		return ev.FieldHandlers.ResolveOnDemandArg3Str(ev, &ev.OnDemand), nil
+	case "ondemand.arg3.uint":
+		return int(ev.FieldHandlers.ResolveOnDemandArg3Uint(ev, &ev.OnDemand)), nil
+	case "ondemand.arg4.str":
+		return ev.FieldHandlers.ResolveOnDemandArg4Str(ev, &ev.OnDemand), nil
+	case "ondemand.arg4.uint":
+		return int(ev.FieldHandlers.ResolveOnDemandArg4Uint(ev, &ev.OnDemand)), nil
+	case "ondemand.name":
+		return ev.FieldHandlers.ResolveOnDemandName(ev, &ev.OnDemand), nil
 	case "open.file.change_time":
 		return int(ev.Open.File.FileFields.CTime), nil
 	case "open.file.destination.mode":
@@ -25027,6 +25136,24 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "dns", nil
 	case "network.source.port":
 		return "dns", nil
+	case "ondemand.arg1.str":
+		return "ondemand", nil
+	case "ondemand.arg1.uint":
+		return "ondemand", nil
+	case "ondemand.arg2.str":
+		return "ondemand", nil
+	case "ondemand.arg2.uint":
+		return "ondemand", nil
+	case "ondemand.arg3.str":
+		return "ondemand", nil
+	case "ondemand.arg3.uint":
+		return "ondemand", nil
+	case "ondemand.arg4.str":
+		return "ondemand", nil
+	case "ondemand.arg4.uint":
+		return "ondemand", nil
+	case "ondemand.name":
+		return "ondemand", nil
 	case "open.file.change_time":
 		return "open", nil
 	case "open.file.destination.mode":
@@ -27632,6 +27759,24 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Struct, nil
 	case "network.source.port":
 		return reflect.Int, nil
+	case "ondemand.arg1.str":
+		return reflect.String, nil
+	case "ondemand.arg1.uint":
+		return reflect.Int, nil
+	case "ondemand.arg2.str":
+		return reflect.String, nil
+	case "ondemand.arg2.uint":
+		return reflect.Int, nil
+	case "ondemand.arg3.str":
+		return reflect.String, nil
+	case "ondemand.arg3.uint":
+		return reflect.Int, nil
+	case "ondemand.arg4.str":
+		return reflect.String, nil
+	case "ondemand.arg4.uint":
+		return reflect.Int, nil
+	case "ondemand.name":
+		return reflect.String, nil
 	case "open.file.change_time":
 		return reflect.Int, nil
 	case "open.file.destination.mode":
@@ -32648,6 +32793,69 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "NetworkContext.Source.Port"}
 		}
 		ev.NetworkContext.Source.Port = uint16(rv)
+		return nil
+	case "ondemand.arg1.str":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "OnDemand.Arg1Str"}
+		}
+		ev.OnDemand.Arg1Str = rv
+		return nil
+	case "ondemand.arg1.uint":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "OnDemand.Arg1Uint"}
+		}
+		ev.OnDemand.Arg1Uint = uint64(rv)
+		return nil
+	case "ondemand.arg2.str":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "OnDemand.Arg2Str"}
+		}
+		ev.OnDemand.Arg2Str = rv
+		return nil
+	case "ondemand.arg2.uint":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "OnDemand.Arg2Uint"}
+		}
+		ev.OnDemand.Arg2Uint = uint64(rv)
+		return nil
+	case "ondemand.arg3.str":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "OnDemand.Arg3Str"}
+		}
+		ev.OnDemand.Arg3Str = rv
+		return nil
+	case "ondemand.arg3.uint":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "OnDemand.Arg3Uint"}
+		}
+		ev.OnDemand.Arg3Uint = uint64(rv)
+		return nil
+	case "ondemand.arg4.str":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "OnDemand.Arg4Str"}
+		}
+		ev.OnDemand.Arg4Str = rv
+		return nil
+	case "ondemand.arg4.uint":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "OnDemand.Arg4Uint"}
+		}
+		ev.OnDemand.Arg4Uint = uint64(rv)
+		return nil
+	case "ondemand.name":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "OnDemand.Name"}
+		}
+		ev.OnDemand.Name = rv
 		return nil
 	case "open.file.change_time":
 		rv, ok := value.(int)
