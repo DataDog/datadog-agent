@@ -10,9 +10,10 @@ package testutil
 
 import (
 	"context"
-	"github.com/stretchr/testify/require"
 	"os/exec"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
