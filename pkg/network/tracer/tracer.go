@@ -37,6 +37,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
 	"github.com/DataDog/datadog-agent/pkg/network/usm"
+	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	timeresolver "github.com/DataDog/datadog-agent/pkg/security/resolvers/time"
@@ -844,8 +845,7 @@ func (t *Tracer) DebugDumpProcessCache(_ context.Context) (interface{}, error) {
 }
 
 func newUSMMonitor(c *config.Config, tracer connection.Tracer) *usm.Monitor {
-	if !http.Supported() || !c.ServiceMonitoringEnabled {
-		// http.Supported is misleading, it should be named usm.Supported.
+	if !usmconfig.NeedUSM(c) {
 		// If USM is not supported, or if USM is not enabled, we should not start the USM monitor.
 		return nil
 	}
