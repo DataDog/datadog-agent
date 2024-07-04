@@ -18,6 +18,8 @@ import (
 	"syscall"
 	"time"
 
+	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
+
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/controllers"
@@ -436,6 +438,9 @@ func start(log log.Component,
 			log.Errorf("Cannot start language detection patcher: %v", err)
 		}
 	}
+
+	tracer.Start()
+	defer tracer.Stop()
 
 	if config.GetBool("admission_controller.enabled") {
 		if config.GetBool("admission_controller.auto_instrumentation.patcher.enabled") {

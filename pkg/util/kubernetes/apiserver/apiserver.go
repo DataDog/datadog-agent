@@ -27,7 +27,6 @@ import (
 	vpa "k8s.io/autoscaler/vertical-pod-autoscaler/pkg/client/clientset/versioned"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/discovery/cached/memory"
-
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/dynamic/dynamicinformer"
 	"k8s.io/client-go/informers"
@@ -39,6 +38,8 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/remotecommand"
 	apiregistrationclient "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/typed/apiregistration/v1"
+
+	kubetracer "gopkg.in/DataDog/dd-trace-go.v1/contrib/k8s.io/client-go/kubernetes"
 
 	apiv1 "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -231,7 +232,8 @@ func getClientConfig(timeout time.Duration) (*rest.Config, error) {
 
 	clientConfig.Timeout = timeout
 	clientConfig.Wrap(func(rt http.RoundTripper) http.RoundTripper {
-		return NewCustomRoundTripper(rt, timeout)
+		traced := kubetracer.WrapRoundTripper(rt)
+		return NewCustomRoundTripper(traced, timeout)
 	})
 
 	return clientConfig, nil
