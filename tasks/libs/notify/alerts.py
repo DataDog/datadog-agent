@@ -229,8 +229,6 @@ def update_statistics(job_executions: PipelineRuns):
 
 def send_notification(ctx: Context, alert_jobs, jobowners=".gitlab/JOBOWNERS"):
     def send_alert(channel, consecutive: ConsecutiveJobAlert, cumulative: CumulativeJobAlert):
-        nonlocal metrics
-
         message = consecutive.message(ctx) + cumulative.message()
         message = message.strip()
 
@@ -238,7 +236,7 @@ def send_notification(ctx: Context, alert_jobs, jobowners=".gitlab/JOBOWNERS"):
             send_slack_message(channel, message)
 
             # Create metrics for consecutive and cumulative alerts
-            metrics += [
+            return [
                 create_count(
                     metric_name=f"datadog.ci.failed_job_alerts.{alert_type}",
                     timestamp=timestamp,
@@ -250,6 +248,8 @@ def send_notification(ctx: Context, alert_jobs, jobowners=".gitlab/JOBOWNERS"):
                 for team in channel_owners(channel)
                 if len(failures) > 0
             ]
+
+        return []
 
     metrics = []
     timestamp = int(datetime.now(timezone.utc).timestamp())
@@ -263,12 +263,12 @@ def send_notification(ctx: Context, alert_jobs, jobowners=".gitlab/JOBOWNERS"):
         cumulative = CumulativeJobAlert(
             {name: jobs for (name, jobs) in alert_jobs["cumulative"].items() if name in partition[channel]}
         )
-        send_alert(channel, consecutive, cumulative)
+        metrics.extend(send_alert(channel, consecutive, cumulative))
 
     # Send all alerts to CHANNEL_BROADCAST
     consecutive = ConsecutiveJobAlert(alert_jobs["consecutive"])
     cumulative = CumulativeJobAlert(alert_jobs["cumulative"])
-    send_alert(CHANNEL_BROADCAST, consecutive, cumulative)
+    metrics.extend(send_alert(CHANNEL_BROADCAST, consecutive, cumulative))
 
     if metrics:
         send_metrics(metrics)
