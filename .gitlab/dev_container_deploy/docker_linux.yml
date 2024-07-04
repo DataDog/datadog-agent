@@ -323,6 +323,7 @@ qa_dca:
   rules:
     - !reference [.on_container_or_e2e_changes]
     - !reference [.on_process_or_e2e_changes]
+    - !reference [.on_aml_or_e2e_changes]
     - !reference [.manual]
   needs:
     - docker_build_cluster_agent_amd64
