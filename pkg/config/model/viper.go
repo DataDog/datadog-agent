@@ -659,7 +659,7 @@ func (c *safeConfig) AllSettingsBySource() map[Source]interface{} {
 	for _, source := range sources {
 		res[source] = c.configSources[source].AllSettingsWithoutDefault()
 	}
-	res[SourceProvided] = c.AllSettingsWithoutDefault()
+	res[SourceProvided] = c.Viper.AllSettingsWithoutDefault()
 	return res
 }
 
