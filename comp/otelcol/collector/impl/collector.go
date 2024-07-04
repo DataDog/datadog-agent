@@ -10,7 +10,6 @@ package collectorimpl
 
 import (
 	"context"
-	"fmt"
 
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/confmap"
@@ -118,42 +117,15 @@ func addFactories(reqs Requires, factories otelcol.Factories) {
 	factories.Extensions[ddextension.Type] = ddextension.NewFactory(reqs.ConfigStore)
 }
 
-// getConfig returns the *otelcol.Config from the slice of URIs. If enhanced is
-// true, it returns the enhanced config, else it returns the provided config.
-func getConfig(reqs Requires, enhanced bool) (*otelcol.Config, error) {
-	ocp, err := otelcol.NewConfigProvider(newConfigProviderSettings(reqs, enhanced))
-	if err != nil {
-		return nil, fmt.Errorf("failed to create configprovider: %w", err)
-	}
-
-	factories, err := reqs.CollectorContrib.OTelComponentFactories()
-	if err != nil {
-		return nil, err
-	}
-
-	addFactories(reqs, factories)
-	conf, err := ocp.Get(context.Background(), factories)
-	if err != nil {
-		return nil, err
-	}
-
-	return conf, nil
-}
-
 // NewComponent returns a new instance of the collector component.
 func NewComponent(reqs Requires) (Provides, error) {
-	providedConf, err := getConfig(reqs, false)
+	factories, err := reqs.CollectorContrib.OTelComponentFactories()
 	if err != nil {
 		return Provides{}, err
 	}
-	reqs.ConfigStore.AddProvidedConf(providedConf)
+	addFactories(reqs, factories)
 
-	enhancedConf, err := getConfig(reqs, true)
-	if err != nil {
-		return Provides{}, err
-	}
-	reqs.ConfigStore.AddEnhancedConf(enhancedConf)
-
+	reqs.ConfigStore.AddConfigs(newConfigProviderSettings(reqs, false), newConfigProviderSettings(reqs, true), factories)
 	// Replace default core to use Agent logger
 	options := []zap.Option{
 		zap.WrapCore(func(zapcore.Core) zapcore.Core {
@@ -168,11 +140,6 @@ func NewComponent(reqs Requires) (Provides, error) {
 		},
 		LoggingOptions: options,
 		Factories: func() (otelcol.Factories, error) {
-			factories, err := reqs.CollectorContrib.OTelComponentFactories()
-			if err != nil {
-				return otelcol.Factories{}, err
-			}
-			addFactories(reqs, factories)
 			return factories, nil
 		},
 		ConfigProviderSettings: newConfigProviderSettings(reqs, true),
