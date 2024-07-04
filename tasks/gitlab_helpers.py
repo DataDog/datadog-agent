@@ -103,7 +103,7 @@ def print_gitlab_object(
 
 
 @task
-def print_pipeline(ctx, id, repo='DataDog/datadog-agent', jq: str | None = None, jq_colors=True):
+def print_pipeline(ctx, ids, repo='DataDog/datadog-agent', jq: str | None = None, jq_colors=True):
     """
     Print one or more Gitlab pipelines in JSON and potentially query them with jq
     """
