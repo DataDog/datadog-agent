@@ -112,7 +112,8 @@ jobs:
         run: |
           base_branch=${{ github.ref }} # Get the full ref
           base_branch=${base_branch#refs/heads/} # Remove 'refs/heads/' from the ref
-          prs=$(gh pr list \ # prs variable contains the number of PRs already created that match head and base branches
+          # prs variable contains the number of PRs already created that match head and base branches
+          prs=$(gh pr list \
               --repo "$GITHUB_REPOSITORY" \
               --head ${{ inputs.branch }} \
               --base $base_branch \
@@ -131,16 +132,18 @@ jobs:
           PR_TITLE: "[automated] ${{ steps.update_build_images.outputs.MESSAGE }}"
           PR_LABELS: "go-update,team/agent-shared-components"
         run: |
-          inv -e buildimages.generate-pr-body \ # Generate the PR description
+          # Generate the PR description
+          inv -e buildimages.generate-pr-body \
           ${{ steps.current_buildimage_tag.outputs.BUILDIMAGE_TAG }} \
           ${{ inputs.images_id }} \
           ${{ steps.current_go_version.outputs.GO_VERSION }} \
           ${{ inputs.go_version }} \
           ${{ inputs.test_version && '--test-version' || '' }} > $TMP_PR_BODY_PATH
 
-          gh pr create \ # Create the PR
+          # Create the PR
+          gh pr create \
           --base ${{ github.ref }} \
-          --title $PR_TITLE \
+          --title "$PR_TITLE" \
           --body-file $TMP_PR_BODY_PATH \
-          --label $PR_LABELS \
+          --label "$PR_LABELS" \
           --draft \
