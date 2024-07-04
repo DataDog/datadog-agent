@@ -145,9 +145,9 @@ func (p *UnixTransparentProxyServer) handleConnection(unixSocketConn net.Conn) {
 	defer remoteConn.Close()
 
 	var streamWait sync.WaitGroup
-	streamWait.Add(2)
 
 	if p.useControl {
+		streamWait.Add(1)
 		go func() {
 			defer streamWait.Done()
 
@@ -205,6 +205,7 @@ func (p *UnixTransparentProxyServer) handleConnection(unixSocketConn net.Conn) {
 			}
 		}()
 	} else {
+		streamWait.Add(2)
 		streamConn := func(dst io.Writer, src io.Reader, cleanup func()) {
 			defer streamWait.Done()
 			if cleanup != nil {
