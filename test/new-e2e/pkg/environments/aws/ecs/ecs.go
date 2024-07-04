@@ -254,12 +254,12 @@ func Run(ctx *pulumi.Context, env *environments.ECS, params *ProvisionerParams) 
 			if fakeIntake, err = fakeintake.NewECSFargateInstance(awsEnv, "ecs", fakeIntakeOptions...); err != nil {
 				return err
 			}
-			if err := fakeIntake.Export(awsEnv.Ctx, &env.FakeIntake.FakeintakeOutput); err != nil {
+			if err := fakeIntake.Export(awsEnv.Ctx(), &env.FakeIntake.FakeintakeOutput); err != nil {
 				return err
 			}
 		}
 		apiKeyParam, err = ssm.NewParameter(ctx, awsEnv.Namer.ResourceName("agent-apikey"), &ssm.ParameterArgs{
-			Name:      awsEnv.CommonNamer.DisplayName(1011, pulumi.String("agent-apikey")),
+			Name:      awsEnv.CommonNamer().DisplayName(1011, pulumi.String("agent-apikey")),
 			Type:      ssm.ParameterTypeSecureString,
 			Overwrite: pulumi.Bool(true),
 			Value:     awsEnv.AgentAPIKey(),
