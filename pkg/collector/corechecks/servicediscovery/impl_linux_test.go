@@ -168,6 +168,7 @@ func cmpEvents(a, b *event) bool {
 func Test_linuxImpl(t *testing.T) {
 	host := "test-host"
 	cfgYaml := `ignore_processes: ["ignore-1", "ignore-2"]`
+	t.Setenv("DD_SERVICE_DISCOVERY_ENABLED", "true")
 
 	type checkRun struct {
 		aliveProcs []testProc
@@ -597,6 +598,8 @@ func (errorPortPoller) OpenPorts() (portlist.List, error) {
 }
 
 func Test_linuxImpl_errors(t *testing.T) {
+	t.Setenv("DD_SERVICE_DISCOVERY_ENABLED", "true")
+
 	// bad procFS
 	{
 		li := linuxImpl{

@@ -182,6 +182,7 @@ struct link_event_t {
     struct span_context_t span;
     struct container_context_t container;
     struct syscall_t syscall;
+    struct syscall_context_t syscall_ctx;
     struct file_t source;
     struct file_t target;
 };

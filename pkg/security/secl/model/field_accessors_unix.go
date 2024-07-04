@@ -3450,6 +3450,70 @@ func (ev *Event) GetLinkRetval() int64 {
 	return ev.Link.SyscallEvent.Retval
 }
 
+// GetLinkSyscallDestinationPath returns the value of the field, resolving if necessary
+func (ev *Event) GetLinkSyscallDestinationPath() string {
+	if ev.GetEventType().String() != "link" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsStr2(ev, &ev.Link.SyscallContext)
+}
+
+// GetLinkSyscallInt1 returns the value of the field, resolving if necessary
+func (ev *Event) GetLinkSyscallInt1() int {
+	if ev.GetEventType().String() != "link" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsInt1(ev, &ev.Link.SyscallContext)
+}
+
+// GetLinkSyscallInt2 returns the value of the field, resolving if necessary
+func (ev *Event) GetLinkSyscallInt2() int {
+	if ev.GetEventType().String() != "link" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsInt2(ev, &ev.Link.SyscallContext)
+}
+
+// GetLinkSyscallInt3 returns the value of the field, resolving if necessary
+func (ev *Event) GetLinkSyscallInt3() int {
+	if ev.GetEventType().String() != "link" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsInt3(ev, &ev.Link.SyscallContext)
+}
+
+// GetLinkSyscallPath returns the value of the field, resolving if necessary
+func (ev *Event) GetLinkSyscallPath() string {
+	if ev.GetEventType().String() != "link" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Link.SyscallContext)
+}
+
+// GetLinkSyscallStr1 returns the value of the field, resolving if necessary
+func (ev *Event) GetLinkSyscallStr1() string {
+	if ev.GetEventType().String() != "link" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Link.SyscallContext)
+}
+
+// GetLinkSyscallStr2 returns the value of the field, resolving if necessary
+func (ev *Event) GetLinkSyscallStr2() string {
+	if ev.GetEventType().String() != "link" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsStr2(ev, &ev.Link.SyscallContext)
+}
+
+// GetLinkSyscallStr3 returns the value of the field, resolving if necessary
+func (ev *Event) GetLinkSyscallStr3() string {
+	if ev.GetEventType().String() != "link" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsStr3(ev, &ev.Link.SyscallContext)
+}
+
 // GetLoadModuleArgs returns the value of the field, resolving if necessary
 func (ev *Event) GetLoadModuleArgs() string {
 	if ev.GetEventType().String() != "load_module" {
