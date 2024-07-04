@@ -504,10 +504,12 @@ func testHTTPSClassification(t *testing.T, tr *Tracer, clientHost, targetHost, s
 	// makeRequest is a helper that makes a GET request and handle the response.
 	makeRequest := func(t require.TestingT, client *nethttp.Client, url string) {
 		r, err := client.Get(url)
-		assert.NoError(t, err)
+		if err != nil {
+			assert.NoError(t, err)
+			return
+		}
 		_, _ = io.Copy(io.Discard, r.Body)
 		_ = r.Body.Close()
-		client.CloseIdleConnections()
 	}
 
 	serverAddress := net.JoinHostPort(serverHost, httpsPort)
@@ -541,7 +543,9 @@ func testHTTPSClassification(t *testing.T, tr *Tracer, clientHost, targetHost, s
 				// The server might not be ready to accept connection just yet, so we
 				// try until it starts accepting them.
 				require.EventuallyWithT(t, func(c *assert.CollectT) {
-					makeRequest(c, client, requestURL)
+					for i := 0; i < 5; i++ {
+						makeRequest(c, client, requestURL)
+					}
 				}, 5*time.Second, 100*time.Millisecond)
 			},
 			validation: func(t *testing.T, ctx testContext, tr *Tracer) {
