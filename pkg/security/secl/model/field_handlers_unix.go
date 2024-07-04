@@ -484,6 +484,9 @@ func (ev *Event) resolveFields(forADs bool) {
 		_ = ev.FieldHandlers.ResolveMountPointPath(ev, &ev.Mount)
 		_ = ev.FieldHandlers.ResolveMountSourcePath(ev, &ev.Mount)
 		_ = ev.FieldHandlers.ResolveMountRootPath(ev, &ev.Mount)
+		_ = ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Mount.SyscallContext)
+		_ = ev.FieldHandlers.ResolveSyscallCtxArgsStr2(ev, &ev.Mount.SyscallContext)
+		_ = ev.FieldHandlers.ResolveSyscallCtxArgsStr3(ev, &ev.Mount.SyscallContext)
 	case "mprotect":
 	case "ondemand":
 		_ = ev.FieldHandlers.ResolveOnDemandName(ev, &ev.OnDemand)

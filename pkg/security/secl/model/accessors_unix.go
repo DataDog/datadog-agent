@@ -3815,6 +3815,33 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
+	case "mount.syscall.fs_type":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveSyscallCtxArgsStr3(ev, &ev.Mount.SyscallContext)
+			},
+			Field:  field,
+			Weight: 900 * eval.HandlerWeight,
+		}, nil
+	case "mount.syscall.mountpoint.path":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveSyscallCtxArgsStr2(ev, &ev.Mount.SyscallContext)
+			},
+			Field:  field,
+			Weight: 900 * eval.HandlerWeight,
+		}, nil
+	case "mount.syscall.source.path":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Mount.SyscallContext)
+			},
+			Field:  field,
+			Weight: 900 * eval.HandlerWeight,
+		}, nil
 	case "mprotect.req_protection":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -17059,6 +17086,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"mount.retval",
 		"mount.root.path",
 		"mount.source.path",
+		"mount.syscall.fs_type",
+		"mount.syscall.mountpoint.path",
+		"mount.syscall.source.path",
 		"mprotect.req_protection",
 		"mprotect.retval",
 		"mprotect.vm_protection",
@@ -18982,6 +19012,12 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return ev.FieldHandlers.ResolveMountRootPath(ev, &ev.Mount), nil
 	case "mount.source.path":
 		return ev.FieldHandlers.ResolveMountSourcePath(ev, &ev.Mount), nil
+	case "mount.syscall.fs_type":
+		return ev.FieldHandlers.ResolveSyscallCtxArgsStr3(ev, &ev.Mount.SyscallContext), nil
+	case "mount.syscall.mountpoint.path":
+		return ev.FieldHandlers.ResolveSyscallCtxArgsStr2(ev, &ev.Mount.SyscallContext), nil
+	case "mount.syscall.source.path":
+		return ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Mount.SyscallContext), nil
 	case "mprotect.req_protection":
 		return ev.MProtect.ReqProtection, nil
 	case "mprotect.retval":
@@ -25148,6 +25184,12 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "mount", nil
 	case "mount.source.path":
 		return "mount", nil
+	case "mount.syscall.fs_type":
+		return "mount", nil
+	case "mount.syscall.mountpoint.path":
+		return "mount", nil
+	case "mount.syscall.source.path":
+		return "mount", nil
 	case "mprotect.req_protection":
 		return "mprotect", nil
 	case "mprotect.retval":
@@ -27776,6 +27818,12 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "mount.root.path":
 		return reflect.String, nil
 	case "mount.source.path":
+		return reflect.String, nil
+	case "mount.syscall.fs_type":
+		return reflect.String, nil
+	case "mount.syscall.mountpoint.path":
+		return reflect.String, nil
+	case "mount.syscall.source.path":
 		return reflect.String, nil
 	case "mprotect.req_protection":
 		return reflect.Int, nil
@@ -32757,6 +32805,27 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Mount.MountSourcePath"}
 		}
 		ev.Mount.MountSourcePath = rv
+		return nil
+	case "mount.syscall.fs_type":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Mount.SyscallContext.StrArg3"}
+		}
+		ev.Mount.SyscallContext.StrArg3 = rv
+		return nil
+	case "mount.syscall.mountpoint.path":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Mount.SyscallContext.StrArg2"}
+		}
+		ev.Mount.SyscallContext.StrArg2 = rv
+		return nil
+	case "mount.syscall.source.path":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Mount.SyscallContext.StrArg1"}
+		}
+		ev.Mount.SyscallContext.StrArg1 = rv
 		return nil
 	case "mprotect.req_protection":
 		rv, ok := value.(int)

@@ -3246,6 +3246,21 @@
           "name": "mount.source.path",
           "definition": "Source path of a bind mount",
           "property_doc_link": "mount-source-path-doc"
+        },
+        {
+          "name": "mount.syscall.fs_type",
+          "definition": "File system type argument of the syscall",
+          "property_doc_link": "mount-syscall-fs_type-doc"
+        },
+        {
+          "name": "mount.syscall.mountpoint.path",
+          "definition": "Mount point path argument of the syscall",
+          "property_doc_link": "mount-syscall-mountpoint-path-doc"
+        },
+        {
+          "name": "mount.syscall.source.path",
+          "definition": "Source path argument of the syscall",
+          "property_doc_link": "mount-syscall-source-path-doc"
         }
       ]
     },
@@ -9447,6 +9462,42 @@
       "link": "mount-source-path-doc",
       "type": "string",
       "definition": "Source path of a bind mount",
+      "prefixes": [
+        "mount"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "mount.syscall.fs_type",
+      "link": "mount-syscall-fs_type-doc",
+      "type": "string",
+      "definition": "File system type argument of the syscall",
+      "prefixes": [
+        "mount"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "mount.syscall.mountpoint.path",
+      "link": "mount-syscall-mountpoint-path-doc",
+      "type": "string",
+      "definition": "Mount point path argument of the syscall",
+      "prefixes": [
+        "mount"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "mount.syscall.source.path",
+      "link": "mount-syscall-source-path-doc",
+      "type": "string",
+      "definition": "Source path argument of the syscall",
       "prefixes": [
         "mount"
       ],

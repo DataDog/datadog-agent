@@ -438,7 +438,7 @@ func (m *Mount) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *MountEvent) UnmarshalBinary(data []byte) (int, error) {
-	return UnmarshalBinary(data, &e.SyscallEvent, &e.Mount)
+	return UnmarshalBinary(data, &e.SyscallEvent, &e.SyscallContext, &e.Mount)
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself

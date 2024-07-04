@@ -1486,6 +1486,10 @@ CSM Threats event for Linux systems have the following JSON schema:
                 "destination_path": {
                     "type": "string",
                     "description": "Destination path argument"
+                },
+                "fs_type": {
+                    "type": "string",
+                    "description": "File system type argument"
                 }
             },
             "additionalProperties": false,
@@ -1515,10 +1519,13 @@ CSM Threats event for Linux systems have the following JSON schema:
                 "link": {
                     "$ref": "#/$defs/SyscallArgs"
                 },
+                "rename": {
+                    "$ref": "#/$defs/SyscallArgs"
+                },
                 "utimes": {
                     "$ref": "#/$defs/SyscallArgs"
                 },
-                "rename": {
+                "mount": {
                     "$ref": "#/$defs/SyscallArgs"
                 }
             },
@@ -3897,6 +3904,10 @@ CSM Threats event for Linux systems have the following JSON schema:
         "destination_path": {
             "type": "string",
             "description": "Destination path argument"
+        },
+        "fs_type": {
+            "type": "string",
+            "description": "File system type argument"
         }
     },
     "additionalProperties": false,
@@ -3915,6 +3926,7 @@ CSM Threats event for Linux systems have the following JSON schema:
 | `gid` | GID argument |
 | `dirfd` | Directory file descriptor argument |
 | `destination_path` | Destination path argument |
+| `fs_type` | File system type argument |
 
 
 ## `SyscallContext`
@@ -3944,10 +3956,13 @@ CSM Threats event for Linux systems have the following JSON schema:
         "link": {
             "$ref": "#/$defs/SyscallArgs"
         },
+        "rename": {
+            "$ref": "#/$defs/SyscallArgs"
+        },
         "utimes": {
             "$ref": "#/$defs/SyscallArgs"
         },
-        "rename": {
+        "mount": {
             "$ref": "#/$defs/SyscallArgs"
         }
     },
@@ -3961,6 +3976,7 @@ CSM Threats event for Linux systems have the following JSON schema:
 
 | References |
 | ---------- |
+| [SyscallArgs](#syscallargs) |
 | [SyscallArgs](#syscallargs) |
 | [SyscallArgs](#syscallargs) |
 | [SyscallArgs](#syscallargs) |
