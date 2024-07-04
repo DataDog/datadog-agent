@@ -1862,12 +1862,14 @@ def tag_ci_job(ctx: Context):
             tags["setup_stage"] = "tests"
 
         instance_not_found_marker = ci_project_dir / "instance_not_found"
-        e2e_fail_marker = ci_project_dir / "e2e-retry-count"
+        e2e_fail_marker = ci_project_dir / "e2e-error-reason"
         if instance_not_found_marker.is_file():
             tags["failure_reason"] = "infra_instance-not-found"
         elif e2e_fail_marker.is_file():
             e2e_fail = e2e_fail_marker.read_text().strip()
             tags["failure_reason"] = f"infra_e2e_{e2e_fail}"
+        else:
+            tags["failure_reason"] = "infra_unknown"
 
         e2e_retry_count = ci_project_dir / "e2e-retry-count"
         if e2e_retry_count.is_file():
