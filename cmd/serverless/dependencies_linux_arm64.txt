@@ -288,10 +288,6 @@ github.com/DataDog/datadog-api-client-go/v2
 github.com/DataDog/datadog-api-client-go/v2/api/datadog
 github.com/DataDog/datadog-api-client-go/v2/api/datadogV2
 github.com/DataDog/datadog-go/v5/statsd
-github.com/DataDog/go-libddwaf/v2
-github.com/DataDog/go-libddwaf/v2/internal/lib
-github.com/DataDog/go-libddwaf/v2/internal/log
-github.com/DataDog/go-libddwaf/v2/internal/noopfree
 github.com/DataDog/go-libddwaf/v3
 github.com/DataDog/go-libddwaf/v3/errors
 github.com/DataDog/go-libddwaf/v3/internal/bindings
