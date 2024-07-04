@@ -21,7 +21,7 @@ import (
 	"sigs.k8s.io/custom-metrics-apiserver/pkg/provider"
 	"sigs.k8s.io/custom-metrics-apiserver/pkg/provider/defaults"
 
-	"github.com/DataDog/datadog-agent/comp/core/datadogclient"
+	"github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"

@@ -10,7 +10,7 @@ package datadogclientimpl
 import (
 	"sync"
 
-	"github.com/DataDog/datadog-agent/comp/core/datadogclient"
+	"github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"go.uber.org/fx"
 	"gopkg.in/zorkian/go-datadog-api.v2"
