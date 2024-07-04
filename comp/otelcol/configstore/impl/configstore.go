@@ -28,24 +28,24 @@ func NewConfigStore() (configstore.Component, error) {
 
 // AddProvidedConf stores the config into configStoreImpl.
 func (c *configStoreImpl) AddProvidedConf(config *otelcol.Config) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 
 	c.provided = config
 }
 
 // AddEnhancedConf stores the config into configStoreImpl.
 func (c *configStoreImpl) AddEnhancedConf(config *otelcol.Config) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 
 	c.enhanced = config
 }
 
 // GetProvidedConf returns a string representing the enhanced collector configuration.
 func (c *configStoreImpl) GetProvidedConf() (*confmap.Conf, error) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 
 	conf := confmap.New()
 	err := conf.Marshal(c.provided)
@@ -57,8 +57,8 @@ func (c *configStoreImpl) GetProvidedConf() (*confmap.Conf, error) {
 
 // GetEnhancedConf returns a string representing the enhanced collector configuration.
 func (c *configStoreImpl) GetEnhancedConf() (*confmap.Conf, error) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 
 	conf := confmap.New()
 	err := conf.Marshal(c.enhanced)
@@ -70,16 +70,16 @@ func (c *configStoreImpl) GetEnhancedConf() (*confmap.Conf, error) {
 
 // GetProvidedConf returns a string representing the enhanced collector configuration.
 func (c *configStoreImpl) GetProvidedConfAsString() (string, error) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 
 	return confToString(c.provided)
 }
 
 // GetEnhancedConf returns a string representing the enhanced collector configuration.
 func (c *configStoreImpl) GetEnhancedConfAsString() (string, error) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 
 	return confToString(c.enhanced)
 }

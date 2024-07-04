@@ -90,10 +90,7 @@ func newConfigProviderSettings(reqs Requires, enhanced bool) otelcol.ConfigProvi
 	}
 
 	if enhanced {
-		converterFactories = []confmap.ConverterFactory{
-			expandconverter.NewFactory(),
-			&converterFactory{converter: reqs.Provider},
-		}
+		converterFactories = append(converterFactories, &converterFactory{converter: reqs.Provider})
 	}
 
 	return otelcol.ConfigProviderSettings{
@@ -165,9 +162,9 @@ func NewComponent(reqs Requires) (Provides, error) {
 	}
 	set := otelcol.CollectorSettings{
 		BuildInfo: component.BuildInfo{
-			Version:     "v0.103.0",
+			Version:     "v0.104.0",
 			Command:     "otel-agent",
-			Description: "Datadog Agent OpenTelemetry Collector Distribution",
+			Description: "Datadog Agent OpenTelemetry Collector",
 		},
 		LoggingOptions: options,
 		Factories: func() (otelcol.Factories, error) {
