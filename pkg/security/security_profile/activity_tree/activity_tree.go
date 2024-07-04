@@ -27,20 +27,50 @@ import (
 )
 
 // NodeDroppedReason is used to list the reasons to drop a node
-type NodeDroppedReason string
+type NodeDroppedReason byte
 
-var (
-	eventTypeReason       NodeDroppedReason = "event_type"
-	invalidRootNodeReason NodeDroppedReason = "invalid_root_node"
-	bindFamilyReason      NodeDroppedReason = "bind_family"
-	brokenEventReason     NodeDroppedReason = "broken_event"
-	allDropReasons                          = []NodeDroppedReason{
-		eventTypeReason,
-		invalidRootNodeReason,
-		bindFamilyReason,
-		brokenEventReason,
-	}
+const (
+	eventTypeReason NodeDroppedReason = iota
+	invalidRootNodeReason
+	bindFamilyReason
+	brokenEventReason
+
+	minNodeDroppedReason   = eventTypeReason
+	maxNodeDroppedReason   = brokenEventReason
+	nodeDroppedReasonCount = maxNodeDroppedReason - minNodeDroppedReason + 1
 )
+
+func (reason NodeDroppedReason) String() string {
+	switch reason {
+	case eventTypeReason:
+		return "event_type"
+	case invalidRootNodeReason:
+		return "invalid_root_node"
+	case bindFamilyReason:
+		return "bind_family"
+	case brokenEventReason:
+		return "broken_event"
+	default:
+		return "unknown"
+	}
+}
+
+// Tag returns the metric tag associated with this dropped reason, it's basically
+// fmt.Sprintf("reason:%s", reason)
+func (reason NodeDroppedReason) Tag() string {
+	switch reason {
+	case eventTypeReason:
+		return "reason:event_type"
+	case invalidRootNodeReason:
+		return "reason:invalid_root_node"
+	case bindFamilyReason:
+		return "reason:bind_family"
+	case brokenEventReason:
+		return "reason:broken_event"
+	default:
+		return "reason:unknown"
+	}
+}
 
 var (
 	// ErrBrokenLineage is returned when the given process don't have a full lineage

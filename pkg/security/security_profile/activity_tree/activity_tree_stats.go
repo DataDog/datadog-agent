@@ -56,7 +56,7 @@ func NewActivityTreeNodeStats() *Stats {
 			droppedCount: make(map[NodeDroppedReason]*atomic.Uint64),
 		}
 
-		for _, reason := range allDropReasons {
+		for reason := minNodeDroppedReason; reason <= maxNodeDroppedReason; reason++ {
 			spet.droppedCount[reason] = atomic.NewUint64(0)
 		}
 		ats.counts[i] = spet
