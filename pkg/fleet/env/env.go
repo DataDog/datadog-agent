@@ -52,7 +52,7 @@ type ApmLibLanguage string
 // ApmLibVersion is the version of the library defined in DD_APM_INSTRUMENTATION_LIBRARIES env var
 type ApmLibVersion string
 
-var fullSemverRe *regexp.Regexp = regexp.MustCompile(`^[0-9]+\.[0-9]+\.[0-9]+$`)
+var fullSemverRe = regexp.MustCompile(`^[0-9]+\.[0-9]+\.[0-9]+$`)
 
 // AsVersionTag returns the version tag associated with the version of the library defined in DD_APM_INSTRUMENTATION_LIBRARIES
 // if the value is empty we return latest
