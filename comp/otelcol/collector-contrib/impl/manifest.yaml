@@ -200,8 +200,7 @@ receivers:
 connectors:
   - gomod: go.opentelemetry.io/collector/connector/forwardconnector v0.104.0
   - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/connector/countconnector v0.104.0
-  # todo: update datadog connector with breaking changes from https://github.com/DataDog/datadog-agent/pull/26347.
-  - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/connector/datadogconnector v0.103.0
+  - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/connector/datadogconnector v0.104.0
   - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/connector/exceptionsconnector v0.104.0
   - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/connector/grafanacloudconnector v0.104.0
   - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/connector/roundrobinconnector v0.104.0
@@ -219,7 +218,8 @@ replaces:
   - github.com/mattn/go-ieproxy => github.com/mattn/go-ieproxy v0.0.1
   # see https://github.com/openshift/api/pull/1515
   - github.com/openshift/api => github.com/openshift/api v0.0.0-20230726162818-81f778f3b3ec
-
+  # todo: update datadog connector with breaking changes from https://github.com/DataDog/datadog-agent/pull/26347.
+  - github.com/open-telemetry/opentelemetry-collector-contrib/connector/datadogconnector => github.com/open-telemetry/opentelemetry-collector-contrib/connector/datadogconnector v0.103.0
   - github.com/DataDog/datadog-agent/comp/core/config => ../../../core/config
   - github.com/DataDog/datadog-agent/comp/core/flare/builder => ../../../core/flare/builder
   - github.com/DataDog/datadog-agent/comp/core/flare/types => ../../../core/flare/types

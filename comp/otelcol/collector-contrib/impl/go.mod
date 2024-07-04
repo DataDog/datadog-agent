@@ -9,7 +9,7 @@ toolchain go1.22.4
 require (
 	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def v0.0.0-00010101000000-000000000000
 	github.com/open-telemetry/opentelemetry-collector-contrib/connector/countconnector v0.104.0
-	github.com/open-telemetry/opentelemetry-collector-contrib/connector/datadogconnector v0.103.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/connector/datadogconnector v0.104.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/connector/exceptionsconnector v0.104.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/connector/grafanacloudconnector v0.104.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/connector/roundrobinconnector v0.104.0
@@ -728,6 +728,8 @@ replace github.com/docker/go-connections v0.4.1-0.20210727194412-58542c764a11 =>
 replace github.com/mattn/go-ieproxy => github.com/mattn/go-ieproxy v0.0.1
 
 replace github.com/openshift/api => github.com/openshift/api v0.0.0-20230726162818-81f778f3b3ec
+
+replace github.com/open-telemetry/opentelemetry-collector-contrib/connector/datadogconnector => github.com/open-telemetry/opentelemetry-collector-contrib/connector/datadogconnector v0.103.0
 
 replace github.com/DataDog/datadog-agent/comp/core/config => ../../../core/config
 
