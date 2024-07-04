@@ -381,6 +381,7 @@ new-e2e-windows-systemprobe:
     - !reference [.manual]
   needs:
     - deploy_windows_testing-a7
+    - tests_windows_sysprobe_x64
   variables:
     TARGETS: ./tests/sysprobe-functionnal
     TEAM: windows-kernel-integrations
