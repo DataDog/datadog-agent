@@ -2,6 +2,8 @@
 Helper for generating links to CI Visibility for Gitlab CI jobs
 """
 
+from __future__ import annotations
+
 import json
 import os
 import tempfile
@@ -85,9 +87,7 @@ def create_gitlab_annotations_report(ci_job_id: str, ci_job_name: str):
     }
 
 
-def print_gitlab_object(
-    get_object: callable, ctx, ids, repo='DataDog/datadog-agent', jq: str | None = None, jq_colors=True
-):
+def print_gitlab_object(get_object, ctx, ids, repo='DataDog/datadog-agent', jq: str | None = None, jq_colors=True):
     """
     Print one or more Gitlab objects in JSON and potentially query them with jq
     """
