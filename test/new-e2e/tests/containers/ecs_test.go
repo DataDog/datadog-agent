@@ -443,7 +443,6 @@ func (suite *ecsSuite) TestWindowsFargate() {
 			},
 		},
 	})
-
 }
 
 func (suite *ecsSuite) TestCPU() {
