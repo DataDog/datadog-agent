@@ -50,8 +50,8 @@ var testCatalog = catalog{
 		},
 		{
 			Package: "datadog-agent",
-			Version: previousAgentVersion,
-			URL:     fmt.Sprintf("oci://gcr.io/datadoghq/agent-package:%s", previousAgentVersion),
+			Version: previousAgentImageVersion,
+			URL:     fmt.Sprintf("oci://gcr.io/datadoghq/agent-package:%s", previousAgentImageVersion),
 		},
 	},
 }
