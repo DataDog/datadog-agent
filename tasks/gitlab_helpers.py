@@ -86,13 +86,13 @@ def create_gitlab_annotations_report(ci_job_id: str, ci_job_name: str):
 
 
 def print_gitlab_object(
-    get_object: callable, ctx, id, repo='DataDog/datadog-agent', jq: str | None = None, jq_colors=True
+    get_object: callable, ctx, ids, repo='DataDog/datadog-agent', jq: str | None = None, jq_colors=True
 ):
     """
     Print one or more Gitlab objects in JSON and potentially query them with jq
     """
     repo = get_gitlab_repo(repo)
-    ids = [i for i in id.split(",") if i]
+    ids = [i for i in ids.split(",") if i]
     for id in ids:
         obj = get_object(repo, id)
 
@@ -116,11 +116,11 @@ def print_pipeline(ctx, ids, repo='DataDog/datadog-agent', jq: str | None = None
     def get_pipeline(repo, id):
         return repo.pipelines.get(id)
 
-    print_gitlab_object(get_pipeline, ctx, id, repo, jq, jq_colors)
+    print_gitlab_object(get_pipeline, ctx, ids, repo, jq, jq_colors)
 
 
 @task
-def print_job(ctx, id, repo='DataDog/datadog-agent', jq: str | None = None, jq_colors=True):
+def print_job(ctx, ids, repo='DataDog/datadog-agent', jq: str | None = None, jq_colors=True):
     """
     Print one or more Gitlab jobs in JSON and potentially query them with jq
     """
@@ -128,4 +128,4 @@ def print_job(ctx, id, repo='DataDog/datadog-agent', jq: str | None = None, jq_c
     def get_job(repo, id):
         return repo.jobs.get(id)
 
-    print_gitlab_object(get_job, ctx, id, repo, jq, jq_colors)
+    print_gitlab_object(get_job, ctx, ids, repo, jq, jq_colors)
