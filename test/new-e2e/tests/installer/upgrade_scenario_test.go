@@ -130,6 +130,28 @@ func (s *upgradeScenarioSuite) TestStopWithoutExperiment() {
 	require.Equal(s.T(), beforeStatus.Packages["datadog-agent"], afterStatus.Packages["datadog-agent"])
 }
 
+func (s *upgradeScenarioSuite) TestPromoteWithoutExperiment() {
+	s.RunInstallScript("DD_REMOTE_UPDATES=true")
+	defer s.Purge()
+	s.host.WaitForUnitActive(
+		"datadog-agent.service",
+		"datadog-agent-trace.service",
+		"datadog-agent-process.service",
+		"datadog-installer.service",
+	)
+
+	s.setCatalog(testCatalog)
+
+	beforeStatus := s.getInstallerStatus()
+
+	_, err := s.promoteExperimentCommand()
+	require.Error(s.T(), err)
+
+	afterStatus := s.getInstallerStatus()
+	require.Equal(s.T(), beforeStatus.Packages["datadog-agent"], afterStatus.Packages["datadog-agent"])
+	require.Equal(s.T(), beforeStatus.Version, afterStatus.Version)
+}
+
 func (s *upgradeScenarioSuite) startExperimentCommand(version string) (string, error) {
 	cmd := fmt.Sprintf("sudo datadog-installer daemon start-experiment datadog-agent %s", version)
 	s.T().Logf("Running start command: %s", cmd)
