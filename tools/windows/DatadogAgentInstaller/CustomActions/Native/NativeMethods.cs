@@ -474,6 +474,15 @@ namespace Datadog.CustomActions.Native
             out IntPtr pDOMAIN_CONTROLLER_INFO
         );
 
+        [DllImport("msi.dll", CharSet = CharSet.Unicode)]
+        static extern Int32 MsiGetProductInfo
+        (
+            string product,
+            string property,
+            [Out] StringBuilder valueBuf,
+            ref Int32 len
+        );
+
         #endregion
         #region Public interface
 
@@ -912,6 +921,16 @@ namespace Datadog.CustomActions.Native
             {
                 throw new Exception($"Unable to lookup SID for current user: {name}");
             }
+        }
+
+        public string GetVersionString(string product)
+        {
+            var len = 512;
+            var builder = new System.Text.StringBuilder(len);
+
+            MsiGetProductInfo(product, "VersionString", builder, ref len);
+
+            return builder.ToString();
         }
 
         #endregion
