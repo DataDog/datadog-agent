@@ -266,8 +266,6 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *EnvOpts) (*
 			infra.WithConfigMap(config),
 		)
 
-		err = errors.New("failed to dial libvirt") // For testing :D
-
 		if err != nil {
 			numRetries++
 			return handleScenarioFailure(err, func(possibleError handledError) {
