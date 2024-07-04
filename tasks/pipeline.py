@@ -1004,7 +1004,7 @@ def compare_to_itself(ctx):
     Create a new branch with 'compare_to_itself' in gitlab-ci.yml and trigger a pipeline
     """
     if not gitlab_configuration_is_modified(ctx):
-        # Do not run this test if there is no modification of the gitlab configuration
+        print("No modification in the gitlab configuration, ignoring this test.")
         return
     agent = get_gitlab_repo()
     gh = GithubAPI()
