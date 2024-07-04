@@ -674,7 +674,12 @@ def cws_go_generate(ctx):
     ctx.run("go generate ./pkg/security/...")
 
     # sync BPF map names constants
-    ctx.run("go run github.com/DataDog/datadog-agent/pkg/security/secl/model/bpf_maps_generator -runtime-path ./pkg/ebpf/bytecode/build/runtime/runtime-security.c -output ./pkg/security/secl/model/consts_map_names_linux.go -pkg-name model")
+    ctx.run(
+        "go run github.com/DataDog/datadog-agent/pkg/security/secl/model/bpf_maps_generator "
+        "-runtime-path ./pkg/ebpf/bytecode/build/runtime/runtime-security.c "
+        "-output ./pkg/security/secl/model/consts_map_names_linux.go "
+        "-pkg-name model"
+    )
 
 
 @task
