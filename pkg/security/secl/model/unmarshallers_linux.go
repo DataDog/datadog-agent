@@ -386,7 +386,7 @@ func (e *FileEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *LinkEvent) UnmarshalBinary(data []byte) (int, error) {
-	return UnmarshalBinary(data, &e.SyscallEvent, &e.Source, &e.Target)
+	return UnmarshalBinary(data, &e.SyscallEvent, &e.SyscallContext, &e.Source, &e.Target)
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
@@ -1238,4 +1238,15 @@ func (e *AnomalyDetectionSyscallEvent) UnmarshalBinary(data []byte) (int, error)
 
 	e.SyscallID = Syscall(binary.NativeEndian.Uint64(data[0:8]))
 	return 8, nil
+}
+
+// UnmarshalBinary unmarshalls a binary representation of itself
+func (e *OnDemandEvent) UnmarshalBinary(data []byte) (int, error) {
+	if len(data) < 260 {
+		return 0, ErrNotEnoughData
+	}
+
+	e.ID = binary.NativeEndian.Uint32(data[0:4])
+	SliceToArray(data[4:260], e.Data[:])
+	return 260, nil
 }

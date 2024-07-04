@@ -35,12 +35,9 @@ type activityDumpCliParams struct {
 
 	name                     string
 	containerID              string
-	comm                     string
 	file                     string
 	file2                    string
-	timeout                  string
 	format                   string
-	differentiateArgs        bool
 	localStorageDirectory    string
 	localStorageFormats      []string
 	localStorageCompression  bool
@@ -111,12 +108,6 @@ func stopCommands(globalParams *command.GlobalParams) []*cobra.Command {
 		"",
 		"an containerID can be used to filter the activity dump.",
 	)
-	activityDumpStopCmd.Flags().StringVar(
-		&cliParams.comm,
-		"comm",
-		"",
-		"a process command can be used to filter the activity dump from a specific process.",
-	)
 
 	return []*cobra.Command{activityDumpStopCmd}
 }
@@ -127,88 +118,9 @@ func generateCommands(globalParams *command.GlobalParams) []*cobra.Command {
 		Short: "generate command for activity dumps",
 	}
 
-	activityDumpGenerateCmd.AddCommand(generateDumpCommands(globalParams)...)
 	activityDumpGenerateCmd.AddCommand(generateEncodingCommands(globalParams)...)
 
 	return []*cobra.Command{activityDumpGenerateCmd}
-}
-
-func generateDumpCommands(globalParams *command.GlobalParams) []*cobra.Command {
-	cliParams := &activityDumpCliParams{
-		GlobalParams: globalParams,
-	}
-
-	activityDumpGenerateDumpCmd := &cobra.Command{
-		Use:   "dump",
-		Short: "generate an activity dump",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return fxutil.OneShot(generateActivityDump,
-				fx.Supply(cliParams),
-				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewAgentParams("", config.WithConfigMissingOK(true)),
-					SecretParams: secrets.NewDisabledParams(),
-					LogParams:    logimpl.ForOneShot("SYS-PROBE", "info", true)}),
-				core.Bundle(),
-			)
-		},
-	}
-
-	activityDumpGenerateDumpCmd.Flags().StringVar(
-		&cliParams.comm,
-		"comm",
-		"",
-		"a process command can be used to filter the activity dump from a specific process.",
-	)
-	activityDumpGenerateDumpCmd.Flags().StringVar(
-		&cliParams.containerID,
-		"container-id",
-		"",
-		"a container identifier can be used to filter the activity dump from a specific container.",
-	)
-	activityDumpGenerateDumpCmd.Flags().StringVar(
-		&cliParams.timeout,
-		"timeout",
-		"1m",
-		"timeout for the activity dump",
-	)
-	activityDumpGenerateDumpCmd.Flags().BoolVar(
-		&cliParams.differentiateArgs,
-		"differentiate-args",
-		true,
-		"add the arguments in the process node merge algorithm",
-	)
-	activityDumpGenerateDumpCmd.Flags().StringVar(
-		&cliParams.localStorageDirectory,
-		"output",
-		"/tmp/activity_dumps/",
-		"local storage output directory",
-	)
-	activityDumpGenerateDumpCmd.Flags().BoolVar(
-		&cliParams.localStorageCompression,
-		"compression",
-		false,
-		"defines if the local storage output should be compressed before persisting the data to disk",
-	)
-	activityDumpGenerateDumpCmd.Flags().StringArrayVar(
-		&cliParams.localStorageFormats,
-		"format",
-		[]string{},
-		fmt.Sprintf("local storage output formats. Available options are %v.", secconfig.AllStorageFormats()),
-	)
-	activityDumpGenerateDumpCmd.Flags().BoolVar(
-		&cliParams.remoteStorageCompression,
-		"remote-compression",
-		true,
-		"defines if the remote storage output should be compressed before sending the data",
-	)
-	activityDumpGenerateDumpCmd.Flags().StringArrayVar(
-		&cliParams.remoteStorageFormats,
-		"remote-format",
-		[]string{},
-		fmt.Sprintf("remote storage output formats. Available options are %v.", secconfig.AllStorageFormats()),
-	)
-
-	return []*cobra.Command{activityDumpGenerateDumpCmd}
 }
 
 func generateEncodingCommands(globalParams *command.GlobalParams) []*cobra.Command {
@@ -449,36 +361,6 @@ func diffActivityDump(_ log.Component, _ config.Component, _ secrets.Component, 
 	return nil
 }
 
-func generateActivityDump(_ log.Component, _ config.Component, _ secrets.Component, activityDumpArgs *activityDumpCliParams) error {
-	client, err := secagent.NewRuntimeSecurityClient()
-	if err != nil {
-		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
-	}
-	defer client.Close()
-
-	storage, err := parseStorageRequest(activityDumpArgs)
-	if err != nil {
-		return err
-	}
-
-	output, err := client.GenerateActivityDump(&api.ActivityDumpParams{
-		Comm:              activityDumpArgs.comm,
-		ContainerID:       activityDumpArgs.containerID,
-		Timeout:           activityDumpArgs.timeout,
-		DifferentiateArgs: activityDumpArgs.differentiateArgs,
-		Storage:           storage,
-	})
-	if err != nil {
-		return fmt.Errorf("unable to send request to system-probe: %w", err)
-	}
-	if len(output.Error) > 0 {
-		return fmt.Errorf("activity dump generation request failed: %s", output.Error)
-	}
-
-	printSecurityActivityDumpMessage("", output)
-	return nil
-}
-
 func generateEncodingFromActivityDump(_ log.Component, _ config.Component, _ secrets.Component, activityDumpArgs *activityDumpCliParams) error {
 	var output *api.TranscodingRequestMessage
 
@@ -588,7 +470,7 @@ func stopActivityDump(_ log.Component, _ config.Component, _ secrets.Component, 
 	}
 	defer client.Close()
 
-	output, err := client.StopActivityDump(activityDumpArgs.name, activityDumpArgs.containerID, activityDumpArgs.comm)
+	output, err := client.StopActivityDump(activityDumpArgs.name, activityDumpArgs.containerID)
 	if err != nil {
 		return fmt.Errorf("unable to send request to system-probe: %w", err)
 	}

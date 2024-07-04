@@ -434,7 +434,7 @@ func TestProcess(t *testing.T) {
 	})
 
 	t.Run("aas", func(t *testing.T) {
-		t.Setenv("APPSVC_RUN_ZIP", "true")
+		t.Setenv("WEBSITE_STACK", "true")
 		t.Setenv("WEBSITE_APPSERVICEAPPLOGS_TRACE_ENABLED", "false")
 		cfg := config.New()
 		cfg.Endpoints[0].APIKey = "test"
