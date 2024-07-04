@@ -9,8 +9,8 @@ package debugging
 import (
 	"github.com/DataDog/sketches-go/ddsketch"
 
+	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
@@ -41,39 +41,42 @@ type Stats struct {
 }
 
 // HTTP returns a debug-friendly representation of map[http.Key]http.RequestStats
-func HTTP(stats map[http.Key]*http.RequestStats, dns map[util.Address][]dns.Hostname) []RequestSummary {
-	all := make([]RequestSummary, 0, len(stats))
-	for k, v := range stats {
-		clientAddr := formatIP(k.SrcIPLow, k.SrcIPHigh)
-		serverAddr := formatIP(k.DstIPLow, k.DstIPHigh)
+func HTTP(cs *network.Connections) []RequestSummary {
+	dns := cs.DNS
+	var all []RequestSummary
+	for _, c := range cs.Conns {
+		for _, s := range c.HTTPStats {
+			clientAddr := formatIP(s.Key.SrcIPLow, s.Key.SrcIPHigh)
+			serverAddr := formatIP(s.Key.DstIPLow, s.Key.DstIPHigh)
 
-		debug := RequestSummary{
-			Client: Address{
-				IP:   clientAddr.String(),
-				Port: k.SrcPort,
-			},
-			Server: Address{
-				IP:   serverAddr.String(),
-				Port: k.DstPort,
-			},
-			DNS:      getDNS(dns, serverAddr),
-			Path:     k.Path.Content.Get(),
-			Method:   k.Method.String(),
-			ByStatus: make(map[uint16]Stats),
-		}
-
-		for status, stat := range v.Data {
-			debug.StaticTags = stat.StaticTags
-			debug.DynamicTags = stat.DynamicTags
-
-			debug.ByStatus[status] = Stats{
-				Count:              stat.Count,
-				FirstLatencySample: stat.FirstLatencySample,
-				LatencyP50:         getSketchQuantile(stat.Latencies, 0.5),
+			debug := RequestSummary{
+				Client: Address{
+					IP:   clientAddr.String(),
+					Port: s.Key.SrcPort,
+				},
+				Server: Address{
+					IP:   serverAddr.String(),
+					Port: s.Key.DstPort,
+				},
+				DNS:      getDNS(dns, serverAddr),
+				Path:     s.Key.Path.Content.Get(),
+				Method:   s.Key.Method.String(),
+				ByStatus: make(map[uint16]Stats),
 			}
-		}
 
-		all = append(all, debug)
+			for status, stat := range s.Value.Data {
+				debug.StaticTags = stat.StaticTags
+				debug.DynamicTags = stat.DynamicTags
+
+				debug.ByStatus[status] = Stats{
+					Count:              stat.Count,
+					FirstLatencySample: stat.FirstLatencySample,
+					LatencyP50:         getSketchQuantile(stat.Latencies, 0.5),
+				}
+			}
+
+			all = append(all, debug)
+		}
 	}
 	return all
 }

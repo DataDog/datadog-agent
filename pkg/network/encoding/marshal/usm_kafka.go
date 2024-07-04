@@ -13,49 +13,36 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
-	"github.com/DataDog/datadog-agent/pkg/network/types"
 )
 
 type kafkaEncoder struct {
 	kafkaAggregationsBuilder *model.DataStreamsAggregationsBuilder
-	byConnection             *USMConnectionIndex[kafka.Key, *kafka.RequestStat]
 }
 
-func newKafkaEncoder(kafkaPayloads map[kafka.Key]*kafka.RequestStat) *kafkaEncoder {
-	if len(kafkaPayloads) == 0 {
-		return nil
-	}
-
+func newKafkaEncoder() *kafkaEncoder {
 	return &kafkaEncoder{
 		kafkaAggregationsBuilder: model.NewDataStreamsAggregationsBuilder(nil),
-		byConnection: GroupByConnection("kafka", kafkaPayloads, func(key kafka.Key) types.ConnectionKey {
-			return key.ConnectionKey
-		}),
 	}
 }
 
 func (e *kafkaEncoder) WriteKafkaAggregations(c network.ConnectionStats, builder *model.ConnectionBuilder) uint64 {
-	if e == nil {
-		return 0
-	}
-
-	connectionData := e.byConnection.Find(c)
-	if connectionData == nil || len(connectionData.Data) == 0 || connectionData.IsPIDCollision(c) {
+	if e == nil || len(c.KafkaStats) == 0 {
 		return 0
 	}
 
 	staticTags := uint64(0)
 	builder.SetDataStreamsAggregations(func(b *bytes.Buffer) {
-		staticTags = e.encodeData(connectionData, b)
+		staticTags = e.encodeData(c.KafkaStats, b)
 	})
+
 	return staticTags
 }
 
-func (e *kafkaEncoder) encodeData(connectionData *USMConnectionData[kafka.Key, *kafka.RequestStat], w io.Writer) uint64 {
+func (e *kafkaEncoder) encodeData(connectionData []network.USMKeyValue[kafka.Key, *kafka.RequestStat], w io.Writer) uint64 {
 	var staticTags uint64
 	e.kafkaAggregationsBuilder.Reset(w)
 
-	for _, kv := range connectionData.Data {
+	for _, kv := range connectionData {
 		key := kv.Key
 		stats := kv.Value
 		staticTags |= stats.StaticTags
@@ -71,10 +58,4 @@ func (e *kafkaEncoder) encodeData(connectionData *USMConnectionData[kafka.Key, *
 	return staticTags
 }
 
-func (e *kafkaEncoder) Close() {
-	if e == nil {
-		return
-	}
-
-	e.byConnection.Close()
-}
+func (e *kafkaEncoder) Close() {}

@@ -14,11 +14,10 @@ import (
 	"strings"
 	"testing"
 
+	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/golang/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	model "github.com/DataDog/agent-payload/v5/process"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/network"
@@ -245,6 +244,20 @@ func testSerialization(t *testing.T, aggregateByStatusCode bool) {
 						},
 					},
 					ProtocolStack: protocols.Stack{Application: protocols.HTTP},
+					HTTPStats: []network.USMKeyValue[http.Key, *http.RequestStats]{
+						{
+							Key: http.NewKey(
+								util.AddressFromString("20.1.1.1"),
+								util.AddressFromString("20.1.1.1"),
+								40000,
+								80,
+								[]byte("/testpath"),
+								true,
+								http.MethodGet,
+							),
+							Value: httpReqStats,
+						},
+					},
 				},
 				{
 					Source:        util.AddressFromString("10.1.1.1"),
@@ -275,17 +288,6 @@ func testSerialization(t *testing.T, aggregateByStatusCode bool) {
 		DNS: map[util.Address][]dns.Hostname{
 			util.AddressFromString("172.217.12.145"): {dns.ToHostname("golang.org")},
 		},
-		HTTP: map[http.Key]*http.RequestStats{
-			http.NewKey(
-				util.AddressFromString("20.1.1.1"),
-				util.AddressFromString("20.1.1.1"),
-				40000,
-				80,
-				[]byte("/testpath"),
-				true,
-				http.MethodGet,
-			): httpReqStats,
-		},
 	}
 
 	if runtime.GOOS == "windows" {
@@ -305,16 +307,19 @@ func testSerialization(t *testing.T, aggregateByStatusCode bool) {
 		 * getExpectedConnections()
 		 */
 		in.BufferedData.Conns[0].IPTranslation = nil
-		in.HTTP = map[http.Key]*http.RequestStats{
-			http.NewKey(
-				util.AddressFromString("10.1.1.1"),
-				util.AddressFromString("10.2.2.2"),
-				1000,
-				9000,
-				[]byte("/testpath"),
-				true,
-				http.MethodGet,
-			): httpReqStats,
+		in.BufferedData.Conns[0].HTTPStats = []network.USMKeyValue[http.Key, *http.RequestStats]{
+			{
+				Key: http.NewKey(
+					util.AddressFromString("10.1.1.1"),
+					util.AddressFromString("10.2.2.2"),
+					1000,
+					9000,
+					[]byte("/testpath"),
+					true,
+					http.MethodGet,
+				),
+				Value: httpReqStats,
+			},
 		}
 	}
 	httpOut := &model.HTTPAggregations{
@@ -523,6 +528,20 @@ func testHTTPSerializationWithLocalhostTraffic(t *testing.T, aggregateByStatusCo
 					Dest:   localhost,
 					SPort:  clientPort,
 					DPort:  serverPort,
+					HTTPStats: []network.USMKeyValue[http.Key, *http.RequestStats]{
+						{
+							Key: http.NewKey(
+								localhost,
+								localhost,
+								clientPort,
+								serverPort,
+								[]byte("/testpath"),
+								true,
+								http.MethodGet,
+							),
+							Value: httpReqStats,
+						},
+					},
 				},
 				{
 					Source: localhost,
@@ -531,17 +550,6 @@ func testHTTPSerializationWithLocalhostTraffic(t *testing.T, aggregateByStatusCo
 					DPort:  clientPort,
 				},
 			},
-		},
-		HTTP: map[http.Key]*http.RequestStats{
-			http.NewKey(
-				localhost,
-				localhost,
-				clientPort,
-				serverPort,
-				[]byte("/testpath"),
-				true,
-				http.MethodGet,
-			): httpReqStats,
 		},
 	}
 	if runtime.GOOS == "windows" {
@@ -561,7 +569,7 @@ func testHTTPSerializationWithLocalhostTraffic(t *testing.T, aggregateByStatusCo
 			http.MethodGet,
 		)
 
-		in.HTTP[httpKeyWin] = httpReqStats
+		in.Conns[0].HTTPStats[0].Key = httpKeyWin
 	}
 
 	httpOut := &model.HTTPAggregations{
@@ -588,11 +596,10 @@ func testHTTPSerializationWithLocalhostTraffic(t *testing.T, aggregateByStatusCo
 				Protocol:         marshal.FormatProtocolStack(protocols.Stack{}, 0),
 			},
 			{
-				Laddr:            &model.Addr{Ip: "127.0.0.1", Port: int32(serverPort)},
-				Raddr:            &model.Addr{Ip: "127.0.0.1", Port: int32(clientPort)},
-				HttpAggregations: httpOutBlob,
-				RouteIdx:         -1,
-				Protocol:         marshal.FormatProtocolStack(protocols.Stack{}, 0),
+				Laddr:    &model.Addr{Ip: "127.0.0.1", Port: int32(serverPort)},
+				Raddr:    &model.Addr{Ip: "127.0.0.1", Port: int32(clientPort)},
+				RouteIdx: -1,
+				Protocol: marshal.FormatProtocolStack(protocols.Stack{}, 0),
 			},
 		},
 		AgentConfiguration: &model.AgentConfiguration{
@@ -615,13 +622,6 @@ func assertConnsEqual(t *testing.T, expected, actual *model.Connections) {
 	for i := 0; i < len(actual.Conns); i++ {
 		expectedRawHTTP := expected.Conns[i].HttpAggregations
 		actualRawHTTP := actual.Conns[i].HttpAggregations
-
-		if len(expectedRawHTTP) == 0 && len(actualRawHTTP) != 0 {
-			t.Fatalf("expected connection %d to have no HTTP, but got %v", i, actualRawHTTP)
-		}
-		if len(expectedRawHTTP) != 0 && len(actualRawHTTP) == 0 {
-			t.Fatalf("expected connection %d to have HTTP data, but got none", i)
-		}
 
 		// the expected HTTPAggregations are encoded with  gogoproto, and the actual HTTPAggregations are encoded with gostreamer.
 		// thus they will not be byte-for-byte equal.
@@ -693,25 +693,42 @@ func testHTTP2SerializationWithLocalhostTraffic(t *testing.T, aggregateByStatusC
 					Dest:   localhost,
 					SPort:  clientPort,
 					DPort:  serverPort,
+					HTTP2Stats: []network.USMKeyValue[http.Key, *http.RequestStats]{
+						{
+							Key: http.NewKey(
+								localhost,
+								localhost,
+								clientPort,
+								serverPort,
+								[]byte("/testpath"),
+								true,
+								http.MethodPost,
+							),
+							Value: http2ReqStats,
+						},
+					},
 				},
 				{
 					Source: localhost,
 					Dest:   localhost,
 					SPort:  serverPort,
 					DPort:  clientPort,
+					HTTP2Stats: []network.USMKeyValue[http.Key, *http.RequestStats]{
+						{
+							Key: http.NewKey(
+								localhost,
+								localhost,
+								clientPort,
+								serverPort,
+								[]byte("/testpath"),
+								true,
+								http.MethodPost,
+							),
+							Value: http2ReqStats,
+						},
+					},
 				},
 			},
-		},
-		HTTP2: map[http.Key]*http.RequestStats{
-			http.NewKey(
-				localhost,
-				localhost,
-				clientPort,
-				serverPort,
-				[]byte("/testpath"),
-				true,
-				http.MethodPost,
-			): http2ReqStats,
 		},
 	}
 	if runtime.GOOS == "windows" {
@@ -731,7 +748,7 @@ func testHTTP2SerializationWithLocalhostTraffic(t *testing.T, aggregateByStatusC
 			http.MethodPost,
 		)
 
-		in.HTTP2[httpKeyWin] = http2ReqStats
+		in.BufferedData.Conns[0].HTTP2Stats[0].Key = httpKeyWin
 	}
 
 	http2Out := &model.HTTP2Aggregations{
@@ -830,7 +847,9 @@ func TestPooledObjectGarbageRegression(t *testing.T) {
 				Content:  http.Interner.GetString(fmt.Sprintf("/path-%d", i)),
 				FullPath: true,
 			}
-			in.HTTP = map[http.Key]*http.RequestStats{httpKey: {}}
+			in.Conns[0].HTTPStats = []network.USMKeyValue[http.Key, *http.RequestStats]{
+				{Key: httpKey, Value: &http.RequestStats{}},
+			}
 			out := encodeAndDecodeHTTP(in)
 
 			require.NotNil(t, out)
@@ -838,7 +857,7 @@ func TestPooledObjectGarbageRegression(t *testing.T) {
 			require.Equal(t, httpKey.Path.Content.Get(), out.EndpointAggregations[0].Path)
 		} else {
 			// No HTTP data in this payload, so we should never get HTTP data back after the serialization
-			in.HTTP = nil
+			in.Conns[0].HTTPStats = nil
 			out := encodeAndDecodeHTTP(in)
 			require.Nil(t, out, "expected a nil object, but got garbage")
 		}
@@ -896,7 +915,9 @@ func TestPooledHTTP2ObjectGarbageRegression(t *testing.T) {
 				Content:  http.Interner.GetString(fmt.Sprintf("/path-%d", i)),
 				FullPath: true,
 			}
-			in.HTTP2 = map[http.Key]*http.RequestStats{httpKey: {}}
+			in.Conns[0].HTTP2Stats = []network.USMKeyValue[http.Key, *http.RequestStats]{
+				{Key: httpKey, Value: &http.RequestStats{}},
+			}
 			out := encodeAndDecodeHTTP2(in)
 
 			require.NotNil(t, out)
@@ -904,7 +925,7 @@ func TestPooledHTTP2ObjectGarbageRegression(t *testing.T) {
 			require.Equal(t, httpKey.Path.Content.Get(), out.EndpointAggregations[0].Path)
 		} else {
 			// No HTTP2 data in this payload, so we should never get HTTP2 data back after the serialization
-			in.HTTP2 = nil
+			in.Conns[0].HTTP2Stats = nil
 			out := encodeAndDecodeHTTP2(in)
 			require.Nil(t, out, "expected a nil object, but got garbage")
 		}
@@ -949,23 +970,6 @@ func TestKafkaSerializationWithLocalhostTraffic(t *testing.T) {
 		localhost  = util.AddressFromString("127.0.0.1")
 	)
 
-	connections := []network.ConnectionStats{
-		{
-			Source: localhost,
-			SPort:  clientPort,
-			Dest:   localhost,
-			DPort:  serverPort,
-			Pid:    1,
-		},
-		{
-			Source: localhost,
-			SPort:  serverPort,
-			Dest:   localhost,
-			DPort:  clientPort,
-			Pid:    2,
-		},
-	}
-
 	const topicName = "TopicName"
 	const apiVersion2 = 1
 	kafkaKey := kafka.NewKey(
@@ -978,14 +982,29 @@ func TestKafkaSerializationWithLocalhostTraffic(t *testing.T) {
 		apiVersion2,
 	)
 
+	connections := []network.ConnectionStats{
+		{
+			Source: localhost,
+			SPort:  clientPort,
+			Dest:   localhost,
+			DPort:  serverPort,
+			Pid:    1,
+			KafkaStats: []network.USMKeyValue[kafka.Key, *kafka.RequestStat]{
+				{Key: kafkaKey, Value: &kafka.RequestStat{Count: 10}},
+			},
+		},
+		{
+			Source: localhost,
+			SPort:  serverPort,
+			Dest:   localhost,
+			DPort:  clientPort,
+			Pid:    2,
+		},
+	}
+
 	in := &network.Connections{
 		BufferedData: network.BufferedData{
 			Conns: connections,
-		},
-		Kafka: map[kafka.Key]*kafka.RequestStat{
-			kafkaKey: {
-				Count: 10,
-			},
 		},
 	}
 
@@ -1016,12 +1035,11 @@ func TestKafkaSerializationWithLocalhostTraffic(t *testing.T) {
 				Pid:                     1,
 			},
 			{
-				Laddr:                   &model.Addr{Ip: "127.0.0.1", Port: int32(serverPort)},
-				Raddr:                   &model.Addr{Ip: "127.0.0.1", Port: int32(clientPort)},
-				DataStreamsAggregations: kafkaOutBlob,
-				RouteIdx:                -1,
-				Protocol:                marshal.FormatProtocolStack(protocols.Stack{}, 0),
-				Pid:                     2,
+				Laddr:    &model.Addr{Ip: "127.0.0.1", Port: int32(serverPort)},
+				Raddr:    &model.Addr{Ip: "127.0.0.1", Port: int32(clientPort)},
+				RouteIdx: -1,
+				Protocol: marshal.FormatProtocolStack(protocols.Stack{}, 0),
+				Pid:      2,
 			},
 		},
 		AgentConfiguration: &model.AgentConfiguration{
