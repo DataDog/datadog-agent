@@ -994,8 +994,6 @@ workflow:
         - test/new-e2e/go.mod
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
     when: on_success
-  - when: manual
-    allow_failure: true
 
 .on_trace_agent_changes_or_manual:
   - !reference [.except_mergequeue]
@@ -1007,6 +1005,15 @@ workflow:
     when: on_success
   - when: manual
     allow_failure: true
+
+.on_windows_systemprobe_or_e2e_changes:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        - test/new-e2e/tests/sysprobe-functional/**/*
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+    when: on_success
+  - when: on_success #TODO: To remove
 
 .on_scheduled_main:
   - <<: *if_scheduled_main
