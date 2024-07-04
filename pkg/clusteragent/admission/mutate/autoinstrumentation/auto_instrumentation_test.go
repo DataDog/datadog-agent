@@ -734,65 +734,159 @@ func TestInjectLibConfig(t *testing.T) {
 
 func TestInjectLibInitContainer(t *testing.T) {
 	tests := []struct {
-		name    string
-		cpu     string
-		mem     string
-		pod     *corev1.Pod
-		image   string
-		lang    language
-		wantErr bool
-		wantCPU string
-		wantMem string
+		name       string
+		cpu        string
+		mem        string
+		secCtx     string
+		pod        *corev1.Pod
+		image      string
+		lang       language
+		wantErr    bool
+		wantCPU    string
+		wantMem    string
+		wantSecCtx *corev1.SecurityContext
 	}{
 		{
-			name:    "no resources",
+			name:       "no resources, no security context",
+			pod:        common.FakePod("java-pod"),
+			image:      "gcr.io/datadoghq/dd-lib-java-init:v1",
+			lang:       java,
+			wantErr:    false,
+			wantCPU:    "50m",
+			wantMem:    "20Mi",
+			secCtx:     "",
+			wantSecCtx: &corev1.SecurityContext{},
+		},
+		{
+			name:       "with resources",
+			pod:        common.FakePod("java-pod"),
+			cpu:        "100m",
+			mem:        "500",
+			image:      "gcr.io/datadoghq/dd-lib-java-init:v1",
+			lang:       java,
+			wantErr:    false,
+			wantCPU:    "100m",
+			wantMem:    "500",
+			secCtx:     "",
+			wantSecCtx: &corev1.SecurityContext{},
+		},
+		{
+			name:       "cpu only",
+			pod:        common.FakePod("java-pod"),
+			cpu:        "200m",
+			image:      "gcr.io/datadoghq/dd-lib-java-init:v1",
+			lang:       java,
+			wantErr:    false,
+			wantCPU:    "200m",
+			wantMem:    "20Mi",
+			secCtx:     "",
+			wantSecCtx: &corev1.SecurityContext{},
+		},
+		{
+			name:       "memory only",
+			pod:        common.FakePod("java-pod"),
+			mem:        "512Mi",
+			image:      "gcr.io/datadoghq/dd-lib-java-init:v1",
+			lang:       java,
+			wantErr:    false,
+			wantCPU:    "50m",
+			wantMem:    "512Mi",
+			secCtx:     "",
+			wantSecCtx: &corev1.SecurityContext{},
+		},
+		{
+			name:       "with invalid resources",
+			pod:        common.FakePod("java-pod"),
+			cpu:        "foo",
+			image:      "gcr.io/datadoghq/dd-lib-java-init:v1",
+			lang:       java,
+			wantErr:    true,
+			wantCPU:    "50m",
+			wantMem:    "20Mi",
+			secCtx:     "",
+			wantSecCtx: &corev1.SecurityContext{},
+		},
+		{
+			name:    "with full security context",
 			pod:     common.FakePod("java-pod"),
 			image:   "gcr.io/datadoghq/dd-lib-java-init:v1",
 			lang:    java,
 			wantErr: false,
 			wantCPU: "50m",
 			wantMem: "20Mi",
+			secCtx:  "{\"capabilities\":{\"add\":[\"NET_ADMIN\",\"SYS_TIME\"],\"drop\":[\"ALL\"]},\"privileged\":false,\"seLinuxOptions\":{\"user\":\"test\",\"role\":\"root\",\"level\":\"s0:c123,c456\",\"type\":\"none\"},\"windowsOptions\":{\"gmsaCredentialSpecName\":\"Developer\",\"gmsaCredentialSpec\":\"http://localhost:8081\",\"runAsUserName\":\"Developer\",\"hostProcess\":false},\"runAsUser\":1001,\"runAsGroup\":5,\"runAsNonRoot\":true,\"readOnlyRootFilesystem\":true,\"allowPrivilegeEscalation\":false,\"procMount\":\"Default\",\"seccompProfile\":{\"type\":\"LocalHost\",\"localHostProfile\":\"my-profiles/profile-allow.json\"}}",
+			wantSecCtx: &corev1.SecurityContext{
+				Capabilities: &corev1.Capabilities{
+					Add:  []corev1.Capability{"NET_ADMIN", "SYS_TIME"},
+					Drop: []corev1.Capability{"ALL"},
+				},
+				Privileged: pointerOf(false),
+				SELinuxOptions: &corev1.SELinuxOptions{
+					User:  "test",
+					Role:  "root",
+					Type:  "none",
+					Level: "s0:c123,c456",
+				},
+				WindowsOptions: &corev1.WindowsSecurityContextOptions{
+					GMSACredentialSpecName: pointerOf("Developer"),
+					GMSACredentialSpec:     pointerOf("http://localhost:8081"),
+					RunAsUserName:          pointerOf("Developer"),
+					HostProcess:            pointerOf(false),
+				},
+				RunAsUser:                pointerOf(int64(1001)),
+				RunAsGroup:               pointerOf(int64(5)),
+				RunAsNonRoot:             pointerOf(true),
+				ReadOnlyRootFilesystem:   pointerOf(true),
+				AllowPrivilegeEscalation: pointerOf(false),
+				ProcMount:                pointerOf(corev1.DefaultProcMount),
+				SeccompProfile: &corev1.SeccompProfile{
+					Type:             "LocalHost",
+					LocalhostProfile: pointerOf("my-profiles/profile-allow.json"),
+				},
+			},
 		},
 		{
-			name:    "with resources",
+			name:    "with limited security context",
 			pod:     common.FakePod("java-pod"),
-			cpu:     "100m",
-			mem:     "500",
-			image:   "gcr.io/datadoghq/dd-lib-java-init:v1",
-			lang:    java,
-			wantErr: false,
-			wantCPU: "100m",
-			wantMem: "500",
-		},
-		{
-			name:    "cpu only",
-			pod:     common.FakePod("java-pod"),
-			cpu:     "200m",
-			image:   "gcr.io/datadoghq/dd-lib-java-init:v1",
-			lang:    java,
-			wantErr: false,
-			wantCPU: "200m",
-			wantMem: "20Mi",
-		},
-		{
-			name:    "memory only",
-			pod:     common.FakePod("java-pod"),
-			mem:     "512Mi",
 			image:   "gcr.io/datadoghq/dd-lib-java-init:v1",
 			lang:    java,
 			wantErr: false,
 			wantCPU: "50m",
-			wantMem: "512Mi",
+			wantMem: "20Mi",
+			secCtx:  "{\"capabilities\":{\"drop\":[\"ALL\"]},\"runAsNonRoot\":true,\"readOnlyRootFilesystem\":true,\"allowPrivilegeEscalation\":false,\"seccompProfile\":{\"type\":\"RuntimeDefault\"}}",
+			wantSecCtx: &corev1.SecurityContext{
+				Capabilities: &corev1.Capabilities{
+					Drop: []corev1.Capability{"ALL"},
+				},
+				RunAsNonRoot:             pointerOf(true),
+				ReadOnlyRootFilesystem:   pointerOf(true),
+				AllowPrivilegeEscalation: pointerOf(false),
+				SeccompProfile: &corev1.SeccompProfile{
+					Type: "RuntimeDefault",
+				},
+			},
 		},
 		{
-			name:    "with invalid resources",
-			pod:     common.FakePod("java-pod"),
-			cpu:     "foo",
-			image:   "gcr.io/datadoghq/dd-lib-java-init:v1",
-			lang:    java,
-			wantErr: true,
-			wantCPU: "50m",
-			wantMem: "20Mi",
+			name:       "ignoring unknown properties of security context",
+			pod:        common.FakePod("java-pod"),
+			image:      "gcr.io/datadoghq/dd-lib-java-init:v1",
+			lang:       java,
+			wantErr:    false,
+			wantCPU:    "50m",
+			wantMem:    "20Mi",
+			secCtx:     "{\"unknownProperty\":true}",
+			wantSecCtx: &corev1.SecurityContext{},
+		},
+		{
+			name:       "invalid security context",
+			pod:        common.FakePod("java-pod"),
+			image:      "gcr.io/datadoghq/dd-lib-java-init:v1",
+			lang:       java,
+			wantErr:    true,
+			wantCPU:    "50m",
+			wantMem:    "20Mi",
+			secCtx:     "{\"privileged\":\"not a bool\"}",
+			wantSecCtx: &corev1.SecurityContext{},
 		},
 	}
 	for _, tt := range tests {
@@ -803,6 +897,9 @@ func TestInjectLibInitContainer(t *testing.T) {
 			}
 			if tt.mem != "" {
 				conf.SetWithoutSource("admission_controller.auto_instrumentation.init_resources.memory", tt.mem)
+			}
+			if tt.secCtx != "" {
+				conf.SetWithoutSource("admission_controller.auto_instrumentation.init_security_context", tt.secCtx)
 			}
 			err := injectLibInitContainer(tt.pod, tt.image, tt.lang)
 			if (err != nil) != tt.wantErr {
@@ -824,8 +921,15 @@ func TestInjectLibInitContainer(t *testing.T) {
 			wantMemQuantity := resource.MustParse(tt.wantMem)
 			require.Zero(t, wantMemQuantity.Cmp(req))
 			require.Zero(t, wantMemQuantity.Cmp(lim))
+
+			expSecCtx := tt.pod.Spec.InitContainers[0].SecurityContext
+			require.Equal(t, tt.wantSecCtx, expSecCtx)
 		})
 	}
+}
+
+func pointerOf[E any](e E) *E {
+	return &e
 }
 
 func expBasicConfig() []corev1.EnvVar {

@@ -732,6 +732,13 @@ func injectLibInitContainer(pod *corev1.Pod, image string, lang language) error 
 		return err
 	}
 	initContainer.Resources = resources
+
+	securityContext, err := initSecurityContext()
+	if err != nil {
+		return err
+	}
+	initContainer.SecurityContext = securityContext
+
 	pod.Spec.InitContainers = append([]corev1.Container{initContainer}, pod.Spec.InitContainers...)
 	return nil
 }
@@ -765,6 +772,21 @@ func initResources() (corev1.ResourceRequirements, error) {
 	}
 
 	return resources, nil
+}
+
+func initSecurityContext() (*corev1.SecurityContext, error) {
+	securityContext := corev1.SecurityContext{}
+	confKey := "admission_controller.auto_instrumentation.init_security_context"
+
+	if config.Datadog().IsSet(confKey) {
+		confString := config.Datadog().GetString(confKey)
+		err := json.Unmarshal([]byte(confString), &securityContext)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &securityContext, nil
 }
 
 // injectLibRequirements injects the minimal config requirements (env vars and volume mounts) to enable instrumentation

@@ -2970,6 +2970,16 @@ api_key:
       ## Configures the memory request and limit for the init containers.
       #
       # memory:
+
+    ## @param init_security_context - json - optional
+    ## @env DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_INIT_SECURITY_CONTEXT - json - optional
+    ## Security context for the init containers in json format. Follows the Kubernetes security context spec,
+    ## https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.30/#securitycontext-v1-core,
+    ##ignores unknown properties.
+    #
+    # init_security_context: '{"privileged": false}'
+    #
+    # DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_INIT_SECURITY_CONTEXT='{"privileged": false}'
 {{ end -}}
 {{- if .DockerTagging }}
 
