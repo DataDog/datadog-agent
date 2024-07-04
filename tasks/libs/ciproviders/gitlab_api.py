@@ -5,7 +5,7 @@ import os
 import platform
 import subprocess
 import sys
-from functools import lru_cache
+from collections import UserList
 
 import gitlab
 import yaml
@@ -86,36 +86,6 @@ def refresh_pipeline(pipeline: ProjectPipeline):
     pipeline.refresh()
 
 
-class ConfigNodeList(list):
-    """
-    Wrapper of list to allow hashing and lru cache
-    """
-
-    def __init__(self, *args, **kwargs) -> None:
-        super().__init__()
-        self.extend(*args, **kwargs)
-
-    def __hash__(self):
-        return id(self)
-
-
-class YamlReferenceTagList(ConfigNodeList):
-    pass
-
-
-class ConfigNodeDict(dict):
-    """
-    Wrapper of dict to allow hashing and lru cache
-    """
-
-    def __init__(self, *args, **kwargs) -> None:
-        super().__init__()
-        self.update(*args, **kwargs)
-
-    def __hash__(self):
-        return id(self)
-
-
 class ReferenceTag(yaml.YAMLObject):
     """
     Custom yaml tag to handle references in gitlab-ci configuration
@@ -128,162 +98,16 @@ class ReferenceTag(yaml.YAMLObject):
 
     @classmethod
     def from_yaml(cls, loader, node):
-        return YamlReferenceTagList(loader.construct_sequence(node))
+        return UserList(loader.construct_sequence(node))
 
     @classmethod
     def to_yaml(cls, dumper, data):
-        return dumper.represent_sequence(cls.yaml_tag, data, flow_style=True)
+        return dumper.represent_sequence(cls.yaml_tag, data.data, flow_style=True)
 
 
-def convert_to_config_node(json_data):
-    """
-    Convert json data to ConfigNode
-    """
-    if isinstance(json_data, dict):
-        return ConfigNodeDict({k: convert_to_config_node(v) for k, v in json_data.items()})
-    elif isinstance(json_data, list):
-        constructor = YamlReferenceTagList if isinstance(json_data, YamlReferenceTagList) else ConfigNodeList
-
-        return constructor([convert_to_config_node(v) for v in json_data])
-    else:
-        return json_data
-
-
-def convert_to_std_collections(config_node):
-    """
-    Convert ConfigNode to standard collections (list, dict)
-    """
-    if isinstance(config_node, ConfigNodeDict):
-        return {k: convert_to_std_collections(v) for k, v in config_node.items()}
-    elif isinstance(config_node, ConfigNodeList):
-        return [convert_to_std_collections(v) for v in config_node]
-    else:
-        return config_node
-
-
-def apply_yaml_extends(config: dict, node):
-    """
-    Applies `extends` yaml tags to the node and its children inplace
-
-    > Example:
-    Config:
-    ```yaml
-    .parent:
-        hello: world
-    node:
-        extends: .parent
-    ```
-
-    apply_yaml_extends(node) updates node to:
-    ```yaml
-    node:
-        hello: world
-    ```
-    """
-    # Ensure node is an object that can contain extends
-    if not isinstance(node, dict):
-        return
-
-    if 'extends' in node:
-        parents = node['extends']
-        if isinstance(parents, str):
-            parents = [parents]
-
-        # Merge parent
-        for parent_name in parents:
-            parent = config[parent_name]
-            apply_yaml_postprocessing(config, parent)
-            for key, value in parent.items():
-                if key not in node:
-                    node[key] = value
-                elif key in node and isinstance(node[key], dict) and isinstance(value, dict):
-                    update_without_overwrite(node[key], value)
-
-        del node['extends']
-
-
-def update_without_overwrite(d, u):
-    """
-    Update a dictionary without overwriting existing keys
-    """
-    for k, v in u.items():
-        if k not in d:
-            d[k] = v
-
-
-def apply_yaml_reference(config: dict, node):
-    """
-    Applies `!reference` gitlab yaml tags to the node and its children inplace
-
-    > Example:
-    Config:
-    ```yaml
-    .colors:
-        - red
-        - green
-        - blue
-    node:
-        colors: !reference [.colors]
-    ```
-
-    apply_yaml_extends(node) updates node to:
-    ```yaml
-    node:
-        colors:
-            - red
-            - green
-            - blue
-    ```
-    """
-
-    def apply_ref(value):
-        """
-        Applies reference tags
-        """
-        if isinstance(value, YamlReferenceTagList):
-            assert value != [], 'Empty reference tag'
-
-            # !reference [a, b, c] means we are looking for config[a][b][c]
-            ref_value = config[value[0]]
-            for i in range(1, len(value)):
-                ref_value = ref_value[value[i]]
-
-            apply_yaml_postprocessing(config, ref_value)
-
-            return ref_value
-        else:
-            apply_yaml_postprocessing(config, value)
-
-            return value
-
-    if isinstance(node, dict):
-        for key, value in node.items():
-            node[key] = apply_ref(value)
-    elif isinstance(node, list):
-        results = []
-        for value in node:
-            postprocessed_value = apply_ref(value)
-            # If list referenced within list, flatten lists
-            if isinstance(value, YamlReferenceTagList) and isinstance(postprocessed_value, list):
-                results.extend(postprocessed_value)
-            else:
-                results.append(postprocessed_value)
-        node.clear()
-        node.extend(results)
-
-
-# TODO: Deprecate this in favor of get_gitlab_ci_configuration
-@lru_cache(maxsize=None)
-def apply_yaml_postprocessing(config: ConfigNodeDict, node):
-    if isinstance(node, dict):
-        for value in node.values():
-            apply_yaml_postprocessing(config, value)
-    elif isinstance(node, list):
-        for value in node:
-            apply_yaml_postprocessing(config, value)
-
-    apply_yaml_extends(config, node)
-    apply_yaml_reference(config, node)
+# Update loader/dumper to handle !reference tag
+yaml.SafeLoader.add_constructor(ReferenceTag.yaml_tag, ReferenceTag.from_yaml)
+yaml.SafeDumper.add_representer(UserList, ReferenceTag.to_yaml)
 
 
 def clean_gitlab_ci_configuration(yml):
@@ -364,18 +188,20 @@ def get_full_gitlab_ci_configuration(
     return_dict: bool = True,
     ignore_errors: bool = False,
     git_ref: str | None = None,
+    input_config: dict | None = None,
 ) -> str | dict:
     """
     Returns the full gitlab-ci configuration by resolving all includes and applying postprocessing (extends / !reference)
     Uses the /lint endpoint from the gitlab api to apply postprocessing
-    """
-    # Update loader/dumper to handle !reference tag
-    yaml.SafeLoader.add_constructor(ReferenceTag.yaml_tag, ReferenceTag.from_yaml)
-    yaml.SafeDumper.add_representer(YamlReferenceTagList, ReferenceTag.to_yaml)
 
-    # Read includes
-    concat_config = read_includes(ctx, input_file, return_config=True, git_ref=git_ref)
-    assert concat_config
+    - input_config: If not None, will use this config instead of parsing existing yaml file at `input_file`
+    """
+    if not input_config:
+        # Read includes
+        concat_config = read_includes(ctx, input_file, return_config=True, git_ref=git_ref)
+        assert concat_config
+    else:
+        concat_config = input_config
 
     agent = get_gitlab_repo()
     res = agent.ci_lint.create({"content": yaml.safe_dump(concat_config), "dry_run": True, "include_jobs": True})
@@ -416,7 +242,7 @@ def get_gitlab_ci_configuration(
 
 
 def generate_gitlab_full_configuration(
-    input_file, context=None, compare_to=None, return_dump=True, apply_postprocessing=False
+    ctx, input_file, context=None, compare_to=None, return_dump=True, apply_postprocessing=False
 ):
     """
     Generate a full gitlab-ci configuration by resolving all includes
@@ -427,11 +253,10 @@ def generate_gitlab_full_configuration(
     - return_dump: Whether to return the string dump or the dict object representing the configuration
     - apply_postprocessing: Whether or not to solve `extends` and `!reference` tags
     """
-    # Update loader/dumper to handle !reference tag
-    yaml.SafeLoader.add_constructor(ReferenceTag.yaml_tag, ReferenceTag.from_yaml)
-    yaml.SafeDumper.add_representer(YamlReferenceTagList, ReferenceTag.to_yaml)
-
-    full_configuration = read_includes(None, input_file, return_config=True)
+    if apply_postprocessing:
+        full_configuration = get_full_gitlab_ci_configuration(ctx, input_file)
+    else:
+        full_configuration = read_includes(None, input_file, return_config=True)
 
     # Override some variables with a dedicated context
     if context:
@@ -455,12 +280,6 @@ def generate_gitlab_full_configuration(
                     ):
                         v["changes"]["compare_to"] = compare_to
 
-    if apply_postprocessing:
-        # We have to use ConfigNode to allow hashing and lru cache
-        full_configuration = convert_to_config_node(full_configuration)
-        apply_yaml_postprocessing(full_configuration, full_configuration)
-
-    full_configuration = convert_to_std_collections(full_configuration)
     return yaml.safe_dump(full_configuration) if return_dump else full_configuration
 
 
