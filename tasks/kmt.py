@@ -196,15 +196,15 @@ def gen_config_from_ci_pipeline(
                     info(f"[+] setting vcpu to {vcpu}")
 
     failed_packages: set[str] = set()
-    for job in test_jobs:
-        if job.status == "failed" and job.component == vmconfig_template:
-            vm_arch = job.arch
+    for test_job in test_jobs:
+        if test_job.status == "failed" and job.component == vmconfig_template:
+            vm_arch = test_job.arch
             if use_local_if_possible and vm_arch == local_arch:
                 vm_arch = local_arch
 
-            failed_tests = job.get_test_results()
+            failed_tests = test_job.get_test_results()
             failed_packages.update({test.split(':')[0] for test in failed_tests.keys()})
-            vms.add(f"{vm_arch}-{job.distro}-distro")
+            vms.add(f"{vm_arch}-{test_job.distro}-distro")
 
     info(f"[+] generating {output_file} file for VMs {vms}")
     vcpu = DEFAULT_VCPU if vcpu is None else vcpu
@@ -1104,6 +1104,7 @@ def build(
     arch: str | None = None,
     component: Component = "system-probe",
     layout: str = "tasks/kernel_matrix_testing/build-layout.json",
+    compile_only=False,
 ):
     stack = check_and_get_stack(stack)
     assert stacks.stack_exists(
@@ -1113,34 +1114,38 @@ def build(
     if arch is None:
         arch = "local"
 
+    arch_obj = Arch.from_str(arch)
+    paths = KMTPaths(stack, arch_obj)
+    paths.arch_dir.mkdir(parents=True, exist_ok=True)
+
+    cc = get_compiler(ctx)
+
+    cc.exec(f"cd {CONTAINER_AGENT_PATH} && inv -e system-probe.object-files")
+
+    build_task = "build-sysprobe-binary" if component == "system-probe" else "build"
+    cc.exec(
+        f"cd {CONTAINER_AGENT_PATH} && git config --global --add safe.directory {CONTAINER_AGENT_PATH} && inv -e {component}.{build_task} --no-bundle --arch={arch_obj.name}",
+    )
+
+    cc.exec(f"tar cf {CONTAINER_AGENT_PATH}/kmt-deps/{stack}/build-embedded-dir.tar {EMBEDDED_SHARE_DIR}")
+
+    if compile_only:
+        return
+
     if vms is None:
         vms = ",".join(stacks.get_all_vms_in_stack(stack))
 
     assert os.path.exists(layout), f"File {layout} does not exist"
 
-    arch_obj = Arch.from_str(arch)
-    paths = KMTPaths(stack, arch_obj)
-    paths.arch_dir.mkdir(parents=True, exist_ok=True)
-
     ssh_key_obj = try_get_ssh_key(ctx, ssh_key)
     infra = build_infrastructure(stack, ssh_key_obj)
     domains = filter_target_domains(vms, infra, arch_obj)
-    cc = get_compiler(ctx)
 
     if not images_matching_ci(ctx, domains):
         if ask("Some VMs do not match version in CI. Continue anyway [y/N]") != "y":
             return
 
     assert len(domains) > 0, f"no vms found from list {vms}. Run `inv -e kmt.status` to see all VMs in current stack"
-
-    cc.exec(f"cd {CONTAINER_AGENT_PATH} && inv -e system-probe.object-files")
-
-    build_task = "build-sysprobe-binary" if component == "system-probe" else "build"
-    cc.exec(
-        f"cd {CONTAINER_AGENT_PATH} && git config --global --add safe.directory {CONTAINER_AGENT_PATH} && inv -e {component}.{build_task} --no-bundle",
-    )
-
-    cc.exec(f"tar cf {CONTAINER_AGENT_PATH}/kmt-deps/{stack}/build-embedded-dir.tar {EMBEDDED_SHARE_DIR}")
 
     build_layout(ctx, domains, layout, verbose)
     for d in domains:
@@ -1515,12 +1520,12 @@ def explain_ci_failure(_, pipeline: str):
         return
 
     # Compute a reason for failure for each test run job
-    for job in failed_jobs:
-        if job.failure_reason == "script_failure":
+    for failed_job in failed_jobs:
+        if failed_job.failure_reason == "script_failure":
             failreason = testfail  # By default, we assume it's a test failure
 
             # Now check the artifacts, we'll guess why the job failed based on the size
-            for artifact in job.job.artifacts:
+            for artifact in failed_job.job.artifacts:  # type: ignore
                 if artifact.get("filename") == "artifacts.zip":
                     fsize = artifact.get("size", 0)
                     if fsize < 1500:
@@ -1529,9 +1534,9 @@ def explain_ci_failure(_, pipeline: str):
                         failreason = infrafail
                         break
         else:
-            failreason = job.failure_reason
+            failreason = failed_job.failure_reason
 
-        failreasons[job.name] = failreason
+        failreasons[failed_job.name] = failreason
 
     # Check setup-env jobs that failed, they are infra failures for all related test jobs
     for job in failed_setup_jobs:
@@ -1555,14 +1560,14 @@ def explain_ci_failure(_, pipeline: str):
 
         # Build the distro table with all jobs for this component and vmset, to correctly
         # differentiate between skipped and ok jobs
-        for job in test_jobs:
-            if job.component != component or job.vmset != vmset:
+        for test_job in test_jobs:
+            if test_job.component != component or test_job.vmset != vmset:
                 continue
 
             failreason = failreasons.get(job.name, ok)
-            distros[job.distro][job.arch] = failreason
+            distros[test_job.distro][job.arch] = failreason
             if failreason == testfail:
-                distro_arch_with_test_failures.append((job.distro, job.arch))
+                distro_arch_with_test_failures.append((test_job.distro, test_job.arch))
 
         # Filter out distros with no failures
         distros = {d: v for d, v in distros.items() if any(r == testfail or r == infrafail for r in v.values())}

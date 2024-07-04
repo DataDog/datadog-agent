@@ -17,10 +17,12 @@ Component = namedtuple('Component', ['path', 'doc', 'team'])
 Bundle = namedtuple('Bundle', ['path', 'doc', 'team', 'components'])
 
 
-def find_team(content: Iterable[str]) -> str:
+def find_team(content: Iterable[str]) -> str | None:
     for line in content:
         if line.startswith('// team: '):
             return line.split(':', 2)[1].strip()
+
+    return None
 
 
 def find_doc(content) -> str:
@@ -37,6 +39,8 @@ def find_doc(content) -> str:
             return ''.join(comment_block).strip() + '\n'
         else:
             comment_block = []
+
+    return ''
 
 
 def has_type_component(content) -> bool:
@@ -102,7 +106,8 @@ def check_component_contents_and_file_hiearchy(entry_point):
         return ""
 
     for folder in directory.iterdir():
-        if folder.match('*impl'):
+        # Allow implementation to be old style <component>impl or new style <component>/impl or <component>/impl-<suffix>
+        if folder.match('*impl') or folder.match('impl-*'):
             missing_implementation_folder = False
             # TODO: check that the implementation_definitions are present in any of the files of the impl folder
             break

@@ -28,7 +28,6 @@ const (
 	SecurityModule_ReloadPolicies_FullMethodName        = "/api.SecurityModule/ReloadPolicies"
 	SecurityModule_DumpNetworkNamespace_FullMethodName  = "/api.SecurityModule/DumpNetworkNamespace"
 	SecurityModule_DumpDiscarders_FullMethodName        = "/api.SecurityModule/DumpDiscarders"
-	SecurityModule_DumpActivity_FullMethodName          = "/api.SecurityModule/DumpActivity"
 	SecurityModule_ListActivityDumps_FullMethodName     = "/api.SecurityModule/ListActivityDumps"
 	SecurityModule_StopActivityDump_FullMethodName      = "/api.SecurityModule/StopActivityDump"
 	SecurityModule_TranscodingRequest_FullMethodName    = "/api.SecurityModule/TranscodingRequest"
@@ -51,7 +50,6 @@ type SecurityModuleClient interface {
 	DumpNetworkNamespace(ctx context.Context, in *DumpNetworkNamespaceParams, opts ...grpc.CallOption) (*DumpNetworkNamespaceMessage, error)
 	DumpDiscarders(ctx context.Context, in *DumpDiscardersParams, opts ...grpc.CallOption) (*DumpDiscardersMessage, error)
 	// Activity dumps
-	DumpActivity(ctx context.Context, in *ActivityDumpParams, opts ...grpc.CallOption) (*ActivityDumpMessage, error)
 	ListActivityDumps(ctx context.Context, in *ActivityDumpListParams, opts ...grpc.CallOption) (*ActivityDumpListMessage, error)
 	StopActivityDump(ctx context.Context, in *ActivityDumpStopParams, opts ...grpc.CallOption) (*ActivityDumpStopMessage, error)
 	TranscodingRequest(ctx context.Context, in *TranscodingRequestParams, opts ...grpc.CallOption) (*TranscodingRequestMessage, error)
@@ -173,15 +171,6 @@ func (c *securityModuleClient) DumpDiscarders(ctx context.Context, in *DumpDisca
 	return out, nil
 }
 
-func (c *securityModuleClient) DumpActivity(ctx context.Context, in *ActivityDumpParams, opts ...grpc.CallOption) (*ActivityDumpMessage, error) {
-	out := new(ActivityDumpMessage)
-	err := c.cc.Invoke(ctx, SecurityModule_DumpActivity_FullMethodName, in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 func (c *securityModuleClient) ListActivityDumps(ctx context.Context, in *ActivityDumpListParams, opts ...grpc.CallOption) (*ActivityDumpListMessage, error) {
 	out := new(ActivityDumpListMessage)
 	err := c.cc.Invoke(ctx, SecurityModule_ListActivityDumps_FullMethodName, in, out, opts...)
@@ -273,7 +262,6 @@ type SecurityModuleServer interface {
 	DumpNetworkNamespace(context.Context, *DumpNetworkNamespaceParams) (*DumpNetworkNamespaceMessage, error)
 	DumpDiscarders(context.Context, *DumpDiscardersParams) (*DumpDiscardersMessage, error)
 	// Activity dumps
-	DumpActivity(context.Context, *ActivityDumpParams) (*ActivityDumpMessage, error)
 	ListActivityDumps(context.Context, *ActivityDumpListParams) (*ActivityDumpListMessage, error)
 	StopActivityDump(context.Context, *ActivityDumpStopParams) (*ActivityDumpStopMessage, error)
 	TranscodingRequest(context.Context, *TranscodingRequestParams) (*TranscodingRequestMessage, error)
@@ -314,9 +302,6 @@ func (UnimplementedSecurityModuleServer) DumpNetworkNamespace(context.Context, *
 }
 func (UnimplementedSecurityModuleServer) DumpDiscarders(context.Context, *DumpDiscardersParams) (*DumpDiscardersMessage, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DumpDiscarders not implemented")
-}
-func (UnimplementedSecurityModuleServer) DumpActivity(context.Context, *ActivityDumpParams) (*ActivityDumpMessage, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method DumpActivity not implemented")
 }
 func (UnimplementedSecurityModuleServer) ListActivityDumps(context.Context, *ActivityDumpListParams) (*ActivityDumpListMessage, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListActivityDumps not implemented")
@@ -514,24 +499,6 @@ func _SecurityModule_DumpDiscarders_Handler(srv interface{}, ctx context.Context
 	return interceptor(ctx, in, info, handler)
 }
 
-func _SecurityModule_DumpActivity_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ActivityDumpParams)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(SecurityModuleServer).DumpActivity(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: SecurityModule_DumpActivity_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(SecurityModuleServer).DumpActivity(ctx, req.(*ActivityDumpParams))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 func _SecurityModule_ListActivityDumps_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ActivityDumpListParams)
 	if err := dec(in); err != nil {
@@ -681,10 +648,6 @@ var SecurityModule_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DumpDiscarders",
 			Handler:    _SecurityModule_DumpDiscarders_Handler,
-		},
-		{
-			MethodName: "DumpActivity",
-			Handler:    _SecurityModule_DumpActivity_Handler,
 		},
 		{
 			MethodName: "ListActivityDumps",

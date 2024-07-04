@@ -10,6 +10,7 @@ package kubeapiserver
 import (
 	"fmt"
 	"regexp"
+	"strings"
 
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	utilserror "k8s.io/apimachinery/pkg/util/errors"
@@ -57,26 +58,83 @@ func filterToRegex(filter string) (*regexp.Regexp, error) {
 	return r, nil
 }
 
-func discoverGVRs(discoveryClient discovery.DiscoveryInterface, resources []string) ([]schema.GroupVersionResource, error) {
-	discoveredResources, err := discoverResources(discoveryClient)
+func parseRequestedResource(requestedResource string) (group string, version string, resource string) {
+	parts := strings.Split(requestedResource, "/")
+
+	switch len(parts) {
+	case 1:
+		// format is `{resource}`
+		group = ""
+		version = ""
+		resource = parts[0]
+	case 2:
+		// format is `{group}/{resource}`
+		group = parts[0]
+		version = ""
+		resource = parts[1]
+	case 3:
+		// format is `{group}/{version}/{resource}`
+		group = parts[0]
+		version = parts[1]
+		resource = parts[2]
+	default:
+		// format is not correct
+		group = ""
+		version = ""
+		resource = ""
+	}
+
+	return group, version, resource
+}
+
+// getGVRsForRequestedResources converts a list of requested resources into a list of GVRs.
+//
+// If a requested resource doesn't include the api group version, it uses the preferred version discovered
+// by the discovery client for the related api group.
+//
+// Each requested resource should be in the form `{group}/{version}/{resource}`, where {version} is optional.
+//
+// Items that don't respect this format are skipped
+func getGVRsForRequestedResources(discoveryClient discovery.DiscoveryInterface, requestedResource []string) ([]schema.GroupVersionResource, error) {
+	groupResourceToVersion, err := discoverGroupResourceVersions(discoveryClient)
 	if err != nil {
 		return nil, err
 	}
 
-	gvrs := make([]schema.GroupVersionResource, 0, len(resources))
-	for _, resource := range resources {
-		gv, found := discoveredResources[resource]
+	gvrs := make([]schema.GroupVersionResource, 0, len(requestedResource))
+	for _, requestedResource := range requestedResource {
+		parsedGroup, parsedVersion, parsedResource := parseRequestedResource(requestedResource)
+
+		if parsedVersion != "" {
+			// no need to discover preferred version if the version is already known
+			gvrs = append(gvrs, schema.GroupVersionResource{
+				Resource: parsedResource,
+				Group:    parsedGroup,
+				Version:  parsedVersion,
+			})
+
+			continue
+		}
+
+		preferredVersion, found := groupResourceToVersion[schema.GroupResource{Group: parsedGroup, Resource: parsedResource}]
 		if found {
-			gvrs = append(gvrs, schema.GroupVersionResource{Group: gv.Group, Version: gv.Version, Resource: resource})
+			gvrs = append(gvrs, schema.GroupVersionResource{
+				Resource: parsedResource,
+				Group:    parsedGroup,
+				Version:  preferredVersion,
+			})
 		} else {
-			log.Errorf("failed to auto-discover group/version of resource %s,", resource)
+			log.Errorf("failed to auto-discover version of group resource %s.%s,", parsedResource, parsedGroup)
 		}
 	}
 
 	return gvrs, nil
 }
 
-func discoverResources(discoveryClient discovery.DiscoveryInterface) (map[string]schema.GroupVersion, error) {
+// discoverGroupResourceVersions discovers groups, resources, and versions in the kubernetes api server and returns a mapping
+// from GroupResource to Version.
+// A group resource is mapped to the version that is considered the preferred version by the API Server.
+func discoverGroupResourceVersions(discoveryClient discovery.DiscoveryInterface) (map[schema.GroupResource]string, error) {
 	apiGroups, apiResourceLists, err := discoveryClient.ServerGroupsAndResources()
 	if err != nil {
 		return nil, err
@@ -87,17 +145,22 @@ func discoverResources(discoveryClient discovery.DiscoveryInterface) (map[string
 		preferredGroupVersions[group.PreferredVersion.GroupVersion] = struct{}{}
 	}
 
-	discoveredResources := map[string]schema.GroupVersion{}
+	// groupResourceToVersion maps a group resource to discovered preferred group version
+	groupResourceToVersion := map[schema.GroupResource]string{}
 	for _, resourceList := range apiResourceLists {
 		_, found := preferredGroupVersions[resourceList.GroupVersion]
 		if found {
 			for _, resource := range resourceList.APIResources {
 				// No need to handle error because we are sure it is correctly formatted
 				gv, _ := schema.ParseGroupVersion(resourceList.GroupVersion)
-				discoveredResources[resource.Name] = gv
+
+				groupResourceToVersion[schema.GroupResource{
+					Resource: resource.Name,
+					Group:    gv.Group,
+				}] = gv.Version
 			}
 		}
 	}
 
-	return discoveredResources, nil
+	return groupResourceToVersion, nil
 }

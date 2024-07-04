@@ -58,6 +58,7 @@ network_devices:
         namespace: |
           my-ns2<abc
           zz
+    reverse_dns_enrichment_enabled: true
 `,
 			expectedConfig: NetflowConfig{
 				Enabled:                                true,
@@ -86,6 +87,7 @@ network_devices:
 						Namespace: "my-ns2-abczz",
 					},
 				},
+				ReverseDNSEnrichmentEnabled: true,
 			},
 		},
 		{
@@ -115,6 +117,7 @@ network_devices:
 						Namespace: "default",
 					},
 				},
+				ReverseDNSEnrichmentEnabled: false,
 			},
 		},
 		{
@@ -145,6 +148,7 @@ network_devices:
 						Namespace: "default",
 					},
 				},
+				ReverseDNSEnrichmentEnabled: false,
 			},
 		},
 		{
@@ -209,6 +213,7 @@ network_devices:
 						},
 					},
 				},
+				ReverseDNSEnrichmentEnabled: false,
 			},
 		},
 	}

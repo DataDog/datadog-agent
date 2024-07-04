@@ -10,6 +10,7 @@ package trace
 import (
 	"context"
 	"os"
+	"sync"
 	"testing"
 	"time"
 
@@ -23,9 +24,31 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
+	"github.com/DataDog/datadog-agent/pkg/trace/writer"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
+
+type mockTraceWriter struct {
+	mu       sync.Mutex
+	payloads []*writer.SampledChunks
+}
+
+func (m *mockTraceWriter) Stop() {
+	//TODO implement me
+	panic("not implemented")
+}
+
+func (m *mockTraceWriter) WriteChunks(pkg *writer.SampledChunks) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.payloads = append(m.payloads, pkg)
+}
+
+func (m *mockTraceWriter) FlushSync() error {
+	//TODO implement me
+	panic("not implemented")
+}
 
 func TestServerlessServiceRewrite(t *testing.T) {
 	cfg := config.New()
@@ -39,24 +62,20 @@ func TestServerlessServiceRewrite(t *testing.T) {
 		tags: cfg.GlobalTags,
 	}
 	agnt.ModifySpan = spanModifier.ModifySpan
+	agnt.TraceWriter = &mockTraceWriter{}
 	defer cancel()
 
 	tc := testutil.RandomTraceChunk(1, 1)
 	tc.Priority = 1 // ensure trace is never sampled out
 	tp := testutil.TracerPayloadWithChunk(tc)
 	tp.Chunks[0].Spans[0].Service = "aws.lambda"
-	go agnt.Process(&api.Payload{
+	agnt.Process(&api.Payload{
 		TracerPayload: tp,
 		Source:        agnt.Receiver.Stats.GetTagStats(info.Tags{}),
 	})
-	timeout := time.After(2 * time.Second)
-	var span *pb.Span
-	select {
-	case ss := <-agnt.TraceWriter.In:
-		span = ss.TracerPayload.Chunks[0].Spans[0]
-	case <-timeout:
-		t.Fatal("timed out")
-	}
+	payloads := agnt.TraceWriter.(*mockTraceWriter).payloads
+	assert.NotEmpty(t, payloads, "no payloads were written")
+	span := payloads[0].TracerPayload.Chunks[0].Spans[0]
 	assert.Equal(t, "myTestService", span.Service)
 }
 
@@ -70,6 +89,7 @@ func TestInferredSpanFunctionTagFiltering(t *testing.T) {
 		tags: cfg.GlobalTags,
 	}
 	agnt.ModifySpan = spanModifier.ModifySpan
+	agnt.TraceWriter = &mockTraceWriter{}
 	defer cancel()
 
 	tc := testutil.RandomTraceChunk(2, 1)
@@ -77,17 +97,13 @@ func TestInferredSpanFunctionTagFiltering(t *testing.T) {
 	tp := testutil.TracerPayloadWithChunk(tc)
 	tp.Chunks[0].Spans[0].Meta["_inferred_span.tag_source"] = "self"
 	tp.Chunks[0].Spans[1].Meta["_dd_origin"] = "lambda"
-	go agnt.Process(&api.Payload{
+	agnt.Process(&api.Payload{
 		TracerPayload: tp,
 		Source:        agnt.Receiver.Stats.GetTagStats(info.Tags{}),
 	})
-	timeout := time.After(2 * time.Second)
-	select {
-	case ss := <-agnt.TraceWriter.In:
-		tp = ss.TracerPayload
-	case <-timeout:
-		t.Fatal("timed out")
-	}
+	payloads := agnt.TraceWriter.(*mockTraceWriter).payloads
+	assert.NotEmpty(t, payloads, "no payloads were written")
+	tp = payloads[0].TracerPayload
 
 	_, lambdaSpanHasGlobalTags := tp.Chunks[0].Spans[1].GetMeta()["function_arn"]
 	assert.True(t, lambdaSpanHasGlobalTags, "The regular span should get global tags")
@@ -107,6 +123,7 @@ func TestSpanModifierAddsOriginToAllSpans(t *testing.T) {
 		if withModifier {
 			agnt.ModifySpan = (&spanModifier{tags: cfg.GlobalTags, ddOrigin: getDDOrigin()}).ModifySpan
 		}
+		agnt.TraceWriter = &mockTraceWriter{}
 		tc := testutil.RandomTraceChunk(2, 1)
 		tc.Priority = 1 // ensure trace is never sampled out
 		tp := testutil.TracerPayloadWithChunk(tc)
@@ -115,13 +132,9 @@ func TestSpanModifierAddsOriginToAllSpans(t *testing.T) {
 			TracerPayload: tp,
 			Source:        agnt.Receiver.Stats.GetTagStats(info.Tags{}),
 		})
-
-		select {
-		case ss := <-agnt.TraceWriter.In:
-			tp = ss.TracerPayload
-		case <-time.After(100 * time.Millisecond):
-			t.Fatal("timed out")
-		}
+		payloads := agnt.TraceWriter.(*mockTraceWriter).payloads
+		assert.NotEmpty(t, payloads, "no payloads were written")
+		tp = payloads[0].TracerPayload
 
 		for _, chunk := range tp.Chunks {
 			if chunk.Origin != "lambda" {
@@ -156,6 +169,7 @@ func TestSpanModifierDetectsCloudService(t *testing.T) {
 		if withModifier {
 			agnt.ModifySpan = (&spanModifier{ddOrigin: getDDOrigin()}).ModifySpan
 		}
+		agnt.TraceWriter = &mockTraceWriter{}
 		tc := testutil.RandomTraceChunk(2, 1)
 		tc.Priority = 1 // ensure trace is never sampled out
 		tp := testutil.TracerPayloadWithChunk(tc)
@@ -165,12 +179,9 @@ func TestSpanModifierDetectsCloudService(t *testing.T) {
 			Source:        agnt.Receiver.Stats.GetTagStats(info.Tags{}),
 		})
 
-		select {
-		case ss := <-agnt.TraceWriter.In:
-			tp = ss.TracerPayload
-		case <-time.After(100 * time.Millisecond):
-			t.Fatal("timed out")
-		}
+		payloads := agnt.TraceWriter.(*mockTraceWriter).payloads
+		assert.NotEmpty(t, payloads, "no payloads were written")
+		tp = payloads[0].TracerPayload
 
 		for _, chunk := range tp.Chunks {
 			if chunk.Origin != expectedOrigin {
@@ -195,7 +206,7 @@ func TestSpanModifierDetectsCloudService(t *testing.T) {
 	cloudServiceToEnvVar := map[string]string{
 		"cloudrun":     cloudservice.ServiceNameEnvVar,
 		"containerapp": cloudservice.ContainerAppNameEnvVar,
-		"appservice":   cloudservice.RunZip,
+		"appservice":   cloudservice.WebsiteStack,
 		"lambda":       functionNameEnvVar}
 	for origin, cloudServiceEnvVar := range cloudServiceToEnvVar {
 		// Set the appropriate environment variable to simulate a cloud service
