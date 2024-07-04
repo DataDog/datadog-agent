@@ -200,7 +200,8 @@ receivers:
 connectors:
   - gomod: go.opentelemetry.io/collector/connector/forwardconnector v0.104.0
   - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/connector/countconnector v0.104.0
-  - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/connector/datadogconnector v0.104.0
+  # todo: update datadog connector with breaking changes from https://github.com/DataDog/datadog-agent/pull/26347.
+  - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/connector/datadogconnector v0.103.0
   - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/connector/exceptionsconnector v0.104.0
   - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/connector/grafanacloudconnector v0.104.0
   - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/connector/roundrobinconnector v0.104.0

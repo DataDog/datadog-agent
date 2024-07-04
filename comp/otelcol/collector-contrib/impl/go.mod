@@ -9,7 +9,7 @@ toolchain go1.22.4
 require (
 	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def v0.0.0-00010101000000-000000000000
 	github.com/open-telemetry/opentelemetry-collector-contrib/connector/countconnector v0.104.0
-	github.com/open-telemetry/opentelemetry-collector-contrib/connector/datadogconnector v0.104.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/connector/datadogconnector v0.103.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/connector/exceptionsconnector v0.104.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/connector/grafanacloudconnector v0.104.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/connector/roundrobinconnector v0.104.0
@@ -256,23 +256,24 @@ require (
 	github.com/ClickHouse/ch-go v0.61.5 // indirect
 	github.com/ClickHouse/clickhouse-go/v2 v2.23.0 // indirect
 	github.com/Code-Hex/go-generics-cache v1.3.1 // indirect
+	github.com/DataDog/datadog-agent/comp/core/flare/types v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient v0.55.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/statsprocessor v0.0.0-20240525065430-d0b647bcb646 // indirect
-	github.com/DataDog/datadog-agent/pkg/obfuscate v0.56.0-devel.0.20240621152414-10454a30138d // indirect
+	github.com/DataDog/datadog-agent/pkg/obfuscate v0.55.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/proto v0.56.0-devel.0.20240621152414-10454a30138d // indirect
-	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.56.0-devel.0.20240621152414-10454a30138d // indirect
-	github.com/DataDog/datadog-agent/pkg/trace v0.56.0-devel.0.20240621152414-10454a30138d // indirect
-	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.56.0-devel.0.20240621152414-10454a30138d // indirect
-	github.com/DataDog/datadog-agent/pkg/util/log v0.56.0-devel.0.20240621152414-10454a30138d // indirect
-	github.com/DataDog/datadog-agent/pkg/util/pointer v0.56.0-devel.0.20240621152414-10454a30138d // indirect
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.56.0-devel.0.20240621152414-10454a30138d // indirect
+	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.55.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/pkg/trace v0.55.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.55.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/log v0.55.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/pointer v0.55.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.55.0-rc.3 // indirect
 	github.com/DataDog/datadog-go/v5 v5.5.0 // indirect
 	github.com/DataDog/go-sqllexer v0.0.12 // indirect
 	github.com/DataDog/go-tuf v1.1.0-0.5.2 // indirect
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.17.0 // indirect
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.17.0 // indirect
-	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.17.0 // indirect
-	github.com/DataDog/sketches-go v1.4.6 // indirect
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.16.1 // indirect
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.16.1 // indirect
+	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.16.1 // indirect
+	github.com/DataDog/sketches-go v1.4.5 // indirect
 	github.com/DataDog/zstd v1.5.2 // indirect
 	github.com/GehirnInc/crypt v0.0.0-20200316065508-bb7000b8a962 // indirect
 	github.com/GoogleCloudPlatform/grpc-gcp-go/grpcgcp v1.5.0 // indirect
