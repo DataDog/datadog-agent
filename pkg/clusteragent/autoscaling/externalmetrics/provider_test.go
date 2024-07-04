@@ -48,7 +48,7 @@ func (f *providerFixture) runGetExternalMetric(t *testing.T) {
 		datadogMetricProvider.store.Set(datadogMetric.ddm.ID, datadogMetric.ddm, "utest")
 	}
 
-	externalMetrics, err := datadogMetricProvider.getExternalMetric(f.queryNamespace, labels.Set(f.querySelector).AsSelector(), provider.ExternalMetricInfo{Metric: f.queryMetricName})
+	externalMetrics, err := datadogMetricProvider.getExternalMetric(f.queryNamespace, labels.Set(f.querySelector).AsSelector(), provider.ExternalMetricInfo{Metric: f.queryMetricName}, time.Now())
 	if err != nil {
 		assert.Equal(t, f.expectedError, err)
 		assert.Nil(t, externalMetrics)

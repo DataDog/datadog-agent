@@ -259,12 +259,12 @@ func (d *DatadogMetricInternal) BuildStatus(currentStatus *datadoghq.DatadogMetr
 }
 
 // ToExternalMetricFormat returns the current DatadogMetric in the format used by Kubernetes
-func (d *DatadogMetricInternal) ToExternalMetricFormat(externalMetricName string, metricsMaxAge int64) (*external_metrics.ExternalMetricValue, error) {
+func (d *DatadogMetricInternal) ToExternalMetricFormat(externalMetricName string, metricsMaxAge int64, time time.Time) (*external_metrics.ExternalMetricValue, error) {
 	if !d.Valid {
 		return nil, fmt.Errorf("DatadogMetric is invalid, err: %v", d.Error)
 	}
 
-	if d.IsStale(metricsMaxAge, time.Now().UTC().Unix()) {
+	if d.IsStale(metricsMaxAge, time.UTC().Unix()) {
 		return nil, fmt.Errorf("DatadogMetric is stale, last updated: %v. Check datadog-cluster-agent logs for errors", d.DataTime)
 	}
 

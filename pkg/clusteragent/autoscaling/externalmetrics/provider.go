@@ -127,7 +127,7 @@ func NewDatadogMetricProvider(ctx context.Context, apiCl *apiserver.APIClient) (
 // GetExternalMetric returns the value of a metric for a given namespace and metric selector
 func (p *datadogMetricProvider) GetExternalMetric(_ context.Context, namespace string, metricSelector labels.Selector, info provider.ExternalMetricInfo) (*external_metrics.ExternalMetricValueList, error) {
 	startTime := time.Now()
-	res, err := p.getExternalMetric(namespace, metricSelector, info)
+	res, err := p.getExternalMetric(namespace, metricSelector, info, startTime)
 	if err != nil {
 		convErr := apierr.NewInternalError(err)
 		if convErr != nil {
@@ -139,7 +139,7 @@ func (p *datadogMetricProvider) GetExternalMetric(_ context.Context, namespace s
 	return res, err
 }
 
-func (p *datadogMetricProvider) getExternalMetric(namespace string, metricSelector labels.Selector, info provider.ExternalMetricInfo) (*external_metrics.ExternalMetricValueList, error) {
+func (p *datadogMetricProvider) getExternalMetric(namespace string, metricSelector labels.Selector, info provider.ExternalMetricInfo, time time.Time) (*external_metrics.ExternalMetricValueList, error) {
 	log.Debugf("Received external metric query with ns: %s, selector: %s, metricName: %s", namespace, metricSelector.String(), info.Metric)
 
 	// Convert metric name to lower case to allow proper matching (and DD metrics are always lower case)
@@ -162,7 +162,7 @@ func (p *datadogMetricProvider) getExternalMetric(namespace string, metricSelect
 		return nil, log.Warnf("DatadogMetric not found for metric name: %s, datadogmetricid: %s", info.Metric, datadogMetricID)
 	}
 
-	externalMetric, err := datadogMetric.ToExternalMetricFormat(info.Metric, metricsMaxAge)
+	externalMetric, err := datadogMetric.ToExternalMetricFormat(info.Metric, metricsMaxAge, time)
 	if err != nil {
 		return nil, err
 	}

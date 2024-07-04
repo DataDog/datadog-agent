@@ -10,3 +10,5 @@ fixes:
   - |
     Fixes issue where the external metrics server would sometimes return metrics which had not
     been updated for longer than the configured `external_metrics_provider.max_age` as valid.
+    In connection with this fix, the default value of `external_metrics_provider.max_age` has been
+    changed from 120 seconds to 150 seconds.
