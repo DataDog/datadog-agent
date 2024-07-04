@@ -11,7 +11,7 @@ import (
 	"fmt"
 )
 
-const docURL = "https://docs.datadoghq.com/agent/basic_agent_usage/?tab=Linux"
+const docURL = "https://docs.datadoghq.com/agent/basic_agent_usage/?tab=Linux#datadog-agent-manager-gui"
 
 func restartEnabled() bool {
 	return false
@@ -22,11 +22,10 @@ func restart() error {
 }
 
 func logginInstructions() string {
-	return fmt.Sprintf(`<h3>Instructions</h3>
-<p>Please ensure you access the Datadog Agent Manager by running the following bash command: "<code>datadog-agent launch-gui</code>"</p>
+	return fmt.Sprintf(`<h3>Refreshing the Session</h3>
+<p>Please ensure you access the Datadog Agent Manager by running the following terminal command: "<code>datadog-agent launch-gui</code>"</p>
 <p>For more information, please visit: <u><a href="%s">%s</a></u></p>
 
-<h4>Be Aware of Token Expiration</h4>
-The Datadog Agent parameter <code>GUI_session_expiration</code> (set in <code>datadog.yaml</code>) allows you to define a time expiration for the Datadog Agent Manager sessions.`,
+<p>Note: If you would like to adjust the GUI session timeout, you can modify the <code>GUI_session_expiration</code> parameter in <code>datadog.yaml</code>`,
 		docURL, docURL)
 }

@@ -36,8 +36,8 @@ func restart() error {
 }
 
 func logginInstructions() string {
-	return fmt.Sprintf(`<h3>Instructions</h3>
-Please ensure you access the Datadog Agent Manager as follows:
+	return fmt.Sprintf(`<h3>Refreshing the Session</h3>
+<p>Please ensure you access the Datadog Agent Manager with one of the following:</p>
 <ul>
     <li>- Right click on the Datadog Agent system tray icon -&gt; Configure, or</li>
     <li>- Run <code>launch-gui</code> command from an <strong>elevated (run as Admin)</strong> command line
@@ -49,7 +49,6 @@ Please ensure you access the Datadog Agent Manager as follows:
 </ul>
 <p>For more information, please visit: <u><a href="%s">%s</a></u></p>
 
-<h4>Be Aware of Token Expiration</h4>
-The Datadog Agent parameter <code>GUI_session_expiration</code> (set in <code>datadog.yaml</code>) allows you to define a time expiration for the Datadog Agent Manager sessions.`,
+<p>Note: If you would like to adjust the GUI session timeout, you can modify the <code>GUI_session_expiration</code> parameter in <code>datadog.yaml</code>`,
 		docURL, docURL)
 }
