@@ -169,6 +169,10 @@ func (p *UnixTransparentProxyServer) handleConnection(unixSocketConn net.Conn) {
 				readSize := binary.BigEndian.Uint64(buf)
 
 				if readSize != 0 {
+					if readSize > uint64(len(big)) {
+						log.Error("read size too large", readSize)
+						break
+					}
 					buf := big[0:readSize]
 					_, err = io.ReadFull(unixReader, buf)
 					if err != nil {
@@ -191,6 +195,10 @@ func (p *UnixTransparentProxyServer) handleConnection(unixSocketConn net.Conn) {
 				readSize = binary.BigEndian.Uint64(buf)
 
 				if readSize != 0 {
+					if readSize > uint64(len(big)) {
+						log.Error("read size too large", readSize)
+						break
+					}
 					buf := big[0:readSize]
 					_, err = io.ReadFull(remoteReader, buf)
 					if err != nil {
