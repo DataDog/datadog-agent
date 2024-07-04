@@ -230,7 +230,7 @@ func (s *upgradeScenarioSuite) TestStopWithoutExperiment() {
 	require.Equal(s.T(), beforeStatus.Packages["datadog-agent"], afterStatus.Packages["datadog-agent"])
 }
 
-func (s *upgradeScenarioSuite) TestConcurrentExperiments() {
+func (s *upgradeScenarioSuite) TestDoubleExperiments() {
 	s.RunInstallScript("DD_REMOTE_UPDATES=true")
 	defer s.Purge()
 	s.host.WaitForUnitActive(
@@ -258,6 +258,27 @@ func (s *upgradeScenarioSuite) TestConcurrentExperiments() {
 	_, err = s.stopExperimentCommand()
 	require.NoError(s.T(), err)
 	s.assertSuccessfulStopExperiment(timestamp)
+}
+
+func (s *upgradeScenarioSuite) TestPromoteWithoutExperiment() {
+	s.RunInstallScript("DD_REMOTE_UPDATES=true")
+	defer s.Purge()
+	s.host.WaitForUnitActive(
+		"datadog-agent.service",
+		"datadog-agent-trace.service",
+		"datadog-agent-process.service",
+		"datadog-installer.service",
+	)
+
+	s.setCatalog(testCatalog)
+
+	beforeStatus := s.getInstallerStatus()
+	_, err := s.promoteExperimentCommand()
+	require.Error(s.T(), err)
+
+	afterStatus := s.getInstallerStatus()
+	require.Equal(s.T(), beforeStatus.Packages["datadog-agent"], afterStatus.Packages["datadog-agent"])
+	require.Equal(s.T(), beforeStatus.Version, afterStatus.Version)
 }
 
 func (s *upgradeScenarioSuite) startExperimentCommand(version string) (string, error) {
