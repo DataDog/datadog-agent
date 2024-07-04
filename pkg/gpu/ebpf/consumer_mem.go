@@ -61,7 +61,7 @@ func (c *CudaMemEventConsumer) Start() {
 	if c == nil {
 		return
 	}
-	health := health.RegisterLiveness("gpu-tracer-cuda-kernel-launch")
+	health := health.RegisterLiveness("gpu-tracer-cuda-mem-event")
 
 	go func() {
 		defer func() {
@@ -83,8 +83,6 @@ func (c *CudaMemEventConsumer) Start() {
 				if !ok {
 					return
 				}
-
-				log.Infof("Rx data\n")
 
 				if len(batchData.Data) != SizeofCudaMemEvent {
 					log.Errorf("unknown type received from perf buffer, skipping. data size=%d, expecting %d", len(batchData.Data), SizeofCudaKernelLaunch)

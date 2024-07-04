@@ -84,8 +84,6 @@ func (c *CudaLaunchKernelConsumer) Start() {
 					return
 				}
 
-				log.Infof("Rx data\n")
-
 				if len(batchData.Data) != SizeofCudaKernelLaunch {
 					log.Errorf("unknown type received from perf buffer, skipping. data size=%d, expecting %d", len(batchData.Data), SizeofCudaKernelLaunch)
 				}

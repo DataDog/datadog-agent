@@ -9,6 +9,7 @@ package gpu
 
 import (
 	"fmt"
+	"hash/fnv"
 	"os"
 	"path/filepath"
 	"strings"
@@ -114,6 +115,14 @@ func locateLibrary(name string) ([]string, error) {
 	return maps.Keys(locations), nil
 }
 
+func buildProbeUID(uprobe string, library string) (string, error) {
+	hash := fnv.New64a()
+	if _, err := hash.Write([]byte(uprobe + library)); err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%x", hash.Sum64()), nil
+}
+
 func startGPUProbe(buf bytecode.AssetReader, opts manager.Options, telemetryComponent telemetry.Component, cfg *Config) (*Probe, error) {
 	mgr := &ddebpf.Manager{
 		Manager: &manager.Manager{},
@@ -158,10 +167,16 @@ func startGPUProbe(buf bytecode.AssetReader, opts manager.Options, telemetryComp
 
 		for _, location := range locations {
 			log.Debugf("[gpu] attaching uprobe %s to library %s at %s", uprobe, library, location)
+
+			uid, err := buildProbeUID(uprobe, location)
+			if err != nil {
+				return nil, fmt.Errorf("error building probe UID for probe=%s, location=%s: %w", uprobe, location, err)
+			}
+
 			probe := &manager.Probe{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
 					EBPFFuncName: uprobe,
-					UID:          fmt.Sprintf("%s_%s", uprobe, location),
+					UID:          uid,
 				},
 				BinaryPath: location,
 			}
