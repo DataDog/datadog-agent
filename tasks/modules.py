@@ -2,6 +2,7 @@ import json
 import os
 import subprocess
 import sys
+from collections import defaultdict
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -412,7 +413,7 @@ def validate_used_by_otel(ctx: Context):
     Verify whether indirect local dependencies of modules labeled "used_by_otel" are also marked with the "used_by_otel" tag.
     """
     otel_mods = [path for path, module in DEFAULT_MODULES.items() if module.used_by_otel]
-    missing_used_by_otel_label: dict[str, list[str]] = {}
+    missing_used_by_otel_label: dict[str, list[str]] = defaultdict(list)
 
     # for every module labeled as "used_by_otel"
     for otel_mod in otel_mods:
@@ -431,11 +432,10 @@ def validate_used_by_otel(ctx: Context):
             # we are only interested into local modules
             if not require["Path"].startswith("github.com/DataDog/datadog-agent/"):
                 continue
-            rel_path = require['Path'][33:]
+            # we need the relative path of module (without github.com/DataDog/datadog-agent/ prefix)
+            rel_path = require['Path'].removeprefix("github.com/DataDog/datadog-agent/")
             # check if indirect module is labeled as "used_by_otel"
             if rel_path not in DEFAULT_MODULES or not DEFAULT_MODULES[rel_path].used_by_otel:
-                if rel_path not in missing_used_by_otel_label:
-                    missing_used_by_otel_label[rel_path] = []
                 missing_used_by_otel_label[rel_path].append(otel_mod)
     if missing_used_by_otel_label:
         message = f"{color_message('ERROR', Color.RED)}: some indirect local dependencies of modules labeled \"used_by_otel\" are not correctly labeled in DEFAULT_MODULES\n"
