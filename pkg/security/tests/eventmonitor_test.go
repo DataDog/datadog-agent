@@ -22,12 +22,12 @@ import (
 func TestEventMonitor(t *testing.T) {
 	SkipIfNotAvailable(t)
 
-	var sec *examples.SimpleEventConsumer
+	var sevm *examples.SimpleEventMonitorModule
 	test, err := newTestModule(t, nil, nil, withStaticOpts(testOpts{
 		disableRuntimeSecurity: true,
 		preStartCallback: func(test *testModule) {
-			sec = examples.NewSimpleEventConsumer(test.eventMonitor)
-			test.eventMonitor.RegisterEventConsumer(sec)
+			sevm = examples.NewSimpleEventMonitorModule(test.eventMonitor)
+			test.eventMonitor.RegisterModule(sevm)
 		},
 	}))
 	if err != nil {
@@ -41,12 +41,12 @@ func TestEventMonitor(t *testing.T) {
 	}
 
 	t.Run("fork", func(t *testing.T) {
-		forkCount := sec.ForkCount()
+		forkCount := sevm.Consumer.ForkCount()
 		cmd := exec.Command(syscallTester, "fork")
 		_ = cmd.Run()
 
 		err := retry.Do(func() error {
-			if forkCount+1 <= sec.ForkCount() {
+			if forkCount+1 <= sevm.Consumer.ForkCount() {
 				return nil
 			}
 
@@ -56,15 +56,15 @@ func TestEventMonitor(t *testing.T) {
 	})
 
 	t.Run("exec-exit", func(t *testing.T) {
-		execCount := sec.ExecCount()
-		exitCount := sec.ExitCount()
+		execCount := sevm.Consumer.ExecCount()
+		exitCount := sevm.Consumer.ExitCount()
 
 		lsExecutable := which(t, "ls")
 		cmd := exec.Command(lsExecutable, "-l")
 		_ = cmd.Run()
 
 		err := retry.Do(func() error {
-			if execCount+1 <= sec.ExecCount() && exitCount+1 <= sec.ExitCount() {
+			if execCount+1 <= sevm.Consumer.ExecCount() && exitCount+1 <= sevm.Consumer.ExitCount() {
 				return nil
 			}
 

@@ -43,7 +43,7 @@ func initializePM(t *testing.T, pm *ProcessMonitor, useEventStream bool) {
 			// Can't use the implementation in procmontestutil due to import cycles
 			procmonconsumer, err := NewProcessMonitorEventConsumer(evm)
 			require.NoError(t, err)
-			evm.RegisterEventConsumer(procmonconsumer)
+			evm.RegisterModule(procmonconsumer)
 			log.Info("process monitoring test consumer initialized")
 		})
 	}

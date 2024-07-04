@@ -797,7 +797,7 @@ func newTestModuleWithOnDemandProbes(t testing.TB, onDemandHooks []rules.OnDeman
 		testMod.ruleEngine = cws.GetRuleEngine()
 		testMod.msgSender = msgSender
 
-		testMod.eventMonitor.RegisterEventConsumer(cws)
+		testMod.eventMonitor.RegisterModule(cws)
 
 		testMod.ruleEngine.SetRulesetLoadedCallback(func(rs *rules.RuleSet, err *multierror.Error) {
 			ruleSetloadedErr = err

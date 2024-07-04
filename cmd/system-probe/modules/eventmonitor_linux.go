@@ -27,7 +27,7 @@ var EventMonitor = module.Factory{
 	},
 }
 
-func createProcessMonitorConsumer(evm *eventmonitor.EventMonitor, config *netconfig.Config) (eventmonitor.EventConsumerInterface, error) {
+func createProcessMonitorConsumer(evm *eventmonitor.EventMonitor, config *netconfig.Config) (eventmonitor.EventMonitorModule, error) {
 	if !usmconfig.IsUSMSupportedAndEnabled(config) || !usmconfig.NeedProcessMonitor(config) {
 		return nil, nil
 	}

@@ -53,12 +53,12 @@ type EventMonitor struct {
 	GRPCServer   *grpc.Server
 
 	// internals
-	ctx            context.Context
-	cancelFnc      context.CancelFunc
-	sendStatsChan  chan chan bool
-	eventConsumers []EventConsumerInterface
-	netListener    net.Listener
-	wg             sync.WaitGroup
+	ctx           context.Context
+	cancelFnc     context.CancelFunc
+	sendStatsChan chan chan bool
+	modules       []EventMonitorModule
+	netListener   net.Listener
+	wg            sync.WaitGroup
 }
 
 var _ module.Module = &EventMonitor{}
@@ -72,7 +72,7 @@ func (m *EventMonitor) Register(_ *module.Router) error {
 	return m.Start()
 }
 
-// AddEventConsumer registers an event handler
+// AddEventConsumer registers an event consumer
 func (m *EventMonitor) AddEventConsumer(consumer EventConsumer) error {
 	for _, eventType := range consumer.EventTypes() {
 		if !slices.Contains(allowedEventTypes, eventType) {
@@ -84,8 +84,8 @@ func (m *EventMonitor) AddEventConsumer(consumer EventConsumer) error {
 }
 
 // RegisterEventConsumer registers an event consumer
-func (m *EventMonitor) RegisterEventConsumer(consumer EventConsumerInterface) {
-	m.eventConsumers = append(m.eventConsumers, consumer)
+func (m *EventMonitor) RegisterModule(module EventMonitorModule) {
+	m.modules = append(m.modules, module)
 }
 
 // Init initializes the module
@@ -133,7 +133,7 @@ func (m *EventMonitor) Start() error {
 	}
 
 	// start event consumers
-	for _, em := range m.eventConsumers {
+	for _, em := range m.modules {
 		if err := em.Start(); err != nil {
 			log.Errorf("unable to start %s event consumer: %v", em.ID(), err)
 		}
@@ -143,7 +143,7 @@ func (m *EventMonitor) Start() error {
 		return err
 	}
 
-	for _, em := range m.eventConsumers {
+	for _, em := range m.modules {
 		if ppsem, ok := em.(EventConsumerPostProbeStartHandler); ok {
 			if err := ppsem.PostProbeStart(); err != nil {
 				log.Errorf("after probe start callback of %s failed: %v", em.ID(), err)
@@ -163,7 +163,7 @@ func (m *EventMonitor) Close() {
 	m.Probe.Stop()
 
 	// stop event consumers
-	for _, em := range m.eventConsumers {
+	for _, em := range m.modules {
 		em.Stop()
 	}
 

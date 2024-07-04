@@ -10,17 +10,19 @@ package examples
 import (
 	"sync"
 
-	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // SimpleEvent defines a simple event
+// The generator will generate the copy function using the `copy` tag
+// All the getter defined in the data model can be used, see pkg/security/secl/model/field_accessors_*.go
 type SimpleEvent struct {
 	Type uint32 `copy:"GetEventType;event:*;cast:uint32"`
 }
 
 // SimpleEventConsumer defines a simple event consumer
+// Implement the consumer interface
 type SimpleEventConsumer struct {
 	sync.RWMutex
 	exec int
@@ -28,28 +30,10 @@ type SimpleEventConsumer struct {
 	exit int
 }
 
-// NewSimpleEventConsumer returns a new simple event consumer
-func NewSimpleEventConsumer(em *eventmonitor.EventMonitor) *SimpleEventConsumer {
-	fc := &SimpleEventConsumer{}
-	_ = em.AddEventConsumer(fc)
-	return fc
-}
-
-// ID returns the ID of this consumer
+// ID returns the ID of this module
 // Implement the consumer interface
 func (fc *SimpleEventConsumer) ID() string {
 	return "simple_consumer"
-}
-
-// Start the consumer
-// Implement the consumer interface
-func (fc *SimpleEventConsumer) Start() error {
-	return nil
-}
-
-// Stop the consumer
-// Implement the consumer interface
-func (fc *SimpleEventConsumer) Stop() {
 }
 
 // EventTypes returns the event types handled by this consumer
@@ -63,6 +47,7 @@ func (fc *SimpleEventConsumer) EventTypes() []model.EventType {
 }
 
 // ChanSize returns the chan size used by the consumer
+// Implement the consumer interface
 func (fc *SimpleEventConsumer) ChanSize() int {
 	return 50
 }
