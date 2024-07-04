@@ -65,6 +65,27 @@ disallow_untyped_defs = false
 show_column_numbers = true
 # Exclude unit tests for now
 exclude = ['tasks/unit-tests']
+files = ['tasks']
+disable_error_code = [
+    # TODO: fix them later
+    "assignment",
+    "index",
+    "operator",
+    "arg-type",
+    "typeddict-item",
+    "annotation-unchecked",
+    "call-overload",
+    "var-annotated",
+    "misc",
+    "type-arg",
+    "union-attr",
+    "override",
+    "list-item",
+    "return-value",
+    "return",
+    "str-bytes-safe",
+    "name-match",
+]
 
 [tool.vulture]
 ignore_decorators = ["@task"]

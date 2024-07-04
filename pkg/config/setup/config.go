@@ -699,7 +699,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.command_endpoint", "/inject-command-cws")
 	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.include", []string{})
 	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.exclude", []string{})
-	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.mutate_unlabelled", true)
+	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.mutate_unlabelled", false)
 	config.BindEnv("admission_controller.cws_instrumentation.container_registry")
 	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.image_name", "cws-instrumentation")
 	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.image_tag", "latest")
@@ -707,6 +707,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnv("admission_controller.cws_instrumentation.init_resources.memory")
 	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.mode", "remote_copy")
 	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.remote_copy.mount_volume", false)
+	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.remote_copy.directory", "/tmp")
 	config.BindEnvAndSetDefault("admission_controller.agent_sidecar.enabled", false)
 	config.BindEnvAndSetDefault("admission_controller.agent_sidecar.provider", "")
 	config.BindEnvAndSetDefault("admission_controller.agent_sidecar.endpoint", "/agentsidecar")
@@ -781,7 +782,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("sbom.host.analyzers", []string{"os"})
 
 	// Service discovery configuration
-	config.BindEnvAndSetDefault("service_discovery.enabled", true)
+	config.BindEnvAndSetDefault("service_discovery.enabled", false)
 	bindEnvAndSetLogsConfigKeys(config, "service_discovery.forwarder.")
 
 	// Orchestrator Explorer - process agent
@@ -795,10 +796,11 @@ func InitConfig(config pkgconfigmodel.Config) {
 	// Network
 	config.BindEnv("network.id")
 
-	// OTel
-	config.BindEnvAndSetDefault("otel.enabled", false)
-	config.BindEnvAndSetDefault("otel.extension_url", "https://localhost:7777")
-	config.BindEnvAndSetDefault("otel.submit_dummy_metadata", false) // dev flag - to be removed
+	// OTel Collector
+	config.BindEnvAndSetDefault("otelcollector.enabled", false)
+	config.BindEnvAndSetDefault("otelcollector.extension_url", "https://localhost:7777")
+	config.BindEnvAndSetDefault("otelcollector.extension_timeout", 0)         // in seconds, 0 for default value
+	config.BindEnvAndSetDefault("otelcollector.submit_dummy_metadata", false) // dev flag - to be removed
 
 	// inventories
 	config.BindEnvAndSetDefault("inventories_enabled", true)

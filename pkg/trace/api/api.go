@@ -709,7 +709,11 @@ func (r *HTTPReceiver) loop() {
 			r.watchdog(now)
 		case now := <-t.C:
 			_ = r.statsd.Gauge("datadog.trace_agent.heartbeat", 1, nil, 1)
-			_ = r.statsd.Gauge("datadog.trace_agent.receiver.out_chan_fill", float64(len(r.out))/float64(cap(r.out)), nil, 1)
+			if cap(r.out) == 0 {
+				_ = r.statsd.Gauge("datadog.trace_agent.receiver.out_chan_fill", 0, []string{"is_trace_buffer_set:false"}, 1)
+			} else if cap(r.out) > 0 {
+				_ = r.statsd.Gauge("datadog.trace_agent.receiver.out_chan_fill", float64(len(r.out))/float64(cap(r.out)), []string{"is_trace_buffer_set:true"}, 1)
+			}
 
 			// We update accStats with the new stats we collected
 			accStats.Acc(r.Stats)

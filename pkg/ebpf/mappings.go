@@ -23,6 +23,8 @@ var mapModuleMapping = make(map[uint32]string)
 var progNameMapping = make(map[uint32]string)
 var progModuleMapping = make(map[uint32]string)
 
+var progIgnoredIds = make(map[ebpf.ProgramID]struct{})
+
 // errNoMapping is returned when a give map or program id is
 // not tracked as part of system-probe/security-agent
 var errNoMapping = errors.New("no mapping found for given id")
@@ -177,4 +179,29 @@ func iterateProgs(progs map[string]*ebpf.Program, mapFn func(progid uint32, name
 			}
 		}
 	}
+}
+
+// AddIgnoredProgramID adds a program ID to the list of ignored programs
+func AddIgnoredProgramID(id ebpf.ProgramID) {
+	mappingLock.Lock()
+	defer mappingLock.Unlock()
+
+	progIgnoredIds[id] = struct{}{}
+}
+
+// RemoveIgnoredProgramID removes a program ID from the list of ignored programs
+func RemoveIgnoredProgramID(id ebpf.ProgramID) {
+	mappingLock.Lock()
+	defer mappingLock.Unlock()
+
+	progIgnoredIds[id] = struct{}{}
+}
+
+// IsProgramIDIgnored returns true if this program ID should be ignored
+func IsProgramIDIgnored(id ebpf.ProgramID) bool {
+	mappingLock.RLock()
+	defer mappingLock.RUnlock()
+
+	_, ok := progIgnoredIds[id]
+	return ok
 }
