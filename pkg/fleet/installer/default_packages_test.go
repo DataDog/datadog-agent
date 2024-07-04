@@ -181,6 +181,26 @@ func TestDefaultPackages(t *testing.T) {
 				{n: "datadog-apm-library-ruby", v: "latest"},
 			},
 		},
+		{
+			name: "Strip leading v in version",
+			packages: []Package{
+				{Name: "datadog-apm-library-java", released: false, condition: apmLanguageEnabled},
+			},
+			env: &env.Env{
+				ApmLibraries: map[env.ApmLibLanguage]env.ApmLibVersion{
+					"java": "v1.2",
+				},
+				InstallScript: env.InstallScriptEnv{
+					APMInstrumentationEnabled: "all",
+				},
+				DefaultPackagesInstallOverride: map[string]bool{
+					"datadog-apm-library-java": true,
+				},
+			},
+			expected: []pkg{
+				{n: "datadog-apm-library-java", v: "1.2-1"},
+			},
+		},
 	}
 
 	for _, tt := range tests {

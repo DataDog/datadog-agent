@@ -57,7 +57,8 @@ func (v ApmLibVersion) AsVersionTag() string {
 	if v == "" {
 		return "latest"
 	}
-	return string(v) + "-1"
+	versionTag, _ := strings.CutPrefix(string(v), "v")
+	return versionTag + "-1"
 }
 
 // Env contains the configuration for the installer.
