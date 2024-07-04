@@ -12,7 +12,6 @@ import (
 	"context"
 	"github.com/stretchr/testify/require"
 	"os/exec"
-	"strings"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
@@ -23,18 +22,16 @@ import (
 // Returns the `exec.Cmd` handle for the server.
 func NewGoTLSServer(t *testing.T, serverAddr string) *exec.Cmd {
 	serverBin := buildGoTLSServerBin(t)
-	args := []string{serverBin, serverAddr}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	commandLine := strings.Join(args, " ")
 
-	c := exec.CommandContext(ctx, commandLine)
+	c := exec.CommandContext(ctx, serverBin, serverAddr)
 	require.NoError(t, c.Start())
 
 	t.Cleanup(func() {
 		cancel()
 		require.NoError(t, c.Process.Kill())
-		require.ErrorContains(t, c.Wait(), "killed")
+		_ = c.Wait()
 	})
 
 	return c

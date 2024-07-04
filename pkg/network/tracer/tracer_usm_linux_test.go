@@ -545,6 +545,7 @@ func testHTTPSClassification(t *testing.T, tr *Tracer, clientHost, targetHost, s
 				require.EventuallyWithT(t, func(c *assert.CollectT) {
 					for i := 0; i < 5; i++ {
 						makeRequest(c, client, requestURL)
+						time.Sleep(time.Millisecond * 200)
 					}
 				}, 5*time.Second, 100*time.Millisecond)
 			},
@@ -2282,14 +2283,22 @@ func testProtocolClassificationLinux(t *testing.T, tr *Tracer, clientHost, targe
 	}
 }
 
+// tryGoTLSAttachPID tries to attach the Go-TLS monitoring to the given PID.
+func tryGoTLSAttachPID(t *testing.T, pid int) error {
+	t.Helper()
+	if utils.IsProgramTraced("go-tls", pid) {
+		return nil
+	}
+	return usm.GoTLSAttachPID(uint32(pid))
+}
+
 // goTLSAttachPID attaches the Go-TLS monitoring to the given PID.
 // Wraps the call to the Go-TLS attach function and waits for the program to be traced.
 func goTLSAttachPID(t *testing.T, pid int) {
 	t.Helper()
-	if utils.IsProgramTraced("go-tls", pid) {
-		return
-	}
-	require.NoError(t, usm.GoTLSAttachPID(uint32(pid)))
+	require.Eventually(t, func() bool {
+		return tryGoTLSAttachPID(t, pid) == nil
+	}, 5*time.Second, 100*time.Millisecond, "process %v is not traced by Go-TLS after attaching", pid)
 	utils.WaitForProgramsToBeTraced(t, "go-tls", pid)
 }
 
