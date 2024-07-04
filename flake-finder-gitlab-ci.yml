@@ -1,0 +1,3188 @@
+e2e_pre_test-0:
+  after_script:
+  - $CI_PROJECT_DIR/tools/ci/junit_upload.sh
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+    - $E2E_OUTPUT_DIR
+    - junit-*.tgz
+    reports:
+      annotations:
+      - $EXTERNAL_LINKS_PATH
+    when: always
+  before_script:
+  - mkdir -p ~/.aws
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $AGENT_QA_PROFILE_SSM_NAME >>
+    ~/.aws/config
+  - export AWS_PROFILE=agent-qa-ci
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SSH_PUBLIC_KEY_RSA_SSM_NAME >
+    $E2E_PUBLIC_KEY_PATH
+  - touch $E2E_PRIVATE_KEY_PATH && chmod 600 $E2E_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh
+    $SSH_KEY_RSA_SSM_NAME > $E2E_PRIVATE_KEY_PATH
+  - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
+  - inv -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
+  dependencies: []
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
+  rules:
+  - when: always
+  script:
+  - inv -e new-e2e-tests.run --targets ./test-infra-definition --junit-tar junit-${CI_JOB_ID}.tgz
+    ${EXTRA_PARAMS}
+  stage: flake-finder-0
+  tags:
+  - arch:amd64
+  variables:
+    E2E_COMMIT_SHA: $CI_COMMIT_SHORT_SHA
+    E2E_KEY_PAIR_NAME: datadog-agent-ci-rsa
+    E2E_OUTPUT_DIR: $CI_PROJECT_DIR/e2e-output
+    E2E_PIPELINE_ID: ''
+    E2E_PRIVATE_KEY_PATH: /tmp/agent-qa-ssh-key
+    E2E_PUBLIC_KEY_PATH: /tmp/agent-qa-ssh-key.pub
+    EXTERNAL_LINKS_PATH: external_links_$CI_JOB_ID.json
+    KUBERNETES_CPU_REQUEST: 6
+    KUBERNETES_MEMORY_LIMIT: 16Gi
+    KUBERNETES_MEMORY_REQUEST: 12Gi
+    SHOULD_RUN_IN_FLAKES_FINDER: 'true'
+    TEAM: agent-devx-loops
+e2e_pre_test-1:
+  after_script:
+  - $CI_PROJECT_DIR/tools/ci/junit_upload.sh
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+    - $E2E_OUTPUT_DIR
+    - junit-*.tgz
+    reports:
+      annotations:
+      - $EXTERNAL_LINKS_PATH
+    when: always
+  before_script:
+  - mkdir -p ~/.aws
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $AGENT_QA_PROFILE_SSM_NAME >>
+    ~/.aws/config
+  - export AWS_PROFILE=agent-qa-ci
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SSH_PUBLIC_KEY_RSA_SSM_NAME >
+    $E2E_PUBLIC_KEY_PATH
+  - touch $E2E_PRIVATE_KEY_PATH && chmod 600 $E2E_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh
+    $SSH_KEY_RSA_SSM_NAME > $E2E_PRIVATE_KEY_PATH
+  - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
+  - inv -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
+  dependencies: []
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
+  rules:
+  - when: always
+  script:
+  - inv -e new-e2e-tests.run --targets ./test-infra-definition --junit-tar junit-${CI_JOB_ID}.tgz
+    ${EXTRA_PARAMS}
+  stage: flake-finder-1
+  tags:
+  - arch:amd64
+  variables:
+    E2E_COMMIT_SHA: $CI_COMMIT_SHORT_SHA
+    E2E_KEY_PAIR_NAME: datadog-agent-ci-rsa
+    E2E_OUTPUT_DIR: $CI_PROJECT_DIR/e2e-output
+    E2E_PIPELINE_ID: ''
+    E2E_PRIVATE_KEY_PATH: /tmp/agent-qa-ssh-key
+    E2E_PUBLIC_KEY_PATH: /tmp/agent-qa-ssh-key.pub
+    EXTERNAL_LINKS_PATH: external_links_$CI_JOB_ID.json
+    KUBERNETES_CPU_REQUEST: 6
+    KUBERNETES_MEMORY_LIMIT: 16Gi
+    KUBERNETES_MEMORY_REQUEST: 12Gi
+    SHOULD_RUN_IN_FLAKES_FINDER: 'true'
+    TEAM: agent-devx-loops
+e2e_pre_test-2:
+  after_script:
+  - $CI_PROJECT_DIR/tools/ci/junit_upload.sh
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+    - $E2E_OUTPUT_DIR
+    - junit-*.tgz
+    reports:
+      annotations:
+      - $EXTERNAL_LINKS_PATH
+    when: always
+  before_script:
+  - mkdir -p ~/.aws
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $AGENT_QA_PROFILE_SSM_NAME >>
+    ~/.aws/config
+  - export AWS_PROFILE=agent-qa-ci
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SSH_PUBLIC_KEY_RSA_SSM_NAME >
+    $E2E_PUBLIC_KEY_PATH
+  - touch $E2E_PRIVATE_KEY_PATH && chmod 600 $E2E_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh
+    $SSH_KEY_RSA_SSM_NAME > $E2E_PRIVATE_KEY_PATH
+  - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
+  - inv -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
+  dependencies: []
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
+  rules:
+  - when: always
+  script:
+  - inv -e new-e2e-tests.run --targets ./test-infra-definition --junit-tar junit-${CI_JOB_ID}.tgz
+    ${EXTRA_PARAMS}
+  stage: flake-finder-2
+  tags:
+  - arch:amd64
+  variables:
+    E2E_COMMIT_SHA: $CI_COMMIT_SHORT_SHA
+    E2E_KEY_PAIR_NAME: datadog-agent-ci-rsa
+    E2E_OUTPUT_DIR: $CI_PROJECT_DIR/e2e-output
+    E2E_PIPELINE_ID: ''
+    E2E_PRIVATE_KEY_PATH: /tmp/agent-qa-ssh-key
+    E2E_PUBLIC_KEY_PATH: /tmp/agent-qa-ssh-key.pub
+    EXTERNAL_LINKS_PATH: external_links_$CI_JOB_ID.json
+    KUBERNETES_CPU_REQUEST: 6
+    KUBERNETES_MEMORY_LIMIT: 16Gi
+    KUBERNETES_MEMORY_REQUEST: 12Gi
+    SHOULD_RUN_IN_FLAKES_FINDER: 'true'
+    TEAM: agent-devx-loops
+new-e2e-agent-platform-package-signing-amazonlinux-a6-x86_64-0:
+  after_script:
+  - $CI_PROJECT_DIR/tools/ci/junit_upload.sh
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+    - $E2E_OUTPUT_DIR
+    - junit-*.tgz
+    reports:
+      annotations:
+      - $EXTERNAL_LINKS_PATH
+    when: always
+  before_script:
+  - mkdir -p ~/.aws
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $AGENT_QA_PROFILE_SSM_NAME >>
+    ~/.aws/config
+  - export AWS_PROFILE=agent-qa-ci
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SSH_PUBLIC_KEY_RSA_SSM_NAME >
+    $E2E_PUBLIC_KEY_PATH
+  - touch $E2E_PRIVATE_KEY_PATH && chmod 600 $E2E_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh
+    $SSH_KEY_RSA_SSM_NAME > $E2E_PRIVATE_KEY_PATH
+  - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
+  - inv -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
+  dependencies: []
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
+  rules:
+  - when: always
+  script:
+  - inv -e new-e2e-tests.run --targets $TARGETS -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com
+    -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password)
+    --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS} --test-washer
+  stage: flake-finder-0
+  tags:
+  - arch:amd64
+  variables:
+    E2E_ARCH: x86_64
+    E2E_BRANCH_OSVERS: amazonlinux2023
+    E2E_COMMIT_SHA: $CI_COMMIT_SHORT_SHA
+    E2E_CWS_SUPPORTED_OSVERS: amazonlinux2-5-10,amazonlinux2022-5-15,amazonlinux2023
+    E2E_KEY_PAIR_NAME: datadog-agent-ci-rsa
+    E2E_OSVERS: amazonlinux2-5-10,amazonlinux2022-5-15,amazonlinux2023
+    E2E_OUTPUT_DIR: $CI_PROJECT_DIR/e2e-output
+    E2E_PIPELINE_ID: $PARENT_PIPELINE_ID
+    E2E_PRIVATE_KEY_PATH: /tmp/agent-qa-ssh-key
+    E2E_PUBLIC_KEY_PATH: /tmp/agent-qa-ssh-key.pub
+    EXTERNAL_LINKS_PATH: external_links_$CI_JOB_ID.json
+    EXTRA_PARAMS: --osversion $E2E_BRANCH_OSVERS
+    KUBERNETES_CPU_REQUEST: 6
+    KUBERNETES_MEMORY_LIMIT: 16Gi
+    KUBERNETES_MEMORY_REQUEST: 12Gi
+    SHOULD_RUN_IN_FLAKES_FINDER: 'true'
+    TARGETS: ./tests/agent-platform/package-signing
+    TEAM: agent-delivery
+new-e2e-agent-platform-package-signing-amazonlinux-a6-x86_64-1:
+  after_script:
+  - $CI_PROJECT_DIR/tools/ci/junit_upload.sh
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+    - $E2E_OUTPUT_DIR
+    - junit-*.tgz
+    reports:
+      annotations:
+      - $EXTERNAL_LINKS_PATH
+    when: always
+  before_script:
+  - mkdir -p ~/.aws
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $AGENT_QA_PROFILE_SSM_NAME >>
+    ~/.aws/config
+  - export AWS_PROFILE=agent-qa-ci
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SSH_PUBLIC_KEY_RSA_SSM_NAME >
+    $E2E_PUBLIC_KEY_PATH
+  - touch $E2E_PRIVATE_KEY_PATH && chmod 600 $E2E_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh
+    $SSH_KEY_RSA_SSM_NAME > $E2E_PRIVATE_KEY_PATH
+  - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
+  - inv -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
+  dependencies: []
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
+  rules:
+  - when: always
+  script:
+  - inv -e new-e2e-tests.run --targets $TARGETS -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com
+    -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password)
+    --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS} --test-washer
+  stage: flake-finder-1
+  tags:
+  - arch:amd64
+  variables:
+    E2E_ARCH: x86_64
+    E2E_BRANCH_OSVERS: amazonlinux2023
+    E2E_COMMIT_SHA: $CI_COMMIT_SHORT_SHA
+    E2E_CWS_SUPPORTED_OSVERS: amazonlinux2-5-10,amazonlinux2022-5-15,amazonlinux2023
+    E2E_KEY_PAIR_NAME: datadog-agent-ci-rsa
+    E2E_OSVERS: amazonlinux2-5-10,amazonlinux2022-5-15,amazonlinux2023
+    E2E_OUTPUT_DIR: $CI_PROJECT_DIR/e2e-output
+    E2E_PIPELINE_ID: $PARENT_PIPELINE_ID
+    E2E_PRIVATE_KEY_PATH: /tmp/agent-qa-ssh-key
+    E2E_PUBLIC_KEY_PATH: /tmp/agent-qa-ssh-key.pub
+    EXTERNAL_LINKS_PATH: external_links_$CI_JOB_ID.json
+    EXTRA_PARAMS: --osversion $E2E_BRANCH_OSVERS
+    KUBERNETES_CPU_REQUEST: 6
+    KUBERNETES_MEMORY_LIMIT: 16Gi
+    KUBERNETES_MEMORY_REQUEST: 12Gi
+    SHOULD_RUN_IN_FLAKES_FINDER: 'true'
+    TARGETS: ./tests/agent-platform/package-signing
+    TEAM: agent-delivery
+new-e2e-agent-platform-package-signing-amazonlinux-a6-x86_64-2:
+  after_script:
+  - $CI_PROJECT_DIR/tools/ci/junit_upload.sh
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+    - $E2E_OUTPUT_DIR
+    - junit-*.tgz
+    reports:
+      annotations:
+      - $EXTERNAL_LINKS_PATH
+    when: always
+  before_script:
+  - mkdir -p ~/.aws
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $AGENT_QA_PROFILE_SSM_NAME >>
+    ~/.aws/config
+  - export AWS_PROFILE=agent-qa-ci
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SSH_PUBLIC_KEY_RSA_SSM_NAME >
+    $E2E_PUBLIC_KEY_PATH
+  - touch $E2E_PRIVATE_KEY_PATH && chmod 600 $E2E_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh
+    $SSH_KEY_RSA_SSM_NAME > $E2E_PRIVATE_KEY_PATH
+  - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
+  - inv -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
+  dependencies: []
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
+  rules:
+  - when: always
+  script:
+  - inv -e new-e2e-tests.run --targets $TARGETS -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com
+    -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password)
+    --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS} --test-washer
+  stage: flake-finder-2
+  tags:
+  - arch:amd64
+  variables:
+    E2E_ARCH: x86_64
+    E2E_BRANCH_OSVERS: amazonlinux2023
+    E2E_COMMIT_SHA: $CI_COMMIT_SHORT_SHA
+    E2E_CWS_SUPPORTED_OSVERS: amazonlinux2-5-10,amazonlinux2022-5-15,amazonlinux2023
+    E2E_KEY_PAIR_NAME: datadog-agent-ci-rsa
+    E2E_OSVERS: amazonlinux2-5-10,amazonlinux2022-5-15,amazonlinux2023
+    E2E_OUTPUT_DIR: $CI_PROJECT_DIR/e2e-output
+    E2E_PIPELINE_ID: $PARENT_PIPELINE_ID
+    E2E_PRIVATE_KEY_PATH: /tmp/agent-qa-ssh-key
+    E2E_PUBLIC_KEY_PATH: /tmp/agent-qa-ssh-key.pub
+    EXTERNAL_LINKS_PATH: external_links_$CI_JOB_ID.json
+    EXTRA_PARAMS: --osversion $E2E_BRANCH_OSVERS
+    KUBERNETES_CPU_REQUEST: 6
+    KUBERNETES_MEMORY_LIMIT: 16Gi
+    KUBERNETES_MEMORY_REQUEST: 12Gi
+    SHOULD_RUN_IN_FLAKES_FINDER: 'true'
+    TARGETS: ./tests/agent-platform/package-signing
+    TEAM: agent-delivery
+new-e2e-agent-platform-package-signing-debian-a7-x86_64-0:
+  after_script:
+  - $CI_PROJECT_DIR/tools/ci/junit_upload.sh
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+    - $E2E_OUTPUT_DIR
+    - junit-*.tgz
+    reports:
+      annotations:
+      - $EXTERNAL_LINKS_PATH
+    when: always
+  before_script:
+  - mkdir -p ~/.aws
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $AGENT_QA_PROFILE_SSM_NAME >>
+    ~/.aws/config
+  - export AWS_PROFILE=agent-qa-ci
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SSH_PUBLIC_KEY_RSA_SSM_NAME >
+    $E2E_PUBLIC_KEY_PATH
+  - touch $E2E_PRIVATE_KEY_PATH && chmod 600 $E2E_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh
+    $SSH_KEY_RSA_SSM_NAME > $E2E_PRIVATE_KEY_PATH
+  - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
+  - inv -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
+  dependencies: []
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
+  rules:
+  - when: always
+  script:
+  - inv -e new-e2e-tests.run --targets $TARGETS -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com
+    -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password)
+    --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS} --test-washer
+  stage: flake-finder-0
+  tags:
+  - arch:amd64
+  variables:
+    E2E_ARCH: x86_64
+    E2E_BRANCH_OSVERS: debian-11
+    E2E_COMMIT_SHA: $CI_COMMIT_SHORT_SHA
+    E2E_CWS_SUPPORTED_OSVERS: debian-10,debian-11
+    E2E_KEY_PAIR_NAME: datadog-agent-ci-rsa
+    E2E_OSVERS: debian-9,debian-10,debian-11,debian-12
+    E2E_OUTPUT_DIR: $CI_PROJECT_DIR/e2e-output
+    E2E_PIPELINE_ID: $PARENT_PIPELINE_ID
+    E2E_PRIVATE_KEY_PATH: /tmp/agent-qa-ssh-key
+    E2E_PUBLIC_KEY_PATH: /tmp/agent-qa-ssh-key.pub
+    EXTERNAL_LINKS_PATH: external_links_$CI_JOB_ID.json
+    EXTRA_PARAMS: --osversion $E2E_BRANCH_OSVERS
+    KUBERNETES_CPU_REQUEST: 6
+    KUBERNETES_MEMORY_LIMIT: 16Gi
+    KUBERNETES_MEMORY_REQUEST: 12Gi
+    SHOULD_RUN_IN_FLAKES_FINDER: 'true'
+    TARGETS: ./tests/agent-platform/package-signing
+    TEAM: agent-delivery
+new-e2e-agent-platform-package-signing-debian-a7-x86_64-1:
+  after_script:
+  - $CI_PROJECT_DIR/tools/ci/junit_upload.sh
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+    - $E2E_OUTPUT_DIR
+    - junit-*.tgz
+    reports:
+      annotations:
+      - $EXTERNAL_LINKS_PATH
+    when: always
+  before_script:
+  - mkdir -p ~/.aws
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $AGENT_QA_PROFILE_SSM_NAME >>
+    ~/.aws/config
+  - export AWS_PROFILE=agent-qa-ci
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SSH_PUBLIC_KEY_RSA_SSM_NAME >
+    $E2E_PUBLIC_KEY_PATH
+  - touch $E2E_PRIVATE_KEY_PATH && chmod 600 $E2E_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh
+    $SSH_KEY_RSA_SSM_NAME > $E2E_PRIVATE_KEY_PATH
+  - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
+  - inv -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
+  dependencies: []
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
+  rules:
+  - when: always
+  script:
+  - inv -e new-e2e-tests.run --targets $TARGETS -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com
+    -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password)
+    --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS} --test-washer
+  stage: flake-finder-1
+  tags:
+  - arch:amd64
+  variables:
+    E2E_ARCH: x86_64
+    E2E_BRANCH_OSVERS: debian-11
+    E2E_COMMIT_SHA: $CI_COMMIT_SHORT_SHA
+    E2E_CWS_SUPPORTED_OSVERS: debian-10,debian-11
+    E2E_KEY_PAIR_NAME: datadog-agent-ci-rsa
+    E2E_OSVERS: debian-9,debian-10,debian-11,debian-12
+    E2E_OUTPUT_DIR: $CI_PROJECT_DIR/e2e-output
+    E2E_PIPELINE_ID: $PARENT_PIPELINE_ID
+    E2E_PRIVATE_KEY_PATH: /tmp/agent-qa-ssh-key
+    E2E_PUBLIC_KEY_PATH: /tmp/agent-qa-ssh-key.pub
+    EXTERNAL_LINKS_PATH: external_links_$CI_JOB_ID.json
+    EXTRA_PARAMS: --osversion $E2E_BRANCH_OSVERS
+    KUBERNETES_CPU_REQUEST: 6
+    KUBERNETES_MEMORY_LIMIT: 16Gi
+    KUBERNETES_MEMORY_REQUEST: 12Gi
+    SHOULD_RUN_IN_FLAKES_FINDER: 'true'
+    TARGETS: ./tests/agent-platform/package-signing
+    TEAM: agent-delivery
+new-e2e-agent-platform-package-signing-debian-a7-x86_64-2:
+  after_script:
+  - $CI_PROJECT_DIR/tools/ci/junit_upload.sh
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+    - $E2E_OUTPUT_DIR
+    - junit-*.tgz
+    reports:
+      annotations:
+      - $EXTERNAL_LINKS_PATH
+    when: always
+  before_script:
+  - mkdir -p ~/.aws
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $AGENT_QA_PROFILE_SSM_NAME >>
+    ~/.aws/config
+  - export AWS_PROFILE=agent-qa-ci
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SSH_PUBLIC_KEY_RSA_SSM_NAME >
+    $E2E_PUBLIC_KEY_PATH
+  - touch $E2E_PRIVATE_KEY_PATH && chmod 600 $E2E_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh
+    $SSH_KEY_RSA_SSM_NAME > $E2E_PRIVATE_KEY_PATH
+  - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
+  - inv -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
+  dependencies: []
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
+  rules:
+  - when: always
+  script:
+  - inv -e new-e2e-tests.run --targets $TARGETS -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com
+    -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password)
+    --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS} --test-washer
+  stage: flake-finder-2
+  tags:
+  - arch:amd64
+  variables:
+    E2E_ARCH: x86_64
+    E2E_BRANCH_OSVERS: debian-11
+    E2E_COMMIT_SHA: $CI_COMMIT_SHORT_SHA
+    E2E_CWS_SUPPORTED_OSVERS: debian-10,debian-11
+    E2E_KEY_PAIR_NAME: datadog-agent-ci-rsa
+    E2E_OSVERS: debian-9,debian-10,debian-11,debian-12
+    E2E_OUTPUT_DIR: $CI_PROJECT_DIR/e2e-output
+    E2E_PIPELINE_ID: $PARENT_PIPELINE_ID
+    E2E_PRIVATE_KEY_PATH: /tmp/agent-qa-ssh-key
+    E2E_PUBLIC_KEY_PATH: /tmp/agent-qa-ssh-key.pub
+    EXTERNAL_LINKS_PATH: external_links_$CI_JOB_ID.json
+    EXTRA_PARAMS: --osversion $E2E_BRANCH_OSVERS
+    KUBERNETES_CPU_REQUEST: 6
+    KUBERNETES_MEMORY_LIMIT: 16Gi
+    KUBERNETES_MEMORY_REQUEST: 12Gi
+    SHOULD_RUN_IN_FLAKES_FINDER: 'true'
+    TARGETS: ./tests/agent-platform/package-signing
+    TEAM: agent-delivery
+new-e2e-agent-platform-package-signing-suse-a7-x86_64-0:
+  after_script:
+  - $CI_PROJECT_DIR/tools/ci/junit_upload.sh
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+    - $E2E_OUTPUT_DIR
+    - junit-*.tgz
+    reports:
+      annotations:
+      - $EXTERNAL_LINKS_PATH
+    when: always
+  before_script:
+  - mkdir -p ~/.aws
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $AGENT_QA_PROFILE_SSM_NAME >>
+    ~/.aws/config
+  - export AWS_PROFILE=agent-qa-ci
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SSH_PUBLIC_KEY_RSA_SSM_NAME >
+    $E2E_PUBLIC_KEY_PATH
+  - touch $E2E_PRIVATE_KEY_PATH && chmod 600 $E2E_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh
+    $SSH_KEY_RSA_SSM_NAME > $E2E_PRIVATE_KEY_PATH
+  - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
+  - inv -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
+  dependencies: []
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
+  rules:
+  - when: always
+  script:
+  - inv -e new-e2e-tests.run --targets $TARGETS -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com
+    -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password)
+    --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS} --test-washer
+  stage: flake-finder-0
+  tags:
+  - arch:amd64
+  variables:
+    E2E_ARCH: x86_64
+    E2E_BRANCH_OSVERS: sles-15
+    E2E_COMMIT_SHA: $CI_COMMIT_SHORT_SHA
+    E2E_CWS_SUPPORTED_OSVERS: sles-12,sles-15
+    E2E_KEY_PAIR_NAME: datadog-agent-ci-rsa
+    E2E_OSVERS: sles-12,sles-15
+    E2E_OUTPUT_DIR: $CI_PROJECT_DIR/e2e-output
+    E2E_PIPELINE_ID: $PARENT_PIPELINE_ID
+    E2E_PRIVATE_KEY_PATH: /tmp/agent-qa-ssh-key
+    E2E_PUBLIC_KEY_PATH: /tmp/agent-qa-ssh-key.pub
+    EXTERNAL_LINKS_PATH: external_links_$CI_JOB_ID.json
+    EXTRA_PARAMS: --osversion $E2E_BRANCH_OSVERS
+    KUBERNETES_CPU_REQUEST: 6
+    KUBERNETES_MEMORY_LIMIT: 16Gi
+    KUBERNETES_MEMORY_REQUEST: 12Gi
+    SHOULD_RUN_IN_FLAKES_FINDER: 'true'
+    TARGETS: ./tests/agent-platform/package-signing
+    TEAM: agent-delivery
+new-e2e-agent-platform-package-signing-suse-a7-x86_64-1:
+  after_script:
+  - $CI_PROJECT_DIR/tools/ci/junit_upload.sh
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+    - $E2E_OUTPUT_DIR
+    - junit-*.tgz
+    reports:
+      annotations:
+      - $EXTERNAL_LINKS_PATH
+    when: always
+  before_script:
+  - mkdir -p ~/.aws
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $AGENT_QA_PROFILE_SSM_NAME >>
+    ~/.aws/config
+  - export AWS_PROFILE=agent-qa-ci
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SSH_PUBLIC_KEY_RSA_SSM_NAME >
+    $E2E_PUBLIC_KEY_PATH
+  - touch $E2E_PRIVATE_KEY_PATH && chmod 600 $E2E_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh
+    $SSH_KEY_RSA_SSM_NAME > $E2E_PRIVATE_KEY_PATH
+  - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
+  - inv -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
+  dependencies: []
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
+  rules:
+  - when: always
+  script:
+  - inv -e new-e2e-tests.run --targets $TARGETS -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com
+    -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password)
+    --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS} --test-washer
+  stage: flake-finder-1
+  tags:
+  - arch:amd64
+  variables:
+    E2E_ARCH: x86_64
+    E2E_BRANCH_OSVERS: sles-15
+    E2E_COMMIT_SHA: $CI_COMMIT_SHORT_SHA
+    E2E_CWS_SUPPORTED_OSVERS: sles-12,sles-15
+    E2E_KEY_PAIR_NAME: datadog-agent-ci-rsa
+    E2E_OSVERS: sles-12,sles-15
+    E2E_OUTPUT_DIR: $CI_PROJECT_DIR/e2e-output
+    E2E_PIPELINE_ID: $PARENT_PIPELINE_ID
+    E2E_PRIVATE_KEY_PATH: /tmp/agent-qa-ssh-key
+    E2E_PUBLIC_KEY_PATH: /tmp/agent-qa-ssh-key.pub
+    EXTERNAL_LINKS_PATH: external_links_$CI_JOB_ID.json
+    EXTRA_PARAMS: --osversion $E2E_BRANCH_OSVERS
+    KUBERNETES_CPU_REQUEST: 6
+    KUBERNETES_MEMORY_LIMIT: 16Gi
+    KUBERNETES_MEMORY_REQUEST: 12Gi
+    SHOULD_RUN_IN_FLAKES_FINDER: 'true'
+    TARGETS: ./tests/agent-platform/package-signing
+    TEAM: agent-delivery
+new-e2e-agent-platform-package-signing-suse-a7-x86_64-2:
+  after_script:
+  - $CI_PROJECT_DIR/tools/ci/junit_upload.sh
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+    - $E2E_OUTPUT_DIR
+    - junit-*.tgz
+    reports:
+      annotations:
+      - $EXTERNAL_LINKS_PATH
+    when: always
+  before_script:
+  - mkdir -p ~/.aws
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $AGENT_QA_PROFILE_SSM_NAME >>
+    ~/.aws/config
+  - export AWS_PROFILE=agent-qa-ci
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SSH_PUBLIC_KEY_RSA_SSM_NAME >
+    $E2E_PUBLIC_KEY_PATH
+  - touch $E2E_PRIVATE_KEY_PATH && chmod 600 $E2E_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh
+    $SSH_KEY_RSA_SSM_NAME > $E2E_PRIVATE_KEY_PATH
+  - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
+  - inv -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
+  dependencies: []
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
+  rules:
+  - when: always
+  script:
+  - inv -e new-e2e-tests.run --targets $TARGETS -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com
+    -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password)
+    --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS} --test-washer
+  stage: flake-finder-2
+  tags:
+  - arch:amd64
+  variables:
+    E2E_ARCH: x86_64
+    E2E_BRANCH_OSVERS: sles-15
+    E2E_COMMIT_SHA: $CI_COMMIT_SHORT_SHA
+    E2E_CWS_SUPPORTED_OSVERS: sles-12,sles-15
+    E2E_KEY_PAIR_NAME: datadog-agent-ci-rsa
+    E2E_OSVERS: sles-12,sles-15
+    E2E_OUTPUT_DIR: $CI_PROJECT_DIR/e2e-output
+    E2E_PIPELINE_ID: $PARENT_PIPELINE_ID
+    E2E_PRIVATE_KEY_PATH: /tmp/agent-qa-ssh-key
+    E2E_PUBLIC_KEY_PATH: /tmp/agent-qa-ssh-key.pub
+    EXTERNAL_LINKS_PATH: external_links_$CI_JOB_ID.json
+    EXTRA_PARAMS: --osversion $E2E_BRANCH_OSVERS
+    KUBERNETES_CPU_REQUEST: 6
+    KUBERNETES_MEMORY_LIMIT: 16Gi
+    KUBERNETES_MEMORY_REQUEST: 12Gi
+    SHOULD_RUN_IN_FLAKES_FINDER: 'true'
+    TARGETS: ./tests/agent-platform/package-signing
+    TEAM: agent-delivery
+new-e2e-agent-shared-components-0:
+  after_script:
+  - $CI_PROJECT_DIR/tools/ci/junit_upload.sh
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+    - $E2E_OUTPUT_DIR
+    - junit-*.tgz
+    reports:
+      annotations:
+      - $EXTERNAL_LINKS_PATH
+    when: always
+  before_script:
+  - mkdir -p ~/.aws
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $AGENT_QA_PROFILE_SSM_NAME >>
+    ~/.aws/config
+  - export AWS_PROFILE=agent-qa-ci
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SSH_PUBLIC_KEY_RSA_SSM_NAME >
+    $E2E_PUBLIC_KEY_PATH
+  - touch $E2E_PRIVATE_KEY_PATH && chmod 600 $E2E_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh
+    $SSH_KEY_RSA_SSM_NAME > $E2E_PRIVATE_KEY_PATH
+  - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
+  - inv -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
+  dependencies: []
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
+  rules:
+  - when: always
+  script:
+  - inv -e new-e2e-tests.run --targets $TARGETS -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com
+    -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password)
+    --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS} --test-washer
+  stage: flake-finder-0
+  tags:
+  - arch:amd64
+  variables:
+    E2E_COMMIT_SHA: $CI_COMMIT_SHORT_SHA
+    E2E_KEY_PAIR_NAME: datadog-agent-ci-rsa
+    E2E_OUTPUT_DIR: $CI_PROJECT_DIR/e2e-output
+    E2E_PIPELINE_ID: $PARENT_PIPELINE_ID
+    E2E_PRIVATE_KEY_PATH: /tmp/agent-qa-ssh-key
+    E2E_PUBLIC_KEY_PATH: /tmp/agent-qa-ssh-key.pub
+    EXTERNAL_LINKS_PATH: external_links_$CI_JOB_ID.json
+    KUBERNETES_CPU_REQUEST: 6
+    KUBERNETES_MEMORY_LIMIT: 16Gi
+    KUBERNETES_MEMORY_REQUEST: 12Gi
+    SHOULD_RUN_IN_FLAKES_FINDER: 'true'
+    TARGETS: ./tests/agent-shared-components
+    TEAM: agent-shared-components
+new-e2e-agent-shared-components-1:
+  after_script:
+  - $CI_PROJECT_DIR/tools/ci/junit_upload.sh
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+    - $E2E_OUTPUT_DIR
+    - junit-*.tgz
+    reports:
+      annotations:
+      - $EXTERNAL_LINKS_PATH
+    when: always
+  before_script:
+  - mkdir -p ~/.aws
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $AGENT_QA_PROFILE_SSM_NAME >>
+    ~/.aws/config
+  - export AWS_PROFILE=agent-qa-ci
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SSH_PUBLIC_KEY_RSA_SSM_NAME >
+    $E2E_PUBLIC_KEY_PATH
+  - touch $E2E_PRIVATE_KEY_PATH && chmod 600 $E2E_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh
+    $SSH_KEY_RSA_SSM_NAME > $E2E_PRIVATE_KEY_PATH
+  - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
+  - inv -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
+  dependencies: []
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
+  rules:
+  - when: always
+  script:
+  - inv -e new-e2e-tests.run --targets $TARGETS -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com
+    -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password)
+    --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS} --test-washer
+  stage: flake-finder-1
+  tags:
+  - arch:amd64
+  variables:
+    E2E_COMMIT_SHA: $CI_COMMIT_SHORT_SHA
+    E2E_KEY_PAIR_NAME: datadog-agent-ci-rsa
+    E2E_OUTPUT_DIR: $CI_PROJECT_DIR/e2e-output
+    E2E_PIPELINE_ID: $PARENT_PIPELINE_ID
+    E2E_PRIVATE_KEY_PATH: /tmp/agent-qa-ssh-key
+    E2E_PUBLIC_KEY_PATH: /tmp/agent-qa-ssh-key.pub
+    EXTERNAL_LINKS_PATH: external_links_$CI_JOB_ID.json
+    KUBERNETES_CPU_REQUEST: 6
+    KUBERNETES_MEMORY_LIMIT: 16Gi
+    KUBERNETES_MEMORY_REQUEST: 12Gi
+    SHOULD_RUN_IN_FLAKES_FINDER: 'true'
+    TARGETS: ./tests/agent-shared-components
+    TEAM: agent-shared-components
+new-e2e-agent-shared-components-2:
+  after_script:
+  - $CI_PROJECT_DIR/tools/ci/junit_upload.sh
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+    - $E2E_OUTPUT_DIR
+    - junit-*.tgz
+    reports:
+      annotations:
+      - $EXTERNAL_LINKS_PATH
+    when: always
+  before_script:
+  - mkdir -p ~/.aws
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $AGENT_QA_PROFILE_SSM_NAME >>
+    ~/.aws/config
+  - export AWS_PROFILE=agent-qa-ci
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SSH_PUBLIC_KEY_RSA_SSM_NAME >
+    $E2E_PUBLIC_KEY_PATH
+  - touch $E2E_PRIVATE_KEY_PATH && chmod 600 $E2E_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh
+    $SSH_KEY_RSA_SSM_NAME > $E2E_PRIVATE_KEY_PATH
+  - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
+  - inv -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
+  dependencies: []
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
+  rules:
+  - when: always
+  script:
+  - inv -e new-e2e-tests.run --targets $TARGETS -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com
+    -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password)
+    --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS} --test-washer
+  stage: flake-finder-2
+  tags:
+  - arch:amd64
+  variables:
+    E2E_COMMIT_SHA: $CI_COMMIT_SHORT_SHA
+    E2E_KEY_PAIR_NAME: datadog-agent-ci-rsa
+    E2E_OUTPUT_DIR: $CI_PROJECT_DIR/e2e-output
+    E2E_PIPELINE_ID: $PARENT_PIPELINE_ID
+    E2E_PRIVATE_KEY_PATH: /tmp/agent-qa-ssh-key
+    E2E_PUBLIC_KEY_PATH: /tmp/agent-qa-ssh-key.pub
+    EXTERNAL_LINKS_PATH: external_links_$CI_JOB_ID.json
+    KUBERNETES_CPU_REQUEST: 6
+    KUBERNETES_MEMORY_LIMIT: 16Gi
+    KUBERNETES_MEMORY_REQUEST: 12Gi
+    SHOULD_RUN_IN_FLAKES_FINDER: 'true'
+    TARGETS: ./tests/agent-shared-components
+    TEAM: agent-shared-components
+new-e2e-agent-subcommands-0:
+  after_script:
+  - $CI_PROJECT_DIR/tools/ci/junit_upload.sh
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+    - $E2E_OUTPUT_DIR
+    - junit-*.tgz
+    reports:
+      annotations:
+      - $EXTERNAL_LINKS_PATH
+    when: always
+  before_script:
+  - mkdir -p ~/.aws
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $AGENT_QA_PROFILE_SSM_NAME >>
+    ~/.aws/config
+  - export AWS_PROFILE=agent-qa-ci
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SSH_PUBLIC_KEY_RSA_SSM_NAME >
+    $E2E_PUBLIC_KEY_PATH
+  - touch $E2E_PRIVATE_KEY_PATH && chmod 600 $E2E_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh
+    $SSH_KEY_RSA_SSM_NAME > $E2E_PRIVATE_KEY_PATH
+  - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
+  - inv -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
+  dependencies: []
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
+  parallel:
+    matrix:
+    - EXTRA_PARAMS: --run TestLinuxStatusSuite
+    - EXTRA_PARAMS: --run TestWindowsStatusSuite
+    - EXTRA_PARAMS: --run TestLinuxHealthSuite
+    - EXTRA_PARAMS: --run TestWindowsHealthSuite
+    - EXTRA_PARAMS: --run TestLinuxConfigSuite
+    - EXTRA_PARAMS: --run TestWindowsConfigSuite
+    - EXTRA_PARAMS: --run TestLinuxHostnameSuite
+    - EXTRA_PARAMS: --run TestWindowsHostnameSuite
+    - EXTRA_PARAMS: --run TestLinuxDiagnoseSuite
+    - EXTRA_PARAMS: --run TestWindowsDiagnoseSuite
+    - EXTRA_PARAMS: --run TestLinuxConfigCheckSuite
+    - EXTRA_PARAMS: --run TestWindowsConfigCheckSuite
+    - EXTRA_PARAMS: --run TestLinuxFlareSuite
+    - EXTRA_PARAMS: --run TestWindowsFlareSuite
+    - EXTRA_PARAMS: --run TestLinuxSecretSuite
+    - EXTRA_PARAMS: --run TestWindowsSecretSuite
+    - EXTRA_PARAMS: --run TestLinuxCheckSuite
+    - EXTRA_PARAMS: --run TestLinuxRunSuite
+    - EXTRA_PARAMS: --run TestWindowsRunSuite
+  rules:
+  - when: always
+  script:
+  - inv -e new-e2e-tests.run --targets $TARGETS -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com
+    -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password)
+    --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS} --test-washer
+  stage: flake-finder-0
+  tags:
+  - arch:amd64
+  variables:
+    E2E_COMMIT_SHA: $CI_COMMIT_SHORT_SHA
+    E2E_KEY_PAIR_NAME: datadog-agent-ci-rsa
+    E2E_OUTPUT_DIR: $CI_PROJECT_DIR/e2e-output
+    E2E_PIPELINE_ID: $PARENT_PIPELINE_ID
+    E2E_PRIVATE_KEY_PATH: /tmp/agent-qa-ssh-key
+    E2E_PUBLIC_KEY_PATH: /tmp/agent-qa-ssh-key.pub
+    EXTERNAL_LINKS_PATH: external_links_$CI_JOB_ID.json
+    KUBERNETES_CPU_REQUEST: 6
+    KUBERNETES_MEMORY_LIMIT: 16Gi
+    KUBERNETES_MEMORY_REQUEST: 12Gi
+    SHOULD_RUN_IN_FLAKES_FINDER: 'true'
+    TARGETS: ./tests/agent-subcommands
+    TEAM: agent-shared-components
+new-e2e-agent-subcommands-1:
+  after_script:
+  - $CI_PROJECT_DIR/tools/ci/junit_upload.sh
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+    - $E2E_OUTPUT_DIR
+    - junit-*.tgz
+    reports:
+      annotations:
+      - $EXTERNAL_LINKS_PATH
+    when: always
+  before_script:
+  - mkdir -p ~/.aws
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $AGENT_QA_PROFILE_SSM_NAME >>
+    ~/.aws/config
+  - export AWS_PROFILE=agent-qa-ci
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SSH_PUBLIC_KEY_RSA_SSM_NAME >
+    $E2E_PUBLIC_KEY_PATH
+  - touch $E2E_PRIVATE_KEY_PATH && chmod 600 $E2E_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh
+    $SSH_KEY_RSA_SSM_NAME > $E2E_PRIVATE_KEY_PATH
+  - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
+  - inv -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
+  dependencies: []
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
+  parallel:
+    matrix:
+    - EXTRA_PARAMS: --run TestLinuxStatusSuite
+    - EXTRA_PARAMS: --run TestWindowsStatusSuite
+    - EXTRA_PARAMS: --run TestLinuxHealthSuite
+    - EXTRA_PARAMS: --run TestWindowsHealthSuite
+    - EXTRA_PARAMS: --run TestLinuxConfigSuite
+    - EXTRA_PARAMS: --run TestWindowsConfigSuite
+    - EXTRA_PARAMS: --run TestLinuxHostnameSuite
+    - EXTRA_PARAMS: --run TestWindowsHostnameSuite
+    - EXTRA_PARAMS: --run TestLinuxDiagnoseSuite
+    - EXTRA_PARAMS: --run TestWindowsDiagnoseSuite
+    - EXTRA_PARAMS: --run TestLinuxConfigCheckSuite
+    - EXTRA_PARAMS: --run TestWindowsConfigCheckSuite
+    - EXTRA_PARAMS: --run TestLinuxFlareSuite
+    - EXTRA_PARAMS: --run TestWindowsFlareSuite
+    - EXTRA_PARAMS: --run TestLinuxSecretSuite
+    - EXTRA_PARAMS: --run TestWindowsSecretSuite
+    - EXTRA_PARAMS: --run TestLinuxCheckSuite
+    - EXTRA_PARAMS: --run TestLinuxRunSuite
+    - EXTRA_PARAMS: --run TestWindowsRunSuite
+  rules:
+  - when: always
+  script:
+  - inv -e new-e2e-tests.run --targets $TARGETS -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com
+    -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password)
+    --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS} --test-washer
+  stage: flake-finder-1
+  tags:
+  - arch:amd64
+  variables:
+    E2E_COMMIT_SHA: $CI_COMMIT_SHORT_SHA
+    E2E_KEY_PAIR_NAME: datadog-agent-ci-rsa
+    E2E_OUTPUT_DIR: $CI_PROJECT_DIR/e2e-output
+    E2E_PIPELINE_ID: $PARENT_PIPELINE_ID
+    E2E_PRIVATE_KEY_PATH: /tmp/agent-qa-ssh-key
+    E2E_PUBLIC_KEY_PATH: /tmp/agent-qa-ssh-key.pub
+    EXTERNAL_LINKS_PATH: external_links_$CI_JOB_ID.json
+    KUBERNETES_CPU_REQUEST: 6
+    KUBERNETES_MEMORY_LIMIT: 16Gi
+    KUBERNETES_MEMORY_REQUEST: 12Gi
+    SHOULD_RUN_IN_FLAKES_FINDER: 'true'
+    TARGETS: ./tests/agent-subcommands
+    TEAM: agent-shared-components
+new-e2e-agent-subcommands-2:
+  after_script:
+  - $CI_PROJECT_DIR/tools/ci/junit_upload.sh
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+    - $E2E_OUTPUT_DIR
+    - junit-*.tgz
+    reports:
+      annotations:
+      - $EXTERNAL_LINKS_PATH
+    when: always
+  before_script:
+  - mkdir -p ~/.aws
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $AGENT_QA_PROFILE_SSM_NAME >>
+    ~/.aws/config
+  - export AWS_PROFILE=agent-qa-ci
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SSH_PUBLIC_KEY_RSA_SSM_NAME >
+    $E2E_PUBLIC_KEY_PATH
+  - touch $E2E_PRIVATE_KEY_PATH && chmod 600 $E2E_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh
+    $SSH_KEY_RSA_SSM_NAME > $E2E_PRIVATE_KEY_PATH
+  - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
+  - inv -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
+  dependencies: []
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
+  parallel:
+    matrix:
+    - EXTRA_PARAMS: --run TestLinuxStatusSuite
+    - EXTRA_PARAMS: --run TestWindowsStatusSuite
+    - EXTRA_PARAMS: --run TestLinuxHealthSuite
+    - EXTRA_PARAMS: --run TestWindowsHealthSuite
+    - EXTRA_PARAMS: --run TestLinuxConfigSuite
+    - EXTRA_PARAMS: --run TestWindowsConfigSuite
+    - EXTRA_PARAMS: --run TestLinuxHostnameSuite
+    - EXTRA_PARAMS: --run TestWindowsHostnameSuite
+    - EXTRA_PARAMS: --run TestLinuxDiagnoseSuite
+    - EXTRA_PARAMS: --run TestWindowsDiagnoseSuite
+    - EXTRA_PARAMS: --run TestLinuxConfigCheckSuite
+    - EXTRA_PARAMS: --run TestWindowsConfigCheckSuite
+    - EXTRA_PARAMS: --run TestLinuxFlareSuite
+    - EXTRA_PARAMS: --run TestWindowsFlareSuite
+    - EXTRA_PARAMS: --run TestLinuxSecretSuite
+    - EXTRA_PARAMS: --run TestWindowsSecretSuite
+    - EXTRA_PARAMS: --run TestLinuxCheckSuite
+    - EXTRA_PARAMS: --run TestLinuxRunSuite
+    - EXTRA_PARAMS: --run TestWindowsRunSuite
+  rules:
+  - when: always
+  script:
+  - inv -e new-e2e-tests.run --targets $TARGETS -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com
+    -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password)
+    --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS} --test-washer
+  stage: flake-finder-2
+  tags:
+  - arch:amd64
+  variables:
+    E2E_COMMIT_SHA: $CI_COMMIT_SHORT_SHA
+    E2E_KEY_PAIR_NAME: datadog-agent-ci-rsa
+    E2E_OUTPUT_DIR: $CI_PROJECT_DIR/e2e-output
+    E2E_PIPELINE_ID: $PARENT_PIPELINE_ID
+    E2E_PRIVATE_KEY_PATH: /tmp/agent-qa-ssh-key
+    E2E_PUBLIC_KEY_PATH: /tmp/agent-qa-ssh-key.pub
+    EXTERNAL_LINKS_PATH: external_links_$CI_JOB_ID.json
+    KUBERNETES_CPU_REQUEST: 6
+    KUBERNETES_MEMORY_LIMIT: 16Gi
+    KUBERNETES_MEMORY_REQUEST: 12Gi
+    SHOULD_RUN_IN_FLAKES_FINDER: 'true'
+    TARGETS: ./tests/agent-subcommands
+    TEAM: agent-shared-components
+new-e2e-aml-0:
+  after_script:
+  - $CI_PROJECT_DIR/tools/ci/junit_upload.sh
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+    - $E2E_OUTPUT_DIR
+    - junit-*.tgz
+    reports:
+      annotations:
+      - $EXTERNAL_LINKS_PATH
+    when: always
+  before_script:
+  - mkdir -p ~/.aws
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $AGENT_QA_PROFILE_SSM_NAME >>
+    ~/.aws/config
+  - export AWS_PROFILE=agent-qa-ci
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SSH_PUBLIC_KEY_RSA_SSM_NAME >
+    $E2E_PUBLIC_KEY_PATH
+  - touch $E2E_PRIVATE_KEY_PATH && chmod 600 $E2E_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh
+    $SSH_KEY_RSA_SSM_NAME > $E2E_PRIVATE_KEY_PATH
+  - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
+  - inv -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
+  dependencies: []
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
+  rules:
+  - when: always
+  script:
+  - inv -e new-e2e-tests.run --targets $TARGETS -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com
+    -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password)
+    --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS} --test-washer
+  stage: flake-finder-0
+  tags:
+  - arch:amd64
+  variables:
+    E2E_COMMIT_SHA: $CI_COMMIT_SHORT_SHA
+    E2E_KEY_PAIR_NAME: datadog-agent-ci-rsa
+    E2E_OUTPUT_DIR: $CI_PROJECT_DIR/e2e-output
+    E2E_PIPELINE_ID: $PARENT_PIPELINE_ID
+    E2E_PRIVATE_KEY_PATH: /tmp/agent-qa-ssh-key
+    E2E_PUBLIC_KEY_PATH: /tmp/agent-qa-ssh-key.pub
+    EXTERNAL_LINKS_PATH: external_links_$CI_JOB_ID.json
+    KUBERNETES_CPU_REQUEST: 6
+    KUBERNETES_MEMORY_LIMIT: 16Gi
+    KUBERNETES_MEMORY_REQUEST: 12Gi
+    SHOULD_RUN_IN_FLAKES_FINDER: 'true'
+    TARGETS: ./tests/agent-metrics-logs
+    TEAM: agent-metrics-logs
+new-e2e-aml-1:
+  after_script:
+  - $CI_PROJECT_DIR/tools/ci/junit_upload.sh
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+    - $E2E_OUTPUT_DIR
+    - junit-*.tgz
+    reports:
+      annotations:
+      - $EXTERNAL_LINKS_PATH
+    when: always
+  before_script:
+  - mkdir -p ~/.aws
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $AGENT_QA_PROFILE_SSM_NAME >>
+    ~/.aws/config
+  - export AWS_PROFILE=agent-qa-ci
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SSH_PUBLIC_KEY_RSA_SSM_NAME >
+    $E2E_PUBLIC_KEY_PATH
+  - touch $E2E_PRIVATE_KEY_PATH && chmod 600 $E2E_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh
+    $SSH_KEY_RSA_SSM_NAME > $E2E_PRIVATE_KEY_PATH
+  - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
+  - inv -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
+  dependencies: []
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
+  rules:
+  - when: always
+  script:
+  - inv -e new-e2e-tests.run --targets $TARGETS -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com
+    -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password)
+    --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS} --test-washer
+  stage: flake-finder-1
+  tags:
+  - arch:amd64
+  variables:
+    E2E_COMMIT_SHA: $CI_COMMIT_SHORT_SHA
+    E2E_KEY_PAIR_NAME: datadog-agent-ci-rsa
+    E2E_OUTPUT_DIR: $CI_PROJECT_DIR/e2e-output
+    E2E_PIPELINE_ID: $PARENT_PIPELINE_ID
+    E2E_PRIVATE_KEY_PATH: /tmp/agent-qa-ssh-key
+    E2E_PUBLIC_KEY_PATH: /tmp/agent-qa-ssh-key.pub
+    EXTERNAL_LINKS_PATH: external_links_$CI_JOB_ID.json
+    KUBERNETES_CPU_REQUEST: 6
+    KUBERNETES_MEMORY_LIMIT: 16Gi
+    KUBERNETES_MEMORY_REQUEST: 12Gi
+    SHOULD_RUN_IN_FLAKES_FINDER: 'true'
+    TARGETS: ./tests/agent-metrics-logs
+    TEAM: agent-metrics-logs
+new-e2e-aml-2:
+  after_script:
+  - $CI_PROJECT_DIR/tools/ci/junit_upload.sh
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+    - $E2E_OUTPUT_DIR
+    - junit-*.tgz
+    reports:
+      annotations:
+      - $EXTERNAL_LINKS_PATH
+    when: always
+  before_script:
+  - mkdir -p ~/.aws
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $AGENT_QA_PROFILE_SSM_NAME >>
+    ~/.aws/config
+  - export AWS_PROFILE=agent-qa-ci
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SSH_PUBLIC_KEY_RSA_SSM_NAME >
+    $E2E_PUBLIC_KEY_PATH
+  - touch $E2E_PRIVATE_KEY_PATH && chmod 600 $E2E_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh
+    $SSH_KEY_RSA_SSM_NAME > $E2E_PRIVATE_KEY_PATH
+  - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
+  - inv -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
+  dependencies: []
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
+  rules:
+  - when: always
+  script:
+  - inv -e new-e2e-tests.run --targets $TARGETS -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com
+    -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password)
+    --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS} --test-washer
+  stage: flake-finder-2
+  tags:
+  - arch:amd64
+  variables:
+    E2E_COMMIT_SHA: $CI_COMMIT_SHORT_SHA
+    E2E_KEY_PAIR_NAME: datadog-agent-ci-rsa
+    E2E_OUTPUT_DIR: $CI_PROJECT_DIR/e2e-output
+    E2E_PIPELINE_ID: $PARENT_PIPELINE_ID
+    E2E_PRIVATE_KEY_PATH: /tmp/agent-qa-ssh-key
+    E2E_PUBLIC_KEY_PATH: /tmp/agent-qa-ssh-key.pub
+    EXTERNAL_LINKS_PATH: external_links_$CI_JOB_ID.json
+    KUBERNETES_CPU_REQUEST: 6
+    KUBERNETES_MEMORY_LIMIT: 16Gi
+    KUBERNETES_MEMORY_REQUEST: 12Gi
+    SHOULD_RUN_IN_FLAKES_FINDER: 'true'
+    TARGETS: ./tests/agent-metrics-logs
+    TEAM: agent-metrics-logs
+new-e2e-apm-0:
+  after_script:
+  - $CI_PROJECT_DIR/tools/ci/junit_upload.sh
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+    - $E2E_OUTPUT_DIR
+    - junit-*.tgz
+    reports:
+      annotations:
+      - $EXTERNAL_LINKS_PATH
+    when: always
+  before_script:
+  - mkdir -p ~/.aws
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $AGENT_QA_PROFILE_SSM_NAME >>
+    ~/.aws/config
+  - export AWS_PROFILE=agent-qa-ci
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SSH_PUBLIC_KEY_RSA_SSM_NAME >
+    $E2E_PUBLIC_KEY_PATH
+  - touch $E2E_PRIVATE_KEY_PATH && chmod 600 $E2E_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh
+    $SSH_KEY_RSA_SSM_NAME > $E2E_PRIVATE_KEY_PATH
+  - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
+  - inv -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
+  dependencies: []
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
+  parallel:
+    matrix:
+    - EXTRA_PARAMS: --run TestDockerFakeintakeSuiteUDS
+    - EXTRA_PARAMS: --run TestDockerFakeintakeSuiteTCP
+    - EXTRA_PARAMS: --run TestVMFakeintakeSuiteUDS
+    - EXTRA_PARAMS: --run TestVMFakeintakeSuiteTCP
+  rules:
+  - when: always
+  script:
+  - inv -e new-e2e-tests.run --targets $TARGETS -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com
+    -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password)
+    --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS} --test-washer
+  stage: flake-finder-0
+  tags:
+  - arch:amd64
+  variables:
+    E2E_COMMIT_SHA: $CI_COMMIT_SHORT_SHA
+    E2E_KEY_PAIR_NAME: datadog-agent-ci-rsa
+    E2E_OUTPUT_DIR: $CI_PROJECT_DIR/e2e-output
+    E2E_PIPELINE_ID: $PARENT_PIPELINE_ID
+    E2E_PRIVATE_KEY_PATH: /tmp/agent-qa-ssh-key
+    E2E_PUBLIC_KEY_PATH: /tmp/agent-qa-ssh-key.pub
+    EXTERNAL_LINKS_PATH: external_links_$CI_JOB_ID.json
+    KUBERNETES_CPU_REQUEST: 6
+    KUBERNETES_MEMORY_LIMIT: 16Gi
+    KUBERNETES_MEMORY_REQUEST: 12Gi
+    SHOULD_RUN_IN_FLAKES_FINDER: 'true'
+    TARGETS: ./tests/apm
+    TEAM: apm-agent
+new-e2e-apm-1:
+  after_script:
+  - $CI_PROJECT_DIR/tools/ci/junit_upload.sh
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+    - $E2E_OUTPUT_DIR
+    - junit-*.tgz
+    reports:
+      annotations:
+      - $EXTERNAL_LINKS_PATH
+    when: always
+  before_script:
+  - mkdir -p ~/.aws
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $AGENT_QA_PROFILE_SSM_NAME >>
+    ~/.aws/config
+  - export AWS_PROFILE=agent-qa-ci
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SSH_PUBLIC_KEY_RSA_SSM_NAME >
+    $E2E_PUBLIC_KEY_PATH
+  - touch $E2E_PRIVATE_KEY_PATH && chmod 600 $E2E_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh
+    $SSH_KEY_RSA_SSM_NAME > $E2E_PRIVATE_KEY_PATH
+  - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
+  - inv -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
+  dependencies: []
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
+  parallel:
+    matrix:
+    - EXTRA_PARAMS: --run TestDockerFakeintakeSuiteUDS
+    - EXTRA_PARAMS: --run TestDockerFakeintakeSuiteTCP
+    - EXTRA_PARAMS: --run TestVMFakeintakeSuiteUDS
+    - EXTRA_PARAMS: --run TestVMFakeintakeSuiteTCP
+  rules:
+  - when: always
+  script:
+  - inv -e new-e2e-tests.run --targets $TARGETS -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com
+    -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password)
+    --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS} --test-washer
+  stage: flake-finder-1
+  tags:
+  - arch:amd64
+  variables:
+    E2E_COMMIT_SHA: $CI_COMMIT_SHORT_SHA
+    E2E_KEY_PAIR_NAME: datadog-agent-ci-rsa
+    E2E_OUTPUT_DIR: $CI_PROJECT_DIR/e2e-output
+    E2E_PIPELINE_ID: $PARENT_PIPELINE_ID
+    E2E_PRIVATE_KEY_PATH: /tmp/agent-qa-ssh-key
+    E2E_PUBLIC_KEY_PATH: /tmp/agent-qa-ssh-key.pub
+    EXTERNAL_LINKS_PATH: external_links_$CI_JOB_ID.json
+    KUBERNETES_CPU_REQUEST: 6
+    KUBERNETES_MEMORY_LIMIT: 16Gi
+    KUBERNETES_MEMORY_REQUEST: 12Gi
+    SHOULD_RUN_IN_FLAKES_FINDER: 'true'
+    TARGETS: ./tests/apm
+    TEAM: apm-agent
+new-e2e-apm-2:
+  after_script:
+  - $CI_PROJECT_DIR/tools/ci/junit_upload.sh
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+    - $E2E_OUTPUT_DIR
+    - junit-*.tgz
+    reports:
+      annotations:
+      - $EXTERNAL_LINKS_PATH
+    when: always
+  before_script:
+  - mkdir -p ~/.aws
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $AGENT_QA_PROFILE_SSM_NAME >>
+    ~/.aws/config
+  - export AWS_PROFILE=agent-qa-ci
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SSH_PUBLIC_KEY_RSA_SSM_NAME >
+    $E2E_PUBLIC_KEY_PATH
+  - touch $E2E_PRIVATE_KEY_PATH && chmod 600 $E2E_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh
+    $SSH_KEY_RSA_SSM_NAME > $E2E_PRIVATE_KEY_PATH
+  - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
+  - inv -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
+  dependencies: []
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
+  parallel:
+    matrix:
+    - EXTRA_PARAMS: --run TestDockerFakeintakeSuiteUDS
+    - EXTRA_PARAMS: --run TestDockerFakeintakeSuiteTCP
+    - EXTRA_PARAMS: --run TestVMFakeintakeSuiteUDS
+    - EXTRA_PARAMS: --run TestVMFakeintakeSuiteTCP
+  rules:
+  - when: always
+  script:
+  - inv -e new-e2e-tests.run --targets $TARGETS -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com
+    -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password)
+    --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS} --test-washer
+  stage: flake-finder-2
+  tags:
+  - arch:amd64
+  variables:
+    E2E_COMMIT_SHA: $CI_COMMIT_SHORT_SHA
+    E2E_KEY_PAIR_NAME: datadog-agent-ci-rsa
+    E2E_OUTPUT_DIR: $CI_PROJECT_DIR/e2e-output
+    E2E_PIPELINE_ID: $PARENT_PIPELINE_ID
+    E2E_PRIVATE_KEY_PATH: /tmp/agent-qa-ssh-key
+    E2E_PUBLIC_KEY_PATH: /tmp/agent-qa-ssh-key.pub
+    EXTERNAL_LINKS_PATH: external_links_$CI_JOB_ID.json
+    KUBERNETES_CPU_REQUEST: 6
+    KUBERNETES_MEMORY_LIMIT: 16Gi
+    KUBERNETES_MEMORY_REQUEST: 12Gi
+    SHOULD_RUN_IN_FLAKES_FINDER: 'true'
+    TARGETS: ./tests/apm
+    TEAM: apm-agent
+new-e2e-containers-0:
+  after_script:
+  - $CI_PROJECT_DIR/tools/ci/junit_upload.sh
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+    - $E2E_OUTPUT_DIR
+    - junit-*.tgz
+    reports:
+      annotations:
+      - $EXTERNAL_LINKS_PATH
+    when: always
+  before_script:
+  - mkdir -p ~/.aws
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $AGENT_QA_PROFILE_SSM_NAME >>
+    ~/.aws/config
+  - export AWS_PROFILE=agent-qa-ci
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SSH_PUBLIC_KEY_RSA_SSM_NAME >
+    $E2E_PUBLIC_KEY_PATH
+  - touch $E2E_PRIVATE_KEY_PATH && chmod 600 $E2E_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh
+    $SSH_KEY_RSA_SSM_NAME > $E2E_PRIVATE_KEY_PATH
+  - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
+  - inv -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
+  dependencies: []
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
+  parallel:
+    matrix:
+    - EXTRA_PARAMS: --run TestKindSuite -c ddinfra:kubernetesVersion=1.27
+    - EXTRA_PARAMS: --run TestKindSuite -c ddinfra:kubernetesVersion=1.29
+    - EXTRA_PARAMS: --run TestKindSuite -c ddinfra:osDescriptor=ubuntu:20.04
+    - EXTRA_PARAMS: --run TestKindSuite -c ddinfra:osDescriptor=ubuntu:22.04
+    - EXTRA_PARAMS: --run TestEKSSuite
+    - EXTRA_PARAMS: --run TestECSSuite
+    - EXTRA_PARAMS: --run TestDockerSuite
+    - EXTRA_PARAMS: --skip "Test(Kind|EKS|ECS|Docker)Suite"
+  rules:
+  - when: always
+  script:
+  - inv -e new-e2e-tests.run --targets $TARGETS -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com
+    -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password)
+    --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS} --test-washer
+  stage: flake-finder-0
+  tags:
+  - arch:amd64
+  variables:
+    E2E_COMMIT_SHA: $CI_COMMIT_SHORT_SHA
+    E2E_KEY_PAIR_NAME: datadog-agent-ci-rsa
+    E2E_OUTPUT_DIR: $CI_PROJECT_DIR/e2e-output
+    E2E_PIPELINE_ID: $PARENT_PIPELINE_ID
+    E2E_PRIVATE_KEY_PATH: /tmp/agent-qa-ssh-key
+    E2E_PUBLIC_KEY_PATH: /tmp/agent-qa-ssh-key.pub
+    EXTERNAL_LINKS_PATH: external_links_$CI_JOB_ID.json
+    KUBERNETES_CPU_REQUEST: 6
+    KUBERNETES_MEMORY_LIMIT: 16Gi
+    KUBERNETES_MEMORY_REQUEST: 12Gi
+    SHOULD_RUN_IN_FLAKES_FINDER: 'true'
+    TARGETS: ./tests/containers
+    TEAM: container-integrations
+new-e2e-containers-1:
+  after_script:
+  - $CI_PROJECT_DIR/tools/ci/junit_upload.sh
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+    - $E2E_OUTPUT_DIR
+    - junit-*.tgz
+    reports:
+      annotations:
+      - $EXTERNAL_LINKS_PATH
+    when: always
+  before_script:
+  - mkdir -p ~/.aws
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $AGENT_QA_PROFILE_SSM_NAME >>
+    ~/.aws/config
+  - export AWS_PROFILE=agent-qa-ci
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SSH_PUBLIC_KEY_RSA_SSM_NAME >
+    $E2E_PUBLIC_KEY_PATH
+  - touch $E2E_PRIVATE_KEY_PATH && chmod 600 $E2E_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh
+    $SSH_KEY_RSA_SSM_NAME > $E2E_PRIVATE_KEY_PATH
+  - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
+  - inv -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
+  dependencies: []
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
+  parallel:
+    matrix:
+    - EXTRA_PARAMS: --run TestKindSuite -c ddinfra:kubernetesVersion=1.27
+    - EXTRA_PARAMS: --run TestKindSuite -c ddinfra:kubernetesVersion=1.29
+    - EXTRA_PARAMS: --run TestKindSuite -c ddinfra:osDescriptor=ubuntu:20.04
+    - EXTRA_PARAMS: --run TestKindSuite -c ddinfra:osDescriptor=ubuntu:22.04
+    - EXTRA_PARAMS: --run TestEKSSuite
+    - EXTRA_PARAMS: --run TestECSSuite
+    - EXTRA_PARAMS: --run TestDockerSuite
+    - EXTRA_PARAMS: --skip "Test(Kind|EKS|ECS|Docker)Suite"
+  rules:
+  - when: always
+  script:
+  - inv -e new-e2e-tests.run --targets $TARGETS -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com
+    -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password)
+    --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS} --test-washer
+  stage: flake-finder-1
+  tags:
+  - arch:amd64
+  variables:
+    E2E_COMMIT_SHA: $CI_COMMIT_SHORT_SHA
+    E2E_KEY_PAIR_NAME: datadog-agent-ci-rsa
+    E2E_OUTPUT_DIR: $CI_PROJECT_DIR/e2e-output
+    E2E_PIPELINE_ID: $PARENT_PIPELINE_ID
+    E2E_PRIVATE_KEY_PATH: /tmp/agent-qa-ssh-key
+    E2E_PUBLIC_KEY_PATH: /tmp/agent-qa-ssh-key.pub
+    EXTERNAL_LINKS_PATH: external_links_$CI_JOB_ID.json
+    KUBERNETES_CPU_REQUEST: 6
+    KUBERNETES_MEMORY_LIMIT: 16Gi
+    KUBERNETES_MEMORY_REQUEST: 12Gi
+    SHOULD_RUN_IN_FLAKES_FINDER: 'true'
+    TARGETS: ./tests/containers
+    TEAM: container-integrations
+new-e2e-containers-2:
+  after_script:
+  - $CI_PROJECT_DIR/tools/ci/junit_upload.sh
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+    - $E2E_OUTPUT_DIR
+    - junit-*.tgz
+    reports:
+      annotations:
+      - $EXTERNAL_LINKS_PATH
+    when: always
+  before_script:
+  - mkdir -p ~/.aws
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $AGENT_QA_PROFILE_SSM_NAME >>
+    ~/.aws/config
+  - export AWS_PROFILE=agent-qa-ci
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SSH_PUBLIC_KEY_RSA_SSM_NAME >
+    $E2E_PUBLIC_KEY_PATH
+  - touch $E2E_PRIVATE_KEY_PATH && chmod 600 $E2E_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh
+    $SSH_KEY_RSA_SSM_NAME > $E2E_PRIVATE_KEY_PATH
+  - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
+  - inv -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
+  dependencies: []
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
+  parallel:
+    matrix:
+    - EXTRA_PARAMS: --run TestKindSuite -c ddinfra:kubernetesVersion=1.27
+    - EXTRA_PARAMS: --run TestKindSuite -c ddinfra:kubernetesVersion=1.29
+    - EXTRA_PARAMS: --run TestKindSuite -c ddinfra:osDescriptor=ubuntu:20.04
+    - EXTRA_PARAMS: --run TestKindSuite -c ddinfra:osDescriptor=ubuntu:22.04
+    - EXTRA_PARAMS: --run TestEKSSuite
+    - EXTRA_PARAMS: --run TestECSSuite
+    - EXTRA_PARAMS: --run TestDockerSuite
+    - EXTRA_PARAMS: --skip "Test(Kind|EKS|ECS|Docker)Suite"
+  rules:
+  - when: always
+  script:
+  - inv -e new-e2e-tests.run --targets $TARGETS -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com
+    -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password)
+    --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS} --test-washer
+  stage: flake-finder-2
+  tags:
+  - arch:amd64
+  variables:
+    E2E_COMMIT_SHA: $CI_COMMIT_SHORT_SHA
+    E2E_KEY_PAIR_NAME: datadog-agent-ci-rsa
+    E2E_OUTPUT_DIR: $CI_PROJECT_DIR/e2e-output
+    E2E_PIPELINE_ID: $PARENT_PIPELINE_ID
+    E2E_PRIVATE_KEY_PATH: /tmp/agent-qa-ssh-key
+    E2E_PUBLIC_KEY_PATH: /tmp/agent-qa-ssh-key.pub
+    EXTERNAL_LINKS_PATH: external_links_$CI_JOB_ID.json
+    KUBERNETES_CPU_REQUEST: 6
+    KUBERNETES_MEMORY_LIMIT: 16Gi
+    KUBERNETES_MEMORY_REQUEST: 12Gi
+    SHOULD_RUN_IN_FLAKES_FINDER: 'true'
+    TARGETS: ./tests/containers
+    TEAM: container-integrations
+new-e2e-cws-0:
+  after_script:
+  - $CI_PROJECT_DIR/tools/ci/junit_upload.sh
+  allow_failure: true
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+    - $E2E_OUTPUT_DIR
+    - junit-*.tgz
+    reports:
+      annotations:
+      - $EXTERNAL_LINKS_PATH
+    when: always
+  before_script:
+  - mkdir -p ~/.aws
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $AGENT_QA_PROFILE_SSM_NAME >>
+    ~/.aws/config
+  - export AWS_PROFILE=agent-qa-ci
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SSH_PUBLIC_KEY_RSA_SSM_NAME >
+    $E2E_PUBLIC_KEY_PATH
+  - touch $E2E_PRIVATE_KEY_PATH && chmod 600 $E2E_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh
+    $SSH_KEY_RSA_SSM_NAME > $E2E_PRIVATE_KEY_PATH
+  - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
+  - inv -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
+  dependencies: []
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
+  parallel:
+    matrix:
+    - EXTRA_PARAMS: --run TestAgentSuite
+    - EXTRA_PARAMS: --run TestECSFargate
+    - EXTRA_PARAMS: --run TestKindSuite
+    - EXTRA_PARAMS: --run TestAgentWindowsSuite
+  rules:
+  - when: always
+  script:
+  - inv -e new-e2e-tests.run --targets $TARGETS -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com
+    -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password)
+    --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS} --test-washer
+  stage: flake-finder-0
+  tags:
+  - arch:amd64
+  variables:
+    CWS_INSTRUMENTATION_FULLIMAGEPATH: 669783387624.dkr.ecr.us-east-1.amazonaws.com/cws-instrumentation:${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}
+    E2E_COMMIT_SHA: $CI_COMMIT_SHORT_SHA
+    E2E_KEY_PAIR_NAME: datadog-agent-ci-rsa
+    E2E_OUTPUT_DIR: $CI_PROJECT_DIR/e2e-output
+    E2E_PIPELINE_ID: $PARENT_PIPELINE_ID
+    E2E_PRIVATE_KEY_PATH: /tmp/agent-qa-ssh-key
+    E2E_PUBLIC_KEY_PATH: /tmp/agent-qa-ssh-key.pub
+    EXTERNAL_LINKS_PATH: external_links_$CI_JOB_ID.json
+    KUBERNETES_CPU_REQUEST: 6
+    KUBERNETES_MEMORY_LIMIT: 16Gi
+    KUBERNETES_MEMORY_REQUEST: 12Gi
+    SHOULD_RUN_IN_FLAKES_FINDER: 'true'
+    TARGETS: ./tests/cws
+    TEAM: csm-threats-agent
+new-e2e-cws-1:
+  after_script:
+  - $CI_PROJECT_DIR/tools/ci/junit_upload.sh
+  allow_failure: true
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+    - $E2E_OUTPUT_DIR
+    - junit-*.tgz
+    reports:
+      annotations:
+      - $EXTERNAL_LINKS_PATH
+    when: always
+  before_script:
+  - mkdir -p ~/.aws
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $AGENT_QA_PROFILE_SSM_NAME >>
+    ~/.aws/config
+  - export AWS_PROFILE=agent-qa-ci
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SSH_PUBLIC_KEY_RSA_SSM_NAME >
+    $E2E_PUBLIC_KEY_PATH
+  - touch $E2E_PRIVATE_KEY_PATH && chmod 600 $E2E_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh
+    $SSH_KEY_RSA_SSM_NAME > $E2E_PRIVATE_KEY_PATH
+  - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
+  - inv -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
+  dependencies: []
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
+  parallel:
+    matrix:
+    - EXTRA_PARAMS: --run TestAgentSuite
+    - EXTRA_PARAMS: --run TestECSFargate
+    - EXTRA_PARAMS: --run TestKindSuite
+    - EXTRA_PARAMS: --run TestAgentWindowsSuite
+  rules:
+  - when: always
+  script:
+  - inv -e new-e2e-tests.run --targets $TARGETS -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com
+    -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password)
+    --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS} --test-washer
+  stage: flake-finder-1
+  tags:
+  - arch:amd64
+  variables:
+    CWS_INSTRUMENTATION_FULLIMAGEPATH: 669783387624.dkr.ecr.us-east-1.amazonaws.com/cws-instrumentation:${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}
+    E2E_COMMIT_SHA: $CI_COMMIT_SHORT_SHA
+    E2E_KEY_PAIR_NAME: datadog-agent-ci-rsa
+    E2E_OUTPUT_DIR: $CI_PROJECT_DIR/e2e-output
+    E2E_PIPELINE_ID: $PARENT_PIPELINE_ID
+    E2E_PRIVATE_KEY_PATH: /tmp/agent-qa-ssh-key
+    E2E_PUBLIC_KEY_PATH: /tmp/agent-qa-ssh-key.pub
+    EXTERNAL_LINKS_PATH: external_links_$CI_JOB_ID.json
+    KUBERNETES_CPU_REQUEST: 6
+    KUBERNETES_MEMORY_LIMIT: 16Gi
+    KUBERNETES_MEMORY_REQUEST: 12Gi
+    SHOULD_RUN_IN_FLAKES_FINDER: 'true'
+    TARGETS: ./tests/cws
+    TEAM: csm-threats-agent
+new-e2e-cws-2:
+  after_script:
+  - $CI_PROJECT_DIR/tools/ci/junit_upload.sh
+  allow_failure: true
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+    - $E2E_OUTPUT_DIR
+    - junit-*.tgz
+    reports:
+      annotations:
+      - $EXTERNAL_LINKS_PATH
+    when: always
+  before_script:
+  - mkdir -p ~/.aws
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $AGENT_QA_PROFILE_SSM_NAME >>
+    ~/.aws/config
+  - export AWS_PROFILE=agent-qa-ci
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SSH_PUBLIC_KEY_RSA_SSM_NAME >
+    $E2E_PUBLIC_KEY_PATH
+  - touch $E2E_PRIVATE_KEY_PATH && chmod 600 $E2E_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh
+    $SSH_KEY_RSA_SSM_NAME > $E2E_PRIVATE_KEY_PATH
+  - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
+  - inv -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
+  dependencies: []
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
+  parallel:
+    matrix:
+    - EXTRA_PARAMS: --run TestAgentSuite
+    - EXTRA_PARAMS: --run TestECSFargate
+    - EXTRA_PARAMS: --run TestKindSuite
+    - EXTRA_PARAMS: --run TestAgentWindowsSuite
+  rules:
+  - when: always
+  script:
+  - inv -e new-e2e-tests.run --targets $TARGETS -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com
+    -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password)
+    --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS} --test-washer
+  stage: flake-finder-2
+  tags:
+  - arch:amd64
+  variables:
+    CWS_INSTRUMENTATION_FULLIMAGEPATH: 669783387624.dkr.ecr.us-east-1.amazonaws.com/cws-instrumentation:${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}
+    E2E_COMMIT_SHA: $CI_COMMIT_SHORT_SHA
+    E2E_KEY_PAIR_NAME: datadog-agent-ci-rsa
+    E2E_OUTPUT_DIR: $CI_PROJECT_DIR/e2e-output
+    E2E_PIPELINE_ID: $PARENT_PIPELINE_ID
+    E2E_PRIVATE_KEY_PATH: /tmp/agent-qa-ssh-key
+    E2E_PUBLIC_KEY_PATH: /tmp/agent-qa-ssh-key.pub
+    EXTERNAL_LINKS_PATH: external_links_$CI_JOB_ID.json
+    KUBERNETES_CPU_REQUEST: 6
+    KUBERNETES_MEMORY_LIMIT: 16Gi
+    KUBERNETES_MEMORY_REQUEST: 12Gi
+    SHOULD_RUN_IN_FLAKES_FINDER: 'true'
+    TARGETS: ./tests/cws
+    TEAM: csm-threats-agent
+new-e2e-installer-0:
+  after_script:
+  - $CI_PROJECT_DIR/tools/ci/junit_upload.sh
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+    - $E2E_OUTPUT_DIR
+    - junit-*.tgz
+    reports:
+      annotations:
+      - $EXTERNAL_LINKS_PATH
+    when: always
+  before_script:
+  - mkdir -p ~/.aws
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $AGENT_QA_PROFILE_SSM_NAME >>
+    ~/.aws/config
+  - export AWS_PROFILE=agent-qa-ci
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SSH_PUBLIC_KEY_RSA_SSM_NAME >
+    $E2E_PUBLIC_KEY_PATH
+  - touch $E2E_PRIVATE_KEY_PATH && chmod 600 $E2E_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh
+    $SSH_KEY_RSA_SSM_NAME > $E2E_PRIVATE_KEY_PATH
+  - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
+  - inv -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
+  dependencies: []
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
+  rules:
+  - when: always
+  script:
+  - inv -e new-e2e-tests.run --targets $TARGETS -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com
+    -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password)
+    --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS} --test-washer
+  stage: flake-finder-0
+  tags:
+  - arch:amd64
+  variables:
+    E2E_COMMIT_SHA: $CI_COMMIT_SHORT_SHA
+    E2E_KEY_PAIR_NAME: datadog-agent-ci-rsa
+    E2E_OUTPUT_DIR: $CI_PROJECT_DIR/e2e-output
+    E2E_PIPELINE_ID: $PARENT_PIPELINE_ID
+    E2E_PRIVATE_KEY_PATH: /tmp/agent-qa-ssh-key
+    E2E_PUBLIC_KEY_PATH: /tmp/agent-qa-ssh-key.pub
+    EXTERNAL_LINKS_PATH: external_links_$CI_JOB_ID.json
+    KUBERNETES_CPU_REQUEST: 6
+    KUBERNETES_MEMORY_LIMIT: 16Gi
+    KUBERNETES_MEMORY_REQUEST: 12Gi
+    SHOULD_RUN_IN_FLAKES_FINDER: 'true'
+    TARGETS: ./tests/installer
+    TEAM: fleet
+new-e2e-installer-1:
+  after_script:
+  - $CI_PROJECT_DIR/tools/ci/junit_upload.sh
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+    - $E2E_OUTPUT_DIR
+    - junit-*.tgz
+    reports:
+      annotations:
+      - $EXTERNAL_LINKS_PATH
+    when: always
+  before_script:
+  - mkdir -p ~/.aws
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $AGENT_QA_PROFILE_SSM_NAME >>
+    ~/.aws/config
+  - export AWS_PROFILE=agent-qa-ci
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SSH_PUBLIC_KEY_RSA_SSM_NAME >
+    $E2E_PUBLIC_KEY_PATH
+  - touch $E2E_PRIVATE_KEY_PATH && chmod 600 $E2E_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh
+    $SSH_KEY_RSA_SSM_NAME > $E2E_PRIVATE_KEY_PATH
+  - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
+  - inv -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
+  dependencies: []
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
+  rules:
+  - when: always
+  script:
+  - inv -e new-e2e-tests.run --targets $TARGETS -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com
+    -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password)
+    --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS} --test-washer
+  stage: flake-finder-1
+  tags:
+  - arch:amd64
+  variables:
+    E2E_COMMIT_SHA: $CI_COMMIT_SHORT_SHA
+    E2E_KEY_PAIR_NAME: datadog-agent-ci-rsa
+    E2E_OUTPUT_DIR: $CI_PROJECT_DIR/e2e-output
+    E2E_PIPELINE_ID: $PARENT_PIPELINE_ID
+    E2E_PRIVATE_KEY_PATH: /tmp/agent-qa-ssh-key
+    E2E_PUBLIC_KEY_PATH: /tmp/agent-qa-ssh-key.pub
+    EXTERNAL_LINKS_PATH: external_links_$CI_JOB_ID.json
+    KUBERNETES_CPU_REQUEST: 6
+    KUBERNETES_MEMORY_LIMIT: 16Gi
+    KUBERNETES_MEMORY_REQUEST: 12Gi
+    SHOULD_RUN_IN_FLAKES_FINDER: 'true'
+    TARGETS: ./tests/installer
+    TEAM: fleet
+new-e2e-installer-2:
+  after_script:
+  - $CI_PROJECT_DIR/tools/ci/junit_upload.sh
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+    - $E2E_OUTPUT_DIR
+    - junit-*.tgz
+    reports:
+      annotations:
+      - $EXTERNAL_LINKS_PATH
+    when: always
+  before_script:
+  - mkdir -p ~/.aws
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $AGENT_QA_PROFILE_SSM_NAME >>
+    ~/.aws/config
+  - export AWS_PROFILE=agent-qa-ci
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SSH_PUBLIC_KEY_RSA_SSM_NAME >
+    $E2E_PUBLIC_KEY_PATH
+  - touch $E2E_PRIVATE_KEY_PATH && chmod 600 $E2E_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh
+    $SSH_KEY_RSA_SSM_NAME > $E2E_PRIVATE_KEY_PATH
+  - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
+  - inv -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
+  dependencies: []
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
+  rules:
+  - when: always
+  script:
+  - inv -e new-e2e-tests.run --targets $TARGETS -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com
+    -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password)
+    --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS} --test-washer
+  stage: flake-finder-2
+  tags:
+  - arch:amd64
+  variables:
+    E2E_COMMIT_SHA: $CI_COMMIT_SHORT_SHA
+    E2E_KEY_PAIR_NAME: datadog-agent-ci-rsa
+    E2E_OUTPUT_DIR: $CI_PROJECT_DIR/e2e-output
+    E2E_PIPELINE_ID: $PARENT_PIPELINE_ID
+    E2E_PRIVATE_KEY_PATH: /tmp/agent-qa-ssh-key
+    E2E_PUBLIC_KEY_PATH: /tmp/agent-qa-ssh-key.pub
+    EXTERNAL_LINKS_PATH: external_links_$CI_JOB_ID.json
+    KUBERNETES_CPU_REQUEST: 6
+    KUBERNETES_MEMORY_LIMIT: 16Gi
+    KUBERNETES_MEMORY_REQUEST: 12Gi
+    SHOULD_RUN_IN_FLAKES_FINDER: 'true'
+    TARGETS: ./tests/installer
+    TEAM: fleet
+new-e2e-language-detection-0:
+  after_script:
+  - $CI_PROJECT_DIR/tools/ci/junit_upload.sh
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+    - $E2E_OUTPUT_DIR
+    - junit-*.tgz
+    reports:
+      annotations:
+      - $EXTERNAL_LINKS_PATH
+    when: always
+  before_script:
+  - mkdir -p ~/.aws
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $AGENT_QA_PROFILE_SSM_NAME >>
+    ~/.aws/config
+  - export AWS_PROFILE=agent-qa-ci
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SSH_PUBLIC_KEY_RSA_SSM_NAME >
+    $E2E_PUBLIC_KEY_PATH
+  - touch $E2E_PRIVATE_KEY_PATH && chmod 600 $E2E_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh
+    $SSH_KEY_RSA_SSM_NAME > $E2E_PRIVATE_KEY_PATH
+  - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
+  - inv -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
+  dependencies: []
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
+  rules:
+  - when: always
+  script:
+  - inv -e new-e2e-tests.run --targets $TARGETS -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com
+    -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password)
+    --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS} --test-washer
+  stage: flake-finder-0
+  tags:
+  - arch:amd64
+  variables:
+    E2E_COMMIT_SHA: $CI_COMMIT_SHORT_SHA
+    E2E_KEY_PAIR_NAME: datadog-agent-ci-rsa
+    E2E_OUTPUT_DIR: $CI_PROJECT_DIR/e2e-output
+    E2E_PIPELINE_ID: $PARENT_PIPELINE_ID
+    E2E_PRIVATE_KEY_PATH: /tmp/agent-qa-ssh-key
+    E2E_PUBLIC_KEY_PATH: /tmp/agent-qa-ssh-key.pub
+    EXTERNAL_LINKS_PATH: external_links_$CI_JOB_ID.json
+    KUBERNETES_CPU_REQUEST: 6
+    KUBERNETES_MEMORY_LIMIT: 16Gi
+    KUBERNETES_MEMORY_REQUEST: 12Gi
+    SHOULD_RUN_IN_FLAKES_FINDER: 'true'
+    TARGETS: ./tests/language-detection
+    TEAM: processes
+new-e2e-language-detection-1:
+  after_script:
+  - $CI_PROJECT_DIR/tools/ci/junit_upload.sh
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+    - $E2E_OUTPUT_DIR
+    - junit-*.tgz
+    reports:
+      annotations:
+      - $EXTERNAL_LINKS_PATH
+    when: always
+  before_script:
+  - mkdir -p ~/.aws
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $AGENT_QA_PROFILE_SSM_NAME >>
+    ~/.aws/config
+  - export AWS_PROFILE=agent-qa-ci
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SSH_PUBLIC_KEY_RSA_SSM_NAME >
+    $E2E_PUBLIC_KEY_PATH
+  - touch $E2E_PRIVATE_KEY_PATH && chmod 600 $E2E_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh
+    $SSH_KEY_RSA_SSM_NAME > $E2E_PRIVATE_KEY_PATH
+  - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
+  - inv -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
+  dependencies: []
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
+  rules:
+  - when: always
+  script:
+  - inv -e new-e2e-tests.run --targets $TARGETS -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com
+    -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password)
+    --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS} --test-washer
+  stage: flake-finder-1
+  tags:
+  - arch:amd64
+  variables:
+    E2E_COMMIT_SHA: $CI_COMMIT_SHORT_SHA
+    E2E_KEY_PAIR_NAME: datadog-agent-ci-rsa
+    E2E_OUTPUT_DIR: $CI_PROJECT_DIR/e2e-output
+    E2E_PIPELINE_ID: $PARENT_PIPELINE_ID
+    E2E_PRIVATE_KEY_PATH: /tmp/agent-qa-ssh-key
+    E2E_PUBLIC_KEY_PATH: /tmp/agent-qa-ssh-key.pub
+    EXTERNAL_LINKS_PATH: external_links_$CI_JOB_ID.json
+    KUBERNETES_CPU_REQUEST: 6
+    KUBERNETES_MEMORY_LIMIT: 16Gi
+    KUBERNETES_MEMORY_REQUEST: 12Gi
+    SHOULD_RUN_IN_FLAKES_FINDER: 'true'
+    TARGETS: ./tests/language-detection
+    TEAM: processes
+new-e2e-language-detection-2:
+  after_script:
+  - $CI_PROJECT_DIR/tools/ci/junit_upload.sh
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+    - $E2E_OUTPUT_DIR
+    - junit-*.tgz
+    reports:
+      annotations:
+      - $EXTERNAL_LINKS_PATH
+    when: always
+  before_script:
+  - mkdir -p ~/.aws
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $AGENT_QA_PROFILE_SSM_NAME >>
+    ~/.aws/config
+  - export AWS_PROFILE=agent-qa-ci
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SSH_PUBLIC_KEY_RSA_SSM_NAME >
+    $E2E_PUBLIC_KEY_PATH
+  - touch $E2E_PRIVATE_KEY_PATH && chmod 600 $E2E_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh
+    $SSH_KEY_RSA_SSM_NAME > $E2E_PRIVATE_KEY_PATH
+  - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
+  - inv -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
+  dependencies: []
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
+  rules:
+  - when: always
+  script:
+  - inv -e new-e2e-tests.run --targets $TARGETS -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com
+    -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password)
+    --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS} --test-washer
+  stage: flake-finder-2
+  tags:
+  - arch:amd64
+  variables:
+    E2E_COMMIT_SHA: $CI_COMMIT_SHORT_SHA
+    E2E_KEY_PAIR_NAME: datadog-agent-ci-rsa
+    E2E_OUTPUT_DIR: $CI_PROJECT_DIR/e2e-output
+    E2E_PIPELINE_ID: $PARENT_PIPELINE_ID
+    E2E_PRIVATE_KEY_PATH: /tmp/agent-qa-ssh-key
+    E2E_PUBLIC_KEY_PATH: /tmp/agent-qa-ssh-key.pub
+    EXTERNAL_LINKS_PATH: external_links_$CI_JOB_ID.json
+    KUBERNETES_CPU_REQUEST: 6
+    KUBERNETES_MEMORY_LIMIT: 16Gi
+    KUBERNETES_MEMORY_REQUEST: 12Gi
+    SHOULD_RUN_IN_FLAKES_FINDER: 'true'
+    TARGETS: ./tests/language-detection
+    TEAM: processes
+new-e2e-ndm-netflow-0:
+  after_script:
+  - $CI_PROJECT_DIR/tools/ci/junit_upload.sh
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+    - $E2E_OUTPUT_DIR
+    - junit-*.tgz
+    reports:
+      annotations:
+      - $EXTERNAL_LINKS_PATH
+    when: always
+  before_script:
+  - mkdir -p ~/.aws
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $AGENT_QA_PROFILE_SSM_NAME >>
+    ~/.aws/config
+  - export AWS_PROFILE=agent-qa-ci
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SSH_PUBLIC_KEY_RSA_SSM_NAME >
+    $E2E_PUBLIC_KEY_PATH
+  - touch $E2E_PRIVATE_KEY_PATH && chmod 600 $E2E_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh
+    $SSH_KEY_RSA_SSM_NAME > $E2E_PRIVATE_KEY_PATH
+  - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
+  - inv -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
+  dependencies: []
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
+  rules:
+  - when: always
+  script:
+  - inv -e new-e2e-tests.run --targets $TARGETS -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com
+    -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password)
+    --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS} --test-washer
+  stage: flake-finder-0
+  tags:
+  - arch:amd64
+  variables:
+    E2E_COMMIT_SHA: $CI_COMMIT_SHORT_SHA
+    E2E_KEY_PAIR_NAME: datadog-agent-ci-rsa
+    E2E_OUTPUT_DIR: $CI_PROJECT_DIR/e2e-output
+    E2E_PIPELINE_ID: $PARENT_PIPELINE_ID
+    E2E_PRIVATE_KEY_PATH: /tmp/agent-qa-ssh-key
+    E2E_PUBLIC_KEY_PATH: /tmp/agent-qa-ssh-key.pub
+    EXTERNAL_LINKS_PATH: external_links_$CI_JOB_ID.json
+    KUBERNETES_CPU_REQUEST: 6
+    KUBERNETES_MEMORY_LIMIT: 16Gi
+    KUBERNETES_MEMORY_REQUEST: 12Gi
+    SHOULD_RUN_IN_FLAKES_FINDER: 'true'
+    TARGETS: ./tests/ndm/netflow
+    TEAM: network-device-monitoring
+new-e2e-ndm-netflow-1:
+  after_script:
+  - $CI_PROJECT_DIR/tools/ci/junit_upload.sh
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+    - $E2E_OUTPUT_DIR
+    - junit-*.tgz
+    reports:
+      annotations:
+      - $EXTERNAL_LINKS_PATH
+    when: always
+  before_script:
+  - mkdir -p ~/.aws
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $AGENT_QA_PROFILE_SSM_NAME >>
+    ~/.aws/config
+  - export AWS_PROFILE=agent-qa-ci
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SSH_PUBLIC_KEY_RSA_SSM_NAME >
+    $E2E_PUBLIC_KEY_PATH
+  - touch $E2E_PRIVATE_KEY_PATH && chmod 600 $E2E_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh
+    $SSH_KEY_RSA_SSM_NAME > $E2E_PRIVATE_KEY_PATH
+  - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
+  - inv -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
+  dependencies: []
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
+  rules:
+  - when: always
+  script:
+  - inv -e new-e2e-tests.run --targets $TARGETS -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com
+    -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password)
+    --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS} --test-washer
+  stage: flake-finder-1
+  tags:
+  - arch:amd64
+  variables:
+    E2E_COMMIT_SHA: $CI_COMMIT_SHORT_SHA
+    E2E_KEY_PAIR_NAME: datadog-agent-ci-rsa
+    E2E_OUTPUT_DIR: $CI_PROJECT_DIR/e2e-output
+    E2E_PIPELINE_ID: $PARENT_PIPELINE_ID
+    E2E_PRIVATE_KEY_PATH: /tmp/agent-qa-ssh-key
+    E2E_PUBLIC_KEY_PATH: /tmp/agent-qa-ssh-key.pub
+    EXTERNAL_LINKS_PATH: external_links_$CI_JOB_ID.json
+    KUBERNETES_CPU_REQUEST: 6
+    KUBERNETES_MEMORY_LIMIT: 16Gi
+    KUBERNETES_MEMORY_REQUEST: 12Gi
+    SHOULD_RUN_IN_FLAKES_FINDER: 'true'
+    TARGETS: ./tests/ndm/netflow
+    TEAM: network-device-monitoring
+new-e2e-ndm-netflow-2:
+  after_script:
+  - $CI_PROJECT_DIR/tools/ci/junit_upload.sh
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+    - $E2E_OUTPUT_DIR
+    - junit-*.tgz
+    reports:
+      annotations:
+      - $EXTERNAL_LINKS_PATH
+    when: always
+  before_script:
+  - mkdir -p ~/.aws
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $AGENT_QA_PROFILE_SSM_NAME >>
+    ~/.aws/config
+  - export AWS_PROFILE=agent-qa-ci
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SSH_PUBLIC_KEY_RSA_SSM_NAME >
+    $E2E_PUBLIC_KEY_PATH
+  - touch $E2E_PRIVATE_KEY_PATH && chmod 600 $E2E_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh
+    $SSH_KEY_RSA_SSM_NAME > $E2E_PRIVATE_KEY_PATH
+  - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
+  - inv -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
+  dependencies: []
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
+  rules:
+  - when: always
+  script:
+  - inv -e new-e2e-tests.run --targets $TARGETS -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com
+    -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password)
+    --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS} --test-washer
+  stage: flake-finder-2
+  tags:
+  - arch:amd64
+  variables:
+    E2E_COMMIT_SHA: $CI_COMMIT_SHORT_SHA
+    E2E_KEY_PAIR_NAME: datadog-agent-ci-rsa
+    E2E_OUTPUT_DIR: $CI_PROJECT_DIR/e2e-output
+    E2E_PIPELINE_ID: $PARENT_PIPELINE_ID
+    E2E_PRIVATE_KEY_PATH: /tmp/agent-qa-ssh-key
+    E2E_PUBLIC_KEY_PATH: /tmp/agent-qa-ssh-key.pub
+    EXTERNAL_LINKS_PATH: external_links_$CI_JOB_ID.json
+    KUBERNETES_CPU_REQUEST: 6
+    KUBERNETES_MEMORY_LIMIT: 16Gi
+    KUBERNETES_MEMORY_REQUEST: 12Gi
+    SHOULD_RUN_IN_FLAKES_FINDER: 'true'
+    TARGETS: ./tests/ndm/netflow
+    TEAM: network-device-monitoring
+new-e2e-ndm-snmp-0:
+  after_script:
+  - $CI_PROJECT_DIR/tools/ci/junit_upload.sh
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+    - $E2E_OUTPUT_DIR
+    - junit-*.tgz
+    reports:
+      annotations:
+      - $EXTERNAL_LINKS_PATH
+    when: always
+  before_script:
+  - mkdir -p ~/.aws
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $AGENT_QA_PROFILE_SSM_NAME >>
+    ~/.aws/config
+  - export AWS_PROFILE=agent-qa-ci
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SSH_PUBLIC_KEY_RSA_SSM_NAME >
+    $E2E_PUBLIC_KEY_PATH
+  - touch $E2E_PRIVATE_KEY_PATH && chmod 600 $E2E_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh
+    $SSH_KEY_RSA_SSM_NAME > $E2E_PRIVATE_KEY_PATH
+  - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
+  - inv -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
+  dependencies: []
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
+  rules:
+  - when: always
+  script:
+  - inv -e new-e2e-tests.run --targets $TARGETS -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com
+    -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password)
+    --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS} --test-washer
+  stage: flake-finder-0
+  tags:
+  - arch:amd64
+  variables:
+    E2E_COMMIT_SHA: $CI_COMMIT_SHORT_SHA
+    E2E_KEY_PAIR_NAME: datadog-agent-ci-rsa
+    E2E_OUTPUT_DIR: $CI_PROJECT_DIR/e2e-output
+    E2E_PIPELINE_ID: $PARENT_PIPELINE_ID
+    E2E_PRIVATE_KEY_PATH: /tmp/agent-qa-ssh-key
+    E2E_PUBLIC_KEY_PATH: /tmp/agent-qa-ssh-key.pub
+    EXTERNAL_LINKS_PATH: external_links_$CI_JOB_ID.json
+    KUBERNETES_CPU_REQUEST: 6
+    KUBERNETES_MEMORY_LIMIT: 16Gi
+    KUBERNETES_MEMORY_REQUEST: 12Gi
+    SHOULD_RUN_IN_FLAKES_FINDER: 'true'
+    TARGETS: ./tests/ndm/snmp
+    TEAM: network-device-monitoring
+new-e2e-ndm-snmp-1:
+  after_script:
+  - $CI_PROJECT_DIR/tools/ci/junit_upload.sh
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+    - $E2E_OUTPUT_DIR
+    - junit-*.tgz
+    reports:
+      annotations:
+      - $EXTERNAL_LINKS_PATH
+    when: always
+  before_script:
+  - mkdir -p ~/.aws
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $AGENT_QA_PROFILE_SSM_NAME >>
+    ~/.aws/config
+  - export AWS_PROFILE=agent-qa-ci
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SSH_PUBLIC_KEY_RSA_SSM_NAME >
+    $E2E_PUBLIC_KEY_PATH
+  - touch $E2E_PRIVATE_KEY_PATH && chmod 600 $E2E_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh
+    $SSH_KEY_RSA_SSM_NAME > $E2E_PRIVATE_KEY_PATH
+  - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
+  - inv -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
+  dependencies: []
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
+  rules:
+  - when: always
+  script:
+  - inv -e new-e2e-tests.run --targets $TARGETS -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com
+    -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password)
+    --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS} --test-washer
+  stage: flake-finder-1
+  tags:
+  - arch:amd64
+  variables:
+    E2E_COMMIT_SHA: $CI_COMMIT_SHORT_SHA
+    E2E_KEY_PAIR_NAME: datadog-agent-ci-rsa
+    E2E_OUTPUT_DIR: $CI_PROJECT_DIR/e2e-output
+    E2E_PIPELINE_ID: $PARENT_PIPELINE_ID
+    E2E_PRIVATE_KEY_PATH: /tmp/agent-qa-ssh-key
+    E2E_PUBLIC_KEY_PATH: /tmp/agent-qa-ssh-key.pub
+    EXTERNAL_LINKS_PATH: external_links_$CI_JOB_ID.json
+    KUBERNETES_CPU_REQUEST: 6
+    KUBERNETES_MEMORY_LIMIT: 16Gi
+    KUBERNETES_MEMORY_REQUEST: 12Gi
+    SHOULD_RUN_IN_FLAKES_FINDER: 'true'
+    TARGETS: ./tests/ndm/snmp
+    TEAM: network-device-monitoring
+new-e2e-ndm-snmp-2:
+  after_script:
+  - $CI_PROJECT_DIR/tools/ci/junit_upload.sh
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+    - $E2E_OUTPUT_DIR
+    - junit-*.tgz
+    reports:
+      annotations:
+      - $EXTERNAL_LINKS_PATH
+    when: always
+  before_script:
+  - mkdir -p ~/.aws
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $AGENT_QA_PROFILE_SSM_NAME >>
+    ~/.aws/config
+  - export AWS_PROFILE=agent-qa-ci
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SSH_PUBLIC_KEY_RSA_SSM_NAME >
+    $E2E_PUBLIC_KEY_PATH
+  - touch $E2E_PRIVATE_KEY_PATH && chmod 600 $E2E_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh
+    $SSH_KEY_RSA_SSM_NAME > $E2E_PRIVATE_KEY_PATH
+  - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
+  - inv -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
+  dependencies: []
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
+  rules:
+  - when: always
+  script:
+  - inv -e new-e2e-tests.run --targets $TARGETS -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com
+    -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password)
+    --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS} --test-washer
+  stage: flake-finder-2
+  tags:
+  - arch:amd64
+  variables:
+    E2E_COMMIT_SHA: $CI_COMMIT_SHORT_SHA
+    E2E_KEY_PAIR_NAME: datadog-agent-ci-rsa
+    E2E_OUTPUT_DIR: $CI_PROJECT_DIR/e2e-output
+    E2E_PIPELINE_ID: $PARENT_PIPELINE_ID
+    E2E_PRIVATE_KEY_PATH: /tmp/agent-qa-ssh-key
+    E2E_PUBLIC_KEY_PATH: /tmp/agent-qa-ssh-key.pub
+    EXTERNAL_LINKS_PATH: external_links_$CI_JOB_ID.json
+    KUBERNETES_CPU_REQUEST: 6
+    KUBERNETES_MEMORY_LIMIT: 16Gi
+    KUBERNETES_MEMORY_REQUEST: 12Gi
+    SHOULD_RUN_IN_FLAKES_FINDER: 'true'
+    TARGETS: ./tests/ndm/snmp
+    TEAM: network-device-monitoring
+new-e2e-npm-docker-0:
+  after_script:
+  - $CI_PROJECT_DIR/tools/ci/junit_upload.sh
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+    - $E2E_OUTPUT_DIR
+    - junit-*.tgz
+    reports:
+      annotations:
+      - $EXTERNAL_LINKS_PATH
+    when: always
+  before_script:
+  - mkdir -p ~/.aws
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $AGENT_QA_PROFILE_SSM_NAME >>
+    ~/.aws/config
+  - export AWS_PROFILE=agent-qa-ci
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SSH_PUBLIC_KEY_RSA_SSM_NAME >
+    $E2E_PUBLIC_KEY_PATH
+  - touch $E2E_PRIVATE_KEY_PATH && chmod 600 $E2E_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh
+    $SSH_KEY_RSA_SSM_NAME > $E2E_PRIVATE_KEY_PATH
+  - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
+  - inv -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
+  dependencies: []
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
+  rules:
+  - when: always
+  script:
+  - inv -e new-e2e-tests.run --targets $TARGETS -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com
+    -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password)
+    --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS} --test-washer
+  stage: flake-finder-0
+  tags:
+  - arch:amd64
+  variables:
+    E2E_COMMIT_SHA: $CI_COMMIT_SHORT_SHA
+    E2E_KEY_PAIR_NAME: datadog-agent-ci-rsa
+    E2E_OUTPUT_DIR: $CI_PROJECT_DIR/e2e-output
+    E2E_PIPELINE_ID: $PARENT_PIPELINE_ID
+    E2E_PRIVATE_KEY_PATH: /tmp/agent-qa-ssh-key
+    E2E_PUBLIC_KEY_PATH: /tmp/agent-qa-ssh-key.pub
+    EXTERNAL_LINKS_PATH: external_links_$CI_JOB_ID.json
+    EXTRA_PARAMS: --run "Test(ECSVM|EC2VMContainerized|EKSVM)Suite"
+    KUBERNETES_CPU_REQUEST: 6
+    KUBERNETES_MEMORY_LIMIT: 16Gi
+    KUBERNETES_MEMORY_REQUEST: 12Gi
+    SHOULD_RUN_IN_FLAKES_FINDER: 'true'
+    TARGETS: ./tests/npm
+    TEAM: network-performance-monitoring
+new-e2e-npm-docker-1:
+  after_script:
+  - $CI_PROJECT_DIR/tools/ci/junit_upload.sh
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+    - $E2E_OUTPUT_DIR
+    - junit-*.tgz
+    reports:
+      annotations:
+      - $EXTERNAL_LINKS_PATH
+    when: always
+  before_script:
+  - mkdir -p ~/.aws
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $AGENT_QA_PROFILE_SSM_NAME >>
+    ~/.aws/config
+  - export AWS_PROFILE=agent-qa-ci
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SSH_PUBLIC_KEY_RSA_SSM_NAME >
+    $E2E_PUBLIC_KEY_PATH
+  - touch $E2E_PRIVATE_KEY_PATH && chmod 600 $E2E_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh
+    $SSH_KEY_RSA_SSM_NAME > $E2E_PRIVATE_KEY_PATH
+  - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
+  - inv -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
+  dependencies: []
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
+  rules:
+  - when: always
+  script:
+  - inv -e new-e2e-tests.run --targets $TARGETS -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com
+    -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password)
+    --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS} --test-washer
+  stage: flake-finder-1
+  tags:
+  - arch:amd64
+  variables:
+    E2E_COMMIT_SHA: $CI_COMMIT_SHORT_SHA
+    E2E_KEY_PAIR_NAME: datadog-agent-ci-rsa
+    E2E_OUTPUT_DIR: $CI_PROJECT_DIR/e2e-output
+    E2E_PIPELINE_ID: $PARENT_PIPELINE_ID
+    E2E_PRIVATE_KEY_PATH: /tmp/agent-qa-ssh-key
+    E2E_PUBLIC_KEY_PATH: /tmp/agent-qa-ssh-key.pub
+    EXTERNAL_LINKS_PATH: external_links_$CI_JOB_ID.json
+    EXTRA_PARAMS: --run "Test(ECSVM|EC2VMContainerized|EKSVM)Suite"
+    KUBERNETES_CPU_REQUEST: 6
+    KUBERNETES_MEMORY_LIMIT: 16Gi
+    KUBERNETES_MEMORY_REQUEST: 12Gi
+    SHOULD_RUN_IN_FLAKES_FINDER: 'true'
+    TARGETS: ./tests/npm
+    TEAM: network-performance-monitoring
+new-e2e-npm-docker-2:
+  after_script:
+  - $CI_PROJECT_DIR/tools/ci/junit_upload.sh
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+    - $E2E_OUTPUT_DIR
+    - junit-*.tgz
+    reports:
+      annotations:
+      - $EXTERNAL_LINKS_PATH
+    when: always
+  before_script:
+  - mkdir -p ~/.aws
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $AGENT_QA_PROFILE_SSM_NAME >>
+    ~/.aws/config
+  - export AWS_PROFILE=agent-qa-ci
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SSH_PUBLIC_KEY_RSA_SSM_NAME >
+    $E2E_PUBLIC_KEY_PATH
+  - touch $E2E_PRIVATE_KEY_PATH && chmod 600 $E2E_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh
+    $SSH_KEY_RSA_SSM_NAME > $E2E_PRIVATE_KEY_PATH
+  - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
+  - inv -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
+  dependencies: []
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
+  rules:
+  - when: always
+  script:
+  - inv -e new-e2e-tests.run --targets $TARGETS -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com
+    -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password)
+    --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS} --test-washer
+  stage: flake-finder-2
+  tags:
+  - arch:amd64
+  variables:
+    E2E_COMMIT_SHA: $CI_COMMIT_SHORT_SHA
+    E2E_KEY_PAIR_NAME: datadog-agent-ci-rsa
+    E2E_OUTPUT_DIR: $CI_PROJECT_DIR/e2e-output
+    E2E_PIPELINE_ID: $PARENT_PIPELINE_ID
+    E2E_PRIVATE_KEY_PATH: /tmp/agent-qa-ssh-key
+    E2E_PUBLIC_KEY_PATH: /tmp/agent-qa-ssh-key.pub
+    EXTERNAL_LINKS_PATH: external_links_$CI_JOB_ID.json
+    EXTRA_PARAMS: --run "Test(ECSVM|EC2VMContainerized|EKSVM)Suite"
+    KUBERNETES_CPU_REQUEST: 6
+    KUBERNETES_MEMORY_LIMIT: 16Gi
+    KUBERNETES_MEMORY_REQUEST: 12Gi
+    SHOULD_RUN_IN_FLAKES_FINDER: 'true'
+    TARGETS: ./tests/npm
+    TEAM: network-performance-monitoring
+new-e2e-npm-packages-0:
+  after_script:
+  - $CI_PROJECT_DIR/tools/ci/junit_upload.sh
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+    - $E2E_OUTPUT_DIR
+    - junit-*.tgz
+    reports:
+      annotations:
+      - $EXTERNAL_LINKS_PATH
+    when: always
+  before_script:
+  - mkdir -p ~/.aws
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $AGENT_QA_PROFILE_SSM_NAME >>
+    ~/.aws/config
+  - export AWS_PROFILE=agent-qa-ci
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SSH_PUBLIC_KEY_RSA_SSM_NAME >
+    $E2E_PUBLIC_KEY_PATH
+  - touch $E2E_PRIVATE_KEY_PATH && chmod 600 $E2E_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh
+    $SSH_KEY_RSA_SSM_NAME > $E2E_PRIVATE_KEY_PATH
+  - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
+  - inv -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
+  dependencies: []
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
+  rules:
+  - when: always
+  script:
+  - inv -e new-e2e-tests.run --targets $TARGETS -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com
+    -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password)
+    --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS} --test-washer
+  stage: flake-finder-0
+  tags:
+  - arch:amd64
+  variables:
+    E2E_COMMIT_SHA: $CI_COMMIT_SHORT_SHA
+    E2E_KEY_PAIR_NAME: datadog-agent-ci-rsa
+    E2E_OUTPUT_DIR: $CI_PROJECT_DIR/e2e-output
+    E2E_PIPELINE_ID: $PARENT_PIPELINE_ID
+    E2E_PRIVATE_KEY_PATH: /tmp/agent-qa-ssh-key
+    E2E_PUBLIC_KEY_PATH: /tmp/agent-qa-ssh-key.pub
+    EXTERNAL_LINKS_PATH: external_links_$CI_JOB_ID.json
+    EXTRA_PARAMS: --run "TestEC2(VM|VMSELinux|VMWKit)Suite"
+    KUBERNETES_CPU_REQUEST: 6
+    KUBERNETES_MEMORY_LIMIT: 16Gi
+    KUBERNETES_MEMORY_REQUEST: 12Gi
+    SHOULD_RUN_IN_FLAKES_FINDER: 'true'
+    TARGETS: ./tests/npm
+    TEAM: network-performance-monitoring
+new-e2e-npm-packages-1:
+  after_script:
+  - $CI_PROJECT_DIR/tools/ci/junit_upload.sh
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+    - $E2E_OUTPUT_DIR
+    - junit-*.tgz
+    reports:
+      annotations:
+      - $EXTERNAL_LINKS_PATH
+    when: always
+  before_script:
+  - mkdir -p ~/.aws
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $AGENT_QA_PROFILE_SSM_NAME >>
+    ~/.aws/config
+  - export AWS_PROFILE=agent-qa-ci
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SSH_PUBLIC_KEY_RSA_SSM_NAME >
+    $E2E_PUBLIC_KEY_PATH
+  - touch $E2E_PRIVATE_KEY_PATH && chmod 600 $E2E_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh
+    $SSH_KEY_RSA_SSM_NAME > $E2E_PRIVATE_KEY_PATH
+  - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
+  - inv -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
+  dependencies: []
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
+  rules:
+  - when: always
+  script:
+  - inv -e new-e2e-tests.run --targets $TARGETS -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com
+    -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password)
+    --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS} --test-washer
+  stage: flake-finder-1
+  tags:
+  - arch:amd64
+  variables:
+    E2E_COMMIT_SHA: $CI_COMMIT_SHORT_SHA
+    E2E_KEY_PAIR_NAME: datadog-agent-ci-rsa
+    E2E_OUTPUT_DIR: $CI_PROJECT_DIR/e2e-output
+    E2E_PIPELINE_ID: $PARENT_PIPELINE_ID
+    E2E_PRIVATE_KEY_PATH: /tmp/agent-qa-ssh-key
+    E2E_PUBLIC_KEY_PATH: /tmp/agent-qa-ssh-key.pub
+    EXTERNAL_LINKS_PATH: external_links_$CI_JOB_ID.json
+    EXTRA_PARAMS: --run "TestEC2(VM|VMSELinux|VMWKit)Suite"
+    KUBERNETES_CPU_REQUEST: 6
+    KUBERNETES_MEMORY_LIMIT: 16Gi
+    KUBERNETES_MEMORY_REQUEST: 12Gi
+    SHOULD_RUN_IN_FLAKES_FINDER: 'true'
+    TARGETS: ./tests/npm
+    TEAM: network-performance-monitoring
+new-e2e-npm-packages-2:
+  after_script:
+  - $CI_PROJECT_DIR/tools/ci/junit_upload.sh
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+    - $E2E_OUTPUT_DIR
+    - junit-*.tgz
+    reports:
+      annotations:
+      - $EXTERNAL_LINKS_PATH
+    when: always
+  before_script:
+  - mkdir -p ~/.aws
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $AGENT_QA_PROFILE_SSM_NAME >>
+    ~/.aws/config
+  - export AWS_PROFILE=agent-qa-ci
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SSH_PUBLIC_KEY_RSA_SSM_NAME >
+    $E2E_PUBLIC_KEY_PATH
+  - touch $E2E_PRIVATE_KEY_PATH && chmod 600 $E2E_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh
+    $SSH_KEY_RSA_SSM_NAME > $E2E_PRIVATE_KEY_PATH
+  - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
+  - inv -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
+  dependencies: []
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
+  rules:
+  - when: always
+  script:
+  - inv -e new-e2e-tests.run --targets $TARGETS -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com
+    -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password)
+    --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS} --test-washer
+  stage: flake-finder-2
+  tags:
+  - arch:amd64
+  variables:
+    E2E_COMMIT_SHA: $CI_COMMIT_SHORT_SHA
+    E2E_KEY_PAIR_NAME: datadog-agent-ci-rsa
+    E2E_OUTPUT_DIR: $CI_PROJECT_DIR/e2e-output
+    E2E_PIPELINE_ID: $PARENT_PIPELINE_ID
+    E2E_PRIVATE_KEY_PATH: /tmp/agent-qa-ssh-key
+    E2E_PUBLIC_KEY_PATH: /tmp/agent-qa-ssh-key.pub
+    EXTERNAL_LINKS_PATH: external_links_$CI_JOB_ID.json
+    EXTRA_PARAMS: --run "TestEC2(VM|VMSELinux|VMWKit)Suite"
+    KUBERNETES_CPU_REQUEST: 6
+    KUBERNETES_MEMORY_LIMIT: 16Gi
+    KUBERNETES_MEMORY_REQUEST: 12Gi
+    SHOULD_RUN_IN_FLAKES_FINDER: 'true'
+    TARGETS: ./tests/npm
+    TEAM: network-performance-monitoring
+new-e2e-orchestrator-0:
+  after_script:
+  - $CI_PROJECT_DIR/tools/ci/junit_upload.sh
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+    - $E2E_OUTPUT_DIR
+    - junit-*.tgz
+    reports:
+      annotations:
+      - $EXTERNAL_LINKS_PATH
+    when: always
+  before_script:
+  - mkdir -p ~/.aws
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $AGENT_QA_PROFILE_SSM_NAME >>
+    ~/.aws/config
+  - export AWS_PROFILE=agent-qa-ci
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SSH_PUBLIC_KEY_RSA_SSM_NAME >
+    $E2E_PUBLIC_KEY_PATH
+  - touch $E2E_PRIVATE_KEY_PATH && chmod 600 $E2E_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh
+    $SSH_KEY_RSA_SSM_NAME > $E2E_PRIVATE_KEY_PATH
+  - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
+  - inv -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
+  dependencies: []
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
+  rules:
+  - when: always
+  script:
+  - inv -e new-e2e-tests.run --targets $TARGETS -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com
+    -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password)
+    --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS} --test-washer
+  stage: flake-finder-0
+  tags:
+  - arch:amd64
+  variables:
+    E2E_COMMIT_SHA: $CI_COMMIT_SHORT_SHA
+    E2E_KEY_PAIR_NAME: datadog-agent-ci-rsa
+    E2E_OUTPUT_DIR: $CI_PROJECT_DIR/e2e-output
+    E2E_PIPELINE_ID: $PARENT_PIPELINE_ID
+    E2E_PRIVATE_KEY_PATH: /tmp/agent-qa-ssh-key
+    E2E_PUBLIC_KEY_PATH: /tmp/agent-qa-ssh-key.pub
+    EXTERNAL_LINKS_PATH: external_links_$CI_JOB_ID.json
+    KUBERNETES_CPU_REQUEST: 6
+    KUBERNETES_MEMORY_LIMIT: 16Gi
+    KUBERNETES_MEMORY_REQUEST: 12Gi
+    SHOULD_RUN_IN_FLAKES_FINDER: 'true'
+    TARGETS: ./tests/orchestrator
+    TEAM: container-app
+new-e2e-orchestrator-1:
+  after_script:
+  - $CI_PROJECT_DIR/tools/ci/junit_upload.sh
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+    - $E2E_OUTPUT_DIR
+    - junit-*.tgz
+    reports:
+      annotations:
+      - $EXTERNAL_LINKS_PATH
+    when: always
+  before_script:
+  - mkdir -p ~/.aws
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $AGENT_QA_PROFILE_SSM_NAME >>
+    ~/.aws/config
+  - export AWS_PROFILE=agent-qa-ci
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SSH_PUBLIC_KEY_RSA_SSM_NAME >
+    $E2E_PUBLIC_KEY_PATH
+  - touch $E2E_PRIVATE_KEY_PATH && chmod 600 $E2E_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh
+    $SSH_KEY_RSA_SSM_NAME > $E2E_PRIVATE_KEY_PATH
+  - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
+  - inv -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
+  dependencies: []
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
+  rules:
+  - when: always
+  script:
+  - inv -e new-e2e-tests.run --targets $TARGETS -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com
+    -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password)
+    --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS} --test-washer
+  stage: flake-finder-1
+  tags:
+  - arch:amd64
+  variables:
+    E2E_COMMIT_SHA: $CI_COMMIT_SHORT_SHA
+    E2E_KEY_PAIR_NAME: datadog-agent-ci-rsa
+    E2E_OUTPUT_DIR: $CI_PROJECT_DIR/e2e-output
+    E2E_PIPELINE_ID: $PARENT_PIPELINE_ID
+    E2E_PRIVATE_KEY_PATH: /tmp/agent-qa-ssh-key
+    E2E_PUBLIC_KEY_PATH: /tmp/agent-qa-ssh-key.pub
+    EXTERNAL_LINKS_PATH: external_links_$CI_JOB_ID.json
+    KUBERNETES_CPU_REQUEST: 6
+    KUBERNETES_MEMORY_LIMIT: 16Gi
+    KUBERNETES_MEMORY_REQUEST: 12Gi
+    SHOULD_RUN_IN_FLAKES_FINDER: 'true'
+    TARGETS: ./tests/orchestrator
+    TEAM: container-app
+new-e2e-orchestrator-2:
+  after_script:
+  - $CI_PROJECT_DIR/tools/ci/junit_upload.sh
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+    - $E2E_OUTPUT_DIR
+    - junit-*.tgz
+    reports:
+      annotations:
+      - $EXTERNAL_LINKS_PATH
+    when: always
+  before_script:
+  - mkdir -p ~/.aws
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $AGENT_QA_PROFILE_SSM_NAME >>
+    ~/.aws/config
+  - export AWS_PROFILE=agent-qa-ci
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SSH_PUBLIC_KEY_RSA_SSM_NAME >
+    $E2E_PUBLIC_KEY_PATH
+  - touch $E2E_PRIVATE_KEY_PATH && chmod 600 $E2E_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh
+    $SSH_KEY_RSA_SSM_NAME > $E2E_PRIVATE_KEY_PATH
+  - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
+  - inv -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
+  dependencies: []
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
+  rules:
+  - when: always
+  script:
+  - inv -e new-e2e-tests.run --targets $TARGETS -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com
+    -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password)
+    --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS} --test-washer
+  stage: flake-finder-2
+  tags:
+  - arch:amd64
+  variables:
+    E2E_COMMIT_SHA: $CI_COMMIT_SHORT_SHA
+    E2E_KEY_PAIR_NAME: datadog-agent-ci-rsa
+    E2E_OUTPUT_DIR: $CI_PROJECT_DIR/e2e-output
+    E2E_PIPELINE_ID: $PARENT_PIPELINE_ID
+    E2E_PRIVATE_KEY_PATH: /tmp/agent-qa-ssh-key
+    E2E_PUBLIC_KEY_PATH: /tmp/agent-qa-ssh-key.pub
+    EXTERNAL_LINKS_PATH: external_links_$CI_JOB_ID.json
+    KUBERNETES_CPU_REQUEST: 6
+    KUBERNETES_MEMORY_LIMIT: 16Gi
+    KUBERNETES_MEMORY_REQUEST: 12Gi
+    SHOULD_RUN_IN_FLAKES_FINDER: 'true'
+    TARGETS: ./tests/orchestrator
+    TEAM: container-app
+new-e2e-process-0:
+  after_script:
+  - $CI_PROJECT_DIR/tools/ci/junit_upload.sh
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+    - $E2E_OUTPUT_DIR
+    - junit-*.tgz
+    reports:
+      annotations:
+      - $EXTERNAL_LINKS_PATH
+    when: always
+  before_script:
+  - mkdir -p ~/.aws
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $AGENT_QA_PROFILE_SSM_NAME >>
+    ~/.aws/config
+  - export AWS_PROFILE=agent-qa-ci
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SSH_PUBLIC_KEY_RSA_SSM_NAME >
+    $E2E_PUBLIC_KEY_PATH
+  - touch $E2E_PRIVATE_KEY_PATH && chmod 600 $E2E_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh
+    $SSH_KEY_RSA_SSM_NAME > $E2E_PRIVATE_KEY_PATH
+  - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
+  - inv -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
+  dependencies: []
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
+  rules:
+  - when: always
+  script:
+  - inv -e new-e2e-tests.run --targets $TARGETS -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com
+    -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password)
+    --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS} --test-washer
+  stage: flake-finder-0
+  tags:
+  - arch:amd64
+  variables:
+    E2E_COMMIT_SHA: $CI_COMMIT_SHORT_SHA
+    E2E_KEY_PAIR_NAME: datadog-agent-ci-rsa
+    E2E_OUTPUT_DIR: $CI_PROJECT_DIR/e2e-output
+    E2E_PIPELINE_ID: $PARENT_PIPELINE_ID
+    E2E_PRIVATE_KEY_PATH: /tmp/agent-qa-ssh-key
+    E2E_PUBLIC_KEY_PATH: /tmp/agent-qa-ssh-key.pub
+    EXTERNAL_LINKS_PATH: external_links_$CI_JOB_ID.json
+    KUBERNETES_CPU_REQUEST: 6
+    KUBERNETES_MEMORY_LIMIT: 16Gi
+    KUBERNETES_MEMORY_REQUEST: 12Gi
+    SHOULD_RUN_IN_FLAKES_FINDER: 'true'
+    TARGETS: ./tests/process
+    TEAM: processes
+new-e2e-process-1:
+  after_script:
+  - $CI_PROJECT_DIR/tools/ci/junit_upload.sh
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+    - $E2E_OUTPUT_DIR
+    - junit-*.tgz
+    reports:
+      annotations:
+      - $EXTERNAL_LINKS_PATH
+    when: always
+  before_script:
+  - mkdir -p ~/.aws
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $AGENT_QA_PROFILE_SSM_NAME >>
+    ~/.aws/config
+  - export AWS_PROFILE=agent-qa-ci
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SSH_PUBLIC_KEY_RSA_SSM_NAME >
+    $E2E_PUBLIC_KEY_PATH
+  - touch $E2E_PRIVATE_KEY_PATH && chmod 600 $E2E_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh
+    $SSH_KEY_RSA_SSM_NAME > $E2E_PRIVATE_KEY_PATH
+  - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
+  - inv -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
+  dependencies: []
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
+  rules:
+  - when: always
+  script:
+  - inv -e new-e2e-tests.run --targets $TARGETS -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com
+    -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password)
+    --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS} --test-washer
+  stage: flake-finder-1
+  tags:
+  - arch:amd64
+  variables:
+    E2E_COMMIT_SHA: $CI_COMMIT_SHORT_SHA
+    E2E_KEY_PAIR_NAME: datadog-agent-ci-rsa
+    E2E_OUTPUT_DIR: $CI_PROJECT_DIR/e2e-output
+    E2E_PIPELINE_ID: $PARENT_PIPELINE_ID
+    E2E_PRIVATE_KEY_PATH: /tmp/agent-qa-ssh-key
+    E2E_PUBLIC_KEY_PATH: /tmp/agent-qa-ssh-key.pub
+    EXTERNAL_LINKS_PATH: external_links_$CI_JOB_ID.json
+    KUBERNETES_CPU_REQUEST: 6
+    KUBERNETES_MEMORY_LIMIT: 16Gi
+    KUBERNETES_MEMORY_REQUEST: 12Gi
+    SHOULD_RUN_IN_FLAKES_FINDER: 'true'
+    TARGETS: ./tests/process
+    TEAM: processes
+new-e2e-process-2:
+  after_script:
+  - $CI_PROJECT_DIR/tools/ci/junit_upload.sh
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+    - $E2E_OUTPUT_DIR
+    - junit-*.tgz
+    reports:
+      annotations:
+      - $EXTERNAL_LINKS_PATH
+    when: always
+  before_script:
+  - mkdir -p ~/.aws
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $AGENT_QA_PROFILE_SSM_NAME >>
+    ~/.aws/config
+  - export AWS_PROFILE=agent-qa-ci
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SSH_PUBLIC_KEY_RSA_SSM_NAME >
+    $E2E_PUBLIC_KEY_PATH
+  - touch $E2E_PRIVATE_KEY_PATH && chmod 600 $E2E_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh
+    $SSH_KEY_RSA_SSM_NAME > $E2E_PRIVATE_KEY_PATH
+  - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
+  - inv -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
+  dependencies: []
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
+  rules:
+  - when: always
+  script:
+  - inv -e new-e2e-tests.run --targets $TARGETS -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com
+    -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password)
+    --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS} --test-washer
+  stage: flake-finder-2
+  tags:
+  - arch:amd64
+  variables:
+    E2E_COMMIT_SHA: $CI_COMMIT_SHORT_SHA
+    E2E_KEY_PAIR_NAME: datadog-agent-ci-rsa
+    E2E_OUTPUT_DIR: $CI_PROJECT_DIR/e2e-output
+    E2E_PIPELINE_ID: $PARENT_PIPELINE_ID
+    E2E_PRIVATE_KEY_PATH: /tmp/agent-qa-ssh-key
+    E2E_PUBLIC_KEY_PATH: /tmp/agent-qa-ssh-key.pub
+    EXTERNAL_LINKS_PATH: external_links_$CI_JOB_ID.json
+    KUBERNETES_CPU_REQUEST: 6
+    KUBERNETES_MEMORY_LIMIT: 16Gi
+    KUBERNETES_MEMORY_REQUEST: 12Gi
+    SHOULD_RUN_IN_FLAKES_FINDER: 'true'
+    TARGETS: ./tests/process
+    TEAM: processes
+new-e2e-remote-config-0:
+  after_script:
+  - $CI_PROJECT_DIR/tools/ci/junit_upload.sh
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+    - $E2E_OUTPUT_DIR
+    - junit-*.tgz
+    reports:
+      annotations:
+      - $EXTERNAL_LINKS_PATH
+    when: always
+  before_script:
+  - mkdir -p ~/.aws
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $AGENT_QA_PROFILE_SSM_NAME >>
+    ~/.aws/config
+  - export AWS_PROFILE=agent-qa-ci
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SSH_PUBLIC_KEY_RSA_SSM_NAME >
+    $E2E_PUBLIC_KEY_PATH
+  - touch $E2E_PRIVATE_KEY_PATH && chmod 600 $E2E_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh
+    $SSH_KEY_RSA_SSM_NAME > $E2E_PRIVATE_KEY_PATH
+  - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
+  - inv -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
+  dependencies: []
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
+  rules:
+  - when: always
+  script:
+  - inv -e new-e2e-tests.run --targets $TARGETS -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com
+    -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password)
+    --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS} --test-washer
+  stage: flake-finder-0
+  tags:
+  - arch:amd64
+  variables:
+    E2E_COMMIT_SHA: $CI_COMMIT_SHORT_SHA
+    E2E_KEY_PAIR_NAME: datadog-agent-ci-rsa
+    E2E_OUTPUT_DIR: $CI_PROJECT_DIR/e2e-output
+    E2E_PIPELINE_ID: $PARENT_PIPELINE_ID
+    E2E_PRIVATE_KEY_PATH: /tmp/agent-qa-ssh-key
+    E2E_PUBLIC_KEY_PATH: /tmp/agent-qa-ssh-key.pub
+    EXTERNAL_LINKS_PATH: external_links_$CI_JOB_ID.json
+    KUBERNETES_CPU_REQUEST: 6
+    KUBERNETES_MEMORY_LIMIT: 16Gi
+    KUBERNETES_MEMORY_REQUEST: 12Gi
+    SHOULD_RUN_IN_FLAKES_FINDER: 'true'
+    TARGETS: ./tests/remote-config
+    TEAM: remote-config
+new-e2e-remote-config-1:
+  after_script:
+  - $CI_PROJECT_DIR/tools/ci/junit_upload.sh
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+    - $E2E_OUTPUT_DIR
+    - junit-*.tgz
+    reports:
+      annotations:
+      - $EXTERNAL_LINKS_PATH
+    when: always
+  before_script:
+  - mkdir -p ~/.aws
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $AGENT_QA_PROFILE_SSM_NAME >>
+    ~/.aws/config
+  - export AWS_PROFILE=agent-qa-ci
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SSH_PUBLIC_KEY_RSA_SSM_NAME >
+    $E2E_PUBLIC_KEY_PATH
+  - touch $E2E_PRIVATE_KEY_PATH && chmod 600 $E2E_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh
+    $SSH_KEY_RSA_SSM_NAME > $E2E_PRIVATE_KEY_PATH
+  - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
+  - inv -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
+  dependencies: []
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
+  rules:
+  - when: always
+  script:
+  - inv -e new-e2e-tests.run --targets $TARGETS -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com
+    -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password)
+    --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS} --test-washer
+  stage: flake-finder-1
+  tags:
+  - arch:amd64
+  variables:
+    E2E_COMMIT_SHA: $CI_COMMIT_SHORT_SHA
+    E2E_KEY_PAIR_NAME: datadog-agent-ci-rsa
+    E2E_OUTPUT_DIR: $CI_PROJECT_DIR/e2e-output
+    E2E_PIPELINE_ID: $PARENT_PIPELINE_ID
+    E2E_PRIVATE_KEY_PATH: /tmp/agent-qa-ssh-key
+    E2E_PUBLIC_KEY_PATH: /tmp/agent-qa-ssh-key.pub
+    EXTERNAL_LINKS_PATH: external_links_$CI_JOB_ID.json
+    KUBERNETES_CPU_REQUEST: 6
+    KUBERNETES_MEMORY_LIMIT: 16Gi
+    KUBERNETES_MEMORY_REQUEST: 12Gi
+    SHOULD_RUN_IN_FLAKES_FINDER: 'true'
+    TARGETS: ./tests/remote-config
+    TEAM: remote-config
+new-e2e-remote-config-2:
+  after_script:
+  - $CI_PROJECT_DIR/tools/ci/junit_upload.sh
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+    - $E2E_OUTPUT_DIR
+    - junit-*.tgz
+    reports:
+      annotations:
+      - $EXTERNAL_LINKS_PATH
+    when: always
+  before_script:
+  - mkdir -p ~/.aws
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $AGENT_QA_PROFILE_SSM_NAME >>
+    ~/.aws/config
+  - export AWS_PROFILE=agent-qa-ci
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SSH_PUBLIC_KEY_RSA_SSM_NAME >
+    $E2E_PUBLIC_KEY_PATH
+  - touch $E2E_PRIVATE_KEY_PATH && chmod 600 $E2E_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh
+    $SSH_KEY_RSA_SSM_NAME > $E2E_PRIVATE_KEY_PATH
+  - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
+  - inv -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
+  dependencies: []
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
+  rules:
+  - when: always
+  script:
+  - inv -e new-e2e-tests.run --targets $TARGETS -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com
+    -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password)
+    --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS} --test-washer
+  stage: flake-finder-2
+  tags:
+  - arch:amd64
+  variables:
+    E2E_COMMIT_SHA: $CI_COMMIT_SHORT_SHA
+    E2E_KEY_PAIR_NAME: datadog-agent-ci-rsa
+    E2E_OUTPUT_DIR: $CI_PROJECT_DIR/e2e-output
+    E2E_PIPELINE_ID: $PARENT_PIPELINE_ID
+    E2E_PRIVATE_KEY_PATH: /tmp/agent-qa-ssh-key
+    E2E_PUBLIC_KEY_PATH: /tmp/agent-qa-ssh-key.pub
+    EXTERNAL_LINKS_PATH: external_links_$CI_JOB_ID.json
+    KUBERNETES_CPU_REQUEST: 6
+    KUBERNETES_MEMORY_LIMIT: 16Gi
+    KUBERNETES_MEMORY_REQUEST: 12Gi
+    SHOULD_RUN_IN_FLAKES_FINDER: 'true'
+    TARGETS: ./tests/remote-config
+    TEAM: remote-config
+new-e2e_windows_powershell_module_test-0:
+  after_script:
+  - $CI_PROJECT_DIR/tools/ci/junit_upload.sh
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+    - $E2E_OUTPUT_DIR
+    - junit-*.tgz
+    reports:
+      annotations:
+      - $EXTERNAL_LINKS_PATH
+    when: always
+  before_script:
+  - mkdir -p ~/.aws
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $AGENT_QA_PROFILE_SSM_NAME >>
+    ~/.aws/config
+  - export AWS_PROFILE=agent-qa-ci
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SSH_PUBLIC_KEY_RSA_SSM_NAME >
+    $E2E_PUBLIC_KEY_PATH
+  - touch $E2E_PRIVATE_KEY_PATH && chmod 600 $E2E_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh
+    $SSH_KEY_RSA_SSM_NAME > $E2E_PRIVATE_KEY_PATH
+  - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
+  - inv -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
+  dependencies: []
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
+  rules:
+  - when: always
+  script:
+  - inv -e new-e2e-tests.run --targets $TARGETS -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com
+    -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password)
+    --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS} --test-washer
+  stage: flake-finder-0
+  tags:
+  - arch:amd64
+  variables:
+    E2E_COMMIT_SHA: $CI_COMMIT_SHORT_SHA
+    E2E_KEY_PAIR_NAME: datadog-agent-ci-rsa
+    E2E_OUTPUT_DIR: $CI_PROJECT_DIR/e2e-output
+    E2E_PIPELINE_ID: $PARENT_PIPELINE_ID
+    E2E_PRIVATE_KEY_PATH: /tmp/agent-qa-ssh-key
+    E2E_PUBLIC_KEY_PATH: /tmp/agent-qa-ssh-key.pub
+    EXTERNAL_LINKS_PATH: external_links_$CI_JOB_ID.json
+    KUBERNETES_CPU_REQUEST: 6
+    KUBERNETES_MEMORY_LIMIT: 16Gi
+    KUBERNETES_MEMORY_REQUEST: 12Gi
+    SHOULD_RUN_IN_FLAKES_FINDER: 'true'
+    TARGETS: ./tests/windows/powershell-module-test
+    TEAM: windows-kernel-integrations
+new-e2e_windows_powershell_module_test-1:
+  after_script:
+  - $CI_PROJECT_DIR/tools/ci/junit_upload.sh
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+    - $E2E_OUTPUT_DIR
+    - junit-*.tgz
+    reports:
+      annotations:
+      - $EXTERNAL_LINKS_PATH
+    when: always
+  before_script:
+  - mkdir -p ~/.aws
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $AGENT_QA_PROFILE_SSM_NAME >>
+    ~/.aws/config
+  - export AWS_PROFILE=agent-qa-ci
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SSH_PUBLIC_KEY_RSA_SSM_NAME >
+    $E2E_PUBLIC_KEY_PATH
+  - touch $E2E_PRIVATE_KEY_PATH && chmod 600 $E2E_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh
+    $SSH_KEY_RSA_SSM_NAME > $E2E_PRIVATE_KEY_PATH
+  - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
+  - inv -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
+  dependencies: []
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
+  rules:
+  - when: always
+  script:
+  - inv -e new-e2e-tests.run --targets $TARGETS -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com
+    -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password)
+    --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS} --test-washer
+  stage: flake-finder-1
+  tags:
+  - arch:amd64
+  variables:
+    E2E_COMMIT_SHA: $CI_COMMIT_SHORT_SHA
+    E2E_KEY_PAIR_NAME: datadog-agent-ci-rsa
+    E2E_OUTPUT_DIR: $CI_PROJECT_DIR/e2e-output
+    E2E_PIPELINE_ID: $PARENT_PIPELINE_ID
+    E2E_PRIVATE_KEY_PATH: /tmp/agent-qa-ssh-key
+    E2E_PUBLIC_KEY_PATH: /tmp/agent-qa-ssh-key.pub
+    EXTERNAL_LINKS_PATH: external_links_$CI_JOB_ID.json
+    KUBERNETES_CPU_REQUEST: 6
+    KUBERNETES_MEMORY_LIMIT: 16Gi
+    KUBERNETES_MEMORY_REQUEST: 12Gi
+    SHOULD_RUN_IN_FLAKES_FINDER: 'true'
+    TARGETS: ./tests/windows/powershell-module-test
+    TEAM: windows-kernel-integrations
+new-e2e_windows_powershell_module_test-2:
+  after_script:
+  - $CI_PROJECT_DIR/tools/ci/junit_upload.sh
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+    - $E2E_OUTPUT_DIR
+    - junit-*.tgz
+    reports:
+      annotations:
+      - $EXTERNAL_LINKS_PATH
+    when: always
+  before_script:
+  - mkdir -p ~/.aws
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $AGENT_QA_PROFILE_SSM_NAME >>
+    ~/.aws/config
+  - export AWS_PROFILE=agent-qa-ci
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SSH_PUBLIC_KEY_RSA_SSM_NAME >
+    $E2E_PUBLIC_KEY_PATH
+  - touch $E2E_PRIVATE_KEY_PATH && chmod 600 $E2E_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh
+    $SSH_KEY_RSA_SSM_NAME > $E2E_PRIVATE_KEY_PATH
+  - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
+  - inv -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
+  dependencies: []
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
+  rules:
+  - when: always
+  script:
+  - inv -e new-e2e-tests.run --targets $TARGETS -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com
+    -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password)
+    --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS} --test-washer
+  stage: flake-finder-2
+  tags:
+  - arch:amd64
+  variables:
+    E2E_COMMIT_SHA: $CI_COMMIT_SHORT_SHA
+    E2E_KEY_PAIR_NAME: datadog-agent-ci-rsa
+    E2E_OUTPUT_DIR: $CI_PROJECT_DIR/e2e-output
+    E2E_PIPELINE_ID: $PARENT_PIPELINE_ID
+    E2E_PRIVATE_KEY_PATH: /tmp/agent-qa-ssh-key
+    E2E_PUBLIC_KEY_PATH: /tmp/agent-qa-ssh-key.pub
+    EXTERNAL_LINKS_PATH: external_links_$CI_JOB_ID.json
+    KUBERNETES_CPU_REQUEST: 6
+    KUBERNETES_MEMORY_LIMIT: 16Gi
+    KUBERNETES_MEMORY_REQUEST: 12Gi
+    SHOULD_RUN_IN_FLAKES_FINDER: 'true'
+    TARGETS: ./tests/windows/powershell-module-test
+    TEAM: windows-kernel-integrations
+stages:
+- flake-finder-0
+- flake-finder-1
+- flake-finder-2
+variables:
+  AGENT_BINARIES_DIR: bin/agent
+  AGENT_QA_PROFILE_SSM_NAME: ci.datadog-agent.agent-qa-profile
+  API_KEY_DDDEV_SSM_NAME: ci.datadog-agent.datadog_api_key
+  API_KEY_ORG2_SSM_NAME: ci.datadog-agent.datadog_api_key_org2
+  APP_KEY_ORG2_SSM_NAME: ci.datadog-agent.datadog_app_key_org2
+  ARTIFACTORY_BYPASS_SSM_NAME: ci.datadog-agent.artifactory_bypass
+  ARTIFACTORY_GEMS_PATH: artifactory/api/gems/agent-gems
+  ARTIFACTORY_PYPI_PATH: artifactory/api/pypi/agent-pypi/simple
+  ARTIFACTORY_TOKEN_SSM_NAME: ci.datadog-agent.artifactory_token
+  ARTIFACTORY_URL: datadog.jfrog.io
+  ARTIFACTORY_USERNAME: datadog-agent
+  ARTIFACT_DOWNLOAD_ATTEMPTS: 2
+  BTFHUB_ARCHIVE_BRANCH: main
+  BUCKET_BRANCH: dev
+  CHANGELOG_COMMIT_SHA_SSM_NAME: ci.datadog-agent.gitlab_changelog_commit_sha
+  CHOCOLATEY_API_KEY_SSM_NAME: ci.datadog-agent.chocolatey_api_key
+  CLANG_LLVM_VER: 12.0.1
+  CLUSTER_AGENT_BINARIES_DIR: bin/datadog-cluster-agent
+  CLUSTER_AGENT_CLOUDFOUNDRY_BINARIES_DIR: bin/datadog-cluster-agent-cloudfoundry
+  CODECOV_TOKEN_SSM_NAME: ci.datadog-agent.codecov_token
+  CWS_INSTRUMENTATION_BINARIES_DIR: bin/cws-instrumentation
+  DATADOG_AGENT_ARMBUILDIMAGES: v37150619-8250a4fc
+  DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX: ''
+  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v37150619-8250a4fc
+  DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX: ''
+  DATADOG_AGENT_BUILDIMAGES: v37150619-8250a4fc
+  DATADOG_AGENT_BUILDIMAGES_SUFFIX: ''
+  DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
+  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v37150619-8250a4fc
+  DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX: ''
+  DATADOG_AGENT_WINBUILDIMAGES: v37150619-8250a4fc
+  DATADOG_AGENT_WINBUILDIMAGES_SUFFIX: ''
+  DD_AGENT_TESTING_DIR: $CI_PROJECT_DIR/test/kitchen
+  DD_PKG_VERSION: latest
+  DEB_GPG_KEY_ID: c0962c7d
+  DEB_GPG_KEY_NAME: Datadog, Inc. APT key
+  DEB_GPG_KEY_SSM_NAME: ci.datadog-agent.deb_signing_private_key_${DEB_GPG_KEY_ID}
+  DEB_RPM_TESTING_BUCKET_BRANCH: testing
+  DEB_S3_BUCKET: apt.datad0g.com
+  DEB_SIGNING_PASSPHRASE_SSM_NAME: ci.datadog-agent.deb_signing_key_passphrase_${DEB_GPG_KEY_ID}
+  DEB_TESTING_S3_BUCKET: apttesting.datad0g.com
+  DOCKER_REGISTRY_LOGIN_SSM_KEY: ci.datadog-agent.docker_hub_login
+  DOCKER_REGISTRY_PWD_SSM_KEY: ci.datadog-agent.docker_hub_pwd
+  DOCKER_REGISTRY_URL: docker.io
+  DOGSTATSD_BINARIES_DIR: bin/dogstatsd
+  E2E_TESTS_API_KEY_SSM_NAME: ci.datadog-agent.e2e_tests_api_key
+  E2E_TESTS_APP_KEY_SSM_NAME: ci.datadog-agent.e2e_tests_app_key
+  E2E_TESTS_RC_KEY_SSM_NAME: ci.datadog-agent.e2e_tests_rc_key
+  EXECUTOR_JOB_SECTION_ATTEMPTS: 2
+  FF_SCRIPT_SECTIONS: 1
+  GENERAL_ARTIFACTS_CACHE_BUCKET_URL: https://dd-agent-omnibus.s3.amazonaws.com
+  GET_SOURCES_ATTEMPTS: 2
+  GITLAB_FULL_API_TOKEN_SSM_NAME: ci.datadog-agent.gitlab_full_api_token
+  GITLAB_READ_API_TOKEN_SSM_NAME: ci.datadog-agent.gitlab_read_api_token
+  GITLAB_SCHEDULER_TOKEN_SSM_NAME: ci.datadog-agent.gitlab_pipelines_scheduler_token
+  GO_TEST_SKIP_FLAKE: 'true'
+  INSTALL_SCRIPT_API_KEY_SSM_NAME: ci.agent-linux-install-script.datadog_api_key
+  INTEGRATION_WHEELS_CACHE_BUCKET: dd-agent-omnibus
+  JIRA_READ_API_TOKEN_SSM_NAME: ci.datadog-agent.jira_read_api_token
+  KERNEL_MATRIX_TESTING_ARM_AMI_ID: ami-021f04c00ecfa8590
+  KERNEL_MATRIX_TESTING_X86_AMI_ID: ami-0c54d42f8f4180b0c
+  KITCHEN_AZURE_CLIENT_ID_SSM_NAME: ci.datadog-agent.azure_kitchen_client_id
+  KITCHEN_AZURE_CLIENT_SECRET_SSM_NAME: ci.datadog-agent.azure_kitchen_client_secret
+  KITCHEN_AZURE_SUBSCRIPTION_ID_SSM_NAME: ci.datadog-agent.azure_kitchen_subscription_id
+  KITCHEN_AZURE_TENANT_ID_SSM_NAME: ci.datadog-agent.azure_kitchen_tenant_id
+  KITCHEN_EC2_SSH_KEY_SSM_NAME: ci.datadog-agent.aws_ec2_kitchen_ssh_key
+  KITCHEN_INFRASTRUCTURE_FLAKES_RETRY: 2
+  MACOS_GITHUB_APP_ID_2_SSM_NAME: ci.datadog-agent.macos_github_app_id_2
+  MACOS_GITHUB_APP_ID_SSM_NAME: ci.datadog-agent.macos_github_app_id
+  MACOS_GITHUB_INSTALLATION_ID_2_SSM_NAME: ci.datadog-agent.macos_github_installation_id_2
+  MACOS_GITHUB_INSTALLATION_ID_SSM_NAME: ci.datadog-agent.macos_github_installation_id
+  MACOS_GITHUB_KEY_2_SSM_NAME: ci.datadog-agent.macos_github_key_b64_2
+  MACOS_GITHUB_KEY_SSM_NAME: ci.datadog-agent.macos_github_key_b64
+  MACOS_S3_BUCKET: dd-agent-macostesting
+  OMNIBUS_BASE_DIR: /omnibus
+  OMNIBUS_GIT_CACHE_DIR: /tmp/omnibus-git-cache
+  OMNIBUS_PACKAGE_DIR: $CI_PROJECT_DIR/omnibus/pkg/
+  OMNIBUS_PACKAGE_DIR_SUSE: $CI_PROJECT_DIR/omnibus/suse/pkg
+  PARENT_COMMIT_SHA: undefined
+  PARENT_PIPELINE_ID: undefined
+  PROCESS_S3_BUCKET: datad0g-process-agent
+  RELEASE_VERSION_6: nightly
+  RELEASE_VERSION_7: nightly-a7
+  RESTORE_CACHE_ATTEMPTS: 2
+  RPM_GPG_KEY_ID: b01082d3
+  RPM_GPG_KEY_NAME: Datadog, Inc. RPM key
+  RPM_GPG_KEY_SSM_NAME: ci.datadog-agent.rpm_signing_private_key_${RPM_GPG_KEY_ID}
+  RPM_S3_BUCKET: yum.datad0g.com
+  RPM_SIGNING_PASSPHRASE_SSM_NAME: ci.datadog-agent.rpm_signing_key_passphrase_${RPM_GPG_KEY_ID}
+  RPM_TESTING_S3_BUCKET: yumtesting.datad0g.com
+  RUN_E2E_TESTS: auto
+  RUN_KMT_TESTS: auto
+  RUN_UNIT_TESTS: auto
+  S3_ARTIFACTS_URI: s3://dd-ci-artefacts-build-stable/$CI_PROJECT_NAME/$CI_PIPELINE_ID
+  S3_CP_CMD: aws s3 cp $S3_CP_OPTIONS
+  S3_CP_OPTIONS: --no-progress --region us-east-1 --sse AES256
+  S3_DD_AGENT_OMNIBUS_BTFS_URI: s3://dd-agent-omnibus/btfs
+  S3_DD_AGENT_OMNIBUS_LLVM_URI: s3://dd-agent-omnibus/llvm
+  S3_DSD6_URI: s3://dsd6-staging
+  S3_OMNIBUS_CACHE_BUCKET: dd-ci-datadog-agent-omnibus-cache-build-stable
+  S3_PERMANENT_ARTIFACTS_URI: s3://dd-ci-persistent-artefacts-build-stable/$CI_PROJECT_NAME
+  S3_PROJECT_ARTIFACTS_URI: s3://dd-ci-artefacts-build-stable/$CI_PROJECT_NAME
+  S3_RELEASE_ARTIFACTS_URI: s3://dd-release-artifacts/$CI_PROJECT_NAME/$CI_PIPELINE_ID
+  S3_RELEASE_INSTALLER_ARTIFACTS_URI: s3://dd-release-artifacts/datadog-installer/$CI_PIPELINE_ID
+  S3_SBOM_STORAGE_URI: s3://sbom-root-us1-ddbuild-io/$CI_PROJECT_NAME/$CI_PIPELINE_ID
+  SLACK_AGENT_CI_TOKEN_SSM_NAME: ci.datadog-agent.slack_agent_ci_token
+  SMP_ACCOUNT_ID_SSM_NAME: ci.datadog-agent.single-machine-performance-account-id
+  SMP_AGENT_TEAM_ID_SSM_NAME: ci.datadog-agent.single-machine-performance-agent-team-id
+  SMP_API_SSM_NAME: ci.datadog-agent.single-machine-performance-api
+  SMP_BOT_ACCESS_KEY_ID_SSM_NAME: ci.datadog-agent.single-machine-performance-bot-access-key-id
+  SMP_BOT_ACCESS_KEY_SSM_NAME: ci.datadog-agent.single-machine-performance-bot-access-key
+  SSH_KEY_RSA_SSM_NAME: ci.datadog-agent.ssh_key_rsa
+  SSH_KEY_SSM_NAME: ci.datadog-agent.ssh_key
+  SSH_PUBLIC_KEY_RSA_SSM_NAME: ci.datadog-agent.ssh_public_key_rsa
+  STATIC_BINARIES_DIR: bin/static
+  SYSTEM_PROBE_BINARIES_DIR: bin/system-probe
+  USE_S3_CACHING: --omnibus-s3-cache
+  VCPKG_BLOB_SAS_URL_SSM_NAME: ci.datadog-agent-buildimages.vcpkg_blob_sas_url
+  WINDOWS_BUILDS_S3_BUCKET: $WIN_S3_BUCKET/builds
+  WINDOWS_TESTING_S3_BUCKET_A6: pipelines/A6/$CI_PIPELINE_ID
+  WINDOWS_TESTING_S3_BUCKET_A7: pipelines/A7/$CI_PIPELINE_ID
+  WINGET_PAT_SSM_NAME: ci.datadog-agent.winget_pat
+  WIN_S3_BUCKET: dd-agent-mstesting
