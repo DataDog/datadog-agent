@@ -2815,6 +2815,16 @@
           "name": "link.retval",
           "definition": "Return value of the syscall",
           "property_doc_link": "common-syscallevent-retval-doc"
+        },
+        {
+          "name": "link.syscall.destination.path",
+          "definition": "Destination path argument of the syscall",
+          "property_doc_link": "link-syscall-destination-path-doc"
+        },
+        {
+          "name": "link.syscall.path",
+          "definition": "Path argument of the syscall",
+          "property_doc_link": "link-syscall-path-doc"
         }
       ]
     },
@@ -9244,6 +9254,30 @@
       "definition": "the user agent of the HTTP client",
       "prefixes": [
         "imds"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "link.syscall.destination.path",
+      "link": "link-syscall-destination-path-doc",
+      "type": "string",
+      "definition": "Destination path argument of the syscall",
+      "prefixes": [
+        "link"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "link.syscall.path",
+      "link": "link-syscall-path-doc",
+      "type": "string",
+      "definition": "Path argument of the syscall",
+      "prefixes": [
+        "link"
       ],
       "constants": "",
       "constants_link": "",

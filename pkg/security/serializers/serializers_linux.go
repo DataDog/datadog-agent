@@ -503,6 +503,8 @@ type SyscallArgsSerializer struct {
 	GID *int `json:"gid,omitempty"`
 	// Directory file descriptor argument
 	DirFd *int `json:"dirfd,omitempty"`
+	// Destination path argument
+	DestinationPath *string `json:"destination_path,omitempty"`
 }
 
 func newSyscallArgsSerializer(sc *model.SyscallContext, e *model.Event) *SyscallArgsSerializer {
@@ -530,6 +532,15 @@ func newSyscallArgsSerializer(sc *model.SyscallContext, e *model.Event) *Syscall
 			Flags: &flags,
 			Mode:  &mode,
 		}
+	case model.FileChownEventType:
+		path := e.FieldHandlers.ResolveSyscallCtxArgsStr1(e, sc)
+		uid := e.FieldHandlers.ResolveSyscallCtxArgsInt2(e, sc)
+		gid := e.FieldHandlers.ResolveSyscallCtxArgsInt3(e, sc)
+		return &SyscallArgsSerializer{
+			Path: &path,
+			UID:  &uid,
+			GID:  &gid,
+		}
 	case model.FileUnlinkEventType:
 		dirfd := e.FieldHandlers.ResolveSyscallCtxArgsInt1(e, sc)
 		path := e.FieldHandlers.ResolveSyscallCtxArgsStr2(e, sc)
@@ -539,14 +550,12 @@ func newSyscallArgsSerializer(sc *model.SyscallContext, e *model.Event) *Syscall
 			Path:  &path,
 			Flags: &flags,
 		}
-	case model.FileChownEventType:
+	case model.FileLinkEventType:
 		path := e.FieldHandlers.ResolveSyscallCtxArgsStr1(e, sc)
-		uid := e.FieldHandlers.ResolveSyscallCtxArgsInt2(e, sc)
-		gid := e.FieldHandlers.ResolveSyscallCtxArgsInt3(e, sc)
+		destinationPath := e.FieldHandlers.ResolveSyscallCtxArgsStr2(e, sc)
 		return &SyscallArgsSerializer{
-			Path: &path,
-			UID:  &uid,
-			GID:  &gid,
+			Path:            &path,
+			DestinationPath: &destinationPath,
 		}
 	}
 
@@ -562,6 +571,7 @@ type SyscallContextSerializer struct {
 	Exec   *SyscallArgsSerializer `json:"exec,omitempty"`
 	Open   *SyscallArgsSerializer `json:"open,omitempty"`
 	Unlink *SyscallArgsSerializer `json:"unlink,omitempty"`
+	Link   *SyscallArgsSerializer `json:"link,omitempty"`
 }
 
 func newSyscallContextSerializer() *SyscallContextSerializer {
@@ -1144,6 +1154,8 @@ func NewEventSerializer(event *model.Event, opts *eval.Opts) *EventSerializer {
 			Destination:    newFileSerializer(&event.Link.Target, event, event.Link.Source.Inode),
 		}
 		s.EventContextSerializer.Outcome = serializeOutcome(event.Link.Retval)
+		s.SyscallContextSerializer = newSyscallContextSerializer()
+		s.SyscallContextSerializer.Link = newSyscallArgsSerializer(&event.Link.SyscallContext, event)
 	case model.FileOpenEventType:
 		s.FileEventSerializer = &FileEventSerializer{
 			FileSerializer: *newFileSerializer(&event.Open.File, event),

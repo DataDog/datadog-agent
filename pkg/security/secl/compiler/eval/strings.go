@@ -28,8 +28,6 @@ type StringValues struct {
 	scalars        []string
 	stringMatchers []StringMatcher
 
-	// caches
-	scalarCache []string
 	fieldValues []FieldValue
 }
 
@@ -44,10 +42,6 @@ func (s *StringValues) AppendFieldValue(value FieldValue) {
 		return
 	}
 
-	if value.Type == ScalarValueType {
-		s.scalars = append(s.scalars, value.Value.(string))
-	}
-
 	s.fieldValues = append(s.fieldValues, value)
 }
 
@@ -58,7 +52,6 @@ func (s *StringValues) Compile(opts StringCmpOpts) error {
 		if opts == DefaultStringCmpOpts && value.Type == ScalarValueType {
 			str := value.Value.(string)
 			s.scalars = append(s.scalars, str)
-			s.scalarCache = append(s.scalarCache, str)
 		} else {
 			str, ok := value.Value.(string)
 			if !ok {
@@ -89,8 +82,8 @@ func (s *StringValues) GetStringMatchers() []StringMatcher {
 // SetFieldValues apply field values
 func (s *StringValues) SetFieldValues(values ...FieldValue) error {
 	// reset internal caches
-	s.stringMatchers = s.stringMatchers[:0]
-	s.scalarCache = nil
+	s.scalars = nil
+	s.stringMatchers = nil
 
 	for _, value := range values {
 		s.AppendFieldValue(value)
@@ -106,7 +99,7 @@ func (s *StringValues) AppendScalarValue(value string) {
 
 // Matches returns whether the value matches the string values
 func (s *StringValues) Matches(value string) bool {
-	if slices.Contains(s.scalarCache, value) {
+	if slices.Contains(s.scalars, value) {
 		return true
 	}
 	for _, pm := range s.stringMatchers {
