@@ -48,12 +48,19 @@ var testCatalog = catalog{
 			Version: latestAgentImageVersion,
 			URL:     fmt.Sprintf("oci://gcr.io/datadoghq/agent-package:%s", latestAgentImageVersion),
 		},
+		{
+			Package: "datadog-agent",
+			Version: previousAgentImageVersion,
+			URL:     fmt.Sprintf("oci://gcr.io/datadoghq/agent-package:%s", previousAgentImageVersion),
+		},
 	},
 }
 
 const (
-	latestAgentVersion      = "7.54.1"
-	latestAgentImageVersion = "7.54.1-1"
+	previousAgentVersion      = "7.54.0"
+	previousAgentImageVersion = "7.54.0-1"
+	latestAgentVersion        = "7.54.1"
+	latestAgentImageVersion   = "7.54.1-1"
 )
 
 func testUpgradeScenario(os e2eos.Descriptor, arch e2eos.Architecture) packageSuite {
@@ -76,6 +83,44 @@ func (s *upgradeScenarioSuite) TestUpgradeSuccessful() {
 
 	timestamp := s.host.LastJournaldTimestamp()
 	_, err := s.startExperimentCommand(latestAgentImageVersion)
+	require.NoError(s.T(), err)
+	s.assertSuccessfulStartExperiment(timestamp, latestAgentImageVersion)
+
+	timestamp = s.host.LastJournaldTimestamp()
+	_, err = s.promoteExperimentCommand()
+	require.NoError(s.T(), err)
+	s.assertSuccessfulPromoteExperiment(timestamp, latestAgentImageVersion)
+}
+
+func (s *upgradeScenarioSuite) TestUpgradeFromExistingExperiment() {
+	s.RunInstallScript("DD_REMOTE_UPDATES=true")
+	defer s.Purge()
+	s.host.WaitForUnitActive(
+		"datadog-agent.service",
+		"datadog-agent-trace.service",
+		"datadog-agent-process.service",
+		"datadog-installer.service",
+	)
+
+	s.host.WaitForFileExists(true, "/var/run/datadog-installer/installer.sock")
+
+	s.setCatalog(testCatalog)
+
+	// Start with 7.54.0
+	timestamp := s.host.LastJournaldTimestamp()
+	_, err := s.startExperimentCommand(previousAgentImageVersion)
+	require.NoError(s.T(), err)
+	s.assertSuccessfulStartExperiment(timestamp, previousAgentImageVersion)
+
+	// Host was left with a not-latest experiment, we're now testing
+	// that we can still upgrade
+	timestamp = s.host.LastJournaldTimestamp()
+	_, err = s.stopExperimentCommand()
+	require.NoError(s.T(), err)
+	s.assertSuccessfulStopExperiment(timestamp)
+
+	timestamp = s.host.LastJournaldTimestamp()
+	_, err = s.startExperimentCommand(latestAgentImageVersion)
 	require.NoError(s.T(), err)
 	s.assertSuccessfulStartExperiment(timestamp, latestAgentImageVersion)
 

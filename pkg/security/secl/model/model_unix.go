@@ -70,6 +70,9 @@ type Event struct {
 	IMDS IMDSEvent `field:"imds" event:"imds"` // [7.55] [Network] An IMDS event was captured
 	Bind BindEvent `field:"bind" event:"bind"` // [7.37] [Network] A bind was executed
 
+	// on-demand events
+	OnDemand OnDemandEvent `field:"ondemand" event:"ondemand"`
+
 	// internal usage
 	Umount           UmountEvent           `field:"-"`
 	InvalidateDentry InvalidateDentryEvent `field:"-"`
@@ -321,8 +324,13 @@ type MountReleasedEvent struct {
 // LinkEvent represents a link event
 type LinkEvent struct {
 	SyscallEvent
+	SyscallContext
 	Source FileEvent `field:"file"`
 	Target FileEvent `field:"file.destination"`
+
+	// Syscall context aliases
+	SyscallPath            string `field:"syscall.path,ref:link.syscall.str1"`             // SECLDoc[syscall.path] Definition:`Path argument of the syscall`
+	SyscallDestinationPath string `field:"syscall.destination.path,ref:link.syscall.str2"` // SECLDoc[syscall.destination.path] Definition:`Destination path argument of the syscall`
 }
 
 // MkdirEvent represents a mkdir event
@@ -456,9 +464,13 @@ type UmountEvent struct {
 // UtimesEvent represents a utime event
 type UtimesEvent struct {
 	SyscallEvent
+	SyscallContext
 	File  FileEvent `field:"file"`
 	Atime time.Time `field:"-"`
 	Mtime time.Time `field:"-"`
+
+	// Syscall context aliases
+	SyscallPath string `field:"syscall.path,ref:utimes.syscall.str1"` // SECLDoc[syscall.path] Definition:`Path argument of the syscall`
 }
 
 // BPFEvent represents a BPF event
@@ -628,4 +640,19 @@ type PathKey struct {
 	Inode   uint64 `field:"inode"`    // SECLDoc[inode] Definition:`Inode of the file`
 	MountID uint32 `field:"mount_id"` // SECLDoc[mount_id] Definition:`Mount ID of the file`
 	PathID  uint32 `field:"-"`
+}
+
+// OnDemandEvent identifies an on-demand event generated from on-demand probes
+type OnDemandEvent struct {
+	ID       uint32    `field:"-"`
+	Name     string    `field:"name,handler:ResolveOnDemandName"`
+	Data     [256]byte `field:"-"`
+	Arg1Str  string    `field:"arg1.str,handler:ResolveOnDemandArg1Str"`
+	Arg1Uint uint64    `field:"arg1.uint,handler:ResolveOnDemandArg1Uint"`
+	Arg2Str  string    `field:"arg2.str,handler:ResolveOnDemandArg2Str"`
+	Arg2Uint uint64    `field:"arg2.uint,handler:ResolveOnDemandArg2Uint"`
+	Arg3Str  string    `field:"arg3.str,handler:ResolveOnDemandArg3Str"`
+	Arg3Uint uint64    `field:"arg3.uint,handler:ResolveOnDemandArg3Uint"`
+	Arg4Str  string    `field:"arg4.str,handler:ResolveOnDemandArg4Str"`
+	Arg4Uint uint64    `field:"arg4.uint,handler:ResolveOnDemandArg4Uint"`
 }
