@@ -10,6 +10,7 @@ import (
 	"crypto/rand"
 	"embed"
 	"encoding/json"
+	"html/template"
 	"io"
 	"mime"
 	"net"
@@ -18,7 +19,6 @@ import (
 	"path"
 	"path/filepath"
 	"strconv"
-	"text/template"
 	"time"
 
 	"go.uber.org/fx"
@@ -203,8 +203,8 @@ func renderIndexPage(w http.ResponseWriter, _ *http.Request) {
 	}
 
 	e = t.Execute(w, map[string]any{
-		"restartEnabled":    restartEnabled(),
-		"logginInstruction": logginInstructions(),
+		"restartEnabled":   restartEnabled(),
+		"loginInstruction": logginInstructions(),
 	})
 	if e != nil {
 		http.Error(w, e.Error(), http.StatusInternalServerError)
