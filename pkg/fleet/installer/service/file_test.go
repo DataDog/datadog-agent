@@ -22,7 +22,7 @@ import (
 const (
 	originalContent    = "original content"
 	transformedContent = "transformed content"
-	defaultMode        = os.FileMode(0644)
+	defaultMode        = os.FileMode(0640)
 )
 
 var (
@@ -36,7 +36,7 @@ func TestFileTransformWithRollback(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	originalPath := tmpDir + "/original.txt"
-	mode := os.FileMode(0744)
+	mode := os.FileMode(0740)
 	require.Nil(t, os.WriteFile(originalPath, []byte(originalContent), mode))
 
 	mutator := newFileMutator(originalPath, transformFunc, nil, nil)
@@ -55,7 +55,7 @@ func TestNoChangesNeeded(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	originalPath := tmpDir + "/original.txt"
-	mode := os.FileMode(0744)
+	mode := os.FileMode(0740)
 	require.Nil(t, os.WriteFile(originalPath, []byte(originalContent), mode))
 
 	mutator := newFileMutator(originalPath, func(ctx context.Context, existing []byte) ([]byte, error) {
@@ -130,7 +130,7 @@ func assertFile(t *testing.T, path, expectedContent string, expectedMode os.File
 func TestCleanup(t *testing.T) {
 	tmpDir := t.TempDir()
 	originalPath := tmpDir + "/original.txt"
-	mode := fs.FileMode(0744)
+	mode := fs.FileMode(0740)
 	os.WriteFile(originalPath, []byte(originalContent), mode)
 	mutator := newFileMutator(originalPath, nil, nil, nil)
 	os.WriteFile(mutator.pathTmp, []byte(originalContent), mode)
