@@ -3,15 +3,87 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build !windows
+
 //nolint:revive // TODO(SERV) Fix revive linter
-package initcontainer
+package mode
 
 import (
-	"os"
-
+	serverlessLog "github.com/DataDog/datadog-agent/cmd/serverless-init/log"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/spf13/afero"
+	"io"
+	"os"
+	"os/exec"
+	"os/signal"
+	"strings"
+	"syscall"
 )
+
+// Run is the entrypoint of the init process. It will spawn the customer process
+func RunInit(logConfig *serverlessLog.Config) {
+	if len(os.Args) < 2 {
+		panic("[datadog init process] invalid argument count, did you forget to set CMD ?")
+	}
+
+	args := os.Args[1:]
+
+	log.Debugf("Launching subprocess %v\n", args)
+	err := execute(logConfig, args)
+	if err != nil {
+		log.Debugf("Error exiting: %v\n", err)
+	}
+}
+
+func execute(logConfig *serverlessLog.Config, args []string) error {
+	commandName, commandArgs := buildCommandParam(args)
+
+	// Add our tracer settings
+	fs := afero.NewOsFs()
+	autoInstrumentTracer(fs)
+
+	cmd := exec.Command(commandName, commandArgs...)
+
+	cmd.Stdout = io.Writer(os.Stdout)
+	cmd.Stderr = io.Writer(os.Stderr)
+
+	if logConfig.IsEnabled {
+		cmd.Stdout = io.MultiWriter(os.Stdout, serverlessLog.NewChannelWriter(logConfig.Channel, false))
+		cmd.Stderr = io.MultiWriter(os.Stderr, serverlessLog.NewChannelWriter(logConfig.Channel, true))
+	}
+
+	err := cmd.Start()
+	if err != nil {
+		return err
+	}
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs)
+	go forwardSignals(cmd.Process, sigs)
+	err = cmd.Wait()
+	return err
+}
+
+func buildCommandParam(cmdArg []string) (string, []string) {
+	fields := cmdArg
+	if len(cmdArg) == 1 {
+		fields = strings.Fields(cmdArg[0])
+	}
+	commandName := fields[0]
+	if len(fields) > 1 {
+		return commandName, fields[1:]
+	}
+	return commandName, []string{}
+}
+
+func forwardSignals(process *os.Process, sigs chan os.Signal) {
+	for sig := range sigs {
+		if sig != syscall.SIGCHLD {
+			if process != nil {
+				_ = syscall.Kill(process.Pid, sig.(syscall.Signal))
+			}
+		}
+	}
+}
 
 // Tracer holds a name, a path to the trace directory, and an
 // initialization function that automatically instruments the
@@ -47,7 +119,7 @@ func instrumentPython() {
 
 // AutoInstrumentTracer searches the filesystem for a trace library, and
 // automatically sets the correct environment variables.
-func AutoInstrumentTracer(fs afero.Fs) {
+func autoInstrumentTracer(fs afero.Fs) {
 	tracers := []Tracer{
 		{"/dd_tracer/node/", instrumentNode},
 		{"/dd_tracer/java/", instrumentJava},

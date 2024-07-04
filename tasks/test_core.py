@@ -194,7 +194,7 @@ def process_input_args(
     return modules, flavor
 
 
-def process_module_results(flavor: AgentFlavor, module_results: dict[str, dict[str, list[ModuleResult]]]):
+def process_module_results(flavor: AgentFlavor, module_results):
     """
     Prints failures in module results, and returns False if at least one module failed.
     """

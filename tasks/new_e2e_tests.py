@@ -289,12 +289,10 @@ def _destroy_stack(ctx: Context, stack: str):
         )
         if ret is not None and ret.exited != 0:
             if "No valid credential sources found" in ret.stdout:
-                print(
-                    "No valid credentials sources found, you need to wrap the invoke command in aws-vault exec <account> --"
-                )
+                print("No valid credentials sources found, you need to set the `AWS_PROFILE` env variable")
                 raise Exit(
                     color_message(
-                        f"Failed to destroy stack {stack}, no valid credentials sources found, you need to wrap the invoke command in aws-vault exec <account> --",
+                        f"Failed to destroy stack {stack}, no valid credentials sources found, you need to set the `AWS_PROFILE` env variable",
                         "red",
                     ),
                     1,

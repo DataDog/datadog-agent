@@ -471,6 +471,21 @@ func InitConfig(config pkgconfigmodel.Config) {
 	// language annotation cleanup period
 	config.BindEnvAndSetDefault("cluster_agent.language_detection.cleanup.period", "10m")
 	config.BindEnvAndSetDefault("cluster_agent.kube_metadata_collection.enabled", false)
+	// list of kubernetes resources for which we collect metadata
+	// each resource is specified in the format `{group}/{version}/{resource}` or `{group}/{resource}`
+	// resources that belong to the empty group can be specified simply as `{resource}` or as `/{resource}`
+	//
+	// the version is optional and can be left empty, and in this case, the agent will automatically assign
+	// the version that is considered by the api server as the preferred version for the related group.
+	//
+	// examples with version:
+	// - apps/v1/deployments
+	// - /v1/nodes
+	//
+	// examples without version:
+	// - apps/deployments
+	// - /nodes
+	// - nodes
 	config.BindEnvAndSetDefault("cluster_agent.kube_metadata_collection.resources", []string{})
 	config.BindEnvAndSetDefault("cluster_agent.kube_metadata_collection.resource_annotations_exclude", []string{})
 
@@ -699,7 +714,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.command_endpoint", "/inject-command-cws")
 	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.include", []string{})
 	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.exclude", []string{})
-	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.mutate_unlabelled", true)
+	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.mutate_unlabelled", false)
 	config.BindEnv("admission_controller.cws_instrumentation.container_registry")
 	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.image_name", "cws-instrumentation")
 	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.image_tag", "latest")
@@ -782,7 +797,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("sbom.host.analyzers", []string{"os"})
 
 	// Service discovery configuration
-	config.BindEnvAndSetDefault("service_discovery.enabled", true)
+	config.BindEnvAndSetDefault("service_discovery.enabled", false)
 	bindEnvAndSetLogsConfigKeys(config, "service_discovery.forwarder.")
 
 	// Orchestrator Explorer - process agent

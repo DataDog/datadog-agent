@@ -260,6 +260,7 @@ new-e2e-aml:
     - deploy_deb_testing-a7_x64
     - deploy_windows_testing-a7
     - qa_agent
+    - qa_dca
   rules:
     - !reference [.on_aml_or_e2e_changes]
     - !reference [.manual]
@@ -274,6 +275,7 @@ new-e2e-cws:
     - !reference [.manual]
   needs:
     - deploy_deb_testing-a7_x64
+    - deploy_windows_testing-a7
     - qa_cws_instrumentation
     - qa_agent
     - qa_dca
@@ -286,6 +288,7 @@ new-e2e-cws:
       - EXTRA_PARAMS: --run TestAgentSuite
       - EXTRA_PARAMS: --run TestECSFargate
       - EXTRA_PARAMS: --run TestKindSuite
+      - EXTRA_PARAMS: --run TestAgentWindowsSuite
   # Temporary, remove once we made sure the recent changes have no impact on the stability of these tests
   allow_failure: true
 
@@ -391,6 +394,7 @@ generate-flakes-finder-pipeline:
     - qa_agent
   tags: ["arch:amd64"]
   script:
+    - export GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITLAB_FULL_API_TOKEN_SSM_NAME)
     - inv -e testwasher.generate-flake-finder-pipeline
   artifacts:
     paths:
