@@ -10,6 +10,9 @@ go 1.21.0
 replace github.com/docker/distribution => github.com/docker/distribution v2.8.1+incompatible
 
 require (
+	github.com/DataDog/datadog-agent/comp/trace/compression/def v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/comp/trace/compression/impl-zstd v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/proto v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.55.0-rc.3
@@ -52,6 +55,7 @@ require (
 require (
 	github.com/DataDog/go-sqllexer v0.0.12 // indirect
 	github.com/DataDog/go-tuf v1.1.0-0.5.2 // indirect
+	github.com/DataDog/zstd v1.5.5 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/containerd/cgroups/v3 v3.0.2 // indirect
@@ -109,6 +113,9 @@ require (
 
 replace (
 	github.com/DataDog/datadog-agent => ../../
+	github.com/DataDog/datadog-agent/comp/trace/compression/def => ../../comp/trace/compression/def
+	github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip => ../../comp/trace/compression/impl-gzip
+	github.com/DataDog/datadog-agent/comp/trace/compression/impl-zstd => ../../comp/trace/compression/impl-zstd
 	github.com/DataDog/datadog-agent/pkg/obfuscate => ../obfuscate
 	github.com/DataDog/datadog-agent/pkg/proto => ../proto
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state => ../remoteconfig/state

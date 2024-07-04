@@ -76,15 +76,10 @@ disable_error_code = [
     "annotation-unchecked",
     "call-overload",
     "var-annotated",
-    "misc",
     "type-arg",
     "union-attr",
-    "override",
     "list-item",
     "return-value",
-    "return",
-    "str-bytes-safe",
-    "name-match",
 ]
 
 [tool.vulture]

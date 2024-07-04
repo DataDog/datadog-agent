@@ -176,6 +176,8 @@ func (m *Monitor) GetUSMStats() map[string]interface{} {
 		response["error"] = startupError.Error()
 	}
 
+	response["blocked_processes"] = utils.GetBlockedPathIDsList()
+
 	tracedPrograms := utils.GetTracedProgramList()
 	response["traced_programs"] = tracedPrograms
 

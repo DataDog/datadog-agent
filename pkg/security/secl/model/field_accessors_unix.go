@@ -4226,6 +4226,78 @@ func (ev *Event) GetNetworkSourcePort() uint16 {
 	return ev.NetworkContext.Source.Port
 }
 
+// GetOndemandArg1Str returns the value of the field, resolving if necessary
+func (ev *Event) GetOndemandArg1Str() string {
+	if ev.GetEventType().String() != "ondemand" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveOnDemandArg1Str(ev, &ev.OnDemand)
+}
+
+// GetOndemandArg1Uint returns the value of the field, resolving if necessary
+func (ev *Event) GetOndemandArg1Uint() int {
+	if ev.GetEventType().String() != "ondemand" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveOnDemandArg1Uint(ev, &ev.OnDemand)
+}
+
+// GetOndemandArg2Str returns the value of the field, resolving if necessary
+func (ev *Event) GetOndemandArg2Str() string {
+	if ev.GetEventType().String() != "ondemand" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveOnDemandArg2Str(ev, &ev.OnDemand)
+}
+
+// GetOndemandArg2Uint returns the value of the field, resolving if necessary
+func (ev *Event) GetOndemandArg2Uint() int {
+	if ev.GetEventType().String() != "ondemand" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveOnDemandArg2Uint(ev, &ev.OnDemand)
+}
+
+// GetOndemandArg3Str returns the value of the field, resolving if necessary
+func (ev *Event) GetOndemandArg3Str() string {
+	if ev.GetEventType().String() != "ondemand" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveOnDemandArg3Str(ev, &ev.OnDemand)
+}
+
+// GetOndemandArg3Uint returns the value of the field, resolving if necessary
+func (ev *Event) GetOndemandArg3Uint() int {
+	if ev.GetEventType().String() != "ondemand" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveOnDemandArg3Uint(ev, &ev.OnDemand)
+}
+
+// GetOndemandArg4Str returns the value of the field, resolving if necessary
+func (ev *Event) GetOndemandArg4Str() string {
+	if ev.GetEventType().String() != "ondemand" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveOnDemandArg4Str(ev, &ev.OnDemand)
+}
+
+// GetOndemandArg4Uint returns the value of the field, resolving if necessary
+func (ev *Event) GetOndemandArg4Uint() int {
+	if ev.GetEventType().String() != "ondemand" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveOnDemandArg4Uint(ev, &ev.OnDemand)
+}
+
+// GetOndemandName returns the value of the field, resolving if necessary
+func (ev *Event) GetOndemandName() string {
+	if ev.GetEventType().String() != "ondemand" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveOnDemandName(ev, &ev.OnDemand)
+}
+
 // GetOpenFileChangeTime returns the value of the field, resolving if necessary
 func (ev *Event) GetOpenFileChangeTime() uint64 {
 	if ev.GetEventType().String() != "open" {
@@ -18301,4 +18373,60 @@ func (ev *Event) GetUtimesRetval() int64 {
 		return int64(0)
 	}
 	return ev.Utimes.SyscallEvent.Retval
+}
+
+// GetUtimesSyscallInt1 returns the value of the field, resolving if necessary
+func (ev *Event) GetUtimesSyscallInt1() int {
+	if ev.GetEventType().String() != "utimes" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsInt1(ev, &ev.Utimes.SyscallContext)
+}
+
+// GetUtimesSyscallInt2 returns the value of the field, resolving if necessary
+func (ev *Event) GetUtimesSyscallInt2() int {
+	if ev.GetEventType().String() != "utimes" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsInt2(ev, &ev.Utimes.SyscallContext)
+}
+
+// GetUtimesSyscallInt3 returns the value of the field, resolving if necessary
+func (ev *Event) GetUtimesSyscallInt3() int {
+	if ev.GetEventType().String() != "utimes" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsInt3(ev, &ev.Utimes.SyscallContext)
+}
+
+// GetUtimesSyscallPath returns the value of the field, resolving if necessary
+func (ev *Event) GetUtimesSyscallPath() string {
+	if ev.GetEventType().String() != "utimes" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Utimes.SyscallContext)
+}
+
+// GetUtimesSyscallStr1 returns the value of the field, resolving if necessary
+func (ev *Event) GetUtimesSyscallStr1() string {
+	if ev.GetEventType().String() != "utimes" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Utimes.SyscallContext)
+}
+
+// GetUtimesSyscallStr2 returns the value of the field, resolving if necessary
+func (ev *Event) GetUtimesSyscallStr2() string {
+	if ev.GetEventType().String() != "utimes" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsStr2(ev, &ev.Utimes.SyscallContext)
+}
+
+// GetUtimesSyscallStr3 returns the value of the field, resolving if necessary
+func (ev *Event) GetUtimesSyscallStr3() string {
+	if ev.GetEventType().String() != "utimes" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsStr3(ev, &ev.Utimes.SyscallContext)
 }
