@@ -47,6 +47,7 @@ enum event_type
     EVENT_UNSHARE_MNTNS,
     EVENT_SYSCALLS,
     EVENT_IMDS,
+    EVENT_ON_DEMAND,
     EVENT_MAX, // has to be the last one
 
     EVENT_ALL = 0xffffffff // used as a mask for all the events

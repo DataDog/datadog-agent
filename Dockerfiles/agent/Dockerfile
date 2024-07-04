@@ -44,7 +44,7 @@ ARG DD_AGENT_ARTIFACT=datadog-agent*_$TARGETARCH.deb
 ARG GENERAL_ARTIFACTS_CACHE_BUCKET_URL
 
 # copy everything - globbing with args wont work
-COPY datadog-agent*_$TARGETARCH.deb /
+COPY ${DD_AGENT_ARTIFACT} /
 WORKDIR /output
 
 # Get s6-overlay
@@ -65,8 +65,9 @@ RUN echo "$(cat /output/s6.$TARGETARCH.sha256) /output/s6.tgz" | sha256sum -c - 
 #   - static libraries                   # FIXME: move upstream
 #   - jmxfetch on nojmx build
 
-RUN find / -maxdepth 1 -type f -name "datadog-agent*_$TARGETARCH.deb" ! -name "$DD_AGENT_ARTIFACT" -exec rm {} \; \
- && find / -maxdepth 1 -name "datadog-agent*_$TARGETARCH.deb" -exec dpkg -x {} . \; \
+RUN find / -maxdepth 1 -type f -name "datadog-*_$TARGETARCH.deb" ! -name "$DD_AGENT_ARTIFACT" -exec rm {} \;
+
+RUN find / -maxdepth 1 -name "${DD_AGENT_ARTIFACT}" -exec dpkg -x {} . \; \
  && rm -rf usr etc/init lib \
     opt/datadog-agent/sources \
     opt/datadog-agent/embedded/share/doc \
@@ -152,6 +153,8 @@ COPY --from=extract /output/ /
 
 # S6 entrypoint, service definitions, healthcheck probe
 COPY s6-services /etc/services.d/
+RUN mkdir -p /etc/services-available.d/
+COPY s6-services-opt /etc/services-available.d/
 COPY cont-init.d /etc/cont-init.d/
 COPY probe.sh initlog.sh secrets-helper/readsecret.py secrets-helper/readsecret.sh secrets-helper/readsecret_multiple_providers.sh /
 

@@ -13,25 +13,25 @@
 .new-e2e_install_script:
   variables:
     TARGETS: ./tests/agent-platform/install-script
-    TEAM: agent-build-and-releases
+    TEAM: agent-delivery
     EXTRA_PARAMS: --osversion $E2E_OSVERS --platform $E2E_PLATFORM --cws-supported-osversion $E2E_CWS_SUPPORTED_OSVERS --major-version $AGENT_MAJOR_VERSION --arch $E2E_ARCH --flavor $FLAVOR --no-verbose
 
 .new-e2e_step_by_step:
   variables:
     TARGETS: ./tests/agent-platform/step-by-step
-    TEAM: agent-build-and-releases
+    TEAM: agent-delivery
     EXTRA_PARAMS: --osversion $E2E_OSVERS --platform $E2E_PLATFORM --cws-supported-osversion $E2E_CWS_SUPPORTED_OSVERS --major-version $AGENT_MAJOR_VERSION --arch $E2E_ARCH --flavor $FLAVOR
 
 .new-e2e_package_signing:
   variables:
     TARGETS: ./tests/agent-platform/package-signing
-    TEAM: agent-build-and-releases
+    TEAM: agent-delivery
     EXTRA_PARAMS: --osversion $E2E_BRANCH_OSVERS
 
 .new-e2e_script_upgrade6:
   variables:
     TARGETS: ./tests/agent-platform/upgrade
-    TEAM: agent-build-and-releases
+    TEAM: agent-delivery
     EXTRA_PARAMS: --osversion $E2E_OSVERS --platform $E2E_PLATFORM --arch $E2E_ARCH --flavor $FLAVOR
   parallel:
     matrix:
@@ -44,7 +44,7 @@
 .new-e2e_script_upgrade7:
   variables:
     TARGETS: ./tests/agent-platform/upgrade
-    TEAM: agent-build-and-releases
+    TEAM: agent-delivery
     EXTRA_PARAMS: --osversion $E2E_OSVERS --platform $E2E_PLATFORM --arch $E2E_ARCH --flavor $FLAVOR
   parallel:
     matrix:
@@ -57,7 +57,7 @@
 .new-e2e_rpm:
   variables:
     TARGETS: ./tests/agent-platform/rpm
-    TEAM: agent-build-and-releases
+    TEAM: agent-delivery
     EXTRA_PARAMS: --osversion $E2E_OSVERS --platform $E2E_PLATFORM --arch $E2E_ARCH
   script:
     - export DATADOG_AGENT_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.agent-linux-install-script.datadog_api_key)

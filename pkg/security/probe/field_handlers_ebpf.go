@@ -9,6 +9,7 @@
 package probe
 
 import (
+	"encoding/binary"
 	"path"
 	"strings"
 	"syscall"
@@ -27,6 +28,7 @@ type EBPFFieldHandlers struct {
 	config    *config.Config
 	resolvers *resolvers.EBPFResolvers
 	hostname  string
+	onDemand  *OnDemandProbesManager
 }
 
 // ResolveProcessCacheEntry queries the ProcessResolver to retrieve the ProcessContext of the event
@@ -177,7 +179,7 @@ func (fh *EBPFFieldHandlers) ResolveContainerContext(ev *model.Event) (*model.Co
 			ev.ContainerContext.Resolved = true
 		}
 	}
-	return ev.ContainerContext, ev.ContainerContext != nil
+	return ev.ContainerContext, ev.ContainerContext.Resolved
 }
 
 // ResolveRights resolves the rights of a file
@@ -595,4 +597,60 @@ func (fh *EBPFFieldHandlers) ResolveSyscallCtxArgsInt3(ev *model.Event, e *model
 // ResolveHostname resolve the hostname
 func (fh *EBPFFieldHandlers) ResolveHostname(_ *model.Event, _ *model.BaseEvent) string {
 	return fh.hostname
+}
+
+// ResolveOnDemandName resolves the on-demand event name
+func (fh *EBPFFieldHandlers) ResolveOnDemandName(_ *model.Event, e *model.OnDemandEvent) string {
+	if fh.onDemand == nil {
+		return ""
+	}
+	return fh.onDemand.getHookNameFromID(int(e.ID))
+}
+
+// ResolveOnDemandArg1Str resolves the string value of the first argument of hooked function
+func (fh *EBPFFieldHandlers) ResolveOnDemandArg1Str(_ *model.Event, e *model.OnDemandEvent) string {
+	data := e.Data[0:64]
+	s := model.NullTerminatedString(data)
+	return s
+}
+
+// ResolveOnDemandArg1Uint resolves the uint value of the first argument of hooked function
+func (fh *EBPFFieldHandlers) ResolveOnDemandArg1Uint(_ *model.Event, e *model.OnDemandEvent) int {
+	return int(binary.NativeEndian.Uint64(e.Data[0:8]))
+}
+
+// ResolveOnDemandArg2Str resolves the string value of the second argument of hooked function
+func (fh *EBPFFieldHandlers) ResolveOnDemandArg2Str(_ *model.Event, e *model.OnDemandEvent) string {
+	data := e.Data[64:128]
+	s := model.NullTerminatedString(data)
+	return s
+}
+
+// ResolveOnDemandArg2Uint resolves the uint value of the second argument of hooked function
+func (fh *EBPFFieldHandlers) ResolveOnDemandArg2Uint(_ *model.Event, e *model.OnDemandEvent) int {
+	return int(binary.NativeEndian.Uint64(e.Data[64 : 64+8]))
+}
+
+// ResolveOnDemandArg3Str resolves the string value of the third argument of hooked function
+func (fh *EBPFFieldHandlers) ResolveOnDemandArg3Str(_ *model.Event, e *model.OnDemandEvent) string {
+	data := e.Data[128:192]
+	s := model.NullTerminatedString(data)
+	return s
+}
+
+// ResolveOnDemandArg3Uint resolves the uint value of the third argument of hooked function
+func (fh *EBPFFieldHandlers) ResolveOnDemandArg3Uint(_ *model.Event, e *model.OnDemandEvent) int {
+	return int(binary.NativeEndian.Uint64(e.Data[128 : 128+8]))
+}
+
+// ResolveOnDemandArg4Str resolves the string value of the fourth argument of hooked function
+func (fh *EBPFFieldHandlers) ResolveOnDemandArg4Str(_ *model.Event, e *model.OnDemandEvent) string {
+	data := e.Data[192:256]
+	s := model.NullTerminatedString(data)
+	return s
+}
+
+// ResolveOnDemandArg4Uint resolves the uint value of the fourth argument of hooked function
+func (fh *EBPFFieldHandlers) ResolveOnDemandArg4Uint(_ *model.Event, e *model.OnDemandEvent) int {
+	return int(binary.NativeEndian.Uint64(e.Data[192 : 192+8]))
 }

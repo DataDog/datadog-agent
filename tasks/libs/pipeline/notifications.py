@@ -35,7 +35,7 @@ def load_and_validate(
 
 
 DATADOG_AGENT_GITHUB_ORG_URL = "https://github.com/DataDog"
-DEFAULT_SLACK_CHANNEL = "#agent-developer-experience"
+DEFAULT_SLACK_CHANNEL = "#agent-devx-ops"
 DEFAULT_JIRA_PROJECT = "AGNTR"
 # Map keys in lowercase
 GITHUB_SLACK_MAP = load_and_validate("github_slack_map.yaml", "DEFAULT_SLACK_CHANNEL", DEFAULT_SLACK_CHANNEL)
@@ -102,7 +102,7 @@ def find_job_owners(failed_jobs: FailedJobs, owners_file: str = ".gitlab/JOBOWNE
     for job in failed_jobs.all_non_infra_failures():
         job_owners = owners.of(job.name)
         # job_owners is a list of tuples containing the type of owner (eg. USERNAME, TEAM) and the name of the owner
-        # eg. [('TEAM', '@DataDog/agent-ci-experience')]
+        # eg. [('TEAM', '@DataDog/agent-devx-infra')]
 
         for kind, owner in job_owners:
             if kind == "TEAM":

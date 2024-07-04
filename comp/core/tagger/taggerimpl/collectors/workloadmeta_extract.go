@@ -588,9 +588,11 @@ func (c *WorkloadMetaCollector) extractTagsFromPodOwner(pod *workloadmeta.Kubern
 
 	case kubernetes.StatefulSetKind:
 		tagList.AddLow(tags.KubeStatefulSet, owner.Name)
-		for _, pvc := range pod.PersistentVolumeClaimNames {
-			if pvc != "" {
-				tagList.AddLow(tags.KubePersistentVolumeClaim, pvc)
+		if c.collectPersistentVolumeClaimsTags {
+			for _, pvc := range pod.PersistentVolumeClaimNames {
+				if pvc != "" {
+					tagList.AddLow(tags.KubePersistentVolumeClaim, pvc)
+				}
 			}
 		}
 

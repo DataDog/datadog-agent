@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/version"
+	"github.com/benbjohnson/clock"
 
 	//nolint:revive // TODO(DBM) Fix revive linter
 	_ "github.com/godror/godror"
@@ -113,6 +114,7 @@ type Check struct {
 	databaseRole                            string
 	openMode                                string
 	legacyIntegrationCompatibilityMode      bool
+	clock                                   clock.Clock
 }
 
 type vDatabase struct {
