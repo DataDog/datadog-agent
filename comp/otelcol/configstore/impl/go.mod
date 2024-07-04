@@ -4,6 +4,8 @@ go 1.21.0
 
 replace github.com/DataDog/datadog-agent/comp/def => ../../../def
 
+replace github.com/DataDog/datadog-agent/comp/otelcol/configstore/def => ../def
+
 require (
 	github.com/DataDog/datadog-agent/comp/otelcol/configstore/def v0.0.0-20240704143053-ac7a4e048c77
 	go.opentelemetry.io/collector/confmap v0.104.0
