@@ -878,6 +878,7 @@ def gitlab_configuration_is_modified(ctx):
         diff = ctx.run("git diff HEAD^1..HEAD", hide=True).stdout.strip().splitlines()
     else:
         # On dev branch we compare all the new commits
+        ctx.run("git fetch origin main")
         ancestor = get_common_ancestor(ctx, branch)
         diff = ctx.run(f"git diff {ancestor}..HEAD", hide=True).stdout.strip().splitlines()
     modified_files = re.compile(r"^diff --git a/(.*) b/(.*)")

@@ -20,5 +20,5 @@ test_gitlab_compare_to:
   script:
     - source /root/.bashrc
     - export GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITLAB_SCHEDULER_TOKEN_SSM_NAME)
-    - !reference [.setup_macos_github_app]
+    - !reference [.setup_agent_github_app]
     - inv pipeline.compare-to-itself
