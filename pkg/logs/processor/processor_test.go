@@ -349,11 +349,11 @@ func TestBuffering(t *testing.T) {
 	p.inputChan <- newMessage([]byte("hello second"), &src, "")
 	p.inputChan <- newMessage([]byte("hello third"), &src, "")
 	// wait for the other routine to process the messages
-	messagesDequeue(t, func() bool { return len(p.sds.buffer) == 3 })
+	messagesDequeue(t, func() bool { return processedMessages.Load() == 0 })
 
 	// the limit is configured to 3 messages
 	p.inputChan <- newMessage([]byte("hello fourth"), &src, "")
-	messagesDequeue(t, func() bool { return len(p.sds.buffer) == 3 })
+	messagesDequeue(t, func() bool { return processedMessages.Load() == 0 })
 
 	// reconfigure the processor
 	// --
@@ -409,7 +409,7 @@ func TestBuffering(t *testing.T) {
 	//   * it should drains its buffer and process the buffered logs
 
 	// first, check that the buffer is still full
-	messagesDequeue(t, func() bool { return len(p.sds.buffer) == 3 })
+	messagesDequeue(t, func() bool { return processedMessages.Load() == 0 })
 
 	order = sds.ReconfigureOrder{
 		Type: sds.AgentConfig,
@@ -435,11 +435,11 @@ func TestBuffering(t *testing.T) {
 	close(order.ResponseChan)
 
 	// make sure all messages have been drained and processed
-	messagesDequeue(t, func() bool { return len(p.sds.buffer) == 0 })
+	messagesDequeue(t, func() bool { return processedMessages.Load() == 3 })
 
 	// make sure it continues to process normally without buffering now
 	p.inputChan <- newMessage([]byte("usual work"), &src, "")
-	messagesDequeue(t, func() bool { return len(p.sds.buffer) == 0 })
+	messagesDequeue(t, func() bool { return processedMessages.Load() == 4 })
 }
 
 // messagesDequeue let the other routines being scheduled
