@@ -3384,10 +3384,12 @@ core,go.opentelemetry.io/collector/pdata/internal,Apache-2.0,Copyright The OpenT
 core,go.opentelemetry.io/collector/pdata/internal/data,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/pdata/internal/data/protogen/collector/logs/v1,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/pdata/internal/data/protogen/collector/metrics/v1,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/collector/pdata/internal/data/protogen/collector/profiles/v1experimental,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/pdata/internal/data/protogen/collector/trace/v1,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/pdata/internal/data/protogen/common/v1,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/pdata/internal/data/protogen/logs/v1,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/pdata/internal/data/protogen/metrics/v1,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/collector/pdata/internal/data/protogen/profiles/v1experimental,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/pdata/internal/data/protogen/resource/v1,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/pdata/internal/data/protogen/trace/v1,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/pdata/internal/json,Apache-2.0,Copyright The OpenTelemetry Authors
