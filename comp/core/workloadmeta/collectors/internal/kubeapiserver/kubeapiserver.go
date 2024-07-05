@@ -73,9 +73,8 @@ func resourcesWithMetadataCollectionEnabled(cfg config.Reader) []string {
 		resourcesWithExplicitMetadataCollectionEnabled(cfg)...,
 	)
 
-	// Remove duplicates
-	resources = cleanDuplicateVersions(resources)
-	return resources
+	// Remove duplicates and return
+	return cleanDuplicateVersions(resources)
 }
 
 // resourcesWithRequiredMetadataCollection returns the list of resources that we
