@@ -894,7 +894,7 @@ func checkRequests(t *testing.T, usmMonitor *Monitor, expectedOccurrences int, r
 	t.Helper()
 
 	occurrences := PrintableInt(0)
-	require.Eventually(t, func() bool {
+	assert.Eventually(t, func() bool {
 		protocolType := protocols.HTTP
 		if isHTTP2 {
 			protocolType = protocols.HTTP2
@@ -903,6 +903,14 @@ func checkRequests(t *testing.T, usmMonitor *Monitor, expectedOccurrences int, r
 		occurrences += PrintableInt(countRequestsOccurrences(t, stats, reqs))
 		return int(occurrences) == expectedOccurrences
 	}, 3*time.Second, 100*time.Millisecond, "Expected to find the request %v times, got %v captured. Requests not found:\n%v", expectedOccurrences, &occurrences, reqs)
+
+	if t.Failed() {
+		if isHTTP2 {
+			ebpftest.DumpMapsTestHelper(t, usmMonitor.DumpMaps, "http2_in_flight", "http2_batches")
+		} else {
+			ebpftest.DumpMapsTestHelper(t, usmMonitor.DumpMaps, "http_in_flight", "http_batches")
+		}
+	}
 }
 
 func countRequestsOccurrences(t *testing.T, conns map[http.Key]*http.RequestStats, reqs map[*nethttp.Request]bool) (occurrences int) {
