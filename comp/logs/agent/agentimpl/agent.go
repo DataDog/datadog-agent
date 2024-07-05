@@ -238,7 +238,6 @@ func (a *logAgent) startPipeline() {
 		a.pipelineProvider,
 		a.diagnosticMessageReceiver,
 		a.launchers,
-		a.schedulers,
 	)
 	starter.Start()
 
@@ -252,6 +251,8 @@ func (a *logAgent) startPipeline() {
 
 func (a *logAgent) startSchedulers() {
 	a.prepareSchedulers.Do(func() {
+		a.schedulers.Start()
+
 		for _, scheduler := range a.schedulerProviders {
 			a.AddScheduler(scheduler)
 		}
