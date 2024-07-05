@@ -650,8 +650,9 @@ func (w *Webhook) injectAutoInstruConfig(pod *corev1.Pod, libsToInject []libInfo
 					key:     dotnetProfilingLdPreloadKey,
 					valFunc: dotnetProfilingLdPreloadEnvValFunc,
 					isEligibleToInject: func(c corev1.Container) bool {
-						idx := mutatecommon.EnvIndex(c.Env, "DD_PROFILING_ENABLED")
-						return idx != -1 && isTruthy(c.Env[idx].Value)
+						// N.B. Always disabled for now until we have a better mechanism to inject
+						//      this safely.
+						return false
 					},
 				},
 			})

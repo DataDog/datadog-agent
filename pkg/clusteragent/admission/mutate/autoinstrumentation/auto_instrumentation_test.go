@@ -194,19 +194,6 @@ func TestInjectAutoInstruConfig(t *testing.T) {
 			wantErr:        false,
 		},
 		{
-			name: "LD_PRELOAD should be set when DD_PROFILING_ENABLED",
-			pod:  common.FakePodWithEnvValue("dotnet-pod", "DD_PROFILING_ENABLED", "1"),
-			libsToInject: []libInfo{
-				{
-					lang:  "dotnet",
-					image: "gcr.io/datadoghq/dd-lib-dotnet-init:v1",
-				},
-			},
-			expectedEnvKey: "LD_PRELOAD",
-			expectedEnvVal: "/datadog-lib/continuousprofiler/Datadog.Linux.ApiWrapper.x64.so",
-			wantErr:        false,
-		},
-		{
 			name: "CORECLR_ENABLE_PROFILING set via ValueFrom",
 			pod:  common.FakePodWithEnvFieldRefValue("dotnet-pod", "CORECLR_PROFILER", "path"),
 			libsToInject: []libInfo{
@@ -1174,106 +1161,6 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 			},
 			expectedInjectedLibraries: map[string]string{"js": "v1.10"},
 			wantErr:                   false,
-		},
-		{
-			name: "inject library and all no library version dotnet profiler enabled",
-			pod: common.FakePodWithParent(
-				"ns",
-				map[string]string{
-					"admission.datadoghq.com/all-lib.version":   "latest",
-					"admission.datadoghq.com/all-lib.config.v1": `{"version":1,"runtime_metrics_enabled":true,"tracing_rate_limit":50,"tracing_sampling_rate":0.3}`,
-					"admission.datadoghq.com/js-lib.config.v1":  `{"version":1,"tracing_sampling_rate":0.4}`,
-				},
-				map[string]string{
-					"admission.datadoghq.com/enabled": "true",
-				},
-				[]corev1.EnvVar{
-					{
-						Name:  "DD_PROFILING_ENABLED",
-						Value: "1",
-					},
-				},
-				"",
-				"",
-			),
-			expectedEnvs: []corev1.EnvVar{
-				{
-					Name:  "DD_INSTRUMENTATION_INSTALL_TYPE",
-					Value: "k8s_lib_injection",
-				},
-				{
-					Name:  "DD_INSTRUMENTATION_INSTALL_TIME",
-					Value: installTime,
-				},
-				{
-					Name:  "DD_INSTRUMENTATION_INSTALL_ID",
-					Value: uuid,
-				},
-				{
-					Name:  "DD_RUNTIME_METRICS_ENABLED",
-					Value: "true",
-				},
-				{
-					Name:  "DD_TRACE_RATE_LIMIT",
-					Value: "50",
-				},
-				{
-					Name:  "PYTHONPATH",
-					Value: "/datadog-lib/",
-				},
-				{
-					Name:  "RUBYOPT",
-					Value: " -r/datadog-lib/auto_inject",
-				},
-				{
-					Name:  "NODE_OPTIONS",
-					Value: " --require=/datadog-lib/node_modules/dd-trace/init",
-				},
-				{
-					Name:  "JAVA_TOOL_OPTIONS",
-					Value: " -javaagent:/datadog-lib/dd-java-agent.jar -XX:OnError=/datadog-lib/java/continuousprofiler/tmp/dd_crash_uploader.sh -XX:ErrorFile=/datadog-lib/java/continuousprofiler/tmp/hs_err_pid_%p.log",
-				},
-				{
-					Name:  "DD_DOTNET_TRACER_HOME",
-					Value: "/datadog-lib",
-				},
-				{
-					Name:  "CORECLR_ENABLE_PROFILING",
-					Value: "1",
-				},
-				{
-					Name:  "CORECLR_PROFILER",
-					Value: "{846F5F1C-F9AE-4B07-969E-05C26BC060D8}",
-				},
-				{
-					Name:  "CORECLR_PROFILER_PATH",
-					Value: "/datadog-lib/Datadog.Trace.ClrProfiler.Native.so",
-				},
-				{
-					Name:  "DD_TRACE_LOG_DIRECTORY",
-					Value: "/datadog-lib/logs",
-				},
-				{
-					Name:  "LD_PRELOAD",
-					Value: "/datadog-lib/continuousprofiler/Datadog.Linux.ApiWrapper.x64.so",
-				},
-				{
-					Name:  "DD_TRACE_SAMPLE_RATE",
-					Value: "0.40",
-				},
-				{
-					Name:  "DD_PROFILING_ENABLED",
-					Value: "1",
-				},
-			},
-			expectedInjectedLibraries: map[string]string{
-				"java":   "latest",
-				"python": "latest",
-				"ruby":   "latest",
-				"dotnet": "latest",
-				"js":     "latest",
-			},
-			wantErr: false,
 		},
 		{
 			name: "inject library and all no library version",
