@@ -3,29 +3,25 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package tracelogimpl provides a component that implements the log.Component for the trace-agent logger
-package tracelogimpl
+// Package systemprobeimpl implements a component to handle logging internal to the agent for system-probe.
+package systemprobeimpl
 
 import (
 	"context"
 	"errors"
-	"fmt"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
 	logdef "github.com/DataDog/datadog-agent/comp/core/log/def"
+	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	pkgconfiglogs "github.com/DataDog/datadog-agent/pkg/config/logs"
-	tracelog "github.com/DataDog/datadog-agent/pkg/trace/log"
-	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Requires declares the input types to the logger component constructor
 type Requires struct {
-	Lc                 compdef.Lifecycle
-	Params             logdef.Params
-	Config             config.Reader
-	TelemetryCollector telemetry.TelemetryCollector
+	Lc     compdef.Lifecycle
+	Params logdef.Params
+	Config sysprobeconfig.Component
 }
 
 // Provides defines the output of the log component
@@ -33,7 +29,7 @@ type Provides struct {
 	Comp logdef.Component
 }
 
-// NewComponent creates a pkglog.Component using the provided config
+// NewComponent creates a log.Component using the provided config
 func NewComponent(deps Requires) (Provides, error) {
 	if !deps.Params.IsLogLevelFnSet() {
 		return Provides{}, errors.New("must call one of core.BundleParams.ForOneShot or ForDaemon")
@@ -49,12 +45,10 @@ func NewComponent(deps Requires) (Provides, error) {
 		deps.Params.LogFormatJSONFn(deps.Config),
 		deps.Config)
 	if err != nil {
-		deps.TelemetryCollector.SendStartupError(telemetry.CantCreateLogger, err)
-		return Provides{}, fmt.Errorf("Cannot create logger: %v", err)
+		return Provides{}, err
 	}
 
-	l := pkglog.NewWrapper(3)
-	tracelog.SetLogger(l)
+	l := pkglog.NewWrapper(2)
 	deps.Lc.Append(compdef.Hook{OnStop: func(context.Context) error {
 		l.Flush()
 		return nil

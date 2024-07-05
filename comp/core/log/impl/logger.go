@@ -45,8 +45,8 @@ type Provides struct {
 	Comp logdef.Component
 }
 
-// NewLogger creates a log.Component using the provided config
-func NewLogger(deps Requires) (Provides, error) {
+// NewComponent creates a log.Component using the provided config
+func NewComponent(deps Requires) (Provides, error) {
 	if !deps.Params.IsLogLevelFnSet() {
 		return Provides{}, errors.New("must call one of core.BundleParams.ForOneShot or ForDaemon")
 	}

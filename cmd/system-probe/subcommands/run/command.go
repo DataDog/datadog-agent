@@ -34,7 +34,7 @@ import (
 	healthprobe "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
 	healthprobefx "github.com/DataDog/datadog-agent/comp/core/healthprobe/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	systemprobeloggerfx "github.com/DataDog/datadog-agent/comp/core/log/fx-systemprobe"
 	"github.com/DataDog/datadog-agent/comp/core/pid"
 	"github.com/DataDog/datadog-agent/comp/core/pid/pidimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
@@ -103,10 +103,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					}
 				}),
 				healthprobefx.Module(),
-				// use system-probe config instead of agent config for logging
-				fx.Provide(func(lc fx.Lifecycle, params log.Params, sysprobeconfig sysprobeconfig.Component) (log.Component, error) {
-					return logimpl.NewLogger(lc, params, sysprobeconfig)
-				}),
+				systemprobeloggerfx.Module(),
 				fx.Supply(optional.NewNoneOption[workloadmeta.Component]()),
 				autoexitimpl.Module(),
 				pidimpl.Module(),
@@ -266,15 +263,7 @@ func runSystemProbe(ctxChan <-chan context.Context, errChan chan error) error {
 		}),
 		healthprobefx.Module(),
 		fx.Supply(optional.NewNoneOption[workloadmeta.Component]()),
-		// use system-probe config instead of agent config for logging
-		fx.Provide(func(lc fx.Lifecycle, params log.Params, sysprobeconfig sysprobeconfig.Component) (log.Component, error) {
-			// TODO comp: We should have a dedicated implementation for the sysprobe-logger
-			return logimpl.NewLogger(logimpl.Requires{
-				Lc:     lc,
-				Params: params,
-				Config: sysprobeconfig,
-			})
-		}),
+		systemprobeloggerfx.Module(),
 		fx.Provide(func(sysprobeconfig sysprobeconfig.Component) settings.Params {
 			profilingGoRoutines := commonsettings.NewProfilingGoroutines()
 			profilingGoRoutines.ConfigPrefix = configPrefix

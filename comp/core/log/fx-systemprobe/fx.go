@@ -7,7 +7,7 @@
 package fxlog
 
 import (
-	logimpl "github.com/DataDog/datadog-agent/comp/core/log/impl"
+	logimpl "github.com/DataDog/datadog-agent/comp/core/log/impl-systemprobe"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
