@@ -483,25 +483,24 @@ func TestUDSReceive(t *testing.T) {
 	cfg["dogstatsd_no_aggregation_pipeline"] = true         // another test may have turned it off
 	cfg["dogstatsd_socket"] = customSocket
 
-	deps := fulfillDepsWithConfigOverride(t, cfg)
-	demux := deps.Demultiplexer
-
 	t.Run("default", func(t *testing.T) {
+		deps := fulfillDepsWithConfigOverride(t, cfg)
+
 		conn, err := net.Dial("unixgram", defaultSocket)
 		require.NoError(t, err, "cannot connect to DSD socket")
 		defer conn.Close()
 
-		demux.Reset()
-		testReceive(t, conn, demux)
+		testReceive(t, conn, deps.Demultiplexer)
 	})
 
 	t.Run("custom", func(t *testing.T) {
+		deps := fulfillDepsWithConfigOverride(t, cfg)
+
 		conn, err := net.Dial("unixgram", customSocket)
 		require.NoError(t, err, "cannot connect to DSD socket")
 		defer conn.Close()
 
-		demux.Reset()
-		testReceive(t, conn, demux)
+		testReceive(t, conn, deps.Demultiplexer)
 	})
 }
 
