@@ -24,7 +24,7 @@ function sendMessage(endpoint, data, method, callback, callbackErr){
       $("#logged_out").hide();
 
       // Set Agent state to "connected"
-      $("#agent_status").html("Connected <br> to Agent");
+      $("#agent_status").html("Connected<br>to Agent");
       $("#agent_status").removeClass("disconnected")
       $("#agent_status").addClass("connected")
 
@@ -42,7 +42,7 @@ function sendMessage(endpoint, data, method, callback, callbackErr){
       }
 
       // Set Agent state to "disconnected"
-      $("#agent_status").html("Not connected<br> to Agent");
+      $("#agent_status").html("Not connected<br>to Agent");
       $("#agent_status").removeClass("connected")
       $("#agent_status").addClass("disconnected")
 
@@ -703,7 +703,7 @@ function restartAgent() {
   $(".active").removeClass("active");
   $("#main").append('<i class="fa fa-spinner fa-pulse fa-3x fa-fw center loading_spinner"></i>');
 
-  $("#agent_status").html("Not connected<br> to Agent");
+  $("#agent_status").html("Not connected<br>to Agent");
   $("#agent_status").removeClass("connected")
   $("#agent_status").addClass("disconnected")
 
