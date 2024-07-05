@@ -335,7 +335,9 @@ def generate_dummy_package(ctx, folder):
                     ctx.run(f"go mod edit -replace {mod.import_path}=../{mod.path}")
                     # todo: remove once datadogconnector fix is released.
                     if mod.import_path == "github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/impl":
-                        ctx.run(f"go mod edit -replace github.com/open-telemetry/opentelemetry-collector-contrib/connector/datadogconnector=github.com/open-telemetry/opentelemetry-collector-contrib/connector/datadogconnector@v0.103.0")
+                        ctx.run(
+                            "go mod edit -replace github.com/open-telemetry/opentelemetry-collector-contrib/connector/datadogconnector=github.com/open-telemetry/opentelemetry-collector-contrib/connector/datadogconnector@v0.103.0"
+                        )
 
         # yield folder waiting for a "with" block to be executed (https://docs.python.org/3/library/contextlib.html)
         yield folder
