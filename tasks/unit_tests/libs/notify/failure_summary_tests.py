@@ -58,7 +58,7 @@ class TestFailureSummary(TestCase):
         return os.listdir(TEST_DIR)
 
     def get_dummy_summary_data(self, jobs: list[dict], id=618) -> SummaryData:
-        jobs = [ProjectPipelineJob(manager=MagicMock(), attrs=attr) for attr in jobs]
+        jobs = [ProjectPipelineJob(manager=MagicMock(), attrs=attr) for attr in jobs]  # type: ignore
 
         return SummaryData(MagicMock(), id, jobs=jobs, pipeline=ProjectPipeline(manager=MagicMock(), attrs={'id': 42}))
 
