@@ -46,6 +46,14 @@ replace github.com/DataDog/datadog-agent/pkg/util/fxutil => ../../../../pkg/util
 
 replace github.com/DataDog/datadog-agent/pkg/util/executable => ../../../../pkg/util/executable
 
+replace github.com/DataDog/datadog-agent/cmd/agent/common/path => ../../../../cmd/agent/common/path
+
+replace github.com/DataDog/datadog-agent/comp/api/api/def => ../../../../comp/api/api/def
+
+replace github.com/DataDog/datadog-agent/comp/core/telemetry => ../../../../comp/core/telemetry
+
+replace github.com/DataDog/datadog-agent/pkg/util/testutil => ../../../../pkg/util/testutil
+
 require (
 	github.com/DataDog/datadog-agent/comp/core/config v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/core/log/def v0.0.0-00010101000000-000000000000

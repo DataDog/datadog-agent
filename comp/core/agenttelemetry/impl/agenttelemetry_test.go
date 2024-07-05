@@ -30,7 +30,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
-	logmock "github.com/DataDog/datadog-agent/comp/log/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 

@@ -65,7 +65,7 @@ func MockModule() fxutil.Module {
 		fx.Provide(NewMock),
 		fx.Supply(config.Params{}),
 		fx.Supply(log.Params{}),
-		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
 		config.MockModule(),
 		sysprobeconfigimpl.MockModule(),
 		fx.Supply(tagger.NewFakeTaggerParams()),

@@ -45,7 +45,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
@@ -325,7 +324,7 @@ func (a *logAgent) onUpdateSDSRules(updates map[string]state.RawConfig, applySta
 	}
 
 	if err != nil {
-		log.Errorf("Can't update SDS standard rules: %v", err)
+		a.log.Errorf("Can't update SDS standard rules: %v", err)
 	}
 
 	// Apply the new status to all configs
@@ -360,7 +359,7 @@ func (a *logAgent) onUpdateSDSAgentConfig(updates map[string]state.RawConfig, ap
 	}
 
 	if err != nil {
-		log.Errorf("Can't update SDS configurations: %v", err)
+		a.log.Errorf("Can't update SDS configurations: %v", err)
 	}
 
 	// Apply the new status to all configs

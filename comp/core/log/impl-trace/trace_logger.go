@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package tracelogimpl provides a component that implements the log.Component for the trace-agent logger
-package tracelogimpl
+// Package traceimpl provides a component that implements the log.Component for the trace-agent logger
+package traceimpl
 
 import (
 	"context"
@@ -24,7 +24,7 @@ import (
 type Requires struct {
 	Lc                 compdef.Lifecycle
 	Params             logdef.Params
-	Config             config.Reader
+	Config             config.Component
 	TelemetryCollector telemetry.TelemetryCollector
 }
 

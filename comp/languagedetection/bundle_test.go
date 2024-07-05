@@ -13,7 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	logfx "github.com/DataDog/datadog-agent/comp/core/log/fx"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
@@ -30,10 +30,9 @@ func TestBundleDependencies(t *testing.T) {
 		config.Module(),
 		fx.Supply(config.Params{}),
 		telemetryimpl.Module(),
-		logfx.Module(),
 		fxutil.ProvideOptional[secrets.Component](),
+		fx.Provide(func() log.Component { return logmock.New(t) }),
 		secretsimpl.MockModule(),
-		fx.Supply(log.Params{}),
 		workloadmetafx.Module(),
 		fx.Supply(workloadmeta.NewParams()),
 		fx.Invoke(func(client.Component) {}),

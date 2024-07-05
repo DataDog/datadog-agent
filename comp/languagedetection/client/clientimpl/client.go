@@ -21,7 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 
 	"go.uber.org/fx"
@@ -226,7 +225,7 @@ func (c *client) startStreaming() {
 			cancel()
 			err := health.Deregister()
 			if err != nil {
-				log.Warnf("error de-registering health check: %s", err)
+				c.logger.Warnf("error de-registering health check: %s", err)
 			}
 			return
 		case healthDeadline := <-health.C:

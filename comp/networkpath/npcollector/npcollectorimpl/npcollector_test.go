@@ -60,6 +60,7 @@ func Test_NpCollector_StartAndStop(t *testing.T) {
 	assert.False(t, npCollector.running)
 
 	// TEST START/STOP using logs
+	l.Close() // We need to first close the logger to avoid a race-cond between seelog and out test when calling w.Flush()
 	w.Flush()
 	logs := b.String()
 

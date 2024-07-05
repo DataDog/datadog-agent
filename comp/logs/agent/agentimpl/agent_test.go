@@ -111,7 +111,7 @@ func createAgent(suite *AgentTestSuite, endpoints *config.Endpoints) (*logAgent,
 	deps := fxutil.Test[testDeps](suite.T(), fx.Options(
 		fx.Supply(configComponent.Params{}),
 		fx.Supply(log.Params{}),
-		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() log.Component { return logmock.New(suite.T()) }),
 		configComponent.MockModule(),
 		hostnameimpl.MockModule(),
 		fx.Replace(configComponent.MockParams{Overrides: suite.configOverrides}),
@@ -388,7 +388,7 @@ func (suite *AgentTestSuite) createDeps() dependencies {
 	return fxutil.Test[dependencies](suite.T(), fx.Options(
 		fx.Supply(configComponent.Params{}),
 		fx.Supply(log.Params{}),
-		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() log.Component { return logmock.New(suite.T()) }),
 		configComponent.MockModule(),
 		hostnameimpl.MockModule(),
 		fx.Replace(configComponent.MockParams{Overrides: suite.configOverrides}),

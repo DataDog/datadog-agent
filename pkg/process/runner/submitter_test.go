@@ -387,14 +387,14 @@ type submitterDeps struct {
 }
 
 func newSubmitterDeps(t *testing.T) submitterDeps {
-	return fxutil.Test[submitterDeps](t, getForwardersMockModules(nil))
+	return fxutil.Test[submitterDeps](t, getForwardersMockModules(t, nil))
 }
 
 func newSubmitterDepsWithConfig(t *testing.T, config ddconfig.Config) submitterDeps {
 	overrides := config.AllSettings()
-	return fxutil.Test[submitterDeps](t, getForwardersMockModules(overrides))
+	return fxutil.Test[submitterDeps](t, getForwardersMockModules(t, overrides))
 }
 
-func getForwardersMockModules(configOverrides map[string]interface{}) fx.Option {
+func getForwardersMockModules(t *testing.T, configOverrides map[string]interface{}) fx.Option {
 	return fx.Options(config.MockModule(), fx.Replace(config.MockParams{Overrides: configOverrides}), forwardersimpl.MockModule(), fx.Provide(func() log.Component { return logmock.New(t) }))
 }

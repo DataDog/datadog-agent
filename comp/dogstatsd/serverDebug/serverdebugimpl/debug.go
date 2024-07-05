@@ -23,7 +23,7 @@ import (
 	commonpath "github.com/DataDog/datadog-agent/cmd/agent/common/path"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	logComponentImpl "github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	logComponentImpl "github.com/DataDog/datadog-agent/comp/core/log/impl"
 	serverdebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -82,9 +82,9 @@ func newServerDebug(deps dependencies) serverdebug.Component {
 	return newServerDebugCompat(deps.Log, deps.Config)
 }
 
-func newServerDebugCompat(log log.Component, cfg config.Reader) serverdebug.Component {
+func newServerDebugCompat(l log.Component, cfg config.Reader) serverdebug.Component {
 	sd := &serverDebugImpl{
-		log:     log,
+		log:     l,
 		enabled: atomic.NewBool(false),
 		Stats:   make(map[ckey.ContextKey]metricStat),
 		metricsCounts: metricsCountBuckets{

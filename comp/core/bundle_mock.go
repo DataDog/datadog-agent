@@ -16,6 +16,8 @@
 package core
 
 import (
+	"testing"
+
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -47,6 +49,6 @@ func MakeMockBundle(logParams, logger fx.Option) fxutil.BundleOptions {
 func MockBundle() fxutil.BundleOptions {
 	return MakeMockBundle(
 		fx.Supply(log.Params{}),
-		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
 	)
 }

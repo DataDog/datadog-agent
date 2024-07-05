@@ -37,7 +37,7 @@ func NewTemporaryLoggerWithoutInit() logdef.Component {
 type Requires struct {
 	Lc     compdef.Lifecycle
 	Params logdef.Params
-	Config config.Reader
+	Config config.Component
 }
 
 // Provides defines the output of the log component

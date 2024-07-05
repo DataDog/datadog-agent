@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package mock offers a mock for the logger.
 package mock
 
 import (
@@ -13,6 +14,10 @@ import (
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
+
+	// we need this import for the seelog custom 'ShortFilePath' custom formater. We should migrate them to
+	// pkg/util/log
+	_ "github.com/DataDog/datadog-agent/pkg/config/logs"
 )
 
 // tbWriter is an implementation of io.Writer that sends lines to
@@ -30,12 +35,12 @@ func (tbw *tbWriter) Write(p []byte) (n int, err error) {
 }
 
 // New returns a new mock for the log Component
-func New(t testing.TB) (log.Component, error) {
+func New(t testing.TB) log.Component {
 	// Build a logger that only logs to t.Log(..)
 	iface, err := seelog.LoggerFromWriterWithMinLevelAndFormat(&tbWriter{t}, seelog.TraceLvl,
 		"%Date(2006-01-02 15:04:05 MST) | %LEVEL | (%ShortFilePath:%Line in %FuncShort) | %ExtraTextContext%Msg%n")
 	if err != nil {
-		return nil, err
+		t.Fatal(err.Error())
 	}
 
 	t.Cleanup(func() {
@@ -47,5 +52,5 @@ func New(t testing.TB) (log.Component, error) {
 	// install the logger into pkg/util/log
 	pkglog.ChangeLogLevel(iface, "debug")
 
-	return pkglog.NewWrapper(2), nil
+	return pkglog.NewWrapper(2)
 }

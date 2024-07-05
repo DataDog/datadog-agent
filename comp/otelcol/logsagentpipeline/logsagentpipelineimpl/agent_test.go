@@ -66,7 +66,7 @@ func (suite *AgentTestSuite) TearDownTest() {
 func createAgent(suite *AgentTestSuite, endpoints *config.Endpoints) *Agent {
 	deps := fxutil.Test[testDeps](suite.T(), fx.Options(
 		configComponent.MockModule(),
-		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() log.Component { return logmock.New(suite.T()) }),
 		fx.Replace(configComponent.MockParams{Overrides: suite.configOverrides}),
 	))
 
