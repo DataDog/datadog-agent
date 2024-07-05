@@ -145,16 +145,21 @@ def gen_config_subset(ctx, jobs, dry_run=False):
     config = get_full_gitlab_ci_configuration(ctx, '.gitlab-ci.yml')
 
     jobs = [j for j in jobs.split(',') if j]
-    required = set(jobs)
+    required = set()
 
     def add_dependencies(job):
         nonlocal required, config
 
         if job in required:
             return
-
         required.add(job)
-        dependencies = config[job].get('needs', [])
+
+        dependencies = []
+        if 'needs' in config[job]:
+            dependencies = config[job]['needs']
+        if 'dependencies' in config[job]:
+            dependencies = config[job]['dependencies']
+
         for dep in dependencies:
             add_dependencies(dep)
 
@@ -163,6 +168,12 @@ def gen_config_subset(ctx, jobs, dry_run=False):
         add_dependencies(job)
 
     new_config = {job: config[job] for job in required}
+
+    # Remove extends
+    for job in new_config.values():
+        job.pop('extends', None)
+
+    # Keep gitlab config
     attributes_to_keep = 'stages', 'variables', 'default', 'workflow'
     for attr in attributes_to_keep:
         new_config[attr] = config[attr]
