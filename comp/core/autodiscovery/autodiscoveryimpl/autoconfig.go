@@ -7,10 +7,10 @@
 package autodiscoveryimpl
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"sort"
 	"sync"
@@ -18,6 +18,8 @@ import (
 
 	"go.uber.org/atomic"
 	"go.uber.org/fx"
+
+	"github.com/fatih/color"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
@@ -27,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler"
 	autodiscoveryStatus "github.com/DataDog/datadog-agent/comp/core/autodiscovery/status"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
+	autodiscoveryUtils "github.com/DataDog/datadog-agent/comp/core/autodiscovery/utils"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	logComp "github.com/DataDog/datadog-agent/comp/core/log"
@@ -37,14 +40,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
-	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
 var listenerCandidateIntl = 30 * time.Second
@@ -81,7 +82,6 @@ type AutoConfig struct {
 	started                  bool
 	wmeta                    optional.Option[workloadmeta.Component]
 	taggerComp               tagger.Component
-	logs                     logComp.Component
 
 	// m covers the `configPollers`, `listenerCandidates`, `listeners`, and `listenerRetryStop`, but
 	// not the values they point to.
@@ -116,6 +116,7 @@ func newProvides(deps dependencies) provides {
 		StatusProvider: status.NewInformationProvider(autodiscoveryStatus.GetProvider(c)),
 
 		Endpoint:      api.NewAgentEndpointProvider(c.(*AutoConfig).writeConfigCheck, "/config-check", "GET"),
+		EndpointRaw:   api.NewAgentEndpointProvider(c.(*AutoConfig).writeConfigCheckRaw, "/config-check/raw", "GET"),
 		FlareProvider: flaretypes.NewProvider(c.(*AutoConfig).fillFlare),
 	}
 }
@@ -133,7 +134,7 @@ func (l *listenerCandidate) try() (listeners.ServiceListener, error) {
 
 // newAutoConfig creates an AutoConfig instance and starts it.
 func newAutoConfig(deps dependencies) autodiscovery.Component {
-	ac := createNewAutoConfig(scheduler.NewController(), deps.Secrets, deps.WMeta, deps.TaggerComp, deps.Log)
+	ac := createNewAutoConfig(scheduler.NewController(), deps.Secrets, deps.WMeta, deps.TaggerComp)
 	deps.Lc.Append(fx.Hook{
 		OnStart: func(c context.Context) error {
 			ac.Start()
@@ -148,7 +149,7 @@ func newAutoConfig(deps dependencies) autodiscovery.Component {
 }
 
 // createNewAutoConfig creates an AutoConfig instance (without starting).
-func createNewAutoConfig(schedulerController *scheduler.Controller, secretResolver secrets.Component, wmeta optional.Option[workloadmeta.Component], taggerComp tagger.Component, logs logComp.Component) *AutoConfig {
+func createNewAutoConfig(schedulerController *scheduler.Controller, secretResolver secrets.Component, wmeta optional.Option[workloadmeta.Component], taggerComp tagger.Component) *AutoConfig {
 	cfgMgr := newReconcilingConfigManager(secretResolver)
 	ac := &AutoConfig{
 		configPollers:            make([]*configPoller, 0, 9),
@@ -167,7 +168,6 @@ func createNewAutoConfig(schedulerController *scheduler.Controller, secretResolv
 		started:                  false,
 		wmeta:                    wmeta,
 		taggerComp:               taggerComp,
-		logs:                     logs,
 	}
 	return ac
 }
@@ -195,10 +195,27 @@ func (ac *AutoConfig) serviceListening() {
 	}
 }
 
-func (ac *AutoConfig) writeConfigCheck(w http.ResponseWriter, _ *http.Request) {
-	configCheckResponse := ac.GetConfigCheck()
+func (ac *AutoConfig) writeConfigCheck(w http.ResponseWriter, r *http.Request) {
+	verbose := r.URL.Query().Get("verbose") == "true"
+	noColor := r.URL.Query().Get("nocolor") == "true"
+	bytes := ac.GetConfigCheck(verbose, noColor)
 
-	jsonConfig, err := json.Marshal(configCheckResponse)
+	w.Write(bytes)
+}
+
+func (ac *AutoConfig) writeConfigCheckRaw(w http.ResponseWriter, _ *http.Request) {
+	var response integration.ConfigCheckResponse
+
+	configSlice := ac.LoadedConfigs()
+	sort.Slice(configSlice, func(i, j int) bool {
+		return configSlice[i].Name < configSlice[j].Name
+	})
+	response.Configs = configSlice
+	response.ResolveWarnings = GetResolveWarnings()
+	response.ConfigErrors = GetConfigErrors()
+	response.Unresolved = ac.GetUnresolvedTemplates()
+
+	jsonConfig, err := json.Marshal(response)
 	if err != nil {
 		httputils.SetJSONError(w, err, 500)
 		return
@@ -207,102 +224,68 @@ func (ac *AutoConfig) writeConfigCheck(w http.ResponseWriter, _ *http.Request) {
 	w.Write(jsonConfig)
 }
 
+// fillFlare add the config-checks log to flares.
+func (ac *AutoConfig) fillFlare(fb flaretypes.FlareBuilder) error {
+	fb.AddFileFromFunc("config-check.log", func() ([]byte, error) { //nolint:errcheck
+		bytes := ac.GetConfigCheck(true, true)
+		return bytes, nil
+	})
+	return nil
+}
+
 // GetConfigCheck returns scrubbed information from all configuration providers
-func (ac *AutoConfig) GetConfigCheck() integration.ConfigCheckResponse {
-	var response integration.ConfigCheckResponse
+func (ac *AutoConfig) GetConfigCheck(verbose bool, noColor bool) []byte {
+	writer := new(bytes.Buffer)
 
 	configSlice := ac.LoadedConfigs()
 	sort.Slice(configSlice, func(i, j int) bool {
 		return configSlice[i].Name < configSlice[j].Name
 	})
 
-	scrubbedConfigs := ac.scrubConfigs(configSlice)
-
-	response.Configs = scrubbedConfigs
-
-	response.ResolveWarnings = GetResolveWarnings()
-	response.ConfigErrors = GetConfigErrors()
-
+	resolveWarnings := GetResolveWarnings()
+	configErrors := GetConfigErrors()
 	unresolved := ac.GetUnresolvedTemplates()
-	scrubbedUnresolved := make(map[string][]integration.Config, len(unresolved))
 
-	for ids, configs := range unresolved {
-		scrubbedUnresolved[ids] = ac.scrubConfigs(configs)
+	originalNoColor := color.NoColor
+	color.NoColor = noColor
+	defer func() {
+		color.NoColor = originalNoColor
+	}()
+
+	if len(configErrors) > 0 {
+		fmt.Fprintf(writer, "=== Configuration %s ===\n", color.RedString("errors"))
+		for check, error := range configErrors {
+			fmt.Fprintf(writer, "\n%s: %s\n", color.RedString(check), error)
+		}
 	}
 
-	response.Unresolved = scrubbedUnresolved
-
-	return response
-}
-
-func (ac *AutoConfig) scrubConfigs(configs []integration.Config) []integration.Config {
-	scrubbedConfigs := make([]integration.Config, len(configs))
-
-	for i, c := range configs {
-		scrubbedInstances := make([]integration.Data, len(c.Instances))
-		for instanceIndex, inst := range c.Instances {
-			subbedData, err := scrubData(inst)
-			if err != nil {
-				ac.logs.Warnf("error scrubbing secrets from config: %s", err)
-				continue
-			}
-			scrubbedInstances[instanceIndex] = subbedData
-		}
-		c.Instances = scrubbedInstances
-
-		if len(c.InitConfig) > 0 {
-			subbedData, err := scrubData(c.InitConfig)
-			if err != nil {
-				ac.logs.Warnf("error scrubbing secrets from init config: %s", err)
-				c.InitConfig = []byte{}
-			} else {
-				c.InitConfig = subbedData
-			}
-		}
-
-		if len(c.MetricConfig) > 0 {
-			subbedData, err := scrubData(c.MetricConfig)
-			if err != nil {
-				ac.logs.Warnf("error scrubbing secrets from metric config: %s", err)
-				c.MetricConfig = []byte{}
-			} else {
-				c.MetricConfig = subbedData
-			}
-		}
-
-		if len(c.LogsConfig) > 0 {
-			subbedData, err := scrubData(c.LogsConfig)
-			if err != nil {
-				ac.logs.Warnf("error scrubbing secrets from logs config: %s", err)
-				c.LogsConfig = []byte{}
-			} else {
-				c.LogsConfig = subbedData
-			}
-		}
-
-		scrubbedConfigs[i] = c
+	for _, c := range configSlice {
+		autodiscoveryUtils.PrintConfig(writer, c, "")
 	}
 
-	return scrubbedConfigs
-}
+	if verbose {
+		if len(resolveWarnings) > 0 {
+			fmt.Fprintf(writer, "\n=== Resolve %s ===\n", color.YellowString("warnings"))
+			for check, warnings := range resolveWarnings {
+				fmt.Fprintf(writer, "\n%s\n", color.YellowString(check))
+				for _, warning := range warnings {
+					fmt.Fprintf(writer, "* %s\n", warning)
+				}
+			}
+		}
+		if len(unresolved) > 0 {
+			fmt.Fprintf(writer, "\n=== %s Configs ===\n", color.YellowString("Unresolved"))
+			for ids, configs := range unresolved {
+				fmt.Fprintf(writer, "\n%s: %s\n", color.BlueString("Auto-discovery IDs"), color.YellowString(ids))
+				fmt.Fprintf(writer, "%s:\n", color.BlueString("Templates"))
+				for _, config := range configs {
+					fmt.Fprintln(writer, config.ScrubbedString())
+				}
+			}
+		}
+	}
 
-func scrubData(data []byte) ([]byte, error) {
-	return scrubber.ScrubYaml(data)
-}
-
-// fillFlare add the config-checks log to flares.
-func (ac *AutoConfig) fillFlare(fb flaretypes.FlareBuilder) error {
-	fb.AddFileFromFunc("config-check.log", func() ([]byte, error) { //nolint:errcheck
-		var b bytes.Buffer
-
-		writer := bufio.NewWriter(&b)
-		response := ac.GetConfigCheck()
-		flare.PrintConfigCheck(writer, response, true)
-		writer.Flush()
-
-		return b.Bytes(), nil
-	})
-	return nil
+	return writer.Bytes()
 }
 
 // Start will listen to the service channels before anything is sent to them
@@ -714,5 +697,5 @@ func newOptionalAutoConfig(deps optionalModuleDeps) optional.Option[autodiscover
 		return optional.NewNoneOption[autodiscovery.Component]()
 	}
 	return optional.NewOption[autodiscovery.Component](
-		createNewAutoConfig(scheduler.NewController(), deps.Secrets, deps.WMeta, taggerComp, deps.Log))
+		createNewAutoConfig(scheduler.NewController(), deps.Secrets, deps.WMeta, taggerComp))
 }

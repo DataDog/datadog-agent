@@ -7,23 +7,19 @@
 package configcheck
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
+	"net/url"
 
-	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
-	"github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -62,26 +58,27 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 }
 
 func run(config config.Component, cliParams *cliParams, _ log.Component) error {
+	v := url.Values{}
+	if cliParams.verbose {
+		v.Set("verbose", "true")
+	}
+
+	if cliParams.NoColor {
+		v.Set("nocolor", "true")
+	} else {
+		v.Set("nocolor", "false")
+	}
+
 	endpoint, err := apiutil.NewIPCEndpoint(config, "/agent/config-check")
 	if err != nil {
 		return err
 	}
 
-	res, err := endpoint.DoGet()
+	res, err := endpoint.DoGet(apiutil.WithValues(v))
 	if err != nil {
 		return fmt.Errorf("the agent ran into an error while checking config: %v", err)
 	}
 
-	cr := integration.ConfigCheckResponse{}
-	err = json.Unmarshal(res, &cr)
-	if err != nil {
-		return fmt.Errorf("unable to parse configcheck: %v", err)
-	}
-
-	var b bytes.Buffer
-	color.Output = &b
-	flare.PrintConfigCheck(color.Output, cr, cliParams.verbose)
-
-	fmt.Println(b.String())
+	fmt.Println(string(res))
 	return nil
 }
