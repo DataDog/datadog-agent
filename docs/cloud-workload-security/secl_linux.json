@@ -6776,6 +6776,11 @@
           "name": "utimes.retval",
           "definition": "Return value of the syscall",
           "property_doc_link": "common-syscallevent-retval-doc"
+        },
+        {
+          "name": "utimes.syscall.path",
+          "definition": "Path argument of the syscall",
+          "property_doc_link": "utimes-syscall-path-doc"
         }
       ]
     }
@@ -9890,6 +9895,18 @@
       "definition": "Name of the kernel module that was deleted",
       "prefixes": [
         "unload_module"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "utimes.syscall.path",
+      "link": "utimes-syscall-path-doc",
+      "type": "string",
+      "definition": "Path argument of the syscall",
+      "prefixes": [
+        "utimes"
       ],
       "constants": "",
       "constants_link": "",

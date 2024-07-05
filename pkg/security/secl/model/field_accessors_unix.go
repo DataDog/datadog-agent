@@ -18374,3 +18374,59 @@ func (ev *Event) GetUtimesRetval() int64 {
 	}
 	return ev.Utimes.SyscallEvent.Retval
 }
+
+// GetUtimesSyscallInt1 returns the value of the field, resolving if necessary
+func (ev *Event) GetUtimesSyscallInt1() int {
+	if ev.GetEventType().String() != "utimes" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsInt1(ev, &ev.Utimes.SyscallContext)
+}
+
+// GetUtimesSyscallInt2 returns the value of the field, resolving if necessary
+func (ev *Event) GetUtimesSyscallInt2() int {
+	if ev.GetEventType().String() != "utimes" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsInt2(ev, &ev.Utimes.SyscallContext)
+}
+
+// GetUtimesSyscallInt3 returns the value of the field, resolving if necessary
+func (ev *Event) GetUtimesSyscallInt3() int {
+	if ev.GetEventType().String() != "utimes" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsInt3(ev, &ev.Utimes.SyscallContext)
+}
+
+// GetUtimesSyscallPath returns the value of the field, resolving if necessary
+func (ev *Event) GetUtimesSyscallPath() string {
+	if ev.GetEventType().String() != "utimes" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Utimes.SyscallContext)
+}
+
+// GetUtimesSyscallStr1 returns the value of the field, resolving if necessary
+func (ev *Event) GetUtimesSyscallStr1() string {
+	if ev.GetEventType().String() != "utimes" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Utimes.SyscallContext)
+}
+
+// GetUtimesSyscallStr2 returns the value of the field, resolving if necessary
+func (ev *Event) GetUtimesSyscallStr2() string {
+	if ev.GetEventType().String() != "utimes" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsStr2(ev, &ev.Utimes.SyscallContext)
+}
+
+// GetUtimesSyscallStr3 returns the value of the field, resolving if necessary
+func (ev *Event) GetUtimesSyscallStr3() string {
+	if ev.GetEventType().String() != "utimes" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsStr3(ev, &ev.Utimes.SyscallContext)
+}

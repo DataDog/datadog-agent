@@ -7,6 +7,13 @@ replace github.com/DataDog/datadog-agent/comp/otelcol/converter/def => ../def
 require (
 	github.com/DataDog/datadog-agent/comp/otelcol/converter/def v0.55.0-rc.1
 	github.com/stretchr/testify v1.9.0
+	go.opentelemetry.io/collector/confmap v0.103.0
+	go.opentelemetry.io/collector/confmap/converter/expandconverter v0.103.0
+	go.opentelemetry.io/collector/confmap/provider/envprovider v0.103.0
+	go.opentelemetry.io/collector/confmap/provider/fileprovider v0.103.0
+	go.opentelemetry.io/collector/confmap/provider/httpprovider v0.103.0
+	go.opentelemetry.io/collector/confmap/provider/httpsprovider v0.103.0
+	go.opentelemetry.io/collector/confmap/provider/yamlprovider v0.103.0
 	go.opentelemetry.io/collector/confmap v0.104.0
 	go.opentelemetry.io/collector/confmap/converter/expandconverter v0.104.0
 	go.opentelemetry.io/collector/confmap/provider/envprovider v0.104.0
@@ -32,4 +39,5 @@ require (
 	go.opentelemetry.io/collector/featuregate v1.11.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

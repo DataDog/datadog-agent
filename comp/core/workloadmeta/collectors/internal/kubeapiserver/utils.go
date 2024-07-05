@@ -137,7 +137,13 @@ func getGVRsForRequestedResources(discoveryClient discovery.DiscoveryInterface, 
 func discoverGroupResourceVersions(discoveryClient discovery.DiscoveryInterface) (map[schema.GroupResource]string, error) {
 	apiGroups, apiResourceLists, err := discoveryClient.ServerGroupsAndResources()
 	if err != nil {
-		return nil, err
+		if !discovery.IsGroupDiscoveryFailedError(err) {
+			return map[schema.GroupResource]string{}, err
+		}
+
+		for group, apiGroupErr := range err.(*discovery.ErrGroupDiscoveryFailed).Groups {
+			log.Warnf("unable to perform resource discovery for group %s: %s", group, apiGroupErr)
+		}
 	}
 
 	preferredGroupVersions := make(map[string]struct{})

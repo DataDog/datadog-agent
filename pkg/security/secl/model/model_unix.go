@@ -464,9 +464,13 @@ type UmountEvent struct {
 // UtimesEvent represents a utime event
 type UtimesEvent struct {
 	SyscallEvent
+	SyscallContext
 	File  FileEvent `field:"file"`
 	Atime time.Time `field:"-"`
 	Mtime time.Time `field:"-"`
+
+	// Syscall context aliases
+	SyscallPath string `field:"syscall.path,ref:utimes.syscall.str1"` // SECLDoc[syscall.path] Definition:`Path argument of the syscall`
 }
 
 // BPFEvent represents a BPF event

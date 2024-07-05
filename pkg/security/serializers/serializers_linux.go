@@ -518,7 +518,7 @@ func newSyscallArgsSerializer(sc *model.SyscallContext, e *model.Event) *Syscall
 			Path: &path,
 			Mode: &mode,
 		}
-	case model.FileChdirEventType, model.ExecEventType:
+	case model.FileChdirEventType, model.ExecEventType, model.FileUtimesEventType:
 		path := e.FieldHandlers.ResolveSyscallCtxArgsStr1(e, sc)
 		return &SyscallArgsSerializer{
 			Path: &path,
@@ -572,6 +572,7 @@ type SyscallContextSerializer struct {
 	Open   *SyscallArgsSerializer `json:"open,omitempty"`
 	Unlink *SyscallArgsSerializer `json:"unlink,omitempty"`
 	Link   *SyscallArgsSerializer `json:"link,omitempty"`
+	Utimes *SyscallArgsSerializer `json:"utimes,omitempty"`
 }
 
 func newSyscallContextSerializer() *SyscallContextSerializer {
@@ -1233,6 +1234,8 @@ func NewEventSerializer(event *model.Event, opts *eval.Opts) *EventSerializer {
 			},
 		}
 		s.EventContextSerializer.Outcome = serializeOutcome(event.Utimes.Retval)
+		s.SyscallContextSerializer = newSyscallContextSerializer()
+		s.SyscallContextSerializer.Utimes = newSyscallArgsSerializer(&event.Utimes.SyscallContext, event)
 	case model.FileMountEventType:
 		s.MountEventSerializer = newMountEventSerializer(event)
 		s.EventContextSerializer.Outcome = serializeOutcome(event.Mount.Retval)
