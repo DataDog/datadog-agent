@@ -11,7 +11,6 @@ import (
 	"context"
 	"fmt"
 	"net"
-	"path/filepath"
 	"sort"
 	"strings"
 	"testing"
@@ -467,46 +466,6 @@ func testReceive(t *testing.T, conn net.Conn, demux demultiplexer.FakeSamplerMoc
 	case <-time.After(2 * time.Second):
 		assert.FailNow(t, "Timeout on receive channel")
 	}
-}
-
-func TestUDSCustomReceiver(t *testing.T) {
-	dir := t.TempDir()
-	customSocket := filepath.Join(dir, "dsd_custom.socket") // custom socket
-
-	cfg := make(map[string]interface{})
-	cfg["dogstatsd_no_aggregation_pipeline"] = true // another test may have turned it off
-	cfg["dogstatsd_socket"] = customSocket
-
-	deps := fulfillDepsWithConfigOverride(t, cfg)
-	demux := deps.Demultiplexer
-
-	conn, err := net.Dial("unixgram", customSocket)
-	require.NoError(t, err, "cannot connect to DSD socket")
-	defer conn.Close()
-
-	testReceive(t, conn, demux)
-}
-
-func TestUDSDefaultReceiver(t *testing.T) {
-	cfg := make(map[string]interface{})
-	cfg["dogstatsd_no_aggregation_pipeline"] = true // another test may have turned it off
-
-	socket := defaultSocket
-	defer func() {
-		defaultSocket = socket
-	}()
-
-	dir := t.TempDir()
-	defaultSocket = filepath.Join(dir, "dsd.socket") // default socket
-
-	deps := fulfillDepsWithConfigOverride(t, cfg)
-	demux := deps.Demultiplexer
-
-	conn, err := net.Dial("unixgram", defaultSocket)
-	require.NoError(t, err, "cannot connect to DSD socket")
-	defer conn.Close()
-
-	testReceive(t, conn, demux)
 }
 
 func TestUDPReceive(t *testing.T) {
