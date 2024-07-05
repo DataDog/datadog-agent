@@ -14,6 +14,8 @@
 
 # Config files for various CI systems / tasks
 /.*                                     @DataDog/agent-devx-infra
+# changing the config of mockery will regenerate the mocks, so owners will have to review anyway
+/.mockery.yaml                          # do not notify anyone
 /.go-version                            @DataDog/agent-shared-components @DataDog/agent-delivery
 
 /CHANGELOG.rst                          @DataDog/agent-delivery
