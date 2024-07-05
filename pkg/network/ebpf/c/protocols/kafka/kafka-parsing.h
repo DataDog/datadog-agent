@@ -477,6 +477,7 @@ static enum parser_level parser_state_to_level(kafka_response_state state)
     case KAFKA_FETCH_RESPONSE_TOPIC_NAME_SIZE:
     case KAFKA_FETCH_RESPONSE_NUM_PARTITIONS:
     case KAFKA_FETCH_RESPONSE_PARTITION_START:
+    case KAFKA_FETCH_RESPONSE_PARTITION_ERROR_CODE_START:
     case KAFKA_FETCH_RESPONSE_PARTITION_ABORTED_TRANSACTIONS:
     case KAFKA_FETCH_RESPONSE_RECORD_BATCHES_ARRAY_START:
         return PARSER_LEVEL_PARTITION;
@@ -587,6 +588,7 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
         }
         break;
     case KAFKA_FETCH_RESPONSE_PARTITION_START:
+    case KAFKA_FETCH_RESPONSE_PARTITION_ERROR_CODE_START:
     case KAFKA_FETCH_RESPONSE_PARTITION_ABORTED_TRANSACTIONS:
     case KAFKA_FETCH_RESPONSE_RECORD_BATCHES_ARRAY_START:
     case KAFKA_FETCH_RESPONSE_RECORD_BATCH_START:
@@ -614,7 +616,25 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
             break;
         case KAFKA_FETCH_RESPONSE_PARTITION_START:
             offset += sizeof(s32); // Skip partition_index
-            offset += sizeof(s16); // Skip error_code
+            response->state = KAFKA_FETCH_RESPONSE_PARTITION_ERROR_CODE_START;
+            // fallthrough
+
+         case KAFKA_FETCH_RESPONSE_PARTITION_ERROR_CODE_START:
+         {
+            // Error codes range from -1 to 119 as per the Kafka protocol specification.
+            // For details, refer to: https://kafka.apache.org/protocol.html#protocol_error_codes
+            s16 error_code = 0;
+            ret = read_with_remainder_s16(response, pkt, &offset, data_end, &error_code, first);
+            if (ret != RET_DONE) {
+                return ret;
+            }
+            if (error_code < -1 || error_code > 119) {
+                extra_debug("invalid error code: %d", error_code);
+                return RET_ERR;
+            }
+            extra_debug("got error code: %d", error_code);
+            response->partition_error_code = error_code;
+
             offset += sizeof(s64); // Skip high_watermark
 
             if (api_version >= 4) {
@@ -627,6 +647,7 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
 
             response->state = KAFKA_FETCH_RESPONSE_PARTITION_ABORTED_TRANSACTIONS;
             // fallthrough
+            }
 
         case KAFKA_FETCH_RESPONSE_PARTITION_ABORTED_TRANSACTIONS:
             if (api_version >= 4) {
@@ -697,6 +718,8 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
                     return RET_ERR;
                 }
 
+                extra_debug("setting record_batches_arrays in index %d with error code %d", idx, response->partition_error_code);
+                kafka->record_batches_arrays[idx].partition_error_code = response->partition_error_code;
                 kafka->record_batches_arrays[idx].num_bytes = response->record_batches_num_bytes;
                 kafka->record_batches_arrays[idx].offset = offset - orig_offset;
                 response->record_batches_arrays_count++;
@@ -782,6 +805,16 @@ static __always_inline enum parse_result kafka_continue_parse_response_record_ba
         extra_debug("record batches state: %d", response->state);
         switch (response->state) {
         case KAFKA_FETCH_RESPONSE_RECORD_BATCH_START:
+                extra_debug("KAFKA_FETCH_RESPONSE_RECORD_BATCH_START: response->error_code %u, transaction.error_code %u, transaction.records_count: %d \n", response->partition_error_code,
+                response->transaction.partition_error_code,
+                response->transaction.records_count);
+            if (response->transaction.records_count > 0 && response->partition_error_code != response->transaction.error_code) {
+                goto exit;
+            }
+
+            extra_debug("KAFKA_FETCH_RESPONSE_RECORD_BATCH_START: setting transaction error code to %d",  response->partition_error_code);
+            response->transaction.error_code = response->partition_error_code;
+
             offset += sizeof(s64); // baseOffset
             response->state = KAFKA_FETCH_RESPONSE_RECORD_BATCH_LENGTH;
             // fallthrough
@@ -919,11 +952,13 @@ static __always_inline enum parse_result kafka_continue_parse_response_record_ba
                 return RET_ERR;
             }
 
+            response->partition_error_code = kafka->record_batches_arrays[idx].partition_error_code;
             response->record_batches_num_bytes = kafka->record_batches_arrays[idx].num_bytes;
             offset = kafka->record_batches_arrays[idx].offset + orig_offset;
             response->state = KAFKA_FETCH_RESPONSE_RECORD_BATCH_START;
             response->record_batches_arrays_idx = idx;
             extra_debug("next idx %llu num_bytes %u offset %u", idx, response->record_batches_num_bytes, offset);
+            extra_debug("next idx %llu error_code %u\n", idx, response->partition_error_code);
         }
             break;
 
@@ -932,6 +967,7 @@ static __always_inline enum parse_result kafka_continue_parse_response_record_ba
         case KAFKA_FETCH_RESPONSE_TOPIC_NAME_SIZE:
         case KAFKA_FETCH_RESPONSE_NUM_PARTITIONS:
         case KAFKA_FETCH_RESPONSE_PARTITION_START:
+        case KAFKA_FETCH_RESPONSE_PARTITION_ERROR_CODE_START:
         case KAFKA_FETCH_RESPONSE_PARTITION_ABORTED_TRANSACTIONS:
         case KAFKA_FETCH_RESPONSE_RECORD_BATCHES_ARRAY_START:
         case KAFKA_FETCH_RESPONSE_PARTITION_TAGGED_FIELDS:
@@ -941,6 +977,7 @@ static __always_inline enum parse_result kafka_continue_parse_response_record_ba
         }
     }
 
+exit:
     // We should have exited at KAFKA_FETCH_RESPONSE_PARTITION_END if we
     // managed to parse the entire packet, so if we get here we still have
     // more to go. Remove the skb_info.data_off so that this function can
@@ -982,17 +1019,17 @@ static __always_inline void kafka_call_response_parser(void *ctx, conn_tuple_t *
         switch (level) {
         case PARSER_LEVEL_RECORD_BATCH:
             if (api_version >= 12) {
-                index = TLS_KAFKA_RESPONSE_RECORD_BATCH_PARSER_V12;
+                index = PROG_KAFKA_RESPONSE_RECORD_BATCH_PARSER_V12;
             } else {
-                index = TLS_KAFKA_RESPONSE_RECORD_BATCH_PARSER_V0;
+                index = PROG_KAFKA_RESPONSE_RECORD_BATCH_PARSER_V0;
             }
             break;
         case PARSER_LEVEL_PARTITION:
         default:
             if (api_version >= 12) {
-                index = TLS_KAFKA_RESPONSE_PARTITION_PARSER_V12;
+                index = PROG_KAFKA_RESPONSE_PARTITION_PARSER_V12;
             } else {
-                index = TLS_KAFKA_RESPONSE_PARTITION_PARSER_V0;
+                index = PROG_KAFKA_RESPONSE_PARTITION_PARSER_V0;
             }
             break;
         }
@@ -1034,6 +1071,7 @@ static __always_inline enum parse_result kafka_continue_parse_response(void *ctx
             response->varint_position = 0;
             response->partition_state = response->state;
             response->state = KAFKA_FETCH_RESPONSE_RECORD_BATCH_START;
+            response->partition_error_code = kafka->record_batches_arrays[0].partition_error_code;
             response->record_batches_num_bytes = kafka->record_batches_arrays[0].num_bytes;
             response->carry_over_offset = kafka->record_batches_arrays[0].offset;
             // Caller will do tail call
@@ -1051,6 +1089,16 @@ static __always_inline enum parse_result kafka_continue_parse_response(void *ctx
         ret = kafka_continue_parse_response_record_batches_loop(kafka, tup, response, pkt, offset, data_end, api_version);
         extra_debug("record batches loop ret %d carry_over_offset %d", ret, response->carry_over_offset);
         extra_debug("record batches after loop idx %u count %u\n", response->record_batches_arrays_idx, response->record_batches_arrays_count);
+
+        if (ret == RET_LOOP_END) {
+                extra_debug("enqueue from new condition, records_count %d, error_code %d",
+                    response->transaction.records_count,
+                    response->transaction.partition_error_code);
+                kafka_batch_enqueue_wrapper(kafka, tup, &response->transaction);
+                response->transaction.records_count = 0;
+                response->transaction.error_code = 0;
+                return ret;
+        }
 
         // When we're done with parsing the record batch arrays, we either need
         // to return to the partition parser (if there are partitions left to
@@ -1438,27 +1486,28 @@ static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka
         if (!get_topic_offset_from_produce_request(&kafka_header, pkt, &offset)) {
             return false;
         }
-        // Skipping number of entries for now
-        offset += sizeof(s32);
+        flexible = kafka_header.api_version >= 9;
         break;
     case KAFKA_FETCH:
         if (!get_topic_offset_from_fetch_request(&kafka_header, pkt, &offset)) {
             return false;
         }
-        if (kafka_header.api_version >= 12) {
-            flexible = true;
-            if (!skip_varint_number_of_topics(pkt, &offset)) {
-                return false;
-            }
-        } else {
-            offset += sizeof(s32);
-        }
+        flexible = kafka_header.api_version >= 12;
         break;
     default:
         return false;
     }
 
-    s16 topic_name_size = read_first_topic_name_size(pkt, flexible, &offset);
+    // Skipping number of entries for now
+    if (flexible) {
+        if (!skip_varint_number_of_topics(pkt, &offset)) {
+            return false;
+        }
+    } else {
+        offset += sizeof(s32);
+    }
+
+    s16 topic_name_size = read_nullable_string_size(pkt, flexible, &offset);
     if (topic_name_size <= 0 || topic_name_size > TOPIC_NAME_MAX_ALLOWED_SIZE) {
         return false;
     }
@@ -1477,13 +1526,23 @@ static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka
     switch (kafka_header.api_key) {
     case KAFKA_PRODUCE:
     {
-        PKTBUF_READ_BIG_ENDIAN_WRAPPER(s32, number_of_partitions, pkt, offset);
-        if (number_of_partitions <= 0) {
-            return false;
-        }
-        if (number_of_partitions > 1) {
-            log_debug("Multiple partitions detected in produce request, current support limited to requests with a single partition");
-            return false;
+        if (flexible) {
+            PKTBUF_READ_BIG_ENDIAN_WRAPPER(s8, partition_count_varint, pkt, offset);
+
+            // Varints are stored as N+1 so this means 1 partition.
+            if (partition_count_varint != 2) {
+                return false;
+            }
+        } else {
+            PKTBUF_READ_BIG_ENDIAN_WRAPPER(s32, number_of_partitions, pkt, offset);
+            if (number_of_partitions <= 0) {
+                return false;
+            }
+
+            if (number_of_partitions > 1) {
+                log_debug("Multiple partitions detected in produce request, current support limited to requests with a single partition");
+                return false;
+            }
         }
         offset += sizeof(s32); // Skipping Partition ID
 
@@ -1493,7 +1552,15 @@ static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka
         // The old message format predates Kafka 0.11, released on September 27, 2017.
         // It's unlikely for us to encounter these older versions in practice.
 
-        offset += sizeof(s32); // Skipping record batch (message set in wireshark) size in bytes
+        // Skipping record batch (message set in wireshark) size in bytes
+        if (flexible) {
+            if (!skip_varint(pkt, &offset, VARINT_BYTES_RECORD_BATCHES_NUM_BYTES)) {
+                return false;
+            }
+        } else {
+            offset += sizeof(s32);
+        }
+
         offset += sizeof(s64); // Skipping record batch baseOffset
         offset += sizeof(s32); // Skipping record batch batchLength
         offset += sizeof(s32); // Skipping record batch partitionLeaderEpoch

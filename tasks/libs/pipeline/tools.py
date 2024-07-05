@@ -93,8 +93,8 @@ def gracefully_cancel_pipeline(repo: Project, pipeline: ProjectPipeline, force_c
             if job.name.startswith("kmt_setup_env") or job.name.startswith("kmt_run"):
                 component = "sysprobe" if "sysprobe" in job.name else "secagent"
                 arch = "x64" if "x64" in job.name else "arm64"
-                cleanup_job = f"kmt_{component}_cleanup_{arch}_manual"
-                kmt_cleanup_jobs_to_run.add(cleanup_job)
+                cleanup_job_name = f"kmt_{component}_cleanup_{arch}_manual"
+                kmt_cleanup_jobs_to_run.add(cleanup_job_name)
 
     # Run manual cleanup jobs for KMT. If we canceled the setup env or the tests job,
     # the cleanup job will not run automatically. We need to trigger the manual variants
@@ -180,9 +180,9 @@ def trigger_agent_pipeline(
         return repo.pipelines.create({'ref': ref, 'variables': variables})
     except GitlabError as e:
         if "filtered out by workflow rules" in e.error_message:
-            raise FilteredOutException
+            raise FilteredOutException from e
 
-        raise RuntimeError(f"Invalid response from Gitlab API: {e}")
+        raise RuntimeError(f"Invalid response from Gitlab API: {e}") from e
 
 
 def wait_for_pipeline(
@@ -225,7 +225,7 @@ def loop_status(callable, timeout_sec):
     Utility to loop a function that takes a status and returns [done, status], until done is True.
     """
     start = time()
-    status = dict()
+    status = {}
     while True:
         done, status = callable(status)
         if done:

@@ -14,14 +14,14 @@ import (
 
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/api/api"
-	"github.com/DataDog/datadog-agent/comp/api/api/utils"
+	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	wmdef "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
@@ -147,7 +147,7 @@ func NewWorkloadMetaOptional(deps dependencies) OptionalProvider {
 	}
 }
 
-func (wm *workloadmeta) writeResponse(w http.ResponseWriter, r *http.Request) {
+func (w *workloadmeta) writeResponse(writer http.ResponseWriter, r *http.Request) {
 	verbose := false
 	params := r.URL.Query()
 	if v, ok := params["verbose"]; ok {
@@ -156,12 +156,12 @@ func (wm *workloadmeta) writeResponse(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	response := wm.Dump(verbose)
+	response := w.Dump(verbose)
 	jsonDump, err := json.Marshal(response)
 	if err != nil {
-		utils.SetJSONError(w, wm.log.Errorf("Unable to marshal workload list response: %v", err), 500)
+		httputils.SetJSONError(writer, w.log.Errorf("Unable to marshal workload list response: %v", err), 500)
 		return
 	}
 
-	w.Write(jsonDump)
+	writer.Write(jsonDump)
 }

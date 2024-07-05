@@ -1,10 +1,16 @@
 from __future__ import annotations
 
+import copy
 import json
 from collections import defaultdict
 
 import yaml
+from invoke import task
 
+from tasks.libs.ciproviders.gitlab_api import (
+    get_full_gitlab_ci_configuration,
+)
+from tasks.libs.common.utils import gitlab_section
 from tasks.test_core import ModuleTestResult
 
 
@@ -32,7 +38,9 @@ class TestWasher:
 
         for package, tests in failing_tests.items():
             non_flaky_failing_tests_in_package = set()
-            known_flaky_tests_parents = self.get_tests_family(all_known_flakes[package])
+            known_flaky_tests_parents = self.get_tests_family_if_failing_tests(
+                all_known_flakes[package], failing_tests[package]
+            )
             for failing_test in tests:
                 if not self.is_known_flaky_test(failing_test, all_known_flakes[package], known_flaky_tests_parents):
                     non_flaky_failing_tests_in_package.add(failing_test)
@@ -125,7 +133,7 @@ class TestWasher:
         If a test is a parent of a test that is known to be flaky, the test should be considered flaky
         For example:
         - if TestEKSSuite/TestCPU is known to be flaky, TestEKSSuite/TestCPU/TestCPUUtilization should be considered flaky
-        - if TestEKSSuite/TestCPU is known to be flaky, TestEKSSuite should be considered flaky
+        - if TestEKSSuite/TestCPU is known to be flaky, TestEKSSuite should be considered flaky unless TestEKSSuite/TestCPU is not failing
         - if TestEKSSuite/TestCPU is known to be flaky, TestEKSSuite/TestMemory should not be considered flaky
         """
 
@@ -135,6 +143,19 @@ class TestWasher:
             return True
 
         return failing_test in known_flaky_tests_parents
+
+    def get_tests_family_if_failing_tests(self, test_name_list, failing_tests: set):
+        """
+        Get the parent tests of a list of tests only if the marked test is failing
+        For example with the test ["TestEKSSuite/TestCPU/TestCPUUtilization", "TestKindSuite/TestCPU"]
+        this method should return the set{"TestEKSSuite/TestCPU/TestCPUUtilization", "TestEKSSuite/TestCPU", "TestEKSSuite", "TestKindSuite/TestCPU", "TestKindSuite"}
+        if TestKindSuite/TestCPU and TestEKSSuite/TestCPU/TestCPUUtilization are failing
+        Another example, with the test ["TestEKSSuite/TestCPU/TestCPUUtilization", "TestKindSuite/TestCPU"]
+        if only TestKindSuite/TestCPU is failing, the method should return the set{"TestKindSuite/TestCPU", "TestKindSuite"}
+        """
+        test_name_set = set(test_name_list)
+        marked_tests_failing = failing_tests.intersection(test_name_set)
+        return self.get_tests_family(list(marked_tests_failing))
 
     def get_tests_family(self, test_name_list):
         """
@@ -148,3 +169,70 @@ class TestWasher:
                 test_name = test_name.rsplit('/', 1)[0]
                 test_family.add(test_name)
         return test_family
+
+
+@task()
+def generate_flake_finder_pipeline(ctx, n=3):
+    """
+    Generate a child pipeline where jobs marked with SHOULD_RUN_IN_FLAKES_FINDER are run n times
+    """
+
+    # Read gitlab config
+    config = get_full_gitlab_ci_configuration(ctx, ".gitlab-ci.yml")
+
+    # Lets keep only variables and jobs with flake finder variable
+    kept_job = {}
+    for job, job_details in config.items():
+        if (
+            'variables' in job_details
+            and 'SHOULD_RUN_IN_FLAKES_FINDER' in job_details['variables']
+            and job_details['variables']['SHOULD_RUN_IN_FLAKES_FINDER'] == "true"
+            and not job.startswith(".")
+        ):
+            # Let's exclude job that are retried for now until we find a solution to tackle them
+            if 'retry' in job_details:
+                continue
+            kept_job[job] = job_details
+
+    # Remove needs, rules, extends and retry from the jobs
+    for job in kept_job:
+        if 'needs' in kept_job[job]:
+            del kept_job[job]["needs"]
+        if 'rules' in kept_job[job]:
+            del kept_job[job]["rules"]
+        if 'retry' in kept_job[job]:
+            del kept_job[job]["retry"]
+        if 'extends' in kept_job[job]:
+            del kept_job[job]["extends"]
+
+    new_jobs = {}
+    new_jobs['variables'] = copy.deepcopy(config['variables'])
+    new_jobs['variables']['PARENT_PIPELINE_ID'] = 'undefined'
+    new_jobs['variables']['PARENT_COMMIT_SHA'] = 'undefined'
+    new_jobs['stages'] = [f'flake-finder-{i}' for i in range(n)]
+
+    # Create n jobs with the same configuration
+    for job in kept_job:
+        for i in range(n):
+            new_job = copy.deepcopy(kept_job[job])
+            new_job["stage"] = f"flake-finder-{i}"
+            new_job["dependencies"] = []
+            if 'variables' in new_job:
+                if (
+                    'E2E_PIPELINE_ID' in new_job['variables']
+                    and new_job['variables']['E2E_PIPELINE_ID'] == "$CI_PIPELINE_ID"
+                ):
+                    new_job['variables']['E2E_PIPELINE_ID'] = "$PARENT_PIPELINE_ID"
+                if (
+                    'E2E_COMMIT_SHA' in new_job['variables']
+                    and new_job['variables']['E2E_COMMIT_SHA'] == "$CI_COMMIT_SHA"
+                ):
+                    new_job['variables']['E2E_COMMIT_SHA'] = "$PARENT_COMMIT_SHA"
+            new_job["rules"] = [{"when": "always"}]
+            new_jobs[f"{job}-{i}"] = new_job
+
+    with open("flake-finder-gitlab-ci.yml", "w") as f:
+        f.write(yaml.safe_dump(new_jobs))
+
+    with gitlab_section("Flake finder generated pipeline", collapsed=True):
+        print(yaml.safe_dump(new_jobs))

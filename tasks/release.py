@@ -4,7 +4,6 @@ Release helper tasks
 
 import os
 import re
-import sys
 import tempfile
 from datetime import date
 from time import sleep
@@ -202,9 +201,6 @@ def finish(ctx, major_versions="6,7", upstream="origin"):
 
     # Step 1: Preparation
 
-    if sys.version_info[0] < 3:
-        return Exit(message="Must use Python 3 for this task", code=1)
-
     list_major_versions = parse_major_versions(major_versions)
     print(f"Finishing release for major version(s) {list_major_versions}")
 
@@ -328,8 +324,6 @@ def create_rc(ctx, major_versions="6,7", patch_version=False, upstream="origin",
     This also requires that there are no local uncommitted changes, that the current branch is 'main' or the
     release branch, and that no branch named 'release/<new rc version>' already exists locally or upstream.
     """
-    if sys.version_info[0] < 3:
-        return Exit(message="Must use Python 3 for this task", code=1)
 
     github = GithubAPI(repository=GITHUB_REPO_NAME)
 
@@ -437,8 +431,6 @@ def build_rc(ctx, major_versions="6,7", patch_version=False, k8s_deployments=Fal
     Tags the new RC versions on the current commit, and creates the build pipeline for these
     new tags.
     """
-    if sys.version_info[0] < 3:
-        return Exit(message="Must use Python 3 for this task", code=1)
 
     datadog_agent = get_gitlab_repo()
     list_major_versions = parse_major_versions(major_versions)
@@ -577,8 +569,6 @@ def unfreeze(ctx, base_directory="~/dd", major_versions="6,7", upstream="origin"
     This also requires that there are no local uncommitted changes, that the current branch is 'main' or the
     release branch, and that no branch named 'release/<new rc version>' already exists locally or upstream.
     """
-    if sys.version_info[0] < 3:
-        return Exit(message="Must use Python 3 for this task", code=1)
 
     list_major_versions = parse_major_versions(major_versions)
 
@@ -818,7 +808,7 @@ def update_build_links(_ctx, new_version, patch_version=False):
                 "red",
             ),
             code=1,
-        )
+        ) from e
     print(color_message("Build links page updated", "green"))
 
 
@@ -909,7 +899,9 @@ def chase_release_managers(_, version):
     url, missing_teams = get_release_page_info(version)
     GITHUB_SLACK_MAP = load_and_validate("github_slack_map.yaml", "DEFAULT_SLACK_CHANNEL", DEFAULT_SLACK_CHANNEL)
     channels = [GITHUB_SLACK_MAP[f"@datadog/{team}"] for team in missing_teams]
-    message = f"Hello :wave:\n Could you please update the `datadog-agent` [release coordination page]({url}) with the RM for your team?\nThanks in advance"
+    # Remove duplicates
+    channels = list(set(channels))
+    message = f"Hello :wave:\nCould you please update the `datadog-agent` <release coordination page|{url}> with the RM for your team?\nThanks in advance"
 
     from slack_sdk import WebClient
 

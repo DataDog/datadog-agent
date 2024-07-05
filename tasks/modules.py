@@ -2,10 +2,11 @@ import os
 import subprocess
 import sys
 from contextlib import contextmanager
+from pathlib import Path
 
 from invoke import Context, Exit, task
 
-from tasks.libs.common.color import color_message
+from tasks.libs.common.color import Color, color_message
 
 AGENT_MODULE_PATH_PREFIX = "github.com/DataDog/datadog-agent/"
 
@@ -27,7 +28,6 @@ class GoModule:
         independent=False,
         lint_targets=None,
         used_by_otel=False,
-        legacy_go_mod_version=False,
     ):
         self.path = path
         self.targets = targets if targets else ["."]
@@ -41,7 +41,6 @@ class GoModule:
         self.importable = importable
         self.independent = independent
         self.used_by_otel = used_by_otel
-        self.legacy_go_mod_version = legacy_go_mod_version
 
         self._dependencies = None
 
@@ -132,6 +131,7 @@ DEFAULT_MODULES = {
         targets=["./pkg", "./cmd", "./comp"],
     ),
     "cmd/agent/common/path": GoModule("cmd/agent/common/path", independent=True),
+    "comp/api/api/def": GoModule("comp/api/api/def", independent=True),
     "comp/core/config": GoModule("comp/core/config", independent=True, used_by_otel=True),
     "comp/core/flare/builder": GoModule("comp/core/flare/builder", independent=True),
     "comp/core/flare/types": GoModule("comp/core/flare/types", independent=True),
@@ -156,6 +156,8 @@ DEFAULT_MODULES = {
     "comp/otelcol/collector-contrib/impl": GoModule(
         "comp/otelcol/collector-contrib/impl", independent=True, used_by_otel=True
     ),
+    "comp/otelcol/extension/def": GoModule("comp/otelcol/extension/def", independent=True, used_by_otel=True),
+    "comp/otelcol/extension/impl": GoModule("comp/otelcol/extension/impl", independent=True, used_by_otel=True),
     "comp/otelcol/logsagentpipeline": GoModule("comp/otelcol/logsagentpipeline", independent=True, used_by_otel=True),
     "comp/otelcol/logsagentpipeline/logsagentpipelineimpl": GoModule(
         "comp/otelcol/logsagentpipeline/logsagentpipelineimpl", independent=True, used_by_otel=True
@@ -178,8 +180,17 @@ DEFAULT_MODULES = {
     "comp/otelcol/otlp/testutil": GoModule("comp/otelcol/otlp/testutil", independent=True, used_by_otel=True),
     "comp/otelcol/converter/def": GoModule("comp/otelcol/converter/def", independent=True, used_by_otel=True),
     "comp/otelcol/converter/impl": GoModule("comp/otelcol/converter/impl", independent=True, used_by_otel=True),
+    "comp/otelcol/configstore/def": GoModule("comp/otelcol/configstore/def", independent=True, used_by_otel=True),
+    "comp/otelcol/configstore/impl": GoModule("comp/otelcol/configstore/impl", independent=True, used_by_otel=True),
     "comp/serializer/compression": GoModule("comp/serializer/compression", independent=True, used_by_otel=True),
     "comp/trace/agent/def": GoModule("comp/trace/agent/def", independent=True, used_by_otel=True),
+    "comp/trace/compression/def": GoModule("comp/trace/compression/def", independent=True, used_by_otel=True),
+    "comp/trace/compression/impl-gzip": GoModule(
+        "comp/trace/compression/impl-gzip", independent=True, used_by_otel=True
+    ),
+    "comp/trace/compression/impl-zstd": GoModule(
+        "comp/trace/compression/impl-zstd", independent=True, used_by_otel=True
+    ),
     "internal/tools": GoModule("internal/tools", condition=lambda: False, should_tag=False),
     "internal/tools/independent-lint": GoModule(
         "internal/tools/independent-lint", condition=lambda: False, should_tag=False
@@ -218,10 +229,8 @@ DEFAULT_MODULES = {
     "pkg/process/util/api": GoModule("pkg/process/util/api", independent=True, used_by_otel=True),
     "pkg/proto": GoModule("pkg/proto", independent=True, used_by_otel=True),
     "pkg/remoteconfig/state": GoModule("pkg/remoteconfig/state", independent=True, used_by_otel=True),
-    "pkg/security/secl": GoModule("pkg/security/secl", independent=True, legacy_go_mod_version=True),
-    "pkg/security/seclwin": GoModule(
-        "pkg/security/seclwin", independent=True, condition=lambda: False, legacy_go_mod_version=True
-    ),
+    "pkg/security/secl": GoModule("pkg/security/secl", independent=True),
+    "pkg/security/seclwin": GoModule("pkg/security/seclwin", independent=True, condition=lambda: False),
     "pkg/serializer": GoModule("pkg/serializer", independent=True, used_by_otel=True),
     "pkg/status/health": GoModule("pkg/status/health", independent=True, used_by_otel=True),
     "pkg/tagger/types": GoModule("pkg/tagger/types", independent=True, used_by_otel=True),
@@ -265,9 +274,26 @@ DEFAULT_MODULES = {
         "test/new-e2e",
         independent=True,
         targets=["./pkg/runner", "./pkg/utils/e2e/client"],
-        lint_targets=[".", "./examples"],  # need to explictly list "examples", otherwise it is skipped
+        lint_targets=[".", "./examples"],  # need to explicitly list "examples", otherwise it is skipped
     ),
+    "tools/retry_file_dump": GoModule("tools/retry_file_dump", condition=lambda: False, should_tag=False),
 }
+
+# Folder containing a `go.mod` file but that should not be added to the DEFAULT_MODULES
+IGNORED_MODULE_PATHS = [
+    # Test files
+    Path("./internal/tools/modparser/testdata/badformat"),
+    Path("./internal/tools/modparser/testdata/match"),
+    Path("./internal/tools/modparser/testdata/nomatch"),
+    Path("./internal/tools/modparser/testdata/patchgoversion"),
+    # This `go.mod` is a hack
+    Path("./pkg/process/procutil/resources"),
+    # We have test files in the tasks folder
+    Path("./tasks"),
+    # Test files
+    Path("./test/integration/serverless/recorder-extension"),
+    Path("./test/integration/serverless/src"),
+]
 
 MAIN_TEMPLATE = """package main
 
@@ -364,19 +390,25 @@ def for_each(ctx: Context, cmd: str, skip_untagged: bool = False):
 
 
 @task
-def validate(_: Context, fail_fast: bool = False):
+def validate(_: Context):
     """
     Test if every module was properly added in the DEFAULT_MODULES list.
     """
-    missing_modules = []
-    for module in DEFAULT_MODULES.values():
-        for dependency in module.dependencies:
-            if dependency not in DEFAULT_MODULES:
-                if fail_fast:
-                    raise Exit(f"{color_message('ERROR', 'red')}: {module.path} depends on missing {dependency}")
-                missing_modules.append((module, dependency))
+    missing_modules: list[str] = []
+    default_modules_paths = {Path(p) for p in DEFAULT_MODULES}
+
+    # Find all go.mod files and make sure they are registered in DEFAULT_MODULES
+    for root, dirs, files in os.walk("."):
+        dirs[:] = [d for d in dirs if Path(root) / d not in IGNORED_MODULE_PATHS]
+
+        if "go.mod" in files and Path(root) not in default_modules_paths:
+            missing_modules.append(root)
+
     if missing_modules:
-        message = f"{color_message('ERROR', 'red')}: some modules are missing from DEFAULT_MODULES\n"
-        for module, dependency in missing_modules:
-            message += f"  {module.path} depends on missing {dependency}\n"
+        message = f"{color_message('ERROR', Color.RED)}: some modules are missing from DEFAULT_MODULES\n"
+        for module in missing_modules:
+            message += f"  {module} is missing from DEFAULT_MODULES\n"
+
+        message += "Please add them to the DEFAULT_MODULES list or exclude them from the validation."
+
         raise Exit(message)

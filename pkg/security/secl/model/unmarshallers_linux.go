@@ -63,7 +63,7 @@ func (e *ChmodEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *ChownEvent) UnmarshalBinary(data []byte) (int, error) {
-	n, err := UnmarshalBinary(data, &e.SyscallEvent, &e.File)
+	n, err := UnmarshalBinary(data, &e.SyscallEvent, &e.SyscallContext, &e.File)
 	if err != nil {
 		return n, err
 	}
@@ -224,7 +224,7 @@ func (e *Process) UnmarshalPidCacheBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *Process) UnmarshalBinary(data []byte) (int, error) {
-	const size = 272 // size of struct exec_event_t starting from process_entry_t, inclusive
+	const size = 280 // size of struct exec_event_t starting from process_entry_t, inclusive
 	if len(data) < size {
 		return 0, ErrNotEnoughData
 	}
@@ -256,15 +256,15 @@ func (e *Process) UnmarshalBinary(data []byte) (int, error) {
 		e.LinuxBinprm.FileEvent.PathKey = pathKey
 	}
 
-	if len(data[read:]) < 16 {
+	if len(data[read:]) < 24 {
 		return 0, ErrNotEnoughData
 	}
 
-	e.ArgsID = binary.NativeEndian.Uint32(data[read : read+4])
-	e.ArgsTruncated = binary.NativeEndian.Uint32(data[read+4:read+8]) == 1
-	read += 8
+	e.ArgsID = binary.NativeEndian.Uint64(data[read : read+8])
+	e.EnvsID = binary.NativeEndian.Uint64(data[read+8 : read+16])
+	read += 16
 
-	e.EnvsID = binary.NativeEndian.Uint32(data[read : read+4])
+	e.ArgsTruncated = binary.NativeEndian.Uint32(data[read:read+4]) == 1
 	e.EnvsTruncated = binary.NativeEndian.Uint32(data[read+4:read+8]) == 1
 	read += 8
 
@@ -310,20 +310,20 @@ func (e *InvalidateDentryEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *ArgsEnvsEvent) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 8 {
+	if len(data) < 12 {
 		return 0, ErrNotEnoughData
 	}
 
-	e.ID = binary.NativeEndian.Uint32(data[0:4])
-	e.Size = binary.NativeEndian.Uint32(data[4:8])
+	e.ID = binary.NativeEndian.Uint64(data[0:8])
+	e.Size = binary.NativeEndian.Uint32(data[8:12])
 	if e.Size > MaxArgEnvSize {
 		e.Size = MaxArgEnvSize
 	}
 
 	argsEnvSize := int(e.Size)
-	data = data[8:]
+	data = data[12:]
 	if len(data) < argsEnvSize {
-		return 8, ErrNotEnoughData
+		return 12, ErrNotEnoughData
 	}
 
 	for i := range e.ValuesRaw {
@@ -332,7 +332,7 @@ func (e *ArgsEnvsEvent) UnmarshalBinary(data []byte) (int, error) {
 
 	SliceToArray(data[:argsEnvSize], e.ValuesRaw[:argsEnvSize])
 
-	return 8 + argsEnvSize, nil
+	return 12 + argsEnvSize, nil
 }
 
 // UnmarshalBinary unmarshals the given content
@@ -386,7 +386,7 @@ func (e *FileEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *LinkEvent) UnmarshalBinary(data []byte) (int, error) {
-	return UnmarshalBinary(data, &e.SyscallEvent, &e.Source, &e.Target)
+	return UnmarshalBinary(data, &e.SyscallEvent, &e.SyscallContext, &e.Source, &e.Target)
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
@@ -459,7 +459,7 @@ func (e *ChdirEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *OpenEvent) UnmarshalBinary(data []byte) (int, error) {
-	n, err := UnmarshalBinary(data, &e.SyscallEvent, &e.File)
+	n, err := UnmarshalBinary(data, &e.SyscallEvent, &e.SyscallContext, &e.File)
 	if err != nil {
 		return n, err
 	}
@@ -610,7 +610,7 @@ func (e *UmountEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *UnlinkEvent) UnmarshalBinary(data []byte) (int, error) {
-	n, err := UnmarshalBinary(data, &e.SyscallEvent, &e.File)
+	n, err := UnmarshalBinary(data, &e.SyscallEvent, &e.SyscallContext, &e.File)
 	if err != nil {
 		return n, err
 	}
@@ -628,7 +628,7 @@ func (e *UnlinkEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *UtimesEvent) UnmarshalBinary(data []byte) (int, error) {
-	n, err := UnmarshalBinary(data, &e.SyscallEvent, &e.File)
+	n, err := UnmarshalBinary(data, &e.SyscallEvent, &e.SyscallContext, &e.File)
 	if err != nil {
 		return n, err
 	}
@@ -1238,4 +1238,15 @@ func (e *AnomalyDetectionSyscallEvent) UnmarshalBinary(data []byte) (int, error)
 
 	e.SyscallID = Syscall(binary.NativeEndian.Uint64(data[0:8]))
 	return 8, nil
+}
+
+// UnmarshalBinary unmarshalls a binary representation of itself
+func (e *OnDemandEvent) UnmarshalBinary(data []byte) (int, error) {
+	if len(data) < 260 {
+		return 0, ErrNotEnoughData
+	}
+
+	e.ID = binary.NativeEndian.Uint32(data[0:4])
+	SliceToArray(data[4:260], e.Data[:])
+	return 260, nil
 }

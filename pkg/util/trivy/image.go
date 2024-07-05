@@ -11,6 +11,7 @@ package trivy
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"os"
 	"strings"
@@ -24,7 +25,6 @@ import (
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/google/go-containerregistry/pkg/v1/tarball"
 	"github.com/samber/lo"
-	"golang.org/x/xerrors"
 
 	"github.com/DataDog/datadog-agent/pkg/sbom/telemetry"
 )
@@ -40,13 +40,13 @@ func imageOpener(ctx context.Context, collector, ref string, f *os.File, imageSa
 		// Store the tarball in local filesystem and return a new reader into the bytes each time we need to access something.
 		rc, err := imageSave(ctx, []string{ref})
 		if err != nil {
-			return nil, xerrors.Errorf("unable to export the image: %w", err)
+			return nil, fmt.Errorf("unable to export the image: %w", err)
 		}
 		defer rc.Close()
 
 		written, err := io.Copy(f, rc)
 		if err != nil {
-			return nil, xerrors.Errorf("failed to copy the image: %w", err)
+			return nil, fmt.Errorf("failed to copy the image: %w", err)
 		}
 		defer f.Close()
 
@@ -54,7 +54,7 @@ func imageOpener(ctx context.Context, collector, ref string, f *os.File, imageSa
 
 		img, err := tarball.ImageFromPath(f.Name(), nil)
 		if err != nil {
-			return nil, xerrors.Errorf("failed to initialize the struct from the temporary file: %w", err)
+			return nil, fmt.Errorf("failed to initialize the struct from the temporary file: %w", err)
 		}
 
 		return img, nil
@@ -87,7 +87,7 @@ func (img *image) populateImage() (err error) {
 
 	img.Image, err = img.opener()
 	if err != nil {
-		return xerrors.Errorf("unable to open: %w", err)
+		return fmt.Errorf("unable to open: %w", err)
 	}
 
 	return nil
@@ -115,12 +115,12 @@ func (img *image) ConfigFile() (*v1.ConfigFile, error) {
 
 	diffIDs, err := img.diffIDs()
 	if err != nil {
-		return nil, xerrors.Errorf("unable to get diff IDs: %w", err)
+		return nil, fmt.Errorf("unable to get diff IDs: %w", err)
 	}
 
 	created, err := time.Parse(time.RFC3339Nano, img.inspect.Created)
 	if err != nil {
-		return nil, xerrors.Errorf("failed parsing created %s: %w", img.inspect.Created, err)
+		return nil, fmt.Errorf("failed parsing created %s: %w", img.inspect.Created, err)
 	}
 
 	return &v1.ConfigFile{
@@ -145,21 +145,21 @@ func (img *image) configFile() (*v1.ConfigFile, error) {
 	// Need to fall back into expensive operations like "docker save"
 	// because the config file cannot be generated properly from container engine API for some reason.
 	if err := img.populateImage(); err != nil {
-		return nil, xerrors.Errorf("unable to populate: %w", err)
+		return nil, fmt.Errorf("unable to populate: %w", err)
 	}
 	return img.Image.ConfigFile()
 }
 
 func (img *image) LayerByDiffID(h v1.Hash) (v1.Layer, error) {
 	if err := img.populateImage(); err != nil {
-		return nil, xerrors.Errorf("unable to populate: %w", err)
+		return nil, fmt.Errorf("unable to populate: %w", err)
 	}
 	return img.Image.LayerByDiffID(h)
 }
 
 func (img *image) RawConfigFile() ([]byte, error) {
 	if err := img.populateImage(); err != nil {
-		return nil, xerrors.Errorf("unable to populate: %w", err)
+		return nil, fmt.Errorf("unable to populate: %w", err)
 	}
 	return img.Image.RawConfigFile()
 }
@@ -177,7 +177,7 @@ func (img *image) diffIDs() ([]v1.Hash, error) {
 	for _, l := range img.inspect.RootFS.Layers {
 		h, err := v1.NewHash(l)
 		if err != nil {
-			return nil, xerrors.Errorf("invalid hash %s: %w", l, err)
+			return nil, fmt.Errorf("invalid hash %s: %w", l, err)
 		}
 		diffIDs = append(diffIDs, h)
 	}

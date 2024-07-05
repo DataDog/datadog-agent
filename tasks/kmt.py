@@ -41,6 +41,7 @@ from tasks.kernel_matrix_testing.tool import Exit, ask, error, get_binary_target
 from tasks.kernel_matrix_testing.vars import KMT_SUPPORTED_ARCHS, KMTPaths
 from tasks.libs.build.ninja import NinjaWriter
 from tasks.libs.common.utils import get_build_flags
+from tasks.libs.pipeline.tools import loop_status
 from tasks.libs.types.arch import Arch, KMTArchName
 from tasks.security_agent import build_functional_tests, build_stress_tests
 from tasks.system_probe import (
@@ -59,8 +60,8 @@ from tasks.system_probe import (
 )
 
 if TYPE_CHECKING:
-    from tasks.kernel_matrix_testing.types import (  # noqa: F401
-        Component,
+    from tasks.kernel_matrix_testing.types import (
+        Component,  # noqa: F401
         DependenciesLayout,
         KMTArchNameOrLocal,
         PathOrStr,
@@ -195,15 +196,15 @@ def gen_config_from_ci_pipeline(
                     info(f"[+] setting vcpu to {vcpu}")
 
     failed_packages: set[str] = set()
-    for job in test_jobs:
-        if job.status == "failed" and job.component == vmconfig_template:
-            vm_arch = job.arch
+    for test_job in test_jobs:
+        if test_job.status == "failed" and job.component == vmconfig_template:
+            vm_arch = test_job.arch
             if use_local_if_possible and vm_arch == local_arch:
                 vm_arch = local_arch
 
-            failed_tests = job.get_test_results()
+            failed_tests = test_job.get_test_results()
             failed_packages.update({test.split(':')[0] for test in failed_tests.keys()})
-            vms.add(f"{vm_arch}-{job.distro}-distro")
+            vms.add(f"{vm_arch}-{test_job.distro}-distro")
 
     info(f"[+] generating {output_file} file for VMs {vms}")
     vcpu = DEFAULT_VCPU if vcpu is None else vcpu
@@ -330,10 +331,10 @@ def config_ssh_key(ctx: Context):
         result = ask(f"[?] Found these valid key files:\n{keys_str}\nChoose one of these files (1-{len(ssh_keys)}): ")
         try:
             ssh_key = ssh_keys[int(result.strip()) - 1]
-        except ValueError:
-            raise Exit(f"Choice {result} is not a valid number")
-        except IndexError:  # out of range
-            raise Exit(f"Invalid choice {result}, must be a number between 1 and {len(ssh_keys)} (inclusive)")
+        except ValueError as e:
+            raise Exit(f"Choice {result} is not a valid number") from e
+        except IndexError as e:  # out of range
+            raise Exit(f"Invalid choice {result}, must be a number between 1 and {len(ssh_keys)} (inclusive)") from e
 
         aws_key_name = ask(
             f"Enter the key name configured in AWS for this key (leave blank to set the same as the local key name '{ssh_key['name']}'): "
@@ -388,7 +389,7 @@ def start_compiler(ctx: Context):
 
 def filter_target_domains(vms: str, infra: dict[KMTArchNameOrLocal, HostInstance], arch: Arch | None = None):
     vmsets = vmconfig.build_vmsets(vmconfig.build_normalized_vm_def_set(vms), [])
-    domains: list[LibvirtDomain] = list()
+    domains: list[LibvirtDomain] = []
     for vmset in vmsets:
         if arch is not None and Arch.from_str(vmset.arch) != arch:
             warn(f"Ignoring VM {vmset} as it is not of the expected architecture {arch}")
@@ -586,9 +587,6 @@ def kmt_secagent_prepare(
     ctx.run(f"ninja -d explain -v -f {nf_path}")
 
 
-btf_dir = "/opt/system-probe-tests/pkg/ebpf/bytecode/build/co-re/btf"
-
-
 @task
 def prepare(
     ctx: Context,
@@ -656,13 +654,14 @@ def prepare(
 
         # Copy the binaries to the target directory, CI will take them from those
         # paths as artifacts
-        copy_executables = {
+        copy_static_files = {
             gotestsum_path: paths.dependencies / "go/bin/gotestsum",
             clang_path: paths.arch_dir / "opt/datadog-agent/embedded/bin/clang-bpf",
             llc_path: paths.arch_dir / "opt/datadog-agent/embedded/bin/llc-bpf",
+            "flakes.yaml": paths.dependencies / "flakes.yaml",
         }
 
-        for src, dst in copy_executables.items():
+        for src, dst in copy_static_files.items():
             ctx.run(f"install -D {src} {dst}")
     else:
         gotestsum_path = paths.dependencies / "go/bin/gotestsum"
@@ -689,7 +688,7 @@ def prepare(
 
     info(f"[+] Preparing VMs {vms} in stack {stack} for {arch}")
 
-    target_instances: list[HostInstance] = list()
+    target_instances: list[HostInstance] = []
     for d in domains:
         target_instances.append(d.instance)
 
@@ -706,6 +705,7 @@ def prepare(
         d.copy(ctx, paths.arch_dir / "opt/*", "/opt/", exclude="*.ninja", verbose=verbose)
 
         # Copy BTF files
+        btf_dir = Path(f"/opt/{component}-tests") / get_ebpf_build_dir(arch_obj) / "co-re/btf"
         d.run_cmd(
             ctx,
             f"[ -f /sys/kernel/btf/vmlinux ] \
@@ -722,7 +722,7 @@ def prepare(
 
 
 def build_run_config(run: str | None, packages: list[str]):
-    c: dict[str, Any] = dict()
+    c: dict[str, Any] = {}
 
     if len(packages) == 0:
         return {"*": {"exclude": False}}
@@ -892,6 +892,7 @@ def kmt_sysprobe_prepare(
 
             for gobin in [
                 "gotls_client",
+                "gotls_server",
                 "grpc_external_server",
                 "external_unix_proxy_server",
                 "fmapper",
@@ -918,12 +919,12 @@ def kmt_sysprobe_prepare(
     ctx.run(f"ninja -d explain -v -f {nf_path}")
 
 
-def images_matching_ci(ctx: Context, domains: list[LibvirtDomain]):
+def images_matching_ci(_: Context, domains: list[LibvirtDomain]):
     platforms = get_platforms()
     arch = Arch.local().kmt_arch
     kmt_os = get_kmt_os()
 
-    not_matches = list()
+    not_matches = []
     for tag in platforms[arch]:
         platinfo = platforms[arch][tag]
         vmid = f"{platinfo['os_id']}_{platinfo['os_version']}"
@@ -1058,6 +1059,7 @@ def test(
             target_folder.mkdir(parents=True, exist_ok=True)
             d.download(ctx, "/ci-visibility/junit/", target_folder)
 
+    info("[+] All domains finished, showing summary table of test results")
     show_last_test_results(ctx, stack)
 
 
@@ -1066,7 +1068,7 @@ def build_layout(ctx, domains, layout: str, verbose: bool):
         todo: DependenciesLayout = cast('DependenciesLayout', json.load(lf))
 
     for d in domains:
-        mkdir = list()
+        mkdir = []
         for dirs in todo["layout"]:
             mkdir.append(f"mkdir -p {dirs} &&")
 
@@ -1102,6 +1104,7 @@ def build(
     arch: str | None = None,
     component: Component = "system-probe",
     layout: str = "tasks/kernel_matrix_testing/build-layout.json",
+    compile_only=False,
 ):
     stack = check_and_get_stack(stack)
     assert stacks.stack_exists(
@@ -1111,34 +1114,38 @@ def build(
     if arch is None:
         arch = "local"
 
+    arch_obj = Arch.from_str(arch)
+    paths = KMTPaths(stack, arch_obj)
+    paths.arch_dir.mkdir(parents=True, exist_ok=True)
+
+    cc = get_compiler(ctx)
+
+    cc.exec(f"cd {CONTAINER_AGENT_PATH} && inv -e system-probe.object-files")
+
+    build_task = "build-sysprobe-binary" if component == "system-probe" else "build"
+    cc.exec(
+        f"cd {CONTAINER_AGENT_PATH} && git config --global --add safe.directory {CONTAINER_AGENT_PATH} && inv -e {component}.{build_task} --no-bundle --arch={arch_obj.name}",
+    )
+
+    cc.exec(f"tar cf {CONTAINER_AGENT_PATH}/kmt-deps/{stack}/build-embedded-dir.tar {EMBEDDED_SHARE_DIR}")
+
+    if compile_only:
+        return
+
     if vms is None:
         vms = ",".join(stacks.get_all_vms_in_stack(stack))
 
     assert os.path.exists(layout), f"File {layout} does not exist"
 
-    arch_obj = Arch.from_str(arch)
-    paths = KMTPaths(stack, arch_obj)
-    paths.arch_dir.mkdir(parents=True, exist_ok=True)
-
     ssh_key_obj = try_get_ssh_key(ctx, ssh_key)
     infra = build_infrastructure(stack, ssh_key_obj)
     domains = filter_target_domains(vms, infra, arch_obj)
-    cc = get_compiler(ctx)
 
     if not images_matching_ci(ctx, domains):
         if ask("Some VMs do not match version in CI. Continue anyway [y/N]") != "y":
             return
 
     assert len(domains) > 0, f"no vms found from list {vms}. Run `inv -e kmt.status` to see all VMs in current stack"
-
-    cc.exec(f"cd {CONTAINER_AGENT_PATH} && inv -e system-probe.object-files")
-
-    build_task = "build-sysprobe-binary" if component == "system-probe" else "build"
-    cc.exec(
-        f"cd {CONTAINER_AGENT_PATH} && git config --global --add safe.directory {CONTAINER_AGENT_PATH} && inv -e {component}.{build_task} --no-bundle",
-    )
-
-    cc.exec(f"tar cf {CONTAINER_AGENT_PATH}/kmt-deps/{stack}/build-embedded-dir.tar {EMBEDDED_SHARE_DIR}")
 
     build_layout(ctx, domains, layout, verbose)
     for d in domains:
@@ -1390,8 +1397,8 @@ def update_platform_info(
                 arch = Arch.from_str(keyvals['ARCH'])
                 image_name = keyvals['IMAGE_NAME']
                 image_filename = keyvals['IMAGE_FILENAME']
-            except KeyError:
-                raise Exit(f"[!] Invalid manifest {manifest}")
+            except KeyError as e:
+                raise Exit(f"[!] Invalid manifest {manifest}") from e
 
             if arch not in platforms:
                 warn(f"[!] Unsupported architecture {arch}, skipping")
@@ -1513,12 +1520,12 @@ def explain_ci_failure(_, pipeline: str):
         return
 
     # Compute a reason for failure for each test run job
-    for job in failed_jobs:
-        if job.failure_reason == "script_failure":
+    for failed_job in failed_jobs:
+        if failed_job.failure_reason == "script_failure":
             failreason = testfail  # By default, we assume it's a test failure
 
             # Now check the artifacts, we'll guess why the job failed based on the size
-            for artifact in job.job.artifacts:
+            for artifact in failed_job.job.artifacts:  # type: ignore
                 if artifact.get("filename") == "artifacts.zip":
                     fsize = artifact.get("size", 0)
                     if fsize < 1500:
@@ -1527,9 +1534,9 @@ def explain_ci_failure(_, pipeline: str):
                         failreason = infrafail
                         break
         else:
-            failreason = job.failure_reason
+            failreason = failed_job.failure_reason
 
-        failreasons[job.name] = failreason
+        failreasons[failed_job.name] = failreason
 
     # Check setup-env jobs that failed, they are infra failures for all related test jobs
     for job in failed_setup_jobs:
@@ -1553,14 +1560,14 @@ def explain_ci_failure(_, pipeline: str):
 
         # Build the distro table with all jobs for this component and vmset, to correctly
         # differentiate between skipped and ok jobs
-        for job in test_jobs:
-            if job.component != component or job.vmset != vmset:
+        for test_job in test_jobs:
+            if test_job.component != component or test_job.vmset != vmset:
                 continue
 
             failreason = failreasons.get(job.name, ok)
-            distros[job.distro][job.arch] = failreason
+            distros[test_job.distro][job.arch] = failreason
             if failreason == testfail:
-                distro_arch_with_test_failures.append((job.distro, job.arch))
+                distro_arch_with_test_failures.append((test_job.distro, test_job.arch))
 
         # Filter out distros with no failures
         distros = {d: v for d, v in distros.items() if any(r == testfail or r == infrafail for r in v.values())}
@@ -1863,3 +1870,24 @@ def tag_ci_job(ctx: Context):
     tags_str = " ".join(f"--tags '{tag_prefix}{k}:{v}'" for k, v in tags.items())
 
     ctx.run(f"datadog-ci tag --level job {tags_str}")
+
+
+@task
+def wait_for_setup_job(ctx: Context, pipeline_id: int, arch: str | Arch, component: Component, timeout_sec: int = 3600):
+    """Wait for the setup job to finish corresponding to the given pipeline, arch and component"""
+    arch = Arch.from_str(arch)
+    setup_jobs, _ = get_all_jobs_for_pipeline(pipeline_id)
+    matching_jobs = [j for j in setup_jobs if j.arch == arch.kmt_arch and j.component == component]
+    if len(matching_jobs) != 1:
+        raise Exit(f"Search for setup_job for {arch} {component} failed: result = {matching_jobs}")
+
+    setup_job = matching_jobs[0]
+    finished_status = {"failed", "success", "canceled", "skipped"}
+
+    def _check_status(_):
+        setup_job.refresh()
+        info(f"[+] Status for job {setup_job.name}: {setup_job.status}")
+        return setup_job.status.lower() in finished_status, None
+
+    loop_status(_check_status, timeout_sec=timeout_sec)
+    info(f"[+] Setup job {setup_job.name} finished with status {setup_job.status}")

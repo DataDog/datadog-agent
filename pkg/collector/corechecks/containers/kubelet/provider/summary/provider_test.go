@@ -386,7 +386,7 @@ func creatFakeStore(t *testing.T) workloadmetamock.Mock {
 		configcomp.MockModule(),
 		fx.Supply(context.Background()),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmetafxmock.MockModuleV2(),
+		workloadmetafxmock.MockModule(),
 	))
 
 	podEntityID := workloadmeta.EntityID{

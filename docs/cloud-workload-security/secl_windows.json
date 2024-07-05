@@ -23,6 +23,11 @@
           "property_doc_link": "container-tags-doc"
         },
         {
+          "name": "event.hostname",
+          "definition": "Hostname associated with the event",
+          "property_doc_link": "event-hostname-doc"
+        },
+        {
           "name": "event.origin",
           "definition": "Origin of the event",
           "property_doc_link": "event-origin-doc"
@@ -1329,6 +1334,18 @@
       "definition": "Tags of the container",
       "prefixes": [
         "container"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "event.hostname",
+      "link": "event-hostname-doc",
+      "type": "string",
+      "definition": "Hostname associated with the event",
+      "prefixes": [
+        ""
       ],
       "constants": "",
       "constants_link": "",

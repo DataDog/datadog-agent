@@ -1,6 +1,5 @@
 ---
 title: Linux Agent attributes and helpers
-kind: documentation
 description: "Linux Agent attributes and helpers for CSM Threats Rules"
 disable_edit: true
 further_reading:
@@ -13,6 +12,17 @@ further_reading:
 
 ## Linux Agent attributes and helpers
 This documentation describes Linux attributes and helpers of the [Datadog's Security Language (SECL)][1].
+
+Rules using Linux attributes and helpers must include an OS rule filter field as follows.
+
+
+{{< code-block lang="yaml" >}}
+id: [...]
+expression: [...]
+filters:
+  - os == "linux"
+
+{{< /code-block >}}
 
 ## Triggers
 Triggers are events that correspond to types of activity seen by the system. The currently supported set of triggers is:
@@ -111,6 +121,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`container.id`](#container-id-doc) | ID of the container |
 | [`container.tags`](#container-tags-doc) | Tags of the container |
 | [`event.async`](#event-async-doc) | True if the syscall was asynchronous |
+| [`event.hostname`](#event-hostname-doc) | Hostname associated with the event |
 | [`event.origin`](#event-origin-doc) | Origin of the event |
 | [`event.os`](#event-os-doc) | Operating system of the event |
 | [`event.service`](#event-service-doc) | Service associated with the event |
@@ -471,6 +482,9 @@ A file’s owner was changed
 | [`chown.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`chown.file.user`](#common-filefields-user-doc) | User of the file's owner |
 | [`chown.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
+| [`chown.syscall.gid`](#chown-syscall-gid-doc) | GID argument of the syscall |
+| [`chown.syscall.path`](#chown-syscall-path-doc) | Path argument of the syscall |
+| [`chown.syscall.uid`](#chown-syscall-uid-doc) | UID argument of the syscall |
 
 ### Event `dns`
 
@@ -724,6 +738,8 @@ Create a new name/alias for a file
 | [`link.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`link.file.user`](#common-filefields-user-doc) | User of the file's owner |
 | [`link.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
+| [`link.syscall.destination.path`](#link-syscall-destination-path-doc) | Destination path argument of the syscall |
+| [`link.syscall.path`](#link-syscall-path-doc) | Path argument of the syscall |
 
 ### Event `load_module`
 
@@ -871,6 +887,9 @@ A file was opened
 | [`open.file.user`](#common-filefields-user-doc) | User of the file's owner |
 | [`open.flags`](#open-flags-doc) | Flags used when opening the file |
 | [`open.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
+| [`open.syscall.flags`](#open-syscall-flags-doc) | Flags argument of the syscall |
+| [`open.syscall.mode`](#open-syscall-mode-doc) | Mode argument of the syscall |
+| [`open.syscall.path`](#open-syscall-path-doc) | Path argument of the syscall |
 
 ### Event `ptrace`
 
@@ -1572,6 +1591,9 @@ A file was deleted
 | [`unlink.file.user`](#common-filefields-user-doc) | User of the file's owner |
 | [`unlink.flags`](#unlink-flags-doc) | Flags of the unlink syscall |
 | [`unlink.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
+| [`unlink.syscall.dirfd`](#unlink-syscall-dirfd-doc) | Directory file descriptor argument of the syscall |
+| [`unlink.syscall.flags`](#unlink-syscall-flags-doc) | Flags argument of the syscall |
+| [`unlink.syscall.path`](#unlink-syscall-path-doc) | Path argument of the syscall |
 
 ### Event `unload_module`
 
@@ -1609,6 +1631,7 @@ Change file access/modification times
 | [`utimes.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`utimes.file.user`](#common-filefields-user-doc) | User of the file's owner |
 | [`utimes.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
+| [`utimes.syscall.path`](#utimes-syscall-path-doc) | Path argument of the syscall |
 
 
 ## Attributes documentation
@@ -2406,6 +2429,27 @@ Definition: New user of the chown-ed file's owner
 
 
 
+### `chown.syscall.gid` {#chown-syscall-gid-doc}
+Type: int
+
+Definition: GID argument of the syscall
+
+
+
+### `chown.syscall.path` {#chown-syscall-path-doc}
+Type: string
+
+Definition: Path argument of the syscall
+
+
+
+### `chown.syscall.uid` {#chown-syscall-uid-doc}
+Type: int
+
+Definition: UID argument of the syscall
+
+
+
 ### `container.created_at` {#container-created_at-doc}
 Type: int
 
@@ -2479,6 +2523,13 @@ Constants: [DNS qtypes](#dns-qtypes)
 Type: bool
 
 Definition: True if the syscall was asynchronous
+
+
+
+### `event.hostname` {#event-hostname-doc}
+Type: string
+
+Definition: Hostname associated with the event
 
 
 
@@ -2584,6 +2635,20 @@ Definition: the queried IMDS URL
 Type: string
 
 Definition: the user agent of the HTTP client
+
+
+
+### `link.syscall.destination.path` {#link-syscall-destination-path-doc}
+Type: string
+
+Definition: Destination path argument of the syscall
+
+
+
+### `link.syscall.path` {#link-syscall-path-doc}
+Type: string
+
+Definition: Path argument of the syscall
 
 
 
@@ -2771,6 +2836,27 @@ Constants: [Open flags](#open-flags)
 
 
 
+### `open.syscall.flags` {#open-syscall-flags-doc}
+Type: int
+
+Definition: Flags argument of the syscall
+
+
+
+### `open.syscall.mode` {#open-syscall-mode-doc}
+Type: int
+
+Definition: Mode argument of the syscall
+
+
+
+### `open.syscall.path` {#open-syscall-path-doc}
+Type: string
+
+Definition: Path argument of the syscall
+
+
+
 ### `ptrace.request` {#ptrace-request-doc}
 Type: int
 
@@ -2940,10 +3026,38 @@ Constants: [Unlink flags](#unlink-flags)
 
 
 
+### `unlink.syscall.dirfd` {#unlink-syscall-dirfd-doc}
+Type: int
+
+Definition: Directory file descriptor argument of the syscall
+
+
+
+### `unlink.syscall.flags` {#unlink-syscall-flags-doc}
+Type: int
+
+Definition: Flags argument of the syscall
+
+
+
+### `unlink.syscall.path` {#unlink-syscall-path-doc}
+Type: string
+
+Definition: Path argument of the syscall
+
+
+
 ### `unload_module.name` {#unload_module-name-doc}
 Type: string
 
 Definition: Name of the kernel module that was deleted
+
+
+
+### `utimes.syscall.path` {#utimes-syscall-path-doc}
+Type: string
+
+Definition: Path argument of the syscall
 
 
 

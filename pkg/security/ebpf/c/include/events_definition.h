@@ -38,7 +38,7 @@ struct bpf_event_t {
 
 struct args_envs_event_t {
     struct kevent_t event;
-    u32 id;
+    u64 id;
     u32 size;
     char value[MAX_PERF_STR_BUFF_LEN];
 };
@@ -52,9 +52,9 @@ struct process_event_t {
     struct process_entry_t proc_entry;
     struct pid_cache_t pid_entry;
     struct linux_binprm_t linux_binprm;
-    u32 args_id;
+    u64 args_id;
+    u64 envs_id;
     u32 args_truncated;
-    u32 envs_id;
     u32 envs_truncated;
 };
 
@@ -108,6 +108,7 @@ struct utimes_event_t {
     struct span_context_t span;
     struct container_context_t container;
     struct syscall_t syscall;
+    struct syscall_context_t syscall_ctx;
     struct file_t file;
     struct ktimeval atime, mtime;
 };
@@ -130,6 +131,7 @@ struct chown_event_t {
     struct span_context_t span;
     struct container_context_t container;
     struct syscall_t syscall;
+    struct syscall_context_t syscall_ctx;
     struct file_t file;
     uid_t uid;
     gid_t gid;
@@ -181,6 +183,7 @@ struct link_event_t {
     struct span_context_t span;
     struct container_context_t container;
     struct syscall_t syscall;
+    struct syscall_context_t syscall_ctx;
     struct file_t source;
     struct file_t target;
 };
@@ -275,6 +278,7 @@ struct open_event_t {
     struct span_context_t span;
     struct container_context_t container;
     struct syscall_t syscall;
+    struct syscall_context_t syscall_ctx;
     struct file_t file;
     u32 flags;
     u32 mode;
@@ -381,6 +385,7 @@ struct unlink_event_t {
     struct span_context_t span;
     struct container_context_t container;
     struct syscall_t syscall;
+    struct syscall_context_t syscall_ctx;
     struct file_t file;
     u32 flags;
     u32 padding;
@@ -394,6 +399,16 @@ struct chdir_event_t {
     struct syscall_t syscall;
     struct syscall_context_t syscall_ctx;
     struct file_t file;
+};
+
+struct on_demand_event_t {
+    struct kevent_t event;
+    struct process_context_t process;
+    struct span_context_t span;
+    struct container_context_t container;
+
+    u32 synth_id;
+    char data[256];
 };
 
 #endif

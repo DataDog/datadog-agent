@@ -780,6 +780,9 @@ func (o KubernetesPodOwner) String(verbose bool) string {
 	return sb.String()
 }
 
+// KubeMetadataEntityID is a unique ID for Kube Metadata Entity
+type KubeMetadataEntityID string
+
 // KubernetesMetadata is an Entity representing kubernetes resource metadata
 type KubernetesMetadata struct {
 	EntityID
@@ -1170,7 +1173,7 @@ func (p *Process) Merge(e Entity) error {
 }
 
 // String implements Entity#String.
-func (p Process) String(verbose bool) string { //nolint:revive // TODO fix revive unused-parameter
+func (p Process) String(_ bool) string {
 	var sb strings.Builder
 
 	_, _ = fmt.Fprintln(&sb, "----------- Entity ID -----------")

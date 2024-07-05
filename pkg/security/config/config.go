@@ -75,6 +75,10 @@ type RuntimeSecurityConfig struct {
 	LogTags []string
 	// HostServiceName string
 	HostServiceName string
+	// OnDemandEnabled defines whether the on-demand probes should be enabled
+	OnDemandEnabled bool
+	// OnDemandRateLimiterEnabled defines whether the on-demand probes rate limit getting hit disabled the on demand probes
+	OnDemandRateLimiterEnabled bool
 
 	// InternalMonitoringEnabled determines if the monitoring events of the agent should be sent to Datadog
 	InternalMonitoringEnabled bool
@@ -127,7 +131,7 @@ type RuntimeSecurityConfig struct {
 	// be provided as strings in the following format "{image_name}:[{image_tag}|*]". If "*" is provided instead of a
 	// specific image tag, then the entry will match any workload with the input {image_name} regardless of their tag.
 	ActivityDumpWorkloadDenyList []string
-	// ActivityDumpTagRulesEnabled enable the tagging of nodes with matched rules (only for rules having the tag ruleset:threat_score)
+	// ActivityDumpTagRulesEnabled enable the tagging of nodes with matched rules
 	ActivityDumpTagRulesEnabled bool
 	// ActivityDumpSilentWorkloadsDelay defines the minimum amount of time to wait before the activity dump manager will start tracing silent workloads
 	ActivityDumpSilentWorkloadsDelay time.Duration
@@ -317,6 +321,9 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		RemoteConfigurationEnabled:      isRemoteConfigEnabled(),
 		RemoteConfigurationDumpPolicies: coreconfig.SystemProbe.GetBool("runtime_security_config.remote_configuration.dump_policies"),
 
+		OnDemandEnabled:            coreconfig.SystemProbe.GetBool("runtime_security_config.on_demand.enabled"),
+		OnDemandRateLimiterEnabled: coreconfig.SystemProbe.GetBool("runtime_security_config.on_demand.rate_limiter.enabled"),
+
 		// policy & ruleset
 		PoliciesDir:                         coreconfig.SystemProbe.GetString("runtime_security_config.policies.dir"),
 		WatchPoliciesDir:                    coreconfig.SystemProbe.GetBool("runtime_security_config.policies.watch_dir"),
@@ -468,7 +475,7 @@ func (c *RuntimeSecurityConfig) GetAnomalyDetectionMinimumStablePeriod(eventType
 func (c *RuntimeSecurityConfig) sanitize() error {
 	serviceName := utils.GetTagValue("service", configUtils.GetConfiguredTags(coreconfig.Datadog(), true))
 	if len(serviceName) > 0 {
-		c.HostServiceName = fmt.Sprintf("service:%s", serviceName)
+		c.HostServiceName = serviceName
 	}
 
 	if c.IMDSIPv4 == 0 {

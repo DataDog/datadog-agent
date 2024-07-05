@@ -55,9 +55,9 @@ def download_rootfs(
 
     if arch is None:
         arch = Arch.local().kmt_arch
-    to_download: list[str] = list()
-    file_ls: list[str] = list()
-    branch_mapping: dict[str, str] = dict()
+    to_download: list[str] = []
+    file_ls: list[str] = []
+    branch_mapping: dict[str, str] = {}
 
     selected_image_list = images.split(",") if images is not None else []
 

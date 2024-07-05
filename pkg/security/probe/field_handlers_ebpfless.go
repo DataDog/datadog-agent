@@ -24,6 +24,7 @@ import (
 type EBPFLessFieldHandlers struct {
 	config    *config.Config
 	resolvers *resolvers.EBPFLessResolvers
+	hostname  string
 }
 
 // ResolveService returns the service tag based on the process context
@@ -388,4 +389,54 @@ func (fh *EBPFLessFieldHandlers) ResolveSyscallCtxArgsInt2(_ *model.Event, e *mo
 // ResolveSyscallCtxArgsInt3 resolve syscall ctx
 func (fh *EBPFLessFieldHandlers) ResolveSyscallCtxArgsInt3(_ *model.Event, e *model.SyscallContext) int {
 	return int(e.IntArg3)
+}
+
+// ResolveHostname resolve the hostname
+func (fh *EBPFLessFieldHandlers) ResolveHostname(_ *model.Event, _ *model.BaseEvent) string {
+	return fh.hostname
+}
+
+// ResolveOnDemandName resolves the on-demand event name
+func (fh *EBPFLessFieldHandlers) ResolveOnDemandName(_ *model.Event, _ *model.OnDemandEvent) string {
+	return ""
+}
+
+// ResolveOnDemandArg1Str resolves the string value of the first argument of hooked function
+func (fh *EBPFLessFieldHandlers) ResolveOnDemandArg1Str(_ *model.Event, _ *model.OnDemandEvent) string {
+	return ""
+}
+
+// ResolveOnDemandArg1Uint resolves the uint value of the first argument of hooked function
+func (fh *EBPFLessFieldHandlers) ResolveOnDemandArg1Uint(_ *model.Event, _ *model.OnDemandEvent) int {
+	return 0
+}
+
+// ResolveOnDemandArg2Str resolves the string value of the second argument of hooked function
+func (fh *EBPFLessFieldHandlers) ResolveOnDemandArg2Str(_ *model.Event, _ *model.OnDemandEvent) string {
+	return ""
+}
+
+// ResolveOnDemandArg2Uint resolves the uint value of the second argument of hooked function
+func (fh *EBPFLessFieldHandlers) ResolveOnDemandArg2Uint(_ *model.Event, _ *model.OnDemandEvent) int {
+	return 0
+}
+
+// ResolveOnDemandArg3Str resolves the string value of the third argument of hooked function
+func (fh *EBPFLessFieldHandlers) ResolveOnDemandArg3Str(_ *model.Event, _ *model.OnDemandEvent) string {
+	return ""
+}
+
+// ResolveOnDemandArg3Uint resolves the uint value of the third argument of hooked function
+func (fh *EBPFLessFieldHandlers) ResolveOnDemandArg3Uint(_ *model.Event, _ *model.OnDemandEvent) int {
+	return 0
+}
+
+// ResolveOnDemandArg4Str resolves the string value of the fourth argument of hooked function
+func (fh *EBPFLessFieldHandlers) ResolveOnDemandArg4Str(_ *model.Event, _ *model.OnDemandEvent) string {
+	return ""
+}
+
+// ResolveOnDemandArg4Uint resolves the uint value of the fourth argument of hooked function
+func (fh *EBPFLessFieldHandlers) ResolveOnDemandArg4Uint(_ *model.Event, _ *model.OnDemandEvent) int {
+	return 0
 }

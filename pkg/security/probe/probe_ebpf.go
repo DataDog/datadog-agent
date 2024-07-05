@@ -32,9 +32,8 @@ import (
 	"github.com/DataDog/ebpf-manager/tracefs"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
 	aconfig "github.com/DataDog/datadog-agent/pkg/config"
-	commonebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
@@ -74,6 +73,10 @@ type EventStream interface {
 	Pause() error
 	Resume() error
 }
+
+// MaxOnDemandEventsPerSecond represents the maximum number of on demand events per second
+// allowed before we switch off the subsystem
+const MaxOnDemandEventsPerSecond = 1_000
 
 var (
 	// defaultEventTypes event types used whatever the event handlers or the rules
@@ -136,7 +139,12 @@ type EBPFProbe struct {
 	isRuntimeDiscarded bool
 	constantOffsets    map[string]uint64
 	runtimeCompiled    bool
+	useSyscallWrapper  bool
 	useFentry          bool
+
+	// On demand
+	onDemandManager     *OnDemandProbesManager
+	onDemandRateLimiter *rate.Limiter
 }
 
 func (p *EBPFProbe) detectKernelVersion() error {
@@ -260,8 +268,9 @@ func (p *EBPFProbe) Init() error {
 	if err != nil {
 		return err
 	}
+	p.useSyscallWrapper = useSyscallWrapper
 
-	loader := ebpf.NewProbeLoader(p.config.Probe, useSyscallWrapper, p.UseRingBuffers(), p.useFentry, p.statsdClient)
+	loader := ebpf.NewProbeLoader(p.config.Probe, p.useSyscallWrapper, p.UseRingBuffers(), p.useFentry, p.statsdClient)
 	defer loader.Close()
 
 	bytecodeReader, runtimeCompiled, err := loader.Load()
@@ -326,7 +335,7 @@ func (p *EBPFProbe) Setup() error {
 	if err := p.Manager.Start(); err != nil {
 		return err
 	}
-	ebpfcheck.AddNameMappings(p.Manager, "cws")
+	ddebpf.AddNameMappings(p.Manager, "cws")
 
 	p.applyDefaultFilterPolicies()
 
@@ -957,6 +966,17 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			seclog.Errorf("failed to decode syscalls event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
+	case model.OnDemandEventType:
+		if !p.onDemandRateLimiter.Allow() {
+			seclog.Errorf("on-demand event rate limit reached, disabling on-demand probes to protect the system")
+			p.onDemandManager.disable()
+			return
+		}
+
+		if _, err = event.OnDemand.UnmarshalBinary(data[offset:]); err != nil {
+			seclog.Errorf("failed to decode on-demand event for syscall event: %s (offset %d, len %d)", err, offset, len(data))
+			return
+		}
 	}
 
 	// resolve the container context
@@ -1174,6 +1194,12 @@ func (p *EBPFProbe) updateProbes(ruleEventTypes []eval.EventType, needRawSyscall
 
 	activatedProbes = append(activatedProbes, p.Resolvers.TCResolver.SelectTCProbes())
 
+	// on-demand probes
+	if p.config.RuntimeSecurity.OnDemandEnabled {
+		p.onDemandManager.updateProbes()
+		activatedProbes = append(activatedProbes, p.onDemandManager.selectProbes())
+	}
+
 	if needRawSyscalls {
 		activatedProbes = append(activatedProbes, probes.SyscallMonitorSelectors...)
 	} else {
@@ -1321,7 +1347,7 @@ func (p *EBPFProbe) Close() error {
 	// we wait until both the reorderer and the monitor are stopped
 	p.wg.Wait()
 
-	ebpfcheck.RemoveNameMappings(p.Manager)
+	ddebpf.RemoveNameMappings(p.Manager)
 	ebpftelemetry.UnregisterTelemetry(p.Manager)
 	// Stopping the manager will stop the perf map reader and unload eBPF programs
 	if err := p.Manager.Stop(manager.CleanAll); err != nil {
@@ -1393,12 +1419,12 @@ func (p *EBPFProbe) setupNewTCClassifier(device model.NetDevice) error {
 	if err != nil {
 		return err
 	}
-	if handle != nil {
-		if err := handle.Close(); err != nil {
-			return fmt.Errorf("could not close file [%s]: %w", handle.Name(), err)
-		}
+
+	if err := handle.Close(); err != nil {
+		return fmt.Errorf("could not close file [%s]: %w", handle.Name(), err)
 	}
-	return err
+
+	return nil
 }
 
 // FlushNetworkNamespace removes all references and stops all TC programs in the provided network namespace. This method
@@ -1513,6 +1539,10 @@ func (p *EBPFProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetRepor
 		}
 	}
 
+	if p.config.RuntimeSecurity.OnDemandEnabled {
+		p.onDemandManager.setHookPoints(rs.GetOnDemandHookPoints())
+	}
+
 	if err := p.updateProbes(eventTypes, needRawSyscalls); err != nil {
 		return nil, fmt.Errorf("failed to select probes: %w", err)
 	}
@@ -1553,6 +1583,11 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, wmeta optional
 
 	ctx, cancelFnc := context.WithCancel(context.Background())
 
+	onDemandRate := rate.Limit(math.Inf(1))
+	if config.RuntimeSecurity.OnDemandRateLimiterEnabled {
+		onDemandRate = MaxOnDemandEventsPerSecond
+	}
+
 	p := &EBPFProbe{
 		probe:                probe,
 		config:               config,
@@ -1568,6 +1603,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, wmeta optional
 		cancelFnc:            cancelFnc,
 		newTCNetDevices:      make(chan model.NetDevice, 16),
 		processKiller:        NewProcessKiller(),
+		onDemandRateLimiter:  rate.NewLimiter(onDemandRate, 1),
 	}
 
 	if err := p.detectKernelVersion(); err != nil {
@@ -1786,8 +1822,19 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, wmeta optional
 		return nil, err
 	}
 
-	// TODO safchain change the fields handlers
-	p.fieldHandlers = &EBPFFieldHandlers{config: config, resolvers: p.Resolvers}
+	hostname, err := utils.GetHostname()
+	if err != nil || hostname == "" {
+		hostname = "unknown"
+	}
+
+	if config.RuntimeSecurity.OnDemandEnabled {
+		p.onDemandManager = &OnDemandProbesManager{
+			probe:   p,
+			manager: p.Manager,
+		}
+	}
+
+	p.fieldHandlers = &EBPFFieldHandlers{config: config, resolvers: p.Resolvers, hostname: hostname, onDemand: p.onDemandManager}
 
 	if useRingBuffers {
 		p.eventStream = ringbuffer.New(p.handleEvent)
@@ -1891,7 +1938,7 @@ func getOvlPathInOvlInode(kernelVersion *kernel.Version) uint64 {
 		return 1
 	}
 
-	check, err := commonebpf.VerifyKernelFuncs(patchSentinel)
+	check, err := ddebpf.VerifyKernelFuncs(patchSentinel)
 	if err != nil {
 		return 0
 	}

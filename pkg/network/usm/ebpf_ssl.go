@@ -18,7 +18,6 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 	"unsafe"
 
@@ -26,7 +25,7 @@ import (
 	"github.com/cilium/ebpf"
 	"github.com/davecgh/go-spew/spew"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
@@ -37,6 +36,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
 
 const (
@@ -564,12 +564,7 @@ const (
 )
 
 var (
-	taskCommLenBufferPool = sync.Pool{
-		New: func() any {
-			buf := make([]byte, taskCommLen)
-			return &buf
-		},
-	}
+	taskCommLenBufferPool = ddsync.NewSlicePool[byte](taskCommLen, taskCommLen)
 )
 
 func isContainerdTmpMount(path string) bool {
@@ -592,7 +587,7 @@ func isBuildKit(procRoot string, pid uint32) bool {
 		}
 	}
 
-	buf := taskCommLenBufferPool.Get().(*[]byte)
+	buf := taskCommLenBufferPool.Get()
 	defer taskCommLenBufferPool.Put(buf)
 	n, err := file.Read(*buf)
 	if err != nil {
@@ -705,7 +700,7 @@ func addHooks(m *manager.Manager, procRoot string, probes []manager.ProbesSelect
 					HookFuncName:            symbol,
 				}
 				if err := m.AddHook("", newProbe); err == nil {
-					ebpfcheck.AddProgramNameMapping(newProbe.ID(), newProbe.EBPFFuncName, "usm_tls")
+					ddebpf.AddProgramNameMapping(newProbe.ID(), newProbe.EBPFFuncName, "usm_tls")
 				}
 			}
 			if err := singleProbe.RunValidator(m); err != nil {

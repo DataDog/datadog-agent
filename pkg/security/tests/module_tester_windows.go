@@ -230,7 +230,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 	if err != nil {
 		return nil, err
 	}
-	if _, err = setTestPolicy(commonCfgDir, macroDefs, ruleDefs); err != nil {
+	if _, err = setTestPolicy(commonCfgDir, nil, macroDefs, ruleDefs); err != nil {
 		return nil, err
 	}
 	statsdClient := statsdclient.NewStatsdClient()
@@ -278,12 +278,10 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 
 		testMod.eventMonitor.RegisterEventConsumer(cws)
 
-		testMod.ruleEngine.SetRulesetLoadedCallback(func(es *rules.EvaluationSet, err *multierror.Error) {
+		testMod.ruleEngine.SetRulesetLoadedCallback(func(rs *rules.RuleSet, err *multierror.Error) {
 			ruleSetloadedErr = err
 			log.Infof("Adding test module as listener")
-			for _, ruleSet := range es.RuleSets {
-				ruleSet.AddListener(testMod)
-			}
+			rs.AddListener(testMod)
 		})
 	}
 

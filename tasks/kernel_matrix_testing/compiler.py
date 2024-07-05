@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
@@ -93,7 +94,9 @@ class CompilerImage:
             self.ctx.run(f"docker pull {self.image}")
 
         res = self.ctx.run(
-            f"docker run -d --restart always --name {self.name} --mount type=bind,source=./,target={CONTAINER_AGENT_PATH} {self.image} sleep \"infinity\"",
+            f"docker run -d --restart always --name {self.name} "
+            f"--mount type=bind,source={os.getcwd()},target={CONTAINER_AGENT_PATH} "
+            f"{self.image} sleep \"infinity\"",
             warn=True,
         )
         if res is None or not res.ok:
