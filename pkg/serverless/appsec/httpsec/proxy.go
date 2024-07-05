@@ -325,9 +325,13 @@ func (a *appsecSpanModifier) ModifySpan(chunk *pb.TraceChunk, span *pb.Span) {
 	a.lp.spanModifier(a.ctx.LastRequestID(), chunk, span)
 }
 
+type taggable interface {
+	SetTags(map[string]string)
+}
+
 func (a *appsecSpanModifier) SetTags(tags map[string]string) {
-	if a.wrapped != nil {
-		a.wrapped.SetTags(tags)
+	if tagger, ok := a.wrapped.(taggable); ok {
+		tagger.SetTags(tags)
 	}
 }
 

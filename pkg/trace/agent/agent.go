@@ -125,7 +125,6 @@ type Agent struct {
 
 type SpanModifier interface {
 	ModifySpan(*pb.TraceChunk, *pb.Span)
-	SetTags(map[string]string)
 }
 
 // NewAgent returns a new Agent object, ready to be started. It takes a context

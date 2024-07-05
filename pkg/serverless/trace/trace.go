@@ -168,10 +168,16 @@ func (t *serverlessTraceAgent) Process(p *api.Payload) {
 	t.ta.Process(p)
 }
 
+type taggable interface {
+	SetTags(tags map[string]string)
+}
+
 // SetTags sets the tags to the trace agent config and span processor
 func (t *serverlessTraceAgent) SetTags(tags map[string]string) {
 	t.ta.SetGlobalTagsUnsafe(tags)
-	t.ta.SpanModifier.SetTags(tags)
+	if tagger, ok := t.ta.SpanModifier.(taggable); ok {
+		tagger.SetTags(tags)
+	}
 }
 
 func (t *serverlessTraceAgent) SetTargetTPS(tps float64) {
