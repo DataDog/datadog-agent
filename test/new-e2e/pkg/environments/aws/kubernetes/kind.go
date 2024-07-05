@@ -114,7 +114,7 @@ func WithExtraConfigParams(configMap runner.ConfigMap) ProvisionerOption {
 }
 
 // WorkloadAppFunc is a function that deploys a workload app to a kube provider
-type WorkloadAppFunc func(e config.CommonEnvironment, kubeProvider *kubernetes.Provider) (*kubeComp.Workload, error)
+type WorkloadAppFunc func(e config.Env, kubeProvider *kubernetes.Provider) (*kubeComp.Workload, error)
 
 // WithWorkloadApp adds a workload app to the environment
 func WithWorkloadApp(appFunc WorkloadAppFunc) ProvisionerOption {
@@ -160,7 +160,7 @@ func KindRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Prov
 		return err
 	}
 
-	kindCluster, err := kubeComp.NewKindCluster(*awsEnv.CommonEnvironment, host, awsEnv.CommonNamer.ResourceName("kind"), params.name, awsEnv.KubernetesVersion(), utils.PulumiDependsOn(installEcrCredsHelperCmd))
+	kindCluster, err := kubeComp.NewKindCluster(&awsEnv, host, awsEnv.CommonNamer().ResourceName("kind"), params.name, awsEnv.KubernetesVersion(), utils.PulumiDependsOn(installEcrCredsHelperCmd))
 	if err != nil {
 		return err
 	}
@@ -211,7 +211,7 @@ agents:
 
 		newOpts := []kubernetesagentparams.Option{kubernetesagentparams.WithHelmValues(helmValues)}
 		params.agentOptions = append(newOpts, params.agentOptions...)
-		agent, err := agent.NewKubernetesAgent(*awsEnv.CommonEnvironment, kindClusterName, kubeProvider, params.agentOptions...)
+		agent, err := agent.NewKubernetesAgent(&awsEnv, kindClusterName, kubeProvider, params.agentOptions...)
 		if err != nil {
 			return err
 		}
@@ -225,7 +225,7 @@ agents:
 	}
 
 	for _, appFunc := range params.workloadAppFuncs {
-		_, err := appFunc(*awsEnv.CommonEnvironment, kubeProvider)
+		_, err := appFunc(&awsEnv, kubeProvider)
 		if err != nil {
 			return err
 		}
