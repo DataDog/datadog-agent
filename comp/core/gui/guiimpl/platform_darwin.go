@@ -7,9 +7,22 @@ package guiimpl
 
 import (
 	"fmt"
+	"html/template"
 )
 
-const docURL = "https://docs.datadoghq.com/agent/basic_agent_usage/osx"
+const docURL template.URL = template.URL("https://docs.datadoghq.com/agent/basic_agent_usage/osx")
+const instructionTemplate = `{{define "loginInstruction" }}
+<h3>Refreshing the Session</h3>
+<p>Please ensure you access the Datadog Agent Manager with one of the following:</p>
+<ul>
+	<li>- through the Agent's menu bar extras icon by selecting "Open Web UI"</li>
+	<li>- by running the following terminal command: "<code>datadog-agent launch-gui</code>"</li>
+</ul>
+
+<p>For more information, please visit: <u><a href="{{ .DocURL }}">{{ .DocURL }}</a></u></p>
+
+<p>Note: If you would like to adjust the GUI session timeout, you can modify the <code>GUI_session_expiration</code> parameter in <code>datadog.yaml</code>
+{{end}}`
 
 func restartEnabled() bool {
 	return false
@@ -17,18 +30,4 @@ func restartEnabled() bool {
 
 func restart() error {
 	return fmt.Errorf("restarting the agent is not implemented on non-windows platforms")
-}
-
-func logginInstructions() string {
-	return fmt.Sprintf(`<h3>Refreshing the Session</h3>
-<p>Please ensure you access the Datadog Agent Manager with one of the following:</p>
-<ul>
-	<li>- through the Agent's menu bar extras icon by selecting "Open Web UI"</li>
-	<li>- by running the following terminal command: "<code>datadog-agent launch-gui</code>"</li>
-</ul>
-
-<p>For more information, please visit: <u><a href="%s">%s</a></u></p>
-
-<p>Note: If you would like to adjust the GUI session timeout, you can modify the <code>GUI_session_expiration</code> parameter in <code>datadog.yaml</code>`,
-		docURL, docURL)
 }

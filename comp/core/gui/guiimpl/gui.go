@@ -202,9 +202,18 @@ func renderIndexPage(w http.ResponseWriter, _ *http.Request) {
 		return
 	}
 
-	e = t.Execute(w, map[string]any{
-		"restartEnabled":   restartEnabled(),
-		"loginInstruction": logginInstructions(),
+	t, e = t.Parse(instructionTemplate)
+	if e != nil {
+		http.Error(w, e.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	e = t.Execute(w, struct {
+		RestartEnabled bool
+		DocURL         template.URL
+	}{
+		RestartEnabled: restartEnabled(),
+		DocURL:         docURL,
 	})
 	if e != nil {
 		http.Error(w, e.Error(), http.StatusInternalServerError)
