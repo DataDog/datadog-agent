@@ -71,7 +71,7 @@ func triggerTestAndGetTelemetry(t *testing.T) []prometheus.Metric {
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = buf.Close })
 
-	collector := NewEBPFErrorsCollector().(*EBPFErrorsCollector)
+	collector := NewEBPFErrorsCollector()
 
 	options := manager.Options{
 		RLimit: &unix.Rlimit{

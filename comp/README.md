@@ -376,6 +376,10 @@ Package collector defines the OpenTelemetry Collector component.
 
 Package collectorcontrib defines the OTel collector-contrib component
 
+### [comp/otelcol/configstore](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/otelcol/configstore)
+
+Package configstore defines the otel agent configstore component.
+
 ### [comp/otelcol/converter](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/otelcol/converter)
 
 Package converter defines the otel agent converter component.
@@ -541,6 +545,10 @@ Package trace implements the "trace" bundle, providing components for the Trace 
 ### [comp/trace/agent](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/trace/agent)
 
 Package traceagent provides the agent component type.
+
+### [comp/trace/compression](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/trace/compression)
+
+Package compression provides compression for trace payloads
 
 ### [comp/trace/config](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/trace/config)
 

@@ -24,6 +24,9 @@ replace (
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil => ../../../../otlp/testutil
 	github.com/DataDog/datadog-agent/comp/serializer/compression => ../../../../../serializer/compression/
 	github.com/DataDog/datadog-agent/comp/trace/agent/def => ../../../../../../comp/trace/agent/def
+	github.com/DataDog/datadog-agent/comp/trace/compression/def => ../../../../../../comp/trace/compression/def
+	github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip => ../../../../../../comp/trace/compression/impl-gzip
+	github.com/DataDog/datadog-agent/comp/trace/compression/impl-zstd => ../../../../../../comp/trace/compression/impl-zstd
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey => ../../../../../../pkg/aggregator/ckey
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../../../../../pkg/collector/check/defaults
 	github.com/DataDog/datadog-agent/pkg/config/env => ../../../../../../pkg/config/env
@@ -87,6 +90,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/comp/trace/agent/def v0.0.0-20240620192452-6ae09a69b21f
+	github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/logs/message v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/proto v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/serializer v0.55.0-rc.3
@@ -129,6 +133,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface v0.55.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.55.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/comp/serializer/compression v0.55.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/comp/trace/compression/def v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey v0.55.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.55.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/env v0.55.0-rc.3 // indirect
