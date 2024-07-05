@@ -154,6 +154,22 @@ var (
 	initOnce                  sync.Once
 )
 
+func (l language) defaultLibInfo(registry, ctrName string) libInfo {
+	return libInfo{
+		lang:    l,
+		ctrName: ctrName,
+		image:   libImageName(registry, l, l.defaultLibVersion()),
+	}
+}
+
+func (l language) defaultLibVersion() string {
+	langVersion, ok := languageVersions[l]
+	if !ok {
+		return "latest"
+	}
+	return langVersion
+}
+
 // Webhook is the auto instrumentation webhook
 type Webhook struct {
 	name              string
@@ -465,21 +481,10 @@ func (w *Webhook) getLibrariesLanguageDetection(pod *corev1.Pod) []libInfo {
 func (w *Webhook) getAllLatestLibraries() []libInfo {
 	var libsToInject []libInfo
 	for _, lang := range supportedLanguages {
-		libsToInject = append(libsToInject, libInfo{
-			lang:  language(lang),
-			image: libImageName(w.containerRegistry, lang, defaultLibVersion(lang)),
-		})
+		libsToInject = append(libsToInject, lang.defaultLibInfo(w.containerRegistry, ""))
 	}
 
 	return libsToInject
-}
-
-func defaultLibVersion(l language) string {
-	langVersion, ok := languageVersions[l]
-	if !ok {
-		return "latest"
-	}
-	return langVersion
 }
 
 type libInfo struct {
