@@ -140,10 +140,14 @@ def failure_summary_send_notifications(
 
 
 @task
-def unit_tests(ctx, pipeline_id, pipeline_url, branch_name):
+def unit_tests(ctx, pipeline_id, pipeline_url, branch_name, print_to_stdout=False):
     jobs_with_no_tests_run = unit_tests_utils.process_unit_tests_tarballs(ctx)
     msg = unit_tests_utils.create_msg(pipeline_id, pipeline_url, jobs_with_no_tests_run)
-    unit_tests_utils.comment_pr(msg, pipeline_id, branch_name, jobs_with_no_tests_run)
+
+    if print_to_stdout:
+        print(msg)
+    else:
+        unit_tests_utils.comment_pr(msg, pipeline_id, branch_name, jobs_with_no_tests_run)
 
 
 @task
