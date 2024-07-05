@@ -12,6 +12,9 @@ import (
 	"sync"
 	"time"
 
+	gzip "github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip"
+	"go.opentelemetry.io/collector/pdata/ptrace"
+
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
@@ -20,7 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/trace/timing"
 	"github.com/DataDog/datadog-go/v5/statsd"
-	"go.opentelemetry.io/collector/pdata/ptrace"
 )
 
 // This is a copy of https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/internal/datadog/agent.go and
@@ -42,8 +44,16 @@ type traceAgent struct {
 	exit chan struct{}
 }
 
+type mockStatsWriter struct {
+	out chan *pb.StatsPayload
+}
+
+func (msa *mockStatsWriter) Write(payload *pb.StatsPayload) {
+	msa.out <- payload
+}
+
 // newAgentWithConfig creates a new traceagent with the given config cfg. Used in tests; use newAgent instead.
-func newAgentWithConfig(ctx context.Context, cfg *traceconfig.AgentConfig, out chan *pb.StatsPayload, now time.Time) *traceAgent {
+func newAgentWithConfig(ctx context.Context, cfg *traceconfig.AgentConfig, out *mockStatsWriter, now time.Time) *traceAgent {
 	// disable the HTTP receiver
 	cfg.ReceiverPort = 0
 	// set the API key to succeed startup; it is never used nor needed
@@ -56,7 +66,7 @@ func newAgentWithConfig(ctx context.Context, cfg *traceconfig.AgentConfig, out c
 	cfg.Hostname = "__unset__"
 	pchan := make(chan *api.Payload, 1000)
 	metricsClient := &statsd.NoOpClient{}
-	a := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector(), metricsClient)
+	a := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector(), metricsClient, gzip.NewComponent())
 	// replace the Concentrator (the component which computes and flushes APM Stats from incoming
 	// traces) with our own, which uses the 'out' channel.
 	a.Concentrator = stats.NewConcentrator(cfg, out, now, metricsClient)
@@ -92,7 +102,6 @@ func (p *traceAgent) Start() {
 		starter.Start()
 	}
 
-	p.goDrain()
 	p.goProcess()
 }
 
@@ -110,23 +119,6 @@ func (p *traceAgent) Stop() {
 	}
 	close(p.exit)
 	p.wg.Wait()
-}
-
-// goDrain drains the TraceWriter channel, ensuring it won't block. We don't need the traces,
-// nor do we have a running TraceWrite. We just want the outgoing stats.
-func (p *traceAgent) goDrain() {
-	p.wg.Add(1)
-	go func() {
-		defer p.wg.Done()
-		for {
-			select {
-			case <-p.TraceWriter.In:
-				// we don't write these traces anywhere; drain the channel
-			case <-p.exit:
-				return
-			}
-		}
-	}()
 }
 
 // Ingest processes the given spans within the traceagent and outputs stats through the output channel

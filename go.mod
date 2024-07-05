@@ -42,6 +42,8 @@ replace (
 	github.com/DataDog/datadog-agent/comp/netflow/payload => ./comp/netflow/payload
 	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def => ./comp/otelcol/collector-contrib/def
 	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/impl => ./comp/otelcol/collector-contrib/impl
+	github.com/DataDog/datadog-agent/comp/otelcol/configstore/def => ./comp/otelcol/configstore/def
+	github.com/DataDog/datadog-agent/comp/otelcol/configstore/impl => ./comp/otelcol/configstore/impl
 	github.com/DataDog/datadog-agent/comp/otelcol/converter/def => ./comp/otelcol/converter/def
 	github.com/DataDog/datadog-agent/comp/otelcol/converter/impl => ./comp/otelcol/converter/impl
 	github.com/DataDog/datadog-agent/comp/otelcol/extension/def => ./comp/otelcol/extension/def
@@ -56,6 +58,9 @@ replace (
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil => ./comp/otelcol/otlp/testutil
 	github.com/DataDog/datadog-agent/comp/serializer/compression => ./comp/serializer/compression
 	github.com/DataDog/datadog-agent/comp/trace/agent/def => ./comp/trace/agent/def
+	github.com/DataDog/datadog-agent/comp/trace/compression/def => ./comp/trace/compression/def
+	github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip => ./comp/trace/compression/impl-gzip
+	github.com/DataDog/datadog-agent/comp/trace/compression/impl-zstd => ./comp/trace/compression/impl-zstd
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey => ./pkg/aggregator/ckey/
 	github.com/DataDog/datadog-agent/pkg/api => ./pkg/api
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ./pkg/collector/check/defaults
@@ -129,7 +134,7 @@ require (
 	code.cloudfoundry.org/garden v0.0.0-20210208153517-580cadd489d2
 	code.cloudfoundry.org/lager v2.0.0+incompatible
 	github.com/CycloneDX/cyclonedx-go v0.8.0
-	github.com/DataDog/appsec-internal-go v1.4.2
+	github.com/DataDog/appsec-internal-go v1.6.0
 	github.com/DataDog/datadog-agent/pkg/gohai v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.55.0-rc.3
@@ -240,7 +245,7 @@ require (
 	github.com/prometheus/client_golang v1.19.1
 	github.com/prometheus/client_model v0.6.1
 	github.com/prometheus/procfs v0.15.1
-	github.com/richardartoul/molecule v1.0.1-0.20221107223329-32cfee06a052 // indirect
+	github.com/richardartoul/molecule v1.0.1-0.20240531184615-7ca0df43c0b3 // indirect
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/samber/lo v1.39.0
 	github.com/samuel/go-zookeeper v0.0.0-20190923202752-2cc03de413da
@@ -301,7 +306,7 @@ require (
 	google.golang.org/grpc v1.64.0
 	google.golang.org/grpc/examples v0.0.0-20221020162917-9127159caf5a
 	google.golang.org/protobuf v1.34.2
-	gopkg.in/DataDog/dd-trace-go.v1 v1.61.0
+	gopkg.in/DataDog/dd-trace-go.v1 v1.65.1
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.1
 	gopkg.in/zorkian/go-datadog-api.v2 v2.30.0
@@ -444,7 +449,7 @@ require (
 	github.com/karrick/godirwalk v1.17.0 // indirect
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51 // indirect
 	github.com/kjk/lzma v0.0.0-20161016003348-3fd93898850d // indirect
-	github.com/klauspost/compress v1.17.8 // indirect
+	github.com/klauspost/compress v1.17.9 // indirect
 	github.com/klauspost/pgzip v1.2.5 // indirect
 	github.com/knadh/koanf v1.5.0 // indirect
 	github.com/knqyf263/go-apk-version v0.0.0-20200609155635-041fdbb8563f // indirect
@@ -517,9 +522,9 @@ require (
 	github.com/tklauser/numcpus v0.8.0 // indirect
 	github.com/tmthrgd/go-hex v0.0.0-20190904060850-447a3041c3bc // indirect
 	github.com/twitchtv/twirp v8.1.3+incompatible // indirect
-	github.com/twmb/franz-go v1.14.3
-	github.com/twmb/franz-go/pkg/kadm v1.9.0
-	github.com/twmb/franz-go/pkg/kmsg v1.6.1
+	github.com/twmb/franz-go v1.17.0
+	github.com/twmb/franz-go/pkg/kadm v1.12.0
+	github.com/twmb/franz-go/pkg/kmsg v1.8.0
 	github.com/ugorji/go/codec v1.2.11 // indirect
 	github.com/ulikunitz/xz v0.5.11 // indirect
 	github.com/vbatts/tar-split v0.11.5 // indirect
@@ -608,19 +613,24 @@ require (
 	github.com/DataDog/datadog-agent/comp/netflow/payload v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/impl v0.55.0-rc.3
+	github.com/DataDog/datadog-agent/comp/otelcol/configstore/def v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/comp/otelcol/configstore/impl v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/otelcol/converter/def v0.55.0-rc.1
 	github.com/DataDog/datadog-agent/comp/otelcol/converter/impl v0.0.0-20240618144845-a975ff101886
 	github.com/DataDog/datadog-agent/comp/otelcol/extension/def v0.0.0-20240612124811-03a2a2de1865
 	github.com/DataDog/datadog-agent/comp/otelcol/extension/impl v0.0.0-20240609183704-7277796a9179
 	github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/logsagentpipelineimpl v0.55.0-rc.3
-	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter v0.55.0-rc.3
+	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter v0.56.0-devel
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/comp/serializer/compression v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/comp/trace/agent/def v0.0.0-20240620192452-6ae09a69b21f
+	github.com/DataDog/datadog-agent/comp/trace/compression/def v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/comp/trace/compression/impl-zstd v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/api v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.55.0-rc.3
@@ -673,7 +683,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/uuid v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/version v0.55.0-rc.3
-	github.com/DataDog/go-libddwaf/v2 v2.3.1
+	github.com/DataDog/go-libddwaf/v3 v3.2.1
 	github.com/DataDog/go-sqllexer v0.0.12
 	github.com/Datadog/dublin-traceroute v0.0.1
 	github.com/aquasecurity/trivy v0.49.2-0.20240227072422-e1ea02c7b80d
@@ -717,6 +727,9 @@ require (
 	k8s.io/cli-runtime v0.29.0
 	k8s.io/kubectl v0.29.0
 )
+
+// NDM: Temporary fork until pro-bing merges the PR
+replace github.com/prometheus-community/pro-bing => github.com/ken-schneider/pro-bing v0.0.0-20240702202240-4cb73c5b2d22
 
 require (
 	bitbucket.org/atlassian/go-asap/v2 v2.8.0 // indirect
@@ -843,6 +856,7 @@ require (
 	github.com/eapache/go-resiliency v1.6.0 // indirect
 	github.com/eapache/go-xerial-snappy v0.0.0-20230731223053-c322873962e3 // indirect
 	github.com/eapache/queue v1.1.0 // indirect
+	github.com/eapache/queue/v2 v2.0.0-20230407133247-75960ed334e4 // indirect
 	github.com/ebitengine/purego v0.6.0-alpha.5 // indirect
 	github.com/elastic/elastic-transport-go/v8 v8.6.0 // indirect
 	github.com/elastic/go-docappender/v2 v2.1.4 // indirect
@@ -902,6 +916,8 @@ require (
 	github.com/hashicorp/go-getter v1.7.5 // indirect
 	github.com/hashicorp/go-retryablehttp v0.7.5 // indirect
 	github.com/hashicorp/go-safetemp v1.0.0 // indirect
+	github.com/hashicorp/go-secure-stdlib/parseutil v0.1.7 // indirect
+	github.com/hashicorp/go-secure-stdlib/strutil v0.1.2 // indirect
 	github.com/hashicorp/go-sockaddr v1.0.6 // indirect
 	github.com/hashicorp/go-uuid v1.0.3 // indirect
 	github.com/hashicorp/nomad/api v0.0.0-20240306004928-3e7191ccb702 // indirect
@@ -1201,6 +1217,7 @@ require (
 	github.com/relvacode/iso8601 v1.4.0 // indirect
 	github.com/rogpeppe/go-internal v1.12.0 // indirect
 	github.com/rs/zerolog v1.29.1 // indirect
+	github.com/ryanuber/go-glob v1.0.0 // indirect
 	github.com/sagikazarmark/locafero v0.4.0 // indirect
 	github.com/sagikazarmark/slog-shim v0.1.0 // indirect
 	github.com/saintfish/chardet v0.0.0-20120816061221-3af4cd4741ca // indirect
@@ -1310,8 +1327,8 @@ replace k8s.io/cri-api => k8s.io/cri-api v0.25.5
 // Use custom Trivy fork to reduce binary size
 // Pull in replacements needed by upstream Trivy
 replace (
-	// Maps to Trivy fork https://github.com/DataDog/trivy/commits/lebauce/use-fs-main-dd/
-	github.com/aquasecurity/trivy => github.com/DataDog/trivy v0.0.0-20240524155722-0c355f8e174c
+	// Maps to Trivy fork https://github.com/DataDog/trivy/commits/use-fs-main-dd/
+	github.com/aquasecurity/trivy => github.com/DataDog/trivy v0.0.0-20240701170153-3090480eda42
 	github.com/saracen/walker => github.com/DataDog/walker v0.0.0-20230418153152-7f29bb2dc950
 	// testcontainers-go has a bug with versions v0.25.0 and v0.26.0
 	// ref: https://github.com/testcontainers/testcontainers-go/issues/1782

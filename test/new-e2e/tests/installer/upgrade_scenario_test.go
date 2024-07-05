@@ -8,11 +8,11 @@ package installer
 import (
 	"encoding/json"
 	"fmt"
-	"regexp"
-	"strings"
+	"time"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/host"
 	e2eos "github.com/DataDog/test-infra-definitions/components/os"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -31,9 +31,14 @@ type catalog struct {
 }
 
 type packageStatus struct {
-	State             string `json:"state"`
-	StableVersion     string `json:"stable_version"`
-	ExperimentVersion string `json:"experiment_version"`
+	State             string `json:"State"`
+	StableVersion     string `json:"Stable"`
+	ExperimentVersion string `json:"Experiment"`
+}
+
+type installerStatus struct {
+	Version  string                   `json:"version"`
+	Packages map[string]packageStatus `json:"packages"`
 }
 
 var testCatalog = catalog{
@@ -43,20 +48,20 @@ var testCatalog = catalog{
 			Version: latestAgentImageVersion,
 			URL:     fmt.Sprintf("oci://gcr.io/datadoghq/agent-package:%s", latestAgentImageVersion),
 		},
+		{
+			Package: "datadog-agent",
+			Version: previousAgentImageVersion,
+			URL:     fmt.Sprintf("oci://gcr.io/datadoghq/agent-package:%s", previousAgentImageVersion),
+		},
 	},
 }
 
-// datadog-agent
-//
-//	State: OK
-//	Installed versions:
-//	  ● stable: v7.52.0-rc.1.git.15.6c19b17.pipeline.28815219-1
-//	  ● experiment: none
-var installerStatusRegex = regexp.MustCompile(`([a-zA-Z-]+)\n[ \t]+State:.([a-zA-Z-]+)\n[ \t]+Installed versions:\n[ \t]+..stable:.([a-zA-Z0-9-\.]+)\n[ \t]+..experiment:.([a-zA-Z0-9-\.]+)`)
-
 const (
-	latestAgentVersion      = "7.54.1"
-	latestAgentImageVersion = "7.54.1-1"
+	unknownAgentImageVersion  = "7.52.1-1"
+	previousAgentVersion      = "7.54.0"
+	previousAgentImageVersion = "7.54.0-1"
+	latestAgentVersion        = "7.54.1"
+	latestAgentImageVersion   = "7.54.1-1"
 )
 
 func testUpgradeScenario(os e2eos.Descriptor, arch e2eos.Architecture) packageSuite {
@@ -75,9 +80,207 @@ func (s *upgradeScenarioSuite) TestUpgradeSuccessful() {
 		"datadog-installer.service",
 	)
 
-	_, err := s.setCatalog(testCatalog)
+	s.setCatalog(testCatalog)
+
+	timestamp := s.host.LastJournaldTimestamp()
+	_, err := s.startExperimentCommand(latestAgentImageVersion)
+	require.NoError(s.T(), err)
+	s.assertSuccessfulStartExperiment(timestamp, latestAgentImageVersion)
+
+	timestamp = s.host.LastJournaldTimestamp()
+	_, err = s.promoteExperimentCommand()
+	require.NoError(s.T(), err)
+	s.assertSuccessfulPromoteExperiment(timestamp, latestAgentImageVersion)
+}
+
+func (s *upgradeScenarioSuite) TestUpgradeFromExistingExperiment() {
+	s.RunInstallScript("DD_REMOTE_UPDATES=true")
+	defer s.Purge()
+	s.host.WaitForUnitActive(
+		"datadog-agent.service",
+		"datadog-agent-trace.service",
+		"datadog-agent-process.service",
+		"datadog-installer.service",
+	)
+
+	s.host.WaitForFileExists(true, "/var/run/datadog-installer/installer.sock")
+
+	s.setCatalog(testCatalog)
+
+	// Start with 7.54.0
+	timestamp := s.host.LastJournaldTimestamp()
+	_, err := s.startExperimentCommand(previousAgentImageVersion)
+	require.NoError(s.T(), err)
+	s.assertSuccessfulStartExperiment(timestamp, previousAgentImageVersion)
+
+	// Host was left with a not-latest experiment, we're now testing
+	// that we can still upgrade
+	timestamp = s.host.LastJournaldTimestamp()
+	_, err = s.stopExperimentCommand()
+	require.NoError(s.T(), err)
+	s.assertSuccessfulStopExperiment(timestamp)
+
+	timestamp = s.host.LastJournaldTimestamp()
+	_, err = s.startExperimentCommand(latestAgentImageVersion)
+	require.NoError(s.T(), err)
+	s.assertSuccessfulStartExperiment(timestamp, latestAgentImageVersion)
+
+	timestamp = s.host.LastJournaldTimestamp()
+	_, err = s.promoteExperimentCommand()
+	require.NoError(s.T(), err)
+	s.assertSuccessfulPromoteExperiment(timestamp, latestAgentImageVersion)
+}
+
+func (s *upgradeScenarioSuite) TestBackendFailure() {
+	s.RunInstallScript("DD_REMOTE_UPDATES=true")
+	defer s.Purge()
+	s.host.WaitForUnitActive(
+		"datadog-agent.service",
+		"datadog-agent-trace.service",
+		"datadog-agent-process.service",
+		"datadog-installer.service",
+	)
+
+	s.setCatalog(testCatalog)
+
+	timestamp := s.host.LastJournaldTimestamp()
+	_, err := s.startExperimentCommand(latestAgentImageVersion)
+	require.NoError(s.T(), err)
+	s.assertSuccessfulStartExperiment(timestamp, latestAgentImageVersion)
+
+	// Receive a failure from the backend, stops the experiment
+	timestamp = s.host.LastJournaldTimestamp()
+	_, err = s.stopExperimentCommand()
+	require.NoError(s.T(), err)
+	s.assertSuccessfulStopExperiment(timestamp)
+}
+
+func (s *upgradeScenarioSuite) TestExperimentFailure() {
+	s.RunInstallScript("DD_REMOTE_UPDATES=true")
+	defer s.Purge()
+	s.host.WaitForUnitActive(
+		"datadog-agent.service",
+		"datadog-agent-trace.service",
+		"datadog-agent-process.service",
+		"datadog-installer.service",
+	)
+
+	s.setCatalog(testCatalog)
+
+	// Also tests if the version is not available in the catalog
+	_, err := s.startExperimentCommand(unknownAgentImageVersion)
+	require.Error(s.T(), err)
+
+	// Receive a failure from the experiment, stops the experiment
+	beforeStatus := s.getInstallerStatus()
+	_, err = s.stopExperimentCommand()
+	require.NoError(s.T(), err)
+	afterStatus := s.getInstallerStatus()
+
+	require.Equal(s.T(), beforeStatus.Packages["datadog-agent"], afterStatus.Packages["datadog-agent"])
+}
+
+func (s *upgradeScenarioSuite) TestExperimentCurrentVersion() {
+	s.RunInstallScript("DD_REMOTE_UPDATES=true")
+	defer s.Purge()
+	s.host.WaitForUnitActive(
+		"datadog-agent.service",
+		"datadog-agent-trace.service",
+		"datadog-agent-process.service",
+		"datadog-installer.service",
+	)
+
+	// Temporary catalog to wait for the installer to be ready
+	s.setCatalog(testCatalog)
+
+	currentVersion := s.getInstallerStatus().Packages["datadog-agent"].StableVersion
+	newCatalog := catalog{
+		Packages: []packageEntry{
+			{
+				Package: "datadog-agent",
+				Version: currentVersion,
+				URL:     fmt.Sprintf("oci://gcr.io/datadoghq/agent-package:%s", currentVersion),
+			},
+		},
+	}
+
+	s.setCatalog(newCatalog)
+	_, err := s.startExperimentCommand(currentVersion)
+	require.Error(s.T(), err)
+}
+
+func (s *upgradeScenarioSuite) TestStopWithoutExperiment() {
+	s.RunInstallScript("DD_REMOTE_UPDATES=true")
+	defer s.Purge()
+	s.host.WaitForUnitActive(
+		"datadog-agent.service",
+		"datadog-agent-trace.service",
+		"datadog-agent-process.service",
+		"datadog-installer.service",
+	)
+
+	s.setCatalog(testCatalog)
+
+	beforeStatus := s.getInstallerStatus()
+
+	_, err := s.stopExperimentCommand()
 	require.NoError(s.T(), err)
 
+	afterStatus := s.getInstallerStatus()
+	require.Equal(s.T(), beforeStatus.Packages["datadog-agent"], afterStatus.Packages["datadog-agent"])
+}
+
+func (s *upgradeScenarioSuite) TestDoubleExperiments() {
+	s.RunInstallScript("DD_REMOTE_UPDATES=true")
+	defer s.Purge()
+	s.host.WaitForUnitActive(
+		"datadog-agent.service",
+		"datadog-agent-trace.service",
+		"datadog-agent-process.service",
+		"datadog-installer.service",
+	)
+
+	s.setCatalog(testCatalog)
+
+	timestamp := s.host.LastJournaldTimestamp()
+	_, err := s.startExperimentCommand(latestAgentImageVersion)
+	require.NoError(s.T(), err)
+	s.assertSuccessfulStartExperiment(timestamp, latestAgentImageVersion)
+
+	// Start a second experiment that overrides the first one
+	_, err = s.startExperimentCommand(previousAgentImageVersion)
+	require.NoError(s.T(), err)
+	installerStatus := s.getInstallerStatus()
+	require.Equal(s.T(), previousAgentImageVersion, installerStatus.Packages["datadog-agent"].ExperimentVersion)
+
+	// Stop the last experiment
+	timestamp = s.host.LastJournaldTimestamp()
+	_, err = s.stopExperimentCommand()
+	require.NoError(s.T(), err)
+	s.assertSuccessfulStopExperiment(timestamp)
+}
+
+func (s *upgradeScenarioSuite) TestPromoteWithoutExperiment() {
+	s.RunInstallScript("DD_REMOTE_UPDATES=true")
+	defer s.Purge()
+	s.host.WaitForUnitActive(
+		"datadog-agent.service",
+		"datadog-agent-trace.service",
+		"datadog-agent-process.service",
+		"datadog-installer.service",
+	)
+
+	s.setCatalog(testCatalog)
+
+	beforeStatus := s.getInstallerStatus()
+	_, err := s.promoteExperimentCommand()
+	require.Error(s.T(), err)
+
+	afterStatus := s.getInstallerStatus()
+	require.Equal(s.T(), beforeStatus.Packages["datadog-agent"], afterStatus.Packages["datadog-agent"])
+	require.Equal(s.T(), beforeStatus.Version, afterStatus.Version)
+
+	// Try a golden path to make sure nothing is broken
 	timestamp := s.host.LastJournaldTimestamp()
 	_, err = s.startExperimentCommand(latestAgentImageVersion)
 	require.NoError(s.T(), err)
@@ -101,28 +304,31 @@ func (s *upgradeScenarioSuite) promoteExperimentCommand() (string, error) {
 	return s.Env().RemoteHost.Execute(cmd)
 }
 
-//lint:ignore U1000 Ignore unused function for now
 func (s *upgradeScenarioSuite) stopExperimentCommand() (string, error) {
 	cmd := "sudo datadog-installer daemon stop-experiment datadog-agent"
 	s.T().Logf("Running stop command: %s", cmd)
 	return s.Env().RemoteHost.Execute(cmd)
 }
 
-func (s *upgradeScenarioSuite) setCatalog(newCatalog catalog) (string, error) {
+func (s *upgradeScenarioSuite) setCatalog(newCatalog catalog) {
 	serializedCatalog, err := json.Marshal(newCatalog)
 	if err != nil {
 		s.T().Fatal(err)
 	}
 	s.T().Logf("Running: daemon set-catalog '%s'", string(serializedCatalog))
 
-	return s.Env().RemoteHost.Execute(fmt.Sprintf(
-		"sudo datadog-installer daemon set-catalog '%s'", serializedCatalog),
-	)
+	assert.Eventually(s.T(), func() bool {
+		_, err := s.Env().RemoteHost.Execute(fmt.Sprintf(
+			"sudo datadog-installer daemon set-catalog '%s'", serializedCatalog),
+		)
+
+		return err == nil
+	}, time.Second*30, time.Second*1)
 }
 
 func (s *upgradeScenarioSuite) assertSuccessfulStartExperiment(timestamp host.JournaldTimestamp, version string) {
 	s.host.WaitForUnitActivating(agentUnitXP)
-	s.host.WaitForFileExists("/opt/datadog-packages/datadog-agent/experiment/run/agent.pid")
+	s.host.WaitForFileExists(false, "/opt/datadog-packages/datadog-agent/experiment/run/agent.pid")
 
 	// Assert experiment is running
 	s.host.AssertSystemdEvents(timestamp, host.SystemdEvents().
@@ -139,7 +345,7 @@ func (s *upgradeScenarioSuite) assertSuccessfulStartExperiment(timestamp host.Jo
 	)
 
 	installerStatus := s.getInstallerStatus()
-	require.Equal(s.T(), version, installerStatus["datadog-agent"].ExperimentVersion)
+	require.Equal(s.T(), version, installerStatus.Packages["datadog-agent"].ExperimentVersion)
 }
 
 func (s *upgradeScenarioSuite) assertSuccessfulPromoteExperiment(timestamp host.JournaldTimestamp, version string) {
@@ -160,11 +366,10 @@ func (s *upgradeScenarioSuite) assertSuccessfulPromoteExperiment(timestamp host.
 	)
 
 	installerStatus := s.getInstallerStatus()
-	require.Equal(s.T(), version, installerStatus["datadog-agent"].StableVersion)
-	require.Equal(s.T(), "none", installerStatus["datadog-agent"].ExperimentVersion)
+	require.Equal(s.T(), version, installerStatus.Packages["datadog-agent"].StableVersion)
+	require.Equal(s.T(), "", installerStatus.Packages["datadog-agent"].ExperimentVersion)
 }
 
-//lint:ignore U1000 Ignore unused function for now
 func (s *upgradeScenarioSuite) assertSuccessfulStopExperiment(timestamp host.JournaldTimestamp) {
 	// Assert experiment is stopped
 	s.host.AssertSystemdEvents(timestamp, host.SystemdEvents().
@@ -181,29 +386,26 @@ func (s *upgradeScenarioSuite) assertSuccessfulStopExperiment(timestamp host.Jou
 	)
 
 	installerStatus := s.getInstallerStatus()
-	require.Equal(s.T(), "none", installerStatus["datadog-agent"].ExperimentVersion)
+	require.Equal(s.T(), "", installerStatus.Packages["datadog-agent"].ExperimentVersion)
 }
 
-func (s *upgradeScenarioSuite) getInstallerStatus() map[string]packageStatus {
-	// 	Datadog Installer v7.55.0-devel+git.1079.69749ed
-	// datadog-agent
-	//   State: OK
-	//   Installed versions:
-	//     ● stable: v7.52.0-rc.1.git.15.6c19b17.pipeline.28815219-1
-	//     ● experiment: none
-	resp := s.Env().RemoteHost.MustExecute("sudo datadog-installer status")
-	status := make(map[string]packageStatus)
+func (s *upgradeScenarioSuite) getInstallerStatus() installerStatus {
+	socketPath := "/var/run/datadog-installer/installer.sock"
 
-	statusResponse := installerStatusRegex.FindAllStringSubmatch(resp, -1)
-	for _, st := range statusResponse {
-		if len(st) != 5 {
-			s.T().Fatal("unexpected status response")
-		}
-		status[st[1]] = packageStatus{
-			State:             st[2],
-			StableVersion:     strings.TrimPrefix(st[3], "v"),
-			ExperimentVersion: strings.TrimPrefix(st[4], "v"),
-		}
+	requestHeader := " -H 'Content-Type: application/json' -H 'Accept: application/json' "
+	response := s.Env().RemoteHost.MustExecute(fmt.Sprintf(
+		"sudo curl -s --unix-socket %s %s http://daemon/status",
+		socketPath,
+		requestHeader,
+	))
+
+	// {"version":"7.56.0-devel+git.446.acf2836","packages":{
+	//     "datadog-agent":{"Stable":"7.56.0-devel.git.446.acf2836.pipeline.37567760-1","Experiment":"7.54.1-1"},
+	//     "datadog-installer":{"Stable":"7.56.0-devel.git.446.acf2836.pipeline.37567760-1","Experiment":""}}}
+	var status installerStatus
+	err := json.Unmarshal([]byte(response), &status)
+	if err != nil {
+		s.T().Fatal(err)
 	}
 
 	return status
