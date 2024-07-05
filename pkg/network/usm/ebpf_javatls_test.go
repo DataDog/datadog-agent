@@ -36,7 +36,7 @@ func TestJavaInjection(t *testing.T) {
 	t.Skip("JavaTLS tests are currently disabled")
 	cfg := networkconfig.New()
 	cfg.EnableJavaTLSSupport = true
-	if !http.TLSSupported(cfg) {
+	if !usmconfig.TLSSupported(cfg) {
 		t.Skip("Java injection tests are not supported on this machine")
 	}
 

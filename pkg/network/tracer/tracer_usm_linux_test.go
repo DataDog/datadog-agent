@@ -96,7 +96,7 @@ func httpsSupported() bool {
 	if isFentry() {
 		return false
 	}
-	return http.TLSSupported(testConfig())
+	return usmconfig.TLSSupported(testConfig())
 }
 
 func classificationSupported(config *config.Config) bool {
