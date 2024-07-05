@@ -1,6 +1,4 @@
 ---
 upgrade:
   - |
-    Disables default injection of the .NET profiler dependency when Kubernetes
-    auto_instrumentation is on. It is now dependent on the env `DD_PROFILING_ENABLED=1` being
-    set on the container spec of the pod being injected.
+    Disables default injection of the .NET profiler dependency for Kubernetes auto_instrumentation.
