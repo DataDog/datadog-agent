@@ -480,4 +480,3 @@ def gitlab_change_paths(ctx):
             f"{color_message('No files found for paths', Color.RED)}:\n{chr(10).join(' - ' + path for path in error_paths)}"
         )
     print(f"All rule:changes:paths from gitlab-ci are {color_message('valid', Color.GREEN)}.")
-
