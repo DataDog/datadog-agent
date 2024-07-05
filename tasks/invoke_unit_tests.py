@@ -18,7 +18,7 @@ TEST_ENV = {
 
 
 @task
-def invoke_unit_tests(ctx, tests: str = '', flags: str = '-b'):
+def run(ctx, tests: str = '', flags: str = '-b'):
     """
     Run the unit tests on the invoke tasks
     """
