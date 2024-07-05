@@ -217,7 +217,9 @@ new-e2e-agent-subcommands:
       - EXTRA_PARAMS: --run TestWindowsRunSuite
 
 new-e2e-windows-service-test:
-  extends: .new_e2e_template_needs_deb_windows_x64
+  extends: .new_e2e_template
+  needs:
+    - deploy_windows_testing-a7
   rules:
     - !reference [.on_windows_service_or_e2e_changes]
     - !reference [.manual]
