@@ -8,7 +8,6 @@
 package kubeapiserver
 
 import (
-	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -370,14 +369,14 @@ func Test_metadataCollectionGVRs_WithFunctionalDiscovery(t *testing.T) {
 
 			client := fakeclientset.NewSimpleClientset()
 			fakeDiscoveryClient, ok := client.Discovery().(*fakediscovery.FakeDiscovery)
-			assert.Truef(t, ok, "Failed to initialise fake discovery client")
+			assert.Truef(tt, ok, "Failed to initialise fake discovery client")
 
 			fakeDiscoveryClient.Resources = test.apiServerResourceList
 
 			discoveredGVRs, err := metadataCollectionGVRs(cfg, fakeDiscoveryClient)
-			require.NoErrorf(t, err, "Function should not have returned an error")
+			require.NoErrorf(tt, err, "Function should not have returned an error")
 
-			assert.Truef(t, reflect.DeepEqual(discoveredGVRs, test.expectedGVRs), "Expected %v but got %v.", test.expectedGVRs, discoveredGVRs)
+			assert.ElementsMatch(tt, test.expectedGVRs, discoveredGVRs)
 		})
 	}
 }
