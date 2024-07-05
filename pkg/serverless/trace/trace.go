@@ -264,10 +264,4 @@ func (t noopTraceAgent) Process(p *api.Payload)                {}
 func (t noopTraceAgent) SetTags(tags map[string]string)        {}
 func (t noopTraceAgent) SetTargetTPS(tps float64)              {}
 func (t noopTraceAgent) SetSpanModifier(sm agent.SpanModifier) {}
-func (t noopTraceAgent) GetSpanModifier() agent.SpanModifier {
-	return noopSpanModifier{}
-}
-
-type noopSpanModifier struct{}
-
-func (noopSpanModifier) ModifySpan(chunk *pb.TraceChunk, span *pb.Span) {}
+func (t noopTraceAgent) GetSpanModifier() agent.SpanModifier   { return nil }
