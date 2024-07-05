@@ -103,6 +103,7 @@ func StartServerlessTraceAgent(enabled bool, loadConfig Load, lambdaSpanChan cha
 		if confErr != nil {
 			log.Errorf("Unable to load trace agent config: %s", confErr)
 		} else {
+			context, cancel := context.WithCancel(context.Background())
 			tc.Hostname = ""
 			tc.SynchronousFlushing = true
 			var compressor compression.Component
@@ -111,19 +112,13 @@ func StartServerlessTraceAgent(enabled bool, loadConfig Load, lambdaSpanChan cha
 			} else {
 				compressor = gzip.NewComponent()
 			}
-			context, cancel := context.WithCancel(context.Background())
-			ta := agent.NewAgent(
-				context,
-				tc,
-				telemetry.NewNoopCollector(),
-				&statsd.NoOpClient{},
-				compressor,
-			)
+			ta := agent.NewAgent(context, tc, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, compressor)
 			ta.SpanModifier = &spanModifier{
 				coldStartSpanId: coldStartSpanId,
 				lambdaSpanChan:  lambdaSpanChan,
 				ddOrigin:        getDDOrigin(),
 			}
+
 			ta.DiscardSpan = filterSpanFromLambdaLibraryOrRuntime
 			go ta.Run()
 			return &serverlessTraceAgent{
