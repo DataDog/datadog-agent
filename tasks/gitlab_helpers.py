@@ -134,12 +134,12 @@ def print_job(ctx, ids, repo='DataDog/datadog-agent', jq: str | None = None, jq_
 
 
 @task
-def gen_config_subset(ctx, jobs, dry_run=False):
+def gen_config_subset(ctx, jobs, dry_run=False, force=False):
     """
     Will generate a full .gitlab-ci.yml containing only the jobs necessary to run the target jobs
     """
     # .gitlab-ci.yml should not be modified
-    if not dry_run and ctx.run('git status -s .gitlab-ci.yml', hide='stdout').stdout.strip():
+    if not force and not dry_run and ctx.run('git status -s .gitlab-ci.yml', hide='stdout').stdout.strip():
         raise Exit(color_message('The .gitlab-ci.yml file should not be modified as it will be overwritten', Color.RED))
 
     config = get_full_gitlab_ci_configuration(ctx, '.gitlab-ci.yml')
