@@ -117,7 +117,7 @@
 
 /.gitlab/dev_container_deploy/                       @DataDog/container-integrations @DataDog/agent-delivery
 /.gitlab/dev_container_deploy/fakeintake.yml         @DataDog/agent-devx-loops
-/.gitlab/dev_container_deploy/e2e.yml                @DataDog/agent-devx-loops @agent-e2e-testing
+/.gitlab/dev_container_deploy/e2e.yml                @DataDog/agent-devx-loops @DataDog/agent-e2e-testing
 /.gitlab/dev_container_deploy/docker_windows.yml     @DataDog/agent-delivery @DataDog/windows-agent
 
 /.gitlab/container_scan/container_scan.yml           @DataDog/container-integrations @DataDog/agent-delivery
