@@ -196,6 +196,7 @@ func (c *cgroupIDProvider) resolveContainerIDFromLocalDataList(localData string)
 		containerID := ""
 		containerIDFromInode := ""
 
+		// The list should always contain two items. With a malformed list, we will overwrite variables.
 		items := strings.Split(localData, ",")
 		for _, item := range items {
 			if strings.HasPrefix(item, containerIDPrefix) {
