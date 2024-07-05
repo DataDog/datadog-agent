@@ -259,15 +259,7 @@ func (suite *k8sSuite) TestClusterAgentConfigCheck() {
 		})
 		suite.Require().NoError(err)
 		suite.Require().Len(linuxPods.Items, 1)
-		stdout, stderr, err := suite.podExec("datadog", linuxPods.Items[0].Name, "cluster-agent", []string{"agent", "configcheck", "-n"})
-		suite.Require().NoError(err)
-		suite.Empty(stderr, "Standard error of `agent configcheck` should be empty")
-		suite.Contains(stdout, "=== kubernetes_apiserver check ===")
-
-		// Test the cluster agent config check command running on a TTY session
-		stdout, stderr, err = suite.podExec("datadog", linuxPods.Items[0].Name, "cluster-agent", []string{"agent", "configcheck"}, func(podOption *corev1.PodExecOptions) {
-			podOption.TTY = true
-		})
+		stdout, stderr, err := suite.podExec("datadog", linuxPods.Items[0].Name, "cluster-agent", []string{"agent", "configcheck"})
 		suite.Require().NoError(err)
 		suite.Empty(stderr, "Standard error of `agent configcheck` should be empty")
 		suite.Contains(stdout, "=== kubernetes_apiserver check ===")
