@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -156,5 +157,10 @@ func TestRenderIndexPage(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 	assert.Equal(t, "text/html; charset=utf-8", res.Header.Get("Content-Type"))
-	assert.Equal(t, expectedBody, string(bodyBytes))
+
+	// We replace windows line break by linux so the tests pass on every OS
+	expectedResult := strings.Replace(expectedBody, "\r\n", "\n", -1)
+	output := strings.Replace(string(bodyBytes), "\r\n", "\n", -1)
+
+	assert.Equal(t, expectedResult, output)
 }
