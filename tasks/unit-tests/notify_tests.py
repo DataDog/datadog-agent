@@ -37,7 +37,7 @@ class TestSendMessage(unittest.TestCase):
         repo_mock.jobs.get.return_value.trace.return_value = b"Log trace"
         list_mock = repo_mock.pipelines.get.return_value.jobs.list
         list_mock.side_effect = [get_fake_jobs(), []]
-        notify.send_message(MockContext(), notification_type="merge", print_to_stdout=True)
+        notify.send_message(MockContext(), notification_type="merge", dry_run=True)
         list_mock.assert_called()
 
     @patch("tasks.notify.get_failed_jobs")
@@ -100,7 +100,7 @@ class TestSendMessage(unittest.TestCase):
             )
         )
         get_failed_jobs_mock.return_value = failed
-        notify.send_message(MockContext(), notification_type="merge", print_to_stdout=True)
+        notify.send_message(MockContext(), notification_type="merge", dry_run=True)
 
         get_failed_jobs_mock.assert_called()
 
@@ -186,7 +186,7 @@ class TestSendMessage(unittest.TestCase):
         trace_mock.return_value = b"no basic auth credentials"
         list_mock.return_value = get_fake_jobs()
 
-        notify.send_message(MockContext(), notification_type="merge", print_to_stdout=True)
+        notify.send_message(MockContext(), notification_type="merge", dry_run=True)
 
         trace_mock.assert_called()
         list_mock.assert_called()
@@ -235,7 +235,7 @@ class TestSendStats(unittest.TestCase):
         attrs = {"jobs.list.return_value": get_fake_jobs(), "created_at": "2024-03-12T10:00:00.000Z"}
         pipeline_mock.return_value = MagicMock(**attrs)
 
-        notify.send_stats(MockContext(), print_to_stdout=True)
+        notify.send_stats(MockContext(), dry_run=True)
 
         trace_mock.assert_called()
         pipeline_mock.assert_called()
