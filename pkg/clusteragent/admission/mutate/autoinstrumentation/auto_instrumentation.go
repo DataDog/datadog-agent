@@ -927,12 +927,3 @@ func dotnetProfilingLdPreloadEnvValFunc(predefinedVal string) string {
 func rubyEnvValFunc(predefinedVal string) string {
 	return predefinedVal + rubyOptValue
 }
-
-func isTruthy(value string) bool {
-	switch value {
-	case "1", "TRUE", "true":
-		return true
-	default:
-		return false
-	}
-}
