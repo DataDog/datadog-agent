@@ -21,7 +21,6 @@ type Metadata struct {
 	Name              string    `json:"name"`
 	ProtobufVersion   string    `json:"protobuf_version"`
 	DifferentiateArgs bool      `json:"differentiate_args"`
-	Comm              string    `json:"comm,omitempty"`
 	ContainerID       string    `json:"-"`
 	Start             time.Time `json:"start"`
 	End               time.Time `json:"end"`

@@ -1471,6 +1471,10 @@
         "dirfd": {
           "type": "integer",
           "description": "Directory file descriptor argument"
+        },
+        "destination_path": {
+          "type": "string",
+          "description": "Destination path argument"
         }
       },
       "additionalProperties": false,
@@ -1495,6 +1499,12 @@
           "$ref": "#/$defs/SyscallArgs"
         },
         "unlink": {
+          "$ref": "#/$defs/SyscallArgs"
+        },
+        "link": {
+          "$ref": "#/$defs/SyscallArgs"
+        },
+        "utimes": {
           "$ref": "#/$defs/SyscallArgs"
         }
       },

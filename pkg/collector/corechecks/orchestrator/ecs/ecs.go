@@ -134,7 +134,7 @@ func (c *Check) Run() error {
 		}
 		result, err := collector.Run(runConfig)
 		if err != nil {
-			_ = c.Warnf("K8sCollector %s failed to run: %s", collector.Metadata().FullName(), err.Error())
+			_ = c.Warnf("ECSCollector %s failed to run: %s", collector.Metadata().FullName(), err.Error())
 			continue
 		}
 		runDuration := time.Since(runStartTime)

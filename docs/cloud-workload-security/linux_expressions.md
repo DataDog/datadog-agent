@@ -738,6 +738,8 @@ Create a new name/alias for a file
 | [`link.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`link.file.user`](#common-filefields-user-doc) | User of the file's owner |
 | [`link.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
+| [`link.syscall.destination.path`](#link-syscall-destination-path-doc) | Destination path argument of the syscall |
+| [`link.syscall.path`](#link-syscall-path-doc) | Path argument of the syscall |
 
 ### Event `load_module`
 
@@ -1629,6 +1631,7 @@ Change file access/modification times
 | [`utimes.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`utimes.file.user`](#common-filefields-user-doc) | User of the file's owner |
 | [`utimes.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
+| [`utimes.syscall.path`](#utimes-syscall-path-doc) | Path argument of the syscall |
 
 
 ## Attributes documentation
@@ -2635,6 +2638,20 @@ Definition: the user agent of the HTTP client
 
 
 
+### `link.syscall.destination.path` {#link-syscall-destination-path-doc}
+Type: string
+
+Definition: Destination path argument of the syscall
+
+
+
+### `link.syscall.path` {#link-syscall-path-doc}
+Type: string
+
+Definition: Path argument of the syscall
+
+
+
 ### `load_module.args` {#load_module-args-doc}
 Type: string
 
@@ -3034,6 +3051,13 @@ Definition: Path argument of the syscall
 Type: string
 
 Definition: Name of the kernel module that was deleted
+
+
+
+### `utimes.syscall.path` {#utimes-syscall-path-doc}
+Type: string
+
+Definition: Path argument of the syscall
 
 
 

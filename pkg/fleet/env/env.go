@@ -9,6 +9,7 @@ package env
 import (
 	"fmt"
 	"os"
+	"regexp"
 	"slices"
 	"strings"
 
@@ -51,13 +52,19 @@ type ApmLibLanguage string
 // ApmLibVersion is the version of the library defined in DD_APM_INSTRUMENTATION_LIBRARIES env var
 type ApmLibVersion string
 
+var fullSemverRe = regexp.MustCompile(`^[0-9]+\.[0-9]+\.[0-9]+$`)
+
 // AsVersionTag returns the version tag associated with the version of the library defined in DD_APM_INSTRUMENTATION_LIBRARIES
 // if the value is empty we return latest
 func (v ApmLibVersion) AsVersionTag() string {
 	if v == "" {
 		return "latest"
 	}
-	return string(v) + "-1"
+	versionTag, _ := strings.CutPrefix(string(v), "v")
+	if fullSemverRe.MatchString(versionTag) {
+		return versionTag + "-1"
+	}
+	return versionTag
 }
 
 // Env contains the configuration for the installer.
@@ -154,7 +161,9 @@ func parseApmLibrariesEnv() map[ApmLibLanguage]ApmLibVersion {
 	if apmLibraries == "" {
 		return apmLibrariesVersion
 	}
-	for _, library := range strings.Split(apmLibraries, ",") {
+	for _, library := range strings.FieldsFunc(apmLibraries, func(r rune) bool {
+		return r == ',' || r == ' '
+	}) {
 		libraryName, libraryVersion, _ := strings.Cut(library, ":")
 		apmLibrariesVersion[ApmLibLanguage(libraryName)] = ApmLibVersion(libraryVersion)
 	}

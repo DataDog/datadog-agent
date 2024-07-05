@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import platform
+import re
 import subprocess
 import sys
 from collections import UserList
@@ -108,6 +109,11 @@ class ReferenceTag(yaml.YAMLObject):
 # Update loader/dumper to handle !reference tag
 yaml.SafeLoader.add_constructor(ReferenceTag.yaml_tag, ReferenceTag.from_yaml)
 yaml.SafeDumper.add_representer(UserList, ReferenceTag.to_yaml)
+
+# HACK: The following line is a workaround to prevent yaml dumper from removing quote around comma separated numbers, otherwise Gitlab Lint API will remove the commas
+yaml.SafeDumper.add_implicit_resolver(
+    'tag:yaml.org,2002:int', re.compile(r'''^([0-9]+(,[0-9]*)*)$'''), list('0213456789')
+)
 
 
 def clean_gitlab_ci_configuration(yml):
