@@ -22,7 +22,7 @@ class TestFailureSummary(TestCase):
         super().__init__(methodName)
 
         self.github_slack_map = load_and_validate(
-            "tasks/unit-tests/testdata/github_slack_map.yaml",
+            "tasks/unit_tests/testdata/github_slack_map.yaml",
             "DEFAULT_SLACK_CHANNEL",
             ALL_TEAMS_CHANNEL,
             relpath=False,
@@ -140,7 +140,7 @@ class TestSummaryStats(TestFailureSummary):
         )
 
         stats = SummaryStats(data, allow_failure=False)
-        results = stats.make_stats(max_length=1000, jobowners='tasks/unit-tests/testdata/jobowners.txt')
+        results = stats.make_stats(max_length=1000, jobowners='tasks/unit_tests/testdata/jobowners.txt')
         results = {channel: sorted(result, key=lambda d: d['name']) for channel, result in results.items()}
         result = results[ALL_TEAMS_CHANNEL]
 
@@ -164,7 +164,7 @@ class TestSummaryStats(TestFailureSummary):
         )
 
         stats = SummaryStats(data, allow_failure=False)
-        results = stats.make_stats(max_length=1000, jobowners='tasks/unit-tests/testdata/jobowners.txt')
+        results = stats.make_stats(max_length=1000, jobowners='tasks/unit_tests/testdata/jobowners.txt')
         results = {channel: sorted(result, key=lambda d: d['name']) for channel, result in results.items()}
         result = results[ALL_TEAMS_CHANNEL]
 
@@ -173,7 +173,7 @@ class TestSummaryStats(TestFailureSummary):
         self.assertEqual(result[1], {'name': 'job2', 'failures': 1, 'runs': 2})
 
         stats = SummaryStats(data, allow_failure=True)
-        results = stats.make_stats(max_length=1000, jobowners='tasks/unit-tests/testdata/jobowners.txt')
+        results = stats.make_stats(max_length=1000, jobowners='tasks/unit_tests/testdata/jobowners.txt')
         results = {channel: sorted(result, key=lambda d: d['name']) for channel, result in results.items()}
         result = results[ALL_TEAMS_CHANNEL]
 
@@ -191,7 +191,7 @@ class TestSummaryStats(TestFailureSummary):
         )
 
         stats = SummaryStats(data, allow_failure=False)
-        results = stats.make_stats(max_length=1000, jobowners='tasks/unit-tests/testdata/jobowners.txt')
+        results = stats.make_stats(max_length=1000, jobowners='tasks/unit_tests/testdata/jobowners.txt')
         results = {channel: sorted(result, key=lambda d: d['name']) for channel, result in results.items()}
 
         self.assertSetEqual(
@@ -300,7 +300,7 @@ class TestModule(TestFailureSummary):
             failure_summary.send_summary_messages(
                 MockContext(),
                 allow_failure=False,
-                jobowners="tasks/unit-tests/testdata/jobowners.txt",
+                jobowners="tasks/unit_tests/testdata/jobowners.txt",
                 max_length=1000,
                 period=timedelta(weeks=10),
             )

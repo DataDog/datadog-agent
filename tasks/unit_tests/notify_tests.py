@@ -15,7 +15,7 @@ from tasks.libs.types.types import FailedJobReason, FailedJobs, FailedJobType
 
 
 def get_fake_jobs() -> list[ProjectJob]:
-    with open("tasks/unit-tests/testdata/jobs.json") as f:
+    with open("tasks/unit_tests/testdata/jobs.json") as f:
         jobs = json.load(f)
 
     return [ProjectJob(MagicMock(), attrs=job) for job in jobs]
@@ -23,7 +23,7 @@ def get_fake_jobs() -> list[ProjectJob]:
 
 def get_github_slack_map():
     return load_and_validate(
-        "tasks/unit-tests/testdata/github_slack_map.yaml",
+        "tasks/unit_tests/testdata/github_slack_map.yaml",
         "DEFAULT_SLACK_CHANNEL",
         '#channel-everything',
         relpath=False,
@@ -255,7 +255,7 @@ class TestJobOwners(unittest.TestCase):
             'hello_world',
         ]
 
-        partition = make_partition(jobs, "tasks/unit-tests/testdata/jobowners.txt")
+        partition = make_partition(jobs, "tasks/unit_tests/testdata/jobowners.txt")
         partition = sorted(partition.items())
 
         self.assertEqual(

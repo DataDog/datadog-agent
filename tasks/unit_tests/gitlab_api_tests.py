@@ -12,12 +12,12 @@ from tasks.libs.ciproviders.gitlab_api import (
 class TestReadIncludes(unittest.TestCase):
     def test_with_includes(self):
         includes = []
-        read_includes(MockContext(), "tasks/unit-tests/testdata/in.yml", includes)
+        read_includes(MockContext(), "tasks/unit_tests/testdata/in.yml", includes)
         self.assertEqual(len(includes), 4)
 
     def test_without_includes(self):
         includes = []
-        read_includes(MockContext(), "tasks/unit-tests/testdata/b.yml", includes)
+        read_includes(MockContext(), "tasks/unit_tests/testdata/b.yml", includes)
         self.assertEqual(len(includes), 1)
 
 

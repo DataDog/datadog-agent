@@ -19,7 +19,7 @@ from ...notify_tests import get_fake_jobs, get_github_slack_map
 
 
 @contextmanager
-def test_job_executions(path="tasks/unit-tests/testdata/job_executions.json"):
+def test_job_executions(path="tasks/unit_tests/testdata/job_executions.json"):
     """
     Make a job_executions.json file for testing purposes and clean it up after the test
     """
@@ -70,7 +70,7 @@ class TestAlertsRetrieveJobExecutionsCreated(unittest.TestCase):
 
 
 class TestAlertsRetrieveJobExecutions(unittest.TestCase):
-    test_json = "tasks/unit-tests/testdata/job_executions.json"
+    test_json = "tasks/unit_tests/testdata/job_executions.json"
 
     def test_not_found(self):
         ctx = MagicMock()
@@ -219,7 +219,7 @@ class TestAlertsSendNotification(unittest.TestCase):
         }
 
         alert_jobs = {"consecutive": consecutive, "cumulative": cumulative}
-        alerts.send_notification(MagicMock(), alert_jobs, jobowners='tasks/unit-tests/testdata/jobowners.txt')
+        alerts.send_notification(MagicMock(), alert_jobs, jobowners='tasks/unit_tests/testdata/jobowners.txt')
         self.assertEqual(len(mock_slack.call_args_list), 4)
 
         # Verify that we send the right number of jobs per channel
