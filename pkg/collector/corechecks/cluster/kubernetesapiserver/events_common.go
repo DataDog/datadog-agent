@@ -17,7 +17,7 @@ import (
 	"github.com/patrickmn/go-cache"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/kubetags"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
@@ -164,7 +164,7 @@ func getHostProviderID(nodename string) string {
 // object kinds are supported by the tagger. It returns an empty string if the
 // kind doesn't correspond to a known/supported kind tag.
 func getKindTag(kind, name string) string {
-	tagName, err := tags.GetTagForKind(kind)
+	tagName, err := kubetags.GetTagForKubernetesKind(kind)
 	if err != nil {
 		return ""
 	}
