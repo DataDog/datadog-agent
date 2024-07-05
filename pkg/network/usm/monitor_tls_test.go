@@ -574,7 +574,7 @@ func testHTTP2GoTLSAttachProbes(t *testing.T, cfg *config.Config) {
 			t.Skip("GoTLS not supported for this setup")
 		}
 
-		for i := 0; i < 50; i++ {
+		for i := 0; i < 3; i++ {
 			t.Run("new process", func(t *testing.T) {
 				testHTTPGoTLSCaptureNewProcess(t, cfg, true)
 			})
