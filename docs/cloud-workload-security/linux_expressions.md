@@ -847,6 +847,9 @@ A filesystem was mounted
 | [`mount.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
 | [`mount.root.path`](#mount-root-path-doc) | Root path of the mount |
 | [`mount.source.path`](#mount-source-path-doc) | Source path of a bind mount |
+| [`mount.syscall.fs_type`](#mount-syscall-fs_type-doc) | File system type argument of the syscall |
+| [`mount.syscall.mountpoint.path`](#mount-syscall-mountpoint-path-doc) | Mount point path argument of the syscall |
+| [`mount.syscall.source.path`](#mount-syscall-source-path-doc) | Source path argument of the syscall |
 
 ### Event `mprotect`
 
@@ -2754,6 +2757,27 @@ Definition: Root path of the mount
 Type: string
 
 Definition: Source path of a bind mount
+
+
+
+### `mount.syscall.fs_type` {#mount-syscall-fs_type-doc}
+Type: string
+
+Definition: File system type argument of the syscall
+
+
+
+### `mount.syscall.mountpoint.path` {#mount-syscall-mountpoint-path-doc}
+Type: string
+
+Definition: Mount point path argument of the syscall
+
+
+
+### `mount.syscall.source.path` {#mount-syscall-source-path-doc}
+Type: string
+
+Definition: Source path argument of the syscall
 
 
 

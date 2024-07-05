@@ -4130,6 +4130,78 @@ func (ev *Event) GetMountSourcePath() string {
 	return ev.FieldHandlers.ResolveMountSourcePath(ev, &ev.Mount)
 }
 
+// GetMountSyscallFsType returns the value of the field, resolving if necessary
+func (ev *Event) GetMountSyscallFsType() string {
+	if ev.GetEventType().String() != "mount" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsStr3(ev, &ev.Mount.SyscallContext)
+}
+
+// GetMountSyscallInt1 returns the value of the field, resolving if necessary
+func (ev *Event) GetMountSyscallInt1() int {
+	if ev.GetEventType().String() != "mount" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsInt1(ev, &ev.Mount.SyscallContext)
+}
+
+// GetMountSyscallInt2 returns the value of the field, resolving if necessary
+func (ev *Event) GetMountSyscallInt2() int {
+	if ev.GetEventType().String() != "mount" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsInt2(ev, &ev.Mount.SyscallContext)
+}
+
+// GetMountSyscallInt3 returns the value of the field, resolving if necessary
+func (ev *Event) GetMountSyscallInt3() int {
+	if ev.GetEventType().String() != "mount" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsInt3(ev, &ev.Mount.SyscallContext)
+}
+
+// GetMountSyscallMountpointPath returns the value of the field, resolving if necessary
+func (ev *Event) GetMountSyscallMountpointPath() string {
+	if ev.GetEventType().String() != "mount" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsStr2(ev, &ev.Mount.SyscallContext)
+}
+
+// GetMountSyscallSourcePath returns the value of the field, resolving if necessary
+func (ev *Event) GetMountSyscallSourcePath() string {
+	if ev.GetEventType().String() != "mount" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Mount.SyscallContext)
+}
+
+// GetMountSyscallStr1 returns the value of the field, resolving if necessary
+func (ev *Event) GetMountSyscallStr1() string {
+	if ev.GetEventType().String() != "mount" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Mount.SyscallContext)
+}
+
+// GetMountSyscallStr2 returns the value of the field, resolving if necessary
+func (ev *Event) GetMountSyscallStr2() string {
+	if ev.GetEventType().String() != "mount" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsStr2(ev, &ev.Mount.SyscallContext)
+}
+
+// GetMountSyscallStr3 returns the value of the field, resolving if necessary
+func (ev *Event) GetMountSyscallStr3() string {
+	if ev.GetEventType().String() != "mount" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsStr3(ev, &ev.Mount.SyscallContext)
+}
+
 // GetMprotectReqProtection returns the value of the field, resolving if necessary
 func (ev *Event) GetMprotectReqProtection() int {
 	if ev.GetEventType().String() != "mprotect" {
