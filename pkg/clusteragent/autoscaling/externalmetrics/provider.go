@@ -43,7 +43,8 @@ type datadogMetricProvider struct {
 }
 
 var (
-	metricsMaxAge int64
+	metricsMaxAge              int64
+	metricsQueryValidityPeriod int64
 )
 
 // NewDatadogMetricProvider configures and returns a new datadogMetricProvider
@@ -63,6 +64,7 @@ func NewDatadogMetricProvider(ctx context.Context, apiCl *apiserver.APIClient) (
 
 	refreshPeriod := config.Datadog().GetInt64("external_metrics_provider.refresh_period")
 	metricsMaxAge = int64(math.Max(config.Datadog().GetFloat64("external_metrics_provider.max_age"), float64(3*rollup)))
+	metricsQueryValidityPeriod = int64(config.Datadog().GetFloat64("external_metrics_provider.query_validity_period"))
 	splitBatchBackoffOnErrors := config.Datadog().GetBool("external_metrics_provider.split_batches_with_backoff")
 	autogenNamespace := common.GetResourcesNamespace()
 	autogenEnabled := config.Datadog().GetBool("external_metrics_provider.enable_datadogmetric_autogen")
@@ -162,7 +164,7 @@ func (p *datadogMetricProvider) getExternalMetric(namespace string, metricSelect
 		return nil, log.Warnf("DatadogMetric not found for metric name: %s, datadogmetricid: %s", info.Metric, datadogMetricID)
 	}
 
-	externalMetric, err := datadogMetric.ToExternalMetricFormat(info.Metric, metricsMaxAge, time)
+	externalMetric, err := datadogMetric.ToExternalMetricFormat(info.Metric, metricsMaxAge, time, metricsQueryValidityPeriod)
 	if err != nil {
 		return nil, err
 	}

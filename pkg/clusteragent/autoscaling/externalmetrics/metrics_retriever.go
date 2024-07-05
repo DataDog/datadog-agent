@@ -154,7 +154,7 @@ func (mr *MetricsRetriever) retrieveMetricsValuesSlice(datadogMetrics []model.Da
 				datadogMetricFromStore.Value = queryResult.Value
 				datadogMetricFromStore.DataTime = time.Unix(queryResult.Timestamp, 0).UTC()
 
-				if !datadogMetricFromStore.IsStale(mr.metricsMaxAge, currentTime.Unix()) {
+				if !datadogMetricFromStore.IsStale(mr.metricsMaxAge, currentTime.Unix(), 0) {
 					datadogMetricFromStore.Valid = true
 					datadogMetricFromStore.Error = nil
 				} else {

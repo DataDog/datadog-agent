@@ -10,5 +10,6 @@ fixes:
   - |
     Fixes issue where the external metrics server would sometimes return metrics which had not
     been updated for longer than the configured `external_metrics_provider.max_age` as valid.
-    In connection with this fix, the default value of `external_metrics_provider.max_age` has been
-    changed from 120 seconds to 150 seconds.
+    In connection with this fix, a new config (`external_metrics_provider.query_validity_period`)
+    has been added to account for the delay between when metrics are resolved and when they
+    are queried by the various autoscaling controllers. It is set to 30 seconds by default.

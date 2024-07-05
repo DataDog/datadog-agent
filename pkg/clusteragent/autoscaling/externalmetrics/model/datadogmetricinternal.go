@@ -209,10 +209,14 @@ func (d *DatadogMetricInternal) HasBeenUpdatedFor(duration time.Duration) bool {
 }
 
 // IsStale returns true if the current `DatadogMetricInternal` has not been update between Now() and Now() - duration
-func (d *DatadogMetricInternal) IsStale(metricsMaxAge, currentTime int64) bool {
+func (d *DatadogMetricInternal) IsStale(metricsMaxAge, currentTime, gracePeriod int64) bool {
 	maxAge := d.MaxAge
 	if maxAge == 0 {
 		maxAge = time.Duration(metricsMaxAge) * time.Second
+	}
+
+	if gracePeriod > 0 {
+		maxAge += time.Duration(gracePeriod) * time.Second
 	}
 
 	return time.Duration(currentTime-d.DataTime.Unix())*time.Second > maxAge
@@ -259,12 +263,12 @@ func (d *DatadogMetricInternal) BuildStatus(currentStatus *datadoghq.DatadogMetr
 }
 
 // ToExternalMetricFormat returns the current DatadogMetric in the format used by Kubernetes
-func (d *DatadogMetricInternal) ToExternalMetricFormat(externalMetricName string, metricsMaxAge int64, time time.Time) (*external_metrics.ExternalMetricValue, error) {
+func (d *DatadogMetricInternal) ToExternalMetricFormat(externalMetricName string, metricsMaxAge int64, time time.Time, gracePeriod int64) (*external_metrics.ExternalMetricValue, error) {
 	if !d.Valid {
 		return nil, fmt.Errorf("DatadogMetric is invalid, err: %v", d.Error)
 	}
 
-	if d.IsStale(metricsMaxAge, time.UTC().Unix()) {
+	if d.IsStale(metricsMaxAge, time.UTC().Unix(), gracePeriod) {
 		return nil, fmt.Errorf("DatadogMetric is stale, last updated: %v. Check datadog-cluster-agent logs for errors", d.DataTime)
 	}
 
