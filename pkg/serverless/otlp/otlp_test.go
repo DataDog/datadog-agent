@@ -40,6 +40,13 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
+type mockSpanModifier func(*pb.TraceChunk, *pb.Span)
+
+func (m mockSpanModifier) ModifySpan(tc *pb.TraceChunk, s *pb.Span) {
+	m(tc, s)
+}
+func (m mockSpanModifier) SetTags(map[string]string) {}
+
 func TestServerlessOTLPAgentReceivesTraces(t *testing.T) {
 	assert := assert.New(t)
 
@@ -62,10 +69,10 @@ func TestServerlessOTLPAgentReceivesTraces(t *testing.T) {
 	defer traceAgent.Stop()
 	assert.NotNil(traceAgent.Get())
 	traceChan := make(chan struct{})
-	traceAgent.SetSpanModifier(func(*pb.TraceChunk, *pb.Span) {
+	traceAgent.Get().SetSpanModifier(mockSpanModifier(func(*pb.TraceChunk, *pb.Span) {
 		// indicates when trace is received
 		traceChan <- struct{}{}
-	})
+	}))
 
 	// setup metric agent
 	metricAgent := &metrics.ServerlessMetricAgent{
