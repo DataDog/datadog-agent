@@ -1,4 +1,5 @@
-# Job that deploys agent images on agent-qa ECR, to be used by e2e tests
+# Jobs that deploy agent images on agent-qa ECR, to be used by e2e tests
+
 qa_agent:
   extends: .docker_publish_job_definition
   stage: dev_container_deploy
