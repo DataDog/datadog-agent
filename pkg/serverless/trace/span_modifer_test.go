@@ -120,10 +120,7 @@ func TestSpanModifierAddsOriginToAllSpans(t *testing.T) {
 	testOriginTags := func(withModifier bool) {
 		agnt := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
 		if withModifier {
-			agnt.SpanModifier = &spanModifier{
-				tags:     cfg.GlobalTags,
-				ddOrigin: getDDOrigin(),
-			}
+			agnt.SpanModifier = &spanModifier{tags: cfg.GlobalTags, ddOrigin: getDDOrigin()}
 		}
 		agnt.TraceWriter = &mockTraceWriter{}
 		tc := testutil.RandomTraceChunk(2, 1)
@@ -169,9 +166,7 @@ func TestSpanModifierDetectsCloudService(t *testing.T) {
 	testOriginTags := func(withModifier bool, expectedOrigin string) {
 		agnt := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
 		if withModifier {
-			agnt.SpanModifier = &spanModifier{
-				ddOrigin: getDDOrigin(),
-			}
+			agnt.SpanModifier = &spanModifier{ddOrigin: getDDOrigin()}
 		}
 		agnt.TraceWriter = &mockTraceWriter{}
 		tc := testutil.RandomTraceChunk(2, 1)
