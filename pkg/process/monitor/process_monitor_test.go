@@ -121,62 +121,37 @@ func TestProcessMonitor(t *testing.T) {
 	})
 }
 
-func (s *processMonitorSuite) TestProcessRegisterMultipleExecCallbacks() {
+func (s *processMonitorSuite) TestProcessRegisterMultipleCallbacks() {
 	t := s.T()
 	pm := getProcessMonitor(t)
 
 	const iterations = 10
-	counters := make([]*atomic.Int32, iterations)
+	execCounters := make([]map[uint32]struct{}, iterations)
+	exitCounters := make([]map[uint32]struct{}, iterations)
 	for i := 0; i < iterations; i++ {
-		counters[i] = &atomic.Int32{}
-		c := counters[i]
-		callback := func(pid uint32) { c.Inc() }
-		registerCallback(t, pm, true, (*ProcessCallback)(&callback))
-	}
-
-	initializePM(t, pm, s.useEventStream)
-	require.NoError(t, exec.Command("/bin/echo").Run())
-	require.Eventuallyf(t, func() bool {
-		for i := 0; i < iterations; i++ {
-			if counters[i].Load() <= int32(0) {
-				t.Logf("iter %d didn't capture event", i)
-				return false
-			}
-		}
-		return true
-	}, time.Second, time.Millisecond*200, "at least of the callbacks didn't capture events")
-}
-
-func (s *processMonitorSuite) TestProcessRegisterMultipleExitCallbacks() {
-	t := s.T()
-	pm := getProcessMonitor(t)
-
-	const iterations = 10
-	counters := make([]*atomic.Int32, iterations)
-	exitCounters := make([]*atomic.Int32, iterations)
-	for i := 0; i < iterations; i++ {
-		counters[i] = &atomic.Int32{}
-		c := counters[i]
+		execCounters[i] = make(map[uint32]struct{})
+		c := execCounters[i]
 		// Sanity subscribing a callback.
-		callback := func(pid uint32) { c.Inc() }
+		callback := func(pid uint32) { c[pid] = struct{}{} }
 		registerCallback(t, pm, true, (*ProcessCallback)(&callback))
 
-		exitCounters[i] = &atomic.Int32{}
+		exitCounters[i] = make(map[uint32]struct{})
 		exitc := exitCounters[i]
 		// Sanity subscribing a callback.
-		exitCallback := func(pid uint32) { exitc.Inc() }
+		exitCallback := func(pid uint32) { exitc[pid] = struct{}{} }
 		registerCallback(t, pm, false, (*ProcessCallback)(&exitCallback))
 	}
 
 	initializePM(t, pm, s.useEventStream)
-	require.NoError(t, exec.Command("/bin/echo").Run())
+	cmd := exec.Command("/bin/sleep", "1")
+	require.NoError(t, cmd.Run())
 	require.Eventuallyf(t, func() bool {
 		for i := 0; i < iterations; i++ {
-			if counters[i].Load() <= int32(0) {
+			if _, captured := execCounters[i][uint32(cmd.Process.Pid)]; !captured {
 				t.Logf("iter %d didn't capture exec event", i)
 				return false
 			}
-			if exitCounters[i].Load() <= int32(0) {
+			if _, captured := exitCounters[i][uint32(cmd.Process.Pid)]; !captured {
 				t.Logf("iter %d didn't capture exit event", i)
 				return false
 			}
