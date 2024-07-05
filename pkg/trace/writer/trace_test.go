@@ -6,17 +6,13 @@
 package writer
 
 import (
-	"fmt"
+	"compress/gzip"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"runtime"
 	"sync"
 	"testing"
-
-	compression "github.com/DataDog/datadog-agent/comp/trace/compression/def"
-	gzip "github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip"
-	zstd "github.com/DataDog/datadog-agent/comp/trace/compression/impl-zstd"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -48,45 +44,36 @@ func (s MockSampler) GetTargetTPS() float64 {
 var mockSampler = MockSampler{TargetTPS: 5, Enabled: true}
 
 func TestTraceWriter(t *testing.T) {
-	testCases := []struct {
-		compressor compression.Component
-	}{
-		{gzip.NewComponent()},
-		{zstd.NewComponent()},
+	srv := newTestServer()
+	cfg := &config.AgentConfig{
+		Hostname:   testHostname,
+		DefaultEnv: testEnv,
+		Endpoints: []*config.Endpoint{{
+			APIKey: "123",
+			Host:   srv.URL,
+		}},
+		TraceWriter: &config.WriterConfig{ConnectionLimit: 200, QueueSize: 40},
 	}
 
-	for _, tc := range testCases {
-		srv := newTestServer()
-		cfg := &config.AgentConfig{
-			Hostname:   testHostname,
-			DefaultEnv: testEnv,
-			Endpoints: []*config.Endpoint{{
-				APIKey: "123",
-				Host:   srv.URL,
-			}},
-			TraceWriter: &config.WriterConfig{ConnectionLimit: 200, QueueSize: 40},
+	t.Run("ok", func(t *testing.T) {
+		testSpans := []*SampledChunks{
+			randomSampledSpans(20, 8),
+			randomSampledSpans(10, 0),
+			randomSampledSpans(40, 5),
 		}
-
-		t.Run(fmt.Sprintf("encoding:%s", tc.compressor.Encoding()), func(t *testing.T) {
-			testSpans := []*SampledChunks{
-				randomSampledSpans(20, 8),
-				randomSampledSpans(10, 0),
-				randomSampledSpans(40, 5),
-			}
-			// Use a flush threshold that allows the first two entries to not overflow,
-			// but overflow on the third.
-			defer useFlushThreshold(testSpans[0].Size + testSpans[1].Size + 10)()
-			tw := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, tc.compressor)
-			for _, ss := range testSpans {
-				tw.WriteChunks(ss)
-			}
-			tw.Stop()
-			// One payload flushes due to overflowing the threshold, and the second one
-			// because of stop.
-			assert.Equal(t, 2, srv.Accepted())
-			payloadsContain(t, srv.Payloads(), testSpans, tc.compressor)
-		})
-	}
+		// Use a flush threshold that allows the first two entries to not overflow,
+		// but overflow on the third.
+		defer useFlushThreshold(testSpans[0].Size + testSpans[1].Size + 10)()
+		tw := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{})
+		for _, ss := range testSpans {
+			tw.WriteChunks(ss)
+		}
+		tw.Stop()
+		// One payload flushes due to overflowing the threshold, and the second one
+		// because of stop.
+		assert.Equal(t, 2, srv.Accepted())
+		payloadsContain(t, srv.Payloads(), testSpans)
+	})
 }
 
 func TestTraceWriterMultipleEndpointsConcurrent(t *testing.T) {
@@ -116,7 +103,7 @@ func TestTraceWriterMultipleEndpointsConcurrent(t *testing.T) {
 		randomSampledSpans(10, 0),
 		randomSampledSpans(40, 5),
 	}
-	tw := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, gzip.NewComponent())
+	tw := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{})
 
 	var wg sync.WaitGroup
 	for i := 0; i < numWorkers; i++ {
@@ -133,7 +120,7 @@ func TestTraceWriterMultipleEndpointsConcurrent(t *testing.T) {
 
 	wg.Wait()
 	tw.Stop()
-	payloadsContain(t, srv.Payloads(), testSpans, tw.compressor)
+	payloadsContain(t, srv.Payloads(), testSpans)
 }
 
 // useFlushThreshold sets n as the number of bytes to be used as the flush threshold
@@ -156,19 +143,14 @@ func randomSampledSpans(spans, events int) *SampledChunks {
 }
 
 // payloadsContain checks that the given payloads contain the given set of sampled spans.
-func payloadsContain(t *testing.T, payloads []*payload, sampledSpans []*SampledChunks, compressor compression.Component) {
+func payloadsContain(t *testing.T, payloads []*payload, sampledSpans []*SampledChunks) {
 	t.Helper()
 	var all pb.AgentPayload
 	for _, p := range payloads {
 		assert := assert.New(t)
-		var slurp []byte
-
-		reader, err := compressor.NewReader(p.body)
+		gzipr, err := gzip.NewReader(p.body)
 		assert.NoError(err)
-		defer reader.Close()
-
-		slurp, err = io.ReadAll(reader)
-
+		slurp, err := io.ReadAll(gzipr)
 		assert.NoError(err)
 		var payload pb.AgentPayload
 		err = proto.Unmarshal(slurp, &payload)
@@ -212,7 +194,7 @@ func TestTraceWriterFlushSync(t *testing.T) {
 			randomSampledSpans(10, 0),
 			randomSampledSpans(40, 5),
 		}
-		tw := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, gzip.NewComponent())
+		tw := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{})
 		for _, ss := range testSpans {
 			tw.WriteChunks(ss)
 		}
@@ -222,7 +204,7 @@ func TestTraceWriterFlushSync(t *testing.T) {
 		tw.FlushSync()
 		// Now all trace payloads should be sent
 		assert.Equal(t, 1, srv.Accepted())
-		payloadsContain(t, srv.Payloads(), testSpans, tw.compressor)
+		payloadsContain(t, srv.Payloads(), testSpans)
 	})
 }
 
@@ -239,7 +221,7 @@ func TestResetBuffer(t *testing.T) {
 		SynchronousFlushing: true,
 	}
 
-	w := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, gzip.NewComponent())
+	w := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{})
 
 	runtime.GC()
 	var m runtime.MemStats
@@ -280,7 +262,7 @@ func TestTraceWriterSyncStop(t *testing.T) {
 			randomSampledSpans(10, 0),
 			randomSampledSpans(40, 5),
 		}
-		tw := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, gzip.NewComponent())
+		tw := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{})
 		for _, ss := range testSpans {
 			tw.WriteChunks(ss)
 		}
@@ -290,7 +272,7 @@ func TestTraceWriterSyncStop(t *testing.T) {
 		tw.Stop()
 		// Now all trace payloads should be sent
 		assert.Equal(t, 1, srv.Accepted())
-		payloadsContain(t, srv.Payloads(), testSpans, tw.compressor)
+		payloadsContain(t, srv.Payloads(), testSpans)
 	})
 }
 
@@ -307,7 +289,7 @@ func TestTraceWriterSyncNoop(t *testing.T) {
 		SynchronousFlushing: false,
 	}
 	t.Run("ok", func(t *testing.T) {
-		tw := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, gzip.NewComponent())
+		tw := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{})
 		err := tw.FlushSync()
 		assert.NotNil(t, err)
 	})
@@ -334,9 +316,9 @@ func TestTraceWriterAgentPayload(t *testing.T) {
 		assert.Nil(t, err)
 	}
 	// helper function to parse the received payload and inspect the TPS that were filled by the writer
-	assertExpectedTps := func(t *testing.T, priorityTps float64, errorTps float64, rareEnabled bool, compressor compression.Component) {
+	assertExpectedTps := func(t *testing.T, priorityTps float64, errorTps float64, rareEnabled bool) {
 		require.Len(t, srv.payloads, 1)
-		ap, err := deserializePayload(*srv.payloads[0], compressor)
+		ap, err := deserializePayload(*srv.payloads[0])
 		assert.Nil(t, err)
 		assert.Equal(t, priorityTps, ap.TargetTPS)
 		assert.Equal(t, errorTps, ap.ErrorTPS)
@@ -345,10 +327,10 @@ func TestTraceWriterAgentPayload(t *testing.T) {
 	}
 
 	t.Run("static TPS config", func(t *testing.T) {
-		tw := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, gzip.NewComponent())
+		tw := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{})
 		defer tw.Stop()
 		sendRandomSpanAndFlush(t, tw)
-		assertExpectedTps(t, 5, 5, true, tw.compressor)
+		assertExpectedTps(t, 5, 5, true)
 	})
 
 	t.Run("dynamic TPS config", func(t *testing.T) {
@@ -356,10 +338,10 @@ func TestTraceWriterAgentPayload(t *testing.T) {
 		errorSampler := &MockSampler{TargetTPS: 6}
 		rareSampler := &MockSampler{Enabled: false}
 
-		tw := NewTraceWriter(cfg, prioritySampler, errorSampler, rareSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, gzip.NewComponent())
+		tw := NewTraceWriter(cfg, prioritySampler, errorSampler, rareSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{})
 		defer tw.Stop()
 		sendRandomSpanAndFlush(t, tw)
-		assertExpectedTps(t, 5, 6, false, tw.compressor)
+		assertExpectedTps(t, 5, 6, false)
 
 		// simulate a remote config update
 		prioritySampler.TargetTPS = 42
@@ -367,19 +349,18 @@ func TestTraceWriterAgentPayload(t *testing.T) {
 		rareSampler.Enabled = true
 
 		sendRandomSpanAndFlush(t, tw)
-		assertExpectedTps(t, 42, 15, true, tw.compressor)
+		assertExpectedTps(t, 42, 15, true)
 	})
 }
 
 // deserializePayload decompresses a payload and deserializes it into a pb.AgentPayload.
-func deserializePayload(p payload, compressor compression.Component) (*pb.AgentPayload, error) {
-	reader, err := compressor.NewReader(p.body)
+func deserializePayload(p payload) (*pb.AgentPayload, error) {
+	gzipr, err := gzip.NewReader(p.body)
 	if err != nil {
 		return nil, err
 	}
-
-	defer reader.Close()
-	uncompressedBytes, err := io.ReadAll(reader)
+	defer gzipr.Close()
+	uncompressedBytes, err := io.ReadAll(gzipr)
 	if err != nil {
 		return nil, err
 	}
@@ -461,7 +442,7 @@ func BenchmarkSerialize(b *testing.B) {
 				}},
 				TraceWriter: &config.WriterConfig{},
 			}
-			tw := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, gzip.NewComponent())
+			tw := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{})
 			defer tw.Stop()
 
 			// Avoid the overhead of the senders so we're just measuring serialization

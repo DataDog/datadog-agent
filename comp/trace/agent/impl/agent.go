@@ -27,7 +27,6 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
-	compression "github.com/DataDog/datadog-agent/comp/trace/compression/def"
 	"github.com/DataDog/datadog-agent/comp/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
@@ -63,7 +62,6 @@ type dependencies struct {
 	Workloadmeta       workloadmeta.Component
 	Statsd             statsd.Component
 	Tagger             tagger.Component
-	Compressor         compression.Component
 }
 
 var _ traceagent.Component = (*component)(nil)
@@ -123,7 +121,6 @@ func NewAgent(deps dependencies) (traceagent.Component, error) {
 		c.config.Object(),
 		c.telemetryCollector,
 		statsdCl,
-		deps.Compressor,
 	)
 
 	deps.Lc.Append(fx.Hook{

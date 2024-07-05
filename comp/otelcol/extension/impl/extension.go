@@ -17,6 +17,7 @@ import (
 	"go.opentelemetry.io/collector/extension"
 	"go.uber.org/zap"
 
+	converter "github.com/DataDog/datadog-agent/comp/otelcol/converter/def"
 	extensionDef "github.com/DataDog/datadog-agent/comp/otelcol/extension/def"
 	"github.com/DataDog/datadog-agent/comp/otelcol/extension/impl/internal/metadata"
 )
@@ -63,12 +64,8 @@ func (ext *ddExtension) Start(_ context.Context, host component.Host) error {
 	ext.telemetry.Logger.Info("Starting DD Extension HTTP server", zap.String("url", ext.cfg.HTTPConfig.Endpoint))
 
 	// List configured Extensions
-	configstore := ext.cfg.ConfigStore
-	c, err := configstore.GetProvidedConf()
-	if err != nil {
-		return err
-	}
-
+	provider := ext.cfg.Converter.(converter.Component)
+	c := provider.GetProvidedConf()
 	extensionConfs, err := c.Sub("extensions")
 	if err != nil {
 		return nil
@@ -120,18 +117,15 @@ func (ext *ddExtension) Shutdown(ctx context.Context) error {
 
 // ServeHTTP the request handler for the extension.
 func (ext *ddExtension) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
-	customer, err := ext.cfg.ConfigStore.GetProvidedConfAsString()
-	if err != nil {
+	provider, ok := ext.cfg.Converter.(converter.Component)
+	if !ok {
 		w.WriteHeader(http.StatusInternalServerError)
-		fmt.Fprintf(w, "Unable to get provided config\n")
+		fmt.Fprintf(w, "Unable to get config provider\n")
 		return
 	}
-	enhanced, err := ext.cfg.ConfigStore.GetEnhancedConfAsString()
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		fmt.Fprintf(w, "Unable to get enhanced config\n")
-		return
-	}
+
+	customer, _ := provider.GetProvidedConfAsString()
+	// enhanced, _ := provider.GetEnhancedConfAsString()
 
 	resp := extensionDef.Response{
 		BuildInfoResponse: extensionDef.BuildInfoResponse{
@@ -142,7 +136,7 @@ func (ext *ddExtension) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 		},
 		ConfigResponse: extensionDef.ConfigResponse{
 			CustomerConfig: customer,
-			RuntimeConfig:  enhanced,
+			RuntimeConfig:  customer, // TODO: replace this with enhanced
 		},
 		DebugSourceResponse: ext.debug,
 		Environment:         getEnvironmentAsMap(),

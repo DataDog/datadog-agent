@@ -9,7 +9,7 @@ package impl
 import (
 	"testing"
 
-	configstore "github.com/DataDog/datadog-agent/comp/otelcol/configstore/impl"
+	converter "github.com/DataDog/datadog-agent/comp/otelcol/converter/impl"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/config/confighttp"
@@ -17,11 +17,11 @@ import (
 )
 
 func getTestConfig(t *testing.T) *Config {
-	conv, err := configstore.NewConfigStore()
+	conv, err := converter.NewConverter()
 	require.NoError(t, err)
 
 	return &Config{
-		ConfigStore: conv,
+		Converter: conv,
 		HTTPConfig: &confighttp.ServerConfig{
 			Endpoint: "localhost:0",
 		},

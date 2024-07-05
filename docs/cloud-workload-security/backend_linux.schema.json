@@ -1503,9 +1503,6 @@
         },
         "link": {
           "$ref": "#/$defs/SyscallArgs"
-        },
-        "utimes": {
-          "$ref": "#/$defs/SyscallArgs"
         }
       },
       "additionalProperties": false,

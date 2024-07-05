@@ -13,29 +13,23 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	configstore "github.com/DataDog/datadog-agent/comp/otelcol/configstore/impl"
+	converter "github.com/DataDog/datadog-agent/comp/otelcol/converter/impl"
 	extension "github.com/DataDog/datadog-agent/comp/otelcol/extension/def"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/confighttp"
-	"go.opentelemetry.io/collector/otelcol"
 )
 
-var testOtelConfig = &otelcol.Config{}
-
 func getExtensionTestConfig(t *testing.T) *Config {
-	cf, err := configstore.NewConfigStore()
+	conv, err := converter.NewConverter()
 	assert.NoError(t, err)
-
-	cf.AddEnhancedConf(testOtelConfig)
-	cf.AddProvidedConf(testOtelConfig)
 
 	return &Config{
 		HTTPConfig: &confighttp.ServerConfig{
 			Endpoint: "localhost:0",
 		},
-		ConfigStore: cf,
+		Converter: conv,
 	}
 }
 

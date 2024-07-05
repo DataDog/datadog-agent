@@ -112,10 +112,6 @@ func getDummyECS() (*httptest.Server, error) {
 		testutil.FileHandlerOption("/v4/1234-2/taskWithTags", "./testdata/nginx.json"),
 		testutil.FileHandlerOption("/v1/tasks", "./testdata/tasks.json"),
 	)
-	if err != nil {
-		return nil, err
-	}
-
 	ts := dummyECS.Start()
 	return ts, err
 }

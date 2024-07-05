@@ -91,8 +91,6 @@ const (
 	SyscallsEventType
 	// IMDSEventType is sent when an IMDS request or qnswer is captured
 	IMDSEventType
-	// OnDemandEventType is sent for on-demand events
-	OnDemandEventType
 	// MaxKernelEventType is used internally to get the maximum number of kernel events.
 	MaxKernelEventType
 
@@ -228,8 +226,6 @@ func (t EventType) String() string {
 		return "syscalls"
 	case IMDSEventType:
 		return "imds"
-	case OnDemandEventType:
-		return "ondemand"
 
 	case CustomLostReadEventType:
 		return "lost_events_read"

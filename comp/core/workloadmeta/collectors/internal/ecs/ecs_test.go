@@ -4,6 +4,7 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build docker
+// +build docker
 
 // ecs collector package
 package ecs

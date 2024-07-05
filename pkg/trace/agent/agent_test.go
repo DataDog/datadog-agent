@@ -23,7 +23,6 @@ import (
 	"testing"
 	"time"
 
-	gzip "github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 
@@ -49,7 +48,7 @@ import (
 )
 
 func NewTestAgent(ctx context.Context, conf *config.AgentConfig, telemetryCollector telemetry.TelemetryCollector) *Agent {
-	a := NewAgent(ctx, conf, telemetryCollector, &statsd.NoOpClient{}, gzip.NewComponent())
+	a := NewAgent(ctx, conf, telemetryCollector, &statsd.NoOpClient{})
 	a.Concentrator = &mockConcentrator{}
 	a.TraceWriter = &mockTraceWriter{}
 	return a
@@ -440,7 +439,7 @@ func TestProcess(t *testing.T) {
 		cfg := config.New()
 		cfg.Endpoints[0].APIKey = "test"
 		ctx, cancel := context.WithCancel(context.Background())
-		agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
+		agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{})
 		agnt.TraceWriter = &mockTraceWriter{}
 		defer cancel()
 

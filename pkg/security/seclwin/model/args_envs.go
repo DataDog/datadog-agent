@@ -20,7 +20,7 @@ const (
 
 // ArgsEnvs raw value for args and envs
 type ArgsEnvs struct {
-	ID        uint64
+	ID        uint32
 	Size      uint32
 	ValuesRaw [MaxArgEnvSize]byte
 }

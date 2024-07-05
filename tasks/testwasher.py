@@ -10,7 +10,6 @@ from invoke import task
 from tasks.libs.ciproviders.gitlab_api import (
     get_full_gitlab_ci_configuration,
 )
-from tasks.libs.common.utils import gitlab_section
 from tasks.test_core import ModuleTestResult
 
 
@@ -194,7 +193,7 @@ def generate_flake_finder_pipeline(ctx, n=3):
                 continue
             kept_job[job] = job_details
 
-    # Remove needs, rules, extends and retry from the jobs
+    # Remove needs, rules and retry from the jobs
     for job in kept_job:
         if 'needs' in kept_job[job]:
             del kept_job[job]["needs"]
@@ -202,8 +201,6 @@ def generate_flake_finder_pipeline(ctx, n=3):
             del kept_job[job]["rules"]
         if 'retry' in kept_job[job]:
             del kept_job[job]["retry"]
-        if 'extends' in kept_job[job]:
-            del kept_job[job]["extends"]
 
     new_jobs = {}
     new_jobs['variables'] = copy.deepcopy(config['variables'])
@@ -234,5 +231,4 @@ def generate_flake_finder_pipeline(ctx, n=3):
     with open("flake-finder-gitlab-ci.yml", "w") as f:
         f.write(yaml.safe_dump(new_jobs))
 
-    with gitlab_section("Flake finder generated pipeline", collapsed=True):
-        print(yaml.safe_dump(new_jobs))
+    print("New Gitlab-ci.yml:", yaml.safe_dump(new_jobs))

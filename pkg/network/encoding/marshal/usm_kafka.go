@@ -18,10 +18,10 @@ import (
 
 type kafkaEncoder struct {
 	kafkaAggregationsBuilder *model.DataStreamsAggregationsBuilder
-	byConnection             *USMConnectionIndex[kafka.Key, *kafka.RequestStats]
+	byConnection             *USMConnectionIndex[kafka.Key, *kafka.RequestStat]
 }
 
-func newKafkaEncoder(kafkaPayloads map[kafka.Key]*kafka.RequestStats) *kafkaEncoder {
+func newKafkaEncoder(kafkaPayloads map[kafka.Key]*kafka.RequestStat) *kafkaEncoder {
 	if len(kafkaPayloads) == 0 {
 		return nil
 	}
@@ -51,31 +51,21 @@ func (e *kafkaEncoder) WriteKafkaAggregations(c network.ConnectionStats, builder
 	return staticTags
 }
 
-func (e *kafkaEncoder) encodeData(connectionData *USMConnectionData[kafka.Key, *kafka.RequestStats], w io.Writer) uint64 {
+func (e *kafkaEncoder) encodeData(connectionData *USMConnectionData[kafka.Key, *kafka.RequestStat], w io.Writer) uint64 {
 	var staticTags uint64
 	e.kafkaAggregationsBuilder.Reset(w)
 
 	for _, kv := range connectionData.Data {
 		key := kv.Key
 		stats := kv.Value
+		staticTags |= stats.StaticTags
 		e.kafkaAggregationsBuilder.AddKafkaAggregations(func(builder *model.KafkaAggregationBuilder) {
 			builder.SetHeader(func(header *model.KafkaRequestHeaderBuilder) {
 				header.SetRequest_type(uint32(key.RequestAPIKey))
 				header.SetRequest_version(uint32(key.RequestVersion))
 			})
 			builder.SetTopic(key.TopicName)
-			for statusCode, requestStat := range stats.ErrorCodeToStat {
-				if requestStat.Count == 0 {
-					continue
-				}
-				builder.AddStatsByStatusCode(func(statsByStatusCodeBuilder *model.KafkaAggregation_StatsByStatusCodeEntryBuilder) {
-					statsByStatusCodeBuilder.SetKey(int32(statusCode))
-					statsByStatusCodeBuilder.SetValue(func(kafkaStatsBuilder *model.KafkaStatsBuilder) {
-						kafkaStatsBuilder.SetCount(uint32(requestStat.Count))
-					})
-				})
-				staticTags |= requestStat.StaticTags
-			}
+			builder.SetCount(uint32(stats.Count))
 		})
 	}
 	return staticTags

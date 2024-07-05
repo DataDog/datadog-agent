@@ -21,15 +21,9 @@ import (
 	"github.com/cilium/ebpf/asm"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/maps"
+	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-)
-
-const (
-	// MapErrTelemetryMap is the map storing the map error telemetry
-	mapErrTelemetryMapName string = "map_err_telemetry_map"
-	// HelperErrTelemetryMap is the map storing the helper error telemetry
-	helperErrTelemetryMapName string = "helper_err_telemetry_map"
 )
 
 const (
@@ -86,15 +80,17 @@ func (e *ebpfTelemetry) Unlock() {
 }
 
 func (e *ebpfTelemetry) setup(opts *manager.Options) {
-	if (e.mapErrMap != nil || e.helperErrMap != nil) && opts.MapEditors == nil {
-		opts.MapEditors = make(map[string]*ebpf.Map)
+	if (e.mapErrMap != nil) || (e.helperErrMap != nil) {
+		if opts.MapEditors == nil {
+			opts.MapEditors = make(map[string]*ebpf.Map)
+		}
 	}
 	// if the maps have already been loaded, setup editors to point to them
 	if e.mapErrMap != nil {
-		opts.MapEditors[mapErrTelemetryMapName] = e.mapErrMap.Map()
+		opts.MapEditors[probes.MapErrTelemetryMap] = e.mapErrMap.Map()
 	}
 	if e.helperErrMap != nil {
-		opts.MapEditors[helperErrTelemetryMapName] = e.helperErrMap.Map()
+		opts.MapEditors[probes.HelperErrTelemetryMap] = e.helperErrMap.Map()
 	}
 }
 
@@ -106,10 +102,10 @@ func (e *ebpfTelemetry) fill(m *manager.Manager) error {
 
 	// first manager to call will populate the maps
 	if e.mapErrMap == nil {
-		e.mapErrMap, _ = maps.GetMap[uint64, mapErrTelemetry](m, mapErrTelemetryMapName)
+		e.mapErrMap, _ = maps.GetMap[uint64, mapErrTelemetry](m, probes.MapErrTelemetryMap)
 	}
 	if e.helperErrMap == nil {
-		e.helperErrMap, _ = maps.GetMap[uint64, helperErrTelemetry](m, helperErrTelemetryMapName)
+		e.helperErrMap, _ = maps.GetMap[uint64, helperErrTelemetry](m, probes.HelperErrTelemetryMap)
 	}
 
 	if err := e.initializeMapErrTelemetryMap(m.Maps); err != nil {
@@ -221,11 +217,11 @@ func setupForTelemetry(m *manager.Manager, options *manager.Options, bpfTelemetr
 
 	if activateBPFTelemetry {
 		// add telemetry maps to list of maps, if not present
-		if !slices.ContainsFunc(m.Maps, func(x *manager.Map) bool { return x.Name == mapErrTelemetryMapName }) {
-			m.Maps = append(m.Maps, &manager.Map{Name: mapErrTelemetryMapName})
+		if !slices.ContainsFunc(m.Maps, func(x *manager.Map) bool { return x.Name == probes.MapErrTelemetryMap }) {
+			m.Maps = append(m.Maps, &manager.Map{Name: probes.MapErrTelemetryMap})
 		}
-		if !slices.ContainsFunc(m.Maps, func(x *manager.Map) bool { return x.Name == helperErrTelemetryMapName }) {
-			m.Maps = append(m.Maps, &manager.Map{Name: helperErrTelemetryMapName})
+		if !slices.ContainsFunc(m.Maps, func(x *manager.Map) bool { return x.Name == probes.HelperErrTelemetryMap }) {
+			m.Maps = append(m.Maps, &manager.Map{Name: probes.HelperErrTelemetryMap})
 		}
 
 		if bpfTelemetry != nil {

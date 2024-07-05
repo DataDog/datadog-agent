@@ -230,9 +230,6 @@ replaces:
   - github.com/DataDog/datadog-agent/comp/def => ../../../def
   - github.com/DataDog/datadog-agent/comp/logs/agent/config => ../../../logs/agent/config
   - github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def => ../def
-  - github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip => ../../../trace/compression/impl-gzip
-  - github.com/DataDog/datadog-agent/comp/trace/compression/def => ../../../trace/compression/def
-  - github.com/DataDog/datadog-agent/comp/trace/compression/impl-zstd => ../../../trace/compression/impl-zstd
   - github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline => ../../logsagentpipeline
   - github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/logsagentpipelineimpl => ../../logsagentpipeline/logsagentpipelineimpl
   - github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter => ../../otlp/components/exporter/logsagentexporter

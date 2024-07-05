@@ -12,7 +12,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	v1 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v1"
@@ -78,8 +77,7 @@ func TestPullWithV1Parser(t *testing.T) {
 			c.collectResourceTags = test.collectResourceTags
 			c.taskCollectionParser = c.parseTasksFromV1Endpoint
 
-			err := c.Pull(context.TODO())
-			require.NoError(t, err)
+			c.Pull(context.TODO())
 
 			taskTags := c.resourceTags[entityID].tags
 			assert.Equal(t, taskTags, test.expectedTags)

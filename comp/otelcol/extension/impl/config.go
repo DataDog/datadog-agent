@@ -10,7 +10,6 @@ import (
 	"errors"
 	"fmt"
 
-	configstore "github.com/DataDog/datadog-agent/comp/otelcol/configstore/def"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/confmap"
@@ -32,7 +31,7 @@ var (
 type Config struct {
 	HTTPConfig *confighttp.ServerConfig `mapstructure:",squash"`
 
-	ConfigStore configstore.Component
+	Converter confmap.Converter
 }
 
 var _ component.Config = (*Config)(nil)

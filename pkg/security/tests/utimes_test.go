@@ -65,8 +65,6 @@ func TestUtimes(t *testing.T) {
 
 			value, _ := event.GetFieldValue("event.async")
 			assert.Equal(t, value.(bool), false)
-
-			validateSyscallContext(t, event, "$.syscall.utimes.path")
 		})
 	}))
 
@@ -106,8 +104,6 @@ func TestUtimes(t *testing.T) {
 
 			value, _ := event.GetFieldValue("event.async")
 			assert.Equal(t, value.(bool), false)
-
-			validateSyscallContext(t, event, "$.syscall.utimes.path")
 		})
 	}))
 
@@ -150,8 +146,6 @@ func TestUtimes(t *testing.T) {
 
 			value, _ := event.GetFieldValue("event.async")
 			assert.Equal(t, value.(bool), false)
-
-			validateSyscallContext(t, event, "$.syscall.utimes.path")
 		})
 	})
 
@@ -187,8 +181,6 @@ func TestUtimes(t *testing.T) {
 
 			value, _ := event.GetFieldValue("event.async")
 			assert.Equal(t, value.(bool), false)
-
-			validateSyscallContext(t, event, "$.syscall.utimes.path")
 		})
 	})
 }
