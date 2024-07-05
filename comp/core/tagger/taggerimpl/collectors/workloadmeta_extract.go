@@ -72,6 +72,9 @@ var (
 	}
 
 	lowCardOrchestratorEnvKeys = map[string]string{
+		"DD_GIT_COMMIT_SHA":     tags.GitCommitSha,
+		"DD_GIT_REPOSITORY_URL": tags.GitRepository,
+
 		"MARATHON_APP_ID": tags.MarathonApp,
 
 		"CHRONOS_JOB_NAME":  tags.ChronosJob,
@@ -588,9 +591,11 @@ func (c *WorkloadMetaCollector) extractTagsFromPodOwner(pod *workloadmeta.Kubern
 
 	case kubernetes.StatefulSetKind:
 		tagList.AddLow(tags.KubeStatefulSet, owner.Name)
-		for _, pvc := range pod.PersistentVolumeClaimNames {
-			if pvc != "" {
-				tagList.AddLow(tags.KubePersistentVolumeClaim, pvc)
+		if c.collectPersistentVolumeClaimsTags {
+			for _, pvc := range pod.PersistentVolumeClaimNames {
+				if pvc != "" {
+					tagList.AddLow(tags.KubePersistentVolumeClaim, pvc)
+				}
 			}
 		}
 

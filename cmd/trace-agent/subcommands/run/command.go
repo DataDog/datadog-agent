@@ -35,6 +35,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/trace"
 	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
 	traceagentimpl "github.com/DataDog/datadog-agent/comp/trace/agent/impl"
+	compression "github.com/DataDog/datadog-agent/comp/trace/compression/def"
+	gzip "github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip"
+	zstd "github.com/DataDog/datadog-agent/comp/trace/compression/impl-zstd"
 	"github.com/DataDog/datadog-agent/comp/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -112,6 +115,12 @@ func runTraceAgentProcess(ctx context.Context, cliParams *Params, defaultConfPat
 			CPUProfile:  cliParams.CPUProfile,
 			MemProfile:  cliParams.MemProfile,
 			PIDFilePath: cliParams.PIDFilePath,
+		}),
+		fx.Provide(func(cfg config.Component) compression.Component {
+			if cfg.Object().HasFeature("zstd-encoding") {
+				return zstd.NewComponent()
+			}
+			return gzip.NewComponent()
 		}),
 		trace.Bundle(),
 		fetchonlyimpl.Module(),

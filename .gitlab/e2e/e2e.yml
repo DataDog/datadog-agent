@@ -157,8 +157,11 @@ new-e2e-containers:
     TEAM: container-integrations
   parallel:
     matrix:
-      - EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:kubernetesVersion=1.19"
-      - EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:kubernetesVersion=1.22"
+      # Temporarily disable old version of Kubernetes
+      # On those versions, the SSI admission controller injects a lib
+      # that breaks alpine images.
+      # - EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:kubernetesVersion=1.19"
+      # - EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:kubernetesVersion=1.22"
       - EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:kubernetesVersion=1.27"
       - EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:kubernetesVersion=1.29"
       - EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:osDescriptor=ubuntu:20.04"
@@ -269,12 +272,13 @@ new-e2e-aml:
     - deploy_deb_testing-a7_x64
     - deploy_windows_testing-a7
     - qa_agent
+    - qa_dca
   rules:
     - !reference [.on_aml_or_e2e_changes]
     - !reference [.manual]
   variables:
-    TARGETS: ./tests/agent-metric-logs
-    TEAM: agent-metric-logs
+    TARGETS: ./tests/agent-metrics-logs
+    TEAM: agent-metrics-logs
 
 new-e2e-cws:
   extends: .new_e2e_template
@@ -283,6 +287,7 @@ new-e2e-cws:
     - !reference [.manual]
   needs:
     - deploy_deb_testing-a7_x64
+    - deploy_windows_testing-a7
     - qa_cws_instrumentation
     - qa_agent
     - qa_dca
@@ -295,6 +300,7 @@ new-e2e-cws:
       - EXTRA_PARAMS: --run TestAgentSuite
       - EXTRA_PARAMS: --run TestECSFargate
       - EXTRA_PARAMS: --run TestKindSuite
+      - EXTRA_PARAMS: --run TestAgentWindowsSuite
   # Temporary, remove once we made sure the recent changes have no impact on the stability of these tests
   allow_failure: true
 
@@ -400,6 +406,7 @@ generate-flakes-finder-pipeline:
     - qa_agent
   tags: ["arch:amd64"]
   script:
+    - export GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITLAB_FULL_API_TOKEN_SSM_NAME)
     - inv -e testwasher.generate-flake-finder-pipeline
   artifacts:
     paths:

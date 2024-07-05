@@ -16,7 +16,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
-
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -171,7 +170,7 @@ func TestHandleWorkloadmetaStreamResponse(t *testing.T) {
 		fx.Supply(workloadmeta.Params{
 			AgentType: workloadmeta.Remote,
 		}),
-		workloadmetafxmock.MockModuleV2(),
+		workloadmetafxmock.MockModule(),
 	))
 
 	expectedEvent, err := proto.WorkloadmetaEventFromProtoEvent(protoWorkloadmetaEvent)
@@ -207,7 +206,7 @@ func TestCollection(t *testing.T) {
 	mockServerStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		core.MockBundle(),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmetafxmock.MockModuleV2(),
+		workloadmetafxmock.MockModule(),
 	))
 	server := &serverSecure{workloadmetaServer: server.NewServer(mockServerStore)}
 
@@ -251,7 +250,7 @@ func TestCollection(t *testing.T) {
 			},
 				fx.ResultTags(`group:"workloadmeta"`)),
 		),
-		workloadmetafxmock.MockModuleV2(),
+		workloadmetafxmock.MockModule(),
 	))
 
 	time.Sleep(3 * time.Second)

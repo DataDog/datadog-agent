@@ -142,9 +142,9 @@ func parseConfigSnmpMain(conf config.Component) ([]SNMPConfig, error) {
 // If the agent isn't running or is unreachable, this will fail.
 func GetConfigCheckSnmp(conf config.Component) ([]SNMPConfig, error) {
 	// TODO: change the URL if the snmp check is a cluster check
-	// add /agent/config-check/raw to cluster agent API
-	// Copy the code from comp/core/autodiscovery/autodiscoveryimpl/autoconfig.go#writeConfigCheckRaw
-	endpoint, err := apiutil.NewIPCEndpoint(conf, "/agent/config-check/raw")
+	// add /agent/config-check to cluster agent API
+	// Copy the code from comp/core/autodiscovery/autodiscoveryimpl/autoconfig.go#writeConfigCheck
+	endpoint, err := apiutil.NewIPCEndpoint(conf, "/agent/config-check")
 	if err != nil {
 		return nil, err
 	}
@@ -154,9 +154,6 @@ func GetConfigCheckSnmp(conf config.Component) ([]SNMPConfig, error) {
 		return nil, err
 	}
 
-	if err != nil {
-		return nil, err
-	}
 	cr := integration.ConfigCheckResponse{}
 	err = json.Unmarshal(res, &cr)
 	if err != nil {

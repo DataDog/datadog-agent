@@ -6,6 +6,7 @@
 package api
 
 import (
+	"bytes"
 	"context"
 	"io"
 	"net/http"
@@ -28,7 +29,7 @@ func assertingServer(t *testing.T, onReq func(req *http.Request, reqBody []byte)
 		body, err := io.ReadAll(req.Body)
 		assert.NoError(t, err)
 		assert.NoError(t, onReq(req, body))
-		_, err = w.Write([]byte("OK"))
+		_, err = w.Write([]byte("{}"))
 		assert.NoError(t, err)
 		req.Body.Close()
 	}))
@@ -39,6 +40,10 @@ func newRequestRecorder(t *testing.T) (req *http.Request, rec *httptest.Response
 	assert.NoError(t, err)
 	rec = httptest.NewRecorder()
 	return req, rec
+}
+
+func recordedStatusCode(rec *httptest.ResponseRecorder) int {
+	return rec.Result().StatusCode //nolint:bodyclose
 }
 
 func recordedResponse(t *testing.T, rec *httptest.ResponseRecorder) string {
@@ -84,15 +89,11 @@ func TestTelemetryBasicProxyRequest(t *testing.T) {
 		return nil
 	})
 
-	req, rec := newRequestRecorder(t)
 	cfg := getTestConfig(srv.URL)
 	cfg.GlobalTags[functionARNKeyTag] = "test_ARN"
 	recv := newTestReceiverFromConfig(cfg)
-	recv.buildMux().ServeHTTP(rec, req)
 
-	assert.Equal("OK", recordedResponse(t, rec))
-	assert.Equal(uint64(1), endpointCalled.Load())
-
+	assertSendRequest(t, recv, endpointCalled)
 }
 
 func TestGoogleCloudRun(t *testing.T) {
@@ -108,15 +109,12 @@ func TestGoogleCloudRun(t *testing.T) {
 		return nil
 	})
 
-	req, rec := newRequestRecorder(t)
 	cfg := getTestConfig(srv.URL)
 	cfg.GlobalTags["service_name"] = "test_service"
 	cfg.GlobalTags["origin"] = "cloudrun"
 	recv := newTestReceiverFromConfig(cfg)
-	recv.buildMux().ServeHTTP(rec, req)
 
-	assert.Equal("OK", recordedResponse(t, rec))
-	assert.Equal(uint64(1), endpointCalled.Load())
+	assertSendRequest(t, recv, endpointCalled)
 }
 
 func TestAzureAppService(t *testing.T) {
@@ -135,15 +133,12 @@ func TestAzureAppService(t *testing.T) {
 		return nil
 	})
 
-	req, rec := newRequestRecorder(t)
 	cfg := getTestConfig(srv.URL)
 	cfg.GlobalTags["app_name"] = "test_app"
 	cfg.GlobalTags["origin"] = "appservice"
 	recv := newTestReceiverFromConfig(cfg)
-	recv.buildMux().ServeHTTP(rec, req)
 
-	assert.Equal("OK", recordedResponse(t, rec))
-	assert.Equal(uint64(1), endpointCalled.Load())
+	assertSendRequest(t, recv, endpointCalled)
 }
 
 func TestAzureContainerApp(t *testing.T) {
@@ -162,15 +157,12 @@ func TestAzureContainerApp(t *testing.T) {
 		return nil
 	})
 
-	req, rec := newRequestRecorder(t)
 	cfg := getTestConfig(srv.URL)
 	cfg.GlobalTags["app_name"] = "test_app"
 	cfg.GlobalTags["origin"] = "containerapp"
 	recv := newTestReceiverFromConfig(cfg)
-	recv.buildMux().ServeHTTP(rec, req)
 
-	assert.Equal("OK", recordedResponse(t, rec))
-	assert.Equal(uint64(1), endpointCalled.Load())
+	assertSendRequest(t, recv, endpointCalled)
 }
 
 type testContainerIDProvider struct{}
@@ -197,17 +189,14 @@ func TestAWSFargate(t *testing.T) {
 		return nil
 	})
 
-	req, rec := newRequestRecorder(t)
 	cfg := getTestConfig(srv.URL)
 	cfg.ContainerTags = func(cid string) ([]string, error) {
 		return []string{"task_arn:test_ARN"}, nil
 	}
 	recv := newTestReceiverFromConfig(cfg)
-	recv.containerIDProvider = getTestContainerIDProvider()
-	recv.buildMux().ServeHTTP(rec, req)
+	recv.telemetryForwarder.containerIDProvider = getTestContainerIDProvider()
 
-	assert.Equal("OK", recordedResponse(t, rec))
-	assert.Equal(uint64(1), endpointCalled.Load())
+	assertSendRequest(t, recv, endpointCalled)
 }
 
 func TestTelemetryProxyMultipleEndpoints(t *testing.T) {
@@ -258,28 +247,80 @@ func TestTelemetryProxyMultipleEndpoints(t *testing.T) {
 	cfg.DefaultEnv = "test_env"
 	cfg.GlobalTags[functionARNKeyTag] = "test_ARN"
 
-	req, rec := newRequestRecorder(t)
 	recv := newTestReceiverFromConfig(cfg)
-	recv.buildMux().ServeHTTP(rec, req)
 
-	assert.Equal("OK", recordedResponse(t, rec))
+	req, rec := newRequestRecorder(t)
+	recv.buildMux().ServeHTTP(rec, req)
+	recv.telemetryForwarder.Stop()
+
+	assert.Equal(200, recordedStatusCode(rec))
+	assert.Equal("{}", recordedResponse(t, rec))
 
 	// because we use number 2,3 both endpoints must be called to produce 5
 	// just counting number of requests could give false results if first endpoint
 	// was called twice
 	if endpointCalled.Load() != 5 {
-		t.Fatalf("calling multiple backends failed")
+		t.Fatalf("calling multiple backends failed %v", endpointCalled.Load())
 	}
+}
+
+func TestMaxInflightBytes(t *testing.T) {
+	endpointCalled := atomic.NewUint64(0)
+	assert := assert.New(t)
+
+	done := make(chan struct{})
+
+	srv := assertingServer(t, func(req *http.Request, body []byte) error {
+		assert.Equal("test_apikey", req.Header.Get("DD-API-KEY"))
+		assert.Equal("test_hostname", req.Header.Get("DD-Agent-Hostname"))
+		assert.Equal("test_env", req.Header.Get("DD-Agent-Env"))
+		assert.Equal("/path", req.URL.Path)
+		assert.Equal("", req.Header.Get("User-Agent"))
+		assert.Regexp(regexp.MustCompile("trace-agent.*"), req.Header.Get("Via"))
+
+		<-done
+		endpointCalled.Add(1)
+		return nil
+	})
+
+	reqs := []struct {
+		res  int
+		size int
+	}{
+		{http.StatusOK, 51},
+		{http.StatusOK, 49},
+		{http.StatusTooManyRequests, 1},
+	}
+
+	cfg := getTestConfig(srv.URL)
+	recv := newTestReceiverFromConfig(cfg)
+	recv.telemetryForwarder.maxInflightBytes = 100
+	mux := recv.buildMux()
+
+	for _, testReq := range reqs {
+		req, rec := newRequestRecorder(t)
+		req.Body = io.NopCloser(bytes.NewBuffer(make([]byte, testReq.size)))
+		req.ContentLength = int64(testReq.size)
+		mux.ServeHTTP(rec, req)
+
+		assert.Equal(testReq.res, recordedStatusCode(rec))
+	}
+
+	close(done)
+	recv.telemetryForwarder.Stop()
+	assert.Equal(uint64(2), endpointCalled.Load())
 }
 
 func TestTelemetryConfig(t *testing.T) {
 	t.Run("disabled", func(t *testing.T) {
 		cfg := config.New()
 		cfg.Endpoints[0].APIKey = "api_key"
+		recv := newTestReceiverFromConfig(cfg)
 
 		req, rec := newRequestRecorder(t)
-		recv := newTestReceiverFromConfig(cfg)
 		recv.buildMux().ServeHTTP(rec, req)
+		recv.telemetryForwarder.Stop()
+
 		result := rec.Result()
 		assert.Equal(t, 404, result.StatusCode)
 		result.Body.Close()
@@ -292,9 +333,11 @@ func TestTelemetryConfig(t *testing.T) {
 			APIKey: "api_key",
 			Host:   "111://malformed.dd_url.com",
 		}}
-		req, rec := newRequestRecorder(t)
 		recv := newTestReceiverFromConfig(cfg)
+
+		req, rec := newRequestRecorder(t)
 		recv.buildMux().ServeHTTP(rec, req)
+
 		result := rec.Result()
 		assert.Equal(t, 404, result.StatusCode)
 		result.Body.Close()
@@ -313,12 +356,12 @@ func TestTelemetryConfig(t *testing.T) {
 			APIKey: "api_key",
 			Host:   srv.URL,
 		}}
+		recv := newTestReceiverFromConfig(cfg)
 
 		req, rec := newRequestRecorder(t)
-		recv := newTestReceiverFromConfig(cfg)
 		recv.buildMux().ServeHTTP(rec, req)
 
-		assert.Equal(t, "OK", recordedResponse(t, rec))
+		assert.Equal(t, "{}", recordedResponse(t, rec))
 	})
 }
 
@@ -358,4 +401,14 @@ func TestExtractFargateTask(t *testing.T) {
 		assert.False(t, ok)
 		assert.Equal(t, "", taskArn)
 	})
+}
+
+func assertSendRequest(t *testing.T, recv *HTTPReceiver, endpointCalled *atomic.Uint64) {
+	req, rec := newRequestRecorder(t)
+	recv.buildMux().ServeHTTP(rec, req)
+	recv.telemetryForwarder.Stop()
+
+	assert.Equal(t, 200, recordedStatusCode(rec))
+	assert.Equal(t, "{}", recordedResponse(t, rec))
+	assert.Equal(t, uint64(1), endpointCalled.Load())
 }

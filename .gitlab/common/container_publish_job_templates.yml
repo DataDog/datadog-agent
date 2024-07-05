@@ -23,7 +23,7 @@
       fi
     - IMG_VARIABLES="$(sed -E "s#(${SRC_AGENT}|${SRC_DSD}|${SRC_DCA}|${SRC_CWS_INSTRUMENTATION})#\1${ECR_RELEASE_SUFFIX}#g" <<<"$IMG_VARIABLES")"
     - IMG_SOURCES="$(sed -E "s#(${SRC_AGENT}|${SRC_DSD}|${SRC_DCA}|${SRC_CWS_INSTRUMENTATION})#\1${ECR_RELEASE_SUFFIX}#g" <<<"$IMG_SOURCES")"
-    - "inv pipeline.trigger-child-pipeline --project-name DataDog/public-images --git-ref main
+    - "inv pipeline.trigger-child-pipeline --project-name DataDog/public-images --git-ref main --timeout 1800
       --variable IMG_VARIABLES
       --variable IMG_REGISTRIES
       --variable IMG_SOURCES

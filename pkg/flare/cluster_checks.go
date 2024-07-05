@@ -15,7 +15,6 @@ import (
 	"github.com/fatih/color"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
-	autodiscoveryUtils "github.com/DataDog/datadog-agent/comp/core/autodiscovery/utils"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -75,7 +74,7 @@ func GetClusterChecks(w io.Writer, checkName string) error {
 	if len(cr.Dangling) > 0 {
 		fmt.Fprintf(w, "=== %s configurations ===\n", color.RedString("Unassigned"))
 		for _, c := range cr.Dangling {
-			autodiscoveryUtils.PrintConfig(w, c, checkName)
+			PrintConfig(w, c, checkName)
 		}
 		fmt.Fprintln(w, "")
 	}
@@ -102,7 +101,7 @@ func GetClusterChecks(w io.Writer, checkName string) error {
 		}
 		fmt.Fprintf(w, "\n===== Checks on %s =====\n", color.HiMagentaString(node.Name))
 		for _, c := range node.Configs {
-			autodiscoveryUtils.PrintConfig(w, c, checkName)
+			PrintConfig(w, c, checkName)
 		}
 	}
 
@@ -147,7 +146,7 @@ func GetEndpointsChecks(w io.Writer, checkName string) error {
 	// Print summary of pod-backed endpointschecks
 	fmt.Fprintf(w, "\n===== %d Pod-backed Endpoints-Checks scheduled =====\n", len(cr.Configs))
 	for _, c := range cr.Configs {
-		autodiscoveryUtils.PrintConfig(w, c, checkName)
+		PrintConfig(w, c, checkName)
 	}
 
 	return nil

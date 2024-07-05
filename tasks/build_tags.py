@@ -219,8 +219,8 @@ build_tags = {
 
 def compute_build_tags_for_flavor(
     build: str,
-    build_include: list[str],
-    build_exclude: list[str],
+    build_include: str | None,
+    build_exclude: str | None,
     flavor: AgentFlavor = AgentFlavor.base,
     include_sds: bool = False,
 ):
@@ -277,7 +277,7 @@ def get_default_build_tags(build="agent", flavor=AgentFlavor.base, platform: str
     the Windows and Darwin builds.
     """
     platform = platform or sys.platform
-    include = build_tags.get(flavor).get(build)
+    include = build_tags[flavor].get(build)
     if include is None:
         print("Warning: unrecognized build type, no build tags included.", file=sys.stderr)
         include = set()

@@ -17,6 +17,7 @@ import (
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"testing"
 )
 
@@ -108,6 +109,20 @@ func AssertUserRights(t *testing.T, host *components.RemoteHost, username string
 		return false
 	}
 	return assert.ElementsMatch(t, expectedRights, actualRights, "user %s should have user rights", username)
+}
+
+// RequireAgentVersionRunningWithNoErrors checks the agent is running the expected version with no errors
+func RequireAgentVersionRunningWithNoErrors(t *testing.T, client *common.TestClient, version string) {
+	// check version
+	if !t.Run("running expected agent version", func(t *testing.T) {
+		installedVersion, err := client.GetAgentVersion()
+		require.NoError(t, err, "should get agent version")
+		windowsAgent.TestAgentVersion(t, version, installedVersion)
+	}) {
+		t.FailNow()
+	}
+	// check no errors
+	RequireAgentRunningWithNoErrors(t, client)
 }
 
 // RequireAgentRunningWithNoErrors checks the agent is running with no errors

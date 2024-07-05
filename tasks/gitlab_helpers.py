@@ -2,18 +2,22 @@
 Helper for generating links to CI Visibility for Gitlab CI jobs
 """
 
+from __future__ import annotations
+
 import json
 import os
-from urllib.parse import quote
+import tempfile
 
 from invoke import task
 
-from tasks.libs.ciproviders.gitlab_api import BASE_URL as GITLAB_BASE_URL
+from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
+from tasks.libs.civisibility import (
+    get_pipeline_link_to_job_id,
+    get_pipeline_link_to_job_on_main,
+    get_test_link_to_job_id,
+    get_test_link_to_job_on_main,
+)
 from tasks.libs.common.color import Color, color_message
-
-CI_VISIBILITY_BASE_URL = "https://app.datadoghq.com/ci"
-CI_VISIBILITY_URL = f"{CI_VISIBILITY_BASE_URL}/pipeline-executions"
-TEST_VISIBILITY_URL = f"{CI_VISIBILITY_BASE_URL}/test-runs"
 
 
 @task
@@ -58,81 +62,70 @@ def create_gitlab_annotations_report(ci_job_id: str, ci_job_name: str):
             {
                 "external_link": {
                     "label": "CI Visibility: This job instance",
-                    "url": get_link_to_pipeline_job_id(ci_job_id),
+                    "url": get_pipeline_link_to_job_id(ci_job_id),
                 }
             },
             {
                 "external_link": {
                     "label": "Test Visibility: This job test runs",
-                    "url": get_link_to_test_runs(ci_job_id),
+                    "url": get_test_link_to_job_id(ci_job_id),
                 }
             },
             {
                 "external_link": {
                     "label": "CI Visibility: This job on main",
-                    "url": get_link_to_pipeline_job_on_main(ci_job_name),
+                    "url": get_pipeline_link_to_job_on_main(ci_job_name),
                 }
             },
             {
                 "external_link": {
                     "label": "Test Visibility: This job test runs on main",
-                    "url": get_link_to_test_runs_on_main(ci_job_name),
+                    "url": get_test_link_to_job_on_main(ci_job_name),
                 }
             },
         ]
     }
 
 
-def get_link_to_pipeline_job_id(job_id: str):
-    query_params = {
-        "ci_level": "job",
-        "@ci.job.id": job_id,
-        "@ci.pipeline.name": "DataDog/datadog-agent",
-    }
-    query_string = to_query_string(query_params)
-    quoted_query_string = quote(string=query_string, safe="")
-    return f"{CI_VISIBILITY_URL}?query={quoted_query_string}"
+def print_gitlab_object(get_object, ctx, ids, repo='DataDog/datadog-agent', jq: str | None = None, jq_colors=True):
+    """
+    Print one or more Gitlab objects in JSON and potentially query them with jq
+    """
+    repo = get_gitlab_repo(repo)
+    ids = [i for i in ids.split(",") if i]
+    for id in ids:
+        obj = get_object(repo, id)
+
+        if jq:
+            jq_flags = "-C" if jq_colors else ""
+            with tempfile.NamedTemporaryFile('w', delete=True) as f:
+                f.write(obj.to_json())
+                f.flush()
+
+                ctx.run(f"cat '{f.name}' | jq {jq_flags} '{jq}'")
+        else:
+            obj.pprint()
 
 
-def get_link_to_pipeline_job_on_main(job_name: str):
-    # explicitly escape double quotes
-    job_name = job_name.replace('"', '\\"')
-    query_params = {
-        "ci_level": "job",
-        # wrapping in double quotes
-        "@ci.job.name": f'"{job_name}"',
-        "@git.branch": "main",
-        "@ci.pipeline.name": "DataDog/datadog-agent",
-    }
-    query_string = to_query_string(query_params)
-    quoted_query_string = quote(string=query_string, safe="")
-    return f"{CI_VISIBILITY_URL}?query={quoted_query_string}"
+@task
+def print_pipeline(ctx, ids, repo='DataDog/datadog-agent', jq: str | None = None, jq_colors=True):
+    """
+    Print one or more Gitlab pipelines in JSON and potentially query them with jq
+    """
+
+    def get_pipeline(repo, id):
+        return repo.pipelines.get(id)
+
+    print_gitlab_object(get_pipeline, ctx, ids, repo, jq, jq_colors)
 
 
-def get_link_to_test_runs(job_id: str):
-    query_params = {
-        "test_level": "test",
-        "@ci.job.url": f"\"{GITLAB_BASE_URL}/DataDog/datadog-agent/-/jobs/{job_id}\"",
-        "@test.service": "datadog-agent",
-    }
-    query_string = to_query_string(query_params)
-    quoted_query_string = quote(string=query_string, safe="")
-    return f"{TEST_VISIBILITY_URL}?query={quoted_query_string}"
+@task
+def print_job(ctx, ids, repo='DataDog/datadog-agent', jq: str | None = None, jq_colors=True):
+    """
+    Print one or more Gitlab jobs in JSON and potentially query them with jq
+    """
 
+    def get_job(repo, id):
+        return repo.jobs.get(id)
 
-def get_link_to_test_runs_on_main(job_name: str):
-    job_name = job_name.replace('"', '\\"')
-    query_params = {
-        "test_level": "test",
-        # wrapping in double quotes
-        "@ci.job.name": f'"{job_name}"',
-        "@git.branch": "main",
-        "@test.service": "datadog-agent",
-    }
-    query_string = to_query_string(query_params)
-    quoted_query_string = quote(string=query_string, safe="")
-    return f"{TEST_VISIBILITY_URL}?query={quoted_query_string}"
-
-
-def to_query_string(params: dict):
-    return " ".join(f"{k}:{v}" for k, v in params.items())
+    print_gitlab_object(get_job, ctx, ids, repo, jq, jq_colors)
