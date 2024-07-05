@@ -3,9 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux
 
-package http
+// Package config provides helpers for USM configuration
+package config
 
 import (
 	"runtime"
@@ -43,13 +44,24 @@ func TLSSupported(c *config.Config) bool {
 	return kversion >= MinimumKernelVersion
 }
 
-// Supported We only support http with kernel >= 4.14.0.
-func Supported() bool {
+// IsUSMSupported We only support http with kernel >= 4.14.0.
+func IsUSMSupported() bool {
 	kversion, err := kernel.HostVersion()
 	if err != nil {
-		log.Warn("could not determine the current kernel version. http2 monitoring disabled.")
+		log.Warn("could not determine the current kernel version. USM disabled.")
 		return false
 	}
 
 	return kversion >= MinimumKernelVersion
+}
+
+// IsUSMSupportedAndEnabled returns true if USM is supported and enabled
+func IsUSMSupportedAndEnabled(config *config.Config) bool {
+	// http.Supported is misleading, it should be named usm.Supported.
+	return config.ServiceMonitoringEnabled && IsUSMSupported()
+}
+
+// NeedProcessMonitor returns true if the process monitor is needed for the given configuration
+func NeedProcessMonitor(config *config.Config) bool {
+	return config.EnableNativeTLSMonitoring || config.EnableGoTLSSupport || config.EnableJavaTLSSupport || config.EnableIstioMonitoring || config.EnableNodeJSMonitoring
 }
