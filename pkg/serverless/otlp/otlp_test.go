@@ -64,12 +64,11 @@ func TestServerlessOTLPAgentReceivesTraces(t *testing.T) {
 	t.Setenv("DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_ENDPOINT", grpcEndpoint)
 
 	// setup trace agent
-	traceAgent := &trace.ServerlessTraceAgent{}
-	traceAgent.Start(true, &trace.LoadConfig{Path: "./testdata/valid.yml"}, nil, 0)
+	traceAgent := trace.StartServerlessTraceAgent(true, &trace.LoadConfig{Path: "./testdata/valid.yml"}, nil, 0)
 	defer traceAgent.Stop()
-	assert.NotNil(traceAgent.Get())
+	assert.NotNil(traceAgent)
 	traceChan := make(chan struct{})
-	traceAgent.Get().SetSpanModifier(mockSpanModifier(func(*pb.TraceChunk, *pb.Span) {
+	traceAgent.SetSpanModifier(mockSpanModifier(func(*pb.TraceChunk, *pb.Span) {
 		// indicates when trace is received
 		traceChan <- struct{}{}
 	}))

@@ -16,7 +16,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/serverless/daemon"
 	"github.com/DataDog/datadog-agent/pkg/serverless/invocationlifecycle"
-	"github.com/DataDog/datadog-agent/pkg/serverless/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 )
 
@@ -94,7 +93,6 @@ func (m *mockLifecycleProcessor) OnInvokeEnd(endDetails *invocationlifecycle.Inv
 func TestFinishTimeoutExecutionSpan(t *testing.T) {
 	port := testutil.FreeTCPPort(t)
 	d := daemon.StartDaemon(fmt.Sprintf("127.0.0.1:%d", port))
-	d.TraceAgent = &trace.ServerlessTraceAgent{}
 	mock := &mockLifecycleProcessor{}
 	d.InvocationProcessor = mock
 	defer d.Stop()
