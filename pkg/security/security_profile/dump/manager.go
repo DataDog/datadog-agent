@@ -66,7 +66,6 @@ type ActivityDumpManager struct {
 	securityProfileManager SecurityProfileManager
 
 	tracedPIDsMap          *ebpf.Map
-	tracedCommsMap         *ebpf.Map
 	tracedCgroupsMap       *ebpf.Map
 	cgroupWaitList         *ebpf.Map
 	activityDumpsConfigMap *ebpf.Map
@@ -281,11 +280,6 @@ func NewActivityDumpManager(config *config.Config, statsdClient statsd.ClientInt
 		return nil, err
 	}
 
-	tracedComms, err := managerhelper.Map(manager, "traced_comms")
-	if err != nil {
-		return nil, err
-	}
-
 	tracedCgroupsMap, err := managerhelper.Map(manager, "traced_cgroups")
 	if err != nil {
 		return nil, err
@@ -326,7 +320,6 @@ func NewActivityDumpManager(config *config.Config, statsdClient statsd.ClientInt
 		kernelVersion:          kernelVersion,
 		manager:                manager,
 		tracedPIDsMap:          tracedPIDs,
-		tracedCommsMap:         tracedComms,
 		tracedCgroupsMap:       tracedCgroupsMap,
 		cgroupWaitList:         cgroupWaitList,
 		activityDumpsConfigMap: activityDumpsConfigMap,
@@ -388,15 +381,6 @@ func (adm *ActivityDumpManager) insertActivityDump(newDump *ActivityDump) error 
 			if ad.Metadata.ContainerID == newDump.Metadata.ContainerID {
 				// an activity dump is already active for this container ID, ignore
 				return nil
-			}
-		}
-	}
-
-	if len(newDump.Metadata.Comm) > 0 {
-		// check if the provided comm is new
-		for _, ad := range adm.activeDumps {
-			if ad.Metadata.Comm == newDump.Metadata.Comm {
-				return fmt.Errorf("an activity dump is already active for the provided comm")
 			}
 		}
 	}
@@ -542,41 +526,6 @@ workloadLoop:
 	}
 }
 
-// DumpActivity handles an activity dump request
-func (adm *ActivityDumpManager) DumpActivity(params *api.ActivityDumpParams) (*api.ActivityDumpMessage, error) {
-	adm.Lock()
-	defer adm.Unlock()
-
-	newDump := NewActivityDump(adm, func(ad *ActivityDump) {
-		ad.Metadata.Comm = params.GetComm()
-		ad.Metadata.ContainerID = params.GetContainerID()
-		dumpDuration, _ := time.ParseDuration(params.Timeout)
-		ad.SetTimeout(dumpDuration)
-
-		if params.GetDifferentiateArgs() {
-			ad.Metadata.DifferentiateArgs = true
-			ad.ActivityTree.DifferentiateArgs()
-		}
-	})
-
-	// add local storage requests
-	storageRequests, err := config.ParseStorageRequests(params.GetStorage())
-	if err != nil {
-		errMsg := fmt.Errorf("couldn't start tracing [%s]: %v", newDump.GetSelectorStr(), err)
-		return &api.ActivityDumpMessage{Error: errMsg.Error()}, errMsg
-	}
-	for _, request := range storageRequests {
-		newDump.AddStorageRequest(request)
-	}
-
-	if err = adm.insertActivityDump(newDump); err != nil {
-		errMsg := fmt.Errorf("couldn't start tracing [%s]: %v", newDump.GetSelectorStr(), err)
-		return &api.ActivityDumpMessage{Error: errMsg.Error()}, errMsg
-	}
-
-	return newDump.ToSecurityActivityDumpMessage(), nil
-}
-
 // ListActivityDumps returns the list of active activity dumps
 func (adm *ActivityDumpManager) ListActivityDumps(_ *api.ActivityDumpListParams) (*api.ActivityDumpListMessage, error) {
 	adm.Lock()
@@ -596,16 +545,15 @@ func (adm *ActivityDumpManager) StopActivityDump(params *api.ActivityDumpStopPar
 	adm.Lock()
 	defer adm.Unlock()
 
-	if params.GetName() == "" && params.GetContainerID() == "" && params.GetComm() == "" {
-		errMsg := fmt.Errorf("you must specify one selector between name, containerID and comm")
+	if params.GetName() == "" && params.GetContainerID() == "" {
+		errMsg := fmt.Errorf("you must specify one selector between name and containerID")
 		return &api.ActivityDumpStopMessage{Error: errMsg.Error()}, errMsg
 	}
 
 	toDelete := -1
 	for i, d := range adm.activeDumps {
 		if (params.GetName() != "" && d.nameMatches(params.GetName())) ||
-			(params.GetContainerID() != "" && d.containerIDMatches(params.GetContainerID())) ||
-			(params.GetComm() != "" && d.commMatches(params.GetComm())) {
+			(params.GetContainerID() != "" && d.containerIDMatches(params.GetContainerID())) {
 			d.Finalize(true)
 			seclog.Infof("tracing stopped for [%s]", d.GetSelectorStr())
 			toDelete = i
@@ -630,10 +578,8 @@ func (adm *ActivityDumpManager) StopActivityDump(params *api.ActivityDumpStopPar
 	var errMsg error
 	if params.GetName() != "" {
 		errMsg = fmt.Errorf("the activity dump manager does not contain any ActivityDump with the following name: %s", params.GetName())
-	} else if params.GetContainerID() != "" {
+	} else /* if params.GetContainerID() != "" */ {
 		errMsg = fmt.Errorf("the activity dump manager does not contain any ActivityDump with the following containerID: %s", params.GetContainerID())
-	} else /* if params.GetComm() != "" */ {
-		errMsg = fmt.Errorf("the activity dump manager does not contain any ActivityDump with the following comm: %s", params.GetComm())
 	}
 	return &api.ActivityDumpStopMessage{Error: errMsg.Error()}, errMsg
 }

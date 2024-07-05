@@ -3,6 +3,7 @@ import json
 import os
 import platform
 import re
+import sys
 import tarfile
 import tempfile
 import xml.etree.ElementTree as ET
@@ -227,7 +228,7 @@ def upload_junitxmls(team_dir: Path):
         print(stdout)
         print(f" Uploaded {len(tuple(team_dir.iterdir()))} files for {team_dir.name}")
         if stderr:
-            print(f"Failed uploading junit:\n{stderr}", file=os.sys.stderr)
+            print(f"Failed uploading junit:\n{stderr.decode()}", file=sys.stderr)
             raise CalledProcessError(process.returncode, DATADOG_CI_COMMAND)
     return ""  # For ThreadPoolExecutor.map. Without this it prints None in the log output.
 
@@ -346,7 +347,7 @@ def produce_junit_tar(files, result_path):
         job_env_file.writelines(
             [
                 f'CI_JOB_URL={os.environ.get("CI_JOB_URL", "")}\n'.encode(),
-                f'CI_JOB_NAME="{os.environ.get("CI_JOB_NAME", "")}"'.encode(),
+                f'CI_JOB_NAME={os.environ.get("CI_JOB_NAME", "")}'.encode(),
             ]
         )
         job_env_info = tarfile.TarInfo(JOB_ENV_FILE_NAME)

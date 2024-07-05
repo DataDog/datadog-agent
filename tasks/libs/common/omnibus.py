@@ -241,7 +241,7 @@ def send_build_metrics(ctx, overall_duration):
     if sys.platform == 'win32':
         aws_cmd = "aws.cmd"
         if src_dir is None:
-            src_dir = "C:/buildroot/datadog-agent"
+            src_dir = os.environ.get("REPO_ROOT", os.getcwd())
 
     job_name = os.environ.get('CI_JOB_NAME_SLUG')
     branch = os.environ.get('CI_COMMIT_REF_NAME')

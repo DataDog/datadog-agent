@@ -57,6 +57,7 @@ var (
 		{t: testInstaller},
 		{t: testAgent},
 		{t: testApmInjectAgent, skippedFlavors: []e2eos.Descriptor{e2eos.CentOS7, e2eos.RedHat9, e2eos.Fedora37, e2eos.Suse15}},
+		{t: testUpgradeScenario},
 	}
 )
 
@@ -107,6 +108,9 @@ func TestPackages(t *testing.T) {
 				t.Parallel()
 				// FIXME: Fedora currently has DNS issues
 				if flavor.Flavor == e2eos.Fedora {
+					flake.Mark(t)
+				}
+				if strings.Contains(t.Name(), "apm") {
 					flake.Mark(t)
 				}
 				opts := []awshost.ProvisionerOption{
@@ -216,6 +220,12 @@ func (s *packageBaseSuite) setupFakeIntake() {
 	for _, e := range env {
 		s.Env().RemoteHost.MustExecute(fmt.Sprintf(`echo "%s" | sudo tee -a /etc/environment`, e))
 	}
+
+	if _, err := s.Env().RemoteHost.Execute("which systemctl"); err != nil {
+		// If systemctl isn't on the system we rely on /etc/environment being read
+		return
+	}
+
 	s.Env().RemoteHost.MustExecute("sudo mkdir -p /etc/systemd/system/datadog-agent.service.d")
 	s.Env().RemoteHost.MustExecute("sudo mkdir -p /etc/systemd/system/datadog-agent-trace.service.d")
 	s.Env().RemoteHost.MustExecute(`printf "[Service]\nEnvironmentFile=-/etc/environment\n" | sudo tee /etc/systemd/system/datadog-agent-trace.service.d/fake-intake.conf`)

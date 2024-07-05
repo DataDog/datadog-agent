@@ -259,6 +259,8 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient v0.55.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/statsprocessor v0.0.0-20240525065430-d0b647bcb646 // indirect
+	github.com/DataDog/datadog-agent/comp/trace/compression/def v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.55.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/proto v0.55.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.55.0-rc.3 // indirect
@@ -274,7 +276,7 @@ require (
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.16.1 // indirect
 	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.16.1 // indirect
 	github.com/DataDog/sketches-go v1.4.5 // indirect
-	github.com/DataDog/zstd v1.5.2 // indirect
+	github.com/DataDog/zstd v1.5.5 // indirect
 	github.com/GehirnInc/crypt v0.0.0-20200316065508-bb7000b8a962 // indirect
 	github.com/GoogleCloudPlatform/grpc-gcp-go/grpcgcp v1.5.0 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.23.0 // indirect
@@ -764,6 +766,12 @@ replace github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/l
 replace github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient => ../../otlp/components/metricsclient
 
 replace github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/statsprocessor => ../../otlp/components/statsprocessor
+
+replace github.com/DataDog/datadog-agent/comp/trace/compression/def => ../../../trace/compression/def
+
+replace github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip => ../../../trace/compression/impl-gzip
+
+replace github.com/DataDog/datadog-agent/comp/trace/compression/impl-zstd => ../../../trace/compression/impl-zstd
 
 replace github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../../../pkg/collector/check/defaults
 

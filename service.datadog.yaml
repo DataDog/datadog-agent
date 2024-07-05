@@ -7,7 +7,6 @@ extensions:
     workday_team: "Agent Build And Releases"
     conductor:
       slack: "datadog-agent-pipelines"
-      schedule: "0 3 * * 1-5"
       options:
         disable_bia: true
       targets:
