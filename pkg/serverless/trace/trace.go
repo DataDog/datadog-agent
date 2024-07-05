@@ -21,8 +21,7 @@ import (
 
 // ServerlessTraceAgent represents a trace agent in a serverless context
 type ServerlessTraceAgent struct {
-	ta           TraceAgent
-	spanModifier *spanModifier
+	ta TraceAgent
 }
 
 // Load abstracts the file configuration loading
