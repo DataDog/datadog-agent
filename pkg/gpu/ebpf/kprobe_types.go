@@ -12,6 +12,9 @@ package ebpf
 */
 import "C"
 
+type CudaEventType C.cuda_event_type_t
+type CudaEventHeader C.cuda_event_header_t
+
 type CudaKernelLaunch C.cuda_kernel_launch_t
 type Dim3 C.dim3
 
@@ -20,3 +23,4 @@ type CudaMemEventType C.cuda_memory_event_type_t
 
 const SizeofCudaKernelLaunch = C.sizeof_cuda_kernel_launch_t
 const SizeofCudaMemEvent = C.sizeof_cuda_memory_event_t
+const SizeofCudaEventHeader = C.sizeof_cuda_event_header_t

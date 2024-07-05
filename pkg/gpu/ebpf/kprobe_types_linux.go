@@ -3,11 +3,16 @@
 
 package ebpf
 
+type CudaEventType uint32
+type CudaEventHeader struct {
+	Type      uint32
+	Pid_tgid  uint64
+	Stream_id uint64
+}
+
 type CudaKernelLaunch struct {
-	Pid_tgid        uint64
+	Header          CudaEventHeader
 	Kernel_addr     uint64
-	Probe_id        uint16
-	Stream_id       uint64
 	Ktime_ns        uint64
 	Shared_mem_size uint64
 	Grid_size       Dim3
@@ -20,8 +25,7 @@ type Dim3 struct {
 }
 
 type CudaMemEvent struct {
-	Pid_tgid  uint64
-	Probe_id  uint16
+	Header    CudaEventHeader
 	Size      uint64
 	Addr      uint64
 	Type      uint32
@@ -30,4 +34,5 @@ type CudaMemEvent struct {
 type CudaMemEventType uint32
 
 const SizeofCudaKernelLaunch = 0x48
-const SizeofCudaMemEvent = 0x28
+const SizeofCudaMemEvent = 0x30
+const SizeofCudaEventHeader = 0x18

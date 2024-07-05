@@ -14,21 +14,21 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-type CudaMemEventConsumer struct {
+type CudaEventConsumer struct {
 	eventHandler ddebpf.EventHandler
 	requests     chan chan struct{}
 	once         sync.Once
 	closed       chan struct{}
 }
 
-func NewCudaMemEventConsumer(eventHandler ddebpf.EventHandler) *CudaMemEventConsumer {
-	return &CudaMemEventConsumer{
+func NewCudaEventConsumer(eventHandler ddebpf.EventHandler) *CudaEventConsumer {
+	return &CudaEventConsumer{
 		eventHandler: eventHandler,
 		closed:       make(chan struct{}),
 	}
 }
 
-func (c *CudaMemEventConsumer) FlushPending() {
+func (c *CudaEventConsumer) FlushPending() {
 	if c == nil {
 		return
 	}
@@ -47,7 +47,7 @@ func (c *CudaMemEventConsumer) FlushPending() {
 	}
 }
 
-func (c *CudaMemEventConsumer) Stop() {
+func (c *CudaEventConsumer) Stop() {
 	if c == nil {
 		return
 	}
@@ -57,11 +57,11 @@ func (c *CudaMemEventConsumer) Stop() {
 	})
 }
 
-func (c *CudaMemEventConsumer) Start() {
+func (c *CudaEventConsumer) Start() {
 	if c == nil {
 		return
 	}
-	health := health.RegisterLiveness("gpu-tracer-cuda-mem-event")
+	health := health.RegisterLiveness("gpu-tracer-cuda-kernel-launch")
 
 	go func() {
 		defer func() {
@@ -84,13 +84,14 @@ func (c *CudaMemEventConsumer) Start() {
 					return
 				}
 
-				if len(batchData.Data) != SizeofCudaMemEvent {
-					log.Errorf("unknown type received from perf buffer, skipping. data size=%d, expecting %d", len(batchData.Data), SizeofCudaKernelLaunch)
+				if len(batchData.Data) < SizeofCudaEventHeader {
+					log.Errorf("Not enough data to parse header, data size=%d, expecting at least %d", len(batchData.Data), SizeofCudaEventHeader)
+					continue
 				}
 
-				ckl := (*CudaMemEvent)(unsafe.Pointer(&batchData.Data[0]))
+				ckl := (*CudaEventHeader)(unsafe.Pointer(&batchData.Data[0]))
 
-				log.Infof("cuda mem event launch: %+v", ckl)
+				log.Infof("cuda kernel launch: %+v", ckl)
 
 				batchData.Done()
 			// lost events only occur when using perf buffers
