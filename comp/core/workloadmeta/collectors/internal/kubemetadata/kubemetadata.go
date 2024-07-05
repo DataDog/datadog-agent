@@ -207,6 +207,10 @@ func (c *collector) parsePods(
 		}
 	}
 
+	// To get metadata/labels once per namespace.
+	metadataByNS := make(map[string]*clusteragent.Metadata)
+	labelsByNS := make(map[string]map[string]string)
+
 	for _, pod := range pods {
 		if pod.Metadata.UID == "" {
 			continue
@@ -238,10 +242,14 @@ func (c *collector) parsePods(
 
 		if c.isDCAEnabled() && c.dcaClient.SupportsNamespaceMetadataCollection() {
 			// Cluster agent with version 7.55+
-			var nsMetadata *clusteragent.Metadata
-			nsMetadata, err = c.getNamespaceMetadata(pod.Metadata.Namespace)
-			if err != nil {
-				log.Errorf("Could not fetch namespace metadata for pod %s/%s: %v", pod.Metadata.Namespace, pod.Metadata.Name, err)
+			nsMetadata, ok := metadataByNS[pod.Metadata.Namespace]
+			if !ok {
+				nsMetadata, err = c.getNamespaceMetadata(pod.Metadata.Namespace)
+				if err == nil {
+					metadataByNS[pod.Metadata.Namespace] = nsMetadata
+				} else {
+					log.Errorf("Could not fetch namespace metadata for pod %s/%s: %v", pod.Metadata.Namespace, pod.Metadata.Name, err)
+				}
 			}
 
 			if nsMetadata != nil {
@@ -255,9 +263,15 @@ func (c *collector) parsePods(
 			}
 		} else {
 			// Cluster agent with version older than 7.55
-			nsLabels, err = c.getNamespaceLabels(pod.Metadata.Namespace)
-			if err != nil {
-				log.Errorf("Could not fetch namespace labels for pod %s/%s: %v", pod.Metadata.Namespace, pod.Metadata.Name, err)
+			var ok bool
+			nsLabels, ok = labelsByNS[pod.Metadata.Namespace]
+			if !ok {
+				nsLabels, err = c.getNamespaceLabels(pod.Metadata.Namespace)
+				if err == nil {
+					labelsByNS[pod.Metadata.Namespace] = nsLabels
+				} else {
+					log.Errorf("Could not fetch namespace labels for pod %s/%s: %v", pod.Metadata.Namespace, pod.Metadata.Name, err)
+				}
 			}
 
 			if c.collectNamespaceAnnotations {
