@@ -1277,7 +1277,6 @@ require (
 	go.opentelemetry.io/collector/extension/ballastextension v0.103.0 // indirect
 	go.opentelemetry.io/collector/extension/zpagesextension v0.104.0 // indirect
 	go.opentelemetry.io/collector/filter v0.103.0 // indirect
-	go.opentelemetry.io/collector/otelcol/otelcoltest v0.104.0 // indirect
 	go.opentelemetry.io/collector/pdata/pprofile v0.104.0 // indirect
 	go.opentelemetry.io/collector/pdata/testdata v0.104.0 // indirect
 	go.opentelemetry.io/collector/processor/memorylimiterprocessor v0.103.0 // indirect
