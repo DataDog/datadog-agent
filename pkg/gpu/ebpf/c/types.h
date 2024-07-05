@@ -16,12 +16,16 @@ typedef struct {
     cuda_event_type_t type;
     __u64 pid_tgid;
     __u64 stream_id;
+    __u64 ktime_ns;
 } cuda_event_header_t;
 
 typedef struct {
     cuda_event_header_t header;
+} cuda_sync_t;
+
+typedef struct {
+    cuda_event_header_t header;
     __u64 kernel_addr;
-    __u64 ktime_ns;
     __u64 shared_mem_size;
     dim3 grid_size;
     dim3 block_size;

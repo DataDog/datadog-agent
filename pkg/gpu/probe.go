@@ -37,8 +37,8 @@ const (
 
 // Probe represents the GPU monitoring probe
 type Probe struct {
-	mgr                  *ddebpf.Manager
-	cfg                  *Config
+	mgr      *ddebpf.Manager
+	cfg      *Config
 	consumer *gpuebpf.CudaEventConsumer
 }
 
@@ -139,8 +139,9 @@ func startGPUProbe(buf bytecode.AssetReader, opts manager.Options, telemetryComp
 	}
 
 	uprobeToLibrary := map[string]string{
-		"uprobe_cudaLaunchKernel": "libcudart.so",
-		"uprobe_cudaMalloc":       "libcudart.so",
+		"uprobe_cudaLaunchKernel":      "libcudart.so",
+		"uprobe_cudaMalloc":            "libcudart.so",
+		"uprobe_cudaStreamSynchronize": "libcudart.so",
 	}
 
 	for uprobe, library := range uprobeToLibrary {

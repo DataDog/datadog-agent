@@ -15,16 +15,18 @@ import (
 )
 
 type CudaEventConsumer struct {
-	eventHandler ddebpf.EventHandler
-	requests     chan chan struct{}
-	once         sync.Once
-	closed       chan struct{}
+	eventHandler   ddebpf.EventHandler
+	requests       chan chan struct{}
+	once           sync.Once
+	closed         chan struct{}
+	streamHandlers map[streamKey]*streamHandler
 }
 
 func NewCudaEventConsumer(eventHandler ddebpf.EventHandler) *CudaEventConsumer {
 	return &CudaEventConsumer{
-		eventHandler: eventHandler,
-		closed:       make(chan struct{}),
+		eventHandler:   eventHandler,
+		closed:         make(chan struct{}),
+		streamHandlers: make(map[streamKey]*streamHandler),
 	}
 }
 
@@ -75,7 +77,6 @@ func (c *CudaEventConsumer) Start() {
 		lostChannel := c.eventHandler.LostChannel()
 		for {
 			select {
-
 			case <-c.closed:
 				return
 			case <-health.C:
@@ -89,9 +90,39 @@ func (c *CudaEventConsumer) Start() {
 					continue
 				}
 
-				ckl := (*CudaEventHeader)(unsafe.Pointer(&batchData.Data[0]))
+				header := (*CudaEventHeader)(unsafe.Pointer(&batchData.Data[0]))
 
-				log.Infof("cuda kernel launch: %+v", ckl)
+				pid := uint32(header.Pid_tgid >> 32)
+				tid := uint32(header.Pid_tgid)
+				streamKey := streamKey{pid: pid, tid: tid, stream: header.Stream_id}
+
+				if _, ok := c.streamHandlers[streamKey]; !ok {
+					c.streamHandlers[streamKey] = &streamHandler{}
+				}
+
+				switch header.Type {
+				case CudaEventTypeKernelLaunch:
+					if len(batchData.Data) != SizeofCudaKernelLaunch {
+						log.Errorf("Not enough data to parse kernel launch event, data size=%d, expecting at least %d", len(batchData.Data), SizeofCudaKernelLaunch)
+						continue
+					}
+					ckl := (*CudaKernelLaunch)(unsafe.Pointer(&batchData.Data[0]))
+					c.streamHandlers[streamKey].handleKernelLaunch(ckl)
+				case CudaEventTypeMemory:
+					if len(batchData.Data) != SizeofCudaMemEvent {
+						log.Errorf("Not enough data to parse memory event, data size=%d, expecting at least %d", len(batchData.Data), SizeofCudaMemEvent)
+						continue
+					}
+					cme := (*CudaMemEvent)(unsafe.Pointer(&batchData.Data[0]))
+					c.streamHandlers[streamKey].handleMemEvent(cme)
+				case CudaEventTypeSync:
+					if len(batchData.Data) != SizeofCudaSync {
+						log.Errorf("Not enough data to parse sync event, data size=%d, expecting at least %d", len(batchData.Data), SizeofCudaSync)
+						continue
+					}
+					cs := (*CudaSync)(unsafe.Pointer(&batchData.Data[0]))
+					c.streamHandlers[streamKey].handleSync(cs)
+				}
 
 				batchData.Done()
 			// lost events only occur when using perf buffers

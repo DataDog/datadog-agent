@@ -8,12 +8,12 @@ type CudaEventHeader struct {
 	Type      uint32
 	Pid_tgid  uint64
 	Stream_id uint64
+	Ktime_ns  uint64
 }
 
 type CudaKernelLaunch struct {
 	Header          CudaEventHeader
 	Kernel_addr     uint64
-	Ktime_ns        uint64
 	Shared_mem_size uint64
 	Grid_size       Dim3
 	Block_size      Dim3
@@ -22,6 +22,10 @@ type Dim3 struct {
 	X uint32
 	Y uint32
 	Z uint32
+}
+
+type CudaSync struct {
+	Header CudaEventHeader
 }
 
 type CudaMemEvent struct {
@@ -33,6 +37,11 @@ type CudaMemEvent struct {
 }
 type CudaMemEventType uint32
 
+const CudaEventTypeKernelLaunch = 0x0
+const CudaEventTypeMemory = 0x1
+const CudaEventTypeSync = 0x2
+
 const SizeofCudaKernelLaunch = 0x48
-const SizeofCudaMemEvent = 0x30
-const SizeofCudaEventHeader = 0x18
+const SizeofCudaMemEvent = 0x38
+const SizeofCudaEventHeader = 0x20
+const SizeofCudaSync = 0x20
