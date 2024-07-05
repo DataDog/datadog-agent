@@ -58,9 +58,9 @@ func ShouldBufferUntilSDSConfiguration(cfg pkgconfigmodel.Reader) bool {
 // WaitForConfigurationBufferMaxSize returns a size for the buffer used while
 // waiting for an SDS configuration.
 func WaitForConfigurationBufferMaxSize(cfg pkgconfigmodel.Reader) int {
-    v := cfg.GetInt(WaitForConfigBufferMaxSizeField)
-    if v <= 0 {
-        v = WaitForConfigDefaultBufferMaxSize
-    }
-    return v
+	v := cfg.GetInt(WaitForConfigBufferMaxSizeField)
+	if v <= 0 {
+		v = WaitForConfigDefaultBufferMaxSize
+	}
+	return v
 }
