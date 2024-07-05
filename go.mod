@@ -42,6 +42,8 @@ replace (
 	github.com/DataDog/datadog-agent/comp/netflow/payload => ./comp/netflow/payload
 	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def => ./comp/otelcol/collector-contrib/def
 	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/impl => ./comp/otelcol/collector-contrib/impl
+	github.com/DataDog/datadog-agent/comp/otelcol/configstore/def => ./comp/otelcol/configstore/def
+	github.com/DataDog/datadog-agent/comp/otelcol/configstore/impl => ./comp/otelcol/configstore/impl
 	github.com/DataDog/datadog-agent/comp/otelcol/converter/def => ./comp/otelcol/converter/def
 	github.com/DataDog/datadog-agent/comp/otelcol/converter/impl => ./comp/otelcol/converter/impl
 	github.com/DataDog/datadog-agent/comp/otelcol/extension/def => ./comp/otelcol/extension/def
@@ -56,6 +58,9 @@ replace (
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil => ./comp/otelcol/otlp/testutil
 	github.com/DataDog/datadog-agent/comp/serializer/compression => ./comp/serializer/compression
 	github.com/DataDog/datadog-agent/comp/trace/agent/def => ./comp/trace/agent/def
+	github.com/DataDog/datadog-agent/comp/trace/compression/def => ./comp/trace/compression/def
+	github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip => ./comp/trace/compression/impl-gzip
+	github.com/DataDog/datadog-agent/comp/trace/compression/impl-zstd => ./comp/trace/compression/impl-zstd
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey => ./pkg/aggregator/ckey/
 	github.com/DataDog/datadog-agent/pkg/api => ./pkg/api
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ./pkg/collector/check/defaults
@@ -444,7 +449,7 @@ require (
 	github.com/karrick/godirwalk v1.17.0 // indirect
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51 // indirect
 	github.com/kjk/lzma v0.0.0-20161016003348-3fd93898850d // indirect
-	github.com/klauspost/compress v1.17.8 // indirect
+	github.com/klauspost/compress v1.17.9 // indirect
 	github.com/klauspost/pgzip v1.2.5 // indirect
 	github.com/knadh/koanf v1.5.0 // indirect
 	github.com/knqyf263/go-apk-version v0.0.0-20200609155635-041fdbb8563f // indirect
@@ -608,6 +613,8 @@ require (
 	github.com/DataDog/datadog-agent/comp/netflow/payload v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/impl v0.55.0-rc.3
+	github.com/DataDog/datadog-agent/comp/otelcol/configstore/def v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/comp/otelcol/configstore/impl v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/otelcol/converter/def v0.55.0-rc.1
 	github.com/DataDog/datadog-agent/comp/otelcol/converter/impl v0.0.0-20240618144845-a975ff101886
 	github.com/DataDog/datadog-agent/comp/otelcol/extension/def v0.0.0-20240612124811-03a2a2de1865
@@ -621,6 +628,9 @@ require (
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/comp/serializer/compression v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/comp/trace/agent/def v0.0.0-20240620192452-6ae09a69b21f
+	github.com/DataDog/datadog-agent/comp/trace/compression/def v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/comp/trace/compression/impl-zstd v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/api v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.55.0-rc.3

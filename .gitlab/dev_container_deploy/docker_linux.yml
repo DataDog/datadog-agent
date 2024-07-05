@@ -232,9 +232,9 @@ dev_nightly-ot-a7:
     IMG_REGISTRIES: dev
   parallel:
     matrix:
-      - IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-ot-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-ot-arm64
+      - IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-ot-beta-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-ot-beta-arm64
         IMG_DESTINATIONS: agent-dev:nightly-ot-${CI_COMMIT_REF_SLUG}
-      - IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-ot-jmx-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-ot-jmx-arm64
+      - IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-ot-beta-jmx-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-ot-beta-jmx-arm64
         IMG_DESTINATIONS: agent-dev:nightly-ot-${CI_COMMIT_REF_SLUG}-jmx
 
 # deploy nightly build to single-machine-performance
@@ -295,8 +295,8 @@ qa_agent_ot:
     - docker_build_ot_agent7_arm64
   variables:
     IMG_REGISTRIES: agent-qa
-    IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-ot-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-ot-arm64
-    IMG_DESTINATIONS: agent:${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-ot
+    IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-ot-beta-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-ot-beta-arm64
+    IMG_DESTINATIONS: agent:${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-ot-beta
 
 dev_branch-ot:
   extends: .docker_publish_job_definition

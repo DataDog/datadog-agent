@@ -96,6 +96,11 @@ func apmLanguageEnabled(p Package, e *env.Env) bool {
 	if _, ok := e.ApmLibraries["all"]; ok {
 		return true
 	}
+	// If the ApmLibraries env is left empty but apm injection is
+	// enabled, we install all languages
+	if len(e.ApmLibraries) == 0 {
+		return true
+	}
 	return false
 }
 
