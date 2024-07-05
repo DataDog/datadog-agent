@@ -7,7 +7,6 @@ from tasks import components
 
 
 class TestComponents(unittest.TestCase):
-
     def setUp(self):
         # Add the classic component (used by tests) to the allowlist
         classicComp = 'comp/classic/classicimpl'

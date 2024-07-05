@@ -71,6 +71,7 @@ components_classic_style = [
     'comp/aggregator/diagnosesendermanager/diagnosesendermanagerimpl',
     'comp/api/api/apiimpl',
     'comp/api/authtoken/fetchonlyimpl',
+    'comp/api/authtoken/createandfetchimpl',
     'comp/checks/agentcrashdetect/agentcrashdetectimpl',
     'comp/checks/windowseventlog/windowseventlogimpl',
     'comp/collector/collector/collectorimpl',
@@ -79,6 +80,7 @@ components_classic_style = [
     'comp/core/configsync/configsyncimpl',
     'comp/core/gui/guiimpl',
     'comp/core/hostname/hostnameimpl',
+    'comp/core/log/logimpl',
     'comp/core/log/tracelogimpl',
     'comp/core/pid/pidimpl',
     'comp/core/secrets/secretsimpl',
@@ -186,7 +188,7 @@ def check_component_contents_and_file_hiearchy(entry_point):
     for folder in directory.iterdir():
         # TODO: Check entry_point.version == 2 for new-style, and entry_point.version == 1 for classic (currently broken on some classic components)
 
-        # Check for component implementation using the new-style folder structure: comp/<comopnent>/impl[-suffix]
+        # Check for component implementation using the new-style folder structure: comp/<component>/impl[-suffix]
         if folder.match('impl-*') or folder.match('impl'):
             missing_implementation_folder = False
             break
