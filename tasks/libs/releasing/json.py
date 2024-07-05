@@ -35,7 +35,7 @@ INTERNAL_DEPS_REPOS = ["omnibus-software", "omnibus-ruby", "datadog-agent-macos-
 DEPENDENT_REPOS = INTERNAL_DEPS_REPOS + ["integrations-core"]
 ALL_REPOS = DEPENDENT_REPOS + [UNFREEZE_REPO_AGENT]
 UNFREEZE_REPOS = INTERNAL_DEPS_REPOS + [UNFREEZE_REPO_AGENT]
-DEFAULT_BRANCH = {
+DEFAULT_BRANCHES = {
     "omnibus-software": "master",
     "omnibus-ruby": "datadog-5.5.0",
     "datadog-agent-macos-build": "master",
@@ -336,7 +336,7 @@ def generate_repo_data(warning_mode, next_version, release_branch):
     for repo in repos:
         branch = release_branch
         if branch == "main":
-            branch = next_version.branch() if repo == "integrations-core" else DEFAULT_BRANCH.get(repo, "main")
+            branch = next_version.branch() if repo == "integrations-core" else DEFAULT_BRANCHES.get(repo, "main")
         data[repo] = {
             'branch': branch,
             'previous_tag': previous_tags.get(repo, ""),

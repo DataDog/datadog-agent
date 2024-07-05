@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import tempfile
 from contextlib import contextmanager
 from typing import TYPE_CHECKING
 
@@ -15,20 +16,18 @@ if TYPE_CHECKING:
 
 
 @contextmanager
-def clone(ctx, repo, branch, destination="", options=""):
+def clone(ctx, repo, branch, options=""):
     """
     Context manager to clone a git repository and checkout a specific branch.
     """
     current_dir = os.getcwd()
-    if len(destination) == 0:
-        destination = repo
     try:
-        ctx.run(f"git clone -b {branch} {options} https://github.com/DataDog/{repo} {destination}")
-        os.chdir(destination)
-        yield
+        with tempfile.TemporaryDirectory() as clone_dir:
+            ctx.run(f"git clone -b {branch} {options} https://github.com/DataDog/{repo} {clone_dir}")
+            os.chdir(clone_dir)
+            yield
     finally:
         os.chdir(current_dir)
-        ctx.run(f"rm -rf {destination}")
 
 
 def get_staged_files(ctx, commit="HEAD", include_deleted_files=False) -> Iterable[str]:
@@ -153,6 +152,7 @@ def check_clean_branch_state(ctx, github, branch):
 
 
 def get_last_commit(ctx, repo, branch):
+    # Repo is only the repo name, e.g. "datadog-agent"
     return (
         ctx.run(
             rf'git ls-remote -h https://github.com/DataDog/{repo} "refs/heads/{branch}"',
@@ -176,9 +176,9 @@ def get_last_tag(ctx, repo, pattern):
             ),
             code=1,
         )
-    last_tag = tags.split("\n")[-1]
+    last_tag = tags.splitlines()[-1]
     last_tag_commit, last_tag_name = last_tag.split()
     if last_tag_name.endswith("^{}"):
-        last_tag_name = last_tag_name[:-3]
+        last_tag_name = last_tag_name.removesuffix("^{}")
     last_tag_name = last_tag_name.removeprefix("refs/tags/")
     return last_tag_commit, last_tag_name
