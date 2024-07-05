@@ -383,7 +383,7 @@ new-e2e-windows-systemprobe:
     - deploy_windows_testing-a7
     - tests_windows_sysprobe_x64
   variables:
-    TARGETS: ./tests/sysprobe-functionnal
+    TARGETS: ./tests/sysprobe-functional
     TEAM: windows-kernel-integrations
 
 
