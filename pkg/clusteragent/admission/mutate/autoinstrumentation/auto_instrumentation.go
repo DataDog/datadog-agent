@@ -87,6 +87,7 @@ const (
 	python language = "python"
 	dotnet language = "dotnet"
 	ruby   language = "ruby"
+	php    language = "php"
 
 	libVersionAnnotationKeyFormat    = "admission.datadoghq.com/%s-lib.version"
 	customLibAnnotationKeyFormat     = "admission.datadoghq.com/%s-lib.custom-image"
@@ -111,7 +112,26 @@ const (
 )
 
 var (
-	supportedLanguages = []language{java, js, python, dotnet, ruby}
+	supportedLanguages = []language{
+		java,
+		js,
+		python,
+		dotnet,
+		ruby,
+	}
+
+	// languageVersions defines the major library versions we consider "default" for each
+	// supported language. If not set, we will default to "latest", see defaultLibVersion.
+	//
+	// If this language does not appear in supportedLanguages, it will not be injected.
+	languageVersions = map[language]string{
+		java:   "v1", // https://datadoghq.atlassian.net/browse/APMON-1064
+		dotnet: "v2", // https://datadoghq.atlassian.net/browse/APMON-1067
+		python: "v2", // https://datadoghq.atlassian.net/browse/APMON-1068
+		ruby:   "v2", // https://datadoghq.atlassian.net/browse/APMON-1066
+		js:     "v5", // https://datadoghq.atlassian.net/browse/APMON-1065
+		php:    "v2", // https://datadoghq.atlassian.net/browse/APMON-1128
+	}
 
 	singleStepInstrumentationInstallTypeEnvVar = corev1.EnvVar{
 		Name:  instrumentationInstallTypeEnvVarName,
@@ -443,13 +463,23 @@ func (w *Webhook) getLibrariesLanguageDetection(pod *corev1.Pod) []libInfo {
 
 // getAllLatestLibraries returns all supported by APM Instrumentation tracing libraries
 func (w *Webhook) getAllLatestLibraries() []libInfo {
-	libsToInject := []libInfo{}
-
+	var libsToInject []libInfo
 	for _, lang := range supportedLanguages {
-		libsToInject = append(libsToInject, libInfo{lang: language(lang), image: libImageName(w.containerRegistry, lang, "latest")})
+		libsToInject = append(libsToInject, libInfo{
+			lang:  language(lang),
+			image: libImageName(w.containerRegistry, lang, defaultLibVersion(lang)),
+		})
 	}
 
 	return libsToInject
+}
+
+func defaultLibVersion(l language) string {
+	langVersion, ok := languageVersions[l]
+	if !ok {
+		return "latest"
+	}
+	return langVersion
 }
 
 type libInfo struct {
