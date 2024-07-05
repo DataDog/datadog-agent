@@ -66,6 +66,7 @@ func (hr *horizontalController) sync(ctx context.Context, podAutoscaler *datadog
 	gvk, err := autoscalerInternal.TargetGVK()
 	if err != nil {
 		// Resolving GVK is considered a global error, not updating horizontal last error
+		autoscalerInternal.SetError(err)
 		return autoscaling.NoRequeue, err
 	}
 
@@ -151,7 +152,7 @@ func (hr *horizontalController) computeScaleAction(
 	currentDesiredReplicas, targetDesiredReplicas int32,
 	minReplicas, maxReplicas int32,
 ) (*datadoghq.DatadogPodAutoscalerHorizontalAction, time.Duration, error) {
-	// Check if we scaling has been disabled enabled explicitly
+	// Check if we scaling has been disabled explicitly
 	if currentDesiredReplicas == 0 {
 		return nil, 0, errors.New("scaling disabled as current replicas is set to 0")
 	}
@@ -323,6 +324,8 @@ func applyScaleUpPolicy(
 			continue
 		}
 
+		// When are computing the number of replicas at the start of the period, needed to compute % scaling.
+		// For that we consider the current number and apply the opposite of the events that happened in the period.
 		periodStartReplicas := currentDesiredReplicas - replicasAdded + replicasRemoved
 		var ruleMax int32
 		if rule.Type == datadoghq.DatadogPodAutoscalerPodsScalingRuleType {
@@ -389,6 +392,8 @@ func applyScaleDownPolicy(
 			continue
 		}
 
+		// When are computing the number of replicas at the start of the period, needed to compute % scaling.
+		// For that we consider the current number and apply the opposite of the events that happened in the period.
 		periodStartReplicas := currentDesiredReplicas - replicasAdded + replicasRemoved
 		var ruleMin int32
 		if rule.Type == datadoghq.DatadogPodAutoscalerPodsScalingRuleType {
@@ -437,7 +442,7 @@ func accumulateReplicasChange(currentTime time.Time, events []datadoghq.DatadogP
 		}
 	}
 
-	if expireIn == 0 {
+	if expireIn <= 0 {
 		expireIn = periodDuration
 	}
 	return

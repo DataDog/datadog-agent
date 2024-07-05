@@ -68,6 +68,7 @@ func (u *verticalController) sync(ctx context.Context, podAutoscaler *datadoghq.
 	recomendationID := scalingValues.Vertical.ResourcesHash
 	targetGVK, err := autoscalerInternal.TargetGVK()
 	if err != nil {
+		autoscalerInternal.SetError(err)
 		return autoscaling.NoRequeue, err
 	}
 

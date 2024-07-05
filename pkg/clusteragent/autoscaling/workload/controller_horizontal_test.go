@@ -161,6 +161,7 @@ func TestHorizontalControllerSyncPrerequisites(t *testing.T) {
 	autoscaler, result, err = f.runSync(fakePai)
 	assert.Equal(t, result, autoscaling.NoRequeue)
 	assert.EqualError(t, err, "failed to parse API version '', err: %!w(<nil>)")
+	fakePai.Error = testutil.NewErrorString("failed to parse API version '', err: %!w(<nil>)")
 	model.AssertPodAutoscalersEqual(t, fakePai.Build(), autoscaler)
 
 	// Test case: Correct Spec and GVK, but no scaling values
@@ -181,6 +182,7 @@ func TestHorizontalControllerSyncPrerequisites(t *testing.T) {
 			APIVersion: expectedGVK.Group + "/" + expectedGVK.Version,
 		},
 	}
+	fakePai.Error = nil
 	f.scaler.On("get", mock.Anything, autoscalerNamespace, autoscalerName, expectedGVK).Return(
 		&autoscalingv1.Scale{
 			Spec: autoscalingv1.ScaleSpec{

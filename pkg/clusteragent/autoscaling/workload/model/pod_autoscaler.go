@@ -20,10 +20,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
-// UnsetGeneration is the value used to represent a .Spec value for which we have no generation (not created or not updated in-cluster yet)
 const (
-	UnsetGeneration = -1
-
 	// longestScalingRulePeriodAllowed is the maximum period allowed for a scaling rule
 	// increasing duration increase the number of events to keep in memory and to process for recommendations.
 	longestScalingRulePeriodAllowed = 30 * time.Minute
@@ -31,52 +28,52 @@ const (
 
 // PodAutoscalerInternal hols the necessary data to work with the `DatadogPodAutoscaler` CRD.
 type PodAutoscalerInternal struct {
-	// Namespace is the namespace of the PodAutoscaler
+	// namespace is the namespace of the PodAutoscaler
 	namespace string
 
-	// Name is the name of the PodAutoscaler
+	// name is the name of the PodAutoscaler
 	name string
 
-	// Generation is the received generation of the PodAutoscaler
+	// generation is the received generation of the PodAutoscaler
 	generation int64
 
-	// Keeping track of .Spec (configuration of the Autoscaling)
+	// keeping track of .Spec (configuration of the Autoscaling)
 	spec *datadoghq.DatadogPodAutoscalerSpec
 
-	// SettingsTimestamp is the time when the settings were last updated
+	// settingsTimestamp is the time when the settings were last updated
 	// Version is stored in .Spec.RemoteVersion
 	// (only if owner == remote)
 	settingsTimestamp time.Time
 
-	// ScalingValues represents the current target scaling values (retrieved from RC)
+	// scalingValues represents the current target scaling values (retrieved from RC)
 	scalingValues ScalingValues
 
-	// HorizontalLastActions is the last horizontal action successfully taken
+	// horizontalLastActions is the last horizontal action successfully taken
 	horizontalLastActions []datadoghq.DatadogPodAutoscalerHorizontalAction
 
-	// HorizontalLastLimitReason is stored separately as we don't want to keep no-action events in `horizontalLastActions`
+	// horizontalLastLimitReason is stored separately as we don't want to keep no-action events in `horizontalLastActions`
 	// i.e. when targetReplicaCount after limits == currentReplicas but we want to surface the last limiting reason anyway.
 	horizontalLastLimitReason string
 
-	// HorizontalLastActionError is the last error encountered on horizontal scaling
+	// horizontalLastActionError is the last error encountered on horizontal scaling
 	horizontalLastActionError error
 
-	// VerticalLastAction is the last action taken by the Vertical Pod Autoscaler
+	// verticalLastAction is the last action taken by the Vertical Pod Autoscaler
 	verticalLastAction *datadoghq.DatadogPodAutoscalerVerticalAction
 
-	// VerticalLastActionError is the last error encountered on vertical scaling
+	// verticalLastActionError is the last error encountered on vertical scaling
 	verticalLastActionError error
 
-	// CurrentReplicas is the current number of PODs for the targetRef
+	// currentReplicas is the current number of PODs for the targetRef
 	currentReplicas *int32
 
-	// ScaledReplicas is the current number of PODs for the targetRef matching the resources recommendations
+	// scaledReplicas is the current number of PODs for the targetRef matching the resources recommendations
 	scaledReplicas *int32
 
-	// Error is the an error encountered by the controller not specific to a scaling action
+	// error is the an error encountered by the controller not specific to a scaling action
 	error error
 
-	// Deleted flags the PodAutoscaler as deleted (removal to be handled by the controller)
+	// deleted flags the PodAutoscaler as deleted (removal to be handled by the controller)
 	// (only if owner == remote)
 	deleted bool
 
@@ -256,18 +253,16 @@ func (p *PodAutoscalerInternal) UpdateFromStatus(status *datadoghq.DatadogPodAut
 			// Error condition could refer to a controller error or from a general Datadog error
 			// We're restoring this to error as it's the most generic
 			p.error = errors.New(cond.Reason)
+		case cond.Type == datadoghq.DatadogPodAutoscalerHorizontalAbleToRecommendCondition && cond.Status == corev1.ConditionFalse:
+			p.scalingValues.HorizontalError = errors.New(cond.Reason)
 		case cond.Type == datadoghq.DatadogPodAutoscalerHorizontalAbleToScaleCondition && cond.Status == corev1.ConditionFalse:
 			p.horizontalLastActionError = errors.New(cond.Reason)
-		case cond.Type == datadoghq.DatadogPodAutoscalerHorizontalAbleToRecommendCondition && cond.Status == corev1.ConditionFalse:
-			p.scalingValues.HorizontalError = errors.New(cond.Reason)
 		case cond.Type == datadoghq.DatadogPodAutoscalerHorizontalScalingLimitedCondition && cond.Status == corev1.ConditionTrue:
 			p.horizontalLastLimitReason = cond.Reason
-		case cond.Type == datadoghq.DatadogPodAutoscalerVerticalAbleToApply && cond.Status == corev1.ConditionFalse:
-			p.verticalLastActionError = errors.New(cond.Reason)
-		case cond.Type == datadoghq.DatadogPodAutoscalerHorizontalAbleToRecommendCondition && cond.Status == corev1.ConditionFalse:
-			p.scalingValues.HorizontalError = errors.New(cond.Reason)
 		case cond.Type == datadoghq.DatadogPodAutoscalerVerticalAbleToRecommendCondition && cond.Status == corev1.ConditionFalse:
 			p.scalingValues.VerticalError = errors.New(cond.Reason)
+		case cond.Type == datadoghq.DatadogPodAutoscalerVerticalAbleToApply && cond.Status == corev1.ConditionFalse:
+			p.verticalLastActionError = errors.New(cond.Reason)
 		}
 	}
 }
@@ -443,7 +438,7 @@ func (p *PodAutoscalerInternal) BuildStatus(currentTime metav1.Time, currentStat
 	}
 	status.Conditions = append(status.Conditions, newConditionFromError(true, currentTime, globalError, datadoghq.DatadogPodAutoscalerErrorCondition, existingConditions))
 
-	// Building active condition, should hanlde multiple reasons, currently only disabled if target replicas = 0
+	// Building active condition, should handle multiple reasons, currently only disabled if target replicas = 0
 	if p.currentReplicas != nil && *p.currentReplicas == 0 {
 		status.Conditions = append(status.Conditions, newCondition(corev1.ConditionFalse, "Target has been scaled to 0 replicas", currentTime, datadoghq.DatadogPodAutoscalerActiveCondition, existingConditions))
 	} else {
@@ -565,7 +560,7 @@ func newCondition(status corev1.ConditionStatus, reason string, currentTime meta
 func getHorizontalEventsRetention(policy *datadoghq.DatadogPodAutoscalerPolicy, longestLookbackAllowed time.Duration) time.Duration {
 	var longestRetention time.Duration
 	if policy == nil {
-		return longestRetention
+		return 0
 	}
 
 	if policy.Upscale != nil {

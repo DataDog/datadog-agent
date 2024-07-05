@@ -38,7 +38,7 @@ func (p ProcessResult) Merge(other ProcessResult) ProcessResult {
 	if other.Requeue {
 		p.Requeue = true
 
-		if p.Requeue {
+		if p.RequeueAfter > 0 {
 			p.RequeueAfter = min(p.RequeueAfter, other.RequeueAfter)
 		} else {
 			p.RequeueAfter = other.RequeueAfter
