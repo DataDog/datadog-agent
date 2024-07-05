@@ -38,13 +38,13 @@ class TestFailureSummary(TestCase):
             patch('tasks.owners.GITHUB_SLACK_MAP', self.github_slack_map),
         ]
         for p in self.patches:
-            p.start()
+            p.start()  # type: ignore
 
     def tearDown(self) -> None:
         shutil.rmtree(TEST_DIR, ignore_errors=True)
 
         for p in self.patches:
-            p.stop()
+            p.stop()  # type: ignore
 
     def write_file(self, ctx: Context, name: str, data: str):
         with open(f'{TEST_DIR}/{name}', 'w') as f:

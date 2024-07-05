@@ -13,9 +13,7 @@ from invoke.exceptions import UnexpectedExit
 
 from tasks import notify
 from tasks.libs.notify import alerts
-
-# TODO : Use absolute import when unit-tests will be renamed
-from ...notify_tests import get_fake_jobs, get_github_slack_map
+from tasks.unit_tests.notify_tests import get_fake_jobs, get_github_slack_map
 
 
 @contextmanager
