@@ -277,4 +277,3 @@ func (t noopTraceAgent) GetSpanModifier() agent.SpanModifier {
 type noopSpanModifier struct{}
 
 func (noopSpanModifier) ModifySpan(chunk *pb.TraceChunk, span *pb.Span) {}
-func (noopSpanModifier) SetTags(tags map[string]string)                 {}

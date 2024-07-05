@@ -47,7 +47,6 @@ type mockSpanModifier struct {
 func (m mockSpanModifier) ModifySpan(tc *pb.TraceChunk, s *pb.Span) {
 	m.traceChan <- struct{}{}
 }
-func (m mockSpanModifier) SetTags(map[string]string) {}
 
 func TestServerlessOTLPAgentReceivesTraces(t *testing.T) {
 	assert := assert.New(t)
