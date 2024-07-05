@@ -126,19 +126,31 @@ func (s *processMonitorSuite) TestProcessRegisterMultipleCallbacks() {
 	pm := getProcessMonitor(t)
 
 	const iterations = 10
+	execCountersMutexes := make([]sync.RWMutex, iterations)
 	execCounters := make([]map[uint32]struct{}, iterations)
+	exitCountersMutexes := make([]sync.RWMutex, iterations)
 	exitCounters := make([]map[uint32]struct{}, iterations)
 	for i := 0; i < iterations; i++ {
+		execCountersMutexes[i] = sync.RWMutex{}
 		execCounters[i] = make(map[uint32]struct{})
 		c := execCounters[i]
 		// Sanity subscribing a callback.
-		callback := func(pid uint32) { c[pid] = struct{}{} }
+		callback := func(pid uint32) {
+			execCountersMutexes[i].Lock()
+			defer execCountersMutexes[i].Unlock()
+			c[pid] = struct{}{}
+		}
 		registerCallback(t, pm, true, (*ProcessCallback)(&callback))
 
+		exitCountersMutexes[i] = sync.RWMutex{}
 		exitCounters[i] = make(map[uint32]struct{})
 		exitc := exitCounters[i]
 		// Sanity subscribing a callback.
-		exitCallback := func(pid uint32) { exitc[pid] = struct{}{} }
+		exitCallback := func(pid uint32) {
+			exitCountersMutexes[i].Lock()
+			defer exitCountersMutexes[i].Unlock()
+			exitc[pid] = struct{}{}
+		}
 		registerCallback(t, pm, false, (*ProcessCallback)(&exitCallback))
 	}
 
@@ -147,14 +159,21 @@ func (s *processMonitorSuite) TestProcessRegisterMultipleCallbacks() {
 	require.NoError(t, cmd.Run())
 	require.Eventuallyf(t, func() bool {
 		for i := 0; i < iterations; i++ {
+			execCountersMutexes[i].RLock()
 			if _, captured := execCounters[i][uint32(cmd.Process.Pid)]; !captured {
+				execCountersMutexes[i].RUnlock()
 				t.Logf("iter %d didn't capture exec event", i)
 				return false
 			}
+			execCountersMutexes[i].RUnlock()
+
+			exitCountersMutexes[i].RLock()
 			if _, captured := exitCounters[i][uint32(cmd.Process.Pid)]; !captured {
+				exitCountersMutexes[i].RUnlock()
 				t.Logf("iter %d didn't capture exit event", i)
 				return false
 			}
+			exitCountersMutexes[i].RUnlock()
 		}
 		return true
 	}, time.Second, time.Millisecond*200, "at least of the callbacks didn't capture events")
