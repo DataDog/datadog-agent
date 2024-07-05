@@ -491,6 +491,7 @@ func TestUDSReceive(t *testing.T) {
 		require.NoError(t, err, "cannot connect to DSD socket")
 		defer conn.Close()
 
+		demux.Reset()
 		testReceive(t, conn, demux)
 	})
 
@@ -499,6 +500,7 @@ func TestUDSReceive(t *testing.T) {
 		require.NoError(t, err, "cannot connect to DSD socket")
 		defer conn.Close()
 
+		demux.Reset()
 		testReceive(t, conn, demux)
 	})
 }
