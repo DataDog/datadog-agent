@@ -8,9 +8,11 @@ import json
 import os
 import tempfile
 
+import yaml
 from invoke import task
+from invoke.exceptions import Exit
 
-from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
+from tasks.libs.ciproviders.gitlab_api import get_full_gitlab_ci_configuration, get_gitlab_repo
 from tasks.libs.civisibility import (
     get_pipeline_link_to_job_id,
     get_pipeline_link_to_job_on_main,
@@ -129,3 +131,48 @@ def print_job(ctx, ids, repo='DataDog/datadog-agent', jq: str | None = None, jq_
         return repo.jobs.get(id)
 
     print_gitlab_object(get_job, ctx, ids, repo, jq, jq_colors)
+
+
+@task
+def gen_config_subset(ctx, jobs, dry_run=False):
+    """
+    Will generate a full .gitlab-ci.yml containing only the jobs necessary to run the target jobs
+    """
+    # .gitlab-ci.yml should not be modified
+    if not dry_run and ctx.run('git status -s .gitlab-ci.yml', hide='stdout').stdout.strip():
+        raise Exit(color_message('The .gitlab-ci.yml file should not be modified as it will be overwritten', Color.RED))
+
+    config = get_full_gitlab_ci_configuration(ctx, '.gitlab-ci.yml')
+
+    jobs = [j for j in jobs.split(',') if j]
+    required = set(jobs)
+
+    def add_dependencies(job):
+        nonlocal required, config
+
+        if job in required:
+            return
+
+        required.add(job)
+        dependencies = config[job].get('needs', [])
+        for dep in dependencies:
+            add_dependencies(dep)
+
+    # Make a DFS to find all the jobs that are needed to run the target jobs
+    for job in jobs:
+        add_dependencies(job)
+
+    new_config = {job: config[job] for job in required}
+    attributes_to_keep = 'stages', 'variables', 'default', 'workflow'
+    for attr in attributes_to_keep:
+        new_config[attr] = config[attr]
+
+    content = yaml.safe_dump(new_config)
+
+    if dry_run:
+        print(content)
+    else:
+        with open('.gitlab-ci.yml', 'w') as f:
+            f.write(content)
+
+        print(color_message('The .gitlab-ci.yml file has been updated', Color.GREEN))
