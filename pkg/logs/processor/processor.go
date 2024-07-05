@@ -46,6 +46,7 @@ type sdsProcessor struct {
 	// buffer stores the messages for the buffering mechanism in case we didn't
 	// receive any SDS configuration & wait_for_configuration == "buffer".
 	buffer        []*message.Message
+	maxBufferSize int
 	waitForConfig bool // the configuration value indicating if we want to wait for an SDS configuration
 	buffering     bool // the runtime status
 
@@ -55,7 +56,10 @@ type sdsProcessor struct {
 // New returns an initialized Processor.
 func New(cfg pkgconfigmodel.Reader, inputChan, outputChan chan *message.Message, processingRules []*config.ProcessingRule,
 	encoder Encoder, diagnosticMessageReceiver diagnostic.MessageReceiver, hostname hostnameinterface.Component,
-	pipelineID int, waitForSDSConfig bool) *Processor {
+	pipelineID int) *Processor {
+
+	waitForSDSConfig := sds.ShouldBufferUntilSDSConfiguration(cfg)
+	maxBufferSize := sds.WaitForConfigurationBufferMaxSize(cfg)
 
 	return &Processor{
 		pipelineID:                pipelineID,
@@ -71,6 +75,7 @@ func New(cfg pkgconfigmodel.Reader, inputChan, outputChan chan *message.Message,
 		sds: sdsProcessor{
 			waitForConfig: waitForSDSConfig,
 			buffering:     waitForSDSConfig,
+			maxBufferSize: maxBufferSize,
 			scanner:       sds.CreateScanner(pipelineID),
 		},
 	}
@@ -178,6 +183,8 @@ func (p *Processor) applySDSReconfiguration(order sds.ReconfigureOrder) {
 				for _, msg := range p.sds.buffer {
 					p.processMessage(msg)
 				}
+
+				p.sds.buffer = p.sds.buffer[:0]
 			}
 		} else {
 			p.sds.buffering = p.sds.waitForConfig
@@ -191,7 +198,9 @@ func (p *Processor) applySDSReconfiguration(order sds.ReconfigureOrder) {
 }
 
 func (p *Processor) bufferMessage(msg *message.Message) {
-	p.sds.buffer = append(p.sds.buffer, msg)
+	if len(p.sds.buffer) < p.sds.maxBufferSize {
+		p.sds.buffer = append(p.sds.buffer, msg)
+	}
 }
 
 func (p *Processor) processMessage(msg *message.Message) {

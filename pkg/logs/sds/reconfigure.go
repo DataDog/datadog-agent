@@ -12,7 +12,9 @@ import (
 
 type ReconfigureOrderType string
 
-const WaitForConfigurationField = "logs_config.sds.wait_for_configuration"
+const WaitForConfigField = "logs_config.sds.wait_for_configuration"
+const WaitForConfigBufferMaxSizeField = "logs_config.sds.buffer_max_size"
+const WaitForConfigDefaultBufferMaxSize = 10000
 
 const (
 	// StandardRules triggers the storage of a new set of standard rules
@@ -44,11 +46,21 @@ type ReconfigureResponse struct {
 // ShouldBlockCollectionUntilSDSConfiguration returns true if we want to start the
 // collection only after having received an SDS configuration.
 func ShouldBlockCollectionUntilSDSConfiguration(cfg pkgconfigmodel.Reader) bool {
-	return cfg.GetString(WaitForConfigurationField) == "do_not_start_collecting"
+	return cfg.GetString(WaitForConfigField) == "no_collection"
 }
 
 // ShouldBufferUntilSDSConfiguration returns true if we have to buffer until we've
 // received an SDS configuration.
 func ShouldBufferUntilSDSConfiguration(cfg pkgconfigmodel.Reader) bool {
-	return cfg.GetString(WaitForConfigurationField) == "buffer"
+	return cfg.GetString(WaitForConfigField) == "buffer"
+}
+
+// WaitForConfigurationBufferMaxSize returns a size for the buffer used while
+// waiting for an SDS configuration.
+func WaitForConfigurationBufferMaxSize(cfg pkgconfigmodel.Reader) int {
+    v := cfg.GetInt(WaitForConfigBufferMaxSizeField)
+    if v <= 0 {
+        v = WaitForConfigDefaultBufferMaxSize
+    }
+    return v
 }

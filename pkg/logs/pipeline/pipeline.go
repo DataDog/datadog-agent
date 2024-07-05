@@ -69,10 +69,8 @@ func NewPipeline(outputChan chan *message.Payload,
 
 	inputChan := make(chan *message.Message, config.ChanSize)
 
-	waitForSDSConfig := sds.ShouldBufferUntilSDSConfiguration(cfg)
-
 	processor := processor.New(cfg, inputChan, strategyInput, processingRules,
-		encoder, diagnosticMessageReceiver, hostname, pipelineID, waitForSDSConfig)
+		encoder, diagnosticMessageReceiver, hostname, pipelineID)
 
 	return &Pipeline{
 		InputChan: inputChan,
