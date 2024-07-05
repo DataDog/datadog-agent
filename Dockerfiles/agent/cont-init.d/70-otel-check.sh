@@ -1,7 +1,7 @@
 #!/bin/bash
 
 if [ -f /opt/datadog-agent/embedded/bin/otel-agent ]; then
-  if grep -Pzq '(?s)otelcollector(\s*):(\s*)enabled(\s*):(\s*)true' /etc/datadog-agent/datadog.yaml || [[ "$DD_OTEL_ENABLED" == "true" ]]; then
+  if grep -Pzq '(?s)otelcollector(\s*):(\s*)enabled(\s*):(\s*)true' /etc/datadog-agent/datadog.yaml || [[ "$DD_OTELCOLLECTOR_ENABLED" == "true" ]]; then
     if [ ! -f /etc/datadog-agent/otel-config.yaml ] && [ -f /etc/datadog-agent/otel-config.yaml.example ]; then
       mv /etc/datadog-agent/otel-config.yaml.example \
          /etc/datadog-agent/otel-config.yaml
