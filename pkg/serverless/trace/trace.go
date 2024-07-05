@@ -106,7 +106,7 @@ func StartServerlessTraceAgent(enabled bool, loadConfig Load, lambdaSpanChan cha
 		} else {
 			tc.Hostname = ""
 			tc.SynchronousFlushing = true
-			ta = NewTraceAgent(tc, lambdaSpanChan, coldStartSpanId)
+			ta = newTraceAgent(tc, lambdaSpanChan, coldStartSpanId)
 		}
 	} else {
 		log.Info("Trace agent is disabled")
@@ -122,7 +122,7 @@ type serverlessTraceAgent struct {
 	cancel context.CancelFunc
 }
 
-func NewTraceAgent(tc *config.AgentConfig, lambdaSpanChan chan<- *pb.Span, coldStartSpanId uint64) ServerlessTraceAgent {
+func newTraceAgent(tc *config.AgentConfig, lambdaSpanChan chan<- *pb.Span, coldStartSpanId uint64) ServerlessTraceAgent {
 	var compressor compression.Component
 	if tc.HasFeature("zstd-encoding") {
 		compressor = zstd.NewComponent()
