@@ -50,13 +50,11 @@ func (p autoscalingSettingsProcessor) process(receivedTimestamp time.Time, confi
 		podAutoscaler, podAutoscalerFound := p.store.LockRead(podAutoscalerID, true)
 		// If the PodAutoscaler is not found, we need to create it
 		if !podAutoscalerFound {
-			podAutoscaler = model.PodAutoscalerInternal{
-				Namespace: settings.Namespace,
-				Name:      settings.Name,
-			}
+			podAutoscaler = model.NewPodAutoscalerFromSettings(settings.Namespace, settings.Name, settings.Spec, rawConfig.Metadata.Version, receivedTimestamp)
+		} else {
+			podAutoscaler.UpdateFromSettings(settings.Spec, rawConfig.Metadata.Version, receivedTimestamp)
 		}
 
-		podAutoscaler.UpdateFromSettings(settings.Spec, rawConfig.Metadata.Version, receivedTimestamp)
 		p.store.UnlockSet(podAutoscalerID, podAutoscaler, configRetrieverStoreID)
 		p.processed[podAutoscalerID] = struct{}{}
 	}
@@ -72,28 +70,20 @@ func (p autoscalingSettingsProcessor) postProcess(errors []error) {
 		return
 	}
 
-	// We first get all PodAutoscalers that were not part of the last update
-	var toDelete []string
-	_ = p.store.GetFiltered(func(pai model.PodAutoscalerInternal) bool {
-		if pai.Spec == nil || pai.Spec.Owner != v1alpha1.DatadogPodAutoscalerRemoteOwner {
-			return false
+	// Update the store to flag all PodAutoscalers owned by remote that were not processed
+	p.store.Update(func(pai model.PodAutoscalerInternal) (model.PodAutoscalerInternal, bool) {
+		if pai.Spec() == nil || pai.Spec().Owner != v1alpha1.DatadogPodAutoscalerRemoteOwner {
+			return pai, false
 		}
 
-		_, found := p.processed[pai.ID()]
+		paID := pai.ID()
+		_, found := p.processed[paID]
 		if !found {
-			toDelete = append(toDelete, pai.ID())
+			pai.SetDeleted()
+			log.Infof("PodAutoscaler %s was not part of the last update, flagging it as deleted", paID)
+			return pai, true
 		}
 
-		return false
-	})
-
-	// Then we can properly lock read/write to flag them as deleted
-	for _, id := range toDelete {
-		pai, found := p.store.LockRead(id, false)
-		if found {
-			pai.Deleted = true
-			log.Infof("PodAutoscaler %s was not part of the last update, flagging it as deleted", id)
-			p.store.UnlockSet(id, pai, configRetrieverStoreID)
-		}
-	}
+		return pai, false
+	}, configRetrieverStoreID)
 }
