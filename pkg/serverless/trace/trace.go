@@ -29,7 +29,6 @@ import (
 
 // ServerlessTraceAgent represents a trace agent in a serverless context
 type ServerlessTraceAgent interface {
-	Run()
 	Stop()
 	Flush()
 	Process(p *api.Payload)
@@ -150,10 +149,6 @@ func newTraceAgent(tc *config.AgentConfig, lambdaSpanChan chan<- *pb.Span, coldS
 	}
 }
 
-func (t *serverlessTraceAgent) Run() {
-	t.ta.Run()
-}
-
 // Stop stops the trace agent
 func (t *serverlessTraceAgent) Stop() {
 	t.cancel()
@@ -263,7 +258,6 @@ func getDDOrigin() string {
 
 type noopTraceAgent struct{}
 
-func (t noopTraceAgent) Run()                                  {}
 func (t noopTraceAgent) Stop()                                 {}
 func (t noopTraceAgent) Flush()                                {}
 func (t noopTraceAgent) Process(p *api.Payload)                {}
