@@ -129,7 +129,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 	if err != nil {
 		return Provides{}, err
 	}
-	
+
 	// Replace default core to use Agent logger
 	options := []zap.Option{
 		zap.WrapCore(func(zapcore.Core) zapcore.Core {
