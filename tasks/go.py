@@ -652,7 +652,7 @@ def create_module(ctx, path: str, no_verify: bool = False):
         # Restore files if user wants to
         if sys.stdin.isatty():
             print(color_message("Failed to create module", "red"))
-            if input('Do you want to restore all files ? [N/y]').strip() in 'yY':
+            if input('Do you want to restore all files ? [N/y]').strip() in ['y', 'Y']:
                 print(color_message("Restoring files", "blue"))
 
                 ctx.run('git clean -f')
