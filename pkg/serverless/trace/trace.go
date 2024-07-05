@@ -92,7 +92,7 @@ func (l *LoadConfig) Load() (*config.AgentConfig, error) {
 // Start starts the agent
 //
 //nolint:revive // TODO(SERV) Fix revive linter
-func StartServerlessTraceAgent(enabled bool, loadConfig Load, lambdaSpanChan chan<- *pb.Span, coldStartSpanId uint64) (ta ServerlessTraceAgent) {
+func StartServerlessTraceAgent(enabled bool, loadConfig Load, lambdaSpanChan chan<- *pb.Span, coldStartSpanId uint64) ServerlessTraceAgent {
 	if enabled {
 		// Set the serverless config option which will be used to determine if
 		// hostname should be resolved. Skipping hostname resolution saves >1s
@@ -105,48 +105,41 @@ func StartServerlessTraceAgent(enabled bool, loadConfig Load, lambdaSpanChan cha
 		} else {
 			tc.Hostname = ""
 			tc.SynchronousFlushing = true
-			ta = newTraceAgent(tc, lambdaSpanChan, coldStartSpanId)
+			var compressor compression.Component
+			if tc.HasFeature("zstd-encoding") {
+				compressor = zstd.NewComponent()
+			} else {
+				compressor = gzip.NewComponent()
+			}
+			context, cancel := context.WithCancel(context.Background())
+			ta := agent.NewAgent(
+				context,
+				tc,
+				telemetry.NewNoopCollector(),
+				&statsd.NoOpClient{},
+				compressor,
+			)
+			ta.SpanModifier = &spanModifier{
+				coldStartSpanId: coldStartSpanId,
+				lambdaSpanChan:  lambdaSpanChan,
+				ddOrigin:        getDDOrigin(),
+			}
+			ta.DiscardSpan = filterSpanFromLambdaLibraryOrRuntime
+			go ta.Run()
+			return &serverlessTraceAgent{
+				ta:     ta,
+				cancel: cancel,
+			}
 		}
 	} else {
 		log.Info("Trace agent is disabled")
 	}
-	if ta == nil {
-		ta = noopTraceAgent{}
-	}
-	return
+	return noopTraceAgent{}
 }
 
 type serverlessTraceAgent struct {
 	ta     *agent.Agent
 	cancel context.CancelFunc
-}
-
-func newTraceAgent(tc *config.AgentConfig, lambdaSpanChan chan<- *pb.Span, coldStartSpanId uint64) ServerlessTraceAgent {
-	var compressor compression.Component
-	if tc.HasFeature("zstd-encoding") {
-		compressor = zstd.NewComponent()
-	} else {
-		compressor = gzip.NewComponent()
-	}
-	context, cancel := context.WithCancel(context.Background())
-	ta := agent.NewAgent(
-		context,
-		tc,
-		telemetry.NewNoopCollector(),
-		&statsd.NoOpClient{},
-		compressor,
-	)
-	ta.SpanModifier = &spanModifier{
-		coldStartSpanId: coldStartSpanId,
-		lambdaSpanChan:  lambdaSpanChan,
-		ddOrigin:        getDDOrigin(),
-	}
-	ta.DiscardSpan = filterSpanFromLambdaLibraryOrRuntime
-	go ta.Run()
-	return &serverlessTraceAgent{
-		ta:     ta,
-		cancel: cancel,
-	}
 }
 
 // Stop stops the trace agent
