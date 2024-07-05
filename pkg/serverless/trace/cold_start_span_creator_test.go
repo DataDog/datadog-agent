@@ -36,8 +36,7 @@ func TestColdStartSpanCreatorCreateValid(t *testing.T) {
 	agnt := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
 	agnt.TraceWriter = &mockTraceWriter{}
 	traceAgent := &serverlessTraceAgent{
-		ta:     agnt,
-		cancel: cancel,
+		ta: agnt,
 	}
 
 	coldStartDuration := 50.0 // Given in millis
@@ -98,8 +97,7 @@ func TestColdStartSpanCreatorCreateValidNoOverlap(t *testing.T) {
 	agnt := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
 	agnt.TraceWriter = &mockTraceWriter{}
 	traceAgent := &serverlessTraceAgent{
-		ta:     agnt,
-		cancel: cancel,
+		ta: agnt,
 	}
 
 	coldStartDuration := 50.0 // Given in millis
@@ -158,8 +156,7 @@ func TestColdStartSpanCreatorCreateDuplicate(t *testing.T) {
 	agnt := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
 	agnt.TraceWriter = &mockTraceWriter{}
 	traceAgent := &serverlessTraceAgent{
-		ta:     agnt,
-		cancel: cancel,
+		ta: agnt,
 	}
 	coldStartDuration := 50.0 // Given in millis
 	lambdaSpanChan := make(chan *pb.Span)
@@ -213,8 +210,7 @@ func TestColdStartSpanCreatorNotColdStart(t *testing.T) {
 	agnt := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
 	agnt.TraceWriter = &mockTraceWriter{}
 	traceAgent := &serverlessTraceAgent{
-		ta:     agnt,
-		cancel: cancel,
+		ta: agnt,
 	}
 	lambdaSpanChan := make(chan *pb.Span)
 	lambdaInitMetricChan := make(chan *serverlessLog.LambdaInitMetric)
@@ -260,8 +256,7 @@ func TestColdStartSpanCreatorColdStartExists(t *testing.T) {
 	agnt.TraceWriter = &mockTraceWriter{}
 
 	traceAgent := &serverlessTraceAgent{
-		ta:     agnt,
-		cancel: cancel,
+		ta: agnt,
 	}
 	coldStartDuration := 50.0 // Given in millis
 	lambdaSpanChan := make(chan *pb.Span)
@@ -316,8 +311,7 @@ func TestColdStartSpanCreatorCreateValidProvisionedConcurrency(t *testing.T) {
 	agnt.TraceWriter = &mockTraceWriter{}
 
 	traceAgent := &serverlessTraceAgent{
-		ta:     agnt,
-		cancel: cancel,
+		ta: agnt,
 	}
 
 	coldStartDuration := 50.0 // Given in millis
