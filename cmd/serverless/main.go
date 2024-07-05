@@ -122,7 +122,7 @@ func runAgent() {
 
 	startColdStartSpanCreator(lambdaSpanChan, lambdaInitMetricChan, serverlessDaemon, coldStartSpanId)
 
-	ta := serverlessDaemon.TraceAgent.Get()
+	ta := serverlessDaemon.TraceAgent
 	if ta == nil {
 		log.Error("Unexpected nil instance of the trace-agent")
 		return
@@ -169,7 +169,7 @@ func startInvocationLoop(serverlessDaemon *daemon.Daemon, serverlessID registrat
 	return stopCh
 }
 
-func setupProxy(appsecProxyProcessor *httpsec.ProxyLifecycleProcessor, ta trace.TraceAgent, serverlessDaemon *daemon.Daemon) {
+func setupProxy(appsecProxyProcessor *httpsec.ProxyLifecycleProcessor, ta trace.ServerlessTraceAgent, serverlessDaemon *daemon.Daemon) {
 	if appsecProxyProcessor != nil {
 		// AppSec runs as a Runtime API proxy. The reverse proxy was already
 		// started by appsec.New(). A span modifier needs to be added in order
@@ -327,8 +327,7 @@ func startOtlpAgent(wg *sync.WaitGroup, metricAgent *metrics.ServerlessMetricAge
 
 func startTraceAgent(wg *sync.WaitGroup, lambdaSpanChan chan *pb.Span, coldStartSpanId uint64, serverlessDaemon *daemon.Daemon) {
 	defer wg.Done()
-	traceAgent := &trace.ServerlessTraceAgent{}
-	traceAgent.Start(config.Datadog().GetBool("apm_config.enabled"), &trace.LoadConfig{Path: datadogConfigPath}, lambdaSpanChan, coldStartSpanId)
+	traceAgent := trace.StartServerlessTraceAgent(config.Datadog().GetBool("apm_config.enabled"), &trace.LoadConfig{Path: datadogConfigPath}, lambdaSpanChan, coldStartSpanId)
 	serverlessDaemon.SetTraceAgent(traceAgent)
 }
 
