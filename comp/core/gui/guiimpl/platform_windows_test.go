@@ -101,7 +101,6 @@ const expectedBody = `<!DOCTYPE html>
 
 <p>Note: If you would like to adjust the GUI session timeout, you can modify the <code>GUI_session_expiration</code> parameter in <code>datadog.yaml</code>
 
-
       </div>
     </div>
     <div id="tests" class="page"></div>
@@ -135,7 +134,8 @@ const expectedBody = `<!DOCTYPE html>
     </div>
 
   </div>
-</body>`
+</body>
+`
 
 func TestRenderIndexPage(t *testing.T) {
 	req, err := http.NewRequest("GET", "/", nil)
