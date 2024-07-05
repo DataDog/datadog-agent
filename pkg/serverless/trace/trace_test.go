@@ -38,9 +38,9 @@ func TestStartEnabledFalse(t *testing.T) {
 	var agent = &ServerlessTraceAgent{}
 	agent.Start(false, nil, lambdaSpanChan, random.Random.Uint64())
 	defer agent.Stop()
-	assert.Nil(t, agent.ta)
-	assert.Nil(t, agent.Get())
-	assert.Nil(t, agent.cancel)
+	assert.NotNil(t, agent.ta)
+	assert.NotNil(t, agent.Get())
+	assert.IsType(t, noopTraceAgent{}, agent.ta)
 }
 
 type LoadConfigMocked struct {
@@ -58,9 +58,9 @@ func TestStartEnabledTrueInvalidConfig(t *testing.T) {
 	lambdaSpanChan := make(chan *pb.Span)
 	agent.Start(true, &LoadConfigMocked{}, lambdaSpanChan, random.Random.Uint64())
 	defer agent.Stop()
-	assert.Nil(t, agent.ta)
-	assert.Nil(t, agent.Get())
-	assert.Nil(t, agent.cancel)
+	assert.NotNil(t, agent.ta)
+	assert.NotNil(t, agent.Get())
+	assert.IsType(t, noopTraceAgent{}, agent.ta)
 }
 
 func TestStartEnabledTrueValidConfigUnvalidPath(t *testing.T) {
@@ -74,7 +74,7 @@ func TestStartEnabledTrueValidConfigUnvalidPath(t *testing.T) {
 	defer agent.Stop()
 	assert.NotNil(t, agent.ta)
 	assert.NotNil(t, agent.Get())
-	assert.NotNil(t, agent.cancel)
+	assert.IsType(t, &traceAgent{}, agent.ta)
 }
 
 func TestStartEnabledTrueValidConfigValidPath(t *testing.T) {
@@ -87,7 +87,7 @@ func TestStartEnabledTrueValidConfigValidPath(t *testing.T) {
 	defer agent.Stop()
 	assert.NotNil(t, agent.ta)
 	assert.NotNil(t, agent.Get())
-	assert.NotNil(t, agent.cancel)
+	assert.IsType(t, &traceAgent{}, agent.ta)
 }
 
 func TestLoadConfigShouldBeFast(t *testing.T) {

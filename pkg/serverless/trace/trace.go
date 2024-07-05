@@ -6,7 +6,6 @@
 package trace
 
 import (
-	"context"
 	"fmt"
 	"strings"
 
@@ -24,7 +23,6 @@ import (
 type ServerlessTraceAgent struct {
 	ta           TraceAgent
 	spanModifier *spanModifier
-	cancel       context.CancelFunc
 }
 
 // Load abstracts the file configuration loading
