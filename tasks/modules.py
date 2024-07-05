@@ -430,7 +430,7 @@ def validate_used_by_otel(ctx: Context):
         # get the go.mod data
         result = ctx.run(f"go mod edit -json {gomod_path}", hide='both')
         if result.failed:
-            raise Exception(f"Error running go mod edit -json on {gomod_path}: {result.stderr}")
+            raise Exit(f"Error running go mod edit -json on {gomod_path}: {result.stderr}")
 
         go_mod_json = json.loads(result.stdout)
         # get module dependencies
