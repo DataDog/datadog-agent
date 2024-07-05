@@ -59,6 +59,7 @@ def python(ctx):
         ctx.run("ruff check --fix .")
 
     ctx.run("vulture")
+    ctx.run("mypy")
 
 
 @task
@@ -366,7 +367,7 @@ def is_get_parameter_call(file):
 
 
 @task
-def gitlab_ci(_, test="all", custom_context=None):
+def gitlab_ci(ctx, test="all", custom_context=None):
     """
     Lint Gitlab CI files in the datadog-agent repository.
     """
@@ -379,7 +380,7 @@ def gitlab_ci(_, test="all", custom_context=None):
     agent = get_gitlab_repo()
     for context in all_contexts:
         print("Test gitlab configuration with context: ", context)
-        config = generate_gitlab_full_configuration(".gitlab-ci.yml", dict(context))
+        config = generate_gitlab_full_configuration(ctx, ".gitlab-ci.yml", dict(context))
         res = agent.ci_lint.create({"content": config, "dry_run": True, "include_jobs": True})
         status = color_message("valid", "green") if res.valid else color_message("invalid", "red")
         print(f"Config is {status}")
@@ -422,17 +423,17 @@ def update_go(_):
 
 
 @task(iterable=['job_files'])
-def test_change_path(_, job_files=None):
+def test_change_path(ctx, job_files=None):
     """
     Verify that the jobs defined within job_files contain a change path rule.
     """
     job_files = job_files or (['.gitlab/e2e/e2e.yml'] + list(glob('.gitlab/kitchen_testing/new-e2e_testing/*.yml')))
 
     # Read gitlab config
-    config = generate_gitlab_full_configuration(".gitlab-ci.yml", {}, return_dump=False, apply_postprocessing=True)
+    config = generate_gitlab_full_configuration(ctx, ".gitlab-ci.yml", {}, return_dump=False, apply_postprocessing=True)
 
     # Fetch all test jobs
-    test_config = read_includes(job_files, return_config=True, add_file_path=True)
+    test_config = read_includes(ctx, job_files, return_config=True, add_file_path=True)
     tests = [(test, data['_file_path']) for test, data in test_config.items() if test[0] != '.']
 
     def contains_valid_change_rule(rule):

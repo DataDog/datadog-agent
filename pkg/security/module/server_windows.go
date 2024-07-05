@@ -22,11 +22,6 @@ func (a *APIServer) DumpProcessCache(_ context.Context, _ *api.DumpProcessCacheP
 	return nil, errors.New("not supported")
 }
 
-// DumpActivity handle an activity dump request
-func (a *APIServer) DumpActivity(_ context.Context, _ *api.ActivityDumpParams) (*api.ActivityDumpMessage, error) {
-	return nil, errors.New("not supported")
-}
-
 // ListActivityDumps returns the list of active dumps
 func (a *APIServer) ListActivityDumps(_ context.Context, _ *api.ActivityDumpListParams) (*api.ActivityDumpListMessage, error) {
 	return nil, errors.New("not supported")

@@ -73,6 +73,7 @@ func newSystemCollector(cache *provider.Cache, wlm optional.Option[workloadmeta.
 		cgroups.WithProcPath(procPath),
 		cgroups.WithHostPrefix(hostPrefix),
 		cgroups.WithReaderFilter(cf.ContainerFilter),
+		cgroups.WithPIDMapper(config.Datadog().GetString("container_pid_mapper")),
 	)
 	if err != nil {
 		// Cgroup provider is pretty static. Except not having required mounts, it should always work.

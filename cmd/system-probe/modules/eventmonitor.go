@@ -83,7 +83,7 @@ func createEventMonitorModule(_ *sysconfigtypes.Config, wmeta optional.Option[wo
 
 	netconfig := netconfig.New()
 	if netconfig.EnableUSMEventStream {
-		procmonconsumer, err := createProcessMonitorConsumer(evm)
+		procmonconsumer, err := createProcessMonitorConsumer(evm, netconfig)
 		if err != nil {
 			return nil, err
 		}

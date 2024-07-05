@@ -158,6 +158,7 @@ func (h *Host) WaitForFileExists(useSudo bool, filePaths ...string) {
 	if useSudo {
 		sudo = "sudo"
 	}
+
 	for _, path := range filePaths {
 		_, err := h.remote.Execute(fmt.Sprintf("timeout=30; file=%s; while [ ! %s -f $file ] && [ $timeout -gt 0 ]; do sleep 1; ((timeout--)); done; [ $timeout -ne 0 ]", path, sudo))
 		require.NoError(h.t, err, "file %s did not exist", path)
@@ -179,6 +180,11 @@ func (h *Host) AssertPackageInstalledByInstaller(pkgs ...string) {
 	for _, pkg := range pkgs {
 		h.remote.MustExecute("sudo datadog-installer is-installed " + pkg)
 	}
+}
+
+// AgentRuntimeConfig returns the runtime agent config on the host.
+func (h *Host) AgentRuntimeConfig() (string, error) {
+	return h.remote.Execute("sudo -u dd-agent datadog-agent config")
 }
 
 // AssertPackageVersion checks if a package is installed with the correct version

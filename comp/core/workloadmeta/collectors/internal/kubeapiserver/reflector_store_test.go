@@ -127,7 +127,7 @@ func Test_AddDelete_PartialObjectMetadata(t *testing.T) {
 		},
 	}
 
-	kubeMetadataEntityID := util.GenerateKubeMetadataEntityID("namespaces", "", "test-object")
+	kubeMetadataEntityID := util.GenerateKubeMetadataEntityID("", "namespaces", "", "test-object")
 
 	err = metadataStore.Add(&partialObjMetadata)
 	require.NoError(t, err)
@@ -159,7 +159,7 @@ func TestReplace(t *testing.T) {
 	testNodeMetadata := workloadmeta.KubernetesMetadata{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindKubernetesMetadata,
-			ID:   "nodes//test-node",
+			ID:   string(util.GenerateKubeMetadataEntityID("", "nodes", "", "test-node")),
 		},
 		EntityMeta: workloadmeta.EntityMeta{
 			Name: "test-node",

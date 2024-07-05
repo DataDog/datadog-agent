@@ -12,12 +12,7 @@ import (
 
 // team: opentelemetry
 
-// Component implements the confmap.Converter interface and
-// provides extra functions to expose the provided and enhanced configs.
+// Component implements the confmap.Converter interface.
 type Component interface {
 	confmap.Converter
-	GetProvidedConf() *confmap.Conf
-	GetEnhancedConf() *confmap.Conf
-	GetProvidedConfAsString() (string, error)
-	GetEnhancedConfAsString() (string, error)
 }
