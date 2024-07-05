@@ -86,7 +86,8 @@ deploy_containers-ot:
   extends: .docker_publish_job_definition
   stage: deploy_containers
   rules:
-    !reference [.manual]
+    - when: manual
+      allow_failure: true
   dependencies: []
   before_script:
     - source /root/.bashrc
