@@ -138,13 +138,16 @@ def gen_config_subset(ctx, jobs, dry_run=False, force=False):
     """
     Will generate a full .gitlab-ci.yml containing only the jobs necessary to run the target jobs
     """
+    jobs_to_keep = ['cancel-prev-pipelines', 'github_rate_limit_info', 'setup_agent_version']
+    attributes_to_keep = 'stages', 'variables', 'default', 'workflow'
+
     # .gitlab-ci.yml should not be modified
     if not force and not dry_run and ctx.run('git status -s .gitlab-ci.yml', hide='stdout').stdout.strip():
         raise Exit(color_message('The .gitlab-ci.yml file should not be modified as it will be overwritten', Color.RED))
 
     config = get_full_gitlab_ci_configuration(ctx, '.gitlab-ci.yml')
 
-    jobs = [j for j in jobs.split(',') if j]
+    jobs = [j for j in jobs.split(',') if j] + jobs_to_keep
     required = set()
 
     def add_dependencies(job):
@@ -174,7 +177,6 @@ def gen_config_subset(ctx, jobs, dry_run=False, force=False):
         job.pop('extends', None)
 
     # Keep gitlab config
-    attributes_to_keep = 'stages', 'variables', 'default', 'workflow'
     for attr in attributes_to_keep:
         new_config[attr] = config[attr]
 
