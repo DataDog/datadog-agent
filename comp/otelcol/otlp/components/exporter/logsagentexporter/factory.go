@@ -72,7 +72,7 @@ func (f *factory) createLogsExporter(
 		return nil, err
 	}
 
-	exporter, err := newExporter(set.TelemetrySettings, cfg, logSource, f.logsAgentChannel, attributesTranslator)
+	exporter, err := NewExporter(set.TelemetrySettings, cfg, logSource, f.logsAgentChannel, attributesTranslator)
 	if err != nil {
 		return nil, err
 	}

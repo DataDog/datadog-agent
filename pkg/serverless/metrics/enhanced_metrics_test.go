@@ -2,7 +2,6 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
-
 package metrics
 
 import (
@@ -482,18 +481,18 @@ func TestGenerateEnhancedMetricsFromRuntimeDoneLogOK(t *testing.T) {
 func TestGenerateCPUEnhancedMetrics(t *testing.T) {
 	demux := createDemultiplexer(t)
 	tags := []string{"functionname:test-function"}
-	now := time.Now()
-	args := GenerateCPUEnhancedMetricsArgs{100, 53, tags, demux, now}
-	go GenerateCPUEnhancedMetrics(args)
+	now := float64(time.Now().UnixNano()) / float64(time.Second)
+	args := generateCPUEnhancedMetricsArgs{100, 53, 200, tags, demux, now}
+	go generateCPUEnhancedMetrics(args)
 	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(4, 0, 100*time.Millisecond)
-	assert.Equal(t, generatedMetrics, []metrics.MetricSample{
+	assert.Equal(t, []metrics.MetricSample{
 		{
 			Name:       cpuSystemTimeMetric,
 			Value:      53,
 			Mtype:      metrics.DistributionType,
 			Tags:       tags,
 			SampleRate: 1,
-			Timestamp:  float64(now.UnixNano()) / float64(time.Second),
+			Timestamp:  now,
 		},
 		{
 			Name:       cpuUserTimeMetric,
@@ -501,7 +500,7 @@ func TestGenerateCPUEnhancedMetrics(t *testing.T) {
 			Mtype:      metrics.DistributionType,
 			Tags:       tags,
 			SampleRate: 1,
-			Timestamp:  float64(now.UnixNano()) / float64(time.Second),
+			Timestamp:  now,
 		},
 		{
 			Name:       cpuTotalTimeMetric,
@@ -509,31 +508,100 @@ func TestGenerateCPUEnhancedMetrics(t *testing.T) {
 			Mtype:      metrics.DistributionType,
 			Tags:       tags,
 			SampleRate: 1,
-			Timestamp:  float64(now.UnixNano()) / float64(time.Second),
-		}})
+			Timestamp:  now,
+		}},
+		generatedMetrics,
+	)
 	assert.Len(t, timedMetrics, 0)
 }
 
-func TestGenerateCPUEnhancedMetricsDisabled(t *testing.T) {
+func TestDisableCPUEnhancedMetrics(t *testing.T) {
 	var wg sync.WaitGroup
 	enhancedMetricsDisabled = true
 	demux := createDemultiplexer(t)
 	tags := []string{"functionname:test-function"}
-	now := time.Now()
 
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		GenerateCPUEnhancedMetrics(GenerateCPUEnhancedMetricsArgs{100, 53, tags, demux, now})
+		SendCPUEnhancedMetrics(&proc.CPUData{}, 0, tags, demux)
 	}()
 
 	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(1, 0, 100*time.Millisecond)
 
 	assert.Len(t, generatedMetrics, 0)
 	assert.Len(t, timedMetrics, 0)
-
 	wg.Wait()
 	enhancedMetricsDisabled = false
+}
+
+func TestGenerateCPUUtilizationEnhancedMetrics(t *testing.T) {
+	demux := createDemultiplexer(t)
+	tags := []string{"functionname:test-function"}
+	now := float64(time.Now().UnixNano()) / float64(time.Second)
+	args := GenerateCPUUtilizationEnhancedMetricArgs{
+		IndividualCPUIdleTimes: map[string]float64{
+			"cpu0": 30,
+			"cpu1": 80,
+		},
+		IndividualCPUIdleOffsetTimes: map[string]float64{
+			"cpu0": 10,
+			"cpu1": 20,
+		},
+		IdleTimeMs:       100,
+		IdleTimeOffsetMs: 20,
+		UptimeMs:         150,
+		UptimeOffsetMs:   50,
+		Tags:             tags,
+		Demux:            demux,
+		Time:             now,
+	}
+	go GenerateCPUUtilizationEnhancedMetrics(args)
+	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(5, 0, 100*time.Millisecond)
+	assert.Equal(t, []metrics.MetricSample{
+		{
+			Name:       cpuTotalUtilizationPctMetric,
+			Value:      60,
+			Mtype:      metrics.DistributionType,
+			Tags:       tags,
+			SampleRate: 1,
+			Timestamp:  now,
+		},
+		{
+			Name:       cpuTotalUtilizationMetric,
+			Value:      1.2,
+			Mtype:      metrics.DistributionType,
+			Tags:       tags,
+			SampleRate: 1,
+			Timestamp:  now,
+		},
+		{
+			Name:       numCoresMetric,
+			Value:      2,
+			Mtype:      metrics.DistributionType,
+			Tags:       tags,
+			SampleRate: 1,
+			Timestamp:  now,
+		},
+		{
+			Name:       cpuMaxUtilizationMetric,
+			Value:      80,
+			Mtype:      metrics.DistributionType,
+			Tags:       tags,
+			SampleRate: 1,
+			Timestamp:  now,
+		},
+		{
+			Name:       cpuMinUtilizationMetric,
+			Value:      40,
+			Mtype:      metrics.DistributionType,
+			Tags:       tags,
+			SampleRate: 1,
+			Timestamp:  now,
+		}},
+		generatedMetrics,
+	)
+	assert.Len(t, timedMetrics, 0)
 }
 
 func TestGenerateNetworkEnhancedMetrics(t *testing.T) {
@@ -600,6 +668,14 @@ func TestNetworkEnhancedMetricsDisabled(t *testing.T) {
 
 	wg.Wait()
 	enhancedMetricsDisabled = false
+}
+
+func TestSendFailoverReasonMetric(t *testing.T) {
+	demux := createDemultiplexer(t)
+	tags := []string{"reason:test-reason"}
+	go SendFailoverReasonMetric(tags, demux)
+	generatedMetrics, _ := demux.WaitForNumberOfSamples(1, 0, 100*time.Millisecond)
+	assert.Len(t, generatedMetrics, 1)
 }
 
 func createDemultiplexer(t *testing.T) demultiplexer.FakeSamplerMock {

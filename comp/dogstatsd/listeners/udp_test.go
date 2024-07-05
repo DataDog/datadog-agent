@@ -17,8 +17,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
-	dto "github.com/prometheus/client_model/go"
-
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
@@ -100,26 +98,15 @@ func TestUDPListenerTelemetry(t *testing.T) {
 		telemetryMock, ok := deps.Telemetry.(telemetry.Mock)
 		assert.True(t, ok)
 
-		registry := telemetryMock.GetRegistry()
-		var packetsMetric []*dto.Metric
-		var bytesCountMetric []*dto.Metric
-		metricsFamily, err := registry.Gather()
-		assert.Nil(t, err)
+		packetsMetrics, err := telemetryMock.GetCountMetric("dogstatsd", "udp_packets")
+		require.NoError(t, err)
+		require.Len(t, packetsMetrics, 1)
+		bytesCountMetrics, err := telemetryMock.GetCountMetric("dogstatsd", "udp_packets_bytes")
+		require.NoError(t, err)
+		require.Len(t, bytesCountMetrics, 1)
 
-		for _, metric := range metricsFamily {
-			if metric.GetName() == "dogstatsd__udp_packets" {
-				packetsMetric = metric.GetMetric()
-			}
-			if metric.GetName() == "dogstatsd__udp_packets_bytes" {
-				bytesCountMetric = metric.GetMetric()
-			}
-		}
-
-		assert.NotNil(t, packetsMetric)
-		assert.NotNil(t, bytesCountMetric)
-
-		assert.Equal(t, float64(1), packetsMetric[0].GetCounter().GetValue())
-		assert.Equal(t, float64(11), bytesCountMetric[0].GetCounter().GetValue())
+		assert.Equal(t, float64(1), packetsMetrics[0].Value())
+		assert.Equal(t, float64(11), bytesCountMetrics[0].Value())
 
 	case <-time.After(2 * time.Second):
 		assert.FailNow(t, "Timeout on receive channel")
@@ -260,33 +247,19 @@ func TestUDPReceive(t *testing.T) {
 		telemetryMock, ok := deps.Telemetry.(telemetry.Mock)
 		assert.True(t, ok)
 
-		registry := telemetryMock.GetRegistry()
-		var packetsMetric []*dto.Metric
-		var bytesCountMetric []*dto.Metric
-		var histogramMetric []*dto.Metric
-		metricsFamily, err := registry.Gather()
-		assert.Nil(t, err)
+		packetsMetrics, err := telemetryMock.GetCountMetric("dogstatsd", "udp_packets")
+		require.NoError(t, err)
+		require.Len(t, packetsMetrics, 1)
+		bytesCountMetrics, err := telemetryMock.GetCountMetric("dogstatsd", "udp_packets_bytes")
+		require.NoError(t, err)
+		require.Len(t, bytesCountMetrics, 1)
+		histogramMetrics, err := telemetryMock.GetHistogramMetric("dogstatsd", "listener_read_latency")
+		require.NoError(t, err)
+		require.Len(t, histogramMetrics, 1)
 
-		for _, metric := range metricsFamily {
-			if metric.GetName() == "dogstatsd__udp_packets" {
-				packetsMetric = metric.GetMetric()
-			}
-			if metric.GetName() == "dogstatsd__udp_packets_bytes" {
-				bytesCountMetric = metric.GetMetric()
-			}
-
-			if metric.GetName() == "dogstatsd__listener_read_latency" {
-				histogramMetric = metric.GetMetric()
-			}
-		}
-
-		assert.NotNil(t, packetsMetric)
-		assert.NotNil(t, bytesCountMetric)
-		assert.NotNil(t, histogramMetric)
-
-		assert.Equal(t, float64(1), packetsMetric[0].GetCounter().GetValue())
-		assert.Equal(t, float64(len(contents)), bytesCountMetric[0].GetCounter().GetValue())
-		assert.NotEqual(t, 0, histogramMetric[0].GetHistogram().GetSampleSum())
+		assert.Equal(t, float64(1), packetsMetrics[0].Value())
+		assert.Equal(t, float64(len(contents)), bytesCountMetrics[0].Value())
+		assert.NotEqual(t, 0, histogramMetrics[0].Value())
 	case <-time.After(2 * time.Second):
 		assert.FailNow(t, "Timeout on receive channel")
 	}

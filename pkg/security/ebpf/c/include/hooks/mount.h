@@ -118,6 +118,7 @@ HOOK_SYSCALL_COMPAT_ENTRY3(mount, const char *, source, const char *, target, co
         .type = EVENT_MOUNT,
     };
 
+    collect_syscall_ctx(&syscall, SYSCALL_CTX_ARG_STR(0) | SYSCALL_CTX_ARG_STR(1) | SYSCALL_CTX_ARG_STR(2), (void *)source, (void *)target, (void *)fstype);
     cache_syscall(&syscall);
 
     return 0;
@@ -227,6 +228,7 @@ int __attribute__((always_inline)) dr_mount_stage_two_callback(void *ctx) {
     if (syscall->type == EVENT_MOUNT) {
         struct mount_event_t event = {
             .syscall.retval = 0,
+            .syscall_ctx.id = syscall->ctx_id,
         };
 
         fill_mount_fields(syscall, &event.mountfields);

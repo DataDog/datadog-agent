@@ -112,21 +112,104 @@ func TestUnsafeParseInt(t *testing.T) {
 	assert.Equal(t, integer, unsafeInteger)
 }
 
-func TestExtractContainerID(t *testing.T) {
+func TestResolveContainerIDFromLocalData(t *testing.T) {
+	const (
+		LocalDataPrefix   = "c:"
+		containerIDPrefix = "ci-"
+		inodePrefix       = "in-"
+		containerID       = "abcdef"
+		containerInode    = "4242"
+	)
+
 	deps := newServerDeps(t)
 	stringInternerTelemetry := newSiTelemetry(false, deps.Telemetry)
 	p := newParser(deps.Config, newFloat64ListPool(deps.Telemetry), 1, deps.WMeta, stringInternerTelemetry)
-	// Testing with a container ID
-	containerID := p.extractContainerID([]byte("c:1234567890abcdef"))
-	assert.Equal(t, []byte("1234567890abcdef"), containerID)
-	// Testing with an Inode
+
+	// Mock the provider to resolve the container ID from the inode
 	mockProvider := mock.NewMetricsProvider()
+	containerInodeUint, _ := strconv.ParseUint(containerInode, 10, 64)
 	mockProvider.RegisterMetaCollector(&mock.MetaCollector{
 		CIDFromInode: map[uint64]string{
-			1234567890: "1234567890abcdef",
+			containerInodeUint: containerID,
 		},
 	})
 	p.provider = mockProvider
-	containerIDFromInode := p.extractContainerID([]byte("c:in-1234567890"))
-	assert.Equal(t, []byte("1234567890abcdef"), containerIDFromInode)
+
+	tests := []struct {
+		name     string
+		input    []byte
+		expected []byte
+	}{
+		{
+			name:     "Empty LocalData",
+			input:    []byte(LocalDataPrefix),
+			expected: []byte{},
+		},
+		{
+			name:     "LocalData with new container ID",
+			input:    []byte(LocalDataPrefix + containerIDPrefix + containerID),
+			expected: []byte(containerID),
+		},
+		{
+			name:     "LocalData with old container ID format",
+			input:    []byte(LocalDataPrefix + containerID),
+			expected: []byte(containerID),
+		},
+		{
+			name:     "LocalData with inode",
+			input:    []byte(LocalDataPrefix + inodePrefix + containerInode),
+			expected: []byte(containerID),
+		},
+		{
+			name:     "LocalData with invalid inode",
+			input:    []byte(LocalDataPrefix + inodePrefix + "invalid"),
+			expected: []byte(nil),
+		},
+		{
+			name:     "LocalData as a list",
+			input:    []byte(LocalDataPrefix + containerIDPrefix + containerID + "," + inodePrefix + containerInode),
+			expected: []byte(containerID),
+		},
+		{
+			name:     "LocalData as a list with only inode",
+			input:    []byte(LocalDataPrefix + inodePrefix + containerInode),
+			expected: []byte(containerID),
+		},
+		{
+			name:     "LocalData as a list with only container ID",
+			input:    []byte(LocalDataPrefix + containerIDPrefix + containerID),
+			expected: []byte(containerID),
+		},
+		{
+			name:     "LocalData as a list with only inode with trailing comma",
+			input:    []byte(LocalDataPrefix + inodePrefix + containerInode + ","),
+			expected: []byte(containerID),
+		},
+		{
+			name:     "LocalData as a list with only container ID with trailing comma",
+			input:    []byte(LocalDataPrefix + containerIDPrefix + containerID + ","),
+			expected: []byte(containerID),
+		},
+		{
+			name:     "LocalData as a list with only inode surrounded by commas",
+			input:    []byte(LocalDataPrefix + "," + inodePrefix + containerInode + ","), // This is an invalid format, but we should still be able to extract the container ID
+			expected: []byte(containerID),
+		},
+		{
+			name:     "LocalData as a list with only inode surrounded by commas",
+			input:    []byte(LocalDataPrefix + "," + containerIDPrefix + containerID + ","), // This is an invalid format, but we should still be able to extract the container ID
+			expected: []byte(containerID),
+		},
+		{
+			name:     "LocalData as an invalid list",
+			input:    []byte(LocalDataPrefix + ","),
+			expected: []byte(nil),
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, p.resolveContainerIDFromLocalData(tc.input))
+		})
+	}
 }
