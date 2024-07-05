@@ -65,6 +65,10 @@ const expectedBody = `<!DOCTYPE html>
         <i class="fa fa-flag fa-fw"> </i>&nbsp;
         Flare
       </li>
+      <li id="restart_button" class="nav_item no-active">
+        <i class="fa fa-power-off fa-fw"> </i>&nbsp;
+        Restart Agent
+      </li>
     </ul>
   </div>
   <div class="top_bar">
