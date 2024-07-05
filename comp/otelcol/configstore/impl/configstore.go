@@ -29,9 +29,6 @@ func NewConfigStore() (configstore.Component, error) {
 }
 
 func (c *configStoreImpl) AddConfigs(providedCPS otelcol.ConfigProviderSettings, enhancedCPS otelcol.ConfigProviderSettings, factories otelcol.Factories) error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
 	// Provided
 	ocpProvided, err := otelcol.NewConfigProvider(providedCPS)
 	if err != nil {
@@ -59,7 +56,7 @@ func (c *configStoreImpl) AddConfigs(providedCPS otelcol.ConfigProviderSettings,
 
 // addProvidedConf stores the config into configStoreImpl.
 func (c *configStoreImpl) addProvidedConf(config *otelcol.Config) {
-	c.mu.RLock()
+	c.mu.Lock()
 	defer c.mu.RUnlock()
 
 	c.provided = config
@@ -67,7 +64,7 @@ func (c *configStoreImpl) addProvidedConf(config *otelcol.Config) {
 
 // addEnhancedConf stores the config into configStoreImpl.
 func (c *configStoreImpl) addEnhancedConf(config *otelcol.Config) {
-	c.mu.RLock()
+	c.mu.Lock()
 	defer c.mu.RUnlock()
 
 	c.enhanced = config
