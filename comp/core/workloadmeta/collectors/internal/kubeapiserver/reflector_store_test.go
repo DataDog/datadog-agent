@@ -127,7 +127,7 @@ func Test_AddDelete_PartialObjectMetadata(t *testing.T) {
 		},
 	}
 
-	kubeMetadataEntityID := util.GenerateKubeMetadataEntityID("namespaces", "", "test-object")
+	kubeMetadataEntityID := util.GenerateKubeMetadataEntityID("", "namespaces", "", "test-object")
 
 	err = metadataStore.Add(&partialObjMetadata)
 	require.NoError(t, err)

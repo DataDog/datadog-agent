@@ -10,8 +10,6 @@ package kubeapiserver
 
 import (
 	"context"
-	"slices"
-	"sort"
 	"strings"
 	"time"
 
@@ -76,8 +74,8 @@ func resourcesWithMetadataCollectionEnabled(cfg config.Reader) []string {
 	)
 
 	// Remove duplicates
-	sort.Strings(resources)
-	return slices.Compact(resources)
+	resources = cleanDuplicateVersions(resources)
+	return resources
 }
 
 // resourcesWithRequiredMetadataCollection returns the list of resources that we
