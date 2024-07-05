@@ -263,39 +263,7 @@ func (rc rcClient) agentConfigUpdateCallback(updates map[string]state.RawConfig,
 		return
 	}
 
-	// Checks who (the source) is responsible for the last logLevel change
-	source := config.Datadog().GetSource("log_level")
-
-	switch source {
-	case model.SourceRC:
-		// 2 possible situations:
-		//     - we want to change (once again) the log level through RC
-		//     - we want to fall back to the log level we had saved as fallback (in that case mergedConfig.LogLevel == "")
-		if len(mergedConfig.LogLevel) == 0 {
-			pkglog.Infof("Removing remote-config log level override, falling back to '%s'", config.Datadog().Get("log_level"))
-			config.Datadog().UnsetForSource("log_level", model.SourceRC)
-		} else {
-			newLevel := mergedConfig.LogLevel
-			pkglog.Infof("Changing log level to '%s' through remote config", newLevel)
-			err = rc.settingsComponent.SetRuntimeSetting("log_level", newLevel, model.SourceRC)
-		}
-
-	case model.SourceCLI:
-		pkglog.Warnf("Remote config could not change the log level due to CLI override")
-		return
-
-	// default case handles every other source (lower in the hierarchy)
-	default:
-		// If we receive an empty value for log level in the config
-		// then there is nothing to do
-		if len(mergedConfig.LogLevel) == 0 {
-			return
-		}
-
-		// Need to update the log level even if the level stays the same because we need to update the source
-		// Might be possible to add a check in deeper functions to avoid unnecessary work
-		err = rc.settingsComponent.SetRuntimeSetting("log_level", mergedConfig.LogLevel, model.SourceRC)
-	}
+	err = rc.updateAgentConfigField("log_level", mergedConfig.LogLevel, len(mergedConfig.LogLevel) > 0)
 
 	// Apply the new status to all configs
 	for cfgPath := range updates {
@@ -308,6 +276,43 @@ func (rc rcClient) agentConfigUpdateCallback(updates map[string]state.RawConfig,
 			})
 		}
 	}
+}
+
+func (rc rcClient) updateAgentConfigField(fieldName string, value interface{}, isSet bool) error {
+	// Checks who (the source) is responsible for the last config change
+	source := config.Datadog().GetSource(fieldName)
+
+	switch source {
+	case model.SourceRC:
+		// 2 possible situations:
+		//     - we want to change (once again) the config through RC
+		//     - we want to fall back to the config we had saved as fallback
+		if !isSet {
+			pkglog.Infof("Removing remote-config field '%s', falling back to default value", fieldName)
+			config.Datadog().UnsetForSource(fieldName, model.SourceRC)
+		} else {
+			pkglog.Infof("Changing field '%s' to '%v' through remote config", fieldName, value)
+			err := rc.settingsComponent.SetRuntimeSetting(fieldName, value, model.SourceRC)
+			if err != nil {
+				pkglog.Errorf("Failed to set %s runtime setting to %v: %s", fieldName, value, err)
+				return err
+			}
+		}
+	case model.SourceCLI:
+		pkglog.Warnf("Remote config could not change the field '%s' due to CLI override", fieldName)
+		return nil
+	// default case handles every other source (lower in the hierarchy)
+	default:
+		if !isSet {
+			return nil
+		}
+		// Need to update the config even if it stays the same because we need to update the source
+		// Might be possible to add a check in deeper functions to avoid unnecessary work
+		err := rc.settingsComponent.SetRuntimeSetting(fieldName, value, model.SourceRC)
+		return err
+	}
+
+	return nil
 }
 
 // agentTaskUpdateCallback is the callback function called when there is an AGENT_TASK config update
