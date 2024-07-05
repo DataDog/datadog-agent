@@ -749,6 +749,12 @@ replace github.com/DataDog/datadog-agent/comp/core/telemetry => ../../../core/te
 
 replace github.com/DataDog/datadog-agent/comp/def => ../../../def
 
+replace github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip => ../../../trace/compression/impl-gzip
+
+replace github.com/DataDog/datadog-agent/comp/trace/compression/def => ../../../trace/compression/def
+
+replace github.com/DataDog/datadog-agent/comp/trace/compression/impl-zstd => ../../../trace/compression/impl-zstd
+
 replace github.com/DataDog/datadog-agent/comp/logs/agent/config => ../../../logs/agent/config
 
 replace github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def => ../def
@@ -762,12 +768,6 @@ replace github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/l
 replace github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient => ../../otlp/components/metricsclient
 
 replace github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/statsprocessor => ../../otlp/components/statsprocessor
-
-replace github.com/DataDog/datadog-agent/comp/trace/compression/def => ../../../trace/compression/def
-
-replace github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip => ../../../trace/compression/impl-gzip
-
-replace github.com/DataDog/datadog-agent/comp/trace/compression/impl-zstd => ../../../trace/compression/impl-zstd
 
 replace github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../../../pkg/collector/check/defaults
 
