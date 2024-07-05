@@ -1,6 +1,5 @@
 ---
 title: Linux Agent attributes and helpers
-kind: documentation
 description: "Linux Agent attributes and helpers for CSM Threats Rules"
 disable_edit: true
 further_reading:
@@ -483,6 +482,9 @@ A file’s owner was changed
 | [`chown.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`chown.file.user`](#common-filefields-user-doc) | User of the file's owner |
 | [`chown.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
+| [`chown.syscall.gid`](#chown-syscall-gid-doc) | GID argument of the syscall |
+| [`chown.syscall.path`](#chown-syscall-path-doc) | Path argument of the syscall |
+| [`chown.syscall.uid`](#chown-syscall-uid-doc) | UID argument of the syscall |
 
 ### Event `dns`
 
@@ -736,6 +738,8 @@ Create a new name/alias for a file
 | [`link.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`link.file.user`](#common-filefields-user-doc) | User of the file's owner |
 | [`link.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
+| [`link.syscall.destination.path`](#link-syscall-destination-path-doc) | Destination path argument of the syscall |
+| [`link.syscall.path`](#link-syscall-path-doc) | Path argument of the syscall |
 
 ### Event `load_module`
 
@@ -843,6 +847,9 @@ A filesystem was mounted
 | [`mount.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
 | [`mount.root.path`](#mount-root-path-doc) | Root path of the mount |
 | [`mount.source.path`](#mount-source-path-doc) | Source path of a bind mount |
+| [`mount.syscall.fs_type`](#mount-syscall-fs_type-doc) | File system type argument of the syscall |
+| [`mount.syscall.mountpoint.path`](#mount-syscall-mountpoint-path-doc) | Mount point path argument of the syscall |
+| [`mount.syscall.source.path`](#mount-syscall-source-path-doc) | Source path argument of the syscall |
 
 ### Event `mprotect`
 
@@ -1198,6 +1205,8 @@ A file/directory was renamed
 | [`rename.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`rename.file.user`](#common-filefields-user-doc) | User of the file's owner |
 | [`rename.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
+| [`rename.syscall.destination.path`](#rename-syscall-destination-path-doc) | Destination path argument of the syscall |
+| [`rename.syscall.path`](#rename-syscall-path-doc) | Path argument of the syscall |
 
 ### Event `rmdir`
 
@@ -1587,6 +1596,9 @@ A file was deleted
 | [`unlink.file.user`](#common-filefields-user-doc) | User of the file's owner |
 | [`unlink.flags`](#unlink-flags-doc) | Flags of the unlink syscall |
 | [`unlink.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
+| [`unlink.syscall.dirfd`](#unlink-syscall-dirfd-doc) | Directory file descriptor argument of the syscall |
+| [`unlink.syscall.flags`](#unlink-syscall-flags-doc) | Flags argument of the syscall |
+| [`unlink.syscall.path`](#unlink-syscall-path-doc) | Path argument of the syscall |
 
 ### Event `unload_module`
 
@@ -1624,6 +1636,7 @@ Change file access/modification times
 | [`utimes.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`utimes.file.user`](#common-filefields-user-doc) | User of the file's owner |
 | [`utimes.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
+| [`utimes.syscall.path`](#utimes-syscall-path-doc) | Path argument of the syscall |
 
 
 ## Attributes documentation
@@ -2421,6 +2434,27 @@ Definition: New user of the chown-ed file's owner
 
 
 
+### `chown.syscall.gid` {#chown-syscall-gid-doc}
+Type: int
+
+Definition: GID argument of the syscall
+
+
+
+### `chown.syscall.path` {#chown-syscall-path-doc}
+Type: string
+
+Definition: Path argument of the syscall
+
+
+
+### `chown.syscall.uid` {#chown-syscall-uid-doc}
+Type: int
+
+Definition: UID argument of the syscall
+
+
+
 ### `container.created_at` {#container-created_at-doc}
 Type: int
 
@@ -2609,6 +2643,20 @@ Definition: the user agent of the HTTP client
 
 
 
+### `link.syscall.destination.path` {#link-syscall-destination-path-doc}
+Type: string
+
+Definition: Destination path argument of the syscall
+
+
+
+### `link.syscall.path` {#link-syscall-path-doc}
+Type: string
+
+Definition: Path argument of the syscall
+
+
+
 ### `load_module.args` {#load_module-args-doc}
 Type: string
 
@@ -2709,6 +2757,27 @@ Definition: Root path of the mount
 Type: string
 
 Definition: Source path of a bind mount
+
+
+
+### `mount.syscall.fs_type` {#mount-syscall-fs_type-doc}
+Type: string
+
+Definition: File system type argument of the syscall
+
+
+
+### `mount.syscall.mountpoint.path` {#mount-syscall-mountpoint-path-doc}
+Type: string
+
+Definition: Mount point path argument of the syscall
+
+
+
+### `mount.syscall.source.path` {#mount-syscall-source-path-doc}
+Type: string
+
+Definition: Source path argument of the syscall
 
 
 
@@ -2821,6 +2890,20 @@ Definition: ptrace request
 
 
 Constants: [Ptrace constants](#ptrace-constants)
+
+
+
+### `rename.syscall.destination.path` {#rename-syscall-destination-path-doc}
+Type: string
+
+Definition: Destination path argument of the syscall
+
+
+
+### `rename.syscall.path` {#rename-syscall-path-doc}
+Type: string
+
+Definition: Path argument of the syscall
 
 
 
@@ -2983,10 +3066,38 @@ Constants: [Unlink flags](#unlink-flags)
 
 
 
+### `unlink.syscall.dirfd` {#unlink-syscall-dirfd-doc}
+Type: int
+
+Definition: Directory file descriptor argument of the syscall
+
+
+
+### `unlink.syscall.flags` {#unlink-syscall-flags-doc}
+Type: int
+
+Definition: Flags argument of the syscall
+
+
+
+### `unlink.syscall.path` {#unlink-syscall-path-doc}
+Type: string
+
+Definition: Path argument of the syscall
+
+
+
 ### `unload_module.name` {#unload_module-name-doc}
 Type: string
 
 Definition: Name of the kernel module that was deleted
+
+
+
+### `utimes.syscall.path` {#utimes-syscall-path-doc}
+Type: string
+
+Definition: Path argument of the syscall
 
 
 

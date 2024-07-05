@@ -13,25 +13,25 @@ import (
 )
 
 // GenerateKubeMetadataEntityID generates and returns a unique entity id for KubernetesMetadata entity
-// for namespaced objects, the id will have the format {resourceType}/{namespace}/{name} (e.g. deployments/default/app )
-// for cluster scoped objects, the id will have the format {resourceType}//{name} (e.g. nodes//master-node)
-func GenerateKubeMetadataEntityID(resource, namespace, name string) workloadmeta.KubeMetadataEntityID {
-	return workloadmeta.KubeMetadataEntityID(fmt.Sprintf("%s/%s/%s", resource, namespace, name))
+// for namespaced objects, the id will have the format {group}/{resourceType}/{namespace}/{name} (e.g. app/deployments/default/app )
+// for cluster scoped objects, the id will have the format {group}/{resourceType}//{name} (e.g. /nodes//master-node)
+func GenerateKubeMetadataEntityID(group, resource, namespace, name string) workloadmeta.KubeMetadataEntityID {
+	return workloadmeta.KubeMetadataEntityID(fmt.Sprintf("%s/%s/%s/%s", group, resource, namespace, name))
 }
 
 // ParseKubeMetadataEntityID parses a metadata entity ID and returns the resource type, namespace and resource name.
 // The parsed id should be in the following format: <resourceType>/<namespace>/<name>
 // The namespace field is left empty for cluster-scoped objects.
 // Examples:
-// - deployments/default/app
-// - namespaces//default
+// - app/deployments/default/app
+// - /namespaces//default
 // If the parsed id is malformatted, this function will return empty strings and a non nil error
-func ParseKubeMetadataEntityID(id workloadmeta.KubeMetadataEntityID) (resource, namespace, name string, err error) {
+func ParseKubeMetadataEntityID(id workloadmeta.KubeMetadataEntityID) (group, resource, namespace, name string, err error) {
 	parts := strings.Split(string(id), "/")
-	if len(parts) != 3 {
+	if len(parts) != 4 {
 		err := fmt.Errorf("malformatted metadata entity id: %s", id)
-		return "", "", "", err
+		return "", "", "", "", err
 	}
 
-	return parts[0], parts[1], parts[2], nil
+	return parts[0], parts[1], parts[2], parts[3], nil
 }

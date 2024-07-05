@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/kubetags"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -955,7 +956,7 @@ func ownerTags(kind, name string) []string {
 		return nil
 	}
 
-	tagKey, err := tags.GetTagForKind(kind)
+	tagKey, err := kubetags.GetTagForKubernetesKind(kind)
 	if err != nil {
 		return nil
 	}

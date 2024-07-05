@@ -10,7 +10,7 @@ from invoke import MockContext
 
 from tasks import notify
 from tasks.libs.notify import pipeline_status
-from tasks.libs.pipeline.notifications import find_job_owners
+from tasks.libs.pipeline.notifications import find_job_owners, load_and_validate
 from tasks.libs.types.types import FailedJobReason, FailedJobs, FailedJobType
 
 
@@ -21,6 +21,15 @@ def get_fake_jobs() -> list[ProjectJob]:
     return [ProjectJob(MagicMock(), attrs=job) for job in jobs]
 
 
+def get_github_slack_map():
+    return load_and_validate(
+        "tasks/unit-tests/testdata/github_slack_map.yaml",
+        "DEFAULT_SLACK_CHANNEL",
+        '#channel-everything',
+        relpath=False,
+    )
+
+
 class TestSendMessage(unittest.TestCase):
     @patch('tasks.libs.ciproviders.gitlab_api.get_gitlab_api')
     def test_merge(self, api_mock):
@@ -28,7 +37,7 @@ class TestSendMessage(unittest.TestCase):
         repo_mock.jobs.get.return_value.trace.return_value = b"Log trace"
         list_mock = repo_mock.pipelines.get.return_value.jobs.list
         list_mock.side_effect = [get_fake_jobs(), []]
-        notify.send_message(MockContext(), notification_type="merge", print_to_stdout=True)
+        notify.send_message(MockContext(), notification_type="merge", dry_run=True)
         list_mock.assert_called()
 
     @patch("tasks.notify.get_failed_jobs")
@@ -91,7 +100,7 @@ class TestSendMessage(unittest.TestCase):
             )
         )
         get_failed_jobs_mock.return_value = failed
-        notify.send_message(MockContext(), notification_type="merge", print_to_stdout=True)
+        notify.send_message(MockContext(), notification_type="merge", dry_run=True)
 
         get_failed_jobs_mock.assert_called()
 
@@ -177,7 +186,7 @@ class TestSendMessage(unittest.TestCase):
         trace_mock.return_value = b"no basic auth credentials"
         list_mock.return_value = get_fake_jobs()
 
-        notify.send_message(MockContext(), notification_type="merge", print_to_stdout=True)
+        notify.send_message(MockContext(), notification_type="merge", dry_run=True)
 
         trace_mock.assert_called()
         list_mock.assert_called()
@@ -226,7 +235,7 @@ class TestSendStats(unittest.TestCase):
         attrs = {"jobs.list.return_value": get_fake_jobs(), "created_at": "2024-03-12T10:00:00.000Z"}
         pipeline_mock.return_value = MagicMock(**attrs)
 
-        notify.send_stats(MockContext(), print_to_stdout=True)
+        notify.send_stats(MockContext(), dry_run=True)
 
         trace_mock.assert_called()
         pipeline_mock.assert_called()
@@ -237,7 +246,14 @@ class TestJobOwners(unittest.TestCase):
     def test_partition(self):
         from tasks.owners import make_partition
 
-        jobs = ['tests_hello', 'tests_ebpf', 'security_go_generate_check', 'hello_world', 'tests_hello_world']
+        jobs = [
+            'tests_team_a_42',
+            'tests_team_a_618',
+            'this_is_a_test',
+            'tests_team_b_1',
+            'tests_letters_0',
+            'hello_world',
+        ]
 
         partition = make_partition(jobs, "tasks/unit-tests/testdata/jobowners.txt")
         partition = sorted(partition.items())
@@ -245,9 +261,8 @@ class TestJobOwners(unittest.TestCase):
         self.assertEqual(
             partition,
             [
-                ('@DataDog/agent-devx-infra', {'hello_world'}),
-                ('@DataDog/agent-security', {'security_go_generate_check'}),
-                ('@DataDog/ebpf-platform', {'tests_ebpf'}),
-                ('@DataDog/multiple', {'tests_hello', 'tests_hello_world'}),
+                ('@DataDog/team-a', {'tests_team_a_42', 'tests_team_a_618', 'tests_letters_0'}),
+                ('@DataDog/team-b', {'tests_team_b_1', 'tests_letters_0'}),
+                ('@DataDog/team-everything', {'this_is_a_test', 'hello_world'}),
             ],
         )

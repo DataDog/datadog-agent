@@ -42,6 +42,8 @@ replace (
 	github.com/DataDog/datadog-agent/comp/netflow/payload => ./comp/netflow/payload
 	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def => ./comp/otelcol/collector-contrib/def
 	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/impl => ./comp/otelcol/collector-contrib/impl
+	github.com/DataDog/datadog-agent/comp/otelcol/configstore/def => ./comp/otelcol/configstore/def
+	github.com/DataDog/datadog-agent/comp/otelcol/configstore/impl => ./comp/otelcol/configstore/impl
 	github.com/DataDog/datadog-agent/comp/otelcol/converter/def => ./comp/otelcol/converter/def
 	github.com/DataDog/datadog-agent/comp/otelcol/converter/impl => ./comp/otelcol/converter/impl
 	github.com/DataDog/datadog-agent/comp/otelcol/extension/def => ./comp/otelcol/extension/def
@@ -56,6 +58,9 @@ replace (
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil => ./comp/otelcol/otlp/testutil
 	github.com/DataDog/datadog-agent/comp/serializer/compression => ./comp/serializer/compression
 	github.com/DataDog/datadog-agent/comp/trace/agent/def => ./comp/trace/agent/def
+	github.com/DataDog/datadog-agent/comp/trace/compression/def => ./comp/trace/compression/def
+	github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip => ./comp/trace/compression/impl-gzip
+	github.com/DataDog/datadog-agent/comp/trace/compression/impl-zstd => ./comp/trace/compression/impl-zstd
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey => ./pkg/aggregator/ckey/
 	github.com/DataDog/datadog-agent/pkg/api => ./pkg/api
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ./pkg/collector/check/defaults
@@ -444,7 +449,7 @@ require (
 	github.com/karrick/godirwalk v1.17.0 // indirect
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51 // indirect
 	github.com/kjk/lzma v0.0.0-20161016003348-3fd93898850d // indirect
-	github.com/klauspost/compress v1.17.8 // indirect
+	github.com/klauspost/compress v1.17.9 // indirect
 	github.com/klauspost/pgzip v1.2.5 // indirect
 	github.com/knadh/koanf v1.5.0 // indirect
 	github.com/knqyf263/go-apk-version v0.0.0-20200609155635-041fdbb8563f // indirect
@@ -517,9 +522,9 @@ require (
 	github.com/tklauser/numcpus v0.8.0 // indirect
 	github.com/tmthrgd/go-hex v0.0.0-20190904060850-447a3041c3bc // indirect
 	github.com/twitchtv/twirp v8.1.3+incompatible // indirect
-	github.com/twmb/franz-go v1.14.3
-	github.com/twmb/franz-go/pkg/kadm v1.9.0
-	github.com/twmb/franz-go/pkg/kmsg v1.6.1
+	github.com/twmb/franz-go v1.17.0
+	github.com/twmb/franz-go/pkg/kadm v1.12.0
+	github.com/twmb/franz-go/pkg/kmsg v1.8.0
 	github.com/ugorji/go/codec v1.2.11 // indirect
 	github.com/ulikunitz/xz v0.5.11 // indirect
 	github.com/vbatts/tar-split v0.11.5 // indirect
@@ -608,19 +613,24 @@ require (
 	github.com/DataDog/datadog-agent/comp/netflow/payload v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/impl v0.55.0-rc.3
+	github.com/DataDog/datadog-agent/comp/otelcol/configstore/def v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/comp/otelcol/configstore/impl v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/otelcol/converter/def v0.55.0-rc.1
 	github.com/DataDog/datadog-agent/comp/otelcol/converter/impl v0.0.0-20240618144845-a975ff101886
 	github.com/DataDog/datadog-agent/comp/otelcol/extension/def v0.0.0-20240612124811-03a2a2de1865
 	github.com/DataDog/datadog-agent/comp/otelcol/extension/impl v0.0.0-20240609183704-7277796a9179
 	github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/logsagentpipelineimpl v0.55.0-rc.3
-	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter v0.55.0-rc.3
+	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter v0.56.0-devel
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/comp/serializer/compression v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/comp/trace/agent/def v0.0.0-20240620192452-6ae09a69b21f
+	github.com/DataDog/datadog-agent/comp/trace/compression/def v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/comp/trace/compression/impl-zstd v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/api v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.55.0-rc.3
@@ -673,7 +683,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/uuid v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/version v0.55.0-rc.3
-	github.com/DataDog/go-libddwaf/v2 v2.3.1
+	github.com/DataDog/go-libddwaf/v3 v3.2.1
 	github.com/DataDog/go-sqllexer v0.0.12
 	github.com/Datadog/dublin-traceroute v0.0.1
 	github.com/aquasecurity/trivy v0.49.2-0.20240227072422-e1ea02c7b80d
@@ -717,6 +727,9 @@ require (
 	k8s.io/cli-runtime v0.29.0
 	k8s.io/kubectl v0.29.0
 )
+
+// NDM: Temporary fork until pro-bing merges the PR
+replace github.com/prometheus-community/pro-bing => github.com/ken-schneider/pro-bing v0.0.0-20240702202240-4cb73c5b2d22
 
 require (
 	bitbucket.org/atlassian/go-asap/v2 v2.8.0 // indirect
@@ -770,7 +783,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.55.0-rc.3 // indirect
 	github.com/DataDog/datadog-api-client-go/v2 v2.26.0 // indirect
 	github.com/DataDog/dd-sensitive-data-scanner/sds-go/go v0.0.0-20240419161837-f1b2f553edfe // indirect
-	github.com/DataDog/go-libddwaf/v3 v3.2.1 // indirect
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs v0.16.1 // indirect
 	github.com/GehirnInc/crypt v0.0.0-20200316065508-bb7000b8a962 // indirect
 	github.com/GoogleCloudPlatform/grpc-gcp-go/grpcgcp v1.5.0 // indirect
@@ -1315,8 +1327,8 @@ replace k8s.io/cri-api => k8s.io/cri-api v0.25.5
 // Use custom Trivy fork to reduce binary size
 // Pull in replacements needed by upstream Trivy
 replace (
-	// Maps to Trivy fork https://github.com/DataDog/trivy/commits/lebauce/use-fs-main-dd/
-	github.com/aquasecurity/trivy => github.com/DataDog/trivy v0.0.0-20240524155722-0c355f8e174c
+	// Maps to Trivy fork https://github.com/DataDog/trivy/commits/use-fs-main-dd/
+	github.com/aquasecurity/trivy => github.com/DataDog/trivy v0.0.0-20240701170153-3090480eda42
 	github.com/saracen/walker => github.com/DataDog/walker v0.0.0-20230418153152-7f29bb2dc950
 	// testcontainers-go has a bug with versions v0.25.0 and v0.26.0
 	// ref: https://github.com/testcontainers/testcontainers-go/issues/1782

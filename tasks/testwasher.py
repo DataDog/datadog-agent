@@ -8,8 +8,9 @@ import yaml
 from invoke import task
 
 from tasks.libs.ciproviders.gitlab_api import (
-    generate_gitlab_full_configuration,
+    get_full_gitlab_ci_configuration,
 )
+from tasks.libs.common.utils import gitlab_section
 from tasks.test_core import ModuleTestResult
 
 
@@ -171,16 +172,14 @@ class TestWasher:
 
 
 @task()
-def generate_flake_finder_pipeline(_, n=3):
+def generate_flake_finder_pipeline(ctx, n=3):
     """
     Generate a child pipeline where jobs marked with SHOULD_RUN_IN_FLAKES_FINDER are run n times
     """
 
     # Read gitlab config
-    config = generate_gitlab_full_configuration(".gitlab-ci.yml", {}, return_dump=False, apply_postprocessing=True)
+    config = get_full_gitlab_ci_configuration(ctx, ".gitlab-ci.yml")
 
-    for job in config:
-        print(job)
     # Lets keep only variables and jobs with flake finder variable
     kept_job = {}
     for job, job_details in config.items():
@@ -195,7 +194,7 @@ def generate_flake_finder_pipeline(_, n=3):
                 continue
             kept_job[job] = job_details
 
-    # Remove needs, rules and retry from the jobs
+    # Remove needs, rules, extends and retry from the jobs
     for job in kept_job:
         if 'needs' in kept_job[job]:
             del kept_job[job]["needs"]
@@ -203,6 +202,8 @@ def generate_flake_finder_pipeline(_, n=3):
             del kept_job[job]["rules"]
         if 'retry' in kept_job[job]:
             del kept_job[job]["retry"]
+        if 'extends' in kept_job[job]:
+            del kept_job[job]["extends"]
 
     new_jobs = {}
     new_jobs['variables'] = copy.deepcopy(config['variables'])
@@ -233,4 +234,5 @@ def generate_flake_finder_pipeline(_, n=3):
     with open("flake-finder-gitlab-ci.yml", "w") as f:
         f.write(yaml.safe_dump(new_jobs))
 
-    print("New Gitlab-ci.yml:", yaml.safe_dump(new_jobs))
+    with gitlab_section("Flake finder generated pipeline", collapsed=True):
+        print(yaml.safe_dump(new_jobs))
