@@ -12957,6 +12957,70 @@ func (ev *Event) GetRenameRetval() int64 {
 	return ev.Rename.SyscallEvent.Retval
 }
 
+// GetRenameSyscallDestinationPath returns the value of the field, resolving if necessary
+func (ev *Event) GetRenameSyscallDestinationPath() string {
+	if ev.GetEventType().String() != "rename" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsStr2(ev, &ev.Rename.SyscallContext)
+}
+
+// GetRenameSyscallInt1 returns the value of the field, resolving if necessary
+func (ev *Event) GetRenameSyscallInt1() int {
+	if ev.GetEventType().String() != "rename" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsInt1(ev, &ev.Rename.SyscallContext)
+}
+
+// GetRenameSyscallInt2 returns the value of the field, resolving if necessary
+func (ev *Event) GetRenameSyscallInt2() int {
+	if ev.GetEventType().String() != "rename" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsInt2(ev, &ev.Rename.SyscallContext)
+}
+
+// GetRenameSyscallInt3 returns the value of the field, resolving if necessary
+func (ev *Event) GetRenameSyscallInt3() int {
+	if ev.GetEventType().String() != "rename" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsInt3(ev, &ev.Rename.SyscallContext)
+}
+
+// GetRenameSyscallPath returns the value of the field, resolving if necessary
+func (ev *Event) GetRenameSyscallPath() string {
+	if ev.GetEventType().String() != "rename" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Rename.SyscallContext)
+}
+
+// GetRenameSyscallStr1 returns the value of the field, resolving if necessary
+func (ev *Event) GetRenameSyscallStr1() string {
+	if ev.GetEventType().String() != "rename" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Rename.SyscallContext)
+}
+
+// GetRenameSyscallStr2 returns the value of the field, resolving if necessary
+func (ev *Event) GetRenameSyscallStr2() string {
+	if ev.GetEventType().String() != "rename" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsStr2(ev, &ev.Rename.SyscallContext)
+}
+
+// GetRenameSyscallStr3 returns the value of the field, resolving if necessary
+func (ev *Event) GetRenameSyscallStr3() string {
+	if ev.GetEventType().String() != "rename" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsStr3(ev, &ev.Rename.SyscallContext)
+}
+
 // GetRmdirFileChangeTime returns the value of the field, resolving if necessary
 func (ev *Event) GetRmdirFileChangeTime() uint64 {
 	if ev.GetEventType().String() != "rmdir" {

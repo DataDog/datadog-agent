@@ -422,8 +422,13 @@ type PIDContext struct {
 // RenameEvent represents a rename event
 type RenameEvent struct {
 	SyscallEvent
+	SyscallContext
 	Old FileEvent `field:"file"`
 	New FileEvent `field:"file.destination"`
+
+	// Syscall context aliases
+	SyscallPath            string `field:"syscall.path,ref:rename.syscall.str1"`             // SECLDoc[syscall.path] Definition:`Path argument of the syscall`
+	SyscallDestinationPath string `field:"syscall.destination.path,ref:rename.syscall.str2"` // SECLDoc[syscall.destination.path] Definition:`Destination path argument of the syscall`
 }
 
 // RmdirEvent represents a rmdir event

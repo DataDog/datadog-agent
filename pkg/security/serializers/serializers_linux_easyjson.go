@@ -392,6 +392,16 @@ func easyjsonDdc0fdbeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers2(i
 				}
 				(*out.Utimes).UnmarshalEasyJSON(in)
 			}
+		case "rename":
+			if in.IsNull() {
+				in.Skip()
+				out.Rename = nil
+			} else {
+				if out.Rename == nil {
+					out.Rename = new(SyscallArgsSerializer)
+				}
+				(*out.Rename).UnmarshalEasyJSON(in)
+			}
 		default:
 			in.SkipRecursive()
 		}
@@ -481,6 +491,16 @@ func easyjsonDdc0fdbeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers2(o
 			out.RawString(prefix)
 		}
 		(*in.Utimes).MarshalEasyJSON(out)
+	}
+	if in.Rename != nil {
+		const prefix string = ",\"rename\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		(*in.Rename).MarshalEasyJSON(out)
 	}
 	out.RawByte('}')
 }
