@@ -56,7 +56,7 @@ type EventMonitor struct {
 	ctx           context.Context
 	cancelFnc     context.CancelFunc
 	sendStatsChan chan chan bool
-	modules       []EventMonitorModule
+	modules       []Module
 	netListener   net.Listener
 	wg            sync.WaitGroup
 }
@@ -83,8 +83,8 @@ func (m *EventMonitor) AddEventConsumer(consumer EventConsumer) error {
 	return m.Probe.AddEventConsumer(consumer)
 }
 
-// RegisterEventConsumer registers an event consumer
-func (m *EventMonitor) RegisterModule(module EventMonitorModule) {
+// RegisterModule registers an event consumer module
+func (m *EventMonitor) RegisterModule(module Module) {
 	m.modules = append(m.modules, module)
 }
 

@@ -13,8 +13,8 @@ type EventConsumer interface {
 	probe.EventConsumerInterface
 }
 
-// EventMonitorModule defines an event monitor
-type EventMonitorModule interface {
+// Module defines an event monitor module
+type Module interface {
 	// ID returns the ID of the event consumer
 	ID() string
 	// Start starts the event consumer
