@@ -550,7 +550,7 @@ func newSyscallArgsSerializer(sc *model.SyscallContext, e *model.Event) *Syscall
 			Path:  &path,
 			Flags: &flags,
 		}
-	case model.FileLinkEventType:
+	case model.FileLinkEventType, model.FileRenameEventType:
 		path := e.FieldHandlers.ResolveSyscallCtxArgsStr1(e, sc)
 		destinationPath := e.FieldHandlers.ResolveSyscallCtxArgsStr2(e, sc)
 		return &SyscallArgsSerializer{
@@ -573,6 +573,7 @@ type SyscallContextSerializer struct {
 	Unlink *SyscallArgsSerializer `json:"unlink,omitempty"`
 	Link   *SyscallArgsSerializer `json:"link,omitempty"`
 	Utimes *SyscallArgsSerializer `json:"utimes,omitempty"`
+	Rename *SyscallArgsSerializer `json:"rename,omitempty"`
 }
 
 func newSyscallContextSerializer() *SyscallContextSerializer {
@@ -1207,6 +1208,8 @@ func NewEventSerializer(event *model.Event, opts *eval.Opts) *EventSerializer {
 			Destination:    newFileSerializer(&event.Rename.New, event),
 		}
 		s.EventContextSerializer.Outcome = serializeOutcome(event.Rename.Retval)
+		s.SyscallContextSerializer = newSyscallContextSerializer()
+		s.SyscallContextSerializer.Rename = newSyscallArgsSerializer(&event.Rename.SyscallContext, event)
 	case model.FileRemoveXAttrEventType:
 		s.FileEventSerializer = &FileEventSerializer{
 			FileSerializer: *newFileSerializer(&event.RemoveXAttr.File, event),
