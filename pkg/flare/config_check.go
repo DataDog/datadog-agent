@@ -19,19 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
-// GetConfigCheck dump all loaded configurations to the writer
-func GetConfigCheck(res []byte, w io.Writer, withDebug bool) error {
-	cr := integration.ConfigCheckResponse{}
-	err := json.Unmarshal(res, &cr)
-	if err != nil {
-		return err
-	}
-
-	PrintConfigCheck(w, cr, withDebug)
-
-	return nil
-}
-
 // GetClusterAgentConfigCheck gets config check from the server for cluster agent
 func GetClusterAgentConfigCheck(w io.Writer, withDebug bool) error {
 	c := util.GetClient(false) // FIX: get certificates right then make this true

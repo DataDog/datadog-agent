@@ -8,6 +8,7 @@ package configcheck
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 
 	"github.com/fatih/color"
@@ -16,6 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
@@ -70,12 +72,15 @@ func run(config config.Component, cliParams *cliParams, _ log.Component) error {
 		return fmt.Errorf("the agent ran into an error while checking config: %v", err)
 	}
 
-	var b bytes.Buffer
-	color.Output = &b
-	err = flare.GetConfigCheck(res, color.Output, cliParams.verbose)
+	cr := integration.ConfigCheckResponse{}
+	err = json.Unmarshal(res, &cr)
 	if err != nil {
 		return fmt.Errorf("unable to parse configcheck: %v", err)
 	}
+
+	var b bytes.Buffer
+	color.Output = &b
+	flare.PrintConfigCheck(color.Output, cr, cliParams.verbose)
 
 	fmt.Println(b.String())
 	return nil
