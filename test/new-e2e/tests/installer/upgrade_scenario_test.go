@@ -279,6 +279,17 @@ func (s *upgradeScenarioSuite) TestPromoteWithoutExperiment() {
 	afterStatus := s.getInstallerStatus()
 	require.Equal(s.T(), beforeStatus.Packages["datadog-agent"], afterStatus.Packages["datadog-agent"])
 	require.Equal(s.T(), beforeStatus.Version, afterStatus.Version)
+
+	// Try a golden path to make sure nothing is broken
+	timestamp := s.host.LastJournaldTimestamp()
+	_, err = s.startExperimentCommand(latestAgentImageVersion)
+	require.NoError(s.T(), err)
+	s.assertSuccessfulStartExperiment(timestamp, latestAgentImageVersion)
+
+	timestamp = s.host.LastJournaldTimestamp()
+	_, err = s.promoteExperimentCommand()
+	require.NoError(s.T(), err)
+	s.assertSuccessfulPromoteExperiment(timestamp, latestAgentImageVersion)
 }
 
 func (s *upgradeScenarioSuite) startExperimentCommand(version string) (string, error) {

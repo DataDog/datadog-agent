@@ -16,7 +16,12 @@ import (
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/local"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/telemetry"
+	coretelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestGetDDAlertType(t *testing.T) {
@@ -50,7 +55,9 @@ func TestGetDDAlertType(t *testing.T) {
 }
 
 func Test_getInvolvedObjectTags(t *testing.T) {
-	taggerInstance := local.NewFakeTagger()
+	telemetryComponent := fxutil.Test[coretelemetry.Component](t, telemetryimpl.MockModule())
+	telemetryStore := telemetry.NewStore(telemetryComponent)
+	taggerInstance := local.NewFakeTagger(telemetryStore)
 	taggerInstance.SetTags("kubernetes_metadata://namespaces//default", "workloadmeta-kubernetes_node", []string{"team:container-int"}, nil, nil, nil)
 	tests := []struct {
 		name           string
@@ -203,6 +210,54 @@ func Test_getEventHostInfoImpl(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := getEventHostInfoImpl(providerIDFunc, tt.args.clusterName, tt.args.ev); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("getEventHostInfo() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func Test_getEventSource(t *testing.T) {
+	tests := []struct {
+		name                                  string
+		controllerName                        string
+		sourceComponent                       string
+		kubernetesEventSourceDetectionEnabled bool
+		want                                  string
+	}{
+		{
+			name:                                  "kubernetes event source detection maps controller name",
+			kubernetesEventSourceDetectionEnabled: true,
+			controllerName:                        "datadog-operator-manager",
+			sourceComponent:                       "",
+			want:                                  "datadog operator",
+		},
+		{
+			name:                                  "kubernetes event source detection source component name",
+			kubernetesEventSourceDetectionEnabled: true,
+			controllerName:                        "",
+			sourceComponent:                       "datadog-operator-manager",
+			want:                                  "datadog operator",
+		},
+		{
+			name:                                  "kubernetes event source detection uses default value if controller name not found",
+			kubernetesEventSourceDetectionEnabled: true,
+			controllerName:                        "abcd-test-controller",
+			sourceComponent:                       "abcd-test-source",
+			want:                                  "kubernetes",
+		},
+		{
+			name:                                  "kubernetes event source detection uses default value if source detection disabled",
+			kubernetesEventSourceDetectionEnabled: false,
+			controllerName:                        "datadog-operator-manager",
+			sourceComponent:                       "datadog-operator-manager",
+			want:                                  "kubernetes",
+		},
+	}
+	for _, tt := range tests {
+		mockConfig := config.Mock(t)
+		mockConfig.SetWithoutSource("kubernetes_events_source_detection.enabled", tt.kubernetesEventSourceDetectionEnabled)
+		t.Run(tt.name, func(t *testing.T) {
+			if got := getEventSource(tt.controllerName, tt.sourceComponent); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("getEventSource() = %v, want %v", got, tt.want)
 			}
 		})
 	}

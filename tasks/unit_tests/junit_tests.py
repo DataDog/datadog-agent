@@ -9,17 +9,17 @@ from tasks.libs.owners.parsing import read_owners
 
 class TestFindTarball(unittest.TestCase):
     def test_tarball_in_folder(self):
-        tarball_in_folder = "./tasks/unit-tests/testdata/secret.tar.gz"
+        tarball_in_folder = "./tasks/unit_tests/testdata/secret.tar.gz"
         self.assertEqual(junit.find_tarball(tarball_in_folder), f"{tarball_in_folder}/secret.tar.gz")
 
     def test_tarball_in_folder_not_found(self):
-        tarball_in_folder = "./tasks/unit-tests/testdata/go_mod_formatter"
+        tarball_in_folder = "./tasks/unit_tests/testdata/go_mod_formatter"
         self.assertEqual(junit.find_tarball(tarball_in_folder), f"{tarball_in_folder}/junit.tar.gz")
 
 
 class TestReadAdditionalTags(unittest.TestCase):
     def test_with_tags(self):
-        valid_tags = Path("./tasks/unit-tests/testdata/secret.tar.gz")
+        valid_tags = Path("./tasks/unit_tests/testdata/secret.tar.gz")
         self.assertEqual(
             junit.read_additional_tags(valid_tags),
             [
@@ -34,33 +34,33 @@ class TestReadAdditionalTags(unittest.TestCase):
         )
 
     def test_without_tags(self):
-        invalid_tags = Path("./tasks/unit-tests/testdata")
+        invalid_tags = Path("./tasks/unit_tests/testdata")
         self.assertEqual(len(junit.read_additional_tags(invalid_tags)), 0)
 
 
 class TestSplitJUnitXML(unittest.TestCase):
     def tearDown(self) -> None:
-        p = Path("./tasks/unit-tests/testdata/secret.tar.gz")
+        p = Path("./tasks/unit_tests/testdata/secret.tar.gz")
         for dir in p.iterdir():
             if dir.is_dir():
                 shutil.rmtree(dir, ignore_errors=True)
 
     def test_without_split(self):
-        xml_file = Path("./tasks/unit-tests/testdata/secret.tar.gz/bedroom-rspec-win2016-azure-x86_64.xml")
+        xml_file = Path("./tasks/unit_tests/testdata/secret.tar.gz/bedroom-rspec-win2016-azure-x86_64.xml")
         owners = read_owners(".github/CODEOWNERS")
         self.assertEqual(junit.split_junitxml(xml_file.parent, xml_file, owners, []), 1)
         generated_folder = xml_file.parent / "windows-agent_base"
         self.assertTrue(generated_folder.exists())
 
     def test_with_split(self):
-        xml_file = Path("./tasks/unit-tests/testdata/secret.tar.gz/-go-src-datadog-agent-junit-out-base.xml")
+        xml_file = Path("./tasks/unit_tests/testdata/secret.tar.gz/-go-src-datadog-agent-junit-out-base.xml")
         owners = read_owners(".github/CODEOWNERS")
         self.assertEqual(junit.split_junitxml(xml_file.parent, xml_file, owners, []), 28)
 
 
 class TestGroupPerTag(unittest.TestCase):
     def test_default_e2e(self):
-        test_dir = Path("./tasks/unit-tests/testdata/to_group")
+        test_dir = Path("./tasks/unit_tests/testdata/to_group")
         grouped = junit.group_per_tags(test_dir, [])
         self.assertIn("default", grouped)
         self.assertCountEqual([f"{str(test_dir)}/onepiece", f"{str(test_dir)}/dragonball"], grouped["default"])
@@ -70,7 +70,7 @@ class TestGroupPerTag(unittest.TestCase):
         self.assertNotIn("kitchen-e2e", grouped)
 
     def test_e2e_kitchen(self):
-        test_dir = Path("./tasks/unit-tests/testdata/to_group")
+        test_dir = Path("./tasks/unit_tests/testdata/to_group")
         grouped = junit.group_per_tags(test_dir, ["upload_option.os_version_from_name"])
         self.assertNotIn("default", grouped)
         self.assertIn("kitchen", grouped)
@@ -126,7 +126,7 @@ class TestSetTag(unittest.TestCase):
         mock_instance.pipelines.get.return_value = MagicMock()
         mock_gitlab.return_value = mock_instance
         tags = junit.set_tags(
-            "agent-devx-infra", "base", "", junit.read_additional_tags(Path("tasks/unit-tests/testdata")), ""
+            "agent-devx-infra", "base", "", junit.read_additional_tags(Path("tasks/unit_tests/testdata")), ""
         )
         self.assertEqual(len(tags), 14)
 
@@ -142,6 +142,6 @@ class TestJUnitUploadFromTGZ(unittest.TestCase):
         mock_project = MagicMock()
         mock_project.pipelines.get.return_value = MagicMock()
         mock_gitlab.return_value = mock_project
-        junit.junit_upload_from_tgz("tasks/unit-tests/testdata/testjunit-tests_deb-x64-py3.tgz")
+        junit.junit_upload_from_tgz("tasks/unit_tests/testdata/testjunit-tests_deb-x64-py3.tgz")
         mock_popen.assert_called()
         self.assertEqual(mock_popen.call_count, 30)
