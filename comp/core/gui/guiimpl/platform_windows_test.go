@@ -1,4 +1,21 @@
-<!DOCTYPE html>
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+package guiimpl
+
+import (
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+)
+
+const expectedBody = `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -49,12 +66,11 @@
         <i class="fa fa-flag fa-fw"> </i>&nbsp;
         Flare
       </li>
-      {{- if .RestartEnabled }}
       <li id="restart_button" class="nav_item no-active">
         <i class="fa fa-power-off fa-fw"> </i>&nbsp;
         Restart Agent
       </li>
-      {{ end }}
+      
     </ul>
   </div>
   <div class="top_bar">
@@ -70,7 +86,22 @@
     <div id="error" class="page">
       <div id="error_content"></div>
       <div id="logged_out">
-        {{template "loginInstruction" . }}
+        
+<h3>Refreshing the Session</h3>
+<p>Please ensure you access the Datadog Agent Manager with one of the following:</p>
+<ul>
+    <li>- Right click on the Datadog Agent system tray icon -&gt; Configure, or</li>
+    <li>- Run <code>launch-gui</code> command from an <strong>elevated (run as Admin)</strong> command line
+		<ul>
+            <li>- PowerShell: <code>&amp; "&lt;PATH_TO_AGENT.EXE&gt;" launch-gui</code></li>
+            <li>- cmd: <code>"&lt;PATH_TO_AGENT.EXE&gt;" launch-gui</code></li>
+        </ul>
+    </li>
+</ul>
+<p>For more information, please visit: <u><a href="https://docs.datadoghq.com/agent/basic_agent_usage/windows">https://docs.datadoghq.com/agent/basic_agent_usage/windows</a></u></p>
+
+<p>Note: If you would like to adjust the GUI session timeout, you can modify the <code>GUI_session_expiration</code> parameter in <code>datadog.yaml</code>
+
       </div>
     </div>
     <div id="tests" class="page"></div>
@@ -105,3 +136,31 @@
 
   </div>
 </body>
+`
+
+func TestRenderIndexPage(t *testing.T) {
+	req, err := http.NewRequest("GET", "/", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rr := httptest.NewRecorder()
+	handler := http.HandlerFunc(renderIndexPage)
+
+	handler.ServeHTTP(rr, req)
+
+	res := rr.Result()
+	defer res.Body.Close()
+
+	bodyBytes, err := io.ReadAll(res.Body)
+	assert.NoError(t, err)
+
+	assert.Equal(t, http.StatusOK, res.StatusCode)
+	assert.Equal(t, "text/html; charset=utf-8", res.Header.Get("Content-Type"))
+
+	// We replace windows line break by linux so the tests pass on every OS
+	expectedResult := strings.Replace(expectedBody, "\r\n", "\n", -1)
+	output := strings.Replace(string(bodyBytes), "\r\n", "\n", -1)
+
+	assert.Equal(t, expectedResult, output)
+}
