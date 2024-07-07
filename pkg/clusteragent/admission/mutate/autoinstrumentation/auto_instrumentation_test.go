@@ -856,15 +856,6 @@ func expBasicConfig() []corev1.EnvVar {
 	}
 }
 
-func appends(evs ...[]corev1.EnvVar) []corev1.EnvVar {
-	var out []corev1.EnvVar
-	for _, ev := range evs {
-		out = append(out, ev...)
-	}
-
-	return out
-}
-
 func injectAllEnvs() []corev1.EnvVar {
 	return []corev1.EnvVar{
 		{
@@ -1035,14 +1026,8 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 					Value: "/datadog-lib/logs",
 				},
 			},
-			expectedInjectedLibraries: map[string]string{
-				"java":   "latest",
-				"python": "latest",
-				"ruby":   "latest",
-				"dotnet": "latest",
-				"js":     "latest",
-			},
-			wantErr: false,
+			expectedInjectedLibraries: defaultLibraries,
+			wantErr:                   false,
 		},
 		{
 			name: "inject all",
@@ -1517,7 +1502,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 					Value: "false",
 				},
 			}, "replicaset", "test-deployment-123"),
-			expectedEnvs: appends(injectAllEnvs(), []corev1.EnvVar{
+			expectedEnvs: append(injectAllEnvs(), []corev1.EnvVar{
 				{
 					Name:  "DD_INSTRUMENTATION_INSTALL_TYPE",
 					Value: "k8s_single_step",
