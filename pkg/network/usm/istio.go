@@ -27,6 +27,10 @@ import (
 const (
 	istioSslReadRetprobe  = "istio_uretprobe__SSL_read"
 	istioSslWriteRetprobe = "istio_uretprobe__SSL_write"
+	// envoyCmd represents the search term used for determining
+	// whether or not a given PID represents an Envoy process.
+	// The search is done over the /proc/<pid>/cmdline file.
+	envoyCmd = "/bin/envoy"
 )
 
 var istioProbes = []manager.ProbesSelector{
@@ -76,11 +80,6 @@ var istioProbes = []manager.ProbesSelector{
 	},
 }
 
-// envoyCmd represents the search term used for determining
-// whether or not a given PID represents an Envoy process.
-// The search is done over the /proc/<pid>/cmdline file.
-var envoyCmd = []byte("/bin/envoy")
-
 // readBufferPool is used for reading /proc/<pid>/cmdline files.
 // We use a pointer to a slice to avoid allocations when casting
 // values to the empty interface during Put() calls.
@@ -95,7 +94,7 @@ var readBufferPool = ddsync.NewSlicePool[byte](128, 128)
 type istioMonitor struct {
 	registry *utils.FileRegistry
 	procRoot string
-	envoyCmd []byte
+	envoyCmd string
 
 	// `utils.FileRegistry` callbacks
 	registerCB   func(utils.FilePath) error
@@ -117,7 +116,7 @@ func newIstioMonitor(c *config.Config, mgr *manager.Manager) *istioMonitor {
 	procRoot := kernel.ProcFSRoot()
 	envoyCommand := envoyCmd
 	if c.EnvoyPath != "" {
-		envoyCommand = []byte(c.EnvoyPath)
+		envoyCommand = c.EnvoyPath
 	}
 	return &istioMonitor{
 		registry: utils.NewFileRegistry("istio"),
@@ -291,11 +290,17 @@ func (m *istioMonitor) getEnvoyPath(pid uint32) string {
 	}
 
 	buffer = buffer[:n]
-	i := bytes.Index(buffer, m.envoyCmd)
+	envoyPath, err := os.Readlink(m.envoyCmd)
+	// if there is no error, it means that we were able to find the correct envoy path.
+	if err == nil {
+		m.envoyCmd = envoyPath
+	}
+
+	i := bytes.Index(buffer, []byte(m.envoyCmd))
 	if i < 0 {
 		return ""
 	}
 
-	executable := buffer[:i+len(m.envoyCmd)]
+	executable := buffer[:i+len([]byte(m.envoyCmd))]
 	return string(executable)
 }
