@@ -276,7 +276,7 @@ func (m *istioMonitor) getEnvoyPath(pid uint32) string {
 	}
 	defer f.Close()
 
-	// From here on we shouldn't allocate for the common case
+	// From here on we shouldn't allocate for the common case.
 	// (eg., a process is *not* envoy)
 	bufferPtr := readBufferPool.Get()
 	defer func() {
