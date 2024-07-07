@@ -32,7 +32,7 @@ type batchStrategy struct {
 	pipelineName    string
 	serializer      Serializer
 	batchWait       time.Duration
-	contentEncoding ContentEncoding
+	contentEncoding *Compressor
 	stopChan        chan struct{} // closed when the goroutine has finished
 	clock           clock.Clock
 }
@@ -74,7 +74,7 @@ func newBatchStrategyWithClock(inputChan chan *message.Message,
 		buffer:          NewMessageBuffer(maxBatchSize, maxContentSize),
 		serializer:      serializer,
 		batchWait:       batchWait,
-		contentEncoding: contentEncoding,
+		contentEncoding: NewCompressor(contentEncoding),
 		stopChan:        make(chan struct{}),
 		pipelineName:    pipelineName,
 		clock:           clock,
