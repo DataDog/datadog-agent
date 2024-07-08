@@ -275,7 +275,7 @@
 /comp/core/workloadmeta @DataDog/container-platform
 /comp/metadata/packagesigning @DataDog/agent-delivery
 /comp/trace/etwtracer @DataDog/windows-agent
-/comp/autoscaling/datadogclient @DataDog/container-platform
+/comp/autoscaling/datadogclient @DataDog/container-intergrations
 /comp/etw @DataDog/windows-agent
 /comp/rdnsquerier @DataDog/network-device-monitoring
 /comp/serializer/compression @DataDog/agent-metrics-logs
