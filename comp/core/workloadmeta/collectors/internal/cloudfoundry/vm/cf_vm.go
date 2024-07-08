@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package vm provides a workloadmeta collector for CloudForundry VM
+// Package vm provides a workloadmeta collector for CloudFoundry VM
 package vm
 
 import (
@@ -12,6 +12,8 @@ import (
 	"fmt"
 	"time"
 
+	"go.uber.org/fx"
+
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/errors"
@@ -19,7 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	ddjson "github.com/DataDog/datadog-agent/pkg/util/json"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"go.uber.org/fx"
 )
 
 const (

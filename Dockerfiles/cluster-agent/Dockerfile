@@ -54,6 +54,8 @@ LABEL baseimage.os "ubuntu ${BASE_IMAGE_UBUNTU_NAME}"
 LABEL baseimage.name "ubuntu:${BASE_IMAGE_UBUNTU_VERSION}"
 
 ARG CIBUILD
+ARG DD_GIT_REPOSITORY_URL
+ARG DD_GIT_COMMIT_SHA
 # NOTE about APT mirrorlists:
 # It seems that this feature could use some improvement. If you just get mirrorlist
 # from mirrors.ubuntu.com/mirrors.txt, it might contain faulty mirrors that either
@@ -71,7 +73,9 @@ RUN if [ "$CIBUILD" = "true" ]; then \
 ENV PATH="/opt/datadog-agent/bin/:$PATH" \
     DOCKER_DD_AGENT="true" \
     # Allow User Group to exec the secret backend script.
-    DD_SECRET_BACKEND_COMMAND_ALLOW_GROUP_EXEC_PERM="true"
+    DD_SECRET_BACKEND_COMMAND_ALLOW_GROUP_EXEC_PERM="true" \
+    DD_GIT_REPOSITORY_URL=${DD_GIT_REPOSITORY_URL} \
+    DD_GIT_COMMIT_SHA=${DD_GIT_COMMIT_SHA}
 
 RUN apt-get update \
     && apt full-upgrade -y \

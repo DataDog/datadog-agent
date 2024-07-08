@@ -10,8 +10,7 @@ package kubeapiserver
 
 import (
 	"context"
-	"slices"
-	"sort"
+	"strings"
 	"time"
 
 	"go.uber.org/fx"
@@ -65,7 +64,7 @@ func storeGenerators(cfg config.Reader) []storeGenerator {
 }
 
 func metadataCollectionGVRs(cfg config.Reader, discoveryClient discovery.DiscoveryInterface) ([]schema.GroupVersionResource, error) {
-	return discoverGVRs(discoveryClient, resourcesWithMetadataCollectionEnabled(cfg))
+	return getGVRsForRequestedResources(discoveryClient, resourcesWithMetadataCollectionEnabled(cfg))
 }
 
 func resourcesWithMetadataCollectionEnabled(cfg config.Reader) []string {
@@ -74,9 +73,8 @@ func resourcesWithMetadataCollectionEnabled(cfg config.Reader) []string {
 		resourcesWithExplicitMetadataCollectionEnabled(cfg)...,
 	)
 
-	// Remove duplicates
-	sort.Strings(resources)
-	return slices.Compact(resources)
+	// Remove duplicates and return
+	return cleanDuplicateVersions(resources)
 }
 
 // resourcesWithRequiredMetadataCollection returns the list of resources that we
@@ -106,12 +104,12 @@ func resourcesWithExplicitMetadataCollectionEnabled(cfg config.Reader) []string 
 	var resources []string
 	requestedResources := cfg.GetStringSlice("cluster_agent.kube_metadata_collection.resources")
 	for _, resource := range requestedResources {
-		if resource == "pods" && shouldHavePodStore(cfg) {
+		if strings.HasSuffix(resource, "pods") && shouldHavePodStore(cfg) {
 			log.Debugf("skipping pods from metadata collection because a separate pod store is initialised in workload metadata store.")
 			continue
 		}
 
-		if resource == "deployments" && shouldHaveDeploymentStore(cfg) {
+		if strings.HasSuffix(resource, "deployments") && shouldHaveDeploymentStore(cfg) {
 			log.Debugf("skipping deployments from metadata collection because a separate deployment store is initialised in workload metadata store.")
 			continue
 		}

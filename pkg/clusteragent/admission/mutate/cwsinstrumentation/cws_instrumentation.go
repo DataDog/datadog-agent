@@ -362,7 +362,7 @@ func (ci *CWSInstrumentation) injectForCommand(request *admission.MutateRequest)
 func (ci *CWSInstrumentation) resolveNodeArch(nodeName string, apiClient kubernetes.Interface) (string, error) {
 	var arch string
 	// try with the wmeta
-	entityID := util.GenerateKubeMetadataEntityID("nodes", "", nodeName)
+	entityID := util.GenerateKubeMetadataEntityID("", "nodes", "", nodeName)
 
 	out, err := ci.wmeta.GetKubernetesMetadata(entityID)
 	if err == nil && out != nil {
