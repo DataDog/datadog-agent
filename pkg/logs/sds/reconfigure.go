@@ -46,18 +46,30 @@ type ReconfigureResponse struct {
 // ShouldBlockCollectionUntilSDSConfiguration returns true if we want to start the
 // collection only after having received an SDS configuration.
 func ShouldBlockCollectionUntilSDSConfiguration(cfg pkgconfigmodel.Reader) bool {
+	if cfg == nil {
+		return false
+	}
+
 	return cfg.GetString(WaitForConfigField) == "no_collection"
 }
 
 // ShouldBufferUntilSDSConfiguration returns true if we have to buffer until we've
 // received an SDS configuration.
 func ShouldBufferUntilSDSConfiguration(cfg pkgconfigmodel.Reader) bool {
+	if cfg == nil {
+		return false
+	}
+
 	return cfg.GetString(WaitForConfigField) == "buffer"
 }
 
 // WaitForConfigurationBufferMaxSize returns a size for the buffer used while
 // waiting for an SDS configuration.
 func WaitForConfigurationBufferMaxSize(cfg pkgconfigmodel.Reader) int {
+	if cfg == nil {
+		return WaitForConfigDefaultBufferMaxSize
+	}
+
 	v := cfg.GetInt(WaitForConfigBufferMaxSizeField)
 	if v <= 0 {
 		v = WaitForConfigDefaultBufferMaxSize
