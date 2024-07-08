@@ -22,6 +22,6 @@ import (
 func RegisterProcessMonitorEventConsumer(t *testing.T, evm *eventmonitor.EventMonitor) {
 	procmonconsumer, err := procmon.NewProcessMonitorEventConsumer(evm)
 	require.NoError(t, err)
-	evm.RegisterEventConsumer(procmonconsumer)
+	evm.RegisterModule(procmonconsumer)
 	log.Info("process monitoring test consumer initialized")
 }
