@@ -9,7 +9,7 @@ FROM baseimage
 
 # copy otel requirements
 COPY otel-agent /opt/datadog-agent/embedded/bin/
-COPY otel-config.yaml /etc/datadog-agent/otel-config.yaml.example
+COPY otel-config.yaml /etc/datadog-agent/otel-config.yaml
 
 RUN mkdir -p /etc/services-available.d/
 COPY s6-services-opt /etc/services-available.d/
@@ -23,6 +23,8 @@ RUN chmod 755 /bin/entrypoint.sh \
   && chmod 755 -R /opt/entrypoints \
   && chown dd-agent:root /etc/datadog-agent/otel-config.yaml.example
 
-# RUN chown dd-agent:dd-agent /opt/datadog-agent/embedded/bin/otel-agent
+# Enable the otel service
+RUN s6-hiercopy /etc/services-available.d/otel /var/run/s6/services/otel && \
+  s6-svscanctl -a /var/run/s6/services
 
 CMD ["/bin/entrypoint.sh"]
