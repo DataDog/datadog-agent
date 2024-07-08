@@ -137,11 +137,6 @@ type serverlessTraceAgent struct {
 	cancel context.CancelFunc
 }
 
-// Stop stops the trace agent
-func (t *serverlessTraceAgent) Stop() {
-	t.cancel()
-}
-
 // Flush performs a synchronous flushing in the trace agent
 func (t *serverlessTraceAgent) Flush() {
 	t.ta.FlushSync()
@@ -162,6 +157,11 @@ func (t *serverlessTraceAgent) SetTags(tags map[string]string) {
 	if tagger, ok := t.ta.SpanModifier.(taggable); ok {
 		tagger.SetTags(tags)
 	}
+}
+
+// Stop stops the trace agent
+func (t *serverlessTraceAgent) Stop() {
+	t.cancel()
 }
 
 // SetTargetTPS sets the target TPS to the trace agent.
