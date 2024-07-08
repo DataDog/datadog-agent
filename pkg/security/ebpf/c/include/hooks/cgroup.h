@@ -32,7 +32,9 @@ static __attribute__((always_inline)) int trace__cgroup_write(ctx_t *ctx) {
         return 0;
     }
 
+#if defined(DEBUG) && defined(DEBUG_CGROUP)
     bpf_printk("trace__cgroup_write %d\n", pid);
+#endif
 
     struct proc_cache_t new_entry = {};
     struct proc_cache_t *old_entry;
@@ -160,25 +162,21 @@ static __attribute__((always_inline)) int trace__cgroup_write(ctx_t *ctx) {
 
 HOOK_ENTRY("cgroup_procs_write")
 int hook_cgroup_procs_write(ctx_t *ctx) {
-    bpf_printk("cgroup_procs_write\n");
     return trace__cgroup_write(ctx);
 }
 
 HOOK_ENTRY("cgroup1_procs_write")
 int hook_cgroup1_procs_write(ctx_t *ctx) {
-    bpf_printk("hook_cgroup1_procs_write\n");
     return trace__cgroup_write(ctx);
 }
 
 HOOK_ENTRY("cgroup_tasks_write")
 int hook_cgroup_tasks_write(ctx_t *ctx) {
-    bpf_printk("cgroup_tasks_write\n");
     return trace__cgroup_write(ctx);
 }
 
 HOOK_ENTRY("cgroup1_tasks_write")
 int hook_cgroup1_tasks_write(ctx_t *ctx) {
-    bpf_printk("cgroup1_tasks_write\n");
     return trace__cgroup_write(ctx);
 }
 
