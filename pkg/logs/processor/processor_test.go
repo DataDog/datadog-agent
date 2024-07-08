@@ -370,10 +370,8 @@ func TestBuffering(t *testing.T) {
                 }]}`),
 		ResponseChan: make(chan sds.ReconfigureResponse),
 	}
-	go func() {
-		p.ReconfigChan <- order
-	}()
 
+	p.ReconfigChan <- order
 	resp := <-order.ResponseChan
 	assert.Nil(resp.Err)
 	assert.False(resp.IsActive)
@@ -394,10 +392,7 @@ func TestBuffering(t *testing.T) {
 		ResponseChan: make(chan sds.ReconfigureResponse),
 	}
 
-	go func() {
-		p.ReconfigChan <- order
-	}()
-
+	p.ReconfigChan <- order
 	resp = <-order.ResponseChan
 	assert.Nil(resp.Err)
 	assert.False(resp.IsActive)
@@ -424,11 +419,10 @@ func TestBuffering(t *testing.T) {
 		ResponseChan: make(chan sds.ReconfigureResponse),
 	}
 
-	go func() {
-		p.ReconfigChan <- order
-	}()
+	p.ReconfigChan <- order
 
 	resp = <-order.ResponseChan
+
 	assert.Nil(resp.Err)
 	assert.True(resp.IsActive)
 	assert.False(p.sds.buffering) // not buffering anymore
@@ -452,7 +446,7 @@ func messagesDequeue(t *testing.T, f func() bool) {
 		case <-timerTimeout.C:
 			timerTest.Stop()
 			timerTimeout.Stop()
-			t.Errorf("timeout while message dequeuing in the processor")
+			t.Fatalf("timeout while message dequeuing in the processor")
 			break
 		case <-timerTest.C:
 			if f() {
