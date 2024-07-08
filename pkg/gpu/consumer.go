@@ -98,7 +98,7 @@ func (c *CudaEventConsumer) Start() {
 				streamKey := StreamKey{Pid: pid, Tid: tid, Stream: header.Stream_id}
 
 				if _, ok := c.streamHandlers[streamKey]; !ok {
-					c.streamHandlers[streamKey] = &StreamHandler{}
+					c.streamHandlers[streamKey] = newStreamHandler()
 				}
 
 				switch header.Type {

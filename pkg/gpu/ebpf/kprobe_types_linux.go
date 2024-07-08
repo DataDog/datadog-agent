@@ -41,6 +41,9 @@ const CudaEventTypeKernelLaunch = 0x0
 const CudaEventTypeMemory = 0x1
 const CudaEventTypeSync = 0x2
 
+const CudaMemAlloc = 0x0
+const CudaMemFree = 0x1
+
 const SizeofCudaKernelLaunch = 0x48
 const SizeofCudaMemEvent = 0x38
 const SizeofCudaEventHeader = 0x20

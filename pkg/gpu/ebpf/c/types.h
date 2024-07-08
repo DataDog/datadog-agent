@@ -42,3 +42,8 @@ typedef struct {
     __u64 addr;
     cuda_memory_event_type_t type;
 } cuda_memory_event_t;
+
+typedef struct {
+    __u64 size;
+    void **devPtr;
+} cuda_alloc_request_args_t;

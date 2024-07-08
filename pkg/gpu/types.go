@@ -5,12 +5,19 @@
 
 package gpu
 
-type StreamData struct {
-	Key   StreamKey     `json:"key"`
-	Spans []*KernelSpan `json:"spans"`
+type StreamPastData struct {
+	Key         StreamKey           `json:"key"`
+	Spans       []*KernelSpan       `json:"spans"`
+	Allocations []*MemoryAllocation `json:"allocations"`
+}
+
+type StreamCurrentData struct {
+	Key                StreamKey   `json:"key"`
+	Span               *KernelSpan `json:"span"`
+	CurrentMemoryUsage uint64      `json:"current_memory_usage"`
 }
 
 type GPUStats struct {
-	PastKernelSpans    []StreamData              `json:"past_kernel_spans"`
-	CurrentKernelSpans []StreamData `json:"current_kernel_spans"`
+	PastData    []*StreamPastData    `json:"past_kernel_spans"`
+	CurrentData []*StreamCurrentData `json:"current_kernel_spans"`
 }

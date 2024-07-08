@@ -9,6 +9,7 @@ import (
 	"math"
 
 	gpuebpf "github.com/DataDog/datadog-agent/pkg/gpu/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type StreamKey struct {
@@ -19,8 +20,9 @@ type StreamKey struct {
 
 type StreamHandler struct {
 	kernelLaunches []*gpuebpf.CudaKernelLaunch
-	memEvents      []*gpuebpf.CudaMemEvent
+	memAllocEvents map[uint64]*gpuebpf.CudaMemEvent
 	kernelSpans    []*KernelSpan
+	allocations    []*MemoryAllocation
 }
 
 type KernelSpan struct {
@@ -30,12 +32,43 @@ type KernelSpan struct {
 	NumKernels     uint64 `json:"num_kernels"`
 }
 
+type MemoryAllocation struct {
+	Start uint64 `json:"start"`
+	End   uint64 `json:"end"`
+	Size  uint64 `json:"size"`
+}
+
+func newStreamHandler() *StreamHandler {
+	return &StreamHandler{
+		memAllocEvents: make(map[uint64]*gpuebpf.CudaMemEvent),
+	}
+}
+
 func (sh *StreamHandler) handleKernelLaunch(event *gpuebpf.CudaKernelLaunch) {
 	sh.kernelLaunches = append(sh.kernelLaunches, event)
 }
 
 func (sh *StreamHandler) handleMemEvent(event *gpuebpf.CudaMemEvent) {
-	sh.memEvents = append(sh.memEvents, event)
+	if event.Type == gpuebpf.CudaMemAlloc {
+		sh.memAllocEvents[event.Addr] = event
+		return
+	}
+
+	alloc, ok := sh.memAllocEvents[event.Addr]
+	if !ok {
+		log.Warnf("Invalid free event: %v", event)
+		return
+	}
+
+	data := MemoryAllocation{
+		Start: alloc.Header.Ktime_ns,
+		End:   event.Header.Ktime_ns,
+		Size:  alloc.Size,
+	}
+
+	sh.allocations = append(sh.allocations, &data)
+	delete(sh.memAllocEvents, event.Addr)
+
 }
 
 func (sh *StreamHandler) handleSync(event *gpuebpf.CudaSync) {
@@ -78,4 +111,41 @@ func (sh *StreamHandler) getCurrentKernelSpan(maxTime uint64) *KernelSpan {
 	}
 
 	return &span
+}
+
+func (sh *StreamHandler) getCurrentMemoryUsage() uint64 {
+	var total uint64
+	for _, alloc := range sh.memAllocEvents {
+		total += alloc.Size
+	}
+	return total
+}
+
+func (sh *StreamHandler) getPastData(flush bool) *StreamPastData {
+	if len(sh.kernelSpans) == 0 && len(sh.allocations) == 0 {
+		return nil
+	}
+
+	data := &StreamPastData{
+		Spans:       sh.kernelSpans,
+		Allocations: sh.allocations,
+	}
+
+	if flush {
+		sh.kernelSpans = nil
+		sh.allocations = nil
+	}
+
+	return data
+}
+
+func (sh *StreamHandler) getCurrentData(now uint64) *StreamCurrentData {
+	if len(sh.kernelLaunches) == 0 && len(sh.memAllocEvents) == 0 {
+		return nil
+	}
+
+	return &StreamCurrentData{
+		Span:               sh.getCurrentKernelSpan(now),
+		CurrentMemoryUsage: sh.getCurrentMemoryUsage(),
+	}
 }

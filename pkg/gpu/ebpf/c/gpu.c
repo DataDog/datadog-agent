@@ -14,6 +14,7 @@
 char __license[] SEC("license") = "GPL";
 
 BPF_PERF_EVENT_ARRAY_MAP(cuda_events, cuda_event_header_t);
+BPF_LRU_MAP(cuda_alloc_cache, __u64, cuda_alloc_request_args_t, 1024)
 
 // cudaLaunchKernel receives the dim3 argument by value, which gets translated as
 // a 64 bit register with the x and y values in the lower and upper 32 bits respectively,
@@ -29,16 +30,16 @@ SEC("uprobe/cudaLaunchKernel")
 int BPF_UPROBE(uprobe_cudaLaunchKernel, const void *func, __u64 grid_xy, __u64 grid_z, __u64 block_xy, __u64 block_z, void **args) {
     cuda_kernel_launch_t launch_data;
     size_t shared_mem = 0;
-    size_t *stream_ptr = 0;
-    size_t stream;
-
-    bpf_printk("cudaLaunchBefore\n");
+    __u64 *stream_ptr = 0;
+    __u64 stream;
 
     shared_mem = PT_REGS_PARM7(ctx);
-    stream_ptr = (size_t *)PT_REGS_PARM8(ctx);
+    stream_ptr = (__u64 *)PT_REGS_PARM8(ctx);
 
-    if (!bpf_probe_read_user(&stream, sizeof(size_t), stream_ptr))
+    if (bpf_probe_read_user(&stream, sizeof(__u64), stream_ptr)) {
+        log_debug("cudaLaunchKernel: failed to read stream pointer 0x%llx", (__u64)stream_ptr);
         return 0;
+    }
 
     __builtin_memset(&launch_data, 0, sizeof(launch_data));
 
@@ -51,8 +52,6 @@ int BPF_UPROBE(uprobe_cudaLaunchKernel, const void *func, __u64 grid_xy, __u64 g
     launch_data.kernel_addr = (uint64_t)func;
     launch_data.shared_mem_size = shared_mem;
 
-    bpf_printk("cudaLaunch\n");
-
     bpf_ringbuf_output(&cuda_events, &launch_data, sizeof(launch_data), 0);
 
     return 0;
@@ -60,23 +59,63 @@ int BPF_UPROBE(uprobe_cudaLaunchKernel, const void *func, __u64 grid_xy, __u64 g
 
 SEC("uprobe/cudaMalloc")
 int BPF_UPROBE(uprobe_cudaMalloc, void **devPtr, size_t size) {
+    __u64 pid_tgid = bpf_get_current_pid_tgid();
+    cuda_alloc_request_args_t args = { .devPtr = devPtr, .size = size };
+
+    log_debug("cudaMalloc: pid=%llu, devPtr=%llx, size=%lu", pid_tgid, (__u64)devPtr, size);
+    bpf_map_update_elem(&cuda_alloc_cache, &pid_tgid, &args, BPF_ANY);
+
+    return 0;
+}
+
+SEC("uretprobe/cudaMalloc")
+int BPF_URETPROBE(uretprobe_cudaMalloc) {
+    __u64 pid_tgid = bpf_get_current_pid_tgid();
+    cuda_alloc_request_args_t *args;
     cuda_memory_event_t mem_data;
 
-    bpf_printk("cudaMallocBefore\n");
+    log_debug("cudaMalloc[ret]: pid=%llx\n", pid_tgid);
+
+    args = bpf_map_lookup_elem(&cuda_alloc_cache, &pid_tgid);
+    if (!args) {
+        log_debug("cudaMalloc[ret]: failed to find cudaMalloc request");
+        return 0;
+    }
 
     __builtin_memset(&mem_data, 0, sizeof(mem_data));
-
-    if (bpf_probe_read_user(&mem_data.addr, sizeof(void *), devPtr))
-        return 0;
 
     mem_data.header.pid_tgid = bpf_get_current_pid_tgid();
     mem_data.header.stream_id = (uint64_t)0;
     mem_data.header.type = cuda_memory_event;
     mem_data.header.ktime_ns = bpf_ktime_get_ns();
-    mem_data.size = size;
     mem_data.type = cudaMalloc;
+    mem_data.size = args->size;
 
-    bpf_printk("cudaMalloc\n");
+    if (bpf_probe_read_user(&mem_data.addr, sizeof(void *), args->devPtr)) {
+        log_debug("cudaMalloc[ret]: failed to read devPtr from cudaMalloc at 0x%llx", (__u64)args->devPtr);
+        return 0;
+    }
+
+    log_debug("cudaMalloc[ret]: EMIT pid_tgid=%llu, size=%llu, addr=0x%llx", mem_data.header.pid_tgid, mem_data.size, (__u64)mem_data.addr);
+
+    bpf_ringbuf_output(&cuda_events, &mem_data, sizeof(mem_data), 0);
+
+    return 0;
+}
+
+SEC("uprobe/cudaFree")
+int BPF_UPROBE(uprobe_cudaFree, void *mem) {
+    cuda_memory_event_t mem_data;
+
+    __builtin_memset(&mem_data, 0, sizeof(mem_data));
+
+    mem_data.header.pid_tgid = bpf_get_current_pid_tgid();
+    mem_data.header.stream_id = (uint64_t)0;
+    mem_data.header.type = cuda_memory_event;
+    mem_data.header.ktime_ns = bpf_ktime_get_ns();
+    mem_data.size = 0;
+    mem_data.addr = (uint64_t)mem;
+    mem_data.type = cudaFree;
 
     bpf_ringbuf_output(&cuda_events, &mem_data, sizeof(mem_data), 0);
 
@@ -89,10 +128,10 @@ int BPF_UPROBE(uprobe_cudaStreamSynchronize, size_t *stream_ptr) {
     cuda_sync_t event;
     size_t stream;
 
-    bpf_printk("cudaSyncBefore\n");
-
-    // TODO: Fix why this is failing
-    if (!bpf_probe_read_user(&stream, sizeof(size_t), stream_ptr)) stream = 0;
+    if (bpf_probe_read_user(&stream, sizeof(size_t), stream_ptr)) {
+        log_debug("cudaStreamSynchronize: failed to read stream pointer 0x%llx", (__u64)stream_ptr);
+        stream = 0;
+    }
 
     __builtin_memset(&event, 0, sizeof(event));
 
@@ -101,7 +140,7 @@ int BPF_UPROBE(uprobe_cudaStreamSynchronize, size_t *stream_ptr) {
     event.header.type = cuda_sync;
     event.header.ktime_ns = bpf_ktime_get_ns();
 
-    bpf_printk("cudaSync\n");
+    log_debug("cudaStreamSynchronize: EMIT cudaSync pid_tgid=%llu, stream_id=%llu", event.header.pid_tgid, event.header.stream_id);
 
     bpf_ringbuf_output(&cuda_events, &event, sizeof(event), 0);
 

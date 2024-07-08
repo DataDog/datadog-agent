@@ -31,8 +31,19 @@ import (
 var minimumKernelVersion = kernel.VersionCode(5, 0, 0)
 
 const (
-	cudaEventMap = "cuda_events"
+	cudaEventMap      = "cuda_events"
+	cudaAllocCacheMap = "cuda_alloc_cache"
 )
+
+var uprobesByLibrary = map[string][]string{
+	"libcudart.so": {
+		"uprobe_cudaLaunchKernel",
+		"uprobe_cudaMalloc",
+		"uretprobe_cudaMalloc",
+		"uprobe_cudaStreamSynchronize",
+		"uprobe_cudaFree",
+	},
+}
 
 // Probe represents the GPU monitoring probe
 type Probe struct {
@@ -121,9 +132,10 @@ func buildProbeUID(uprobe string, library string) (string, error) {
 }
 
 func startGPUProbe(buf bytecode.AssetReader, opts manager.Options, telemetryComponent telemetry.Component, cfg *Config) (*Probe, error) {
-	mgr := &ddebpf.Manager{
-		Manager: &manager.Manager{},
-	}
+	mgr := ddebpf.NewManagerWithDefault(&manager.Manager{
+		Maps: []*manager.Map{
+			{Name: cudaAllocCacheMap},
+		}})
 
 	if opts.MapSpecEditors == nil {
 		opts.MapSpecEditors = make(map[string]manager.MapSpecEditor)
@@ -137,13 +149,7 @@ func startGPUProbe(buf bytecode.AssetReader, opts manager.Options, telemetryComp
 		EditorFlag: manager.EditType | manager.EditMaxEntries | manager.EditKeyValue,
 	}
 
-	uprobeToLibrary := map[string]string{
-		"uprobe_cudaLaunchKernel":      "libcudart.so",
-		"uprobe_cudaMalloc":            "libcudart.so",
-		"uprobe_cudaStreamSynchronize": "libcudart.so",
-	}
-
-	for uprobe, library := range uprobeToLibrary {
+	for library, uprobes := range uprobesByLibrary {
 		locations, err := locateLibrary(library)
 		if err != nil {
 			return nil, fmt.Errorf("error locating library %s: %w", library, err)
@@ -151,26 +157,28 @@ func startGPUProbe(buf bytecode.AssetReader, opts manager.Options, telemetryComp
 		locations = append(locations, cfg.manualProbedBinaries...)
 
 		if len(locations) == 0 {
-			log.Warnf("[gpu] could not find library %s for uprobe %s", library, uprobe)
+			log.Warnf("[gpu] could not find any attach point for %s", library)
 			continue
 		}
 
-		for _, location := range locations {
-			log.Debugf("[gpu] attaching uprobe %s to library %s at %s", uprobe, library, location)
+		for _, uprobe := range uprobes {
+			for _, location := range locations {
+				log.Debugf("[gpu] attaching uprobe %s to library %s at %s", uprobe, library, location)
 
-			uid, err := buildProbeUID(uprobe, location)
-			if err != nil {
-				return nil, fmt.Errorf("error building probe UID for probe=%s, location=%s: %w", uprobe, location, err)
-			}
+				uid, err := buildProbeUID(uprobe, location)
+				if err != nil {
+					return nil, fmt.Errorf("error building probe UID for probe=%s, location=%s: %w", uprobe, location, err)
+				}
 
-			probe := &manager.Probe{
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: uprobe,
-					UID:          uid,
-				},
-				BinaryPath: location,
+				probe := &manager.Probe{
+					ProbeIdentificationPair: manager.ProbeIdentificationPair{
+						EBPFFuncName: uprobe,
+						UID:          uid,
+					},
+					BinaryPath: location,
+				}
+				mgr.Probes = append(mgr.Probes, probe)
 			}
-			mgr.Probes = append(mgr.Probes, probe)
 		}
 	}
 
@@ -216,14 +224,17 @@ func (p *Probe) GetAndFlush() (*GPUStats, error) {
 
 	stats := GPUStats{}
 	for key, handler := range p.consumer.streamHandlers {
-		currSpan := handler.getCurrentKernelSpan(uint64(now))
-		if currSpan != nil && currSpan.NumKernels > 0 {
-			stats.CurrentKernelSpans = append(stats.CurrentKernelSpans, StreamData{Key: key, Spans: []*KernelSpan{currSpan}})
+		currData := handler.getCurrentData(uint64(now))
+		pastData := handler.getPastData(true)
+
+		if currData != nil {
+			currData.Key = key
+			stats.CurrentData = append(stats.CurrentData, currData)
 		}
 
-		if len(handler.kernelSpans) > 0 {
-			stats.PastKernelSpans = append(stats.PastKernelSpans, StreamData{Key: key, Spans: handler.kernelSpans})
-			handler.kernelSpans = nil // Flush past spans
+		if pastData != nil {
+			pastData.Key = key
+			stats.PastData = append(stats.PastData, pastData)
 		}
 	}
 
