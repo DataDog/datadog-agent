@@ -31,7 +31,9 @@ func (li *logsintegration) SendLog(log, integrationID string) {
 	li.logChan <- integrationLog
 }
 
-// Subscribe returns a channel that sends all logs sent from integrations
+// Subscribe returns the channel that receives logs from integrations. Currently
+// the integrations component only supports one subscriber, but can be extended
+// later by making a new channel for any number of subscribers.
 func (li *logsintegration) Subscribe() chan integrations.IntegrationLog {
 	return li.logChan
 }
