@@ -1953,7 +1953,6 @@ core,github.com/mtibben/percent,MIT,Copyright (c) 2020 Michael Tibben
 core,github.com/munnerz/goautoneg,BSD-3-Clause,"Copyright (c) 2011, Open Knowledge Foundation Ltd"
 core,github.com/mwitkow/go-conntrack,Apache-2.0,Copyright 2016 Michal Witkowski. All Rights Reserved.
 core,github.com/mxk/go-flowrate/flowrate,BSD-3-Clause,Copyright (c) 2014 The Go-FlowRate Authors. All rights reserved
-core,github.com/ncruces/go-strftime,MIT,Copyright (c) 2022 Nuno Cruces
 core,github.com/netsampler/goflow2/decoders,BSD-3-Clause,"Copyright (c) 2021, NetSampler"
 core,github.com/netsampler/goflow2/decoders/netflow,BSD-3-Clause,"Copyright (c) 2021, NetSampler"
 core,github.com/netsampler/goflow2/decoders/netflow/templates,BSD-3-Clause,"Copyright (c) 2021, NetSampler"
