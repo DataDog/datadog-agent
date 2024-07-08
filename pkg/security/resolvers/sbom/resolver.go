@@ -129,6 +129,7 @@ func NewSBOM(host string, source string, id string, cgroup *cgroupModel.CacheEnt
 
 // Resolver is the Software Bill-Of-material resolver
 type Resolver struct {
+	cfg            *config.RuntimeSecurityConfig
 	sbomsLock      sync.RWMutex
 	sboms          map[string]*SBOM
 	sbomsCacheLock sync.RWMutex
@@ -176,6 +177,7 @@ func NewSBOMResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.Client
 	}
 
 	resolver := &Resolver{
+		cfg:                   c,
 		statsdClient:          statsdClient,
 		sboms:                 make(map[string]*SBOM),
 		sbomsCache:            sbomsCache,
@@ -225,22 +227,24 @@ func (r *Resolver) prepareContextTags() {
 func (r *Resolver) Start(ctx context.Context) error {
 	r.sbomScanner.Start(ctx)
 
-	hostRoot := os.Getenv("HOST_ROOT")
-	if hostRoot == "" {
-		hostRoot = "/"
-	}
+	if r.cfg.SBOMResolverHostEnabled {
+		hostRoot := os.Getenv("HOST_ROOT")
+		if hostRoot == "" {
+			hostRoot = "/"
+		}
 
-	hostSBOM, err := NewSBOM(r.hostname, r.source, "", nil, "")
-	if err != nil {
-		return err
-	}
-	r.hostSBOM = hostSBOM
+		hostSBOM, err := NewSBOM(r.hostname, r.source, "", nil, "")
+		if err != nil {
+			return err
+		}
+		r.hostSBOM = hostSBOM
 
-	report, err := r.generateSBOM(hostRoot)
-	if err != nil {
-		return err
+		report, err := r.generateSBOM(hostRoot)
+		if err != nil {
+			return err
+		}
+		r.hostSBOM.SetReport(report)
 	}
-	r.hostSBOM.SetReport(report)
 
 	go func() {
 		ctx, cancel := context.WithCancel(ctx)

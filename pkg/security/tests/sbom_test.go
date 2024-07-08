@@ -41,7 +41,7 @@ func TestSBOM(t *testing.T) {
 				`&& open.file.package.name in [ "base-files", "system-release" ]`,
 		},
 	}
-	test, err := newTestModule(t, nil, ruleDefs, withStaticOpts(testOpts{enableSBOM: true}))
+	test, err := newTestModule(t, nil, ruleDefs, withStaticOpts(testOpts{enableSBOM: true, enableHostSBOM: true}))
 	if err != nil {
 		t.Fatal(err)
 	}
