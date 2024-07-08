@@ -2897,53 +2897,53 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	switch field {
 	case "cgroup.id":
-		rv, ok := value.(CGroupID)
+		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.CGroupContext.CGroupID"}
 		}
-		ev.BaseEvent.CGroupContext.CGroupID = rv
+		ev.BaseEvent.CGroupContext.CGroupID = CGroupID(rv)
 		return nil
 	case "change_permission.new_sd":
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ChangePermission.NewSd"}
 		}
-		ev.ChangePermission.NewSd = rv
+		ev.ChangePermission.NewSd = string(rv)
 		return nil
 	case "change_permission.old_sd":
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ChangePermission.OldSd"}
 		}
-		ev.ChangePermission.OldSd = rv
+		ev.ChangePermission.OldSd = string(rv)
 		return nil
 	case "change_permission.path":
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ChangePermission.ObjectName"}
 		}
-		ev.ChangePermission.ObjectName = rv
+		ev.ChangePermission.ObjectName = string(rv)
 		return nil
 	case "change_permission.type":
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ChangePermission.ObjectType"}
 		}
-		ev.ChangePermission.ObjectType = rv
+		ev.ChangePermission.ObjectType = string(rv)
 		return nil
 	case "change_permission.user_domain":
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ChangePermission.UserDomain"}
 		}
-		ev.ChangePermission.UserDomain = rv
+		ev.ChangePermission.UserDomain = string(rv)
 		return nil
 	case "change_permission.username":
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ChangePermission.UserName"}
 		}
-		ev.ChangePermission.UserName = rv
+		ev.ChangePermission.UserName = string(rv)
 		return nil
 	case "container.created_at":
 		if ev.BaseEvent.ContainerContext == nil {
@@ -2959,11 +2959,11 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.BaseEvent.ContainerContext == nil {
 			ev.BaseEvent.ContainerContext = &ContainerContext{}
 		}
-		rv, ok := value.(ContainerID)
+		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ContainerContext.ContainerID"}
 		}
-		ev.BaseEvent.ContainerContext.ContainerID = rv
+		ev.BaseEvent.ContainerContext.ContainerID = ContainerID(rv)
 		return nil
 	case "container.runtime":
 		if ev.BaseEvent.ContainerContext == nil {
@@ -2973,7 +2973,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ContainerContext.Runtime"}
 		}
-		ev.BaseEvent.ContainerContext.Runtime = rv
+		ev.BaseEvent.ContainerContext.Runtime = string(rv)
 		return nil
 	case "container.tags":
 		if ev.BaseEvent.ContainerContext == nil {
@@ -2993,7 +2993,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "CreateNewFile.File.PathnameStr"}
 		}
-		ev.CreateNewFile.File.PathnameStr = rv
+		ev.CreateNewFile.File.PathnameStr = string(rv)
 		return nil
 	case "create.file.device_path.length":
 		return &eval.ErrFieldReadOnly{Field: "create.file.device_path.length"}
@@ -3002,7 +3002,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "CreateNewFile.File.BasenameStr"}
 		}
-		ev.CreateNewFile.File.BasenameStr = rv
+		ev.CreateNewFile.File.BasenameStr = string(rv)
 		return nil
 	case "create.file.name.length":
 		return &eval.ErrFieldReadOnly{Field: "create.file.name.length"}
@@ -3011,7 +3011,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "CreateNewFile.File.UserPathnameStr"}
 		}
-		ev.CreateNewFile.File.UserPathnameStr = rv
+		ev.CreateNewFile.File.UserPathnameStr = string(rv)
 		return nil
 	case "create.file.path.length":
 		return &eval.ErrFieldReadOnly{Field: "create.file.path.length"}
@@ -3020,7 +3020,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "CreateRegistryKey.Registry.KeyName"}
 		}
-		ev.CreateRegistryKey.Registry.KeyName = rv
+		ev.CreateRegistryKey.Registry.KeyName = string(rv)
 		return nil
 	case "create.registry.key_name.length":
 		return &eval.ErrFieldReadOnly{Field: "create.registry.key_name.length"}
@@ -3029,7 +3029,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "CreateRegistryKey.Registry.KeyPath"}
 		}
-		ev.CreateRegistryKey.Registry.KeyPath = rv
+		ev.CreateRegistryKey.Registry.KeyPath = string(rv)
 		return nil
 	case "create.registry.key_path.length":
 		return &eval.ErrFieldReadOnly{Field: "create.registry.key_path.length"}
@@ -3038,7 +3038,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "CreateRegistryKey.Registry.KeyName"}
 		}
-		ev.CreateRegistryKey.Registry.KeyName = rv
+		ev.CreateRegistryKey.Registry.KeyName = string(rv)
 		return nil
 	case "create_key.registry.key_name.length":
 		return &eval.ErrFieldReadOnly{Field: "create_key.registry.key_name.length"}
@@ -3047,7 +3047,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "CreateRegistryKey.Registry.KeyPath"}
 		}
-		ev.CreateRegistryKey.Registry.KeyPath = rv
+		ev.CreateRegistryKey.Registry.KeyPath = string(rv)
 		return nil
 	case "create_key.registry.key_path.length":
 		return &eval.ErrFieldReadOnly{Field: "create_key.registry.key_path.length"}
@@ -3056,7 +3056,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "DeleteFile.File.PathnameStr"}
 		}
-		ev.DeleteFile.File.PathnameStr = rv
+		ev.DeleteFile.File.PathnameStr = string(rv)
 		return nil
 	case "delete.file.device_path.length":
 		return &eval.ErrFieldReadOnly{Field: "delete.file.device_path.length"}
@@ -3065,7 +3065,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "DeleteFile.File.BasenameStr"}
 		}
-		ev.DeleteFile.File.BasenameStr = rv
+		ev.DeleteFile.File.BasenameStr = string(rv)
 		return nil
 	case "delete.file.name.length":
 		return &eval.ErrFieldReadOnly{Field: "delete.file.name.length"}
@@ -3074,7 +3074,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "DeleteFile.File.UserPathnameStr"}
 		}
-		ev.DeleteFile.File.UserPathnameStr = rv
+		ev.DeleteFile.File.UserPathnameStr = string(rv)
 		return nil
 	case "delete.file.path.length":
 		return &eval.ErrFieldReadOnly{Field: "delete.file.path.length"}
@@ -3083,7 +3083,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "DeleteRegistryKey.Registry.KeyName"}
 		}
-		ev.DeleteRegistryKey.Registry.KeyName = rv
+		ev.DeleteRegistryKey.Registry.KeyName = string(rv)
 		return nil
 	case "delete.registry.key_name.length":
 		return &eval.ErrFieldReadOnly{Field: "delete.registry.key_name.length"}
@@ -3092,7 +3092,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "DeleteRegistryKey.Registry.KeyPath"}
 		}
-		ev.DeleteRegistryKey.Registry.KeyPath = rv
+		ev.DeleteRegistryKey.Registry.KeyPath = string(rv)
 		return nil
 	case "delete.registry.key_path.length":
 		return &eval.ErrFieldReadOnly{Field: "delete.registry.key_path.length"}
@@ -3101,7 +3101,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "DeleteRegistryKey.Registry.KeyName"}
 		}
-		ev.DeleteRegistryKey.Registry.KeyName = rv
+		ev.DeleteRegistryKey.Registry.KeyName = string(rv)
 		return nil
 	case "delete_key.registry.key_name.length":
 		return &eval.ErrFieldReadOnly{Field: "delete_key.registry.key_name.length"}
@@ -3110,7 +3110,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "DeleteRegistryKey.Registry.KeyPath"}
 		}
-		ev.DeleteRegistryKey.Registry.KeyPath = rv
+		ev.DeleteRegistryKey.Registry.KeyPath = string(rv)
 		return nil
 	case "delete_key.registry.key_path.length":
 		return &eval.ErrFieldReadOnly{Field: "delete_key.registry.key_path.length"}
@@ -3119,28 +3119,28 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.Hostname"}
 		}
-		ev.BaseEvent.Hostname = rv
+		ev.BaseEvent.Hostname = string(rv)
 		return nil
 	case "event.origin":
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.Origin"}
 		}
-		ev.BaseEvent.Origin = rv
+		ev.BaseEvent.Origin = string(rv)
 		return nil
 	case "event.os":
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.Os"}
 		}
-		ev.BaseEvent.Os = rv
+		ev.BaseEvent.Os = string(rv)
 		return nil
 	case "event.service":
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.Service"}
 		}
-		ev.BaseEvent.Service = rv
+		ev.BaseEvent.Service = string(rv)
 		return nil
 	case "event.timestamp":
 		rv, ok := value.(int)
@@ -3157,7 +3157,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.CmdLine"}
 		}
-		ev.Exec.Process.CmdLine = rv
+		ev.Exec.Process.CmdLine = string(rv)
 		return nil
 	case "exec.container.id":
 		if ev.Exec.Process == nil {
@@ -3167,7 +3167,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.ContainerID"}
 		}
-		ev.Exec.Process.ContainerID = rv
+		ev.Exec.Process.ContainerID = string(rv)
 		return nil
 	case "exec.created_at":
 		if ev.Exec.Process == nil {
@@ -3213,7 +3213,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.FileEvent.BasenameStr"}
 		}
-		ev.Exec.Process.FileEvent.BasenameStr = rv
+		ev.Exec.Process.FileEvent.BasenameStr = string(rv)
 		return nil
 	case "exec.file.name.length":
 		if ev.Exec.Process == nil {
@@ -3228,7 +3228,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.FileEvent.PathnameStr"}
 		}
-		ev.Exec.Process.FileEvent.PathnameStr = rv
+		ev.Exec.Process.FileEvent.PathnameStr = string(rv)
 		return nil
 	case "exec.file.path.length":
 		if ev.Exec.Process == nil {
@@ -3263,7 +3263,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.User"}
 		}
-		ev.Exec.Process.User = rv
+		ev.Exec.Process.User = string(rv)
 		return nil
 	case "exec.user_sid":
 		if ev.Exec.Process == nil {
@@ -3273,7 +3273,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.OwnerSidString"}
 		}
-		ev.Exec.Process.OwnerSidString = rv
+		ev.Exec.Process.OwnerSidString = string(rv)
 		return nil
 	case "exit.cause":
 		rv, ok := value.(int)
@@ -3290,7 +3290,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.CmdLine"}
 		}
-		ev.Exit.Process.CmdLine = rv
+		ev.Exit.Process.CmdLine = string(rv)
 		return nil
 	case "exit.code":
 		rv, ok := value.(int)
@@ -3307,7 +3307,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.ContainerID"}
 		}
-		ev.Exit.Process.ContainerID = rv
+		ev.Exit.Process.ContainerID = string(rv)
 		return nil
 	case "exit.created_at":
 		if ev.Exit.Process == nil {
@@ -3353,7 +3353,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.FileEvent.BasenameStr"}
 		}
-		ev.Exit.Process.FileEvent.BasenameStr = rv
+		ev.Exit.Process.FileEvent.BasenameStr = string(rv)
 		return nil
 	case "exit.file.name.length":
 		if ev.Exit.Process == nil {
@@ -3368,7 +3368,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.FileEvent.PathnameStr"}
 		}
-		ev.Exit.Process.FileEvent.PathnameStr = rv
+		ev.Exit.Process.FileEvent.PathnameStr = string(rv)
 		return nil
 	case "exit.file.path.length":
 		if ev.Exit.Process == nil {
@@ -3403,7 +3403,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.User"}
 		}
-		ev.Exit.Process.User = rv
+		ev.Exit.Process.User = string(rv)
 		return nil
 	case "exit.user_sid":
 		if ev.Exit.Process == nil {
@@ -3413,14 +3413,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.OwnerSidString"}
 		}
-		ev.Exit.Process.OwnerSidString = rv
+		ev.Exit.Process.OwnerSidString = string(rv)
 		return nil
 	case "open.registry.key_name":
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "OpenRegistryKey.Registry.KeyName"}
 		}
-		ev.OpenRegistryKey.Registry.KeyName = rv
+		ev.OpenRegistryKey.Registry.KeyName = string(rv)
 		return nil
 	case "open.registry.key_name.length":
 		return &eval.ErrFieldReadOnly{Field: "open.registry.key_name.length"}
@@ -3429,7 +3429,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "OpenRegistryKey.Registry.KeyPath"}
 		}
-		ev.OpenRegistryKey.Registry.KeyPath = rv
+		ev.OpenRegistryKey.Registry.KeyPath = string(rv)
 		return nil
 	case "open.registry.key_path.length":
 		return &eval.ErrFieldReadOnly{Field: "open.registry.key_path.length"}
@@ -3438,7 +3438,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "OpenRegistryKey.Registry.KeyName"}
 		}
-		ev.OpenRegistryKey.Registry.KeyName = rv
+		ev.OpenRegistryKey.Registry.KeyName = string(rv)
 		return nil
 	case "open_key.registry.key_name.length":
 		return &eval.ErrFieldReadOnly{Field: "open_key.registry.key_name.length"}
@@ -3447,7 +3447,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "OpenRegistryKey.Registry.KeyPath"}
 		}
-		ev.OpenRegistryKey.Registry.KeyPath = rv
+		ev.OpenRegistryKey.Registry.KeyPath = string(rv)
 		return nil
 	case "open_key.registry.key_path.length":
 		return &eval.ErrFieldReadOnly{Field: "open_key.registry.key_path.length"}
@@ -3462,7 +3462,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.CmdLine"}
 		}
-		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.CmdLine = rv
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.CmdLine = string(rv)
 		return nil
 	case "process.ancestors.container.id":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -3475,7 +3475,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.ContainerID"}
 		}
-		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.ContainerID = rv
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.ContainerID = string(rv)
 		return nil
 	case "process.ancestors.created_at":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -3533,7 +3533,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.BasenameStr"}
 		}
-		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.BasenameStr = rv
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.BasenameStr = string(rv)
 		return nil
 	case "process.ancestors.file.name.length":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -3554,7 +3554,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.PathnameStr"}
 		}
-		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.PathnameStr = rv
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.PathnameStr = string(rv)
 		return nil
 	case "process.ancestors.file.path.length":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -3601,7 +3601,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.User"}
 		}
-		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.User = rv
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.User = string(rv)
 		return nil
 	case "process.ancestors.user_sid":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -3614,7 +3614,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.OwnerSidString"}
 		}
-		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.OwnerSidString = rv
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.OwnerSidString = string(rv)
 		return nil
 	case "process.cmdline":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -3624,7 +3624,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.CmdLine"}
 		}
-		ev.BaseEvent.ProcessContext.Process.CmdLine = rv
+		ev.BaseEvent.ProcessContext.Process.CmdLine = string(rv)
 		return nil
 	case "process.container.id":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -3634,7 +3634,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.ContainerID"}
 		}
-		ev.BaseEvent.ProcessContext.Process.ContainerID = rv
+		ev.BaseEvent.ProcessContext.Process.ContainerID = string(rv)
 		return nil
 	case "process.created_at":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -3680,7 +3680,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.FileEvent.BasenameStr"}
 		}
-		ev.BaseEvent.ProcessContext.Process.FileEvent.BasenameStr = rv
+		ev.BaseEvent.ProcessContext.Process.FileEvent.BasenameStr = string(rv)
 		return nil
 	case "process.file.name.length":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -3695,7 +3695,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.FileEvent.PathnameStr"}
 		}
-		ev.BaseEvent.ProcessContext.Process.FileEvent.PathnameStr = rv
+		ev.BaseEvent.ProcessContext.Process.FileEvent.PathnameStr = string(rv)
 		return nil
 	case "process.file.path.length":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -3713,7 +3713,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.CmdLine"}
 		}
-		ev.BaseEvent.ProcessContext.Parent.CmdLine = rv
+		ev.BaseEvent.ProcessContext.Parent.CmdLine = string(rv)
 		return nil
 	case "process.parent.container.id":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -3726,7 +3726,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.ContainerID"}
 		}
-		ev.BaseEvent.ProcessContext.Parent.ContainerID = rv
+		ev.BaseEvent.ProcessContext.Parent.ContainerID = string(rv)
 		return nil
 	case "process.parent.created_at":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -3784,7 +3784,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.FileEvent.BasenameStr"}
 		}
-		ev.BaseEvent.ProcessContext.Parent.FileEvent.BasenameStr = rv
+		ev.BaseEvent.ProcessContext.Parent.FileEvent.BasenameStr = string(rv)
 		return nil
 	case "process.parent.file.name.length":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -3805,7 +3805,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.FileEvent.PathnameStr"}
 		}
-		ev.BaseEvent.ProcessContext.Parent.FileEvent.PathnameStr = rv
+		ev.BaseEvent.ProcessContext.Parent.FileEvent.PathnameStr = string(rv)
 		return nil
 	case "process.parent.file.path.length":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -3852,7 +3852,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.User"}
 		}
-		ev.BaseEvent.ProcessContext.Parent.User = rv
+		ev.BaseEvent.ProcessContext.Parent.User = string(rv)
 		return nil
 	case "process.parent.user_sid":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -3865,7 +3865,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.OwnerSidString"}
 		}
-		ev.BaseEvent.ProcessContext.Parent.OwnerSidString = rv
+		ev.BaseEvent.ProcessContext.Parent.OwnerSidString = string(rv)
 		return nil
 	case "process.pid":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -3895,7 +3895,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.User"}
 		}
-		ev.BaseEvent.ProcessContext.Process.User = rv
+		ev.BaseEvent.ProcessContext.Process.User = string(rv)
 		return nil
 	case "process.user_sid":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -3905,14 +3905,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.OwnerSidString"}
 		}
-		ev.BaseEvent.ProcessContext.Process.OwnerSidString = rv
+		ev.BaseEvent.ProcessContext.Process.OwnerSidString = string(rv)
 		return nil
 	case "rename.file.destination.device_path":
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "RenameFile.New.PathnameStr"}
 		}
-		ev.RenameFile.New.PathnameStr = rv
+		ev.RenameFile.New.PathnameStr = string(rv)
 		return nil
 	case "rename.file.destination.device_path.length":
 		return &eval.ErrFieldReadOnly{Field: "rename.file.destination.device_path.length"}
@@ -3921,7 +3921,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "RenameFile.New.BasenameStr"}
 		}
-		ev.RenameFile.New.BasenameStr = rv
+		ev.RenameFile.New.BasenameStr = string(rv)
 		return nil
 	case "rename.file.destination.name.length":
 		return &eval.ErrFieldReadOnly{Field: "rename.file.destination.name.length"}
@@ -3930,7 +3930,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "RenameFile.New.UserPathnameStr"}
 		}
-		ev.RenameFile.New.UserPathnameStr = rv
+		ev.RenameFile.New.UserPathnameStr = string(rv)
 		return nil
 	case "rename.file.destination.path.length":
 		return &eval.ErrFieldReadOnly{Field: "rename.file.destination.path.length"}
@@ -3939,7 +3939,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "RenameFile.Old.PathnameStr"}
 		}
-		ev.RenameFile.Old.PathnameStr = rv
+		ev.RenameFile.Old.PathnameStr = string(rv)
 		return nil
 	case "rename.file.device_path.length":
 		return &eval.ErrFieldReadOnly{Field: "rename.file.device_path.length"}
@@ -3948,7 +3948,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "RenameFile.Old.BasenameStr"}
 		}
-		ev.RenameFile.Old.BasenameStr = rv
+		ev.RenameFile.Old.BasenameStr = string(rv)
 		return nil
 	case "rename.file.name.length":
 		return &eval.ErrFieldReadOnly{Field: "rename.file.name.length"}
@@ -3957,7 +3957,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "RenameFile.Old.UserPathnameStr"}
 		}
-		ev.RenameFile.Old.UserPathnameStr = rv
+		ev.RenameFile.Old.UserPathnameStr = string(rv)
 		return nil
 	case "rename.file.path.length":
 		return &eval.ErrFieldReadOnly{Field: "rename.file.path.length"}
@@ -3966,7 +3966,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "SetRegistryKeyValue.Registry.KeyName"}
 		}
-		ev.SetRegistryKeyValue.Registry.KeyName = rv
+		ev.SetRegistryKeyValue.Registry.KeyName = string(rv)
 		return nil
 	case "set.registry.key_name.length":
 		return &eval.ErrFieldReadOnly{Field: "set.registry.key_name.length"}
@@ -3975,7 +3975,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "SetRegistryKeyValue.Registry.KeyPath"}
 		}
-		ev.SetRegistryKeyValue.Registry.KeyPath = rv
+		ev.SetRegistryKeyValue.Registry.KeyPath = string(rv)
 		return nil
 	case "set.registry.key_path.length":
 		return &eval.ErrFieldReadOnly{Field: "set.registry.key_path.length"}
@@ -3984,7 +3984,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "SetRegistryKeyValue.ValueName"}
 		}
-		ev.SetRegistryKeyValue.ValueName = rv
+		ev.SetRegistryKeyValue.ValueName = string(rv)
 		return nil
 	case "set.registry.value_name.length":
 		return &eval.ErrFieldReadOnly{Field: "set.registry.value_name.length"}
@@ -3993,14 +3993,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "SetRegistryKeyValue.ValueName"}
 		}
-		ev.SetRegistryKeyValue.ValueName = rv
+		ev.SetRegistryKeyValue.ValueName = string(rv)
 		return nil
 	case "set_key_value.registry.key_name":
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "SetRegistryKeyValue.Registry.KeyName"}
 		}
-		ev.SetRegistryKeyValue.Registry.KeyName = rv
+		ev.SetRegistryKeyValue.Registry.KeyName = string(rv)
 		return nil
 	case "set_key_value.registry.key_name.length":
 		return &eval.ErrFieldReadOnly{Field: "set_key_value.registry.key_name.length"}
@@ -4009,7 +4009,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "SetRegistryKeyValue.Registry.KeyPath"}
 		}
-		ev.SetRegistryKeyValue.Registry.KeyPath = rv
+		ev.SetRegistryKeyValue.Registry.KeyPath = string(rv)
 		return nil
 	case "set_key_value.registry.key_path.length":
 		return &eval.ErrFieldReadOnly{Field: "set_key_value.registry.key_path.length"}
@@ -4018,7 +4018,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "SetRegistryKeyValue.ValueName"}
 		}
-		ev.SetRegistryKeyValue.ValueName = rv
+		ev.SetRegistryKeyValue.ValueName = string(rv)
 		return nil
 	case "set_key_value.registry.value_name.length":
 		return &eval.ErrFieldReadOnly{Field: "set_key_value.registry.value_name.length"}
@@ -4027,14 +4027,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "SetRegistryKeyValue.ValueName"}
 		}
-		ev.SetRegistryKeyValue.ValueName = rv
+		ev.SetRegistryKeyValue.ValueName = string(rv)
 		return nil
 	case "write.file.device_path":
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "WriteFile.File.PathnameStr"}
 		}
-		ev.WriteFile.File.PathnameStr = rv
+		ev.WriteFile.File.PathnameStr = string(rv)
 		return nil
 	case "write.file.device_path.length":
 		return &eval.ErrFieldReadOnly{Field: "write.file.device_path.length"}
@@ -4043,7 +4043,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "WriteFile.File.BasenameStr"}
 		}
-		ev.WriteFile.File.BasenameStr = rv
+		ev.WriteFile.File.BasenameStr = string(rv)
 		return nil
 	case "write.file.name.length":
 		return &eval.ErrFieldReadOnly{Field: "write.file.name.length"}
@@ -4052,7 +4052,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "WriteFile.File.UserPathnameStr"}
 		}
-		ev.WriteFile.File.UserPathnameStr = rv
+		ev.WriteFile.File.UserPathnameStr = string(rv)
 		return nil
 	case "write.file.path.length":
 		return &eval.ErrFieldReadOnly{Field: "write.file.path.length"}
