@@ -108,7 +108,11 @@ github.com/DataDog/datadog-agent/comp/logs/agent
 github.com/DataDog/datadog-agent/comp/logs/agent/agentimpl
 github.com/DataDog/datadog-agent/comp/logs/agent/config
 github.com/DataDog/datadog-agent/comp/logs/agent/flare
+<<<<<<< HEAD
+github.com/DataDog/datadog-agent/comp/logs/integrations/def
+=======
 github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/hosttags
+>>>>>>> main
 github.com/DataDog/datadog-agent/comp/metadata/inventoryagent
 github.com/DataDog/datadog-agent/comp/otelcol/otlp
 github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter
