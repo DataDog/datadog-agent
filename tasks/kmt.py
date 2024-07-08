@@ -5,6 +5,7 @@ import json
 import os
 import re
 import shutil
+import sys
 import tarfile
 import tempfile
 import xml.etree.ElementTree as ET
@@ -1752,6 +1753,7 @@ def show_last_test_results(ctx: Context, stack: str | None = None):
     results: dict[str, dict[str, tuple[int, int, int]]] = defaultdict(dict)
     vm_list: list[str] = []
     total_by_vm: dict[str, tuple[int, int, int]] = defaultdict(lambda: (0, 0, 0))
+    sum_failures = 0
 
     for vm_folder in paths.test_results.iterdir():
         if not vm_folder.is_dir():
@@ -1770,6 +1772,7 @@ def show_last_test_results(ctx: Context, stack: str | None = None):
 
                 tests = int(testsuite.get("tests") or "0")
                 failures = int(testsuite.get("failures") or "0")
+                sum_failures += failures
                 errors = int(testsuite.get("errors") or "0")
                 skipped = int(testsuite.get("skipped") or "0")
                 successes = tests - failures - errors - skipped
@@ -1794,6 +1797,9 @@ def show_last_test_results(ctx: Context, stack: str | None = None):
 
     print(tabulate(table, headers=["Package"] + vm_list))
     print("\nLegend: Successes/Failures/Skipped")
+
+    if sum_failures:
+        sys.exit(1)
 
 
 @task
