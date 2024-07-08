@@ -23,7 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/updater/telemetry"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
-	gpuebpf "github.com/DataDog/datadog-agent/pkg/gpu/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -39,7 +38,7 @@ const (
 type Probe struct {
 	mgr      *ddebpf.Manager
 	cfg      *Config
-	consumer *gpuebpf.CudaEventConsumer
+	consumer *CudaEventConsumer
 }
 
 // NewProbe starts the GPU monitoring probe
@@ -210,7 +209,7 @@ func (p *Probe) Close() {
 
 // GetAndFlush returns the GPU stats
 func (p *Probe) GetAndFlush() (results GPUStats) {
-	return GPUStats{}
+
 }
 
 func (p *Probe) startEventConsumer() {
@@ -224,6 +223,6 @@ func (p *Probe) startEventConsumer() {
 		},
 	}
 	p.mgr.RingBuffers = append(p.mgr.RingBuffers, rb)
-	p.consumer = gpuebpf.NewCudaEventConsumer(handler)
+	p.consumer = NewCudaEventConsumer(handler)
 	p.consumer.Start()
 }
