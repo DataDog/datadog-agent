@@ -8,6 +8,8 @@
 package kubeapiserver
 
 import (
+	"context"
+	"sync"
 	"testing"
 	"time"
 
@@ -125,7 +127,7 @@ func Test_AddDelete_PartialObjectMetadata(t *testing.T) {
 		},
 	}
 
-	kubeMetadataEntityID := util.GenerateKubeMetadataEntityID("namespaces", "", "test-object")
+	kubeMetadataEntityID := util.GenerateKubeMetadataEntityID("", "namespaces", "", "test-object")
 
 	err = metadataStore.Add(&partialObjMetadata)
 	require.NoError(t, err)
@@ -140,6 +142,118 @@ func Test_AddDelete_PartialObjectMetadata(t *testing.T) {
 		_, err = workloadmetaComponent.GetKubernetesMetadata(kubeMetadataEntityID)
 		return err != nil
 	}, timeout, interval)
+}
+
+// This is a regression test. Unset events notified from Replace() had the
+// expected workloadmeta kind but were always of type
+// *workloadmeta.KubernetesPod instead of the expected type. This mismatch
+// caused a panic in workloadmeta filters like the one used in this test
+// (workloadmeta.IsNodeMetadata).
+func TestReplace(t *testing.T) {
+	gvr := schema.GroupVersionResource{
+		Group:    "",
+		Version:  "v1",
+		Resource: "nodes",
+	}
+
+	testNodeMetadata := workloadmeta.KubernetesMetadata{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubernetesMetadata,
+			ID:   string(util.GenerateKubeMetadataEntityID("", "nodes", "", "test-node")),
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name: "test-node",
+		},
+		GVR: gvr,
+	}
+
+	workloadmetaComponent := mockedWorkloadmeta(t)
+
+	parser, err := newMetadataParser(gvr, nil)
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithDeadline(context.TODO(), time.Now().Add(10*time.Second))
+	defer cancel()
+
+	receivedInitialBundle := make(chan struct{})
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	// Create a goroutine that subscribes to workloadmeta and that has a filter
+	// that will panic if the event sent to workloadmeta by Replace() is not of
+	// the expected type.
+	go func() {
+		defer wg.Done()
+		filter := workloadmeta.NewFilterBuilder().AddKindWithEntityFilter(
+			workloadmeta.KindKubernetesMetadata,
+			func(entity workloadmeta.Entity) bool {
+				metadata := entity.(*workloadmeta.KubernetesMetadata)
+				return workloadmeta.IsNodeMetadata(metadata)
+			},
+		).Build()
+
+		wmetaEventsCh := workloadmetaComponent.Subscribe("test-subscriber", workloadmeta.NormalPriority, filter)
+		defer workloadmetaComponent.Unsubscribe(wmetaEventsCh)
+
+		var events []workloadmeta.Event
+
+		for len(events) < 2 {
+			select {
+			case eventBundle := <-wmetaEventsCh:
+				eventBundle.Acknowledge()
+
+				if len(eventBundle.Events) == 0 {
+					close(receivedInitialBundle)
+					continue
+				}
+
+				events = append(events, eventBundle.Events...)
+			case <-ctx.Done():
+				require.FailNow(t, "timeout waiting for events")
+			}
+		}
+
+		expectedEvents := []workloadmeta.Event{
+			{
+				Type:   workloadmeta.EventTypeSet,
+				Entity: &testNodeMetadata,
+			},
+			{
+				Type:   workloadmeta.EventTypeUnset,
+				Entity: &testNodeMetadata,
+			},
+		}
+
+		require.ElementsMatch(t, expectedEvents, events)
+	}()
+
+	metadataStore := &reflectorStore{
+		wlmetaStore: workloadmetaComponent,
+		seen:        make(map[string]workloadmeta.EntityID),
+		parser:      parser,
+	}
+
+	partialObjMetadata := metav1.PartialObjectMetadata{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test-node",
+		},
+	}
+
+	// Wait until the goroutine has received the initial event that includes the
+	// list of current entities (which should be empty at this point).
+	// If we don't do this, there's the possibility of calling Add() and
+	// Replace() before the goroutine processes the initial bundle. And because
+	// Replace() deletes what Add() adds, the goroutine would not receive any
+	// events, and we would not be able to check what we want in this test.
+	<-receivedInitialBundle
+
+	err = metadataStore.Add(&partialObjMetadata)
+	require.NoError(t, err)
+
+	err = metadataStore.Replace(nil, "")
+	require.NoError(t, err)
+
+	wg.Wait()
 }
 
 func mockedWorkloadmeta(t *testing.T) workloadmetamock.Mock {

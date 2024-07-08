@@ -159,6 +159,18 @@ const (
 	TCPFlowEstablishedMask = 0x20
 )
 
+type ConnectionStatus uint32
+
+const (
+	ConnectionStatusUnknown     ConnectionStatus = 0x0
+	ConnectionStatusAttempted   ConnectionStatus = 0x1
+	ConnectionStatusEstablished ConnectionStatus = 0x2
+	ConnectionStatusACKRST      ConnectionStatus = 0x3
+	ConnectionStatusTimeout     ConnectionStatus = 0x4
+	ConnectionStatusSentRst     ConnectionStatus = 0x5
+	ConnectionStatusRecvRst     ConnectionStatus = 0x6
+)
+
 const (
 	DirectionInbound  = 0x0
 	DirectionOutbound = 0x1

@@ -16,10 +16,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	networkconfig "github.com/DataDog/datadog-agent/pkg/network/config"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	javatestutil "github.com/DataDog/datadog-agent/pkg/network/protocols/tls/java/testutil"
 	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
+	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
 )
 
 func createJavaTempFile(t *testing.T, dir string) string {
@@ -36,7 +36,7 @@ func TestJavaInjection(t *testing.T) {
 	t.Skip("JavaTLS tests are currently disabled")
 	cfg := networkconfig.New()
 	cfg.EnableJavaTLSSupport = true
-	if !http.TLSSupported(cfg) {
+	if !usmconfig.TLSSupported(cfg) {
 		t.Skip("Java injection tests are not supported on this machine")
 	}
 

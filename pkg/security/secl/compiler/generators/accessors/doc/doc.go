@@ -101,6 +101,11 @@ func GenerateDocJSON(module *common.Module, seclModelPath, outputPath string) er
 			continue
 		}
 
+		// we currently don't want to publicly document the on-demand event type
+		if field.Event == "ondemand" {
+			continue
+		}
+
 		var propertyKey string
 		var propertySuffix string
 		var propertyDefinition string
