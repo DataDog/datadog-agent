@@ -45,7 +45,8 @@ func newConfig(agentConfig config.Component) *rdnsQuerierConfig {
 		rateLimiterEnabled: agentConfig.GetBool("reverse_dns_enrichment.rate_limiter.enabled"),
 		rateLimitPerSec:    agentConfig.GetInt("reverse_dns_enrichment.rate_limiter.limit_per_sec"),
 
-		cacheEnabled:         agentConfig.GetBool("reverse_dns_enrichment.cache.enabled"),
+		cacheEnabled: agentConfig.GetBool("reverse_dns_enrichment.cache.enabled"),
+		//JMW changes these to Duration?
 		cacheEntryTTL:        agentConfig.GetInt("reverse_dns_enrichment.cache.entry_ttl"),
 		cacheCleanInterval:   agentConfig.GetInt("reverse_dns_enrichment.cache.clean_interval"),
 		cachePersistInterval: agentConfig.GetInt("reverse_dns_enrichment.cache.persist_interval"),

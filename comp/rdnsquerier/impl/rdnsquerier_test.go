@@ -25,15 +25,6 @@ import (
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 )
 
-// JMWFake resolver for debug and test purposes
-type fakeResolver struct {
-	config *rdnsQuerierConfig
-}
-
-func (r *fakeResolver) lookup(addr string) (string, error) {
-	return "fakehostname-" + addr, nil
-}
-
 func TestRDNSQuerierStartStop(t *testing.T) {
 	lc := compdef.NewTestLifecycle()
 
@@ -66,12 +57,21 @@ func TestRDNSQuerierStartStop(t *testing.T) {
 	assert.Equal(t, false, internalRDNSQuerier.started)
 
 	ctx := context.Background()
-	assert.NoError(t, lc.Start(ctx))
 
+	assert.NoError(t, lc.Start(ctx))
 	assert.Equal(t, true, internalRDNSQuerier.started)
 
 	assert.NoError(t, lc.Stop(ctx))
 	assert.Equal(t, false, internalRDNSQuerier.started)
+}
+
+// JMWFake resolver for debug and test purposes
+type fakeResolver struct {
+	config *rdnsQuerierConfig
+}
+
+func (r *fakeResolver) lookup(addr string) (string, error) {
+	return "fakehostname-" + addr, nil
 }
 
 func TestRDNSQuerierJMW(t *testing.T) {
