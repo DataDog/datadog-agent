@@ -13,6 +13,25 @@
 #define CGROUP_MANAGER_CRI 4
 #define CGROUP_MANAGER_SYSTEMD 5
 
+static __attribute__((always_inline)) int is_docker_cgroup(ctx_t *ctx, struct dentry *container_d) {
+    struct dentry *parent_d;
+    struct qstr parent_qstr;
+    char prefix[15];
+
+    // We may not have a prefix for the cgroup so we look at the parent folder
+    // (for instance Amazon Linux 2 + Docker)
+    bpf_probe_read(&parent_d, sizeof(parent_d), &container_d->d_parent);
+    if (parent_d != NULL) {
+        bpf_probe_read(&parent_qstr, sizeof(parent_qstr), &parent_d->d_name);
+        bpf_probe_read(&prefix, sizeof(prefix), parent_qstr.name);
+        if (prefix[0] == 'd' && prefix[1] == 'o' && prefix[2] == 'c' && prefix[3] == 'k' && prefix[4] == 'e' && prefix[5] == 'r') {
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
 static __attribute__((always_inline)) int trace__cgroup_write(ctx_t *ctx) {
     u32 cgroup_write_type = get_cgroup_write_type();
     u32 pid;
@@ -77,19 +96,9 @@ static __attribute__((always_inline)) int trace__cgroup_write(ctx_t *ctx) {
         bpf_probe_read(&container_qstr, sizeof(container_qstr), &container_d->d_name);
         container_id = (void *)container_qstr.name;
 
-        struct dentry *parent_d;
-        struct qstr parent_qstr;
-
-        // We may not have a prefix for the cgroup so we look at the parent folder
-        // (for instance Amazon Linux 2 + Docker)
-        bpf_probe_read(&parent_d, sizeof(parent_d), &container_d->d_parent);
-        if (parent_d != NULL) {
-            bpf_probe_read(&parent_qstr, sizeof(parent_qstr), &parent_d->d_name);
-            bpf_probe_read(&prefix, sizeof(prefix), parent_qstr.name);
-            if (prefix[0] == 'd' && prefix[1] == 'o' && prefix[2] == 'c' && prefix[3] == 'k' && prefix[4] == 'e' && prefix[5] == 'r') {
-                container_flags |= CGROUP_MANAGER_DOCKER;
-                check_validity = 1;
-            }
+        if (is_docker_cgroup(ctx, container_d)) {
+            container_flags |= CGROUP_MANAGER_DOCKER;
+            check_validity = 1;
         }
 
         break;
@@ -99,6 +108,12 @@ static __attribute__((always_inline)) int trace__cgroup_write(ctx_t *ctx) {
         bpf_probe_read(&container_d, sizeof(container_d), cgroup + 72); // offsetof(struct cgroup, dentry)
         bpf_probe_read(&container_qstr, sizeof(container_qstr), &container_d->d_name);
         container_id = (void *)container_qstr.name;
+
+        if (is_docker_cgroup(ctx, container_d)) {
+            container_flags |= CGROUP_MANAGER_DOCKER;
+            check_validity = 1;
+        }
+
         break;
     }
     default:
