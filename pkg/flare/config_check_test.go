@@ -8,7 +8,11 @@ package flare
 import (
 	"bytes"
 	"fmt"
+	"io"
+	"strings"
 	"testing"
+
+	"github.com/fatih/color"
 
 	"github.com/stretchr/testify/assert"
 
@@ -21,6 +25,137 @@ const (
 	metricsConfig configType = "metrics"
 	logsConfig    configType = "logs"
 )
+
+func TestPrintConfigCheck(t *testing.T) {
+	integrationConfigCheckResponse := integration.ConfigCheckResponse{
+		Configs: []integration.Config{
+			{
+				Instances:    []integration.Data{integration.Data("{foo:bar}")},
+				InitConfig:   integration.Data("{baz:qux}"),
+				LogsConfig:   integration.Data("[{\"service\":\"some_service\",\"source\":\"some_source\"}]"),
+				MetricConfig: integration.Data("[{\"metric\":\"some_metric\"}]"),
+			},
+		},
+		ConfigErrors: map[string]string{
+			"some_identifier": "some_error",
+		},
+		ResolveWarnings: map[string][]string{
+			"some_identifier": {"some_warning"},
+		},
+		Unresolved: map[string][]integration.Config{
+			"unresolved_config": {
+				{
+					Instances: []integration.Data{integration.Data("{unresolved:sad}")},
+				},
+			},
+		},
+	}
+
+	testCases := []struct {
+		name      string
+		withDebug bool
+		withColor bool
+		expected  string
+	}{
+		{
+			name:      "With debug",
+			withDebug: true,
+			expected: `=== Configuration errors ===
+
+some_identifier: some_error
+
+===  check ===
+Configuration provider: Unknown provider
+Configuration source: Unknown configuration source
+Config for instance ID: :3c3de4a3617771b4
+{foo:bar}
+~
+Init Config:
+{baz:qux}
+Metric Config:
+[{"metric":"some_metric"}]
+Log Config:
+[{"service":"some_service","source":"some_source"}]
+===
+
+=== Resolve warnings ===
+
+some_identifier
+* some_warning
+
+=== Unresolved Configs ===
+
+Auto-discovery IDs: unresolved_config
+Templates:
+check_name: ""
+init_config: null
+instances:
+- unresolved:sad: null
+logs_config: null
+
+`,
+		},
+		{
+			name: "Without debug",
+			expected: `=== Configuration errors ===
+
+some_identifier: some_error
+
+===  check ===
+Configuration provider: Unknown provider
+Configuration source: Unknown configuration source
+Config for instance ID: :3c3de4a3617771b4
+{foo:bar}
+~
+Init Config:
+{baz:qux}
+Metric Config:
+[{"metric":"some_metric"}]
+Log Config:
+[{"service":"some_service","source":"some_source"}]
+===
+`,
+		},
+		{
+			name:      "With color",
+			withColor: true,
+		},
+	}
+
+	for _, test := range testCases {
+		t.Run(test.name, func(t *testing.T) {
+			var writer io.Writer
+			var b bytes.Buffer
+
+			if test.withColor {
+				color.Output = &b
+				writer = color.Output
+				originalNoColor := color.NoColor
+				color.NoColor = false
+				defer func() {
+					color.NoColor = originalNoColor
+				}()
+			} else {
+				writer = &b
+			}
+
+			PrintConfigCheck(writer, integrationConfigCheckResponse, test.withDebug)
+
+			if test.withColor {
+				// We assert that an ANSI color code is present in the output
+				// Using raw string literal ` escapes the escape character `\`
+				// which makes the assertion a bit more complex
+				assert.Contains(t, b.String(), "\x1b[31m")
+			} else {
+				// We replace windows line break by linux so the tests pass on every OS
+				expectedResult := strings.Replace(test.expected, "\r\n", "\n", -1)
+				output := strings.Replace(b.String(), "\r\n", "\n", -1)
+
+				assert.Equal(t, expectedResult, output)
+			}
+		})
+	}
+}
 
 func TestContainerExclusionRulesInfo(t *testing.T) {
 	outputMsgs := map[configType]string{
