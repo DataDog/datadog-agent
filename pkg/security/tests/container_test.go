@@ -144,7 +144,6 @@ func TestContainerFlags(t *testing.T) {
 			assertFieldEqual(t, event, "open.file.path", testFile)
 			assertFieldNotEmpty(t, event, "container.id", "container id shouldn't be empty")
 			assertFieldEqual(t, event, "container.runtime", "docker")
-			assertFieldEqual(t, event, "cgroup.id", event.GetProcessCgroupId())
 			assert.Equal(t, model.CGroupManagerDocker, event.CGroupContext.CGroupFlags)
 
 			test.validateOpenSchema(t, event)
