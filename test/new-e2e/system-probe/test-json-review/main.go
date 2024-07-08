@@ -16,10 +16,12 @@ import (
 	"io"
 	"log"
 	"os"
+	"sort"
 	"strings"
 	"time"
 
 	"github.com/fatih/color"
+	"golang.org/x/exp/maps"
 
 	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 )
@@ -172,7 +174,13 @@ func reviewTestsReaders(jf io.Reader, ff io.Reader, owners *codeowners) (*review
 		}
 	}
 
-	for pkg, tests := range failedTests {
+	sortedFailedPkgs := maps.Keys(failedTests)
+	sort.Strings(sortedFailedPkgs)
+
+	for _, pkg := range sortedFailedPkgs {
+		tests := failedTests[pkg]
+		sort.Strings(tests)
+
 		var owner string
 		if owners != nil {
 			owner = owners.matchPackage(pkg)
