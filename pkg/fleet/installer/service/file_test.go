@@ -13,6 +13,7 @@ import (
 	"errors"
 	"io/fs"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -22,7 +23,6 @@ import (
 const (
 	originalContent    = "original content"
 	transformedContent = "transformed content"
-	defaultMode        = os.FileMode(0644)
 )
 
 var (
@@ -36,7 +36,7 @@ func TestFileTransformWithRollback(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	originalPath := tmpDir + "/original.txt"
-	mode := os.FileMode(0744)
+	mode := os.FileMode(0740)
 	require.Nil(t, os.WriteFile(originalPath, []byte(originalContent), mode))
 
 	mutator := newFileMutator(originalPath, transformFunc, nil, nil)
@@ -55,7 +55,7 @@ func TestNoChangesNeeded(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	originalPath := tmpDir + "/original.txt"
-	mode := os.FileMode(0744)
+	mode := os.FileMode(0740)
 	require.Nil(t, os.WriteFile(originalPath, []byte(originalContent), mode))
 
 	mutator := newFileMutator(originalPath, func(ctx context.Context, existing []byte) ([]byte, error) {
@@ -78,10 +78,20 @@ func TestFileTransformWithRollback_No_original(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, rollback)
 
-	assertFile(t, originalPath, transformedContent, defaultMode)
+	assertFile(t, originalPath, transformedContent, detectDefaultMode(t))
 
 	assert.Nil(t, rollback())
 	assertNoExists(t, originalPath)
+}
+
+func detectDefaultMode(t *testing.T) os.FileMode {
+	tmpDir := t.TempDir()
+	f, err := os.OpenFile(filepath.Join(tmpDir, "find_mode"), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+	require.NoError(t, err)
+	defer f.Close()
+	fileInfo, err := f.Stat()
+	require.NoError(t, err)
+	return fileInfo.Mode()
 }
 
 func TestFileMutator_RollbackOnValidation(t *testing.T) {
@@ -130,7 +140,7 @@ func assertFile(t *testing.T, path, expectedContent string, expectedMode os.File
 func TestCleanup(t *testing.T) {
 	tmpDir := t.TempDir()
 	originalPath := tmpDir + "/original.txt"
-	mode := fs.FileMode(0744)
+	mode := fs.FileMode(0740)
 	os.WriteFile(originalPath, []byte(originalContent), mode)
 	mutator := newFileMutator(originalPath, nil, nil, nil)
 	os.WriteFile(mutator.pathTmp, []byte(originalContent), mode)

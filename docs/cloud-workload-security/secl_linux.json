@@ -1665,6 +1665,21 @@
           "name": "chown.retval",
           "definition": "Return value of the syscall",
           "property_doc_link": "common-syscallevent-retval-doc"
+        },
+        {
+          "name": "chown.syscall.gid",
+          "definition": "GID argument of the syscall",
+          "property_doc_link": "chown-syscall-gid-doc"
+        },
+        {
+          "name": "chown.syscall.path",
+          "definition": "Path argument of the syscall",
+          "property_doc_link": "chown-syscall-path-doc"
+        },
+        {
+          "name": "chown.syscall.uid",
+          "definition": "UID argument of the syscall",
+          "property_doc_link": "chown-syscall-uid-doc"
         }
       ]
     },
@@ -2800,6 +2815,16 @@
           "name": "link.retval",
           "definition": "Return value of the syscall",
           "property_doc_link": "common-syscallevent-retval-doc"
+        },
+        {
+          "name": "link.syscall.destination.path",
+          "definition": "Destination path argument of the syscall",
+          "property_doc_link": "link-syscall-destination-path-doc"
+        },
+        {
+          "name": "link.syscall.path",
+          "definition": "Path argument of the syscall",
+          "property_doc_link": "link-syscall-path-doc"
         }
       ]
     },
@@ -3221,6 +3246,21 @@
           "name": "mount.source.path",
           "definition": "Source path of a bind mount",
           "property_doc_link": "mount-source-path-doc"
+        },
+        {
+          "name": "mount.syscall.fs_type",
+          "definition": "File system type argument of the syscall",
+          "property_doc_link": "mount-syscall-fs_type-doc"
+        },
+        {
+          "name": "mount.syscall.mountpoint.path",
+          "definition": "Mount point path argument of the syscall",
+          "property_doc_link": "mount-syscall-mountpoint-path-doc"
+        },
+        {
+          "name": "mount.syscall.source.path",
+          "definition": "Source path argument of the syscall",
+          "property_doc_link": "mount-syscall-source-path-doc"
         }
       ]
     },
@@ -4866,6 +4906,16 @@
           "name": "rename.retval",
           "definition": "Return value of the syscall",
           "property_doc_link": "common-syscallevent-retval-doc"
+        },
+        {
+          "name": "rename.syscall.destination.path",
+          "definition": "Destination path argument of the syscall",
+          "property_doc_link": "rename-syscall-destination-path-doc"
+        },
+        {
+          "name": "rename.syscall.path",
+          "definition": "Path argument of the syscall",
+          "property_doc_link": "rename-syscall-path-doc"
         }
       ]
     },
@@ -6603,6 +6653,21 @@
           "name": "unlink.retval",
           "definition": "Return value of the syscall",
           "property_doc_link": "common-syscallevent-retval-doc"
+        },
+        {
+          "name": "unlink.syscall.dirfd",
+          "definition": "Directory file descriptor argument of the syscall",
+          "property_doc_link": "unlink-syscall-dirfd-doc"
+        },
+        {
+          "name": "unlink.syscall.flags",
+          "definition": "Flags argument of the syscall",
+          "property_doc_link": "unlink-syscall-flags-doc"
+        },
+        {
+          "name": "unlink.syscall.path",
+          "definition": "Path argument of the syscall",
+          "property_doc_link": "unlink-syscall-path-doc"
         }
       ]
     },
@@ -6736,6 +6801,11 @@
           "name": "utimes.retval",
           "definition": "Return value of the syscall",
           "property_doc_link": "common-syscallevent-retval-doc"
+        },
+        {
+          "name": "utimes.syscall.path",
+          "definition": "Path argument of the syscall",
+          "property_doc_link": "utimes-syscall-path-doc"
         }
       ]
     }
@@ -8872,6 +8942,42 @@
       "examples": []
     },
     {
+      "name": "chown.syscall.gid",
+      "link": "chown-syscall-gid-doc",
+      "type": "int",
+      "definition": "GID argument of the syscall",
+      "prefixes": [
+        "chown"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "chown.syscall.path",
+      "link": "chown-syscall-path-doc",
+      "type": "string",
+      "definition": "Path argument of the syscall",
+      "prefixes": [
+        "chown"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "chown.syscall.uid",
+      "link": "chown-syscall-uid-doc",
+      "type": "int",
+      "definition": "UID argument of the syscall",
+      "prefixes": [
+        "chown"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
       "name": "container.created_at",
       "link": "container-created_at-doc",
       "type": "int",
@@ -9184,6 +9290,30 @@
       "examples": []
     },
     {
+      "name": "link.syscall.destination.path",
+      "link": "link-syscall-destination-path-doc",
+      "type": "string",
+      "definition": "Destination path argument of the syscall",
+      "prefixes": [
+        "link"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "link.syscall.path",
+      "link": "link-syscall-path-doc",
+      "type": "string",
+      "definition": "Path argument of the syscall",
+      "prefixes": [
+        "link"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
       "name": "load_module.args",
       "link": "load_module-args-doc",
       "type": "string",
@@ -9332,6 +9462,42 @@
       "link": "mount-source-path-doc",
       "type": "string",
       "definition": "Source path of a bind mount",
+      "prefixes": [
+        "mount"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "mount.syscall.fs_type",
+      "link": "mount-syscall-fs_type-doc",
+      "type": "string",
+      "definition": "File system type argument of the syscall",
+      "prefixes": [
+        "mount"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "mount.syscall.mountpoint.path",
+      "link": "mount-syscall-mountpoint-path-doc",
+      "type": "string",
+      "definition": "Mount point path argument of the syscall",
+      "prefixes": [
+        "mount"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "mount.syscall.source.path",
+      "link": "mount-syscall-source-path-doc",
+      "type": "string",
+      "definition": "Source path argument of the syscall",
       "prefixes": [
         "mount"
       ],
@@ -9493,6 +9659,30 @@
       ],
       "constants": "Ptrace constants",
       "constants_link": "ptrace-constants",
+      "examples": []
+    },
+    {
+      "name": "rename.syscall.destination.path",
+      "link": "rename-syscall-destination-path-doc",
+      "type": "string",
+      "definition": "Destination path argument of the syscall",
+      "prefixes": [
+        "rename"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "rename.syscall.path",
+      "link": "rename-syscall-path-doc",
+      "type": "string",
+      "definition": "Path argument of the syscall",
+      "prefixes": [
+        "rename"
+      ],
+      "constants": "",
+      "constants_link": "",
       "examples": []
     },
     {
@@ -9748,12 +9938,60 @@
       "examples": []
     },
     {
+      "name": "unlink.syscall.dirfd",
+      "link": "unlink-syscall-dirfd-doc",
+      "type": "int",
+      "definition": "Directory file descriptor argument of the syscall",
+      "prefixes": [
+        "unlink"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "unlink.syscall.flags",
+      "link": "unlink-syscall-flags-doc",
+      "type": "int",
+      "definition": "Flags argument of the syscall",
+      "prefixes": [
+        "unlink"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "unlink.syscall.path",
+      "link": "unlink-syscall-path-doc",
+      "type": "string",
+      "definition": "Path argument of the syscall",
+      "prefixes": [
+        "unlink"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
       "name": "unload_module.name",
       "link": "unload_module-name-doc",
       "type": "string",
       "definition": "Name of the kernel module that was deleted",
       "prefixes": [
         "unload_module"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "utimes.syscall.path",
+      "link": "utimes-syscall-path-doc",
+      "type": "string",
+      "definition": "Path argument of the syscall",
+      "prefixes": [
+        "utimes"
       ],
       "constants": "",
       "constants_link": "",

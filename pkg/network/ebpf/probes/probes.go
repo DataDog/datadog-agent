@@ -224,10 +224,6 @@ const (
 	UDPSendPageArgsMap BPFMapName = "udp_sendpage_args"
 	// IPMakeSkbArgsMap is the map storing the arguments of the ip_make_skb() kernel function
 	IPMakeSkbArgsMap BPFMapName = "ip_make_skb_args"
-	// MapErrTelemetryMap is the map storing the map error telemetry
-	MapErrTelemetryMap BPFMapName = "map_err_telemetry_map"
-	// HelperErrTelemetryMap is the map storing the helper error telemetry
-	HelperErrTelemetryMap BPFMapName = "helper_err_telemetry_map"
 	// TCPRecvMsgArgsMap is the map storing the arguments of the tcp_recvmsg() kernel function
 	TCPRecvMsgArgsMap BPFMapName = "tcp_recvmsg_args"
 	// ProtocolClassificationBufMap is the map storing the classification buffer

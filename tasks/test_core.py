@@ -163,7 +163,7 @@ def process_input_args(
     lint=False,
 ):
     """
-    Takes the input module, targets and flavor arguments from inv test and inv codecov,
+    Takes the input module, targets and flavor arguments from inv test and inv coverage.upload-to-codecov,
     sets default values for them & casts them to the expected types.
     """
     if only_modified_packages:
@@ -194,7 +194,7 @@ def process_input_args(
     return modules, flavor
 
 
-def process_module_results(flavor: AgentFlavor, module_results: dict[str, dict[str, list[ModuleResult]]]):
+def process_module_results(flavor: AgentFlavor, module_results):
     """
     Prints failures in module results, and returns False if at least one module failed.
     """

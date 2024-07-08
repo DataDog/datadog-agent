@@ -20,6 +20,8 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	telemetrynoop "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
@@ -38,8 +40,13 @@ func writerTest(t *testing.T, z bool) {
 
 	writer := NewTrafficCaptureWriter(1)
 
+	// initialize telemeytry store
+	telemetryComponent := fxutil.Test[telemetry.Component](t, telemetrynoop.Module())
+	telemetryStore := packets.NewTelemetryStore(nil, telemetryComponent)
+
 	// register pools
-	manager := packets.NewPoolManager[packets.Packet](packets.NewPool(cfg.GetInt("dogstatsd_buffer_size")))
+
+	manager := packets.NewPoolManager[packets.Packet](packets.NewPool(cfg.GetInt("dogstatsd_buffer_size"), telemetryStore))
 	oobManager := packets.NewPoolManager[[]byte](ddsync.NewSlicePool[byte](32, 32))
 
 	require.NoError(t, writer.RegisterSharedPoolManager(manager))

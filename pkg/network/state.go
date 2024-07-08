@@ -123,7 +123,7 @@ type Delta struct {
 	Conns    []ConnectionStats
 	HTTP     map[http.Key]*http.RequestStats
 	HTTP2    map[http.Key]*http.RequestStats
-	Kafka    map[kafka.Key]*kafka.RequestStat
+	Kafka    map[kafka.Key]*kafka.RequestStats
 	Postgres map[postgres.Key]*postgres.RequestStat
 }
 
@@ -237,7 +237,7 @@ type client struct {
 	dnsStats           dns.StatsByKeyByNameByType
 	httpStatsDelta     map[http.Key]*http.RequestStats
 	http2StatsDelta    map[http.Key]*http.RequestStats
-	kafkaStatsDelta    map[kafka.Key]*kafka.RequestStat
+	kafkaStatsDelta    map[kafka.Key]*kafka.RequestStats
 	postgresStatsDelta map[postgres.Key]*postgres.RequestStat
 	lastTelemetries    map[ConnTelemetryType]int64
 }
@@ -253,7 +253,7 @@ func (c *client) Reset() {
 	c.dnsStats = make(dns.StatsByKeyByNameByType)
 	c.httpStatsDelta = make(map[http.Key]*http.RequestStats)
 	c.http2StatsDelta = make(map[http.Key]*http.RequestStats)
-	c.kafkaStatsDelta = make(map[kafka.Key]*kafka.RequestStat)
+	c.kafkaStatsDelta = make(map[kafka.Key]*kafka.RequestStats)
 	c.postgresStatsDelta = make(map[postgres.Key]*postgres.RequestStat)
 }
 
@@ -404,7 +404,7 @@ func (ns *networkState) GetDelta(
 			stats := protocolStats.(map[http.Key]*http.RequestStats)
 			ns.storeHTTPStats(stats)
 		case protocols.Kafka:
-			stats := protocolStats.(map[kafka.Key]*kafka.RequestStat)
+			stats := protocolStats.(map[kafka.Key]*kafka.RequestStats)
 			ns.storeKafkaStats(stats)
 		case protocols.HTTP2:
 			stats := protocolStats.(map[http.Key]*http.RequestStats)
@@ -736,7 +736,7 @@ func (ns *networkState) storeHTTP2Stats(allStats map[http.Key]*http.RequestStats
 }
 
 // storeKafkaStats stores the latest Kafka stats for all clients
-func (ns *networkState) storeKafkaStats(allStats map[kafka.Key]*kafka.RequestStat) {
+func (ns *networkState) storeKafkaStats(allStats map[kafka.Key]*kafka.RequestStats) {
 	if len(ns.clients) == 1 {
 		for _, client := range ns.clients {
 			if len(client.kafkaStatsDelta) == 0 && len(allStats) <= ns.maxKafkaStats {
@@ -809,7 +809,7 @@ func (ns *networkState) getClient(clientID string) *client {
 		dnsStats:           dns.StatsByKeyByNameByType{},
 		httpStatsDelta:     map[http.Key]*http.RequestStats{},
 		http2StatsDelta:    map[http.Key]*http.RequestStats{},
-		kafkaStatsDelta:    map[kafka.Key]*kafka.RequestStat{},
+		kafkaStatsDelta:    map[kafka.Key]*kafka.RequestStats{},
 		postgresStatsDelta: map[postgres.Key]*postgres.RequestStat{},
 		lastTelemetries:    make(map[ConnTelemetryType]int64),
 	}

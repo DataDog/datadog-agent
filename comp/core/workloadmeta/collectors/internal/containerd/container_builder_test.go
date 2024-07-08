@@ -273,7 +273,6 @@ func TestBuildWorkloadMetaContainer(t *testing.T) {
 	}
 }
 
-/*
 func TestExtractCgroupPath(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -341,4 +340,3 @@ func TestExtractRuntimeFlavor(t *testing.T) {
 		})
 	}
 }
-*/

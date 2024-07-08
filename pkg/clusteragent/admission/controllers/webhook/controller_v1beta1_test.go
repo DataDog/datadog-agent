@@ -2,8 +2,8 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
-
-//go:build kubeapiserver
+// Skip mac os test as cluster agent doesn't run on mac os
+//go:build kubeapiserver && !darwin
 
 package webhook
 
@@ -11,6 +11,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"runtime"
 	"testing"
 	"time"
 
@@ -87,6 +88,9 @@ func TestCreateWebhookV1beta1(t *testing.T) {
 }
 
 func TestUpdateOutdatedWebhookV1beta1(t *testing.T) {
+	if runtime.GOOS == "darwin" {
+		t.Skip("Skipping flaky test on macOS")
+	}
 	f := newFixtureV1beta1(t)
 
 	data, err := certificate.GenerateSecretData(time.Now(), time.Now().Add(365*24*time.Hour), []string{"my.svc.dns"})
@@ -594,15 +598,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 				execWebhook := webhook(
 					"datadog.webhook.cws.exec.instrumentation",
 					"/inject-command-cws",
-					&metav1.LabelSelector{
-						MatchExpressions: []metav1.LabelSelectorRequirement{
-							{
-								Key:      cwsinstrumentation.PodLabelEnabled,
-								Operator: metav1.LabelSelectorOpNotIn,
-								Values:   []string{"false"},
-							},
-						},
-					},
+					nil,
 					nil,
 					[]admiv1beta1.OperationType{admiv1beta1.Connect},
 					[]string{"pods/exec"},
@@ -639,11 +635,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 				execWebhook := webhook(
 					"datadog.webhook.cws.exec.instrumentation",
 					"/inject-command-cws",
-					&metav1.LabelSelector{
-						MatchLabels: map[string]string{
-							cwsinstrumentation.PodLabelEnabled: "true",
-						},
-					},
+					nil,
 					nil,
 					[]admiv1beta1.OperationType{admiv1beta1.Connect},
 					[]string{"pods/exec"},
@@ -685,15 +677,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 					"datadog.webhook.cws.exec.instrumentation",
 					"/inject-command-cws",
 					nil,
-					&metav1.LabelSelector{
-						MatchExpressions: []metav1.LabelSelectorRequirement{
-							{
-								Key:      cwsinstrumentation.PodLabelEnabled,
-								Operator: metav1.LabelSelectorOpNotIn,
-								Values:   []string{"false"},
-							},
-						},
-					},
+					nil,
 					[]admiv1beta1.OperationType{admiv1beta1.Connect},
 					[]string{"pods/exec"},
 				)
@@ -730,11 +714,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 					"datadog.webhook.cws.exec.instrumentation",
 					"/inject-command-cws",
 					nil,
-					&metav1.LabelSelector{
-						MatchLabels: map[string]string{
-							cwsinstrumentation.PodLabelEnabled: "true",
-						},
-					},
+					nil,
 					[]admiv1beta1.OperationType{admiv1beta1.Connect},
 					[]string{"pods/exec"},
 				)
