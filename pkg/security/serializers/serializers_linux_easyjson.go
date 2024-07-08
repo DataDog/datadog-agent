@@ -322,6 +322,16 @@ func easyjsonDdc0fdbeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers2(i
 				}
 				(*out.Chmod).UnmarshalEasyJSON(in)
 			}
+		case "chown":
+			if in.IsNull() {
+				in.Skip()
+				out.Chown = nil
+			} else {
+				if out.Chown == nil {
+					out.Chown = new(SyscallArgsSerializer)
+				}
+				(*out.Chown).UnmarshalEasyJSON(in)
+			}
 		case "chdir":
 			if in.IsNull() {
 				in.Skip()
@@ -352,6 +362,56 @@ func easyjsonDdc0fdbeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers2(i
 				}
 				(*out.Open).UnmarshalEasyJSON(in)
 			}
+		case "unlink":
+			if in.IsNull() {
+				in.Skip()
+				out.Unlink = nil
+			} else {
+				if out.Unlink == nil {
+					out.Unlink = new(SyscallArgsSerializer)
+				}
+				(*out.Unlink).UnmarshalEasyJSON(in)
+			}
+		case "link":
+			if in.IsNull() {
+				in.Skip()
+				out.Link = nil
+			} else {
+				if out.Link == nil {
+					out.Link = new(SyscallArgsSerializer)
+				}
+				(*out.Link).UnmarshalEasyJSON(in)
+			}
+		case "rename":
+			if in.IsNull() {
+				in.Skip()
+				out.Rename = nil
+			} else {
+				if out.Rename == nil {
+					out.Rename = new(SyscallArgsSerializer)
+				}
+				(*out.Rename).UnmarshalEasyJSON(in)
+			}
+		case "utimes":
+			if in.IsNull() {
+				in.Skip()
+				out.Utimes = nil
+			} else {
+				if out.Utimes == nil {
+					out.Utimes = new(SyscallArgsSerializer)
+				}
+				(*out.Utimes).UnmarshalEasyJSON(in)
+			}
+		case "mount":
+			if in.IsNull() {
+				in.Skip()
+				out.Mount = nil
+			} else {
+				if out.Mount == nil {
+					out.Mount = new(SyscallArgsSerializer)
+				}
+				(*out.Mount).UnmarshalEasyJSON(in)
+			}
 		default:
 			in.SkipRecursive()
 		}
@@ -371,6 +431,16 @@ func easyjsonDdc0fdbeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers2(o
 		first = false
 		out.RawString(prefix[1:])
 		(*in.Chmod).MarshalEasyJSON(out)
+	}
+	if in.Chown != nil {
+		const prefix string = ",\"chown\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		(*in.Chown).MarshalEasyJSON(out)
 	}
 	if in.Chdir != nil {
 		const prefix string = ",\"chdir\":"
@@ -401,6 +471,56 @@ func easyjsonDdc0fdbeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers2(o
 			out.RawString(prefix)
 		}
 		(*in.Open).MarshalEasyJSON(out)
+	}
+	if in.Unlink != nil {
+		const prefix string = ",\"unlink\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		(*in.Unlink).MarshalEasyJSON(out)
+	}
+	if in.Link != nil {
+		const prefix string = ",\"link\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		(*in.Link).MarshalEasyJSON(out)
+	}
+	if in.Rename != nil {
+		const prefix string = ",\"rename\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		(*in.Rename).MarshalEasyJSON(out)
+	}
+	if in.Utimes != nil {
+		const prefix string = ",\"utimes\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		(*in.Utimes).MarshalEasyJSON(out)
+	}
+	if in.Mount != nil {
+		const prefix string = ",\"mount\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		(*in.Mount).MarshalEasyJSON(out)
 	}
 	out.RawByte('}')
 }
@@ -434,11 +554,85 @@ func easyjsonDdc0fdbeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers3(i
 		}
 		switch key {
 		case "path":
-			out.Path = string(in.String())
+			if in.IsNull() {
+				in.Skip()
+				out.Path = nil
+			} else {
+				if out.Path == nil {
+					out.Path = new(string)
+				}
+				*out.Path = string(in.String())
+			}
 		case "flags":
-			out.Flags = int(in.Int())
+			if in.IsNull() {
+				in.Skip()
+				out.Flags = nil
+			} else {
+				if out.Flags == nil {
+					out.Flags = new(int)
+				}
+				*out.Flags = int(in.Int())
+			}
 		case "mode":
-			out.Mode = int(in.Int())
+			if in.IsNull() {
+				in.Skip()
+				out.Mode = nil
+			} else {
+				if out.Mode == nil {
+					out.Mode = new(int)
+				}
+				*out.Mode = int(in.Int())
+			}
+		case "uid":
+			if in.IsNull() {
+				in.Skip()
+				out.UID = nil
+			} else {
+				if out.UID == nil {
+					out.UID = new(int)
+				}
+				*out.UID = int(in.Int())
+			}
+		case "gid":
+			if in.IsNull() {
+				in.Skip()
+				out.GID = nil
+			} else {
+				if out.GID == nil {
+					out.GID = new(int)
+				}
+				*out.GID = int(in.Int())
+			}
+		case "dirfd":
+			if in.IsNull() {
+				in.Skip()
+				out.DirFd = nil
+			} else {
+				if out.DirFd == nil {
+					out.DirFd = new(int)
+				}
+				*out.DirFd = int(in.Int())
+			}
+		case "destination_path":
+			if in.IsNull() {
+				in.Skip()
+				out.DestinationPath = nil
+			} else {
+				if out.DestinationPath == nil {
+					out.DestinationPath = new(string)
+				}
+				*out.DestinationPath = string(in.String())
+			}
+		case "fs_type":
+			if in.IsNull() {
+				in.Skip()
+				out.FSType = nil
+			} else {
+				if out.FSType == nil {
+					out.FSType = new(string)
+				}
+				*out.FSType = string(in.String())
+			}
 		default:
 			in.SkipRecursive()
 		}
@@ -453,13 +647,13 @@ func easyjsonDdc0fdbeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers3(o
 	out.RawByte('{')
 	first := true
 	_ = first
-	if in.Path != "" {
+	if in.Path != nil {
 		const prefix string = ",\"path\":"
 		first = false
 		out.RawString(prefix[1:])
-		out.String(string(in.Path))
+		out.String(string(*in.Path))
 	}
-	if in.Flags != 0 {
+	if in.Flags != nil {
 		const prefix string = ",\"flags\":"
 		if first {
 			first = false
@@ -467,9 +661,9 @@ func easyjsonDdc0fdbeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers3(o
 		} else {
 			out.RawString(prefix)
 		}
-		out.Int(int(in.Flags))
+		out.Int(int(*in.Flags))
 	}
-	if in.Mode != 0 {
+	if in.Mode != nil {
 		const prefix string = ",\"mode\":"
 		if first {
 			first = false
@@ -477,7 +671,57 @@ func easyjsonDdc0fdbeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers3(o
 		} else {
 			out.RawString(prefix)
 		}
-		out.Int(int(in.Mode))
+		out.Int(int(*in.Mode))
+	}
+	if in.UID != nil {
+		const prefix string = ",\"uid\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		out.Int(int(*in.UID))
+	}
+	if in.GID != nil {
+		const prefix string = ",\"gid\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		out.Int(int(*in.GID))
+	}
+	if in.DirFd != nil {
+		const prefix string = ",\"dirfd\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		out.Int(int(*in.DirFd))
+	}
+	if in.DestinationPath != nil {
+		const prefix string = ",\"destination_path\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		out.String(string(*in.DestinationPath))
+	}
+	if in.FSType != nil {
+		const prefix string = ",\"fs_type\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		out.String(string(*in.FSType))
 	}
 	out.RawByte('}')
 }

@@ -22,7 +22,7 @@ type infraAttributesLogProcessor struct {
 	cardinality types.TagCardinality
 }
 
-func newInfraAttributesLogsProcessor(set processor.CreateSettings, cfg *Config, tagger tagger.Component) (*infraAttributesLogProcessor, error) {
+func newInfraAttributesLogsProcessor(set processor.Settings, cfg *Config, tagger tagger.Component) (*infraAttributesLogProcessor, error) {
 	ialp := &infraAttributesLogProcessor{
 		logger:      set.Logger,
 		tagger:      tagger,

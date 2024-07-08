@@ -49,7 +49,7 @@ type FileRegistry struct {
 	byPID    map[uint32]pathIdentifierSet
 
 	// if we can't execute a callback for a given file we don't try more than once
-	blocklistByID *simplelru.LRU[PathIdentifier, struct{}]
+	blocklistByID *simplelru.LRU[PathIdentifier, string]
 
 	telemetry registryTelemetry
 }
@@ -82,7 +82,7 @@ type callback func(FilePath) error
 
 // NewFileRegistry creates a new `FileRegistry` instance
 func NewFileRegistry(programName string) *FileRegistry {
-	blocklistByID, err := simplelru.NewLRU[PathIdentifier, struct{}](2000, nil)
+	blocklistByID, err := simplelru.NewLRU[PathIdentifier, string](2000, nil)
 	if err != nil {
 		log.Warnf("running without block cache list, creation error: %s", err)
 		blocklistByID = nil
@@ -103,11 +103,14 @@ func NewFileRegistry(programName string) *FileRegistry {
 }
 
 var (
-	errPidIsNotRegistered      = errors.New("pid is not registered")
-	errCallbackIsMissing       = errors.New("activationCB and deactivationCB must be both non-nil")
-	errAlreadyStopped          = errors.New("registry already stopped")
-	errPathIsBlocked           = errors.New("path is blocked")
-	errPathIsAlreadyRegistered = errors.New("path is already registered")
+	errPidIsNotRegistered = errors.New("pid is not registered")
+	errCallbackIsMissing  = errors.New("activationCB and deactivationCB must be both non-nil")
+	errAlreadyStopped     = errors.New("registry already stopped")
+	errPathIsBlocked      = errors.New("path is blocked")
+
+	// ErrPathIsAlreadyRegistered is the error resulting if the
+	// path is already in the file registry.
+	ErrPathIsAlreadyRegistered = errors.New("path is already registered")
 )
 
 // Register inserts or updates a new file registration within to the `FileRegistry`;
@@ -149,7 +152,7 @@ func (r *FileRegistry) Register(namespacedPath string, pid uint32, activationCB,
 			r.byPID[pid][pathID] = struct{}{}
 		}
 		r.telemetry.fileAlreadyRegistered.Add(1)
-		return errPathIsAlreadyRegistered
+		return ErrPathIsAlreadyRegistered
 	}
 
 	if err := activationCB(path); err != nil {
@@ -164,7 +167,7 @@ func (r *FileRegistry) Register(namespacedPath string, pid uint32, activationCB,
 		if r.blocklistByID != nil {
 			// add `pathID` to blocklist so we don't attempt to re-register files
 			// that are problematic for some reason
-			r.blocklistByID.Add(pathID, struct{}{})
+			r.blocklistByID.Add(pathID, path.HostPath)
 		}
 		r.telemetry.fileHookFailed.Add(1)
 		return err

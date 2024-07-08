@@ -1470,6 +1470,26 @@
         "mode": {
           "type": "integer",
           "description": "Mode argument"
+        },
+        "uid": {
+          "type": "integer",
+          "description": "UID argument"
+        },
+        "gid": {
+          "type": "integer",
+          "description": "GID argument"
+        },
+        "dirfd": {
+          "type": "integer",
+          "description": "Directory file descriptor argument"
+        },
+        "destination_path": {
+          "type": "string",
+          "description": "Destination path argument"
+        },
+        "fs_type": {
+          "type": "string",
+          "description": "File system type argument"
         }
       },
       "additionalProperties": false,
@@ -1481,6 +1501,9 @@
         "chmod": {
           "$ref": "#/$defs/SyscallArgs"
         },
+        "chown": {
+          "$ref": "#/$defs/SyscallArgs"
+        },
         "chdir": {
           "$ref": "#/$defs/SyscallArgs"
         },
@@ -1488,6 +1511,21 @@
           "$ref": "#/$defs/SyscallArgs"
         },
         "open": {
+          "$ref": "#/$defs/SyscallArgs"
+        },
+        "unlink": {
+          "$ref": "#/$defs/SyscallArgs"
+        },
+        "link": {
+          "$ref": "#/$defs/SyscallArgs"
+        },
+        "rename": {
+          "$ref": "#/$defs/SyscallArgs"
+        },
+        "utimes": {
+          "$ref": "#/$defs/SyscallArgs"
+        },
+        "mount": {
           "$ref": "#/$defs/SyscallArgs"
         }
       },

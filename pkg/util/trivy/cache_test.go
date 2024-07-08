@@ -239,7 +239,7 @@ func TestCustomBoltCache_GarbageCollector(t *testing.T) {
 		config.MockModule(),
 		fx.Supply(context.Background()),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmetafxmock.MockModuleV2(),
+		workloadmetafxmock.MockModule(),
 	))
 
 	image1 := &workloadmeta.ContainerImageMetadata{

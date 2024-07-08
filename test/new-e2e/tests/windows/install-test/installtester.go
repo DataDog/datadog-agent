@@ -35,8 +35,7 @@ type Tester struct {
 	host              *components.RemoteHost
 	InstallTestClient *common.TestClient
 
-	agentPackage      *windowsAgent.Package
-	isPreviousVersion bool
+	agentPackage *windowsAgent.Package
 
 	expectedUserName   string
 	expectedUserDomain string
@@ -109,11 +108,11 @@ func WithAgentPackage(agentPackage *windowsAgent.Package) TesterOption {
 	}
 }
 
-// WithPreviousVersion sets the Tester to expect a previous version of the agent to be installed
-// and will not run all tests since expectations may have changed.
-func WithPreviousVersion() TesterOption {
+// WithExpectedAgentUserName sets the expected user name the agent should run as
+// the domain remains the default for the host.
+func WithExpectedAgentUserName(user string) TesterOption {
 	return func(t *Tester) {
-		t.isPreviousVersion = true
+		t.expectedUserName = user
 	}
 }
 
@@ -237,12 +236,7 @@ func (t *Tester) TestUninstallExpectations(tt *testing.T) {
 	assert.NoError(tt, err, "uninstall should not remove agent user")
 
 	for _, serviceName := range servicetest.ExpectedInstalledServices() {
-		conf, err := windows.GetServiceConfig(t.host, serviceName)
-		if err == nil && windows.IsKernelModeServiceType(conf.ServiceType) {
-			// TODO WKINT-410: kernel mode services are not removed on install rollback
-			tt.Logf("WKINT-410: Skipping known failure, kernel mode service not removed: %s", serviceName)
-			continue
-		}
+		_, err := windows.GetServiceConfig(t.host, serviceName)
 		assert.Errorf(tt, err, "uninstall should remove service %s", serviceName)
 	}
 
@@ -258,11 +252,6 @@ func (t *Tester) TestUninstallExpectations(tt *testing.T) {
 		}
 		t.testUninstalledFilePermissions(tt)
 	})
-}
-
-// Only do some basic checks on the agent since it's a previous version
-func (t *Tester) testPreviousVersionExpectations(tt *testing.T) {
-	RequireAgentRunningWithNoErrors(tt, t.InstallTestClient)
 }
 
 // More in depth checks on current version
@@ -580,10 +569,6 @@ func (t *Tester) TestInstallExpectations(tt *testing.T) bool {
 		}) {
 			tt.FailNow()
 		}
-		if t.isPreviousVersion {
-			t.testPreviousVersionExpectations(tt)
-		} else {
-			t.testCurrentVersionExpectations(tt)
-		}
+		t.testCurrentVersionExpectations(tt)
 	})
 }

@@ -139,18 +139,3 @@ func TestConvert(t *testing.T) {
 		})
 	}
 }
-
-func TestGetConfDump(t *testing.T) {
-	converter, err := NewConverter()
-	assert.NoError(t, err)
-
-	resolver, err := newResolver(uriFromFile("dd/config.yaml"))
-	assert.NoError(t, err)
-	conf, err := resolver.Resolve(context.Background())
-	assert.NoError(t, err)
-
-	converter.Convert(context.Background(), conf)
-
-	assert.Equal(t, "not supported", converter.GetProvidedConf())
-	assert.Equal(t, "not supported", converter.GetEnhancedConf())
-}

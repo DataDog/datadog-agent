@@ -301,7 +301,7 @@ Package inventoryotel implements a component to generate the 'datadog_agent' met
 
 ### [comp/metadata/packagesigning](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/packagesigning)
 
-*Datadog Team*: agent-build-and-releases
+*Datadog Team*: agent-delivery
 
 Package packagesigning implements a component to generate the 'signing' metadata payload for DD inventory (REDAPL).
 
@@ -376,9 +376,17 @@ Package collector defines the OpenTelemetry Collector component.
 
 Package collectorcontrib defines the OTel collector-contrib component
 
+### [comp/otelcol/configstore](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/otelcol/configstore)
+
+Package configstore defines the otel agent configstore component.
+
 ### [comp/otelcol/converter](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/otelcol/converter)
 
 Package converter defines the otel agent converter component.
+
+### [comp/otelcol/extension](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/otelcol/extension)
+
+Package extension defines the OpenTelemetry Extension component.
 
 ### [comp/otelcol/logsagentpipeline](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline)
 
@@ -538,6 +546,10 @@ Package trace implements the "trace" bundle, providing components for the Trace 
 
 Package traceagent provides the agent component type.
 
+### [comp/trace/compression](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/trace/compression)
+
+Package compression provides compression for trace payloads
+
 ### [comp/trace/config](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/trace/config)
 
 Package config implements a component to handle trace-agent configuration.  This
@@ -580,6 +592,12 @@ Package updater is the updater component.
 *Datadog Team*: windows-agent
 
 Package etw provides an ETW tracing interface
+
+### [comp/rdnsquerier](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/rdnsquerier)
+
+*Datadog Team*: network-device-monitoring
+
+Package rdnsquerier provides the reverse DNS querier component.
 
 ### [comp/serializer/compression](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/serializer/compression)
 

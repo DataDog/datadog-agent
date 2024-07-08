@@ -49,7 +49,7 @@ func TestParse_ParsePartialObjectMetadata(t *testing.T) {
 			expected: &workloadmeta.KubernetesMetadata{
 				EntityID: workloadmeta.EntityID{
 					Kind: workloadmeta.KindKubernetesMetadata,
-					ID:   "deployments/default/test-app",
+					ID:   string(util.GenerateKubeMetadataEntityID("apps", "deployments", "default", "test-app")),
 				},
 				EntityMeta: workloadmeta.EntityMeta{
 					Name:        "test-app",
@@ -83,7 +83,7 @@ func TestParse_ParsePartialObjectMetadata(t *testing.T) {
 			expected: &workloadmeta.KubernetesMetadata{
 				EntityID: workloadmeta.EntityID{
 					Kind: workloadmeta.KindKubernetesMetadata,
-					ID:   string(util.GenerateKubeMetadataEntityID("namespaces", "", "test-namespace")),
+					ID:   string(util.GenerateKubeMetadataEntityID("", "namespaces", "", "test-namespace")),
 				},
 				EntityMeta: workloadmeta.EntityMeta{
 					Name:        "test-namespace",
@@ -117,7 +117,7 @@ func TestParse_ParsePartialObjectMetadata(t *testing.T) {
 			expected: &workloadmeta.KubernetesMetadata{
 				EntityID: workloadmeta.EntityID{
 					Kind: workloadmeta.KindKubernetesMetadata,
-					ID:   string(util.GenerateKubeMetadataEntityID("namespaces", "", "test-namespace")),
+					ID:   string(util.GenerateKubeMetadataEntityID("", "namespaces", "", "test-namespace")),
 				},
 				EntityMeta: workloadmeta.EntityMeta{
 					Name:        "test-namespace",
@@ -153,7 +153,7 @@ func TestParse_ParsePartialObjectMetadata(t *testing.T) {
 			expected: &workloadmeta.KubernetesMetadata{
 				EntityID: workloadmeta.EntityID{
 					Kind: workloadmeta.KindKubernetesMetadata,
-					ID:   string(util.GenerateKubeMetadataEntityID("namespaces", "", "test-namespace")),
+					ID:   string(util.GenerateKubeMetadataEntityID("", "namespaces", "", "test-namespace")),
 				},
 				EntityMeta: workloadmeta.EntityMeta{
 					Name:        "test-namespace",
@@ -217,7 +217,7 @@ func Test_MetadataFakeClient(t *testing.T) {
 				Type: workloadmeta.EventTypeSet,
 				Entity: &workloadmeta.KubernetesMetadata{
 					EntityID: workloadmeta.EntityID{
-						ID:   "deployments/default/test-app",
+						ID:   string(util.GenerateKubeMetadataEntityID("apps", "deployments", "default", "test-app")),
 						Kind: workloadmeta.KindKubernetesMetadata,
 					},
 					EntityMeta: workloadmeta.EntityMeta{

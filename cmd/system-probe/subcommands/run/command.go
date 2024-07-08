@@ -338,7 +338,12 @@ func startSystemProbe(log log.Component, statsd compstatsd.Component, telemetry 
 			if pc := ebpftelemetry.NewPerfUsageCollector(); pc != nil {
 				telemetry.RegisterCollector(pc)
 			}
-			telemetry.RegisterCollector(ddebpf.NewLockContentionCollector())
+			if lcc := ddebpf.NewLockContentionCollector(); lcc != nil {
+				telemetry.RegisterCollector(lcc)
+			}
+			if ec := ebpftelemetry.NewEBPFErrorsCollector(); ec != nil {
+				telemetry.RegisterCollector(ec)
+			}
 		}
 		go func() {
 			common.ExpvarServer = &http.Server{
