@@ -119,5 +119,5 @@ func (s *packageInstallerSuite) TestUpdateInstallerOCI() {
 	assert.NoError(s.T(), err)
 
 	version = s.Env().RemoteHost.MustExecute("/opt/datadog-packages/datadog-installer/stable/bin/installer/installer version")
-	assert.Contains(s.T(), version, "-devel+git")
+	assert.NotEqual(s.T(), "7.55.0-installer-0.2.1\n", version)
 }

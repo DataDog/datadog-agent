@@ -72,6 +72,9 @@ var (
 	}
 
 	lowCardOrchestratorEnvKeys = map[string]string{
+		"DD_GIT_COMMIT_SHA":     tags.GitCommitSha,
+		"DD_GIT_REPOSITORY_URL": tags.GitRepository,
+
 		"MARATHON_APP_ID": tags.MarathonApp,
 
 		"CHRONOS_JOB_NAME":  tags.ChronosJob,

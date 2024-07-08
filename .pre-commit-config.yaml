@@ -18,6 +18,17 @@ repos:
   hooks:
     - id: vulture
       args: ["--ignore-decorators", "@task", "--ignore-names", "test_*,Test*", "tasks"]
+- repo: https://github.com/pre-commit/mirrors-mypy
+  rev: e5ea6670624c24f8321f6328ef3176dbba76db46  # 1.10.0
+  hooks:
+    - id: mypy
+      # Keep in sync with the build image, there's no good way to centralize this.
+      additional_dependencies:
+        - types-pyyaml==6.0.12.20240311
+        - types-requests==2.30.0
+        - types-tabulate==0.9.0.20240106
+        - types-toml==0.10.8.20240310
+      exclude: ^tasks/unit_tests/.*$
 - repo: https://github.com/jumanjihouse/pre-commit-hooks
   rev: 7cc5848088fd8412905ab79feea6c8edc3ac76c6 # 2.1.5
   hooks:
@@ -41,6 +52,7 @@ repos:
       entry: 'inv git.check-protected-branch'
       language: system
       pass_filenames: false
+      stages: [pre-commit, pre-push]
     - id: govet
       name: govet
       description: go vet

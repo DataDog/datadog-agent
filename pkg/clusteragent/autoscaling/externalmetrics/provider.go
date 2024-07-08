@@ -42,6 +42,11 @@ type datadogMetricProvider struct {
 	autogenNamespace string
 }
 
+var (
+	metricsMaxAge              int64
+	metricsQueryValidityPeriod int64
+)
+
 // NewDatadogMetricProvider configures and returns a new datadogMetricProvider
 func NewDatadogMetricProvider(ctx context.Context, apiCl *apiserver.APIClient) (provider.ExternalMetricsProvider, error) {
 	if apiCl == nil {
@@ -58,7 +63,8 @@ func NewDatadogMetricProvider(ctx context.Context, apiCl *apiserver.APIClient) (
 	setQueryConfigValues(aggregator, rollup)
 
 	refreshPeriod := config.Datadog().GetInt64("external_metrics_provider.refresh_period")
-	retrieverMetricsMaxAge := int64(math.Max(config.Datadog().GetFloat64("external_metrics_provider.max_age"), float64(3*rollup)))
+	metricsMaxAge = int64(math.Max(config.Datadog().GetFloat64("external_metrics_provider.max_age"), float64(3*rollup)))
+	metricsQueryValidityPeriod = int64(config.Datadog().GetFloat64("external_metrics_provider.query_validity_period"))
 	splitBatchBackoffOnErrors := config.Datadog().GetBool("external_metrics_provider.split_batches_with_backoff")
 	autogenNamespace := common.GetResourcesNamespace()
 	autogenEnabled := config.Datadog().GetBool("external_metrics_provider.enable_datadogmetric_autogen")
@@ -76,7 +82,7 @@ func NewDatadogMetricProvider(ctx context.Context, apiCl *apiserver.APIClient) (
 		return nil, fmt.Errorf("Unable to create DatadogMetricProvider as DatadogClient failed with: %v", err)
 	}
 
-	metricsRetriever, err := NewMetricsRetriever(refreshPeriod, retrieverMetricsMaxAge, autoscalers.NewProcessor(datadogClient), le.IsLeader, &provider.store, splitBatchBackoffOnErrors)
+	metricsRetriever, err := NewMetricsRetriever(refreshPeriod, metricsMaxAge, autoscalers.NewProcessor(datadogClient), le.IsLeader, &provider.store, splitBatchBackoffOnErrors)
 	if err != nil {
 		return nil, fmt.Errorf("Unable to create DatadogMetricProvider as MetricsRetriever failed with: %v", err)
 	}
@@ -123,7 +129,7 @@ func NewDatadogMetricProvider(ctx context.Context, apiCl *apiserver.APIClient) (
 // GetExternalMetric returns the value of a metric for a given namespace and metric selector
 func (p *datadogMetricProvider) GetExternalMetric(_ context.Context, namespace string, metricSelector labels.Selector, info provider.ExternalMetricInfo) (*external_metrics.ExternalMetricValueList, error) {
 	startTime := time.Now()
-	res, err := p.getExternalMetric(namespace, metricSelector, info)
+	res, err := p.getExternalMetric(namespace, metricSelector, info, startTime)
 	if err != nil {
 		convErr := apierr.NewInternalError(err)
 		if convErr != nil {
@@ -135,7 +141,7 @@ func (p *datadogMetricProvider) GetExternalMetric(_ context.Context, namespace s
 	return res, err
 }
 
-func (p *datadogMetricProvider) getExternalMetric(namespace string, metricSelector labels.Selector, info provider.ExternalMetricInfo) (*external_metrics.ExternalMetricValueList, error) {
+func (p *datadogMetricProvider) getExternalMetric(namespace string, metricSelector labels.Selector, info provider.ExternalMetricInfo, time time.Time) (*external_metrics.ExternalMetricValueList, error) {
 	log.Debugf("Received external metric query with ns: %s, selector: %s, metricName: %s", namespace, metricSelector.String(), info.Metric)
 
 	// Convert metric name to lower case to allow proper matching (and DD metrics are always lower case)
@@ -158,7 +164,7 @@ func (p *datadogMetricProvider) getExternalMetric(namespace string, metricSelect
 		return nil, log.Warnf("DatadogMetric not found for metric name: %s, datadogmetricid: %s", info.Metric, datadogMetricID)
 	}
 
-	externalMetric, err := datadogMetric.ToExternalMetricFormat(info.Metric)
+	externalMetric, err := datadogMetric.ToExternalMetricFormat(info.Metric, metricsMaxAge, time, metricsQueryValidityPeriod)
 	if err != nil {
 		return nil, err
 	}

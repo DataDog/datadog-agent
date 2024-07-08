@@ -31,7 +31,7 @@ for init in /etc/cont-init.d/*.sh; do
 done
 
 # Start all agents in the background
-for agent in agent process-agent security-agent system-probe trace-agent; do
+for agent in agent process-agent security-agent system-probe trace-agent otel-agent; do
     (
         printf "===== STARTING %s =====\n" "$agent"
         exec "$DIR/$agent"
