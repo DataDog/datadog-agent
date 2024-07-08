@@ -3,7 +3,11 @@ module github.com/DataDog/datadog-agent/test/otel
 go 1.21.0
 
 replace (
+	github.com/DataDog/datadog-agent/cmd/agent/common/path => ./../../cmd/agent/common/path
+	github.com/DataDog/datadog-agent/comp/api/api/def => ./../../comp/api/api/def
 	github.com/DataDog/datadog-agent/comp/core/config => ./../../comp/core/config
+	github.com/DataDog/datadog-agent/comp/core/flare/builder => ./../../comp/core/flare/builder
+	github.com/DataDog/datadog-agent/comp/core/flare/types => ./../../comp/core/flare/types
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface => ./../../comp/core/hostname/hostnameinterface
 	github.com/DataDog/datadog-agent/comp/core/log => ./../../comp/core/log
 	github.com/DataDog/datadog-agent/comp/core/secrets => ./../../comp/core/secrets
@@ -17,6 +21,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter => ./../../comp/otelcol/otlp/components/exporter/serializerexporter
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient => ./../../comp/otelcol/otlp/components/metricsclient
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/statsprocessor => ./../../comp/otelcol/otlp/components/statsprocessor
+	github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil => ./../../comp/otelcol/otlp/testutil
 	github.com/DataDog/datadog-agent/comp/serializer/compression => ./../../comp/serializer/compression
 	github.com/DataDog/datadog-agent/comp/trace/compression/def => ./../../comp/trace/compression/def
 	github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip => ./../../comp/trace/compression/impl-gzip
@@ -24,6 +29,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/trace/agent/def => ./../../comp/trace/agent/def
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ./../../pkg/collector/check/defaults
 	github.com/DataDog/datadog-agent/pkg/config/env => ./../../pkg/config/env
+	github.com/DataDog/datadog-agent/pkg/config/logs => ./../../pkg/config/logs
 	github.com/DataDog/datadog-agent/pkg/config/model => ./../../pkg/config/model
 	github.com/DataDog/datadog-agent/pkg/config/setup => ./../../pkg/config/setup
 	github.com/DataDog/datadog-agent/pkg/config/utils => ./../../pkg/config/utils
@@ -39,6 +45,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/logs/sources => ./../../pkg/logs/sources
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface => ./../../pkg/logs/status/statusinterface
 	github.com/DataDog/datadog-agent/pkg/logs/status/utils => ./../../pkg/logs/status/utils
+	github.com/DataDog/datadog-agent/pkg/logs/util/testutils => ./../../pkg/logs/util/testutils
 	github.com/DataDog/datadog-agent/pkg/obfuscate => ./../../pkg/obfuscate
 	github.com/DataDog/datadog-agent/pkg/proto => ./../../pkg/proto
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state => ./../../pkg/remoteconfig/state
@@ -60,6 +67,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/statstracker => ./../../pkg/util/statstracker
 	github.com/DataDog/datadog-agent/pkg/util/system => ./../../pkg/util/system
 	github.com/DataDog/datadog-agent/pkg/util/system/socket => ./../../pkg/util/system/socket
+	github.com/DataDog/datadog-agent/pkg/util/testutil => ./../../pkg/util/testutil
 	github.com/DataDog/datadog-agent/pkg/util/winutil => ./../../pkg/util/winutil
 	github.com/DataDog/datadog-agent/pkg/version => ./../../pkg/version
 	github.com/DataDog/datadog-agent/comp/core/status => ../../comp/core/status
@@ -83,11 +91,11 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface v0.56.0-rc.1
 	github.com/DataDog/datadog-agent/comp/core/log v0.56.0-rc.1
 	github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline v0.56.0-rc.1
-	github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/logsagentpipelineimpl v0.55.0-rc.1
-	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter v0.55.0-rc.1
+	github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/logsagentpipelineimpl v0.56.0-rc.1
+	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter v0.56.0-rc.1
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter v0.56.0-rc.1
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient v0.56.0-rc.1
-	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/statsprocessor v0.55.0-rc.1
+	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/statsprocessor v0.56.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/config/model v0.56.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.56.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/proto v0.56.0-rc.1
