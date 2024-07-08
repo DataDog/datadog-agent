@@ -83,7 +83,7 @@ func EnableRingbuffersViaMapEditor(mgrOpts *manager.Options) {
 }
 
 // SetupHandler sets up the closed connection event handler
-func SetupHandler(eventHandler ebpf.EventHandler, mgr *ebpf.Manager, cfg *config.Config, ringSize int, perfSize int, mapName probes.BPFMapName) {
+func SetupHandler(eventHandler ebpf.EventHandler, mgr *ebpf.Manager, cfg *config.Config, perfSize int, mapName probes.BPFMapName) {
 	switch handler := eventHandler.(type) {
 	case *ebpf.RingBufferHandler:
 		log.Infof("Setting up connection handler for map %v with ring buffer", mapName)
@@ -123,12 +123,12 @@ func SetupHandler(eventHandler ebpf.EventHandler, mgr *ebpf.Manager, cfg *config
 
 // SetupFailedConnHandler sets up the closed connection event handler
 func SetupFailedConnHandler(connCloseEventHandler ebpf.EventHandler, mgr *ebpf.Manager, cfg *config.Config) {
-	SetupHandler(connCloseEventHandler, mgr, cfg, computeDefaultFailedConnectionsRingBufferSize(), computeDefaultFailedConnPerfBufferSize(), probes.FailedConnEventMap)
+	SetupHandler(connCloseEventHandler, mgr, cfg, computeDefaultFailedConnPerfBufferSize(), probes.FailedConnEventMap)
 }
 
 // SetupClosedConnHandler sets up the closed connection event handler
 func SetupClosedConnHandler(connCloseEventHandler ebpf.EventHandler, mgr *ebpf.Manager, cfg *config.Config) {
-	SetupHandler(connCloseEventHandler, mgr, cfg, computeDefaultClosedConnRingBufferSize(), computeDefaultClosedConnPerfBufferSize(), probes.ConnCloseEventMap)
+	SetupHandler(connCloseEventHandler, mgr, cfg, computeDefaultClosedConnPerfBufferSize(), probes.ConnCloseEventMap)
 }
 
 // AddBoolConst modifies the options to include a constant editor for a boolean value
