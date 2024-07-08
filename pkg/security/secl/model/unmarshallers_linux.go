@@ -947,6 +947,9 @@ func (e *CgroupTracingEvent) UnmarshalBinary(data []byte) (int, error) {
 	}
 	cursor := read
 
+	e.CGroupFlags = binary.NativeEndian.Uint64(data[cursor : cursor+8])
+	cursor += 8
+
 	read, err = e.Config.EventUnmarshalBinary(data[cursor:])
 	if err != nil {
 		return 0, err
