@@ -7,7 +7,7 @@
 #include "protocols/tls/go-tls-types.h"
 
 // offsets_data map contains the information about the locations of structs in the inspected binary, mapped by the binary's inode number.
-BPF_HASH_MAP(offsets_data, go_tls_offsets_data_key_t, tls_offsets_data_t, 1024)
+BPF_HASH_MAP(offsets_data, u32, tls_offsets_data_t, 10240)
 
 /* go_tls_read_args is used to get the read function info when running in the read-return uprobe.
    The key contains the go routine id and the pid. */

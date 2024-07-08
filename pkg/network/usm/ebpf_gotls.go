@@ -22,7 +22,6 @@ import (
 
 	"github.com/cihub/seelog"
 	"github.com/cilium/ebpf"
-	"golang.org/x/sys/unix"
 
 	manager "github.com/DataDog/ebpf-manager"
 
@@ -30,7 +29,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/gotls"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/gotls/lookup"
 	libtelemetry "github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/buildmode"
@@ -347,11 +345,12 @@ func (p *goTLSProgram) AttachPID(pid uint32) error {
 
 	// Check go process
 	probeList := make([]manager.ProbeIdentificationPair, 0)
-	return p.registry.Register(binPath, pid, registerCBCreator(p.manager, p.offsetsDataMap, &probeList, p.binAnalysisMetric), unregisterCBCreator(p.manager, &probeList, p.offsetsDataMap))
+	return p.registry.Register(binPath, pid, registerCBCreator(p.manager, pid, p.offsetsDataMap, &probeList, p.binAnalysisMetric), unregisterCBCreator(p.manager, pid, &probeList, p.offsetsDataMap))
 }
 
-func registerCBCreator(mgr *manager.Manager, offsetsDataMap *ebpf.Map, probeIDs *[]manager.ProbeIdentificationPair, binAnalysisMetric *libtelemetry.Counter) func(path utils.FilePath) error {
+func registerCBCreator(mgr *manager.Manager, pid uint32, offsetsDataMap *ebpf.Map, probeIDs *[]manager.ProbeIdentificationPair, binAnalysisMetric *libtelemetry.Counter) func(path utils.FilePath) error {
 	return func(filePath utils.FilePath) error {
+		filePath.PID = pid
 		start := time.Now()
 
 		f, err := os.Open(filePath.HostPath)
@@ -370,13 +369,13 @@ func registerCBCreator(mgr *manager.Manager, offsetsDataMap *ebpf.Map, probeIDs 
 			return fmt.Errorf("error extracting inspectoin data from %s: %w", filePath.HostPath, err)
 		}
 
-		if err := addInspectionResultToMap(offsetsDataMap, filePath.ID, inspectionResult); err != nil {
+		if err := addInspectionResultToMap(offsetsDataMap, pid, inspectionResult); err != nil {
 			return fmt.Errorf("failed adding inspection rules: %w", err)
 		}
 
 		pIDs, err := attachHooks(mgr, inspectionResult, filePath.HostPath, filePath.ID)
 		if err != nil {
-			removeInspectionResultFromMap(offsetsDataMap, filePath.ID)
+			removeInspectionResultFromMap(offsetsDataMap, pid)
 			return fmt.Errorf("error while attaching hooks to %s: %w", filePath.HostPath, err)
 		}
 		*probeIDs = pIDs
@@ -399,32 +398,22 @@ func (p *goTLSProgram) handleProcessStart(pid pid) {
 
 // addInspectionResultToMap runs a binary inspection and adds the result to the
 // map that's being read by the probes, indexed by the binary's inode number `ino`.
-func addInspectionResultToMap(offsetsDataMap *ebpf.Map, binID utils.PathIdentifier, result *bininspect.Result) error {
+func addInspectionResultToMap(offsetsDataMap *ebpf.Map, pid uint32, result *bininspect.Result) error {
 	offsetsData, err := inspectionResultToProbeData(result)
 	if err != nil {
 		return fmt.Errorf("error while parsing inspection result: %w", err)
 	}
 
-	key := &gotls.TlsBinaryId{
-		Id_major: unix.Major(binID.Dev),
-		Id_minor: unix.Minor(binID.Dev),
-		Ino:      binID.Inode,
-	}
-	if err := offsetsDataMap.Put(unsafe.Pointer(key), unsafe.Pointer(&offsetsData)); err != nil {
-		return fmt.Errorf("could not write binary inspection result to map for binID %v: %w", binID, err)
+	if err := offsetsDataMap.Put(unsafe.Pointer(&pid), unsafe.Pointer(&offsetsData)); err != nil {
+		return fmt.Errorf("could not write binary inspection result to map for pid %d: %w", pid, err)
 	}
 
 	return nil
 }
 
-func removeInspectionResultFromMap(offsetsDataMap *ebpf.Map, binID utils.PathIdentifier) {
-	key := &gotls.TlsBinaryId{
-		Id_major: unix.Major(binID.Dev),
-		Id_minor: unix.Minor(binID.Dev),
-		Ino:      binID.Inode,
-	}
-	if err := offsetsDataMap.Delete(unsafe.Pointer(key)); err != nil {
-		log.Errorf("could not remove inspection result from map for ino %v: %s", binID, err)
+func removeInspectionResultFromMap(offsetsDataMap *ebpf.Map, pid uint32) {
+	if err := offsetsDataMap.Delete(unsafe.Pointer(&pid)); err != nil {
+		log.Errorf("could not remove inspection result from map for pid %d: %s", pid, err)
 	}
 }
 
@@ -479,19 +468,19 @@ func attachHooks(mgr *manager.Manager, result *bininspect.Result, binPath string
 	return probeIDs, nil
 }
 
-func unregisterCBCreator(mgr *manager.Manager, probeIDs *[]manager.ProbeIdentificationPair, offsetsDataMap *ebpf.Map) func(path utils.FilePath) error {
-	return func(path utils.FilePath) error {
+func unregisterCBCreator(mgr *manager.Manager, pid uint32, probeIDs *[]manager.ProbeIdentificationPair, offsetsDataMap *ebpf.Map) func(path utils.FilePath) error {
+	return func(utils.FilePath) error {
 		if len(*probeIDs) == 0 {
 			return nil
 		}
-		removeInspectionResultFromMap(offsetsDataMap, path.ID)
+		removeInspectionResultFromMap(offsetsDataMap, pid)
 		for _, probeID := range *probeIDs {
 			err := mgr.DetachHook(probeID)
 			if err != nil {
 				log.Errorf("failed detaching hook %s: %s", probeID.UID, err)
 			}
 		}
-		log.Debugf("detached hooks on ino %v", path.ID)
+		log.Debugf("detached hooks on pid %d", pid)
 		return nil
 	}
 }
