@@ -5,10 +5,12 @@
 
 //go:build test
 
+// Package mock provides mock methods
 package mock
 
 import (
 	"sync"
+	"testing"
 
 	datadogclient "github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient/def"
 	"gopkg.in/zorkian/go-datadog-api.v2"
@@ -53,7 +55,7 @@ func (d *mockDatadogClient) SetGetRateLimitsFunc(getRateLimitsFunc func() map[st
 }
 
 // NewMock returns a new mock datadogclient component
-func NewMock() datadogclient.MockComponent {
+func NewMock(*testing.T) datadogclient.MockComponent {
 	m := &mockDatadogClient{}
 	return m
 }
