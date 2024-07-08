@@ -471,6 +471,21 @@ func InitConfig(config pkgconfigmodel.Config) {
 	// language annotation cleanup period
 	config.BindEnvAndSetDefault("cluster_agent.language_detection.cleanup.period", "10m")
 	config.BindEnvAndSetDefault("cluster_agent.kube_metadata_collection.enabled", false)
+	// list of kubernetes resources for which we collect metadata
+	// each resource is specified in the format `{group}/{version}/{resource}` or `{group}/{resource}`
+	// resources that belong to the empty group can be specified simply as `{resource}` or as `/{resource}`
+	//
+	// the version is optional and can be left empty, and in this case, the agent will automatically assign
+	// the version that is considered by the api server as the preferred version for the related group.
+	//
+	// examples with version:
+	// - apps/v1/deployments
+	// - /v1/nodes
+	//
+	// examples without version:
+	// - apps/deployments
+	// - /nodes
+	// - nodes
 	config.BindEnvAndSetDefault("cluster_agent.kube_metadata_collection.resources", []string{})
 	config.BindEnvAndSetDefault("cluster_agent.kube_metadata_collection.resource_annotations_exclude", []string{})
 
@@ -617,6 +632,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("external_metrics_provider.refresh_period", 30)                 // value in seconds. Frequency of calls to Datadog to refresh metric values
 	config.BindEnvAndSetDefault("external_metrics_provider.batch_window", 10)                   // value in seconds. Batch the events from the Autoscalers informer to push updates to the ConfigMap (GlobalStore)
 	config.BindEnvAndSetDefault("external_metrics_provider.max_age", 120)                       // value in seconds. 4 cycles from the Autoscaler controller (up to Kubernetes 1.11) is enough to consider a metric stale
+	config.BindEnvAndSetDefault("external_metrics_provider.query_validity_period", 30)          // value in seconds. Represents grace period to account for delay between metric is resolved and when autoscaling controllers query for it
 	config.BindEnvAndSetDefault("external_metrics.aggregator", "avg")                           // aggregator used for the external metrics. Choose from [avg,sum,max,min]
 	config.BindEnvAndSetDefault("external_metrics_provider.max_time_window", 60*60*24)          // Maximum window to query to get the metric from Datadog.
 	config.BindEnvAndSetDefault("external_metrics_provider.bucket_size", 60*5)                  // Window to query to get the metric from Datadog.
@@ -782,7 +798,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("sbom.host.analyzers", []string{"os"})
 
 	// Service discovery configuration
-	config.BindEnvAndSetDefault("service_discovery.enabled", true)
+	config.BindEnvAndSetDefault("service_discovery.enabled", false)
 	bindEnvAndSetLogsConfigKeys(config, "service_discovery.forwarder.")
 
 	// Orchestrator Explorer - process agent
@@ -1108,8 +1124,8 @@ func containerSyspath(config pkgconfigmodel.Setup) {
 	config.BindEnv("procfs_path")
 	config.BindEnv("container_proc_root")
 	config.BindEnv("container_cgroup_root")
+	config.BindEnv("container_pid_mapper")
 	config.BindEnvAndSetDefault("ignore_host_etc", false)
-
 	config.BindEnvAndSetDefault("proc_root", "/proc")
 }
 
@@ -1485,6 +1501,7 @@ func kubernetes(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("kubelet_tls_verify", true)
 	config.BindEnvAndSetDefault("kubelet_core_check_enabled", true)
 	config.BindEnvAndSetDefault("collect_kubernetes_events", false)
+	config.BindEnvAndSetDefault("kubernetes_events_source_detection.enabled", false)
 	config.BindEnvAndSetDefault("kubelet_client_ca", "")
 
 	config.BindEnvAndSetDefault("kubelet_auth_token_path", "")

@@ -12,6 +12,8 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
+	netconfig "github.com/DataDog/datadog-agent/pkg/network/config"
+	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
 	procmon "github.com/DataDog/datadog-agent/pkg/process/monitor"
 )
 
@@ -25,6 +27,10 @@ var EventMonitor = module.Factory{
 	},
 }
 
-func createProcessMonitorConsumer(evm *eventmonitor.EventMonitor) (eventmonitor.EventConsumerInterface, error) {
+func createProcessMonitorConsumer(evm *eventmonitor.EventMonitor, config *netconfig.Config) (eventmonitor.EventConsumerInterface, error) {
+	if !usmconfig.IsUSMSupportedAndEnabled(config) || !usmconfig.NeedProcessMonitor(config) {
+		return nil, nil
+	}
+
 	return procmon.NewProcessMonitorEventConsumer(evm)
 }

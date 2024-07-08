@@ -18,6 +18,7 @@ import (
 	"io/fs"
 	"os"
 	"slices"
+	"syscall"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/glaslos/ssdeep"
@@ -208,13 +209,24 @@ func (resolver *Resolver) getHashFunction(algorithm model.HashAlgorithm) hash.Ha
 	}
 }
 
-func getFileInfo(path string) (fs.FileMode, int64, error) {
+type fileUniqKey struct {
+	dev   uint64
+	inode uint64
+}
+
+func getFileInfo(path string) (fs.FileMode, int64, fileUniqKey, error) {
 	fileInfo, err := os.Stat(path)
 	if err != nil {
-		return 0, 0, err
+		return 0, 0, fileUniqKey{}, err
 	}
 
-	return fileInfo.Mode(), fileInfo.Size(), nil
+	stat := fileInfo.Sys().(*syscall.Stat_t)
+	fkey := fileUniqKey{
+		dev:   stat.Dev,
+		inode: stat.Ino,
+	}
+
+	return fileInfo.Mode(), fileInfo.Size(), fkey, nil
 }
 
 // hash hashes the provided file event
@@ -258,20 +270,29 @@ func (resolver *Resolver) hash(eventType model.EventType, process *model.Process
 
 	// open the target file
 	var (
-		lastErr error
-		f       *os.File
-		mode    fs.FileMode
-		size    int64
+		lastErr     error
+		f           *os.File
+		mode        fs.FileMode
+		size        int64
+		fkey        fileUniqKey
+		failedCache = make(map[fileUniqKey]struct{})
 	)
 	for _, pidCandidate := range rootPIDs {
 		path := utils.ProcRootFilePath(pidCandidate, file.PathnameStr)
-		if mode, size, lastErr = getFileInfo(path); !mode.IsRegular() {
+		if mode, size, fkey, lastErr = getFileInfo(path); !mode.IsRegular() {
 			continue
 		}
+
+		if _, ok := failedCache[fkey]; ok {
+			// we already tried to open this file and failed, no need to try again
+			continue
+		}
+
 		f, lastErr = os.Open(path)
 		if lastErr == nil {
 			break
 		}
+		failedCache[fkey] = struct{}{}
 	}
 	if lastErr != nil {
 		if os.IsNotExist(lastErr) {

@@ -12,7 +12,6 @@ import (
 	"io"
 	"os"
 	"path"
-	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -115,11 +114,15 @@ func ProcRootPath(pid uint32) string {
 
 // ProcRootFilePath returns the path to the input file after prepending the proc root path of the given pid
 func ProcRootFilePath(pid uint32, file string) string {
-	return filepath.Join(ProcRootPath(pid), file)
+	return procPidPath2(pid, "root", file)
 }
 
 func procPidPath(pid uint32, path string) string {
 	return kernel.HostProc(strconv.FormatUint(uint64(pid), 10), path)
+}
+
+func procPidPath2(pid uint32, path1 string, path2 string) string {
+	return kernel.HostProc(strconv.FormatUint(uint64(pid), 10), path1, path2)
 }
 
 // ModulesPath returns the path to the modules file in /proc

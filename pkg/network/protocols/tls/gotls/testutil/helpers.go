@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
+	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
@@ -37,5 +37,5 @@ func isFedora(t *testing.T) bool {
 
 // GoTLSSupported returns true if GO-TLS monitoring is supported on the current OS.
 func GoTLSSupported(t *testing.T, cfg *config.Config) bool {
-	return http.TLSSupported(cfg) && (cfg.EnableRuntimeCompiler || cfg.EnableCORE) && !isFedora(t)
+	return usmconfig.TLSSupported(cfg) && (cfg.EnableRuntimeCompiler || cfg.EnableCORE) && !isFedora(t)
 }
