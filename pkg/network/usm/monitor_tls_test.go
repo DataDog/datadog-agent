@@ -42,6 +42,7 @@ import (
 	javatestutil "github.com/DataDog/datadog-agent/pkg/network/protocols/tls/java/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/tls/nodejs"
 	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
+	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
 	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	procmontestutil "github.com/DataDog/datadog-agent/pkg/process/monitor/testutil"
@@ -53,7 +54,7 @@ type tlsSuite struct {
 
 func TestTLSSuite(t *testing.T) {
 	ebpftest.TestBuildModes(t, []ebpftest.BuildMode{ebpftest.Prebuilt, ebpftest.RuntimeCompiled, ebpftest.CORE}, "", func(t *testing.T) {
-		if !http.TLSSupported(config.New()) {
+		if !usmconfig.TLSSupported(config.New()) {
 			t.Skip("TLS not supported for this setup")
 		}
 		suite.Run(t, new(tlsSuite))
@@ -252,7 +253,7 @@ func generateTemporaryFile(t *testing.T) string {
 func buildPrefetchFileBin(t *testing.T) string {
 	curDir, err := testutil.CurDir()
 	require.NoError(t, err)
-	serverBin, err := usmtestutil.BuildUnixTransparentProxyServer(filepath.Join(curDir, "testutil"), "prefetch_file")
+	serverBin, err := usmtestutil.BuildGoBinaryWrapper(filepath.Join(curDir, "testutil"), "prefetch_file")
 	require.NoError(t, err)
 	return serverBin
 }

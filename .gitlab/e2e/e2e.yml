@@ -157,8 +157,11 @@ new-e2e-containers:
     TEAM: container-integrations
   parallel:
     matrix:
-      - EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:kubernetesVersion=1.19"
-      - EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:kubernetesVersion=1.22"
+      # Temporarily disable old version of Kubernetes
+      # On those versions, the SSI admission controller injects a lib
+      # that breaks alpine images.
+      # - EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:kubernetesVersion=1.19"
+      # - EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:kubernetesVersion=1.22"
       - EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:kubernetesVersion=1.27"
       - EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:kubernetesVersion=1.29"
       - EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:osDescriptor=ubuntu:20.04"
@@ -216,6 +219,18 @@ new-e2e-agent-subcommands:
       - EXTRA_PARAMS: --run TestLinuxRunSuite
       - EXTRA_PARAMS: --run TestWindowsRunSuite
 
+new-e2e-windows-service-test:
+  extends: .new_e2e_template
+  needs:
+    - deploy_windows_testing-a7
+  rules:
+    - !reference [.on_windows_service_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/windows/service-test
+    TEAM: windows-agent
+    EXTRA_PARAMS: --run TestServiceBehavior
+
 new-e2e-language-detection:
   extends: .new_e2e_template_needs_deb_x64
   rules:
@@ -257,6 +272,7 @@ new-e2e-aml:
     - deploy_deb_testing-a7_x64
     - deploy_windows_testing-a7
     - qa_agent
+    - qa_dca
   rules:
     - !reference [.on_aml_or_e2e_changes]
     - !reference [.manual]
@@ -271,6 +287,7 @@ new-e2e-cws:
     - !reference [.manual]
   needs:
     - deploy_deb_testing-a7_x64
+    - deploy_windows_testing-a7
     - qa_cws_instrumentation
     - qa_agent
     - qa_dca
@@ -283,6 +300,7 @@ new-e2e-cws:
       - EXTRA_PARAMS: --run TestAgentSuite
       - EXTRA_PARAMS: --run TestECSFargate
       - EXTRA_PARAMS: --run TestKindSuite
+      - EXTRA_PARAMS: --run TestAgentWindowsSuite
   # Temporary, remove once we made sure the recent changes have no impact on the stability of these tests
   allow_failure: true
 
@@ -388,6 +406,7 @@ generate-flakes-finder-pipeline:
     - qa_agent
   tags: ["arch:amd64"]
   script:
+    - export GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITLAB_FULL_API_TOKEN_SSM_NAME)
     - inv -e testwasher.generate-flake-finder-pipeline
   artifacts:
     paths:

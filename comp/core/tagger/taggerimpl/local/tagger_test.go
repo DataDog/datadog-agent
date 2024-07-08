@@ -14,7 +14,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	taggerTelemetry "github.com/DataDog/datadog-agent/comp/core/tagger/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
@@ -30,9 +33,12 @@ func TestTagBuilder(t *testing.T) {
 		logimpl.MockModule(),
 		config.MockModule(),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmetafxmock.MockModuleV2(),
+		workloadmetafxmock.MockModule(),
 	))
-	tagger := NewTagger(store)
+
+	tel := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
+	telemetryStore := taggerTelemetry.NewStore(tel)
+	tagger := NewTagger(store, telemetryStore)
 	tagger.Start(context.Background())
 	defer tagger.Stop()
 

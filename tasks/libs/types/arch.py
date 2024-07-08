@@ -76,7 +76,7 @@ class Arch:
             raise ValueError(f"KMT arch not defined for {self.name}")
         return self._kmt_arch
 
-    def __eq__(self, other: Arch) -> bool:
+    def __eq__(self, other) -> bool:
         if not isinstance(other, Arch):
             return False
         return self.name == other.name

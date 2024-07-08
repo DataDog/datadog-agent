@@ -3,14 +3,17 @@ from __future__ import annotations
 import json
 import os
 import platform
+import re
 import subprocess
-from functools import lru_cache
+import sys
+from collections import UserList
 
 import gitlab
 import yaml
 from gitlab.v4.objects import Project, ProjectPipeline
 from invoke.exceptions import Exit
 
+from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.utils import retry_function
 
 BASE_URL = "https://gitlab.ddbuild.io"
@@ -84,36 +87,6 @@ def refresh_pipeline(pipeline: ProjectPipeline):
     pipeline.refresh()
 
 
-class ConfigNodeList(list):
-    """
-    Wrapper of list to allow hashing and lru cache
-    """
-
-    def __init__(self, *args, **kwargs) -> None:
-        super().__init__()
-        self.extend(*args, **kwargs)
-
-    def __hash__(self):
-        return id(self)
-
-
-class YamlReferenceTagList(ConfigNodeList):
-    pass
-
-
-class ConfigNodeDict(dict):
-    """
-    Wrapper of dict to allow hashing and lru cache
-    """
-
-    def __init__(self, *args, **kwargs) -> None:
-        super().__init__()
-        self.update(*args, **kwargs)
-
-    def __hash__(self):
-        return id(self)
-
-
 class ReferenceTag(yaml.YAMLObject):
     """
     Custom yaml tag to handle references in gitlab-ci configuration
@@ -126,156 +99,156 @@ class ReferenceTag(yaml.YAMLObject):
 
     @classmethod
     def from_yaml(cls, loader, node):
-        return YamlReferenceTagList(loader.construct_sequence(node))
+        return UserList(loader.construct_sequence(node))
 
     @classmethod
     def to_yaml(cls, dumper, data):
-        return dumper.represent_sequence(cls.yaml_tag, data, flow_style=True)
+        return dumper.represent_sequence(cls.yaml_tag, data.data, flow_style=True)
 
 
-def convert_to_config_node(json_data):
+# Update loader/dumper to handle !reference tag
+yaml.SafeLoader.add_constructor(ReferenceTag.yaml_tag, ReferenceTag.from_yaml)
+yaml.SafeDumper.add_representer(UserList, ReferenceTag.to_yaml)
+
+# HACK: The following line is a workaround to prevent yaml dumper from removing quote around comma separated numbers, otherwise Gitlab Lint API will remove the commas
+yaml.SafeDumper.add_implicit_resolver(
+    'tag:yaml.org,2002:int', re.compile(r'''^([0-9]+(,[0-9]*)*)$'''), list('0213456789')
+)
+
+
+def clean_gitlab_ci_configuration(yml):
     """
-    Convert json data to ConfigNode
-    """
-    if isinstance(json_data, dict):
-        return ConfigNodeDict({k: convert_to_config_node(v) for k, v in json_data.items()})
-    elif isinstance(json_data, list):
-        constructor = YamlReferenceTagList if isinstance(json_data, YamlReferenceTagList) else ConfigNodeList
-
-        return constructor([convert_to_config_node(v) for v in json_data])
-    else:
-        return json_data
-
-
-def convert_to_std_collections(config_node):
-    """
-    Convert ConfigNode to standard collections (list, dict)
-    """
-    if isinstance(config_node, ConfigNodeDict):
-        return {k: convert_to_std_collections(v) for k, v in config_node.items()}
-    elif isinstance(config_node, ConfigNodeList):
-        return [convert_to_std_collections(v) for v in config_node]
-    else:
-        return config_node
-
-
-def apply_yaml_extends(config: dict, node):
-    """
-    Applies `extends` yaml tags to the node and its children inplace
-
-    > Example:
-    Config:
-    ```yaml
-    .parent:
-        hello: world
-    node:
-        extends: .parent
-    ```
-
-    apply_yaml_extends(node) updates node to:
-    ```yaml
-    node:
-        hello: world
-    ```
-    """
-    # Ensure node is an object that can contain extends
-    if not isinstance(node, dict):
-        return
-
-    if 'extends' in node:
-        parents = node['extends']
-        if isinstance(parents, str):
-            parents = [parents]
-
-        # Merge parent
-        for parent_name in parents:
-            parent = config[parent_name]
-            apply_yaml_postprocessing(config, parent)
-            for key, value in parent.items():
-                if key not in node:
-                    node[key] = value
-                elif key in node and isinstance(node[key], dict) and isinstance(value, dict):
-                    node[key].update(value)
-
-        del node['extends']
-
-
-def apply_yaml_reference(config: dict, node):
-    """
-    Applies `!reference` gitlab yaml tags to the node and its children inplace
-
-    > Example:
-    Config:
-    ```yaml
-    .colors:
-        - red
-        - green
-        - blue
-    node:
-        colors: !reference [.colors]
-    ```
-
-    apply_yaml_extends(node) updates node to:
-    ```yaml
-    node:
-        colors:
-            - red
-            - green
-            - blue
-    ```
+    - Remove `extends` tags
+    - Flatten lists of lists
     """
 
-    def apply_ref(value):
+    def flatten(yml):
         """
-        Applies reference tags
+        Flatten lists (nesting due to !reference tags)
         """
-        if isinstance(value, YamlReferenceTagList):
-            assert value != [], 'Empty reference tag'
+        if isinstance(yml, list):
+            res = []
+            for v in yml:
+                if isinstance(v, list):
+                    res.extend(flatten(v))
+                else:
+                    res.append(v)
 
-            # !reference [a, b, c] means we are looking for config[a][b][c]
-            ref_value = config[value[0]]
-            for i in range(1, len(value)):
-                ref_value = ref_value[value[i]]
-
-            apply_yaml_postprocessing(config, ref_value)
-
-            return ref_value
+            return res
+        elif isinstance(yml, dict):
+            return {k: flatten(v) for k, v in yml.items()}
         else:
-            apply_yaml_postprocessing(config, value)
+            return yml
 
-            return value
+    # Remove extends
+    for content in yml.values():
+        if 'extends' in content:
+            del content['extends']
 
-    if isinstance(node, dict):
-        for key, value in node.items():
-            node[key] = apply_ref(value)
-    elif isinstance(node, list):
-        results = []
-        for value in node:
-            postprocessed_value = apply_ref(value)
-            # If list referenced within list, flatten lists
-            if isinstance(value, YamlReferenceTagList) and isinstance(postprocessed_value, list):
-                results.extend(postprocessed_value)
-            else:
-                results.append(postprocessed_value)
-        node.clear()
-        node.extend(results)
+    # Flatten
+    return flatten(yml)
 
 
-@lru_cache(maxsize=None)
-def apply_yaml_postprocessing(config: ConfigNodeDict, node):
-    if isinstance(node, dict):
-        for value in node.values():
-            apply_yaml_postprocessing(config, value)
-    elif isinstance(node, list):
-        for value in node:
-            apply_yaml_postprocessing(config, value)
+def filter_gitlab_ci_configuration(yml: dict, job: str | None = None) -> dict:
+    """
+    Filters gitlab-ci configuration jobs
 
-    apply_yaml_extends(config, node)
-    apply_yaml_reference(config, node)
+    - job: If provided, retrieve only this job
+    """
+
+    def filter_yaml(key, value):
+        # Not a job
+        if key.startswith('.') or 'script' not in value:
+            return None
+
+        if job is not None:
+            return (key, value) if key == job else None
+
+        return key, value
+
+    if job is not None:
+        assert job in yml, f"Job {job} not found in the configuration"
+
+    return {node[0]: node[1] for node in (filter_yaml(k, v) for k, v in yml.items()) if node is not None}
+
+
+def print_gitlab_ci_configuration(yml: dict, sort_jobs: bool):
+    """
+    Prints a gitlab ci as yaml.
+
+    - sort_jobs: Sort jobs by name (the job keys are always sorted)
+    """
+    jobs = yml.items()
+    if sort_jobs:
+        jobs = sorted(jobs)
+
+    for i, (job, content) in enumerate(jobs):
+        if i > 0:
+            print()
+        yaml.safe_dump({job: content}, sys.stdout, default_flow_style=False, sort_keys=True, indent=2)
+
+
+def get_full_gitlab_ci_configuration(
+    ctx,
+    input_file: str = '.gitlab-ci.yml',
+    return_dict: bool = True,
+    ignore_errors: bool = False,
+    git_ref: str | None = None,
+    input_config: dict | None = None,
+) -> str | dict:
+    """
+    Returns the full gitlab-ci configuration by resolving all includes and applying postprocessing (extends / !reference)
+    Uses the /lint endpoint from the gitlab api to apply postprocessing
+
+    - input_config: If not None, will use this config instead of parsing existing yaml file at `input_file`
+    """
+    if not input_config:
+        # Read includes
+        concat_config = read_includes(ctx, input_file, return_config=True, git_ref=git_ref)
+        assert concat_config
+    else:
+        concat_config = input_config
+
+    agent = get_gitlab_repo()
+    res = agent.ci_lint.create({"content": yaml.safe_dump(concat_config), "dry_run": True, "include_jobs": True})
+
+    if not ignore_errors and not res.valid:
+        errors = '; '.join(res.errors)
+        raise RuntimeError(f"{color_message('Invalid configuration', Color.RED)}: {errors}")
+
+    if return_dict:
+        return yaml.safe_load(res.merged_yaml)
+    else:
+        return res.merged_yaml
+
+
+def get_gitlab_ci_configuration(
+    ctx,
+    input_file: str = '.gitlab-ci.yml',
+    ignore_errors: bool = False,
+    job: str | None = None,
+    clean: bool = True,
+    git_ref: str | None = None,
+) -> dict:
+    """
+    Creates, filters and processes the gitlab-ci configuration
+    """
+
+    # Make full configuration
+    yml = get_full_gitlab_ci_configuration(ctx, input_file, ignore_errors=ignore_errors, git_ref=git_ref)
+
+    # Filter
+    yml = filter_gitlab_ci_configuration(yml, job)
+
+    # Clean
+    if clean:
+        yml = clean_gitlab_ci_configuration(yml)
+
+    return yml
 
 
 def generate_gitlab_full_configuration(
-    input_file, context=None, compare_to=None, return_dump=True, apply_postprocessing=False
+    ctx, input_file, context=None, compare_to=None, return_dump=True, apply_postprocessing=False
 ):
     """
     Generate a full gitlab-ci configuration by resolving all includes
@@ -286,11 +259,10 @@ def generate_gitlab_full_configuration(
     - return_dump: Whether to return the string dump or the dict object representing the configuration
     - apply_postprocessing: Whether or not to solve `extends` and `!reference` tags
     """
-    # Update loader/dumper to handle !reference tag
-    yaml.SafeLoader.add_constructor(ReferenceTag.yaml_tag, ReferenceTag.from_yaml)
-    yaml.SafeDumper.add_representer(YamlReferenceTagList, ReferenceTag.to_yaml)
-
-    full_configuration = read_includes(input_file, return_config=True)
+    if apply_postprocessing:
+        full_configuration = get_full_gitlab_ci_configuration(ctx, input_file)
+    else:
+        full_configuration = read_includes(None, input_file, return_config=True)
 
     # Override some variables with a dedicated context
     if context:
@@ -314,16 +286,10 @@ def generate_gitlab_full_configuration(
                     ):
                         v["changes"]["compare_to"] = compare_to
 
-    if apply_postprocessing:
-        # We have to use ConfigNode to allow hashing and lru cache
-        full_configuration = convert_to_config_node(full_configuration)
-        apply_yaml_postprocessing(full_configuration, full_configuration)
-
-    full_configuration = convert_to_std_collections(full_configuration)
     return yaml.safe_dump(full_configuration) if return_dump else full_configuration
 
 
-def read_includes(yaml_files, includes=None, return_config=False, add_file_path=False):
+def read_includes(ctx, yaml_files, includes=None, return_config=False, add_file_path=False, git_ref: str | None = None):
     """
     Recursive method to read all includes from yaml files and store them in a list
     - add_file_path: add the file path to each object of the parsed file
@@ -335,7 +301,7 @@ def read_includes(yaml_files, includes=None, return_config=False, add_file_path=
         yaml_files = [yaml_files]
 
     for yaml_file in yaml_files:
-        current_file = read_content(yaml_file)
+        current_file = read_content(ctx, yaml_file, git_ref=git_ref)
 
         if add_file_path:
             for value in current_file.values():
@@ -345,7 +311,7 @@ def read_includes(yaml_files, includes=None, return_config=False, add_file_path=
         if 'include' not in current_file:
             includes.append(current_file)
         else:
-            read_includes(current_file['include'], includes, add_file_path=add_file_path)
+            read_includes(ctx, current_file['include'], includes, add_file_path=add_file_path, git_ref=git_ref)
             del current_file['include']
             includes.append(current_file)
 
@@ -358,7 +324,7 @@ def read_includes(yaml_files, includes=None, return_config=False, add_file_path=
         return full_configuration
 
 
-def read_content(file_path):
+def read_content(ctx, file_path, git_ref: str | None = None):
     """
     Read the content of a file, either from a local file or from an http endpoint
     """
@@ -368,6 +334,8 @@ def read_content(file_path):
         response = requests.get(file_path)
         response.raise_for_status()
         content = response.text
+    elif git_ref:
+        content = ctx.run(f"git show '{git_ref}:{file_path}'", hide=True).stdout
     else:
         with open(file_path) as f:
             content = f.read()

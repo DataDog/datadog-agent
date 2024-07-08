@@ -259,7 +259,7 @@ func (suite *k8sSuite) TestClusterAgentConfigCheck() {
 		})
 		suite.Require().NoError(err)
 		suite.Require().Len(linuxPods.Items, 1)
-		stdout, stderr, err := suite.podExec("datadog", linuxPods.Items[0].Name, "cluster-agent", []string{"agent", "configcheck", "-n"})
+		stdout, stderr, err := suite.podExec("datadog", linuxPods.Items[0].Name, "cluster-agent", []string{"agent", "configcheck"})
 		suite.Require().NoError(err)
 		suite.Empty(stderr, "Standard error of `agent configcheck` should be empty")
 		suite.Contains(stdout, "=== kubernetes_apiserver check ===")
@@ -1091,17 +1091,21 @@ func (suite *k8sSuite) TestContainerLifecycleEvents() {
 		pods, err := suite.K8sClient.CoreV1().Pods("workload-nginx").List(context.Background(), metav1.ListOptions{
 			LabelSelector: fields.OneTermEqualSelector("app", "nginx").String(),
 			FieldSelector: fields.OneTermEqualSelector("status.phase", "Running").String(),
-			Limit:         1,
 		})
 		// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
 		if !assert.NoErrorf(c, err, "Failed to list nginx pods") {
 			return
 		}
-		if !assert.NotEmptyf(c, pods, "Failed to find an nginx pod") {
+		if !assert.NotEmptyf(c, pods.Items, "Failed to find an nginx pod") {
 			return
 		}
 
-		nginxPod = pods.Items[0]
+		// Choose the oldest pod.
+		// If we choose a pod that is too recent, there is a risk that we delete a pod that hasn’t been seen by the agent yet.
+		// So that no pod lifecycle event is sent.
+		nginxPod = lo.MinBy(pods.Items, func(item corev1.Pod, min corev1.Pod) bool {
+			return item.Status.StartTime.Before(min.Status.StartTime)
+		})
 	}, 1*time.Minute, 10*time.Second, "Failed to find an nginx pod")
 
 	err := suite.K8sClient.CoreV1().Pods("workload-nginx").Delete(context.Background(), nginxPod.Name, metav1.DeleteOptions{})
@@ -1232,7 +1236,9 @@ func (suite *k8sSuite) testHPA(namespace, deployment string) {
 	})
 }
 
-func (suite *k8sSuite) podExec(namespace, pod, container string, cmd []string) (stdout, stderr string, err error) {
+type podExecOption func(*corev1.PodExecOptions)
+
+func (suite *k8sSuite) podExec(namespace, pod, container string, cmd []string, podOptions ...podExecOption) (stdout, stderr string, err error) {
 	req := suite.K8sClient.CoreV1().RESTClient().Post().Resource("pods").Namespace(namespace).Name(pod).SubResource("exec")
 	option := &corev1.PodExecOptions{
 		Stdin:     false,
@@ -1241,6 +1247,10 @@ func (suite *k8sSuite) podExec(namespace, pod, container string, cmd []string) (
 		TTY:       false,
 		Container: container,
 		Command:   cmd,
+	}
+
+	for _, podOption := range podOptions {
+		podOption(option)
 	}
 
 	req.VersionedParams(

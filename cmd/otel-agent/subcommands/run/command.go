@@ -10,6 +10,10 @@ package run
 import (
 	"context"
 
+	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
+	"github.com/spf13/cobra"
+	"go.opentelemetry.io/collector/confmap"
+
 	agentConfig "github.com/DataDog/datadog-agent/cmd/otel-agent/config"
 	"github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
@@ -23,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
@@ -33,6 +38,7 @@ import (
 	collectorcontribFx "github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/fx"
 	collectordef "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
 	collectorfx "github.com/DataDog/datadog-agent/comp/otelcol/collector/fx"
+	configstorefx "github.com/DataDog/datadog-agent/comp/otelcol/configstore/fx"
 	converter "github.com/DataDog/datadog-agent/comp/otelcol/converter/def"
 	converterfx "github.com/DataDog/datadog-agent/comp/otelcol/converter/fx"
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
@@ -43,6 +49,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl/strategy"
 	tracecomp "github.com/DataDog/datadog-agent/comp/trace"
 	traceagentcomp "github.com/DataDog/datadog-agent/comp/trace/agent/impl"
+	gzipfx "github.com/DataDog/datadog-agent/comp/trace/compression/fx-gzip"
 	traceconfig "github.com/DataDog/datadog-agent/comp/trace/config"
 	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -51,9 +58,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
-	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
-	"github.com/spf13/cobra"
-	"go.opentelemetry.io/collector/confmap"
 
 	"go.uber.org/fx"
 )
@@ -107,6 +111,7 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 		fx.Provide(func(cp converter.Component) confmap.Converter {
 			return cp
 		}),
+		configstorefx.Module(),
 		fx.Provide(func() (coreconfig.Component, error) {
 			c, err := agentConfig.NewConfigComponent(context.Background(), params.ConfPaths)
 			if err != nil {
@@ -162,9 +167,11 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 
 		fx.Provide(tagger.NewTaggerParams),
 		taggerimpl.Module(),
+		telemetryimpl.Module(),
 		fx.Provide(func(cfg traceconfig.Component) telemetry.TelemetryCollector {
 			return telemetry.NewCollector(cfg.Object())
 		}),
+		gzipfx.Module(),
 
 		// ctx is required to be supplied from here, as Windows needs to inject its own context
 		// to allow the agent to work as a service.

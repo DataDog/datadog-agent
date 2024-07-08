@@ -174,6 +174,10 @@ func TestNewCollectorProcessQueueBytes(t *testing.T) {
 }
 
 func TestCollectorMessagesToCheckResult(t *testing.T) {
+	originalFlavor := flavor.GetFlavor()
+	defer flavor.SetFlavor(originalFlavor)
+	flavor.SetFlavor(flavor.ProcessAgent)
+
 	deps := newSubmitterDeps(t)
 	submitter, err := NewSubmitter(deps.Config, deps.Log, deps.Forwarders, testHostName)
 	assert.NoError(t, err)
@@ -203,6 +207,7 @@ func TestCollectorMessagesToCheckResult(t *testing.T) {
 				headers.ContentTypeHeader:    headers.ProtobufContentType,
 				headers.RequestIDHeader:      requestID,
 				headers.AgentStartTime:       strconv.Itoa(int(submitter.agentStartTime)),
+				headers.PayloadSource:        "process_agent",
 			},
 		},
 		{
@@ -219,6 +224,7 @@ func TestCollectorMessagesToCheckResult(t *testing.T) {
 				headers.ContainerCountHeader: "3",
 				headers.ContentTypeHeader:    headers.ProtobufContentType,
 				headers.AgentStartTime:       strconv.Itoa(int(submitter.agentStartTime)),
+				headers.PayloadSource:        "process_agent",
 			},
 		},
 		{
@@ -235,6 +241,7 @@ func TestCollectorMessagesToCheckResult(t *testing.T) {
 				headers.ContainerCountHeader: "2",
 				headers.ContentTypeHeader:    headers.ProtobufContentType,
 				headers.AgentStartTime:       strconv.Itoa(int(submitter.agentStartTime)),
+				headers.PayloadSource:        "process_agent",
 			},
 		},
 		{
@@ -251,6 +258,7 @@ func TestCollectorMessagesToCheckResult(t *testing.T) {
 				headers.ContainerCountHeader: "5",
 				headers.ContentTypeHeader:    headers.ProtobufContentType,
 				headers.AgentStartTime:       strconv.Itoa(int(submitter.agentStartTime)),
+				headers.PayloadSource:        "process_agent",
 			},
 		},
 		{
@@ -263,6 +271,7 @@ func TestCollectorMessagesToCheckResult(t *testing.T) {
 				headers.ContainerCountHeader: "0",
 				headers.ContentTypeHeader:    headers.ProtobufContentType,
 				headers.AgentStartTime:       strconv.Itoa(int(submitter.agentStartTime)),
+				headers.PayloadSource:        "process_agent",
 			},
 		},
 		{
@@ -277,6 +286,7 @@ func TestCollectorMessagesToCheckResult(t *testing.T) {
 				headers.EVPOriginHeader:        "process-agent",
 				headers.EVPOriginVersionHeader: version.AgentVersion,
 				headers.AgentStartTime:         strconv.Itoa(int(submitter.agentStartTime)),
+				headers.PayloadSource:          "process_agent",
 			},
 		},
 	}

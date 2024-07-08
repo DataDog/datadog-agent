@@ -11,7 +11,6 @@ import string
 import sys
 import tarfile
 import tempfile
-from itertools import chain
 from pathlib import Path
 from subprocess import check_output
 
@@ -329,7 +328,7 @@ def ninja_test_ebpf_programs(nw: NinjaWriter, build_dir):
     ebpf_c_dir = os.path.join(ebpf_bpf_dir, "testdata", "c")
     test_flags = "-g -DDEBUG=1"
 
-    test_programs = ["logdebug-test"]
+    test_programs = ["logdebug-test", "error_telemetry"]
 
     for prog in test_programs:
         infile = os.path.join(ebpf_c_dir, f"{prog}.c")
@@ -591,6 +590,7 @@ def build(
             debug=debug,
             strip_object_files=strip_object_files,
             with_unit_test=with_unit_test,
+            bundle_ebpf=bundle_ebpf,
         )
 
     build_sysprobe_binary(
@@ -927,7 +927,14 @@ def kitchen_prepare(ctx, kernel_release=None, ci=False, packages=""):
         if pkg.endswith("java"):
             shutil.copy(os.path.join(pkg, "agent-usm.jar"), os.path.join(target_path, "agent-usm.jar"))
 
-        for gobin in ["gotls_client", "grpc_external_server", "external_unix_proxy_server", "fmapper", "prefetch_file"]:
+        for gobin in [
+            "external_unix_proxy_server",
+            "fmapper",
+            "gotls_client",
+            "gotls_server",
+            "grpc_external_server",
+            "prefetch_file",
+        ]:
             src_file_path = os.path.join(pkg, f"{gobin}.go")
             if not is_windows and os.path.isdir(pkg) and os.path.isfile(src_file_path):
                 binary_path = os.path.join(target_path, gobin)
@@ -1187,12 +1194,14 @@ def get_linux_header_dirs(
     # Only get paths with maximum priority, those are the ones that match the best.
     # Note that there might be multiple of them (e.g., the arch-specific and the common path)
     max_priority = max(prio for prio, _, _ in paths_with_priority_and_sort_order)
-    linux_headers = [(path, ord) for prio, ord, path in paths_with_priority_and_sort_order if prio == max_priority]
+    unsorted_linux_headers = [
+        (path, ord) for prio, ord, path in paths_with_priority_and_sort_order if prio == max_priority
+    ]
 
     # Include sort order is important, ensure we respect the sort order we defined while
     # discovering the paths. Also, in case of equal sort order, sort by path name to ensure
     # a deterministic order (useful to stop ninja from rebuilding on reordering of headers).
-    linux_headers = [path for path, _ in sorted(linux_headers, key=lambda x: (x[1], x[0]))]
+    linux_headers = [path for path, _ in sorted(unsorted_linux_headers, key=lambda x: (x[1], x[0]))]
 
     # Now construct all subdirectories. Again, order is important, so keep the list
     subdirs = [
@@ -1405,12 +1414,14 @@ def verify_system_clang_version(ctx):
 
 
 @task
-def validate_object_file_metadata(ctx: Context, build_dir: str | Path = "pkg/ebpf/bytecode/build"):
+def validate_object_file_metadata(ctx: Context, build_dir: str | Path = "pkg/ebpf/bytecode/build", verbose=True):
     build_dir = Path(build_dir)
     missing_metadata_files = 0
+    total_metadata_files = 0
     print(f"Validating metadata of eBPF object files in {build_dir}...")
 
-    for file in chain(build_dir.glob("*.o"), build_dir.glob("co-re/*.o")):
+    for file in build_dir.glob("**/*.o"):
+        total_metadata_files += 1
         res = ctx.run(f"readelf -p dd_metadata {file}", warn=True, hide=True)
         if res is None or not res.ok:
             print(color_message(f"- {file}: missing metadata", "red"))
@@ -1423,15 +1434,16 @@ def validate_object_file_metadata(ctx: Context, build_dir: str | Path = "pkg/ebp
             missing_metadata_files += 1
             continue
 
-        metadata = ", ".join(f"{k}={v}" for k, v in groups)
-        print(color_message(f"- {file}: {metadata}", "green"))
+        if verbose:
+            metadata = ", ".join(f"{k}={v}" for k, v in groups)
+            print(color_message(f"- {file}: {metadata}", "green"))
 
     if missing_metadata_files > 0:
         raise Exit(
             f"{missing_metadata_files} object files are missing metadata. Remember to include the bpf_metadata.h header in all eBPF programs"
         )
     else:
-        print("All object files have valid metadata")
+        print(f"All {total_metadata_files} object files have valid metadata")
 
 
 def build_object_files(
@@ -1442,6 +1454,7 @@ def build_object_files(
     debug=False,
     strip_object_files=False,
     with_unit_test=False,
+    bundle_ebpf=False,
 ) -> None:
     arch_obj = Arch.from_str(arch)
     build_dir = get_ebpf_build_dir(arch_obj)
@@ -1471,7 +1484,10 @@ def build_object_files(
         arch=arch,
     )
 
-    validate_object_file_metadata(ctx, build_dir)
+    if bundle_ebpf:
+        copy_bundled_ebpf_files(ctx, arch=arch)
+
+    validate_object_file_metadata(ctx, build_dir, verbose=False)
 
     if not is_windows:
         sudo = "" if is_root() else "sudo"
@@ -1511,6 +1527,22 @@ def build_object_files(
                 ctx.run(f"{sudo} find ./ -maxdepth 1 -type f -name '*.c' {cp_cmd('runtime')}")
 
 
+def copy_bundled_ebpf_files(
+    ctx,
+    arch: str | Arch = CURRENT_ARCH,
+):
+    # If we're bundling eBPF files, we need to copy the ebpf files to the right location,
+    # as we cannot use the go:embed directive with variables that depend on the build architecture
+    arch = Arch.from_str(arch)
+    ebpf_build_dir = get_ebpf_build_dir(arch)
+
+    # Parse the files to copy from the go:embed directive, to avoid having duplicate places
+    # where the files are listed
+    ctx.run(
+        f"grep -E '^//go:embed' pkg/ebpf/bytecode/asset_reader_bindata.go | sed -E 's#//go:embed build/##' | xargs -I@ cp -v {ebpf_build_dir}/@ pkg/ebpf/bytecode/build/"
+    )
+
+
 def build_cws_object_files(
     ctx,
     major_version='7',
@@ -1532,16 +1564,7 @@ def build_cws_object_files(
     )
 
     if bundle_ebpf:
-        # If we're bundling eBPF files, we need to copy the ebpf files to the right location,
-        # as we cannot use the go:embed directive with variables that depend on the build architecture
-        arch = Arch.from_str(arch)
-        ebpf_build_dir = get_ebpf_build_dir(arch)
-
-        # Parse the files to copy from the go:embed directive, to avoid having duplicate places
-        # where the files are listed
-        ctx.run(
-            f"grep -E '^//go:embed' pkg/ebpf/bytecode/asset_reader_bindata.go | sed -E 's#//go:embed build/##' | xargs -I@ cp -v {ebpf_build_dir}/@ pkg/ebpf/bytecode/build/"
-        )
+        copy_bundled_ebpf_files(ctx, arch=arch)
 
 
 @task
