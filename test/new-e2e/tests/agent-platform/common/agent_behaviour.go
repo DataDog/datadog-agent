@@ -333,11 +333,10 @@ func CheckCWSBehaviour(t *testing.T, client *TestClient) {
 			connected, ok := runtimeStatus.(map[string]any)["connected"]
 			require.True(tt, ok, "connected should be present on the runtimeSecurityStatus")
 
-			c, ok := connected.(bool)
+			result, ok := connected.(bool)
 			require.True(tt, ok, "connected should be convertable to boolean")
 
-			if c {
-				result = c
+			if result {
 				break
 			}
 
