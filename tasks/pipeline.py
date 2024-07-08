@@ -1010,7 +1010,7 @@ def compare_to_itself(ctx):
     gh = GithubAPI()
     current_branch = ctx.run("git rev-parse --abbrev-ref HEAD", hide=True).stdout.strip()
     new_branch = f"compare/{current_branch}"
-    ctx.run(f"git switch -c {new_branch}", hide=True)
+    ctx.run(f"git checkout -b {new_branch}", hide=True)
     ctx.run(
         f"git remote set-url origin https://x-access-token:{gh._auth.token}@github.com/DataDog/datadog-agent.git",
         hide=True,
