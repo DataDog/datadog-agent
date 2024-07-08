@@ -444,8 +444,12 @@ def e2e_tests(ctx, target="gitlab", agent_image="", dca_image="", argo_workflow=
 @task
 def get_modified_packages(ctx, build_tags=None, lint=False) -> list[GoModule]:
     modified_files = get_modified_files(ctx)
+
     modified_go_files = [
-        f"./{file}" for file in modified_files if file.endswith(".go") or file.endswith(".mod") or file.endswith(".sum")
+        f"./{file}"
+        for file in modified_files
+        if file.find("unit-tests/testdata/components_src") == -1
+        and (file.endswith(".go") or file.endswith(".mod") or file.endswith(".sum"))
     ]
 
     if build_tags is None:
@@ -671,7 +675,8 @@ def get_impacted_packages(ctx, build_tags=None):
     modified_packages = {
         f"github.com/DataDog/datadog-agent/{os.path.dirname(file)}"
         for file in files
-        if file.endswith(".go") or file.endswith(".mod") or file.endswith(".sum")
+        if file.find("unit-tests/testdata/components_src") == -1
+        and (file.endswith(".go") or file.endswith(".mod") or file.endswith(".sum"))
     }
 
     # Modification to go.mod and go.sum should force the tests of the whole module to run
