@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 import tempfile
 
 import yaml
@@ -138,6 +139,15 @@ def gen_config_subset(ctx, jobs, dry_run=False, force=False):
     """
     Will generate a full .gitlab-ci.yml containing only the jobs necessary to run the target jobs
     """
+
+    print(
+        color_message(
+            'Warning: This task takes into account only explicit dependencies (job `needs` / `dependencies`), implicit dependencies (stages order) are ignored',
+            Color.ORANGE,
+        ),
+        file=sys.stderr,
+    )
+
     jobs_to_keep = ['cancel-prev-pipelines', 'github_rate_limit_info', 'setup_agent_version']
     attributes_to_keep = 'stages', 'variables', 'default', 'workflow'
 
