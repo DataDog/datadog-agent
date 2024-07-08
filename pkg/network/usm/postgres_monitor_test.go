@@ -113,7 +113,7 @@ func (s *postgresProtocolParsingSuite) TestLoadPostgresBinary() {
 
 func (s *postgresProtocolParsingSuite) TestDecoding() {
 	t := s.T()
-	// USMO-557
+	// USMON-1080
 	flake.Mark(t)
 
 	tests := []struct {
