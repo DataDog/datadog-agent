@@ -151,7 +151,7 @@ def send_count_metrics(
 
 
 BINARY_TO_TEST = ["serverless"]
-MisMacthBinary = namedtuple('failedBinary', ['binary', 'os', 'arch', 'differences'])
+MisMatchBinary = namedtuple('MisMatchBinary', ['binary', 'os', 'arch', 'differences'])
 
 
 @task
@@ -195,7 +195,7 @@ def test_list(
                     recorded_dependencies_lines = len(deps)
 
                     mismatch_binaries.add(
-                        MisMacthBinary(binary, goos, goarch, new_dependencies_lines - recorded_dependencies_lines)
+                        MisMatchBinary(binary, goos, goarch, new_dependencies_lines - recorded_dependencies_lines)
                     )
 
     if len(mismatch_binaries) > 0:

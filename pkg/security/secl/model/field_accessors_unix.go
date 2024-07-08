@@ -806,6 +806,78 @@ func (ev *Event) GetChownRetval() int64 {
 	return ev.Chown.SyscallEvent.Retval
 }
 
+// GetChownSyscallGid returns the value of the field, resolving if necessary
+func (ev *Event) GetChownSyscallGid() int {
+	if ev.GetEventType().String() != "chown" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsInt3(ev, &ev.Chown.SyscallContext)
+}
+
+// GetChownSyscallInt1 returns the value of the field, resolving if necessary
+func (ev *Event) GetChownSyscallInt1() int {
+	if ev.GetEventType().String() != "chown" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsInt1(ev, &ev.Chown.SyscallContext)
+}
+
+// GetChownSyscallInt2 returns the value of the field, resolving if necessary
+func (ev *Event) GetChownSyscallInt2() int {
+	if ev.GetEventType().String() != "chown" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsInt2(ev, &ev.Chown.SyscallContext)
+}
+
+// GetChownSyscallInt3 returns the value of the field, resolving if necessary
+func (ev *Event) GetChownSyscallInt3() int {
+	if ev.GetEventType().String() != "chown" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsInt3(ev, &ev.Chown.SyscallContext)
+}
+
+// GetChownSyscallPath returns the value of the field, resolving if necessary
+func (ev *Event) GetChownSyscallPath() string {
+	if ev.GetEventType().String() != "chown" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Chown.SyscallContext)
+}
+
+// GetChownSyscallStr1 returns the value of the field, resolving if necessary
+func (ev *Event) GetChownSyscallStr1() string {
+	if ev.GetEventType().String() != "chown" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Chown.SyscallContext)
+}
+
+// GetChownSyscallStr2 returns the value of the field, resolving if necessary
+func (ev *Event) GetChownSyscallStr2() string {
+	if ev.GetEventType().String() != "chown" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsStr2(ev, &ev.Chown.SyscallContext)
+}
+
+// GetChownSyscallStr3 returns the value of the field, resolving if necessary
+func (ev *Event) GetChownSyscallStr3() string {
+	if ev.GetEventType().String() != "chown" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsStr3(ev, &ev.Chown.SyscallContext)
+}
+
+// GetChownSyscallUid returns the value of the field, resolving if necessary
+func (ev *Event) GetChownSyscallUid() int {
+	if ev.GetEventType().String() != "chown" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsInt2(ev, &ev.Chown.SyscallContext)
+}
+
 // GetContainerCreatedAt returns the value of the field, resolving if necessary
 func (ev *Event) GetContainerCreatedAt() int {
 	if ev.BaseEvent.ContainerContext == nil {
@@ -3378,6 +3450,70 @@ func (ev *Event) GetLinkRetval() int64 {
 	return ev.Link.SyscallEvent.Retval
 }
 
+// GetLinkSyscallDestinationPath returns the value of the field, resolving if necessary
+func (ev *Event) GetLinkSyscallDestinationPath() string {
+	if ev.GetEventType().String() != "link" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsStr2(ev, &ev.Link.SyscallContext)
+}
+
+// GetLinkSyscallInt1 returns the value of the field, resolving if necessary
+func (ev *Event) GetLinkSyscallInt1() int {
+	if ev.GetEventType().String() != "link" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsInt1(ev, &ev.Link.SyscallContext)
+}
+
+// GetLinkSyscallInt2 returns the value of the field, resolving if necessary
+func (ev *Event) GetLinkSyscallInt2() int {
+	if ev.GetEventType().String() != "link" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsInt2(ev, &ev.Link.SyscallContext)
+}
+
+// GetLinkSyscallInt3 returns the value of the field, resolving if necessary
+func (ev *Event) GetLinkSyscallInt3() int {
+	if ev.GetEventType().String() != "link" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsInt3(ev, &ev.Link.SyscallContext)
+}
+
+// GetLinkSyscallPath returns the value of the field, resolving if necessary
+func (ev *Event) GetLinkSyscallPath() string {
+	if ev.GetEventType().String() != "link" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Link.SyscallContext)
+}
+
+// GetLinkSyscallStr1 returns the value of the field, resolving if necessary
+func (ev *Event) GetLinkSyscallStr1() string {
+	if ev.GetEventType().String() != "link" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Link.SyscallContext)
+}
+
+// GetLinkSyscallStr2 returns the value of the field, resolving if necessary
+func (ev *Event) GetLinkSyscallStr2() string {
+	if ev.GetEventType().String() != "link" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsStr2(ev, &ev.Link.SyscallContext)
+}
+
+// GetLinkSyscallStr3 returns the value of the field, resolving if necessary
+func (ev *Event) GetLinkSyscallStr3() string {
+	if ev.GetEventType().String() != "link" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsStr3(ev, &ev.Link.SyscallContext)
+}
+
 // GetLoadModuleArgs returns the value of the field, resolving if necessary
 func (ev *Event) GetLoadModuleArgs() string {
 	if ev.GetEventType().String() != "load_module" {
@@ -3994,6 +4130,78 @@ func (ev *Event) GetMountSourcePath() string {
 	return ev.FieldHandlers.ResolveMountSourcePath(ev, &ev.Mount)
 }
 
+// GetMountSyscallFsType returns the value of the field, resolving if necessary
+func (ev *Event) GetMountSyscallFsType() string {
+	if ev.GetEventType().String() != "mount" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsStr3(ev, &ev.Mount.SyscallContext)
+}
+
+// GetMountSyscallInt1 returns the value of the field, resolving if necessary
+func (ev *Event) GetMountSyscallInt1() int {
+	if ev.GetEventType().String() != "mount" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsInt1(ev, &ev.Mount.SyscallContext)
+}
+
+// GetMountSyscallInt2 returns the value of the field, resolving if necessary
+func (ev *Event) GetMountSyscallInt2() int {
+	if ev.GetEventType().String() != "mount" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsInt2(ev, &ev.Mount.SyscallContext)
+}
+
+// GetMountSyscallInt3 returns the value of the field, resolving if necessary
+func (ev *Event) GetMountSyscallInt3() int {
+	if ev.GetEventType().String() != "mount" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsInt3(ev, &ev.Mount.SyscallContext)
+}
+
+// GetMountSyscallMountpointPath returns the value of the field, resolving if necessary
+func (ev *Event) GetMountSyscallMountpointPath() string {
+	if ev.GetEventType().String() != "mount" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsStr2(ev, &ev.Mount.SyscallContext)
+}
+
+// GetMountSyscallSourcePath returns the value of the field, resolving if necessary
+func (ev *Event) GetMountSyscallSourcePath() string {
+	if ev.GetEventType().String() != "mount" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Mount.SyscallContext)
+}
+
+// GetMountSyscallStr1 returns the value of the field, resolving if necessary
+func (ev *Event) GetMountSyscallStr1() string {
+	if ev.GetEventType().String() != "mount" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Mount.SyscallContext)
+}
+
+// GetMountSyscallStr2 returns the value of the field, resolving if necessary
+func (ev *Event) GetMountSyscallStr2() string {
+	if ev.GetEventType().String() != "mount" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsStr2(ev, &ev.Mount.SyscallContext)
+}
+
+// GetMountSyscallStr3 returns the value of the field, resolving if necessary
+func (ev *Event) GetMountSyscallStr3() string {
+	if ev.GetEventType().String() != "mount" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsStr3(ev, &ev.Mount.SyscallContext)
+}
+
 // GetMprotectReqProtection returns the value of the field, resolving if necessary
 func (ev *Event) GetMprotectReqProtection() int {
 	if ev.GetEventType().String() != "mprotect" {
@@ -4088,6 +4296,78 @@ func (ev *Event) GetNetworkSourcePort() uint16 {
 		return uint16(0)
 	}
 	return ev.NetworkContext.Source.Port
+}
+
+// GetOndemandArg1Str returns the value of the field, resolving if necessary
+func (ev *Event) GetOndemandArg1Str() string {
+	if ev.GetEventType().String() != "ondemand" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveOnDemandArg1Str(ev, &ev.OnDemand)
+}
+
+// GetOndemandArg1Uint returns the value of the field, resolving if necessary
+func (ev *Event) GetOndemandArg1Uint() int {
+	if ev.GetEventType().String() != "ondemand" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveOnDemandArg1Uint(ev, &ev.OnDemand)
+}
+
+// GetOndemandArg2Str returns the value of the field, resolving if necessary
+func (ev *Event) GetOndemandArg2Str() string {
+	if ev.GetEventType().String() != "ondemand" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveOnDemandArg2Str(ev, &ev.OnDemand)
+}
+
+// GetOndemandArg2Uint returns the value of the field, resolving if necessary
+func (ev *Event) GetOndemandArg2Uint() int {
+	if ev.GetEventType().String() != "ondemand" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveOnDemandArg2Uint(ev, &ev.OnDemand)
+}
+
+// GetOndemandArg3Str returns the value of the field, resolving if necessary
+func (ev *Event) GetOndemandArg3Str() string {
+	if ev.GetEventType().String() != "ondemand" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveOnDemandArg3Str(ev, &ev.OnDemand)
+}
+
+// GetOndemandArg3Uint returns the value of the field, resolving if necessary
+func (ev *Event) GetOndemandArg3Uint() int {
+	if ev.GetEventType().String() != "ondemand" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveOnDemandArg3Uint(ev, &ev.OnDemand)
+}
+
+// GetOndemandArg4Str returns the value of the field, resolving if necessary
+func (ev *Event) GetOndemandArg4Str() string {
+	if ev.GetEventType().String() != "ondemand" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveOnDemandArg4Str(ev, &ev.OnDemand)
+}
+
+// GetOndemandArg4Uint returns the value of the field, resolving if necessary
+func (ev *Event) GetOndemandArg4Uint() int {
+	if ev.GetEventType().String() != "ondemand" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveOnDemandArg4Uint(ev, &ev.OnDemand)
+}
+
+// GetOndemandName returns the value of the field, resolving if necessary
+func (ev *Event) GetOndemandName() string {
+	if ev.GetEventType().String() != "ondemand" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveOnDemandName(ev, &ev.OnDemand)
 }
 
 // GetOpenFileChangeTime returns the value of the field, resolving if necessary
@@ -12749,6 +13029,70 @@ func (ev *Event) GetRenameRetval() int64 {
 	return ev.Rename.SyscallEvent.Retval
 }
 
+// GetRenameSyscallDestinationPath returns the value of the field, resolving if necessary
+func (ev *Event) GetRenameSyscallDestinationPath() string {
+	if ev.GetEventType().String() != "rename" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsStr2(ev, &ev.Rename.SyscallContext)
+}
+
+// GetRenameSyscallInt1 returns the value of the field, resolving if necessary
+func (ev *Event) GetRenameSyscallInt1() int {
+	if ev.GetEventType().String() != "rename" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsInt1(ev, &ev.Rename.SyscallContext)
+}
+
+// GetRenameSyscallInt2 returns the value of the field, resolving if necessary
+func (ev *Event) GetRenameSyscallInt2() int {
+	if ev.GetEventType().String() != "rename" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsInt2(ev, &ev.Rename.SyscallContext)
+}
+
+// GetRenameSyscallInt3 returns the value of the field, resolving if necessary
+func (ev *Event) GetRenameSyscallInt3() int {
+	if ev.GetEventType().String() != "rename" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsInt3(ev, &ev.Rename.SyscallContext)
+}
+
+// GetRenameSyscallPath returns the value of the field, resolving if necessary
+func (ev *Event) GetRenameSyscallPath() string {
+	if ev.GetEventType().String() != "rename" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Rename.SyscallContext)
+}
+
+// GetRenameSyscallStr1 returns the value of the field, resolving if necessary
+func (ev *Event) GetRenameSyscallStr1() string {
+	if ev.GetEventType().String() != "rename" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Rename.SyscallContext)
+}
+
+// GetRenameSyscallStr2 returns the value of the field, resolving if necessary
+func (ev *Event) GetRenameSyscallStr2() string {
+	if ev.GetEventType().String() != "rename" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsStr2(ev, &ev.Rename.SyscallContext)
+}
+
+// GetRenameSyscallStr3 returns the value of the field, resolving if necessary
+func (ev *Event) GetRenameSyscallStr3() string {
+	if ev.GetEventType().String() != "rename" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsStr3(ev, &ev.Rename.SyscallContext)
+}
+
 // GetRmdirFileChangeTime returns the value of the field, resolving if necessary
 func (ev *Event) GetRmdirFileChangeTime() uint64 {
 	if ev.GetEventType().String() != "rmdir" {
@@ -17911,6 +18255,78 @@ func (ev *Event) GetUnlinkRetval() int64 {
 	return ev.Unlink.SyscallEvent.Retval
 }
 
+// GetUnlinkSyscallDirfd returns the value of the field, resolving if necessary
+func (ev *Event) GetUnlinkSyscallDirfd() int {
+	if ev.GetEventType().String() != "unlink" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsInt1(ev, &ev.Unlink.SyscallContext)
+}
+
+// GetUnlinkSyscallFlags returns the value of the field, resolving if necessary
+func (ev *Event) GetUnlinkSyscallFlags() int {
+	if ev.GetEventType().String() != "unlink" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsInt3(ev, &ev.Unlink.SyscallContext)
+}
+
+// GetUnlinkSyscallInt1 returns the value of the field, resolving if necessary
+func (ev *Event) GetUnlinkSyscallInt1() int {
+	if ev.GetEventType().String() != "unlink" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsInt1(ev, &ev.Unlink.SyscallContext)
+}
+
+// GetUnlinkSyscallInt2 returns the value of the field, resolving if necessary
+func (ev *Event) GetUnlinkSyscallInt2() int {
+	if ev.GetEventType().String() != "unlink" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsInt2(ev, &ev.Unlink.SyscallContext)
+}
+
+// GetUnlinkSyscallInt3 returns the value of the field, resolving if necessary
+func (ev *Event) GetUnlinkSyscallInt3() int {
+	if ev.GetEventType().String() != "unlink" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsInt3(ev, &ev.Unlink.SyscallContext)
+}
+
+// GetUnlinkSyscallPath returns the value of the field, resolving if necessary
+func (ev *Event) GetUnlinkSyscallPath() string {
+	if ev.GetEventType().String() != "unlink" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsStr2(ev, &ev.Unlink.SyscallContext)
+}
+
+// GetUnlinkSyscallStr1 returns the value of the field, resolving if necessary
+func (ev *Event) GetUnlinkSyscallStr1() string {
+	if ev.GetEventType().String() != "unlink" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Unlink.SyscallContext)
+}
+
+// GetUnlinkSyscallStr2 returns the value of the field, resolving if necessary
+func (ev *Event) GetUnlinkSyscallStr2() string {
+	if ev.GetEventType().String() != "unlink" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsStr2(ev, &ev.Unlink.SyscallContext)
+}
+
+// GetUnlinkSyscallStr3 returns the value of the field, resolving if necessary
+func (ev *Event) GetUnlinkSyscallStr3() string {
+	if ev.GetEventType().String() != "unlink" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsStr3(ev, &ev.Unlink.SyscallContext)
+}
+
 // GetUnloadModuleName returns the value of the field, resolving if necessary
 func (ev *Event) GetUnloadModuleName() string {
 	if ev.GetEventType().String() != "unload_module" {
@@ -18093,4 +18509,60 @@ func (ev *Event) GetUtimesRetval() int64 {
 		return int64(0)
 	}
 	return ev.Utimes.SyscallEvent.Retval
+}
+
+// GetUtimesSyscallInt1 returns the value of the field, resolving if necessary
+func (ev *Event) GetUtimesSyscallInt1() int {
+	if ev.GetEventType().String() != "utimes" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsInt1(ev, &ev.Utimes.SyscallContext)
+}
+
+// GetUtimesSyscallInt2 returns the value of the field, resolving if necessary
+func (ev *Event) GetUtimesSyscallInt2() int {
+	if ev.GetEventType().String() != "utimes" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsInt2(ev, &ev.Utimes.SyscallContext)
+}
+
+// GetUtimesSyscallInt3 returns the value of the field, resolving if necessary
+func (ev *Event) GetUtimesSyscallInt3() int {
+	if ev.GetEventType().String() != "utimes" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsInt3(ev, &ev.Utimes.SyscallContext)
+}
+
+// GetUtimesSyscallPath returns the value of the field, resolving if necessary
+func (ev *Event) GetUtimesSyscallPath() string {
+	if ev.GetEventType().String() != "utimes" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Utimes.SyscallContext)
+}
+
+// GetUtimesSyscallStr1 returns the value of the field, resolving if necessary
+func (ev *Event) GetUtimesSyscallStr1() string {
+	if ev.GetEventType().String() != "utimes" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Utimes.SyscallContext)
+}
+
+// GetUtimesSyscallStr2 returns the value of the field, resolving if necessary
+func (ev *Event) GetUtimesSyscallStr2() string {
+	if ev.GetEventType().String() != "utimes" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsStr2(ev, &ev.Utimes.SyscallContext)
+}
+
+// GetUtimesSyscallStr3 returns the value of the field, resolving if necessary
+func (ev *Event) GetUtimesSyscallStr3() string {
+	if ev.GetEventType().String() != "utimes" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsStr3(ev, &ev.Utimes.SyscallContext)
 }

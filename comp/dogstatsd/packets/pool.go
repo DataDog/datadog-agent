@@ -24,11 +24,14 @@ import (
 type Pool struct {
 	pool *ddsync.TypedPool[Packet]
 	// telemetry
-	tlmEnabled bool
+	tlmEnabled       bool
+	packetsTelemetry *TelemetryStore
 }
 
+var usedByTestTelemetry = false
+
 // NewPool creates a new pool with a specified buffer size
-func NewPool(bufferSize int) *Pool {
+func NewPool(bufferSize int, packetsTelemetry *TelemetryStore) *Pool {
 	return &Pool{
 		pool: ddsync.NewTypedPool(func() *Packet {
 			packet := &Packet{
@@ -39,15 +42,16 @@ func NewPool(bufferSize int) *Pool {
 			return packet
 		}),
 		// telemetry
-		tlmEnabled: utils.IsTelemetryEnabled(config.Datadog()),
+		tlmEnabled:       usedByTestTelemetry || utils.IsTelemetryEnabled(config.Datadog()),
+		packetsTelemetry: packetsTelemetry,
 	}
 }
 
 // Get gets a Packet object read for use.
 func (p *Pool) Get() *Packet {
 	if p.tlmEnabled {
-		tlmPoolGet.Inc()
-		tlmPool.Inc()
+		p.packetsTelemetry.tlmPoolGet.Inc()
+		p.packetsTelemetry.tlmPool.Inc()
 	}
 	return p.pool.Get()
 }
@@ -62,8 +66,8 @@ func (p *Pool) Put(packet *Packet) {
 		packet.Origin = NoOrigin
 	}
 	if p.tlmEnabled {
-		tlmPoolPut.Inc()
-		tlmPool.Dec()
+		p.packetsTelemetry.tlmPoolPut.Inc()
+		p.packetsTelemetry.tlmPool.Dec()
 	}
 	p.pool.Put(packet)
 }

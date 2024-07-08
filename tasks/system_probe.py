@@ -11,7 +11,6 @@ import string
 import sys
 import tarfile
 import tempfile
-from itertools import chain
 from pathlib import Path
 from subprocess import check_output
 
@@ -329,7 +328,7 @@ def ninja_test_ebpf_programs(nw: NinjaWriter, build_dir):
     ebpf_c_dir = os.path.join(ebpf_bpf_dir, "testdata", "c")
     test_flags = "-g -DDEBUG=1"
 
-    test_programs = ["logdebug-test"]
+    test_programs = ["logdebug-test", "error_telemetry"]
 
     for prog in test_programs:
         infile = os.path.join(ebpf_c_dir, f"{prog}.c")
@@ -1195,12 +1194,14 @@ def get_linux_header_dirs(
     # Only get paths with maximum priority, those are the ones that match the best.
     # Note that there might be multiple of them (e.g., the arch-specific and the common path)
     max_priority = max(prio for prio, _, _ in paths_with_priority_and_sort_order)
-    linux_headers = [(path, ord) for prio, ord, path in paths_with_priority_and_sort_order if prio == max_priority]
+    unsorted_linux_headers = [
+        (path, ord) for prio, ord, path in paths_with_priority_and_sort_order if prio == max_priority
+    ]
 
     # Include sort order is important, ensure we respect the sort order we defined while
     # discovering the paths. Also, in case of equal sort order, sort by path name to ensure
     # a deterministic order (useful to stop ninja from rebuilding on reordering of headers).
-    linux_headers = [path for path, _ in sorted(linux_headers, key=lambda x: (x[1], x[0]))]
+    linux_headers = [path for path, _ in sorted(unsorted_linux_headers, key=lambda x: (x[1], x[0]))]
 
     # Now construct all subdirectories. Again, order is important, so keep the list
     subdirs = [
@@ -1413,12 +1414,14 @@ def verify_system_clang_version(ctx):
 
 
 @task
-def validate_object_file_metadata(ctx: Context, build_dir: str | Path = "pkg/ebpf/bytecode/build"):
+def validate_object_file_metadata(ctx: Context, build_dir: str | Path = "pkg/ebpf/bytecode/build", verbose=True):
     build_dir = Path(build_dir)
     missing_metadata_files = 0
+    total_metadata_files = 0
     print(f"Validating metadata of eBPF object files in {build_dir}...")
 
-    for file in chain(build_dir.glob("*.o"), build_dir.glob("co-re/*.o")):
+    for file in build_dir.glob("**/*.o"):
+        total_metadata_files += 1
         res = ctx.run(f"readelf -p dd_metadata {file}", warn=True, hide=True)
         if res is None or not res.ok:
             print(color_message(f"- {file}: missing metadata", "red"))
@@ -1431,15 +1434,16 @@ def validate_object_file_metadata(ctx: Context, build_dir: str | Path = "pkg/ebp
             missing_metadata_files += 1
             continue
 
-        metadata = ", ".join(f"{k}={v}" for k, v in groups)
-        print(color_message(f"- {file}: {metadata}", "green"))
+        if verbose:
+            metadata = ", ".join(f"{k}={v}" for k, v in groups)
+            print(color_message(f"- {file}: {metadata}", "green"))
 
     if missing_metadata_files > 0:
         raise Exit(
             f"{missing_metadata_files} object files are missing metadata. Remember to include the bpf_metadata.h header in all eBPF programs"
         )
     else:
-        print("All object files have valid metadata")
+        print(f"All {total_metadata_files} object files have valid metadata")
 
 
 def build_object_files(
@@ -1483,7 +1487,7 @@ def build_object_files(
     if bundle_ebpf:
         copy_bundled_ebpf_files(ctx, arch=arch)
 
-    validate_object_file_metadata(ctx, build_dir)
+    validate_object_file_metadata(ctx, build_dir, verbose=False)
 
     if not is_windows:
         sudo = "" if is_root() else "sudo"

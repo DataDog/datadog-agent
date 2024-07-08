@@ -164,15 +164,15 @@ variables:
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to _test_only
   DATADOG_AGENT_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BUILDIMAGES: v37111741-34301f4a
+  DATADOG_AGENT_BUILDIMAGES: v38375519-53773733
   DATADOG_AGENT_WINBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_WINBUILDIMAGES: v37111741-34301f4a
+  DATADOG_AGENT_WINBUILDIMAGES: v38375519-53773733
   DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_ARMBUILDIMAGES: v37111741-34301f4a
+  DATADOG_AGENT_ARMBUILDIMAGES: v38375519-53773733
   DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v37111741-34301f4a
+  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v38375519-53773733
   DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v37111741-34301f4a
+  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v38375519-53773733
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
   DEB_GPG_KEY_ID: c0962c7d
@@ -219,6 +219,7 @@ variables:
   KITCHEN_AZURE_TENANT_ID_SSM_NAME: ci.datadog-agent.azure_kitchen_tenant_id  # agent-devx-loops
   GITLAB_SCHEDULER_TOKEN_SSM_NAME: ci.datadog-agent.gitlab_pipelines_scheduler_token  # ci-cd
   GITLAB_READ_API_TOKEN_SSM_NAME: ci.datadog-agent.gitlab_read_api_token  # ci-cd
+  GITLAB_FULL_API_TOKEN_SSM_NAME: ci.datadog-agent.gitlab_full_api_token  # ci-cd
   INSTALL_SCRIPT_API_KEY_SSM_NAME: ci.agent-linux-install-script.datadog_api_key  # agent-delivery
   JIRA_READ_API_TOKEN_SSM_NAME: ci.datadog-agent.jira_read_api_token  # agent-devx-infra
   MACOS_GITHUB_APP_ID_SSM_NAME: ci.datadog-agent.macos_github_app_id  # agent-devx-infra
@@ -995,6 +996,18 @@ workflow:
     when: on_success
   - when: manual
     allow_failure: true
+
+.on_windows_service_or_e2e_changes:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        - cmd/**/*
+        - pkg/util/winutil/servicemain/**/*
+        - pkg/util/winutil/messagestrings/**/*
+        - tasks/windows_resources.py
+        - test/new-e2e/tests/windows/service-test/**/*
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+    when: on_success
 
 .on_trace_agent_changes_or_manual:
   - !reference [.except_mergequeue]
