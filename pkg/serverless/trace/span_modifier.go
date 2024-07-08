@@ -59,6 +59,7 @@ func (s *spanModifier) ModifySpan(_ *pb.TraceChunk, span *pb.Span) {
 	}
 }
 
+// SetTags TODO
 func (s *spanModifier) SetTags(tags map[string]string) {
 	s.tags = tags
 }

@@ -123,6 +123,7 @@ type Agent struct {
 	firstSpanMap sync.Map
 }
 
+// SpanModifier TODO
 type SpanModifier interface {
 	ModifySpan(*pb.TraceChunk, *pb.Span)
 }

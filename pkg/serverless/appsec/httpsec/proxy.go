@@ -318,6 +318,7 @@ type appsecSpanModifier struct {
 	ctx     ExecutionContext
 }
 
+// ModifySpan TODO
 func (a *appsecSpanModifier) ModifySpan(chunk *pb.TraceChunk, span *pb.Span) {
 	if a.wrapped != nil {
 		a.wrapped.ModifySpan(chunk, span)
@@ -329,6 +330,7 @@ type taggable interface {
 	SetTags(map[string]string)
 }
 
+// SetTags TODO
 func (a *appsecSpanModifier) SetTags(tags map[string]string) {
 	if tagger, ok := a.wrapped.(taggable); ok {
 		tagger.SetTags(tags)

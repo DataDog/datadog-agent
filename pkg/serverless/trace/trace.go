@@ -147,6 +147,7 @@ func (t *serverlessTraceAgent) Flush() {
 	t.ta.FlushSync()
 }
 
+// Process TODO
 func (t *serverlessTraceAgent) Process(p *api.Payload) {
 	t.ta.Process(p)
 }
@@ -163,14 +164,17 @@ func (t *serverlessTraceAgent) SetTags(tags map[string]string) {
 	}
 }
 
+// SetTargetTPS TODO
 func (t *serverlessTraceAgent) SetTargetTPS(tps float64) {
 	t.ta.PrioritySampler.UpdateTargetTPS(tps)
 }
 
+// SetSpanModifier TODO
 func (t *serverlessTraceAgent) SetSpanModifier(sm agent.SpanModifier) {
 	t.ta.SpanModifier = sm
 }
 
+// GetSpanModifier TODO
 func (t *serverlessTraceAgent) GetSpanModifier() agent.SpanModifier {
 	return t.ta.SpanModifier
 }
@@ -246,10 +250,10 @@ func getDDOrigin() string {
 
 type noopTraceAgent struct{}
 
-func (t noopTraceAgent) Stop()                                 {}
-func (t noopTraceAgent) Flush()                                {}
-func (t noopTraceAgent) Process(p *api.Payload)                {}
-func (t noopTraceAgent) SetTags(tags map[string]string)        {}
-func (t noopTraceAgent) SetTargetTPS(tps float64)              {}
-func (t noopTraceAgent) SetSpanModifier(sm agent.SpanModifier) {}
-func (t noopTraceAgent) GetSpanModifier() agent.SpanModifier   { return nil }
+func (t noopTraceAgent) Stop()                               {}
+func (t noopTraceAgent) Flush()                              {}
+func (t noopTraceAgent) Process(*api.Payload)                {}
+func (t noopTraceAgent) SetTags(map[string]string)           {}
+func (t noopTraceAgent) SetTargetTPS(float64)                {}
+func (t noopTraceAgent) SetSpanModifier(agent.SpanModifier)  {}
+func (t noopTraceAgent) GetSpanModifier() agent.SpanModifier { return nil }
