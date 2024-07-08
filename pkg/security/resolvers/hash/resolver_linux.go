@@ -260,6 +260,15 @@ func (resolver *Resolver) hash(eventType model.EventType, process *model.Process
 		}
 	}
 
+	// check the rate limiter
+	rateReservation := resolver.limiter.Reserve()
+	if !rateReservation.OK() {
+		// better luck next time
+		resolver.hashMiss[eventType][model.HashWasRateLimited].Inc()
+		file.HashState = model.HashWasRateLimited
+		return
+	}
+
 	rootPIDs := []uint32{process.Pid}
 	if resolver.cgroupResolver != nil {
 		w, ok := resolver.cgroupResolver.GetWorkload(process.ContainerID)
@@ -295,6 +304,7 @@ func (resolver *Resolver) hash(eventType model.EventType, process *model.Process
 		failedCache[fkey] = struct{}{}
 	}
 	if lastErr != nil {
+		rateReservation.Cancel()
 		if os.IsNotExist(lastErr) {
 			file.HashState = model.FileNotFound
 			resolver.hashMiss[eventType][model.FileNotFound].Inc()
@@ -311,6 +321,7 @@ func (resolver *Resolver) hash(eventType model.EventType, process *model.Process
 	}
 
 	if f == nil {
+		rateReservation.Cancel()
 		file.HashState = model.FileNotFound
 		resolver.hashMiss[eventType][model.FileNotFound].Inc()
 		return
@@ -319,6 +330,7 @@ func (resolver *Resolver) hash(eventType model.EventType, process *model.Process
 
 	// is the file size above the configured limit
 	if size > resolver.opts.MaxFileSize {
+		rateReservation.Cancel()
 		resolver.hashMiss[eventType][model.FileTooBig].Inc()
 		file.HashState = model.FileTooBig
 		return
@@ -326,16 +338,9 @@ func (resolver *Resolver) hash(eventType model.EventType, process *model.Process
 
 	// is the file empty ?
 	if size == 0 {
+		rateReservation.Cancel()
 		resolver.hashMiss[eventType][model.FileEmpty].Inc()
 		file.HashState = model.FileEmpty
-		return
-	}
-
-	// check the rate limiter
-	if !resolver.limiter.Allow() {
-		// better luck next time
-		resolver.hashMiss[eventType][model.HashWasRateLimited].Inc()
-		file.HashState = model.HashWasRateLimited
 		return
 	}
 
