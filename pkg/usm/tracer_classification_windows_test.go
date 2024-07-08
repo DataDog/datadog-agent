@@ -20,7 +20,7 @@ func classificationSupported(_ *config.Config) bool {
 }
 
 func TestProtocolClassification(t *testing.T) {
-	cfg := testConfig()
+	cfg := tracertestutil.Config()
 	if !classificationSupported(cfg) {
 		t.Skip("Classification is not supported")
 	}

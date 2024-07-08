@@ -578,7 +578,7 @@ func (s *TracerSuite) TestUnconnectedUDPSendIPv6() {
 	require.NoError(t, err)
 
 	connections := getConnections(t, tr)
-	outgoing := searchConnections(connections, func(cs network.ConnectionStats) bool {
+	outgoing := network.FilterConnections(connections, func(cs network.ConnectionStats) bool {
 		return cs.DPort == uint16(remotePort)
 	})
 
@@ -1109,7 +1109,7 @@ func (s *TracerSuite) TestSelfConnect() {
 	t.Logf("port is %d", port)
 
 	require.Eventually(t, func() bool {
-		conns := searchConnections(getConnections(t, tr), func(cs network.ConnectionStats) bool {
+		conns := network.FilterConnections(getConnections(t, tr), func(cs network.ConnectionStats) bool {
 			return cs.SPort == uint16(port) && cs.DPort == uint16(port) && cs.Source.IsLoopback() && cs.Dest.IsLoopback()
 		})
 
@@ -1242,7 +1242,7 @@ func (s *TracerSuite) TestUDPPythonReusePort() {
 	conns := map[string]network.ConnectionStats{}
 	buf := make([]byte, network.ConnectionByteKeyMaxLen)
 	require.Eventually(t, func() bool {
-		_conns := searchConnections(getConnections(t, tr), func(cs network.ConnectionStats) bool {
+		_conns := network.FilterConnections(getConnections(t, tr), func(cs network.ConnectionStats) bool {
 			return cs.Type == network.UDP &&
 				cs.Source.IsLoopback() &&
 				cs.Dest.IsLoopback() &&

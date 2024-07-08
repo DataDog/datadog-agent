@@ -300,7 +300,7 @@ func waitForConnectionsWithProtocol(t *testing.T, tr *tracer.Tracer, targetAddr,
 	failed := !assert.Eventually(t, func() bool {
 		conns := getConnections(t, tr)
 		if outgoing == nil {
-			for _, c := range searchConnections(conns, func(cs network.ConnectionStats) bool {
+			for _, c := range network.FilterConnections(conns, func(cs network.ConnectionStats) bool {
 				return cs.Direction == network.OUTGOING && cs.Type == network.TCP && fmt.Sprintf("%s:%d", cs.Dest, cs.DPort) == targetAddr
 			}) {
 				t.Logf("found potential outgoing connection %+v", c)
@@ -313,7 +313,7 @@ func waitForConnectionsWithProtocol(t *testing.T, tr *tracer.Tracer, targetAddr,
 		}
 
 		if incoming == nil {
-			for _, c := range searchConnections(conns, func(cs network.ConnectionStats) bool {
+			for _, c := range network.FilterConnections(conns, func(cs network.ConnectionStats) bool {
 				return cs.Direction == network.INCOMING && cs.Type == network.TCP && fmt.Sprintf("%s:%d", cs.Source, cs.SPort) == serverAddr
 			}) {
 				t.Logf("found potential incoming connection %+v", c)

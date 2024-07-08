@@ -114,10 +114,6 @@ func getConnections(t require.TestingT, tr *tracer.Tracer) *network.Connections 
 	return connections
 }
 
-func searchConnections(c *network.Connections, predicate func(network.ConnectionStats) bool) []network.ConnectionStats {
-	return network.FilterConnections(c, predicate)
-}
-
 func httpSupported() bool {
 	if ebpftest.GetBuildMode() == ebpftest.Fentry {
 		return false

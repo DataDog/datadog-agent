@@ -716,10 +716,6 @@ func findConnection(l, r net.Addr, c *network.Connections) (*network.ConnectionS
 	return res, res != nil
 }
 
-func searchConnections(c *network.Connections, predicate func(network.ConnectionStats) bool) []network.ConnectionStats {
-	return network.FilterConnections(c, predicate)
-}
-
 func runBenchtests(b *testing.B, payloads []int, prefix string, f func(p int) func(*testing.B)) {
 	for _, p := range payloads {
 		name := strings.TrimSpace(strings.Join([]string{prefix, strconv.Itoa(p), "bytes"}, " "))
@@ -1112,7 +1108,7 @@ func (s *TracerSuite) TestUnconnectedUDPSendIPv4() {
 	require.NoError(t, err)
 
 	connections := getConnections(t, tr)
-	outgoing := searchConnections(connections, func(cs network.ConnectionStats) bool {
+	outgoing := network.FilterConnections(connections, func(cs network.ConnectionStats) bool {
 		return cs.DPort == uint16(remotePort)
 	})
 
@@ -1138,7 +1134,7 @@ func (s *TracerSuite) TestConnectedUDPSendIPv6() {
 	require.NoError(t, err)
 
 	connections := getConnections(t, tr)
-	outgoing := searchConnections(connections, func(cs network.ConnectionStats) bool {
+	outgoing := network.FilterConnections(connections, func(cs network.ConnectionStats) bool {
 		return cs.DPort == uint16(remotePort)
 	})
 
@@ -1185,12 +1181,12 @@ func (s *TracerSuite) TestTCPDirection() {
 	require.Eventuallyf(t, func() bool {
 		conns := getConnections(t, tr)
 		if len(outgoingConns) == 0 {
-			outgoingConns = searchConnections(conns, func(cs network.ConnectionStats) bool {
+			outgoingConns = network.FilterConnections(conns, func(cs network.ConnectionStats) bool {
 				return fmt.Sprintf("%s:%d", cs.Dest, cs.DPort) == serverAddr
 			})
 		}
 		if len(incomingConns) == 0 {
-			incomingConns = searchConnections(conns, func(cs network.ConnectionStats) bool {
+			incomingConns = network.FilterConnections(conns, func(cs network.ConnectionStats) bool {
 				return fmt.Sprintf("%s:%d", cs.Source, cs.SPort) == serverAddr
 			})
 		}
