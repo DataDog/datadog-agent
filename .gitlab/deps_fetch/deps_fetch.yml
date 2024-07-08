@@ -101,7 +101,7 @@ go_e2e_deps:
   cache:
     - key:
         files:
-          - ./**/go.mod
+          - ./test/new-e2e/go.mod
         prefix: "go_e2e_deps"
       paths:
         - modcache_e2e.tar.xz
