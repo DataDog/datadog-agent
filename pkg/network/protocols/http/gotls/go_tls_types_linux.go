@@ -22,11 +22,7 @@ type GoroutineIDMetadata struct {
 	Runtime_g_in_register     uint8
 	Pad_cgo_0                 [7]byte
 }
-type TlsBinaryId struct {
-	Id_major uint32
-	Id_minor uint32
-	Ino      uint64
-}
+
 type TlsConnLayout struct {
 	Tls_conn_inner_conn_offset     uint64
 	Tcp_conn_inner_conn_offset     uint64
