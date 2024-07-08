@@ -146,7 +146,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.56.0-rc.1
 	github.com/DataDog/datadog-go/v5 v5.5.0
 	github.com/DataDog/datadog-operator v0.7.1-0.20240627103854-fe86c2214d4c
-	github.com/DataDog/ebpf-manager v0.6.1
+	github.com/DataDog/ebpf-manager v0.7.0
 	github.com/DataDog/gopsutil v1.2.2
 	github.com/DataDog/nikos v1.12.4
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.17.0
@@ -175,7 +175,7 @@ require (
 	github.com/cenkalti/backoff v2.2.1+incompatible
 	github.com/cenkalti/backoff/v4 v4.3.0
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575
-	github.com/cilium/ebpf v0.15.0
+	github.com/cilium/ebpf v0.15.1-0.20240624161703-13a828e0263f
 	github.com/clbanning/mxj v1.8.4
 	github.com/containerd/containerd v1.7.17
 	github.com/containernetworking/cni v1.2.0
@@ -297,7 +297,7 @@ require (
 	golang.org/x/exp v0.0.0-20240506185415-9bf2ced13842
 	golang.org/x/net v0.26.0
 	golang.org/x/sync v0.7.0
-	golang.org/x/sys v0.21.0
+	golang.org/x/sys v0.22.0
 	golang.org/x/text v0.16.0
 	golang.org/x/time v0.5.0
 	golang.org/x/tools v0.22.0

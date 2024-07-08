@@ -93,8 +93,6 @@ func SetupHandler(eventHandler ebpf.EventHandler, mgr *ebpf.Manager, cfg *config
 				RecordGetter:     handler.RecordGetter,
 				RecordHandler:    handler.RecordHandler,
 				TelemetryEnabled: cfg.InternalTelemetryEnabled,
-				// RingBufferSize is not used yet by the manager, we use a map editor to set it in the tracer
-				RingBufferSize: ringSize,
 			},
 		}
 		mgr.RingBuffers = append(mgr.RingBuffers, rb)
