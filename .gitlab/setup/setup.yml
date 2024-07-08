@@ -13,6 +13,7 @@ github_rate_limit_info:
   stage: .pre
   variables:
     GIT_DEPTH: 0
+    GIT_STRATEGY: fetch
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   rules:
