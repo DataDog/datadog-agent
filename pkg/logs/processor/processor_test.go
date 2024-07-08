@@ -309,6 +309,10 @@ func TestGetHostname(t *testing.T) {
 func TestBuffering(t *testing.T) {
 	assert := assert.New(t)
 
+	if !sds.SDSEnabled { // should not run when SDS is not builtin.
+		return
+	}
+
 	hostnameComponent, _ := hostnameinterface.NewMock("testHostnameFromEnvVar")
 
 	p := &Processor{
@@ -420,7 +424,6 @@ func TestBuffering(t *testing.T) {
 	}
 
 	p.ReconfigChan <- order
-
 	resp = <-order.ResponseChan
 
 	assert.Nil(resp.Err)
