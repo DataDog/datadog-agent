@@ -25,21 +25,23 @@ import (
 )
 
 var flakyTestFile string
+var codeownersFile string
 
 const (
-	flakyFormat = "FLAKY: %s %s\n"
-	failFormat  = "FAIL: %s %s\n"
-	rerunFormat = "re-ran %s %s: %s\n"
+	flakyFormat = "FLAKY: %s %s"
+	failFormat  = "FAIL: %s %s"
+	rerunFormat = "re-ran %s %s: %s"
 )
 
 func init() {
 	color.NoColor = false
 	flag.StringVar(&flakyTestFile, "flakes", "", "Path to flaky test file")
+	flag.StringVar(&codeownersFile, "codeowners", "", "Path to CODEOWNERS file")
 }
 
 func main() {
 	flag.Parse()
-	out, err := reviewTests("/ci-visibility/testjson/out.json", flakyTestFile)
+	out, err := reviewTests("/tmp/out.json", flakyTestFile, codeownersFile)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -80,7 +82,7 @@ type reviewOutput struct {
 	Flaky  string
 }
 
-func reviewTests(jsonFile string, flakyFile string) (*reviewOutput, error) {
+func reviewTests(jsonFile string, flakyFile string, ownersFile string) (*reviewOutput, error) {
 	jf, err := os.Open(jsonFile)
 	if err != nil {
 		return nil, fmt.Errorf("open %s: %s", jsonFile, err)
@@ -95,10 +97,19 @@ func reviewTests(jsonFile string, flakyFile string) (*reviewOutput, error) {
 		}
 		defer ff.Close()
 	}
-	return reviewTestsReaders(jf, ff)
+
+	var owners *codeowners
+	if ownersFile != "" {
+		owners, err = loadCodeowners(ownersFile)
+		if err != nil {
+			return nil, fmt.Errorf("parse codeowners: %s", err)
+		}
+	}
+
+	return reviewTestsReaders(jf, ff, owners)
 }
 
-func reviewTestsReaders(jf io.Reader, ff io.Reader) (*reviewOutput, error) {
+func reviewTestsReaders(jf io.Reader, ff io.Reader, owners *codeowners) (*reviewOutput, error) {
 	var failedTestsOut, flakyTestsOut, rerunTestsOut strings.Builder
 	var kf *flake.KnownFlakyTests
 	var err error
@@ -135,7 +146,12 @@ func reviewTestsReaders(jf io.Reader, ff io.Reader) (*reviewOutput, error) {
 				continue
 			}
 			if res.Action == "fail" {
-				rerunTestsOut.WriteString(fmt.Sprintf(rerunFormat, ev.Package, ev.Test, ev.Action))
+				var owner string
+				if owners != nil {
+					owner = owners.matchPackage(ev.Package)
+				}
+
+				rerunTestsOut.WriteString(addOwnerInformation(fmt.Sprintf(rerunFormat, ev.Package, ev.Test, ev.Action), owner))
 			}
 			// overwrite previously failed result
 			if res.Action == "fail" && ev.Action == "pass" {
@@ -157,21 +173,26 @@ func reviewTestsReaders(jf io.Reader, ff io.Reader) (*reviewOutput, error) {
 	}
 
 	for pkg, tests := range failedTests {
+		var owner string
+		if owners != nil {
+			owner = owners.matchPackage(pkg)
+		}
+
 		for _, test := range tests {
 			if kf.IsFlaky(pkg, test) {
-				flakyTestsOut.WriteString(fmt.Sprintf(flakyFormat, pkg, test))
+				flakyTestsOut.WriteString(addOwnerInformation(fmt.Sprintf(flakyFormat, pkg, test), owner))
 				continue
 			}
 
 			// check if a subtest also failed and is marked as flaky
 			for _, failedTest := range tests {
 				if kf.IsFlaky(pkg, failedTest) && strings.HasPrefix(failedTest, test+"/") {
-					flakyTestsOut.WriteString(fmt.Sprintf(flakyFormat, pkg, test))
+					flakyTestsOut.WriteString(addOwnerInformation(fmt.Sprintf(flakyFormat, pkg, test), owner))
 					continue
 				}
 			}
 
-			failedTestsOut.WriteString(fmt.Sprintf(failFormat, pkg, test))
+			failedTestsOut.WriteString(addOwnerInformation(fmt.Sprintf(failFormat, pkg, test), owner))
 		}
 	}
 
@@ -180,4 +201,11 @@ func reviewTestsReaders(jf io.Reader, ff io.Reader) (*reviewOutput, error) {
 		ReRuns: rerunTestsOut.String(),
 		Flaky:  flakyTestsOut.String(),
 	}, nil
+}
+
+func addOwnerInformation(result string, owner string) string {
+	if owner != "" {
+		return fmt.Sprintf("%-80s [owner: %s]\n", result, owner)
+	}
+	return result + "\n"
 }
