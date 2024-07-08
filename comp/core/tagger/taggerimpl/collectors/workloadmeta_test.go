@@ -1395,6 +1395,8 @@ func TestHandleContainer(t *testing.T) {
 		env           = "production"
 		svc           = "datadog-agent"
 		version       = "7.32.0"
+		repositoryURL = "https://github.com/DataDog/datadog-agent"
+		commitSHA     = "ce12f4c957dc5083c390205da435ebf54b9f7dac"
 	)
 
 	standardTags := []string{
@@ -1475,6 +1477,10 @@ func TestHandleContainer(t *testing.T) {
 					"DD_ENV":     env,
 					"DD_SERVICE": svc,
 					"DD_VERSION": version,
+
+					// source code integration
+					"DD_GIT_REPOSITORY_URL": repositoryURL,
+					"DD_GIT_COMMIT_SHA":     commitSHA,
 				},
 			},
 			envAsTags: map[string]string{
@@ -1491,6 +1497,8 @@ func TestHandleContainer(t *testing.T) {
 					OrchestratorCardTags: []string{},
 					LowCardTags: append([]string{
 						"owner_team:container-integrations",
+						fmt.Sprintf("git.repository_url:%s", repositoryURL),
+						fmt.Sprintf("git.commit.sha:%s", commitSHA),
 					}, standardTags...),
 					StandardTags: standardTags,
 				},
