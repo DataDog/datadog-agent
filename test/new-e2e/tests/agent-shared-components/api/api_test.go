@@ -402,7 +402,7 @@ func (v *apiSuite) TestDefaultAgentAPIEndpoints() {
 		},
 	}
 
-	authTokenFilePath := "/etc/datadog-agent/auth_token"
+	authTokenFilePath := "/opt/datadog-agent/run/auth_token"
 	authtokenContent := v.Env().RemoteHost.MustExecute("sudo cat " + authTokenFilePath)
 	authtoken := strings.TrimSpace(authtokenContent)
 
@@ -455,7 +455,7 @@ hostname: ENC[hostname]`
 		),
 	))
 
-	authTokenFilePath := "/etc/datadog-agent/auth_token"
+	authTokenFilePath := "/opt/datadog-agent/run/auth_token"
 	authtokenContent := v.Env().RemoteHost.MustExecute("sudo cat " + authTokenFilePath)
 	authtoken := strings.TrimSpace(authtokenContent)
 
@@ -495,7 +495,7 @@ log_level: debug
 		),
 	))
 
-	authTokenFilePath := "/etc/datadog-agent/auth_token"
+	authTokenFilePath := "/opt/datadog-agent/run/auth_token"
 	authtokenContent := v.Env().RemoteHost.MustExecute("sudo cat " + authTokenFilePath)
 	authtoken := strings.TrimSpace(authtokenContent)
 

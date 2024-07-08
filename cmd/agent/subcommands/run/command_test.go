@@ -6,6 +6,7 @@
 package run
 
 import (
+	"fmt"
 	"os"
 	"path"
 	"testing"
@@ -43,13 +44,19 @@ func TestCommandPidfile(t *testing.T) {
 func newGlobalParamsTest(t *testing.T) *command.GlobalParams {
 	// Because getSharedFxOption uses fx.Invoke, demultiplexer component is built
 	// which lead to build:
-	//   - config.Component which requires a valid datadog.yaml
+	//   - configPath.Component which requires a valid datadog.yaml
 	//   - hostname.Component which requires a valid hostname
-	config := path.Join(t.TempDir(), "datadog.yaml")
-	err := os.WriteFile(config, []byte("hostname: test"), 0644)
+	tempDirPath := t.TempDir()
+	configPath := path.Join(tempDirPath, "datadog.yaml")
+	configContent := fmt.Sprintf(`
+hostname: test
+run_path: %s
+`, tempDirPath)
+
+	err := os.WriteFile(configPath, []byte(configContent), 0o644)
 	require.NoError(t, err)
 
 	return &command.GlobalParams{
-		ConfFilePath: config,
+		ConfFilePath: configPath,
 	}
 }

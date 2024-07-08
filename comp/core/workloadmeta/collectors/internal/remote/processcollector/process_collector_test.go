@@ -12,7 +12,6 @@ package processcollector
 import (
 	"context"
 	"net"
-	"os"
 	"strconv"
 	"testing"
 	"time"
@@ -30,7 +29,6 @@ import (
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -64,14 +62,6 @@ func (s *mockServer) StreamEntities(_ *pbgo.ProcessStreamEntitiesRequest, out pb
 }
 
 func TestCollection(t *testing.T) {
-	// Create Auth Token for the client
-	if _, err := os.Stat(security.GetAuthTokenFilepath(pkgconfig.Datadog())); os.IsNotExist(err) {
-		security.CreateOrFetchToken(pkgconfig.Datadog())
-		defer func() {
-			// cleanup
-			os.Remove(security.GetAuthTokenFilepath(pkgconfig.Datadog()))
-		}()
-	}
 	creationTime := time.Now().Unix()
 	tests := []struct {
 		name      string
@@ -239,9 +229,10 @@ func TestCollection(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-
+			tempDir := t.TempDir()
 			overrides := map[string]interface{}{
 				"language_detection.enabled": true,
+				"run_path":                   tempDir,
 			}
 
 			// We do not inject any collectors here; we instantiate
@@ -254,6 +245,10 @@ func TestCollection(t *testing.T) {
 				}),
 				workloadmetafxmock.MockModule(),
 			))
+
+			// Create Auth Token for the client
+			_, err := security.CreateOrFetchToken(mockStore.GetConfig())
+			require.NoError(t, err)
 
 			time.Sleep(time.Second)
 
