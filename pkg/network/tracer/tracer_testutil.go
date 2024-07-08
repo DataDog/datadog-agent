@@ -9,10 +9,12 @@ package tracer
 
 import "github.com/DataDog/datadog-agent/pkg/network/usm"
 
+// RemoveClient stops tracking stateful data for a given client
 func (t *Tracer) RemoveClient(clientID string) {
 	t.state.RemoveClient(clientID)
 }
 
+// USMMonitor returns the USM monitor field
 func (t *Tracer) USMMonitor() *usm.Monitor {
 	return t.usmMonitor
 }
