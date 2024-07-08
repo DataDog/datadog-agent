@@ -147,7 +147,7 @@ func (t *serverlessTraceAgent) Flush() {
 	t.ta.FlushSync()
 }
 
-// Process TODO
+// Process processes a payload in the trace agent.
 func (t *serverlessTraceAgent) Process(p *api.Payload) {
 	t.ta.Process(p)
 }
@@ -164,17 +164,17 @@ func (t *serverlessTraceAgent) SetTags(tags map[string]string) {
 	}
 }
 
-// SetTargetTPS TODO
+// SetTargetTPS sets the target TPS to the trace agent.
 func (t *serverlessTraceAgent) SetTargetTPS(tps float64) {
 	t.ta.PrioritySampler.UpdateTargetTPS(tps)
 }
 
-// SetSpanModifier TODO
+// SetSpanModifier sets the span modifier to the trace agent.
 func (t *serverlessTraceAgent) SetSpanModifier(sm agent.SpanModifier) {
 	t.ta.SpanModifier = sm
 }
 
-// GetSpanModifier TODO
+// GetSpanModifier returns the span modifier from the trace agent.
 func (t *serverlessTraceAgent) GetSpanModifier() agent.SpanModifier {
 	return t.ta.SpanModifier
 }

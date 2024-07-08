@@ -123,7 +123,8 @@ type Agent struct {
 	firstSpanMap sync.Map
 }
 
-// SpanModifier TODO
+// SpanModifier is an interface that allows to modify spans while they are
+// processed by the agent.
 type SpanModifier interface {
 	ModifySpan(*pb.TraceChunk, *pb.Span)
 }

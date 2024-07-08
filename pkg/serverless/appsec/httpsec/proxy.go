@@ -301,9 +301,6 @@ type ExecutionContext interface {
 // WrapSpanModifier wraps the given SpanModifier function with AppSec monitoring
 // and returns it. When non nil, the given modifySpan function is called first,
 // before the AppSec monitoring.
-// The resulting function will run AppSec when the span's request_id span tag
-// matches the one observed at function invocation with OnInvokeStat() through
-// the Runtime API proxy.
 func (lp *ProxyLifecycleProcessor) WrapSpanModifier(ctx ExecutionContext, sm agent.SpanModifier) agent.SpanModifier {
 	return &appsecSpanModifier{
 		wrapped: sm,
@@ -318,7 +315,10 @@ type appsecSpanModifier struct {
 	ctx     ExecutionContext
 }
 
-// ModifySpan TODO
+// ModifySpan implements the agent.SpanModifier interface.
+// The resulting function will run AppSec when the span's request_id span tag
+// matches the one observed at function invocation with OnInvokeStat() through
+// the Runtime API proxy.
 func (a *appsecSpanModifier) ModifySpan(chunk *pb.TraceChunk, span *pb.Span) {
 	if a.wrapped != nil {
 		a.wrapped.ModifySpan(chunk, span)
@@ -330,7 +330,8 @@ type taggable interface {
 	SetTags(map[string]string)
 }
 
-// SetTags TODO
+// SetTags implements the agent.SpanModifier interface.  It calls the wrapped
+// SpanModifier's SetTags method.
 func (a *appsecSpanModifier) SetTags(tags map[string]string) {
 	if tagger, ok := a.wrapped.(taggable); ok {
 		tagger.SetTags(tags)
