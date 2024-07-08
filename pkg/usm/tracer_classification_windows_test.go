@@ -5,11 +5,19 @@
 
 //go:build windows && npm
 
-package tracer
+package usm
 
 import (
 	"testing"
+
+	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer"
+	tracertestutil "github.com/DataDog/datadog-agent/pkg/network/tracer/testutil"
 )
+
+func classificationSupported(_ *config.Config) bool {
+	return true
+}
 
 func TestProtocolClassification(t *testing.T) {
 	cfg := testConfig()
@@ -21,7 +29,7 @@ func TestProtocolClassification(t *testing.T) {
 	})
 }
 
-func testProtocolClassificationInner(t *testing.T, params protocolClassificationAttributes, _ *Tracer) {
+func testProtocolClassificationInner(t *testing.T, params protocolClassificationAttributes, _ *tracer.Tracer) {
 	if params.skipCallback != nil {
 		params.skipCallback(t, params.context)
 	}
@@ -34,7 +42,7 @@ func testProtocolClassificationInner(t *testing.T, params protocolClassification
 	if params.preTracerSetup != nil {
 		params.preTracerSetup(t, params.context)
 	}
-	cfg := testConfig()
+	cfg := tracertestutil.Config()
 	tr := setupTracer(t, cfg)
 	params.postTracerSetup(t, params.context)
 	params.validation(t, params.context, tr)

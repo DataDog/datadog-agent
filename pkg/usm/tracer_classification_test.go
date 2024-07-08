@@ -6,7 +6,7 @@
 //go:build linux_bpf || (windows && npm)
 
 // Package tracer contains implementation for NPM's tracer.
-package tracer
+package usm
 
 import (
 	"bufio"
@@ -19,15 +19,17 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/network"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/network"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer"
+	tracertestutil "github.com/DataDog/datadog-agent/pkg/network/tracer/testutil"
 )
 
 const (
-	defaultTimeout      = 30 * time.Second
-	http2DefaultTimeout = 3 * time.Second
+	defaultTimeout = 30 * time.Second
 )
 
 // testContext shares the context of a given test.
@@ -57,13 +59,13 @@ type protocolClassificationAttributes struct {
 	// All traffic here will be captured by the tracer.
 	postTracerSetup func(t *testing.T, ctx testContext)
 	// A validation method ensure the test succeeded.
-	validation func(t *testing.T, ctx testContext, tr *Tracer)
+	validation func(t *testing.T, ctx testContext, tr *tracer.Tracer)
 	// Cleaning test resources if needed.
 	teardown func(t *testing.T, ctx testContext)
 }
 
-func validateProtocolConnection(expectedStack *protocols.Stack) func(t *testing.T, ctx testContext, tr *Tracer) {
-	return func(t *testing.T, ctx testContext, tr *Tracer) {
+func validateProtocolConnection(expectedStack *protocols.Stack) func(t *testing.T, ctx testContext, tr *tracer.Tracer) {
+	return func(t *testing.T, ctx testContext, tr *tracer.Tracer) {
 		waitForConnectionsWithProtocol(t, tr, ctx.targetAddress, ctx.serverAddress, expectedStack)
 	}
 }
@@ -72,10 +74,10 @@ const (
 	httpPort = "8080"
 )
 
-func testProtocolClassificationCrossOS(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
+func testProtocolClassificationCrossOS(t *testing.T, tr *tracer.Tracer, clientHost, targetHost, serverHost string) {
 	tests := []struct {
 		name     string
-		testFunc func(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string)
+		testFunc func(t *testing.T, tr *tracer.Tracer, clientHost, targetHost, serverHost string)
 	}{
 		{
 			name:     "http",
@@ -93,7 +95,7 @@ func testProtocolClassificationCrossOS(t *testing.T, tr *Tracer, clientHost, tar
 	}
 }
 
-func testHTTPProtocolClassification(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
+func testHTTPProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost, targetHost, serverHost string) {
 	defaultDialer := &net.Dialer{
 		LocalAddr: &net.TCPAddr{
 			IP: net.ParseIP(clientHost),
@@ -160,7 +162,7 @@ func testHTTPProtocolClassification(t *testing.T, tr *Tracer, clientHost, target
 	}
 }
 
-func testEdgeCasesProtocolClassification(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
+func testEdgeCasesProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost, targetHost, serverHost string) {
 	defaultDialer := &net.Dialer{
 		LocalAddr: &net.TCPAddr{
 			IP: net.ParseIP(clientHost),
@@ -168,7 +170,7 @@ func testEdgeCasesProtocolClassification(t *testing.T, tr *Tracer, clientHost, t
 	}
 
 	teardown := func(t *testing.T, ctx testContext) {
-		if srv, ok := ctx.extras["server"].(*TCPServer); ok {
+		if srv, ok := ctx.extras["server"].(*tracertestutil.TCPServer); ok {
 			srv.Shutdown()
 		}
 	}
@@ -183,7 +185,7 @@ func testEdgeCasesProtocolClassification(t *testing.T, tr *Tracer, clientHost, t
 				extras:        map[string]interface{}{},
 			},
 			preTracerSetup: func(t *testing.T, ctx testContext) {
-				server := NewTCPServerOnAddress(ctx.serverAddress, func(c net.Conn) {
+				server := tracertestutil.NewTCPServerOnAddress(ctx.serverAddress, func(c net.Conn) {
 					c.Close()
 				})
 				ctx.extras["server"] = server
@@ -208,7 +210,7 @@ func testEdgeCasesProtocolClassification(t *testing.T, tr *Tracer, clientHost, t
 				extras:        map[string]interface{}{},
 			},
 			preTracerSetup: func(t *testing.T, ctx testContext) {
-				server := NewTCPServerOnAddress(ctx.serverAddress, func(c net.Conn) {
+				server := tracertestutil.NewTCPServerOnAddress(ctx.serverAddress, func(c net.Conn) {
 					defer c.Close()
 					r := bufio.NewReader(c)
 					input, err := r.ReadBytes(byte('\n'))
@@ -242,7 +244,7 @@ func testEdgeCasesProtocolClassification(t *testing.T, tr *Tracer, clientHost, t
 				extras:        map[string]interface{}{},
 			},
 			preTracerSetup: func(t *testing.T, ctx testContext) {
-				server := NewTCPServerOnAddress(ctx.serverAddress, func(c net.Conn) {
+				server := tracertestutil.NewTCPServerOnAddress(ctx.serverAddress, func(c net.Conn) {
 					defer c.Close()
 
 					r := bufio.NewReader(c)
@@ -291,7 +293,7 @@ func testEdgeCasesProtocolClassification(t *testing.T, tr *Tracer, clientHost, t
 	}
 }
 
-func waitForConnectionsWithProtocol(t *testing.T, tr *Tracer, targetAddr, serverAddr string, expectedStack *protocols.Stack) {
+func waitForConnectionsWithProtocol(t *testing.T, tr *tracer.Tracer, targetAddr, serverAddr string, expectedStack *protocols.Stack) {
 	t.Logf("looking for target addr %s", targetAddr)
 	t.Logf("looking for server addr %s", serverAddr)
 	var outgoing, incoming *network.ConnectionStats
