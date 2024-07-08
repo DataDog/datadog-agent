@@ -53,6 +53,7 @@ ban-relative-imports = "all"
 quote-style = "preserve"
 
 [tool.mypy]
+python_version = "3.11"
 # Follows imports and type-check imported modules.
 follow_imports = "normal"
 # Ignore errors about imported packages that don't provide type hints.
