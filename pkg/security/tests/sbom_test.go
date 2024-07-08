@@ -35,6 +35,11 @@ func TestSBOM(t *testing.T) {
 			Expression: `open.file.path == "/usr/lib/os-release" && open.flags & O_CREAT != 0 && container.id != "" ` +
 				`&& open.file.package.name == "base-files" && process.file.path != "" && process.file.package.name == "coreutils"`,
 		},
+		{
+			ID: "test_host_file_package",
+			Expression: `open.file.path == "/etc/issue" ` +
+				`&& open.file.package.name in [ "base-files", "system-release" ]`,
+		},
 	}
 	test, err := newTestModule(t, nil, ruleDefs, withStaticOpts(testOpts{enableSBOM: true}))
 	if err != nil {
@@ -73,6 +78,24 @@ func TestSBOM(t *testing.T) {
 			assertFieldEqual(t, event, "open.file.package.name", "base-files")
 			assertFieldEqual(t, event, "process.file.package.name", "coreutils")
 			assertFieldNotEmpty(t, event, "container.id", "container id shouldn't be empty")
+
+			test.validateOpenSchema(t, event)
+		})
+	})
+
+	t.Run("host", func(t *testing.T) {
+		test.WaitSignal(t, func() error {
+			sbom := p.Resolvers.SBOMResolver.GetWorkload("")
+			if sbom == nil {
+				return fmt.Errorf("failed to find host SBOM for host")
+			}
+			cmd := exec.Command("/bin/touch", "/etc/issue")
+			return cmd.Run()
+		}, func(event *model.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_host_file_package")
+			assertFieldIsOneOf(t, event, "open.file.package.name", []string{"base-files", "system-release"}, "wrong owning package")
+			assertFieldEqual(t, event, "process.file.package.name", "coreutils")
+			assertFieldEqual(t, event, "container.id", "", "container id should be empty")
 
 			test.validateOpenSchema(t, event)
 		})
