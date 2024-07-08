@@ -213,7 +213,7 @@ func reviewTestsReaders(jf io.Reader, ff io.Reader, owners *codeowners) (*review
 
 func addOwnerInformation(result string, owner string) string {
 	if owner != "" {
-		return fmt.Sprintf("%-80s [owner: %s]\n", result, owner)
+		return fmt.Sprintf("%-90s [owner: %s]\n", result, owner)
 	}
 	return result + "\n"
 }
