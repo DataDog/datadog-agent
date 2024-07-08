@@ -548,8 +548,6 @@ func (s *tlsSuite) TestJavaInjection() {
 }
 
 func TestHTTPGoTLSAttachProbes(t *testing.T) {
-	t.Skip("skipping GoTLS tests while we investigate their flakiness")
-
 	modes := []ebpftest.BuildMode{ebpftest.RuntimeCompiled, ebpftest.CORE}
 	ebpftest.TestBuildModes(t, modes, "", func(t *testing.T) {
 		if !gotlstestutil.GoTLSSupported(t, config.New()) {

@@ -37,5 +37,5 @@ func isFedora(t *testing.T) bool {
 
 // GoTLSSupported returns true if GO-TLS monitoring is supported on the current OS.
 func GoTLSSupported(t *testing.T, cfg *config.Config) bool {
-	return usmconfig.TLSSupported(cfg) && (cfg.EnableRuntimeCompiler || cfg.EnableCORE) && !isFedora(t)
+	return usmconfig.TLSSupported(cfg) && (cfg.EnableRuntimeCompiler || cfg.EnableCORE)
 }
