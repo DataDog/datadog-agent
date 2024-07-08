@@ -3246,6 +3246,21 @@
           "name": "mount.source.path",
           "definition": "Source path of a bind mount",
           "property_doc_link": "mount-source-path-doc"
+        },
+        {
+          "name": "mount.syscall.fs_type",
+          "definition": "File system type argument of the syscall",
+          "property_doc_link": "mount-syscall-fs_type-doc"
+        },
+        {
+          "name": "mount.syscall.mountpoint.path",
+          "definition": "Mount point path argument of the syscall",
+          "property_doc_link": "mount-syscall-mountpoint-path-doc"
+        },
+        {
+          "name": "mount.syscall.source.path",
+          "definition": "Source path argument of the syscall",
+          "property_doc_link": "mount-syscall-source-path-doc"
         }
       ]
     },
@@ -4891,6 +4906,16 @@
           "name": "rename.retval",
           "definition": "Return value of the syscall",
           "property_doc_link": "common-syscallevent-retval-doc"
+        },
+        {
+          "name": "rename.syscall.destination.path",
+          "definition": "Destination path argument of the syscall",
+          "property_doc_link": "rename-syscall-destination-path-doc"
+        },
+        {
+          "name": "rename.syscall.path",
+          "definition": "Path argument of the syscall",
+          "property_doc_link": "rename-syscall-path-doc"
         }
       ]
     },
@@ -9445,6 +9470,42 @@
       "examples": []
     },
     {
+      "name": "mount.syscall.fs_type",
+      "link": "mount-syscall-fs_type-doc",
+      "type": "string",
+      "definition": "File system type argument of the syscall",
+      "prefixes": [
+        "mount"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "mount.syscall.mountpoint.path",
+      "link": "mount-syscall-mountpoint-path-doc",
+      "type": "string",
+      "definition": "Mount point path argument of the syscall",
+      "prefixes": [
+        "mount"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "mount.syscall.source.path",
+      "link": "mount-syscall-source-path-doc",
+      "type": "string",
+      "definition": "Source path argument of the syscall",
+      "prefixes": [
+        "mount"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
       "name": "mprotect.req_protection",
       "link": "mprotect-req_protection-doc",
       "type": "int",
@@ -9598,6 +9659,30 @@
       ],
       "constants": "Ptrace constants",
       "constants_link": "ptrace-constants",
+      "examples": []
+    },
+    {
+      "name": "rename.syscall.destination.path",
+      "link": "rename-syscall-destination-path-doc",
+      "type": "string",
+      "definition": "Destination path argument of the syscall",
+      "prefixes": [
+        "rename"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "rename.syscall.path",
+      "link": "rename-syscall-path-doc",
+      "type": "string",
+      "definition": "Path argument of the syscall",
+      "prefixes": [
+        "rename"
+      ],
+      "constants": "",
+      "constants_link": "",
       "examples": []
     },
     {

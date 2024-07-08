@@ -230,6 +230,7 @@ struct mount_event_t {
     struct span_context_t span;
     struct container_context_t container;
     struct syscall_t syscall;
+    struct syscall_context_t syscall_ctx;
     struct mount_fields_t mountfields;
 };
 
@@ -314,6 +315,7 @@ struct rename_event_t {
     struct span_context_t span;
     struct container_context_t container;
     struct syscall_t syscall;
+    struct syscall_context_t syscall_ctx;
     struct file_t old;
     struct file_t new;
 };

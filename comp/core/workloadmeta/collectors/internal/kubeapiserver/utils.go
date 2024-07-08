@@ -10,6 +10,8 @@ package kubeapiserver
 import (
 	"fmt"
 	"regexp"
+	"slices"
+	"sort"
 	"strings"
 
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -56,6 +58,40 @@ func filterToRegex(filter string) (*regexp.Regexp, error) {
 		return nil, errormsg
 	}
 	return r, nil
+}
+
+// cleanDuplicateVersions detects if different versions are requested for the same resource within the same group
+// it logs an error for each occurrence, and a clean slice that doesn't contain any such duplication
+func cleanDuplicateVersions(resources []string) []string {
+	groupResourceToVersions := map[schema.GroupResource][]string{}
+	cleanedResources := make([]string, 0, len(resources))
+
+	for _, requestedResource := range resources {
+		group, version, resourceType := parseRequestedResource(requestedResource)
+
+		versions, found := groupResourceToVersions[schema.GroupResource{Group: group, Resource: resourceType}]
+		if found {
+			groupResourceToVersions[schema.GroupResource{Group: group, Resource: resourceType}] = append(versions, version)
+		} else {
+			groupResourceToVersions[schema.GroupResource{Group: group, Resource: resourceType}] = []string{version}
+		}
+	}
+
+	for gr, versions := range groupResourceToVersions {
+		// remove duplicates
+		sort.Strings(versions)
+		versions = slices.Compact(versions)
+
+		if len(versions) > 1 {
+			// there are duplicate versions for the same group/resource
+			log.Errorf("can't collect metadata for different versions of the same group and resource: versions requested for %s.%s: %q", gr.Resource, gr.Group, versions)
+		} else {
+			// only one version requested for the same group/resource
+			cleanedResources = append(cleanedResources, fmt.Sprintf("%s/%s/%s", gr.Group, versions[0], gr.Resource))
+		}
+	}
+
+	return cleanedResources
 }
 
 func parseRequestedResource(requestedResource string) (group string, version string, resource string) {

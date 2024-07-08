@@ -38,10 +38,10 @@ def check_teams(_):
 
 
 @task
-def send_message(ctx: Context, notification_type: str = "merge", print_to_stdout: bool = False):
+def send_message(ctx: Context, notification_type: str = "merge", dry_run: bool = False):
     """
     Send notifications for the current pipeline. CI-only task.
-    Use the --print-to-stdout option to test this locally, without sending
+    Use the --dry-run option to test this locally, without sending
     real slack messages.
     """
 
@@ -60,24 +60,24 @@ def send_message(ctx: Context, notification_type: str = "merge", print_to_stdout
         traceback.print_exc()
         raise Exit(code=1) from e
 
-    pipeline_status.send_message_and_metrics(ctx, failed_jobs, messages_to_send, notification_type, print_to_stdout)
+    pipeline_status.send_message_and_metrics(ctx, failed_jobs, messages_to_send, notification_type, dry_run)
 
 
 @task
-def send_stats(_, print_to_stdout=False):
+def send_stats(_, dry_run=False):
     """
     Send statistics to Datadog for the current pipeline. CI-only task.
-    Use the --print-to-stdout option to test this locally, without sending
+    Use the --dry-run option to test this locally, without sending
     data points to Datadog.
     """
-    if not (print_to_stdout or os.environ.get("DD_API_KEY")):
+    if not (dry_run or os.environ.get("DD_API_KEY")):
         print("DD_API_KEY environment variable not set, cannot send pipeline metrics to the backend")
         raise Exit(code=1)
 
     series = compute_failed_jobs_series(PROJECT_NAME)
     series.extend(compute_required_jobs_max_duration(PROJECT_NAME))
 
-    if not print_to_stdout:
+    if not dry_run:
         send_metrics(series)
         print(f"Sent pipeline metrics: {series}")
     else:
@@ -140,10 +140,14 @@ def failure_summary_send_notifications(
 
 
 @task
-def unit_tests(ctx, pipeline_id, pipeline_url, branch_name):
+def unit_tests(ctx, pipeline_id, pipeline_url, branch_name, dry_run=False):
     jobs_with_no_tests_run = unit_tests_utils.process_unit_tests_tarballs(ctx)
     msg = unit_tests_utils.create_msg(pipeline_id, pipeline_url, jobs_with_no_tests_run)
-    unit_tests_utils.comment_pr(msg, pipeline_id, branch_name, jobs_with_no_tests_run)
+
+    if dry_run:
+        print(msg)
+    else:
+        unit_tests_utils.comment_pr(msg, pipeline_id, branch_name, jobs_with_no_tests_run)
 
 
 @task

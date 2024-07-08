@@ -29,14 +29,9 @@ func TestConfigRetriverAutoscalingSettingsFollower(t *testing.T) {
 	cr, mockRCClient := newMockConfigRetriever(t, false, clock.NewFakeClock(testTime))
 
 	// Dummy objects in store
-	dummy2 := model.PodAutoscalerInternal{
-		Namespace: "ns",
-		Name:      "name2",
-	}
-	dummy3 := model.PodAutoscalerInternal{
-		Namespace: "ns",
-		Name:      "name3",
-	}
+	dummy2 := model.NewFakePodAutoscalerInternal("ns", "name2", nil)
+	dummy3 := model.NewFakePodAutoscalerInternal("ns", "name3", nil)
+
 	cr.store.Set("ns/name2", dummy2, "unittest")
 	cr.store.Set("ns/name3", dummy3, "unittest")
 
@@ -109,7 +104,7 @@ func TestConfigRetriverAutoscalingSettingsLeader(t *testing.T) {
 			Name:       "deploy3",
 		},
 		Policy: &datadoghq.DatadogPodAutoscalerPolicy{
-			ApplyMode: datadoghq.DatadogPodAutoscalerAllApplyNone,
+			ApplyMode: datadoghq.DatadogPodAutoscalerNoneApplyMode,
 			Update: &datadoghq.DatadogPodAutoscalerUpdatePolicy{
 				Strategy: datadoghq.DatadogPodAutoscalerAutoUpdateStrategy,
 			},
@@ -166,7 +161,7 @@ func TestConfigRetriverAutoscalingSettingsLeader(t *testing.T) {
 	object1Spec.RemoteVersion = pointer.Ptr[uint64](1)
 	object2Spec.RemoteVersion = pointer.Ptr[uint64](1)
 	object3Spec.RemoteVersion = pointer.Ptr[uint64](10)
-	model.AssertPodAutoscalersEqual(t, []model.PodAutoscalerInternal{
+	model.AssertPodAutoscalersEqual(t, []model.FakePodAutoscalerInternal{
 		{
 			Namespace:         "ns",
 			Name:              "name1",
@@ -216,7 +211,7 @@ func TestConfigRetriverAutoscalingSettingsLeader(t *testing.T) {
 
 	// Set expected versions: only one change for for foo2
 	object3Spec.RemoteVersion = pointer.Ptr[uint64](11)
-	model.AssertPodAutoscalersEqual(t, []model.PodAutoscalerInternal{
+	model.AssertPodAutoscalersEqual(t, []model.FakePodAutoscalerInternal{
 		{
 			Namespace:         "ns",
 			Name:              "name1",
@@ -257,7 +252,7 @@ func TestConfigRetriverAutoscalingSettingsLeader(t *testing.T) {
 	podAutoscalers = cr.store.GetAll()
 
 	// No changes in expected versions
-	model.AssertPodAutoscalersEqual(t, []model.PodAutoscalerInternal{
+	model.AssertPodAutoscalersEqual(t, []model.FakePodAutoscalerInternal{
 		{
 			Namespace:         "ns",
 			Name:              "name1",

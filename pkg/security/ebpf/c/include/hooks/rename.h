@@ -6,35 +6,38 @@
 #include "helpers/filesystem.h"
 #include "helpers/syscalls.h"
 
-int __attribute__((always_inline)) trace__sys_rename(u8 async) {
+int __attribute__((always_inline)) trace__sys_rename(u8 async, const char *oldpath, const char *newpath) {
     struct syscall_cache_t syscall = {
         .policy = fetch_policy(EVENT_RENAME),
         .async = async,
         .type = EVENT_RENAME,
     };
 
+    if (!async) {
+        collect_syscall_ctx(&syscall, SYSCALL_CTX_ARG_STR(0) | SYSCALL_CTX_ARG_STR(1), (void *)oldpath, (void *)newpath, NULL);
+    }
     cache_syscall(&syscall);
 
     return 0;
 }
 
-HOOK_SYSCALL_ENTRY0(rename) {
-    return trace__sys_rename(SYNC_SYSCALL);
+HOOK_SYSCALL_ENTRY2(rename, const char *, oldpath, const char *, newpath) {
+    return trace__sys_rename(SYNC_SYSCALL, oldpath, newpath);
 }
 
-HOOK_SYSCALL_ENTRY0(renameat) {
-    return trace__sys_rename(SYNC_SYSCALL);
+HOOK_SYSCALL_ENTRY4(renameat, int, olddirfd, const char *, oldpath, int, newdirfd, const char *, newpath) {
+    return trace__sys_rename(SYNC_SYSCALL, oldpath, newpath);
 }
 
-HOOK_SYSCALL_ENTRY0(renameat2) {
-    return trace__sys_rename(SYNC_SYSCALL);
+HOOK_SYSCALL_ENTRY4(renameat2, int , olddirfd, const char *, oldpath, int, newdirfd, const char *, newpath) {
+    return trace__sys_rename(SYNC_SYSCALL, oldpath, newpath);
 }
 
 HOOK_ENTRY("do_renameat2")
 int hook_do_renameat2(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_RENAME);
     if (!syscall) {
-        return trace__sys_rename(ASYNC_SYSCALL);
+        return trace__sys_rename(ASYNC_SYSCALL, NULL, NULL);
     }
     return 0;
 }
@@ -201,6 +204,7 @@ int __attribute__((always_inline)) dr_rename_callback(void *ctx) {
 
     struct rename_event_t event = {
         .syscall.retval = retval,
+        .syscall_ctx.id = syscall->ctx_id,
         .event.flags = syscall->async ? EVENT_FLAGS_ASYNC : 0,
         .old = syscall->rename.src_file,
         .new = syscall->rename.target_file,

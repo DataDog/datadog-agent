@@ -8,7 +8,6 @@
 package kubeapiserver
 
 import (
-	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -370,14 +369,14 @@ func Test_metadataCollectionGVRs_WithFunctionalDiscovery(t *testing.T) {
 
 			client := fakeclientset.NewSimpleClientset()
 			fakeDiscoveryClient, ok := client.Discovery().(*fakediscovery.FakeDiscovery)
-			assert.Truef(t, ok, "Failed to initialise fake discovery client")
+			assert.Truef(tt, ok, "Failed to initialise fake discovery client")
 
 			fakeDiscoveryClient.Resources = test.apiServerResourceList
 
 			discoveredGVRs, err := metadataCollectionGVRs(cfg, fakeDiscoveryClient)
-			require.NoErrorf(t, err, "Function should not have returned an error")
+			require.NoErrorf(tt, err, "Function should not have returned an error")
 
-			assert.Truef(t, reflect.DeepEqual(discoveredGVRs, test.expectedGVRs), "Expected %v but got %v.", test.expectedGVRs, discoveredGVRs)
+			assert.ElementsMatch(tt, test.expectedGVRs, discoveredGVRs)
 		})
 	}
 }
@@ -394,7 +393,15 @@ func TestResourcesWithMetadataCollectionEnabled(t *testing.T) {
 				"cluster_agent.kube_metadata_collection.enabled":   true,
 				"cluster_agent.kube_metadata_collection.resources": "",
 			},
-			expectedResources: []string{"nodes"},
+			expectedResources: []string{"//nodes"},
+		},
+		{
+			name: "duplicate versions for the same group/resource should not be allowed",
+			cfg: map[string]interface{}{
+				"cluster_agent.kube_metadata_collection.enabled":   true,
+				"cluster_agent.kube_metadata_collection.resources": "apps/deployments apps/statefulsets apps//deployments apps/v1/statefulsets apps/v1/daemonsets",
+			},
+			expectedResources: []string{"//nodes", "apps//deployments", "apps/v1/daemonsets"},
 		},
 		{
 			name: "deployments needed for language detection should be excluded from metadata collection",
@@ -404,7 +411,7 @@ func TestResourcesWithMetadataCollectionEnabled(t *testing.T) {
 				"cluster_agent.kube_metadata_collection.enabled":   true,
 				"cluster_agent.kube_metadata_collection.resources": "apps/daemonsets apps/deployments",
 			},
-			expectedResources: []string{"apps/daemonsets", "nodes"},
+			expectedResources: []string{"apps//daemonsets", "//nodes"},
 		},
 		{
 			name: "pods needed for autoscaling should be excluded from metadata collection",
@@ -413,7 +420,7 @@ func TestResourcesWithMetadataCollectionEnabled(t *testing.T) {
 				"cluster_agent.kube_metadata_collection.enabled":   true,
 				"cluster_agent.kube_metadata_collection.resources": "apps/daemonsets pods",
 			},
-			expectedResources: []string{"apps/daemonsets", "nodes"},
+			expectedResources: []string{"apps//daemonsets", "//nodes"},
 		},
 		{
 			name: "resources explicitly requested",
@@ -421,7 +428,7 @@ func TestResourcesWithMetadataCollectionEnabled(t *testing.T) {
 				"cluster_agent.kube_metadata_collection.enabled":   true,
 				"cluster_agent.kube_metadata_collection.resources": "apps/deployments apps/statefulsets",
 			},
-			expectedResources: []string{"nodes", "apps/deployments", "apps/statefulsets"},
+			expectedResources: []string{"//nodes", "apps//deployments", "apps//statefulsets"},
 		},
 		{
 			name: "namespaces needed for namespace labels as tags",
@@ -430,7 +437,7 @@ func TestResourcesWithMetadataCollectionEnabled(t *testing.T) {
 					"label1": "tag1",
 				},
 			},
-			expectedResources: []string{"nodes", "namespaces"},
+			expectedResources: []string{"//nodes", "//namespaces"},
 		},
 		{
 			name: "namespaces needed for namespace annotations as tags",
@@ -439,7 +446,7 @@ func TestResourcesWithMetadataCollectionEnabled(t *testing.T) {
 					"annotation1": "tag1",
 				},
 			},
-			expectedResources: []string{"nodes", "namespaces"},
+			expectedResources: []string{"//nodes", "//namespaces"},
 		},
 		{
 			name: "namespaces needed for namespace labels and annotations as tags",
@@ -451,7 +458,7 @@ func TestResourcesWithMetadataCollectionEnabled(t *testing.T) {
 					"annotation1": "tag2",
 				},
 			},
-			expectedResources: []string{"nodes", "namespaces"},
+			expectedResources: []string{"//nodes", "//namespaces"},
 		},
 		{
 			name: "resources explicitly requested and also needed for namespace labels as tags",
@@ -462,7 +469,7 @@ func TestResourcesWithMetadataCollectionEnabled(t *testing.T) {
 					"label1": "tag1",
 				},
 			},
-			expectedResources: []string{"nodes", "namespaces", "apps/deployments"}, // namespaces are not duplicated
+			expectedResources: []string{"//nodes", "//namespaces", "apps//deployments"}, // namespaces are not duplicated
 		},
 	}
 

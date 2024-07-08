@@ -505,6 +505,8 @@ type SyscallArgsSerializer struct {
 	DirFd *int `json:"dirfd,omitempty"`
 	// Destination path argument
 	DestinationPath *string `json:"destination_path,omitempty"`
+	// File system type argument
+	FSType *string `json:"fs_type,omitempty"`
 }
 
 func newSyscallArgsSerializer(sc *model.SyscallContext, e *model.Event) *SyscallArgsSerializer {
@@ -550,12 +552,21 @@ func newSyscallArgsSerializer(sc *model.SyscallContext, e *model.Event) *Syscall
 			Path:  &path,
 			Flags: &flags,
 		}
-	case model.FileLinkEventType:
+	case model.FileLinkEventType, model.FileRenameEventType:
 		path := e.FieldHandlers.ResolveSyscallCtxArgsStr1(e, sc)
 		destinationPath := e.FieldHandlers.ResolveSyscallCtxArgsStr2(e, sc)
 		return &SyscallArgsSerializer{
 			Path:            &path,
 			DestinationPath: &destinationPath,
+		}
+	case model.FileMountEventType:
+		sourcePath := e.FieldHandlers.ResolveSyscallCtxArgsStr1(e, sc)
+		mountPointPath := e.FieldHandlers.ResolveSyscallCtxArgsStr2(e, sc)
+		fstype := e.FieldHandlers.ResolveSyscallCtxArgsStr3(e, sc)
+		return &SyscallArgsSerializer{
+			Path:            &sourcePath,
+			DestinationPath: &mountPointPath,
+			FSType:          &fstype,
 		}
 	}
 
@@ -572,7 +583,9 @@ type SyscallContextSerializer struct {
 	Open   *SyscallArgsSerializer `json:"open,omitempty"`
 	Unlink *SyscallArgsSerializer `json:"unlink,omitempty"`
 	Link   *SyscallArgsSerializer `json:"link,omitempty"`
+	Rename *SyscallArgsSerializer `json:"rename,omitempty"`
 	Utimes *SyscallArgsSerializer `json:"utimes,omitempty"`
+	Mount  *SyscallArgsSerializer `json:"mount,omitempty"`
 }
 
 func newSyscallContextSerializer() *SyscallContextSerializer {
@@ -1207,6 +1220,8 @@ func NewEventSerializer(event *model.Event, opts *eval.Opts) *EventSerializer {
 			Destination:    newFileSerializer(&event.Rename.New, event),
 		}
 		s.EventContextSerializer.Outcome = serializeOutcome(event.Rename.Retval)
+		s.SyscallContextSerializer = newSyscallContextSerializer()
+		s.SyscallContextSerializer.Rename = newSyscallArgsSerializer(&event.Rename.SyscallContext, event)
 	case model.FileRemoveXAttrEventType:
 		s.FileEventSerializer = &FileEventSerializer{
 			FileSerializer: *newFileSerializer(&event.RemoveXAttr.File, event),
@@ -1239,6 +1254,8 @@ func NewEventSerializer(event *model.Event, opts *eval.Opts) *EventSerializer {
 	case model.FileMountEventType:
 		s.MountEventSerializer = newMountEventSerializer(event)
 		s.EventContextSerializer.Outcome = serializeOutcome(event.Mount.Retval)
+		s.SyscallContextSerializer = newSyscallContextSerializer()
+		s.SyscallContextSerializer.Mount = newSyscallArgsSerializer(&event.Mount.SyscallContext, event)
 	case model.FileUmountEventType:
 		s.FileEventSerializer = &FileEventSerializer{
 			NewMountID: event.Umount.MountID,

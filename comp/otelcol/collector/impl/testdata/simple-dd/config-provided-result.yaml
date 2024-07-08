@@ -7,6 +7,7 @@ exporters:
       site: datadoghq.com
     auth: null
     compression: ""
+    cookies: null
     disable_keep_alives: false
     endpoint: ""
     headers: {}
