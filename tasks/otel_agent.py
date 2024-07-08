@@ -26,7 +26,7 @@ def build(ctx):
     env = {"GO111MODULE": "on"}
     build_tags = ['otlp']
 
-    cmd = f"go build -tags=\"{' '.join(build_tags)}\" -o {BIN_PATH} {REPO_PATH}/cmd/otel-agent"
+    cmd = f"go build -mod=mod -tags=\"{' '.join(build_tags)}\" -o {BIN_PATH} {REPO_PATH}/cmd/otel-agent"
 
     ctx.run(cmd, env=env)
 

@@ -215,8 +215,9 @@ COPY init-stage3-host-pid /etc/s6/init/init-stage3-host-pid
 
 RUN if [ -f /opt/datadog-agent/embedded/bin/otel-agent ]; then \
   mv /etc/datadog-agent/otel-config.yaml.example /etc/datadog-agent/otel-config.yaml; \
-  s6-hiercopy /etc/services-available.d/otel /var/run/s6/services/otel; \
-  s6-svscanctl -a /var/run/s6/services; fi
+  mkdir -p /var/run/s6/services/otel; \
+  s6-hiercopy /etc/services-available.d/otel /var/run/s6/services/otel; fi
+  # s6-svscanctl -a /var/run/s6/services; fi
 
 RUN find /etc -type d,f -perm -o+w -print0 | xargs -r -0 chmod g-w,o-w
 

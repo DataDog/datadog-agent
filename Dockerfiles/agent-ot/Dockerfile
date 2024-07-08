@@ -21,10 +21,11 @@ COPY entrypoint.sh /bin/entrypoint.sh
 COPY entrypoint.d /opt/entrypoints
 RUN chmod 755 /bin/entrypoint.sh \
   && chmod 755 -R /opt/entrypoints \
-  && chown dd-agent:root /etc/datadog-agent/otel-config.yaml.example
+  && chown dd-agent:root /etc/datadog-agent/otel-config.yaml
 
 # Enable the otel service
-RUN s6-hiercopy /etc/services-available.d/otel /var/run/s6/services/otel && \
-  s6-svscanctl -a /var/run/s6/services
+RUN mkdir -p /var/run/s6/services/otel
+RUN s6-hiercopy /etc/services-available.d/otel /var/run/s6/services/otel
+# RUN s6-svscanctl -a /var/run/s6/services
 
 CMD ["/bin/entrypoint.sh"]
