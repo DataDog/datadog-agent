@@ -15,6 +15,7 @@ import (
 
 var kv = kernel.MustHostVersion()
 
+// Config returns a network.Config setup for test purposes
 func Config() *config.Config {
 	cfg := config.New()
 	if ddconfig.IsECSFargate() {

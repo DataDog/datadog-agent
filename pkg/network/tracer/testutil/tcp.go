@@ -9,6 +9,7 @@ package testutil
 
 import "net"
 
+// TCPServer is a simple TCP server for use in tests
 type TCPServer struct {
 	address   string
 	Network   string
@@ -16,10 +17,13 @@ type TCPServer struct {
 	ln        net.Listener
 }
 
+// NewTCPServer creates a TCPServer using the provided function for newly accepted connections.
+// It defaults to listening on an ephemeral port on 127.0.0.1
 func NewTCPServer(onMessage func(c net.Conn)) *TCPServer {
 	return NewTCPServerOnAddress("127.0.0.1:0", onMessage)
 }
 
+// NewTCPServerOnAddress creates a TCPServer using the provided address.
 func NewTCPServerOnAddress(addr string, onMessage func(c net.Conn)) *TCPServer {
 	return &TCPServer{
 		address:   addr,
@@ -27,14 +31,17 @@ func NewTCPServerOnAddress(addr string, onMessage func(c net.Conn)) *TCPServer {
 	}
 }
 
+// Address returns the address of the server. This should be called after Run.
 func (t *TCPServer) Address() string {
 	return t.address
 }
 
+// Addr is the raw net.Addr of the listener
 func (t *TCPServer) Addr() net.Addr {
 	return t.ln.Addr()
 }
 
+// Run starts the TCP server
 func (t *TCPServer) Run() error {
 	networkType := "tcp"
 	if t.Network != "" {
@@ -60,6 +67,7 @@ func (t *TCPServer) Run() error {
 	return nil
 }
 
+// Shutdown stops the TCP server
 func (t *TCPServer) Shutdown() {
 	if t.ln != nil {
 		_ = t.ln.Close()
