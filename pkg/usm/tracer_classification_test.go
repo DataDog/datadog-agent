@@ -5,7 +5,7 @@
 
 //go:build linux_bpf || (windows && npm)
 
-// Package tracer contains implementation for NPM's tracer.
+// Package usm contains tests for USM
 package usm
 
 import (
