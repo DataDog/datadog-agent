@@ -9,10 +9,9 @@ package datadogclientimpl
 import (
 	"sync"
 
-	"github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient"
+	datadogclient "github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient/def"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"go.uber.org/fx"
 	"gopkg.in/zorkian/go-datadog-api.v2"
@@ -87,8 +86,8 @@ func createDatadogClient(cfg configComponent.Component) (datadogclient.Component
 	return newDatadogSingleClient(cfg)
 }
 
-// newDatadogClient configures and returns a new DatadogClient
-func newDatadogClient(deps dependencies) (datadogclient.Component, error) {
+// NewDatadogClient configures and returns a new DatadogClient
+func NewDatadogClient(deps dependencies) (datadogclient.Component, error) {
 	client, err := createDatadogClient(deps.Config)
 	if err != nil {
 		return nil, err
@@ -155,10 +154,4 @@ func GetStatus(client datadogclient.Component) map[string]interface{} {
 	}
 
 	return status
-}
-
-// Module defines the fx options for this component.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newDatadogClient))
 }

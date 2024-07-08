@@ -5,23 +5,14 @@
 
 //go:build test
 
-package datadogclientimpl
+package mock
 
 import (
 	"sync"
 
-	"github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"go.uber.org/fx"
+	datadogclient "github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient/def"
 	"gopkg.in/zorkian/go-datadog-api.v2"
 )
-
-// MockModule defines the fx options for the mock component.
-func MockModule() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newMock),
-	)
-}
 
 type mockDatadogClient struct {
 	mux               sync.RWMutex
@@ -61,8 +52,8 @@ func (d *mockDatadogClient) SetGetRateLimitsFunc(getRateLimitsFunc func() map[st
 	d.getRateLimitsFunc = getRateLimitsFunc
 }
 
-// newMock returns a new mock datadogclient component
-func newMock() datadogclient.MockComponent {
+// NewMock returns a new mock datadogclient component
+func NewMock() datadogclient.MockComponent {
 	m := &mockDatadogClient{}
 	return m
 }
