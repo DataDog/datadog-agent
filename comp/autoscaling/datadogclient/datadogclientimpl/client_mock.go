@@ -29,6 +29,8 @@ type mockDatadogClient struct {
 	getRateLimitsFunc func() map[string]datadog.RateLimit
 }
 
+var _ datadogclient.Component = (*mockDatadogClient)(nil)
+
 func (d *mockDatadogClient) QueryMetrics(from, to int64, query string) ([]datadog.Series, error) {
 	d.mux.RLock()
 	defer d.mux.RUnlock()
@@ -59,7 +61,7 @@ func (d *mockDatadogClient) SetGetRateLimitsFunc(getRateLimitsFunc func() map[st
 	d.getRateLimitsFunc = getRateLimitsFunc
 }
 
-// NewMock returns a new mock datadogclient component
+// newMock returns a new mock datadogclient component
 func newMock() datadogclient.MockComponent {
 	m := &mockDatadogClient{}
 	return m
