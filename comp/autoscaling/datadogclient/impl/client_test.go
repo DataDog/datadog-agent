@@ -66,7 +66,7 @@ func TestExternalMetricsProviderEndpoint(t *testing.T) {
 	cfg.Set("api_key", "apikey123", pkgconfigmodel.SourceLocalConfigProcess)
 	cfg.Set("app_key", "appkey456", pkgconfigmodel.SourceLocalConfigProcess)
 	cfg.SetWithoutSource(metricsEndpointConfig, ts.URL)
-	datadogClientComp, err := newDatadogClient(dependencies{Config: cfg})
+	datadogClientComp, err := NewDatadogClient(dependencies{Config: cfg})
 	assert.NoError(t, err)
 	datadogClientWithRefresh, ok := datadogClientComp.(*datadogClient)
 	assert.True(t, ok)

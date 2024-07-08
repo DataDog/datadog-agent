@@ -13,8 +13,8 @@ import (
 	"embed"
 	"io"
 
-	"github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient"
-	"github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient/datadogclientimpl"
+	datadogclient "github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient/def"
+	datadogclientimpl "github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient/impl"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"

@@ -14,8 +14,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient"
-	"github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient/datadogclientimpl"
+	datadogclient "github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient/def"
+	datadogclientmock "github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient/mock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/zorkian/go-datadog-api.v2"
@@ -32,7 +32,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/errors"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/autoscalers"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
@@ -174,8 +173,7 @@ func TestUpdate(t *testing.T) {
 
 	name := custommetrics.GetConfigmapName()
 	store, client := newFakeConfigMapStore(t, "nsfoo", name, nil)
-	datadogClientComp := fxutil.Test[datadogclient.MockComponent](t, datadogclientimpl.MockModule())
-
+	datadogClientComp := datadogclientmock.NewMock(t)
 	p := &fakeProcessor{
 		updateMetricFunc: func(emList map[string]custommetrics.ExternalMetricValue) (updated map[string]custommetrics.ExternalMetricValue) {
 			updated = make(map[string]custommetrics.ExternalMetricValue)
@@ -302,7 +300,7 @@ func TestAutoscalerController(t *testing.T) {
 		},
 	}
 
-	datadogClientComp := fxutil.Test[datadogclient.MockComponent](t, datadogclientimpl.MockModule())
+	datadogClientComp := datadogclientmock.NewMock(t)
 	datadogClientComp.SetQueryMetricsFunc(func(from, to int64, query string) ([]datadog.Series, error) {
 		return ddSeries, nil
 	})
@@ -480,7 +478,7 @@ func TestAutoscalerController(t *testing.T) {
 
 func TestAutoscalerSync(t *testing.T) {
 	client := newClient()
-	datadogClientComp := fxutil.Test[datadogclient.MockComponent](t, datadogclientimpl.MockModule())
+	datadogClientComp := datadogclientmock.NewMock(t)
 	hctrl, inf := newFakeAutoscalerController(t, client, alwaysLeader, datadogClientComp)
 	obj := newFakeHorizontalPodAutoscaler(
 		"hpa_1",
@@ -575,7 +573,7 @@ func TestAutoscalerControllerGC(t *testing.T) {
 	for i, testCase := range testCases {
 		t.Run(fmt.Sprintf("#%d %s", i, testCase.caseName), func(t *testing.T) {
 			store, client := newFakeConfigMapStore(t, "default", fmt.Sprintf("test-%d", i), testCase.metrics)
-			datadogClientComp := fxutil.Test[datadogclient.MockComponent](t, datadogclientimpl.MockModule())
+			datadogClientComp := datadogclientmock.NewMock(t)
 			hctrl, inf := newFakeAutoscalerController(t, client, alwaysLeader, datadogClientComp)
 
 			hctrl.store = store

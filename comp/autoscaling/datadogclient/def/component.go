@@ -10,7 +10,7 @@ import (
 	"gopkg.in/zorkian/go-datadog-api.v2"
 )
 
-// team: container-intergrations
+// team: container-integrations
 
 // Component is the component type.
 type Component interface {

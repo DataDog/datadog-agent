@@ -589,7 +589,7 @@ Package updater is the updater component.
 
 ### [comp/autoscaling/datadogclient](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient)
 
-*Datadog Team*: container-intergrations
+*Datadog Team*: container-integrations
 
 Package datadogclient provides the datadog client component for the calling datadog API
 

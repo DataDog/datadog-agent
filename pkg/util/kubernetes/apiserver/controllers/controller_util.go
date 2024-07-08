@@ -20,7 +20,7 @@ import (
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
 
-	datadogclientcomp "github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient"
+	datadogclientcomp "github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"

@@ -22,7 +22,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
 
-	"github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient"
+	datadogclient "github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"

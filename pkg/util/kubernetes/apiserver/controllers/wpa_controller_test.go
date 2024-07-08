@@ -38,12 +38,11 @@ import (
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/retry"
 
-	"github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient"
-	"github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient/datadogclientimpl"
+	datadogclient "github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient/def"
+	datadogclientmock "github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient/mock"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/errors"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/autoscalers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -64,7 +63,7 @@ func TestUpdateWPA(t *testing.T) {
 
 	name := custommetrics.GetConfigmapName()
 	store, client := newFakeConfigMapStore(t, "nsfoo", name, nil)
-	datadogClientComp := fxutil.Test[datadogclient.MockComponent](t, datadogclientimpl.MockModule())
+	datadogClientComp := datadogclientmock.NewMock(t)
 
 	p := &fakeProcessor{
 		updateMetricFunc: func(emList map[string]custommetrics.ExternalMetricValue) (updated map[string]custommetrics.ExternalMetricValue) {
@@ -259,7 +258,7 @@ func TestWPAController(t *testing.T) {
 		},
 	}
 
-	datadogClientComp := fxutil.Test[datadogclient.MockComponent](t, datadogclientimpl.MockModule())
+	datadogClientComp := datadogclientmock.NewMock(t)
 	datadogClientComp.SetQueryMetricsFunc(func(from, to int64, query string) ([]datadog.Series, error) {
 		return ddSeries, nil
 	})
@@ -450,7 +449,7 @@ func TestWPAController(t *testing.T) {
 func TestWPASync(t *testing.T) {
 	wpaClient := fake.NewSimpleDynamicClient(scheme)
 	client := fake_k.NewSimpleClientset()
-	datadogClientComp := fxutil.Test[datadogclient.MockComponent](t, datadogclientimpl.MockModule())
+	datadogClientComp := datadogclientmock.NewMock(t)
 	hctrl, inf := newFakeWPAController(t, client, wpaClient, alwaysLeader, datadogClientComp)
 	hctrl.enableWPA(inf)
 	obj, _ := newFakeWatermarkPodAutoscaler(
@@ -539,7 +538,7 @@ func TestWPAGC(t *testing.T) {
 	for i, testCase := range testCases {
 		t.Run(fmt.Sprintf("#%d %s", i, testCase.caseName), func(t *testing.T) {
 			store, client := newFakeConfigMapStore(t, "default", fmt.Sprintf("test-%d", i), testCase.metrics)
-			datadogClientComp := fxutil.Test[datadogclient.MockComponent](t, datadogclientimpl.MockModule())
+			datadogClientComp := datadogclientmock.NewMock(t)
 			wpaCl := fake.NewSimpleDynamicClient(scheme)
 
 			hctrl, _ := newFakeAutoscalerController(t, client, alwaysLeader, datadogClientComp)
