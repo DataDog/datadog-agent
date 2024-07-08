@@ -580,8 +580,13 @@ type SpliceEvent struct {
 	PipeExitFlag  uint32    `field:"pipe_exit_flag"`  // SECLDoc[pipe_exit_flag] Definition:`Exit flag of the "fd_out" pipe passed to the splice syscall` Constants:`Pipe buffer flags`
 }
 
+type CgroupContainerContext struct {
+	CGroupFlags uint64
+}
+
 // CgroupTracingEvent is used to signal that a new cgroup should be traced by the activity dump manager
 type CgroupTracingEvent struct {
+	CGroupContext    CgroupContainerContext
 	ContainerContext ContainerContext
 	Config           ActivityDumpLoadConfig
 	ConfigCookie     uint64
