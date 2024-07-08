@@ -43,7 +43,7 @@ const (
 	PingModule                   types.ModuleName = "ping"
 	TracerouteModule             types.ModuleName = "traceroute"
 	DiscoveryModule              types.ModuleName = "discovery"
-	GPUMonitoringModule          types.ModuleName = "gpu_monitoring"
+	GPUMonitoringModule          types.ModuleName = "gpu"
 )
 
 // New creates a config object for system-probe. It assumes no configuration has been loaded as this point.

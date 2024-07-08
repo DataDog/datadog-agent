@@ -5,5 +5,12 @@
 
 package gpu
 
+type StreamData struct {
+	Key   StreamKey     `json:"key"`
+	Spans []*KernelSpan `json:"spans"`
+}
+
 type GPUStats struct {
+	PastKernelSpans    []StreamData              `json:"past_kernel_spans"`
+	CurrentKernelSpans []StreamData `json:"current_kernel_spans"`
 }

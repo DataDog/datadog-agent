@@ -12,9 +12,9 @@ import (
 )
 
 type StreamKey struct {
-	Pid    uint32
-	Tid    uint32
-	Stream uint64
+	Pid    uint32 `json:"pid"`
+	Tid    uint32 `json:"tid"`
+	Stream uint64 `json:"stream"`
 }
 
 type StreamHandler struct {
@@ -24,9 +24,10 @@ type StreamHandler struct {
 }
 
 type KernelSpan struct {
-	Start          uint64
-	End            uint64
-	AvgThreadCount uint64
+	Start          uint64 `json:"start"`
+	End            uint64 `json:"end"`
+	AvgThreadCount uint64 `json:"avg_thread_count"`
+	NumKernels     uint64 `json:"num_kernels"`
 }
 
 func (sh *StreamHandler) handleKernelLaunch(event *gpuebpf.CudaKernelLaunch) {
@@ -54,11 +55,10 @@ func (sh *StreamHandler) handleSync(event *gpuebpf.CudaSync) {
 
 func (sh *StreamHandler) getCurrentKernelSpan(maxTime uint64) *KernelSpan {
 	span := KernelSpan{
-		Start: math.MaxUint64,
-		End:   0,
+		Start:      math.MaxUint64,
+		End:        0,
+		NumKernels: 0,
 	}
-
-	numLaunches := 0
 
 	for _, launch := range sh.kernelLaunches {
 		if launch.Header.Ktime_ns >= maxTime {
@@ -70,11 +70,11 @@ func (sh *StreamHandler) getCurrentKernelSpan(maxTime uint64) *KernelSpan {
 		blockSize := launch.Block_size.X * launch.Block_size.Y * launch.Block_size.Z
 		blockCount := launch.Grid_size.X * launch.Grid_size.Y * launch.Grid_size.Z
 		span.AvgThreadCount += uint64(blockSize) * uint64(blockCount)
-		numLaunches++
+		span.NumKernels++
 	}
 
-	if numLaunches > 0 {
-		span.AvgThreadCount /= uint64(numLaunches)
+	if span.NumKernels > 0 {
+		span.AvgThreadCount /= uint64(span.NumKernels)
 	}
 
 	return &span

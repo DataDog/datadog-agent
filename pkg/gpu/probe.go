@@ -208,8 +208,26 @@ func (p *Probe) Close() {
 }
 
 // GetAndFlush returns the GPU stats
-func (p *Probe) GetAndFlush() (results GPUStats) {
+func (p *Probe) GetAndFlush() (*GPUStats, error) {
+	now, err := ddebpf.NowNanoseconds()
+	if err != nil {
+		return nil, fmt.Errorf("getting current time: %w", err)
+	}
 
+	stats := GPUStats{}
+	for key, handler := range p.consumer.streamHandlers {
+		currSpan := handler.getCurrentKernelSpan(uint64(now))
+		if currSpan != nil && currSpan.NumKernels > 0 {
+			stats.CurrentKernelSpans = append(stats.CurrentKernelSpans, StreamData{Key: key, Spans: []*KernelSpan{currSpan}})
+		}
+
+		if len(handler.kernelSpans) > 0 {
+			stats.PastKernelSpans = append(stats.PastKernelSpans, StreamData{Key: key, Spans: handler.kernelSpans})
+			handler.kernelSpans = nil // Flush past spans
+		}
+	}
+
+	return &stats, nil
 }
 
 func (p *Probe) startEventConsumer() {

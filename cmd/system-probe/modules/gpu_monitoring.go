@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/gpu"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
@@ -55,7 +56,13 @@ type GPUMonitoringModule struct {
 func (t *GPUMonitoringModule) Register(httpMux *module.Router) error {
 	httpMux.HandleFunc("/check", func(w http.ResponseWriter, req *http.Request) {
 		t.lastCheck.Store(time.Now().Unix())
-		stats := t.Probe.GetAndFlush()
+		stats, err := t.Probe.GetAndFlush()
+		if err != nil {
+			log.Errorf("Error getting GPU stats: %v", err)
+			w.WriteHeader(500)
+			return
+		}
+
 		utils.WriteAsJSON(w, stats)
 	})
 
