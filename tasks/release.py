@@ -742,7 +742,7 @@ def check_omnibus_branches(ctx):
 
 
 @task
-def update_build_links(_ctx, new_version, patch_version=False):
+def update_build_links(_, new_version, patch_version=False):
     """
     Updates Agent release candidates build links on https://datadoghq.atlassian.net/wiki/spaces/agent/pages/2889876360/Build+links
 
@@ -786,7 +786,7 @@ def update_build_links(_ctx, new_version, patch_version=False):
     content = confluence.get_page_by_id(page_id=BUILD_LINKS_PAGE_ID, expand="body.storage")
 
     title = content["title"]
-    current_version = title[-11:]
+    current_version = title.split()[-1].strip()
     body = content["body"]["storage"]["value"]
 
     title = title.replace(current_version, new_version)
