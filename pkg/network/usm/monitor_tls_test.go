@@ -550,7 +550,7 @@ func (s *tlsSuite) TestJavaInjection() {
 func TestHTTPGoTLSAttachProbes(t *testing.T) {
 	modes := []ebpftest.BuildMode{ebpftest.RuntimeCompiled, ebpftest.CORE}
 	ebpftest.TestBuildModes(t, modes, "", func(t *testing.T) {
-		if !gotlstestutil.GoTLSSupported(t, config.New()) {
+		if !gotlstestutil.GoTLSSupported(config.New()) {
 			t.Skip("GoTLS not supported for this setup")
 		}
 
@@ -569,7 +569,7 @@ func testHTTP2GoTLSAttachProbes(t *testing.T, cfg *config.Config) {
 		if !http2.Supported() {
 			t.Skip("HTTP2 not supported for this setup")
 		}
-		if !gotlstestutil.GoTLSSupported(t, cfg) {
+		if !gotlstestutil.GoTLSSupported(cfg) {
 			t.Skip("GoTLS not supported for this setup")
 		}
 
@@ -601,7 +601,7 @@ func TestHTTPSGoTLSAttachProbesOnContainer(t *testing.T) {
 	t.Skip("Skipping a flaky test")
 	modes := []ebpftest.BuildMode{ebpftest.RuntimeCompiled, ebpftest.CORE}
 	ebpftest.TestBuildModes(t, modes, "", func(t *testing.T) {
-		if !gotlstestutil.GoTLSSupported(t, config.New()) {
+		if !gotlstestutil.GoTLSSupported(config.New()) {
 			t.Skip("GoTLS not supported for this setup")
 		}
 
@@ -619,7 +619,7 @@ func TestOldConnectionRegression(t *testing.T) {
 
 	modes := []ebpftest.BuildMode{ebpftest.RuntimeCompiled, ebpftest.CORE}
 	ebpftest.TestBuildModes(t, modes, "", func(t *testing.T) {
-		if !gotlstestutil.GoTLSSupported(t, config.New()) {
+		if !gotlstestutil.GoTLSSupported(config.New()) {
 			t.Skip("GoTLS not supported for this setup")
 		}
 
@@ -694,7 +694,7 @@ func TestOldConnectionRegression(t *testing.T) {
 func TestLimitListenerRegression(t *testing.T) {
 	modes := []ebpftest.BuildMode{ebpftest.RuntimeCompiled, ebpftest.CORE}
 	ebpftest.TestBuildModes(t, modes, "", func(t *testing.T) {
-		if !gotlstestutil.GoTLSSupported(t, config.New()) {
+		if !gotlstestutil.GoTLSSupported(config.New()) {
 			t.Skip("GoTLS not supported for this setup")
 		}
 
