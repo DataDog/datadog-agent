@@ -862,10 +862,6 @@ def lint_go(
 @task
 def check_otel_build(ctx):
     with ctx.cd("test/otel"):
-        # Rename fixtures
-        shutil.copy("test/otel/dependencies.go.fake", "test/otel/dependencies.go")
-        shutil.copy("test/otel/go.mod.fake", "test/otel/go.mod")
-
         # Update dependencies to latest local version
         res = ctx.run("go mod tidy")
         if not res.ok:
