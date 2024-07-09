@@ -313,7 +313,8 @@ func CheckCWSBehaviour(t *testing.T, client *TestClient) {
 
 	t.Run("system-probe and security-agent communicate", func(tt *testing.T) {
 		var statusOutputJSON map[string]any
-		var result, ok bool
+		var result bool
+
 		for try := 1; try <= 20 && !result; try++ {
 			status, err := client.Host.Execute("sudo /opt/datadog-agent/embedded/bin/security-agent status -j")
 			if err != nil {
