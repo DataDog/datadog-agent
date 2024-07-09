@@ -10,7 +10,6 @@ import json
 import operator
 import os
 import re
-import shutil
 import sys
 from collections import defaultdict
 from collections.abc import Iterable
