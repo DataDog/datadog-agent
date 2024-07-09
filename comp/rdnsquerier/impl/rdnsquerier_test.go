@@ -27,7 +27,17 @@ import (
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 )
 
-func TestRDNSQuerierStartStop(t *testing.T) {
+// Fake resolver is used by tests that "resolve" IP addresses to hostnames because with the real resolver test results
+// can be non-deterministic.  Some systems may be able to resolve the private IP addresses used in the tests, others may not.
+type fakeResolver struct {
+	config *rdnsQuerierConfig
+}
+
+func (r *fakeResolver) lookup(addr string) (string, error) {
+	return "fakehostname-" + addr, nil
+}
+
+func TestStartStop(t *testing.T) {
 	lc := compdef.NewTestLifecycle()
 
 	overrides := map[string]interface{}{
@@ -52,7 +62,6 @@ func TestRDNSQuerierStartStop(t *testing.T) {
 	provides, err := NewComponent(requires)
 	assert.NoError(t, err)
 	assert.NotNil(t, provides.Comp)
-	//JMWrdnsQuerier := provides.Comp
 
 	internalRDNSQuerier := provides.Comp.(*rdnsQuerierImpl)
 	assert.NotNil(t, internalRDNSQuerier)
@@ -67,14 +76,74 @@ func TestRDNSQuerierStartStop(t *testing.T) {
 	assert.Equal(t, false, internalRDNSQuerier.started)
 }
 
-// Fake resolver is used because otherwise the test results can be indeterminate. Some systems may be able to
-// resolve the private IP addresses used in the tests, others may not.
-type fakeResolver struct {
-	config *rdnsQuerierConfig
-}
+func TestNotStarted(t *testing.T) {
+	lc := compdef.NewTestLifecycle()
 
-func (r *fakeResolver) lookup(addr string) (string, error) {
-	return "fakehostname-" + addr, nil
+	overrides := map[string]interface{}{
+		"network_devices.netflow.reverse_dns_enrichment_enabled": true,
+	}
+
+	config := fxutil.Test[config.Component](t, fx.Options(
+		config.MockModule(),
+		fx.Replace(config.MockParams{Overrides: overrides}),
+	))
+
+	logComp := fxutil.Test[log.Component](t, logimpl.MockModule())
+	telemetryComp := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
+
+	requires := Requires{
+		Lifecycle:   lc,
+		AgentConfig: config,
+		Logger:      logComp,
+		Telemetry:   telemetryComp,
+	}
+
+	provides, err := NewComponent(requires)
+	assert.NoError(t, err)
+	assert.NotNil(t, provides.Comp)
+	rdnsQuerier := provides.Comp
+
+	// use fake resolver so the test results are deterministic
+	internalRDNSQuerier := provides.Comp.(*rdnsQuerierImpl)
+	internalRDNSQuerier.resolver = &fakeResolver{internalRDNSQuerier.config}
+
+	// IP address in private range
+	rdnsQuerier.GetHostnameAsync(
+		[]byte{192, 168, 1, 100},
+		func(hostname string) {
+			assert.FailNow(t, "Callback should not be called when rdnsquerier is not started")
+		},
+	)
+
+	expectedTelemetry := map[string]float64{
+		"total":                1.0,
+		"private":              1.0,
+		"chan_added":           0.0,
+		"dropped_chan_full":    1.0,
+		"dropped_rate_limiter": 0.0,
+		"invalid_ip_address":   0.0,
+		"lookup_err_not_found": 0.0,
+		"lookup_err_timeout":   0.0,
+		"lookup_err_temporary": 0.0,
+		"lookup_err_other":     0.0,
+		"successful":           0.0,
+	}
+
+	// Validate telemetry
+	telemetryMock, ok := telemetryComp.(telemetry.Mock)
+	assert.True(t, ok)
+	for name, expected := range expectedTelemetry {
+		logComp.Debugf("Validating expected telemetry %s", name)
+		metrics, err := telemetryMock.GetCountMetric(moduleName, name)
+		if expected == 0 {
+			assert.Error(t, err)
+		} else {
+			assert.NoError(t, err)
+			assert.Len(t, metrics, 1)
+			assert.Equal(t, expected, metrics[0].Value())
+		}
+	}
+
 }
 
 func TestRDNSQuerierJMW(t *testing.T) {
@@ -104,12 +173,12 @@ func TestRDNSQuerierJMW(t *testing.T) {
 	assert.NotNil(t, provides.Comp)
 	rdnsQuerier := provides.Comp
 
-	// use fake resolver so the test results are determinate
+	// use fake resolver so the test results are deterministic
 	internalRDNSQuerier := provides.Comp.(*rdnsQuerierImpl)
 	internalRDNSQuerier.resolver = &fakeResolver{internalRDNSQuerier.config}
 
 	ctx := context.Background()
-	assert.NoError(t, lc.Start(ctx)) //JMWNEEDED?
+	//JMWassert.NoError(t, lc.Start(ctx)) //JMWNEEDED?
 
 	var wg sync.WaitGroup
 
@@ -158,7 +227,7 @@ func TestRDNSQuerierJMW(t *testing.T) {
 	telemetryMock, ok := telemetryComp.(telemetry.Mock)
 	assert.True(t, ok)
 	for name, expected := range expectedTelemetry {
-		logComp.Debugf("Validating metric %s", name)
+		logComp.Debugf("Validating expected telemetry %s", name)
 		metrics, err := telemetryMock.GetCountMetric(moduleName, name)
 		if expected == 0 {
 			assert.Error(t, err)
@@ -218,7 +287,7 @@ func TestRDNSQuerierJMW2(t *testing.T) {
 	assert.NotNil(t, provides.Comp)
 	rdnsQuerier := provides.Comp
 
-	// use fake resolver so the test results are determinate
+	// use fake resolver so the test results are deterministic
 	internalRDNSQuerier := provides.Comp.(*rdnsQuerierImpl)
 	internalRDNSQuerier.resolver = &fakeResolver{internalRDNSQuerier.config}
 
@@ -316,7 +385,7 @@ func TestRDNSQuerierJMW3(t *testing.T) {
 	assert.NotNil(t, provides.Comp)
 	rdnsQuerier := provides.Comp
 
-	// use fake resolver so the test results are determinate
+	// use fake resolver so the test results are deterministic
 	internalRDNSQuerier := provides.Comp.(*rdnsQuerierImpl)
 	internalRDNSQuerier.resolver = &fakeResolver{internalRDNSQuerier.config}
 

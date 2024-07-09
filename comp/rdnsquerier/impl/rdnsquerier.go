@@ -110,8 +110,6 @@ func NewComponent(reqs Requires) (Provides, error) {
 		started:     false,
 		resolver:    newResolver(config),
 		rateLimiter: newRateLimiter(config),
-
-		rdnsQueryChan: make(chan *rdnsQuery, config.chanSize),
 	}
 
 	reqs.Lifecycle.Append(compdef.Hook{
@@ -129,10 +127,10 @@ func NewComponent(reqs Requires) (Provides, error) {
 // will be called asynchronously with the hostname.
 func (q *rdnsQuerierImpl) GetHostnameAsync(ipAddr []byte, updateHostname func(string)) {
 	//JMW - return error?
-	if !q.started {
-		q.logger.Debugf("Reverse DNS Enrichment not started - dropping request for IP address %v", ipAddr)
-		return
-	}
+	//JMWJMWif !q.started { //JMW do we want to check this every time?
+	//JMWJMWq.logger.Debugf("Reverse DNS Enrichment not started - dropping request for IP address %v", ipAddr)
+	//JMWJMWreturn
+	//JMWJMW}
 
 	q.internalTelemetry.total.Inc()
 
@@ -163,13 +161,18 @@ func (q *rdnsQuerierImpl) GetHostnameAsync(ipAddr []byte, updateHostname func(st
 }
 
 func (q *rdnsQuerierImpl) start(_ context.Context) error {
-	//JMW comment why getting our own context, not using the one passed in, because we need it for cancelling and because one passed in has a deadline set
 	if q.started {
 		q.logger.Debugf("Reverse DNS Enrichment already started")
 		return nil
 	}
+
+	// A context is needed by the rate limiter and we also use its Done() channel for shutting down worker goroutines.
+	// We don't use the context passed in because it has a deadline set, which we don't want.
 	var ctx context.Context
 	ctx, q.cancel = context.WithCancel(context.Background())
+
+	q.rdnsQueryChan = make(chan *rdnsQuery, q.config.chanSize)
+
 	for range q.config.workers {
 		q.wg.Add(1)
 		go q.worker(ctx)
@@ -189,9 +192,6 @@ func (q *rdnsQuerierImpl) stop(context.Context) error {
 	q.cancel()
 	q.wg.Wait()
 
-	//JMW if I close the channel here and then send on it in GetHostnameAsync() I get a panic
-	// panic: send on closed channel
-	//JMWclose(q.rdnsQueryChan)
 	q.logger.Infof("Reverse DNS Enrichment stopped rdnsquerier workers")
 	q.started = false
 
