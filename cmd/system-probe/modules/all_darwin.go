@@ -3,18 +3,16 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// go:build windows
+//go:build darwin
 
+//nolint:revive // TODO(EBPF) Fix revive linter
 package modules
 
 import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
-	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
 )
 
-// Traceroute is a factory for NDMs Traceroute module
-var Traceroute = module.Factory{
-	Name:             config.TracerouteModule,
-	ConfigNamespaces: tracerouteConfigNamespaces,
-	Fn:               createTracerouteModule,
+// All System Probe modules should register their factories here
+var All = []module.Factory{
+	Traceroute,
 }
