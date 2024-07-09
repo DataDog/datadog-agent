@@ -1828,6 +1828,22 @@ func LoadDatadogCustom(config pkgconfigmodel.Config, origin string, secretResolv
 		return warnings, err
 	}
 
+	// We resolve proxy setting before secrets. This allows setting secrets through DD_PROXY_* env variables
+	LoadProxyFromEnv(config)
+
+	if resolver, ok := secretResolver.Get(); ok {
+		if err := ResolveSecrets(config, resolver, origin); err != nil {
+			return warnings, err
+		}
+	}
+
+	// Verify 'DD_URL' and 'DD_DD_URL' conflicts
+	if EnvVarAreSetAndNotEqual("DD_DD_URL", "DD_URL") {
+		log.Warnf("'DD_URL' and 'DD_DD_URL' variables are both set in environment. Using 'DD_DD_URL' value")
+	}
+
+	useHostEtc(config)
+
 	err = checkConflictingOptions(config)
 	if err != nil {
 		return warnings, err
@@ -1880,21 +1896,6 @@ func LoadCustom(config pkgconfigmodel.Config, origin string, secretResolver opti
 		log.Warnf(warningMsg)
 	}
 
-	// We resolve proxy setting before secrets. This allows setting secrets through DD_PROXY_* env variables
-	LoadProxyFromEnv(config)
-
-	if resolver, ok := secretResolver.Get(); ok {
-		if err := ResolveSecrets(config, resolver, origin); err != nil {
-			return &warnings, err
-		}
-	}
-
-	// Verify 'DD_URL' and 'DD_DD_URL' conflicts
-	if EnvVarAreSetAndNotEqual("DD_DD_URL", "DD_URL") {
-		log.Warnf("'DD_URL' and 'DD_DD_URL' variables are both set in environment. Using 'DD_DD_URL' value")
-	}
-
-	useHostEtc(config)
 	return &warnings, nil
 }
 
