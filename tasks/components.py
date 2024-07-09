@@ -74,10 +74,12 @@ components_classic_style = [
     'comp/agent/jmxlogger/jmxloggerimpl',
     'comp/aggregator/diagnosesendermanager/diagnosesendermanagerimpl',
     'comp/api/api/apiimpl',
+    'comp/api/api/def',
     'comp/api/authtoken/fetchonlyimpl',
     'comp/api/authtoken/createandfetchimpl',
     'comp/checks/agentcrashdetect/agentcrashdetectimpl',
     'comp/checks/windowseventlog/windowseventlogimpl',
+    "comp/checks/winregistry/impl",
     'comp/collector/collector/collectorimpl',
     'comp/core/agenttelemetry/agenttelemetryimpl',
     'comp/core/autodiscovery/autodiscoveryimpl',
@@ -91,10 +93,12 @@ components_classic_style = [
     'comp/core/settings/settingsimpl',
     'comp/core/status/statusimpl',
     'comp/core/sysprobeconfig/sysprobeconfigimpl',
+    'comp/core/telemetry/telemetryimpl',
     'comp/core/telemetry/noopsimpl',
     'comp/dogstatsd/pidmap/pidmapimpl',
     'comp/dogstatsd/serverDebug/serverdebugimpl',
     'comp/dogstatsd/status/statusimpl',
+    'comp/etw/impl',
     'comp/forwarder/eventplatform/eventplatformimpl',
     'comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl',
     'comp/forwarder/orchestrator/orchestratorimpl',
@@ -155,6 +159,7 @@ components_missing_implementation_folder = [
     "comp/core/tagger",
     "comp/forwarder/orchestrator/orchestratorinterface",
     "comp/core/hostname/hostnameinterface",
+    "comp/core/hostname/remotehostnameimpl",
 ]
 
 implementation_definitions = [
@@ -185,23 +190,31 @@ def check_component_contents_and_file_hiearchy(entry_point):
 
     component_name = directory.stem
     missing_implementation_folder = True
-
     if str(directory) in components_missing_implementation_folder:
         return ""
 
     for folder in directory.iterdir():
-        # TODO: Check entry_point.version == 2 for new-style, and entry_point.version == 1 for classic (currently broken on some classic components)
+        if folder.is_file():
+            continue
 
-        # Check for component implementation using the new-style folder structure: comp/<component>/impl[-suffix]
-        if folder.match('impl-*') or folder.match('impl'):
-            missing_implementation_folder = False
-            break
-        # Check for component implementation using the classic style: comp/<component>/<component>impl
-        if folder.match('*impl'):
-            missing_implementation_folder = False
-            if str(folder) not in components_classic_style:
-                return f"** new component '{component_name}' should not use classic style, instead follow docs/components/defining-components.md; skipping"
-            break
+        if str(folder) in components_missing_implementation_folder:
+            return ""
+
+        if entry_point.version == 2:
+            # Check for component implementation using the new-style folder structure: comp/<component>/impl[-suffix]
+            if folder.match('impl-*') or folder.match('impl'):
+                missing_implementation_folder = False
+                break
+        if entry_point.version == 1:
+            # Check for component implementation using the classic style: comp/<component>/<component>impl
+            if str(folder) in components_classic_style:
+                missing_implementation_folder = False
+            else:
+                # check if folder is a subcomponent
+                # if it is a subcomponent we fail if not we do not report any error
+                component_file = folder / 'component.go'
+                if component_file.is_file():
+                    return f"** {component_name} is missing the implemenation folder in {directory}. See docs/components/defining-components.md; skipping"
 
     if missing_implementation_folder:
         return f"** {component_name} is missing the implemenation folder in {directory}. See docs/components/defining-components.md; skipping"
@@ -294,9 +307,15 @@ def locate_root(dir):
     # v2 component: this folder is a component root if it contains 'def/component.go'
     component_file = dir / 'def/component.go'
     if component_file.is_file():
-        return ComponentRoot(component_file, dir, 2)
+        # comp/api/api/def/component.go is a special case, it's not a component using version 2
+        # PLEASE DO NOT ADD MORE EXCPETIONS
+        if str(component_file) == "comp/api/api/def/component.go":
+            return ComponentRoot(component_file, dir, 1)
+        else:
+            return ComponentRoot(component_file, dir, 2)
+
     # v1 component: this folder is a component root if it contains '/component.go' but the path is not '/def/component.go'
-    #    in particular, the directory named 'def' should not be treated as a component root
+    # in particular, the directory named 'def' should not be treated as a component root
     component_file = dir / 'component.go'
     if component_file.is_file() and '/def/component.go' not in str(component_file):
         return ComponentRoot(component_file, dir, 1)

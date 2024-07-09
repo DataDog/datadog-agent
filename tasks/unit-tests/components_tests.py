@@ -2,6 +2,7 @@ import os
 import shutil
 import tempfile
 import unittest
+from pathlib import Path
 
 from tasks import components
 
@@ -53,5 +54,15 @@ class TestComponents(unittest.TestCase):
         self.assertEqual(ok, True)
 
         components.components_classic_style.remove(classicComp)
+
+    def test_locate_root(self):
+        root = components.locate_root(Path('comp/classic'))
+        self.assertEqual(1, root.version)
+
+        root = components.locate_root(Path('comp/multiple'))
+        self.assertEqual(2, root.version)
+
+        root = components.locate_root(Path('comp/newstyle'))
+        self.assertEqual(2, root.version)
 
     # TODO: more tests
