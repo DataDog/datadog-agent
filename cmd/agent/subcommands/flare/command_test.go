@@ -223,6 +223,8 @@ func (c *commandTestSuite) TestReadProfileDataErrors() {
 	mockConfig.SetWithoutSource("expvar_port", 0)
 	mockConfig.SetWithoutSource("apm_config.enabled", true)
 	mockConfig.SetWithoutSource("apm_config.debug.port", 0)
+	mockConfig.SetWithoutSource("process_config.enabled", true)
+	mockConfig.SetWithoutSource("process_config.expvar_port", 0)
 
 	data, err := readProfileData(10)
 	require.Error(t, err)
