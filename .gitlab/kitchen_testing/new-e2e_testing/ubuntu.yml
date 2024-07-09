@@ -51,7 +51,9 @@
     E2E_OSVERS: "ubuntu-18-04,ubuntu-20-04"
     E2E_CWS_SUPPORTED_OSVERS: "ubuntu-18-04,ubuntu-20-04"
     E2E_BRANCH_OSVERS: "ubuntu-20-04"
-  needs: ["deploy_deb_testing-a7_arm64", "go_e2e_deps"]
+  needs:
+    - !reference [ .needs_new_e2e_template ]
+    - deploy_deb_testing-a7_arm64
 
 new-e2e-agent-platform-install-script-ubuntu-a6-x86_64:
   stage: kitchen_testing
