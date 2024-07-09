@@ -1,6 +1,6 @@
 version: v1.59.1
 
-name: agent-golangci-lint
+name: golangci-lint
 
 plugins:
   - module: 'github.com/DataDog/datadog-agent/pkg/linters/config'

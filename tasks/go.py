@@ -48,7 +48,6 @@ def run_golangci_lint(
     verbose=False,
     golangci_lint_kwargs="",
     headless_mode: bool = False,
-    lint_executable="golangci-lint",
 ):
     if isinstance(targets, str):
         # when this function is called from the command line, targets are passed
@@ -76,7 +75,7 @@ def run_golangci_lint(
             tags_arg = " ".join(sorted(set(tags)))
             timeout_arg_value = "25m0s" if not timeout else f"{timeout}m0s"
             return ctx.run(
-                f'{lint_executable} run {verbosity} --timeout {timeout_arg_value} {concurrency_arg} --build-tags "{tags_arg}" --path-prefix "{module_path}" {golangci_lint_kwargs} {target}/...',
+                f'golangci-lint run {verbosity} --timeout {timeout_arg_value} {concurrency_arg} --build-tags "{tags_arg}" --path-prefix "{module_path}" {golangci_lint_kwargs} {target}/...',
                 env=env,
                 warn=True,
             )

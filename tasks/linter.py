@@ -120,11 +120,6 @@ def filenames(ctx):
         raise Exit(code=1)
 
 
-CUSTOM_GOLANGCI_LINT = "agent-golangci-lint"
-# Comma separated list of linters to be used in the custom golangci-lint
-CUSTOM_GOLANGCI_LINTERS = "pkgconfig"
-
-
 @task(iterable=['flavors'])
 @run_on_devcontainer
 def go(
@@ -163,18 +158,6 @@ def go(
         inv linter.go --module=.
     """
 
-    golangci_executable = "golangci-lint"
-
-    if not os.path.isfile(os.path.expanduser(f"~/go/bin/{CUSTOM_GOLANGCI_LINT}")):
-        res = ctx.run("golangci-lint custom -v")
-        if res.ok:
-            os.rename(CUSTOM_GOLANGCI_LINT, os.path.expanduser(f"~/go/bin/{CUSTOM_GOLANGCI_LINT}"))
-            golangci_executable = CUSTOM_GOLANGCI_LINT
-        else:
-            print(
-                "Warning: failed to create golangci custom lint binary. Defaulting to default linter", file=sys.stderr
-            )
-
     if not check_tools_version(ctx, ['go', 'golangci-lint']):
         print("Warning: If you have linter errors it might be due to version mismatches.", file=sys.stderr)
 
@@ -188,9 +171,6 @@ def go(
         only_modified_packages=only_modified_packages,
         lint=True,
     )
-
-    # if golangci_executable == CUSTOM_GOLANGCI_LINT:
-    #     golangci_lint_kwargs += f"-E {CUSTOM_GOLANGCI_LINTERS}"
 
     lint_results, execution_times = run_lint_go(
         ctx=ctx,
@@ -206,7 +186,6 @@ def go(
         golangci_lint_kwargs=golangci_lint_kwargs,
         headless_mode=headless_mode,
         include_sds=include_sds,
-        golangci_executable=golangci_executable,
     )
 
     with gitlab_section('Linter failures', collapsed=True):
@@ -217,9 +196,6 @@ def go(
 
         for e in execution_times:
             print(f'- {e.name}: {e.duration:.1f}s')
-
-    if golangci_executable == CUSTOM_GOLANGCI_LINT:
-        os.remove(os.path.expanduser(f"~/go/bin/{CUSTOM_GOLANGCI_LINT}"))
 
     if success:
         if not headless_mode:
@@ -243,7 +219,6 @@ def run_lint_go(
     golangci_lint_kwargs="",
     headless_mode=False,
     include_sds=False,
-    golangci_executable="golangci-lint",
 ):
     linter_tags = build_tags or compute_build_tags_for_flavor(
         flavor=flavor,
@@ -263,7 +238,6 @@ def run_lint_go(
         timeout=timeout,
         golangci_lint_kwargs=golangci_lint_kwargs,
         headless_mode=headless_mode,
-        golangci_executable=golangci_executable,
     )
 
     return lint_results, execution_times
@@ -279,7 +253,6 @@ def lint_flavor(
     timeout=None,
     golangci_lint_kwargs: str = "",
     headless_mode: bool = False,
-    golangci_executable="golangci-lint",
 ):
     """
     Runs linters for given flavor, build tags, and modules.
@@ -301,7 +274,6 @@ def lint_flavor(
                 timeout=timeout,
                 golangci_lint_kwargs=golangci_lint_kwargs,
                 headless_mode=headless_mode,
-                lint_executable=golangci_executable,
             )
             execution_times.extend(time_results)
             for lint_result in lint_results:
