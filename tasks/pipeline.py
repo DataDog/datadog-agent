@@ -1008,7 +1008,7 @@ def compare_to_itself(ctx):
         return
     agent = get_gitlab_repo()
     gh = GithubAPI()
-    current_branch = ctx.run("git rev-parse --abbrev-ref HEAD", hide=True).stdout.strip()
+    current_branch = os.getenv("CI_COMMIT_REF_NAME")
     new_branch = f"compare/{current_branch}"
     ctx.run(f"git checkout -b {new_branch}", hide=True)
     ctx.run(
