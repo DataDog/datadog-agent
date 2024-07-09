@@ -211,7 +211,7 @@ COPY init-stage3-host-pid /etc/s6/init/init-stage3-host-pid
 
 # Update if optional OTel Agent process should not run
 RUN if [ ! -f /opt/datadog-agent/embedded/bin/otel-agent ]; then \
-  rm -rf /etc/services.d/otel \
+  rm -rf /etc/services.d/otel ; \
   else \
   mv /etc/datadog-agent/otel-config.yaml.example /etc/datadog-agent/otel-config.yaml; fi
 
