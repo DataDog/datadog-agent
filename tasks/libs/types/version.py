@@ -104,3 +104,6 @@ class Version:
             new_version.rc = 0
 
         return new_version
+
+    def tag_pattern(self):
+        return f"{self._safe_value('major')}.{self._safe_value('minor')}.{self._safe_value('patch')}*"
