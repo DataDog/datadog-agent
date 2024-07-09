@@ -149,7 +149,7 @@ func (s *KafkaProtocolParsingSuite) TestKafkaProtocolParsing() {
 	})
 
 	t.Run("with TLS", func(t *testing.T) {
-		if !gotlsutils.GoTLSSupported(t, config.New()) {
+		if !gotlsutils.GoTLSSupported(config.New()) {
 			t.Skip("GoTLS not supported for this setup")
 		}
 		for _, version := range versions {
@@ -1244,7 +1244,7 @@ func (s *KafkaProtocolParsingSuite) TestKafkaFetchRaw() {
 	})
 
 	t.Run("with TLS", func(t *testing.T) {
-		if !gotlsutils.GoTLSSupported(t, config.New()) {
+		if !gotlsutils.GoTLSSupported(config.New()) {
 			t.Skip("GoTLS not supported for this setup")
 		}
 
@@ -1335,7 +1335,7 @@ func (s *KafkaProtocolParsingSuite) TestKafkaProduceRaw() {
 	})
 
 	t.Run("with TLS", func(t *testing.T) {
-		if !gotlsutils.GoTLSSupported(t, config.New()) {
+		if !gotlsutils.GoTLSSupported(config.New()) {
 			t.Skip("GoTLS not supported for this setup")
 		}
 
