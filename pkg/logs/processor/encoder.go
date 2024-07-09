@@ -8,7 +8,6 @@ package processor
 
 import (
 	"strings"
-	"unicode"
 	"unicode/utf8"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -30,11 +29,10 @@ func toValidUtf8(msg []byte) string {
 
 	for len(msg) > 0 {
 		r, size := utf8.DecodeRune(msg)
-		if r == utf8.RuneError && size == 1 {
-			str.WriteRune(unicode.ReplacementChar)
-		} else {
-			str.WriteRune(r)
-		}
+		// in case of invalid utf-8, DecodeRune returns (utf8.RuneError, 1)
+		// and since RuneError is the same as unicode.ReplacementChar
+		// no need to handle the error explicitly
+		str.WriteRune(r)
 		msg = msg[size:]
 	}
 	return str.String()
