@@ -8,5 +8,5 @@
 ---
 features:
   - |
-    Cluster Agent now supports activating Continuous Profiling
-    via Admission Controller.
+    The Cluster Agent now supports activating Continuous Profiling
+    using Admission Controller.
