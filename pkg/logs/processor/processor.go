@@ -184,7 +184,7 @@ func (p *Processor) applySDSReconfiguration(order sds.ReconfigureOrder) {
 					p.processMessage(msg)
 				}
 
-				p.sds.buffer = p.sds.buffer[:0]
+				p.sds.buffer = nil
 			}
 		} else {
 			p.sds.buffering = p.sds.waitForConfig
