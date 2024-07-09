@@ -8,66 +8,23 @@
 package rdnsquerierimpl
 
 import (
-	"context"
 	"fmt"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"go.uber.org/fx"
-
-	"github.com/stretchr/testify/assert"
-
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
-	compdef "github.com/DataDog/datadog-agent/comp/def"
+	"github.com/stretchr/testify/assert" //JMW require for some?
 )
 
-// Fake resolver is used by tests that "resolve" IP addresses to hostnames because with the real resolver test results
-// can be non-deterministic.  Some systems may be able to resolve the private IP addresses used in the tests, others may not.
-type fakeResolver struct {
-	config *rdnsQuerierConfig
-}
-
-func (r *fakeResolver) lookup(addr string) (string, error) {
-	return "fakehostname-" + addr, nil
-}
-
 func TestStartStop(t *testing.T) {
-	lc := compdef.NewTestLifecycle()
-
 	overrides := map[string]interface{}{
 		"network_devices.netflow.reverse_dns_enrichment_enabled": true,
 	}
+	lc, rdnsQuerier, ctx, _, _ := testSetup(t, overrides)
 
-	config := fxutil.Test[config.Component](t, fx.Options(
-		config.MockModule(),
-		fx.Replace(config.MockParams{Overrides: overrides}),
-	))
-
-	logComp := fxutil.Test[log.Component](t, logimpl.MockModule())
-	telemetryComp := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
-
-	requires := Requires{
-		Lifecycle:   lc,
-		AgentConfig: config,
-		Logger:      logComp,
-		Telemetry:   telemetryComp,
-	}
-
-	provides, err := NewComponent(requires)
-	assert.NoError(t, err)
-	assert.NotNil(t, provides.Comp)
-
-	internalRDNSQuerier := provides.Comp.(*rdnsQuerierImpl)
+	internalRDNSQuerier := rdnsQuerier.(*rdnsQuerierImpl)
 	assert.NotNil(t, internalRDNSQuerier)
 	assert.Equal(t, false, internalRDNSQuerier.started)
-
-	ctx := context.Background()
 
 	assert.NoError(t, lc.Start(ctx))
 	assert.Equal(t, true, internalRDNSQuerier.started)
@@ -77,35 +34,10 @@ func TestStartStop(t *testing.T) {
 }
 
 func TestNotStarted(t *testing.T) {
-	lc := compdef.NewTestLifecycle()
-
 	overrides := map[string]interface{}{
 		"network_devices.netflow.reverse_dns_enrichment_enabled": true,
 	}
-
-	config := fxutil.Test[config.Component](t, fx.Options(
-		config.MockModule(),
-		fx.Replace(config.MockParams{Overrides: overrides}),
-	))
-
-	logComp := fxutil.Test[log.Component](t, logimpl.MockModule())
-	telemetryComp := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
-
-	requires := Requires{
-		Lifecycle:   lc,
-		AgentConfig: config,
-		Logger:      logComp,
-		Telemetry:   telemetryComp,
-	}
-
-	provides, err := NewComponent(requires)
-	assert.NoError(t, err)
-	assert.NotNil(t, provides.Comp)
-	rdnsQuerier := provides.Comp
-
-	// use fake resolver so the test results are deterministic
-	internalRDNSQuerier := provides.Comp.(*rdnsQuerierImpl)
-	internalRDNSQuerier.resolver = &fakeResolver{internalRDNSQuerier.config}
+	_, rdnsQuerier, _, telemetryMock, logComp := testSetup(t, overrides)
 
 	// IP address in private range
 	rdnsQuerier.GetHostnameAsync(
@@ -129,56 +61,16 @@ func TestNotStarted(t *testing.T) {
 		"successful":           0.0,
 	}
 
-	// Validate telemetry
-	telemetryMock, ok := telemetryComp.(telemetry.Mock)
-	assert.True(t, ok)
-	for name, expected := range expectedTelemetry {
-		logComp.Debugf("Validating expected telemetry %s", name)
-		metrics, err := telemetryMock.GetCountMetric(moduleName, name)
-		if expected == 0 {
-			assert.Error(t, err)
-		} else {
-			assert.NoError(t, err)
-			assert.Len(t, metrics, 1)
-			assert.Equal(t, expected, metrics[0].Value())
-		}
-	}
-
+	validateExpected(t, telemetryMock, logComp, expectedTelemetry)
 }
 
 func TestRDNSQuerierJMW(t *testing.T) {
-	lc := compdef.NewTestLifecycle()
-
 	overrides := map[string]interface{}{
 		"network_devices.netflow.reverse_dns_enrichment_enabled": true,
 	}
+	lc, rdnsQuerier, ctx, telemetryMock, logComp := testSetup(t, overrides)
 
-	config := fxutil.Test[config.Component](t, fx.Options(
-		config.MockModule(),
-		fx.Replace(config.MockParams{Overrides: overrides}),
-	))
-
-	logComp := fxutil.Test[log.Component](t, logimpl.MockModule())
-	telemetryComp := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
-
-	requires := Requires{
-		Lifecycle:   lc,
-		AgentConfig: config,
-		Logger:      logComp,
-		Telemetry:   telemetryComp,
-	}
-
-	provides, err := NewComponent(requires)
-	assert.NoError(t, err)
-	assert.NotNil(t, provides.Comp)
-	rdnsQuerier := provides.Comp
-
-	// use fake resolver so the test results are deterministic
-	internalRDNSQuerier := provides.Comp.(*rdnsQuerierImpl)
-	internalRDNSQuerier.resolver = &fakeResolver{internalRDNSQuerier.config}
-
-	ctx := context.Background()
-	//JMWassert.NoError(t, lc.Start(ctx)) //JMWNEEDED?
+	assert.NoError(t, lc.Start(ctx))
 
 	var wg sync.WaitGroup
 
@@ -223,42 +115,13 @@ func TestRDNSQuerierJMW(t *testing.T) {
 		"successful":           1.0,
 	}
 
-	// Validate telemetry
-	telemetryMock, ok := telemetryComp.(telemetry.Mock)
-	assert.True(t, ok)
-	for name, expected := range expectedTelemetry {
-		logComp.Debugf("Validating expected telemetry %s", name)
-		metrics, err := telemetryMock.GetCountMetric(moduleName, name)
-		if expected == 0 {
-			assert.Error(t, err)
-		} else {
-			assert.NoError(t, err)
-			assert.Len(t, metrics, 1)
-			assert.Equal(t, expected, metrics[0].Value())
-		}
-	}
+	validateExpected(t, telemetryMock, logComp, expectedTelemetry)
 
-	assert.NoError(t, lc.Stop(ctx))
-
-	/*JMWTRY after stopping - or as separate test
-	rdnsQuerier.GetHostnameAsync(
-		[]byte{192, 168, 1, 100},
-		func(hostname string) {
-			assert.FailNow(t, "Callback should not be called since rdnsquerier is stopped")
-		},
-	)
-
-	metrics, err := telemetryMock.GetCountMetric(moduleName, "dropped_chan_full")
-	assert.NoError(t, err)
-	assert.Len(t, metrics, 1)
-	assert.Equal(t, 1.0, metrics[0].Value())
-	*/
+	assert.NoError(t, lc.Stop(ctx)) //JMWNEEDED?
 }
 
 // JMWNEW add test to validate rate limiter and channel that 1) rate is limited and 2) once rate limit is exceeded, channel gets full and requests are dropped
 func TestRDNSQuerierJMW2(t *testing.T) {
-	lc := compdef.NewTestLifecycle()
-
 	overrides := map[string]interface{}{
 		"network_devices.netflow.reverse_dns_enrichment_enabled": true,
 		"reverse_dns_enrichment.workers":                         1,
@@ -266,33 +129,9 @@ func TestRDNSQuerierJMW2(t *testing.T) {
 		"reverse_dns_enrichment.rate_limiter.enabled":            true,
 		"reverse_dns_enrichment.rate_limiter.limit_per_sec":      1,
 	}
+	lc, rdnsQuerier, ctx, telemetryMock, logComp := testSetup(t, overrides)
 
-	config := fxutil.Test[config.Component](t, fx.Options(
-		config.MockModule(),
-		fx.Replace(config.MockParams{Overrides: overrides}),
-	))
-
-	logComp := fxutil.Test[log.Component](t, logimpl.MockModule())
-	telemetryComp := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
-
-	requires := Requires{
-		Lifecycle:   lc,
-		AgentConfig: config,
-		Logger:      logComp,
-		Telemetry:   telemetryComp,
-	}
-
-	provides, err := NewComponent(requires)
-	assert.NoError(t, err)
-	assert.NotNil(t, provides.Comp)
-	rdnsQuerier := provides.Comp
-
-	// use fake resolver so the test results are deterministic
-	internalRDNSQuerier := provides.Comp.(*rdnsQuerierImpl)
-	internalRDNSQuerier.resolver = &fakeResolver{internalRDNSQuerier.config}
-
-	ctx := context.Background()
-	assert.NoError(t, lc.Start(ctx)) //JMWNEEDED?
+	assert.NoError(t, lc.Start(ctx))
 
 	var wg sync.WaitGroup
 
@@ -322,75 +161,28 @@ func TestRDNSQuerierJMW2(t *testing.T) {
 		"lookup_err_temporary": 0.0,
 		"lookup_err_other":     0.0,
 	}
+	validateExpected(t, telemetryMock, logComp, expectedTelemetry)
 
 	minimumTelemetry := map[string]float64{
 		"chan_added":        1.0,
 		"dropped_chan_full": 1.0,
 		"successful":        1.0,
 	}
+	validateMinimum(t, telemetryMock, logComp, minimumTelemetry)
 
-	logComp.Debugf("JMW internalRDNSQuerier telemetry: %+v", internalRDNSQuerier.internalTelemetry)
-	// Validate telemetry
-	telemetryMock, ok := telemetryComp.(telemetry.Mock)
-	assert.True(t, ok)
-	for name, expected := range expectedTelemetry {
-		logComp.Debugf("Validating expected telemetry %s", name)
-		metrics, err := telemetryMock.GetCountMetric(moduleName, name)
-		if expected == 0 {
-			assert.Error(t, err)
-		} else {
-			assert.NoError(t, err)
-			assert.Len(t, metrics, 1)
-			assert.Equal(t, expected, metrics[0].Value())
-		}
-	}
-	for name, expected := range minimumTelemetry {
-		logComp.Debugf("Validating minimum telemetry %s", name)
-		metrics, err := telemetryMock.GetCountMetric(moduleName, name)
-		assert.NoError(t, err)
-		assert.Len(t, metrics, 1)
-		assert.GreaterOrEqual(t, metrics[0].Value(), expected)
-	}
-
-	assert.NoError(t, lc.Stop(ctx))
+	assert.NoError(t, lc.Stop(ctx)) //JMWNEEDED?
 }
 
 // JMWNEW add test for rate limiter - set to 1 per second, fill channel with 256 requests, run for 5 seconds, assert <= 5 requests are successful within that time
 func TestRDNSQuerierJMW3(t *testing.T) {
-	lc := compdef.NewTestLifecycle()
-
 	overrides := map[string]interface{}{
 		"network_devices.netflow.reverse_dns_enrichment_enabled": true,
+		"reverse_dns_enrichment.workers":                         256,
 		"reverse_dns_enrichment.rate_limiter.limit_per_sec":      1,
 	}
+	lc, rdnsQuerier, ctx, telemetryMock, logComp := testSetup(t, overrides)
 
-	//JMWDUPSETUP
-	config := fxutil.Test[config.Component](t, fx.Options(
-		config.MockModule(),
-		fx.Replace(config.MockParams{Overrides: overrides}),
-	))
-
-	logComp := fxutil.Test[log.Component](t, logimpl.MockModule())
-	telemetryComp := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
-
-	requires := Requires{
-		Lifecycle:   lc,
-		AgentConfig: config,
-		Logger:      logComp,
-		Telemetry:   telemetryComp,
-	}
-
-	provides, err := NewComponent(requires)
-	assert.NoError(t, err)
-	assert.NotNil(t, provides.Comp)
-	rdnsQuerier := provides.Comp
-
-	// use fake resolver so the test results are deterministic
-	internalRDNSQuerier := provides.Comp.(*rdnsQuerierImpl)
-	internalRDNSQuerier.resolver = &fakeResolver{internalRDNSQuerier.config}
-
-	ctx := context.Background()
-	assert.NoError(t, lc.Start(ctx)) //JMWNEEDED?
+	assert.NoError(t, lc.Start(ctx))
 
 	// IP addresses in private range
 	for i := range 256 {
@@ -416,49 +208,18 @@ func TestRDNSQuerierJMW3(t *testing.T) {
 		"lookup_err_temporary": 0.0,
 		"lookup_err_other":     0.0,
 	}
+	validateExpected(t, telemetryMock, logComp, expectedTelemetry)
 
 	maximumTelemetry := map[string]float64{
 		"successful": 6.0, // running for 2 seconds, rate limit is 1 per second, add some buffer for timing
 	}
-
-	logComp.Debugf("JMW internalRDNSQuerier telemetry: %+v", internalRDNSQuerier.internalTelemetry)
-	// Validate telemetry
-	telemetryMock, ok := telemetryComp.(telemetry.Mock)
-	assert.True(t, ok)
-
-	for name, expected := range expectedTelemetry {
-		logComp.Debugf("Validating expected telemetry %s", name)
-		metrics, err := telemetryMock.GetCountMetric(moduleName, name)
-		if expected == 0 {
-			assert.Error(t, err)
-		} else {
-			assert.NoError(t, err)
-			assert.Len(t, metrics, 1)
-			assert.Equal(t, expected, metrics[0].Value())
-		}
-	}
-
-	for name, expected := range maximumTelemetry {
-		logComp.Debugf("Validating maximum telemetry %s", name)
-		metrics, err := telemetryMock.GetCountMetric(moduleName, name)
-		assert.NoError(t, err)
-		assert.Len(t, metrics, 1)
-		assert.LessOrEqual(t, metrics[0].Value(), expected)
-	}
+	validateMaximum(t, telemetryMock, logComp, maximumTelemetry)
 
 	assert.NoError(t, lc.Stop(ctx))
 
-	//JMW now check for dropped_rate_limiter - or skip this since timing of shutdown could cause this to be lower than expected, even zero?
-	logComp.Debugf("JMW2 internalRDNSQuerier telemetry: %+v", internalRDNSQuerier.internalTelemetry)
-
+	//JMW now check for dropped_rate_limiter - or skip this since timing of shutdown could cause this to be lower than expected, even zero? OR separate test
 	minimumTelemetry := map[string]float64{
 		"dropped_rate_limiter": 1.0, // stopping the rdnsquerier will cause requests blocked in the rate limiter to be dropped
 	}
-	for name, expected := range minimumTelemetry {
-		logComp.Debugf("Validating minimum telemetry %s", name)
-		metrics, err := telemetryMock.GetCountMetric(moduleName, name)
-		assert.NoError(t, err)
-		assert.Len(t, metrics, 1)
-		assert.GreaterOrEqual(t, metrics[0].Value(), expected)
-	}
+	validateMinimum(t, telemetryMock, logComp, minimumTelemetry)
 }

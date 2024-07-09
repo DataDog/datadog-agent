@@ -127,11 +127,6 @@ func NewComponent(reqs Requires) (Provides, error) {
 // will be called asynchronously with the hostname.
 func (q *rdnsQuerierImpl) GetHostnameAsync(ipAddr []byte, updateHostname func(string)) {
 	//JMW - return error?
-	//JMWJMWif !q.started { //JMW do we want to check this every time?
-	//JMWJMWq.logger.Debugf("Reverse DNS Enrichment not started - dropping request for IP address %v", ipAddr)
-	//JMWJMWreturn
-	//JMWJMW}
-
 	q.internalTelemetry.total.Inc()
 
 	ipaddr, ok := netip.AddrFromSlice(ipAddr)
