@@ -37,6 +37,16 @@ type lineSerializer struct{}
 // returns, "{"message":"content1"}\n{"message":"content2"}"
 func (s *lineSerializer) Serialize(messages []*message.Message) []byte {
 	var buffer bytes.Buffer
+
+	var lenHint int
+	for i, message := range messages {
+		if i > 0 {
+			lenHint++
+		}
+		lenHint += message.GetContentLenHint()
+	}
+	buffer.Grow(lenHint)
+
 	for i, message := range messages {
 		if i > 0 {
 			buffer.WriteByte('\n')
