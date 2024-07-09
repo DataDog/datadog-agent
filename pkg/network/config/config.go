@@ -86,6 +86,9 @@ type Config struct {
 	// EnablePostgresMonitoring specifies whether the tracer should monitor Postgres traffic.
 	EnablePostgresMonitoring bool
 
+	// EnableRedisMonitoring specifies whether the tracer should monitor Redis traffic.
+	EnableRedisMonitoring bool
+
 	// EnableNativeTLSMonitoring specifies whether the USM should monitor HTTPS traffic via native libraries.
 	// Supported libraries: OpenSSL, GnuTLS, LibCrypto.
 	EnableNativeTLSMonitoring bool
@@ -354,6 +357,7 @@ func New() *Config {
 		EnableHTTP2Monitoring:     cfg.GetBool(join(smNS, "enable_http2_monitoring")),
 		EnableKafkaMonitoring:     cfg.GetBool(join(smNS, "enable_kafka_monitoring")),
 		EnablePostgresMonitoring:  cfg.GetBool(join(smNS, "enable_postgres_monitoring")),
+		EnableRedisMonitoring:     cfg.GetBool(join(smNS, "enable_redis_monitoring")),
 		EnableNativeTLSMonitoring: cfg.GetBool(join(smNS, "tls", "native", "enabled")),
 		EnableIstioMonitoring:     cfg.GetBool(join(smNS, "tls", "istio", "enabled")),
 		EnableNodeJSMonitoring:    cfg.GetBool(join(smNS, "tls", "nodejs", "enabled")),

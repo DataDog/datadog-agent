@@ -285,6 +285,35 @@ service_monitoring_config:
 	})
 }
 
+func TestEnableRedisMonitoring(t *testing.T) {
+	t.Run("via YAML", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		cfg := configurationFromYAML(t, `
+service_monitoring_config:
+  enable_redis_monitoring: true
+`)
+
+		assert.True(t, cfg.EnableRedisMonitoring)
+	})
+
+	t.Run("via ENV variable", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_ENABLE_REDIS_MONITORING", "true")
+		_, err := sysconfig.New("")
+		require.NoError(t, err)
+		cfg := New()
+
+		assert.True(t, cfg.EnableRedisMonitoring)
+	})
+
+	t.Run("default", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		cfg := New()
+
+		assert.False(t, cfg.EnableRedisMonitoring)
+	})
+}
+
 func TestDefaultDisabledJavaTLSSupport(t *testing.T) {
 	aconfig.ResetSystemProbeConfig(t)
 
