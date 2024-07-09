@@ -9,6 +9,9 @@
 // offsets_data map contains the information about the locations of structs in the inspected binary, mapped by the binary's inode number.
 BPF_HASH_MAP(offsets_data, go_tls_offsets_data_key_t, tls_offsets_data_t, 1024)
 
+// Maps PID to the <device id>-<inode> tuple, that is used to find the offsets_data map for the binary.
+BPF_HASH_MAP(pid_to_device_inode, u32, go_tls_offsets_data_key_t, 10240)
+
 /* go_tls_read_args is used to get the read function info when running in the read-return uprobe.
    The key contains the go routine id and the pid. */
 BPF_LRU_MAP(go_tls_read_args, go_tls_function_args_key_t, go_tls_read_args_data_t, 2048)
