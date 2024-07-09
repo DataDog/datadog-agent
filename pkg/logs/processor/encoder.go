@@ -7,6 +7,7 @@
 package processor
 
 import (
+	"strings"
 	"unicode"
 	"unicode/utf8"
 
@@ -23,14 +24,18 @@ func toValidUtf8(msg []byte) string {
 	if utf8.Valid(msg) {
 		return string(msg)
 	}
-	str := make([]rune, 0, len(msg))
-	for i := range msg {
-		r, size := utf8.DecodeRune(msg[i:])
+
+	var str strings.Builder
+	str.Grow(len(msg))
+
+	for len(msg) > 0 {
+		r, size := utf8.DecodeRune(msg)
 		if r == utf8.RuneError && size == 1 {
-			str = append(str, unicode.ReplacementChar)
+			str.WriteRune(unicode.ReplacementChar)
 		} else {
-			str = append(str, r)
+			str.WriteRune(r)
 		}
+		msg = msg[size:]
 	}
-	return string(str)
+	return str.String()
 }
