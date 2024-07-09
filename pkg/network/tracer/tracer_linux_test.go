@@ -1509,7 +1509,7 @@ func (s *TracerSuite) TestSendfileRegression() {
 			t.Run("TCP", func(t *testing.T) {
 				// Start TCP server
 				var rcvd int64
-				server := tracertestutil.NewTCPServer(func(c net.Conn) {
+				server := tracertestutil.NewTCPServerOnAddress("", func(c net.Conn) {
 					rcvd, _ = io.Copy(io.Discard, c)
 					c.Close()
 				})
