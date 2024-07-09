@@ -35,7 +35,15 @@ func (r *fakeResolver) lookup(addr string) (string, error) {
 	return "fakehostname-" + addr, nil
 }
 
-func testSetup(t *testing.T, overrides map[string]interface{}) (*compdef.TestLifecycle, rdnsquerier.Component, context.Context, telemetry.Mock, log.Component) {
+type testState struct {
+	lc            *compdef.TestLifecycle
+	rdnsQuerier   rdnsquerier.Component
+	ctx           context.Context
+	telemetryMock telemetry.Mock
+	logComp       log.Component
+}
+
+func testSetup(t *testing.T, overrides map[string]interface{}, start bool) *testState {
 	lc := compdef.NewTestLifecycle()
 
 	config := fxutil.Test[config.Component](t, fx.Options(
@@ -69,13 +77,17 @@ func testSetup(t *testing.T, overrides map[string]interface{}) (*compdef.TestLif
 	telemetryMock, ok := telemetryComp.(telemetry.Mock)
 	assert.True(t, ok)
 
-	return lc, rdnsQuerier, ctx, telemetryMock, logComp
+	if start {
+		assert.NoError(t, lc.Start(ctx))
+	}
+
+	return &testState{lc, rdnsQuerier, ctx, telemetryMock, logComp}
 }
 
-func validateExpected(t *testing.T, tm telemetry.Mock, logComp log.Component, expectedTelemetry map[string]float64) {
+func (ts *testState) validateExpected(t *testing.T, expectedTelemetry map[string]float64) {
 	for name, expected := range expectedTelemetry {
-		logComp.Debugf("Validating expected telemetry %s", name)
-		metrics, err := tm.GetCountMetric(moduleName, name)
+		ts.logComp.Debugf("Validating expected telemetry %s", name)
+		metrics, err := ts.telemetryMock.GetCountMetric(moduleName, name)
 		if expected == 0 {
 			assert.Error(t, err)
 		} else {
@@ -86,20 +98,20 @@ func validateExpected(t *testing.T, tm telemetry.Mock, logComp log.Component, ex
 	}
 }
 
-func validateMinimum(t *testing.T, tm telemetry.Mock, logComp log.Component, minimumTelemetry map[string]float64) {
+func (ts *testState) validateMinimum(t *testing.T, minimumTelemetry map[string]float64) {
 	for name, expected := range minimumTelemetry {
-		logComp.Debugf("Validating minimum telemetry %s", name)
-		metrics, err := tm.GetCountMetric(moduleName, name)
+		ts.logComp.Debugf("Validating minimum telemetry %s", name)
+		metrics, err := ts.telemetryMock.GetCountMetric(moduleName, name)
 		assert.NoError(t, err)
 		assert.Len(t, metrics, 1)
 		assert.GreaterOrEqual(t, metrics[0].Value(), expected)
 	}
 }
 
-func validateMaximum(t *testing.T, tm telemetry.Mock, logComp log.Component, maximumTelemetry map[string]float64) {
+func (ts *testState) validateMaximum(t *testing.T, maximumTelemetry map[string]float64) {
 	for name, expected := range maximumTelemetry {
-		logComp.Debugf("Validating maximum telemetry %s", name)
-		metrics, err := tm.GetCountMetric(moduleName, name)
+		ts.logComp.Debugf("Validating maximum telemetry %s", name)
+		metrics, err := ts.telemetryMock.GetCountMetric(moduleName, name)
 		assert.NoError(t, err)
 		assert.Len(t, metrics, 1)
 		assert.LessOrEqual(t, metrics[0].Value(), expected)

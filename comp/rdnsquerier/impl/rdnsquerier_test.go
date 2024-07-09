@@ -20,16 +20,16 @@ func TestStartStop(t *testing.T) {
 	overrides := map[string]interface{}{
 		"network_devices.netflow.reverse_dns_enrichment_enabled": true,
 	}
-	lc, rdnsQuerier, ctx, _, _ := testSetup(t, overrides)
+	ts := testSetup(t, overrides, false)
 
-	internalRDNSQuerier := rdnsQuerier.(*rdnsQuerierImpl)
+	internalRDNSQuerier := ts.rdnsQuerier.(*rdnsQuerierImpl)
 	assert.NotNil(t, internalRDNSQuerier)
 	assert.Equal(t, false, internalRDNSQuerier.started)
 
-	assert.NoError(t, lc.Start(ctx))
+	assert.NoError(t, ts.lc.Start(ts.ctx))
 	assert.Equal(t, true, internalRDNSQuerier.started)
 
-	assert.NoError(t, lc.Stop(ctx))
+	assert.NoError(t, ts.lc.Stop(ts.ctx))
 	assert.Equal(t, false, internalRDNSQuerier.started)
 }
 
@@ -37,10 +37,10 @@ func TestNotStarted(t *testing.T) {
 	overrides := map[string]interface{}{
 		"network_devices.netflow.reverse_dns_enrichment_enabled": true,
 	}
-	_, rdnsQuerier, _, telemetryMock, logComp := testSetup(t, overrides)
+	ts := testSetup(t, overrides, false)
 
 	// IP address in private range
-	rdnsQuerier.GetHostnameAsync(
+	ts.rdnsQuerier.GetHostnameAsync(
 		[]byte{192, 168, 1, 100},
 		func(hostname string) {
 			assert.FailNow(t, "Callback should not be called when rdnsquerier is not started")
@@ -61,21 +61,19 @@ func TestNotStarted(t *testing.T) {
 		"successful":           0.0,
 	}
 
-	validateExpected(t, telemetryMock, logComp, expectedTelemetry)
+	ts.validateExpected(t, expectedTelemetry)
 }
 
 func TestRDNSQuerierJMW(t *testing.T) {
 	overrides := map[string]interface{}{
 		"network_devices.netflow.reverse_dns_enrichment_enabled": true,
 	}
-	lc, rdnsQuerier, ctx, telemetryMock, logComp := testSetup(t, overrides)
-
-	assert.NoError(t, lc.Start(ctx))
+	ts := testSetup(t, overrides, true)
 
 	var wg sync.WaitGroup
 
 	// Invalid IP address
-	rdnsQuerier.GetHostnameAsync(
+	ts.rdnsQuerier.GetHostnameAsync(
 		[]byte{1, 2, 3},
 		func(hostname string) {
 			assert.FailNow(t, "Callback should not be called for invalid IP address")
@@ -83,7 +81,7 @@ func TestRDNSQuerierJMW(t *testing.T) {
 	)
 
 	// IP address not in private range
-	rdnsQuerier.GetHostnameAsync(
+	ts.rdnsQuerier.GetHostnameAsync(
 		[]byte{8, 8, 8, 8},
 		func(hostname string) {
 			assert.FailNow(t, "Callback should not be called for IP address not in private range")
@@ -92,7 +90,7 @@ func TestRDNSQuerierJMW(t *testing.T) {
 
 	// IP address in private range
 	wg.Add(1)
-	rdnsQuerier.GetHostnameAsync(
+	ts.rdnsQuerier.GetHostnameAsync(
 		[]byte{192, 168, 1, 100},
 		func(hostname string) {
 			assert.Equal(t, "fakehostname-192.168.1.100", hostname)
@@ -115,9 +113,7 @@ func TestRDNSQuerierJMW(t *testing.T) {
 		"successful":           1.0,
 	}
 
-	validateExpected(t, telemetryMock, logComp, expectedTelemetry)
-
-	assert.NoError(t, lc.Stop(ctx)) //JMWNEEDED?
+	ts.validateExpected(t, expectedTelemetry)
 }
 
 // JMWNEW add test to validate rate limiter and channel that 1) rate is limited and 2) once rate limit is exceeded, channel gets full and requests are dropped
@@ -129,9 +125,7 @@ func TestRDNSQuerierJMW2(t *testing.T) {
 		"reverse_dns_enrichment.rate_limiter.enabled":            true,
 		"reverse_dns_enrichment.rate_limiter.limit_per_sec":      1,
 	}
-	lc, rdnsQuerier, ctx, telemetryMock, logComp := testSetup(t, overrides)
-
-	assert.NoError(t, lc.Start(ctx))
+	ts := testSetup(t, overrides, true)
 
 	var wg sync.WaitGroup
 
@@ -139,7 +133,7 @@ func TestRDNSQuerierJMW2(t *testing.T) {
 	wg.Add(1) // only wait for one callback, some or all of the other requests will be dropped
 	var once sync.Once
 	for i := range 256 {
-		rdnsQuerier.GetHostnameAsync(
+		ts.rdnsQuerier.GetHostnameAsync(
 			[]byte{192, 168, 1, byte(i)},
 			func(hostname string) {
 				assert.Equal(t, fmt.Sprintf("fakehostname-192.168.1.%d", i), hostname)
@@ -161,16 +155,14 @@ func TestRDNSQuerierJMW2(t *testing.T) {
 		"lookup_err_temporary": 0.0,
 		"lookup_err_other":     0.0,
 	}
-	validateExpected(t, telemetryMock, logComp, expectedTelemetry)
+	ts.validateExpected(t, expectedTelemetry)
 
 	minimumTelemetry := map[string]float64{
 		"chan_added":        1.0,
 		"dropped_chan_full": 1.0,
 		"successful":        1.0,
 	}
-	validateMinimum(t, telemetryMock, logComp, minimumTelemetry)
-
-	assert.NoError(t, lc.Stop(ctx)) //JMWNEEDED?
+	ts.validateMinimum(t, minimumTelemetry)
 }
 
 // JMWNEW add test for rate limiter - set to 1 per second, fill channel with 256 requests, run for 5 seconds, assert <= 5 requests are successful within that time
@@ -180,13 +172,11 @@ func TestRDNSQuerierJMW3(t *testing.T) {
 		"reverse_dns_enrichment.workers":                         256,
 		"reverse_dns_enrichment.rate_limiter.limit_per_sec":      1,
 	}
-	lc, rdnsQuerier, ctx, telemetryMock, logComp := testSetup(t, overrides)
-
-	assert.NoError(t, lc.Start(ctx))
+	ts := testSetup(t, overrides, true)
 
 	// IP addresses in private range
 	for i := range 256 {
-		rdnsQuerier.GetHostnameAsync(
+		ts.rdnsQuerier.GetHostnameAsync(
 			[]byte{192, 168, 1, byte(i)},
 			func(hostname string) {
 				assert.Equal(t, fmt.Sprintf("fakehostname-192.168.1.%d", i), hostname)
@@ -208,18 +198,18 @@ func TestRDNSQuerierJMW3(t *testing.T) {
 		"lookup_err_temporary": 0.0,
 		"lookup_err_other":     0.0,
 	}
-	validateExpected(t, telemetryMock, logComp, expectedTelemetry)
+	ts.validateExpected(t, expectedTelemetry)
 
 	maximumTelemetry := map[string]float64{
 		"successful": 6.0, // running for 2 seconds, rate limit is 1 per second, add some buffer for timing
 	}
-	validateMaximum(t, telemetryMock, logComp, maximumTelemetry)
+	ts.validateMaximum(t, maximumTelemetry)
 
-	assert.NoError(t, lc.Stop(ctx))
+	assert.NoError(t, ts.lc.Stop(ts.ctx))
 
 	//JMW now check for dropped_rate_limiter - or skip this since timing of shutdown could cause this to be lower than expected, even zero? OR separate test
 	minimumTelemetry := map[string]float64{
 		"dropped_rate_limiter": 1.0, // stopping the rdnsquerier will cause requests blocked in the rate limiter to be dropped
 	}
-	validateMinimum(t, telemetryMock, logComp, minimumTelemetry)
+	ts.validateMinimum(t, minimumTelemetry)
 }
