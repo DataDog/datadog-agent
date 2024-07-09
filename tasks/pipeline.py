@@ -1028,9 +1028,10 @@ def compare_to_itself(ctx):
     ctx.run(f"git push origin {new_branch}", hide=True)
     max_attempts = 8
     for attempt in range(max_attempts):
+        print(f"[{datetime.now()}] Waiting 30s for the pipelines to be created")
         time.sleep(30)
         pipelines = agent.pipelines.list(per_page=20, get_all=False)
-        test_pipelines = [p for p in pipelines if new_branch in p.ref]
+        test_pipelines = [p for p in pipelines if new_branch in p.ref if p.status != "canceled"]
         if len(test_pipelines) >= 2:
             # We should have only 2 occurrence. Consider more than 2 to prevent infinite loop
             print(f"Pipelines found: {[pipeline.web_url for pipeline in test_pipelines]}")
@@ -1050,10 +1051,11 @@ def compare_to_itself(ctx):
         failed = next(pipeline for pipeline in test_pipelines if pipeline.status != "running")
         print(f"[ERROR] Failed to generate a pipeline for {new_branch}, please check {failed.web_url}")
     # Clean up
-    print("Cleaning up")
+    print("Cleaning up the pipelines")
     if success:
         for pipeline in test_pipelines:
             pipeline.cancel()
+    print("Cleaning up git")
     ctx.run(f"git checkout {current_branch}", hide=True)
     ctx.run(f"git branch -D {new_branch}", hide=True)
     ctx.run(f"git push origin :{new_branch}", hide=True)
