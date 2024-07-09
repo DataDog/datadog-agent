@@ -15,10 +15,12 @@ import (
 	"io"
 	"net"
 	nethttp "net/http"
+	"os"
 	"reflect"
 	"testing"
 	"time"
 
+	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -29,12 +31,23 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer"
 	tracertestutil "github.com/DataDog/datadog-agent/pkg/network/tracer/testutil"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
 	defaultTimeout = 30 * time.Second
 	clientID       = "1"
 )
+
+func TestMain(m *testing.M) {
+	logLevel := os.Getenv("DD_LOG_LEVEL")
+	if logLevel == "" {
+		logLevel = "warn"
+	}
+	log.SetupLogger(seelog.Default, logLevel)
+	platformInit()
+	os.Exit(m.Run())
+}
 
 func setupTracer(t testing.TB, cfg *config.Config) *tracer.Tracer {
 	if ebpftest.GetBuildMode() == ebpftest.Fentry {

@@ -15,6 +15,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/tracer"
 )
 
+func platformInit() {
+	// linux-specific tasks here
+}
+
 func testProtocolClassificationInner(t *testing.T, params protocolClassificationAttributes, tr *tracer.Tracer) {
 	if params.skipCallback != nil {
 		params.skipCallback(t, params.context)

@@ -10,10 +10,16 @@ package usm
 import (
 	"testing"
 
+	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/driver"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer"
 	tracertestutil "github.com/DataDog/datadog-agent/pkg/network/tracer/testutil"
 )
+
+func platformInit() {
+	_ = driver.Init(&sysconfigtypes.Config{})
+}
 
 func classificationSupported(_ *config.Config) bool {
 	return true
