@@ -20,18 +20,11 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	languagedetectionUtil "github.com/DataDog/datadog-agent/pkg/languagedetection/util"
 	ddkube "github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 )
-
-// deploymentFilter filters out deployments that can't be used for unified service tagging or process language detection
-type deploymentFilter struct{}
-
-func (f *deploymentFilter) filteredOut(entity workloadmeta.Entity) bool {
-	deployment := entity.(*workloadmeta.KubernetesDeployment)
-	return deployment == nil
-}
 
 func newDeploymentStore(ctx context.Context, wlm workloadmeta.Component, _ config.Reader, client kubernetes.Interface) (*cache.Reflector, *reflectorStore) {
 	deploymentListerWatcher := &cache.ListWatch{
@@ -57,9 +50,8 @@ func newDeploymentStore(ctx context.Context, wlm workloadmeta.Component, _ confi
 func newDeploymentReflectorStore(wlmetaStore workloadmeta.Component) *reflectorStore {
 	store := &reflectorStore{
 		wlmetaStore: wlmetaStore,
-		seen:        make(map[string]workloadmeta.EntityID),
+		seen:        make(map[string][]workloadmeta.EntityID),
 		parser:      newdeploymentParser(),
-		filter:      &deploymentFilter{},
 	}
 
 	return store
@@ -81,7 +73,7 @@ func updateContainerLanguage(cl languagedetectionUtil.ContainersLanguages, conta
 	}
 }
 
-func (p deploymentParser) Parse(obj interface{}) workloadmeta.Entity {
+func (p deploymentParser) Parse(obj interface{}) []workloadmeta.Entity {
 	deployment := obj.(*appsv1.Deployment)
 	containerLanguages := make(languagedetectionUtil.ContainersLanguages)
 
@@ -100,14 +92,34 @@ func (p deploymentParser) Parse(obj interface{}) workloadmeta.Entity {
 		}
 	}
 
-	return &workloadmeta.KubernetesDeployment{
+	entities := make([]workloadmeta.Entity, 0, 2)
+
+	deploymentEntity := &workloadmeta.KubernetesDeployment{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindKubernetesDeployment,
 			ID:   deployment.Namespace + "/" + deployment.Name, // we use the namespace/name as id to make it easier for the admission controller to retrieve the corresponding deployment
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Labels:      deployment.Labels,
+			Annotations: deployment.Annotations,
 		},
 		Env:                 deployment.Labels[ddkube.EnvTagLabelKey],
 		Service:             deployment.Labels[ddkube.ServiceTagLabelKey],
 		Version:             deployment.Labels[ddkube.VersionTagLabelKey],
 		InjectableLanguages: containerLanguages,
 	}
+
+	entities = append(entities, deploymentEntity, &workloadmeta.KubernetesMetadata{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubernetesMetadata,
+			ID:   string(util.GenerateKubeMetadataEntityID("apps", "deployments", deployment.Namespace, deployment.Name)),
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Labels:      deploymentEntity.Labels,
+			Annotations: deploymentEntity.Annotations,
+		},
+		GVR: deployment.GroupVersionKind().GroupVersion().WithResource("deployments"),
+	})
+
+	return entities
 }

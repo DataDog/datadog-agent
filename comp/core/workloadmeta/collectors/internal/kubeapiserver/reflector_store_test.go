@@ -111,7 +111,7 @@ func Test_AddDelete_PartialObjectMetadata(t *testing.T) {
 
 	metadataStore := &reflectorStore{
 		wlmetaStore: workloadmetaComponent,
-		seen:        make(map[string]workloadmeta.EntityID),
+		seen:        make(map[string][]workloadmeta.EntityID),
 		parser:      parser,
 	}
 
@@ -229,7 +229,7 @@ func TestReplace(t *testing.T) {
 
 	metadataStore := &reflectorStore{
 		wlmetaStore: workloadmetaComponent,
-		seen:        make(map[string]workloadmeta.EntityID),
+		seen:        make(map[string][]workloadmeta.EntityID),
 		parser:      parser,
 	}
 

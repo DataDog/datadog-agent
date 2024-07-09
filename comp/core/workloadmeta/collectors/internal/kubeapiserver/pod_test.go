@@ -14,9 +14,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/fake"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 )
 
@@ -73,7 +75,7 @@ func TestPodParser_Parse(t *testing.T) {
 
 	parsed := parser.Parse(&referencePod)
 
-	expected := &workloadmeta.KubernetesPod{
+	expected := []workloadmeta.Entity{&workloadmeta.KubernetesPod{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindKubernetesPod,
 			ID:   "uniqueIdentifier",
@@ -101,8 +103,28 @@ func TestPodParser_Parse(t *testing.T) {
 		IP:                         "127.0.0.1",
 		PriorityClass:              "priorityClass",
 		QOSClass:                   "Guaranteed",
+	}, &workloadmeta.KubernetesMetadata{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubernetesMetadata,
+			ID:   string(util.GenerateKubeMetadataEntityID("", "pods", "", "TestPod")),
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Labels: map[string]string{
+				"labelKey": "labelValue",
+			},
+			Annotations: map[string]string{
+				"annotationKey": "annotationValue",
+			},
+		},
+		GVR: schema.GroupVersionResource{
+			Group:    "",
+			Resource: "pods",
+			Version:  "v1",
+		},
+	},
 	}
 
+	assert.ElementsMatch(t, expected, parsed)
 	assert.Equal(t, expected, parsed)
 }
 
@@ -121,14 +143,33 @@ func Test_PodsFakeKubernetesClient(t *testing.T) {
 		Events: []workloadmeta.Event{
 			{
 				Type: workloadmeta.EventTypeSet,
+				Entity: &workloadmeta.KubernetesMetadata{
+					EntityID: workloadmeta.EntityID{
+						ID:   string(util.GenerateKubeMetadataEntityID("", "pods", "", "test-pod")),
+						Kind: workloadmeta.KindKubernetesMetadata,
+					},
+					EntityMeta: workloadmeta.EntityMeta{
+						Annotations: objectMeta.Annotations,
+						Labels:      objectMeta.Labels,
+					},
+					GVR: schema.GroupVersionResource{
+						Group:    "",
+						Version:  "v1",
+						Resource: "pods",
+					},
+				},
+			},
+			{
+				Type: workloadmeta.EventTypeSet,
 				Entity: &workloadmeta.KubernetesPod{
 					EntityID: workloadmeta.EntityID{
 						ID:   string(objectMeta.UID),
 						Kind: workloadmeta.KindKubernetesPod,
 					},
 					EntityMeta: workloadmeta.EntityMeta{
-						Name:   objectMeta.Name,
-						Labels: objectMeta.Labels,
+						Name:        objectMeta.Name,
+						Labels:      objectMeta.Labels,
+						Annotations: objectMeta.Annotations,
 					},
 					Owners: []workloadmeta.KubernetesPodOwner{},
 				},

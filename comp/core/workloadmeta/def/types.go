@@ -833,6 +833,7 @@ var _ Entity = &KubernetesMetadata{}
 // KubernetesDeployment is an Entity representing a Kubernetes Deployment.
 type KubernetesDeployment struct {
 	EntityID
+	EntityMeta
 	Env     string
 	Service string
 	Version string
@@ -872,6 +873,8 @@ func (d KubernetesDeployment) String(verbose bool) string {
 	var sb strings.Builder
 	_, _ = fmt.Fprintln(&sb, "----------- Entity ID -----------")
 	_, _ = fmt.Fprintln(&sb, d.EntityID.String(verbose))
+	_, _ = fmt.Fprintln(&sb, "----------- Entity Meta -----------")
+	_, _ = fmt.Fprint(&sb, d.EntityMeta.String(verbose))
 	_, _ = fmt.Fprintln(&sb, "----------- Unified Service Tagging -----------")
 	_, _ = fmt.Fprintln(&sb, "Env :", d.Env)
 	_, _ = fmt.Fprintln(&sb, "Service :", d.Service)

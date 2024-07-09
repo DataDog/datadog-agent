@@ -9,8 +9,9 @@ package kubeapiserver
 
 import (
 	"context"
-	langUtil "github.com/DataDog/datadog-agent/pkg/languagedetection/util"
 	"testing"
+
+	langUtil "github.com/DataDog/datadog-agent/pkg/languagedetection/util"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -132,10 +133,12 @@ func TestDeploymentParser_Parse(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			parser := newdeploymentParser()
-			entity := parser.Parse(tt.deployment)
-			storedDeployment, ok := entity.(*workloadmeta.KubernetesDeployment)
-			require.True(t, ok)
-			assert.Equal(t, tt.expected, storedDeployment)
+			parsedEntities := parser.Parse(tt.deployment)
+			for _, entity := range parsedEntities {
+				storedDeployment, ok := entity.(*workloadmeta.KubernetesDeployment)
+				require.True(t, ok)
+				assert.Equal(t, tt.expected, storedDeployment)
+			}
 		})
 	}
 }
