@@ -11,11 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	//JMWRM"github.com/DataDog/datadog-agent/comp/core/config"
-	//JMWRM"github.com/DataDog/datadog-agent/comp/core/log"
-	//JMWRM"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	//JMWRM"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -92,7 +88,7 @@ reverse_dns_enrichment:
 			},
 		},
 		{
-			name: "specific config 2 JMW",
+			name: "specific config with rate limiter and cache enabled",
 			configYaml: `
 network_devices:
   netflow:
@@ -118,7 +114,7 @@ reverse_dns_enrichment:
 			},
 		},
 		{
-			name: "specific config 3 JMW",
+			name: "specific config with rate limiter and cache disabled",
 			configYaml: `
 network_devices:
   netflow:
