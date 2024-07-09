@@ -85,7 +85,6 @@ k8s-e2e-otlp-main:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
   tags: ["arch:amd64"]
   needs: ["go_e2e_deps"]
-  dependencies: ["go_e2e_deps"]
   before_script:
     - !reference [ .retrieve_linux_go_e2e_deps ]
     # Setup AWS Credentials
