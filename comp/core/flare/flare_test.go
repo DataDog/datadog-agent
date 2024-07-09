@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
+	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
 	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -31,6 +32,7 @@ func TestFlareCreation(t *testing.T) {
 		fxutil.Test[dependencies](
 			t,
 			logimpl.MockModule(),
+			settingsimpl.MockModule(),
 			config.MockModule(),
 			secretsimpl.MockModule(),
 			nooptelemetry.Module(),
