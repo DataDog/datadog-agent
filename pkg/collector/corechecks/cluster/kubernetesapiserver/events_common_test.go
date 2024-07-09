@@ -16,8 +16,12 @@ import (
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/local"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/telemetry"
+	coretelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestGetDDAlertType(t *testing.T) {
@@ -51,7 +55,9 @@ func TestGetDDAlertType(t *testing.T) {
 }
 
 func Test_getInvolvedObjectTags(t *testing.T) {
-	taggerInstance := local.NewFakeTagger()
+	telemetryComponent := fxutil.Test[coretelemetry.Component](t, telemetryimpl.MockModule())
+	telemetryStore := telemetry.NewStore(telemetryComponent)
+	taggerInstance := local.NewFakeTagger(telemetryStore)
 	taggerInstance.SetTags("kubernetes_metadata://namespaces//default", "workloadmeta-kubernetes_node", []string{"team:container-int"}, nil, nil, nil)
 	tests := []struct {
 		name           string
