@@ -178,7 +178,7 @@ func (row *_MIB_TCPROW_OWNER_MODULE) asEntry() Entry {
 	}
 }
 
-type _MIB_TCP6TABLE_OWNER_MODULE struct {
+type _MIB_TCP6TABLE_OWNER_MODULE struct { //nolint:revive // Windows API type
 	numEntries uint32
 	table      _MIB_TCP6ROW_OWNER_MODULE
 }
