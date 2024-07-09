@@ -255,9 +255,27 @@ func (r *FileRegistry) Clear() {
 		return
 	}
 
-	for pathID, reg := range r.byID {
-		reg.unregisterPath(pathID)
+	for _, pathIDs := range r.byPID {
+		for pathID := range pathIDs {
+			reg, found := r.byID[pathID]
+			if !found {
+				continue
+			}
+			if reg.unregisterPath(pathID) {
+				delete(r.byID, pathID)
+			}
+		}
 	}
+	// reset the registry
+	r.byPID = make(map[uint32]pathIdentifierSet)
+
+	if len(r.byID) > 0 {
+		log.Warnf("file_registry: %d files are still registered", len(r.byID))
+		for pathID, reg := range r.byID {
+			reg.unregisterPath(pathID)
+		}
+	}
+
 	r.stopped = true
 }
 
