@@ -8,6 +8,7 @@ e2e_pre_test:
   needs:
     - job: publish_fakeintake
       optional: true
+    - go_e2e_deps
   script:
     - inv -e new-e2e-tests.run --targets ./test-infra-definition --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS}
   after_script:
