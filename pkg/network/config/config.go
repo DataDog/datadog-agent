@@ -189,6 +189,10 @@ type Config struct {
 	// get flushed on every client request (default 30s check interval)
 	MaxPostgresStatsBuffered int
 
+	// MaxRedisStatsBuffered represents the maximum number of Redis stats we'll buffer in memory. These stats
+	// get flushed on every client request (default 30s check interval)
+	MaxRedisStatsBuffered int
+
 	// MaxConnectionsStateBuffered represents the maximum number of state objects that we'll store in memory. These state objects store
 	// the stats for a connection so we can accurately determine traffic change between client requests.
 	MaxConnectionsStateBuffered int
@@ -365,6 +369,7 @@ func New() *Config {
 		MaxHTTPStatsBuffered:      cfg.GetInt(join(smNS, "max_http_stats_buffered")),
 		MaxKafkaStatsBuffered:     cfg.GetInt(join(smNS, "max_kafka_stats_buffered")),
 		MaxPostgresStatsBuffered:  cfg.GetInt(join(smNS, "max_postgres_stats_buffered")),
+		MaxRedisStatsBuffered:     cfg.GetInt(join(smNS, "max_redis_stats_buffered")),
 
 		MaxTrackedHTTPConnections: cfg.GetInt64(join(smNS, "max_tracked_http_connections")),
 		HTTPNotificationThreshold: cfg.GetInt64(join(smNS, "http_notification_threshold")),
