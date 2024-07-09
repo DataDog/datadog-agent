@@ -1172,62 +1172,88 @@ func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
 			continue
 		}
 
-		name := fmt.Sprintf("split/%s", tt.name)
-		t.Run(name, func(t *testing.T) {
-			t.Cleanup(func() {
-				cleanProtocolMaps(t, "kafka", monitor.ebpfProgram.Manager.Manager)
-			})
-			req := generateFetchRequest(apiVersion, tt.topic)
-			resp := tt.buildResponse(tt.topic)
+		req := generateFetchRequest(apiVersion, tt.topic)
+		resp := tt.buildResponse(tt.topic)
 
-			formatter := kmsg.NewRequestFormatter(kmsg.FormatterClientID("kgo"))
+		formatter := kmsg.NewRequestFormatter(kmsg.FormatterClientID("kgo"))
+
+		type groupInfo struct {
+			numSets int
+			msgs    []Message
+		}
+
+		var groups []groupInfo
+		var info groupInfo
+
+		for splitIdx := 0; splitIdx < 1000; splitIdx++ {
+			reqData := formatter.AppendRequest(make([]byte, 0), &req, int32(splitIdx))
+			respData := appendResponse(make([]byte, 0), resp, uint32(splitIdx))
+
+			// There is an assumption in the code that there are no splits
+			// inside the header.
+			minSegSize := 8
+
+			segSize := min(minSegSize+splitIdx, len(respData))
+			if segSize >= len(respData) {
+				break
+			}
 
 			var msgs []Message
-			splitIdx := 0
-			for splitIdx = 0; splitIdx < 1000; splitIdx++ {
-				reqData := formatter.AppendRequest(make([]byte, 0), &req, int32(splitIdx))
-				respData := appendResponse(make([]byte, 0), resp, uint32(splitIdx))
+			msgs = append(msgs, Message{request: reqData})
+			msgs = append(msgs, Message{response: respData[0:segSize]})
 
-				// There is an assumption in the code that there are no splits
-				// inside the header.
-				minSegSize := 8
-
-				segSize := min(minSegSize+splitIdx, len(respData))
-				if segSize >= len(respData) {
-					break
-				}
-
-				msgs = append(msgs, Message{request: reqData})
-				msgs = append(msgs, Message{response: respData[0:segSize]})
-
-				if segSize+8 >= len(respData) {
-					msgs = append(msgs, Message{response: respData[segSize:]})
-				} else {
-					// Three segments tests other code paths than two, for example
-					// it will fail if the tcp_seq is not updated in the response
-					// parsing continuation path.
-					msgs = append(msgs, Message{response: respData[segSize : segSize+8]})
-					msgs = append(msgs, Message{response: respData[segSize+8:]})
-				}
-			}
-
-			can.runClient(msgs)
-
-			if tt.produceFetchValidationWithErrorCode != nil {
-				tempFetchValidation := make(map[int32]int, len(tt.produceFetchValidationWithErrorCode.expectedNumberOfFetchRequests))
-				for k, v := range tt.produceFetchValidationWithErrorCode.expectedNumberOfFetchRequests {
-					tempFetchValidation[k] = v * splitIdx
-				}
-				tt.produceFetchValidationWithErrorCode.expectedNumberOfFetchRequests = tempFetchValidation
-				getAndValidateKafkaStatsWithErrorCodes(t, monitor, 1, tt.topic, *tt.produceFetchValidationWithErrorCode)
+			if segSize+8 >= len(respData) {
+				msgs = append(msgs, Message{response: respData[segSize:]})
 			} else {
-				getAndValidateKafkaStats(t, monitor, 1, tt.topic, kafkaParsingValidation{
-					expectedNumberOfFetchRequests: tt.numFetchedRecords * splitIdx,
-					expectedAPIVersionFetch:       apiVersion,
-					tlsEnabled:                    tls,
-				}, tt.errorCode)
+				// Three segments tests other code paths than two, for example
+				// it will fail if the tcp_seq is not updated in the response
+				// parsing continuation path.
+				msgs = append(msgs, Message{response: respData[segSize : segSize+8]})
+				msgs = append(msgs, Message{response: respData[segSize+8:]})
 			}
-		})
+
+			if info.numSets >= 20 {
+				groups = append(groups, info)
+				info.numSets = 0
+				info.msgs = make([]Message, 0)
+			}
+
+			info.numSets++
+			info.msgs = append(info.msgs, msgs...)
+		}
+
+		if info.numSets > 0 {
+			groups = append(groups, info)
+		}
+
+		for groupIdx, group := range groups {
+			name := fmt.Sprintf("split/%s/group%d", tt.name, groupIdx)
+			t.Run(name, func(t *testing.T) {
+				t.Cleanup(func() {
+					cleanProtocolMaps(t, "kafka", monitor.ebpfProgram.Manager.Manager)
+				})
+
+				can.runClient(group.msgs)
+
+				if tt.produceFetchValidationWithErrorCode != nil {
+					tmp := kafkaParsingValidationWithErrorCodes{
+						expectedAPIVersionFetch: tt.produceFetchValidationWithErrorCode.expectedAPIVersionFetch,
+					}
+					tempFetchValidation := make(map[int32]int, len(tt.produceFetchValidationWithErrorCode.expectedNumberOfFetchRequests))
+					for k, v := range tt.produceFetchValidationWithErrorCode.expectedNumberOfFetchRequests {
+						tempFetchValidation[k] = v * group.numSets
+					}
+					tmp.expectedNumberOfFetchRequests = tempFetchValidation
+					getAndValidateKafkaStatsWithErrorCodes(t, monitor, 1, tt.topic, tmp)
+				} else {
+					getAndValidateKafkaStats(t, monitor, 1, tt.topic, kafkaParsingValidation{
+						expectedNumberOfFetchRequests: tt.numFetchedRecords * group.numSets,
+						expectedAPIVersionFetch:       apiVersion,
+						tlsEnabled:                    tls,
+					}, tt.errorCode)
+				}
+			})
+		}
 	}
 }
 
