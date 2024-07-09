@@ -112,6 +112,17 @@ const (
 	StateEncoded
 )
 
+func (m *MessageContent) GetContentLenHint() int {
+	switch m.State {
+	case StateUnstructured, StateRendered, StateEncoded:
+		return len(m.content)
+	case StateStructured:
+		return 0
+	default:
+		return len(m.content)
+	}
+}
+
 // GetContent returns the bytes array containing only the message content
 // E.g. from a structured log:
 //

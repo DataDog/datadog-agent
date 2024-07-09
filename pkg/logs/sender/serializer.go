@@ -55,6 +55,16 @@ type arraySerializer struct{}
 // returns, "[{"message":"content1"},{"message":"content2"}]"
 func (s *arraySerializer) Serialize(messages []*message.Message) []byte {
 	var buffer bytes.Buffer
+
+	lenHint := 2
+	for i, message := range messages {
+		if i > 0 {
+			lenHint++
+		}
+		lenHint += message.GetContentLenHint()
+	}
+	buffer.Grow(lenHint)
+
 	buffer.WriteByte('[')
 	for i, message := range messages {
 		if i > 0 {
