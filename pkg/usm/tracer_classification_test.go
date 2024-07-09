@@ -22,7 +22,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/network"
+	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer"
 	tracertestutil "github.com/DataDog/datadog-agent/pkg/network/tracer/testutil"
@@ -30,7 +33,30 @@ import (
 
 const (
 	defaultTimeout = 30 * time.Second
+	clientID       = "1"
 )
+
+func setupTracer(t testing.TB, cfg *config.Config) *tracer.Tracer {
+	if ebpftest.GetBuildMode() == ebpftest.Fentry {
+		ddconfig.SetFeatures(t, ddconfig.ECSFargate)
+		// protocol classification not yet supported on fargate
+		cfg.ProtocolClassificationEnabled = false
+	}
+
+	tr, err := tracer.NewTracer(cfg, nil)
+	require.NoError(t, err)
+	t.Cleanup(tr.Stop)
+
+	require.NoError(t, tr.RegisterClient(clientID))
+	return tr
+}
+
+func getConnections(t require.TestingT, tr *tracer.Tracer) *network.Connections {
+	// Iterate through active connections until we find connection created above, and confirm send + recv counts
+	connections, err := tr.GetActiveConnections(clientID)
+	require.NoError(t, err)
+	return connections
+}
 
 // testContext shares the context of a given test.
 // It contains common variable used by all tests, and allows extending the context dynamically by setting more

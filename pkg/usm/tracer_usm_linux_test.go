@@ -37,9 +37,7 @@ import (
 	"golang.org/x/net/http2/hpack"
 	"golang.org/x/sys/unix"
 
-	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
-	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netlink "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
@@ -66,8 +64,6 @@ import (
 
 var kv = kernel.MustHostVersion()
 
-const clientID = "1"
-
 const (
 	// Most of the classifications are only supported on Linux, hence, they are defined in a Linux specific file.
 	amqpPort       = "5672"
@@ -91,28 +87,6 @@ const (
 	fetchMaxSupportedVersion = 12
 	fetchMinSupportedVersion = 0
 )
-
-func setupTracer(t testing.TB, cfg *config.Config) *tracer.Tracer {
-	if ebpftest.GetBuildMode() == ebpftest.Fentry {
-		ddconfig.SetFeatures(t, ddconfig.ECSFargate)
-		// protocol classification not yet supported on fargate
-		cfg.ProtocolClassificationEnabled = false
-	}
-
-	tr, err := tracer.NewTracer(cfg, nil)
-	require.NoError(t, err)
-	t.Cleanup(tr.Stop)
-
-	require.NoError(t, tr.RegisterClient(clientID))
-	return tr
-}
-
-func getConnections(t require.TestingT, tr *tracer.Tracer) *network.Connections {
-	// Iterate through active connections until we find connection created above, and confirm send + recv counts
-	connections, err := tr.GetActiveConnections(clientID)
-	require.NoError(t, err)
-	return connections
-}
 
 func httpSupported() bool {
 	if ebpftest.GetBuildMode() == ebpftest.Fentry {
