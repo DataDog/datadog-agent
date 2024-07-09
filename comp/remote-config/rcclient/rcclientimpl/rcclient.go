@@ -16,7 +16,6 @@ import (
 	"github.com/pkg/errors"
 	"go.uber.org/fx"
 
-	coreConfig "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
@@ -56,8 +55,6 @@ type rcClient struct {
 	// Tasks are separated from the other products, because they must be executed once
 	taskListeners     []types.RCAgentTaskListener
 	settingsComponent settings.Component
-	Log               log.Component
-	Config            coreConfig.Component
 }
 
 type dependencies struct {
@@ -268,7 +265,6 @@ func (rc rcClient) agentConfigUpdateCallback(updates map[string]state.RawConfig,
 
 	// Checks who (the source) is responsible for the last logLevel change
 	source := config.Datadog().GetSource("log_level")
-	streamLogsSource := config.Datadog().GetSource("enable_stream_logs")
 
 	switch source {
 	case model.SourceRC:
@@ -288,7 +284,7 @@ func (rc rcClient) agentConfigUpdateCallback(updates map[string]state.RawConfig,
 		pkglog.Warnf("Remote config could not change the log level due to CLI override")
 		return
 
-	// default case handles every other source (lower in the hierarchy)
+		// default case handles every other source (lower in the hierarchy)
 	default:
 		// If we receive an empty value for log level in the config
 		// then there is nothing to do
@@ -301,14 +297,17 @@ func (rc rcClient) agentConfigUpdateCallback(updates map[string]state.RawConfig,
 		err = rc.settingsComponent.SetRuntimeSetting("log_level", mergedConfig.LogLevel, model.SourceRC)
 	}
 
-	switch streamLogsSource {
-	case model.SourceRC:
-		if *mergedConfig.EnableStreamLogs {
-			err = rc.settingsComponent.SetRuntimeSetting("enable_stream_logs", *mergedConfig.EnableStreamLogs, model.SourceRC)
-		}
-	default:
-		err = rc.settingsComponent.SetRuntimeSetting("enable_stream_logs", false, model.SourceRC)
+	// Gather the source of the enable_stream_logs setting
+	streamLogsSource := config.Datadog().GetSource("enable_stream_logs")
+
+	// If the config is set by RC, apply it 
+	if mergedConfig.EnableStreamLogs != nil {
+		err = rc.settingsComponent.SetRuntimeSetting("enable_stream_logs", *mergedConfig.EnableStreamLogs, model.SourceRC)
+	} else if mergedConfig.EnableStreamLogs != nil && streamLogsSource == model.SourceRC {
+		// If the config was previously set by RC but is not set now, unset it.
+		config.Datadog().UnsetForSource("enable_stream_logs", model.SourceRC)
 	}
+
 	// Apply the new status to all configs
 	for cfgPath := range updates {
 		if err == nil {

@@ -36,7 +36,7 @@ func (f *flare) collectLogsFiles(fb types.FlareBuilder) error {
 		dogstatsdLogFile = f.params.defaultDogstatsdLogFile
 	}
 
-	streamlogsLogFile := f.config.GetString("dogstatsd_log_file")
+	streamlogsLogFile := f.config.GetString("streamlogs_log_file")
 	if streamlogsLogFile == "" {
 		streamlogsLogFile = f.params.defaultStreamlogsLogFile
 	}

@@ -7,16 +7,31 @@
 package stream
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"time"
 
 	apiutils "github.com/DataDog/datadog-agent/comp/api/api/utils"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	coreLog "github.com/DataDog/datadog-agent/comp/core/log"
+	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+type StreamLogsParams struct {
+	// filters diagnostic.Filters
+
+	// Output represents the output file path to write the log stream to.
+	FilePath string
+
+	// Duration represents the duration of the log stream.
+	Duration time.Duration
+}
 
 // MessageReceiver is an exported interface for a valid receiver of streamed output
 type MessageReceiver interface {
@@ -91,4 +106,42 @@ func GetStreamFunc(messageReceiverFunc func() MessageReceiver, streamType, agent
 			}
 		}
 	}
+}
+
+// ExportStreamLogs export output of stream-logs to a file
+func ExportStreamLogs(log coreLog.Component, config config.Component, streamLogParams *StreamLogsParams) error {
+	ipcAddress, err := pkgconfig.GetIPCAddress()
+	if err != nil {
+		return err
+	}
+
+	urlstr := fmt.Sprintf("https://%v:%v/agent/stream-logs", ipcAddress, config.GetInt("cmd_port"))
+
+	var f *os.File
+	var bufWriter *bufio.Writer
+
+	err = apiutils.CheckDirExists(streamLogParams.FilePath)
+	if err != nil {
+		return fmt.Errorf("error creating directory for file %s: %v", streamLogParams.FilePath, err)
+	}
+
+	f, bufWriter, err = apiutils.OpenFileForWriting(streamLogParams.FilePath)
+	if err != nil {
+		return fmt.Errorf("error opening file %s for writing: %v", streamLogParams.FilePath, err)
+	}
+	defer func() {
+		err := bufWriter.Flush()
+		if err != nil {
+			fmt.Printf("Error flushing buffer for log stream: %v", err)
+		}
+		f.Close()
+	}()
+
+	return apiutils.StreamRequest(urlstr, []byte{}, streamLogParams.Duration, func(chunk []byte) {
+		if bufWriter != nil {
+			if _, err = bufWriter.Write(chunk); err != nil {
+				fmt.Printf("Error writing stream-logs to file %s: %v", streamLogParams.FilePath, err)
+			}
+		}
+	})
 }

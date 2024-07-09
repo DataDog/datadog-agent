@@ -18,10 +18,10 @@ import (
 	"go.uber.org/fx"
 
 	commonpath "github.com/DataDog/datadog-agent/cmd/agent/common/path"
-	"github.com/DataDog/datadog-agent/cmd/agent/subcommands/streamlogs"
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	apiutils "github.com/DataDog/datadog-agent/comp/api/api/utils"
+	streamutils "github.com/DataDog/datadog-agent/comp/api/api/utils/stream"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -29,7 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	rcsetting "github.com/DataDog/datadog-agent/comp/core/settings"
+	coresetting "github.com/DataDog/datadog-agent/comp/core/settings"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	rcclienttypes "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
@@ -47,7 +47,7 @@ type dependencies struct {
 
 	Log                   log.Component
 	Config                config.Component
-	RCsetting             rcsetting.Component
+	CoreSetting           coresetting.Component
 	Diagnosesendermanager diagnosesendermanager.Component
 	Params                Params
 	Providers             []types.FlareCallback `group:"flare"`
@@ -67,7 +67,7 @@ type provides struct {
 type flare struct {
 	log          log.Component
 	config       config.Component
-	rcsetting    rcsetting.Component
+	coresetting  coresetting.Component
 	params       Params
 	providers    []types.FlareCallback
 	diagnoseDeps diagnose.SuitesDeps
@@ -78,7 +78,7 @@ func newFlare(deps dependencies) (provides, rcclienttypes.TaskListenerProvider) 
 	f := &flare{
 		log:          deps.Log,
 		config:       deps.Config,
-		rcsetting:    deps.RCsetting,
+		coresetting:  deps.CoreSetting,
 		params:       deps.Params,
 		providers:    fxutil.GetAndFilterGroup(deps.Providers),
 		diagnoseDeps: diagnoseDeps,
@@ -210,20 +210,19 @@ func (f *flare) Create(pdata ProfileData, ipcError error) (string, error) {
 
 // Helper function to stream logs if enabled
 func (f *flare) streamLogsIfEnabled() error {
-	enableStreamLog, err := f.rcsetting.GetRuntimeSetting("enable_stream_logs")
+	// If the streamlog runtime setting is set, start streaming log to default file
+	enableStreamLog, err := f.coresetting.GetRuntimeSetting("enable_stream_logs")
 	if err != nil {
 		return err
 	}
 
 	if values, ok := enableStreamLog.([]interface{}); ok && len(values) > 1 {
 		if enable, ok := values[1].(bool); ok && enable {
-			defaultRCDuration := 60 * time.Second
-			rcStreamLogParams := streamlogs.CliParams{
+			streamLogParams := streamutils.StreamLogsParams{
 				FilePath: commonpath.DefaultStreamlogsLogFile,
-				Duration: defaultRCDuration,
-				Quiet:    true,
+				Duration: 60 * time.Second,
 			}
-			err := streamlogs.StreamLogs(f.log, f.config, &rcStreamLogParams)
+			err := streamutils.ExportStreamLogs(f.log, f.config, &streamLogParams)
 			if err != nil {
 				return err
 			}

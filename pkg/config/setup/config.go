@@ -1439,6 +1439,9 @@ func logsagent(config pkgconfigmodel.Setup) {
 	// WARNING: 'by_modification_time' is less performant than 'by_name' and will trigger
 	// more disk I/O at the wildcard log paths
 	config.BindEnvAndSetDefault("logs_config.file_wildcard_selection_mode", "by_name")
+
+	// Control how the stream-logs log file is managed
+	config.BindEnvAndSetDefault("streamlogs_log_file", "")
 }
 
 func vector(config pkgconfigmodel.Setup) {
