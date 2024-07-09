@@ -58,6 +58,7 @@
       powershell
       -C C:\mnt\ci-scripts\docker-login.ps1
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
+    # TODO: Use docker buildx and push to registry.ddbuild.io
     - powershell -Command "docker build --no-cache --build-arg GENERAL_ARTIFACTS_CACHE_BUCKET_URL=${GENERAL_ARTIFACTS_CACHE_BUCKET_URL} ${BUILD_ARG} --pull --file ${BUILD_CONTEXT}/windows/amd64/Dockerfile --tag ${TARGET_TAG} ${BUILD_CONTEXT}"
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
     - docker push ${TARGET_TAG}
