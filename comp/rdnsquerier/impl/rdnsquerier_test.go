@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"go.uber.org/fx"
@@ -285,4 +286,110 @@ func TestRDNSQuerierJMW2(t *testing.T) {
 	assert.NoError(t, lc.Stop(ctx))
 }
 
-//JMWNEW add test for rate limiter - set to 1 per second, fill channel with 256 requests, run for 5 seconds, assert <= 5 requests are successful within that time
+// JMWNEW add test for rate limiter - set to 1 per second, fill channel with 256 requests, run for 5 seconds, assert <= 5 requests are successful within that time
+func TestRDNSQuerierJMW3(t *testing.T) {
+	lc := compdef.NewTestLifecycle()
+
+	overrides := map[string]interface{}{
+		"network_devices.netflow.reverse_dns_enrichment_enabled": true,
+		"reverse_dns_enrichment.rate_limiter.limit_per_sec":      1,
+	}
+
+	//JMWDUPSETUP
+	config := fxutil.Test[config.Component](t, fx.Options(
+		config.MockModule(),
+		fx.Replace(config.MockParams{Overrides: overrides}),
+	))
+
+	logComp := fxutil.Test[log.Component](t, logimpl.MockModule())
+	telemetryComp := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
+
+	requires := Requires{
+		Lifecycle:   lc,
+		AgentConfig: config,
+		Logger:      logComp,
+		Telemetry:   telemetryComp,
+	}
+
+	provides, err := NewComponent(requires)
+	assert.NoError(t, err)
+	assert.NotNil(t, provides.Comp)
+	rdnsQuerier := provides.Comp
+
+	// use fake resolver so the test results are determinate
+	internalRDNSQuerier := provides.Comp.(*rdnsQuerierImpl)
+	internalRDNSQuerier.resolver = &fakeResolver{internalRDNSQuerier.config}
+
+	ctx := context.Background()
+	assert.NoError(t, lc.Start(ctx)) //JMWNEEDED?
+
+	// IP addresses in private range
+	for i := range 256 {
+		rdnsQuerier.GetHostnameAsync(
+			[]byte{192, 168, 1, byte(i)},
+			func(hostname string) {
+				assert.Equal(t, fmt.Sprintf("fakehostname-192.168.1.%d", i), hostname)
+			},
+		)
+	}
+
+	time.Sleep(2 * time.Second)
+
+	expectedTelemetry := map[string]float64{
+		"total":                256.0,
+		"private":              256.0,
+		"chan_added":           256.0,
+		"dropped_chan_full":    0.0,
+		"dropped_rate_limiter": 0.0,
+		"invalid_ip_address":   0.0,
+		"lookup_err_not_found": 0.0,
+		"lookup_err_timeout":   0.0,
+		"lookup_err_temporary": 0.0,
+		"lookup_err_other":     0.0,
+	}
+
+	maximumTelemetry := map[string]float64{
+		"successful": 6.0, // running for 2 seconds, rate limit is 1 per second, add some buffer for timing
+	}
+
+	logComp.Debugf("JMW internalRDNSQuerier telemetry: %+v", internalRDNSQuerier.internalTelemetry)
+	// Validate telemetry
+	telemetryMock, ok := telemetryComp.(telemetry.Mock)
+	assert.True(t, ok)
+
+	for name, expected := range expectedTelemetry {
+		logComp.Debugf("Validating expected telemetry %s", name)
+		metrics, err := telemetryMock.GetCountMetric(moduleName, name)
+		if expected == 0 {
+			assert.Error(t, err)
+		} else {
+			assert.NoError(t, err)
+			assert.Len(t, metrics, 1)
+			assert.Equal(t, expected, metrics[0].Value())
+		}
+	}
+
+	for name, expected := range maximumTelemetry {
+		logComp.Debugf("Validating maximum telemetry %s", name)
+		metrics, err := telemetryMock.GetCountMetric(moduleName, name)
+		assert.NoError(t, err)
+		assert.Len(t, metrics, 1)
+		assert.LessOrEqual(t, metrics[0].Value(), expected)
+	}
+
+	assert.NoError(t, lc.Stop(ctx))
+
+	//JMW now check for dropped_rate_limiter - or skip this since timing of shutdown could cause this to be lower than expected, even zero?
+	logComp.Debugf("JMW2 internalRDNSQuerier telemetry: %+v", internalRDNSQuerier.internalTelemetry)
+
+	minimumTelemetry := map[string]float64{
+		"dropped_rate_limiter": 1.0, // stopping the rdnsquerier will cause requests blocked in the rate limiter to be dropped
+	}
+	for name, expected := range minimumTelemetry {
+		logComp.Debugf("Validating minimum telemetry %s", name)
+		metrics, err := telemetryMock.GetCountMetric(moduleName, name)
+		assert.NoError(t, err)
+		assert.Len(t, metrics, 1)
+		assert.GreaterOrEqual(t, metrics[0].Value(), expected)
+	}
+}
