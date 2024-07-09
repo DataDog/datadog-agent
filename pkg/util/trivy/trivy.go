@@ -10,6 +10,7 @@ package trivy
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -103,6 +104,14 @@ func getDefaultArtifactOption(root string, opts sbom.ScanOptions) artifact.Optio
 		Parallel:          parallel,
 		SBOMSources:       []string{},
 		DisabledHandlers:  DefaultDisabledHandlers(),
+		WalkOption: artifact.WalkOption{
+			ErrorCallback: func(pathname string, err error) error {
+				if errors.Is(err, fs.ErrPermission) || errors.Is(err, os.ErrNotExist) {
+					return nil
+				}
+				return err
+			},
+		},
 	}
 
 	if len(opts.Analyzers) == 1 && opts.Analyzers[0] == OSAnalyzers {
