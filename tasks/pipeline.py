@@ -1027,7 +1027,7 @@ def compare_to_itself(ctx):
     ctx.run(f"git push origin {new_branch}", hide=True)
     max_attempts = 5
     for attempt in range(max_attempts):
-        time.sleep(30)
+        time.sleep(60)
         pipelines = agent.pipelines.list(per_page=20, get_all=False)
         test_pipelines = [p for p in pipelines if p.ref.startswith(new_branch)]
         if len(test_pipelines) == 2:
@@ -1035,6 +1035,10 @@ def compare_to_itself(ctx):
             break
         else:
             if attempt == max_attempts - 1:
+                # Clean up the branch at least
+                ctx.run(f"git checkout {current_branch}", hide=True)
+                ctx.run(f"git branch -D {new_branch}", hide=True)
+                ctx.run(f"git push origin :{new_branch}", hide=True)
                 raise RuntimeError(f"No pipeline found for {new_branch}")
             continue
     success = all(pipeline.status == "running" for pipeline in test_pipelines)
