@@ -21,6 +21,96 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries/testutil"
 )
 
+func verifyPIDInFilePath(t *testing.T) func(FilePath) error {
+	return func(f FilePath) error {
+		require.NotZerof(t, f.PID, "PID should not be zero")
+		return nil
+	}
+}
+
+// TestClearSanity tests the behavior and cleanup of Clear method.
+func TestClearSanity(t *testing.T) {
+	r := newFileRegistry()
+
+	path1, pathID1 := createTempTestFile(t, "foobar")
+	path2, pathID2 := createTempTestFile(t, "foobar2")
+
+	path1Pids := make([]uint32, 0)
+	for i := 0; i < 3; i++ {
+		target := fmt.Sprintf("%s-%d", path1, i)
+		createSymlink(t, path1, target)
+		cmd, err := testutil.OpenFromAnotherProcess(t, target)
+		require.NoError(t, err)
+		path1Pids = append(path1Pids, uint32(cmd.Process.Pid))
+		_ = r.Register(target, uint32(cmd.Process.Pid), verifyPIDInFilePath(t), verifyPIDInFilePath(t))
+	}
+	path2Pids := make([]uint32, 0)
+	for i := 0; i < 2; i++ {
+		target := fmt.Sprintf("%s-%d", path2, i)
+		createSymlink(t, path2, target)
+		cmd, err := testutil.OpenFromAnotherProcess(t, target)
+		require.NoError(t, err)
+		path2Pids = append(path2Pids, uint32(cmd.Process.Pid))
+		_ = r.Register(target, uint32(cmd.Process.Pid), verifyPIDInFilePath(t), verifyPIDInFilePath(t))
+	}
+
+	assert.Len(t, r.byPID, len(path1Pids)+len(path2Pids))
+	for _, pid := range path1Pids {
+		assert.Contains(t, r.byPID, pid)
+	}
+	for _, pid := range path2Pids {
+		assert.Contains(t, r.byPID, pid)
+	}
+	assert.Len(t, r.byID, 2)
+	assert.Contains(t, r.byID, pathID1)
+	assert.Contains(t, r.byID, pathID2)
+
+	r.Clear()
+
+	// Verify empty registry
+	assert.Empty(t, r.byPID)
+	assert.Empty(t, r.byID)
+	assert.True(t, r.stopped)
+}
+
+// TestClearLeakedPathID tests that the registry can handle a leaked pathID, that does not have a corresponding PID.
+func TestClearLeakedPathID(t *testing.T) {
+	r := newFileRegistry()
+
+	path1, pathID1 := createTempTestFile(t, "foobar")
+	path2, pathID2 := createTempTestFile(t, "foobar2")
+
+	path1Pids := make([]uint32, 0)
+	for i := 0; i < 3; i++ {
+		target := fmt.Sprintf("%s-%d", path1, i)
+		createSymlink(t, path1, target)
+		cmd, err := testutil.OpenFromAnotherProcess(t, target)
+		require.NoError(t, err)
+		path1Pids = append(path1Pids, uint32(cmd.Process.Pid))
+		_ = r.Register(target, uint32(cmd.Process.Pid), verifyPIDInFilePath(t), verifyPIDInFilePath(t))
+	}
+
+	assert.Len(t, r.byPID, len(path1Pids))
+	for _, pid := range path1Pids {
+		assert.Contains(t, r.byPID, pid)
+	}
+	assert.Len(t, r.byID, 1)
+	assert.Contains(t, r.byID, pathID1)
+
+	r.byID[pathID2] = r.newRegistration(path2, func(f FilePath) error {
+		require.Zerof(t, f.PID, "PID should be zero, as there was no PID associated with this pathID")
+		return nil
+	})
+	assert.Contains(t, r.byID, pathID2)
+
+	r.Clear()
+
+	// Verify empty registry
+	assert.Empty(t, r.byPID)
+	assert.Empty(t, r.byID)
+	assert.True(t, r.stopped)
+}
+
 func TestRegister(t *testing.T) {
 	registerRecorder := new(CallbackRecorder)
 
@@ -208,6 +298,11 @@ func createTempTestFile(t *testing.T, name string) (string, PathIdentifier) {
 	require.NoError(t, err)
 
 	return path, pathID
+}
+
+func createSymlink(t *testing.T, old, new string) {
+	require.NoError(t, os.Symlink(old, new))
+	t.Cleanup(func() { require.NoError(t, os.Remove(new)) })
 }
 
 func newFileRegistry() *FileRegistry {
