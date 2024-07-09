@@ -112,6 +112,8 @@ const (
 	StateEncoded
 )
 
+// GetContentLenHint returns a hint over the len of the value returned by `GetContent()`, or zero
+// if no hint could be derived
 func (m *MessageContent) GetContentLenHint() int {
 	switch m.State {
 	case StateUnstructured, StateRendered, StateEncoded:
