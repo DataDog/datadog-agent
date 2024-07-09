@@ -218,6 +218,9 @@ func (c *commandTestSuite) TestReadProfileDataNoTraceAgent() {
 func (c *commandTestSuite) TestReadProfileDataErrors() {
 	t := c.T()
 	mockConfig := config.Mock(t)
+	// setting Core Agent Expvar port to 0 to force failing on fetch (letting the default value can leads to
+	// successful request in case of test running next to Agent)
+	mockConfig.SetWithoutSource("expvar_port", 0)
 	mockConfig.SetWithoutSource("apm_config.enabled", true)
 	mockConfig.SetWithoutSource("apm_config.debug.port", 0)
 
