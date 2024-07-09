@@ -25,9 +25,11 @@ type ProcessingRule struct {
 	Name               string
 	ReplacePlaceholder string `mapstructure:"replace_placeholder" json:"replace_placeholder"`
 	Pattern            string
+	PatternHint        string `mapstructure:"pattern_hint" json:"pattern_hint"`
 	// TODO: should be moved out
-	Regex       *regexp.Regexp
-	Placeholder []byte
+	Regex            *regexp.Regexp
+	Placeholder      []byte
+	PatternHintBytes []byte
 }
 
 // ValidateProcessingRules validates the rules and raises an error if one is misconfigured.
@@ -80,6 +82,7 @@ func CompileProcessingRules(rules []*ProcessingRule) error {
 				return err
 			}
 		}
+		rule.PatternHintBytes = []byte(rule.PatternHint)
 	}
 	return nil
 }
