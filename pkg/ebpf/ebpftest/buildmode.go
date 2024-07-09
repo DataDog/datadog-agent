@@ -110,7 +110,7 @@ func (e ebpfless) Env() map[string]string {
 		"DD_ENABLE_CO_RE":                    "false",
 		"DD_ALLOW_RUNTIME_COMPILED_FALLBACK": "false",
 		"DD_ALLOW_PRECOMPILED_FALLBACK":      "false",
-		"DD_NETWORK_CONFIG_ENABLE_EBPF_LESS": "true",
+		"DD_NETWORK_CONFIG_ENABLE_EBPFLESS":  "true",
 	}
 }
 
