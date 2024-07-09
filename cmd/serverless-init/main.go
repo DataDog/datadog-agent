@@ -92,13 +92,15 @@ func main() {
 }
 
 // removing these unused dependencies will cause silent crash due to fx framework
-func run(_ secrets.Component, _ autodiscovery.Component, _ healthprobeDef.Component) {
+func run(_ secrets.Component, _ autodiscovery.Component, _ healthprobeDef.Component) error {
 	cloudService, logConfig, traceAgent, metricAgent, logsAgent := setup(modeConf)
 
-	modeConf.Runner(logConfig)
+	err := modeConf.Runner(logConfig)
 
 	metric.AddShutdownMetric(cloudService.GetPrefix(), metricAgent.GetExtraTags(), time.Now(), metricAgent.Demux)
 	lastFlush(logConfig.FlushTimeout, metricAgent, traceAgent, logsAgent)
+
+	return err
 }
 
 func setup(mode.Conf) (cloudservice.CloudService, *serverlessInitLog.Config, *trace.ServerlessTraceAgent, *metrics.ServerlessMetricAgent, logsAgent.ServerlessLogsAgent) {
