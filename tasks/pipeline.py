@@ -1017,6 +1017,7 @@ def compare_to_itself(ctx):
     )
     ctx.run("git config --global user.name 'github-app[bot]'")
     ctx.run("git config --global user.email 'github-app[bot]@users.noreply.github.com'")
+    # The branch must exist in gitlab to be able to "compare_to"
     ctx.run(f"git push origin {new_branch}", hide=True)
     for file in ['.gitlab-ci.yml', '.gitlab/notify/notify.yml']:
         with open(file) as f:
@@ -1025,12 +1026,13 @@ def compare_to_itself(ctx):
             f.write(content.replace('compare_to: main', f'compare_to: {new_branch}'))
     ctx.run("git commit -am 'Compare to itself'", hide=True)
     ctx.run(f"git push origin {new_branch}", hide=True)
-    max_attempts = 5
+    max_attempts = 8
     for attempt in range(max_attempts):
-        time.sleep(60)
+        time.sleep(30)
         pipelines = agent.pipelines.list(per_page=20, get_all=False)
-        test_pipelines = [p for p in pipelines if p.ref.startswith(new_branch)]
-        if len(test_pipelines) == 2:
+        test_pipelines = [p for p in pipelines if new_branch in p.ref]
+        if len(test_pipelines) >= 2:
+            # We should have only 2 occurrence. Consider more than 2 to prevent infinite loop
             print(f"Pipelines found: {[pipeline.web_url for pipeline in test_pipelines]}")
             break
         else:
