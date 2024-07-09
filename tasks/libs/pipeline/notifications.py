@@ -165,3 +165,17 @@ def email_to_slackid(ctx: Context, email: str) -> str:
     assert slackid != '', 'Email not found'
 
     return slackid
+
+
+def warn_new_commits(release_managers, team, branch, next_rc):
+    from slack_sdk import WebClient
+
+    message = "Hello :wave:\n"
+    message += f":announcement: We detected new commits on the {branch} release branch of `integrations-core`.\n"
+    message += (
+        f"Could you please release and tag your repo to prepare the {next_rc} `datadog-agent` release candidate?\n"
+    )
+    message += "Thanks in advance!\n"
+    message += f"cc {' '.join(release_managers)}"
+    client = WebClient(os.environ["SLACK_API_TOKEN"])
+    client.chat_postMessage(channel=f"#{team}", text=message)
