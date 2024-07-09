@@ -39,7 +39,7 @@ def build(ctx):
 
 
 @task
-def image_build(ctx, arch='amd64', base_version='latest', tag=OT_AGENT_TAG, push=False):
+def image_build(ctx, arch='amd64', base_version='latest', tag=OT_AGENT_TAG, push=False, no_cache=False):
     """
     Build the otel agent container image
     """
@@ -60,6 +60,8 @@ def image_build(ctx, arch='amd64', base_version='latest', tag=OT_AGENT_TAG, push
     common_build_opts = (
         f"-t {OT_AGENT_IMAGE_NAME}:{tag} -f {dockerfile} --build-arg=\"BASE_IMAGE_DD_VERSION={base_version}\""
     )
+    if no_cache:
+        common_build_opts = f"{common_build_opts} --no-cache"
     ctx.run(f"docker build {common_build_opts} --platform linux/{arch} {build_context}")
     if push:
         ctx.run(f"docker push {tag}")

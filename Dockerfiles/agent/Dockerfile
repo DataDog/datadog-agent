@@ -158,8 +158,6 @@ COPY --from=extract /output/ /
 
 # S6 entrypoint, service definitions, healthcheck probe
 COPY s6-services /etc/services.d/
-RUN mkdir -p /etc/services-available.d/
-COPY s6-services-opt /etc/services-available.d/
 COPY cont-init.d /etc/cont-init.d/
 COPY probe.sh initlog.sh secrets-helper/readsecret.py secrets-helper/readsecret.sh secrets-helper/readsecret_multiple_providers.sh /
 
@@ -211,13 +209,11 @@ RUN  mv /etc/s6/init/init-stage3 /etc/s6/init/init-stage3-original
 COPY init-stage3          /etc/s6/init/init-stage3
 COPY init-stage3-host-pid /etc/s6/init/init-stage3-host-pid
 
-# Update for optional OTel Agent process
-
-RUN if [ -f /opt/datadog-agent/embedded/bin/otel-agent ]; then \
-  mv /etc/datadog-agent/otel-config.yaml.example /etc/datadog-agent/otel-config.yaml; \
-  mkdir -p /var/run/s6/services/otel; \
-  s6-hiercopy /etc/services-available.d/otel /var/run/s6/services/otel; fi
-  # s6-svscanctl -a /var/run/s6/services; fi
+# Update if optional OTel Agent process should not run
+RUN if [ ! -f /opt/datadog-agent/embedded/bin/otel-agent ]; then \
+  rm -rf /etc/services.d/otel \
+  else \
+  mv /etc/datadog-agent/otel-config.yaml.example /etc/datadog-agent/otel-config.yaml; fi
 
 RUN find /etc -type d,f -perm -o+w -print0 | xargs -r -0 chmod g-w,o-w
 
