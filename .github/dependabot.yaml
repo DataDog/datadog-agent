@@ -148,7 +148,7 @@ updates:
       - dependency-name: github.com/DataDog/test-infra-definitions
       # Do not bump dependencies that come from test-infra-definitions, they will be bumped when we'll bump the version
       # https://datadoghq.atlassian.net/browse/ADXT-375
-      - dependency-name: github.com/pulumi/*
+      - dependency-name: github.com/pulumi*
 
     schedule:
       interval: weekly
