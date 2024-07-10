@@ -213,6 +213,18 @@ func TestContainerScopedVariable(t *testing.T) {
 	})
 }
 
+func createCGroup(name string) (string, error) {
+	cgroupPath := "/sys/fs/cgroup/memory/" + name
+	if err := os.MkdirAll(cgroupPath, 0700); err != nil {
+		return "", err
+	}
+
+	if err := os.WriteFile(cgroupPath+"/cgroup.procs", []byte(strconv.Itoa(os.Getpid())), 0700); err != nil {
+		return "", err
+	}
+
+	return cgroupPath, nil
+}
 func TestCGroupID(t *testing.T) {
 	if testEnvironment == DockerEnvironment {
 		t.Skip("skipping cgroup ID test in docker")
@@ -232,14 +244,11 @@ func TestCGroupID(t *testing.T) {
 	}
 	defer test.Close()
 
-	if err := os.MkdirAll("/sys/fs/cgroup/memory/cg1", 0700); err != nil {
+	cgroupPath, err := createCGroup("cg1")
+	if err != nil {
 		t.Fatal(err)
 	}
-
-	if err := os.WriteFile("/sys/fs/cgroup/memory/cg1/cgroup.procs", []byte(strconv.Itoa(os.Getpid())), 0700); err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll("/sys/fs/cgroup/memory/cg1")
+	defer os.RemoveAll(cgroupPath)
 
 	testFile, testFilePtr, err := test.Path("test-open")
 	if err != nil {
