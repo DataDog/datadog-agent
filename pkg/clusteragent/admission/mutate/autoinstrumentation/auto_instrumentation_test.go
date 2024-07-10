@@ -2404,7 +2404,7 @@ func TestShouldInject(t *testing.T) {
 	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(), fx.Supply(workloadmeta.NewParams()))
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockConfig = configmock.New(suite.T())
+			mockConfig = configmock.New(t)
 			tt.setupConfig()
 
 			// Need to create a new instance of the webhook to take into account

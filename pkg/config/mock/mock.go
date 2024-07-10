@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package mock offers a mock implementation for the configuration
 package mock
 
 import (
@@ -19,28 +20,28 @@ var (
 	m              = sync.Mutex{}
 )
 
-// MockConfig should only be used in tests
-type MockConfig struct {
+// mockConfig should only be used in tests
+type mockConfig struct {
 	model.Config
 }
 
 // Set is used for setting configuration in tests
-func (c *MockConfig) Set(key string, value interface{}, source model.Source) {
+func (c *mockConfig) Set(key string, value interface{}, source model.Source) {
 	c.Config.Set(key, value, source)
 }
 
 // SetWithoutSource is used for setting configuration in tests
-func (c *MockConfig) SetWithoutSource(key string, value interface{}) {
+func (c *mockConfig) SetWithoutSource(key string, value interface{}) {
 	c.Config.SetWithoutSource(key, value)
 }
 
 // SetKnown is used for setting configuration in tests
-func (c *MockConfig) SetKnown(key string) {
+func (c *mockConfig) SetKnown(key string) {
 	c.Config.SetKnown(key)
 }
 
-// Mock is creating and returning a mock config
-func New(t testing.TB) *MockConfig {
+// New is creating and returning a mock config
+func New(t testing.TB) model.Config {
 	// We only check isConfigMocked when registering a cleanup function. 'isConfigMocked' avoids nested calls to
 	// Mock to reset the config to a blank state. This way we have only one mock per test and test helpers can call
 	// Mock.
@@ -49,7 +50,7 @@ func New(t testing.TB) *MockConfig {
 		defer m.Unlock()
 		if isConfigMocked {
 			// The configuration is already mocked.
-			return &MockConfig{setup.Datadog()}
+			return &mockConfig{setup.Datadog()}
 		}
 
 		isConfigMocked = true
@@ -67,5 +68,5 @@ func New(t testing.TB) *MockConfig {
 	// Configuration defaults
 	setup.SetDatadog(newCfg)
 	setup.InitConfig(newCfg)
-	return &MockConfig{newCfg}
+	return &mockConfig{newCfg}
 }
