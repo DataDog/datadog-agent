@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build test
+//xgo:build test
 
 package aggregator
 
@@ -52,8 +52,7 @@ func TestDemuxIsSetAsGlobalInstance(t *testing.T) {
 func TestDemuxForwardersCreated(t *testing.T) {
 	require := require.New(t)
 
-	// default options should have created all forwarders except for the orchestrator
-	// forwarders since we're not in a cluster-agent environment
+	// default options should have created all forwarders
 
 	opts := demuxTestOptions()
 
