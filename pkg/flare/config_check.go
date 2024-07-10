@@ -87,7 +87,7 @@ func PrintConfigCheck(w io.Writer, cr integration.ConfigCheckResponse, withDebug
 				fmt.Fprintf(w, "\n%s: %s\n", color.BlueString("Auto-discovery IDs"), color.YellowString(ids))
 				fmt.Fprintf(w, "%s:\n", color.BlueString("Templates"))
 				for _, config := range configs {
-					fmt.Fprintln(w, []byte(config.String()))
+					fmt.Fprintln(w, config.String())
 				}
 			}
 		}

@@ -622,7 +622,8 @@ func (w *Webhook) injectAutoInstruConfig(pod *corev1.Pod, libsToInject []libInfo
 				{
 					key:     pythonPathKey,
 					valFunc: pythonEnvValFunc,
-				}})
+				},
+			})
 		case dotnet:
 			err = injectLibRequirements(pod, lib.ctrName, []envVar{
 				{
@@ -648,7 +649,13 @@ func (w *Webhook) injectAutoInstruConfig(pod *corev1.Pod, libsToInject []libInfo
 				{
 					key:     dotnetProfilingLdPreloadKey,
 					valFunc: dotnetProfilingLdPreloadEnvValFunc,
-				}})
+					isEligibleToInject: func(c corev1.Container) bool {
+						// N.B. Always disabled for now until we have a better mechanism to inject
+						//      this safely.
+						return false
+					},
+				},
+			})
 		case ruby:
 			err = injectLibRequirements(pod, lib.ctrName, []envVar{
 				{
@@ -775,6 +782,10 @@ func injectLibRequirements(pod *corev1.Pod, ctrName string, envVars []envVar) er
 		}
 
 		for _, envVarPair := range envVars {
+			if envVarPair.isEligibleToInject != nil && !envVarPair.isEligibleToInject(ctr) {
+				continue
+			}
+
 			index := mutatecommon.EnvIndex(ctr.Env, envVarPair.key)
 			if index < 0 {
 				pod.Spec.Containers[i].Env = append(pod.Spec.Containers[i].Env, corev1.EnvVar{
@@ -880,8 +891,9 @@ func containsInitContainer(pod *corev1.Pod, initContainerName string) bool {
 }
 
 type envVar struct {
-	key     string
-	valFunc envValFunc
+	key                string
+	valFunc            envValFunc
+	isEligibleToInject func(corev1.Container) bool
 }
 
 type envValFunc func(string) string
