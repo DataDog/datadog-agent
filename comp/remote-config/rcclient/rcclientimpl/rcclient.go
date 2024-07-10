@@ -297,14 +297,11 @@ func (rc rcClient) agentConfigUpdateCallback(updates map[string]state.RawConfig,
 		err = rc.settingsComponent.SetRuntimeSetting("log_level", mergedConfig.LogLevel, model.SourceRC)
 	}
 
-	// Gather the source of the enable_stream_logs setting
 	streamLogsSource := config.Datadog().GetSource("enable_stream_logs")
 
-	// If the config is set by RC, apply it 
 	if mergedConfig.EnableStreamLogs != nil {
 		err = rc.settingsComponent.SetRuntimeSetting("enable_stream_logs", *mergedConfig.EnableStreamLogs, model.SourceRC)
-	} else if mergedConfig.EnableStreamLogs != nil && streamLogsSource == model.SourceRC {
-		// If the config was previously set by RC but is not set now, unset it.
+	} else if mergedConfig.EnableStreamLogs == nil && streamLogsSource == model.SourceRC {
 		config.Datadog().UnsetForSource("enable_stream_logs", model.SourceRC)
 	}
 

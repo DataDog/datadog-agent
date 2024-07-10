@@ -17,7 +17,6 @@ import (
 
 	apiutils "github.com/DataDog/datadog-agent/comp/api/api/utils"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	coreLog "github.com/DataDog/datadog-agent/comp/core/log"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -109,7 +108,7 @@ func GetStreamFunc(messageReceiverFunc func() MessageReceiver, streamType, agent
 }
 
 // ExportStreamLogs export output of stream-logs to a file
-func ExportStreamLogs(log coreLog.Component, config config.Component, streamLogParams *StreamLogsParams) error {
+func ExportStreamLogs(config config.Component, streamLogParams *StreamLogsParams) error {
 	ipcAddress, err := pkgconfig.GetIPCAddress()
 	if err != nil {
 		return err

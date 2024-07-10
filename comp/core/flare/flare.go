@@ -222,7 +222,7 @@ func (f *flare) streamLogsIfEnabled() error {
 				FilePath: commonpath.DefaultStreamlogsLogFile,
 				Duration: 60 * time.Second,
 			}
-			err := streamutils.ExportStreamLogs(f.log, f.config, &streamLogParams)
+			err := streamutils.ExportStreamLogs(f.config, &streamLogParams)
 			if err != nil {
 				return err
 			}
