@@ -2,6 +2,7 @@ import sys
 
 from invoke import Exit, task
 
+from tasks.libs.common.go import download_go_dependencies
 from tasks.libs.common.utils import environ, gitlab_section
 
 TOOL_LIST = [
@@ -34,9 +35,7 @@ TOOLS = {
 def download_tools(ctx):
     """Download all Go tools for testing."""
     with environ({'GO111MODULE': 'on'}):
-        for path, _ in TOOLS.items():
-            with ctx.cd(path):
-                ctx.run("go mod download")
+        download_go_dependencies(ctx, paths=list(TOOLS.keys()))
 
 
 @task
