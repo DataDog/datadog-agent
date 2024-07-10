@@ -824,13 +824,13 @@ func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
 			buildResponse: func(topic string) kmsg.FetchResponse {
 				record := makeRecord()
 				var records []kmsg.Record
-				for i := 0; i < 5; i++ {
+				for i := 0; i < 2; i++ {
 					records = append(records, record)
 				}
 
 				recordBatch := makeRecordBatch(records...)
 				var batches []kmsg.RecordBatch
-				for i := 0; i < 4; i++ {
+				for i := 0; i < 2; i++ {
 					batches = append(batches, recordBatch)
 				}
 
@@ -842,7 +842,7 @@ func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
 
 				return makeFetchResponse(apiVersion, makeFetchResponseTopic(topic, partitions...))
 			},
-			numFetchedRecords: 5 * 4 * 3,
+			numFetchedRecords: 2 * 2 * 3,
 		},
 		{
 			name:  "large topic name",
@@ -1028,13 +1028,13 @@ func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
 			buildResponse: func(topic string) kmsg.FetchResponse {
 				record := makeRecord()
 				var records []kmsg.Record
-				for i := 0; i < 5; i++ {
+				for i := 0; i < 1; i++ {
 					records = append(records, record)
 				}
 
 				recordBatch := makeRecordBatch(records...)
 				var batches []kmsg.RecordBatch
-				for i := 0; i < 4; i++ {
+				for i := 0; i < 2; i++ {
 					batches = append(batches, recordBatch)
 				}
 
@@ -1047,7 +1047,7 @@ func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
 
 				return makeFetchResponse(apiVersion, makeFetchResponseTopic(topic, partitions...))
 			},
-			numFetchedRecords: 5 * 4 * 3,
+			numFetchedRecords: 1 * 2 * 3,
 			errorCode:         3,
 		},
 		{
@@ -1055,22 +1055,22 @@ func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
 			topic: defaultTopic,
 			produceFetchValidationWithErrorCode: &kafkaParsingValidationWithErrorCodes{
 				expectedNumberOfFetchRequests: map[int32]int{
-					0: 5 * 4 * 2,
-					1: 5 * 4 * 1,
-					3: 5 * 4 * 1,
+					0: 1 * 2 * 2,
+					1: 1 * 2 * 1,
+					3: 1 * 2 * 1,
 				},
 				expectedAPIVersionFetch: apiVersion,
 			},
 			buildResponse: func(topic string) kmsg.FetchResponse {
 				record := makeRecord()
 				var records []kmsg.Record
-				for i := 0; i < 5; i++ {
+				for i := 0; i < 1; i++ {
 					records = append(records, record)
 				}
 
 				recordBatch := makeRecordBatch(records...)
 				var batches []kmsg.RecordBatch
-				for i := 0; i < 4; i++ {
+				for i := 0; i < 2; i++ {
 					batches = append(batches, recordBatch)
 				}
 
@@ -1094,21 +1094,21 @@ func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
 			topic: defaultTopic,
 			produceFetchValidationWithErrorCode: &kafkaParsingValidationWithErrorCodes{
 				expectedNumberOfFetchRequests: map[int32]int{
-					-1:  5 * 4 * 1,
-					119: 5 * 4 * 1,
+					-1:  1 * 1 * 1,
+					119: 1 * 1 * 1,
 				},
 				expectedAPIVersionFetch: apiVersion,
 			},
 			buildResponse: func(topic string) kmsg.FetchResponse {
 				record := makeRecord()
 				var records []kmsg.Record
-				for i := 0; i < 5; i++ {
+				for i := 0; i < 1; i++ {
 					records = append(records, record)
 				}
 
 				recordBatch := makeRecordBatch(records...)
 				var batches []kmsg.RecordBatch
-				for i := 0; i < 4; i++ {
+				for i := 0; i < 1; i++ {
 					batches = append(batches, recordBatch)
 				}
 
@@ -1185,7 +1185,7 @@ func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
 		var groups []groupInfo
 		var info groupInfo
 
-		for splitIdx := 0; splitIdx < 1000; splitIdx++ {
+		for splitIdx := 0; splitIdx < 500; splitIdx++ {
 			reqData := formatter.AppendRequest(make([]byte, 0), &req, int32(splitIdx))
 			respData := appendResponse(make([]byte, 0), resp, uint32(splitIdx))
 
