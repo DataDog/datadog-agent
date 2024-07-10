@@ -2,11 +2,18 @@ version: '3.1'
 name: postgres
 services:
   postgres:
-   image: postgres:15-alpine
-   restart: always
-   ports:
-     - ${POSTGRES_ADDR:-127.0.0.1}:${POSTGRES_PORT:-5432}:5432
-   environment:
-     POSTGRES_USER: admin
-     POSTGRES_PASSWORD: password
-     POSTGRES_DB: testdb
+    image: postgres:15-alpine
+    restart: always
+    entrypoint: /v/runner.sh
+    command: postgres -l -c ssl=${ENCRYPTION_MODE} -c ssl_cert_file=/postgres-test/server.crt -c ssl_key_file=/postgres-test/server.key -c config_file=/postgres-test/postgres.conf
+    ports:
+      - ${POSTGRES_ADDR:-127.0.0.1}:${POSTGRES_PORT:-5432}:5432
+    environment:
+      ENCRYPTION_MODE: ${ENCRYPTION_MODE:-off}
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: testdb
+    volumes:
+      - ${TESTDIR}/server.key:/v/server.key
+      - ${TESTDIR}/server.crt:/v/server.crt
+      - ${TESTDIR}/runner.sh:/v/runner.sh

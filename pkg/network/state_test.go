@@ -544,7 +544,7 @@ func TestNoPriorRegistrationActiveConnections(t *testing.T) {
 func TestCleanupClient(t *testing.T) {
 	clientID := "1"
 
-	state := NewState(100*time.Millisecond, 50000, 75000, 75000, 7500, 75000, 75000, false, false)
+	state := NewState(nil, 100*time.Millisecond, 50000, 75000, 75000, 7500, 75000, 75000, false, false)
 	clients := state.(*networkState).getClients()
 	assert.Equal(t, 0, len(clients))
 
@@ -2265,8 +2265,12 @@ func TestKafkaStats(t *testing.T) {
 
 	key := kafka.NewKey(c.Source, c.Dest, c.SPort, c.DPort, "my-topic", kafka.ProduceAPIKey, 1)
 
-	kafkaStats := make(map[kafka.Key]*kafka.RequestStat)
-	kafkaStats[key] = &kafka.RequestStat{Count: 2}
+	kafkaStats := make(map[kafka.Key]*kafka.RequestStats)
+	kafkaStats[key] = &kafka.RequestStats{
+		ErrorCodeToStat: map[int32]*kafka.RequestStat{
+			0: {Count: 2},
+		},
+	}
 	usmStats := make(map[protocols.ProtocolType]interface{})
 	usmStats[protocols.Kafka] = kafkaStats
 
@@ -2291,9 +2295,13 @@ func TestKafkaStatsWithMultipleClients(t *testing.T) {
 	}
 
 	getStats := func(topicName string) map[protocols.ProtocolType]interface{} {
-		kafkaStats := make(map[kafka.Key]*kafka.RequestStat)
+		kafkaStats := make(map[kafka.Key]*kafka.RequestStats)
 		key := kafka.NewKey(c.Source, c.Dest, c.SPort, c.DPort, topicName, kafka.ProduceAPIKey, 1)
-		kafkaStats[key] = &kafka.RequestStat{Count: 2}
+		kafkaStats[key] = &kafka.RequestStats{
+			ErrorCodeToStat: map[int32]*kafka.RequestStat{
+				0: {Count: 2},
+			},
+		}
 
 		usmStats := make(map[protocols.ProtocolType]interface{})
 		usmStats[protocols.Kafka] = kafkaStats
@@ -2849,7 +2857,7 @@ func latestEpochTime() uint64 {
 
 func newDefaultState() *networkState {
 	// Using values from ebpf.NewConfig()
-	return NewState(2*time.Minute, 50000, 75000, 75000, 7500, 7500, 7500, false, false).(*networkState)
+	return NewState(nil, 2*time.Minute, 50000, 75000, 75000, 7500, 7500, 7500, false, false).(*networkState)
 }
 
 func getIPProtocol(nt ConnectionType) uint8 {

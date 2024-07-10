@@ -10,12 +10,16 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
-	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/fx"
+
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
+	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 var testAdditionalEndpointsConf = []byte(`
@@ -165,9 +169,12 @@ func TestProxyWithSecret(t *testing.T) {
 			os.WriteFile(configPath, nil, 0600)
 			config.SetConfigFile(configPath)
 
-			resolver := secretsimpl.NewMock()
+			resolver := fxutil.Test[secrets.Component](t, fx.Options(
+				secretsimpl.MockModule(),
+				nooptelemetry.Module(),
+			))
 			if c.setup != nil {
-				c.setup(t, config, configPath, resolver)
+				c.setup(t, config, configPath, resolver.(secrets.Mock))
 			}
 
 			_, err := LoadCustom(config, "unit_test", optional.NewOption[secrets.Component](resolver), nil)

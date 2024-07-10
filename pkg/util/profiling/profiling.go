@@ -75,7 +75,7 @@ func Start(settings Settings) error {
 	}
 
 	if len(settings.CustomAttributes) > 0 {
-		customContextTags := make([]string, len(settings.CustomAttributes))
+		customContextTags := make([]string, 0, len(settings.CustomAttributes))
 		for _, customAttribute := range settings.CustomAttributes {
 			customContextTags = append(customContextTags, "ddprof.custom_ctx:"+customAttribute)
 		}

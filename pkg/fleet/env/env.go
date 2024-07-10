@@ -9,6 +9,8 @@ package env
 import (
 	"fmt"
 	"os"
+	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -23,6 +25,7 @@ const (
 	envRegistryAuth          = "DD_INSTALLER_REGISTRY_AUTH"
 	envDefaultPackageVersion = "DD_INSTALLER_DEFAULT_PKG_VERSION"
 	envDefaultPackageInstall = "DD_INSTALLER_DEFAULT_PKG_INSTALL"
+	envApmLibraries          = "DD_APM_INSTRUMENTATION_LIBRARIES"
 )
 
 var defaultEnv = Env{
@@ -43,6 +46,27 @@ var defaultEnv = Env{
 	},
 }
 
+// ApmLibLanguage is a language defined in DD_APM_INSTRUMENTATION_LIBRARIES env var
+type ApmLibLanguage string
+
+// ApmLibVersion is the version of the library defined in DD_APM_INSTRUMENTATION_LIBRARIES env var
+type ApmLibVersion string
+
+var fullSemverRe = regexp.MustCompile(`^[0-9]+\.[0-9]+\.[0-9]+$`)
+
+// AsVersionTag returns the version tag associated with the version of the library defined in DD_APM_INSTRUMENTATION_LIBRARIES
+// if the value is empty we return latest
+func (v ApmLibVersion) AsVersionTag() string {
+	if v == "" {
+		return "latest"
+	}
+	versionTag, _ := strings.CutPrefix(string(v), "v")
+	if fullSemverRe.MatchString(versionTag) {
+		return versionTag + "-1"
+	}
+	return versionTag
+}
+
 // Env contains the configuration for the installer.
 type Env struct {
 	APIKey        string
@@ -56,6 +80,8 @@ type Env struct {
 
 	DefaultPackagesInstallOverride map[string]bool
 	DefaultPackagesVersionOverride map[string]string
+
+	ApmLibraries map[ApmLibLanguage]ApmLibVersion
 
 	InstallScript InstallScriptEnv
 }
@@ -74,6 +100,8 @@ func FromEnv() *Env {
 
 		DefaultPackagesInstallOverride: overridesByNameFromEnv(envDefaultPackageInstall, func(s string) bool { return s == "true" }),
 		DefaultPackagesVersionOverride: overridesByNameFromEnv(envDefaultPackageVersion, func(s string) string { return s }),
+
+		ApmLibraries: parseApmLibrariesEnv(),
 
 		InstallScript: installScriptEnvFromEnv(),
 	}
@@ -108,11 +136,38 @@ func (e *Env) ToEnv() []string {
 	if e.RegistryAuthOverride != "" {
 		env = append(env, envRegistryAuth+"="+e.RegistryAuthOverride)
 	}
+	if len(e.ApmLibraries) > 0 {
+		libraries := []string{}
+		for l, v := range e.ApmLibraries {
+			l := string(l)
+			if v != "" {
+				l = l + ":" + string(v)
+			}
+			libraries = append(libraries, l)
+		}
+		slices.Sort(libraries)
+		env = append(env, envApmLibraries+"="+strings.Join(libraries, ","))
+	}
 	env = append(env, overridesByNameToEnv(envRegistryURL, e.RegistryOverrideByImage)...)
 	env = append(env, overridesByNameToEnv(envRegistryAuth, e.RegistryAuthOverrideByImage)...)
 	env = append(env, overridesByNameToEnv(envDefaultPackageInstall, e.DefaultPackagesInstallOverride)...)
 	env = append(env, overridesByNameToEnv(envDefaultPackageVersion, e.DefaultPackagesVersionOverride)...)
 	return env
+}
+
+func parseApmLibrariesEnv() map[ApmLibLanguage]ApmLibVersion {
+	apmLibraries := os.Getenv(envApmLibraries)
+	apmLibrariesVersion := map[ApmLibLanguage]ApmLibVersion{}
+	if apmLibraries == "" {
+		return apmLibrariesVersion
+	}
+	for _, library := range strings.FieldsFunc(apmLibraries, func(r rune) bool {
+		return r == ',' || r == ' '
+	}) {
+		libraryName, libraryVersion, _ := strings.Cut(library, ":")
+		apmLibrariesVersion[ApmLibLanguage(libraryName)] = ApmLibVersion(libraryVersion)
+	}
+	return apmLibrariesVersion
 }
 
 func overridesByNameFromEnv[T any](envPrefix string, convert func(string) T) map[string]T {

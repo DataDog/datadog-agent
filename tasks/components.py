@@ -5,6 +5,7 @@ Invoke entrypoint, import here all the tasks we want to make available
 import os
 import pathlib
 from collections import namedtuple
+from collections.abc import Iterable
 from string import Template
 
 from invoke import task
@@ -16,18 +17,20 @@ Component = namedtuple('Component', ['path', 'doc', 'team'])
 Bundle = namedtuple('Bundle', ['path', 'doc', 'team', 'components'])
 
 
-def find_team(content):
-    for l in content:
-        if l.startswith('// team: '):
-            return l.split(':', 2)[1].strip()
+def find_team(content: Iterable[str]) -> str | None:
+    for line in content:
+        if line.startswith('// team: '):
+            return line.split(':', 2)[1].strip()
+
+    return None
 
 
-def find_doc(content):
+def find_doc(content) -> str:
     comment_block = []
-    for l in content:
-        if l.startswith('//'):
-            comment_block.append(l[3:])
-        elif l.startswith('package '):
+    for line in content:
+        if line.startswith('//'):
+            comment_block.append(line[3:])
+        elif line.startswith('package '):
             try:
                 i = comment_block.index('')
                 comment_block = comment_block[:i]
@@ -37,9 +40,11 @@ def find_doc(content):
         else:
             comment_block = []
 
+    return ''
 
-def has_type_component(content):
-    return any(l.startswith('type Component interface') for l in content)
+
+def has_type_component(content) -> bool:
+    return any(line.startswith('type Component interface') for line in content)
 
 
 # // TODO: (components)
@@ -55,7 +60,6 @@ components_to_migrate = [
     "comp/metadata/inventoryagent/component.go",
     "comp/netflow/config/component.go",
     "comp/netflow/server/component.go",
-    "comp/otelcol/collector/component.go",
     "comp/remote-config/rcclient/component.go",
     "comp/trace/agent/component.go",
     "comp/trace/config/component.go",
@@ -85,14 +89,14 @@ def check_component_contents_and_file_hiearchy(entry_point):
     file = entry_point.file
     directory = entry_point.dir
 
-    if not any(l.startswith('type Component interface') or l.startswith('type Component = ') for l in content):
+    if not any(line.startswith('type Component interface') or line.startswith('type Component = ') for line in content):
         return f"** {file} does not define a Component interface; skipping"
 
     if str(file) in components_to_migrate:
         return ""
 
     for implemenation_definition in implementation_definitions:
-        if any(l.startswith(implemenation_definition) for l in content):
+        if any(line.startswith(implemenation_definition) for line in content):
             return f"** {file} define '{implemenation_definition}' which is not allow in {file}. See docs/components/defining-components.md; skipping"
 
     component_name = directory.stem
@@ -102,7 +106,8 @@ def check_component_contents_and_file_hiearchy(entry_point):
         return ""
 
     for folder in directory.iterdir():
-        if folder.match('*impl'):
+        # Allow implementation to be old style <component>impl or new style <component>/impl or <component>/impl-<suffix>
+        if folder.match('*impl') or folder.match('impl-*'):
             missing_implementation_folder = False
             # TODO: check that the implementation_definitions are present in any of the files of the impl folder
             break
@@ -366,10 +371,10 @@ def new_component(_, comp_path, overwrite=False, team="/* TODO: add team name */
     create_components_framework_files(
         comp_path,
         [
-            ("component.go", "component.go"),
-            ("component_mock.go", "component_mock.go"),
-            (os.path.join(f"{component_name}impl", f"{component_name}.go"), "impl/component.go"),
-            (os.path.join(f"{component_name}impl", f"{component_name}_mock.go"), "impl/component_mock.go"),
+            ("def/component.go", "def/component.go"),
+            ("fx/fx.go", "fx/fx.go"),
+            (os.path.join("impl", f"{component_name}.go"), "impl/component.go"),
+            ("mock/mock.go", "mock/mock.go"),
         ],
         template_var_mapping,
         overwrite,
@@ -465,10 +470,6 @@ def lint_fxutil_oneshot_test(_):
         for file in folder_path.rglob("*.go"):
             # Don't lint test files
             if str(file).endswith("_test.go"):
-                continue
-
-            excluded_cmds = ["agentless-scanner"]
-            if file.parts[0] == "cmd" and file.parts[1] in excluded_cmds:
                 continue
 
             one_shot_count = file.read_text().count("fxutil.OneShot(")

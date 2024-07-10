@@ -98,7 +98,7 @@ type EBPFResolver struct {
 	inodeErrStats             *atomic.Int64
 
 	entryCache    map[uint32]*model.ProcessCacheEntry
-	argsEnvsCache *simplelru.LRU[uint32, *argsEnvsCacheEntry]
+	argsEnvsCache *simplelru.LRU[uint64, *argsEnvsCacheEntry]
 
 	processCacheEntryPool *Pool
 
@@ -1062,6 +1062,53 @@ func (p *EBPFResolver) UpdateCapset(pid uint32, e *model.Event) {
 	}
 }
 
+// UpdateAWSSecurityCredentials updates the list of AWS Security Credentials
+func (p *EBPFResolver) UpdateAWSSecurityCredentials(pid uint32, e *model.Event) {
+	if len(e.IMDS.AWS.SecurityCredentials.AccessKeyID) == 0 {
+		return
+	}
+
+	p.Lock()
+	defer p.Unlock()
+
+	entry := p.entryCache[pid]
+	if entry != nil {
+		// check if this key is already in cache
+		for _, key := range entry.AWSSecurityCredentials {
+			if key.AccessKeyID == e.IMDS.AWS.SecurityCredentials.AccessKeyID {
+				return
+			}
+		}
+		entry.AWSSecurityCredentials = append(entry.AWSSecurityCredentials, e.IMDS.AWS.SecurityCredentials)
+	}
+}
+
+// FetchAWSSecurityCredentials returns the list of AWS Security Credentials valid at the time of the event, and prunes
+// expired entries
+func (p *EBPFResolver) FetchAWSSecurityCredentials(e *model.Event) []model.AWSSecurityCredentials {
+	p.Lock()
+	defer p.Unlock()
+
+	entry := p.entryCache[e.ProcessContext.Pid]
+	if entry != nil {
+		// check if we should delete
+		var toDelete []int
+		for id, key := range entry.AWSSecurityCredentials {
+			if key.Expiration.Before(e.ResolveEventTime()) {
+				toDelete = append([]int{id}, toDelete...)
+			}
+		}
+
+		// delete expired entries
+		for _, id := range toDelete {
+			entry.AWSSecurityCredentials = append(entry.AWSSecurityCredentials[0:id], entry.AWSSecurityCredentials[id+1:]...)
+		}
+
+		return entry.AWSSecurityCredentials
+	}
+	return nil
+}
+
 // Start starts the resolver
 func (p *EBPFResolver) Start(ctx context.Context) error {
 	var err error
@@ -1331,7 +1378,7 @@ func NewEBPFResolver(manager *manager.Manager, config *config.Config, statsdClie
 	scrubber *procutil.DataScrubber, containerResolver *container.Resolver, mountResolver mount.ResolverInterface,
 	cgroupResolver *cgroup.Resolver, userGroupResolver *usergroup.Resolver, timeResolver *stime.Resolver,
 	pathResolver spath.ResolverInterface, opts *ResolverOpts) (*EBPFResolver, error) {
-	argsEnvsCache, err := simplelru.NewLRU[uint32, *argsEnvsCacheEntry](maxParallelArgsEnvs, nil)
+	argsEnvsCache, err := simplelru.NewLRU[uint64, *argsEnvsCacheEntry](maxParallelArgsEnvs, nil)
 	if err != nil {
 		return nil, err
 	}

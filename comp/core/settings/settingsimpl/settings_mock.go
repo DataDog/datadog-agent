@@ -12,7 +12,7 @@ import (
 
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/api/api"
+	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -71,6 +71,11 @@ func (m mock) SetRuntimeSetting(string, interface{}, model.Source) error {
 
 // GetFullConfig returns the full config
 func (m mock) GetFullConfig(...string) http.HandlerFunc {
+	return func(http.ResponseWriter, *http.Request) {}
+}
+
+// GetFullConfigBySource returns the full config by sources
+func (m mock) GetFullConfigBySource() http.HandlerFunc {
 	return func(http.ResponseWriter, *http.Request) {}
 }
 

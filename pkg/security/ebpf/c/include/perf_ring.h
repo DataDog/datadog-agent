@@ -68,13 +68,13 @@ void __attribute__((always_inline)) send_event_with_size_ptr(void *ctx, u64 even
     }
 }
 
-#define send_event(ctx, event_type, kernel_event) ({                  \
-    u64 size = sizeof(kernel_event);                                  \
+#define send_event(ctx, event_type, kernel_event) ({                \
+    u64 size = sizeof(kernel_event);                                \
     send_event_with_size_ptr(ctx, event_type, &kernel_event, size); \
 })
 
-#define send_event_ptr(ctx, event_type, kernel_event) ({              \
-    u64 size = sizeof(*kernel_event);                                 \
+#define send_event_ptr(ctx, event_type, kernel_event) ({           \
+    u64 size = sizeof(*kernel_event);                              \
     send_event_with_size_ptr(ctx, event_type, kernel_event, size); \
 })
 

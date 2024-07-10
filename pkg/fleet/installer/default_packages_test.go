@@ -29,8 +29,14 @@ func TestDefaultPackagesAPMInjectEnabled(t *testing.T) {
 	}
 	packages := DefaultPackages(env)
 
-	// APM inject packages are not released by default today
-	assert.Empty(t, packages)
+	assert.Equal(t, []string{
+		"oci://gcr.io/datadoghq/apm-inject-package:latest",
+		"oci://gcr.io/datadoghq/apm-library-java-package:latest",
+		"oci://gcr.io/datadoghq/apm-library-ruby-package:latest",
+		"oci://gcr.io/datadoghq/apm-library-js-package:latest",
+		"oci://gcr.io/datadoghq/apm-library-dotnet-package:latest",
+		"oci://gcr.io/datadoghq/apm-library-python-package:latest",
+	}, packages)
 }
 
 func TestDefaultPackages(t *testing.T) {
@@ -40,7 +46,7 @@ func TestDefaultPackages(t *testing.T) {
 	}
 	type testCase struct {
 		name     string
-		packages []defaultPackage
+		packages []Package
 		env      *env.Env
 		expected []pkg
 	}
@@ -48,51 +54,172 @@ func TestDefaultPackages(t *testing.T) {
 	tests := []testCase{
 		{
 			name:     "No packages",
-			packages: []defaultPackage{},
+			packages: []Package{},
 			env:      &env.Env{},
 			expected: nil,
 		},
 		{
 			name:     "Package not released",
-			packages: []defaultPackage{{name: "datadog-agent", released: false}},
+			packages: []Package{{Name: "datadog-agent", released: false}},
 			env:      &env.Env{},
 			expected: nil,
 		},
 		{
 			name:     "Package released",
-			packages: []defaultPackage{{name: "datadog-agent", released: true}},
+			packages: []Package{{Name: "datadog-agent", released: true}},
 			env:      &env.Env{},
 			expected: []pkg{{n: "datadog-agent", v: "latest"}},
 		},
 		{
+			name:     "Package released with remote updates",
+			packages: []Package{{Name: "datadog-agent", released: false, releasedWithRemoteUpdates: true}},
+			env:      &env.Env{RemoteUpdates: true},
+			expected: []pkg{{n: "datadog-agent", v: "latest"}},
+		},
+		{
 			name:     "Package released to another site",
-			packages: []defaultPackage{{name: "datadog-agent", releasedBySite: []string{"datadoghq.eu"}}},
+			packages: []Package{{Name: "datadog-agent", releasedBySite: []string{"datadoghq.eu"}}},
 			env:      &env.Env{Site: "datadoghq.com"},
 			expected: nil,
 		},
 		{
 			name:     "Package released to the right site",
-			packages: []defaultPackage{{name: "datadog-agent", releasedBySite: []string{"datadoghq.eu"}}, {name: "datadog-package-2", releasedBySite: []string{"datadoghq.com"}}},
+			packages: []Package{{Name: "datadog-agent", releasedBySite: []string{"datadoghq.eu"}}, {Name: "datadog-package-2", releasedBySite: []string{"datadoghq.com"}}},
 			env:      &env.Env{Site: "datadoghq.eu"},
 			expected: []pkg{{n: "datadog-agent", v: "latest"}},
 		},
 		{
 			name:     "Package not released but forced install",
-			packages: []defaultPackage{{name: "datadog-agent", released: false}},
+			packages: []Package{{Name: "datadog-agent", released: false}},
 			env:      &env.Env{DefaultPackagesInstallOverride: map[string]bool{"datadog-agent": true}},
 			expected: []pkg{{n: "datadog-agent", v: "latest"}},
 		},
 		{
 			name:     "Package released but condition not met",
-			packages: []defaultPackage{{name: "datadog-agent", released: true, condition: func(e *env.Env) bool { return false }}},
+			packages: []Package{{Name: "datadog-agent", released: true, condition: func(Package, *env.Env) bool { return false }}},
 			env:      &env.Env{},
 			expected: nil,
 		},
 		{
 			name:     "Package forced to install and version override",
-			packages: []defaultPackage{{name: "datadog-agent", released: false}},
+			packages: []Package{{Name: "datadog-agent", released: false}},
 			env:      &env.Env{DefaultPackagesInstallOverride: map[string]bool{"datadog-agent": true}, DefaultPackagesVersionOverride: map[string]string{"datadog-agent": "1.2.3"}},
 			expected: []pkg{{n: "datadog-agent", v: "1.2.3"}},
+		},
+		{
+			name:     "APM inject before agent",
+			packages: []Package{{Name: "datadog-apm-inject", released: true}, {Name: "datadog-agent", released: true}},
+			env:      &env.Env{},
+			expected: []pkg{{n: "datadog-apm-inject", v: "latest"}, {n: "datadog-agent", v: "latest"}},
+		},
+		{
+			name:     "Package released but forced not to install",
+			packages: []Package{{Name: "datadog-agent", released: true}},
+			env:      &env.Env{DefaultPackagesInstallOverride: map[string]bool{"datadog-agent": false}},
+			expected: nil,
+		},
+		{
+			name: "Package is a language with a pinned version",
+			packages: []Package{
+				{Name: "datadog-apm-library-java", released: true, condition: apmLanguageEnabled},
+				{Name: "datadog-apm-library-ruby", released: true, condition: apmLanguageEnabled},
+				{Name: "datadog-apm-library-js", released: true, condition: apmLanguageEnabled},
+			},
+			env: &env.Env{
+				ApmLibraries: map[env.ApmLibLanguage]env.ApmLibVersion{
+					"java": "1.37.0",
+					"ruby": "",
+				},
+				InstallScript: env.InstallScriptEnv{
+					APMInstrumentationEnabled: "all",
+				},
+			},
+			expected: []pkg{{n: "datadog-apm-library-java", v: "1.37.0-1"}, {n: "datadog-apm-library-ruby", v: "latest"}},
+		},
+		{
+			name: "Package is a language with a pinned version",
+			packages: []Package{
+				{Name: "datadog-apm-library-java", released: true, condition: apmLanguageEnabled},
+				{Name: "datadog-apm-library-ruby", released: true, condition: apmLanguageEnabled},
+				{Name: "datadog-apm-library-js", released: true, condition: apmLanguageEnabled},
+			},
+			env: &env.Env{
+				ApmLibraries: map[env.ApmLibLanguage]env.ApmLibVersion{
+					"all": "",
+				},
+				InstallScript: env.InstallScriptEnv{
+					APMInstrumentationEnabled: "all",
+				},
+			},
+			expected: []pkg{
+				{n: "datadog-apm-library-java", v: "latest"},
+				{n: "datadog-apm-library-ruby", v: "latest"},
+				{n: "datadog-apm-library-js", v: "latest"},
+			},
+		},
+		{
+			name: "Override ignore package pin",
+			packages: []Package{
+				{Name: "datadog-apm-library-java", released: false, condition: apmLanguageEnabled},
+				{Name: "datadog-apm-library-ruby", released: false, condition: apmLanguageEnabled},
+				{Name: "datadog-apm-library-js", released: false, condition: apmLanguageEnabled},
+			},
+			env: &env.Env{
+				ApmLibraries: map[env.ApmLibLanguage]env.ApmLibVersion{
+					"java": "1.2.3",
+				},
+				InstallScript: env.InstallScriptEnv{
+					APMInstrumentationEnabled: "all",
+				},
+				DefaultPackagesInstallOverride: map[string]bool{
+					"datadog-apm-library-java": true,
+					"datadog-apm-library-ruby": true,
+				},
+			},
+			expected: []pkg{
+				{n: "datadog-apm-library-java", v: "1.2.3-1"},
+				{n: "datadog-apm-library-ruby", v: "latest"},
+			},
+		},
+		{
+			name: "Strip leading v in version",
+			packages: []Package{
+				{Name: "datadog-apm-library-java", released: true, condition: apmLanguageEnabled},
+			},
+			env: &env.Env{
+				ApmLibraries: map[env.ApmLibLanguage]env.ApmLibVersion{
+					"java": "v1.2.3",
+				},
+				InstallScript: env.InstallScriptEnv{
+					APMInstrumentationEnabled: "all",
+				},
+			},
+			expected: []pkg{
+				{n: "datadog-apm-library-java", v: "1.2.3-1"},
+			},
+		},
+		{
+			name: "Add -1 prefix only for full version pin",
+			packages: []Package{
+				{Name: "datadog-apm-library-java", released: true, condition: apmLanguageEnabled},
+				{Name: "datadog-apm-library-python", released: true, condition: apmLanguageEnabled},
+				{Name: "datadog-apm-library-ruby", released: true, condition: apmLanguageEnabled},
+			},
+			env: &env.Env{
+				ApmLibraries: map[env.ApmLibLanguage]env.ApmLibVersion{
+					"java":   "1.2.3",
+					"python": "1",
+					"ruby":   "v1.2",
+				},
+				InstallScript: env.InstallScriptEnv{
+					APMInstrumentationEnabled: "all",
+				},
+			},
+			expected: []pkg{
+				{n: "datadog-apm-library-java", v: "1.2.3-1"},
+				{n: "datadog-apm-library-python", v: "1"},
+				{n: "datadog-apm-library-ruby", v: "1.2"},
+			},
 		},
 	}
 

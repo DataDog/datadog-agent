@@ -72,6 +72,7 @@ func (s *testSubServicesOptsSuite) SetupSuite() {
 		windowsAgent.WithAPMEnabled(strconv.FormatBool(tc.apmEnabled)),
 	}
 	_ = s.installAgentPackage(vm, s.AgentPackage, installOpts...)
+	RequireAgentVersionRunningWithNoErrors(s.T(), s.NewTestClientForHost(vm), s.AgentPackage.AgentVersion())
 
 	// read the config file and check the options
 	var err error

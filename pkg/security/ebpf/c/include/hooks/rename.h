@@ -6,35 +6,38 @@
 #include "helpers/filesystem.h"
 #include "helpers/syscalls.h"
 
-int __attribute__((always_inline)) trace__sys_rename(u8 async) {
+int __attribute__((always_inline)) trace__sys_rename(u8 async, const char *oldpath, const char *newpath) {
     struct syscall_cache_t syscall = {
         .policy = fetch_policy(EVENT_RENAME),
         .async = async,
         .type = EVENT_RENAME,
     };
 
+    if (!async) {
+        collect_syscall_ctx(&syscall, SYSCALL_CTX_ARG_STR(0) | SYSCALL_CTX_ARG_STR(1), (void *)oldpath, (void *)newpath, NULL);
+    }
     cache_syscall(&syscall);
 
     return 0;
 }
 
-HOOK_SYSCALL_ENTRY0(rename) {
-    return trace__sys_rename(SYNC_SYSCALL);
+HOOK_SYSCALL_ENTRY2(rename, const char *, oldpath, const char *, newpath) {
+    return trace__sys_rename(SYNC_SYSCALL, oldpath, newpath);
 }
 
-HOOK_SYSCALL_ENTRY0(renameat) {
-    return trace__sys_rename(SYNC_SYSCALL);
+HOOK_SYSCALL_ENTRY4(renameat, int, olddirfd, const char *, oldpath, int, newdirfd, const char *, newpath) {
+    return trace__sys_rename(SYNC_SYSCALL, oldpath, newpath);
 }
 
-HOOK_SYSCALL_ENTRY0(renameat2) {
-    return trace__sys_rename(SYNC_SYSCALL);
+HOOK_SYSCALL_ENTRY4(renameat2, int , olddirfd, const char *, oldpath, int, newdirfd, const char *, newpath) {
+    return trace__sys_rename(SYNC_SYSCALL, oldpath, newpath);
 }
 
 HOOK_ENTRY("do_renameat2")
 int hook_do_renameat2(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_RENAME);
     if (!syscall) {
-        return trace__sys_rename(ASYNC_SYSCALL);
+        return trace__sys_rename(ASYNC_SYSCALL, NULL, NULL);
     }
     return 0;
 }
@@ -60,8 +63,8 @@ int hook_vfs_rename(ctx_t *ctx) {
     } else {
         struct renamedata *rename_data = (struct renamedata *)CTX_PARM1(ctx);
 
-        bpf_probe_read(&src_dentry, sizeof(src_dentry), (void *) rename_data + get_vfs_rename_src_dentry_offset());
-        bpf_probe_read(&target_dentry, sizeof(target_dentry), (void *) rename_data + get_vfs_rename_target_dentry_offset());
+        bpf_probe_read(&src_dentry, sizeof(src_dentry), (void *)rename_data + get_vfs_rename_src_dentry_offset());
+        bpf_probe_read(&target_dentry, sizeof(target_dentry), (void *)rename_data + get_vfs_rename_target_dentry_offset());
     }
 
     syscall->rename.src_dentry = src_dentry;
@@ -78,7 +81,7 @@ int hook_vfs_rename(ctx_t *ctx) {
     set_file_inode(src_dentry, &syscall->rename.target_file, 1);
 
     // we generate a fake source key as the inode is (can be ?) reused
-    syscall->rename.src_file.path_key.ino = FAKE_INODE_MSW<<32 | bpf_get_prandom_u32();
+    syscall->rename.src_file.path_key.ino = FAKE_INODE_MSW << 32 | bpf_get_prandom_u32();
 
     // if destination already exists invalidate
     u64 inode = get_dentry_ino(target_dentry);
@@ -201,6 +204,7 @@ int __attribute__((always_inline)) dr_rename_callback(void *ctx) {
 
     struct rename_event_t event = {
         .syscall.retval = retval,
+        .syscall_ctx.id = syscall->ctx_id,
         .event.flags = syscall->async ? EVENT_FLAGS_ASYNC : 0,
         .old = syscall->rename.src_file,
         .new = syscall->rename.target_file,

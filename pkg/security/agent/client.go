@@ -33,9 +33,8 @@ type RuntimeSecurityClient struct {
 type SecurityModuleClientWrapper interface {
 	DumpDiscarders() (string, error)
 	DumpProcessCache(withArgs bool) (string, error)
-	GenerateActivityDump(request *api.ActivityDumpParams) (*api.ActivityDumpMessage, error)
 	ListActivityDumps() (*api.ActivityDumpListMessage, error)
-	StopActivityDump(name, containerid, comm string) (*api.ActivityDumpStopMessage, error)
+	StopActivityDump(name, containerid string) (*api.ActivityDumpStopMessage, error)
 	GenerateEncoding(request *api.TranscodingRequestParams) (*api.TranscodingRequestMessage, error)
 	DumpNetworkNamespace(snapshotInterfaces bool) (*api.DumpNetworkNamespaceMessage, error)
 	GetConfig() (*api.SecurityConfigMessage, error)
@@ -70,20 +69,14 @@ func (c *RuntimeSecurityClient) DumpProcessCache(withArgs bool) (string, error) 
 	return response.Filename, nil
 }
 
-// GenerateActivityDump send a dump activity request
-func (c *RuntimeSecurityClient) GenerateActivityDump(request *api.ActivityDumpParams) (*api.ActivityDumpMessage, error) {
-	return c.apiClient.DumpActivity(context.Background(), request)
-}
-
 // ListActivityDumps lists the active activity dumps
 func (c *RuntimeSecurityClient) ListActivityDumps() (*api.ActivityDumpListMessage, error) {
 	return c.apiClient.ListActivityDumps(context.Background(), &api.ActivityDumpListParams{})
 }
 
 // StopActivityDump stops an active dump if it exists
-func (c *RuntimeSecurityClient) StopActivityDump(name, containerid, comm string) (*api.ActivityDumpStopMessage, error) {
+func (c *RuntimeSecurityClient) StopActivityDump(name, containerid string) (*api.ActivityDumpStopMessage, error) {
 	return c.apiClient.StopActivityDump(context.Background(), &api.ActivityDumpStopParams{
-		Comm:        comm,
 		Name:        name,
 		ContainerID: containerid,
 	})
@@ -183,7 +176,7 @@ func (c *RuntimeSecurityClient) Close() {
 
 // NewRuntimeSecurityClient instantiates a new RuntimeSecurityClient
 func NewRuntimeSecurityClient() (*RuntimeSecurityClient, error) {
-	socketPath := coreconfig.Datadog.GetString("runtime_security_config.socket")
+	socketPath := coreconfig.Datadog().GetString("runtime_security_config.socket")
 	if socketPath == "" {
 		return nil, errors.New("runtime_security_config.socket must be set")
 	}
@@ -193,7 +186,7 @@ func NewRuntimeSecurityClient() (*RuntimeSecurityClient, error) {
 		return nil, fmt.Errorf("unix sockets are not supported on Windows")
 	}
 
-	conn, err := grpc.Dial(
+	conn, err := grpc.Dial( //nolint:staticcheck // TODO (ASC) fix grpc.Dial is deprecated
 		socketPath,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithDefaultCallOptions(grpc.CallContentSubtype(api.VTProtoCodecName)),

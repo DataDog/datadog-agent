@@ -15,14 +15,14 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"go.uber.org/fx"
+
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	dderrors "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/podman"
-
-	"go.uber.org/fx"
 )
 
 const (
@@ -67,7 +67,7 @@ func (c *collector) Start(_ context.Context, store workloadmeta.Component) error
 	}
 
 	var dbPath string
-	dbPath = config.Datadog.GetString("podman_db_path")
+	dbPath = config.Datadog().GetString("podman_db_path")
 
 	// We verify the user-provided path exists to prevent the collector entering a failing loop.
 	if dbPath != "" && !dbIsAccessible(dbPath) {

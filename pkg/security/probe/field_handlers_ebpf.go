@@ -9,6 +9,7 @@
 package probe
 
 import (
+	"encoding/binary"
 	"path"
 	"strings"
 	"syscall"
@@ -26,6 +27,8 @@ import (
 type EBPFFieldHandlers struct {
 	config    *config.Config
 	resolvers *resolvers.EBPFResolvers
+	hostname  string
+	onDemand  *OnDemandProbesManager
 }
 
 // ResolveProcessCacheEntry queries the ProcessResolver to retrieve the ProcessContext of the event
@@ -176,7 +179,7 @@ func (fh *EBPFFieldHandlers) ResolveContainerContext(ev *model.Event) (*model.Co
 			ev.ContainerContext.Resolved = true
 		}
 	}
-	return ev.ContainerContext, ev.ContainerContext != nil
+	return ev.ContainerContext, ev.ContainerContext.Resolved
 }
 
 // ResolveRights resolves the rights of a file
@@ -511,7 +514,7 @@ func (fh *EBPFFieldHandlers) ResolveProcessCreatedAt(_ *model.Event, e *model.Pr
 // ResolveUserSessionContext resolves and updates the provided user session context
 func (fh *EBPFFieldHandlers) ResolveUserSessionContext(evtCtx *model.UserSessionContext) {
 	if !evtCtx.Resolved {
-		ctx := fh.resolvers.UserSessions.ResolveUserSession(evtCtx.ID)
+		ctx := fh.resolvers.UserSessionsResolver.ResolveUserSession(evtCtx.ID)
 		if ctx != nil {
 			*evtCtx = *ctx
 		}
@@ -540,4 +543,114 @@ func (fh *EBPFFieldHandlers) ResolveK8SGroups(_ *model.Event, evtCtx *model.User
 func (fh *EBPFFieldHandlers) ResolveProcessCmdArgv(ev *model.Event, process *model.Process) []string {
 	cmdline := []string{fh.ResolveProcessArgv0(ev, process)}
 	return append(cmdline, fh.ResolveProcessArgv(ev, process)...)
+}
+
+// ResolveAWSSecurityCredentials resolves and updates the AWS security credentials of the input process entry
+func (fh *EBPFFieldHandlers) ResolveAWSSecurityCredentials(e *model.Event) []model.AWSSecurityCredentials {
+	return fh.resolvers.ProcessResolver.FetchAWSSecurityCredentials(e)
+}
+
+// ResolveSyscallCtxArgs resolve syscall ctx
+func (fh *EBPFFieldHandlers) ResolveSyscallCtxArgs(_ *model.Event, e *model.SyscallContext) {
+	if !e.Resolved {
+		_ = fh.resolvers.SyscallCtxResolver.Resolve(e.ID, e)
+		e.Resolved = true
+	}
+}
+
+// ResolveSyscallCtxArgsStr1 resolve syscall ctx
+func (fh *EBPFFieldHandlers) ResolveSyscallCtxArgsStr1(ev *model.Event, e *model.SyscallContext) string {
+	fh.ResolveSyscallCtxArgs(ev, e)
+	return e.StrArg1
+}
+
+// ResolveSyscallCtxArgsStr2 resolve syscall ctx
+func (fh *EBPFFieldHandlers) ResolveSyscallCtxArgsStr2(ev *model.Event, e *model.SyscallContext) string {
+	fh.ResolveSyscallCtxArgs(ev, e)
+	return e.StrArg2
+}
+
+// ResolveSyscallCtxArgsStr3 resolve syscall ctx
+func (fh *EBPFFieldHandlers) ResolveSyscallCtxArgsStr3(ev *model.Event, e *model.SyscallContext) string {
+	fh.ResolveSyscallCtxArgs(ev, e)
+	return e.StrArg3
+}
+
+// ResolveSyscallCtxArgsInt1 resolve syscall ctx
+func (fh *EBPFFieldHandlers) ResolveSyscallCtxArgsInt1(ev *model.Event, e *model.SyscallContext) int {
+	fh.ResolveSyscallCtxArgs(ev, e)
+	return int(e.IntArg1)
+}
+
+// ResolveSyscallCtxArgsInt2 resolve syscall ctx
+func (fh *EBPFFieldHandlers) ResolveSyscallCtxArgsInt2(ev *model.Event, e *model.SyscallContext) int {
+	fh.ResolveSyscallCtxArgs(ev, e)
+	return int(e.IntArg2)
+}
+
+// ResolveSyscallCtxArgsInt3 resolve syscall ctx
+func (fh *EBPFFieldHandlers) ResolveSyscallCtxArgsInt3(ev *model.Event, e *model.SyscallContext) int {
+	fh.ResolveSyscallCtxArgs(ev, e)
+	return int(e.IntArg3)
+}
+
+// ResolveHostname resolve the hostname
+func (fh *EBPFFieldHandlers) ResolveHostname(_ *model.Event, _ *model.BaseEvent) string {
+	return fh.hostname
+}
+
+// ResolveOnDemandName resolves the on-demand event name
+func (fh *EBPFFieldHandlers) ResolveOnDemandName(_ *model.Event, e *model.OnDemandEvent) string {
+	if fh.onDemand == nil {
+		return ""
+	}
+	return fh.onDemand.getHookNameFromID(int(e.ID))
+}
+
+// ResolveOnDemandArg1Str resolves the string value of the first argument of hooked function
+func (fh *EBPFFieldHandlers) ResolveOnDemandArg1Str(_ *model.Event, e *model.OnDemandEvent) string {
+	data := e.Data[0:64]
+	s := model.NullTerminatedString(data)
+	return s
+}
+
+// ResolveOnDemandArg1Uint resolves the uint value of the first argument of hooked function
+func (fh *EBPFFieldHandlers) ResolveOnDemandArg1Uint(_ *model.Event, e *model.OnDemandEvent) int {
+	return int(binary.NativeEndian.Uint64(e.Data[0:8]))
+}
+
+// ResolveOnDemandArg2Str resolves the string value of the second argument of hooked function
+func (fh *EBPFFieldHandlers) ResolveOnDemandArg2Str(_ *model.Event, e *model.OnDemandEvent) string {
+	data := e.Data[64:128]
+	s := model.NullTerminatedString(data)
+	return s
+}
+
+// ResolveOnDemandArg2Uint resolves the uint value of the second argument of hooked function
+func (fh *EBPFFieldHandlers) ResolveOnDemandArg2Uint(_ *model.Event, e *model.OnDemandEvent) int {
+	return int(binary.NativeEndian.Uint64(e.Data[64 : 64+8]))
+}
+
+// ResolveOnDemandArg3Str resolves the string value of the third argument of hooked function
+func (fh *EBPFFieldHandlers) ResolveOnDemandArg3Str(_ *model.Event, e *model.OnDemandEvent) string {
+	data := e.Data[128:192]
+	s := model.NullTerminatedString(data)
+	return s
+}
+
+// ResolveOnDemandArg3Uint resolves the uint value of the third argument of hooked function
+func (fh *EBPFFieldHandlers) ResolveOnDemandArg3Uint(_ *model.Event, e *model.OnDemandEvent) int {
+	return int(binary.NativeEndian.Uint64(e.Data[128 : 128+8]))
+}
+
+// ResolveOnDemandArg4Str resolves the string value of the fourth argument of hooked function
+func (fh *EBPFFieldHandlers) ResolveOnDemandArg4Str(_ *model.Event, e *model.OnDemandEvent) string {
+	data := e.Data[192:256]
+	s := model.NullTerminatedString(data)
+	return s
+}
+
+// ResolveOnDemandArg4Uint resolves the uint value of the fourth argument of hooked function
+func (fh *EBPFFieldHandlers) ResolveOnDemandArg4Uint(_ *model.Event, e *model.OnDemandEvent) int {
+	return int(binary.NativeEndian.Uint64(e.Data[192 : 192+8]))
 }

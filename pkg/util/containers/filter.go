@@ -173,7 +173,7 @@ func GetSharedMetricFilter() (*Filter, error) {
 // GetPauseContainerFilter returns a filter only excluding pause containers
 func GetPauseContainerFilter() (*Filter, error) {
 	var excludeList []string
-	if config.Datadog.GetBool("exclude_pause_container") {
+	if config.Datadog().GetBool("exclude_pause_container") {
 		excludeList = append(excludeList,
 			pauseContainerGCR,
 			pauseContainerOpenshift,
@@ -256,21 +256,21 @@ func NewFilter(ft FilterType, includeList, excludeList []string) (*Filter, error
 func newMetricFilterFromConfig() (*Filter, error) {
 	// We merge `container_include` and `container_include_metrics` as this filter
 	// is used by all core and python checks (so components sending metrics).
-	includeList := config.Datadog.GetStringSlice("container_include")
-	excludeList := config.Datadog.GetStringSlice("container_exclude")
-	includeList = append(includeList, config.Datadog.GetStringSlice("container_include_metrics")...)
-	excludeList = append(excludeList, config.Datadog.GetStringSlice("container_exclude_metrics")...)
+	includeList := config.Datadog().GetStringSlice("container_include")
+	excludeList := config.Datadog().GetStringSlice("container_exclude")
+	includeList = append(includeList, config.Datadog().GetStringSlice("container_include_metrics")...)
+	excludeList = append(excludeList, config.Datadog().GetStringSlice("container_exclude_metrics")...)
 
 	if len(includeList) == 0 {
 		// support legacy "ac_include" config
-		includeList = config.Datadog.GetStringSlice("ac_include")
+		includeList = config.Datadog().GetStringSlice("ac_include")
 	}
 	if len(excludeList) == 0 {
 		// support legacy "ac_exclude" config
-		excludeList = config.Datadog.GetStringSlice("ac_exclude")
+		excludeList = config.Datadog().GetStringSlice("ac_exclude")
 	}
 
-	if config.Datadog.GetBool("exclude_pause_container") {
+	if config.Datadog().GetBool("exclude_pause_container") {
 		excludeList = append(excludeList,
 			pauseContainerGCR,
 			pauseContainerOpenshift,
@@ -303,22 +303,22 @@ func NewAutodiscoveryFilter(ft FilterType) (*Filter, error) {
 	excludeList := []string{}
 	switch ft {
 	case GlobalFilter:
-		includeList = config.Datadog.GetStringSlice("container_include")
-		excludeList = config.Datadog.GetStringSlice("container_exclude")
+		includeList = config.Datadog().GetStringSlice("container_include")
+		excludeList = config.Datadog().GetStringSlice("container_exclude")
 		if len(includeList) == 0 {
 			// fallback and support legacy "ac_include" config
-			includeList = config.Datadog.GetStringSlice("ac_include")
+			includeList = config.Datadog().GetStringSlice("ac_include")
 		}
 		if len(excludeList) == 0 {
 			// fallback and support legacy "ac_exclude" config
-			excludeList = config.Datadog.GetStringSlice("ac_exclude")
+			excludeList = config.Datadog().GetStringSlice("ac_exclude")
 		}
 	case MetricsFilter:
-		includeList = config.Datadog.GetStringSlice("container_include_metrics")
-		excludeList = config.Datadog.GetStringSlice("container_exclude_metrics")
+		includeList = config.Datadog().GetStringSlice("container_include_metrics")
+		excludeList = config.Datadog().GetStringSlice("container_exclude_metrics")
 	case LogsFilter:
-		includeList = config.Datadog.GetStringSlice("container_include_logs")
-		excludeList = config.Datadog.GetStringSlice("container_exclude_logs")
+		includeList = config.Datadog().GetStringSlice("container_include_logs")
+		excludeList = config.Datadog().GetStringSlice("container_exclude_logs")
 	}
 	return NewFilter(ft, includeList, excludeList)
 }

@@ -26,15 +26,15 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/gotls"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/gotls/lookup"
 	libtelemetry "github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/buildmode"
+	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -167,7 +167,7 @@ func newGoTLSProgramProtocolFactory(m *manager.Manager) protocols.ProtocolFactor
 			return nil, nil
 		}
 
-		if !http.TLSSupported(c) {
+		if !usmconfig.TLSSupported(c) {
 			return nil, errors.New("goTLS not supported by this platform")
 		}
 
@@ -291,7 +291,13 @@ func GoTLSAttachPID(pid pid) error {
 		return errors.New("GoTLS is not enabled")
 	}
 
-	return goTLSSpec.Instance.(*goTLSProgram).AttachPID(pid)
+	err := goTLSSpec.Instance.(*goTLSProgram).AttachPID(pid)
+	if errors.Is(err, utils.ErrPathIsAlreadyRegistered) {
+		// The process monitor has attached the process before us.
+		return nil
+	}
+
+	return err
 }
 
 // GoTLSDetachPID detaches Go TLS hooks on the binary of process with
@@ -447,7 +453,7 @@ func attachHooks(mgr *manager.Manager, result *bininspect.Result, binPath string
 					return nil, fmt.Errorf("could not add return hook to function %q in offset %d due to: %w", function, offset, err)
 				}
 				probeIDs = append(probeIDs, returnProbeID)
-				ebpfcheck.AddProgramNameMapping(newProbe.ID(), newProbe.EBPFFuncName, "usm_gotls")
+				ddebpf.AddProgramNameMapping(newProbe.ID(), newProbe.EBPFFuncName, "usm_gotls")
 			}
 		}
 
@@ -466,7 +472,7 @@ func attachHooks(mgr *manager.Manager, result *bininspect.Result, binPath string
 				return nil, fmt.Errorf("could not add hook for %q in offset %d due to: %w", uprobes.functionInfo, result.Functions[function].EntryLocation, err)
 			}
 			probeIDs = append(probeIDs, probeID)
-			ebpfcheck.AddProgramNameMapping(newProbe.ID(), newProbe.EBPFFuncName, "usm_gotls")
+			ddebpf.AddProgramNameMapping(newProbe.ID(), newProbe.EBPFFuncName, "usm_gotls")
 		}
 	}
 

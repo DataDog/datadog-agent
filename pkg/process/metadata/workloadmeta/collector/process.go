@@ -11,7 +11,7 @@ import (
 
 	"github.com/benbjohnson/clock"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	workloadmetaExtractor "github.com/DataDog/datadog-agent/pkg/process/metadata/workloadmeta"
@@ -63,12 +63,7 @@ func (c *Collector) Start(ctx context.Context, store workloadmeta.Component) err
 		c.ddConfig.GetDuration("workloadmeta.local_process_collector.collection_interval"),
 	)
 
-	filterParams := workloadmeta.FilterParams{
-		Kinds:     []workloadmeta.Kind{workloadmeta.KindContainer},
-		Source:    workloadmeta.SourceAll,
-		EventType: workloadmeta.EventTypeAll,
-	}
-	filter := workloadmeta.NewFilter(&filterParams)
+	filter := workloadmeta.NewFilterBuilder().AddKind(workloadmeta.KindContainer).Build()
 	containerEvt := store.Subscribe(collectorId, workloadmeta.NormalPriority, filter)
 
 	go c.run(ctx, store, containerEvt, collectionTicker)

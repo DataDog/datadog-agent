@@ -246,8 +246,8 @@ func TestCheckEvents_PauseContainers(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			defaultExcludePauseContainers := config.Datadog.GetBool("exclude_pause_container")
-			config.Datadog.SetWithoutSource("exclude_pause_container", test.excludePauseContainers)
+			defaultExcludePauseContainers := config.Datadog().GetBool("exclude_pause_container")
+			config.Datadog().SetWithoutSource("exclude_pause_container", test.excludePauseContainers)
 
 			if test.generateCreateEvent {
 				eventCreateContainer, err := createContainerEvent(testNamespace, test.containerID)
@@ -276,7 +276,7 @@ func TestCheckEvents_PauseContainers(t *testing.T) {
 				assert.Empty(t, sub.Flush(time.Now().Unix()))
 			}
 
-			config.Datadog.SetWithoutSource("exclude_pause_container", defaultExcludePauseContainers)
+			config.Datadog().SetWithoutSource("exclude_pause_container", defaultExcludePauseContainers)
 		})
 	}
 

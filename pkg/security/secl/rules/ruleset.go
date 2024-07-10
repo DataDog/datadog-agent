@@ -59,12 +59,6 @@ type OverrideOptions struct {
 	Fields []OverrideField `yaml:"fields"`
 }
 
-// Ruleset loading operations
-const (
-	RuleSetTagKey          = "ruleset"
-	DefaultRuleSetTagValue = "probe_evaluation"
-)
-
 // MacroDefinition holds the definition of a macro
 type MacroDefinition struct {
 	ID                     MacroID       `yaml:"id"`
@@ -196,6 +190,7 @@ type RuleSet struct {
 	fieldEvaluators  map[string]eval.Evaluator
 	model            eval.Model
 	eventCtor        func() eval.Event
+	fakeEventCtor    func() eval.Event
 	listenersLock    sync.RWMutex
 	listeners        []RuleSetListener
 	globalVariables  eval.GlobalVariables
@@ -207,6 +202,8 @@ type RuleSet struct {
 
 	// event collector, used for tests
 	eventCollector EventCollector
+
+	OnDemandHookPoints []OnDemandHookPoint
 }
 
 // ListRuleIDs returns the list of RuleIDs from the ruleset
@@ -223,9 +220,9 @@ func (rs *RuleSet) GetRules() map[eval.RuleID]*Rule {
 	return rs.rules
 }
 
-// GetRuleSetTag gets the value of the "ruleset" tag, which is the tag of the rules that belong in this rule set
-func (rs *RuleSet) GetRuleSetTag() eval.RuleSetTagValue {
-	return rs.opts.RuleSetTag[RuleSetTagKey]
+// GetOnDemandHookPoints gets the on-demand hook points
+func (rs *RuleSet) GetOnDemandHookPoints() []OnDemandHookPoint {
+	return rs.OnDemandHookPoints
 }
 
 // ListMacroIDs returns the list of MacroIDs from the ruleset
@@ -259,24 +256,24 @@ func (rs *RuleSet) AddMacro(parsingContext *ast.ParsingContext, macroDef *MacroD
 		return nil, &ErrMacroLoad{Definition: macroDef, Err: ErrDefinitionIDConflict}
 	}
 
-	macro := &Macro{Definition: macroDef}
+	var macro *eval.Macro
 
 	switch {
 	case macroDef.Expression != "" && len(macroDef.Values) > 0:
 		return nil, &ErrMacroLoad{Definition: macroDef, Err: errors.New("only one of 'expression' and 'values' can be defined")}
 	case macroDef.Expression != "":
-		if macro.Macro, err = eval.NewMacro(macroDef.ID, macroDef.Expression, rs.model, parsingContext, rs.evalOpts); err != nil {
+		if macro, err = eval.NewMacro(macroDef.ID, macroDef.Expression, rs.model, parsingContext, rs.evalOpts); err != nil {
 			return nil, &ErrMacroLoad{Definition: macroDef, Err: err}
 		}
 	default:
-		if macro.Macro, err = eval.NewStringValuesMacro(macroDef.ID, macroDef.Values, rs.evalOpts); err != nil {
+		if macro, err = eval.NewStringValuesMacro(macroDef.ID, macroDef.Values, rs.evalOpts); err != nil {
 			return nil, &ErrMacroLoad{Definition: macroDef, Err: err}
 		}
 	}
 
-	rs.evalOpts.MacroStore.Add(macro.Macro)
+	rs.evalOpts.MacroStore.Add(macro)
 
-	return macro.Macro, nil
+	return macro, nil
 }
 
 // AddRules adds rules to the ruleset and generate their partials
@@ -298,7 +295,7 @@ func (rs *RuleSet) populateFieldsWithRuleActionsData(policyRules []*RuleDefiniti
 	for _, rule := range policyRules {
 		for _, action := range rule.Actions {
 			if err := action.Check(opts); err != nil {
-				errs = multierror.Append(errs, fmt.Errorf("invalid action: %w", err))
+				errs = multierror.Append(errs, fmt.Errorf("invalid action in rule %s: %w", rule.ID, err))
 				continue
 			}
 
@@ -384,7 +381,9 @@ func (rs *RuleSet) populateFieldsWithRuleActionsData(policyRules []*RuleDefiniti
 					variableProvider = &rs.globalVariables
 				}
 
-				variable, err := variableProvider.GetVariable(action.Set.Name, variableValue)
+				opts := eval.VariableOpts{TTL: action.Set.TTL, Size: action.Set.Size}
+
+				variable, err := variableProvider.GetVariable(action.Set.Name, variableValue, opts)
 				if err != nil {
 					errs = multierror.Append(errs, fmt.Errorf("invalid type '%s' for variable '%s': %w", reflect.TypeOf(action.Set.Value), action.Set.Name, err))
 					continue
@@ -584,7 +583,7 @@ func (rs *RuleSet) GetEventApprovers(eventType eval.EventType, fieldCaps FieldCa
 		return nil, ErrNoEventTypeBucket{EventType: eventType}
 	}
 
-	return GetApprovers(bucket.rules, model.NewFakeEvent(), fieldCaps)
+	return GetApprovers(bucket.rules, rs.newFakeEvent(), fieldCaps)
 }
 
 // GetFieldValues returns all the values of the given field
@@ -844,9 +843,95 @@ func (rs *RuleSet) StopEventCollector() []CollectedEvent {
 	return rs.eventCollector.Stop()
 }
 
+// LoadPolicies loads policies from the provided policy loader
+func (rs *RuleSet) LoadPolicies(loader *PolicyLoader, opts PolicyLoaderOpts) *multierror.Error {
+	var (
+		errs       *multierror.Error
+		allRules   []*RuleDefinition
+		allMacros  []*MacroDefinition
+		macroIndex = make(map[string]*MacroDefinition)
+		rulesIndex = make(map[string]*RuleDefinition)
+	)
+
+	parsingContext := ast.NewParsingContext()
+
+	policies, err := loader.LoadPolicies(opts)
+	if err != nil {
+		errs = multierror.Append(errs, err)
+	}
+	rs.policies = policies
+
+	for _, policy := range policies {
+		for _, macro := range policy.Macros {
+			if existingMacro := macroIndex[macro.ID]; existingMacro != nil {
+				if err := existingMacro.MergeWith(macro); err != nil {
+					errs = multierror.Append(errs, err)
+				}
+			} else {
+				macroIndex[macro.ID] = macro
+				allMacros = append(allMacros, macro)
+			}
+		}
+
+		for _, rule := range policy.Rules {
+			if existingRule := rulesIndex[rule.ID]; existingRule != nil {
+				if err := existingRule.MergeWith(rule); err != nil {
+					errs = multierror.Append(errs, err)
+				}
+			} else {
+				rulesIndex[rule.ID] = rule
+				allRules = append(allRules, rule)
+			}
+		}
+
+		rs.OnDemandHookPoints = append(rs.OnDemandHookPoints, policy.OnDemandHookPoints...)
+	}
+
+	if err := rs.AddMacros(parsingContext, allMacros); err.ErrorOrNil() != nil {
+		errs = multierror.Append(errs, err)
+	}
+
+	if err := rs.populateFieldsWithRuleActionsData(allRules, opts); err.ErrorOrNil() != nil {
+		errs = multierror.Append(errs, err)
+	}
+
+	if err := rs.AddRules(parsingContext, allRules); err.ErrorOrNil() != nil {
+		errs = multierror.Append(errs, err)
+	}
+
+	return errs
+}
+
 // NewEvent returns a new event using the embedded constructor
 func (rs *RuleSet) NewEvent() eval.Event {
 	return rs.eventCtor()
+}
+
+// SetFakeEventCtor sets the fake event constructor to the provided callback
+func (rs *RuleSet) SetFakeEventCtor(fakeEventCtor func() eval.Event) {
+	rs.fakeEventCtor = fakeEventCtor
+}
+
+// newFakeEvent returns a new event using the embedded constructor for fake events
+func (rs *RuleSet) newFakeEvent() eval.Event {
+	if rs.fakeEventCtor != nil {
+		return rs.fakeEventCtor()
+	}
+
+	return model.NewFakeEvent()
+}
+
+// OnDemandHookPoint represents a hook point definition
+type OnDemandHookPoint struct {
+	Name      string         `yaml:"name"`
+	IsSyscall bool           `yaml:"syscall"`
+	Args      []HookPointArg `yaml:"args"`
+}
+
+// HookPointArg represents the definition of a hook point argument
+type HookPointArg struct {
+	N    int    `yaml:"n"`
+	Kind string `yaml:"kind"`
 }
 
 // NewRuleSet returns a new ruleset for the specified data model

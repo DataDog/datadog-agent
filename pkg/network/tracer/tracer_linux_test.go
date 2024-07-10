@@ -47,7 +47,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/config/sysctl"
-	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/events"
 	netlinktestutil "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/testutil"
@@ -57,7 +56,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/testdns"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var kv470 = kernel.VersionCode(4, 7, 0)
@@ -613,9 +611,9 @@ func (s *TracerSuite) TestGatewayLookupNotEnabled() {
 		m.EXPECT().IsAWS().Return(true)
 		network.Cloud = m
 
-		clouds := ddconfig.Datadog.Get("cloud_provider_metadata")
-		ddconfig.Datadog.SetWithoutSource("cloud_provider_metadata", []string{})
-		defer ddconfig.Datadog.SetWithoutSource("cloud_provider_metadata", clouds)
+		clouds := ddconfig.Datadog().Get("cloud_provider_metadata")
+		ddconfig.Datadog().SetWithoutSource("cloud_provider_metadata", []string{})
+		defer ddconfig.Datadog().SetWithoutSource("cloud_provider_metadata", clouds)
 
 		tr := setupTracer(t, cfg)
 		require.Nil(t, tr.gwLookup)
@@ -641,7 +639,7 @@ func (s *TracerSuite) TestGatewayLookupEnabled() {
 
 	cfg := testConfig()
 	cfg.EnableGatewayLookup = true
-	tr, err := newTracer(cfg)
+	tr, err := newTracer(cfg, nil)
 	require.NoError(t, err)
 	require.NotNil(t, tr)
 	t.Cleanup(tr.Stop)
@@ -700,7 +698,7 @@ func (s *TracerSuite) TestGatewayLookupSubnetLookupError() {
 	cfg := testConfig()
 	cfg.EnableGatewayLookup = true
 	// create the tracer without starting it
-	tr, err := newTracer(cfg)
+	tr, err := newTracer(cfg, nil)
 	require.NoError(t, err)
 	require.NotNil(t, tr)
 	t.Cleanup(tr.Stop)
@@ -766,7 +764,7 @@ func (s *TracerSuite) TestGatewayLookupCrossNamespace() {
 
 	cfg := testConfig()
 	cfg.EnableGatewayLookup = true
-	tr, err := newTracer(cfg)
+	tr, err := newTracer(cfg, nil)
 	require.NoError(t, err)
 	require.NotNil(t, tr)
 	t.Cleanup(tr.Stop)
@@ -1962,93 +1960,6 @@ func (s *TracerSuite) TestUDPIncomingDirectionFix() {
 	assert.Equal(t, network.OUTGOING, conn.Direction)
 }
 
-func (s *TracerSuite) TestGetMapsTelemetry() {
-	t := s.T()
-	if !httpsSupported() {
-		t.Skip("HTTPS feature not available/supported for this setup")
-	}
-
-	t.Setenv("DD_SYSTEM_PROBE_SERVICE_MONITORING_ENABLED", "true")
-	cfg := testConfig()
-	tr := setupTracer(t, cfg)
-
-	cmd := []string{"curl", "-k", "-o/dev/null", "example.com/[1-10]"}
-	err := exec.Command(cmd[0], cmd[1:]...).Run()
-	require.NoError(t, err)
-
-	ebpfTelemetryCollector, ok := tr.bpfErrorsCollector.(*ebpftelemetry.EBPFErrorsCollector)
-	require.True(t, ok)
-
-	mapsTelemetry := ebpfTelemetryCollector.T.GetMapsTelemetry()
-	t.Logf("EBPF Maps telemetry: %v\n", mapsTelemetry)
-
-	tcpStatsErrors, ok := mapsTelemetry[probes.TCPStatsMap].(map[string]uint64)
-	require.True(t, ok)
-	assert.NotZero(t, tcpStatsErrors["EEXIST"])
-}
-
-func sysOpenAt2Supported() bool {
-	missing, err := ddebpf.VerifyKernelFuncs("do_sys_openat2")
-	if err == nil && len(missing) == 0 {
-		return true
-	}
-	kversion, err := kernel.HostVersion()
-	if err != nil {
-		log.Error("could not determine the current kernel version. fallback to do_sys_open")
-		return false
-	}
-
-	return kversion >= kernel.VersionCode(5, 6, 0)
-}
-
-func (s *TracerSuite) TestGetHelpersTelemetry() {
-	t := s.T()
-
-	// We need the tracepoints on open syscall in order
-	// to test.
-	if !httpsSupported() {
-		t.Skip("HTTPS feature not available/supported for this setup")
-	}
-
-	t.Setenv("DD_SYSTEM_PROBE_SERVICE_MONITORING_ENABLED", "true")
-	cfg := testConfig()
-	cfg.EnableNativeTLSMonitoring = true
-	cfg.EnableHTTPMonitoring = true
-	tr := setupTracer(t, cfg)
-
-	expectedErrorTP := "tracepoint__syscalls__sys_enter_openat"
-	syscallNumber := syscall.SYS_OPENAT
-	if sysOpenAt2Supported() {
-		expectedErrorTP = "tracepoint__syscalls__sys_enter_openat2"
-		// In linux kernel source dir run:
-		// printf SYS_openat2 | gcc -include sys/syscall.h -E -
-		syscallNumber = 437
-	}
-
-	// Ensure `bpf_probe_read_user` fails by passing an address guaranteed to pagefault to open syscall.
-	addr, _, sysErr := syscall.Syscall6(syscall.SYS_MMAP, uintptr(0), uintptr(syscall.Getpagesize()), syscall.PROT_READ|syscall.PROT_WRITE, syscall.MAP_ANON|syscall.MAP_PRIVATE, 0, 0)
-	require.Zero(t, sysErr)
-	syscall.Syscall(uintptr(syscallNumber), uintptr(0), uintptr(addr), uintptr(0))
-	t.Cleanup(func() {
-		syscall.Syscall(syscall.SYS_MUNMAP, uintptr(addr), uintptr(syscall.Getpagesize()), 0)
-	})
-	ebpfTelemetryCollector, ok := tr.bpfErrorsCollector.(*ebpftelemetry.EBPFErrorsCollector)
-	require.True(t, ok)
-
-	helperTelemetry := ebpfTelemetryCollector.T.GetHelpersTelemetry()
-	t.Logf("EBPF helper telemetry: %v\n", helperTelemetry)
-
-	openAtErrors, ok := helperTelemetry[expectedErrorTP].(map[string]interface{})
-	require.True(t, ok)
-
-	probeReadUserError, ok := openAtErrors["bpf_probe_read_user"].(map[string]uint64)
-	require.True(t, ok)
-
-	badAddressCnt, ok := probeReadUserError["EFAULT"]
-	require.True(t, ok)
-	assert.NotZero(t, badAddressCnt)
-}
-
 func TestEbpfConntrackerFallback(t *testing.T) {
 	require.NoError(t, rlimit.RemoveMemlock())
 
@@ -2170,7 +2081,7 @@ func TestEbpfConntrackerFallback(t *testing.T) {
 				}
 			}
 
-			conntracker, err := NewEBPFConntracker(cfg)
+			conntracker, err := NewEBPFConntracker(cfg, nil)
 			// ensure we always clean up the conntracker, regardless of behavior
 			if conntracker != nil {
 				t.Cleanup(conntracker.Close)
@@ -2191,7 +2102,7 @@ func TestEbpfConntrackerFallback(t *testing.T) {
 func TestConntrackerFallback(t *testing.T) {
 	cfg := testConfig()
 	cfg.EnableEbpfConntracker = false
-	conntracker, err := newConntracker(cfg)
+	conntracker, err := newConntracker(cfg, nil)
 	// ensure we always clean up the conntracker, regardless of behavior
 	if conntracker != nil {
 		t.Cleanup(conntracker.Close)
@@ -2336,4 +2247,86 @@ LOOP:
 	// updated to a value between 1s and 2s
 	assert.Greater(t, conn.Duration, time.Second, "connection duration should be between 1 and 2 seconds")
 	assert.Less(t, conn.Duration, 2*time.Second, "connection duration should be between 1 and 2 seconds")
+}
+
+var failedConnectionsBuildModes = map[ebpftest.BuildMode]struct{}{
+	ebpftest.CORE:            {},
+	ebpftest.RuntimeCompiled: {},
+}
+
+func checkSkipFailureConnectionsTests(t *testing.T) {
+	if _, ok := failedConnectionsBuildModes[ebpftest.GetBuildMode()]; !ok {
+		t.Skip("Skipping test on unsupported build mode: ", ebpftest.GetBuildMode())
+	}
+
+}
+func (s *TracerSuite) TestTCPFailureConnectionTimeout() {
+	t := s.T()
+
+	checkSkipFailureConnectionsTests(t)
+	// TODO: remove this check when we fix this test on kernels < 4.19
+	if kv < kernel.VersionCode(4, 19, 0) {
+		t.Skip("Skipping test on kernels < 4.19")
+	}
+
+	setupDropTrafficRule(t)
+	cfg := testConfig()
+	cfg.TCPFailedConnectionsEnabled = true
+	tr := setupTracer(t, cfg)
+
+	srvAddr := "127.0.0.1:10000"
+	ipString, portString, err := net.SplitHostPort(srvAddr)
+	require.NoError(t, err)
+	ip := netip.MustParseAddr(ipString)
+	port, err := strconv.Atoi(portString)
+	require.NoError(t, err)
+
+	addr := syscall.SockaddrInet4{
+		Port: port,
+		Addr: ip.As4(),
+	}
+	sfd, err := syscall.Socket(syscall.AF_INET, syscall.SOCK_STREAM, syscall.IPPROTO_TCP)
+	require.NoError(t, err)
+	t.Cleanup(func() { syscall.Close(sfd) })
+
+	//syscall.TCP_USER_TIMEOUT is 18 but not defined in our linter. Set it to 500ms
+	err = syscall.SetsockoptInt(sfd, syscall.IPPROTO_TCP, 18, 500)
+	require.NoError(t, err)
+
+	err = syscall.Connect(sfd, &addr)
+	if err != nil {
+		var errno syscall.Errno
+		if errors.As(err, &errno) && errors.Is(err, syscall.ETIMEDOUT) {
+			t.Log("Connection timed out as expected")
+		} else {
+			require.NoError(t, err, "could not connect to server: ", err)
+		}
+	}
+
+	f := os.NewFile(uintptr(sfd), "")
+	defer f.Close()
+	c, err := net.FileConn(f)
+	require.NoError(t, err)
+	port = c.LocalAddr().(*net.TCPAddr).Port
+	// the addr here is 0.0.0.0, but the tracer sees it as 127.0.0.1
+	localAddr := fmt.Sprintf("127.0.0.1:%d", port)
+
+	// Check if the connection was recorded as failed due to timeout
+	require.Eventually(t, func() bool {
+		conns := getConnections(t, tr)
+		// 110 is the errno for ETIMEDOUT
+		return findFailedConnection(t, localAddr, srvAddr, conns, 110)
+	}, 3*time.Second, 1000*time.Millisecond, "Failed connection not recorded properly")
+}
+
+func setupDropTrafficRule(tb testing.TB) (ns string) {
+	state := testutil.IptablesSave(tb)
+	tb.Cleanup(func() {
+		testutil.IptablesRestore(tb, state)
+	})
+	cmds := []string{
+		"iptables -A OUTPUT -p tcp -d 127.0.0.1 --dport 10000 -j DROP",
+	}
+	testutil.RunCommands(tb, cmds, false)
+	return
 }

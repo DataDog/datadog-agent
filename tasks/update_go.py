@@ -6,7 +6,7 @@ from invoke import exceptions
 from invoke.context import Context
 from invoke.tasks import task
 
-from tasks.go import tidy_all
+from tasks.go import tidy
 from tasks.libs.common.color import color_message
 from tasks.modules import DEFAULT_MODULES
 from tasks.pipeline import update_circleci_config, update_gitlab_config
@@ -22,6 +22,7 @@ GO_VERSION_REFERENCES: list[tuple[str, str, str, bool]] = [
     (GO_VERSION_FILE, "", "", True),  # the version is the only content of the file
     ("./tools/gdb/Dockerfile", "https://go.dev/dl/go", ".linux-amd64.tar.gz", True),
     ("./test/fakeintake/Dockerfile", "FROM golang:", "-alpine", True),
+    ("./tasks/unit_tests/modules_tests.py", 'Go": "', '",', False),
     ("./devenv/scripts/Install-DevEnv.ps1", '$go_version = "', '"', True),
     ("./docs/dev/agent_dev_env.md", "[install Golang](https://golang.org/doc/install) version `", "`", True),
     ("./tasks/go.py", '"go version go', ' linux/amd64"', True),
@@ -97,12 +98,12 @@ def update_go(
 
     # check the installed go version before running `tidy_all`
     res = ctx.run("go version")
-    if res.stdout.startswith(f"go version go{version} "):
-        tidy_all(ctx)
+    if res and res.stdout.startswith(f"go version go{version} "):
+        tidy(ctx)
     else:
         print(
             color_message(
-                "WARNING: did not run `inv tidy-all` as the version of your `go` binary doesn't match the requested version",
+                "WARNING: did not run `inv tidy` as the version of your `go` binary doesn't match the requested version",
                 "orange",
             )
         )
@@ -193,15 +194,9 @@ def _update_go_mods(warn: bool, version: str, include_otel_modules: bool, dry_ru
             continue
         mod_file = f"./{path}/go.mod"
         major_minor = _get_major_minor_version(version)
-        if module.legacy_go_mod_version:
-            # $ only matches \n, not \r\n, so we need to use \r?$ to make it work on Windows
-            _update_file(warn, mod_file, f"^go {PATTERN_MAJOR_MINOR}\r?$", f"go {major_minor}", dry_run=dry_run)
-        else:
-            major_minor_zero = f"{major_minor}.0"
-            # $ only matches \n, not \r\n, so we need to use \r?$ to make it work on Windows
-            _update_file(
-                warn, mod_file, f"^go {PATTERN_MAJOR_MINOR_BUGFIX}\r?$", f"go {major_minor_zero}", dry_run=dry_run
-            )
+        major_minor_zero = f"{major_minor}.0"
+        # $ only matches \n, not \r\n, so we need to use \r?$ to make it work on Windows
+        _update_file(warn, mod_file, f"^go {PATTERN_MAJOR_MINOR_BUGFIX}\r?$", f"go {major_minor_zero}", dry_run=dry_run)
 
 
 def _create_releasenote(ctx: Context, version: str):
@@ -212,6 +207,7 @@ enhancements:
 """
     # hiding stderr too because `reno` displays some warnings about the config
     res = ctx.run(f'reno new "bump go to {version}"', hide='both')
+    assert res, "Could not create release note"
     match = re.match("^Created new notes file in (.*)$", res.stdout, flags=re.MULTILINE)
     if not match:
         raise exceptions.Exit("Could not get created release note path")

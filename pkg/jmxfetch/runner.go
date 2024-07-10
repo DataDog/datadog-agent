@@ -24,7 +24,7 @@ type runner struct {
 
 func (r *runner) initRunner(server dogstatsdServer.Component, logger jmxlogger.Component) {
 	r.jmxfetch = NewJMXFetch(logger)
-	r.jmxfetch.LogLevel = config.Datadog.GetString("log_level")
+	r.jmxfetch.LogLevel = config.Datadog().GetString("log_level")
 	r.jmxfetch.DSD = server
 }
 

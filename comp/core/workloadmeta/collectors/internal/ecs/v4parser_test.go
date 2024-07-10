@@ -17,7 +17,7 @@ import (
 	"github.com/patrickmn/go-cache"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/testutil"
 	v1 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v1"
 	"github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v3or4"
@@ -112,6 +112,10 @@ func getDummyECS() (*httptest.Server, error) {
 		testutil.FileHandlerOption("/v4/1234-2/taskWithTags", "./testdata/nginx.json"),
 		testutil.FileHandlerOption("/v1/tasks", "./testdata/tasks.json"),
 	)
+	if err != nil {
+		return nil, err
+	}
+
 	ts := dummyECS.Start()
 	return ts, err
 }

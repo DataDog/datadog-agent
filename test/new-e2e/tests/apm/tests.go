@@ -56,6 +56,18 @@ func testBasicTraces(c *assert.CollectT, service string, intake *components.Fake
 	}
 }
 
+func testTPS(c *assert.CollectT, intake *components.FakeIntake, tps float64) {
+	traces, err := intake.Client().GetTraces()
+	assert.NoError(c, err)
+	if !assert.NotEmpty(c, traces) {
+		return
+	}
+
+	for _, p := range traces {
+		assert.Equal(c, tps, p.TargetTPS, "invalid TargetTPS found in traces")
+	}
+}
+
 func testStatsForService(t *testing.T, c *assert.CollectT, service string, intake *components.FakeIntake) {
 	t.Helper()
 	stats, err := intake.Client().GetAPMStats()

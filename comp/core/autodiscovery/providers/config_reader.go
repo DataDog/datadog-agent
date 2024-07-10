@@ -67,11 +67,11 @@ var doOnce sync.Once
 // InitConfigFilesReader should be called at agent startup.
 func InitConfigFilesReader(paths []string) {
 	fileCacheExpiration := 5 * time.Minute
-	if config.Datadog.GetBool("autoconf_config_files_poll") {
+	if config.Datadog().GetBool("autoconf_config_files_poll") {
 		// Removing some time (1s) to avoid races with polling interval.
 		// If cache expiration is set to be == ticker interval the cache may be used if t1B (cache read time) - t0B (ticker time) < t1A (cache store time) - t0A (ticker time).
 		// Which is likely to be the case because the code path on a cache write is slower.
-		configExpSeconds := config.Datadog.GetInt("autoconf_config_files_poll_interval") - 1
+		configExpSeconds := config.Datadog().GetInt("autoconf_config_files_poll_interval") - 1
 		// If we are below < 1, cache is basically disabled, we cannot put 0 as it's considered no expiration by cache.Cache
 		if configExpSeconds < 1 {
 			fileCacheExpiration = time.Nanosecond
@@ -243,7 +243,7 @@ func collectEntry(file os.DirEntry, path string, integrationName string, integra
 	absPath := filepath.Join(path, fileName)
 
 	// skip auto conf files based on the agent configuration
-	if fileName == "auto_conf.yaml" && containsString(config.Datadog.GetStringSlice("ignore_autoconf"), integrationName) {
+	if fileName == "auto_conf.yaml" && containsString(config.Datadog().GetStringSlice("ignore_autoconf"), integrationName) {
 		log.Infof("Skipping 'auto_conf.yaml' for integration '%s'", integrationName)
 		entry.err = fmt.Errorf("'auto_conf.yaml' for integration '%s' is skipped", integrationName)
 		return entry, integrationErrors
@@ -278,8 +278,15 @@ func collectEntry(file os.DirEntry, path string, integrationName string, integra
 	}
 
 	var err error
+
 	entry.conf, err = GetIntegrationConfigFromFile(integrationName, absPath)
 	if err != nil {
+		if err.Error() == emptyFileError {
+			log.Infof("skipping empty file: %s", absPath)
+			entry.err = errors.New("empty file")
+			return entry, integrationErrors
+		}
+
 		log.Warnf("%s is not a valid config file: %s", absPath, err)
 		integrationErrors[integrationName] = err.Error()
 		entry.err = errors.New("Invalid config file format")
@@ -343,6 +350,8 @@ func collectDir(parentPath string, folder os.DirEntry, integrationErrors map[str
 	return configPkg{confs: configs, defaults: defaultConfigs, others: otherConfigs}, integrationErrors
 }
 
+const emptyFileError = "empty file"
+
 // GetIntegrationConfigFromFile returns an instance of integration.Config if `fpath` points to a valid config file
 func GetIntegrationConfigFromFile(name, fpath string) (integration.Config, error) {
 	cf := configFormat{}
@@ -353,6 +362,11 @@ func GetIntegrationConfigFromFile(name, fpath string) (integration.Config, error
 	yamlFile, err := os.ReadFile(fpath)
 	if err != nil {
 		return conf, err
+	}
+
+	// Check for empty file and return special error if so
+	if len(yamlFile) == 0 {
+		return conf, errors.New(emptyFileError)
 	}
 
 	// Parse configuration
@@ -384,7 +398,7 @@ func GetIntegrationConfigFromFile(name, fpath string) (integration.Config, error
 		if fargate.IsFargateInstance() {
 			// In Fargate, since no host tags are applied in the backend,
 			// add the configured DD_TAGS/DD_EXTRA_TAGS to the instance tags.
-			tags := configUtils.GetConfiguredTags(config.Datadog, false)
+			tags := configUtils.GetConfiguredTags(config.Datadog(), false)
 			err := dataConf.MergeAdditionalTags(tags)
 			if err != nil {
 				log.Debugf("Could not add agent-level tags to instance of %v: %v", fpath, err)

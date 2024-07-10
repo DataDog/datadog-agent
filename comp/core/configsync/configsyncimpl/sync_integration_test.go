@@ -21,24 +21,6 @@ import (
 )
 
 func TestRunWithChan(t *testing.T) {
-	t.Run("server error", func(t *testing.T) {
-		var called bool
-		handler := func(w http.ResponseWriter, r *http.Request) {
-			called = true
-			w.WriteHeader(http.StatusInternalServerError)
-		}
-
-		ctx, cancel := context.WithCancel(context.Background())
-		cs := makeConfigSyncWithServer(t, ctx, handler)
-
-		ch := make(chan time.Time, 1)
-		ch <- time.Now()
-		time.AfterFunc(100*time.Millisecond, cancel)
-		cs.runWithChan(ch)
-
-		require.True(t, called)
-	})
-
 	t.Run("success", func(t *testing.T) {
 		var called bool
 		handler := func(w http.ResponseWriter, r *http.Request) {

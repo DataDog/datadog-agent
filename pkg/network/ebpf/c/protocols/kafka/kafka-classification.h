@@ -16,7 +16,7 @@
 #define CHECK_STRING_COMPOSED_OF_ASCII(max_buffer_size, real_size, buffer, printable_ok)                                                \
     char ch = 0;                                                                                                                        \
 _Pragma( STRINGIFY(unroll(max_buffer_size)) )                                                                                           \
-    for (int j = 0; j < max_buffer_size; j++) {                                                                                         \
+    for (unsigned int j = 0; j < max_buffer_size; j++) {                                                                                         \
         /* Verifies we are not exceeding the real client_id_size, and if we do, we finish the iteration as we reached */                \
         /* to the end of the buffer and all checks have been successful. */                                                             \
         if (j + 1 > real_size) {                                                                                                        \
@@ -81,7 +81,7 @@ static __always_inline bool is_valid_kafka_request_header(const kafka_header_t *
     switch (kafka_header->api_key) {
     case KAFKA_FETCH:
         if (kafka_header->api_version > KAFKA_MAX_SUPPORTED_FETCH_REQUEST_API_VERSION) {
-            // Fetch request version 12 and above is not supported.
+            // Fetch request version 13 and above is not supported.
             return false;
         }
         break;
@@ -91,7 +91,6 @@ static __always_inline bool is_valid_kafka_request_header(const kafka_header_t *
             // so dropping support for this case
             return false;
         } else if (kafka_header->api_version > KAFKA_MAX_SUPPORTED_PRODUCE_REQUEST_API_VERSION) {
-            // Produce request version 9 and above is not supported.
             return false;
         }
         break;
@@ -109,13 +108,144 @@ static __always_inline bool is_valid_kafka_request_header(const kafka_header_t *
 
 PKTBUF_READ_INTO_BUFFER(topic_name, TOPIC_NAME_MAX_STRING_SIZE_TO_VALIDATE, BLK_SIZE)
 
+static __always_inline bool isMSBSet(uint8_t byte) {
+    return (byte & 0x80) != 0;
+}
+
+// Parses a varint of maximum size two bytes. The maximum size is (0x7f << 7) |
+// 0x7f == 16383 bytes. This is more than enough for the topic name size which
+// is a maximum of 255 bytes.
+static __always_inline int parse_varint_u16(u16 *out, u16 in, u32 *bytes)
+{
+    *bytes = 1;
+
+    u8 first = in & 0xff;
+    u8 second = in >> 8;
+    u16 tmp = 0;
+
+    tmp |= first & 0x7f;
+    if (isMSBSet(first)) {
+        *bytes += 1;
+        tmp |= ((u16)(second & 0x7f)) << 7;
+
+        if (isMSBSet(second)) {
+            // varint larger than two bytes.
+            return false;
+        }
+    }
+
+    // When lengths are stored as varints in the protocol, they are always
+    // stored as N + 1.
+    *out = tmp - 1;
+    return true;
+}
+
+static __always_inline bool skip_varint_number_of_topics(pktbuf_t pkt, u32 *offset) {
+    u8 bytes[2] = {};
+
+    // Should be safe to assume that there is always more than one byte present,
+    // since there will be the topic name etc after the number of topics.
+    if (*offset + sizeof(bytes) > pktbuf_data_end(pkt)) {
+        return false;
+    }
+
+    pktbuf_load_bytes(pkt, *offset, bytes, sizeof(bytes));
+
+    *offset += 1;
+    if (isMSBSet(bytes[0])) {
+        *offset += 1;
+
+        if (isMSBSet(bytes[1])) {
+            // More than 16383 topics?
+            return false;
+        }
+    }
+
+    return true;
+}
+
+// Skips a varint of up to `max_bytes` (4).  The `skip_varint_number_of_topics`
+// above could potentially be merged with this, although that leads to a small
+// growth in the number of instructions processed.
+//
+// Note there is an assumption that there are at least `max_bytes` available in
+// the packet (even if the varint actually occupies a lesser amount of space).
+//
+// A return value of false indicates an error in reading the varint.
+static __always_inline __maybe_unused bool skip_varint(pktbuf_t pkt, u32 *offset, u32 max_bytes) {
+    u8 bytes[4] = {};
+
+    if (max_bytes == 0 || max_bytes > sizeof(bytes)) {
+        return false;
+    }
+
+    if (*offset + max_bytes > pktbuf_data_end(pkt)) {
+        return false;
+    }
+
+    pktbuf_load_bytes(pkt, *offset, bytes, max_bytes);
+
+    #pragma unroll
+    for (u32 i = 0; i < max_bytes; i++) {
+        // Note that doing *offset += i + 1 before the return true instead of
+        // this leads to a compiler error due to the optimizer not being to
+        // unroll the loop.
+        *offset += 1;
+        if (!isMSBSet(bytes[i])) {
+            return true;
+        }
+    }
+
+    // MSB set on last byte, so our max_bytes wasn't enough.
+    return false;
+}
+
+// `flexible` indicates that the API version is a flexible version as described in
+// https://cwiki.apache.org/confluence/display/KAFKA/KIP-482%3A+The+Kafka+Protocol+should+Support+Optional+Tagged+Fields
+static __always_inline s16 read_nullable_string_size(pktbuf_t pkt, bool flexible, u32 *offset) {
+    u16 topic_name_size_raw = 0;
+    // We assume we can always read two bytes. Even if the varint for the topic
+    // name size is just one byte, the topic name itself will at least occupy
+    // one more byte so reading two bytes is safe (we advance the offset based
+    // on the number of actual bytes in the varint).
+    if (*offset + sizeof(topic_name_size_raw) > pktbuf_data_end(pkt)) {
+        return 0;
+    }
+
+    pktbuf_load_bytes(pkt, *offset, &topic_name_size_raw, sizeof(topic_name_size_raw));
+
+    s16 topic_name_size = 0;
+    if (flexible) {
+        u16 topic_name_size_tmp = 0;
+        u32 varint_bytes = 0;
+
+        if (!parse_varint_u16(&topic_name_size_tmp, topic_name_size_raw, &varint_bytes)) {
+            return 0;
+        }
+
+        topic_name_size = topic_name_size_tmp;
+        *offset += varint_bytes;
+    } else {
+        topic_name_size = bpf_ntohs(topic_name_size_raw);
+        *offset += sizeof(topic_name_size_raw);
+    }
+
+    return topic_name_size;
+}
+
 // Reads the first topic name (can be multiple), up to TOPIC_NAME_MAX_STRING_SIZE_TO_VALIDATE bytes from the given offset, and
 // verifies if it is valid, namely, composed only from characters from [a-zA-Z0-9._-].
-static __always_inline bool validate_first_topic_name(pktbuf_t pkt, u32 offset) {
+static __always_inline bool validate_first_topic_name(pktbuf_t pkt, bool flexible, u32 offset) {
     // Skipping number of entries for now
-    offset += sizeof(s32);
+    if (flexible) {
+        if (!skip_varint_number_of_topics(pkt, &offset)) {
+            return false;
+        }
+    } else {
+        offset += sizeof(s32);
+    }
 
-    PKTBUF_READ_BIG_ENDIAN_WRAPPER(s16, topic_name_size, pkt, offset);
+    s16 topic_name_size = read_nullable_string_size(pkt, flexible, &offset);
     if (topic_name_size <= 0 || topic_name_size > TOPIC_NAME_MAX_ALLOWED_SIZE) {
         return false;
     }
@@ -133,12 +263,42 @@ static __always_inline bool validate_first_topic_name(pktbuf_t pkt, u32 offset) 
     CHECK_STRING_VALID_TOPIC_NAME(TOPIC_NAME_MAX_STRING_SIZE_TO_VALIDATE, topic_name_size, topic_name);
 }
 
+// Flexible API version can have an arbitrary number of tagged fields.  We don't
+// need to handle these but we do need to skip them to get at the normal fields
+// which we are interested in.  However, we would need to parse the list of fields
+// to find out how much we need to skip over.  For now, we assume (and assert)
+// that there are no tagged fields.
+static __always_inline bool skip_request_tagged_fields(pktbuf_t pkt, u32 *offset) {
+    if (*offset >= pktbuf_data_end(pkt)) {
+        return false;
+    }
+
+    u8 num_tagged_fields = 0;
+
+    pktbuf_load_bytes(pkt, *offset, &num_tagged_fields, sizeof(num_tagged_fields));
+    *offset += sizeof(num_tagged_fields);
+
+    // We don't support parsing tagged fields for now.
+    return num_tagged_fields == 0;
+}
+
 // Getting the offset (out parameter) of the first topic name in the produce request.
 static __always_inline bool get_topic_offset_from_produce_request(const kafka_header_t *kafka_header, pktbuf_t pkt, u32 *out_offset) {
     const s16 api_version = kafka_header->api_version;
     u32 offset = *out_offset;
+    bool flexible = api_version >= 9;
+
+    if (flexible && !skip_request_tagged_fields(pkt, &offset)) {
+        return false;
+    }
+
     if (api_version >= 3) {
-        PKTBUF_READ_BIG_ENDIAN_WRAPPER(s16, transactional_id_size, pkt, offset);
+        // The transactional ID for flex versions can, in theory, have a size
+        // larger than that which can be represented in a two-byte varint, but
+        // that seems unlikely, so just reuse the same nullable string read that
+        // we use for the topic names.
+        s16 transactional_id_size = read_nullable_string_size(pkt, flexible, &offset);
+
         if (transactional_id_size > 0) {
             offset += transactional_id_size;
         }
@@ -162,27 +322,35 @@ static __always_inline bool get_topic_offset_from_produce_request(const kafka_he
 }
 
 // Getting the offset the topic name in the fetch request.
-static __always_inline u32 get_topic_offset_from_fetch_request(const kafka_header_t *kafka_header) {
+static __always_inline bool get_topic_offset_from_fetch_request(const kafka_header_t *kafka_header, pktbuf_t pkt, u32 *offset) {
+    u32 api_version = kafka_header->api_version;
+
+    if (api_version >= 12) {
+        if (!skip_request_tagged_fields(pkt, offset)) {
+            return false;
+        }
+    }
+
     // replica_id => INT32
     // max_wait_ms => INT32
     // min_bytes => INT32
-    u32 offset = 3 * sizeof(s32);
+    *offset += 3 * sizeof(s32);
 
-    if (kafka_header->api_version >= 3) {
+    if (api_version >= 3) {
         // max_bytes => INT32
-        offset += sizeof(s32);
-        if (kafka_header->api_version >= 4) {
+        *offset += sizeof(s32);
+        if (api_version >= 4) {
             // isolation_level => INT8
-            offset += sizeof(s8);
-            if (kafka_header->api_version >= 7) {
+            *offset += sizeof(s8);
+            if (api_version >= 7) {
                 // session_id => INT32
                 // session_epoch => INT32
-                offset += 2 * sizeof(s32);
+                *offset += 2 * sizeof(s32);
             }
         }
     }
 
-    return offset;
+    return true;
 }
 
 // Calls the relevant function, according to the api_key.
@@ -190,19 +358,24 @@ static __always_inline bool is_kafka_request(const kafka_header_t *kafka_header,
     // Due to old-verifiers limitations, if the request is fetch or produce, we are calculating the offset of the topic
     // name in the request, and then validate the topic. We have to have shared call for validate_first_topic_name
     // as the function is huge, rather than call validate_first_topic_name for each api_key.
+    bool flexible = false;
     switch (kafka_header->api_key) {
     case KAFKA_PRODUCE:
         if (!get_topic_offset_from_produce_request(kafka_header, pkt, &offset)) {
             return false;
         }
+        flexible = kafka_header->api_version >= 9;
         break;
     case KAFKA_FETCH:
-        offset += get_topic_offset_from_fetch_request(kafka_header);
+        if (!get_topic_offset_from_fetch_request(kafka_header, pkt, &offset)) {
+            return false;
+        }
+        flexible = kafka_header->api_version >= 12;
         break;
     default:
         return false;
     }
-    return validate_first_topic_name(pkt, offset);
+    return validate_first_topic_name(pkt, flexible, offset);
 }
 
 // Checks if the packet represents a kafka request.
@@ -242,9 +415,9 @@ static __always_inline bool is_kafka(struct __sk_buff *skb, skb_info_t *skb_info
     return __is_kafka(pktbuf_from_skb(skb, skb_info), buf, buf_size);
 }
 
-static __always_inline __maybe_unused bool tls_is_kafka(tls_dispatcher_arguments_t *tls, const char* buf, __u32 buf_size)
+static __always_inline __maybe_unused bool tls_is_kafka(struct pt_regs *ctx, tls_dispatcher_arguments_t *tls, const char* buf, __u32 buf_size)
 {
-    return __is_kafka(pktbuf_from_tls(tls), buf, buf_size);
+    return __is_kafka(pktbuf_from_tls(ctx, tls), buf, buf_size);
 }
 
 #endif

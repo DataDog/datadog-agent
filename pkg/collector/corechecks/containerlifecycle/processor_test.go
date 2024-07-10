@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/mock"
 
 	model "github.com/DataDog/agent-payload/v5/contlcycle"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
@@ -121,7 +121,7 @@ func TestProcessContainer(t *testing.T) {
 	}
 
 	now := time.Now()
-	exitCode := uint32(1)
+	exitCode := int64(1)
 	podContainer := workloadmeta.Container{
 		EntityID: workloadmeta.EntityID{
 			ID:   "cont1",

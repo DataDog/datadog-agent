@@ -15,6 +15,7 @@ import (
 	"github.com/cihub/seelog"
 	"go4.org/intern"
 
+	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
@@ -125,7 +126,7 @@ type Delta struct {
 	Conns    []ConnectionStats
 	HTTP     map[http.Key]*http.RequestStats
 	HTTP2    map[http.Key]*http.RequestStats
-	Kafka    map[kafka.Key]*kafka.RequestStat
+	Kafka    map[kafka.Key]*kafka.RequestStats
 	Postgres map[postgres.Key]*postgres.RequestStat
 }
 
@@ -239,7 +240,7 @@ type client struct {
 	dnsStats           dns.StatsByKeyByNameByType
 	httpStatsDelta     map[http.Key]*http.RequestStats
 	http2StatsDelta    map[http.Key]*http.RequestStats
-	kafkaStatsDelta    map[kafka.Key]*kafka.RequestStat
+	kafkaStatsDelta    map[kafka.Key]*kafka.RequestStats
 	postgresStatsDelta map[postgres.Key]*postgres.RequestStat
 	lastTelemetries    map[ConnTelemetryType]int64
 }
@@ -255,7 +256,7 @@ func (c *client) Reset() {
 	c.dnsStats = make(dns.StatsByKeyByNameByType)
 	c.httpStatsDelta = make(map[http.Key]*http.RequestStats)
 	c.http2StatsDelta = make(map[http.Key]*http.RequestStats)
-	c.kafkaStatsDelta = make(map[kafka.Key]*kafka.RequestStat)
+	c.kafkaStatsDelta = make(map[kafka.Key]*kafka.RequestStats)
 	c.postgresStatsDelta = make(map[postgres.Key]*postgres.RequestStat)
 }
 
@@ -285,7 +286,7 @@ type networkState struct {
 }
 
 // NewState creates a new network state
-func NewState(clientExpiry time.Duration, maxClosedConns uint32, maxClientStats, maxDNSStats, maxHTTPStats, maxKafkaStats, maxPostgresStats int, enableConnectionRollup bool, processEventConsumerEnabled bool) State {
+func NewState(_ telemetryComponent.Component, clientExpiry time.Duration, maxClosedConns uint32, maxClientStats, maxDNSStats, maxHTTPStats, maxKafkaStats, maxPostgresStats int, enableConnectionRollup bool, processEventConsumerEnabled bool) State {
 	ns := &networkState{
 		clients:                map[string]*client{},
 		clientExpiry:           clientExpiry,
@@ -406,7 +407,7 @@ func (ns *networkState) GetDelta(
 			stats := protocolStats.(map[http.Key]*http.RequestStats)
 			ns.storeHTTPStats(stats)
 		case protocols.Kafka:
-			stats := protocolStats.(map[kafka.Key]*kafka.RequestStat)
+			stats := protocolStats.(map[kafka.Key]*kafka.RequestStats)
 			ns.storeKafkaStats(stats)
 		case protocols.HTTP2:
 			stats := protocolStats.(map[http.Key]*http.RequestStats)
@@ -582,6 +583,7 @@ func (ns *networkState) mergeByCookie(conns []ConnectionStats) ([]ConnectionStat
 	return conns, connsByKey
 }
 
+// StoreClosedConnections wraps the unexported method while locking state
 func (ns *networkState) StoreClosedConnections(closed []ConnectionStats) {
 	ns.Lock()
 	defer ns.Unlock()
@@ -737,7 +739,7 @@ func (ns *networkState) storeHTTP2Stats(allStats map[http.Key]*http.RequestStats
 }
 
 // storeKafkaStats stores the latest Kafka stats for all clients
-func (ns *networkState) storeKafkaStats(allStats map[kafka.Key]*kafka.RequestStat) {
+func (ns *networkState) storeKafkaStats(allStats map[kafka.Key]*kafka.RequestStats) {
 	if len(ns.clients) == 1 {
 		for _, client := range ns.clients {
 			if len(client.kafkaStatsDelta) == 0 && len(allStats) <= ns.maxKafkaStats {
@@ -810,7 +812,7 @@ func (ns *networkState) getClient(clientID string) *client {
 		dnsStats:           dns.StatsByKeyByNameByType{},
 		httpStatsDelta:     map[http.Key]*http.RequestStats{},
 		http2StatsDelta:    map[http.Key]*http.RequestStats{},
-		kafkaStatsDelta:    map[kafka.Key]*kafka.RequestStat{},
+		kafkaStatsDelta:    map[kafka.Key]*kafka.RequestStats{},
 		postgresStatsDelta: map[postgres.Key]*postgres.RequestStat{},
 		lastTelemetries:    make(map[ConnTelemetryType]int64),
 	}
@@ -1452,5 +1454,5 @@ func (ns *networkState) mergeConnectionStats(a, b *ConnectionStats) (collision b
 func isEmpty(conn ConnectionStats) bool {
 	return conn.Monotonic.RecvBytes == 0 && conn.Monotonic.RecvPackets == 0 &&
 		conn.Monotonic.SentBytes == 0 && conn.Monotonic.SentPackets == 0 &&
-		conn.Monotonic.Retransmits == 0
+		conn.Monotonic.Retransmits == 0 && len(conn.TCPFailures) == 0
 }

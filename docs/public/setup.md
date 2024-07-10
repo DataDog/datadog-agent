@@ -33,10 +33,41 @@ On Windows, install Python 2.7 and/or 3.11 via the [official installer](https://
 
 ##### Preface
 
+[Invoke](http://www.pyinvoke.org) is a task runner written in Python that is extensively used in this project to orchestrate builds and test runs. To run the tasks, you need to have it installed on your machine. We offer two different ways to run our invoke tasks.
+
+##### `deva` (recommended)
+
+The `deva` CLI tool is a single binary that can be used to install and manage the development environment for the Agent, built by the Datadog team. It will install all the necessary Python dependencies for you. The development environment will be completely independent of your system Python installation. This tool leverages [PyApp](https://ofek.dev/pyapp/latest/), a wrapper for Python applications that bootstrap themselves at runtime. In our case, we wrap `invoke` itself and include the dependencies needed to work on the Agent.
+
+To install `deva`, you'll need to:
+
+1. Download the binary for your platform from the [releases page](https://github.com/DataDog/datadog-agent-devtools/releases/latest),
+2. Make it executable (and optionally add it to your PATH),
+3. Run the invoke command you need, using `deva` in place of `invoke` or `inv`.
+
+The Python environment will automatically be created on the first run. and will be reused for subsequent runs. For example:
+
+```shell
+$ cd datadog-agent
+$ curl -L -o deva https://github.com/DataDog/datadog-agent-devtools/releases/download/deva-v1.0.0/deva-aarch64-unknown-linux-gnu-1.0.0
+$ chmod +x deva
+$ ./deva linter.go
+```
+
+Below a live demo of how the tool works:
+
+![deva_install](./assets/images/deva.gif)
+
+If you want to uninstall `deva`, you can simply run the `./deva self remove` command, which will remove the virtual environment from your system, and remove the binary. That's it.
+
+##### Manual Installation
+
+###### Virtual Environment
+
 To protect and isolate your system-wide python installation, a python virtual environment is _highly_ recommended (though optional). It will help keep a self-contained development environment and ensure a clean system Python.
 
 !!! note
-    Due to the [way some virtual environments handle executable paths](https://bugs.python.org/issue22213) (e.g. `python -m venv`), not all virtual environment options will be able to run the built Agent correctly. At this time, the only confirmed virtual enviroment creator that is known for sure to work is `virtualenv`.
+    Due to the [way some virtual environments handle executable paths](https://bugs.python.org/issue22213) (e.g. `python -m venv`), not all virtual environment options will be able to run the built Agent correctly. At this time, the only confirmed virtual environment creator that is known for sure to work is `virtualenv`.
 
 - Install the virtualenv module:
     ```
@@ -56,9 +87,9 @@ PYTHONPATH="./venv/lib/python3.11/site-packages:$PYTHONPATH" ./agent run ...
 
 See also some notes in [./checks](https://github.com/DataDog/datadog-agent/tree/main/docs/dev/checks) about running custom python checks.
 
-#### Invoke
+###### Install Invoke and its dependencies
 
-[Invoke](http://www.pyinvoke.org) is a task runner written in Python that is extensively used in this project to orchestrate builds and test runs. Our invoke tasks are only compatible with Python 3, thus you will need to use Python 3 to run them.
+Our invoke tasks are only compatible with Python 3, thus you will need to use Python 3 to run them.
 
 Though you may install invoke in a variety of way we suggest you use the provided [requirements](https://github.com/DataDog/datadog-agent/blob/main/requirements.txt) file and `pip`:
 
@@ -141,7 +172,7 @@ pre-commit install
 The `shellcheck` pre-commit hook requires having the `shellcheck` binary installed and in your `$PATH`. To install it, run:
 
 ```sh
-inv install-shellcheck --destination <path>
+deva install-shellcheck --destination <path>
 ```
 
 (by default, the shellcheck binary is installed in `/usr/local/bin`).
@@ -169,7 +200,7 @@ See `pre-commit run --help` for further options.
 To configure the vscode editor to use a container as remote development environment you need to:
 
 - Install the [devcontainer plugin](https://code.visualstudio.com/docs/remote/containers) and the [golang language plugin](https://code.visualstudio.com/docs/languages/go).
-- Run the following invoke command `invoke vscode.setup-devcontainer --image "<image name>"`. This command will create the devcontainer configuration file `./devcontainer/devcontainer.json`.
+- Run the following invoke command `deva vscode.setup-devcontainer --image "<image name>"`. This command will create the devcontainer configuration file `./devcontainer/devcontainer.json`.
 - Start or restart your vscode editor.
 - A pop-up should show-up to propose to "reopen in container" your workspace.
 - The first start, it might propose you to install the golang plugin dependencies/tooling.

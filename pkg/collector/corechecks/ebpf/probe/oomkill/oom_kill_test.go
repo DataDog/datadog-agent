@@ -9,6 +9,7 @@ package oomkill
 
 import (
 	"context"
+	"os"
 	"os/exec"
 	"regexp"
 	"syscall"
@@ -37,7 +38,7 @@ func TestOOMKillCompile(t *testing.T) {
 
 		cfg := testConfig()
 		cfg.BPFDebug = true
-		out, err := runtime.OomKill.Compile(cfg, []string{"-g"}, nil, statsd.Client)
+		out, err := runtime.OomKill.Compile(cfg, []string{"-g"}, statsd.Client)
 		require.NoError(t, err)
 		_ = out.Close()
 	})
@@ -67,6 +68,8 @@ func TestOOMKillProbe(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 4*time.Minute)
 		t.Cleanup(cancel)
 
+		err = os.WriteFile("/proc/self/oom_score_adj", []byte("42"), 0644)
+		require.NoError(t, err)
 		cmd := exec.CommandContext(ctx, "systemd-run", "--scope", "-p", "MemoryLimit=1M", "dd", "if=/dev/zero", "of=/dev/shm/asdf", "bs=1K", "count=2K")
 		obytes, err := cmd.CombinedOutput()
 		output := string(obytes)
@@ -99,6 +102,8 @@ func TestOOMKillProbe(t *testing.T) {
 
 		assert.Regexp(t, regexp.MustCompile("run-([0-9|a-z]*).scope"), result.CgroupName, "cgroup name")
 		assert.Equal(t, result.TPid, result.Pid, "tpid == pid")
+		assert.NotZero(t, result.Score, "score")
+		assert.Equal(t, int16(42), result.ScoreAdj, "score adj")
 		assert.Equal(t, "dd", result.FComm, "fcomm")
 		assert.Equal(t, "dd", result.TComm, "tcomm")
 		assert.NotZero(t, result.Pages, "pages")

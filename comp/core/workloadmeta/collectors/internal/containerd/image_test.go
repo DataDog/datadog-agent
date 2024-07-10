@@ -10,10 +10,11 @@ package containerd
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/opencontainers/go-digest"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/stretchr/testify/assert"
+
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 )
 
 func TestKnownImages(t *testing.T) {

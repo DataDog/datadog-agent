@@ -5,7 +5,7 @@
 
 //go:build unix
 
-//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors -tags unix -types-file model.go -output accessors_unix.go -field-handlers field_handlers_unix.go -doc ../../../../docs/cloud-workload-security/secl.json -field-accessors-output field_accessors_unix.go
+//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors -tags unix -types-file model.go -output accessors_unix.go -field-handlers field_handlers_unix.go -doc ../../../../docs/cloud-workload-security/secl_linux.json -field-accessors-output field_accessors_unix.go
 
 // Package model holds model related files
 package model
@@ -67,7 +67,11 @@ type Event struct {
 
 	// network events
 	DNS  DNSEvent  `field:"dns" event:"dns"`   // [7.36] [Network] A DNS request was sent
+	IMDS IMDSEvent `field:"imds" event:"imds"` // [7.55] [Network] An IMDS event was captured
 	Bind BindEvent `field:"bind" event:"bind"` // [7.37] [Network] A bind was executed
+
+	// on-demand events
+	OnDemand OnDemandEvent `field:"ondemand" event:"ondemand"`
 
 	// internal usage
 	Umount           UmountEvent           `field:"-"`
@@ -87,21 +91,47 @@ type SyscallEvent struct {
 	Retval int64 `field:"retval"` // SECLDoc[retval] Definition:`Return value of the syscall` Constants:`Error constants`
 }
 
+// SyscallContext contains syscall context
+type SyscallContext struct {
+	ID uint32 `field:"-"`
+
+	StrArg1 string `field:"syscall.str1,handler:ResolveSyscallCtxArgsStr1,weight:900,opts:getters_only|skip_ad"`
+	StrArg2 string `field:"syscall.str2,handler:ResolveSyscallCtxArgsStr2,weight:900,opts:getters_only|skip_ad"`
+	StrArg3 string `field:"syscall.str3,handler:ResolveSyscallCtxArgsStr3,weight:900,opts:getters_only|skip_ad"`
+
+	IntArg1 int64 `field:"syscall.int1,handler:ResolveSyscallCtxArgsInt1,weight:900,opts:getters_only|skip_ad"`
+	IntArg2 int64 `field:"syscall.int2,handler:ResolveSyscallCtxArgsInt2,weight:900,opts:getters_only|skip_ad"`
+	IntArg3 int64 `field:"syscall.int3,handler:ResolveSyscallCtxArgsInt3,weight:900,opts:getters_only|skip_ad"`
+
+	Resolved bool `field:"-"`
+}
+
 // ChmodEvent represents a chmod event
 type ChmodEvent struct {
 	SyscallEvent
+	SyscallContext
 	File FileEvent `field:"file"`
 	Mode uint32    `field:"file.destination.mode; file.destination.rights"` // SECLDoc[file.destination.mode] Definition:`New mode of the chmod-ed file` Constants:`File mode constants` SECLDoc[file.destination.rights] Definition:`New rights of the chmod-ed file` Constants:`File mode constants`
+
+	// Syscall context aliases
+	SyscallPath string `field:"syscall.path,ref:chmod.syscall.str1"` // SECLDoc[syscall.path] Definition:`path argument of the syscall`
+	SyscallMode int64  `field:"syscall.mode,ref:chmod.syscall.int2"` // SECLDoc[syscall.mode] Definition:`mode argument of the syscall`
 }
 
 // ChownEvent represents a chown event
 type ChownEvent struct {
 	SyscallEvent
+	SyscallContext
 	File  FileEvent `field:"file"`
 	UID   int64     `field:"file.destination.uid"`                           // SECLDoc[file.destination.uid] Definition:`New UID of the chown-ed file's owner`
 	User  string    `field:"file.destination.user,handler:ResolveChownUID"`  // SECLDoc[file.destination.user] Definition:`New user of the chown-ed file's owner`
 	GID   int64     `field:"file.destination.gid"`                           // SECLDoc[file.destination.gid] Definition:`New GID of the chown-ed file's owner`
 	Group string    `field:"file.destination.group,handler:ResolveChownGID"` // SECLDoc[file.destination.group] Definition:`New group of the chown-ed file's owner`
+
+	// Syscall context aliases
+	SyscallPath string `field:"syscall.path,ref:chown.syscall.str1"` // SECLDoc[syscall.path] Definition:`Path argument of the syscall`
+	SyscallUID  int64  `field:"syscall.uid,ref:chown.syscall.int2"`  // SECLDoc[syscall.uid] Definition:`UID argument of the syscall`
+	SyscallGID  int64  `field:"syscall.gid,ref:chown.syscall.int3"`  // SECLDoc[syscall.gid] Definition:`GID argument of the syscall`
 }
 
 // SetuidEvent represents a setuid event
@@ -187,8 +217,10 @@ type Process struct {
 
 	UserSession UserSessionContext `field:"user_session"` // SECLDoc[user_session] Definition:`User Session context of this process`
 
-	ArgsID uint32 `field:"-"`
-	EnvsID uint32 `field:"-"`
+	AWSSecurityCredentials []AWSSecurityCredentials `field:"-"`
+
+	ArgsID uint64 `field:"-"`
+	EnvsID uint64 `field:"-"`
 
 	ArgsEntry *ArgsEntry `field:"-"`
 	EnvsEntry *EnvsEntry `field:"-"`
@@ -226,7 +258,11 @@ type Process struct {
 
 // ExecEvent represents a exec event
 type ExecEvent struct {
+	SyscallContext
 	*Process
+
+	// Syscall context aliases
+	SyscallPath string `field:"syscall.path,ref:exec.syscall.str1"` // SECLDoc[syscall.path] Definition:`path argument of the syscall`
 }
 
 // FileFields holds the information required to identify a file
@@ -288,8 +324,13 @@ type MountReleasedEvent struct {
 // LinkEvent represents a link event
 type LinkEvent struct {
 	SyscallEvent
+	SyscallContext
 	Source FileEvent `field:"file"`
 	Target FileEvent `field:"file.destination"`
+
+	// Syscall context aliases
+	SyscallPath            string `field:"syscall.path,ref:link.syscall.str1"`             // SECLDoc[syscall.path] Definition:`Path argument of the syscall`
+	SyscallDestinationPath string `field:"syscall.destination.path,ref:link.syscall.str2"` // SECLDoc[syscall.destination.path] Definition:`Destination path argument of the syscall`
 }
 
 // MkdirEvent represents a mkdir event
@@ -321,6 +362,7 @@ type Mount struct {
 // MountEvent represents a mount event
 type MountEvent struct {
 	SyscallEvent
+	SyscallContext
 	Mount
 	MountPointPath                 string `field:"mountpoint.path,handler:ResolveMountPointPath"` // SECLDoc[mountpoint.path] Definition:`Path of the mount point`
 	MountSourcePath                string `field:"source.path,handler:ResolveMountSourcePath"`    // SECLDoc[source.path] Definition:`Source path of a bind mount`
@@ -328,6 +370,11 @@ type MountEvent struct {
 	MountPointPathResolutionError  error  `field:"-"`
 	MountSourcePathResolutionError error  `field:"-"`
 	MountRootPathResolutionError   error  `field:"-"`
+
+	// Syscall context aliases
+	SyscallSourcePath     string `field:"syscall.source.path,ref:mount.syscall.str1"`     // SECLDoc[syscall.source.path] Definition:`Source path argument of the syscall`
+	SyscallMountpointPath string `field:"syscall.mountpoint.path,ref:mount.syscall.str2"` // SECLDoc[syscall.mountpoint.path] Definition:`Mount point path argument of the syscall`
+	SyscallFSType         string `field:"syscall.fs_type,ref:mount.syscall.str3"`         // SECLDoc[syscall.fs_type] Definition:`File system type argument of the syscall`
 }
 
 // UnshareMountNSEvent represents a mount cloned from a newly created mount namespace
@@ -338,15 +385,25 @@ type UnshareMountNSEvent struct {
 // ChdirEvent represents a chdir event
 type ChdirEvent struct {
 	SyscallEvent
+	SyscallContext
 	File FileEvent `field:"file"`
+
+	// Syscall context aliases
+	SyscallPath string `field:"syscall.path,ref:chdir.syscall.str1"` // SECLDoc[syscall.path] Definition:`path argument of the syscall`
 }
 
 // OpenEvent represents an open event
 type OpenEvent struct {
 	SyscallEvent
+	SyscallContext
 	File  FileEvent `field:"file"`
 	Flags uint32    `field:"flags"`                 // SECLDoc[flags] Definition:`Flags used when opening the file` Constants:`Open flags`
 	Mode  uint32    `field:"file.destination.mode"` // SECLDoc[file.destination.mode] Definition:`Mode of the created file` Constants:`File mode constants`
+
+	// Syscall context aliases
+	SyscallPath  string `field:"syscall.path,ref:open.syscall.str1"`  // SECLDoc[syscall.path] Definition:`Path argument of the syscall`
+	SyscallFlags uint32 `field:"syscall.flags,ref:open.syscall.int2"` // SECLDoc[syscall.flags] Definition:`Flags argument of the syscall`
+	SyscallMode  uint32 `field:"syscall.mode,ref:open.syscall.int3"`  // SECLDoc[syscall.mode] Definition:`Mode argument of the syscall`
 }
 
 // SELinuxEvent represents a selinux event
@@ -371,8 +428,13 @@ type PIDContext struct {
 // RenameEvent represents a rename event
 type RenameEvent struct {
 	SyscallEvent
+	SyscallContext
 	Old FileEvent `field:"file"`
 	New FileEvent `field:"file.destination"`
+
+	// Syscall context aliases
+	SyscallPath            string `field:"syscall.path,ref:rename.syscall.str1"`             // SECLDoc[syscall.path] Definition:`Path argument of the syscall`
+	SyscallDestinationPath string `field:"syscall.destination.path,ref:rename.syscall.str2"` // SECLDoc[syscall.destination.path] Definition:`Destination path argument of the syscall`
 }
 
 // RmdirEvent represents a rmdir event
@@ -394,8 +456,14 @@ type SetXAttrEvent struct {
 // UnlinkEvent represents an unlink event
 type UnlinkEvent struct {
 	SyscallEvent
+	SyscallContext
 	File  FileEvent `field:"file"`
 	Flags uint32    `field:"flags"` // SECLDoc[flags] Definition:`Flags of the unlink syscall` Constants:`Unlink flags`
+
+	// Syscall context aliases
+	SyscallDirFd uint64 `field:"syscall.dirfd,ref:unlink.syscall.int1"` // SECLDoc[syscall.dirfd] Definition:`Directory file descriptor argument of the syscall`
+	SyscallPath  string `field:"syscall.path,ref:unlink.syscall.str2"`  // SECLDoc[syscall.path] Definition:`Path argument of the syscall`
+	SyscallFlags uint64 `field:"syscall.flags,ref:unlink.syscall.int3"` // SECLDoc[syscall.flags] Definition:`Flags argument of the syscall`
 }
 
 // UmountEvent represents an umount event
@@ -407,9 +475,13 @@ type UmountEvent struct {
 // UtimesEvent represents a utime event
 type UtimesEvent struct {
 	SyscallEvent
+	SyscallContext
 	File  FileEvent `field:"file"`
 	Atime time.Time `field:"-"`
 	Mtime time.Time `field:"-"`
+
+	// Syscall context aliases
+	SyscallPath string `field:"syscall.path,ref:utimes.syscall.str1"` // SECLDoc[syscall.path] Definition:`Path argument of the syscall`
 }
 
 // BPFEvent represents a BPF event
@@ -579,4 +651,19 @@ type PathKey struct {
 	Inode   uint64 `field:"inode"`    // SECLDoc[inode] Definition:`Inode of the file`
 	MountID uint32 `field:"mount_id"` // SECLDoc[mount_id] Definition:`Mount ID of the file`
 	PathID  uint32 `field:"-"`
+}
+
+// OnDemandEvent identifies an on-demand event generated from on-demand probes
+type OnDemandEvent struct {
+	ID       uint32    `field:"-"`
+	Name     string    `field:"name,handler:ResolveOnDemandName"`
+	Data     [256]byte `field:"-"`
+	Arg1Str  string    `field:"arg1.str,handler:ResolveOnDemandArg1Str"`
+	Arg1Uint uint64    `field:"arg1.uint,handler:ResolveOnDemandArg1Uint"`
+	Arg2Str  string    `field:"arg2.str,handler:ResolveOnDemandArg2Str"`
+	Arg2Uint uint64    `field:"arg2.uint,handler:ResolveOnDemandArg2Uint"`
+	Arg3Str  string    `field:"arg3.str,handler:ResolveOnDemandArg3Str"`
+	Arg3Uint uint64    `field:"arg3.uint,handler:ResolveOnDemandArg3Uint"`
+	Arg4Str  string    `field:"arg4.str,handler:ResolveOnDemandArg4Str"`
+	Arg4Uint uint64    `field:"arg4.uint,handler:ResolveOnDemandArg4Uint"`
 }

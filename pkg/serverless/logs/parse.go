@@ -6,7 +6,6 @@
 package logs
 
 import (
-	"errors"
 	"fmt"
 	"time"
 
@@ -274,10 +273,10 @@ func parseLogsAPIPayload(data []byte) ([]LambdaLogAPIMessage, error) {
 	var messages []LambdaLogAPIMessage
 	if err := json.Unmarshal(data, &messages); err != nil {
 		// Temporary fix to handle malformed JSON tracing object : retry with sanitization
-		log.Debug("Can't read log message, retry with sanitization")
+		log.Debugf("Can't read log message, retry with sanitization: %s", err)
 		sanitizedData := removeInvalidTracingItem(data)
 		if err := json.Unmarshal(sanitizedData, &messages); err != nil {
-			return nil, errors.New("can't read log message")
+			return nil, fmt.Errorf("can't read log message: %s", err)
 		}
 		return messages, nil
 	}

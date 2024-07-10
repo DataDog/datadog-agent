@@ -20,6 +20,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/controllers"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
@@ -49,8 +50,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
@@ -151,7 +153,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					AgentType:  workloadmeta.ClusterAgent,
 				}), // TODO(components): check what this must be for cluster-agent-cloudfoundry
 				fx.Supply(context.Background()),
-				workloadmeta.Module(),
+				workloadmetafx.Module(),
 				fx.Provide(tagger.NewTaggerParams),
 				taggerimpl.Module(),
 				fx.Supply(
@@ -302,17 +304,18 @@ func start(log log.Component,
 	eventBroadcaster.StartRecordingToSink(&corev1.EventSinkImpl{Interface: apiCl.Cl.CoreV1().Events("")})
 	eventRecorder := eventBroadcaster.NewRecorder(scheme.Scheme, v1.EventSource{Component: "datadog-cluster-agent"})
 
-	ctx := apiserver.ControllerContext{
+	ctx := controllers.ControllerContext{
 		InformerFactory:        apiCl.InformerFactory,
 		DynamicClient:          apiCl.DynamicInformerCl,
 		DynamicInformerFactory: apiCl.DynamicInformerFactory,
 		Client:                 apiCl.InformerCl,
 		IsLeaderFunc:           le.IsLeader,
 		EventRecorder:          eventRecorder,
+		WorkloadMeta:           wmeta,
 		StopCh:                 stopCh,
 	}
 
-	if aggErr := apiserver.StartControllers(ctx); aggErr != nil {
+	if aggErr := controllers.StartControllers(ctx); aggErr != nil {
 		for _, err := range aggErr.Errors() {
 			pkglog.Warnf("Error while starting controller: %v", err)
 		}
@@ -399,13 +402,20 @@ func start(log log.Component,
 	}
 
 	// Autoscaling Product
+	var pa workload.PodPatcher
 	if config.GetBool("autoscaling.workload.enabled") {
 		if rcClient == nil {
 			return fmt.Errorf("Remote config is disabled or failed to initialize, remote config is a required dependency for autoscaling")
 		}
 
-		if err := workload.StartWorkloadAutoscaling(mainCtx, apiCl, rcClient); err != nil {
+		if !config.GetBool("admission_controller.enabled") {
+			log.Error("Admission controller is disabled, vertical autoscaling requires the admission controller to be enabled. Vertical scaling will be disabled.")
+		}
+
+		if adapter, err := workload.StartWorkloadAutoscaling(mainCtx, apiCl, rcClient, wmeta); err != nil {
 			pkglog.Errorf("Error while starting workload autoscaling: %v", err)
+		} else {
+			pa = adapter
 		}
 	}
 
@@ -454,7 +464,7 @@ func start(log log.Component,
 			StopCh:              stopCh,
 		}
 
-		webhooks, err := admissionpkg.StartControllers(admissionCtx, wmeta)
+		webhooks, err := admissionpkg.StartControllers(admissionCtx, wmeta, pa)
 		if err != nil {
 			pkglog.Errorf("Could not start admission controller: %v", err)
 		} else {

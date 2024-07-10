@@ -7,7 +7,9 @@
 
 package network
 
+import "github.com/DataDog/datadog-agent/comp/core/telemetry"
+
 // NewGatewayLookup returns nil
-func NewGatewayLookup(_ nsLookupFunc, _ uint32) GatewayLookup {
+func NewGatewayLookup(_ nsLookupFunc, _ uint32, _ telemetry.Component) GatewayLookup {
 	return nil
 }

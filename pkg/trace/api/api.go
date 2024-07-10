@@ -97,6 +97,7 @@ type HTTPReceiver struct {
 	containerIDProvider IDProvider
 
 	telemetryCollector telemetry.TelemetryCollector
+	telemetryForwarder *TelemetryForwarder
 
 	rateLimiterResponse int // HTTP status code when refusing
 
@@ -139,6 +140,8 @@ func NewHTTPReceiver(
 		}
 	}
 	log.Infof("Receiver configured with %d decoders and a timeout of %dms", semcount, conf.DecoderTimeout)
+	containerIDProvider := NewIDProvider(conf.ContainerProcRoot)
+	telemetryForwarder := NewTelemetryForwarder(conf, containerIDProvider, statsd)
 	return &HTTPReceiver{
 		Stats: info.NewReceiverStats(),
 
@@ -146,9 +149,10 @@ func NewHTTPReceiver(
 		statsProcessor:      statsProcessor,
 		conf:                conf,
 		dynConf:             dynConf,
-		containerIDProvider: NewIDProvider(conf.ContainerProcRoot),
+		containerIDProvider: containerIDProvider,
 
 		telemetryCollector: telemetryCollector,
+		telemetryForwarder: telemetryForwarder,
 
 		rateLimiterResponse: rateLimiterResponse,
 
@@ -170,15 +174,32 @@ func NewHTTPReceiver(
 	}
 }
 
+// timeoutMiddleware sets a timeout for a handler. This lets us have different
+// timeout values for each handler
+func timeoutMiddleware(timeout time.Duration, h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), timeout)
+		defer cancel()
+		r = r.WithContext(ctx)
+		h.ServeHTTP(w, r)
+	})
+}
+
 func (r *HTTPReceiver) buildMux() *http.ServeMux {
 	mux := http.NewServeMux()
+
+	defaultTimeout := getConfiguredRequestTimeoutDuration(r.conf)
 
 	hash, infoHandler := r.makeInfoHandler()
 	for _, e := range endpoints {
 		if e.IsEnabled != nil && !e.IsEnabled(r.conf) {
 			continue
 		}
-		mux.Handle(e.Pattern, replyWithVersion(hash, r.conf.AgentVersion, e.Handler(r)))
+		timeout := defaultTimeout
+		if e.TimeoutOverride != nil {
+			timeout = e.TimeoutOverride(r.conf)
+		}
+		mux.Handle(e.Pattern, replyWithVersion(hash, r.conf.AgentVersion, timeoutMiddleware(timeout, e.Handler(r))))
 	}
 	mux.HandleFunc("/info", infoHandler)
 
@@ -195,6 +216,22 @@ func replyWithVersion(hash string, version string, h http.Handler) http.Handler 
 	})
 }
 
+func getConfiguredRequestTimeoutDuration(conf *config.AgentConfig) time.Duration {
+	timeout := 5 * time.Second
+	if conf.ReceiverTimeout > 0 {
+		timeout = time.Duration(conf.ReceiverTimeout) * time.Second
+	}
+	return timeout
+}
+
+func getConfiguredEVPRequestTimeoutDuration(conf *config.AgentConfig) time.Duration {
+	timeout := 30 * time.Second
+	if conf.EVPProxy.ReceiverTimeout > 0 {
+		timeout = time.Duration(conf.EVPProxy.ReceiverTimeout) * time.Second
+	}
+	return timeout
+}
+
 // Start starts doing the HTTP server and is ready to receive traces
 func (r *HTTPReceiver) Start() {
 	if r.conf.ReceiverPort == 0 &&
@@ -205,17 +242,13 @@ func (r *HTTPReceiver) Start() {
 		return
 	}
 
-	timeout := 5 * time.Second
-	if r.conf.ReceiverTimeout > 0 {
-		timeout = time.Duration(r.conf.ReceiverTimeout) * time.Second
-	}
 	httpLogger := log.NewThrottled(5, 10*time.Second) // limit to 5 messages every 10 seconds
 	r.server = &http.Server{
-		ReadTimeout:  timeout,
-		WriteTimeout: timeout,
-		ErrorLog:     stdlog.New(httpLogger, "http.Server: ", 0),
-		Handler:      r.buildMux(),
-		ConnContext:  connContext,
+		// Note: We don't set WriteTimeout since we want to have different timeouts per-handler
+		ReadTimeout: getConfiguredRequestTimeoutDuration(r.conf),
+		ErrorLog:    stdlog.New(httpLogger, "http.Server: ", 0),
+		Handler:     r.buildMux(),
+		ConnContext: connContext,
 	}
 
 	if r.conf.ReceiverPort > 0 {
@@ -333,6 +366,7 @@ func (r *HTTPReceiver) Stop() error {
 	}
 	r.wg.Wait()
 	close(r.out)
+	r.telemetryForwarder.Stop()
 	return nil
 }
 
@@ -663,7 +697,11 @@ func (r *HTTPReceiver) loop() {
 			r.watchdog(now)
 		case now := <-t.C:
 			_ = r.statsd.Gauge("datadog.trace_agent.heartbeat", 1, nil, 1)
-			_ = r.statsd.Gauge("datadog.trace_agent.receiver.out_chan_fill", float64(len(r.out))/float64(cap(r.out)), nil, 1)
+			if cap(r.out) == 0 {
+				_ = r.statsd.Gauge("datadog.trace_agent.receiver.out_chan_fill", 0, []string{"is_trace_buffer_set:false"}, 1)
+			} else if cap(r.out) > 0 {
+				_ = r.statsd.Gauge("datadog.trace_agent.receiver.out_chan_fill", float64(len(r.out))/float64(cap(r.out)), []string{"is_trace_buffer_set:true"}, 1)
+			}
 
 			// We update accStats with the new stats we collected
 			accStats.Acc(r.Stats)

@@ -76,7 +76,7 @@ var (
 
 func getMinRemainingRequestsTracker() *minTracker {
 	once.Do(func() {
-		refreshPeriod := config.Datadog.GetInt("external_metrics_provider.refresh_period")
+		refreshPeriod := config.Datadog().GetInt("external_metrics_provider.refresh_period")
 		expiryDuration := 2 * refreshPeriod
 		minRemainingRequestsTracker = newMinTracker(time.Duration(time.Duration(expiryDuration) * time.Second))
 	})

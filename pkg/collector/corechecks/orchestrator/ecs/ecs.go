@@ -21,7 +21,7 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -134,7 +134,7 @@ func (c *Check) Run() error {
 		}
 		result, err := collector.Run(runConfig)
 		if err != nil {
-			_ = c.Warnf("K8sCollector %s failed to run: %s", collector.Metadata().FullName(), err.Error())
+			_ = c.Warnf("ECSCollector %s failed to run: %s", collector.Metadata().FullName(), err.Error())
 			continue
 		}
 		runDuration := time.Since(runStartTime)

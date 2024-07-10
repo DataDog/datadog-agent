@@ -9,14 +9,14 @@ __attribute__((always_inline)) u8 is_syscall(struct syscall_table_key_t *key) {
 }
 
 __attribute__((always_inline)) u8 syscall_mask_contains(char syscalls[SYSCALL_ENCODING_TABLE_SIZE], long syscall_id) {
-    u16 index = ((unsigned long) syscall_id) / 8;
-    u8 bit = 1 << (((unsigned long) syscall_id) % 8);
+    u16 index = ((unsigned long)syscall_id) / 8;
+    u8 bit = 1 << (((unsigned long)syscall_id) % 8);
     return (syscalls[index & (SYSCALL_ENCODING_TABLE_SIZE - 1)] & bit) > 0;
 }
 
 __attribute__((always_inline)) void syscall_monitor_entry_insert(struct syscall_monitor_entry_t *entry, long syscall_id) {
-    u16 index = ((unsigned long) syscall_id) / 8;
-    u8 bit = 1 << (((unsigned long) syscall_id) % 8);
+    u16 index = ((unsigned long)syscall_id) / 8;
+    u8 bit = 1 << (((unsigned long)syscall_id) % 8);
     if ((entry->syscalls[index & (SYSCALL_ENCODING_TABLE_SIZE - 1)] & bit) == 0) {
         entry->dirty = 1;
         // insert new syscall
@@ -81,7 +81,6 @@ __attribute__((always_inline)) void send_or_skip_syscall_monitor_event(struct _t
 
 shoud_send_event:
     if (should_send > 0) {
-
         // send an event now
         event->syscall_data.syscalls = *entry;
 

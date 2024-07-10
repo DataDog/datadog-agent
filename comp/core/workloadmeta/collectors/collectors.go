@@ -11,8 +11,8 @@ package collectors
 import (
 	"go.uber.org/fx"
 
-	cf_container "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/cloudfoundry/container"
-	cf_vm "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/cloudfoundry/vm"
+	cfcontainer "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/cloudfoundry/container"
+	cfvm "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/cloudfoundry/vm"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/containerd"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/docker"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/ecs"
@@ -23,14 +23,16 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/kubemetadata"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/podman"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/remote/processcollector"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/remote/workloadmeta"
+	remoteworkloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/remote/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
 
 // GetCatalog returns the set of FX options to populate the catalog
 func GetCatalog() fx.Option {
 	options := []fx.Option{
-		cf_container.GetFxOptions(),
-		cf_vm.GetFxOptions(),
+		cfcontainer.GetFxOptions(),
+		cfvm.GetFxOptions(),
 		containerd.GetFxOptions(),
 		docker.GetFxOptions(),
 		ecs.GetFxOptions(),
@@ -39,7 +41,8 @@ func GetCatalog() fx.Option {
 		kubelet.GetFxOptions(),
 		kubemetadata.GetFxOptions(),
 		podman.GetFxOptions(),
-		workloadmeta.GetFxOptions(),
+		remoteworkloadmeta.GetFxOptions(),
+		remoteWorkloadmetaParams(),
 		processcollector.GetFxOptions(),
 		host.GetFxOptions(),
 	}
@@ -52,4 +55,19 @@ func GetCatalog() fx.Option {
 		}
 	}
 	return fx.Options(opts...)
+}
+
+func remoteWorkloadmetaParams() fx.Option {
+	var filter *workloadmeta.Filter // Nil filter accepts everything
+
+	// Security Agent is only interested in containers
+	if flavor.GetFlavor() == flavor.SecurityAgent {
+		filter = workloadmeta.NewFilterBuilder().AddKind(workloadmeta.KindContainer).Build()
+	}
+
+	return fx.Provide(func() remoteworkloadmeta.Params {
+		return remoteworkloadmeta.Params{
+			Filter: filter,
+		}
+	})
 }

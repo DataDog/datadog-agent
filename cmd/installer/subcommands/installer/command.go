@@ -33,20 +33,33 @@ const (
 	envInstallOnly                      = "DD_INSTALL_ONLY"
 	envNoAgentInstall                   = "DD_NO_AGENT_INSTALL"
 	envAPMInstrumentationLibraries      = "DD_APM_INSTRUMENTATION_LIBRARIES"
-	envAppSecEnabled                    = "DD_APPSEC_ENABLED"
-	envIASTEnabled                      = "DD_IAST_ENABLED"
-	envAPMInstrumentationEnabled        = "DD_APM_INSTRUMENTATION_ENABLED"
-	envRepoURL                          = "DD_REPO_URL"
-	envRepoURLDeprecated                = "REPO_URL"
-	envRPMRepoGPGCheck                  = "DD_RPM_REPO_GPGCHECK"
-	envAgentMajorVersion                = "DD_AGENT_MAJOR_VERSION"
-	envAgentMinorVersion                = "DD_AGENT_MINOR_VERSION"
-	envAgentDistChannel                 = "DD_AGENT_DIST_CHANNEL"
+	// this env var is deprecated but still read by the install script
+	envAPMInstrumentationLanguages = "DD_APM_INSTRUMENTATION_LANGUAGES"
+	envAppSecEnabled               = "DD_APPSEC_ENABLED"
+	envIASTEnabled                 = "DD_IAST_ENABLED"
+	envAPMInstrumentationEnabled   = "DD_APM_INSTRUMENTATION_ENABLED"
+	envRepoURL                     = "DD_REPO_URL"
+	envRepoURLDeprecated           = "REPO_URL"
+	envRPMRepoGPGCheck             = "DD_RPM_REPO_GPGCHECK"
+	envAgentMajorVersion           = "DD_AGENT_MAJOR_VERSION"
+	envAgentMinorVersion           = "DD_AGENT_MINOR_VERSION"
+	envAgentDistChannel            = "DD_AGENT_DIST_CHANNEL"
 )
 
 // Commands returns the installer subcommands.
 func Commands(_ *command.GlobalParams) []*cobra.Command {
-	return []*cobra.Command{bootstrapCommand(), installCommand(), removeCommand(), installExperimentCommand(), removeExperimentCommand(), promoteExperimentCommand(), garbageCollectCommand(), purgeCommand(), isInstalledCommand()}
+	return []*cobra.Command{
+		bootstrapCommand(),
+		installCommand(),
+		removeCommand(),
+		installExperimentCommand(),
+		removeExperimentCommand(),
+		promoteExperimentCommand(),
+		garbageCollectCommand(),
+		purgeCommand(),
+		isInstalledCommand(),
+		apmCommands(),
+	}
 }
 
 // UnprivilegedCommands returns the unprivileged installer subcommands.
@@ -119,6 +132,7 @@ func newBootstraperCmd(operation string) *bootstraperCmd {
 	cmd.span.SetTag("env.DD_INSTALL_ONLY", os.Getenv(envInstallOnly))
 	cmd.span.SetTag("env.DD_NO_AGENT_INSTALL", os.Getenv(envNoAgentInstall))
 	cmd.span.SetTag("env.DD_APM_INSTRUMENTATION_LIBRARIES", os.Getenv(envAPMInstrumentationLibraries))
+	cmd.span.SetTag("env.DD_APM_INSTRUMENTATION_LANGUAGES", os.Getenv(envAPMInstrumentationLanguages))
 	cmd.span.SetTag("env.DD_APPSEC_ENABLED", os.Getenv(envAppSecEnabled))
 	cmd.span.SetTag("env.DD_IAST_ENABLED", os.Getenv(envIASTEnabled))
 	cmd.span.SetTag("env.DD_APM_INSTRUMENTATION_ENABLED", os.Getenv(envAPMInstrumentationEnabled))
@@ -202,6 +216,7 @@ func bootstrapCommand() *cobra.Command {
 }
 
 func installCommand() *cobra.Command {
+	var installArgs []string
 	cmd := &cobra.Command{
 		Use:     "install <url>",
 		Short:   "Install a package",
@@ -214,9 +229,10 @@ func installCommand() *cobra.Command {
 			}
 			defer func() { i.Stop(err) }()
 			i.span.SetTag("params.url", args[0])
-			return i.Install(i.ctx, args[0])
+			return i.Install(i.ctx, args[0], installArgs)
 		},
 	}
+	cmd.Flags().StringArrayVarP(&installArgs, "install_args", "A", nil, "Arguments to pass to the package")
 	return cmd
 }
 

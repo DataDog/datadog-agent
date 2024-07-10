@@ -18,7 +18,9 @@ import (
 
 	"github.com/hashicorp/go-multierror"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
@@ -29,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/tests/statsdclient"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
@@ -230,7 +233,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 	if err != nil {
 		return nil, err
 	}
-	if _, err = setTestPolicy(commonCfgDir, macroDefs, ruleDefs); err != nil {
+	if _, err = setTestPolicy(commonCfgDir, nil, macroDefs, ruleDefs); err != nil {
 		return nil, err
 	}
 	statsdClient := statsdclient.NewStatsdClient()
@@ -261,7 +264,8 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 			StatsdClient: statsdClient,
 		},
 	}
-	testMod.eventMonitor, err = eventmonitor.NewEventMonitor(emconfig, secconfig, emopts, optional.NewNoneOption[workloadmeta.Component]())
+	telemetry := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
+	testMod.eventMonitor, err = eventmonitor.NewEventMonitor(emconfig, secconfig, emopts, optional.NewNoneOption[workloadmeta.Component](), telemetry)
 	if err != nil {
 		return nil, err
 	}
@@ -278,12 +282,10 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 
 		testMod.eventMonitor.RegisterEventConsumer(cws)
 
-		testMod.ruleEngine.SetRulesetLoadedCallback(func(es *rules.EvaluationSet, err *multierror.Error) {
+		testMod.ruleEngine.SetRulesetLoadedCallback(func(rs *rules.RuleSet, err *multierror.Error) {
 			ruleSetloadedErr = err
 			log.Infof("Adding test module as listener")
-			for _, ruleSet := range es.RuleSets {
-				ruleSet.AddListener(testMod)
-			}
+			rs.AddListener(testMod)
 		})
 	}
 

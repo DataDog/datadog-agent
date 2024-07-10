@@ -8,7 +8,7 @@
 #include "helpers/filesystem.h"
 #include "helpers/syscalls.h"
 
-int __attribute__((always_inline)) trace__sys_unlink(u8 async, int flags) {
+int __attribute__((always_inline)) trace__sys_unlink(u8 async, int dirfd, const char *filename, int flags) {
     struct syscall_cache_t syscall = {
         .type = EVENT_UNLINK,
         .policy = fetch_policy(EVENT_UNLINK),
@@ -18,24 +18,29 @@ int __attribute__((always_inline)) trace__sys_unlink(u8 async, int flags) {
         }
     };
 
+    if (!async) {
+        collect_syscall_ctx(&syscall, SYSCALL_CTX_ARG_INT(0) | SYSCALL_CTX_ARG_STR(1) | SYSCALL_CTX_ARG_INT(2), (void *)&dirfd, (void *)filename, (void *)&flags);
+    }
     cache_syscall(&syscall);
 
     return 0;
 }
 
-HOOK_SYSCALL_ENTRY0(unlink) {
-    return trace__sys_unlink(SYNC_SYSCALL, 0);
+HOOK_SYSCALL_ENTRY1(unlink, const char *, filename) {
+    int dirfd = AT_FDCWD;
+    int flags = 0;
+    return trace__sys_unlink(SYNC_SYSCALL, dirfd, filename, flags);
 }
 
-HOOK_SYSCALL_ENTRY3(unlinkat, int, dirfd, const char*, filename, int, flags) {
-    return trace__sys_unlink(SYNC_SYSCALL, flags);
+HOOK_SYSCALL_ENTRY3(unlinkat, int, dirfd, const char *, filename, int, flags) {
+    return trace__sys_unlink(SYNC_SYSCALL, dirfd, filename, flags);
 }
 
 HOOK_ENTRY("do_unlinkat")
 int hook_do_unlinkat(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_UNLINK);
     if (!syscall) {
-        return trace__sys_unlink(ASYNC_SYSCALL, 0);
+        return trace__sys_unlink(ASYNC_SYSCALL, 0, NULL, 0);
     }
     return 0;
 }
@@ -51,12 +56,12 @@ int hook_vfs_unlink(ctx_t *ctx) {
         return 0;
     }
 
-    struct dentry *dentry = (struct dentry *) CTX_PARM2(ctx);
+    struct dentry *dentry = (struct dentry *)CTX_PARM2(ctx);
     // change the register based on the value of vfs_unlink_dentry_position
     if (get_vfs_unlink_dentry_position() == VFS_ARG_POSITION3) {
         // prevent the verifier from whining
         bpf_probe_read(&dentry, sizeof(dentry), &dentry);
-        dentry = (struct dentry *) CTX_PARM3(ctx);
+        dentry = (struct dentry *)CTX_PARM3(ctx);
     }
 
     // we resolve all the information before the file is actually removed
@@ -115,7 +120,7 @@ int __attribute__((always_inline)) sys_unlink_ret(void *ctx, int retval) {
     u64 enabled_events = get_enabled_events();
     int pass_to_userspace = !syscall->discarded &&
                             (mask_has_event(enabled_events, EVENT_UNLINK) ||
-                             mask_has_event(enabled_events, EVENT_RMDIR));
+                                mask_has_event(enabled_events, EVENT_RMDIR));
     if (pass_to_userspace) {
         if (syscall->unlink.flags & AT_REMOVEDIR) {
             struct rmdir_event_t event = {
@@ -132,6 +137,7 @@ int __attribute__((always_inline)) sys_unlink_ret(void *ctx, int retval) {
         } else {
             struct unlink_event_t event = {
                 .syscall.retval = retval,
+                .syscall_ctx.id = syscall->ctx_id,
                 .event.flags = syscall->async ? EVENT_FLAGS_ASYNC : 0,
                 .file = syscall->unlink.file,
                 .flags = syscall->unlink.flags,

@@ -1,0 +1,21 @@
+[Unit]
+Description=Datadog Agent
+After=network.target
+Wants=datadog-agent-trace.service datadog-agent-process.service datadog-agent-sysprobe.service datadog-agent-security.service
+Conflicts=datadog-agent-trace-exp.service datadog-agent-process-exp.service datadog-agent-sysprobe-exp.service datadog-agent-security-exp.service
+Before=datadog-agent-trace-exp.service datadog-agent-process-exp.service datadog-agent-sysprobe-exp.service datadog-agent-security-exp.service
+
+[Service]
+Type=simple
+PIDFile=/opt/datadog-packages/datadog-agent/stable/run/agent.pid
+User=dd-agent
+Restart=on-failure
+EnvironmentFile=-/etc/datadog-agent/environment
+ExecStart=/opt/datadog-packages/datadog-agent/stable/bin/agent/agent run -p /opt/datadog-packages/datadog-agent/stable/run/agent.pid
+# Since systemd 229, should be in [Unit] but in order to support systemd <229,
+# it is also supported to have it here.
+StartLimitInterval=10
+StartLimitBurst=5
+
+[Install]
+WantedBy=multi-user.target

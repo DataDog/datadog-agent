@@ -39,12 +39,11 @@ func (a *Port) lessThan(b *Port) bool {
 type List []Port
 
 func (pl List) String() string {
-	var sb strings.Builder
-	for _, v := range pl {
-		fmt.Fprintf(&sb, "%-3s %5d %#v\n",
-			v.Proto, v.Port, v.Process)
+	out := make([]string, len(pl))
+	for i, v := range pl {
+		out[i] = fmt.Sprintf("[%s]%s:%d", v.Process, v.Proto, v.Port)
 	}
-	return strings.TrimRight(sb.String(), "\n")
+	return strings.Join(out, ",")
 }
 
 // sortAndDedup sorts ps in place (by Port.lessThan) and then returns

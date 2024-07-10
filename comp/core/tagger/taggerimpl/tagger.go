@@ -15,26 +15,28 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/api/api"
-	apiutils "github.com/DataDog/datadog-agent/comp/api/api/utils"
+	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	logComp "github.com/DataDog/datadog-agent/comp/core/log"
 	taggerComp "github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/collectors"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/local"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/remote"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/replay"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/utils"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	coretelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 	taggertypes "github.com/DataDog/datadog-agent/pkg/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
@@ -47,11 +49,12 @@ var entityIDRegex = regexp.MustCompile(`^en-(init\.)?([a-fA-F0-9-]+)/([a-zA-Z0-9
 type dependencies struct {
 	fx.In
 
-	Lc     fx.Lifecycle
-	Config configComponent.Component
-	Log    logComp.Component
-	Wmeta  workloadmeta.Component
-	Params taggerComp.Params
+	Lc        fx.Lifecycle
+	Config    configComponent.Component
+	Log       logComp.Component
+	Wmeta     workloadmeta.Component
+	Params    taggerComp.Params
+	Telemetry coretelemetry.Component
 }
 
 type provides struct {
@@ -90,50 +93,51 @@ type TaggerClient struct {
 
 	wmeta         workloadmeta.Component
 	datadogConfig datadogConfig
-}
 
-// we use to pull tagger metrics in dogstatsd. Pulling it later in the
-// pipeline improve memory allocation. We kept the old name to be
-// backward compatible and because origin detection only affect
-// dogstatsd metrics.
-var tlmUDPOriginDetectionError = telemetry.NewCounter("dogstatsd", "udp_origin_detection_error",
-	nil, "Dogstatsd UDP origin detection error count")
+	checksCardinality          types.TagCardinality
+	dogstatsdCardinality       types.TagCardinality
+	tlmUDPOriginDetectionError coretelemetry.Counter
+	telemetryStore             *telemetry.Store
+}
 
 // newTaggerClient returns a Component based on provided params, once it is provided,
 // fx will cache the component which is effectively a singleton instance, cached by fx.
 // it should be deprecated and removed
 func newTaggerClient(deps dependencies) provides {
 	var taggerClient *TaggerClient
+	telemetryStore := telemetry.NewStore(deps.Telemetry)
+
 	switch deps.Params.AgentTypeForTagger {
 	case taggerComp.CLCRunnerRemoteTaggerAgent:
 		options, err := remote.CLCRunnerOptions(deps.Config)
+
 		if err != nil {
 			deps.Log.Errorf("unable to deps.Configure the remote tagger: %s", err)
 			taggerClient = &TaggerClient{
-				defaultTagger: local.NewFakeTagger(),
+				defaultTagger: local.NewFakeTagger(telemetryStore),
 				captureTagger: nil,
 			}
 		} else if options.Disabled {
 			deps.Log.Errorf("remote tagger is disabled in clc runner.")
 			taggerClient = &TaggerClient{
-				defaultTagger: local.NewFakeTagger(),
+				defaultTagger: local.NewFakeTagger(telemetryStore),
 				captureTagger: nil,
 			}
 		} else {
 			taggerClient = &TaggerClient{
-				defaultTagger: remote.NewTagger(options),
+				defaultTagger: remote.NewTagger(options, telemetryStore),
 				captureTagger: nil,
 			}
 		}
 	case taggerComp.NodeRemoteTaggerAgent:
 		options, _ := remote.NodeAgentOptions(deps.Config)
 		taggerClient = &TaggerClient{
-			defaultTagger: remote.NewTagger(options),
+			defaultTagger: remote.NewTagger(options, telemetryStore),
 			captureTagger: nil,
 		}
 	case taggerComp.LocalTaggerAgent:
 		taggerClient = &TaggerClient{
-			defaultTagger: local.NewTagger(deps.Wmeta),
+			defaultTagger: local.NewTagger(deps.Wmeta, telemetryStore),
 			captureTagger: nil,
 		}
 	case taggerComp.FakeTagger:
@@ -141,7 +145,7 @@ func newTaggerClient(deps dependencies) provides {
 		// provide a fake tagger for testing purposes, as calling the global
 		// tagger without proper initialization is very common there.
 		taggerClient = &TaggerClient{
-			defaultTagger: local.NewFakeTagger(),
+			defaultTagger: local.NewFakeTagger(telemetryStore),
 			captureTagger: nil,
 		}
 	}
@@ -153,6 +157,12 @@ func newTaggerClient(deps dependencies) provides {
 	taggerClient.datadogConfig.dogstatsdEntityIDPrecedenceEnabled = deps.Config.GetBool("dogstatsd_entity_id_precedence")
 	taggerClient.datadogConfig.originDetectionUnifiedEnabled = deps.Config.GetBool("origin_detection_unified")
 	taggerClient.datadogConfig.dogstatsdOptOutEnabled = deps.Config.GetBool("dogstatsd_origin_optout_enabled")
+	// we use to pull tagger metrics in dogstatsd. Pulling it later in the
+	// pipeline improve memory allocation. We kept the old name to be
+	// backward compatible and because origin detection only affect
+	// dogstatsd metrics.
+	taggerClient.tlmUDPOriginDetectionError = deps.Telemetry.NewCounter("dogstatsd", "udp_origin_detection_error", nil, "Dogstatsd UDP origin detection error count")
+	taggerClient.telemetryStore = telemetryStore
 
 	deps.Log.Info("TaggerClient is created, defaultTagger type: ", reflect.TypeOf(taggerClient.defaultTagger))
 	taggerComp.SetGlobalTaggerClient(taggerClient)
@@ -160,23 +170,23 @@ func newTaggerClient(deps dependencies) provides {
 		var err error
 		checkCard := deps.Config.GetString("checks_tag_cardinality")
 		dsdCard := deps.Config.GetString("dogstatsd_tag_cardinality")
-		taggerComp.ChecksCardinality, err = types.StringToTagCardinality(checkCard)
+		taggerClient.checksCardinality, err = types.StringToTagCardinality(checkCard)
 		if err != nil {
 			deps.Log.Warnf("failed to parse check tag cardinality, defaulting to low. Error: %s", err)
-			taggerComp.ChecksCardinality = types.LowCardinality
+			taggerClient.checksCardinality = types.LowCardinality
 		}
 
-		taggerComp.DogstatsdCardinality, err = types.StringToTagCardinality(dsdCard)
+		taggerClient.dogstatsdCardinality, err = types.StringToTagCardinality(dsdCard)
 		if err != nil {
 			deps.Log.Warnf("failed to parse dogstatsd tag cardinality, defaulting to low. Error: %s", err)
-			taggerComp.DogstatsdCardinality = types.LowCardinality
+			taggerClient.dogstatsdCardinality = types.LowCardinality
 		}
 		// Main context passed to components, consistent with the one used in the workloadmeta component
 		mainCtx, _ := common.GetMainCtxCancel()
 		err = taggerClient.Start(mainCtx)
 		if err != nil && deps.Params.FallBackToLocalIfRemoteTaggerFails {
 			deps.Log.Warnf("Starting remote tagger failed. Falling back to local tagger: %s", err)
-			taggerClient.defaultTagger = local.NewTagger(deps.Wmeta)
+			taggerClient.defaultTagger = local.NewTagger(deps.Wmeta, telemetryStore)
 			// Retry to start the local tagger
 			return taggerClient.Start(mainCtx)
 		}
@@ -196,7 +206,7 @@ func (t *TaggerClient) writeList(w http.ResponseWriter, _ *http.Request) {
 
 	jsonTags, err := json.Marshal(response)
 	if err != nil {
-		apiutils.SetJSONError(w, log.Errorf("Unable to marshal tagger list response: %s", err), 500)
+		httputils.SetJSONError(w, log.Errorf("Unable to marshal tagger list response: %s", err), 500)
 		return
 	}
 	w.Write(jsonTags)
@@ -210,6 +220,16 @@ func (t *TaggerClient) Start(ctx context.Context) error {
 // Stop calls defaultTagger.Stop
 func (t *TaggerClient) Stop() error {
 	return t.defaultTagger.Stop()
+}
+
+// ReplayTagger returns the replay tagger instance
+func (t *TaggerClient) ReplayTagger() taggerComp.ReplayTagger {
+	return replay.NewTagger(t.telemetryStore)
+}
+
+// GetTaggerTelemetryStore returns tagger telemetry store
+func (t *TaggerClient) GetTaggerTelemetryStore() *telemetry.Store {
+	return t.telemetryStore
 }
 
 // GetDefaultTagger returns the default Tagger in current instance
@@ -364,7 +384,7 @@ func (t *TaggerClient) ResetCaptureTagger() {
 // enrichment, the metric and its tags is sent to the context key generator, which
 // is taking care of deduping the tags while generating the context key.
 func (t *TaggerClient) EnrichTags(tb tagset.TagsAccumulator, originInfo taggertypes.OriginInfo) {
-	cardinality := taggerCardinality(originInfo.Cardinality)
+	cardinality := taggerCardinality(originInfo.Cardinality, t.dogstatsdCardinality)
 
 	productOrigin := originInfo.ProductOrigin
 	// If origin_detection_unified is disabled, we use DogStatsD's Legacy Origin Detection.
@@ -429,7 +449,7 @@ func (t *TaggerClient) EnrichTags(tb tagset.TagsAccumulator, originInfo taggerty
 
 		if originFromClient != "" {
 			if err := t.AccumulateTagsFor(originFromClient, cardinality, tb); err != nil {
-				tlmUDPOriginDetectionError.Inc()
+				t.tlmUDPOriginDetectionError.Inc()
 				log.Tracef("Cannot get tags for entity %s: %s", originFromClient, err)
 			}
 		}
@@ -486,17 +506,30 @@ func (t *TaggerClient) parseEntityID(entityID string, metricsProvider provider.C
 	return containers.BuildTaggerEntityName(cid)
 }
 
+// ChecksCardinality defines the cardinality of tags we should send for check metrics
+// this can still be overridden when calling get_tags in python checks.
+func (t *TaggerClient) ChecksCardinality() types.TagCardinality {
+	return t.checksCardinality
+}
+
+// DogstatsdCardinality defines the cardinality of tags we should send for metrics from
+// dogstatsd.
+func (t *TaggerClient) DogstatsdCardinality() types.TagCardinality {
+	return t.dogstatsdCardinality
+}
+
 // taggerCardinality converts tagger cardinality string to types.TagCardinality
-// It defaults to DogstatsdCardinality if the string is empty or unknown
-func taggerCardinality(cardinality string) types.TagCardinality {
+// It should be defaulted to DogstatsdCardinality if the string is empty or unknown
+func taggerCardinality(cardinality string,
+	defaultCardinality types.TagCardinality) types.TagCardinality {
 	if cardinality == "" {
-		return taggerComp.DogstatsdCardinality
+		return defaultCardinality
 	}
 
 	taggerCardinality, err := types.StringToTagCardinality(cardinality)
 	if err != nil {
 		log.Tracef("Couldn't convert cardinality tag: %v", err)
-		return taggerComp.DogstatsdCardinality
+		return defaultCardinality
 	}
 
 	return taggerCardinality
@@ -515,10 +548,11 @@ func (t *TaggerClient) Unsubscribe(ch chan []types.EntityEvent) {
 type optionalTaggerDeps struct {
 	fx.In
 
-	Lc     fx.Lifecycle
-	Config configComponent.Component
-	Log    logComp.Component
-	Wmeta  optional.Option[workloadmeta.Component]
+	Lc        fx.Lifecycle
+	Config    configComponent.Component
+	Log       logComp.Component
+	Wmeta     optional.Option[workloadmeta.Component]
+	Telemetry coretelemetry.Component
 }
 
 // OptionalModule defines the fx options when tagger should be used as an optional
@@ -545,5 +579,6 @@ func NewOptionalTagger(deps optionalTaggerDeps) optional.Option[taggerComp.Compo
 		Params: taggerComp.Params{
 			AgentTypeForTagger: taggerComp.LocalTaggerAgent,
 		},
+		Telemetry: deps.Telemetry,
 	}).Comp)
 }

@@ -8,7 +8,7 @@
 package ecsfargate
 
 import (
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 )
 
 type fakeWorkloadmetaStore struct {
