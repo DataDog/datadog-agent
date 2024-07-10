@@ -8,7 +8,7 @@ package winawshost
 
 import (
 	"fmt"
-
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/test-infra-definitions/components/activedirectory"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
@@ -40,6 +40,7 @@ type ProvisionerParams struct {
 	fakeintakeOptions      []fakeintake.Option
 	activeDirectoryOptions []activedirectory.Option
 	defenderoptions        []defender.Option
+	installerOptions       []components.Option
 }
 
 // ProvisionerOption is a provisioner option.
@@ -117,12 +118,22 @@ func WithDefenderOptions(opts ...defender.Option) ProvisionerOption {
 	}
 }
 
+// WithInstaller configures Datadog Installer on an EC2 VM.
+func WithInstaller(opts ...components.Option) ProvisionerOption {
+	return func(params *ProvisionerParams) error {
+		params.installerOptions = append(params.installerOptions, opts...)
+		return nil
+	}
+}
+
 // Run deploys a Windows environment given a pulumi.Context
 func Run(ctx *pulumi.Context, env *environments.WindowsHost, params *ProvisionerParams) error {
 	awsEnv, err := aws.NewEnvironment(ctx)
 	if err != nil {
 		return err
 	}
+
+	env.AwsEnvironment = &awsEnv
 
 	// Make sure to override any OS other than Windows
 	// TODO: Make the Windows version configurable
@@ -201,6 +212,19 @@ func Run(ctx *pulumi.Context, env *environments.WindowsHost, params *Provisioner
 		env.Agent.ClientOptions = params.agentClientOptions
 	} else {
 		env.Agent = nil
+	}
+
+	if params.installerOptions != nil {
+		installer, err := components.NewInstaller(&awsEnv, host, params.installerOptions...)
+		if err != nil {
+			return err
+		}
+		err = installer.Export(ctx, &env.Installer.Output)
+		if err != nil {
+			return err
+		}
+	} else {
+		env.Installer = nil
 	}
 
 	return nil
