@@ -39,7 +39,7 @@ struct cgroup_context_t {
 };
 
 struct container_context_t {
-    char container_id[CONTAINER_ID_LEN];
+    container_id_t container_id;
     struct cgroup_context_t cgroup_context;
 };
 

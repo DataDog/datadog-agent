@@ -53,7 +53,7 @@ __attribute__((always_inline)) struct cgroup_tracing_event_t *get_cgroup_tracing
     return evt;
 }
 
-__attribute__((always_inline)) bool reserve_traced_cgroup_spot(char cgroup[CONTAINER_ID_LEN], u64 now, u64 cookie, struct activity_dump_config *config) {
+__attribute__((always_inline)) bool reserve_traced_cgroup_spot(container_id_t cgroup, u64 now, u64 cookie, struct activity_dump_config *config) {
     // insert dump config defaults
     u32 defaults_key = 0;
     struct activity_dump_config *defaults = bpf_map_lookup_elem(&activity_dump_config_defaults, &defaults_key);
@@ -84,7 +84,7 @@ __attribute__((always_inline)) bool reserve_traced_cgroup_spot(char cgroup[CONTA
     return true;
 }
 
-__attribute__((always_inline)) u64 trace_new_cgroup(void *ctx, u64 now, char cgroup[CONTAINER_ID_LEN], u64 cgroup_flags) {
+__attribute__((always_inline)) u64 trace_new_cgroup(void *ctx, u64 now, container_id_t cgroup, u64 cgroup_flags) {
     u64 cookie = rand64();
     struct activity_dump_config config = {};
 
@@ -109,7 +109,7 @@ __attribute__((always_inline)) u64 trace_new_cgroup(void *ctx, u64 now, char cgr
     return cookie;
 }
 
-__attribute__((always_inline)) u64 should_trace_new_process_cgroup(void *ctx, u64 now, u32 pid, char cgroup[CONTAINER_ID_LEN], u64 cgroup_flags) {
+__attribute__((always_inline)) u64 should_trace_new_process_cgroup(void *ctx, u64 now, u32 pid, container_id_t cgroup, u64 cgroup_flags) {
     // should we start tracing this cgroup ?
     if (is_cgroup_activity_dumps_enabled() && cgroup[0] != 0) {
         // is this cgroup traced ?
@@ -177,8 +177,7 @@ __attribute__((always_inline)) u64 should_trace_new_process(void *ctx, u64 now, 
     u32 pid = flags & 0xffffffff;
     u32 cgroup_flags = flags >> 32;
 
-    char container_id[CONTAINER_ID_LEN];
-
+    container_id_t container_id;
     bpf_probe_read(&container_id, sizeof(container_id), cgroup_p);
     u64 cookie = should_trace_new_process_cgroup(ctx, now, pid, container_id, cgroup_flags);
 
