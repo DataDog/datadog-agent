@@ -1419,7 +1419,7 @@ func getAndValidateKafkaStats(t *testing.T, monitor *Monitor, expectedStatsCount
 		if expectedStatsCount != 0 {
 			validateProduceFetchCount(collect, kafkaStats, topicName, validation, errorCode)
 		}
-	}, time.Second*5, time.Millisecond*100)
+	}, time.Second*5, time.Millisecond*10)
 	return kafkaStats
 }
 
@@ -1444,7 +1444,7 @@ func getAndValidateKafkaStatsWithErrorCodes(t *testing.T, monitor *Monitor, expe
 		if expectedStatsCount != 0 {
 			validateProduceFetchCountWithErrorCodes(collect, kafkaStats, topicName, validation)
 		}
-	}, time.Second*5, time.Millisecond*100)
+	}, time.Second*5, time.Millisecond*10)
 	return kafkaStats
 }
 
