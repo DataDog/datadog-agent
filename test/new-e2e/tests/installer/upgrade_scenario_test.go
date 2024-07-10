@@ -489,7 +489,7 @@ func (s *upgradeScenarioSuite) assertSuccessfulInstallerStartExperiment(timestam
 }
 
 func (s *upgradeScenarioSuite) assertSuccessfulInstallerPromoteExperiment(timestamp host.JournaldTimestamp, version string) {
-	s.host.WaitForUnitActivating(installerUnit)
+	s.host.WaitForUnitActive(installerUnit)
 
 	// Assert experiment is running
 	s.host.AssertSystemdEvents(timestamp, host.SystemdEvents().
