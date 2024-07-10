@@ -1245,6 +1245,7 @@ def ssh_config(
                 if instance.arch != "local":
                     print(f"    ProxyJump kmt-{stack_name}-{instance.arch}")
                 print(f"    IdentityFile {ddvm_rsa}")
+                print("    IdentitiesOnly yes")
                 print("    User root")
 
                 for key, value in SSH_OPTIONS.items():
