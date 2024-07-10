@@ -350,12 +350,11 @@ func (c *collector) buildCollectorEvent(ctx context.Context, ev *docker.Containe
 
 func extractImage(ctx context.Context, container types.ContainerJSON, resolve resolveHook, store workloadmeta.Component) workloadmeta.ContainerImage {
 	imageSpec := container.Config.Image
-	image := workloadmeta.ContainerImage{
-		RawName: imageSpec,
-		Name:    imageSpec,
-	}
 
-	var err error
+	var (
+		image workloadmeta.ContainerImage
+		err   error
+	)
 
 	if strings.Contains(imageSpec, "@sha256") {
 		image, err = workloadmeta.NewContainerImage(container.Image, imageSpec)
@@ -364,7 +363,7 @@ func extractImage(ctx context.Context, container types.ContainerJSON, resolve re
 		}
 	}
 
-	if image.Name == "" && image.Tag == "" {
+	if (image.Name == "" && image.Tag == "") || err != nil {
 		resolvedImageSpec, err := resolve(ctx, container)
 		if err != nil {
 			log.Debugf("cannot resolve image name %q for container %q: %s", imageSpec, container.ID, err)
