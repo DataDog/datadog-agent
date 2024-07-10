@@ -42,12 +42,13 @@ func TestNotStarted(t *testing.T) {
 	ts := testSetup(t, overrides, false)
 
 	// IP address in private range
-	ts.rdnsQuerier.GetHostnameAsync(
+	err := ts.rdnsQuerier.GetHostnameAsync(
 		[]byte{192, 168, 1, 100},
 		func(hostname string) {
 			assert.FailNow(t, "Callback should not be called when rdnsquerier is not started")
 		},
 	)
+	assert.Error(t, err)
 
 	expectedTelemetry := map[string]float64{
 		"total":                1.0,
@@ -76,30 +77,33 @@ func TestNormalOperations(t *testing.T) {
 	var wg sync.WaitGroup
 
 	// Invalid IP address
-	ts.rdnsQuerier.GetHostnameAsync(
+	err := ts.rdnsQuerier.GetHostnameAsync(
 		[]byte{1, 2, 3},
 		func(hostname string) {
 			assert.FailNow(t, "Callback should not be called for invalid IP address")
 		},
 	)
+	assert.Error(t, err)
 
 	// IP address not in private range
-	ts.rdnsQuerier.GetHostnameAsync(
+	err = ts.rdnsQuerier.GetHostnameAsync(
 		[]byte{8, 8, 8, 8},
 		func(hostname string) {
 			assert.FailNow(t, "Callback should not be called for IP address not in private range")
 		},
 	)
+	assert.NoError(t, err)
 
 	// IP address in private range
 	wg.Add(1)
-	ts.rdnsQuerier.GetHostnameAsync(
+	err = ts.rdnsQuerier.GetHostnameAsync(
 		[]byte{192, 168, 1, 100},
 		func(hostname string) {
 			assert.Equal(t, "fakehostname-192.168.1.100", hostname)
 			wg.Done()
 		},
 	)
+	assert.NoError(t, err)
 	wg.Wait()
 
 	expectedTelemetry := map[string]float64{
@@ -133,12 +137,13 @@ func TestRateLimiter(t *testing.T) {
 
 	// IP addresses in private range
 	for i := range 256 {
-		ts.rdnsQuerier.GetHostnameAsync(
+		err := ts.rdnsQuerier.GetHostnameAsync(
 			[]byte{192, 168, 1, byte(i)},
 			func(hostname string) {
 				assert.Equal(t, fmt.Sprintf("fakehostname-192.168.1.%d", i), hostname)
 			},
 		)
+		assert.NoError(t, err)
 	}
 
 	time.Sleep(numSeconds * time.Second)
@@ -158,7 +163,7 @@ func TestRateLimiter(t *testing.T) {
 	ts.validateExpected(t, expectedTelemetry)
 
 	maximumTelemetry := map[string]float64{
-		"successful": float(numSeconds + 3), // expect maximum of 1 per second, plus some buffer for test timing
+		"successful": float64(numSeconds + 3), // expect maximum of 1 per second, plus some buffer for test timing
 	}
 	ts.validateMaximum(t, maximumTelemetry)
 }
@@ -177,10 +182,11 @@ func TestChannelFullRequestsDroppedWhenRateLimited(t *testing.T) {
 	var wg sync.WaitGroup
 
 	// IP addresses in private range
+	var errCount int
 	wg.Add(1) // only wait for one callback, some or all of the other requests will be dropped
 	var once sync.Once
 	for i := range 256 {
-		ts.rdnsQuerier.GetHostnameAsync(
+		err := ts.rdnsQuerier.GetHostnameAsync(
 			[]byte{192, 168, 1, byte(i)},
 			func(hostname string) {
 				assert.Equal(t, fmt.Sprintf("fakehostname-192.168.1.%d", i), hostname)
@@ -189,12 +195,17 @@ func TestChannelFullRequestsDroppedWhenRateLimited(t *testing.T) {
 				})
 			},
 		)
+		if err != nil {
+			errCount++
+		}
 	}
 	wg.Wait()
 
 	expectedTelemetry := map[string]float64{
 		"total":                256.0,
 		"private":              256.0,
+		"chan_added":           float64(256 - errCount),
+		"dropped_chan_full":    float64(errCount),
 		"dropped_rate_limiter": 0.0,
 		"invalid_ip_address":   0.0,
 		"lookup_err_not_found": 0.0,
@@ -205,9 +216,7 @@ func TestChannelFullRequestsDroppedWhenRateLimited(t *testing.T) {
 	ts.validateExpected(t, expectedTelemetry)
 
 	minimumTelemetry := map[string]float64{
-		"chan_added":        1.0,
-		"dropped_chan_full": 1.0,
-		"successful":        1.0,
+		"successful": 1.0,
 	}
 	ts.validateMinimum(t, minimumTelemetry)
 }
