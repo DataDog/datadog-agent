@@ -338,7 +338,8 @@ type AgentConfig struct {
 	// the agent is under load and the outgoing payload queue is full. In that
 	// case, the sender will drop failed payloads when it is unable to enqueue
 	// them for another retry.
-	MaxSenderRetries int
+	MaxSenderRetries  int
+	HTTPTransportFunc func() *http.Transport // HTTP transport used in writer connections. If nil, default transport values will be used.
 
 	// internal telemetry
 	StatsdEnabled  bool
@@ -557,7 +558,7 @@ func (c *AgentConfig) NewHTTPClient() *ResetClient {
 	return NewResetClient(c.ConnectionResetInterval, func() *http.Client {
 		return &http.Client{
 			Timeout:   10 * time.Second,
-			Transport: c.NewHTTPTransport(),
+			Transport: c.HTTPTransportFunc(),
 		}
 	})
 }
@@ -565,6 +566,10 @@ func (c *AgentConfig) NewHTTPClient() *ResetClient {
 // NewHTTPTransport returns a new http.Transport to be used for outgoing connections to
 // the Datadog API.
 func (c *AgentConfig) NewHTTPTransport() *http.Transport {
+	// If a custom HTTPTransportFunc has been set, use it. Otherwise use default transport values
+	if c.HTTPTransportFunc != nil {
+		return c.HTTPTransportFunc()
+	}
 	transport := &http.Transport{
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: c.SkipSSLValidation},
 		// below field values are from http.DefaultTransport (go1.12)
