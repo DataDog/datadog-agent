@@ -100,8 +100,8 @@ func (p deploymentParser) Parse(obj interface{}) []workloadmeta.Entity {
 			ID:   deployment.Namespace + "/" + deployment.Name, // we use the namespace/name as id to make it easier for the admission controller to retrieve the corresponding deployment
 		},
 		EntityMeta: workloadmeta.EntityMeta{
-			Labels:      deployment.Labels,
-			Annotations: deployment.Annotations,
+			// Labels:      deployment.Labels,
+			// Annotations: deployment.Annotations,
 		},
 		Env:                 deployment.Labels[ddkube.EnvTagLabelKey],
 		Service:             deployment.Labels[ddkube.ServiceTagLabelKey],
@@ -115,8 +115,8 @@ func (p deploymentParser) Parse(obj interface{}) []workloadmeta.Entity {
 			ID:   string(util.GenerateKubeMetadataEntityID("apps", "deployments", deployment.Namespace, deployment.Name)),
 		},
 		EntityMeta: workloadmeta.EntityMeta{
-			Labels:      deploymentEntity.Labels,
-			Annotations: deploymentEntity.Annotations,
+			// Labels:      deploymentEntity.Labels,
+			// Annotations: deploymentEntity.Annotations,
 		},
 		GVR: deployment.GroupVersionKind().GroupVersion().WithResource("deployments"),
 	})
