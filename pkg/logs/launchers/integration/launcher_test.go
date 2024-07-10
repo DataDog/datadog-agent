@@ -15,6 +15,8 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	"github.com/DataDog/datadog-agent/comp/logs/integrations/def"
+	integrationsMock "github.com/DataDog/datadog-agent/comp/logs/integrations/mock"
 	pkgConfig "github.com/DataDog/datadog-agent/pkg/config"
 	auditor "github.com/DataDog/datadog-agent/pkg/logs/auditor/mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util"
@@ -36,12 +38,14 @@ type LauncherTestSuite struct {
 	outputChan       chan *message.Message
 	pipelineProvider pipeline.Provider
 	source           *sources.LogSource
+	integrationsComp integrations.Component
 	s                *Launcher
 }
 
 func (suite *LauncherTestSuite) SetupTest() {
 	suite.pipelineProvider = mock.NewMockProvider()
 	suite.outputChan = suite.pipelineProvider.NextPipelineChan()
+	suite.integrationsComp = integrationsMock.Mock()
 
 	var err error
 	suite.testDir = suite.T().TempDir()
@@ -54,7 +58,7 @@ func (suite *LauncherTestSuite) SetupTest() {
 
 	sleepDuration := 20 * time.Millisecond
 	suite.source = sources.NewLogSource("", &config.LogsConfig{Type: config.IntegrationType, Path: suite.testPath})
-	suite.s = NewLauncher(suite.testDir, sleepDuration)
+	suite.s = NewLauncher(suite.testDir, sleepDuration, suite.integrationsComp)
 	suite.s.piplineProvider = suite.pipelineProvider
 	suite.s.registry = auditor.NewRegistry()
 	status.InitStatus(pkgConfig.Datadog(), util.CreateSources([]*sources.LogSource{suite.source}))

@@ -25,7 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	flareController "github.com/DataDog/datadog-agent/comp/logs/agent/flare"
-	logsIntegrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
+	"github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	rctypes "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
 	pkgConfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -79,7 +79,7 @@ type dependencies struct {
 	Hostname           hostname.Component
 	WMeta              optional.Option[workloadmeta.Component]
 	SchedulerProviders []schedulers.Scheduler `group:"log-agent-scheduler"`
-	LogsIntegrations   logsIntegrations.Component
+	IntegrationsLogs   integrations.Component
 }
 
 type provides struct {
@@ -114,6 +114,7 @@ type logAgent struct {
 	flarecontroller           *flareController.FlareController
 	wmeta                     optional.Option[workloadmeta.Component]
 	schedulerProviders        []schedulers.Scheduler
+	integrationsLogs          integrations.Component
 
 	// started is true if the logs agent is running
 	started *atomic.Bool
@@ -138,6 +139,7 @@ func newLogsAgent(deps dependencies) provides {
 			flarecontroller:    flareController.NewFlareController(),
 			wmeta:              deps.WMeta,
 			schedulerProviders: deps.SchedulerProviders,
+			integrationsLogs:   deps.IntegrationsLogs,
 		}
 		deps.Lc.Append(fx.Hook{
 			OnStart: logsAgent.start,
@@ -224,7 +226,7 @@ func (a *logAgent) setupAgent() error {
 		status.AddGlobalWarning(invalidProcessingRules, multiLineWarning)
 	}
 
-	a.SetupPipeline(processingRules, a.wmeta)
+	a.SetupPipeline(processingRules, a.wmeta, a.integrationsLogs)
 	return nil
 }
 

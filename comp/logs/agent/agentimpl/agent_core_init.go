@@ -12,6 +12,7 @@ import (
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	pkgConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
@@ -31,7 +32,7 @@ import (
 )
 
 // NewAgent returns a new Logs Agent
-func (a *logAgent) SetupPipeline(processingRules []*config.ProcessingRule, wmeta optional.Option[workloadmeta.Component]) {
+func (a *logAgent) SetupPipeline(processingRules []*config.ProcessingRule, wmeta optional.Option[workloadmeta.Component], integrationsLogs integrations.Component) {
 	health := health.RegisterLiveness("logs-agent")
 
 	// setup the auditor
@@ -59,7 +60,8 @@ func (a *logAgent) SetupPipeline(processingRules []*config.ProcessingRule, wmeta
 	lnchrs.AddLauncher(container.NewLauncher(a.sources, wmeta))
 	lnchrs.AddLauncher(integrationLauncher.NewLauncher(
 		a.config.GetString("logs_config.run_path"),
-		integrationLauncher.DefaultSleepDuration))
+		integrationLauncher.DefaultSleepDuration,
+		integrationsLogs))
 
 	a.schedulers = schedulers.NewSchedulers(a.sources, a.services)
 	a.auditor = auditor
