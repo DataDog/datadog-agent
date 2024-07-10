@@ -75,13 +75,10 @@ var testCatalog = catalog{
 
 const (
 	unknownAgentImageVersion  = "7.52.1-1"
-	previousAgentVersion      = "7.54.0"
 	previousAgentImageVersion = "7.54.0-1"
-	latestAgentVersion        = "7.54.1"
 	latestAgentImageVersion   = "7.54.1-1"
 
 	latestInstallerImageVersion = "7.55.0-installer-0.4.2-1"
-	latestInstallerVersion      = "7.55.0-installer-0.4.2"
 )
 
 func testUpgradeScenario(os e2eos.Descriptor, arch e2eos.Architecture) packageSuite {
