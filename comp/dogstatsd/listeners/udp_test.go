@@ -224,31 +224,13 @@ func TestUDPReceive(t *testing.T) {
 	telemetryStore := NewTelemetryStore(nil, deps.Telemetry)
 	packetsTelemetryStore := packets.NewTelemetryStore(nil, deps.Telemetry)
 	s, err := NewUDPListener(packetChannel, newPacketPoolManagerUDP(deps.Config, packetsTelemetryStore), deps.Config, nil, telemetryStore, packetsTelemetryStore)
-
-	readyChan := make(chan struct{}) // Create a channel to signal readiness
-	timeout := time.After(10 * time.Second)
-
-	go func() {
-		s.Listen()       // Start listening in a goroutine
-		close(readyChan) // Signal readiness by closing the channel
-	}()
-
-	select {
-	case <-readyChan:
-		// Server is ready, proceed with assertions
-		assert.Nil(t, err)
-		assert.NotNil(t, s, "Failed to create UDP listener")
-		// Dial udp port
-		conn, err := net.Dial("udp", fmt.Sprintf("127.0.0.1:%d", port))
-		assert.Nil(t, err)
-		assert.NotNilf(t, conn, "Failed to connect to dogstatsd udp port 127.0.0.1:%d", port)
-		defer conn.Close()
-		// Send contents
-		_, err = conn.Write(contents)
-		assert.Nil(t, err)
-	case <-timeout:
-		require.FailNow(t, "Timeout: Server did not start listening within the expected time")
-	}
+	assert.Nil(t, err)
+	require.NotNil(t, s)
+	conn, err := net.Dial("udp", fmt.Sprintf("127.0.0.1:%d", port))
+	assert.Nil(t, err)
+	require.NotNil(t, conn)
+	defer conn.Close()
+	conn.Write(contents)
 
 	defer s.Stop()
 

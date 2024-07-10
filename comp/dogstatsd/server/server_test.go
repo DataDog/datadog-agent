@@ -503,10 +503,8 @@ func TestUDPForward(t *testing.T) {
 	requireStart(t, deps.Server)
 
 	conn, err := net.Dial("udp", deps.Server.UDPLocalAddr())
-	assert.EventuallyWithT(t, func(c *assert.CollectT) {
-		assert.NoError(t, err)
-		assert.NotNilf(t, conn, "Failed to connect to UDP local address %s", err)
-	}, 2*time.Minute, 2*time.Second)
+	assert.NoError(t, err)
+	require.NotNilf(t, conn, "Failed to connect to UDP local address %s", err)
 	defer conn.Close()
 
 	// Check if message is forwarded
