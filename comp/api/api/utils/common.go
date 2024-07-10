@@ -60,7 +60,7 @@ func StreamRequest(url string, body []byte, duration time.Duration, onChunk func
 	return e
 }
 
-// openFileForWriting opens a file for writing
+// OpenFileForWriting opens a file for writing
 func OpenFileForWriting(filePath string) (*os.File, *bufio.Writer, error) {
 	log.Infof("opening file %s for writing", filePath)
 	f, err := os.OpenFile(filePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
@@ -71,7 +71,7 @@ func OpenFileForWriting(filePath string) (*os.File, *bufio.Writer, error) {
 	return f, bufWriter, nil
 }
 
-// checkDirExists checks if the directory for the given path exists, if not then create it.
+// CheckDirExists checks if the directory for the given path exists, if not then create it.
 func CheckDirExists(path string) error {
 	dir := filepath.Dir(path)
 	if _, err := os.Stat(dir); os.IsNotExist(err) {

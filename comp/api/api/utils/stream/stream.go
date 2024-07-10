@@ -22,9 +22,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// StreamLogsParams represents the parameters for streaming logs
 type StreamLogsParams struct {
-	// filters diagnostic.Filters
-
 	// Output represents the output file path to write the log stream to.
 	FilePath string
 
