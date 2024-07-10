@@ -6,7 +6,7 @@
 //go:build linux_bpf || (windows && npm)
 
 // Package usm contains tests for USM
-package usm
+package tests
 
 import (
 	"bufio"

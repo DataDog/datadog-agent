@@ -5,13 +5,12 @@
 
 //go:build windows && npm
 
-package usm
+package tests
 
 import (
 	"testing"
 
 	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
-	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/driver"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer"
 	tracertestutil "github.com/DataDog/datadog-agent/pkg/network/tracer/testutil"

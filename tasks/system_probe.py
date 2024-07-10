@@ -53,7 +53,6 @@ TEST_PACKAGES_LIST = [
     "./pkg/network/...",
     "./pkg/collector/corechecks/ebpf/...",
     "./pkg/process/monitor/...",
-    "./pkg/usm/...",
 ]
 TEST_PACKAGES = " ".join(TEST_PACKAGES_LIST)
 TEST_TIMEOUTS = {
