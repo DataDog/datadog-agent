@@ -20,15 +20,8 @@ func platformInit() {
 	_ = driver.Init(&sysconfigtypes.Config{})
 }
 
-func classificationSupported(_ *config.Config) bool {
-	return true
-}
-
 func TestProtocolClassification(t *testing.T) {
 	cfg := tracertestutil.Config()
-	if !classificationSupported(cfg) {
-		t.Skip("Classification is not supported")
-	}
 	t.Run("without nat", func(t *testing.T) {
 		testProtocolClassificationCrossOS(t, nil, "localhost", "127.0.0.1", "127.0.0.1")
 	})
