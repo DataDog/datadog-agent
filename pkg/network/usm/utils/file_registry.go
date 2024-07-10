@@ -49,7 +49,7 @@ type FileRegistry struct {
 	byPID    map[uint32]pathIdentifierSet
 
 	// if we can't execute a callback for a given file we don't try more than once
-	blocklistByID *simplelru.LRU[PathIdentifier, struct{}]
+	blocklistByID *simplelru.LRU[PathIdentifier, string]
 
 	telemetry registryTelemetry
 }
@@ -82,7 +82,7 @@ type callback func(FilePath) error
 
 // NewFileRegistry creates a new `FileRegistry` instance
 func NewFileRegistry(programName string) *FileRegistry {
-	blocklistByID, err := simplelru.NewLRU[PathIdentifier, struct{}](2000, nil)
+	blocklistByID, err := simplelru.NewLRU[PathIdentifier, string](2000, nil)
 	if err != nil {
 		log.Warnf("running without block cache list, creation error: %s", err)
 		blocklistByID = nil
@@ -167,7 +167,7 @@ func (r *FileRegistry) Register(namespacedPath string, pid uint32, activationCB,
 		if r.blocklistByID != nil {
 			// add `pathID` to blocklist so we don't attempt to re-register files
 			// that are problematic for some reason
-			r.blocklistByID.Add(pathID, struct{}{})
+			r.blocklistByID.Add(pathID, path.HostPath)
 		}
 		r.telemetry.fileHookFailed.Add(1)
 		return err

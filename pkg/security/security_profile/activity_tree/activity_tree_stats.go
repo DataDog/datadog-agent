@@ -56,7 +56,7 @@ func NewActivityTreeNodeStats() *Stats {
 			droppedCount: make(map[NodeDroppedReason]*atomic.Uint64),
 		}
 
-		for _, reason := range allDropReasons {
+		for reason := minNodeDroppedReason; reason <= maxNodeDroppedReason; reason++ {
 			spet.droppedCount[reason] = atomic.NewUint64(0)
 		}
 		ats.counts[i] = spet
@@ -90,7 +90,7 @@ func (stats *Stats) SendStats(client statsd.ClientInterface, treeType string) er
 		}
 
 		for generationType, count := range count.addedCount {
-			tags := []string{evtTypeTag, fmt.Sprintf("generation_type:%s", generationType), treeTypeTag}
+			tags := []string{evtTypeTag, generationType.Tag(), treeTypeTag}
 			if value := count.Swap(0); value > 0 {
 				if err := client.Count(metrics.MetricActivityDumpEventAdded, int64(value), tags, 1.0); err != nil {
 					return fmt.Errorf("couldn't send %s metric: %w", metrics.MetricActivityDumpEventAdded, err)
