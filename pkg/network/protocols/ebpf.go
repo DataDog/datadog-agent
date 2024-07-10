@@ -65,6 +65,10 @@ const (
 	ProgramPostgresParseMessage ProgramType = C.PROG_POSTGRES_PROCESS_PARSE_MESSAGE
 	// ProgramPostgresTermination is tail call to process Postgres termination.
 	ProgramPostgresTermination ProgramType = C.PROG_POSTGRES_TERMINATION
+	// ProgramRedis is the Golang representation of the C.PROG_REDIS enum
+	ProgramRedis ProgramType = C.PROG_REDIS
+	// ProgramRedisTermination is the Golang representation of the C.PROG_REDIS_TERMINATION enum
+	ProgramRedisTermination ProgramType = C.PROG_REDIS_TERMINATION
 )
 
 // Application layer of the protocol stack.

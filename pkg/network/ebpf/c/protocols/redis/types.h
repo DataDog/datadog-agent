@@ -8,6 +8,9 @@
 
 // Redis in-flight transaction info
 typedef struct {
+    __u64 request_started;
+    __u64 response_last_seen;
+    __u8 tags;
 } redis_transaction_t;
 
 // The struct we send to userspace, containing the connection tuple and the transaction information.
