@@ -567,18 +567,17 @@ def job_change_path(ctx, job_files=None):
                 color_message(
                     'warning: The following tests do not contain required change paths rule but are allowed:',
                     Color.ORANGE,
-                ),
-                file=sys.stderr,
+                )
             )
             for filepath, tests in tests_without_change_path_allowed.items():
-                print(f"- {color_message(filepath, 'bold')}: {', '.join(tests)}", file=sys.stderr)
-            print(color_message('warning: End of allow-listed jobs', Color.ORANGE), file=sys.stderr)
-            print(file=sys.stderr)
+                print(f"- {color_message(filepath, Color.BLUE)}: {', '.join(tests)}")
+            print(color_message('warning: End of allow-listed jobs', Color.ORANGE))
+            print()
 
     if len(tests_without_change_path) != 0:
         print(color_message("error: Tests without required change paths rule:", "red"), file=sys.stderr)
         for filepath, tests in tests_without_change_path.items():
-            print(f"- {color_message(filepath, 'bold')}: {', '.join(tests)}", file=sys.stderr)
+            print(f"- {color_message(filepath, Color.BLUE)}: {', '.join(tests)}", file=sys.stderr)
 
         raise RuntimeError(
             color_message(
