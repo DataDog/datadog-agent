@@ -21,7 +21,6 @@ func platformInit() {
 }
 
 func TestProtocolClassification(t *testing.T) {
-	cfg := tracertestutil.Config()
 	t.Run("without nat", func(t *testing.T) {
 		testProtocolClassificationCrossOS(t, nil, "localhost", "127.0.0.1", "127.0.0.1")
 	})
