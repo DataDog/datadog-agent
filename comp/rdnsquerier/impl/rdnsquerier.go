@@ -126,14 +126,13 @@ func NewComponent(reqs Requires) (Provides, error) {
 // space then a reverse DNS lookup is processed asynchronously.  If the lookup is successful then the updateHostname function
 // will be called asynchronously with the hostname.
 func (q *rdnsQuerierImpl) GetHostnameAsync(ipAddr []byte, updateHostname func(string)) {
-	//JMW - return error?
 	q.internalTelemetry.total.Inc()
 
 	ipaddr, ok := netip.AddrFromSlice(ipAddr)
 	if !ok {
 		q.internalTelemetry.invalidIPAddress.Inc()
 		q.logger.Debugf("Reverse DNS Enrichment IP address %v is invalid", ipAddr)
-		return
+		return //JMW - return error?
 	}
 
 	if !ipaddr.IsPrivate() {
@@ -152,7 +151,9 @@ func (q *rdnsQuerierImpl) GetHostnameAsync(ipAddr []byte, updateHostname func(st
 	default:
 		q.internalTelemetry.droppedChanFull.Inc()
 		q.logger.Debugf("Reverse DNS Enrichment channel is full, dropping query for IP address %s", query.addr)
+		//JMWreturn //JMW - return error?
 	}
+	//JMW return nil
 }
 
 func (q *rdnsQuerierImpl) start(_ context.Context) error {

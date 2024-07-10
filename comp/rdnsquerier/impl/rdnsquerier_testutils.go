@@ -14,7 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"go.uber.org/fx"
 
-	"github.com/stretchr/testify/assert" //JMW require for some?
+	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
@@ -25,7 +25,7 @@ import (
 	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"
 )
 
-// Fake resolver is used by tests that "resolve" IP addresses to hostnames because with the real resolver test results
+// Fake resolver is used by tests that "resolve" IP addresses to hostnames because with a real resolver test results
 // can be non-deterministic.  Some systems may be able to resolve the private IP addresses used in the tests, others may not.
 type fakeResolver struct {
 	config *rdnsQuerierConfig
