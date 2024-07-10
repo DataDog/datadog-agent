@@ -5,3 +5,6 @@ name: golangci-lint
 plugins:
   - module: 'github.com/DataDog/datadog-agent/pkg/linters/config'
     path: ./pkg/linters/config
+    
+  - module: 'github.com/DataDog/datadog-agent/pkg/linters/componentinterface'
+    path: ./pkg/linters/componentinterface

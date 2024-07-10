@@ -78,6 +78,7 @@ linters:
     - bodyclose   # checks whether HTTP response body is closed successfully
     - gosimple    # Linter for Go source code that specializes in simplifying code.
     - pkgconfig
+    - componentinterface
 
 linters-settings:
   depguard:
@@ -158,3 +159,6 @@ linters-settings:
     pkgconfig:
       type: "module"
       description: "Ensure pkg/config is not used in the comp folder"
+    componentinterface:
+      type: "module"
+      description: "Ensure component Interface do not use third party packages as part of the interface"
