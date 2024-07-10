@@ -1818,7 +1818,7 @@ func LoadDatadogCustom(config pkgconfigmodel.Config, origin string, secretResolv
 		pkgconfigmodel.ApplyOverrideFuncs(config)
 	}()
 
-	warnings, err := LoadCustom(config, origin, secretResolver, additionalKnownEnvVars)
+	warnings, err := LoadCustom(config, additionalKnownEnvVars)
 	if err != nil {
 		if errors.Is(err, os.ErrPermission) {
 			log.Warnf("Error loading config: %v (check config file permissions for dd-agent user)", err)
@@ -1869,7 +1869,7 @@ func LoadDatadogCustom(config pkgconfigmodel.Config, origin string, secretResolv
 }
 
 // LoadCustom reads config into the provided config object
-func LoadCustom(config pkgconfigmodel.Config, origin string, secretResolver optional.Option[secrets.Component], additionalKnownEnvVars []string) (*pkgconfigmodel.Warnings, error) {
+func LoadCustom(config pkgconfigmodel.Config, additionalKnownEnvVars []string) (*pkgconfigmodel.Warnings, error) {
 	warnings := pkgconfigmodel.Warnings{}
 
 	log.Info("Starting to load the configuration")
@@ -2284,12 +2284,12 @@ func setTracemallocEnabled(config pkgconfigmodel.Config) bool {
 	traceMallocEnabledWithPy2 := false
 	if pyVersion == "2" && wTracemalloc {
 		log.Warnf("Tracemalloc was enabled but unavailable with python version %q, disabling.", pyVersion)
-		wTracemalloc = false
 		traceMallocEnabledWithPy2 = true
+
+		// update config with the actual effective tracemalloc
+		config.Set("tracemalloc_debug", false, pkgconfigmodel.SourceAgentRuntime)
 	}
 
-	// update config with the actual effective tracemalloc
-	config.Set("tracemalloc_debug", wTracemalloc, pkgconfigmodel.SourceAgentRuntime)
 	return traceMallocEnabledWithPy2
 }
 
@@ -2301,14 +2301,12 @@ func setNumWorkers(config pkgconfigmodel.Config) {
 	}
 
 	wTracemalloc := config.GetBool("tracemalloc_debug")
-	numWorkers := config.GetInt("check_runners")
 	if wTracemalloc {
 		log.Infof("Tracemalloc enabled, only one check runner enabled to run checks serially")
-		numWorkers = 1
-	}
 
-	// update config with the actual effective number of workers
-	config.Set("check_runners", numWorkers, pkgconfigmodel.SourceAgentRuntime)
+		// update config with the actual effective number of workers
+		config.Set("check_runners", 1, pkgconfigmodel.SourceAgentRuntime)
+	}
 }
 
 // GetDogstatsdMappingProfiles returns mapping profiles used in DogStatsD mapper
