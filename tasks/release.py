@@ -1034,3 +1034,15 @@ def check_for_changes(ctx, release_branch, warning_mode=False):
             )
     # Send a value for the create_rc_pr.yml workflow
     print(changes)
+
+
+@task
+def create_qa_cards(ctx, tag):
+    """
+    Automate the call to ddqa
+    """
+    from tasks.libs.releasing.qa import get_labels, setup_ddqa
+
+    setup_ddqa(ctx)
+    version = _create_version_from_match(RC_VERSION_RE.match(tag))
+    ctx.run(f"ddqa --auto create {version.previous_rc_version()} {tag} {get_labels(version)}")

@@ -1,0 +1,15 @@
+---
+create_release_qa_cards:
+  stage: .pre
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["arch:amd64"]
+  rules:
+    - !reference [.on_deploy_rc]
+  script:
+    - source /root/.bashrc
+    - export GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITLAB_FULL_API_TOKEN_SSM_NAME)
+    - !reference [.setup_agent_github_app]
+    - export ATLASSIAN_PASSWORD=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $JIRA_READ_API_TOKEN_SSM_NAME)
+    - export ATLASSIAN_USERNAME=robot-jira-agentplatform@datadoghq.com
+    - pip install ddqa
+    - inv -e release.create-qa-cards -t ${CI_COMMIT_REF_NAME}
