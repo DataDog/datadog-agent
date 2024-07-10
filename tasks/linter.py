@@ -22,7 +22,7 @@ from tasks.libs.ciproviders.gitlab_api import (
     read_includes,
 )
 from tasks.libs.common.check_tools_version import check_tools_version
-from tasks.libs.common.color import color_message
+from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.constants import DEFAULT_BRANCH, GITHUB_REPO_NAME
 from tasks.libs.common.git import get_staged_files
 from tasks.libs.common.utils import (
@@ -423,10 +423,113 @@ def update_go(_):
 
 
 @task(iterable=['job_files'])
-def test_change_path(ctx, job_files=None):
+def job_change_path(ctx, job_files=None):
     """
     Verify that the jobs defined within job_files contain a change path rule.
     """
+
+    tests_without_change_path_allow_list = {
+        'generate-flakes-finder-pipeline',
+        'k8s-e2e-cspm-dev',
+        'k8s-e2e-cspm-main',
+        'k8s-e2e-otlp-dev',
+        'k8s-e2e-otlp-main',
+        'new-e2e-agent-platform-install-script-amazonlinux-a6-arm64',
+        'new-e2e-agent-platform-install-script-amazonlinux-a6-x86_64',
+        'new-e2e-agent-platform-install-script-amazonlinux-a7-arm64',
+        'new-e2e-agent-platform-install-script-amazonlinux-a7-x64',
+        'new-e2e-agent-platform-install-script-centos-a6-x86_64',
+        'new-e2e-agent-platform-install-script-centos-a7-x86_64',
+        'new-e2e-agent-platform-install-script-centos-dogstatsd-a7-x86_64',
+        'new-e2e-agent-platform-install-script-centos-fips-a6-x86_64',
+        'new-e2e-agent-platform-install-script-centos-fips-a7-x86_64',
+        'new-e2e-agent-platform-install-script-centos-fips-dogstatsd-a7-x86_64',
+        'new-e2e-agent-platform-install-script-centos-fips-iot-agent-a7-x86_64',
+        'new-e2e-agent-platform-install-script-centos-iot-agent-a7-x86_64',
+        'new-e2e-agent-platform-install-script-debian-a6-arm64',
+        'new-e2e-agent-platform-install-script-debian-a6-x86_64',
+        'new-e2e-agent-platform-install-script-debian-a7-arm64',
+        'new-e2e-agent-platform-install-script-debian-a7-x86_64',
+        'new-e2e-agent-platform-install-script-debian-dogstatsd-a7-x86_64',
+        'new-e2e-agent-platform-install-script-debian-heroku-agent-a6-x86_64',
+        'new-e2e-agent-platform-install-script-debian-heroku-agent-a7-x86_64',
+        'new-e2e-agent-platform-install-script-debian-iot-agent-a7-x86_64',
+        'new-e2e-agent-platform-install-script-suse-a6-x86_64',
+        'new-e2e-agent-platform-install-script-suse-a7-arm64',
+        'new-e2e-agent-platform-install-script-suse-a7-x86_64',
+        'new-e2e-agent-platform-install-script-suse-dogstatsd-a7-x86_64',
+        'new-e2e-agent-platform-install-script-suse-iot-agent-a7-x86_64',
+        'new-e2e-agent-platform-install-script-ubuntu-a6-arm64',
+        'new-e2e-agent-platform-install-script-ubuntu-a6-x86_64',
+        'new-e2e-agent-platform-install-script-ubuntu-a7-arm64',
+        'new-e2e-agent-platform-install-script-ubuntu-a7-x86_64',
+        'new-e2e-agent-platform-install-script-ubuntu-dogstatsd-a7-x86_64',
+        'new-e2e-agent-platform-install-script-ubuntu-heroku-agent-a6-x86_64',
+        'new-e2e-agent-platform-install-script-ubuntu-heroku-agent-a7-x86_64',
+        'new-e2e-agent-platform-install-script-ubuntu-iot-agent-a7-x86_64',
+        'new-e2e-agent-platform-install-script-upgrade6-amazonlinux-x64',
+        'new-e2e-agent-platform-install-script-upgrade6-centos-fips-x86_64',
+        'new-e2e-agent-platform-install-script-upgrade6-centos-x86_64',
+        'new-e2e-agent-platform-install-script-upgrade6-debian-x86_64',
+        'new-e2e-agent-platform-install-script-upgrade6-suse-x86_64',
+        'new-e2e-agent-platform-install-script-upgrade6-ubuntu-x86_64',
+        'new-e2e-agent-platform-install-script-upgrade7-amazonlinux-iot-agent-x64',
+        'new-e2e-agent-platform-install-script-upgrade7-amazonlinux-x64',
+        'new-e2e-agent-platform-install-script-upgrade7-centos-fips-iot-agent-x86_64',
+        'new-e2e-agent-platform-install-script-upgrade7-centos-fips-x86_64',
+        'new-e2e-agent-platform-install-script-upgrade7-centos-iot-agent-x86_64',
+        'new-e2e-agent-platform-install-script-upgrade7-centos-x86_64',
+        'new-e2e-agent-platform-install-script-upgrade7-debian-iot-agent-x86_64',
+        'new-e2e-agent-platform-install-script-upgrade7-debian-x86_64',
+        'new-e2e-agent-platform-install-script-upgrade7-suse-iot-agent-x86_64',
+        'new-e2e-agent-platform-install-script-upgrade7-suse-x86_64',
+        'new-e2e-agent-platform-install-script-upgrade7-ubuntu-iot-agent-x86_64',
+        'new-e2e-agent-platform-install-script-upgrade7-ubuntu-x86_64',
+        'new-e2e-agent-platform-package-signing-amazonlinux-a6-x86_64',
+        'new-e2e-agent-platform-package-signing-debian-a7-x86_64',
+        'new-e2e-agent-platform-package-signing-suse-a7-x86_64',
+        'new-e2e-agent-platform-rpm-centos6-a7-x86_64',
+        'new-e2e-agent-platform-step-by-step-amazonlinux-a6-arm64',
+        'new-e2e-agent-platform-step-by-step-amazonlinux-a6-x86_64',
+        'new-e2e-agent-platform-step-by-step-amazonlinux-a7-arm64',
+        'new-e2e-agent-platform-step-by-step-amazonlinux-a7-x64',
+        'new-e2e-agent-platform-step-by-step-centos-a6-x86_64',
+        'new-e2e-agent-platform-step-by-step-centos-a7-x86_64',
+        'new-e2e-agent-platform-step-by-step-debian-a6-arm64',
+        'new-e2e-agent-platform-step-by-step-debian-a6-x86_64',
+        'new-e2e-agent-platform-step-by-step-debian-a7-arm64',
+        'new-e2e-agent-platform-step-by-step-debian-a7-x64',
+        'new-e2e-agent-platform-step-by-step-suse-a6-x86_64',
+        'new-e2e-agent-platform-step-by-step-suse-a7-arm64',
+        'new-e2e-agent-platform-step-by-step-suse-a7-x86_64',
+        'new-e2e-agent-platform-step-by-step-ubuntu-a6-arm64',
+        'new-e2e-agent-platform-step-by-step-ubuntu-a6-x86_64',
+        'new-e2e-agent-platform-step-by-step-ubuntu-a7-arm64',
+        'new-e2e-agent-platform-step-by-step-ubuntu-a7-x86_64',
+        'new-e2e-agent-shared-components',
+        'new-e2e-agent-subcommands',
+        'new-e2e-aml',
+        'new-e2e-apm',
+        'new-e2e-containers',
+        'new-e2e-cws',
+        'new-e2e-installer',
+        'new-e2e-language-detection',
+        'new-e2e-ndm-netflow',
+        'new-e2e-ndm-snmp',
+        'new-e2e-npm-docker',
+        'new-e2e-npm-packages',
+        'new-e2e-orchestrator',
+        'new-e2e-process',
+        'new-e2e-remote-config',
+        'new-e2e-windows-agent-domain-tests-a7-x86_64',
+        'new-e2e-windows-agent-msi-upgrade-windows-server-a7-x86_64',
+        'new-e2e-windows-agent-msi-windows-server-a6-x86_64',
+        'new-e2e-windows-agent-msi-windows-server-a7-x86_64',
+        'new-e2e-windows-service-test',
+        'new-e2e_windows_powershell_module_test',
+        'trigger-flakes-finder',
+    }
+
     job_files = job_files or (['.gitlab/e2e/e2e.yml'] + list(glob('.gitlab/kitchen_testing/new-e2e_testing/*.yml')))
 
     # Read gitlab config
@@ -450,9 +553,26 @@ def test_change_path(ctx, job_files=None):
 
     # Verify that all tests contain a change path rule
     tests_without_change_path = defaultdict(list)
+    tests_without_change_path_allowed = defaultdict(list)
     for test, filepath in tests:
         if not any(contains_valid_change_rule(rule) for rule in config[test]['rules'] if isinstance(rule, dict)):
-            tests_without_change_path[filepath].append(test)
+            if test in tests_without_change_path_allow_list:
+                tests_without_change_path_allowed[filepath].append(test)
+            else:
+                tests_without_change_path[filepath].append(test)
+
+    if len(tests_without_change_path_allowed) != 0:
+        with gitlab_section('Allow-listed jobs', collapsed=True):
+            print(
+                color_message(
+                    'warning: The following tests do not contain required change paths rule but are allowed:',
+                    Color.ORANGE,
+                )
+            )
+            for filepath, tests in tests_without_change_path_allowed.items():
+                print(f"- {color_message(filepath, 'bold')}: {', '.join(tests)}", file=sys.stderr)
+            print(color_message('warning: End of allow-listed jobs', Color.ORANGE))
+            print()
 
     if len(tests_without_change_path) != 0:
         print(color_message("error: Tests without required change paths rule:", "red"), file=sys.stderr)
@@ -460,10 +580,13 @@ def test_change_path(ctx, job_files=None):
             print(f"- {color_message(filepath, 'bold')}: {', '.join(tests)}", file=sys.stderr)
 
         raise RuntimeError(
-            'Some tests do not contain required change paths rule, they must contain at least one non-test path.'
+            color_message(
+                'Some tests do not contain required change paths rule, they must contain at least one non-test path.',
+                Color.RED,
+            )
         )
     else:
-        print(color_message("success: All tests contain a change paths rule", "green"))
+        print(color_message("success: All tests contain a change paths rule or are allow-listed", "green"))
 
 
 # modules -> packages that should not be vetted, each with a reason
