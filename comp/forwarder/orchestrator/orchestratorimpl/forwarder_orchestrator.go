@@ -10,7 +10,6 @@ package orchestratorimpl
 
 import (
 	"context"
-	"fmt"
 
 	"go.uber.org/fx"
 
@@ -34,20 +33,16 @@ func Module() fxutil.Module {
 // newOrchestratorForwarder returns an orchestratorForwarder
 // if the feature is activated on the cluster-agent/cluster-check runner, nil otherwise
 func newOrchestratorForwarder(log log.Component, config config.Component, lc fx.Lifecycle, params Params) orchestrator.Component {
-	fmt.Println("Josh we're creating a forwarder")
 	if params.useNoopOrchestratorForwarder {
 		return createComponent(defaultforwarder.NoopForwarder{})
 	}
 	if params.useOrchestratorForwarder {
-		fmt.Println("Josh we're using a forwarder")
 		if !config.GetBool(orchestratorconfig.OrchestratorNSKey("enabled")) {
-			fmt.Println("Josh we're enabled")
 			forwarder := optional.NewNoneOption[defaultforwarder.Forwarder]()
 			return &forwarder
 		}
 		orchestratorCfg := orchestratorconfig.NewDefaultOrchestratorConfig()
 		if err := orchestratorCfg.Load(); err != nil {
-			fmt.Println("Josh we're failing")
 			log.Errorf("Error loading the orchestrator config: %s", err)
 		}
 		keysPerDomain := apicfg.KeysPerDomains(orchestratorCfg.OrchestratorEndpoints)
@@ -58,20 +53,16 @@ func newOrchestratorForwarder(log log.Component, config config.Component, lc fx.
 		lc.Append(fx.Hook{
 			OnStart: func(context.Context) error {
 				_ = forwarder.Start()
-				fmt.Println("Josh ret nil 1")
 				return nil
 			}, OnStop: func(context.Context) error {
 				forwarder.Stop()
-				fmt.Println("Josh ret nil 2")
 				return nil
 			}})
 
-		fmt.Println("Josh we made it")
 		return createComponent(forwarder)
 	}
 
 	forwarder := optional.NewNoneOption[defaultforwarder.Forwarder]()
-	fmt.Println("Josh we somehow got here")
 	return &forwarder
 }
 
