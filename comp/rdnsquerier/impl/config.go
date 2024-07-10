@@ -6,6 +6,8 @@
 package rdnsquerierimpl
 
 import (
+	"time"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 )
 
@@ -18,9 +20,9 @@ type rdnsQuerierConfig struct {
 	rateLimitPerSec    int
 
 	cacheEnabled         bool
-	cacheEntryTTL        int
-	cacheCleanInterval   int
-	cachePersistInterval int
+	cacheEntryTTL        time.Duration
+	cacheCleanInterval   time.Duration
+	cachePersistInterval time.Duration
 }
 
 const (
@@ -29,9 +31,9 @@ const (
 
 	defaultRateLimitPerSec = 1000
 
-	defaultCacheEntryTTL        = 60 * 60 // in seconds - 1 hour
-	defaultCacheCleanInterval   = 30 * 60 // in seconds - 30 minutes
-	defaultCachePersistInterval = 30 * 60 // in seconds - 30 minutes
+	defaultCacheEntryTTL        = time.Hour
+	defaultCacheCleanInterval   = 30 * time.Minute
+	defaultCachePersistInterval = 30 * time.Minute
 )
 
 func newConfig(agentConfig config.Component) *rdnsQuerierConfig {
@@ -46,9 +48,9 @@ func newConfig(agentConfig config.Component) *rdnsQuerierConfig {
 		rateLimitPerSec:    agentConfig.GetInt("reverse_dns_enrichment.rate_limiter.limit_per_sec"),
 
 		cacheEnabled:         agentConfig.GetBool("reverse_dns_enrichment.cache.enabled"),
-		cacheEntryTTL:        agentConfig.GetInt("reverse_dns_enrichment.cache.entry_ttl"),
-		cacheCleanInterval:   agentConfig.GetInt("reverse_dns_enrichment.cache.clean_interval"),
-		cachePersistInterval: agentConfig.GetInt("reverse_dns_enrichment.cache.persist_interval"),
+		cacheEntryTTL:        agentConfig.GetDuration("reverse_dns_enrichment.cache.entry_ttl"),
+		cacheCleanInterval:   agentConfig.GetDuration("reverse_dns_enrichment.cache.clean_interval"),
+		cachePersistInterval: agentConfig.GetDuration("reverse_dns_enrichment.cache.persist_interval"),
 	}
 
 	c.setDefaults()

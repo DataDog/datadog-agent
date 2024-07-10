@@ -930,9 +930,9 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("reverse_dns_enrichment.rate_limiter.enabled", true)
 	config.SetKnown("reverse_dns_enrichment.rate_limiter.limit_per_sec")
 	config.BindEnvAndSetDefault("reverse_dns_enrichment.cache.enabled", true)
-	config.SetKnown("reverse_dns_enrichment.cache.entry_ttl")
-	config.SetKnown("reverse_dns_enrichment.cache.clean_interval")
-	config.SetKnown("reverse_dns_enrichment.cache.persist_interval")
+	config.BindEnvAndSetDefault("reverse_dns_enrichment.cache.entry_ttl", time.Duration(0))
+	config.BindEnvAndSetDefault("reverse_dns_enrichment.cache.clean_interval", time.Duration(0))
+	config.BindEnvAndSetDefault("reverse_dns_enrichment.cache.persist_interval", time.Duration(0))
 }
 
 func agent(config pkgconfigmodel.Setup) {

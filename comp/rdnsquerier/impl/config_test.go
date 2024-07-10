@@ -10,6 +10,7 @@ package rdnsquerierimpl
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 
@@ -58,6 +59,36 @@ network_devices:
 			},
 		},
 		{
+			name: "use defaults for invalid values",
+			configYaml: `
+network_devices:
+  netflow:
+    reverse_dns_enrichment_enabled: true
+reverse_dns_enrichment:
+  workers: 0
+  chan_size: 0
+  rate_limiter:
+    enabled: true
+    limit_per_sec: 0
+  cache:
+    enabled: true
+    entry_ttl: 0
+    clean_interval: 0
+    persist_interval: 0
+`,
+			expectedConfig: rdnsQuerierConfig{
+				enabled:              true,
+				workers:              defaultWorkers,
+				chanSize:             defaultChanSize,
+				rateLimiterEnabled:   true,
+				rateLimitPerSec:      defaultRateLimitPerSec,
+				cacheEnabled:         true,
+				cacheEntryTTL:        defaultCacheEntryTTL,
+				cacheCleanInterval:   defaultCacheCleanInterval,
+				cachePersistInterval: defaultCachePersistInterval,
+			},
+		},
+		{
 			name: "specific config",
 			configYaml: `
 network_devices:
@@ -71,9 +102,9 @@ reverse_dns_enrichment:
     limit_per_sec: 111
   cache:
     enabled: true
-    entry_ttl: 222
-    clean_interval: 333
-    persist_interval: 444
+    entry_ttl: 24h
+    clean_interval: 30m
+    persist_interval: 2h
 `,
 			expectedConfig: rdnsQuerierConfig{
 				enabled:              true,
@@ -82,13 +113,13 @@ reverse_dns_enrichment:
 				rateLimiterEnabled:   true,
 				rateLimitPerSec:      111,
 				cacheEnabled:         true,
-				cacheEntryTTL:        222,
-				cacheCleanInterval:   333,
-				cachePersistInterval: 444,
+				cacheEntryTTL:        24 * time.Hour,
+				cacheCleanInterval:   30 * time.Minute,
+				cachePersistInterval: 2 * time.Hour,
 			},
 		},
 		{
-			name: "specific config with rate limiter and cache enabled",
+			name: "specific config with defaults when rate limiter and cache are enabled",
 			configYaml: `
 network_devices:
   netflow:
