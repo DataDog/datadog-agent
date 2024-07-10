@@ -185,8 +185,7 @@ func (fh *EBPFFieldHandlers) ResolveContainerContext(ev *model.Event) (*model.Co
 
 // ResolveContainerRuntime retrieves the container runtime managing the container
 func (fh *EBPFFieldHandlers) ResolveContainerRuntime(ev *model.Event, _ *model.ContainerContext) string {
-	ctx, found := fh.ResolveContainerContext(ev)
-	if !found || ctx == nil {
+	if _, found := fh.ResolveContainerContext(ev); !found {
 		return ""
 	}
 
