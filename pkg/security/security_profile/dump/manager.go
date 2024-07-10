@@ -517,7 +517,7 @@ workloadLoop:
 		}
 
 		// if we're still here, we can start tracing this workload
-		if err := adm.startDumpWithConfig(string(workloads[0].ContainerID), workloads[0].CGroupFlags, utils.NewCookie(), *adm.loadController.getDefaultLoadConfig()); err != nil {
+		if err := adm.startDumpWithConfig(string(workloads[0].ContainerID), uint64(workloads[0].CGroupFlags), utils.NewCookie(), *adm.loadController.getDefaultLoadConfig()); err != nil {
 			if !errors.Is(err, unix.E2BIG) {
 				seclog.Debugf("%v", err)
 				break

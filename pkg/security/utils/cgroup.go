@@ -20,21 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
-// ContainerID is the type holding the container ID
-type ContainerID model.ContainerID
-
-// ContainerFlags is the type holding the container flags
-type ContainerFlags uint64
-
-// Bytes returns the container ID as a byte array
-func (c ContainerID) Bytes() []byte {
-	buff := make([]byte, ContainerIDLen)
-	if len(c) == ContainerIDLen {
-		copy(buff[:], c)
-	}
-	return buff
-}
-
 // ContainerIDLen is the length of a container ID is the length of the hex representation of a sha256 hash
 const ContainerIDLen = sha256.Size * 2
 
@@ -52,9 +37,9 @@ type ControlGroup struct {
 }
 
 // GetContainerContext returns both the container ID and its flags
-func (cg ControlGroup) GetContainerContext() (model.ContainerID, ContainerFlags) {
+func (cg ControlGroup) GetContainerContext() (model.ContainerID, model.CGroupFlags) {
 	id, flags := containerutils.FindContainerID(cg.Path)
-	return model.ContainerID(id), ContainerFlags(flags)
+	return model.ContainerID(id), model.CGroupFlags(flags)
 }
 
 // GetContainerID returns the container id extracted from the path of the control group
@@ -98,7 +83,7 @@ func GetProcContainerID(tgid, pid uint32) (model.ContainerID, error) {
 
 // GetProcContainerContext returns the container ID which the process belongs to along with its manager. Returns "" if the process does not belong
 // to a container.
-func GetProcContainerContext(tgid, pid uint32) (model.ContainerID, ContainerFlags, error) {
+func GetProcContainerContext(tgid, pid uint32) (model.ContainerID, model.CGroupFlags, error) {
 	cgroups, err := GetProcControlGroups(tgid, pid)
 	if err != nil {
 		return "", 0, err

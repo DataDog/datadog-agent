@@ -70,10 +70,13 @@ func (r *Releasable) AppendReleaseCallback(callback func()) {
 // CGroupID represents a cgroup ID
 type CGroupID string
 
+// CGroupFlags represents the flags of a cgroup
+type CGroupFlags uint64
+
 // CGroupContext holds the cgroup context of an event
 type CGroupContext struct {
-	CGroupID    CGroupID `field:"id,handler:ResolveCGroupID"` // SECLDoc[id] Definition:`ID of the cgroup`
-	CGroupFlags uint64   `field:"-"`
+	CGroupID    CGroupID    `field:"id,handler:ResolveCGroupID"` // SECLDoc[id] Definition:`ID of the cgroup`
+	CGroupFlags CGroupFlags `field:"-"`
 }
 
 // ContainerID represents a container ID

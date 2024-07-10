@@ -493,7 +493,7 @@ func (fh *EBPFFieldHandlers) ResolveHashes(eventType model.EventType, process *m
 func (fh *EBPFFieldHandlers) ResolveCGroupID(ev *model.Event, e *model.CGroupContext) string {
 	if len(e.CGroupID) == 0 {
 		if entry, _ := fh.ResolveProcessCacheEntry(ev); entry != nil {
-			e.CGroupID = model.GetCgroupFromContainer(entry.ContainerID, uint64(entry.CGroup.CGroupFlags))
+			e.CGroupID = model.GetCgroupFromContainer(entry.ContainerID, entry.CGroup.CGroupFlags)
 			return string(e.CGroupID)
 		}
 	}

@@ -17,7 +17,7 @@ import (
 type Resolver struct{}
 
 // GetContainerContext returns the container id of the given pid along with its flags
-func (cr *Resolver) GetContainerContext(pid uint32) (model.ContainerID, utils.ContainerFlags, error) {
+func (cr *Resolver) GetContainerContext(pid uint32) (model.ContainerID, model.CGroupFlags, error) {
 	// Parse /proc/[pid]/task/[pid]/cgroup
 	return utils.GetProcContainerContext(pid, pid)
 }

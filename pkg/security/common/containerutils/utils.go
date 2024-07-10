@@ -59,19 +59,19 @@ func FindContainerID(s string) (string, uint64) {
 
 	cgroupID := s[match[0]:match[1]]
 	containerID, flags := model.GetContainerFromCgroup(cgroupID)
-	return containerID, flags
+	return containerID, uint64(flags)
 }
 
 // GetContainerRuntime returns the container runtime managing the cgroup
-func GetContainerRuntime(flags uint64) string {
+func GetContainerRuntime(flags model.CGroupFlags) string {
 	switch {
-	case (flags & model.CGroupManagerCRI) != 0:
+	case (uint64(flags) & model.CGroupManagerCRI) != 0:
 		return string(workloadmeta.ContainerRuntimeContainerd)
-	case (flags & model.CGroupManagerCRIO) != 0:
+	case (uint64(flags) & model.CGroupManagerCRIO) != 0:
 		return string(workloadmeta.ContainerRuntimeCRIO)
-	case (flags & model.CGroupManagerDocker) != 0:
+	case (uint64(flags) & model.CGroupManagerDocker) != 0:
 		return string(workloadmeta.ContainerRuntimeDocker)
-	case (flags & model.CGroupManagerPodman) != 0:
+	case (uint64(flags) & model.CGroupManagerPodman) != 0:
 		return string(workloadmeta.ContainerRuntimePodman)
 	default:
 		return ""
@@ -79,9 +79,9 @@ func GetContainerRuntime(flags uint64) string {
 }
 
 // GetCGroupContext returns the cgroup ID and the sanitized container ID from a container id/flags tuple
-func GetCGroupContext(containerID model.ContainerID, containerFlags uint64) (model.CGroupID, model.ContainerID) {
-	cgroupID := model.GetCgroupFromContainer(containerID, uint64(containerFlags))
-	if containerFlags&0b111 == 0 {
+func GetCGroupContext(containerID model.ContainerID, cgroupFlags model.CGroupFlags) (model.CGroupID, model.ContainerID) {
+	cgroupID := model.GetCgroupFromContainer(containerID, cgroupFlags)
+	if cgroupFlags&0b111 == 0 {
 		containerID = ""
 	}
 	return model.CGroupID(cgroupID), model.ContainerID(containerID)

@@ -79,12 +79,12 @@ type CacheEntry struct {
 }
 
 // NewCacheEntry returns a new instance of a CacheEntry
-func NewCacheEntry(containerID string, containerFlags uint64, pids ...uint32) (*CacheEntry, error) {
+func NewCacheEntry(containerID string, cgroupFlags uint64, pids ...uint32) (*CacheEntry, error) {
 	newCGroup := CacheEntry{
 		Deleted: atomic.NewBool(false),
 		CGroupContext: model.CGroupContext{
-			CGroupID:    model.GetCgroupFromContainer(model.ContainerID(containerID), containerFlags),
-			CGroupFlags: containerFlags,
+			CGroupID:    model.GetCgroupFromContainer(model.ContainerID(containerID), model.CGroupFlags(cgroupFlags)),
+			CGroupFlags: model.CGroupFlags(cgroupFlags),
 		},
 		ContainerContext: model.ContainerContext{
 			ContainerID: model.ContainerID(containerID),

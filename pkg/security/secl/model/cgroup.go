@@ -40,19 +40,19 @@ var RuntimePrefixes = map[string]uint64{
 }
 
 // GetContainerFromCgroup extracts the container ID from a cgroup name
-func GetContainerFromCgroup(cgroup string) (string, uint64) {
+func GetContainerFromCgroup(cgroup string) (string, CGroupFlags) {
 	for runtimePrefix, runtimeFlag := range RuntimePrefixes {
 		if strings.HasPrefix(cgroup, runtimePrefix) {
-			return cgroup[len(runtimePrefix):], runtimeFlag
+			return cgroup[len(runtimePrefix):], CGroupFlags(runtimeFlag)
 		}
 	}
 	return cgroup, 0
 }
 
 // GetCgroupFromContainer infers the container runtime from a cgroup name
-func GetCgroupFromContainer(id ContainerID, flags uint64) CGroupID {
+func GetCgroupFromContainer(id ContainerID, flags CGroupFlags) CGroupID {
 	for runtimePrefix, runtimeFlag := range RuntimePrefixes {
-		if flags&0b111 == runtimeFlag {
+		if uint64(flags)&0b111 == runtimeFlag {
 			return CGroupID(runtimePrefix + string(id))
 		}
 	}

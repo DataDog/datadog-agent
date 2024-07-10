@@ -40,7 +40,7 @@ func (e *CGroupContext) UnmarshalBinary(data []byte) (int, error) {
 		return 0, ErrNotEnoughData
 	}
 
-	e.CGroupFlags = binary.NativeEndian.Uint64(data[:8])
+	e.CGroupFlags = CGroupFlags(binary.NativeEndian.Uint64(data[:8]))
 
 	return 8, nil
 }
