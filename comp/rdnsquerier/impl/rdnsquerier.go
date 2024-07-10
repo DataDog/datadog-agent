@@ -123,28 +123,23 @@ func NewComponent(reqs Requires) (Provides, error) {
 	}, nil
 }
 
-// JMWWEDCHECK
-// JMWWED should aggregator/flowaccumulator check errors?
-// JMWWED should callback function get passed error?  so cache can decide whether to retry?
-// JMWWED change time intervale to Duration?
 // GetHostnameAsync attempts to resolve the hostname for the given IP address.
 // If the IP address is invalid then an error is returned.
-// If the IP address is not in the private address space then no lookup is performed, but no error is returned.
-// If the IP address is in the private address space then a reverse DNS lookup is written to a channel to be processed asynchronously.
+// If the IP address is not in the private address space then it is ignored - no lookup is performed and no error is returned.
+// If the IP address is in the private address space then a reverse DNS lookup request is sent to a channel to be processed asynchronously.
 // If the channel is full then an error is returned.
-// If the lookup is successful then the updateHostname function will be called asynchronously with the hostname.
+// When the lookup request completes the updateHostname function will be called asynchronously with the results.
 func (q *rdnsQuerierImpl) GetHostnameAsync(ipAddr []byte, updateHostname func(string)) error {
 	q.internalTelemetry.total.Inc()
 
 	ipaddr, ok := netip.AddrFromSlice(ipAddr)
 	if !ok {
 		q.internalTelemetry.invalidIPAddress.Inc()
-		q.logger.Debugf("Reverse DNS Enrichment IP address %v is invalid", ipAddr) //JMWRM?
 		return fmt.Errorf("invalid IP address %v", ipAddr)
 	}
 
 	if !ipaddr.IsPrivate() {
-		q.logger.Tracef("Reverse DNS Enrichment IP address %s is not in the private address space", ipaddr) //JMW
+		q.logger.Tracef("Reverse DNS Enrichment IP address %s is not in the private address space", ipaddr)
 		return nil
 	}
 	q.internalTelemetry.private.Inc()
@@ -159,7 +154,6 @@ func (q *rdnsQuerierImpl) GetHostnameAsync(ipAddr []byte, updateHostname func(st
 		q.internalTelemetry.chanAdded.Inc()
 	default:
 		q.internalTelemetry.droppedChanFull.Inc()
-		q.logger.Debugf("Reverse DNS Enrichment channel is full, dropping query for IP address %s", query.addr) //JMWRM?
 		return fmt.Errorf("channel is full, dropping query for IP address %s", query.addr)
 	}
 	return nil
@@ -251,5 +245,4 @@ func (q *rdnsQuerierImpl) getHostname(ctx context.Context, query *rdnsQuery) {
 
 	q.internalTelemetry.successful.Inc()
 	query.updateHostname(hostname)
-	//JMWJMW call the callback with hostname, nil OR "", err??
 }
