@@ -232,11 +232,6 @@ func NewTracer(config *config.Config, _ telemetryComponent.Component) (Tracer, e
 			boolConst("tcpv6_enabled", config.CollectTCPv6Conns),
 			boolConst("udpv6_enabled", config.CollectUDPv6Conns),
 		},
-		VerifierOptions: ebpf.CollectionOptions{
-			Programs: ebpf.ProgramOptions{
-				LogSize: 10 * 1024 * 1024,
-			},
-		},
 		DefaultKProbeMaxActive: maxActive,
 		BypassEnabled:          config.BypassEnabled,
 	}
