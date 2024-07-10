@@ -10,10 +10,12 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	model "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
-func setupConfig(tags []string) (*config.MockConfig, time.Time) {
-	mockConfig := config.Mock(nil)
+func setupConfig(tags []string) (model.Config, time.Time) {
+	mockConfig := configmock.New(suite.T())
 
 	startTime := config.StartTime
 	config.StartTime = time.Now()

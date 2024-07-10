@@ -15,11 +15,11 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
 func TestLoadSidecarProfiles(t *testing.T) {
-	mockConfig := config.Mock(t)
+	mockConfig := configmock.New(t)
 
 	tests := []struct {
 		name             string
@@ -138,7 +138,7 @@ func TestLoadSidecarProfiles(t *testing.T) {
 }
 
 func TestApplyProfileOverrides(t *testing.T) {
-	mockConfig := config.Mock(t)
+	mockConfig := configmock.New(t)
 
 	tests := []struct {
 		name              string

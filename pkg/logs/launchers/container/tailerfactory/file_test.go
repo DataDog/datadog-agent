@@ -23,7 +23,7 @@ import (
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util/containersorpods"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
@@ -134,7 +134,7 @@ func TestMakeFileSource_docker_success(t *testing.T) {
 
 func TestMakeFileSource_podman_success(t *testing.T) {
 	fileTestSetup(t)
-	mockConfig := coreConfig.Mock(t)
+	mockConfig := configmock.New(t)
 	mockConfig.SetWithoutSource("logs_config.use_podman_logs", true)
 
 	// On Windows, podman runs within a Linux virtual machine, so the Agent would believe it runs in a Linux environment with all the paths being nix-like.
@@ -205,7 +205,7 @@ func TestMakeFileSource_docker_no_file(t *testing.T) {
 
 func TestDockerOverride(t *testing.T) {
 	tmp := t.TempDir()
-	mockConfig := coreConfig.Mock(t)
+	mockConfig := configmock.New(t)
 	customPath := filepath.Join(tmp, "/custom/path")
 	mockConfig.SetWithoutSource("logs_config.docker_path_override", customPath)
 
