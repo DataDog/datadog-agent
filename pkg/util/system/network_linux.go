@@ -15,10 +15,41 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
+
+var (
+	netDevPid1     uint64
+	syncNetDevPid1 sync.Once
+)
+
+// GetProcessNetDevInode returns the inode of /proc/<pid>/net/dev
+func GetProcessNetDevInode(procPath string, pid int) (uint64, error) {
+	netDevPath := filepath.Join(procPath, strconv.Itoa(pid), "net", "dev")
+	return GetFileInode(netDevPath)
+}
+
+// IsProcessHostNetwork returns true if the process is using the host network
+// by checking if /proc/<pid>/net/dev has the same inode as /proc/1/net/dev
+func IsProcessHostNetwork(procPath string, netDevInode uint64) *bool {
+	syncNetDevPid1.Do(func() {
+		inode, err := GetProcessNetDevInode(procPath, 1)
+		if err != nil {
+			log.Warnf("Failed to get inode for /proc/1/net/dev, container network metrics will be inaccurate, err: %v", err)
+		} else {
+			netDevPid1 = inode
+		}
+	})
+
+	if netDevPid1 == 0 {
+		return nil
+	}
+	return pointer.Ptr(netDevInode == netDevPid1)
+}
 
 // ParseProcessRoutes parses /proc/<pid>/net/route into a list of NetworkDestionation
 // If PID is 0, it parses /proc/net/route instead
