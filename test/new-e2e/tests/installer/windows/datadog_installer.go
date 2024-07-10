@@ -69,7 +69,7 @@ func (d *datadogInstaller) InstallPackage(packageName string) (string, error) {
 	}
 	fmt.Printf("displaying package environment variables")
 	for key, value := range envVars {
-		fmt.Printf("%s: %v", key, value)
+		fmt.Printf("\t%s: %v\n", key, value)
 	}
 	return d.execute(fmt.Sprintf("install %s", packageUrl), client.WithEnvVariables(envVars))
 }
