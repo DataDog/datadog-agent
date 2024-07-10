@@ -2276,6 +2276,8 @@ func TestProcessResolution(t *testing.T) {
 			t.Errorf("not able to resolve the entry")
 		}
 
+		equals(t, cacheEntry, mapsEntry)
+
 		// This makes use of the cache and do not parse /proc
 		// it still checks the ResolveFromProcfs returns the correct entry
 		procEntry := resolver.ResolveFromProcfs(pid)
