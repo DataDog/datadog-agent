@@ -25,7 +25,8 @@ func (suite *testInstallSuite) TestInstall() {
 	// Install the Datadog Installer
 	suite.Require().NoError(suite.installer.Install())
 
-	installerVersion := suite.installer.Version()
+	installerVersion, err := suite.installer.Version()
+	suite.Require().NoError(err)
 	fmt.Printf("installer version %s\n", installerVersion)
 	suite.Require().NotEmpty(installerVersion)
 
