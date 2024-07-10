@@ -130,7 +130,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 // GetHostnameAsync attempts to resolve the hostname for the given IP address.
 // If the IP address is invalid then an error is returned.
 // If the IP address is not in the private address space then no lookup is performed, but no error is returned.
-// If the IP address is in the private address space then a reverse DNS lookup is writen to a channel to be processed asynchronously.
+// If the IP address is in the private address space then a reverse DNS lookup is written to a channel to be processed asynchronously.
 // If the channel is full then an error is returned.
 // If the lookup is successful then the updateHostname function will be called asynchronously with the hostname.
 func (q *rdnsQuerierImpl) GetHostnameAsync(ipAddr []byte, updateHostname func(string)) error {
