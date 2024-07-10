@@ -21,7 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	apiutils "github.com/DataDog/datadog-agent/comp/api/api/utils"
-	streamutils "github.com/DataDog/datadog-agent/comp/api/api/utils/stream"
+	"github.com/DataDog/datadog-agent/comp/api/api/utils/stream"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -218,11 +218,11 @@ func (f *flare) streamLogsIfEnabled() error {
 
 	if values, ok := enableStreamLog.([]interface{}); ok && len(values) > 1 {
 		if enable, ok := values[1].(bool); ok && enable {
-			streamLogParams := streamutils.StreamLogsParams{
+			streamLogParams := stream.LogParams{
 				FilePath: commonpath.DefaultStreamlogsLogFile,
 				Duration: 60 * time.Second,
 			}
-			err := streamutils.ExportStreamLogs(f.config, &streamLogParams)
+			err := stream.ExportStreamLogs(f.config, &streamLogParams)
 			if err != nil {
 				return err
 			}

@@ -22,8 +22,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// StreamLogsParams represents the parameters for streaming logs
-type StreamLogsParams struct {
+// LogParams represents the parameters for streaming logs
+type LogParams struct {
 	// Output represents the output file path to write the log stream to.
 	FilePath string
 
@@ -107,7 +107,7 @@ func GetStreamFunc(messageReceiverFunc func() MessageReceiver, streamType, agent
 }
 
 // ExportStreamLogs export output of stream-logs to a file
-func ExportStreamLogs(config config.Component, streamLogParams *StreamLogsParams) error {
+func ExportStreamLogs(config config.Component, streamLogParams *LogParams) error {
 	ipcAddress, err := pkgconfig.GetIPCAddress()
 	if err != nil {
 		return err
