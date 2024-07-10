@@ -43,7 +43,9 @@ func (remoteAssertions *RemoteHostAssertions) HasNoService(serviceName string) *
 // the path points to a directory or there is an error when trying to check the file.
 func (remoteAssertions *RemoteHostAssertions) FileExists(path string, msgAndArgs ...interface{}) *RemoteHostAssertions {
 	remoteAssertions.testing.Helper()
-	remoteAssertions.Host().FileExists(path, msgAndArgs...)
+	exists, err := remoteAssertions.remoteHost.FileExists(path)
+	assert.NoError(remoteAssertions.testing, err)
+	assert.True(remoteAssertions.testing, exists, msgAndArgs...)
 	return remoteAssertions
 }
 
