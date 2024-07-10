@@ -1201,6 +1201,11 @@ def ssh_config(
     if stacks is not None and stacks != 'all':
         stacks_to_print = set(stacks.split(','))
 
+    # Ensure correct permissions of the ddvm_rsa file if we're using
+    # it to connect to VMs. This attribute change doesn't seem to be tracked
+    # in git correctly
+    ctx.run(f"chmod 600 {ddvm_rsa}")
+
     for stack in stacks_dir.iterdir():
         if not stack.is_dir():
             continue
