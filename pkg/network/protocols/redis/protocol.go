@@ -40,6 +40,7 @@ type protocol struct {
 	cfg            *config.Config
 	eventsConsumer *events.Consumer[EbpfEvent]
 	mapCleaner     *ddebpf.MapCleaner[netebpf.ConnTuple, EbpfTx]
+	statskeeper    *StatsKeeper
 }
 
 var Spec = &protocols.ProtocolSpec{
@@ -79,7 +80,8 @@ func newRedisProtocol(cfg *config.Config) (protocols.Protocol, error) {
 	}
 
 	return &protocol{
-		cfg: cfg,
+		cfg:         cfg,
+		statskeeper: NewStatsKeeper(cfg),
 	}, nil
 }
 
@@ -150,7 +152,7 @@ func (p *protocol) GetStats() *protocols.ProtocolStats {
 
 	return &protocols.ProtocolStats{
 		Type:  protocols.Redis,
-		Stats: nil,
+		Stats: p.statskeeper.GetAndResetAllStats(),
 	}
 }
 
@@ -159,7 +161,11 @@ func (*protocol) IsBuildModeSupported(buildmode.Type) bool {
 	return true
 }
 
-func (p *protocol) processRedis(_ []EbpfEvent) {
+func (p *protocol) processRedis(events []EbpfEvent) {
+	for i := range events {
+		tx := &events[i]
+		p.statskeeper.Process(tx)
+	}
 }
 
 func (p *protocol) setupMapCleaner(mgr *manager.Manager) {
