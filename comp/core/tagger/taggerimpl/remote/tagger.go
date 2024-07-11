@@ -22,8 +22,9 @@ import (
 	"google.golang.org/grpc/metadata"
 
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/empty"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -59,6 +60,7 @@ type Tagger struct {
 	cancel context.CancelFunc
 
 	telemetryTicker *time.Ticker
+	telemetryStore  *telemetry.Store
 	empty.Tagger
 }
 
@@ -109,10 +111,11 @@ func CLCRunnerOptions(config configComponent.Component) (Options, error) {
 
 // NewTagger returns an allocated tagger. You still have to run Init()
 // once the config package is ready.
-func NewTagger(options Options) *Tagger {
+func NewTagger(options Options, telemetryStore *telemetry.Store) *Tagger {
 	return &Tagger{
-		options: options,
-		store:   newTagStore(),
+		options:        options,
+		store:          newTagStore(telemetryStore),
+		telemetryStore: telemetryStore,
 	}
 }
 
@@ -180,15 +183,26 @@ func (t *Tagger) Stop() error {
 	return nil
 }
 
+// ReplayTagger returns the replay tagger instance
+// This is a no-op for the remote tagger
+func (t *Tagger) ReplayTagger() tagger.ReplayTagger {
+	return nil
+}
+
+// GetTaggerTelemetryStore returns tagger telemetry store
+func (t *Tagger) GetTaggerTelemetryStore() *telemetry.Store {
+	return t.telemetryStore
+}
+
 // Tag returns tags for a given entity at the desired cardinality.
 func (t *Tagger) Tag(entityID string, cardinality types.TagCardinality) ([]string, error) {
 	entity := t.store.getEntity(entityID)
 	if entity != nil {
-		telemetry.QueriesByCardinality(cardinality).Success.Inc()
+		t.telemetryStore.QueriesByCardinality(cardinality).Success.Inc()
 		return entity.GetTags(cardinality), nil
 	}
 
-	telemetry.QueriesByCardinality(cardinality).EmptyTags.Inc()
+	t.telemetryStore.QueriesByCardinality(cardinality).EmptyTags.Inc()
 
 	return []string{}, nil
 }
@@ -280,7 +294,7 @@ func (t *Tagger) run() {
 		if err != nil {
 			t.streamCancel()
 
-			telemetry.ClientStreamErrors.Inc()
+			t.telemetryStore.ClientStreamErrors.Inc()
 
 			// when Recv() returns an error, the stream is aborted
 			// and the contents of our store are considered out of
@@ -295,7 +309,7 @@ func (t *Tagger) run() {
 			continue
 		}
 
-		telemetry.Receives.Inc()
+		t.telemetryStore.Receives.Inc()
 
 		err = t.processResponse(response)
 		if err != nil {

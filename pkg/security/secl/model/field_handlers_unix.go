@@ -222,7 +222,9 @@ func (ev *Event) resolveFields(forADs bool) {
 		if !forADs {
 			_ = ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Chdir.File)
 		}
-		_ = ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Chdir.SyscallContext)
+		if !forADs {
+			_ = ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Chdir.SyscallContext)
+		}
 	case "chmod":
 		_ = ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Chmod.File.FileFields)
 		_ = ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.Chmod.File.FileFields)
@@ -236,8 +238,12 @@ func (ev *Event) resolveFields(forADs bool) {
 		if !forADs {
 			_ = ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Chmod.File)
 		}
-		_ = ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Chmod.SyscallContext)
-		_ = ev.FieldHandlers.ResolveSyscallCtxArgsInt2(ev, &ev.Chmod.SyscallContext)
+		if !forADs {
+			_ = ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Chmod.SyscallContext)
+		}
+		if !forADs {
+			_ = ev.FieldHandlers.ResolveSyscallCtxArgsInt2(ev, &ev.Chmod.SyscallContext)
+		}
 	case "chown":
 		_ = ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Chown.File.FileFields)
 		_ = ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.Chown.File.FileFields)
@@ -253,9 +259,15 @@ func (ev *Event) resolveFields(forADs bool) {
 		}
 		_ = ev.FieldHandlers.ResolveChownUID(ev, &ev.Chown)
 		_ = ev.FieldHandlers.ResolveChownGID(ev, &ev.Chown)
-		_ = ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Chown.SyscallContext)
-		_ = ev.FieldHandlers.ResolveSyscallCtxArgsInt2(ev, &ev.Chown.SyscallContext)
-		_ = ev.FieldHandlers.ResolveSyscallCtxArgsInt3(ev, &ev.Chown.SyscallContext)
+		if !forADs {
+			_ = ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Chown.SyscallContext)
+		}
+		if !forADs {
+			_ = ev.FieldHandlers.ResolveSyscallCtxArgsInt2(ev, &ev.Chown.SyscallContext)
+		}
+		if !forADs {
+			_ = ev.FieldHandlers.ResolveSyscallCtxArgsInt3(ev, &ev.Chown.SyscallContext)
+		}
 	case "dns":
 		_ = ev.FieldHandlers.ResolveNetworkDeviceIfName(ev, &ev.NetworkContext.Device)
 	case "exec":
@@ -334,7 +346,9 @@ func (ev *Event) resolveFields(forADs bool) {
 		_ = ev.FieldHandlers.ResolveProcessEnvs(ev, ev.Exec.Process)
 		_ = ev.FieldHandlers.ResolveProcessEnvp(ev, ev.Exec.Process)
 		_ = ev.FieldHandlers.ResolveProcessEnvsTruncated(ev, ev.Exec.Process)
-		_ = ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Exec.SyscallContext)
+		if !forADs {
+			_ = ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Exec.SyscallContext)
+		}
 	case "exit":
 		if ev.Exit.Process.IsNotKworker() {
 			_ = ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Exit.Process.FileEvent.FileFields)
@@ -437,8 +451,12 @@ func (ev *Event) resolveFields(forADs bool) {
 		if !forADs {
 			_ = ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Link.Target)
 		}
-		_ = ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Link.SyscallContext)
-		_ = ev.FieldHandlers.ResolveSyscallCtxArgsStr2(ev, &ev.Link.SyscallContext)
+		if !forADs {
+			_ = ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Link.SyscallContext)
+		}
+		if !forADs {
+			_ = ev.FieldHandlers.ResolveSyscallCtxArgsStr2(ev, &ev.Link.SyscallContext)
+		}
 	case "load_module":
 		_ = ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.LoadModule.File.FileFields)
 		_ = ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.LoadModule.File.FileFields)
@@ -484,9 +502,15 @@ func (ev *Event) resolveFields(forADs bool) {
 		_ = ev.FieldHandlers.ResolveMountPointPath(ev, &ev.Mount)
 		_ = ev.FieldHandlers.ResolveMountSourcePath(ev, &ev.Mount)
 		_ = ev.FieldHandlers.ResolveMountRootPath(ev, &ev.Mount)
-		_ = ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Mount.SyscallContext)
-		_ = ev.FieldHandlers.ResolveSyscallCtxArgsStr2(ev, &ev.Mount.SyscallContext)
-		_ = ev.FieldHandlers.ResolveSyscallCtxArgsStr3(ev, &ev.Mount.SyscallContext)
+		if !forADs {
+			_ = ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Mount.SyscallContext)
+		}
+		if !forADs {
+			_ = ev.FieldHandlers.ResolveSyscallCtxArgsStr2(ev, &ev.Mount.SyscallContext)
+		}
+		if !forADs {
+			_ = ev.FieldHandlers.ResolveSyscallCtxArgsStr3(ev, &ev.Mount.SyscallContext)
+		}
 	case "mprotect":
 	case "ondemand":
 		_ = ev.FieldHandlers.ResolveOnDemandName(ev, &ev.OnDemand)
@@ -511,9 +535,15 @@ func (ev *Event) resolveFields(forADs bool) {
 		if !forADs {
 			_ = ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Open.File)
 		}
-		_ = ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Open.SyscallContext)
-		_ = ev.FieldHandlers.ResolveSyscallCtxArgsInt2(ev, &ev.Open.SyscallContext)
-		_ = ev.FieldHandlers.ResolveSyscallCtxArgsInt3(ev, &ev.Open.SyscallContext)
+		if !forADs {
+			_ = ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Open.SyscallContext)
+		}
+		if !forADs {
+			_ = ev.FieldHandlers.ResolveSyscallCtxArgsInt2(ev, &ev.Open.SyscallContext)
+		}
+		if !forADs {
+			_ = ev.FieldHandlers.ResolveSyscallCtxArgsInt3(ev, &ev.Open.SyscallContext)
+		}
 	case "ptrace":
 		if ev.PTrace.Tracee.Process.IsNotKworker() {
 			_ = ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.PTrace.Tracee.Process.FileEvent.FileFields)
@@ -727,8 +757,12 @@ func (ev *Event) resolveFields(forADs bool) {
 		if !forADs {
 			_ = ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Rename.New)
 		}
-		_ = ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Rename.SyscallContext)
-		_ = ev.FieldHandlers.ResolveSyscallCtxArgsStr2(ev, &ev.Rename.SyscallContext)
+		if !forADs {
+			_ = ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Rename.SyscallContext)
+		}
+		if !forADs {
+			_ = ev.FieldHandlers.ResolveSyscallCtxArgsStr2(ev, &ev.Rename.SyscallContext)
+		}
 	case "rmdir":
 		_ = ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Rmdir.File.FileFields)
 		_ = ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.Rmdir.File.FileFields)
@@ -966,9 +1000,15 @@ func (ev *Event) resolveFields(forADs bool) {
 		if !forADs {
 			_ = ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Unlink.File)
 		}
-		_ = ev.FieldHandlers.ResolveSyscallCtxArgsInt1(ev, &ev.Unlink.SyscallContext)
-		_ = ev.FieldHandlers.ResolveSyscallCtxArgsStr2(ev, &ev.Unlink.SyscallContext)
-		_ = ev.FieldHandlers.ResolveSyscallCtxArgsInt3(ev, &ev.Unlink.SyscallContext)
+		if !forADs {
+			_ = ev.FieldHandlers.ResolveSyscallCtxArgsInt1(ev, &ev.Unlink.SyscallContext)
+		}
+		if !forADs {
+			_ = ev.FieldHandlers.ResolveSyscallCtxArgsStr2(ev, &ev.Unlink.SyscallContext)
+		}
+		if !forADs {
+			_ = ev.FieldHandlers.ResolveSyscallCtxArgsInt3(ev, &ev.Unlink.SyscallContext)
+		}
 	case "unload_module":
 	case "utimes":
 		_ = ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Utimes.File.FileFields)
@@ -983,7 +1023,9 @@ func (ev *Event) resolveFields(forADs bool) {
 		if !forADs {
 			_ = ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Utimes.File)
 		}
-		_ = ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Utimes.SyscallContext)
+		if !forADs {
+			_ = ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Utimes.SyscallContext)
+		}
 	}
 }
 

@@ -68,9 +68,9 @@ func (e *kafkaEncoder) encodeData(connectionData *USMConnectionData[kafka.Key, *
 				if requestStat.Count == 0 {
 					continue
 				}
-				builder.AddStatsByStatusCode(func(statsByStatusCodeBuilder *model.KafkaAggregation_StatsByStatusCodeEntryBuilder) {
-					statsByStatusCodeBuilder.SetKey(int32(statusCode))
-					statsByStatusCodeBuilder.SetValue(func(kafkaStatsBuilder *model.KafkaStatsBuilder) {
+				builder.AddStatsByErrorCode(func(statsByErrorCodeBuilder *model.KafkaAggregation_StatsByErrorCodeEntryBuilder) {
+					statsByErrorCodeBuilder.SetKey(int32(statusCode))
+					statsByErrorCodeBuilder.SetValue(func(kafkaStatsBuilder *model.KafkaStatsBuilder) {
 						kafkaStatsBuilder.SetCount(uint32(requestStat.Count))
 					})
 				})
