@@ -7,6 +7,7 @@ exporters:
       site: datadoghq.com
     auth: null
     compression: ""
+    cookies: null
     disable_keep_alives: false
     endpoint: ""
     headers: {}
@@ -104,7 +105,7 @@ extensions:
       interval: 5m
     compression_algorithms: []
     cors: null
-    endpoint: 0.0.0.0:13133
+    endpoint: localhost:13133
     include_metadata: false
     max_request_body_size: 0
     path: /
