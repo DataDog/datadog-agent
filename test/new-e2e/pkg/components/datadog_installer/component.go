@@ -77,7 +77,7 @@ func NewInstaller(e aws.Environment, host *remoteComp.Host, options ...Option) (
 
 		_, err = host.OS.Runner().Command(comp.namer.ResourceName("install"), &command.Args{
 			Create: pulumi.Sprintf(`
-Exit (Start-Process -Wait msiexec -PassThru -ArgumentList 'msiexec /qn /i %s').ExitCode
+Exit (Start-Process -Wait msiexec -PassThru -ArgumentList '/qn /i %s').ExitCode
 `, params.Url),
 			Delete: pulumi.Sprintf(`
 $installerList = Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*" | Where-Object {$_.DisplayName -like 'Datadog Installer'}
