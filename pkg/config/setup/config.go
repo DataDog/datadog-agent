@@ -135,10 +135,12 @@ var (
 var (
 	// StartTime is the agent startup time
 	StartTime = time.Now()
-
-	// DefaultSecurityProfilesDir is the default directory used to store Security Profiles by the runtime security module
-	DefaultSecurityProfilesDir = filepath.Join(defaultRunPath, "runtime-security", "profiles")
 )
+
+// GetDefaultSecurityProfilesDir is the default directory used to store Security Profiles by the runtime security module
+func GetDefaultSecurityProfilesDir() string {
+	return filepath.Join(defaultRunPath, "runtime-security", "profiles")
+}
 
 // List of integrations allowed to be configured by RC by default
 var defaultAllowedRCIntegrations = []string{}
