@@ -55,19 +55,26 @@ def run(ctx, tests: str = '', buffer: bool = True, verbosity: int = 1, debug: bo
 def run_unit_tests(_, pattern, buffer, verbosity, debug):
     import unittest
 
-    # Update env
-    for key, value in TEST_ENV.items():
-        if key not in os.environ:
-            os.environ[key] = value
+    old_environ = os.environ.copy()
 
-    loader = unittest.TestLoader()
-    suite = loader.discover('.', pattern=pattern)
-    if debug and 'TASKS_DEBUG' in os.environ:
-        suite.debug()
+    try:
+        # Update env
+        for key, value in TEST_ENV.items():
+            if key not in os.environ:
+                os.environ[key] = value
 
-        # Will raise an error if the tests fail
-        return True
-    else:
-        runner = unittest.TextTestRunner(buffer=buffer, verbosity=verbosity)
+        loader = unittest.TestLoader()
+        suite = loader.discover('.', pattern=pattern)
+        if debug and 'TASKS_DEBUG' in os.environ:
+            suite.debug()
 
-        return runner.run(suite).wasSuccessful()
+            # Will raise an error if the tests fail
+            return True
+        else:
+            runner = unittest.TextTestRunner(buffer=buffer, verbosity=verbosity)
+
+            return runner.run(suite).wasSuccessful()
+    finally:
+        # Restore env
+        os.environ.clear()
+        os.environ.update(old_environ)
