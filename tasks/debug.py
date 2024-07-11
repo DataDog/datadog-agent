@@ -10,8 +10,8 @@ def debug(_, wait=True, host='localhost', port=5678):
     """
     Launch debugger to debug in vs-code or other IDEs using debugpy.
 
-    Usage to debug `inv invoke-unit-tests`:
-    > inv debug linter.python
+    Usage to debug `inv invoke-unit-tests.run`:
+    > inv debug invoke-unit-tests.run
     > # In vscode, launch the debugger with the configuration "Remote Debug Tasks"
     > # The debugger is attached !
     """
