@@ -350,33 +350,40 @@ func (c *collector) buildCollectorEvent(ctx context.Context, ev *docker.Containe
 
 func extractImage(ctx context.Context, container types.ContainerJSON, resolve resolveHook, store workloadmeta.Component) workloadmeta.ContainerImage {
 	imageSpec := container.Config.Image
+	image := workloadmeta.ContainerImage{
+		RawName: imageSpec,
+		Name:    imageSpec,
+	}
 
 	var (
-		image workloadmeta.ContainerImage
-		err   error
+		name      string
+		registry  string
+		shortName string
+		tag       string
+		err       error
 	)
 
 	if strings.Contains(imageSpec, "@sha256") {
-		image, err = workloadmeta.NewContainerImage(container.Image, imageSpec)
+		name, registry, shortName, tag, err = containers.SplitImageName(imageSpec)
 		if err != nil {
 			log.Debugf("cannot split image name %q for container %q: %s", imageSpec, container.ID, err)
 		}
 	}
 
-	if (image.Name == "" && image.Tag == "") || err != nil {
+	if name == "" && tag == "" {
 		resolvedImageSpec, err := resolve(ctx, container)
 		if err != nil {
 			log.Debugf("cannot resolve image name %q for container %q: %s", imageSpec, container.ID, err)
 			return image
 		}
 
-		image, err = workloadmeta.NewContainerImage(container.Image, resolvedImageSpec)
+		name, registry, shortName, tag, err = containers.SplitImageName(resolvedImageSpec)
 		if err != nil {
 			log.Debugf("cannot split image name %q for container %q: %s", resolvedImageSpec, container.ID, err)
 
 			// fallback and try to parse the original imageSpec anyway
 			if errors.Is(err, containers.ErrImageIsSha256) {
-				image, err = workloadmeta.NewContainerImage(container.Image, imageSpec)
+				name, registry, shortName, tag, err = containers.SplitImageName(imageSpec)
 				if err != nil {
 					log.Debugf("cannot split image name %q for container %q: %s", imageSpec, container.ID, err)
 					return image
@@ -387,6 +394,11 @@ func extractImage(ctx context.Context, container types.ContainerJSON, resolve re
 		}
 	}
 
+	image.Name = name
+	image.Registry = registry
+	image.ShortName = shortName
+	image.Tag = tag
+	image.ID = container.Image
 	image.RepoDigest = util.ExtractRepoDigestFromImage(image.ID, image.Registry, store) // "sha256:digest"
 	return image
 }
