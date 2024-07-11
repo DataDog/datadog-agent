@@ -58,7 +58,7 @@ def generate_failure_messages(project_name: str, failed_jobs: FailedJobs) -> dic
     return messages_to_send
 
 
-def send_message_and_metrics(ctx, failed_jobs, messages_to_send, notification_type, dry_run):
+def send_message_and_metrics(ctx, failed_jobs, messages_to_send, notification_type, print_to_stdout):
     # From the job failures, set whether the pipeline succeeded or failed and craft the
     # base message that will be sent.
     if failed_jobs.all_mandatory_failures():  # At least one mandatory job failed
@@ -89,7 +89,7 @@ def send_message_and_metrics(ctx, failed_jobs, messages_to_send, notification_ty
             channel = CHANNEL_PIPELINES
             message.base_message += UNKNOWN_OWNER_TEMPLATE.format(owner=owner)
         message.coda = coda
-        if dry_run:
+        if print_to_stdout:
             print(f"Would send to {channel}:\n{str(message)}")
         else:
             all_teams = channel == CHANNEL_PIPELINES
