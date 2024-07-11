@@ -148,7 +148,7 @@ func TestDemuxForwardersCreated(t *testing.T) {
 	require.NotNil(deps.SharedForwarder)
 	demux.Stop(false)
 
-	pkgconfig.Datadog().SetWithoutSource("orchestrator_explorer.enabled", true)
+	pkgconfig.Datadog().SetWithoutSource("orchestrator_explorer.enabled", false)
 
 	opts = demuxTestOptions()
 	deps = createDemuxDeps(t, opts, eventplatformimpl.NewDefaultParams())
@@ -157,7 +157,7 @@ func TestDemuxForwardersCreated(t *testing.T) {
 	_, found = deps.EventPlatformFwd.Get()
 	require.True(found)
 	_, found = deps.OrchestratorFwd.Get()
-	require.Equal(OrchestratorForwarderSupport, found)
+	require.False(found)
 	require.NotNil(deps.SharedForwarder)
 	demux.Stop(false)
 }
