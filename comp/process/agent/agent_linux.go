@@ -26,20 +26,26 @@ func Enabled(config config.Component, checkComponents []types.CheckComponent, lo
 	runInCoreAgent := config.GetBool("process_config.run_in_core_agent.enabled")
 
 	var npmEnabled bool
-	// var sdbfsdf bool
-	// ProcessCheckName       = "process"
-	// ContainerCheckName     = "container"
-	// DiscoveryCheckName     = "process_discovery"
-	// if any of those chekcs enabled and running core agent = false, log warning to use running core agent flag runInCoreAgent
+	var processEnabled bool
 	for _, check := range checkComponents {
 		if check.Object().Name() == checks.ConnectionsCheckName && check.Object().IsEnabled() {
 			npmEnabled = true
-			break // get rid
+		}
+		if (check.Object().Name() == checks.ProcessCheckName ||
+			check.Object().Name() == checks.ContainerCheckName ||
+			check.Object().Name() == checks.DiscoveryCheckName) &&
+			check.Object().IsEnabled() {
+			processEnabled = true
 		}
 	}
 
 	switch flavor.GetFlavor() {
 	case flavor.ProcessAgent:
+		if !runInCoreAgent && processEnabled {
+			// process checks enabled but not running in core agent, warn about depreciation
+			log.Info("temporary warning for depreciation")
+		}
+
 		if npmEnabled {
 			if runInCoreAgent {
 				log.Info("Network Performance Monitoring is not supported in the core agent. " +
@@ -50,9 +56,6 @@ func Enabled(config config.Component, checkComponents []types.CheckComponent, lo
 
 		if runInCoreAgent {
 			log.Info("The process checks will run in the core agent")
-		} else {
-			// else for if not runInCoreAgen to see what checks running
-			log.Info("temp")
 		}
 
 		return !runInCoreAgent
