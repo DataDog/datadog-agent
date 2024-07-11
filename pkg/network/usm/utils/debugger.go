@@ -173,6 +173,9 @@ func (d *tlsDebugger) GetBlockedPathIDsWithSamplePath(programType string) []Path
 			continue
 		}
 
+		registry.m.Lock()
+		defer registry.m.Unlock()
+
 		blockedIDsWithSampleFile := make([]PathIdentifierWithSamplePath, 0, len(registry.blocklistByID.Keys()))
 		for _, pathIdentifier := range registry.blocklistByID.Keys() {
 			samplePath, ok := registry.blocklistByID.Get(pathIdentifier)
