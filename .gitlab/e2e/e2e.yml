@@ -199,16 +199,16 @@ new-e2e-agent-subcommands:
     TEAM: agent-shared-components
   parallel:
     matrix:
-      - EXTRA_PARAMS: --run Test(Linux|Windows)StatusSuite
-      - EXTRA_PARAMS: --run Test(Linux|Windows)HealthSuite
-      - EXTRA_PARAMS: --run Test(Linux|Windows)ConfigSuite
-      - EXTRA_PARAMS: --run Test(Linux|Windows)HostnameSuite
-      - EXTRA_PARAMS: --run Test(Linux|Windows)DiagnoseSuite
-      - EXTRA_PARAMS: --run Test(Linux|Windows)ConfigCheckSuite
-      - EXTRA_PARAMS: --run Test(Linux|Windows)FlareSuite
-      - EXTRA_PARAMS: --run Test(Linux|Windows)SecretSuite
-      - EXTRA_PARAMS: --run Test(Linux|Windows)CheckSuite
-      - EXTRA_PARAMS: --run Test(Linux|Windows)RunSuite
+      - EXTRA_PARAMS: --run "Test(Linux|Windows)StatusSuite"
+      - EXTRA_PARAMS: --run "Test(Linux|Windows)HealthSuite"
+      - EXTRA_PARAMS: --run "Test(Linux|Windows)ConfigSuite"
+      - EXTRA_PARAMS: --run "Test(Linux|Windows)HostnameSuite"
+      - EXTRA_PARAMS: --run "Test(Linux|Windows)DiagnoseSuite"
+      - EXTRA_PARAMS: --run "Test(Linux|Windows)ConfigCheckSuite"
+      - EXTRA_PARAMS: --run "Test(Linux|Windows)FlareSuite"
+      - EXTRA_PARAMS: --run "Test(Linux|Windows)SecretSuite"
+      - EXTRA_PARAMS: --run "T"est(Linux|Windows)CheckSuite"
+      - EXTRA_PARAMS: --run "Test(Linux|Windows)RunSuite"
 
 new-e2e-windows-service-test:
   extends: .new_e2e_template
