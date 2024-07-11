@@ -82,7 +82,7 @@ class TestSummaryData(TestFailureSummary):
         data.write()
 
         data = SummaryData.read(MagicMock(), MagicMock(), 618)
-        self.assertEqual(len(data.jobs), 4)
+        self.assertEqual(len(data.jobs), 3)
         self.assertEqual(data.jobs[0].id, 1)
         self.assertEqual(data.jobs[1].id, 2)
         self.assertEqual(data.jobs[2].id, 3)

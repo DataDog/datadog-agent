@@ -17,6 +17,8 @@ def debug(_, wait=True, host='localhost', port=5678):
     """
     import debugpy
 
+    os.environ['TASKS_DEBUG'] = '1'
+
     init_debug_config(_, verbose=False)
 
     debugpy.listen((host, port))
