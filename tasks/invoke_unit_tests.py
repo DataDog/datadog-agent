@@ -33,19 +33,31 @@ def run(ctx, tests: str = '', flags: str = '-b'):
             print(color_message('Running tests from module', Color.BLUE), color_message(f'{test}_tests', Color.BOLD))
 
             pattern = '*_tests.py' if len(tests) == 0 else test + '_tests.py'
-            command = f"'{sys.executable}' -m unittest discover {flags} -s tasks -p '{pattern}'"
-            if not run_unit_tests_command(ctx, command):
+            # command = f"'{sys.executable}' -m unittest discover {flags} -s tasks -p '{pattern}'"
+            if not run_unit_tests(ctx, flags, pattern):
                 error = True
 
         # Throw error if more than one module fails
         if error and len(tests) > 1:
             raise Exit(color_message('Some tests are failing', Color.RED))
     else:
-        command = f"'{sys.executable}' -m unittest discover {flags} -s tasks -p '*_tests.py'"
-        run_unit_tests_command(ctx, command)
+        # command = f"'{sys.executable}' -m unittest discover {flags} -s tasks -p '*_tests.py'"
+        pattern = '*_tests.py'
+        run_unit_tests(ctx, flags, pattern)
+        # if not run_unit_tests(ctx, flags, pattern):
+        #     raise Exit()
 
 
-def run_unit_tests_command(ctx, command):
+def run_unit_tests(ctx, flags, pattern):
+    # import unittest
+
+    # tl = unittest.TestLoader()
+    # suite = tl.discover('.', pattern=pattern)
+    # runner = unittest.TextTestRunner()
+    # return runner.run(suite).wasSuccessful()
+
+    command = f"'{sys.executable}' -m unittest discover {flags} -s tasks -p '{pattern}'"
+
     return ctx.run(
         command,
         env=TEST_ENV,
