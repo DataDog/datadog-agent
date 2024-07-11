@@ -5,7 +5,7 @@ version: 2.1
 # and https://learnxinyminutes.com/docs/yaml/
 
 orbs:
-  datadog-agent: datadog/agent@3.2.1
+  datadog-agent: datadog/agent@dev:test
 
 experimental:
   # For some reason filtering out notifications keeps being undocumented and
