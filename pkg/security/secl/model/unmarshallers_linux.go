@@ -1049,7 +1049,7 @@ func (e *DNSEvent) UnmarshalBinary(data []byte) (int, error) {
 	var err error
 	e.Name, err = decodeDNSName(data[10:])
 	if err != nil {
-		return 0, fmt.Errorf("failed to decode %s (id: %d, count: %d, type:%d, size:%d)\n", data[10:], e.ID, e.Count, e.Type, e.Size)
+		return 0, fmt.Errorf("failed to decode %s (id: %d, count: %d, type:%d, size:%d)", data[10:], e.ID, e.Count, e.Type, e.Size)
 	}
 	if err = validateDNSName(e.Name); err != nil {
 		return 0, err
