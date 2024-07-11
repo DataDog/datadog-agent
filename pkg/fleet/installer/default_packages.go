@@ -6,6 +6,7 @@
 package installer
 
 import (
+	"regexp"
 	"slices"
 	"strings"
 
@@ -16,6 +17,7 @@ import (
 // Package represents a package known to the installer
 type Package struct {
 	Name                      string
+	version                   func(Package, *env.Env) string
 	released                  bool
 	releasedBySite            []string
 	releasedWithRemoteUpdates bool
@@ -25,12 +27,12 @@ type Package struct {
 // PackagesList lists all known packages. Not all of them are installable
 var PackagesList = []Package{
 	{Name: "datadog-apm-inject", released: true, condition: apmInjectEnabled},
-	{Name: "datadog-apm-library-java", released: true, condition: apmLanguageEnabled},
-	{Name: "datadog-apm-library-ruby", released: true, condition: apmLanguageEnabled},
-	{Name: "datadog-apm-library-js", released: true, condition: apmLanguageEnabled},
-	{Name: "datadog-apm-library-dotnet", released: true, condition: apmLanguageEnabled},
-	{Name: "datadog-apm-library-python", released: true, condition: apmLanguageEnabled},
-	{Name: "datadog-agent", released: false, releasedWithRemoteUpdates: true},
+	{Name: "datadog-apm-library-java", version: apmLanguageVersion, released: true, condition: apmLanguageEnabled},
+	{Name: "datadog-apm-library-ruby", version: apmLanguageVersion, released: true, condition: apmLanguageEnabled},
+	{Name: "datadog-apm-library-js", version: apmLanguageVersion, released: true, condition: apmLanguageEnabled},
+	{Name: "datadog-apm-library-dotnet", version: apmLanguageVersion, released: true, condition: apmLanguageEnabled},
+	{Name: "datadog-apm-library-python", version: apmLanguageVersion, released: true, condition: apmLanguageEnabled},
+	{Name: "datadog-agent", version: agentVersion, released: false, releasedWithRemoteUpdates: true},
 }
 
 var packageDependencies = map[string][]string{
@@ -41,13 +43,12 @@ var packageDependencies = map[string][]string{
 	"datadog-apm-library-python": {"datadog-apm-inject"},
 }
 
-var packageDefaultVersions = map[string]string{
-	"datadog-apm-inject":         "latest",
-	"datadog-apm-library-java":   "1-1",
-	"datadog-apm-library-ruby":   "1-1",
-	"datadog-apm-library-js":     "5-1",
-	"datadog-apm-library-dotnet": "2-1",
-	"datadog-apm-library-python": "2-1",
+var apmPackageDefaultVersions = map[string]string{
+	"datadog-apm-library-java":   "1",
+	"datadog-apm-library-ruby":   "1",
+	"datadog-apm-library-js":     "5",
+	"datadog-apm-library-dotnet": "2",
+	"datadog-apm-library-python": "2",
 }
 
 // DefaultPackages resolves the default packages URLs to install based on the environment.
@@ -71,16 +72,9 @@ func defaultPackages(env *env.Env, defaultPackages []Package) []string {
 		}
 
 		version := "latest"
-		if v, ok := packageDefaultVersions[p.Name]; ok {
-			version = v
+		if p.version != nil {
+			version = p.version(p, env)
 		}
-
-		// Respect pinned version of APM packages if we don't define any overwrite
-		if apmLibVersion, ok := env.ApmLibraries[packageToLanguage(p.Name)]; ok {
-			version = apmLibVersion.AsVersionTag()
-			// TODO(paullgdc): Emit a warning here if APM packages are not pinned to at least a major
-		}
-
 		if v, ok := env.DefaultPackagesVersionOverride[p.Name]; ok {
 			version = v
 		}
@@ -116,10 +110,40 @@ func apmLanguageEnabled(p Package, e *env.Env) bool {
 	return false
 }
 
+var fullSemverRe = regexp.MustCompile(`^[0-9]+\.[0-9]+\.[0-9]+`)
+
+func apmLanguageVersion(p Package, e *env.Env) string {
+	version := "latest"
+	if defaultVersion, ok := apmPackageDefaultVersions[p.Name]; ok {
+		version = defaultVersion
+	}
+
+	apmLibVersion := e.ApmLibraries[packageToLanguage(p.Name)]
+	if apmLibVersion == "" {
+		return version
+	}
+
+	versionTag, _ := strings.CutPrefix(string(apmLibVersion), "v")
+	if fullSemverRe.MatchString(versionTag) {
+		return versionTag + "-1"
+	}
+	return versionTag
+}
+
 func packageToLanguage(packageName string) env.ApmLibLanguage {
 	lang, found := strings.CutPrefix(packageName, "datadog-apm-library-")
 	if !found {
 		return ""
 	}
 	return env.ApmLibLanguage(lang)
+}
+
+func agentVersion(_ Package, e *env.Env) string {
+	if e.AgentMajorVersion != "" && e.AgentMinorVersion != "" {
+		return e.AgentMajorVersion + "." + e.AgentMinorVersion + "-1"
+	}
+	if e.AgentMinorVersion != "" {
+		return "7." + e.AgentMinorVersion + "-1"
+	}
+	return "latest"
 }
