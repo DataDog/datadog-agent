@@ -32,7 +32,7 @@ func init() {
 	containerIDPattern = regexp.MustCompile(ContainerIDPatternStr)
 }
 
-// FindContainerID extracts the first sub string that matches the pattern of a container ID
+// FindContainerID extracts the first sub string that matches the pattern of a container ID along with the container flags induced from the container runtime prefix
 func FindContainerID(s string) (string, uint64) {
 	match := containerIDPattern.FindIndex([]byte(s))
 	if match == nil {
