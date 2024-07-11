@@ -16,6 +16,7 @@ from tasks.go import run_golangci_lint
 from tasks.libs.ciproviders.github_api import GithubAPI
 from tasks.libs.ciproviders.gitlab_api import (
     generate_gitlab_full_configuration,
+    get_gitlab_ci_configuration,
     get_gitlab_repo,
     get_preset_contexts,
     load_context,
@@ -507,33 +508,21 @@ def job_change_path(ctx, job_files=None):
         'new-e2e-agent-platform-step-by-step-ubuntu-a7-arm64',
         'new-e2e-agent-platform-step-by-step-ubuntu-a7-x86_64',
         'new-e2e-agent-shared-components',
-        'new-e2e-agent-subcommands',
-        'new-e2e-aml',
-        'new-e2e-apm',
-        'new-e2e-containers',
         'new-e2e-cws',
-        'new-e2e-installer',
         'new-e2e-language-detection',
-        'new-e2e-ndm-netflow',
-        'new-e2e-ndm-snmp',
         'new-e2e-npm-docker',
         'new-e2e-npm-packages',
         'new-e2e-orchestrator',
-        'new-e2e-process',
-        'new-e2e-remote-config',
-        'new-e2e-windows-agent-domain-tests-a7-x86_64',
-        'new-e2e-windows-agent-msi-upgrade-windows-server-a7-x86_64',
-        'new-e2e-windows-agent-msi-windows-server-a6-x86_64',
-        'new-e2e-windows-agent-msi-windows-server-a7-x86_64',
-        'new-e2e-windows-service-test',
         'new-e2e_windows_powershell_module_test',
-        'trigger-flakes-finder',
     }
 
     job_files = job_files or (['.gitlab/e2e/e2e.yml'] + list(glob('.gitlab/kitchen_testing/new-e2e_testing/*.yml')))
 
-    # Read gitlab config
-    config = generate_gitlab_full_configuration(ctx, ".gitlab-ci.yml", {}, return_dump=False, apply_postprocessing=True)
+    # Read and parse gitlab config
+    config = get_gitlab_ci_configuration(ctx, ".gitlab-ci.yml")
+
+    # The config is filtered to only include jobs
+    all_jobs = set(config.keys())
 
     # Fetch all test jobs
     test_config = read_includes(ctx, job_files, return_config=True, add_file_path=True)
@@ -555,6 +544,10 @@ def job_change_path(ctx, job_files=None):
     tests_without_change_path = defaultdict(list)
     tests_without_change_path_allowed = defaultdict(list)
     for test, filepath in tests:
+        # Not a job
+        if test not in all_jobs:
+            continue
+
         if not any(contains_valid_change_rule(rule) for rule in config[test]['rules'] if isinstance(rule, dict)):
             if test in tests_without_change_path_allow_list:
                 tests_without_change_path_allowed[filepath].append(test)
