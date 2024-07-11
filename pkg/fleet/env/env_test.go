@@ -86,6 +86,31 @@ func TestFromEnv(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "APM libraries parsing",
+			envVars: map[string]string{
+				envApmLibraries: "java  dotnet:latest, ruby:1.2   ,python:1.2.3",
+			},
+			expected: &Env{
+				APIKey:                         "",
+				Site:                           "datadoghq.com",
+				RegistryOverride:               "",
+				RegistryAuthOverride:           "",
+				RegistryOverrideByImage:        map[string]string{},
+				RegistryAuthOverrideByImage:    map[string]string{},
+				DefaultPackagesInstallOverride: map[string]bool{},
+				DefaultPackagesVersionOverride: map[string]string{},
+				ApmLibraries: map[ApmLibLanguage]ApmLibVersion{
+					"java":   "",
+					"dotnet": "latest",
+					"ruby":   "1.2",
+					"python": "1.2.3",
+				},
+				InstallScript: InstallScriptEnv{
+					APMInstrumentationEnabled: APMInstrumentationNotSet,
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {

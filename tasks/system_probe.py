@@ -1194,12 +1194,14 @@ def get_linux_header_dirs(
     # Only get paths with maximum priority, those are the ones that match the best.
     # Note that there might be multiple of them (e.g., the arch-specific and the common path)
     max_priority = max(prio for prio, _, _ in paths_with_priority_and_sort_order)
-    linux_headers = [(path, ord) for prio, ord, path in paths_with_priority_and_sort_order if prio == max_priority]
+    unsorted_linux_headers = [
+        (path, ord) for prio, ord, path in paths_with_priority_and_sort_order if prio == max_priority
+    ]
 
     # Include sort order is important, ensure we respect the sort order we defined while
     # discovering the paths. Also, in case of equal sort order, sort by path name to ensure
     # a deterministic order (useful to stop ninja from rebuilding on reordering of headers).
-    linux_headers = [path for path, _ in sorted(linux_headers, key=lambda x: (x[1], x[0]))]
+    linux_headers = [path for path, _ in sorted(unsorted_linux_headers, key=lambda x: (x[1], x[0]))]
 
     # Now construct all subdirectories. Again, order is important, so keep the list
     subdirs = [

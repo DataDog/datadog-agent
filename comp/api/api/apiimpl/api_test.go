@@ -32,7 +32,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	replaymock "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/fx-mock"
@@ -87,7 +86,6 @@ func getComponentDependencies(t *testing.T) testdeps {
 		dogstatsdServer.MockModule(),
 		replaymock.MockModule(),
 		secretsimpl.MockModule(),
-		telemetryimpl.MockModule(),
 		demultiplexerimpl.MockModule(),
 		fx.Supply(optional.NewNoneOption[rcservice.Component]()),
 		fx.Supply(optional.NewNoneOption[rcservicemrf.Component]()),
