@@ -144,7 +144,7 @@ func TestDemuxForwardersCreated(t *testing.T) {
 	_, found = deps.EventPlatformFwd.Get()
 	require.True(found)
 	_, found = deps.OrchestratorFwd.Get()
-	require.Equal(OrchestratorForwarderSupport, found)
+	require.True(found)
 	require.NotNil(deps.SharedForwarder)
 	demux.Stop(false)
 
