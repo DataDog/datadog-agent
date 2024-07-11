@@ -62,8 +62,6 @@ Enhancement Notes
   Adding this for MacOS only first. Will incrementally add support for Linux and Windows.
   The Agent might need particular permissions to read information about processes using ports.
 
-- Agents are now built with Go ``1.21.10``.
-
 - Agents are now built with Go ``1.21.11``.
 
 - [NDM] Add option to collect hardware status from Cisco SD-WAN.
