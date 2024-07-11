@@ -41,8 +41,9 @@ func Enabled(config config.Component, checkComponents []types.CheckComponent, lo
 
 	switch flavor.GetFlavor() {
 	case flavor.ProcessAgent:
+		// can also change return of npm enabled to allow for if else for runincoreagent
 		if !runInCoreAgent && processEnabled {
-			// process checks enabled but not running in core agent, warn about depreciation
+			// process checks enabled but not running in core agent, warn about deprecation
 			log.Info("temporary warning for depreciation")
 		}
 
