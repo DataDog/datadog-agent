@@ -129,7 +129,7 @@ namespace WixSetup.Datadog_Installer
                 // Set custom output directory (WixSharp defaults to current directory)
                 project.OutDir = Environment.GetEnvironmentVariable("AGENT_MSI_OUTDIR");
             }
-            project.OutFileName = "datadog-installer-1-x86_64";
+            project.OutFileName = $"datadog-installer-{_agentVersion.PackageVersion}-1-x86_64";
             project.Package.AttributesDefinition = $"Comments={ProductComment}";
             project.UI = WUI.WixUI_Common;
             project.CustomUI = new DatadogInstallerUI(this, _installerCustomActions);
