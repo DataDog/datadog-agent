@@ -10,6 +10,7 @@ package tests
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
 	"testing"
 
@@ -28,6 +29,7 @@ func TestSBOM(t *testing.T) {
 	defer func() {
 		flavor.SetFlavor(originalFlavor)
 	}()
+	os.Chdir("/")
 
 	ruleDefs := []*rules.RuleDefinition{
 		{
