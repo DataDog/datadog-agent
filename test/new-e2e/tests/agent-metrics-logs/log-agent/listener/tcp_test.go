@@ -36,7 +36,6 @@ type dockerSuite struct {
 }
 
 func TestTCPListener(t *testing.T) {
-	t.Skip("Skipping as don't currently support using labels to spin up TCP/UDP listener")
 	e2e.Run(t, &dockerSuite{}, e2e.WithProvisioner(
 		awsdocker.Provisioner(
 			awsdocker.WithAgentOptions(
