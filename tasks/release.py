@@ -6,6 +6,7 @@ import os
 import re
 import sys
 import tempfile
+from collections import defaultdict
 from datetime import date
 from time import sleep
 
@@ -15,7 +16,7 @@ from invoke.exceptions import Exit
 
 from tasks.libs.ciproviders.github_api import GithubAPI, create_release_pr
 from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
-from tasks.libs.common.color import color_message
+from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.constants import (
     DEFAULT_BRANCH,
     GITHUB_REPO_NAME,
@@ -921,13 +922,11 @@ def chase_release_managers(_, version):
 
 @task
 def chase_for_qa_cards(_, version):
-    from collections import defaultdict
-
     from slack_sdk import WebClient
 
     cards = list_not_closed_qa_cards(version)
-    if len(cards) == 0:
-        print("No QA cards to chase", file=sys.stderr)
+    if not cards:
+        print(f"[{color_message('OK', Color.GREEN)}] No QA cards to chase")
         return
     grouped_cards = defaultdict(list)
     for card in cards:
@@ -935,11 +934,11 @@ def chase_for_qa_cards(_, version):
     GITHUB_SLACK_MAP = load_and_validate("github_slack_map.yaml", "DEFAULT_SLACK_CHANNEL", DEFAULT_SLACK_CHANNEL)
     GITHUB_JIRA_MAP = load_and_validate("github_jira_map.yaml", "DEFAULT_JIRA_PROJECT", DEFAULT_JIRA_PROJECT)
     client = WebClient(os.environ["SLACK_API_TOKEN"])
-    print(f"Found {len(cards)} QA cards to chase", file=sys.stderr)
+    print(f"Found {len(cards)} QA cards to chase")
     for project, cards in grouped_cards.items():
         team = next(team for team, jira_project in GITHUB_JIRA_MAP.items() if project == jira_project)
         channel = GITHUB_SLACK_MAP[team]
-        print(f" - {channel} for {[card['key'] for card in cards]}", file=sys.stderr)
+        print(f" - {channel} for {[card['key'] for card in cards]}")
         card_links = ", ".join(
             [f"<https://datadoghq.atlassian.net/browse/{card['key']}|{card['key']}>" for card in cards]
         )
