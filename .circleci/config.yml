@@ -1,8 +1,11 @@
-version: 2
+version: 2.1
 
 # This file uses YAML anchors to deduplicate steps
 # see https://circleci.com/blog/circleci-hacks-reuse-yaml-in-your-circleci-config-with-yaml/
 # and https://learnxinyminutes.com/docs/yaml/
+
+orbs:
+  datadog-agent: datadog/agent@3.2.0
 
 experimental:
   # For some reason filtering out notifications keeps being undocumented and
@@ -52,6 +55,17 @@ jobs:
           <<: *save_source
           paths:
             - /go/src/github.com/DataDog/datadog-agent
+
+  test_orb:
+    docker:
+      - image: circleci/python
+    steps:
+      - checkout
+      - datadog-agent/setup:
+          agent_major_version: "7"
+          api_key: DATADOG_FAKE_API_KEY
+          site: datadoghq.com
+      - datadog-agent/stop
 
   dependencies:
     <<: *job_template
@@ -240,6 +254,7 @@ workflows:
   version: 2
   test_and_build:
     jobs:
+      - test_orb
       - checkout_code
       - dependencies:
           requires:
