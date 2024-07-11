@@ -847,6 +847,9 @@ A filesystem was mounted
 | [`mount.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
 | [`mount.root.path`](#mount-root-path-doc) | Root path of the mount |
 | [`mount.source.path`](#mount-source-path-doc) | Source path of a bind mount |
+| [`mount.syscall.fs_type`](#mount-syscall-fs_type-doc) | File system type argument of the syscall |
+| [`mount.syscall.mountpoint.path`](#mount-syscall-mountpoint-path-doc) | Mount point path argument of the syscall |
+| [`mount.syscall.source.path`](#mount-syscall-source-path-doc) | Source path argument of the syscall |
 
 ### Event `mprotect`
 
@@ -1202,6 +1205,8 @@ A file/directory was renamed
 | [`rename.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`rename.file.user`](#common-filefields-user-doc) | User of the file's owner |
 | [`rename.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
+| [`rename.syscall.destination.path`](#rename-syscall-destination-path-doc) | Destination path argument of the syscall |
+| [`rename.syscall.path`](#rename-syscall-path-doc) | Path argument of the syscall |
 
 ### Event `rmdir`
 
@@ -2755,6 +2760,27 @@ Definition: Source path of a bind mount
 
 
 
+### `mount.syscall.fs_type` {#mount-syscall-fs_type-doc}
+Type: string
+
+Definition: File system type argument of the syscall
+
+
+
+### `mount.syscall.mountpoint.path` {#mount-syscall-mountpoint-path-doc}
+Type: string
+
+Definition: Mount point path argument of the syscall
+
+
+
+### `mount.syscall.source.path` {#mount-syscall-source-path-doc}
+Type: string
+
+Definition: Source path argument of the syscall
+
+
+
 ### `mprotect.req_protection` {#mprotect-req_protection-doc}
 Type: int
 
@@ -2864,6 +2890,20 @@ Definition: ptrace request
 
 
 Constants: [Ptrace constants](#ptrace-constants)
+
+
+
+### `rename.syscall.destination.path` {#rename-syscall-destination-path-doc}
+Type: string
+
+Definition: Destination path argument of the syscall
+
+
+
+### `rename.syscall.path` {#rename-syscall-path-doc}
+Type: string
+
+Definition: Path argument of the syscall
 
 
 

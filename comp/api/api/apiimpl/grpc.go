@@ -22,8 +22,9 @@ import (
 	workloadmetaServer "github.com/DataDog/datadog-agent/comp/core/workloadmeta/server"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/replay"
+	taggerProto "github.com/DataDog/datadog-agent/comp/core/tagger/proto"
 	taggerserver "github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/server"
+	taggerTypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
 	dsdReplay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
@@ -40,6 +41,7 @@ type server struct {
 type serverSecure struct {
 	pb.UnimplementedAgentSecureServer
 	taggerServer       *taggerserver.Server
+	taggerComp         tagger.Component
 	workloadmetaServer *workloadmetaServer.Server
 	configService      optional.Option[rcservice.Component]
 	configServiceMRF   optional.Option[rcservicemrf.Component]
@@ -103,14 +105,33 @@ func (s *serverSecure) DogstatsdSetTaggerState(_ context.Context, req *pb.Tagger
 	}
 
 	// FiXME: we should perhaps lock the capture processing while doing this...
-	t := replay.NewTagger()
-	if t == nil {
+	taggerReplay := s.taggerComp.ReplayTagger()
+	if taggerReplay == nil {
 		return &pb.TaggerStateResponse{Loaded: false}, fmt.Errorf("unable to instantiate state")
 	}
-	t.LoadState(req.State)
+	state := make([]taggerTypes.Entity, len(req.State))
+
+	// better stores these as the native type
+	for id, entity := range req.State {
+		entityID, err := taggerProto.Pb2TaggerEntityID(entity.Id)
+		if err != nil {
+			log.Errorf("Error getting identity ID for %v: %v", id, err)
+			continue
+		}
+
+		state = append(state, taggerTypes.Entity{
+			ID:                          entityID,
+			HighCardinalityTags:         entity.HighCardinalityTags,
+			OrchestratorCardinalityTags: entity.OrchestratorCardinalityTags,
+			LowCardinalityTags:          entity.LowCardinalityTags,
+			StandardTags:                entity.StandardTags,
+		})
+	}
+
+	taggerReplay.LoadState(state)
 
 	log.Debugf("API: setting capture state tagger")
-	tagger.SetNewCaptureTagger(t)
+	tagger.SetNewCaptureTagger(taggerReplay)
 	s.pidMap.SetPidMap(req.PidMap)
 
 	log.Debugf("API: loaded state successfully")

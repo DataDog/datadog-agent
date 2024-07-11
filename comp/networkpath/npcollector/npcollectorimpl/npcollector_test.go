@@ -130,7 +130,8 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
     "path_id": "",
     "protocol": "UDP",
     "source": {
-        "hostname": "abc"
+        "hostname": "abc",
+        "container_id": "testId1"
     },
     "destination": {
         "hostname": "abc",
@@ -161,7 +162,8 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
     "path_id": "",
     "protocol": "UDP",
     "source": {
-        "hostname": "abc"
+        "hostname": "abc",
+        "container_id": "testId2"
     },
     "destination": {
         "hostname": "abc",

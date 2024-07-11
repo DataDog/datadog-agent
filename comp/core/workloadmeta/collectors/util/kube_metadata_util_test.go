@@ -18,6 +18,7 @@ import (
 func TestGenerateKubeMetadataEntityID(t *testing.T) {
 	tests := []struct {
 		name         string
+		group        string
 		namespace    string
 		resourceType string
 		resourceName string
@@ -25,23 +26,25 @@ func TestGenerateKubeMetadataEntityID(t *testing.T) {
 	}{
 		{
 			name:         "namespace scoped resource",
+			group:        "apps",
 			namespace:    "default",
 			resourceType: "deployments",
 			resourceName: "app",
-			expectedID:   "deployments/default/app",
+			expectedID:   "apps/deployments/default/app",
 		},
 		{
 			name:         "cluster scoped resource",
+			group:        "",
 			namespace:    "",
 			resourceType: "nodes",
 			resourceName: "foo-node",
-			expectedID:   GenerateKubeMetadataEntityID("nodes", "", "foo-node"),
+			expectedID:   "/nodes//foo-node",
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(tt *testing.T) {
-			assert.Equal(tt, test.expectedID, GenerateKubeMetadataEntityID(test.resourceType, test.namespace, test.resourceName))
+			assert.Equal(tt, test.expectedID, GenerateKubeMetadataEntityID(test.group, test.resourceType, test.namespace, test.resourceName))
 		})
 	}
 
@@ -51,6 +54,7 @@ func TestParseKubeMetadataEntityID(t *testing.T) {
 	tests := []struct {
 		name              string
 		entityID          workloadmeta.KubeMetadataEntityID
+		expectedGroup     string
 		expectedName      string
 		expectedNamespace string
 		expectedResource  string
@@ -58,22 +62,25 @@ func TestParseKubeMetadataEntityID(t *testing.T) {
 	}{
 		{
 			name:              "namespace scoped resource",
+			expectedGroup:     "apps",
 			expectedNamespace: "default",
 			expectedResource:  "deployments",
 			expectedName:      "app",
-			entityID:          "deployments/default/app",
+			entityID:          "apps/deployments/default/app",
 			expectError:       false,
 		},
 		{
 			name:              "cluster scoped resource",
+			expectedGroup:     "",
 			expectedNamespace: "",
 			expectedResource:  "nodes",
 			expectedName:      "foo-node",
-			entityID:          GenerateKubeMetadataEntityID("nodes", "", "foo-node"),
+			entityID:          GenerateKubeMetadataEntityID("", "nodes", "", "foo-node"),
 			expectError:       false,
 		},
 		{
 			name:              "malformatted id",
+			expectedGroup:     "",
 			expectedNamespace: "",
 			expectedResource:  "",
 			expectedName:      "",
@@ -84,13 +91,14 @@ func TestParseKubeMetadataEntityID(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(tt *testing.T) {
-			resource, namespace, name, err := ParseKubeMetadataEntityID(test.entityID)
+			group, resource, namespace, name, err := ParseKubeMetadataEntityID(test.entityID)
 			if test.expectError {
 				assert.Error(tt, err)
 			} else {
 				assert.NoError(tt, err)
 			}
 
+			assert.Equal(tt, group, test.expectedGroup)
 			assert.Equal(tt, name, test.expectedName)
 			assert.Equal(tt, namespace, test.expectedNamespace)
 			assert.Equal(tt, resource, test.expectedResource)
