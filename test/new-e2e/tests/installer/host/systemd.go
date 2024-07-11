@@ -116,6 +116,10 @@ func (h *Host) AssertSystemdEvents(since JournaldTimestamp, events SystemdEventS
 	}
 }
 
+func (h *Host) GetSystemdEvents(since JournaldTimestamp) []journaldLog {
+	return h.journaldLogsSince(since)
+}
+
 // SystemdEvent represents a systemd event
 type SystemdEvent struct {
 	Unit    string
