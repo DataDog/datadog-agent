@@ -26,8 +26,7 @@ import (
 )
 
 func udsDatagramListenerFactory(packetOut chan packets.Packets, manager *packets.PoolManager[packets.Packet], cfg config.Component, pidMap pidmap.Component, telemetryStore *TelemetryStore, packetsTelemetryStore *packets.TelemetryStore, telemetry telemetry.Component) (StatsdListener, error) {
-	path := cfg.GetString("dogstatsd_socket")
-	return NewUDSDatagramListener(packetOut, manager, nil, cfg, path, nil, optional.NewNoneOption[workloadmeta.Component](), pidMap, telemetryStore, packetsTelemetryStore, telemetry)
+	return NewUDSDatagramListener(packetOut, manager, nil, cfg, nil, optional.NewNoneOption[workloadmeta.Component](), pidMap, telemetryStore, packetsTelemetryStore, telemetry)
 }
 
 func TestNewUDSDatagramListener(t *testing.T) {

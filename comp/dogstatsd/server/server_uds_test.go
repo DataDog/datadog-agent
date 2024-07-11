@@ -19,44 +19,33 @@ import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/listeners"
 )
 
-func TestUDSCustomReceiver(t *testing.T) {
-	dir := t.TempDir()
-	customSocket := filepath.Join(dir, "dsd_custom.socket") // custom socket
+func TestUDSReceiver(t *testing.T) {
+	socketPath := filepath.Join(t.TempDir(), "dsd.socket")
 
 	cfg := make(map[string]interface{})
 	cfg["dogstatsd_port"] = listeners.RandomPortName
 	cfg["dogstatsd_no_aggregation_pipeline"] = true // another test may have turned it off
-	cfg["dogstatsd_socket"] = customSocket
+	cfg["dogstatsd_socket"] = socketPath
 
 	deps := fulfillDepsWithConfigOverride(t, cfg)
 	demux := deps.Demultiplexer
 
-	conn, err := net.Dial("unixgram", customSocket)
+	conn, err := net.Dial("unixgram", socketPath)
 	require.NoError(t, err, "cannot connect to DSD socket")
 	defer conn.Close()
 
 	testReceive(t, conn, demux)
 }
 
-func TestUDSDefaultReceiver(t *testing.T) {
+func TestUDSReceiverDisabled(t *testing.T) {
 	cfg := make(map[string]interface{})
 	cfg["dogstatsd_port"] = listeners.RandomPortName
 	cfg["dogstatsd_no_aggregation_pipeline"] = true // another test may have turned it off
+	cfg["dogstatsd_socket"] = ""                    // disabled
 
-	socket := defaultSocket
-	defer func() {
-		defaultSocket = socket
-	}()
+	_ = fulfillDepsWithConfigOverride(t, cfg)
 
-	dir := t.TempDir()
-	defaultSocket = filepath.Join(dir, "dsd.socket") // default socket
-
-	deps := fulfillDepsWithConfigOverride(t, cfg)
-	demux := deps.Demultiplexer
-
-	conn, err := net.Dial("unixgram", defaultSocket)
-	require.NoError(t, err, "cannot connect to DSD socket")
-	defer conn.Close()
-
-	testReceive(t, conn, demux)
+	socketPath := filepath.Join(t.TempDir(), "dsd.socket")
+	_, err := net.Dial("unixgram", socketPath)
+	require.Error(t, err, "UDS listener should be disabled")
 }

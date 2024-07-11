@@ -27,10 +27,11 @@ type UDSDatagramListener struct {
 }
 
 // NewUDSDatagramListener returns an idle UDS datagram Statsd listener
-func NewUDSDatagramListener(packetOut chan packets.Packets, sharedPacketPoolManager *packets.PoolManager[packets.Packet], sharedOobPoolManager *packets.PoolManager[[]byte], cfg config.Reader, path string, capture replay.Component, wmeta optional.Option[workloadmeta.Component], pidMap pidmap.Component, telemetryStore *TelemetryStore, packetsTelemetryStore *packets.TelemetryStore, telemetryComponent telemetry.Component) (*UDSDatagramListener, error) {
+func NewUDSDatagramListener(packetOut chan packets.Packets, sharedPacketPoolManager *packets.PoolManager[packets.Packet], sharedOobPoolManager *packets.PoolManager[[]byte], cfg config.Reader, capture replay.Component, wmeta optional.Option[workloadmeta.Component], pidMap pidmap.Component, telemetryStore *TelemetryStore, packetsTelemetryStore *packets.TelemetryStore, telemetryComponent telemetry.Component) (*UDSDatagramListener, error) {
+	socketPath := cfg.GetString("dogstatsd_socket")
 	transport := "unixgram"
 
-	address, err := setupSocketBeforeListen(path, transport)
+	address, err := setupSocketBeforeListen(socketPath, transport)
 	if err != nil {
 		return nil, err
 	}
@@ -40,7 +41,7 @@ func NewUDSDatagramListener(packetOut chan packets.Packets, sharedPacketPoolMana
 		return nil, fmt.Errorf("can't listen: %s", err)
 	}
 
-	err = setSocketWriteOnly(path)
+	err = setSocketWriteOnly(socketPath)
 	if err != nil {
 		return nil, err
 	}
