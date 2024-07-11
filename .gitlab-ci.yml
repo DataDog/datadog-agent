@@ -1,14 +1,14 @@
 ---
 include:
   - .gitlab/.pre/cancel-prev-pipelines.yml
-  # - .gitlab/.pre/test_gitlab_configuration.yml
-#   - .gitlab/benchmarks/include.yml
-#   - .gitlab/binary_build/include.yml
-#   - .gitlab/check_deploy/check_deploy.yml
-#   - .gitlab/check_merge/do_not_merge.yml
+  - .gitlab/.pre/test_gitlab_configuration.yml
+  # - .gitlab/benchmarks/include.yml
+  # - .gitlab/binary_build/include.yml
+  # - .gitlab/check_deploy/check_deploy.yml
+  - .gitlab/check_merge/do_not_merge.yml
 #   - .gitlab/choco_build/choco_build.yml
 #   - .gitlab/choco_deploy/choco_deploy.yml
-#   - .gitlab/common/shared.yml
+  # - .gitlab/common/shared.yml
 #   - .gitlab/common/skip_ci_check.yml
 #   - .gitlab/common/pr_commenter.yml
 #   - .gitlab/common/test_infra_version.yml
@@ -17,9 +17,9 @@ include:
 #   - .gitlab/deploy_containers/deploy_containers.yml
 #   - .gitlab/deploy_cws_instrumentation/deploy_cws_instrumentation.yml
 #   - .gitlab/deploy_dca/deploy_dca.yml
-#   - .gitlab/deploy_packages/include.yml
-#   - .gitlab/deps_build/deps_build.yml
-#   - .gitlab/deps_fetch/deps_fetch.yml
+  # - .gitlab/deploy_packages/include.yml
+  # - .gitlab/deps_build/deps_build.yml
+  # - .gitlab/deps_fetch/deps_fetch.yml
 #   - .gitlab/dev_container_deploy/include.yml
 #   - .gitlab/e2e/e2e.yml
 #   - .gitlab/e2e_pre_test/e2e_pre_test.yml
@@ -40,7 +40,7 @@ include:
 #   - .gitlab/package_deps_build/package_deps_build.yml
 #   - .gitlab/pkg_metrics/pkg_metrics.yml
 #   - .gitlab/post_rc_build/post_rc_tasks.yml
-#   - .gitlab/setup/setup.yml
+  - .gitlab/setup/setup.yml
 #   - .gitlab/source_test/include.yml
 #   - .gitlab/trigger_release/trigger_release.yml
 
