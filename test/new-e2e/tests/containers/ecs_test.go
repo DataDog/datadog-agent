@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ecs"
 
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/infra"
@@ -46,6 +47,8 @@ type ecsSuite struct {
 }
 
 func TestECSSuite(t *testing.T) {
+	// incident-28805
+	flake.Mark(t)
 	suite.Run(t, &ecsSuite{})
 }
 
