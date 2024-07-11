@@ -83,6 +83,8 @@ require (
 	go.uber.org/multierr v1.11.0
 )
 
+require go.opentelemetry.io/collector/config/confignet v0.104.0
+
 require (
 	github.com/DataDog/agent-payload/v5 v5.0.114 // indirect
 	github.com/DataDog/datadog-agent/comp/core/config v0.56.0-rc.2 // indirect
