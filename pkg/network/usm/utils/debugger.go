@@ -131,7 +131,7 @@ func (d *tlsDebugger) GetAllBlockedPathIDs() []BlockedProcess {
 	// Examples of this would be: "shared_libraries", "istio", "goTLS" etc
 	for _, registry := range d.registries {
 		blockedPathIdentifiers := d.GetBlockedPathIDsWithSamplePath(registry.telemetry.programName)
-		if len(blockedPathIdentifiers) != 0 {
+		if len(blockedPathIdentifiers) > 0 {
 			all = append(all, BlockedProcess{
 				ProgramType:     registry.telemetry.programName,
 				PathIdentifiers: blockedPathIdentifiers,
@@ -172,9 +172,6 @@ func (d *tlsDebugger) GetBlockedPathIDsWithSamplePath(programType string) []Path
 		if registry.telemetry.programName != programType {
 			continue
 		}
-
-		registry.m.Lock()
-		defer registry.m.Unlock()
 
 		blockedIDsWithSampleFile := make([]PathIdentifierWithSamplePath, 0, len(registry.blocklistByID.Keys()))
 		for _, pathIdentifier := range registry.blocklistByID.Keys() {
