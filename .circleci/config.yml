@@ -5,7 +5,7 @@ version: 2.1
 # and https://learnxinyminutes.com/docs/yaml/
 
 orbs:
-  datadog-agent: datadog/agent@dev:test2
+  datadog-agent: datadog/agent@3.2.1
 
 experimental:
   # For some reason filtering out notifications keeps being undocumented and
@@ -63,7 +63,6 @@ jobs:
       - checkout
       - datadog-agent/setup:
           agent_major_version: "7"
-          agent_minor_version: "54.1"
           api_key: DATADOG_FAKE_API_KEY
           site: datadoghq.com
       - datadog-agent/stop
