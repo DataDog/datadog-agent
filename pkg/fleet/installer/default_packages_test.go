@@ -209,7 +209,7 @@ func TestDefaultPackages(t *testing.T) {
 		{
 			name: "Strip leading v in version",
 			packages: []Package{
-				{Name: "datadog-apm-library-java", released: true, condition: apmLanguageEnabled},
+				{Name: "datadog-apm-library-java", version: apmLanguageVersion, released: true, condition: apmLanguageEnabled},
 			},
 			env: &env.Env{
 				ApmLibraries: map[env.ApmLibLanguage]env.ApmLibVersion{
@@ -226,9 +226,9 @@ func TestDefaultPackages(t *testing.T) {
 		{
 			name: "Add -1 prefix only for full version pin",
 			packages: []Package{
-				{Name: "datadog-apm-library-java", released: true, condition: apmLanguageEnabled},
-				{Name: "datadog-apm-library-python", released: true, condition: apmLanguageEnabled},
-				{Name: "datadog-apm-library-ruby", released: true, condition: apmLanguageEnabled},
+				{Name: "datadog-apm-library-java", version: apmLanguageVersion, released: true, condition: apmLanguageEnabled},
+				{Name: "datadog-apm-library-python", version: apmLanguageVersion, released: true, condition: apmLanguageEnabled},
+				{Name: "datadog-apm-library-ruby", version: apmLanguageVersion, released: true, condition: apmLanguageEnabled},
 			},
 			env: &env.Env{
 				ApmLibraries: map[env.ApmLibLanguage]env.ApmLibVersion{
