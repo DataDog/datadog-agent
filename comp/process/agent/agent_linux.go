@@ -26,10 +26,15 @@ func Enabled(config config.Component, checkComponents []types.CheckComponent, lo
 	runInCoreAgent := config.GetBool("process_config.run_in_core_agent.enabled")
 
 	var npmEnabled bool
+	// var sdbfsdf bool
+	// ProcessCheckName       = "process"
+	// ContainerCheckName     = "container"
+	// DiscoveryCheckName     = "process_discovery"
+	// if any of those chekcs enabled and running core agent = false, log warning to use running core agent flag runInCoreAgent
 	for _, check := range checkComponents {
 		if check.Object().Name() == checks.ConnectionsCheckName && check.Object().IsEnabled() {
 			npmEnabled = true
-			break
+			break // get rid
 		}
 	}
 
@@ -45,6 +50,9 @@ func Enabled(config config.Component, checkComponents []types.CheckComponent, lo
 
 		if runInCoreAgent {
 			log.Info("The process checks will run in the core agent")
+		} else {
+			// else for if not runInCoreAgen to see what checks running
+			log.Info("temp")
 		}
 
 		return !runInCoreAgent
