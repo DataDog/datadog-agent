@@ -75,6 +75,7 @@ require (
 	go.opentelemetry.io/collector/config/configtelemetry v0.104.0 // indirect
 	go.opentelemetry.io/collector/confmap v0.104.0
 	go.opentelemetry.io/collector/consumer v0.104.0
+	go.opentelemetry.io/collector/config/confignet v0.104.0
 	go.opentelemetry.io/collector/exporter v0.104.0
 	go.opentelemetry.io/collector/extension v0.104.0 // indirect
 	go.opentelemetry.io/collector/pdata v1.11.0
@@ -82,8 +83,6 @@ require (
 	go.opentelemetry.io/collector/semconv v0.104.0 // indirect
 	go.uber.org/multierr v1.11.0
 )
-
-require go.opentelemetry.io/collector/config/confignet v0.104.0
 
 require (
 	github.com/DataDog/agent-payload/v5 v5.0.114 // indirect
