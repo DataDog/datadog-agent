@@ -78,7 +78,7 @@ const (
 	previousAgentImageVersion = "7.54.0-1"
 	latestAgentImageVersion   = "7.54.1-1"
 
-	latestInstallerImageVersion = "7.55.0-installer-0.4.2-1"
+	latestInstallerImageVersion = "7.55.0-installer-0.4.4-1"
 )
 
 func testUpgradeScenario(os e2eos.Descriptor, arch e2eos.Architecture) packageSuite {
@@ -470,15 +470,12 @@ func (s *upgradeScenarioSuite) getInstallerStatus() installerStatus {
 
 func (s *upgradeScenarioSuite) assertSuccessfulInstallerStartExperiment(timestamp host.JournaldTimestamp, version string) {
 	s.host.WaitForUnitActivating(installerUnitXP)
-	// TODO: check the pid file
-	// s.host.WaitForFileExists(false, "/opt/datadog-packages/datadog-installer/experiment/installer.pid")
+	s.host.WaitForFileExists(false, "/var/run/datadog-installer/installer-exp.pid")
 
 	// Assert experiment is running
 	s.host.AssertSystemdEvents(timestamp, host.SystemdEvents().
-		Unordered(host.SystemdEvents().
-			Stopped(installerUnit).
-			Starting(installerUnitXP),
-		),
+		Stopped(installerUnit).
+		Starting(installerUnitXP),
 	)
 
 	installerStatus := s.getInstallerStatus()
