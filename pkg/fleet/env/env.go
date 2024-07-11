@@ -26,6 +26,7 @@ const (
 	envDefaultPackageVersion = "DD_INSTALLER_DEFAULT_PKG_VERSION"
 	envDefaultPackageInstall = "DD_INSTALLER_DEFAULT_PKG_INSTALL"
 	envApmLibraries          = "DD_APM_INSTRUMENTATION_LIBRARIES"
+	envApmLanguages          = "DD_APM_INSTRUMENTATION_LANGUAGES"
 )
 
 var defaultEnv = Env{
@@ -156,7 +157,10 @@ func (e *Env) ToEnv() []string {
 }
 
 func parseApmLibrariesEnv() map[ApmLibLanguage]ApmLibVersion {
-	apmLibraries := os.Getenv(envApmLibraries)
+	apmLibraries, ok := os.LookupEnv(envApmLibraries)
+	if !ok {
+		return parseAPMLanguagesEnv()
+	}
 	apmLibrariesVersion := map[ApmLibLanguage]ApmLibVersion{}
 	if apmLibraries == "" {
 		return apmLibrariesVersion
@@ -168,6 +172,17 @@ func parseApmLibrariesEnv() map[ApmLibLanguage]ApmLibVersion {
 		apmLibrariesVersion[ApmLibLanguage(libraryName)] = ApmLibVersion(libraryVersion)
 	}
 	return apmLibrariesVersion
+}
+
+func parseAPMLanguagesEnv() map[ApmLibLanguage]ApmLibVersion {
+	apmLanguages := os.Getenv(envApmLanguages)
+	res := map[ApmLibLanguage]ApmLibVersion{}
+	for _, language := range strings.Split(apmLanguages, " ") {
+		if len(language) > 0 {
+			res[ApmLibLanguage(language)] = ""
+		}
+	}
+	return res
 }
 
 func overridesByNameFromEnv[T any](envPrefix string, convert func(string) T) map[string]T {
