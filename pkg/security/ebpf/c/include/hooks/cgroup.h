@@ -51,7 +51,7 @@ static __attribute__((always_inline)) int trace__cgroup_write(ctx_t *ctx) {
         return 0;
     }
 
-#if defined(DEBUG) && defined(DEBUG_CGROUP)
+#ifdef DEBUG
     bpf_printk("trace__cgroup_write %d\n", pid);
 #endif
 
@@ -148,7 +148,7 @@ static __attribute__((always_inline)) int trace__cgroup_write(ctx_t *ctx) {
         check_validity = 1;
     }
 
-#if defined(DEBUG) && defined(DEBUG_CGROUP)
+#ifdef DEBUG
     bpf_printk("container id: %s\n", container_qstr.name);
 #endif
 
@@ -159,7 +159,7 @@ static __attribute__((always_inline)) int trace__cgroup_write(ctx_t *ctx) {
         return 0;
     }
 
-#if defined(DEBUG) && defined(DEBUG_CGROUP)
+#ifdef DEBUG
     bpf_printk("container flags: %d: %s\n", container_flags, prefix);
 #endif
 
