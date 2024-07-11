@@ -13,9 +13,9 @@ def setup_ddqa(ctx):
     ctx.run(f"ddqa config set repo.datadog-agent.path {os.getcwd()}", hide=True)
     gh = GithubAPI()
     ctx.run("ddqa config set github.user github-actions[bot]", hide=True)
-    ctx.run(f"ddqa config set github.token {gh._auth}", hide=True)
+    ctx.run(f"ddqa config set github.token {gh._auth.token}", hide=True)
     ctx.run(f"ddqa config set jira.email {os.getenv('ATLASSIAN_USERNAME')}", hide=True)
-    ctx.run(f"ddqa config set github.token {os.getenv('ATLASSIAN_PASSWORD')}", hide=True)
+    ctx.run(f"ddqa config set jira.token {os.getenv('ATLASSIAN_PASSWORD')}", hide=True)
     ctx.run("ddqa --auto sync", hide=True)
 
 
