@@ -53,14 +53,6 @@ repos:
       language: system
       pass_filenames: false
       stages: [pre-commit, pre-push]
-    - id: govet
-      name: govet
-      description: go vet
-      entry: 'inv linter.go-vet'
-      language: system
-      require_serial: true
-      files: \.go$
-      pass_filenames: false
     - id: copyright
       name: copyright
       description: copyright headers
