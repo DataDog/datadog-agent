@@ -18,7 +18,7 @@ type testInstallSuite struct {
 
 // TestInstalls is the test's entry-point.
 func TestInstalls(t *testing.T) {
-	e2e.Run(t, &testInstallSuite{}, e2e.WithProvisioner(awsHostWindows.ProvisionerNoAgentNoFakeIntake()), e2e.WithDevMode())
+	e2e.Run(t, &testInstallSuite{}, e2e.WithProvisioner(awsHostWindows.ProvisionerNoAgentNoFakeIntake()))
 }
 
 func (suite *testInstallSuite) TestInstall() {

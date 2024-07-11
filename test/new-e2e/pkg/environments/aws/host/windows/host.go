@@ -216,7 +216,7 @@ func Run(ctx *pulumi.Context, env *environments.WindowsHost, params *Provisioner
 	}
 
 	if params.installerOptions != nil {
-		installer, err := datadog_installer.NewInstaller(&awsEnv, host, params.installerOptions...)
+		installer, err := datadog_installer.NewInstaller(awsEnv, host, params.installerOptions...)
 		if err != nil {
 			return err
 		}

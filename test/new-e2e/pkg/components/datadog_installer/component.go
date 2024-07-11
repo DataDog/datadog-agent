@@ -8,11 +8,11 @@ package datadog_installer
 import (
 	"fmt"
 	"github.com/DataDog/test-infra-definitions/common"
-	"github.com/DataDog/test-infra-definitions/common/config"
 	"github.com/DataDog/test-infra-definitions/common/namer"
 	"github.com/DataDog/test-infra-definitions/components"
 	"github.com/DataDog/test-infra-definitions/components/command"
 	remoteComp "github.com/DataDog/test-infra-definitions/components/remote"
+	"github.com/DataDog/test-infra-definitions/resources/aws"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
@@ -54,7 +54,7 @@ func WithInstallUrl(url string) func(*Configuration) error {
 }
 
 // NewConfig creates a default config
-func NewConfig(env config.Env, options ...Option) (*Configuration, error) {
+func NewConfig(env aws.Environment, options ...Option) (*Configuration, error) {
 	if env.PipelineID() != "" {
 		options = append([]Option{WithInstallUrl(fmt.Sprintf("https://s3.amazonaws.com/dd-agent-mstesting/pipelines/A7/%s/datadog-installer-1-x86_64.msi", env.PipelineID()))}, options...)
 		return common.ApplyOption(&Configuration{}, options)
@@ -64,17 +64,18 @@ func NewConfig(env config.Env, options ...Option) (*Configuration, error) {
 }
 
 // NewInstaller creates a new instance of an on-host Agent Installer
-func NewInstaller(e config.Env, host *remoteComp.Host, options ...Option) (*Component, error) {
-	hostInstaller, err := components.NewComponent(e, host.Name(), func(comp *Component) error {
-		comp.namer = e.CommonNamer().WithPrefix(comp.Name())
+func NewInstaller(e aws.Environment, host *remoteComp.Host, options ...Option) (*Component, error) {
+
+	params, err := NewConfig(e, options...)
+	if err != nil {
+		return nil, err
+	}
+
+	hostInstaller, err := components.NewComponent(&e, e.Namer.ResourceName("datadog-installer"), func(comp *Component) error {
+		comp.namer = e.CommonNamer().WithPrefix("datadog-installer")
 		comp.Host = host
 
-		params, err := NewConfig(e, options...)
-		if err != nil {
-			return err
-		}
-
-		_, err = host.OS.Runner().Command(comp.namer.ResourceName("install-installer"), &command.Args{
+		_, err = host.OS.Runner().Command(comp.namer.ResourceName("install"), &command.Args{
 			Create: pulumi.Sprintf(`
 Exit (Start-Process -Wait msiexec -PassThru -ArgumentList 'msiexec /qn /i %s').ExitCode
 `, params.Url),

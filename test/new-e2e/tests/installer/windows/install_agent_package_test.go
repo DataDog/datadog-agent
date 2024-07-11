@@ -16,10 +16,15 @@ type testAgentInstallSuite struct {
 }
 
 func TestAgentInstalls(t *testing.T) {
-	e2e.Run(t, &testAgentInstallSuite{}, e2e.WithProvisioner(winawshost.ProvisionerNoAgentNoFakeIntake(winawshost.WithInstaller())), e2e.WithDevMode())
+	e2e.Run(t, &testAgentInstallSuite{},
+		e2e.WithProvisioner(
+			winawshost.ProvisionerNoAgentNoFakeIntake(
+				winawshost.WithInstaller(),
+			)),
+		e2e.WithStackName("datadog-windows-installer-test"))
 }
 
-func (suite *testInstallSuite) TestInstallAgentPackage() {
+func (suite *testAgentInstallSuite) TestInstallAgentPackage() {
 	suite.T().Run("install the Agent package", func(t *testing.T) {
 		_, err := suite.installer.InstallPackage(AgentPackage)
 		suite.Require().NoError(err)
