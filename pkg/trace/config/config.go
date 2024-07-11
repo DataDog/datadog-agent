@@ -339,7 +339,8 @@ type AgentConfig struct {
 	// case, the sender will drop failed payloads when it is unable to enqueue
 	// them for another retry.
 	MaxSenderRetries int
-	HTTPClientFunc   func() *http.Client // HTTP client used in writer connections. If nil, default client values will be used.
+	// HTTP client used in writer connections. If nil, default client values will be used.
+	HTTPClientFunc func() *http.Client `json:"-"`
 
 	// internal telemetry
 	StatsdEnabled  bool
