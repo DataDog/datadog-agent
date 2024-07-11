@@ -212,6 +212,29 @@ typedef struct {
     http2_frame_with_offset frames_array[HTTP2_MAX_FRAMES_ITERATIONS] __attribute__((aligned(8)));
 } http2_tail_call_state_t;
 
+typedef enum incomplete_frame_type {
+    kIncompleteFrameUnknown
+    kIncompleteFrameHeader = 0,
+    kIncompleteFramePayload = 1,
+} __attribute__((packed)) incomplete_frame_type_t;
+
+typedef struct {
+    incomplete_frame_type_t type;
+
+    union {
+        // Incomplete frame header.
+        struct {
+            char buf[HTTP2_FRAME_HEADER_SIZE];
+            __u8 header_bytes_left;
+        };
+        // Incomplete frame payload.
+        struct {
+            http2_frame_t frame;
+            __u32 payload_bytes_left;
+        };
+    };
+} incomplete_frame_t;
+
 typedef struct {
     __u32 remainder;
     __u32 header_length;
