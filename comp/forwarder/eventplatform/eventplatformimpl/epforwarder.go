@@ -432,7 +432,7 @@ func newHTTPPassthroughPipeline(coreConfig pkgconfig.Reader, eventPlatformReceiv
 	log.Debugf("Initialized event platform forwarder pipeline. eventType=%s mainHosts=%s additionalHosts=%s batch_max_concurrent_send=%d batch_max_content_size=%d batch_max_size=%d, input_chan_size=%d",
 		desc.eventType, joinHosts(endpoints.GetReliableEndpoints()), joinHosts(endpoints.GetUnReliableEndpoints()), endpoints.BatchMaxConcurrentSend, endpoints.BatchMaxContentSize, endpoints.BatchMaxSize, endpoints.InputChanSize)
 	return &passthroughPipeline{
-		sender:                sender.NewSender(coreConfig, senderInput, a.Channel(), destinations, 10, nil, nil),
+		sender:                sender.NewSender(coreConfig, senderInput, a.Channel(), destinations, 10, 1000, nil, nil),
 		strategy:              strategy,
 		in:                    inputChan,
 		auditor:               a,
