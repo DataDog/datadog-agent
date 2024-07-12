@@ -7,6 +7,7 @@ import re
 import subprocess
 import sys
 from collections import UserList
+from copy import deepcopy
 from functools import lru_cache
 
 import gitlab
@@ -318,7 +319,7 @@ def get_gitlab_ci_configuration(
 
 
 def generate_gitlab_full_configuration(
-    ctx, input_file, context=None, compare_to=None, return_dump=True, apply_postprocessing=False
+    ctx, input_file, context=None, compare_to=None, return_dump=True, apply_postprocessing=False, input_config=None
 ):
     """
     Generate a full gitlab-ci configuration by resolving all includes
@@ -328,15 +329,18 @@ def generate_gitlab_full_configuration(
     - compare_to: Override compare_to on change rules
     - return_dump: Whether to return the string dump or the dict object representing the configuration
     - apply_postprocessing: Whether or not to solve `extends` and `!reference` tags
+    - input_config: If not None, will use this config instead of parsing existing yaml file at `input_file`
     """
     if apply_postprocessing:
-        full_configuration = get_full_gitlab_ci_configuration(ctx, input_file)
+        full_configuration = get_full_gitlab_ci_configuration(ctx, input_file, input_config=input_config)
+    elif input_config:
+        full_configuration = deepcopy(input_config)
     else:
         full_configuration = read_includes(None, input_file, return_config=True)
 
     # Override some variables with a dedicated context
     if context:
-        full_configuration["variables"].update(context)
+        full_configuration['variables'] = full_configuration.get('variables', {}).update(context)
     if compare_to:
         for value in full_configuration.values():
             if (
