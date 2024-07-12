@@ -2,6 +2,7 @@
 {{- if eq .IsRunning false }}
   Logs Agent is not running
 {{- end }}
+{{ if eq .WaitingForSDSConfig true }}  waiting for an SDS configuration{{ end }}
 
 {{- if .Endpoints }}
 

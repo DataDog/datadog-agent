@@ -118,7 +118,7 @@ type logAgent struct {
 	prepareSchedulers sync.Once
 
 	// started is true if the logs agent is running
-	started *atomic.Bool
+	started *atomic.Uint32
 }
 
 func newLogsAgent(deps dependencies) provides {
@@ -132,7 +132,7 @@ func newLogsAgent(deps dependencies) provides {
 			config:         deps.Config,
 			inventoryAgent: deps.InventoryAgent,
 			hostname:       deps.Hostname,
-			started:        atomic.NewBool(false),
+			started:        atomic.NewUint32(0),
 
 			sources:            sources.NewLogSources(),
 			services:           service.NewServices(),
@@ -227,7 +227,6 @@ func (a *logAgent) setupAgent() error {
 // Start starts all the elements of the data pipeline
 // in the right order to prevent data loss
 func (a *logAgent) startPipeline() {
-	a.started.Store(true)
 
 	// setup the status
 	status.Init(a.started, a.endpoints, a.sources, a.tracker, metrics.LogsExpvars)
@@ -244,8 +243,11 @@ func (a *logAgent) startPipeline() {
 	if !sds.ShouldBlockCollectionUntilSDSConfiguration(a.config) {
 		a.startSchedulers()
 		a.log.Info("logs-agent started")
+
+		a.started.Store(status.StatusRunning)
 	} else {
-		a.log.Info("logs-agent ready, schedulers not started")
+		a.log.Info("logs-agent ready, schedulers not started: waiting for an SDS configuration to start the logs collection")
+		a.started.Store(status.StatusCollectionNotStarted)
 	}
 }
 
@@ -256,7 +258,9 @@ func (a *logAgent) startSchedulers() {
 		for _, scheduler := range a.schedulerProviders {
 			a.AddScheduler(scheduler)
 		}
+
 		a.log.Info("logs-agent schedulers started")
+		a.started.Store(status.StatusRunning)
 	})
 }
 
