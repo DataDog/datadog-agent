@@ -280,6 +280,30 @@ func TestEmptyConfiguration(t *testing.T) {
 	require.Len(s.configuredRules, 0)
 	require.Nil(s.Scanner)
 	require.False(isActive, "no active rule, the scanner should be disabled")
+
+	// re-enabling with on rule
+
+	isActive, err = s.Reconfigure(ReconfigureOrder{
+		Type:   AgentConfig,
+		Config: agentConfig,
+	})
+
+	require.NoError(err, "this one should not fail since one rule is enabled")
+	require.Len(s.configuredRules, 1, "only one rules should be part of this scanner")
+	require.True(isActive, "one rule is enabled, the scanner should be active")
+	require.NotNil(s.Scanner)
+
+	// the StopProcessing signal
+
+	isActive, err = s.Reconfigure(ReconfigureOrder{
+		Type:   StopProcessing,
+		Config: nil,
+	})
+
+	require.NoError(err)
+	require.Len(s.configuredRules, 0)
+	require.Nil(s.Scanner)
+	require.False(isActive, "no active rule, the scanner should be disabled")
 }
 
 func TestIsReady(t *testing.T) {
