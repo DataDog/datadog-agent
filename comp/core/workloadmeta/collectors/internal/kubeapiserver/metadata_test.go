@@ -57,7 +57,7 @@ func TestParse_ParsePartialObjectMetadata(t *testing.T) {
 					Labels:      map[string]string{"l1": "v1", "l2": "v2", "l3": "v3"},
 					Annotations: map[string]string{"k1": "v1", "k2": "v2", "k3": "v3"},
 				},
-				GVR: schema.GroupVersionResource{
+				GVR: &schema.GroupVersionResource{
 					Group:    "apps",
 					Version:  "v1",
 					Resource: "deployments",
@@ -91,7 +91,7 @@ func TestParse_ParsePartialObjectMetadata(t *testing.T) {
 					Labels:      map[string]string{"l1": "v1", "l2": "v2", "l3": "v3"},
 					Annotations: map[string]string{"k1": "v1", "k2": "v2", "k3": "v3"},
 				},
-				GVR: schema.GroupVersionResource{
+				GVR: &schema.GroupVersionResource{
 					Group:    "",
 					Version:  "v1",
 					Resource: "namespaces",
@@ -125,7 +125,7 @@ func TestParse_ParsePartialObjectMetadata(t *testing.T) {
 					Labels:      map[string]string{"l1": "v1", "l2": "v2", "l3": "v3"},
 					Annotations: map[string]string{"k1": "v1", "k2": "v2", "k3": "v3"},
 				},
-				GVR: schema.GroupVersionResource{
+				GVR: &schema.GroupVersionResource{
 					Group:    "",
 					Version:  "v1",
 					Resource: "namespaces",
@@ -161,7 +161,7 @@ func TestParse_ParsePartialObjectMetadata(t *testing.T) {
 					Labels:      map[string]string{"l1": "v1", "l2": "v2", "l3": "v3"},
 					Annotations: map[string]string{"k1": "v1", "k2": "v2", "k3": "v3"},
 				},
-				GVR: schema.GroupVersionResource{
+				GVR: &schema.GroupVersionResource{
 					Group:    "",
 					Version:  "v1",
 					Resource: "namespaces",
@@ -228,7 +228,7 @@ func Test_MetadataFakeClient(t *testing.T) {
 						Labels:      objectMeta.Labels,
 						Annotations: objectMeta.Annotations,
 					},
-					GVR: gvr,
+					GVR: &gvr,
 				},
 			},
 		},

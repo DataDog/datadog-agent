@@ -64,6 +64,7 @@ func newPodReflectorStore(wlmetaStore workloadmeta.Component, config config.Read
 
 type podParser struct {
 	annotationsFilter []*regexp.Regexp
+	gvr               *schema.GroupVersionResource
 }
 
 func newPodParser(annotationsExclude []string) (objectParser, error) {
@@ -72,7 +73,13 @@ func newPodParser(annotationsExclude []string) (objectParser, error) {
 		return nil, err
 	}
 
-	return podParser{annotationsFilter: filters}, nil
+	return podParser{
+		annotationsFilter: filters,
+		gvr: &schema.GroupVersionResource{
+			Version:  "v1",
+			Resource: "pods",
+		},
+	}, nil
 }
 
 func (p podParser) Parse(obj interface{}) []workloadmeta.Entity {
@@ -140,10 +147,7 @@ func (p podParser) Parse(obj interface{}) []workloadmeta.Entity {
 			Labels:      podEntity.Labels,
 			Annotations: podEntity.Annotations,
 		},
-		GVR: schema.GroupVersionResource{
-			Version:  "v1",
-			Resource: "pods",
-		},
+		GVR: p.gvr,
 	})
 
 	return entities
