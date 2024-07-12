@@ -14,8 +14,8 @@ github.com/DataDog/datadog-api-client-go/v2 v2.27.0 h1:AGZj41frjnjMufQHQbJH2fzmi
 github.com/DataDog/datadog-api-client-go/v2 v2.27.0/go.mod h1:QKOu6vscsh87fMY1lHfLEmNSunyXImj8BUaUWJXOehc=
 github.com/DataDog/mmh3 v0.0.0-20200805151601-30884ca2197a h1:m9REhmyaWD5YJ0P53ygRHxKKo+KM+nw+zz0hEdKztMo=
 github.com/DataDog/mmh3 v0.0.0-20200805151601-30884ca2197a/go.mod h1:SvsjzyJlSg0rKsqYgdcFxeEVflx3ZNAyFfkUHP0TxXg=
-github.com/DataDog/test-infra-definitions v0.0.0-20240704115503-b64a6490fe5c h1:6zHBYX5Zfj1yPEmA3enzK328D2FP9zYerR9G0tkcucg=
-github.com/DataDog/test-infra-definitions v0.0.0-20240704115503-b64a6490fe5c/go.mod h1:mmhtdnD1Ll65rZludA5ocP2GlcpYaQJbGMPcUUwSAkw=
+github.com/DataDog/test-infra-definitions v0.0.0-20240712124739-45bd967d0ec1 h1:LKMXBfQs+HbVMpeN5NR0Y7dPCBFKqxAxwY/D2h97/V8=
+github.com/DataDog/test-infra-definitions v0.0.0-20240712124739-45bd967d0ec1/go.mod h1:oGAuy4PoqPrfRo/pXVFrKIS07Ph20T3fvNvXISbSU8s=
 github.com/DataDog/zstd v1.5.2 h1:vUG4lAyuPCXO0TLbXvPv7EB7cNK1QV/luu55UHLrrn8=
 github.com/DataDog/zstd v1.5.2/go.mod h1:g4AWEaM3yOg3HYfnJ3YIawPnVdXJh9QME85blwSAmyw=
 github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f h1:5Vuo4niPKFkfwW55jV4vY0ih3VQ9RaQqeqY67fvRn8A=
@@ -383,8 +383,8 @@ github.com/pulumi/appdash v0.0.0-20231130102222-75f619a67231 h1:vkHw5I/plNdTr435
 github.com/pulumi/appdash v0.0.0-20231130102222-75f619a67231/go.mod h1:murToZ2N9hNJzewjHBgfFdXhZKjY3z5cYC1VXk+lbFE=
 github.com/pulumi/esc v0.9.1 h1:HH5eEv8sgyxSpY5a8yePyqFXzA8cvBvapfH8457+mIs=
 github.com/pulumi/esc v0.9.1/go.mod h1:oEJ6bOsjYlQUpjf70GiX+CXn3VBmpwFDxUTlmtUN84c=
-github.com/pulumi/pulumi-aws/sdk/v6 v6.25.0 h1:KstWR3AnkXD72ow0xxOzsAkihF+KdzddapHUy0CK2mU=
-github.com/pulumi/pulumi-aws/sdk/v6 v6.25.0/go.mod h1:Ar4SJq3jbKLps3879H5ZvwUt/VnFp/GKbWw1mhjeQek=
+github.com/pulumi/pulumi-aws/sdk/v6 v6.44.0 h1:SMbXL0AhpWReqCH5fQ36DNk6s2Bb1m305tLLbb8pWx4=
+github.com/pulumi/pulumi-aws/sdk/v6 v6.44.0/go.mod h1:y2c+0tYyau9rZPrM7yX9hAZlJa8wRCcjpH8iPHFqjZQ=
 github.com/pulumi/pulumi-awsx/sdk/v2 v2.5.0 h1:sCzgswv1p7G8RUkvUjDgDnrdi7vBRxTtA8Hwtoqabsc=
 github.com/pulumi/pulumi-awsx/sdk/v2 v2.5.0/go.mod h1:lv+hzv8kilWjMNOPcJS8cddJa51d3IdCOPY7cNd2NuU=
 github.com/pulumi/pulumi-command/sdk v0.9.2 h1:2siCFR8pS2sSwXkeWiLrprGEtBL54FsHTzdyl125UuI=
