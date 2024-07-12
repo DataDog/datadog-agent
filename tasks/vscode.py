@@ -137,6 +137,8 @@ def setup_extensions(ctx: Context):
 def setup_tests(_, force=False):
     """
     Setup the tests tab for vscode
+
+    - Documentation: https://datadoghq.atlassian.net/wiki/x/z4Jf6
     """
     from invoke_unit_tests import TEST_ENV
 
