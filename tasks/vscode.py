@@ -131,3 +131,33 @@ def setup_extensions(ctx: Context):
     for extension in content.get("recommendations", []):
         print(color_message(f"Installing extension {extension}", Color.BLUE))
         ctx.run(f"code --install-extension {extension} --force")
+
+
+@task
+def setup_tests(_, force=False):
+    """
+    Setup the tests tab for vscode
+    """
+    from invoke_unit_tests import TEST_ENV
+
+    if not force and os.path.exists('.env'):
+        raise Exit(color_message('The .env file already exists', Color.RED))
+
+    with open('.env', 'w') as f:
+        for key, value in TEST_ENV.items():
+            print(f'{key}={value}', file=f)
+
+    print(color_message('The .env file has been created', Color.GREEN))
+
+    print(
+        f'''{color_message('note', Color.BLUE)}: You should add the following to your .vscode/settings.json file:
+
+"python.testing.unittestArgs": [
+    "-v",
+    "-s",
+    "./tasks",
+    "-p",
+    "*_tests.py"
+]
+    '''.strip()
+    )
