@@ -207,7 +207,7 @@ new-e2e-agent-subcommands:
       - EXTRA_PARAMS: --run "Test(Linux|Windows)ConfigCheckSuite"
       - EXTRA_PARAMS: --run "Test(Linux|Windows)FlareSuite"
       - EXTRA_PARAMS: --run "Test(Linux|Windows)SecretSuite"
-      - EXTRA_PARAMS: --run "T"est(Linux|Windows)CheckSuite"
+      - EXTRA_PARAMS: --run "Test(Linux|Windows)CheckSuite"
       - EXTRA_PARAMS: --run "Test(Linux|Windows)RunSuite"
 
 new-e2e-windows-service-test:
