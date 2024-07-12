@@ -1250,7 +1250,7 @@ func TestConfigAssignAtPath(t *testing.T) {
 	os.WriteFile(configPath, testExampleConf, 0o600)
 	config.SetConfigFile(configPath)
 
-	_, err := LoadCustom(config, nil)
+	err := LoadCustom(config, nil)
 	assert.NoError(t, err)
 
 	err = configAssignAtPath(config, []string{"secret_backend_command"}, "different")
@@ -1302,7 +1302,7 @@ func TestConfigAssignAtPathWorksWithGet(t *testing.T) {
 	os.WriteFile(configPath, testExampleConf, 0o600)
 	config.SetConfigFile(configPath)
 
-	_, err := LoadCustom(config, nil)
+	err := LoadCustom(config, nil)
 	assert.NoError(t, err)
 
 	err = configAssignAtPath(config, []string{"secret_backend_command"}, "different")
@@ -1342,7 +1342,7 @@ func TestConfigAssignAtPathSimple(t *testing.T) {
 	os.WriteFile(configPath, testSimpleConf, 0o600)
 	config.SetConfigFile(configPath)
 
-	_, err := LoadCustom(config, nil)
+	err := LoadCustom(config, nil)
 	assert.NoError(t, err)
 
 	err = configAssignAtPath(config, []string{"secret_backend_arguments", "0"}, "password1")
@@ -1405,7 +1405,7 @@ use_proxy_for_cloud_metadata: true
 		}, nil
 	})
 
-	_, err := LoadCustom(config, nil)
+	err := LoadCustom(config, nil)
 	assert.NoError(t, err)
 
 	err = ResolveSecrets(config, resolver, "unit_test")
@@ -1454,7 +1454,7 @@ additional_endpoints:
 	os.WriteFile(configPath, testIntKeysConf, 0o600)
 	config.SetConfigFile(configPath)
 
-	_, err := LoadCustom(config, nil)
+	err := LoadCustom(config, nil)
 	assert.NoError(t, err)
 
 	err = configAssignAtPath(config, []string{"additional_endpoints", "2"}, "cherry")

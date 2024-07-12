@@ -1820,7 +1820,8 @@ func LoadDatadogCustom(config pkgconfigmodel.Config, origin string, secretResolv
 		pkgconfigmodel.ApplyOverrideFuncs(config)
 	}()
 
-	warnings, err := LoadCustom(config, additionalKnownEnvVars)
+	warnings := &pkgconfigmodel.Warnings{}
+	err := LoadCustom(config, additionalKnownEnvVars)
 	if err != nil {
 		if errors.Is(err, os.ErrPermission) {
 			log.Warnf("Error loading config: %v (check config file permissions for dd-agent user)", err)
@@ -1871,17 +1872,15 @@ func LoadDatadogCustom(config pkgconfigmodel.Config, origin string, secretResolv
 }
 
 // LoadCustom reads config into the provided config object
-func LoadCustom(config pkgconfigmodel.Config, additionalKnownEnvVars []string) (*pkgconfigmodel.Warnings, error) {
-	warnings := pkgconfigmodel.Warnings{}
-
+func LoadCustom(config pkgconfigmodel.Config, additionalKnownEnvVars []string) error {
 	log.Info("Starting to load the configuration")
 	if err := config.ReadInConfig(); err != nil {
 		if pkgconfigenv.IsServerless() {
 			log.Debug("No config file detected, using environment variable based configuration only")
 			// The remaining code in LoadCustom is not run to keep a low cold start time
-			return &warnings, nil
+			return nil
 		}
-		return &warnings, err
+		return err
 	}
 
 	for _, key := range findUnknownKeys(config) {
@@ -1896,7 +1895,7 @@ func LoadCustom(config pkgconfigmodel.Config, additionalKnownEnvVars []string) (
 		log.Warnf(warningMsg)
 	}
 
-	return &warnings, nil
+	return nil
 }
 
 // setupFipsEndpoints overwrites the Agent endpoint for outgoing data to be sent to the local FIPS proxy. The local FIPS

@@ -195,7 +195,7 @@ func GetObsPipelineURL(datatype pkgconfigsetup.DataType) (string, error) {
 }
 
 // LoadCustom Alias
-func LoadCustom(config model.Config, additionalKnownEnvVars []string) (*model.Warnings, error) {
+func LoadCustom(config model.Config, additionalKnownEnvVars []string) error {
 	return pkgconfigsetup.LoadCustom(config, additionalKnownEnvVars)
 }
 
