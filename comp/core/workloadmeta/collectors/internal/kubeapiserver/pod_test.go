@@ -117,7 +117,7 @@ func TestPodParser_Parse(t *testing.T) {
 				"annotationKey": "annotationValue",
 			},
 		},
-		GVR: schema.GroupVersionResource{
+		GVR: &schema.GroupVersionResource{
 			Group:    "",
 			Resource: "pods",
 			Version:  "v1",
@@ -162,7 +162,7 @@ func Test_PodsFakeKubernetesClient(t *testing.T) {
 						Annotations: objectMeta.Annotations,
 						Labels:      objectMeta.Labels,
 					},
-					GVR: schema.GroupVersionResource{
+					GVR: &schema.GroupVersionResource{
 						Group:    "",
 						Version:  "v1",
 						Resource: "pods",

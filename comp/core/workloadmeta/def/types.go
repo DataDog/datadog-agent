@@ -786,7 +786,7 @@ type KubeMetadataEntityID string
 type KubernetesMetadata struct {
 	EntityID
 	EntityMeta
-	GVR schema.GroupVersionResource
+	GVR *schema.GroupVersionResource
 }
 
 // GetID implements Entity#GetID.

@@ -16,6 +16,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
@@ -68,6 +69,7 @@ func newDeploymentReflectorStore(wlmetaStore workloadmeta.Component, cfg config.
 
 type deploymentParser struct {
 	annotationsFilter []*regexp.Regexp
+	gvr               *schema.GroupVersionResource
 }
 
 func newdeploymentParser(annotationsExclude []string) (objectParser, error) {
@@ -75,7 +77,14 @@ func newdeploymentParser(annotationsExclude []string) (objectParser, error) {
 	if err != nil {
 		return nil, err
 	}
-	return deploymentParser{filters}, nil
+	return deploymentParser{
+		annotationsFilter: filters,
+		gvr: &schema.GroupVersionResource{
+			Group:    "apps",
+			Version:  "v1",
+			Resource: "deployments",
+		},
+	}, nil
 }
 
 func updateContainerLanguage(cl languagedetectionUtil.ContainersLanguages, container languagedetectionUtil.Container, languages string) {
@@ -132,7 +141,7 @@ func (p deploymentParser) Parse(obj interface{}) []workloadmeta.Entity {
 			ID:   string(util.GenerateKubeMetadataEntityID("apps", "deployments", deployment.Namespace, deployment.Name)),
 		},
 		EntityMeta: deploymentEntity.EntityMeta,
-		GVR:        deployment.GroupVersionKind().GroupVersion().WithResource("deployments"),
+		GVR:        p.gvr,
 	})
 
 	return entities

@@ -200,7 +200,7 @@ func TestReplace(t *testing.T) {
 		EntityMeta: workloadmeta.EntityMeta{
 			Name: "test-node",
 		},
-		GVR: gvr,
+		GVR: &gvr,
 	}
 
 	workloadmetaComponent := mockedWorkloadmeta(t)

@@ -57,7 +57,7 @@ func newMetadataStore(ctx context.Context, wlmetaStore workloadmeta.Component, c
 }
 
 type metadataParser struct {
-	gvr               schema.GroupVersionResource
+	gvr               *schema.GroupVersionResource
 	annotationsFilter []*regexp.Regexp
 }
 
@@ -67,7 +67,7 @@ func newMetadataParser(gvr schema.GroupVersionResource, annotationsExclude []str
 		return nil, err
 	}
 
-	return metadataParser{gvr: gvr, annotationsFilter: filters}, nil
+	return metadataParser{gvr: &gvr, annotationsFilter: filters}, nil
 }
 
 func (p metadataParser) Parse(obj interface{}) []workloadmeta.Entity {
