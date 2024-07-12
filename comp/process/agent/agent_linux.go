@@ -13,7 +13,15 @@ import (
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	"slices"
 )
+
+// List of check names for process checks
+var processCheckNames = []string{
+	checks.ProcessCheckName,
+	checks.ContainerCheckName,
+	checks.DiscoveryCheckName,
+}
 
 // Enabled determines whether the process agent is enabled based on the configuration.
 // The process-agent component on linux can be run in the core agent or as a standalone process-agent
@@ -31,35 +39,30 @@ func Enabled(config config.Component, checkComponents []types.CheckComponent, lo
 		if check.Object().Name() == checks.ConnectionsCheckName && check.Object().IsEnabled() {
 			npmEnabled = true
 		}
-		if (check.Object().Name() == checks.ProcessCheckName ||
-			check.Object().Name() == checks.ContainerCheckName ||
-			check.Object().Name() == checks.DiscoveryCheckName) &&
-			check.Object().IsEnabled() {
+		if slices.Contains(processCheckNames, check.Object().Name()) && check.Object().IsEnabled() {
 			processEnabled = true
 		}
 	}
 
 	switch flavor.GetFlavor() {
 	case flavor.ProcessAgent:
-		// can also change return of npm enabled to allow for if else for runincoreagent
-		if !runInCoreAgent && processEnabled {
-			// process checks enabled but not running in core agent, warn about deprecation
-			log.Info("temporary warning for depreciation")
-		}
 
 		if npmEnabled {
 			if runInCoreAgent {
 				log.Info("Network Performance Monitoring is not supported in the core agent. " +
 					"The process-agent will be enabled as a standalone agent")
 			}
-			return true
 		}
 
 		if runInCoreAgent {
 			log.Info("The process checks will run in the core agent")
+		} else if processEnabled {
+			log.Info("Process/Container Collection in the Process Agent will be deprecated in a future release " +
+				"and will instead be run in the Core Agent. " +
+				"Set process_config.run_in_core_agent.enabled to true to switch now.")
 		}
 
-		return !runInCoreAgent
+		return !runInCoreAgent || npmEnabled
 	case flavor.DefaultAgent:
 		if npmEnabled && runInCoreAgent {
 			log.Info("Network Performance Monitoring is not supported in the core agent. " +
