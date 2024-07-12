@@ -45,7 +45,8 @@ def has_ddtool_helpers() -> bool:
         # Invalid JSON (or empty file), we don't have the helper
         return False
 
-    return "ddtool" in config.get("credHelpers", {}).values()
+    available_cred_helpers = set(config.get("credHelpers", {}).values())
+    return "ddtool" in available_cred_helpers or "ecr-login" in available_cred_helpers
 
 
 class CompilerImage:
