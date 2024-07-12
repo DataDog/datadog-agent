@@ -27,6 +27,7 @@ type Event struct {
 	// context
 	SpanContext    SpanContext    `field:"-"`
 	NetworkContext NetworkContext `field:"network" event:"dns"`
+	CGroupContext  CGroupContext  `field:"cgroup" event:"*"`
 
 	// fim events
 	Chmod       ChmodEvent    `field:"chmod" event:"chmod"`             // [7.27] [File] A file’s permissions were changed
@@ -84,6 +85,12 @@ type Event struct {
 	UnshareMountNS   UnshareMountNSEvent   `field:"-"`
 	// used for ebpfless
 	NSID uint64 `field:"-"`
+}
+
+// CGroupContext holds the cgroup context of an event
+type CGroupContext struct {
+	CGroupID    CGroupID    `field:"id,handler:ResolveCGroupID"` // SECLDoc[id] Definition:`ID of the cgroup`
+	CGroupFlags CGroupFlags `field:"-"`
 }
 
 // SyscallEvent contains common fields for all the event

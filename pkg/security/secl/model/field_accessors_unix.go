@@ -136,7 +136,7 @@ func (ev *Event) GetCapsetCapPermitted() uint64 {
 
 // GetCgroupId returns the value of the field, resolving if necessary
 func (ev *Event) GetCgroupId() string {
-	return ev.FieldHandlers.ResolveCGroupID(ev, &ev.BaseEvent.CGroupContext)
+	return ev.FieldHandlers.ResolveCGroupID(ev, &ev.CGroupContext)
 }
 
 // GetChdirFileChangeTime returns the value of the field, resolving if necessary

@@ -205,7 +205,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
-				return ev.FieldHandlers.ResolveCGroupID(ev, &ev.BaseEvent.CGroupContext)
+				return ev.FieldHandlers.ResolveCGroupID(ev, &ev.CGroupContext)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -18231,7 +18231,7 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "capset.cap_permitted":
 		return int(ev.Capset.CapPermitted), nil
 	case "cgroup.id":
-		return ev.FieldHandlers.ResolveCGroupID(ev, &ev.BaseEvent.CGroupContext), nil
+		return ev.FieldHandlers.ResolveCGroupID(ev, &ev.CGroupContext), nil
 	case "chdir.file.change_time":
 		return int(ev.Chdir.File.FileFields.CTime), nil
 	case "chdir.file.filesystem":
@@ -30088,9 +30088,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "cgroup.id":
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.CGroupContext.CGroupID"}
+			return &eval.ErrValueTypeMismatch{Field: "CGroupContext.CGroupID"}
 		}
-		ev.BaseEvent.CGroupContext.CGroupID = CGroupID(rv)
+		ev.CGroupContext.CGroupID = CGroupID(rv)
 		return nil
 	case "chdir.file.change_time":
 		rv, ok := value.(int)

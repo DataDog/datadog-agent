@@ -43,11 +43,12 @@ func TestEventConsumerWrapperCopy(t *testing.T) {
 				ContainerContext: &model.ContainerContext{
 					ContainerID: "cid_exec",
 				},
-				CGroupContext: model.CGroupContext{
-					CGroupID: "cid_exec",
-				},
 				FieldHandlers: &model.FakeFieldHandlers{},
-			}}
+			},
+			CGroupContext: model.CGroupContext{
+				CGroupID: "cid_exec",
+			},
+		}
 		evHandler := &eventConsumerWrapper{}
 		_p := evHandler.Copy(ev)
 		require.IsType(t, &Process{}, _p, "Copy should return a *events.Process")
@@ -84,11 +85,12 @@ func TestEventConsumerWrapperCopy(t *testing.T) {
 				ContainerContext: &model.ContainerContext{
 					ContainerID: "cid_fork",
 				},
-				CGroupContext: model.CGroupContext{
-					CGroupID: "cid_fork",
-				},
 				FieldHandlers: &model.FakeFieldHandlers{},
-			}}
+			},
+			CGroupContext: model.CGroupContext{
+				CGroupID: "cid_fork",
+			},
+		}
 		evHandler := &eventConsumerWrapper{}
 		_p := evHandler.Copy(ev)
 		require.IsType(t, &Process{}, _p, "Copy should return a *events.Process")

@@ -106,11 +106,6 @@ func (fh *FieldHandlers) ResolveUser(_ *model.Event, process *model.Process) str
 	return fh.resolvers.UserGroupResolver.GetUser(process.OwnerSidString)
 }
 
-// ResolveCGroupID resolves the cgroup ID of the event
-func (fh *FieldHandlers) ResolveCGroupID(_ *model.Event, _ *model.CGroupContext) string {
-	return ""
-}
-
 // ResolveContainerContext retrieve the ContainerContext of the event
 func (fh *FieldHandlers) ResolveContainerContext(ev *model.Event) (*model.ContainerContext, bool) {
 	return ev.ContainerContext, ev.ContainerContext != nil

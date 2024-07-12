@@ -67,18 +67,6 @@ func (r *Releasable) AppendReleaseCallback(callback func()) {
 	}
 }
 
-// CGroupID represents a cgroup ID
-type CGroupID string
-
-// CGroupFlags represents the flags of a cgroup
-type CGroupFlags uint64
-
-// CGroupContext holds the cgroup context of an event
-type CGroupContext struct {
-	CGroupID    CGroupID    `field:"id,handler:ResolveCGroupID"` // SECLDoc[id] Definition:`ID of the cgroup`
-	CGroupFlags CGroupFlags `field:"-"`
-}
-
 // ContainerID represents a container ID
 type ContainerID string
 
@@ -141,7 +129,6 @@ type BaseEvent struct {
 	// context shared with all events
 	ProcessContext         *ProcessContext        `field:"process" event:"*"`
 	ContainerContext       *ContainerContext      `field:"container" event:"*"`
-	CGroupContext          CGroupContext          `field:"cgroup" event:"*"`
 	SecurityProfileContext SecurityProfileContext `field:"-"`
 
 	// internal usage
@@ -154,6 +141,12 @@ type BaseEvent struct {
 	// field resolution
 	FieldHandlers FieldHandlers `field:"-"`
 }
+
+// CGroupID represents a cgroup ID
+type CGroupID string
+
+// CGroupFlags represents the flags of a cgroup
+type CGroupFlags uint64
 
 func initMember(member reflect.Value, deja map[string]bool) {
 	for i := 0; i < member.NumField(); i++ {
