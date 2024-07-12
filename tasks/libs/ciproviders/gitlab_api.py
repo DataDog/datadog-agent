@@ -149,7 +149,7 @@ class GitlabCIDiff:
                 diff = [line.rstrip('\n') for line in differcli.compare(before_content, after_content)]
                 self.modified_diffs[job] = diff
 
-    def display(self, cli: bool = True, max_detailed_jobs=6, job_url=None) -> str:
+    def display(self, cli: bool = True, max_detailed_jobs=6, job_url=None, only_summary=False) -> str:
         """
         Display in cli or markdown
         """
@@ -247,39 +247,44 @@ class GitlabCIDiff:
 
         res = []
 
-        if self.modified:
-            wrap = len(self.modified) > max_detailed_jobs
-            res.extend(str_section('Modified Jobs', wrap=wrap))
-            for job, diff in sorted(self.modified_diffs.items()):
-                res.extend(str_modified_job(job, diff))
-            res.extend(str_end_section(wrap=wrap))
+        if only_summary:
+            if not cli:
+                res.append(':warning: Diff too large to display on Github')
+        else:
+            if self.modified:
+                wrap = len(self.modified) > max_detailed_jobs
+                res.extend(str_section('Modified Jobs', wrap=wrap))
+                for job, diff in sorted(self.modified_diffs.items()):
+                    res.extend(str_modified_job(job, diff))
+                res.extend(str_end_section(wrap=wrap))
 
-        if self.added:
+            if self.added:
+                if res:
+                    res.append('')
+                wrap = len(self.added) > max_detailed_jobs
+                res.extend(str_section('Added Jobs', wrap=wrap))
+                for job, content in sorted(self.added_contents.items()):
+                    res.extend(str_add_job(job, content))
+                res.extend(str_end_section(wrap=wrap))
+
+            if self.removed:
+                if res:
+                    res.append('')
+                res.extend(str_section('Removed Jobs'))
+                for job in sorted(self.removed):
+                    res.append(str_job(job, 'RED'))
+
+            if self.renamed:
+                if res:
+                    res.append('')
+                res.extend(str_section('Renamed Jobs'))
+                for job_before, job_after in sorted(self.renamed):
+                    res.append(str_rename(job_before, job_after))
+
+        if self.added or self.renamed or self.modified or self.removed:
             if res:
                 res.append('')
-            wrap = len(self.added) > max_detailed_jobs
-            res.extend(str_section('Added Jobs', wrap=wrap))
-            for job, content in sorted(self.added_contents.items()):
-                res.extend(str_add_job(job, content))
-            res.extend(str_end_section(wrap=wrap))
-
-        if self.removed:
-            if res:
-                res.append('')
-            res.extend(str_section('Removed Jobs'))
-            for job in sorted(self.removed):
-                res.append(str_job(job, 'RED'))
-
-        if self.renamed:
-            if res:
-                res.append('')
-            res.extend(str_section('Renamed Jobs'))
-            for job_before, job_after in sorted(self.renamed):
-                res.append(str_rename(job_before, job_after))
-
-        if res:
-            res.append('')
-            res.extend(str_section('Changes'))
+            res.extend(str_section('Changes Summary'))
             res.append(str_summary())
             res.extend(str_note())
 

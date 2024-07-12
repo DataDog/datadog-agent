@@ -239,7 +239,7 @@ def gitlab_ci_diff(ctx, before: str | None = None, after: str | None = None, pr_
         # Display diff
         print('\nGitlab CI configuration diff:')
         with gitlab_section('Gitlab CI configuration diff'):
-            print(diff.display(cli=True, job_url=job_url))
+            print(diff.display(cli=True))
 
         if pr_comment:
             print('\nSending / updating PR comment')
@@ -247,11 +247,20 @@ def gitlab_ci_diff(ctx, before: str | None = None, after: str | None = None, pr_
             try:
                 pr_commenter(ctx, pr_comment_head, comment)
             except Exception:
-                print(color_message('Warning: Failed to send full diff, sending only job link', Color.ORANGE))
+                # Comment too large
+                print(color_message('Warning: Failed to send full diff, sending only changes summary', Color.ORANGE))
 
-                pr_commenter(
-                    ctx, pr_comment_head, f'Cannot send full diff message, see the [job log]({job_url}) for details'
-                )
+                comment_summary = diff.display(cli=False, job_url=job_url, only_summary=True)
+                try:
+                    pr_commenter(ctx, pr_comment_head, comment_summary)
+                except Exception:
+                    print(color_message('Warning: Failed to send summary diff, sending only job link', Color.ORANGE))
+
+                    pr_commenter(
+                        ctx,
+                        pr_comment_head,
+                        f'Cannot send only summary message, see the [job log]({job_url}) for details',
+                    )
 
             print(color_message('Sent / updated PR comment', Color.GREEN))
     except Exception:
