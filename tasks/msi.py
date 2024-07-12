@@ -313,7 +313,7 @@ def build_installer(ctx, vstudio_root=None, arch="x64", debug=False):
     """
     env = {}
     env['PACKAGE_VERSION'] = get_version(
-        ctx, include_git=True, url_safe=True, major_version=7, include_pipeline_id=True
+        ctx, include_git=True, url_safe=True, major_version="7", include_pipeline_id=True
     )
     env['NUGET_PACKAGES_DIR'] = f'{NUGET_PACKAGES_DIR}'
     env['AGENT_INSTALLER_OUTPUT_DIR'] = f'{BUILD_OUTPUT_DIR}'
