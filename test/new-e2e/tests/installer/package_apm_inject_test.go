@@ -413,7 +413,7 @@ func (s *packageApmInjectSuite) TestDefaultPackageVersion() {
 		"DD_APM_INSTRUMENTATION_LIBRARIES=python",
 	)
 	defer s.Purge()
-	s.host.AssertPackageMajor("datadog-apm-library-python", "2")
+	s.host.AssertPackagePrefix("datadog-apm-library-python", "2")
 }
 
 func (s *packageApmInjectSuite) assertTraceReceived(traceID uint64) {

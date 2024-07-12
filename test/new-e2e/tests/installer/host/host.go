@@ -193,8 +193,8 @@ func (h *Host) AssertPackageVersion(pkg string, version string) {
 	state.AssertDirExists(filepath.Join("/opt/datadog-packages/", pkg, version), 0755, "root", "root")
 }
 
-// AssertPackageVersion checks if a package is installed with the correct version
-func (h *Host) AssertPackageMajor(pkg string, semver string) {
+// AssertPackagePrefix checks if a package is installed with a version with the prefix
+func (h *Host) AssertPackagePrefix(pkg string, semver string) {
 	state := h.State()
 	packageDir := filepath.Join("/opt/datadog-packages/", pkg, "")
 	list := state.ListDirectory(packageDir)
@@ -528,6 +528,8 @@ func evalSymlinkPath(path string, fs map[string]FileInfo) string {
 	return filepath.Clean(resolvedPath)
 }
 
+// ListDirectory returns a list of entries in the directory and fails the test
+// if it doesn't exist
 func (s *State) ListDirectory(path string) []FileInfo {
 	path = evalSymlinkPath(path, s.FS)
 	fileInfo, ok := s.FS[path]
