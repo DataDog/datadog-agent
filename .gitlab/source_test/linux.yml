@@ -50,6 +50,7 @@
 
 .upload_coverage:
   # Upload coverage files to Codecov. Never fail on coverage upload.
+  - source /root/.bashrc
   - export CODECOV_TOKEN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $CODECOV_TOKEN_SSM_NAME)
   - inv -e coverage.upload-to-codecov $COVERAGE_CACHE_FLAG || true
 
