@@ -373,7 +373,7 @@ func (s *server) start(context.Context) error {
 	}
 
 	if len(socketPath) > 0 {
-		if _, err := os.Stat(filepath.Dir(socketPath)); !os.IsNotExist(err) {
+		if _, err := os.Stat(filepath.Dir(socketPath)); !errors.Is(err, fs.ErrNotExist) {
 			unixListener, err := listeners.NewUDSDatagramListener(packetsChannel, sharedPacketPoolManager, sharedUDSOobPoolManager, s.config, s.tCapture, s.wmeta, s.pidMap, s.listernersTelemetry, s.packetsTelemetry, s.telemetry)
 			if err != nil {
 				s.log.Errorf("Can't init UDS listener on path %s: %s", socketPath, err.Error())
