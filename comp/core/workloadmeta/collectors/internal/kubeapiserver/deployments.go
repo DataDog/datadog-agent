@@ -116,8 +116,6 @@ func (p deploymentParser) Parse(obj interface{}) []workloadmeta.Entity {
 		}
 	}
 
-	entities := make([]workloadmeta.Entity, 0, 2)
-
 	deploymentEntity := &workloadmeta.KubernetesDeployment{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindKubernetesDeployment,
@@ -135,14 +133,15 @@ func (p deploymentParser) Parse(obj interface{}) []workloadmeta.Entity {
 		InjectableLanguages: containerLanguages,
 	}
 
-	entities = append(entities, deploymentEntity, &workloadmeta.KubernetesMetadata{
-		EntityID: workloadmeta.EntityID{
-			Kind: workloadmeta.KindKubernetesMetadata,
-			ID:   string(util.GenerateKubeMetadataEntityID("apps", "deployments", deployment.Namespace, deployment.Name)),
+	return []workloadmeta.Entity{
+		deploymentEntity,
+		&workloadmeta.KubernetesMetadata{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindKubernetesMetadata,
+				ID:   string(util.GenerateKubeMetadataEntityID("apps", "deployments", deployment.Namespace, deployment.Name)),
+			},
+			EntityMeta: deploymentEntity.EntityMeta,
+			GVR:        p.gvr,
 		},
-		EntityMeta: deploymentEntity.EntityMeta,
-		GVR:        p.gvr,
-	})
-
-	return entities
+	}
 }
