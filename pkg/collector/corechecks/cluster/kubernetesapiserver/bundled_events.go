@@ -8,22 +8,26 @@
 package kubernetesapiserver
 
 import (
+	"context"
+
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 )
 
-func newBundledTransformer(clusterName string, taggerInstance tagger.Component) eventTransformer {
+func newBundledTransformer(clusterName string, taggerInstance tagger.Component, ctx context.Context) eventTransformer {
 	return &bundledTransformer{
 		clusterName:    clusterName,
 		taggerInstance: taggerInstance,
+		ctx:            ctx,
 	}
 }
 
 type bundledTransformer struct {
 	clusterName    string
 	taggerInstance tagger.Component
+	ctx            context.Context
 }
 
 func (c *bundledTransformer) Transform(events []*v1.Event) ([]event.Event, []error) {
@@ -50,7 +54,7 @@ func (c *bundledTransformer) Transform(events []*v1.Event) ([]event.Event, []err
 
 		bundle, found := bundlesByObject[id]
 		if !found {
-			bundle = newKubernetesEventBundler(c.clusterName, event)
+			bundle = newKubernetesEventBundler(c.clusterName, event, c.ctx)
 			bundlesByObject[id] = bundle
 		}
 

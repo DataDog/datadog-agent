@@ -119,6 +119,7 @@ type KubeASCheck struct {
 	eventCollection eventCollection
 	ac              *apiserver.APIClient
 	oshiftAPILevel  apiserver.OpenShiftAPILevel
+	ctx             context.Context
 }
 
 func (c *KubeASConfig) parse(data []byte) error {
@@ -132,20 +133,19 @@ func (c *KubeASConfig) parse(data []byte) error {
 }
 
 // NewKubeASCheck returns a new KubeASCheck
-func NewKubeASCheck(base core.CheckBase, instance *KubeASConfig) *KubeASCheck {
+func NewKubeASCheck(base core.CheckBase, instance *KubeASConfig, ctx context.Context) *KubeASCheck {
 	return &KubeASCheck{
 		CheckBase: base,
 		instance:  instance,
+		ctx:       ctx,
 	}
 }
 
 // Factory creates a new check factory
-func Factory() optional.Option[func() check.Check] {
-	return optional.NewOption(newCheck)
-}
-
-func newCheck() check.Check {
-	return NewKubeASCheck(core.NewCheckBase(CheckName), &KubeASConfig{})
+func Factory(ctx context.Context) optional.Option[func() check.Check] {
+	return optional.NewOption(func() check.Check {
+		return NewKubeASCheck(core.NewCheckBase(CheckName), &KubeASConfig{}, ctx)
+	})
 }
 
 // Configure parses the check configuration and init the check.
@@ -187,9 +187,9 @@ func (k *KubeASCheck) Configure(senderManager sender.SenderManager, _ uint64, co
 	}
 
 	if k.instance.UnbundleEvents {
-		k.eventCollection.Transformer = newUnbundledTransformer(clusterName, tagger.GetTaggerInstance(), k.instance.CollectedEventTypes, k.instance.BundleUnspecifiedEvents)
+		k.eventCollection.Transformer = newUnbundledTransformer(clusterName, tagger.GetTaggerInstance(), k.instance.CollectedEventTypes, k.instance.BundleUnspecifiedEvents, k.ctx)
 	} else {
-		k.eventCollection.Transformer = newBundledTransformer(clusterName, tagger.GetTaggerInstance())
+		k.eventCollection.Transformer = newBundledTransformer(clusterName, tagger.GetTaggerInstance(), k.ctx)
 	}
 
 	return nil

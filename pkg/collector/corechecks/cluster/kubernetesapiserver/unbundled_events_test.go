@@ -8,6 +8,7 @@
 package kubernetesapiserver
 
 import (
+	"context"
 	"fmt"
 	"sort"
 	"testing"
@@ -438,7 +439,8 @@ func TestUnbundledEventsTransform(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			transformer := newUnbundledTransformer("test-cluster", taggerInstance, tt.collectedEventTypes, tt.bundleUnspecifiedEvents)
+			ctx := context.Background()
+			transformer := newUnbundledTransformer("test-cluster", taggerInstance, tt.collectedEventTypes, tt.bundleUnspecifiedEvents, ctx)
 
 			events, errors := transformer.Transform(incomingEvents)
 
@@ -496,12 +498,13 @@ func TestGetTagsFromTagger(t *testing.T) {
 		},
 	}
 
+	ctx := context.Background()
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			collectedTypes := []collectedEventType{
 				{Kind: "Pod", Reasons: []string{}},
 			}
-			transformer := newUnbundledTransformer("test-cluster", taggerInstance, collectedTypes, false)
+			transformer := newUnbundledTransformer("test-cluster", taggerInstance, collectedTypes, false, ctx)
 			accumulator := tagset.NewHashlessTagsAccumulator()
 			transformer.(*unbundledTransformer).getTagsFromTagger(tt.obj, accumulator)
 			assert.Equal(t, tt.expectedTags, accumulator)
@@ -564,6 +567,7 @@ func TestUnbundledEventsShouldCollect(t *testing.T) {
 		},
 	}
 
+	ctx := context.Background()
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			collectedTypes := []collectedEventType{
@@ -583,7 +587,7 @@ func TestUnbundledEventsShouldCollect(t *testing.T) {
 				},
 			}
 
-			transformer := newUnbundledTransformer("test-cluster", taggerInstance, collectedTypes, false)
+			transformer := newUnbundledTransformer("test-cluster", taggerInstance, collectedTypes, false, ctx)
 			got := transformer.(*unbundledTransformer).shouldCollect(tt.event)
 			assert.Equal(t, tt.expected, got)
 		})

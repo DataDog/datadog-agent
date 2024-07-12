@@ -295,10 +295,12 @@ func run(
 		return nil
 	}
 
+	waitCtx, cancelTimeout := context.WithTimeout(
+		context.Background(), time.Duration(cliParams.discoveryTimeout)*time.Second)
 	// TODO: (components) - Until the checks are components we set there context so they can depends on components.
 	check.InitializeInventoryChecksContext(invChecks)
 	pkgcollector.InitPython(common.GetPythonPaths()...)
-	commonchecks.RegisterChecks(wmeta, config, telemetry)
+	commonchecks.RegisterChecks(wmeta, config, telemetry, waitCtx)
 
 	common.LoadComponents(secretResolver, wmeta, ac, pkgconfig.Datadog().GetString("confd_path"))
 	ac.LoadAndRun(context.Background())
@@ -306,9 +308,6 @@ func run(
 	// Create the CheckScheduler, but do not attach it to
 	// AutoDiscovery.
 	pkgcollector.InitCheckScheduler(collector, demultiplexer)
-
-	waitCtx, cancelTimeout := context.WithTimeout(
-		context.Background(), time.Duration(cliParams.discoveryTimeout)*time.Second)
 
 	allConfigs, err := common.WaitForConfigsFromAD(waitCtx, []string{cliParams.checkName}, int(cliParams.discoveryMinInstances), cliParams.instanceFilter, ac)
 	cancelTimeout()

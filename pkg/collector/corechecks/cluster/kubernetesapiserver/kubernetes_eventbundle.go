@@ -8,6 +8,7 @@
 package kubernetesapiserver
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"math"
@@ -32,14 +33,14 @@ type kubernetesEventBundle struct {
 	hostInfo            eventHostInfo      // Host information extracted from the event, where applicable
 }
 
-func newKubernetesEventBundler(clusterName string, event *v1.Event) *kubernetesEventBundle {
+func newKubernetesEventBundler(clusterName string, event *v1.Event, ctx context.Context) *kubernetesEventBundle {
 	return &kubernetesEventBundle{
 		involvedObject:      event.InvolvedObject,
 		component:           event.Source.Component,
 		reportingController: event.ReportingController,
 		countByAction:       make(map[string]int),
 		alertType:           getDDAlertType(event.Type),
-		hostInfo:            getEventHostInfo(clusterName, event),
+		hostInfo:            getEventHostInfo(clusterName, event, ctx),
 	}
 }
 

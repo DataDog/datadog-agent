@@ -366,7 +366,7 @@ func start(log log.Component,
 	common.LoadComponents(secretResolver, wmeta, ac, config.GetString("confd_path"))
 
 	// Set up check collector
-	registerChecks()
+	registerChecks(mainCtx)
 	ac.AddScheduler("check", pkgcollector.InitCheckScheduler(optional.NewOption(collector), demultiplexer), true)
 
 	// start the autoconfig, this will immediately run any configured check
@@ -559,7 +559,7 @@ func initializeRemoteConfigClient(rcService rccomp.Component, config config.Comp
 	return rcClient, nil
 }
 
-func registerChecks() {
+func registerChecks(ctx context.Context) {
 	// Required checks
 	corecheckLoader.RegisterCheck(cpu.CheckName, cpu.Factory())
 	corecheckLoader.RegisterCheck(memory.CheckName, memory.Factory())
@@ -568,7 +568,7 @@ func registerChecks() {
 	corecheckLoader.RegisterCheck(filehandles.CheckName, filehandles.Factory())
 
 	// Flavor specific checks
-	corecheckLoader.RegisterCheck(kubernetesapiserver.CheckName, kubernetesapiserver.Factory())
+	corecheckLoader.RegisterCheck(kubernetesapiserver.CheckName, kubernetesapiserver.Factory(ctx))
 	corecheckLoader.RegisterCheck(ksm.CheckName, ksm.Factory())
 	corecheckLoader.RegisterCheck(helm.CheckName, helm.Factory())
 	corecheckLoader.RegisterCheck(disk.CheckName, disk.Factory())

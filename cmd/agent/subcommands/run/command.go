@@ -598,7 +598,7 @@ func startAgent(
 	jmxfetch.RegisterWith(ac)
 
 	// Set up check collector
-	commonchecks.RegisterChecks(wmeta, cfg, telemetry)
+	commonchecks.RegisterChecks(wmeta, cfg, telemetry, ctx)
 	ac.AddScheduler("check", pkgcollector.InitCheckScheduler(optional.NewOption(collector), demultiplexer), true)
 
 	demultiplexer.AddAgentStartupTelemetry(version.AgentVersion)

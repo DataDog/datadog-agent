@@ -7,6 +7,7 @@
 package kubernetesapiserver
 
 import (
+	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -178,8 +179,8 @@ func TestFormatEvent(t *testing.T) {
 
 			hostProviderIDCache.Set(firstEv.Source.Host, tt.hostProviderID, cache.DefaultExpiration)
 			defer hostProviderIDCache.Delete(firstEv.Source.Host)
-
-			b := newKubernetesEventBundler(tt.clusterName, firstEv)
+			ctx := context.Background()
+			b := newKubernetesEventBundler(tt.clusterName, firstEv, ctx)
 
 			for _, ev := range tt.events {
 				b.addEvent(ev)
@@ -245,7 +246,8 @@ func TestEventsTagging(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			bundle := newKubernetesEventBundler("", tt.k8sEvent)
+			ctx := context.Background()
+			bundle := newKubernetesEventBundler("", tt.k8sEvent, ctx)
 			bundle.addEvent(tt.k8sEvent)
 			got, err := bundle.formatEvents(taggerimpl.SetupFakeTagger(t))
 			assert.NoError(t, err)
