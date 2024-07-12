@@ -8,6 +8,7 @@ import subprocess
 import sys
 from collections import UserList
 from copy import deepcopy
+from dataclasses import dataclass
 from difflib import Differ
 from functools import lru_cache
 
@@ -151,7 +152,12 @@ class GitlabCIDiff:
                 diff = [line.rstrip('\n') for line in differcli.compare(before_content, after_content)]
                 self.modified_diffs[job] = diff
 
-    def display(self, cli: bool = True, max_detailed_jobs=6, job_url=None, only_summary=False) -> str:
+    def footnote(self, job_url: str) -> str:
+        return f':information_source: *Diff available in the [job log]({job_url}).*'
+
+    def display(
+        self, cli: bool = True, max_detailed_jobs=6, job_url=None, only_summary=False, no_footnote=False
+    ) -> str:
         """
         Display in cli or markdown
         """
@@ -245,7 +251,7 @@ class GitlabCIDiff:
             if not job_url or cli:
                 return []
 
-            return ['', f':information_source: *Diff available in the [job log]({job_url}).*']
+            return ['', self.footnote(job_url)]
 
         res = []
 
@@ -288,7 +294,97 @@ class GitlabCIDiff:
                 res.append('')
             res.extend(str_section('Changes Summary'))
             res.append(str_summary())
-            res.extend(str_note())
+            if not no_footnote:
+                res.extend(str_note())
+
+        return '\n'.join(res)
+
+
+class MultiGitlabCIDiff:
+    @dataclass
+    class MultiDiff:
+        entry_point: str
+        diff: GitlabCIDiff
+        # Whether the entry point has been added or removed
+        is_added: bool
+        is_removed: bool
+
+    def __init__(self, before: dict[str, dict], after: dict[str, dict]) -> None:
+        """
+        Used to display job diffs between two full gitlab ci configurations (multiple entry points)
+
+        - before/after: Dict of [entry point] -> ([job name] -> job content)
+        """
+        self.before = dict(before)
+        self.after = dict(after)
+
+        self.diffs: list[MultiGitlabCIDiff.MultiDiff] = []
+
+        self.make_diff()
+
+    def __bool__(self) -> bool:
+        return bool(self.diffs)
+
+    def make_diff(self):
+        for entry_point in set(list(self.before) + list(self.after)):
+            diff = GitlabCIDiff(self.before.get(entry_point, {}), self.after.get(entry_point, {}))
+
+            # Diff for this entry point, add it to the list
+            if diff:
+                self.diffs.append(
+                    MultiGitlabCIDiff.MultiDiff(
+                        entry_point, diff, entry_point not in self.before, entry_point not in self.after
+                    )
+                )
+
+    def display(self, cli: bool = True, job_url: str = None, **kwargs) -> str:
+        """
+        Display in cli or markdown
+        """
+        if not self:
+            return ''
+
+        if len(self.diffs) == 1:
+            return self.diffs[0].diff.display(cli, **kwargs)
+
+        def str_entry(diff: MultiGitlabCIDiff.MultiDiff) -> str:
+            if cli:
+                status = ''
+                if diff.is_added:
+                    status = f'{color_message("Added:", Color.GREEN)} '
+                elif diff.is_removed:
+                    status = f'{color_message("Removed:", Color.RED)} '
+                else:
+                    status = f'{color_message("Modified:", Color.ORANGE)} '
+
+                return [f'>>> {status}{color_message(diff.entry_point, Color.BOLD)}', '']
+            else:
+                status = ''
+                if diff.is_added:
+                    status = 'Added: '
+                elif diff.is_removed:
+                    status = 'Removed: '
+                else:
+                    status = 'Updated: '
+
+                return [f'<details><summary><h2>{status}{diff.entry_point}</h2></summary>', '']
+
+        def str_entry_end() -> list[str]:
+            if cli:
+                return ['']
+            else:
+                return ['', '</details>']
+
+        res = []
+
+        for diff in self.diffs:
+            res.extend(str_entry(diff))
+            res.append(diff.diff.display(cli, job_url=job_url, no_footnote=True, **kwargs))
+            res.extend(str_entry_end())
+
+        if not cli:
+            res.append('')
+            res.append(self.diffs[-1].diff.footnote(job_url))
 
         return '\n'.join(res)
 
