@@ -4,6 +4,7 @@ qa_agent:
   stage: dev_container_deploy
   rules:
     - !reference [.except_mergequeue]
+    - !reference [.except_disable_e2e_tests]
     - when: on_success
   needs:
     - docker_build_agent7
@@ -34,6 +35,7 @@ qa_dca:
   stage: dev_container_deploy
   rules:
     - !reference [.except_mergequeue]
+    - !reference [.except_disable_e2e_tests]
     - when: on_success
   needs:
     - docker_build_cluster_agent_amd64
