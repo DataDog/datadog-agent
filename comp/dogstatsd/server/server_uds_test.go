@@ -51,8 +51,4 @@ func TestUDSReceiverDisabled(t *testing.T) {
 
 	deps := fulfillDepsWithConfigOverride(t, cfg)
 	require.False(t, deps.Server.UdsListenerRunning())
-
-	socketPath := filepath.Join(t.TempDir(), "dsd.socket")
-	_, err := net.Dial("unixgram", socketPath)
-	require.Error(t, err, "UDS listener should be disabled")
 }
