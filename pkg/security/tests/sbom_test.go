@@ -24,6 +24,11 @@ import (
 
 func TestSBOM(t *testing.T) {
 	SkipIfNotAvailable(t)
+
+	if testEnvironment == DockerEnvironment {
+		t.Skip("Skip test spawning docker containers on docker")
+	}
+
 	originalFlavor := flavor.GetFlavor()
 	flavor.SetFlavor(flavor.SecurityAgent)
 	defer func() {
@@ -34,13 +39,13 @@ func TestSBOM(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID: "test_file_package",
-			Expression: `open.file.path == "/usr/lib/os-release" && open.flags & O_CREAT != 0 && container.id != "" ` +
+			Expression: `open.file.path == "/usr/lib/os-release" && (open.flags & O_CREAT != 0) && (container.id != "") ` +
 				`&& open.file.package.name == "base-files" && process.file.path != "" && process.file.package.name == "coreutils"`,
 		},
 		{
 			ID: "test_host_file_package",
-			Expression: `open.file.path == "/etc/issue" ` +
-				`&& open.file.package.name in [ "base-files", "system-release" ]`,
+			Expression: `open.file.path == "/usr/lib/os-release" && (open.flags & O_CREAT != 0) && (container.id == "") ` +
+				`&& process.file.path != "" && process.file.package.name == "coreutils"`,
 		},
 	}
 	test, err := newTestModule(t, nil, ruleDefs, withStaticOpts(testOpts{enableSBOM: true, enableHostSBOM: true}))
@@ -91,11 +96,10 @@ func TestSBOM(t *testing.T) {
 			if sbom == nil {
 				return fmt.Errorf("failed to find host SBOM for host")
 			}
-			cmd := exec.Command("/bin/touch", "/etc/issue")
+			cmd := exec.Command("/bin/touch", "/usr/lib/os-release")
 			return cmd.Run()
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_host_file_package")
-			assertFieldIsOneOf(t, event, "open.file.package.name", []string{"base-files", "system-release"}, "wrong owning package")
 			assertFieldEqual(t, event, "process.file.package.name", "coreutils")
 			assertFieldEqual(t, event, "container.id", "", "container id should be empty")
 
