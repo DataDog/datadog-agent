@@ -7,6 +7,7 @@ import re
 import subprocess
 import sys
 from collections import UserList
+from functools import lru_cache
 
 import gitlab
 import yaml
@@ -397,19 +398,27 @@ def read_content(ctx, file_path, git_ref: str | None = None):
     """
     Read the content of a file, either from a local file or from an http endpoint
     """
-    if file_path.startswith('http'):
-        import requests
 
-        response = requests.get(file_path)
-        response.raise_for_status()
-        content = response.text
-    elif git_ref:
-        content = ctx.run(f"git show '{git_ref}:{file_path}'", hide=True).stdout
-    else:
-        with open(file_path) as f:
-            content = f.read()
+    # Do not use ctx for cache
+    @lru_cache(maxsize=512)
+    def read_content_cached(file_path, git_ref: str | None = None):
+        nonlocal ctx
 
-    return yaml.safe_load(content)
+        if file_path.startswith('http'):
+            import requests
+
+            response = requests.get(file_path)
+            response.raise_for_status()
+            content = response.text
+        elif git_ref:
+            content = ctx.run(f"git show '{git_ref}:{file_path}'", hide=True).stdout
+        else:
+            with open(file_path) as f:
+                content = f.read()
+
+        return yaml.safe_load(content)
+
+    return read_content_cached(file_path, git_ref)
 
 
 def get_preset_contexts(required_tests):
