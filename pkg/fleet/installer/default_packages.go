@@ -34,13 +34,7 @@ var PackagesList = []Package{
 	{Name: "datadog-agent", version: agentVersion, released: false, releasedWithRemoteUpdates: true},
 }
 
-var packageDependencies = map[string][]string{
-	"datadog-apm-library-java":   {"datadog-apm-inject"},
-	"datadog-apm-library-ruby":   {"datadog-apm-inject"},
-	"datadog-apm-library-js":     {"datadog-apm-inject"},
-	"datadog-apm-library-dotnet": {"datadog-apm-inject"},
-	"datadog-apm-library-python": {"datadog-apm-inject"},
-}
+var packageDependencies = map[string][]string{}
 
 // DefaultPackages resolves the default packages URLs to install based on the environment.
 func DefaultPackages(env *env.Env) []string {
@@ -84,9 +78,6 @@ func apmInjectEnabled(_ Package, e *env.Env) bool {
 }
 
 func apmLanguageEnabled(p Package, e *env.Env) bool {
-	if !apmInjectEnabled(p, e) {
-		return false
-	}
 	if _, ok := e.ApmLibraries[packageToLanguage(p.Name)]; ok {
 		return true
 	}
@@ -95,7 +86,7 @@ func apmLanguageEnabled(p Package, e *env.Env) bool {
 	}
 	// If the ApmLibraries env is left empty but apm injection is
 	// enabled, we install all languages
-	if len(e.ApmLibraries) == 0 {
+	if len(e.ApmLibraries) == 0 && apmInjectEnabled(p, e) {
 		return true
 	}
 	return false
