@@ -61,8 +61,11 @@ func (d *dockerSuite) TestLogsReceived() {
 
 	// Command to execute inside the container
 	cmd := []string{
-		"/usr/local/bin/send-message.sh",
-		"bob",
+		"curl", "-v",
+		"--header", "\"Content-Type: application/json\"",
+		"--request", "POST",
+		"--data", "'{\"message\":\"bob\"}'",
+		"localhost:10518/",
 	}
 
 	// Prepare the execution configuration
