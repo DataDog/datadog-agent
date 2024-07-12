@@ -201,6 +201,49 @@ func TestRetrieveClosedConnection(t *testing.T) {
 	})
 }
 
+func TestDropActiveConnections(t *testing.T) {
+	conn := ConnectionStats{
+		Pid:    123,
+		Type:   TCP,
+		Family: AFINET,
+		Source: util.AddressFromString("127.0.0.1"),
+		Dest:   util.AddressFromString("127.0.0.1"),
+		SPort:  31890,
+		DPort:  80,
+		Monotonic: StatCounters{
+			SentBytes:   12345,
+			RecvBytes:   6789,
+			Retransmits: 2,
+		},
+		Last: StatCounters{
+			SentBytes:   12345,
+			RecvBytes:   6789,
+			Retransmits: 2,
+		},
+		IntraHost: true,
+		Cookie:    1,
+	}
+
+	conn2 := conn
+	conn2.Cookie = 2
+	conn2.SPort = 31891 // so it does not get aggregated
+
+	clientID := "1"
+
+	state := newDefaultState()
+	state.maxClientStats = 1
+	state.RegisterClient(clientID)
+
+	delta := state.GetDelta(clientID, latestEpochTime(), []ConnectionStats{conn, conn2}, nil, nil)
+	if assert.Len(t, delta.Conns, 1, "connection was not dropped") {
+		assert.Equal(t, delta.Conns[0].Cookie, conn.Cookie, "wrong connection dropped")
+	}
+	assert.Equal(t, int64(1), stateTelemetry.connDropped.Load(), "connection dropped count did not increase")
+	if assert.Len(t, state.clients[clientID].stats, 1, "client connection stats should have 1 connection") {
+		assert.Contains(t, state.clients[clientID].stats, conn.Cookie, "stats do not contain expected connection")
+	}
+}
+
 func TestDropEmptyConnections(t *testing.T) {
 	conn := ConnectionStats{
 		Pid:    123,
@@ -262,7 +305,7 @@ func TestDropEmptyConnections(t *testing.T) {
 		assert.False(t, ok)
 
 	})
-	t.Run("drop incoming connection when conns full", func(t *testing.T) {
+	t.Run("drop incoming closed connection when conns full", func(t *testing.T) {
 		// drop incoming non-empty conn when conns is full
 		state := newDefaultState()
 		state.maxClosedConns = 1
