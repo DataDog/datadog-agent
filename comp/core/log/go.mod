@@ -13,7 +13,6 @@ replace (
 	github.com/DataDog/datadog-agent/comp/def => ../../def/
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../../pkg/collector/check/defaults
 	github.com/DataDog/datadog-agent/pkg/config/env => ../../../pkg/config/env
-	github.com/DataDog/datadog-agent/pkg/config/logs => ../../../pkg/config/logs
 	github.com/DataDog/datadog-agent/pkg/config/model => ../../../pkg/config/model
 	github.com/DataDog/datadog-agent/pkg/config/setup => ../../../pkg/config/setup
 	github.com/DataDog/datadog-agent/pkg/obfuscate => ../../../pkg/obfuscate
@@ -26,6 +25,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/fxutil => ../../../pkg/util/fxutil
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate => ../../../pkg/util/hostname/validate
 	github.com/DataDog/datadog-agent/pkg/util/log => ../../../pkg/util/log
+	github.com/DataDog/datadog-agent/pkg/util/log/setup => ../../../pkg/util/log/setup
 	github.com/DataDog/datadog-agent/pkg/util/optional => ../../../pkg/util/optional
 	github.com/DataDog/datadog-agent/pkg/util/pointer => ../../../pkg/util/pointer
 	github.com/DataDog/datadog-agent/pkg/util/scrubber => ../../../pkg/util/scrubber/
@@ -38,10 +38,10 @@ replace (
 require (
 	github.com/DataDog/datadog-agent/comp/core/config v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/config/env v0.56.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/config/logs v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/trace v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/log v0.56.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/log/setup v0.56.0-rc.3
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // v2.6
 	github.com/stretchr/testify v1.9.0
 	go.uber.org/fx v1.18.2

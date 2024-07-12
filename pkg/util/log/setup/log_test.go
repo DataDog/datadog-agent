@@ -14,8 +14,8 @@ import (
 	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 
-	seelogCfg "github.com/DataDog/datadog-agent/pkg/config/logs/internal/seelog"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	seelogCfg "github.com/DataDog/datadog-agent/pkg/util/log/setup/internal/seelog"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 

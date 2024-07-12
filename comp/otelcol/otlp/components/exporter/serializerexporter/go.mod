@@ -19,7 +19,6 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey => ../../../../../../pkg/aggregator/ckey
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../../../../../pkg/collector/check/defaults
 	github.com/DataDog/datadog-agent/pkg/config/env => ../../../../../../pkg/config/env
-	github.com/DataDog/datadog-agent/pkg/config/logs => ../../../../../../pkg/config/logs
 	github.com/DataDog/datadog-agent/pkg/config/model => ../../../../../../pkg/config/model
 	github.com/DataDog/datadog-agent/pkg/config/setup => ../../../../../../pkg/config/setup
 	github.com/DataDog/datadog-agent/pkg/config/utils => ../../../../../../pkg/config/utils
@@ -45,6 +44,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/http => ../../../../../../pkg/util/http/
 	github.com/DataDog/datadog-agent/pkg/util/json => ../../../../../../pkg/util/json/
 	github.com/DataDog/datadog-agent/pkg/util/log => ../../../../../../pkg/util/log/
+	github.com/DataDog/datadog-agent/pkg/util/log/setup => ../../../../../../pkg/util/log/setup
 	github.com/DataDog/datadog-agent/pkg/util/optional => ../../../../../../pkg/util/optional/
 	github.com/DataDog/datadog-agent/pkg/util/pointer => ../../../../../../pkg/util/pointer
 	github.com/DataDog/datadog-agent/pkg/util/scrubber => ../../../../../../pkg/util/scrubber/

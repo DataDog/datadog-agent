@@ -16,10 +16,10 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
-	pkgconfiglogs "github.com/DataDog/datadog-agent/pkg/config/logs"
 	tracelog "github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
+	pkgconfiglogs "github.com/DataDog/datadog-agent/pkg/util/log/setup"
 )
 
 const stackDepth = 3

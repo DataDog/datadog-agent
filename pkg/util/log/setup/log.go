@@ -24,9 +24,8 @@ import (
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	seelogCfg "github.com/DataDog/datadog-agent/pkg/util/log/setup/internal/seelog"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
-
-	seelogCfg "github.com/DataDog/datadog-agent/pkg/config/logs/internal/seelog"
 )
 
 // LoggerName specifies the name of an instantiated logger.
