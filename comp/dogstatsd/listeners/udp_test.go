@@ -226,13 +226,13 @@ func TestUDPReceive(t *testing.T) {
 	s, err := NewUDPListener(packetChannel, newPacketPoolManagerUDP(deps.Config, packetsTelemetryStore), deps.Config, nil, telemetryStore, packetsTelemetryStore)
 	assert.Nil(t, err)
 	require.NotNil(t, s)
+	s.Listen()
+	defer s.Stop()
 	conn, err := net.Dial("udp", fmt.Sprintf("127.0.0.1:%d", port))
 	assert.Nil(t, err)
 	require.NotNil(t, conn)
 	defer conn.Close()
 	conn.Write(contents)
-
-	defer s.Stop()
 
 	select {
 	case pkts := <-packetChannel:
