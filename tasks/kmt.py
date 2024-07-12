@@ -659,6 +659,7 @@ def prepare(
             clang_path: paths.arch_dir / "opt/datadog-agent/embedded/bin/clang-bpf",
             llc_path: paths.arch_dir / "opt/datadog-agent/embedded/bin/llc-bpf",
             "flakes.yaml": paths.dependencies / "flakes.yaml",
+            ".github/CODEOWNERS": paths.dependencies / "CODEOWNERS",
         }
 
         for src, dst in copy_static_files.items():
