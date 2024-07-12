@@ -18,7 +18,6 @@ import (
 	"unsafe"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
@@ -32,11 +31,11 @@ const (
 	scanTerminatedProcessesInterval = 30 * time.Second
 )
 
-func toLibPath(data []byte) libPath {
-	return *(*libPath)(unsafe.Pointer(&data[0]))
+func ToLibPath(data []byte) LibPath {
+	return *(*LibPath)(unsafe.Pointer(&data[0]))
 }
 
-func toBytes(l *libPath) []byte {
+func ToBytes(l *LibPath) []byte {
 	return l.Buf[:l.Len]
 }
 
@@ -56,7 +55,7 @@ type Watcher struct {
 	loadEvents     *ddebpf.PerfHandler
 	processMonitor *monitor.ProcessMonitor
 	registry       *utils.FileRegistry
-	ebpfProgram    *ebpfProgram
+	ebpfProgram    *EbpfProgram
 
 	// telemetry
 	libHits    *telemetry.Counter
@@ -67,8 +66,8 @@ type Watcher struct {
 var _ utils.Attacher = &Watcher{}
 
 // NewWatcher creates a new Watcher instance
-func NewWatcher(cfg *config.Config, rules ...Rule) (*Watcher, error) {
-	ebpfProgram := newEBPFProgram(cfg)
+func NewWatcher(cfg *ddebpf.Config, rules ...Rule) (*Watcher, error) {
+	ebpfProgram := NewEBPFProgram(cfg)
 	err := ebpfProgram.Init()
 	if err != nil {
 		return nil, fmt.Errorf("error initializing shared library program: %w", err)
@@ -255,7 +254,7 @@ func (w *Watcher) Start() {
 					return
 				}
 
-				lib := toLibPath(event.Data)
+				lib := ToLibPath(event.Data)
 				if int(lib.Pid) == thisPID {
 					// don't scan ourself
 					event.Done()
@@ -263,7 +262,7 @@ func (w *Watcher) Start() {
 				}
 
 				w.libHits.Add(1)
-				path := toBytes(&lib)
+				path := ToBytes(&lib)
 				for _, r := range w.rules {
 					if r.Re.Match(path) {
 						w.libMatches.Add(1)
