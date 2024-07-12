@@ -166,7 +166,7 @@ func (p *provider) ReconfigureSDSAgentConfig(config []byte) (bool, error) {
 // StopSDSProcessing reconfigures the pipeline removing the SDS scanning
 // from the processing steps.
 func (p *provider) StopSDSProcessing() error {
-	_, err := p.reconfigureSDS([]byte("{}"), sds.StopProcessing)
+	_, err := p.reconfigureSDS(nil, sds.StopProcessing)
 	return err
 }
 
