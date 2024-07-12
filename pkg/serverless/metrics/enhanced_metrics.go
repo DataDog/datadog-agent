@@ -528,24 +528,20 @@ func SendTmpEnhancedMetrics(sendMetrics chan bool, tags []string, metricAgent *S
 		return
 	}
 
-	ticker := time.NewTicker(10 * time.Millisecond)
-	defer ticker.Stop()
-
-	collectionFailed := false
-
 	bsize, blocks, bavail, err := statfs(tmpPath)
 	if err != nil {
 		log.Debugf("Could not emit tmp enhanced metrics. %v", err)
-		collectionFailed = true
-		ticker.Stop()
+		return
 	}
 	tmpMax := blocks * bsize
 	tmpUsed := bsize * (blocks - bavail)
 
+	ticker := time.NewTicker(10 * time.Millisecond)
+	defer ticker.Stop()
 	for {
 		select {
-		case <-sendMetrics:
-			if !collectionFailed {
+		case _, open := <-sendMetrics:
+			if !open {
 				generateTmpEnhancedMetrics(generateTmpEnhancedMetricsArgs{
 					TmpMax:  tmpMax,
 					TmpUsed: tmpUsed,
@@ -553,14 +549,13 @@ func SendTmpEnhancedMetrics(sendMetrics chan bool, tags []string, metricAgent *S
 					Demux:   metricAgent.Demux,
 					Time:    float64(time.Now().UnixNano()) / float64(time.Second),
 				})
+				return
 			}
-			return
 		case <-ticker.C:
 			bsize, blocks, bavail, err = statfs(tmpPath)
 			if err != nil {
 				log.Debugf("Could not emit tmp enhanced metrics. %v", err)
-				collectionFailed = true
-				ticker.Stop()
+				return
 			}
 			tmpUsed = math.Max(tmpUsed, bsize*(blocks-bavail))
 		}

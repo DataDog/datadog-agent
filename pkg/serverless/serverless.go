@@ -188,7 +188,7 @@ func sendSystemEnhancedMetrics(daemon *daemon.Daemon, emitCPUMetrics, emitNetwor
 		return
 	}
 
-	sendTmpMetrics <- true
+	close(sendTmpMetrics)
 
 	if emitCPUMetrics {
 		metrics.SendCPUEnhancedMetrics(cpuOffsetData, uptimeOffset, daemon.ExtraTags.Tags, daemon.MetricAgent.Demux)
