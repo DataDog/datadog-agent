@@ -1,6 +1,162 @@
-=============
+==========
 Release Notes
 =============
+
+.. _Release Notes_7.55.0:
+
+7.55.0
+======
+
+.. _Release Notes_7.55.0_Prelude:
+
+Prelude
+-------
+
+Release on: 2024-07-11
+
+- Please refer to the `7.55.0 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7550>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.55.0_New Features:
+
+New Features
+------------
+
+- Add new parameter ``djm_config.enabled`` to enable Data Jobs Monitoring
+
+- You can now set the buffering configuration of Lambda Logs API
+  using ``DD_LOGS_CONFIG_LAMBDA_LOGS_BUFFERING_TIMEOUT_MS``,
+  ``DD_LOGS_CONFIG_LAMBDA_LOGS_BUFFERING_MAX_BYTES``, and
+  ``DD_LOGS_CONFIG_LAMBDA_LOGS_BUFFERING_MAX_ITEMS``.
+
+- Adds the new service_discovery check, which is currently only supported on Linux.
+
+- APM: OTLP: Added an API in pkg/trace/stats that converts eligible OTLP spans to the input to APM stats concentrator.
+
+- Experimental support of SBOM generation on Windows.
+
+- Expose the Agent's MongoDB command string obfuscation to Python checks using the new `datadog_agent.obfuscate_mongodb_string` method.
+
+- [network path] Add feature to traceroute network connections.
+
+- Implement OpenTelemetry SDK resource attributes as unified service rags.
+
+- CSM captures and generates events based on IMDS traffic
+
+- Add support for `kubernetes_namespace_annotations_as_tags`.
+  This new option is equivalent to the existing `kubernetes_namespace_labels_as_tags`,
+  but it considers namespace annotations instead of namespace labels.
+  With this new option, users can enrich tagging based namespace annotations.
+
+
+.. _Release Notes_7.55.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Add a section in the Agent status to show device profile parsing errors.
+
+- Add Go execution traces to Agent Flare.
+
+- Introducing the port conflict suite to the Agent diagnose command.
+  Adding this for MacOS only first. Will incrementally add support for Linux and Windows.
+  The Agent might need particular permissions to read information about processes using ports.
+
+- Agents are now built with Go ``1.21.11``.
+
+- [NDM] Add option to collect hardware status from Cisco SD-WAN.
+
+- Fix concurrency handling by Agent restart-service CLI command when the Agent
+  starts and simultaneously restarts. The Agent may start and restart concurrently
+  during the Agent's installation or upgrade.
+
+- OOM kill events in the OOM kill check are now reported at ERROR level instead of INFO level.
+
+- Improve concurrency handling for Agent start/simultaneous restart.
+  Agent starting and restarting concurrent execution may happen during the
+  Agent's installation or upgrade.
+
+- Add support for parsing `pool` and `peer` directives in
+  locally defined configuration files in the NTP check.
+
+- Improve error handling in the Lambda Logs API handler
+  not to ignore error details
+
+- Improve NTP check log messages.
+
+- Also add `kube_service` tag to pods that run with `hostNetwork: true`.
+
+- Added a new ``-l`` flag to the ``datadog-agent status`` command. This flag allows users to print all available sections.
+
+- Improve NTP check error messages to show the specific hosts that are failing.
+
+- Store SNMP device tags on disk to avoid losing them when the agent restarts.
+
+- The Datadog agent container image is now using Ubuntu 24.04 noble
+  as the base image.
+
+- Improve GUI security authorization flow.
+
+
+.. _Release Notes_7.55.0_Deprecation Notes:
+
+Deprecation Notes
+-----------------
+
+- Deprecated ``datadog-agent status component [section]`` in favor of ``datadog-agent status [section]``.
+
+
+.. _Release Notes_7.55.0_Security Notes:
+
+Security Notes
+--------------
+
+- Current GPG keys that are used to sign new releases of the Agent package are about to expire.
+  Following our 2024 GPG key rotation plan, we rotated RPM and APT GPG keys.
+
+
+.. _Release Notes_7.55.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fixes the validation of permissions for the secret backend helper.
+
+- APM Stats type for is_trace_root flag is now renamed to trilean.
+
+- [DBM] Bump go-sqllexer to 0.0.12 to fix a bug where table name is incorrectly collected on statement ``CREATE TABLE IF NOT EXISTS``.
+
+- Correct log level of trace writer log message
+
+- Fix an issue introduced in Agent 7.51 for Windows that would cause a panic during Agent shutdown
+  if the etwtracer component failed to initialize.
+
+- Fixed an issue where the ``datadog-agent status`` and ``datadog-agent flare`` commands could hang while trying to reach other agent processes.
+
+- Fix an issue where the Agent incorrectly reports JMX integrations as having issues.
+
+- Fix leader election error when running checks manually from the
+  Cluster Agent.
+
+- [oracle] Fix missing query metrics.
+
+- Fix metric reporting for process checks on the core Agent.
+
+- Fix the status date so that it is computed for every request.
+
+- Fix a bug where containerd container metrics and container tags were not being
+  collected for containers with arbitrary container IDs.
+
+
+.. _Release Notes_7.55.0_Other Notes:
+
+Other Notes
+-----------
+
+- Added metrics origins for python integrations.
+
+- Added metrics origins for the most recent python integrations.
+
 
 .. _Release Notes_7.54.1:
 

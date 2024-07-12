@@ -2,6 +2,56 @@
 Release Notes
 =============
 
+.. _Release Notes_7.55.0:
+
+7.55.0
+======
+
+.. _Release Notes_7.55.0_Prelude:
+
+Prelude
+-------
+
+Released on: 2024-07-11
+Pinned to datadog-agent v7.55.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7550>`_.
+
+.. _Release Notes_7.55.0_New Features:
+
+New Features
+------------
+
+- Add support for `kubernetes_namespace_annotations_as_tags`.
+  This new option is equivalent to the existing `kubernetes_namespace_labels_as_tags`,
+  but it considers namespace annotations instead of namespace labels.
+  With this new option, users can enrich tagging based on namespace annotations.
+
+- Support namespace labels as tags on kubernetes events.
+
+
+.. _Release Notes_7.55.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Add ``reason:backofflimitexceeded,deadlineexceeded`` to the
+  ``kubernetes_state.job.failed`` metric to help users understand why a job failed.
+
+- Reduced the memory used to store the tags.
+
+- The Datadog cluster-agent container image is now using Ubuntu 24.04 noble
+  as the base image.
+
+
+.. _Release Notes_7.55.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fixes an issue with large clusters where the Cluster
+  Agent fails to collect all tags when
+  `cluster_agent.collect_kubernetes_tags` is enabled.
+
+
 .. _Release Notes_7.54.1:
 
 7.54.1
