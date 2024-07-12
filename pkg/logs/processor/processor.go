@@ -46,7 +46,9 @@ type sdsProcessor struct {
 	// buffer stores the messages for the buffering mechanism in case we didn't
 	// receive any SDS configuration & wait_for_configuration == "buffer".
 	buffer        []*message.Message
+	bufferedBytes int
 	maxBufferSize int
+
 	waitForConfig bool // the configuration value indicating if we want to wait for an SDS configuration
 	buffering     bool // the runtime status
 
@@ -74,6 +76,7 @@ func New(cfg pkgconfigmodel.Reader, inputChan, outputChan chan *message.Message,
 
 		sds: sdsProcessor{
 			waitForConfig: waitForSDSConfig,
+			// will immediately starts buffering if it has been configured as so
 			buffering:     waitForSDSConfig,
 			maxBufferSize: maxBufferSize,
 			scanner:       sds.CreateScanner(pipelineID),
@@ -138,7 +141,7 @@ func (p *Processor) run() {
 			// the logs, that's here that we buffer the message
 			if p.sds.buffering {
 				// buffer until we receive a configuration
-				p.bufferMessage(msg)
+				p.sds.bufferMsg(msg)
 			} else {
 				// process the message
 				p.processMessage(msg)
@@ -169,11 +172,10 @@ func (p *Processor) applySDSReconfiguration(order sds.ReconfigureOrder) {
 	if err != nil {
 		log.Errorf("Error while reconfiguring the SDS scanner: %v", err)
 	} else {
-		// no error while reconfiguring the SDS scanner? we should be
-		// ready starting the SDS processing if it was an Agent config
-		// or not ready anymore if after having reconfigured
-		// the SDS scanner it is not active anymore.
-		if isActive {
+		// no error while reconfiguring the SDS scanner and it is active?
+		// we should drain the buffered messages if any and stop the
+		// buffering mechanism.
+		if p.sds.buffering && isActive {
 			if p.sds.waitForConfig {
 				log.Debug("Processor ready with an SDS configuration.")
 				p.sds.buffering = false
@@ -184,23 +186,30 @@ func (p *Processor) applySDSReconfiguration(order sds.ReconfigureOrder) {
 					p.processMessage(msg)
 				}
 
-				p.sds.buffer = nil
-			}
-		} else {
-			p.sds.buffering = p.sds.waitForConfig
-			if p.sds.waitForConfig {
-				log.Debug("Won't process until receiving an SDS configuration.")
+				p.sds.resetBuffer()
 			}
 		}
+		// no else case, the buffering is only a startup mechanism, after having
+		// enabled the SDS scanners, if they become inactive it is because the
+		// configuration has been sent like that.
 	}
 
 	order.ResponseChan <- response
 }
 
-func (p *Processor) bufferMessage(msg *message.Message) {
-	if len(p.sds.buffer) < p.sds.maxBufferSize {
-		p.sds.buffer = append(p.sds.buffer, msg)
+func (s *sdsProcessor) bufferMsg(msg *message.Message) {
+	msgSize := len(msg.GetContent())
+	if msgSize+s.bufferedBytes < s.maxBufferSize {
+		s.buffer = append(s.buffer, msg)
+		s.bufferedBytes += msgSize
 	}
+
+	// TODO(remy): account for dropped messages
+}
+
+func (s *sdsProcessor) resetBuffer() {
+	s.buffer = nil
+	s.bufferedBytes = 0
 }
 
 func (p *Processor) processMessage(msg *message.Message) {

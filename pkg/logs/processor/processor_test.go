@@ -324,7 +324,7 @@ func TestBuffering(t *testing.T) {
 		done:                      make(chan struct{}),
 		// configured to buffer (max 3 messages)
 		sds: sdsProcessor{
-			maxBufferSize: 3,
+			maxBufferSize: len("hello") + len("hello second") + len("hello third") + 1,
 			buffering:     true,
 			waitForConfig: true,
 			scanner:       sds.CreateScanner(42),
@@ -353,11 +353,11 @@ func TestBuffering(t *testing.T) {
 	p.inputChan <- newMessage([]byte("hello second"), &src, "")
 	p.inputChan <- newMessage([]byte("hello third"), &src, "")
 	// wait for the other routine to process the messages
-	messagesDequeue(t, func() bool { return processedMessages.Load() == 0 })
+	messagesDequeue(t, func() bool { return processedMessages.Load() == 0 }, "the messages should not be be procesesd")
 
 	// the limit is configured to 3 messages
 	p.inputChan <- newMessage([]byte("hello fourth"), &src, "")
-	messagesDequeue(t, func() bool { return processedMessages.Load() == 0 })
+	messagesDequeue(t, func() bool { return processedMessages.Load() == 0 }, "the messages should still not be processed")
 
 	// reconfigure the processor
 	// --
@@ -408,7 +408,7 @@ func TestBuffering(t *testing.T) {
 	//   * it should drains its buffer and process the buffered logs
 
 	// first, check that the buffer is still full
-	messagesDequeue(t, func() bool { return processedMessages.Load() == 0 })
+	messagesDequeue(t, func() bool { return processedMessages.Load() == 0 }, "no messages should be processed just yet")
 
 	order = sds.ReconfigureOrder{
 		Type: sds.AgentConfig,
@@ -432,16 +432,16 @@ func TestBuffering(t *testing.T) {
 	close(order.ResponseChan)
 
 	// make sure all messages have been drained and processed
-	messagesDequeue(t, func() bool { return processedMessages.Load() == 3 })
+	messagesDequeue(t, func() bool { return processedMessages.Load() == 3 }, "all messages must be drained")
 
 	// make sure it continues to process normally without buffering now
 	p.inputChan <- newMessage([]byte("usual work"), &src, "")
-	messagesDequeue(t, func() bool { return processedMessages.Load() == 4 })
+	messagesDequeue(t, func() bool { return processedMessages.Load() == 4 }, "should continue processing now")
 }
 
 // messagesDequeue let the other routines being scheduled
 // to give some time for the processor routine to dequeue its messages
-func messagesDequeue(t *testing.T, f func() bool) {
+func messagesDequeue(t *testing.T, f func() bool, errorLog string) {
 	timerTest := time.NewTimer(10 * time.Millisecond)
 	timerTimeout := time.NewTimer(5 * time.Second)
 	for {
@@ -449,7 +449,8 @@ func messagesDequeue(t *testing.T, f func() bool) {
 		case <-timerTimeout.C:
 			timerTest.Stop()
 			timerTimeout.Stop()
-			t.Fatalf("timeout while message dequeuing in the processor")
+			t.Error("timeout while message dequeuing in the processor")
+			t.Fatal(errorLog)
 			break
 		case <-timerTest.C:
 			if f() {

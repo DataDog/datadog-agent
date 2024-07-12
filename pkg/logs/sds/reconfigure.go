@@ -14,7 +14,7 @@ type ReconfigureOrderType string
 
 const WaitForConfigField = "logs_config.sds.wait_for_configuration"
 const WaitForConfigBufferMaxSizeField = "logs_config.sds.buffer_max_size"
-const WaitForConfigDefaultBufferMaxSize = 10000
+const WaitForConfigDefaultBufferMaxSize = 1024*1024*500 // 500MB
 
 const (
 	// StandardRules triggers the storage of a new set of standard rules
