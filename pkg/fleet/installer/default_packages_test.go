@@ -178,7 +178,7 @@ func TestDefaultPackages(t *testing.T) {
 			},
 			expected: []pkg{
 				{n: "datadog-apm-library-java", v: "1"},
-				{n: "datadog-apm-library-ruby", v: "1"},
+				{n: "datadog-apm-library-ruby", v: "2"},
 				{n: "datadog-apm-library-js", v: "5"},
 			},
 		},
@@ -203,7 +203,7 @@ func TestDefaultPackages(t *testing.T) {
 			},
 			expected: []pkg{
 				{n: "datadog-apm-library-java", v: "1.2.3-1"},
-				{n: "datadog-apm-library-ruby", v: "1"},
+				{n: "datadog-apm-library-ruby", v: "2"},
 			},
 		},
 		{
