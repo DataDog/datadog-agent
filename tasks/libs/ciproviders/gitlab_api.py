@@ -149,12 +149,10 @@ class GitlabCIDiff:
                 diff = [line.rstrip('\n') for line in differcli.compare(before_content, after_content)]
                 self.modified_diffs[job] = diff
 
-    def display(self, cli: bool = True, max_detailed_jobs=6) -> str:
+    def display(self, cli: bool = True, max_detailed_jobs=6, job_url=None) -> str:
         """
         Display in cli or markdown
         """
-
-        from tasks.libs.common.color import Color, color_message
 
         def str_section(title, wrap=False) -> list[str]:
             if cli:
@@ -241,6 +239,12 @@ class GitlabCIDiff:
 
                 return res
 
+        def str_note() -> list[str]:
+            if not job_url or cli:
+                return []
+
+            return ['', f':information_source: *Diff available in the [job log]({job_url}).*']
+
         res = []
 
         if self.modified:
@@ -274,10 +278,10 @@ class GitlabCIDiff:
                 res.append(str_rename(job_before, job_after))
 
         if res:
-            if res:
-                res.append('')
+            res.append('')
             res.extend(str_section('Changes'))
             res.append(str_summary())
+            res.extend(str_note())
 
         return '\n'.join(res)
 

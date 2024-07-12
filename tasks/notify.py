@@ -239,11 +239,11 @@ def gitlab_ci_diff(ctx, before: str | None = None, after: str | None = None, pr_
         # Display diff
         print('\nGitlab CI configuration diff:')
         with gitlab_section('Gitlab CI configuration diff'):
-            print(diff.display(cli=True))
+            print(diff.display(cli=True, job_url=job_url))
 
         if pr_comment:
             print('\nSending / updating PR comment')
-            comment = diff.display(cli=False)
+            comment = diff.display(cli=False, job_url=job_url)
             try:
                 pr_commenter(ctx, pr_comment_head, comment)
             except Exception:
