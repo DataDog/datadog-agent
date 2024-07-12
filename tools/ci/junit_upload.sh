@@ -21,6 +21,6 @@ for file in $junit_files; do
 done
 # Never fail on Junit upload failure since it would prevent the other after scripts to run.
 if [ $error -eq 1 ]; then
-    echo "Junit upload failed"
+    echo "Error: Junit upload failed"
 fi
 exit 0
