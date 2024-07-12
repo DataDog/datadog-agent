@@ -48,10 +48,10 @@ jobs:
             - name: Check for changes since last RC
               id: check_for_changes
               run: |
-                echo "CHANGES=$(inv -e release.check-for-changes -r ${{ env.RELEASE_BRANCH }} ${{ env.WARNING }})" >> $GITHUB_OUTPUT
+                echo "DD_CHANGES=$(inv -e release.check-for-changes -r ${{ env.RELEASE_BRANCH }} ${{ env.WARNING }})" >> $GITHUB_ENV
 
             - name: Create RC PR
-              if: ${{ steps.check_for_changes.outputs.CHANGES == 'true'}}
+              if: ${{ env.DD_CHANGES == '1' }}
               run: |
                 git config user.name "github-actions[bot]"
                 git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
