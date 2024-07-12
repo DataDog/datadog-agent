@@ -36,12 +36,13 @@ type Sender struct {
 	destinations   *client.Destinations
 	done           chan struct{}
 	bufferSize     int
+	maxBufferSize  int
 	senderDoneChan chan *sync.WaitGroup
 	flushDoneChan  chan struct{}
 }
 
 // NewSender returns a new sender.
-func NewSender(config pkgconfigmodel.Reader, inputChan chan *message.Payload, outputChan chan *message.Payload, destinations *client.Destinations, bufferSize int, senderDoneChan chan *sync.WaitGroup, flushDoneChan chan struct{}) *Sender {
+func NewSender(config pkgconfigmodel.Reader, inputChan chan *message.Payload, outputChan chan *message.Payload, destinations *client.Destinations, bufferSize int, maxBufferSize int, senderDoneChan chan *sync.WaitGroup, flushDoneChan chan struct{}) *Sender {
 	return &Sender{
 		config:         config,
 		inputChan:      inputChan,
@@ -49,6 +50,7 @@ func NewSender(config pkgconfigmodel.Reader, inputChan chan *message.Payload, ou
 		destinations:   destinations,
 		done:           make(chan struct{}),
 		bufferSize:     bufferSize,
+		maxBufferSize:  maxBufferSize,
 		senderDoneChan: senderDoneChan,
 		flushDoneChan:  flushDoneChan,
 	}
@@ -125,7 +127,10 @@ func (s *Sender) run() {
 		if s.senderDoneChan != nil {
 			senderDoneWg.Wait()
 			// In serverless ensure the payload is sent to all destinations to sync with a flush
-			s.flushDoneChan <- struct{}{}
+			// If there are multiple batch payloads, wait for all of them to be sent
+			if len(payload.Messages) < s.maxBufferSize {
+				go func() { s.flushDoneChan <- struct{}{} }()
+			}
 		}
 	}
 

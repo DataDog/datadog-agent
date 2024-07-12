@@ -74,7 +74,7 @@ func NewPipeline(outputChan chan *message.Payload,
 	}
 
 	strategy := getStrategy(strategyInput, senderInput, flushChan, endpoints, serverless, flushDoneChan, pipelineID)
-	logsSender = sender.NewSender(cfg, senderInput, outputChan, mainDestinations, config.DestinationPayloadChanSize, senderDoneChan, flushDoneChan)
+	logsSender = sender.NewSender(cfg, senderInput, outputChan, mainDestinations, config.DestinationPayloadChanSize, endpoints.BatchMaxSize, senderDoneChan, flushDoneChan)
 
 	inputChan := make(chan *message.Message, config.ChanSize)
 	processor := processor.New(inputChan, strategyInput, processingRules, encoder, diagnosticMessageReceiver, hostname, pipelineID)
