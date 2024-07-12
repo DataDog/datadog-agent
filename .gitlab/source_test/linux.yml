@@ -53,7 +53,6 @@
   - export CODECOV_TOKEN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $CODECOV_TOKEN_SSM_NAME)
   - inv -e coverage.upload-to-codecov $COVERAGE_CACHE_FLAG || true
 
-
 .linux_lint:
   stage: source_test
   needs: ["go_deps", "go_tools_deps"]
