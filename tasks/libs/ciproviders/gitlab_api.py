@@ -188,6 +188,75 @@ def print_gitlab_ci_configuration(yml: dict, sort_jobs: bool):
         yaml.safe_dump({job: content}, sys.stdout, default_flow_style=False, sort_keys=True, indent=2)
 
 
+def get_all_gitlab_ci_configurations(
+    ctx,
+    input_file: str = '.gitlab-ci.yml',
+    filter_configs: bool = False,
+    clean_configs: bool = False,
+    ignore_errors: bool = False,
+    git_ref: str | None = None,
+) -> dict[str, dict]:
+    """
+    Returns all gitlab-ci configurations from each entry points (.gitlab-ci.yml and files that are triggered)
+
+    - filter_configs: Whether to apply post process filtering to the configurations (get only jobs...)
+    - clean_configs: Whether to apply post process cleaning to the configurations (remove extends, flatten lists of lists...)
+    - ignore_errors: Ignore gitlab lint errors
+    - git_ref: If provided, use this git reference to fetch the configuration
+    """
+    # TODO : LRU cache for gitlab ci config files
+
+    # entry_points[input_file] -> parsed config
+    entry_points: dict[str, dict] = {}
+
+    def get_triggers(node):
+        """
+        Get all trigger local files
+        """
+        if isinstance(node, str):
+            return [node]
+        elif isinstance(node, dict):
+            return [node['local']] if 'local' in node else []
+        elif isinstance(node, list):
+            res = []
+            for n in node:
+                res.extend(get_triggers(n))
+
+            return res
+
+    def get_entry_points(input_file):
+        """
+        DFS to get all entry points from the input file
+        """
+        if input_file in entry_points:
+            return
+
+        # Read and parse the configuration from this entry point
+        config = get_full_gitlab_ci_configuration(ctx, input_file, ignore_errors=ignore_errors, git_ref=git_ref)
+        entry_points[input_file] = config
+
+        # Add entry points from triggers
+        for job in config.values():
+            if 'trigger' in job and 'include' in job['trigger']:
+                for trigger in get_triggers(job['trigger']['include']):
+                    get_entry_points(trigger)
+
+    # Find all entry points
+    get_entry_points(input_file)
+
+    # Post process
+    for entry_point, config in entry_points.items():
+        if filter_configs:
+            config = filter_gitlab_ci_configuration(config)
+
+        if clean_configs:
+            config = clean_gitlab_ci_configuration(config)
+
+        entry_points[entry_point] = config
+
+    return entry_points
+
+
 def get_full_gitlab_ci_configuration(
     ctx,
     input_file: str = '.gitlab-ci.yml',
