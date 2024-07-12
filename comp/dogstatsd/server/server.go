@@ -8,8 +8,10 @@ package server
 import (
 	"bytes"
 	"context"
+	"errors"
 	"expvar"
 	"fmt"
+	"io/fs"
 	"net"
 	"os"
 	"path/filepath"
