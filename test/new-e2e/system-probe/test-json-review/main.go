@@ -43,7 +43,7 @@ func init() {
 
 func main() {
 	flag.Parse()
-	out, err := reviewTests("/tmp/out.json", flakyTestFile, codeownersFile)
+	out, err := reviewTests("/ci-visibility/testjson/out.json", flakyTestFile, codeownersFile)
 	if err != nil {
 		log.Fatal(err)
 	}
