@@ -220,7 +220,6 @@ func (s *packageApmInjectSuite) TestUpgrade_InjectorOCI_To_InjectorDeb() {
 }
 
 func (s *packageApmInjectSuite) TestVersionBump() {
-	s.T().Skip("Requires a fix in the install script") // TODO(baptiste): FIXME
 	s.host.InstallDocker()
 	s.RunInstallScript(
 		"DD_APM_INSTRUMENTATION_ENABLED=all",
@@ -297,7 +296,6 @@ func (s *packageApmInjectSuite) TestInstrument() {
 }
 
 func (s *packageApmInjectSuite) TestPackagePinning() {
-	s.T().Skip("Requires a fix in the install script") // TODO(baptiste): FIXME
 	s.host.InstallDocker()
 
 	// Deb install using today's defaults
@@ -398,13 +396,11 @@ func (s *packageApmInjectSuite) TestInstrumentDockerInactive() {
 	s.assertDockerdInstrumented(injectOCIPath)
 }
 
-func (s *packageApmInjectSuite) TestInstallDependencies() {
-	s.RunInstallScript()
+func (s *packageApmInjectSuite) TestInstallStandaloneLib() {
+	s.RunInstallScript("DD_APM_INSTRUMENTATION_LIBRARIES=python")
 	defer s.Purge()
-	s.host.AssertPackageNotInstalledByPackageManager("datadog-apm-inject")
-	_, err := s.Env().RemoteHost.Execute("sudo datadog-installer install oci://gcr.io/datadoghq/apm-library-python-package:2.8.2-dev-1")
-	assert.Error(s.T(), err)
 	s.host.AssertPackageNotInstalledByPackageManager("datadog-apm-library-python")
+	s.host.AssertPackageInstalledByInstaller("datadog-apm-library-python")
 }
 
 func (s *packageApmInjectSuite) TestDefaultPackageVersion() {
