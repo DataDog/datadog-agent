@@ -834,11 +834,10 @@ func SetHandler() http.Handler {
 				if lvl == "warning" {
 					lvl = "warn"
 				}
-				if err := coreconfig.ChangeLogLevel(lvl); err != nil {
+				if err := coreconfig.ChangeLogLevel(lvl, model.SourceAgentRuntime); err != nil {
 					httpError(w, http.StatusInternalServerError, err)
 					return
 				}
-				coreconfig.Datadog().Set("log_level", lvl, model.SourceAgentRuntime)
 				log.Infof("Switched log level to %s", lvl)
 			default:
 				log.Infof("Unsupported config change requested (key: %q).", key)

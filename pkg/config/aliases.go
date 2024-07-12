@@ -102,7 +102,6 @@ type LoggerName = logs.LoggerName
 // Aliases for  logs
 var (
 	NewLogWriter               = logs.NewLogWriter
-	ChangeLogLevel             = logs.ChangeLogLevel
 	NewTLSHandshakeErrorWriter = logs.NewTLSHandshakeErrorWriter
 )
 
@@ -260,4 +259,13 @@ func LoadWithoutSecret() (*model.Warnings, error) {
 // GetProcessAPIAddressPort Alias using Datadog config
 func GetProcessAPIAddressPort() (string, error) {
 	return pkgconfigsetup.GetProcessAPIAddressPort(Datadog())
+}
+
+func ChangeLogLevel(level string, source model.Source) error {
+	seelogLogLevel, err := logs.ValidateLogLevel(level)
+	if err != nil {
+		return err
+	}
+	Datadog().Set("log_level", seelogLogLevel, source)
+	return nil
 }

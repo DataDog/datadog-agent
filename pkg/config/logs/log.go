@@ -96,7 +96,7 @@ func getSyslogTLSKeyPair(cfg pkgconfigmodel.Reader) (*tls.Certificate, error) {
 // a non empty syslogURI will enable syslog, and format them following RFC 5424 if specified
 // you can also specify to log to the console and in JSON format
 func SetupLogger(loggerName LoggerName, logLevel, logFile, syslogURI string, syslogRFC, logToConsole, jsonFormat bool, cfg pkgconfigmodel.Reader) error {
-	seelogLogLevel, err := validateLogLevel(logLevel)
+	seelogLogLevel, err := ValidateLogLevel(logLevel)
 	if err != nil {
 		return err
 	}
@@ -117,6 +117,33 @@ func SetupLogger(loggerName LoggerName, logLevel, logFile, syslogURI string, sys
 	scrubber.AddStrippedKeys(mergeAdditionalKeysToScrubber(
 		flareStrippedKeys,
 		cfg.GetStringSlice("scrubber.additional_keys")))
+
+	// Registering a callback in case of "log_level" update
+	cfg.OnUpdate(func(setting string, oldValue, newValue any) {
+		if setting != "log_level" || oldValue == newValue {
+			return
+		}
+		level := newValue.(string)
+
+		seelogLogLevel, err := ValidateLogLevel(level)
+		if err != nil {
+			return
+		}
+		// We create a new logger to propagate the new log level everywhere seelog is used (including dependencies)
+		seelogConfig.SetLogLevel(seelogLogLevel)
+		configTemplate, err := seelogConfig.Render()
+		if err != nil {
+			return
+		}
+
+		logger, err := seelog.LoggerFromConfigAsString(configTemplate)
+		if err != nil {
+			return
+		}
+		seelog.ReplaceLogger(logger) //nolint:errcheck
+		// We wire the new logger with the Datadog logic
+		log.ChangeLogLevel(logger, seelogLogLevel)
+	})
 	return nil
 }
 
@@ -137,7 +164,7 @@ func SetupJMXLogger(logFile, syslogURI string, syslogRFC, logToConsole, jsonForm
 	// The JMX logger always logs at level "info", because JMXFetch does its
 	// own level filtering on and provides all messages to seelog at the info
 	// or error levels, via log.JMXInfo and log.JMXError.
-	seelogLogLevel, err := validateLogLevel("info")
+	seelogLogLevel, err := ValidateLogLevel("info")
 	if err != nil {
 		return err
 	}
@@ -156,7 +183,7 @@ func SetupJMXLogger(logFile, syslogURI string, syslogRFC, logToConsole, jsonForm
 // SetupDogstatsdLogger sets up a logger with dogstatsd logger name and log level
 // if a non empty logFile is provided, it will also log to the file
 func SetupDogstatsdLogger(logFile string, cfg pkgconfigmodel.Reader) (seelog.LoggerInterface, error) {
-	seelogLogLevel, err := validateLogLevel("info")
+	seelogLogLevel, err := ValidateLogLevel("info")
 	if err != nil {
 		return nil, err
 	}
@@ -574,30 +601,7 @@ func appendFmt(builder *strings.Builder, format contextFormat, s string, buf []b
 	}
 }
 
-// ChangeLogLevel immediately changes the log level to the given one.
-func ChangeLogLevel(level string) error {
-	seelogLogLevel, err := validateLogLevel(level)
-	if err != nil {
-		return err
-	}
-	// We create a new logger to propagate the new log level everywhere seelog is used (including dependencies)
-	seelogConfig.SetLogLevel(seelogLogLevel)
-	configTemplate, err := seelogConfig.Render()
-	if err != nil {
-		return err
-	}
-
-	logger, err := seelog.LoggerFromConfigAsString(configTemplate)
-	if err != nil {
-		return err
-	}
-	seelog.ReplaceLogger(logger) //nolint:errcheck
-
-	// We wire the new logger with the Datadog logic
-	return log.ChangeLogLevel(logger, seelogLogLevel)
-}
-
-func validateLogLevel(logLevel string) (string, error) {
+func ValidateLogLevel(logLevel string) (string, error) {
 	seelogLogLevel := strings.ToLower(logLevel)
 	if seelogLogLevel == "warning" { // Common gotcha when used to agent5
 		seelogLogLevel = "warn"
