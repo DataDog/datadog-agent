@@ -2599,9 +2599,8 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 			if tt.wantWebhookInitErr {
 				require.Error(t, errInitAPMInstrumentation)
 				return
-			} else {
-				require.NoError(t, errInitAPMInstrumentation)
 			}
+			require.NoError(t, errInitAPMInstrumentation)
 
 			_, err := apmInstrumentationWebhook.inject(tt.pod, "", fake.NewSimpleDynamicClient(scheme.Scheme))
 			require.False(t, (err != nil) != tt.wantErr)
