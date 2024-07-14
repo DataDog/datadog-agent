@@ -223,15 +223,12 @@ func (w *Webhook) inject(pod *corev1.Pod, _ string, _ dynamic.Interface) (bool, 
 	if pod == nil {
 		return false, errors.New(metrics.InvalidInput)
 	}
-
 	injectApmTelemetryConfig(pod)
 
 	if !w.isPodEligible(pod) {
 		return false, nil
 	}
 
-	// 1. we check to see if we've already done injection,
-	//    if so, we abort.
 	for _, lang := range supportedLanguages {
 		if containsInitContainer(pod, initContainerName(lang)) {
 			// The admission can be re-run for the same pod
@@ -241,12 +238,10 @@ func (w *Webhook) inject(pod *corev1.Pod, _ string, _ dynamic.Interface) (bool, 
 		}
 	}
 
-	// 3. If we have nothing to inject we bail out, otherwise we do _work_!
 	libsToInject, autoDetected := w.extractLibInfo(pod)
 	if len(libsToInject) == 0 {
 		return false, nil
 	}
-
 	injectSecurityClientLibraryConfig(pod)
 	// Inject env variables used for Onboarding KPIs propagation
 	var injectionType string
@@ -333,12 +328,12 @@ func getPinnedLibraries(registry string) []libInfo {
 // getLibrariesLanguageDetection runs process language auto-detection and returns languages to inject for APM Instrumentation.
 // The languages information is available in workloadmeta-store and attached on the pod's owner.
 func (w *Webhook) getLibrariesLanguageDetection(pod *corev1.Pod) []libInfo {
-	if !config.Datadog().GetBool("admission_controller.auto_instrumentation.inject_auto_detected_libraries") {
-		return nil
+	if config.Datadog().GetBool("admission_controller.auto_instrumentation.inject_auto_detected_libraries") {
+		// Use libraries returned by language detection for APM Instrumentation
+		return w.getAutoDetectedLibraries(pod)
 	}
 
-	// Use libraries returned by language detection for APM Instrumentation
-	return w.getAutoDetectedLibraries(pod)
+	return nil
 }
 
 // getAllLatestLibraries returns all supported by APM Instrumentation tracing libraries
@@ -361,19 +356,22 @@ type libInfo struct {
 // extractLibInfo returns the language, the image,
 // and a boolean indicating whether the library should be injected into the pod
 func (w *Webhook) extractLibInfo(pod *corev1.Pod) ([]libInfo, bool) {
-
+	// If the pod is "injectable" and annotated with libraries to inject, use those.
 	if w.isPodEligible(pod) {
 		// The library version specified via annotation on the Pod takes precedence
 		// over libraries injected with Single Step Instrumentation
-		anns := w.extractLibrariesFromAnnotations(pod)
-		if len(anns) > 0 {
-			return anns, false
+		libs := w.extractLibrariesFromAnnotations(pod)
+		if len(libs) > 0 {
+			return libs, false
 		}
 	}
 
+	// If auto-instrumentation is enabled in the namespace and nothing has been overridden,
+	//
+	// 1. We check for pinned libraries in the config
+	// 2. We check for language detection (if enabled)
+	// 3. We fall back to "latest"
 	if w.isEnabledInNamespace(pod.Namespace) {
-		// if the user has pinned libraries, and they weren't overridden
-		// by annotations, we use those.
 		if len(w.pinnedLibraries) > 0 {
 			return w.pinnedLibraries, false
 		}

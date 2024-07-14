@@ -36,7 +36,7 @@ import (
 
 const commonRegistry = "gcr.io/datadoghq"
 
-func TestInjectAutoInstrumentationConfig(t *testing.T) {
+func TestInjectAutoInstruConfig(t *testing.T) {
 	tests := []struct {
 		name           string
 		pod            *corev1.Pod
@@ -245,19 +245,18 @@ func TestInjectAutoInstrumentationConfig(t *testing.T) {
 	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(), fx.Supply(workloadmeta.NewParams()))
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			webhook, err := NewWebhook(wmeta, common.InjectionFilter{})
-			require.NoError(t, err)
-
-			err = webhook.injectAutoInstruConfig(tt.pod, tt.libsToInject, false, "")
+			webhook := WithResetInjectionFilter1(wmeta, mustWebhook(t))
+			err := webhook.injectAutoInstruConfig(tt.pod, tt.libsToInject, false, "")
 			if tt.wantErr {
-				require.Error(t, err)
+				require.Error(t, err, "expected injectAutoInstruConfig to error")
 			} else {
-				require.NoError(t, err)
+				require.NoError(t, err, "expected injectAutoInstruConfig to succeed")
 			}
 
 			if err != nil {
 				return
 			}
+
 			assertLibReq(t, tt.pod, tt.libsToInject[0].lang, tt.libsToInject[0].image, tt.expectedEnvKey, tt.expectedEnvVal)
 		})
 	}
