@@ -168,8 +168,8 @@ func (dp *DirectoryProvider) onNewProfileDebouncerCallback() {
 		return
 	}
 
-	for _, selector := range selectors {
-		for profileSelector, profilePath := range profileMapping {
+	for profileSelector, profilePath := range profileMapping {
+		for _, selector := range selectors {
 			if selector.Match(profileSelector) {
 				// read and parse profile
 				profile, err := LoadProtoFromFile(profilePath.path)
@@ -180,6 +180,7 @@ func (dp *DirectoryProvider) onNewProfileDebouncerCallback() {
 
 				// propagate the new profile
 				propagateCb(profileSelector, profile)
+				break
 			}
 		}
 	}
