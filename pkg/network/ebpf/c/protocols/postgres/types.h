@@ -4,7 +4,7 @@
 #include "conn_tuple.h"
 
 // Controls the number of Postgres transactions read from userspace at a time.
-#define POSTGRES_BATCH_SIZE 15
+#define POSTGRES_BATCH_SIZE 14
 
 // Maximum length of postgres query to send to userspace.
 #define POSTGRES_BUFFER_SIZE 200
