@@ -2439,11 +2439,8 @@ func TestShouldInject(t *testing.T) {
 			mockConfig = config.Mock(nil)
 			tt.setupConfig()
 
-			// Need to create a new instance of the webhook account for config changes.
 			webhook := WithResetInjectionFilter1(wmeta, mustWebhook(t))
-			if got := webhook.isPodEligible(tt.pod); got != tt.want {
-				t.Errorf("shouldInject() = %v, want %v", got, tt.want)
-			}
+			require.Equal(t, tt.want, webhook.isPodEligible(tt.pod), "expected webhook.isPodEligible() to be %t", tt.want)
 		})
 	}
 }
