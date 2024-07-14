@@ -177,9 +177,9 @@ func IsExplicitPodMutationEnabled(pod *corev1.Pod) (bool, bool) {
 	// make a decision based on its value.
 	if val, found := pod.GetLabels()[admCommon.EnabledLabelKey]; found {
 		switch val {
-		case "true", "TRUE":
+		case "true":
 			return true, true
-		case "false", "FALSE":
+		case "false":
 			return false, true
 		default:
 			log.Warnf("Invalid label value '%s=%s' on pod %s should be either 'true' or 'false', ignoring it", admCommon.EnabledLabelKey, val, PodString(pod))
