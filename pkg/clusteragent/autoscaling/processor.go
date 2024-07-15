@@ -27,6 +27,27 @@ func (p ProcessResult) ShouldRequeue() bool {
 	return p.Requeue || p.RequeueAfter > 0
 }
 
+// After returns a copy of current ProcessResult with RequeueAfter set to the given duration
+func (p ProcessResult) After(after time.Duration) ProcessResult {
+	p.RequeueAfter = after
+	return p
+}
+
+// Merge merges the other ProcessResult into a newly returned one
+func (p ProcessResult) Merge(other ProcessResult) ProcessResult {
+	if other.Requeue {
+		p.Requeue = true
+
+		if p.RequeueAfter > 0 {
+			p.RequeueAfter = min(p.RequeueAfter, other.RequeueAfter)
+		} else {
+			p.RequeueAfter = other.RequeueAfter
+		}
+	}
+
+	return p
+}
+
 var (
 	// Requeue is a shortcut to avoid having ProcessResult{Requeue: true} everywhere in the code
 	Requeue = ProcessResult{Requeue: true}

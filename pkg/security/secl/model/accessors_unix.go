@@ -3815,6 +3815,33 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
+	case "mount.syscall.fs_type":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveSyscallCtxArgsStr3(ev, &ev.Mount.SyscallContext)
+			},
+			Field:  field,
+			Weight: 900 * eval.HandlerWeight,
+		}, nil
+	case "mount.syscall.mountpoint.path":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveSyscallCtxArgsStr2(ev, &ev.Mount.SyscallContext)
+			},
+			Field:  field,
+			Weight: 900 * eval.HandlerWeight,
+		}, nil
+	case "mount.syscall.source.path":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Mount.SyscallContext)
+			},
+			Field:  field,
+			Weight: 900 * eval.HandlerWeight,
+		}, nil
 	case "mprotect.req_protection":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -11892,6 +11919,24 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
+	case "rename.syscall.destination.path":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveSyscallCtxArgsStr2(ev, &ev.Rename.SyscallContext)
+			},
+			Field:  field,
+			Weight: 900 * eval.HandlerWeight,
+		}, nil
+	case "rename.syscall.path":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Rename.SyscallContext)
+			},
+			Field:  field,
+			Weight: 900 * eval.HandlerWeight,
+		}, nil
 	case "rmdir.file.change_time":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -16640,6 +16685,15 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
+	case "utimes.syscall.path":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Utimes.SyscallContext)
+			},
+			Field:  field,
+			Weight: 900 * eval.HandlerWeight,
+		}, nil
 	}
 	return nil, &eval.ErrFieldNotFound{Field: field}
 }
@@ -17032,6 +17086,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"mount.retval",
 		"mount.root.path",
 		"mount.source.path",
+		"mount.syscall.fs_type",
+		"mount.syscall.mountpoint.path",
+		"mount.syscall.source.path",
 		"mprotect.req_protection",
 		"mprotect.retval",
 		"mprotect.vm_protection",
@@ -17595,6 +17652,8 @@ func (ev *Event) GetFields() []eval.Field {
 		"rename.file.uid",
 		"rename.file.user",
 		"rename.retval",
+		"rename.syscall.destination.path",
+		"rename.syscall.path",
 		"rmdir.file.change_time",
 		"rmdir.file.filesystem",
 		"rmdir.file.gid",
@@ -17954,6 +18013,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"utimes.file.uid",
 		"utimes.file.user",
 		"utimes.retval",
+		"utimes.syscall.path",
 	}
 }
 func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
@@ -18952,6 +19012,12 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return ev.FieldHandlers.ResolveMountRootPath(ev, &ev.Mount), nil
 	case "mount.source.path":
 		return ev.FieldHandlers.ResolveMountSourcePath(ev, &ev.Mount), nil
+	case "mount.syscall.fs_type":
+		return ev.FieldHandlers.ResolveSyscallCtxArgsStr3(ev, &ev.Mount.SyscallContext), nil
+	case "mount.syscall.mountpoint.path":
+		return ev.FieldHandlers.ResolveSyscallCtxArgsStr2(ev, &ev.Mount.SyscallContext), nil
+	case "mount.syscall.source.path":
+		return ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Mount.SyscallContext), nil
 	case "mprotect.req_protection":
 		return ev.MProtect.ReqProtection, nil
 	case "mprotect.retval":
@@ -22436,6 +22502,10 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Rename.Old.FileFields), nil
 	case "rename.retval":
 		return int(ev.Rename.SyscallEvent.Retval), nil
+	case "rename.syscall.destination.path":
+		return ev.FieldHandlers.ResolveSyscallCtxArgsStr2(ev, &ev.Rename.SyscallContext), nil
+	case "rename.syscall.path":
+		return ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Rename.SyscallContext), nil
 	case "rmdir.file.change_time":
 		return int(ev.Rmdir.File.FileFields.CTime), nil
 	case "rmdir.file.filesystem":
@@ -24333,6 +24403,8 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Utimes.File.FileFields), nil
 	case "utimes.retval":
 		return int(ev.Utimes.SyscallEvent.Retval), nil
+	case "utimes.syscall.path":
+		return ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Utimes.SyscallContext), nil
 	}
 	return nil, &eval.ErrFieldNotFound{Field: field}
 }
@@ -25111,6 +25183,12 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "mount.root.path":
 		return "mount", nil
 	case "mount.source.path":
+		return "mount", nil
+	case "mount.syscall.fs_type":
+		return "mount", nil
+	case "mount.syscall.mountpoint.path":
+		return "mount", nil
+	case "mount.syscall.source.path":
 		return "mount", nil
 	case "mprotect.req_protection":
 		return "mprotect", nil
@@ -26238,6 +26316,10 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "rename", nil
 	case "rename.retval":
 		return "rename", nil
+	case "rename.syscall.destination.path":
+		return "rename", nil
+	case "rename.syscall.path":
+		return "rename", nil
 	case "rmdir.file.change_time":
 		return "rmdir", nil
 	case "rmdir.file.filesystem":
@@ -26955,6 +27037,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "utimes.file.user":
 		return "utimes", nil
 	case "utimes.retval":
+		return "utimes", nil
+	case "utimes.syscall.path":
 		return "utimes", nil
 	}
 	return "", &eval.ErrFieldNotFound{Field: field}
@@ -27735,6 +27819,12 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.String, nil
 	case "mount.source.path":
 		return reflect.String, nil
+	case "mount.syscall.fs_type":
+		return reflect.String, nil
+	case "mount.syscall.mountpoint.path":
+		return reflect.String, nil
+	case "mount.syscall.source.path":
+		return reflect.String, nil
 	case "mprotect.req_protection":
 		return reflect.Int, nil
 	case "mprotect.retval":
@@ -28861,6 +28951,10 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.String, nil
 	case "rename.retval":
 		return reflect.Int, nil
+	case "rename.syscall.destination.path":
+		return reflect.String, nil
+	case "rename.syscall.path":
+		return reflect.String, nil
 	case "rmdir.file.change_time":
 		return reflect.Int, nil
 	case "rmdir.file.filesystem":
@@ -29579,6 +29673,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.String, nil
 	case "utimes.retval":
 		return reflect.Int, nil
+	case "utimes.syscall.path":
+		return reflect.String, nil
 	}
 	return reflect.Invalid, &eval.ErrFieldNotFound{Field: field}
 }
@@ -32709,6 +32805,27 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Mount.MountSourcePath"}
 		}
 		ev.Mount.MountSourcePath = rv
+		return nil
+	case "mount.syscall.fs_type":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Mount.SyscallContext.StrArg3"}
+		}
+		ev.Mount.SyscallContext.StrArg3 = rv
+		return nil
+	case "mount.syscall.mountpoint.path":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Mount.SyscallContext.StrArg2"}
+		}
+		ev.Mount.SyscallContext.StrArg2 = rv
+		return nil
+	case "mount.syscall.source.path":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Mount.SyscallContext.StrArg1"}
+		}
+		ev.Mount.SyscallContext.StrArg1 = rv
 		return nil
 	case "mprotect.req_protection":
 		rv, ok := value.(int)
@@ -38897,6 +39014,20 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.Rename.SyscallEvent.Retval = int64(rv)
 		return nil
+	case "rename.syscall.destination.path":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Rename.SyscallContext.StrArg2"}
+		}
+		ev.Rename.SyscallContext.StrArg2 = rv
+		return nil
+	case "rename.syscall.path":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Rename.SyscallContext.StrArg1"}
+		}
+		ev.Rename.SyscallContext.StrArg1 = rv
+		return nil
 	case "rmdir.file.change_time":
 		rv, ok := value.(int)
 		if !ok {
@@ -42511,6 +42642,13 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Utimes.SyscallEvent.Retval"}
 		}
 		ev.Utimes.SyscallEvent.Retval = int64(rv)
+		return nil
+	case "utimes.syscall.path":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Utimes.SyscallContext.StrArg1"}
+		}
+		ev.Utimes.SyscallContext.StrArg1 = rv
 		return nil
 	}
 	return &eval.ErrFieldNotFound{Field: field}

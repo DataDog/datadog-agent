@@ -127,7 +127,7 @@ def upload_to_codecov(
             upload_coverage_to_s3(ctx)
 
     with gitlab_section("Upload coverage reports to Codecov", collapsed=True):
-        ctx.run(f"{codecov_binary} -f {PROFILE_COV} -F {distro_tag}", warn=True)
+        ctx.run(f"{codecov_binary} -f {PROFILE_COV} -F {distro_tag}", warn=True, timeout=2 * 60)
 
 
 def produce_coverage_tar(files, archive_name):

@@ -18,10 +18,10 @@ replace (
 
 require (
 	github.com/DataDog/agent-payload/v5 v5.0.122
-	github.com/DataDog/datadog-agent/pkg/util/pointer v0.55.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/util/testutil v0.55.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/version v0.55.0-rc.3
-	github.com/DataDog/datadog-agent/test/fakeintake v0.55.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/pointer v0.56.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/testutil v0.56.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/version v0.56.0-rc.3
+	github.com/DataDog/datadog-agent/test/fakeintake v0.56.0-rc.3
 	github.com/DataDog/datadog-api-client-go v1.16.0
 	github.com/DataDog/datadog-api-client-go/v2 v2.27.0
 	// Are you bumping github.com/DataDog/test-infra-definitions ?
@@ -29,7 +29,7 @@ require (
 	// `TEST_INFRA_DEFINITIONS_BUILDIMAGES` matches the commit sha in the module version
 	// Example: 	github.com/DataDog/test-infra-definitions v0.0.0-YYYYMMDDHHmmSS-0123456789AB
 	// => TEST_INFRA_DEFINITIONS_BUILDIMAGES: 0123456789AB
-	github.com/DataDog/test-infra-definitions v0.0.0-20240702121350-81094fa60efe
+	github.com/DataDog/test-infra-definitions v0.0.0-20240704115503-b64a6490fe5c
 	github.com/aws/aws-sdk-go-v2 v1.30.0
 	github.com/aws/aws-sdk-go-v2/config v1.27.19
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.164.2
@@ -61,7 +61,7 @@ require (
 require (
 	dario.cat/mergo v1.0.0 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20210617225240-d185dfc1b5a1 // indirect
-	github.com/DataDog/datadog-agent/pkg/proto v0.55.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/proto v0.56.0-rc.3
 	github.com/DataDog/mmh3 v0.0.0-20200805151601-30884ca2197a // indirect
 	github.com/DataDog/zstd v1.5.2 // indirect
 	github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f // indirect
@@ -239,7 +239,7 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/optional v0.55.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/optional v0.56.0-rc.3
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/pulumi/pulumi-aws/sdk/v6 v6.25.0
 	github.com/pulumi/pulumi-awsx/sdk/v2 v2.5.0
@@ -250,7 +250,7 @@ require (
 
 require (
 	github.com/BurntSushi/toml v1.2.1 // indirect
-	github.com/DataDog/datadog-agent/comp/netflow/payload v0.55.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/comp/netflow/payload v0.56.0-rc.3 // indirect
 	github.com/apparentlymart/go-textseg/v15 v15.0.0 // indirect
 	github.com/google/pprof v0.0.0-20221118152302-e6195bd50e26 // indirect
 	github.com/gorilla/websocket v1.5.0 // indirect
