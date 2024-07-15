@@ -141,12 +141,17 @@ func newTracer(cfg *config.Config, telemetryComponent telemetryComponent.Compone
 	}
 
 	if cfg.ServiceMonitoringEnabled {
-		if !usmconfig.IsUSMSupported() {
-			errStr := fmt.Sprintf("Universal Service Monitoring (USM) requires a Linux kernel version of %s or higher. We detected %s", usmconfig.MinimumKernelVersion, currKernelVersion)
-			if !cfg.NPMEnabled {
-				return nil, fmt.Errorf(errStr)
+		if err := usmconfig.IsUSMSupported(cfg); err != nil {
+			if !errors.Is(err, usmconfig.ErrNotSupported) {
+				return nil, err
 			}
-			log.Warnf("%s. NPM is explicitly enabled, so system-probe will continue with only NPM features enabled.", errStr)
+
+			if !cfg.NPMEnabled {
+				return nil, err
+			}
+
+			log.Warn(err)
+			log.Warnf("NPM is explicitly enabled, so system-probe will continue with only NPM features enabled")
 		}
 	}
 
