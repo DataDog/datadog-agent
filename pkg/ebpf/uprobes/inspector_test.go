@@ -26,34 +26,36 @@ func TestNativeBinarySymbolRetrieval(t *testing.T) {
 	libmmap := filepath.Join(curDir, "..", "..", "network", "usm", "testdata", "libmmap")
 	lib := filepath.Join(libmmap, fmt.Sprintf("libssl.so.%s", runtime.GOARCH))
 
-	existingSymbols := map[string]struct{}{"SSL_connect": {}}
-	nonExistingSymbols := map[string]struct{}{"ThisFunctionDoesNotExistEver": {}}
+	allMandatoryExisting := []SymbolRequest{{Name: "SSL_connect"}}
+	allBestEffortExisting := []SymbolRequest{{Name: "SSL_connect", BestEffort: true}}
+	mandatoryExistBestEffortDont := []SymbolRequest{{Name: "SSL_connect"}, {Name: "ThisFunctionDoesNotExistEver", BestEffort: true}}
+	mandatoryNonExisting := []SymbolRequest{{Name: "ThisFunctionDoesNotExistEver"}}
 
 	inspector := &NativeBinaryInspector{}
 
 	t.Run("MandatoryAllExist", func(tt *testing.T) {
-		result, compat, err := inspector.Inspect(lib, existingSymbols, nil)
+		result, compat, err := inspector.Inspect(lib, allMandatoryExisting)
 		require.NoError(tt, err)
 		require.True(tt, compat)
 		require.ElementsMatch(tt, []string{"SSL_connect"}, maps.Keys(result))
 	})
 
 	t.Run("BestEffortAllExist", func(tt *testing.T) {
-		result, compat, err := inspector.Inspect(lib, nil, existingSymbols)
+		result, compat, err := inspector.Inspect(lib, allBestEffortExisting)
 		require.NoError(tt, err)
 		require.True(tt, compat)
 		require.ElementsMatch(tt, []string{"SSL_connect"}, maps.Keys(result))
 	})
 
 	t.Run("BestEffortDontExist", func(tt *testing.T) {
-		result, compat, err := inspector.Inspect(lib, existingSymbols, nonExistingSymbols)
+		result, compat, err := inspector.Inspect(lib, mandatoryExistBestEffortDont)
 		require.NoError(tt, err)
 		require.True(tt, compat)
 		require.ElementsMatch(tt, []string{"SSL_connect"}, maps.Keys(result))
 	})
 
 	t.Run("SomeMandatoryDontExist", func(tt *testing.T) {
-		_, _, err := inspector.Inspect(lib, nonExistingSymbols, nil)
+		_, _, err := inspector.Inspect(lib, mandatoryNonExisting)
 		require.Error(tt, err, "should have failed to find mandatory symbols")
 	})
 }

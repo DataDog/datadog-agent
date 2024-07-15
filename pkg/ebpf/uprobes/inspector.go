@@ -15,6 +15,7 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
+	"github.com/DataDog/datadog-agent/pkg/util/common"
 )
 
 // BinaryInspector implementors are responsible for extracting the metadata required to attach from a binary.
@@ -24,7 +25,14 @@ type BinaryInspector interface {
 	// It is encouraged to return early if the binary is not compatible, to avoid unnecessary work.
 	// In the future, the first and second return values should be merged into a single struct, but for
 	// now this allows us to keep the API compatible with the existing implementation.
-	Inspect(path string, mandatorySymbols map[string]struct{}, bestEffortSymbols map[string]struct{}) (map[string]*bininspect.FunctionMetadata, bool, error)
+	Inspect(path string, requests []SymbolRequest) (map[string]*bininspect.FunctionMetadata, bool, error)
+}
+
+// SymbolRequest represents a request for symbols and associated data from a binary
+type SymbolRequest struct {
+	Name                   string
+	BestEffort             bool
+	IncludeReturnLocations bool
 }
 
 // NativeBinaryInspector is a BinaryInspector that uses the ELF format to extract the metadata directly from native functions.
@@ -35,7 +43,7 @@ type NativeBinaryInspector struct {
 var _ BinaryInspector = &NativeBinaryInspector{}
 
 // Inspect extracts the metadata required to attach to a binary from the ELF file at the given path.
-func (p *NativeBinaryInspector) Inspect(path string, mandatorySymbols map[string]struct{}, bestEffortSymbols map[string]struct{}) (map[string]*bininspect.FunctionMetadata, bool, error) {
+func (p *NativeBinaryInspector) Inspect(path string, requests []SymbolRequest) (map[string]*bininspect.FunctionMetadata, bool, error) {
 	elfFile, err := elf.Open(path)
 	if err != nil {
 		return nil, false, err
@@ -59,6 +67,21 @@ func (p *NativeBinaryInspector) Inspect(path string, mandatorySymbols map[string
 	// instruction.
 	if string(arch) != runtime.GOARCH {
 		return nil, false, nil
+	}
+
+	mandatorySymbols := make(common.StringSet, len(requests))
+	bestEffortSymbols := make(common.StringSet, len(requests))
+
+	for _, req := range requests {
+		if req.BestEffort {
+			bestEffortSymbols.Add(req.Name)
+		} else {
+			mandatorySymbols.Add(req.Name)
+		}
+
+		if req.IncludeReturnLocations {
+			return nil, false, fmt.Errorf("return locations are not supported by the native binary inspector")
+		}
 	}
 
 	symbolMap, err := bininspect.GetAllSymbolsByName(elfFile, mandatorySymbols)

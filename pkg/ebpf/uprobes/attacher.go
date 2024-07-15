@@ -33,7 +33,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
-	"github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -149,16 +148,15 @@ type UprobeAttacher struct {
 	soWatcher              *sharedlibraries.EbpfProgram
 	handlesLibrariesCached *bool
 
-	// pre-computed requested symbols
-	mandatorySymbols  common.StringSet
-	bestEffortSymbols common.StringSet
+	// symbolsToRequest holds a pre-computed list of symbols that we want to look up in each binary
+	symbolsToRequest []SymbolRequest
 }
 
 // NewUprobeAttacher creates a new UprobeAttacher. Receives as arguments
 // the name of the attacher, the configuration, the probe manage (ebpf.Manager usually), a callback to be called
 // whenever a probe is attached (optional, can be nil), and the binary inspector to be used (e.g., to attach to
 // Go functions we need to inspect the binary in a different way)
-func NewUprobeAttacher(name string, config *AttacherConfig, mgr ProbeManager, onAttachCallback func(*manager.Probe), inspector BinaryInspector) *UprobeAttacher {
+func NewUprobeAttacher(name string, config *AttacherConfig, mgr ProbeManager, onAttachCallback func(*manager.Probe), inspector BinaryInspector) (*UprobeAttacher, error) {
 	config.SetDefaults()
 
 	ua := &UprobeAttacher{
@@ -176,9 +174,13 @@ func NewUprobeAttacher(name string, config *AttacherConfig, mgr ProbeManager, on
 		ua.soWatcher = sharedlibraries.NewEBPFProgram(config.EbpfConfig)
 	}
 
-	ua.mandatorySymbols, ua.bestEffortSymbols = ua.computeRequestedSymbols()
+	var err error
+	ua.symbolsToRequest, err = ua.computeSymbolsToRequest()
+	if err != nil {
+		return nil, fmt.Errorf("error computing symbols to request: %w", err)
+	}
 
-	return ua
+	return ua, nil
 }
 
 func (ua *UprobeAttacher) handlesLibraries() bool {
@@ -507,7 +509,7 @@ func (ua *UprobeAttacher) attachToBinary(fpath utils.FilePath, matchingRules []*
 		return fmt.Errorf("path %s from process %d is tempmount of containerd, skipping", fpath.HostPath, fpath.PID)
 	}
 
-	inspectResult, isAttachable, err := ua.inspector.Inspect(fpath.HostPath, ua.mandatorySymbols, ua.bestEffortSymbols)
+	inspectResult, isAttachable, err := ua.inspector.Inspect(fpath.HostPath, ua.symbolsToRequest)
 	if err != nil {
 		return fmt.Errorf("error inspecting %s: %w", fpath.HostPath, err)
 	}
@@ -609,26 +611,25 @@ func (ua *UprobeAttacher) attachToBinary(fpath utils.FilePath, matchingRules []*
 	return nil
 }
 
-func (ua *UprobeAttacher) computeRequestedSymbols() (common.StringSet, common.StringSet) {
-	mandatorySymbols := make(common.StringSet)
-	bestEffortSymbols := make(common.StringSet)
+func (ua *UprobeAttacher) computeSymbolsToRequest() ([]SymbolRequest, error) {
+	var requests []SymbolRequest
 	for _, selector := range ua.config.ProbeSelectors {
 		_, isBestEffort := selector.(*manager.BestEffort)
 		for _, selector := range selector.GetProbesIdentificationPairList() {
-			_, symbol, ok := strings.Cut(selector.EBPFFuncName, "__")
-			if !ok {
-				continue
+			symbol, isManualReturn, err := parseSymbolFromEBPFProbeName(selector.EBPFFuncName)
+			if err != nil {
+				return nil, fmt.Errorf("error parsing probe name %s: %w", selector.EBPFFuncName, err)
 			}
 
-			if isBestEffort {
-				bestEffortSymbols.Add(symbol)
-			} else {
-				mandatorySymbols.Add(symbol)
-			}
+			requests = append(requests, SymbolRequest{
+				Name:                   symbol,
+				IncludeReturnLocations: isManualReturn,
+				BestEffort:             isBestEffort,
+			})
 		}
 	}
 
-	return mandatorySymbols, bestEffortSymbols
+	return requests, nil
 }
 
 func (ua *UprobeAttacher) detachFromBinary(fpath utils.FilePath) error {
