@@ -674,7 +674,7 @@ def unfreeze(ctx, base_directory="~/dd", major_versions="6,7", upstream="origin"
         )
 
 
-def _update_last_stable(_, version, major_versions="6,7"):
+def _update_last_stable(_, version, major_versions="7"):
     """
     Updates the last_release field(s) of release.json
     """

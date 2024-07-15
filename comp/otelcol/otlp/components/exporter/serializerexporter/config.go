@@ -10,6 +10,7 @@ import (
 	"fmt"
 
 	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/config/confignet"
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
 )
@@ -31,6 +32,10 @@ var _ component.Config = (*ExporterConfig)(nil)
 type MetricsConfig struct {
 	// Enabled reports whether Metrics should be enabled.
 	Enabled bool `mapstructure:"enabled"`
+
+	// TCPAddr.Endpoint is the host of the Datadog intake server to send metrics to.
+	// If unset, the value is obtained from the Site.
+	confignet.TCPAddrConfig `mapstructure:",squash"`
 
 	// DeltaTTL defines the time that previous points of a cumulative monotonic
 	// metric are kept in memory to calculate deltas
