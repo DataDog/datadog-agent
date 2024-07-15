@@ -8,26 +8,29 @@ package client
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"io"
 	"io/fs"
 	"net"
+	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
+
+	oscomp "github.com/DataDog/test-infra-definitions/components/os"
+	"github.com/DataDog/test-infra-definitions/components/remote"
+	"github.com/cenkalti/backoff"
+	"github.com/pkg/sftp"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/ssh"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/optional"
-	"github.com/DataDog/test-infra-definitions/components/remote"
-
-	oscomp "github.com/DataDog/test-infra-definitions/components/os"
-	"github.com/cenkalti/backoff"
-	"github.com/pkg/sftp"
-	"github.com/stretchr/testify/require"
-	"golang.org/x/crypto/ssh"
 )
 
 const (
@@ -52,6 +55,8 @@ type Host struct {
 	buildCommand         buildCommandFn
 	convertPathSeparator convertPathSeparatorFn
 	osFamily             oscomp.Family
+	// as per the documentation of http.Transport: "Transports should be reused instead of created as needed."
+	httpTransport *http.Transport
 }
 
 // NewHost creates a new ssh client to connect to a remote host with
@@ -85,6 +90,9 @@ func NewHost(context e2e.Context, hostOutput remote.HostOutput) (*Host, error) {
 		convertPathSeparator: convertPathSeparatorFactory(hostOutput.OSFamily),
 		osFamily:             hostOutput.OSFamily,
 	}
+
+	host.httpTransport = host.newHTTPTransport()
+
 	err = host.Reconnect()
 	return host, err
 }
@@ -384,6 +392,60 @@ func (h *Host) getSFTPClient() *sftp.Client {
 		require.NoError(h.context.T(), err)
 	}
 	return sftpClient
+}
+
+// HTTPTransport returns an http.RoundTripper which dials the remote host.
+// This transport can only reach the host.
+func (h *Host) HTTPTransport() http.RoundTripper {
+	return h.httpTransport
+}
+
+// HTTPClient returns an *http.Client which dials the remote host.
+// This client can only reach the host.
+func (h *Host) HTTPClient() *http.Client {
+	return &http.Client{
+		Transport: h.httpTransport,
+	}
+}
+
+func (h *Host) newHTTPTransport() *http.Transport {
+	// best effort to detect logic errors around the hostname
+	// if the hostname provided to dial is not one of those, return an error as
+	// it's likely an incorrect use of this transport
+	validHostnames := map[string]struct{}{
+		"":                             {},
+		"localhost":                    {},
+		"127.0.0.1":                    {},
+		h.client.RemoteAddr().String(): {},
+	}
+
+	return &http.Transport{
+		DialContext: func(ctx context.Context, _, addr string) (net.Conn, error) {
+			hostname, port, err := net.SplitHostPort(addr)
+			if err != nil {
+				return nil, err
+			}
+
+			if _, ok := validHostnames[hostname]; !ok {
+				return nil, errors.New("request hostname does not match host address")
+			}
+
+			portInt, err := strconv.Atoi(port)
+			if err != nil {
+				return nil, err
+			}
+			return h.DialPort(uint16(portInt))
+		},
+		// skip verify like we do when reaching out to the agent
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		// from http.DefaultTransport
+		Proxy:                 http.ProxyFromEnvironment,
+		ForceAttemptHTTP2:     true,
+		MaxIdleConns:          100,
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+	}
 }
 
 func buildCommandFactory(osFamily oscomp.Family) buildCommandFn {
