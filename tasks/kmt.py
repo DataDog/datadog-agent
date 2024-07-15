@@ -974,6 +974,7 @@ def images_matching_ci(_: Context, domains: list[LibvirtDomain]):
         "verbose": "Enable full output of all commands executed",
         "test-logs": "Set 'gotestsum' verbosity to 'standard-verbose' to print all test logs. Default is 'testname'",
         "test-extra-arguments": "Extra arguments to pass to the test runner, see `go help testflag` for more details",
+        "test-extra-env": "Extra environment variables to pass to the test runner",
     }
 )
 def test(
@@ -990,6 +991,7 @@ def test(
     verbose=True,
     test_logs=False,
     test_extra_arguments=None,
+    test_extra_env=None,
 ):
     stack = check_and_get_stack(stack)
     assert stacks.stack_exists(
@@ -1045,6 +1047,7 @@ def test(
             f"-run-count {run_count}",
             f"-test-root /opt/{component}-tests",
             f"-extra-params {test_extra_arguments}" if test_extra_arguments is not None else "",
+            f"-extra-env {test_extra_env}" if test_extra_env is not None else "",
             "-test-tools /opt/testing-tools",
         ]
         for d in domains:
