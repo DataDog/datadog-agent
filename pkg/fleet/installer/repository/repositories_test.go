@@ -9,6 +9,8 @@ package repository
 
 import (
 	"context"
+	"os"
+	"path"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -63,4 +65,36 @@ func TestRepositoriesReopen(t *testing.T) {
 	assert.Len(t, state, 2)
 	assert.Equal(t, state["repo1"], State{Stable: "v1"})
 	assert.Equal(t, state["repo2"], State{Stable: "v1"})
+}
+
+func TestRepositoriesCleanup(t *testing.T) {
+	repositories := newTestRepositories(t)
+
+	// repo1 has only a stable
+	err := repositories.Create(testCtx, "repo1", "v1", t.TempDir())
+	assert.NoError(t, err)
+
+	// repo2 has no stable and should be fully cleaned up
+	err = repositories.Create(testCtx, "repo2", "v1", t.TempDir())
+	assert.NoError(t, err)
+	err = os.Remove(path.Join(repositories.Get("repo2").rootPath, "stable"))
+	assert.NoError(t, err)
+
+	// Unrelated dir that shouldn't even be loaded
+	err = os.MkdirAll(path.Join(repositories.rootPath, ".ssh"), 0755)
+	assert.NoError(t, err)
+	err = os.WriteFile(path.Join(repositories.rootPath, ".ssh", "known_hosts"), []byte("content"), 0644)
+	assert.NoError(t, err)
+
+	err = repositories.Cleanup(testCtx)
+	assert.NoError(t, err)
+
+	state, err := repositories.GetState()
+	assert.NoError(t, err)
+	assert.Len(t, state, 1)
+	assert.Equal(t, state["repo1"], State{Stable: "v1"})
+	assert.Equal(t, state["repo2"], State{})
+
+	// No side effect: unrelated dir shouldn't be cleaned up
+	assert.FileExists(t, path.Join(repositories.rootPath, ".ssh", "known_hosts"))
 }

@@ -7,6 +7,7 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -44,6 +45,15 @@ func (r *Repositories) loadRepositories() (map[string]*Repository, error) {
 		if !d.IsDir() {
 			continue
 		}
+
+		// Make sure the dir has a stable symlink to avoid cleaning up anything the installer doesn't own
+		_, err := os.Readlink(filepath.Join(r.rootPath, d.Name(), "stable"))
+		if errors.Is(err, os.ErrNotExist) {
+			continue
+		} else if err != nil {
+			return nil, fmt.Errorf("could not read stable symlink for dir %s: %w", dir, err)
+		}
+
 		if strings.HasPrefix(d.Name(), "tmp-install") {
 			// Temporary extraction dir, ignore
 			continue
