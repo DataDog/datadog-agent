@@ -47,7 +47,6 @@ func Enabled(config config.Component, checkComponents []types.CheckComponent, lo
 
 	switch flavor.GetFlavor() {
 	case flavor.ProcessAgent:
-
 		if npmEnabled {
 			if runInCoreAgent {
 				log.Info("Network Performance Monitoring is not supported in the core agent. " +
