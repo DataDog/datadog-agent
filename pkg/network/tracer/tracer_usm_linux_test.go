@@ -487,7 +487,6 @@ func testTLSClassification(t *testing.T, tr *Tracer, clientHost, targetHost, ser
 }
 
 func testHTTPSClassification(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
-	t.Skip("Flaky test")
 	skipFunc := composeSkips(skipIfHTTPSNotSupported, skipIfGoTLSNotSupported)
 	skipFunc(t, testContext{
 		serverAddress: serverHost,
@@ -504,10 +503,12 @@ func testHTTPSClassification(t *testing.T, tr *Tracer, clientHost, targetHost, s
 	// makeRequest is a helper that makes a GET request and handle the response.
 	makeRequest := func(t require.TestingT, client *nethttp.Client, url string) {
 		r, err := client.Get(url)
-		assert.NoError(t, err)
+		if err != nil {
+			assert.NoError(t, err)
+			return
+		}
 		_, _ = io.Copy(io.Discard, r.Body)
 		_ = r.Body.Close()
-		client.CloseIdleConnections()
 	}
 
 	serverAddress := net.JoinHostPort(serverHost, httpsPort)
@@ -541,7 +542,10 @@ func testHTTPSClassification(t *testing.T, tr *Tracer, clientHost, targetHost, s
 				// The server might not be ready to accept connection just yet, so we
 				// try until it starts accepting them.
 				require.EventuallyWithT(t, func(c *assert.CollectT) {
-					makeRequest(c, client, requestURL)
+					for i := 0; i < 5; i++ {
+						makeRequest(c, client, requestURL)
+						time.Sleep(time.Millisecond * 200)
+					}
 				}, 5*time.Second, 100*time.Millisecond)
 			},
 			validation: func(t *testing.T, ctx testContext, tr *Tracer) {
@@ -2279,14 +2283,22 @@ func testProtocolClassificationLinux(t *testing.T, tr *Tracer, clientHost, targe
 	}
 }
 
+// tryGoTLSAttachPID tries to attach the Go-TLS monitoring to the given PID.
+func tryGoTLSAttachPID(t *testing.T, pid int) error {
+	t.Helper()
+	if utils.IsProgramTraced("go-tls", pid) {
+		return nil
+	}
+	return usm.GoTLSAttachPID(uint32(pid))
+}
+
 // goTLSAttachPID attaches the Go-TLS monitoring to the given PID.
 // Wraps the call to the Go-TLS attach function and waits for the program to be traced.
 func goTLSAttachPID(t *testing.T, pid int) {
 	t.Helper()
-	if utils.IsProgramTraced("go-tls", pid) {
-		return
-	}
-	require.NoError(t, usm.GoTLSAttachPID(uint32(pid)))
+	require.Eventually(t, func() bool {
+		return tryGoTLSAttachPID(t, pid) == nil
+	}, 5*time.Second, 100*time.Millisecond, "process %v is not traced by Go-TLS after attaching", pid)
 	utils.WaitForProgramsToBeTraced(t, "go-tls", pid)
 }
 
