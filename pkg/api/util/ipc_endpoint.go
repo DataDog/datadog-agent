@@ -129,16 +129,18 @@ func NewIPCEndpoint(config config.Component, endpointPath string, options ...End
 	client := &http.Client{Transport: tr}
 
 	ipcPort := config.GetInt("cmd_port")
-	targetURL := url.URL{
-		Scheme: "https",
-		Host:   net.JoinHostPort(ipcHost, strconv.Itoa(ipcPort)),
-		Path:   endpointPath,
+
+	targetURL, err := url.Parse(endpointPath)
+	if err != nil {
+		return nil, errors.New("error parsing endpoint")
 	}
+	targetURL.Scheme = "https"
+	targetURL.Host = net.JoinHostPort(ipcHost, strconv.Itoa(ipcPort))
 
 	// construct the endpoint and apply any options
 	endpoint := IPCEndpoint{
 		client:    client,
-		target:    targetURL,
+		target:    *targetURL,
 		closeConn: false,
 	}
 	for _, opt := range options {
