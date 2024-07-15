@@ -290,6 +290,8 @@ func (r *HTTPReceiver) Start() {
 				}
 			}()
 			log.Infof("Listening for traces at unix://%s", path)
+		} else {
+			log.Errorf("Could not start UDS listener: socket directory does not exist: %s", path)
 		}
 	}
 
