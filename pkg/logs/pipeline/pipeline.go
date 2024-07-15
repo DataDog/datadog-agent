@@ -26,14 +26,13 @@ import (
 
 // Pipeline processes and sends messages to the backend
 type Pipeline struct {
-	InputChan     chan *message.Message
-	flushChan     chan struct{}
-	processor     *processor.Processor
-	strategy      sender.Strategy
-	sender        *sender.Sender
-	serverless    bool
-	flushDoneChan chan struct{}
-	flushWg       *sync.WaitGroup
+	InputChan  chan *message.Message
+	flushChan  chan struct{}
+	processor  *processor.Processor
+	strategy   sender.Strategy
+	sender     *sender.Sender
+	serverless bool
+	flushWg    *sync.WaitGroup
 }
 
 // NewPipeline returns a new Pipeline
