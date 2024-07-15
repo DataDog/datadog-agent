@@ -54,6 +54,10 @@ type Opts struct {
 	ProcScanDisabled bool
 	ScanProcEvery    time.Duration
 	SeccompDisabled  bool
+
+	// internal
+	mode           ebpfless.Mode
+	entryPointArgs []string
 }
 
 type syscallHandlerFunc func(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, disableStats bool) error
@@ -145,7 +149,7 @@ func registerSyscallHandlers() (map[int]syscallHandler, []string) {
 
 	syscalls := registerFIMHandlers(handlers)
 	syscalls = append(syscalls, registerProcessHandlers(handlers)...)
-	syscalls = append(syscalls, registerSpanHandlers(handlers)...)
+	syscalls = append(syscalls, registerERPCHandlers(handlers)...)
 
 	return handlers, syscalls
 }
@@ -154,12 +158,7 @@ func registerSyscallHandlers() (map[int]syscallHandler, []string) {
 func Attach(pid int, probeAddr string, opts Opts) error {
 	logger := Logger{opts.Verbose}
 
-	mode := "seccomp"
-	if opts.SeccompDisabled {
-		mode = "standard"
-	}
-
-	logger.Debugf("Attach %d [%s] using `%s` mode ", pid, os.Getenv("DD_CONTAINER_ID"), mode)
+	logger.Debugf("Attach %d [%s] using `standard` mode", pid, os.Getenv("DD_CONTAINER_ID"))
 
 	if path := os.Getenv(EnvPasswdPathOverride); path != "" {
 		passwdPath = path
@@ -181,6 +180,8 @@ func Attach(pid int, probeAddr string, opts Opts) error {
 		return err
 	}
 
+	opts.mode = ebpfless.AttachedMode
+
 	return ptrace(tracer, probeAddr, syscallHandlers, logger, opts)
 }
 
@@ -201,7 +202,7 @@ func Wrap(args []string, envs []string, probeAddr string, opts Opts) error {
 		mode = "standard"
 	}
 
-	logger.Debugf("Run %s %v [%s] using `%s` mode ", entry, args, os.Getenv("DD_CONTAINER_ID"), mode)
+	logger.Debugf("Run %s %v [%s] using `%s` mode", entry, args, os.Getenv("DD_CONTAINER_ID"), mode)
 
 	if path := os.Getenv(EnvPasswdPathOverride); path != "" {
 		passwdPath = path
@@ -223,6 +224,9 @@ func Wrap(args []string, envs []string, probeAddr string, opts Opts) error {
 	if err != nil {
 		return err
 	}
+
+	opts.mode = ebpfless.WrappedMode
+	opts.entryPointArgs = args
 
 	return ptrace(tracer, probeAddr, syscallHandlers, logger, opts)
 }
@@ -279,23 +283,6 @@ func ptrace(tracer *Tracer, probeAddr string, syscallHandlers map[int]syscallHan
 		return err
 	}
 
-	syscallHandlers := make(map[int]syscallHandler)
-	PtracedSyscalls := registerFIMHandlers(syscallHandlers)
-	PtracedSyscalls = append(PtracedSyscalls, registerProcessHandlers(syscallHandlers)...)
-	PtracedSyscalls = append(PtracedSyscalls, registerERPCHandlers(syscallHandlers)...)
-
-	tracerOpts := TracerOpts{
-		Syscalls:        PtracedSyscalls,
-		Creds:           opts.Creds,
-		Logger:          logger,
-		SeccompDisabled: opts.SeccompDisabled,
-	}
-
-	tracer, err := NewTracer(entry, args, envs, tracerOpts)
-	if err != nil {
-		return err
-	}
-
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan,
 		syscall.SIGINT,
@@ -341,9 +328,10 @@ func ptrace(tracer *Tracer, probeAddr string, syscallHandlers map[int]syscallHan
 		send(&ebpfless.Message{
 			Type: ebpfless.MessageTypeHello,
 			Hello: &ebpfless.HelloMsg{
+				Mode:             opts.mode,
 				NSID:             getNSID(),
 				ContainerContext: containerCtx,
-				EntrypointArgs:   args,
+				EntrypointArgs:   opts.entryPointArgs,
 			},
 		})
 	} else /* probeAddr != "" */ {
@@ -374,9 +362,10 @@ func ptrace(tracer *Tracer, probeAddr string, syscallHandlers map[int]syscallHan
 						helloMsg := &ebpfless.Message{
 							Type: ebpfless.MessageTypeHello,
 							Hello: &ebpfless.HelloMsg{
+								Mode:             opts.mode,
 								NSID:             getNSID(),
 								ContainerContext: containerCtx,
-								EntrypointArgs:   args,
+								EntrypointArgs:   opts.entryPointArgs,
 							},
 						}
 						logger.Debugf("sending message: %s", helloMsg)
