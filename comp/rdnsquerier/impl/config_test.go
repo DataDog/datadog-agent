@@ -3,19 +3,15 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-//go:build test
-
 package rdnsquerierimpl
 
 import (
-	"strings"
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestConfig(t *testing.T) {
@@ -173,11 +169,8 @@ reverse_dns_enrichment:
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			config.Datadog().SetConfigType("yaml")
-			err := config.Datadog().ReadConfig(strings.NewReader(tt.configYaml))
-			require.NoError(t, err)
-
-			testConfig := newConfig(config.Datadog())
+			mockConfig := pkgconfigsetup.ConfFromYAML(tt.configYaml)
+			testConfig := newConfig(mockConfig)
 			assert.Equal(t, tt.expectedConfig, *testConfig)
 		})
 	}
