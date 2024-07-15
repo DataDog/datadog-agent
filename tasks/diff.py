@@ -77,7 +77,7 @@ def go_deps(
     ctx,
     baseline_ref=None,
     report_file=None,
-    send_series: bool = False,
+    report_metrics: bool = False,
 ):
     if check_uncommitted_changes(ctx):
         raise Exit(
@@ -88,7 +88,7 @@ def go_deps(
             code=1,
         )
 
-    if send_series and not os.environ.get("DD_API_KEY"):
+    if report_metrics and not os.environ.get("DD_API_KEY"):
         raise Exit(
             code=1,
             message=color_message(
@@ -178,7 +178,7 @@ def go_deps(
                         targetdiffs = diffs[target]
                         add, remove = patch_summary(targetdiffs)
 
-                        if send_series:
+                        if report_metrics:
                             additions = create_count(METRIC_GO_DEPS_INCREMENT, timestamp, add, tags)
                             removals = create_count(METRIC_GO_DEPS_DECREASE, timestamp, remove, tags)
                             send_metrics([additions, removals])
