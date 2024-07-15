@@ -5,7 +5,7 @@
 
 //go:build linux_bpf
 
-// uprobes package contains methods to help handling the attachment of uprobes to userspace programs
+// Package uprobes contains methods to help handling the attachment of uprobes to userspace programs
 package uprobes
 
 // TODO:
@@ -65,11 +65,13 @@ var (
 	internalProcessRegex = regexp.MustCompile("datadog-agent/.*/((process|security|trace)-agent|system-probe|agent)")
 )
 
+// AttachRule defines a rule that tells the attacher how to attach the probes
 type AttachRule struct {
 	UprobeNameRegex  *regexp.Regexp
 	LibraryNameRegex *regexp.Regexp
 }
 
+// AttacherConfig defines the configuration for the attacher
 type AttacherConfig struct {
 	// ProbesSelectors defines which probes should be attached and how should we validate
 	// the attachment (e.g., whether we need all probes active or just one of them, or in a best-effort basis)
@@ -130,6 +132,7 @@ type FileRegistry interface {
 	GetRegisteredProcesses() map[uint32]struct{}
 }
 
+// UprobeAttacher is a struct that handles the attachment of uprobes to processes and libraries
 type UprobeAttacher struct {
 	name         string
 	done         chan struct{}
@@ -151,6 +154,10 @@ type UprobeAttacher struct {
 	bestEffortSymbols common.StringSet
 }
 
+// NewUprobeAttacher creates a new UprobeAttacher. Receives as arguments
+// the name of the attacher, the configuration, the probe manage (ebpf.Manager usually), a callback to be called
+// whenever a probe is attached (optional, can be nil), and the binary inspector to be used (e.g., to attach to
+// Go functions we need to inspect the binary in a different way)
 func NewUprobeAttacher(name string, config *AttacherConfig, mgr ProbeManager, onAttachCallback func(*manager.Probe), inspector BinaryInspector) *UprobeAttacher {
 	config.SetDefaults()
 
