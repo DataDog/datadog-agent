@@ -68,8 +68,7 @@ BINARIES: dict[str, dict] = {
     },
 }
 
-METRIC_GO_DEPS_INCREMENT = "datadog.agent.go_dependencies.increment"
-METRIC_GO_DEPS_DECREASE = "datadog.agent.go_dependencies.decrease"
+METRIC_GO_DEPS_DIFF = "datadog.agent.go_dependencies.diff"
 
 
 @task
@@ -179,9 +178,8 @@ def go_deps(
                         add, remove = patch_summary(targetdiffs)
 
                         if report_metrics:
-                            additions = create_count(METRIC_GO_DEPS_INCREMENT, timestamp, add, tags)
-                            removals = create_count(METRIC_GO_DEPS_DECREASE, timestamp, remove, tags)
-                            send_metrics([additions, removals])
+                            dependency_diff = create_count(METRIC_GO_DEPS_DIFF, timestamp, (add - remove), tags)
+                            send_metrics([dependency_diff])
 
                         color_add = color_message(f"+{add}", "green")
                         color_remove = color_message(f"-{remove}", "red")
