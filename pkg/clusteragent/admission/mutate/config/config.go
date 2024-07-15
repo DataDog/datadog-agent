@@ -234,9 +234,7 @@ func injectionMode(pod *corev1.Pod, globalMode string) string {
 
 // injectExternalDataEnvVar injects the External Data environment variable.
 // The format is: it-<init>,cn-<container_name>,pu-<pod_uid>
-func injectExternalDataEnvVar(pod *corev1.Pod) bool {
-	injected := false
-
+func injectExternalDataEnvVar(pod *corev1.Pod) (injected bool) {
 	type containerInjection struct {
 		container *corev1.Container
 		init      bool
