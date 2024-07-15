@@ -205,6 +205,13 @@ func (ua *UprobeAttacher) Start() error {
 		return fmt.Errorf("error initializing process monitor: %w", err)
 	}
 
+	if ua.config.PerformInitialScan {
+		err := ua.initialScan()
+		if err != nil {
+			return fmt.Errorf("error during initial scan: %w", err)
+		}
+	}
+
 	cleanupExec := procMonitor.SubscribeExec(ua.handleProcessStart)
 	cleanupExit := procMonitor.SubscribeExit(ua.handleProcessExit)
 
@@ -216,13 +223,6 @@ func (ua *UprobeAttacher) Start() error {
 		err = ua.soWatcher.Start()
 		if err != nil {
 			return fmt.Errorf("error starting shared library program: %w", err)
-		}
-	}
-
-	if ua.config.PerformInitialScan {
-		err := ua.initialScan()
-		if err != nil {
-			return fmt.Errorf("error during initial scan: %w", err)
 		}
 	}
 
