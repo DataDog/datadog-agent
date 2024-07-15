@@ -173,6 +173,10 @@ func TestFilterOpenLeafDiscarderActivityDump(t *testing.T) {
 	if testEnvironment == DockerEnvironment {
 		t.Skip("Skip test spawning docker containers on docker")
 	}
+	if _, err := whichNonFatal("docker"); err != nil {
+		t.Skip("Skip test where docker is unavailable")
+	}
+
 	// We need to write a rule with no approver on the file path, and that won't match the real opened file (so that
 	// a discarder is created).
 	rule := &rules.RuleDefinition{

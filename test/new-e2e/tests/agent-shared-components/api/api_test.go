@@ -189,11 +189,11 @@ func (v *apiSuite) TestDefaultAgentAPIEndpoints() {
 			},
 		},
 		{
-			name: "config check raw",
+			name: "config check",
 			agentEndpointInfo: agentEndpointInfo{
 				scheme:   "https",
 				port:     agentCmdPort,
-				endpoint: "/agent/config-check/raw",
+				endpoint: "/agent/config-check",
 				method:   "GET",
 				data:     "",
 			},
@@ -204,20 +204,7 @@ func (v *apiSuite) TestDefaultAgentAPIEndpoints() {
 				var have Config
 				err := json.Unmarshal([]byte(resp), &have)
 				assert.NoError(ct, err)
-				assert.NotEmpty(ct, have.Checks, "%s %s returned: %s, expected \"configs\" checks raw to be present", e.method, e.endpoint, resp)
-			},
-		},
-		{
-			name: "config check",
-			agentEndpointInfo: agentEndpointInfo{
-				scheme:   "https",
-				port:     agentCmdPort,
-				endpoint: "/agent/config-check",
-				method:   "GET",
-				data:     "",
-			},
-			assert: func(ct *assert.CollectT, e agentEndpointInfo, resp string) {
-				assert.NotEmpty(ct, resp, "%s %s returned: %s, expected \"configs\" checks to be present", e.method, e.endpoint, resp)
+				assert.NotEmpty(ct, have.Checks, "%s %s returned: %s, expected \"configs\" checks to be present", e.method, e.endpoint, resp)
 			},
 		},
 		{
