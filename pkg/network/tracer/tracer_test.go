@@ -968,7 +968,7 @@ func testDNSStats(t *testing.T, tr *Tracer, domain string, success, failure, tim
 		dnsClientAddr = dnsConn.LocalAddr().(*net.UDPAddr)
 		_, _, err = dnsClient.ExchangeWithConn(queryMsg, dnsConn)
 		_ = dnsConn.Close()
-		if timeout != 0 {
+		if timeout == 0 {
 			assert.NoError(c, err)
 		}
 	}, 6*time.Second, 100*time.Millisecond, "Failed to get dns response or unexpected response")
