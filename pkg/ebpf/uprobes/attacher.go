@@ -15,13 +15,11 @@ package uprobes
 import (
 	"bufio"
 	"bytes"
-	"debug/elf"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
-	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -32,7 +30,6 @@ import (
 	"golang.org/x/exp/maps"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
@@ -141,6 +138,7 @@ type UprobeAttacher struct {
 	config       *AttacherConfig
 	fileRegistry FileRegistry
 	manager      ProbeManager
+	inspector    BinaryInspector
 
 	// ruleCache is a cache of the rules that match a given uprobe, to avoid computing that on every
 	// attach operation
@@ -152,9 +150,13 @@ type UprobeAttacher struct {
 	onAttachCallback       func(*manager.Probe)
 	soWatcher              *sharedlibraries.EbpfProgram
 	handlesLibrariesCached *bool
+
+	// pre-computed requested symbols
+	mandatorySymbols  common.StringSet
+	bestEffortSymbols common.StringSet
 }
 
-func NewUprobeAttacher(name string, config *AttacherConfig, mgr ProbeManager, onAttachCallback func(*manager.Probe)) *UprobeAttacher {
+func NewUprobeAttacher(name string, config *AttacherConfig, mgr ProbeManager, onAttachCallback func(*manager.Probe), inspector BinaryInspector) *UprobeAttacher {
 	config.SetDefaults()
 
 	ua := &UprobeAttacher{
@@ -166,11 +168,14 @@ func NewUprobeAttacher(name string, config *AttacherConfig, mgr ProbeManager, on
 		ruleCache:            make(map[string][]*AttachRule),
 		pathToAttachedProbes: make(map[string][]manager.ProbeIdentificationPair),
 		done:                 make(chan struct{}),
+		inspector:            inspector,
 	}
 
 	if ua.handlesLibraries() {
 		ua.soWatcher = sharedlibraries.NewEBPFProgram(config.EbpfConfig)
 	}
+
+	ua.mandatorySymbols, ua.bestEffortSymbols = ua.computeRequestedSymbols()
 
 	return ua
 }
@@ -481,34 +486,12 @@ func (ua *UprobeAttacher) attachToBinary(fpath utils.FilePath, matchingRules []*
 		return fmt.Errorf("path %s from process %d is tempmount of containerd, skipping", fpath.HostPath, fpath.PID)
 	}
 
-	elfFile, err := elf.Open(fpath.HostPath)
+	inspectResult, isAttachable, err := ua.inspector.Inspect(fpath.HostPath, ua.mandatorySymbols, ua.bestEffortSymbols)
 	if err != nil {
-		return err
+		return fmt.Errorf("error inspecting %s: %w", fpath.HostPath, err)
 	}
-	defer elfFile.Close()
-
-	// This only allows amd64 and arm64 and not the 32-bit variants, but that
-	// is fine since we don't monitor 32-bit applications at all in the shared
-	// library watcher since compat syscalls aren't supported by the syscall
-	// trace points. We do actually monitor 32-bit applications for istio and
-	// nodejs monitoring, but our uprobe hooks only properly support 64-bit
-	// applications, so there's no harm in rejecting 32-bit applications here.
-	arch, err := bininspect.GetArchitecture(elfFile)
-	if err != nil {
-		return fmt.Errorf("cannot get architecture of %s: %w", fpath.HostPath, err)
-	}
-
-	// Ignore foreign architectures.  This can happen when running stuff under
-	// qemu-user, for example, and installing a uprobe will lead to segfaults
-	// since the foreign instructions will be patched with the native break
-	// instruction.
-	if string(arch) != runtime.GOARCH {
-		return fmt.Errorf("unsupported architecture %s for %s", arch, fpath.HostPath)
-	}
-
-	symbolMap, err := ua.getAvailableRequestedSymbols(elfFile)
-	if err != nil {
-		return fmt.Errorf("cannot get symbols for file %v: %w", fpath, err)
+	if !isAttachable {
+		return fmt.Errorf("incompatible binary %s", fpath.HostPath)
 	}
 
 	uid := getUID(fpath.ID)
@@ -560,8 +543,7 @@ func (ua *UprobeAttacher) attachToBinary(fpath utils.FilePath, matchingRules []*
 			if !ok {
 				continue
 			}
-
-			sym, found := symbolMap[symbol]
+			data, found := inspectResult[symbol]
 			if !found {
 				if isBestEffort {
 					continue
@@ -571,16 +553,11 @@ func (ua *UprobeAttacher) attachToBinary(fpath utils.FilePath, matchingRules []*
 				// we'll check again and return an error if the symbol is not found.
 				return fmt.Errorf("symbol %s not found in %s", symbol, fpath.HostPath)
 			}
-			manager.SanitizeUprobeAddresses(elfFile, []elf.Symbol{sym})
-			offset, err := bininspect.SymbolToOffset(elfFile, sym)
-			if err != nil {
-				return err
-			}
 
 			newProbe := &manager.Probe{
 				ProbeIdentificationPair: newProbeID,
 				BinaryPath:              fpath.HostPath,
-				UprobeOffset:            uint64(offset),
+				UprobeOffset:            data.EntryLocation,
 				HookFuncName:            symbol,
 			}
 			err = ua.manager.AddHook("", newProbe)
@@ -606,9 +583,9 @@ func (ua *UprobeAttacher) attachToBinary(fpath utils.FilePath, matchingRules []*
 	return nil
 }
 
-func (ua *UprobeAttacher) getAvailableRequestedSymbols(elfFile *elf.File) (map[string]elf.Symbol, error) {
-	symbolsSet := make(common.StringSet)
-	symbolsSetBestEffort := make(common.StringSet)
+func (ua *UprobeAttacher) computeRequestedSymbols() (common.StringSet, common.StringSet) {
+	mandatorySymbols := make(common.StringSet)
+	bestEffortSymbols := make(common.StringSet)
 	for _, selector := range ua.config.ProbeSelectors {
 		_, isBestEffort := selector.(*manager.BestEffort)
 		for _, selector := range selector.GetProbesIdentificationPairList() {
@@ -616,22 +593,16 @@ func (ua *UprobeAttacher) getAvailableRequestedSymbols(elfFile *elf.File) (map[s
 			if !ok {
 				continue
 			}
+
 			if isBestEffort {
-				symbolsSetBestEffort[symbol] = struct{}{}
+				bestEffortSymbols.Add(symbol)
 			} else {
-				symbolsSet[symbol] = struct{}{}
+				mandatorySymbols.Add(symbol)
 			}
 		}
 	}
-	symbolMap, err := bininspect.GetAllSymbolsByName(elfFile, symbolsSet)
-	if err != nil {
-		return nil, err
-	}
-	/* Best effort to resolve symbols, so we don't care about the error */
-	symbolMapBestEffort, _ := bininspect.GetAllSymbolsByName(elfFile, symbolsSetBestEffort)
-	maps.Copy(symbolMap, symbolMapBestEffort)
 
-	return symbolMap, nil
+	return mandatorySymbols, bestEffortSymbols
 }
 
 func (ua *UprobeAttacher) detachFromBinary(fpath utils.FilePath) error {

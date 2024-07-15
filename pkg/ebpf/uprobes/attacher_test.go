@@ -8,7 +8,6 @@
 package uprobes
 
 import (
-	"debug/elf"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -114,7 +113,7 @@ func createSymlink(t *testing.T, target, link string) {
 // === Tests
 
 func TestCanCreateAttacher(t *testing.T) {
-	ua := NewUprobeAttacher("mock", &AttacherConfig{}, &MockManager{}, nil)
+	ua := NewUprobeAttacher("mock", &AttacherConfig{}, &MockManager{}, nil, nil)
 	require.NotNil(t, ua)
 }
 
@@ -125,7 +124,7 @@ func TestAttachPidExcludesInternal(t *testing.T) {
 		ExcludeTargets: ExcludeInternal,
 		ProcRoot:       procRoot,
 	}
-	ua := NewUprobeAttacher("mock", config, &MockManager{}, nil)
+	ua := NewUprobeAttacher("mock", config, &MockManager{}, nil, nil)
 	require.NotNil(t, ua)
 
 	err := ua.AttachPID(1, false)
@@ -136,7 +135,7 @@ func TestAttachPidExcludesSelf(t *testing.T) {
 	config := &AttacherConfig{
 		ExcludeTargets: ExcludeSelf,
 	}
-	ua := NewUprobeAttacher("mock", config, &MockManager{}, nil)
+	ua := NewUprobeAttacher("mock", config, &MockManager{}, nil, nil)
 	require.NotNil(t, ua)
 
 	err := ua.AttachPID(uint32(os.Getpid()), false)
@@ -149,7 +148,7 @@ func TestGetExecutablePath(t *testing.T) {
 	config := &AttacherConfig{
 		ProcRoot: procRoot,
 	}
-	ua := NewUprobeAttacher("mock", config, &MockManager{}, nil)
+	ua := NewUprobeAttacher("mock", config, &MockManager{}, nil, nil)
 	require.NotNil(t, ua)
 
 	path, err := ua.getExecutablePath(1)
@@ -191,7 +190,7 @@ func TestGetLibrariesFromMapsFile(t *testing.T) {
 	config := &AttacherConfig{
 		ProcRoot: procRoot,
 	}
-	ua := NewUprobeAttacher("mock", config, &MockManager{}, nil)
+	ua := NewUprobeAttacher("mock", config, &MockManager{}, nil, nil)
 	require.NotNil(t, ua)
 
 	libs, err := ua.getLibrariesFromMapsFile(pid)
@@ -201,18 +200,8 @@ func TestGetLibrariesFromMapsFile(t *testing.T) {
 	require.ElementsMatch(t, expectedLibs, libs)
 }
 
-func TestGetAvailableRequestedSymbols(t *testing.T) {
-	curDir, err := testutil.CurDir()
-	require.NoError(t, err)
-
-	libmmap := filepath.Join(curDir, "..", "..", "network", "usm", "testdata", "libmmap")
-	lib := filepath.Join(libmmap, fmt.Sprintf("libssl.so.%s", runtime.GOARCH))
-
-	elfFile, err := elf.Open(lib)
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = elfFile.Close() })
-
-	selectorsAllExist := []manager.ProbesSelector{
+func TestComputeRequestedSymbols(t *testing.T) {
+	selectorsOnlyAllOf := []manager.ProbesSelector{
 		&manager.AllOf{
 			Selectors: []manager.ProbesSelector{
 				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "uprobe__SSL_connect"}},
@@ -220,7 +209,7 @@ func TestGetAvailableRequestedSymbols(t *testing.T) {
 		},
 	}
 
-	selectorsBestEffortDontExist := []manager.ProbesSelector{
+	selectorsBestEfforAndMandatory := []manager.ProbesSelector{
 		&manager.AllOf{
 			Selectors: []manager.ProbesSelector{
 				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "uprobe__SSL_connect"}},
@@ -233,8 +222,8 @@ func TestGetAvailableRequestedSymbols(t *testing.T) {
 		},
 	}
 
-	selectorsMandatoryDontExist := []manager.ProbesSelector{
-		&manager.AllOf{
+	selectorsBestEffort := []manager.ProbesSelector{
+		&manager.BestEffort{
 			Selectors: []manager.ProbesSelector{
 				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "uprobe__SSL_connect"}},
 				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "uprobe__ThisFunctionDoesNotExistEver"}},
@@ -242,32 +231,33 @@ func TestGetAvailableRequestedSymbols(t *testing.T) {
 		},
 	}
 
-	ua := NewUprobeAttacher("mock", &AttacherConfig{}, &MockManager{}, nil)
+	ua := NewUprobeAttacher("mock", &AttacherConfig{}, &MockManager{}, nil, nil)
 	require.NotNil(t, ua)
 
-	t.Run("AllExist", func(tt *testing.T) {
-		ua.config.ProbeSelectors = selectorsAllExist
-		symbols, err := ua.getAvailableRequestedSymbols(elfFile)
-		require.NoError(tt, err, "failed to get available requested symbols")
-		require.ElementsMatch(tt, []string{"SSL_connect"}, maps.Keys(symbols))
+	t.Run("OnlyMandatory", func(tt *testing.T) {
+		ua.config.ProbeSelectors = selectorsOnlyAllOf
+		mandatory, bestEffort := ua.computeRequestedSymbols()
+		require.ElementsMatch(tt, []string{"SSL_connect"}, maps.Keys(mandatory))
+		require.ElementsMatch(tt, []string{}, maps.Keys(bestEffort))
 	})
 
-	t.Run("BestEffortDontExist", func(tt *testing.T) {
-		ua.config.ProbeSelectors = selectorsBestEffortDontExist
-		symbols, err := ua.getAvailableRequestedSymbols(elfFile)
-		require.NoError(tt, err, "failed to get available requested symbols")
-		require.ElementsMatch(tt, []string{"SSL_connect"}, maps.Keys(symbols))
+	t.Run("MandatoryAndBestEffort", func(tt *testing.T) {
+		ua.config.ProbeSelectors = selectorsBestEfforAndMandatory
+		mandatory, bestEffort := ua.computeRequestedSymbols()
+		require.ElementsMatch(tt, []string{"SSL_connect"}, maps.Keys(mandatory))
+		require.ElementsMatch(tt, []string{"ThisFunctionDoesNotExistEver"}, maps.Keys(bestEffort))
 	})
 
-	t.Run("SomeMandatoryDontExist", func(tt *testing.T) {
-		ua.config.ProbeSelectors = selectorsMandatoryDontExist
-		_, err := ua.getAvailableRequestedSymbols(elfFile)
-		require.Error(tt, err, "should have failed to find mandatory symbols")
+	t.Run("OnlyBestEffort", func(tt *testing.T) {
+		ua.config.ProbeSelectors = selectorsBestEffort
+		mandatory, bestEffort := ua.computeRequestedSymbols()
+		require.ElementsMatch(tt, []string{}, maps.Keys(mandatory))
+		require.ElementsMatch(tt, []string{"SSL_connect", "ThisFunctionDoesNotExistEver"}, maps.Keys(bestEffort))
 	})
 }
 
 func TestStartAndStopWithoutLibraryWatcher(t *testing.T) {
-	ua := NewUprobeAttacher("mock", &AttacherConfig{}, &MockManager{}, nil)
+	ua := NewUprobeAttacher("mock", &AttacherConfig{}, &MockManager{}, nil, nil)
 	require.NotNil(t, ua)
 
 	err := ua.Start()
@@ -278,7 +268,7 @@ func TestStartAndStopWithoutLibraryWatcher(t *testing.T) {
 
 func TestStartAndStopWithLibraryWatcher(t *testing.T) {
 	rules := []*AttachRule{{LibraryNameRegex: regexp.MustCompile(`libssl.so`)}}
-	ua := NewUprobeAttacher("mock", &AttacherConfig{Rules: rules}, &MockManager{}, nil)
+	ua := NewUprobeAttacher("mock", &AttacherConfig{Rules: rules}, &MockManager{}, nil, nil)
 	require.NotNil(t, ua)
 	require.True(t, ua.handlesLibraries())
 	require.NotNil(t, ua.soWatcher)
@@ -294,7 +284,7 @@ func TestMonitor(t *testing.T) {
 		Rules:                     []*AttachRule{{LibraryNameRegex: regexp.MustCompile(`libssl.so`)}},
 		ProcessMonitorEventStream: false,
 	}
-	ua := NewUprobeAttacher("mock", config, &MockManager{}, nil)
+	ua := NewUprobeAttacher("mock", config, &MockManager{}, nil, nil)
 	require.NotNil(t, ua)
 
 	mockRegistry := &MockFileRegistry{}
@@ -335,7 +325,7 @@ func TestInitialScan(t *testing.T) {
 	procFS := createFakeProcFS(t, procs)
 
 	config := &AttacherConfig{ProcRoot: procFS}
-	ua := NewUprobeAttacher("mock", config, &MockManager{}, nil)
+	ua := NewUprobeAttacher("mock", config, &MockManager{}, nil, nil)
 	require.NotNil(t, ua)
 
 	mockRegistry := &MockFileRegistry{}
