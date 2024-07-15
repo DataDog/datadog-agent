@@ -100,12 +100,11 @@ func main() {
 		}
 
 		// if error is of type exec.ExitError then propagate the exit code on exit
-		// otherwise exit with exit code 1
 		if exitError, ok := err.(*exec.ExitError); ok {
 			os.Exit(exitError.ExitCode())
-		} else {
-			os.Exit(1)
 		}
+
+		os.Exit(1)
 	}
 }
 
