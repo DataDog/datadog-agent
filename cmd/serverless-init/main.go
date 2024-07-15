@@ -88,23 +88,8 @@ func main() {
 
 	if err != nil {
 		log.Error(err)
-
-		// if err is of type errors.joinError then unwrap and find the first error with an exit code
-		if joinErr, ok := err.(interface{ Unwrap() []error }); ok {
-			for _, e := range joinErr.Unwrap() {
-				// if error is of type exec.ExitError then propagate the exit code on exit
-				if exitError, ok := e.(*exec.ExitError); ok {
-					os.Exit(exitError.ExitCode())
-				}
-			}
-		}
-
-		// if error is of type exec.ExitError then propagate the exit code on exit
-		if exitError, ok := err.(*exec.ExitError); ok {
-			os.Exit(exitError.ExitCode())
-		}
-
-		os.Exit(1)
+		exitCode := errorExitCode(err)
+		os.Exit(exitCode)
 	}
 }
 
@@ -251,4 +236,24 @@ func setEnvWithoutOverride(envToSet map[string]string) {
 			log.Debugf("%s already set with %s, skipping setting it", envName, val)
 		}
 	}
+}
+
+func errorExitCode(err error) int {
+	// if err is of type errors.joinError then unwrap and find the first error with an exit code
+	if joinErr, ok := err.(interface{ Unwrap() []error }); ok {
+		for _, e := range joinErr.Unwrap() {
+			// if error is of type exec.ExitError then propagate the exit code
+			if exitError, ok := e.(*exec.ExitError); ok {
+				return exitError.ExitCode()
+			}
+		}
+	}
+
+	// if error is of type exec.ExitError then propagate the exit code
+	if exitError, ok := err.(*exec.ExitError); ok {
+		return exitError.ExitCode()
+	}
+
+	// use exit code 1 if there is no exit code in the error to propagate
+	return 1
 }
