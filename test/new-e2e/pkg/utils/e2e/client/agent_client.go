@@ -13,8 +13,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
-
 	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
 	osComp "github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/DataDog/test-infra-definitions/components/remote"
@@ -22,6 +20,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclientparams"
 )
@@ -120,7 +119,7 @@ func waitForAgentsReady(tt *testing.T, host *Host, params *agentclientparams.Par
 			tt.Logf("Checking if %s is ready...", name)
 			resp, err := hostHTTPClient.Do(req)
 			if assert.NoErrorf(t, err, "%s did not become ready", name) {
-				assert.GreaterOrEqual(t, resp.StatusCode, 400)
+				assert.Less(t, resp.StatusCode, 400)
 				resp.Body.Close()
 			}
 		}
