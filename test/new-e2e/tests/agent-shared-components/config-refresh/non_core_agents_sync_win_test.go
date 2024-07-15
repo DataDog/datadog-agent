@@ -5,6 +5,7 @@
 package configrefresh
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -32,6 +33,8 @@ func TestConfigRefreshWindowsSuite(t *testing.T) {
 }
 
 func (v *configRefreshWindowsSuite) TestConfigRefresh() {
+	flake.Mark(v.T()) // #incident-28883
+
 	rootDir := "C:/tmp/" + v.T().Name()
 	v.Env().RemoteHost.MkdirAll(rootDir)
 
