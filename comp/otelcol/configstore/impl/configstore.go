@@ -57,7 +57,7 @@ func (c *configStoreImpl) AddConfigs(providedCPS otelcol.ConfigProviderSettings,
 // addProvidedConf stores the config into configStoreImpl.
 func (c *configStoreImpl) addProvidedConf(config *otelcol.Config) {
 	c.mu.Lock()
-	defer c.mu.RUnlock()
+	defer c.mu.Unlock()
 
 	c.provided = config
 }
@@ -65,7 +65,7 @@ func (c *configStoreImpl) addProvidedConf(config *otelcol.Config) {
 // addEnhancedConf stores the config into configStoreImpl.
 func (c *configStoreImpl) addEnhancedConf(config *otelcol.Config) {
 	c.mu.Lock()
-	defer c.mu.RUnlock()
+	defer c.mu.Unlock()
 
 	c.enhanced = config
 }
