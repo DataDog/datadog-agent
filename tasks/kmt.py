@@ -1180,13 +1180,14 @@ def clean(ctx: Context, stack: str | None = None, container=False, image=False):
 
 @task(
     help={
-        "stacks": "Comma separated list of stacks to generate ssh config for. 'all' to generate for all stacks.",
+        "stack": "List of stacks to generate ssh config for. 'all' to generate for all stacks.",
         "ddvm_rsa": "Path to the ddvm_rsa file to use for connecting to the VMs. Defaults to the path in the ami-builder repo",
-    }
+    },
+    iterable=["stack"],
 )
 def ssh_config(
     ctx: Context,
-    stacks: str | None = None,
+    stack: Iterable[str] | None = None,
     ddvm_rsa="tasks/kernel_matrix_testing/ddvm_rsa",
 ):
     """
@@ -1200,29 +1201,26 @@ def ssh_config(
     without worrying about overriding existing configs.
     """
     stacks_dir = Path(get_kmt_os().stacks_dir)
-    stacks_to_print = None
+    stack = set(stack or [])
 
-    if stacks is not None and stacks != 'all':
-        stacks_to_print = set(stacks.split(','))
+    # Ensure correct permissions of the ddvm_rsa file if we're using
+    # it to connect to VMs. This attribute change doesn't seem to be tracked
+    # in git correctly
+    ctx.run(f"chmod 600 {ddvm_rsa}")
 
-    for stack in stacks_dir.iterdir():
-        if not stack.is_dir():
+    for stack_dir in stacks_dir.iterdir():
+        if not stack_dir.is_dir():
             continue
 
-        output = stack / "stack.output"
+        output = stack_dir / "stack.output"
         if not output.exists():
             continue  # Invalid/removed stack, ignore it
 
-        stack_name = stack.name.replace('-ddvm', '')
-        if (
-            stacks_to_print is not None
-            and 'all' not in stacks_to_print
-            and stack_name not in stacks_to_print
-            and stack.name not in stacks_to_print
-        ):
+        stack_name = stack_dir.name.replace('-ddvm', '')
+        if len(stack) > 0 and 'all' not in stack and stack_name not in stack and stack_dir.name not in stack:
             continue
 
-        for _, instance in build_infrastructure(stack.name, try_get_ssh_key(ctx, None)).items():
+        for _, instance in build_infrastructure(stack_dir.name, try_get_ssh_key(ctx, None)).items():
             if instance.arch != "local":
                 print(f"Host kmt-{stack_name}-{instance.arch}")
                 print(f"    HostName {instance.ip}")
@@ -1249,6 +1247,7 @@ def ssh_config(
                 if instance.arch != "local":
                     print(f"    ProxyJump kmt-{stack_name}-{instance.arch}")
                 print(f"    IdentityFile {ddvm_rsa}")
+                print("    IdentitiesOnly yes")
                 print("    User root")
 
                 for key, value in SSH_OPTIONS.items():
