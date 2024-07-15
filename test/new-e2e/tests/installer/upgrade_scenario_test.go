@@ -57,6 +57,7 @@ var testCatalog = catalog{
 }
 
 const (
+	unknownAgentImageVersion  = "7.52.1-1"
 	previousAgentVersion      = "7.54.0"
 	previousAgentImageVersion = "7.54.0-1"
 	latestAgentVersion        = "7.54.1"
@@ -154,6 +155,60 @@ func (s *upgradeScenarioSuite) TestBackendFailure() {
 	s.assertSuccessfulStopExperiment(timestamp)
 }
 
+func (s *upgradeScenarioSuite) TestExperimentFailure() {
+	s.RunInstallScript("DD_REMOTE_UPDATES=true")
+	defer s.Purge()
+	s.host.WaitForUnitActive(
+		"datadog-agent.service",
+		"datadog-agent-trace.service",
+		"datadog-agent-process.service",
+		"datadog-installer.service",
+	)
+
+	s.setCatalog(testCatalog)
+
+	// Also tests if the version is not available in the catalog
+	_, err := s.startExperimentCommand(unknownAgentImageVersion)
+	require.Error(s.T(), err)
+
+	// Receive a failure from the experiment, stops the experiment
+	beforeStatus := s.getInstallerStatus()
+	_, err = s.stopExperimentCommand()
+	require.NoError(s.T(), err)
+	afterStatus := s.getInstallerStatus()
+
+	require.Equal(s.T(), beforeStatus.Packages["datadog-agent"], afterStatus.Packages["datadog-agent"])
+}
+
+func (s *upgradeScenarioSuite) TestExperimentCurrentVersion() {
+	s.RunInstallScript("DD_REMOTE_UPDATES=true")
+	defer s.Purge()
+	s.host.WaitForUnitActive(
+		"datadog-agent.service",
+		"datadog-agent-trace.service",
+		"datadog-agent-process.service",
+		"datadog-installer.service",
+	)
+
+	// Temporary catalog to wait for the installer to be ready
+	s.setCatalog(testCatalog)
+
+	currentVersion := s.getInstallerStatus().Packages["datadog-agent"].StableVersion
+	newCatalog := catalog{
+		Packages: []packageEntry{
+			{
+				Package: "datadog-agent",
+				Version: currentVersion,
+				URL:     fmt.Sprintf("oci://gcr.io/datadoghq/agent-package:%s", currentVersion),
+			},
+		},
+	}
+
+	s.setCatalog(newCatalog)
+	_, err := s.startExperimentCommand(currentVersion)
+	require.Error(s.T(), err)
+}
+
 func (s *upgradeScenarioSuite) TestStopWithoutExperiment() {
 	s.RunInstallScript("DD_REMOTE_UPDATES=true")
 	defer s.Purge()
@@ -173,6 +228,68 @@ func (s *upgradeScenarioSuite) TestStopWithoutExperiment() {
 
 	afterStatus := s.getInstallerStatus()
 	require.Equal(s.T(), beforeStatus.Packages["datadog-agent"], afterStatus.Packages["datadog-agent"])
+}
+
+func (s *upgradeScenarioSuite) TestDoubleExperiments() {
+	s.RunInstallScript("DD_REMOTE_UPDATES=true")
+	defer s.Purge()
+	s.host.WaitForUnitActive(
+		"datadog-agent.service",
+		"datadog-agent-trace.service",
+		"datadog-agent-process.service",
+		"datadog-installer.service",
+	)
+
+	s.setCatalog(testCatalog)
+
+	timestamp := s.host.LastJournaldTimestamp()
+	_, err := s.startExperimentCommand(latestAgentImageVersion)
+	require.NoError(s.T(), err)
+	s.assertSuccessfulStartExperiment(timestamp, latestAgentImageVersion)
+
+	// Start a second experiment that overrides the first one
+	_, err = s.startExperimentCommand(previousAgentImageVersion)
+	require.NoError(s.T(), err)
+	installerStatus := s.getInstallerStatus()
+	require.Equal(s.T(), previousAgentImageVersion, installerStatus.Packages["datadog-agent"].ExperimentVersion)
+
+	// Stop the last experiment
+	timestamp = s.host.LastJournaldTimestamp()
+	_, err = s.stopExperimentCommand()
+	require.NoError(s.T(), err)
+	s.assertSuccessfulStopExperiment(timestamp)
+}
+
+func (s *upgradeScenarioSuite) TestPromoteWithoutExperiment() {
+	s.RunInstallScript("DD_REMOTE_UPDATES=true")
+	defer s.Purge()
+	s.host.WaitForUnitActive(
+		"datadog-agent.service",
+		"datadog-agent-trace.service",
+		"datadog-agent-process.service",
+		"datadog-installer.service",
+	)
+
+	s.setCatalog(testCatalog)
+
+	beforeStatus := s.getInstallerStatus()
+	_, err := s.promoteExperimentCommand()
+	require.Error(s.T(), err)
+
+	afterStatus := s.getInstallerStatus()
+	require.Equal(s.T(), beforeStatus.Packages["datadog-agent"], afterStatus.Packages["datadog-agent"])
+	require.Equal(s.T(), beforeStatus.Version, afterStatus.Version)
+
+	// Try a golden path to make sure nothing is broken
+	timestamp := s.host.LastJournaldTimestamp()
+	_, err = s.startExperimentCommand(latestAgentImageVersion)
+	require.NoError(s.T(), err)
+	s.assertSuccessfulStartExperiment(timestamp, latestAgentImageVersion)
+
+	timestamp = s.host.LastJournaldTimestamp()
+	_, err = s.promoteExperimentCommand()
+	require.NoError(s.T(), err)
+	s.assertSuccessfulPromoteExperiment(timestamp, latestAgentImageVersion)
 }
 
 func (s *upgradeScenarioSuite) startExperimentCommand(version string) (string, error) {

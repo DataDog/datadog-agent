@@ -2,14 +2,15 @@ module github.com/DataDog/datadog-agent/comp/otelcol/configstore/impl
 
 go 1.21.0
 
-replace github.com/DataDog/datadog-agent/comp/def => ../../../def
+require (
+	go.opentelemetry.io/collector/confmap v0.104.0
+	go.opentelemetry.io/collector/otelcol v0.104.0
+)
 
 replace github.com/DataDog/datadog-agent/comp/otelcol/configstore/def => ../def
 
 require (
-	github.com/DataDog/datadog-agent/comp/otelcol/configstore/def v0.0.0-20240704143053-ac7a4e048c77
-	go.opentelemetry.io/collector/confmap v0.104.0
-	go.opentelemetry.io/collector/otelcol v0.104.0
+	github.com/DataDog/datadog-agent/comp/otelcol/configstore/def v0.56.0-rc.3
 	gopkg.in/yaml.v2 v2.4.0
 )
 

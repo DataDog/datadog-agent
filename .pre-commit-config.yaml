@@ -51,6 +51,7 @@ repos:
       entry: 'inv git.check-protected-branch'
       language: system
       pass_filenames: false
+      stages: [pre-commit, pre-push]
     - id: govet
       name: govet
       description: go vet

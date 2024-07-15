@@ -73,7 +73,7 @@ func newMetadataParser(gvr schema.GroupVersionResource, annotationsExclude []str
 
 func (p metadataParser) Parse(obj interface{}) workloadmeta.Entity {
 	partialObjectMetadata := obj.(*metav1.PartialObjectMetadata)
-	id := util.GenerateKubeMetadataEntityID(p.gvr.Resource, partialObjectMetadata.Namespace, partialObjectMetadata.Name)
+	id := util.GenerateKubeMetadataEntityID(p.gvr.Group, p.gvr.Resource, partialObjectMetadata.Namespace, partialObjectMetadata.Name)
 
 	return &workloadmeta.KubernetesMetadata{
 		EntityID: workloadmeta.EntityID{

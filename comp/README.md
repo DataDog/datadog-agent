@@ -546,6 +546,10 @@ Package trace implements the "trace" bundle, providing components for the Trace 
 
 Package traceagent provides the agent component type.
 
+### [comp/trace/compression](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/trace/compression)
+
+Package compression provides compression for trace payloads
+
 ### [comp/trace/config](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/trace/config)
 
 Package config implements a component to handle trace-agent configuration.  This
