@@ -48,6 +48,7 @@ type testConfig struct {
 	testDirRoot       string
 	testingTools      string
 	extraParams       string
+	extraEnv          string
 }
 
 const ciVisibility = "/ci-visibility"
@@ -230,6 +231,9 @@ func testPass(testConfig *testConfig, props map[string]string) error {
 			"DD_SYSTEM_PROBE_BPF_DIR="+filepath.Join(testConfig.testDirRoot, buildDir),
 			"DD_SERVICE_MONITORING_CONFIG_TLS_JAVA_DIR="+filepath.Join(testConfig.testDirRoot, "pkg/network/protocols/tls/java"),
 		)
+		if testConfig.extraEnv != "" {
+			baseEnv = append(baseEnv, strings.Split(testConfig.extraEnv, " ")...)
+		}
 		cmd.Env = append(cmd.Environ(), baseEnv...)
 
 		cmd.Dir = filepath.Dir(testsuite)
@@ -273,6 +277,7 @@ func buildTestConfiguration() (*testConfig, error) {
 	testRoot := flag.String("test-root", "/opt/system-probe-tests", "directory containing test packages")
 	testTools := flag.String("test-tools", "/opt/testing-tools", "directory containing test tools")
 	extraParams := flag.String("extra-params", "", "extra parameters to pass to the test runner")
+	extraEnv := flag.String("extra-env", "", "extra environment variables to pass to the test runner")
 
 	flag.Parse()
 
@@ -310,6 +315,7 @@ func buildTestConfiguration() (*testConfig, error) {
 		testDirRoot:       root,
 		testingTools:      tools,
 		extraParams:       *extraParams,
+		extraEnv:          *extraEnv,
 	}, nil
 }
 

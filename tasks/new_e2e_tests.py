@@ -138,16 +138,13 @@ def run(
     if running_in_ci():
         # Do not print all the params, they could contain secrets needed only in the CI
         params = [f'--targets {t}' for t in targets]
-        pre_command = (
-            f"E2E_PIPELINE_ID={os.environ.get('CI_PIPELINE_ID')} aws-vault exec sso-agent-sandbox-account-admin"
-        )
 
         param_keys = ('osversion', 'platform', 'arch')
         for param_key in param_keys:
             if args.get(param_key):
                 params.append(f'-{args[param_key]}')
 
-        command = f"{pre_command} -- inv -e new-e2e-tests.run {' '.join(params)}"
+        command = f"E2E_PIPELINE_ID={os.environ.get('CI_PIPELINE_ID')} inv -e new-e2e-tests.run {' '.join(params)}"
         print(
             f'To run this test locally, use: `{command}`. '
             'You can also add `E2E_DEV_MODE="true"` to run in dev mode which will leave the environment up after the tests.'

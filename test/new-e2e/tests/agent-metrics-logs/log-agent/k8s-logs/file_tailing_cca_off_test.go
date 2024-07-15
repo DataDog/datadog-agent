@@ -27,6 +27,7 @@ type k8sCCAOffSuite struct {
 }
 
 func TestK8sCCAOff(t *testing.T) {
+	t.Parallel()
 	e2e.Run(t, &k8sCCAOffSuite{}, e2e.WithProvisioner(kindfilelogger.Provisioner(kindfilelogger.WithAgentOptions(kubernetesagentparams.WithoutLogsContainerCollectAll()))))
 }
 

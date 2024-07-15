@@ -3,6 +3,7 @@ from __future__ import annotations
 import sys
 import unittest
 from collections import OrderedDict
+from contextlib import contextmanager
 from types import SimpleNamespace
 from unittest.mock import MagicMock, call, patch
 
@@ -23,6 +24,8 @@ from tasks.libs.releasing.json import (
 )
 from tasks.libs.releasing.version import _get_highest_repo_version, build_compatible_version_re
 from tasks.libs.types.version import Version
+
+MOCK_TMP_DIR = '/tmp/tmp'
 
 
 def fake_tag(value):
@@ -73,6 +76,16 @@ def mocked_github_requests_incorrect_get(*_args, **_kwargs):
         fake_tag("7.28.0-rc.2"),
         fake_tag("7.28.0-beta"),
     ]
+
+
+@contextmanager
+def mock_git_clone():
+    @contextmanager
+    def get_tmpdir():
+        yield MOCK_TMP_DIR
+
+    with patch('tempfile.TemporaryDirectory', side_effect=get_tmpdir) as mock:
+        yield mock
 
 
 class TestGetHighestRepoVersion(unittest.TestCase):
@@ -760,66 +773,67 @@ class TestCheckForChanges(unittest.TestCase):
     )
     @patch('os.chdir', new=MagicMock())
     def test_changes_new_commit_first_repo(self, version_mock, print_mock):
-        next = MagicMock()
-        next.tag_pattern.return_value = "7.55.0*"
-        next.__str__.return_value = "7.55.0-rc.2"
-        version_mock.return_value = next
-        c = MockContext(
-            run={
-                'git ls-remote -h https://github.com/DataDog/omnibus-software "refs/heads/main"': Result(
-                    "4n0th3rc0mm1t9        refs/heads/main"
-                ),
-                'git ls-remote -t https://github.com/DataDog/omnibus-software "7.55.0*"': Result(
-                    "this1s4c0mmit0        refs/tags/7.55.0-rc.1\n4n0th3rc0mm1t0        refs/tags/7.55.0-rc.1^{}"
-                ),
-                'git clone -b main --filter=blob:none --no-checkout https://github.com/DataDog/omnibus-software omnibus-software': Result(
-                    ""
-                ),
-                'rm -rf omnibus-software': Result(""),
-                'git ls-remote -h https://github.com/DataDog/omnibus-ruby "refs/heads/main"': Result(
-                    "4n0th3rc0mm1t1        refs/heads/main"
-                ),
-                'git ls-remote -t https://github.com/DataDog/omnibus-ruby "7.55.0*"': Result(
-                    "this1s4c0mmit1        refs/tags/7.55.0-rc.1\n4n0th3rc0mm1t1        refs/tags/7.55.0-rc.1^{}"
-                ),
-                'git clone -b main --filter=blob:none --no-checkout https://github.com/DataDog/omnibus-ruby omnibus-ruby': Result(
-                    ""
-                ),
-                'rm -rf omnibus-ruby': Result(""),
-                'git ls-remote -h https://github.com/DataDog/datadog-agent-macos-build "refs/heads/main"': Result(
-                    "4n0th3rc0mm1t2        refs/heads/main"
-                ),
-                'git ls-remote -t https://github.com/DataDog/datadog-agent-macos-build "7.55.0*"': Result(
-                    "this1s4c0mmit2        refs/tags/7.55.0-rc.1\n4n0th3rc0mm1t2        refs/tags/7.55.0-rc.1^{}"
-                ),
-                'git clone -b main --filter=blob:none --no-checkout https://github.com/DataDog/datadog-agent-macos-build datadog-agent-macos-build': Result(
-                    ""
-                ),
-                'rm -rf datadog-agent-macos-build': Result(""),
-                'git ls-remote -h https://github.com/DataDog/integrations-core "refs/heads/7.55.x"': Result(
-                    "4n0th3rc0mm1t3        refs/heads/main"
-                ),
-                'git ls-remote -t https://github.com/DataDog/integrations-core "7.55.0*"': Result(
-                    "this1s4c0mmit3        refs/tags/7.55.0-rc.1\n4n0th3rc0mm1t3        refs/tags/7.55.0-rc.1^{}"
-                ),
-                'git ls-remote -h https://github.com/DataDog/datadog-agent "refs/heads/main"': Result(
-                    "4n0th3rc0mm1t4        refs/heads/main"
-                ),
-                'git ls-remote -t https://github.com/DataDog/datadog-agent "7.55.0*"': Result(
-                    "this1s4c0mmit4        refs/tags/7.55.0-devel\n4n0th3rc0mm1t4        refs/tags/7.55.0-devel^{}"
-                ),
-                'git tag 7.55.0-rc.2': Result(""),
-                'git push origin tag 7.55.0-rc.2': Result(""),
-            },
-        )
-        release.check_for_changes(c, "main")
-        calls = [
-            call("omnibus-software has new commits since 7.55.0-rc.1", file=sys.stderr),
-            call("Creating new tag 7.55.0-rc.2 on omnibus-software", file=sys.stderr),
-            call("true"),
-        ]
-        print_mock.assert_has_calls(calls)
-        self.assertEqual(print_mock.call_count, 3)
+        with mock_git_clone():
+            next = MagicMock()
+            next.tag_pattern.return_value = "7.55.0*"
+            next.__str__.return_value = "7.55.0-rc.2"
+            version_mock.return_value = next
+            c = MockContext(
+                run={
+                    'git ls-remote -h https://github.com/DataDog/omnibus-software "refs/heads/main"': Result(
+                        "4n0th3rc0mm1t9        refs/heads/main"
+                    ),
+                    'git ls-remote -t https://github.com/DataDog/omnibus-software "7.55.0*"': Result(
+                        "this1s4c0mmit0        refs/tags/7.55.0-rc.1\n4n0th3rc0mm1t0        refs/tags/7.55.0-rc.1^{}"
+                    ),
+                    f'git clone -b main --filter=blob:none --no-checkout https://github.com/DataDog/omnibus-software {MOCK_TMP_DIR}': Result(
+                        ""
+                    ),
+                    'rm -rf omnibus-software': Result(""),
+                    'git ls-remote -h https://github.com/DataDog/omnibus-ruby "refs/heads/main"': Result(
+                        "4n0th3rc0mm1t1        refs/heads/main"
+                    ),
+                    'git ls-remote -t https://github.com/DataDog/omnibus-ruby "7.55.0*"': Result(
+                        "this1s4c0mmit1        refs/tags/7.55.0-rc.1\n4n0th3rc0mm1t1        refs/tags/7.55.0-rc.1^{}"
+                    ),
+                    f'git clone -b main --filter=blob:none --no-checkout https://github.com/DataDog/omnibus-ruby {MOCK_TMP_DIR}': Result(
+                        ""
+                    ),
+                    'rm -rf omnibus-ruby': Result(""),
+                    'git ls-remote -h https://github.com/DataDog/datadog-agent-macos-build "refs/heads/main"': Result(
+                        "4n0th3rc0mm1t2        refs/heads/main"
+                    ),
+                    'git ls-remote -t https://github.com/DataDog/datadog-agent-macos-build "7.55.0*"': Result(
+                        "this1s4c0mmit2        refs/tags/7.55.0-rc.1\n4n0th3rc0mm1t2        refs/tags/7.55.0-rc.1^{}"
+                    ),
+                    f'git clone -b main --filter=blob:none --no-checkout https://github.com/DataDog/datadog-agent-macos-build {MOCK_TMP_DIR}': Result(
+                        ""
+                    ),
+                    'rm -rf datadog-agent-macos-build': Result(""),
+                    'git ls-remote -h https://github.com/DataDog/integrations-core "refs/heads/7.55.x"': Result(
+                        "4n0th3rc0mm1t3        refs/heads/main"
+                    ),
+                    'git ls-remote -t https://github.com/DataDog/integrations-core "7.55.0*"': Result(
+                        "this1s4c0mmit3        refs/tags/7.55.0-rc.1\n4n0th3rc0mm1t3        refs/tags/7.55.0-rc.1^{}"
+                    ),
+                    'git ls-remote -h https://github.com/DataDog/datadog-agent "refs/heads/main"': Result(
+                        "4n0th3rc0mm1t4        refs/heads/main"
+                    ),
+                    'git ls-remote -t https://github.com/DataDog/datadog-agent "7.55.0*"': Result(
+                        "this1s4c0mmit4        refs/tags/7.55.0-devel\n4n0th3rc0mm1t4        refs/tags/7.55.0-devel^{}"
+                    ),
+                    'git tag 7.55.0-rc.2': Result(""),
+                    'git push origin tag 7.55.0-rc.2': Result(""),
+                },
+            )
+            release.check_for_changes(c, "main")
+            calls = [
+                call("omnibus-software has new commits since 7.55.0-rc.1", file=sys.stderr),
+                call("Creating new tag 7.55.0-rc.2 on omnibus-software", file=sys.stderr),
+                call("true"),
+            ]
+            print_mock.assert_has_calls(calls)
+            self.assertEqual(print_mock.call_count, 3)
 
     @patch('builtins.print')
     @patch('tasks.release.next_rc_version')
@@ -837,72 +851,73 @@ class TestCheckForChanges(unittest.TestCase):
     )
     @patch('os.chdir', new=MagicMock())
     def test_changes_new_commit_all_repo(self, version_mock, print_mock):
-        next = MagicMock()
-        next.tag_pattern.return_value = "7.55.0*"
-        next.__str__.return_value = "7.55.0-rc.2"
-        version_mock.return_value = next
-        c = MockContext(
-            run={
-                'git ls-remote -h https://github.com/DataDog/omnibus-software "refs/heads/main"': Result(
-                    "4n0th3rc0mm1t9        refs/heads/main"
-                ),
-                'git ls-remote -t https://github.com/DataDog/omnibus-software "7.55.0*"': Result(
-                    "this1s4c0mmit0        refs/tags/7.55.0-rc.1\n4n0th3rc0mm1t0        refs/tags/7.55.0-rc.1^{}"
-                ),
-                'git clone -b main --filter=blob:none --no-checkout https://github.com/DataDog/omnibus-software omnibus-software': Result(
-                    ""
-                ),
-                'rm -rf omnibus-software': Result(""),
-                'git ls-remote -h https://github.com/DataDog/omnibus-ruby "refs/heads/main"': Result(
-                    "4n0th3rc0mm1t8        refs/heads/main"
-                ),
-                'git ls-remote -t https://github.com/DataDog/omnibus-ruby "7.55.0*"': Result(
-                    "this1s4c0mmit1        refs/tags/7.55.0-rc.1\n4n0th3rc0mm1t1        refs/tags/7.55.0-rc.1^{}"
-                ),
-                'git clone -b main --filter=blob:none --no-checkout https://github.com/DataDog/omnibus-ruby omnibus-ruby': Result(
-                    ""
-                ),
-                'rm -rf omnibus-ruby': Result(""),
-                'git ls-remote -h https://github.com/DataDog/datadog-agent-macos-build "refs/heads/main"': Result(
-                    "4n0th3rc0mm1t7        refs/heads/main"
-                ),
-                'git ls-remote -t https://github.com/DataDog/datadog-agent-macos-build "7.55.0*"': Result(
-                    "this1s4c0mmit2        refs/tags/7.55.0-rc.1\n4n0th3rc0mm1t2        refs/tags/7.55.0-rc.1^{}"
-                ),
-                'git clone -b main --filter=blob:none --no-checkout https://github.com/DataDog/datadog-agent-macos-build datadog-agent-macos-build': Result(
-                    ""
-                ),
-                'rm -rf datadog-agent-macos-build': Result(""),
-                'git ls-remote -h https://github.com/DataDog/integrations-core "refs/heads/7.55.x"': Result(
-                    "4n0th3rc0mm1t6        refs/heads/main"
-                ),
-                'git ls-remote -t https://github.com/DataDog/integrations-core "7.55.0*"': Result(
-                    "this1s4c0mmit3        refs/tags/7.55.0-rc.1\n4n0th3rc0mm1t3        refs/tags/7.55.0-rc.1^{}"
-                ),
-                'git ls-remote -h https://github.com/DataDog/datadog-agent "refs/heads/main"': Result(
-                    "4n0th3rc0mm1t5        refs/heads/main"
-                ),
-                'git ls-remote -t https://github.com/DataDog/datadog-agent "7.55.0*"': Result(
-                    "this1s4c0mmit4        refs/tags/7.55.0-devel\n4n0th3rc0mm1t4        refs/tags/7.55.0-devel^{}"
-                ),
-                'git tag 7.55.0-rc.2': Result(""),
-                'git push origin tag 7.55.0-rc.2': Result(""),
-            },
-        )
-        release.check_for_changes(c, "main")
-        calls = [
-            call("omnibus-software has new commits since 7.55.0-rc.1", file=sys.stderr),
-            call("Creating new tag 7.55.0-rc.2 on omnibus-software", file=sys.stderr),
-            call("omnibus-ruby has new commits since 7.55.0-rc.1", file=sys.stderr),
-            call("Creating new tag 7.55.0-rc.2 on omnibus-ruby", file=sys.stderr),
-            call("datadog-agent-macos-build has new commits since 7.55.0-rc.1", file=sys.stderr),
-            call("Creating new tag 7.55.0-rc.2 on datadog-agent-macos-build", file=sys.stderr),
-            call("integrations-core has new commits since 7.55.0-rc.1", file=sys.stderr),
-            call("datadog-agent has new commits since 7.55.0-devel", file=sys.stderr),
-            call("true"),
-        ]
-        print_mock.assert_has_calls(calls)
-        self.assertEqual(print_mock.call_count, 9)
+        with mock_git_clone():
+            next = MagicMock()
+            next.tag_pattern.return_value = "7.55.0*"
+            next.__str__.return_value = "7.55.0-rc.2"
+            version_mock.return_value = next
+            c = MockContext(
+                run={
+                    'git ls-remote -h https://github.com/DataDog/omnibus-software "refs/heads/main"': Result(
+                        "4n0th3rc0mm1t9        refs/heads/main"
+                    ),
+                    'git ls-remote -t https://github.com/DataDog/omnibus-software "7.55.0*"': Result(
+                        "this1s4c0mmit0        refs/tags/7.55.0-rc.1\n4n0th3rc0mm1t0        refs/tags/7.55.0-rc.1^{}"
+                    ),
+                    f'git clone -b main --filter=blob:none --no-checkout https://github.com/DataDog/omnibus-software {MOCK_TMP_DIR}': Result(
+                        ""
+                    ),
+                    'rm -rf omnibus-software': Result(""),
+                    'git ls-remote -h https://github.com/DataDog/omnibus-ruby "refs/heads/main"': Result(
+                        "4n0th3rc0mm1t8        refs/heads/main"
+                    ),
+                    'git ls-remote -t https://github.com/DataDog/omnibus-ruby "7.55.0*"': Result(
+                        "this1s4c0mmit1        refs/tags/7.55.0-rc.1\n4n0th3rc0mm1t1        refs/tags/7.55.0-rc.1^{}"
+                    ),
+                    f'git clone -b main --filter=blob:none --no-checkout https://github.com/DataDog/omnibus-ruby {MOCK_TMP_DIR}': Result(
+                        ""
+                    ),
+                    'rm -rf omnibus-ruby': Result(""),
+                    'git ls-remote -h https://github.com/DataDog/datadog-agent-macos-build "refs/heads/main"': Result(
+                        "4n0th3rc0mm1t7        refs/heads/main"
+                    ),
+                    'git ls-remote -t https://github.com/DataDog/datadog-agent-macos-build "7.55.0*"': Result(
+                        "this1s4c0mmit2        refs/tags/7.55.0-rc.1\n4n0th3rc0mm1t2        refs/tags/7.55.0-rc.1^{}"
+                    ),
+                    f'git clone -b main --filter=blob:none --no-checkout https://github.com/DataDog/datadog-agent-macos-build {MOCK_TMP_DIR}': Result(
+                        ""
+                    ),
+                    'rm -rf datadog-agent-macos-build': Result(""),
+                    'git ls-remote -h https://github.com/DataDog/integrations-core "refs/heads/7.55.x"': Result(
+                        "4n0th3rc0mm1t6        refs/heads/main"
+                    ),
+                    'git ls-remote -t https://github.com/DataDog/integrations-core "7.55.0*"': Result(
+                        "this1s4c0mmit3        refs/tags/7.55.0-rc.1\n4n0th3rc0mm1t3        refs/tags/7.55.0-rc.1^{}"
+                    ),
+                    'git ls-remote -h https://github.com/DataDog/datadog-agent "refs/heads/main"': Result(
+                        "4n0th3rc0mm1t5        refs/heads/main"
+                    ),
+                    'git ls-remote -t https://github.com/DataDog/datadog-agent "7.55.0*"': Result(
+                        "this1s4c0mmit4        refs/tags/7.55.0-devel\n4n0th3rc0mm1t4        refs/tags/7.55.0-devel^{}"
+                    ),
+                    'git tag 7.55.0-rc.2': Result(""),
+                    'git push origin tag 7.55.0-rc.2': Result(""),
+                },
+            )
+            release.check_for_changes(c, "main")
+            calls = [
+                call("omnibus-software has new commits since 7.55.0-rc.1", file=sys.stderr),
+                call("Creating new tag 7.55.0-rc.2 on omnibus-software", file=sys.stderr),
+                call("omnibus-ruby has new commits since 7.55.0-rc.1", file=sys.stderr),
+                call("Creating new tag 7.55.0-rc.2 on omnibus-ruby", file=sys.stderr),
+                call("datadog-agent-macos-build has new commits since 7.55.0-rc.1", file=sys.stderr),
+                call("Creating new tag 7.55.0-rc.2 on datadog-agent-macos-build", file=sys.stderr),
+                call("integrations-core has new commits since 7.55.0-rc.1", file=sys.stderr),
+                call("datadog-agent has new commits since 7.55.0-devel", file=sys.stderr),
+                call("true"),
+            ]
+            print_mock.assert_has_calls(calls)
+            self.assertEqual(print_mock.call_count, 9)
 
     @patch('builtins.print')
     @patch('tasks.release.next_rc_version')
@@ -968,7 +983,6 @@ class TestCheckForChanges(unittest.TestCase):
         print_mock.assert_has_calls(calls, any_order=True)
         self.assertEqual(print_mock.call_count, 2)
 
-    # def test_changes_rc_branched_out_second_repo(self, print_mock):
     @patch('builtins.print')
     @patch('tasks.release.next_rc_version')
     @patch(
@@ -985,66 +999,67 @@ class TestCheckForChanges(unittest.TestCase):
     )
     @patch('os.chdir', new=MagicMock())
     def test_changes_new_commit_second_repo_branch_out(self, version_mock, print_mock):
-        next = MagicMock()
-        next.tag_pattern.return_value = "7.55.0*"
-        next.__str__.return_value = "7.55.0-rc.2"
-        version_mock.return_value = next
-        c = MockContext(
-            run={
-                'git ls-remote -h https://github.com/DataDog/omnibus-software "refs/heads/7.55.x"': Result(
-                    "4n0th3rc0mm1t0        refs/heads/main"
-                ),
-                'git ls-remote -t https://github.com/DataDog/omnibus-software "7.55.0*"': Result(
-                    "this1s4c0mmit0        refs/tags/7.55.0-rc.1\n4n0th3rc0mm1t0        refs/tags/7.55.0-rc.1^{}"
-                ),
-                'git clone -b 7.55.x --filter=blob:none --no-checkout https://github.com/DataDog/omnibus-software omnibus-software': Result(
-                    ""
-                ),
-                'rm -rf omnibus-software': Result(""),
-                'git ls-remote -h https://github.com/DataDog/omnibus-ruby "refs/heads/7.55.x"': Result(
-                    "4n0th3rc0mm1t9        refs/heads/main"
-                ),
-                'git ls-remote -t https://github.com/DataDog/omnibus-ruby "7.55.0*"': Result(
-                    "this1s4c0mmit1        refs/tags/7.55.0-rc.1\n4n0th3rc0mm1t1        refs/tags/7.55.0-rc.1^{}"
-                ),
-                'git clone -b 7.55.x --filter=blob:none --no-checkout https://github.com/DataDog/omnibus-ruby omnibus-ruby': Result(
-                    ""
-                ),
-                'rm -rf omnibus-ruby': Result(""),
-                'git ls-remote -h https://github.com/DataDog/datadog-agent-macos-build "refs/heads/7.55.x"': Result(
-                    "4n0th3rc0mm1t2        refs/heads/main"
-                ),
-                'git ls-remote -t https://github.com/DataDog/datadog-agent-macos-build "7.55.0*"': Result(
-                    "this1s4c0mmit2        refs/tags/7.55.0-rc.1\n4n0th3rc0mm1t2        refs/tags/7.55.0-rc.1^{}"
-                ),
-                'git clone -b 7.55.x --filter=blob:none --no-checkout https://github.com/DataDog/datadog-agent-macos-build datadog-agent-macos-build': Result(
-                    ""
-                ),
-                'rm -rf datadog-agent-macos-build': Result(""),
-                'git ls-remote -h https://github.com/DataDog/integrations-core "refs/heads/7.55.x"': Result(
-                    "4n0th3rc0mm1t3        refs/heads/main"
-                ),
-                'git ls-remote -t https://github.com/DataDog/integrations-core "7.55.0*"': Result(
-                    "this1s4c0mmit3        refs/tags/7.55.0-rc.1\n4n0th3rc0mm1t3        refs/tags/7.55.0-rc.1^{}"
-                ),
-                'git ls-remote -h https://github.com/DataDog/datadog-agent "refs/heads/7.55.x"': Result(
-                    "4n0th3rc0mm1t4        refs/heads/main"
-                ),
-                'git ls-remote -t https://github.com/DataDog/datadog-agent "7.55.0*"': Result(
-                    "this1s4c0mmit4        refs/tags/7.55.0-devel\n4n0th3rc0mm1t4        refs/tags/7.55.0-devel^{}"
-                ),
-                'git tag 7.55.0-rc.2': Result(""),
-                'git push origin tag 7.55.0-rc.2': Result(""),
-            },
-        )
-        release.check_for_changes(c, "7.55.x")
-        calls = [
-            call("omnibus-ruby has new commits since 7.55.0-rc.1", file=sys.stderr),
-            call("Creating new tag 7.55.0-rc.2 on omnibus-ruby", file=sys.stderr),
-            call("true"),
-        ]
-        print_mock.assert_has_calls(calls)
-        self.assertEqual(print_mock.call_count, 3)
+        with mock_git_clone():
+            next = MagicMock()
+            next.tag_pattern.return_value = "7.55.0*"
+            next.__str__.return_value = "7.55.0-rc.2"
+            version_mock.return_value = next
+            c = MockContext(
+                run={
+                    'git ls-remote -h https://github.com/DataDog/omnibus-software "refs/heads/7.55.x"': Result(
+                        "4n0th3rc0mm1t0        refs/heads/main"
+                    ),
+                    'git ls-remote -t https://github.com/DataDog/omnibus-software "7.55.0*"': Result(
+                        "this1s4c0mmit0        refs/tags/7.55.0-rc.1\n4n0th3rc0mm1t0        refs/tags/7.55.0-rc.1^{}"
+                    ),
+                    f'git clone -b 7.55.x --filter=blob:none --no-checkout https://github.com/DataDog/omnibus-software {MOCK_TMP_DIR}': Result(
+                        ""
+                    ),
+                    'rm -rf omnibus-software': Result(""),
+                    'git ls-remote -h https://github.com/DataDog/omnibus-ruby "refs/heads/7.55.x"': Result(
+                        "4n0th3rc0mm1t9        refs/heads/main"
+                    ),
+                    'git ls-remote -t https://github.com/DataDog/omnibus-ruby "7.55.0*"': Result(
+                        "this1s4c0mmit1        refs/tags/7.55.0-rc.1\n4n0th3rc0mm1t1        refs/tags/7.55.0-rc.1^{}"
+                    ),
+                    f'git clone -b 7.55.x --filter=blob:none --no-checkout https://github.com/DataDog/omnibus-ruby {MOCK_TMP_DIR}': Result(
+                        ""
+                    ),
+                    'rm -rf omnibus-ruby': Result(""),
+                    'git ls-remote -h https://github.com/DataDog/datadog-agent-macos-build "refs/heads/7.55.x"': Result(
+                        "4n0th3rc0mm1t2        refs/heads/main"
+                    ),
+                    'git ls-remote -t https://github.com/DataDog/datadog-agent-macos-build "7.55.0*"': Result(
+                        "this1s4c0mmit2        refs/tags/7.55.0-rc.1\n4n0th3rc0mm1t2        refs/tags/7.55.0-rc.1^{}"
+                    ),
+                    f'git clone -b 7.55.x --filter=blob:none --no-checkout https://github.com/DataDog/datadog-agent-macos-build {MOCK_TMP_DIR}': Result(
+                        ""
+                    ),
+                    'rm -rf datadog-agent-macos-build': Result(""),
+                    'git ls-remote -h https://github.com/DataDog/integrations-core "refs/heads/7.55.x"': Result(
+                        "4n0th3rc0mm1t3        refs/heads/main"
+                    ),
+                    'git ls-remote -t https://github.com/DataDog/integrations-core "7.55.0*"': Result(
+                        "this1s4c0mmit3        refs/tags/7.55.0-rc.1\n4n0th3rc0mm1t3        refs/tags/7.55.0-rc.1^{}"
+                    ),
+                    'git ls-remote -h https://github.com/DataDog/datadog-agent "refs/heads/7.55.x"': Result(
+                        "4n0th3rc0mm1t4        refs/heads/main"
+                    ),
+                    'git ls-remote -t https://github.com/DataDog/datadog-agent "7.55.0*"': Result(
+                        "this1s4c0mmit4        refs/tags/7.55.0-devel\n4n0th3rc0mm1t4        refs/tags/7.55.0-devel^{}"
+                    ),
+                    'git tag 7.55.0-rc.2': Result(""),
+                    'git push origin tag 7.55.0-rc.2': Result(""),
+                },
+            )
+            release.check_for_changes(c, "7.55.x")
+            calls = [
+                call("omnibus-ruby has new commits since 7.55.0-rc.1", file=sys.stderr),
+                call("Creating new tag 7.55.0-rc.2 on omnibus-ruby", file=sys.stderr),
+                call("true"),
+            ]
+            print_mock.assert_has_calls(calls)
+            self.assertEqual(print_mock.call_count, 3)
 
     # def test_no_changes_warning(self, print_mock):
     @patch('builtins.print')

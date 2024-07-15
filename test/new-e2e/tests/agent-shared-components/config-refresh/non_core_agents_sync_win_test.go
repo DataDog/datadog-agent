@@ -5,10 +5,17 @@
 package configrefresh
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+	"github.com/DataDog/test-infra-definitions/components/os"
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
@@ -16,11 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclientparams"
 	secrets "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-shared-components/secretsutils"
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
-	"github.com/DataDog/test-infra-definitions/components/os"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 type configRefreshWindowsSuite struct {
@@ -28,10 +30,13 @@ type configRefreshWindowsSuite struct {
 }
 
 func TestConfigRefreshWindowsSuite(t *testing.T) {
+	t.Parallel()
 	e2e.Run(t, &configRefreshWindowsSuite{}, e2e.WithProvisioner(awshost.Provisioner(awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)))))
 }
 
 func (v *configRefreshWindowsSuite) TestConfigRefresh() {
+	flake.Mark(v.T()) // #incident-28883
+
 	rootDir := "C:/tmp/" + v.T().Name()
 	v.Env().RemoteHost.MkdirAll(rootDir)
 
