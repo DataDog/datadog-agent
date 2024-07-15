@@ -10,6 +10,7 @@ package uprobes
 import (
 	"debug/elf"
 	"fmt"
+	"os"
 	"runtime"
 
 	manager "github.com/DataDog/ebpf-manager"
@@ -25,7 +26,7 @@ type BinaryInspector interface {
 	// It is encouraged to return early if the binary is not compatible, to avoid unnecessary work.
 	// In the future, the first and second return values should be merged into a single struct, but for
 	// now this allows us to keep the API compatible with the existing implementation.
-	Inspect(path string, requests []SymbolRequest) (map[string]*bininspect.FunctionMetadata, bool, error)
+	Inspect(path string, requests []SymbolRequest) (map[string]bininspect.FunctionMetadata, bool, error)
 }
 
 // SymbolRequest represents a request for symbols and associated data from a binary
@@ -43,7 +44,7 @@ type NativeBinaryInspector struct {
 var _ BinaryInspector = &NativeBinaryInspector{}
 
 // Inspect extracts the metadata required to attach to a binary from the ELF file at the given path.
-func (p *NativeBinaryInspector) Inspect(path string, requests []SymbolRequest) (map[string]*bininspect.FunctionMetadata, bool, error) {
+func (p *NativeBinaryInspector) Inspect(path string, requests []SymbolRequest) (map[string]bininspect.FunctionMetadata, bool, error) {
 	elfFile, err := elf.Open(path)
 	if err != nil {
 		return nil, false, err
@@ -91,20 +92,20 @@ func (p *NativeBinaryInspector) Inspect(path string, requests []SymbolRequest) (
 	/* Best effort to resolve symbols, so we don't care about the error */
 	symbolMapBestEffort, _ := bininspect.GetAllSymbolsByName(elfFile, bestEffortSymbols)
 
-	funcMap := make(map[string]*bininspect.FunctionMetadata, len(symbolMap)+len(symbolMapBestEffort))
+	funcMap := make(map[string]bininspect.FunctionMetadata, len(symbolMap)+len(symbolMapBestEffort))
 	for symbol, sym := range symbolMap {
 		m, err := p.symbolToFuncMetadata(elfFile, sym)
 		if err != nil {
 			return nil, false, fmt.Errorf("failed to convert symbol %v to function metadata: %w", sym, err)
 		}
-		funcMap[symbol] = m
+		funcMap[symbol] = *m
 	}
 	for symbol, sym := range symbolMapBestEffort {
 		m, err := p.symbolToFuncMetadata(elfFile, sym)
 		if err != nil {
 			return nil, false, fmt.Errorf("failed to convert symbol %v to function metadata: %w", sym, err)
 		}
-		funcMap[symbol] = m
+		funcMap[symbol] = *m
 	}
 
 	return funcMap, true, nil
@@ -118,4 +119,43 @@ func (*NativeBinaryInspector) symbolToFuncMetadata(elfFile *elf.File, sym elf.Sy
 	}
 
 	return &bininspect.FunctionMetadata{EntryLocation: uint64(offset)}, nil
+}
+
+// GoBinaryInspector is a BinaryInspector that inspects Go binaries, dealing with the specifics of Go binaries
+// such as the argument passing convention and the lack of uprobes
+type GoBinaryInspector struct {
+	structFieldsLookupFunctions map[bininspect.FieldIdentifier]bininspect.StructLookupFunction
+	paramLookupFunctions        map[string]bininspect.ParameterLookupFunction
+}
+
+// Ensure GoBinaryInspector implements BinaryInspector
+var _ BinaryInspector = &GoBinaryInspector{}
+
+// Inspect extracts the metadata required to attach to a Go binary from the ELF file at the given path.
+func (p *GoBinaryInspector) Inspect(path string, requests []SymbolRequest) (map[string]bininspect.FunctionMetadata, bool, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, false, fmt.Errorf("could not open file %s, %w", path, err)
+	}
+	defer f.Close()
+
+	elfFile, err := elf.NewFile(f)
+	if err != nil {
+		return nil, false, fmt.Errorf("file %s could not be parsed as an ELF file: %w", path, err)
+	}
+
+	functionsConfig := make(map[string]bininspect.FunctionConfiguration, len(requests))
+	for _, req := range requests {
+		functionsConfig[req.Name] = bininspect.FunctionConfiguration{
+			IncludeReturnLocations: req.IncludeReturnLocations,
+			ParamLookupFunction:    p.paramLookupFunctions[req.Name],
+		}
+	}
+
+	inspectionResult, err := bininspect.InspectNewProcessBinary(elfFile, functionsConfig, p.structFieldsLookupFunctions)
+	if err != nil {
+		return nil, false, fmt.Errorf("error extracting inspection data from %s: %w", path, err)
+	}
+
+	return inspectionResult.Functions, true, nil
 }
