@@ -29,6 +29,7 @@ type configRefreshLinuxSuite struct {
 }
 
 func TestConfigRefreshLinuxSuite(t *testing.T) {
+	t.Parallel()
 	e2e.Run(t, &configRefreshLinuxSuite{}, e2e.WithProvisioner(awshost.Provisioner()))
 }
 
