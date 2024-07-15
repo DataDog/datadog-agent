@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taglist"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
@@ -111,14 +112,16 @@ func TestHandleKubePod(t *testing.T) {
 	})
 
 	tests := []struct {
-		name                string
-		staticTags          map[string]string
-		labelsAsTags        map[string]string
-		annotationsAsTags   map[string]string
-		nsLabelsAsTags      map[string]string
-		nsAnnotationsAsTags map[string]string
-		pod                 workloadmeta.KubernetesPod
-		expected            []*types.TagInfo
+		name                          string
+		staticTags                    map[string]string
+		labelsAsTags                  map[string]string
+		annotationsAsTags             map[string]string
+		nsLabelsAsTags                map[string]string
+		nsAnnotationsAsTags           map[string]string
+		k8sResourcesAnnotationsAsTags map[string]map[string]string
+		k8sResourcesLabelsAsTags      map[string]map[string]string
+		pod                           workloadmeta.KubernetesPod
+		expected                      []*types.TagInfo
 	}{
 		{
 			name: "fully formed pod (no containers)",
@@ -132,11 +135,23 @@ func TestHandleKubePod(t *testing.T) {
 			},
 			nsLabelsAsTags: map[string]string{
 				"ns_env":       "ns_env",
-				"ns-ownerteam": "ns-team",
+				"ns_ownerteam": "ns_team",
 			},
 			nsAnnotationsAsTags: map[string]string{
 				"ns_tier":            "ns_tier",
 				"namespace_security": "ns_security",
+			},
+			k8sResourcesAnnotationsAsTags: map[string]map[string]string{
+				"pods": map[string]string{
+					"ns_tier":   "ns_tier",
+					"ns_custom": "custom_generic_annotation",
+				},
+			},
+			k8sResourcesLabelsAsTags: map[string]map[string]string{
+				"pods": map[string]string{
+					"ns_env":    "ns_env",
+					"ns_custom": "custom_generic_label",
+				},
 			},
 			pod: workloadmeta.KubernetesPod{
 				EntityID: podEntityID,
@@ -148,6 +163,7 @@ func TestHandleKubePod(t *testing.T) {
 						"GitCommit": "foobar",
 						"ignoreme":  "ignore",
 						"component": "agent",
+						"ns_custom": "gee",
 
 						// Custom tags from map
 						"ad.datadoghq.com/tags": `{"pod_template_version":"1.0.0"}`,
@@ -157,6 +173,7 @@ func TestHandleKubePod(t *testing.T) {
 						"OwnerTeam":         "container-integrations",
 						"tier":              "node",
 						"pod-template-hash": "490794276",
+						"ns_custom":         "zoo",
 
 						// Standard tags
 						"tags.datadoghq.com/env":     env,
@@ -176,7 +193,7 @@ func TestHandleKubePod(t *testing.T) {
 				// NS labels as tags
 				NamespaceLabels: map[string]string{
 					"ns_env":       "dev",
-					"ns-ownerteam": "containers",
+					"ns_ownerteam": "containers",
 					"foo":          "bar",
 				},
 
@@ -234,7 +251,7 @@ func TestHandleKubePod(t *testing.T) {
 						"kube_service:service1",
 						"kube_service:service2",
 						"kube_qos:guaranteed",
-						"ns-team:containers",
+						"ns_team:containers",
 						"ns_env:dev",
 						"ns_tier:some_tier",
 						"ns_security:critical",
@@ -242,6 +259,8 @@ func TestHandleKubePod(t *testing.T) {
 						"pod_template_version:1.0.0",
 						"team:container-integrations",
 						"tier:node",
+						"custom_generic_label:zoo",
+						"custom_generic_annotation:gee",
 					}, standardTags...),
 					StandardTags: standardTags,
 				},
@@ -834,6 +853,7 @@ func TestHandleKubePod(t *testing.T) {
 			collector.staticTags = tt.staticTags
 
 			collector.initPodMetaAsTags(tt.labelsAsTags, tt.annotationsAsTags, tt.nsLabelsAsTags, tt.nsAnnotationsAsTags)
+			collector.initK8sResourcesMetaAsTags(tt.k8sResourcesLabelsAsTags, tt.k8sResourcesAnnotationsAsTags)
 
 			actual := collector.handleKubePod(workloadmeta.Event{
 				Type:   workloadmeta.EventTypeSet,
@@ -1154,19 +1174,61 @@ func TestHandleKubeMetadata(t *testing.T) {
 	})
 
 	tests := []struct {
-		name                string
-		labelsAsTags        map[string]string
-		annotationsAsTags   map[string]string
-		nsLabelsAsTags      map[string]string
-		nsAnnotationsAsTags map[string]string
-		kubeMetadata        workloadmeta.KubernetesMetadata
-		expected            []*types.TagInfo
+		name                          string
+		labelsAsTags                  map[string]string
+		annotationsAsTags             map[string]string
+		nsLabelsAsTags                map[string]string
+		nsAnnotationsAsTags           map[string]string
+		k8sResourcesAnnotationsAsTags map[string]map[string]string
+		k8sResourcesLabelsAsTags      map[string]map[string]string
+		kubeMetadata                  workloadmeta.KubernetesMetadata
+		expected                      []*types.TagInfo
 	}{
 		{
-			name: "namespace",
+			name: "namespace with no annotations/labels matching the requested tagging, should return nil to avoid empty entities in tagger",
 			nsLabelsAsTags: map[string]string{
 				"ns_env":       "ns_env",
-				"ns-ownerteam": "ns-team",
+				"ns_ownerteam": "ns_team",
+			},
+			nsAnnotationsAsTags: map[string]string{
+				"ns_tier":            "ns_tier",
+				"namespace_security": "ns_security",
+			},
+			k8sResourcesAnnotationsAsTags: map[string]map[string]string{
+				"namespaces": map[string]string{
+					"ns_tier":   "ns_tier",
+					"ns_custom": "custom_generic_annotation",
+				},
+			},
+			k8sResourcesLabelsAsTags: map[string]map[string]string{
+				"namespaces": map[string]string{
+					"ns_env":    "ns_env",
+					"ns_custom": "custom_generic_label",
+				},
+			},
+			kubeMetadata: workloadmeta.KubernetesMetadata{
+				EntityID: kubeMetadataEntityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: namespace,
+					Labels: map[string]string{
+						"a": "dev",
+					},
+					Annotations: map[string]string{
+						"b": "some_tier",
+					},
+				},
+				GVR: &schema.GroupVersionResource{
+					Version:  "v1",
+					Resource: "namespaces",
+				},
+			},
+			expected: nil,
+		},
+		{
+			name: "namespace with only namespace labels/annotations as tags",
+			nsLabelsAsTags: map[string]string{
+				"ns_env":       "ns_env",
+				"ns_ownerteam": "ns_team",
 			},
 			nsAnnotationsAsTags: map[string]string{
 				"ns_tier":            "ns_tier",
@@ -1178,7 +1240,7 @@ func TestHandleKubeMetadata(t *testing.T) {
 					Name: namespace,
 					Labels: map[string]string{
 						"ns_env":       "dev",
-						"ns-ownerteam": "containers",
+						"ns_ownerteam": "containers",
 						"foo":          "bar",
 					},
 					Annotations: map[string]string{
@@ -1199,7 +1261,7 @@ func TestHandleKubeMetadata(t *testing.T) {
 					OrchestratorCardTags: []string{},
 					LowCardTags: []string{
 						"ns_env:dev",
-						"ns-team:containers",
+						"ns_team:containers",
 						"ns_tier:some_tier",
 						"ns_security:critical",
 					},
@@ -1207,20 +1269,223 @@ func TestHandleKubeMetadata(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "namespace with generic annotations/labels as tags",
+			nsLabelsAsTags: map[string]string{
+				"ns_env":       "ns_env",
+				"ns_ownerteam": "ns_team",
+			},
+			nsAnnotationsAsTags: map[string]string{
+				"ns_tier":            "ns_tier",
+				"namespace_security": "ns_security",
+			},
+			k8sResourcesAnnotationsAsTags: map[string]map[string]string{
+				"namespaces": map[string]string{
+					"ns_tier":   "ns_tier",
+					"ns_custom": "custom_generic_annotation",
+				},
+			},
+			k8sResourcesLabelsAsTags: map[string]map[string]string{
+				"namespaces": map[string]string{
+					"ns_env":    "ns_env",
+					"ns_custom": "custom_generic_label",
+				},
+			},
+			kubeMetadata: workloadmeta.KubernetesMetadata{
+				EntityID: kubeMetadataEntityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: namespace,
+					Labels: map[string]string{
+						"ns_env":       "dev",
+						"ns_ownerteam": "containers",
+						"foo":          "bar",
+						"ns_custom":    "zoo",
+					},
+					Annotations: map[string]string{
+						"ns_tier":            "some_tier",
+						"namespace_security": "critical",
+						"ns_custom":          "gee",
+					},
+				},
+				GVR: &schema.GroupVersionResource{
+					Version:  "v1",
+					Resource: "namespaces",
+				},
+			},
+			expected: []*types.TagInfo{
+				{
+					Source:               kubeMetadataSource,
+					Entity:               taggerEntityID,
+					HighCardTags:         []string{},
+					OrchestratorCardTags: []string{},
+					LowCardTags: []string{
+						"ns_env:dev",
+						"ns_team:containers",
+						"ns_tier:some_tier",
+						"ns_security:critical",
+						"custom_generic_label:zoo",
+						"custom_generic_annotation:gee",
+					},
+					StandardTags: []string{},
+				},
+			},
+		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, test := range tests {
+		t.Run(test.name, func(tt *testing.T) {
 			collector := NewWorkloadMetaCollector(context.Background(), store, nil)
 
-			collector.initPodMetaAsTags(tt.labelsAsTags, tt.annotationsAsTags, tt.nsLabelsAsTags, tt.nsAnnotationsAsTags)
+			collector.initPodMetaAsTags(test.labelsAsTags, test.annotationsAsTags, test.nsLabelsAsTags, test.nsAnnotationsAsTags)
+			collector.initK8sResourcesMetaAsTags(test.k8sResourcesLabelsAsTags, test.k8sResourcesAnnotationsAsTags)
 
 			actual := collector.handleKubeMetadata(workloadmeta.Event{
 				Type:   workloadmeta.EventTypeSet,
-				Entity: &tt.kubeMetadata,
+				Entity: &test.kubeMetadata,
 			})
 
-			assertTagInfoListEqual(t, tt.expected, actual)
+			assertTagInfoListEqual(tt, test.expected, actual)
+		})
+	}
+}
+
+func TestHandleKubeDeployment(t *testing.T) {
+	const deploymentName = "fooapp"
+
+	kubeMetadataID := string(util.GenerateKubeMetadataEntityID("apps", "deployments", "default", deploymentName))
+
+	kubeMetadataEntityID := workloadmeta.EntityID{
+		Kind: workloadmeta.KindKubernetesMetadata,
+		ID:   kubeMetadataID,
+	}
+
+	taggerEntityID := fmt.Sprintf("kubernetes_metadata://%s", kubeMetadataEntityID.ID)
+
+	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		logimpl.MockModule(),
+		config.MockModule(),
+		fx.Supply(workloadmeta.NewParams()),
+		fx.Supply(context.Background()),
+		workloadmetafxmock.MockModule(),
+	))
+
+	store.Set(&workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubernetesMetadata,
+			ID:   kubeMetadataID,
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:      deploymentName,
+			Namespace: "default",
+		},
+	})
+
+	tests := []struct {
+		name                          string
+		k8sResourcesAnnotationsAsTags map[string]map[string]string
+		k8sResourcesLabelsAsTags      map[string]map[string]string
+		kubeMetadata                  workloadmeta.KubernetesMetadata
+		expected                      []*types.TagInfo
+	}{
+		{
+			name: "deployment with no matching labels/annotations for annotations/labels as tags. should return nil to avoid empty tagger entity",
+			k8sResourcesAnnotationsAsTags: map[string]map[string]string{
+				"deployments.apps": map[string]string{
+					"depl_tier":   "depl_tier",
+					"depl_custom": "custom_generic_annotation",
+				},
+			},
+			k8sResourcesLabelsAsTags: map[string]map[string]string{
+				"deployments.apps": map[string]string{
+					"depl_env":    "depl_env",
+					"depl_custom": "custom_generic_label",
+				},
+			},
+			kubeMetadata: workloadmeta.KubernetesMetadata{
+				EntityID: kubeMetadataEntityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: deploymentName,
+					Labels: map[string]string{
+						"a": "dev",
+					},
+					Annotations: map[string]string{
+						"b": "some_tier",
+					},
+				},
+				GVR: &schema.GroupVersionResource{
+					Version:  "v1",
+					Group:    "apps",
+					Resource: "deployments",
+				},
+			},
+			expected: nil,
+		},
+		{
+			name: "deployment with generic annotations/labels as tags",
+			k8sResourcesAnnotationsAsTags: map[string]map[string]string{
+				"deployments.apps": map[string]string{
+					"depl_tier":   "depl_tier",
+					"depl_custom": "custom_generic_annotation",
+				},
+			},
+			k8sResourcesLabelsAsTags: map[string]map[string]string{
+				"deployments.apps": map[string]string{
+					"depl_env":    "depl_env",
+					"depl_custom": "custom_generic_label",
+				},
+			},
+			kubeMetadata: workloadmeta.KubernetesMetadata{
+				EntityID: kubeMetadataEntityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: deploymentName,
+					Labels: map[string]string{
+						"depl_env":       "dev",
+						"depl_ownerteam": "containers",
+						"foo":            "bar",
+						"depl_custom":    "zoo",
+					},
+					Annotations: map[string]string{
+						"depl_tier":     "some_tier",
+						"depl_security": "critical",
+						"depl_custom":   "gee",
+					},
+				},
+				GVR: &schema.GroupVersionResource{
+					Version:  "v1",
+					Group:    "apps",
+					Resource: "deployments",
+				},
+			},
+			expected: []*types.TagInfo{
+				{
+					Source:               kubeMetadataSource,
+					Entity:               taggerEntityID,
+					HighCardTags:         []string{},
+					OrchestratorCardTags: []string{},
+					LowCardTags: []string{
+						"depl_env:dev",
+						"depl_tier:some_tier",
+						"custom_generic_label:zoo",
+						"custom_generic_annotation:gee",
+					},
+					StandardTags: []string{},
+				},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(tt *testing.T) {
+			collector := NewWorkloadMetaCollector(context.Background(), store, nil)
+
+			collector.initK8sResourcesMetaAsTags(test.k8sResourcesLabelsAsTags, test.k8sResourcesAnnotationsAsTags)
+
+			actual := collector.handleKubeMetadata(workloadmeta.Event{
+				Type:   workloadmeta.EventTypeSet,
+				Entity: &test.kubeMetadata,
+			})
+
+			assertTagInfoListEqual(tt, test.expected, actual)
 		})
 	}
 }

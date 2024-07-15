@@ -8,6 +8,7 @@
 package kubeapiserver
 
 import (
+	"encoding/json"
 	"fmt"
 	"regexp"
 	"slices"
@@ -18,6 +19,7 @@ import (
 	utilserror "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/client-go/discovery"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -58,6 +60,60 @@ func filterToRegex(filter string) (*regexp.Regexp, error) {
 		return nil, errormsg
 	}
 	return r, nil
+}
+
+// groupResourceRequestedForTagging determines whether a specific group resource is included in
+// kubernetes_resources_annotations_as_tags or kubernetes_resources_labels_as_tags
+func groupResourceRequestedForTagging(cfg config.Reader, groupResource string) bool {
+	var resourcesAnnotationsAsTags, resourcesLabelsAsTags map[string]map[string]string
+
+	err := json.Unmarshal([]byte("kubernetes_resources_annotations_as_tags"), &resourcesAnnotationsAsTags)
+	if err != nil {
+		log.Errorf("failed to parse value of config kubernetes_resources_annotations_as_tags: %v", err)
+	} else if _, found := resourcesAnnotationsAsTags[groupResource]; found {
+		return true
+	}
+
+	err = json.Unmarshal([]byte("kubernetes_resources_labels_as_tags"), &resourcesLabelsAsTags)
+	if err != nil {
+		log.Errorf("failed to parse value of config kubernetes_resources_labels_as_tags: %v", err)
+	} else if _, found := resourcesLabelsAsTags[groupResource]; found {
+		return true
+	}
+
+	return false
+}
+
+// retrieveRequestedResourcesFromConfig is a helper function that extracts requested resources
+// from kubernetes_resources_labels_as_tags or kubernetes_resources_annotations_as_tags configs
+// the config value should be a string that is parseable to map[string]map[string]string
+func retrieveRequestedResourcesFromConfig(cfg config.Reader, configKey string) []string {
+	var resourcesMetadataAsTags map[string]map[string]string
+	err := json.Unmarshal([]byte(cfg.GetString(configKey)), &resourcesMetadataAsTags)
+
+	if err != nil {
+		log.Errorf("failed to parse value of config %s: %v", configKey, err)
+		return []string{}
+	}
+
+	requestedResources := make([]string, 0, len(resourcesMetadataAsTags))
+
+	for groupResource, _ := range resourcesMetadataAsTags {
+		parts := strings.Split(groupResource, ".")
+
+		if len(parts) > 2 {
+			// incorrect format
+			log.Errorf("unexpected group resource format %q. correct format should be `{resource}.{group}` or `{resource}`", groupResource)
+		} else if len(parts) == 1 {
+			// format is `{resource}`
+			requestedResources = append(requestedResources, parts[0])
+		} else {
+			// format is `{resource}/{group}`
+			requestedResources = append(requestedResources, fmt.Sprintf("%s//%s", parts[1], parts[0]))
+		}
+	}
+
+	return requestedResources
 }
 
 // cleanDuplicateVersions detects if different versions are requested for the same resource within the same group

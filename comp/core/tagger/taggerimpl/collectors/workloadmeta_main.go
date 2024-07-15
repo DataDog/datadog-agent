@@ -7,6 +7,7 @@ package collectors
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 
 	"github.com/gobwas/glob"
@@ -34,6 +35,7 @@ const (
 	processSource        = workloadmetaCollectorName + "-" + string(workloadmeta.KindProcess)
 	hostSource           = workloadmetaCollectorName + "-" + string(workloadmeta.KindHost)
 	kubeMetadataSource   = workloadmetaCollectorName + "-" + string(workloadmeta.KindKubernetesMetadata)
+	deploymentSource     = workloadmetaCollectorName + "-" + string(workloadmeta.KindKubernetesDeployment)
 
 	clusterTagNamePrefix = "kube_cluster_name"
 )
@@ -55,17 +57,21 @@ type WorkloadMetaCollector struct {
 	containerEnvAsTags    map[string]string
 	containerLabelsAsTags map[string]string
 
-	staticTags             map[string]string
-	labelsAsTags           map[string]string
-	annotationsAsTags      map[string]string
-	nsLabelsAsTags         map[string]string
-	nsAnnotationsAsTags    map[string]string
-	globLabels             map[string]glob.Glob
-	globAnnotations        map[string]glob.Glob
-	globNsLabels           map[string]glob.Glob
-	globNsAnnotations      map[string]glob.Glob
-	globContainerLabels    map[string]glob.Glob
-	globContainerEnvLabels map[string]glob.Glob
+	staticTags                    map[string]string
+	labelsAsTags                  map[string]string
+	annotationsAsTags             map[string]string
+	nsLabelsAsTags                map[string]string
+	nsAnnotationsAsTags           map[string]string
+	k8sResourcesAnnotationsAsTags map[string]map[string]string
+	k8sResourcesLabelsAsTags      map[string]map[string]string
+	globLabels                    map[string]glob.Glob
+	globAnnotations               map[string]glob.Glob
+	globNsLabels                  map[string]glob.Glob
+	globNsAnnotations             map[string]glob.Glob
+	globContainerLabels           map[string]glob.Glob
+	globContainerEnvLabels        map[string]glob.Glob
+	globK8sResourceAnnotations    map[string]map[string]glob.Glob
+	globK8sResourceLabels         map[string]map[string]glob.Glob
 
 	collectEC2ResourceTags            bool
 	collectPersistentVolumeClaimsTags bool
@@ -81,6 +87,21 @@ func (c *WorkloadMetaCollector) initPodMetaAsTags(labelsAsTags, annotationsAsTag
 	c.annotationsAsTags, c.globAnnotations = k8smetadata.InitMetadataAsTags(annotationsAsTags)
 	c.nsLabelsAsTags, c.globNsLabels = k8smetadata.InitMetadataAsTags(nsLabelsAsTags)
 	c.nsAnnotationsAsTags, c.globNsAnnotations = k8smetadata.InitMetadataAsTags(nsAnnotationsAsTags)
+}
+
+func (c *WorkloadMetaCollector) initK8sResourcesMetaAsTags(resourcesLabelsAsTags, resourcesAnnotationsAsTags map[string]map[string]string) {
+	c.k8sResourcesAnnotationsAsTags = map[string]map[string]string{}
+	c.k8sResourcesLabelsAsTags = map[string]map[string]string{}
+	c.globK8sResourceAnnotations = map[string]map[string]glob.Glob{}
+	c.globK8sResourceLabels = map[string]map[string]glob.Glob{}
+
+	for resource, labelsAsTags := range resourcesLabelsAsTags {
+		c.k8sResourcesLabelsAsTags[resource], c.globK8sResourceLabels[resource] = k8smetadata.InitMetadataAsTags(labelsAsTags)
+	}
+
+	for resource, annotationsAsTags := range resourcesAnnotationsAsTags {
+		c.k8sResourcesAnnotationsAsTags[resource], c.globK8sResourceAnnotations[resource] = k8smetadata.InitMetadataAsTags(annotationsAsTags)
+	}
 }
 
 // Run runs the continuous event watching loop and sends new tags to the
@@ -184,19 +205,47 @@ func NewWorkloadMetaCollector(_ context.Context, store workloadmeta.Component, p
 	nsAnnotationsAsTags := config.Datadog().GetStringMapString("kubernetes_namespace_annotations_as_tags")
 	c.initPodMetaAsTags(labelsAsTags, annotationsAsTags, nsLabelsAsTags, nsAnnotationsAsTags)
 
+	k8sResourcesAnnotationsAsTags := retrieveDoubleMappingFromConfig("kubernetes_resources_annotations_as_tags")
+	k8sResourcesLabelsAsTags := retrieveDoubleMappingFromConfig("kubernetes_resources_labels_as_tags")
+	c.initK8sResourcesMetaAsTags(k8sResourcesLabelsAsTags, k8sResourcesAnnotationsAsTags)
+
 	return c
+}
+
+func retrieveDoubleMappingFromConfig(configKey string) map[string]map[string]string {
+	valueFromConfig := config.Datadog().GetString(configKey)
+
+	var doubleMap map[string]map[string]string
+	err := json.Unmarshal([]byte(valueFromConfig), &doubleMap)
+
+	if err != nil {
+		log.Errorf("failed to parse %s with value %s into json: %v", configKey, valueFromConfig, err)
+		return map[string]map[string]string{}
+	}
+
+	for resource, tags := range doubleMap {
+		doubleMap[resource] = lowerCaseMapKeys(tags)
+	}
+
+	return doubleMap
 }
 
 // retrieveMappingFromConfig gets a stringmapstring config key and
 // lowercases all map keys to make envvar and yaml sources consistent
 func retrieveMappingFromConfig(configKey string) map[string]string {
 	labelsList := config.Datadog().GetStringMapString(configKey)
-	for label, value := range labelsList {
-		delete(labelsList, label)
-		labelsList[strings.ToLower(label)] = value
+
+	return lowerCaseMapKeys(labelsList)
+}
+
+// lowercases all map keys
+func lowerCaseMapKeys(m map[string]string) map[string]string {
+	for label, value := range m {
+		delete(m, label)
+		m[strings.ToLower(label)] = value
 	}
 
-	return labelsList
+	return m
 }
 
 // mergeMaps merges two maps, in case of conflict the first argument is prioritized
