@@ -94,8 +94,8 @@ func getInjectionFilter() common.InjectionFilter {
 // we use an agent sidecar), and the agent sidecar webhook needs to remove it.
 //
 // Note: the auto_instrumentation pod injection filter is used across
-//       multiple mutating webhooks, so we add it as a hard dependency to each
-//       of the components that use it.
+// multiple mutating webhooks, so we add it as a hard dependency to each
+// of the components that use it via the injectionFilter parameter.
 func mutatingWebhooks(wmeta workloadmeta.Component, pa workload.PodPatcher, injectionFilter common.InjectionFilter) []MutatingWebhook {
 	webhooks := []MutatingWebhook{
 		config.NewWebhook(wmeta, injectionFilter),
