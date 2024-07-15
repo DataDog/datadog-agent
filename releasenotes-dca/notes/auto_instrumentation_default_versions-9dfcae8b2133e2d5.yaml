@@ -1,7 +1,7 @@
 ---
 fixes:
   - |
-    Library package versions for auto-instrumentation are now set to the major latest
+    Library package versions for auto-instrumentation are now set to the latest major
     version of the library-package instead of `latest`.
 
     * java:v1
