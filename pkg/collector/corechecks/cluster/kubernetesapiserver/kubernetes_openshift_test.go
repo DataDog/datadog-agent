@@ -8,7 +8,6 @@
 package kubernetesapiserver
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -37,8 +36,7 @@ func TestReportClusterQuotas(t *testing.T) {
 
 	instanceCfg := []byte("")
 	initCfg := []byte("")
-	ctx := context.Background()
-	kubeASCheck := NewKubeASCheck(core.NewCheckBase(CheckName), &KubeASConfig{}, ctx)
+	kubeASCheck := NewKubeASCheck(core.NewCheckBase(CheckName), &KubeASConfig{})
 	err = kubeASCheck.Configure(aggregator.NewNoOpSenderManager(), integration.FakeConfigHash, instanceCfg, initCfg, "test")
 	require.NoError(t, err)
 

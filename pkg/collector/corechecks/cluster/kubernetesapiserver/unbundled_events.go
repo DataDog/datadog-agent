@@ -8,7 +8,6 @@
 package kubernetesapiserver
 
 import (
-	"context"
 	"fmt"
 
 	v1 "k8s.io/api/core/v1"
@@ -20,7 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func newUnbundledTransformer(clusterName string, taggerInstance tagger.Component, types []collectedEventType, bundleUnspecifiedEvents bool, ctx context.Context) eventTransformer {
+func newUnbundledTransformer(clusterName string, taggerInstance tagger.Component, types []collectedEventType, bundleUnspecifiedEvents bool) eventTransformer {
 	collectedTypes := make([]collectedEventType, 0, len(types))
 	for _, f := range types {
 		if f.Kind == "" && f.Source == "" {
@@ -33,7 +32,7 @@ func newUnbundledTransformer(clusterName string, taggerInstance tagger.Component
 
 	var t eventTransformer = noopEventTransformer{}
 	if bundleUnspecifiedEvents {
-		t = newBundledTransformer(clusterName, taggerInstance, ctx)
+		t = newBundledTransformer(clusterName, taggerInstance)
 	}
 
 	return &unbundledTransformer{
@@ -42,7 +41,6 @@ func newUnbundledTransformer(clusterName string, taggerInstance tagger.Component
 		taggerInstance:          taggerInstance,
 		bundledTransformer:      t,
 		bundleUnspecifiedEvents: bundleUnspecifiedEvents,
-		ctx:                     ctx,
 	}
 }
 
@@ -52,7 +50,6 @@ type unbundledTransformer struct {
 	taggerInstance          tagger.Component
 	bundledTransformer      eventTransformer
 	bundleUnspecifiedEvents bool
-	ctx                     context.Context
 }
 
 func (c *unbundledTransformer) Transform(events []*v1.Event) ([]event.Event, []error) {
@@ -78,7 +75,7 @@ func (c *unbundledTransformer) Transform(events []*v1.Event) ([]event.Event, []e
 		}
 
 		involvedObject := ev.InvolvedObject
-		hostInfo := getEventHostInfo(c.clusterName, ev, c.ctx)
+		hostInfo := getEventHostInfo(c.clusterName, ev)
 		readableKey := buildReadableKey(involvedObject)
 
 		tags := c.buildEventTags(ev, involvedObject, hostInfo)

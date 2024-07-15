@@ -7,7 +7,6 @@
 package kubernetesapiserver
 
 import (
-	"context"
 	"fmt"
 	"testing"
 
@@ -84,8 +83,7 @@ func TestParseComponentStatus(t *testing.T) {
 	}
 
 	// FIXME: use the factory instead
-	ctx := context.Background()
-	kubeASCheck := NewKubeASCheck(core.NewCheckBase(CheckName), &KubeASConfig{}, ctx)
+	kubeASCheck := NewKubeASCheck(core.NewCheckBase(CheckName), &KubeASConfig{})
 
 	mocked := mocksender.NewMockSender(kubeASCheck.ID())
 	mocked.On("ServiceCheck", "kube_apiserver_controlplane.up", servicecheck.ServiceCheckOK, "", []string{"component:Zookeeper"}, "imok")
