@@ -29,7 +29,7 @@ require (
 	// `TEST_INFRA_DEFINITIONS_BUILDIMAGES` matches the commit sha in the module version
 	// Example: 	github.com/DataDog/test-infra-definitions v0.0.0-YYYYMMDDHHmmSS-0123456789AB
 	// => TEST_INFRA_DEFINITIONS_BUILDIMAGES: 0123456789AB
-	github.com/DataDog/test-infra-definitions v0.0.0-20240704115503-b64a6490fe5c
+	github.com/DataDog/test-infra-definitions v0.0.0-20240715075815-5ae4cd478990
 	github.com/aws/aws-sdk-go-v2 v1.30.0
 	github.com/aws/aws-sdk-go-v2/config v1.27.19
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.164.2
@@ -42,7 +42,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/kr/pretty v0.3.1
 	github.com/pkg/sftp v1.13.6
-	github.com/pulumi/pulumi/sdk/v3 v3.121.0
+	github.com/pulumi/pulumi/sdk/v3 v3.122.0
 	github.com/samber/lo v1.39.0
 	github.com/sethvargo/go-retry v0.2.4
 	github.com/stretchr/testify v1.9.0
@@ -241,8 +241,8 @@ require (
 require (
 	github.com/DataDog/datadog-agent/pkg/util/optional v0.56.0-rc.3
 	github.com/mitchellh/mapstructure v1.5.0
-	github.com/pulumi/pulumi-aws/sdk/v6 v6.25.0
-	github.com/pulumi/pulumi-awsx/sdk/v2 v2.5.0
+	github.com/pulumi/pulumi-aws/sdk/v6 v6.44.0
+	github.com/pulumi/pulumi-awsx/sdk/v2 v2.13.0
 	github.com/pulumi/pulumi-eks/sdk/v2 v2.2.1
 	github.com/pulumi/pulumi-kubernetes/sdk/v4 v4.13.1
 	github.com/xeipuuv/gojsonschema v1.2.0
