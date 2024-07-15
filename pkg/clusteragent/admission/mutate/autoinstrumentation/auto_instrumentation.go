@@ -305,7 +305,7 @@ func (w *Webhook) isPodEligible(pod *corev1.Pod) bool {
 	return true
 }
 
-func (w *Webhook) inject(pod *corev1.Pod, _ string, _ dynamic.Interface) (bool, error) {
+func (w *Webhook) inject(pod *corev1.Pod, ns string, _ dynamic.Interface) (bool, error) {
 	if pod == nil {
 		return false, errors.New(metrics.InvalidInput)
 	}
@@ -330,7 +330,7 @@ func (w *Webhook) inject(pod *corev1.Pod, _ string, _ dynamic.Interface) (bool, 
 	injectSecurityClientLibraryConfig(pod)
 	// Inject env variables used for Onboarding KPIs propagation
 	var injectionType string
-	if w.isEnabledInNamespace(pod.Namespace) {
+	if w.isEnabledInNamespace(ns) {
 		// if Single Step Instrumentation is enabled, inject DD_INSTRUMENTATION_INSTALL_TYPE:k8s_single_step
 		_ = mutatecommon.InjectEnv(pod, singleStepInstrumentationInstallTypeEnvVar)
 		injectionType = singleStepInstrumentationInstallType
