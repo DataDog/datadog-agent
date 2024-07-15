@@ -147,6 +147,7 @@ func (m *istioMonitor) AttachPID(pid uint32) error {
 		pid,
 		m.registerCB,
 		m.unregisterCB,
+		utils.NopCallback,
 	)
 }
 

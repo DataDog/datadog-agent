@@ -108,7 +108,7 @@ func TestHTTP2Scenarios(t *testing.T) {
 			},
 		} {
 			t.Run(tc.name, func(t *testing.T) {
-				if tc.isTLS && !gotlsutils.GoTLSSupported(t, config.New()) {
+				if tc.isTLS && !gotlsutils.GoTLSSupported(config.New()) {
 					t.Skip("GoTLS not supported for this setup")
 				}
 				suite.Run(t, &usmHTTP2Suite{isTLS: tc.isTLS})
