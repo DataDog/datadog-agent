@@ -5,7 +5,12 @@
 
 //go:build linux_bpf
 
+// uprobes package contains methods to help handling the attachment of uprobes to userspace programs
 package uprobes
+
+// TODO:
+// - Add more tests and coverage, specially around the actual attachment
+// - Check whether we have probes for direct attachment and probe that
 
 import (
 	"bufio"
@@ -36,12 +41,17 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// ExcludeMode defines the different optiont to exclude processes from attachment
 type ExcludeMode uint8
 
 const (
+	// ExcludeSelf excludes the agent's own PID
 	ExcludeSelf ExcludeMode = 1 << iota
+	// ExcludeInternal excludes internal DataDog processes
 	ExcludeInternal
+	// ExcludeBuildkit excludes buildkitd processes
 	ExcludeBuildkit
+	// ExcludeContainerdTmp excludes containerd tmp mounts
 	ExcludeContainerdTmp
 )
 
@@ -58,9 +68,9 @@ var (
 	internalProcessRegex = regexp.MustCompile("datadog-agent/.*/((process|security|trace)-agent|system-probe|agent)")
 )
 
-type AttachRules struct {
+type AttachRule struct {
 	UprobeNameRegex  *regexp.Regexp
-	BinaryNameRegex  *regexp.Regexp
+	LibraryNameRegex *regexp.Regexp
 	ManualReturnHook bool
 }
 
@@ -70,7 +80,7 @@ type AttacherConfig struct {
 	ProbeSelectors []manager.ProbesSelector
 
 	// Rules defines a series of rules that tell the attacher how to attach the probes
-	Rules []*AttachRules
+	Rules []*AttachRule
 
 	// ScanTerminatedProcessesInterval defines the interval at which we scan for terminated processes. Set
 	// to zero to disable
@@ -84,6 +94,12 @@ type AttacherConfig struct {
 
 	// EbpfConfig is the configuration for the eBPF program
 	EbpfConfig *ebpf.Config
+
+	// PerformInitialScan defines if the attacher should perform an initial scan of the processes before starting the monitor
+	PerformInitialScan bool
+
+	// ProcessMonitorEventStream defines whether the process monitor is using the event stream
+	ProcessMonitorEventStream bool
 }
 
 // SetDefaults configures the AttacherConfig with default values for those fields for which the compiler
@@ -110,54 +126,98 @@ type ProbeManager interface {
 	GetProbe(manager.ProbeIdentificationPair) (*manager.Probe, bool)
 }
 
+// FileRegistry is an interface that defines the methods that a FileRegistry implements, so that we can replace it in tests for a mock object
+type FileRegistry interface {
+	Register(namespacedPath string, pid uint32, activationCB, deactivationCB func(utils.FilePath) error) error
+	Unregister(uint32) error
+	Clear()
+	GetRegisteredProcesses() map[uint32]struct{}
+}
+
 type UprobeAttacher struct {
 	name         string
 	done         chan struct{}
 	wg           sync.WaitGroup
 	config       *AttacherConfig
-	fileRegistry *utils.FileRegistry
+	fileRegistry FileRegistry
 	manager      ProbeManager
 
 	// ruleCache is a cache of the rules that match a given uprobe, to avoid computing that on every
 	// attach operation
-	ruleCache map[string][]*AttachRules
+	ruleCache map[string][]*AttachRule
 
 	// pathToAttachedProbes maps a filesystem path to the probes attached to it. Used to detach them
 	// once the path is no longer used.
-	pathToAttachedProbes map[string][]manager.ProbeIdentificationPair
-	onAttachCallback     func(*manager.Probe)
-	soWatcher            *sharedlibraries.EbpfProgram
-	thisPID              int
+	pathToAttachedProbes   map[string][]manager.ProbeIdentificationPair
+	onAttachCallback       func(*manager.Probe)
+	soWatcher              *sharedlibraries.EbpfProgram
+	handlesLibrariesCached *bool
 }
 
 func NewUprobeAttacher(name string, config *AttacherConfig, mgr ProbeManager, onAttachCallback func(*manager.Probe)) *UprobeAttacher {
 	config.SetDefaults()
 
-	return &UprobeAttacher{
+	ua := &UprobeAttacher{
 		name:                 name,
 		config:               config,
 		fileRegistry:         utils.NewFileRegistry(name),
 		manager:              mgr,
 		onAttachCallback:     onAttachCallback,
-		ruleCache:            make(map[string][]*AttachRules),
+		ruleCache:            make(map[string][]*AttachRule),
 		pathToAttachedProbes: make(map[string][]manager.ProbeIdentificationPair),
-		soWatcher:            sharedlibraries.NewEBPFProgram(config.EbpfConfig),
+		done:                 make(chan struct{}),
 	}
+
+	if ua.handlesLibraries() {
+		ua.soWatcher = sharedlibraries.NewEBPFProgram(config.EbpfConfig)
+	}
+
+	return ua
 }
 
+func (ua *UprobeAttacher) handlesLibraries() bool {
+	if ua.handlesLibrariesCached != nil {
+		return *ua.handlesLibrariesCached
+	}
+
+	result := false
+	for _, rule := range ua.config.Rules {
+		if rule.LibraryNameRegex != nil {
+			result = true
+			break
+		}
+	}
+	ua.handlesLibrariesCached = &result
+	return result
+}
+
+// Start starts the attacher, attaching to the processes and libraries as needed
 func (ua *UprobeAttacher) Start() error {
 	procMonitor := monitor.GetProcessMonitor()
+	err := procMonitor.Initialize(ua.config.ProcessMonitorEventStream)
+	if err != nil {
+		return fmt.Errorf("error initializing process monitor: %w", err)
+	}
+
 	cleanupExec := procMonitor.SubscribeExec(ua.handleProcessStart)
 	cleanupExit := procMonitor.SubscribeExit(ua.handleProcessExit)
 
-	err := ua.soWatcher.Init()
-	if err != nil {
-		return fmt.Errorf("error initializing shared library program: %w", err)
+	if ua.soWatcher != nil {
+		err := ua.soWatcher.Init()
+		if err != nil {
+			return fmt.Errorf("error initializing shared library program: %w", err)
+		}
+		err = ua.soWatcher.Start()
+		if err != nil {
+			return fmt.Errorf("error starting shared library program: %w", err)
+		}
 	}
 
-	err = ua.initialScan()
-	if err != nil {
-		return fmt.Errorf("error during initial scan: %w", err)
+	if ua.config.PerformInitialScan {
+		err := ua.initialScan()
+		if err != nil {
+			return fmt.Errorf("error during initial scan: %w", err)
+		}
 	}
 
 	ua.wg.Add(1)
@@ -170,11 +230,19 @@ func (ua *UprobeAttacher) Start() error {
 			cleanupExit()
 			procMonitor.Stop()
 			ua.fileRegistry.Clear()
+			if ua.soWatcher != nil {
+				ua.soWatcher.Stop()
+			}
 			ua.wg.Done()
 		}()
 
-		sharedLibDataChan := ua.soWatcher.GetPerfHandler().DataChannel()
-		sharedLibLostChan := ua.soWatcher.GetPerfHandler().DataChannel()
+		var sharedLibDataChan <-chan *ebpf.DataEvent
+		var sharedLibLostChan <-chan uint64
+
+		if ua.soWatcher != nil {
+			sharedLibDataChan = ua.soWatcher.GetPerfHandler().DataChannel()
+			sharedLibLostChan = ua.soWatcher.GetPerfHandler().LostChannel()
+		}
 
 		for {
 			select {
@@ -190,7 +258,10 @@ func (ua *UprobeAttacher) Start() error {
 				if !ok {
 					return
 				}
-				ua.handleLibraryOpen(event)
+				err := ua.handleLibraryOpen(event)
+				if err != nil {
+					log.Errorf("error handling library open event: %v", err)
+				}
 			case <-sharedLibLostChan:
 				// Nothing to do in this case
 				break
@@ -201,6 +272,12 @@ func (ua *UprobeAttacher) Start() error {
 	return nil
 }
 
+// Stop stops the attache
+func (ua *UprobeAttacher) Stop() {
+	close(ua.done)
+	ua.wg.Wait()
+}
+
 func (ua *UprobeAttacher) initialScan() error {
 	thisPID, err := kernel.RootNSPID()
 	if err != nil {
@@ -208,7 +285,7 @@ func (ua *UprobeAttacher) initialScan() error {
 	}
 
 	err = kernel.WithAllProcs(ua.config.ProcRoot, func(pid int) error {
-		if pid == thisPID { // don't scan ourself
+		if pid == thisPID { // don't scan ourselves
 			return nil
 		}
 
@@ -240,6 +317,7 @@ func (ua *UprobeAttacher) handleLibraryOpen(event *ebpf.DataEvent) error {
 
 }
 
+// AttachLibrary attaches the probes to the given library, opened by a given PID
 func (ua *UprobeAttacher) AttachLibrary(path string, pid uint32) error {
 	if int(pid) == os.Getpid() {
 		return ErrSelfExcluded
@@ -260,11 +338,12 @@ func (ua *UprobeAttacher) AttachLibrary(path string, pid uint32) error {
 	return ua.fileRegistry.Register(path, pid, registerCB, unregisterCB)
 }
 
-func (ua *UprobeAttacher) getRulesForLibrary(path string) []*AttachRules {
-	var matchedRules []*AttachRules
+// getRulesForLibrary returns the rules that match the given library path
+func (ua *UprobeAttacher) getRulesForLibrary(path string) []*AttachRule {
+	var matchedRules []*AttachRule
 
 	for _, rule := range ua.config.Rules {
-		if rule.BinaryNameRegex.MatchString(path) {
+		if rule.LibraryNameRegex.MatchString(path) {
 			matchedRules = append(matchedRules, rule)
 		}
 	}
@@ -295,6 +374,7 @@ func (ua *UprobeAttacher) getExecutablePath(pid uint32) (string, error) {
 	return binPath, nil
 }
 
+// AttachPID attaches the corresponding probes to a given pid
 func (ua *UprobeAttacher) AttachPID(pid uint32, attachToLibs bool) error {
 	if (ua.config.ExcludeTargets&ExcludeSelf) != 0 && int(pid) == os.Getpid() {
 		return ErrSelfExcluded
@@ -324,7 +404,7 @@ func (ua *UprobeAttacher) AttachPID(pid uint32, attachToLibs bool) error {
 		return err
 	}
 
-	if attachToLibs {
+	if attachToLibs && ua.handlesLibraries() {
 		err = ua.attachToLibrariesOfPID(pid)
 		if err != nil {
 			return err
@@ -334,6 +414,7 @@ func (ua *UprobeAttacher) AttachPID(pid uint32, attachToLibs bool) error {
 	return nil
 }
 
+// DetachPID detaches the uprobes attached to a PID
 func (ua *UprobeAttacher) DetachPID(pid uint32) error {
 	return ua.fileRegistry.Unregister(pid)
 }
@@ -392,7 +473,7 @@ func getUID(lib utils.PathIdentifier) string {
 	return lib.Key()[:5]
 }
 
-func (ua *UprobeAttacher) attachToBinary(fpath utils.FilePath, matchingRules []*AttachRules) error {
+func (ua *UprobeAttacher) attachToBinary(fpath utils.FilePath, matchingRules []*AttachRule) error {
 	// TODO: Retrieve this information once and reuse it
 	if isBuildKit(ua.config.ProcRoot, fpath.PID) {
 		return fmt.Errorf("process %d is buildkitd, skipping", fpath.PID)
@@ -432,18 +513,37 @@ func (ua *UprobeAttacher) attachToBinary(fpath utils.FilePath, matchingRules []*
 
 	uid := getUID(fpath.ID)
 
+	// We need to know which rules to apply to the probes. If we already have a restricted set
+	// of rules that can match (e.g., we are attaching to a shared library), we use that. Otherwise,
+	// we use the global set of rules.
+	rulesToSearch := matchingRules
+	if matchingRules == nil {
+		rulesToSearch = ua.config.Rules
+	}
+
 	for _, selector := range ua.config.ProbeSelectors {
 		_, isBestEffort := selector.(*manager.BestEffort)
-		for _, origProbeId := range selector.GetProbesIdentificationPairList() {
-			newProbeId := manager.ProbeIdentificationPair{
-				EBPFFuncName: origProbeId.EBPFFuncName,
+		for _, origProbeID := range selector.GetProbesIdentificationPairList() {
+			var rulesForProbe []*AttachRule
+			for _, rule := range rulesToSearch {
+				if rule.UprobeNameRegex.MatchString(origProbeID.EBPFFuncName) {
+					rulesForProbe = append(rulesForProbe, rule)
+				}
+			}
+			if len(rulesForProbe) == 0 {
+				// Skip this probe if we have rules and none of them match
+				continue
+			}
+
+			newProbeID := manager.ProbeIdentificationPair{
+				EBPFFuncName: origProbeID.EBPFFuncName,
 				UID:          uid,
 			}
 
 			// Ensure that all ID pairs have the same UID
-			selector.EditProbeIdentificationPair(origProbeId, newProbeId)
+			selector.EditProbeIdentificationPair(origProbeID, newProbeID)
 
-			probe, found := ua.manager.GetProbe(newProbeId)
+			probe, found := ua.manager.GetProbe(newProbeID)
 			if found {
 				// We have already probed this process, just ensure it's running and skip it
 				if !probe.IsRunning() {
@@ -456,7 +556,7 @@ func (ua *UprobeAttacher) attachToBinary(fpath utils.FilePath, matchingRules []*
 				continue
 			}
 
-			_, symbol, ok := strings.Cut(newProbeId.EBPFFuncName, "__")
+			_, symbol, ok := strings.Cut(newProbeID.EBPFFuncName, "__")
 			if !ok {
 				continue
 			}
@@ -478,7 +578,7 @@ func (ua *UprobeAttacher) attachToBinary(fpath utils.FilePath, matchingRules []*
 			}
 
 			newProbe := &manager.Probe{
-				ProbeIdentificationPair: newProbeId,
+				ProbeIdentificationPair: newProbeID,
 				BinaryPath:              fpath.HostPath,
 				UprobeOffset:            uint64(offset),
 				HookFuncName:            symbol,
@@ -492,7 +592,7 @@ func (ua *UprobeAttacher) attachToBinary(fpath utils.FilePath, matchingRules []*
 				ua.onAttachCallback(newProbe)
 			}
 
-			ua.pathToAttachedProbes[fpath.HostPath] = append(ua.pathToAttachedProbes[fpath.HostPath], newProbeId)
+			ua.pathToAttachedProbes[fpath.HostPath] = append(ua.pathToAttachedProbes[fpath.HostPath], newProbeID)
 		}
 
 		manager, ok := ua.manager.(*manager.Manager)
@@ -535,10 +635,10 @@ func (ua *UprobeAttacher) getAvailableRequestedSymbols(elfFile *elf.File) (map[s
 }
 
 func (ua *UprobeAttacher) detachFromBinary(fpath utils.FilePath) error {
-	for _, probeId := range ua.pathToAttachedProbes[fpath.HostPath] {
-		err := ua.manager.DetachHook(probeId)
+	for _, probeID := range ua.pathToAttachedProbes[fpath.HostPath] {
+		err := ua.manager.DetachHook(probeID)
 		if err != nil {
-			return fmt.Errorf("error detaching probe %+v: %w", probeId, err)
+			return fmt.Errorf("error detaching probe %+v: %w", probeID, err)
 		}
 	}
 
@@ -587,7 +687,7 @@ func (ua *UprobeAttacher) attachToLibrariesOfPID(pid uint32) error {
 
 	if len(successfulMatches) == 0 {
 		if len(registerErrors) == 0 {
-			return fmt.Errorf("no rules matched for pid %d", pid)
+			return nil // No libraries found to attach
 		}
 		return fmt.Errorf("no rules matched for pid %d, errors: %v", pid, registerErrors)
 	}
