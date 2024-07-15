@@ -64,8 +64,6 @@ ignore_missing_imports = true
 disallow_untyped_defs = false
 # Include column numbers in errors.
 show_column_numbers = true
-# Exclude unit tests for now
-exclude = ['tasks/unit_tests']
 files = ['tasks']
 disable_error_code = [
     # TODO: fix them later

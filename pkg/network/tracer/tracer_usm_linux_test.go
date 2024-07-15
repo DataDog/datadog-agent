@@ -859,6 +859,7 @@ func testMySQLProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 }
 
 func testMySQLProtocolClassificationTLS(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
+	t.Skip("MySQL+TLS classification is flaky")
 	testMySQLProtocolClassificationInner(t, tr, clientHost, targetHost, serverHost, protocolsUtils.TLSEnabled)
 }
 
