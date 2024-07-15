@@ -13,7 +13,6 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -52,10 +51,6 @@ func (i *testPackageManager) ConfigFS(f fixtures.Fixture) fs.FS {
 }
 
 func TestInstallStable(t *testing.T) {
-	if runtime.GOOS == "darwin" {
-		t.Skip("FIXME: Failing test on macOS - #incident-26965")
-	}
-
 	s := fixtures.NewServer(t)
 	installer := newTestPackageManager(t, s, t.TempDir(), t.TempDir())
 
@@ -71,10 +66,6 @@ func TestInstallStable(t *testing.T) {
 }
 
 func TestInstallExperiment(t *testing.T) {
-	if runtime.GOOS == "darwin" {
-		t.Skip("FIXME: Failing test on macOS - #incident-26965")
-	}
-
 	s := fixtures.NewServer(t)
 	installer := newTestPackageManager(t, s, t.TempDir(), t.TempDir())
 
@@ -93,10 +84,6 @@ func TestInstallExperiment(t *testing.T) {
 }
 
 func TestInstallPromoteExperiment(t *testing.T) {
-	if runtime.GOOS == "darwin" {
-		t.Skip("FIXME: Failing test on macOS - #incident-26965")
-	}
-
 	s := fixtures.NewServer(t)
 	installer := newTestPackageManager(t, s, t.TempDir(), t.TempDir())
 
@@ -116,10 +103,6 @@ func TestInstallPromoteExperiment(t *testing.T) {
 }
 
 func TestUninstallExperiment(t *testing.T) {
-	if runtime.GOOS == "darwin" {
-		t.Skip("FIXME: Failing test on macOS - #incident-26965")
-	}
-
 	s := fixtures.NewServer(t)
 	installer := newTestPackageManager(t, s, t.TempDir(), t.TempDir())
 
