@@ -189,20 +189,6 @@ func IsExplicitPodMutationEnabled(pod *corev1.Pod) (bool, bool) {
 	return false, false
 }
 
-// ShouldMutatePod checks if a pod is mutable per explicit rules and/or
-// a NamespaceInjectionFilter.
-func ShouldMutatePod(pod *corev1.Pod, f NamespaceInjectionFilter) bool {
-	if val, ok := IsExplicitPodMutationEnabled(pod); ok {
-		return val
-	}
-
-	if f != nil && f.IsNamespaceEligible(pod.Namespace) {
-		return true
-	}
-
-	return ShouldMutateUnlabelledPods()
-}
-
 // ContainerRegistry gets the container registry config using the specified
 // config option, and falls back to the default container registry if no
 // webhook-specific container registry is set.
