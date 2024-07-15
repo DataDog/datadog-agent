@@ -960,49 +960,51 @@ func testDNSStats(t *testing.T, tr *Tracer, domain string, success, failure, tim
 	queryMsg.SetQuestion(dns.Fqdn(domain), dns.TypeA)
 	queryMsg.RecursionDesired = true
 
-	var dnsClientAddr *net.UDPAddr
+	// we place the entire test in the eventually loop since failed DNS requests can cause "WaitForDomain" to return
+	// true before DNS data is actually available for the successful connection
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
 		dnsClient := new(dns.Client)
 		dnsConn, err := dnsClient.Dial(dnsServerAddr.String())
 		assert.NoError(c, err)
-		dnsClientAddr = dnsConn.LocalAddr().(*net.UDPAddr)
+		dnsClientAddr := dnsConn.LocalAddr().(*net.UDPAddr)
 		_, _, err = dnsClient.ExchangeWithConn(queryMsg, dnsConn)
-		_ = dnsConn.Close()
 		if timeout == 0 {
-			assert.NoError(c, err)
+			assert.NoError(c, err, "unexpected error making DNS request")
+		} else {
+			assert.Error(c, err)
 		}
-	}, 6*time.Second, 100*time.Millisecond, "Failed to get dns response or unexpected response")
+		_ = dnsConn.Close()
+		require.NoError(c, tr.reverseDNS.WaitForDomain(domain))
 
-	require.NoError(t, tr.reverseDNS.WaitForDomain(domain))
+		// Iterate through active connections until we find connection created above, and confirm send + recv counts
+		connections := getConnections(c, tr)
+		conn, ok := findConnection(dnsClientAddr, dnsServerAddr, connections)
+		require.True(c, ok)
 
-	// Iterate through active connections until we find connection created above, and confirm send + recv counts
-	connections := getConnections(t, tr)
-	conn, ok := findConnection(dnsClientAddr, dnsServerAddr, connections)
-	require.True(t, ok)
+		assert.Equal(c, queryMsg.Len(), int(conn.Monotonic.SentBytes))
+		assert.Equal(c, os.Getpid(), int(conn.Pid))
+		assert.Equal(c, dnsServerAddr.Port, int(conn.DPort))
 
-	assert.Equal(t, queryMsg.Len(), int(conn.Monotonic.SentBytes))
-	assert.Equal(t, os.Getpid(), int(conn.Pid))
-	assert.Equal(t, dnsServerAddr.Port, int(conn.DPort))
-
-	var total uint32
-	var successfulResponses uint32
-	var timeouts uint32
-	for _, byDomain := range conn.DNSStats {
-		for _, byQueryType := range byDomain {
-			successfulResponses += byQueryType.CountByRcode[uint32(0)]
-			timeouts += byQueryType.Timeouts
-			for _, count := range byQueryType.CountByRcode {
-				total += count
+		var total uint32
+		var successfulResponses uint32
+		var timeouts uint32
+		for _, byDomain := range conn.DNSStats {
+			for _, byQueryType := range byDomain {
+				successfulResponses += byQueryType.CountByRcode[uint32(0)]
+				timeouts += byQueryType.Timeouts
+				for _, count := range byQueryType.CountByRcode {
+					total += count
+				}
 			}
 		}
-	}
 
-	failedResponses := total - successfulResponses
+		failedResponses := total - successfulResponses
 
-	// DNS Stats
-	assert.Equal(t, uint32(success), successfulResponses, "expected %d successful responses but got %d", success, successfulResponses)
-	assert.Equal(t, uint32(failure), failedResponses)
-	assert.Equal(t, uint32(timeout), timeouts, "expected %d timeouts but got %d", timeout, timeouts)
+		// DNS Stats
+		assert.Equal(c, uint32(success), successfulResponses, "expected %d successful responses but got %d", success, successfulResponses)
+		assert.Equal(c, uint32(failure), failedResponses)
+		assert.Equal(c, uint32(timeout), timeouts, "expected %d timeouts but got %d", timeout, timeouts)
+	}, 10*time.Second, 100*time.Millisecond, "Failed to get dns response or unexpected response")
 }
 
 func (s *TracerSuite) TestDNSStats() {
