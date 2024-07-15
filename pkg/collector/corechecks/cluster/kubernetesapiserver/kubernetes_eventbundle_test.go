@@ -178,6 +178,7 @@ func TestFormatEvent(t *testing.T) {
 
 			hostProviderIDCache.Set(firstEv.Source.Host, tt.hostProviderID, cache.DefaultExpiration)
 			defer hostProviderIDCache.Delete(firstEv.Source.Host)
+
 			b := newKubernetesEventBundler(tt.clusterName, firstEv)
 
 			for _, ev := range tt.events {

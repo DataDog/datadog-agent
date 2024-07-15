@@ -141,9 +141,11 @@ func NewKubeASCheck(base core.CheckBase, instance *KubeASConfig) *KubeASCheck {
 
 // Factory creates a new check factory
 func Factory() optional.Option[func() check.Check] {
-	return optional.NewOption(func() check.Check {
-		return NewKubeASCheck(core.NewCheckBase(CheckName), &KubeASConfig{})
-	})
+	return optional.NewOption(newCheck)
+}
+
+func newCheck() check.Check {
+	return NewKubeASCheck(core.NewCheckBase(CheckName), &KubeASConfig{})
 }
 
 // Configure parses the check configuration and init the check.
