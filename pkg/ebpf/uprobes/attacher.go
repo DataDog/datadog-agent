@@ -68,7 +68,6 @@ var (
 type AttachRule struct {
 	UprobeNameRegex  *regexp.Regexp
 	LibraryNameRegex *regexp.Regexp
-	ManualReturnHook bool
 }
 
 type AttacherConfig struct {
@@ -478,6 +477,26 @@ func getUID(lib utils.PathIdentifier) string {
 	return lib.Key()[:5]
 }
 
+func parseSymbolFromEBPFProbeName(probeName string) (symbol string, isManualReturn bool, err error) {
+	parts := strings.Split(probeName, "__")
+	if len(parts) < 2 {
+		err = fmt.Errorf("invalid probe name %s, no double underscore (__) separating probe type and function name", probeName)
+		return
+	}
+
+	symbol = parts[1]
+	if len(parts) > 2 {
+		if parts[2] == "return" {
+			isManualReturn = true
+		} else {
+			err = fmt.Errorf("invalid probe name %s, unexpected third part %s. Format should be probeType__funcName[__return]", probeName, parts[2])
+			return
+		}
+	}
+
+	return
+}
+
 func (ua *UprobeAttacher) attachToBinary(fpath utils.FilePath, matchingRules []*AttachRule) error {
 	// TODO: Retrieve this information once and reuse it
 	if isBuildKit(ua.config.ProcRoot, fpath.PID) {
@@ -506,42 +525,21 @@ func (ua *UprobeAttacher) attachToBinary(fpath utils.FilePath, matchingRules []*
 
 	for _, selector := range ua.config.ProbeSelectors {
 		_, isBestEffort := selector.(*manager.BestEffort)
-		for _, origProbeID := range selector.GetProbesIdentificationPairList() {
+		for _, probeID := range selector.GetProbesIdentificationPairList() {
 			var rulesForProbe []*AttachRule
 			for _, rule := range rulesToSearch {
-				if rule.UprobeNameRegex.MatchString(origProbeID.EBPFFuncName) {
+				if rule.UprobeNameRegex.MatchString(probeID.EBPFFuncName) {
 					rulesForProbe = append(rulesForProbe, rule)
 				}
 			}
-			if len(rulesForProbe) == 0 {
+			if len(rulesToSearch) == 0 && len(rulesForProbe) == 0 {
 				// Skip this probe if we have rules and none of them match
 				continue
 			}
 
-			newProbeID := manager.ProbeIdentificationPair{
-				EBPFFuncName: origProbeID.EBPFFuncName,
-				UID:          uid,
-			}
-
-			// Ensure that all ID pairs have the same UID
-			selector.EditProbeIdentificationPair(origProbeID, newProbeID)
-
-			probe, found := ua.manager.GetProbe(newProbeID)
-			if found {
-				// We have already probed this process, just ensure it's running and skip it
-				if !probe.IsRunning() {
-					err := probe.Attach()
-					if err != nil {
-						return err
-					}
-				}
-
-				continue
-			}
-
-			_, symbol, ok := strings.Cut(newProbeID.EBPFFuncName, "__")
-			if !ok {
-				continue
+			symbol, isManualReturn, err := parseSymbolFromEBPFProbeName(probeID.EBPFFuncName)
+			if err != nil {
+				return fmt.Errorf("error parsing probe name %s: %w", probeID.EBPFFuncName, err)
 			}
 			data, found := inspectResult[symbol]
 			if !found {
@@ -554,22 +552,48 @@ func (ua *UprobeAttacher) attachToBinary(fpath utils.FilePath, matchingRules []*
 				return fmt.Errorf("symbol %s not found in %s", symbol, fpath.HostPath)
 			}
 
-			newProbe := &manager.Probe{
-				ProbeIdentificationPair: newProbeID,
-				BinaryPath:              fpath.HostPath,
-				UprobeOffset:            data.EntryLocation,
-				HookFuncName:            symbol,
-			}
-			err = ua.manager.AddHook("", newProbe)
-			if err != nil {
-				return fmt.Errorf("error attaching probe %+v: %w", newProbe, err)
+			var locationsToAttach []uint64
+			if isManualReturn {
+				locationsToAttach = data.ReturnLocations
+			} else {
+				locationsToAttach = []uint64{data.EntryLocation}
 			}
 
-			if ua.onAttachCallback != nil {
-				ua.onAttachCallback(newProbe)
+			for i, location := range locationsToAttach {
+				newProbeID := manager.ProbeIdentificationPair{
+					EBPFFuncName: probeID.EBPFFuncName,
+					UID:          fmt.Sprintf("%s_%d", uid, i), // Make UID unique even if we have multiple locations
+				}
+
+				probe, found := ua.manager.GetProbe(newProbeID)
+				if found {
+					// We have already probed this process, just ensure it's running and skip it
+					if !probe.IsRunning() {
+						err := probe.Attach()
+						if err != nil {
+							return fmt.Errorf("cannot attach running probe %v: %w", newProbeID, err)
+						}
+					}
+					continue
+				}
+
+				newProbe := &manager.Probe{
+					ProbeIdentificationPair: newProbeID,
+					BinaryPath:              fpath.HostPath,
+					UprobeOffset:            location,
+					HookFuncName:            symbol,
+				}
+				err = ua.manager.AddHook("", newProbe)
+				if err != nil {
+					return fmt.Errorf("error attaching probe %+v: %w", newProbe, err)
+				}
+
+				if ua.onAttachCallback != nil {
+					ua.onAttachCallback(newProbe)
+				}
+				ua.pathToAttachedProbes[fpath.HostPath] = append(ua.pathToAttachedProbes[fpath.HostPath], newProbeID)
 			}
 
-			ua.pathToAttachedProbes[fpath.HostPath] = append(ua.pathToAttachedProbes[fpath.HostPath], newProbeID)
 		}
 
 		manager, ok := ua.manager.(*manager.Manager)

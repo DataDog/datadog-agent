@@ -340,3 +340,30 @@ func TestInitialScan(t *testing.T) {
 
 	mockRegistry.AssertExpectations(t)
 }
+
+func TestParseSymbolFromEBPFProbeName(t *testing.T) {
+	t.Run("ValidName", func(tt *testing.T) {
+		name := "uprobe__SSL_connect"
+		symbol, manualReturn, err := parseSymbolFromEBPFProbeName(name)
+		require.NoError(tt, err)
+		require.False(tt, manualReturn)
+		require.Equal(tt, "SSL_connect", symbol)
+	})
+	t.Run("ValidNameWithReturnMarker", func(tt *testing.T) {
+		name := "uprobe__SSL_connect__return"
+		symbol, manualReturn, err := parseSymbolFromEBPFProbeName(name)
+		require.NoError(tt, err)
+		require.True(tt, manualReturn)
+		require.Equal(tt, "SSL_connect", symbol)
+	})
+	t.Run("InvalidNameWithUnrecognizedThirdPart", func(tt *testing.T) {
+		name := "uprobe__SSL_connect__something"
+		_, _, err := parseSymbolFromEBPFProbeName(name)
+		require.Error(tt, err)
+	})
+	t.Run("InvalidNameNoSymbol", func(tt *testing.T) {
+		name := "nothing"
+		_, _, err := parseSymbolFromEBPFProbeName(name)
+		require.Error(tt, err)
+	})
+}
