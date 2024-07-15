@@ -564,6 +564,11 @@ func TestWriteConfigEndpoint(t *testing.T) {
 			expectedResult: "pass: \"********\"",
 		},
 		{
+			name:           "With nil Requet",
+			request:        nil,
+			expectedResult: "pass: \"********\"",
+		},
+		{
 			name:           "Without scrubbing configuration",
 			request:        httptest.NewRequest("GET", "http://example.com?raw=true", nil),
 			expectedResult: "pass: 1234567",

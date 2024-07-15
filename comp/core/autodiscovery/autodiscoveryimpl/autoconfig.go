@@ -196,7 +196,7 @@ func (ac *AutoConfig) serviceListening() {
 }
 
 func (ac *AutoConfig) writeConfigCheck(w http.ResponseWriter, r *http.Request) {
-	raw := r.URL.Query().Get("raw") == "true"
+	raw := r != nil && r.URL.Query().Get("raw") == "true"
 
 	var configCheckResponse integration.ConfigCheckResponse
 	if raw {
