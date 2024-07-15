@@ -26,6 +26,7 @@ func TestGetDDAgentClientTimeout(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
 	defer cancel()
 
+	// Port 0 is use to avoid to bind to a running Agent
 	_, err := GetDDAgentClient(ctx, "127.0.0.1", "0")
 	assert.Equal(t, context.DeadlineExceeded, err)
 }
