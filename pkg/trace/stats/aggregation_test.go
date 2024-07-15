@@ -54,27 +54,27 @@ func TestGetStatusCode(t *testing.T) {
 }
 
 func TestNewAggregation(t *testing.T) {
-	peerTags := []string{"db.instance", "db.system", "peer.service"}
+	//peerTags :=
 	peerSvcOnlyHash := uint64(3430395298086625290)
 	peerTagsHash := uint64(9894752672193411515)
 	for _, tt := range []struct {
-		name              string
-		in                *pb.Span
-		enablePeerTagsAgg bool
-		resAgg            Aggregation
-		resPeerTags       []string
+		name        string
+		in          *pb.Span
+		peerTags    []string
+		resAgg      Aggregation
+		resPeerTags []string
 	}{
 		{
 			"nil case, peer tag aggregation disabled",
 			&pb.Span{},
-			false,
+			nil,
 			Aggregation{},
 			nil,
 		},
 		{
 			"nil case, peer tag aggregation enabled",
 			&pb.Span{},
-			true,
+			[]string{"db.instance", "db.system", "peer.service"},
 			Aggregation{},
 			nil,
 		},
@@ -84,7 +84,7 @@ func TestNewAggregation(t *testing.T) {
 				Service: "a",
 				Meta:    map[string]string{"span.kind": "client", "peer.service": "remote-service"},
 			},
-			false,
+			nil,
 			Aggregation{BucketsAggregationKey: BucketsAggregationKey{Service: "a", SpanKind: "client"}},
 			nil,
 		},
@@ -94,7 +94,7 @@ func TestNewAggregation(t *testing.T) {
 				Service: "a",
 				Meta:    map[string]string{"span.kind": "", "peer.service": "remote-service"},
 			},
-			true,
+			[]string{"db.instance", "db.system", "peer.service"},
 			Aggregation{BucketsAggregationKey: BucketsAggregationKey{Service: "a"}},
 			nil,
 		},
@@ -104,7 +104,7 @@ func TestNewAggregation(t *testing.T) {
 				Service: "a",
 				Meta:    map[string]string{"span.kind": "client", "peer.service": "remote-service"},
 			},
-			true,
+			[]string{"db.instance", "db.system", "peer.service"},
 			Aggregation{BucketsAggregationKey: BucketsAggregationKey{Service: "a", SpanKind: "client", PeerTagsHash: peerSvcOnlyHash}},
 			[]string{"peer.service:remote-service"},
 		},
@@ -114,7 +114,7 @@ func TestNewAggregation(t *testing.T) {
 				Service: "a",
 				Meta:    map[string]string{"span.kind": "producer", "peer.service": "remote-service"},
 			},
-			true,
+			[]string{"db.instance", "db.system", "peer.service"},
 			Aggregation{BucketsAggregationKey: BucketsAggregationKey{Service: "a", SpanKind: "producer", PeerTagsHash: peerSvcOnlyHash}},
 			[]string{"peer.service:remote-service"},
 		},
@@ -124,7 +124,7 @@ func TestNewAggregation(t *testing.T) {
 				Service: "a",
 				Meta:    map[string]string{"span.kind": "client", "field1": "val1", "peer.service": "remote-service", "db.instance": "i-1234", "db.system": "postgres"},
 			},
-			true,
+			[]string{"db.instance", "db.system", "peer.service"},
 			Aggregation{BucketsAggregationKey: BucketsAggregationKey{Service: "a", SpanKind: "client", PeerTagsHash: peerTagsHash}},
 			[]string{"db.instance:i-1234", "db.system:postgres", "peer.service:remote-service"},
 		},
@@ -134,7 +134,7 @@ func TestNewAggregation(t *testing.T) {
 				Service: "a",
 				Meta:    map[string]string{"span.kind": "client", "field1": "val1", "peer.service": "", "db.instance": "", "db.system": ""},
 			},
-			true,
+			[]string{"db.instance", "db.system", "peer.service"},
 			Aggregation{BucketsAggregationKey: BucketsAggregationKey{Service: "a", SpanKind: "client", PeerTagsHash: 0}},
 			nil,
 		},
@@ -144,12 +144,12 @@ func TestNewAggregation(t *testing.T) {
 				Service: "a",
 				Meta:    map[string]string{"span.kind": "client", "field1": "val1", "peer.service": "remote-service", "db.instance": "", "db.system": ""},
 			},
-			true,
+			[]string{"db.instance", "db.system", "peer.service"},
 			Aggregation{BucketsAggregationKey: BucketsAggregationKey{Service: "a", SpanKind: "client", PeerTagsHash: peerSvcOnlyHash}},
 			[]string{"peer.service:remote-service"},
 		},
 	} {
-		agg, et := NewAggregationFromSpan(tt.in, "", PayloadAggregationKey{}, tt.enablePeerTagsAgg, peerTags)
+		agg, et := NewAggregationFromSpan(tt.in, "", PayloadAggregationKey{}, tt.peerTags)
 		assert.Equal(t, tt.resAgg.Service, agg.Service, tt.name)
 		assert.Equal(t, tt.resAgg.SpanKind, agg.SpanKind, tt.name)
 		assert.Equal(t, tt.resAgg.PeerTagsHash, agg.PeerTagsHash, tt.name)
@@ -200,7 +200,7 @@ func TestIsRootSpan(t *testing.T) {
 			pb.Trilean_FALSE,
 		},
 	} {
-		agg, _ := NewAggregationFromSpan(tt.in, "", PayloadAggregationKey{}, true, []string{})
+		agg, _ := NewAggregationFromSpan(tt.in, "", PayloadAggregationKey{}, []string{})
 		assert.Equal(t, tt.isTraceRoot, agg.IsTraceRoot)
 	}
 }

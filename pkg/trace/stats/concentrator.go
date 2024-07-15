@@ -7,12 +7,9 @@ package stats
 
 import (
 	_ "embed"
-	"sort"
 	"strings"
 	"sync"
 	"time"
-
-	"gopkg.in/ini.v1"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -57,53 +54,17 @@ type Concentrator struct {
 	agentEnv               string
 	agentHostname          string
 	agentVersion           string
-	peerTagsAggregation    bool     // flag to enable aggregation of peer tags
 	computeStatsBySpanKind bool     // flag to enable computation of stats through checking the span.kind field
-	peerTagKeys            []string // keys for supplementary tags that describe peer.service entities
+	peerTagKeys            []string // keys for supplementary tags that describe peer.service entities. This should remain unset if peer tag aggregation is not enabled.
 	statsd                 statsd.ClientInterface
-}
-
-//go:embed peer_tags.ini
-var peerTagFile []byte
-
-var defaultPeerTags = func() []string {
-	var tags []string = []string{"_dd.base_service"}
-
-	cfg, err := ini.Load(peerTagFile)
-	if err != nil {
-		log.Error("Error loading file for peer tags: ", err)
-		return tags
-	}
-	keys := cfg.Section("dd.apm.peer.tags").Keys()
-
-	for _, key := range keys {
-		value := strings.Split(key.Value(), ",")
-		tags = append(tags, value...)
-	}
-
-	sort.Strings(tags)
-
-	return tags
-}()
-
-func preparePeerTags(tags ...string) []string {
-	if len(tags) == 0 {
-		return nil
-	}
-	var deduped []string
-	seen := make(map[string]struct{})
-	for _, t := range tags {
-		if _, ok := seen[t]; !ok {
-			seen[t] = struct{}{}
-			deduped = append(deduped, t)
-		}
-	}
-	sort.Strings(deduped)
-	return deduped
 }
 
 // NewConcentrator initializes a new concentrator ready to be started
 func NewConcentrator(conf *config.AgentConfig, writer Writer, now time.Time, statsd statsd.ClientInterface) *Concentrator {
+	// var peerTagKeys []string
+	// if conf.PeerTagsAggregation {
+	// 	peerTagKeys = append(PeerTags, conf.PeerTags...)
+	// }
 	bsize := conf.BucketInterval.Nanoseconds()
 	c := Concentrator{
 		bsize:   bsize,
@@ -118,13 +79,9 @@ func NewConcentrator(conf *config.AgentConfig, writer Writer, now time.Time, sta
 		agentEnv:               conf.DefaultEnv,
 		agentHostname:          conf.Hostname,
 		agentVersion:           conf.AgentVersion,
-		peerTagsAggregation:    conf.PeerServiceAggregation || conf.PeerTagsAggregation,
+		peerTagKeys:            conf.PeerTags,
 		computeStatsBySpanKind: conf.ComputeStatsBySpanKind,
 		statsd:                 statsd,
-	}
-	// NOTE: maintain backwards-compatibility with old peer service flag that will eventually be deprecated.
-	if conf.PeerServiceAggregation || conf.PeerTagsAggregation {
-		c.peerTagKeys = preparePeerTags(append(defaultPeerTags, conf.PeerTags...)...)
 	}
 	return &c
 }
@@ -255,7 +212,7 @@ func (c *Concentrator) addNow(pt *traceutil.ProcessedTrace, containerID string, 
 			}
 			c.buckets[btime] = b
 		}
-		b.HandleSpan(s, weight, isTop, pt.TraceChunk.Origin, aggKey, c.peerTagsAggregation, c.peerTagKeys)
+		b.HandleSpan(s, weight, isTop, pt.TraceChunk.Origin, aggKey, c.peerTagKeys)
 	}
 }
 

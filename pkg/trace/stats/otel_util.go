@@ -130,12 +130,9 @@ func otelSpanToDDSpan(
 	if isTopLevel {
 		traceutil.SetTopLevel(ddspan, true)
 	}
-	if conf.PeerTagsAggregation {
-		peerTagKeys := preparePeerTags(append(defaultPeerTags, conf.PeerTags...)...)
-		for _, peerTagKey := range peerTagKeys {
-			if peerTagVal := traceutil.GetOTelAttrValInResAndSpanAttrs(otelspan, otelres, false, peerTagKey); peerTagVal != "" {
-				traceutil.SetMeta(ddspan, peerTagKey, peerTagVal)
-			}
+	for _, peerTagKey := range conf.PeerTags {
+		if peerTagVal := traceutil.GetOTelAttrValInResAndSpanAttrs(otelspan, otelres, false, peerTagKey); peerTagVal != "" {
+			traceutil.SetMeta(ddspan, peerTagKey, peerTagVal)
 		}
 	}
 	return ddspan

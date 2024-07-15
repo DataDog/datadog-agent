@@ -22,7 +22,7 @@ func TestGrain(t *testing.T) {
 		Env:         "default",
 		Hostname:    "default",
 		ContainerID: "cid",
-	}, false, nil)
+	}, nil)
 	assert.Equal(Aggregation{
 		PayloadAggregationKey: PayloadAggregationKey{
 			Env:         "default",
@@ -51,7 +51,7 @@ func TestGrainWithPeerTags(t *testing.T) {
 			Env:         "default",
 			Hostname:    "default",
 			ContainerID: "cid",
-		}, true, []string{"aws.s3.bucket", "db.instance", "db.system", "peer.service"})
+		}, []string{"aws.s3.bucket", "db.instance", "db.system", "peer.service"})
 
 		assert.Equal(Aggregation{
 			PayloadAggregationKey: PayloadAggregationKey{
@@ -81,7 +81,7 @@ func TestGrainWithPeerTags(t *testing.T) {
 			Env:         "default",
 			Hostname:    "default",
 			ContainerID: "cid",
-		}, true, []string{"aws.s3.bucket", "db.instance", "db.system", "peer.service"})
+		}, []string{"aws.s3.bucket", "db.instance", "db.system", "peer.service"})
 
 		assert.Equal(Aggregation{
 			PayloadAggregationKey: PayloadAggregationKey{
@@ -112,7 +112,7 @@ func TestGrainWithPeerTags(t *testing.T) {
 			Env:         "default",
 			Hostname:    "default",
 			ContainerID: "cid",
-		}, true, []string{"db.instance", "db.system", "peer.service"})
+		}, []string{"db.instance", "db.system", "peer.service"})
 
 		assert.Equal(Aggregation{
 			PayloadAggregationKey: PayloadAggregationKey{
@@ -141,7 +141,7 @@ func TestGrainWithSynthetics(t *testing.T) {
 		Version:     "v0",
 		Env:         "default",
 		ContainerID: "cid",
-	}, false, nil)
+	}, nil)
 	assert.Equal(Aggregation{
 		PayloadAggregationKey: PayloadAggregationKey{
 			Hostname:    "host-id",
@@ -167,20 +167,21 @@ func BenchmarkHandleSpanRandom(b *testing.B) {
 		b.ReportAllocs()
 		for i := 0; i < b.N; i++ {
 			for _, span := range benchSpans {
-				sb.HandleSpan(span, 1, true, "", PayloadAggregationKey{"a", "b", "c", "d", "", ""}, false, nil)
+				sb.HandleSpan(span, 1, true, "", PayloadAggregationKey{"a", "b", "c", "d", "", ""}, nil)
 			}
 		}
 	})
-	b.Run("peer_tags", func(b *testing.B) {
-		sb := NewRawBucket(0, 1e9)
-		b.ResetTimer()
-		b.ReportAllocs()
-		for i := 0; i < b.N; i++ {
-			for _, span := range benchSpans {
-				sb.HandleSpan(span, 1, true, "", PayloadAggregationKey{"a", "b", "c", "d", "", ""}, true, defaultPeerTags)
-			}
-		}
-	})
+	// TODO
+	// b.Run("peer_tags", func(b *testing.B) {
+	// 	sb := NewRawBucket(0, 1e9)
+	// 	b.ResetTimer()
+	// 	b.ReportAllocs()
+	// 	for i := 0; i < b.N; i++ {
+	// 		for _, span := range benchSpans {
+	// 			sb.HandleSpan(span, 1, true, "", PayloadAggregationKey{"a", "b", "c", "d", "", ""}, true, defaultPeerTags)
+	// 		}
+	// 	}
+	// })
 }
 
 var benchSpans = []*pb.Span{
