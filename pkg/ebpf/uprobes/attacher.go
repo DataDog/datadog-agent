@@ -139,10 +139,6 @@ type UprobeAttacher struct {
 	manager      ProbeManager
 	inspector    BinaryInspector
 
-	// ruleCache is a cache of the rules that match a given uprobe, to avoid computing that on every
-	// attach operation
-	ruleCache map[string][]*AttachRule
-
 	// pathToAttachedProbes maps a filesystem path to the probes attached to it. Used to detach them
 	// once the path is no longer used.
 	pathToAttachedProbes   map[string][]manager.ProbeIdentificationPair
@@ -164,7 +160,6 @@ func NewUprobeAttacher(name string, config *AttacherConfig, mgr ProbeManager, on
 		fileRegistry:         utils.NewFileRegistry(name),
 		manager:              mgr,
 		onAttachCallback:     onAttachCallback,
-		ruleCache:            make(map[string][]*AttachRule),
 		pathToAttachedProbes: make(map[string][]manager.ProbeIdentificationPair),
 		done:                 make(chan struct{}),
 		inspector:            inspector,
