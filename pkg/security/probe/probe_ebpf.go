@@ -36,6 +36,7 @@ import (
 	aconfig "github.com/DataDog/datadog-agent/pkg/config"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/security/common/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
@@ -379,6 +380,7 @@ func (p *EBPFProbe) playSnapshot() {
 		event.ProcessContext = &entry.ProcessContext
 		event.Exec.Process = &entry.Process
 		event.ProcessContext.Process.ContainerID = entry.ContainerID
+		event.ProcessContext.Process.CGroup = entry.CGroup
 
 		if _, err := entry.HasValidLineage(); err != nil {
 			event.Error = &model.ErrProcessBrokenLineage{Err: err}
@@ -394,7 +396,7 @@ func (p *EBPFProbe) playSnapshot() {
 }
 
 func (p *EBPFProbe) sendAnomalyDetection(event *model.Event) {
-	tags := p.probe.GetEventTags(event.ContainerContext.ID)
+	tags := p.probe.GetEventTags(string(event.ContainerContext.ContainerID))
 	if service := p.probe.GetService(event); service != "" {
 		tags = append(tags, "service:"+service)
 	}
@@ -476,10 +478,12 @@ func (p *EBPFProbe) EventMarshallerCtor(event *model.Event) func() events.EventM
 }
 
 func (p *EBPFProbe) unmarshalContexts(data []byte, event *model.Event) (int, error) {
-	read, err := model.UnmarshalBinary(data, &event.PIDContext, &event.SpanContext, event.ContainerContext)
+	read, err := model.UnmarshalBinary(data, &event.PIDContext, &event.SpanContext, event.ContainerContext, &event.CGroupContext)
 	if err != nil {
 		return 0, err
 	}
+
+	event.CGroupContext.CGroupID, event.ContainerContext.ContainerID = containerutils.GetCGroupContext(event.ContainerContext.ContainerID, event.CGroupContext.CGroupFlags)
 
 	return read, nil
 }
@@ -508,7 +512,9 @@ func (p *EBPFProbe) unmarshalProcessCacheEntry(ev *model.Event, data []byte) (in
 	if err != nil {
 		return n, err
 	}
-	entry.Process.ContainerID = ev.ContainerContext.ID
+
+	entry.Process.CGroup.CGroupID, entry.Process.ContainerID = containerutils.GetCGroupContext(ev.ContainerContext.ContainerID, ev.CGroupContext.CGroupFlags)
+	entry.Process.CGroup.CGroupFlags = ev.CGroupContext.CGroupFlags
 	entry.Source = model.ProcessCacheEntryFromEvent
 
 	return n, nil
@@ -712,7 +718,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		// TODO: this should be moved in the resolver itself in order to handle the fallbacks
 		if event.Mount.GetFSType() == "nsfs" {
 			nsid := uint32(event.Mount.RootPathKey.Inode)
-			mountPath, _, _, err := p.Resolvers.MountResolver.ResolveMountPath(event.Mount.MountID, event.Mount.Device, event.PIDContext.Pid, event.ContainerContext.ID)
+			mountPath, _, _, err := p.Resolvers.MountResolver.ResolveMountPath(event.Mount.MountID, event.Mount.Device, event.PIDContext.Pid, string(event.ContainerContext.ContainerID))
 			if err != nil {
 				seclog.Debugf("failed to get mount path: %v", err)
 			} else {
@@ -728,7 +734,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		}
 
 		// we can skip this error as this is for the umount only and there is no impact on the filepath resolution
-		mount, _, _, _ := p.Resolvers.MountResolver.ResolveMount(event.Umount.MountID, 0, event.PIDContext.Pid, event.ContainerContext.ID)
+		mount, _, _, _ := p.Resolvers.MountResolver.ResolveMount(event.Umount.MountID, 0, event.PIDContext.Pid, string(event.ContainerContext.ContainerID))
 		if mount != nil && mount.GetFSType() == "nsfs" {
 			nsid := uint32(mount.RootPathKey.Inode)
 			if namespace := p.Resolvers.NamespaceResolver.ResolveNetworkNamespace(nsid); namespace != nil {
@@ -944,9 +950,9 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			if errors.Is(err, model.ErrDNSNameMalformatted) {
 				seclog.Debugf("failed to validate DNS event: %s", event.DNS.Name)
 			} else if errors.Is(err, model.ErrDNSNamePointerNotSupported) {
-				seclog.Tracef("failed to decode DNS event: %s (offset %d, len %d)", err, offset, len(data))
+				seclog.Tracef("failed to decode DNS event: %s (offset %d, len %d, data %s)", err, offset, len(data), string(data[offset:]))
 			} else {
-				seclog.Errorf("failed to decode DNS event: %s (offset %d, len %d)", err, offset, len(data))
+				seclog.Errorf("failed to decode DNS event: %s (offset %d, len %d, data %s))", err, offset, len(data), string(data[offset:]))
 			}
 
 			return
@@ -2085,11 +2091,11 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 
 		switch {
 		case action.InternalCallback != nil && rule.ID == events.RefreshUserCacheRuleID:
-			_ = p.RefreshUserCache(ev.ContainerContext.ID)
+			_ = p.RefreshUserCache(string(ev.ContainerContext.ContainerID))
 
-		case action.InternalCallback != nil && rule.ID == events.RefreshSBOMRuleID && p.Resolvers.SBOMResolver != nil && len(ev.ContainerContext.ID) > 0:
-			if err := p.Resolvers.SBOMResolver.RefreshSBOM(ev.ContainerContext.ID); err != nil {
-				seclog.Warnf("failed to refresh SBOM for container %s, triggered by %s: %s", ev.ContainerContext.ID, ev.ProcessContext.Comm, err)
+		case action.InternalCallback != nil && rule.ID == events.RefreshSBOMRuleID && p.Resolvers.SBOMResolver != nil && len(ev.ContainerContext.ContainerID) > 0:
+			if err := p.Resolvers.SBOMResolver.RefreshSBOM(string(ev.ContainerContext.ContainerID)); err != nil {
+				seclog.Warnf("failed to refresh SBOM for container %s, triggered by %s: %s", ev.ContainerContext.ContainerID, ev.ProcessContext.Comm, err)
 			}
 
 		case action.Kill != nil:

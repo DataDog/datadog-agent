@@ -2254,6 +2254,7 @@ func TestProcessResolution(t *testing.T) {
 			t.Helper()
 
 			assert.NotNil(t, entry1)
+			assert.NotNil(t, entry2)
 			assert.Equal(t, entry1.FileEvent.PathnameStr, entry2.FileEvent.PathnameStr)
 			assert.Equal(t, entry1.Pid, entry2.Pid)
 			assert.Equal(t, entry1.PPid, entry2.PPid)
