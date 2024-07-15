@@ -27,7 +27,7 @@ const (
 	// TransportTCP indicates logs-agent is using TCP transport
 	TransportTCP Transport = "TCP"
 
-	// StatusStopped means that the logs agent is not started
+	// StatusNotStarted means that the logs agent is not started
 	StatusNotStarted = 0
 	// StatusRunning means that the logs agent is running and fully operational
 	StatusRunning = 1
