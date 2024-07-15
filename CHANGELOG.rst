@@ -16,6 +16,12 @@ Release on: 2024-07-12
 
 - Please refer to the `7.55.1 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7551>`_ for the list of changes on the Core Checks
 
+.. _Release Notes_7.55.1_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fix a regression where the agent would fail to start on systems with SysVinit
 
 .. _Release Notes_7.55.0:
 
