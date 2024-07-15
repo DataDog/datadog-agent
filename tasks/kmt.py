@@ -1400,7 +1400,7 @@ def update_platform_info(
             except KeyError as e:
                 raise Exit(f"[!] Invalid manifest {manifest}") from e
 
-            if arch not in platforms:
+            if arch.kmt_arch not in platforms:
                 warn(f"[!] Unsupported architecture {arch}, skipping")
                 continue
 
