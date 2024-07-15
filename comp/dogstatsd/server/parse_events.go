@@ -163,7 +163,7 @@ func (p *parser) applyEventOptionalField(event dogstatsdEvent, optionalField []b
 		newEvent.alertType, err = parseEventAlertType(optionalField[len(eventAlertTypePrefix):])
 	case bytes.HasPrefix(optionalField, eventTagsPrefix):
 		newEvent.tags = p.parseTags(optionalField[len(eventTagsPrefix):])
-	case p.dsdOriginEnabled && bytes.HasPrefix(optionalField, LocalDataPrefix):
+	case p.dsdOriginEnabled && bytes.HasPrefix(optionalField, localDataPrefix):
 		newEvent.containerID = p.resolveContainerIDFromLocalData(optionalField)
 	}
 	if err != nil {
