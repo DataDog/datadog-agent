@@ -9,6 +9,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"os"
 	"os/exec"
 	"sync"
@@ -241,18 +242,9 @@ func setEnvWithoutOverride(envToSet map[string]string) {
 }
 
 func errorExitCode(err error) int {
-	// if err is of type errors.joinError then unwrap and find the first error with an exit code
-	if joinErr, ok := err.(interface{ Unwrap() []error }); ok {
-		for _, e := range joinErr.Unwrap() {
-			// if error is of type exec.ExitError then propagate the exit code
-			if exitError, ok := e.(*exec.ExitError); ok {
-				return exitError.ExitCode()
-			}
-		}
-	}
-
 	// if error is of type exec.ExitError then propagate the exit code
-	if exitError, ok := err.(*exec.ExitError); ok {
+	var exitError *exec.ExitError
+	if errors.As(err, &exitError) {
 		return exitError.ExitCode()
 	}
 
