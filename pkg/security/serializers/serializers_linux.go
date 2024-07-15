@@ -754,7 +754,7 @@ func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer 
 
 		if len(ps.ContainerID) != 0 {
 			psSerializer.Container = &ContainerContextSerializer{
-				ID:        ps.ContainerID,
+				ID:        string(ps.ContainerID),
 				CreatedAt: utils.NewEasyjsonTimeIfNotZero(time.Unix(0, int64(e.GetContainerCreatedAt()))),
 			}
 		}
@@ -1131,9 +1131,15 @@ func NewEventSerializer(event *model.Event, opts *eval.Opts) *EventSerializer {
 
 	if ctx, exists := event.FieldHandlers.ResolveContainerContext(event); exists {
 		s.ContainerContextSerializer = &ContainerContextSerializer{
-			ID:        ctx.ID,
+			ID:        string(ctx.ContainerID),
 			CreatedAt: utils.NewEasyjsonTimeIfNotZero(time.Unix(0, int64(ctx.CreatedAt))),
 			Variables: newVariablesContext(event, opts, "container."),
+		}
+	}
+
+	if cgroupID := event.FieldHandlers.ResolveCGroupID(event, &event.CGroupContext); cgroupID != "" {
+		s.CGroupContextSerializer = &CGroupContextSerializer{
+			ID: string(event.CGroupContext.CGroupID),
 		}
 	}
 

@@ -5,7 +5,7 @@
 
 //go:build unix
 
-//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors -tags unix -types-file model.go -output accessors_unix.go -field-handlers field_handlers_unix.go -doc ../../../../docs/cloud-workload-security/secl_linux.json -field-accessors-output field_accessors_unix.go
+//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors -tags unix -types-file model.go -output accessors_unix.go -field-handlers field_handlers_unix.go -doc ../../../../docs/cloud-workload-security/secl_linux.json -field-accessors-output field_accessors_unix.go -verbose
 
 // Package model holds model related files
 package model
@@ -27,6 +27,7 @@ type Event struct {
 	// context
 	SpanContext    SpanContext    `field:"-"`
 	NetworkContext NetworkContext `field:"network" event:"dns"`
+	CGroupContext  CGroupContext  `field:"cgroup" event:"*"`
 
 	// fim events
 	Chmod       ChmodEvent    `field:"chmod" event:"chmod"`             // [7.27] [File] A file’s permissions were changed
@@ -86,6 +87,12 @@ type Event struct {
 	NSID uint64 `field:"-"`
 }
 
+// CGroupContext holds the cgroup context of an event
+type CGroupContext struct {
+	CGroupID    CGroupID    `field:"id,handler:ResolveCGroupID"` // SECLDoc[id] Definition:`ID of the cgroup`
+	CGroupFlags CGroupFlags `field:"-"`
+}
+
 // SyscallEvent contains common fields for all the event
 type SyscallEvent struct {
 	Retval int64 `field:"retval"` // SECLDoc[retval] Definition:`Return value of the syscall` Constants:`Error constants`
@@ -95,13 +102,13 @@ type SyscallEvent struct {
 type SyscallContext struct {
 	ID uint32 `field:"-"`
 
-	StrArg1 string `field:"syscall.str1,handler:ResolveSyscallCtxArgsStr1,weight:900,opts:getters_only"`
-	StrArg2 string `field:"syscall.str2,handler:ResolveSyscallCtxArgsStr2,weight:900,opts:getters_only"`
-	StrArg3 string `field:"syscall.str3,handler:ResolveSyscallCtxArgsStr3,weight:900,opts:getters_only"`
+	StrArg1 string `field:"syscall.str1,handler:ResolveSyscallCtxArgsStr1,weight:900,opts:getters_only|skip_ad"`
+	StrArg2 string `field:"syscall.str2,handler:ResolveSyscallCtxArgsStr2,weight:900,opts:getters_only|skip_ad"`
+	StrArg3 string `field:"syscall.str3,handler:ResolveSyscallCtxArgsStr3,weight:900,opts:getters_only|skip_ad"`
 
-	IntArg1 int64 `field:"syscall.int1,handler:ResolveSyscallCtxArgsInt1,weight:900,opts:getters_only"`
-	IntArg2 int64 `field:"syscall.int2,handler:ResolveSyscallCtxArgsInt2,weight:900,opts:getters_only"`
-	IntArg3 int64 `field:"syscall.int3,handler:ResolveSyscallCtxArgsInt3,weight:900,opts:getters_only"`
+	IntArg1 int64 `field:"syscall.int1,handler:ResolveSyscallCtxArgsInt1,weight:900,opts:getters_only|skip_ad"`
+	IntArg2 int64 `field:"syscall.int2,handler:ResolveSyscallCtxArgsInt2,weight:900,opts:getters_only|skip_ad"`
+	IntArg3 int64 `field:"syscall.int3,handler:ResolveSyscallCtxArgsInt3,weight:900,opts:getters_only|skip_ad"`
 
 	Resolved bool `field:"-"`
 }
@@ -192,7 +199,8 @@ type Process struct {
 
 	FileEvent FileEvent `field:"file,check:IsNotKworker"`
 
-	ContainerID string `field:"container.id"` // SECLDoc[container.id] Definition:`Container ID`
+	CGroup      CGroupContext `field:"cgroup"`                                         // SECLDoc[cgroup] Definition:`CGroup`
+	ContainerID ContainerID   `field:"container.id,handler:ResolveProcessContainerID"` // SECLDoc[container.id] Definition:`Container ID`
 
 	SpanID  uint64 `field:"-"`
 	TraceID uint64 `field:"-"`
@@ -581,6 +589,7 @@ type SpliceEvent struct {
 
 // CgroupTracingEvent is used to signal that a new cgroup should be traced by the activity dump manager
 type CgroupTracingEvent struct {
+	CGroupFlags      uint64
 	ContainerContext ContainerContext
 	Config           ActivityDumpLoadConfig
 	ConfigCookie     uint64

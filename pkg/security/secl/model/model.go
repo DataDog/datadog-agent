@@ -67,13 +67,17 @@ func (r *Releasable) AppendReleaseCallback(callback func()) {
 	}
 }
 
+// ContainerID represents a container ID
+type ContainerID string
+
 // ContainerContext holds the container context of an event
 type ContainerContext struct {
 	Releasable
-	ID        string   `field:"id,handler:ResolveContainerID"`                              // SECLDoc[id] Definition:`ID of the container`
-	CreatedAt uint64   `field:"created_at,handler:ResolveContainerCreatedAt"`               // SECLDoc[created_at] Definition:`Timestamp of the creation of the container``
-	Tags      []string `field:"tags,handler:ResolveContainerTags,opts:skip_ad,weight:9999"` // SECLDoc[tags] Definition:`Tags of the container`
-	Resolved  bool     `field:"-"`
+	ContainerID ContainerID `field:"id,handler:ResolveContainerID"`                              // SECLDoc[id] Definition:`ID of the container`
+	CreatedAt   uint64      `field:"created_at,handler:ResolveContainerCreatedAt"`               // SECLDoc[created_at] Definition:`Timestamp of the creation of the container``
+	Tags        []string    `field:"tags,handler:ResolveContainerTags,opts:skip_ad,weight:9999"` // SECLDoc[tags] Definition:`Tags of the container`
+	Resolved    bool        `field:"-"`
+	Runtime     string      `field:"runtime,handler:ResolveContainerRuntime"` // SECLDoc[runtime] Definition:`Runtime managing the container`
 }
 
 // SecurityProfileContext holds the security context of the profile
@@ -137,6 +141,12 @@ type BaseEvent struct {
 	// field resolution
 	FieldHandlers FieldHandlers `field:"-"`
 }
+
+// CGroupID represents a cgroup ID
+type CGroupID string
+
+// CGroupFlags represents the flags of a cgroup
+type CGroupFlags uint64
 
 func initMember(member reflect.Value, deja map[string]bool) {
 	for i := 0; i < member.NumField(); i++ {

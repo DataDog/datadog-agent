@@ -180,11 +180,6 @@ func newEbpfTracer(config *config.Config, _ telemetryComponent.Component) (Trace
 			boolConst("tcpv6_enabled", config.CollectTCPv6Conns),
 			boolConst("udpv6_enabled", config.CollectUDPv6Conns),
 		},
-		VerifierOptions: ebpf.CollectionOptions{
-			Programs: ebpf.ProgramOptions{
-				LogSize: 10 * 1024 * 1024,
-			},
-		},
 		DefaultKProbeMaxActive: maxActive,
 		BypassEnabled:          config.BypassEnabled,
 	}
@@ -369,7 +364,7 @@ func (t *ebpfTracer) GetConnections(buffer *network.ConnectionBuffer, filter fun
 	// ebpf maps are being iterated over and deleted at the same time.
 	// The iteration can reset when that happens.
 	// See https://justin.azoff.dev/blog/bpf_map_get_next_key-pitfalls/
-	connsByTuple := make(map[netebpf.ConnTuple]struct{})
+	connsByTuple := make(map[netebpf.ConnTuple]uint32)
 
 	// Cached objects
 	conn := new(network.ConnectionStats)
@@ -378,7 +373,7 @@ func (t *ebpfTracer) GetConnections(buffer *network.ConnectionBuffer, filter fun
 	var tcp4, tcp6, udp4, udp6 float64
 	entries := t.conns.Iterate()
 	for entries.Next(key, stats) {
-		if _, exists := connsByTuple[*key]; exists {
+		if cookie, exists := connsByTuple[*key]; exists && cookie == stats.Cookie {
 			// already seen the connection in current batch processing,
 			// due to race between the iterator and bpf_map_delete
 			EbpfTracerTelemetry.iterationDups.Inc()
@@ -386,7 +381,7 @@ func (t *ebpfTracer) GetConnections(buffer *network.ConnectionBuffer, filter fun
 		}
 
 		populateConnStats(conn, key, stats, t.ch)
-		connsByTuple[*key] = struct{}{}
+		connsByTuple[*key] = stats.Cookie
 
 		isTCP := conn.Type == network.TCP
 		switch conn.Family {
