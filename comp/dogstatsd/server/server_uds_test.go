@@ -54,7 +54,7 @@ func TestUDSReceiverDisabled(t *testing.T) {
 }
 
 func TestUDSReceiverNoDir(t *testing.T) {
-	socketPath := "/var/run/datad0g/dsd.socket" // nonexistent dir, listener should not be set
+	socketPath := filepath.Join(t.TempDir(), "nonexistent", "dsd.socket") // nonexistent dir, listener should not be set
 
 	cfg := make(map[string]interface{})
 	cfg["dogstatsd_port"] = listeners.RandomPortName
