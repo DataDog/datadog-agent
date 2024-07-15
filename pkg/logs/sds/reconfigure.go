@@ -50,7 +50,7 @@ func ShouldBlockCollectionUntilSDSConfiguration(cfg pkgconfigmodel.Reader) bool 
 		return false
 	}
 
-	return cfg.GetString(WaitForConfigField) == "no_collection"
+	return SDSEnabled && cfg.GetString(WaitForConfigField) == "no_collection"
 }
 
 // ShouldBufferUntilSDSConfiguration returns true if we have to buffer until we've
@@ -60,7 +60,7 @@ func ShouldBufferUntilSDSConfiguration(cfg pkgconfigmodel.Reader) bool {
 		return false
 	}
 
-	return cfg.GetString(WaitForConfigField) == "buffer"
+	return SDSEnabled && cfg.GetString(WaitForConfigField) == "buffer"
 }
 
 // WaitForConfigurationBufferMaxSize returns a size for the buffer used while
