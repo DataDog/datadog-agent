@@ -144,7 +144,7 @@ func GetConfigCheckSnmp(conf config.Component) ([]SNMPConfig, error) {
 	// TODO: change the URL if the snmp check is a cluster check
 	// add /agent/config-check to cluster agent API
 	// Copy the code from comp/core/autodiscovery/autodiscoveryimpl/autoconfig.go#writeConfigCheck
-	endpoint, err := apiutil.NewIPCEndpoint(conf, "/agent/config-check")
+	endpoint, err := apiutil.NewIPCEndpoint(conf, "/agent/config-check?raw=true")
 	if err != nil {
 		return nil, err
 	}
