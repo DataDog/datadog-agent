@@ -133,8 +133,6 @@ func getDefaultArtifactOption(root string, opts sbom.ScanOptions) artifact.Optio
 		}
 	}
 
-	log.Infof("getDefaultArtifactOption %+v\n", option)
-
 	return option
 }
 
