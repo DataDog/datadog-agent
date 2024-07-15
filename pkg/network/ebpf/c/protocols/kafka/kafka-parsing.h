@@ -806,7 +806,7 @@ static __always_inline enum parse_result kafka_continue_parse_response_record_ba
         switch (response->state) {
         case KAFKA_FETCH_RESPONSE_RECORD_BATCH_START:
                 extra_debug("KAFKA_FETCH_RESPONSE_RECORD_BATCH_START: response->error_code %u, transaction.error_code %u, transaction.records_count: %d \n", response->partition_error_code,
-                response->transaction.partition_error_code,
+                response->partition_error_code,
                 response->transaction.records_count);
             if (response->transaction.records_count > 0 && response->partition_error_code != response->transaction.error_code) {
                 goto exit;
@@ -1093,7 +1093,7 @@ static __always_inline enum parse_result kafka_continue_parse_response(void *ctx
         if (ret == RET_LOOP_END) {
                 extra_debug("enqueue from new condition, records_count %d, error_code %d",
                     response->transaction.records_count,
-                    response->transaction.partition_error_code);
+                    response->partition_error_code);
                 kafka_batch_enqueue_wrapper(kafka, tup, &response->transaction);
                 response->transaction.records_count = 0;
                 response->transaction.error_code = 0;
