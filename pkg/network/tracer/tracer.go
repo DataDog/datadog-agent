@@ -211,6 +211,7 @@ func newTracer(cfg *config.Config, telemetryComponent telemetryComponent.Compone
 		cfg.MaxHTTPStatsBuffered,
 		cfg.MaxKafkaStatsBuffered,
 		cfg.MaxPostgresStatsBuffered,
+		cfg.MaxRedisStatsBuffered,
 		cfg.EnableNPMConnectionRollup,
 		cfg.EnableProcessEventMonitoring,
 	)
@@ -440,6 +441,7 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	conns.HTTP2 = delta.HTTP2
 	conns.Kafka = delta.Kafka
 	conns.Postgres = delta.Postgres
+	conns.Redis = delta.Redis
 	conns.ConnTelemetry = t.state.GetTelemetryDelta(clientID, t.getConnTelemetry(len(active)))
 	conns.CompilationTelemetryByAsset = t.getRuntimeCompilationTelemetry()
 	conns.KernelHeaderFetchResult = int32(kernel.HeaderProvider.GetResult())
