@@ -8,12 +8,13 @@
 package agent
 
 import (
+	"slices"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
-	"slices"
 )
 
 // List of check names for process checks
