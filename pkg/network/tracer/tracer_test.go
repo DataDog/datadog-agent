@@ -961,15 +961,17 @@ func testDNSStats(t *testing.T, tr *Tracer, domain string, success, failure, tim
 	queryMsg.RecursionDesired = true
 
 	var dnsClientAddr *net.UDPAddr
-	require.Eventually(t, func() bool {
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
 		dnsClient := new(dns.Client)
 		dnsConn, err := dnsClient.Dial(dnsServerAddr.String())
-		require.NoError(t, err)
+		assert.NoError(c, err)
 		dnsClientAddr = dnsConn.LocalAddr().(*net.UDPAddr)
 		_, _, err = dnsClient.ExchangeWithConn(queryMsg, dnsConn)
 		_ = dnsConn.Close()
-		return err == nil || timeout != 0
-	}, 6*time.Second, 100*time.Millisecond, "Failed to get dns response")
+		if timeout != 0 {
+			assert.NoError(c, err)
+		}
+	}, 6*time.Second, 100*time.Millisecond, "Failed to get dns response or unexpected response")
 
 	require.NoError(t, tr.reverseDNS.WaitForDomain(domain))
 
