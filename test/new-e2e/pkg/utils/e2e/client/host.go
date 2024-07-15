@@ -409,21 +409,21 @@ func (h *Host) HTTPClient() *http.Client {
 }
 
 func (h *Host) newHTTPTransport() *http.Transport {
-	// best effort to detect logic errors around the hostname
-	// if the hostname provided to dial is not one of those, return an error as
-	// it's likely an incorrect use of this transport
-	validHostnames := map[string]struct{}{
-		"":                             {},
-		"localhost":                    {},
-		"127.0.0.1":                    {},
-		h.client.RemoteAddr().String(): {},
-	}
-
 	return &http.Transport{
 		DialContext: func(ctx context.Context, _, addr string) (net.Conn, error) {
 			hostname, port, err := net.SplitHostPort(addr)
 			if err != nil {
 				return nil, err
+			}
+
+			// best effort to detect logic errors around the hostname
+			// if the hostname provided to dial is not one of those, return an error as
+			// it's likely an incorrect use of this transport
+			validHostnames := map[string]struct{}{
+				"":                             {},
+				"localhost":                    {},
+				"127.0.0.1":                    {},
+				h.client.RemoteAddr().String(): {},
 			}
 
 			if _, ok := validHostnames[hostname]; !ok {
