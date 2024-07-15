@@ -27,6 +27,7 @@ type k8sSuite struct {
 }
 
 func TestK8sSuite(t *testing.T) {
+	t.Parallel()
 	e2e.Run(t, &k8sSuite{}, e2e.WithProvisioner(kindfilelogger.Provisioner()))
 }
 

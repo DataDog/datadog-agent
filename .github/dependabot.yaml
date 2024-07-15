@@ -146,6 +146,10 @@ updates:
       # requires to also bump `TEST_INFRA_DEFINITIONS_BUILDIMAGES` inside `.gitlab/common/test_infra_version.yml`
       # and dependabot isn’t able to keep those two synchronized.
       - dependency-name: github.com/DataDog/test-infra-definitions
+      # Do not bump dependencies that come from test-infra-definitions, they will be bumped when we'll bump the version
+      # https://datadoghq.atlassian.net/browse/ADXT-375
+      - dependency-name: github.com/pulumi*
+
     schedule:
       interval: weekly
     open-pull-requests-limit: 100
