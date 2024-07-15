@@ -17,7 +17,7 @@ TEST_ENV = {
 }
 
 
-@task
+@task(default=True)
 def run(ctx, tests: str = '', flags: str = '-b'):
     """
     Run the unit tests on the invoke tasks
