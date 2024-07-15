@@ -101,7 +101,7 @@ func run(_ secrets.Component, _ autodiscovery.Component, _ healthprobeDef.Compon
 	lastFlush(logConfig.FlushTimeout, metricAgent, traceAgent, logsAgent)
 }
 
-func setup(mode.Conf) (cloudservice.CloudService, *serverlessInitLog.Config, *trace.ServerlessTraceAgent, *metrics.ServerlessMetricAgent, logsAgent.ServerlessLogsAgent) {
+func setup(mode.Conf) (cloudservice.CloudService, *serverlessInitLog.Config, trace.ServerlessTraceAgent, *metrics.ServerlessMetricAgent, logsAgent.ServerlessLogsAgent) {
 	tracelog.SetLogger(corelogger{})
 
 	// load proxy settings
@@ -134,8 +134,7 @@ func setup(mode.Conf) (cloudservice.CloudService, *serverlessInitLog.Config, *tr
 	}
 	logsAgent := serverlessInitLog.SetupLogAgent(agentLogConfig, tags)
 
-	traceAgent := &trace.ServerlessTraceAgent{}
-	go setupTraceAgent(traceAgent, tags)
+	traceAgent := setupTraceAgent(tags)
 
 	metricAgent := setupMetricAgent(tags)
 	metric.AddColdStartMetric(prefix, metricAgent.GetExtraTags(), time.Now(), metricAgent.Demux)
@@ -145,12 +144,15 @@ func setup(mode.Conf) (cloudservice.CloudService, *serverlessInitLog.Config, *tr
 	go flushMetricsAgent(metricAgent)
 	return cloudService, agentLogConfig, traceAgent, metricAgent, logsAgent
 }
-func setupTraceAgent(traceAgent *trace.ServerlessTraceAgent, tags map[string]string) {
-	traceAgent.Start(pkgconfig.Datadog().GetBool("apm_config.enabled"), &trace.LoadConfig{Path: datadogConfigPath}, nil, random.Random.Uint64())
+func setupTraceAgent(tags map[string]string) trace.ServerlessTraceAgent {
+	traceAgent := trace.StartServerlessTraceAgent(pkgconfig.Datadog().GetBool("apm_config.enabled"), &trace.LoadConfig{Path: datadogConfigPath}, nil, random.Random.Uint64())
 	traceAgent.SetTags(tags)
-	for range time.Tick(3 * time.Second) {
-		traceAgent.Flush()
-	}
+	go func() {
+		for range time.Tick(3 * time.Second) {
+			traceAgent.Flush()
+		}
+	}()
+	return traceAgent
 }
 
 func setupMetricAgent(tags map[string]string) *metrics.ServerlessMetricAgent {
