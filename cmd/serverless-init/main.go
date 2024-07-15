@@ -10,6 +10,7 @@ package main
 import (
 	"context"
 	"os"
+	"os/exec"
 	"sync"
 	"time"
 
@@ -87,7 +88,24 @@ func main() {
 
 	if err != nil {
 		log.Error(err)
-		os.Exit(1)
+
+		// if err is of type errors.joinError then unwrap and find the first error with an exit code
+		if joinErr, ok := err.(interface{ Unwrap() []error }); ok {
+			for _, e := range joinErr.Unwrap() {
+				// if error is of type exec.ExitError then propagate the exit code on exit
+				if exitError, ok := e.(*exec.ExitError); ok {
+					os.Exit(exitError.ExitCode())
+				}
+			}
+		}
+
+		// if error is of type exec.ExitError then propagate the exit code on exit
+		// otherwise exit with exit code 1
+		if exitError, ok := err.(*exec.ExitError); ok {
+			os.Exit(exitError.ExitCode())
+		} else {
+			os.Exit(1)
+		}
 	}
 }
 
