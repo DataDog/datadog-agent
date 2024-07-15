@@ -21,6 +21,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	fileopener "github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
@@ -28,51 +29,60 @@ import (
 )
 
 // === Mocks
-type MockManager struct {
+type mockManager struct {
 	mock.Mock
 }
 
-func (m *MockManager) AddHook(name string, probe *manager.Probe) error {
+func (m *mockManager) AddHook(name string, probe *manager.Probe) error {
 	args := m.Called(name, probe)
 	return args.Error(0)
 }
 
-func (m *MockManager) DetachHook(probeID manager.ProbeIdentificationPair) error {
+func (m *mockManager) DetachHook(probeID manager.ProbeIdentificationPair) error {
 	args := m.Called(probeID)
 	return args.Error(0)
 }
 
-func (m *MockManager) GetProbe(probeID manager.ProbeIdentificationPair) (*manager.Probe, bool) {
+func (m *mockManager) GetProbe(probeID manager.ProbeIdentificationPair) (*manager.Probe, bool) {
 	args := m.Called(probeID)
 	return args.Get(0).(*manager.Probe), args.Bool(1)
 }
 
-type MockFileRegistry struct {
+type mockFileRegistry struct {
 	mock.Mock
 }
 
-func (m *MockFileRegistry) Register(namespacedPath string, pid uint32, activationCB, deactivationCB func(utils.FilePath) error) error {
+func (m *mockFileRegistry) Register(namespacedPath string, pid uint32, activationCB, deactivationCB func(utils.FilePath) error) error {
 	args := m.Called(namespacedPath, pid, activationCB, deactivationCB)
 	return args.Error(0)
 }
 
-func (m *MockFileRegistry) Unregister(pid uint32) error {
+func (m *mockFileRegistry) Unregister(pid uint32) error {
 	args := m.Called(pid)
 	return args.Error(0)
 }
 
-func (m *MockFileRegistry) Clear() {
+func (m *mockFileRegistry) Clear() {
 	m.Called()
 }
 
-func (m *MockFileRegistry) GetRegisteredProcesses() map[uint32]struct{} {
+func (m *mockFileRegistry) GetRegisteredProcesses() map[uint32]struct{} {
 	args := m.Called()
 	return args.Get(0).(map[uint32]struct{})
 }
 
+type mockBinaryInspector struct {
+	mock.Mock
+}
+
+func (m *mockBinaryInspector) Inspect(path string, requests []SymbolRequest) (map[string]*bininspect.FunctionMetadata, bool, error) {
+	args := m.Called(path, requests)
+	return args.Get(0).(map[string]*bininspect.FunctionMetadata), args.Bool(1), args.Error(2)
+}
+
 // === Test utils
 type FakeProcFSEntry struct {
-	pid     int
+	pid     uint32
 	cmdline string
 	command string
 	exe     string
@@ -112,7 +122,7 @@ func createSymlink(t *testing.T, target, link string) {
 // === Tests
 
 func TestCanCreateAttacher(t *testing.T) {
-	ua, err := NewUprobeAttacher("mock", &AttacherConfig{}, &MockManager{}, nil, nil)
+	ua, err := NewUprobeAttacher("mock", &AttacherConfig{}, &mockManager{}, nil, nil)
 	require.NoError(t, err)
 	require.NotNil(t, ua)
 }
@@ -124,7 +134,7 @@ func TestAttachPidExcludesInternal(t *testing.T) {
 		ExcludeTargets: ExcludeInternal,
 		ProcRoot:       procRoot,
 	}
-	ua, err := NewUprobeAttacher("mock", config, &MockManager{}, nil, nil)
+	ua, err := NewUprobeAttacher("mock", config, &mockManager{}, nil, nil)
 	require.NoError(t, err)
 	require.NotNil(t, ua)
 
@@ -136,7 +146,7 @@ func TestAttachPidExcludesSelf(t *testing.T) {
 	config := &AttacherConfig{
 		ExcludeTargets: ExcludeSelf,
 	}
-	ua, err := NewUprobeAttacher("mock", config, &MockManager{}, nil, nil)
+	ua, err := NewUprobeAttacher("mock", config, &mockManager{}, nil, nil)
 	require.NoError(t, err)
 	require.NotNil(t, ua)
 
@@ -150,7 +160,7 @@ func TestGetExecutablePath(t *testing.T) {
 	config := &AttacherConfig{
 		ProcRoot: procRoot,
 	}
-	ua, err := NewUprobeAttacher("mock", config, &MockManager{}, nil, nil)
+	ua, err := NewUprobeAttacher("mock", config, &mockManager{}, nil, nil)
 	require.NoError(t, err)
 	require.NotNil(t, ua)
 
@@ -189,11 +199,11 @@ ffffe000-fffff000 r-xp 00000000 00:00 0          [vdso]
 
 func TestGetLibrariesFromMapsFile(t *testing.T) {
 	pid := 1
-	procRoot := createFakeProcFS(t, []FakeProcFSEntry{{pid: pid, maps: mapsFileSample}})
+	procRoot := createFakeProcFS(t, []FakeProcFSEntry{{pid: uint32(pid), maps: mapsFileSample}})
 	config := &AttacherConfig{
 		ProcRoot: procRoot,
 	}
-	ua, err := NewUprobeAttacher("mock", config, &MockManager{}, nil, nil)
+	ua, err := NewUprobeAttacher("mock", config, &mockManager{}, nil, nil)
 	require.NoError(t, err)
 	require.NotNil(t, ua)
 
@@ -205,7 +215,7 @@ func TestGetLibrariesFromMapsFile(t *testing.T) {
 }
 
 func TestComputeRequestedSymbols(t *testing.T) {
-	ua, err := NewUprobeAttacher("mock", &AttacherConfig{}, &MockManager{}, nil, nil)
+	ua, err := NewUprobeAttacher("mock", &AttacherConfig{}, &mockManager{}, nil, nil)
 	require.NoError(t, err)
 	require.NotNil(t, ua)
 
@@ -277,7 +287,7 @@ func TestComputeRequestedSymbols(t *testing.T) {
 }
 
 func TestStartAndStopWithoutLibraryWatcher(t *testing.T) {
-	ua, err := NewUprobeAttacher("mock", &AttacherConfig{}, &MockManager{}, nil, nil)
+	ua, err := NewUprobeAttacher("mock", &AttacherConfig{}, &mockManager{}, nil, nil)
 	require.NoError(t, err)
 	require.NotNil(t, ua)
 
@@ -289,7 +299,7 @@ func TestStartAndStopWithoutLibraryWatcher(t *testing.T) {
 
 func TestStartAndStopWithLibraryWatcher(t *testing.T) {
 	rules := []*AttachRule{{LibraryNameRegex: regexp.MustCompile(`libssl.so`)}}
-	ua, err := NewUprobeAttacher("mock", &AttacherConfig{Rules: rules}, &MockManager{}, nil, nil)
+	ua, err := NewUprobeAttacher("mock", &AttacherConfig{Rules: rules}, &mockManager{}, nil, nil)
 	require.NoError(t, err)
 	require.NotNil(t, ua)
 	require.True(t, ua.handlesLibraries())
@@ -306,11 +316,11 @@ func TestMonitor(t *testing.T) {
 		Rules:                     []*AttachRule{{LibraryNameRegex: regexp.MustCompile(`libssl.so`)}},
 		ProcessMonitorEventStream: false,
 	}
-	ua, err := NewUprobeAttacher("mock", config, &MockManager{}, nil, nil)
+	ua, err := NewUprobeAttacher("mock", config, &mockManager{}, nil, nil)
 	require.NoError(t, err)
 	require.NotNil(t, ua)
 
-	mockRegistry := &MockFileRegistry{}
+	mockRegistry := &mockFileRegistry{}
 	ua.fileRegistry = mockRegistry
 
 	// Tell mockRegistry to return on any calls, we will check the values later
@@ -343,16 +353,16 @@ func TestInitialScan(t *testing.T) {
 	procs := []FakeProcFSEntry{
 		{pid: 1, cmdline: "/bin/bash", command: "/bin/bash", exe: "/bin/bash"},
 		{pid: 2, cmdline: "/bin/bash", command: "/bin/bash", exe: "/bin/bash"},
-		{pid: selfPID, cmdline: "datadog-agent/bin/system-probe", command: "sysprobe", exe: "sysprobe"},
+		{pid: uint32(selfPID), cmdline: "datadog-agent/bin/system-probe", command: "sysprobe", exe: "sysprobe"},
 	}
 	procFS := createFakeProcFS(t, procs)
 
 	config := &AttacherConfig{ProcRoot: procFS}
-	ua, err := NewUprobeAttacher("mock", config, &MockManager{}, nil, nil)
+	ua, err := NewUprobeAttacher("mock", config, &mockManager{}, nil, nil)
 	require.NoError(t, err)
 	require.NotNil(t, ua)
 
-	mockRegistry := &MockFileRegistry{}
+	mockRegistry := &mockFileRegistry{}
 	ua.fileRegistry = mockRegistry
 
 	// Tell mockRegistry which two processes to expect
@@ -390,4 +400,243 @@ func TestParseSymbolFromEBPFProbeName(t *testing.T) {
 		_, _, err := parseSymbolFromEBPFProbeName(name)
 		require.Error(tt, err)
 	})
+}
+
+func TestAttachToBinary(t *testing.T) {
+	proc := FakeProcFSEntry{
+		pid:     1,
+		cmdline: "/bin/bash",
+		exe:     "/bin/bash",
+	}
+	procFS := createFakeProcFS(t, []FakeProcFSEntry{proc})
+
+	config := &AttacherConfig{
+		ProcRoot: procFS,
+		ProbeSelectors: []manager.ProbesSelector{
+			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "uprobe__SSL_connect"}},
+		},
+	}
+
+	mockMan := &mockManager{}
+	inspector := &mockBinaryInspector{}
+	ua, err := NewUprobeAttacher("mock", config, mockMan, nil, inspector)
+	require.NoError(t, err)
+	require.NotNil(t, ua)
+
+	target := utils.FilePath{
+		HostPath: proc.exe,
+		PID:      proc.pid,
+	}
+
+	// Tell the inspector to return a simple symbol
+	symbolToAttach := bininspect.FunctionMetadata{EntryLocation: 0x1234}
+	inspector.On("Inspect", target.HostPath, mock.Anything).Return(map[string]*bininspect.FunctionMetadata{"SSL_connect": &symbolToAttach}, true, nil)
+
+	// Tell the manager to return no probe when finding an existing one
+	var nilProbe *manager.Probe // we can't just pass nil directly, if we do that the mock cannot convert it to *manager.Probe
+	mockMan.On("GetProbe", mock.Anything).Return(nilProbe, false)
+
+	// Tell the manager to accept the probe
+	uid := "1hipf_0" // this is the UID that the manager will generate, from a path identifier with 0/0 as device/inode
+	expectedProbe := &manager.Probe{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "uprobe__SSL_connect", UID: uid},
+		BinaryPath:              target.HostPath,
+		UprobeOffset:            symbolToAttach.EntryLocation,
+		HookFuncName:            "SSL_connect",
+	}
+	mockMan.On("AddHook", mock.Anything, expectedProbe).Return(nil)
+
+	err = ua.attachToBinary(target, nil)
+	require.NoError(t, err)
+	inspector.AssertExpectations(t)
+	mockMan.AssertExpectations(t)
+}
+
+func TestAttachToBinaryAtReturnLocation(t *testing.T) {
+	proc := FakeProcFSEntry{
+		pid:     1,
+		cmdline: "/bin/bash",
+		exe:     "/bin/bash",
+	}
+	procFS := createFakeProcFS(t, []FakeProcFSEntry{proc})
+
+	config := &AttacherConfig{
+		ProcRoot: procFS,
+		ProbeSelectors: []manager.ProbesSelector{
+			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "uprobe__SSL_connect__return"}},
+		},
+	}
+
+	mockMan := &mockManager{}
+	inspector := &mockBinaryInspector{}
+	ua, err := NewUprobeAttacher("mock", config, mockMan, nil, inspector)
+	require.NoError(t, err)
+	require.NotNil(t, ua)
+
+	target := utils.FilePath{
+		HostPath: proc.exe,
+		PID:      proc.pid,
+	}
+
+	// Tell the inspector to return a simple symbol
+	symbolToAttach := bininspect.FunctionMetadata{EntryLocation: 0x1234, ReturnLocations: []uint64{0x0, 0x1}}
+	inspector.On("Inspect", target.HostPath, mock.Anything).Return(map[string]*bininspect.FunctionMetadata{"SSL_connect": &symbolToAttach}, true, nil)
+
+	// Tell the manager to return no probe when finding an existing one
+	var nilProbe *manager.Probe // we can't just pass nil directly, if we do that the mock cannot convert it to *manager.Probe
+	mockMan.On("GetProbe", mock.Anything).Return(nilProbe, false)
+
+	// Tell the manager to accept the probe
+	uidBase := "1hipf" // this is the UID that the manager will generate, from a path identifier with 0/0 as device/inode
+	for n := 0; n < len(symbolToAttach.ReturnLocations); n++ {
+		expectedProbe := &manager.Probe{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: "uprobe__SSL_connect__return",
+				UID:          fmt.Sprintf("%s_%d", uidBase, n)},
+			BinaryPath:   target.HostPath,
+			UprobeOffset: symbolToAttach.ReturnLocations[n],
+			HookFuncName: "SSL_connect",
+		}
+		mockMan.On("AddHook", mock.Anything, expectedProbe).Return(nil)
+	}
+
+	err = ua.attachToBinary(target, nil)
+	require.NoError(t, err)
+	inspector.AssertExpectations(t)
+	mockMan.AssertExpectations(t)
+}
+
+func TestAttachToBinaryShouldIgnoreNonMatchingProbes(t *testing.T) {
+	proc := FakeProcFSEntry{
+		pid:     1,
+		cmdline: "/bin/bash",
+		exe:     "/bin/bash",
+	}
+	procFS := createFakeProcFS(t, []FakeProcFSEntry{proc})
+
+	config := &AttacherConfig{
+		ProcRoot: procFS,
+		ProbeSelectors: []manager.ProbesSelector{
+			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: "uprobe__SSL_connect",
+			}},
+			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: "uprobe__TLS_connect",
+			}},
+		},
+		Rules: []*AttachRule{
+			{
+				LibraryNameRegex: regexp.MustCompile(`libssl.so`),
+				UprobeNameRegex:  regexp.MustCompile(`SSL_.*`),
+			},
+		},
+	}
+
+	mockMan := &mockManager{}
+	inspector := &mockBinaryInspector{}
+	ua, err := NewUprobeAttacher("mock", config, mockMan, nil, inspector)
+	require.NoError(t, err)
+	require.NotNil(t, ua)
+
+	target := utils.FilePath{
+		HostPath: "/usr/lib/libssl.so",
+		PID:      proc.pid,
+	}
+
+	// Tell the inspector to return a simple symbol
+	symbolToAttach := bininspect.FunctionMetadata{EntryLocation: 0x1234}
+	inspector.On("Inspect", target.HostPath, mock.Anything).Return(map[string]*bininspect.FunctionMetadata{"SSL_connect": &symbolToAttach}, true, nil)
+
+	// Tell the manager to return no probe when finding an existing one
+	var nilProbe *manager.Probe // we can't just pass nil directly, if we do that the mock cannot convert it to *manager.Probe
+	mockMan.On("GetProbe", mock.Anything).Return(nilProbe, false)
+
+	// Tell the manager to accept the probe
+	uid := "1hipf_0" // this is the UID that the manager will generate, from a path identifier with 0/0 as device/inode
+	expectedProbe := &manager.Probe{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "uprobe__SSL_connect", UID: uid},
+		BinaryPath:              target.HostPath,
+		UprobeOffset:            symbolToAttach.EntryLocation,
+		HookFuncName:            "SSL_connect",
+	}
+	mockMan.On("AddHook", mock.Anything, expectedProbe).Return(nil)
+
+	// if this function calls the manager adding a probe with a different name than the one we requested, the test
+	// will fail
+	err = ua.attachToBinary(target, nil)
+	require.NoError(t, err)
+	inspector.AssertExpectations(t)
+	mockMan.AssertExpectations(t)
+}
+
+const mapsFileWithSSL = `
+08048000-08049000 r-xp 00000000 03:00 8312       /usr/lib/libssl.so
+`
+
+func TestAttachToLibrariesOfPid(t *testing.T) {
+	proc := FakeProcFSEntry{
+		pid:     1,
+		cmdline: "/bin/bash",
+		exe:     "/bin/bash",
+		maps:    mapsFileWithSSL,
+	}
+	procFS := createFakeProcFS(t, []FakeProcFSEntry{proc})
+
+	config := &AttacherConfig{
+		ProcRoot: procFS,
+		ProbeSelectors: []manager.ProbesSelector{
+			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: "uprobe__SSL_connect",
+			}},
+			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: "uprobe__TLS_connect",
+			}},
+		},
+		Rules: []*AttachRule{
+			{
+				LibraryNameRegex: regexp.MustCompile(`libssl.so`),
+				UprobeNameRegex:  regexp.MustCompile(`SSL_.*`),
+			},
+			{
+				LibraryNameRegex: regexp.MustCompile(`libtls.so`),
+				UprobeNameRegex:  regexp.MustCompile(`SSL_.*`),
+			},
+		},
+	}
+
+	mockMan := &mockManager{}
+	inspector := &mockBinaryInspector{}
+	ua, err := NewUprobeAttacher("mock", config, mockMan, nil, inspector)
+	require.NoError(t, err)
+	require.NotNil(t, ua)
+
+	target := utils.FilePath{
+		HostPath: "/usr/lib/libssl.so",
+		PID:      proc.pid,
+	}
+
+	// Tell the inspector to return a simple symbol
+	symbolToAttach := bininspect.FunctionMetadata{EntryLocation: 0x1234}
+	inspector.On("Inspect", target.HostPath, mock.Anything).Return(map[string]*bininspect.FunctionMetadata{"SSL_connect": &symbolToAttach}, true, nil)
+
+	// Tell the manager to return no probe when finding an existing one
+	var nilProbe *manager.Probe // we can't just pass nil directly, if we do that the mock cannot convert it to *manager.Probe
+	mockMan.On("GetProbe", mock.Anything).Return(nilProbe, false)
+
+	// Tell the manager to accept the probe
+	uid := "1hipf_0" // this is the UID that the manager will generate, from a path identifier with 0/0 as device/inode
+	expectedProbe := &manager.Probe{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "uprobe__SSL_connect", UID: uid},
+		BinaryPath:              target.HostPath,
+		UprobeOffset:            symbolToAttach.EntryLocation,
+		HookFuncName:            "SSL_connect",
+	}
+	mockMan.On("AddHook", mock.Anything, expectedProbe).Return(nil)
+
+	// if this function calls the manager adding a probe with a different name than the one we requested, the test
+	// will fail
+	err = ua.attachToLibrariesOfPID(proc.pid)
+	require.NoError(t, err)
+	inspector.AssertExpectations(t)
+	mockMan.AssertExpectations(t)
 }

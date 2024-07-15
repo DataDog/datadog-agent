@@ -536,7 +536,7 @@ func (ua *UprobeAttacher) attachToBinary(fpath utils.FilePath, matchingRules []*
 					rulesForProbe = append(rulesForProbe, rule)
 				}
 			}
-			if len(rulesToSearch) == 0 && len(rulesForProbe) == 0 {
+			if len(rulesToSearch) != 0 && len(rulesForProbe) == 0 {
 				// Skip this probe if we have rules and none of them match
 				continue
 			}
