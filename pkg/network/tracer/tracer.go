@@ -141,7 +141,7 @@ func newTracer(cfg *config.Config, telemetryComponent telemetryComponent.Compone
 	}
 
 	if cfg.ServiceMonitoringEnabled {
-		if err := usmconfig.IsUSMSupported(cfg); err != nil {
+		if err := usmconfig.CheckUSMSupported(cfg); err != nil {
 			if !errors.Is(err, usmconfig.ErrNotSupported) {
 				return nil, err
 			}

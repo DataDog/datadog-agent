@@ -51,9 +51,10 @@ func TLSSupported(c *config.Config) bool {
 	return kversion >= MinimumKernelVersion
 }
 
-// IsUSMSupported returns `true` if USM is supported on this
-// platform.
-func IsUSMSupported(cfg *config.Config) error {
+// CheckUSMSupported returns an error if USM is not supported
+// on this platform. Callers can check `errors.Is(err, ErrNotSupported)`
+// to verify if USM is supported
+func CheckUSMSupported(cfg *config.Config) error {
 	// TODO: remove this once USM is supported on ebpf-less
 	if cfg.EnableEbpfless {
 		return fmt.Errorf("%w: eBPF-less is not supported", ErrNotSupported)
@@ -61,7 +62,7 @@ func IsUSMSupported(cfg *config.Config) error {
 
 	kversion, err := kernel.HostVersion()
 	if err != nil {
-		return fmt.Errorf("could not determine the current kernel version: %w", err)
+		return fmt.Errorf("%w: could not determine the current kernel version: %w", ErrNotSupported, err)
 	}
 
 	if kversion < MinimumKernelVersion {
@@ -74,7 +75,7 @@ func IsUSMSupported(cfg *config.Config) error {
 // IsUSMSupportedAndEnabled returns true if USM is supported and enabled
 func IsUSMSupportedAndEnabled(config *config.Config) bool {
 	// http.Supported is misleading, it should be named usm.Supported.
-	return config.ServiceMonitoringEnabled && IsUSMSupported(config) == nil
+	return config.ServiceMonitoringEnabled && CheckUSMSupported(config) == nil
 }
 
 // NeedProcessMonitor returns true if the process monitor is needed for the given configuration
