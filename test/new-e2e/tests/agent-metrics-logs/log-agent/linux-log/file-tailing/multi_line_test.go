@@ -42,7 +42,7 @@ func TestMultiLineSuite(t *testing.T) {
 	options := []e2e.SuiteOption{
 		e2e.WithProvisioner(awshost.Provisioner(awshost.WithAgentOptions(agentparams.WithLogs()))),
 	}
-
+	t.Parallel()
 	e2e.Run(t, s, options...)
 }
 

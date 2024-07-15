@@ -35,7 +35,7 @@ jobs:
             - name: Determine the release active branch
               run: |
                 echo "RELEASE_BRANCH=$(inv -e release.get-active-release-branch)" >> $GITHUB_ENV
-            
+
             - name: Set the warning option
               if: github.event.schedule == '0 8 * * 1,3,5'
               run: echo "WARNING='-w'" >> $GITHUB_ENV
@@ -45,13 +45,12 @@ jobs:
               with:
                 ref: ${{ env.RELEASE_BRANCH }}
                 fetch-depth: 0
-                sparse-checkout: 'tasks'
-            
+
             - name: Check for changes since last RC
               id: check_for_changes
               run: |
-                echo "CHANGES=$(inv -e release.check-for-changes -r ${{ env.RELEASE_BRANCH }} ${{ env.WARNING }})" >> $GITHUB_ENV
-                  
+                echo "CHANGES=$(inv -e release.check-for-changes -r ${{ env.RELEASE_BRANCH }} ${{ env.WARNING }})" >> $GITHUB_OUTPUT
+
             - name: Create RC PR
               if: ${{ steps.check_for_changes.outputs.CHANGES == 'true'}}
               run: |
