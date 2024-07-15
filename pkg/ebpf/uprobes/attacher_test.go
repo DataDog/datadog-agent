@@ -606,9 +606,11 @@ func TestAttachToLibrariesOfPid(t *testing.T) {
 
 	mockMan := &mockManager{}
 	inspector := &mockBinaryInspector{}
+	registry := &mockFileRegistry{}
 	ua, err := NewUprobeAttacher("mock", config, mockMan, nil, inspector)
 	require.NoError(t, err)
 	require.NotNil(t, ua)
+	ua.fileRegistry = registry
 
 	target := utils.FilePath{
 		HostPath: "/usr/lib/libssl.so",
@@ -633,10 +635,20 @@ func TestAttachToLibrariesOfPid(t *testing.T) {
 	}
 	mockMan.On("AddHook", mock.Anything, expectedProbe).Return(nil)
 
+	// Tell the registry to expect the process
+	registry.On("Register", target.HostPath, uint32(proc.pid), mock.Anything, mock.Anything).Return(nil)
+
 	// if this function calls the manager adding a probe with a different name than the one we requested, the test
 	// will fail
 	err = ua.attachToLibrariesOfPID(proc.pid)
 	require.NoError(t, err)
+
+	// We need to retrieve the calls from the registry and manually call the callback
+	// to simulate the process being registered
+	registry.AssertExpectations(t)
+	cb := registry.Calls[0].Arguments[2].(func(utils.FilePath) error)
+	require.NoError(t, cb(target))
+
 	inspector.AssertExpectations(t)
 	mockMan.AssertExpectations(t)
 }
