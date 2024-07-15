@@ -77,7 +77,7 @@ def go_deps(
     ctx,
     baseline_ref=None,
     report_file=None,
-    send_series: bool = True,
+    send_series: bool = False,
 ):
     if check_uncommitted_changes(ctx):
         raise Exit(
@@ -171,7 +171,7 @@ def go_deps(
                         f"flavor:{flavor.name}",
                         f"os:{goos}",
                         f"arch:{goarch}",
-                        f"git_ref:#{commit_sha}",
+                        f"git_sha:{commit_sha}",
                     ]
 
                     if target in diffs:
