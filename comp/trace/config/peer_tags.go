@@ -12,26 +12,26 @@ import (
 //go:embed peer_tags.ini
 var peerTagFile []byte
 
-// defaultPeerTags is the default set of peer tags used when peer tag aggregation is enabled.
+// defaultPeerTags is the default set of peer tag precursors (tags from which peer tags
+// are derived) we aggregate on when peer tag aggregation is enabled.
 // This should only be directly used in tests.
 var defaultPeerTags = func() []string {
-	var tags []string = []string{"_dd.base_service"}
+	var precursors []string = []string{"_dd.base_service"}
 
 	cfg, err := ini.Load(peerTagFile)
 	if err != nil {
 		log.Error("Error loading file for peer tags: ", err)
-		return tags
+		return precursors
 	}
-	keys := cfg.Section("dd.apm.peer.tags").Keys()
+	peerTags := cfg.Section("dd.apm.peer.tags").Keys()
 
-	for _, key := range keys {
-		value := strings.Split(key.Value(), ",")
-		tags = append(tags, value...)
+	for _, t := range peerTags {
+		ps := strings.Split(t.Value(), ",")
+		precursors = append(precursors, ps...)
 	}
+	sort.Strings(precursors)
 
-	sort.Strings(tags)
-
-	return tags
+	return precursors
 }()
 
 func preparePeerTags(tags []string) []string {
