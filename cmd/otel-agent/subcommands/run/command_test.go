@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands"
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
 	"github.com/stretchr/testify/require"
@@ -47,6 +48,12 @@ func waitForReadiness() {
 }
 
 func TestRunOTelAgentCommand(t *testing.T) {
+	apmstatsRec := &testutil.HTTPRequestRecorderWithChan{Pattern: testutil.APMStatsEndpoint, ReqChan: make(chan []byte)}
+	tracesRec := &testutil.HTTPRequestRecorderWithChan{Pattern: testutil.TraceEndpoint, ReqChan: make(chan []byte)}
+	server := testutil.DatadogServerMock(apmstatsRec.HandlerFunc, tracesRec.HandlerFunc)
+	defer server.Close()
+	t.Setenv("SERVER_URL", server.URL)
+
 	params := &subcommands.GlobalParams{
 		ConfPaths:  []string{"test_config.yaml"},
 		ConfigName: "datadog-otel",

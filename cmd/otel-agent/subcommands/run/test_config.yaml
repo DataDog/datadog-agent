@@ -15,7 +15,14 @@ exporters:
   debug:
   datadog:
     api:
-      key: ${env:DD_API_KEY}
+      key: "key"
+    traces:
+      endpoint: ${env:SERVER_URL}
+      trace_buffer: 10
+    metrics:
+      endpoint: ${env:SERVER_URL}
+    logs:
+      endpoint: ${env:SERVER_URL}
 
 extensions:
   health_check:
