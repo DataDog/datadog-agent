@@ -510,7 +510,6 @@ type SyscallArgsSerializer struct {
 }
 
 func newSyscallArgsSerializer(sc *model.SyscallContext, e *model.Event) *SyscallArgsSerializer {
-	e.FieldHandlers.ResolveSyscallCtxArgs(e, sc)
 
 	switch e.GetEventType() {
 	case model.FileChmodEventType:
@@ -588,8 +587,21 @@ type SyscallContextSerializer struct {
 	Mount  *SyscallArgsSerializer `json:"mount,omitempty"`
 }
 
-func newSyscallContextSerializer() *SyscallContextSerializer {
-	return &SyscallContextSerializer{}
+func newSyscallContextSerializer(sc *model.SyscallContext, e *model.Event, attachEventypeCb func(*SyscallContextSerializer, *SyscallArgsSerializer)) *SyscallContextSerializer {
+	e.FieldHandlers.ResolveSyscallCtxArgs(e, sc)
+	if !sc.Resolved {
+		return nil
+	}
+
+	syscallArgsSerializer := newSyscallArgsSerializer(sc, e)
+	if syscallArgsSerializer == nil {
+		return nil
+	}
+
+	syscallContextSerializer := &SyscallContextSerializer{}
+	attachEventypeCb(syscallContextSerializer, syscallArgsSerializer)
+
+	return syscallContextSerializer
 }
 
 // EventSerializer serializes an event to JSON
@@ -1154,8 +1166,9 @@ func NewEventSerializer(event *model.Event, opts *eval.Opts) *EventSerializer {
 			},
 		}
 		s.EventContextSerializer.Outcome = serializeOutcome(event.Chmod.Retval)
-		s.SyscallContextSerializer = newSyscallContextSerializer()
-		s.SyscallContextSerializer.Chmod = newSyscallArgsSerializer(&event.Chmod.SyscallContext, event)
+		s.SyscallContextSerializer = newSyscallContextSerializer(&event.Chmod.SyscallContext, event, func(ctx *SyscallContextSerializer, args *SyscallArgsSerializer) {
+			ctx.Chmod = args
+		})
 	case model.FileChownEventType:
 		s.FileEventSerializer = &FileEventSerializer{
 			FileSerializer: *newFileSerializer(&event.Chown.File, event),
@@ -1165,8 +1178,9 @@ func NewEventSerializer(event *model.Event, opts *eval.Opts) *EventSerializer {
 			},
 		}
 		s.EventContextSerializer.Outcome = serializeOutcome(event.Chown.Retval)
-		s.SyscallContextSerializer = newSyscallContextSerializer()
-		s.SyscallContextSerializer.Chown = newSyscallArgsSerializer(&event.Chown.SyscallContext, event)
+		s.SyscallContextSerializer = newSyscallContextSerializer(&event.Chown.SyscallContext, event, func(ctx *SyscallContextSerializer, args *SyscallArgsSerializer) {
+			ctx.Chown = args
+		})
 	case model.FileLinkEventType:
 		// use the source inode as the target one is a fake inode
 		s.FileEventSerializer = &FileEventSerializer{
@@ -1174,8 +1188,9 @@ func NewEventSerializer(event *model.Event, opts *eval.Opts) *EventSerializer {
 			Destination:    newFileSerializer(&event.Link.Target, event, event.Link.Source.Inode),
 		}
 		s.EventContextSerializer.Outcome = serializeOutcome(event.Link.Retval)
-		s.SyscallContextSerializer = newSyscallContextSerializer()
-		s.SyscallContextSerializer.Link = newSyscallArgsSerializer(&event.Link.SyscallContext, event)
+		s.SyscallContextSerializer = newSyscallContextSerializer(&event.Link.SyscallContext, event, func(ctx *SyscallContextSerializer, args *SyscallArgsSerializer) {
+			ctx.Link = args
+		})
 	case model.FileOpenEventType:
 		s.FileEventSerializer = &FileEventSerializer{
 			FileSerializer: *newFileSerializer(&event.Open.File, event),
@@ -1189,8 +1204,9 @@ func NewEventSerializer(event *model.Event, opts *eval.Opts) *EventSerializer {
 
 		s.FileSerializer.Flags = model.OpenFlags(event.Open.Flags).StringArray()
 		s.EventContextSerializer.Outcome = serializeOutcome(event.Open.Retval)
-		s.SyscallContextSerializer = newSyscallContextSerializer()
-		s.SyscallContextSerializer.Open = newSyscallArgsSerializer(&event.Open.SyscallContext, event)
+		s.SyscallContextSerializer = newSyscallContextSerializer(&event.Open.SyscallContext, event, func(ctx *SyscallContextSerializer, args *SyscallArgsSerializer) {
+			ctx.Open = args
+		})
 	case model.FileMkdirEventType:
 		s.FileEventSerializer = &FileEventSerializer{
 			FileSerializer: *newFileSerializer(&event.Mkdir.File, event),
@@ -1209,16 +1225,18 @@ func NewEventSerializer(event *model.Event, opts *eval.Opts) *EventSerializer {
 			FileSerializer: *newFileSerializer(&event.Chdir.File, event),
 		}
 		s.EventContextSerializer.Outcome = serializeOutcome(event.Chdir.Retval)
-		s.SyscallContextSerializer = newSyscallContextSerializer()
-		s.SyscallContextSerializer.Chdir = newSyscallArgsSerializer(&event.Chdir.SyscallContext, event)
+		s.SyscallContextSerializer = newSyscallContextSerializer(&event.Chdir.SyscallContext, event, func(ctx *SyscallContextSerializer, args *SyscallArgsSerializer) {
+			ctx.Chdir = args
+		})
 	case model.FileUnlinkEventType:
 		s.FileEventSerializer = &FileEventSerializer{
 			FileSerializer: *newFileSerializer(&event.Unlink.File, event),
 		}
 		s.FileSerializer.Flags = model.UnlinkFlags(event.Unlink.Flags).StringArray()
 		s.EventContextSerializer.Outcome = serializeOutcome(event.Unlink.Retval)
-		s.SyscallContextSerializer = newSyscallContextSerializer()
-		s.SyscallContextSerializer.Unlink = newSyscallArgsSerializer(&event.Unlink.SyscallContext, event)
+		s.SyscallContextSerializer = newSyscallContextSerializer(&event.Unlink.SyscallContext, event, func(ctx *SyscallContextSerializer, args *SyscallArgsSerializer) {
+			ctx.Unlink = args
+		})
 	case model.FileRenameEventType:
 		// use the new inode as the old one is a fake inode
 		s.FileEventSerializer = &FileEventSerializer{
@@ -1226,8 +1244,9 @@ func NewEventSerializer(event *model.Event, opts *eval.Opts) *EventSerializer {
 			Destination:    newFileSerializer(&event.Rename.New, event),
 		}
 		s.EventContextSerializer.Outcome = serializeOutcome(event.Rename.Retval)
-		s.SyscallContextSerializer = newSyscallContextSerializer()
-		s.SyscallContextSerializer.Rename = newSyscallArgsSerializer(&event.Rename.SyscallContext, event)
+		s.SyscallContextSerializer = newSyscallContextSerializer(&event.Rename.SyscallContext, event, func(ctx *SyscallContextSerializer, args *SyscallArgsSerializer) {
+			ctx.Rename = args
+		})
 	case model.FileRemoveXAttrEventType:
 		s.FileEventSerializer = &FileEventSerializer{
 			FileSerializer: *newFileSerializer(&event.RemoveXAttr.File, event),
@@ -1255,13 +1274,15 @@ func NewEventSerializer(event *model.Event, opts *eval.Opts) *EventSerializer {
 			},
 		}
 		s.EventContextSerializer.Outcome = serializeOutcome(event.Utimes.Retval)
-		s.SyscallContextSerializer = newSyscallContextSerializer()
-		s.SyscallContextSerializer.Utimes = newSyscallArgsSerializer(&event.Utimes.SyscallContext, event)
+		s.SyscallContextSerializer = newSyscallContextSerializer(&event.Utimes.SyscallContext, event, func(ctx *SyscallContextSerializer, args *SyscallArgsSerializer) {
+			ctx.Utimes = args
+		})
 	case model.FileMountEventType:
 		s.MountEventSerializer = newMountEventSerializer(event)
 		s.EventContextSerializer.Outcome = serializeOutcome(event.Mount.Retval)
-		s.SyscallContextSerializer = newSyscallContextSerializer()
-		s.SyscallContextSerializer.Mount = newSyscallArgsSerializer(&event.Mount.SyscallContext, event)
+		s.SyscallContextSerializer = newSyscallContextSerializer(&event.Mount.SyscallContext, event, func(ctx *SyscallContextSerializer, args *SyscallArgsSerializer) {
+			ctx.Mount = args
+		})
 	case model.FileUmountEventType:
 		s.FileEventSerializer = &FileEventSerializer{
 			NewMountID: event.Umount.MountID,
@@ -1356,8 +1377,9 @@ func NewEventSerializer(event *model.Event, opts *eval.Opts) *EventSerializer {
 			FileSerializer: *newFileSerializer(&event.ProcessContext.Process.FileEvent, event),
 		}
 		s.EventContextSerializer.Outcome = serializeOutcome(0)
-		s.SyscallContextSerializer = newSyscallContextSerializer()
-		s.SyscallContextSerializer.Exec = newSyscallArgsSerializer(&event.Exec.SyscallContext, event)
+		s.SyscallContextSerializer = newSyscallContextSerializer(&event.Exec.SyscallContext, event, func(ctx *SyscallContextSerializer, args *SyscallArgsSerializer) {
+			ctx.Exec = args
+		})
 	}
 
 	return s
