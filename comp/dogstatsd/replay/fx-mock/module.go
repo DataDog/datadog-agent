@@ -11,6 +11,7 @@
 package fxmock
 
 import (
+	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	replaymock "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -21,5 +22,6 @@ func MockModule() fxutil.Module {
 		fxutil.ProvideComponentConstructor(
 			replaymock.NewTrafficCapture,
 		),
+		fxutil.ProvideOptional[replay.Component](),
 	)
 }
