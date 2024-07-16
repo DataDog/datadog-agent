@@ -8,6 +8,6 @@
 ---
 enhancements:
   - |
-    APM: Allow custom HTTP client to provided when instantiating the
-    trace-agent configuration. This feature is primarily intended for
-    Opentelemetry exporter.
+    APM: Allow custom HTTP client to be provided when instantiating the
+    trace-agent configuration. This feature is primarily intended for the
+    OpenTelemetry exporter.
