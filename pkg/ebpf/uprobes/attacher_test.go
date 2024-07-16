@@ -599,7 +599,7 @@ func TestAttachToLibrariesOfPid(t *testing.T) {
 			},
 			{
 				LibraryNameRegex: regexp.MustCompile(`libtls.so`),
-				UprobeNameRegex:  regexp.MustCompile(`SSL_.*`),
+				UprobeNameRegex:  regexp.MustCompile(`TLS_.*`),
 			},
 		},
 	}
