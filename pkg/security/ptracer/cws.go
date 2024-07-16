@@ -290,7 +290,7 @@ func ptrace(tracer *Tracer, probeAddr string, syscallHandlers map[int]syscallHan
 		syscall.SIGQUIT)
 	go func() {
 		<-sigChan
-		_ = syscall.Kill(tracer.PID, syscall.SIGTERM)
+		os.Exit(0)
 	}()
 
 	var (

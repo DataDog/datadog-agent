@@ -632,6 +632,10 @@ func newTestModuleWithOnDemandProbes(t testing.TB, onDemandHooks []rules.OnDeman
 		opt(&opts)
 	}
 
+	prevEbpfLessEnabled := ebpfLessEnabled
+	defer func() {
+		ebpfLessEnabled = prevEbpfLessEnabled
+	}()
 	ebpfLessEnabled = ebpfLessEnabled || opts.staticOpts.ebpfLessEnabled
 
 	if commonCfgDir == "" {

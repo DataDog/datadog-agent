@@ -487,6 +487,7 @@ func (p *EBPFLessProbe) Start() error {
 		for {
 			conn, err := listener.Accept()
 			if err != nil {
+<<<<<<< HEAD
 				select {
 				case <-p.ctx.Done():
 					return
@@ -494,6 +495,9 @@ func (p *EBPFLessProbe) Start() error {
 					seclog.Errorf("unable to accept new connection: %s", err)
 					continue
 				}
+=======
+				return
+>>>>>>> 656c28b55a (set the ebpfLessEnabled back)
 			}
 			p.handleNewClient(conn, ch)
 		}
