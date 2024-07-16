@@ -11,9 +11,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/clients"
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	ssmTypes "github.com/aws/aws-sdk-go-v2/service/ssm/types"
+
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/clients"
 )
 
 var _ valueStore = &awsStore{}
@@ -35,6 +36,9 @@ func (s awsStore) get(key StoreKey) (string, error) {
 	ssmClient, err := clients.GetAWSSSMClient()
 	if err != nil {
 		return "", err
+	}
+	if newKey, ok := AWSoverrides[key]; ok {
+		key = newKey
 	}
 
 	awsKey := strings.ToLower(s.prefix + string(key))

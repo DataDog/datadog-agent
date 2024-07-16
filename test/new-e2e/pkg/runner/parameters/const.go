@@ -50,3 +50,9 @@ const (
 	// DevMode config flag parameter name
 	DevMode StoreKey = "dev_mode"
 )
+
+// AWS Store keys override
+var AWSoverrides = map[StoreKey]StoreKey{
+	APIKey: "api_key_2",
+	APPKey: "app_key_2",
+}
