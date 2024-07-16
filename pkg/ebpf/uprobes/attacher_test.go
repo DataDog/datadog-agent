@@ -14,6 +14,7 @@ import (
 	"regexp"
 	"runtime"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -28,6 +29,7 @@ import (
 	fileopener "github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // === Mocks
@@ -238,8 +240,8 @@ func TestComputeRequestedSymbols(t *testing.T) {
 	}
 
 	t.Run("OnlyMandatory", func(tt *testing.T) {
-		ua.config.ProbeSelectors = selectorsOnlyAllOf
-		requested, err := ua.computeSymbolsToRequest()
+		rules := []*AttachRule{{ProbesSelector: selectorsOnlyAllOf}}
+		requested, err := ua.computeSymbolsToRequest(rules)
 		require.NoError(tt, err)
 		require.ElementsMatch(tt, []SymbolRequest{{Name: "SSL_connect"}}, requested)
 	})
@@ -258,8 +260,8 @@ func TestComputeRequestedSymbols(t *testing.T) {
 	}
 
 	t.Run("MandatoryAndBestEffort", func(tt *testing.T) {
-		ua.config.ProbeSelectors = selectorsBestEfforAndMandatory
-		requested, err := ua.computeSymbolsToRequest()
+		rules := []*AttachRule{{ProbesSelector: selectorsBestEfforAndMandatory}}
+		requested, err := ua.computeSymbolsToRequest(rules)
 		require.NoError(tt, err)
 		require.ElementsMatch(tt, []SymbolRequest{{Name: "SSL_connect"}, {Name: "ThisFunctionDoesNotExistEver", BestEffort: true}}, requested)
 	})
@@ -274,8 +276,8 @@ func TestComputeRequestedSymbols(t *testing.T) {
 	}
 
 	t.Run("OnlyBestEffort", func(tt *testing.T) {
-		ua.config.ProbeSelectors = selectorsBestEffort
-		requested, err := ua.computeSymbolsToRequest()
+		rules := []*AttachRule{{ProbesSelector: selectorsBestEffort}}
+		requested, err := ua.computeSymbolsToRequest(rules)
 		require.NoError(tt, err)
 		require.ElementsMatch(tt, []SymbolRequest{{Name: "SSL_connect", BestEffort: true}, {Name: "ThisFunctionDoesNotExistEver", BestEffort: true}}, requested)
 	})
@@ -289,8 +291,8 @@ func TestComputeRequestedSymbols(t *testing.T) {
 	}
 
 	t.Run("SelectorsWithReturnFunctions", func(tt *testing.T) {
-		ua.config.ProbeSelectors = selectorsWithReturnFunctions
-		requested, err := ua.computeSymbolsToRequest()
+		rules := []*AttachRule{{ProbesSelector: selectorsWithReturnFunctions}}
+		requested, err := ua.computeSymbolsToRequest(rules)
 		require.NoError(tt, err)
 		require.ElementsMatch(tt, []SymbolRequest{{Name: "SSL_connect", IncludeReturnLocations: true}}, requested)
 	})
@@ -321,9 +323,31 @@ func TestStartAndStopWithLibraryWatcher(t *testing.T) {
 	ua.Stop()
 }
 
+func TestRuleMatches(t *testing.T) {
+	t.Run("Library", func(tt *testing.T) {
+		rule := AttachRule{
+			LibraryNameRegex: regexp.MustCompile(`libssl.so`),
+			Targets:          AttachToSharedLibraries,
+		}
+		require.True(tt, rule.matchesLibrary("pkg/network/usm/testdata/libmmap/libssl.so.arm64"))
+		require.False(tt, rule.matchesExecutable("pkg/network/usm/testdata/libmmap/libssl.so.arm64"))
+	})
+
+	t.Run("Executable", func(tt *testing.T) {
+		rule := AttachRule{
+			Targets: AttachToExecutable,
+		}
+		require.False(tt, rule.matchesLibrary("/bin/bash"))
+		require.True(tt, rule.matchesExecutable("/bin/bash"))
+	})
+}
+
 func TestMonitor(t *testing.T) {
 	config := &AttacherConfig{
-		Rules:                     []*AttachRule{{LibraryNameRegex: regexp.MustCompile(`libssl.so`)}},
+		Rules: []*AttachRule{{
+			LibraryNameRegex: regexp.MustCompile(`libssl.so`),
+			Targets:          AttachToExecutable | AttachToSharedLibraries,
+		}},
 		ProcessMonitorEventStream: false,
 	}
 	ua, err := NewUprobeAttacher("mock", config, &mockManager{}, nil, nil)
@@ -343,10 +367,10 @@ func TestMonitor(t *testing.T) {
 
 	cmd, err := fileopener.OpenFromAnotherProcess(t, lib)
 	require.NoError(t, err)
-
+	log.Errorf("rules:%+v", config.Rules[0])
 	require.Eventually(t, func() bool {
 		return len(mockRegistry.Calls) == 2 // Once for the library, another for the process itself
-	}, 100*time.Millisecond, 10*time.Millisecond)
+	}, 100*time.Millisecond, 10*time.Millisecond, "received calls %v", mockRegistry.Calls)
 
 	mockRegistry.AssertCalled(t, "Register", lib, uint32(cmd.Process.Pid), mock.Anything, mock.Anything)
 	mockRegistry.AssertCalled(t, "Register", cmd.Path, uint32(cmd.Process.Pid), mock.Anything, mock.Anything)
@@ -362,7 +386,13 @@ func TestInitialScan(t *testing.T) {
 	}
 	procFS := createFakeProcFS(t, procs)
 
-	config := &AttacherConfig{ProcRoot: procFS}
+	config := &AttacherConfig{
+		ProcRoot: procFS,
+		Rules: []*AttachRule{{
+			Targets:          AttachToExecutable | AttachToSharedLibraries,
+			LibraryNameRegex: regexp.MustCompile(`.*`),
+		}},
+	}
 	ua, err := NewUprobeAttacher("mock", config, &mockManager{}, nil, nil)
 	require.NoError(t, err)
 	require.NotNil(t, ua)
@@ -417,8 +447,13 @@ func TestAttachToBinary(t *testing.T) {
 
 	config := &AttacherConfig{
 		ProcRoot: procFS,
-		ProbeSelectors: []manager.ProbesSelector{
-			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "uprobe__SSL_connect"}},
+		Rules: []*AttachRule{
+			{
+				Targets: AttachToExecutable,
+				ProbesSelector: []manager.ProbesSelector{
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "uprobe__SSL_connect"}},
+				},
+			},
 		},
 	}
 
@@ -451,7 +486,7 @@ func TestAttachToBinary(t *testing.T) {
 	}
 	mockMan.On("AddHook", mock.Anything, expectedProbe).Return(nil)
 
-	err = ua.attachToBinary(target, nil)
+	err = ua.attachToBinary(target, config.Rules)
 	require.NoError(t, err)
 	inspector.AssertExpectations(t)
 	mockMan.AssertExpectations(t)
@@ -467,8 +502,13 @@ func TestAttachToBinaryAtReturnLocation(t *testing.T) {
 
 	config := &AttacherConfig{
 		ProcRoot: procFS,
-		ProbeSelectors: []manager.ProbesSelector{
-			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "uprobe__SSL_connect__return"}},
+		Rules: []*AttachRule{
+			{
+				Targets: AttachToExecutable,
+				ProbesSelector: []manager.ProbesSelector{
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "uprobe__SSL_connect__return"}},
+				},
+			},
 		},
 	}
 
@@ -505,70 +545,7 @@ func TestAttachToBinaryAtReturnLocation(t *testing.T) {
 		mockMan.On("AddHook", mock.Anything, expectedProbe).Return(nil)
 	}
 
-	err = ua.attachToBinary(target, nil)
-	require.NoError(t, err)
-	inspector.AssertExpectations(t)
-	mockMan.AssertExpectations(t)
-}
-
-func TestAttachToBinaryShouldIgnoreNonMatchingProbes(t *testing.T) {
-	proc := FakeProcFSEntry{
-		pid:     1,
-		cmdline: "/bin/bash",
-		exe:     "/bin/bash",
-	}
-	procFS := createFakeProcFS(t, []FakeProcFSEntry{proc})
-
-	config := &AttacherConfig{
-		ProcRoot: procFS,
-		ProbeSelectors: []manager.ProbesSelector{
-			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: "uprobe__SSL_connect",
-			}},
-			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: "uprobe__TLS_connect",
-			}},
-		},
-		Rules: []*AttachRule{
-			{
-				LibraryNameRegex: regexp.MustCompile(`libssl.so`),
-				UprobeNameRegex:  regexp.MustCompile(`SSL_.*`),
-			},
-		},
-	}
-
-	mockMan := &mockManager{}
-	inspector := &mockBinaryInspector{}
-	ua, err := NewUprobeAttacher("mock", config, mockMan, nil, inspector)
-	require.NoError(t, err)
-	require.NotNil(t, ua)
-
-	target := utils.FilePath{
-		HostPath: "/usr/lib/libssl.so",
-		PID:      proc.pid,
-	}
-
-	// Tell the inspector to return a simple symbol
-	symbolToAttach := bininspect.FunctionMetadata{EntryLocation: 0x1234}
-	inspector.On("Inspect", target.HostPath, mock.Anything).Return(map[string]bininspect.FunctionMetadata{"SSL_connect": symbolToAttach}, true, nil)
-
-	// Tell the manager to return no probe when finding an existing one
-	var nilProbe *manager.Probe // we can't just pass nil directly, if we do that the mock cannot convert it to *manager.Probe
-	mockMan.On("GetProbe", mock.Anything).Return(nilProbe, false)
-
-	// Tell the manager to accept the probe
-	uid := "1hipf_0" // this is the UID that the manager will generate, from a path identifier with 0/0 as device/inode
-	expectedProbe := &manager.Probe{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "uprobe__SSL_connect", UID: uid},
-		BinaryPath:              target.HostPath,
-		UprobeOffset:            symbolToAttach.EntryLocation,
-		HookFuncName:            "SSL_connect",
-	}
-	mockMan.On("AddHook", mock.Anything, expectedProbe).Return(nil)
-
-	// if this function calls the manager adding a probe with a different name than the one we requested, the test
-	// will fail
-	err = ua.attachToBinary(target, nil)
+	err = ua.attachToBinary(target, config.Rules)
 	require.NoError(t, err)
 	inspector.AssertExpectations(t)
 	mockMan.AssertExpectations(t)
@@ -589,22 +566,28 @@ func TestAttachToLibrariesOfPid(t *testing.T) {
 
 	config := &AttacherConfig{
 		ProcRoot: procFS,
-		ProbeSelectors: []manager.ProbesSelector{
-			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: "uprobe__SSL_connect",
-			}},
-			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: "uprobe__TLS_connect",
-			}},
-		},
 		Rules: []*AttachRule{
 			{
 				LibraryNameRegex: regexp.MustCompile(`libssl.so`),
-				UprobeNameRegex:  regexp.MustCompile(`SSL_.*`),
+				ProbesSelector: []manager.ProbesSelector{
+					&manager.ProbeSelector{
+						ProbeIdentificationPair: manager.ProbeIdentificationPair{
+							EBPFFuncName: "uprobe__SSL_connect",
+						},
+					},
+				},
+				Targets: AttachToSharedLibraries,
 			},
 			{
 				LibraryNameRegex: regexp.MustCompile(`libtls.so`),
-				UprobeNameRegex:  regexp.MustCompile(`TLS_.*`),
+				ProbesSelector: []manager.ProbesSelector{
+					&manager.ProbeSelector{
+						ProbeIdentificationPair: manager.ProbeIdentificationPair{
+							EBPFFuncName: "uprobe__TLS_connect",
+						},
+					},
+				},
+				Targets: AttachToSharedLibraries,
 			},
 		},
 	}
@@ -658,6 +641,11 @@ func TestAttachToLibrariesOfPid(t *testing.T) {
 	mockMan.AssertExpectations(t)
 }
 
+type attachedProbe struct {
+	probe *manager.Probe
+	fpath *utils.FilePath
+}
+
 func TestUprobeAttacher(t *testing.T) {
 	lib := getLibSSLPath(t)
 	ebpfCfg := ddebpf.NewConfig()
@@ -673,30 +661,29 @@ func TestUprobeAttacher(t *testing.T) {
 	mgr := manager.Manager{}
 
 	attacherCfg := &AttacherConfig{
-		ProbeSelectors: []manager.ProbesSelector{
-			&manager.ProbeSelector{ProbeIdentificationPair: connectProbeID},
-			&manager.ProbeSelector{ProbeIdentificationPair: mainProbeID},
-		},
 		Rules: []*AttachRule{
 			{
 				LibraryNameRegex: regexp.MustCompile(`libssl.so`),
-				UprobeNameRegex:  regexp.MustCompile(`SSL_connect`),
+				Targets:          AttachToSharedLibraries,
+				ProbesSelector: []manager.ProbesSelector{
+					&manager.ProbeSelector{ProbeIdentificationPair: connectProbeID},
+				},
+			},
+			{
+				Targets: AttachToExecutable,
+				ProbesSelector: []manager.ProbesSelector{
+					&manager.ProbeSelector{ProbeIdentificationPair: mainProbeID},
+				},
 			},
 		},
-		ExcludeTargets: ExcludeSelf | ExcludeInternal,
+		ExcludeTargets: ExcludeInternal | ExcludeSelf,
 		EbpfConfig:     ebpfCfg,
 	}
 
-	var attachedProbes []struct {
-		probe *manager.Probe
-		fpath *utils.FilePath
-	}
+	var attachedProbes []attachedProbe
 
 	callback := func(probe *manager.Probe, fpath *utils.FilePath) {
-		attachedProbes = append(attachedProbes, struct {
-			probe *manager.Probe
-			fpath *utils.FilePath
-		}{probe: probe, fpath: fpath})
+		attachedProbes = append(attachedProbes, attachedProbe{probe: probe, fpath: fpath})
 	}
 
 	ua, err := NewUprobeAttacher("test", attacherCfg, &mgr, callback, &NativeBinaryInspector{})
@@ -712,5 +699,25 @@ func TestUprobeAttacher(t *testing.T) {
 	cmd, err := fileopener.OpenFromAnotherProcess(t, lib)
 	require.NoError(t, err)
 
-	utils.WaitForProgramsToBeTraced(t, "test", cmd.Process.Pid)
+	require.Eventually(t, func() bool {
+		return len(attachedProbes) == 2
+	}, 500*time.Millisecond, 50*time.Millisecond, "expected to attach 2 probes, got %d: %+v", len(attachedProbes), attachedProbes)
+
+	// Check that the probes were attached
+	var connectProbe, mainProbe *attachedProbe
+	for _, ap := range attachedProbes {
+		if ap.probe.EBPFFuncName == "uprobe__SSL_connect" {
+			connectProbe = &ap
+		} else if ap.probe.EBPFFuncName == "uprobe__main" {
+			mainProbe = &ap
+		}
+	}
+
+	require.NotNil(t, connectProbe)
+	// Allow suffix, as sometimes the path reported is /proc/<pid>/root/<path>
+	require.True(t, strings.HasSuffix(connectProbe.fpath.HostPath, lib), "expected to attach to %s, got %s", lib, connectProbe.fpath.HostPath)
+	require.Equal(t, uint32(cmd.Process.Pid), connectProbe.fpath.PID)
+
+	require.NotNil(t, mainProbe)
+	require.Equal(t, uint32(cmd.Process.Pid), mainProbe.fpath.PID)
 }

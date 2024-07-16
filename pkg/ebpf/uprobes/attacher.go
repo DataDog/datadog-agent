@@ -9,8 +9,7 @@
 package uprobes
 
 // TODO:
-// - Add more tests and coverage, specially around the actual attachment
-// - Check whether we have probes for direct attachment and probe that
+// - Define what we do when we have multiple matching rules but some of them do not match
 
 import (
 	"bufio"
@@ -26,7 +25,6 @@ import (
 	"time"
 
 	manager "github.com/DataDog/ebpf-manager"
-	"github.com/cihub/seelog"
 	"golang.org/x/exp/maps"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
@@ -34,7 +32,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // ExcludeMode defines the different optiont to exclude processes from attachment
@@ -64,18 +61,39 @@ var (
 	internalProcessRegex = regexp.MustCompile("datadog-agent/.*/((process|security|trace)-agent|system-probe|agent)")
 )
 
+// AttachTarget defines the target to which we should attach the probes, libraries or executables
+type AttachTarget uint8
+
+const (
+	// AttachToExecutable attaches to the main executable
+	AttachToExecutable AttachTarget = 1 << iota
+	// AttachToSharedLibraries attaches to shared libraries
+	AttachToSharedLibraries
+)
+
 // AttachRule defines a rule that tells the attacher how to attach the probes
 type AttachRule struct {
-	UprobeNameRegex  *regexp.Regexp
 	LibraryNameRegex *regexp.Regexp
+	Targets          AttachTarget
+	// ProbesSelectors defines which probes should be attached and how should we validate
+	// the attachment (e.g., whether we need all probes active or just one of them, or in a best-effort basis)
+	ProbesSelector []manager.ProbesSelector
+}
+
+func (r *AttachRule) canTarget(target AttachTarget) bool {
+	return r.Targets&target != 0
+}
+
+func (r *AttachRule) matchesLibrary(path string) bool {
+	return r.canTarget(AttachToSharedLibraries) && r.LibraryNameRegex != nil && r.LibraryNameRegex.MatchString(path)
+}
+
+func (r *AttachRule) matchesExecutable(_ string) bool {
+	return r.canTarget(AttachToExecutable)
 }
 
 // AttacherConfig defines the configuration for the attacher
 type AttacherConfig struct {
-	// ProbesSelectors defines which probes should be attached and how should we validate
-	// the attachment (e.g., whether we need all probes active or just one of them, or in a best-effort basis)
-	ProbeSelectors []manager.ProbesSelector
-
 	// Rules defines a series of rules that tell the attacher how to attach the probes
 	Rules []*AttachRule
 
@@ -131,6 +149,7 @@ type FileRegistry interface {
 	GetRegisteredProcesses() map[uint32]struct{}
 }
 
+// AttachCallback is a callback that is called whenever a probe is attached successfully
 type AttachCallback func(*manager.Probe, *utils.FilePath)
 
 // UprobeAttacher is a struct that handles the attachment of uprobes to processes and libraries
@@ -149,9 +168,6 @@ type UprobeAttacher struct {
 	onAttachCallback       AttachCallback
 	soWatcher              *sharedlibraries.EbpfProgram
 	handlesLibrariesCached *bool
-
-	// symbolsToRequest holds a pre-computed list of symbols that we want to look up in each binary
-	symbolsToRequest []SymbolRequest
 }
 
 // NewUprobeAttacher creates a new UprobeAttacher. Receives as arguments
@@ -174,12 +190,6 @@ func NewUprobeAttacher(name string, config *AttacherConfig, mgr ProbeManager, on
 
 	if ua.handlesLibraries() {
 		ua.soWatcher = sharedlibraries.NewEBPFProgram(config.EbpfConfig)
-	}
-
-	var err error
-	ua.symbolsToRequest, err = ua.computeSymbolsToRequest()
-	if err != nil {
-		return nil, fmt.Errorf("error computing symbols to request: %w", err)
 	}
 
 	utils.AddAttacher(name, ua)
@@ -270,10 +280,7 @@ func (ua *UprobeAttacher) Start() error {
 				if !ok {
 					return
 				}
-				err := ua.handleLibraryOpen(event)
-				if err != nil {
-					log.Errorf("error handling library open event: %v", err)
-				}
+				_ = ua.handleLibraryOpen(event)
 			case <-sharedLibLostChan:
 				// Nothing to do in this case
 				break
@@ -310,10 +317,7 @@ func (ua *UprobeAttacher) initialScan() error {
 // handleProcessStart is called when a new process is started, wraps AttachPIDWithOptions but ignoring the error
 // for API compatibility with processMonitor
 func (ua *UprobeAttacher) handleProcessStart(pid uint32) {
-	err := ua.AttachPIDWithOptions(pid, false) // Do not try to attach to libraries on process start, it hasn't loaded them yet
-	if err != nil {
-		log.Warnf("couldn't attach to pid=%d, err=%v", pid, err)
-	}
+	_ = ua.AttachPIDWithOptions(pid, false) // Do not try to attach to libraries on process start, it hasn't loaded them yet
 }
 
 // handleProcessExit is called when a process finishes, wraps DetachPID but ignoring the error
@@ -328,13 +332,14 @@ func (ua *UprobeAttacher) handleLibraryOpen(event *ebpf.DataEvent) error {
 	libpath := sharedlibraries.ToLibPath(event.Data)
 	path := sharedlibraries.ToBytes(&libpath)
 
-	return ua.AttachLibrary(string(path), libpath.Pid)
+	err := ua.AttachLibrary(string(path), libpath.Pid)
 
+	return err
 }
 
 // AttachLibrary attaches the probes to the given library, opened by a given PID
 func (ua *UprobeAttacher) AttachLibrary(path string, pid uint32) error {
-	if int(pid) == os.Getpid() {
+	if (ua.config.ExcludeTargets&ExcludeSelf) != 0 && int(pid) == os.Getpid() {
 		return ErrSelfExcluded
 	}
 
@@ -358,7 +363,19 @@ func (ua *UprobeAttacher) getRulesForLibrary(path string) []*AttachRule {
 	var matchedRules []*AttachRule
 
 	for _, rule := range ua.config.Rules {
-		if rule.LibraryNameRegex.MatchString(path) {
+		if rule.matchesLibrary(path) {
+			matchedRules = append(matchedRules, rule)
+		}
+	}
+	return matchedRules
+}
+
+// getRulesForExecutable returns the rules that match the given executable
+func (ua *UprobeAttacher) getRulesForExecutable(path string) []*AttachRule {
+	var matchedRules []*AttachRule
+
+	for _, rule := range ua.config.Rules {
+		if rule.matchesExecutable(path) {
 			matchedRules = append(matchedRules, rule)
 		}
 	}
@@ -389,6 +406,7 @@ func (ua *UprobeAttacher) getExecutablePath(pid uint32) (string, error) {
 	return binPath, nil
 }
 
+// AttachPID attaches the corresponding probes to a given pid
 func (ua *UprobeAttacher) AttachPID(pid uint32) error {
 	return ua.AttachPIDWithOptions(pid, true)
 }
@@ -405,22 +423,22 @@ func (ua *UprobeAttacher) AttachPIDWithOptions(pid uint32, attachToLibs bool) er
 	}
 
 	if (ua.config.ExcludeTargets&ExcludeInternal) != 0 && internalProcessRegex.MatchString(binPath) {
-		if log.ShouldLog(seelog.DebugLvl) {
-			log.Debugf("ignoring pid %d, as it is an internal datadog component (%q)", pid, binPath)
-		}
 		return ErrInternalDDogProcessRejected
 	}
 
+	matchingRules := ua.getRulesForExecutable(binPath)
 	registerCB := func(path utils.FilePath) error {
-		return ua.attachToBinary(path, nil)
+		return ua.attachToBinary(path, matchingRules)
 	}
 	unregisterCB := func(path utils.FilePath) error {
 		return ua.detachFromBinary(path)
 	}
 
-	err = ua.fileRegistry.Register(binPath, pid, registerCB, unregisterCB)
-	if err != nil {
-		return err
+	if len(matchingRules) != 0 {
+		err = ua.fileRegistry.Register(binPath, pid, registerCB, unregisterCB)
+		if err != nil {
+			return err
+		}
 	}
 
 	if attachToLibs && ua.handlesLibraries() {
@@ -520,7 +538,12 @@ func (ua *UprobeAttacher) attachToBinary(fpath utils.FilePath, matchingRules []*
 		return fmt.Errorf("path %s from process %d is tempmount of containerd, skipping", fpath.HostPath, fpath.PID)
 	}
 
-	inspectResult, isAttachable, err := ua.inspector.Inspect(fpath.HostPath, ua.symbolsToRequest)
+	symbolsToRequest, err := ua.computeSymbolsToRequest(matchingRules)
+	if err != nil {
+		return fmt.Errorf("error computing symbols to request for rules %+v: %w", matchingRules, err)
+	}
+
+	inspectResult, isAttachable, err := ua.inspector.Inspect(fpath.HostPath, symbolsToRequest)
 	if err != nil {
 		return fmt.Errorf("error inspecting %s: %w", fpath.HostPath, err)
 	}
@@ -530,94 +553,76 @@ func (ua *UprobeAttacher) attachToBinary(fpath utils.FilePath, matchingRules []*
 
 	uid := getUID(fpath.ID)
 
-	// We need to know which rules to apply to the probes. If we already have a restricted set
-	// of rules that can match (e.g., we are attaching to a shared library), we use that. Otherwise,
-	// we use the global set of rules.
-	rulesToSearch := matchingRules
-	if matchingRules == nil {
-		rulesToSearch = ua.config.Rules
-	}
-
-	for _, selector := range ua.config.ProbeSelectors {
-		_, isBestEffort := selector.(*manager.BestEffort)
-		for _, probeID := range selector.GetProbesIdentificationPairList() {
-			var rulesForProbe []*AttachRule
-			for _, rule := range rulesToSearch {
-				if rule.UprobeNameRegex.MatchString(probeID.EBPFFuncName) {
-					rulesForProbe = append(rulesForProbe, rule)
-				}
-			}
-			if len(rulesToSearch) != 0 && len(rulesForProbe) == 0 {
-				// Skip this probe if we have rules and none of them match
-				continue
-			}
-
-			symbol, isManualReturn, err := parseSymbolFromEBPFProbeName(probeID.EBPFFuncName)
-			if err != nil {
-				return fmt.Errorf("error parsing probe name %s: %w", probeID.EBPFFuncName, err)
-			}
-			data, found := inspectResult[symbol]
-			if !found {
-				if isBestEffort {
-					continue
-				}
-				// This should not happen, as getAvailableRequestedSymbols should have already
-				// returned an error if mandatory symbols weren't found. However and for safety,
-				// we'll check again and return an error if the symbol is not found.
-				return fmt.Errorf("symbol %s not found in %s", symbol, fpath.HostPath)
-			}
-
-			var locationsToAttach []uint64
-			if isManualReturn {
-				locationsToAttach = data.ReturnLocations
-			} else {
-				locationsToAttach = []uint64{data.EntryLocation}
-			}
-
-			for i, location := range locationsToAttach {
-				newProbeID := manager.ProbeIdentificationPair{
-					EBPFFuncName: probeID.EBPFFuncName,
-					UID:          fmt.Sprintf("%s_%d", uid, i), // Make UID unique even if we have multiple locations
-				}
-
-				probe, found := ua.manager.GetProbe(newProbeID)
-				if found {
-					// We have already probed this process, just ensure it's running and skip it
-					if !probe.IsRunning() {
-						err := probe.Attach()
-						if err != nil {
-							return fmt.Errorf("cannot attach running probe %v: %w", newProbeID, err)
-						}
-					}
-					continue
-				}
-
-				newProbe := &manager.Probe{
-					ProbeIdentificationPair: newProbeID,
-					BinaryPath:              fpath.HostPath,
-					UprobeOffset:            location,
-					HookFuncName:            symbol,
-				}
-				err = ua.manager.AddHook("", newProbe)
+	for _, rule := range matchingRules {
+		for _, selector := range rule.ProbesSelector {
+			_, isBestEffort := selector.(*manager.BestEffort)
+			for _, probeID := range selector.GetProbesIdentificationPairList() {
+				symbol, isManualReturn, err := parseSymbolFromEBPFProbeName(probeID.EBPFFuncName)
 				if err != nil {
-					log.Errorf("error attaching probe %+v: %v", newProbe, err)
-					return fmt.Errorf("error attaching probe %+v: %w", newProbe, err)
+					return fmt.Errorf("error parsing probe name %s: %w", probeID.EBPFFuncName, err)
+				}
+				data, found := inspectResult[symbol]
+				if !found {
+					if isBestEffort {
+						continue
+					}
+					// This should not happen, as getAvailableRequestedSymbols should have already
+					// returned an error if mandatory symbols weren't found. However and for safety,
+					// we'll check again and return an error if the symbol is not found.
+					return fmt.Errorf("symbol %s not found in %s", symbol, fpath.HostPath)
 				}
 
-				ebpf.AddProgramNameMapping(newProbe.ID(), newProbe.EBPFFuncName, ua.name)
-				ua.pathToAttachedProbes[fpath.HostPath] = append(ua.pathToAttachedProbes[fpath.HostPath], newProbeID)
-
-				if ua.onAttachCallback != nil {
-					ua.onAttachCallback(newProbe, &fpath)
+				var locationsToAttach []uint64
+				if isManualReturn {
+					locationsToAttach = data.ReturnLocations
+				} else {
+					locationsToAttach = []uint64{data.EntryLocation}
 				}
+
+				for i, location := range locationsToAttach {
+					newProbeID := manager.ProbeIdentificationPair{
+						EBPFFuncName: probeID.EBPFFuncName,
+						UID:          fmt.Sprintf("%s_%d", uid, i), // Make UID unique even if we have multiple locations
+					}
+
+					probe, found := ua.manager.GetProbe(newProbeID)
+					if found {
+						// We have already probed this process, just ensure it's running and skip it
+						if !probe.IsRunning() {
+							err := probe.Attach()
+							if err != nil {
+								return fmt.Errorf("cannot attach running probe %v: %w", newProbeID, err)
+							}
+						}
+						continue
+					}
+
+					newProbe := &manager.Probe{
+						ProbeIdentificationPair: newProbeID,
+						BinaryPath:              fpath.HostPath,
+						UprobeOffset:            location,
+						HookFuncName:            symbol,
+					}
+					err = ua.manager.AddHook("", newProbe)
+					if err != nil {
+						return fmt.Errorf("error attaching probe %+v: %w", newProbe, err)
+					}
+
+					ebpf.AddProgramNameMapping(newProbe.ID(), newProbe.EBPFFuncName, ua.name)
+					ua.pathToAttachedProbes[fpath.HostPath] = append(ua.pathToAttachedProbes[fpath.HostPath], newProbeID)
+
+					if ua.onAttachCallback != nil {
+						ua.onAttachCallback(newProbe, &fpath)
+					}
+				}
+
 			}
 
-		}
-
-		manager, ok := ua.manager.(*manager.Manager)
-		if ok {
-			if err := selector.RunValidator(manager); err != nil {
-				return fmt.Errorf("error validating probes: %w", err)
+			manager, ok := ua.manager.(*manager.Manager)
+			if ok {
+				if err := selector.RunValidator(manager); err != nil {
+					return fmt.Errorf("error validating probes: %w", err)
+				}
 			}
 		}
 	}
@@ -625,21 +630,23 @@ func (ua *UprobeAttacher) attachToBinary(fpath utils.FilePath, matchingRules []*
 	return nil
 }
 
-func (ua *UprobeAttacher) computeSymbolsToRequest() ([]SymbolRequest, error) {
+func (ua *UprobeAttacher) computeSymbolsToRequest(rules []*AttachRule) ([]SymbolRequest, error) {
 	var requests []SymbolRequest
-	for _, selector := range ua.config.ProbeSelectors {
-		_, isBestEffort := selector.(*manager.BestEffort)
-		for _, selector := range selector.GetProbesIdentificationPairList() {
-			symbol, isManualReturn, err := parseSymbolFromEBPFProbeName(selector.EBPFFuncName)
-			if err != nil {
-				return nil, fmt.Errorf("error parsing probe name %s: %w", selector.EBPFFuncName, err)
-			}
+	for _, rule := range rules {
+		for _, selector := range rule.ProbesSelector {
+			_, isBestEffort := selector.(*manager.BestEffort)
+			for _, selector := range selector.GetProbesIdentificationPairList() {
+				symbol, isManualReturn, err := parseSymbolFromEBPFProbeName(selector.EBPFFuncName)
+				if err != nil {
+					return nil, fmt.Errorf("error parsing probe name %s: %w", selector.EBPFFuncName, err)
+				}
 
-			requests = append(requests, SymbolRequest{
-				Name:                   symbol,
-				IncludeReturnLocations: isManualReturn,
-				BestEffort:             isBestEffort,
-			})
+				requests = append(requests, SymbolRequest{
+					Name:                   symbol,
+					IncludeReturnLocations: isManualReturn,
+					BestEffort:             isBestEffort,
+				})
+			}
 		}
 	}
 

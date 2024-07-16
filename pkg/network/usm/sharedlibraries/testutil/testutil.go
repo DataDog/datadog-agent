@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	protocolstestutil "github.com/DataDog/datadog-agent/pkg/network/protocols/testutil"
 	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // mutex protecting build process
@@ -36,6 +37,7 @@ func OpenFromAnotherProcess(t *testing.T, paths ...string) (*exec.Cmd, error) {
 	cmd.Stderr = patternScanner
 
 	require.NoError(t, cmd.Start())
+	log.Infof("exec prog=%s, paths=%v | PID = %d", programExecutable, paths, cmd.Process.Pid)
 
 	t.Cleanup(func() {
 		if cmd.Process == nil {
