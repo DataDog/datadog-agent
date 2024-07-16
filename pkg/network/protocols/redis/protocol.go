@@ -5,8 +5,6 @@
 
 //go:build linux_bpf
 
-// Package redis implements USM's Redis monitoring, as well as provide
-// helpers used in tests.
 package redis
 
 import (
