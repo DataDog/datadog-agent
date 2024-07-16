@@ -50,9 +50,3 @@ const (
 	// DevMode config flag parameter name
 	DevMode StoreKey = "dev_mode"
 )
-
-// AWSoverrides is a map of StoreKey to StoreKey used to override key only in AWS store
-var AWSoverrides = map[StoreKey]StoreKey{
-	APIKey: "api_key_2",
-	APPKey: "app_key_2",
-}
