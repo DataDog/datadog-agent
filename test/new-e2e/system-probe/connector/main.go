@@ -44,7 +44,7 @@ type args struct {
 	serverKeepAliveMaxCount int
 	sshFilePath             string
 	vmCommand               string
-	allowApiKey             bool
+	allowAPIKey             bool
 }
 
 func readArgs() *args {
@@ -55,7 +55,7 @@ func readArgs() *args {
 	serverAliveCountPtr := flag.Int("server-alive-count", 560, "Maximum keep alive messages to send before disconnecting upon no reply")
 	sshFilePathPtr := flag.String("ssh-file", "", "Path to private ssh key")
 	vmCmd := flag.String("vm-cmd", "", "command to run on VM")
-	allowApiKey := flag.Bool("allow-api-key", false, "Allow DD_API_Key to be passed in environment")
+	allowAPIKey := flag.Bool("allow-api-key", false, "Allow DD_API_Key to be passed in environment")
 
 	flag.Parse()
 
@@ -67,7 +67,7 @@ func readArgs() *args {
 		serverKeepAliveMaxCount: *serverAliveCountPtr,
 		sshFilePath:             *sshFilePathPtr,
 		vmCommand:               *vmCmd,
-		allowApiKey:             *allowApiKey,
+		allowAPIKey:             *allowAPIKey,
 	}
 }
 
@@ -154,7 +154,7 @@ func run() (err error) {
 		return fmt.Errorf("connect: %s", err)
 	}
 
-	if val := os.Getenv("DD_API_KEY"); args.allowApiKey && val != "" {
+	if val := os.Getenv("DD_API_KEY"); args.allowAPIKey && val != "" {
 		cmd.Env = append(cmd.Env, fmt.Sprintf("DD_API_KEY=%s", val))
 	}
 
