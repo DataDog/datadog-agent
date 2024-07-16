@@ -8,6 +8,8 @@
 package main
 
 import (
+	"errors"
+	"os/exec"
 	"testing"
 	"time"
 
@@ -82,4 +84,30 @@ func TestFlushTimeout(t *testing.T) {
 	lastFlush(100*time.Millisecond, metricAgent, traceAgent, mockLogsAgent)
 	assert.Equal(t, false, metricAgent.hasBeenCalled)
 	assert.Equal(t, false, mockLogsAgent.DidFlush())
+}
+func TestExitCodePropagationGenericError(t *testing.T) {
+	err := errors.New("test error")
+
+	exitCode := errorExitCode(err)
+	assert.Equal(t, 1, exitCode)
+}
+
+func TestExitCodePropagationExitError(t *testing.T) {
+	cmd := exec.Command("bash", "-c", "exit 2")
+	err := cmd.Run()
+
+	exitCode := errorExitCode(err)
+	assert.Equal(t, 2, exitCode)
+}
+
+func TestExitCodePropagationJoinedExitError(t *testing.T) {
+	genericError := errors.New("test error")
+
+	cmd := exec.Command("bash", "-c", "exit 3")
+	exitCodeError := cmd.Run()
+
+	errs := errors.Join(genericError, exitCodeError)
+
+	exitCode := errorExitCode(errs)
+	assert.Equal(t, 3, exitCode)
 }
