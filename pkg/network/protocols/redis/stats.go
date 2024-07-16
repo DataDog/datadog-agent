@@ -25,7 +25,6 @@ func NewKey(saddr, daddr util.Address, sport, dport uint16) Key {
 // RequestStat represents a group of Redis transactions.
 type RequestStat struct{}
 
-
 // CombineWith merges the data in 2 RequestStats objects
 // newStats is kept as it is, while the method receiver gets mutated
 func (r *RequestStat) CombineWith(*RequestStat) {}
