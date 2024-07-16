@@ -844,10 +844,10 @@ func parseInitSecurityContext() (*corev1.SecurityContext, error) {
 	confKey := "admission_controller.auto_instrumentation.init_security_context"
 
 	if config.Datadog().IsSet(confKey) {
-		confString := config.Datadog().GetString(confKey)
-		err := json.Unmarshal([]byte(confString), &securityContext)
+		confValue := config.Datadog().GetString(confKey)
+		err := json.Unmarshal([]byte(confValue), &securityContext)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to get init security context from configuration, %s=`%s`: %v", confKey, confValue, err)
 		}
 	}
 

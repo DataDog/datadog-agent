@@ -2582,6 +2582,27 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 				withInitSecurityConfig(`{"privileged":"not a boolean"}`),
 			},
 		},
+		{
+			name: `invalid security context - bad json`,
+			pod: common.FakePodWithParent(
+				"ns",
+				map[string]string{
+					"admission.datadoghq.com/all-lib.version":   "latest",
+					"admission.datadoghq.com/all-lib.config.v1": `{"version":1,"runtime_metrics_enabled":true,"tracing_rate_limit":50,"tracing_sampling_rate":0.3}`,
+				},
+				map[string]string{
+					"admission.datadoghq.com/enabled": "true",
+				},
+				[]corev1.EnvVar{},
+				"replicaset",
+				"deployment-1234",
+			),
+			wantErr:            false,
+			wantWebhookInitErr: true,
+			setupConfig: funcs{
+				withInitSecurityConfig(`{"privileged":"not a boolean"`),
+			},
+		},
 	}
 
 	for _, tt := range tests {
