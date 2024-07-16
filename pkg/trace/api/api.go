@@ -17,6 +17,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"path/filepath"
 	"runtime"
 	"sort"
 	"strconv"
@@ -234,6 +235,10 @@ func getConfiguredEVPRequestTimeoutDuration(conf *config.AgentConfig) time.Durat
 
 // Start starts doing the HTTP server and is ready to receive traces
 func (r *HTTPReceiver) Start() {
+	if !r.conf.ReceiverEnabled {
+		log.Debug("HTTP Server is off: HTTPReceiver is disabled.")
+		return
+	}
 	if r.conf.ReceiverPort == 0 &&
 		r.conf.ReceiverSocket == "" &&
 		r.conf.WindowsPipeName == "" {
@@ -271,19 +276,23 @@ func (r *HTTPReceiver) Start() {
 	}
 
 	if path := r.conf.ReceiverSocket; path != "" {
-		ln, err := r.listenUnix(path)
-		if err != nil {
-			r.telemetryCollector.SendStartupError(telemetry.CantStartUdsServer, err)
-			killProcess("Error creating UDS listener: %v", err)
-		}
-		go func() {
-			defer watchdog.LogOnPanic(r.statsd)
-			if err := r.server.Serve(ln); err != nil && err != http.ErrServerClosed {
-				log.Errorf("Could not start UDS server: %v. UDS receiver disabled.", err)
+		if _, err := os.Stat(filepath.Dir(path)); !os.IsNotExist(err) {
+			ln, err := r.listenUnix(path)
+			if err != nil {
 				r.telemetryCollector.SendStartupError(telemetry.CantStartUdsServer, err)
+				killProcess("Error creating UDS listener: %v", err)
 			}
-		}()
-		log.Infof("Listening for traces at unix://%s", path)
+			go func() {
+				defer watchdog.LogOnPanic(r.statsd)
+				if err := r.server.Serve(ln); err != nil && err != http.ErrServerClosed {
+					log.Errorf("Could not start UDS server: %v. UDS receiver disabled.", err)
+					r.telemetryCollector.SendStartupError(telemetry.CantStartUdsServer, err)
+				}
+			}()
+			log.Infof("Listening for traces at unix://%s", path)
+		} else {
+			log.Errorf("Could not start UDS listener: socket directory does not exist: %s", path)
+		}
 	}
 
 	if path := r.conf.WindowsPipeName; path != "" {
@@ -352,7 +361,7 @@ func (r *HTTPReceiver) listenTCP(addr string) (net.Listener, error) {
 
 // Stop stops the receiver and shuts down the HTTP server.
 func (r *HTTPReceiver) Stop() error {
-	if r.conf.ReceiverPort == 0 {
+	if !r.conf.ReceiverEnabled || r.conf.ReceiverPort == 0 {
 		return nil
 	}
 	r.exit <- struct{}{}

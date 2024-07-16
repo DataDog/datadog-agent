@@ -106,9 +106,10 @@ type Agent struct {
 	// DiscardSpan will be called on all spans, if non-nil. If it returns true, the span will be deleted before processing.
 	DiscardSpan func(*pb.Span) bool
 
-	// ModifySpan will be called on all non-nil spans of received trace chunks.
-	// Note that any modification of the trace chunk could be overwritten by subsequent ModifySpan calls.
-	ModifySpan func(*pb.TraceChunk, *pb.Span)
+	// SpanModifier will be called on all non-nil spans of received trace chunks.
+	// Note that any modification of the trace chunk could be overwritten by
+	// subsequent SpanModifier calls.
+	SpanModifier SpanModifier
 
 	// In takes incoming payloads to be processed by the agent.
 	In chan *api.Payload
@@ -120,6 +121,12 @@ type Agent struct {
 	ctx context.Context
 
 	firstSpanMap sync.Map
+}
+
+// SpanModifier is an interface that allows to modify spans while they are
+// processed by the agent.
+type SpanModifier interface {
+	ModifySpan(*pb.TraceChunk, *pb.Span)
 }
 
 // NewAgent returns a new Agent object, ready to be started. It takes a context
@@ -345,8 +352,8 @@ func (a *Agent) Process(p *api.Payload) {
 					traceutil.SetMeta(span, k, v)
 				}
 			}
-			if a.ModifySpan != nil {
-				a.ModifySpan(chunk, span)
+			if a.SpanModifier != nil {
+				a.SpanModifier.ModifySpan(chunk, span)
 			}
 			a.obfuscateSpan(span)
 			a.Truncate(span)

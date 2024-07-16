@@ -58,10 +58,13 @@ var baseEnv = []string{
 	"GOVERSION=" + runtime.Version(),
 }
 
+// change `TEST_TIMEOUTS` in `tasks/system_probe.py` if you change them here
 var timeouts = map[*regexp.Regexp]time.Duration{
+	regexp.MustCompile("pkg/network/protocols$"):      5 * time.Minute,
 	regexp.MustCompile("pkg/network/protocols/http$"): 15 * time.Minute,
 	regexp.MustCompile("pkg/network/tracer$"):         55 * time.Minute,
 	regexp.MustCompile("pkg/network/usm$"):            55 * time.Minute,
+	regexp.MustCompile("pkg/network/usm/tests$"):      20 * time.Minute,
 	regexp.MustCompile("pkg/security.*"):              30 * time.Minute,
 }
 

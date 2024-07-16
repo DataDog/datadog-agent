@@ -44,10 +44,6 @@ func (rb *RingBuffer) Init(mgr *manager.Manager, config *config.Config) error {
 		TelemetryEnabled: config.InternalTelemetryEnabled,
 	}
 
-	if config.EventStreamBufferSize != 0 {
-		rb.ringBuffer.RingBufferOptions.RingBufferSize = config.EventStreamBufferSize
-	}
-
 	ebpfTelemetry.ReportRingBufferTelemetry(rb.ringBuffer)
 	return nil
 }

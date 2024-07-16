@@ -35,7 +35,7 @@ func TestColdStartSpanCreatorCreateValid(t *testing.T) {
 	defer cancel()
 	agnt := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
 	agnt.TraceWriter = &mockTraceWriter{}
-	traceAgent := &ServerlessTraceAgent{
+	traceAgent := &serverlessTraceAgent{
 		ta: agnt,
 	}
 
@@ -96,7 +96,7 @@ func TestColdStartSpanCreatorCreateValidNoOverlap(t *testing.T) {
 	defer cancel()
 	agnt := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
 	agnt.TraceWriter = &mockTraceWriter{}
-	traceAgent := &ServerlessTraceAgent{
+	traceAgent := &serverlessTraceAgent{
 		ta: agnt,
 	}
 
@@ -155,7 +155,7 @@ func TestColdStartSpanCreatorCreateDuplicate(t *testing.T) {
 	defer cancel()
 	agnt := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
 	agnt.TraceWriter = &mockTraceWriter{}
-	traceAgent := &ServerlessTraceAgent{
+	traceAgent := &serverlessTraceAgent{
 		ta: agnt,
 	}
 	coldStartDuration := 50.0 // Given in millis
@@ -209,7 +209,7 @@ func TestColdStartSpanCreatorNotColdStart(t *testing.T) {
 	defer cancel()
 	agnt := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
 	agnt.TraceWriter = &mockTraceWriter{}
-	traceAgent := &ServerlessTraceAgent{
+	traceAgent := &serverlessTraceAgent{
 		ta: agnt,
 	}
 	lambdaSpanChan := make(chan *pb.Span)
@@ -255,7 +255,7 @@ func TestColdStartSpanCreatorColdStartExists(t *testing.T) {
 	agnt := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
 	agnt.TraceWriter = &mockTraceWriter{}
 
-	traceAgent := &ServerlessTraceAgent{
+	traceAgent := &serverlessTraceAgent{
 		ta: agnt,
 	}
 	coldStartDuration := 50.0 // Given in millis
@@ -310,7 +310,7 @@ func TestColdStartSpanCreatorCreateValidProvisionedConcurrency(t *testing.T) {
 	agnt := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
 	agnt.TraceWriter = &mockTraceWriter{}
 
-	traceAgent := &ServerlessTraceAgent{
+	traceAgent := &serverlessTraceAgent{
 		ta: agnt,
 	}
 

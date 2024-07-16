@@ -311,6 +311,7 @@ type AgentConfig struct {
 	ProbabilisticSamplerSamplingPercentage float32
 
 	// Receiver
+	ReceiverEnabled bool // specifies whether Receiver listeners are enabled. Unless OTLPReceiver is used, this should always be true.
 	ReceiverHost    string
 	ReceiverPort    int
 	ReceiverSocket  string // if not empty, UDS will be enabled on unix://<receiver_socket>
@@ -485,6 +486,7 @@ func New() *AgentConfig {
 		RareSamplerCooldownPeriod: 5 * time.Minute,
 		RareSamplerCardinality:    200,
 
+		ReceiverEnabled:        true,
 		ReceiverHost:           "localhost",
 		ReceiverPort:           8126,
 		MaxRequestBytes:        25 * 1024 * 1024, // 25MB

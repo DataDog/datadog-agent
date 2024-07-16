@@ -808,6 +808,11 @@ static __always_inline enum parse_result kafka_continue_parse_response_record_ba
                 extra_debug("KAFKA_FETCH_RESPONSE_RECORD_BATCH_START: response->error_code %u, transaction.error_code %u, transaction.records_count: %d \n", response->partition_error_code,
                 response->partition_error_code,
                 response->transaction.records_count);
+            // If the next record batch has an error code that the ones we've
+            // been seeing so far in the accumulated transaction, we should emit
+            // the transaction event first and then continue parsing.  We can't
+            // emit the event from inside this loop due to instruction count
+            // restrictions, so force an exit and let the caller do it.
             if (response->transaction.records_count > 0 && response->partition_error_code != response->transaction.error_code) {
                 goto exit;
             }
@@ -1090,7 +1095,10 @@ static __always_inline enum parse_result kafka_continue_parse_response(void *ctx
         extra_debug("record batches loop ret %d carry_over_offset %d", ret, response->carry_over_offset);
         extra_debug("record batches after loop idx %u count %u\n", response->record_batches_arrays_idx, response->record_batches_arrays_count);
 
-        if (ret == RET_LOOP_END) {
+        // If we've exited due to having to queue up the existing event before
+        // parsing a new error code, handle that now.  See the corresponding
+        // comment in kafka_continue_parse_response_record_batches_loop().
+        if (ret == RET_LOOP_END && response->transaction.records_count > 0 && response->partition_error_code != response->transaction.error_code) {
                 extra_debug("enqueue from new condition, records_count %d, error_code %d",
                     response->transaction.records_count,
                     response->partition_error_code);

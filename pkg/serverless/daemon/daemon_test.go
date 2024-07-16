@@ -159,9 +159,7 @@ func TestSetTraceTagNoopTraceGetNil(t *testing.T) {
 	tagsMap := map[string]string{
 		"key0": "value0",
 	}
-	d := Daemon{
-		TraceAgent: &trace.ServerlessTraceAgent{},
-	}
+	d := Daemon{}
 	assert.False(t, d.setTraceTags(tagsMap))
 }
 
@@ -169,9 +167,8 @@ func TestSetTraceTagOk(t *testing.T) {
 	tagsMap := map[string]string{
 		"key0": "value0",
 	}
-	var agent = &trace.ServerlessTraceAgent{}
 	t.Setenv("DD_API_KEY", "x")
-	agent.Start(true, &trace.LoadConfig{Path: "/does-not-exist.yml"}, make(chan *pb.Span), random.Random.Uint64())
+	agent := trace.StartServerlessTraceAgent(true, &trace.LoadConfig{Path: "/does-not-exist.yml"}, make(chan *pb.Span), random.Random.Uint64())
 	defer agent.Stop()
 	d := Daemon{
 		TraceAgent: agent,

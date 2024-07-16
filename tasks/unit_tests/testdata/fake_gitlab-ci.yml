@@ -185,12 +185,6 @@ variables:
   DOCKER_REGISTRY_PWD_SSM_KEY: docker_hub_pwd
   DOCKER_REGISTRY_URL: docker.io
   KITCHEN_INFRASTRUCTURE_FLAKES_RETRY: 2
-  ARTIFACTORY_USERNAME: datadog-agent
-  ARTIFACTORY_TOKEN_SSM_NAME: ci.datadog-agent.artifactory_token
-  ARTIFACTORY_BYPASS_SSM_NAME: ci.datadog-agent.artifactory_bypass
-  ARTIFACTORY_URL: datadog.jfrog.io
-  ARTIFACTORY_GEMS_PATH: artifactory/api/gems/agent-gems
-  ARTIFACTORY_PYPI_PATH: artifactory/api/pypi/agent-pypi/simple
   CLANG_LLVM_VER: 12.0.1
   KERNEL_MATRIX_TESTING_X86_AMI_ID: "ami-098ea4991ff2d244c"
   KERNEL_MATRIX_TESTING_ARM_AMI_ID: "ami-04493daab2918046c"
@@ -301,30 +295,13 @@ variables:
 # Rules used to define whether a pipeline should run, and with which variables
 #
 
-# WARNING: Do not change below if you want to globally disable the caching proxy (all branches would need to be rebased for it to be effectively disabled).
-# Instead use the break-glass mechanism by looking for the "Remotely disable Artifactory" doc in Confluence.
 workflow:
   rules:
     - <<: *if_triggered_pipeline
-      variables:
-        USE_CACHING_PROXY_PYTHON: "false"
-        USE_CACHING_PROXY_RUBY: "false"
     - <<: *if_main_branch
-      variables:
-        USE_CACHING_PROXY_PYTHON: "true"
-        USE_CACHING_PROXY_RUBY: "true"
     - <<: *if_release_branch
-      variables:
-        USE_CACHING_PROXY_PYTHON: "true"
-        USE_CACHING_PROXY_RUBY: "true"
     - <<: *if_deploy
-      variables:
-        USE_CACHING_PROXY_PYTHON: "true"
-        USE_CACHING_PROXY_RUBY: "true"
     - if: $CI_COMMIT_TAG == null
-      variables:
-        USE_CACHING_PROXY_PYTHON: "false"
-        USE_CACHING_PROXY_RUBY: "false"
 
 #
 # List of rule blocks used in the pipeline

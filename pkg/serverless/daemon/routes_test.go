@@ -440,8 +440,7 @@ func BenchmarkStartEndInvocation(b *testing.B) {
 func startAgents() *Daemon {
 	d := StartDaemon(fmt.Sprint("127.0.0.1:", testutil.FreeTCPPort(nil)))
 
-	ta := &trace.ServerlessTraceAgent{}
-	ta.Start(true, &trace.LoadConfig{Path: "/some/path/datadog.yml"}, nil, 123)
+	ta := trace.StartServerlessTraceAgent(true, &trace.LoadConfig{Path: "/some/path/datadog.yml"}, nil, 123)
 	d.SetTraceAgent(ta)
 
 	ma := &metrics.ServerlessMetricAgent{
@@ -453,7 +452,7 @@ func startAgents() *Daemon {
 	d.InvocationProcessor = &invocationlifecycle.LifecycleProcessor{
 		ExtraTags:            d.ExtraTags,
 		Demux:                d.MetricAgent.Demux,
-		ProcessTrace:         d.TraceAgent.Get().Process,
+		ProcessTrace:         d.TraceAgent.Process,
 		DetectLambdaLibrary:  func() bool { return false },
 		InferredSpansEnabled: true,
 	}

@@ -195,8 +195,15 @@ func (ac *AutoConfig) serviceListening() {
 	}
 }
 
-func (ac *AutoConfig) writeConfigCheck(w http.ResponseWriter, _ *http.Request) {
-	configCheckResponse := ac.GetConfigCheck()
+func (ac *AutoConfig) writeConfigCheck(w http.ResponseWriter, r *http.Request) {
+	raw := r != nil && r.URL.Query().Get("raw") == "true"
+
+	var configCheckResponse integration.ConfigCheckResponse
+	if raw {
+		configCheckResponse = ac.getRawConfigCheck()
+	} else {
+		configCheckResponse = ac.GetConfigCheck()
+	}
 
 	jsonConfig, err := json.Marshal(configCheckResponse)
 	if err != nil {
@@ -231,6 +238,24 @@ func (ac *AutoConfig) GetConfigCheck() integration.ConfigCheckResponse {
 	}
 
 	response.Unresolved = scrubbedUnresolved
+
+	return response
+}
+
+// getRawConfigCheck returns information from all configuration providers
+func (ac *AutoConfig) getRawConfigCheck() integration.ConfigCheckResponse {
+	var response integration.ConfigCheckResponse
+
+	configSlice := ac.LoadedConfigs()
+	sort.Slice(configSlice, func(i, j int) bool {
+		return configSlice[i].Name < configSlice[j].Name
+	})
+
+	response.Configs = configSlice
+
+	response.ResolveWarnings = GetResolveWarnings()
+	response.ConfigErrors = GetConfigErrors()
+	response.Unresolved = ac.GetUnresolvedTemplates()
 
 	return response
 }

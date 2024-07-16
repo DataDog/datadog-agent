@@ -43,7 +43,9 @@ enum param_kind_t {
 		break; \
 	}
 
-HOOK_ENTRY("on_demand_hook")
+#define HOOK_ON_DEMAND HOOK_ENTRY("parse_args")
+
+HOOK_ON_DEMAND
 int hook_on_demand(ctx_t *ctx) {
 	u64 synth_id;
     LOAD_CONSTANT("synth_id", synth_id);
@@ -70,7 +72,7 @@ int hook_on_demand(ctx_t *ctx) {
     return 0;
 }
 
-HOOK_ENTRY("on_demand_syscall_hook")
+HOOK_ON_DEMAND
 int hook_on_demand_syscall(ctx_t *ptctx) {
 	struct pt_regs *ctx = (struct pt_regs *) CTX_PARM1(ptctx);
     if (!ctx) return 0;

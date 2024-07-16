@@ -441,7 +441,6 @@ func getManager(cfg *config.Config, buf io.ReaderAt, opts manager.Options) (*man
 	if opts.MapEditors == nil {
 		opts.MapEditors = make(map[string]*ebpf.Map)
 	}
-	opts.VerifierOptions.Programs.LogSize = 10 * 1024 * 1024
 	opts.BypassEnabled = cfg.BypassEnabled
 
 	if err := features.HaveMapType(ebpf.LRUHash); err == nil {

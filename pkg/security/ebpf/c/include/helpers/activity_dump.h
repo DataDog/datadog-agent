@@ -53,7 +53,7 @@ __attribute__((always_inline)) struct cgroup_tracing_event_t *get_cgroup_tracing
     return evt;
 }
 
-__attribute__((always_inline)) bool reserve_traced_cgroup_spot(char cgroup[CONTAINER_ID_LEN], u64 now, u64 cookie, struct activity_dump_config *config) {
+__attribute__((always_inline)) bool reserve_traced_cgroup_spot(container_id_t cgroup, u64 now, u64 cookie, struct activity_dump_config *config) {
     // insert dump config defaults
     u32 defaults_key = 0;
     struct activity_dump_config *defaults = bpf_map_lookup_elem(&activity_dump_config_defaults, &defaults_key);
@@ -84,7 +84,7 @@ __attribute__((always_inline)) bool reserve_traced_cgroup_spot(char cgroup[CONTA
     return true;
 }
 
-__attribute__((always_inline)) u64 trace_new_cgroup(void *ctx, u64 now, char cgroup[CONTAINER_ID_LEN]) {
+__attribute__((always_inline)) u64 trace_new_cgroup(void *ctx, u64 now, container_id_t cgroup, u64 cgroup_flags) {
     u64 cookie = rand64();
     struct activity_dump_config config = {};
 
@@ -100,6 +100,7 @@ __attribute__((always_inline)) u64 trace_new_cgroup(void *ctx, u64 now, char cgr
         return 0;
     }
     copy_container_id(cgroup, evt->container.container_id);
+    evt->container.cgroup_context.cgroup_flags = cgroup_flags;
     evt->cookie = cookie;
     evt->config = config;
     send_event_ptr(ctx, EVENT_CGROUP_TRACING, evt);
@@ -108,7 +109,7 @@ __attribute__((always_inline)) u64 trace_new_cgroup(void *ctx, u64 now, char cgr
     return cookie;
 }
 
-__attribute__((always_inline)) u64 should_trace_new_process_cgroup(void *ctx, u64 now, u32 pid, char cgroup[CONTAINER_ID_LEN]) {
+__attribute__((always_inline)) u64 should_trace_new_process_cgroup(void *ctx, u64 now, u32 pid, container_id_t cgroup, u64 cgroup_flags) {
     // should we start tracing this cgroup ?
     if (is_cgroup_activity_dumps_enabled() && cgroup[0] != 0) {
         // is this cgroup traced ?
@@ -159,7 +160,7 @@ __attribute__((always_inline)) u64 should_trace_new_process_cgroup(void *ctx, u6
             }
 
             // can we start tracing this cgroup ?
-            u64 cookie_val = trace_new_cgroup(ctx, now, cgroup);
+            u64 cookie_val = trace_new_cgroup(ctx, now, cgroup, cgroup_flags);
             if (cookie_val == 0) {
                 return 0;
             }
@@ -171,11 +172,14 @@ __attribute__((always_inline)) u64 should_trace_new_process_cgroup(void *ctx, u6
     return 0;
 }
 
-__attribute__((always_inline)) u64 should_trace_new_process(void *ctx, u64 now, u32 pid, char *cgroup_p) {
-    char container_id[CONTAINER_ID_LEN];
+__attribute__((always_inline)) u64 should_trace_new_process(void *ctx, u64 now, u64 flags, char* cgroup_p) {
+    // This is an ugly way to avoid having too many parameters for should_trace_new_process
+    u32 pid = flags & 0xffffffff;
+    u32 cgroup_flags = flags >> 32;
 
+    container_id_t container_id;
     bpf_probe_read(&container_id, sizeof(container_id), cgroup_p);
-    u64 cookie = should_trace_new_process_cgroup(ctx, now, pid, container_id);
+    u64 cookie = should_trace_new_process_cgroup(ctx, now, pid, container_id, cgroup_flags);
 
     return cookie;
 }
@@ -186,7 +190,9 @@ __attribute__((always_inline)) void inherit_traced_state(void *ctx, u32 ppid, u3
     // check if the parent is traced, update the child timeout if need be
     u64 *ppid_cookie = bpf_map_lookup_elem(&traced_pids, &ppid);
     if (ppid_cookie == NULL) {
-        // check if the current pid should be traced
+        // should_trace_new_process seems to check if cgroup needs to be checked which
+        // may make sense in this case as we are inheriting from a traced cgroup, so
+        // it may be ok to not set cgroup flags
         should_trace_new_process(ctx, now, pid, cgroup_p);
         return;
     }
@@ -352,7 +358,7 @@ __attribute__((always_inline)) u32 is_activity_dump_running(void *ctx, u32 pid, 
 
     struct proc_cache_t *pc = get_proc_cache(pid);
     if (pc) {
-        cookie = should_trace_new_process(ctx, now, pid, pc->container.container_id);
+        cookie = should_trace_new_process(ctx, now, (pc->container.cgroup_context.cgroup_flags<<32)|pid, pc->container.container_id);
     }
 
     if (cookie != 0) {

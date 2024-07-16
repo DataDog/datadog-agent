@@ -12,3 +12,6 @@ const DefaultLogFilePath = "/opt/datadog-agent/logs/trace-agent.log"
 
 // defaultDDAgentBin specifies the default path to the main agent binary.
 const defaultDDAgentBin = "/opt/datadog-agent/bin/agent/agent"
+
+// defaultReceiverSocket specifies the default Unix Domain Socket to receive traces.
+const defaultReceiverSocket = ""

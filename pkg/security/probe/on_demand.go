@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	manager "github.com/DataDog/ebpf-manager"
+	"github.com/cilium/ebpf"
 )
 
 // OnDemandProbesManager is the manager for on-demand probes
@@ -91,7 +92,11 @@ func (sm *OnDemandProbesManager) updateProbes() {
 			Value: uint64(hookID),
 		})
 
-		if err := sm.manager.CloneProgram(probes.SecurityAgentUID, newProbe, argsEditors, nil); err != nil {
+		editor := func(spec *ebpf.ProgramSpec) {
+			spec.AttachTo = newProbe.HookFuncName
+		}
+
+		if err := sm.manager.CloneProgramWithSpecEditor(probes.SecurityAgentUID, newProbe, argsEditors, nil, editor); err != nil {
 			seclog.Errorf("error cloning on-demand probe: %v", err)
 		}
 		sm.probes = append(sm.probes, newProbe)

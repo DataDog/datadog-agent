@@ -42,7 +42,7 @@ type Daemon struct {
 
 	LogsAgent logsAgent.ServerlessLogsAgent
 
-	TraceAgent *trace.ServerlessTraceAgent
+	TraceAgent trace.ServerlessTraceAgent
 
 	ColdStartCreator *trace.ColdStartSpanCreator
 
@@ -214,7 +214,7 @@ func (d *Daemon) SetLogsAgent(logsAgent logsAgent.ServerlessLogsAgent) {
 }
 
 // SetTraceAgent sets the Agent instance for submitting traces
-func (d *Daemon) SetTraceAgent(traceAgent *trace.ServerlessTraceAgent) {
+func (d *Daemon) SetTraceAgent(traceAgent trace.ServerlessTraceAgent) {
 	d.TraceAgent = traceAgent
 }
 
@@ -292,8 +292,8 @@ func (d *Daemon) flushTraces(wg *sync.WaitGroup) {
 	d.tracesFlushMutex.Lock()
 	flushStartTime := time.Now().Unix()
 	log.Debugf("Beginning traces flush at time %d", flushStartTime)
-	if d.TraceAgent != nil && d.TraceAgent.Get() != nil {
-		d.TraceAgent.Get().FlushSync()
+	if d.TraceAgent != nil {
+		d.TraceAgent.Flush()
 	}
 	log.Debugf("Finished traces flush that was started at time %d", flushStartTime)
 	wg.Done()
@@ -438,7 +438,7 @@ func (d *Daemon) StartLogCollection() {
 // setTraceTags tries to set extra tags to the Trace agent.
 // setTraceTags returns a boolean which indicate whether or not the operation succeed for testing purpose.
 func (d *Daemon) setTraceTags(tagMap map[string]string) bool {
-	if d.TraceAgent != nil && d.TraceAgent.Get() != nil {
+	if d.TraceAgent != nil {
 		d.TraceAgent.SetTags(tags.BuildTracerTags(tagMap))
 		return true
 	}

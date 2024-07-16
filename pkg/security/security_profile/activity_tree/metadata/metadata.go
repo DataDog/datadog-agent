@@ -22,6 +22,7 @@ type Metadata struct {
 	ProtobufVersion   string    `json:"protobuf_version"`
 	DifferentiateArgs bool      `json:"differentiate_args"`
 	ContainerID       string    `json:"-"`
+	ContainerFlags    uint64    `json:"-"`
 	Start             time.Time `json:"start"`
 	End               time.Time `json:"end"`
 	Size              uint64    `json:"activity_dump_size,omitempty"`

@@ -8,8 +8,9 @@
 package tracer
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/network/testutil"
 	"testing"
+
+	"github.com/DataDog/datadog-agent/pkg/network/testutil"
 
 	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
@@ -22,11 +23,6 @@ func platformInit() {
 
 func httpSupported() bool {
 	return false
-}
-
-//nolint:revive // TODO(WKIT) Fix revive linter
-func classificationSupported(config *config.Config) bool {
-	return true
 }
 
 func testConfig() *config.Config {

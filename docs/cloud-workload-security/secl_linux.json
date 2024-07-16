@@ -8,6 +8,11 @@
       "experimental": false,
       "properties": [
         {
+          "name": "cgroup.id",
+          "definition": "ID of the cgroup",
+          "property_doc_link": "common-cgroupcontext-id-doc"
+        },
+        {
           "name": "container.created_at",
           "definition": "Timestamp of the creation of the container",
           "property_doc_link": "container-created_at-doc"
@@ -16,6 +21,11 @@
           "name": "container.id",
           "definition": "ID of the container",
           "property_doc_link": "container-id-doc"
+        },
+        {
+          "name": "container.runtime",
+          "definition": "Runtime managing the container",
+          "property_doc_link": "container-runtime-doc"
         },
         {
           "name": "container.tags",
@@ -91,6 +101,11 @@
           "name": "process.ancestors.cap_permitted",
           "definition": "Permitted capability set of the process",
           "property_doc_link": "common-credentials-cap_permitted-doc"
+        },
+        {
+          "name": "process.ancestors.cgroup.id",
+          "definition": "ID of the cgroup",
+          "property_doc_link": "common-cgroupcontext-id-doc"
         },
         {
           "name": "process.ancestors.comm",
@@ -468,6 +483,11 @@
           "property_doc_link": "common-credentials-cap_permitted-doc"
         },
         {
+          "name": "process.cgroup.id",
+          "definition": "ID of the cgroup",
+          "property_doc_link": "common-cgroupcontext-id-doc"
+        },
+        {
           "name": "process.comm",
           "definition": "Comm attribute of the process",
           "property_doc_link": "common-process-comm-doc"
@@ -796,6 +816,11 @@
           "name": "process.parent.cap_permitted",
           "definition": "Permitted capability set of the process",
           "property_doc_link": "common-credentials-cap_permitted-doc"
+        },
+        {
+          "name": "process.parent.cgroup.id",
+          "definition": "ID of the cgroup",
+          "property_doc_link": "common-cgroupcontext-id-doc"
         },
         {
           "name": "process.parent.comm",
@@ -1820,6 +1845,11 @@
           "property_doc_link": "common-credentials-cap_permitted-doc"
         },
         {
+          "name": "exec.cgroup.id",
+          "definition": "ID of the cgroup",
+          "property_doc_link": "common-cgroupcontext-id-doc"
+        },
+        {
           "name": "exec.comm",
           "definition": "Comm attribute of the process",
           "property_doc_link": "common-process-comm-doc"
@@ -2212,6 +2242,11 @@
           "name": "exit.cause",
           "definition": "Cause of the process termination (one of EXITED, SIGNALED, COREDUMPED)",
           "property_doc_link": "exit-cause-doc"
+        },
+        {
+          "name": "exit.cgroup.id",
+          "definition": "ID of the cgroup",
+          "property_doc_link": "common-cgroupcontext-id-doc"
         },
         {
           "name": "exit.code",
@@ -3485,6 +3520,11 @@
           "property_doc_link": "common-credentials-cap_permitted-doc"
         },
         {
+          "name": "ptrace.tracee.ancestors.cgroup.id",
+          "definition": "ID of the cgroup",
+          "property_doc_link": "common-cgroupcontext-id-doc"
+        },
+        {
           "name": "ptrace.tracee.ancestors.comm",
           "definition": "Comm attribute of the process",
           "property_doc_link": "common-process-comm-doc"
@@ -3860,6 +3900,11 @@
           "property_doc_link": "common-credentials-cap_permitted-doc"
         },
         {
+          "name": "ptrace.tracee.cgroup.id",
+          "definition": "ID of the cgroup",
+          "property_doc_link": "common-cgroupcontext-id-doc"
+        },
+        {
           "name": "ptrace.tracee.comm",
           "definition": "Comm attribute of the process",
           "property_doc_link": "common-process-comm-doc"
@@ -4188,6 +4233,11 @@
           "name": "ptrace.tracee.parent.cap_permitted",
           "definition": "Permitted capability set of the process",
           "property_doc_link": "common-credentials-cap_permitted-doc"
+        },
+        {
+          "name": "ptrace.tracee.parent.cgroup.id",
+          "definition": "ID of the cgroup",
+          "property_doc_link": "common-cgroupcontext-id-doc"
         },
         {
           "name": "ptrace.tracee.parent.comm",
@@ -5322,6 +5372,11 @@
           "property_doc_link": "common-credentials-cap_permitted-doc"
         },
         {
+          "name": "signal.target.ancestors.cgroup.id",
+          "definition": "ID of the cgroup",
+          "property_doc_link": "common-cgroupcontext-id-doc"
+        },
+        {
           "name": "signal.target.ancestors.comm",
           "definition": "Comm attribute of the process",
           "property_doc_link": "common-process-comm-doc"
@@ -5697,6 +5752,11 @@
           "property_doc_link": "common-credentials-cap_permitted-doc"
         },
         {
+          "name": "signal.target.cgroup.id",
+          "definition": "ID of the cgroup",
+          "property_doc_link": "common-cgroupcontext-id-doc"
+        },
+        {
           "name": "signal.target.comm",
           "definition": "Comm attribute of the process",
           "property_doc_link": "common-process-comm-doc"
@@ -6025,6 +6085,11 @@
           "name": "signal.target.parent.cap_permitted",
           "definition": "Permitted capability set of the process",
           "property_doc_link": "common-credentials-cap_permitted-doc"
+        },
+        {
+          "name": "signal.target.parent.cgroup.id",
+          "definition": "ID of the cgroup",
+          "property_doc_link": "common-cgroupcontext-id-doc"
         },
         {
           "name": "signal.target.parent.comm",
@@ -7640,6 +7705,29 @@
       "examples": []
     },
     {
+      "name": "*.id",
+      "link": "common-cgroupcontext-id-doc",
+      "type": "string",
+      "definition": "ID of the cgroup",
+      "prefixes": [
+        "cgroup",
+        "exec.cgroup",
+        "exit.cgroup",
+        "process.ancestors.cgroup",
+        "process.cgroup",
+        "process.parent.cgroup",
+        "ptrace.tracee.ancestors.cgroup",
+        "ptrace.tracee.cgroup",
+        "ptrace.tracee.parent.cgroup",
+        "signal.target.ancestors.cgroup",
+        "signal.target.cgroup",
+        "signal.target.parent.cgroup"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
       "name": "*.in_upper_layer",
       "link": "common-filefields-in_upper_layer-doc",
       "type": "bool",
@@ -8994,6 +9082,18 @@
       "link": "container-id-doc",
       "type": "string",
       "definition": "ID of the container",
+      "prefixes": [
+        "container"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "container.runtime",
+      "link": "container-runtime-doc",
+      "type": "string",
+      "definition": "Runtime managing the container",
       "prefixes": [
         "container"
       ],

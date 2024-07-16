@@ -15,8 +15,6 @@
     ]
   script:
     - source /root/.bashrc
-    - !reference [.setup_ruby_mirror_linux]
-    - !reference [.setup_python_mirror_linux]
     - !reference [.retrieve_linux_go_deps]
     - !reference [.cache_omnibus_ruby_deps, setup]
     - echo "About to build for $RELEASE_VERSION"

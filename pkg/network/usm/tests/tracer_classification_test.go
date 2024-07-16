@@ -5,8 +5,8 @@
 
 //go:build linux_bpf || (windows && npm)
 
-// Package tracer contains implementation for NPM's tracer.
-package tracer
+// Package usm contains tests for USM
+package tests
 
 import (
 	"bufio"
@@ -15,20 +15,61 @@ import (
 	"io"
 	"net"
 	nethttp "net/http"
+	"os"
 	"reflect"
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/network"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols"
+	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
+	"github.com/DataDog/datadog-agent/pkg/network"
+	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer"
+	tracertestutil "github.com/DataDog/datadog-agent/pkg/network/tracer/testutil"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
-	defaultTimeout      = 30 * time.Second
-	http2DefaultTimeout = 3 * time.Second
+	defaultTimeout = 30 * time.Second
+	clientID       = "1"
 )
+
+func TestMain(m *testing.M) {
+	logLevel := os.Getenv("DD_LOG_LEVEL")
+	if logLevel == "" {
+		logLevel = "warn"
+	}
+	log.SetupLogger(seelog.Default, logLevel)
+	platformInit()
+	os.Exit(m.Run())
+}
+
+func setupTracer(t testing.TB, cfg *config.Config) *tracer.Tracer {
+	if ebpftest.GetBuildMode() == ebpftest.Fentry {
+		ddconfig.SetFeatures(t, ddconfig.ECSFargate)
+		// protocol classification not yet supported on fargate
+		cfg.ProtocolClassificationEnabled = false
+	}
+
+	tr, err := tracer.NewTracer(cfg, nil)
+	require.NoError(t, err)
+	t.Cleanup(tr.Stop)
+
+	require.NoError(t, tr.RegisterClient(clientID))
+	return tr
+}
+
+func getConnections(t require.TestingT, tr *tracer.Tracer) *network.Connections {
+	// Iterate through active connections until we find connection created above, and confirm send + recv counts
+	connections, err := tr.GetActiveConnections(clientID)
+	require.NoError(t, err)
+	return connections
+}
 
 // testContext shares the context of a given test.
 // It contains common variable used by all tests, and allows extending the context dynamically by setting more
@@ -57,13 +98,13 @@ type protocolClassificationAttributes struct {
 	// All traffic here will be captured by the tracer.
 	postTracerSetup func(t *testing.T, ctx testContext)
 	// A validation method ensure the test succeeded.
-	validation func(t *testing.T, ctx testContext, tr *Tracer)
+	validation func(t *testing.T, ctx testContext, tr *tracer.Tracer)
 	// Cleaning test resources if needed.
 	teardown func(t *testing.T, ctx testContext)
 }
 
-func validateProtocolConnection(expectedStack *protocols.Stack) func(t *testing.T, ctx testContext, tr *Tracer) {
-	return func(t *testing.T, ctx testContext, tr *Tracer) {
+func validateProtocolConnection(expectedStack *protocols.Stack) func(t *testing.T, ctx testContext, tr *tracer.Tracer) {
+	return func(t *testing.T, ctx testContext, tr *tracer.Tracer) {
 		waitForConnectionsWithProtocol(t, tr, ctx.targetAddress, ctx.serverAddress, expectedStack)
 	}
 }
@@ -72,10 +113,10 @@ const (
 	httpPort = "8080"
 )
 
-func testProtocolClassificationCrossOS(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
+func testProtocolClassificationCrossOS(t *testing.T, tr *tracer.Tracer, clientHost, targetHost, serverHost string) {
 	tests := []struct {
 		name     string
-		testFunc func(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string)
+		testFunc func(t *testing.T, tr *tracer.Tracer, clientHost, targetHost, serverHost string)
 	}{
 		{
 			name:     "http",
@@ -93,7 +134,7 @@ func testProtocolClassificationCrossOS(t *testing.T, tr *Tracer, clientHost, tar
 	}
 }
 
-func testHTTPProtocolClassification(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
+func testHTTPProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost, targetHost, serverHost string) {
 	defaultDialer := &net.Dialer{
 		LocalAddr: &net.TCPAddr{
 			IP: net.ParseIP(clientHost),
@@ -160,7 +201,7 @@ func testHTTPProtocolClassification(t *testing.T, tr *Tracer, clientHost, target
 	}
 }
 
-func testEdgeCasesProtocolClassification(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
+func testEdgeCasesProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost, targetHost, serverHost string) {
 	defaultDialer := &net.Dialer{
 		LocalAddr: &net.TCPAddr{
 			IP: net.ParseIP(clientHost),
@@ -168,7 +209,7 @@ func testEdgeCasesProtocolClassification(t *testing.T, tr *Tracer, clientHost, t
 	}
 
 	teardown := func(t *testing.T, ctx testContext) {
-		if srv, ok := ctx.extras["server"].(*TCPServer); ok {
+		if srv, ok := ctx.extras["server"].(*tracertestutil.TCPServer); ok {
 			srv.Shutdown()
 		}
 	}
@@ -183,7 +224,7 @@ func testEdgeCasesProtocolClassification(t *testing.T, tr *Tracer, clientHost, t
 				extras:        map[string]interface{}{},
 			},
 			preTracerSetup: func(t *testing.T, ctx testContext) {
-				server := NewTCPServerOnAddress(ctx.serverAddress, func(c net.Conn) {
+				server := tracertestutil.NewTCPServerOnAddress(ctx.serverAddress, func(c net.Conn) {
 					c.Close()
 				})
 				ctx.extras["server"] = server
@@ -208,7 +249,7 @@ func testEdgeCasesProtocolClassification(t *testing.T, tr *Tracer, clientHost, t
 				extras:        map[string]interface{}{},
 			},
 			preTracerSetup: func(t *testing.T, ctx testContext) {
-				server := NewTCPServerOnAddress(ctx.serverAddress, func(c net.Conn) {
+				server := tracertestutil.NewTCPServerOnAddress(ctx.serverAddress, func(c net.Conn) {
 					defer c.Close()
 					r := bufio.NewReader(c)
 					input, err := r.ReadBytes(byte('\n'))
@@ -242,7 +283,7 @@ func testEdgeCasesProtocolClassification(t *testing.T, tr *Tracer, clientHost, t
 				extras:        map[string]interface{}{},
 			},
 			preTracerSetup: func(t *testing.T, ctx testContext) {
-				server := NewTCPServerOnAddress(ctx.serverAddress, func(c net.Conn) {
+				server := tracertestutil.NewTCPServerOnAddress(ctx.serverAddress, func(c net.Conn) {
 					defer c.Close()
 
 					r := bufio.NewReader(c)
@@ -291,14 +332,14 @@ func testEdgeCasesProtocolClassification(t *testing.T, tr *Tracer, clientHost, t
 	}
 }
 
-func waitForConnectionsWithProtocol(t *testing.T, tr *Tracer, targetAddr, serverAddr string, expectedStack *protocols.Stack) {
+func waitForConnectionsWithProtocol(t *testing.T, tr *tracer.Tracer, targetAddr, serverAddr string, expectedStack *protocols.Stack) {
 	t.Logf("looking for target addr %s", targetAddr)
 	t.Logf("looking for server addr %s", serverAddr)
 	var outgoing, incoming *network.ConnectionStats
 	failed := !assert.Eventually(t, func() bool {
 		conns := getConnections(t, tr)
 		if outgoing == nil {
-			for _, c := range searchConnections(conns, func(cs network.ConnectionStats) bool {
+			for _, c := range network.FilterConnections(conns, func(cs network.ConnectionStats) bool {
 				return cs.Direction == network.OUTGOING && cs.Type == network.TCP && fmt.Sprintf("%s:%d", cs.Dest, cs.DPort) == targetAddr
 			}) {
 				t.Logf("found potential outgoing connection %+v", c)
@@ -311,7 +352,7 @@ func waitForConnectionsWithProtocol(t *testing.T, tr *Tracer, targetAddr, server
 		}
 
 		if incoming == nil {
-			for _, c := range searchConnections(conns, func(cs network.ConnectionStats) bool {
+			for _, c := range network.FilterConnections(conns, func(cs network.ConnectionStats) bool {
 				return cs.Direction == network.INCOMING && cs.Type == network.TCP && fmt.Sprintf("%s:%d", cs.Source, cs.SPort) == serverAddr
 			}) {
 				t.Logf("found potential incoming connection %+v", c)

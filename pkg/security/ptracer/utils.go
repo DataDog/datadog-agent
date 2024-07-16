@@ -81,8 +81,7 @@ func getContainerIDFromProcFS(cgroupPath string) (string, error) {
 	}
 
 	for _, cgroup := range cgroups {
-		cid := containerutils.FindContainerID(cgroup.path)
-		if cid != "" {
+		if cid, _ := containerutils.FindContainerID(cgroup.path); cid != "" {
 			return cid, nil
 		}
 	}
