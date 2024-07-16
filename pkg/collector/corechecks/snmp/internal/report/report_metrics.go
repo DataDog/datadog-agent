@@ -7,6 +7,7 @@ package report
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
@@ -128,6 +129,12 @@ func (ms *MetricSender) reportScalarMetrics(metric profiledefinition.MetricsConf
 func (ms *MetricSender) reportColumnMetrics(metricConfig profiledefinition.MetricsConfig, values *valuestore.ResultValueStore, tags []string) map[string]map[string]MetricSample {
 	rowTagsCache := make(map[string][]string)
 	samples := map[string]map[string]MetricSample{}
+	var deviceID string
+	for _, tag := range tags {
+		if strings.HasPrefix(tag, "device_id:") {
+			deviceID = strings.TrimPrefix(tag, "device_id:")
+		}
+	}
 	for _, symbol := range metricConfig.Symbols {
 		var metricValues map[string]valuestore.ResultValue
 
@@ -153,6 +160,8 @@ func (ms *MetricSender) reportColumnMetrics(metricConfig profiledefinition.Metri
 						log.Tracef("unable to tag snmp.%s metric with interface_config data: %s", symbol.Name, err.Error())
 					}
 					tmpTags = append(tmpTags, interfaceCfg.Tags...)
+
+					tmpTags = append(tmpTags, fmt.Sprintf("dd.internal.resource:ndm_interface_user_tags:%s:%s", deviceID, fullIndex))
 				}
 				rowTagsCache[fullIndex] = tmpTags
 			}
