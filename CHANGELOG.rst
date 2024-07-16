@@ -181,7 +181,7 @@ Other Notes
 
 .. _Release Notes_7.54.1:
 
-7.54.1 / 6.54.1
+7.54.1
 ================
 
 .. _Release Notes_7.54.1_Prelude:
