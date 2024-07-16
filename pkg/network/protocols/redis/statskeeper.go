@@ -20,7 +20,7 @@ type StatsKeeper struct {
 	maxEntries int
 }
 
-// NewStatskeeper creates a new Redis StatsKeeper
+// NewStatsKeeper creates a new Redis StatsKeeper
 func NewStatsKeeper(c *config.Config) *StatsKeeper {
 	statsKeeper := &StatsKeeper{
 		maxEntries: c.MaxRedisStatsBuffered,

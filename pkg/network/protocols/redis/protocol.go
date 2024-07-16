@@ -41,6 +41,7 @@ type protocol struct {
 	statskeeper    *StatsKeeper
 }
 
+// Spec is the protocol spec for the redis protocol.
 var Spec = &protocols.ProtocolSpec{
 	Factory: newRedisProtocol,
 	Maps: []*manager.Map{
