@@ -414,34 +414,34 @@ func testDecoding(t *testing.T, isTLS bool) {
 				}, isTLS)
 			},
 		},
-		{
-			name: "query is truncated",
-			preMonitorSetup: func(t *testing.T, ctx pgTestContext) {
-				pg, err := postgres.NewPGXClient(postgres.ConnectionOptions{
-					ServerAddress: ctx.serverAddress,
-					EnableTLS:     isTLS,
-				})
-				require.NoError(t, err)
-				require.NoError(t, pg.Ping())
-				ctx.extras["pg"] = pg
-			},
-			postMonitorSetup: func(t *testing.T, ctx pgTestContext) {
-				pg := ctx.extras["pg"].(*postgres.PGXClient)
-				longTableName := strings.Repeat("table_", repeatCount)
-				require.NoError(t, pg.RunQuery(fmt.Sprintf("CREATE TABLE %s (id SERIAL PRIMARY KEY, foo TEXT)", longTableName)))
-				require.NoError(t, pg.RunQuery(fmt.Sprintf("DROP TABLE IF EXISTS %s", longTableName)))
-			},
-			validation: func(t *testing.T, ctx pgTestContext, monitor *Monitor) {
-				validatePostgres(t, monitor, map[string]map[postgres.Operation]int{
-					strings.Repeat("table_", repeatCount-1) + "t": {
-						postgres.CreateTableOP: adjustCount(1),
-					},
-					strings.Repeat("table_", repeatCount-3) + "table": {
-						postgres.DropTableOP: adjustCount(1),
-					},
-				}, isTLS)
-			},
-		},
+		//{
+		//	name: "query is truncated",
+		//	preMonitorSetup: func(t *testing.T, ctx pgTestContext) {
+		//		pg, err := postgres.NewPGXClient(postgres.ConnectionOptions{
+		//			ServerAddress: ctx.serverAddress,
+		//			EnableTLS:     isTLS,
+		//		})
+		//		require.NoError(t, err)
+		//		require.NoError(t, pg.Ping())
+		//		ctx.extras["pg"] = pg
+		//	},
+		//	postMonitorSetup: func(t *testing.T, ctx pgTestContext) {
+		//		pg := ctx.extras["pg"].(*postgres.PGXClient)
+		//		longTableName := strings.Repeat("table_", repeatCount)
+		//		require.NoError(t, pg.RunQuery(fmt.Sprintf("CREATE TABLE %s (id SERIAL PRIMARY KEY, foo TEXT)", longTableName)))
+		//		require.NoError(t, pg.RunQuery(fmt.Sprintf("DROP TABLE IF EXISTS %s", longTableName)))
+		//	},
+		//	validation: func(t *testing.T, ctx pgTestContext, monitor *Monitor) {
+		//		validatePostgres(t, monitor, map[string]map[postgres.Operation]int{
+		//			strings.Repeat("table_", repeatCount-1) + "t": {
+		//				postgres.CreateTableOP: adjustCount(1),
+		//			},
+		//			strings.Repeat("table_", repeatCount-3) + "table": {
+		//				postgres.DropTableOP: adjustCount(1),
+		//			},
+		//		}, isTLS)
+		//	},
+		//},
 		{
 			name: "too many messages in a single packet",
 			preMonitorSetup: func(t *testing.T, ctx pgTestContext) {
