@@ -186,18 +186,20 @@ func getEventHostInfoImpl(hostProviderIDFunc func(string) string, clusterName st
 
 	switch ev.InvolvedObject.Kind {
 	case podKind:
+		sourceHost := ev.Source.Host
+		if sourceHost != "" {
+			info.nodename = sourceHost
+			break
+		}
 		c, err := apiserver.GetAPIClient()
-		if err != nil {
-			info.nodename = ev.Source.Host
-			break
+		if err == nil {
+			ctx := context.TODO()
+			node, err := c.GetNodeForPod(ctx, ev.InvolvedObject.Namespace, ev.InvolvedObject.Name)
+			if err == nil {
+				sourceHost = node
+			}
 		}
-		ctx := context.TODO()
-		node, err := c.GetNodeForPod(ctx, ev.InvolvedObject.Namespace, ev.InvolvedObject.Name)
-		if err != nil {
-			info.nodename = ev.Source.Host
-			break
-		}
-		info.nodename = node
+		info.nodename = sourceHost
 	case nodeKind:
 		// on Node the host is not always provided in the ev.Source.Host
 		// But it is always available in `ev.InvolvedObject.Name`
