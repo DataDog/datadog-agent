@@ -427,7 +427,7 @@ func (h *Host) newHTTPTransport() *http.Transport {
 			}
 
 			if _, ok := validHostnames[hostname]; !ok {
-				return nil, errors.New("request hostname does not match host address")
+				return nil, fmt.Errorf("request hostname %s does not match any valid host name", hostname)
 			}
 
 			portInt, err := strconv.Atoi(port)
