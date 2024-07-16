@@ -98,7 +98,7 @@ func NewDockerAgentClient(context e2e.Context, dockerAgentOutput agent.DockerAge
 //
 // As of now this is only implemented for Linux.
 func waitForAgentsReady(tt *testing.T, host *Host, params *agentclientparams.Params) {
-	hostHTTPClient := host.HTTPClient()
+	hostHTTPClient := host.NewHTTPClient()
 	require.EventuallyWithT(tt, func(t *assert.CollectT) {
 		agentReadyCmds := map[string]func(*agentclientparams.Params, *Host) (*http.Request, bool, error){
 			"process-agent":  processAgentRequest,

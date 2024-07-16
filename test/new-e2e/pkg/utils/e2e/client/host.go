@@ -402,7 +402,7 @@ func (h *Host) HTTPTransport() http.RoundTripper {
 
 // HTTPClient returns an *http.Client which dials the remote host.
 // This client can only reach the host.
-func (h *Host) HTTPClient() *http.Client {
+func (h *Host) NewHTTPClient() *http.Client {
 	return &http.Client{
 		Transport: h.httpTransport,
 	}
