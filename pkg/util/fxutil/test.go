@@ -35,6 +35,7 @@ func Test[T any](t testing.TB, opts ...fx.Option) T {
 
 	app := fxtest.New(
 		t,
+		FxLoggingOption(),
 		fx.Provide(newFxLifecycleAdapter),
 		fx.Supply(fx.Annotate(t, fx.As(new(testing.TB)))),
 		delayed.option(),
@@ -64,6 +65,7 @@ func TestApp[T any](opts ...fx.Option) (*fx.App, T, error) {
 	})
 
 	app := fx.New(
+		FxLoggingOption(),
 		delayed.option(),
 		fx.Provide(newFxLifecycleAdapter),
 		fx.Options(opts...),
@@ -97,6 +99,7 @@ type appAssertFn func(testing.TB, *fx.App)
 func TestStart(t testing.TB, opts fx.Option, appAssert appAssertFn, fn interface{}) {
 	delayed := newDelayedFxInvocation(fn)
 	app := fx.New(
+		FxLoggingOption(),
 		fx.Supply(fx.Annotate(t, fx.As(new(testing.TB)))),
 		fx.Provide(newFxLifecycleAdapter),
 		delayed.option(),
@@ -169,6 +172,7 @@ func TestOneShotSubcommand(
 		// build an app without the oneShotFunc, and with verifyFn
 		app := fxtest.New(t,
 			append(opts,
+				FxLoggingOption(),
 				fx.Provide(newFxLifecycleAdapter),
 				fx.Supply(fx.Annotate(t, fx.As(new(testing.TB)))),
 				fx.Invoke(verifyFn))...)

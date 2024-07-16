@@ -10,13 +10,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/fleet/internal/paths"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/fleet/internal/paths"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
@@ -232,16 +233,17 @@ func (i *installerImpl) RemoveExperiment(ctx context.Context, pkg string) error 
 	i.m.Lock()
 	defer i.m.Unlock()
 
-	err := i.stopExperiment(ctx, pkg)
+	repository := i.repositories.Get(pkg)
+	err := repository.DeleteExperiment(ctx)
 	if err != nil {
 		return fmt.Errorf("could not delete experiment: %w", err)
 	}
 
-	repository := i.repositories.Get(pkg)
-	err = repository.DeleteExperiment(ctx)
+	err = i.stopExperiment(ctx, pkg)
 	if err != nil {
 		return fmt.Errorf("could not delete experiment: %w", err)
 	}
+
 	return nil
 }
 

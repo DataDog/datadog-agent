@@ -16,6 +16,7 @@ import (
 // Package represents a package known to the installer
 type Package struct {
 	Name                      string
+	version                   func(Package, *env.Env) string
 	released                  bool
 	releasedBySite            []string
 	releasedWithRemoteUpdates bool
@@ -25,21 +26,15 @@ type Package struct {
 // PackagesList lists all known packages. Not all of them are installable
 var PackagesList = []Package{
 	{Name: "datadog-apm-inject", released: true, condition: apmInjectEnabled},
-	{Name: "datadog-apm-library-java", released: true, condition: apmLanguageEnabled},
-	{Name: "datadog-apm-library-ruby", released: true, condition: apmLanguageEnabled},
-	{Name: "datadog-apm-library-js", released: true, condition: apmLanguageEnabled},
-	{Name: "datadog-apm-library-dotnet", released: true, condition: apmLanguageEnabled},
-	{Name: "datadog-apm-library-python", released: true, condition: apmLanguageEnabled},
-	{Name: "datadog-agent", released: false, releasedWithRemoteUpdates: true},
+	{Name: "datadog-apm-library-java", version: apmLanguageVersion, released: true, condition: apmLanguageEnabled},
+	{Name: "datadog-apm-library-ruby", version: apmLanguageVersion, released: true, condition: apmLanguageEnabled},
+	{Name: "datadog-apm-library-js", version: apmLanguageVersion, released: true, condition: apmLanguageEnabled},
+	{Name: "datadog-apm-library-dotnet", version: apmLanguageVersion, released: true, condition: apmLanguageEnabled},
+	{Name: "datadog-apm-library-python", version: apmLanguageVersion, released: true, condition: apmLanguageEnabled},
+	{Name: "datadog-agent", version: agentVersion, released: false, releasedWithRemoteUpdates: true},
 }
 
-var packageDependencies = map[string][]string{
-	"datadog-apm-library-java":   {"datadog-apm-inject"},
-	"datadog-apm-library-ruby":   {"datadog-apm-inject"},
-	"datadog-apm-library-js":     {"datadog-apm-inject"},
-	"datadog-apm-library-dotnet": {"datadog-apm-inject"},
-	"datadog-apm-library-python": {"datadog-apm-inject"},
-}
+var packageDependencies = map[string][]string{}
 
 // DefaultPackages resolves the default packages URLs to install based on the environment.
 func DefaultPackages(env *env.Env) []string {
@@ -62,13 +57,9 @@ func defaultPackages(env *env.Env, defaultPackages []Package) []string {
 		}
 
 		version := "latest"
-
-		// Respect pinned version of APM packages if we don't define any overwrite
-		if apmLibVersion, ok := env.ApmLibraries[packageToLanguage(p.Name)]; ok {
-			version = apmLibVersion.AsVersionTag()
-			// TODO(paullgdc): Emit a warning here if APM packages are not pinned to at least a major
+		if p.version != nil {
+			version = p.version(p, env)
 		}
-
 		if v, ok := env.DefaultPackagesVersionOverride[p.Name]; ok {
 			version = v
 		}
@@ -87,9 +78,6 @@ func apmInjectEnabled(_ Package, e *env.Env) bool {
 }
 
 func apmLanguageEnabled(p Package, e *env.Env) bool {
-	if !apmInjectEnabled(p, e) {
-		return false
-	}
 	if _, ok := e.ApmLibraries[packageToLanguage(p.Name)]; ok {
 		return true
 	}
@@ -98,10 +86,18 @@ func apmLanguageEnabled(p Package, e *env.Env) bool {
 	}
 	// If the ApmLibraries env is left empty but apm injection is
 	// enabled, we install all languages
-	if len(e.ApmLibraries) == 0 {
+	if len(e.ApmLibraries) == 0 && apmInjectEnabled(p, e) {
 		return true
 	}
 	return false
+}
+
+func apmLanguageVersion(p Package, e *env.Env) string {
+	if apmLibVersion, ok := e.ApmLibraries[packageToLanguage(p.Name)]; ok {
+		return apmLibVersion.AsVersionTag()
+		// TODO(paullgdc): Emit a warning here if APM packages are not pinned to at least a major
+	}
+	return "latest"
 }
 
 func packageToLanguage(packageName string) env.ApmLibLanguage {
@@ -110,4 +106,14 @@ func packageToLanguage(packageName string) env.ApmLibLanguage {
 		return ""
 	}
 	return env.ApmLibLanguage(lang)
+}
+
+func agentVersion(_ Package, e *env.Env) string {
+	if e.AgentMajorVersion != "" && e.AgentMinorVersion != "" {
+		return e.AgentMajorVersion + "." + e.AgentMinorVersion + "-1"
+	}
+	if e.AgentMinorVersion != "" {
+		return "7." + e.AgentMinorVersion + "-1"
+	}
+	return "latest"
 }
