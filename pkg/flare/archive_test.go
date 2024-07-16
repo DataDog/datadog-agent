@@ -96,13 +96,12 @@ func TestRegistryJSON(t *testing.T) {
 	mock.AssertFileContent("mockfilecontent", "registry.json")
 }
 
-func setupIPCAddress(t *testing.T, URL string) *config.MockConfig {
+func setupIPCAddress(t *testing.T, confMock *config.MockConfig, URL string) *config.MockConfig {
 	u, err := url.Parse(URL)
 	require.NoError(t, err)
 	host, port, err := net.SplitHostPort(u.Host)
 	require.NoError(t, err)
 
-	confMock := config.Mock(t)
 	confMock.SetWithoutSource("cmd_host", host)
 	confMock.SetWithoutSource("cmd_port", port)
 	confMock.SetWithoutSource("process_config.cmd_port", port)
@@ -127,7 +126,7 @@ func TestGetAgentTaggerList(t *testing.T) {
 	}))
 	defer s.Close()
 
-	setupIPCAddress(t, s.URL)
+	setupIPCAddress(t, config.Mock(t), s.URL)
 
 	content, err := getAgentTaggerList()
 	require.NoError(t, err)
@@ -156,7 +155,7 @@ func TestGetWorkloadList(t *testing.T) {
 	}))
 	defer s.Close()
 
-	setupIPCAddress(t, s.URL)
+	setupIPCAddress(t, config.Mock(t), s.URL)
 
 	content, err := getAgentWorkloadList()
 	require.NoError(t, err)
@@ -202,6 +201,9 @@ dd_url: https://my-url.com
 process_config:
   enabled: "true"
 `
+	// Setting an unused port to avoid problem when test run next to running Process Agent
+	cfg := config.Mock(t)
+	cfg.SetWithoutSource("process_config.cmd_port", 56789)
 
 	t.Run("without process-agent running", func(t *testing.T) {
 		content, err := getProcessAgentFullConfig()
@@ -222,7 +224,7 @@ process_config:
 		srv := httptest.NewServer(http.HandlerFunc(handler))
 		defer srv.Close()
 
-		setupIPCAddress(t, srv.URL)
+		setupIPCAddress(t, cfg, srv.URL)
 
 		content, err := getProcessAgentFullConfig()
 		require.NoError(t, err)
@@ -297,7 +299,7 @@ func TestProcessAgentChecks(t *testing.T) {
 		srv := httptest.NewServer(http.HandlerFunc(handler))
 		defer srv.Close()
 
-		setupIPCAddress(t, srv.URL)
+		setupIPCAddress(t, config.Mock(t), srv.URL)
 
 		mock := flarehelpers.NewFlareBuilderMock(t, false)
 		getChecksFromProcessAgent(mock.Fb, config.GetProcessAPIAddressPort)
