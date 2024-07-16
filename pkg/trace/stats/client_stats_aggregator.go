@@ -50,7 +50,6 @@ type ClientStatsAggregator struct {
 	agentEnv      string
 	agentHostname string
 	agentVersion  string
-	//peerTagsAggregation bool // flag to enable aggregation over peer tags
 
 	exit chan struct{}
 	done chan struct{}

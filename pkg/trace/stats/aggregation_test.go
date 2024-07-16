@@ -54,7 +54,6 @@ func TestGetStatusCode(t *testing.T) {
 }
 
 func TestNewAggregation(t *testing.T) {
-	//peerTags :=
 	peerSvcOnlyHash := uint64(3430395298086625290)
 	peerTagsHash := uint64(9894752672193411515)
 	for _, tt := range []struct {

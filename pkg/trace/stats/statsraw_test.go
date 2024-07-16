@@ -171,17 +171,58 @@ func BenchmarkHandleSpanRandom(b *testing.B) {
 			}
 		}
 	})
-	// TODO
-	// b.Run("peer_tags", func(b *testing.B) {
-	// 	sb := NewRawBucket(0, 1e9)
-	// 	b.ResetTimer()
-	// 	b.ReportAllocs()
-	// 	for i := 0; i < b.N; i++ {
-	// 		for _, span := range benchSpans {
-	// 			sb.HandleSpan(span, 1, true, "", PayloadAggregationKey{"a", "b", "c", "d", "", ""}, true, defaultPeerTags)
-	// 		}
-	// 	}
-	// })
+	// This is copied from comp/trace/config/peer_tags_test.go
+	// The actual values are not necessarily relevant for the benchmark
+	// but we should update them periodically.
+	peerTags := []string{
+		"_dd.base_service",
+		"amqp.destination",
+		"amqp.exchange",
+		"amqp.queue",
+		"aws.queue.name",
+		"aws.s3.bucket",
+		"bucketname",
+		"cassandra.keyspace",
+		"db.cassandra.contact.points",
+		"db.couchbase.seed.nodes",
+		"db.hostname",
+		"db.instance",
+		"db.name",
+		"db.namespace",
+		"db.system",
+		"grpc.host",
+		"hostname",
+		"http.host",
+		"http.server_name",
+		"messaging.destination",
+		"messaging.destination.name",
+		"messaging.kafka.bootstrap.servers",
+		"messaging.rabbitmq.exchange",
+		"messaging.system",
+		"mongodb.db",
+		"msmq.queue.path",
+		"net.peer.name",
+		"network.destination.name",
+		"peer.hostname",
+		"peer.service",
+		"queuename",
+		"rpc.service",
+		"rpc.system",
+		"server.address",
+		"streamname",
+		"tablename",
+		"topicname",
+	}
+	b.Run("peer_tags", func(b *testing.B) {
+		sb := NewRawBucket(0, 1e9)
+		b.ResetTimer()
+		b.ReportAllocs()
+		for i := 0; i < b.N; i++ {
+			for _, span := range benchSpans {
+				sb.HandleSpan(span, 1, true, "", PayloadAggregationKey{"a", "b", "c", "d", "", ""}, peerTags)
+			}
+		}
+	})
 }
 
 var benchSpans = []*pb.Span{

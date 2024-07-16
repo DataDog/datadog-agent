@@ -12,6 +12,8 @@ import (
 //go:embed peer_tags.ini
 var peerTagFile []byte
 
+// defaultPeerTags is the default set of peer tags used when peer tag aggregation is enabled.
+// This should only be directly used in tests.
 var defaultPeerTags = func() []string {
 	var tags []string = []string{"_dd.base_service"}
 

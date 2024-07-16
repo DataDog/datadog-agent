@@ -105,7 +105,7 @@ func assertCountsEqual(t *testing.T, expected []*pb.ClientGroupedStats, actual [
 
 func TestNewConcentratorPeerTags(t *testing.T) {
 	statsd := &statsd.NoOpClient{}
-	t.Run("nothing enabled", func(t *testing.T) {
+	t.Run("no peer tags", func(t *testing.T) {
 		assert := assert.New(t)
 		cfg := config.AgentConfig{
 			BucketInterval: time.Duration(testBucketInterval),
@@ -116,63 +116,7 @@ func TestNewConcentratorPeerTags(t *testing.T) {
 		c := NewConcentrator(&cfg, nil, time.Now(), statsd)
 		assert.Nil(c.peerTagKeys)
 	})
-	// t.Run("deprecated peer service flag set", func(t *testing.T) {
-	// 	assert := assert.New(t)
-	// 	cfg := config.AgentConfig{
-	// 		BucketInterval:         time.Duration(testBucketInterval),
-	// 		AgentVersion:           "0.99.0",
-	// 		DefaultEnv:             "env",
-	// 		Hostname:               "hostname",
-	// 		PeerServiceAggregation: true,
-	// 	}
-	// 	c := NewConcentrator(&cfg, nil, time.Now(), statsd)
-	// 	assert.True(c.peerTagsAggregation)
-	// 	assert.Equal(defaultPeerTags, c.peerTagKeys)
-	// })
-	// t.Run("deprecated peer service flag set + peer tags", func(t *testing.T) {
-	// 	assert := assert.New(t)
-	// 	cfg := config.AgentConfig{
-	// 		BucketInterval:         time.Duration(testBucketInterval),
-	// 		AgentVersion:           "0.99.0",
-	// 		DefaultEnv:             "env",
-	// 		Hostname:               "hostname",
-	// 		PeerServiceAggregation: true,
-	// 		PeerTags:               []string{"zz_tag"},
-	// 	}
-	// 	c := NewConcentrator(&cfg, nil, time.Now(), statsd)
-	// 	assert.True(c.peerTagsAggregation)
-	// 	assert.Equal(append(defaultPeerTags, "zz_tag"), c.peerTagKeys)
-	// })
-	// t.Run("deprecated peer service flag set + new peer tags aggregation flag", func(t *testing.T) {
-	// 	assert := assert.New(t)
-	// 	cfg := config.AgentConfig{
-	// 		BucketInterval:         time.Duration(testBucketInterval),
-	// 		AgentVersion:           "0.99.0",
-	// 		DefaultEnv:             "env",
-	// 		Hostname:               "hostname",
-	// 		PeerServiceAggregation: true,
-	// 		PeerTagsAggregation:    true,
-	// 	}
-	// 	c := NewConcentrator(&cfg, nil, time.Now(), statsd)
-	// 	assert.True(c.peerTagsAggregation)
-	// 	assert.Equal(defaultPeerTags, c.peerTagKeys)
-	// })
-	// t.Run("deprecated peer service flag set + new peer tags aggregation flag + peer tags", func(t *testing.T) {
-	// 	assert := assert.New(t)
-	// 	cfg := config.AgentConfig{
-	// 		BucketInterval:         time.Duration(testBucketInterval),
-	// 		AgentVersion:           "0.99.0",
-	// 		DefaultEnv:             "env",
-	// 		Hostname:               "hostname",
-	// 		PeerServiceAggregation: true,
-	// 		PeerTagsAggregation:    true,
-	// 		PeerTags:               []string{"zz_tag"},
-	// 	}
-	// 	c := NewConcentrator(&cfg, nil, time.Now(), statsd)
-	// 	assert.True(c.peerTagsAggregation)
-	// 	assert.Equal(append(defaultPeerTags, "zz_tag"), c.peerTagKeys)
-	// })
-	t.Run("new peer tags aggregation flag", func(t *testing.T) {
+	t.Run("with peer tags", func(t *testing.T) {
 		assert := assert.New(t)
 		cfg := config.AgentConfig{
 			BucketInterval: time.Duration(testBucketInterval),
@@ -184,20 +128,6 @@ func TestNewConcentratorPeerTags(t *testing.T) {
 		c := NewConcentrator(&cfg, nil, time.Now(), statsd)
 		assert.Equal([]string{"zz_tag"}, c.peerTagKeys)
 	})
-	// t.Run("new peer tags aggregation flag + peer tags", func(t *testing.T) {
-	// 	assert := assert.New(t)
-	// 	cfg := config.AgentConfig{
-	// 		BucketInterval:      time.Duration(testBucketInterval),
-	// 		AgentVersion:        "0.99.0",
-	// 		DefaultEnv:          "env",
-	// 		Hostname:            "hostname",
-	// 		PeerTagsAggregation: true,
-	// 		PeerTags:            []string{"zz_tag"},
-	// 	}
-	// 	c := NewConcentrator(&cfg, nil, time.Now(), statsd)
-	// 	//assert.True(c.peerTagsAggregation)
-	// 	assert.Equal(append(PeerTags, "zz_tag"), c.peerTagKeys)
-	// })
 }
 
 // TestTracerHostname tests if `Concentrator` uses the tracer hostname rather than agent hostname, if there is one.

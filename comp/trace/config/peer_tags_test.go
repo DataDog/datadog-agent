@@ -32,7 +32,7 @@ func TestPreparePeerTags(t *testing.T) {
 		},
 	} {
 		sort.Strings(tc.output)
-		assert.Equal(t, tc.output, preparePeerTags(tc.input...))
+		assert.Equal(t, tc.output, preparePeerTags(tc.input))
 	}
 }
 

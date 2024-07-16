@@ -61,10 +61,6 @@ type Concentrator struct {
 
 // NewConcentrator initializes a new concentrator ready to be started
 func NewConcentrator(conf *config.AgentConfig, writer Writer, now time.Time, statsd statsd.ClientInterface) *Concentrator {
-	// var peerTagKeys []string
-	// if conf.PeerTagsAggregation {
-	// 	peerTagKeys = append(PeerTags, conf.PeerTags...)
-	// }
 	bsize := conf.BucketInterval.Nanoseconds()
 	c := Concentrator{
 		bsize:   bsize,
