@@ -400,7 +400,7 @@ func (h *Host) HTTPTransport() http.RoundTripper {
 	return h.httpTransport
 }
 
-// HTTPClient returns an *http.Client which dials the remote host.
+// NewHTTPClient returns an *http.Client which dials the remote host.
 // This client can only reach the host.
 func (h *Host) NewHTTPClient() *http.Client {
 	return &http.Client{
