@@ -6,7 +6,7 @@ e2e_pre_test:
   stage: e2e_pre_test
   extends: .new_e2e_template
   needs:
-    - !reference [ .new_e2e_go_deps ]
+    - !reference [ .needs_new_e2e_template ]
     - job: publish_fakeintake
       optional: true
   script:

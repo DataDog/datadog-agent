@@ -98,7 +98,7 @@ new-e2e_windows_powershell_module_test:
     - .new-e2e_windows_msi
     - .new-e2e_agent_a6
   needs:
-    - !reference [ .new_e2e_go_deps ]
+    - !reference [ .needs_new_e2e_template ]
     - deploy_windows_testing-a6
 
 ## full tests
@@ -119,7 +119,7 @@ new-e2e-windows-agent-msi-windows-server-a6-x86_64:
     - .new-e2e_windows_msi
     - .new-e2e_agent_a7
   needs:
-    - !reference [ .new_e2e_go_deps ]
+    - !reference [ .needs_new_e2e_template ]
     - deploy_windows_testing-a7
 
 ## full tests
@@ -141,7 +141,7 @@ new-e2e-windows-agent-domain-tests-a7-x86_64:
     - .new-e2e_windows_domain_test
     - .new-e2e_agent_a7
   needs:
-    - !reference [ .new_e2e_go_deps ]
+    - !reference [ .needs_new_e2e_template ]
     - deploy_windows_testing-a7
   rules:
     - !reference [.on_deploy]
