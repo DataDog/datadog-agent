@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/test-infra-definitions/components/datadog/dockeragentparams"
 
 	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/container"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -98,7 +99,7 @@ func (d *dockerSuite) TestLogsReceived() {
 
 // getLoggerContainerID returns the container ID of the logger app container
 func (d *dockerSuite) getLoggerContainerID() (string, error) {
-	containers, err := d.Env().Docker.GetClient().ContainerList(context.Background(), types.ContainerListOptions{})
+	containers, err := d.Env().Docker.GetClient().ContainerList(context.Background(), container.ListOptions{})
 	if err != nil {
 		return "", err
 	}
