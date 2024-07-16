@@ -19,7 +19,7 @@ import (
 
 func main() {
 	portPtr := flag.Int("port", 80, "fakeintake listening port, default to 80. Using -port=0 will use a random available port")
-	dddevForward := flag.Bool("dddev-forward", false, "Datadog Developer Forward API Key")
+	dddevForward := flag.Bool("dddev-forward", false, "Forward POST payloads to dddev, using the env variable DD_API_KEY as API key")
 	flag.Parse()
 
 	sigs := make(chan os.Signal, 1)
