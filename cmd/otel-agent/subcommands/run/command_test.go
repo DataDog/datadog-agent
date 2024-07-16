@@ -18,8 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-
-	"github.com/stretchr/testify/require"
 )
 
 func TestFxRun(t *testing.T) {
@@ -62,7 +60,7 @@ func TestRunOTelAgentCommand(t *testing.T) {
 	}
 	go func() {
 		if err := runOTelAgentCommand(context.Background(), params); err != nil {
-			log.Fatal("failed to start otel agent ", err)			
+			log.Fatal("failed to start otel agent ", err)
 		}
 	}()
 	waitForReadiness()
