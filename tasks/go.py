@@ -256,7 +256,6 @@ def generate_protobuf(ctx):
         'trace': [
             ('0001-Customize-msgpack-parsing.patch', '-p4'),
             ('0002-Make-nil-map-deserialization-retrocompatible.patch', '-p4'),
-            ('0003-pkg-trace-traceutil-credit-card-obfuscation-9213.patch', '-p4'),
         ],
     }
 
@@ -456,7 +455,7 @@ def tidy(ctx):
 @task
 def check_go_version(ctx):
     go_version_output = ctx.run('go version')
-    # result is like "go version go1.22.4 linux/amd64"
+    # result is like "go version go1.22.5 linux/amd64"
     running_go_version = go_version_output.stdout.split(' ')[2]
 
     with open(".go-version") as f:

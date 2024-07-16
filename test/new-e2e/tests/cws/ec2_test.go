@@ -141,7 +141,7 @@ func (a *agentSuite) Test03OpenSignal() {
 
 	// Create CWS Agent rule
 	rule := fmt.Sprintf("open.file.path == \"%s\"", filepath)
-	res, err := a.apiClient.CreateCWSAgentRule(agentRuleName, desc, rule)
+	res, err := a.apiClient.CreateCWSAgentRule(agentRuleName, desc, rule, []string{`os == "linux"`})
 	require.NoError(a.T(), err, "Agent rule creation failed")
 	agentRuleID = res.Data.GetId()
 

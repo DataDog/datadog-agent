@@ -75,6 +75,10 @@ type RuntimeSecurityConfig struct {
 	LogTags []string
 	// HostServiceName string
 	HostServiceName string
+	// OnDemandEnabled defines whether the on-demand probes should be enabled
+	OnDemandEnabled bool
+	// OnDemandRateLimiterEnabled defines whether the on-demand probes rate limit getting hit disabled the on demand probes
+	OnDemandRateLimiterEnabled bool
 
 	// InternalMonitoringEnabled determines if the monitoring events of the agent should be sent to Datadog
 	InternalMonitoringEnabled bool
@@ -316,6 +320,9 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		SelfTestSendReport:              coreconfig.SystemProbe.GetBool("runtime_security_config.self_test.send_report"),
 		RemoteConfigurationEnabled:      isRemoteConfigEnabled(),
 		RemoteConfigurationDumpPolicies: coreconfig.SystemProbe.GetBool("runtime_security_config.remote_configuration.dump_policies"),
+
+		OnDemandEnabled:            coreconfig.SystemProbe.GetBool("runtime_security_config.on_demand.enabled"),
+		OnDemandRateLimiterEnabled: coreconfig.SystemProbe.GetBool("runtime_security_config.on_demand.rate_limiter.enabled"),
 
 		// policy & ruleset
 		PoliciesDir:                         coreconfig.SystemProbe.GetString("runtime_security_config.policies.dir"),

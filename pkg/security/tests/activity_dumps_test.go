@@ -93,7 +93,7 @@ func TestActivityDumps(t *testing.T) {
 		}
 		time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
 
-		err = test.StopActivityDump(dump.Name, "", "")
+		err = test.StopActivityDump(dump.Name, "")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -134,7 +134,7 @@ func TestActivityDumps(t *testing.T) {
 		}
 		time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
 
-		err = test.StopActivityDump(dump.Name, "", "")
+		err = test.StopActivityDump(dump.Name, "")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -213,7 +213,7 @@ func TestActivityDumps(t *testing.T) {
 		}
 		time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
 
-		err = test.StopActivityDump(dump.Name, "", "")
+		err = test.StopActivityDump(dump.Name, "")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -258,7 +258,7 @@ func TestActivityDumps(t *testing.T) {
 		}
 		time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
 
-		err = test.StopActivityDump(dump.Name, "", "")
+		err = test.StopActivityDump(dump.Name, "")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -297,7 +297,7 @@ func TestActivityDumps(t *testing.T) {
 		}
 		time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
 
-		err = test.StopActivityDump(dump.Name, "", "")
+		err = test.StopActivityDump(dump.Name, "")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -340,7 +340,7 @@ func TestActivityDumps(t *testing.T) {
 		}
 		time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
 
-		err = test.StopActivityDump(dump.Name, "", "")
+		err = test.StopActivityDump(dump.Name, "")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -396,7 +396,7 @@ func TestActivityDumps(t *testing.T) {
 		}
 		time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
 
-		err = test.StopActivityDump(dump.Name, "", "")
+		err = test.StopActivityDump(dump.Name, "")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -571,7 +571,7 @@ func TestActivityDumpsAutoSuppression(t *testing.T) {
 			_, err = cmd.CombinedOutput()
 			return err
 		}, func(rule *rules.Rule, event *model.Event) bool {
-			if event.ProcessContext.ContainerID == dump.ContainerID {
+			if event.ProcessContext.ContainerID == model.ContainerID(dump.ContainerID) {
 				t.Fatal("Got a signal that should have been suppressed")
 			}
 			return false
@@ -590,7 +590,7 @@ func TestActivityDumpsAutoSuppression(t *testing.T) {
 			_, err = cmd.CombinedOutput()
 			return err
 		}, func(rule *rules.Rule, event *model.Event) bool {
-			if event.ProcessContext.ContainerID == dump.ContainerID {
+			if event.ProcessContext.ContainerID == model.ContainerID(dump.ContainerID) {
 				t.Fatal("Got a signal that should have been suppressed")
 			}
 			return false
@@ -680,7 +680,7 @@ func TestActivityDumpsAutoSuppressionDriftOnly(t *testing.T) {
 			_, err := cmd.CombinedOutput()
 			return err
 		}, func(rule *rules.Rule, event *model.Event) bool {
-			if event.ProcessContext.ContainerID == dockerInstance2.containerID {
+			if event.ProcessContext.ContainerID == model.ContainerID(dockerInstance2.containerID) {
 				t.Fatal("Got a signal that should have been suppressed")
 			}
 			return false
@@ -699,7 +699,7 @@ func TestActivityDumpsAutoSuppressionDriftOnly(t *testing.T) {
 			_, err = cmd.CombinedOutput()
 			return err
 		}, func(rule *rules.Rule, event *model.Event) bool {
-			if event.ProcessContext.ContainerID == dockerInstance2.containerID {
+			if event.ProcessContext.ContainerID == model.ContainerID(dockerInstance2.containerID) {
 				t.Fatal("Got a signal that should have been suppressed")
 			}
 			return false

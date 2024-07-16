@@ -5,6 +5,7 @@ import json
 import os
 import re
 import shutil
+import sys
 import tarfile
 import tempfile
 import xml.etree.ElementTree as ET
@@ -196,15 +197,15 @@ def gen_config_from_ci_pipeline(
                     info(f"[+] setting vcpu to {vcpu}")
 
     failed_packages: set[str] = set()
-    for job in test_jobs:
-        if job.status == "failed" and job.component == vmconfig_template:
-            vm_arch = job.arch
+    for test_job in test_jobs:
+        if test_job.status == "failed" and job.component == vmconfig_template:
+            vm_arch = test_job.arch
             if use_local_if_possible and vm_arch == local_arch:
                 vm_arch = local_arch
 
-            failed_tests = job.get_test_results()
+            failed_tests = test_job.get_test_results()
             failed_packages.update({test.split(':')[0] for test in failed_tests.keys()})
-            vms.add(f"{vm_arch}-{job.distro}-distro")
+            vms.add(f"{vm_arch}-{test_job.distro}-distro")
 
     info(f"[+] generating {output_file} file for VMs {vms}")
     vcpu = DEFAULT_VCPU if vcpu is None else vcpu
@@ -973,6 +974,7 @@ def images_matching_ci(_: Context, domains: list[LibvirtDomain]):
         "verbose": "Enable full output of all commands executed",
         "test-logs": "Set 'gotestsum' verbosity to 'standard-verbose' to print all test logs. Default is 'testname'",
         "test-extra-arguments": "Extra arguments to pass to the test runner, see `go help testflag` for more details",
+        "test-extra-env": "Extra environment variables to pass to the test runner",
     }
 )
 def test(
@@ -989,6 +991,7 @@ def test(
     verbose=True,
     test_logs=False,
     test_extra_arguments=None,
+    test_extra_env=None,
 ):
     stack = check_and_get_stack(stack)
     assert stacks.stack_exists(
@@ -1044,6 +1047,7 @@ def test(
             f"-run-count {run_count}",
             f"-test-root /opt/{component}-tests",
             f"-extra-params {test_extra_arguments}" if test_extra_arguments is not None else "",
+            f"-extra-env {test_extra_env}" if test_extra_env is not None else "",
             "-test-tools /opt/testing-tools",
         ]
         for d in domains:
@@ -1104,6 +1108,7 @@ def build(
     arch: str | None = None,
     component: Component = "system-probe",
     layout: str = "tasks/kernel_matrix_testing/build-layout.json",
+    compile_only=False,
 ):
     stack = check_and_get_stack(stack)
     assert stacks.stack_exists(
@@ -1113,34 +1118,38 @@ def build(
     if arch is None:
         arch = "local"
 
+    arch_obj = Arch.from_str(arch)
+    paths = KMTPaths(stack, arch_obj)
+    paths.arch_dir.mkdir(parents=True, exist_ok=True)
+
+    cc = get_compiler(ctx)
+
+    cc.exec(f"cd {CONTAINER_AGENT_PATH} && inv -e system-probe.object-files")
+
+    build_task = "build-sysprobe-binary" if component == "system-probe" else "build"
+    cc.exec(
+        f"cd {CONTAINER_AGENT_PATH} && git config --global --add safe.directory {CONTAINER_AGENT_PATH} && inv -e {component}.{build_task} --no-bundle --arch={arch_obj.name}",
+    )
+
+    cc.exec(f"tar cf {CONTAINER_AGENT_PATH}/kmt-deps/{stack}/build-embedded-dir.tar {EMBEDDED_SHARE_DIR}")
+
+    if compile_only:
+        return
+
     if vms is None:
         vms = ",".join(stacks.get_all_vms_in_stack(stack))
 
     assert os.path.exists(layout), f"File {layout} does not exist"
 
-    arch_obj = Arch.from_str(arch)
-    paths = KMTPaths(stack, arch_obj)
-    paths.arch_dir.mkdir(parents=True, exist_ok=True)
-
     ssh_key_obj = try_get_ssh_key(ctx, ssh_key)
     infra = build_infrastructure(stack, ssh_key_obj)
     domains = filter_target_domains(vms, infra, arch_obj)
-    cc = get_compiler(ctx)
 
     if not images_matching_ci(ctx, domains):
         if ask("Some VMs do not match version in CI. Continue anyway [y/N]") != "y":
             return
 
     assert len(domains) > 0, f"no vms found from list {vms}. Run `inv -e kmt.status` to see all VMs in current stack"
-
-    cc.exec(f"cd {CONTAINER_AGENT_PATH} && inv -e system-probe.object-files")
-
-    build_task = "build-sysprobe-binary" if component == "system-probe" else "build"
-    cc.exec(
-        f"cd {CONTAINER_AGENT_PATH} && git config --global --add safe.directory {CONTAINER_AGENT_PATH} && inv -e {component}.{build_task} --no-bundle",
-    )
-
-    cc.exec(f"tar cf {CONTAINER_AGENT_PATH}/kmt-deps/{stack}/build-embedded-dir.tar {EMBEDDED_SHARE_DIR}")
 
     build_layout(ctx, domains, layout, verbose)
     for d in domains:
@@ -1171,13 +1180,14 @@ def clean(ctx: Context, stack: str | None = None, container=False, image=False):
 
 @task(
     help={
-        "stacks": "Comma separated list of stacks to generate ssh config for. 'all' to generate for all stacks.",
+        "stack": "List of stacks to generate ssh config for. 'all' to generate for all stacks.",
         "ddvm_rsa": "Path to the ddvm_rsa file to use for connecting to the VMs. Defaults to the path in the ami-builder repo",
-    }
+    },
+    iterable=["stack"],
 )
 def ssh_config(
     ctx: Context,
-    stacks: str | None = None,
+    stack: Iterable[str] | None = None,
     ddvm_rsa="tasks/kernel_matrix_testing/ddvm_rsa",
 ):
     """
@@ -1191,29 +1201,26 @@ def ssh_config(
     without worrying about overriding existing configs.
     """
     stacks_dir = Path(get_kmt_os().stacks_dir)
-    stacks_to_print = None
+    stack = set(stack or [])
 
-    if stacks is not None and stacks != 'all':
-        stacks_to_print = set(stacks.split(','))
+    # Ensure correct permissions of the ddvm_rsa file if we're using
+    # it to connect to VMs. This attribute change doesn't seem to be tracked
+    # in git correctly
+    ctx.run(f"chmod 600 {ddvm_rsa}")
 
-    for stack in stacks_dir.iterdir():
-        if not stack.is_dir():
+    for stack_dir in stacks_dir.iterdir():
+        if not stack_dir.is_dir():
             continue
 
-        output = stack / "stack.output"
+        output = stack_dir / "stack.output"
         if not output.exists():
             continue  # Invalid/removed stack, ignore it
 
-        stack_name = stack.name.replace('-ddvm', '')
-        if (
-            stacks_to_print is not None
-            and 'all' not in stacks_to_print
-            and stack_name not in stacks_to_print
-            and stack.name not in stacks_to_print
-        ):
+        stack_name = stack_dir.name.replace('-ddvm', '')
+        if len(stack) > 0 and 'all' not in stack and stack_name not in stack and stack_dir.name not in stack:
             continue
 
-        for _, instance in build_infrastructure(stack.name, try_get_ssh_key(ctx, None)).items():
+        for _, instance in build_infrastructure(stack_dir.name, try_get_ssh_key(ctx, None)).items():
             if instance.arch != "local":
                 print(f"Host kmt-{stack_name}-{instance.arch}")
                 print(f"    HostName {instance.ip}")
@@ -1240,6 +1247,7 @@ def ssh_config(
                 if instance.arch != "local":
                     print(f"    ProxyJump kmt-{stack_name}-{instance.arch}")
                 print(f"    IdentityFile {ddvm_rsa}")
+                print("    IdentitiesOnly yes")
                 print("    User root")
 
                 for key, value in SSH_OPTIONS.items():
@@ -1395,7 +1403,7 @@ def update_platform_info(
             except KeyError as e:
                 raise Exit(f"[!] Invalid manifest {manifest}") from e
 
-            if arch not in platforms:
+            if arch.kmt_arch not in platforms:
                 warn(f"[!] Unsupported architecture {arch}, skipping")
                 continue
 
@@ -1515,12 +1523,12 @@ def explain_ci_failure(_, pipeline: str):
         return
 
     # Compute a reason for failure for each test run job
-    for job in failed_jobs:
-        if job.failure_reason == "script_failure":
+    for failed_job in failed_jobs:
+        if failed_job.failure_reason == "script_failure":
             failreason = testfail  # By default, we assume it's a test failure
 
             # Now check the artifacts, we'll guess why the job failed based on the size
-            for artifact in job.job.artifacts:
+            for artifact in failed_job.job.artifacts:  # type: ignore
                 if artifact.get("filename") == "artifacts.zip":
                     fsize = artifact.get("size", 0)
                     if fsize < 1500:
@@ -1529,9 +1537,9 @@ def explain_ci_failure(_, pipeline: str):
                         failreason = infrafail
                         break
         else:
-            failreason = job.failure_reason
+            failreason = failed_job.failure_reason
 
-        failreasons[job.name] = failreason
+        failreasons[failed_job.name] = failreason
 
     # Check setup-env jobs that failed, they are infra failures for all related test jobs
     for job in failed_setup_jobs:
@@ -1555,14 +1563,14 @@ def explain_ci_failure(_, pipeline: str):
 
         # Build the distro table with all jobs for this component and vmset, to correctly
         # differentiate between skipped and ok jobs
-        for job in test_jobs:
-            if job.component != component or job.vmset != vmset:
+        for test_job in test_jobs:
+            if test_job.component != component or test_job.vmset != vmset:
                 continue
 
             failreason = failreasons.get(job.name, ok)
-            distros[job.distro][job.arch] = failreason
+            distros[test_job.distro][job.arch] = failreason
             if failreason == testfail:
-                distro_arch_with_test_failures.append((job.distro, job.arch))
+                distro_arch_with_test_failures.append((test_job.distro, test_job.arch))
 
         # Filter out distros with no failures
         distros = {d: v for d, v in distros.items() if any(r == testfail or r == infrafail for r in v.values())}
@@ -1747,6 +1755,7 @@ def show_last_test_results(ctx: Context, stack: str | None = None):
     results: dict[str, dict[str, tuple[int, int, int]]] = defaultdict(dict)
     vm_list: list[str] = []
     total_by_vm: dict[str, tuple[int, int, int]] = defaultdict(lambda: (0, 0, 0))
+    sum_failures = 0
 
     for vm_folder in paths.test_results.iterdir():
         if not vm_folder.is_dir():
@@ -1765,6 +1774,7 @@ def show_last_test_results(ctx: Context, stack: str | None = None):
 
                 tests = int(testsuite.get("tests") or "0")
                 failures = int(testsuite.get("failures") or "0")
+                sum_failures += failures
                 errors = int(testsuite.get("errors") or "0")
                 skipped = int(testsuite.get("skipped") or "0")
                 successes = tests - failures - errors - skipped
@@ -1789,6 +1799,9 @@ def show_last_test_results(ctx: Context, stack: str | None = None):
 
     print(tabulate(table, headers=["Package"] + vm_list))
     print("\nLegend: Successes/Failures/Skipped")
+
+    if sum_failures:
+        sys.exit(1)
 
 
 @task
@@ -1820,11 +1833,11 @@ def tag_ci_job(ctx: Context):
         job_type = "test"
     tags["job_type"] = job_type
 
+    agent_testing_dir = Path(os.environ["DD_AGENT_TESTING_DIR"])
+    ci_project_dir = Path(os.environ["CI_PROJECT_DIR"])
+
     if job_type == "test":
         # Retrieve all data for the tests to detect a failure reason
-        agent_testing_dir = Path(os.environ["DD_AGENT_TESTING_DIR"])
-        ci_project_dir = Path(os.environ["CI_PROJECT_DIR"])
-
         test_jobs_executed, tests_failed = False, False
         for candidate in agent_testing_dir.glob("junit-*.tar.gz"):
             tar = tarfile.open(candidate)
@@ -1860,6 +1873,19 @@ def tag_ci_job(ctx: Context):
             tags["setup_stage"] = "btfs"
         elif "upload_secagent_tests" in job_name or "upload_sysprobe_tests" in job_name:
             tags["setup_stage"] = "tests"
+
+        instance_not_found_marker = ci_project_dir / "instance_not_found"
+        e2e_fail_marker = ci_project_dir / "e2e-error-reason"
+        if instance_not_found_marker.is_file():
+            tags["failure_reason"] = "infra_instance-not-found"
+        elif e2e_fail_marker.is_file():
+            e2e_fail = e2e_fail_marker.read_text().strip()
+            if e2e_fail != "":
+                tags["failure_reason"] = f"infra_e2e_{e2e_fail}"
+
+        e2e_retry_count = ci_project_dir / "e2e-retry-count"
+        if e2e_retry_count.is_file():
+            tags["e2e_retry_count"] = e2e_retry_count.read_text().strip()
 
     tag_prefix = "kmt."
     tags_str = " ".join(f"--tags '{tag_prefix}{k}:{v}'" for k, v in tags.items())

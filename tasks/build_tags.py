@@ -219,8 +219,8 @@ build_tags = {
 
 def compute_build_tags_for_flavor(
     build: str,
-    build_include: list[str],
-    build_exclude: list[str],
+    build_include: str | None,
+    build_exclude: str | None,
     flavor: AgentFlavor = AgentFlavor.base,
     include_sds: bool = False,
 ):

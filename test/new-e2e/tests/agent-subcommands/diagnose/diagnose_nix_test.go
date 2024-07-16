@@ -23,6 +23,7 @@ type linuxDiagnoseSuite struct {
 }
 
 func TestLinuxDiagnoseSuite(t *testing.T) {
+	t.Parallel()
 	e2e.Run(t, &linuxDiagnoseSuite{}, e2e.WithProvisioner(awshost.Provisioner()))
 }
 

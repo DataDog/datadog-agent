@@ -27,6 +27,7 @@ import (
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
+	tracertestutil "github.com/DataDog/datadog-agent/pkg/network/tracer/testutil"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
@@ -169,14 +170,14 @@ func testOffsetGuess(t *testing.T) {
 	require.NoError(t, mgr.Start())
 	t.Cleanup(func() { mgr.Stop(manager.CleanAll) })
 
-	server := NewTCPServer(func(c net.Conn) {})
+	server := tracertestutil.NewTCPServer(func(c net.Conn) {})
 	require.NoError(t, server.Run())
 	t.Cleanup(func() { server.Shutdown() })
 
 	var c net.Conn
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
 		var err error
-		c, err = net.Dial("tcp4", server.address)
+		c, err = net.Dial("tcp4", server.Address())
 		assert.NoError(collect, err)
 	}, time.Second, 100*time.Millisecond)
 	t.Cleanup(func() { c.Close() })

@@ -401,7 +401,7 @@ def wait_for_pipeline_from_ref(repo: Project, ref):
 
 
 @task(iterable=['variable'])
-def trigger_child_pipeline(_, git_ref, project_name, variable=None, follow=True):
+def trigger_child_pipeline(_, git_ref, project_name, variable=None, follow=True, timeout=7200):
     """
     Trigger a child pipeline on a target repository and git ref.
     Used in CI jobs only (requires CI_JOB_TOKEN).
@@ -410,6 +410,8 @@ def trigger_child_pipeline(_, git_ref, project_name, variable=None, follow=True)
     You can pass the argument multiple times for each new variable you wish to forward
 
     Use --follow to make this task wait for the pipeline to finish, and return 1 if it fails. (requires GITLAB_TOKEN).
+
+    Use --timeout to set up a timeout shorter than the default 2 hours, to anticipate failures if any.
 
     Examples:
     inv pipeline.trigger-child-pipeline --git-ref "main" --project-name "DataDog/agent-release-management" --variable "RELEASE_VERSION"
@@ -461,8 +463,7 @@ def trigger_child_pipeline(_, git_ref, project_name, variable=None, follow=True)
 
     if follow:
         print("Waiting for child pipeline to finish...", flush=True)
-
-        wait_for_pipeline(repo, pipeline, pipeline_finish_timeout_sec=2700)
+        wait_for_pipeline(repo, pipeline, pipeline_finish_timeout_sec=timeout)
 
         # Check pipeline status
         refresh_pipeline(pipeline)

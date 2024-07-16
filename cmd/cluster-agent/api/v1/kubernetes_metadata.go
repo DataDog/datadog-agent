@@ -68,7 +68,7 @@ func getNodeMetadata(w http.ResponseWriter, r *http.Request, wmeta workloadmeta.
 	var dataBytes []byte
 	nodeName := vars["nodeName"]
 
-	entityID := util.GenerateKubeMetadataEntityID("nodes", "", nodeName)
+	entityID := util.GenerateKubeMetadataEntityID("", "nodes", "", nodeName)
 	nodeMetadata, err := wmeta.GetKubernetesMetadata(entityID)
 	if err != nil {
 		log.Errorf("Could not retrieve the node %s of %s: %v", what, nodeName, err.Error()) //nolint:errcheck
@@ -118,7 +118,7 @@ func getNamespaceMetadataWithTransformerFunc[T any](w http.ResponseWriter, r *ht
 	vars := mux.Vars(r)
 	var metadataBytes []byte
 	nsName := vars["ns"]
-	namespaceMetadata, err := wmeta.GetKubernetesMetadata(util.GenerateKubeMetadataEntityID("namespaces", "", nsName))
+	namespaceMetadata, err := wmeta.GetKubernetesMetadata(util.GenerateKubeMetadataEntityID("", "namespaces", "", nsName))
 	if err != nil {
 		log.Debugf("Could not retrieve the %s of namespace %s: %v", what, nsName, err.Error()) //nolint:errcheck
 		http.Error(w, err.Error(), http.StatusInternalServerError)

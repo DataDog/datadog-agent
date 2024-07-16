@@ -3,6 +3,7 @@ import json
 import os
 import platform
 import re
+import sys
 import tarfile
 import tempfile
 import xml.etree.ElementTree as ET
@@ -227,7 +228,7 @@ def upload_junitxmls(team_dir: Path):
         print(stdout)
         print(f" Uploaded {len(tuple(team_dir.iterdir()))} files for {team_dir.name}")
         if stderr:
-            print(f"Failed uploading junit:\n{stderr}", file=os.sys.stderr)
+            print(f"Failed uploading junit:\n{stderr.decode()}", file=sys.stderr)
             raise CalledProcessError(process.returncode, DATADOG_CI_COMMAND)
     return ""  # For ThreadPoolExecutor.map. Without this it prints None in the log output.
 
