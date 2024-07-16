@@ -95,22 +95,25 @@ func adjustNetwork(cfg config.Config) {
 
 	// disable features that are not supported on certain
 	// configs/platforms
-	var disableConfigs []string
+	var disableConfigs []struct {
+		key, reason string
+	}
 	if ebpflessEnabled {
-		disableConfigs = append(disableConfigs,
-			spNS("enable_conntrack_all_namespaces"),
-			netNS("enable_protocol_classification"),
-			netNS("enable_http_monitoring"),
-			netNS("enable_https_monitoring"),
-			evNS("network_process", "enabled"),
-			netNS("enable_root_netns"),
+		const notSupportedEbpfless = "not supported when ebpf-less is enabled"
+		disableConfigs = append(disableConfigs, []struct{ key, reason string }{
+			{spNS("enable_conntrack_all_namespaces"), notSupportedEbpfless},
+			{netNS("enable_protocol_classification"), notSupportedEbpfless},
+			{netNS("enable_http_monitoring"), notSupportedEbpfless},
+			{netNS("enable_https_monitoring"), notSupportedEbpfless},
+			{evNS("network_process", "enabled"), notSupportedEbpfless},
+			{netNS("enable_root_netns"), notSupportedEbpfless}}...,
 		)
 	}
 
 	for _, c := range disableConfigs {
-		if cfg.GetBool(c) {
-			log.Warnf("disabling %s since it is not supported for this config/platform", c)
-			cfg.Set(c, false, model.SourceAgentRuntime)
+		if cfg.GetBool(c.key) {
+			log.Warnf("disabling %s: %s", c.key, c.reason)
+			cfg.Set(c.key, false, model.SourceAgentRuntime)
 		}
 	}
 }
