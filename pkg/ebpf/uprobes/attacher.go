@@ -131,6 +131,8 @@ type FileRegistry interface {
 	GetRegisteredProcesses() map[uint32]struct{}
 }
 
+type AttachCallback func(*manager.Probe, *utils.FilePath)
+
 // UprobeAttacher is a struct that handles the attachment of uprobes to processes and libraries
 type UprobeAttacher struct {
 	name         string
@@ -144,7 +146,7 @@ type UprobeAttacher struct {
 	// pathToAttachedProbes maps a filesystem path to the probes attached to it. Used to detach them
 	// once the path is no longer used.
 	pathToAttachedProbes   map[string][]manager.ProbeIdentificationPair
-	onAttachCallback       func(*manager.Probe)
+	onAttachCallback       AttachCallback
 	soWatcher              *sharedlibraries.EbpfProgram
 	handlesLibrariesCached *bool
 
@@ -156,7 +158,7 @@ type UprobeAttacher struct {
 // the name of the attacher, the configuration, the probe manage (ebpf.Manager usually), a callback to be called
 // whenever a probe is attached (optional, can be nil), and the binary inspector to be used (e.g., to attach to
 // Go functions we need to inspect the binary in a different way)
-func NewUprobeAttacher(name string, config *AttacherConfig, mgr ProbeManager, onAttachCallback func(*manager.Probe), inspector BinaryInspector) (*UprobeAttacher, error) {
+func NewUprobeAttacher(name string, config *AttacherConfig, mgr ProbeManager, onAttachCallback AttachCallback, inspector BinaryInspector) (*UprobeAttacher, error) {
 	config.SetDefaults()
 
 	ua := &UprobeAttacher{
@@ -179,6 +181,8 @@ func NewUprobeAttacher(name string, config *AttacherConfig, mgr ProbeManager, on
 	if err != nil {
 		return nil, fmt.Errorf("error computing symbols to request: %w", err)
 	}
+
+	utils.AddAttacher(name, ua)
 
 	return ua, nil
 }
@@ -297,16 +301,19 @@ func (ua *UprobeAttacher) initialScan() error {
 			return nil
 		}
 
-		return ua.AttachPID(uint32(pid), true)
+		return ua.AttachPIDWithOptions(uint32(pid), true)
 	})
 
 	return err
 }
 
-// handleProcessStart is called when a new process is started, wraps AttachPID but ignoring the error
+// handleProcessStart is called when a new process is started, wraps AttachPIDWithOptions but ignoring the error
 // for API compatibility with processMonitor
 func (ua *UprobeAttacher) handleProcessStart(pid uint32) {
-	_ = ua.AttachPID(pid, false) // Do not try to attach to libraries on process start, it hasn't loaded them yet
+	err := ua.AttachPIDWithOptions(pid, false) // Do not try to attach to libraries on process start, it hasn't loaded them yet
+	if err != nil {
+		log.Warnf("couldn't attach to pid=%d, err=%v", pid, err)
+	}
 }
 
 // handleProcessExit is called when a process finishes, wraps DetachPID but ignoring the error
@@ -382,8 +389,12 @@ func (ua *UprobeAttacher) getExecutablePath(pid uint32) (string, error) {
 	return binPath, nil
 }
 
-// AttachPID attaches the corresponding probes to a given pid
-func (ua *UprobeAttacher) AttachPID(pid uint32, attachToLibs bool) error {
+func (ua *UprobeAttacher) AttachPID(pid uint32) error {
+	return ua.AttachPIDWithOptions(pid, true)
+}
+
+// AttachPIDWithOptions attaches the corresponding probes to a given pid
+func (ua *UprobeAttacher) AttachPIDWithOptions(pid uint32, attachToLibs bool) error {
 	if (ua.config.ExcludeTargets&ExcludeSelf) != 0 && int(pid) == os.Getpid() {
 		return ErrSelfExcluded
 	}
@@ -589,13 +600,16 @@ func (ua *UprobeAttacher) attachToBinary(fpath utils.FilePath, matchingRules []*
 				}
 				err = ua.manager.AddHook("", newProbe)
 				if err != nil {
+					log.Errorf("error attaching probe %+v: %v", newProbe, err)
 					return fmt.Errorf("error attaching probe %+v: %w", newProbe, err)
 				}
 
-				if ua.onAttachCallback != nil {
-					ua.onAttachCallback(newProbe)
-				}
+				ebpf.AddProgramNameMapping(newProbe.ID(), newProbe.EBPFFuncName, ua.name)
 				ua.pathToAttachedProbes[fpath.HostPath] = append(ua.pathToAttachedProbes[fpath.HostPath], newProbeID)
+
+				if ua.onAttachCallback != nil {
+					ua.onAttachCallback(newProbe, &fpath)
+				}
 			}
 
 		}

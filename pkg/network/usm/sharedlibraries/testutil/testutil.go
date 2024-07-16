@@ -51,7 +51,7 @@ func OpenFromAnotherProcess(t *testing.T, paths ...string) (*exec.Cmd, error) {
 		case <-time.After(time.Second * 5):
 			patternScanner.PrintLogs(t)
 			// please don't use t.Fatalf() here as we could test if it failed later
-			return nil, fmt.Errorf("couldn't luanch process in time")
+			return nil, fmt.Errorf("couldn't launch process in time")
 		}
 	}
 }

@@ -21,6 +21,8 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	fileopener "github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries/testutil"
@@ -119,6 +121,14 @@ func createSymlink(t *testing.T, target, link string) {
 	require.NoError(t, os.Symlink(target, link))
 }
 
+func getLibSSLPath(t *testing.T) string {
+	curDir, err := testutil.CurDir()
+	require.NoError(t, err)
+
+	libmmap := filepath.Join(curDir, "..", "..", "network", "usm", "testdata", "libmmap")
+	return filepath.Join(libmmap, fmt.Sprintf("libssl.so.%s", runtime.GOARCH))
+}
+
 // === Tests
 
 func TestCanCreateAttacher(t *testing.T) {
@@ -138,7 +148,7 @@ func TestAttachPidExcludesInternal(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, ua)
 
-	err = ua.AttachPID(1, false)
+	err = ua.AttachPIDWithOptions(1, false)
 	require.ErrorIs(t, err, ErrInternalDDogProcessRejected)
 }
 
@@ -150,7 +160,7 @@ func TestAttachPidExcludesSelf(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, ua)
 
-	err = ua.AttachPID(uint32(os.Getpid()), false)
+	err = ua.AttachPIDWithOptions(uint32(os.Getpid()), false)
 	require.ErrorIs(t, err, ErrSelfExcluded)
 }
 
@@ -326,12 +336,7 @@ func TestMonitor(t *testing.T) {
 	// Tell mockRegistry to return on any calls, we will check the values later
 	mockRegistry.On("Clear").Return()
 	mockRegistry.On("Register", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
-
-	curDir, err := testutil.CurDir()
-	require.NoError(t, err)
-
-	libmmap := filepath.Join(curDir, "..", "..", "network", "usm", "testdata", "libmmap")
-	lib := filepath.Join(libmmap, fmt.Sprintf("libssl.so.%s", runtime.GOARCH))
+	lib := getLibSSLPath(t)
 
 	ua.Start()
 	t.Cleanup(ua.Stop)
@@ -651,4 +656,61 @@ func TestAttachToLibrariesOfPid(t *testing.T) {
 
 	inspector.AssertExpectations(t)
 	mockMan.AssertExpectations(t)
+}
+
+func TestUprobeAttacher(t *testing.T) {
+	lib := getLibSSLPath(t)
+	ebpfCfg := ddebpf.NewConfig()
+	require.NotNil(t, ebpfCfg)
+
+	buf, err := bytecode.GetReader(ebpfCfg.BPFDir, "uprobe_attacher-test.o")
+	require.NoError(t, err)
+	t.Cleanup(func() { buf.Close() })
+
+	connectProbeID := manager.ProbeIdentificationPair{EBPFFuncName: "uprobe__SSL_connect"}
+	mainProbeID := manager.ProbeIdentificationPair{EBPFFuncName: "uprobe__main"}
+
+	mgr := manager.Manager{}
+
+	attacherCfg := &AttacherConfig{
+		ProbeSelectors: []manager.ProbesSelector{
+			&manager.ProbeSelector{ProbeIdentificationPair: connectProbeID},
+			&manager.ProbeSelector{ProbeIdentificationPair: mainProbeID},
+		},
+		Rules: []*AttachRule{
+			{
+				LibraryNameRegex: regexp.MustCompile(`libssl.so`),
+				UprobeNameRegex:  regexp.MustCompile(`SSL_connect`),
+			},
+		},
+		ExcludeTargets: ExcludeSelf | ExcludeInternal,
+		EbpfConfig:     ebpfCfg,
+	}
+
+	var attachedProbes []struct {
+		probe *manager.Probe
+		fpath *utils.FilePath
+	}
+
+	callback := func(probe *manager.Probe, fpath *utils.FilePath) {
+		attachedProbes = append(attachedProbes, struct {
+			probe *manager.Probe
+			fpath *utils.FilePath
+		}{probe: probe, fpath: fpath})
+	}
+
+	ua, err := NewUprobeAttacher("test", attacherCfg, &mgr, callback, &NativeBinaryInspector{})
+	require.NoError(t, err)
+	require.NotNil(t, ua)
+
+	require.NoError(t, mgr.InitWithOptions(buf, manager.Options{}))
+	require.NoError(t, mgr.Start())
+	t.Cleanup(func() { mgr.Stop(manager.CleanAll) })
+	require.NoError(t, ua.Start())
+	t.Cleanup(ua.Stop)
+
+	cmd, err := fileopener.OpenFromAnotherProcess(t, lib)
+	require.NoError(t, err)
+
+	utils.WaitForProgramsToBeTraced(t, "test", cmd.Process.Pid)
 }
