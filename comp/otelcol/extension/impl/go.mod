@@ -3,23 +3,68 @@ module github.com/DataDog/datadog-agent/comp/otelcol/extension/impl
 go 1.21.0
 
 replace (
+	github.com/DataDog/datadog-agent/comp/core/config => ../../../core/config
+	github.com/DataDog/datadog-agent/comp/core/flare/builder => ../../../core/flare/builder
+	github.com/DataDog/datadog-agent/comp/core/flare/types => ../../../core/flare/types
+	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface => ../../../core/hostname/hostnameinterface
+	github.com/DataDog/datadog-agent/comp/core/log => ../../../core/log
+	github.com/DataDog/datadog-agent/comp/core/secrets => ../../../core/secrets
+	github.com/DataDog/datadog-agent/comp/core/telemetry => ../../../core/telemetry
+	github.com/DataDog/datadog-agent/comp/def => ../../../def
+	github.com/DataDog/datadog-agent/comp/logs/agent/config => ../../../logs/agent/config
 	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def => ../../collector-contrib/def
 	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/impl => ../../collector-contrib/impl
 	github.com/DataDog/datadog-agent/comp/otelcol/configstore/def => ../../configstore/def
 	github.com/DataDog/datadog-agent/comp/otelcol/configstore/impl => ../../configstore/impl
 	github.com/DataDog/datadog-agent/comp/otelcol/extension/def => ../../extension/def
+	github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline => ../../logsagentpipeline
+	github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/logsagentpipelineimpl => ../../logsagentpipeline/logsagentpipelineimpl
+	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter => ../../otlp/components/exporter/logsagentexporter
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient => ../../otlp/components/metricsclient
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/statsprocessor => ../../otlp/components/statsprocessor
 	github.com/DataDog/datadog-agent/comp/trace/compression/def => ../../../trace/compression/def
 	github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip => ../../../trace/compression/impl-gzip
+	github.com/DataDog/datadog-agent/comp/trace/compression/impl-zstd => ../../../trace/compression/impl-zstd
+	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../../../pkg/collector/check/defaults
+	github.com/DataDog/datadog-agent/pkg/config/env => ../../../../pkg/config/env
+	github.com/DataDog/datadog-agent/pkg/config/model => ../../../../pkg/config/model
+	github.com/DataDog/datadog-agent/pkg/config/setup => ../../../../pkg/config/setup
+	github.com/DataDog/datadog-agent/pkg/config/utils => ../../../../pkg/config/utils
+	github.com/DataDog/datadog-agent/pkg/logs/auditor => ../../../../pkg/logs/auditor
+	github.com/DataDog/datadog-agent/pkg/logs/client => ../../../../pkg/logs/client
+	github.com/DataDog/datadog-agent/pkg/logs/diagnostic => ../../../../pkg/logs/diagnostic
+	github.com/DataDog/datadog-agent/pkg/logs/message => ../../../../pkg/logs/message
+	github.com/DataDog/datadog-agent/pkg/logs/metrics => ../../../../pkg/logs/metrics
+	github.com/DataDog/datadog-agent/pkg/logs/pipeline => ../../../../pkg/logs/pipeline
+	github.com/DataDog/datadog-agent/pkg/logs/processor => ../../../../pkg/logs/processor
+	github.com/DataDog/datadog-agent/pkg/logs/sds => ../../../../pkg/logs/sds
+	github.com/DataDog/datadog-agent/pkg/logs/sender => ../../../../pkg/logs/sender
+	github.com/DataDog/datadog-agent/pkg/logs/sources => ../../../../pkg/logs/sources
+	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface => ../../../../pkg/logs/status/statusinterface
+	github.com/DataDog/datadog-agent/pkg/logs/status/utils => ../../../../pkg/logs/status/utils
 	github.com/DataDog/datadog-agent/pkg/obfuscate => ../../../../pkg/obfuscate
 	github.com/DataDog/datadog-agent/pkg/proto => ../../../../pkg/proto
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state => ../../../../pkg/remoteconfig/state
+	github.com/DataDog/datadog-agent/pkg/status/health => ../../../../pkg/status/health
+	github.com/DataDog/datadog-agent/pkg/telemetry => ../../../../pkg/telemetry
 	github.com/DataDog/datadog-agent/pkg/trace => ../../../../pkg/trace
+	github.com/DataDog/datadog-agent/pkg/util/backoff => ../../../../pkg/util/backoff
 	github.com/DataDog/datadog-agent/pkg/util/cgroups => ../../../../pkg/util/cgroups
+	github.com/DataDog/datadog-agent/pkg/util/executable => ../../../../pkg/util/executable
+	github.com/DataDog/datadog-agent/pkg/util/filesystem => ../../../../pkg/util/filesystem
+	github.com/DataDog/datadog-agent/pkg/util/fxutil => ../../../../pkg/util/fxutil
+	github.com/DataDog/datadog-agent/pkg/util/hostname/validate => ../../../../pkg/util/hostname/validate
+	github.com/DataDog/datadog-agent/pkg/util/http => ../../../../pkg/util/http
 	github.com/DataDog/datadog-agent/pkg/util/log => ../../../../pkg/util/log
+	github.com/DataDog/datadog-agent/pkg/util/optional => ../../../../pkg/util/optional
 	github.com/DataDog/datadog-agent/pkg/util/pointer => ../../../../pkg/util/pointer
 	github.com/DataDog/datadog-agent/pkg/util/scrubber => ../../../../pkg/util/scrubber
+	github.com/DataDog/datadog-agent/pkg/util/startstop => ../../../../pkg/util/startstop
+	github.com/DataDog/datadog-agent/pkg/util/statstracker => ../../../../pkg/util/statstracker
+	github.com/DataDog/datadog-agent/pkg/util/system => ../../../../pkg/util/system
+	github.com/DataDog/datadog-agent/pkg/util/system/socket => ../../../../pkg/util/system/socket
+	github.com/DataDog/datadog-agent/pkg/util/winutil => ../../../../pkg/util/winutil
+	github.com/DataDog/datadog-agent/pkg/version => ../../../../pkg/version
 	// todo: update datadog connector with breaking changes from https://github.com/DataDog/datadog-agent/pull/26347.
 	github.com/open-telemetry/opentelemetry-collector-contrib/connector/datadogconnector => github.com/open-telemetry/opentelemetry-collector-contrib/connector/datadogconnector v0.103.0
 )
@@ -88,6 +133,8 @@ require (
 	github.com/ClickHouse/ch-go v0.61.5 // indirect
 	github.com/ClickHouse/clickhouse-go/v2 v2.23.0 // indirect
 	github.com/Code-Hex/go-generics-cache v1.3.1 // indirect
+	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/comp/def v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/statsprocessor v0.56.0-rc.3 // indirect
