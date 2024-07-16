@@ -6,7 +6,7 @@
 #include "helpers/filesystem.h"
 #include "helpers/syscalls.h"
 
-int __attribute__((always_inline)) trace__sys_chown(uid_t user, gid_t group) {
+int __attribute__((always_inline)) trace__sys_chown(const char *filename, uid_t user, gid_t group) {
     struct policy_t policy = fetch_policy(EVENT_CHOWN);
     if (is_discarded_by_process(policy.mode, EVENT_CHOWN)) {
         return 0;
@@ -20,37 +20,38 @@ int __attribute__((always_inline)) trace__sys_chown(uid_t user, gid_t group) {
             .group = group }
     };
 
+    collect_syscall_ctx(&syscall, SYSCALL_CTX_ARG_STR(0) | SYSCALL_CTX_ARG_INT(1) | SYSCALL_CTX_ARG_INT(2), (void *)filename, (void *)&user, (void *)&group);
     cache_syscall(&syscall);
 
     return 0;
 }
 
 HOOK_SYSCALL_ENTRY3(lchown, const char *, filename, uid_t, user, gid_t, group) {
-    return trace__sys_chown(user, group);
+    return trace__sys_chown(filename, user, group);
 }
 
 HOOK_SYSCALL_ENTRY3(fchown, int, fd, uid_t, user, gid_t, group) {
-    return trace__sys_chown(user, group);
+    return trace__sys_chown(NULL, user, group);
 }
 
 HOOK_SYSCALL_ENTRY3(chown, const char *, filename, uid_t, user, gid_t, group) {
-    return trace__sys_chown(user, group);
+    return trace__sys_chown(filename, user, group);
 }
 
 HOOK_SYSCALL_ENTRY3(lchown16, const char *, filename, uid_t, user, gid_t, group) {
-    return trace__sys_chown(user, group);
+    return trace__sys_chown(filename, user, group);
 }
 
 HOOK_SYSCALL_ENTRY3(fchown16, int, fd, uid_t, user, gid_t, group) {
-    return trace__sys_chown(user, group);
+    return trace__sys_chown(NULL, user, group);
 }
 
 HOOK_SYSCALL_ENTRY3(chown16, const char *, filename, uid_t, user, gid_t, group) {
-    return trace__sys_chown(user, group);
+    return trace__sys_chown(filename, user, group);
 }
 
 HOOK_SYSCALL_ENTRY4(fchownat, int, dirfd, const char *, filename, uid_t, user, gid_t, group) {
-    return trace__sys_chown(user, group);
+    return trace__sys_chown(filename, user, group);
 }
 
 int __attribute__((always_inline)) sys_chown_ret(void *ctx, int retval) {
@@ -65,6 +66,7 @@ int __attribute__((always_inline)) sys_chown_ret(void *ctx, int retval) {
 
     struct chown_event_t event = {
         .syscall.retval = retval,
+        .syscall_ctx.id = syscall->ctx_id,
         .file = syscall->setattr.file,
         .uid = syscall->setattr.user,
         .gid = syscall->setattr.group,

@@ -9,13 +9,13 @@ import (
 	"context"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	wmdef "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/fx"
 )
 
 func TestDump(t *testing.T) {
@@ -133,7 +133,6 @@ Created At: 0001-01-01 00:00:00 +0000 UTC
 Started At: 0001-01-01 00:00:00 +0000 UTC
 Finished At: 0001-01-01 00:00:00 +0000 UTC
 ----------- Resources -----------
-Allowed env variables: DD_SERVICE:my-svc DD_ENV:prod DD_VERSION:v1 
 Hostname: 
 Network IPs: 
 PID: 0
@@ -163,7 +162,6 @@ Created At: 0001-01-01 00:00:00 +0000 UTC
 Started At: 0001-01-01 00:00:00 +0000 UTC
 Finished At: 0001-01-01 00:00:00 +0000 UTC
 ----------- Resources -----------
-Allowed env variables: 
 Hostname: 
 Network IPs: 
 PID: 1
@@ -193,7 +191,6 @@ Created At: 0001-01-01 00:00:00 +0000 UTC
 Started At: 0001-01-01 00:00:00 +0000 UTC
 Finished At: 0001-01-01 00:00:00 +0000 UTC
 ----------- Resources -----------
-Allowed env variables: DD_SERVICE:my-svc DD_ENV:prod DD_VERSION:v1 
 Hostname: 
 Network IPs: 
 PID: 1

@@ -647,7 +647,7 @@ def generate_cws_documentation(ctx, go_generate=False):
 
 
 @task
-def cws_go_generate(ctx):
+def cws_go_generate(ctx, verbose=False):
     ctx.run("go install golang.org/x/tools/cmd/stringer")
     ctx.run("go install github.com/mailru/easyjson/easyjson")
     with ctx.cd("./pkg/security/secl"):
@@ -658,7 +658,10 @@ def cws_go_generate(ctx):
         # Disable cross generation from windows for now. Need to fix the stringer issue.
         # elif sys.platform == "win32":
         #     ctx.run("set GOOS=linux && go generate ./...")
-        ctx.run("go generate ./...")
+        cmd = "go generate"
+        if verbose:
+            cmd += " -v"
+        ctx.run(cmd + " ./...")
 
     if sys.platform == "linux":
         shutil.copy(
@@ -897,7 +900,7 @@ def sync_secl_win_pkg(ctx):
         ("args_envs.go", None),
         ("consts_common.go", None),
         ("consts_other.go", None),
-        ("consts_map_names.go", None),
+        ("consts_map_names_linux.go", None),
         ("model_windows.go", "model_win.go"),
         ("field_handlers_windows.go", "field_handlers_win.go"),
         ("accessors_windows.go", "accessors_win.go"),

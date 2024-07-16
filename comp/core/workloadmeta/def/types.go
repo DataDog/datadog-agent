@@ -576,7 +576,6 @@ func (c Container) String(verbose bool) string {
 	_, _ = fmt.Fprint(&sb, c.Resources.String(verbose))
 
 	if verbose {
-		_, _ = fmt.Fprintln(&sb, "Allowed env variables:", filterAndFormatEnvVars(c.EnvVars))
 		_, _ = fmt.Fprintln(&sb, "Hostname:", c.Hostname)
 		_, _ = fmt.Fprintln(&sb, "Network IPs:", mapToString(c.NetworkIPs))
 		_, _ = fmt.Fprintln(&sb, "PID:", c.PID)
@@ -787,7 +786,7 @@ type KubeMetadataEntityID string
 type KubernetesMetadata struct {
 	EntityID
 	EntityMeta
-	GVR schema.GroupVersionResource
+	GVR *schema.GroupVersionResource
 }
 
 // GetID implements Entity#GetID.
@@ -833,6 +832,7 @@ var _ Entity = &KubernetesMetadata{}
 // KubernetesDeployment is an Entity representing a Kubernetes Deployment.
 type KubernetesDeployment struct {
 	EntityID
+	EntityMeta
 	Env     string
 	Service string
 	Version string
@@ -872,6 +872,8 @@ func (d KubernetesDeployment) String(verbose bool) string {
 	var sb strings.Builder
 	_, _ = fmt.Fprintln(&sb, "----------- Entity ID -----------")
 	_, _ = fmt.Fprintln(&sb, d.EntityID.String(verbose))
+	_, _ = fmt.Fprintln(&sb, "----------- Entity Meta -----------")
+	_, _ = fmt.Fprint(&sb, d.EntityMeta.String(verbose))
 	_, _ = fmt.Fprintln(&sb, "----------- Unified Service Tagging -----------")
 	_, _ = fmt.Fprintln(&sb, "Env :", d.Env)
 	_, _ = fmt.Fprintln(&sb, "Service :", d.Service)
@@ -1173,7 +1175,7 @@ func (p *Process) Merge(e Entity) error {
 }
 
 // String implements Entity#String.
-func (p Process) String(verbose bool) string { //nolint:revive // TODO fix revive unused-parameter
+func (p Process) String(_ bool) string {
 	var sb strings.Builder
 
 	_, _ = fmt.Fprintln(&sb, "----------- Entity ID -----------")

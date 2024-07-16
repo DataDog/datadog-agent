@@ -29,7 +29,7 @@ func patcherTestStoreWithData() *store {
 	store := autoscaling.NewStore[model.PodAutoscalerInternal]()
 
 	// ns1/autoscaler1 targets "test-deployment" and has vertical recommendations for 2 containers and from automatic source
-	store.Set("ns1/autoscaler1", model.PodAutoscalerInternal{
+	store.Set("ns1/autoscaler1", model.FakePodAutoscalerInternal{
 		Namespace: "ns1",
 		Name:      "autoscaler1",
 		Spec: &datadoghq.DatadogPodAutoscalerSpec{
@@ -50,9 +50,9 @@ func patcherTestStoreWithData() *store {
 				},
 			},
 		},
-	}, "")
+	}.Build(), "")
 	// ns1/autoscaler2 has a custom owner reference and no vertical recommendations
-	store.Set("ns1/autoscaler2", model.PodAutoscalerInternal{
+	store.Set("ns1/autoscaler2", model.FakePodAutoscalerInternal{
 		Namespace: "ns1",
 		Name:      "autoscaler1",
 		Spec: &datadoghq.DatadogPodAutoscalerSpec{
@@ -62,10 +62,10 @@ func patcherTestStoreWithData() *store {
 				Name:       "test",
 			},
 		},
-	}, "")
+	}.Build(), "")
 
 	// In ns2, autoscaler1 and autoscaler2 target the same RS "duplicate-target"
-	store.Set("ns2/autoscaler1", model.PodAutoscalerInternal{
+	store.Set("ns2/autoscaler1", model.FakePodAutoscalerInternal{
 		Namespace: "ns2",
 		Name:      "autoscaler1",
 		Spec: &datadoghq.DatadogPodAutoscalerSpec{
@@ -75,8 +75,8 @@ func patcherTestStoreWithData() *store {
 				Name:       "duplicate-target",
 			},
 		},
-	}, "")
-	store.Set("ns2/autoscaler2", model.PodAutoscalerInternal{
+	}.Build(), "")
+	store.Set("ns2/autoscaler2", model.FakePodAutoscalerInternal{
 		Namespace: "ns2",
 		Name:      "autoscaler2",
 		Spec: &datadoghq.DatadogPodAutoscalerSpec{
@@ -86,7 +86,7 @@ func patcherTestStoreWithData() *store {
 				Name:       "duplicate-target",
 			},
 		},
-	}, "")
+	}.Build(), "")
 
 	return store
 }

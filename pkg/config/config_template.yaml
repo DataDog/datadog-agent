@@ -1049,12 +1049,23 @@ api_key:
   #
   # receiver_port: 8126
 
-  ## @param receiver_socket - string - optional
-  ## @env DD_APM_RECEIVER_SOCKET - string - optional
+{{- if (eq .OS "windows")}}
+  ## Please note that UDS receiver is not available in Windows.
+  #@ Enabling this setting may result in unexpected behavior.
+  ## @param receiver_socket - string - optional - default: ""
+  ## @env DD_APM_RECEIVER_SOCKET - string - optional - default: ""
   ## Accept traces through Unix Domain Sockets.
-  ## It is off by default. When set, it must point to a valid socket file.
+  ## Set to "" to disable the UDS receiver.
   #
-  # receiver_socket: <UNIX_SOCKET_PATH>
+  # receiver_socket: ""
+{{else}}
+  ## @param receiver_socket - string - optional - default: unix:///var/run/datadog/apm.socket
+  ## @env DD_APM_RECEIVER_SOCKET - string - optional - default: unix:///var/run/datadog/apm.socket
+  ## Accept traces through Unix Domain Sockets.
+  ## Set to "" to disable the UDS receiver.
+  #
+  # receiver_socket: /var/run/datadog/apm.socket
+{{ end }}
 
   ## @param apm_non_local_traffic - boolean - optional - default: false
   ## @env DD_APM_NON_LOCAL_TRAFFIC - boolean - optional - default: false
@@ -2015,11 +2026,23 @@ api_key:
 #
 # bind_host: localhost
 
+{{- if (eq .OS "windows")}}
+## Please note that UDS receiver is not available in Windows.
+#@ Enabling this setting may result in unexpected behavior.
 ## @param dogstatsd_socket - string - optional - default: ""
 ## @env DD_DOGSTATSD_SOCKET - string - optional - default: ""
-## Listen for Dogstatsd metrics on a Unix Socket (*nix only). Set to a valid filesystem path to enable.
+## Listen for Dogstatsd metrics on a Unix Socket (*nix only).
+## Set to "" to disable this feature.
 #
 # dogstatsd_socket: ""
+{{else}}
+## @param dogstatsd_socket - string - optional - default: "/var/run/datadog/dsd.socket"
+## @env DD_DOGSTATSD_SOCKET - string - optional - default: "/var/run/datadog/dsd.socket"
+## Listen for Dogstatsd metrics on a Unix Socket (*nix only).
+## Set to "" to disable this feature.
+#
+# dogstatsd_socket: "/var/run/datadog/dsd.socket"
+{{ end }}
 
 ## @param dogstatsd_origin_detection - boolean - optional - default: false
 ## @env DD_DOGSTATSD_ORIGIN_DETECTION - boolean - optional - default: false

@@ -108,6 +108,7 @@ struct utimes_event_t {
     struct span_context_t span;
     struct container_context_t container;
     struct syscall_t syscall;
+    struct syscall_context_t syscall_ctx;
     struct file_t file;
     struct ktimeval atime, mtime;
 };
@@ -130,6 +131,7 @@ struct chown_event_t {
     struct span_context_t span;
     struct container_context_t container;
     struct syscall_t syscall;
+    struct syscall_context_t syscall_ctx;
     struct file_t file;
     uid_t uid;
     gid_t gid;
@@ -181,6 +183,7 @@ struct link_event_t {
     struct span_context_t span;
     struct container_context_t container;
     struct syscall_t syscall;
+    struct syscall_context_t syscall_ctx;
     struct file_t source;
     struct file_t target;
 };
@@ -227,6 +230,7 @@ struct mount_event_t {
     struct span_context_t span;
     struct container_context_t container;
     struct syscall_t syscall;
+    struct syscall_context_t syscall_ctx;
     struct mount_fields_t mountfields;
 };
 
@@ -311,6 +315,7 @@ struct rename_event_t {
     struct span_context_t span;
     struct container_context_t container;
     struct syscall_t syscall;
+    struct syscall_context_t syscall_ctx;
     struct file_t old;
     struct file_t new;
 };
@@ -382,6 +387,7 @@ struct unlink_event_t {
     struct span_context_t span;
     struct container_context_t container;
     struct syscall_t syscall;
+    struct syscall_context_t syscall_ctx;
     struct file_t file;
     u32 flags;
     u32 padding;
@@ -395,6 +401,16 @@ struct chdir_event_t {
     struct syscall_t syscall;
     struct syscall_context_t syscall_ctx;
     struct file_t file;
+};
+
+struct on_demand_event_t {
+    struct kevent_t event;
+    struct process_context_t process;
+    struct span_context_t span;
+    struct container_context_t container;
+
+    u32 synth_id;
+    char data[256];
 };
 
 #endif
