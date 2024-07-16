@@ -84,7 +84,7 @@ func (docker *Docker) ExecuteCommandWithErr(containerName string, commands ...st
 
 // ExecuteCommandStdoutStdErr executes a command on containerName and returns the output, the error output and an error.
 func (docker *Docker) ExecuteCommandStdoutStdErr(containerName string, commands ...string) (string, string, error) {
-	docker.t.Logf("Executing command: %+q", commands)
+	docker.t.Logf("Executing command...") // don't print the command in case it contains secrets
 	context := context.Background()
 	execConfig := types.ExecConfig{Cmd: commands, AttachStderr: true, AttachStdout: true}
 	execCreateResp, err := docker.client.ContainerExecCreate(context, containerName, execConfig)
