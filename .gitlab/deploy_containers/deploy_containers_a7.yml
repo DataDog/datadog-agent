@@ -93,6 +93,9 @@ deploy_containers-ot:
   rules:
     - when: manual
       allow_failure: true
+      variables:
+        AGENT_REPOSITORY: agent
+        IMG_REGISTRIES: public
   dependencies: []
   before_script:
     - source /root/.bashrc
