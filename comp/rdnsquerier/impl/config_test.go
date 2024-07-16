@@ -33,6 +33,8 @@ func TestConfig(t *testing.T) {
 				cacheEntryTTL:        0,
 				cacheCleanInterval:   0,
 				cachePersistInterval: 0,
+				cacheMaxRetries:      -1,
+				cacheMaxSize:         0,
 			},
 		},
 		{
@@ -52,6 +54,8 @@ network_devices:
 				cacheEntryTTL:        defaultCacheEntryTTL,
 				cacheCleanInterval:   defaultCacheCleanInterval,
 				cachePersistInterval: defaultCachePersistInterval,
+				cacheMaxRetries:      defaultCacheMaxRetries,
+				cacheMaxSize:         defaultCacheMaxSize,
 			},
 		},
 		{
@@ -71,6 +75,8 @@ reverse_dns_enrichment:
     entry_ttl: 0
     clean_interval: 0
     persist_interval: 0
+    max_retries: -1
+    max_size: 0
 `,
 			expectedConfig: rdnsQuerierConfig{
 				enabled:              true,
@@ -82,6 +88,8 @@ reverse_dns_enrichment:
 				cacheEntryTTL:        defaultCacheEntryTTL,
 				cacheCleanInterval:   defaultCacheCleanInterval,
 				cachePersistInterval: defaultCachePersistInterval,
+				cacheMaxRetries:      defaultCacheMaxRetries,
+				cacheMaxSize:         defaultCacheMaxSize,
 			},
 		},
 		{
@@ -101,6 +109,8 @@ reverse_dns_enrichment:
     entry_ttl: 24h
     clean_interval: 30m
     persist_interval: 2h
+    max_retries: 1
+    max_size: 100_000
 `,
 			expectedConfig: rdnsQuerierConfig{
 				enabled:              true,
@@ -112,6 +122,8 @@ reverse_dns_enrichment:
 				cacheEntryTTL:        24 * time.Hour,
 				cacheCleanInterval:   30 * time.Minute,
 				cachePersistInterval: 2 * time.Hour,
+				cacheMaxRetries:      1,
+				cacheMaxSize:         100_000,
 			},
 		},
 		{
@@ -138,6 +150,8 @@ reverse_dns_enrichment:
 				cacheEntryTTL:        defaultCacheEntryTTL,
 				cacheCleanInterval:   defaultCacheCleanInterval,
 				cachePersistInterval: defaultCachePersistInterval,
+				cacheMaxRetries:      defaultCacheMaxRetries,
+				cacheMaxSize:         defaultCacheMaxSize,
 			},
 		},
 		{
@@ -164,6 +178,8 @@ reverse_dns_enrichment:
 				cacheEntryTTL:        0,
 				cacheCleanInterval:   0,
 				cachePersistInterval: 0,
+				cacheMaxRetries:      -1,
+				cacheMaxSize:         0,
 			},
 		},
 	}

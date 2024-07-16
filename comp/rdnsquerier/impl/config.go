@@ -23,17 +23,21 @@ type rdnsQuerierConfig struct {
 	cacheEntryTTL        time.Duration
 	cacheCleanInterval   time.Duration
 	cachePersistInterval time.Duration
+	cacheMaxRetries      int
+	cacheMaxSize         int
 }
 
 const (
 	defaultWorkers  = 10
-	defaultChanSize = 1000
+	defaultChanSize = 5000
 
 	defaultRateLimitPerSec = 1000
 
 	defaultCacheEntryTTL        = time.Hour
 	defaultCacheCleanInterval   = 30 * time.Minute
 	defaultCachePersistInterval = 30 * time.Minute
+	defaultCacheMaxRetries      = 10
+	defaultCacheMaxSize         = 1_000_000
 )
 
 func newConfig(agentConfig config.Component) *rdnsQuerierConfig {
@@ -51,6 +55,8 @@ func newConfig(agentConfig config.Component) *rdnsQuerierConfig {
 		cacheEntryTTL:        agentConfig.GetDuration("reverse_dns_enrichment.cache.entry_ttl"),
 		cacheCleanInterval:   agentConfig.GetDuration("reverse_dns_enrichment.cache.clean_interval"),
 		cachePersistInterval: agentConfig.GetDuration("reverse_dns_enrichment.cache.persist_interval"),
+		cacheMaxRetries:      agentConfig.GetInt("reverse_dns_enrichment.cache.max_retries"),
+		cacheMaxSize:         agentConfig.GetInt("reverse_dns_enrichment.cache.max_size"),
 	}
 
 	c.setDefaults()
@@ -86,6 +92,12 @@ func (c *rdnsQuerierConfig) setDefaults() {
 		}
 		if c.cachePersistInterval <= 0 {
 			c.cachePersistInterval = defaultCachePersistInterval
+		}
+		if c.cacheMaxRetries < 0 {
+			c.cacheMaxRetries = defaultCacheMaxRetries
+		}
+		if c.cacheMaxSize <= 0 {
+			c.cacheMaxSize = defaultCacheMaxSize
 		}
 	}
 }

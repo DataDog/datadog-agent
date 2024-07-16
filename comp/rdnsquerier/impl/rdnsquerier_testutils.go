@@ -25,13 +25,30 @@ import (
 	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"
 )
 
+type fakeResults struct {
+	errors []error
+}
+
 // Fake resolver is used by tests that "resolve" IP addresses to hostnames because with a real resolver test results
 // can be non-deterministic.  Some systems may be able to resolve the private IP addresses used in the tests, others may not.
+// It is also used by certain tests to force specific error(s) for an IP address.
 type fakeResolver struct {
-	config *rdnsQuerierConfig
+	config        *rdnsQuerierConfig
+	fakeIPResults map[string]*fakeResults
 }
 
 func (r *fakeResolver) lookup(addr string) (string, error) {
+	fr, ok := r.fakeIPResults[addr]
+	if ok && len(fr.errors) > 0 {
+		err := fr.errors[0]
+		if len(fr.errors) > 1 {
+			fr.errors = fr.errors[1:]
+		} else {
+			fr.errors = nil
+		}
+		return "", err
+	}
+
 	return "fakehostname-" + addr, nil
 }
 
@@ -43,7 +60,7 @@ type testState struct {
 	logComp       log.Component
 }
 
-func testSetup(t *testing.T, overrides map[string]interface{}, start bool) *testState {
+func testSetup(t *testing.T, overrides map[string]interface{}, start bool, fakeIPResults map[string]*fakeResults) *testState {
 	lc := compdef.NewTestLifecycle()
 
 	config := fxutil.Test[config.Component](t, fx.Options(
@@ -65,25 +82,65 @@ func testSetup(t *testing.T, overrides map[string]interface{}, start bool) *test
 	assert.NoError(t, err)
 	assert.NotNil(t, provides.Comp)
 
-	rdnsQuerier := provides.Comp
-	internalRDNSQuerier := provides.Comp.(*rdnsQuerierImpl)
-	assert.NotNil(t, internalRDNSQuerier)
-
-	// use fake resolver so the test results are deterministic
-	internalRDNSQuerier.resolver = &fakeResolver{internalRDNSQuerier.config}
-
 	ctx := context.Background()
-
 	telemetryMock, ok := telemetryComp.(telemetry.Mock)
 	assert.True(t, ok)
+	ts := testState{lc, provides.Comp, ctx, telemetryMock, logComp}
+
+	// use fake resolver so the test results are deterministic
+	internalRDNSQuerier := provides.Comp.(*rdnsQuerierImpl)
+	assert.NotNil(t, internalRDNSQuerier)
+	if internalRDNSQuerier.config.cacheEnabled {
+		internalCache := internalRDNSQuerier.cache.(*cacheImpl)
+		assert.NotNil(t, internalCache)
+		internalQuerier := internalCache.querier.(*querierImpl)
+		assert.NotNil(t, internalQuerier)
+		internalQuerier.resolver = &fakeResolver{internalRDNSQuerier.config, fakeIPResults}
+	} else {
+		internalCache := internalRDNSQuerier.cache.(*cacheNone)
+		assert.NotNil(t, internalCache)
+		internalQuerier := internalCache.querier.(*querierImpl)
+		assert.NotNil(t, internalQuerier)
+		internalQuerier.resolver = &fakeResolver{internalRDNSQuerier.config, fakeIPResults}
+	}
 
 	if start {
 		assert.NoError(t, lc.Start(ctx))
 	}
 
-	return &testState{lc, rdnsQuerier, ctx, telemetryMock, logComp}
+	return &ts
 }
 
+func (ts *testState) makeExpectedTelemetry(checkTelemetry map[string]float64) map[string]float64 {
+	et := map[string]float64{
+		"total":                   0.0,
+		"private":                 0.0,
+		"chan_added":              0.0,
+		"dropped_chan_full":       0.0,
+		"dropped_rate_limiter":    0.0,
+		"invalid_ip_address":      0.0,
+		"lookup_err_not_found":    0.0,
+		"lookup_err_timeout":      0.0,
+		"lookup_err_temporary":    0.0,
+		"lookup_err_other":        0.0,
+		"successful":              0.0,
+		"cache_hit":               0.0,
+		"cache_hit_expired":       0.0,
+		"cache_hit_in_progress":   0.0,
+		"cache_miss":              0.0,
+		"cache_retry":             0.0,
+		"cache_retries_exceeded":  0.0,
+		"cache_expired":           0.0,
+		"cache_size":              0.0,
+		"cache_max_size_exceeded": 0.0,
+	}
+	for name, value := range checkTelemetry {
+		et[name] = value
+	}
+	return et
+}
+
+// validate that telemetry values are equal to the expected values
 func (ts *testState) validateExpected(t *testing.T, expectedTelemetry map[string]float64) {
 	for name, expected := range expectedTelemetry {
 		ts.logComp.Debugf("Validating expected telemetry %s", name)
@@ -98,6 +155,7 @@ func (ts *testState) validateExpected(t *testing.T, expectedTelemetry map[string
 	}
 }
 
+// validate that telemetry values are greater than or equal to the expected minimum values
 func (ts *testState) validateMinimum(t *testing.T, minimumTelemetry map[string]float64) {
 	for name, expected := range minimumTelemetry {
 		ts.logComp.Debugf("Validating minimum telemetry %s", name)
@@ -108,6 +166,7 @@ func (ts *testState) validateMinimum(t *testing.T, minimumTelemetry map[string]f
 	}
 }
 
+// validate that telemetry values are less than or equal to the expected maximum values
 func (ts *testState) validateMaximum(t *testing.T, maximumTelemetry map[string]float64) {
 	for name, expected := range maximumTelemetry {
 		ts.logComp.Debugf("Validating maximum telemetry %s", name)
