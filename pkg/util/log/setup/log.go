@@ -600,6 +600,9 @@ func appendFmt(builder *strings.Builder, format contextFormat, s string, buf []b
 	}
 }
 
+// ValidateLogLevel validates the given log level and returns the corresponding Seelog log level.
+// If the log level is "warning", it is converted to "warn" to handle a common gotcha when used with agent5.
+// If the log level is not recognized, an error is returned.
 func ValidateLogLevel(logLevel string) (string, error) {
 	seelogLogLevel := strings.ToLower(logLevel)
 	if seelogLogLevel == "warning" { // Common gotcha when used to agent5
