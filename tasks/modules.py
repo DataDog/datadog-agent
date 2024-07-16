@@ -342,7 +342,7 @@ def generate_dummy_package(ctx, folder):
                         )
                     if (
                         mod.import_path == "datadog-agent/comp/otelcol/configstore/impl"
-                        or "datadog-agent/comp/otelcol/configstore/def"
+                        or mod.import_path == "datadog-agent/comp/otelcol/configstore/def"
                     ):
                         ctx.run("go mod edit -exclude github.com/knadh/koanf/maps@v0.1.1")
                         ctx.run("go mod edit -exclude github.com/knadh/koanf/providers/confmap@v0.1.0")
