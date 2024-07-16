@@ -340,7 +340,13 @@ def generate_dummy_package(ctx, folder):
                         ctx.run(
                             "go mod edit -replace github.com/open-telemetry/opentelemetry-collector-contrib/connector/datadogconnector=github.com/open-telemetry/opentelemetry-collector-contrib/connector/datadogconnector@v0.103.0"
                         )
-
+                    if (
+                        mod.import_path == "datadog-agent/comp/otelcol/configstore/impl"
+                        or "datadog-agent/comp/otelcol/configstore/def"
+                    ):
+                        ctx.run("go mod edit -exclude github.com/knadh/koanf/maps@v0.1.1")
+                        ctx.run("go mod edit -exclude github.com/knadh/koanf/providers/confmap@v0.1.0")
+                        ctx.run("go mod edit -exclude github.com/knadh/koanf/providers/confmap@v0.1.0-dev0")
         # yield folder waiting for a "with" block to be executed (https://docs.python.org/3/library/contextlib.html)
         yield folder
 
