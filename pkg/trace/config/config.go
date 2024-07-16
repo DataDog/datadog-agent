@@ -340,6 +340,8 @@ type AgentConfig struct {
 	// case, the sender will drop failed payloads when it is unable to enqueue
 	// them for another retry.
 	MaxSenderRetries int
+	// HTTP client used in writer connections. If nil, default client values will be used.
+	HTTPClientFunc func() *http.Client `json:"-"`
 
 	// internal telemetry
 	StatsdEnabled  bool
@@ -556,6 +558,10 @@ func (c *AgentConfig) APIKey() string {
 // NewHTTPClient returns a new http.Client to be used for outgoing connections to the
 // Datadog API.
 func (c *AgentConfig) NewHTTPClient() *ResetClient {
+	// If a custom HTTPClientFunc been set, use it. Otherwise use default client values
+	if c.HTTPClientFunc != nil {
+		return NewResetClient(c.ConnectionResetInterval, c.HTTPClientFunc)
+	}
 	return NewResetClient(c.ConnectionResetInterval, func() *http.Client {
 		return &http.Client{
 			Timeout:   10 * time.Second,
