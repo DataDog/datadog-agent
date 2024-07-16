@@ -73,6 +73,7 @@ func TestTraceExporter(t *testing.T) {
 
 	params := exportertest.NewNopSettings()
 	tcfg := config.New()
+	tcfg.ReceiverEnabled = false
 	tcfg.TraceWriter.FlushPeriodSeconds = 0.1
 	tcfg.Endpoints[0].APIKey = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 	tcfg.Endpoints[0].Host = server.URL
