@@ -165,19 +165,19 @@ def go_deps(
                     target = f"{binary}-{goos}-{goarch}"
                     prettytarget = f"{binary} {goos}/{goarch}"
 
-                    tags = [
-                        f"build:{build}",
-                        f"flavor:{flavor.name}",
-                        f"os:{goos}",
-                        f"arch:{goarch}",
-                        f"git_sha:{commit_sha}",
-                    ]
-
                     if target in diffs:
                         targetdiffs = diffs[target]
                         add, remove = patch_summary(targetdiffs)
 
                         if report_metrics:
+                            tags = [
+                                f"build:{build}",
+                                f"flavor:{flavor.name}",
+                                f"os:{goos}",
+                                f"arch:{goarch}",
+                                f"git_sha:{commit_sha}",
+                            ]
+
                             dependency_diff = create_count(METRIC_GO_DEPS_DIFF, timestamp, (add - remove), tags)
                             send_metrics([dependency_diff])
 
