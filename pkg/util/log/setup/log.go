@@ -95,7 +95,7 @@ func getSyslogTLSKeyPair(cfg pkgconfigmodel.Reader) (*tls.Certificate, error) {
 // a non empty syslogURI will enable syslog, and format them following RFC 5424 if specified
 // you can also specify to log to the console and in JSON format
 func SetupLogger(loggerName LoggerName, logLevel, logFile, syslogURI string, syslogRFC, logToConsole, jsonFormat bool, cfg pkgconfigmodel.Reader) error {
-	seelogLogLevel, err := ValidateLogLevel(logLevel)
+	seelogLogLevel, err := log.ValidateLogLevel(logLevel)
 	if err != nil {
 		return err
 	}
@@ -124,7 +124,7 @@ func SetupLogger(loggerName LoggerName, logLevel, logFile, syslogURI string, sys
 		}
 		level := newValue.(string)
 
-		seelogLogLevel, err := ValidateLogLevel(level)
+		seelogLogLevel, err := log.ValidateLogLevel(level)
 		if err != nil {
 			return
 		}
@@ -163,7 +163,7 @@ func SetupJMXLogger(logFile, syslogURI string, syslogRFC, logToConsole, jsonForm
 	// The JMX logger always logs at level "info", because JMXFetch does its
 	// own level filtering on and provides all messages to seelog at the info
 	// or error levels, via log.JMXInfo and log.JMXError.
-	seelogLogLevel, err := ValidateLogLevel("info")
+	seelogLogLevel, err := log.ValidateLogLevel("info")
 	if err != nil {
 		return err
 	}
@@ -182,7 +182,7 @@ func SetupJMXLogger(logFile, syslogURI string, syslogRFC, logToConsole, jsonForm
 // SetupDogstatsdLogger sets up a logger with dogstatsd logger name and log level
 // if a non empty logFile is provided, it will also log to the file
 func SetupDogstatsdLogger(logFile string, cfg pkgconfigmodel.Reader) (seelog.LoggerInterface, error) {
-	seelogLogLevel, err := ValidateLogLevel("info")
+	seelogLogLevel, err := log.ValidateLogLevel("info")
 	if err != nil {
 		return nil, err
 	}
@@ -598,21 +598,6 @@ func appendFmt(builder *strings.Builder, format contextFormat, s string, buf []b
 	} else {
 		builder.WriteString(s)
 	}
-}
-
-// ValidateLogLevel validates the given log level and returns the corresponding Seelog log level.
-// If the log level is "warning", it is converted to "warn" to handle a common gotcha when used with agent5.
-// If the log level is not recognized, an error is returned.
-func ValidateLogLevel(logLevel string) (string, error) {
-	seelogLogLevel := strings.ToLower(logLevel)
-	if seelogLogLevel == "warning" { // Common gotcha when used to agent5
-		seelogLogLevel = "warn"
-	}
-
-	if _, found := seelog.LogLevelFromString(seelogLogLevel); !found {
-		return "", fmt.Errorf("unknown log level: %s", seelogLogLevel)
-	}
-	return seelogLogLevel, nil
 }
 
 func init() {

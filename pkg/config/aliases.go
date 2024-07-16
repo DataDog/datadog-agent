@@ -15,7 +15,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	logs "github.com/DataDog/datadog-agent/pkg/util/log/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
@@ -97,32 +98,32 @@ var (
 )
 
 // LoggerName Alias
-type LoggerName = logs.LoggerName
+type LoggerName = pkglogsetup.LoggerName
 
 // Aliases for  logs
 var (
-	NewLogWriter               = logs.NewLogWriter
-	NewTLSHandshakeErrorWriter = logs.NewTLSHandshakeErrorWriter
+	NewLogWriter               = pkglogsetup.NewLogWriter
+	NewTLSHandshakeErrorWriter = pkglogsetup.NewTLSHandshakeErrorWriter
 )
 
 // SetupLogger Alias using Datadog config
 func SetupLogger(loggerName LoggerName, logLevel, logFile, syslogURI string, syslogRFC, logToConsole, jsonFormat bool) error {
-	return logs.SetupLogger(loggerName, logLevel, logFile, syslogURI, syslogRFC, logToConsole, jsonFormat, Datadog())
+	return pkglogsetup.SetupLogger(loggerName, logLevel, logFile, syslogURI, syslogRFC, logToConsole, jsonFormat, Datadog())
 }
 
 // SetupJMXLogger Alias using Datadog config
 func SetupJMXLogger(logFile, syslogURI string, syslogRFC, logToConsole, jsonFormat bool) error {
-	return logs.SetupJMXLogger(logFile, syslogURI, syslogRFC, logToConsole, jsonFormat, Datadog())
+	return pkglogsetup.SetupJMXLogger(logFile, syslogURI, syslogRFC, logToConsole, jsonFormat, Datadog())
 }
 
 // GetSyslogURI Alias using Datadog config
 func GetSyslogURI() string {
-	return logs.GetSyslogURI(Datadog())
+	return pkglogsetup.GetSyslogURI(Datadog())
 }
 
 // SetupDogstatsdLogger Alias using Datadog config
 func SetupDogstatsdLogger(logFile string) (slog.LoggerInterface, error) {
-	return logs.SetupDogstatsdLogger(logFile, Datadog())
+	return pkglogsetup.SetupDogstatsdLogger(logFile, Datadog())
 }
 
 // IsCloudProviderEnabled Alias using Datadog config
@@ -261,8 +262,11 @@ func GetProcessAPIAddressPort() (string, error) {
 	return pkgconfigsetup.GetProcessAPIAddressPort(Datadog())
 }
 
+// ChangeLogLevel changes the log level of the Datadog agent.
+// It takes a `level` string representing the desired log level and a `source` model.Source indicating the desired subconfiguration to update.
+// It returns an error if the log level is invalid or if there is an error setting the log level.
 func ChangeLogLevel(level string, source model.Source) error {
-	seelogLogLevel, err := logs.ValidateLogLevel(level)
+	seelogLogLevel, err := log.ValidateLogLevel(level)
 	if err != nil {
 		return err
 	}
