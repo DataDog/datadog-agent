@@ -36,7 +36,7 @@ const (
 var functionName = os.Getenv(functionNameEnvVar)
 
 type ColdStartSpanCreator struct {
-	TraceAgent            *ServerlessTraceAgent
+	TraceAgent            ServerlessTraceAgent
 	createSpan            sync.Once
 	LambdaSpanChan        <-chan *pb.Span
 	LambdaInitMetricChan  <-chan *serverlessLog.LambdaInitMetric
@@ -167,7 +167,7 @@ func (c *ColdStartSpanCreator) processSpan(coldStartSpan *pb.Span) {
 		Chunks: []*pb.TraceChunk{traceChunk},
 	}
 
-	c.TraceAgent.ta.Process(&api.Payload{
+	c.TraceAgent.Process(&api.Payload{
 		Source:        info.NewReceiverStats().GetTagStats(info.Tags{}),
 		TracerPayload: tracerPayload,
 	})
