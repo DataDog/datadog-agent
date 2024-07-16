@@ -124,7 +124,7 @@ func (h *Host) Execute(command string, options ...ExecuteOption) (string, error)
 }
 
 func (h *Host) executeAndReconnectOnError(command string) (string, error) {
-	h.context.T().Logf("Executing command: `%s`", command)
+	h.context.T().Logf("Executing command...") // don't print the command in case it contains secrets
 	stdout, err := execute(h.client, command)
 	if err != nil && strings.Contains(err.Error(), "failed to create session:") {
 		err = h.Reconnect()
