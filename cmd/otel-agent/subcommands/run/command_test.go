@@ -9,9 +9,14 @@ package run
 
 import (
 	"context"
+	"log"
+	"math"
+	"net/http"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands"
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -21,4 +26,42 @@ func TestFxRun(t *testing.T) {
 		cliParams := &subcommands.GlobalParams{}
 		return runOTelAgentCommand(ctx, cliParams)
 	})
+}
+
+func waitForReadiness() {
+	for i := 0; ; i++ {
+		resp, err := http.Get("http://localhost:13133") // default addr of the OTel collector health check extension
+		defer func() {
+			if resp != nil && resp.Body != nil {
+				resp.Body.Close()
+			}
+		}()
+		if err == nil && resp.StatusCode == 200 {
+			return
+		}
+		log.Print("health check failed, retrying ", i, err, resp)
+		t := time.Duration(math.Pow(2, float64(i)))
+		time.Sleep(t * time.Second)
+	}
+}
+
+func TestRunOTelAgentCommand(t *testing.T) {
+	apmstatsRec := &testutil.HTTPRequestRecorderWithChan{Pattern: testutil.APMStatsEndpoint, ReqChan: make(chan []byte)}
+	tracesRec := &testutil.HTTPRequestRecorderWithChan{Pattern: testutil.TraceEndpoint, ReqChan: make(chan []byte)}
+	server := testutil.DatadogServerMock(apmstatsRec.HandlerFunc, tracesRec.HandlerFunc)
+	defer server.Close()
+	t.Setenv("SERVER_URL", server.URL)
+	t.Setenv("DD_HOSTNAME", "test-host")
+
+	params := &subcommands.GlobalParams{
+		ConfPaths:  []string{"test_config.yaml"},
+		ConfigName: "datadog-otel",
+		LoggerName: "OTELCOL",
+	}
+	go func() {
+		if err := runOTelAgentCommand(context.Background(), params); err != nil {
+			log.Fatal("failed to start otel agent ", err)
+		}
+	}()
+	waitForReadiness()
 }
