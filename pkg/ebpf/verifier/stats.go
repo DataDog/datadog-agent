@@ -122,7 +122,6 @@ func generateLoadFunction(file string, opts *StatsOptions, results *StatsResult,
 
 		progOpts := ebpf.ProgramOptions{
 			LogLevel:    ebpf.LogLevelStats,
-			LogSize:     10 * 1024 * 1024,
 			KernelTypes: managerOptions.VerifierOptions.Programs.KernelTypes,
 		}
 
@@ -130,7 +129,6 @@ func generateLoadFunction(file string, opts *StatsOptions, results *StatsResult,
 			// We need the full instruction-level verifier log if we want to calculate complexity
 			// for each line
 			progOpts.LogLevel |= ebpf.LogLevelInstruction
-			progOpts.LogSize = 1073741823 // Maximum log size for the verifier
 		}
 
 		collOpts := ebpf.CollectionOptions{

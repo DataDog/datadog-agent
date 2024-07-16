@@ -1186,7 +1186,7 @@ func TestHandleKubeMetadata(t *testing.T) {
 						"namespace_security": "critical",
 					},
 				},
-				GVR: schema.GroupVersionResource{
+				GVR: &schema.GroupVersionResource{
 					Version:  "v1",
 					Resource: "namespaces",
 				},
