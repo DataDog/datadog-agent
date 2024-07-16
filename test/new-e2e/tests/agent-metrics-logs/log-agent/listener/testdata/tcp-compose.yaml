@@ -18,7 +18,7 @@ services:
 
   agent:
     environment:
-      DD_LOGS_ENABLED: true
       DD_LOGS_CONFIG_CONTAINER_COLLECT_ALL: false
+      DD_LOGS_CONFIG_FORCE_USE_HTTP: true
       DD_LOGS_CONFIG_BATCH_WAIT: 1
       DD_LOG_LEVEL: info
