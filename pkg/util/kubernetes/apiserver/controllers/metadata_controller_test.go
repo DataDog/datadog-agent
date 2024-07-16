@@ -83,7 +83,7 @@ func TestMetadataControllerSyncEndpoints(t *testing.T) {
 					EntityMeta: workloadmeta.EntityMeta{
 						Name: nodeName,
 					},
-					GVR: schema.GroupVersionResource{
+					GVR: &schema.GroupVersionResource{
 						Version:  "v1",
 						Resource: "nodes",
 					},

@@ -87,6 +87,7 @@ const (
 	python language = "python"
 	dotnet language = "dotnet"
 	ruby   language = "ruby"
+	php    language = "php"
 
 	libVersionAnnotationKeyFormat    = "admission.datadoghq.com/%s-lib.version"
 	customLibAnnotationKeyFormat     = "admission.datadoghq.com/%s-lib.custom-image"
@@ -111,7 +112,26 @@ const (
 )
 
 var (
-	supportedLanguages = []language{java, js, python, dotnet, ruby}
+	supportedLanguages = []language{
+		java,
+		js,
+		python,
+		dotnet,
+		ruby,
+	}
+
+	// languageVersions defines the major library versions we consider "default" for each
+	// supported language. If not set, we will default to "latest", see defaultLibVersion.
+	//
+	// If this language does not appear in supportedLanguages, it will not be injected.
+	languageVersions = map[language]string{
+		java:   "v1", // https://datadoghq.atlassian.net/browse/APMON-1064
+		dotnet: "v2", // https://datadoghq.atlassian.net/browse/APMON-1067
+		python: "v2", // https://datadoghq.atlassian.net/browse/APMON-1068
+		ruby:   "v2", // https://datadoghq.atlassian.net/browse/APMON-1066
+		js:     "v5", // https://datadoghq.atlassian.net/browse/APMON-1065
+		php:    "v2", // https://datadoghq.atlassian.net/browse/APMON-1128
+	}
 
 	singleStepInstrumentationInstallTypeEnvVar = corev1.EnvVar{
 		Name:  instrumentationInstallTypeEnvVarName,
@@ -133,6 +153,22 @@ var (
 	errInitAPMInstrumentation error
 	initOnce                  sync.Once
 )
+
+func (l language) defaultLibInfo(registry, ctrName string) libInfo {
+	return libInfo{
+		lang:    l,
+		ctrName: ctrName,
+		image:   libImageName(registry, l, l.defaultLibVersion()),
+	}
+}
+
+func (l language) defaultLibVersion() string {
+	langVersion, ok := languageVersions[l]
+	if !ok {
+		return "latest"
+	}
+	return langVersion
+}
 
 // Webhook is the auto instrumentation webhook
 type Webhook struct {
@@ -328,6 +364,7 @@ func (w *Webhook) inject(pod *corev1.Pod, _ string, _ dynamic.Interface) (bool, 
 		return false, nil
 	}
 	injectSecurityClientLibraryConfig(pod)
+	injectProfilingClientLibraryConfig(pod)
 	// Inject env variables used for Onboarding KPIs propagation
 	var injectionType string
 	if w.isEnabledInNamespace(pod.Namespace) {
@@ -354,17 +391,36 @@ func (w *Webhook) inject(pod *corev1.Pod, _ string, _ dynamic.Interface) (bool, 
 // * true - product activated, not overridable remotely
 // * false - product disactivated, not overridable remotely
 func injectSecurityClientLibraryConfig(pod *corev1.Pod) {
-	injectEnvVarIfConfigKeySet(pod, "admission_controller.auto_instrumentation.asm.enabled", "DD_APPSEC_ENABLED")
-	injectEnvVarIfConfigKeySet(pod, "admission_controller.auto_instrumentation.iast.enabled", "DD_IAST_ENABLED")
-	injectEnvVarIfConfigKeySet(pod, "admission_controller.auto_instrumentation.asm_sca.enabled", "DD_APPSEC_SCA_ENABLED")
+	injectEnvVarIfBoolConfigKeySet(pod, "admission_controller.auto_instrumentation.asm.enabled", "DD_APPSEC_ENABLED")
+	injectEnvVarIfBoolConfigKeySet(pod, "admission_controller.auto_instrumentation.iast.enabled", "DD_IAST_ENABLED")
+	injectEnvVarIfBoolConfigKeySet(pod, "admission_controller.auto_instrumentation.asm_sca.enabled", "DD_APPSEC_SCA_ENABLED")
 }
 
-func injectEnvVarIfConfigKeySet(pod *corev1.Pod, configKey string, envVarKey string) {
+// The config for profiling has four states: <unset> | "auto" | "true" | "false".
+// * <unset> - profiling not activated, but can be activated remotely
+// * "true" - profiling activated unconditionally, not overridable remotely
+// * "false" - profiling deactivated, not overridable remotely
+// * "auto" - profiling activates per-process heuristically, not overridable remotely
+func injectProfilingClientLibraryConfig(pod *corev1.Pod) {
+	injectEnvVarIfStringConfigKeySet(pod, "admission_controller.auto_instrumentation.profiling.enabled", "DD_PROFILING_ENABLED")
+}
+
+func injectEnvVarIfBoolConfigKeySet(pod *corev1.Pod, configKey string, envVarKey string) {
 	if config.Datadog().IsSet(configKey) {
 		enabledValue := config.Datadog().GetBool(configKey)
 		_ = mutatecommon.InjectEnv(pod, corev1.EnvVar{
 			Name:  envVarKey,
 			Value: strconv.FormatBool(enabledValue),
+		})
+	}
+}
+
+func injectEnvVarIfStringConfigKeySet(pod *corev1.Pod, configKey string, envVarKey string) {
+	if config.Datadog().IsSet(configKey) {
+		configValue := config.Datadog().GetString(configKey)
+		_ = mutatecommon.InjectEnv(pod, corev1.EnvVar{
+			Name:  envVarKey,
+			Value: configValue,
 		})
 	}
 }
@@ -423,10 +479,9 @@ func (w *Webhook) getLibrariesLanguageDetection(pod *corev1.Pod) []libInfo {
 
 // getAllLatestLibraries returns all supported by APM Instrumentation tracing libraries
 func (w *Webhook) getAllLatestLibraries() []libInfo {
-	libsToInject := []libInfo{}
-
+	var libsToInject []libInfo
 	for _, lang := range supportedLanguages {
-		libsToInject = append(libsToInject, libInfo{lang: language(lang), image: libImageName(w.containerRegistry, lang, "latest")})
+		libsToInject = append(libsToInject, lang.defaultLibInfo(w.containerRegistry, ""))
 	}
 
 	return libsToInject

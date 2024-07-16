@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import sys
 from pathlib import Path
@@ -30,6 +31,22 @@ def get_build_image_suffix_and_version() -> tuple[str, str]:
 
     ci_vars = ci_config['variables']
     return ci_vars['DATADOG_AGENT_BUILDIMAGES_SUFFIX'], ci_vars['DATADOG_AGENT_BUILDIMAGES']
+
+
+def has_ddtool_helpers() -> bool:
+    docker_config = Path("~/.docker/config.json").expanduser()
+    if not docker_config.exists():
+        return False
+
+    try:
+        with open(docker_config) as f:
+            config = json.load(f)
+    except json.JSONDecodeError:
+        # Invalid JSON (or empty file), we don't have the helper
+        return False
+
+    available_cred_helpers = set(config.get("credHelpers", {}).values())
+    return "ddtool" in available_cred_helpers or "ecr-login" in available_cred_helpers
 
 
 class CompilerImage:
@@ -88,10 +105,19 @@ class CompilerImage:
         res = self.ctx.run(f"docker image inspect {self.image}", hide=True, warn=True)
         if res is None or not res.ok:
             info(f"[!] Image {self.image} not found, logging in and pulling...")
-            self.ctx.run(
-                "aws-vault exec sso-build-stable-developer -- aws ecr --region us-east-1 get-login-password | docker login --username AWS --password-stdin 486234852809.dkr.ecr.us-east-1.amazonaws.com"
-            )
-            self.ctx.run(f"docker pull {self.image}")
+
+            if has_ddtool_helpers():
+                # With ddtool helpers (installed with ddtool auth helpers install), docker automatically
+                # pulls credentials from ddtool, and we require the aws-vault context to pull
+                docker_pull_auth = "aws-vault exec sso-build-stable-developer -- "
+            else:
+                # Without the helpers, we need to get the password and login manually to docker
+                self.ctx.run(
+                    "aws-vault exec sso-build-stable-developer -- aws ecr --region us-east-1 get-login-password | docker login --username AWS --password-stdin 486234852809.dkr.ecr.us-east-1.amazonaws.com"
+                )
+                docker_pull_auth = ""
+
+            self.ctx.run(f"{docker_pull_auth}docker pull {self.image}")
 
         res = self.ctx.run(
             f"docker run -d --restart always --name {self.name} "

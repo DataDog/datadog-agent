@@ -14,11 +14,13 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -55,13 +57,14 @@ func newPodReflectorStore(wlmetaStore workloadmeta.Component, config config.Read
 
 	return &reflectorStore{
 		wlmetaStore: wlmetaStore,
-		seen:        make(map[string]workloadmeta.EntityID),
+		seen:        make(map[string][]workloadmeta.EntityID),
 		parser:      parser,
 	}
 }
 
 type podParser struct {
 	annotationsFilter []*regexp.Regexp
+	gvr               *schema.GroupVersionResource
 }
 
 func newPodParser(annotationsExclude []string) (objectParser, error) {
@@ -70,10 +73,16 @@ func newPodParser(annotationsExclude []string) (objectParser, error) {
 		return nil, err
 	}
 
-	return podParser{annotationsFilter: filters}, nil
+	return podParser{
+		annotationsFilter: filters,
+		gvr: &schema.GroupVersionResource{
+			Version:  "v1",
+			Resource: "pods",
+		},
+	}, nil
 }
 
-func (p podParser) Parse(obj interface{}) workloadmeta.Entity {
+func (p podParser) Parse(obj interface{}) []workloadmeta.Entity {
 	pod := obj.(*corev1.Pod)
 	owners := make([]workloadmeta.KubernetesPodOwner, 0, len(pod.OwnerReferences))
 	for _, o := range pod.OwnerReferences {
@@ -101,7 +110,9 @@ func (p podParser) Parse(obj interface{}) workloadmeta.Entity {
 		}
 	}
 
-	return &workloadmeta.KubernetesPod{
+	entities := make([]workloadmeta.Entity, 0, 2)
+
+	podEntity := &workloadmeta.KubernetesPod{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindKubernetesPod,
 			ID:   string(pod.UID),
@@ -126,4 +137,18 @@ func (p podParser) Parse(obj interface{}) workloadmeta.Entity {
 		// containers can be quite significant
 		// Containers:                 []workloadmeta.OrchestratorContainer{},
 	}
+
+	entities = append(entities, podEntity, &workloadmeta.KubernetesMetadata{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubernetesMetadata,
+			ID:   string(util.GenerateKubeMetadataEntityID("", "pods", pod.Namespace, pod.Name)),
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Labels:      podEntity.Labels,
+			Annotations: podEntity.Annotations,
+		},
+		GVR: p.gvr,
+	})
+
+	return entities
 }

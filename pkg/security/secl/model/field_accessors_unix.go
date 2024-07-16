@@ -134,6 +134,11 @@ func (ev *Event) GetCapsetCapPermitted() uint64 {
 	return ev.Capset.CapPermitted
 }
 
+// GetCgroupId returns the value of the field, resolving if necessary
+func (ev *Event) GetCgroupId() string {
+	return ev.FieldHandlers.ResolveCGroupID(ev, &ev.CGroupContext)
+}
+
 // GetChdirFileChangeTime returns the value of the field, resolving if necessary
 func (ev *Event) GetChdirFileChangeTime() uint64 {
 	if ev.GetEventType().String() != "chdir" {
@@ -894,6 +899,14 @@ func (ev *Event) GetContainerId() string {
 	return ev.FieldHandlers.ResolveContainerID(ev, ev.BaseEvent.ContainerContext)
 }
 
+// GetContainerRuntime returns the value of the field, resolving if necessary
+func (ev *Event) GetContainerRuntime() string {
+	if ev.BaseEvent.ContainerContext == nil {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveContainerRuntime(ev, ev.BaseEvent.ContainerContext)
+}
+
 // GetContainerTags returns the value of the field, resolving if necessary
 func (ev *Event) GetContainerTags() []string {
 	if ev.BaseEvent.ContainerContext == nil {
@@ -1098,6 +1111,17 @@ func (ev *Event) GetExecCapPermitted() uint64 {
 	return ev.Exec.Process.Credentials.CapPermitted
 }
 
+// GetExecCgroupId returns the value of the field, resolving if necessary
+func (ev *Event) GetExecCgroupId() string {
+	if ev.GetEventType().String() != "exec" {
+		return ""
+	}
+	if ev.Exec.Process == nil {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveCGroupID(ev, &ev.Exec.Process.CGroup)
+}
+
 // GetExecCmdargv returns the value of the field, resolving if necessary
 func (ev *Event) GetExecCmdargv() []string {
 	if ev.GetEventType().String() != "exec" {
@@ -1128,7 +1152,7 @@ func (ev *Event) GetExecContainerId() string {
 	if ev.Exec.Process == nil {
 		return ""
 	}
-	return ev.Exec.Process.ContainerID
+	return ev.FieldHandlers.ResolveProcessContainerID(ev, ev.Exec.Process)
 }
 
 // GetExecCreatedAt returns the value of the field, resolving if necessary
@@ -2161,6 +2185,17 @@ func (ev *Event) GetExitCause() uint32 {
 	return ev.Exit.Cause
 }
 
+// GetExitCgroupId returns the value of the field, resolving if necessary
+func (ev *Event) GetExitCgroupId() string {
+	if ev.GetEventType().String() != "exit" {
+		return ""
+	}
+	if ev.Exit.Process == nil {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveCGroupID(ev, &ev.Exit.Process.CGroup)
+}
+
 // GetExitCmdargv returns the value of the field, resolving if necessary
 func (ev *Event) GetExitCmdargv() []string {
 	if ev.GetEventType().String() != "exit" {
@@ -2199,7 +2234,7 @@ func (ev *Event) GetExitContainerId() string {
 	if ev.Exit.Process == nil {
 		return ""
 	}
-	return ev.Exit.Process.ContainerID
+	return ev.FieldHandlers.ResolveProcessContainerID(ev, ev.Exit.Process)
 }
 
 // GetExitCreatedAt returns the value of the field, resolving if necessary
@@ -4836,6 +4871,27 @@ func (ev *Event) GetProcessAncestorsCapPermitted() []uint64 {
 	return values
 }
 
+// GetProcessAncestorsCgroupId returns the value of the field, resolving if necessary
+func (ev *Event) GetProcessAncestorsCgroupId() []string {
+	if ev.BaseEvent.ProcessContext == nil {
+		return []string{}
+	}
+	if ev.BaseEvent.ProcessContext.Ancestor == nil {
+		return []string{}
+	}
+	var values []string
+	ctx := eval.NewContext(ev)
+	iterator := &ProcessAncestorsIterator{}
+	ptr := iterator.Front(ctx)
+	for ptr != nil {
+		element := (*ProcessCacheEntry)(ptr)
+		result := ev.FieldHandlers.ResolveCGroupID(ev, &element.ProcessContext.Process.CGroup)
+		values = append(values, result)
+		ptr = iterator.Next()
+	}
+	return values
+}
+
 // GetProcessAncestorsCmdargv returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsCmdargv() []string {
 	if ev.BaseEvent.ProcessContext == nil {
@@ -4892,7 +4948,7 @@ func (ev *Event) GetProcessAncestorsContainerId() []string {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := element.ProcessContext.Process.ContainerID
+		result := ev.FieldHandlers.ResolveProcessContainerID(ev, &element.ProcessContext.Process)
 		values = append(values, result)
 		ptr = iterator.Next()
 	}
@@ -6344,6 +6400,14 @@ func (ev *Event) GetProcessCapPermitted() uint64 {
 	return ev.BaseEvent.ProcessContext.Process.Credentials.CapPermitted
 }
 
+// GetProcessCgroupId returns the value of the field, resolving if necessary
+func (ev *Event) GetProcessCgroupId() string {
+	if ev.BaseEvent.ProcessContext == nil {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveCGroupID(ev, &ev.BaseEvent.ProcessContext.Process.CGroup)
+}
+
 // GetProcessCmdargv returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessCmdargv() []string {
 	if ev.BaseEvent.ProcessContext == nil {
@@ -6365,7 +6429,7 @@ func (ev *Event) GetProcessContainerId() string {
 	if ev.BaseEvent.ProcessContext == nil {
 		return ""
 	}
-	return ev.BaseEvent.ProcessContext.Process.ContainerID
+	return ev.FieldHandlers.ResolveProcessContainerID(ev, &ev.BaseEvent.ProcessContext.Process)
 }
 
 // GetProcessCreatedAt returns the value of the field, resolving if necessary
@@ -7088,6 +7152,20 @@ func (ev *Event) GetProcessParentCapPermitted() uint64 {
 	return ev.BaseEvent.ProcessContext.Parent.Credentials.CapPermitted
 }
 
+// GetProcessParentCgroupId returns the value of the field, resolving if necessary
+func (ev *Event) GetProcessParentCgroupId() string {
+	if ev.BaseEvent.ProcessContext == nil {
+		return ""
+	}
+	if ev.BaseEvent.ProcessContext.Parent == nil {
+		return ""
+	}
+	if !ev.BaseEvent.ProcessContext.HasParent() {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveCGroupID(ev, &ev.BaseEvent.ProcessContext.Parent.CGroup)
+}
+
 // GetProcessParentCmdargv returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentCmdargv() []string {
 	if ev.BaseEvent.ProcessContext == nil {
@@ -7127,7 +7205,7 @@ func (ev *Event) GetProcessParentContainerId() string {
 	if !ev.BaseEvent.ProcessContext.HasParent() {
 		return ""
 	}
-	return ev.BaseEvent.ProcessContext.Parent.ContainerID
+	return ev.FieldHandlers.ResolveProcessContainerID(ev, ev.BaseEvent.ProcessContext.Parent)
 }
 
 // GetProcessParentCreatedAt returns the value of the field, resolving if necessary
@@ -8464,6 +8542,30 @@ func (ev *Event) GetPtraceTraceeAncestorsCapPermitted() []uint64 {
 	return values
 }
 
+// GetPtraceTraceeAncestorsCgroupId returns the value of the field, resolving if necessary
+func (ev *Event) GetPtraceTraceeAncestorsCgroupId() []string {
+	if ev.GetEventType().String() != "ptrace" {
+		return []string{}
+	}
+	if ev.PTrace.Tracee == nil {
+		return []string{}
+	}
+	if ev.PTrace.Tracee.Ancestor == nil {
+		return []string{}
+	}
+	var values []string
+	ctx := eval.NewContext(ev)
+	iterator := &ProcessAncestorsIterator{}
+	ptr := iterator.Front(ctx)
+	for ptr != nil {
+		element := (*ProcessCacheEntry)(ptr)
+		result := ev.FieldHandlers.ResolveCGroupID(ev, &element.ProcessContext.Process.CGroup)
+		values = append(values, result)
+		ptr = iterator.Next()
+	}
+	return values
+}
+
 // GetPtraceTraceeAncestorsCmdargv returns the value of the field, resolving if necessary
 func (ev *Event) GetPtraceTraceeAncestorsCmdargv() []string {
 	if ev.GetEventType().String() != "ptrace" {
@@ -8529,7 +8631,7 @@ func (ev *Event) GetPtraceTraceeAncestorsContainerId() []string {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := element.ProcessContext.Process.ContainerID
+		result := ev.FieldHandlers.ResolveProcessContainerID(ev, &element.ProcessContext.Process)
 		values = append(values, result)
 		ptr = iterator.Next()
 	}
@@ -10206,6 +10308,17 @@ func (ev *Event) GetPtraceTraceeCapPermitted() uint64 {
 	return ev.PTrace.Tracee.Process.Credentials.CapPermitted
 }
 
+// GetPtraceTraceeCgroupId returns the value of the field, resolving if necessary
+func (ev *Event) GetPtraceTraceeCgroupId() string {
+	if ev.GetEventType().String() != "ptrace" {
+		return ""
+	}
+	if ev.PTrace.Tracee == nil {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveCGroupID(ev, &ev.PTrace.Tracee.Process.CGroup)
+}
+
 // GetPtraceTraceeCmdargv returns the value of the field, resolving if necessary
 func (ev *Event) GetPtraceTraceeCmdargv() []string {
 	if ev.GetEventType().String() != "ptrace" {
@@ -10236,7 +10349,7 @@ func (ev *Event) GetPtraceTraceeContainerId() string {
 	if ev.PTrace.Tracee == nil {
 		return ""
 	}
-	return ev.PTrace.Tracee.Process.ContainerID
+	return ev.FieldHandlers.ResolveProcessContainerID(ev, &ev.PTrace.Tracee.Process)
 }
 
 // GetPtraceTraceeCreatedAt returns the value of the field, resolving if necessary
@@ -11166,6 +11279,23 @@ func (ev *Event) GetPtraceTraceeParentCapPermitted() uint64 {
 	return ev.PTrace.Tracee.Parent.Credentials.CapPermitted
 }
 
+// GetPtraceTraceeParentCgroupId returns the value of the field, resolving if necessary
+func (ev *Event) GetPtraceTraceeParentCgroupId() string {
+	if ev.GetEventType().String() != "ptrace" {
+		return ""
+	}
+	if ev.PTrace.Tracee == nil {
+		return ""
+	}
+	if ev.PTrace.Tracee.Parent == nil {
+		return ""
+	}
+	if !ev.PTrace.Tracee.HasParent() {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveCGroupID(ev, &ev.PTrace.Tracee.Parent.CGroup)
+}
+
 // GetPtraceTraceeParentCmdargv returns the value of the field, resolving if necessary
 func (ev *Event) GetPtraceTraceeParentCmdargv() []string {
 	if ev.GetEventType().String() != "ptrace" {
@@ -11214,7 +11344,7 @@ func (ev *Event) GetPtraceTraceeParentContainerId() string {
 	if !ev.PTrace.Tracee.HasParent() {
 		return ""
 	}
-	return ev.PTrace.Tracee.Parent.ContainerID
+	return ev.FieldHandlers.ResolveProcessContainerID(ev, ev.PTrace.Tracee.Parent)
 }
 
 // GetPtraceTraceeParentCreatedAt returns the value of the field, resolving if necessary
@@ -13829,6 +13959,30 @@ func (ev *Event) GetSignalTargetAncestorsCapPermitted() []uint64 {
 	return values
 }
 
+// GetSignalTargetAncestorsCgroupId returns the value of the field, resolving if necessary
+func (ev *Event) GetSignalTargetAncestorsCgroupId() []string {
+	if ev.GetEventType().String() != "signal" {
+		return []string{}
+	}
+	if ev.Signal.Target == nil {
+		return []string{}
+	}
+	if ev.Signal.Target.Ancestor == nil {
+		return []string{}
+	}
+	var values []string
+	ctx := eval.NewContext(ev)
+	iterator := &ProcessAncestorsIterator{}
+	ptr := iterator.Front(ctx)
+	for ptr != nil {
+		element := (*ProcessCacheEntry)(ptr)
+		result := ev.FieldHandlers.ResolveCGroupID(ev, &element.ProcessContext.Process.CGroup)
+		values = append(values, result)
+		ptr = iterator.Next()
+	}
+	return values
+}
+
 // GetSignalTargetAncestorsCmdargv returns the value of the field, resolving if necessary
 func (ev *Event) GetSignalTargetAncestorsCmdargv() []string {
 	if ev.GetEventType().String() != "signal" {
@@ -13894,7 +14048,7 @@ func (ev *Event) GetSignalTargetAncestorsContainerId() []string {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := element.ProcessContext.Process.ContainerID
+		result := ev.FieldHandlers.ResolveProcessContainerID(ev, &element.ProcessContext.Process)
 		values = append(values, result)
 		ptr = iterator.Next()
 	}
@@ -15571,6 +15725,17 @@ func (ev *Event) GetSignalTargetCapPermitted() uint64 {
 	return ev.Signal.Target.Process.Credentials.CapPermitted
 }
 
+// GetSignalTargetCgroupId returns the value of the field, resolving if necessary
+func (ev *Event) GetSignalTargetCgroupId() string {
+	if ev.GetEventType().String() != "signal" {
+		return ""
+	}
+	if ev.Signal.Target == nil {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveCGroupID(ev, &ev.Signal.Target.Process.CGroup)
+}
+
 // GetSignalTargetCmdargv returns the value of the field, resolving if necessary
 func (ev *Event) GetSignalTargetCmdargv() []string {
 	if ev.GetEventType().String() != "signal" {
@@ -15601,7 +15766,7 @@ func (ev *Event) GetSignalTargetContainerId() string {
 	if ev.Signal.Target == nil {
 		return ""
 	}
-	return ev.Signal.Target.Process.ContainerID
+	return ev.FieldHandlers.ResolveProcessContainerID(ev, &ev.Signal.Target.Process)
 }
 
 // GetSignalTargetCreatedAt returns the value of the field, resolving if necessary
@@ -16531,6 +16696,23 @@ func (ev *Event) GetSignalTargetParentCapPermitted() uint64 {
 	return ev.Signal.Target.Parent.Credentials.CapPermitted
 }
 
+// GetSignalTargetParentCgroupId returns the value of the field, resolving if necessary
+func (ev *Event) GetSignalTargetParentCgroupId() string {
+	if ev.GetEventType().String() != "signal" {
+		return ""
+	}
+	if ev.Signal.Target == nil {
+		return ""
+	}
+	if ev.Signal.Target.Parent == nil {
+		return ""
+	}
+	if !ev.Signal.Target.HasParent() {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveCGroupID(ev, &ev.Signal.Target.Parent.CGroup)
+}
+
 // GetSignalTargetParentCmdargv returns the value of the field, resolving if necessary
 func (ev *Event) GetSignalTargetParentCmdargv() []string {
 	if ev.GetEventType().String() != "signal" {
@@ -16579,7 +16761,7 @@ func (ev *Event) GetSignalTargetParentContainerId() string {
 	if !ev.Signal.Target.HasParent() {
 		return ""
 	}
-	return ev.Signal.Target.Parent.ContainerID
+	return ev.FieldHandlers.ResolveProcessContainerID(ev, ev.Signal.Target.Parent)
 }
 
 // GetSignalTargetParentCreatedAt returns the value of the field, resolving if necessary

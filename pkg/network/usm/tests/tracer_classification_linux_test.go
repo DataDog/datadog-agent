@@ -5,19 +5,25 @@
 
 //go:build linux_bpf
 
-package tracer
+package tests
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/network/tracer"
 )
 
-func testProtocolClassificationInner(t *testing.T, params protocolClassificationAttributes, tr *Tracer) {
+func platformInit() {
+	// linux-specific tasks here
+}
+
+func testProtocolClassificationInner(t *testing.T, params protocolClassificationAttributes, tr *tracer.Tracer) {
 	if params.skipCallback != nil {
 		params.skipCallback(t, params.context)
 	}
-	t.Cleanup(func() { tr.removeClient(clientID) })
+	t.Cleanup(func() { tr.RemoveClient(clientID) })
 	t.Cleanup(func() { tr.Pause() })
 
 	if params.teardown != nil {
@@ -31,8 +37,8 @@ func testProtocolClassificationInner(t *testing.T, params protocolClassification
 		params.preTracerSetup(t, params.context)
 	}
 
-	tr.removeClient(clientID)
-	initTracerState(t, tr)
+	tr.RemoveClient(clientID)
+	require.NoError(t, tr.RegisterClient(clientID))
 	require.NoError(t, tr.Resume(), "enable probes - before post tracer")
 	if params.postTracerSetup != nil {
 		params.postTracerSetup(t, params.context)
