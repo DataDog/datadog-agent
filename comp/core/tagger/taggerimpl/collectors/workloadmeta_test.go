@@ -142,13 +142,13 @@ func TestHandleKubePod(t *testing.T) {
 				"namespace_security": "ns_security",
 			},
 			k8sResourcesAnnotationsAsTags: map[string]map[string]string{
-				"pods": map[string]string{
+				"pods": {
 					"ns_tier":   "ns_tier",
 					"ns_custom": "custom_generic_annotation",
 				},
 			},
 			k8sResourcesLabelsAsTags: map[string]map[string]string{
-				"pods": map[string]string{
+				"pods": {
 					"ns_env":    "ns_env",
 					"ns_custom": "custom_generic_label",
 				},
@@ -1195,13 +1195,13 @@ func TestHandleKubeMetadata(t *testing.T) {
 				"namespace_security": "ns_security",
 			},
 			k8sResourcesAnnotationsAsTags: map[string]map[string]string{
-				"namespaces": map[string]string{
+				"namespaces": {
 					"ns_tier":   "ns_tier",
 					"ns_custom": "custom_generic_annotation",
 				},
 			},
 			k8sResourcesLabelsAsTags: map[string]map[string]string{
-				"namespaces": map[string]string{
+				"namespaces": {
 					"ns_env":    "ns_env",
 					"ns_custom": "custom_generic_label",
 				},
@@ -1280,13 +1280,13 @@ func TestHandleKubeMetadata(t *testing.T) {
 				"namespace_security": "ns_security",
 			},
 			k8sResourcesAnnotationsAsTags: map[string]map[string]string{
-				"namespaces": map[string]string{
+				"namespaces": {
 					"ns_tier":   "ns_tier",
 					"ns_custom": "custom_generic_annotation",
 				},
 			},
 			k8sResourcesLabelsAsTags: map[string]map[string]string{
-				"namespaces": map[string]string{
+				"namespaces": {
 					"ns_env":    "ns_env",
 					"ns_custom": "custom_generic_label",
 				},
@@ -1390,13 +1390,13 @@ func TestHandleKubeDeployment(t *testing.T) {
 		{
 			name: "deployment with no matching labels/annotations for annotations/labels as tags. should return nil to avoid empty tagger entity",
 			k8sResourcesAnnotationsAsTags: map[string]map[string]string{
-				"deployments.apps": map[string]string{
+				"deployments.apps": {
 					"depl_tier":   "depl_tier",
 					"depl_custom": "custom_generic_annotation",
 				},
 			},
 			k8sResourcesLabelsAsTags: map[string]map[string]string{
-				"deployments.apps": map[string]string{
+				"deployments.apps": {
 					"depl_env":    "depl_env",
 					"depl_custom": "custom_generic_label",
 				},
@@ -1423,13 +1423,13 @@ func TestHandleKubeDeployment(t *testing.T) {
 		{
 			name: "deployment with generic annotations/labels as tags",
 			k8sResourcesAnnotationsAsTags: map[string]map[string]string{
-				"deployments.apps": map[string]string{
+				"deployments.apps": {
 					"depl_tier":   "depl_tier",
 					"depl_custom": "custom_generic_annotation",
 				},
 			},
 			k8sResourcesLabelsAsTags: map[string]map[string]string{
-				"deployments.apps": map[string]string{
+				"deployments.apps": {
 					"depl_env":    "depl_env",
 					"depl_custom": "custom_generic_label",
 				},
