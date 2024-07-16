@@ -15,7 +15,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/ebpf-manager/tracefs"
 	"github.com/cihub/seelog"
 	"github.com/cilium/ebpf"
 	"go.uber.org/atomic"
@@ -121,12 +120,6 @@ func NewTracer(config *config.Config, telemetryComponent telemetryComponent.Comp
 // newTracer is an internal function used by tests primarily
 // (and NewTracer above)
 func newTracer(cfg *config.Config, telemetryComponent telemetryComponent.Component) (_ *Tracer, reterr error) {
-	if !cfg.EnableEbpfless {
-		if _, err := tracefs.Root(); err != nil {
-			return nil, fmt.Errorf("system-probe unsupported: %s", err)
-		}
-	}
-
 	// check if current platform is using old kernel API because it affects what kprobe are we going to enable
 	currKernelVersion, err := kernel.HostVersion()
 	if err != nil {

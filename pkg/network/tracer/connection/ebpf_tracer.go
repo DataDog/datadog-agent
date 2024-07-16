@@ -16,6 +16,7 @@ import (
 	"time"
 
 	manager "github.com/DataDog/ebpf-manager"
+	"github.com/DataDog/ebpf-manager/tracefs"
 	"github.com/cihub/seelog"
 	"github.com/cilium/ebpf"
 	"github.com/prometheus/client_golang/prometheus"
@@ -156,6 +157,10 @@ type ebpfTracer struct {
 
 // NewTracer creates a new tracer
 func newEbpfTracer(config *config.Config, _ telemetryComponent.Component) (Tracer, error) {
+	if _, err := tracefs.Root(); err != nil {
+		return nil, fmt.Errorf("eBPF based network tracer unsupported: %s", err)
+	}
+
 	mgrOptions := manager.Options{
 		// Extend RLIMIT_MEMLOCK (8) size
 		// On some systems, the default for RLIMIT_MEMLOCK may be as low as 64 bytes.
