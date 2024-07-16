@@ -64,7 +64,7 @@ func execJmxCommand(command string,
 
 	runner.Reporter = reporter
 	runner.Command = command
-	runner.IPCPort = agentAPI.ServerAddress().Port
+	runner.IPCPort = agentAPI.CMDServerAddress().Port
 	runner.Output = output
 	runner.LogLevel = logLevel
 
