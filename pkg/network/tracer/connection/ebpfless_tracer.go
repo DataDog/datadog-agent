@@ -228,7 +228,9 @@ func (t *ebpfLessTracer) processConnection(
 		t.conns[key] = conn
 	}
 
-	log.Tracef("connection: %s", conn)
+	log.TraceFunc(func() string {
+		return fmt.Sprintf("connection: %s", conn)
+	})
 	return nil
 }
 
