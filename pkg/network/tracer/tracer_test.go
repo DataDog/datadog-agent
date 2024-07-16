@@ -965,7 +965,7 @@ func testDNSStats(t *testing.T, tr *Tracer, domain string, success, failure, tim
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
 		dnsClient := new(dns.Client)
 		dnsConn, err := dnsClient.Dial(dnsServerAddr.String())
-		assert.NoError(c, err)
+		require.NoError(c, err)
 		dnsClientAddr := dnsConn.LocalAddr().(*net.UDPAddr)
 		_, _, err = dnsClient.ExchangeWithConn(queryMsg, dnsConn)
 		if timeout == 0 {
@@ -981,9 +981,9 @@ func testDNSStats(t *testing.T, tr *Tracer, domain string, success, failure, tim
 		conn, ok := findConnection(dnsClientAddr, dnsServerAddr, connections)
 		require.True(c, ok)
 
-		assert.Equal(c, queryMsg.Len(), int(conn.Monotonic.SentBytes))
-		assert.Equal(c, os.Getpid(), int(conn.Pid))
-		assert.Equal(c, dnsServerAddr.Port, int(conn.DPort))
+		require.Equal(c, queryMsg.Len(), int(conn.Monotonic.SentBytes))
+		require.Equal(c, os.Getpid(), int(conn.Pid))
+		require.Equal(c, dnsServerAddr.Port, int(conn.DPort))
 
 		var total uint32
 		var successfulResponses uint32
@@ -1001,9 +1001,9 @@ func testDNSStats(t *testing.T, tr *Tracer, domain string, success, failure, tim
 		failedResponses := total - successfulResponses
 
 		// DNS Stats
-		assert.Equal(c, uint32(success), successfulResponses, "expected %d successful responses but got %d", success, successfulResponses)
-		assert.Equal(c, uint32(failure), failedResponses)
-		assert.Equal(c, uint32(timeout), timeouts, "expected %d timeouts but got %d", timeout, timeouts)
+		require.Equal(c, uint32(success), successfulResponses, "expected %d successful responses but got %d", success, successfulResponses)
+		require.Equal(c, uint32(failure), failedResponses)
+		require.Equal(c, uint32(timeout), timeouts, "expected %d timeouts but got %d", timeout, timeouts)
 	}, 10*time.Second, 100*time.Millisecond, "Failed to get dns response or unexpected response")
 }
 
