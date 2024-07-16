@@ -9,10 +9,16 @@ package run
 
 import (
 	"context"
+	"log"
+	"math"
+	"net/http"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestFxRun(t *testing.T) {
@@ -21,4 +27,34 @@ func TestFxRun(t *testing.T) {
 		cliParams := &subcommands.GlobalParams{}
 		return runOTelAgentCommand(ctx, cliParams)
 	})
+}
+
+func waitForReadiness() {
+	for i := 0; ; i++ {
+		resp, err := http.Get("http://localhost:13133") // default addr of the OTel collector health check extension
+		defer func() {
+			if resp != nil && resp.Body != nil {
+				resp.Body.Close()
+			}
+		}()
+		if err == nil && resp.StatusCode == 200 {
+			return
+		}
+		log.Print("health check failed, retrying ", i, err, resp)
+		t := time.Duration(math.Pow(2, float64(i)))
+		time.Sleep(t * time.Second)
+	}
+}
+
+func TestRunOTelAgentCommand(t *testing.T) {
+	params := &subcommands.GlobalParams{
+		ConfPaths:  []string{"test_config.yaml"},
+		ConfigName: "datadog-otel",
+		LoggerName: "OTELCOL",
+	}
+	go func() {
+		err := runOTelAgentCommand(context.Background(), params)
+		require.NoError(t, err)
+	}()
+	waitForReadiness()
 }

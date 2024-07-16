@@ -1,0 +1,34 @@
+receivers:
+  otlp:
+    protocols:
+      http:
+      grpc:
+
+connectors:
+  datadog/connector:
+    traces:
+      compute_stats_by_span_kind: true
+      peer_tags_aggregation: true
+      peer_tags: ["extra_peer_tag"]
+
+exporters:
+  debug:
+  datadog:
+    api:
+      key: ${env:DD_API_KEY}
+
+extensions:
+  health_check:
+
+service:
+  extensions: [health_check]
+  pipelines:
+    traces:
+      receivers: [otlp]
+      exporters: [datadog/connector]
+    traces/2:
+      receivers: [datadog/connector]
+      exporters: [datadog, debug]
+    metrics:
+      receivers: [datadog/connector]
+      exporters: [datadog, debug]
