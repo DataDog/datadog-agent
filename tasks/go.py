@@ -256,7 +256,6 @@ def generate_protobuf(ctx):
         'trace': [
             ('0001-Customize-msgpack-parsing.patch', '-p4'),
             ('0002-Make-nil-map-deserialization-retrocompatible.patch', '-p4'),
-            ('0003-pkg-trace-traceutil-credit-card-obfuscation-9213.patch', '-p4'),
         ],
     }
 
