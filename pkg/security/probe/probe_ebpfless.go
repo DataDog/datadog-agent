@@ -287,7 +287,7 @@ func (p *EBPFLessProbe) handleSyscallMsg(cl *client, syscallMsg *ebpfless.Syscal
 	}
 
 	// container context
-	event.ContainerContext.ID = syscallMsg.ContainerID
+	event.ContainerContext.ContainerID = model.ContainerID(syscallMsg.ContainerID)
 	if containerContext, exists := p.containerContexts[syscallMsg.ContainerID]; exists {
 		event.ContainerContext.CreatedAt = containerContext.CreatedAt
 		event.ContainerContext.Tags = []string{

@@ -464,6 +464,10 @@ func InitConfig(config pkgconfigmodel.Config) {
 		`^kubectl\.kubernetes\.io\/last-applied-configuration$`,
 		`^ad\.datadoghq\.com\/([[:alnum:]]+\.)?(checks|check_names|init_configs|instances)$`,
 	})
+	config.BindEnvAndSetDefault("cluster_agent.kubernetes_resources_collection.deployment_annotations_exclude", []string{
+		`^kubectl\.kubernetes\.io\/last-applied-configuration$`,
+		`^ad\.datadoghq\.com\/([[:alnum:]]+\.)?(checks|check_names|init_configs|instances)$`,
+	})
 	config.BindEnvAndSetDefault("metrics_port", "5000")
 	config.BindEnvAndSetDefault("cluster_agent.language_detection.patcher.enabled", true)
 	config.BindEnvAndSetDefault("cluster_agent.language_detection.patcher.base_backoff", "5m")
@@ -709,9 +713,10 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.inject_auto_detected_libraries", false)                                   // allows injecting libraries for languages detected by automatic language detection feature
 	config.BindEnv("admission_controller.auto_instrumentation.init_resources.cpu")
 	config.BindEnv("admission_controller.auto_instrumentation.init_resources.memory")
-	config.BindEnv("admission_controller.auto_instrumentation.asm.enabled", "DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_APPSEC_ENABLED")         // config for ASM which is implemented in the client libraries
-	config.BindEnv("admission_controller.auto_instrumentation.iast.enabled", "DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_IAST_ENABLED")          // config for IAST which is implemented in the client libraries
-	config.BindEnv("admission_controller.auto_instrumentation.asm_sca.enabled", "DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_APPSEC_SCA_ENABLED") // config for SCA
+	config.BindEnv("admission_controller.auto_instrumentation.asm.enabled", "DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_APPSEC_ENABLED")          // config for ASM which is implemented in the client libraries
+	config.BindEnv("admission_controller.auto_instrumentation.iast.enabled", "DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_IAST_ENABLED")           // config for IAST which is implemented in the client libraries
+	config.BindEnv("admission_controller.auto_instrumentation.asm_sca.enabled", "DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_APPSEC_SCA_ENABLED")  // config for SCA
+	config.BindEnv("admission_controller.auto_instrumentation.profiling.enabled", "DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_PROFILING_ENABLED") // config for profiling
 	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.enabled", false)
 	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.pod_endpoint", "/inject-pod-cws")
 	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.command_endpoint", "/inject-command-cws")
@@ -1266,8 +1271,8 @@ func dogstatsd(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("dogstatsd_queue_size", 1024)
 
 	config.BindEnvAndSetDefault("dogstatsd_non_local_traffic", false)
-	config.BindEnvAndSetDefault("dogstatsd_socket", "")        // Notice: empty means feature disabled
-	config.BindEnvAndSetDefault("dogstatsd_stream_socket", "") // Experimental || Notice: empty means feature disabled
+	config.BindEnvAndSetDefault("dogstatsd_socket", defaultStatsdSocket) // Only enabled on unix systems
+	config.BindEnvAndSetDefault("dogstatsd_stream_socket", "")           // Experimental || Notice: empty means feature disabled
 	config.BindEnvAndSetDefault("dogstatsd_pipeline_autoadjust", false)
 	config.BindEnvAndSetDefault("dogstatsd_pipeline_autoadjust_strategy", "max_throughput")
 	config.BindEnvAndSetDefault("dogstatsd_pipeline_count", 1)
@@ -1820,7 +1825,8 @@ func LoadDatadogCustom(config pkgconfigmodel.Config, origin string, secretResolv
 		pkgconfigmodel.ApplyOverrideFuncs(config)
 	}()
 
-	warnings, err := LoadCustom(config, origin, secretResolver, additionalKnownEnvVars)
+	warnings := &pkgconfigmodel.Warnings{}
+	err := LoadCustom(config, additionalKnownEnvVars)
 	if err != nil {
 		if errors.Is(err, os.ErrPermission) {
 			log.Warnf("Error loading config: %v (check config file permissions for dd-agent user)", err)
@@ -1829,6 +1835,22 @@ func LoadDatadogCustom(config pkgconfigmodel.Config, origin string, secretResolv
 		}
 		return warnings, err
 	}
+
+	// We resolve proxy setting before secrets. This allows setting secrets through DD_PROXY_* env variables
+	LoadProxyFromEnv(config)
+
+	if resolver, ok := secretResolver.Get(); ok {
+		if err := ResolveSecrets(config, resolver, origin); err != nil {
+			return warnings, err
+		}
+	}
+
+	// Verify 'DD_URL' and 'DD_DD_URL' conflicts
+	if EnvVarAreSetAndNotEqual("DD_DD_URL", "DD_URL") {
+		log.Warnf("'DD_URL' and 'DD_DD_URL' variables are both set in environment. Using 'DD_DD_URL' value")
+	}
+
+	useHostEtc(config)
 
 	err = checkConflictingOptions(config)
 	if err != nil {
@@ -1855,19 +1877,15 @@ func LoadDatadogCustom(config pkgconfigmodel.Config, origin string, secretResolv
 }
 
 // LoadCustom reads config into the provided config object
-func LoadCustom(config pkgconfigmodel.Config, origin string, secretResolver optional.Option[secrets.Component], additionalKnownEnvVars []string) (*pkgconfigmodel.Warnings, error) {
-	warnings := pkgconfigmodel.Warnings{}
-
+func LoadCustom(config pkgconfigmodel.Config, additionalKnownEnvVars []string) error {
 	log.Info("Starting to load the configuration")
 	if err := config.ReadInConfig(); err != nil {
 		if pkgconfigenv.IsServerless() {
 			log.Debug("No config file detected, using environment variable based configuration only")
-			// Proxy settings need to be loaded from environment variables even in the absence of a datadog.yaml file
 			// The remaining code in LoadCustom is not run to keep a low cold start time
-			LoadProxyFromEnv(config)
-			return &warnings, nil
+			return nil
 		}
-		return &warnings, err
+		return err
 	}
 
 	for _, key := range findUnknownKeys(config) {
@@ -1882,22 +1900,7 @@ func LoadCustom(config pkgconfigmodel.Config, origin string, secretResolver opti
 		log.Warnf(warningMsg)
 	}
 
-	// We resolve proxy setting before secrets. This allows setting secrets through DD_PROXY_* env variables
-	LoadProxyFromEnv(config)
-
-	if resolver, ok := secretResolver.Get(); ok {
-		if err := ResolveSecrets(config, resolver, origin); err != nil {
-			return &warnings, err
-		}
-	}
-
-	// Verify 'DD_URL' and 'DD_DD_URL' conflicts
-	if EnvVarAreSetAndNotEqual("DD_DD_URL", "DD_URL") {
-		log.Warnf("'DD_URL' and 'DD_DD_URL' variables are both set in environment. Using 'DD_DD_URL' value")
-	}
-
-	useHostEtc(config)
-	return &warnings, nil
+	return nil
 }
 
 // setupFipsEndpoints overwrites the Agent endpoint for outgoing data to be sent to the local FIPS proxy. The local FIPS
@@ -2285,12 +2288,12 @@ func setTracemallocEnabled(config pkgconfigmodel.Config) bool {
 	traceMallocEnabledWithPy2 := false
 	if pyVersion == "2" && wTracemalloc {
 		log.Warnf("Tracemalloc was enabled but unavailable with python version %q, disabling.", pyVersion)
-		wTracemalloc = false
 		traceMallocEnabledWithPy2 = true
+
+		// update config with the actual effective tracemalloc
+		config.Set("tracemalloc_debug", false, pkgconfigmodel.SourceAgentRuntime)
 	}
 
-	// update config with the actual effective tracemalloc
-	config.Set("tracemalloc_debug", wTracemalloc, pkgconfigmodel.SourceAgentRuntime)
 	return traceMallocEnabledWithPy2
 }
 
@@ -2302,14 +2305,12 @@ func setNumWorkers(config pkgconfigmodel.Config) {
 	}
 
 	wTracemalloc := config.GetBool("tracemalloc_debug")
-	numWorkers := config.GetInt("check_runners")
 	if wTracemalloc {
 		log.Infof("Tracemalloc enabled, only one check runner enabled to run checks serially")
-		numWorkers = 1
-	}
 
-	// update config with the actual effective number of workers
-	config.Set("check_runners", numWorkers, pkgconfigmodel.SourceAgentRuntime)
+		// update config with the actual effective number of workers
+		config.Set("check_runners", 1, pkgconfigmodel.SourceAgentRuntime)
+	}
 }
 
 // GetDogstatsdMappingProfiles returns mapping profiles used in DogStatsD mapper
