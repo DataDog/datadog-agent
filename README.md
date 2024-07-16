@@ -1,5 +1,7 @@
 # Datadog Agent
 
+1
+
 [![CircleCI](https://circleci.com/gh/DataDog/datadog-agent/tree/main.svg?style=svg)](https://circleci.com/gh/DataDog/datadog-agent/tree/main)
 [![Windows unit tests](https://github.com/DataDog/datadog-agent/actions/workflows/windows-unittests.yml/badge.svg)](https://github.com/DataDog/datadog-agent/actions/workflows/windows-unittests.yml)
 [![Coverage status](https://codecov.io/github/DataDog/datadog-agent/coverage.svg?branch=main)](https://codecov.io/github/DataDog/datadog-agent?branch=main)
