@@ -10,7 +10,7 @@ features:
   - |
     Added capability to tag any Kubernetes resource based on labels and annotations.
     This feature can be configured with `kubernetes_resources_annotations_as_tags` and `kubernetes_resources_labels_as_tags`.
-    These feature configurations are maps from group resource to a map of annotations/labels to tag.
-    For example, `deployments.apps` can be mapped to an annotations-to-tags map to configure annotations as tags for deployments.
+    These feature configurations are associate group resources with annotations-to-tags (or labels-to-tags) map
+    For example, `deployments.apps` can be associated with an annotations-to-tags map to configure annotations as tags for deployments.
     Example:
     {`deployments.apps`: {`annotationKey1`: `tag1`, `annotationKey2`: `tag2`}}
