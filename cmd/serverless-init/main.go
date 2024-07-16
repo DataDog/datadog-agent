@@ -90,6 +90,7 @@ func main() {
 	if err != nil {
 		log.Error(err)
 		exitCode := errorExitCode(err)
+		log.Flush()
 		os.Exit(exitCode)
 	}
 }
@@ -245,9 +246,12 @@ func errorExitCode(err error) int {
 	// if error is of type exec.ExitError then propagate the exit code
 	var exitError *exec.ExitError
 	if errors.As(err, &exitError) {
-		return exitError.ExitCode()
+		exitCode := exitError.ExitCode()
+		log.Debugf("propagating exit code %v", exitCode)
+		return exitCode
 	}
 
 	// use exit code 1 if there is no exit code in the error to propagate
+	log.Debug("using default exit code 1")
 	return 1
 }
