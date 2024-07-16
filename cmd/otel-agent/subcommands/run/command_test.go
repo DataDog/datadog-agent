@@ -53,6 +53,7 @@ func TestRunOTelAgentCommand(t *testing.T) {
 	server := testutil.DatadogServerMock(apmstatsRec.HandlerFunc, tracesRec.HandlerFunc)
 	defer server.Close()
 	t.Setenv("SERVER_URL", server.URL)
+	t.Setenv("DD_HOSTNAME", "test-host")
 
 	params := &subcommands.GlobalParams{
 		ConfPaths:  []string{"test_config.yaml"},
@@ -60,8 +61,9 @@ func TestRunOTelAgentCommand(t *testing.T) {
 		LoggerName: "OTELCOL",
 	}
 	go func() {
-		err := runOTelAgentCommand(context.Background(), params)
-		require.NoError(t, err)
+		if err := runOTelAgentCommand(context.Background(), params); err != nil {
+			log.Fatal("failed to start otel agent ", err)			
+		}
 	}()
 	waitForReadiness()
 }
