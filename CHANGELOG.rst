@@ -4,7 +4,7 @@ Release Notes
 
 .. _Release Notes_7.55.1:
 
-7.55.1 / 6.55.1
+7.55.1
 ================
 
 .. _Release Notes_7.55.1_Prelude:
