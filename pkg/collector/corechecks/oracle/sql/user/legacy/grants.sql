@@ -16,7 +16,7 @@ begin
         'dba_tablespaces',
         'dba_tablespace_usage_metrics'
       );
-      command varchar2(100);
+      command varchar2(4000);
       object_name varchar2(30);
     begin
       for i in 1..array.count loop

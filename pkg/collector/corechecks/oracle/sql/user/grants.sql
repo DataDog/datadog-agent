@@ -43,7 +43,7 @@ declare
     'cdb_data_files',
     'dba_data_files'
   );
-  command varchar2(100);
+  command varchar2(4000);
   object_name varchar2(30);
 begin
    for i in 1..array.count loop
