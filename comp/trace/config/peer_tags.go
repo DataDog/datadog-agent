@@ -14,7 +14,6 @@ var peerTagFile []byte
 
 // defaultPeerTags is the default set of peer tag precursors (tags from which peer tags
 // are derived) we aggregate on when peer tag aggregation is enabled.
-// This should only be directly used in tests.
 var defaultPeerTags = func() []string {
 	var precursors []string = []string{"_dd.base_service"}
 
