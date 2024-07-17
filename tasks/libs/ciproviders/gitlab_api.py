@@ -306,7 +306,7 @@ class GitlabCIDiff:
                 if res:
                     res.append('')
                 res.extend(str_section('Renamed Jobs'))
-                for job_before, job_after in self.sort_jobs(self.renamed):
+                for job_before, job_after in sorted(self.renamed, key=lambda x: x[1]):
                     res.append(str_rename(job_before, job_after))
 
         if self.added or self.renamed or self.modified or self.removed:
