@@ -8,6 +8,7 @@ import shutil
 import sys
 import tarfile
 import tempfile
+import yaml
 import xml.etree.ElementTree as ET
 from collections import defaultdict
 from collections.abc import Callable, Iterable
@@ -1072,17 +1073,20 @@ def build_layout(ctx, domains, layout: str, verbose: bool):
         todo: DependenciesLayout = cast('DependenciesLayout', json.load(lf))
 
     for d in domains:
+        info(f"[+] apply layout to vm {d.name}")
         mkdir = []
         for dirs in todo["layout"]:
             mkdir.append(f"mkdir -p {dirs} &&")
 
-        cmd = ' '.join(mkdir)
-        d.run_cmd(ctx, cmd.rstrip('&'), verbose)
+        if len(mkdir) > 0:
+            cmd = ' '.join(mkdir)
+            d.run_cmd(ctx, cmd.rstrip('&'), verbose)
 
         for src, dst in todo["copy"].items():
             if not os.path.exists(src):
                 raise Exit(f"File {src} specified in {layout} does not exist")
 
+            info(f"[+] (host: {src}) => (vm: {dst})")
             d.copy(ctx, src, dst)
 
         for cmd in todo["run"]:
@@ -1097,6 +1101,7 @@ def build_layout(ctx, domains, layout: str, verbose: bool):
         "verbose": "Enable full output of all commands executed",
         "arch": "Architecture to build the system-probe for",
         "layout": "Path to file specifying the expected layout on the target VMs",
+        "override_agent": "Assume that the datadog-agent has been installed with `kmt.install-ddagent`, and replace the system-probe binary in its package with a local build. This also overrides the configuration files as defined in tasks/kernel-matrix-testing/build-layout.json",
     }
 )
 def build(
@@ -1109,6 +1114,7 @@ def build(
     component: Component = "system-probe",
     layout: str = "tasks/kernel_matrix_testing/build-layout.json",
     compile_only=False,
+    override_agent=False,
 ):
     stack = check_and_get_stack(stack)
     assert stacks.stack_exists(
@@ -1153,7 +1159,12 @@ def build(
 
     build_layout(ctx, domains, layout, verbose)
     for d in domains:
-        d.copy(ctx, f"./bin/{component}", "/root/")
+        if override_agent and component == "system-probe":
+            d.run_cmd(ctx, "[ -f /opt/datadog-agent/embedded/bin/system-probe ]", verbose=False)
+            d.copy(ctx, f"./bin/system-probe/system-probe", "/opt/datadog-agent/embedded/bin/system-probe")
+        else:
+            d.copy(ctx, f"./bin/{component}", "/root/")
+
         d.copy(ctx, f"kmt-deps/{stack}/build-embedded-dir.tar", "/")
         d.run_cmd(ctx, "tar xf /build-embedded-dir.tar -C /", verbose=verbose)
         info(f"[+] {component} built for {d.name} @ /root")
@@ -1912,3 +1923,73 @@ def wait_for_setup_job(ctx: Context, pipeline_id: int, arch: str | Arch, compone
 
     loop_status(_check_status, timeout_sec=timeout_sec)
     info(f"[+] Setup job {setup_job.name} finished with status {setup_job.status}")
+
+
+# by default the PyYaml dumper does not indent lists correctly using to problem when
+# starting the agent. The following solution is taken from
+# https://stackoverflow.com/questions/25108581/python-yaml-dump-bad-indentation
+class IndentedDumper(yaml.Dumper):
+    def increase_indent(self, flow=False, indentless=False):
+        return super(IndentedDumper, self).increase_indent(flow, False)
+
+@task
+def install_ddagent(
+    ctx: Context,
+    api_key: str,
+    vms: str | None = None,
+    stack: str | None = None,
+    ssh_key: str | None = None,
+    verbose=True,
+    arch: str | None = None,
+    major: str = "7",
+    minor: str = "55",
+    datadog_yaml: str | None = None,
+    layout: str | None = None,
+):
+    stack = check_and_get_stack(stack)
+    assert stacks.stack_exists(
+        stack
+    ), f"Stack {stack} does not exist. Please create with 'inv kmt.create-stack --stack=<name>'"
+
+    if arch is None:
+        arch = "local"
+
+    arch_obj = Arch.from_str(arch)
+
+    if vms is None:
+        vms = ",".join(stacks.get_all_vms_in_stack(stack))
+
+    ssh_key_obj = try_get_ssh_key(ctx, ssh_key)
+    infra = build_infrastructure(stack, ssh_key_obj)
+    domains = filter_target_domains(vms, infra, arch_obj)
+
+    assert len(domains) > 0, f"no vms found from list {vms}. Run `inv -e kmt.status` to see all VMs in current stack"
+
+    env = [
+        f"DD_API_KEY={api_key}",
+        f"DD_AGENT_MAJOR_VERSION={major}",
+        f"DD_AGENT_MINOR_VERSION={minor}",
+        f"DD_INSTALL_ONLY=true",
+    ]
+
+    if datadog_yaml != None:
+        with open(datadog_yaml) as f:
+            ddyaml = yaml.load(f, Loader=yaml.SafeLoader)
+
+    for d in domains:
+        d.run_cmd(ctx, f"curl -L https://s3.amazonaws.com/dd-agent/scripts/install_script_agent{major}.sh > /tmp/install-script.sh", verbose=verbose)
+        d.run_cmd(ctx, f"{' '.join(env)} bash /tmp/install-script.sh", verbose=verbose)
+
+        # setup datadog yaml
+        if datadog_yaml is not None:
+            # hostnames with '_' are not accepted according to RFC1123
+            ddyaml["hostname"] = f"{os.getlogin()}_{d.tag}".replace("_", "-")
+            ddyaml["api_key"] = api_key
+            cfg = yaml.safe_dump(ddyaml)
+            with tempfile.NamedTemporaryFile(mode='w') as tmp:
+                yaml.dump(ddyaml, tmp, Dumper=IndentedDumper, default_flow_style=False)
+                tmp.flush()
+                d.copy(ctx, tmp.name, "/etc/datadog-agent/datadog.yaml")
+
+    if layout is not None:
+        build_layout(ctx, domains, layout, verbose)
