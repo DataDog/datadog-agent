@@ -226,8 +226,39 @@ def launch_stack(
     x86_ami: str = X86_AMI_ID_SANDBOX,
     arm_ami: str = ARM_AMI_ID_SANDBOX,
     provision_microvms: bool = True,
+    provision_script: str | None = None,
 ):
+    stack = check_and_get_stack(stack)
+    if not stacks.stack_exists(stack):
+        raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.create-stack --stack=<name>'")
+
     stacks.launch_stack(ctx, stack, ssh_key, x86_ami, arm_ami, provision_microvms)
+
+    if provision_script != None:
+        ssh_key_obj = try_get_ssh_key(ctx, ssh_key)
+        infra = build_infrastructure(stack, ssh_key_obj)
+        for arch in infra:
+            for domain in infra[arch].microvms:
+                domain.copy(ctx, provision_script, "/tmp/provision.sh")
+                domain.run_cmd(ctx, "chmod +x /tmp/provision.sh && /tmp/provision.sh", verbose=True)
+
+@task
+def provision_stack(
+    ctx: Context,
+    provision_script: str,
+    stack: str | None = None,
+    ssh_key: str | None = None,
+):
+    stack = check_and_get_stack(stack)
+    if not stacks.stack_exists(stack):
+        raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.create-stack --stack=<name>'")
+
+    ssh_key_obj = try_get_ssh_key(ctx, ssh_key)
+    infra = build_infrastructure(stack, ssh_key_obj)
+    for arch in infra:
+        for domain in infra[arch].microvms:
+            domain.copy(ctx, provision_script, "/tmp/provision.sh")
+            domain.run_cmd(ctx, "chmod +x /tmp/provision.sh && /tmp/provision.sh", verbose=True)
 
 
 @task
@@ -1086,7 +1117,6 @@ def build_layout(ctx, domains, layout: str, verbose: bool):
             if not os.path.exists(src):
                 raise Exit(f"File {src} specified in {layout} does not exist")
 
-            info(f"[+] (host: {src}) => (vm: {dst})")
             d.copy(ctx, src, dst)
 
         for cmd in todo["run"]:
@@ -1159,9 +1189,9 @@ def build(
 
     build_layout(ctx, domains, layout, verbose)
     for d in domains:
-        if override_agent and component == "system-probe":
-            d.run_cmd(ctx, "[ -f /opt/datadog-agent/embedded/bin/system-probe ]", verbose=False)
-            d.copy(ctx, f"./bin/system-probe/system-probe", "/opt/datadog-agent/embedded/bin/system-probe")
+        if override_agent:
+            d.run_cmd(ctx, f"[ -f /opt/datadog-agent/embedded/bin/{component} ]", verbose=False)
+            d.copy(ctx, f"./bin/{component}/{component}", "/opt/datadog-agent/embedded/bin/{component}")
         else:
             d.copy(ctx, f"./bin/{component}", "/root/")
 
