@@ -21,10 +21,11 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
+	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
 )
 
 //nolint:revive // TODO(PROC) Fix revive linter
-const LoggerName config.LoggerName = "PROCESS"
+const LoggerName pkglogsetup.LoggerName = "PROCESS"
 
 // DaemonLogParams are the log params should be given to the `core.BundleParams` for when the process agent is running as a daemon
 var DaemonLogParams = logComponentimpl.ForDaemon(string(LoggerName), "process_config.log_file", config.DefaultProcessAgentLogFile)

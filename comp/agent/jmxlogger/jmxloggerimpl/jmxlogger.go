@@ -14,9 +14,9 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
 	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
 )
 
 // Module defines the fx options for this component.
@@ -40,7 +40,7 @@ func newJMXLogger(deps dependencies) (jmxlogger.Component, error) {
 		return logger{}, nil
 	}
 	if deps.Params.fromCLI {
-		err := pkgconfig.SetupJMXLogger(deps.Params.logFile, "", false, true, false)
+		err := pkglogsetup.SetupJMXLogger(deps.Params.logFile, "", false, true, false, deps.Config)
 		if err != nil {
 			err = fmt.Errorf("Unable to set up JMX logger: %v", err)
 		}
@@ -48,7 +48,7 @@ func newJMXLogger(deps dependencies) (jmxlogger.Component, error) {
 	}
 
 	// Setup logger
-	syslogURI := pkgconfig.GetSyslogURI()
+	syslogURI := pkglogsetup.GetSyslogURI(deps.Config)
 	jmxLogFile := config.GetString("jmx_log_file")
 	if jmxLogFile == "" {
 		jmxLogFile = path.DefaultJmxLogFile
@@ -60,12 +60,13 @@ func newJMXLogger(deps dependencies) (jmxlogger.Component, error) {
 	}
 
 	// Setup JMX logger
-	jmxLoggerSetupErr := pkgconfig.SetupJMXLogger(
+	jmxLoggerSetupErr := pkglogsetup.SetupJMXLogger(
 		jmxLogFile,
 		syslogURI,
 		config.GetBool("syslog_rfc"),
 		config.GetBool("log_to_console"),
 		config.GetBool("log_format_json"),
+		config,
 	)
 
 	if jmxLoggerSetupErr != nil {
