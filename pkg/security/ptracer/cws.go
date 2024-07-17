@@ -325,7 +325,7 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, opts Opts) 
 					select {
 					case data := <-msgDataChan:
 						if err := sendMsgData(client, data); err != nil {
-							logger.Debugf("error sending msg: %v", err)
+							logger.Errorf("error sending msg: %v", err)
 							msgDataChan <- data
 							break LOOP2
 						}
