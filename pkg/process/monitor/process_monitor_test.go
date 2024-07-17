@@ -251,13 +251,19 @@ func (s *processMonitorSuite) TestProcessMonitorInNamespace() {
 
 	time.Sleep(500 * time.Millisecond)
 	// Process in root NS
-	cmd := exec.Command("/bin/echo")
+	cmd := exec.Command("/bin/sleep", "1")
 	require.NoError(t, cmd.Run(), "could not run process in root namespace")
 	pid := uint32(cmd.ProcessState.Pid())
 
 	require.Eventually(t, func() bool {
 		_, capturedExec := execSet.Load(pid)
+		if !capturedExec {
+			t.Logf("pid %d not captured in exec", pid)
+		}
 		_, capturedExit := exitSet.Load(pid)
+		if !capturedExit {
+			t.Logf("pid %d not captured in exit", pid)
+		}
 		return capturedExec && capturedExit
 	}, time.Second, time.Millisecond*200, "did not capture process EXEC/EXIT from root namespace")
 
@@ -266,13 +272,19 @@ func (s *processMonitorSuite) TestProcessMonitorInNamespace() {
 	require.NoError(t, err, "could not create network namespace for process")
 	defer cmdNs.Close()
 
-	cmd = exec.Command("/bin/echo")
+	cmd = exec.Command("/bin/sleep", "1")
 	require.NoError(t, kernel.WithNS(cmdNs, cmd.Run), "could not run process in other network namespace")
 	pid = uint32(cmd.ProcessState.Pid())
 
 	require.Eventually(t, func() bool {
 		_, capturedExec := execSet.Load(pid)
+		if !capturedExec {
+			t.Logf("pid %d not captured in exec", pid)
+		}
 		_, capturedExit := exitSet.Load(pid)
+		if !capturedExit {
+			t.Logf("pid %d not captured in exit", pid)
+		}
 		return capturedExec && capturedExit
 	}, time.Second, 200*time.Millisecond, "did not capture process EXEC/EXIT from other namespace")
 
