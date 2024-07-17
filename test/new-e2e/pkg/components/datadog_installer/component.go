@@ -7,6 +7,7 @@ package datadog_installer
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/pipeline"
 	"github.com/DataDog/test-infra-definitions/common"
 	"github.com/DataDog/test-infra-definitions/common/namer"
 	"github.com/DataDog/test-infra-definitions/components"
@@ -14,6 +15,7 @@ import (
 	remoteComp "github.com/DataDog/test-infra-definitions/components/remote"
 	"github.com/DataDog/test-infra-definitions/resources/aws"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
+	"strings"
 )
 
 // Output is an object that models the output of the resource creation
@@ -56,7 +58,13 @@ func WithInstallUrl(url string) func(*Configuration) error {
 // NewConfig creates a default config
 func NewConfig(env aws.Environment, options ...Option) (*Configuration, error) {
 	if env.PipelineID() != "" {
-		options = append([]Option{WithInstallUrl(fmt.Sprintf("https://s3.amazonaws.com/dd-agent-mstesting/pipelines/A7/%s/datadog-installer-1-x86_64.msi", env.PipelineID()))}, options...)
+		artifactUrl, err := pipeline.GetArtifact(env.PipelineID(), pipeline.AgentS3BucketTesting, pipeline.DefaultMajorVersion, func(artifact string) bool {
+			return strings.Contains(artifact, "datadog-installer")
+		})
+		if err != nil {
+			return nil, err
+		}
+		options = append([]Option{WithInstallUrl(artifactUrl)}, options...)
 		return common.ApplyOption(&Configuration{}, options)
 	} else {
 		return nil, fmt.Errorf("E2E_PIPELINE_ID env var is not set, this test requires this variable to be set to work")

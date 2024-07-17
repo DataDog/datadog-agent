@@ -77,7 +77,13 @@ func (d *datadogInstaller) InstallPackage(packageName string) (string, error) {
 // Install will attempt to install the Datadog Installer on the remote host.
 // By default, it will use the installer from the current pipeline.
 func (d *datadogInstaller) Install() error {
-	return windowsCommon.InstallMSI(d.env.RemoteHost, fmt.Sprintf("https://s3.amazonaws.com/dd-agent-mstesting/pipelines/A7/%s/datadog-installer-1-x86_64.msi", d.env.AwsEnvironment.PipelineID()), "", "")
+	artifactUrl, err := pipeline.GetArtifact(d.env.AwsEnvironment.PipelineID(), pipeline.AgentS3BucketTesting, pipeline.DefaultMajorVersion, func(artifact string) bool {
+		return strings.Contains(artifact, "datadog-installer")
+	})
+	if err != nil {
+		return err
+	}
+	return windowsCommon.InstallMSI(d.env.RemoteHost, artifactUrl, "", "")
 }
 
 // Purge purges the Datadog Installer of all installed packages

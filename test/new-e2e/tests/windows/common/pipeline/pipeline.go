@@ -6,7 +6,6 @@
 // Package pipeline provides helper functions for working with the Gitlab pipeline
 package pipeline
 
-// GetPipelineMSIURL returns the URL for the agent MSI built by the pipeline
 import (
 	"context"
 	"fmt"
