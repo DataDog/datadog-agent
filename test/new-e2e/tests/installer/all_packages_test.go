@@ -162,6 +162,13 @@ func (s *packageBaseSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
 	s.setupFakeIntake()
 	s.host = host.New(s.T(), s.Env().RemoteHost, s.os, s.arch)
+	s.disableUnattendedUpgrades()
+}
+
+func (s *packageBaseSuite) disableUnattendedUpgrades() {
+	if _, err := s.Env().RemoteHost.Execute("which apt"); err == nil {
+		s.Env().RemoteHost.MustExecute("sudo apt remove -y unattended-upgrades")
+	}
 }
 
 func (s *packageBaseSuite) RunInstallScriptProdOci(params ...string) error {
