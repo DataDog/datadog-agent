@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer"
 	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/pipeline"
 	e2eos "github.com/DataDog/test-infra-definitions/components/os"
 	"strings"
 )
@@ -63,13 +64,15 @@ func (d *datadogInstaller) InstallPackage(packageName string) (string, error) {
 	}
 
 	envVars := installer.InstallScriptEnv(e2eos.AMD64Arch)
+	fmt.Printf("displaying package environment variables\n")
+	for key, value := range envVars {
+		fmt.Printf("\t%s: %v\n", key, value)
+	}
+
+	// Don't display the API key in the output...
 	apikey, err := runner.GetProfile().SecretStore().Get(parameters.APIKey)
 	if err == nil {
 		envVars["DD_API_KEY"] = apikey
-	}
-	fmt.Printf("displaying package environment variables")
-	for key, value := range envVars {
-		fmt.Printf("\t%s: %v\n", key, value)
 	}
 	return d.execute(fmt.Sprintf("install %s", packageUrl), client.WithEnvVariables(envVars))
 }
