@@ -1,5 +1,7 @@
-// Copyright The OpenTelemetry Authors
-// SPDX-License-Identifier: Apache-2.0
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2021-present Datadog, Inc.
 
 //go:build test
 
@@ -78,6 +80,11 @@ func TestDatadogLogsServer(t *testing.T) {
 	_, _ = w.Write(jsonBytes)
 	_ = w.Close()
 	resp, err := http.Post(server.URL, "application/json", buf)
+	defer func() {
+		if resp != nil && resp.Body != nil {
+			resp.Body.Close()
+		}
+	}()
 	if err != nil {
 		t.Fatal(err)
 		return

@@ -376,18 +376,22 @@ func newTracesWithAttributeMap(mp map[string]string) ptrace.Traces {
 	return traces
 }
 
+// MockSourceProvider mocks a source provider
 type MockSourceProvider struct {
 	Src source.Source
 }
 
+// Source implements the source provider interface
 func (s *MockSourceProvider) Source(_ context.Context) (source.Source, error) {
 	return s.Src, nil
 }
 
+// MockStatsProcessor mocks a stats processor
 type MockStatsProcessor struct {
 	In []*pb.ClientStatsPayload
 }
 
+// ProcessStats implements the stats processor interface
 func (s *MockStatsProcessor) ProcessStats(in *pb.ClientStatsPayload, _, _ string) {
 	s.In = append(s.In, in)
 }
@@ -507,6 +511,7 @@ func (jsonLogs *JSONLogs) HasDDTag(ddtags string) bool {
 	return true
 }
 
+// DatadogLogsServer implements a HTTP server that accepts Datadog logs
 type DatadogLogsServer struct {
 	*httptest.Server
 	// LogsData is the array of json requests sent to datadog backend
@@ -578,6 +583,7 @@ func MockLogsEndpoint(w http.ResponseWriter, r *http.Request) JSONLogs {
 	return processLogsRequest(w, r)
 }
 
+// ProcessLogsAgentRequest handles HTTP requests from logs agent
 func ProcessLogsAgentRequest(w http.ResponseWriter, r *http.Request) JSONLogs {
 	// we can reuse same response object for logs as well
 	req, err := gUnzipData(r.Body)
