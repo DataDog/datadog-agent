@@ -147,24 +147,12 @@ func (m *Macro) GenEvaluator(expression string, model Model) error {
 
 // GetEventTypes - Returns a list of all the Event Type that the `Expression` handles
 func (m *Macro) GetEventTypes() []EventType {
-	eventTypes := m.evaluator.EventTypes
-
-	for _, macro := range m.Opts.MacroStore.List() {
-		eventTypes = append(eventTypes, macro.evaluator.EventTypes...)
-	}
-
-	return eventTypes
+	return m.evaluator.EventTypes
 }
 
 // GetFields - Returns all the Field that the Macro handles included sub-Macro
 func (m *Macro) GetFields() []Field {
-	fields := m.evaluator.GetFields()
-
-	for _, macro := range m.Opts.MacroStore.List() {
-		fields = append(fields, macro.evaluator.GetFields()...)
-	}
-
-	return fields
+	return m.evaluator.GetFields()
 }
 
 // GetFields - Returns all the Field that the MacroEvaluator handles

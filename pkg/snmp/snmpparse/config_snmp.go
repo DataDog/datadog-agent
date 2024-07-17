@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/url"
 	"reflect"
 
 	yaml "gopkg.in/yaml.v2"
@@ -148,8 +149,10 @@ func GetConfigCheckSnmp(conf config.Component) ([]SNMPConfig, error) {
 	if err != nil {
 		return nil, err
 	}
+	urlValues := url.Values{}
+	urlValues.Set("raw", "true")
 
-	res, err := endpoint.DoGet()
+	res, err := endpoint.DoGet(apiutil.WithValues(urlValues))
 	if err != nil {
 		return nil, err
 	}

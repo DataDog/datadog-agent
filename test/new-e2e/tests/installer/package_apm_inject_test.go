@@ -8,6 +8,7 @@ package installer
 import (
 	"fmt"
 	"math/rand/v2"
+	"math/rand/v2"
 	"path/filepath"
 	"strings"
 	"time"
@@ -36,6 +37,7 @@ func (s *packageApmInjectSuite) TestInstall() {
 	s.RunInstallScript("DD_APM_INSTRUMENTATION_ENABLED=all", "DD_APM_INSTRUMENTATION_LIBRARIES=python", envForceInstall("datadog-agent"))
 	defer s.Purge()
 	s.host.WaitForUnitActive("datadog-agent.service", "datadog-agent-trace.service")
+	s.host.WaitForFileExists(true, "/var/run/datadog/apm.socket")
 
 	s.host.StartExamplePythonApp()
 	defer s.host.StopExamplePythonApp()
@@ -134,8 +136,10 @@ func (s *packageApmInjectSuite) TestInstrumentDefault() {
 func (s *packageApmInjectSuite) TestSystemdReload() {
 	s.host.InstallDocker()
 	s.RunInstallScript()
+	s.RunInstallScript()
 	defer s.Purge()
 
+	s.RunInstallScript("DD_APM_INSTRUMENTATION_ENABLED=all", "DD_APM_INSTRUMENTATION_LIBRARIES=python")
 	s.RunInstallScript("DD_APM_INSTRUMENTATION_ENABLED=all", "DD_APM_INSTRUMENTATION_LIBRARIES=python")
 	s.host.WaitForUnitActive("datadog-agent.service", "datadog-agent-trace.service")
 	s.assertLDPreloadInstrumented(injectOCIPath)
@@ -170,6 +174,7 @@ func (s *packageApmInjectSuite) TestUpgrade_InjectorDeb_To_InjectorOCI() {
 
 	// OCI install
 	s.RunInstallScript(
+	s.RunInstallScript(
 		"DD_APM_INSTRUMENTATION_ENABLED=all",
 		"DD_APM_INSTRUMENTATION_LIBRARIES=python",
 		envForceInstall("datadog-agent"),
@@ -188,6 +193,7 @@ func (s *packageApmInjectSuite) TestUpgrade_InjectorOCI_To_InjectorDeb() {
 
 	// OCI install
 	s.RunInstallScript(
+	s.RunInstallScript(
 		"DD_APM_INSTRUMENTATION_ENABLED=all",
 		"DD_APM_INSTRUMENTATION_LIBRARIES=python",
 		envForceInstall("datadog-agent"),
@@ -199,6 +205,7 @@ func (s *packageApmInjectSuite) TestUpgrade_InjectorOCI_To_InjectorDeb() {
 	s.assertDockerdInstrumented(injectOCIPath)
 
 	// Deb install using today's defaults
+	s.RunInstallScript(
 	s.RunInstallScript(
 		"DD_APM_INSTRUMENTATION_ENABLED=all",
 		"DD_APM_INSTRUMENTATION_LIBRARIES=python",
@@ -213,7 +220,7 @@ func (s *packageApmInjectSuite) TestUpgrade_InjectorOCI_To_InjectorDeb() {
 	)
 	defer s.purgeInjectorDebInstall()
 
-	// OCI musn't be overridden
+	// OCI mustn't be overridden
 	s.assertLDPreloadInstrumented(injectOCIPath)
 	s.assertSocketPath()
 	s.assertDockerdInstrumented(injectOCIPath)
@@ -224,18 +231,22 @@ func (s *packageApmInjectSuite) TestVersionBump() {
 	s.RunInstallScript(
 		"DD_APM_INSTRUMENTATION_ENABLED=all",
 		"DD_APM_INSTRUMENTATION_LIBRARIES=python:2.8.5",
+		"DD_APM_INSTRUMENTATION_LIBRARIES=python:2.8.5",
 		envForceInstall("datadog-agent"),
-		envForceVersion("datadog-apm-inject", "0.14.0-beta1-dev.b0d6e40.glci528580195.g068abe2b-1"),
+		envForceVersion("datadog-apm-inject", "0.15.0-1"),
 	)
 	defer s.Purge()
 	s.host.WaitForUnitActive("datadog-agent.service", "datadog-agent-trace.service")
+	s.host.WaitForFileExists(true, "/var/run/datadog/apm.socket")
 
 	state := s.host.State()
 	state.AssertDirExists("/opt/datadog-packages/datadog-apm-library-python/2.8.5", 0755, "root", "root")
 	state.AssertSymlinkExists("/opt/datadog-packages/datadog-apm-library-python/stable", "/opt/datadog-packages/datadog-apm-library-python/2.8.5", "root", "root")
+	state.AssertDirExists("/opt/datadog-packages/datadog-apm-library-python/2.8.5", 0755, "root", "root")
+	state.AssertSymlinkExists("/opt/datadog-packages/datadog-apm-library-python/stable", "/opt/datadog-packages/datadog-apm-library-python/2.8.5", "root", "root")
 
-	state.AssertDirExists("/opt/datadog-packages/datadog-apm-inject/0.14.0-beta1-dev.b0d6e40.glci528580195.g068abe2b-1", 0755, "root", "root")
-	state.AssertSymlinkExists("/opt/datadog-packages/datadog-apm-inject/stable", "/opt/datadog-packages/datadog-apm-inject/0.14.0-beta1-dev.b0d6e40.glci528580195.g068abe2b-1", "root", "root")
+	state.AssertDirExists("/opt/datadog-packages/datadog-apm-inject/0.15.0-1", 0755, "root", "root")
+	state.AssertSymlinkExists("/opt/datadog-packages/datadog-apm-inject/stable", "/opt/datadog-packages/datadog-apm-inject/0.15.0-1", "root", "root")
 
 	s.host.StartExamplePythonApp()
 	defer s.host.StopExamplePythonApp()
@@ -249,8 +260,10 @@ func (s *packageApmInjectSuite) TestVersionBump() {
 		"DD_APM_INSTRUMENTATION_ENABLED=all",
 		"DD_APM_INSTRUMENTATION_LIBRARIES=python:2.8.5",
 		envForceInstall("datadog-agent"),
-		envForceVersion("datadog-apm-inject", "0.13.2-beta1-dev.b0d6e40.glci530444874.g6d8b7576-1"),
+		envForceVersion("datadog-apm-inject", "0.16.0-1"),
 	)
+	s.host.WaitForUnitActive("datadog-agent.service", "datadog-agent-trace.service")
+	s.host.WaitForFileExists(true, "/var/run/datadog/apm.socket")
 
 	// Today we expect the previous dir to be fully removed and the new one to be symlinked
 	state = s.host.State()
@@ -258,9 +271,9 @@ func (s *packageApmInjectSuite) TestVersionBump() {
 	state.AssertDirExists("/opt/datadog-packages/datadog-apm-library-python/2.8.5", 0755, "root", "root")
 	state.AssertSymlinkExists("/opt/datadog-packages/datadog-apm-library-python/stable", "/opt/datadog-packages/datadog-apm-library-python/2.8.5", "root", "root")
 
-	state.AssertPathDoesNotExist("/opt/datadog-packages/datadog-apm-inject/0.14.0-beta1-dev.b0d6e40.glci528580195.g068abe2b-1")
-	state.AssertDirExists("/opt/datadog-packages/datadog-apm-inject/0.13.2-beta1-dev.b0d6e40.glci530444874.g6d8b7576-1", 0755, "root", "root")
-	state.AssertSymlinkExists("/opt/datadog-packages/datadog-apm-inject/stable", "/opt/datadog-packages/datadog-apm-inject/0.13.2-beta1-dev.b0d6e40.glci530444874.g6d8b7576-1", "root", "root")
+	state.AssertPathDoesNotExist("/opt/datadog-packages/datadog-apm-inject/0.15.0-1")
+	state.AssertDirExists("/opt/datadog-packages/datadog-apm-inject/0.16.0-1", 0755, "root", "root")
+	state.AssertSymlinkExists("/opt/datadog-packages/datadog-apm-inject/stable", "/opt/datadog-packages/datadog-apm-inject/0.16.0-1", "root", "root")
 
 	s.host.StartExamplePythonAppInDocker()
 	defer s.host.StopExamplePythonAppInDocker()
@@ -298,9 +311,13 @@ func (s *packageApmInjectSuite) TestInstrument() {
 func (s *packageApmInjectSuite) TestPackagePinning() {
 	s.host.InstallDocker()
 
+	s.host.InstallDocker()
+
 	// Deb install using today's defaults
 	s.RunInstallScript(
+	s.RunInstallScript(
 		"DD_APM_INSTRUMENTATION_ENABLED=all",
+		"DD_APM_INSTRUMENTATION_LIBRARIES=python:2.8.5,dotnet",
 		"DD_APM_INSTRUMENTATION_LIBRARIES=python:2.8.5,dotnet",
 		envForceInstall("datadog-agent"),
 	)
@@ -313,10 +330,12 @@ func (s *packageApmInjectSuite) TestPackagePinning() {
 
 	s.host.AssertPackageInstalledByInstaller("datadog-apm-library-python", "datadog-apm-library-dotnet")
 	s.host.AssertPackageVersion("datadog-apm-library-python", "2.8.5")
+	s.host.AssertPackageVersion("datadog-apm-library-python", "2.8.5")
 }
 
 func (s *packageApmInjectSuite) TestUninstrument() {
 	s.host.InstallDocker()
+	s.RunInstallScript(
 	s.RunInstallScript(
 		"DD_APM_INSTRUMENTATION_ENABLED=all",
 		"DD_APM_INSTRUMENTATION_LIBRARIES=python",
@@ -398,6 +417,8 @@ func (s *packageApmInjectSuite) TestInstrumentDockerInactive() {
 
 func (s *packageApmInjectSuite) TestInstallStandaloneLib() {
 	s.RunInstallScript("DD_APM_INSTRUMENTATION_LIBRARIES=python")
+func (s *packageApmInjectSuite) TestInstallStandaloneLib() {
+	s.RunInstallScript("DD_APM_INSTRUMENTATION_LIBRARIES=python")
 	defer s.Purge()
 	s.host.AssertPackageNotInstalledByPackageManager("datadog-apm-library-python")
 	s.host.AssertPackageInstalledByInstaller("datadog-apm-library-python")
@@ -446,6 +467,8 @@ func (s *packageApmInjectSuite) assertLDPreloadInstrumented(libPath string) {
 func (s *packageApmInjectSuite) assertSocketPath() {
 	output := s.host.Run("sh -c 'python3 -c \"import os; print(os.environ)\"'")
 	assert.Contains(s.T(), output, "'DD_INJECTION_ENABLED': 'tracer'") // this is an env var set by the injector
+	output := s.host.Run("sh -c 'python3 -c \"import os; print(os.environ)\"'")
+	assert.Contains(s.T(), output, "'DD_INJECTION_ENABLED': 'tracer'") // this is an env var set by the injector
 }
 
 func (s *packageApmInjectSuite) assertLDPreloadNotInstrumented() {
@@ -457,6 +480,8 @@ func (s *packageApmInjectSuite) assertLDPreloadNotInstrumented() {
 		assert.NotContains(s.T(), string(content), injectOCIPath)
 		assert.NotContains(s.T(), string(content), injectDebPath)
 	}
+	output := s.host.Run("sh -c 'python3 -c \"import os; print(os.environ)\"'")
+	assert.NotContains(s.T(), output, "'DD_INJECTION_ENABLED': 'tracer'")
 	output := s.host.Run("sh -c 'python3 -c \"import os; print(os.environ)\"'")
 	assert.NotContains(s.T(), output, "'DD_INJECTION_ENABLED': 'tracer'")
 }
