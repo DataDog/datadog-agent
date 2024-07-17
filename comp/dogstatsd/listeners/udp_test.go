@@ -224,7 +224,7 @@ func TestUDPReceive(t *testing.T) {
 	telemetryStore := NewTelemetryStore(nil, deps.Telemetry)
 	packetsTelemetryStore := packets.NewTelemetryStore(nil, deps.Telemetry)
 	s, err := NewUDPListener(packetChannel, newPacketPoolManagerUDP(deps.Config, packetsTelemetryStore), deps.Config, nil, telemetryStore, packetsTelemetryStore)
-	assert.Nil(t, err)
+	require.Nil(t, err)
 	require.NotNil(t, s)
 	s.Listen()
 	defer s.Stop()
