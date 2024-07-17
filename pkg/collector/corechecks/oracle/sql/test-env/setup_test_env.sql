@@ -35,9 +35,9 @@ prompt create legacy user grants
 @@pkg/collector/corechecks/oracle/sql/user/legacy/grants.sql
 
 prompt create test table
-create table sys.t(n number);
-grant select,insert on sys.t to &&user ;
-insert into sys.t values(18446744073709551615);
+create table t(n number);
+grant select,insert on t to &&user ;
+insert into t values(18446744073709551615);
 commit;
 
 prompt create test tablespace
