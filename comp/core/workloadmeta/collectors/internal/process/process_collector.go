@@ -19,7 +19,6 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/errors"
-	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	processwlm "github.com/DataDog/datadog-agent/pkg/process/metadata/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -40,7 +39,7 @@ type collector struct {
 	processDiffCh <-chan *processwlm.ProcessCacheDiff
 
 	// only used when process checks are disabled
-	processData     *checks.ProcessData
+	processData     *ProcessData
 	pidToCid        map[int]string
 	collectionClock clock.Clock
 }
@@ -50,7 +49,7 @@ type collector struct {
 func NewCollector() (workloadmeta.CollectorProvider, error) {
 
 	wlmExtractor := processwlm.GetSharedWorkloadMetaExtractor(config.SystemProbe)
-	processData := checks.NewProcessData(config.Datadog())
+	processData := NewProcessData()
 	processData.Register(wlmExtractor)
 
 	return workloadmeta.CollectorProvider{

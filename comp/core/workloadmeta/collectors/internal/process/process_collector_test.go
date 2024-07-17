@@ -26,13 +26,20 @@ import (
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
-	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	processwlm "github.com/DataDog/datadog-agent/pkg/process/metadata/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil/mocks"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
+
+// NewProcessDataWithMockProbe returns a new ProcessData with a mock probe
+func NewProcessDataWithMockProbe(t *testing.T) (*ProcessData, *mocks.Probe) {
+	probe := mocks.NewProbe(t)
+	return &ProcessData{
+		probe: probe,
+	}, probe
+}
 
 type collectorTest struct {
 	collector *collector
@@ -54,7 +61,7 @@ func setUpCollectorTest(t *testing.T, configOverrides map[string]interface{}) co
 	time.Sleep(time.Second)
 
 	wlmExtractor := processwlm.NewWorkloadMetaExtractor(mockStore.GetConfig())
-	mockProcessData, probe := checks.NewProcessDataWithMockProbe(t)
+	mockProcessData, probe := NewProcessDataWithMockProbe(t)
 	mockProcessData.Register(wlmExtractor)
 	mockClock := clock.NewMock()
 	processDiffCh := wlmExtractor.ProcessCacheDiff()
