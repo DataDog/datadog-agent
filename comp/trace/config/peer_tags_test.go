@@ -27,8 +27,8 @@ func TestPreparePeerTags(t *testing.T) {
 			output: []string{"db.name", "db.instance", "peer.service", "some.other.tag", "zz_tag"},
 		},
 		{
-			input:  append([]string{"zz_tag"}, defaultPeerTags...),
-			output: append(defaultPeerTags, "zz_tag"),
+			input:  append([]string{"zz_tag"}, basePeerTags...),
+			output: append(basePeerTags, "zz_tag"),
 		},
 	} {
 		sort.Strings(tc.output)
@@ -76,7 +76,7 @@ func TestDefaultPeerTags(t *testing.T) {
 		"tablename",
 		"topicname",
 	}
-	actualListOfPeerTags := defaultPeerTags
+	actualListOfPeerTags := basePeerTags
 
 	// Sort both arrays for comparison
 	sort.Strings(actualListOfPeerTags)

@@ -2451,7 +2451,7 @@ func TestPeerTagsAggregation(t *testing.T) {
 		// underlying config
 		cfg := config.Object()
 		require.NotNil(t, cfg)
-		assert.Equal(t, defaultPeerTags, cfg.PeerTags)
+		assert.Equal(t, basePeerTags, cfg.PeerTags)
 	})
 	t.Run("enabled", func(t *testing.T) {
 		overrides := map[string]interface{}{
@@ -2466,7 +2466,7 @@ func TestPeerTagsAggregation(t *testing.T) {
 		// underlying config
 		cfg := config.Object()
 		require.NotNil(t, cfg)
-		assert.Equal(t, defaultPeerTags, cfg.PeerTags)
+		assert.Equal(t, basePeerTags, cfg.PeerTags)
 	})
 	t.Run("both-enabled", func(t *testing.T) {
 		overrides := map[string]interface{}{
@@ -2482,7 +2482,7 @@ func TestPeerTagsAggregation(t *testing.T) {
 		// underlying config
 		cfg := config.Object()
 		require.NotNil(t, cfg)
-		assert.Equal(t, defaultPeerTags, cfg.PeerTags)
+		assert.Equal(t, basePeerTags, cfg.PeerTags)
 	})
 	t.Run("disabled-user-tags", func(t *testing.T) {
 		overrides := map[string]interface{}{
@@ -2513,7 +2513,7 @@ func TestPeerTagsAggregation(t *testing.T) {
 		// underlying config
 		cfg := config.Object()
 		require.NotNil(t, cfg)
-		assert.Equal(t, append(defaultPeerTags, "user_peer_tag"), cfg.PeerTags)
+		assert.Equal(t, append(basePeerTags, "user_peer_tag"), cfg.PeerTags)
 	})
 	t.Run("enabled-user-tags", func(t *testing.T) {
 		overrides := map[string]interface{}{
@@ -2529,7 +2529,7 @@ func TestPeerTagsAggregation(t *testing.T) {
 		// underlying config
 		cfg := config.Object()
 		require.NotNil(t, cfg)
-		assert.Equal(t, append(defaultPeerTags, "user_peer_tag"), cfg.PeerTags)
+		assert.Equal(t, append(basePeerTags, "user_peer_tag"), cfg.PeerTags)
 	})
 	t.Run("both-enabled-user-tags", func(t *testing.T) {
 		overrides := map[string]interface{}{
@@ -2546,11 +2546,11 @@ func TestPeerTagsAggregation(t *testing.T) {
 		// underlying config
 		cfg := config.Object()
 		require.NotNil(t, cfg)
-		assert.Equal(t, append(defaultPeerTags, "user_peer_tag"), cfg.PeerTags)
+		assert.Equal(t, append(basePeerTags, "user_peer_tag"), cfg.PeerTags)
 	})
 	t.Run("dedup", func(t *testing.T) {
 		overrides := map[string]interface{}{
-			"apm_config.peer_tags":             defaultPeerTags[:1],
+			"apm_config.peer_tags":             basePeerTags[:1],
 			"apm_config.peer_tags_aggregation": true,
 		}
 
@@ -2562,7 +2562,7 @@ func TestPeerTagsAggregation(t *testing.T) {
 		// underlying config
 		cfg := config.Object()
 		require.NotNil(t, cfg)
-		assert.Equal(t, defaultPeerTags, cfg.PeerTags)
+		assert.Equal(t, basePeerTags, cfg.PeerTags)
 	})
 }
 

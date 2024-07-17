@@ -12,9 +12,9 @@ import (
 //go:embed peer_tags.ini
 var peerTagFile []byte
 
-// defaultPeerTags is the default set of peer tag precursors (tags from which peer tags
+// basePeerTags is the base set of peer tag precursors (tags from which peer tags
 // are derived) we aggregate on when peer tag aggregation is enabled.
-var defaultPeerTags = func() []string {
+var basePeerTags = func() []string {
 	var precursors []string = []string{"_dd.base_service"}
 
 	cfg, err := ini.Load(peerTagFile)

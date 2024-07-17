@@ -225,7 +225,7 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	}
 	peerTagsAggregation = peerTagsAggregation || core.GetBool("apm_config.peer_tags_aggregation")
 	if peerTagsAggregation {
-		c.PeerTags = defaultPeerTags
+		c.PeerTags = basePeerTags
 		if core.IsSet("apm_config.peer_tags") {
 			c.PeerTags = append(c.PeerTags, core.GetStringSlice("apm_config.peer_tags")...)
 		}
