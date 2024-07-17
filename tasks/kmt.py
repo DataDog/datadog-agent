@@ -8,7 +8,6 @@ import shutil
 import sys
 import tarfile
 import tempfile
-import yaml
 import xml.etree.ElementTree as ET
 from collections import defaultdict
 from collections.abc import Callable, Iterable
@@ -16,6 +15,7 @@ from glob import glob
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
+import yaml
 from invoke.context import Context
 from invoke.tasks import task
 
@@ -234,13 +234,14 @@ def launch_stack(
 
     stacks.launch_stack(ctx, stack, ssh_key, x86_ami, arm_ami, provision_microvms)
 
-    if provision_script != None:
+    if provision_script is not None:
         ssh_key_obj = try_get_ssh_key(ctx, ssh_key)
         infra = build_infrastructure(stack, ssh_key_obj)
         for arch in infra:
             for domain in infra[arch].microvms:
                 domain.copy(ctx, provision_script, "/tmp/provision.sh")
                 domain.run_cmd(ctx, "chmod +x /tmp/provision.sh && /tmp/provision.sh", verbose=True)
+
 
 @task
 def provision_stack(
@@ -1960,7 +1961,8 @@ def wait_for_setup_job(ctx: Context, pipeline_id: int, arch: str | Arch, compone
 # https://stackoverflow.com/questions/25108581/python-yaml-dump-bad-indentation
 class IndentedDumper(yaml.Dumper):
     def increase_indent(self, flow=False, indentless=False):
-        return super(IndentedDumper, self).increase_indent(flow, False)
+        return super().increase_indent(flow, False)
+
 
 @task
 def install_ddagent(
@@ -1999,15 +2001,19 @@ def install_ddagent(
         f"DD_API_KEY={api_key}",
         f"DD_AGENT_MAJOR_VERSION={major}",
         f"DD_AGENT_MINOR_VERSION={minor}",
-        f"DD_INSTALL_ONLY=true",
+        "DD_INSTALL_ONLY=true",
     ]
 
-    if datadog_yaml != None:
+    if datadog_yaml is not None:
         with open(datadog_yaml) as f:
             ddyaml = yaml.load(f, Loader=yaml.SafeLoader)
 
     for d in domains:
-        d.run_cmd(ctx, f"curl -L https://s3.amazonaws.com/dd-agent/scripts/install_script_agent{major}.sh > /tmp/install-script.sh", verbose=verbose)
+        d.run_cmd(
+            ctx,
+            f"curl -L https://s3.amazonaws.com/dd-agent/scripts/install_script_agent{major}.sh > /tmp/install-script.sh",
+            verbose=verbose,
+        )
         d.run_cmd(ctx, f"{' '.join(env)} bash /tmp/install-script.sh", verbose=verbose)
 
         # setup datadog yaml
@@ -2015,7 +2021,6 @@ def install_ddagent(
             # hostnames with '_' are not accepted according to RFC1123
             ddyaml["hostname"] = f"{os.getlogin()}_{d.tag}".replace("_", "-")
             ddyaml["api_key"] = api_key
-            cfg = yaml.safe_dump(ddyaml)
             with tempfile.NamedTemporaryFile(mode='w') as tmp:
                 yaml.dump(ddyaml, tmp, Dumper=IndentedDumper, default_flow_style=False)
                 tmp.flush()

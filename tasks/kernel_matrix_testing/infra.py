@@ -146,7 +146,7 @@ class LibvirtDomain:
     ):
         run = self._get_rsync_base(exclude) + f" root@{self.ip}:{source} {target}"
         res = self.instance.runner.run_cmd(ctx, self.instance, run, False, verbose)
-        if res :
+        if res:
             info(f"[+] (VM: {source}) => (HOST: {target})")
         return res
 
