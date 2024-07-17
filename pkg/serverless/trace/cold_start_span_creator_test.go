@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serverless/random"
 	"github.com/DataDog/datadog-go/v5/statsd"
 
+	gzip "github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip"
 	serverlessLog "github.com/DataDog/datadog-agent/pkg/serverless/logs"
 	"github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -32,9 +33,9 @@ func TestColdStartSpanCreatorCreateValid(t *testing.T) {
 	cfg.Endpoints[0].APIKey = "test"
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	agnt := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{})
+	agnt := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
 	agnt.TraceWriter = &mockTraceWriter{}
-	traceAgent := &ServerlessTraceAgent{
+	traceAgent := &serverlessTraceAgent{
 		ta: agnt,
 	}
 
@@ -93,9 +94,9 @@ func TestColdStartSpanCreatorCreateValidNoOverlap(t *testing.T) {
 	cfg.Endpoints[0].APIKey = "test"
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	agnt := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{})
+	agnt := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
 	agnt.TraceWriter = &mockTraceWriter{}
-	traceAgent := &ServerlessTraceAgent{
+	traceAgent := &serverlessTraceAgent{
 		ta: agnt,
 	}
 
@@ -152,9 +153,9 @@ func TestColdStartSpanCreatorCreateDuplicate(t *testing.T) {
 	cfg.Endpoints[0].APIKey = "test"
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	agnt := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{})
+	agnt := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
 	agnt.TraceWriter = &mockTraceWriter{}
-	traceAgent := &ServerlessTraceAgent{
+	traceAgent := &serverlessTraceAgent{
 		ta: agnt,
 	}
 	coldStartDuration := 50.0 // Given in millis
@@ -206,9 +207,9 @@ func TestColdStartSpanCreatorNotColdStart(t *testing.T) {
 	cfg.Endpoints[0].APIKey = "test"
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	agnt := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{})
+	agnt := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
 	agnt.TraceWriter = &mockTraceWriter{}
-	traceAgent := &ServerlessTraceAgent{
+	traceAgent := &serverlessTraceAgent{
 		ta: agnt,
 	}
 	lambdaSpanChan := make(chan *pb.Span)
@@ -251,10 +252,10 @@ func TestColdStartSpanCreatorColdStartExists(t *testing.T) {
 	cfg.Endpoints[0].APIKey = "test"
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	agnt := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{})
+	agnt := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
 	agnt.TraceWriter = &mockTraceWriter{}
 
-	traceAgent := &ServerlessTraceAgent{
+	traceAgent := &serverlessTraceAgent{
 		ta: agnt,
 	}
 	coldStartDuration := 50.0 // Given in millis
@@ -306,10 +307,10 @@ func TestColdStartSpanCreatorCreateValidProvisionedConcurrency(t *testing.T) {
 	cfg.Endpoints[0].APIKey = "test"
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	agnt := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{})
+	agnt := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
 	agnt.TraceWriter = &mockTraceWriter{}
 
-	traceAgent := &ServerlessTraceAgent{
+	traceAgent := &serverlessTraceAgent{
 		ta: agnt,
 	}
 

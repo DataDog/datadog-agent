@@ -3,7 +3,6 @@
   stage: packaging
   script:
     - source /root/.bashrc
-    - !reference [.setup_ruby_mirror_linux]
     - !reference [.cache_omnibus_ruby_deps, setup]
     - echo "About to package for $RELEASE_VERSION"
     - !reference [.setup_deb_signing_key]
@@ -86,6 +85,37 @@ agent_deb-arm64-a7:
     DESTINATION_DEB: "datadog-agent_7_arm64.deb"
     DD_PROJECT: "agent"
 
+.package_ot_deb_common:
+  extends: [.package_deb_common]
+  script:
+    - source /root/.bashrc
+    - !reference [.cache_omnibus_ruby_deps, setup]
+    - echo "About to package for $RELEASE_VERSION"
+    - !reference [.setup_deb_signing_key]
+    - inv -e omnibus.build --release-version "$RELEASE_VERSION" --major-version "$AGENT_MAJOR_VERSION" --base-dir $OMNIBUS_BASE_DIR --skip-deps --target-project ${DD_PROJECT} --flavor ot ${OMNIBUS_EXTRA_ARGS}
+    - !reference [.lint_linux_packages]
+    - $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog-ot-agent_*_${PACKAGE_ARCH}.deb $S3_ARTIFACTS_URI/$DESTINATION_DEB
+
+ot_agent_deb-x64-a7:
+  extends: [.package_ot_deb_common, .package_deb_x86, .package_deb_agent_7]
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
+  needs: ["datadog-ot-agent-7-x64"]
+  variables:
+    DESTINATION_DEB: "datadog-ot-agent_7_amd64.deb"
+    DD_PROJECT: "agent"
+
+ot_agent_deb-arm64-a7:
+  extends: [.package_ot_deb_common, .package_deb_arm64, .package_deb_agent_7]
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
+  needs: ["datadog-ot-agent-7-arm64"]
+  variables:
+    DESTINATION_DEB: "datadog-ot-agent_7_arm64.deb"
+    DD_PROJECT: "agent"
+
 installer_deb-amd64:
   extends: [.package_deb_common, .package_deb_x86, .package_deb_agent_7]
   rules:
@@ -114,7 +144,6 @@ installer_deb-arm64:
   stage: packaging
   script:
     - source /root/.bashrc
-    - !reference [.setup_ruby_mirror_linux]
     - !reference [.cache_omnibus_ruby_deps, setup]
     - echo "About to package for $RELEASE_VERSION"
     - !reference [.setup_deb_signing_key]

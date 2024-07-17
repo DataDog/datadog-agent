@@ -5,7 +5,7 @@
 
 //go:build unix
 
-//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors -tags unix -types-file model.go -output accessors_unix.go -field-handlers field_handlers_unix.go -doc ../../../../docs/cloud-workload-security/secl_linux.json -field-accessors-output field_accessors_unix.go
+//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors -tags unix -types-file model.go -output accessors_unix.go -field-handlers field_handlers_unix.go -doc ../../../../docs/cloud-workload-security/secl_linux.json -field-accessors-output field_accessors_unix.go -verbose
 
 // Package model holds model related files
 package model
@@ -27,6 +27,7 @@ type Event struct {
 	// context
 	SpanContext    SpanContext    `field:"-"`
 	NetworkContext NetworkContext `field:"network" event:"dns"`
+	CGroupContext  CGroupContext  `field:"cgroup" event:"*"`
 
 	// fim events
 	Chmod       ChmodEvent    `field:"chmod" event:"chmod"`             // [7.27] [File] A file’s permissions were changed
@@ -70,6 +71,9 @@ type Event struct {
 	IMDS IMDSEvent `field:"imds" event:"imds"` // [7.55] [Network] An IMDS event was captured
 	Bind BindEvent `field:"bind" event:"bind"` // [7.37] [Network] A bind was executed
 
+	// on-demand events
+	OnDemand OnDemandEvent `field:"ondemand" event:"ondemand"`
+
 	// internal usage
 	Umount           UmountEvent           `field:"-"`
 	InvalidateDentry InvalidateDentryEvent `field:"-"`
@@ -83,6 +87,12 @@ type Event struct {
 	NSID uint64 `field:"-"`
 }
 
+// CGroupContext holds the cgroup context of an event
+type CGroupContext struct {
+	CGroupID    CGroupID    `field:"id,handler:ResolveCGroupID"` // SECLDoc[id] Definition:`ID of the cgroup`
+	CGroupFlags CGroupFlags `field:"-"`
+}
+
 // SyscallEvent contains common fields for all the event
 type SyscallEvent struct {
 	Retval int64 `field:"retval"` // SECLDoc[retval] Definition:`Return value of the syscall` Constants:`Error constants`
@@ -92,13 +102,13 @@ type SyscallEvent struct {
 type SyscallContext struct {
 	ID uint32 `field:"-"`
 
-	StrArg1 string `field:"syscall.str1,handler:ResolveSyscallCtxArgsStr1,weight:900,opts:getters_only"`
-	StrArg2 string `field:"syscall.str2,handler:ResolveSyscallCtxArgsStr2,weight:900,opts:getters_only"`
-	StrArg3 string `field:"syscall.str3,handler:ResolveSyscallCtxArgsStr3,weight:900,opts:getters_only"`
+	StrArg1 string `field:"syscall.str1,handler:ResolveSyscallCtxArgsStr1,weight:900,opts:getters_only|skip_ad"`
+	StrArg2 string `field:"syscall.str2,handler:ResolveSyscallCtxArgsStr2,weight:900,opts:getters_only|skip_ad"`
+	StrArg3 string `field:"syscall.str3,handler:ResolveSyscallCtxArgsStr3,weight:900,opts:getters_only|skip_ad"`
 
-	IntArg1 int64 `field:"syscall.int1,handler:ResolveSyscallCtxArgsInt1,weight:900,opts:getters_only"`
-	IntArg2 int64 `field:"syscall.int2,handler:ResolveSyscallCtxArgsInt2,weight:900,opts:getters_only"`
-	IntArg3 int64 `field:"syscall.int3,handler:ResolveSyscallCtxArgsInt3,weight:900,opts:getters_only"`
+	IntArg1 int64 `field:"syscall.int1,handler:ResolveSyscallCtxArgsInt1,weight:900,opts:getters_only|skip_ad"`
+	IntArg2 int64 `field:"syscall.int2,handler:ResolveSyscallCtxArgsInt2,weight:900,opts:getters_only|skip_ad"`
+	IntArg3 int64 `field:"syscall.int3,handler:ResolveSyscallCtxArgsInt3,weight:900,opts:getters_only|skip_ad"`
 
 	Resolved bool `field:"-"`
 }
@@ -189,7 +199,8 @@ type Process struct {
 
 	FileEvent FileEvent `field:"file,check:IsNotKworker"`
 
-	ContainerID string `field:"container.id"` // SECLDoc[container.id] Definition:`Container ID`
+	CGroup      CGroupContext `field:"cgroup"`                                         // SECLDoc[cgroup] Definition:`CGroup`
+	ContainerID ContainerID   `field:"container.id,handler:ResolveProcessContainerID"` // SECLDoc[container.id] Definition:`Container ID`
 
 	SpanID  uint64 `field:"-"`
 	TraceID uint64 `field:"-"`
@@ -321,8 +332,13 @@ type MountReleasedEvent struct {
 // LinkEvent represents a link event
 type LinkEvent struct {
 	SyscallEvent
+	SyscallContext
 	Source FileEvent `field:"file"`
 	Target FileEvent `field:"file.destination"`
+
+	// Syscall context aliases
+	SyscallPath            string `field:"syscall.path,ref:link.syscall.str1"`             // SECLDoc[syscall.path] Definition:`Path argument of the syscall`
+	SyscallDestinationPath string `field:"syscall.destination.path,ref:link.syscall.str2"` // SECLDoc[syscall.destination.path] Definition:`Destination path argument of the syscall`
 }
 
 // MkdirEvent represents a mkdir event
@@ -354,6 +370,7 @@ type Mount struct {
 // MountEvent represents a mount event
 type MountEvent struct {
 	SyscallEvent
+	SyscallContext
 	Mount
 	MountPointPath                 string `field:"mountpoint.path,handler:ResolveMountPointPath"` // SECLDoc[mountpoint.path] Definition:`Path of the mount point`
 	MountSourcePath                string `field:"source.path,handler:ResolveMountSourcePath"`    // SECLDoc[source.path] Definition:`Source path of a bind mount`
@@ -361,6 +378,11 @@ type MountEvent struct {
 	MountPointPathResolutionError  error  `field:"-"`
 	MountSourcePathResolutionError error  `field:"-"`
 	MountRootPathResolutionError   error  `field:"-"`
+
+	// Syscall context aliases
+	SyscallSourcePath     string `field:"syscall.source.path,ref:mount.syscall.str1"`     // SECLDoc[syscall.source.path] Definition:`Source path argument of the syscall`
+	SyscallMountpointPath string `field:"syscall.mountpoint.path,ref:mount.syscall.str2"` // SECLDoc[syscall.mountpoint.path] Definition:`Mount point path argument of the syscall`
+	SyscallFSType         string `field:"syscall.fs_type,ref:mount.syscall.str3"`         // SECLDoc[syscall.fs_type] Definition:`File system type argument of the syscall`
 }
 
 // UnshareMountNSEvent represents a mount cloned from a newly created mount namespace
@@ -414,8 +436,13 @@ type PIDContext struct {
 // RenameEvent represents a rename event
 type RenameEvent struct {
 	SyscallEvent
+	SyscallContext
 	Old FileEvent `field:"file"`
 	New FileEvent `field:"file.destination"`
+
+	// Syscall context aliases
+	SyscallPath            string `field:"syscall.path,ref:rename.syscall.str1"`             // SECLDoc[syscall.path] Definition:`Path argument of the syscall`
+	SyscallDestinationPath string `field:"syscall.destination.path,ref:rename.syscall.str2"` // SECLDoc[syscall.destination.path] Definition:`Destination path argument of the syscall`
 }
 
 // RmdirEvent represents a rmdir event
@@ -456,9 +483,13 @@ type UmountEvent struct {
 // UtimesEvent represents a utime event
 type UtimesEvent struct {
 	SyscallEvent
+	SyscallContext
 	File  FileEvent `field:"file"`
 	Atime time.Time `field:"-"`
 	Mtime time.Time `field:"-"`
+
+	// Syscall context aliases
+	SyscallPath string `field:"syscall.path,ref:utimes.syscall.str1"` // SECLDoc[syscall.path] Definition:`Path argument of the syscall`
 }
 
 // BPFEvent represents a BPF event
@@ -558,6 +589,7 @@ type SpliceEvent struct {
 
 // CgroupTracingEvent is used to signal that a new cgroup should be traced by the activity dump manager
 type CgroupTracingEvent struct {
+	CGroupFlags      uint64
 	ContainerContext ContainerContext
 	Config           ActivityDumpLoadConfig
 	ConfigCookie     uint64
@@ -628,4 +660,19 @@ type PathKey struct {
 	Inode   uint64 `field:"inode"`    // SECLDoc[inode] Definition:`Inode of the file`
 	MountID uint32 `field:"mount_id"` // SECLDoc[mount_id] Definition:`Mount ID of the file`
 	PathID  uint32 `field:"-"`
+}
+
+// OnDemandEvent identifies an on-demand event generated from on-demand probes
+type OnDemandEvent struct {
+	ID       uint32    `field:"-"`
+	Name     string    `field:"name,handler:ResolveOnDemandName"`
+	Data     [256]byte `field:"-"`
+	Arg1Str  string    `field:"arg1.str,handler:ResolveOnDemandArg1Str"`
+	Arg1Uint uint64    `field:"arg1.uint,handler:ResolveOnDemandArg1Uint"`
+	Arg2Str  string    `field:"arg2.str,handler:ResolveOnDemandArg2Str"`
+	Arg2Uint uint64    `field:"arg2.uint,handler:ResolveOnDemandArg2Uint"`
+	Arg3Str  string    `field:"arg3.str,handler:ResolveOnDemandArg3Str"`
+	Arg3Uint uint64    `field:"arg3.uint,handler:ResolveOnDemandArg3Uint"`
+	Arg4Str  string    `field:"arg4.str,handler:ResolveOnDemandArg4Str"`
+	Arg4Uint uint64    `field:"arg4.uint,handler:ResolveOnDemandArg4Uint"`
 }

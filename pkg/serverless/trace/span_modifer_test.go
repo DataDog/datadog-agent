@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice"
+	gzip "github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
@@ -57,11 +58,10 @@ func TestServerlessServiceRewrite(t *testing.T) {
 	}
 	cfg.Endpoints[0].APIKey = "test"
 	ctx, cancel := context.WithCancel(context.Background())
-	agnt := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{})
-	spanModifier := &spanModifier{
+	agnt := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
+	agnt.SpanModifier = &spanModifier{
 		tags: cfg.GlobalTags,
 	}
-	agnt.ModifySpan = spanModifier.ModifySpan
 	agnt.TraceWriter = &mockTraceWriter{}
 	defer cancel()
 
@@ -84,11 +84,10 @@ func TestInferredSpanFunctionTagFiltering(t *testing.T) {
 	cfg.GlobalTags = map[string]string{"some": "tag", "function_arn": "arn:aws:foo:bar:baz"}
 	cfg.Endpoints[0].APIKey = "test"
 	ctx, cancel := context.WithCancel(context.Background())
-	agnt := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{})
-	spanModifier := &spanModifier{
+	agnt := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
+	agnt.SpanModifier = &spanModifier{
 		tags: cfg.GlobalTags,
 	}
-	agnt.ModifySpan = spanModifier.ModifySpan
 	agnt.TraceWriter = &mockTraceWriter{}
 	defer cancel()
 
@@ -119,9 +118,9 @@ func TestSpanModifierAddsOriginToAllSpans(t *testing.T) {
 	defer cancel()
 
 	testOriginTags := func(withModifier bool) {
-		agnt := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{})
+		agnt := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
 		if withModifier {
-			agnt.ModifySpan = (&spanModifier{tags: cfg.GlobalTags, ddOrigin: getDDOrigin()}).ModifySpan
+			agnt.SpanModifier = &spanModifier{tags: cfg.GlobalTags, ddOrigin: getDDOrigin()}
 		}
 		agnt.TraceWriter = &mockTraceWriter{}
 		tc := testutil.RandomTraceChunk(2, 1)
@@ -165,9 +164,9 @@ func TestSpanModifierDetectsCloudService(t *testing.T) {
 	defer cancel()
 
 	testOriginTags := func(withModifier bool, expectedOrigin string) {
-		agnt := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{})
+		agnt := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
 		if withModifier {
-			agnt.ModifySpan = (&spanModifier{ddOrigin: getDDOrigin()}).ModifySpan
+			agnt.SpanModifier = &spanModifier{ddOrigin: getDDOrigin()}
 		}
 		agnt.TraceWriter = &mockTraceWriter{}
 		tc := testutil.RandomTraceChunk(2, 1)
@@ -206,7 +205,7 @@ func TestSpanModifierDetectsCloudService(t *testing.T) {
 	cloudServiceToEnvVar := map[string]string{
 		"cloudrun":     cloudservice.ServiceNameEnvVar,
 		"containerapp": cloudservice.ContainerAppNameEnvVar,
-		"appservice":   cloudservice.RunZip,
+		"appservice":   cloudservice.WebsiteStack,
 		"lambda":       functionNameEnvVar}
 	for origin, cloudServiceEnvVar := range cloudServiceToEnvVar {
 		// Set the appropriate environment variable to simulate a cloud service
@@ -225,13 +224,12 @@ func TestLambdaSpanChan(t *testing.T) {
 	}
 	cfg.Endpoints[0].APIKey = "test"
 	ctx, cancel := context.WithCancel(context.Background())
-	agnt := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{})
+	agnt := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
 	lambdaSpanChan := make(chan *pb.Span)
-	spanModifier := &spanModifier{
+	agnt.SpanModifier = &spanModifier{
 		tags:           cfg.GlobalTags,
 		lambdaSpanChan: lambdaSpanChan,
 	}
-	agnt.ModifySpan = spanModifier.ModifySpan
 	defer cancel()
 
 	tc := testutil.RandomTraceChunk(1, 1)
@@ -261,13 +259,12 @@ func TestLambdaSpanChanWithInvalidSpan(t *testing.T) {
 	}
 	cfg.Endpoints[0].APIKey = "test"
 	ctx, cancel := context.WithCancel(context.Background())
-	agnt := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{})
+	agnt := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
 	lambdaSpanChan := make(chan *pb.Span)
-	spanModifier := &spanModifier{
+	agnt.SpanModifier = &spanModifier{
 		tags:           cfg.GlobalTags,
 		lambdaSpanChan: lambdaSpanChan,
 	}
-	agnt.ModifySpan = spanModifier.ModifySpan
 	defer cancel()
 
 	tc := testutil.RandomTraceChunk(1, 1)

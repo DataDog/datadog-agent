@@ -198,7 +198,7 @@ func TestInjectAutoInstruConfig(t *testing.T) {
 			pod:  common.FakePodWithEnvFieldRefValue("dotnet-pod", "CORECLR_PROFILER", "path"),
 			libsToInject: []libInfo{
 				{
-					lang:  "dotnet",
+					lang:  dotnet,
 					image: "gcr.io/datadoghq/dd-lib-dotnet-init:v1",
 				},
 			},
@@ -209,7 +209,7 @@ func TestInjectAutoInstruConfig(t *testing.T) {
 			pod:  common.FakePod("ruby-pod"),
 			libsToInject: []libInfo{
 				{
-					lang:  "ruby",
+					lang:  ruby,
 					image: "gcr.io/datadoghq/dd-lib-ruby-init:v1",
 				},
 			},
@@ -249,7 +249,12 @@ func TestInjectAutoInstruConfig(t *testing.T) {
 			require.NoError(t, err)
 
 			err = webhook.injectAutoInstruConfig(tt.pod, tt.libsToInject, false, "")
-			require.False(t, (err != nil) != tt.wantErr)
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+
 			if err != nil {
 				return
 			}
@@ -296,32 +301,34 @@ func assertLibReq(t *testing.T, pod *corev1.Pod, lang language, image, envKey, e
 			break
 		}
 	}
-	require.True(t, envFound)
+	require.True(t, envFound, "expected to find env %s with value %s", envKey, envVal)
 }
 
 func TestExtractLibInfo(t *testing.T) {
-	allLatestLibs := []libInfo{ // TODO: Add new entry when a new language is supported
+	// TODO: Add new entry when a new language is supported
+	allLatestLibs := []libInfo{
 		{
 			lang:  "java",
-			image: "registry/dd-lib-java-init:latest",
+			image: "registry/dd-lib-java-init:v1",
 		},
 		{
 			lang:  "js",
-			image: "registry/dd-lib-js-init:latest",
+			image: "registry/dd-lib-js-init:v5",
 		},
 		{
 			lang:  "python",
-			image: "registry/dd-lib-python-init:latest",
+			image: "registry/dd-lib-python-init:v2",
 		},
 		{
 			lang:  "dotnet",
-			image: "registry/dd-lib-dotnet-init:latest",
+			image: "registry/dd-lib-dotnet-init:v2",
 		},
 		{
 			lang:  "ruby",
-			image: "registry/dd-lib-ruby-init:latest",
+			image: "registry/dd-lib-ruby-init:v2",
 		},
 	}
+
 	var mockConfig *config.MockConfig
 	tests := []struct {
 		name                 string
@@ -887,17 +894,51 @@ func injectAllEnvs() []corev1.EnvVar {
 			Name:  "DD_TRACE_LOG_DIRECTORY",
 			Value: "/datadog-lib/logs",
 		},
-		{
-			Name:  "LD_PRELOAD",
-			Value: "/datadog-lib/continuousprofiler/Datadog.Linux.ApiWrapper.x64.so",
-		},
 	}
 }
 
 func TestInjectAutoInstrumentation(t *testing.T) {
-	var mockConfig *config.MockConfig
+	var (
+		mockConfig *config.MockConfig
+		wConfig    = func(k string, v any) func() {
+			return func() {
+				mockConfig.SetWithoutSource(k, v)
+			}
+		}
+
+		enableAPMInstrumentation  = wConfig("apm_config.instrumentation.enabled", true)
+		disableAPMInstrumentation = wConfig("apm_config.instrumentation.enabled", false)
+		disableNamespaces         = func(ns ...string) func() {
+			return wConfig("apm_config.instrumentation.disabled_namespaces", ns)
+		}
+		enabledNamespaces = func(ns ...string) func() {
+			return wConfig("apm_config.instrumentation.enabled_namespaces", ns)
+		}
+		withLibVersions = func(vs map[string]string) func() {
+			return wConfig("apm_config.instrumentation.lib_versions", vs)
+		}
+	)
+
+	type funcs = []func()
+
 	uuid := uuid.New().String()
 	installTime := strconv.FormatInt(time.Now().Unix(), 10)
+
+	defaultLibraries := map[string]string{
+		"java":   "v1",
+		"python": "v2",
+		"ruby":   "v2",
+		"dotnet": "v2",
+		"js":     "v5",
+	}
+
+	defaultLibrariesFor := func(languages ...string) map[string]string {
+		out := map[string]string{}
+		for _, l := range languages {
+			out[l] = defaultLibraries[l]
+		}
+		return out
+	}
 
 	tests := []struct {
 		name                      string
@@ -906,8 +947,88 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 		expectedInjectedLibraries map[string]string
 		langDetectionDeployments  []common.MockDeployment
 		wantErr                   bool
-		setupConfig               func()
+		setupConfig               funcs
 	}{
+		{
+			name: "inject all with dotnet-profiler",
+			pod: common.FakePodWithParent(
+				"ns",
+				map[string]string{
+					"admission.datadoghq.com/all-lib.version":   "latest",
+					"admission.datadoghq.com/all-lib.config.v1": `{"version":1,"runtime_metrics_enabled":true,"tracing_rate_limit":50,"tracing_sampling_rate":0.3}`,
+				},
+				map[string]string{
+					"admission.datadoghq.com/enabled": "true",
+				},
+				[]corev1.EnvVar{},
+				"replicaset",
+				"deployment-1234",
+			),
+			expectedEnvs: []corev1.EnvVar{
+				{
+					Name:  "DD_INSTRUMENTATION_INSTALL_TYPE",
+					Value: "k8s_lib_injection",
+				},
+				{
+					Name:  "DD_INSTRUMENTATION_INSTALL_TIME",
+					Value: installTime,
+				},
+				{
+					Name:  "DD_INSTRUMENTATION_INSTALL_ID",
+					Value: uuid,
+				},
+				{
+					Name:  "DD_RUNTIME_METRICS_ENABLED",
+					Value: "true",
+				},
+				{
+					Name:  "DD_TRACE_RATE_LIMIT",
+					Value: "50",
+				},
+				{
+					Name:  "DD_TRACE_SAMPLE_RATE",
+					Value: "0.30",
+				},
+				{
+					Name:  "PYTHONPATH",
+					Value: "/datadog-lib/",
+				},
+				{
+					Name:  "RUBYOPT",
+					Value: " -r/datadog-lib/auto_inject",
+				},
+				{
+					Name:  "NODE_OPTIONS",
+					Value: " --require=/datadog-lib/node_modules/dd-trace/init",
+				},
+				{
+					Name:  "JAVA_TOOL_OPTIONS",
+					Value: " -javaagent:/datadog-lib/dd-java-agent.jar -XX:OnError=/datadog-lib/java/continuousprofiler/tmp/dd_crash_uploader.sh -XX:ErrorFile=/datadog-lib/java/continuousprofiler/tmp/hs_err_pid_%p.log",
+				},
+				{
+					Name:  "DD_DOTNET_TRACER_HOME",
+					Value: "/datadog-lib",
+				},
+				{
+					Name:  "CORECLR_ENABLE_PROFILING",
+					Value: "1",
+				},
+				{
+					Name:  "CORECLR_PROFILER",
+					Value: "{846F5F1C-F9AE-4B07-969E-05C26BC060D8}",
+				},
+				{
+					Name:  "CORECLR_PROFILER_PATH",
+					Value: "/datadog-lib/Datadog.Trace.ClrProfiler.Native.so",
+				},
+				{
+					Name:  "DD_TRACE_LOG_DIRECTORY",
+					Value: "/datadog-lib/logs",
+				},
+			},
+			expectedInjectedLibraries: defaultLibraries,
+			wantErr:                   false,
+		},
 		{
 			name: "inject all",
 			pod: common.FakePodWithParent(
@@ -984,20 +1105,10 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 					Name:  "DD_TRACE_LOG_DIRECTORY",
 					Value: "/datadog-lib/logs",
 				},
-				{
-					Name:  "LD_PRELOAD",
-					Value: "/datadog-lib/continuousprofiler/Datadog.Linux.ApiWrapper.x64.so",
-				},
 			},
-			expectedInjectedLibraries: map[string]string{
-				"java":   "latest",
-				"python": "latest",
-				"ruby":   "latest",
-				"dotnet": "latest",
-				"js":     "latest",
-			},
-			wantErr:     false,
-			setupConfig: func() {},
+			expectedInjectedLibraries: defaultLibraries,
+			wantErr:                   false,
+			setupConfig:               funcs{},
 		},
 		{
 			name: "inject library and all",
@@ -1123,22 +1234,12 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 					Value: "/datadog-lib/logs",
 				},
 				{
-					Name:  "LD_PRELOAD",
-					Value: "/datadog-lib/continuousprofiler/Datadog.Linux.ApiWrapper.x64.so",
-				},
-				{
 					Name:  "DD_TRACE_SAMPLE_RATE",
 					Value: "0.40",
 				},
 			},
-			expectedInjectedLibraries: map[string]string{
-				"java":   "latest",
-				"python": "latest",
-				"ruby":   "latest",
-				"dotnet": "latest",
-				"js":     "latest",
-			},
-			wantErr: false,
+			expectedInjectedLibraries: defaultLibraries,
+			wantErr:                   false,
 		},
 		{
 			name: "inject all error - bad json",
@@ -1205,19 +1306,9 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 					Name:  "DD_TRACE_LOG_DIRECTORY",
 					Value: "/datadog-lib/logs",
 				},
-				{
-					Name:  "LD_PRELOAD",
-					Value: "/datadog-lib/continuousprofiler/Datadog.Linux.ApiWrapper.x64.so",
-				},
 			},
-			expectedInjectedLibraries: map[string]string{
-				"java":   "latest",
-				"python": "latest",
-				"ruby":   "latest",
-				"dotnet": "latest",
-				"js":     "latest",
-			},
-			wantErr: true,
+			expectedInjectedLibraries: defaultLibraries,
+			wantErr:                   true,
 		},
 		{
 			name: "inject java",
@@ -1286,8 +1377,6 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 			},
 			expectedInjectedLibraries: map[string]string{"python": "latest"},
 			wantErr:                   false,
-			setupConfig: func() {
-			},
 		},
 		{
 			name: "inject node",
@@ -1316,8 +1405,6 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 			},
 			expectedInjectedLibraries: map[string]string{"js": "latest"},
 			wantErr:                   false,
-			setupConfig: func() {
-			},
 		},
 		{
 			name: "inject java bad json",
@@ -1457,9 +1544,9 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 					Value: "false",
 				},
 			}...),
-			expectedInjectedLibraries: map[string]string{"java": "latest", "python": "latest", "js": "latest", "ruby": "latest", "dotnet": "latest"},
+			expectedInjectedLibraries: defaultLibraries,
 			wantErr:                   false,
-			setupConfig:               func() { mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true) },
+			setupConfig:               funcs{enableAPMInstrumentation},
 		},
 		{
 			name: "Single Step Instrumentation: disable with label",
@@ -1480,7 +1567,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 			},
 			expectedInjectedLibraries: map[string]string{},
 			wantErr:                   false,
-			setupConfig:               func() { mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true) },
+			setupConfig:               funcs{enableAPMInstrumentation},
 		},
 		{
 			name: "Single Step Instrumentation: default service name for ReplicaSet",
@@ -1509,9 +1596,9 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 					Value: uuid,
 				},
 			),
-			expectedInjectedLibraries: map[string]string{"java": "latest", "python": "latest", "js": "latest", "ruby": "latest", "dotnet": "latest"},
+			expectedInjectedLibraries: defaultLibraries,
 			wantErr:                   false,
-			setupConfig:               func() { mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true) },
+			setupConfig:               funcs{enableAPMInstrumentation},
 		},
 		{
 			name: "Single Step Instrumentation: default service name for StatefulSet",
@@ -1540,9 +1627,9 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 					Value: uuid,
 				},
 			),
-			expectedInjectedLibraries: map[string]string{"java": "latest", "python": "latest", "js": "latest", "ruby": "latest", "dotnet": "latest"},
+			expectedInjectedLibraries: defaultLibraries,
 			wantErr:                   false,
-			setupConfig:               func() { mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true) },
+			setupConfig:               funcs{enableAPMInstrumentation},
 		},
 		{
 			name: "Single Step Instrumentation: default service name (disabled)",
@@ -1559,7 +1646,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 			},
 			expectedInjectedLibraries: map[string]string{},
 			wantErr:                   false,
-			setupConfig:               func() { mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", false) },
+			setupConfig:               []func(){disableAPMInstrumentation},
 		},
 		{
 			name: "Single Step Instrumentation: disabled namespaces should not be instrumented",
@@ -1576,10 +1663,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 			},
 			expectedInjectedLibraries: map[string]string{},
 			wantErr:                   false,
-			setupConfig: func() {
-				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
-				mockConfig.SetWithoutSource("apm_config.instrumentation.disabled_namespaces", []string{"ns"})
-			},
+			setupConfig:               funcs{enableAPMInstrumentation, disableNamespaces("ns")},
 		},
 		{
 			name: "Single Step Instrumentation: enabled namespaces should be instrumented",
@@ -1590,10 +1674,11 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 				[]corev1.EnvVar{{Name: "DD_INSTRUMENTATION_INSTALL_TYPE", Value: "k8s_single_step"}},
 				"replicaset", "test-app-123",
 			),
-			expectedEnvs: append(append(injectAllEnvs(), expBasicConfig()...), corev1.EnvVar{
-				Name:  "DD_SERVICE",
-				Value: "test-app",
-			},
+			expectedEnvs: append(append(injectAllEnvs(), expBasicConfig()...),
+				corev1.EnvVar{
+					Name:  "DD_SERVICE",
+					Value: "test-app",
+				},
 				corev1.EnvVar{
 					Name:  "DD_INSTRUMENTATION_INSTALL_TYPE",
 					Value: "k8s_single_step",
@@ -1607,12 +1692,9 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 					Value: uuid,
 				},
 			),
-			expectedInjectedLibraries: map[string]string{"java": "latest", "python": "latest", "js": "latest", "ruby": "latest", "dotnet": "latest"},
+			expectedInjectedLibraries: defaultLibraries,
 			wantErr:                   false,
-			setupConfig: func() {
-				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
-				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled_namespaces", []string{"ns"})
-			},
+			setupConfig:               funcs{enableAPMInstrumentation, enabledNamespaces("ns")},
 		},
 		{
 			name: "Single Step Instrumentation enabled and language annotation provided",
@@ -1667,9 +1749,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 			},
 			expectedInjectedLibraries: map[string]string{"js": "v1.10"},
 			wantErr:                   false,
-			setupConfig: func() {
-				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
-			},
+			setupConfig:               funcs{enableAPMInstrumentation},
 		},
 		{
 			name: "Single Step Instrumentation enabled with libVersions set",
@@ -1721,9 +1801,9 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 			},
 			expectedInjectedLibraries: map[string]string{"java": "v1.28.0", "python": "v2.5.1"},
 			wantErr:                   false,
-			setupConfig: func() {
-				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
-				mockConfig.SetWithoutSource("apm_config.instrumentation.lib_versions", map[string]string{"java": "v1.28.0", "python": "v2.5.1"})
+			setupConfig: funcs{
+				enableAPMInstrumentation,
+				withLibVersions(map[string]string{"java": "v1.28.0", "python": "v2.5.1"}),
 			},
 		},
 		{
@@ -1774,9 +1854,9 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 			},
 			expectedInjectedLibraries: map[string]string{"js": "v1.10"},
 			wantErr:                   false,
-			setupConfig: func() {
-				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
-				mockConfig.SetWithoutSource("apm_config.instrumentation.lib_versions", map[string]string{"java": "v1.28.0", "python": "v2.5.1"})
+			setupConfig: funcs{
+				enableAPMInstrumentation,
+				withLibVersions(map[string]string{"java": "v1.28.0", "python": "v2.5.1"}),
 			},
 		},
 		{
@@ -1831,19 +1911,19 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 					Value: uuid,
 				},
 			},
-			expectedInjectedLibraries: map[string]string{"python": "latest", "java": "latest"},
+			expectedInjectedLibraries: defaultLibrariesFor("python", "java"),
 			langDetectionDeployments: []common.MockDeployment{
 				{
 					ContainerName:  "pod",
 					DeploymentName: "test-app",
 					Namespace:      "ns",
-					Languages:      util.LanguageSet{util.Language("python"): struct{}{}, util.Language("java"): struct{}{}},
+					Languages:      languageSetOf("python", "java"),
 				},
 			},
 			wantErr: false,
-			setupConfig: func() {
-				mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.inject_auto_detected_libraries", true)
-				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
+			setupConfig: funcs{
+				wConfig("admission_controller.auto_instrumentation.inject_auto_detected_libraries", true),
+				enableAPMInstrumentation,
 			},
 		},
 		{
@@ -1900,14 +1980,14 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 					ContainerName:  "pod",
 					DeploymentName: "test-app",
 					Namespace:      "ns",
-					Languages:      util.LanguageSet{util.Language("python"): struct{}{}, util.Language("java"): struct{}{}},
+					Languages:      languageSetOf("python", "java"),
 				},
 			},
 			wantErr: false,
-			setupConfig: func() {
-				mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.inject_auto_detected_libraries", true)
-				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
-				mockConfig.SetWithoutSource("apm_config.instrumentation.lib_versions", map[string]string{"ruby": "v1.2.3"})
+			setupConfig: funcs{
+				wConfig("admission_controller.auto_instrumentation.inject_auto_detected_libraries", true),
+				enableAPMInstrumentation,
+				withLibVersions(map[string]string{"ruby": "v1.2.3"}),
 			},
 		},
 		{
@@ -1941,11 +2021,11 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 					Value: "true",
 				},
 			),
-			expectedInjectedLibraries: map[string]string{"java": "latest", "python": "latest", "js": "latest", "ruby": "latest", "dotnet": "latest"},
+			expectedInjectedLibraries: defaultLibraries,
 			wantErr:                   false,
-			setupConfig: func() {
-				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
-				mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.asm.enabled", true)
+			setupConfig: funcs{
+				enableAPMInstrumentation,
+				wConfig("admission_controller.auto_instrumentation.asm.enabled", true),
 			},
 		},
 		{
@@ -1979,11 +2059,11 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 					Value: "true",
 				},
 			),
-			expectedInjectedLibraries: map[string]string{"java": "latest", "python": "latest", "js": "latest", "ruby": "latest", "dotnet": "latest"},
+			expectedInjectedLibraries: defaultLibraries,
 			wantErr:                   false,
-			setupConfig: func() {
-				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
-				mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.iast.enabled", true)
+			setupConfig: funcs{
+				enableAPMInstrumentation,
+				wConfig("admission_controller.auto_instrumentation.iast.enabled", true),
 			},
 		},
 		{
@@ -2017,11 +2097,49 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 					Value: "false",
 				},
 			),
-			expectedInjectedLibraries: map[string]string{"java": "latest", "python": "latest", "js": "latest", "ruby": "latest", "dotnet": "latest"},
+			expectedInjectedLibraries: defaultLibraries,
 			wantErr:                   false,
-			setupConfig: func() {
-				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
-				mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.asm_sca.enabled", false)
+			setupConfig: funcs{
+				enableAPMInstrumentation,
+				wConfig("admission_controller.auto_instrumentation.asm_sca.enabled", false),
+			},
+		},
+		{
+			name: "Single Step Instrumentation: enable profiling",
+			pod: common.FakePodWithParent(
+				"ns",
+				map[string]string{},
+				map[string]string{},
+				[]corev1.EnvVar{},
+				"replicaset", "test-app-123",
+			),
+			expectedEnvs: append(append(injectAllEnvs(), expBasicConfig()...),
+				corev1.EnvVar{
+					Name:  "DD_INSTRUMENTATION_INSTALL_TYPE",
+					Value: "k8s_single_step",
+				},
+				corev1.EnvVar{
+					Name:  "DD_SERVICE",
+					Value: "test-app",
+				},
+				corev1.EnvVar{
+					Name:  "DD_INSTRUMENTATION_INSTALL_TIME",
+					Value: installTime,
+				},
+				corev1.EnvVar{
+					Name:  "DD_INSTRUMENTATION_INSTALL_ID",
+					Value: uuid,
+				},
+				corev1.EnvVar{
+					Name:  "DD_PROFILING_ENABLED",
+					Value: "auto",
+				},
+			),
+			expectedInjectedLibraries: defaultLibraries,
+			wantErr:                   false,
+			setupConfig: funcs{
+				enableAPMInstrumentation,
+				wConfig("admission_controller.auto_instrumentation.profiling.enabled", "auto"),
 			},
 		},
 	}
@@ -2035,7 +2153,9 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 
 			mockConfig = config.Mock(t)
 			if tt.setupConfig != nil {
-				tt.setupConfig()
+				for _, f := range tt.setupConfig {
+					f()
+				}
 			}
 
 			// Need to create a new instance of the webhook to take into account
@@ -2060,6 +2180,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 					require.Failf(t, "Unexpected env var injected in container", contEnv.Name)
 				}
 			}
+
 			for _, expectEnv := range tt.expectedEnvs {
 				found := false
 				for _, contEnv := range container.Env {
@@ -2084,16 +2205,20 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 				}
 			}
 			require.Equal(t, len(tt.expectedEnvs), envCount)
+
+			initContainers := tt.pod.Spec.InitContainers
+
+			require.Equal(t, len(tt.expectedInjectedLibraries), len(initContainers))
+			for _, c := range initContainers {
+				language := getLanguageFromInitContainerName(c.Name)
+				require.Contains(t,
+					tt.expectedInjectedLibraries, language,
+					"unexpected injected language %s", language)
+				require.Equal(t,
+					tt.expectedInjectedLibraries[language], strings.Split(c.Image, ":")[1],
+					"unexpected language version %s", language)
+			}
 		})
-
-		initContainers := tt.pod.Spec.InitContainers
-		require.Equal(t, len(tt.expectedInjectedLibraries), len(initContainers))
-		for _, c := range initContainers {
-			language := getLanguageFromInitContainerName(c.Name)
-			require.Contains(t, tt.expectedInjectedLibraries, language)
-			require.Equal(t, tt.expectedInjectedLibraries[language], strings.Split(c.Image, ":")[1])
-		}
-
 	}
 }
 
@@ -2291,4 +2416,12 @@ func TestShouldInject(t *testing.T) {
 			require.Equal(t, tt.want, webhook.isPodEligible(tt.pod), "expected webhook.isPodEligible() to be %t", tt.want)
 		})
 	}
+}
+
+func languageSetOf(languages ...string) util.LanguageSet {
+	set := util.LanguageSet{}
+	for _, l := range languages {
+		_ = set.Add(util.Language(l))
+	}
+	return set
 }

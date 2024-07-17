@@ -35,12 +35,24 @@ type BinaryUnmarshaler interface {
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
+func (e *CGroupContext) UnmarshalBinary(data []byte) (int, error) {
+	if len(data) < 8 {
+		return 0, ErrNotEnoughData
+	}
+
+	e.CGroupFlags = CGroupFlags(binary.NativeEndian.Uint64(data[:8]))
+
+	return 8, nil
+}
+
+// UnmarshalBinary unmarshalls a binary representation of itself
 func (e *ContainerContext) UnmarshalBinary(data []byte) (int, error) {
 	id, err := UnmarshalString(data, ContainerIDLen)
 	if err != nil {
 		return 0, err
 	}
-	e.ID = id
+
+	e.ContainerID = ContainerID(id)
 
 	return ContainerIDLen, nil
 }
@@ -386,7 +398,7 @@ func (e *FileEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *LinkEvent) UnmarshalBinary(data []byte) (int, error) {
-	return UnmarshalBinary(data, &e.SyscallEvent, &e.Source, &e.Target)
+	return UnmarshalBinary(data, &e.SyscallEvent, &e.SyscallContext, &e.Source, &e.Target)
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
@@ -438,7 +450,7 @@ func (m *Mount) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *MountEvent) UnmarshalBinary(data []byte) (int, error) {
-	return UnmarshalBinary(data, &e.SyscallEvent, &e.Mount)
+	return UnmarshalBinary(data, &e.SyscallEvent, &e.SyscallContext, &e.Mount)
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
@@ -545,7 +557,7 @@ func (p *PIDContext) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *RenameEvent) UnmarshalBinary(data []byte) (int, error) {
-	return UnmarshalBinary(data, &e.SyscallEvent, &e.Old, &e.New)
+	return UnmarshalBinary(data, &e.SyscallEvent, &e.SyscallContext, &e.Old, &e.New)
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
@@ -628,7 +640,7 @@ func (e *UnlinkEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *UtimesEvent) UnmarshalBinary(data []byte) (int, error) {
-	n, err := UnmarshalBinary(data, &e.SyscallEvent, &e.File)
+	n, err := UnmarshalBinary(data, &e.SyscallEvent, &e.SyscallContext, &e.File)
 	if err != nil {
 		return n, err
 	}
@@ -935,6 +947,9 @@ func (e *CgroupTracingEvent) UnmarshalBinary(data []byte) (int, error) {
 	}
 	cursor := read
 
+	e.CGroupFlags = binary.NativeEndian.Uint64(data[cursor : cursor+8])
+	cursor += 8
+
 	read, err = e.Config.EventUnmarshalBinary(data[cursor:])
 	if err != nil {
 		return 0, err
@@ -1034,7 +1049,7 @@ func (e *DNSEvent) UnmarshalBinary(data []byte) (int, error) {
 	var err error
 	e.Name, err = decodeDNSName(data[10:])
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("failed to decode %s (id: %d, count: %d, type:%d, size:%d)", data[10:], e.ID, e.Count, e.Type, e.Size)
 	}
 	if err = validateDNSName(e.Name); err != nil {
 		return 0, err
@@ -1238,4 +1253,15 @@ func (e *AnomalyDetectionSyscallEvent) UnmarshalBinary(data []byte) (int, error)
 
 	e.SyscallID = Syscall(binary.NativeEndian.Uint64(data[0:8]))
 	return 8, nil
+}
+
+// UnmarshalBinary unmarshalls a binary representation of itself
+func (e *OnDemandEvent) UnmarshalBinary(data []byte) (int, error) {
+	if len(data) < 260 {
+		return 0, ErrNotEnoughData
+	}
+
+	e.ID = binary.NativeEndian.Uint32(data[0:4])
+	SliceToArray(data[4:260], e.Data[:])
+	return 260, nil
 }

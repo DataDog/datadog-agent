@@ -15,8 +15,12 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/stretchr/testify/assert"
 
+	ecsComp "github.com/DataDog/test-infra-definitions/components/ecs"
+
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
+
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/ecs"
 )
@@ -35,20 +39,19 @@ func ecsCPUStressProvisioner() e2e.PulumiEnvRunFunc[ecsCPUStressEnv] {
 		if err != nil {
 			return err
 		}
-		env.ECS.AwsEnvironment = &awsEnv
 
 		params := ecs.GetProvisionerParams(
+			ecs.WithAwsEnv(&awsEnv),
 			ecs.WithECSLinuxECSOptimizedNodeGroup(),
 			ecs.WithAgentOptions(
 				ecsagentparams.WithAgentServiceEnvVariable("DD_PROCESS_CONFIG_PROCESS_COLLECTION_ENABLED", "true"),
 			),
+			ecs.WithWorkloadApp(func(e aws.Environment, clusterArn pulumi.StringInput) (*ecsComp.Workload, error) {
+				return cpustress.EcsAppDefinition(e, clusterArn)
+			}),
 		)
 
 		if err := ecs.Run(ctx, &env.ECS, params); err != nil {
-			return err
-		}
-
-		if _, err := cpustress.EcsAppDefinition(awsEnv, env.ClusterArn); err != nil {
 			return err
 		}
 
@@ -67,6 +70,8 @@ func TestECSTestSuite(t *testing.T) {
 
 func (s *ECSSuite) TestECSProcessCheck() {
 	t := s.T()
+	// PROCS-4219
+	flake.Mark(t)
 
 	var payloads []*aggregator.ProcessPayload
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {

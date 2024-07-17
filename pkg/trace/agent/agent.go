@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	compression "github.com/DataDog/datadog-agent/comp/trace/compression/def"
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
@@ -105,9 +106,10 @@ type Agent struct {
 	// DiscardSpan will be called on all spans, if non-nil. If it returns true, the span will be deleted before processing.
 	DiscardSpan func(*pb.Span) bool
 
-	// ModifySpan will be called on all non-nil spans of received trace chunks.
-	// Note that any modification of the trace chunk could be overwritten by subsequent ModifySpan calls.
-	ModifySpan func(*pb.TraceChunk, *pb.Span)
+	// SpanModifier will be called on all non-nil spans of received trace chunks.
+	// Note that any modification of the trace chunk could be overwritten by
+	// subsequent SpanModifier calls.
+	SpanModifier SpanModifier
 
 	// In takes incoming payloads to be processed by the agent.
 	In chan *api.Payload
@@ -121,9 +123,15 @@ type Agent struct {
 	firstSpanMap sync.Map
 }
 
+// SpanModifier is an interface that allows to modify spans while they are
+// processed by the agent.
+type SpanModifier interface {
+	ModifySpan(*pb.TraceChunk, *pb.Span)
+}
+
 // NewAgent returns a new Agent object, ready to be started. It takes a context
 // which may be cancelled in order to gracefully stop the agent.
-func NewAgent(ctx context.Context, conf *config.AgentConfig, telemetryCollector telemetry.TelemetryCollector, statsd statsd.ClientInterface) *Agent {
+func NewAgent(ctx context.Context, conf *config.AgentConfig, telemetryCollector telemetry.TelemetryCollector, statsd statsd.ClientInterface, comp compression.Component) *Agent {
 	dynConf := sampler.NewDynamicConfig()
 	log.Infof("Starting Agent with processor trace buffer of size %d", conf.TraceBuffer)
 	in := make(chan *api.Payload, conf.TraceBuffer)
@@ -156,7 +164,7 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig, telemetryCollector 
 	agnt.Receiver = api.NewHTTPReceiver(conf, dynConf, in, agnt, telemetryCollector, statsd, timing)
 	agnt.OTLPReceiver = api.NewOTLPReceiver(in, conf, statsd, timing)
 	agnt.RemoteConfigHandler = remoteconfighandler.New(conf, agnt.PrioritySampler, agnt.RareSampler, agnt.ErrorsSampler)
-	agnt.TraceWriter = writer.NewTraceWriter(conf, agnt.PrioritySampler, agnt.ErrorsSampler, agnt.RareSampler, telemetryCollector, statsd, timing)
+	agnt.TraceWriter = writer.NewTraceWriter(conf, agnt.PrioritySampler, agnt.ErrorsSampler, agnt.RareSampler, telemetryCollector, statsd, timing, comp)
 	return agnt
 }
 
@@ -344,8 +352,8 @@ func (a *Agent) Process(p *api.Payload) {
 					traceutil.SetMeta(span, k, v)
 				}
 			}
-			if a.ModifySpan != nil {
-				a.ModifySpan(chunk, span)
+			if a.SpanModifier != nil {
+				a.SpanModifier.ModifySpan(chunk, span)
 			}
 			a.obfuscateSpan(span)
 			a.Truncate(span)

@@ -6,8 +6,12 @@
 package common
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
+
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 
 	"golang.org/x/text/encoding/unicode"
 )
@@ -36,4 +40,31 @@ func TrimTrailingSlashesAndLower(path string) string {
 	// windows paths are case-insensitive
 	path = strings.ToLower(path)
 	return path
+}
+
+// MeasureCommand uses Measure-Command and returns time taken (in milliseconds), out, err
+func MeasureCommand(host *components.RemoteHost, command string) (time.Duration, string, error) {
+	// *>&1 redirects all streams
+	// https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_redirection
+	powershellCommand := fmt.Sprintf(`
+		$ErrorActionPreference = "Stop"
+		$taken = Measure-Command { $cmdout = $( %s ) *>&1 | Out-String }
+		@{
+			TotalMilliseconds=$taken.TotalMilliseconds
+			Output=$cmdout
+		} | ConvertTo-JSON`, command)
+	out, err := host.Execute(powershellCommand)
+	if err != nil {
+		return 0, out, err
+	}
+	type measureCommandOutput struct {
+		TotalMilliseconds float64 `json:"TotalMilliseconds"`
+		Output            string  `json:"Output"`
+	}
+	var m measureCommandOutput
+	err = json.Unmarshal([]byte(out), &m)
+	if err != nil {
+		return 0, "", fmt.Errorf("failed to unmarshal Measure-Command output: %w\n%s", err, out)
+	}
+	return time.Duration(m.TotalMilliseconds) * time.Millisecond, m.Output, nil
 }
