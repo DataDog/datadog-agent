@@ -1752,9 +1752,9 @@ def show_last_test_results(ctx: Context, stack: str | None = None):
     assert tabulate is not None, "tabulate module is not installed, please install it to continue"
 
     paths = KMTPaths(stack, Arch.local())
-    results: dict[str, dict[str, tuple[int, int, int]]] = defaultdict(dict)
+    results: dict[str, dict[str, tuple[int, int, int, int]]] = defaultdict(dict)
     vm_list: list[str] = []
-    total_by_vm: dict[str, tuple[int, int, int]] = defaultdict(lambda: (0, 0, 0))
+    total_by_vm: dict[str, tuple[int, int, int, int]] = defaultdict(lambda: (0, 0, 0, 0))
     sum_failures = 0
 
     for vm_folder in paths.test_results.iterdir():
@@ -1763,42 +1763,66 @@ def show_last_test_results(ctx: Context, stack: str | None = None):
 
         vm_name = "-".join(vm_folder.name.split('-')[:2])
         vm_list.append(vm_name)
+        test_results: dict[str, dict[str, set[str]]] = defaultdict(lambda: defaultdict(set))
 
         for file in vm_folder.glob("*.xml"):
             xml = ET.parse(file)
 
-            for testsuite in xml.findall(".//testsuite"):
-                pkgname = testsuite.get("name")
-                if pkgname is None:
+            for testcase in xml.findall(".//testcase"):
+                pkgname = testcase.get("classname")
+                testname = testcase.get("name")
+                if pkgname is None or testname is None:
                     continue
+                failed = testcase.find("failure") is not None
+                skipped = testcase.find("skipped") is not None
 
-                tests = int(testsuite.get("tests") or "0")
-                failures = int(testsuite.get("failures") or "0")
-                sum_failures += failures
-                errors = int(testsuite.get("errors") or "0")
-                skipped = int(testsuite.get("skipped") or "0")
-                successes = tests - failures - errors - skipped
-                result_tuple = (successes, failures, skipped)
+                if failed:
+                    result = "failed"
+                elif skipped:
+                    result = "skipped"
+                else:
+                    result = "success"
 
-                results[pkgname][vm_name] = result_tuple
-                total_by_vm[vm_name] = tuple(x + y for x, y in zip(result_tuple, total_by_vm[vm_name], strict=True))  # type: ignore
+                test_results[pkgname][testname].add(result)
 
-    def _color_result(result: tuple[int, int, int]) -> str:
+        for pkgname, tests in test_results.items():
+            failures, successes_on_retry, successes, skipped = 0, 0, 0, 0
+
+            for testresults in tests.values():
+                if len(testresults) == 1:
+                    result = next(iter(testresults))
+                    if result == "failed":
+                        failures += 1
+                        sum_failures += 1
+                    elif result == "success":
+                        successes += 1
+                    elif result == "skipped":
+                        skipped += 1
+                elif "failed" in testresults and "success" in testresults:
+                    successes_on_retry += 1
+
+            result_tuple = (successes, successes_on_retry, failures, skipped)
+
+            results[pkgname][vm_name] = result_tuple
+            total_by_vm[vm_name] = tuple(x + y for x, y in zip(result_tuple, total_by_vm[vm_name], strict=True))  # type: ignore
+
+    def _color_result(result: tuple[int, int, int, int]) -> str:
         success = colored(str(result[0]), "green" if result[0] > 0 else None)
-        failures = colored(str(result[1]), "red" if result[1] > 0 else None)
-        skipped = colored(str(result[2]), "yellow" if result[2] > 0 else None)
+        success_on_retry = colored(str(result[1]), "blue" if result[1] > 0 else None)
+        failures = colored(str(result[2]), "red" if result[2] > 0 else None)
+        skipped = colored(str(result[3]), "yellow" if result[3] > 0 else None)
 
-        return f"{success}/{failures}/{skipped}"
+        return f"{success}/{success_on_retry}/{failures}/{skipped}"
 
     table: list[list[str]] = []
     for package, vm_results in sorted(results.items(), key=lambda x: x[0]):
-        row = [package] + [_color_result(vm_results.get(vm, (0, 0, 0))) for vm in vm_list]
+        row = [package] + [_color_result(vm_results.get(vm, (0, 0, 0, 0))) for vm in vm_list]
         table.append(row)
 
     table.append(["Total"] + [_color_result(total_by_vm[vm]) for vm in vm_list])
 
     print(tabulate(table, headers=["Package"] + vm_list))
-    print("\nLegend: Successes/Failures/Skipped")
+    print("\nLegend: Successes/Successes on retry/Failures/Skipped")
 
     if sum_failures:
         sys.exit(1)
