@@ -437,7 +437,7 @@ func TestParseSymbolFromEBPFProbeName(t *testing.T) {
 	})
 }
 
-func TestAttachToBinary(t *testing.T) {
+func TestAttachToBinaryAndDetach(t *testing.T) {
 	proc := FakeProcFSEntry{
 		pid:     1,
 		cmdline: "/bin/bash",
@@ -489,6 +489,11 @@ func TestAttachToBinary(t *testing.T) {
 	err = ua.attachToBinary(target, config.Rules)
 	require.NoError(t, err)
 	inspector.AssertExpectations(t)
+	mockMan.AssertExpectations(t)
+
+	mockMan.On("DetachHook", expectedProbe.ProbeIdentificationPair).Return(nil)
+	err = ua.detachFromBinary(target)
+	require.NoError(t, err)
 	mockMan.AssertExpectations(t)
 }
 
