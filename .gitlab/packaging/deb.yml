@@ -2,11 +2,6 @@
 .package_deb_common:
   stage: packaging
   script:
-<<<<<<< HEAD
-    - !reference [.setup_ruby_mirror_linux]
-=======
-    - source /root/.bashrc
->>>>>>> 42c07251e2fded462dde557410c1a80e00c5ed40
     - !reference [.cache_omnibus_ruby_deps, setup]
     - echo "About to package for $RELEASE_VERSION"
     - !reference [.setup_deb_signing_key]
@@ -146,11 +141,6 @@ installer_deb-arm64:
     - when: on_success
   stage: packaging
   script:
-<<<<<<< HEAD
-    - !reference [.setup_ruby_mirror_linux]
-=======
-    - source /root/.bashrc
->>>>>>> 42c07251e2fded462dde557410c1a80e00c5ed40
     - !reference [.cache_omnibus_ruby_deps, setup]
     - echo "About to package for $RELEASE_VERSION"
     - !reference [.setup_deb_signing_key]
