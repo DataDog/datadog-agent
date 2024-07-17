@@ -50,13 +50,15 @@ begin
       if :hostingType = :hostingTypeSelfManaged then
         command := 'grant select on ' || array(i) || ' to &&user';
       elsif :hostingType = :hostingTypeRDS then
-        command := 'rdsadmin.rdsadmin_util.grant_sys_object(''' || array(i) || ',''&&user'',''SELECT'', p_grant_option => false)';
+        command := 'begin rdsadmin.rdsadmin_util.grant_sys_object(''' || upper(array(i)) || ''',''&&user'',''SELECT'', p_grant_option => false); end;';
       elsif :hostingType = :hostingTypeOCI then
         object_name := replace(array(i), 'V_$', 'V$');
         command := 'grant select on ' || array(i) || ' to &&user with grant option';
       end if;
       begin
+         dbms_output.disable;
          execute immediate command;
+         dbms_output.enable;
       exception
          when others then
             null;
