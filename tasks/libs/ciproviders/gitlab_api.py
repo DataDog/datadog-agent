@@ -509,8 +509,6 @@ def get_all_gitlab_ci_configurations(
     - ignore_errors: Ignore gitlab lint errors
     - git_ref: If provided, use this git reference to fetch the configuration
     """
-    # TODO : LRU cache for gitlab ci config files
-
     # entry_points[input_file] -> parsed config
     entry_points: dict[str, dict] = {}
 
