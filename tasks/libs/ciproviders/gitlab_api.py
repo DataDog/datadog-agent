@@ -377,7 +377,10 @@ class MultiGitlabCIDiff:
 
         res = []
 
-        for diff in self.diffs:
+        # .gitlab-ci.yml will be always first and other entries sorted alphabetically
+        diffs = sorted(self.diffs, key=lambda diff: '' if diff == '.gitlab-ci.yml' else diff)
+
+        for diff in diffs:
             res.extend(str_entry(diff))
             res.append(diff.diff.display(cli, job_url=job_url, no_footnote=True, **kwargs))
             res.extend(str_entry_end())
