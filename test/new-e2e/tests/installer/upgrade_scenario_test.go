@@ -70,6 +70,11 @@ var testCatalog = catalog{
 			Version: latestInstallerImageVersion,
 			URL:     fmt.Sprintf("oci://gcr.io/datadoghq/installer-package:%s", latestInstallerImageVersion),
 		},
+		{
+			Package: string(datadogInstaller),
+			Version: previousInstallerImageVersion,
+			URL:     fmt.Sprintf("oci://gcr.io/datadoghq/installer-package:%s", previousInstallerImageVersion),
+		},
 	},
 }
 
@@ -78,7 +83,8 @@ const (
 	previousAgentImageVersion = "7.54.0-1"
 	latestAgentImageVersion   = "7.54.1-1"
 
-	latestInstallerImageVersion = "7.55.0-installer-0.4.2-1"
+	latestInstallerImageVersion   = "7.55.0-installer-0.4.2-1"
+	previousInstallerImageVersion = "7.55.0-installer-0.4.1-1"
 )
 
 func testUpgradeScenario(os e2eos.Descriptor, arch e2eos.Architecture) packageSuite {
@@ -98,16 +104,7 @@ func (s *upgradeScenarioSuite) TestUpgradeSuccessful() {
 	)
 
 	s.setCatalog(testCatalog)
-
-	timestamp := s.host.LastJournaldTimestamp()
-	_, err := s.startExperimentCommand(datadogAgent, latestAgentImageVersion)
-	require.NoError(s.T(), err)
-	s.assertSuccessfulAgentStartExperiment(timestamp, latestAgentImageVersion)
-
-	timestamp = s.host.LastJournaldTimestamp()
-	_, err = s.promoteExperimentCommand(datadogAgent)
-	require.NoError(s.T(), err)
-	s.assertSuccessfulAgentPromoteExperiment(timestamp, latestAgentImageVersion)
+	s.executeAgentGoldenPath()
 }
 
 func (s *upgradeScenarioSuite) TestUpgradeFromExistingExperiment() {
@@ -137,15 +134,7 @@ func (s *upgradeScenarioSuite) TestUpgradeFromExistingExperiment() {
 	require.NoError(s.T(), err)
 	s.assertSuccessfulAgentStopExperiment(timestamp)
 
-	timestamp = s.host.LastJournaldTimestamp()
-	_, err = s.startExperimentCommand(datadogAgent, latestAgentImageVersion)
-	require.NoError(s.T(), err)
-	s.assertSuccessfulAgentStartExperiment(timestamp, latestAgentImageVersion)
-
-	timestamp = s.host.LastJournaldTimestamp()
-	_, err = s.promoteExperimentCommand(datadogAgent)
-	require.NoError(s.T(), err)
-	s.assertSuccessfulAgentPromoteExperiment(timestamp, latestAgentImageVersion)
+	s.executeAgentGoldenPath()
 }
 
 func (s *upgradeScenarioSuite) TestBackendFailure() {
@@ -298,15 +287,7 @@ func (s *upgradeScenarioSuite) TestPromoteWithoutExperiment() {
 	require.Equal(s.T(), beforeStatus.Version, afterStatus.Version)
 
 	// Try a golden path to make sure nothing is broken
-	timestamp := s.host.LastJournaldTimestamp()
-	_, err = s.startExperimentCommand(datadogAgent, latestAgentImageVersion)
-	require.NoError(s.T(), err)
-	s.assertSuccessfulAgentStartExperiment(timestamp, latestAgentImageVersion)
-
-	timestamp = s.host.LastJournaldTimestamp()
-	_, err = s.promoteExperimentCommand(datadogAgent)
-	require.NoError(s.T(), err)
-	s.assertSuccessfulAgentPromoteExperiment(timestamp, latestAgentImageVersion)
+	s.executeAgentGoldenPath()
 }
 
 func (s *upgradeScenarioSuite) TestInstallerSuccessful() {
@@ -320,13 +301,50 @@ func (s *upgradeScenarioSuite) TestInstallerSuccessful() {
 	)
 
 	s.setCatalog(testCatalog)
+	s.executeInstallerGoldenPath()
+}
 
-	// Experiments the installer then the agent
+func (s *upgradeScenarioSuite) TestInstallerBackendFailure() {
+	s.RunInstallScript("DD_REMOTE_UPDATES=true")
+	defer s.Purge()
+	s.host.WaitForUnitActive(
+		"datadog-agent.service",
+		"datadog-agent-trace.service",
+		"datadog-agent-process.service",
+		"datadog-installer.service",
+	)
+
+	s.setCatalog(testCatalog)
+
 	timestamp := s.host.LastJournaldTimestamp()
-	// Can't check the error status of the command, because it gets terminated by design
-	// We check the unit history instead
 	s.startExperimentCommand(datadogInstaller, latestInstallerImageVersion)
 	s.assertSuccessfulInstallerStartExperiment(timestamp, latestInstallerImageVersion)
+
+	// Receive a failure from the backend or the experiments fail, stops the experiment
+	timestamp = s.host.LastJournaldTimestamp()
+	s.stopExperimentCommand(datadogInstaller)
+	s.assertSuccessfulInstallerStopExperiment(timestamp)
+
+	// Continue with the agent
+	s.setCatalog(testCatalog)
+	s.executeAgentGoldenPath()
+}
+
+func (s *upgradeScenarioSuite) TestInstallerAgentFailure() {
+	s.RunInstallScript("DD_REMOTE_UPDATES=true")
+	defer s.Purge()
+	s.host.WaitForUnitActive(
+		"datadog-agent.service",
+		"datadog-agent-trace.service",
+		"datadog-agent-process.service",
+		"datadog-installer.service",
+	)
+
+	s.setCatalog(testCatalog)
+
+	timestamp := s.host.LastJournaldTimestamp()
+	s.startExperimentCommand(datadogInstaller, previousInstallerImageVersion)
+	s.assertSuccessfulInstallerStartExperiment(timestamp, previousInstallerImageVersion)
 
 	// Change the catalog of the experiment installer
 	s.setCatalog(testCatalog)
@@ -336,17 +354,18 @@ func (s *upgradeScenarioSuite) TestInstallerSuccessful() {
 	require.NoError(s.T(), err)
 	s.assertSuccessfulAgentStartExperiment(timestamp, latestAgentImageVersion)
 
-	// Promote the agent then the installer
+	// Receive a failure from the agent, stops the agent
 	timestamp = s.host.LastJournaldTimestamp()
-	_, err = s.promoteExperimentCommand(datadogAgent)
-	require.NoError(s.T(), err)
-	s.assertSuccessfulAgentPromoteExperiment(timestamp, latestAgentImageVersion)
+	s.stopExperimentCommand(datadogAgent)
+	s.assertSuccessfulAgentStopExperiment(timestamp)
 
 	timestamp = s.host.LastJournaldTimestamp()
-	// Can't check the error status of the command, because it gets terminated by design
-	// We check the unit history instead
-	s.promoteExperimentCommand(datadogInstaller)
-	s.assertSuccessfulInstallerPromoteExperiment(timestamp, latestInstallerImageVersion)
+	s.stopExperimentCommand(datadogInstaller)
+	s.assertSuccessfulInstallerStopExperiment(timestamp)
+
+	// Retry the golden path to check if everything fine
+	s.setCatalog(testCatalog)
+	s.executeInstallerGoldenPath()
 }
 
 func (s *upgradeScenarioSuite) startExperimentCommand(pkg packageName, version string) (string, error) {
@@ -485,6 +504,21 @@ func (s *upgradeScenarioSuite) assertSuccessfulInstallerStartExperiment(timestam
 	require.Equal(s.T(), version, installerStatus.Packages["datadog-installer"].ExperimentVersion)
 }
 
+// TODO : remove version param after fixing the stop cleanup
+func (s *upgradeScenarioSuite) assertSuccessfulInstallerStopExperiment(timestamp host.JournaldTimestamp) {
+	// Assert experiment is stopped
+	s.host.AssertSystemdEvents(timestamp, host.SystemdEvents().
+		Unordered(host.SystemdEvents().
+			Starting(installerUnitXP).
+			Stopped(installerUnit),
+		),
+	)
+
+	// TODO : uncomment this part after releasing new RC for the installer
+	// installerStatus := s.getInstallerStatus()
+	// require.Equal(s.T(), "", installerStatus.Packages["datadog-installer"].ExperimentVersion)
+}
+
 func (s *upgradeScenarioSuite) assertSuccessfulInstallerPromoteExperiment(timestamp host.JournaldTimestamp, version string) {
 	s.host.WaitForUnitActive(installerUnit)
 
@@ -497,4 +531,45 @@ func (s *upgradeScenarioSuite) assertSuccessfulInstallerPromoteExperiment(timest
 	installerStatus := s.getInstallerStatus()
 	require.Equal(s.T(), version, installerStatus.Packages["datadog-installer"].StableVersion)
 	require.Equal(s.T(), "", installerStatus.Packages["datadog-installer"].ExperimentVersion)
+}
+
+func (s *upgradeScenarioSuite) executeAgentGoldenPath() {
+	timestamp := s.host.LastJournaldTimestamp()
+	_, err := s.startExperimentCommand(datadogAgent, latestAgentImageVersion)
+	require.NoError(s.T(), err)
+	s.assertSuccessfulAgentStartExperiment(timestamp, latestAgentImageVersion)
+
+	timestamp = s.host.LastJournaldTimestamp()
+	_, err = s.promoteExperimentCommand(datadogAgent)
+	require.NoError(s.T(), err)
+	s.assertSuccessfulAgentPromoteExperiment(timestamp, latestAgentImageVersion)
+}
+
+func (s *upgradeScenarioSuite) executeInstallerGoldenPath() {
+	// Experiments the installer then the agent
+	timestamp := s.host.LastJournaldTimestamp()
+	// Can't check the error status of the command, because it gets terminated by design
+	// We check the unit history instead
+	s.startExperimentCommand(datadogInstaller, latestInstallerImageVersion)
+	s.assertSuccessfulInstallerStartExperiment(timestamp, latestInstallerImageVersion)
+
+	// Change the catalog of the experiment installer
+	s.setCatalog(testCatalog)
+
+	timestamp = s.host.LastJournaldTimestamp()
+	_, err := s.startExperimentCommand(datadogAgent, latestAgentImageVersion)
+	require.NoError(s.T(), err)
+	s.assertSuccessfulAgentStartExperiment(timestamp, latestAgentImageVersion)
+
+	// Promote the agent then the installer
+	timestamp = s.host.LastJournaldTimestamp()
+	_, err = s.promoteExperimentCommand(datadogAgent)
+	require.NoError(s.T(), err)
+	s.assertSuccessfulAgentPromoteExperiment(timestamp, latestAgentImageVersion)
+
+	timestamp = s.host.LastJournaldTimestamp()
+	// Can't check the error status of the command, because it gets terminated by design
+	// We check the unit history instead
+	s.promoteExperimentCommand(datadogInstaller)
+	s.assertSuccessfulInstallerPromoteExperiment(timestamp, latestInstallerImageVersion)
 }
