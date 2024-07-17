@@ -581,7 +581,10 @@ func (fh *EBPFFieldHandlers) ResolveAWSSecurityCredentials(e *model.Event) []mod
 // ResolveSyscallCtxArgs resolve syscall ctx
 func (fh *EBPFFieldHandlers) ResolveSyscallCtxArgs(_ *model.Event, e *model.SyscallContext) {
 	if !e.Resolved {
-		_ = fh.resolvers.SyscallCtxResolver.Resolve(e.ID, e)
+		err := fh.resolvers.SyscallCtxResolver.Resolve(e.ID, e)
+		if err != nil {
+			return
+		}
 		e.Resolved = true
 	}
 }

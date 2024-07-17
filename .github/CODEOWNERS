@@ -80,6 +80,7 @@
 /.gitlab/deploy_packages/windows.yml                    @DataDog/agent-delivery @DataDog/windows-agent
 /.gitlab/deploy_packages/winget.yml                     @DataDog/agent-delivery @DataDog/windows-agent
 /.gitlab/deploy_packages/cluster_agent_cloudfoundry.yml @DataDog/platform-integrations @DataDog/agent-devx-infra
+/.gitlab/deploy_packages/e2e.yml                        @DataDog/agent-devx-loops @DataDog/agent-e2e-testing @DataDog/fleet
 
 /.gitlab/deps_build/                                 @DataDog/ebpf-platform @DataDog/agent-delivery @DataDog/windows-agent
 /.gitlab/windows_python_build.yml                    @DataDog/windows-agent
@@ -116,6 +117,7 @@
 
 /.gitlab/dev_container_deploy/                       @DataDog/container-integrations @DataDog/agent-delivery
 /.gitlab/dev_container_deploy/fakeintake.yml         @DataDog/agent-devx-loops
+/.gitlab/dev_container_deploy/e2e.yml                @DataDog/agent-devx-loops @DataDog/agent-e2e-testing
 /.gitlab/dev_container_deploy/docker_windows.yml     @DataDog/agent-delivery @DataDog/windows-agent
 
 /.gitlab/container_scan/container_scan.yml           @DataDog/container-integrations @DataDog/agent-delivery

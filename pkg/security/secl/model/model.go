@@ -99,11 +99,11 @@ type IPPortContext struct {
 type NetworkContext struct {
 	Device NetworkDeviceContext `field:"device"` // network device on which the network packet was captured
 
-	L3Protocol  uint16        `field:"l3_protocol"` // SECLDoc[l3_protocol] Definition:`l3 protocol of the network packet` Constants:`L3 protocols`
-	L4Protocol  uint16        `field:"l4_protocol"` // SECLDoc[l4_protocol] Definition:`l4 protocol of the network packet` Constants:`L4 protocols`
+	L3Protocol  uint16        `field:"l3_protocol"` // SECLDoc[l3_protocol] Definition:`L3 protocol of the network packet` Constants:`L3 protocols`
+	L4Protocol  uint16        `field:"l4_protocol"` // SECLDoc[l4_protocol] Definition:`L4 protocol of the network packet` Constants:`L4 protocols`
 	Source      IPPortContext `field:"source"`      // source of the network packet
 	Destination IPPortContext `field:"destination"` // destination of the network packet
-	Size        uint32        `field:"size"`        // SECLDoc[size] Definition:`size in bytes of the network packet`
+	Size        uint32        `field:"size"`        // SECLDoc[size] Definition:`Size in bytes of the network packet`
 }
 
 // SpanContext describes a span context
