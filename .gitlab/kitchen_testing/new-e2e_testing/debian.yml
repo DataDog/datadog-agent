@@ -9,7 +9,7 @@
     E2E_CWS_SUPPORTED_OSVERS: "debian-10,debian-11"
     E2E_BRANCH_OSVERS: "debian-11"
   needs:
-    - !reference [ .needs_new_e2e_template ]
+    - !reference [.needs_new_e2e_template]
     - deploy_deb_testing-a6_x64
 
 .new-e2e_debian_a6_arm64:
@@ -19,7 +19,7 @@
     E2E_CWS_SUPPORTED_OSVERS: "debian-10"
     E2E_BRANCH_OSVERS: "debian-10"
   needs:
-    - !reference [ .needs_new_e2e_template ]
+    - !reference [.needs_new_e2e_template]
     - deploy_deb_testing-a6_arm64
 
 .new-e2e_debian_a7_x86_64:
@@ -29,7 +29,7 @@
     E2E_CWS_SUPPORTED_OSVERS: "debian-10,debian-11"
     E2E_BRANCH_OSVERS: "debian-11"
   needs:
-    - !reference [ .needs_new_e2e_template ]
+    - !reference [.needs_new_e2e_template]
     - deploy_deb_testing-a7_x64
 
 .new-e2e_debian_a7_arm64:
@@ -39,7 +39,7 @@
     E2E_CWS_SUPPORTED_OSVERS: "debian-10"
     E2E_BRANCH_OSVERS: "debian-10"
   needs:
-    - !reference [ .needs_new_e2e_template ]
+    - !reference [.needs_new_e2e_template]
     - deploy_deb_testing-a7_arm64
 
 new-e2e-agent-platform-install-script-debian-a6-x86_64:
