@@ -1960,7 +1960,7 @@ def wait_for_setup_job(ctx: Context, pipeline_id: int, arch: str | Arch, compone
 # starting the agent. The following solution is taken from
 # https://stackoverflow.com/questions/25108581/python-yaml-dump-bad-indentation
 class IndentedDumper(yaml.Dumper):
-    def increase_indent(self, flow=False, indentless=False):
+    def increase_indent(self, flow=False):
         return super().increase_indent(flow, False)
 
 
