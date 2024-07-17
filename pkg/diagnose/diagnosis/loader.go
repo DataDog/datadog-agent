@@ -125,6 +125,8 @@ func (c *Catalog) GetSuites() []Suite {
 }
 
 // DiagnosisJSON is the JSON representation of a Diagnosis
+//
+//nolint:revive
 type DiagnosisJSON struct {
 	Result      string `json:"Result"`
 	Name        string `json:"Name"`
