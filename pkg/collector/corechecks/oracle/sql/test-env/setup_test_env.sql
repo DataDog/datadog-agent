@@ -42,7 +42,7 @@ commit;
 
 prompt create test tablespace
 declare
-  dir varchar2(1000);
+  dir dba_data_files.file_name%type;
   l_create_dir v$parameter.value%type;
 begin
   begin
@@ -51,7 +51,7 @@ begin
     when no_data_found then
       l_create_dir := null;
   end;
-  if l_create_dir is not null then
+  if l_create_dir is null then
     select SUBSTR(file_name,1,(INSTR(file_name,'/',-1,1)-1)) into dir from dba_data_files where rownum = 1;
     execute immediate 'create tablespace tbs_test datafile ''' || dir || '/tbs_test01.dbf'' size 100M';
   else
