@@ -233,14 +233,8 @@ def launch_stack(
         raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.create-stack --stack=<name>'")
 
     stacks.launch_stack(ctx, stack, ssh_key, x86_ami, arm_ami, provision_microvms)
-
     if provision_script is not None:
-        ssh_key_obj = try_get_ssh_key(ctx, ssh_key)
-        infra = build_infrastructure(stack, ssh_key_obj)
-        for arch in infra:
-            for domain in infra[arch].microvms:
-                domain.copy(ctx, provision_script, "/tmp/provision.sh")
-                domain.run_cmd(ctx, "chmod +x /tmp/provision.sh && /tmp/provision.sh", verbose=True)
+        provision_stack(ctx, provision_script, stack, ssh_key)
 
 
 @task
@@ -1106,12 +1100,9 @@ def build_layout(ctx, domains, layout: str, verbose: bool):
 
     for d in domains:
         info(f"[+] apply layout to vm {d.name}")
-        mkdir = []
-        for dirs in todo["layout"]:
-            mkdir.append(f"mkdir -p {dirs} &&")
 
-        if len(mkdir) > 0:
-            cmd = ' '.join(mkdir)
+        cmd = ' && '.join(f'mkdir -p {dirs}' for dirs in todo["layout"])
+        if len(cmd) > 0:
             d.run_cmd(ctx, cmd.rstrip('&'), verbose)
 
         for src, dst in todo["copy"].items():
@@ -1960,8 +1951,8 @@ def wait_for_setup_job(ctx: Context, pipeline_id: int, arch: str | Arch, compone
 # starting the agent. The following solution is taken from
 # https://stackoverflow.com/questions/25108581/python-yaml-dump-bad-indentation
 class IndentedDumper(yaml.Dumper):
-    def increase_indent(self, flow=False):
-        return super().increase_indent(flow, False)
+    def increase_indent(self, flow=False, indentless=False):
+        return super().increase_indent(flow, indentless)
 
 
 @task
