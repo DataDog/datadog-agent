@@ -50,7 +50,7 @@
 
 .define_if_collect_complexity:
   # Collect only from specific platforms to avoid high memory usage
-  - PLATFORMS_FOR_COMPLEXITY_COLLECTION="amazon_5.10 debian_10 ubuntu_23.10 centos_8 opensuse_15.3 fedora_38"
+  - PLATFORMS_FOR_COMPLEXITY_COLLECTION="amazon_5.10 debian_10 ubuntu_18.04 centos_8 opensuse_15.3 suse_12.5 fedora_38"
   - |
     if ( [ "${TEST_SET}" = "no_usm" ] || [ "${TEST_SET}" = "all_tests" ] ) && echo "${PLATFORMS_FOR_COMPLEXITY_COLLECTION}" | grep -qw "${TAG}" ; then
       export COLLECT_COMPLEXITY=yes
