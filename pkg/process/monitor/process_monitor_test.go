@@ -17,7 +17,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"github.com/vishvananda/netns"
-	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	eventmonitortestutil "github.com/DataDog/datadog-agent/pkg/eventmonitor/testutil"
