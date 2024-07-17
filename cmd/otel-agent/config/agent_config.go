@@ -69,8 +69,14 @@ func NewConfigComponent(ctx context.Context, uris []string) (config.Component, e
 	pkgconfig.Set("api_key", apiKey, pkgconfigmodel.SourceLocalConfigProcess)
 	pkgconfig.Set("site", site, pkgconfigmodel.SourceLocalConfigProcess)
 
+	pkgconfig.Set("dd_url", ddc.Metrics.Endpoint, pkgconfigmodel.SourceLocalConfigProcess)
+
+	// Log configs
 	pkgconfig.Set("logs_enabled", true, pkgconfigmodel.SourceLocalConfigProcess)
-	pkgconfig.Set("logs_config.use_compression", true, pkgconfigmodel.SourceLocalConfigProcess)
+	pkgconfig.Set("logs_config.logs_dd_url", ddc.Logs.Endpoint, pkgconfigmodel.SourceLocalConfigProcess)
+	pkgconfig.Set("logs_config.batch_wait", ddc.Logs.BatchWait, pkgconfigmodel.SourceLocalConfigProcess)
+	pkgconfig.Set("logs_config.use_compression", ddc.Logs.UseCompression, pkgconfigmodel.SourceLocalConfigProcess)
+	pkgconfig.Set("logs_config.compression_level", ddc.Logs.CompressionLevel, pkgconfigmodel.SourceLocalConfigProcess)
 	pkgconfig.Set("log_level", sc.Telemetry.Logs.Level, pkgconfigmodel.SourceLocalConfigProcess)
 
 	// APM & OTel trace configs
