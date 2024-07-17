@@ -205,16 +205,22 @@ class GitlabCIDiff:
                 return f'- {job_before} -> **{job_after}**'
 
         def str_add_job(name: str, content: str) -> list[str]:
+            # Gitlab configuration special objects (variables...)
+            is_special = name in CONFIG_SPECIAL_OBJECTS
+
             if cli:
                 content = [color_message(line, Color.GREY) for line in content.splitlines()]
 
                 return [str_job(name, 'GREEN'), '', *content, '']
             else:
-                header = f'<summary><b>{name}</b></summary>'
+                header = f'<summary><b>{name}</b>{" (configuration)" if is_special else ""}</summary>'
 
                 return ['<details>', header, '', '```yaml', *content.splitlines(), '```', '', '</details>']
 
         def str_modified_job(name: str, diff: list[str]) -> list[str]:
+            # Gitlab configuration special objects (variables...)
+            is_special = name in CONFIG_SPECIAL_OBJECTS
+
             if cli:
                 res = [str_job(name, 'ORANGE')]
                 for line in diff:
@@ -230,7 +236,7 @@ class GitlabCIDiff:
                 # Wrap diff in markdown code block and in details html tags
                 return [
                     '<details>',
-                    f'<summary><b>{name}</b></summary>',
+                    f'<summary><b>{name}</b>{" (configuration)" if is_special else ""}</summary>',
                     '',
                     '```diff',
                     *diff,
