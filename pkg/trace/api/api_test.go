@@ -64,6 +64,7 @@ func newTestReceiverConfig() *config.AgentConfig {
 	conf := config.New()
 	conf.Endpoints[0].APIKey = "test"
 	conf.DecoderTimeout = 10000
+	conf.ReceiverPort = 8326 // use non-default port to avoid conflict with a running agent
 
 	return conf
 }
@@ -166,6 +167,8 @@ func TestStateHeaders(t *testing.T) {
 	assert := assert.New(t)
 	cfg := newTestReceiverConfig()
 	cfg.AgentVersion = "testVersion"
+	url := fmt.Sprintf("http://%s:%d",
+		cfg.ReceiverHost, cfg.ReceiverPort)
 	r := newTestReceiverFromConfig(cfg)
 	r.Start()
 	defer r.Stop()
@@ -183,7 +186,7 @@ func TestStateHeaders(t *testing.T) {
 		"/v0.5/traces",
 		"/v0.7/traces",
 	} {
-		resp, err := http.Post("http://localhost:8126"+e, "application/msgpack", bytes.NewReader(data))
+		resp, err := http.Post(url+e, "application/msgpack", bytes.NewReader(data))
 		if err != nil {
 			t.Fatal(err)
 		}
