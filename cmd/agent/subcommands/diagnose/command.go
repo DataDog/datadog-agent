@@ -308,7 +308,19 @@ func cmdDiagnose(cliParams *cliParams,
 
 	diagnoseDeps := diagnose.NewSuitesDepsInCLIProcess(senderManager, secretResolver, wmeta, ac)
 	// Run command
-	return diagnose.RunStdOutInCLIProcess(color.Output, diagCfg, diagnoseDeps)
+
+	// Get the diagnose result
+	diagnoses, err := diagnose.RunInCLIProcess(diagCfg, diagnoseDeps)
+	if err != nil {
+		// attempt to do so locally
+		diagCfg.RunLocal = true
+		diagnoses, err = diagnose.RunDiagnose(diagCfg, func(diagCfg diagnosis.Config) ([]diagnosis.Diagnoses, error) {
+			return diagnose.RunInAgentProcess(diagCfg, diagnoseDeps)
+		})
+		return err
+	}
+
+	return diagnose.RunStdOutInCLIProcess(color.Output, diagCfg, diagnoses)
 }
 
 // NOTE: This and related will be moved to separate "agent telemetry" command in future

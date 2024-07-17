@@ -47,6 +47,10 @@ type diagSuiteFilter struct {
 	exclude []*regexp.Regexp
 }
 
+func RunDiagnose(diagCfg diagnosis.Config, getSuites func() []diagnosis.Suite) ([]diagnosis.Diagnoses, error) {
+	return run(diagCfg, getSuites)
+}
+
 // Output summary
 func (c *counters) summary(w io.Writer, toJSON bool) {
 	if toJSON {
@@ -414,10 +418,11 @@ func RunStdOutInAgentProcess(w io.Writer, diagCfg diagnosis.Config, deps SuitesD
 
 // RunStdOutInCLIProcess enumerates registered Diagnose suites and get their diagnoses
 // for human consumption
-func RunStdOutInCLIProcess(w io.Writer, diagCfg diagnosis.Config, deps SuitesDepsInCLIProcess) error {
-	return runStdOut(w, diagCfg, func(diagCfg diagnosis.Config) ([]diagnosis.Diagnoses, error) {
-		return RunInCLIProcess(diagCfg, deps)
-	})
+func RunStdOutInCLIProcess(w io.Writer, diagCfg diagnosis.Config, deps []diagnosis.Diagnoses) error {
+	if diagCfg.JSONOutput {
+		return runStdOutJSON(w, diagCfg, deps)
+	}
+	return runStdOut(w, diagCfg, deps)
 }
 
 // RunStdOutLocalCheck runs locally the checks created by the registries.
@@ -430,69 +435,103 @@ func RunStdOutLocalCheck(w io.Writer, verbose bool, registries ...func(*diagnosi
 	})
 }
 
-func runStdOut(w io.Writer, diagCfg diagnosis.Config, run func(diagnosis.Config) ([]diagnosis.Diagnoses, error)) error {
+func runStdOutJSON(w io.Writer, diagCfg diagnosis.Config, run func(diagnosis.Config) ([]diagnosis.Diagnoses, error)) error {
+	diagnoses, err := run(diagCfg)
+	if err != nil {
+		errJSON, _ := json.MarshalIndent(map[string]string{
+			"error":  fmt.Sprintf("Error running diagnose in Agent process: %s", err),
+			"action": "Running diagnose command locally (may take extra time to run checks locally) ...",
+		}, "", "  ")
+		fmt.Fprintln(w, string(errJSON))
+		diagCfg.RunLocal = true
+		diagnoses, err = run(diagCfg)
+		if err != nil {
+			errJSON, _ := json.MarshalIndent(map[string]string{
+				"error": "Error running diagnose locally: " + err.Error(),
+			}, "", "  ")
+			fmt.Fprintln(w, string(errJSON))
+			return err
+		}
+	}
+
+	var c counters
+	diagnosesJSON := []map[string]interface{}{}
+	for _, ds := range diagnoses {
+
+		diagnosesSuiteJSON := map[string]interface{}{
+			"suiteName":      ds.SuiteName,
+			"suiteDiagnoses": []map[string]string{},
+		}
+
+		for _, d := range ds.SuiteDiagnoses {
+			c.increment(d.Result)
+
+			suiteDiag := diagnosesSuiteJSON["suiteDiagnoses"].([]map[string]string)
+			diagnosisJSON := map[string]string{
+				"result":    getDiagnosisResultForOutput(d.Result, false),
+				"name":      d.Name,
+				"diagnosis": d.Diagnosis,
+			}
+			if len(d.Category) > 0 {
+				diagnosisJSON["category"] = d.Category
+			}
+			if len(d.Description) > 0 {
+				diagnosisJSON["description"] = d.Description
+			}
+			if len(d.Remediation) > 0 {
+				diagnosisJSON["remediation"] = d.Remediation
+			}
+			if len(d.RawError) > 0 {
+				diagnosisJSON["rawError"] = d.RawError
+			}
+			suiteDiag = append(suiteDiag, diagnosisJSON)
+			diagnosesSuiteJSON["suiteDiagnoses"] = suiteDiag
+		}
+		diagnosesJSON = append(diagnosesJSON, diagnosesSuiteJSON)
+	}
+
+	diagJSON, err := json.MarshalIndent(diagnosesJSON, "", "  ")
+	if err != nil {
+		fmt.Fprintln(w, color.RedString(fmt.Sprintf("Error marshalling diagnose results to JSON: %s", err)))
+		return err
+	}
+	fmt.Fprintln(w, string(diagJSON))
+
+	c.summary(w, diagCfg.JSONOutput)
+
+	return nil
+}
+
+func runStdOut(w io.Writer, diagCfg diagnosis.Config, diagnoses []diagnosis.Diagnoses) error {
 	if w != color.Output {
 		color.NoColor = true
 	}
 
-	if !diagCfg.JSONOutput {
-		fmt.Fprintf(w, "=== Starting diagnose ===\n")
-	}
+	fmt.Fprintf(w, "=== Starting diagnose ===\n")
 
-	diagnoses, err := run(diagCfg)
-	if err != nil {
-		errMsg := fmt.Sprintf("Error running diagnose in Agent process: %s", err)
-		action := "Running diagnose command locally (may take extra time to run checks locally) ..."
-		if diagCfg.JSONOutput {
-			errJSON, _ := json.MarshalIndent(map[string]string{
-				"error":  errMsg,
-				"action": action,
-			}, "", "  ")
-			fmt.Fprintln(w, string(errJSON))
-		} else if !diagCfg.RunLocal {
-			fmt.Fprintln(w, color.YellowString(errMsg))
-			fmt.Fprintln(w, action)
-		}
-		// Attempt to run diagnose locally
+	if err != nil && !diagCfg.RunLocal {
+		fmt.Fprintln(w, color.YellowString(fmt.Sprintf("Error running diagnose in Agent process: %s", err)))
+		fmt.Fprintln(w, "Running diagnose command locally (may take extra time to run checks locally) ...")
+
+		// attempt to do so locally
 		diagCfg.RunLocal = true
 		diagnoses, err = run(diagCfg)
 	}
 
 	if err != nil {
-		if diagCfg.JSONOutput {
-			errJSON, _ := json.MarshalIndent(map[string]string{
-				"error": "Error running diagnose locally: " + err.Error(),
-			}, "", "  ")
-			fmt.Fprintln(w, string(errJSON))
-		} else {
-			fmt.Fprintln(w, color.RedString(fmt.Sprintf("Error running diagnose: %s", err)))
-		}
+		fmt.Fprintln(w, color.RedString(fmt.Sprintf("Error running diagnose: %s", err)))
 		return err
 	}
 
-	var diagnosesJSON []diagnosis.DiagnosesJSON
-	if diagCfg.JSONOutput {
-		diagnosesJSON = []diagnosis.DiagnosesJSON{}
-	}
-
 	var c counters
+
 	lastDot := false
 	for _, ds := range diagnoses {
 		suiteAlreadyReported := false
-		var diagnosesSuiteJSON diagnosis.DiagnosesJSON
-		if diagCfg.JSONOutput {
-			diagnosesSuiteJSON = diagnosis.DiagnosesJSON{
-				SuiteName:      ds.SuiteName,
-				SuiteDiagnoses: []diagnosis.DiagnosisJSON{},
-			}
-		}
 		for _, d := range ds.SuiteDiagnoses {
 			c.increment(d.Result)
 
-			if diagCfg.JSONOutput {
-				diagnosesSuiteJSON.SuiteDiagnoses = append(diagnosesSuiteJSON.SuiteDiagnoses, d.ToJSON(getDiagnosisResultForOutput(d.Result, false)))
-				continue
-			} else if d.Result == diagnosis.DiagnosisSuccess && !diagCfg.Verbose {
+			if d.Result == diagnosis.DiagnosisSuccess && !diagCfg.Verbose {
 				outputDot(w, &lastDot)
 				continue
 			}
@@ -502,21 +541,10 @@ func runStdOut(w io.Writer, diagCfg diagnosis.Config, run func(diagnosis.Config)
 			outputNewLineIfNeeded(w, &lastDot)
 			outputDiagnosis(w, diagCfg, getDiagnosisResultForOutput(d.Result, true), c.total, d)
 		}
-		if diagCfg.JSONOutput {
-			diagnosesJSON = append(diagnosesJSON, diagnosesSuiteJSON)
-		}
-	}
-	if diagCfg.JSONOutput {
-		diagJSON, err := json.MarshalIndent(diagnosesJSON, "", "  ")
-		if err != nil {
-			fmt.Fprintln(w, color.RedString(fmt.Sprintf("Error marshalling diagnose results to JSON: %s", err)))
-			return err
-		}
-		fmt.Fprintln(w, string(diagJSON))
 	}
 
 	outputNewLineIfNeeded(w, &lastDot)
-	c.summary(w, diagCfg.JSONOutput)
+	c.summary(w, false)
 
 	return nil
 }

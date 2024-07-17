@@ -123,35 +123,3 @@ func (c *Catalog) Register(suiteName string, diagnose Diagnose) {
 func (c *Catalog) GetSuites() []Suite {
 	return c.suites
 }
-
-// DiagnosisJSON is the JSON representation of a Diagnosis
-//
-//nolint:revive
-type DiagnosisJSON struct {
-	Result      string `json:"result"`
-	Name        string `json:"name"`
-	Diagnosis   string `json:"diagnosis"`
-	Category    string `json:"category,omitempty"`
-	Description string `json:"description,omitempty"`
-	Remediation string `json:"remediation,omitempty"`
-	RawError    string `json:"rawError,omitempty"`
-}
-
-// DiagnosesJSON is the JSON representation of a Diagnoses
-type DiagnosesJSON struct {
-	SuiteName      string          `json:"suiteName"`
-	SuiteDiagnoses []DiagnosisJSON `json:"suiteDiagnoses"`
-}
-
-// ToJSON converts a Diagnosis to JSON
-func (d Diagnosis) ToJSON(result string) DiagnosisJSON {
-	return DiagnosisJSON{
-		Result:      result,
-		Name:        d.Name,
-		Diagnosis:   d.Diagnosis,
-		Category:    d.Category,
-		Description: d.Description,
-		Remediation: d.Remediation,
-		RawError:    d.RawError,
-	}
-}
