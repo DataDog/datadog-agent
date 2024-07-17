@@ -381,7 +381,7 @@ def compute_config_build_tags(targets="all", build_include=None, build_exclude=N
         if not set(targets).issubset(build_tags[flavor]):
             print("Must choose valid targets. Valid targets are:")
             print(f'{", ".join(build_tags[flavor].keys())}')
-            return
+            exit(1)
 
     if build_include is None:
         build_include = []

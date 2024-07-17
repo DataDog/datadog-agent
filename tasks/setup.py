@@ -17,6 +17,7 @@ from invoke.exceptions import Exit
 from tasks.build_tags import compute_config_build_tags
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.status import Status
+from tasks.libs.common.user_interactions import yes_no_question
 from tasks.libs.common.utils import running_in_pyapp
 
 if TYPE_CHECKING:
@@ -268,8 +269,7 @@ def vscode_settings(_):
     print(color_message("Creating initial VSCode setting file...", Color.BLUE))
     if os.path.exists(".vscode/settings.json"):
         print(color_message("VSCode settings file already exists. Skipping...", Color.ORANGE))
-        user_input = input("Do you want to overwrite it? (y/N)")
-        if user_input.lower() != "y":
+        if not yes_no_question("Do you want to overwrite it?", default=False):
             return
     build_tags = sorted(compute_config_build_tags())
     with open(".vscode/settings.json", "w") as f:
