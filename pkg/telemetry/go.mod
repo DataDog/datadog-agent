@@ -6,6 +6,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/telemetry => ../../comp/core/telemetry
 	github.com/DataDog/datadog-agent/comp/def => ../../comp/def
 	github.com/DataDog/datadog-agent/pkg/util/fxutil => ../util/fxutil
+	github.com/DataDog/datadog-agent/pkg/util/optional => ../util/optional
 )
 
 require (

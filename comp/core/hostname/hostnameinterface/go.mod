@@ -5,6 +5,7 @@ go 1.21.0
 replace (
 	github.com/DataDog/datadog-agent/comp/def => ../../../../comp/def
 	github.com/DataDog/datadog-agent/pkg/util/fxutil => ../../../../pkg/util/fxutil
+	github.com/DataDog/datadog-agent/pkg/util/optional => ../../../../pkg/util/optional
 )
 
 require (
