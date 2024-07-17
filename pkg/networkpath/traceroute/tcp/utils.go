@@ -29,7 +29,7 @@ const (
 	SYN = 1 << 1
 )
 
-var PktDecodeOptionsLazyNoCopy = gopacket.DecodeOptions{Lazy: true, NoCopy: true}
+var pktDecodeOptionsLazyNoCopy = gopacket.DecodeOptions{Lazy: true, NoCopy: true}
 
 type (
 	// canceledError is sent when a listener
@@ -266,7 +266,7 @@ func MarshalPacket(header *ipv4.Header, payload []byte) ([]byte, error) {
 // TODO: try doing this manually to see if it's more performant
 // we should either always use gopacket or never use gopacket
 func readRawPacket(rawPacket []byte) gopacket.Packet {
-	return gopacket.NewPacket(rawPacket, layers.LayerTypeIPv4, PktDecodeOptionsLazyNoCopy)
+	return gopacket.NewPacket(rawPacket, layers.LayerTypeIPv4, pktDecodeOptionsLazyNoCopy)
 }
 
 func parseIPv4Layer(pkt gopacket.Packet) (net.IP, net.IP, error) {
