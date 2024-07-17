@@ -1042,6 +1042,15 @@ api_key:
   #
   # env: none
 
+  ## @param receiver_enabled - bool - optional - default: true
+  ## @env DD_APM_RECEIVER_ENABLED - bool - optional - default: true
+  ## Allows to fully disable HTTP receiver in trace-agent. This setting should almost never
+  ## be disabled, and it's only a convenience parameter for Opentelemetry extensions.
+  ## Disabling the receiver is semantically equivalent to setting the receiver_port to 0 and
+  ## receiver_socket to "".
+  #
+  # receiver_enabled: true
+
   ## @param receiver_port - integer - optional - default: 8126
   ## @env DD_APM_RECEIVER_PORT - integer - optional - default: 8126
   ## The port that the trace receiver should listen on.
