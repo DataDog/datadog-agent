@@ -319,7 +319,10 @@ func TestConfigHostname(t *testing.T) {
 	})
 
 	t.Run("fallback", func(t *testing.T) {
-
+		overrides := map[string]interface{}{
+			"apm_config.dd_agent_bin": "/not/exist",
+			"cmd_port":                "-1",
+		}
 		host, err := os.Hostname()
 		if err != nil || host == "" {
 			// can't say
@@ -331,6 +334,7 @@ func TestConfigHostname(t *testing.T) {
 			fx.Replace(corecomp.MockParams{
 				Params:      corecomp.Params{ConfFilePath: "./testdata/site_override.yaml"},
 				SetupConfig: true,
+				Overrides:   overrides,
 			}),
 			MockModule(),
 		))

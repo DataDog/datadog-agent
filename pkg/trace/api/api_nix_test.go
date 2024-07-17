@@ -26,7 +26,7 @@ import (
 )
 
 func TestUDS(t *testing.T) {
-	sockPath := "/tmp/test-trace.sock"
+	sockPath := filepath.Join(t.TempDir(), "apm.sock")
 	payload := msgpTraces(t, pb.Traces{testutil.RandomTrace(10, 20)})
 	client := http.Client{
 		Transport: &http.Transport{
@@ -48,6 +48,7 @@ func TestUDS(t *testing.T) {
 		conf := config.New()
 		conf.Endpoints[0].APIKey = "apikey_2"
 		conf.ReceiverPort = port
+		conf.ReceiverSocket = ""
 
 		r := newTestReceiverFromConfig(conf)
 		r.Start()

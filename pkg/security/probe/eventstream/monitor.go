@@ -160,7 +160,7 @@ func NewEventStreamMonitor(config *config.Config, eRPC *erpc.ERPC, manager *mana
 	}
 
 	for _, rb := range manager.RingBuffers {
-		maps[rb.Name] = rb.RingBufferSize
+		maps[rb.Name] = rb.BufferSize()
 	}
 
 	// Select perf buffer statistics maps

@@ -43,9 +43,8 @@ func newMetadataStore(ctx context.Context, wlmetaStore workloadmeta.Component, c
 
 	metadataStore := &reflectorStore{
 		wlmetaStore: wlmetaStore,
-		seen:        make(map[string]workloadmeta.EntityID),
+		seen:        make(map[string][]workloadmeta.EntityID),
 		parser:      parser,
-		filter:      nil,
 	}
 	metadataReflector := cache.NewNamedReflector(
 		componentName,
@@ -58,7 +57,7 @@ func newMetadataStore(ctx context.Context, wlmetaStore workloadmeta.Component, c
 }
 
 type metadataParser struct {
-	gvr               schema.GroupVersionResource
+	gvr               *schema.GroupVersionResource
 	annotationsFilter []*regexp.Regexp
 }
 
@@ -68,14 +67,14 @@ func newMetadataParser(gvr schema.GroupVersionResource, annotationsExclude []str
 		return nil, err
 	}
 
-	return metadataParser{gvr: gvr, annotationsFilter: filters}, nil
+	return metadataParser{gvr: &gvr, annotationsFilter: filters}, nil
 }
 
-func (p metadataParser) Parse(obj interface{}) workloadmeta.Entity {
+func (p metadataParser) Parse(obj interface{}) []workloadmeta.Entity {
 	partialObjectMetadata := obj.(*metav1.PartialObjectMetadata)
 	id := util.GenerateKubeMetadataEntityID(p.gvr.Group, p.gvr.Resource, partialObjectMetadata.Namespace, partialObjectMetadata.Name)
 
-	return &workloadmeta.KubernetesMetadata{
+	return []workloadmeta.Entity{&workloadmeta.KubernetesMetadata{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindKubernetesMetadata,
 			ID:   string(id),
@@ -87,5 +86,5 @@ func (p metadataParser) Parse(obj interface{}) workloadmeta.Entity {
 			Annotations: filterMapStringKey(partialObjectMetadata.Annotations, p.annotationsFilter),
 		},
 		GVR: p.gvr,
-	}
+	}}
 }

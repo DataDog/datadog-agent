@@ -97,7 +97,7 @@ func (p *parser) applyServiceCheckOptionalField(serviceCheck dogstatsdServiceChe
 		newServiceCheck.tags = p.parseTags(optionalField[len(serviceCheckTagsPrefix):])
 	case bytes.HasPrefix(optionalField, serviceCheckMessagePrefix):
 		newServiceCheck.message = string(optionalField[len(serviceCheckMessagePrefix):])
-	case p.dsdOriginEnabled && bytes.HasPrefix(optionalField, LocalDataPrefix):
+	case p.dsdOriginEnabled && bytes.HasPrefix(optionalField, localDataPrefix):
 		newServiceCheck.containerID = p.resolveContainerIDFromLocalData(optionalField)
 	}
 	if err != nil {

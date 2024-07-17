@@ -82,6 +82,7 @@ func prepareConfig(c corecompcfg.Component) (*config.AgentConfig, error) {
 	cfg.DDAgentBin = defaultDDAgentBin
 	cfg.AgentVersion = version.AgentVersion
 	cfg.GitCommit = version.Commit
+	cfg.ReceiverSocket = defaultReceiverSocket
 
 	// the core config can be assumed to already be set-up as it has been
 	// injected as a component dependency
