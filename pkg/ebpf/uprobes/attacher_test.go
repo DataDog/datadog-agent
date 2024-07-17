@@ -246,7 +246,7 @@ func TestComputeRequestedSymbols(t *testing.T) {
 		require.ElementsMatch(tt, []SymbolRequest{{Name: "SSL_connect"}}, requested)
 	})
 
-	selectorsBestEfforAndMandatory := []manager.ProbesSelector{
+	selectorsBestEffortAndMandatory := []manager.ProbesSelector{
 		&manager.AllOf{
 			Selectors: []manager.ProbesSelector{
 				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "uprobe__SSL_connect"}},
@@ -260,7 +260,7 @@ func TestComputeRequestedSymbols(t *testing.T) {
 	}
 
 	t.Run("MandatoryAndBestEffort", func(tt *testing.T) {
-		rules := []*AttachRule{{ProbesSelector: selectorsBestEfforAndMandatory}}
+		rules := []*AttachRule{{ProbesSelector: selectorsBestEffortAndMandatory}}
 		requested, err := ua.computeSymbolsToRequest(rules)
 		require.NoError(tt, err)
 		require.ElementsMatch(tt, []SymbolRequest{{Name: "SSL_connect"}, {Name: "ThisFunctionDoesNotExistEver", BestEffort: true}}, requested)
