@@ -229,6 +229,8 @@ func WithDDDevForward() Option {
 }
 
 // WihDDDevAPIKey sets the API key to use when forwarding to DDDev, useful for testing
+//
+//nolint:unused // this function is used in the tests
 func withDDDevAPIKey(apiKey string) Option {
 	return func(fi *Server) {
 		fi.apiKey = apiKey
@@ -236,6 +238,8 @@ func withDDDevAPIKey(apiKey string) Option {
 }
 
 // withForwardEndpoint sets the endpoint to forward the payload to, useful for testing
+//
+//nolint:unused // this function is used in the tests
 func withForwardEndpoint(endpoint string) Option {
 	return func(fi *Server) {
 		fi.forwardEndpoint = endpoint
