@@ -84,7 +84,7 @@ k8s-e2e-otlp-main:
   stage: e2e
   image: 
     name: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
-    entrypoint: ["bash"]
+    entrypoint: ["/bin/bash"]
   tags: ["arch:amd64"]
   before_script:
     # Setup AWS Credentials
