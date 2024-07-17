@@ -440,17 +440,33 @@ func runStdOut(w io.Writer, diagCfg diagnosis.Config, run func(diagnosis.Config)
 	}
 
 	diagnoses, err := run(diagCfg)
-	if err != nil && !diagCfg.RunLocal {
-		fmt.Fprintln(w, color.YellowString(fmt.Sprintf("Error running diagnose in Agent process: %s", err)))
-		fmt.Fprintln(w, "Running diagnose command locally (may take extra time to run checks locally) ...")
-
-		// attempt to do so locally
+	if err != nil {
+		errMsg := fmt.Sprintf("Error running diagnose in Agent process: %s", err)
+		action := "Running diagnose command locally (may take extra time to run checks locally) ..."
+		if diagCfg.JSONOutput {
+			errJSON, _ := json.MarshalIndent(map[string]string{
+				"error":  errMsg,
+				"action": action,
+			}, "", "  ")
+			fmt.Fprintln(w, string(errJSON))
+		} else if !diagCfg.RunLocal {
+			fmt.Fprintln(w, color.YellowString(errMsg))
+			fmt.Fprintln(w, action)
+		}
+		// Attempt to run diagnose locally
 		diagCfg.RunLocal = true
 		diagnoses, err = run(diagCfg)
 	}
 
 	if err != nil {
-		fmt.Fprintln(w, color.RedString(fmt.Sprintf("Error running diagnose: %s", err)))
+		if diagCfg.JSONOutput {
+			errJSON, _ := json.MarshalIndent(map[string]string{
+				"error": "Error running diagnose locally: " + err.Error(),
+			}, "", "  ")
+			fmt.Fprintln(w, string(errJSON))
+		} else {
+			fmt.Fprintln(w, color.RedString(fmt.Sprintf("Error running diagnose: %s", err)))
+		}
 		return err
 	}
 
