@@ -3,7 +3,7 @@
   stage: source_test
   needs: ["go_deps"]
   before_script:
-    - conda activate $CONDA_ENV
+    - source /root/.bashrc && conda activate $CONDA_ENV
     - !reference [.retrieve_linux_go_deps]
     - inv -e rtloader.make --install-prefix=$CI_PROJECT_DIR/dev --python-runtimes "$PYTHON_RUNTIMES"
     - inv -e rtloader.install
