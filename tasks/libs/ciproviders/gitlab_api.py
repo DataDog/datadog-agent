@@ -128,7 +128,7 @@ class GitlabCIDiff:
 
         # Added jobs contents
         for job in self.added:
-            self.added_contents[job] = yaml.safe_dump({job: self.after[job]})
+            self.added_contents[job] = yaml.safe_dump({job: self.after[job]}, sort_keys=True)
 
         # Find modified jobs
         self.modified = set()

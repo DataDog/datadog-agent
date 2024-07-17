@@ -224,10 +224,10 @@ def gitlab_ci_diff(ctx, before: str | None = None, after: str | None = None, pr_
         before = ctx.run(f'git merge-base {before} {after or "HEAD"}', hide=True).stdout.strip()
 
         print(f'Getting after changes config ({color_message(after_name, Color.BOLD)})')
-        after_config = get_all_gitlab_ci_configurations(ctx, git_ref=after)
+        after_config = get_all_gitlab_ci_configurations(ctx, git_ref=after, clean_configs=True)
 
         print(f'Getting before changes config ({color_message(before_name, Color.BOLD)})')
-        before_config = get_all_gitlab_ci_configurations(ctx, git_ref=before)
+        before_config = get_all_gitlab_ci_configurations(ctx, git_ref=before, clean_configs=True)
 
         diff = MultiGitlabCIDiff(before_config, after_config)
 
