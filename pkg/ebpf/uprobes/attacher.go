@@ -5,11 +5,7 @@
 
 //go:build linux_bpf
 
-// Package uprobes contains methods to help handling the attachment of uprobes to userspace programs
 package uprobes
-
-// TODO:
-// - Define what we do when we have multiple matching rules but some of them do not match
 
 import (
 	"bufio"
@@ -71,10 +67,14 @@ const (
 	AttachToSharedLibraries
 )
 
-// AttachRule defines a rule that tells the attacher how to attach the probes
+// AttachRule defines how to attach a certain set of probes. Uprobes can be attached
+// to shared libraries or executables, this structure tells the attacher which ones to
+// select and to which targets to do it.
 type AttachRule struct {
+	// LibraryNameRegex defines which libraries should be matched by this rule
 	LibraryNameRegex *regexp.Regexp
-	Targets          AttachTarget
+	// Targets defines the targets to which we should attach the probes, shared libraries and/or executables
+	Targets AttachTarget
 	// ProbesSelectors defines which probes should be attached and how should we validate
 	// the attachment (e.g., whether we need all probes active or just one of them, or in a best-effort basis)
 	ProbesSelector []manager.ProbesSelector
