@@ -965,25 +965,41 @@ func testDNSStats(t *testing.T, tr *Tracer, domain string, success, failure, tim
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
 		dnsClient := new(dns.Client)
 		dnsConn, err := dnsClient.Dial(dnsServerAddr.String())
-		require.NoError(c, err)
+		if passed := assert.NoError(c, err); !passed {
+			return
+		}
 		dnsClientAddr := dnsConn.LocalAddr().(*net.UDPAddr)
 		_, _, err = dnsClient.ExchangeWithConn(queryMsg, dnsConn)
 		if timeout == 0 {
-			assert.NoError(c, err, "unexpected error making DNS request")
+			if passed := assert.NoError(c, err, "unexpected error making DNS request"); !passed {
+				return
+			}
 		} else {
-			assert.Error(c, err)
+			if passed := assert.Error(c, err); !passed {
+				return
+			}
 		}
 		_ = dnsConn.Close()
-		require.NoError(c, tr.reverseDNS.WaitForDomain(domain))
+		if passed := assert.NoError(c, tr.reverseDNS.WaitForDomain(domain)); !passed {
+			return
+		}
 
 		// Iterate through active connections until we find connection created above, and confirm send + recv counts
 		connections := getConnections(c, tr)
 		conn, ok := findConnection(dnsClientAddr, dnsServerAddr, connections)
-		require.True(c, ok)
+		if passed := assert.True(c, ok); !passed {
+			return
+		}
 
-		require.Equal(c, queryMsg.Len(), int(conn.Monotonic.SentBytes))
-		require.Equal(c, os.Getpid(), int(conn.Pid))
-		require.Equal(c, dnsServerAddr.Port, int(conn.DPort))
+		if passed := assert.Equal(c, queryMsg.Len(), int(conn.Monotonic.SentBytes)); !passed {
+			return
+		}
+		if passed := assert.Equal(c, os.Getpid(), int(conn.Pid)); !passed {
+			return
+		}
+		if passed := assert.Equal(c, dnsServerAddr.Port, int(conn.DPort)); !passed {
+			return
+		}
 
 		var total uint32
 		var successfulResponses uint32
@@ -997,13 +1013,18 @@ func testDNSStats(t *testing.T, tr *Tracer, domain string, success, failure, tim
 				}
 			}
 		}
-
 		failedResponses := total - successfulResponses
 
 		// DNS Stats
-		require.Equal(c, uint32(success), successfulResponses, "expected %d successful responses but got %d", success, successfulResponses)
-		require.Equal(c, uint32(failure), failedResponses)
-		require.Equal(c, uint32(timeout), timeouts, "expected %d timeouts but got %d", timeout, timeouts)
+		if passed := assert.Equal(c, uint32(success), successfulResponses, "expected %d successful responses but got %d", success, successfulResponses); !passed {
+			return
+		}
+		if passed := assert.Equal(c, uint32(failure), failedResponses); !passed {
+			return
+		}
+		if passed := assert.Equal(c, uint32(timeout), timeouts, "expected %d timeouts but got %d", timeout, timeouts); !passed {
+			return
+		}
 	}, 10*time.Second, 100*time.Millisecond, "Failed to get dns response or unexpected response")
 }
 
