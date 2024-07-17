@@ -28,6 +28,9 @@ type NoDependencies struct {
 // The generic return type T must conform to fx.In such
 // that it's dependencies can be fulfilled.
 func Test[T any](t testing.TB, opts ...fx.Option) T {
+	t.Setenv("TRACE_FX", "1")
+	t.Logf("[FXUTIL] Test - Start")
+	defer t.Logf("[FXUTIL] Test - Stop")
 	var deps T
 	delayed := newDelayedFxInvocation(func(d T) {
 		deps = d
@@ -97,6 +100,9 @@ type appAssertFn func(testing.TB, *fx.App)
 //
 // Use `fx.Options(..)` to bundle multiple fx.Option values into one.
 func TestStart(t testing.TB, opts fx.Option, appAssert appAssertFn, fn interface{}) {
+	t.Setenv("TRACE_FX", "1")
+	t.Logf("[FXUTIL] TestStart - Start")
+	defer t.Logf("[FXUTIL] TestStart - Stop")
 	delayed := newDelayedFxInvocation(fn)
 	app := fx.New(
 		FxLoggingOption(),
@@ -116,6 +122,9 @@ func TestStart(t testing.TB, opts fx.Option, appAssert appAssertFn, fn interface
 // fxutil.Run. Then, this test verifies that all Options given to that
 // fxutil.Run call will satisfy fx's dependences by using fx.ValidateApp.
 func TestRun(t *testing.T, f func() error) {
+	t.Setenv("TRACE_FX", "1")
+	t.Logf("[FXUTIL] TestRun - Start")
+	defer t.Logf("[FXUTIL] TestRun - Stop")
 	var fxFakeAppRan bool
 	fxAppTestOverride = func(i interface{}, opts []fx.Option) error {
 		fxFakeAppRan = true
@@ -151,6 +160,9 @@ func TestOneShotSubcommand(
 	expectedOneShotFunc interface{},
 	verifyFn interface{},
 ) {
+	t.Setenv("TRACE_FX", "1")
+	t.Logf("[FXUTIL] TestOneShotSubcommand - Start")
+	defer t.Logf("[FXUTIL] TestOneShotSubcommand - Stop")
 	var oneShotRan bool
 	fxAppTestOverride = func(oneShotFunc interface{}, opts []fx.Option) error {
 		oneShotRan = true
@@ -197,6 +209,9 @@ func TestOneShotSubcommand(
 // The function passed as the first argument of fx.OneShot is not called. It
 // is validated with fx.ValidateApp, however.
 func TestOneShot(t *testing.T, fct func()) {
+	t.Setenv("TRACE_FX", "1")
+	t.Logf("[FXUTIL] TestOneShot - Start")
+	defer t.Logf("[FXUTIL] TestOneShot - Stop")
 	var oneShotRan bool
 	fxAppTestOverride = func(oneShotFunc interface{}, opts []fx.Option) error {
 		oneShotRan = true
@@ -220,6 +235,9 @@ func TestOneShot(t *testing.T, fct func()) {
 // This function checks that all components built with fx.Provide inside a bundle can be instanciated.
 // To do so, it creates an `fx.Invoke(_ component1, _ component2, ...)` and call fx.ValidateApp
 func TestBundle(t *testing.T, bundle BundleOptions, extraOptions ...fx.Option) {
+	t.Setenv("TRACE_FX", "1")
+	t.Logf("[FXUTIL] TestBundle - Start")
+	defer t.Logf("[FXUTIL] TestBundle - Stop")
 	var componentTypes []reflect.Type
 
 	for _, option := range bundle.Options {
