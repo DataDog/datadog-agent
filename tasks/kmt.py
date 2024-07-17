@@ -1833,11 +1833,11 @@ def tag_ci_job(ctx: Context):
         job_type = "test"
     tags["job_type"] = job_type
 
+    agent_testing_dir = Path(os.environ["DD_AGENT_TESTING_DIR"])
+    ci_project_dir = Path(os.environ["CI_PROJECT_DIR"])
+
     if job_type == "test":
         # Retrieve all data for the tests to detect a failure reason
-        agent_testing_dir = Path(os.environ["DD_AGENT_TESTING_DIR"])
-        ci_project_dir = Path(os.environ["CI_PROJECT_DIR"])
-
         test_jobs_executed, tests_failed = False, False
         for candidate in agent_testing_dir.glob("junit-*.tar.gz"):
             tar = tarfile.open(candidate)
@@ -1873,6 +1873,19 @@ def tag_ci_job(ctx: Context):
             tags["setup_stage"] = "btfs"
         elif "upload_secagent_tests" in job_name or "upload_sysprobe_tests" in job_name:
             tags["setup_stage"] = "tests"
+
+        instance_not_found_marker = ci_project_dir / "instance_not_found"
+        e2e_fail_marker = ci_project_dir / "e2e-error-reason"
+        if instance_not_found_marker.is_file():
+            tags["failure_reason"] = "infra_instance-not-found"
+        elif e2e_fail_marker.is_file():
+            e2e_fail = e2e_fail_marker.read_text().strip()
+            if e2e_fail != "":
+                tags["failure_reason"] = f"infra_e2e_{e2e_fail}"
+
+        e2e_retry_count = ci_project_dir / "e2e-retry-count"
+        if e2e_retry_count.is_file():
+            tags["e2e_retry_count"] = e2e_retry_count.read_text().strip()
 
     tag_prefix = "kmt."
     tags_str = " ".join(f"--tags '{tag_prefix}{k}:{v}'" for k, v in tags.items())

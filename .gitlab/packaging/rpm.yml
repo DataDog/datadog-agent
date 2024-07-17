@@ -7,7 +7,6 @@
   before_script:
   script:
     - echo "About to build for $RELEASE_VERSION"
-    - !reference [.setup_ruby_mirror_linux]
     - !reference [.cache_omnibus_ruby_deps, setup]
     - RPM_GPG_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $RPM_GPG_KEY_SSM_NAME)
     - printf -- "$RPM_GPG_KEY" | gpg --import --batch
@@ -137,7 +136,6 @@ installer_suse_rpm-arm64:
     - when: on_success
   script:
     - echo "About to build for $RELEASE_VERSION"
-    - !reference [.setup_ruby_mirror_linux]
     - !reference [.cache_omnibus_ruby_deps, setup]
     - RPM_GPG_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $RPM_GPG_KEY_SSM_NAME)
     - printf -- "$RPM_GPG_KEY" | gpg --import --batch

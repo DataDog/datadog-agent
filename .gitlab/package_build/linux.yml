@@ -5,8 +5,6 @@
   stage: package_build
   script:
     - echo "About to build for $RELEASE_VERSION"
-    - !reference [.setup_ruby_mirror_linux]
-    - !reference [.setup_python_mirror_linux]
     - !reference [.retrieve_linux_go_deps]
     - !reference [.cache_omnibus_ruby_deps, setup]
     # remove artifacts from previous pipelines that may come from the cache
@@ -112,7 +110,6 @@ datadog-ot-agent-7-arm64:
   needs: ["go_mod_tidy_check", "go_deps"]
   script:
     - echo "About to build for $RELEASE_VERSION"
-    - !reference [.setup_ruby_mirror_linux]
     - !reference [.retrieve_linux_go_deps]
     - !reference [.cache_omnibus_ruby_deps, setup]
     # remove artifacts from previous pipelines that may come from the cache
@@ -151,8 +148,6 @@ iot-agent-armhf:
   stage: package_build
   script:
     - echo "About to build for $RELEASE_VERSION"
-    - !reference [.setup_ruby_mirror_linux]
-    - !reference [.setup_python_mirror_linux]
     - !reference [.retrieve_linux_go_deps]
     - !reference [.cache_omnibus_ruby_deps, setup]
     # remove artifacts from previous pipelines that may come from the cache

@@ -28,6 +28,9 @@ func TestExpvarServer(t *testing.T) {
 
 	_ = fxutil.Test[expvars.Component](t, fx.Options(
 		fx.Supply(core.BundleParams{}),
+		fx.Replace(config.MockParams{Overrides: map[string]interface{}{
+			"process_config.expvar_port": 43423,
+		}}),
 
 		Module(),
 		hostinfoimpl.MockModule(),
@@ -35,7 +38,7 @@ func TestExpvarServer(t *testing.T) {
 	))
 
 	assert.Eventually(t, func() bool {
-		res, err := http.Get("http://localhost:6062/debug/vars")
+		res, err := http.Get("http://localhost:43423/debug/vars")
 		if err != nil {
 			return false
 		}
@@ -53,7 +56,8 @@ func TestTelemetry(t *testing.T) {
 	_ = fxutil.Test[expvars.Component](t, fx.Options(
 		fx.Supply(core.BundleParams{}),
 		fx.Replace(config.MockParams{Overrides: map[string]interface{}{
-			"telemetry.enabled": true,
+			"telemetry.enabled":          true,
+			"process_config.expvar_port": 43423,
 		}}),
 
 		Module(),
@@ -62,7 +66,7 @@ func TestTelemetry(t *testing.T) {
 	))
 
 	assert.Eventually(t, func() bool {
-		res, err := http.Get("http://localhost:6062/telemetry")
+		res, err := http.Get("http://localhost:43423/telemetry")
 		if err != nil {
 			return false
 		}

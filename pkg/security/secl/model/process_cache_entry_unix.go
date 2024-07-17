@@ -31,7 +31,7 @@ func (pc *ProcessCacheEntry) SetAncestor(parent *ProcessCacheEntry) {
 func hasValidLineage(pc *ProcessCacheEntry) (bool, error) {
 	var (
 		pid, ppid uint32
-		ctrID     string
+		ctrID     ContainerID
 		err       error
 	)
 
@@ -43,19 +43,19 @@ func hasValidLineage(pc *ProcessCacheEntry) (bool, error) {
 		pid, ppid, ctrID = pc.Pid, pc.PPid, pc.ContainerID
 
 		if pc.IsParentMissing {
-			err = &ErrProcessMissingParentNode{PID: pid, PPID: ppid, ContainerID: ctrID}
+			err = &ErrProcessMissingParentNode{PID: pid, PPID: ppid, ContainerID: string(ctrID)}
 		}
 
 		if pc.Pid == 1 {
 			if pc.Ancestor == nil {
 				return err == nil, err
 			}
-			return false, &ErrProcessWrongParentNode{PID: pid, PPID: pc.Ancestor.Pid, ContainerID: ctrID}
+			return false, &ErrProcessWrongParentNode{PID: pid, PPID: pc.Ancestor.Pid, ContainerID: string(ctrID)}
 		}
 		pc = pc.Ancestor
 	}
 
-	return false, &ErrProcessIncompleteLineage{PID: pid, PPID: ppid, ContainerID: ctrID}
+	return false, &ErrProcessIncompleteLineage{PID: pid, PPID: ppid, ContainerID: string(ctrID)}
 }
 
 // HasValidLineage returns false if, from the entry, we cannot ascend the ancestors list to PID 1 or if a new is having a missing parent
@@ -78,6 +78,7 @@ func copyProcessContext(parent, child *ProcessCacheEntry) {
 	// WARNING: this is why the user space cache should not be used to detect container breakouts. Dedicated
 	// in-kernel probes will need to be added.
 	if len(parent.ContainerID) > 0 && len(child.ContainerID) == 0 {
+		child.CGroup = parent.CGroup
 		child.ContainerID = parent.ContainerID
 	}
 }
@@ -132,6 +133,7 @@ func (pc *ProcessCacheEntry) Fork(childEntry *ProcessCacheEntry) {
 	childEntry.Comm = pc.Comm
 	childEntry.FileEvent = pc.FileEvent
 	childEntry.ContainerID = pc.ContainerID
+	childEntry.CGroup = pc.CGroup
 	childEntry.ExecTime = pc.ExecTime
 	childEntry.Credentials = pc.Credentials
 	childEntry.LinuxBinprm = pc.LinuxBinprm
