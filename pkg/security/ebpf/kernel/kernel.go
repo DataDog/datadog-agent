@@ -142,7 +142,7 @@ func NewKernelVersion() (*Version, error) {
 const lsbRelease = "/etc/lsb-release"
 
 func newKernelVersion() (*Version, error) {
-	osReleasePaths := make([]string, 0, 2*3)
+	osReleasePaths := make([]string, 0, 2*3+1)
 
 	// First look at os-release files based on the `HOST_ROOT` env variable
 	if hostRoot := os.Getenv("HOST_ROOT"); hostRoot != "" {
