@@ -1245,8 +1245,8 @@ github.com/fortytw2/leaktest v1.3.0/go.mod h1:jDsjWgpAGjm2CA7WthBh/CdZYEPF31XHqu
 github.com/foxcpp/go-mockdns v1.1.0 h1:jI0rD8M0wuYAxL7r/ynTrCQQq0BVqfB99Vgk7DlmewI=
 github.com/foxcpp/go-mockdns v1.1.0/go.mod h1:IhLeSFGed3mJIAXPH2aiRQB+kqz7oqu8ld2qVbOu7Wk=
 github.com/frankban/quicktest v1.11.3/go.mod h1:wRf/ReqHper53s+kmmSZizM8NamnL3IM0I9ntUbOk+k=
-github.com/freddierice/go-losetup v0.0.0-20170407175016-fc9adea44124 h1:TVfi5xMshZAXzVXozESk8bi0JSTPwHkx7qtLOkkcu/c=
-github.com/freddierice/go-losetup v0.0.0-20170407175016-fc9adea44124/go.mod h1:zAk7fcFx45euzK9Az14j6Hd9n8Cwhnjp/NBfhSIAmFg=
+github.com/freddierice/go-losetup v0.0.0-20220711213114-2a14873012db h1:StM6A9LvaVrFS2chAGcfRVDoBB6rHYPIGJ3GknpB25c=
+github.com/freddierice/go-losetup v0.0.0-20220711213114-2a14873012db/go.mod h1:pwuQfHWn6j2Fpl2AWw/bPLlKfojHxIIEa5TeKIgDFW4=
 github.com/fsnotify/fsnotify v1.4.7/go.mod h1:jwhsz4b93w/PPRr/qN1Yymfu8t87LnFCMoQvtojpjFo=
 github.com/fsnotify/fsnotify v1.4.9/go.mod h1:znqG4EE+3YCdAaPaxE2ZRY/06pZUdp0tY4IgpuI1SZQ=
 github.com/fsnotify/fsnotify v1.5.4/go.mod h1:OVB6XrOHzAwXMpEM7uPOzcehqUV2UqJxmVXmkdnm1bU=

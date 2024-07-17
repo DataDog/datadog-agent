@@ -182,6 +182,8 @@ core,github.com/DataDog/nikos/rpm/dnfv2/types,MIT,"Copyright (c) 2020-present Da
 core,github.com/DataDog/nikos/types,MIT,"Copyright (c) 2020-present Datadog, Inc"
 core,github.com/DataDog/nikos/wsl,MIT,"Copyright (c) 2020-present Datadog, Inc"
 core,github.com/DataDog/nikos/xmlite,MIT,"Copyright (c) 2020-present Datadog, Inc"
+core,github.com/DataDog/opentelemetry-mapping-go/pkg/inframetadata/gohai,Apache-2.0,"Copyright (c) 2023 Datadog, Inc."
+core,github.com/DataDog/opentelemetry-mapping-go/pkg/inframetadata/payload,Apache-2.0,"Copyright (c) 2023 Datadog, Inc."
 core,github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes,Apache-2.0,"Copyright (c) 2023 Datadog, Inc."
 core,github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes/azure,Apache-2.0,"Copyright (c) 2023 Datadog, Inc."
 core,github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes/ec2,Apache-2.0,"Copyright (c) 2023 Datadog, Inc."

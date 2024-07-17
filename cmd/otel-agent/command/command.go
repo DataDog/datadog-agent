@@ -26,8 +26,8 @@ const (
 	loggerName = "OTELCOL"
 )
 
-// MakeRootCommand is the root command for the trace-agent
-// Please note that the trace-agent can be launched directly
+// MakeRootCommand is the root command for the otel-agent
+// Please note that the otel-agent can be launched directly
 // by the root command, unlike other agents that are managed
 // with subcommands.
 func MakeRootCommand() *cobra.Command {
