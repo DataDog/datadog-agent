@@ -87,20 +87,44 @@ type processMonitorSuite struct {
 func (s *processMonitorSuite) TestProcessMonitorSanity() {
 	t := s.T()
 	pm := getProcessMonitor(t)
-	numberOfExecs := atomic.Int32{}
+	execsMutex := sync.RWMutex{}
+	execs := make(map[uint32]struct{})
 	testBinaryPath := getTestBinaryPath(t)
-	callback := func(pid uint32) { numberOfExecs.Inc() }
+	callback := func(pid uint32) {
+		execsMutex.Lock()
+		defer execsMutex.Unlock()
+		execs[pid] = struct{}{}
+	}
 	registerCallback(t, pm, true, (*ProcessCallback)(&callback))
 
-	numberOfExits := atomic.Int32{}
-	exitCallback := func(pid uint32) { numberOfExits.Inc() }
+	exitMutex := sync.RWMutex{}
+	exits := make(map[uint32]struct{})
+	exitCallback := func(pid uint32) {
+		exitMutex.Lock()
+		defer exitMutex.Unlock()
+		exits[pid] = struct{}{}
+	}
 	registerCallback(t, pm, false, (*ProcessCallback)(&exitCallback))
 
 	initializePM(t, pm, s.useEventStream)
-	require.NoError(t, exec.Command(testBinaryPath, "test").Run())
-	require.Eventuallyf(t, func() bool {
-		return numberOfExecs.Load() > 1 && numberOfExits.Load() > 0
-	}, time.Second, time.Millisecond*200, "didn't capture exec/exit events %d", numberOfExecs.Load())
+	cmd := exec.Command(testBinaryPath, "test")
+	require.NoError(t, cmd.Run())
+	require.Eventually(t, func() bool {
+		execsMutex.RLock()
+		_, execCaptured := execs[uint32(cmd.Process.Pid)]
+		execsMutex.RUnlock()
+		if !execCaptured {
+			t.Logf("didn't capture exec event %d", cmd.Process.Pid)
+		}
+
+		exitMutex.RLock()
+		_, exitCaptured := exits[uint32(cmd.Process.Pid)]
+		exitMutex.RUnlock()
+		if !exitCaptured {
+			t.Logf("didn't capture exit event %d", cmd.Process.Pid)
+		}
+		return execCaptured && exitCaptured
+	}, time.Second, time.Millisecond*200)
 
 	require.GreaterOrEqual(t, pm.tel.events.Get(), pm.tel.exec.Get(), "events is not >= than exec")
 	require.GreaterOrEqual(t, pm.tel.events.Get(), pm.tel.exit.Get(), "events is not >= than exit")
