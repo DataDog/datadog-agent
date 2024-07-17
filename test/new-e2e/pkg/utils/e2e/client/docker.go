@@ -122,13 +122,6 @@ func (docker *Docker) ExecuteCommandStdoutStdErr(containerName string, commands 
 	return stdout, stderr, err
 }
 
-// GetClient gets the [docker client].
-//
-// [docker client]: https://pkg.go.dev/github.com/docker/docker/client
-func (docker *Docker) GetClient() *client.Client {
-	return docker.client
-}
-
 // ListContainers returns a list of container names.
 func (docker *Docker) ListContainers() ([]string, error) {
 	containersMap, err := docker.getContainerIDsByName()
