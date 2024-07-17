@@ -51,11 +51,11 @@ type diagSuiteFilter struct {
 func (c *counters) summary(w io.Writer, toJSON bool) {
 	if toJSON {
 		counts := map[string]int{
-			"Total":   c.total,
-			"Success": c.success,
-			"Fail":    c.fail,
-			"Warning": c.warnings,
-			"Error":   c.unexpectedErr,
+			"total":   c.total,
+			"success": c.success,
+			"fail":    c.fail,
+			"warning": c.warnings,
+			"error":   c.unexpectedErr,
 		}
 		jsonResponse, err := json.MarshalIndent(counts, "", "  ")
 		if err != nil {

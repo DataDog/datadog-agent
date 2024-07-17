@@ -128,19 +128,19 @@ func (c *Catalog) GetSuites() []Suite {
 //
 //nolint:revive
 type DiagnosisJSON struct {
-	Result      string `json:"Result"`
-	Name        string `json:"Name"`
-	Diagnosis   string `json:"Diagnosis"`
-	Category    string `json:"Category,omitempty"`
-	Description string `json:"Description,omitempty"`
-	Remediation string `json:"Remediation,omitempty"`
-	RawError    string `json:"RawError,omitempty"`
+	Result      string `json:"result"`
+	Name        string `json:"name"`
+	Diagnosis   string `json:"diagnosis"`
+	Category    string `json:"category,omitempty"`
+	Description string `json:"description,omitempty"`
+	Remediation string `json:"remediation,omitempty"`
+	RawError    string `json:"rawError,omitempty"`
 }
 
 // DiagnosesJSON is the JSON representation of a Diagnoses
 type DiagnosesJSON struct {
-	SuiteName      string          `json:"SuiteName"`
-	SuiteDiagnoses []DiagnosisJSON `json:"SuiteDiagnoses"`
+	SuiteName      string          `json:"suiteName"`
+	SuiteDiagnoses []DiagnosisJSON `json:"suiteDiagnoses"`
 }
 
 // ToJSON converts a Diagnosis to JSON
