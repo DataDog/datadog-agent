@@ -147,7 +147,7 @@ func Test_parseIPv4Layer(t *testing.T) {
 	gopacket.SerializeLayers(buf, gopacket.SerializeOptions{},
 		ipv4Layer,
 	)
-	ipv4Packet := gopacket.NewPacket(buf.Bytes(), layers.LayerTypeIPv4, gopacket.Default)
+	ipv4Packet := gopacket.NewPacket(buf.Bytes(), layers.LayerTypeIPv4, PktDecodeOptionsLazyNoCopy)
 
 	tt := []struct {
 		description string
@@ -158,7 +158,7 @@ func Test_parseIPv4Layer(t *testing.T) {
 	}{
 		{
 			description: "empty IPv4 layer should return an error",
-			input:       gopacket.NewPacket([]byte{}, layers.LayerTypeTCP, gopacket.Default),
+			input:       gopacket.NewPacket([]byte{}, layers.LayerTypeTCP, PktDecodeOptionsLazyNoCopy),
 			srcIP:       net.IP{},
 			dstIP:       net.IP{},
 			errMsg:      "packet does not contain an IPv4 layer",
@@ -200,7 +200,7 @@ func Test_parseICMPPacket(t *testing.T) {
 	gopacket.SerializeLayers(buf, gopacket.SerializeOptions{},
 		ipv4Layer,
 	)
-	missingICMPLayer := gopacket.NewPacket(buf.Bytes(), layers.LayerTypeIPv4, gopacket.Default)
+	missingICMPLayer := gopacket.NewPacket(buf.Bytes(), layers.LayerTypeIPv4, PktDecodeOptionsLazyNoCopy)
 
 	tt := []struct {
 		description string
@@ -210,7 +210,7 @@ func Test_parseICMPPacket(t *testing.T) {
 	}{
 		{
 			description: "empty IPv4 layer should return an error",
-			input:       gopacket.NewPacket([]byte{}, layers.LayerTypeTCP, gopacket.Default),
+			input:       gopacket.NewPacket([]byte{}, layers.LayerTypeTCP, PktDecodeOptionsLazyNoCopy),
 			expected:    nil,
 			errMsg:      "packet does not contain an IPv4 layer",
 		},
@@ -289,7 +289,7 @@ func Test_parseTCPPacket(t *testing.T) {
 	gopacket.SerializeLayers(buf, gopacket.SerializeOptions{},
 		ipv4Layer,
 	)
-	missingTCPLayer := gopacket.NewPacket(buf.Bytes(), layers.LayerTypeIPv4, gopacket.Default)
+	missingTCPLayer := gopacket.NewPacket(buf.Bytes(), layers.LayerTypeIPv4, PktDecodeOptionsLazyNoCopy)
 
 	// full packet
 	encodedTCPLayer, fullTCPPacket := createMockTCPPacket(ipv4Layer, tcpLayer)
@@ -302,7 +302,7 @@ func Test_parseTCPPacket(t *testing.T) {
 	}{
 		{
 			description: "empty IPv4 layer should return an error",
-			input:       gopacket.NewPacket([]byte{}, layers.LayerTypeTCP, gopacket.Default),
+			input:       gopacket.NewPacket([]byte{}, layers.LayerTypeTCP, PktDecodeOptionsLazyNoCopy),
 			expected:    nil,
 			errMsg:      "packet does not contain an IPv4 layer",
 		},
@@ -412,7 +412,7 @@ func createMockICMPPacket(ipLayer *layers.IPv4, icmpLayer *layers.ICMPv4, innerI
 		gopacket.Payload(payload),
 	)
 
-	pkt := gopacket.NewPacket(buf.Bytes(), layers.LayerTypeIPv4, gopacket.Default)
+	pkt := gopacket.NewPacket(buf.Bytes(), layers.LayerTypeIPv4, PktDecodeOptionsLazyNoCopy)
 
 	return pkt
 }
@@ -426,7 +426,7 @@ func createMockTCPPacket(ipLayer *layers.IPv4, tcpLayer *layers.TCP) (*layers.TC
 		tcpLayer,
 	)
 
-	pkt := gopacket.NewPacket(buf.Bytes(), layers.LayerTypeIPv4, gopacket.Default)
+	pkt := gopacket.NewPacket(buf.Bytes(), layers.LayerTypeIPv4, PktDecodeOptionsLazyNoCopy)
 
 	// return encoded TCP layer here
 	return pkt.Layer(layers.LayerTypeTCP).(*layers.TCP), pkt
