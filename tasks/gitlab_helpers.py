@@ -174,6 +174,8 @@ def gen_config_subset(ctx, jobs, dry_run=False, force=False):
             dependencies = config[job]['dependencies']
 
         for dep in dependencies:
+            if isinstance(dep, dict):
+                dep = dep['job']
             add_dependencies(dep)
 
     # Make a DFS to find all the jobs that are needed to run the target jobs
