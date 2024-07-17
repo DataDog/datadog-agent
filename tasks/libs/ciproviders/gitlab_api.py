@@ -21,6 +21,13 @@ from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.utils import retry_function
 
 BASE_URL = "https://gitlab.ddbuild.io"
+CONFIG_SPECIAL_OBJECTS = {
+    "default",
+    "include",
+    "stages",
+    "variables",
+    "workflow",
+}
 
 
 def get_gitlab_token():
@@ -155,6 +162,10 @@ class GitlabCIDiff:
     def footnote(self, job_url: str) -> str:
         return f':information_source: *Diff available in the [job log]({job_url}).*'
 
+    def sort_jobs(self, jobs):
+        # Sort jobs by name, special objects first
+        return sorted(jobs, key=lambda job: f'1{job[0]}' if job[0] in CONFIG_SPECIAL_OBJECTS else f'2{job[0]}')
+
     def display(
         self, cli: bool = True, max_detailed_jobs=6, job_url=None, only_summary=False, no_footnote=False
     ) -> str:
@@ -179,10 +190,13 @@ class GitlabCIDiff:
                 return []
 
         def str_job(title, color):
+            # Gitlab configuration special objects (variables...)
+            is_special = title in CONFIG_SPECIAL_OBJECTS
+
             if cli:
-                return f'* {color_message(title, getattr(Color, color))}'
+                return f'* {color_message(title, getattr(Color, color))}{" (configuration)" if is_special else ""}'
             else:
-                return f'- **{title}**'
+                return f'- **{title}**{" (configuration)" if is_special else ""}'
 
         def str_rename(job_before, job_after):
             if cli:
@@ -262,7 +276,7 @@ class GitlabCIDiff:
             if self.modified:
                 wrap = len(self.modified) > max_detailed_jobs
                 res.extend(str_section('Modified Jobs', wrap=wrap))
-                for job, diff in sorted(self.modified_diffs.items()):
+                for job, diff in self.sort_jobs(self.modified_diffs.items()):
                     res.extend(str_modified_job(job, diff))
                 res.extend(str_end_section(wrap=wrap))
 
@@ -271,7 +285,7 @@ class GitlabCIDiff:
                     res.append('')
                 wrap = len(self.added) > max_detailed_jobs
                 res.extend(str_section('Added Jobs', wrap=wrap))
-                for job, content in sorted(self.added_contents.items()):
+                for job, content in self.sort_jobs(self.added_contents.items()):
                     res.extend(str_add_job(job, content))
                 res.extend(str_end_section(wrap=wrap))
 
@@ -279,14 +293,14 @@ class GitlabCIDiff:
                 if res:
                     res.append('')
                 res.extend(str_section('Removed Jobs'))
-                for job in sorted(self.removed):
+                for job in self.sort_jobs(self.removed):
                     res.append(str_job(job, 'RED'))
 
             if self.renamed:
                 if res:
                     res.append('')
                 res.extend(str_section('Renamed Jobs'))
-                for job_before, job_after in sorted(self.renamed):
+                for job_before, job_after in self.sort_jobs(self.renamed):
                     res.append(str_rename(job_before, job_after))
 
         if self.added or self.renamed or self.modified or self.removed:
