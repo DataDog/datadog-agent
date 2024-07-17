@@ -87,16 +87,9 @@ func (docker *Docker) ExecuteCommandWithErr(containerName string, commands ...st
 // ExecuteCommandStdoutStdErr executes a command on containerName and returns the output, the error output and an error.
 func (docker *Docker) ExecuteCommandStdoutStdErr(containerName string, commands ...string) (stdout string, stderr string, err error) {
 	context := context.Background()
-	containersMap, err := docker.getContainerIDsByName()
-	if err != nil {
-		return "", "", err
-	}
-	containerID, ok := containersMap[containerName]
-	if !ok {
-		return "", "", fmt.Errorf("container %v not found", containerName)
-	}
+
 	execConfig := types.ExecConfig{Cmd: commands, AttachStderr: true, AttachStdout: true}
-	execCreateResp, err := docker.client.ContainerExecCreate(context, containerID, execConfig)
+	execCreateResp, err := docker.client.ContainerExecCreate(context, containerName, execConfig)
 	require.NoError(docker.t, err)
 
 	execAttachResp, err := docker.client.ContainerExecAttach(context, execCreateResp.ID, types.ExecStartCheck{})
@@ -116,7 +109,7 @@ func (docker *Docker) ExecuteCommandStdoutStdErr(containerName string, commands 
 	stderr = errBuf.String()
 
 	if execInspectResp.ExitCode != 0 {
-		return "", "", fmt.Errorf("error when running command %v on container %v, containerID %v:\n   exit code: %d\n   stdout: %v\n   stderr: %v", commands, containerName, containerID, execInspectResp.ExitCode, stdout, stderr)
+		return "", "", fmt.Errorf("error when running command %v on container %v, containerID %v:\n   exit code: %d\n   stdout: %v\n   stderr: %v", commands, containerName, "vvvvvv", execInspectResp.ExitCode, stdout, stderr)
 	}
 
 	return stdout, stderr, err
