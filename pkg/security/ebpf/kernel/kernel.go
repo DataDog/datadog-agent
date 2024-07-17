@@ -139,6 +139,8 @@ func NewKernelVersion() (*Version, error) {
 	return kernelVersionCache.Version, err
 }
 
+const lsbRelease = "/etc/lsb-release"
+
 func newKernelVersion() (*Version, error) {
 	osReleasePaths := make([]string, 0, 2*3)
 
@@ -170,6 +172,9 @@ func newKernelVersion() (*Version, error) {
 		osrelease.UsrLibOsRelease,
 		osrelease.EtcOsRelease,
 	)
+
+	// as a final fallback, we try to read /etc/lsb-release, useful for very old systems
+	osReleasePaths = append(osReleasePaths, lsbRelease)
 
 	kv, err := kernel.HostVersion()
 	if err != nil {
