@@ -63,13 +63,15 @@ type Option func(*Server)
 
 // Server is a struct implementing a fakeintake server
 type Server struct {
-	uuid         uuid.UUID
-	server       http.Server
-	ready        chan bool
-	clock        clock.Clock
-	retention    time.Duration
-	shutdown     chan struct{}
-	dddevForward bool
+	uuid            uuid.UUID
+	server          http.Server
+	ready           chan bool
+	clock           clock.Clock
+	retention       time.Duration
+	shutdown        chan struct{}
+	dddevForward    bool
+	forwardEndpoint string
+	apiKey          string
 
 	urlMutex sync.RWMutex
 	url      string
@@ -95,7 +97,8 @@ func NewServer(options ...Option) *Server {
 		server: http.Server{
 			Addr: "0.0.0.0:0",
 		},
-		storeDriver: "memory",
+		storeDriver:     "memory",
+		forwardEndpoint: "https://app.datadoghq.com",
 	}
 
 	for _, opt := range options {
@@ -213,11 +216,29 @@ func WithRetention(retention time.Duration) Option {
 // WithDDDevForward enable forwarding payload to dddev
 func WithDDDevForward() Option {
 	return func(fi *Server) {
-		if _, ok := os.LookupEnv("DD_API_KEY"); !ok {
+		apiKey, ok := os.LookupEnv("DD_API_KEY")
+		if fi.apiKey == "" && !ok {
 			log.Println("DD_API_KEY is not set, cannot forward to DDDev")
 			return
 		}
+		if fi.apiKey == "" {
+			fi.apiKey = apiKey
+		}
 		fi.dddevForward = true
+	}
+}
+
+// WihDDDevAPIKey sets the API key to use when forwarding to DDDev, useful for testing
+func withDDDevAPIKey(apiKey string) Option {
+	return func(fi *Server) {
+		fi.apiKey = apiKey
+	}
+}
+
+// withForwardEndpoint sets the endpoint to forward the payload to, useful for testing
+func withForwardEndpoint(endpoint string) Option {
+	return func(fi *Server) {
+		fi.forwardEndpoint = endpoint
 	}
 }
 
@@ -343,7 +364,7 @@ func (fi *Server) handleDatadogRequest(w http.ResponseWriter, req *http.Request)
 }
 
 func (fi *Server) forwardRequestToDDDev(req *http.Request, payload []byte) error {
-	url := "https://app.datadoghq.com" + req.URL.Path
+	url := fi.forwardEndpoint + req.URL.Path
 
 	proxyReq, err := http.NewRequest(req.Method, url, bytes.NewReader(payload))
 	if err != nil {
@@ -358,7 +379,7 @@ func (fi *Server) forwardRequestToDDDev(req *http.Request, payload []byte) error
 		proxyReq.Header[h] = val
 	}
 
-	proxyReq.Header["DD-API-KEY"] = []string{os.Getenv("DD_API_KEY")}
+	proxyReq.Header["DD-API-KEY"] = []string{fi.apiKey}
 
 	client := &http.Client{}
 	res, err := client.Do(proxyReq)
