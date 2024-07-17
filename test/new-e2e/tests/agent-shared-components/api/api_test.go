@@ -6,10 +6,13 @@
 package api
 
 import (
+	"bytes"
 	_ "embed"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net"
+	"net/http"
 	"net/url"
 	"path/filepath"
 	"strconv"
@@ -55,24 +58,19 @@ func (endpointInfo *agentEndpointInfo) url() *url.URL {
 	}
 }
 
-func (endpointInfo *agentEndpointInfo) fetchCommand(authtoken string) string {
+func (endpointInfo *agentEndpointInfo) httpRequest(authtoken string) (*http.Request, error) {
 	data := endpointInfo.data
 	if len(endpointInfo.data) == 0 {
 		data = "{}"
 	}
 
-	// -s: silent so we don't show auth token in output
-	// -k: allow insecure server connections since we self-sign the TLS cert
-	// -H: add a header with the auth token
-	// -X: http request method
-	// -d: request data (json)
-	return fmt.Sprintf(
-		`curl -s -k -H "authorization: Bearer %s" -X %s "%s" -d "%s"`,
-		authtoken,
-		endpointInfo.method,
-		endpointInfo.url().String(),
-		data,
-	)
+	req, err := http.NewRequest(endpointInfo.method, endpointInfo.url().String(), bytes.NewBufferString(data))
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", authtoken))
+	return req, nil
 }
 
 func (v *apiSuite) TestDefaultAgentAPIEndpoints() {
@@ -406,15 +404,22 @@ func (v *apiSuite) TestDefaultAgentAPIEndpoints() {
 	authtokenContent := v.Env().RemoteHost.MustExecute("sudo cat " + authTokenFilePath)
 	authtoken := strings.TrimSpace(authtokenContent)
 
+	host := v.Env().RemoteHost
 	for _, testcase := range testcases {
-		cmd := testcase.fetchCommand(authtoken)
-		host := v.Env().RemoteHost
 		v.T().Run(fmt.Sprintf("API - %s test", testcase.name), func(t *testing.T) {
+			req, err := testcase.httpRequest(authtoken)
+			assert.NoError(t, err, "failed to create request")
+
+			hostHTTPClient := host.NewHTTPClient()
 			require.EventuallyWithT(t, func(ct *assert.CollectT) {
-				resp, err := host.Execute(cmd)
-				if assert.NoError(ct, err) {
-					testcase.assert(ct, testcase.agentEndpointInfo, resp)
-				}
+				resp, err := hostHTTPClient.Do(req)
+				assert.NoError(ct, err, "failed to send request")
+
+				body, err := io.ReadAll(resp.Body)
+				resp.Body.Close()
+				assert.NoError(ct, err, "failed to read body from request")
+
+				testcase.assert(ct, testcase.agentEndpointInfo, string(body))
 			}, 2*time.Minute, 10*time.Second)
 		})
 	}
@@ -459,13 +464,20 @@ hostname: ENC[hostname]`
 	authtokenContent := v.Env().RemoteHost.MustExecute("sudo cat " + authTokenFilePath)
 	authtoken := strings.TrimSpace(authtokenContent)
 
-	cmd := e.fetchCommand(authtoken)
+	req, err := e.httpRequest(authtoken)
+	assert.NoError(v.T(), err, "failed to create request")
+	host := v.Env().RemoteHost
+	hostHTTPClient := host.NewHTTPClient()
 
 	require.EventuallyWithT(v.T(), func(ct *assert.CollectT) {
-		resp, err := v.Env().RemoteHost.Execute(cmd)
-		if assert.NoError(ct, err) {
-			assert.Contains(ct, resp, want, "%s %s returned: %s, wanted: %s", e.method, e.endpoint, resp, want)
-		}
+		resp, err := hostHTTPClient.Do(req)
+		assert.NoError(ct, err, "failed to send request")
+
+		body, err := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		assert.NoError(ct, err, "failed to read body from request")
+
+		assert.Contains(ct, string(body), want, "%s %s returned: %s, wanted: %s", e.method, e.endpoint, body, want)
 	}, 2*time.Minute, 10*time.Second)
 }
 
@@ -499,8 +511,10 @@ log_level: debug
 	authtokenContent := v.Env().RemoteHost.MustExecute("sudo cat " + authTokenFilePath)
 	authtoken := strings.TrimSpace(authtokenContent)
 
-	cmd := e.fetchCommand(authtoken)
+	req, err := e.httpRequest(authtoken)
+	assert.NoError(v.T(), err, "failed to create request")
 	host := v.Env().RemoteHost
+	hostHTTPClient := host.NewHTTPClient()
 
 	require.EventuallyWithT(v.T(), func(ct *assert.CollectT) {
 		type Workload struct {
@@ -508,11 +522,16 @@ log_level: debug
 		}
 
 		var have Workload
-		resp, err := host.Execute(cmd)
-		if assert.NoError(ct, err) {
-			err := json.Unmarshal([]byte(resp), &have)
-			assert.NoError(ct, err)
-			assert.NotEmpty(ct, have.Entities, "%s %s returned: %s, expected workload entities to be present", e.method, e.endpoint, resp)
-		}
+		resp, err := hostHTTPClient.Do(req)
+		assert.NoError(ct, err, "failed to send request")
+
+		body, err := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		assert.NoError(ct, err, "failed to read body from request")
+
+		err = json.Unmarshal(body, &have)
+		assert.NoError(ct, err)
+
+		assert.NotEmpty(ct, have.Entities, "%s %s returned: %s, expected workload entities to be present", e.method, e.endpoint, body)
 	}, 2*time.Minute, 10*time.Second)
 }
