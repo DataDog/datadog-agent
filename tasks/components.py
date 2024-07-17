@@ -308,7 +308,7 @@ def locate_root(dir):
     component_file = dir / 'def/component.go'
     if component_file.is_file():
         # comp/api/api/def/component.go is a special case, it's not a component using version 2
-        # PLEASE DO NOT ADD MORE EXCPETIONS
+        # PLEASE DO NOT ADD MORE EXCEPTIONS
         if str(component_file) == "comp/api/api/def/component.go":
             return ComponentRoot(component_file, dir, 1)
         else:
