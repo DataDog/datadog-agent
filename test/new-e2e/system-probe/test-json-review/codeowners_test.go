@@ -21,6 +21,11 @@ pkg/other/thing.go @other
 /pkg/wildcard/* @wildcard
 /pkg/third/one/very/nested/something*.go @nested
 /pkg/trailing/ @trailing
+/pkg/multiteam/* @mainteam
+/pkg/multiteam/*others @otherteam
+/pkg/multiteam2/ @mainteam
+/pkg/multiteam2/*others @otherteam
+
 `
 
 func TestLoadCodeowners(t *testing.T) {
@@ -33,6 +38,8 @@ func TestLoadCodeowners(t *testing.T) {
 		"pkg/wildcard":              "@wildcard",
 		"pkg/third/one/very/nested": "@nested",
 		"pkg/trailing":              "@trailing",
+		"pkg/multiteam":             "@mainteam",
+		"pkg/multiteam2":            "@mainteam",
 	}
 
 	require.Equal(t, expectedOwners, c.owners)
@@ -48,4 +55,6 @@ func TestMatchPackage(t *testing.T) {
 	require.Equal(t, "@other", c.matchPackage("pkg/other/TestSomething"))
 	require.Equal(t, "@wildcard", c.matchPackage("pkg/wildcard/nested"))
 	require.Equal(t, "@trailing", c.matchPackage("pkg/trailing"))
+	require.Equal(t, "@mainteam", c.matchPackage("pkg/multiteam/something"))
+	require.Equal(t, "@mainteam", c.matchPackage("pkg/multiteam2/something"))
 }

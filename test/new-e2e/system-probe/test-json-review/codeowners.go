@@ -34,6 +34,8 @@ func loadCodeowners(path string) (*codeowners, error) {
 func loadCodeownersWithReader(contents io.Reader) *codeowners {
 	owners := make(map[string]string)
 	scanner := bufio.NewScanner(contents)
+	isPreviousPatternWholeFolder := make(map[string]bool)
+
 	for scanner.Scan() {
 		line := scanner.Text()
 		if strings.HasPrefix(line, "#") {
@@ -44,15 +46,26 @@ func loadCodeownersWithReader(contents io.Reader) *codeowners {
 			continue
 		}
 		pattern := strings.TrimSpace(fields[0])
+		team := strings.TrimSpace(fields[1])
+
 		pattern = strings.TrimPrefix(pattern, "/")
 		patternComponents := strings.Split(pattern, "/")
 		lastPatternComponent := patternComponents[len(patternComponents)-1]
+
+		isWholeFolderPattern := true
 		if strings.Contains(lastPatternComponent, "*") || strings.HasSuffix(pattern, ".go") {
 			pattern = strings.Join(patternComponents[:len(patternComponents)-1], "/")
+			isWholeFolderPattern = lastPatternComponent == "*"
+		}
+
+		wasWholeFolderPattern := isPreviousPatternWholeFolder[pattern]
+		if wasWholeFolderPattern {
+			continue // Do not overwrite whole folder patterns
 		}
 
 		pattern = strings.TrimSuffix(pattern, "/") // Remove trailing slash
-		owners[pattern] = strings.TrimSpace(fields[1])
+		owners[pattern] = team
+		isPreviousPatternWholeFolder[pattern] = isWholeFolderPattern
 	}
 
 	return &codeowners{owners: owners}
