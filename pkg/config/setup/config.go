@@ -465,10 +465,6 @@ func InitConfig(config pkgconfigmodel.Config) {
 		`^kubectl\.kubernetes\.io\/last-applied-configuration$`,
 		`^ad\.datadoghq\.com\/([[:alnum:]]+\.)?(checks|check_names|init_configs|instances)$`,
 	})
-	config.BindEnvAndSetDefault("cluster_agent.kubernetes_resources_collection.deployment_annotations_exclude", []string{
-		`^kubectl\.kubernetes\.io\/last-applied-configuration$`,
-		`^ad\.datadoghq\.com\/([[:alnum:]]+\.)?(checks|check_names|init_configs|instances)$`,
-	})
 	config.BindEnvAndSetDefault("metrics_port", "5000")
 	config.BindEnvAndSetDefault("cluster_agent.language_detection.patcher.enabled", true)
 	config.BindEnvAndSetDefault("cluster_agent.language_detection.patcher.base_backoff", "5m")
