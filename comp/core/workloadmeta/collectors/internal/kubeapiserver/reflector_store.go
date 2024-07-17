@@ -158,17 +158,17 @@ func (r *reflectorStore) Delete(obj interface{}) error {
 
 	producedEntities := r.parser.Parse(obj)
 
-	for _, entity := range producedEntities {
+	events := make([]workloadmeta.CollectorEvent, 0, len(producedEntities))
 
-		r.wlmetaStore.Notify([]workloadmeta.CollectorEvent{
-			{
-				Type:   workloadmeta.EventTypeUnset,
-				Source: collectorID,
-				Entity: entity,
-			},
+	for _, entity := range producedEntities {
+		events = append(events, workloadmeta.CollectorEvent{
+			Type:   workloadmeta.EventTypeUnset,
+			Source: collectorID,
+			Entity: entity,
 		})
 	}
 
+	r.wlmetaStore.Notify(events)
 	return nil
 }
 
