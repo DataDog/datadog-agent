@@ -63,6 +63,7 @@ func Test_shouldScheduleNetworkPathForConn(t *testing.T) {
 				Laddr:     &model.Addr{Ip: "127.0.0.1", Port: int32(30000)},
 				Raddr:     &model.Addr{Ip: "127.0.0.2", Port: int32(80)},
 				Direction: model.ConnectionDirection_outgoing,
+				Family:    model.ConnectionFamily_v4,
 			},
 			shouldSchedule: false,
 		},
