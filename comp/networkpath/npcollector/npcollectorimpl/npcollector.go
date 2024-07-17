@@ -64,6 +64,8 @@ type npCollectorImpl struct {
 	// TODO: instead of mocking traceroute via function replacement like this
 	//       we should ideally create a fake/mock traceroute instance that can be passed/injected in NpCollector
 	runTraceroute func(cfg traceroute.Config, telemetrycomp telemetryComp.Component) (payload.NetworkPath, error)
+
+	networkDevicesNamespace string
 }
 
 func newNoopNpCollectorImpl() *npCollectorImpl {
@@ -91,6 +93,8 @@ func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *c
 		pathtestProcessingChan: make(chan *pathteststore.PathtestContext, collectorConfigs.pathtestProcessingChanSize),
 		flushInterval:          collectorConfigs.flushInterval,
 		workers:                collectorConfigs.workers,
+
+		networkDevicesNamespace: collectorConfigs.networkDevicesNamespace,
 
 		receivedPathtestCount:    atomic.NewUint64(0),
 		processedTracerouteCount: atomic.NewUint64(0),
@@ -214,6 +218,8 @@ func (s *npCollectorImpl) runTracerouteForPath(ptest *pathteststore.PathtestCont
 		s.logger.Errorf("%s", err)
 		return
 	}
+	path.Source.ContainerID = ptest.Pathtest.SourceContainerID
+	path.Namespace = s.networkDevicesNamespace
 
 	s.sendTelemetry(path, startTime, ptest)
 

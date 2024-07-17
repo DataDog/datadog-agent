@@ -247,6 +247,7 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *EnvOpts) (*
 	// Retry 4 times. This allows us to cycle through all AZs, and handle libvirt
 	// connection issues in the worst case.
 	b = retry.WithMaxRetries(4, b)
+	numRetries := 0
 	retryErr := retry.Do(ctx, b, func(_ context.Context) error {
 		if az := getAvailabilityZone(opts.InfraEnv, currentAZ); az != "" {
 			config["ddinfra:aws/defaultSubnets"] = auto.ConfigValue{Value: az}
@@ -266,6 +267,7 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *EnvOpts) (*
 		)
 
 		if err != nil {
+			numRetries++
 			return handleScenarioFailure(err, func(possibleError handledError) {
 				// handle the following errors by trying in a different availability zone
 				if possibleError.errorType == insufficientCapacityError ||
@@ -275,8 +277,19 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *EnvOpts) (*
 			})
 		}
 
+		// Mark the test as successful, just in case we succeeded after a retry
+		err = storeErrorReasonForCITags("")
+		if err != nil {
+			log.Printf("failed to store error reason for CI tags: %v", err)
+		}
+
 		return nil
 	})
+
+	err = storeNumberOfRetriesForCITags(numRetries)
+	if err != nil {
+		log.Printf("failed to store number of retries for CI tags: %v", err)
+	}
 
 	outputs := upResult.Outputs
 	if retryErr != nil {

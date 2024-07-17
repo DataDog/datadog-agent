@@ -131,7 +131,7 @@ func TestSubscribe(t *testing.T) {
 	testNodeMetadata := wmdef.KubernetesMetadata{
 		EntityID: wmdef.EntityID{
 			Kind: wmdef.KindKubernetesMetadata,
-			ID:   string(util.GenerateKubeMetadataEntityID("nodes", "", "test-node")),
+			ID:   string(util.GenerateKubeMetadataEntityID("", "nodes", "", "test-node")),
 		},
 		EntityMeta: wmdef.EntityMeta{
 			Name: "test-node",
@@ -142,7 +142,7 @@ func TestSubscribe(t *testing.T) {
 				"test-annotation": "test-value",
 			},
 		},
-		GVR: schema.GroupVersionResource{
+		GVR: &schema.GroupVersionResource{
 			Version:  "v1",
 			Resource: "nodes",
 		},
@@ -1456,14 +1456,14 @@ func TestListKubernetesMetadata(t *testing.T) {
 	nodeMetadata := wmdef.KubernetesMetadata{
 		EntityID: wmdef.EntityID{
 			Kind: wmdef.KindKubernetesMetadata,
-			ID:   string(util.GenerateKubeMetadataEntityID("nodes", "", "node1")),
+			ID:   string(util.GenerateKubeMetadataEntityID("", "nodes", "", "node1")),
 		},
 		EntityMeta: wmdef.EntityMeta{
 			Name:        "node1",
 			Annotations: map[string]string{"a1": "v1"},
 			Labels:      map[string]string{"l1": "v2"},
 		},
-		GVR: schema.GroupVersionResource{
+		GVR: &schema.GroupVersionResource{
 			Version:  "v1",
 			Resource: "nodes",
 		},
@@ -1480,7 +1480,7 @@ func TestListKubernetesMetadata(t *testing.T) {
 			Annotations: map[string]string{"a1": "v1"},
 			Labels:      map[string]string{"l1": "v2"},
 		},
-		GVR: schema.GroupVersionResource{
+		GVR: &schema.GroupVersionResource{
 			Group:    "apps",
 			Version:  "v1",
 			Resource: "deployments",

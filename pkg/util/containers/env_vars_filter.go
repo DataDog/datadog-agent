@@ -17,6 +17,8 @@ var (
 		"CHRONOS_JOB_NAME",
 		"CHRONOS_JOB_OWNER",
 		"DD_ENV",
+		"DD_GIT_COMMIT_SHA",
+		"DD_GIT_REPOSITORY_URL",
 		"DD_SERVICE",
 		"DD_VERSION",
 		"DOCKER_DD_AGENT", // included to be able to detect agent containers
