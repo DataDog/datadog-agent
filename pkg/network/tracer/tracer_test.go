@@ -965,22 +965,22 @@ func testDNSStats(t *testing.T, tr *Tracer, domain string, success, failure, tim
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
 		dnsClient := new(dns.Client)
 		dnsConn, err := dnsClient.Dial(dnsServerAddr.String())
-		if passed := assert.NoError(c, err); !passed {
+		if !assert.NoError(c, err) {
 			return
 		}
 		dnsClientAddr := dnsConn.LocalAddr().(*net.UDPAddr)
 		_, _, err = dnsClient.ExchangeWithConn(queryMsg, dnsConn)
 		if timeout == 0 {
-			if passed := assert.NoError(c, err, "unexpected error making DNS request"); !passed {
+			if !assert.NoError(c, err, "unexpected error making DNS request") {
 				return
 			}
 		} else {
-			if passed := assert.Error(c, err); !passed {
+			if !assert.Error(c, err) {
 				return
 			}
 		}
 		_ = dnsConn.Close()
-		if passed := assert.NoError(c, tr.reverseDNS.WaitForDomain(domain)); !passed {
+		if !assert.NoError(c, tr.reverseDNS.WaitForDomain(domain)) {
 			return
 		}
 
@@ -991,13 +991,13 @@ func testDNSStats(t *testing.T, tr *Tracer, domain string, success, failure, tim
 			return
 		}
 
-		if passed := assert.Equal(c, queryMsg.Len(), int(conn.Monotonic.SentBytes)); !passed {
+		if !assert.Equal(c, queryMsg.Len(), int(conn.Monotonic.SentBytes)) {
 			return
 		}
-		if passed := assert.Equal(c, os.Getpid(), int(conn.Pid)); !passed {
+		if !assert.Equal(c, os.Getpid(), int(conn.Pid)) {
 			return
 		}
-		if passed := assert.Equal(c, dnsServerAddr.Port, int(conn.DPort)); !passed {
+		if !assert.Equal(c, dnsServerAddr.Port, int(conn.DPort)) {
 			return
 		}
 
@@ -1016,13 +1016,13 @@ func testDNSStats(t *testing.T, tr *Tracer, domain string, success, failure, tim
 		failedResponses := total - successfulResponses
 
 		// DNS Stats
-		if passed := assert.Equal(c, uint32(success), successfulResponses, "expected %d successful responses but got %d", success, successfulResponses); !passed {
+		if !assert.Equal(c, uint32(success), successfulResponses, "expected %d successful responses but got %d", success, successfulResponses) {
 			return
 		}
-		if passed := assert.Equal(c, uint32(failure), failedResponses); !passed {
+		if !assert.Equal(c, uint32(failure), failedResponses) {
 			return
 		}
-		if passed := assert.Equal(c, uint32(timeout), timeouts, "expected %d timeouts but got %d", timeout, timeouts); !passed {
+		if !assert.Equal(c, uint32(timeout), timeouts, "expected %d timeouts but got %d", timeout, timeouts) {
 			return
 		}
 	}, 10*time.Second, 100*time.Millisecond, "Failed to get dns response or unexpected response")
