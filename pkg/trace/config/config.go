@@ -499,6 +499,7 @@ func New() *AgentConfig {
 		StatsWriter:             new(WriterConfig),
 		TraceWriter:             new(WriterConfig),
 		ConnectionResetInterval: 0, // disabled
+		MaxSenderRetries:        4,
 
 		StatsdHost:    "localhost",
 		StatsdPort:    8125,
