@@ -183,6 +183,17 @@ CSM Threats event for Linux systems have the following JSON schema:
             ],
             "description": "BindEventSerializer serializes a bind event to JSON"
         },
+        "CGroupContext": {
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "description": "CGroup ID"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "description": "CGroupContextSerializer serializes a cgroup context to JSON"
+        },
         "ContainerContext": {
             "properties": {
                 "id": {
@@ -1626,6 +1637,9 @@ CSM Threats event for Linux systems have the following JSON schema:
         "container": {
             "$ref": "#/$defs/ContainerContext"
         },
+        "cgroup": {
+            "$ref": "#/$defs/CGroupContext"
+        },
         "network": {
             "$ref": "#/$defs/NetworkContext"
         },
@@ -1701,6 +1715,7 @@ CSM Threats event for Linux systems have the following JSON schema:
 | `exit` | $ref | Please see [ExitEvent](#exitevent) |
 | `process` | $ref | Please see [ProcessContext](#processcontext) |
 | `container` | $ref | Please see [ContainerContext](#containercontext) |
+| `cgroup` | $ref | Please see [CGroupContext](#cgroupcontext) |
 | `network` | $ref | Please see [NetworkContext](#networkcontext) |
 | `dd` | $ref | Please see [DDContext](#ddcontext) |
 | `security_profile` | $ref | Please see [SecurityProfileContext](#securityprofilecontext) |
@@ -1992,6 +2007,29 @@ CSM Threats event for Linux systems have the following JSON schema:
 | References |
 | ---------- |
 | [IPPortFamily](#ipportfamily) |
+
+## `CGroupContext`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "properties": {
+        "id": {
+            "type": "string",
+            "description": "CGroup ID"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "description": "CGroupContextSerializer serializes a cgroup context to JSON"
+}
+
+{{< /code-block >}}
+
+| Field | Description |
+| ----- | ----------- |
+| `id` | CGroup ID |
+
 
 ## `ContainerContext`
 
@@ -2955,7 +2993,6 @@ CSM Threats event for Linux systems have the following JSON schema:
 | References |
 | ---------- |
 | [File](#file) |
-| [File](#file) |
 
 ## `NetworkContext`
 
@@ -3014,7 +3051,6 @@ CSM Threats event for Linux systems have the following JSON schema:
 | References |
 | ---------- |
 | [NetworkDevice](#networkdevice) |
-| [IPPort](#ipport) |
 | [IPPort](#ipport) |
 
 ## `NetworkDevice`
@@ -3278,7 +3314,6 @@ CSM Threats event for Linux systems have the following JSON schema:
 | [ProcessCredentials](#processcredentials) |
 | [UserSessionContext](#usersessioncontext) |
 | [File](#file) |
-| [File](#file) |
 | [ContainerContext](#containercontext) |
 | [SyscallsEvent](#syscallsevent) |
 
@@ -3487,7 +3522,6 @@ CSM Threats event for Linux systems have the following JSON schema:
 | ---------- |
 | [ProcessCredentials](#processcredentials) |
 | [UserSessionContext](#usersessioncontext) |
-| [File](#file) |
 | [File](#file) |
 | [ContainerContext](#containercontext) |
 | [SyscallsEvent](#syscallsevent) |
@@ -3976,15 +4010,6 @@ CSM Threats event for Linux systems have the following JSON schema:
 
 | References |
 | ---------- |
-| [SyscallArgs](#syscallargs) |
-| [SyscallArgs](#syscallargs) |
-| [SyscallArgs](#syscallargs) |
-| [SyscallArgs](#syscallargs) |
-| [SyscallArgs](#syscallargs) |
-| [SyscallArgs](#syscallargs) |
-| [SyscallArgs](#syscallargs) |
-| [SyscallArgs](#syscallargs) |
-| [SyscallArgs](#syscallargs) |
 | [SyscallArgs](#syscallargs) |
 
 ## `SyscallsEvent`

@@ -177,7 +177,7 @@ func TestProxyWithSecret(t *testing.T) {
 				c.setup(t, config, configPath, resolver.(secrets.Mock))
 			}
 
-			_, err := LoadCustom(config, "unit_test", optional.NewOption[secrets.Component](resolver), nil)
+			_, err := LoadDatadogCustom(config, "unit_test", optional.NewOption[secrets.Component](resolver), nil)
 			require.NoError(t, err)
 
 			c.tests(t, config)

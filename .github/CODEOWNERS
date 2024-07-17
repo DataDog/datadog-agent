@@ -480,6 +480,7 @@
 /pkg/network/tracer/*usm*.go                    @DataDog/universal-service-monitoring
 /pkg/network/tracer/*_windows*.go               @DataDog/windows-kernel-integrations
 /pkg/network/usm/                       @DataDog/universal-service-monitoring
+/pkg/network/usm/tests/*_windows*.go    @DataDog/windows-kernel-integrations
 /pkg/ebpf/                              @DataDog/ebpf-platform
 /pkg/ebpf/bytecode/runtime/conntrack.go @DataDog/Networks @DataDog/universal-service-monitoring
 /pkg/ebpf/bytecode/runtime/usm.go       @DataDog/Networks @DataDog/universal-service-monitoring
@@ -515,7 +516,7 @@
 /tasks/go_deps.py                       @DataDog/agent-shared-components
 /tasks/dogstatsd.py                     @DataDog/agent-metrics-logs
 /tasks/update_go.py                     @DataDog/agent-shared-components
-/tasks/unit-tests/update_go_tests.py    @DataDog/agent-shared-components
+/tasks/unit_tests/update_go_tests.py    @DataDog/agent-shared-components
 /tasks/cluster_agent_cloudfoundry.py    @DataDog/platform-integrations
 /tasks/new_e2e_tests.py                 @DataDog/agent-e2e-testing @DataDog/agent-devx-loops
 /tasks/process_agent.py                 @DataDog/processes
@@ -536,7 +537,7 @@
 /tasks/updater.py                       @DataDog/fleet
 /tasks/libs/common/omnibus.py           @DataDog/agent-delivery
 /tasks/omnibus.py                       @DataDog/agent-delivery
-/tasks/unit-tests/omnibus_tests.py      @DataDog/agent-delivery
+/tasks/unit_tests/omnibus_tests.py      @DataDog/agent-delivery
 /tasks/installer.py                     @DataDog/fleet
 /test/                                  @DataDog/agent-devx-loops
 /test/benchmarks/                       @DataDog/agent-metrics-logs
