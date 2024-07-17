@@ -48,7 +48,23 @@ type diagSuiteFilter struct {
 }
 
 // Output summary
-func (c *counters) summary(w io.Writer) {
+func (c *counters) summary(w io.Writer, toJSON bool) {
+	if toJSON {
+		counts := map[string]int{
+			"Total":   c.total,
+			"Success": c.success,
+			"Fail":    c.fail,
+			"Warning": c.warnings,
+			"Error":   c.unexpectedErr,
+		}
+		jsonResponse, err := json.MarshalIndent(counts, "", "  ")
+		if err != nil {
+			return
+		}
+		_, _ = w.Write(jsonResponse)
+		return
+	}
+
 	fmt.Fprintf(w, "-------------------------\n  Total:%d", c.total)
 	if c.success > 0 {
 		fmt.Fprintf(w, ", Success:%d", c.success)
@@ -79,16 +95,28 @@ func (c *counters) increment(r diagnosis.Result) {
 	}
 }
 
-func getDiagnosisResultForOutput(r diagnosis.Result) string {
+func getDiagnosisResultForOutput(r diagnosis.Result, colors bool) string {
 	var result string
-	if r == diagnosis.DiagnosisSuccess {
-		result = color.GreenString("PASS")
-	} else if r == diagnosis.DiagnosisFail {
-		result = color.RedString("FAIL")
-	} else if r == diagnosis.DiagnosisWarning {
-		result = color.YellowString("WARNING")
-	} else { // if d.Result == diagnosis.DiagnosisUnexpectedError
-		result = color.HiRedString("UNEXPECTED ERROR")
+	if colors {
+		if r == diagnosis.DiagnosisSuccess {
+			result = color.GreenString("PASS")
+		} else if r == diagnosis.DiagnosisFail {
+			result = color.RedString("FAIL")
+		} else if r == diagnosis.DiagnosisWarning {
+			result = color.YellowString("WARNING")
+		} else { // if d.Result == diagnosis.DiagnosisUnexpectedError
+			result = color.HiRedString("UNEXPECTED ERROR")
+		}
+	} else {
+		if r == diagnosis.DiagnosisSuccess {
+			result = "PASS"
+		} else if r == diagnosis.DiagnosisFail {
+			result = "FAIL"
+		} else if r == diagnosis.DiagnosisWarning {
+			result = "WARNING"
+		} else { // if d.Result == diagnosis.DiagnosisUnexpectedError
+			result = "UNEXPECTED ERROR"
+		}
 	}
 
 	return result
@@ -407,7 +435,9 @@ func runStdOut(w io.Writer, diagCfg diagnosis.Config, run func(diagnosis.Config)
 		color.NoColor = true
 	}
 
-	fmt.Fprintf(w, "=== Starting diagnose ===\n")
+	if !diagCfg.JSONOutput {
+		fmt.Fprintf(w, "=== Starting diagnose ===\n")
+	}
 
 	diagnoses, err := run(diagCfg)
 	if err != nil && !diagCfg.RunLocal {
@@ -424,15 +454,29 @@ func runStdOut(w io.Writer, diagCfg diagnosis.Config, run func(diagnosis.Config)
 		return err
 	}
 
-	var c counters
+	var diagnosesJSON []diagnosis.DiagnosesJSON
+	if diagCfg.JSONOutput {
+		diagnosesJSON = []diagnosis.DiagnosesJSON{}
+	}
 
+	var c counters
 	lastDot := false
 	for _, ds := range diagnoses {
 		suiteAlreadyReported := false
+		var diagnosesSuiteJSON diagnosis.DiagnosesJSON
+		if diagCfg.JSONOutput {
+			diagnosesSuiteJSON = diagnosis.DiagnosesJSON{
+				SuiteName:      ds.SuiteName,
+				SuiteDiagnoses: []diagnosis.DiagnosisJSON{},
+			}
+		}
 		for _, d := range ds.SuiteDiagnoses {
 			c.increment(d.Result)
 
-			if d.Result == diagnosis.DiagnosisSuccess && !diagCfg.Verbose {
+			if diagCfg.JSONOutput {
+				diagnosesSuiteJSON.SuiteDiagnoses = append(diagnosesSuiteJSON.SuiteDiagnoses, d.ToJSON(getDiagnosisResultForOutput(d.Result, false)))
+				continue
+			} else if d.Result == diagnosis.DiagnosisSuccess && !diagCfg.Verbose {
 				outputDot(w, &lastDot)
 				continue
 			}
@@ -440,12 +484,23 @@ func runStdOut(w io.Writer, diagCfg diagnosis.Config, run func(diagnosis.Config)
 			outputSuiteIfNeeded(w, ds.SuiteName, &suiteAlreadyReported)
 
 			outputNewLineIfNeeded(w, &lastDot)
-			outputDiagnosis(w, diagCfg, getDiagnosisResultForOutput(d.Result), c.total, d)
+			outputDiagnosis(w, diagCfg, getDiagnosisResultForOutput(d.Result, true), c.total, d)
 		}
+		if diagCfg.JSONOutput {
+			diagnosesJSON = append(diagnosesJSON, diagnosesSuiteJSON)
+		}
+	}
+	if diagCfg.JSONOutput {
+		diagJSON, err := json.MarshalIndent(diagnosesJSON, "", "  ")
+		if err != nil {
+			fmt.Fprintln(w, color.RedString(fmt.Sprintf("Error marshalling diagnose results to JSON: %s", err)))
+			return err
+		}
+		fmt.Fprintln(w, string(diagJSON))
 	}
 
 	outputNewLineIfNeeded(w, &lastDot)
-	c.summary(w)
+	c.summary(w, diagCfg.JSONOutput)
 
 	return nil
 }

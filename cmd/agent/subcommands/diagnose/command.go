@@ -56,6 +56,9 @@ type cliParams struct {
 	// run diagnose in the context of CLI process instead of running in the context of agent service irunni, value of the --local flag
 	runLocal bool
 
+	// JSONOutput will output the diagnosis in JSON format, value of the --json flag
+	JSONOutput bool
+
 	// run diagnose on other processes, value of --list flag
 	listSuites bool
 
@@ -118,6 +121,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	// List names of all registered diagnose suites. Output also will be filtered if include and or exclude
 	// options are specified
 	diagnoseCommand.PersistentFlags().BoolVarP(&cliParams.listSuites, "list", "t", false, "list diagnose suites")
+
+	// Output the diagnose in JSON format
+	diagnoseCommand.PersistentFlags().BoolVarP(&cliParams.JSONOutput, "json", "j", false, "output the diagnose in JSON format")
 
 	// Normally internal diagnose functions will run in the context of agent and other services. It can be
 	// overridden via --local options and if specified diagnose functions will be executed in context
@@ -287,10 +293,11 @@ func cmdDiagnose(cliParams *cliParams,
 	_ log.Component,
 ) error {
 	diagCfg := diagnosis.Config{
-		Verbose:  cliParams.verbose,
-		RunLocal: cliParams.runLocal,
-		Include:  cliParams.include,
-		Exclude:  cliParams.exclude,
+		Verbose:    cliParams.verbose,
+		RunLocal:   cliParams.runLocal,
+		JSONOutput: cliParams.JSONOutput,
+		Include:    cliParams.include,
+		Exclude:    cliParams.exclude,
 	}
 
 	// Is it List command

@@ -44,10 +44,11 @@ type Suite struct {
 
 // Config contains the Diagnose configuration
 type Config struct {
-	Verbose  bool
-	RunLocal bool
-	Include  []string
-	Exclude  []string
+	Verbose    bool
+	RunLocal   bool
+	JSONOutput bool
+	Include    []string
+	Exclude    []string
 }
 
 // Result contains the result of the diagnosis
@@ -121,4 +122,34 @@ func (c *Catalog) Register(suiteName string, diagnose Diagnose) {
 // GetSuites returns the list of registered Diagnose functions
 func (c *Catalog) GetSuites() []Suite {
 	return c.suites
+}
+
+// DiagnosisJSON is the JSON representation of a Diagnosis
+type DiagnosisJSON struct {
+	Result      string `json:"Result"`
+	Name        string `json:"Name"`
+	Diagnosis   string `json:"Diagnosis"`
+	Category    string `json:"Category,omitempty"`
+	Description string `json:"Description,omitempty"`
+	Remediation string `json:"Remediation,omitempty"`
+	RawError    string `json:"RawError,omitempty"`
+}
+
+// DiagnosesJSON is the JSON representation of a Diagnoses
+type DiagnosesJSON struct {
+	SuiteName      string          `json:"SuiteName"`
+	SuiteDiagnoses []DiagnosisJSON `json:"SuiteDiagnoses"`
+}
+
+// ToJSON converts a Diagnosis to JSON
+func (d Diagnosis) ToJSON(result string) DiagnosisJSON {
+	return DiagnosisJSON{
+		Result:      result,
+		Name:        d.Name,
+		Diagnosis:   d.Diagnosis,
+		Category:    d.Category,
+		Description: d.Description,
+		Remediation: d.Remediation,
+		RawError:    d.RawError,
+	}
 }
