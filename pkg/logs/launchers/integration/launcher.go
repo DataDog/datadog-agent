@@ -6,51 +6,49 @@
 package integration
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"strings"
 	"time"
 
 	ddLog "github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	"github.com/DataDog/datadog-agent/comp/logs/integrations/def"
+	pkgConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
-	fileLauncher "github.com/DataDog/datadog-agent/pkg/logs/launchers/file"
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
-	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
-	tailer "github.com/DataDog/datadog-agent/pkg/logs/tailers/file"
 )
 
-// DefaultSleepDuration represents the amount of time the tailer waits before reading new data when no data is received
-const DefaultSleepDuration = 1 * time.Second
-
 type Launcher struct {
-	sources             chan *sources.LogSource
-	piplineProvider     pipeline.Provider
-	registry            auditor.Registry
-	tailerSleepDuration time.Duration
-	addedSources        chan *sources.LogSource
-	removedSources      chan *sources.LogSource
-	stop                chan struct{}
-	done                chan struct{}
-	runPath             string
-	tailers             *tailers.TailerContainer[*tailer.Tailer]
+	sources               *sources.LogSources
+	piplineProvider       pipeline.Provider
+	registry              auditor.Registry
+	addedSources          chan *sources.LogSource
+	removedSources        chan *sources.LogSource
+	stop                  chan struct{}
+	done                  chan struct{}
+	runPath               string
+	integrationsLogs      chan integrations.IntegrationLog
+	integrationsLogsComp  integrations.Component
+	integrationToFile     map[string]string
+	integrationToFileSize map[string]uint64
 }
 
 // NewLauncher returns a new launcher
-func NewLauncher(runPath string, tailersSleepDuration time.Duration) *Launcher {
+func NewLauncher(sources *sources.LogSources, runPath string, integrationsLogsComp integrations.Component) *Launcher {
 	return &Launcher{
-		runPath:             runPath,
-		tailers:             tailers.NewTailerContainer[*tailer.Tailer](),
-		stop:                make(chan struct{}),
-		done:                make(chan struct{}),
-		tailerSleepDuration: tailersSleepDuration,
+		sources:              sources,
+		runPath:              runPath,
+		stop:                 make(chan struct{}),
+		done:                 make(chan struct{}),
+		integrationsLogsComp: integrationsLogsComp,
+		integrationsLogs:     integrationsLogsComp.Subscribe(),
+		integrationToFile:    make(map[string]string),
 	}
 }
 
@@ -59,7 +57,6 @@ func (s *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvid
 	s.piplineProvider = pipelineProvider
 	s.addedSources, s.removedSources = sourceProvider.SubscribeForType(config.IntegrationType)
 	s.registry = registry
-	tracker.Add(s.tailers)
 
 	go s.run()
 }
@@ -81,93 +78,110 @@ func (s *Launcher) run() {
 	for {
 		select {
 		case source := <-s.addedSources:
-			filePath := s.createFile(source)
-			// TODO move this into case where for receiving log from go interface
-			s.addSource(source, filePath)
-		// TODO Add case for receiving log from go interface once #26753 gets merged
+			// Send logs configurations to the file launcher to tail, it will handle
+			// tailer lifecycle, file rotation, etc.
+			filepath := s.createFile(source)
+			filetypeSource := s.makeFileSource(source, filepath)
+			s.sources.AddSource(filetypeSource)
+
+			// file to write the incoming logs to and maximum size it can be
+			s.integrationToFile[source.Name] = filepath
+		case log := <-s.integrationsLogs:
+			integrationSplit := strings.Split(log.IntegrationID, ":")
+			integrationName := integrationSplit[0]
+			filepath := s.integrationToFile[integrationName]
+
+			s.ensureFileSize(filepath)
+
+			file, err := os.OpenFile(filepath, os.O_WRONLY, 0644)
+			if err != nil {
+				ddLog.Warn("Failed to open file")
+			}
+
+			defer file.Close()
+
+			_, err = file.WriteString(log.Log)
+			if err != nil {
+				ddLog.Warn("Failed to write integration log to file")
+			}
+
 		case <-scanTicker.C:
 		case <-s.stop:
-			s.cleanup()
 			return
 		}
 	}
 }
 
-// cleanup stops and removes all tailers
-func (s *Launcher) cleanup() {
-	stopper := startstop.NewParallelStopper()
+// makeFileSource Turns an integrations source into a logsSource
+func (s *Launcher) makeFileSource(source *sources.LogSource, filepath string) *sources.LogSource {
+	fileSource := sources.NewLogSource(source.Name, &config.LogsConfig{
+		Type:        config.FileType,
+		TailingMode: source.Config.TailingMode,
+		Path:        filepath,
+		Name:        "integrations",
+		Source:      "integrations source",
+		Tags:        source.Config.Tags,
+	})
 
-	for _, tailer := range s.tailers.All() {
-		stopper.Add(tailer)
-		s.tailers.Remove(tailer)
-	}
-
-	stopper.Stop()
-}
-
-// addSource adds the sources to active sources and launches tailers for the source
-func (s *Launcher) addSource(source *sources.LogSource, filePath string) {
-	s.startNewTailer(source, filePath)
-}
-
-// startNewTailer launches the tailer for a new source
-func (s *Launcher) startNewTailer(source *sources.LogSource, filePath string) {
-	file := tailer.NewFile(filePath, source, false)
-
-	tailer := s.createTailer(file, s.piplineProvider.NextPipelineChan())
-
-	// TODO Implement registry / offset
-	var offset int64
-	var whence int
-
-	mode, _ := config.TailingModeFromString(source.Config.TailingMode)
-
-	offset, whence, err := fileLauncher.Position(s.registry, tailer.GetId(), mode)
-	if err != nil {
-		ddLog.Warnf("Could not recover offset for file with path %v: %v", file.Path, err)
-	}
-
-	err = tailer.Start(offset, whence)
-	if err != nil {
-		ddLog.Warn(err)
-	}
-
-	s.tailers.Add(tailer)
-}
-
-// createTailer returns a new initialized tailer
-func (s *Launcher) createTailer(file *tailer.File, outputChan chan *message.Message) *tailer.Tailer {
-	tailerInfo := status.NewInfoRegistry()
-
-	tailerOptions := &tailer.TailerOptions{
-		OutputChan:    outputChan,
-		File:          file,
-		SleepDuration: DefaultSleepDuration,
-		Decoder:       decoder.NewDecoderFromSource(file.Source, tailerInfo),
-		Info:          tailerInfo,
-	}
-
-	return tailer.NewTailer(tailerOptions)
+	return fileSource
 }
 
 // TODO Change file naming to reflect ID once logs from go interfaces gets merged.
 // createFile creates a file for the logsource
 func (s *Launcher) createFile(source *sources.LogSource) string {
-	fileName := source.Config.Source + ".log"
-	pathSlice := []string{s.runPath, "integrations", source.Config.Service}
-	path := strings.Join(pathSlice, "/")
+	directory, filepath := s.integrationLogFilePath(*source)
 
-	err := os.MkdirAll(path, 0755)
+	err := os.MkdirAll(directory, 0755)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	filePath := strings.Join([]string{path, fileName}, "/")
-	file, err := os.Create(filePath)
+	file, err := os.Create(filepath)
+	if err != nil {
+		log.Fatal(err)
+	}
 	defer file.Close()
+
+	return filepath
+}
+
+// integrationLogFilePath returns a directory and file to use for an integration log file
+func (s *Launcher) integrationLogFilePath(source sources.LogSource) (string, string) {
+	fileName := source.Name + ".log"
+	directoryComponents := []string{s.runPath, "integrations", source.Config.Service}
+	directory := strings.Join(directoryComponents, "/")
+	filepath := strings.Join([]string{directory, fileName}, "")
+
+	return directory, filepath
+}
+
+// ensureFileSize enforces the max file size for files integrations logs
+// files. Files over the set size will be deleted and remade.
+func (s *Launcher) ensureFileSize(filepath string) {
+	maxFileSizeSetting := pkgConfig.Datadog().GetInt("logs_config.integrations_logs_files_max_size")
+	maxFileSizeBytes := maxFileSizeSetting * 1024 * 1024
+
+	fi, err := os.Stat(filepath)
 	if err != nil {
-		log.Fatal(err)
+		ddLog.Warn("Could not stat file: ", filepath)
 	}
 
-	return filePath
+	if fi.Size() > int64(maxFileSizeBytes) {
+		err := os.Remove(filepath)
+		if err != nil {
+			if os.IsNotExist(err) {
+				fmt.Println("File does not exist, creating new one.")
+			} else {
+				ddLog.Warn("Error deleting file: ", err)
+			}
+		} else {
+			ddLog.Info("Successfully deleted oversize log file, creating new one.")
+		}
+
+		file, err := os.Create(filepath)
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer file.Close()
+	}
 }

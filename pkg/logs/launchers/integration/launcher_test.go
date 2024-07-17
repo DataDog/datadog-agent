@@ -56,9 +56,8 @@ func (suite *LauncherTestSuite) SetupTest() {
 	suite.Nil(err)
 	suite.testFile = f
 
-	sleepDuration := 20 * time.Millisecond
 	suite.source = sources.NewLogSource("", &config.LogsConfig{Type: config.IntegrationType, Path: suite.testPath})
-	suite.s = NewLauncher(suite.testDir, sleepDuration, suite.integrationsComp)
+	suite.s = NewLauncher(nil, suite.testDir, suite.integrationsComp)
 	suite.s.piplineProvider = suite.pipelineProvider
 	suite.s.registry = auditor.NewRegistry()
 	status.InitStatus(pkgConfig.Datadog(), util.CreateSources([]*sources.LogSource{suite.source}))
@@ -66,32 +65,44 @@ func (suite *LauncherTestSuite) SetupTest() {
 
 func (suite *LauncherTestSuite) TearDownTest() {
 	suite.testFile.Close()
-	suite.s.cleanup()
 }
 
 func (suite *LauncherTestSuite) TestFileCreation() {
 	source := sources.NewLogSource("testLogsSource", &config.LogsConfig{Type: config.IntegrationType, Identifier: "123456789", Path: suite.testPath})
+	sources.NewLogSources().AddSource(source)
 
 	filePath := suite.s.createFile(source)
 	assert.NotNil(suite.T(), filePath)
 }
 
 func (suite *LauncherTestSuite) TestLogLineSubmitted() {
-	suite.s.addSource(suite.source, suite.testPath)
 	_, err := suite.testFile.WriteString("hello world\n")
 	suite.Nil(err)
 	msg := <-suite.outputChan
 	suite.Equal("hello world", string(msg.GetContent()))
 }
 
-func (suite *LauncherTestSuite) TestLifeCycle() {
-	suite.s.addSource(suite.source, suite.testPath)
-	suite.Equal(1, suite.s.tailers.Count())
+func (suite *LauncherTestSuite) TestSendLog() {
+	logsSources := sources.NewLogSources()
+	suite.s.sources = logsSources
+	source := sources.NewLogSource("testLogsSource", &config.LogsConfig{Type: config.IntegrationType, Name: "integrationName", Path: suite.testPath})
+
+	filepath := suite.s.createFile(source)
+	suite.s.integrationToFile[source.Name] = filepath
+	fileSource := suite.s.makeFileSource(source, filepath)
+	suite.s.sources.AddSource(fileSource)
+
 	suite.s.Start(launchers.NewMockSourceProvider(), suite.pipelineProvider, auditor.NewRegistry(), tailers.NewTailerTracker())
 
-	// stop all tailers
-	suite.s.Stop()
-	suite.Equal(0, suite.s.tailers.Count())
+	logSample := "hello world"
+	suite.integrationsComp.SendLog(logSample, "testLogsSource:HASH1234")
+
+	// Check if log has been written to file
+	assert.EventuallyWithT(suite.T(), func(c *assert.CollectT) {
+		content, err := os.ReadFile(filepath)
+		assert.Nil(suite.T(), err)
+		assert.Equal(suite.T(), logSample, string(content))
+	}, time.Second*2, time.Second)
 }
 
 func TestLauncherTestSuite(t *testing.T) {
