@@ -18,6 +18,7 @@ import (
 	"unsafe"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
@@ -66,8 +67,8 @@ type Watcher struct {
 var _ utils.Attacher = &Watcher{}
 
 // NewWatcher creates a new Watcher instance
-func NewWatcher(cfg *ddebpf.Config, rules ...Rule) (*Watcher, error) {
-	ebpfProgram := NewEBPFProgram(cfg)
+func NewWatcher(cfg *config.Config, rules ...Rule) (*Watcher, error) {
+	ebpfProgram := NewEBPFProgram(&cfg.Config)
 	err := ebpfProgram.Init()
 	if err != nil {
 		return nil, fmt.Errorf("error initializing shared library program: %w", err)
