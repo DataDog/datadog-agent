@@ -259,9 +259,9 @@ pre-commit run ruff --all-files  # run ruff on all files
 
 See `pre-commit run --help` for further options.
 
-### Creating a VSCode settings file
+### Creating a Visual Studio Code settings file
 
-To configure your IDE to work with datadog-agent repository you need to specify build tags in .vscode/settings. Please use the following invoke task to do it the first time:
+To configure your IDE to work with `datadog-agent` repository, specify build tags in `.vscode/settings`. Run the following command to create the file:
 ```
 inv setup.vscode-settings
 ```
