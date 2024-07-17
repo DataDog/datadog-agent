@@ -460,7 +460,7 @@ def filter_gitlab_ci_configuration(yml: dict, job: str | None = None) -> dict:
 
     def filter_yaml(key, value):
         # Not a job
-        if key.startswith('.') or 'script' not in value:
+        if key.startswith('.') or 'script' not in value and 'trigger' not in value:
             return None
 
         if job is not None:
