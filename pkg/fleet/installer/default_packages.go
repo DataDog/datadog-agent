@@ -18,7 +18,6 @@ import (
 type Package struct {
 	Name                      string
 	version                   func(Package, *env.Env) string
-	version                   func(Package, *env.Env) string
 	released                  bool
 	releasedBySite            []string
 	releasedWithRemoteUpdates bool
@@ -34,15 +33,17 @@ var PackagesList = []Package{
 	{Name: "datadog-apm-library-dotnet", version: apmLanguageVersion, released: true, condition: apmLanguageEnabled},
 	{Name: "datadog-apm-library-python", version: apmLanguageVersion, released: true, condition: apmLanguageEnabled},
 	{Name: "datadog-agent", version: agentVersion, released: false, releasedWithRemoteUpdates: true},
-	{Name: "datadog-apm-library-java", version: apmLanguageVersion, released: true, condition: apmLanguageEnabled},
-	{Name: "datadog-apm-library-ruby", version: apmLanguageVersion, released: true, condition: apmLanguageEnabled},
-	{Name: "datadog-apm-library-js", version: apmLanguageVersion, released: true, condition: apmLanguageEnabled},
-	{Name: "datadog-apm-library-dotnet", version: apmLanguageVersion, released: true, condition: apmLanguageEnabled},
-	{Name: "datadog-apm-library-python", version: apmLanguageVersion, released: true, condition: apmLanguageEnabled},
-	{Name: "datadog-agent", version: agentVersion, released: false, releasedWithRemoteUpdates: true},
 }
 
 var packageDependencies = map[string][]string{}
+
+var apmPackageDefaultVersions = map[string]string{
+	"datadog-apm-library-java":   "1",
+	"datadog-apm-library-ruby":   "2",
+	"datadog-apm-library-js":     "5",
+	"datadog-apm-library-dotnet": "2",
+	"datadog-apm-library-python": "2",
+}
 
 // DefaultPackages resolves the default packages URLs to install based on the environment.
 func DefaultPackages(env *env.Env) []string {
@@ -65,8 +66,6 @@ func defaultPackages(env *env.Env, defaultPackages []Package) []string {
 		}
 
 		version := "latest"
-		if p.version != nil {
-			version = p.version(p, env)
 		if p.version != nil {
 			version = p.version(p, env)
 		}
@@ -96,7 +95,6 @@ func apmLanguageEnabled(p Package, e *env.Env) bool {
 	}
 	// If the ApmLibraries env is left empty but apm injection is
 	// enabled, we install all languages
-	if len(e.ApmLibraries) == 0 && apmInjectEnabled(p, e) {
 	if len(e.ApmLibraries) == 0 && apmInjectEnabled(p, e) {
 		return true
 	}
@@ -129,16 +127,6 @@ func packageToLanguage(packageName string) env.ApmLibLanguage {
 		return ""
 	}
 	return env.ApmLibLanguage(lang)
-}
-
-func agentVersion(_ Package, e *env.Env) string {
-	if e.AgentMajorVersion != "" && e.AgentMinorVersion != "" {
-		return e.AgentMajorVersion + "." + e.AgentMinorVersion + "-1"
-	}
-	if e.AgentMinorVersion != "" {
-		return "7." + e.AgentMinorVersion + "-1"
-	}
-	return "latest"
 }
 
 func agentVersion(_ Package, e *env.Env) string {

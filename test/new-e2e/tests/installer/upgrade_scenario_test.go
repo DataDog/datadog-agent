@@ -62,7 +62,6 @@ var testCatalog = catalog{
 		},
 		{
 			Package: string(datadogAgent),
-			Package: string(datadogAgent),
 			Version: previousAgentImageVersion,
 			URL:     fmt.Sprintf("oci://gcr.io/datadoghq/agent-package:%s", previousAgentImageVersion),
 		},
