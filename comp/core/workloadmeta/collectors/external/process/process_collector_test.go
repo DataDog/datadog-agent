@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/benbjohnson/clock"
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -26,13 +27,21 @@ import (
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
-	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	processwlm "github.com/DataDog/datadog-agent/pkg/process/metadata/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil/mocks"
+	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers/mocks"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
+
+// NewProcessDataWithMockProbe returns a new ProcessData with a mock probe
+func NewProcessDataWithMockProbe(t *testing.T) (*Data, *mocks.Probe) {
+	probe := mocks.NewProbe(t)
+	return &Data{
+		probe: probe,
+	}, probe
+}
 
 type collectorTest struct {
 	collector *collector
@@ -54,7 +63,7 @@ func setUpCollectorTest(t *testing.T, configOverrides map[string]interface{}) co
 	time.Sleep(time.Second)
 
 	wlmExtractor := processwlm.NewWorkloadMetaExtractor(mockStore.GetConfig())
-	mockProcessData, probe := checks.NewProcessDataWithMockProbe(t)
+	mockProcessData, probe := NewProcessDataWithMockProbe(t)
 	mockProcessData.Register(wlmExtractor)
 	mockClock := clock.NewMock()
 	processDiffCh := wlmExtractor.ProcessCacheDiff()
@@ -241,6 +250,10 @@ func TestProcessCollectorWithoutProcessCheck(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.TODO())
 	defer cancel()
 
+	mockCtrl := gomock.NewController(t)
+	mockProvider := proccontainers.NewMockContainerProvider(mockCtrl)
+	c.collector.containerProvider = mockProvider
+
 	err := c.collector.Start(ctx, c.mockStore)
 	require.NoError(t, err)
 
@@ -252,25 +265,10 @@ func TestProcessCollectorWithoutProcessCheck(t *testing.T) {
 		},
 	}, nil).Maybe()
 
-	c.mockClock.Add(10 * time.Second)
-
-	assert.EventuallyWithT(t, func(cT *assert.CollectT) {
-		proc, err := c.mockStore.GetProcess(1)
-		assert.NoError(cT, err)
-		assert.NotNil(cT, proc)
-		assert.Equal(cT, "", proc.ContainerID)
-	}, 1*time.Second, time.Millisecond*100)
-
 	// Testing container id enrichment
 	expectedCid := "container1"
-	container := &workloadmeta.Container{
-		EntityID: workloadmeta.EntityID{
-			Kind: workloadmeta.KindContainer,
-			ID:   expectedCid,
-		},
-		PID: 1,
-	}
-	c.mockStore.Set(container)
+	mockProvider.EXPECT().GetPidToCid(2 * time.Second).Return(map[int]string{1: expectedCid}).MinTimes(1)
+
 	c.mockClock.Add(10 * time.Second)
 
 	assert.EventuallyWithT(t, func(cT *assert.CollectT) {
