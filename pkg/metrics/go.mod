@@ -13,6 +13,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/buf => ../util/buf/
 	github.com/DataDog/datadog-agent/pkg/util/fxutil => ../util/fxutil/
 	github.com/DataDog/datadog-agent/pkg/util/log => ../util/log/
+	github.com/DataDog/datadog-agent/pkg/util/optional => ../util/optional
 	github.com/DataDog/datadog-agent/pkg/util/scrubber => ../util/scrubber/
 	github.com/DataDog/datadog-agent/pkg/util/sort => ../util/sort/
 	github.com/DataDog/datadog-agent/pkg/util/system/socket => ../util/system/socket
@@ -35,6 +36,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/comp/def v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.56.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/optional v0.55.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/sort v0.56.0-rc.3 // indirect
 	github.com/DataDog/sketches-go v1.4.4 // indirect
