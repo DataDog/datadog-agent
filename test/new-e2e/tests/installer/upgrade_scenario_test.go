@@ -83,7 +83,7 @@ const (
 	previousAgentImageVersion = "7.54.0-1"
 	latestAgentImageVersion   = "7.54.1-1"
 
-	latestInstallerImageVersion   = "7.55.0-installer-0.4.2-1"
+	latestInstallerImageVersion   = "7.56.0-installer-0.4.5-1"
 	previousInstallerImageVersion = "7.55.0-installer-0.4.1-1"
 )
 
