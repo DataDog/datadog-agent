@@ -89,8 +89,12 @@ class CompilerImage:
             cmd = f"cd {run_dir} && {cmd}"
 
         self.ensure_running()
-        return self.ctx.run(
-            f"docker exec -u {user} -i {self.name} bash -c \"{cmd}\"", hide=(not verbose), warn=allow_fail
+
+        # Set FORCE_COLOR=1 so that termcolor works in the container
+        self.ctx.run(
+            f"docker exec -u {user} -i -e FORCE_COLOR=1 {self.name} bash -c \"{cmd}\"",
+            hide=(not verbose),
+            warn=allow_fail,
         )
 
     def stop(self) -> Result:
@@ -152,6 +156,12 @@ class CompilerImage:
         self.exec("usermod -aG sudo compiler && echo 'compiler ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers", user="root")
         self.exec("echo conda activate ddpy3 >> /home/compiler/.bashrc", user="compiler")
         self.exec(f"install -d -m 0777 -o {uid} -g {uid} /go", user="root")
+
+        # Install all requirements except for libvirt ones (they won't build in the compiler and are not needed)
+        self.exec(
+            f"cat {CONTAINER_AGENT_PATH}/tasks/kernel_matrix_testing/requirements.txt | grep -v libvirt | xargs pip install ",
+            user="compiler",
+        )
 
         self.prepare_for_cross_compile()
 
