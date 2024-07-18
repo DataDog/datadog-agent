@@ -8,23 +8,17 @@
 package usm
 
 import (
-	"debug/elf"
 	"errors"
 	"fmt"
 	"io"
-	"os"
-	"path/filepath"
 	"regexp"
-	"strconv"
-	"sync"
 	"time"
 
-	"github.com/cihub/seelog"
 	"github.com/cilium/ebpf"
 
 	manager "github.com/DataDog/ebpf-manager"
 
-	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/uprobes"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
@@ -33,8 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/usm/buildmode"
 	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
-	"github.com/DataDog/datadog-agent/pkg/process/monitor"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -73,19 +65,10 @@ var functionToProbes = map[string]uprobesInfo{
 	},
 }
 
-var functionsConfig = map[string]bininspect.FunctionConfiguration{
-	bininspect.WriteGoTLSFunc: {
-		IncludeReturnLocations: true,
-		ParamLookupFunction:    lookup.GetWriteParams,
-	},
-	bininspect.ReadGoTLSFunc: {
-		IncludeReturnLocations: true,
-		ParamLookupFunction:    lookup.GetReadParams,
-	},
-	bininspect.CloseGoTLSFunc: {
-		IncludeReturnLocations: false,
-		ParamLookupFunction:    lookup.GetCloseParams,
-	},
+var paramLookupFunctions = map[string]bininspect.ParameterLookupFunction{
+	bininspect.WriteGoTLSFunc: lookup.GetWriteParams,
+	bininspect.ReadGoTLSFunc:  lookup.GetReadParams,
+	bininspect.CloseGoTLSFunc: lookup.GetCloseParams,
 }
 
 var structFieldsLookupFunctions = map[bininspect.FieldIdentifier]bininspect.StructLookupFunction{
@@ -100,10 +83,10 @@ type pid = uint32
 
 // goTLSProgram contains implementation for go-TLS.
 type goTLSProgram struct {
-	wg      sync.WaitGroup
-	done    chan struct{}
-	cfg     *config.Config
-	manager *manager.Manager
+	attacher  *uprobes.UprobeAttacher
+	inspector *GoTLSBinaryInspector
+	cfg       *config.Config
+	manager   *manager.Manager
 
 	// Path to the process/container's procfs
 	procRoot string
@@ -117,9 +100,6 @@ type goTLSProgram struct {
 
 	registry *utils.FileRegistry
 }
-
-// Validate that goTLSProgram implements the Attacher interface.
-var _ utils.Attacher = &goTLSProgram{}
 
 var goTLSSpec = &protocols.ProtocolSpec{
 	Maps: []*manager.Map{
@@ -171,14 +151,45 @@ func newGoTLSProgramProtocolFactory(m *manager.Manager) protocols.ProtocolFactor
 			return nil, errors.New("goTLS support requires runtime-compilation or CO-RE to be enabled")
 		}
 
+		attacherCfg := &uprobes.AttacherConfig{
+			EbpfConfig: &c.Config,
+			Rules: []*uprobes.AttachRule{{
+				Targets: uprobes.AttachToExecutable,
+				ProbesSelector: []manager.ProbesSelector{
+					&manager.AllOf{
+						Selectors: []manager.ProbesSelector{
+							&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: connReadProbe}},
+							&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: connReadRetProbe}},
+							&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: connWriteProbe}},
+							&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: connWriteRetProbe}},
+							&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: connCloseProbe}},
+						},
+					},
+				},
+			}},
+			ExcludeTargets:     (uprobes.ExcludeSelf | uprobes.ExcludeInternal),
+			PerformInitialScan: true,
+		}
+
+		inspector := &GoTLSBinaryInspector{
+			structFieldsLookupFunctions: structFieldsLookupFunctions,
+			paramLookupFunctions:        paramLookupFunctions,
+			binAnalysisMetric:           libtelemetry.NewCounter("usm.go_tls.analysis_time", libtelemetry.OptPrometheus),
+		}
+
+		attacher, err := uprobes.NewUprobeAttacher("usm_gotls", attacherCfg, m, nil, inspector)
+		if err != nil {
+			return nil, fmt.Errorf("Cannot create uprobe attacher: %w", err)
+		}
+
 		return &goTLSProgram{
-			done:               make(chan struct{}),
 			cfg:                c,
 			manager:            m,
 			procRoot:           c.ProcRoot,
+			inspector:          inspector,
 			binAnalysisMetric:  libtelemetry.NewCounter("usm.go_tls.analysis_time", libtelemetry.OptPrometheus),
 			binNoSymbolsMetric: libtelemetry.NewCounter("usm.go_tls.missing_symbols", libtelemetry.OptPrometheus),
-			registry:           utils.NewFileRegistry("go-tls"),
+			attacher:           attacher,
 		}, nil
 	}
 }
@@ -205,48 +216,21 @@ func (p *goTLSProgram) ConfigureOptions(_ *manager.Manager, options *manager.Opt
 func (p *goTLSProgram) PreStart(m *manager.Manager) error {
 	var err error
 
-	p.offsetsDataMap, _, err = m.GetMap(offsetsDataMap)
+	p.inspector.offsetsDataMap, _, err = m.GetMap(offsetsDataMap)
 	if err != nil {
 		return fmt.Errorf("could not get offsets_data map: %s", err)
 	}
 
-	procMonitor := monitor.GetProcessMonitor()
-	cleanupExec := procMonitor.SubscribeExec(p.handleProcessStart)
-	cleanupExit := procMonitor.SubscribeExit(p.handleProcessExit)
-
-	p.wg.Add(1)
-	go func() {
-		processSync := time.NewTicker(scanTerminatedProcessesInterval)
-
-		defer func() {
-			processSync.Stop()
-			cleanupExec()
-			cleanupExit()
-			procMonitor.Stop()
-			p.registry.Clear()
-			p.wg.Done()
-		}()
-
-		for {
-			select {
-			case <-p.done:
-				return
-			case <-processSync.C:
-				processSet := p.registry.GetRegisteredProcesses()
-				deletedPids := monitor.FindDeletedProcesses(processSet)
-				for deletedPid := range deletedPids {
-					_ = p.registry.Unregister(deletedPid)
-				}
-			}
-		}
-	}()
+	err = p.attacher.Start()
+	if err != nil {
+		return fmt.Errorf("could not start attacher: %w", err)
+	}
 
 	return nil
 }
 
-// PostStart registers the goTLS program to the attacher list.
+// PostStart is a no-op
 func (p *goTLSProgram) PostStart(*manager.Manager) error {
-	utils.AddAttacher(p.Name(), p)
 	return nil
 }
 
@@ -260,9 +244,7 @@ func (p *goTLSProgram) GetStats() *protocols.ProtocolStats {
 
 // Stop terminates goTLS main goroutine.
 func (p *goTLSProgram) Stop(*manager.Manager) {
-	close(p.done)
-	// Waiting for the main event loop to finish.
-	p.wg.Wait()
+	p.attacher.Stop()
 }
 
 var (
@@ -288,7 +270,7 @@ func GoTLSAttachPID(pid pid) error {
 		return errors.New("GoTLS is not enabled")
 	}
 
-	err := goTLSSpec.Instance.(*goTLSProgram).AttachPID(pid)
+	err := goTLSSpec.Instance.(*goTLSProgram).attacher.AttachPID(pid)
 	if errors.Is(err, utils.ErrPathIsAlreadyRegistered) {
 		// The process monitor has attached the process before us.
 		return nil
@@ -304,152 +286,5 @@ func GoTLSDetachPID(pid pid) error {
 		return errors.New("GoTLS is not enabled")
 	}
 
-	return goTLSSpec.Instance.(*goTLSProgram).DetachPID(pid)
-}
-
-// AttachPID attaches the provided PID to the eBPF program.
-func (p *goTLSProgram) AttachPID(pid uint32) error {
-	if p.cfg.GoTLSExcludeSelf && pid == uint32(os.Getpid()) {
-		return ErrSelfExcluded
-	}
-
-	pidAsStr := strconv.FormatUint(uint64(pid), 10)
-	exePath := filepath.Join(p.procRoot, pidAsStr, "exe")
-
-	binPath, err := utils.ResolveSymlink(exePath)
-	if err != nil {
-		return err
-	}
-
-	// Check if the process is datadog's internal process, if so, we don't want to hook the process.
-	if internalProcessRegex.MatchString(binPath) {
-		if log.ShouldLog(seelog.DebugLvl) {
-			log.Debugf("ignoring pid %d, as it is an internal datadog component (%q)", pid, binPath)
-		}
-		return ErrInternalDDogProcessRejected
-	}
-
-	// Check go process
-	probeList := make([]manager.ProbeIdentificationPair, 0)
-	return p.registry.Register(binPath, pid, registerCBCreator(p.manager, p.offsetsDataMap, &probeList, p.binAnalysisMetric, p.binNoSymbolsMetric),
-		unregisterCBCreator(p.manager, &probeList, p.offsetsDataMap),
-		utils.IgnoreCB)
-}
-
-func registerCBCreator(mgr *manager.Manager, offsetsDataMap *ebpf.Map, probeIDs *[]manager.ProbeIdentificationPair, binAnalysisMetric, binNoSymbolsMetric *libtelemetry.Counter) func(path utils.FilePath) error {
-	return func(filePath utils.FilePath) error {
-		start := time.Now()
-
-		f, err := os.Open(filePath.HostPath)
-		if err != nil {
-			return fmt.Errorf("could not open file %s, %w", filePath.HostPath, err)
-		}
-		defer f.Close()
-
-		elfFile, err := elf.NewFile(f)
-		if err != nil {
-			return fmt.Errorf("file %s could not be parsed as an ELF file: %w", filePath.HostPath, err)
-		}
-
-		inspectionResult, err := bininspect.InspectNewProcessBinary(elfFile, functionsConfig, structFieldsLookupFunctions)
-		if err != nil {
-			if errors.Is(err, elf.ErrNoSymbols) {
-				binNoSymbolsMetric.Add(1)
-			}
-			return fmt.Errorf("error extracting inspectoin data from %s: %w", filePath.HostPath, err)
-		}
-
-		if err := addInspectionResultToMap(offsetsDataMap, filePath.ID, inspectionResult); err != nil {
-			return fmt.Errorf("failed adding inspection rules: %w", err)
-		}
-
-		pIDs, err := attachHooks(mgr, inspectionResult, filePath.HostPath, filePath.ID)
-		if err != nil {
-			removeInspectionResultFromMap(offsetsDataMap, filePath.ID)
-			return fmt.Errorf("error while attaching hooks to %s: %w", filePath.HostPath, err)
-		}
-		*probeIDs = pIDs
-
-		elapsed := time.Since(start)
-
-		binAnalysisMetric.Add(elapsed.Milliseconds())
-		log.Debugf("attached hooks on %s (%v) in %s", filePath.HostPath, filePath.ID, elapsed)
-		return nil
-	}
-}
-
-func (p *goTLSProgram) handleProcessExit(pid pid) {
-	_ = p.DetachPID(pid)
-}
-
-func (p *goTLSProgram) handleProcessStart(pid pid) {
-	_ = p.AttachPID(pid)
-}
-
-func attachHooks(mgr *manager.Manager, result *bininspect.Result, binPath string, binID utils.PathIdentifier) ([]manager.ProbeIdentificationPair, error) {
-	uid := getUID(binID)
-	probeIDs := make([]manager.ProbeIdentificationPair, 0)
-
-	for function, uprobes := range functionToProbes {
-		if functionsConfig[function].IncludeReturnLocations {
-			if uprobes.returnInfo == "" {
-				return nil, fmt.Errorf("function %q configured to include return locations but no return uprobes found in config", function)
-			}
-			for i, offset := range result.Functions[function].ReturnLocations {
-				returnProbeID := manager.ProbeIdentificationPair{
-					EBPFFuncName: uprobes.returnInfo,
-					UID:          makeReturnUID(uid, i),
-				}
-				newProbe := &manager.Probe{
-					ProbeIdentificationPair: returnProbeID,
-					BinaryPath:              binPath,
-					// Each return probe needs to have a unique uid value,
-					// so add the index to the binary UID to make an overall UID.
-					UprobeOffset: offset,
-				}
-				if err := mgr.AddHook("", newProbe); err != nil {
-					return nil, fmt.Errorf("could not add return hook to function %q in offset %d due to: %w", function, offset, err)
-				}
-				probeIDs = append(probeIDs, returnProbeID)
-				ddebpf.AddProgramNameMapping(newProbe.ID(), newProbe.EBPFFuncName, "usm_gotls")
-			}
-		}
-
-		if uprobes.functionInfo != "" {
-			probeID := manager.ProbeIdentificationPair{
-				EBPFFuncName: uprobes.functionInfo,
-				UID:          uid,
-			}
-
-			newProbe := &manager.Probe{
-				BinaryPath:              binPath,
-				UprobeOffset:            result.Functions[function].EntryLocation,
-				ProbeIdentificationPair: probeID,
-			}
-			if err := mgr.AddHook("", newProbe); err != nil {
-				return nil, fmt.Errorf("could not add hook for %q in offset %d due to: %w", uprobes.functionInfo, result.Functions[function].EntryLocation, err)
-			}
-			probeIDs = append(probeIDs, probeID)
-			ddebpf.AddProgramNameMapping(newProbe.ID(), newProbe.EBPFFuncName, "usm_gotls")
-		}
-	}
-
-	return probeIDs, nil
-}
-
-func unregisterCBCreator(mgr *manager.Manager, probeIDs *[]manager.ProbeIdentificationPair, offsetsDataMap *ebpf.Map) func(path utils.FilePath) error {
-	return func(path utils.FilePath) error {
-		if len(*probeIDs) == 0 {
-			return nil
-		}
-		removeInspectionResultFromMap(offsetsDataMap, path.ID)
-		for _, probeID := range *probeIDs {
-			err := mgr.DetachHook(probeID)
-			if err != nil {
-				log.Errorf("failed detaching hook %s: %s", probeID.UID, err)
-			}
-		}
-		log.Debugf("detached hooks on ino %v", path.ID)
-		return nil
-	}
+	return goTLSSpec.Instance.(*goTLSProgram).attacher.DetachPID(pid)
 }
