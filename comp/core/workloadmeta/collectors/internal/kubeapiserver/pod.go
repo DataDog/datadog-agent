@@ -143,11 +143,8 @@ func (p podParser) Parse(obj interface{}) []workloadmeta.Entity {
 			Kind: workloadmeta.KindKubernetesMetadata,
 			ID:   string(util.GenerateKubeMetadataEntityID("", "pods", pod.Namespace, pod.Name)),
 		},
-		// EntityMeta: workloadmeta.EntityMeta{
-		// 	Labels:      podEntity.Labels,
-		// 	Annotations: podEntity.Annotations,
-		// },
-		GVR: p.gvr,
+		EntityMeta: podEntity.EntityMeta,
+		GVR:        p.gvr,
 	})
 
 	return entities

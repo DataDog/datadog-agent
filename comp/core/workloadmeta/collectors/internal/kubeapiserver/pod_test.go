@@ -110,6 +110,8 @@ func TestPodParser_Parse(t *testing.T) {
 			ID:   string(util.GenerateKubeMetadataEntityID("", "pods", "", "TestPod")),
 		},
 		EntityMeta: workloadmeta.EntityMeta{
+			Name:      "TestPod",
+			Namespace: "",
 			Labels: map[string]string{
 				"labelKey": "labelValue",
 			},
@@ -159,6 +161,7 @@ func Test_PodsFakeKubernetesClient(t *testing.T) {
 						Kind: workloadmeta.KindKubernetesMetadata,
 					},
 					EntityMeta: workloadmeta.EntityMeta{
+						Name:        "test-pod",
 						Annotations: objectMeta.Annotations,
 						Labels:      objectMeta.Labels,
 					},
