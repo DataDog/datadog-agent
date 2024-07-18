@@ -1,6 +1,8 @@
+import json
 import os
 import subprocess
 import sys
+from collections import defaultdict
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -156,6 +158,10 @@ DEFAULT_MODULES = {
     "comp/otelcol/collector-contrib/impl": GoModule(
         "comp/otelcol/collector-contrib/impl", independent=True, used_by_otel=True
     ),
+    "comp/otelcol/configstore/def": GoModule("comp/otelcol/configstore/def", independent=True, used_by_otel=True),
+    "comp/otelcol/configstore/impl": GoModule("comp/otelcol/configstore/impl", independent=True, used_by_otel=True),
+    "comp/otelcol/converter/def": GoModule("comp/otelcol/converter/def", independent=True, used_by_otel=True),
+    "comp/otelcol/converter/impl": GoModule("comp/otelcol/converter/impl", independent=True, used_by_otel=True),
     "comp/otelcol/extension/def": GoModule("comp/otelcol/extension/def", independent=True, used_by_otel=True),
     "comp/otelcol/extension/impl": GoModule("comp/otelcol/extension/impl", independent=True, used_by_otel=True),
     "comp/otelcol/logsagentpipeline": GoModule("comp/otelcol/logsagentpipeline", independent=True, used_by_otel=True),
@@ -178,10 +184,6 @@ DEFAULT_MODULES = {
         "comp/otelcol/otlp/components/statsprocessor", independent=True, used_by_otel=True
     ),
     "comp/otelcol/otlp/testutil": GoModule("comp/otelcol/otlp/testutil", independent=True, used_by_otel=True),
-    "comp/otelcol/converter/def": GoModule("comp/otelcol/converter/def", independent=True, used_by_otel=True),
-    "comp/otelcol/converter/impl": GoModule("comp/otelcol/converter/impl", independent=True, used_by_otel=True),
-    "comp/otelcol/configstore/def": GoModule("comp/otelcol/configstore/def", independent=True, used_by_otel=True),
-    "comp/otelcol/configstore/impl": GoModule("comp/otelcol/configstore/impl", independent=True, used_by_otel=True),
     "comp/serializer/compression": GoModule("comp/serializer/compression", independent=True, used_by_otel=True),
     "comp/trace/agent/def": GoModule("comp/trace/agent/def", independent=True, used_by_otel=True),
     "comp/trace/compression/def": GoModule("comp/trace/compression/def", independent=True, used_by_otel=True),
@@ -333,7 +335,18 @@ def generate_dummy_package(ctx, folder):
                 if mod.path != ".":
                     ctx.run(f"go mod edit -require={mod.dependency_path('0.0.0')}")
                     ctx.run(f"go mod edit -replace {mod.import_path}=../{mod.path}")
-
+                    # todo: remove once datadogconnector fix is released.
+                    if mod.import_path == "github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/impl":
+                        ctx.run(
+                            "go mod edit -replace github.com/open-telemetry/opentelemetry-collector-contrib/connector/datadogconnector=github.com/open-telemetry/opentelemetry-collector-contrib/connector/datadogconnector@v0.103.0"
+                        )
+                    if (
+                        mod.import_path == "github.com/DataDog/datadog-agent/comp/otelcol/configstore/impl"
+                        or mod.import_path == "github.com/DataDog/datadog-agent/comp/otelcol/configstore/def"
+                    ):
+                        ctx.run("go mod edit -exclude github.com/knadh/koanf/maps@v0.1.1")
+                        ctx.run("go mod edit -exclude github.com/knadh/koanf/providers/confmap@v0.1.0")
+                        ctx.run("go mod edit -exclude github.com/knadh/koanf/providers/confmap@v0.1.0-dev0")
         # yield folder waiting for a "with" block to be executed (https://docs.python.org/3/library/contextlib.html)
         yield folder
 
@@ -410,5 +423,44 @@ def validate(_: Context):
             message += f"  {module} is missing from DEFAULT_MODULES\n"
 
         message += "Please add them to the DEFAULT_MODULES list or exclude them from the validation."
+
+        raise Exit(message)
+
+
+@task
+def validate_used_by_otel(ctx: Context):
+    """
+    Verify whether indirect local dependencies of modules labeled "used_by_otel" are also marked with the "used_by_otel" tag.
+    """
+    otel_mods = [path for path, module in DEFAULT_MODULES.items() if module.used_by_otel]
+    missing_used_by_otel_label: dict[str, list[str]] = defaultdict(list)
+
+    # for every module labeled as "used_by_otel"
+    for otel_mod in otel_mods:
+        gomod_path = f"{otel_mod}/go.mod"
+        # get the go.mod data
+        result = ctx.run(f"go mod edit -json {gomod_path}", hide='both')
+        if result.failed:
+            raise Exit(f"Error running go mod edit -json on {gomod_path}: {result.stderr}")
+
+        go_mod_json = json.loads(result.stdout)
+        # get module dependencies
+        reqs = go_mod_json.get("Require", [])
+        if not reqs:  # Module don't have dependencies, continue
+            continue
+        for require in reqs:
+            # we are only interested into local modules
+            if not require["Path"].startswith("github.com/DataDog/datadog-agent/"):
+                continue
+            # we need the relative path of module (without github.com/DataDog/datadog-agent/ prefix)
+            rel_path = require['Path'].removeprefix("github.com/DataDog/datadog-agent/")
+            # check if indirect module is labeled as "used_by_otel"
+            if rel_path not in DEFAULT_MODULES or not DEFAULT_MODULES[rel_path].used_by_otel:
+                missing_used_by_otel_label[rel_path].append(otel_mod)
+    if missing_used_by_otel_label:
+        message = f"{color_message('ERROR', Color.RED)}: some indirect local dependencies of modules labeled \"used_by_otel\" are not correctly labeled in DEFAULT_MODULES\n"
+        for k, v in missing_used_by_otel_label.items():
+            message += f"\t{color_message(k, Color.RED)} is missing (used by {v})\n"
+        message += "Please label them as \"used_by_otel\" in the DEFAULT_MODULES list."
 
         raise Exit(message)

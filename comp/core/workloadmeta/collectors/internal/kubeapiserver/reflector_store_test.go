@@ -34,9 +34,12 @@ var interval = 50 * time.Millisecond
 func Test_AddDelete_Deployment(t *testing.T) {
 	workloadmetaComponent := mockedWorkloadmeta(t)
 
-	deploymentStore := newDeploymentReflectorStore(workloadmetaComponent)
+	deploymentStore := newDeploymentReflectorStore(workloadmetaComponent, workloadmetaComponent.GetConfig())
 
 	deployment := appsv1.Deployment{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "apps/v1",
+		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "test-deployment",
 			Namespace: "test-namespace",
@@ -51,17 +54,32 @@ func Test_AddDelete_Deployment(t *testing.T) {
 
 	err := deploymentStore.Add(&deployment)
 	require.NoError(t, err)
+
+	// require deployment entity in store
 	require.Eventually(t, func() bool {
 		_, err = workloadmetaComponent.GetKubernetesDeployment("test-namespace/test-deployment")
 		return err == nil
 	}, timeout, interval)
 
+	// require metadata entity in store
+	require.Eventually(t, func() bool {
+		_, err = workloadmetaComponent.GetKubernetesMetadata(util.GenerateKubeMetadataEntityID("apps", "deployments", "test-namespace", "test-deployment"))
+		return err == nil
+	}, timeout, interval)
+
 	err = deploymentStore.Delete(&deployment)
 	require.NoError(t, err)
+
 	require.Eventually(t, func() bool {
 		_, err = workloadmetaComponent.GetKubernetesDeployment("test-namespace/test-deployment")
 		return err != nil
 	}, timeout, interval)
+
+	require.Eventually(t, func() bool {
+		_, err = workloadmetaComponent.GetKubernetesMetadata(util.GenerateKubeMetadataEntityID("apps", "deployments", "test-namespace", "test-deployment"))
+		return err != nil
+	}, timeout, interval)
+
 }
 
 func Test_AddDelete_Pod(t *testing.T) {
@@ -70,6 +88,9 @@ func Test_AddDelete_Pod(t *testing.T) {
 	podStore := newPodReflectorStore(workloadmetaComponent, workloadmetaComponent.GetConfig())
 
 	pod := corev1.Pod{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "/v1",
+		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "test-pod",
 			Namespace: "test-namespace",
@@ -85,17 +106,32 @@ func Test_AddDelete_Pod(t *testing.T) {
 
 	err := podStore.Add(&pod)
 	require.NoError(t, err)
+
+	// require pod entity in store
 	require.Eventually(t, func() bool {
 		_, err = workloadmetaComponent.GetKubernetesPod(string(pod.UID))
 		return err == nil
 	}, timeout, interval)
 
+	// require metadata entity in store
+	require.Eventually(t, func() bool {
+		_, err = workloadmetaComponent.GetKubernetesMetadata(util.GenerateKubeMetadataEntityID("", "pods", "test-namespace", "test-pod"))
+		return err == nil
+	}, timeout, interval)
+
 	err = podStore.Delete(&pod)
 	require.NoError(t, err)
+
 	require.Eventually(t, func() bool {
 		_, err = workloadmetaComponent.GetKubernetesDeployment(string(pod.UID))
 		return err != nil
 	}, timeout, interval)
+
+	require.Eventually(t, func() bool {
+		_, err = workloadmetaComponent.GetKubernetesMetadata(util.GenerateKubeMetadataEntityID("", "pods", "test-namespace", "test-pod"))
+		return err != nil
+	}, timeout, interval)
+
 }
 
 func Test_AddDelete_PartialObjectMetadata(t *testing.T) {
@@ -111,7 +147,7 @@ func Test_AddDelete_PartialObjectMetadata(t *testing.T) {
 
 	metadataStore := &reflectorStore{
 		wlmetaStore: workloadmetaComponent,
-		seen:        make(map[string]workloadmeta.EntityID),
+		seen:        make(map[string][]workloadmeta.EntityID),
 		parser:      parser,
 	}
 
@@ -164,7 +200,7 @@ func TestReplace(t *testing.T) {
 		EntityMeta: workloadmeta.EntityMeta{
 			Name: "test-node",
 		},
-		GVR: gvr,
+		GVR: &gvr,
 	}
 
 	workloadmetaComponent := mockedWorkloadmeta(t)
@@ -229,7 +265,7 @@ func TestReplace(t *testing.T) {
 
 	metadataStore := &reflectorStore{
 		wlmetaStore: workloadmetaComponent,
-		seen:        make(map[string]workloadmeta.EntityID),
+		seen:        make(map[string][]workloadmeta.EntityID),
 		parser:      parser,
 	}
 

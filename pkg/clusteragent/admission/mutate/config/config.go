@@ -33,11 +33,19 @@ import (
 
 const (
 	// Env vars
-	agentHostEnvVarName    = "DD_AGENT_HOST"
-	ddEntityIDEnvVarName   = "DD_ENTITY_ID"
-	traceURLEnvVarName     = "DD_TRACE_AGENT_URL"
-	dogstatsdURLEnvVarName = "DD_DOGSTATSD_URL"
-	podUIDEnvVarName       = "DD_INTERNAL_POD_UID"
+	agentHostEnvVarName      = "DD_AGENT_HOST"
+	ddEntityIDEnvVarName     = "DD_ENTITY_ID"
+	ddExternalDataEnvVarName = "DD_EXTERNAL_ENV"
+	traceURLEnvVarName       = "DD_TRACE_AGENT_URL"
+	dogstatsdURLEnvVarName   = "DD_DOGSTATSD_URL"
+	podUIDEnvVarName         = "DD_INTERNAL_POD_UID"
+
+	// External Data Prefixes
+	// These prefixes are used to build the External Data Environment Variable.
+	// This variable is then used for Origin Detection.
+	externalDataInitPrefix          = "it-"
+	externalDataContainerNamePrefix = "cn-"
+	externalDataPodUIDPrefix        = "pu-"
 
 	// Config injection modes
 	hostIP  = "hostip"
@@ -163,19 +171,22 @@ func (w *Webhook) mutate(request *admission.MutateRequest) ([]byte, error) {
 	return common.Mutate(request.Raw, request.Namespace, w.Name(), w.inject, request.DynamicClient)
 }
 
-// inject injects DD_AGENT_HOST and DD_ENTITY_ID into a pod template if needed
+// inject injects the following environment variables into the pod template:
+// - DD_AGENT_HOST: the host IP of the node
+// - DD_ENTITY_ID: the entity ID of the pod
+// - DD_EXTERNAL_ENV: the External Data Environment Variable
 func (w *Webhook) inject(pod *corev1.Pod, _ string, _ dynamic.Interface) (bool, error) {
-	var injectedConfig, injectedEntity bool
+	var injectedConfig, injectedEntity, injectedExternalEnv bool
 
 	if pod == nil {
 		return false, errors.New(metrics.InvalidInput)
-
 	}
 
 	if !autoinstrumentation.ShouldInject(pod, w.wmeta) {
 		return false, nil
 	}
 
+	// Inject DD_AGENT_HOST
 	switch injectionMode(pod, w.mode) {
 	case hostIP:
 		injectedConfig = common.InjectEnv(pod, agentHostIPEnvVar)
@@ -192,13 +203,17 @@ func (w *Webhook) inject(pod *corev1.Pod, _ string, _ dynamic.Interface) (bool, 
 		return false, errors.New(metrics.InvalidInput)
 	}
 
+	// Inject DD_ENTITY_ID
 	if w.config.injectContName {
 		injectedEntity = injectFullIdentity(pod)
 	} else {
 		injectedEntity = common.InjectEnv(pod, defaultDdEntityIDEnvVar)
 	}
 
-	return injectedConfig || injectedEntity, nil
+	// Inject External Data Environment Variable
+	injectedExternalEnv = injectExternalDataEnvVar(pod)
+
+	return injectedConfig || injectedEntity || injectedExternalEnv, nil
 }
 
 // injectionMode returns the injection mode based on the global mode and pod labels
@@ -215,6 +230,51 @@ func injectionMode(pod *corev1.Pod, globalMode string) string {
 	}
 
 	return globalMode
+}
+
+// injectExternalDataEnvVar injects the External Data environment variable.
+// The format is: it-<init>,cn-<container_name>,pu-<pod_uid>
+func injectExternalDataEnvVar(pod *corev1.Pod) (injected bool) {
+	type containerInjection struct {
+		container *corev1.Container
+		init      bool
+	}
+	var containerInjections []containerInjection
+
+	// Collect all containers and init containers
+	for i := range pod.Spec.Containers {
+		containerInjections = append(containerInjections, containerInjection{&pod.Spec.Containers[i], false})
+	}
+	for i := range pod.Spec.InitContainers {
+		containerInjections = append(containerInjections, containerInjection{&pod.Spec.InitContainers[i], true})
+	}
+
+	// Inject External Data Environment Variable for each container
+	for _, containerInjection := range containerInjections {
+		if containerInjection.container == nil {
+			_ = log.Errorf("Cannot inject identity into nil container")
+			continue
+		}
+
+		containerInjection.container.Env = append([]corev1.EnvVar{
+			{
+				Name: podUIDEnvVarName,
+				ValueFrom: &corev1.EnvVarSource{
+					FieldRef: &corev1.ObjectFieldSelector{
+						FieldPath: "metadata.uid",
+					},
+				},
+			},
+			{
+				Name:  ddExternalDataEnvVarName,
+				Value: fmt.Sprintf("%s%t,%s%s,%s$(%s)", externalDataInitPrefix, containerInjection.init, externalDataContainerNamePrefix, containerInjection.container.Name, externalDataPodUIDPrefix, podUIDEnvVarName),
+			},
+		}, containerInjection.container.Env...)
+
+		injected = true
+	}
+
+	return injected
 }
 
 func injectIdentityInContainer(container *corev1.Container, prefix, podStr string) bool {

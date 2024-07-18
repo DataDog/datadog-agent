@@ -55,10 +55,13 @@ TEST_PACKAGES_LIST = [
     "./pkg/process/monitor/...",
 ]
 TEST_PACKAGES = " ".join(TEST_PACKAGES_LIST)
+# change `timeouts` in `test/new-e2e/system-probe/test-runner/main.go` if you change them here
 TEST_TIMEOUTS = {
-    "pkg/network/tracer$": "0",
-    "pkg/network/protocols/http$": "0",
     "pkg/network/protocols": "5m",
+    "pkg/network/protocols/http$": "15m",
+    "pkg/network/tracer$": "55m",
+    "pkg/network/usm$": "55m",
+    "pkg/network/usm/tests$": "55m",
 }
 CWS_PREBUILT_MINIMUM_KERNEL_VERSION = (5, 8, 0)
 EMBEDDED_SHARE_DIR = os.path.join("/opt", "datadog-agent", "embedded", "share", "system-probe", "ebpf")
@@ -2003,6 +2006,12 @@ def start_microvms(
 
     # building the binary improves start up time for local usage where we invoke this multiple times.
     ctx.run("cd ./test/new-e2e && go build -o start-microvms ./scenarios/system-probe/main.go")
+    print(
+        color_message(
+            "[+] Creating and provisioning microVMs.\n[+] If you want to see the pulumi progress, set configParams.pulumi.verboseProgressStreams: true in ~/.test_infra_config.yaml",
+            "green",
+        )
+    )
     ctx.run(f"./test/new-e2e/start-microvms {go_args}")
 
 

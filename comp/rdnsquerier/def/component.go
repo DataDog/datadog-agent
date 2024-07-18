@@ -10,5 +10,5 @@ package rdnsquerier
 
 // Component is the component type.
 type Component interface {
-	GetHostnameAsync([]byte, func(string))
+	GetHostnameAsync([]byte, func(string)) error
 }
