@@ -2140,9 +2140,28 @@ func generateSyscallTestProfile(add ...model.Syscall) *dumpsv1.SecurityProfile {
 		},
 	}
 	for _, toAdd := range add {
-		syscallProfile.ProfileContexts["latest"].Syscalls = append(syscallProfile.ProfileContexts["latest"].Syscalls, uint32(toAdd))
+		if !slices.Contains(syscallProfile.ProfileContexts["latest"].Syscalls, uint32(toAdd)) {
+			syscallProfile.ProfileContexts["latest"].Syscalls = append(syscallProfile.ProfileContexts["latest"].Syscalls, uint32(toAdd))
+		}
 	}
 	return syscallProfile
+}
+
+func checkExpectedSyscalls(t *testing.T, got []model.Syscall, expectedSyscalls []model.Syscall, eventReason model.SyscallDriftEventReason, testOutput map[model.SyscallDriftEventReason]bool) bool {
+	for _, s := range expectedSyscalls {
+		if !slices.Contains(got, s) {
+			t.Logf("A %s syscall drift event was received with the wrong list of syscalls. Expected %v, got %v", eventReason, expectedSyscalls, got)
+			return false
+		}
+	}
+	if len(got) != len(expectedSyscalls) {
+		t.Logf("A %s syscall drift event was received with additional syscalls. Expected %v, got %v", eventReason, expectedSyscalls, got)
+		return false
+	}
+	testOutput[eventReason] = true
+
+	// If all 3 reasons are OK, exit early
+	return testOutput[model.ExecveReason] && testOutput[model.ExitReason] && testOutput[model.SyscallMonitorPeriodReason]
 }
 
 func TestSecurityProfileSyscallDrift(t *testing.T) {
@@ -2214,77 +2233,45 @@ func TestSecurityProfileSyscallDrift(t *testing.T) {
 			return err
 		}, func(event *model.Event) bool {
 			if event.GetType() == "syscalls" {
+				var expectedSyscalls []model.Syscall
 				switch event.Syscalls.EventReason {
 				case model.ExecveReason:
 					// Context: this syscall drift event should be sent when `runc.XXXX` execs into the syscall tester.
 					// Only basic syscalls performed to prepare the execution of the syscall tester, and that are
 					// not in the profile should be here. This includes the Execve syscall itself
-					expectedSyscalls := []model.Syscall{
+					expectedSyscalls = []model.Syscall{
 						model.SysRead,
 						model.SysWrite,
 						model.SysClose,
 						model.SysMmap,
 						model.SysExecve,
 					}
-					for _, s := range expectedSyscalls {
-						if !slices.Contains(event.Syscalls.Syscalls, s) {
-							t.Logf("A ExecveReason syscall drift event was received with the wrong list of syscalls. Expected %v, got %v", expectedSyscalls, event.Syscalls.Syscalls)
-							return false
-						}
-					}
-					if len(event.Syscalls.Syscalls) != len(expectedSyscalls) {
-						t.Logf("A ExecveReason syscall drift event was received with additional syscalls. Expected %v, got %v", expectedSyscalls, event.Syscalls.Syscalls)
-						return false
-					}
-					testOutput[model.ExecveReason] = true
 				case model.SyscallMonitorPeriodReason:
 					// Context: this event should be sent by the openat syscall made by the syscall tester while creating the
 					// temporary file. The openat syscall itself shouldn't be in the list, since it is already in the profile.
 					// Thus, only basic syscalls performed during the start of the execution of the syscall tester, and that are
 					// not in the profile should be here.
-					expectedSyscalls := []model.Syscall{
+					expectedSyscalls = []model.Syscall{
 						model.SysRead,
 						model.SysClose,
 						model.SysMmap,
 					}
-					for _, s := range expectedSyscalls {
-						if !slices.Contains(event.Syscalls.Syscalls, s) {
-							t.Logf("A SyscallMonitorPeriodReason syscall drift event was received with the wrong list of syscalls. Expected %v, got %v", expectedSyscalls, event.Syscalls.Syscalls)
-							return false
-						}
-					}
-					if len(event.Syscalls.Syscalls) != len(expectedSyscalls) {
-						t.Logf("A SyscallMonitorPeriodReason syscall drift event was received with additional syscalls. Expected %v, got %v", expectedSyscalls, event.Syscalls.Syscalls)
-						return false
-					}
-					testOutput[model.SyscallMonitorPeriodReason] = true
 				case model.ExitReason:
 					// Context: this event should be sent when the syscall tester exits and the last dirty syscall cache entry
 					// is flushed to user space. This event should include only the file management syscalls that
 					// are performed by the syscall tester after the sleep, and that aren't in the profile.
-					expectedSyscalls := []model.Syscall{
+					expectedSyscalls = []model.Syscall{
 						model.SysWrite,
 						model.SysClose,
 						model.SysExitGroup,
 						model.SysUnlinkat,
 					}
-					for _, s := range expectedSyscalls {
-						if !slices.Contains(event.Syscalls.Syscalls, s) {
-							t.Logf("A ExitReason syscall drift event was received with the wrong list of syscalls. Expected %v, got %v", expectedSyscalls, event.Syscalls.Syscalls)
-							return false
-						}
-					}
-					if len(event.Syscalls.Syscalls) != len(expectedSyscalls) {
-						t.Logf("A ExitReason syscall drift event was received with additional syscalls. Expected %v, got %v", expectedSyscalls, event.Syscalls.Syscalls)
-						return false
-					}
-					testOutput[model.ExitReason] = true
 				default:
 					t.Errorf("unknown syscall drift event reason: %v", event.Syscalls.EventReason)
+					return false
 				}
 
-				// If all 3 syscalls are OK, exit early
-				return testOutput[model.ExecveReason] && testOutput[model.ExitReason] && testOutput[model.SyscallMonitorPeriodReason]
+				return checkExpectedSyscalls(t, event.Syscalls.Syscalls, expectedSyscalls, event.Syscalls.EventReason, testOutput)
 			}
 			return false
 		}, 20*time.Second); err != nil {
@@ -2371,75 +2358,43 @@ func TestSecurityProfileSyscallDriftExecExitInProfile(t *testing.T) {
 			return err
 		}, func(event *model.Event) bool {
 			if event.GetType() == "syscalls" {
+				var expectedSyscalls []model.Syscall
 				switch event.Syscalls.EventReason {
 				case model.ExecveReason:
 					// Context: this syscall drift event should be sent when `runc.XXXX` execs into the syscall tester.
 					// Only basic syscalls performed to prepare the execution of the syscall tester, and that are
 					// not in the profile should be here. This includes the Execve syscall itself
-					expectedSyscalls := []model.Syscall{
+					expectedSyscalls = []model.Syscall{
 						model.SysRead,
 						model.SysWrite,
 						model.SysClose,
 						model.SysMmap,
 					}
-					for _, s := range expectedSyscalls {
-						if !slices.Contains(event.Syscalls.Syscalls, s) {
-							t.Logf("A ExecveReason syscall drift event was received with the wrong list of syscalls. Expected %v, got %v", expectedSyscalls, event.Syscalls.Syscalls)
-							return false
-						}
-					}
-					if len(event.Syscalls.Syscalls) != len(expectedSyscalls) {
-						t.Logf("A ExecveReason syscall drift event was received with additional syscalls. Expected %v, got %v", expectedSyscalls, event.Syscalls.Syscalls)
-						return false
-					}
-					testOutput[model.ExecveReason] = true
 				case model.SyscallMonitorPeriodReason:
 					// Context: this event should be sent by the openat syscall made by the syscall tester while creating the
 					// temporary file. The openat syscall itself shouldn't be in the list, since it is already in the profile.
 					// Thus, only basic syscalls performed during the start of the execution of the syscall tester, and that are
 					// not in the profile should be here.
-					expectedSyscalls := []model.Syscall{
+					expectedSyscalls = []model.Syscall{
 						model.SysRead,
 						model.SysClose,
 						model.SysMmap,
 					}
-					for _, s := range expectedSyscalls {
-						if !slices.Contains(event.Syscalls.Syscalls, s) {
-							t.Logf("A SyscallMonitorPeriodReason syscall drift event was received with the wrong list of syscalls. Expected %v, got %v", expectedSyscalls, event.Syscalls.Syscalls)
-							return false
-						}
-					}
-					if len(event.Syscalls.Syscalls) != len(expectedSyscalls) {
-						t.Logf("A SyscallMonitorPeriodReason syscall drift event was received with additional syscalls. Expected %v, got %v", expectedSyscalls, event.Syscalls.Syscalls)
-						return false
-					}
-					testOutput[model.SyscallMonitorPeriodReason] = true
 				case model.ExitReason:
 					// Context: this event should be sent when the syscall tester exits and the last dirty syscall cache entry
 					// is flushed to user space. This event should include only the file management syscalls that
 					// are performed by the syscall tester after the sleep, and that aren't in the profile.
-					expectedSyscalls := []model.Syscall{
+					expectedSyscalls = []model.Syscall{
 						model.SysWrite,
 						model.SysClose,
 						model.SysUnlinkat,
 					}
-					for _, s := range expectedSyscalls {
-						if !slices.Contains(event.Syscalls.Syscalls, s) {
-							t.Logf("A ExitReason syscall drift event was received with the wrong list of syscalls. Expected %v, got %v", expectedSyscalls, event.Syscalls.Syscalls)
-							return false
-						}
-					}
-					if len(event.Syscalls.Syscalls) != len(expectedSyscalls) {
-						t.Logf("A ExitReason syscall drift event was received with additional syscalls. Expected %v, got %v", expectedSyscalls, event.Syscalls.Syscalls)
-						return false
-					}
-					testOutput[model.ExitReason] = true
 				default:
 					t.Errorf("unknown syscall drift event reason: %v", event.Syscalls.EventReason)
+					return false
 				}
 
-				// If all 3 syscalls are OK, exit early
-				return testOutput[model.ExecveReason] && testOutput[model.ExitReason] && testOutput[model.SyscallMonitorPeriodReason]
+				return checkExpectedSyscalls(t, event.Syscalls.Syscalls, expectedSyscalls, event.Syscalls.EventReason, testOutput)
 			}
 			return false
 		}, 20*time.Second); err != nil {
