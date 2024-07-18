@@ -5,18 +5,10 @@
 
 package npcollectorimpl
 
-import (
-	"net"
-
-	model "github.com/DataDog/agent-payload/v5/process"
-)
+import model "github.com/DataDog/agent-payload/v5/process"
 
 func shouldScheduleNetworkPathForConn(conn *model.Connection) bool {
 	if conn == nil || conn.Direction != model.ConnectionDirection_outgoing {
-		return false
-	}
-	remoteIP := net.ParseIP(conn.Raddr.Ip)
-	if remoteIP.IsLoopback() {
 		return false
 	}
 	return conn.Family == model.ConnectionFamily_v4
