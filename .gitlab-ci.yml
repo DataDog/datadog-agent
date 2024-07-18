@@ -1023,6 +1023,10 @@ workflow:
   - <<: *if_disable_unit_tests
     when: never
 
+.except_disable_e2e_tests:
+  - <<: *if_disable_e2e_tests
+    when: never
+
 .on_macos_gui_change:
   - !reference [.except_mergequeue] # The prerequisites are not run in the mergequeue pipeline so we need to skip this rule
   - changes:

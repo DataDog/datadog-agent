@@ -203,9 +203,7 @@ new-e2e-agent-subcommands:
       - EXTRA_PARAMS: --run "Test(Linux|Windows)HealthSuite"
       - EXTRA_PARAMS: --run "Test(Linux|Windows)ConfigSuite"
       - EXTRA_PARAMS: --run "Test(Linux|Windows)HostnameSuite"
-      # TODO: To regroup when the DiagnoseSuite support parallel #ASCII-1983
-      - EXTRA_PARAMS: --run "TestLinuxDiagnoseSuite"
-      - EXTRA_PARAMS: --run "TestWindowsDiagnoseSuite"
+      - EXTRA_PARAMS: --run "Test(Linux|Windows)DiagnoseSuite"
       - EXTRA_PARAMS: --run "Test(Linux|Windows)ConfigCheckSuite"
       - EXTRA_PARAMS: --run "Test(Linux|Windows)FlareSuite"
       - EXTRA_PARAMS: --run "Test(Linux|Windows)SecretSuite"

@@ -190,7 +190,7 @@ require (
 	github.com/elastic/go-libaudit/v2 v2.5.0
 	github.com/evanphx/json-patch v5.9.0+incompatible
 	github.com/fatih/color v1.17.0
-	github.com/freddierice/go-losetup v0.0.0-20170407175016-fc9adea44124
+	github.com/freddierice/go-losetup v0.0.0-20220711213114-2a14873012db
 	github.com/fsnotify/fsnotify v1.7.0
 	github.com/go-delve/delve v1.20.1
 	github.com/go-ini/ini v1.67.0
@@ -553,7 +553,7 @@ require (
 	go.opentelemetry.io/collector/semconv v0.104.0
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.52.0 // indirect
 	go.opentelemetry.io/contrib/propagators/b3 v1.27.0 // indirect
-	go.opentelemetry.io/otel v1.27.0 // indirect
+	go.opentelemetry.io/otel v1.27.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.27.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.27.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.27.0
@@ -754,6 +754,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-api-client-go/v2 v2.26.0 // indirect
 	github.com/DataDog/dd-sensitive-data-scanner/sds-go/go v0.0.0-20240419161837-f1b2f553edfe // indirect
+	github.com/DataDog/opentelemetry-mapping-go/pkg/inframetadata v0.17.0 // indirect
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs v0.17.0 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.24.0 // indirect
 	github.com/Intevation/gval v1.3.0 // indirect
