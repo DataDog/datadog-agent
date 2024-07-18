@@ -18,11 +18,9 @@ import (
 	"strconv"
 	"sync"
 	"time"
-	"unsafe"
 
 	"github.com/cihub/seelog"
 	"github.com/cilium/ebpf"
-	"golang.org/x/sys/unix"
 
 	manager "github.com/DataDog/ebpf-manager"
 
@@ -30,7 +28,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/gotls"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/gotls/lookup"
 	libtelemetry "github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/buildmode"
@@ -110,10 +107,6 @@ type goTLSProgram struct {
 
 	// Path to the process/container's procfs
 	procRoot string
-
-	// eBPF map holding the result of binary analysis, indexed by binaries'
-	// inodes.
-	offsetsDataMap *ebpf.Map
 
 	// binAnalysisMetric handles telemetry on the time spent doing binary
 	// analysis
@@ -391,37 +384,6 @@ func (p *goTLSProgram) handleProcessExit(pid pid) {
 
 func (p *goTLSProgram) handleProcessStart(pid pid) {
 	_ = p.AttachPID(pid)
-}
-
-// addInspectionResultToMap runs a binary inspection and adds the result to the
-// map that's being read by the probes, indexed by the binary's inode number `ino`.
-func addInspectionResultToMap(offsetsDataMap *ebpf.Map, binID utils.PathIdentifier, result *bininspect.Result) error {
-	offsetsData, err := inspectionResultToProbeData(result)
-	if err != nil {
-		return fmt.Errorf("error while parsing inspection result: %w", err)
-	}
-
-	key := &gotls.TlsBinaryId{
-		Id_major: unix.Major(binID.Dev),
-		Id_minor: unix.Minor(binID.Dev),
-		Ino:      binID.Inode,
-	}
-	if err := offsetsDataMap.Put(unsafe.Pointer(key), unsafe.Pointer(&offsetsData)); err != nil {
-		return fmt.Errorf("could not write binary inspection result to map for binID %v: %w", binID, err)
-	}
-
-	return nil
-}
-
-func removeInspectionResultFromMap(offsetsDataMap *ebpf.Map, binID utils.PathIdentifier) {
-	key := &gotls.TlsBinaryId{
-		Id_major: unix.Major(binID.Dev),
-		Id_minor: unix.Minor(binID.Dev),
-		Ino:      binID.Inode,
-	}
-	if err := offsetsDataMap.Delete(unsafe.Pointer(key)); err != nil {
-		log.Errorf("could not remove inspection result from map for ino %v: %s", binID, err)
-	}
 }
 
 func attachHooks(mgr *manager.Manager, result *bininspect.Result, binPath string, binID utils.PathIdentifier) ([]manager.ProbeIdentificationPair, error) {
