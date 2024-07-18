@@ -69,7 +69,11 @@ func (t *Tailer) forwardMessages() {
 	for output := range t.decoder.OutputChan {
 		if len(output.GetContent()) > 0 {
 			origin := message.NewOrigin(t.source)
-			source_host_tag := fmt.Sprintf("source_host:%d", t.source.Config.Port)
+			log.Debug("andrewqian", t.Conn)
+			log.Debug("andrewqian", t.Conn.LocalAddr())
+			log.Debug("andrewqian", t.Conn.LocalAddr().Network())
+			log.Debug("andrewqian", t.Conn.LocalAddr().String())
+			source_host_tag := fmt.Sprintf("source_host:%d", t.Conn)
 			origin.SetTags(append(t.source.Config.Tags, source_host_tag))
 			t.outputChan <- message.NewMessage(output.GetContent(), origin, output.Status, output.IngestionTimestamp)
 		}
