@@ -71,6 +71,10 @@ func (t *Tailer) forwardMessages() {
 		if len(output.GetContent()) > 0 {
 			t.outputChan <- message.NewMessageWithSource(output.GetContent(), message.StatusInfo, t.source, output.IngestionTimestamp)
 			log.Debug("andrewqian3", t.outputChan)
+			log.Debug("------------------------------------------------------------")
+			log.Debug("andrewqian4", t)
+			log.Debug("------------------------------------------------------------")
+
 		}
 	}
 }
