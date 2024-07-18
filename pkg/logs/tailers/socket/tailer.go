@@ -77,7 +77,7 @@ func (t *Tailer) forwardMessages() {
 			log.Debug("andrewqian6", t.Conn.RemoteAddr())
 			log.Debug("andrewqian7", t.Conn.RemoteAddr().String())
 			log.Debug("andrewqian8", t.Conn.RemoteAddr().Network())
-			source_host_tag := fmt.Sprintf("source_host:%d", t.Conn)
+			source_host_tag := fmt.Sprintf("source_host:%s", t.Conn.RemoteAddr().String())
 			origin.SetTags(append(t.source.Config.Tags, source_host_tag))
 			t.outputChan <- message.NewMessage(output.GetContent(), origin, output.Status, output.IngestionTimestamp)
 		}
