@@ -8,4 +8,4 @@
 ---
 upgrade:
   - |
-    Update cURL to 8.7.1
+    Update cURL to 8.7.1.
