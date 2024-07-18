@@ -543,7 +543,7 @@ func (ua *UprobeAttacher) attachToBinary(fpath utils.FilePath, matchingRules []*
 		return fmt.Errorf("error computing symbols to request for rules %+v: %w", matchingRules, err)
 	}
 
-	inspectResult, isAttachable, err := ua.inspector.Inspect(fpath.HostPath, symbolsToRequest)
+	inspectResult, isAttachable, err := ua.inspector.Inspect(fpath, symbolsToRequest)
 	if err != nil {
 		return fmt.Errorf("error inspecting %s: %w", fpath.HostPath, err)
 	}
@@ -660,6 +660,8 @@ func (ua *UprobeAttacher) detachFromBinary(fpath utils.FilePath) error {
 			return fmt.Errorf("error detaching probe %+v: %w", probeID, err)
 		}
 	}
+
+	ua.inspector.Cleanup(fpath)
 
 	return nil
 }

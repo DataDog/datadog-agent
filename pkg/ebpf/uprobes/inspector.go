@@ -16,6 +16,7 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
+	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
 )
 
@@ -26,7 +27,11 @@ type BinaryInspector interface {
 	// It is encouraged to return early if the binary is not compatible, to avoid unnecessary work.
 	// In the future, the first and second return values should be merged into a single struct, but for
 	// now this allows us to keep the API compatible with the existing implementation.
-	Inspect(path string, requests []SymbolRequest) (map[string]bininspect.FunctionMetadata, bool, error)
+	Inspect(fpath utils.FilePath, requests []SymbolRequest) (map[string]bininspect.FunctionMetadata, bool, error)
+
+	// Cleanup is called when a certain file path is not needed anymore, the implementation can clean up
+	// any resources associated with the file path.
+	Cleanup(fpath utils.FilePath)
 }
 
 // SymbolRequest represents a request for symbols and associated data from a binary
@@ -44,7 +49,8 @@ type NativeBinaryInspector struct {
 var _ BinaryInspector = &NativeBinaryInspector{}
 
 // Inspect extracts the metadata required to attach to a binary from the ELF file at the given path.
-func (p *NativeBinaryInspector) Inspect(path string, requests []SymbolRequest) (map[string]bininspect.FunctionMetadata, bool, error) {
+func (p *NativeBinaryInspector) Inspect(fpath utils.FilePath, requests []SymbolRequest) (map[string]bininspect.FunctionMetadata, bool, error) {
+	path := fpath.HostPath
 	elfFile, err := elf.Open(path)
 	if err != nil {
 		return nil, false, err
@@ -121,6 +127,10 @@ func (*NativeBinaryInspector) symbolToFuncMetadata(elfFile *elf.File, sym elf.Sy
 	return &bininspect.FunctionMetadata{EntryLocation: uint64(offset)}, nil
 }
 
+func (*NativeBinaryInspector) Cleanup(_ utils.FilePath) {
+	// Nothing to do here for the native inspector
+}
+
 // GoBinaryInspector is a BinaryInspector that inspects Go binaries, dealing with the specifics of Go binaries
 // such as the argument passing convention and the lack of uprobes
 type GoBinaryInspector struct {
@@ -132,7 +142,8 @@ type GoBinaryInspector struct {
 var _ BinaryInspector = &GoBinaryInspector{}
 
 // Inspect extracts the metadata required to attach to a Go binary from the ELF file at the given path.
-func (p *GoBinaryInspector) Inspect(path string, requests []SymbolRequest) (map[string]bininspect.FunctionMetadata, bool, error) {
+func (p *GoBinaryInspector) Inspect(fpath utils.FilePath, requests []SymbolRequest) (map[string]bininspect.FunctionMetadata, bool, error) {
+	path := fpath.HostPath
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, false, fmt.Errorf("could not open file %s, %w", path, err)
@@ -158,4 +169,8 @@ func (p *GoBinaryInspector) Inspect(path string, requests []SymbolRequest) (map[
 	}
 
 	return inspectionResult.Functions, true, nil
+}
+
+func (*GoBinaryInspector) Cleanup(_ utils.FilePath) {
+	// Nothing to do here for the native inspector
 }
