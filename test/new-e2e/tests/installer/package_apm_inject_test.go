@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	e2eos "github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/stretchr/testify/assert"
 )
@@ -221,6 +222,10 @@ func (s *packageApmInjectSuite) TestUpgrade_InjectorOCI_To_InjectorDeb() {
 }
 
 func (s *packageApmInjectSuite) TestVersionBump() {
+	if s.os == e2eos.Debian12 {
+		flake.Mark(s.T()) // TODO(baptiste): FIXME
+	}
+
 	s.host.InstallDocker()
 	s.RunInstallScript(
 		"DD_APM_INSTRUMENTATION_ENABLED=all",

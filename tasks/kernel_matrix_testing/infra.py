@@ -130,7 +130,11 @@ class LibvirtDomain:
         self.run_cmd(ctx, f"mkdir -p {os.path.dirname(target)}", verbose=verbose)
 
         run = self._get_rsync_base(exclude) + f" {source} root@{self.ip}:{target}"
-        return self.instance.runner.run_cmd(ctx, self.instance, run, False, verbose)
+        res = self.instance.runner.run_cmd(ctx, self.instance, run, False, verbose)
+        if res:
+            info(f"[+] (HOST: {source}) => (VM: {target})")
+
+        return res
 
     def download(
         self,
@@ -141,7 +145,10 @@ class LibvirtDomain:
         verbose: bool = False,
     ):
         run = self._get_rsync_base(exclude) + f" root@{self.ip}:{source} {target}"
-        return self.instance.runner.run_cmd(ctx, self.instance, run, False, verbose)
+        res = self.instance.runner.run_cmd(ctx, self.instance, run, False, verbose)
+        if res:
+            info(f"[+] (VM: {source}) => (HOST: {target})")
+        return res
 
     def __repr__(self):
         return f"<LibvirtDomain> {self.name} {self.ip}"
