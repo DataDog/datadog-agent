@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	gzip "github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
@@ -72,7 +73,7 @@ func NewAgent(ctx context.Context, out chan *pb.StatsPayload, metricsClient stat
 // NewAgentWithConfig creates a new traceagent with the given config cfg. Used in tests; use newAgent instead.
 func NewAgentWithConfig(ctx context.Context, cfg *traceconfig.AgentConfig, out chan *pb.StatsPayload, metricsClient statsd.ClientInterface, timingReporter timing.Reporter) *TraceAgent {
 	// disable the HTTP receiver
-	cfg.ReceiverPort = 0
+	cfg.ReceiverEnabled = false
 	// set the API key to succeed startup; it is never used nor needed
 	cfg.Endpoints[0].APIKey = "skip_check"
 	// set the default hostname to the translator's placeholder; in the case where no hostname
@@ -82,7 +83,7 @@ func NewAgentWithConfig(ctx context.Context, cfg *traceconfig.AgentConfig, out c
 	// Ingest). This gives a better user experience.
 	cfg.Hostname = "__unset__"
 	pchan := make(chan *api.Payload, 1000)
-	a := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector(), metricsClient)
+	a := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector(), metricsClient, gzip.NewComponent())
 	// replace the Concentrator (the component which computes and flushes APM Stats from incoming
 	// traces) with our own, which uses the 'out' channel.
 	statsWriter := NewOtelStatsWriter(out)

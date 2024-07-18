@@ -15,7 +15,9 @@ golang_deps_diff:
     - source /root/.bashrc
     - !reference [.retrieve_linux_go_deps]
   script:
-    - inv -e diff.go-deps --report-file=deps-report.md
+     # Get API key to send metrics
+    - export DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $API_KEY_ORG2_SSM_NAME)
+    - inv -e diff.go-deps --report-file=deps-report.md --report-metrics
   artifacts:
     paths:
       - deps-report.md

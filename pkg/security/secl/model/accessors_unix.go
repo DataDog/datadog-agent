@@ -201,6 +201,15 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
+	case "cgroup.id":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveCGroupID(ev, &ev.CGroupContext)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
 	case "chdir.file.change_time":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -906,6 +915,15 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
+	case "container.runtime":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveContainerRuntime(ev, ev.BaseEvent.ContainerContext)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
 	case "container.tags":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
@@ -1106,6 +1124,15 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
+	case "exec.cgroup.id":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveCGroupID(ev, &ev.Exec.Process.CGroup)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
 	case "exec.comm":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -1119,10 +1146,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
-				return ev.Exec.Process.ContainerID
+				return ev.FieldHandlers.ResolveProcessContainerID(ev, ev.Exec.Process)
 			},
 			Field:  field,
-			Weight: eval.FunctionWeight,
+			Weight: eval.HandlerWeight,
 		}, nil
 	case "exec.created_at":
 		return &eval.IntEvaluator{
@@ -1915,6 +1942,15 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
+	case "exit.cgroup.id":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveCGroupID(ev, &ev.Exit.Process.CGroup)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
 	case "exit.code":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -1937,10 +1973,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
-				return ev.Exit.Process.ContainerID
+				return ev.FieldHandlers.ResolveProcessContainerID(ev, ev.Exit.Process)
 			},
 			Field:  field,
-			Weight: eval.FunctionWeight,
+			Weight: eval.HandlerWeight,
 		}, nil
 	case "exit.created_at":
 		return &eval.IntEvaluator{
@@ -3815,6 +3851,33 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
+	case "mount.syscall.fs_type":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveSyscallCtxArgsStr3(ev, &ev.Mount.SyscallContext)
+			},
+			Field:  field,
+			Weight: 900 * eval.HandlerWeight,
+		}, nil
+	case "mount.syscall.mountpoint.path":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveSyscallCtxArgsStr2(ev, &ev.Mount.SyscallContext)
+			},
+			Field:  field,
+			Weight: 900 * eval.HandlerWeight,
+		}, nil
+	case "mount.syscall.source.path":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Mount.SyscallContext)
+			},
+			Field:  field,
+			Weight: 900 * eval.HandlerWeight,
+		}, nil
 	case "mprotect.req_protection":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -4408,6 +4471,27 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			}, Field: field,
 			Weight: eval.IteratorWeight,
 		}, nil
+	case "process.ancestors.cgroup.id":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ev := ctx.Event.(*Event)
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				var results []string
+				iterator := &ProcessAncestorsIterator{}
+				value := iterator.Front(ctx)
+				for value != nil {
+					element := (*ProcessCacheEntry)(value)
+					result := ev.FieldHandlers.ResolveCGroupID(ev, &element.ProcessContext.Process.CGroup)
+					results = append(results, result)
+					value = iterator.Next()
+				}
+				ctx.StringCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
 	case "process.ancestors.comm":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
@@ -4431,6 +4515,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.container.id":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
+				ev := ctx.Event.(*Event)
 				if result, ok := ctx.StringCache[field]; ok {
 					return result
 				}
@@ -4439,7 +4524,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				value := iterator.Front(ctx)
 				for value != nil {
 					element := (*ProcessCacheEntry)(value)
-					result := element.ProcessContext.Process.ContainerID
+					result := ev.FieldHandlers.ResolveProcessContainerID(ev, &element.ProcessContext.Process)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -6041,6 +6126,15 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
+	case "process.cgroup.id":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveCGroupID(ev, &ev.BaseEvent.ProcessContext.Process.CGroup)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
 	case "process.comm":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -6054,10 +6148,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
-				return ev.BaseEvent.ProcessContext.Process.ContainerID
+				return ev.FieldHandlers.ResolveProcessContainerID(ev, &ev.BaseEvent.ProcessContext.Process)
 			},
 			Field:  field,
-			Weight: eval.FunctionWeight,
+			Weight: eval.HandlerWeight,
 		}, nil
 	case "process.created_at":
 		return &eval.IntEvaluator{
@@ -6775,6 +6869,18 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
+	case "process.parent.cgroup.id":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				if !ev.BaseEvent.ProcessContext.HasParent() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolveCGroupID(ev, &ev.BaseEvent.ProcessContext.Parent.CGroup)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
 	case "process.parent.comm":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -6794,10 +6900,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				if !ev.BaseEvent.ProcessContext.HasParent() {
 					return ""
 				}
-				return ev.BaseEvent.ProcessContext.Parent.ContainerID
+				return ev.FieldHandlers.ResolveProcessContainerID(ev, ev.BaseEvent.ProcessContext.Parent)
 			},
 			Field:  field,
-			Weight: eval.FunctionWeight,
+			Weight: eval.HandlerWeight,
 		}, nil
 	case "process.parent.created_at":
 		return &eval.IntEvaluator{
@@ -7948,6 +8054,27 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			}, Field: field,
 			Weight: eval.IteratorWeight,
 		}, nil
+	case "ptrace.tracee.ancestors.cgroup.id":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ev := ctx.Event.(*Event)
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				var results []string
+				iterator := &ProcessAncestorsIterator{}
+				value := iterator.Front(ctx)
+				for value != nil {
+					element := (*ProcessCacheEntry)(value)
+					result := ev.FieldHandlers.ResolveCGroupID(ev, &element.ProcessContext.Process.CGroup)
+					results = append(results, result)
+					value = iterator.Next()
+				}
+				ctx.StringCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
 	case "ptrace.tracee.ancestors.comm":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
@@ -7971,6 +8098,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.container.id":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
+				ev := ctx.Event.(*Event)
 				if result, ok := ctx.StringCache[field]; ok {
 					return result
 				}
@@ -7979,7 +8107,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				value := iterator.Front(ctx)
 				for value != nil {
 					element := (*ProcessCacheEntry)(value)
-					result := element.ProcessContext.Process.ContainerID
+					result := ev.FieldHandlers.ResolveProcessContainerID(ev, &element.ProcessContext.Process)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -9581,6 +9709,15 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
+	case "ptrace.tracee.cgroup.id":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveCGroupID(ev, &ev.PTrace.Tracee.Process.CGroup)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
 	case "ptrace.tracee.comm":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -9594,10 +9731,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
-				return ev.PTrace.Tracee.Process.ContainerID
+				return ev.FieldHandlers.ResolveProcessContainerID(ev, &ev.PTrace.Tracee.Process)
 			},
 			Field:  field,
-			Weight: eval.FunctionWeight,
+			Weight: eval.HandlerWeight,
 		}, nil
 	case "ptrace.tracee.created_at":
 		return &eval.IntEvaluator{
@@ -10315,6 +10452,18 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
+	case "ptrace.tracee.parent.cgroup.id":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				if !ev.PTrace.Tracee.HasParent() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolveCGroupID(ev, &ev.PTrace.Tracee.Parent.CGroup)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
 	case "ptrace.tracee.parent.comm":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -10334,10 +10483,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				if !ev.PTrace.Tracee.HasParent() {
 					return ""
 				}
-				return ev.PTrace.Tracee.Parent.ContainerID
+				return ev.FieldHandlers.ResolveProcessContainerID(ev, ev.PTrace.Tracee.Parent)
 			},
 			Field:  field,
-			Weight: eval.FunctionWeight,
+			Weight: eval.HandlerWeight,
 		}, nil
 	case "ptrace.tracee.parent.created_at":
 		return &eval.IntEvaluator{
@@ -11892,6 +12041,24 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
+	case "rename.syscall.destination.path":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveSyscallCtxArgsStr2(ev, &ev.Rename.SyscallContext)
+			},
+			Field:  field,
+			Weight: 900 * eval.HandlerWeight,
+		}, nil
+	case "rename.syscall.path":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Rename.SyscallContext)
+			},
+			Field:  field,
+			Weight: 900 * eval.HandlerWeight,
+		}, nil
 	case "rmdir.file.change_time":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -12624,6 +12791,27 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			}, Field: field,
 			Weight: eval.IteratorWeight,
 		}, nil
+	case "signal.target.ancestors.cgroup.id":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ev := ctx.Event.(*Event)
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				var results []string
+				iterator := &ProcessAncestorsIterator{}
+				value := iterator.Front(ctx)
+				for value != nil {
+					element := (*ProcessCacheEntry)(value)
+					result := ev.FieldHandlers.ResolveCGroupID(ev, &element.ProcessContext.Process.CGroup)
+					results = append(results, result)
+					value = iterator.Next()
+				}
+				ctx.StringCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
 	case "signal.target.ancestors.comm":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
@@ -12647,6 +12835,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.container.id":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
+				ev := ctx.Event.(*Event)
 				if result, ok := ctx.StringCache[field]; ok {
 					return result
 				}
@@ -12655,7 +12844,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				value := iterator.Front(ctx)
 				for value != nil {
 					element := (*ProcessCacheEntry)(value)
-					result := element.ProcessContext.Process.ContainerID
+					result := ev.FieldHandlers.ResolveProcessContainerID(ev, &element.ProcessContext.Process)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -14257,6 +14446,15 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
+	case "signal.target.cgroup.id":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveCGroupID(ev, &ev.Signal.Target.Process.CGroup)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
 	case "signal.target.comm":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -14270,10 +14468,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
-				return ev.Signal.Target.Process.ContainerID
+				return ev.FieldHandlers.ResolveProcessContainerID(ev, &ev.Signal.Target.Process)
 			},
 			Field:  field,
-			Weight: eval.FunctionWeight,
+			Weight: eval.HandlerWeight,
 		}, nil
 	case "signal.target.created_at":
 		return &eval.IntEvaluator{
@@ -14991,6 +15189,18 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
+	case "signal.target.parent.cgroup.id":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				if !ev.Signal.Target.HasParent() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolveCGroupID(ev, &ev.Signal.Target.Parent.CGroup)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
 	case "signal.target.parent.comm":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -15010,10 +15220,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				if !ev.Signal.Target.HasParent() {
 					return ""
 				}
-				return ev.Signal.Target.Parent.ContainerID
+				return ev.FieldHandlers.ResolveProcessContainerID(ev, ev.Signal.Target.Parent)
 			},
 			Field:  field,
-			Weight: eval.FunctionWeight,
+			Weight: eval.HandlerWeight,
 		}, nil
 	case "signal.target.parent.created_at":
 		return &eval.IntEvaluator{
@@ -16640,6 +16850,15 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
+	case "utimes.syscall.path":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Utimes.SyscallContext)
+			},
+			Field:  field,
+			Weight: 900 * eval.HandlerWeight,
+		}, nil
 	}
 	return nil, &eval.ErrFieldNotFound{Field: field}
 }
@@ -16660,6 +16879,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"bpf.retval",
 		"capset.cap_effective",
 		"capset.cap_permitted",
+		"cgroup.id",
 		"chdir.file.change_time",
 		"chdir.file.filesystem",
 		"chdir.file.gid",
@@ -16737,6 +16957,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"chown.syscall.uid",
 		"container.created_at",
 		"container.id",
+		"container.runtime",
 		"container.tags",
 		"dns.id",
 		"dns.question.class",
@@ -16759,6 +16980,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"exec.argv0",
 		"exec.cap_effective",
 		"exec.cap_permitted",
+		"exec.cgroup.id",
 		"exec.comm",
 		"exec.container.id",
 		"exec.created_at",
@@ -16836,6 +17058,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"exit.cap_effective",
 		"exit.cap_permitted",
 		"exit.cause",
+		"exit.cgroup.id",
 		"exit.code",
 		"exit.comm",
 		"exit.container.id",
@@ -17032,6 +17255,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"mount.retval",
 		"mount.root.path",
 		"mount.source.path",
+		"mount.syscall.fs_type",
+		"mount.syscall.mountpoint.path",
+		"mount.syscall.source.path",
 		"mprotect.req_protection",
 		"mprotect.retval",
 		"mprotect.vm_protection",
@@ -17087,6 +17313,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.ancestors.argv0",
 		"process.ancestors.cap_effective",
 		"process.ancestors.cap_permitted",
+		"process.ancestors.cgroup.id",
 		"process.ancestors.comm",
 		"process.ancestors.container.id",
 		"process.ancestors.created_at",
@@ -17162,6 +17389,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.argv0",
 		"process.cap_effective",
 		"process.cap_permitted",
+		"process.cgroup.id",
 		"process.comm",
 		"process.container.id",
 		"process.created_at",
@@ -17228,6 +17456,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.parent.argv0",
 		"process.parent.cap_effective",
 		"process.parent.cap_permitted",
+		"process.parent.cgroup.id",
 		"process.parent.comm",
 		"process.parent.container.id",
 		"process.parent.created_at",
@@ -17314,6 +17543,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"ptrace.tracee.ancestors.argv0",
 		"ptrace.tracee.ancestors.cap_effective",
 		"ptrace.tracee.ancestors.cap_permitted",
+		"ptrace.tracee.ancestors.cgroup.id",
 		"ptrace.tracee.ancestors.comm",
 		"ptrace.tracee.ancestors.container.id",
 		"ptrace.tracee.ancestors.created_at",
@@ -17389,6 +17619,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"ptrace.tracee.argv0",
 		"ptrace.tracee.cap_effective",
 		"ptrace.tracee.cap_permitted",
+		"ptrace.tracee.cgroup.id",
 		"ptrace.tracee.comm",
 		"ptrace.tracee.container.id",
 		"ptrace.tracee.created_at",
@@ -17455,6 +17686,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"ptrace.tracee.parent.argv0",
 		"ptrace.tracee.parent.cap_effective",
 		"ptrace.tracee.parent.cap_permitted",
+		"ptrace.tracee.parent.cgroup.id",
 		"ptrace.tracee.parent.comm",
 		"ptrace.tracee.parent.container.id",
 		"ptrace.tracee.parent.created_at",
@@ -17595,6 +17827,8 @@ func (ev *Event) GetFields() []eval.Field {
 		"rename.file.uid",
 		"rename.file.user",
 		"rename.retval",
+		"rename.syscall.destination.path",
+		"rename.syscall.path",
 		"rmdir.file.change_time",
 		"rmdir.file.filesystem",
 		"rmdir.file.gid",
@@ -17665,6 +17899,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"signal.target.ancestors.argv0",
 		"signal.target.ancestors.cap_effective",
 		"signal.target.ancestors.cap_permitted",
+		"signal.target.ancestors.cgroup.id",
 		"signal.target.ancestors.comm",
 		"signal.target.ancestors.container.id",
 		"signal.target.ancestors.created_at",
@@ -17740,6 +17975,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"signal.target.argv0",
 		"signal.target.cap_effective",
 		"signal.target.cap_permitted",
+		"signal.target.cgroup.id",
 		"signal.target.comm",
 		"signal.target.container.id",
 		"signal.target.created_at",
@@ -17806,6 +18042,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"signal.target.parent.argv0",
 		"signal.target.parent.cap_effective",
 		"signal.target.parent.cap_permitted",
+		"signal.target.parent.cgroup.id",
 		"signal.target.parent.comm",
 		"signal.target.parent.container.id",
 		"signal.target.parent.created_at",
@@ -17954,6 +18191,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"utimes.file.uid",
 		"utimes.file.user",
 		"utimes.retval",
+		"utimes.syscall.path",
 	}
 }
 func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
@@ -17992,6 +18230,8 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(ev.Capset.CapEffective), nil
 	case "capset.cap_permitted":
 		return int(ev.Capset.CapPermitted), nil
+	case "cgroup.id":
+		return ev.FieldHandlers.ResolveCGroupID(ev, &ev.CGroupContext), nil
 	case "chdir.file.change_time":
 		return int(ev.Chdir.File.FileFields.CTime), nil
 	case "chdir.file.filesystem":
@@ -18146,6 +18386,8 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(ev.FieldHandlers.ResolveContainerCreatedAt(ev, ev.BaseEvent.ContainerContext)), nil
 	case "container.id":
 		return ev.FieldHandlers.ResolveContainerID(ev, ev.BaseEvent.ContainerContext), nil
+	case "container.runtime":
+		return ev.FieldHandlers.ResolveContainerRuntime(ev, ev.BaseEvent.ContainerContext), nil
 	case "container.tags":
 		return ev.FieldHandlers.ResolveContainerTags(ev, ev.BaseEvent.ContainerContext), nil
 	case "dns.id":
@@ -18190,10 +18432,12 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(ev.Exec.Process.Credentials.CapEffective), nil
 	case "exec.cap_permitted":
 		return int(ev.Exec.Process.Credentials.CapPermitted), nil
+	case "exec.cgroup.id":
+		return ev.FieldHandlers.ResolveCGroupID(ev, &ev.Exec.Process.CGroup), nil
 	case "exec.comm":
 		return ev.Exec.Process.Comm, nil
 	case "exec.container.id":
-		return ev.Exec.Process.ContainerID, nil
+		return ev.FieldHandlers.ResolveProcessContainerID(ev, ev.Exec.Process), nil
 	case "exec.created_at":
 		return int(ev.FieldHandlers.ResolveProcessCreatedAt(ev, ev.Exec.Process)), nil
 	case "exec.egid":
@@ -18452,12 +18696,14 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(ev.Exit.Process.Credentials.CapPermitted), nil
 	case "exit.cause":
 		return int(ev.Exit.Cause), nil
+	case "exit.cgroup.id":
+		return ev.FieldHandlers.ResolveCGroupID(ev, &ev.Exit.Process.CGroup), nil
 	case "exit.code":
 		return int(ev.Exit.Code), nil
 	case "exit.comm":
 		return ev.Exit.Process.Comm, nil
 	case "exit.container.id":
-		return ev.Exit.Process.ContainerID, nil
+		return ev.FieldHandlers.ResolveProcessContainerID(ev, ev.Exit.Process), nil
 	case "exit.created_at":
 		return int(ev.FieldHandlers.ResolveProcessCreatedAt(ev, ev.Exit.Process)), nil
 	case "exit.egid":
@@ -18952,6 +19198,12 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return ev.FieldHandlers.ResolveMountRootPath(ev, &ev.Mount), nil
 	case "mount.source.path":
 		return ev.FieldHandlers.ResolveMountSourcePath(ev, &ev.Mount), nil
+	case "mount.syscall.fs_type":
+		return ev.FieldHandlers.ResolveSyscallCtxArgsStr3(ev, &ev.Mount.SyscallContext), nil
+	case "mount.syscall.mountpoint.path":
+		return ev.FieldHandlers.ResolveSyscallCtxArgsStr2(ev, &ev.Mount.SyscallContext), nil
+	case "mount.syscall.source.path":
+		return ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Mount.SyscallContext), nil
 	case "mprotect.req_protection":
 		return ev.MProtect.ReqProtection, nil
 	case "mprotect.retval":
@@ -19142,6 +19394,18 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			ptr = iterator.Next()
 		}
 		return values, nil
+	case "process.ancestors.cgroup.id":
+		var values []string
+		ctx := eval.NewContext(ev)
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+			result := ev.FieldHandlers.ResolveCGroupID(ev, &element.ProcessContext.Process.CGroup)
+			values = append(values, result)
+			ptr = iterator.Next()
+		}
+		return values, nil
 	case "process.ancestors.comm":
 		var values []string
 		ctx := eval.NewContext(ev)
@@ -19161,7 +19425,7 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
 			element := (*ProcessCacheEntry)(ptr)
-			result := element.ProcessContext.Process.ContainerID
+			result := ev.FieldHandlers.ResolveProcessContainerID(ev, &element.ProcessContext.Process)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -19962,10 +20226,12 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(ev.BaseEvent.ProcessContext.Process.Credentials.CapEffective), nil
 	case "process.cap_permitted":
 		return int(ev.BaseEvent.ProcessContext.Process.Credentials.CapPermitted), nil
+	case "process.cgroup.id":
+		return ev.FieldHandlers.ResolveCGroupID(ev, &ev.BaseEvent.ProcessContext.Process.CGroup), nil
 	case "process.comm":
 		return ev.BaseEvent.ProcessContext.Process.Comm, nil
 	case "process.container.id":
-		return ev.BaseEvent.ProcessContext.Process.ContainerID, nil
+		return ev.FieldHandlers.ResolveProcessContainerID(ev, &ev.BaseEvent.ProcessContext.Process), nil
 	case "process.created_at":
 		return int(ev.FieldHandlers.ResolveProcessCreatedAt(ev, &ev.BaseEvent.ProcessContext.Process)), nil
 	case "process.egid":
@@ -20226,6 +20492,11 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			return 0, &eval.ErrNotSupported{Field: field}
 		}
 		return int(ev.BaseEvent.ProcessContext.Parent.Credentials.CapPermitted), nil
+	case "process.parent.cgroup.id":
+		if !ev.BaseEvent.ProcessContext.HasParent() {
+			return "", &eval.ErrNotSupported{Field: field}
+		}
+		return ev.FieldHandlers.ResolveCGroupID(ev, &ev.BaseEvent.ProcessContext.Parent.CGroup), nil
 	case "process.parent.comm":
 		if !ev.BaseEvent.ProcessContext.HasParent() {
 			return "", &eval.ErrNotSupported{Field: field}
@@ -20235,7 +20506,7 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		if !ev.BaseEvent.ProcessContext.HasParent() {
 			return "", &eval.ErrNotSupported{Field: field}
 		}
-		return ev.BaseEvent.ProcessContext.Parent.ContainerID, nil
+		return ev.FieldHandlers.ResolveProcessContainerID(ev, ev.BaseEvent.ProcessContext.Parent), nil
 	case "process.parent.created_at":
 		if !ev.BaseEvent.ProcessContext.HasParent() {
 			return 0, &eval.ErrNotSupported{Field: field}
@@ -20775,6 +21046,18 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			ptr = iterator.Next()
 		}
 		return values, nil
+	case "ptrace.tracee.ancestors.cgroup.id":
+		var values []string
+		ctx := eval.NewContext(ev)
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+			result := ev.FieldHandlers.ResolveCGroupID(ev, &element.ProcessContext.Process.CGroup)
+			values = append(values, result)
+			ptr = iterator.Next()
+		}
+		return values, nil
 	case "ptrace.tracee.ancestors.comm":
 		var values []string
 		ctx := eval.NewContext(ev)
@@ -20794,7 +21077,7 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
 			element := (*ProcessCacheEntry)(ptr)
-			result := element.ProcessContext.Process.ContainerID
+			result := ev.FieldHandlers.ResolveProcessContainerID(ev, &element.ProcessContext.Process)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -21595,10 +21878,12 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(ev.PTrace.Tracee.Process.Credentials.CapEffective), nil
 	case "ptrace.tracee.cap_permitted":
 		return int(ev.PTrace.Tracee.Process.Credentials.CapPermitted), nil
+	case "ptrace.tracee.cgroup.id":
+		return ev.FieldHandlers.ResolveCGroupID(ev, &ev.PTrace.Tracee.Process.CGroup), nil
 	case "ptrace.tracee.comm":
 		return ev.PTrace.Tracee.Process.Comm, nil
 	case "ptrace.tracee.container.id":
-		return ev.PTrace.Tracee.Process.ContainerID, nil
+		return ev.FieldHandlers.ResolveProcessContainerID(ev, &ev.PTrace.Tracee.Process), nil
 	case "ptrace.tracee.created_at":
 		return int(ev.FieldHandlers.ResolveProcessCreatedAt(ev, &ev.PTrace.Tracee.Process)), nil
 	case "ptrace.tracee.egid":
@@ -21859,6 +22144,11 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			return 0, &eval.ErrNotSupported{Field: field}
 		}
 		return int(ev.PTrace.Tracee.Parent.Credentials.CapPermitted), nil
+	case "ptrace.tracee.parent.cgroup.id":
+		if !ev.PTrace.Tracee.HasParent() {
+			return "", &eval.ErrNotSupported{Field: field}
+		}
+		return ev.FieldHandlers.ResolveCGroupID(ev, &ev.PTrace.Tracee.Parent.CGroup), nil
 	case "ptrace.tracee.parent.comm":
 		if !ev.PTrace.Tracee.HasParent() {
 			return "", &eval.ErrNotSupported{Field: field}
@@ -21868,7 +22158,7 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		if !ev.PTrace.Tracee.HasParent() {
 			return "", &eval.ErrNotSupported{Field: field}
 		}
-		return ev.PTrace.Tracee.Parent.ContainerID, nil
+		return ev.FieldHandlers.ResolveProcessContainerID(ev, ev.PTrace.Tracee.Parent), nil
 	case "ptrace.tracee.parent.created_at":
 		if !ev.PTrace.Tracee.HasParent() {
 			return 0, &eval.ErrNotSupported{Field: field}
@@ -22436,6 +22726,10 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Rename.Old.FileFields), nil
 	case "rename.retval":
 		return int(ev.Rename.SyscallEvent.Retval), nil
+	case "rename.syscall.destination.path":
+		return ev.FieldHandlers.ResolveSyscallCtxArgsStr2(ev, &ev.Rename.SyscallContext), nil
+	case "rename.syscall.path":
+		return ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Rename.SyscallContext), nil
 	case "rmdir.file.change_time":
 		return int(ev.Rmdir.File.FileFields.CTime), nil
 	case "rmdir.file.filesystem":
@@ -22656,6 +22950,18 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			ptr = iterator.Next()
 		}
 		return values, nil
+	case "signal.target.ancestors.cgroup.id":
+		var values []string
+		ctx := eval.NewContext(ev)
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+			result := ev.FieldHandlers.ResolveCGroupID(ev, &element.ProcessContext.Process.CGroup)
+			values = append(values, result)
+			ptr = iterator.Next()
+		}
+		return values, nil
 	case "signal.target.ancestors.comm":
 		var values []string
 		ctx := eval.NewContext(ev)
@@ -22675,7 +22981,7 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
 			element := (*ProcessCacheEntry)(ptr)
-			result := element.ProcessContext.Process.ContainerID
+			result := ev.FieldHandlers.ResolveProcessContainerID(ev, &element.ProcessContext.Process)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -23476,10 +23782,12 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(ev.Signal.Target.Process.Credentials.CapEffective), nil
 	case "signal.target.cap_permitted":
 		return int(ev.Signal.Target.Process.Credentials.CapPermitted), nil
+	case "signal.target.cgroup.id":
+		return ev.FieldHandlers.ResolveCGroupID(ev, &ev.Signal.Target.Process.CGroup), nil
 	case "signal.target.comm":
 		return ev.Signal.Target.Process.Comm, nil
 	case "signal.target.container.id":
-		return ev.Signal.Target.Process.ContainerID, nil
+		return ev.FieldHandlers.ResolveProcessContainerID(ev, &ev.Signal.Target.Process), nil
 	case "signal.target.created_at":
 		return int(ev.FieldHandlers.ResolveProcessCreatedAt(ev, &ev.Signal.Target.Process)), nil
 	case "signal.target.egid":
@@ -23740,6 +24048,11 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			return 0, &eval.ErrNotSupported{Field: field}
 		}
 		return int(ev.Signal.Target.Parent.Credentials.CapPermitted), nil
+	case "signal.target.parent.cgroup.id":
+		if !ev.Signal.Target.HasParent() {
+			return "", &eval.ErrNotSupported{Field: field}
+		}
+		return ev.FieldHandlers.ResolveCGroupID(ev, &ev.Signal.Target.Parent.CGroup), nil
 	case "signal.target.parent.comm":
 		if !ev.Signal.Target.HasParent() {
 			return "", &eval.ErrNotSupported{Field: field}
@@ -23749,7 +24062,7 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		if !ev.Signal.Target.HasParent() {
 			return "", &eval.ErrNotSupported{Field: field}
 		}
-		return ev.Signal.Target.Parent.ContainerID, nil
+		return ev.FieldHandlers.ResolveProcessContainerID(ev, ev.Signal.Target.Parent), nil
 	case "signal.target.parent.created_at":
 		if !ev.Signal.Target.HasParent() {
 			return 0, &eval.ErrNotSupported{Field: field}
@@ -24333,6 +24646,8 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Utimes.File.FileFields), nil
 	case "utimes.retval":
 		return int(ev.Utimes.SyscallEvent.Retval), nil
+	case "utimes.syscall.path":
+		return ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Utimes.SyscallContext), nil
 	}
 	return nil, &eval.ErrFieldNotFound{Field: field}
 }
@@ -24368,6 +24683,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "capset", nil
 	case "capset.cap_permitted":
 		return "capset", nil
+	case "cgroup.id":
+		return "*", nil
 	case "chdir.file.change_time":
 		return "chdir", nil
 	case "chdir.file.filesystem":
@@ -24522,6 +24839,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "*", nil
 	case "container.id":
 		return "*", nil
+	case "container.runtime":
+		return "*", nil
 	case "container.tags":
 		return "*", nil
 	case "dns.id":
@@ -24565,6 +24884,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "exec.cap_effective":
 		return "exec", nil
 	case "exec.cap_permitted":
+		return "exec", nil
+	case "exec.cgroup.id":
 		return "exec", nil
 	case "exec.comm":
 		return "exec", nil
@@ -24719,6 +25040,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "exit.cap_permitted":
 		return "exit", nil
 	case "exit.cause":
+		return "exit", nil
+	case "exit.cgroup.id":
 		return "exit", nil
 	case "exit.code":
 		return "exit", nil
@@ -25112,6 +25435,12 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "mount", nil
 	case "mount.source.path":
 		return "mount", nil
+	case "mount.syscall.fs_type":
+		return "mount", nil
+	case "mount.syscall.mountpoint.path":
+		return "mount", nil
+	case "mount.syscall.source.path":
+		return "mount", nil
 	case "mprotect.req_protection":
 		return "mprotect", nil
 	case "mprotect.retval":
@@ -25119,23 +25448,23 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "mprotect.vm_protection":
 		return "mprotect", nil
 	case "network.destination.ip":
-		return "dns", nil
+		return "*", nil
 	case "network.destination.port":
-		return "dns", nil
+		return "*", nil
 	case "network.device.ifindex":
-		return "dns", nil
+		return "*", nil
 	case "network.device.ifname":
-		return "dns", nil
+		return "*", nil
 	case "network.l3_protocol":
-		return "dns", nil
+		return "*", nil
 	case "network.l4_protocol":
-		return "dns", nil
+		return "*", nil
 	case "network.size":
-		return "dns", nil
+		return "*", nil
 	case "network.source.ip":
-		return "dns", nil
+		return "*", nil
 	case "network.source.port":
-		return "dns", nil
+		return "*", nil
 	case "ondemand.arg1.str":
 		return "ondemand", nil
 	case "ondemand.arg1.uint":
@@ -25221,6 +25550,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "process.ancestors.cap_effective":
 		return "*", nil
 	case "process.ancestors.cap_permitted":
+		return "*", nil
+	case "process.ancestors.cgroup.id":
 		return "*", nil
 	case "process.ancestors.comm":
 		return "*", nil
@@ -25372,6 +25703,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "*", nil
 	case "process.cap_permitted":
 		return "*", nil
+	case "process.cgroup.id":
+		return "*", nil
 	case "process.comm":
 		return "*", nil
 	case "process.container.id":
@@ -25503,6 +25836,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "process.parent.cap_effective":
 		return "*", nil
 	case "process.parent.cap_permitted":
+		return "*", nil
+	case "process.parent.cgroup.id":
 		return "*", nil
 	case "process.parent.comm":
 		return "*", nil
@@ -25676,6 +26011,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "ptrace", nil
 	case "ptrace.tracee.ancestors.cap_permitted":
 		return "ptrace", nil
+	case "ptrace.tracee.ancestors.cgroup.id":
+		return "ptrace", nil
 	case "ptrace.tracee.ancestors.comm":
 		return "ptrace", nil
 	case "ptrace.tracee.ancestors.container.id":
@@ -25826,6 +26163,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "ptrace", nil
 	case "ptrace.tracee.cap_permitted":
 		return "ptrace", nil
+	case "ptrace.tracee.cgroup.id":
+		return "ptrace", nil
 	case "ptrace.tracee.comm":
 		return "ptrace", nil
 	case "ptrace.tracee.container.id":
@@ -25957,6 +26296,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "ptrace.tracee.parent.cap_effective":
 		return "ptrace", nil
 	case "ptrace.tracee.parent.cap_permitted":
+		return "ptrace", nil
+	case "ptrace.tracee.parent.cgroup.id":
 		return "ptrace", nil
 	case "ptrace.tracee.parent.comm":
 		return "ptrace", nil
@@ -26238,6 +26579,10 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "rename", nil
 	case "rename.retval":
 		return "rename", nil
+	case "rename.syscall.destination.path":
+		return "rename", nil
+	case "rename.syscall.path":
+		return "rename", nil
 	case "rmdir.file.change_time":
 		return "rmdir", nil
 	case "rmdir.file.filesystem":
@@ -26377,6 +26722,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "signal.target.ancestors.cap_effective":
 		return "signal", nil
 	case "signal.target.ancestors.cap_permitted":
+		return "signal", nil
+	case "signal.target.ancestors.cgroup.id":
 		return "signal", nil
 	case "signal.target.ancestors.comm":
 		return "signal", nil
@@ -26528,6 +26875,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "signal", nil
 	case "signal.target.cap_permitted":
 		return "signal", nil
+	case "signal.target.cgroup.id":
+		return "signal", nil
 	case "signal.target.comm":
 		return "signal", nil
 	case "signal.target.container.id":
@@ -26659,6 +27008,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "signal.target.parent.cap_effective":
 		return "signal", nil
 	case "signal.target.parent.cap_permitted":
+		return "signal", nil
+	case "signal.target.parent.cgroup.id":
 		return "signal", nil
 	case "signal.target.parent.comm":
 		return "signal", nil
@@ -26955,6 +27306,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "utimes.file.user":
 		return "utimes", nil
 	case "utimes.retval":
+		return "utimes", nil
+	case "utimes.syscall.path":
 		return "utimes", nil
 	}
 	return "", &eval.ErrFieldNotFound{Field: field}
@@ -26991,6 +27344,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "capset.cap_permitted":
 		return reflect.Int, nil
+	case "cgroup.id":
+		return reflect.String, nil
 	case "chdir.file.change_time":
 		return reflect.Int, nil
 	case "chdir.file.filesystem":
@@ -27145,6 +27500,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "container.id":
 		return reflect.String, nil
+	case "container.runtime":
+		return reflect.String, nil
 	case "container.tags":
 		return reflect.String, nil
 	case "dns.id":
@@ -27189,6 +27546,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "exec.cap_permitted":
 		return reflect.Int, nil
+	case "exec.cgroup.id":
+		return reflect.String, nil
 	case "exec.comm":
 		return reflect.String, nil
 	case "exec.container.id":
@@ -27343,6 +27702,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "exit.cause":
 		return reflect.Int, nil
+	case "exit.cgroup.id":
+		return reflect.String, nil
 	case "exit.code":
 		return reflect.Int, nil
 	case "exit.comm":
@@ -27735,6 +28096,12 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.String, nil
 	case "mount.source.path":
 		return reflect.String, nil
+	case "mount.syscall.fs_type":
+		return reflect.String, nil
+	case "mount.syscall.mountpoint.path":
+		return reflect.String, nil
+	case "mount.syscall.source.path":
+		return reflect.String, nil
 	case "mprotect.req_protection":
 		return reflect.Int, nil
 	case "mprotect.retval":
@@ -27845,6 +28212,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "process.ancestors.cap_permitted":
 		return reflect.Int, nil
+	case "process.ancestors.cgroup.id":
+		return reflect.String, nil
 	case "process.ancestors.comm":
 		return reflect.String, nil
 	case "process.ancestors.container.id":
@@ -27995,6 +28364,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "process.cap_permitted":
 		return reflect.Int, nil
+	case "process.cgroup.id":
+		return reflect.String, nil
 	case "process.comm":
 		return reflect.String, nil
 	case "process.container.id":
@@ -28127,6 +28498,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "process.parent.cap_permitted":
 		return reflect.Int, nil
+	case "process.parent.cgroup.id":
+		return reflect.String, nil
 	case "process.parent.comm":
 		return reflect.String, nil
 	case "process.parent.container.id":
@@ -28299,6 +28672,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "ptrace.tracee.ancestors.cap_permitted":
 		return reflect.Int, nil
+	case "ptrace.tracee.ancestors.cgroup.id":
+		return reflect.String, nil
 	case "ptrace.tracee.ancestors.comm":
 		return reflect.String, nil
 	case "ptrace.tracee.ancestors.container.id":
@@ -28449,6 +28824,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "ptrace.tracee.cap_permitted":
 		return reflect.Int, nil
+	case "ptrace.tracee.cgroup.id":
+		return reflect.String, nil
 	case "ptrace.tracee.comm":
 		return reflect.String, nil
 	case "ptrace.tracee.container.id":
@@ -28581,6 +28958,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "ptrace.tracee.parent.cap_permitted":
 		return reflect.Int, nil
+	case "ptrace.tracee.parent.cgroup.id":
+		return reflect.String, nil
 	case "ptrace.tracee.parent.comm":
 		return reflect.String, nil
 	case "ptrace.tracee.parent.container.id":
@@ -28861,6 +29240,10 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.String, nil
 	case "rename.retval":
 		return reflect.Int, nil
+	case "rename.syscall.destination.path":
+		return reflect.String, nil
+	case "rename.syscall.path":
+		return reflect.String, nil
 	case "rmdir.file.change_time":
 		return reflect.Int, nil
 	case "rmdir.file.filesystem":
@@ -29001,6 +29384,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "signal.target.ancestors.cap_permitted":
 		return reflect.Int, nil
+	case "signal.target.ancestors.cgroup.id":
+		return reflect.String, nil
 	case "signal.target.ancestors.comm":
 		return reflect.String, nil
 	case "signal.target.ancestors.container.id":
@@ -29151,6 +29536,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "signal.target.cap_permitted":
 		return reflect.Int, nil
+	case "signal.target.cgroup.id":
+		return reflect.String, nil
 	case "signal.target.comm":
 		return reflect.String, nil
 	case "signal.target.container.id":
@@ -29283,6 +29670,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "signal.target.parent.cap_permitted":
 		return reflect.Int, nil
+	case "signal.target.parent.cgroup.id":
+		return reflect.String, nil
 	case "signal.target.parent.comm":
 		return reflect.String, nil
 	case "signal.target.parent.container.id":
@@ -29579,6 +29968,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.String, nil
 	case "utimes.retval":
 		return reflect.Int, nil
+	case "utimes.syscall.path":
+		return reflect.String, nil
 	}
 	return reflect.Invalid, &eval.ErrFieldNotFound{Field: field}
 }
@@ -29624,7 +30015,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BPF.Map.Name"}
 		}
-		ev.BPF.Map.Name = rv
+		ev.BPF.Map.Name = string(rv)
 		return nil
 	case "bpf.map.type":
 		rv, ok := value.(int)
@@ -29657,14 +30048,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BPF.Program.Name"}
 		}
-		ev.BPF.Program.Name = rv
+		ev.BPF.Program.Name = string(rv)
 		return nil
 	case "bpf.prog.tag":
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BPF.Program.Tag"}
 		}
-		ev.BPF.Program.Tag = rv
+		ev.BPF.Program.Tag = string(rv)
 		return nil
 	case "bpf.prog.type":
 		rv, ok := value.(int)
@@ -29694,6 +30085,13 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.Capset.CapPermitted = uint64(rv)
 		return nil
+	case "cgroup.id":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "CGroupContext.CGroupID"}
+		}
+		ev.CGroupContext.CGroupID = CGroupID(rv)
+		return nil
 	case "chdir.file.change_time":
 		rv, ok := value.(int)
 		if !ok {
@@ -29706,7 +30104,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Chdir.File.Filesystem"}
 		}
-		ev.Chdir.File.Filesystem = rv
+		ev.Chdir.File.Filesystem = string(rv)
 		return nil
 	case "chdir.file.gid":
 		rv, ok := value.(int)
@@ -29720,7 +30118,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Chdir.File.FileFields.Group"}
 		}
-		ev.Chdir.File.FileFields.Group = rv
+		ev.Chdir.File.FileFields.Group = string(rv)
 		return nil
 	case "chdir.file.hashes":
 		switch rv := value.(type) {
@@ -29772,7 +30170,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Chdir.File.BasenameStr"}
 		}
-		ev.Chdir.File.BasenameStr = rv
+		ev.Chdir.File.BasenameStr = string(rv)
 		return nil
 	case "chdir.file.name.length":
 		return &eval.ErrFieldReadOnly{Field: "chdir.file.name.length"}
@@ -29781,28 +30179,28 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Chdir.File.PkgName"}
 		}
-		ev.Chdir.File.PkgName = rv
+		ev.Chdir.File.PkgName = string(rv)
 		return nil
 	case "chdir.file.package.source_version":
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Chdir.File.PkgSrcVersion"}
 		}
-		ev.Chdir.File.PkgSrcVersion = rv
+		ev.Chdir.File.PkgSrcVersion = string(rv)
 		return nil
 	case "chdir.file.package.version":
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Chdir.File.PkgVersion"}
 		}
-		ev.Chdir.File.PkgVersion = rv
+		ev.Chdir.File.PkgVersion = string(rv)
 		return nil
 	case "chdir.file.path":
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Chdir.File.PathnameStr"}
 		}
-		ev.Chdir.File.PathnameStr = rv
+		ev.Chdir.File.PathnameStr = string(rv)
 		return nil
 	case "chdir.file.path.length":
 		return &eval.ErrFieldReadOnly{Field: "chdir.file.path.length"}
@@ -29825,7 +30223,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Chdir.File.FileFields.User"}
 		}
-		ev.Chdir.File.FileFields.User = rv
+		ev.Chdir.File.FileFields.User = string(rv)
 		return nil
 	case "chdir.retval":
 		rv, ok := value.(int)
@@ -29839,7 +30237,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Chdir.SyscallContext.StrArg1"}
 		}
-		ev.Chdir.SyscallContext.StrArg1 = rv
+		ev.Chdir.SyscallContext.StrArg1 = string(rv)
 		return nil
 	case "chmod.file.change_time":
 		rv, ok := value.(int)
@@ -29867,7 +30265,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Chmod.File.Filesystem"}
 		}
-		ev.Chmod.File.Filesystem = rv
+		ev.Chmod.File.Filesystem = string(rv)
 		return nil
 	case "chmod.file.gid":
 		rv, ok := value.(int)
@@ -29881,7 +30279,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Chmod.File.FileFields.Group"}
 		}
-		ev.Chmod.File.FileFields.Group = rv
+		ev.Chmod.File.FileFields.Group = string(rv)
 		return nil
 	case "chmod.file.hashes":
 		switch rv := value.(type) {
@@ -29933,7 +30331,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Chmod.File.BasenameStr"}
 		}
-		ev.Chmod.File.BasenameStr = rv
+		ev.Chmod.File.BasenameStr = string(rv)
 		return nil
 	case "chmod.file.name.length":
 		return &eval.ErrFieldReadOnly{Field: "chmod.file.name.length"}
@@ -29942,28 +30340,28 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Chmod.File.PkgName"}
 		}
-		ev.Chmod.File.PkgName = rv
+		ev.Chmod.File.PkgName = string(rv)
 		return nil
 	case "chmod.file.package.source_version":
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Chmod.File.PkgSrcVersion"}
 		}
-		ev.Chmod.File.PkgSrcVersion = rv
+		ev.Chmod.File.PkgSrcVersion = string(rv)
 		return nil
 	case "chmod.file.package.version":
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Chmod.File.PkgVersion"}
 		}
-		ev.Chmod.File.PkgVersion = rv
+		ev.Chmod.File.PkgVersion = string(rv)
 		return nil
 	case "chmod.file.path":
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Chmod.File.PathnameStr"}
 		}
-		ev.Chmod.File.PathnameStr = rv
+		ev.Chmod.File.PathnameStr = string(rv)
 		return nil
 	case "chmod.file.path.length":
 		return &eval.ErrFieldReadOnly{Field: "chmod.file.path.length"}
@@ -29986,7 +30384,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Chmod.File.FileFields.User"}
 		}
-		ev.Chmod.File.FileFields.User = rv
+		ev.Chmod.File.FileFields.User = string(rv)
 		return nil
 	case "chmod.retval":
 		rv, ok := value.(int)
@@ -30007,7 +30405,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Chmod.SyscallContext.StrArg1"}
 		}
-		ev.Chmod.SyscallContext.StrArg1 = rv
+		ev.Chmod.SyscallContext.StrArg1 = string(rv)
 		return nil
 	case "chown.file.change_time":
 		rv, ok := value.(int)
@@ -30028,7 +30426,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Chown.Group"}
 		}
-		ev.Chown.Group = rv
+		ev.Chown.Group = string(rv)
 		return nil
 	case "chown.file.destination.uid":
 		rv, ok := value.(int)
@@ -30042,14 +30440,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Chown.User"}
 		}
-		ev.Chown.User = rv
+		ev.Chown.User = string(rv)
 		return nil
 	case "chown.file.filesystem":
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Chown.File.Filesystem"}
 		}
-		ev.Chown.File.Filesystem = rv
+		ev.Chown.File.Filesystem = string(rv)
 		return nil
 	case "chown.file.gid":
 		rv, ok := value.(int)
@@ -30063,7 +30461,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Chown.File.FileFields.Group"}
 		}
-		ev.Chown.File.FileFields.Group = rv
+		ev.Chown.File.FileFields.Group = string(rv)
 		return nil
 	case "chown.file.hashes":
 		switch rv := value.(type) {
@@ -30115,7 +30513,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Chown.File.BasenameStr"}
 		}
-		ev.Chown.File.BasenameStr = rv
+		ev.Chown.File.BasenameStr = string(rv)
 		return nil
 	case "chown.file.name.length":
 		return &eval.ErrFieldReadOnly{Field: "chown.file.name.length"}
@@ -30124,28 +30522,28 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Chown.File.PkgName"}
 		}
-		ev.Chown.File.PkgName = rv
+		ev.Chown.File.PkgName = string(rv)
 		return nil
 	case "chown.file.package.source_version":
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Chown.File.PkgSrcVersion"}
 		}
-		ev.Chown.File.PkgSrcVersion = rv
+		ev.Chown.File.PkgSrcVersion = string(rv)
 		return nil
 	case "chown.file.package.version":
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Chown.File.PkgVersion"}
 		}
-		ev.Chown.File.PkgVersion = rv
+		ev.Chown.File.PkgVersion = string(rv)
 		return nil
 	case "chown.file.path":
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Chown.File.PathnameStr"}
 		}
-		ev.Chown.File.PathnameStr = rv
+		ev.Chown.File.PathnameStr = string(rv)
 		return nil
 	case "chown.file.path.length":
 		return &eval.ErrFieldReadOnly{Field: "chown.file.path.length"}
@@ -30168,7 +30566,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Chown.File.FileFields.User"}
 		}
-		ev.Chown.File.FileFields.User = rv
+		ev.Chown.File.FileFields.User = string(rv)
 		return nil
 	case "chown.retval":
 		rv, ok := value.(int)
@@ -30189,7 +30587,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Chown.SyscallContext.StrArg1"}
 		}
-		ev.Chown.SyscallContext.StrArg1 = rv
+		ev.Chown.SyscallContext.StrArg1 = string(rv)
 		return nil
 	case "chown.syscall.uid":
 		rv, ok := value.(int)
@@ -30214,9 +30612,19 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ContainerContext.ID"}
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ContainerContext.ContainerID"}
 		}
-		ev.BaseEvent.ContainerContext.ID = rv
+		ev.BaseEvent.ContainerContext.ContainerID = ContainerID(rv)
+		return nil
+	case "container.runtime":
+		if ev.BaseEvent.ContainerContext == nil {
+			ev.BaseEvent.ContainerContext = &ContainerContext{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ContainerContext.Runtime"}
+		}
+		ev.BaseEvent.ContainerContext.Runtime = string(rv)
 		return nil
 	case "container.tags":
 		if ev.BaseEvent.ContainerContext == nil {
@@ -30264,7 +30672,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "DNS.Name"}
 		}
-		ev.DNS.Name = rv
+		ev.DNS.Name = string(rv)
 		return nil
 	case "dns.question.name.length":
 		return &eval.ErrFieldReadOnly{Field: "dns.question.name.length"}
@@ -30287,28 +30695,28 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.Hostname"}
 		}
-		ev.BaseEvent.Hostname = rv
+		ev.BaseEvent.Hostname = string(rv)
 		return nil
 	case "event.origin":
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.Origin"}
 		}
-		ev.BaseEvent.Origin = rv
+		ev.BaseEvent.Origin = string(rv)
 		return nil
 	case "event.os":
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.Os"}
 		}
-		ev.BaseEvent.Os = rv
+		ev.BaseEvent.Os = string(rv)
 		return nil
 	case "event.service":
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.Service"}
 		}
-		ev.BaseEvent.Service = rv
+		ev.BaseEvent.Service = string(rv)
 		return nil
 	case "event.timestamp":
 		rv, ok := value.(int)
@@ -30325,7 +30733,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.Args"}
 		}
-		ev.Exec.Process.Args = rv
+		ev.Exec.Process.Args = string(rv)
 		return nil
 	case "exec.args_flags":
 		if ev.Exec.Process == nil {
@@ -30384,7 +30792,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.Argv0"}
 		}
-		ev.Exec.Process.Argv0 = rv
+		ev.Exec.Process.Argv0 = string(rv)
 		return nil
 	case "exec.cap_effective":
 		if ev.Exec.Process == nil {
@@ -30406,6 +30814,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.Exec.Process.Credentials.CapPermitted = uint64(rv)
 		return nil
+	case "exec.cgroup.id":
+		if ev.Exec.Process == nil {
+			ev.Exec.Process = &Process{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.CGroup.CGroupID"}
+		}
+		ev.Exec.Process.CGroup.CGroupID = CGroupID(rv)
+		return nil
 	case "exec.comm":
 		if ev.Exec.Process == nil {
 			ev.Exec.Process = &Process{}
@@ -30414,7 +30832,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.Comm"}
 		}
-		ev.Exec.Process.Comm = rv
+		ev.Exec.Process.Comm = string(rv)
 		return nil
 	case "exec.container.id":
 		if ev.Exec.Process == nil {
@@ -30424,7 +30842,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.ContainerID"}
 		}
-		ev.Exec.Process.ContainerID = rv
+		ev.Exec.Process.ContainerID = ContainerID(rv)
 		return nil
 	case "exec.created_at":
 		if ev.Exec.Process == nil {
@@ -30454,7 +30872,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.Credentials.EGroup"}
 		}
-		ev.Exec.Process.Credentials.EGroup = rv
+		ev.Exec.Process.Credentials.EGroup = string(rv)
 		return nil
 	case "exec.envp":
 		if ev.Exec.Process == nil {
@@ -30510,7 +30928,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.Credentials.EUser"}
 		}
-		ev.Exec.Process.Credentials.EUser = rv
+		ev.Exec.Process.Credentials.EUser = string(rv)
 		return nil
 	case "exec.file.change_time":
 		if ev.Exec.Process == nil {
@@ -30530,7 +30948,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.FileEvent.Filesystem"}
 		}
-		ev.Exec.Process.FileEvent.Filesystem = rv
+		ev.Exec.Process.FileEvent.Filesystem = string(rv)
 		return nil
 	case "exec.file.gid":
 		if ev.Exec.Process == nil {
@@ -30550,7 +30968,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.FileEvent.FileFields.Group"}
 		}
-		ev.Exec.Process.FileEvent.FileFields.Group = rv
+		ev.Exec.Process.FileEvent.FileFields.Group = string(rv)
 		return nil
 	case "exec.file.hashes":
 		if ev.Exec.Process == nil {
@@ -30623,7 +31041,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.FileEvent.BasenameStr"}
 		}
-		ev.Exec.Process.FileEvent.BasenameStr = rv
+		ev.Exec.Process.FileEvent.BasenameStr = string(rv)
 		return nil
 	case "exec.file.name.length":
 		if ev.Exec.Process == nil {
@@ -30638,7 +31056,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.FileEvent.PkgName"}
 		}
-		ev.Exec.Process.FileEvent.PkgName = rv
+		ev.Exec.Process.FileEvent.PkgName = string(rv)
 		return nil
 	case "exec.file.package.source_version":
 		if ev.Exec.Process == nil {
@@ -30648,7 +31066,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.FileEvent.PkgSrcVersion"}
 		}
-		ev.Exec.Process.FileEvent.PkgSrcVersion = rv
+		ev.Exec.Process.FileEvent.PkgSrcVersion = string(rv)
 		return nil
 	case "exec.file.package.version":
 		if ev.Exec.Process == nil {
@@ -30658,7 +31076,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.FileEvent.PkgVersion"}
 		}
-		ev.Exec.Process.FileEvent.PkgVersion = rv
+		ev.Exec.Process.FileEvent.PkgVersion = string(rv)
 		return nil
 	case "exec.file.path":
 		if ev.Exec.Process == nil {
@@ -30668,7 +31086,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.FileEvent.PathnameStr"}
 		}
-		ev.Exec.Process.FileEvent.PathnameStr = rv
+		ev.Exec.Process.FileEvent.PathnameStr = string(rv)
 		return nil
 	case "exec.file.path.length":
 		if ev.Exec.Process == nil {
@@ -30703,7 +31121,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.FileEvent.FileFields.User"}
 		}
-		ev.Exec.Process.FileEvent.FileFields.User = rv
+		ev.Exec.Process.FileEvent.FileFields.User = string(rv)
 		return nil
 	case "exec.fsgid":
 		if ev.Exec.Process == nil {
@@ -30723,7 +31141,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.Credentials.FSGroup"}
 		}
-		ev.Exec.Process.Credentials.FSGroup = rv
+		ev.Exec.Process.Credentials.FSGroup = string(rv)
 		return nil
 	case "exec.fsuid":
 		if ev.Exec.Process == nil {
@@ -30743,7 +31161,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.Credentials.FSUser"}
 		}
-		ev.Exec.Process.Credentials.FSUser = rv
+		ev.Exec.Process.Credentials.FSUser = string(rv)
 		return nil
 	case "exec.gid":
 		if ev.Exec.Process == nil {
@@ -30763,7 +31181,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.Credentials.Group"}
 		}
-		ev.Exec.Process.Credentials.Group = rv
+		ev.Exec.Process.Credentials.Group = string(rv)
 		return nil
 	case "exec.interpreter.file.change_time":
 		if ev.Exec.Process == nil {
@@ -30783,7 +31201,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.LinuxBinprm.FileEvent.Filesystem"}
 		}
-		ev.Exec.Process.LinuxBinprm.FileEvent.Filesystem = rv
+		ev.Exec.Process.LinuxBinprm.FileEvent.Filesystem = string(rv)
 		return nil
 	case "exec.interpreter.file.gid":
 		if ev.Exec.Process == nil {
@@ -30803,7 +31221,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.LinuxBinprm.FileEvent.FileFields.Group"}
 		}
-		ev.Exec.Process.LinuxBinprm.FileEvent.FileFields.Group = rv
+		ev.Exec.Process.LinuxBinprm.FileEvent.FileFields.Group = string(rv)
 		return nil
 	case "exec.interpreter.file.hashes":
 		if ev.Exec.Process == nil {
@@ -30876,7 +31294,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.LinuxBinprm.FileEvent.BasenameStr"}
 		}
-		ev.Exec.Process.LinuxBinprm.FileEvent.BasenameStr = rv
+		ev.Exec.Process.LinuxBinprm.FileEvent.BasenameStr = string(rv)
 		return nil
 	case "exec.interpreter.file.name.length":
 		if ev.Exec.Process == nil {
@@ -30891,7 +31309,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.LinuxBinprm.FileEvent.PkgName"}
 		}
-		ev.Exec.Process.LinuxBinprm.FileEvent.PkgName = rv
+		ev.Exec.Process.LinuxBinprm.FileEvent.PkgName = string(rv)
 		return nil
 	case "exec.interpreter.file.package.source_version":
 		if ev.Exec.Process == nil {
@@ -30901,7 +31319,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.LinuxBinprm.FileEvent.PkgSrcVersion"}
 		}
-		ev.Exec.Process.LinuxBinprm.FileEvent.PkgSrcVersion = rv
+		ev.Exec.Process.LinuxBinprm.FileEvent.PkgSrcVersion = string(rv)
 		return nil
 	case "exec.interpreter.file.package.version":
 		if ev.Exec.Process == nil {
@@ -30911,7 +31329,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.LinuxBinprm.FileEvent.PkgVersion"}
 		}
-		ev.Exec.Process.LinuxBinprm.FileEvent.PkgVersion = rv
+		ev.Exec.Process.LinuxBinprm.FileEvent.PkgVersion = string(rv)
 		return nil
 	case "exec.interpreter.file.path":
 		if ev.Exec.Process == nil {
@@ -30921,7 +31339,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.LinuxBinprm.FileEvent.PathnameStr"}
 		}
-		ev.Exec.Process.LinuxBinprm.FileEvent.PathnameStr = rv
+		ev.Exec.Process.LinuxBinprm.FileEvent.PathnameStr = string(rv)
 		return nil
 	case "exec.interpreter.file.path.length":
 		if ev.Exec.Process == nil {
@@ -30956,7 +31374,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.LinuxBinprm.FileEvent.FileFields.User"}
 		}
-		ev.Exec.Process.LinuxBinprm.FileEvent.FileFields.User = rv
+		ev.Exec.Process.LinuxBinprm.FileEvent.FileFields.User = string(rv)
 		return nil
 	case "exec.is_kworker":
 		if ev.Exec.Process == nil {
@@ -31003,7 +31421,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.SyscallContext.StrArg1"}
 		}
-		ev.Exec.SyscallContext.StrArg1 = rv
+		ev.Exec.SyscallContext.StrArg1 = string(rv)
 		return nil
 	case "exec.tid":
 		if ev.Exec.Process == nil {
@@ -31023,7 +31441,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.TTYName"}
 		}
-		ev.Exec.Process.TTYName = rv
+		ev.Exec.Process.TTYName = string(rv)
 		return nil
 	case "exec.uid":
 		if ev.Exec.Process == nil {
@@ -31043,7 +31461,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.Credentials.User"}
 		}
-		ev.Exec.Process.Credentials.User = rv
+		ev.Exec.Process.Credentials.User = string(rv)
 		return nil
 	case "exec.user_session.k8s_groups":
 		if ev.Exec.Process == nil {
@@ -31066,7 +31484,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.UserSession.K8SUID"}
 		}
-		ev.Exec.Process.UserSession.K8SUID = rv
+		ev.Exec.Process.UserSession.K8SUID = string(rv)
 		return nil
 	case "exec.user_session.k8s_username":
 		if ev.Exec.Process == nil {
@@ -31076,7 +31494,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.UserSession.K8SUsername"}
 		}
-		ev.Exec.Process.UserSession.K8SUsername = rv
+		ev.Exec.Process.UserSession.K8SUsername = string(rv)
 		return nil
 	case "exit.args":
 		if ev.Exit.Process == nil {
@@ -31086,7 +31504,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.Args"}
 		}
-		ev.Exit.Process.Args = rv
+		ev.Exit.Process.Args = string(rv)
 		return nil
 	case "exit.args_flags":
 		if ev.Exit.Process == nil {
@@ -31145,7 +31563,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.Argv0"}
 		}
-		ev.Exit.Process.Argv0 = rv
+		ev.Exit.Process.Argv0 = string(rv)
 		return nil
 	case "exit.cap_effective":
 		if ev.Exit.Process == nil {
@@ -31174,6 +31592,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.Exit.Cause = uint32(rv)
 		return nil
+	case "exit.cgroup.id":
+		if ev.Exit.Process == nil {
+			ev.Exit.Process = &Process{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.CGroup.CGroupID"}
+		}
+		ev.Exit.Process.CGroup.CGroupID = CGroupID(rv)
+		return nil
 	case "exit.code":
 		rv, ok := value.(int)
 		if !ok {
@@ -31189,7 +31617,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.Comm"}
 		}
-		ev.Exit.Process.Comm = rv
+		ev.Exit.Process.Comm = string(rv)
 		return nil
 	case "exit.container.id":
 		if ev.Exit.Process == nil {
@@ -31199,7 +31627,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.ContainerID"}
 		}
-		ev.Exit.Process.ContainerID = rv
+		ev.Exit.Process.ContainerID = ContainerID(rv)
 		return nil
 	case "exit.created_at":
 		if ev.Exit.Process == nil {
@@ -31229,7 +31657,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.Credentials.EGroup"}
 		}
-		ev.Exit.Process.Credentials.EGroup = rv
+		ev.Exit.Process.Credentials.EGroup = string(rv)
 		return nil
 	case "exit.envp":
 		if ev.Exit.Process == nil {
@@ -31285,7 +31713,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.Credentials.EUser"}
 		}
-		ev.Exit.Process.Credentials.EUser = rv
+		ev.Exit.Process.Credentials.EUser = string(rv)
 		return nil
 	case "exit.file.change_time":
 		if ev.Exit.Process == nil {
@@ -31305,7 +31733,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.FileEvent.Filesystem"}
 		}
-		ev.Exit.Process.FileEvent.Filesystem = rv
+		ev.Exit.Process.FileEvent.Filesystem = string(rv)
 		return nil
 	case "exit.file.gid":
 		if ev.Exit.Process == nil {
@@ -31325,7 +31753,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.FileEvent.FileFields.Group"}
 		}
-		ev.Exit.Process.FileEvent.FileFields.Group = rv
+		ev.Exit.Process.FileEvent.FileFields.Group = string(rv)
 		return nil
 	case "exit.file.hashes":
 		if ev.Exit.Process == nil {
@@ -31398,7 +31826,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.FileEvent.BasenameStr"}
 		}
-		ev.Exit.Process.FileEvent.BasenameStr = rv
+		ev.Exit.Process.FileEvent.BasenameStr = string(rv)
 		return nil
 	case "exit.file.name.length":
 		if ev.Exit.Process == nil {
@@ -31413,7 +31841,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.FileEvent.PkgName"}
 		}
-		ev.Exit.Process.FileEvent.PkgName = rv
+		ev.Exit.Process.FileEvent.PkgName = string(rv)
 		return nil
 	case "exit.file.package.source_version":
 		if ev.Exit.Process == nil {
@@ -31423,7 +31851,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.FileEvent.PkgSrcVersion"}
 		}
-		ev.Exit.Process.FileEvent.PkgSrcVersion = rv
+		ev.Exit.Process.FileEvent.PkgSrcVersion = string(rv)
 		return nil
 	case "exit.file.package.version":
 		if ev.Exit.Process == nil {
@@ -31433,7 +31861,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.FileEvent.PkgVersion"}
 		}
-		ev.Exit.Process.FileEvent.PkgVersion = rv
+		ev.Exit.Process.FileEvent.PkgVersion = string(rv)
 		return nil
 	case "exit.file.path":
 		if ev.Exit.Process == nil {
@@ -31443,7 +31871,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.FileEvent.PathnameStr"}
 		}
-		ev.Exit.Process.FileEvent.PathnameStr = rv
+		ev.Exit.Process.FileEvent.PathnameStr = string(rv)
 		return nil
 	case "exit.file.path.length":
 		if ev.Exit.Process == nil {
@@ -31478,7 +31906,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.FileEvent.FileFields.User"}
 		}
-		ev.Exit.Process.FileEvent.FileFields.User = rv
+		ev.Exit.Process.FileEvent.FileFields.User = string(rv)
 		return nil
 	case "exit.fsgid":
 		if ev.Exit.Process == nil {
@@ -31498,7 +31926,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.Credentials.FSGroup"}
 		}
-		ev.Exit.Process.Credentials.FSGroup = rv
+		ev.Exit.Process.Credentials.FSGroup = string(rv)
 		return nil
 	case "exit.fsuid":
 		if ev.Exit.Process == nil {
@@ -31518,7 +31946,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.Credentials.FSUser"}
 		}
-		ev.Exit.Process.Credentials.FSUser = rv
+		ev.Exit.Process.Credentials.FSUser = string(rv)
 		return nil
 	case "exit.gid":
 		if ev.Exit.Process == nil {
@@ -31538,7 +31966,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.Credentials.Group"}
 		}
-		ev.Exit.Process.Credentials.Group = rv
+		ev.Exit.Process.Credentials.Group = string(rv)
 		return nil
 	case "exit.interpreter.file.change_time":
 		if ev.Exit.Process == nil {
@@ -31558,7 +31986,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.LinuxBinprm.FileEvent.Filesystem"}
 		}
-		ev.Exit.Process.LinuxBinprm.FileEvent.Filesystem = rv
+		ev.Exit.Process.LinuxBinprm.FileEvent.Filesystem = string(rv)
 		return nil
 	case "exit.interpreter.file.gid":
 		if ev.Exit.Process == nil {
@@ -31578,7 +32006,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.LinuxBinprm.FileEvent.FileFields.Group"}
 		}
-		ev.Exit.Process.LinuxBinprm.FileEvent.FileFields.Group = rv
+		ev.Exit.Process.LinuxBinprm.FileEvent.FileFields.Group = string(rv)
 		return nil
 	case "exit.interpreter.file.hashes":
 		if ev.Exit.Process == nil {
@@ -31651,7 +32079,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.LinuxBinprm.FileEvent.BasenameStr"}
 		}
-		ev.Exit.Process.LinuxBinprm.FileEvent.BasenameStr = rv
+		ev.Exit.Process.LinuxBinprm.FileEvent.BasenameStr = string(rv)
 		return nil
 	case "exit.interpreter.file.name.length":
 		if ev.Exit.Process == nil {
@@ -31666,7 +32094,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.LinuxBinprm.FileEvent.PkgName"}
 		}
-		ev.Exit.Process.LinuxBinprm.FileEvent.PkgName = rv
+		ev.Exit.Process.LinuxBinprm.FileEvent.PkgName = string(rv)
 		return nil
 	case "exit.interpreter.file.package.source_version":
 		if ev.Exit.Process == nil {
@@ -31676,7 +32104,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.LinuxBinprm.FileEvent.PkgSrcVersion"}
 		}
-		ev.Exit.Process.LinuxBinprm.FileEvent.PkgSrcVersion = rv
+		ev.Exit.Process.LinuxBinprm.FileEvent.PkgSrcVersion = string(rv)
 		return nil
 	case "exit.interpreter.file.package.version":
 		if ev.Exit.Process == nil {
@@ -31686,7 +32114,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.LinuxBinprm.FileEvent.PkgVersion"}
 		}
-		ev.Exit.Process.LinuxBinprm.FileEvent.PkgVersion = rv
+		ev.Exit.Process.LinuxBinprm.FileEvent.PkgVersion = string(rv)
 		return nil
 	case "exit.interpreter.file.path":
 		if ev.Exit.Process == nil {
@@ -31696,7 +32124,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.LinuxBinprm.FileEvent.PathnameStr"}
 		}
-		ev.Exit.Process.LinuxBinprm.FileEvent.PathnameStr = rv
+		ev.Exit.Process.LinuxBinprm.FileEvent.PathnameStr = string(rv)
 		return nil
 	case "exit.interpreter.file.path.length":
 		if ev.Exit.Process == nil {
@@ -31731,7 +32159,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.LinuxBinprm.FileEvent.FileFields.User"}
 		}
-		ev.Exit.Process.LinuxBinprm.FileEvent.FileFields.User = rv
+		ev.Exit.Process.LinuxBinprm.FileEvent.FileFields.User = string(rv)
 		return nil
 	case "exit.is_kworker":
 		if ev.Exit.Process == nil {
@@ -31791,7 +32219,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.TTYName"}
 		}
-		ev.Exit.Process.TTYName = rv
+		ev.Exit.Process.TTYName = string(rv)
 		return nil
 	case "exit.uid":
 		if ev.Exit.Process == nil {
@@ -31811,7 +32239,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.Credentials.User"}
 		}
-		ev.Exit.Process.Credentials.User = rv
+		ev.Exit.Process.Credentials.User = string(rv)
 		return nil
 	case "exit.user_session.k8s_groups":
 		if ev.Exit.Process == nil {
@@ -31834,7 +32262,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.UserSession.K8SUID"}
 		}
-		ev.Exit.Process.UserSession.K8SUID = rv
+		ev.Exit.Process.UserSession.K8SUID = string(rv)
 		return nil
 	case "exit.user_session.k8s_username":
 		if ev.Exit.Process == nil {
@@ -31844,7 +32272,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.UserSession.K8SUsername"}
 		}
-		ev.Exit.Process.UserSession.K8SUsername = rv
+		ev.Exit.Process.UserSession.K8SUsername = string(rv)
 		return nil
 	case "imds.aws.is_imds_v2":
 		rv, ok := value.(bool)
@@ -31858,49 +32286,49 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "IMDS.AWS.SecurityCredentials.Type"}
 		}
-		ev.IMDS.AWS.SecurityCredentials.Type = rv
+		ev.IMDS.AWS.SecurityCredentials.Type = string(rv)
 		return nil
 	case "imds.cloud_provider":
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "IMDS.CloudProvider"}
 		}
-		ev.IMDS.CloudProvider = rv
+		ev.IMDS.CloudProvider = string(rv)
 		return nil
 	case "imds.host":
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "IMDS.Host"}
 		}
-		ev.IMDS.Host = rv
+		ev.IMDS.Host = string(rv)
 		return nil
 	case "imds.server":
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "IMDS.Server"}
 		}
-		ev.IMDS.Server = rv
+		ev.IMDS.Server = string(rv)
 		return nil
 	case "imds.type":
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "IMDS.Type"}
 		}
-		ev.IMDS.Type = rv
+		ev.IMDS.Type = string(rv)
 		return nil
 	case "imds.url":
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "IMDS.URL"}
 		}
-		ev.IMDS.URL = rv
+		ev.IMDS.URL = string(rv)
 		return nil
 	case "imds.user_agent":
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "IMDS.UserAgent"}
 		}
-		ev.IMDS.UserAgent = rv
+		ev.IMDS.UserAgent = string(rv)
 		return nil
 	case "link.file.change_time":
 		rv, ok := value.(int)
@@ -31921,7 +32349,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Link.Target.Filesystem"}
 		}
-		ev.Link.Target.Filesystem = rv
+		ev.Link.Target.Filesystem = string(rv)
 		return nil
 	case "link.file.destination.gid":
 		rv, ok := value.(int)
@@ -31935,7 +32363,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Link.Target.FileFields.Group"}
 		}
-		ev.Link.Target.FileFields.Group = rv
+		ev.Link.Target.FileFields.Group = string(rv)
 		return nil
 	case "link.file.destination.hashes":
 		switch rv := value.(type) {
@@ -31987,7 +32415,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Link.Target.BasenameStr"}
 		}
-		ev.Link.Target.BasenameStr = rv
+		ev.Link.Target.BasenameStr = string(rv)
 		return nil
 	case "link.file.destination.name.length":
 		return &eval.ErrFieldReadOnly{Field: "link.file.destination.name.length"}
@@ -31996,28 +32424,28 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Link.Target.PkgName"}
 		}
-		ev.Link.Target.PkgName = rv
+		ev.Link.Target.PkgName = string(rv)
 		return nil
 	case "link.file.destination.package.source_version":
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Link.Target.PkgSrcVersion"}
 		}
-		ev.Link.Target.PkgSrcVersion = rv
+		ev.Link.Target.PkgSrcVersion = string(rv)
 		return nil
 	case "link.file.destination.package.version":
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Link.Target.PkgVersion"}
 		}
-		ev.Link.Target.PkgVersion = rv
+		ev.Link.Target.PkgVersion = string(rv)
 		return nil
 	case "link.file.destination.path":
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Link.Target.PathnameStr"}
 		}
-		ev.Link.Target.PathnameStr = rv
+		ev.Link.Target.PathnameStr = string(rv)
 		return nil
 	case "link.file.destination.path.length":
 		return &eval.ErrFieldReadOnly{Field: "link.file.destination.path.length"}
@@ -32040,14 +32468,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Link.Target.FileFields.User"}
 		}
-		ev.Link.Target.FileFields.User = rv
+		ev.Link.Target.FileFields.User = string(rv)
 		return nil
 	case "link.file.filesystem":
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Link.Source.Filesystem"}
 		}
-		ev.Link.Source.Filesystem = rv
+		ev.Link.Source.Filesystem = string(rv)
 		return nil
 	case "link.file.gid":
 		rv, ok := value.(int)
@@ -32061,7 +32489,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Link.Source.FileFields.Group"}
 		}
-		ev.Link.Source.FileFields.Group = rv
+		ev.Link.Source.FileFields.Group = string(rv)
 		return nil
 	case "link.file.hashes":
 		switch rv := value.(type) {
@@ -32113,7 +32541,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Link.Source.BasenameStr"}
 		}
-		ev.Link.Source.BasenameStr = rv
+		ev.Link.Source.BasenameStr = string(rv)
 		return nil
 	case "link.file.name.length":
 		return &eval.ErrFieldReadOnly{Field: "link.file.name.length"}
@@ -32122,28 +32550,28 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Link.Source.PkgName"}
 		}
-		ev.Link.Source.PkgName = rv
+		ev.Link.Source.PkgName = string(rv)
 		return nil
 	case "link.file.package.source_version":
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Link.Source.PkgSrcVersion"}
 		}
-		ev.Link.Source.PkgSrcVersion = rv
+		ev.Link.Source.PkgSrcVersion = string(rv)
 		return nil
 	case "link.file.package.version":
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Link.Source.PkgVersion"}
 		}
-		ev.Link.Source.PkgVersion = rv
+		ev.Link.Source.PkgVersion = string(rv)
 		return nil
 	case "link.file.path":
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Link.Source.PathnameStr"}
 		}
-		ev.Link.Source.PathnameStr = rv
+		ev.Link.Source.PathnameStr = string(rv)
 		return nil
 	case "link.file.path.length":
 		return &eval.ErrFieldReadOnly{Field: "link.file.path.length"}
@@ -32166,7 +32594,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Link.Source.FileFields.User"}
 		}
-		ev.Link.Source.FileFields.User = rv
+		ev.Link.Source.FileFields.User = string(rv)
 		return nil
 	case "link.retval":
 		rv, ok := value.(int)
@@ -32180,21 +32608,21 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Link.SyscallContext.StrArg2"}
 		}
-		ev.Link.SyscallContext.StrArg2 = rv
+		ev.Link.SyscallContext.StrArg2 = string(rv)
 		return nil
 	case "link.syscall.path":
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Link.SyscallContext.StrArg1"}
 		}
-		ev.Link.SyscallContext.StrArg1 = rv
+		ev.Link.SyscallContext.StrArg1 = string(rv)
 		return nil
 	case "load_module.args":
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "LoadModule.Args"}
 		}
-		ev.LoadModule.Args = rv
+		ev.LoadModule.Args = string(rv)
 		return nil
 	case "load_module.args_truncated":
 		rv, ok := value.(bool)
@@ -32225,7 +32653,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "LoadModule.File.Filesystem"}
 		}
-		ev.LoadModule.File.Filesystem = rv
+		ev.LoadModule.File.Filesystem = string(rv)
 		return nil
 	case "load_module.file.gid":
 		rv, ok := value.(int)
@@ -32239,7 +32667,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "LoadModule.File.FileFields.Group"}
 		}
-		ev.LoadModule.File.FileFields.Group = rv
+		ev.LoadModule.File.FileFields.Group = string(rv)
 		return nil
 	case "load_module.file.hashes":
 		switch rv := value.(type) {
@@ -32291,7 +32719,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "LoadModule.File.BasenameStr"}
 		}
-		ev.LoadModule.File.BasenameStr = rv
+		ev.LoadModule.File.BasenameStr = string(rv)
 		return nil
 	case "load_module.file.name.length":
 		return &eval.ErrFieldReadOnly{Field: "load_module.file.name.length"}
@@ -32300,28 +32728,28 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "LoadModule.File.PkgName"}
 		}
-		ev.LoadModule.File.PkgName = rv
+		ev.LoadModule.File.PkgName = string(rv)
 		return nil
 	case "load_module.file.package.source_version":
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "LoadModule.File.PkgSrcVersion"}
 		}
-		ev.LoadModule.File.PkgSrcVersion = rv
+		ev.LoadModule.File.PkgSrcVersion = string(rv)
 		return nil
 	case "load_module.file.package.version":
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "LoadModule.File.PkgVersion"}
 		}
-		ev.LoadModule.File.PkgVersion = rv
+		ev.LoadModule.File.PkgVersion = string(rv)
 		return nil
 	case "load_module.file.path":
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "LoadModule.File.PathnameStr"}
 		}
-		ev.LoadModule.File.PathnameStr = rv
+		ev.LoadModule.File.PathnameStr = string(rv)
 		return nil
 	case "load_module.file.path.length":
 		return &eval.ErrFieldReadOnly{Field: "load_module.file.path.length"}
@@ -32344,7 +32772,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "LoadModule.File.FileFields.User"}
 		}
-		ev.LoadModule.File.FileFields.User = rv
+		ev.LoadModule.File.FileFields.User = string(rv)
 		return nil
 	case "load_module.loaded_from_memory":
 		rv, ok := value.(bool)
@@ -32358,7 +32786,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "LoadModule.Name"}
 		}
-		ev.LoadModule.Name = rv
+		ev.LoadModule.Name = string(rv)
 		return nil
 	case "load_module.retval":
 		rv, ok := value.(int)
@@ -32393,7 +32821,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Mkdir.File.Filesystem"}
 		}
-		ev.Mkdir.File.Filesystem = rv
+		ev.Mkdir.File.Filesystem = string(rv)
 		return nil
 	case "mkdir.file.gid":
 		rv, ok := value.(int)
@@ -32407,7 +32835,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Mkdir.File.FileFields.Group"}
 		}
-		ev.Mkdir.File.FileFields.Group = rv
+		ev.Mkdir.File.FileFields.Group = string(rv)
 		return nil
 	case "mkdir.file.hashes":
 		switch rv := value.(type) {
@@ -32459,7 +32887,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Mkdir.File.BasenameStr"}
 		}
-		ev.Mkdir.File.BasenameStr = rv
+		ev.Mkdir.File.BasenameStr = string(rv)
 		return nil
 	case "mkdir.file.name.length":
 		return &eval.ErrFieldReadOnly{Field: "mkdir.file.name.length"}
@@ -32468,28 +32896,28 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Mkdir.File.PkgName"}
 		}
-		ev.Mkdir.File.PkgName = rv
+		ev.Mkdir.File.PkgName = string(rv)
 		return nil
 	case "mkdir.file.package.source_version":
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Mkdir.File.PkgSrcVersion"}
 		}
-		ev.Mkdir.File.PkgSrcVersion = rv
+		ev.Mkdir.File.PkgSrcVersion = string(rv)
 		return nil
 	case "mkdir.file.package.version":
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Mkdir.File.PkgVersion"}
 		}
-		ev.Mkdir.File.PkgVersion = rv
+		ev.Mkdir.File.PkgVersion = string(rv)
 		return nil
 	case "mkdir.file.path":
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Mkdir.File.PathnameStr"}
 		}
-		ev.Mkdir.File.PathnameStr = rv
+		ev.Mkdir.File.PathnameStr = string(rv)
 		return nil
 	case "mkdir.file.path.length":
 		return &eval.ErrFieldReadOnly{Field: "mkdir.file.path.length"}
@@ -32512,7 +32940,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Mkdir.File.FileFields.User"}
 		}
-		ev.Mkdir.File.FileFields.User = rv
+		ev.Mkdir.File.FileFields.User = string(rv)
 		return nil
 	case "mkdir.retval":
 		rv, ok := value.(int)
@@ -32533,7 +32961,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "MMap.File.Filesystem"}
 		}
-		ev.MMap.File.Filesystem = rv
+		ev.MMap.File.Filesystem = string(rv)
 		return nil
 	case "mmap.file.gid":
 		rv, ok := value.(int)
@@ -32547,7 +32975,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "MMap.File.FileFields.Group"}
 		}
-		ev.MMap.File.FileFields.Group = rv
+		ev.MMap.File.FileFields.Group = string(rv)
 		return nil
 	case "mmap.file.hashes":
 		switch rv := value.(type) {
@@ -32599,7 +33027,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "MMap.File.BasenameStr"}
 		}
-		ev.MMap.File.BasenameStr = rv
+		ev.MMap.File.BasenameStr = string(rv)
 		return nil
 	case "mmap.file.name.length":
 		return &eval.ErrFieldReadOnly{Field: "mmap.file.name.length"}
@@ -32608,28 +33036,28 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "MMap.File.PkgName"}
 		}
-		ev.MMap.File.PkgName = rv
+		ev.MMap.File.PkgName = string(rv)
 		return nil
 	case "mmap.file.package.source_version":
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "MMap.File.PkgSrcVersion"}
 		}
-		ev.MMap.File.PkgSrcVersion = rv
+		ev.MMap.File.PkgSrcVersion = string(rv)
 		return nil
 	case "mmap.file.package.version":
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "MMap.File.PkgVersion"}
 		}
-		ev.MMap.File.PkgVersion = rv
+		ev.MMap.File.PkgVersion = string(rv)
 		return nil
 	case "mmap.file.path":
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "MMap.File.PathnameStr"}
 		}
-		ev.MMap.File.PathnameStr = rv
+		ev.MMap.File.PathnameStr = string(rv)
 		return nil
 	case "mmap.file.path.length":
 		return &eval.ErrFieldReadOnly{Field: "mmap.file.path.length"}
@@ -32652,7 +33080,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "MMap.File.FileFields.User"}
 		}
-		ev.MMap.File.FileFields.User = rv
+		ev.MMap.File.FileFields.User = string(rv)
 		return nil
 	case "mmap.flags":
 		rv, ok := value.(int)
@@ -32680,14 +33108,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Mount.Mount.FSType"}
 		}
-		ev.Mount.Mount.FSType = rv
+		ev.Mount.Mount.FSType = string(rv)
 		return nil
 	case "mount.mountpoint.path":
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Mount.MountPointPath"}
 		}
-		ev.Mount.MountPointPath = rv
+		ev.Mount.MountPointPath = string(rv)
 		return nil
 	case "mount.retval":
 		rv, ok := value.(int)
@@ -32701,14 +33129,35 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Mount.MountRootPath"}
 		}
-		ev.Mount.MountRootPath = rv
+		ev.Mount.MountRootPath = string(rv)
 		return nil
 	case "mount.source.path":
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Mount.MountSourcePath"}
 		}
-		ev.Mount.MountSourcePath = rv
+		ev.Mount.MountSourcePath = string(rv)
+		return nil
+	case "mount.syscall.fs_type":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Mount.SyscallContext.StrArg3"}
+		}
+		ev.Mount.SyscallContext.StrArg3 = string(rv)
+		return nil
+	case "mount.syscall.mountpoint.path":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Mount.SyscallContext.StrArg2"}
+		}
+		ev.Mount.SyscallContext.StrArg2 = string(rv)
+		return nil
+	case "mount.syscall.source.path":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Mount.SyscallContext.StrArg1"}
+		}
+		ev.Mount.SyscallContext.StrArg1 = string(rv)
 		return nil
 	case "mprotect.req_protection":
 		rv, ok := value.(int)
@@ -32757,7 +33206,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "NetworkContext.Device.IfName"}
 		}
-		ev.NetworkContext.Device.IfName = rv
+		ev.NetworkContext.Device.IfName = string(rv)
 		return nil
 	case "network.l3_protocol":
 		rv, ok := value.(int)
@@ -32799,7 +33248,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "OnDemand.Arg1Str"}
 		}
-		ev.OnDemand.Arg1Str = rv
+		ev.OnDemand.Arg1Str = string(rv)
 		return nil
 	case "ondemand.arg1.uint":
 		rv, ok := value.(int)
@@ -32813,7 +33262,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "OnDemand.Arg2Str"}
 		}
-		ev.OnDemand.Arg2Str = rv
+		ev.OnDemand.Arg2Str = string(rv)
 		return nil
 	case "ondemand.arg2.uint":
 		rv, ok := value.(int)
@@ -32827,7 +33276,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "OnDemand.Arg3Str"}
 		}
-		ev.OnDemand.Arg3Str = rv
+		ev.OnDemand.Arg3Str = string(rv)
 		return nil
 	case "ondemand.arg3.uint":
 		rv, ok := value.(int)
@@ -32841,7 +33290,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "OnDemand.Arg4Str"}
 		}
-		ev.OnDemand.Arg4Str = rv
+		ev.OnDemand.Arg4Str = string(rv)
 		return nil
 	case "ondemand.arg4.uint":
 		rv, ok := value.(int)
@@ -32855,7 +33304,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "OnDemand.Name"}
 		}
-		ev.OnDemand.Name = rv
+		ev.OnDemand.Name = string(rv)
 		return nil
 	case "open.file.change_time":
 		rv, ok := value.(int)
@@ -32876,7 +33325,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Open.File.Filesystem"}
 		}
-		ev.Open.File.Filesystem = rv
+		ev.Open.File.Filesystem = string(rv)
 		return nil
 	case "open.file.gid":
 		rv, ok := value.(int)
@@ -32890,7 +33339,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Open.File.FileFields.Group"}
 		}
-		ev.Open.File.FileFields.Group = rv
+		ev.Open.File.FileFields.Group = string(rv)
 		return nil
 	case "open.file.hashes":
 		switch rv := value.(type) {
@@ -32942,7 +33391,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Open.File.BasenameStr"}
 		}
-		ev.Open.File.BasenameStr = rv
+		ev.Open.File.BasenameStr = string(rv)
 		return nil
 	case "open.file.name.length":
 		return &eval.ErrFieldReadOnly{Field: "open.file.name.length"}
@@ -32951,28 +33400,28 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Open.File.PkgName"}
 		}
-		ev.Open.File.PkgName = rv
+		ev.Open.File.PkgName = string(rv)
 		return nil
 	case "open.file.package.source_version":
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Open.File.PkgSrcVersion"}
 		}
-		ev.Open.File.PkgSrcVersion = rv
+		ev.Open.File.PkgSrcVersion = string(rv)
 		return nil
 	case "open.file.package.version":
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Open.File.PkgVersion"}
 		}
-		ev.Open.File.PkgVersion = rv
+		ev.Open.File.PkgVersion = string(rv)
 		return nil
 	case "open.file.path":
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Open.File.PathnameStr"}
 		}
-		ev.Open.File.PathnameStr = rv
+		ev.Open.File.PathnameStr = string(rv)
 		return nil
 	case "open.file.path.length":
 		return &eval.ErrFieldReadOnly{Field: "open.file.path.length"}
@@ -32995,7 +33444,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Open.File.FileFields.User"}
 		}
-		ev.Open.File.FileFields.User = rv
+		ev.Open.File.FileFields.User = string(rv)
 		return nil
 	case "open.flags":
 		rv, ok := value.(int)
@@ -33030,7 +33479,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Open.SyscallContext.StrArg1"}
 		}
-		ev.Open.SyscallContext.StrArg1 = rv
+		ev.Open.SyscallContext.StrArg1 = string(rv)
 		return nil
 	case "process.ancestors.args":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -33043,7 +33492,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Args"}
 		}
-		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Args = rv
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Args = string(rv)
 		return nil
 	case "process.ancestors.args_flags":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -33117,7 +33566,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Argv0"}
 		}
-		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Argv0 = rv
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Argv0 = string(rv)
 		return nil
 	case "process.ancestors.cap_effective":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -33145,6 +33594,19 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Credentials.CapPermitted = uint64(rv)
 		return nil
+	case "process.ancestors.cgroup.id":
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
+		}
+		if ev.BaseEvent.ProcessContext.Ancestor == nil {
+			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.CGroup.CGroupID"}
+		}
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.CGroup.CGroupID = CGroupID(rv)
+		return nil
 	case "process.ancestors.comm":
 		if ev.BaseEvent.ProcessContext == nil {
 			ev.BaseEvent.ProcessContext = &ProcessContext{}
@@ -33156,7 +33618,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Comm"}
 		}
-		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Comm = rv
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Comm = string(rv)
 		return nil
 	case "process.ancestors.container.id":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -33169,7 +33631,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.ContainerID"}
 		}
-		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.ContainerID = rv
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.ContainerID = ContainerID(rv)
 		return nil
 	case "process.ancestors.created_at":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -33208,7 +33670,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Credentials.EGroup"}
 		}
-		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Credentials.EGroup = rv
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Credentials.EGroup = string(rv)
 		return nil
 	case "process.ancestors.envp":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -33279,7 +33741,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Credentials.EUser"}
 		}
-		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Credentials.EUser = rv
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Credentials.EUser = string(rv)
 		return nil
 	case "process.ancestors.file.change_time":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -33305,7 +33767,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.Filesystem"}
 		}
-		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.Filesystem = rv
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.Filesystem = string(rv)
 		return nil
 	case "process.ancestors.file.gid":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -33331,7 +33793,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.Group"}
 		}
-		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.Group = rv
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.Group = string(rv)
 		return nil
 	case "process.ancestors.file.hashes":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -33425,7 +33887,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.BasenameStr"}
 		}
-		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.BasenameStr = rv
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.BasenameStr = string(rv)
 		return nil
 	case "process.ancestors.file.name.length":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -33446,7 +33908,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.PkgName"}
 		}
-		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.PkgName = rv
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.PkgName = string(rv)
 		return nil
 	case "process.ancestors.file.package.source_version":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -33459,7 +33921,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.PkgSrcVersion"}
 		}
-		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.PkgSrcVersion = rv
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.PkgSrcVersion = string(rv)
 		return nil
 	case "process.ancestors.file.package.version":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -33472,7 +33934,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.PkgVersion"}
 		}
-		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.PkgVersion = rv
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.PkgVersion = string(rv)
 		return nil
 	case "process.ancestors.file.path":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -33485,7 +33947,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.PathnameStr"}
 		}
-		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.PathnameStr = rv
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.PathnameStr = string(rv)
 		return nil
 	case "process.ancestors.file.path.length":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -33532,7 +33994,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.User"}
 		}
-		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.User = rv
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.User = string(rv)
 		return nil
 	case "process.ancestors.fsgid":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -33558,7 +34020,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Credentials.FSGroup"}
 		}
-		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Credentials.FSGroup = rv
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Credentials.FSGroup = string(rv)
 		return nil
 	case "process.ancestors.fsuid":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -33584,7 +34046,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Credentials.FSUser"}
 		}
-		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Credentials.FSUser = rv
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Credentials.FSUser = string(rv)
 		return nil
 	case "process.ancestors.gid":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -33610,7 +34072,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Credentials.Group"}
 		}
-		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Credentials.Group = rv
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Credentials.Group = string(rv)
 		return nil
 	case "process.ancestors.interpreter.file.change_time":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -33636,7 +34098,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.Filesystem"}
 		}
-		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.Filesystem = rv
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.Filesystem = string(rv)
 		return nil
 	case "process.ancestors.interpreter.file.gid":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -33662,7 +34124,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Group"}
 		}
-		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Group = rv
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Group = string(rv)
 		return nil
 	case "process.ancestors.interpreter.file.hashes":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -33756,7 +34218,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.BasenameStr"}
 		}
-		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.BasenameStr = rv
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.BasenameStr = string(rv)
 		return nil
 	case "process.ancestors.interpreter.file.name.length":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -33777,7 +34239,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PkgName"}
 		}
-		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PkgName = rv
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PkgName = string(rv)
 		return nil
 	case "process.ancestors.interpreter.file.package.source_version":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -33790,7 +34252,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PkgSrcVersion"}
 		}
-		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PkgSrcVersion = rv
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PkgSrcVersion = string(rv)
 		return nil
 	case "process.ancestors.interpreter.file.package.version":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -33803,7 +34265,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PkgVersion"}
 		}
-		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PkgVersion = rv
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PkgVersion = string(rv)
 		return nil
 	case "process.ancestors.interpreter.file.path":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -33816,7 +34278,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PathnameStr"}
 		}
-		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PathnameStr = rv
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PathnameStr = string(rv)
 		return nil
 	case "process.ancestors.interpreter.file.path.length":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -33863,7 +34325,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.User"}
 		}
-		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.User = rv
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.User = string(rv)
 		return nil
 	case "process.ancestors.is_kworker":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -33941,7 +34403,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.TTYName"}
 		}
-		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.TTYName = rv
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.TTYName = string(rv)
 		return nil
 	case "process.ancestors.uid":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -33967,7 +34429,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Credentials.User"}
 		}
-		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Credentials.User = rv
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Credentials.User = string(rv)
 		return nil
 	case "process.ancestors.user_session.k8s_groups":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -33996,7 +34458,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.UserSession.K8SUID"}
 		}
-		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.UserSession.K8SUID = rv
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.UserSession.K8SUID = string(rv)
 		return nil
 	case "process.ancestors.user_session.k8s_username":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -34009,7 +34471,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.UserSession.K8SUsername"}
 		}
-		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.UserSession.K8SUsername = rv
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.UserSession.K8SUsername = string(rv)
 		return nil
 	case "process.args":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -34019,7 +34481,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.Args"}
 		}
-		ev.BaseEvent.ProcessContext.Process.Args = rv
+		ev.BaseEvent.ProcessContext.Process.Args = string(rv)
 		return nil
 	case "process.args_flags":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -34078,7 +34540,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.Argv0"}
 		}
-		ev.BaseEvent.ProcessContext.Process.Argv0 = rv
+		ev.BaseEvent.ProcessContext.Process.Argv0 = string(rv)
 		return nil
 	case "process.cap_effective":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -34100,6 +34562,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.BaseEvent.ProcessContext.Process.Credentials.CapPermitted = uint64(rv)
 		return nil
+	case "process.cgroup.id":
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.CGroup.CGroupID"}
+		}
+		ev.BaseEvent.ProcessContext.Process.CGroup.CGroupID = CGroupID(rv)
+		return nil
 	case "process.comm":
 		if ev.BaseEvent.ProcessContext == nil {
 			ev.BaseEvent.ProcessContext = &ProcessContext{}
@@ -34108,7 +34580,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.Comm"}
 		}
-		ev.BaseEvent.ProcessContext.Process.Comm = rv
+		ev.BaseEvent.ProcessContext.Process.Comm = string(rv)
 		return nil
 	case "process.container.id":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -34118,7 +34590,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.ContainerID"}
 		}
-		ev.BaseEvent.ProcessContext.Process.ContainerID = rv
+		ev.BaseEvent.ProcessContext.Process.ContainerID = ContainerID(rv)
 		return nil
 	case "process.created_at":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -34148,7 +34620,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.Credentials.EGroup"}
 		}
-		ev.BaseEvent.ProcessContext.Process.Credentials.EGroup = rv
+		ev.BaseEvent.ProcessContext.Process.Credentials.EGroup = string(rv)
 		return nil
 	case "process.envp":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -34204,7 +34676,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.Credentials.EUser"}
 		}
-		ev.BaseEvent.ProcessContext.Process.Credentials.EUser = rv
+		ev.BaseEvent.ProcessContext.Process.Credentials.EUser = string(rv)
 		return nil
 	case "process.file.change_time":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -34224,7 +34696,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.FileEvent.Filesystem"}
 		}
-		ev.BaseEvent.ProcessContext.Process.FileEvent.Filesystem = rv
+		ev.BaseEvent.ProcessContext.Process.FileEvent.Filesystem = string(rv)
 		return nil
 	case "process.file.gid":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -34244,7 +34716,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.FileEvent.FileFields.Group"}
 		}
-		ev.BaseEvent.ProcessContext.Process.FileEvent.FileFields.Group = rv
+		ev.BaseEvent.ProcessContext.Process.FileEvent.FileFields.Group = string(rv)
 		return nil
 	case "process.file.hashes":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -34317,7 +34789,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.FileEvent.BasenameStr"}
 		}
-		ev.BaseEvent.ProcessContext.Process.FileEvent.BasenameStr = rv
+		ev.BaseEvent.ProcessContext.Process.FileEvent.BasenameStr = string(rv)
 		return nil
 	case "process.file.name.length":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -34332,7 +34804,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.FileEvent.PkgName"}
 		}
-		ev.BaseEvent.ProcessContext.Process.FileEvent.PkgName = rv
+		ev.BaseEvent.ProcessContext.Process.FileEvent.PkgName = string(rv)
 		return nil
 	case "process.file.package.source_version":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -34342,7 +34814,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.FileEvent.PkgSrcVersion"}
 		}
-		ev.BaseEvent.ProcessContext.Process.FileEvent.PkgSrcVersion = rv
+		ev.BaseEvent.ProcessContext.Process.FileEvent.PkgSrcVersion = string(rv)
 		return nil
 	case "process.file.package.version":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -34352,7 +34824,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.FileEvent.PkgVersion"}
 		}
-		ev.BaseEvent.ProcessContext.Process.FileEvent.PkgVersion = rv
+		ev.BaseEvent.ProcessContext.Process.FileEvent.PkgVersion = string(rv)
 		return nil
 	case "process.file.path":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -34362,7 +34834,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.FileEvent.PathnameStr"}
 		}
-		ev.BaseEvent.ProcessContext.Process.FileEvent.PathnameStr = rv
+		ev.BaseEvent.ProcessContext.Process.FileEvent.PathnameStr = string(rv)
 		return nil
 	case "process.file.path.length":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -34397,7 +34869,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.FileEvent.FileFields.User"}
 		}
-		ev.BaseEvent.ProcessContext.Process.FileEvent.FileFields.User = rv
+		ev.BaseEvent.ProcessContext.Process.FileEvent.FileFields.User = string(rv)
 		return nil
 	case "process.fsgid":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -34417,7 +34889,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.Credentials.FSGroup"}
 		}
-		ev.BaseEvent.ProcessContext.Process.Credentials.FSGroup = rv
+		ev.BaseEvent.ProcessContext.Process.Credentials.FSGroup = string(rv)
 		return nil
 	case "process.fsuid":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -34437,7 +34909,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.Credentials.FSUser"}
 		}
-		ev.BaseEvent.ProcessContext.Process.Credentials.FSUser = rv
+		ev.BaseEvent.ProcessContext.Process.Credentials.FSUser = string(rv)
 		return nil
 	case "process.gid":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -34457,7 +34929,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.Credentials.Group"}
 		}
-		ev.BaseEvent.ProcessContext.Process.Credentials.Group = rv
+		ev.BaseEvent.ProcessContext.Process.Credentials.Group = string(rv)
 		return nil
 	case "process.interpreter.file.change_time":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -34477,7 +34949,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.Filesystem"}
 		}
-		ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.Filesystem = rv
+		ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.Filesystem = string(rv)
 		return nil
 	case "process.interpreter.file.gid":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -34497,7 +34969,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Group"}
 		}
-		ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Group = rv
+		ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Group = string(rv)
 		return nil
 	case "process.interpreter.file.hashes":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -34570,7 +35042,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.BasenameStr"}
 		}
-		ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.BasenameStr = rv
+		ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.BasenameStr = string(rv)
 		return nil
 	case "process.interpreter.file.name.length":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -34585,7 +35057,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.PkgName"}
 		}
-		ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.PkgName = rv
+		ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.PkgName = string(rv)
 		return nil
 	case "process.interpreter.file.package.source_version":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -34595,7 +35067,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.PkgSrcVersion"}
 		}
-		ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.PkgSrcVersion = rv
+		ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.PkgSrcVersion = string(rv)
 		return nil
 	case "process.interpreter.file.package.version":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -34605,7 +35077,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.PkgVersion"}
 		}
-		ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.PkgVersion = rv
+		ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.PkgVersion = string(rv)
 		return nil
 	case "process.interpreter.file.path":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -34615,7 +35087,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.PathnameStr"}
 		}
-		ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.PathnameStr = rv
+		ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.PathnameStr = string(rv)
 		return nil
 	case "process.interpreter.file.path.length":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -34650,7 +35122,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.User"}
 		}
-		ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.User = rv
+		ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.User = string(rv)
 		return nil
 	case "process.is_kworker":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -34683,7 +35155,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.Args"}
 		}
-		ev.BaseEvent.ProcessContext.Parent.Args = rv
+		ev.BaseEvent.ProcessContext.Parent.Args = string(rv)
 		return nil
 	case "process.parent.args_flags":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -34757,7 +35229,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.Argv0"}
 		}
-		ev.BaseEvent.ProcessContext.Parent.Argv0 = rv
+		ev.BaseEvent.ProcessContext.Parent.Argv0 = string(rv)
 		return nil
 	case "process.parent.cap_effective":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -34785,6 +35257,19 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.BaseEvent.ProcessContext.Parent.Credentials.CapPermitted = uint64(rv)
 		return nil
+	case "process.parent.cgroup.id":
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
+		}
+		if ev.BaseEvent.ProcessContext.Parent == nil {
+			ev.BaseEvent.ProcessContext.Parent = &Process{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.CGroup.CGroupID"}
+		}
+		ev.BaseEvent.ProcessContext.Parent.CGroup.CGroupID = CGroupID(rv)
+		return nil
 	case "process.parent.comm":
 		if ev.BaseEvent.ProcessContext == nil {
 			ev.BaseEvent.ProcessContext = &ProcessContext{}
@@ -34796,7 +35281,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.Comm"}
 		}
-		ev.BaseEvent.ProcessContext.Parent.Comm = rv
+		ev.BaseEvent.ProcessContext.Parent.Comm = string(rv)
 		return nil
 	case "process.parent.container.id":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -34809,7 +35294,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.ContainerID"}
 		}
-		ev.BaseEvent.ProcessContext.Parent.ContainerID = rv
+		ev.BaseEvent.ProcessContext.Parent.ContainerID = ContainerID(rv)
 		return nil
 	case "process.parent.created_at":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -34848,7 +35333,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.Credentials.EGroup"}
 		}
-		ev.BaseEvent.ProcessContext.Parent.Credentials.EGroup = rv
+		ev.BaseEvent.ProcessContext.Parent.Credentials.EGroup = string(rv)
 		return nil
 	case "process.parent.envp":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -34919,7 +35404,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.Credentials.EUser"}
 		}
-		ev.BaseEvent.ProcessContext.Parent.Credentials.EUser = rv
+		ev.BaseEvent.ProcessContext.Parent.Credentials.EUser = string(rv)
 		return nil
 	case "process.parent.file.change_time":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -34945,7 +35430,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.FileEvent.Filesystem"}
 		}
-		ev.BaseEvent.ProcessContext.Parent.FileEvent.Filesystem = rv
+		ev.BaseEvent.ProcessContext.Parent.FileEvent.Filesystem = string(rv)
 		return nil
 	case "process.parent.file.gid":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -34971,7 +35456,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.FileEvent.FileFields.Group"}
 		}
-		ev.BaseEvent.ProcessContext.Parent.FileEvent.FileFields.Group = rv
+		ev.BaseEvent.ProcessContext.Parent.FileEvent.FileFields.Group = string(rv)
 		return nil
 	case "process.parent.file.hashes":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -35065,7 +35550,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.FileEvent.BasenameStr"}
 		}
-		ev.BaseEvent.ProcessContext.Parent.FileEvent.BasenameStr = rv
+		ev.BaseEvent.ProcessContext.Parent.FileEvent.BasenameStr = string(rv)
 		return nil
 	case "process.parent.file.name.length":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -35086,7 +35571,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.FileEvent.PkgName"}
 		}
-		ev.BaseEvent.ProcessContext.Parent.FileEvent.PkgName = rv
+		ev.BaseEvent.ProcessContext.Parent.FileEvent.PkgName = string(rv)
 		return nil
 	case "process.parent.file.package.source_version":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -35099,7 +35584,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.FileEvent.PkgSrcVersion"}
 		}
-		ev.BaseEvent.ProcessContext.Parent.FileEvent.PkgSrcVersion = rv
+		ev.BaseEvent.ProcessContext.Parent.FileEvent.PkgSrcVersion = string(rv)
 		return nil
 	case "process.parent.file.package.version":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -35112,7 +35597,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.FileEvent.PkgVersion"}
 		}
-		ev.BaseEvent.ProcessContext.Parent.FileEvent.PkgVersion = rv
+		ev.BaseEvent.ProcessContext.Parent.FileEvent.PkgVersion = string(rv)
 		return nil
 	case "process.parent.file.path":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -35125,7 +35610,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.FileEvent.PathnameStr"}
 		}
-		ev.BaseEvent.ProcessContext.Parent.FileEvent.PathnameStr = rv
+		ev.BaseEvent.ProcessContext.Parent.FileEvent.PathnameStr = string(rv)
 		return nil
 	case "process.parent.file.path.length":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -35172,7 +35657,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.FileEvent.FileFields.User"}
 		}
-		ev.BaseEvent.ProcessContext.Parent.FileEvent.FileFields.User = rv
+		ev.BaseEvent.ProcessContext.Parent.FileEvent.FileFields.User = string(rv)
 		return nil
 	case "process.parent.fsgid":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -35198,7 +35683,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.Credentials.FSGroup"}
 		}
-		ev.BaseEvent.ProcessContext.Parent.Credentials.FSGroup = rv
+		ev.BaseEvent.ProcessContext.Parent.Credentials.FSGroup = string(rv)
 		return nil
 	case "process.parent.fsuid":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -35224,7 +35709,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.Credentials.FSUser"}
 		}
-		ev.BaseEvent.ProcessContext.Parent.Credentials.FSUser = rv
+		ev.BaseEvent.ProcessContext.Parent.Credentials.FSUser = string(rv)
 		return nil
 	case "process.parent.gid":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -35250,7 +35735,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.Credentials.Group"}
 		}
-		ev.BaseEvent.ProcessContext.Parent.Credentials.Group = rv
+		ev.BaseEvent.ProcessContext.Parent.Credentials.Group = string(rv)
 		return nil
 	case "process.parent.interpreter.file.change_time":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -35276,7 +35761,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.Filesystem"}
 		}
-		ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.Filesystem = rv
+		ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.Filesystem = string(rv)
 		return nil
 	case "process.parent.interpreter.file.gid":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -35302,7 +35787,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.Group"}
 		}
-		ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.Group = rv
+		ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.Group = string(rv)
 		return nil
 	case "process.parent.interpreter.file.hashes":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -35396,7 +35881,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.BasenameStr"}
 		}
-		ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.BasenameStr = rv
+		ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.BasenameStr = string(rv)
 		return nil
 	case "process.parent.interpreter.file.name.length":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -35417,7 +35902,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.PkgName"}
 		}
-		ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.PkgName = rv
+		ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.PkgName = string(rv)
 		return nil
 	case "process.parent.interpreter.file.package.source_version":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -35430,7 +35915,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.PkgSrcVersion"}
 		}
-		ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.PkgSrcVersion = rv
+		ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.PkgSrcVersion = string(rv)
 		return nil
 	case "process.parent.interpreter.file.package.version":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -35443,7 +35928,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.PkgVersion"}
 		}
-		ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.PkgVersion = rv
+		ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.PkgVersion = string(rv)
 		return nil
 	case "process.parent.interpreter.file.path":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -35456,7 +35941,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.PathnameStr"}
 		}
-		ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.PathnameStr = rv
+		ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.PathnameStr = string(rv)
 		return nil
 	case "process.parent.interpreter.file.path.length":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -35503,7 +35988,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.User"}
 		}
-		ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.User = rv
+		ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.User = string(rv)
 		return nil
 	case "process.parent.is_kworker":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -35581,7 +36066,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.TTYName"}
 		}
-		ev.BaseEvent.ProcessContext.Parent.TTYName = rv
+		ev.BaseEvent.ProcessContext.Parent.TTYName = string(rv)
 		return nil
 	case "process.parent.uid":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -35607,7 +36092,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.Credentials.User"}
 		}
-		ev.BaseEvent.ProcessContext.Parent.Credentials.User = rv
+		ev.BaseEvent.ProcessContext.Parent.Credentials.User = string(rv)
 		return nil
 	case "process.parent.user_session.k8s_groups":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -35636,7 +36121,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.UserSession.K8SUID"}
 		}
-		ev.BaseEvent.ProcessContext.Parent.UserSession.K8SUID = rv
+		ev.BaseEvent.ProcessContext.Parent.UserSession.K8SUID = string(rv)
 		return nil
 	case "process.parent.user_session.k8s_username":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -35649,7 +36134,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.UserSession.K8SUsername"}
 		}
-		ev.BaseEvent.ProcessContext.Parent.UserSession.K8SUsername = rv
+		ev.BaseEvent.ProcessContext.Parent.UserSession.K8SUsername = string(rv)
 		return nil
 	case "process.pid":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -35689,7 +36174,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.TTYName"}
 		}
-		ev.BaseEvent.ProcessContext.Process.TTYName = rv
+		ev.BaseEvent.ProcessContext.Process.TTYName = string(rv)
 		return nil
 	case "process.uid":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -35709,7 +36194,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.Credentials.User"}
 		}
-		ev.BaseEvent.ProcessContext.Process.Credentials.User = rv
+		ev.BaseEvent.ProcessContext.Process.Credentials.User = string(rv)
 		return nil
 	case "process.user_session.k8s_groups":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -35732,7 +36217,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.UserSession.K8SUID"}
 		}
-		ev.BaseEvent.ProcessContext.Process.UserSession.K8SUID = rv
+		ev.BaseEvent.ProcessContext.Process.UserSession.K8SUID = string(rv)
 		return nil
 	case "process.user_session.k8s_username":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -35742,7 +36227,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.UserSession.K8SUsername"}
 		}
-		ev.BaseEvent.ProcessContext.Process.UserSession.K8SUsername = rv
+		ev.BaseEvent.ProcessContext.Process.UserSession.K8SUsername = string(rv)
 		return nil
 	case "ptrace.request":
 		rv, ok := value.(int)
@@ -35769,7 +36254,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.Args"}
 		}
-		ev.PTrace.Tracee.Ancestor.ProcessContext.Process.Args = rv
+		ev.PTrace.Tracee.Ancestor.ProcessContext.Process.Args = string(rv)
 		return nil
 	case "ptrace.tracee.ancestors.args_flags":
 		if ev.PTrace.Tracee == nil {
@@ -35843,7 +36328,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.Argv0"}
 		}
-		ev.PTrace.Tracee.Ancestor.ProcessContext.Process.Argv0 = rv
+		ev.PTrace.Tracee.Ancestor.ProcessContext.Process.Argv0 = string(rv)
 		return nil
 	case "ptrace.tracee.ancestors.cap_effective":
 		if ev.PTrace.Tracee == nil {
@@ -35871,6 +36356,19 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.CapPermitted = uint64(rv)
 		return nil
+	case "ptrace.tracee.ancestors.cgroup.id":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if ev.PTrace.Tracee.Ancestor == nil {
+			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.CGroup.CGroupID"}
+		}
+		ev.PTrace.Tracee.Ancestor.ProcessContext.Process.CGroup.CGroupID = CGroupID(rv)
+		return nil
 	case "ptrace.tracee.ancestors.comm":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
@@ -35882,7 +36380,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.Comm"}
 		}
-		ev.PTrace.Tracee.Ancestor.ProcessContext.Process.Comm = rv
+		ev.PTrace.Tracee.Ancestor.ProcessContext.Process.Comm = string(rv)
 		return nil
 	case "ptrace.tracee.ancestors.container.id":
 		if ev.PTrace.Tracee == nil {
@@ -35895,7 +36393,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.ContainerID"}
 		}
-		ev.PTrace.Tracee.Ancestor.ProcessContext.Process.ContainerID = rv
+		ev.PTrace.Tracee.Ancestor.ProcessContext.Process.ContainerID = ContainerID(rv)
 		return nil
 	case "ptrace.tracee.ancestors.created_at":
 		if ev.PTrace.Tracee == nil {
@@ -35934,7 +36432,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.EGroup"}
 		}
-		ev.PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.EGroup = rv
+		ev.PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.EGroup = string(rv)
 		return nil
 	case "ptrace.tracee.ancestors.envp":
 		if ev.PTrace.Tracee == nil {
@@ -36005,7 +36503,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.EUser"}
 		}
-		ev.PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.EUser = rv
+		ev.PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.EUser = string(rv)
 		return nil
 	case "ptrace.tracee.ancestors.file.change_time":
 		if ev.PTrace.Tracee == nil {
@@ -36031,7 +36529,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.Filesystem"}
 		}
-		ev.PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.Filesystem = rv
+		ev.PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.Filesystem = string(rv)
 		return nil
 	case "ptrace.tracee.ancestors.file.gid":
 		if ev.PTrace.Tracee == nil {
@@ -36057,7 +36555,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.FileFields.Group"}
 		}
-		ev.PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.FileFields.Group = rv
+		ev.PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.FileFields.Group = string(rv)
 		return nil
 	case "ptrace.tracee.ancestors.file.hashes":
 		if ev.PTrace.Tracee == nil {
@@ -36151,7 +36649,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.BasenameStr"}
 		}
-		ev.PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.BasenameStr = rv
+		ev.PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.BasenameStr = string(rv)
 		return nil
 	case "ptrace.tracee.ancestors.file.name.length":
 		if ev.PTrace.Tracee == nil {
@@ -36172,7 +36670,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.PkgName"}
 		}
-		ev.PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.PkgName = rv
+		ev.PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.PkgName = string(rv)
 		return nil
 	case "ptrace.tracee.ancestors.file.package.source_version":
 		if ev.PTrace.Tracee == nil {
@@ -36185,7 +36683,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.PkgSrcVersion"}
 		}
-		ev.PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.PkgSrcVersion = rv
+		ev.PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.PkgSrcVersion = string(rv)
 		return nil
 	case "ptrace.tracee.ancestors.file.package.version":
 		if ev.PTrace.Tracee == nil {
@@ -36198,7 +36696,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.PkgVersion"}
 		}
-		ev.PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.PkgVersion = rv
+		ev.PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.PkgVersion = string(rv)
 		return nil
 	case "ptrace.tracee.ancestors.file.path":
 		if ev.PTrace.Tracee == nil {
@@ -36211,7 +36709,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.PathnameStr"}
 		}
-		ev.PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.PathnameStr = rv
+		ev.PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.PathnameStr = string(rv)
 		return nil
 	case "ptrace.tracee.ancestors.file.path.length":
 		if ev.PTrace.Tracee == nil {
@@ -36258,7 +36756,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.FileFields.User"}
 		}
-		ev.PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.FileFields.User = rv
+		ev.PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.FileFields.User = string(rv)
 		return nil
 	case "ptrace.tracee.ancestors.fsgid":
 		if ev.PTrace.Tracee == nil {
@@ -36284,7 +36782,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.FSGroup"}
 		}
-		ev.PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.FSGroup = rv
+		ev.PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.FSGroup = string(rv)
 		return nil
 	case "ptrace.tracee.ancestors.fsuid":
 		if ev.PTrace.Tracee == nil {
@@ -36310,7 +36808,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.FSUser"}
 		}
-		ev.PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.FSUser = rv
+		ev.PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.FSUser = string(rv)
 		return nil
 	case "ptrace.tracee.ancestors.gid":
 		if ev.PTrace.Tracee == nil {
@@ -36336,7 +36834,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.Group"}
 		}
-		ev.PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.Group = rv
+		ev.PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.Group = string(rv)
 		return nil
 	case "ptrace.tracee.ancestors.interpreter.file.change_time":
 		if ev.PTrace.Tracee == nil {
@@ -36362,7 +36860,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.Filesystem"}
 		}
-		ev.PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.Filesystem = rv
+		ev.PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.Filesystem = string(rv)
 		return nil
 	case "ptrace.tracee.ancestors.interpreter.file.gid":
 		if ev.PTrace.Tracee == nil {
@@ -36388,7 +36886,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Group"}
 		}
-		ev.PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Group = rv
+		ev.PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Group = string(rv)
 		return nil
 	case "ptrace.tracee.ancestors.interpreter.file.hashes":
 		if ev.PTrace.Tracee == nil {
@@ -36482,7 +36980,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.BasenameStr"}
 		}
-		ev.PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.BasenameStr = rv
+		ev.PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.BasenameStr = string(rv)
 		return nil
 	case "ptrace.tracee.ancestors.interpreter.file.name.length":
 		if ev.PTrace.Tracee == nil {
@@ -36503,7 +37001,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PkgName"}
 		}
-		ev.PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PkgName = rv
+		ev.PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PkgName = string(rv)
 		return nil
 	case "ptrace.tracee.ancestors.interpreter.file.package.source_version":
 		if ev.PTrace.Tracee == nil {
@@ -36516,7 +37014,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PkgSrcVersion"}
 		}
-		ev.PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PkgSrcVersion = rv
+		ev.PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PkgSrcVersion = string(rv)
 		return nil
 	case "ptrace.tracee.ancestors.interpreter.file.package.version":
 		if ev.PTrace.Tracee == nil {
@@ -36529,7 +37027,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PkgVersion"}
 		}
-		ev.PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PkgVersion = rv
+		ev.PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PkgVersion = string(rv)
 		return nil
 	case "ptrace.tracee.ancestors.interpreter.file.path":
 		if ev.PTrace.Tracee == nil {
@@ -36542,7 +37040,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PathnameStr"}
 		}
-		ev.PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PathnameStr = rv
+		ev.PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PathnameStr = string(rv)
 		return nil
 	case "ptrace.tracee.ancestors.interpreter.file.path.length":
 		if ev.PTrace.Tracee == nil {
@@ -36589,7 +37087,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.User"}
 		}
-		ev.PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.User = rv
+		ev.PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.User = string(rv)
 		return nil
 	case "ptrace.tracee.ancestors.is_kworker":
 		if ev.PTrace.Tracee == nil {
@@ -36667,7 +37165,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.TTYName"}
 		}
-		ev.PTrace.Tracee.Ancestor.ProcessContext.Process.TTYName = rv
+		ev.PTrace.Tracee.Ancestor.ProcessContext.Process.TTYName = string(rv)
 		return nil
 	case "ptrace.tracee.ancestors.uid":
 		if ev.PTrace.Tracee == nil {
@@ -36693,7 +37191,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.User"}
 		}
-		ev.PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.User = rv
+		ev.PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.User = string(rv)
 		return nil
 	case "ptrace.tracee.ancestors.user_session.k8s_groups":
 		if ev.PTrace.Tracee == nil {
@@ -36722,7 +37220,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.UserSession.K8SUID"}
 		}
-		ev.PTrace.Tracee.Ancestor.ProcessContext.Process.UserSession.K8SUID = rv
+		ev.PTrace.Tracee.Ancestor.ProcessContext.Process.UserSession.K8SUID = string(rv)
 		return nil
 	case "ptrace.tracee.ancestors.user_session.k8s_username":
 		if ev.PTrace.Tracee == nil {
@@ -36735,7 +37233,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.UserSession.K8SUsername"}
 		}
-		ev.PTrace.Tracee.Ancestor.ProcessContext.Process.UserSession.K8SUsername = rv
+		ev.PTrace.Tracee.Ancestor.ProcessContext.Process.UserSession.K8SUsername = string(rv)
 		return nil
 	case "ptrace.tracee.args":
 		if ev.PTrace.Tracee == nil {
@@ -36745,7 +37243,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.Args"}
 		}
-		ev.PTrace.Tracee.Process.Args = rv
+		ev.PTrace.Tracee.Process.Args = string(rv)
 		return nil
 	case "ptrace.tracee.args_flags":
 		if ev.PTrace.Tracee == nil {
@@ -36804,7 +37302,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.Argv0"}
 		}
-		ev.PTrace.Tracee.Process.Argv0 = rv
+		ev.PTrace.Tracee.Process.Argv0 = string(rv)
 		return nil
 	case "ptrace.tracee.cap_effective":
 		if ev.PTrace.Tracee == nil {
@@ -36826,6 +37324,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.PTrace.Tracee.Process.Credentials.CapPermitted = uint64(rv)
 		return nil
+	case "ptrace.tracee.cgroup.id":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.CGroup.CGroupID"}
+		}
+		ev.PTrace.Tracee.Process.CGroup.CGroupID = CGroupID(rv)
+		return nil
 	case "ptrace.tracee.comm":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
@@ -36834,7 +37342,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.Comm"}
 		}
-		ev.PTrace.Tracee.Process.Comm = rv
+		ev.PTrace.Tracee.Process.Comm = string(rv)
 		return nil
 	case "ptrace.tracee.container.id":
 		if ev.PTrace.Tracee == nil {
@@ -36844,7 +37352,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.ContainerID"}
 		}
-		ev.PTrace.Tracee.Process.ContainerID = rv
+		ev.PTrace.Tracee.Process.ContainerID = ContainerID(rv)
 		return nil
 	case "ptrace.tracee.created_at":
 		if ev.PTrace.Tracee == nil {
@@ -36874,7 +37382,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.Credentials.EGroup"}
 		}
-		ev.PTrace.Tracee.Process.Credentials.EGroup = rv
+		ev.PTrace.Tracee.Process.Credentials.EGroup = string(rv)
 		return nil
 	case "ptrace.tracee.envp":
 		if ev.PTrace.Tracee == nil {
@@ -36930,7 +37438,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.Credentials.EUser"}
 		}
-		ev.PTrace.Tracee.Process.Credentials.EUser = rv
+		ev.PTrace.Tracee.Process.Credentials.EUser = string(rv)
 		return nil
 	case "ptrace.tracee.file.change_time":
 		if ev.PTrace.Tracee == nil {
@@ -36950,7 +37458,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.FileEvent.Filesystem"}
 		}
-		ev.PTrace.Tracee.Process.FileEvent.Filesystem = rv
+		ev.PTrace.Tracee.Process.FileEvent.Filesystem = string(rv)
 		return nil
 	case "ptrace.tracee.file.gid":
 		if ev.PTrace.Tracee == nil {
@@ -36970,7 +37478,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.FileEvent.FileFields.Group"}
 		}
-		ev.PTrace.Tracee.Process.FileEvent.FileFields.Group = rv
+		ev.PTrace.Tracee.Process.FileEvent.FileFields.Group = string(rv)
 		return nil
 	case "ptrace.tracee.file.hashes":
 		if ev.PTrace.Tracee == nil {
@@ -37043,7 +37551,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.FileEvent.BasenameStr"}
 		}
-		ev.PTrace.Tracee.Process.FileEvent.BasenameStr = rv
+		ev.PTrace.Tracee.Process.FileEvent.BasenameStr = string(rv)
 		return nil
 	case "ptrace.tracee.file.name.length":
 		if ev.PTrace.Tracee == nil {
@@ -37058,7 +37566,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.FileEvent.PkgName"}
 		}
-		ev.PTrace.Tracee.Process.FileEvent.PkgName = rv
+		ev.PTrace.Tracee.Process.FileEvent.PkgName = string(rv)
 		return nil
 	case "ptrace.tracee.file.package.source_version":
 		if ev.PTrace.Tracee == nil {
@@ -37068,7 +37576,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.FileEvent.PkgSrcVersion"}
 		}
-		ev.PTrace.Tracee.Process.FileEvent.PkgSrcVersion = rv
+		ev.PTrace.Tracee.Process.FileEvent.PkgSrcVersion = string(rv)
 		return nil
 	case "ptrace.tracee.file.package.version":
 		if ev.PTrace.Tracee == nil {
@@ -37078,7 +37586,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.FileEvent.PkgVersion"}
 		}
-		ev.PTrace.Tracee.Process.FileEvent.PkgVersion = rv
+		ev.PTrace.Tracee.Process.FileEvent.PkgVersion = string(rv)
 		return nil
 	case "ptrace.tracee.file.path":
 		if ev.PTrace.Tracee == nil {
@@ -37088,7 +37596,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.FileEvent.PathnameStr"}
 		}
-		ev.PTrace.Tracee.Process.FileEvent.PathnameStr = rv
+		ev.PTrace.Tracee.Process.FileEvent.PathnameStr = string(rv)
 		return nil
 	case "ptrace.tracee.file.path.length":
 		if ev.PTrace.Tracee == nil {
@@ -37123,7 +37631,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.FileEvent.FileFields.User"}
 		}
-		ev.PTrace.Tracee.Process.FileEvent.FileFields.User = rv
+		ev.PTrace.Tracee.Process.FileEvent.FileFields.User = string(rv)
 		return nil
 	case "ptrace.tracee.fsgid":
 		if ev.PTrace.Tracee == nil {
@@ -37143,7 +37651,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.Credentials.FSGroup"}
 		}
-		ev.PTrace.Tracee.Process.Credentials.FSGroup = rv
+		ev.PTrace.Tracee.Process.Credentials.FSGroup = string(rv)
 		return nil
 	case "ptrace.tracee.fsuid":
 		if ev.PTrace.Tracee == nil {
@@ -37163,7 +37671,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.Credentials.FSUser"}
 		}
-		ev.PTrace.Tracee.Process.Credentials.FSUser = rv
+		ev.PTrace.Tracee.Process.Credentials.FSUser = string(rv)
 		return nil
 	case "ptrace.tracee.gid":
 		if ev.PTrace.Tracee == nil {
@@ -37183,7 +37691,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.Credentials.Group"}
 		}
-		ev.PTrace.Tracee.Process.Credentials.Group = rv
+		ev.PTrace.Tracee.Process.Credentials.Group = string(rv)
 		return nil
 	case "ptrace.tracee.interpreter.file.change_time":
 		if ev.PTrace.Tracee == nil {
@@ -37203,7 +37711,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.LinuxBinprm.FileEvent.Filesystem"}
 		}
-		ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent.Filesystem = rv
+		ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent.Filesystem = string(rv)
 		return nil
 	case "ptrace.tracee.interpreter.file.gid":
 		if ev.PTrace.Tracee == nil {
@@ -37223,7 +37731,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields.Group"}
 		}
-		ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields.Group = rv
+		ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields.Group = string(rv)
 		return nil
 	case "ptrace.tracee.interpreter.file.hashes":
 		if ev.PTrace.Tracee == nil {
@@ -37296,7 +37804,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.LinuxBinprm.FileEvent.BasenameStr"}
 		}
-		ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent.BasenameStr = rv
+		ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent.BasenameStr = string(rv)
 		return nil
 	case "ptrace.tracee.interpreter.file.name.length":
 		if ev.PTrace.Tracee == nil {
@@ -37311,7 +37819,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.LinuxBinprm.FileEvent.PkgName"}
 		}
-		ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent.PkgName = rv
+		ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent.PkgName = string(rv)
 		return nil
 	case "ptrace.tracee.interpreter.file.package.source_version":
 		if ev.PTrace.Tracee == nil {
@@ -37321,7 +37829,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.LinuxBinprm.FileEvent.PkgSrcVersion"}
 		}
-		ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent.PkgSrcVersion = rv
+		ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent.PkgSrcVersion = string(rv)
 		return nil
 	case "ptrace.tracee.interpreter.file.package.version":
 		if ev.PTrace.Tracee == nil {
@@ -37331,7 +37839,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.LinuxBinprm.FileEvent.PkgVersion"}
 		}
-		ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent.PkgVersion = rv
+		ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent.PkgVersion = string(rv)
 		return nil
 	case "ptrace.tracee.interpreter.file.path":
 		if ev.PTrace.Tracee == nil {
@@ -37341,7 +37849,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.LinuxBinprm.FileEvent.PathnameStr"}
 		}
-		ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent.PathnameStr = rv
+		ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent.PathnameStr = string(rv)
 		return nil
 	case "ptrace.tracee.interpreter.file.path.length":
 		if ev.PTrace.Tracee == nil {
@@ -37376,7 +37884,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields.User"}
 		}
-		ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields.User = rv
+		ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields.User = string(rv)
 		return nil
 	case "ptrace.tracee.is_kworker":
 		if ev.PTrace.Tracee == nil {
@@ -37409,7 +37917,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.Args"}
 		}
-		ev.PTrace.Tracee.Parent.Args = rv
+		ev.PTrace.Tracee.Parent.Args = string(rv)
 		return nil
 	case "ptrace.tracee.parent.args_flags":
 		if ev.PTrace.Tracee == nil {
@@ -37483,7 +37991,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.Argv0"}
 		}
-		ev.PTrace.Tracee.Parent.Argv0 = rv
+		ev.PTrace.Tracee.Parent.Argv0 = string(rv)
 		return nil
 	case "ptrace.tracee.parent.cap_effective":
 		if ev.PTrace.Tracee == nil {
@@ -37511,6 +38019,19 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.PTrace.Tracee.Parent.Credentials.CapPermitted = uint64(rv)
 		return nil
+	case "ptrace.tracee.parent.cgroup.id":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if ev.PTrace.Tracee.Parent == nil {
+			ev.PTrace.Tracee.Parent = &Process{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.CGroup.CGroupID"}
+		}
+		ev.PTrace.Tracee.Parent.CGroup.CGroupID = CGroupID(rv)
+		return nil
 	case "ptrace.tracee.parent.comm":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
@@ -37522,7 +38043,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.Comm"}
 		}
-		ev.PTrace.Tracee.Parent.Comm = rv
+		ev.PTrace.Tracee.Parent.Comm = string(rv)
 		return nil
 	case "ptrace.tracee.parent.container.id":
 		if ev.PTrace.Tracee == nil {
@@ -37535,7 +38056,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.ContainerID"}
 		}
-		ev.PTrace.Tracee.Parent.ContainerID = rv
+		ev.PTrace.Tracee.Parent.ContainerID = ContainerID(rv)
 		return nil
 	case "ptrace.tracee.parent.created_at":
 		if ev.PTrace.Tracee == nil {
@@ -37574,7 +38095,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.Credentials.EGroup"}
 		}
-		ev.PTrace.Tracee.Parent.Credentials.EGroup = rv
+		ev.PTrace.Tracee.Parent.Credentials.EGroup = string(rv)
 		return nil
 	case "ptrace.tracee.parent.envp":
 		if ev.PTrace.Tracee == nil {
@@ -37645,7 +38166,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.Credentials.EUser"}
 		}
-		ev.PTrace.Tracee.Parent.Credentials.EUser = rv
+		ev.PTrace.Tracee.Parent.Credentials.EUser = string(rv)
 		return nil
 	case "ptrace.tracee.parent.file.change_time":
 		if ev.PTrace.Tracee == nil {
@@ -37671,7 +38192,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.FileEvent.Filesystem"}
 		}
-		ev.PTrace.Tracee.Parent.FileEvent.Filesystem = rv
+		ev.PTrace.Tracee.Parent.FileEvent.Filesystem = string(rv)
 		return nil
 	case "ptrace.tracee.parent.file.gid":
 		if ev.PTrace.Tracee == nil {
@@ -37697,7 +38218,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.FileEvent.FileFields.Group"}
 		}
-		ev.PTrace.Tracee.Parent.FileEvent.FileFields.Group = rv
+		ev.PTrace.Tracee.Parent.FileEvent.FileFields.Group = string(rv)
 		return nil
 	case "ptrace.tracee.parent.file.hashes":
 		if ev.PTrace.Tracee == nil {
@@ -37791,7 +38312,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.FileEvent.BasenameStr"}
 		}
-		ev.PTrace.Tracee.Parent.FileEvent.BasenameStr = rv
+		ev.PTrace.Tracee.Parent.FileEvent.BasenameStr = string(rv)
 		return nil
 	case "ptrace.tracee.parent.file.name.length":
 		if ev.PTrace.Tracee == nil {
@@ -37812,7 +38333,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.FileEvent.PkgName"}
 		}
-		ev.PTrace.Tracee.Parent.FileEvent.PkgName = rv
+		ev.PTrace.Tracee.Parent.FileEvent.PkgName = string(rv)
 		return nil
 	case "ptrace.tracee.parent.file.package.source_version":
 		if ev.PTrace.Tracee == nil {
@@ -37825,7 +38346,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.FileEvent.PkgSrcVersion"}
 		}
-		ev.PTrace.Tracee.Parent.FileEvent.PkgSrcVersion = rv
+		ev.PTrace.Tracee.Parent.FileEvent.PkgSrcVersion = string(rv)
 		return nil
 	case "ptrace.tracee.parent.file.package.version":
 		if ev.PTrace.Tracee == nil {
@@ -37838,7 +38359,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.FileEvent.PkgVersion"}
 		}
-		ev.PTrace.Tracee.Parent.FileEvent.PkgVersion = rv
+		ev.PTrace.Tracee.Parent.FileEvent.PkgVersion = string(rv)
 		return nil
 	case "ptrace.tracee.parent.file.path":
 		if ev.PTrace.Tracee == nil {
@@ -37851,7 +38372,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.FileEvent.PathnameStr"}
 		}
-		ev.PTrace.Tracee.Parent.FileEvent.PathnameStr = rv
+		ev.PTrace.Tracee.Parent.FileEvent.PathnameStr = string(rv)
 		return nil
 	case "ptrace.tracee.parent.file.path.length":
 		if ev.PTrace.Tracee == nil {
@@ -37898,7 +38419,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.FileEvent.FileFields.User"}
 		}
-		ev.PTrace.Tracee.Parent.FileEvent.FileFields.User = rv
+		ev.PTrace.Tracee.Parent.FileEvent.FileFields.User = string(rv)
 		return nil
 	case "ptrace.tracee.parent.fsgid":
 		if ev.PTrace.Tracee == nil {
@@ -37924,7 +38445,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.Credentials.FSGroup"}
 		}
-		ev.PTrace.Tracee.Parent.Credentials.FSGroup = rv
+		ev.PTrace.Tracee.Parent.Credentials.FSGroup = string(rv)
 		return nil
 	case "ptrace.tracee.parent.fsuid":
 		if ev.PTrace.Tracee == nil {
@@ -37950,7 +38471,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.Credentials.FSUser"}
 		}
-		ev.PTrace.Tracee.Parent.Credentials.FSUser = rv
+		ev.PTrace.Tracee.Parent.Credentials.FSUser = string(rv)
 		return nil
 	case "ptrace.tracee.parent.gid":
 		if ev.PTrace.Tracee == nil {
@@ -37976,7 +38497,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.Credentials.Group"}
 		}
-		ev.PTrace.Tracee.Parent.Credentials.Group = rv
+		ev.PTrace.Tracee.Parent.Credentials.Group = string(rv)
 		return nil
 	case "ptrace.tracee.parent.interpreter.file.change_time":
 		if ev.PTrace.Tracee == nil {
@@ -38002,7 +38523,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.LinuxBinprm.FileEvent.Filesystem"}
 		}
-		ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent.Filesystem = rv
+		ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent.Filesystem = string(rv)
 		return nil
 	case "ptrace.tracee.parent.interpreter.file.gid":
 		if ev.PTrace.Tracee == nil {
@@ -38028,7 +38549,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.LinuxBinprm.FileEvent.FileFields.Group"}
 		}
-		ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent.FileFields.Group = rv
+		ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent.FileFields.Group = string(rv)
 		return nil
 	case "ptrace.tracee.parent.interpreter.file.hashes":
 		if ev.PTrace.Tracee == nil {
@@ -38122,7 +38643,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.LinuxBinprm.FileEvent.BasenameStr"}
 		}
-		ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent.BasenameStr = rv
+		ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent.BasenameStr = string(rv)
 		return nil
 	case "ptrace.tracee.parent.interpreter.file.name.length":
 		if ev.PTrace.Tracee == nil {
@@ -38143,7 +38664,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.LinuxBinprm.FileEvent.PkgName"}
 		}
-		ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent.PkgName = rv
+		ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent.PkgName = string(rv)
 		return nil
 	case "ptrace.tracee.parent.interpreter.file.package.source_version":
 		if ev.PTrace.Tracee == nil {
@@ -38156,7 +38677,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.LinuxBinprm.FileEvent.PkgSrcVersion"}
 		}
-		ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent.PkgSrcVersion = rv
+		ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent.PkgSrcVersion = string(rv)
 		return nil
 	case "ptrace.tracee.parent.interpreter.file.package.version":
 		if ev.PTrace.Tracee == nil {
@@ -38169,7 +38690,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.LinuxBinprm.FileEvent.PkgVersion"}
 		}
-		ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent.PkgVersion = rv
+		ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent.PkgVersion = string(rv)
 		return nil
 	case "ptrace.tracee.parent.interpreter.file.path":
 		if ev.PTrace.Tracee == nil {
@@ -38182,7 +38703,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.LinuxBinprm.FileEvent.PathnameStr"}
 		}
-		ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent.PathnameStr = rv
+		ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent.PathnameStr = string(rv)
 		return nil
 	case "ptrace.tracee.parent.interpreter.file.path.length":
 		if ev.PTrace.Tracee == nil {
@@ -38229,7 +38750,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.LinuxBinprm.FileEvent.FileFields.User"}
 		}
-		ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent.FileFields.User = rv
+		ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent.FileFields.User = string(rv)
 		return nil
 	case "ptrace.tracee.parent.is_kworker":
 		if ev.PTrace.Tracee == nil {
@@ -38307,7 +38828,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.TTYName"}
 		}
-		ev.PTrace.Tracee.Parent.TTYName = rv
+		ev.PTrace.Tracee.Parent.TTYName = string(rv)
 		return nil
 	case "ptrace.tracee.parent.uid":
 		if ev.PTrace.Tracee == nil {
@@ -38333,7 +38854,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.Credentials.User"}
 		}
-		ev.PTrace.Tracee.Parent.Credentials.User = rv
+		ev.PTrace.Tracee.Parent.Credentials.User = string(rv)
 		return nil
 	case "ptrace.tracee.parent.user_session.k8s_groups":
 		if ev.PTrace.Tracee == nil {
@@ -38362,7 +38883,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.UserSession.K8SUID"}
 		}
-		ev.PTrace.Tracee.Parent.UserSession.K8SUID = rv
+		ev.PTrace.Tracee.Parent.UserSession.K8SUID = string(rv)
 		return nil
 	case "ptrace.tracee.parent.user_session.k8s_username":
 		if ev.PTrace.Tracee == nil {
@@ -38375,7 +38896,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.UserSession.K8SUsername"}
 		}
-		ev.PTrace.Tracee.Parent.UserSession.K8SUsername = rv
+		ev.PTrace.Tracee.Parent.UserSession.K8SUsername = string(rv)
 		return nil
 	case "ptrace.tracee.pid":
 		if ev.PTrace.Tracee == nil {
@@ -38415,7 +38936,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.TTYName"}
 		}
-		ev.PTrace.Tracee.Process.TTYName = rv
+		ev.PTrace.Tracee.Process.TTYName = string(rv)
 		return nil
 	case "ptrace.tracee.uid":
 		if ev.PTrace.Tracee == nil {
@@ -38435,7 +38956,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.Credentials.User"}
 		}
-		ev.PTrace.Tracee.Process.Credentials.User = rv
+		ev.PTrace.Tracee.Process.Credentials.User = string(rv)
 		return nil
 	case "ptrace.tracee.user_session.k8s_groups":
 		if ev.PTrace.Tracee == nil {
@@ -38458,7 +38979,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.UserSession.K8SUID"}
 		}
-		ev.PTrace.Tracee.Process.UserSession.K8SUID = rv
+		ev.PTrace.Tracee.Process.UserSession.K8SUID = string(rv)
 		return nil
 	case "ptrace.tracee.user_session.k8s_username":
 		if ev.PTrace.Tracee == nil {
@@ -38468,7 +38989,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.UserSession.K8SUsername"}
 		}
-		ev.PTrace.Tracee.Process.UserSession.K8SUsername = rv
+		ev.PTrace.Tracee.Process.UserSession.K8SUsername = string(rv)
 		return nil
 	case "removexattr.file.change_time":
 		rv, ok := value.(int)
@@ -38482,21 +39003,21 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "RemoveXAttr.Name"}
 		}
-		ev.RemoveXAttr.Name = rv
+		ev.RemoveXAttr.Name = string(rv)
 		return nil
 	case "removexattr.file.destination.namespace":
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "RemoveXAttr.Namespace"}
 		}
-		ev.RemoveXAttr.Namespace = rv
+		ev.RemoveXAttr.Namespace = string(rv)
 		return nil
 	case "removexattr.file.filesystem":
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "RemoveXAttr.File.Filesystem"}
 		}
-		ev.RemoveXAttr.File.Filesystem = rv
+		ev.RemoveXAttr.File.Filesystem = string(rv)
 		return nil
 	case "removexattr.file.gid":
 		rv, ok := value.(int)
@@ -38510,7 +39031,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "RemoveXAttr.File.FileFields.Group"}
 		}
-		ev.RemoveXAttr.File.FileFields.Group = rv
+		ev.RemoveXAttr.File.FileFields.Group = string(rv)
 		return nil
 	case "removexattr.file.hashes":
 		switch rv := value.(type) {
@@ -38562,7 +39083,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "RemoveXAttr.File.BasenameStr"}
 		}
-		ev.RemoveXAttr.File.BasenameStr = rv
+		ev.RemoveXAttr.File.BasenameStr = string(rv)
 		return nil
 	case "removexattr.file.name.length":
 		return &eval.ErrFieldReadOnly{Field: "removexattr.file.name.length"}
@@ -38571,28 +39092,28 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "RemoveXAttr.File.PkgName"}
 		}
-		ev.RemoveXAttr.File.PkgName = rv
+		ev.RemoveXAttr.File.PkgName = string(rv)
 		return nil
 	case "removexattr.file.package.source_version":
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "RemoveXAttr.File.PkgSrcVersion"}
 		}
-		ev.RemoveXAttr.File.PkgSrcVersion = rv
+		ev.RemoveXAttr.File.PkgSrcVersion = string(rv)
 		return nil
 	case "removexattr.file.package.version":
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "RemoveXAttr.File.PkgVersion"}
 		}
-		ev.RemoveXAttr.File.PkgVersion = rv
+		ev.RemoveXAttr.File.PkgVersion = string(rv)
 		return nil
 	case "removexattr.file.path":
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "RemoveXAttr.File.PathnameStr"}
 		}
-		ev.RemoveXAttr.File.PathnameStr = rv
+		ev.RemoveXAttr.File.PathnameStr = string(rv)
 		return nil
 	case "removexattr.file.path.length":
 		return &eval.ErrFieldReadOnly{Field: "removexattr.file.path.length"}
@@ -38615,7 +39136,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "RemoveXAttr.File.FileFields.User"}
 		}
-		ev.RemoveXAttr.File.FileFields.User = rv
+		ev.RemoveXAttr.File.FileFields.User = string(rv)
 		return nil
 	case "removexattr.retval":
 		rv, ok := value.(int)
@@ -38643,7 +39164,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Rename.New.Filesystem"}
 		}
-		ev.Rename.New.Filesystem = rv
+		ev.Rename.New.Filesystem = string(rv)
 		return nil
 	case "rename.file.destination.gid":
 		rv, ok := value.(int)
@@ -38657,7 +39178,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Rename.New.FileFields.Group"}
 		}
-		ev.Rename.New.FileFields.Group = rv
+		ev.Rename.New.FileFields.Group = string(rv)
 		return nil
 	case "rename.file.destination.hashes":
 		switch rv := value.(type) {
@@ -38709,7 +39230,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Rename.New.BasenameStr"}
 		}
-		ev.Rename.New.BasenameStr = rv
+		ev.Rename.New.BasenameStr = string(rv)
 		return nil
 	case "rename.file.destination.name.length":
 		return &eval.ErrFieldReadOnly{Field: "rename.file.destination.name.length"}
@@ -38718,28 +39239,28 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Rename.New.PkgName"}
 		}
-		ev.Rename.New.PkgName = rv
+		ev.Rename.New.PkgName = string(rv)
 		return nil
 	case "rename.file.destination.package.source_version":
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Rename.New.PkgSrcVersion"}
 		}
-		ev.Rename.New.PkgSrcVersion = rv
+		ev.Rename.New.PkgSrcVersion = string(rv)
 		return nil
 	case "rename.file.destination.package.version":
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Rename.New.PkgVersion"}
 		}
-		ev.Rename.New.PkgVersion = rv
+		ev.Rename.New.PkgVersion = string(rv)
 		return nil
 	case "rename.file.destination.path":
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Rename.New.PathnameStr"}
 		}
-		ev.Rename.New.PathnameStr = rv
+		ev.Rename.New.PathnameStr = string(rv)
 		return nil
 	case "rename.file.destination.path.length":
 		return &eval.ErrFieldReadOnly{Field: "rename.file.destination.path.length"}
@@ -38762,14 +39283,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Rename.New.FileFields.User"}
 		}
-		ev.Rename.New.FileFields.User = rv
+		ev.Rename.New.FileFields.User = string(rv)
 		return nil
 	case "rename.file.filesystem":
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Rename.Old.Filesystem"}
 		}
-		ev.Rename.Old.Filesystem = rv
+		ev.Rename.Old.Filesystem = string(rv)
 		return nil
 	case "rename.file.gid":
 		rv, ok := value.(int)
@@ -38783,7 +39304,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Rename.Old.FileFields.Group"}
 		}
-		ev.Rename.Old.FileFields.Group = rv
+		ev.Rename.Old.FileFields.Group = string(rv)
 		return nil
 	case "rename.file.hashes":
 		switch rv := value.(type) {
@@ -38835,7 +39356,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Rename.Old.BasenameStr"}
 		}
-		ev.Rename.Old.BasenameStr = rv
+		ev.Rename.Old.BasenameStr = string(rv)
 		return nil
 	case "rename.file.name.length":
 		return &eval.ErrFieldReadOnly{Field: "rename.file.name.length"}
@@ -38844,28 +39365,28 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Rename.Old.PkgName"}
 		}
-		ev.Rename.Old.PkgName = rv
+		ev.Rename.Old.PkgName = string(rv)
 		return nil
 	case "rename.file.package.source_version":
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Rename.Old.PkgSrcVersion"}
 		}
-		ev.Rename.Old.PkgSrcVersion = rv
+		ev.Rename.Old.PkgSrcVersion = string(rv)
 		return nil
 	case "rename.file.package.version":
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Rename.Old.PkgVersion"}
 		}
-		ev.Rename.Old.PkgVersion = rv
+		ev.Rename.Old.PkgVersion = string(rv)
 		return nil
 	case "rename.file.path":
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Rename.Old.PathnameStr"}
 		}
-		ev.Rename.Old.PathnameStr = rv
+		ev.Rename.Old.PathnameStr = string(rv)
 		return nil
 	case "rename.file.path.length":
 		return &eval.ErrFieldReadOnly{Field: "rename.file.path.length"}
@@ -38888,7 +39409,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Rename.Old.FileFields.User"}
 		}
-		ev.Rename.Old.FileFields.User = rv
+		ev.Rename.Old.FileFields.User = string(rv)
 		return nil
 	case "rename.retval":
 		rv, ok := value.(int)
@@ -38896,6 +39417,20 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Rename.SyscallEvent.Retval"}
 		}
 		ev.Rename.SyscallEvent.Retval = int64(rv)
+		return nil
+	case "rename.syscall.destination.path":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Rename.SyscallContext.StrArg2"}
+		}
+		ev.Rename.SyscallContext.StrArg2 = string(rv)
+		return nil
+	case "rename.syscall.path":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Rename.SyscallContext.StrArg1"}
+		}
+		ev.Rename.SyscallContext.StrArg1 = string(rv)
 		return nil
 	case "rmdir.file.change_time":
 		rv, ok := value.(int)
@@ -38909,7 +39444,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Rmdir.File.Filesystem"}
 		}
-		ev.Rmdir.File.Filesystem = rv
+		ev.Rmdir.File.Filesystem = string(rv)
 		return nil
 	case "rmdir.file.gid":
 		rv, ok := value.(int)
@@ -38923,7 +39458,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Rmdir.File.FileFields.Group"}
 		}
-		ev.Rmdir.File.FileFields.Group = rv
+		ev.Rmdir.File.FileFields.Group = string(rv)
 		return nil
 	case "rmdir.file.hashes":
 		switch rv := value.(type) {
@@ -38975,7 +39510,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Rmdir.File.BasenameStr"}
 		}
-		ev.Rmdir.File.BasenameStr = rv
+		ev.Rmdir.File.BasenameStr = string(rv)
 		return nil
 	case "rmdir.file.name.length":
 		return &eval.ErrFieldReadOnly{Field: "rmdir.file.name.length"}
@@ -38984,28 +39519,28 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Rmdir.File.PkgName"}
 		}
-		ev.Rmdir.File.PkgName = rv
+		ev.Rmdir.File.PkgName = string(rv)
 		return nil
 	case "rmdir.file.package.source_version":
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Rmdir.File.PkgSrcVersion"}
 		}
-		ev.Rmdir.File.PkgSrcVersion = rv
+		ev.Rmdir.File.PkgSrcVersion = string(rv)
 		return nil
 	case "rmdir.file.package.version":
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Rmdir.File.PkgVersion"}
 		}
-		ev.Rmdir.File.PkgVersion = rv
+		ev.Rmdir.File.PkgVersion = string(rv)
 		return nil
 	case "rmdir.file.path":
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Rmdir.File.PathnameStr"}
 		}
-		ev.Rmdir.File.PathnameStr = rv
+		ev.Rmdir.File.PathnameStr = string(rv)
 		return nil
 	case "rmdir.file.path.length":
 		return &eval.ErrFieldReadOnly{Field: "rmdir.file.path.length"}
@@ -39028,7 +39563,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Rmdir.File.FileFields.User"}
 		}
-		ev.Rmdir.File.FileFields.User = rv
+		ev.Rmdir.File.FileFields.User = string(rv)
 		return nil
 	case "rmdir.retval":
 		rv, ok := value.(int)
@@ -39042,14 +39577,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "SELinux.BoolName"}
 		}
-		ev.SELinux.BoolName = rv
+		ev.SELinux.BoolName = string(rv)
 		return nil
 	case "selinux.bool.state":
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "SELinux.BoolChangeValue"}
 		}
-		ev.SELinux.BoolChangeValue = rv
+		ev.SELinux.BoolChangeValue = string(rv)
 		return nil
 	case "selinux.bool_commit.state":
 		rv, ok := value.(bool)
@@ -39063,7 +39598,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "SELinux.EnforceStatus"}
 		}
-		ev.SELinux.EnforceStatus = rv
+		ev.SELinux.EnforceStatus = string(rv)
 		return nil
 	case "setgid.egid":
 		rv, ok := value.(int)
@@ -39077,7 +39612,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "SetGID.EGroup"}
 		}
-		ev.SetGID.EGroup = rv
+		ev.SetGID.EGroup = string(rv)
 		return nil
 	case "setgid.fsgid":
 		rv, ok := value.(int)
@@ -39091,7 +39626,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "SetGID.FSGroup"}
 		}
-		ev.SetGID.FSGroup = rv
+		ev.SetGID.FSGroup = string(rv)
 		return nil
 	case "setgid.gid":
 		rv, ok := value.(int)
@@ -39105,7 +39640,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "SetGID.Group"}
 		}
-		ev.SetGID.Group = rv
+		ev.SetGID.Group = string(rv)
 		return nil
 	case "setuid.euid":
 		rv, ok := value.(int)
@@ -39119,7 +39654,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "SetUID.EUser"}
 		}
-		ev.SetUID.EUser = rv
+		ev.SetUID.EUser = string(rv)
 		return nil
 	case "setuid.fsuid":
 		rv, ok := value.(int)
@@ -39133,7 +39668,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "SetUID.FSUser"}
 		}
-		ev.SetUID.FSUser = rv
+		ev.SetUID.FSUser = string(rv)
 		return nil
 	case "setuid.uid":
 		rv, ok := value.(int)
@@ -39147,7 +39682,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "SetUID.User"}
 		}
-		ev.SetUID.User = rv
+		ev.SetUID.User = string(rv)
 		return nil
 	case "setxattr.file.change_time":
 		rv, ok := value.(int)
@@ -39161,21 +39696,21 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "SetXAttr.Name"}
 		}
-		ev.SetXAttr.Name = rv
+		ev.SetXAttr.Name = string(rv)
 		return nil
 	case "setxattr.file.destination.namespace":
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "SetXAttr.Namespace"}
 		}
-		ev.SetXAttr.Namespace = rv
+		ev.SetXAttr.Namespace = string(rv)
 		return nil
 	case "setxattr.file.filesystem":
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "SetXAttr.File.Filesystem"}
 		}
-		ev.SetXAttr.File.Filesystem = rv
+		ev.SetXAttr.File.Filesystem = string(rv)
 		return nil
 	case "setxattr.file.gid":
 		rv, ok := value.(int)
@@ -39189,7 +39724,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "SetXAttr.File.FileFields.Group"}
 		}
-		ev.SetXAttr.File.FileFields.Group = rv
+		ev.SetXAttr.File.FileFields.Group = string(rv)
 		return nil
 	case "setxattr.file.hashes":
 		switch rv := value.(type) {
@@ -39241,7 +39776,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "SetXAttr.File.BasenameStr"}
 		}
-		ev.SetXAttr.File.BasenameStr = rv
+		ev.SetXAttr.File.BasenameStr = string(rv)
 		return nil
 	case "setxattr.file.name.length":
 		return &eval.ErrFieldReadOnly{Field: "setxattr.file.name.length"}
@@ -39250,28 +39785,28 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "SetXAttr.File.PkgName"}
 		}
-		ev.SetXAttr.File.PkgName = rv
+		ev.SetXAttr.File.PkgName = string(rv)
 		return nil
 	case "setxattr.file.package.source_version":
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "SetXAttr.File.PkgSrcVersion"}
 		}
-		ev.SetXAttr.File.PkgSrcVersion = rv
+		ev.SetXAttr.File.PkgSrcVersion = string(rv)
 		return nil
 	case "setxattr.file.package.version":
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "SetXAttr.File.PkgVersion"}
 		}
-		ev.SetXAttr.File.PkgVersion = rv
+		ev.SetXAttr.File.PkgVersion = string(rv)
 		return nil
 	case "setxattr.file.path":
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "SetXAttr.File.PathnameStr"}
 		}
-		ev.SetXAttr.File.PathnameStr = rv
+		ev.SetXAttr.File.PathnameStr = string(rv)
 		return nil
 	case "setxattr.file.path.length":
 		return &eval.ErrFieldReadOnly{Field: "setxattr.file.path.length"}
@@ -39294,7 +39829,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "SetXAttr.File.FileFields.User"}
 		}
-		ev.SetXAttr.File.FileFields.User = rv
+		ev.SetXAttr.File.FileFields.User = string(rv)
 		return nil
 	case "setxattr.retval":
 		rv, ok := value.(int)
@@ -39328,7 +39863,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.Args"}
 		}
-		ev.Signal.Target.Ancestor.ProcessContext.Process.Args = rv
+		ev.Signal.Target.Ancestor.ProcessContext.Process.Args = string(rv)
 		return nil
 	case "signal.target.ancestors.args_flags":
 		if ev.Signal.Target == nil {
@@ -39402,7 +39937,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.Argv0"}
 		}
-		ev.Signal.Target.Ancestor.ProcessContext.Process.Argv0 = rv
+		ev.Signal.Target.Ancestor.ProcessContext.Process.Argv0 = string(rv)
 		return nil
 	case "signal.target.ancestors.cap_effective":
 		if ev.Signal.Target == nil {
@@ -39430,6 +39965,19 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.Signal.Target.Ancestor.ProcessContext.Process.Credentials.CapPermitted = uint64(rv)
 		return nil
+	case "signal.target.ancestors.cgroup.id":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Ancestor == nil {
+			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.CGroup.CGroupID"}
+		}
+		ev.Signal.Target.Ancestor.ProcessContext.Process.CGroup.CGroupID = CGroupID(rv)
+		return nil
 	case "signal.target.ancestors.comm":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -39441,7 +39989,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.Comm"}
 		}
-		ev.Signal.Target.Ancestor.ProcessContext.Process.Comm = rv
+		ev.Signal.Target.Ancestor.ProcessContext.Process.Comm = string(rv)
 		return nil
 	case "signal.target.ancestors.container.id":
 		if ev.Signal.Target == nil {
@@ -39454,7 +40002,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.ContainerID"}
 		}
-		ev.Signal.Target.Ancestor.ProcessContext.Process.ContainerID = rv
+		ev.Signal.Target.Ancestor.ProcessContext.Process.ContainerID = ContainerID(rv)
 		return nil
 	case "signal.target.ancestors.created_at":
 		if ev.Signal.Target == nil {
@@ -39493,7 +40041,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.Credentials.EGroup"}
 		}
-		ev.Signal.Target.Ancestor.ProcessContext.Process.Credentials.EGroup = rv
+		ev.Signal.Target.Ancestor.ProcessContext.Process.Credentials.EGroup = string(rv)
 		return nil
 	case "signal.target.ancestors.envp":
 		if ev.Signal.Target == nil {
@@ -39564,7 +40112,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.Credentials.EUser"}
 		}
-		ev.Signal.Target.Ancestor.ProcessContext.Process.Credentials.EUser = rv
+		ev.Signal.Target.Ancestor.ProcessContext.Process.Credentials.EUser = string(rv)
 		return nil
 	case "signal.target.ancestors.file.change_time":
 		if ev.Signal.Target == nil {
@@ -39590,7 +40138,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.FileEvent.Filesystem"}
 		}
-		ev.Signal.Target.Ancestor.ProcessContext.Process.FileEvent.Filesystem = rv
+		ev.Signal.Target.Ancestor.ProcessContext.Process.FileEvent.Filesystem = string(rv)
 		return nil
 	case "signal.target.ancestors.file.gid":
 		if ev.Signal.Target == nil {
@@ -39616,7 +40164,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.FileEvent.FileFields.Group"}
 		}
-		ev.Signal.Target.Ancestor.ProcessContext.Process.FileEvent.FileFields.Group = rv
+		ev.Signal.Target.Ancestor.ProcessContext.Process.FileEvent.FileFields.Group = string(rv)
 		return nil
 	case "signal.target.ancestors.file.hashes":
 		if ev.Signal.Target == nil {
@@ -39710,7 +40258,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.FileEvent.BasenameStr"}
 		}
-		ev.Signal.Target.Ancestor.ProcessContext.Process.FileEvent.BasenameStr = rv
+		ev.Signal.Target.Ancestor.ProcessContext.Process.FileEvent.BasenameStr = string(rv)
 		return nil
 	case "signal.target.ancestors.file.name.length":
 		if ev.Signal.Target == nil {
@@ -39731,7 +40279,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.FileEvent.PkgName"}
 		}
-		ev.Signal.Target.Ancestor.ProcessContext.Process.FileEvent.PkgName = rv
+		ev.Signal.Target.Ancestor.ProcessContext.Process.FileEvent.PkgName = string(rv)
 		return nil
 	case "signal.target.ancestors.file.package.source_version":
 		if ev.Signal.Target == nil {
@@ -39744,7 +40292,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.FileEvent.PkgSrcVersion"}
 		}
-		ev.Signal.Target.Ancestor.ProcessContext.Process.FileEvent.PkgSrcVersion = rv
+		ev.Signal.Target.Ancestor.ProcessContext.Process.FileEvent.PkgSrcVersion = string(rv)
 		return nil
 	case "signal.target.ancestors.file.package.version":
 		if ev.Signal.Target == nil {
@@ -39757,7 +40305,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.FileEvent.PkgVersion"}
 		}
-		ev.Signal.Target.Ancestor.ProcessContext.Process.FileEvent.PkgVersion = rv
+		ev.Signal.Target.Ancestor.ProcessContext.Process.FileEvent.PkgVersion = string(rv)
 		return nil
 	case "signal.target.ancestors.file.path":
 		if ev.Signal.Target == nil {
@@ -39770,7 +40318,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.FileEvent.PathnameStr"}
 		}
-		ev.Signal.Target.Ancestor.ProcessContext.Process.FileEvent.PathnameStr = rv
+		ev.Signal.Target.Ancestor.ProcessContext.Process.FileEvent.PathnameStr = string(rv)
 		return nil
 	case "signal.target.ancestors.file.path.length":
 		if ev.Signal.Target == nil {
@@ -39817,7 +40365,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.FileEvent.FileFields.User"}
 		}
-		ev.Signal.Target.Ancestor.ProcessContext.Process.FileEvent.FileFields.User = rv
+		ev.Signal.Target.Ancestor.ProcessContext.Process.FileEvent.FileFields.User = string(rv)
 		return nil
 	case "signal.target.ancestors.fsgid":
 		if ev.Signal.Target == nil {
@@ -39843,7 +40391,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.Credentials.FSGroup"}
 		}
-		ev.Signal.Target.Ancestor.ProcessContext.Process.Credentials.FSGroup = rv
+		ev.Signal.Target.Ancestor.ProcessContext.Process.Credentials.FSGroup = string(rv)
 		return nil
 	case "signal.target.ancestors.fsuid":
 		if ev.Signal.Target == nil {
@@ -39869,7 +40417,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.Credentials.FSUser"}
 		}
-		ev.Signal.Target.Ancestor.ProcessContext.Process.Credentials.FSUser = rv
+		ev.Signal.Target.Ancestor.ProcessContext.Process.Credentials.FSUser = string(rv)
 		return nil
 	case "signal.target.ancestors.gid":
 		if ev.Signal.Target == nil {
@@ -39895,7 +40443,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.Credentials.Group"}
 		}
-		ev.Signal.Target.Ancestor.ProcessContext.Process.Credentials.Group = rv
+		ev.Signal.Target.Ancestor.ProcessContext.Process.Credentials.Group = string(rv)
 		return nil
 	case "signal.target.ancestors.interpreter.file.change_time":
 		if ev.Signal.Target == nil {
@@ -39921,7 +40469,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.Filesystem"}
 		}
-		ev.Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.Filesystem = rv
+		ev.Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.Filesystem = string(rv)
 		return nil
 	case "signal.target.ancestors.interpreter.file.gid":
 		if ev.Signal.Target == nil {
@@ -39947,7 +40495,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Group"}
 		}
-		ev.Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Group = rv
+		ev.Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Group = string(rv)
 		return nil
 	case "signal.target.ancestors.interpreter.file.hashes":
 		if ev.Signal.Target == nil {
@@ -40041,7 +40589,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.BasenameStr"}
 		}
-		ev.Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.BasenameStr = rv
+		ev.Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.BasenameStr = string(rv)
 		return nil
 	case "signal.target.ancestors.interpreter.file.name.length":
 		if ev.Signal.Target == nil {
@@ -40062,7 +40610,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PkgName"}
 		}
-		ev.Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PkgName = rv
+		ev.Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PkgName = string(rv)
 		return nil
 	case "signal.target.ancestors.interpreter.file.package.source_version":
 		if ev.Signal.Target == nil {
@@ -40075,7 +40623,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PkgSrcVersion"}
 		}
-		ev.Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PkgSrcVersion = rv
+		ev.Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PkgSrcVersion = string(rv)
 		return nil
 	case "signal.target.ancestors.interpreter.file.package.version":
 		if ev.Signal.Target == nil {
@@ -40088,7 +40636,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PkgVersion"}
 		}
-		ev.Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PkgVersion = rv
+		ev.Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PkgVersion = string(rv)
 		return nil
 	case "signal.target.ancestors.interpreter.file.path":
 		if ev.Signal.Target == nil {
@@ -40101,7 +40649,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PathnameStr"}
 		}
-		ev.Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PathnameStr = rv
+		ev.Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PathnameStr = string(rv)
 		return nil
 	case "signal.target.ancestors.interpreter.file.path.length":
 		if ev.Signal.Target == nil {
@@ -40148,7 +40696,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.User"}
 		}
-		ev.Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.User = rv
+		ev.Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.User = string(rv)
 		return nil
 	case "signal.target.ancestors.is_kworker":
 		if ev.Signal.Target == nil {
@@ -40226,7 +40774,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.TTYName"}
 		}
-		ev.Signal.Target.Ancestor.ProcessContext.Process.TTYName = rv
+		ev.Signal.Target.Ancestor.ProcessContext.Process.TTYName = string(rv)
 		return nil
 	case "signal.target.ancestors.uid":
 		if ev.Signal.Target == nil {
@@ -40252,7 +40800,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.Credentials.User"}
 		}
-		ev.Signal.Target.Ancestor.ProcessContext.Process.Credentials.User = rv
+		ev.Signal.Target.Ancestor.ProcessContext.Process.Credentials.User = string(rv)
 		return nil
 	case "signal.target.ancestors.user_session.k8s_groups":
 		if ev.Signal.Target == nil {
@@ -40281,7 +40829,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.UserSession.K8SUID"}
 		}
-		ev.Signal.Target.Ancestor.ProcessContext.Process.UserSession.K8SUID = rv
+		ev.Signal.Target.Ancestor.ProcessContext.Process.UserSession.K8SUID = string(rv)
 		return nil
 	case "signal.target.ancestors.user_session.k8s_username":
 		if ev.Signal.Target == nil {
@@ -40294,7 +40842,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.UserSession.K8SUsername"}
 		}
-		ev.Signal.Target.Ancestor.ProcessContext.Process.UserSession.K8SUsername = rv
+		ev.Signal.Target.Ancestor.ProcessContext.Process.UserSession.K8SUsername = string(rv)
 		return nil
 	case "signal.target.args":
 		if ev.Signal.Target == nil {
@@ -40304,7 +40852,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.Args"}
 		}
-		ev.Signal.Target.Process.Args = rv
+		ev.Signal.Target.Process.Args = string(rv)
 		return nil
 	case "signal.target.args_flags":
 		if ev.Signal.Target == nil {
@@ -40363,7 +40911,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.Argv0"}
 		}
-		ev.Signal.Target.Process.Argv0 = rv
+		ev.Signal.Target.Process.Argv0 = string(rv)
 		return nil
 	case "signal.target.cap_effective":
 		if ev.Signal.Target == nil {
@@ -40385,6 +40933,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.Signal.Target.Process.Credentials.CapPermitted = uint64(rv)
 		return nil
+	case "signal.target.cgroup.id":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.CGroup.CGroupID"}
+		}
+		ev.Signal.Target.Process.CGroup.CGroupID = CGroupID(rv)
+		return nil
 	case "signal.target.comm":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -40393,7 +40951,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.Comm"}
 		}
-		ev.Signal.Target.Process.Comm = rv
+		ev.Signal.Target.Process.Comm = string(rv)
 		return nil
 	case "signal.target.container.id":
 		if ev.Signal.Target == nil {
@@ -40403,7 +40961,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.ContainerID"}
 		}
-		ev.Signal.Target.Process.ContainerID = rv
+		ev.Signal.Target.Process.ContainerID = ContainerID(rv)
 		return nil
 	case "signal.target.created_at":
 		if ev.Signal.Target == nil {
@@ -40433,7 +40991,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.Credentials.EGroup"}
 		}
-		ev.Signal.Target.Process.Credentials.EGroup = rv
+		ev.Signal.Target.Process.Credentials.EGroup = string(rv)
 		return nil
 	case "signal.target.envp":
 		if ev.Signal.Target == nil {
@@ -40489,7 +41047,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.Credentials.EUser"}
 		}
-		ev.Signal.Target.Process.Credentials.EUser = rv
+		ev.Signal.Target.Process.Credentials.EUser = string(rv)
 		return nil
 	case "signal.target.file.change_time":
 		if ev.Signal.Target == nil {
@@ -40509,7 +41067,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.FileEvent.Filesystem"}
 		}
-		ev.Signal.Target.Process.FileEvent.Filesystem = rv
+		ev.Signal.Target.Process.FileEvent.Filesystem = string(rv)
 		return nil
 	case "signal.target.file.gid":
 		if ev.Signal.Target == nil {
@@ -40529,7 +41087,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.FileEvent.FileFields.Group"}
 		}
-		ev.Signal.Target.Process.FileEvent.FileFields.Group = rv
+		ev.Signal.Target.Process.FileEvent.FileFields.Group = string(rv)
 		return nil
 	case "signal.target.file.hashes":
 		if ev.Signal.Target == nil {
@@ -40602,7 +41160,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.FileEvent.BasenameStr"}
 		}
-		ev.Signal.Target.Process.FileEvent.BasenameStr = rv
+		ev.Signal.Target.Process.FileEvent.BasenameStr = string(rv)
 		return nil
 	case "signal.target.file.name.length":
 		if ev.Signal.Target == nil {
@@ -40617,7 +41175,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.FileEvent.PkgName"}
 		}
-		ev.Signal.Target.Process.FileEvent.PkgName = rv
+		ev.Signal.Target.Process.FileEvent.PkgName = string(rv)
 		return nil
 	case "signal.target.file.package.source_version":
 		if ev.Signal.Target == nil {
@@ -40627,7 +41185,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.FileEvent.PkgSrcVersion"}
 		}
-		ev.Signal.Target.Process.FileEvent.PkgSrcVersion = rv
+		ev.Signal.Target.Process.FileEvent.PkgSrcVersion = string(rv)
 		return nil
 	case "signal.target.file.package.version":
 		if ev.Signal.Target == nil {
@@ -40637,7 +41195,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.FileEvent.PkgVersion"}
 		}
-		ev.Signal.Target.Process.FileEvent.PkgVersion = rv
+		ev.Signal.Target.Process.FileEvent.PkgVersion = string(rv)
 		return nil
 	case "signal.target.file.path":
 		if ev.Signal.Target == nil {
@@ -40647,7 +41205,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.FileEvent.PathnameStr"}
 		}
-		ev.Signal.Target.Process.FileEvent.PathnameStr = rv
+		ev.Signal.Target.Process.FileEvent.PathnameStr = string(rv)
 		return nil
 	case "signal.target.file.path.length":
 		if ev.Signal.Target == nil {
@@ -40682,7 +41240,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.FileEvent.FileFields.User"}
 		}
-		ev.Signal.Target.Process.FileEvent.FileFields.User = rv
+		ev.Signal.Target.Process.FileEvent.FileFields.User = string(rv)
 		return nil
 	case "signal.target.fsgid":
 		if ev.Signal.Target == nil {
@@ -40702,7 +41260,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.Credentials.FSGroup"}
 		}
-		ev.Signal.Target.Process.Credentials.FSGroup = rv
+		ev.Signal.Target.Process.Credentials.FSGroup = string(rv)
 		return nil
 	case "signal.target.fsuid":
 		if ev.Signal.Target == nil {
@@ -40722,7 +41280,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.Credentials.FSUser"}
 		}
-		ev.Signal.Target.Process.Credentials.FSUser = rv
+		ev.Signal.Target.Process.Credentials.FSUser = string(rv)
 		return nil
 	case "signal.target.gid":
 		if ev.Signal.Target == nil {
@@ -40742,7 +41300,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.Credentials.Group"}
 		}
-		ev.Signal.Target.Process.Credentials.Group = rv
+		ev.Signal.Target.Process.Credentials.Group = string(rv)
 		return nil
 	case "signal.target.interpreter.file.change_time":
 		if ev.Signal.Target == nil {
@@ -40762,7 +41320,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.LinuxBinprm.FileEvent.Filesystem"}
 		}
-		ev.Signal.Target.Process.LinuxBinprm.FileEvent.Filesystem = rv
+		ev.Signal.Target.Process.LinuxBinprm.FileEvent.Filesystem = string(rv)
 		return nil
 	case "signal.target.interpreter.file.gid":
 		if ev.Signal.Target == nil {
@@ -40782,7 +41340,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.LinuxBinprm.FileEvent.FileFields.Group"}
 		}
-		ev.Signal.Target.Process.LinuxBinprm.FileEvent.FileFields.Group = rv
+		ev.Signal.Target.Process.LinuxBinprm.FileEvent.FileFields.Group = string(rv)
 		return nil
 	case "signal.target.interpreter.file.hashes":
 		if ev.Signal.Target == nil {
@@ -40855,7 +41413,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.LinuxBinprm.FileEvent.BasenameStr"}
 		}
-		ev.Signal.Target.Process.LinuxBinprm.FileEvent.BasenameStr = rv
+		ev.Signal.Target.Process.LinuxBinprm.FileEvent.BasenameStr = string(rv)
 		return nil
 	case "signal.target.interpreter.file.name.length":
 		if ev.Signal.Target == nil {
@@ -40870,7 +41428,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.LinuxBinprm.FileEvent.PkgName"}
 		}
-		ev.Signal.Target.Process.LinuxBinprm.FileEvent.PkgName = rv
+		ev.Signal.Target.Process.LinuxBinprm.FileEvent.PkgName = string(rv)
 		return nil
 	case "signal.target.interpreter.file.package.source_version":
 		if ev.Signal.Target == nil {
@@ -40880,7 +41438,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.LinuxBinprm.FileEvent.PkgSrcVersion"}
 		}
-		ev.Signal.Target.Process.LinuxBinprm.FileEvent.PkgSrcVersion = rv
+		ev.Signal.Target.Process.LinuxBinprm.FileEvent.PkgSrcVersion = string(rv)
 		return nil
 	case "signal.target.interpreter.file.package.version":
 		if ev.Signal.Target == nil {
@@ -40890,7 +41448,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.LinuxBinprm.FileEvent.PkgVersion"}
 		}
-		ev.Signal.Target.Process.LinuxBinprm.FileEvent.PkgVersion = rv
+		ev.Signal.Target.Process.LinuxBinprm.FileEvent.PkgVersion = string(rv)
 		return nil
 	case "signal.target.interpreter.file.path":
 		if ev.Signal.Target == nil {
@@ -40900,7 +41458,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.LinuxBinprm.FileEvent.PathnameStr"}
 		}
-		ev.Signal.Target.Process.LinuxBinprm.FileEvent.PathnameStr = rv
+		ev.Signal.Target.Process.LinuxBinprm.FileEvent.PathnameStr = string(rv)
 		return nil
 	case "signal.target.interpreter.file.path.length":
 		if ev.Signal.Target == nil {
@@ -40935,7 +41493,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.LinuxBinprm.FileEvent.FileFields.User"}
 		}
-		ev.Signal.Target.Process.LinuxBinprm.FileEvent.FileFields.User = rv
+		ev.Signal.Target.Process.LinuxBinprm.FileEvent.FileFields.User = string(rv)
 		return nil
 	case "signal.target.is_kworker":
 		if ev.Signal.Target == nil {
@@ -40968,7 +41526,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.Args"}
 		}
-		ev.Signal.Target.Parent.Args = rv
+		ev.Signal.Target.Parent.Args = string(rv)
 		return nil
 	case "signal.target.parent.args_flags":
 		if ev.Signal.Target == nil {
@@ -41042,7 +41600,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.Argv0"}
 		}
-		ev.Signal.Target.Parent.Argv0 = rv
+		ev.Signal.Target.Parent.Argv0 = string(rv)
 		return nil
 	case "signal.target.parent.cap_effective":
 		if ev.Signal.Target == nil {
@@ -41070,6 +41628,19 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.Signal.Target.Parent.Credentials.CapPermitted = uint64(rv)
 		return nil
+	case "signal.target.parent.cgroup.id":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Parent == nil {
+			ev.Signal.Target.Parent = &Process{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.CGroup.CGroupID"}
+		}
+		ev.Signal.Target.Parent.CGroup.CGroupID = CGroupID(rv)
+		return nil
 	case "signal.target.parent.comm":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -41081,7 +41652,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.Comm"}
 		}
-		ev.Signal.Target.Parent.Comm = rv
+		ev.Signal.Target.Parent.Comm = string(rv)
 		return nil
 	case "signal.target.parent.container.id":
 		if ev.Signal.Target == nil {
@@ -41094,7 +41665,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.ContainerID"}
 		}
-		ev.Signal.Target.Parent.ContainerID = rv
+		ev.Signal.Target.Parent.ContainerID = ContainerID(rv)
 		return nil
 	case "signal.target.parent.created_at":
 		if ev.Signal.Target == nil {
@@ -41133,7 +41704,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.Credentials.EGroup"}
 		}
-		ev.Signal.Target.Parent.Credentials.EGroup = rv
+		ev.Signal.Target.Parent.Credentials.EGroup = string(rv)
 		return nil
 	case "signal.target.parent.envp":
 		if ev.Signal.Target == nil {
@@ -41204,7 +41775,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.Credentials.EUser"}
 		}
-		ev.Signal.Target.Parent.Credentials.EUser = rv
+		ev.Signal.Target.Parent.Credentials.EUser = string(rv)
 		return nil
 	case "signal.target.parent.file.change_time":
 		if ev.Signal.Target == nil {
@@ -41230,7 +41801,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.FileEvent.Filesystem"}
 		}
-		ev.Signal.Target.Parent.FileEvent.Filesystem = rv
+		ev.Signal.Target.Parent.FileEvent.Filesystem = string(rv)
 		return nil
 	case "signal.target.parent.file.gid":
 		if ev.Signal.Target == nil {
@@ -41256,7 +41827,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.FileEvent.FileFields.Group"}
 		}
-		ev.Signal.Target.Parent.FileEvent.FileFields.Group = rv
+		ev.Signal.Target.Parent.FileEvent.FileFields.Group = string(rv)
 		return nil
 	case "signal.target.parent.file.hashes":
 		if ev.Signal.Target == nil {
@@ -41350,7 +41921,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.FileEvent.BasenameStr"}
 		}
-		ev.Signal.Target.Parent.FileEvent.BasenameStr = rv
+		ev.Signal.Target.Parent.FileEvent.BasenameStr = string(rv)
 		return nil
 	case "signal.target.parent.file.name.length":
 		if ev.Signal.Target == nil {
@@ -41371,7 +41942,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.FileEvent.PkgName"}
 		}
-		ev.Signal.Target.Parent.FileEvent.PkgName = rv
+		ev.Signal.Target.Parent.FileEvent.PkgName = string(rv)
 		return nil
 	case "signal.target.parent.file.package.source_version":
 		if ev.Signal.Target == nil {
@@ -41384,7 +41955,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.FileEvent.PkgSrcVersion"}
 		}
-		ev.Signal.Target.Parent.FileEvent.PkgSrcVersion = rv
+		ev.Signal.Target.Parent.FileEvent.PkgSrcVersion = string(rv)
 		return nil
 	case "signal.target.parent.file.package.version":
 		if ev.Signal.Target == nil {
@@ -41397,7 +41968,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.FileEvent.PkgVersion"}
 		}
-		ev.Signal.Target.Parent.FileEvent.PkgVersion = rv
+		ev.Signal.Target.Parent.FileEvent.PkgVersion = string(rv)
 		return nil
 	case "signal.target.parent.file.path":
 		if ev.Signal.Target == nil {
@@ -41410,7 +41981,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.FileEvent.PathnameStr"}
 		}
-		ev.Signal.Target.Parent.FileEvent.PathnameStr = rv
+		ev.Signal.Target.Parent.FileEvent.PathnameStr = string(rv)
 		return nil
 	case "signal.target.parent.file.path.length":
 		if ev.Signal.Target == nil {
@@ -41457,7 +42028,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.FileEvent.FileFields.User"}
 		}
-		ev.Signal.Target.Parent.FileEvent.FileFields.User = rv
+		ev.Signal.Target.Parent.FileEvent.FileFields.User = string(rv)
 		return nil
 	case "signal.target.parent.fsgid":
 		if ev.Signal.Target == nil {
@@ -41483,7 +42054,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.Credentials.FSGroup"}
 		}
-		ev.Signal.Target.Parent.Credentials.FSGroup = rv
+		ev.Signal.Target.Parent.Credentials.FSGroup = string(rv)
 		return nil
 	case "signal.target.parent.fsuid":
 		if ev.Signal.Target == nil {
@@ -41509,7 +42080,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.Credentials.FSUser"}
 		}
-		ev.Signal.Target.Parent.Credentials.FSUser = rv
+		ev.Signal.Target.Parent.Credentials.FSUser = string(rv)
 		return nil
 	case "signal.target.parent.gid":
 		if ev.Signal.Target == nil {
@@ -41535,7 +42106,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.Credentials.Group"}
 		}
-		ev.Signal.Target.Parent.Credentials.Group = rv
+		ev.Signal.Target.Parent.Credentials.Group = string(rv)
 		return nil
 	case "signal.target.parent.interpreter.file.change_time":
 		if ev.Signal.Target == nil {
@@ -41561,7 +42132,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.LinuxBinprm.FileEvent.Filesystem"}
 		}
-		ev.Signal.Target.Parent.LinuxBinprm.FileEvent.Filesystem = rv
+		ev.Signal.Target.Parent.LinuxBinprm.FileEvent.Filesystem = string(rv)
 		return nil
 	case "signal.target.parent.interpreter.file.gid":
 		if ev.Signal.Target == nil {
@@ -41587,7 +42158,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.LinuxBinprm.FileEvent.FileFields.Group"}
 		}
-		ev.Signal.Target.Parent.LinuxBinprm.FileEvent.FileFields.Group = rv
+		ev.Signal.Target.Parent.LinuxBinprm.FileEvent.FileFields.Group = string(rv)
 		return nil
 	case "signal.target.parent.interpreter.file.hashes":
 		if ev.Signal.Target == nil {
@@ -41681,7 +42252,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.LinuxBinprm.FileEvent.BasenameStr"}
 		}
-		ev.Signal.Target.Parent.LinuxBinprm.FileEvent.BasenameStr = rv
+		ev.Signal.Target.Parent.LinuxBinprm.FileEvent.BasenameStr = string(rv)
 		return nil
 	case "signal.target.parent.interpreter.file.name.length":
 		if ev.Signal.Target == nil {
@@ -41702,7 +42273,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.LinuxBinprm.FileEvent.PkgName"}
 		}
-		ev.Signal.Target.Parent.LinuxBinprm.FileEvent.PkgName = rv
+		ev.Signal.Target.Parent.LinuxBinprm.FileEvent.PkgName = string(rv)
 		return nil
 	case "signal.target.parent.interpreter.file.package.source_version":
 		if ev.Signal.Target == nil {
@@ -41715,7 +42286,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.LinuxBinprm.FileEvent.PkgSrcVersion"}
 		}
-		ev.Signal.Target.Parent.LinuxBinprm.FileEvent.PkgSrcVersion = rv
+		ev.Signal.Target.Parent.LinuxBinprm.FileEvent.PkgSrcVersion = string(rv)
 		return nil
 	case "signal.target.parent.interpreter.file.package.version":
 		if ev.Signal.Target == nil {
@@ -41728,7 +42299,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.LinuxBinprm.FileEvent.PkgVersion"}
 		}
-		ev.Signal.Target.Parent.LinuxBinprm.FileEvent.PkgVersion = rv
+		ev.Signal.Target.Parent.LinuxBinprm.FileEvent.PkgVersion = string(rv)
 		return nil
 	case "signal.target.parent.interpreter.file.path":
 		if ev.Signal.Target == nil {
@@ -41741,7 +42312,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.LinuxBinprm.FileEvent.PathnameStr"}
 		}
-		ev.Signal.Target.Parent.LinuxBinprm.FileEvent.PathnameStr = rv
+		ev.Signal.Target.Parent.LinuxBinprm.FileEvent.PathnameStr = string(rv)
 		return nil
 	case "signal.target.parent.interpreter.file.path.length":
 		if ev.Signal.Target == nil {
@@ -41788,7 +42359,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.LinuxBinprm.FileEvent.FileFields.User"}
 		}
-		ev.Signal.Target.Parent.LinuxBinprm.FileEvent.FileFields.User = rv
+		ev.Signal.Target.Parent.LinuxBinprm.FileEvent.FileFields.User = string(rv)
 		return nil
 	case "signal.target.parent.is_kworker":
 		if ev.Signal.Target == nil {
@@ -41866,7 +42437,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.TTYName"}
 		}
-		ev.Signal.Target.Parent.TTYName = rv
+		ev.Signal.Target.Parent.TTYName = string(rv)
 		return nil
 	case "signal.target.parent.uid":
 		if ev.Signal.Target == nil {
@@ -41892,7 +42463,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.Credentials.User"}
 		}
-		ev.Signal.Target.Parent.Credentials.User = rv
+		ev.Signal.Target.Parent.Credentials.User = string(rv)
 		return nil
 	case "signal.target.parent.user_session.k8s_groups":
 		if ev.Signal.Target == nil {
@@ -41921,7 +42492,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.UserSession.K8SUID"}
 		}
-		ev.Signal.Target.Parent.UserSession.K8SUID = rv
+		ev.Signal.Target.Parent.UserSession.K8SUID = string(rv)
 		return nil
 	case "signal.target.parent.user_session.k8s_username":
 		if ev.Signal.Target == nil {
@@ -41934,7 +42505,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.UserSession.K8SUsername"}
 		}
-		ev.Signal.Target.Parent.UserSession.K8SUsername = rv
+		ev.Signal.Target.Parent.UserSession.K8SUsername = string(rv)
 		return nil
 	case "signal.target.pid":
 		if ev.Signal.Target == nil {
@@ -41974,7 +42545,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.TTYName"}
 		}
-		ev.Signal.Target.Process.TTYName = rv
+		ev.Signal.Target.Process.TTYName = string(rv)
 		return nil
 	case "signal.target.uid":
 		if ev.Signal.Target == nil {
@@ -41994,7 +42565,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.Credentials.User"}
 		}
-		ev.Signal.Target.Process.Credentials.User = rv
+		ev.Signal.Target.Process.Credentials.User = string(rv)
 		return nil
 	case "signal.target.user_session.k8s_groups":
 		if ev.Signal.Target == nil {
@@ -42017,7 +42588,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.UserSession.K8SUID"}
 		}
-		ev.Signal.Target.Process.UserSession.K8SUID = rv
+		ev.Signal.Target.Process.UserSession.K8SUID = string(rv)
 		return nil
 	case "signal.target.user_session.k8s_username":
 		if ev.Signal.Target == nil {
@@ -42027,7 +42598,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.UserSession.K8SUsername"}
 		}
-		ev.Signal.Target.Process.UserSession.K8SUsername = rv
+		ev.Signal.Target.Process.UserSession.K8SUsername = string(rv)
 		return nil
 	case "signal.type":
 		rv, ok := value.(int)
@@ -42048,7 +42619,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Splice.File.Filesystem"}
 		}
-		ev.Splice.File.Filesystem = rv
+		ev.Splice.File.Filesystem = string(rv)
 		return nil
 	case "splice.file.gid":
 		rv, ok := value.(int)
@@ -42062,7 +42633,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Splice.File.FileFields.Group"}
 		}
-		ev.Splice.File.FileFields.Group = rv
+		ev.Splice.File.FileFields.Group = string(rv)
 		return nil
 	case "splice.file.hashes":
 		switch rv := value.(type) {
@@ -42114,7 +42685,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Splice.File.BasenameStr"}
 		}
-		ev.Splice.File.BasenameStr = rv
+		ev.Splice.File.BasenameStr = string(rv)
 		return nil
 	case "splice.file.name.length":
 		return &eval.ErrFieldReadOnly{Field: "splice.file.name.length"}
@@ -42123,28 +42694,28 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Splice.File.PkgName"}
 		}
-		ev.Splice.File.PkgName = rv
+		ev.Splice.File.PkgName = string(rv)
 		return nil
 	case "splice.file.package.source_version":
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Splice.File.PkgSrcVersion"}
 		}
-		ev.Splice.File.PkgSrcVersion = rv
+		ev.Splice.File.PkgSrcVersion = string(rv)
 		return nil
 	case "splice.file.package.version":
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Splice.File.PkgVersion"}
 		}
-		ev.Splice.File.PkgVersion = rv
+		ev.Splice.File.PkgVersion = string(rv)
 		return nil
 	case "splice.file.path":
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Splice.File.PathnameStr"}
 		}
-		ev.Splice.File.PathnameStr = rv
+		ev.Splice.File.PathnameStr = string(rv)
 		return nil
 	case "splice.file.path.length":
 		return &eval.ErrFieldReadOnly{Field: "splice.file.path.length"}
@@ -42167,7 +42738,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Splice.File.FileFields.User"}
 		}
-		ev.Splice.File.FileFields.User = rv
+		ev.Splice.File.FileFields.User = string(rv)
 		return nil
 	case "splice.pipe_entry_flag":
 		rv, ok := value.(int)
@@ -42202,7 +42773,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Unlink.File.Filesystem"}
 		}
-		ev.Unlink.File.Filesystem = rv
+		ev.Unlink.File.Filesystem = string(rv)
 		return nil
 	case "unlink.file.gid":
 		rv, ok := value.(int)
@@ -42216,7 +42787,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Unlink.File.FileFields.Group"}
 		}
-		ev.Unlink.File.FileFields.Group = rv
+		ev.Unlink.File.FileFields.Group = string(rv)
 		return nil
 	case "unlink.file.hashes":
 		switch rv := value.(type) {
@@ -42268,7 +42839,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Unlink.File.BasenameStr"}
 		}
-		ev.Unlink.File.BasenameStr = rv
+		ev.Unlink.File.BasenameStr = string(rv)
 		return nil
 	case "unlink.file.name.length":
 		return &eval.ErrFieldReadOnly{Field: "unlink.file.name.length"}
@@ -42277,28 +42848,28 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Unlink.File.PkgName"}
 		}
-		ev.Unlink.File.PkgName = rv
+		ev.Unlink.File.PkgName = string(rv)
 		return nil
 	case "unlink.file.package.source_version":
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Unlink.File.PkgSrcVersion"}
 		}
-		ev.Unlink.File.PkgSrcVersion = rv
+		ev.Unlink.File.PkgSrcVersion = string(rv)
 		return nil
 	case "unlink.file.package.version":
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Unlink.File.PkgVersion"}
 		}
-		ev.Unlink.File.PkgVersion = rv
+		ev.Unlink.File.PkgVersion = string(rv)
 		return nil
 	case "unlink.file.path":
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Unlink.File.PathnameStr"}
 		}
-		ev.Unlink.File.PathnameStr = rv
+		ev.Unlink.File.PathnameStr = string(rv)
 		return nil
 	case "unlink.file.path.length":
 		return &eval.ErrFieldReadOnly{Field: "unlink.file.path.length"}
@@ -42321,7 +42892,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Unlink.File.FileFields.User"}
 		}
-		ev.Unlink.File.FileFields.User = rv
+		ev.Unlink.File.FileFields.User = string(rv)
 		return nil
 	case "unlink.flags":
 		rv, ok := value.(int)
@@ -42356,14 +42927,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Unlink.SyscallContext.StrArg2"}
 		}
-		ev.Unlink.SyscallContext.StrArg2 = rv
+		ev.Unlink.SyscallContext.StrArg2 = string(rv)
 		return nil
 	case "unload_module.name":
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "UnloadModule.Name"}
 		}
-		ev.UnloadModule.Name = rv
+		ev.UnloadModule.Name = string(rv)
 		return nil
 	case "unload_module.retval":
 		rv, ok := value.(int)
@@ -42384,7 +42955,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Utimes.File.Filesystem"}
 		}
-		ev.Utimes.File.Filesystem = rv
+		ev.Utimes.File.Filesystem = string(rv)
 		return nil
 	case "utimes.file.gid":
 		rv, ok := value.(int)
@@ -42398,7 +42969,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Utimes.File.FileFields.Group"}
 		}
-		ev.Utimes.File.FileFields.Group = rv
+		ev.Utimes.File.FileFields.Group = string(rv)
 		return nil
 	case "utimes.file.hashes":
 		switch rv := value.(type) {
@@ -42450,7 +43021,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Utimes.File.BasenameStr"}
 		}
-		ev.Utimes.File.BasenameStr = rv
+		ev.Utimes.File.BasenameStr = string(rv)
 		return nil
 	case "utimes.file.name.length":
 		return &eval.ErrFieldReadOnly{Field: "utimes.file.name.length"}
@@ -42459,28 +43030,28 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Utimes.File.PkgName"}
 		}
-		ev.Utimes.File.PkgName = rv
+		ev.Utimes.File.PkgName = string(rv)
 		return nil
 	case "utimes.file.package.source_version":
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Utimes.File.PkgSrcVersion"}
 		}
-		ev.Utimes.File.PkgSrcVersion = rv
+		ev.Utimes.File.PkgSrcVersion = string(rv)
 		return nil
 	case "utimes.file.package.version":
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Utimes.File.PkgVersion"}
 		}
-		ev.Utimes.File.PkgVersion = rv
+		ev.Utimes.File.PkgVersion = string(rv)
 		return nil
 	case "utimes.file.path":
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Utimes.File.PathnameStr"}
 		}
-		ev.Utimes.File.PathnameStr = rv
+		ev.Utimes.File.PathnameStr = string(rv)
 		return nil
 	case "utimes.file.path.length":
 		return &eval.ErrFieldReadOnly{Field: "utimes.file.path.length"}
@@ -42503,7 +43074,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Utimes.File.FileFields.User"}
 		}
-		ev.Utimes.File.FileFields.User = rv
+		ev.Utimes.File.FileFields.User = string(rv)
 		return nil
 	case "utimes.retval":
 		rv, ok := value.(int)
@@ -42511,6 +43082,13 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Utimes.SyscallEvent.Retval"}
 		}
 		ev.Utimes.SyscallEvent.Retval = int64(rv)
+		return nil
+	case "utimes.syscall.path":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Utimes.SyscallContext.StrArg1"}
+		}
+		ev.Utimes.SyscallContext.StrArg1 = string(rv)
 		return nil
 	}
 	return &eval.ErrFieldNotFound{Field: field}

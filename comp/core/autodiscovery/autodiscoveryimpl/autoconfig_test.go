@@ -7,7 +7,10 @@ package autodiscoveryimpl
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"sync"
 	"testing"
 	"time"
@@ -23,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler"
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
@@ -182,15 +186,15 @@ func (suite *AutoConfigTestSuite) SetupTest() {
 	suite.deps = createDeps(suite.T())
 }
 
-func getAutoConfig(schedulerController *scheduler.Controller, secretResolver secrets.Component, wmeta optional.Option[workloadmeta.Component], taggerComp tagger.Component) *AutoConfig {
-	ac := createNewAutoConfig(schedulerController, secretResolver, wmeta, taggerComp)
+func getAutoConfig(schedulerController *scheduler.Controller, secretResolver secrets.Component, wmeta optional.Option[workloadmeta.Component], taggerComp tagger.Component, logsComp log.Component) *AutoConfig {
+	ac := createNewAutoConfig(schedulerController, secretResolver, wmeta, taggerComp, logsComp)
 	go ac.serviceListening()
 	return ac
 }
 
 func (suite *AutoConfigTestSuite) TestAddConfigProvider() {
 	mockResolver := MockSecretResolver{suite.T(), nil}
-	ac := getAutoConfig(scheduler.NewController(), &mockResolver, suite.deps.WMeta, suite.deps.TaggerComp)
+	ac := getAutoConfig(scheduler.NewController(), &mockResolver, suite.deps.WMeta, suite.deps.TaggerComp, suite.deps.LogsComp)
 	assert.Len(suite.T(), ac.configPollers, 0)
 	mp := &MockProvider{}
 	ac.AddConfigProvider(mp, false, 0)
@@ -207,7 +211,7 @@ func (suite *AutoConfigTestSuite) TestAddConfigProvider() {
 
 func (suite *AutoConfigTestSuite) TestAddListener() {
 	mockResolver := MockSecretResolver{suite.T(), nil}
-	ac := getAutoConfig(scheduler.NewController(), &mockResolver, suite.deps.WMeta, suite.deps.TaggerComp)
+	ac := getAutoConfig(scheduler.NewController(), &mockResolver, suite.deps.WMeta, suite.deps.TaggerComp, suite.deps.LogsComp)
 	assert.Len(suite.T(), ac.listeners, 0)
 
 	ml := &MockListener{}
@@ -245,7 +249,7 @@ func (suite *AutoConfigTestSuite) TestDiffConfigs() {
 
 func (suite *AutoConfigTestSuite) TestStop() {
 	mockResolver := MockSecretResolver{suite.T(), nil}
-	ac := getAutoConfig(scheduler.NewController(), &mockResolver, suite.deps.WMeta, suite.deps.TaggerComp)
+	ac := getAutoConfig(scheduler.NewController(), &mockResolver, suite.deps.WMeta, suite.deps.TaggerComp, suite.deps.LogsComp)
 
 	ml := &MockListener{}
 	listeners.Register("mock", ml.fakeFactory, ac.serviceListenerFactories)
@@ -258,7 +262,7 @@ func (suite *AutoConfigTestSuite) TestStop() {
 
 func (suite *AutoConfigTestSuite) TestListenerRetry() {
 	mockResolver := MockSecretResolver{suite.T(), nil}
-	ac := getAutoConfig(scheduler.NewController(), &mockResolver, suite.deps.WMeta, suite.deps.TaggerComp)
+	ac := getAutoConfig(scheduler.NewController(), &mockResolver, suite.deps.WMeta, suite.deps.TaggerComp, suite.deps.LogsComp)
 
 	// Hack the retry delay to shorten the test run time
 	initialListenerCandidateIntl := listenerCandidateIntl
@@ -366,7 +370,7 @@ func TestResolveTemplate(t *testing.T) {
 	msch.Register("mock", sch, false)
 
 	mockResolver := MockSecretResolver{t, nil}
-	ac := getAutoConfig(msch, &mockResolver, deps.WMeta, deps.TaggerComp)
+	ac := getAutoConfig(msch, &mockResolver, deps.WMeta, deps.TaggerComp, deps.LogsComp)
 	tpl := integration.Config{
 		Name:          "cpu",
 		ADIdentifiers: []string{"redis"},
@@ -403,7 +407,7 @@ func TestRemoveTemplate(t *testing.T) {
 
 	mockResolver := MockSecretResolver{t, nil}
 
-	ac := getAutoConfig(scheduler.NewController(), &mockResolver, deps.WMeta, deps.TaggerComp)
+	ac := getAutoConfig(scheduler.NewController(), &mockResolver, deps.WMeta, deps.TaggerComp, deps.LogsComp)
 	// Add static config
 	c := integration.Config{
 		Name: "memory",
@@ -456,7 +460,7 @@ func TestDecryptConfig(t *testing.T) {
 		},
 	}}
 
-	ac := getAutoConfig(scheduler.NewController(), &mockResolver, deps.WMeta, deps.TaggerComp)
+	ac := getAutoConfig(scheduler.NewController(), &mockResolver, deps.WMeta, deps.TaggerComp, deps.LogsComp)
 	ac.processNewService(ctx, &dummyService{ID: "abcd", ADIdentifiers: []string{"redis"}})
 
 	tpl := integration.Config{
@@ -500,7 +504,7 @@ func TestProcessClusterCheckConfigWithSecrets(t *testing.T) {
 			returnedError:  nil,
 		},
 	}}
-	ac := getAutoConfig(scheduler.NewController(), &mockResolver, deps.WMeta, deps.TaggerComp)
+	ac := getAutoConfig(scheduler.NewController(), &mockResolver, deps.WMeta, deps.TaggerComp, deps.LogsComp)
 
 	tpl := integration.Config{
 		Provider:     names.ClusterChecks,
@@ -530,10 +534,65 @@ func TestProcessClusterCheckConfigWithSecrets(t *testing.T) {
 	assert.Equal(t, originalCheckID, ac.GetIDOfCheckWithEncryptedSecrets(newCheckID))
 }
 
+func TestWriteConfigEndpoint(t *testing.T) {
+	deps := createDeps(t)
+	configName := "testConfig"
+
+	mockResolver := MockSecretResolver{t, nil}
+	ac := getAutoConfig(scheduler.NewController(), &mockResolver, deps.WMeta, deps.TaggerComp, deps.LogsComp)
+
+	tpl := integration.Config{
+		Provider:     names.ClusterChecks,
+		Name:         configName,
+		InitConfig:   integration.Data{},
+		Instances:    []integration.Data{integration.Data("pass: 1234567")},
+		MetricConfig: integration.Data{},
+		LogsConfig:   integration.Data{},
+	}
+	changes := ac.processNewConfig(tpl)
+
+	require.Len(t, changes.Schedule, 1)
+
+	testCases := []struct {
+		name           string
+		request        *http.Request
+		expectedResult string
+	}{
+		{
+			name:           "With configuration scrubbed",
+			request:        httptest.NewRequest("GET", "http://example.com", nil),
+			expectedResult: "pass: \"********\"",
+		},
+		{
+			name:           "With nil Requet",
+			request:        nil,
+			expectedResult: "pass: \"********\"",
+		},
+		{
+			name:           "Without scrubbing configuration",
+			request:        httptest.NewRequest("GET", "http://example.com?raw=true", nil),
+			expectedResult: "pass: 1234567",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			responseRecorder := httptest.NewRecorder()
+			ac.writeConfigCheck(responseRecorder, tc.request)
+			var result integration.ConfigCheckResponse
+			out := responseRecorder.Body.Bytes()
+			err := json.Unmarshal(out, &result)
+			require.NoError(t, err)
+			assert.Equal(t, string(result.Configs[0].Instances[0]), tc.expectedResult)
+		})
+	}
+}
+
 type Deps struct {
 	fx.In
 	WMeta      optional.Option[workloadmeta.Component]
 	TaggerComp tagger.Component
+	LogsComp   log.Component
 }
 
 func createDeps(t *testing.T) Deps {
