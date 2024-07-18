@@ -11,8 +11,8 @@ package ptracer
 import (
 	"bytes"
 	"encoding/binary"
-	"errors"
 	"fmt"
+	"os"
 	"runtime"
 	"syscall"
 	"time"
@@ -97,51 +97,28 @@ func processVMReadv(pid int, addr uintptr, data []byte) (int, error) {
 	return unix.ProcessVMReadv(pid, localIov, remoteIov, 0)
 }
 
-const (
-	maxRemoteReadSizeBytes   = 4096
-	minRemoteReadSizeBytes   = 1
-	startRemoteReadSizeBytes = 256
-)
-
 func (t *Tracer) readString(pid int, ptr uint64) (string, error) {
-	// nextReadSize == previousReadSize means we are not linearly increasing or decreasing
-	// the read size, in this case we return an error
-	previousReadSize, currentReadSize, nextReadSize := 0, 0, startRemoteReadSizeBytes
-	var data []byte
+	pageSize := uint64(os.Getpagesize())
+	pageAddr := ptr & ^(pageSize - 1)
+	sizeToEndOfPage := pageAddr + pageSize - ptr
+	// read from at most 2 pages (current and next one)
+	maxReadSize := sizeToEndOfPage + pageSize
 
-	n := -1
-	for n < 0 {
-		previousReadSize = currentReadSize
-		currentReadSize = nextReadSize
-		data = make([]byte, currentReadSize)
+	// start by reading from the current page
+	for readSize := sizeToEndOfPage; readSize <= maxReadSize; readSize += pageSize {
+		data := make([]byte, readSize)
 		_, err := processVMReadv(pid, uintptr(ptr), data)
 		if err != nil {
-			if !errors.Is(err, unix.EFAULT) {
-				return "", err
-			}
-			if currentReadSize == minRemoteReadSizeBytes {
-				return "", err
-			}
-			nextReadSize = currentReadSize / 2
-			if previousReadSize == nextReadSize {
-				return "", errors.New("failed to read string")
-			}
-			continue
+			return "", fmt.Errorf("unable to read string at addr %x (size: %d): %v", ptr, readSize, err)
 		}
 
-		n = bytes.Index(data[:], []byte{0})
-		if n < 0 {
-			nextReadSize = currentReadSize * 2
-			if nextReadSize > maxRemoteReadSizeBytes {
-				return "", errors.New("string too long")
-			}
-			if previousReadSize == nextReadSize {
-				return "", errors.New("failed to read string")
-			}
+		n := bytes.Index(data[:], []byte{0})
+		if n >= 0 {
+			return string(data[:n]), nil
 		}
 	}
 
-	return string(data[:n]), nil
+	return "", fmt.Errorf("unable to read string at addr %x: string is too long", ptr)
 }
 
 func (t *Tracer) readInt32(pid int, ptr uint64) (int32, error) {
