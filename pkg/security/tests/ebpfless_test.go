@@ -13,6 +13,9 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"os/signal"
+	"strconv"
+	"syscall"
 	"testing"
 	"time"
 
@@ -33,7 +36,7 @@ func TestEBPFLessAttach(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_ebpfless_attach",
-			Expression: `mkdir.file.name == "test-ebpfless-attach"`,
+			Expression: `open.file.name == "test-ebpfless-attach"`,
 		},
 	}
 
@@ -43,29 +46,61 @@ func TestEBPFLessAttach(t *testing.T) {
 	}
 	defer test.Close()
 
+	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	doneCh := make(chan bool)
+
 	test.WaitSignal(t, func() error {
 		go func() {
-			timeoutCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			testFile, _, err := test.Path("test-ebpfless-attach")
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer os.Remove(testFile)
 
-			cmd := exec.CommandContext(timeoutCtx, "sh", "-c", "rm -rf /tmp/test-ebpfless-attach; sleep 5; mkdir -p /tmp/test-ebpfless-attach; sleep 2")
+			sigCh := make(chan os.Signal, 1)
+			signal.Notify(sigCh, syscall.SIGUSR1)
+			defer signal.Stop(sigCh)
+
+			timeoutCtx, cancel := context.WithTimeout(context.Background(), 7*time.Second)
+			defer cancel()
+
+			cmd := exec.CommandContext(timeoutCtx, syscallTester,
+				"set-signal-handler", ";",
+				"signal", "sigusr1", strconv.Itoa(int(os.Getpid())), ";",
+				"wait-signal", ";",
+				"open", testFile, ";",
+				"sleep", "1",
+			)
 			cmd.Start()
 
-			defer os.Remove("/tmp/test-ebpfless-attach")
-
 			pid := cmd.Process.Pid
-
 			opts := ptracer.Opts{
 				ProcScanDisabled: true,
+				Verbose:          true,
+				AttachedCb: func() {
+					syscall.Kill(pid, syscall.SIGUSR2)
+				},
 			}
 
-			err := ptracer.Attach(pid, constants.DefaultEBPFLessProbeAddr, opts)
-			if err != nil {
+			// syscall tester to be reading to be tested
+			_ = <-sigCh
+			if err = ptracer.Attach(pid, constants.DefaultEBPFLessProbeAddr, opts); err != nil {
 				fmt.Printf("unable to attach: %v", err)
 			}
-			cancel()
+			doneCh <- true
 		}()
 		return nil
 	}, func(event *model.Event, rule *rules.Rule) {
 		assertTriggeredRule(t, rule, "test_ebpfless_attach")
 	})
+
+	select {
+	case <-doneCh:
+	case <-time.After(time.Second * 10):
+		t.Error("test timeout")
+	}
 }

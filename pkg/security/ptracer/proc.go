@@ -32,6 +32,23 @@ type ProcProcess struct {
 	CreateTime int64
 }
 
+func collectProcess(pid int32) (*ProcProcess, error) {
+	proc, err := process.NewProcess(pid)
+	if err != nil {
+		return nil, err
+	}
+
+	createTime, err := proc.CreateTime()
+	if err != nil {
+		return nil, err
+	}
+
+	return &ProcProcess{
+		Process:    proc,
+		CreateTime: createTime,
+	}, nil
+}
+
 func collectProcesses(traceePID int32, cache map[int32]int64) ([]*ProcProcess, []int32, error) {
 	pids, err := process.Pids()
 	if err != nil {

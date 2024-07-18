@@ -54,10 +54,12 @@ type Opts struct {
 	ProcScanDisabled bool
 	ScanProcEvery    time.Duration
 	SeccompDisabled  bool
+	AttachedCb       func()
 
 	// internal
-	mode           ebpfless.Mode
-	entryPointArgs []string
+	mode               ebpfless.Mode
+	entryPointArgs     []string
+	capturePtracerProc bool
 }
 
 type syscallHandlerFunc func(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, disableStats bool) error
@@ -181,6 +183,7 @@ func Attach(pid int, probeAddr string, opts Opts) error {
 	}
 
 	opts.mode = ebpfless.AttachedMode
+	opts.capturePtracerProc = true
 
 	return ptrace(tracer, probeAddr, syscallHandlers, logger, opts)
 }
@@ -293,10 +296,7 @@ func ptrace(tracer *Tracer, probeAddr string, syscallHandlers map[int]syscallHan
 		os.Exit(0)
 	}()
 
-	var (
-		msgDataChan    = make(chan []byte, 100000)
-		ctx, cancelFnc = context.WithCancel(context.Background())
-	)
+	msgDataChan := make(chan []byte, 100000)
 
 	send := func(msg *ebpfless.Message) {
 		logger.Debugf("sending message: %s", msg)
@@ -323,6 +323,20 @@ func ptrace(tracer *Tracer, probeAddr string, syscallHandlers map[int]syscallHan
 	// first process
 	process := NewProcess(tracer.PID)
 	pc.Add(tracer.PID, process)
+
+	// collect tracer via proc
+	if opts.capturePtracerProc {
+		proc, err := collectProcess(int32(tracer.PID))
+		if err != nil {
+			return err
+		}
+
+		if msg, err := procToMsg(proc); err == nil {
+			send(msg)
+		}
+	}
+
+	ctx, cancelFnc := context.WithCancel(context.Background())
 
 	if probeAddr == "" {
 		send(&ebpfless.Message{
@@ -612,6 +626,10 @@ func ptrace(tracer *Tracer, probeAddr string, syscallHandlers map[int]syscallHan
 		wg.Wait()
 		close(msgDataChan)
 	}()
+
+	if opts.AttachedCb != nil {
+		opts.AttachedCb()
+	}
 
 	if err := tracer.Trace(cb); err != nil {
 		return err
