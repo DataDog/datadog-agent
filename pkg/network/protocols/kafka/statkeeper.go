@@ -58,7 +58,8 @@ func (statKeeper *StatKeeper) Process(tx *EbpfTx) {
 	}
 
 	latency := tx.RequestLatency()
-	if latency <= 0 {
+	// Currently, we only support measuring latency for fetch operations
+	if key.RequestAPIKey == FetchAPIKey && latency <= 0 {
 		statKeeper.telemetry.invalidLatency.Add(1)
 		return
 	}
