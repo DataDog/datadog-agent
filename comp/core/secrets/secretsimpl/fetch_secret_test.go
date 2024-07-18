@@ -196,20 +196,6 @@ func TestFetchSecretExecError(t *testing.T) {
 	assert.NotNil(t, err)
 }
 
-func checkErrorCountMetric(t *testing.T, tel telemetry.Mock, expected int, errorKind, handle string) {
-	metrics, err := tel.GetCountMetric("secret_backend", "resolve_errors_count")
-	require.NoError(t, err)
-	require.NotEmpty(t, metrics)
-	assert.EqualValues(t, expected, metrics[0].Value())
-	expectedTags := map[string]string{
-		"error_kind": errorKind,
-		"handle":     handle,
-	}
-	assert.NotEqual(t, -1, slices.IndexFunc(metrics, func(m telemetry.Metric) bool {
-		return int(m.Value()) == expected && maps.Equal(m.Tags(), expectedTags)
-	}))
-}
-
 func TestFetchSecretUnmarshalError(t *testing.T) {
 	tel := fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule())
 	resolver := newEnabledSecretResolver(tel)
@@ -265,6 +251,20 @@ func TestFetchSecretEmptyValue(t *testing.T) {
 	assert.NotNil(t, err)
 	assert.Equal(t, "resolved secret for 'handle1' is empty", err.Error())
 	checkErrorCountMetric(t, tel, 2, "empty", "handle1")
+}
+
+func checkErrorCountMetric(t *testing.T, tel telemetry.Mock, expected int, errorKind, handle string) {
+	metrics, err := tel.GetCountMetric("secret_backend", "resolve_errors_count")
+	require.NoError(t, err)
+	require.NotEmpty(t, metrics)
+	assert.EqualValues(t, expected, metrics[0].Value())
+	expectedTags := map[string]string{
+		"error_kind": errorKind,
+		"handle":     handle,
+	}
+	assert.NotEqual(t, -1, slices.IndexFunc(metrics, func(m telemetry.Metric) bool {
+		return int(m.Value()) == expected && maps.Equal(m.Tags(), expectedTags)
+	}))
 }
 
 func TestFetchSecret(t *testing.T) {
