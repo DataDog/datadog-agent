@@ -140,8 +140,8 @@ func (p deploymentParser) Parse(obj interface{}) []workloadmeta.Entity {
 				Kind: workloadmeta.KindKubernetesMetadata,
 				ID:   string(util.GenerateKubeMetadataEntityID("apps", "deployments", deployment.Namespace, deployment.Name)),
 			},
-			EntityMeta: deploymentEntity.EntityMeta,
-			GVR:        p.gvr,
+			// EntityMeta: deploymentEntity.EntityMeta,
+			GVR: p.gvr,
 		},
 	}
 }
