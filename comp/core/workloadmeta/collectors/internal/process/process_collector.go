@@ -39,7 +39,7 @@ type collector struct {
 	processDiffCh <-chan *processwlm.ProcessCacheDiff
 
 	// only used when process checks are disabled
-	processData     *ProcessData
+	processData     *Data
 	pidToCid        map[int]string
 	collectionClock clock.Clock
 }

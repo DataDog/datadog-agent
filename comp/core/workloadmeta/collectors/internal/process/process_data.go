@@ -15,23 +15,23 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 )
 
-// ProcessData collects a basic state of process data such as cmdline args.
+// Data collects a basic state of process data such as cmdline args.
 // This is currently used for metadata extraction from processes. This is a starting point for providing
 // process data across all checks as part of the migration to components.
-type ProcessData struct {
+type Data struct {
 	probe      procutil.Probe
 	extractors []metadata.Extractor
 }
 
 // NewProcessData returns a new ProcessData from the given config
-func NewProcessData() *ProcessData {
-	return &ProcessData{
+func NewProcessData() *Data {
+	return &Data{
 		probe: procutil.NewProcessProbe(),
 	}
 }
 
 // Fetch retrieves process data from the system and notifies registered extractors
-func (p *ProcessData) Fetch() error {
+func (p *Data) Fetch() error {
 	procs, err := p.probe.ProcessesByPID(time.Now(), false)
 
 	if err != nil {
@@ -44,7 +44,7 @@ func (p *ProcessData) Fetch() error {
 }
 
 // Register adds an Extractor which will be notified for metadata extraction
-func (p *ProcessData) Register(e metadata.Extractor) {
+func (p *Data) Register(e metadata.Extractor) {
 	p.extractors = append(p.extractors, e)
 }
 

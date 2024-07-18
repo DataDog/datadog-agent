@@ -34,9 +34,9 @@ import (
 )
 
 // NewProcessDataWithMockProbe returns a new ProcessData with a mock probe
-func NewProcessDataWithMockProbe(t *testing.T) (*ProcessData, *mocks.Probe) {
+func NewProcessDataWithMockProbe(t *testing.T) (*Data, *mocks.Probe) {
 	probe := mocks.NewProbe(t)
-	return &ProcessData{
+	return &Data{
 		probe: probe,
 	}, probe
 }
