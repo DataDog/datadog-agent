@@ -302,40 +302,31 @@ func dumpK8sClusterState(ctx context.Context, kubeconfig *clientcmdapi.Config, o
 		return
 	}
 
-	continueToken := "start"
-	for continueToken != "" {
-		if continueToken == "start" {
-			continueToken = ""
-		}
-		pods, err := k8sClient.CoreV1().Pods("").List(ctx, metav1.ListOptions{
-			Continue: continueToken,
-		})
-		if err != nil {
-			fmt.Fprintf(out, "Failed to list pods: %v\n", err)
-			return
-		}
-		continueToken = pods.Continue
+	pods, err := k8sClient.CoreV1().Pods("").List(ctx, metav1.ListOptions{})
+	if err != nil {
+		fmt.Fprintf(out, "Failed to list pods: %v\n", err)
+		return
+	}
 
-		for _, pod := range pods.Items {
-			for _, containerStatus := range pod.Status.ContainerStatuses {
-				if containerStatus.RestartCount > 0 {
-					fmt.Fprintf(out, "\nLOGS FOR POD %s/%s CONTAINER %s:\n", pod.Namespace, pod.Name, containerStatus.Name)
-					logs, err := k8sClient.CoreV1().Pods(pod.Namespace).GetLogs(pod.Name, &corev1.PodLogOptions{
-						Container: containerStatus.Name,
-						Previous:  true,
-						TailLines: pointer.Ptr(int64(20)),
-					}).Stream(ctx)
-					if err != nil {
-						fmt.Fprintf(out, "Failed to get logs: %v\n", err)
-						continue
-					}
-					defer logs.Close()
+	for _, pod := range pods.Items {
+		for _, containerStatus := range pod.Status.ContainerStatuses {
+			if containerStatus.RestartCount > 0 {
+				fmt.Fprintf(out, "\nLOGS FOR POD %s/%s CONTAINER %s:\n", pod.Namespace, pod.Name, containerStatus.Name)
+				logs, err := k8sClient.CoreV1().Pods(pod.Namespace).GetLogs(pod.Name, &corev1.PodLogOptions{
+					Container: containerStatus.Name,
+					Previous:  true,
+					TailLines: pointer.Ptr(int64(100)),
+				}).Stream(ctx)
+				if err != nil {
+					fmt.Fprintf(out, "Failed to get logs: %v\n", err)
+					continue
+				}
+				defer logs.Close()
 
-					_, err = io.Copy(out, logs)
-					if err != nil {
-						fmt.Fprintf(out, "Failed to copy logs: %v\n", err)
-						continue
-					}
+				_, err = io.Copy(out, logs)
+				if err != nil {
+					fmt.Fprintf(out, "Failed to copy logs: %v\n", err)
+					continue
 				}
 			}
 		}
