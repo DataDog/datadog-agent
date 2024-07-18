@@ -9,7 +9,7 @@ from collections import defaultdict
 
 import gitlab
 import yaml
-from gitlab.v4.objects import ProjectJob
+from gitlab.v4.objects import ProjectCommit, ProjectJob, ProjectPipeline
 from invoke.context import Context
 
 from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
@@ -121,7 +121,7 @@ def get_pr_from_commit(commit_title, project_title) -> tuple[str, str] | None:
     return parsed_pr_id, f"{DATADOG_AGENT_GITHUB_ORG_URL}/{project_title}/pull/{parsed_pr_id}"
 
 
-def base_message(project_name, pipeline, commit, header, state):
+def base_message(project_name: str, pipeline: ProjectPipeline, commit: ProjectCommit, header: str, state: str):
     commit_title = commit.title
     pipeline_url = pipeline.web_url
     pipeline_id = pipeline.id
