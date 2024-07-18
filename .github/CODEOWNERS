@@ -534,7 +534,9 @@
 /tasks/updater.py                       @DataDog/fleet
 /tasks/libs/common/omnibus.py           @DataDog/agent-delivery
 /tasks/omnibus.py                       @DataDog/agent-delivery
+/tasks/unit-tests/components_tests.py   @DataDog/agent-shared-components
 /tasks/unit-tests/omnibus_tests.py      @DataDog/agent-delivery
+/tasks/unit-tests/testdata/components_src/ @DataDog/agent-shared-components
 /tasks/installer.py                     @DataDog/fleet
 /test/                                  @DataDog/agent-devx-loops
 /test/benchmarks/                       @DataDog/agent-metrics-logs
