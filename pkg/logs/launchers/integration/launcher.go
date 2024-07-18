@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package integration creates a launcher to track logs from integrations
 package integration
 
 import (
@@ -24,19 +25,23 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
 )
 
+// Launcher checks for launcher integrations, creates files for integrations to
+// write logs to, then creates file sources for the file launcher to tail
 type Launcher struct {
-	sources               *sources.LogSources
-	piplineProvider       pipeline.Provider
-	registry              auditor.Registry
-	addedSources          chan *sources.LogSource
-	removedSources        chan *sources.LogSource
-	stop                  chan struct{}
-	done                  chan struct{}
-	runPath               string
-	integrationsLogs      chan integrations.IntegrationLog
-	integrationsLogsComp  integrations.Component
-	integrationToFile     map[string]string
-	integrationToFileSize map[string]uint64
+	sources              *sources.LogSources
+	piplineProvider      pipeline.Provider
+	registry             auditor.Registry
+	addedSources         chan *sources.LogSource
+	removedSources       chan *sources.LogSource
+	stop                 chan struct{}
+	done                 chan struct{}
+	runPath              string
+	integrationsLogs     chan integrations.IntegrationLog
+	integrationsLogsComp integrations.Component
+	integrationToFile    map[string]string
+	// writeLogToFile is used as a function pointer so it can be overridden in
+	// testing to make deterministic tests
+	writeFunction func(filepath, log string)
 }
 
 // NewLauncher returns a new launcher
