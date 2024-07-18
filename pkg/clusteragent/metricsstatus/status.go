@@ -13,22 +13,13 @@ import (
 	"embed"
 	"io"
 
-	datadogclient "github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient/def"
-	datadogclientimpl "github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient/impl"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 )
 
 // Provider provides the functionality to populate the status output
-type Provider struct {
-	dc datadogclient.Component
-}
-
-// GetProvider returns a new provider for metricsstatus
-func GetProvider(dogCl datadogclient.Component) Provider {
-	return Provider{dc: dogCl}
-}
+type Provider struct{}
 
 //go:embed status_templates
 var templatesFS embed.FS
@@ -45,14 +36,14 @@ func (p Provider) Section() string {
 
 // JSON populates the status map
 func (p Provider) JSON(_ bool, stats map[string]interface{}) error {
-	populateStatus(p.dc, stats)
+	populateStatus(stats)
 
 	return nil
 }
 
 // Text renders the text output
 func (p Provider) Text(_ bool, buffer io.Writer) error {
-	return status.RenderText(templatesFS, "custommetrics.tmpl", buffer, getStatusInfo(p.dc))
+	return status.RenderText(templatesFS, "custommetrics.tmpl", buffer, getStatusInfo())
 }
 
 // HTML renders the html output
@@ -60,21 +51,19 @@ func (p Provider) HTML(_ bool, _ io.Writer) error {
 	return nil
 }
 
-func populateStatus(dc datadogclient.Component, stats map[string]interface{}) {
+func populateStatus(stats map[string]interface{}) {
 	apiCl, apiErr := apiserver.GetAPIClient()
 	if apiErr != nil {
 		stats["custommetrics"] = map[string]string{"Error": apiErr.Error()}
 	} else {
 		stats["custommetrics"] = custommetrics.GetStatus(apiCl.Cl)
 	}
-
-	stats["externalmetrics"] = datadogclientimpl.GetStatus(dc)
 }
 
-func getStatusInfo(dc datadogclient.Component) map[string]interface{} {
+func getStatusInfo() map[string]interface{} {
 	stats := make(map[string]interface{})
 
-	populateStatus(dc, stats)
+	populateStatus(stats)
 
 	return stats
 }

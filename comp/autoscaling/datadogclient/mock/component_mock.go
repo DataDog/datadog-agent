@@ -7,11 +7,15 @@
 
 package datadogclient
 
-import "gopkg.in/zorkian/go-datadog-api.v2"
+import (
+	"gopkg.in/zorkian/go-datadog-api.v2"
+
+	datadogclient "github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient/def"
+)
 
 // MockComponent implements mock-specific methods.
 type MockComponent interface {
-	Component
+	datadogclient.Component
 	SetQueryMetricsFunc(queryMetricsFunc func(from, to int64, query string) ([]datadog.Series, error))
 	SetGetRateLimitsFunc(getRateLimitsFunc func() map[string]datadog.RateLimit)
 }

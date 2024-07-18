@@ -162,15 +162,13 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					status.Params{
 						PythonVersionGetFunc: python.GetPythonVersion,
 					},
+					status.NewInformationProvider(clusteragentMetricsStatus.Provider{}),
 					status.NewInformationProvider(leaderelection.Provider{}),
 					status.NewInformationProvider(admissionpkg.Provider{}),
 					status.NewInformationProvider(endpointsStatus.Provider{}),
 					status.NewInformationProvider(clusterchecks.Provider{}),
 					status.NewInformationProvider(orchestratorStatus.Provider{}),
 				),
-				fx.Provide(func(dogCl datadogclient.Component) status.InformationProvider {
-					return status.NewInformationProvider(clusteragentMetricsStatus.GetProvider(dogCl))
-				}),
 				fx.Provide(func(config config.Component) status.HeaderInformationProvider {
 					return status.NewHeaderInformationProvider(hostnameStatus.NewProvider(config))
 				}),

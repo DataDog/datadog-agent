@@ -9,11 +9,11 @@ package fxdatadogclient
 import (
 	datadogclientimpl "github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"go.uber.org/fx"
 )
 
 // Module defines the fx options for this component.
 func Module() fxutil.Module {
 	return fxutil.Component(
-		fx.Provide(datadogclientimpl.NewDatadogClient))
+		fxutil.ProvideComponentConstructor(datadogclientimpl.NewComponent),
+	)
 }

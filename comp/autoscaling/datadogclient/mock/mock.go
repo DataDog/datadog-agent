@@ -10,10 +10,10 @@ package mock
 
 import (
 	"sync"
-	"testing"
+
+	"gopkg.in/zorkian/go-datadog-api.v2"
 
 	datadogclient "github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient/def"
-	"gopkg.in/zorkian/go-datadog-api.v2"
 )
 
 type mockDatadogClient struct {
@@ -55,7 +55,7 @@ func (d *mockDatadogClient) SetGetRateLimitsFunc(getRateLimitsFunc func() map[st
 }
 
 // NewMock returns a new mock datadogclient component
-func NewMock(*testing.T) datadogclient.MockComponent {
+func NewMock() datadogclient.MockComponent {
 	m := &mockDatadogClient{}
 	return m
 }
