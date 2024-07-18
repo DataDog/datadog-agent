@@ -56,8 +56,6 @@ func Test_getBucketIndex(t *testing.T) {
 }
 
 func TestTelemetry_Count(t *testing.T) {
-	t.Skip("Skipping test will be fixed")
-
 	tests := []struct {
 		name              string
 		query             string
@@ -69,52 +67,52 @@ func TestTelemetry_Count(t *testing.T) {
 			tx: []*EbpfEvent{
 				{
 					Tx: EbpfTx{
-						Original_query_size: 19,
+						Original_query_size: 100,
 					},
 				},
 				{
 					Tx: EbpfTx{
-						Original_query_size: 35,
+						Original_query_size: 131,
 					},
 				},
 				{
 					Tx: EbpfTx{
-						Original_query_size: 64,
+						Original_query_size: 146,
 					},
 				},
 				{
 					Tx: EbpfTx{
-						Original_query_size: 65,
+						Original_query_size: 161,
 					},
 				},
 				{
 					Tx: EbpfTx{
-						Original_query_size: 80,
+						Original_query_size: 176,
 					},
 				},
 				{
 					Tx: EbpfTx{
-						Original_query_size: 95,
+						Original_query_size: 191,
 					},
 				},
 				{
 					Tx: EbpfTx{
-						Original_query_size: 110,
+						Original_query_size: 206,
 					},
 				},
 				{
 					Tx: EbpfTx{
-						Original_query_size: 125,
+						Original_query_size: 221,
 					},
 				},
 				{
 					Tx: EbpfTx{
-						Original_query_size: 140,
+						Original_query_size: 236,
 					},
 				},
 				{
 					Tx: EbpfTx{
-						Original_query_size: 200,
+						Original_query_size: 251,
 					},
 				},
 			},
