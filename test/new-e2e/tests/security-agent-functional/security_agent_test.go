@@ -54,7 +54,7 @@ func (v *vmSuite) SetupSuite() {
 	v.testspath = filepath.Join(kitchenDir, "dd-security-agent-check", "files", "tests")
 }
 
-func (v *vmSuite) TestSystemProbeSuite() {
+func (v *vmSuite) TestSystemProbeCWSSuite() {
 	v.BaseSuite.SetupSuite()
 	t := v.T()
 	// get the remote host
