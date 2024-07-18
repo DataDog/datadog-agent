@@ -216,8 +216,12 @@ func TestFetchSecretUnmarshalError(t *testing.T) {
 	resolver.commandHookFunc = func(string) ([]byte, error) { return []byte("{"), nil }
 	_, err := resolver.fetchSecret([]string{"handle1", "handle2"})
 	assert.NotNil(t, err)
-	checkErrorCountMetric(t, tel, 1, "unmarshal", "handle1")
-	checkErrorCountMetric(t, tel, 1, "unmarshal", "handle2")
+
+	metrics, err := tel.GetCountMetric("secret_backend", "unmarshal_errors_count")
+	require.NoError(t, err)
+	require.Len(t, metrics, 1)
+	assert.Equal(t, map[string]string{}, metrics[0].Tags())
+	assert.EqualValues(t, 1, metrics[0].Value())
 }
 
 func TestFetchSecretMissingSecret(t *testing.T) {

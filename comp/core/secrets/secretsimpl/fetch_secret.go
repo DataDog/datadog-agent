@@ -121,9 +121,7 @@ func (r *secretResolver) fetchSecret(secretsHandle []string) (map[string]string,
 	secrets := map[string]secrets.SecretVal{}
 	err = json.Unmarshal(output, &secrets)
 	if err != nil {
-		for _, sec := range secretsHandle {
-			r.tlmSecretResolveError.Inc("unmarshal", sec)
-		}
+		r.tlmSecretUnmarshalError.Inc()
 		return nil, fmt.Errorf("could not unmarshal 'secret_backend_command' output: %s", err)
 	}
 
