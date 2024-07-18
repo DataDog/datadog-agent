@@ -110,7 +110,7 @@ func (r *RequestStats) CombineWith(newStats *RequestStats) {
 
 			// If we have a latency sample in this bucket we now add it to the DDSketch
 			if stats.FirstLatencySample != 0 {
-				err := stats.Latencies.Add(stats.FirstLatencySample)
+				err := stats.Latencies.AddWithCount(stats.FirstLatencySample, float64(stats.Count))
 				if err != nil {
 					log.Debugf("could not add kafka request latency to ddsketch: %v", err)
 				}
@@ -149,11 +149,11 @@ func (r *RequestStats) AddRequest(errorCode int32, count int, staticTags uint64,
 		}
 
 		// Add the deferred latency sample
-		if err := stats.Latencies.Add(stats.FirstLatencySample); err != nil {
+		if err := stats.Latencies.AddWithCount(stats.FirstLatencySample, float64(stats.Count)); err != nil {
 			log.Debugf("could not add request latency to ddsketch: %v", err)
 		}
 	}
-	if err := stats.Latencies.Add(latency); err != nil {
+	if err := stats.Latencies.AddWithCount(latency, float64(count)); err != nil {
 		log.Debugf("could not add request latency to ddsketch: %v", err)
 	}
 }
