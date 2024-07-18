@@ -441,7 +441,7 @@ func (p *EBPFLessProbe) handleNewClient(conn net.Conn, ch chan clientMsg) {
 			msg.Reset()
 			if err := p.readMsg(conn, &msg.Message); err != nil {
 				if errors.Is(err, io.EOF) {
-					seclog.Debugf("connection closed by client: %v", conn.RemoteAddr())
+					seclog.Warnf("connection closed by client: %v", conn.RemoteAddr())
 				} else {
 					seclog.Warnf("error while reading message: %v", err)
 				}
