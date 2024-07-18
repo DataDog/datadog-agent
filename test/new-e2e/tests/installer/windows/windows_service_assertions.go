@@ -7,7 +7,6 @@ package installerwindows
 
 import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
-	"github.com/stretchr/testify/assert"
 )
 
 // WindowsServiceAssertions represents fluent assertions for a Windows service
@@ -17,21 +16,24 @@ type WindowsServiceAssertions struct {
 }
 
 // WithStatus asserts that the service has the given status.
-func (serviceAssertions *WindowsServiceAssertions) WithStatus(status string) *WindowsServiceAssertions {
-	status, err := common.GetServiceStatus(serviceAssertions.env.RemoteHost, serviceAssertions.serviceConfig.ServiceName)
-	assert.NoError(serviceAssertions.testing, err)
-	assert.Equal(serviceAssertions.testing, status, status)
-	return serviceAssertions
+func (require *WindowsServiceAssertions) WithStatus(status string) *WindowsServiceAssertions {
+	require.testing.Helper()
+	status, err := common.GetServiceStatus(require.env.RemoteHost, require.serviceConfig.ServiceName)
+	require.NoError(err)
+	require.Equal(status, status)
+	return require
 }
 
 // WithLogon asserts that the service runs under the given logon (username).
-func (serviceAssertions *WindowsServiceAssertions) WithLogon(logon string) *WindowsServiceAssertions {
-	assert.Equal(serviceAssertions.testing, logon, serviceAssertions.serviceConfig.UserName)
-	return serviceAssertions
+func (require *WindowsServiceAssertions) WithLogon(logon string) *WindowsServiceAssertions {
+	require.testing.Helper()
+	require.Equal(logon, require.serviceConfig.UserName)
+	return require
 }
 
 // WithUserSid asserts that the service runs under the given SID.
-func (serviceAssertions *WindowsServiceAssertions) WithUserSid(sid string) *WindowsServiceAssertions {
-	assert.Equal(serviceAssertions.testing, sid, serviceAssertions.serviceConfig.UserSID)
-	return serviceAssertions
+func (require *WindowsServiceAssertions) WithUserSid(sid string) *WindowsServiceAssertions {
+	require.testing.Helper()
+	require.Equal(sid, require.serviceConfig.UserSID)
+	return require
 }

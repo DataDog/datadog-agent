@@ -58,7 +58,7 @@ func WithInstallUrl(url string) func(*Configuration) error {
 // NewConfig creates a default config
 func NewConfig(env aws.Environment, options ...Option) (*Configuration, error) {
 	if env.PipelineID() != "" {
-		artifactUrl, err := pipeline.GetArtifact(env.PipelineID(), pipeline.AgentS3BucketTesting, pipeline.DefaultMajorVersion, func(artifact string) bool {
+		artifactUrl, err := pipeline.GetPipelineArtifact(env.PipelineID(), pipeline.AgentS3BucketTesting, pipeline.DefaultMajorVersion, func(artifact string) bool {
 			return strings.Contains(artifact, "datadog-installer")
 		})
 		if err != nil {

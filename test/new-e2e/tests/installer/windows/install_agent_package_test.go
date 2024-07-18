@@ -25,15 +25,15 @@ func TestAgentInstalls(t *testing.T) {
 }
 
 func (suite *testAgentInstallSuite) TestInstallAgentPackage() {
-	suite.T().Run("install the Agent package", func(t *testing.T) {
-		_, err := suite.installer.InstallPackage(AgentPackage)
-		suite.Require().NoError(err)
-		suite.Require().Host().HasADatadogAgent()
+	suite.Run("install the Agent package", func() {
+		output, err := suite.installer.InstallPackage(AgentPackage)
+		suite.Require().NoErrorf(err, "failed to install the Datadog Agent package: %s", output)
+		suite.Require().Host().HasARunningDatadogAgentService()
 	})
 
-	suite.T().Run("uninstall the Agent package", func(t *testing.T) {
-		_, err := suite.installer.Purge()
-		suite.Require().NoError(err)
-		suite.Require().Host().HasNoDatadogAgent()
+	suite.Run("uninstall the Agent package", func() {
+		output, err := suite.installer.RemovePackage(AgentPackage)
+		suite.Require().NoErrorf(err, "failed to purge the Datadog Agent package: %s", output)
+		suite.Require().Host().HasNoDatadogAgentService()
 	})
 }

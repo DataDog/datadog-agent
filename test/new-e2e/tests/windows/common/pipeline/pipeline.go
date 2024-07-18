@@ -26,11 +26,11 @@ const (
 	StableURL                     = "https://ddagent-windows-stable.s3.amazonaws.com/installers_v2.json"
 )
 
-// GetArtifact searches a public S3 bucket for a given artifact from a Gitlab pipeline
+// GetPipelineArtifact searches a public S3 bucket for a given artifact from a Gitlab pipeline
 // majorVersion = [6,7]
 // predicate = A function taking the artifact name (from github.com/aws/aws-sdk-go-v2/service/s3/types.Object.Key)
 // and that returns true when the artifact matches.
-func GetArtifact(pipelineID, bucket, majorVersion string, predicate func(string) bool) (string, error) {
+func GetPipelineArtifact(pipelineID, bucket, majorVersion string, predicate func(string) bool) (string, error) {
 	config, err := awsConfig.LoadDefaultConfig(context.Background(), awsConfig.WithCredentialsProvider(aws.AnonymousCredentials{}))
 	if err != nil {
 		return "", err

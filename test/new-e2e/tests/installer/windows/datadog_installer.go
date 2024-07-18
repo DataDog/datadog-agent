@@ -11,15 +11,20 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/optional"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer"
 	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent/installers/v2"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/pipeline"
 	e2eos "github.com/DataDog/test-infra-definitions/components/os"
+	"path"
 	"strings"
 )
 
 const (
-	AgentPackage string = "agent-package"
+	AgentPackage        string = "agent-package"
+	InstallerPath       string = "C:\\Program Files\\Datadog\\Datadog Installer"
+	InstallerBinaryName string = "datadog-installer.exe"
 )
 
 type datadogInstaller struct {
@@ -31,7 +36,7 @@ type datadogInstaller struct {
 // on a remote Windows host.
 func NewDatadogInstaller(env *environments.WindowsHost) *datadogInstaller {
 	return &datadogInstaller{
-		binaryPath: "C:\\Program Files\\Datadog\\Datadog Installer\\datadog-installer.exe",
+		binaryPath: path.Join(InstallerPath, InstallerBinaryName),
 		env:        env,
 	}
 }
@@ -77,19 +82,61 @@ func (d *datadogInstaller) InstallPackage(packageName string) (string, error) {
 	return d.execute(fmt.Sprintf("install %s", packageUrl), client.WithEnvVariables(envVars))
 }
 
-// Install will attempt to install the Datadog Installer on the remote host.
-// By default, it will use the installer from the current pipeline.
-func (d *datadogInstaller) Install() error {
-	artifactUrl, err := pipeline.GetArtifact(d.env.AwsEnvironment.PipelineID(), pipeline.AgentS3BucketTesting, pipeline.DefaultMajorVersion, func(artifact string) bool {
-		return strings.Contains(artifact, "datadog-installer")
-	})
-	if err != nil {
-		return err
-	}
-	return windowsCommon.InstallMSI(d.env.RemoteHost, artifactUrl, "", "")
+// RemovePackage requests that the Datadog Installer removes a package on the remote host.
+func (d *datadogInstaller) RemovePackage(packageName string) (string, error) {
+	return d.execute(fmt.Sprintf("remove %s", packageName))
 }
 
-// Purge purges the Datadog Installer of all installed packages
-func (d *datadogInstaller) Purge() (string, error) {
-	return d.execute(fmt.Sprintf("purge"))
+type installerParams struct {
+	installerUrl string
+}
+
+type installerOption func(*installerParams) error
+
+// WithInstallerUrl uses a specific URL for the Datadog Installer instead of using the pipeline URL.
+func WithInstallerUrl(installerUrl string) installerOption {
+	return func(params *installerParams) error {
+		params.installerUrl = installerUrl
+		return nil
+	}
+}
+
+// WithInstallerUrlFromInstallersJson uses a specific URL for the Datadog Installer from an installers_v2.json
+// file.
+// bucket: The S3 bucket to look for the installers_v2.json file, i.e. "dd-agent-mstesting"
+// channel: The channel in the bucket, i.e. "stable"
+// version: The artifact version to retrieve, i.e. "7.56.0-installer-0.4.5-1"
+//
+// Example: WithInstallerUrlFromInstallersJson("dd-agent-mstesting", "stable", "7.56.0-installer-0.4.5-1")
+// will look into "https://s3.amazonaws.com/dd-agent-mstesting/builds/stable/installers_v2.json" for the Datadog Installer
+// version "7.56.0-installer-0.4.5-1"
+func WithInstallerUrlFromInstallersJson(bucket, channel, version string) installerOption {
+	return func(params *installerParams) error {
+		url, err := installers.GetProductURL(fmt.Sprintf("https://s3.amazonaws.com/%s/builds/%s/installers_v2.json", bucket, channel), "datadog-installer", version, "x86_64")
+		if err != nil {
+			return err
+		}
+		params.installerUrl = url
+		return nil
+	}
+}
+
+// Install will attempt to install the Datadog Installer on the remote host.
+// By default, it will use the installer from the current pipeline.
+func (d *datadogInstaller) Install(opts ...installerOption) error {
+	params := installerParams{}
+	err := optional.ApplyOptions(&params, opts)
+	if err != nil {
+		return nil
+	}
+	if params.installerUrl == "" {
+		artifactUrl, err := pipeline.GetPipelineArtifact(d.env.AwsEnvironment.PipelineID(), pipeline.AgentS3BucketTesting, pipeline.DefaultMajorVersion, func(artifact string) bool {
+			return strings.Contains(artifact, "datadog-installer")
+		})
+		if err != nil {
+			return err
+		}
+		params.installerUrl = artifactUrl
+	}
+	return windowsCommon.InstallMSI(d.env.RemoteHost, params.installerUrl, "", "")
 }
