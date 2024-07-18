@@ -682,6 +682,7 @@ func Test_npCollectorImpl_sendTelemetry(t *testing.T) {
 func Benchmark_npCollectorImpl_ScheduleConns(b *testing.B) {
 	agentConfigs := map[string]any{
 		"network_path.connections_monitoring.enabled": true,
+		"network_path.collector.workers":              50,
 	}
 
 	file, err := os.OpenFile("benchmark.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
@@ -700,61 +701,33 @@ func Benchmark_npCollectorImpl_ScheduleConns(b *testing.B) {
 	assert.True(b, npCollector.running)
 
 	// Generate 50 random connections
-	connections := createBenchmarkConns(50, 50)
+	connections := createBenchmarkConns(500, 100)
 
 	b.ResetTimer() // Reset timer after setup
 
 	for i := 0; i < b.N; i++ {
 		npCollector.ScheduleConns(connections)
 
-		timeoutChan := time.After(60 * time.Second)
-		tick := time.NewTicker(100 * time.Millisecond)
-		defer tick.Stop()
-		for {
-			select {
-			case <-timeoutChan:
-				b.Logf("We've timed out!")
-				return
-			case <-tick.C:
-				if npCollector.processedTracerouteCount.Load() >= 50 {
-					b.Logf("We've processed all pathtests!")
-					return
-				}
-			}
-		}
-	}
+		//timeoutChan := time.After(60 * time.Second)
+		//tick := time.NewTicker(100 * time.Millisecond)
+		//defer tick.Stop()
 
-	//waitForProcessedPathtests(npCollector, 60*time.Second, 50)
+		waitForProcessedPathtests(npCollector, 60*time.Second, 50)
+		// for {
+		// 	select {
+		// 	case <-timeoutChan:
+		// 		b.Logf("We've timed out!")
+		// 		return
+		// 	case <-tick.C:
+		// 		if npCollector.processedTracerouteCount.Load() >= 50 {
+		// 			b.Logf("We've processed all pathtests!")
+		// 			return
+		// 		}
+		// 	}
+		// }
+	}
 
 	// TEST STOP
 	app.RequireStop()
 	assert.False(b, npCollector.running)
 }
-
-// func Benchmark_npCollectorImpl_ScheduleOne(b *testing.B) {
-// 	agentConfigs := map[string]interface{}{
-// 		"network_path.connections_monitoring.enabled": true,
-// 	}
-// 	_, npCollector := newTestNpCollector(b, agentConfigs)
-
-// 	// Base parameters
-// 	baseHostname := "example.com"
-// 	basePort := uint16(30000) // Starting port
-// 	protocols := []string{"tcp", "udp"}
-// 	baseContainerID := "container"
-
-// 	b.ResetTimer() // Reset timer after setup
-
-// 	for i := 0; i < b.N; i++ {
-// 		// Generate unique parameters for each iteration
-// 		hostname := fmt.Sprintf("%s-%d", baseHostname, i)
-// 		port := basePort + uint16(i%65535) // Ensure port number wraps within valid range
-// 		protocol := protocols[i%2]         // Alternate between "tcp" and "udp"
-// 		sourceContainerID := fmt.Sprintf("%s-%d", baseContainerID, i)
-
-// 		err := npCollector.scheduleOne(hostname, port, protocol, sourceContainerID)
-// 		if err != nil {
-// 			b.Fatal("Error scheduling pathtest:", err)
-// 		}
-// 	}
-// }
