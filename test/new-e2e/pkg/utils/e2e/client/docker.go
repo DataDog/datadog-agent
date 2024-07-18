@@ -109,7 +109,7 @@ func (docker *Docker) ExecuteCommandStdoutStdErr(containerName string, commands 
 	stderr = errBuf.String()
 
 	if execInspectResp.ExitCode != 0 {
-		return "", "", fmt.Errorf("error when running command %v on container %v, containerID %v:\n   exit code: %d\n   stdout: %v\n   stderr: %v", commands, containerName, "vvvvvv", execInspectResp.ExitCode, stdout, stderr)
+		return "", "", fmt.Errorf("error when running command %v on container %v:\n   exit code: %d\n   stdout: %v\n   stderr: %v", commands, containerName, execInspectResp.ExitCode, stdout, stderr)
 	}
 
 	return stdout, stderr, err
