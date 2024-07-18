@@ -103,8 +103,6 @@ func adjustNetwork(cfg config.Config) {
 		disableConfigs = append(disableConfigs, []struct{ key, reason string }{
 			{spNS("enable_conntrack_all_namespaces"), notSupportedEbpfless},
 			{netNS("enable_protocol_classification"), notSupportedEbpfless},
-			{netNS("enable_http_monitoring"), notSupportedEbpfless},
-			{netNS("enable_https_monitoring"), notSupportedEbpfless},
 			{evNS("network_process", "enabled"), notSupportedEbpfless},
 			{netNS("enable_root_netns"), notSupportedEbpfless}}...,
 		)
