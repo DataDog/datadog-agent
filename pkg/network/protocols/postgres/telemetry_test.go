@@ -20,38 +20,38 @@ type telemetryResults struct {
 	failedOperationExtraction int64
 }
 
-//func Test_getBucketIndex(t *testing.T) {
-//	for i := 0; i <= 34; i++ {
-//		require.Equal(t, 0, getBucketIndex(i))
-//	}
-//	for i := 35; i <= 49; i++ {
-//		require.Equal(t, 1, getBucketIndex(i))
-//	}
-//	for i := 50; i <= 64; i++ {
-//		require.Equal(t, 2, getBucketIndex(i))
-//	}
-//	for i := 65; i <= 79; i++ {
-//		require.Equal(t, 3, getBucketIndex(i))
-//	}
-//	for i := 80; i <= 94; i++ {
-//		require.Equal(t, 4, getBucketIndex(i))
-//	}
-//	for i := 95; i <= 109; i++ {
-//		require.Equal(t, 5, getBucketIndex(i))
-//	}
-//	for i := 110; i <= 124; i++ {
-//		require.Equal(t, 6, getBucketIndex(i))
-//	}
-//	for i := 125; i <= 139; i++ {
-//		require.Equal(t, 7, getBucketIndex(i))
-//	}
-//	for i := 140; i <= 154; i++ {
-//		require.Equal(t, 8, getBucketIndex(i))
-//	}
-//	for i := 155; i <= 1000; i++ {
-//		require.Equal(t, 9, getBucketIndex(i))
-//	}
-//}
+func Test_getBucketIndex(t *testing.T) {
+	for i := 0; i <= 34; i++ {
+		require.Equal(t, 0, getBucketIndex(i))
+	}
+	for i := 35; i <= 49; i++ {
+		require.Equal(t, 1, getBucketIndex(i))
+	}
+	for i := 50; i <= 64; i++ {
+		require.Equal(t, 2, getBucketIndex(i))
+	}
+	for i := 65; i <= 79; i++ {
+		require.Equal(t, 3, getBucketIndex(i))
+	}
+	for i := 80; i <= 94; i++ {
+		require.Equal(t, 4, getBucketIndex(i))
+	}
+	for i := 95; i <= 109; i++ {
+		require.Equal(t, 5, getBucketIndex(i))
+	}
+	for i := 110; i <= 124; i++ {
+		require.Equal(t, 6, getBucketIndex(i))
+	}
+	for i := 125; i <= 139; i++ {
+		require.Equal(t, 7, getBucketIndex(i))
+	}
+	for i := 140; i <= 154; i++ {
+		require.Equal(t, 8, getBucketIndex(i))
+	}
+	for i := 155; i <= 1000; i++ {
+		require.Equal(t, 9, getBucketIndex(i))
+	}
+}
 
 func TestTelemetry_Count(t *testing.T) {
 	tests := []struct {
