@@ -26,6 +26,7 @@ func NSTimestampToFloat(ns uint64) float64 {
 	return math.Float64frombits(b)
 }
 
+// GetSketchQuantile returns the value at the given percentile in the sketch
 func GetSketchQuantile(sketch *ddsketch.DDSketch, percentile float64) float64 {
 	if sketch == nil {
 		return 0.0
