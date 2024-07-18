@@ -23,7 +23,7 @@
     - crane flatten -t ${TARGET_TAG} ${TARGET_TAG}
   # Workaround for temporary network failures
   retry: 2
-  timeout: 45m
+  timeout: 30m
 
 .docker_build_job_definition_amd64:
   extends: .docker_build_job_definition
