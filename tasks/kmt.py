@@ -15,6 +15,7 @@ from glob import glob
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
+import yaml
 from invoke.context import Context
 from invoke.tasks import task
 
@@ -43,6 +44,7 @@ from tasks.kernel_matrix_testing.vars import KMT_SUPPORTED_ARCHS, KMTPaths
 from tasks.libs.build.ninja import NinjaWriter
 from tasks.libs.common.utils import get_build_flags
 from tasks.libs.pipeline.tools import loop_status
+from tasks.libs.releasing.version import VERSION_RE, check_version
 from tasks.libs.types.arch import Arch, KMTArchName
 from tasks.security_agent import build_functional_tests, build_stress_tests
 from tasks.system_probe import (
@@ -225,8 +227,34 @@ def launch_stack(
     x86_ami: str = X86_AMI_ID_SANDBOX,
     arm_ami: str = ARM_AMI_ID_SANDBOX,
     provision_microvms: bool = True,
+    provision_script: str | None = None,
 ):
+    stack = check_and_get_stack(stack)
+    if not stacks.stack_exists(stack):
+        raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.create-stack --stack=<name>'")
+
     stacks.launch_stack(ctx, stack, ssh_key, x86_ami, arm_ami, provision_microvms)
+    if provision_script is not None:
+        provision_stack(ctx, provision_script, stack, ssh_key)
+
+
+@task
+def provision_stack(
+    ctx: Context,
+    provision_script: str,
+    stack: str | None = None,
+    ssh_key: str | None = None,
+):
+    stack = check_and_get_stack(stack)
+    if not stacks.stack_exists(stack):
+        raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.create-stack --stack=<name>'")
+
+    ssh_key_obj = try_get_ssh_key(ctx, ssh_key)
+    infra = build_infrastructure(stack, ssh_key_obj)
+    for arch in infra:
+        for domain in infra[arch].microvms:
+            domain.copy(ctx, provision_script, "/tmp/provision.sh")
+            domain.run_cmd(ctx, "chmod +x /tmp/provision.sh && /tmp/provision.sh", verbose=True)
 
 
 @task
@@ -1074,12 +1102,11 @@ def build_layout(ctx, domains, layout: str, verbose: bool):
         todo: DependenciesLayout = cast('DependenciesLayout', json.load(lf))
 
     for d in domains:
-        mkdir = []
-        for dirs in todo["layout"]:
-            mkdir.append(f"mkdir -p {dirs} &&")
+        info(f"[+] apply layout to vm {d.name}")
 
-        cmd = ' '.join(mkdir)
-        d.run_cmd(ctx, cmd.rstrip('&'), verbose)
+        cmd = ' && '.join(f'mkdir -p {dirs}' for dirs in todo["layout"])
+        if len(cmd) > 0:
+            d.run_cmd(ctx, cmd.rstrip('&'), verbose)
 
         for src, dst in todo["copy"].items():
             if not os.path.exists(src):
@@ -1099,6 +1126,7 @@ def build_layout(ctx, domains, layout: str, verbose: bool):
         "verbose": "Enable full output of all commands executed",
         "arch": "Architecture to build the system-probe for",
         "layout": "Path to file specifying the expected layout on the target VMs",
+        "override_agent": "Assume that the datadog-agent has been installed with `kmt.install-ddagent`, and replace the system-probe binary in its package with a local build. This also overrides the configuration files as defined in tasks/kernel-matrix-testing/build-layout.json",
     }
 )
 def build(
@@ -1111,6 +1139,7 @@ def build(
     component: Component = "system-probe",
     layout: str = "tasks/kernel_matrix_testing/build-layout.json",
     compile_only=False,
+    override_agent=False,
 ):
     stack = check_and_get_stack(stack)
     assert stacks.stack_exists(
@@ -1156,7 +1185,12 @@ def build(
 
     build_layout(ctx, domains, layout, verbose)
     for d in domains:
-        d.copy(ctx, f"./bin/{component}", "/root/")
+        if override_agent:
+            d.run_cmd(ctx, f"[ -f /opt/datadog-agent/embedded/bin/{component} ]", verbose=False)
+            d.copy(ctx, f"./bin/{component}/{component}", "/opt/datadog-agent/embedded/bin/{component}")
+        else:
+            d.copy(ctx, f"./bin/{component}", "/root/")
+
         d.copy(ctx, f"kmt-deps/{stack}/build-embedded-dir.tar", "/")
         d.run_cmd(ctx, "tar xf /build-embedded-dir.tar -C /", verbose=verbose)
         info(f"[+] {component} built for {d.name} @ /root")
@@ -1937,3 +1971,90 @@ def wait_for_setup_job(ctx: Context, pipeline_id: int, arch: str | Arch, compone
 
     loop_status(_check_status, timeout_sec=timeout_sec)
     info(f"[+] Setup job {setup_job.name} finished with status {setup_job.status}")
+
+
+# by default the PyYaml dumper does not indent lists correctly using to problem when
+# starting the agent. The following solution is taken from
+# https://stackoverflow.com/questions/25108581/python-yaml-dump-bad-indentation
+class IndentedDumper(yaml.Dumper):
+    def increase_indent(self, flow=False, indentless=False):
+        return super().increase_indent(flow, indentless)
+
+
+@task
+def install_ddagent(
+    ctx: Context,
+    api_key: str,
+    vms: str | None = None,
+    stack: str | None = None,
+    ssh_key: str | None = None,
+    verbose=True,
+    arch: str | None = None,
+    version: str | None = None,
+    datadog_yaml: str | None = None,
+    layout: str | None = None,
+):
+    stack = check_and_get_stack(stack)
+    assert stacks.stack_exists(
+        stack
+    ), f"Stack {stack} does not exist. Please create with 'inv kmt.create-stack --stack=<name>'"
+
+    if arch is None:
+        arch = "local"
+
+    arch_obj = Arch.from_str(arch)
+
+    if vms is None:
+        vms = ",".join(stacks.get_all_vms_in_stack(stack))
+
+    ssh_key_obj = try_get_ssh_key(ctx, ssh_key)
+    infra = build_infrastructure(stack, ssh_key_obj)
+    domains = filter_target_domains(vms, infra, arch_obj)
+
+    assert len(domains) > 0, f"no vms found from list {vms}. Run `inv -e kmt.status` to see all VMs in current stack"
+
+    if version is not None:
+        check_version(version)
+    else:
+        with open("release.json") as f:
+            release = json.load(f)
+        version = release["last_stable"]["7"]
+
+    match = VERSION_RE.match(version)
+    if not match:
+        raise Exit(f"Version {version} not of expected pattern")
+
+    groups = match.groups()
+    major = groups[1]
+    minor = groups[2]
+    env = [
+        f"DD_API_KEY={api_key}",
+        f"DD_AGENT_MAJOR_VERSION={major}",
+        f"DD_AGENT_MINOR_VERSION={minor}",
+        "DD_INSTALL_ONLY=true",
+    ]
+
+    if datadog_yaml is not None:
+        with open(datadog_yaml) as f:
+            ddyaml = yaml.load(f, Loader=yaml.SafeLoader)
+
+    for d in domains:
+        d.run_cmd(
+            ctx,
+            f"curl -L https://s3.amazonaws.com/dd-agent/scripts/install_script_agent{major}.sh > /tmp/install-script.sh",
+            verbose=verbose,
+        )
+        d.run_cmd(ctx, f"{' '.join(env)} bash /tmp/install-script.sh", verbose=verbose)
+
+        # setup datadog yaml
+        if datadog_yaml is not None:
+            # hostnames with '_' are not accepted according to RFC1123
+            ddyaml["hostname"] = f"{os.getlogin()}_{d.tag}".replace("_", "-")
+            ddyaml["api_key"] = api_key
+            with tempfile.NamedTemporaryFile(mode='w') as tmp:
+                yaml.dump(ddyaml, tmp, Dumper=IndentedDumper, default_flow_style=False)
+                tmp.flush()
+                d.copy(ctx, tmp.name, "/etc/datadog-agent/datadog.yaml")
+
+    if layout is not None:
+        build_layout(ctx, domains, layout, verbose)
