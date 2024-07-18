@@ -5,7 +5,6 @@
 package configrefresh
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -35,8 +34,6 @@ func TestConfigRefreshWindowsSuite(t *testing.T) {
 }
 
 func (v *configRefreshWindowsSuite) TestConfigRefresh() {
-	flake.Mark(v.T()) // #incident-28883
-
 	rootDir := "C:/tmp/" + v.T().Name()
 	v.Env().RemoteHost.MkdirAll(rootDir)
 
@@ -82,10 +79,13 @@ func (v *configRefreshWindowsSuite) TestConfigRefresh() {
 	// Currently the framework does not restart the security agent on Windows so we need to do it manually.
 	// When the framework will support it, remove the line below and add `agentclientparams.WithSecurityAgentOnPort(securityCmdPort)` to the agent options.
 	v.Env().RemoteHost.MustExecute("Restart-Service datadog-security-agent")
+
 	// get auth token
 	v.T().Log("Getting the authentication token")
-	authtokenContent := v.Env().RemoteHost.MustExecute("Get-Content -Raw -Path " + authTokenFilePath)
-	authtoken := strings.TrimSpace(authtokenContent)
+	authtokenContent, err := v.Env().RemoteHost.ReadFile(authTokenFilePath)
+	require.NoError(v.T(), err)
+
+	authtoken := strings.TrimSpace(string(authtokenContent))
 
 	// check that the agents are using the first key
 	// initially they all resolve it using the secret resolver

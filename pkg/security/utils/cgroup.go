@@ -17,19 +17,8 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/security/common/containerutils"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
-
-// ContainerID is the type holding the container ID
-type ContainerID string
-
-// Bytes returns the container ID as a byte array
-func (c ContainerID) Bytes() []byte {
-	buff := make([]byte, ContainerIDLen)
-	if len(c) == ContainerIDLen {
-		copy(buff[:], c)
-	}
-	return buff
-}
 
 // ContainerIDLen is the length of a container ID is the length of the hex representation of a sha256 hash
 const ContainerIDLen = sha256.Size * 2
@@ -47,9 +36,16 @@ type ControlGroup struct {
 	Path string
 }
 
+// GetContainerContext returns both the container ID and its flags
+func (cg ControlGroup) GetContainerContext() (model.ContainerID, model.CGroupFlags) {
+	id, flags := containerutils.FindContainerID(cg.Path)
+	return model.ContainerID(id), model.CGroupFlags(flags)
+}
+
 // GetContainerID returns the container id extracted from the path of the control group
-func (cg ControlGroup) GetContainerID() ContainerID {
-	return ContainerID(containerutils.FindContainerID(cg.Path))
+func (cg ControlGroup) GetContainerID() model.ContainerID {
+	id, _ := containerutils.FindContainerID(cg.Path)
+	return model.ContainerID(id)
 }
 
 // GetProcControlGroups returns the cgroup membership of the specified task.
@@ -80,16 +76,23 @@ func GetProcControlGroups(tgid, pid uint32) ([]ControlGroup, error) {
 
 // GetProcContainerID returns the container ID which the process belongs to. Returns "" if the process does not belong
 // to a container.
-func GetProcContainerID(tgid, pid uint32) (ContainerID, error) {
+func GetProcContainerID(tgid, pid uint32) (model.ContainerID, error) {
+	id, _, err := GetProcContainerContext(tgid, pid)
+	return id, err
+}
+
+// GetProcContainerContext returns the container ID which the process belongs to along with its manager. Returns "" if the process does not belong
+// to a container.
+func GetProcContainerContext(tgid, pid uint32) (model.ContainerID, model.CGroupFlags, error) {
 	cgroups, err := GetProcControlGroups(tgid, pid)
 	if err != nil {
-		return "", err
+		return "", 0, err
 	}
 
 	for _, cgroup := range cgroups {
-		if containerID := cgroup.GetContainerID(); containerID != "" {
-			return containerID, nil
+		if containerID, runtime := cgroup.GetContainerContext(); containerID != "" {
+			return containerID, runtime, nil
 		}
 	}
-	return "", nil
+	return "", 0, nil
 }

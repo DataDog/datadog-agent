@@ -5,7 +5,7 @@
 
 //go:build linux_bpf
 
-package tracer
+package tests
 
 import (
 	"bytes"
@@ -51,14 +51,18 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/redis"
 	protocolsUtils "github.com/DataDog/datadog-agent/pkg/network/protocols/testutil"
 	gotlstestutil "github.com/DataDog/datadog-agent/pkg/network/protocols/tls/gotls/testutil"
-	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
+	tracertestutil "github.com/DataDog/datadog-agent/pkg/network/tracer/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm"
 	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/testutil/grpc"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	grpc2 "github.com/DataDog/datadog-agent/pkg/util/grpc"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
+
+var kv = kernel.MustHostVersion()
 
 const (
 	// Most of the classifications are only supported on Linux, hence, they are defined in a Linux specific file.
@@ -85,18 +89,17 @@ const (
 )
 
 func httpSupported() bool {
-	if isFentry() {
+	if ebpftest.GetBuildMode() == ebpftest.Fentry {
 		return false
 	}
-	// kv is declared in `tracer_linux_test.go`.
 	return kv >= usmconfig.MinimumKernelVersion
 }
 
 func httpsSupported() bool {
-	if isFentry() {
+	if ebpftest.GetBuildMode() == ebpftest.Fentry {
 		return false
 	}
-	return usmconfig.TLSSupported(testConfig())
+	return usmconfig.TLSSupported(tracertestutil.Config())
 }
 
 func classificationSupported(config *config.Config) bool {
@@ -142,7 +145,7 @@ func (s *USMSuite) TestEnableHTTPMonitoring() {
 		t.Skip("HTTP monitoring not supported")
 	}
 
-	cfg := testConfig()
+	cfg := tracertestutil.Config()
 	cfg.EnableHTTPMonitoring = true
 	_ = setupTracer(t, cfg)
 }
@@ -150,7 +153,7 @@ func (s *USMSuite) TestEnableHTTPMonitoring() {
 func (s *USMSuite) TestDisableUSM() {
 	t := s.T()
 
-	cfg := testConfig()
+	cfg := tracertestutil.Config()
 	cfg.ServiceMonitoringEnabled = false
 	// Enabling all features, to ensure nothing is forcing USM enablement.
 	cfg.EnableHTTPMonitoring = true
@@ -163,12 +166,12 @@ func (s *USMSuite) TestDisableUSM() {
 	cfg.EnableNativeTLSMonitoring = true
 
 	tr := setupTracer(t, cfg)
-	require.Nil(t, tr.usmMonitor)
+	require.Nil(t, tr.USMMonitor())
 }
 
 func (s *USMSuite) TestProtocolClassification() {
 	t := s.T()
-	cfg := testConfig()
+	cfg := tracertestutil.Config()
 	if !classificationSupported(cfg) {
 		t.Skip("Classification is not supported")
 	}
@@ -179,7 +182,7 @@ func (s *USMSuite) TestProtocolClassification() {
 	cfg.EnablePostgresMonitoring = true
 	cfg.EnableGoTLSSupport = gotlstestutil.GoTLSSupported(t, cfg)
 	cfg.BypassEnabled = true
-	tr, err := NewTracer(cfg, nil)
+	tr, err := tracer.NewTracer(cfg, nil)
 	require.NoError(t, err)
 	t.Cleanup(tr.Stop)
 
@@ -209,7 +212,7 @@ func (s *USMSuite) TestProtocolClassification() {
 	})
 }
 
-func testProtocolConnectionProtocolMapCleanup(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
+func testProtocolConnectionProtocolMapCleanup(t *testing.T, tr *tracer.Tracer, clientHost, targetHost, serverHost string) {
 	t.Run("protocol cleanup", func(t *testing.T) {
 		t.Cleanup(func() { tr.Pause() })
 
@@ -231,7 +234,7 @@ func testProtocolConnectionProtocolMapCleanup(t *testing.T, tr *Tracer, clientHo
 			},
 		}
 
-		initTracerState(t, tr)
+		require.NoError(t, tr.RegisterClient(clientID))
 		require.NoError(t, tr.Resume())
 
 		mux := gorilla.NewRouter()
@@ -296,7 +299,7 @@ func getFreePort() (port uint16, err error) {
 // TLS classification tests
 func (s *USMSuite) TestTLSClassification() {
 	t := s.T()
-	cfg := testConfig()
+	cfg := tracertestutil.Config()
 	cfg.ServiceMonitoringEnabled = true
 	cfg.ProtocolClassificationEnabled = true
 	cfg.CollectTCPv4Conns = true
@@ -334,7 +337,7 @@ func (s *USMSuite) TestTLSClassification() {
 	type tlsTest struct {
 		name            string
 		postTracerSetup func(t *testing.T)
-		validation      func(t *testing.T, tr *Tracer)
+		validation      func(t *testing.T, tr *tracer.Tracer)
 	}
 	tests := make([]tlsTest, 0, len(scenarios))
 	for _, scenario := range scenarios {
@@ -369,7 +372,7 @@ func (s *USMSuite) TestTLSClassification() {
 				// Perform the TLS handshake
 				require.NoError(t, tlsConn.Handshake())
 			},
-			validation: func(t *testing.T, tr *Tracer) {
+			validation: func(t *testing.T, tr *tracer.Tracer) {
 				// Iterate through active connections until we find connection created above
 				require.Eventuallyf(t, func() bool {
 					payload := getConnections(t, tr)
@@ -386,14 +389,14 @@ func (s *USMSuite) TestTLSClassification() {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if tr.ebpfTracer.Type() == connection.TracerTypeFentry {
+			if ebpftest.GetBuildMode() == ebpftest.Fentry {
 				t.Skip("protocol classification not supported for fentry tracer")
 			}
-			t.Cleanup(func() { tr.removeClient(clientID) })
+			t.Cleanup(func() { tr.RemoveClient(clientID) })
 			t.Cleanup(func() { _ = tr.Pause() })
 
-			tr.removeClient(clientID)
-			initTracerState(t, tr)
+			tr.RemoveClient(clientID)
+			require.NoError(t, tr.RegisterClient(clientID))
 			require.NoError(t, tr.Resume(), "enable probes - before post tracer")
 			tt.postTracerSetup(t)
 			require.NoError(t, tr.Pause(), "disable probes - after post tracer")
@@ -405,7 +408,7 @@ func (s *USMSuite) TestTLSClassification() {
 func (s *USMSuite) TestTLSClassificationAlreadyRunning() {
 	t := s.T()
 
-	cfg := testConfig()
+	cfg := tracertestutil.Config()
 	cfg.ProtocolClassificationEnabled = true
 
 	if !classificationSupported(cfg) {
@@ -465,11 +468,11 @@ func skipIfHTTPSNotSupported(t *testing.T, _ testContext) {
 	}
 }
 
-func testTLSClassification(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
+func testTLSClassification(t *testing.T, tr *tracer.Tracer, clientHost, targetHost, serverHost string) {
 	t.Run("TLS", func(t *testing.T) {
 		tests := []struct {
 			name string
-			fn   func(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string)
+			fn   func(t *testing.T, tr *tracer.Tracer, clientHost, targetHost, serverHost string)
 		}{
 			{"HTTP", testHTTPSClassification},
 			{"amqp", testTLSAMQPProtocolClassification},
@@ -486,7 +489,7 @@ func testTLSClassification(t *testing.T, tr *Tracer, clientHost, targetHost, ser
 	})
 }
 
-func testHTTPSClassification(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
+func testHTTPSClassification(t *testing.T, tr *tracer.Tracer, clientHost, targetHost, serverHost string) {
 	t.Skip("Flaky test")
 	skipFunc := composeSkips(skipIfHTTPSNotSupported, skipIfGoTLSNotSupported)
 	skipFunc(t, testContext{
@@ -544,7 +547,7 @@ func testHTTPSClassification(t *testing.T, tr *Tracer, clientHost, targetHost, s
 					makeRequest(c, client, requestURL)
 				}, 5*time.Second, 100*time.Millisecond)
 			},
-			validation: func(t *testing.T, ctx testContext, tr *Tracer) {
+			validation: func(t *testing.T, ctx testContext, tr *tracer.Tracer) {
 				waitForConnectionsWithProtocol(t, tr, ctx.targetAddress, ctx.serverAddress, &protocols.Stack{Encryption: protocols.TLS, Application: protocols.HTTP})
 			},
 		},
@@ -565,14 +568,14 @@ func TestFullMonitorWithTracer(t *testing.T) {
 	cfg.EnableIstioMonitoring = true
 	cfg.EnableGoTLSSupport = true
 
-	tr, err := NewTracer(cfg, nil)
+	tr, err := tracer.NewTracer(cfg, nil)
 	require.NoError(t, err)
 	t.Cleanup(tr.Stop)
 
-	initTracerState(t, tr)
+	require.NoError(t, tr.RegisterClient(clientID))
 }
 
-func testKafkaProtocolClassification(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
+func testKafkaProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost, targetHost, serverHost string) {
 	const topicName = "franz-kafka"
 	testIndex := 0
 	// Kafka does not allow us to delete topic, but to mark them for deletion, so we have to generate a unique topic
@@ -833,8 +836,8 @@ func testKafkaProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 				cancel()
 
 				validateProtocolConnection(produceExpectedStack)
-				tr.removeClient(clientID)
-				initTracerState(t, tr)
+				tr.RemoveClient(clientID)
+				require.NoError(t, tr.RegisterClient(clientID))
 				fetchClient := ctx.extras["fetch_client"].(*kafka.Client)
 				fetches := fetchClient.Client.PollFetches(context.Background())
 				require.Empty(t, fetches.Errors())
@@ -854,16 +857,16 @@ func testKafkaProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 	}
 }
 
-func testMySQLProtocolClassification(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
+func testMySQLProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost, targetHost, serverHost string) {
 	testMySQLProtocolClassificationInner(t, tr, clientHost, targetHost, serverHost, protocolsUtils.TLSDisabled)
 }
 
-func testMySQLProtocolClassificationTLS(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
+func testMySQLProtocolClassificationTLS(t *testing.T, tr *tracer.Tracer, clientHost, targetHost, serverHost string) {
 	t.Skip("MySQL+TLS classification is flaky")
 	testMySQLProtocolClassificationInner(t, tr, clientHost, targetHost, serverHost, protocolsUtils.TLSEnabled)
 }
 
-func testMySQLProtocolClassificationInner(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string, withTLS bool) {
+func testMySQLProtocolClassificationInner(t *testing.T, tr *tracer.Tracer, clientHost, targetHost, serverHost string, withTLS bool) {
 	skipFuncs := []func(*testing.T, testContext){
 		skipIfUsingNAT,
 	}
@@ -1226,13 +1229,13 @@ func waitForPostgresServer(t *testing.T, serverAddress string, enableTLS bool) {
 	}, 5*time.Second, 100*time.Millisecond, "couldn't connect to postgres server")
 }
 
-func testPostgresProtocolClassificationWrapper(enableTLS bool) func(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
-	return func(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
+func testPostgresProtocolClassificationWrapper(enableTLS bool) func(t *testing.T, tr *tracer.Tracer, clientHost, targetHost, serverHost string) {
+	return func(t *testing.T, tr *tracer.Tracer, clientHost, targetHost, serverHost string) {
 		testPostgresProtocolClassification(t, tr, clientHost, targetHost, serverHost, enableTLS)
 	}
 }
 
-func testPostgresProtocolClassification(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string, enableTLS bool) {
+func testPostgresProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost, targetHost, serverHost string, enableTLS bool) {
 	skippers := []func(t *testing.T, ctx testContext){skipIfUsingNAT}
 	if enableTLS {
 		t.Skip("TLS+Postgres classification tests are flaky")
@@ -1457,7 +1460,7 @@ func testPostgresProtocolClassification(t *testing.T, tr *Tracer, clientHost, ta
 	}
 }
 
-func testMongoProtocolClassification(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
+func testMongoProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost, targetHost, serverHost string) {
 	skipFunc := composeSkips(skipIfUsingNAT)
 	skipFunc(t, testContext{
 		serverAddress: serverHost,
@@ -1609,16 +1612,16 @@ func testMongoProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 	}
 }
 
-func testRedisProtocolClassification(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
+func testRedisProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost, targetHost, serverHost string) {
 	testRedisProtocolClassificationInner(t, tr, clientHost, targetHost, serverHost, protocolsUtils.TLSDisabled)
 }
 
-func testTLSRedisProtocolClassification(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
+func testTLSRedisProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost, targetHost, serverHost string) {
 	t.Skip("TLS+Redis classification tests are flaky")
 	testRedisProtocolClassificationInner(t, tr, clientHost, targetHost, serverHost, protocolsUtils.TLSEnabled)
 }
 
-func testRedisProtocolClassificationInner(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string, withTLS bool) {
+func testRedisProtocolClassificationInner(t *testing.T, tr *tracer.Tracer, clientHost, targetHost, serverHost string, withTLS bool) {
 	skipFuncs := []func(*testing.T, testContext){
 		skipIfUsingNAT,
 	}
@@ -1796,12 +1799,12 @@ func testRedisProtocolClassificationInner(t *testing.T, tr *Tracer, clientHost, 
 	}
 }
 
-func testTLSAMQPProtocolClassification(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
+func testTLSAMQPProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost, targetHost, serverHost string) {
 	t.Skip("TLS+AMQP classification tests are flaky")
 	testAMQPProtocolClassificationInner(t, tr, clientHost, targetHost, serverHost, protocolsUtils.TLSEnabled)
 }
 
-func testAMQPProtocolClassification(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
+func testAMQPProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost, targetHost, serverHost string) {
 	testAMQPProtocolClassificationInner(t, tr, clientHost, targetHost, serverHost, protocolsUtils.TLSDisabled)
 }
 
@@ -1832,7 +1835,7 @@ var amqpTestSpecsMap = map[bool]amqpTestSpec{
 	},
 }
 
-func testAMQPProtocolClassificationInner(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string, withTLS bool) {
+func testAMQPProtocolClassificationInner(t *testing.T, tr *tracer.Tracer, clientHost, targetHost, serverHost string, withTLS bool) {
 	spec := amqpTestSpecsMap[withTLS]
 	composeSkips(spec.skipFuncs...)(t, testContext{
 		serverAddress: serverHost,
@@ -1970,7 +1973,7 @@ func testAMQPProtocolClassificationInner(t *testing.T, tr *Tracer, clientHost, t
 	}
 }
 
-func testHTTP2ProtocolClassification(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
+func testHTTP2ProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost, targetHost, serverHost string) {
 	defaultDialer := &net.Dialer{
 		LocalAddr: &net.TCPAddr{
 			IP:   net.ParseIP(clientHost),
@@ -2115,7 +2118,7 @@ func testHTTP2ProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 				extras:        map[string]interface{}{},
 			},
 			preTracerSetup: func(t *testing.T, ctx testContext) {
-				server := NewTCPServerOnAddress(ctx.serverAddress, func(c net.Conn) {
+				server := tracertestutil.NewTCPServerOnAddress(ctx.serverAddress, func(c net.Conn) {
 					io.Copy(c, c)
 					c.Close()
 				})
@@ -2156,7 +2159,7 @@ func testHTTP2ProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 				require.NoError(t, err)
 			},
 			teardown: func(t *testing.T, ctx testContext) {
-				if srv, ok := ctx.extras["server"].(*TCPServer); ok {
+				if srv, ok := ctx.extras["server"].(*tracertestutil.TCPServer); ok {
 					srv.Shutdown()
 				}
 			},
@@ -2171,7 +2174,7 @@ func testHTTP2ProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 				extras:        map[string]interface{}{},
 			},
 			preTracerSetup: func(t *testing.T, ctx testContext) {
-				server := NewTCPServerOnAddress(ctx.serverAddress, func(c net.Conn) {
+				server := tracertestutil.NewTCPServerOnAddress(ctx.serverAddress, func(c net.Conn) {
 					io.Copy(c, c)
 					c.Close()
 				})
@@ -2224,7 +2227,7 @@ func testHTTP2ProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 				require.Equal(t, buf.Len(), n)
 			},
 			teardown: func(t *testing.T, ctx testContext) {
-				if srv, ok := ctx.extras["server"].(*TCPServer); ok {
+				if srv, ok := ctx.extras["server"].(*tracertestutil.TCPServer); ok {
 					srv.Shutdown()
 				}
 			},
@@ -2238,10 +2241,10 @@ func testHTTP2ProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 	}
 }
 
-func testProtocolClassificationLinux(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
+func testProtocolClassificationLinux(t *testing.T, tr *tracer.Tracer, clientHost, targetHost, serverHost string) {
 	tests := []struct {
 		name     string
-		testFunc func(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string)
+		testFunc func(t *testing.T, tr *tracer.Tracer, clientHost, targetHost, serverHost string)
 	}{
 		{
 			name:     "kafka",
