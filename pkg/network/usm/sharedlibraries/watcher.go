@@ -32,10 +32,12 @@ const (
 	scanTerminatedProcessesInterval = 30 * time.Second
 )
 
+// ToLibPath casts the perf event data to the LibPath structure
 func ToLibPath(data []byte) LibPath {
 	return *(*LibPath)(unsafe.Pointer(&data[0]))
 }
 
+// ToBytes converts the libpath to a byte array containing the path
 func ToBytes(l *LibPath) []byte {
 	return l.Buf[:l.Len]
 }

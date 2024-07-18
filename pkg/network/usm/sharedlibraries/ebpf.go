@@ -37,12 +37,14 @@ const (
 
 var traceTypes = []string{"enter", "exit"}
 
+// EbpfProgram represents the shared libraries eBPF program.
 type EbpfProgram struct {
 	cfg         *ddebpf.Config
 	perfHandler *ddebpf.PerfHandler
 	*ddebpf.Manager
 }
 
+// NewEBPFProgram creates a new EBPFProgram to monitor shared libraries
 func NewEBPFProgram(c *ddebpf.Config) *EbpfProgram {
 	perfHandler := ddebpf.NewPerfHandler(100)
 	pm := &manager.PerfMap{
@@ -80,6 +82,7 @@ func NewEBPFProgram(c *ddebpf.Config) *EbpfProgram {
 	}
 }
 
+// Init initializes the eBPF program.
 func (e *EbpfProgram) Init() error {
 	var err error
 	if e.cfg.EnableCORE {
@@ -109,10 +112,12 @@ func (e *EbpfProgram) Init() error {
 	return e.initPrebuilt()
 }
 
+// GetPerfHandler returns the perf handler
 func (e *EbpfProgram) GetPerfHandler() *ddebpf.PerfHandler {
 	return e.perfHandler
 }
 
+// Stop stops the eBPF program
 func (e *EbpfProgram) Stop() {
 	ebpftelemetry.UnregisterTelemetry(e.Manager.Manager)
 	e.Manager.Stop(manager.CleanAll) //nolint:errcheck
