@@ -1145,7 +1145,7 @@ func (s *TracerSuite) TestConnectedUDPSendIPv6() {
 	var outgoing []network.ConnectionStats
 	require.Eventually(t, func() bool {
 		connections := getConnections(t, tr)
-		outgoing = searchConnections(connections, func(cs network.ConnectionStats) bool {
+		outgoing = network.FilterConnections(connections, func(cs network.ConnectionStats) bool {
 			return cs.DPort == uint16(remotePort)
 		})
 
