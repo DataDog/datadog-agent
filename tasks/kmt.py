@@ -44,6 +44,7 @@ from tasks.kernel_matrix_testing.vars import KMT_SUPPORTED_ARCHS, KMTPaths
 from tasks.libs.build.ninja import NinjaWriter
 from tasks.libs.common.utils import get_build_flags
 from tasks.libs.pipeline.tools import loop_status
+from tasks.libs.releasing.version import VERSION_RE, check_version
 from tasks.libs.types.arch import Arch, KMTArchName
 from tasks.security_agent import build_functional_tests, build_stress_tests
 from tasks.system_probe import (
@@ -1964,8 +1965,7 @@ def install_ddagent(
     ssh_key: str | None = None,
     verbose=True,
     arch: str | None = None,
-    major: str = "7",
-    minor: str = "55",
+    version: str | None = None,
     datadog_yaml: str | None = None,
     layout: str | None = None,
 ):
@@ -1988,6 +1988,20 @@ def install_ddagent(
 
     assert len(domains) > 0, f"no vms found from list {vms}. Run `inv -e kmt.status` to see all VMs in current stack"
 
+    if version is not None:
+        check_version(version)
+    else:
+        with open("release.json") as f:
+            release = json.load(f)
+        version = release["last_stable"]["7"]
+
+    match = VERSION_RE.match(version)
+    if not match:
+        raise Exit(f"Version {version} not of expected pattern")
+
+    groups = match.groups()
+    major = groups[1]
+    minor = groups[2]
     env = [
         f"DD_API_KEY={api_key}",
         f"DD_AGENT_MAJOR_VERSION={major}",
