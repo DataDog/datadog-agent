@@ -17,7 +17,7 @@ from tasks.libs.notify.utils import (
     PROJECT_TITLE,
     get_ci_visibility_job_url,
 )
-from tasks.libs.pipeline.data import get_failed_jobs
+from tasks.libs.pipeline.data import get_failed_jobs, get_pipeline
 from tasks.libs.pipeline.notifications import (
     get_pr_from_commit,
     send_slack_message,
@@ -188,7 +188,7 @@ def update_statistics(job_executions: PipelineRuns):
     cumulative_alerts = {}
 
     # Update statistics and collect consecutive failed jobs
-    failed_jobs = get_failed_jobs(PROJECT_NAME, os.environ["CI_PIPELINE_ID"])
+    failed_jobs = get_failed_jobs(get_pipeline(PROJECT_NAME, os.environ["CI_PIPELINE_ID"]))
     commit_sha = os.getenv("CI_COMMIT_SHA")
     failed_dict = {job.name: ExecutionsJobInfo(job.id, True, commit_sha) for job in failed_jobs.all_failures()}
 

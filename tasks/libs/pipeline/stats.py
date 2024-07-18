@@ -7,7 +7,7 @@ from invoke import Exit
 
 from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
 from tasks.libs.common.datadog_api import create_count, create_gauge
-from tasks.libs.pipeline.data import get_failed_jobs
+from tasks.libs.pipeline.data import get_failed_jobs, get_pipeline
 from tasks.libs.types.types import FailedJobType
 
 REQUIRED_JOBS = [
@@ -108,7 +108,7 @@ def get_failed_jobs_stats(project_name, pipeline_id):
     # }
     job_failure_stats = Counter()
 
-    failed_jobs = get_failed_jobs(project_name, pipeline_id)
+    failed_jobs = get_failed_jobs(get_pipeline(project_name, pipeline_id))
 
     # This stores the reason why a pipeline ultimately failed.
     # The goal is to have a statistic of the number of pipelines that fail
