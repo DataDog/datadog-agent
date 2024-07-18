@@ -88,6 +88,37 @@ func newProcessMonitorTelemetry() processMonitorTelemetry {
 	}
 }
 
+type readiness struct {
+	callbackRunnerCounter           *atomic.Uint32
+	expectedNumberOfRunners         uint32
+	netlinkMainEventLoopInitialized *atomic.Bool
+	useEventStream                  bool
+}
+
+func newReadiness(useEventStream bool, expectedNumberOfRunners uint32) readiness {
+	return readiness{
+		callbackRunnerCounter:           atomic.NewUint32(0),
+		expectedNumberOfRunners:         expectedNumberOfRunners,
+		netlinkMainEventLoopInitialized: atomic.NewBool(false),
+		useEventStream:                  useEventStream,
+	}
+}
+
+func (r *readiness) reset() {
+	r.callbackRunnerCounter.Store(0)
+	r.netlinkMainEventLoopInitialized.Store(false)
+}
+
+func (r *readiness) isReady() bool {
+	if r.callbackRunnerCounter.Load() != r.expectedNumberOfRunners {
+		return false
+	}
+	if !r.useEventStream {
+		return r.netlinkMainEventLoopInitialized.Load()
+	}
+	return true
+}
+
 // ProcessMonitor uses netlink process events like Exec and Exit and activate the registered callbacks for the relevant
 // events.
 // ProcessMonitor require root or CAP_NET_ADMIN capabilities
@@ -128,6 +159,8 @@ type ProcessMonitor struct {
 	tel processMonitorTelemetry
 
 	oversizedLogLimit *log.Limit
+
+	readiness readiness
 }
 
 // ProcessCallback is a callback function that is called on a given pid that represents a new process.
@@ -225,10 +258,13 @@ func (pm *ProcessMonitor) initCallbackRunner() {
 	pm.callbackRunner = make(chan func(), pendingCallbacksQueueSize)
 	pm.callbackRunnerStopChannel = make(chan struct{})
 	pm.callbackRunnersWG.Add(cpuNum)
+	pm.readiness.expectedNumberOfRunners = uint32(cpuNum)
+	pm.readiness.callbackRunnerCounter = atomic.NewUint32(0)
 	for i := 0; i < cpuNum; i++ {
 		// Copy i to avoid unexpected behaviors
 		callbackRunnerIndex := i
 		go func() {
+			pm.readiness.callbackRunnerCounter.Inc()
 			defer pm.callbackRunnersWG.Done()
 			for {
 				// We utilize the callbackRunnerStopChannel to signal the stopping point,
@@ -265,11 +301,13 @@ func (pm *ProcessMonitor) initCallbackRunner() {
 func (pm *ProcessMonitor) stopCallbackRunners() {
 	close(pm.callbackRunnerStopChannel)
 	pm.callbackRunnersWG.Wait()
+	pm.readiness.callbackRunnerCounter.Store(0)
 }
 
 // mainEventLoop is an event loop receiving events from netlink, or periodic events, and handles them.
 func (pm *ProcessMonitor) mainEventLoop() {
 	log.Info("process monitor main event loop is starting")
+	pm.readiness.netlinkMainEventLoopInitialized.Store(true)
 	logTicker := time.NewTicker(2 * time.Minute)
 
 	defer func() {
@@ -284,6 +322,8 @@ func (pm *ProcessMonitor) mainEventLoop() {
 
 		// Before shutting down, making sure we're cleaning all resources.
 		pm.processMonitorWG.Done()
+
+		pm.readiness.netlinkMainEventLoopInitialized.Store(false)
 	}()
 
 	maxChannelSize := 0
@@ -365,6 +405,7 @@ func (pm *ProcessMonitor) Initialize(useEventStream bool) error {
 			log.Infof("initializing process monitor (%s)", method)
 			pm.tel = newProcessMonitorTelemetry()
 
+			pm.readiness = newReadiness(useEventStream, uint32(runtime.NumVCPU()))
 			pm.useEventStream = useEventStream
 			pm.done = make(chan struct{})
 			pm.initCallbackRunner()
@@ -485,6 +526,12 @@ func (pm *ProcessMonitor) Stop() {
 	pm.processExitCallbacksMutex.Lock()
 	pm.processExitCallbacks = make(map[*ProcessCallback]struct{})
 	pm.processExitCallbacksMutex.Unlock()
+	pm.readiness.reset()
+}
+
+// IsReady tells if the process monitor is ready to be used and finished its initialization.
+func (pm *ProcessMonitor) IsReady() bool {
+	return pm.readiness.isReady()
 }
 
 // FindDeletedProcesses returns the terminated PIDs from the given map.

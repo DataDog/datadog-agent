@@ -46,7 +46,7 @@ func initializePM(t *testing.T, pm *ProcessMonitor, useEventStream bool) {
 			log.Info("process monitoring test consumer initialized")
 		})
 	}
-	time.Sleep(time.Millisecond * 500)
+	require.Eventually(t, pm.IsReady, 3*time.Second, time.Millisecond*50)
 }
 
 func registerCallback(t *testing.T, pm *ProcessMonitor, isExec bool, callback *ProcessCallback) func() {
