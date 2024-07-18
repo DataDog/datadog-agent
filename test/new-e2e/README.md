@@ -29,13 +29,15 @@ As a workaround, you can run tests against the version of the agent built in an 
 
 ### Installer tests
 
-Installer tests are tests owned by Agent Build And Releases. They mostly test the installation of the agent on different platforms with different methods. These tests are defined in `./tests/agent-platform`.
+Installer tests are tests owned by Agent Delivery. They mostly test the installation of the agent on different platforms with different methods. These tests are defined in `./tests/agent-platform`.
 The following are considered as installer tests:
+
 - `./tests/agent-platform/install-script`: Test the installation of the agent using the install script
 - `./tests/agent-platform/step-by-step`: Test the installation of the agent without the install script, following the manual installation described on the official documentation ([for example](https://app.datadoghq.com/account/settings/agent/latest?platform=debian))
 - `./tests/agent-platform/upgrade`: Test the upgrade of the agent using the install script
 
 All these tests can be executed locally with the following command:
+
 `aws-vault exec sso-agent-sandbox-account-admin -- inv new-e2e-tests.run --targets <test folder path> --osversion '<comma separated os version list>' --platform '<debian/centos/suse/ubuntu>' --arch <x86_64/arm64>`
 
 The available os versions can be found in the file `./tests/agent-platform/platforms/platforms.json`

@@ -25,6 +25,7 @@ func NewNone() Provides {
 }
 
 // GetHostnameAsync does nothing for the noop rdnsquerier implementation
-func (q *rdnsQuerierImplNone) GetHostnameAsync(_ []byte, _ func(string)) {
+func (q *rdnsQuerierImplNone) GetHostnameAsync(_ []byte, _ func(string)) error {
 	// noop
+	return nil
 }

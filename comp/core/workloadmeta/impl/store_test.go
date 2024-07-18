@@ -142,7 +142,7 @@ func TestSubscribe(t *testing.T) {
 				"test-annotation": "test-value",
 			},
 		},
-		GVR: schema.GroupVersionResource{
+		GVR: &schema.GroupVersionResource{
 			Version:  "v1",
 			Resource: "nodes",
 		},
@@ -1463,7 +1463,7 @@ func TestListKubernetesMetadata(t *testing.T) {
 			Annotations: map[string]string{"a1": "v1"},
 			Labels:      map[string]string{"l1": "v2"},
 		},
-		GVR: schema.GroupVersionResource{
+		GVR: &schema.GroupVersionResource{
 			Version:  "v1",
 			Resource: "nodes",
 		},
@@ -1480,7 +1480,7 @@ func TestListKubernetesMetadata(t *testing.T) {
 			Annotations: map[string]string{"a1": "v1"},
 			Labels:      map[string]string{"l1": "v2"},
 		},
-		GVR: schema.GroupVersionResource{
+		GVR: &schema.GroupVersionResource{
 			Group:    "apps",
 			Version:  "v1",
 			Resource: "deployments",
