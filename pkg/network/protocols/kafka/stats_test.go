@@ -8,10 +8,11 @@
 package kafka
 
 import (
-	"github.com/DataDog/sketches-go/ddsketch"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/sketches-go/ddsketch"
 )
 
 func TestAddRequest(t *testing.T) {
