@@ -181,24 +181,24 @@ func (s *processMonitorSuite) TestProcessRegisterMultipleCallbacks() {
 	cmd := exec.Command("/bin/sleep", "1")
 	require.NoError(t, cmd.Run())
 	require.Eventuallyf(t, func() bool {
+		// Instead of breaking immediately when we don't find the event, we want logs to be printed for all iterations.
+		found := true
 		for i := 0; i < iterations; i++ {
 			execCountersMutexes[i].RLock()
 			if _, captured := execCounters[i][uint32(cmd.Process.Pid)]; !captured {
-				execCountersMutexes[i].RUnlock()
 				t.Logf("iter %d didn't capture exec event", i)
-				return false
+				found = false
 			}
 			execCountersMutexes[i].RUnlock()
 
 			exitCountersMutexes[i].RLock()
 			if _, captured := exitCounters[i][uint32(cmd.Process.Pid)]; !captured {
-				exitCountersMutexes[i].RUnlock()
 				t.Logf("iter %d didn't capture exit event", i)
-				return false
+				found = false
 			}
 			exitCountersMutexes[i].RUnlock()
 		}
-		return true
+		return found
 	}, time.Second, time.Millisecond*200, "at least of the callbacks didn't capture events")
 
 	require.GreaterOrEqual(t, pm.tel.events.Get(), pm.tel.exec.Get(), "events is not >= than exec")
