@@ -146,6 +146,14 @@ func TestProcessMonitor(t *testing.T) {
 
 func (s *processMonitorSuite) TestProcessRegisterMultipleCallbacks() {
 	t := s.T()
+	for i := 0; i < 15; i++ {
+		t.Run("iteration", func(t *testing.T) {
+			testProcessRegisterMultipleCallbacks(t, s.useEventStream)
+		})
+	}
+}
+
+func testProcessRegisterMultipleCallbacks(t *testing.T, useEventStream bool) {
 	pm := getProcessMonitor(t)
 
 	const iterations = 10
@@ -177,7 +185,7 @@ func (s *processMonitorSuite) TestProcessRegisterMultipleCallbacks() {
 		registerCallback(t, pm, false, (*ProcessCallback)(&exitCallback))
 	}
 
-	initializePM(t, pm, s.useEventStream)
+	initializePM(t, pm, useEventStream)
 	cmd := exec.Command("/bin/sleep", "1")
 	require.NoError(t, cmd.Run())
 	require.Eventuallyf(t, func() bool {
