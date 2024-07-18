@@ -65,9 +65,12 @@ func (t *Tailer) forwardMessages() {
 		// the decoder has successfully been flushed
 		t.done <- struct{}{}
 	}()
+	log.Debug("andrewqian", t.source.Config.Port)
+	log.Debug("andrewqian2", t.source.Config.Tags)
 	for output := range t.decoder.OutputChan {
 		if len(output.GetContent()) > 0 {
 			t.outputChan <- message.NewMessageWithSource(output.GetContent(), message.StatusInfo, t.source, output.IngestionTimestamp)
+			log.Debug("andrewqian3", t.outputChan)
 		}
 	}
 }
