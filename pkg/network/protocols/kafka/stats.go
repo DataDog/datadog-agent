@@ -135,6 +135,7 @@ func (r *RequestStats) AddRequest(errorCode int32, count int, staticTags uint64,
 		stats = &RequestStat{}
 		r.ErrorCodeToStat[errorCode] = stats
 	}
+	originalCount := stats.Count
 	stats.Count += count
 	stats.StaticTags |= staticTags
 
@@ -149,7 +150,7 @@ func (r *RequestStats) AddRequest(errorCode int32, count int, staticTags uint64,
 		}
 
 		// Add the deferred latency sample
-		if err := stats.Latencies.AddWithCount(stats.FirstLatencySample, float64(stats.Count)); err != nil {
+		if err := stats.Latencies.AddWithCount(stats.FirstLatencySample, float64(originalCount)); err != nil {
 			log.Debugf("could not add request latency to ddsketch: %v", err)
 		}
 	}
