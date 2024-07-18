@@ -122,10 +122,10 @@ func (p deploymentParser) Parse(obj interface{}) []workloadmeta.Entity {
 			ID:   deployment.Namespace + "/" + deployment.Name, // we use the namespace/name as id to make it easier for the admission controller to retrieve the corresponding deployment
 		},
 		EntityMeta: workloadmeta.EntityMeta{
-			Name:      deployment.Name,
-			Namespace: deployment.Namespace,
-			// Labels:      deployment.Labels,
-			// Annotations: filterMapStringKey(deployment.Annotations, p.annotationsFilter),
+			Name:        deployment.Name,
+			Namespace:   deployment.Namespace,
+			Labels:      deployment.Labels,
+			Annotations: filterMapStringKey(deployment.Annotations, p.annotationsFilter),
 		},
 		Env:                 deployment.Labels[ddkube.EnvTagLabelKey],
 		Service:             deployment.Labels[ddkube.ServiceTagLabelKey],
