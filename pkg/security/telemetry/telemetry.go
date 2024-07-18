@@ -55,6 +55,8 @@ func (c *ContainersTelemetry) ReportContainers(metricName string) {
 			mode = "fargate_ecs"
 		} else if os.Getenv("DD_EKS_FARGATE") == "true" {
 			mode = "fargate_eks"
+		} else {
+			mode = "default"
 		}
 		c.TelemetrySender.Gauge(metricName, 1.0, []string{"container_id:" + container.ID, "mode:" + mode})
 	}
