@@ -139,15 +139,6 @@ func (c *collectorTest) setupProcs() {
 	}, nil).Maybe()
 }
 
-func (c *collectorTest) waitForContainerUpdate(t *testing.T, cont *workloadmeta.Container) {
-	t.Helper()
-
-	c.store.Set(cont)
-	require.EventuallyWithT(t, func(collect *assert.CollectT) {
-		assert.Contains(t, c.collector.pidToCid, cont.PID)
-	}, 15*time.Second, 1*time.Second)
-}
-
 // Tick sets up the collector to collect processes by advancing the clock
 func (c *collectorTest) tick() {
 	c.clock.Add(c.store.GetConfig().GetDuration("workloadmeta.local_process_collector.collection_interval"))
