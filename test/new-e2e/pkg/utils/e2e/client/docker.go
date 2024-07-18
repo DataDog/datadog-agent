@@ -11,14 +11,15 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
 	"github.com/DataDog/test-infra-definitions/components/docker"
 	"github.com/docker/cli/cli/connhelper"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/stdcopy"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
 )
 
 // A Docker client that is connected to an [docker.Deamon].
@@ -83,6 +84,7 @@ func (docker *Docker) ExecuteCommandWithErr(containerName string, commands ...st
 
 // ExecuteCommandStdoutStdErr executes a command on containerName and returns the output, the error output and an error.
 func (docker *Docker) ExecuteCommandStdoutStdErr(containerName string, commands ...string) (string, string, error) {
+	docker.t.Logf("Executing command...") // don't print the command in case it contains secrets
 	context := context.Background()
 	execConfig := types.ExecConfig{Cmd: commands, AttachStderr: true, AttachStdout: true}
 	execCreateResp, err := docker.client.ContainerExecCreate(context, containerName, execConfig)
