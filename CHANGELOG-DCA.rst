@@ -2,6 +2,69 @@
 Release Notes
 =============
 
+.. _Release Notes_7.55.1:
+
+7.55.1
+================
+
+.. _Release Notes_7.55.1_Prelude:
+
+Prelude
+-------
+
+Released on: 2024-07-12
+Pinned to datadog-agent v7.55.1: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7551>`_.
+
+.. _Release Notes_7.55.0:
+
+7.55.0
+======
+
+.. _Release Notes_7.55.0_Prelude:
+
+Prelude
+-------
+
+Released on: 2024-07-11
+Pinned to datadog-agent v7.55.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7550>`_.
+
+.. _Release Notes_7.55.0_New Features:
+
+New Features
+------------
+
+- Add support for `kubernetes_namespace_annotations_as_tags`.
+  This new option is equivalent to the existing `kubernetes_namespace_labels_as_tags`,
+  but it considers namespace annotations instead of namespace labels.
+  With this new option, users can enrich tagging based on namespace annotations.
+
+- Support namespace labels as tags on kubernetes events.
+
+
+.. _Release Notes_7.55.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Add ``reason:backofflimitexceeded,deadlineexceeded`` to the
+  ``kubernetes_state.job.failed`` metric to help users understand why a job failed.
+
+- Reduced the memory used to store the tags.
+
+- The Datadog cluster-agent container image is now using Ubuntu 24.04 noble
+  as the base image.
+
+
+.. _Release Notes_7.55.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fixes an issue with large clusters where the Cluster
+  Agent fails to collect all tags when
+  `cluster_agent.collect_kubernetes_tags` is enabled.
+
+
 .. _Release Notes_7.54.1:
 
 7.54.1
@@ -212,7 +275,7 @@ Enhancement Notes
 - Added CreateContainerConfigError wait reason to the `kubernetes_state.container.status_report.count.waiting` metric
   reported by the kubernetes_state_core check.
 
-- Release the Leader Election Lock on shutdown to make the initialization of future cluster-agents faster. 
+- Release the Leader Election Lock on shutdown to make the initialization of future cluster-agents faster.
 
 - The Datadog cluster-agent container image is now using Ubuntu 23.10 mantic
   as the base image.
@@ -332,8 +395,8 @@ Bug Fixes
 Upgrade Notes
 -------------
 
-- Add support for leases in leader election which can be enabled by setting 
-  ``leader_election_default_resource`` to ``leases``, available since Kubernetes version 1.14. 
+- Add support for leases in leader election which can be enabled by setting
+  ``leader_election_default_resource`` to ``leases``, available since Kubernetes version 1.14.
   If this parameter is empty, leader election automatically detects if leases
   are available and uses them.
   Set ``leader_election_default_resource`` to ``configmap`` on clusters running
@@ -589,16 +652,16 @@ Enhancement Notes
 -----------------
 
 - When injecting env vars with the admission controller, env
-  vars are now prepended instead of appended, meaning that 
+  vars are now prepended instead of appended, meaning that
   Kubernetes [dependent environment variables](https://kubernetes.io/docs/tasks/inject-data-application/define-interdependent-environment-variables/)
-  can now depend on these injected vars. 
+  can now depend on these injected vars.
 
 - The ``helm`` check has new configuration parameters:
   - ``extra_sync_timeout_seconds`` (default 120)
   - ``informers_resync_interval_minutes`` (default 10)
 
-- Improves the `labelsAsTags` feature of the Kubernetes State Metrics core check by performing the transformations of characters ['/' , '-' , '.'] 
-  to underscores ['_'] within the Datadog agent.  
+- Improves the `labelsAsTags` feature of the Kubernetes State Metrics core check by performing the transformations of characters ['/' , '-' , '.']
+  to underscores ['_'] within the Datadog agent.
   Previously users had to perform these conversions manually in order to discover the labels on their resources.
 
 
@@ -822,7 +885,7 @@ Pinned to datadog-agent v7.34.0: `CHANGELOG <https://github.com/DataDog/datadog-
 New Features
 ------------
 
-- Add an ``external_metrics_provider.endpoints`` parameter that allows to specify a list of external metrics provider endpoints. 
+- Add an ``external_metrics_provider.endpoints`` parameter that allows to specify a list of external metrics provider endpoints.
 If the first one fails, the DCA will query the next ones.
 - Support file-based endpoint checks.
 - Enable collection of PV/PVCs by default in the orchestrator check
@@ -833,7 +896,7 @@ If the first one fails, the DCA will query the next ones.
 Bug Fixes
 ---------
 
-- Fix the ``Admission Controller``/``Webhooks info`` section of the cluster agent ``agent status`` output on Kubernetes 1.22+. 
+- Fix the ``Admission Controller``/``Webhooks info`` section of the cluster agent ``agent status`` output on Kubernetes 1.22+.
 Although the cluster agent was able to register its webhook with both the ``v1beta1`` and the ``v1`` version of the Administrationregistration API, the ``agent status`` command was always using the ``v1beta1``, which has been removed in Kubernetes 1.22.
 - Improve error handling of deleted HPA objects.
 - Fix an issue where scrubbing custom sensitive words would not work as intended for the orchestrator check.
@@ -910,7 +973,7 @@ Bug Fixes
 ---------
 
 - Fix tags for PV resources in the Orchestrator Explorer (type and phase).
-- Fix an edge case in which the Cluster Agent's Admission Controller doesn't update the Webhook object according to specified configuration. 
+- Fix an edge case in which the Cluster Agent's Admission Controller doesn't update the Webhook object according to specified configuration.
 
 .. _Release Notes_dca-1.15.0_dca-1.15.X:
 

@@ -105,9 +105,7 @@ class FailedJobs:
 
 class SlackMessage:
     JOBS_SECTION_HEADER = "Failed jobs:"
-    OPTIONAL_JOBS_SECTION_HEADER = "Failed jobs (allowed to fail):"
     INFRA_SECTION_HEADER = "Infrastructure failures:"
-    OPTIONAL_INFRA_SECTION_HEADER = "Infrastructure failures (allowed to fail):"
     TEST_SECTION_HEADER = "Failed unit tests:"
     MAX_JOBS_PER_TEST = 2
 
@@ -164,18 +162,8 @@ class SlackMessage:
             buffer,
         )
         self.__render_jobs_section(
-            self.OPTIONAL_JOBS_SECTION_HEADER,
-            self.failed_jobs.optional_job_failures,
-            buffer,
-        )
-        self.__render_jobs_section(
             self.INFRA_SECTION_HEADER,
             self.failed_jobs.mandatory_infra_job_failures,
-            buffer,
-        )
-        self.__render_jobs_section(
-            self.OPTIONAL_INFRA_SECTION_HEADER,
-            self.failed_jobs.optional_infra_job_failures,
             buffer,
         )
         if self.failed_tests:
@@ -187,5 +175,4 @@ class SlackMessage:
 
 class TeamMessage(SlackMessage):
     JOBS_SECTION_HEADER = "Failed jobs you own:"
-    OPTIONAL_JOBS_SECTION_HEADER = "Failed jobs (allowed to fail) you own:"
     TEST_SECTION_HEADER = "Failed unit tests you own:"

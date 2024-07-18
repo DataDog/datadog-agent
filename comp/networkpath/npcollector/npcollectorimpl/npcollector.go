@@ -64,6 +64,8 @@ type npCollectorImpl struct {
 	// TODO: instead of mocking traceroute via function replacement like this
 	//       we should ideally create a fake/mock traceroute instance that can be passed/injected in NpCollector
 	runTraceroute func(cfg traceroute.Config, telemetrycomp telemetryComp.Component) (payload.NetworkPath, error)
+
+	networkDevicesNamespace string
 }
 
 func newNoopNpCollectorImpl() *npCollectorImpl {
@@ -92,6 +94,8 @@ func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *c
 		flushInterval:          collectorConfigs.flushInterval,
 		workers:                collectorConfigs.workers,
 
+		networkDevicesNamespace: collectorConfigs.networkDevicesNamespace,
+
 		receivedPathtestCount:    atomic.NewUint64(0),
 		processedTracerouteCount: atomic.NewUint64(0),
 		TimeNowFn:                time.Now,
@@ -112,12 +116,13 @@ func (s *npCollectorImpl) ScheduleConns(conns []*model.Connection) {
 	}
 	startTime := s.TimeNowFn()
 	for _, conn := range conns {
-		if !shouldScheduleNetworkPathForConn(conn) {
-			continue
-		}
 		remoteAddr := conn.Raddr
 		remotePort := uint16(conn.Raddr.GetPort())
 		protocol := conn.GetType().String()
+		if !shouldScheduleNetworkPathForConn(conn) {
+			s.logger.Tracef("Skipped connection: addr=%s, port=%d, protocol=%s", remoteAddr, remotePort, protocol)
+			continue
+		}
 		sourceContainer := conn.Laddr.GetContainerId()
 		err := s.scheduleOne(remoteAddr.GetIp(), remotePort, protocol, sourceContainer)
 		if err != nil {
@@ -215,6 +220,7 @@ func (s *npCollectorImpl) runTracerouteForPath(ptest *pathteststore.PathtestCont
 		return
 	}
 	path.Source.ContainerID = ptest.Pathtest.SourceContainerID
+	path.Namespace = s.networkDevicesNamespace
 
 	s.sendTelemetry(path, startTime, ptest)
 

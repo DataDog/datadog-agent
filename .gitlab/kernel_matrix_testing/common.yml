@@ -12,12 +12,14 @@
 
 .wait_for_instance:
   - !reference [.shared_filters_and_queries]
+  # Touch .instance_not_found to mark the failure reason to the tag-ci-job task later
   - |
     COUNTER=0
     while [[ $(aws ec2 describe-instances --filters $FILTER_TEAM $FILTER_MANAGED $FILTER_STATE $FILTER_PIPELINE $FILTER_TEST_COMPONENT $FILTER_INSTANCE_TYPE --output text --query $QUERY_INSTANCE_IDS  | wc -l ) != "1" && $COUNTER -le 80 ]]; do COUNTER=$[$COUNTER +1]; echo "[${COUNTER}] Waiting for instance"; sleep 30; done
     # check that instance is ready, or fail
     if [ $(aws ec2 describe-instances --filters $FILTER_TEAM $FILTER_MANAGED $FILTER_STATE $FILTER_PIPELINE $FILTER_TEST_COMPONENT $FILTER_INSTANCE_TYPE --output text --query $QUERY_INSTANCE_IDS | wc -l) -ne "1" ]; then
         echo "Instance NOT found"
+        touch ${CI_PROJECT_DIR}/instance_not_found
         "false"
     fi
     echo "Instance found"

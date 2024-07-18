@@ -32,11 +32,12 @@ func setupMetricClient() (*metric.ManualReader, statsd.ClientInterface, timing.R
 func TestTraceAgentConfig(t *testing.T) {
 	cfg := traceconfig.New()
 	require.NotZero(t, cfg.ReceiverPort)
+	require.True(t, cfg.ReceiverEnabled)
 
 	out := make(chan *pb.StatsPayload)
 	_, metricClient, timingReporter := setupMetricClient()
 	_ = NewAgentWithConfig(context.Background(), cfg, out, metricClient, timingReporter)
-	require.Zero(t, cfg.ReceiverPort)
+	require.False(t, cfg.ReceiverEnabled)
 	require.NotEmpty(t, cfg.Endpoints[0].APIKey)
 	require.Equal(t, "__unset__", cfg.Hostname)
 }

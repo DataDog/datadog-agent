@@ -132,6 +132,180 @@ func TestInjectEntityID(t *testing.T) {
 	}
 }
 
+func TestInjectExternalDataEnvVar(t *testing.T) {
+	testCases := []struct {
+		name          string
+		inputPod      corev1.Pod
+		expectedPod   corev1.Pod
+		expectedValue bool
+	}{
+		{
+			name: "normal case",
+			inputPod: corev1.Pod{
+				Spec: corev1.PodSpec{
+					Containers:     []corev1.Container{{Name: "cont-name"}},
+					InitContainers: []corev1.Container{{Name: "init-container"}},
+				},
+			},
+			expectedPod: corev1.Pod{
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{{
+						Name: "cont-name",
+						Env: []corev1.EnvVar{
+							{Name: podUIDEnvVarName, ValueFrom: &corev1.EnvVarSource{
+								FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.uid"}}},
+							{Name: ddExternalDataEnvVarName, Value: "it-false,cn-cont-name,pu-$(DD_INTERNAL_POD_UID)"},
+						},
+					}},
+					InitContainers: []corev1.Container{{
+						Name: "init-container",
+						Env: []corev1.EnvVar{
+							{Name: podUIDEnvVarName, ValueFrom: &corev1.EnvVarSource{
+								FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.uid"}}},
+							{Name: ddExternalDataEnvVarName, Value: "it-true,cn-init-container,pu-$(DD_INTERNAL_POD_UID)"},
+						},
+					}},
+				},
+			},
+			expectedValue: true,
+		},
+		{
+			name: "multiple containers",
+			inputPod: corev1.Pod{
+				Spec: corev1.PodSpec{
+					Containers:     []corev1.Container{{Name: "cont-name-1"}, {Name: "cont-name-2"}, {Name: "cont-name-3"}},
+					InitContainers: []corev1.Container{{Name: "init-container-1"}, {Name: "init-container-2"}, {Name: "init-container-3"}},
+				},
+			},
+			expectedPod: corev1.Pod{
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{{
+						Name: "cont-name-1",
+						Env: []corev1.EnvVar{
+							{Name: podUIDEnvVarName, ValueFrom: &corev1.EnvVarSource{
+								FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.uid"}}},
+							{Name: ddExternalDataEnvVarName, Value: "it-false,cn-cont-name-1,pu-$(DD_INTERNAL_POD_UID)"},
+						},
+					}, {
+						Name: "cont-name-2",
+						Env: []corev1.EnvVar{
+							{Name: podUIDEnvVarName, ValueFrom: &corev1.EnvVarSource{
+								FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.uid"}}},
+							{Name: ddExternalDataEnvVarName, Value: "it-false,cn-cont-name-2,pu-$(DD_INTERNAL_POD_UID)"},
+						},
+					}, {
+						Name: "cont-name-3",
+						Env: []corev1.EnvVar{
+							{Name: podUIDEnvVarName, ValueFrom: &corev1.EnvVarSource{
+								FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.uid"}}},
+							{Name: ddExternalDataEnvVarName, Value: "it-false,cn-cont-name-3,pu-$(DD_INTERNAL_POD_UID)"},
+						},
+					}},
+					InitContainers: []corev1.Container{{
+						Name: "init-container-1",
+						Env: []corev1.EnvVar{
+							{Name: podUIDEnvVarName, ValueFrom: &corev1.EnvVarSource{
+								FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.uid"}}},
+							{Name: ddExternalDataEnvVarName, Value: "it-true,cn-init-container-1,pu-$(DD_INTERNAL_POD_UID)"},
+						},
+					}, {
+						Name: "init-container-2",
+						Env: []corev1.EnvVar{
+							{Name: podUIDEnvVarName, ValueFrom: &corev1.EnvVarSource{
+								FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.uid"}}},
+							{Name: ddExternalDataEnvVarName, Value: "it-true,cn-init-container-2,pu-$(DD_INTERNAL_POD_UID)"},
+						},
+					}, {
+						Name: "init-container-3",
+						Env: []corev1.EnvVar{
+							{Name: podUIDEnvVarName, ValueFrom: &corev1.EnvVarSource{
+								FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.uid"}}},
+							{Name: ddExternalDataEnvVarName, Value: "it-true,cn-init-container-3,pu-$(DD_INTERNAL_POD_UID)"},
+						},
+					}},
+				},
+			},
+			expectedValue: true,
+		},
+		{
+			name: "with only normal containers",
+			inputPod: corev1.Pod{
+				Spec: corev1.PodSpec{
+					Containers:     []corev1.Container{{Name: "cont-name"}},
+					InitContainers: []corev1.Container{},
+				},
+			},
+			expectedPod: corev1.Pod{
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{{
+						Name: "cont-name",
+						Env: []corev1.EnvVar{
+							{Name: podUIDEnvVarName, ValueFrom: &corev1.EnvVarSource{
+								FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.uid"}}},
+							{Name: ddExternalDataEnvVarName, Value: "it-false,cn-cont-name,pu-$(DD_INTERNAL_POD_UID)"},
+						},
+					}},
+					InitContainers: []corev1.Container{},
+				},
+			},
+			expectedValue: true,
+		},
+		{
+			name: "with only init containers",
+			inputPod: corev1.Pod{
+				Spec: corev1.PodSpec{
+					Containers:     []corev1.Container{},
+					InitContainers: []corev1.Container{{Name: "init-container"}},
+				},
+			},
+			expectedPod: corev1.Pod{
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{},
+					InitContainers: []corev1.Container{{
+						Name: "init-container",
+						Env: []corev1.EnvVar{
+							{Name: podUIDEnvVarName, ValueFrom: &corev1.EnvVarSource{
+								FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.uid"}}},
+							{Name: ddExternalDataEnvVarName, Value: "it-true,cn-init-container,pu-$(DD_INTERNAL_POD_UID)"},
+						},
+					}},
+				},
+			},
+			expectedValue: true,
+		},
+		{
+			name: "with nil containers",
+			inputPod: corev1.Pod{
+				Spec: corev1.PodSpec{
+					Containers:     []corev1.Container{},
+					InitContainers: []corev1.Container{},
+				},
+			},
+			expectedPod: corev1.Pod{
+				Spec: corev1.PodSpec{
+					Containers:     []corev1.Container{},
+					InitContainers: []corev1.Container{},
+				},
+			},
+			expectedValue: false,
+		},
+		{
+			name:          "with nil pod",
+			inputPod:      corev1.Pod{},
+			expectedPod:   corev1.Pod{},
+			expectedValue: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := injectExternalDataEnvVar(&tc.inputPod)
+			assert.Equal(t, tc.expectedValue, got)
+			assert.Equal(t, tc.expectedPod, tc.inputPod)
+		})
+	}
+}
+
 func TestInjectIdentity(t *testing.T) {
 	testCases := []struct {
 		name          string

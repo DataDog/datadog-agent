@@ -469,7 +469,7 @@ func (r *Resolver) OnWorkloadSelectorResolvedEvent(cgroup *cgroupModel.CacheEntr
 		return
 	}
 
-	id := cgroup.ID
+	id := string(cgroup.ContainerID)
 	// We don't scan hosts for now
 	if len(id) == 0 {
 		return
@@ -496,7 +496,7 @@ func (r *Resolver) GetWorkload(id string) *SBOM {
 
 // OnCGroupDeletedEvent is used to handle a CGroupDeleted event
 func (r *Resolver) OnCGroupDeletedEvent(cgroup *cgroupModel.CacheEntry) {
-	r.Delete(cgroup.ID)
+	r.Delete(string(cgroup.CGroupID))
 }
 
 // Delete removes the SBOM of the provided cgroup id
