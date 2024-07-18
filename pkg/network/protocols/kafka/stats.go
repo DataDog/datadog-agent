@@ -130,31 +130,31 @@ func (r *RequestStats) AddRequest(errorCode int32, count int, staticTags uint64,
 	if !isValidKafkaErrorCode(errorCode) {
 		return
 	}
-	if stats, exists := r.ErrorCodeToStat[errorCode]; exists {
-		stats.Count += count
-		stats.StaticTags |= staticTags
-		if stats.FirstLatencySample == 0 {
-			stats.FirstLatencySample = latency
-		} else {
-			if stats.Latencies == nil {
-				if err := stats.initSketch(); err != nil {
-					return
-				}
+	stats, exists := r.ErrorCodeToStat[errorCode]
+	if !exists {
+		stats = &RequestStat{}
+		r.ErrorCodeToStat[errorCode] = stats
+	}
+	stats.Count += count
+	stats.StaticTags |= staticTags
 
-				// Add the deferred latency sample
-				if err := stats.Latencies.Add(stats.FirstLatencySample); err != nil {
-					log.Debugf("could not add request latency to ddsketch: %v", err)
-				}
-			}
-			if err := stats.Latencies.Add(latency); err != nil {
-				log.Debugf("could not add request latency to ddsketch: %v", err)
-			}
+	if stats.FirstLatencySample == 0 {
+		stats.FirstLatencySample = latency
+		return
+	}
+
+	if stats.Latencies == nil {
+		if err := stats.initSketch(); err != nil {
+			return
 		}
-	} else {
-		r.ErrorCodeToStat[errorCode] = &RequestStat{
-			Count:      count,
-			StaticTags: staticTags,
+
+		// Add the deferred latency sample
+		if err := stats.Latencies.Add(stats.FirstLatencySample); err != nil {
+			log.Debugf("could not add request latency to ddsketch: %v", err)
 		}
+	}
+	if err := stats.Latencies.Add(latency); err != nil {
+		log.Debugf("could not add request latency to ddsketch: %v", err)
 	}
 }
 
