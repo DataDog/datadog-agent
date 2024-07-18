@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"github.com/vishvananda/netns"
+	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	eventmonitortestutil "github.com/DataDog/datadog-agent/pkg/eventmonitor/testutil"
@@ -35,6 +36,22 @@ func getProcessMonitor(t *testing.T) *ProcessMonitor {
 	return pm
 }
 
+func waitForProcessMonitor(t *testing.T, pm *ProcessMonitor) {
+	execCounter := atomic.NewInt32(0)
+	execCallback := func(pid uint32) { execCounter.Inc() }
+	registerCallback(t, pm, true, (*ProcessCallback)(&execCallback))
+
+	exitCounter := atomic.NewInt32(0)
+	// Sanity subscribing a callback.
+	exitCallback := func(pid uint32) { exitCounter.Inc() }
+	registerCallback(t, pm, false, (*ProcessCallback)(&exitCallback))
+
+	require.Eventually(t, func() bool {
+		_ = exec.Command("/bin/echo").Run()
+		return execCounter.Load() > 0 && exitCounter.Load() > 0
+	}, 10*time.Second, time.Millisecond*200)
+}
+
 func initializePM(t *testing.T, pm *ProcessMonitor, useEventStream bool) {
 	require.NoError(t, pm.Initialize(useEventStream))
 	if useEventStream {
@@ -46,7 +63,7 @@ func initializePM(t *testing.T, pm *ProcessMonitor, useEventStream bool) {
 			log.Info("process monitoring test consumer initialized")
 		})
 	}
-	time.Sleep(time.Millisecond * 500)
+	waitForProcessMonitor(t, pm)
 }
 
 func registerCallback(t *testing.T, pm *ProcessMonitor, isExec bool, callback *ProcessCallback) func() {
