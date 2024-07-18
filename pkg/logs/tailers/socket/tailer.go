@@ -15,7 +15,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/noop"
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/tag"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
@@ -24,25 +23,22 @@ import (
 // Tailer reads data from a net.Conn.  It uses a `read` callback to be generic
 // over types of connections.
 type Tailer struct {
-	source      *sources.LogSource
-	Conn        net.Conn
-	tagProvider tag.Provider
-	outputChan  chan *message.Message
-	read        func(*Tailer) ([]byte, error)
-	decoder     *decoder.Decoder
-	stop        chan struct{}
-	done        chan struct{}
+	source     *sources.LogSource
+	Conn       net.Conn
+	outputChan chan *message.Message
+	read       func(*Tailer) ([]byte, error)
+	decoder    *decoder.Decoder
+	stop       chan struct{}
+	done       chan struct{}
 }
 
 // NewTailer returns a new Tailer
 func NewTailer(source *sources.LogSource, conn net.Conn, outputChan chan *message.Message, read func(*Tailer) ([]byte, error)) *Tailer {
-	tagProvider := tag.NewLocalProvider([]string{})
 	return &Tailer{
-		source:      source,
-		Conn:        conn,
-		tagProvider: tagProvider,
-		outputChan:  outputChan,
-		read:        read,
+		source:     source,
+		Conn:       conn,
+		outputChan: outputChan,
+		read:       read,
 		// tailer info is currently unused for this tailer type.
 		decoder: decoder.InitializeDecoder(sources.NewReplaceableSource(source), noop.New(), status.NewInfoRegistry()),
 		stop:    make(chan struct{}, 1),
