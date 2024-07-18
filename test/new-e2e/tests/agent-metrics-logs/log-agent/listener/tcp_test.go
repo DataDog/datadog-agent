@@ -36,12 +36,16 @@ type dockerSuite struct {
 }
 
 func TestTCPListener(t *testing.T) {
-	e2e.Run(t, &dockerSuite{}, e2e.WithProvisioner(
-		awsdocker.Provisioner(
-			awsdocker.WithAgentOptions(
-				dockeragentparams.WithExtraComposeManifest("logger", appslogger.DockerComposeManifest.Content),
-				dockeragentparams.WithExtraComposeManifest("logger-tcp", pulumi.String(tcpCompose)),
-			))))
+	e2e.Run(t,
+		&dockerSuite{},
+		e2e.WithProvisioner(
+			awsdocker.Provisioner(
+				awsdocker.WithAgentOptions(
+					dockeragentparams.WithLogs(),
+					dockeragentparams.WithExtraComposeManifest("logger", appslogger.DockerComposeManifest.Content),
+					dockeragentparams.WithExtraComposeManifest("logger-tcp", pulumi.String(tcpCompose)),
+				))),
+	)
 }
 
 func (d *dockerSuite) TestLogsReceived() {

@@ -7,6 +7,7 @@
 package fx
 
 import (
+	healthprobe "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
 	healthprobeimpl "github.com/DataDog/datadog-agent/comp/core/healthprobe/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -17,5 +18,6 @@ func Module() fxutil.Module {
 		fxutil.ProvideComponentConstructor(
 			healthprobeimpl.NewComponent,
 		),
+		fxutil.ProvideOptional[healthprobe.Component](),
 	)
 }
