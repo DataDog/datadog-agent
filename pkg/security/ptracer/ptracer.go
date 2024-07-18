@@ -11,6 +11,7 @@ package ptracer
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"runtime"
 	"syscall"
@@ -96,18 +97,50 @@ func processVMReadv(pid int, addr uintptr, data []byte) (int, error) {
 	return unix.ProcessVMReadv(pid, localIov, remoteIov, 0)
 }
 
+const (
+	maxRemoteReadSizeBytes   = 4096
+	minRemoteReadSizeBytes   = 1
+	startRemoteReadSizeBytes = 256
+)
+
 func (t *Tracer) readString(pid int, ptr uint64) (string, error) {
-	data := make([]byte, MaxStringSize)
+	// nextReadSize == previousReadSize means we are not linearly increasing or decreasing
+	// the read size, in this case we return an error
+	previousReadSize, currentReadSize, nextReadSize := 0, 0, startRemoteReadSizeBytes
+	var data []byte
 
-	_, err := processVMReadv(pid, uintptr(ptr), data)
-	if err != nil {
-		return "", err
+	n := -1
+	for n < 0 {
+		previousReadSize = currentReadSize
+		currentReadSize = nextReadSize
+		data = make([]byte, currentReadSize)
+		_, err := processVMReadv(pid, uintptr(ptr), data)
+		if err != nil {
+			if !errors.Is(err, unix.EFAULT) {
+				return "", err
+			}
+			if currentReadSize == minRemoteReadSizeBytes {
+				return "", err
+			}
+			nextReadSize = currentReadSize / 2
+			if previousReadSize == nextReadSize {
+				return "", errors.New("failed to read string")
+			}
+			continue
+		}
+
+		n = bytes.Index(data[:], []byte{0})
+		if n < 0 {
+			nextReadSize = currentReadSize * 2
+			if nextReadSize > maxRemoteReadSizeBytes {
+				return "", errors.New("string too long")
+			}
+			if previousReadSize == nextReadSize {
+				return "", errors.New("failed to read string")
+			}
+		}
 	}
 
-	n := bytes.Index(data[:], []byte{0})
-	if n < 0 {
-		return "", nil
-	}
 	return string(data[:n]), nil
 }
 
