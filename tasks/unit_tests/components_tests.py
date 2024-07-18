@@ -13,7 +13,7 @@ class TestComponents(unittest.TestCase):
         # tests to modify the source files
         # TODO: Add tests that modify source files to ensure that errors work
         self.tmpdir = tempfile.mkdtemp()
-        shutil.copytree('tasks/unit-tests/testdata/components_src/comp', os.path.join(self.tmpdir, 'comp'))
+        shutil.copytree('tasks/unit_tests/testdata/components_src/comp', os.path.join(self.tmpdir, 'comp'))
         # Preserve currenty directory, change to temp directory
         self.origDir = os.getcwd()
         os.chdir(self.tmpdir)

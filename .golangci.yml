@@ -5,7 +5,7 @@ run:
     - pkg/serverless/trace/inferredspan/constants.go # TODO: fox revive exported const error
   skip-dirs:
     - pkg/proto/patches
-    - tasks/unit-tests/testdata/components_src
+    - tasks/unit_tests/testdata/components_src
 
 issues:
   exclude-use-default: false

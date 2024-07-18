@@ -838,7 +838,7 @@ def get_go_modified_files(ctx):
     return [
         file
         for file in files
-        if file.find("unit-tests/testdata/components_src") == -1
+        if file.find("unit_tests/testdata/components_src") == -1
         and (file.endswith(".go") or file.endswith(".mod") or file.endswith(".sum"))
     ]
 
