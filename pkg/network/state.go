@@ -115,7 +115,7 @@ type State interface {
 	RemoveConnections(conns []*ConnectionStats)
 
 	// StoreClosedConnection stores a batch of closed connections
-	StoreClosedConnection(connection ConnectionStats)
+	StoreClosedConnection(connection *ConnectionStats)
 
 	// GetStats returns a map of statistics about the current network state
 	GetStats() map[string]interface{}
@@ -166,7 +166,7 @@ type closedConnections struct {
 // All empty connections are placed at the end. If it is not empty, it will be placed
 // at the index of the first empty connection, and the first empty connection will be placed at the end.
 // If there are no empty connections, it will be appended at the end.
-func (cc *closedConnections) insert(c ConnectionStats, maxClosedConns uint32) {
+func (cc *closedConnections) insert(c *ConnectionStats, maxClosedConns uint32) {
 	// If we have reached the limit, drop an empty connection
 	if uint32(len(cc.conns)) >= maxClosedConns {
 		stateTelemetry.closedConnDropped.IncWithTags(c.Type.Tags())
@@ -174,8 +174,8 @@ func (cc *closedConnections) insert(c ConnectionStats, maxClosedConns uint32) {
 		return
 	}
 	// If the connection is empty append at the end
-	if isEmpty(c) {
-		cc.conns = append(cc.conns, c)
+	if c.IsEmpty() {
+		cc.conns = append(cc.conns, *c)
 		cc.byCookie[c.Cookie] = len(cc.conns) - 1
 		return
 	}
@@ -183,7 +183,7 @@ func (cc *closedConnections) insert(c ConnectionStats, maxClosedConns uint32) {
 	// Insert the connection before empty connections
 	if cc.emptyStart < len(cc.conns) {
 		emptyConn := cc.conns[cc.emptyStart]
-		cc.conns[cc.emptyStart] = c
+		cc.conns[cc.emptyStart] = *c
 		cc.conns = append(cc.conns, emptyConn)
 		cc.byCookie[c.Cookie] = cc.emptyStart
 		cc.byCookie[emptyConn.Cookie] = len(cc.conns) - 1
@@ -191,7 +191,7 @@ func (cc *closedConnections) insert(c ConnectionStats, maxClosedConns uint32) {
 		return
 	}
 	// If there are no empty connections, append at the end
-	cc.conns = append(cc.conns, c)
+	cc.conns = append(cc.conns, *c)
 	cc.byCookie[c.Cookie] = len(cc.conns) - 1
 	cc.emptyStart = len(cc.conns)
 }
@@ -200,12 +200,12 @@ func (cc *closedConnections) insert(c ConnectionStats, maxClosedConns uint32) {
 // This method drops the incoming connection if it's empty or there are no empty connections in conns.
 // If neither of these conditions are true, it will drop the first empty connection and replace it with
 // the incoming connection.
-func (cc *closedConnections) dropEmpty(c ConnectionStats) {
-	if isEmpty(c) || cc.emptyStart == len(cc.conns) {
+func (cc *closedConnections) dropEmpty(c *ConnectionStats) {
+	if c.IsEmpty() || cc.emptyStart == len(cc.conns) {
 		return
 	}
 	delete(cc.byCookie, cc.conns[cc.emptyStart].Cookie)
-	cc.conns[cc.emptyStart] = c
+	cc.conns[cc.emptyStart] = *c
 	cc.byCookie[c.Cookie] = cc.emptyStart
 	cc.emptyStart++
 }
@@ -216,25 +216,25 @@ func (cc *closedConnections) dropEmpty(c ConnectionStats) {
 // Otherwise it checks if the connection at i is empty and will be replaced with a non-empty conn.
 // If this is true, it will replace the connection and move it to where the first empty conn is.
 // If there isn't a change of state (both are empty or non-empty) it will simply replace the conn.
-func (cc *closedConnections) replaceAt(i int, c ConnectionStats) {
+func (cc *closedConnections) replaceAt(i int, c *ConnectionStats) {
 	// pick the latest one
 	if c.LastUpdateEpoch <= cc.conns[i].LastUpdateEpoch {
 		return
 	}
 	// If c is empty and connn[i] is not, do not replace
-	if isEmpty(c) && i < cc.emptyStart {
+	if c.IsEmpty() && i < cc.emptyStart {
 		return
 	}
 	// If conn[i] is empty and c is not, replace with the first empty connection
-	if !isEmpty(c) && i >= cc.emptyStart {
+	if !c.IsEmpty() && i >= cc.emptyStart {
 		cc.conns[cc.emptyStart], cc.conns[i] = cc.conns[i], cc.conns[cc.emptyStart]
 		cc.byCookie[cc.conns[i].Cookie] = i
-		cc.conns[cc.emptyStart] = c
+		cc.conns[cc.emptyStart] = *c
 		cc.byCookie[c.Cookie] = cc.emptyStart
 		cc.emptyStart++
 		return
 	}
-	cc.conns[i] = c
+	cc.conns[i] = *c
 }
 
 type client struct {
@@ -601,7 +601,7 @@ func (ns *networkState) mergeByCookie(conns []ConnectionStats) ([]ConnectionStat
 }
 
 // StoreClosedConnection wraps the unexported method while locking state
-func (ns *networkState) StoreClosedConnection(closed ConnectionStats) {
+func (ns *networkState) StoreClosedConnection(closed *ConnectionStats) {
 	ns.Lock()
 	defer ns.Unlock()
 
@@ -609,10 +609,10 @@ func (ns *networkState) StoreClosedConnection(closed ConnectionStats) {
 }
 
 // storeClosedConnection stores the given connection for every client
-func (ns *networkState) storeClosedConnection(c ConnectionStats) {
+func (ns *networkState) storeClosedConnection(c *ConnectionStats) {
 	for _, client := range ns.clients {
 		if i, ok := client.closed.byCookie[c.Cookie]; ok {
-			if ns.mergeConnectionStats(&client.closed.conns[i], &c) {
+			if ns.mergeConnectionStats(&client.closed.conns[i], c) {
 				stateTelemetry.statsCookieCollisions.Inc()
 				client.closed.replaceAt(i, c)
 			}
@@ -1493,10 +1493,4 @@ func (ns *networkState) mergeConnectionStats(a, b *ConnectionStats) (collision b
 	a.ProtocolStack.MergeWith(b.ProtocolStack)
 
 	return false
-}
-
-func isEmpty(conn ConnectionStats) bool {
-	return conn.Monotonic.RecvBytes == 0 && conn.Monotonic.RecvPackets == 0 &&
-		conn.Monotonic.SentBytes == 0 && conn.Monotonic.SentPackets == 0 &&
-		conn.Monotonic.Retransmits == 0 && len(conn.TCPFailures) == 0
 }

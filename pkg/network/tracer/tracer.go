@@ -302,10 +302,10 @@ func (t *Tracer) storeClosedConnection(cs *network.ConnectionStats) {
 		return
 	}
 
-	cs.IPTranslation = t.conntracker.GetTranslationForConn(*cs)
+	cs.IPTranslation = t.conntracker.GetTranslationForConn(cs)
 	t.connVia(cs)
 	if cs.IPTranslation != nil {
-		t.conntracker.DeleteTranslation(*cs)
+		t.conntracker.DeleteTranslation(cs)
 	}
 
 	t.addProcessInfo(cs)
@@ -313,8 +313,7 @@ func (t *Tracer) storeClosedConnection(cs *network.ConnectionStats) {
 	tracerTelemetry.closedConns.IncWithTags(cs.Type.Tags())
 	t.ebpfTracer.GetFailedConnections().MatchFailedConn(cs)
 
-	// intentional allocation to create copy of connection for storage
-	t.state.StoreClosedConnection(*cs)
+	t.state.StoreClosedConnection(cs)
 }
 
 func (t *Tracer) addProcessInfo(c *network.ConnectionStats) {
@@ -538,7 +537,7 @@ func (t *Tracer) getConnections(activeBuffer *network.ConnectionBuffer) (latestU
 
 	activeConnections = activeBuffer.Connections()
 	for i := range activeConnections {
-		activeConnections[i].IPTranslation = t.conntracker.GetTranslationForConn(activeConnections[i])
+		activeConnections[i].IPTranslation = t.conntracker.GetTranslationForConn(&activeConnections[i])
 		// do gateway resolution only on active connections outside
 		// the map iteration loop to not add to connections while
 		// iterating (leads to ever-increasing connections in the map,
@@ -591,7 +590,7 @@ func (t *Tracer) removeEntries(entries []network.ConnectionStats) {
 		}
 
 		// Delete conntrack entry for this connection
-		t.conntracker.DeleteTranslation(*entry)
+		t.conntracker.DeleteTranslation(entry)
 
 		// Append the connection key to the keys to remove from the userspace state
 		toRemove = append(toRemove, entry)
