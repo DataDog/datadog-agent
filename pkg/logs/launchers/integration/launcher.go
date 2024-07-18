@@ -54,11 +54,12 @@ func NewLauncher(sources *sources.LogSources, runPath string, integrationsLogsCo
 		integrationsLogsComp: integrationsLogsComp,
 		integrationsLogs:     integrationsLogsComp.Subscribe(),
 		integrationToFile:    make(map[string]string),
+		writeFunction:        writeLogToFile,
 	}
 }
 
 // Start starts the launcher and launches the run loop in a go function
-func (s *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvider pipeline.Provider, registry auditor.Registry, tracker *tailers.TailerTracker) {
+func (s *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvider pipeline.Provider, registry auditor.Registry, _ *tailers.TailerTracker) {
 	s.piplineProvider = pipelineProvider
 	s.addedSources, s.removedSources = sourceProvider.SubscribeForType(config.IntegrationType)
 	s.registry = registry
@@ -98,22 +99,27 @@ func (s *Launcher) run() {
 
 			s.ensureFileSize(filepath)
 
-			file, err := os.OpenFile(filepath, os.O_WRONLY, 0644)
-			if err != nil {
-				ddLog.Warn("Failed to open file")
-			}
-
-			defer file.Close()
-
-			_, err = file.WriteString(log.Log)
-			if err != nil {
-				ddLog.Warn("Failed to write integration log to file")
-			}
+			s.writeFunction(filepath, log.Log)
 
 		case <-scanTicker.C:
 		case <-s.stop:
 			return
 		}
+	}
+}
+
+// writeLogToFile is used as a function pointer
+func writeLogToFile(filepath, log string) {
+	file, err := os.OpenFile(filepath, os.O_WRONLY, 0644)
+	if err != nil {
+		ddLog.Warn("Failed to open file")
+	}
+
+	defer file.Close()
+
+	_, err = file.WriteString(log)
+	if err != nil {
+		ddLog.Warn("Failed to write integration log to file")
 	}
 }
 

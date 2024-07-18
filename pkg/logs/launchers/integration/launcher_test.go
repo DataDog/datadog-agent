@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"os"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
@@ -75,17 +74,16 @@ func (suite *LauncherTestSuite) TestFileCreation() {
 	assert.NotNil(suite.T(), filePath)
 }
 
-func (suite *LauncherTestSuite) TestLogLineSubmitted() {
-	_, err := suite.testFile.WriteString("hello world\n")
-	suite.Nil(err)
-	msg := <-suite.outputChan
-	suite.Equal("hello world", string(msg.GetContent()))
-}
-
 func (suite *LauncherTestSuite) TestSendLog() {
 	logsSources := sources.NewLogSources()
 	suite.s.sources = logsSources
 	source := sources.NewLogSource("testLogsSource", &config.LogsConfig{Type: config.IntegrationType, Name: "integrationName", Path: suite.testPath})
+	filepathChan := make(chan string)
+	fileLogChan := make(chan string)
+	suite.s.writeFunction = func(filepath, log string) {
+		fileLogChan <- log
+		filepathChan <- filepath
+	}
 
 	filepath := suite.s.createFile(source)
 	suite.s.integrationToFile[source.Name] = filepath
@@ -97,12 +95,18 @@ func (suite *LauncherTestSuite) TestSendLog() {
 	logSample := "hello world"
 	suite.integrationsComp.SendLog(logSample, "testLogsSource:HASH1234")
 
-	// Check if log has been written to file
-	assert.EventuallyWithT(suite.T(), func(c *assert.CollectT) {
-		content, err := os.ReadFile(filepath)
-		assert.Nil(suite.T(), err)
-		assert.Equal(suite.T(), logSample, string(content))
-	}, time.Second*2, time.Second)
+	assert.Equal(suite.T(), logSample, <-fileLogChan)
+	assert.Equal(suite.T(), filepath, <-filepathChan)
+}
+
+func (suite *LauncherTestSuite) TestWriteLogToFile() {
+	logText := "hello world"
+	suite.s.writeFunction(suite.testPath, logText)
+
+	fileContents, err := os.ReadFile(suite.testPath)
+
+	assert.Nil(suite.T(), err)
+	assert.Equal(suite.T(), logText, string(fileContents))
 }
 
 func TestLauncherTestSuite(t *testing.T) {
