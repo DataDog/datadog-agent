@@ -23,36 +23,35 @@ type telemetryResults struct {
 }
 
 func Test_getBucketIndex(t *testing.T) {
-	t.Skip("Skipping test will be fixed")
-	for i := 0; i <= 156; i++ {
-		require.Equal(t, 0, i)
+	for i := 0; i <= 130; i++ {
+		require.Equalf(t, 0, getBucketIndex(i), "query length %d should be in bucket 0", i)
 	}
-	for i := 157; i <= 171; i++ {
-		require.Equal(t, 1, getBucketIndex(i))
+	for i := 131; i <= 145; i++ {
+		require.Equal(t, 1, getBucketIndex(i), "query length %d should be in bucket 1", i)
 	}
-	for i := 172; i <= 186; i++ {
-		require.Equal(t, 2, getBucketIndex(i))
+	for i := 146; i <= 160; i++ {
+		require.Equal(t, 2, getBucketIndex(i), "query length %d should be in bucket 2", i)
 	}
-	for i := 187; i <= 201; i++ {
-		require.Equal(t, 3, getBucketIndex(i))
+	for i := 161; i <= 175; i++ {
+		require.Equal(t, 3, getBucketIndex(i), "query length %d should be in bucket 3", i)
 	}
-	for i := 202; i <= 216; i++ {
-		require.Equal(t, 4, getBucketIndex(i))
+	for i := 176; i <= 190; i++ {
+		require.Equal(t, 4, getBucketIndex(i), "query length %d should be in bucket 4", i)
 	}
-	for i := 217; i <= 231; i++ {
-		require.Equal(t, 5, getBucketIndex(i))
+	for i := 191; i <= 205; i++ {
+		require.Equal(t, 5, getBucketIndex(i), "query length %d should be in bucket 5", i)
 	}
-	for i := 232; i <= 246; i++ {
-		require.Equal(t, 6, getBucketIndex(i))
+	for i := 206; i <= 220; i++ {
+		require.Equal(t, 6, getBucketIndex(i), "query length %d should be in bucket 6", i)
 	}
-	for i := 247; i <= 261; i++ {
-		require.Equal(t, 7, getBucketIndex(i))
+	for i := 221; i <= 235; i++ {
+		require.Equal(t, 7, getBucketIndex(i), "query length %d should be in bucket 7", i)
 	}
-	for i := 262; i <= 276; i++ {
-		require.Equal(t, 8, getBucketIndex(i))
+	for i := 236; i <= 250; i++ {
+		require.Equal(t, 8, getBucketIndex(i), "query length %d should be in bucket 8", i)
 	}
-	for i := 277; i <= 1000; i++ {
-		require.Equal(t, 9, getBucketIndex(i))
+	for i := 251; i <= 1000; i++ {
+		require.Equal(t, 9, getBucketIndex(i), "query length %d should be in bucket 9", i)
 	}
 }
 
