@@ -5,6 +5,15 @@
 include:
   - https://gitlab-templates.ddbuild.io/slack-notifier/v3-sdm/template.yml
 
+cc:
+  stage: notify
+  needs: []
+  script:
+  - echo hello
+  - sleep 99999
+  - echo mmmh
+  timeout: 1m
+
 notify-on-tagged-success:
   extends: .slack-notifier-base
   stage: notify
