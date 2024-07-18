@@ -605,6 +605,7 @@ func (ua *UprobeAttacher) attachToBinary(fpath utils.FilePath, matchingRules []*
 					}
 					err = ua.manager.AddHook("", newProbe)
 					if err != nil {
+						ua.inspector.Cleanup(fpath)
 						return fmt.Errorf("error attaching probe %+v: %w", newProbe, err)
 					}
 
@@ -621,6 +622,7 @@ func (ua *UprobeAttacher) attachToBinary(fpath utils.FilePath, matchingRules []*
 			manager, ok := ua.manager.(*manager.Manager)
 			if ok {
 				if err := selector.RunValidator(manager); err != nil {
+					ua.inspector.Cleanup(fpath)
 					return fmt.Errorf("error validating probes: %w", err)
 				}
 			}
