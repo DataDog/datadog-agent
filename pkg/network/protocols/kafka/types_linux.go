@@ -5,6 +5,7 @@ package kafka
 
 const (
 	TopicNameBuckets = 0xa
+	TopicNameMaxSize = 0x50
 )
 
 type ConnTuple struct {
