@@ -14,7 +14,7 @@ issues:
 
   # Do not limit the number of times a same issue is reported.
   max-same-issues: 0
-      
+
   exclude:
     - "Error return value of `io.WriteString` is not checked" # 'errcheck' errors in tools/dep_tree_resolver/go_deps.go
     - "Error return value of `pem.Encode` is not checked" # 'errcheck' errors in test/integration/utils/certificates.go
