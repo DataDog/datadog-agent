@@ -104,6 +104,7 @@ type secretResolver struct {
 
 	// Telemetry
 	tlmSecretBackendElapsed telemetry.Gauge
+	tlmSecretResolveError   telemetry.Counter
 }
 
 var _ secrets.Component = (*secretResolver)(nil)
@@ -114,6 +115,7 @@ func newEnabledSecretResolver(telemetry telemetry.Component) *secretResolver {
 		origin:                  make(handleToContext),
 		enabled:                 true,
 		tlmSecretBackendElapsed: telemetry.NewGauge("secret_backend", "elapsed_ms", []string{"command", "exit_code"}, "Elapsed time of secret backend invocation"),
+		tlmSecretResolveError:   telemetry.NewCounter("secret_backend", "resolve_errors_count", []string{"error_kind", "handle"}, "Count of errors when resolving a secret"),
 	}
 }
 
