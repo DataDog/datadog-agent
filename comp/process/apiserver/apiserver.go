@@ -59,8 +59,9 @@ func newApiServer(deps dependencies) Component {
 
 	deps.Lc.Append(fx.Hook{
 		OnStart: func(ctx context.Context) error {
+			var err error
 			go func() {
-				err := apiserver.server.ListenAndServe()
+				err = apiserver.server.ListenAndServe()
 				if err != nil && !errors.Is(err, http.ErrServerClosed) {
 					_ = deps.Log.Error(err)
 				}

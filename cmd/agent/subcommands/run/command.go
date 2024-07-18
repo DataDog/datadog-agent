@@ -78,6 +78,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
+	processcollector "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/external/process"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/defaults"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
@@ -348,6 +349,7 @@ func getSharedFxOption() fx.Option {
 
 		// workloadmeta setup
 		collectors.GetCatalog(),
+		processcollector.GetFxOptions(),
 		fx.Provide(defaults.DefaultParams),
 		workloadmetafx.Module(),
 		fx.Supply(
