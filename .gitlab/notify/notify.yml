@@ -6,6 +6,7 @@ include:
   - https://gitlab-templates.ddbuild.io/slack-notifier/v3-sdm/template.yml
 
 cc:
+  tags: ["arch:amd64"]
   stage: notify
   needs: []
   script:
