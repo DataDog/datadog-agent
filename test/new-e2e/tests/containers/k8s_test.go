@@ -7,6 +7,7 @@ package containers
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"regexp"
@@ -272,6 +273,17 @@ func (suite *k8sSuite) testAgentCLI() {
 		suite.Contains(stdout, "Instance ID: container [OK]")
 	})
 
+	suite.Run("agent status --json", func() {
+		stdout, stderr, err := suite.podExec("datadog", pod.Items[0].Name, "agent", []string{"env", "DD_LOG_LEVEL=off", "agent", "status", "--json"})
+		suite.Require().NoError(err)
+		suite.Empty(stderr, "Standard error of `agent status` should be empty")
+		if !suite.Truef(json.Valid([]byte(stdout)), "Output of `agent status --json` isn’t valid JSON") {
+			var blob interface{}
+			err := json.Unmarshal([]byte(stdout), &blob)
+			suite.NoError(err)
+		}
+	})
+
 	suite.Run("agent checkconfig", func() {
 		stdout, stderr, err := suite.podExec("datadog", pod.Items[0].Name, "agent", []string{"agent", "checkconfig"})
 		suite.Require().NoError(err)
@@ -284,6 +296,16 @@ func (suite *k8sSuite) testAgentCLI() {
 		stdout, _, err := suite.podExec("datadog", pod.Items[0].Name, "agent", []string{"agent", "check", "-r", "container", "--table", "--delay", "1000"})
 		suite.Require().NoError(err)
 		suite.Contains(stdout, "container.memory.usage        gauge")
+	})
+
+	suite.Run("agent check -r container --json", func() {
+		stdout, _, err := suite.podExec("datadog", pod.Items[0].Name, "agent", []string{"env", "DD_LOG_LEVEL=off", "agent", "check", "-r", "container", "--table", "--delay", "1000", "--json"})
+		suite.Require().NoError(err)
+		if !suite.Truef(json.Valid([]byte(stdout)), "Output of `agent check -r container --json` isn’t valid JSON") {
+			var blob interface{}
+			err := json.Unmarshal([]byte(stdout), &blob)
+			suite.NoError(err)
+		}
 	})
 
 	suite.Run("agent workload-list", func() {
@@ -320,6 +342,17 @@ func (suite *k8sSuite) testClusterAgentCLI() {
 		suite.Contains(stdout, "Collector")
 		suite.Contains(stdout, "Running Checks")
 		suite.Contains(stdout, "kubernetes_state_core")
+	})
+
+	suite.Run("cluster-agent status --json", func() {
+		stdout, stderr, err := suite.podExec("datadog", pod.Items[0].Name, "cluster-agent", []string{"env", "DD_LOG_LEVEL=off", "datadog-cluster-agent", "status", "--json"})
+		suite.Require().NoError(err)
+		suite.Empty(stderr, "Standard error of `datadog-cluster-agent status` should be empty")
+		if !suite.Truef(json.Valid([]byte(stdout)), "Output of `datadog-cluster-agent status --json` isn’t valid JSON") {
+			var blob interface{}
+			err := json.Unmarshal([]byte(stdout), &blob)
+			suite.NoError(err)
+		}
 	})
 
 	suite.Run("cluster-agent checkconfig", func() {
