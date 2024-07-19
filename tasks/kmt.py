@@ -2126,7 +2126,7 @@ def download_complexity_data(ctx: Context, commit: str, dest_path: str | Path):
         _, test_jobs = get_all_jobs_for_pipeline(pipeline_id)
         for job in test_jobs:
             complexity_name = f"verifier-complexity-{job.arch}-{job.distro}-{job.component}"
-            complexity_data_fname = f"{complexity_name}.tar.gz"
+            complexity_data_fname = f"test/kitchen/{complexity_name}.tar.gz"
             data = job.artifact_file_binary(complexity_data_fname, ignore_not_found=True)
             if data is None:
                 print(f"Complexity data not found for {job.name} - filename {complexity_data_fname} not found")
@@ -2136,3 +2136,4 @@ def download_complexity_data(ctx: Context, commit: str, dest_path: str | Path):
             job_folder = dest_path / complexity_name
             job_folder.mkdir(parents=True, exist_ok=True)
             tar.extractall(dest_path / job_folder)
+            print(f"Extracted complexity data for {job.name} successfully, filename {complexity_data_fname}")
