@@ -10,6 +10,7 @@ package uprobes
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
@@ -285,38 +286,85 @@ func TestMonitor(t *testing.T) {
 	mockRegistry.AssertCalled(t, "Register", cmd.Path, uint32(cmd.Process.Pid), mock.Anything, mock.Anything)
 }
 
-func TestInitialScan(t *testing.T) {
+func TestSync(t *testing.T) {
 	selfPID, err := kernel.RootNSPID()
 	require.NoError(t, err)
-	procs := []FakeProcFSEntry{
-		{pid: 1, cmdline: "/bin/bash", command: "/bin/bash", exe: "/bin/bash"},
-		{pid: 2, cmdline: "/bin/bash", command: "/bin/bash", exe: "/bin/bash"},
-		{pid: uint32(selfPID), cmdline: "datadog-agent/bin/system-probe", command: "sysprobe", exe: "sysprobe"},
-	}
-	procFS := createFakeProcFS(t, procs)
+	rules := []*AttachRule{{
+		Targets:          AttachToExecutable | AttachToSharedLibraries,
+		LibraryNameRegex: regexp.MustCompile(`.*`),
+		ExecutableFilter: func(path string, _ *ProcInfo) bool { return !strings.Contains(path, "donttrack") },
+	}}
 
-	config := &AttacherConfig{
-		ProcRoot: procFS,
-		Rules: []*AttachRule{{
-			Targets:          AttachToExecutable | AttachToSharedLibraries,
-			LibraryNameRegex: regexp.MustCompile(`.*`),
-		}},
-	}
-	ua, err := NewUprobeAttacher("mock", config, &MockManager{}, nil, nil)
-	require.NoError(t, err)
-	require.NotNil(t, ua)
+	t.Run("DetectsExistingProcesses", func(tt *testing.T) {
+		procs := []FakeProcFSEntry{
+			{pid: 1, cmdline: "/bin/bash", command: "/bin/bash", exe: "/bin/bash"},
+			{pid: 2, cmdline: "/bin/bash", command: "/bin/bash", exe: "/bin/bash"},
+			{pid: 3, cmdline: "/bin/donttrack", command: "/bin/donttrack", exe: "/bin/donttrack"},
+			{pid: uint32(selfPID), cmdline: "datadog-agent/bin/system-probe", command: "sysprobe", exe: "sysprobe"},
+		}
+		procFS := createFakeProcFS(t, procs)
 
-	mockRegistry := &MockFileRegistry{}
-	ua.fileRegistry = mockRegistry
+		config := &AttacherConfig{
+			ProcRoot: procFS,
+			Rules:    rules,
+		}
 
-	// Tell mockRegistry which two processes to expect
-	mockRegistry.On("Register", "/bin/bash", uint32(1), mock.Anything, mock.Anything).Return(nil)
-	mockRegistry.On("Register", "/bin/bash", uint32(2), mock.Anything, mock.Anything).Return(nil)
+		ua, err := NewUprobeAttacher("mock", config, &MockManager{}, nil, nil)
+		require.NoError(tt, err)
+		require.NotNil(tt, ua)
 
-	err = ua.initialScan()
-	require.NoError(t, err)
+		mockRegistry := &MockFileRegistry{}
+		ua.fileRegistry = mockRegistry
 
-	mockRegistry.AssertExpectations(t)
+		// Tell mockRegistry which two processes to expect
+		mockRegistry.On("Register", "/bin/bash", uint32(1), mock.Anything, mock.Anything).Return(nil)
+		mockRegistry.On("Register", "/bin/bash", uint32(2), mock.Anything, mock.Anything).Return(nil)
+
+		err = ua.Sync(false)
+		require.NoError(tt, err)
+
+		mockRegistry.AssertExpectations(tt)
+	})
+
+	t.Run("RemovesDeletedProcesses", func(tt *testing.T) {
+		procs := []FakeProcFSEntry{
+			{pid: 1, cmdline: "/bin/bash", command: "/bin/bash", exe: "/bin/bash"},
+			{pid: 2, cmdline: "/bin/bash", command: "/bin/bash", exe: "/bin/bash"},
+			{pid: 3, cmdline: "/bin/donttrack", command: "/bin/donttrack", exe: "/bin/donttrack"},
+			{pid: uint32(selfPID), cmdline: "datadog-agent/bin/system-probe", command: "sysprobe", exe: "sysprobe"},
+		}
+		procFS := createFakeProcFS(t, procs)
+
+		config := &AttacherConfig{
+			ProcRoot: procFS,
+			Rules:    rules,
+		}
+
+		ua, err := NewUprobeAttacher("mock", config, &MockManager{}, nil, nil)
+		require.NoError(tt, err)
+		require.NotNil(tt, ua)
+
+		mockRegistry := &MockFileRegistry{}
+		ua.fileRegistry = mockRegistry
+
+		// Tell mockRegistry which two processes to expect
+		mockRegistry.On("Register", "/bin/bash", uint32(1), mock.Anything, mock.Anything).Return(nil)
+		mockRegistry.On("Register", "/bin/bash", uint32(2), mock.Anything, mock.Anything).Return(nil)
+		mockRegistry.On("GetRegisteredProcesses").Return(map[uint32]struct{}{})
+
+		err = ua.Sync(true)
+		require.NoError(tt, err)
+		mockRegistry.AssertExpectations(tt)
+
+		// Now remove one process
+		require.NoError(t, os.RemoveAll(filepath.Join(procFS, "2")))
+		mockRegistry.ExpectedCalls = nil // Clear expected calls
+		mockRegistry.On("GetRegisteredProcesses").Return(map[uint32]struct{}{1: {}, 2: {}})
+		mockRegistry.On("Unregister", uint32(2)).Return(nil)
+
+		require.NoError(t, ua.Sync(true))
+		mockRegistry.AssertExpectations(tt)
+	})
 }
 
 func TestParseSymbolFromEBPFProbeName(t *testing.T) {

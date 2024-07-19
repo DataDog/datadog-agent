@@ -226,7 +226,7 @@ func (ua *UprobeAttacher) Start() error {
 	}
 
 	if ua.config.PerformInitialScan {
-		err := ua.initialScan()
+		err := ua.Sync(false)
 		if err != nil {
 			return fmt.Errorf("error during initial scan: %w", err)
 		}
@@ -275,7 +275,7 @@ func (ua *UprobeAttacher) Start() error {
 			case <-ua.done:
 				return
 			case <-processSync.C:
-				ua.Sync()
+				ua.Sync(true)
 			case event, ok := <-sharedLibDataChan:
 				if !ok {
 					return
@@ -292,11 +292,14 @@ func (ua *UprobeAttacher) Start() error {
 }
 
 // Sync scans the proc filesystem for new processes and detaches from terminated ones
-func (ua *UprobeAttacher) Sync() {
-	deletionCandidates := ua.fileRegistry.GetRegisteredProcesses()
+func (ua *UprobeAttacher) Sync(trackDeletions bool) error {
+	var deletionCandidates map[uint32]struct{}
+	if trackDeletions {
+		deletionCandidates = ua.fileRegistry.GetRegisteredProcesses()
+	}
 	thisPID, err := kernel.RootNSPID()
 	if err != nil {
-		return
+		return err
 	}
 
 	_ = kernel.WithAllProcs(ua.config.ProcRoot, func(pid int) error {
@@ -304,11 +307,13 @@ func (ua *UprobeAttacher) Sync() {
 			return nil
 		}
 
-		if _, ok := deletionCandidates[uint32(pid)]; ok {
-			// We have previously hooked into this process and it remains active,
-			// so we remove it from the deletionCandidates list, and move on to the next PID
-			delete(deletionCandidates, uint32(pid))
-			return nil
+		if trackDeletions {
+			if _, ok := deletionCandidates[uint32(pid)]; ok {
+				// We have previously hooked into this process and it remains active,
+				// so we remove it from the deletionCandidates list, and move on to the next PID
+				delete(deletionCandidates, uint32(pid))
+				return nil
+			}
 		}
 
 		// This is a new PID so we attempt to attach SSL probes to it
@@ -316,34 +321,21 @@ func (ua *UprobeAttacher) Sync() {
 		return nil
 	})
 
-	// At this point all entries from deletionCandidates are no longer alive, so
-	// we should detach our SSL probes from them
-	for pid := range deletionCandidates {
-		ua.handleProcessExit(pid)
+	if trackDeletions {
+		// At this point all entries from deletionCandidates are no longer alive, so
+		// we should detach our SSL probes from them
+		for pid := range deletionCandidates {
+			ua.handleProcessExit(pid)
+		}
 	}
+
+	return nil
 }
 
 // Stop stops the attacher
 func (ua *UprobeAttacher) Stop() {
 	close(ua.done)
 	ua.wg.Wait()
-}
-
-func (ua *UprobeAttacher) initialScan() error {
-	thisPID, err := kernel.RootNSPID()
-	if err != nil {
-		return fmt.Errorf("error getting PID of our own process: %w", err)
-	}
-
-	err = kernel.WithAllProcs(ua.config.ProcRoot, func(pid int) error {
-		if pid == thisPID { // don't scan ourselves
-			return nil
-		}
-
-		return ua.AttachPIDWithOptions(uint32(pid), true)
-	})
-
-	return err
 }
 
 // handleProcessStart is called when a new process is started, wraps AttachPIDWithOptions but ignoring the error
