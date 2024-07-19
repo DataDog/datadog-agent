@@ -195,6 +195,12 @@ func NewUprobeAttacher(name string, config *AttacherConfig, mgr ProbeManager, on
 	return ua, nil
 }
 
+// SetRegistry allows changing the file registry used by the attacher. This is useful for testing purposes, to
+// replace the registry with a mock object
+func (ua *UprobeAttacher) SetRegistry(registry FileRegistry) {
+	ua.fileRegistry = registry
+}
+
 func (ua *UprobeAttacher) handlesLibraries() bool {
 	if ua.handlesLibrariesCached != nil {
 		return *ua.handlesLibrariesCached

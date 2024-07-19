@@ -10,10 +10,7 @@ package uprobes
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"regexp"
-	"runtime"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -25,120 +22,16 @@ import (
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	fileopener "github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// === Mocks
-type mockManager struct {
-	mock.Mock
-}
-
-func (m *mockManager) AddHook(name string, probe *manager.Probe) error {
-	args := m.Called(name, probe)
-	return args.Error(0)
-}
-
-func (m *mockManager) DetachHook(probeID manager.ProbeIdentificationPair) error {
-	args := m.Called(probeID)
-	return args.Error(0)
-}
-
-func (m *mockManager) GetProbe(probeID manager.ProbeIdentificationPair) (*manager.Probe, bool) {
-	args := m.Called(probeID)
-	return args.Get(0).(*manager.Probe), args.Bool(1)
-}
-
-type mockFileRegistry struct {
-	mock.Mock
-}
-
-func (m *mockFileRegistry) Register(namespacedPath string, pid uint32, activationCB, deactivationCB func(utils.FilePath) error) error {
-	args := m.Called(namespacedPath, pid, activationCB, deactivationCB)
-	return args.Error(0)
-}
-
-func (m *mockFileRegistry) Unregister(pid uint32) error {
-	args := m.Called(pid)
-	return args.Error(0)
-}
-
-func (m *mockFileRegistry) Clear() {
-	m.Called()
-}
-
-func (m *mockFileRegistry) GetRegisteredProcesses() map[uint32]struct{} {
-	args := m.Called()
-	return args.Get(0).(map[uint32]struct{})
-}
-
-type mockBinaryInspector struct {
-	mock.Mock
-}
-
-func (m *mockBinaryInspector) Inspect(fpath utils.FilePath, requests []SymbolRequest) (map[string]bininspect.FunctionMetadata, bool, error) {
-	args := m.Called(fpath, requests)
-	return args.Get(0).(map[string]bininspect.FunctionMetadata), args.Bool(1), args.Error(2)
-}
-
-func (m *mockBinaryInspector) Cleanup(fpath utils.FilePath) {
-	_ = m.Called(fpath)
-}
-
-// === Test utils
-type FakeProcFSEntry struct {
-	pid     uint32
-	cmdline string
-	command string
-	exe     string
-	maps    string
-}
-
-func createFakeProcFS(t *testing.T, entries []FakeProcFSEntry) string {
-	procRoot := t.TempDir()
-
-	for _, entry := range entries {
-		baseDir := filepath.Join(procRoot, strconv.Itoa(int(entry.pid)))
-
-		createFile(t, filepath.Join(baseDir, "cmdline"), entry.cmdline)
-		createFile(t, filepath.Join(baseDir, "comm"), entry.command)
-		createFile(t, filepath.Join(baseDir, "maps"), entry.maps)
-
-		if entry.exe != "" {
-			createSymlink(t, entry.exe, filepath.Join(baseDir, "exe"))
-		}
-	}
-
-	return procRoot
-}
-
-func createFile(t *testing.T, path, data string) {
-	dir := filepath.Dir(path)
-	require.NoError(t, os.MkdirAll(dir, 0775))
-	require.NoError(t, os.WriteFile(path, []byte(data), 0775))
-}
-
-func createSymlink(t *testing.T, target, link string) {
-	dir := filepath.Dir(link)
-	require.NoError(t, os.MkdirAll(dir, 0775))
-	require.NoError(t, os.Symlink(target, link))
-}
-
-func getLibSSLPath(t *testing.T) string {
-	curDir, err := testutil.CurDir()
-	require.NoError(t, err)
-
-	libmmap := filepath.Join(curDir, "..", "..", "network", "usm", "testdata", "libmmap")
-	return filepath.Join(libmmap, fmt.Sprintf("libssl.so.%s", runtime.GOARCH))
-}
-
 // === Tests
 
 func TestCanCreateAttacher(t *testing.T) {
-	ua, err := NewUprobeAttacher("mock", &AttacherConfig{}, &mockManager{}, nil, nil)
+	ua, err := NewUprobeAttacher("mock", &AttacherConfig{}, &MockManager{}, nil, nil)
 	require.NoError(t, err)
 	require.NotNil(t, ua)
 }
@@ -150,7 +43,7 @@ func TestAttachPidExcludesInternal(t *testing.T) {
 		ExcludeTargets: ExcludeInternal,
 		ProcRoot:       procRoot,
 	}
-	ua, err := NewUprobeAttacher("mock", config, &mockManager{}, nil, nil)
+	ua, err := NewUprobeAttacher("mock", config, &MockManager{}, nil, nil)
 	require.NoError(t, err)
 	require.NotNil(t, ua)
 
@@ -162,7 +55,7 @@ func TestAttachPidExcludesSelf(t *testing.T) {
 	config := &AttacherConfig{
 		ExcludeTargets: ExcludeSelf,
 	}
-	ua, err := NewUprobeAttacher("mock", config, &mockManager{}, nil, nil)
+	ua, err := NewUprobeAttacher("mock", config, &MockManager{}, nil, nil)
 	require.NoError(t, err)
 	require.NotNil(t, ua)
 
@@ -176,7 +69,7 @@ func TestGetExecutablePath(t *testing.T) {
 	config := &AttacherConfig{
 		ProcRoot: procRoot,
 	}
-	ua, err := NewUprobeAttacher("mock", config, &mockManager{}, nil, nil)
+	ua, err := NewUprobeAttacher("mock", config, &MockManager{}, nil, nil)
 	require.NoError(t, err)
 	require.NotNil(t, ua)
 
@@ -219,7 +112,7 @@ func TestGetLibrariesFromMapsFile(t *testing.T) {
 	config := &AttacherConfig{
 		ProcRoot: procRoot,
 	}
-	ua, err := NewUprobeAttacher("mock", config, &mockManager{}, nil, nil)
+	ua, err := NewUprobeAttacher("mock", config, &MockManager{}, nil, nil)
 	require.NoError(t, err)
 	require.NotNil(t, ua)
 
@@ -231,7 +124,7 @@ func TestGetLibrariesFromMapsFile(t *testing.T) {
 }
 
 func TestComputeRequestedSymbols(t *testing.T) {
-	ua, err := NewUprobeAttacher("mock", &AttacherConfig{}, &mockManager{}, nil, nil)
+	ua, err := NewUprobeAttacher("mock", &AttacherConfig{}, &MockManager{}, nil, nil)
 	require.NoError(t, err)
 	require.NotNil(t, ua)
 
@@ -303,7 +196,7 @@ func TestComputeRequestedSymbols(t *testing.T) {
 }
 
 func TestStartAndStopWithoutLibraryWatcher(t *testing.T) {
-	ua, err := NewUprobeAttacher("mock", &AttacherConfig{}, &mockManager{}, nil, nil)
+	ua, err := NewUprobeAttacher("mock", &AttacherConfig{}, &MockManager{}, nil, nil)
 	require.NoError(t, err)
 	require.NotNil(t, ua)
 
@@ -315,7 +208,7 @@ func TestStartAndStopWithoutLibraryWatcher(t *testing.T) {
 
 func TestStartAndStopWithLibraryWatcher(t *testing.T) {
 	rules := []*AttachRule{{LibraryNameRegex: regexp.MustCompile(`libssl.so`)}}
-	ua, err := NewUprobeAttacher("mock", &AttacherConfig{Rules: rules}, &mockManager{}, nil, nil)
+	ua, err := NewUprobeAttacher("mock", &AttacherConfig{Rules: rules}, &MockManager{}, nil, nil)
 	require.NoError(t, err)
 	require.NotNil(t, ua)
 	require.True(t, ua.handlesLibraries())
@@ -366,11 +259,11 @@ func TestMonitor(t *testing.T) {
 		}},
 		ProcessMonitorEventStream: false,
 	}
-	ua, err := NewUprobeAttacher("mock", config, &mockManager{}, nil, nil)
+	ua, err := NewUprobeAttacher("mock", config, &MockManager{}, nil, nil)
 	require.NoError(t, err)
 	require.NotNil(t, ua)
 
-	mockRegistry := &mockFileRegistry{}
+	mockRegistry := &MockFileRegistry{}
 	ua.fileRegistry = mockRegistry
 
 	// Tell mockRegistry to return on any calls, we will check the values later
@@ -409,11 +302,11 @@ func TestInitialScan(t *testing.T) {
 			LibraryNameRegex: regexp.MustCompile(`.*`),
 		}},
 	}
-	ua, err := NewUprobeAttacher("mock", config, &mockManager{}, nil, nil)
+	ua, err := NewUprobeAttacher("mock", config, &MockManager{}, nil, nil)
 	require.NoError(t, err)
 	require.NotNil(t, ua)
 
-	mockRegistry := &mockFileRegistry{}
+	mockRegistry := &MockFileRegistry{}
 	ua.fileRegistry = mockRegistry
 
 	// Tell mockRegistry which two processes to expect
@@ -473,8 +366,8 @@ func TestAttachToBinaryAndDetach(t *testing.T) {
 		},
 	}
 
-	mockMan := &mockManager{}
-	inspector := &mockBinaryInspector{}
+	mockMan := &MockManager{}
+	inspector := &MockBinaryInspector{}
 	ua, err := NewUprobeAttacher("mock", config, mockMan, nil, inspector)
 	require.NoError(t, err)
 	require.NotNil(t, ua)
@@ -534,8 +427,8 @@ func TestAttachToBinaryAtReturnLocation(t *testing.T) {
 		},
 	}
 
-	mockMan := &mockManager{}
-	inspector := &mockBinaryInspector{}
+	mockMan := &MockManager{}
+	inspector := &MockBinaryInspector{}
 	ua, err := NewUprobeAttacher("mock", config, mockMan, nil, inspector)
 	require.NoError(t, err)
 	require.NotNil(t, ua)
@@ -614,9 +507,9 @@ func TestAttachToLibrariesOfPid(t *testing.T) {
 		},
 	}
 
-	mockMan := &mockManager{}
-	inspector := &mockBinaryInspector{}
-	registry := &mockFileRegistry{}
+	mockMan := &MockManager{}
+	inspector := &MockBinaryInspector{}
+	registry := &MockFileRegistry{}
 	ua, err := NewUprobeAttacher("mock", config, mockMan, nil, inspector)
 	require.NoError(t, err)
 	require.NotNil(t, ua)
