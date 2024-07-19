@@ -23,193 +23,229 @@ import (
 func registerFIMHandlers(handlers map[int]syscallHandler) []string {
 	fimHandlers := []syscallHandler{
 		{
-			IDs:        []syscallID{{ID: OpenNr, Name: "open"}},
+			ID:         syscallID{ID: OpenNr, Name: "open"},
 			Func:       handleOpen,
 			ShouldSend: isAcceptedRetval,
 			RetFunc:    handleOpensRet,
 		},
 		{
-			IDs:        []syscallID{{ID: OpenatNr, Name: "openat"}},
+			ID:         syscallID{ID: OpenatNr, Name: "openat"},
 			Func:       handleOpenAt,
 			ShouldSend: isAcceptedRetval,
 			RetFunc:    handleOpensRet,
 		},
 		{
-			IDs:        []syscallID{{ID: Openat2Nr, Name: "openat2"}},
+			ID:         syscallID{ID: Openat2Nr, Name: "openat2"},
 			Func:       handleOpenAt2,
 			ShouldSend: isAcceptedRetval,
 			RetFunc:    handleOpensRet,
 		},
 		{
-			IDs:        []syscallID{{ID: CreatNr, Name: "creat"}},
+			ID:         syscallID{ID: CreatNr, Name: "creat"},
 			Func:       handleCreat,
 			ShouldSend: isAcceptedRetval,
 			RetFunc:    handleOpensRet,
 		},
 		{
-			IDs:        []syscallID{{ID: NameToHandleAtNr, Name: "name_to_handle_at"}},
+			ID:         syscallID{ID: NameToHandleAtNr, Name: "name_to_handle_at"},
 			Func:       handleNameToHandleAt,
 			ShouldSend: nil,
 			RetFunc:    handleNameToHandleAtRet,
 		},
 		{
-			IDs:        []syscallID{{ID: OpenByHandleAtNr, Name: "open_by_handle_at"}},
+			ID:         syscallID{ID: OpenByHandleAtNr, Name: "open_by_handle_at"},
 			Func:       handleOpenByHandleAt,
 			ShouldSend: isAcceptedRetval,
 			RetFunc:    handleOpensRet,
 		},
 		{
-			IDs:        []syscallID{{ID: MemfdCreateNr, Name: "memfd_create"}},
+			ID:         syscallID{ID: MemfdCreateNr, Name: "memfd_create"},
 			Func:       handleMemfdCreate,
 			ShouldSend: isAcceptedRetval,
 			RetFunc:    handleOpensRet,
 		},
 		{
-			IDs:        []syscallID{{ID: FcntlNr, Name: "fcntl"}},
+			ID:         syscallID{ID: FcntlNr, Name: "fcntl"},
 			Func:       handleFcntl,
 			ShouldSend: nil,
 			RetFunc:    handleFcntlRet,
 		},
 		{
-			IDs:        []syscallID{{ID: DupNr, Name: "dup"}, {ID: Dup2Nr, Name: "dup2"}, {ID: Dup3Nr, Name: "dup3"}},
+			ID:         syscallID{ID: DupNr, Name: "dup"},
 			Func:       handleDup,
 			ShouldSend: nil,
 			RetFunc:    handleDupRet,
 		},
 		{
-			IDs:        []syscallID{{ID: CloseNr, Name: "close"}},
+			ID:         syscallID{ID: Dup2Nr, Name: "dup2"},
+			Func:       handleDup,
+			ShouldSend: nil,
+			RetFunc:    handleDupRet,
+		},
+		{
+			ID:         syscallID{ID: Dup3Nr, Name: "dup3"},
+			Func:       handleDup,
+			ShouldSend: nil,
+			RetFunc:    handleDupRet,
+		},
+		{
+			ID:         syscallID{ID: CloseNr, Name: "close"},
 			Func:       handleClose,
 			ShouldSend: nil,
 			RetFunc:    nil,
 		},
 		{
-			IDs:        []syscallID{{ID: UnlinkNr, Name: "unlink"}},
+			ID:         syscallID{ID: UnlinkNr, Name: "unlink"},
 			Func:       handleUnlink,
 			ShouldSend: isAcceptedRetval,
 			RetFunc:    nil,
 		},
 		{
-			IDs:        []syscallID{{ID: UnlinkatNr, Name: "unlinkat"}},
+			ID:         syscallID{ID: UnlinkatNr, Name: "unlinkat"},
 			Func:       handleUnlinkat,
 			ShouldSend: isAcceptedRetval,
 			RetFunc:    nil,
 		},
 		{
-			IDs:        []syscallID{{ID: RmdirNr, Name: "rmdir"}},
+			ID:         syscallID{ID: RmdirNr, Name: "rmdir"},
 			Func:       handleRmdir,
 			ShouldSend: isAcceptedRetval,
 			RetFunc:    nil,
 		},
 		{
-			IDs:        []syscallID{{ID: RenameNr, Name: "rename"}},
+			ID:         syscallID{ID: RenameNr, Name: "rename"},
 			Func:       handleRename,
 			ShouldSend: isAcceptedRetval,
 			RetFunc:    handleRenamesRet,
 		},
 		{
-			IDs:        []syscallID{{ID: RenameAtNr, Name: "renameat"}, {ID: RenameAt2Nr, Name: "renameat2"}},
+			ID:         syscallID{ID: RenameAtNr, Name: "renameat"},
 			Func:       handleRenameAt,
 			ShouldSend: isAcceptedRetval,
 			RetFunc:    handleRenamesRet,
 		},
 		{
-			IDs:        []syscallID{{ID: MkdirNr, Name: "mkdir"}},
+			ID:         syscallID{ID: RenameAt2Nr, Name: "renameat2"},
+			Func:       handleRenameAt,
+			ShouldSend: isAcceptedRetval,
+			RetFunc:    handleRenamesRet,
+		},
+		{
+			ID:         syscallID{ID: MkdirNr, Name: "mkdir"},
 			Func:       handleMkdir,
 			ShouldSend: isAcceptedRetval,
 			RetFunc:    handleMkdirRet,
 		},
 		{
-			IDs:        []syscallID{{ID: MkdirAtNr, Name: "mkdirat"}},
+			ID:         syscallID{ID: MkdirAtNr, Name: "mkdirat"},
 			Func:       handleMkdirAt,
 			ShouldSend: isAcceptedRetval,
 			RetFunc:    handleMkdirRet,
 		},
 		{
-			IDs:        []syscallID{{ID: UtimeNr, Name: "utime"}},
+			ID:         syscallID{ID: UtimeNr, Name: "utime"},
 			Func:       handleUtime,
 			ShouldSend: isAcceptedRetval,
 			RetFunc:    nil,
 		},
 		{
-			IDs:        []syscallID{{ID: UtimesNr, Name: "utimes"}},
+			ID:         syscallID{ID: UtimesNr, Name: "utimes"},
 			Func:       handleUtimes,
 			ShouldSend: isAcceptedRetval,
 			RetFunc:    nil,
 		},
 		{
-			IDs:        []syscallID{{ID: UtimensAtNr, Name: "utimensat"}, {ID: FutimesAtNr, Name: "futimesat"}},
+			ID:         syscallID{ID: UtimensAtNr, Name: "utimensat"},
 			Func:       handleUtimensAt,
 			ShouldSend: isAcceptedRetval,
 			RetFunc:    nil,
 		},
 		{
-			IDs:        []syscallID{{ID: LinkNr, Name: "link"}},
+			ID:         syscallID{ID: FutimesAtNr, Name: "futimesat"},
+			Func:       handleUtimensAt,
+			ShouldSend: isAcceptedRetval,
+			RetFunc:    nil,
+		},
+		{
+			ID:         syscallID{ID: LinkNr, Name: "link"},
 			Func:       handleLink,
 			ShouldSend: isAcceptedRetval,
 			RetFunc:    handleLinksRet,
 		},
 		{
-			IDs:        []syscallID{{ID: LinkAtNr, Name: "linkat"}},
+			ID:         syscallID{ID: LinkAtNr, Name: "linkat"},
 			Func:       handleLinkAt,
 			ShouldSend: isAcceptedRetval,
 			RetFunc:    handleLinksRet,
 		},
 		{
-			IDs:        []syscallID{{ID: SymlinkNr, Name: "symlink"}},
+			ID:         syscallID{ID: SymlinkNr, Name: "symlink"},
 			Func:       handleSymlink,
 			ShouldSend: isAcceptedRetval,
 			RetFunc:    handleLinksRet,
 		},
 		{
-			IDs:        []syscallID{{ID: SymlinkAtNr, Name: "symlinkat"}},
+			ID:         syscallID{ID: SymlinkAtNr, Name: "symlinkat"},
 			Func:       handleSymlinkAt,
 			ShouldSend: isAcceptedRetval,
 			RetFunc:    handleLinksRet,
 		},
 		{
-			IDs:        []syscallID{{ID: ChmodNr, Name: "chmod"}},
+			ID:         syscallID{ID: ChmodNr, Name: "chmod"},
 			Func:       handleChmod,
 			ShouldSend: isAcceptedRetval,
 			RetFunc:    nil,
 		},
 		{
-			IDs:        []syscallID{{ID: FchmodNr, Name: "fchmod"}},
+			ID:         syscallID{ID: FchmodNr, Name: "fchmod"},
 			Func:       handleFchmod,
 			ShouldSend: isAcceptedRetval,
 			RetFunc:    nil,
 		},
 		{
-			IDs:        []syscallID{{ID: FchmodAtNr, Name: "fchmodat"}, {ID: FchmodAt2Nr, Name: "fchmodat2"}},
+			ID:         syscallID{ID: FchmodAtNr, Name: "fchmodat"},
 			Func:       handleFchmodAt,
 			ShouldSend: isAcceptedRetval,
 			RetFunc:    nil,
 		},
 		{
-			IDs:        []syscallID{{ID: ChownNr, Name: "chown"}, {ID: LchownNr, Name: "lchown"}},
+			ID:         syscallID{ID: FchmodAt2Nr, Name: "fchmodat2"},
+			Func:       handleFchmodAt,
+			ShouldSend: isAcceptedRetval,
+			RetFunc:    nil,
+		},
+		{
+			ID:         syscallID{ID: ChownNr, Name: "chown"},
 			Func:       handleChown,
 			ShouldSend: isAcceptedRetval,
 			RetFunc:    nil,
 		},
 		{
-			IDs:        []syscallID{{ID: FchownNr, Name: "fchown"}},
+			ID:         syscallID{ID: LchownNr, Name: "lchown"},
+			Func:       handleChown,
+			ShouldSend: isAcceptedRetval,
+			RetFunc:    nil,
+		},
+		{
+			ID:         syscallID{ID: FchownNr, Name: "fchown"},
 			Func:       handleFchown,
 			ShouldSend: isAcceptedRetval,
 			RetFunc:    nil,
 		},
 		{
-			IDs:        []syscallID{{ID: FchownAtNr, Name: "fchownat"}},
+			ID:         syscallID{ID: FchownAtNr, Name: "fchownat"},
 			Func:       handleFchownAt,
 			ShouldSend: isAcceptedRetval,
 			RetFunc:    nil,
 		},
 		{
-			IDs:        []syscallID{{ID: MountNr, Name: "mount"}},
+			ID:         syscallID{ID: MountNr, Name: "mount"},
 			Func:       handleMount,
 			ShouldSend: isAcceptedRetval,
 			RetFunc:    nil,
 		},
 		{
-			IDs:        []syscallID{{ID: Umount2Nr, Name: "umount2"}},
+			ID:         syscallID{ID: Umount2Nr, Name: "umount2"},
 			Func:       handleUmount2,
 			ShouldSend: isAcceptedRetval,
 			RetFunc:    nil,
@@ -218,11 +254,9 @@ func registerFIMHandlers(handlers map[int]syscallHandler) []string {
 
 	syscallList := []string{}
 	for _, h := range fimHandlers {
-		for _, id := range h.IDs {
-			if id.ID >= 0 { // insert only available syscalls
-				handlers[id.ID] = h
-				syscallList = append(syscallList, id.Name)
-			}
+		if h.ID.ID >= 0 { // insert only available syscalls
+			handlers[h.ID.ID] = h
+			syscallList = append(syscallList, h.ID.Name)
 		}
 	}
 	return syscallList
