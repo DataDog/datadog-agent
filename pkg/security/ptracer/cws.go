@@ -18,6 +18,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"slices"
 	"sync"
 	"syscall"
 	"time"
@@ -444,6 +445,11 @@ func ptrace(tracer *Tracer, probeAddr string, syscallHandlers map[int]syscallHan
 	}
 
 	cb := func(cbType CallbackType, nr int, pid int, ppid int, regs syscall.PtraceRegs, waitStatus *syscall.WaitStatus) {
+		handler, found := syscallHandlers[nr]
+		if !found && !slices.Contains([]int{ExecveNr, ExecveatNr, IoctlNr, CloneNr, Clone3Nr, ForkNr, VforkNr, ExitNr}, nr) {
+			return
+		}
+
 		process := pc.Get(pid)
 		if process == nil {
 			process = NewProcess(pid)
@@ -474,8 +480,7 @@ func ptrace(tracer *Tracer, probeAddr string, syscallHandlers map[int]syscallHan
 				process.Nr[nr] = syscallMsg
 			}
 
-			handler, found := syscallHandlers[nr]
-			if found && handler.Func != nil {
+			if handler.Func != nil {
 				err := handler.Func(tracer, process, syscallMsg, regs, opts.StatsDisabled)
 				if err != nil {
 					return
@@ -539,8 +544,7 @@ func ptrace(tracer *Tracer, probeAddr string, syscallHandlers map[int]syscallHan
 			}
 		case CallbackPostType:
 			syscallMsg, msgExists := process.Nr[nr]
-			handler, handlerFound := syscallHandlers[nr]
-			if handlerFound && msgExists && (handler.ShouldSend != nil || handler.RetFunc != nil) {
+			if msgExists {
 				if handler.RetFunc != nil {
 					err := handler.RetFunc(tracer, process, syscallMsg, regs, opts.StatsDisabled)
 					if err != nil {
