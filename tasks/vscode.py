@@ -131,16 +131,3 @@ def setup_tests(_, force=False):
             print(f'{key}={value}', file=f)
 
     print(color_message('The .env file has been created', Color.GREEN))
-
-    print(
-        f'''{color_message('note', Color.BLUE)}: You should add the following to your .vscode/settings.json file:
-
-"python.testing.unittestArgs": [
-    "-v",
-    "-s",
-    "./tasks",
-    "-p",
-    "*_tests.py"
-]
-    '''.strip()
-    )

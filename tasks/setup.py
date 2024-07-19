@@ -260,7 +260,14 @@ vscode_config_template = """{{
         "SC2059",
         "SC2028"
     ],
-    "shellcheck.run": "onSave"
+    "shellcheck.run": "onSave",
+    "python.testing.unittestArgs": [
+        "-v",
+        "-s",
+        "./tasks",
+        "-p",
+        "*_tests.py"
+    ]
 }}"""
 
 
