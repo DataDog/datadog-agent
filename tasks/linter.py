@@ -159,7 +159,13 @@ def go(
     """
 
     if not check_tools_version(ctx, ['go', 'golangci-lint']):
-        print("Warning: If you have linter errors it might be due to version mismatches.", file=sys.stderr)
+        print(
+            color_message(
+                "Error: The golanci-lint version you are using is not the corect one. Please run inv -e install-tolls to install the correct version.",
+                "red",
+            )
+        )
+        raise Exit(code=1)
 
     modules, flavor = process_input_args(
         ctx,
