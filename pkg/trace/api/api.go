@@ -97,7 +97,6 @@ type HTTPReceiver struct {
 	containerIDProvider IDProvider
 
 	telemetryCollector telemetry.TelemetryCollector
-	telemetryForwarder *TelemetryForwarder
 
 	rateLimiterResponse int // HTTP status code when refusing
 
@@ -140,8 +139,6 @@ func NewHTTPReceiver(
 		}
 	}
 	log.Infof("Receiver configured with %d decoders and a timeout of %dms", semcount, conf.DecoderTimeout)
-	containerIDProvider := NewIDProvider(conf.ContainerProcRoot)
-	telemetryForwarder := NewTelemetryForwarder(conf, containerIDProvider, statsd)
 	return &HTTPReceiver{
 		Stats: info.NewReceiverStats(),
 
@@ -149,10 +146,9 @@ func NewHTTPReceiver(
 		statsProcessor:      statsProcessor,
 		conf:                conf,
 		dynConf:             dynConf,
-		containerIDProvider: containerIDProvider,
+		containerIDProvider: NewIDProvider(conf.ContainerProcRoot),
 
 		telemetryCollector: telemetryCollector,
-		telemetryForwarder: telemetryForwarder,
 
 		rateLimiterResponse: rateLimiterResponse,
 
@@ -366,7 +362,6 @@ func (r *HTTPReceiver) Stop() error {
 	}
 	r.wg.Wait()
 	close(r.out)
-	r.telemetryForwarder.Stop()
 	return nil
 }
 
