@@ -6,10 +6,7 @@
 package listener
 
 import (
-	"context"
 	_ "embed"
-	"errors"
-	"io"
 	"testing"
 	"time"
 
@@ -22,7 +19,6 @@ import (
 	appslogger "github.com/DataDog/test-infra-definitions/components/datadog/apps/logger"
 	"github.com/DataDog/test-infra-definitions/components/datadog/dockeragentparams"
 
-	"github.com/docker/docker/api/types"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -57,11 +53,6 @@ func (d *dockerSuite) TestLogsReceived() {
 	d.T().Logf("Testing Agent Version '%v'\n", agentVersion)
 	statusOutput := d.Env().Agent.Client.Status().Content
 	d.T().Logf("Agent status:\n %v", statusOutput)
-	containerID, err := d.getLoggerContainerID()
-	require.NoError(d.T(), err)
-	assert.NotEmpty(d.T(), containerID)
-
-	dc := d.Env().Docker.GetClient()
 
 	// Command to execute inside the container
 	cmd := []string{
@@ -69,44 +60,9 @@ func (d *dockerSuite) TestLogsReceived() {
 		"bob",
 	}
 
-	// Prepare the execution configuration
-	execConfig := types.ExecConfig{
-		AttachStdout: true,
-		AttachStderr: true,
-		Cmd:          cmd,
-	}
-
-	// Create the execution request
-	execResponse, err := dc.ContainerExecCreate(context.Background(), containerID, execConfig)
+	stdout, stderr, err := d.Env().Docker.Client.ExecuteCommandStdoutStdErr("logger-app", cmd...)
 	require.NoError(d.T(), err)
 
-	// Run the command in the container
-	execID := execResponse.ID
-	execStartCheck := types.ExecStartCheck{}
-	respID, err := dc.ContainerExecAttach(context.Background(), execID, execStartCheck)
-	require.NoError(d.T(), err)
-
-	// Wait for command execution to complete
-	_, err = dc.ContainerExecInspect(context.Background(), execID)
-	assert.NoError(d.T(), err)
-
-	all, err := io.ReadAll(respID.Reader)
-	require.NoError(d.T(), err)
-	d.T().Log(string(all))
+	d.T().Logf("stdout:\n\n%s\n\nstderr:\n\n%s", stdout, stderr)
 	utils.CheckLogsExpected(d.T(), d.Env().FakeIntake, "test-app", "bob", []string{})
-}
-
-// getLoggerContainerID returns the container ID of the logger app container
-func (d *dockerSuite) getLoggerContainerID() (string, error) {
-	containers, err := d.Env().Docker.GetClient().ContainerList(context.Background(), types.ContainerListOptions{})
-	if err != nil {
-		return "", err
-	}
-	for _, ctr := range containers {
-		d.T().Logf("Got container: %s %s | %v\n", ctr.ID, ctr.Image, ctr.Names)
-		if ctr.Image == "ghcr.io/datadog/apps-logger:main" {
-			return ctr.ID, nil
-		}
-	}
-	return "", errors.New("could not find logger app container")
 }
