@@ -277,6 +277,14 @@ notify_ebpf_complexity_changes:
     - !reference [.except_mergequeue]
     - !reference [.except_main_or_release_branch]
     - !reference [.except_no_tests_no_deploy]
+    - changes:
+        paths: *system_probe_change_paths
+        compare_to: main
+      when: on_success
+    - changes:
+        paths: *security_agent_change_paths
+        compare_to: main
+      when: on_success
   needs:
     - job: "kmt_run_sysprobe_tests_x64"
       optional: true
