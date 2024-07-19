@@ -12,6 +12,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"os"
 	"runtime"
 	"syscall"
 	"time"
@@ -99,18 +100,27 @@ func processVMReadv(pid int, addr uintptr, data []byte) (int, error) {
 }
 
 func (t *Tracer) readString(pid int, ptr uint64) (string, error) {
-	data := make([]byte, MaxStringSize)
+	pageSize := uint64(os.Getpagesize())
+	pageAddr := ptr & ^(pageSize - 1)
+	sizeToEndOfPage := pageAddr + pageSize - ptr
+	// read from at most 2 pages (current and next one)
+	maxReadSize := sizeToEndOfPage + pageSize
 
-	_, err := processVMReadv(pid, uintptr(ptr), data)
-	if err != nil {
-		return "", err
+	// start by reading from the current page
+	for readSize := sizeToEndOfPage; readSize <= maxReadSize; readSize += pageSize {
+		data := make([]byte, readSize)
+		_, err := processVMReadv(pid, uintptr(ptr), data)
+		if err != nil {
+			return "", fmt.Errorf("unable to read string at addr %x (size: %d): %v", ptr, readSize, err)
+		}
+
+		n := bytes.Index(data[:], []byte{0})
+		if n >= 0 {
+			return string(data[:n]), nil
+		}
 	}
 
-	n := bytes.Index(data[:], []byte{0})
-	if n < 0 {
-		return "", nil
-	}
-	return string(data[:n]), nil
+	return "", fmt.Errorf("unable to read string at addr %x: string is too long", ptr)
 }
 
 func (t *Tracer) readInt32(pid int, ptr uint64) (int32, error) {
