@@ -1,5 +1,3 @@
-github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient v0.56.0-rc.3 h1:lU89HonXLzmhcrs65IDzaC2OVzc4hdBA8rpF+UpG8Lw=
-github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient v0.56.0-rc.3/go.mod h1:3dQ4p9fP87Fwng4IsqH4O5fyc2HIoXgdRSPc9TOiogA=
 github.com/DataDog/datadog-go/v5 v5.5.0 h1:G5KHeB8pWBNXT4Jtw0zAkhdxEAWSpWH00geHI6LDrKU=
 github.com/DataDog/datadog-go/v5 v5.5.0/go.mod h1:K9kcYBlxkcPP8tvvjZZKs/m1edNAUFzBbdpTUKfCsuw=
 github.com/DataDog/go-sqllexer v0.0.12 h1:ncvAr5bbwtc7JMezzcU2379oKz1oHhRF1hkR6BSvhqM=
