@@ -380,7 +380,7 @@ func (c *Check) SampleSession() error {
 
 	payload := ActivitySnapshot{
 		Metadata: Metadata{
-			Timestamp:      float64(time.Now().UnixMilli()),
+			Timestamp:      float64(c.clock.Now().UnixMilli()),
 			Host:           c.dbHostname,
 			Source:         common.IntegrationName,
 			DBMType:        "activity",
