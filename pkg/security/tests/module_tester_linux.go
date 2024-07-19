@@ -34,6 +34,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/sys/unix"
 
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
@@ -54,6 +56,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/security/tests/statsdclient"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	utilkernel "github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
@@ -629,6 +632,12 @@ func newTestModuleWithOnDemandProbes(t testing.TB, onDemandHooks []rules.OnDeman
 		opt(&opts)
 	}
 
+	prevEbpfLessEnabled := ebpfLessEnabled
+	defer func() {
+		ebpfLessEnabled = prevEbpfLessEnabled
+	}()
+	ebpfLessEnabled = ebpfLessEnabled || opts.staticOpts.ebpfLessEnabled
+
 	if commonCfgDir == "" {
 		cd, err := os.MkdirTemp("", "test-cfgdir")
 		if err != nil {
@@ -775,7 +784,8 @@ func newTestModuleWithOnDemandProbes(t testing.TB, onDemandHooks []rules.OnDeman
 	} else {
 		emopts.ProbeOpts.TagsResolver = NewFakeResolverDifferentImageNames()
 	}
-	testMod.eventMonitor, err = eventmonitor.NewEventMonitor(emconfig, secconfig, emopts, optional.NewNoneOption[workloadmeta.Component]())
+	telemetry := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
+	testMod.eventMonitor, err = eventmonitor.NewEventMonitor(emconfig, secconfig, emopts, optional.NewNoneOption[workloadmeta.Component](), telemetry)
 	if err != nil {
 		return nil, err
 	}
@@ -854,7 +864,7 @@ func newTestModuleWithOnDemandProbes(t testing.TB, onDemandHooks []rules.OnDeman
 		t.Logf("%s entry stats: %s", t.Name(), GetEBPFStatusMetrics(testMod.probe))
 	}
 
-	if ebpfLessEnabled {
+	if ebpfLessEnabled && !opts.staticOpts.dontWaitEBPFLessClient {
 		t.Logf("EBPFLess mode, waiting for a client to connect")
 		err := retry.Do(func() error {
 			if testMod.probe.PlatformProbe.(*sprobe.EBPFLessProbe).GetClientsCount() > 0 {

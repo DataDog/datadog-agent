@@ -36,13 +36,16 @@ type dockerSuite struct {
 }
 
 func TestTCPListener(t *testing.T) {
-	t.Skip("Skipping as don't currently support using labels to spin up TCP/UDP listener")
-	e2e.Run(t, &dockerSuite{}, e2e.WithProvisioner(
-		awsdocker.Provisioner(
-			awsdocker.WithAgentOptions(
-				dockeragentparams.WithExtraComposeManifest("logger", appslogger.DockerComposeManifest.Content),
-				dockeragentparams.WithExtraComposeManifest("logger-tcp", pulumi.String(tcpCompose)),
-			))))
+	e2e.Run(t,
+		&dockerSuite{},
+		e2e.WithProvisioner(
+			awsdocker.Provisioner(
+				awsdocker.WithAgentOptions(
+					dockeragentparams.WithLogs(),
+					dockeragentparams.WithExtraComposeManifest("logger", appslogger.DockerComposeManifest.Content),
+					dockeragentparams.WithExtraComposeManifest("logger-tcp", pulumi.String(tcpCompose)),
+				))),
+	)
 }
 
 func (d *dockerSuite) TestLogsReceived() {
@@ -62,11 +65,8 @@ func (d *dockerSuite) TestLogsReceived() {
 
 	// Command to execute inside the container
 	cmd := []string{
-		"curl", "-v",
-		"--header", "\"Content-Type: application/json\"",
-		"--request", "POST",
-		"--data", "'{\"message\":\"bob\"}'",
-		"localhost:3333/",
+		"/usr/local/bin/send-message.sh",
+		"bob",
 	}
 
 	// Prepare the execution configuration

@@ -7,6 +7,7 @@
 package telemetry
 
 import (
+	"os"
 	"strings"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -49,7 +50,15 @@ func (c *ContainersTelemetry) ReportContainers(metricName string) {
 			}
 		}
 
-		c.TelemetrySender.Gauge(metricName, 1.0, []string{"container_id:" + container.ID})
+		var mode string
+		if os.Getenv("ECS_FARGATE") == "true" || os.Getenv("DD_ECS_FARGATE") == "true" {
+			mode = "fargate_ecs"
+		} else if os.Getenv("DD_EKS_FARGATE") == "true" {
+			mode = "fargate_eks"
+		} else {
+			mode = "default"
+		}
+		c.TelemetrySender.Gauge(metricName, 1.0, []string{"container_id:" + container.ID, "mode:" + mode})
 	}
 	c.TelemetrySender.Commit()
 }
