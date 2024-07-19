@@ -335,6 +335,14 @@ func (a *Agent) Process(p *api.Payload) {
 			continue
 		}
 
+		if a.conf.RequireTracerHostname && root.Meta[tagHostname] == "" {
+			log.Debugf("Trace rejected by RequireTracerHostname rules. root: %v", root)
+			ts.TracesFiltered.Inc()
+			ts.SpansFiltered.Add(tracen)
+			p.RemoveChunk(i)
+			continue
+		}
+
 		if filteredByTags(root, a.conf.RequireTags, a.conf.RejectTags, a.conf.RequireTagsRegex, a.conf.RejectTagsRegex) {
 			log.Debugf("Trace rejected as it fails to meet tag requirements. root: %v", root)
 			ts.TracesFiltered.Inc()

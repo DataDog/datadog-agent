@@ -17,8 +17,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 	"go.opentelemetry.io/collector/component/componenttest"
+
+	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 
 	corecompcfg "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
@@ -646,6 +647,9 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		c.EVPProxy.ReceiverTimeout = core.GetInt(k)
 	}
 	c.DebugServerPort = core.GetInt("apm_config.debug.port")
+	if k := "apm_config.require_tracer_hostname"; core.IsSet(k) {
+		c.RequireTracerHostname = core.GetBool(k)
+	}
 	return nil
 }
 

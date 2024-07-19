@@ -443,6 +443,9 @@ type AgentConfig struct {
 
 	// Lambda function name
 	LambdaFunctionName string
+
+	// RequireTracerHostname drops all tracer payloads without a tracer hostname attached to them
+	RequireTracerHostname bool
 }
 
 // RemoteClient client is used to APM Sampling Updates from a remote source.

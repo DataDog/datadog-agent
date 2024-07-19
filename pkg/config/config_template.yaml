@@ -1438,6 +1438,15 @@ api_key:
   ##            collectors using the probabilistic sampler to ensure consistent sampling.
   #  hash_seed: 0
 
+  ## @param require_tracer_hostname - boolean - optional - default: false
+  ## @env DD_APM_REQUIRE_TRACER_HOSTNAME - boolean - optional - default: false
+  ##
+  ## Requires that all incoming trace payloads must be tagged with a tracer hostname otherwise
+  ## they are dropped. This is not needed for typical setups where the agent and traced application
+  ## are on the same host.
+  ##
+  #
+  # require_tracer_hostname: false
 
   {{- if .InternalProfiling -}}
   ## @param profiling - custom object - optional

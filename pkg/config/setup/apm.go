@@ -144,6 +144,7 @@ func setupAPM(config pkgconfigmodel.Setup) {
 	config.BindEnv("apm_config.obfuscation.credit_cards.luhn", "DD_APM_OBFUSCATION_CREDIT_CARDS_LUHN")
 	config.BindEnvAndSetDefault("apm_config.debug.port", 5012, "DD_APM_DEBUG_PORT")
 	config.BindEnv("apm_config.features", "DD_APM_FEATURES")
+	config.BindEnv("apm_config.require_tracer_hostname", "DD_APM_REQUIRE_TRACER_HOSTNAME")
 	config.SetEnvKeyTransformer("apm_config.features", func(s string) interface{} {
 		// Either commas or spaces can be used as separators.
 		// Comma takes precedence as it was the only supported separator in the past.

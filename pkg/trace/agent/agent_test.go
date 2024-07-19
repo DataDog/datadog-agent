@@ -23,9 +23,10 @@ import (
 	"testing"
 	"time"
 
-	gzip "github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
+
+	gzip "github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip"
 
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
@@ -213,6 +214,54 @@ func TestProcess(t *testing.T) {
 			Type:     "sql",
 			Start:    now.Add(-time.Second).UnixNano(),
 			Duration: (500 * time.Millisecond).Nanoseconds(),
+		}
+		spanInvalid := &pb.Span{
+			TraceID:  1,
+			SpanID:   1,
+			Resource: "INSERT INTO db VALUES (1, 2, 3)",
+			Type:     "sql",
+			Start:    now.Add(-time.Second).UnixNano(),
+			Duration: (500 * time.Millisecond).Nanoseconds(),
+		}
+
+		want := agnt.Receiver.Stats.GetTagStats(info.Tags{})
+		assert := assert.New(t)
+
+		agnt.Process(&api.Payload{
+			TracerPayload: testutil.TracerPayloadWithChunk(testutil.TraceChunkWithSpan(spanValid)),
+			Source:        want,
+		})
+		assert.EqualValues(0, want.TracesFiltered.Load())
+		assert.EqualValues(0, want.SpansFiltered.Load())
+
+		agnt.Process(&api.Payload{
+			TracerPayload: testutil.TracerPayloadWithChunk(testutil.TraceChunkWithSpans([]*pb.Span{
+				spanInvalid,
+				spanInvalid,
+			})),
+			Source: want,
+		})
+		assert.EqualValues(1, want.TracesFiltered.Load())
+		assert.EqualValues(2, want.SpansFiltered.Load())
+	})
+
+	t.Run("RequireTracerHostname", func(t *testing.T) {
+		cfg := config.New()
+		cfg.Endpoints[0].APIKey = "test"
+		cfg.RequireTracerHostname = true
+		ctx, cancel := context.WithCancel(context.Background())
+		agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
+		defer cancel()
+
+		now := time.Now()
+		spanValid := &pb.Span{
+			TraceID:  1,
+			SpanID:   1,
+			Resource: "SELECT name FROM people WHERE age = 42 AND extra = 55",
+			Type:     "sql",
+			Start:    now.Add(-time.Second).UnixNano(),
+			Duration: (500 * time.Millisecond).Nanoseconds(),
+			Meta:     map[string]string{"_dd.hostname": "someHostname"},
 		}
 		spanInvalid := &pb.Span{
 			TraceID:  1,
