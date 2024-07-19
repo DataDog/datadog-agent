@@ -15,6 +15,7 @@ import (
 	"os"
 	"runtime"
 	"slices"
+	"sync"
 	"syscall"
 	"time"
 
@@ -55,9 +56,10 @@ const (
 // Tracer represents a tracer
 type Tracer struct {
 	// PID represents a PID
-	PIDs []int
-	Args []string
-	Envs []string
+	pidLock sync.RWMutex
+	PIDs    []int
+	Args    []string
+	Envs    []string
 
 	// internals
 	info *arch.Info
@@ -258,6 +260,9 @@ func isExited(waitStatus syscall.WaitStatus) bool {
 }
 
 func (t *Tracer) pidExited(pid int) int {
+	t.pidLock.Lock()
+	defer t.pidLock.Unlock()
+
 	t.PIDs = slices.DeleteFunc(t.PIDs, func(p int) bool {
 		return p == pid
 	})
@@ -267,11 +272,14 @@ func (t *Tracer) pidExited(pid int) int {
 func (t *Tracer) trace(cb func(cbType CallbackType, nr int, pid int, ppid int, regs syscall.PtraceRegs, waitStatus *syscall.WaitStatus)) error {
 	var waitStatus syscall.WaitStatus
 
+	t.pidLock.RLock()
 	for _, pid := range t.PIDs {
 		if err := syscall.PtraceSyscall(pid, 0); err != nil {
+			t.pidLock.RUnlock()
 			return err
 		}
 	}
+	t.pidLock.RUnlock()
 
 	var (
 		tracker = NewSyscallStateTracker()
@@ -365,11 +373,14 @@ func (t *Tracer) trace(cb func(cbType CallbackType, nr int, pid int, ppid int, r
 func (t *Tracer) traceWithSeccomp(cb func(cbType CallbackType, nr int, pid int, ppid int, regs syscall.PtraceRegs, waitStatus *syscall.WaitStatus)) error {
 	var waitStatus syscall.WaitStatus
 
+	t.pidLock.RLock()
 	for _, pid := range t.PIDs {
 		if err := syscall.PtraceCont(pid, 0); err != nil {
+			t.pidLock.RUnlock()
 			return err
 		}
 	}
+	t.pidLock.RUnlock()
 
 	var (
 		regs syscall.PtraceRegs
