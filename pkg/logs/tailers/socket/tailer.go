@@ -69,14 +69,14 @@ func (t *Tailer) forwardMessages() {
 	for output := range t.decoder.OutputChan {
 		if len(output.GetContent()) > 0 {
 			origin := message.NewOrigin(t.source)
-			remote_address := t.Conn.RemoteAddr()
-			copied_tags := make([]string, len(t.source.Config.Tags))
-			copy(copied_tags, t.source.Config.Tags)
-			if remote_address != nil {
-				source_host_tag := fmt.Sprintf("source_host:%s", t.Conn.RemoteAddr().String())
-				copied_tags = append(copied_tags, source_host_tag)
+			remoteAddress := t.Conn.RemoteAddr()
+			copiedTags := make([]string, len(t.source.Config.Tags))
+			copy(copiedTags, t.source.Config.Tags)
+			if remoteAddress != nil {
+				sourceHostTag := fmt.Sprintf("source_host:%s", t.Conn.RemoteAddr().String())
+				copiedTags = append(copiedTags, sourceHostTag)
 			}
-			origin.SetTags(copied_tags)
+			origin.SetTags(copiedTags)
 			t.outputChan <- message.NewMessage(output.GetContent(), origin, output.Status, output.IngestionTimestamp)
 		}
 	}
