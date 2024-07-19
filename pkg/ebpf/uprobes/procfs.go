@@ -15,6 +15,8 @@ import (
 	"strconv"
 	"sync"
 	"time"
+
+	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
 
 const procFSUpdateTimeout = 10 * time.Millisecond
@@ -35,12 +37,12 @@ func NewProcInfo(procRoot string, pid uint32) *ProcInfo {
 	}
 }
 
-func (p *ProcInfo) waitUntilSucceeds(procFile string, readFunc func(string) (string, error)) (string, error) {
+func waitUntilSucceeds[T any](p *ProcInfo, procFile string, readFunc func(string) (T, error)) (T, error) {
 	// Read the exe link
 	pidAsStr := strconv.FormatUint(uint64(p.PID), 10)
 	filePath := filepath.Join(p.procRoot, pidAsStr, procFile)
 
-	var result string
+	var result T
 	err := errors.New("iteration start")
 	end := time.Now().Add(procFSUpdateTimeout)
 
@@ -51,9 +53,6 @@ func (p *ProcInfo) waitUntilSucceeds(procFile string, readFunc func(string) (str
 		}
 	}
 
-	if err != nil {
-		return "", err
-	}
 	return result, nil
 }
 
@@ -61,7 +60,7 @@ func (p *ProcInfo) waitUntilSucceeds(procFile string, readFunc func(string) (str
 func (p *ProcInfo) Exe() (string, error) {
 	var err error
 	if p.exe == "" {
-		p.exe, err = p.waitUntilSucceeds("exe", os.Readlink)
+		p.exe, err = waitUntilSucceeds(p, "exe", os.Readlink)
 		if err != nil {
 			return "", err
 		}
@@ -84,28 +83,89 @@ var (
 	}
 )
 
+func (p *ProcInfo) readComm(commFile string) (string, error) {
+	file, err := os.Open(commFile)
+	if err != nil {
+		return "", err
+	}
+	defer file.Close()
+
+	buf := taskCommLenBufferPool.Get().(*[]byte)
+	defer taskCommLenBufferPool.Put(buf)
+	n, err := file.Read(*buf)
+	if err != nil {
+		// short living process can hit here, or slow start of another process.
+		return "", nil
+	}
+	return string(bytes.TrimSpace((*buf)[:n])), nil
+}
+
 // Comm returns the command name of the process.
 func (p *ProcInfo) Comm() (string, error) {
 	var err error
 	if p.comm == "" {
-		p.comm, err = p.waitUntilSucceeds("comm", func(commFile string) (string, error) {
-			file, err := os.Open(commFile)
-			if err != nil {
-				return "", err
-			}
-			buf := taskCommLenBufferPool.Get().(*[]byte)
-			defer taskCommLenBufferPool.Put(buf)
-			n, err := file.Read(*buf)
-			if err != nil {
-				// short living process can hit here, or slow start of another process.
-				return "", nil
-			}
-			return string(bytes.TrimSpace((*buf)[:n])), nil
-		})
+		p.comm, err = waitUntilSucceeds(p, "comm", p.readComm)
 		if err != nil {
 			return "", err
 		}
 	}
 
 	return p.comm, nil
+}
+
+var readBufferPool = ddsync.NewSlicePool[byte](128, 128)
+
+func (p *ProcInfo) readCmdline(cmdlineFile string) (string, error) {
+	file, err := os.Open(cmdlineFile)
+	if err != nil {
+		return "", err
+	}
+	defer file.Close()
+
+	bufferPtr := readBufferPool.Get()
+	defer readBufferPool.Put(bufferPtr)
+
+	buffer := *bufferPtr
+	n, _ := file.Read(buffer)
+	if n == 0 {
+		return "", nil
+	}
+
+	buffer = buffer[:n]
+	i := bytes.Index(buffer, []byte{0})
+	if i == -1 {
+		return "", nil
+	}
+
+	return string(buffer[:i]), nil
+}
+
+func (p *ProcInfo) FindCmdlineWord(wordEnd []byte) (string, error) {
+	f, err := waitUntilSucceeds(p, "cmdline", os.Open)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+
+	// From here on we shouldn't allocate for the common case
+	// (eg., a process is *not* the pattern)
+	bufferPtr := readBufferPool.Get()
+	defer func() {
+		readBufferPool.Put(bufferPtr)
+	}()
+
+	buffer := *bufferPtr
+	n, _ := f.Read(buffer)
+	if n == 0 {
+		return "", nil
+	}
+
+	buffer = buffer[:n]
+	i := bytes.Index(buffer, wordEnd)
+	if i < 0 {
+		return "", nil
+	}
+
+	executable := buffer[:i+len(wordEnd)]
+	return string(executable), nil
 }
