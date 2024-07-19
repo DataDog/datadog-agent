@@ -90,7 +90,7 @@ func (c *cfg) SetHandler() http.Handler {
 				if lvl == "warning" {
 					lvl = "warn"
 				}
-				if err := pkgconfig.ChangeLogLevel(lvl, model.SourceAgentRuntime); err != nil {
+				if err := pkgconfig.SetLogLevel(lvl, model.SourceAgentRuntime); err != nil {
 					httpError(w, http.StatusInternalServerError, err)
 					return
 				}

@@ -126,6 +126,7 @@ func SetupLogger(loggerName LoggerName, logLevel, logFile, syslogURI string, sys
 
 		seelogLogLevel, err := log.ValidateLogLevel(level)
 		if err != nil {
+			log.Warnf("Unable to set new log level: %v", err)
 			return
 		}
 		// We create a new logger to propagate the new log level everywhere seelog is used (including dependencies)
