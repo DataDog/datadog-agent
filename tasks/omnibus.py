@@ -69,11 +69,17 @@ def bundle_install_omnibus(ctx, gem_path=None, env=None, max_try=2):
 
         with gitlab_section("Bundle install omnibus", collapsed=True):
             for trial in range(max_try):
+                # The exception being raised when ommiting `warn=True` only includes
+                # the last 10 lines of stdout/stderr which might not be enough
+                # for should_retry_bundle_install to do its job
                 res = ctx.run(cmd, env=env, warn=True, err_stream=sys.stdout)
                 if res.ok:
                     return
                 if not should_retry_bundle_install(res):
-                    return
+                    print(
+                        f'Fatal error while installing omnibus: stdout: {res.stdout}\nstderr: {res.stderr}\nCannot continue.'
+                    )
+                    raise Exit(code=2)
                 print(f"Retrying bundle install, attempt {trial + 1}/{max_try}")
 
 
