@@ -70,12 +70,13 @@ func (t *Tailer) forwardMessages() {
 		if len(output.GetContent()) > 0 {
 			origin := message.NewOrigin(t.source)
 			remote_address := t.Conn.RemoteAddr()
-			tags := append([]string(nil), t.source.Config.Tags...)
+			copied_tags := make([]string, len(t.source.Config.Tags))
+			copy(copied_tags, t.source.Config.Tags)
 			if remote_address != nil {
 				source_host_tag := fmt.Sprintf("source_host:%s", t.Conn.RemoteAddr().String())
-				tags = append(tags, source_host_tag)
+				copied_tags = append(copied_tags, source_host_tag)
 			}
-			origin.SetTags(tags)
+			origin.SetTags(copied_tags)
 			t.outputChan <- message.NewMessage(output.GetContent(), origin, output.Status, output.IngestionTimestamp)
 		}
 	}
