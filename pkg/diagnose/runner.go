@@ -384,17 +384,17 @@ func RunLocalCheck(diagCfg diagnosis.Config, registries ...func(*diagnosis.Catal
 }
 
 // RunDiagnoseStdOut runs the diagnose and outputs the results to the writer.
-func RunDiagnoseStdOut(w io.Writer, diagCfg diagnosis.Config, deps []diagnosis.Diagnoses) error {
+func RunDiagnoseStdOut(w io.Writer, diagCfg diagnosis.Config, diagnoses []diagnosis.Diagnoses) error {
 	if diagCfg.JSONOutput {
-		return runStdOutJSON(w, deps)
+		return runStdOutJSON(w, diagnoses)
 	}
-	return runStdOut(w, diagCfg, deps)
+	return runStdOut(w, diagCfg, diagnoses)
 }
 
 func runStdOutJSON(w io.Writer, diagnoses []diagnosis.Diagnoses) error {
 	diagJSON, err := json.MarshalIndent(diagnoses, "", "  ")
 	if err != nil {
-		fmt.Fprintln(w, color.RedString(fmt.Sprintf("Error marshalling diagnose results to JSON: %s", err)))
+		fmt.Fprintf(w, (fmt.Sprintf("{error: marshalling diagnose results to JSON: %s}\n", err)))
 		return err
 	}
 
