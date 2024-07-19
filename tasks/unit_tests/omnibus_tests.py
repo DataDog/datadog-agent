@@ -187,13 +187,8 @@ class TestOmnibusInstall(unittest.TestCase):
 
     def test_failure(self):
         self.mock_ctx.set_result_for('run', 'bundle install', Result(exited=1))
-        try:
+        with self.assertRaises(Exit):
             omnibus.bundle_install_omnibus(self.mock_ctx)
-            self.fail('Expected failure but got none')
-        except Exit:
-            pass
-        except Exception as e:
-            self.fail(f'Unexpected failure: {e}')
 
     def test_transient(self):
         self.mock_ctx = MockContext(run=[Result(exited=1, stderr='Net::HTTPNotFound: something'), Result()])
