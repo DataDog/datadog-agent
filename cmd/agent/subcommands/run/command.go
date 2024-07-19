@@ -599,7 +599,6 @@ func startAgent(
 	jmxfetch.InitRunner(server, jmxLogger)
 	jmxfetch.RegisterWith(ac)
 
-	// TODO: (components) - Initialize logReceiver, needed in order to call from RTLoader
 	// Set up check collector
 	commonchecks.RegisterChecks(wmeta, cfg, telemetry)
 	ac.AddScheduler("check", pkgcollector.InitCheckScheduler(optional.NewOption(collector), demultiplexer, logReceiver), true)
