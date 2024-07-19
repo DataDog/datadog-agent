@@ -9,11 +9,14 @@ package config
 import (
 	"context"
 
+	slog "github.com/cihub/seelog"
+
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
@@ -93,6 +96,35 @@ var (
 	AddOverrides    = model.AddOverrides
 	AddOverrideFunc = model.AddOverrideFunc
 )
+
+// LoggerName Alias
+type LoggerName = pkglogsetup.LoggerName
+
+// Aliases for  logs
+var (
+	NewLogWriter               = pkglogsetup.NewLogWriter
+	NewTLSHandshakeErrorWriter = pkglogsetup.NewTLSHandshakeErrorWriter
+)
+
+// SetupLogger Alias using Datadog config
+func SetupLogger(loggerName LoggerName, logLevel, logFile, syslogURI string, syslogRFC, logToConsole, jsonFormat bool) error {
+	return pkglogsetup.SetupLogger(loggerName, logLevel, logFile, syslogURI, syslogRFC, logToConsole, jsonFormat, Datadog())
+}
+
+// SetupJMXLogger Alias using Datadog config
+func SetupJMXLogger(logFile, syslogURI string, syslogRFC, logToConsole, jsonFormat bool) error {
+	return pkglogsetup.SetupJMXLogger(logFile, syslogURI, syslogRFC, logToConsole, jsonFormat, Datadog())
+}
+
+// GetSyslogURI Alias using Datadog config
+func GetSyslogURI() string {
+	return pkglogsetup.GetSyslogURI(Datadog())
+}
+
+// SetupDogstatsdLogger Alias using Datadog config
+func SetupDogstatsdLogger(logFile string) (slog.LoggerInterface, error) {
+	return pkglogsetup.SetupDogstatsdLogger(logFile, Datadog())
+}
 
 // IsCloudProviderEnabled Alias using Datadog config
 func IsCloudProviderEnabled(cloudProvider string) bool {

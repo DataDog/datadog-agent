@@ -30,7 +30,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
 )
 
 // Module defines the fx options for this component.
@@ -290,7 +289,7 @@ func (d *serverDebugImpl) getDogstatsdDebug(cfg config.Reader) slog.LoggerInterf
 
 	// Set up dogstatsdLogger
 	if cfg.GetBool("dogstatsd_logging_enabled") {
-		logger, e := pkglogsetup.SetupDogstatsdLogger(logFile, cfg)
+		logger, e := config.SetupDogstatsdLogger(logFile)
 		if e != nil {
 			// use component logger instead of global logger.
 			d.log.Errorf("Unable to set up Dogstatsd logger: %v. || Please reach out to Datadog support at https://docs.datadoghq.com/help/ ", e)

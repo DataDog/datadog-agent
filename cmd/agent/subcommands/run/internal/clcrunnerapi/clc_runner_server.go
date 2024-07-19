@@ -27,7 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
 )
 
 var clcListener net.Listener
@@ -85,7 +84,7 @@ func StartCLCRunnerServer(extraHandlers map[string]http.Handler, ac autodiscover
 	}
 
 	// Use a stack depth of 4 on top of the default one to get a relevant filename in the stdlib
-	logWriter, _ := pkglogsetup.NewLogWriter(4, seelog.WarnLvl)
+	logWriter, _ := config.NewLogWriter(4, seelog.WarnLvl)
 
 	srv := &http.Server{
 		Handler:           r,
