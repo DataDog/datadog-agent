@@ -416,6 +416,7 @@ func (s *packageApmInjectSuite) TestDefaultPackageVersion() {
 	s.RunInstallScript(
 		"DD_APM_INSTRUMENTATION_ENABLED=host",
 		"DD_APM_INSTRUMENTATION_LIBRARIES=python",
+		envForceInstall("datadog-agent"),
 	)
 	defer s.Purge()
 	s.host.AssertPackagePrefix("datadog-apm-library-python", "2")
