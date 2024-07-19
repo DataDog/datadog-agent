@@ -50,9 +50,7 @@ docker_trigger_internal:
 
 docker_trigger_internal-ot:
   stage: internal_image_deploy
-  rules:
-    - when: manual
-      allow_failure: true
+  rules: !reference [.on_deploy_internal_or_manual]
   needs:
     - job: docker_build_ot_agent7_jmx
       artifacts: false
