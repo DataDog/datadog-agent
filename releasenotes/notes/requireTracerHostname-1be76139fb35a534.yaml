@@ -1,0 +1,14 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    APM: Add new configuration option apm_config.require_tracer_hostname (or DD_APM_REQUIRE_TRACER_HOSTNAME). 
+    Off by default, when enabled the agent will drop all tracer payloads that do not have a tagged hostname.
+    This configuration is only useful in setups with the agent and traced application are on different hosts and
+    it is desireable to strictly enforce tracer reporting of hostnames.
