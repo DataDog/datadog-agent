@@ -12,6 +12,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"os"
 	"runtime"
 	"syscall"
 	"time"
@@ -53,7 +54,9 @@ const (
 // Tracer represents a tracer
 type Tracer struct {
 	// PID represents a PID
-	PID int
+	PID  int
+	Args []string
+	Envs []string
 
 	// internals
 	info *arch.Info
@@ -97,18 +100,27 @@ func processVMReadv(pid int, addr uintptr, data []byte) (int, error) {
 }
 
 func (t *Tracer) readString(pid int, ptr uint64) (string, error) {
-	data := make([]byte, MaxStringSize)
+	pageSize := uint64(os.Getpagesize())
+	pageAddr := ptr & ^(pageSize - 1)
+	sizeToEndOfPage := pageAddr + pageSize - ptr
+	// read from at most 2 pages (current and next one)
+	maxReadSize := sizeToEndOfPage + pageSize
 
-	_, err := processVMReadv(pid, uintptr(ptr), data)
-	if err != nil {
-		return "", err
+	// start by reading from the current page
+	for readSize := sizeToEndOfPage; readSize <= maxReadSize; readSize += pageSize {
+		data := make([]byte, readSize)
+		_, err := processVMReadv(pid, uintptr(ptr), data)
+		if err != nil {
+			return "", fmt.Errorf("unable to read string at addr %x (size: %d): %v", ptr, readSize, err)
+		}
+
+		n := bytes.Index(data[:], []byte{0})
+		if n >= 0 {
+			return string(data[:n]), nil
+		}
 	}
 
-	n := bytes.Index(data[:], []byte{0})
-	if n < 0 {
-		return "", nil
-	}
-	return string(data[:n]), nil
+	return "", fmt.Errorf("unable to read string at addr %x: string is too long", ptr)
 }
 
 func (t *Tracer) readInt32(pid int, ptr uint64) (int32, error) {
@@ -476,6 +488,38 @@ func traceFilterProg(opts TracerOpts) (*syscall.SockFprog, error) {
 	}, nil
 }
 
+// AttachTracer attach the tracer to the given pid
+func AttachTracer(pid int, opts TracerOpts) (*Tracer, error) {
+	info, err := arch.GetInfo("")
+	if err != nil {
+		return nil, err
+	}
+
+	runtime.LockOSThread()
+
+	if err := syscall.PtraceAttach(pid); err != nil {
+		return nil, fmt.Errorf("unable to attach to pid `%d`: %w", pid, err)
+	}
+
+	var wstatus syscall.WaitStatus
+	if _, err := syscall.Wait4(pid, &wstatus, 0, nil); err != nil {
+		return nil, fmt.Errorf("unable to call wait4 on `%d`: %w", pid, err)
+	}
+
+	err = syscall.PtraceSetOptions(pid, ptraceFlags)
+	if err != nil {
+		return nil, fmt.Errorf("unable to ptrace `%d`, please verify the capabilities: %w", pid, err)
+	}
+
+	return &Tracer{
+		PID:                      pid,
+		info:                     info,
+		opts:                     opts,
+		userCacheRefreshLimiter:  rate.NewLimiter(rate.Every(defaultUserGroupRateLimit), 1),
+		groupCacheRefreshLimiter: rate.NewLimiter(rate.Every(defaultUserGroupRateLimit), 1),
+	}, nil
+}
+
 // NewTracer returns a tracer
 func NewTracer(path string, args []string, envs []string, opts TracerOpts) (*Tracer, error) {
 	info, err := arch.GetInfo("")
@@ -512,6 +556,8 @@ func NewTracer(path string, args []string, envs []string, opts TracerOpts) (*Tra
 
 	return &Tracer{
 		PID:                      pid,
+		Args:                     args,
+		Envs:                     envs,
 		info:                     info,
 		opts:                     opts,
 		userCacheRefreshLimiter:  rate.NewLimiter(rate.Every(defaultUserGroupRateLimit), 1),

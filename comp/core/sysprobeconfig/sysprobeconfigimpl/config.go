@@ -15,16 +15,13 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 // Module defines the fx options for this component.
 func Module() fxutil.Module {
 	return fxutil.Component(
 		fx.Provide(newConfig),
-		fx.Provide(func(syscfg sysprobeconfig.Component) optional.Option[sysprobeconfig.Component] {
-			return optional.NewOption[sysprobeconfig.Component](syscfg)
-		}),
+		fxutil.ProvideOptional[sysprobeconfig.Component](),
 	)
 }
 

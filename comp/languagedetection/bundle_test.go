@@ -19,7 +19,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/comp/languagedetection/client"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestBundleDependencies(t *testing.T) {
@@ -30,9 +30,7 @@ func TestBundleDependencies(t *testing.T) {
 		fx.Supply(config.Params{}),
 		telemetryimpl.Module(),
 		logimpl.Module(),
-		fx.Provide(func(secretResolver secrets.Component) optional.Option[secrets.Component] {
-			return optional.NewOption[secrets.Component](secretResolver)
-		}),
+		fxutil.ProvideOptional[secrets.Component](),
 		secretsimpl.MockModule(),
 		fx.Supply(logimpl.Params{}),
 		workloadmetafx.Module(),

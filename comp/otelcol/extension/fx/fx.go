@@ -7,6 +7,7 @@
 package extensionfx
 
 import (
+	extension "github.com/DataDog/datadog-agent/comp/otelcol/extension/def"
 	extensionimpl "github.com/DataDog/datadog-agent/comp/otelcol/extension/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -14,6 +15,9 @@ import (
 // Module defines the fx options for this component.
 func Module() fxutil.Module {
 	return fxutil.Component(
-		fxutil.ProvideComponentConstructor(extensionimpl.NewExtension),
+		fxutil.ProvideComponentConstructor(
+			extensionimpl.NewExtension,
+		),
+		fxutil.ProvideOptional[extension.Component](),
 	)
 }

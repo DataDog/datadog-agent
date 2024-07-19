@@ -34,6 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/uuid"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -188,9 +189,15 @@ func (e *RuleEngine) Start(ctx context.Context, reloadChan <-chan struct{}, wg *
 				}
 
 				if os.Getenv("ECS_FARGATE") == "true" || os.Getenv("DD_ECS_FARGATE") == "true" {
-					tags = append(tags, "mode:fargate_ecs")
+					tags = append(tags, []string{
+						"uuid:" + uuid.GetUUID(),
+						"mode:fargate_ecs",
+					}...)
 				} else if os.Getenv("DD_EKS_FARGATE") == "true" {
-					tags = append(tags, "mode:fargate_eks")
+					tags = append(tags, []string{
+						"uuid:" + uuid.GetUUID(),
+						"mode:fargate_eks",
+					}...)
 				} else {
 					tags = append(tags, "mode:default")
 				}
