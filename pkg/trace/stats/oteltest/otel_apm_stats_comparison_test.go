@@ -66,7 +66,7 @@ func TestOTelAPMStatsMatch(t *testing.T) {
 				payload1 = sp1
 				for _, csb := range sp1.Stats {
 					require.Len(t, csb.Stats, 1)
-					require.Len(t, csb.Stats[0].Stats, 3) // stats on 3 spans
+					require.Len(t, csb.Stats[0].Stats, 4) // stats on 4 spans
 					sort.Slice(csb.Stats[0].Stats, func(i, j int) bool {
 						return csb.Stats[0].Stats[i].Name < csb.Stats[0].Stats[j].Name
 					})
@@ -77,7 +77,7 @@ func TestOTelAPMStatsMatch(t *testing.T) {
 				payload2 = sp2
 				for _, csb := range sp2.Stats {
 					require.Len(t, csb.Stats, 1)
-					require.Len(t, csb.Stats[0].Stats, 3) // stats on 3 spans
+					require.Len(t, csb.Stats[0].Stats, 4) // stats on 4 spans
 					sort.Slice(csb.Stats[0].Stats, func(i, j int) bool {
 						return csb.Stats[0].Stats[i].Name < csb.Stats[0].Stats[j].Name
 					})
@@ -118,6 +118,7 @@ var (
 	spanID1 = [8]byte{1, 2, 3, 4, 5, 6, 7, 8}
 	spanID2 = [8]byte{2, 2, 3, 4, 5, 6, 7, 8}
 	spanID3 = [8]byte{3, 2, 3, 4, 5, 6, 7, 8}
+	spanID4 = [8]byte{4, 2, 3, 4, 5, 6, 7, 8}
 )
 
 func getTestTraces() ptrace.Traces {
@@ -171,6 +172,16 @@ func getTestTraces() ptrace.Traces {
 	child2attrs.PutStr(semconv.AttributeRPCService, "test_rpc_svc")
 	child2.Status().SetCode(ptrace.StatusCodeError)
 	child2.SetEndTimestamp(pcommon.NewTimestampFromTime(time.Now()))
+
+	child3 := sspan.Spans().AppendEmpty()
+	child3.SetStartTimestamp(pcommon.NewTimestampFromTime(time.Now()))
+	child3.SetKind(ptrace.SpanKindInternal)
+	child3.SetName("child3")
+	child3.SetTraceID(traceID)
+	child3.SetSpanID(spanID4)
+	child3.SetParentSpanID(spanID1)
+	child3.Attributes().PutInt("_dd.measured", 1) // _dd.measured forces the span to get APM stats despite having span kind internal
+	child3.SetEndTimestamp(pcommon.NewTimestampFromTime(time.Now()))
 
 	root.SetEndTimestamp(pcommon.NewTimestampFromTime(time.Now()))
 
