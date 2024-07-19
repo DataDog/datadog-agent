@@ -76,7 +76,12 @@ func (t *Tailer) forwardMessages() {
 			if remoteAddress != nil {
 				addressWithPort := t.Conn.RemoteAddr().String()
 				lastColonIndex := strings.LastIndex(addressWithPort, ":")
-				ipAddress := addressWithPort[:lastColonIndex]
+				var ipAddress string
+				if lastColonIndex != -1 {
+					ipAddress = addressWithPort[:lastColonIndex]
+				} else {
+					ipAddress = addressWithPort
+				}
 				sourceHostTag := fmt.Sprintf("source_host:%s", ipAddress)
 				copiedTags = append(copiedTags, sourceHostTag)
 			}
