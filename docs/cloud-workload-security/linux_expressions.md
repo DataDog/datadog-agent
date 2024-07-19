@@ -117,8 +117,10 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 
 | Property | Definition |
 | -------- | ------------- |
+| [`cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
 | [`container.created_at`](#container-created_at-doc) | Timestamp of the creation of the container |
 | [`container.id`](#container-id-doc) | ID of the container |
+| [`container.runtime`](#container-runtime-doc) | Runtime managing the container |
 | [`container.tags`](#container-tags-doc) | Tags of the container |
 | [`event.async`](#event-async-doc) | True if the syscall was asynchronous |
 | [`event.hostname`](#event-hostname-doc) | Hostname associated with the event |
@@ -126,6 +128,15 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`event.os`](#event-os-doc) | Operating system of the event |
 | [`event.service`](#event-service-doc) | Service associated with the event |
 | [`event.timestamp`](#event-timestamp-doc) | Timestamp of the event |
+| [`network.destination.ip`](#common-ipportcontext-ip-doc) | IP address |
+| [`network.destination.port`](#common-ipportcontext-port-doc) | Port number |
+| [`network.device.ifindex`](#network-device-ifindex-doc) | Interface ifindex |
+| [`network.device.ifname`](#network-device-ifname-doc) | Interface ifname |
+| [`network.l3_protocol`](#network-l3_protocol-doc) | L3 protocol of the network packet |
+| [`network.l4_protocol`](#network-l4_protocol-doc) | L4 protocol of the network packet |
+| [`network.size`](#network-size-doc) | Size in bytes of the network packet |
+| [`network.source.ip`](#common-ipportcontext-ip-doc) | IP address |
+| [`network.source.port`](#common-ipportcontext-port-doc) | Port number |
 | [`process.ancestors.args`](#common-process-args-doc) | Arguments of the process (as a string, excluding argv0) |
 | [`process.ancestors.args_flags`](#common-process-args_flags-doc) | Flags in the process arguments |
 | [`process.ancestors.args_options`](#common-process-args_options-doc) | Argument of the process as options |
@@ -134,6 +145,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.ancestors.argv0`](#common-process-argv0-doc) | First argument of the process |
 | [`process.ancestors.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`process.ancestors.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
+| [`process.ancestors.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
 | [`process.ancestors.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`process.ancestors.container.id`](#common-process-container-id-doc) | Container ID |
 | [`process.ancestors.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
@@ -209,6 +221,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.argv0`](#common-process-argv0-doc) | First argument of the process |
 | [`process.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`process.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
+| [`process.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
 | [`process.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`process.container.id`](#common-process-container-id-doc) | Container ID |
 | [`process.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
@@ -275,6 +288,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.parent.argv0`](#common-process-argv0-doc) | First argument of the process |
 | [`process.parent.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`process.parent.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
+| [`process.parent.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
 | [`process.parent.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`process.parent.container.id`](#common-process-container-id-doc) | Container ID |
 | [`process.parent.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
@@ -499,15 +513,6 @@ A DNS request was sent
 | [`dns.question.name`](#dns-question-name-doc) | the queried domain name |
 | [`dns.question.name.length`](#common-string-length-doc) | Length of the corresponding string |
 | [`dns.question.type`](#dns-question-type-doc) | a two octet code which specifies the DNS question type |
-| [`network.destination.ip`](#common-ipportcontext-ip-doc) | IP address |
-| [`network.destination.port`](#common-ipportcontext-port-doc) | Port number |
-| [`network.device.ifindex`](#network-device-ifindex-doc) | interface ifindex |
-| [`network.device.ifname`](#network-device-ifname-doc) | interface ifname |
-| [`network.l3_protocol`](#network-l3_protocol-doc) | l3 protocol of the network packet |
-| [`network.l4_protocol`](#network-l4_protocol-doc) | l4 protocol of the network packet |
-| [`network.size`](#network-size-doc) | size in bytes of the network packet |
-| [`network.source.ip`](#common-ipportcontext-ip-doc) | IP address |
-| [`network.source.port`](#common-ipportcontext-port-doc) | Port number |
 
 ### Event `exec`
 
@@ -523,6 +528,7 @@ A process was executed or forked
 | [`exec.argv0`](#common-process-argv0-doc) | First argument of the process |
 | [`exec.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`exec.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
+| [`exec.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
 | [`exec.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`exec.container.id`](#common-process-container-id-doc) | Container ID |
 | [`exec.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
@@ -607,6 +613,7 @@ A process was terminated
 | [`exit.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`exit.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`exit.cause`](#exit-cause-doc) | Cause of the process termination (one of EXITED, SIGNALED, COREDUMPED) |
+| [`exit.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
 | [`exit.code`](#exit-code-doc) | Exit code of the process or number of the signal that caused the process to terminate |
 | [`exit.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`exit.container.id`](#common-process-container-id-doc) | Container ID |
@@ -910,6 +917,7 @@ A ptrace command was executed
 | [`ptrace.tracee.ancestors.argv0`](#common-process-argv0-doc) | First argument of the process |
 | [`ptrace.tracee.ancestors.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`ptrace.tracee.ancestors.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
+| [`ptrace.tracee.ancestors.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
 | [`ptrace.tracee.ancestors.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`ptrace.tracee.ancestors.container.id`](#common-process-container-id-doc) | Container ID |
 | [`ptrace.tracee.ancestors.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
@@ -985,6 +993,7 @@ A ptrace command was executed
 | [`ptrace.tracee.argv0`](#common-process-argv0-doc) | First argument of the process |
 | [`ptrace.tracee.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`ptrace.tracee.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
+| [`ptrace.tracee.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
 | [`ptrace.tracee.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`ptrace.tracee.container.id`](#common-process-container-id-doc) | Container ID |
 | [`ptrace.tracee.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
@@ -1051,6 +1060,7 @@ A ptrace command was executed
 | [`ptrace.tracee.parent.argv0`](#common-process-argv0-doc) | First argument of the process |
 | [`ptrace.tracee.parent.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`ptrace.tracee.parent.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
+| [`ptrace.tracee.parent.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
 | [`ptrace.tracee.parent.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`ptrace.tracee.parent.container.id`](#common-process-container-id-doc) | Container ID |
 | [`ptrace.tracee.parent.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
@@ -1319,6 +1329,7 @@ A signal was sent
 | [`signal.target.ancestors.argv0`](#common-process-argv0-doc) | First argument of the process |
 | [`signal.target.ancestors.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`signal.target.ancestors.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
+| [`signal.target.ancestors.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
 | [`signal.target.ancestors.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`signal.target.ancestors.container.id`](#common-process-container-id-doc) | Container ID |
 | [`signal.target.ancestors.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
@@ -1394,6 +1405,7 @@ A signal was sent
 | [`signal.target.argv0`](#common-process-argv0-doc) | First argument of the process |
 | [`signal.target.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`signal.target.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
+| [`signal.target.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
 | [`signal.target.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`signal.target.container.id`](#common-process-container-id-doc) | Container ID |
 | [`signal.target.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
@@ -1460,6 +1472,7 @@ A signal was sent
 | [`signal.target.parent.argv0`](#common-process-argv0-doc) | First argument of the process |
 | [`signal.target.parent.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`signal.target.parent.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
+| [`signal.target.parent.cgroup.id`](#common-cgroupcontext-id-doc) | ID of the cgroup |
 | [`signal.target.parent.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`signal.target.parent.container.id`](#common-process-container-id-doc) | Container ID |
 | [`signal.target.parent.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
@@ -1971,6 +1984,15 @@ Definition: [Experimental] List of cryptographic hashes computed for this file
 `chdir.file` `chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
 
 
+### `*.id` {#common-cgroupcontext-id-doc}
+Type: string
+
+Definition: ID of the cgroup
+
+`*.id` has 12 possible prefixes:
+`cgroup` `exec.cgroup` `exit.cgroup` `process.ancestors.cgroup` `process.cgroup` `process.parent.cgroup` `ptrace.tracee.ancestors.cgroup` `ptrace.tracee.cgroup` `ptrace.tracee.parent.cgroup` `signal.target.ancestors.cgroup` `signal.target.cgroup` `signal.target.parent.cgroup`
+
+
 ### `*.in_upper_layer` {#common-filefields-in_upper_layer-doc}
 Type: bool
 
@@ -2469,6 +2491,13 @@ Definition: ID of the container
 
 
 
+### `container.runtime` {#container-runtime-doc}
+Type: string
+
+Definition: Runtime managing the container
+
+
+
 ### `container.tags` {#container-tags-doc}
 Type: string
 
@@ -2804,21 +2833,21 @@ Constants: [Virtual Memory flags](#virtual-memory-flags)
 ### `network.device.ifindex` {#network-device-ifindex-doc}
 Type: int
 
-Definition: interface ifindex
+Definition: Interface ifindex
 
 
 
 ### `network.device.ifname` {#network-device-ifname-doc}
 Type: string
 
-Definition: interface ifname
+Definition: Interface ifname
 
 
 
 ### `network.l3_protocol` {#network-l3_protocol-doc}
 Type: int
 
-Definition: l3 protocol of the network packet
+Definition: L3 protocol of the network packet
 
 
 Constants: [L3 protocols](#l3-protocols)
@@ -2828,7 +2857,7 @@ Constants: [L3 protocols](#l3-protocols)
 ### `network.l4_protocol` {#network-l4_protocol-doc}
 Type: int
 
-Definition: l4 protocol of the network packet
+Definition: L4 protocol of the network packet
 
 
 Constants: [L4 protocols](#l4-protocols)
@@ -2838,7 +2867,7 @@ Constants: [L4 protocols](#l4-protocols)
 ### `network.size` {#network-size-doc}
 Type: int
 
-Definition: size in bytes of the network packet
+Definition: Size in bytes of the network packet
 
 
 

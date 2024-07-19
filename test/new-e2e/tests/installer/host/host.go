@@ -165,6 +165,14 @@ func (h *Host) WaitForFileExists(useSudo bool, filePaths ...string) {
 	}
 }
 
+// WaitForTraceAgentReady waits for the trace agent to be ready to receive traces
+// This is because of a race condition where the trace agent is not ready to receive traces and we send them
+// meaning that the traces are lost
+func (h *Host) WaitForTraceAgentReady() {
+	_, err := h.remote.Execute("timeout=30; while ! grep -q 'Listening for traces at unix://' <(sudo cat /var/log/datadog/trace-agent.log); do sleep 1; ((timeout--)); done; [ $timeout -ne 0 ]")
+	require.NoError(h.t, err, "trace agent did not become ready")
+}
+
 // BootstraperVersion returns the version of the bootstraper on the host.
 func (h *Host) BootstraperVersion() string {
 	return strings.TrimSpace(h.remote.MustExecute("sudo datadog-bootstrap version"))
