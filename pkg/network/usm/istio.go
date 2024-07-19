@@ -14,7 +14,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/uprobes"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -92,7 +91,7 @@ func newIstioMonitor(c *config.Config, mgr *manager.Manager) *istioMonitor {
 	}
 
 	attachCfg := uprobes.AttacherConfig{
-		ProcRoot: kernel.ProcFSRoot(),
+		ProcRoot: c.ProcRoot,
 		Rules: []*uprobes.AttachRule{{
 			Targets:          uprobes.AttachToExecutable,
 			ProbesSelector:   nodeJSProbes,
@@ -117,7 +116,7 @@ func (m *istioMonitor) Start() {
 		return
 	}
 
-	m.attacher.Start()
+	_ = m.attacher.Start()
 	log.Info("Istio monitoring enabled")
 }
 
@@ -132,7 +131,6 @@ func (m *istioMonitor) Stop() {
 
 // isIstioBinary checks whether the given file is an istioBinary, based on the expected envoy
 // command substring (as defined by m.envoyCmd).
-func (m *istioMonitor) isIstioBinary(path string, procInfo *uprobes.ProcInfo) bool {
-	exec, err := procInfo.Exe()
-	return err == nil && strings.Contains(exec, m.envoyCmd)
+func (m *istioMonitor) isIstioBinary(path string, _ *uprobes.ProcInfo) bool {
+	return strings.Contains(path, m.envoyCmd)
 }
