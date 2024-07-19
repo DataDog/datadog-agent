@@ -181,7 +181,7 @@ func (p *Processor) applySDSReconfiguration(order sds.ReconfigureOrder) {
 				p.sds.buffering = false
 
 				// drain the buffer of messages if anything's in there
-				log.Debug("SDS: draining", len(p.sds.buffer), "buffered messages")
+				log.Info("SDS: draining", len(p.sds.buffer), "buffered messages")
 				for _, msg := range p.sds.buffer {
 					p.processMessage(msg)
 				}
