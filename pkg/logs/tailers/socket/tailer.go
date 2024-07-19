@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -73,7 +74,10 @@ func (t *Tailer) forwardMessages() {
 			copiedTags := make([]string, len(t.source.Config.Tags))
 			copy(copiedTags, t.source.Config.Tags)
 			if remoteAddress != nil {
-				sourceHostTag := fmt.Sprintf("source_host:%s", t.Conn.RemoteAddr().String())
+				addressWithPort := t.Conn.RemoteAddr().String()
+				lastColonIndex := strings.LastIndex(addressWithPort, ":")
+				ipAddress := addressWithPort[:lastColonIndex]
+				sourceHostTag := fmt.Sprintf("source_host:%s", ipAddress)
 				copiedTags = append(copiedTags, sourceHostTag)
 			}
 			origin.SetTags(copiedTags)
