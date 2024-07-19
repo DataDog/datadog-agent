@@ -268,3 +268,24 @@
     reports:
       annotations:
         - $EXTERNAL_LINKS_PATH
+
+notify_ebpf_complexity_changes:
+  stage: notify
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
+  tags: ["arch:amd64"]
+  rules:
+    - !reference [.except_mergequeue]
+    - !reference [.except_main_or_release_branch]
+    - !reference [.except_no_tests_no_deploy]
+  needs:
+    - job: "kmt_run_sysprobe_tests_x64"
+      optional: true
+    - job: "kmt_run_sysprobe_tests_arm64"
+      optional: true
+    - job: "kmt_run_secagent_tests_x64"
+      optional: true
+    - job: "kmt_run_secagent_tests_arm64"
+      optional: true
+  allow_failure: true
+  script:
+    - inv -e ebpf.generate-complexity-summary-for-pr

@@ -3,7 +3,6 @@ from __future__ import annotations
 import shutil
 
 from tasks.kmt import download_complexity_data
-from tasks.libs.ciproviders.github_api import GithubAPI
 from tasks.libs.common.git import get_commit_sha, get_current_branch
 from tasks.libs.types.arch import Arch
 
@@ -675,7 +674,7 @@ def generate_html_report(ctx: Context, dest_folder: str | Path):
 
 
 @task
-def generate_complexity_summary_for_pr(ctx: Context, skip_github_comment=False):
+def generate_complexity_summary_for_pr(ctx: Context):
     """Task meant to run in CI. Generates a summary of the complexity data for the current PR"""
     if tabulate is None:
         raise Exit("tabulate is required to print the complexity summary")
@@ -683,7 +682,7 @@ def generate_complexity_summary_for_pr(ctx: Context, skip_github_comment=False):
     branch_name = get_current_branch(ctx)
 
     # First, ensure we have the complexity data for our current branch
-    current_branch_artifacts_path = os.getenv("DD_AGENT_TESTING_DIR")
+    current_branch_artifacts_path: Path | str | None = os.getenv("DD_AGENT_TESTING_DIR")
     if current_branch_artifacts_path is None:
         raise Exit("DD_AGENT_TESTING_DIR is not set, cannot find the complexity data")
 
@@ -836,32 +835,6 @@ def generate_complexity_summary_for_pr(ctx: Context, skip_github_comment=False):
     msg += f"This report was generated based on the complexity data for the current branch {branch_name} (pipeline {pipeline_id}) and the main branch (commit {common_ancestor}). Contact [#ebpf-platform](https://dd.enterprise.slack.com/archives/C0424HA1SJK) if you have any questions/feedback."
 
     print(msg)
-
-    if skip_github_comment:
-        return
-
-    gh = GithubAPI("DataDog/datadog-agent")
-    prs = gh.get_pr_for_branch(branch_name)
-
-    if prs.totalCount == 0:
-        # If the branch is not linked to any PR we stop here
-        return
-    pr = prs[0]
-
-    comment = gh.find_comment(pr.number, header)
-    if comment is None:
-        print("Creating message")
-        gh.publish_comment(pr.number, msg)
-    else:
-        pipeline_id_regex = re.compile(r"pipeline ([0-9]*)")
-        previous_comment_pipeline_id = pipeline_id_regex.findall(comment.body)
-        # An older pipeline should not edit a message corresponding to a newer pipeline
-        if previous_comment_pipeline_id and previous_comment_pipeline_id[0] > pipeline_id:
-            print("Not editing message, a newer pipeline already did it")
-            return
-
-        print("Editing message")
-        comment.edit(msg)
 
 
 def _format_change(new: float, old: float):
