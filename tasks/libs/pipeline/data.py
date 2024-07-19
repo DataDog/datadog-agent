@@ -1,26 +1,10 @@
 import re
 from collections import defaultdict
 
-from gitlab.v4.objects import ProjectCommit, ProjectJob, ProjectPipeline
+from gitlab.v4.objects import ProjectJob, ProjectPipeline
 
 from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
 from tasks.libs.types.types import FailedJobReason, FailedJobs, FailedJobType
-
-
-def get_commit(project_name: str, git_ref: str) -> ProjectCommit:
-    """
-    Retrieves the git ref for a given pipeline id in a given project.
-    """
-    repo = get_gitlab_repo(project_name)
-    return repo.commits.get(git_ref)
-
-
-def get_pipeline(project_name: str, pipeline_id: str) -> ProjectPipeline:
-    """
-    Retrieves the git ref for a given pipeline id in a given project.
-    """
-    repo = get_gitlab_repo(project_name)
-    return repo.pipelines.get(pipeline_id)
 
 
 def get_failed_jobs(pipeline: ProjectPipeline) -> FailedJobs:

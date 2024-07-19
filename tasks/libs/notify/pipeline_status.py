@@ -1,9 +1,10 @@
 import os
 import re
 
+from tasks.libs.ciproviders.gitlab_api import get_commit, get_pipeline
 from tasks.libs.common.constants import DEFAULT_BRANCH
 from tasks.libs.notify.utils import PIPELINES_CHANNEL, PROJECT_NAME
-from tasks.libs.pipeline.data import get_commit, get_failed_jobs, get_pipeline
+from tasks.libs.pipeline.data import get_failed_jobs
 from tasks.libs.pipeline.notifications import (
     base_message,
     email_to_slackid,

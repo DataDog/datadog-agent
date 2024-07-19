@@ -5,9 +5,9 @@ from datetime import datetime
 
 from invoke import Exit
 
-from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
+from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo, get_pipeline
 from tasks.libs.common.datadog_api import create_count, create_gauge
-from tasks.libs.pipeline.data import get_failed_jobs, get_pipeline
+from tasks.libs.pipeline.data import get_failed_jobs
 from tasks.libs.types.types import FailedJobType
 
 REQUIRED_JOBS = [
