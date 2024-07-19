@@ -387,6 +387,18 @@ new-e2e-windows-systemprobe:
     TARGETS: ./tests/sysprobe-functional
     TEAM: windows-kernel-integrations
 
+new-e2e-windows-security-agent:
+  extends: .new_e2e_template
+  rules:
+    - !reference [.on_windows_security_or_e2e_changes]
+    - !reference [.manual]
+  needs:
+    - deploy_windows_testing-a7
+    - tests_windows_secagent_x64
+  variables:
+    TARGETS: ./tests/security-agent-functional
+    TEAM: windows-kernel-integrations
+
 
 generate-flakes-finder-pipeline:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES

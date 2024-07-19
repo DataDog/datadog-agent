@@ -1007,6 +1007,15 @@ workflow:
     when: on_success
   - when: on_success #TODO: To remove
 
+.on_windows_security_or_e2e_changes:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        - test/new-e2e/tests/security-agent-functional/**/*
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+    when: on_success
+  - when: on_success #TODO: To remove
+
 .on_scheduled_main:
   - <<: *if_scheduled_main
 
