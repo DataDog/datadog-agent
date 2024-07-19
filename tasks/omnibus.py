@@ -71,11 +71,13 @@ def bundle_install_omnibus(ctx, gem_path=None, env=None, max_try=2):
             for trial in range(max_try):
                 try:
                     ctx.run(cmd, env=env, err_stream=sys.stdout)
+                    return
                 except UnexpectedExit as e:
                     if not should_retry_bundle_install(e.result):
                         print(f'Fatal error while installing omnibus: {e.result.stdout}. Cannot continue.')
                         raise
                     print(f"Retrying bundle install, attempt {trial + 1}/{max_try}")
+        raise Exit('Too many failures while installing omnibus, giving up')
 
 
 def get_omnibus_env(
