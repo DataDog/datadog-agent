@@ -14,49 +14,43 @@ import (
 
 func TestSplitImageName(t *testing.T) {
 	for nb, tc := range []struct {
-		source    string
-		longName  string
-		registry  string
-		shortName string
-		tag       string
-		err       error
+		source   string
+		expected StructImageName
+		err      error
 	}{
 		// Empty
-		{"", "", "", "", "", fmt.Errorf("empty image name")},
+		{"", StructImageName{}, fmt.Errorf("empty image name")},
 		// A sha256 string
-		{"sha256:5bef08742407efd622d243692b79ba0055383bbce12900324f75e56f589aedb0", "", "", "", "", fmt.Errorf("invalid image name (is a sha256)")},
+		{"sha256:5bef08742407efd622d243692b79ba0055383bbce12900324f75e56f589aedb0", StructImageName{}, fmt.Errorf("invalid image name (is a sha256)")},
 		// Shortest possibility
-		{"alpine", "alpine", "", "alpine", "", nil},
+		{"alpine", StructImageName{Long: "alpine", Short: "alpine"}, nil},
 		// Historical docker format
-		{"nginx:latest", "nginx", "", "nginx", "latest", nil},
+		{"nginx:latest", StructImageName{Long: "nginx", Short: "nginx", Tag: "latest"}, nil},
 		// Org prefix to be removed for short name
 		{"datadog/docker-dd-agent:latest-jmx",
-			"datadog/docker-dd-agent", "", "docker-dd-agent", "latest-jmx", nil},
+			StructImageName{Long: "datadog/docker-dd-agent", Short: "docker-dd-agent", Tag: "latest-jmx"}, nil},
 		// Sha-pinning used by many orchestrators -> empty tag
 		// We should not have this string here as ResolveImageName should
 		// have handled that before, but let's keep it just in case
 		{"redis@sha256:5bef08742407efd622d243692b79ba0055383bbce12900324f75e56f589aedb0",
-			"redis", "", "redis", "", nil},
+			StructImageName{Long: "redis", Short: "redis", Digest: "sha256:5bef08742407efd622d243692b79ba0055383bbce12900324f75e56f589aedb0"}, nil},
 		// Quirky pinning used by swarm
 		{"org/redis:latest@sha256:5bef08742407efd622d243692b79ba0055383bbce12900324f75e56f589aedb0",
-			"org/redis", "", "redis", "latest", nil},
+			StructImageName{Long: "org/redis", Short: "redis", Tag: "latest", Digest: "sha256:5bef08742407efd622d243692b79ba0055383bbce12900324f75e56f589aedb0"}, nil},
 		// Custom registry, simple form
 		{"myregistry.local:5000/testing/test-image:version",
-			"myregistry.local:5000/testing/test-image", "myregistry.local:5000", "test-image", "version", nil},
+			StructImageName{Long: "myregistry.local:5000/testing/test-image", Registry: "myregistry.local:5000", Short: "test-image", Tag: "version"}, nil},
 		// Custom registry, most insane form possible
 		{"myregistry.local:5000/testing/test-image:version@sha256:5bef08742407efd622d243692b79ba0055383bbce12900324f75e56f589aedb0",
-			"myregistry.local:5000/testing/test-image", "myregistry.local:5000", "test-image", "version", nil},
+			StructImageName{Long: "myregistry.local:5000/testing/test-image", Registry: "myregistry.local:5000", Short: "test-image", Tag: "version", Digest: "sha256:5bef08742407efd622d243692b79ba0055383bbce12900324f75e56f589aedb0"}, nil},
 		// Test swarm image
 		{"dockercloud/haproxy:1.6.7@sha256:8c4ed4049f55de49cbc8d03d057a5a7e8d609c264bb75b59a04470db1d1c5121",
-			"dockercloud/haproxy", "", "haproxy", "1.6.7", nil},
+			StructImageName{Long: "dockercloud/haproxy", Short: "haproxy", Tag: "1.6.7", Digest: "sha256:8c4ed4049f55de49cbc8d03d057a5a7e8d609c264bb75b59a04470db1d1c5121"}, nil},
 	} {
 		t.Run(fmt.Sprintf("case %d: %s", nb, tc.source), func(t *testing.T) {
 			assert := assert.New(t)
-			long, registry, short, tag, err := SplitImageName(tc.source)
-			assert.Equal(tc.longName, long)
-			assert.Equal(tc.registry, registry)
-			assert.Equal(tc.shortName, short)
-			assert.Equal(tc.tag, tag)
+			out, err := SplitImageName(tc.source)
+			assert.Equal(tc.expected, out)
 
 			if tc.err == nil {
 				assert.Nil(err)

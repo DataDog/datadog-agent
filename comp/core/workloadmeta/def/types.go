@@ -273,19 +273,20 @@ func NewContainerImage(imageID string, imageName string) (ContainerImage, error)
 		Name:    imageName,
 	}
 
-	name, registry, shortName, tag, err := containers.SplitImageName(imageName)
+	structImageName, err := containers.SplitImageName(imageName)
 	if err != nil {
 		return image, err
 	}
 
-	if tag == "" {
-		tag = "latest"
+	if structImageName.Tag == "" && structImageName.Digest == "" {
+		structImageName.Tag = "latest"
 	}
 
-	image.Name = name
-	image.Registry = registry
-	image.ShortName = shortName
-	image.Tag = tag
+	image.Name = structImageName.Long
+	image.Registry = structImageName.Registry
+	image.ShortName = structImageName.Short
+	image.Tag = structImageName.Tag
+	image.RepoDigest = structImageName.Digest
 
 	return image, nil
 }
