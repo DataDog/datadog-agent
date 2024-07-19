@@ -10,30 +10,29 @@ package usm
 import (
 	"os/exec"
 	"path/filepath"
-	"strings"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/network/config"
-	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/ebpf/uprobes"
+	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 )
 
 const (
 	defaultEnvoyName = "/bin/envoy"
 )
 
-func TestGetEnvoyPath(t *testing.T) {
-	_, pid := createFakeProcess(t, defaultEnvoyName)
-	monitor := newIstioTestMonitor(t)
+func TestIsIstioBinary(t *testing.T) {
+	procRoot := uprobes.CreateFakeProcFS(t, []uprobes.FakeProcFSEntry{})
+	m := newIstioTestMonitor(t)
 
 	t.Run("an actual envoy process", func(t *testing.T) {
-		path := monitor.getEnvoyPath(uint32(pid))
-		assert.True(t, strings.HasSuffix(path, defaultEnvoyName))
+		assert.True(t, m.isIstioBinary(defaultEnvoyName, uprobes.NewProcInfo(procRoot, 1)))
 	})
 	t.Run("something else", func(t *testing.T) {
-		path := monitor.getEnvoyPath(uint32(2))
-		assert.Empty(t, "", path)
+		assert.False(t, m.isIstioBinary("", uprobes.NewProcInfo(procRoot, 2)))
 	})
 }
 
@@ -43,10 +42,8 @@ func TestGetEnvoyPathWithConfig(t *testing.T) {
 	cfg.EnvoyPath = "/test/envoy"
 	monitor := newIstioTestMonitorWithCFG(t, cfg)
 
-	_, pid := createFakeProcess(t, cfg.EnvoyPath)
-
-	path := monitor.getEnvoyPath(uint32(pid))
-	assert.True(t, strings.HasSuffix(path, cfg.EnvoyPath))
+	assert.True(t, monitor.isIstioBinary(cfg.EnvoyPath, uprobes.NewProcInfo("", 0)))
+	assert.False(t, monitor.isIstioBinary("something/else/", uprobes.NewProcInfo("", 0)))
 }
 
 func TestIstioSync(t *testing.T) {
