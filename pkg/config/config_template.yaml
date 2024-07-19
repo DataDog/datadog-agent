@@ -972,7 +972,7 @@ api_key:
 
   ## @param batch_wait - integer - optional - default: 5
   ## @env DD_LOGS_CONFIG_BATCH_WAIT - integer - optional - default: 5
-  ## The maximum time the Datadog Agent waits to fill each batch of logs before sending.
+  ## The maximum time (in seconds) the Datadog Agent waits to fill each batch of logs before sending.
   #
   # batch_wait: 5
 

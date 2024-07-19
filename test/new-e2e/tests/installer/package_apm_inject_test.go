@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	e2eos "github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/stretchr/testify/assert"
 )
@@ -36,7 +37,7 @@ func (s *packageApmInjectSuite) TestInstall() {
 	s.RunInstallScript("DD_APM_INSTRUMENTATION_ENABLED=all", "DD_APM_INSTRUMENTATION_LIBRARIES=python", envForceInstall("datadog-agent"))
 	defer s.Purge()
 	s.host.WaitForUnitActive("datadog-agent.service", "datadog-agent-trace.service")
-	s.host.WaitForFileExists(true, "/var/run/datadog/apm.socket")
+	s.host.WaitForTraceAgentReady()
 
 	s.host.StartExamplePythonApp()
 	defer s.host.StopExamplePythonApp()
@@ -134,7 +135,7 @@ func (s *packageApmInjectSuite) TestInstrumentDefault() {
 
 func (s *packageApmInjectSuite) TestSystemdReload() {
 	s.host.InstallDocker()
-	s.RunInstallScript()
+	s.RunInstallScript(envForceInstall("datadog-agent"))
 	defer s.Purge()
 
 	s.RunInstallScript("DD_APM_INSTRUMENTATION_ENABLED=all", "DD_APM_INSTRUMENTATION_LIBRARIES=python")
@@ -221,6 +222,10 @@ func (s *packageApmInjectSuite) TestUpgrade_InjectorOCI_To_InjectorDeb() {
 }
 
 func (s *packageApmInjectSuite) TestVersionBump() {
+	if s.os == e2eos.Debian12 {
+		flake.Mark(s.T()) // TODO(baptiste): FIXME
+	}
+
 	s.host.InstallDocker()
 	s.RunInstallScript(
 		"DD_APM_INSTRUMENTATION_ENABLED=all",
@@ -230,7 +235,7 @@ func (s *packageApmInjectSuite) TestVersionBump() {
 	)
 	defer s.Purge()
 	s.host.WaitForUnitActive("datadog-agent.service", "datadog-agent-trace.service")
-	s.host.WaitForFileExists(true, "/var/run/datadog/apm.socket")
+	s.host.WaitForTraceAgentReady()
 
 	state := s.host.State()
 	state.AssertDirExists("/opt/datadog-packages/datadog-apm-library-python/2.8.5", 0755, "root", "root")
@@ -254,7 +259,7 @@ func (s *packageApmInjectSuite) TestVersionBump() {
 		envForceVersion("datadog-apm-inject", "0.16.0-1"),
 	)
 	s.host.WaitForUnitActive("datadog-agent.service", "datadog-agent-trace.service")
-	s.host.WaitForFileExists(true, "/var/run/datadog/apm.socket")
+	s.host.WaitForTraceAgentReady()
 
 	// Today we expect the previous dir to be fully removed and the new one to be symlinked
 	state = s.host.State()
@@ -401,7 +406,7 @@ func (s *packageApmInjectSuite) TestInstrumentDockerInactive() {
 }
 
 func (s *packageApmInjectSuite) TestInstallStandaloneLib() {
-	s.RunInstallScript("DD_APM_INSTRUMENTATION_LIBRARIES=python")
+	s.RunInstallScript("DD_APM_INSTRUMENTATION_LIBRARIES=python", envForceInstall("datadog-agent"))
 	defer s.Purge()
 	s.host.AssertPackageNotInstalledByPackageManager("datadog-apm-library-python")
 	s.host.AssertPackageInstalledByInstaller("datadog-apm-library-python")

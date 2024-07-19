@@ -116,12 +116,13 @@ func (s *npCollectorImpl) ScheduleConns(conns []*model.Connection) {
 	}
 	startTime := s.TimeNowFn()
 	for _, conn := range conns {
-		if !shouldScheduleNetworkPathForConn(conn) {
-			continue
-		}
 		remoteAddr := conn.Raddr
 		remotePort := uint16(conn.Raddr.GetPort())
 		protocol := conn.GetType().String()
+		if !shouldScheduleNetworkPathForConn(conn) {
+			s.logger.Tracef("Skipped connection: addr=%s, port=%d, protocol=%s", remoteAddr, remotePort, protocol)
+			continue
+		}
 		sourceContainer := conn.Laddr.GetContainerId()
 		err := s.scheduleOne(remoteAddr.GetIp(), remotePort, protocol, sourceContainer)
 		if err != nil {
