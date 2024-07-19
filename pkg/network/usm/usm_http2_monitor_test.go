@@ -565,10 +565,13 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 		},
 		{
 			name: "validate max interesting frames limit",
-			// The purpose of this test is to verify our ability to reach the limit set by HTTP2_MAX_FRAMES_ITERATIONS, which
+			// The purpose of this test is to verify our ability to reach almost to the limit set by HTTP2_MAX_FRAMES_ITERATIONS, which
 			// determines the maximum number of "interesting frames" we can process.
+			// Not testing the max number of frame (240), as the server response can contain other frames, so we might miss EOS
+			// coming after a server side frame, and by that miss a request.
 			messageBuilder: func() [][]byte {
-				const iterations = 120
+				// Generates 119 (requests) * 2 (number of frames per request) = 238 frames
+				const iterations = 119
 				framer := newFramer()
 				for i := 0; i < iterations; i++ {
 					streamID := getStreamID(i)
@@ -582,7 +585,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 				{
 					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
 					Method: usmhttp.MethodPost,
-				}: 120,
+				}: 119,
 			},
 		},
 		{
