@@ -3,14 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package sysprobefunctional
+package secagentfunctional
 
 import (
 	"flag"
 	"os"
-	"path"
 	"path/filepath"
-	"runtime"
 	"testing"
 	"time"
 
@@ -53,48 +51,17 @@ func (v *vmSuite) SetupSuite() {
 
 	reporoot, _ := filepath.Abs(filepath.Join(currDir, "..", "..", "..", ".."))
 	kitchenDir := filepath.Join(reporoot, "test", "kitchen", "site-cookbooks")
-	v.testspath = filepath.Join(kitchenDir, "dd-system-probe-check", "files", "default", "tests")
+	v.testspath = filepath.Join(kitchenDir, "dd-security-agent-check", "files", "tests")
 }
 
-func (v *vmSuite) TestSystemProbeNPMSuite() {
+func (v *vmSuite) TestSystemProbeCWSSuite() {
 	v.BaseSuite.SetupSuite()
 	t := v.T()
 	// get the remote host
 	vm := v.Env().RemoteHost
 
-	err := windows.InstallIIS(vm)
-	require.NoError(t, err)
-	// HEADSUP the paths are windows, but this will execute in linux. So fix the paths
-	t.Log("IIS Installed, continuing")
-
-	t.Log("Creating sites")
-	// figure out where we're being executed from.  These paths should be in
-	// native path separators (i.e. not windows paths if executing in ci/on linux)
-
-	_, srcfile, _, ok := runtime.Caller(0)
-	require.True(t, ok)
-	exPath := filepath.Dir(srcfile)
-
-	sites := []windows.IISSiteDefinition{
-		{
-			Name:        "TestSite1",
-			BindingPort: "*:8081:",
-			AssetsDir:   path.Join(exPath, "assets"),
-		},
-		{
-			Name:        "TestSite2",
-			BindingPort: "*:8082:",
-			AssetsDir:   path.Join(exPath, "assets"),
-		},
-	}
-
-	t.Logf("AssetsDir: %s", sites[0].AssetsDir)
-	err = windows.CreateIISSite(vm, sites)
-	require.NoError(t, err)
-	t.Log("Sites created, continuing")
-
 	rs := windows.NewRemoteExecutable(vm, t, "testsuite.exe", v.testspath)
-	err = rs.FindTestPrograms()
+	err := rs.FindTestPrograms()
 	require.NoError(t, err)
 
 	err = rs.CreateRemotePaths()
@@ -127,5 +94,5 @@ func (v *vmSuite) TestSystemProbeNPMSuite() {
 	_, err = vm.Execute("start-service ddnpm")
 	require.NoError(t, err)
 
-	rs.RunTests("")
+	rs.RunTests("5m") // security agent tests can take a while waiting for ETW to start.
 }
