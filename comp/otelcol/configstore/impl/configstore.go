@@ -7,6 +7,8 @@
 package configstoreimpl
 
 import (
+	"context"
+	"fmt"
 	"sync"
 
 	configstore "github.com/DataDog/datadog-agent/comp/otelcol/configstore/def"
@@ -26,18 +28,44 @@ func NewConfigStore() (configstore.Component, error) {
 	return &configStoreImpl{}, nil
 }
 
-// AddProvidedConf stores the config into configStoreImpl.
-func (c *configStoreImpl) AddProvidedConf(config *otelcol.Config) {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
+func (c *configStoreImpl) AddConfigs(providedCPS otelcol.ConfigProviderSettings, enhancedCPS otelcol.ConfigProviderSettings, factories otelcol.Factories) error {
+	// Provided
+	ocpProvided, err := otelcol.NewConfigProvider(providedCPS)
+	if err != nil {
+		return fmt.Errorf("failed to create configprovider: %w", err)
+	}
+	providedConf, err := ocpProvided.Get(context.Background(), factories)
+	if err != nil {
+		return err
+	}
+	c.addProvidedConf(providedConf)
+
+	// Enhanced
+	ocpEnhanced, err := otelcol.NewConfigProvider(enhancedCPS)
+	if err != nil {
+		return fmt.Errorf("failed to create configprovider: %w", err)
+	}
+	enhancedConf, err := ocpEnhanced.Get(context.Background(), factories)
+	if err != nil {
+		return err
+	}
+	c.addEnhancedConf(enhancedConf)
+
+	return nil
+}
+
+// addProvidedConf stores the config into configStoreImpl.
+func (c *configStoreImpl) addProvidedConf(config *otelcol.Config) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 
 	c.provided = config
 }
 
-// AddEnhancedConf stores the config into configStoreImpl.
-func (c *configStoreImpl) AddEnhancedConf(config *otelcol.Config) {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
+// addEnhancedConf stores the config into configStoreImpl.
+func (c *configStoreImpl) addEnhancedConf(config *otelcol.Config) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 
 	c.enhanced = config
 }
