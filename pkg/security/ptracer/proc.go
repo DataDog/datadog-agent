@@ -275,7 +275,7 @@ func procToMsg(proc *ProcProcess) (*ebpfless.Message, error) {
 	}, nil
 }
 
-func scanProcfs(ctx context.Context, traceePIDs []int, msgCb func(msg *ebpfless.Message), every time.Duration, logger Logger) {
+func scanProcfs(ctx context.Context, tracer *Tracer, msgCb func(msg *ebpfless.Message), every time.Duration, logger Logger) {
 	cache := make(map[int32]int64)
 
 	ticker := time.NewTicker(every)
@@ -283,7 +283,8 @@ func scanProcfs(ctx context.Context, traceePIDs []int, msgCb func(msg *ebpfless.
 	for {
 		select {
 		case <-ticker.C:
-			for _, pid := range traceePIDs {
+			tracer.pidLock.RLock()
+			for _, pid := range tracer.PIDs {
 				add, del, err := collectProcesses(int32(pid), cache)
 				if err != nil {
 					logger.Errorf("unable to collect processes: %v", err)
@@ -313,6 +314,7 @@ func scanProcfs(ctx context.Context, traceePIDs []int, msgCb func(msg *ebpfless.
 					msgCb(msg)
 				}
 			}
+			tracer.pidLock.RUnlock()
 		case <-ctx.Done():
 			return
 		}

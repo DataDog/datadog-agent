@@ -440,7 +440,7 @@ func ptrace(tracer *Tracer, probeAddr string, syscallHandlers map[int]syscallHan
 			// introduce a delay before starting to scan procfs to let the tracer event first
 			time.Sleep(2 * time.Second)
 
-			scanProcfs(ctx, tracer.PIDs, send, every, logger)
+			scanProcfs(ctx, tracer, send, every, logger)
 		}()
 	}
 
