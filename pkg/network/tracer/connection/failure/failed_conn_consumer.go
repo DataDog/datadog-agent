@@ -9,8 +9,6 @@
 package failure
 
 import (
-	"sync"
-
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
@@ -27,22 +25,23 @@ var failedConnConsumerTelemetry = struct {
 
 // TCPFailedConnConsumer consumes failed connection events from the kernel
 type TCPFailedConnConsumer struct {
-	dataChan <-chan *netebpf.FailedConn
-	releaser ddsync.PoolReleaser[netebpf.FailedConn]
-
-	once        sync.Once
-	closed      chan struct{}
+	releaser    ddsync.PoolReleaser[netebpf.FailedConn]
 	FailedConns *FailedConns
 }
 
 // NewFailedConnConsumer creates a new TCPFailedConnConsumer
-func NewFailedConnConsumer(callbackCh <-chan *netebpf.FailedConn, releaser ddsync.PoolReleaser[netebpf.FailedConn], fc *FailedConns) *TCPFailedConnConsumer {
+func NewFailedConnConsumer(releaser ddsync.PoolReleaser[netebpf.FailedConn], fc *FailedConns) *TCPFailedConnConsumer {
 	return &TCPFailedConnConsumer{
 		releaser:    releaser,
-		dataChan:    callbackCh,
-		closed:      make(chan struct{}),
 		FailedConns: fc,
 	}
+}
+
+// Callback is a function that can be used as the handler from a perf.EventHandler
+func (c *TCPFailedConnConsumer) Callback(failedConn *netebpf.FailedConn) {
+	failedConnConsumerTelemetry.eventsReceived.Inc()
+	c.FailedConns.upsertConn(failedConn)
+	c.releaser.Put(failedConn)
 }
 
 // Stop stops the consumer
@@ -50,31 +49,5 @@ func (c *TCPFailedConnConsumer) Stop() {
 	if c == nil {
 		return
 	}
-	c.once.Do(func() {
-		close(c.closed)
-	})
 	c.FailedConns.mapCleaner.Stop()
-}
-
-// Start starts the consumer
-func (c *TCPFailedConnConsumer) Start() {
-	if c == nil {
-		return
-	}
-
-	go func() {
-		for {
-			select {
-			case <-c.closed:
-				return
-			case failedConn, ok := <-c.dataChan:
-				if !ok {
-					return
-				}
-				failedConnConsumerTelemetry.eventsReceived.Inc()
-				c.FailedConns.upsertConn(failedConn)
-				c.releaser.Put(failedConn)
-			}
-		}
-	}()
 }

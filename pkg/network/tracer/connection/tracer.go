@@ -191,8 +191,10 @@ type tracer struct {
 
 	// tcp_close events
 	closeConsumer *tcpCloseConsumer
+
 	// tcp failure events
 	failedConnConsumer *failure.TCPFailedConnConsumer
+	failedCallback     func(*netebpf.FailedConn)
 
 	removeTuple *netebpf.ConnTuple
 
@@ -254,14 +256,20 @@ func NewTracer(config *config.Config, _ telemetryComponent.Component) (Tracer, e
 			EditorFlag: manager.EditMaxEntries,
 		}
 	}
-	closedCallback, closedCallbackCh := ddsync.CallbackChannel[*network.ConnectionStats](config.ClosedChannelSize)
-	connCloseEventHandler, err := initClosedConnEventHandler(config, closedCallback, connPool, extractor)
+
+	tr := &tracer{
+		removeTuple:    &netebpf.ConnTuple{},
+		failedCallback: func(*netebpf.FailedConn) {},
+		ch:				newCookieHasher(),
+	}
+
+	connCloseEventHandler, err := initClosedConnEventHandler(config, tr.closedPerfCallback, connPool, extractor)
 	if err != nil {
 		return nil, err
 	}
 
 	failedConnPool := ddsync.NewDefaultTypedPool[netebpf.FailedConn]()
-	failedCallbackCh, failedConnsHandler, err := initFailedConnEventHandler(config, failedConnPool)
+	failedConnsHandler, err := initFailedConnEventHandler(config, tr.failedPerfCallback, failedConnPool)
 	if err != nil {
 		return nil, err
 	}
@@ -290,34 +298,29 @@ func NewTracer(config *config.Config, _ telemetryComponent.Component) (Tracer, e
 
 	var flusher perf.Flushable = connCloseEventHandler
 	if config.KernelBatchingEnabled {
-		flusher, err = newConnBatchManager(m, extractor, connPool, closedCallback)
+		flusher, err = newConnBatchManager(m, extractor, connPool, tr.closedPerfCallback)
 		if err != nil {
 			return nil, err
 		}
 	}
-	closeConsumer := newTCPCloseConsumer(flusher, closedCallbackCh, connPool)
+	tr.closeConsumer = newTCPCloseConsumer(flusher, connPool)
 
 	var failedConnConsumer *failure.TCPFailedConnConsumer
 	// Failed connections are not supported on prebuilt
 	if tracerType == TracerTypeKProbePrebuilt {
-		failedCallbackCh = nil
 		failedConnPool = nil
 		config.TCPFailedConnectionsEnabled = false
 	}
 	if config.FailedConnectionsSupported() {
-		failedConnConsumer = failure.NewFailedConnConsumer(failedCallbackCh, failedConnPool, failure.NewFailedConns(m))
+		failedConnConsumer = failure.NewFailedConnConsumer(failedConnPool, failure.NewFailedConns(m))
+		tr.failedCallback = failedConnConsumer.Callback
 	}
 
-	tr := &tracer{
-		m:                  m,
-		config:             config,
-		closeConsumer:      closeConsumer,
-		failedConnConsumer: failedConnConsumer,
-		removeTuple:        &netebpf.ConnTuple{},
-		closeTracer:        closeTracerFn,
-		ebpfTracerType:     tracerType,
-		ch:                 newCookieHasher(),
-	}
+	tr.m = m
+	tr.config = config
+	tr.failedConnConsumer = failedConnConsumer
+	tr.closeTracer = closeTracerFn
+	tr.ebpfTracerType = tracerType
 
 	tr.conns, err = maps.GetMap[netebpf.ConnTuple, netebpf.ConnStats](m, probes.ConnMap)
 	if err != nil {
@@ -339,14 +342,11 @@ func NewTracer(config *config.Config, _ telemetryComponent.Component) (Tracer, e
 	return tr, nil
 }
 
-func initFailedConnEventHandler(config *config.Config, failedConnGetter ddsync.PoolGetter[netebpf.FailedConn]) (<-chan *netebpf.FailedConn, *perf.EventHandler, error) {
+func initFailedConnEventHandler(config *config.Config, failedCallback func(*netebpf.FailedConn), failedConnGetter ddsync.PoolGetter[netebpf.FailedConn]) (*perf.EventHandler, error) {
 	var failedConnsHandler *perf.EventHandler
-	var failedCallbackCh <-chan *netebpf.FailedConn
 	var err error
 
 	if config.FailedConnectionsSupported() {
-		var failedCallback func(*netebpf.FailedConn)
-		failedCallback, failedCallbackCh = ddsync.CallbackChannel[*netebpf.FailedConn](config.ClosedChannelSize)
 		fcopts := perf.EventHandlerOptions{
 			MapName: probes.FailedConnEventMap,
 			Handler: encoding.BinaryUnmarshalCallback(failedConnGetter.Get, func(b *netebpf.FailedConn, err error) {
@@ -369,10 +369,10 @@ func initFailedConnEventHandler(config *config.Config, failedConnGetter ddsync.P
 		}
 		failedConnsHandler, err = perf.NewEventHandler(fcopts)
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 	}
-	return failedCallbackCh, failedConnsHandler, err
+	return failedConnsHandler, err
 }
 
 func initClosedConnEventHandler(config *config.Config, closedCallback func(*network.ConnectionStats), connGetter ddsync.PoolGetter[network.ConnectionStats], extractor *batchExtractor) (*perf.EventHandler, error) {
@@ -446,6 +446,15 @@ func boolConst(name string, value bool) manager.ConstantEditor {
 	return c
 }
 
+func (t *tracer) closedPerfCallback(c *network.ConnectionStats) {
+	t.closeConsumer.Callback(c)
+}
+
+func (t *tracer) failedPerfCallback(fc *netebpf.FailedConn) {
+	// we cannot directly use failedCallback in the constructor because it can get changed during init
+	t.failedCallback(fc)
+}
+
 func (t *tracer) Start(callback func(*network.ConnectionStats)) (err error) {
 	defer func() {
 		if err != nil {
@@ -463,7 +472,6 @@ func (t *tracer) Start(callback func(*network.ConnectionStats)) (err error) {
 	}
 
 	t.closeConsumer.Start(callback)
-	t.failedConnConsumer.Start()
 	return nil
 }
 

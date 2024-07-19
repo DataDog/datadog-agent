@@ -14,7 +14,7 @@ import (
 )
 
 func TestTcpCloseConsumerStopRace(t *testing.T) {
-	c := newTCPCloseConsumer(nil, nil, nil)
+	c := newTCPCloseConsumer(nil, nil)
 	require.NotNil(t, c)
 
 	c.Stop()

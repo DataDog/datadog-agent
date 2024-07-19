@@ -32,18 +32,20 @@ type tcpCloseConsumer struct {
 	once     sync.Once
 	closed   chan struct{}
 
-	flusher  perf.Flushable
-	dataChan <-chan *network.ConnectionStats
-	releaser ddsync.PoolReleaser[network.ConnectionStats]
+	flusher      perf.Flushable
+	callback     func(*network.ConnectionStats)
+	releaser     ddsync.PoolReleaser[network.ConnectionStats]
+	flushChannel chan chan struct{}
 }
 
-func newTCPCloseConsumer(flusher perf.Flushable, callbackCh <-chan *network.ConnectionStats, releaser ddsync.PoolReleaser[network.ConnectionStats]) *tcpCloseConsumer {
+func newTCPCloseConsumer(flusher perf.Flushable, releaser ddsync.PoolReleaser[network.ConnectionStats]) *tcpCloseConsumer {
 	return &tcpCloseConsumer{
-		requests: make(chan chan struct{}),
-		closed:   make(chan struct{}),
-		flusher:  flusher,
-		dataChan: callbackCh,
-		releaser: releaser,
+		requests:     make(chan chan struct{}),
+		closed:       make(chan struct{}),
+		flusher:      flusher,
+		releaser:     releaser,
+		callback:     func(*network.ConnectionStats) {},
+		flushChannel: make(chan chan struct{}, 1),
 	}
 }
 
@@ -75,10 +77,24 @@ func (c *tcpCloseConsumer) Stop() {
 	})
 }
 
+func (c *tcpCloseConsumer) Callback(conn *network.ConnectionStats) {
+	// sentinel record post-flush
+	if conn == nil {
+		request := <-c.flushChannel
+		close(request)
+		return
+	}
+
+	closeConsumerTelemetry.perfReceived.Inc()
+	c.callback(conn)
+	c.releaser.Put(conn)
+}
+
 func (c *tcpCloseConsumer) Start(callback func(*network.ConnectionStats)) {
 	if c == nil {
 		return
 	}
+	c.callback = callback
 	liveHealth := health.RegisterLiveness("network-tracer")
 
 	go func() {
@@ -89,30 +105,14 @@ func (c *tcpCloseConsumer) Start(callback func(*network.ConnectionStats)) {
 			}
 		}()
 
-		flushChannel := make(chan chan struct{}, 1)
 		for {
 			select {
-
 			case <-c.closed:
 				return
 			case <-liveHealth.C:
-			case conn, ok := <-c.dataChan:
-				if !ok {
-					return
-				}
-				// sentinel record post-flush
-				if conn == nil {
-					request := <-flushChannel
-					close(request)
-					continue
-				}
-
-				closeConsumerTelemetry.perfReceived.Inc()
-				callback(conn)
-				c.releaser.Put(conn)
 			case request := <-c.requests:
+				c.flushChannel <- request
 				c.flusher.Flush()
-				flushChannel <- request
 			}
 		}
 	}()
