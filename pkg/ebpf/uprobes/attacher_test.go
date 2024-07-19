@@ -79,9 +79,13 @@ type mockBinaryInspector struct {
 	mock.Mock
 }
 
-func (m *mockBinaryInspector) Inspect(path string, requests []SymbolRequest) (map[string]bininspect.FunctionMetadata, bool, error) {
-	args := m.Called(path, requests)
+func (m *mockBinaryInspector) Inspect(fpath utils.FilePath, requests []SymbolRequest) (map[string]bininspect.FunctionMetadata, bool, error) {
+	args := m.Called(fpath, requests)
 	return args.Get(0).(map[string]bininspect.FunctionMetadata), args.Bool(1), args.Error(2)
+}
+
+func (m *mockBinaryInspector) Cleanup(fpath utils.FilePath) {
+	_ = m.Called(fpath)
 }
 
 // === Test utils
@@ -470,7 +474,8 @@ func TestAttachToBinaryAndDetach(t *testing.T) {
 
 	// Tell the inspector to return a simple symbol
 	symbolToAttach := bininspect.FunctionMetadata{EntryLocation: 0x1234}
-	inspector.On("Inspect", target.HostPath, mock.Anything).Return(map[string]bininspect.FunctionMetadata{"SSL_connect": symbolToAttach}, true, nil)
+	inspector.On("Inspect", target, mock.Anything).Return(map[string]bininspect.FunctionMetadata{"SSL_connect": symbolToAttach}, true, nil)
+	inspector.On("Cleanup", mock.Anything).Return(nil)
 
 	// Tell the manager to return no probe when finding an existing one
 	var nilProbe *manager.Probe // we can't just pass nil directly, if we do that the mock cannot convert it to *manager.Probe
@@ -488,12 +493,12 @@ func TestAttachToBinaryAndDetach(t *testing.T) {
 
 	err = ua.attachToBinary(target, config.Rules)
 	require.NoError(t, err)
-	inspector.AssertExpectations(t)
 	mockMan.AssertExpectations(t)
 
 	mockMan.On("DetachHook", expectedProbe.ProbeIdentificationPair).Return(nil)
 	err = ua.detachFromBinary(target)
 	require.NoError(t, err)
+	inspector.AssertExpectations(t)
 	mockMan.AssertExpectations(t)
 }
 
@@ -530,7 +535,7 @@ func TestAttachToBinaryAtReturnLocation(t *testing.T) {
 
 	// Tell the inspector to return a simple symbol
 	symbolToAttach := bininspect.FunctionMetadata{EntryLocation: 0x1234, ReturnLocations: []uint64{0x0, 0x1}}
-	inspector.On("Inspect", target.HostPath, mock.Anything).Return(map[string]bininspect.FunctionMetadata{"SSL_connect": symbolToAttach}, true, nil)
+	inspector.On("Inspect", target, mock.Anything).Return(map[string]bininspect.FunctionMetadata{"SSL_connect": symbolToAttach}, true, nil)
 
 	// Tell the manager to return no probe when finding an existing one
 	var nilProbe *manager.Probe // we can't just pass nil directly, if we do that the mock cannot convert it to *manager.Probe
@@ -612,7 +617,7 @@ func TestAttachToLibrariesOfPid(t *testing.T) {
 
 	// Tell the inspector to return a simple symbol
 	symbolToAttach := bininspect.FunctionMetadata{EntryLocation: 0x1234}
-	inspector.On("Inspect", target.HostPath, mock.Anything).Return(map[string]bininspect.FunctionMetadata{"SSL_connect": symbolToAttach}, true, nil)
+	inspector.On("Inspect", target, mock.Anything).Return(map[string]bininspect.FunctionMetadata{"SSL_connect": symbolToAttach}, true, nil)
 
 	// Tell the manager to return no probe when finding an existing one
 	var nilProbe *manager.Probe // we can't just pass nil directly, if we do that the mock cannot convert it to *manager.Probe
