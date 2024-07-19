@@ -344,6 +344,18 @@ func TestRuleMatches(t *testing.T) {
 		require.False(tt, rule.matchesLibrary("/bin/bash"))
 		require.True(tt, rule.matchesExecutable("/bin/bash", nil))
 	})
+
+	t.Run("ExecutableWithFuncFilter", func(tt *testing.T) {
+		rule := AttachRule{
+			Targets: AttachToExecutable,
+			ExecutableFilter: func(path string, _ *ProcInfo) bool {
+				return strings.Contains(path, "bash")
+			},
+		}
+		require.False(tt, rule.matchesLibrary("/bin/bash"))
+		require.True(tt, rule.matchesExecutable("/bin/bash", nil))
+		require.False(tt, rule.matchesExecutable("/bin/thing", nil))
+	})
 }
 
 func TestMonitor(t *testing.T) {

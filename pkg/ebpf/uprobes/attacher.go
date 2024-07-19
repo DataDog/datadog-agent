@@ -71,7 +71,7 @@ type AttachRule struct {
 	// LibraryNameRegex defines which libraries should be matched by this rule
 	LibraryNameRegex *regexp.Regexp
 	// ExecutableFilter is a function that receives the path of the executable and returns true if it should be matched
-	ExecutableFilter func(utils.FilePath) bool
+	ExecutableFilter func(string, *ProcInfo) bool
 	// Targets defines the targets to which we should attach the probes, shared libraries and/or executables
 	Targets AttachTarget
 	// ProbesSelectors defines which probes should be attached and how should we validate
@@ -87,8 +87,8 @@ func (r *AttachRule) matchesLibrary(path string) bool {
 	return r.canTarget(AttachToSharedLibraries) && r.LibraryNameRegex != nil && r.LibraryNameRegex.MatchString(path)
 }
 
-func (r *AttachRule) matchesExecutable(_ string, procInfo *ProcInfo) bool {
-	return r.canTarget(AttachToExecutable)
+func (r *AttachRule) matchesExecutable(path string, procInfo *ProcInfo) bool {
+	return r.canTarget(AttachToExecutable) && (r.ExecutableFilter == nil || r.ExecutableFilter(path, procInfo))
 }
 
 // AttacherConfig defines the configuration for the attacher
