@@ -59,6 +59,8 @@ type testOpts struct {
 	enableFIM                                  bool // only valid on windows
 	networkIngressEnabled                      bool
 	disableOnDemandRateLimiter                 bool
+	ebpfLessEnabled                            bool
+	dontWaitEBPFLessClient                     bool
 }
 
 type dynamicTestOpts struct {
@@ -130,5 +132,6 @@ func (to testOpts) Equal(opts testOpts) bool {
 		to.snapshotRuleMatchHandler == nil && opts.snapshotRuleMatchHandler == nil &&
 		to.preStartCallback == nil && opts.preStartCallback == nil &&
 		to.networkIngressEnabled == opts.networkIngressEnabled &&
-		to.disableOnDemandRateLimiter == opts.disableOnDemandRateLimiter
+		to.disableOnDemandRateLimiter == opts.disableOnDemandRateLimiter &&
+		to.ebpfLessEnabled == opts.ebpfLessEnabled
 }

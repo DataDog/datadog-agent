@@ -135,6 +135,9 @@ func CreateDefaultConfig() component.Config {
 		},
 
 		Metrics: serializerexporter.MetricsConfig{
+			TCPAddrConfig: confignet.TCPAddrConfig{
+				Endpoint: "https://api.datadoghq.com",
+			},
 			DeltaTTL: 3600,
 			ExporterConfig: serializerexporter.MetricsExporterConfig{
 				ResourceAttributesAsTags:           false,
@@ -164,8 +167,11 @@ func CreateDefaultConfig() component.Config {
 
 		Logs: LogsConfig{
 			TCPAddrConfig: confignet.TCPAddrConfig{
-				Endpoint: "https://http-intake.logs.datadoghq.com",
+				Endpoint: "https://agent-http-intake.logs.datadoghq.com",
 			},
+			UseCompression:   true,
+			CompressionLevel: 6,
+			BatchWait:        5,
 		},
 
 		HostMetadata: HostMetadataConfig{

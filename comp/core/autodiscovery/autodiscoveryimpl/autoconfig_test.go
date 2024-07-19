@@ -7,7 +7,10 @@ package autodiscoveryimpl
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"sync"
 	"testing"
 	"time"
@@ -529,6 +532,60 @@ func TestProcessClusterCheckConfigWithSecrets(t *testing.T) {
 	originalCheckID := checkid.BuildID(tpl.Name, tpl.FastDigest(), tpl.Instances[0], tpl.InitConfig)
 	newCheckID := checkid.BuildID(resolved.Name, resolved.FastDigest(), resolved.Instances[0], resolved.InitConfig)
 	assert.Equal(t, originalCheckID, ac.GetIDOfCheckWithEncryptedSecrets(newCheckID))
+}
+
+func TestWriteConfigEndpoint(t *testing.T) {
+	deps := createDeps(t)
+	configName := "testConfig"
+
+	mockResolver := MockSecretResolver{t, nil}
+	ac := getAutoConfig(scheduler.NewController(), &mockResolver, deps.WMeta, deps.TaggerComp, deps.LogsComp)
+
+	tpl := integration.Config{
+		Provider:     names.ClusterChecks,
+		Name:         configName,
+		InitConfig:   integration.Data{},
+		Instances:    []integration.Data{integration.Data("pass: 1234567")},
+		MetricConfig: integration.Data{},
+		LogsConfig:   integration.Data{},
+	}
+	changes := ac.processNewConfig(tpl)
+
+	require.Len(t, changes.Schedule, 1)
+
+	testCases := []struct {
+		name           string
+		request        *http.Request
+		expectedResult string
+	}{
+		{
+			name:           "With configuration scrubbed",
+			request:        httptest.NewRequest("GET", "http://example.com", nil),
+			expectedResult: "pass: \"********\"",
+		},
+		{
+			name:           "With nil Requet",
+			request:        nil,
+			expectedResult: "pass: \"********\"",
+		},
+		{
+			name:           "Without scrubbing configuration",
+			request:        httptest.NewRequest("GET", "http://example.com?raw=true", nil),
+			expectedResult: "pass: 1234567",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			responseRecorder := httptest.NewRecorder()
+			ac.writeConfigCheck(responseRecorder, tc.request)
+			var result integration.ConfigCheckResponse
+			out := responseRecorder.Body.Bytes()
+			err := json.Unmarshal(out, &result)
+			require.NoError(t, err)
+			assert.Equal(t, string(result.Configs[0].Instances[0]), tc.expectedResult)
+		})
+	}
 }
 
 type Deps struct {
