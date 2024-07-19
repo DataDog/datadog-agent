@@ -158,8 +158,12 @@ func WaitForNextInvocation(stopCh chan struct{}, daemon *daemon.Daemon, id regis
 }
 
 func callInvocationHandler(daemon *daemon.Daemon, arn string, deadlineMs int64, safetyBufferTimeout time.Duration, requestID string, invocationHandler InvocationHandler) {
-	userCPUTimeMsOffset, systemCPUTimeMsOffset, cpuOffsetErr := proc.GetCPUData()
+	cpuOffsetData, cpuOffsetErr := proc.GetCPUData()
+	uptimeOffset, uptimeOffsetErr := proc.GetUptime()
 	networkOffsetData, networkOffsetErr := proc.GetNetworkData()
+	sendTmpMetrics := make(chan bool)
+	go metrics.SendTmpEnhancedMetrics(sendTmpMetrics, daemon.ExtraTags.Tags, daemon.MetricAgent)
+
 	timeout := computeTimeout(time.Now(), deadlineMs, safetyBufferTimeout)
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
@@ -175,16 +179,19 @@ func callInvocationHandler(daemon *daemon.Daemon, arn string, deadlineMs int64, 
 	case <-doneChannel:
 		break
 	}
-	sendSystemEnhancedMetrics(daemon, cpuOffsetErr == nil, networkOffsetErr == nil, userCPUTimeMsOffset, systemCPUTimeMsOffset, networkOffsetData)
+	sendSystemEnhancedMetrics(daemon, cpuOffsetErr == nil && uptimeOffsetErr == nil, networkOffsetErr == nil, uptimeOffset, cpuOffsetData, networkOffsetData, sendTmpMetrics)
 }
 
-func sendSystemEnhancedMetrics(daemon *daemon.Daemon, emitCPUMetrics, emitNetworkMetrics bool, userCPUTimeMsOffset, systemCPUTimeMsOffset float64, networkOffsetData *proc.NetworkData) {
+func sendSystemEnhancedMetrics(daemon *daemon.Daemon, emitCPUMetrics, emitNetworkMetrics bool, uptimeOffset float64, cpuOffsetData *proc.CPUData, networkOffsetData *proc.NetworkData, sendTmpMetrics chan bool) {
 	if daemon.MetricAgent == nil {
 		log.Debug("Could not send system enhanced metrics")
 		return
 	}
+
+	close(sendTmpMetrics)
+
 	if emitCPUMetrics {
-		metrics.SendCPUEnhancedMetrics(userCPUTimeMsOffset, systemCPUTimeMsOffset, daemon.ExtraTags.Tags, daemon.MetricAgent.Demux)
+		metrics.SendCPUEnhancedMetrics(cpuOffsetData, uptimeOffset, daemon.ExtraTags.Tags, daemon.MetricAgent.Demux)
 	} else {
 		log.Debug("Could not send CPU enhanced metrics")
 	}

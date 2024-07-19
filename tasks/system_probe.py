@@ -11,7 +11,6 @@ import string
 import sys
 import tarfile
 import tempfile
-from itertools import chain
 from pathlib import Path
 from subprocess import check_output
 
@@ -56,10 +55,13 @@ TEST_PACKAGES_LIST = [
     "./pkg/process/monitor/...",
 ]
 TEST_PACKAGES = " ".join(TEST_PACKAGES_LIST)
+# change `timeouts` in `test/new-e2e/system-probe/test-runner/main.go` if you change them here
 TEST_TIMEOUTS = {
-    "pkg/network/tracer$": "0",
-    "pkg/network/protocols/http$": "0",
     "pkg/network/protocols": "5m",
+    "pkg/network/protocols/http$": "15m",
+    "pkg/network/tracer$": "55m",
+    "pkg/network/usm$": "55m",
+    "pkg/network/usm/tests$": "55m",
 }
 CWS_PREBUILT_MINIMUM_KERNEL_VERSION = (5, 8, 0)
 EMBEDDED_SHARE_DIR = os.path.join("/opt", "datadog-agent", "embedded", "share", "system-probe", "ebpf")
@@ -329,7 +331,7 @@ def ninja_test_ebpf_programs(nw: NinjaWriter, build_dir):
     ebpf_c_dir = os.path.join(ebpf_bpf_dir, "testdata", "c")
     test_flags = "-g -DDEBUG=1"
 
-    test_programs = ["logdebug-test"]
+    test_programs = ["logdebug-test", "error_telemetry"]
 
     for prog in test_programs:
         infile = os.path.join(ebpf_c_dir, f"{prog}.c")
@@ -961,125 +963,6 @@ def kitchen_prepare(ctx, kernel_release=None, ci=False, packages=""):
     ctx.run(f"echo {get_commit_sha(ctx)} > {BUILD_COMMIT}")
 
 
-@task
-def clang_format(ctx, targets=None, fix=False, fail_on_issue=False):
-    """
-    Format C code using clang-format
-    """
-    ctx.run("which clang-format")
-    if isinstance(targets, str):
-        # when this function is called from the command line, targets are passed
-        # as comma separated tokens in a string
-        targets = targets.split(',')
-
-    if not targets:
-        targets = get_ebpf_targets()
-
-    # remove externally maintained files
-    ignored_files = [
-        "pkg/ebpf/c/bpf_builtins.h",
-        "pkg/ebpf/c/bpf_core_read.h",
-        "pkg/ebpf/c/bpf_cross_compile.h",
-        "pkg/ebpf/c/bpf_endian.h",
-        "pkg/ebpf/c/bpf_helpers.h",
-        "pkg/ebpf/c/bpf_helper_defs.h",
-        "pkg/ebpf/c/bpf_tracing.h",
-        "pkg/ebpf/c/bpf_tracing_custom.h",
-        "pkg/ebpf/c/compiler.h",
-        "pkg/ebpf/c/map-defs.h",
-        "pkg/ebpf/c/vmlinux_5_15_0.h",
-        "pkg/ebpf/c/vmlinux_5_15_0_arm.h",
-        "pkg/ebpf/compiler/clang-stdarg.h",
-    ]
-    for f in ignored_files:
-        if f in targets:
-            targets.remove(f)
-
-    fmt_cmd = "clang-format -i --style=file --fallback-style=none"
-    if not fix:
-        fmt_cmd = fmt_cmd + " --dry-run"
-    if fail_on_issue:
-        fmt_cmd = fmt_cmd + " --Werror"
-
-    ctx.run(f"{fmt_cmd} {' '.join(targets)}")
-
-
-@task
-def clang_tidy(ctx, fix=False, fail_on_issue=False, kernel_release=None):
-    """
-    Lint C code using clang-tidy
-    """
-
-    print("checking for clang-tidy executable...")
-    ctx.run("which clang-tidy")
-
-    build_flags = get_ebpf_build_flags()
-    build_flags.append("-DDEBUG=1")
-    build_flags.append("-emit-llvm")
-    build_flags.extend(get_kernel_headers_flags(kernel_release=kernel_release))
-
-    bpf_dir = os.path.join(".", "pkg", "ebpf")
-    base_files = glob.glob(f"{bpf_dir}/c/**/*.c")
-
-    network_c_dir = os.path.join(".", "pkg", "network", "ebpf", "c")
-    network_files = list(base_files)
-    network_files.extend(glob.glob(f"{network_c_dir}/**/*.c"))
-    network_flags = list(build_flags)
-    network_flags.append(f"-I{network_c_dir}")
-    network_flags.append(f"-I{os.path.join(network_c_dir, 'prebuilt')}")
-    network_flags.append(f"-I{os.path.join(network_c_dir, 'runtime')}")
-    network_checks = [
-        "-readability-function-cognitive-complexity",
-        "-readability-isolate-declaration",
-        "-clang-analyzer-security.insecureAPI.bcmp",
-    ]
-    run_tidy(
-        ctx,
-        files=network_files,
-        build_flags=network_flags,
-        fix=fix,
-        fail_on_issue=fail_on_issue,
-        checks=network_checks,
-    )
-
-    security_agent_c_dir = os.path.join(".", "pkg", "security", "ebpf", "c")
-    security_files = list(base_files)
-    security_files.extend(glob.glob(f"{security_agent_c_dir}/**/*.c"))
-    security_flags = list(build_flags)
-    security_flags.append(f"-I{security_agent_c_dir}")
-    security_flags.append(f"-I{security_agent_c_dir}/include")
-    security_flags.append("-DUSE_SYSCALL_WRAPPER=0")
-    security_checks = ["-readability-function-cognitive-complexity", "-readability-isolate-declaration"]
-    run_tidy(
-        ctx,
-        files=security_files,
-        build_flags=security_flags,
-        fix=fix,
-        fail_on_issue=fail_on_issue,
-        checks=security_checks,
-    )
-
-
-def run_tidy(ctx, files, build_flags, fix=False, fail_on_issue=False, checks=None):
-    flags = ["--quiet"]
-    if fix:
-        flags.append("--fix")
-    if fail_on_issue:
-        flags.append("--warnings-as-errors='*'")
-
-    if checks is not None:
-        flags.append(f"--checks={','.join(checks)}")
-
-    ctx.run(f"clang-tidy {' '.join(flags)} {' '.join(files)} -- {' '.join(build_flags)}", warn=True)
-
-
-def get_ebpf_targets():
-    files = glob.glob("pkg/ebpf/c/*.[c,h]")
-    files.extend(glob.glob("pkg/network/ebpf/c/**/*.[c,h]", recursive=True))
-    files.extend(glob.glob("pkg/security/ebpf/c/**/*.[c,h]", recursive=True))
-    return files
-
-
 def get_kernel_arch() -> Arch:
     # Mapping used by the kernel, from https://elixir.bootlin.com/linux/latest/source/scripts/subarch.include
     kernel_arch = (
@@ -1195,12 +1078,14 @@ def get_linux_header_dirs(
     # Only get paths with maximum priority, those are the ones that match the best.
     # Note that there might be multiple of them (e.g., the arch-specific and the common path)
     max_priority = max(prio for prio, _, _ in paths_with_priority_and_sort_order)
-    linux_headers = [(path, ord) for prio, ord, path in paths_with_priority_and_sort_order if prio == max_priority]
+    unsorted_linux_headers = [
+        (path, ord) for prio, ord, path in paths_with_priority_and_sort_order if prio == max_priority
+    ]
 
     # Include sort order is important, ensure we respect the sort order we defined while
     # discovering the paths. Also, in case of equal sort order, sort by path name to ensure
     # a deterministic order (useful to stop ninja from rebuilding on reordering of headers).
-    linux_headers = [path for path, _ in sorted(linux_headers, key=lambda x: (x[1], x[0]))]
+    linux_headers = [path for path, _ in sorted(unsorted_linux_headers, key=lambda x: (x[1], x[0]))]
 
     # Now construct all subdirectories. Again, order is important, so keep the list
     subdirs = [
@@ -1413,12 +1298,14 @@ def verify_system_clang_version(ctx):
 
 
 @task
-def validate_object_file_metadata(ctx: Context, build_dir: str | Path = "pkg/ebpf/bytecode/build"):
+def validate_object_file_metadata(ctx: Context, build_dir: str | Path = "pkg/ebpf/bytecode/build", verbose=True):
     build_dir = Path(build_dir)
     missing_metadata_files = 0
+    total_metadata_files = 0
     print(f"Validating metadata of eBPF object files in {build_dir}...")
 
-    for file in chain(build_dir.glob("*.o"), build_dir.glob("co-re/*.o")):
+    for file in build_dir.glob("**/*.o"):
+        total_metadata_files += 1
         res = ctx.run(f"readelf -p dd_metadata {file}", warn=True, hide=True)
         if res is None or not res.ok:
             print(color_message(f"- {file}: missing metadata", "red"))
@@ -1431,15 +1318,16 @@ def validate_object_file_metadata(ctx: Context, build_dir: str | Path = "pkg/ebp
             missing_metadata_files += 1
             continue
 
-        metadata = ", ".join(f"{k}={v}" for k, v in groups)
-        print(color_message(f"- {file}: {metadata}", "green"))
+        if verbose:
+            metadata = ", ".join(f"{k}={v}" for k, v in groups)
+            print(color_message(f"- {file}: {metadata}", "green"))
 
     if missing_metadata_files > 0:
         raise Exit(
             f"{missing_metadata_files} object files are missing metadata. Remember to include the bpf_metadata.h header in all eBPF programs"
         )
     else:
-        print("All object files have valid metadata")
+        print(f"All {total_metadata_files} object files have valid metadata")
 
 
 def build_object_files(
@@ -1483,7 +1371,7 @@ def build_object_files(
     if bundle_ebpf:
         copy_bundled_ebpf_files(ctx, arch=arch)
 
-    validate_object_file_metadata(ctx, build_dir)
+    validate_object_file_metadata(ctx, build_dir, verbose=False)
 
     if not is_windows:
         sudo = "" if is_root() else "sudo"
@@ -1999,6 +1887,12 @@ def start_microvms(
 
     # building the binary improves start up time for local usage where we invoke this multiple times.
     ctx.run("cd ./test/new-e2e && go build -o start-microvms ./scenarios/system-probe/main.go")
+    print(
+        color_message(
+            "[+] Creating and provisioning microVMs.\n[+] If you want to see the pulumi progress, set configParams.pulumi.verboseProgressStreams: true in ~/.test_infra_config.yaml",
+            "green",
+        )
+    )
     ctx.run(f"./test/new-e2e/start-microvms {go_args}")
 
 

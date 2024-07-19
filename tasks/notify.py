@@ -1,20 +1,26 @@
 from __future__ import annotations
 
-import io
 import os
-import traceback
+import sys
 from datetime import timedelta
 
 from invoke import Context, task
 from invoke.exceptions import Exit
 
 import tasks.libs.notify.unit_tests as unit_tests_utils
+from tasks.github_tasks import pr_commenter
+from tasks.libs.ciproviders.gitlab_api import (
+    GitlabCIDiff,
+    get_gitlab_ci_configuration,
+    print_gitlab_ci_configuration,
+)
+from tasks.libs.common.color import Color, color_message
+from tasks.libs.common.constants import DEFAULT_BRANCH
 from tasks.libs.common.datadog_api import send_metrics
+from tasks.libs.common.utils import gitlab_section
 from tasks.libs.notify import alerts, failure_summary, pipeline_status
 from tasks.libs.notify.utils import PROJECT_NAME
-from tasks.libs.pipeline.data import get_failed_jobs
 from tasks.libs.pipeline.notifications import (
-    base_message,
     check_for_missing_owners_slack_and_jira,
 )
 from tasks.libs.pipeline.stats import compute_failed_jobs_series, compute_required_jobs_max_duration
@@ -34,46 +40,30 @@ def check_teams(_):
 
 
 @task
-def send_message(ctx: Context, notification_type: str = "merge", print_to_stdout: bool = False):
+def send_message(ctx: Context, notification_type: str = "merge", dry_run: bool = False):
     """
     Send notifications for the current pipeline. CI-only task.
-    Use the --print-to-stdout option to test this locally, without sending
+    Use the --dry-run option to test this locally, without sending
     real slack messages.
     """
-
-    try:
-        failed_jobs = get_failed_jobs(PROJECT_NAME, os.environ["CI_PIPELINE_ID"])
-        messages_to_send = pipeline_status.generate_failure_messages(PROJECT_NAME, failed_jobs)
-    except Exception as e:
-        buffer = io.StringIO()
-        print(base_message("datadog-agent", "is in an unknown state"), file=buffer)
-        print("Found exception when generating notification:", file=buffer)
-        traceback.print_exc(limit=-1, file=buffer)
-        print("See the notify job log for the full exception traceback.", file=buffer)
-
-        # Print traceback on job log
-        print(e)
-        traceback.print_exc()
-        raise Exit(code=1) from e
-
-    pipeline_status.send_message_and_metrics(ctx, failed_jobs, messages_to_send, notification_type, print_to_stdout)
+    pipeline_status.send_message(ctx, notification_type, dry_run)
 
 
 @task
-def send_stats(_, print_to_stdout=False):
+def send_stats(_, dry_run=False):
     """
     Send statistics to Datadog for the current pipeline. CI-only task.
-    Use the --print-to-stdout option to test this locally, without sending
+    Use the --dry-run option to test this locally, without sending
     data points to Datadog.
     """
-    if not (print_to_stdout or os.environ.get("DD_API_KEY")):
+    if not (dry_run or os.environ.get("DD_API_KEY")):
         print("DD_API_KEY environment variable not set, cannot send pipeline metrics to the backend")
         raise Exit(code=1)
 
     series = compute_failed_jobs_series(PROJECT_NAME)
     series.extend(compute_required_jobs_max_duration(PROJECT_NAME))
 
-    if not print_to_stdout:
+    if not dry_run:
         send_metrics(series)
         print(f"Sent pipeline metrics: {series}")
     else:
@@ -120,16 +110,149 @@ def failure_summary_upload_pipeline_data(ctx):
 
 
 @task
-def failure_summary_send_notifications(ctx, is_daily_summary: bool, max_length=8):
+def failure_summary_send_notifications(
+    ctx, daily_summary: bool = False, weekly_summary: bool = False, max_length: int = 8
+):
     """
     Make summaries from data in s3 and send them to slack
     """
-    period = timedelta(days=1) if is_daily_summary else timedelta(weeks=1)
-    failure_summary.send_summary_messages(ctx, is_daily_summary, max_length, period)
+
+    assert (
+        daily_summary or weekly_summary and not (daily_summary and weekly_summary)
+    ), "Only one of daily or weekly summary can be set"
+
+    period = timedelta(days=1) if daily_summary else timedelta(weeks=1)
+    failure_summary.send_summary_messages(ctx, weekly_summary, max_length, period)
 
 
 @task
-def unit_tests(ctx, pipeline_id, pipeline_url, branch_name):
+def unit_tests(ctx, pipeline_id, pipeline_url, branch_name, dry_run=False):
     jobs_with_no_tests_run = unit_tests_utils.process_unit_tests_tarballs(ctx)
     msg = unit_tests_utils.create_msg(pipeline_id, pipeline_url, jobs_with_no_tests_run)
-    unit_tests_utils.comment_pr(msg, pipeline_id, branch_name, jobs_with_no_tests_run)
+
+    if dry_run:
+        print(msg)
+    else:
+        unit_tests_utils.comment_pr(msg, pipeline_id, branch_name, jobs_with_no_tests_run)
+
+
+@task
+def print_gitlab_ci(
+    ctx,
+    input_file: str = '.gitlab-ci.yml',
+    job: str | None = None,
+    sort: bool = False,
+    clean: bool = True,
+    git_ref: str | None = None,
+    ignore_errors: bool = False,
+):
+    """
+    Prints the full gitlab ci configuration.
+
+    - job: If provided, print only one job
+    - clean: Apply post processing to make output more readable (remove extends, flatten lists of lists...)
+    - ignore_errors: If True, ignore errors in the gitlab configuration (only process yaml)
+    - git_ref: If provided, use this git reference to fetch the configuration
+    - NOTE: This requires a full api token access level to the repository
+    """
+
+    yml = get_gitlab_ci_configuration(
+        ctx, input_file, job=job, clean=clean, git_ref=git_ref, ignore_errors=ignore_errors
+    )
+
+    # Print
+    print_gitlab_ci_configuration(yml, sort_jobs=sort)
+
+
+@task
+def gitlab_ci_diff(ctx, before: str | None = None, after: str | None = None, pr_comment: bool = False):
+    """
+    Creates a diff from two gitlab-ci configurations.
+
+    - before: Git ref without new changes, None for default branch
+    - after: Git ref with new changes, None for current local configuration
+    - pr_comment: If True, post the diff as a comment in the PR
+    - NOTE: This requires a full api token access level to the repository
+    """
+
+    from tasks.libs.ciproviders.github_api import GithubAPI
+
+    pr_comment_head = 'Gitlab CI Configuration Changes'
+    if pr_comment:
+        github = GithubAPI()
+
+        if (
+            "CI_COMMIT_BRANCH" not in os.environ
+            or len(list(github.get_pr_for_branch(os.environ["CI_COMMIT_BRANCH"]))) != 1
+        ):
+            print(
+                color_message("Warning: No PR found for current branch, skipping message", Color.ORANGE),
+                file=sys.stderr,
+            )
+            pr_comment = False
+
+    if pr_comment:
+        job_url = os.environ['CI_JOB_URL']
+
+    try:
+        before_name = before or "merge base"
+        after_name = after or "local files"
+
+        # The before commit is the LCA commit between before and after
+        before = before or DEFAULT_BRANCH
+        before = ctx.run(f'git merge-base {before} {after or "HEAD"}', hide=True).stdout.strip()
+
+        print(f'Getting after changes config ({color_message(after_name, Color.BOLD)})')
+        after_config = get_gitlab_ci_configuration(ctx, git_ref=after)
+
+        print(f'Getting before changes config ({color_message(before_name, Color.BOLD)})')
+        before_config = get_gitlab_ci_configuration(ctx, git_ref=before)
+
+        diff = GitlabCIDiff(before_config, after_config)
+
+        if not diff:
+            print(color_message("No changes in the gitlab-ci configuration", Color.GREEN))
+
+            # Remove comment if no changes
+            if pr_comment:
+                pr_commenter(ctx, pr_comment_head, delete=True, force_delete=True)
+
+            return
+
+        # Display diff
+        print('\nGitlab CI configuration diff:')
+        with gitlab_section('Gitlab CI configuration diff'):
+            print(diff.display(cli=True))
+
+        if pr_comment:
+            print('\nSending / updating PR comment')
+            comment = diff.display(cli=False, job_url=job_url)
+            try:
+                pr_commenter(ctx, pr_comment_head, comment)
+            except Exception:
+                # Comment too large
+                print(color_message('Warning: Failed to send full diff, sending only changes summary', Color.ORANGE))
+
+                comment_summary = diff.display(cli=False, job_url=job_url, only_summary=True)
+                try:
+                    pr_commenter(ctx, pr_comment_head, comment_summary)
+                except Exception:
+                    print(color_message('Warning: Failed to send summary diff, sending only job link', Color.ORANGE))
+
+                    pr_commenter(
+                        ctx,
+                        pr_comment_head,
+                        f'Cannot send only summary message, see the [job log]({job_url}) for details',
+                    )
+
+            print(color_message('Sent / updated PR comment', Color.GREEN))
+    except Exception:
+        if pr_comment:
+            # Send message
+            pr_commenter(
+                ctx,
+                pr_comment_head,
+                f':warning: *Failed to display Gitlab CI configuration changes, see the [job log]({job_url}) for details.*',
+            )
+
+        raise

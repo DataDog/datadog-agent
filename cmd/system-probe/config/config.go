@@ -64,7 +64,7 @@ func newSysprobeConfig(configPath string) (*types.Config, error) {
 		aconfig.SystemProbe.AddConfigPath(defaultConfigDir)
 	}
 	// load the configuration
-	_, err := aconfig.LoadCustom(aconfig.SystemProbe, "system-probe", optional.NewNoneOption[secrets.Component](), aconfig.Datadog().GetEnvVars())
+	err := aconfig.LoadCustom(aconfig.SystemProbe, aconfig.Datadog().GetEnvVars())
 	if err != nil {
 		if errors.Is(err, fs.ErrPermission) {
 			// special-case permission-denied with a clearer error message

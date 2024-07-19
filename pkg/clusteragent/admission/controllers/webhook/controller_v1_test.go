@@ -2,8 +2,8 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
-
-//go:build kubeapiserver
+// Skip mac os test as cluster agent doesn't run on mac os
+//go:build kubeapiserver && !darwin
 
 package webhook
 
@@ -11,6 +11,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"runtime"
 	"testing"
 	"time"
 
@@ -32,6 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/cwsinstrumentation"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/certificate"
 )
@@ -92,6 +94,9 @@ func TestCreateWebhookV1(t *testing.T) {
 }
 
 func TestUpdateOutdatedWebhookV1(t *testing.T) {
+	if runtime.GOOS == "darwin" {
+		t.Skip("Skipping flaky test on macOS")
+	}
 	f := newFixtureV1(t)
 
 	data, err := certificate.GenerateSecretData(time.Now(), time.Now().Add(365*24*time.Hour), []string{"my.svc.dns"})
@@ -138,7 +143,7 @@ func TestUpdateOutdatedWebhookV1(t *testing.T) {
 }
 
 func TestAdmissionControllerFailureModeIgnore(t *testing.T) {
-	mockConfig := config.Mock(t)
+	mockConfig := configmock.New(t)
 	f := newFixtureV1(t)
 	c, _ := f.createController()
 	c.config = NewConfig(true, false)
@@ -169,7 +174,7 @@ func TestAdmissionControllerFailureModeIgnore(t *testing.T) {
 }
 
 func TestAdmissionControllerFailureModeFail(t *testing.T) {
-	mockConfig := config.Mock(t)
+	mockConfig := configmock.New(t)
 	f := newFixtureV1(t)
 	c, _ := f.createController()
 
@@ -187,7 +192,7 @@ func TestAdmissionControllerFailureModeFail(t *testing.T) {
 }
 
 func TestAdmissionControllerReinvocationPolicyV1(t *testing.T) {
-	mockConfig := config.Mock(t)
+	mockConfig := configmock.New(t)
 	f := newFixtureV1(t)
 	c, _ := f.createController()
 	c.config = NewConfig(true, false)
@@ -952,7 +957,7 @@ func TestGenerateTemplatesV1(t *testing.T) {
 	)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockConfig := config.Mock(t)
+			mockConfig := configmock.New(t)
 			mockConfig.SetWithoutSource("kube_resources_namespace", "nsfoo")
 			tt.setupConfig(mockConfig)
 			autoinstrumentation.UnsetWebhook()       // Ensure that the webhook uses the config set above
@@ -969,7 +974,7 @@ func TestGenerateTemplatesV1(t *testing.T) {
 }
 
 func TestGetWebhookSkeletonV1(t *testing.T) {
-	mockConfig := config.Mock(t)
+	mockConfig := configmock.New(t)
 	defaultReinvocationPolicy := admiv1.IfNeededReinvocationPolicy
 	failurePolicy := admiv1.Ignore
 	matchPolicy := admiv1.Exact

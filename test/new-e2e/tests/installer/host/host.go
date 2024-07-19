@@ -153,11 +153,24 @@ func (h *Host) WaitForUnitActivating(units ...string) {
 }
 
 // WaitForFileExists waits for a file to exist on the host
-func (h *Host) WaitForFileExists(filePaths ...string) {
+func (h *Host) WaitForFileExists(useSudo bool, filePaths ...string) {
+	sudo := ""
+	if useSudo {
+		sudo = "sudo"
+	}
+
 	for _, path := range filePaths {
-		_, err := h.remote.Execute(fmt.Sprintf("timeout=30; file=%s; while [ ! -f $file ] && [ $timeout -gt 0 ]; do sleep 1; ((timeout--)); done; [ $timeout -ne 0 ]", path))
+		_, err := h.remote.Execute(fmt.Sprintf("timeout=30; file=%s; while [ ! %s -f $file ] && [ $timeout -gt 0 ]; do sleep 1; ((timeout--)); done; [ $timeout -ne 0 ]", path, sudo))
 		require.NoError(h.t, err, "file %s did not exist", path)
 	}
+}
+
+// WaitForTraceAgentReady waits for the trace agent to be ready to receive traces
+// This is because of a race condition where the trace agent is not ready to receive traces and we send them
+// meaning that the traces are lost
+func (h *Host) WaitForTraceAgentReady() {
+	_, err := h.remote.Execute("timeout=30; while ! grep -q 'Listening for traces at unix://' <(sudo cat /var/log/datadog/trace-agent.log); do sleep 1; ((timeout--)); done; [ $timeout -ne 0 ]")
+	require.NoError(h.t, err, "trace agent did not become ready")
 }
 
 // BootstraperVersion returns the version of the bootstraper on the host.
@@ -177,10 +190,29 @@ func (h *Host) AssertPackageInstalledByInstaller(pkgs ...string) {
 	}
 }
 
+// AgentRuntimeConfig returns the runtime agent config on the host.
+func (h *Host) AgentRuntimeConfig() (string, error) {
+	return h.remote.Execute("sudo -u dd-agent datadog-agent config")
+}
+
 // AssertPackageVersion checks if a package is installed with the correct version
 func (h *Host) AssertPackageVersion(pkg string, version string) {
 	state := h.State()
 	state.AssertDirExists(filepath.Join("/opt/datadog-packages/", pkg, version), 0755, "root", "root")
+}
+
+// AssertPackagePrefix checks if a package is installed with a version with the prefix
+func (h *Host) AssertPackagePrefix(pkg string, semver string) {
+	state := h.State()
+	packageDir := filepath.Join("/opt/datadog-packages/", pkg, "")
+	list := state.ListDirectory(packageDir)
+	for _, entry := range list {
+		version, _ := strings.CutPrefix(entry.Name, packageDir)
+		if strings.HasPrefix(version, semver) {
+			return
+		}
+	}
+	h.t.Errorf("Semver compatible version %v not found among list of installed package %v", semver, list)
 }
 
 // AssertPackageInstalledByPackageManager checks if a package is installed by the package manager on the host.
@@ -502,6 +534,27 @@ func evalSymlinkPath(path string, fs map[string]FileInfo) string {
 	}
 
 	return filepath.Clean(resolvedPath)
+}
+
+// ListDirectory returns a list of entries in the directory and fails the test
+// if it doesn't exist
+func (s *State) ListDirectory(path string) []FileInfo {
+	path = evalSymlinkPath(path, s.FS)
+	fileInfo, ok := s.FS[path]
+	assert.True(s.t, ok, "dir %v does not exist", path)
+	assert.True(s.t, fileInfo.IsDir, "%v is not a directory", path)
+
+	directoryPrefix := path
+	if directoryPrefix[len(directoryPrefix)-1] != '/' {
+		directoryPrefix += "/"
+	}
+	entryList := []FileInfo{}
+	for p, e := range s.FS {
+		if strings.HasPrefix(p, directoryPrefix) {
+			entryList = append(entryList, e)
+		}
+	}
+	return entryList
 }
 
 // AssertDirExists asserts that a directory exists on the host with the given perms, user, and group.

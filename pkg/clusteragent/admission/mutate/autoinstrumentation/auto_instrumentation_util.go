@@ -40,19 +40,18 @@ func getOwnerNameAndKind(pod *corev1.Pod) (string, string, bool) {
 }
 
 func getLibListFromDeploymentAnnotations(store workloadmeta.Component, deploymentName, ns, registry string) []libInfo {
-	libList := []libInfo{}
-
 	// populate libInfoList using the languages found in workloadmeta
 	id := fmt.Sprintf("%s/%s", ns, deploymentName)
 	deployment, err := store.GetKubernetesDeployment(id)
 	if err != nil {
-		return libList
+		return nil
 	}
 
+	var libList []libInfo
 	for container, languages := range deployment.InjectableLanguages {
 		for lang := range languages {
-			imageToInject := libImageName(registry, language(lang), "latest")
-			libList = append(libList, libInfo{ctrName: container.Name, lang: language(lang), image: imageToInject})
+			l := language(lang)
+			libList = append(libList, l.defaultLibInfo(registry, container.Name))
 		}
 	}
 

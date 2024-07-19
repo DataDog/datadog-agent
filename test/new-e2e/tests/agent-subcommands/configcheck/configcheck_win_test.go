@@ -13,7 +13,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	"github.com/DataDog/test-infra-definitions/components/os"
@@ -25,6 +24,7 @@ type windowsConfigCheckSuite struct {
 }
 
 func TestWindowsConfigCheckSuite(t *testing.T) {
+	t.Parallel()
 	e2e.Run(t, &windowsConfigCheckSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)))))
 }
 
@@ -87,7 +87,7 @@ func (v *windowsConfigCheckSuite) TestDefaultInstalledChecks() {
 		},
 	}
 
-	output := v.Env().Agent.Client.ConfigCheck(agentclient.WithArgs([]string{"-n"}))
+	output := v.Env().Agent.Client.ConfigCheck()
 	VerifyDefaultInstalledCheck(v.T(), output, testChecks)
 }
 
@@ -99,7 +99,7 @@ func (v *windowsConfigCheckSuite) TestWithBadConfigCheck() {
 	integration := agentparams.WithIntegration("http_check.d", config)
 	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)), awshost.WithAgentOptions(integration)))
 
-	output := v.Env().Agent.Client.ConfigCheck(agentclient.WithArgs([]string{"-n"}))
+	output := v.Env().Agent.Client.ConfigCheck()
 
 	assert.Contains(v.T(), output, "http_check: yaml: line 2: found character that cannot start any token")
 }
@@ -112,7 +112,7 @@ func (v *windowsConfigCheckSuite) TestWithAddedIntegrationsCheck() {
 	integration := agentparams.WithIntegration("http_check.d", config)
 	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)), awshost.WithAgentOptions(integration)))
 
-	output := v.Env().Agent.Client.ConfigCheck(agentclient.WithArgs([]string{"-n"}))
+	output := v.Env().Agent.Client.ConfigCheck()
 
 	result, err := MatchCheckToTemplate("http_check", output)
 	require.NoError(v.T(), err)

@@ -1136,7 +1136,9 @@ int tracepoint__net__net_dev_queue(struct net_dev_queue_ctx *ctx) {
     if (!is_equal(&skb_tup, &sock_tup)) {
         normalize_tuple(&skb_tup);
         normalize_tuple(&sock_tup);
-        bpf_map_update_with_telemetry(conn_tuple_to_socket_skb_conn_tuple, &sock_tup, &skb_tup, BPF_NOEXIST);
+        // We skip EEXIST because of the use of BPF_NOEXIST flag. Emitting telemetry for EEXIST here spams metrics
+        // and do not provide any useful signal since the key is expected to be present sometimes.
+        bpf_map_update_with_telemetry(conn_tuple_to_socket_skb_conn_tuple, &sock_tup, &skb_tup, BPF_NOEXIST, -EEXIST);
     }
 
     return 0;

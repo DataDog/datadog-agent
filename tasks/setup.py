@@ -14,8 +14,10 @@ from typing import TYPE_CHECKING
 from invoke import task
 from invoke.exceptions import Exit
 
+from tasks.build_tags import compute_config_build_tags
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.status import Status
+from tasks.libs.common.user_interactions import yes_no_question
 from tasks.libs.common.utils import running_in_pyapp
 
 if TYPE_CHECKING:
@@ -228,3 +230,56 @@ def download_go_tools(ctx) -> SetupResult:
         status = Status.FAIL
 
     return SetupResult("Download Go tools", status)
+
+
+vscode_config_template = """{{
+    "go.buildTags": "{build_tags}",
+    "go.lintTool": "golangci-lint",
+    "go.lintFlags": [
+        "--build-tags",
+        "{build_tags}",
+        "--config",
+        "{workspace_folder}/.golangci.yml"
+    ],
+    "[go]": {{
+        "editor.formatOnSave": true,
+    }},
+    "gopls": {{
+        "formatting.local": "github.com/DataDog/datadog-agent",
+        "directoryFilters": {excluded_directories},
+    }},
+    "go.testTimeout": "0s",
+    "go.testFlags": [
+      "-v"
+    ],
+    "ruff.configurationPreference": "filesystemFirst",
+    "shellcheck.customArgs": [
+        "--severity=info", "--shell=bash"
+    ],
+    "shellcheck.exclude": [
+        "SC2059",
+        "SC2028"
+    ],
+    "shellcheck.run": "onSave"
+}}"""
+
+
+@task
+def vscode_settings(_):
+    print(color_message("Creating initial VSCode setting file...", Color.BLUE))
+    if os.path.exists(".vscode/settings.json"):
+        print(color_message("VSCode settings file already exists. Skipping...", Color.ORANGE))
+        if not yes_no_question("Do you want to overwrite it?", default=False):
+            return
+    build_tags = sorted(compute_config_build_tags())
+    with open(".vscode/settings.json", "w") as f:
+        f.write(
+            vscode_config_template.format(
+                build_tags=",".join(build_tags),
+                workspace_folder=os.getcwd(),
+                excluded_directories=["-rtloader/test", "-test/benchmarks", "-test/integration"]
+                if sys.platform != "linux"
+                else [],
+            ).replace("'", '"')
+        )
+    print(color_message("VSCode settings file created successfully.", Color.GREEN))

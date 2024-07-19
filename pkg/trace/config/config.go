@@ -311,6 +311,7 @@ type AgentConfig struct {
 	ProbabilisticSamplerSamplingPercentage float32
 
 	// Receiver
+	ReceiverEnabled bool // specifies whether Receiver listeners are enabled. Unless OTLPReceiver is used, this should always be true.
 	ReceiverHost    string
 	ReceiverPort    int
 	ReceiverSocket  string // if not empty, UDS will be enabled on unix://<receiver_socket>
@@ -339,6 +340,8 @@ type AgentConfig struct {
 	// case, the sender will drop failed payloads when it is unable to enqueue
 	// them for another retry.
 	MaxSenderRetries int
+	// HTTP client used in writer connections. If nil, default client values will be used.
+	HTTPClientFunc func() *http.Client `json:"-"`
 
 	// internal telemetry
 	StatsdEnabled  bool
@@ -485,6 +488,7 @@ func New() *AgentConfig {
 		RareSamplerCooldownPeriod: 5 * time.Minute,
 		RareSamplerCardinality:    200,
 
+		ReceiverEnabled:        true,
 		ReceiverHost:           "localhost",
 		ReceiverPort:           8126,
 		MaxRequestBytes:        25 * 1024 * 1024, // 25MB
@@ -495,6 +499,7 @@ func New() *AgentConfig {
 		StatsWriter:             new(WriterConfig),
 		TraceWriter:             new(WriterConfig),
 		ConnectionResetInterval: 0, // disabled
+		MaxSenderRetries:        4,
 
 		StatsdHost:    "localhost",
 		StatsdPort:    8125,
@@ -554,6 +559,10 @@ func (c *AgentConfig) APIKey() string {
 // NewHTTPClient returns a new http.Client to be used for outgoing connections to the
 // Datadog API.
 func (c *AgentConfig) NewHTTPClient() *ResetClient {
+	// If a custom HTTPClientFunc been set, use it. Otherwise use default client values
+	if c.HTTPClientFunc != nil {
+		return NewResetClient(c.ConnectionResetInterval, c.HTTPClientFunc)
+	}
 	return NewResetClient(c.ConnectionResetInterval, func() *http.Client {
 		return &http.Client{
 			Timeout:   10 * time.Second,
@@ -598,7 +607,7 @@ func (c *AgentConfig) AllFeatures() []string {
 }
 
 func inAzureAppServices() bool {
-	_, existsLinux := os.LookupEnv("APPSVC_RUN_ZIP")
+	_, existsLinux := os.LookupEnv("WEBSITE_STACK")
 	_, existsWin := os.LookupEnv("WEBSITE_APPSERVICEAPPLOGS_TRACE_ENABLED")
 	return existsLinux || existsWin
 }

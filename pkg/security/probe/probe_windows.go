@@ -19,6 +19,7 @@ import (
 	"github.com/cenkalti/backoff/v4"
 	lru "github.com/hashicorp/golang-lru/v2"
 
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/etw"
 	etwimpl "github.com/DataDog/datadog-agent/comp/etw/impl"
@@ -1054,6 +1055,12 @@ func (p *WindowsProbe) SendStats() error {
 	if err := p.statsdClient.Gauge(metrics.MetricWindowsApproverRejects, float64(p.stats.createFileApproverRejects), nil, 1); err != nil {
 		return err
 	}
+	if p.fimSession == nil {
+		return nil
+	}
+
+	// all stats below this line only valid if the full ETW session is enabled
+
 	if etwstats, err := p.fimSession.GetSessionStatistics(); err == nil {
 		if err := p.statsdClient.Gauge(metrics.MetricWindowsETWNumberOfBuffers, float64(etwstats.NumberOfBuffers), nil, 1); err != nil {
 			return err
@@ -1192,13 +1199,13 @@ func initializeWindowsProbe(config *config.Config, opts Opts) (*WindowsProbe, er
 }
 
 // NewWindowsProbe instantiates a new runtime security agent probe
-func NewWindowsProbe(probe *Probe, config *config.Config, opts Opts) (*WindowsProbe, error) {
+func NewWindowsProbe(probe *Probe, config *config.Config, opts Opts, telemetry telemetry.Component) (*WindowsProbe, error) {
 	p, err := initializeWindowsProbe(config, opts)
 	if err != nil {
 		return nil, err
 	}
 	p.probe = probe
-	p.Resolvers, err = resolvers.NewResolvers(config, p.statsdClient, probe.scrubber)
+	p.Resolvers, err = resolvers.NewResolvers(config, p.statsdClient, probe.scrubber, telemetry)
 	if err != nil {
 		return nil, err
 	}
@@ -1367,12 +1374,12 @@ func (p *Probe) Origin() string {
 }
 
 // NewProbe instantiates a new runtime security agent probe
-func NewProbe(config *config.Config, opts Opts, _ optional.Option[workloadmeta.Component]) (*Probe, error) {
+func NewProbe(config *config.Config, opts Opts, _ optional.Option[workloadmeta.Component], telemetry telemetry.Component) (*Probe, error) {
 	opts.normalize()
 
 	p := newProbe(config, opts)
 
-	pp, err := NewWindowsProbe(p, config, opts)
+	pp, err := NewWindowsProbe(p, config, opts, telemetry)
 	if err != nil {
 		return nil, err
 	}

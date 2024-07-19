@@ -14,6 +14,7 @@ from invoke.exceptions import Exit
 
 from tasks.github_tasks import ALL_TEAMS, GITHUB_SLACK_MAP
 from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
+from tasks.libs.notify.utils import AWS_S3_CP_CMD, AWS_S3_LS_CMD, NOTIFICATION_DISCLAIMER, get_ci_visibility_job_url
 from tasks.libs.pipeline.data import get_infra_failure_info
 from tasks.owners import make_partition
 
@@ -151,8 +152,6 @@ class SummaryStats:
 
 
 def write_file(ctx: Context, name: str, data: str):
-    from tasks.libs.notify.utils import AWS_S3_CP_CMD
-
     with open(FAILURE_SUMMARY_TMP_FILE, 'w') as f:
         f.write(data)
 
@@ -160,8 +159,6 @@ def write_file(ctx: Context, name: str, data: str):
 
 
 def read_file(ctx: Context, name: str) -> str:
-    from tasks.libs.notify.utils import AWS_S3_CP_CMD
-
     ctx.run(f"{AWS_S3_CP_CMD} {FAILURE_SUMMARY_S3_BUCKET_URL}/{name} {FAILURE_SUMMARY_TMP_FILE}", hide="stdout")
 
     with open(FAILURE_SUMMARY_TMP_FILE) as f:
@@ -171,8 +168,6 @@ def read_file(ctx: Context, name: str) -> str:
 
 
 def list_files(ctx: Context) -> list[str]:
-    from tasks.libs.notify.utils import AWS_S3_LS_CMD
-
     listing = ctx.run(
         AWS_S3_LS_CMD.format(bucket=FAILURE_SUMMARY_S3_BUCKET, prefix=FAILURE_SUMMARY_S3_PREFIX), hide="stdout"
     ).stdout
@@ -244,10 +239,7 @@ def send_summary_slack_notification(channel: str, stats: list[dict], allow_failu
     Send the summary to channel with these job stats
     - stats: Item of the dict returned by SummaryStats.make_stats
     """
-    # Avoid circular dependency
     from slack_sdk import WebClient
-
-    from tasks.notify import NOTIFICATION_DISCLAIMER, get_ci_visibility_job_url
 
     # Do not send notification
     if not stats:
@@ -277,6 +269,8 @@ def send_summary_slack_notification(channel: str, stats: list[dict], allow_failu
     timestamp_end = int(datetime.now().timestamp() * 1000)
 
     header = f'{period} Job Failure Report'
+    if allow_failure:
+        header += ' (:warning: Allowed Failures)'
     description = f'These jobs{you_own} had the most failures in the last {duration}:'
 
     details = f'Click <https://app.datadoghq.com/ci/pipeline-executions?query=ci_level%3Ajob%20env%3Aprod%20%40git.repository.id%3A%22gitlab.ddbuild.io%2FDataDog%2Fdatadog-agent%22%20%40ci.pipeline.name%3A%22DataDog%2Fdatadog-agent%22%20%40ci.provider.instance%3Agitlab-ci%20%40git.branch%3Amain%20%40ci.status%3Aerror%20%40gitlab.pipeline_source%3A%28push%20OR%20schedule%29%20{not_allowed_query}%40ci.allowed_to_fail%3Atrue&agg_m=count&agg_m_source=base&agg_q=%40ci.job.name&start={timestamp_start}&end={timestamp_end}&agg_q_source=base&agg_t=count&fromUser=false&index=cipipeline&sort_m=count&sort_m_source=base&sort_t=count&top_n=25&top_o=top&viz=toplist&x_missing=true&paused=false|here> for more details.{flaky_tests}\n{NOTIFICATION_DISCLAIMER}'

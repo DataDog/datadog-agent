@@ -66,7 +66,6 @@ type ActivityDumpManager struct {
 	securityProfileManager SecurityProfileManager
 
 	tracedPIDsMap          *ebpf.Map
-	tracedCommsMap         *ebpf.Map
 	tracedCgroupsMap       *ebpf.Map
 	cgroupWaitList         *ebpf.Map
 	activityDumpsConfigMap *ebpf.Map
@@ -281,11 +280,6 @@ func NewActivityDumpManager(config *config.Config, statsdClient statsd.ClientInt
 		return nil, err
 	}
 
-	tracedComms, err := managerhelper.Map(manager, "traced_comms")
-	if err != nil {
-		return nil, err
-	}
-
 	tracedCgroupsMap, err := managerhelper.Map(manager, "traced_cgroups")
 	if err != nil {
 		return nil, err
@@ -326,7 +320,6 @@ func NewActivityDumpManager(config *config.Config, statsdClient statsd.ClientInt
 		kernelVersion:          kernelVersion,
 		manager:                manager,
 		tracedPIDsMap:          tracedPIDs,
-		tracedCommsMap:         tracedComms,
 		tracedCgroupsMap:       tracedCgroupsMap,
 		cgroupWaitList:         cgroupWaitList,
 		activityDumpsConfigMap: activityDumpsConfigMap,
@@ -392,15 +385,6 @@ func (adm *ActivityDumpManager) insertActivityDump(newDump *ActivityDump) error 
 		}
 	}
 
-	if len(newDump.Metadata.Comm) > 0 {
-		// check if the provided comm is new
-		for _, ad := range adm.activeDumps {
-			if ad.Metadata.Comm == newDump.Metadata.Comm {
-				return fmt.Errorf("an activity dump is already active for the provided comm")
-			}
-		}
-	}
-
 	// enable the new dump to start collecting events from kernel space
 	if err := newDump.enable(); err != nil {
 		return fmt.Errorf("couldn't insert new dump: %w", err)
@@ -427,9 +411,10 @@ func (adm *ActivityDumpManager) insertActivityDump(newDump *ActivityDump) error 
 }
 
 // handleDefaultDumpRequest starts dumping a new workload with the provided load configuration and the default dump configuration
-func (adm *ActivityDumpManager) startDumpWithConfig(containerID string, cookie uint64, loadConfig model.ActivityDumpLoadConfig) error {
+func (adm *ActivityDumpManager) startDumpWithConfig(containerID string, containerFlags, cookie uint64, loadConfig model.ActivityDumpLoadConfig) error {
 	newDump := NewActivityDump(adm, func(ad *ActivityDump) {
 		ad.Metadata.ContainerID = containerID
+		ad.Metadata.ContainerFlags = containerFlags
 		ad.SetLoadConfig(cookie, loadConfig)
 
 		if adm.config.RuntimeSecurity.ActivityDumpCgroupDifferentiateArgs {
@@ -467,12 +452,12 @@ func (adm *ActivityDumpManager) HandleCGroupTracingEvent(event *model.CgroupTrac
 	adm.Lock()
 	defer adm.Unlock()
 
-	if len(event.ContainerContext.ID) == 0 {
+	if len(event.ContainerContext.ContainerID) == 0 {
 		seclog.Errorf("received a cgroup tracing event with an empty container ID")
 		return
 	}
 
-	if err := adm.startDumpWithConfig(event.ContainerContext.ID, event.ConfigCookie, event.Config); err != nil {
+	if err := adm.startDumpWithConfig(string(event.ContainerContext.ContainerID), event.CGroupFlags, event.ConfigCookie, event.Config); err != nil {
 		seclog.Warnf("%v", err)
 	}
 }
@@ -532,7 +517,7 @@ workloadLoop:
 		}
 
 		// if we're still here, we can start tracing this workload
-		if err := adm.startDumpWithConfig(workloads[0].ID, utils.NewCookie(), *adm.loadController.getDefaultLoadConfig()); err != nil {
+		if err := adm.startDumpWithConfig(string(workloads[0].ContainerID), uint64(workloads[0].CGroupFlags), utils.NewCookie(), *adm.loadController.getDefaultLoadConfig()); err != nil {
 			if !errors.Is(err, unix.E2BIG) {
 				seclog.Debugf("%v", err)
 				break
@@ -540,41 +525,6 @@ workloadLoop:
 			seclog.Errorf("%v", err)
 		}
 	}
-}
-
-// DumpActivity handles an activity dump request
-func (adm *ActivityDumpManager) DumpActivity(params *api.ActivityDumpParams) (*api.ActivityDumpMessage, error) {
-	adm.Lock()
-	defer adm.Unlock()
-
-	newDump := NewActivityDump(adm, func(ad *ActivityDump) {
-		ad.Metadata.Comm = params.GetComm()
-		ad.Metadata.ContainerID = params.GetContainerID()
-		dumpDuration, _ := time.ParseDuration(params.Timeout)
-		ad.SetTimeout(dumpDuration)
-
-		if params.GetDifferentiateArgs() {
-			ad.Metadata.DifferentiateArgs = true
-			ad.ActivityTree.DifferentiateArgs()
-		}
-	})
-
-	// add local storage requests
-	storageRequests, err := config.ParseStorageRequests(params.GetStorage())
-	if err != nil {
-		errMsg := fmt.Errorf("couldn't start tracing [%s]: %v", newDump.GetSelectorStr(), err)
-		return &api.ActivityDumpMessage{Error: errMsg.Error()}, errMsg
-	}
-	for _, request := range storageRequests {
-		newDump.AddStorageRequest(request)
-	}
-
-	if err = adm.insertActivityDump(newDump); err != nil {
-		errMsg := fmt.Errorf("couldn't start tracing [%s]: %v", newDump.GetSelectorStr(), err)
-		return &api.ActivityDumpMessage{Error: errMsg.Error()}, errMsg
-	}
-
-	return newDump.ToSecurityActivityDumpMessage(), nil
 }
 
 // ListActivityDumps returns the list of active activity dumps
@@ -596,16 +546,15 @@ func (adm *ActivityDumpManager) StopActivityDump(params *api.ActivityDumpStopPar
 	adm.Lock()
 	defer adm.Unlock()
 
-	if params.GetName() == "" && params.GetContainerID() == "" && params.GetComm() == "" {
-		errMsg := fmt.Errorf("you must specify one selector between name, containerID and comm")
+	if params.GetName() == "" && params.GetContainerID() == "" {
+		errMsg := fmt.Errorf("you must specify one selector between name and containerID")
 		return &api.ActivityDumpStopMessage{Error: errMsg.Error()}, errMsg
 	}
 
 	toDelete := -1
 	for i, d := range adm.activeDumps {
 		if (params.GetName() != "" && d.nameMatches(params.GetName())) ||
-			(params.GetContainerID() != "" && d.containerIDMatches(params.GetContainerID())) ||
-			(params.GetComm() != "" && d.commMatches(params.GetComm())) {
+			(params.GetContainerID() != "" && d.containerIDMatches(params.GetContainerID())) {
 			d.Finalize(true)
 			seclog.Infof("tracing stopped for [%s]", d.GetSelectorStr())
 			toDelete = i
@@ -630,10 +579,8 @@ func (adm *ActivityDumpManager) StopActivityDump(params *api.ActivityDumpStopPar
 	var errMsg error
 	if params.GetName() != "" {
 		errMsg = fmt.Errorf("the activity dump manager does not contain any ActivityDump with the following name: %s", params.GetName())
-	} else if params.GetContainerID() != "" {
+	} else /* if params.GetContainerID() != "" */ {
 		errMsg = fmt.Errorf("the activity dump manager does not contain any ActivityDump with the following containerID: %s", params.GetContainerID())
-	} else /* if params.GetComm() != "" */ {
-		errMsg = fmt.Errorf("the activity dump manager does not contain any ActivityDump with the following comm: %s", params.GetComm())
 	}
 	return &api.ActivityDumpStopMessage{Error: errMsg.Error()}, errMsg
 }
