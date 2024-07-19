@@ -343,8 +343,8 @@ func (s *upgradeScenarioSuite) TestInstallerAgentFailure() {
 	s.setCatalog(testCatalog)
 
 	timestamp := s.host.LastJournaldTimestamp()
-	s.startExperimentCommand(datadogInstaller, previousInstallerImageVersion)
-	s.assertSuccessfulInstallerStartExperiment(timestamp, previousInstallerImageVersion)
+	s.startExperimentCommand(datadogInstaller, latestInstallerImageVersion)
+	s.assertSuccessfulInstallerStartExperiment(timestamp, latestInstallerImageVersion)
 
 	// Change the catalog of the experiment installer
 	s.setCatalog(testCatalog)
@@ -549,8 +549,8 @@ func (s *upgradeScenarioSuite) executeInstallerGoldenPath() {
 	timestamp := s.host.LastJournaldTimestamp()
 	// Can't check the error status of the command, because it gets terminated by design
 	// We check the unit history instead
-	s.startExperimentCommand(datadogInstaller, latestInstallerImageVersion)
-	s.assertSuccessfulInstallerStartExperiment(timestamp, latestInstallerImageVersion)
+	s.startExperimentCommand(datadogInstaller, previousInstallerImageVersion)
+	s.assertSuccessfulInstallerStartExperiment(timestamp, previousInstallerImageVersion)
 
 	// Change the catalog of the experiment installer
 	s.setCatalog(testCatalog)
@@ -570,5 +570,5 @@ func (s *upgradeScenarioSuite) executeInstallerGoldenPath() {
 	// Can't check the error status of the command, because it gets terminated by design
 	// We check the unit history instead
 	s.promoteExperimentCommand(datadogInstaller)
-	s.assertSuccessfulInstallerPromoteExperiment(timestamp, latestInstallerImageVersion)
+	s.assertSuccessfulInstallerPromoteExperiment(timestamp, previousInstallerImageVersion)
 }
