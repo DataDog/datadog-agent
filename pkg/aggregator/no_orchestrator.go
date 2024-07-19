@@ -11,5 +11,5 @@ package aggregator
 // the forwarder is only created if the orchestrator
 // build tag exists
 
-// OrchestratorForwarderSupport shows if the orchestrator build tag is enabled
-const OrchestratorForwarderSupport = false
+// orchestratorForwarderSupport shows if the orchestrator build tag is enabled
+const orchestratorForwarderSupport = false

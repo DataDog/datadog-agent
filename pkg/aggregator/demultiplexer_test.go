@@ -64,7 +64,7 @@ func TestDemuxForwardersCreated(t *testing.T) {
 	_, found := deps.EventPlatformFwd.Get()
 	require.True(found)
 	_, found = deps.OrchestratorFwd.Get()
-	require.Equal(OrchestratorForwarderSupport, found)
+	require.Equal(orchestratorForwarderSupport, found)
 	require.NotNil(deps.SharedForwarder)
 	demux.Stop(false)
 
@@ -77,7 +77,7 @@ func TestDemuxForwardersCreated(t *testing.T) {
 	_, found = deps.EventPlatformFwd.Get()
 	require.False(found)
 	_, found = deps.OrchestratorFwd.Get()
-	require.Equal(OrchestratorForwarderSupport, found)
+	require.Equal(orchestratorForwarderSupport, found)
 	require.NotNil(deps.SharedForwarder)
 	demux.Stop(false)
 
@@ -90,7 +90,7 @@ func TestDemuxForwardersCreated(t *testing.T) {
 	_, found = deps.EventPlatformFwd.Get()
 	require.True(found)
 	_, found = deps.OrchestratorFwd.Get()
-	require.Equal(OrchestratorForwarderSupport, found)
+	require.Equal(orchestratorForwarderSupport, found)
 	require.NotNil(deps.SharedForwarder)
 	demux.Stop(false)
 
