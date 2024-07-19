@@ -275,7 +275,7 @@ func procToMsg(proc *ProcProcess) (*ebpfless.Message, error) {
 	}, nil
 }
 
-func scanProcfs(ctx context.Context, traceePID int, msgCb func(msg *ebpfless.Message), every time.Duration, logger Logger) {
+func scanProcfs(ctx context.Context, traceePIDs []int, msgCb func(msg *ebpfless.Message), every time.Duration, logger Logger) {
 	cache := make(map[int32]int64)
 
 	ticker := time.NewTicker(every)
@@ -283,33 +283,35 @@ func scanProcfs(ctx context.Context, traceePID int, msgCb func(msg *ebpfless.Mes
 	for {
 		select {
 		case <-ticker.C:
-			add, del, err := collectProcesses(int32(traceePID), cache)
-			if err != nil {
-				logger.Errorf("unable to collect processes: %v", err)
-				continue
-			}
+			for _, pid := range traceePIDs {
+				add, del, err := collectProcesses(int32(pid), cache)
+				if err != nil {
+					logger.Errorf("unable to collect processes: %v", err)
+					continue
+				}
 
-			for _, proc := range add {
-				if msg, err := procToMsg(proc); err == nil {
+				for _, proc := range add {
+					if msg, err := procToMsg(proc); err == nil {
+						msgCb(msg)
+					}
+					cache[proc.Pid] = proc.CreateTime
+				}
+
+				// cleanup
+				for _, pid := range del {
+					delete(cache, pid)
+
+					msg := &ebpfless.Message{
+						Type: ebpfless.MessageTypeSyscall,
+						Syscall: &ebpfless.SyscallMsg{
+							Type:      ebpfless.SyscallTypeExit,
+							PID:       uint32(pid),
+							Timestamp: uint64(time.Now().UnixNano()),
+							Exit:      &ebpfless.ExitSyscallMsg{},
+						},
+					}
 					msgCb(msg)
 				}
-				cache[proc.Pid] = proc.CreateTime
-			}
-
-			// cleanup
-			for _, pid := range del {
-				delete(cache, pid)
-
-				msg := &ebpfless.Message{
-					Type: ebpfless.MessageTypeSyscall,
-					Syscall: &ebpfless.SyscallMsg{
-						Type:      ebpfless.SyscallTypeExit,
-						PID:       uint32(pid),
-						Timestamp: uint64(time.Now().UnixNano()),
-						Exit:      &ebpfless.ExitSyscallMsg{},
-					},
-				}
-				msgCb(msg)
 			}
 		case <-ctx.Done():
 			return
