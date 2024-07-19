@@ -28,6 +28,12 @@ type (
 		DestHostname string
 		// Destination Port number
 		DestPort uint16
+		// Destination service name
+		DestinationService string
+		// Source service name
+		SourceService string
+		// Source container ID
+		SourceContainerID string
 		// Max number of hops to try
 		MaxTTL uint8
 		// TODO: do we want to expose this?

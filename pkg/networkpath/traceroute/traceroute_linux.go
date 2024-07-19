@@ -57,5 +57,7 @@ func (l *LinuxTraceroute) Run(_ context.Context) (payload.NetworkPath, error) {
 		return payload.NetworkPath{}, err
 	}
 
+	path.Source.ContainerID = l.cfg.SourceContainerID
+
 	return path, nil
 }
