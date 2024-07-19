@@ -80,12 +80,12 @@ def get_gitlab_repo(repo='DataDog/datadog-agent', token=None) -> Project:
     return repo
 
 
-def get_commit(project_name: str, git_ref: str) -> ProjectCommit:
+def get_commit(project_name: str, git_sha: str) -> ProjectCommit:
     """
-    Retrieves the commit for a given git ref a given project.
+    Retrieves the commit for a given git sha a given project.
     """
     repo = get_gitlab_repo(project_name)
-    return repo.commits.get(git_ref)
+    return repo.commits.get(git_sha)
 
 
 def get_pipeline(project_name: str, pipeline_id: str) -> ProjectPipeline:

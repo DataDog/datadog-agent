@@ -25,7 +25,7 @@ def should_send_message_to_author(git_ref: str, default_branch: str) -> bool:
 
 def send_message(ctx, notification_type, dry_run):
     pipeline = get_pipeline(PROJECT_NAME, os.environ["CI_PIPELINE_ID"])
-    commit = get_commit(PROJECT_NAME, pipeline.ref)
+    commit = get_commit(PROJECT_NAME, pipeline.sha)
     failed_jobs = get_failed_jobs(pipeline)
 
     # From the job failures, set whether the pipeline succeeded or failed and craft the
