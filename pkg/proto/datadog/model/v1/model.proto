@@ -31,8 +31,6 @@ message CaptureTriggerResponse {
 
 message StreamTagsRequest {
     TagCardinality cardinality = 1;
-    Filter includeFilter = 2;
-    Filter excludeFilter = 3;
 }
 
 message StreamTagsResponse {
@@ -56,11 +54,6 @@ enum TagCardinality {
     HIGH = 2;
 }
 
-message Filter {
-    string kubeNamespace = 1;
-    string image = 2;
-    string containerName = 3;
-}
 
 message Entity {
     EntityId id = 1;
