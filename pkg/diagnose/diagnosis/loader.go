@@ -7,8 +7,6 @@
 package diagnosis
 
 import (
-	"encoding/json"
-
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/fatih/color"
@@ -102,19 +100,6 @@ func (r Result) ToString(colors bool) string {
 	}
 }
 
-func toResult(s string) Result {
-	switch s {
-	case "PASS":
-		return DiagnosisSuccess
-	case "FAIL":
-		return DiagnosisFail
-	case "WARNING":
-		return DiagnosisWarning
-	default:
-		return DiagnosisUnexpectedError
-	}
-}
-
 // Diagnosis contains the results of the diagnosis
 type Diagnosis struct {
 	// --------------------------
@@ -137,7 +122,7 @@ type Diagnosis struct {
 	// run-time (what can be done of what docs need to be consulted to address the issue)
 	Remediation string `json:"remediation,omitempty"`
 	// run-time
-	RawError string `json:"raw_error,omitempty"`
+	RawError string `json:"rawerror,omitempty"`
 }
 
 // Diagnoses is a collection of Diagnosis
@@ -167,34 +152,4 @@ func (c *Catalog) Register(suiteName string, diagnose Diagnose) {
 // GetSuites returns the list of registered Diagnose functions
 func (c *Catalog) GetSuites() []Suite {
 	return c.suites
-}
-
-// MarshalJSON is a custom JSON marshaller for Diagnosis
-func (d Diagnosis) MarshalJSON() ([]byte, error) {
-	type Alias Diagnosis
-	return json.Marshal(&struct {
-		Result string `json:"result"`
-		Alias
-	}{
-		Result: d.Result.ToString(false),
-		Alias:  (Alias)(d),
-	})
-}
-
-// UnmarshalJSON is a custom JSON unmarshaller for Diagnosis
-func (d *Diagnosis) UnmarshalJSON(data []byte) error {
-	type Alias Diagnosis
-	aux := &struct {
-		Result string `json:"result"`
-		*Alias
-	}{
-		Alias: (*Alias)(d),
-	}
-
-	if err := json.Unmarshal(data, &aux); err != nil {
-		return err
-	}
-
-	d.Result = toResult(aux.Result)
-	return nil
 }

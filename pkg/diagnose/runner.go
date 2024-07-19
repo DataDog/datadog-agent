@@ -334,7 +334,7 @@ func requestDiagnosesFromAgentProcess(diagCfg diagnosis.Config) ([]diagnosis.Dia
 
 	// Deserialize results
 	var diagnoses []diagnosis.Diagnoses
-	err = json.NewDecoder(bytes.NewReader(response)).Decode(&diagnoses)
+	err = json.Unmarshal(response, &diagnoses)
 	if err != nil {
 		return nil, fmt.Errorf("error while decoding diagnose results returned from Agent: %w", err)
 	}
@@ -397,6 +397,7 @@ func runStdOutJSON(w io.Writer, diagnoses []diagnosis.Diagnoses) error {
 		fmt.Fprintln(w, color.RedString(fmt.Sprintf("Error marshalling diagnose results to JSON: %s", err)))
 		return err
 	}
+
 	fmt.Fprintln(w, string(diagJSON))
 
 	return nil
