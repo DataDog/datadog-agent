@@ -54,6 +54,12 @@ type Opts struct {
 	ProcScanDisabled bool
 	ScanProcEvery    time.Duration
 	SeccompDisabled  bool
+	AttachedCb       func()
+
+	// internal
+	mode               ebpfless.Mode
+	entryPointArgs     []string
+	capturePtracerProc bool
 }
 
 type syscallHandlerFunc func(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, disableStats bool) error
@@ -140,8 +146,52 @@ func sendMsgData(client net.Conn, data []byte) error {
 	return nil
 }
 
-// StartCWSPtracer start the ptracer
-func StartCWSPtracer(args []string, envs []string, probeAddr string, opts Opts) error {
+func registerSyscallHandlers() (map[int]syscallHandler, []string) {
+	handlers := make(map[int]syscallHandler)
+
+	syscalls := registerFIMHandlers(handlers)
+	syscalls = append(syscalls, registerProcessHandlers(handlers)...)
+	syscalls = append(syscalls, registerERPCHandlers(handlers)...)
+
+	return handlers, syscalls
+}
+
+// Attach attach the ptracer
+func Attach(pid int, probeAddr string, opts Opts) error {
+	logger := Logger{opts.Verbose}
+
+	logger.Debugf("Attach %d [%s] using `standard` mode", pid, os.Getenv("DD_CONTAINER_ID"))
+
+	if path := os.Getenv(EnvPasswdPathOverride); path != "" {
+		passwdPath = path
+	}
+	if path := os.Getenv(EnvGroupPathOverride); path != "" {
+		groupPath = path
+	}
+
+	syscallHandlers, _ := registerSyscallHandlers()
+
+	tracerOpts := TracerOpts{
+		Creds:           opts.Creds,
+		Logger:          logger,
+		SeccompDisabled: true, // force to true, can't use seccomp with the attach mode
+	}
+
+	tracer, err := AttachTracer(pid, tracerOpts)
+	if err != nil {
+		return err
+	}
+
+	opts.mode = ebpfless.AttachedMode
+	opts.capturePtracerProc = true
+
+	return ptrace(tracer, probeAddr, syscallHandlers, logger, opts)
+}
+
+// Wrap the executable
+func Wrap(args []string, envs []string, probeAddr string, opts Opts) error {
+	logger := Logger{opts.Verbose}
+
 	if len(args) == 0 {
 		return fmt.Errorf("an executable is required")
 	}
@@ -150,10 +200,42 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, opts Opts) 
 		return err
 	}
 
-	logger := Logger{opts.Verbose}
+	mode := "seccomp"
+	if opts.SeccompDisabled {
+		mode = "standard"
+	}
 
-	logger.Debugf("Run %s %v [%s]", entry, args, os.Getenv("DD_CONTAINER_ID"))
+	logger.Debugf("Run %s %v [%s] using `%s` mode", entry, args, os.Getenv("DD_CONTAINER_ID"), mode)
 
+	if path := os.Getenv(EnvPasswdPathOverride); path != "" {
+		passwdPath = path
+	}
+	if path := os.Getenv(EnvGroupPathOverride); path != "" {
+		groupPath = path
+	}
+
+	syscallHandlers, syscalls := registerSyscallHandlers()
+
+	tracerOpts := TracerOpts{
+		Syscalls:        syscalls,
+		Creds:           opts.Creds,
+		Logger:          logger,
+		SeccompDisabled: opts.SeccompDisabled,
+	}
+
+	tracer, err := NewTracer(entry, args, envs, tracerOpts)
+	if err != nil {
+		return err
+	}
+
+	opts.mode = ebpfless.WrappedMode
+	opts.entryPointArgs = args
+
+	return ptrace(tracer, probeAddr, syscallHandlers, logger, opts)
+}
+
+// startPtracer start the ptracer
+func ptrace(tracer *Tracer, probeAddr string, syscallHandlers map[int]syscallHandler, logger Logger, opts Opts) error {
 	if path := os.Getenv(EnvPasswdPathOverride); path != "" {
 		passwdPath = path
 	}
@@ -165,6 +247,7 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, opts Opts) 
 		client      net.Conn
 		clientReady = make(chan bool, 1)
 		wg          sync.WaitGroup
+		err         error
 	)
 
 	connectClient := func() error {
@@ -203,23 +286,6 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, opts Opts) 
 		return err
 	}
 
-	syscallHandlers := make(map[int]syscallHandler)
-	PtracedSyscalls := registerFIMHandlers(syscallHandlers)
-	PtracedSyscalls = append(PtracedSyscalls, registerProcessHandlers(syscallHandlers)...)
-	PtracedSyscalls = append(PtracedSyscalls, registerERPCHandlers(syscallHandlers)...)
-
-	tracerOpts := TracerOpts{
-		Syscalls:        PtracedSyscalls,
-		Creds:           opts.Creds,
-		Logger:          logger,
-		SeccompDisabled: opts.SeccompDisabled,
-	}
-
-	tracer, err := NewTracer(entry, args, envs, tracerOpts)
-	if err != nil {
-		return err
-	}
-
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan,
 		syscall.SIGINT,
@@ -227,13 +293,10 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, opts Opts) 
 		syscall.SIGQUIT)
 	go func() {
 		<-sigChan
-		_ = syscall.Kill(tracer.PID, syscall.SIGTERM)
+		os.Exit(0)
 	}()
 
-	var (
-		msgDataChan    = make(chan []byte, 100000)
-		ctx, cancelFnc = context.WithCancel(context.Background())
-	)
+	msgDataChan := make(chan []byte, 100000)
 
 	send := func(msg *ebpfless.Message) {
 		logger.Debugf("sending message: %s", msg)
@@ -261,13 +324,28 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, opts Opts) 
 	process := NewProcess(tracer.PID)
 	pc.Add(tracer.PID, process)
 
+	// collect tracer via proc
+	if opts.capturePtracerProc {
+		proc, err := collectProcess(int32(tracer.PID))
+		if err != nil {
+			return err
+		}
+
+		if msg, err := procToMsg(proc); err == nil {
+			send(msg)
+		}
+	}
+
+	ctx, cancelFnc := context.WithCancel(context.Background())
+
 	if probeAddr == "" {
 		send(&ebpfless.Message{
 			Type: ebpfless.MessageTypeHello,
 			Hello: &ebpfless.HelloMsg{
+				Mode:             opts.mode,
 				NSID:             getNSID(),
 				ContainerContext: containerCtx,
-				EntrypointArgs:   args,
+				EntrypointArgs:   opts.entryPointArgs,
 			},
 		})
 	} else /* probeAddr != "" */ {
@@ -298,9 +376,10 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, opts Opts) 
 						helloMsg := &ebpfless.Message{
 							Type: ebpfless.MessageTypeHello,
 							Hello: &ebpfless.HelloMsg{
+								Mode:             opts.mode,
 								NSID:             getNSID(),
 								ContainerContext: containerCtx,
-								EntrypointArgs:   args,
+								EntrypointArgs:   opts.entryPointArgs,
 							},
 						}
 						logger.Debugf("sending message: %s", helloMsg)
@@ -547,6 +626,10 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, opts Opts) 
 		wg.Wait()
 		close(msgDataChan)
 	}()
+
+	if opts.AttachedCb != nil {
+		opts.AttachedCb()
+	}
 
 	if err := tracer.Trace(cb); err != nil {
 		return err
