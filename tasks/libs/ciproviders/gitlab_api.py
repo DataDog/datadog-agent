@@ -11,7 +11,7 @@ from difflib import Differ
 
 import gitlab
 import yaml
-from gitlab.v4.objects import Project, ProjectPipeline
+from gitlab.v4.objects import Project, ProjectCommit, ProjectPipeline
 from invoke.exceptions import Exit
 
 from tasks.libs.common.color import Color, color_message
@@ -78,6 +78,22 @@ def get_gitlab_repo(repo='DataDog/datadog-agent', token=None) -> Project:
     repo = api.projects.get(repo)
 
     return repo
+
+
+def get_commit(project_name: str, git_sha: str) -> ProjectCommit:
+    """
+    Retrieves the commit for a given git sha a given project.
+    """
+    repo = get_gitlab_repo(project_name)
+    return repo.commits.get(git_sha)
+
+
+def get_pipeline(project_name: str, pipeline_id: str) -> ProjectPipeline:
+    """
+    Retrieves the pipeline for a given pipeline id in a given project.
+    """
+    repo = get_gitlab_repo(project_name)
+    return repo.pipelines.get(pipeline_id)
 
 
 @retry_function('refresh pipeline #{0.id}')

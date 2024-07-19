@@ -412,6 +412,16 @@ func (s *packageApmInjectSuite) TestInstallStandaloneLib() {
 	s.host.AssertPackageInstalledByInstaller("datadog-apm-library-python")
 }
 
+func (s *packageApmInjectSuite) TestDefaultPackageVersion() {
+	s.RunInstallScript(
+		"DD_APM_INSTRUMENTATION_ENABLED=host",
+		"DD_APM_INSTRUMENTATION_LIBRARIES=python",
+		envForceInstall("datadog-agent"),
+	)
+	defer s.Purge()
+	s.host.AssertPackagePrefix("datadog-apm-library-python", "2")
+}
+
 func (s *packageApmInjectSuite) assertTraceReceived(traceID uint64) {
 	found := assert.Eventually(s.T(), func() bool {
 		tracePayloads, err := s.Env().FakeIntake.Client().GetTraces()

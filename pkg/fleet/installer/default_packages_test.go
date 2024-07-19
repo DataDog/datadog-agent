@@ -31,11 +31,11 @@ func TestDefaultPackagesAPMInjectEnabled(t *testing.T) {
 
 	assert.Equal(t, []string{
 		"oci://gcr.io/datadoghq/apm-inject-package:latest",
-		"oci://gcr.io/datadoghq/apm-library-java-package:latest",
-		"oci://gcr.io/datadoghq/apm-library-ruby-package:latest",
-		"oci://gcr.io/datadoghq/apm-library-js-package:latest",
-		"oci://gcr.io/datadoghq/apm-library-dotnet-package:latest",
-		"oci://gcr.io/datadoghq/apm-library-python-package:latest",
+		"oci://gcr.io/datadoghq/apm-library-java-package:1",
+		"oci://gcr.io/datadoghq/apm-library-ruby-package:2",
+		"oci://gcr.io/datadoghq/apm-library-js-package:5",
+		"oci://gcr.io/datadoghq/apm-library-dotnet-package:2",
+		"oci://gcr.io/datadoghq/apm-library-python-package:2",
 	}, packages)
 }
 
@@ -159,7 +159,7 @@ func TestDefaultPackages(t *testing.T) {
 					APMInstrumentationEnabled: "all",
 				},
 			},
-			expected: []pkg{{n: "datadog-apm-library-java", v: "1.37.0-1"}, {n: "datadog-apm-library-ruby", v: "latest"}},
+			expected: []pkg{{n: "datadog-apm-library-java", v: "1.37.0-1"}, {n: "datadog-apm-library-ruby", v: "2"}},
 		},
 		{
 			name: "Package is a language with a pinned version",
@@ -177,9 +177,9 @@ func TestDefaultPackages(t *testing.T) {
 				},
 			},
 			expected: []pkg{
-				{n: "datadog-apm-library-java", v: "latest"},
-				{n: "datadog-apm-library-ruby", v: "latest"},
-				{n: "datadog-apm-library-js", v: "latest"},
+				{n: "datadog-apm-library-java", v: "1"},
+				{n: "datadog-apm-library-ruby", v: "2"},
+				{n: "datadog-apm-library-js", v: "5"},
 			},
 		},
 		{
@@ -203,7 +203,7 @@ func TestDefaultPackages(t *testing.T) {
 			},
 			expected: []pkg{
 				{n: "datadog-apm-library-java", v: "1.2.3-1"},
-				{n: "datadog-apm-library-ruby", v: "latest"},
+				{n: "datadog-apm-library-ruby", v: "2"},
 			},
 		},
 		{
