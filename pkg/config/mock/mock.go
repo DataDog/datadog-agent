@@ -3,7 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package config
+// Package mock offers a mock implementation for the configuration
+package mock
 
 import (
 	"strings"
@@ -11,17 +12,17 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 var (
-	isSystemProbeConfigMocked = false
-	m                         = sync.Mutex{}
+	isConfigMocked = false
+	m              = sync.Mutex{}
 )
 
 // mockConfig should only be used in tests
 type mockConfig struct {
-	Config
+	model.Config
 }
 
 // Set is used for setting configuration in tests
@@ -39,32 +40,33 @@ func (c *mockConfig) SetKnown(key string) {
 	c.Config.SetKnown(key)
 }
 
-// MockSystemProbe is creating and returning a mock system-probe config
-func MockSystemProbe(t testing.TB) model.Config {
-	// We only check isSystemProbeConfigMocked when registering a cleanup function. 'isSystemProbeConfigMocked'
-	// avoids nested calls to Mock to reset the config to a blank state. This way we have only one mock per test and
-	// test helpers can call Mock.
+// New is creating and returning a mock config
+func New(t testing.TB) model.Config {
+	// We only check isConfigMocked when registering a cleanup function. 'isConfigMocked' avoids nested calls to
+	// Mock to reset the config to a blank state. This way we have only one mock per test and test helpers can call
+	// Mock.
 	if t != nil {
 		m.Lock()
 		defer m.Unlock()
-		if isSystemProbeConfigMocked {
+		if isConfigMocked {
 			// The configuration is already mocked.
-			return &mockConfig{SystemProbe}
+			return &mockConfig{setup.Datadog()}
 		}
 
-		isSystemProbeConfigMocked = true
-		originalConfig := SystemProbe
+		isConfigMocked = true
+		originalDatadogConfig := setup.Datadog()
 		t.Cleanup(func() {
 			m.Lock()
 			defer m.Unlock()
-			isSystemProbeConfigMocked = false
-			SystemProbe = originalConfig
+			isConfigMocked = false
+			setup.SetDatadog(originalDatadogConfig)
 		})
 	}
 
 	// Configure Datadog global configuration
-	SystemProbe = NewConfig("system-probe", "DD", strings.NewReplacer(".", "_"))
+	newCfg := model.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
 	// Configuration defaults
-	pkgconfigsetup.InitSystemProbeConfig(SystemProbe)
-	return &mockConfig{SystemProbe}
+	setup.SetDatadog(newCfg)
+	setup.InitConfig(newCfg)
+	return &mockConfig{newCfg}
 }

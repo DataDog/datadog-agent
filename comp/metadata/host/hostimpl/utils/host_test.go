@@ -16,6 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/status"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
@@ -28,7 +29,7 @@ func TestOTLPEnabled(t *testing.T) {
 	defer cache.Cache.Delete(hostCacheKey)
 
 	ctx := context.Background()
-	conf := config.Mock(t)
+	conf := configmock.New(t)
 
 	defer func(orig func(cfg config.Reader) bool) { otlpIsEnabled = orig }(otlpIsEnabled)
 
@@ -50,7 +51,7 @@ func TestGetNetworkMeta(t *testing.T) {
 }
 
 func TestGetLogsMeta(t *testing.T) {
-	conf := config.Mock(t)
+	conf := configmock.New(t)
 	defer status.SetCurrentTransport("")
 
 	status.SetCurrentTransport("")
@@ -67,7 +68,7 @@ func TestGetLogsMeta(t *testing.T) {
 }
 
 func TestGetInstallMethod(t *testing.T) {
-	conf := config.Mock(t)
+	conf := configmock.New(t)
 	defer func(orig func(conf config.Reader) (*installinfo.InstallInfo, error)) {
 		installinfoGet = orig
 	}(installinfoGet)
@@ -94,7 +95,7 @@ func TestGetInstallMethod(t *testing.T) {
 }
 
 func TestGetProxyMeta(t *testing.T) {
-	conf := config.Mock(t)
+	conf := configmock.New(t)
 	httputils.MockWarnings(t, nil, nil, nil)
 
 	conf.SetWithoutSource("no_proxy_nonexact_match", false)
@@ -120,7 +121,7 @@ func TestGetPayload(t *testing.T) {
 	defer cache.Cache.Delete(hostCacheKey)
 
 	ctx := context.Background()
-	conf := config.Mock(t)
+	conf := configmock.New(t)
 
 	_, found := cache.Cache.Get(hostCacheKey)
 	assert.False(t, found)
@@ -151,7 +152,7 @@ func TestGetFromCache(t *testing.T) {
 	defer cache.Cache.Delete(hostCacheKey)
 
 	ctx := context.Background()
-	conf := config.Mock(t)
+	conf := configmock.New(t)
 
 	cache.Cache.Set(hostCacheKey, &Payload{Os: "testOS"}, cache.NoExpiration)
 	p := GetFromCache(ctx, conf)
