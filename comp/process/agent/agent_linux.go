@@ -9,6 +9,7 @@ package agent
 
 import (
 	"slices"
+	"sync"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
@@ -18,20 +19,18 @@ import (
 )
 
 // List of check names for process checks
-var processCheckNames = []string{
-	checks.ProcessCheckName,
-	checks.ContainerCheckName,
-	checks.DiscoveryCheckName,
-}
 
-// Enabled determines whether the process agent is enabled based on the configuration.
-// The process-agent component on linux can be run in the core agent or as a standalone process-agent
-// depending on the configuration.
-// It will run as a standalone Process-agent if 'run_in_core_agent' is not enabled or the connections/NPM check is
-// enabled.
-// If 'run_in_core_agent' flag is enabled and the connections/NPM check is not enabled, the process-agent will run in
-// the core agent.
-func Enabled(config config.Component, checkComponents []types.CheckComponent, log logComponent.Component) bool {
+var (
+	enabled           bool
+	once              sync.Once
+	processCheckNames = []string{
+		checks.ProcessCheckName,
+		checks.ContainerCheckName,
+		checks.DiscoveryCheckName,
+	}
+)
+
+func enabledHelper(config config.Component, checkComponents []types.CheckComponent, log logComponent.Component) bool {
 	runInCoreAgent := config.GetBool("process_config.run_in_core_agent.enabled")
 
 	var npmEnabled bool
@@ -72,4 +71,18 @@ func Enabled(config config.Component, checkComponents []types.CheckComponent, lo
 	default:
 		return false
 	}
+}
+
+// Enabled determines whether the process agent is enabled based on the configuration.
+// The process-agent component on linux can be run in the core agent or as a standalone process-agent
+// depending on the configuration.
+// It will run as a standalone Process-agent if 'run_in_core_agent' is not enabled or the connections/NPM check is
+// enabled.
+// If 'run_in_core_agent' flag is enabled and the connections/NPM check is not enabled, the process-agent will run in
+// the core agent.
+func Enabled(config config.Component, checkComponents []types.CheckComponent, log logComponent.Component) bool {
+	once.Do(func() {
+		enabled = enabledHelper(config, checkComponents, log)
+	})
+	return enabled
 }
