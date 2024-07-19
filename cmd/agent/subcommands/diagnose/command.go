@@ -299,10 +299,11 @@ func cmdDiagnose(cliParams *cliParams,
 		Include:    cliParams.include,
 		Exclude:    cliParams.exclude,
 	}
+	w := color.Output
 
 	// Is it List command
 	if cliParams.listSuites {
-		diagnose.ListStdOut(color.Output, diagCfg)
+		diagnose.ListStdOut(w, diagCfg)
 		return nil
 	}
 
@@ -311,16 +312,19 @@ func cmdDiagnose(cliParams *cliParams,
 
 	// Get the diagnose result
 	diagnoses, err := diagnose.RunInCLIProcess(diagCfg, diagnoseDeps)
-	if err != nil {
-		// attempt to do so locally
+	if err != nil && !diagCfg.RunLocal {
+		fmt.Fprintln(w, color.YellowString(fmt.Sprintf("Error running diagnose in Agent process: %s", err)))
+		fmt.Fprintln(w, "Running diagnose command locally (may take extra time to run checks locally) ...")
+
 		diagCfg.RunLocal = true
-		diagnoses, err = diagnose.RunDiagnose(diagCfg, func(diagCfg diagnosis.Config) ([]diagnosis.Diagnoses, error) {
-			return diagnose.RunInAgentProcess(diagCfg, diagnoseDeps)
-		})
-		return err
+		diagnoses, err = diagnose.RunInCLIProcess(diagCfg, diagnoseDeps)
+		if err != nil {
+			fmt.Fprintln(w, color.RedString(fmt.Sprintf("Error running diagnose: %s", err)))
+			return err
+		}
 	}
 
-	return diagnose.RunStdOutInCLIProcess(color.Output, diagCfg, diagnoses)
+	return diagnose.RunDiagnoseStdOut(w, diagCfg, diagnoses)
 }
 
 // NOTE: This and related will be moved to separate "agent telemetry" command in future
