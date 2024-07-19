@@ -120,10 +120,9 @@ func (s *npCollectorImpl) ScheduleConns(conns []*model.Connection) {
 			continue
 		}
 		remoteAddr := conn.Raddr
-		remotePort := uint16(conn.Raddr.GetPort())
-		protocol := conn.GetType().String()
-		sourceContainer := conn.Laddr.GetContainerId()
-		err := s.scheduleOne(remoteAddr.GetIp(), remotePort, protocol, sourceContainer)
+		remotePort := uint16(conn.Raddr.Port)
+		protocol := conn.Type.String()
+		err := s.scheduleOne(remoteAddr.Ip, remotePort, protocol)
 		if err != nil {
 			s.logger.Errorf("Error scheduling pathtests: %s", err)
 		}
@@ -135,17 +134,16 @@ func (s *npCollectorImpl) ScheduleConns(conns []*model.Connection) {
 
 // scheduleOne schedules pathtests.
 // It shouldn't block, if the input channel is full, an error is returned.
-func (s *npCollectorImpl) scheduleOne(hostname string, port uint16, protocol string, sourceContainerID string) error {
+func (s *npCollectorImpl) scheduleOne(hostname string, port uint16, protocol string) error {
 	if s.pathtestInputChan == nil {
 		return errors.New("no input channel, please check that network path is enabled")
 	}
 	s.logger.Debugf("Schedule traceroute for: hostname=%s port=%d", hostname, port)
 
 	ptest := &common.Pathtest{
-		Hostname:          hostname,
-		Port:              port,
-		Protocol:          protocol,
-		SourceContainerID: sourceContainerID,
+		Hostname: hostname,
+		Port:     port,
+		Protocol: protocol,
 	}
 	select {
 	case s.pathtestInputChan <- ptest:
