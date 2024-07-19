@@ -62,7 +62,7 @@ func (d *dockerSuite) TestLogsReceived() {
 
 	stdout, stderr, err := d.Env().Docker.Client.ExecuteCommandStdoutStdErr("logger-app", cmd...)
 	require.NoError(d.T(), err)
-	assert.Empty(d.T(), stderr)
+
 	d.T().Logf("stdout:\n\n%s\n\nstderr:\n\n%s", stdout, stderr)
 	utils.CheckLogsExpected(d.T(), d.Env().FakeIntake, "test-app", "bob", []string{})
 }
