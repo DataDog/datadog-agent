@@ -9,7 +9,6 @@ package uprobes
 
 import (
 	"bufio"
-	"bytes"
 	"errors"
 	"fmt"
 	"os"
@@ -44,8 +43,6 @@ const (
 	ExcludeContainerdTmp
 )
 
-const procFSUpdateTimeout = 10 * time.Millisecond
-
 var (
 	// ErrSelfExcluded is returned when the PID is the same as the agent's PID.
 	ErrSelfExcluded = errors.New("self-excluded")
@@ -73,6 +70,8 @@ const (
 type AttachRule struct {
 	// LibraryNameRegex defines which libraries should be matched by this rule
 	LibraryNameRegex *regexp.Regexp
+	// ExecutableFilter is a function that receives the path of the executable and returns true if it should be matched
+	ExecutableFilter func(utils.FilePath) bool
 	// Targets defines the targets to which we should attach the probes, shared libraries and/or executables
 	Targets AttachTarget
 	// ProbesSelectors defines which probes should be attached and how should we validate
@@ -88,7 +87,7 @@ func (r *AttachRule) matchesLibrary(path string) bool {
 	return r.canTarget(AttachToSharedLibraries) && r.LibraryNameRegex != nil && r.LibraryNameRegex.MatchString(path)
 }
 
-func (r *AttachRule) matchesExecutable(_ string) bool {
+func (r *AttachRule) matchesExecutable(_ string, procInfo *ProcInfo) bool {
 	return r.canTarget(AttachToExecutable)
 }
 
@@ -349,7 +348,7 @@ func (ua *UprobeAttacher) AttachLibrary(path string, pid uint32) error {
 	}
 
 	registerCB := func(path utils.FilePath) error {
-		return ua.attachToBinary(path, matchingRules)
+		return ua.attachToBinary(path, matchingRules, NewProcInfo(ua.config.ProcRoot, pid))
 	}
 	unregisterCB := func(path utils.FilePath) error {
 		return ua.detachFromBinary(path)
@@ -371,11 +370,11 @@ func (ua *UprobeAttacher) getRulesForLibrary(path string) []*AttachRule {
 }
 
 // getRulesForExecutable returns the rules that match the given executable
-func (ua *UprobeAttacher) getRulesForExecutable(path string) []*AttachRule {
+func (ua *UprobeAttacher) getRulesForExecutable(path string, procInfo *ProcInfo) []*AttachRule {
 	var matchedRules []*AttachRule
 
 	for _, rule := range ua.config.Rules {
-		if rule.matchesExecutable(path) {
+		if rule.matchesExecutable(path, procInfo) {
 			matchedRules = append(matchedRules, rule)
 		}
 	}
@@ -417,7 +416,9 @@ func (ua *UprobeAttacher) AttachPIDWithOptions(pid uint32, attachToLibs bool) er
 		return ErrSelfExcluded
 	}
 
-	binPath, err := ua.getExecutablePath(pid)
+	procInfo := NewProcInfo(ua.config.ProcRoot, pid)
+
+	binPath, err := procInfo.Exe()
 	if err != nil {
 		return err
 	}
@@ -426,9 +427,9 @@ func (ua *UprobeAttacher) AttachPIDWithOptions(pid uint32, attachToLibs bool) er
 		return ErrInternalDDogProcessRejected
 	}
 
-	matchingRules := ua.getRulesForExecutable(binPath)
+	matchingRules := ua.getRulesForExecutable(binPath, procInfo)
 	registerCB := func(path utils.FilePath) error {
-		return ua.attachToBinary(path, matchingRules)
+		return ua.attachToBinary(path, matchingRules, procInfo)
 	}
 	unregisterCB := func(path utils.FilePath) error {
 		return ua.detachFromBinary(path)
@@ -456,41 +457,14 @@ func (ua *UprobeAttacher) DetachPID(pid uint32) error {
 	return ua.fileRegistry.Unregister(pid)
 }
 
-const (
-	// Defined in https://man7.org/linux/man-pages/man5/proc.5.html.
-	taskCommLen = 16
-)
+const buildKitProcessName = "buildkitd"
 
-var (
-	taskCommLenBufferPool = sync.Pool{
-		New: func() any {
-			buf := make([]byte, taskCommLen)
-			return &buf
-		},
-	}
-	buildKitProcessName = []byte("buildkitd")
-)
-
-func isBuildKit(procRoot string, pid uint32) bool {
-	filePath := filepath.Join(procRoot, strconv.Itoa(int(pid)), "comm")
-
-	var file *os.File
-	err := errors.New("iteration start")
-	for i := 0; err != nil && i < 30; i++ {
-		file, err = os.Open(filePath)
-		if err != nil {
-			time.Sleep(1 * time.Millisecond)
-		}
-	}
-
-	buf := taskCommLenBufferPool.Get().(*[]byte)
-	defer taskCommLenBufferPool.Put(buf)
-	n, err := file.Read(*buf)
+func isBuildKit(procInfo *ProcInfo) bool {
+	comm, err := procInfo.Comm()
 	if err != nil {
-		// short living process can hit here, or slow start of another process.
 		return false
 	}
-	return bytes.Equal(bytes.TrimSpace((*buf)[:n]), buildKitProcessName)
+	return strings.HasPrefix(comm, buildKitProcessName)
 }
 
 func isContainerdTmpMount(path string) bool {
@@ -530,11 +504,10 @@ func parseSymbolFromEBPFProbeName(probeName string) (symbol string, isManualRetu
 	return
 }
 
-func (ua *UprobeAttacher) attachToBinary(fpath utils.FilePath, matchingRules []*AttachRule) error {
-	// TODO: Retrieve this information once and reuse it
-	if isBuildKit(ua.config.ProcRoot, fpath.PID) {
+func (ua *UprobeAttacher) attachToBinary(fpath utils.FilePath, matchingRules []*AttachRule, procInfo *ProcInfo) error {
+	if ua.config.ExcludeTargets&ExcludeBuildkit != 0 && isBuildKit(procInfo) {
 		return fmt.Errorf("process %d is buildkitd, skipping", fpath.PID)
-	} else if isContainerdTmpMount(fpath.HostPath) {
+	} else if ua.config.ExcludeTargets&ExcludeContainerdTmp != 0 && isContainerdTmpMount(fpath.HostPath) {
 		return fmt.Errorf("path %s from process %d is tempmount of containerd, skipping", fpath.HostPath, fpath.PID)
 	}
 

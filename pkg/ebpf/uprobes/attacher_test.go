@@ -334,7 +334,7 @@ func TestRuleMatches(t *testing.T) {
 			Targets:          AttachToSharedLibraries,
 		}
 		require.True(tt, rule.matchesLibrary("pkg/network/usm/testdata/libmmap/libssl.so.arm64"))
-		require.False(tt, rule.matchesExecutable("pkg/network/usm/testdata/libmmap/libssl.so.arm64"))
+		require.False(tt, rule.matchesExecutable("pkg/network/usm/testdata/libmmap/libssl.so.arm64", nil))
 	})
 
 	t.Run("Executable", func(tt *testing.T) {
@@ -342,7 +342,7 @@ func TestRuleMatches(t *testing.T) {
 			Targets: AttachToExecutable,
 		}
 		require.False(tt, rule.matchesLibrary("/bin/bash"))
-		require.True(tt, rule.matchesExecutable("/bin/bash"))
+		require.True(tt, rule.matchesExecutable("/bin/bash", nil))
 	})
 }
 
@@ -491,7 +491,7 @@ func TestAttachToBinaryAndDetach(t *testing.T) {
 	}
 	mockMan.On("AddHook", mock.Anything, expectedProbe).Return(nil)
 
-	err = ua.attachToBinary(target, config.Rules)
+	err = ua.attachToBinary(target, config.Rules, NewProcInfo(procFS, proc.pid))
 	require.NoError(t, err)
 	mockMan.AssertExpectations(t)
 
@@ -555,7 +555,7 @@ func TestAttachToBinaryAtReturnLocation(t *testing.T) {
 		mockMan.On("AddHook", mock.Anything, expectedProbe).Return(nil)
 	}
 
-	err = ua.attachToBinary(target, config.Rules)
+	err = ua.attachToBinary(target, config.Rules, NewProcInfo(procFS, proc.pid))
 	require.NoError(t, err)
 	inspector.AssertExpectations(t)
 	mockMan.AssertExpectations(t)
