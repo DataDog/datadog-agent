@@ -8,4 +8,4 @@
 ---
 features:
   - |
-    The `agent diagnose` command has a new option, ``--json``, to print the results as JSON.
+    The `agent diagnose` command now includes a ``--json`` option to output the results in JSON format.
