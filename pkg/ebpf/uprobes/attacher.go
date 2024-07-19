@@ -477,6 +477,7 @@ func (ua *UprobeAttacher) Sync(trackCreations, trackDeletions bool) error {
 	var deletionCandidates map[uint32]struct{}
 	if trackDeletions {
 		deletionCandidates = ua.fileRegistry.GetRegisteredProcesses()
+		fmt.Println("deletionCandidates", deletionCandidates)
 	}
 	thisPID, err := kernel.RootNSPID()
 	if err != nil {
