@@ -96,8 +96,7 @@ type AttacherConfig struct {
 	// Rules defines a series of rules that tell the attacher how to attach the probes
 	Rules []*AttachRule
 
-	// ScanTerminatedProcessesInterval defines the interval at which we scan for terminated processes. Set
-	// to zero to disable
+	// ScanTerminatedProcessesInterval defines the interval at which we scan for terminated processes and new processes we haven't seen
 	ScanTerminatedProcessesInterval time.Duration
 
 	// ProcRoot is the root directory of the proc filesystem
@@ -270,11 +269,7 @@ func (ua *UprobeAttacher) Start() error {
 			case <-ua.done:
 				return
 			case <-processSync.C:
-				processSet := ua.fileRegistry.GetRegisteredProcesses()
-				deletedPids := monitor.FindDeletedProcesses(processSet)
-				for deletedPid := range deletedPids {
-					ua.handleProcessExit(deletedPid)
-				}
+				ua.Sync()
 			case event, ok := <-sharedLibDataChan:
 				if !ok {
 					return
@@ -290,7 +285,39 @@ func (ua *UprobeAttacher) Start() error {
 	return nil
 }
 
-// Stop stops the attache
+// Sync scans the proc filesystem for new processes and detaches from terminated ones
+func (ua *UprobeAttacher) Sync() {
+	deletionCandidates := ua.fileRegistry.GetRegisteredProcesses()
+	thisPID, err := kernel.RootNSPID()
+	if err != nil {
+		return
+	}
+
+	_ = kernel.WithAllProcs(ua.config.ProcRoot, func(pid int) error {
+		if pid == thisPID { // don't scan ourselves
+			return nil
+		}
+
+		if _, ok := deletionCandidates[uint32(pid)]; ok {
+			// We have previously hooked into this process and it remains active,
+			// so we remove it from the deletionCandidates list, and move on to the next PID
+			delete(deletionCandidates, uint32(pid))
+			return nil
+		}
+
+		// This is a new PID so we attempt to attach SSL probes to it
+		_ = ua.AttachPID(uint32(pid))
+		return nil
+	})
+
+	// At this point all entries from deletionCandidates are no longer alive, so
+	// we should detach our SSL probes from them
+	for pid := range deletionCandidates {
+		ua.handleProcessExit(pid)
+	}
+}
+
+// Stop stops the attacher
 func (ua *UprobeAttacher) Stop() {
 	close(ua.done)
 	ua.wg.Wait()
