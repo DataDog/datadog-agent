@@ -201,6 +201,20 @@ func (h *Host) AssertPackageVersion(pkg string, version string) {
 	state.AssertDirExists(filepath.Join("/opt/datadog-packages/", pkg, version), 0755, "root", "root")
 }
 
+// AssertPackagePrefix checks if a package is installed with a version with the prefix
+func (h *Host) AssertPackagePrefix(pkg string, semver string) {
+	state := h.State()
+	packageDir := filepath.Join("/opt/datadog-packages/", pkg, "")
+	list := state.ListDirectory(packageDir)
+	for _, entry := range list {
+		version, _ := strings.CutPrefix(entry.Name, packageDir)
+		if strings.HasPrefix(version, semver) {
+			return
+		}
+	}
+	h.t.Errorf("Semver compatible version %v not found among list of installed package %v", semver, list)
+}
+
 // AssertPackageInstalledByPackageManager checks if a package is installed by the package manager on the host.
 func (h *Host) AssertPackageInstalledByPackageManager(pkgs ...string) {
 	for _, pkg := range pkgs {
@@ -520,6 +534,27 @@ func evalSymlinkPath(path string, fs map[string]FileInfo) string {
 	}
 
 	return filepath.Clean(resolvedPath)
+}
+
+// ListDirectory returns a list of entries in the directory and fails the test
+// if it doesn't exist
+func (s *State) ListDirectory(path string) []FileInfo {
+	path = evalSymlinkPath(path, s.FS)
+	fileInfo, ok := s.FS[path]
+	assert.True(s.t, ok, "dir %v does not exist", path)
+	assert.True(s.t, fileInfo.IsDir, "%v is not a directory", path)
+
+	directoryPrefix := path
+	if directoryPrefix[len(directoryPrefix)-1] != '/' {
+		directoryPrefix += "/"
+	}
+	entryList := []FileInfo{}
+	for p, e := range s.FS {
+		if strings.HasPrefix(p, directoryPrefix) {
+			entryList = append(entryList, e)
+		}
+	}
+	return entryList
 }
 
 // AssertDirExists asserts that a directory exists on the host with the given perms, user, and group.
