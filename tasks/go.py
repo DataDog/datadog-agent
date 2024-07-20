@@ -24,6 +24,7 @@ import tasks.modules
 from tasks.build_tags import ALL_TAGS, UNIT_TEST_TAGS, get_default_build_tags
 from tasks.libs.common.color import color_message
 from tasks.libs.common.git import check_uncommitted_changes
+from tasks.libs.common.user_interactions import yes_no_question
 from tasks.libs.common.utils import TimedOperationResult, get_build_flags, timed
 from tasks.licenses import get_licenses_list
 from tasks.modules import DEFAULT_MODULES, generate_dummy_package
@@ -256,7 +257,6 @@ def generate_protobuf(ctx):
         'trace': [
             ('0001-Customize-msgpack-parsing.patch', '-p4'),
             ('0002-Make-nil-map-deserialization-retrocompatible.patch', '-p4'),
-            ('0003-pkg-trace-traceutil-credit-card-obfuscation-9213.patch', '-p4'),
         ],
     }
 
@@ -376,7 +376,9 @@ def check_go_mod_replaces(_):
             for line in f:
                 if "github.com/datadog/datadog-agent" in line.lower():
                     err_mod = line.split()[0]
-                    errors_found.add(f"{mod.import_path}/go.mod is missing a replace for {err_mod}")
+
+                    if (Path(err_mod.removeprefix("github.com/DataDog/datadog-agent/")) / "go.mod").exists():
+                        errors_found.add(f"{mod.import_path}/go.mod is missing a replace for {err_mod}")
 
     if errors_found:
         message = "\nErrors found:\n"
@@ -652,7 +654,7 @@ def create_module(ctx, path: str, no_verify: bool = False):
         # Restore files if user wants to
         if sys.stdin.isatty():
             print(color_message("Failed to create module", "red"))
-            if input('Do you want to restore all files ? [N/y]').strip() in 'yY':
+            if yes_no_question('Do you want to restore all files ?', default=False):
                 print(color_message("Restoring files", "blue"))
 
                 ctx.run('git clean -f')

@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -33,7 +34,7 @@ func TestContainerCheck(t *testing.T) {
 	// Make sure the container check can be enabled if the process check is disabled
 	t.Run("containers enabled; rt enabled", func(t *testing.T) {
 		deps := createDeps(t)
-		cfg := config.Mock(t)
+		cfg := configmock.New(t)
 		cfg.SetWithoutSource("process_config.process_collection.enabled", false)
 		cfg.SetWithoutSource("process_config.container_collection.enabled", true)
 		cfg.SetWithoutSource("process_config.disable_realtime_checks", false)
@@ -48,7 +49,7 @@ func TestContainerCheck(t *testing.T) {
 	// Make sure that disabling RT disables the rt container check
 	t.Run("containers enabled; rt disabled", func(t *testing.T) {
 		deps := createDeps(t)
-		cfg := config.Mock(t)
+		cfg := configmock.New(t)
 		cfg.SetWithoutSource("process_config.process_collection.enabled", false)
 		cfg.SetWithoutSource("process_config.container_collection.enabled", true)
 		cfg.SetWithoutSource("process_config.disable_realtime_checks", true)
@@ -62,7 +63,7 @@ func TestContainerCheck(t *testing.T) {
 	// Make sure the container check cannot be enabled if we cannot access containers
 	t.Run("cannot access containers", func(t *testing.T) {
 		deps := createDeps(t)
-		cfg := config.Mock(t)
+		cfg := configmock.New(t)
 		cfg.SetWithoutSource("process_config.process_collection.enabled", false)
 		cfg.SetWithoutSource("process_config.container_collection.enabled", true)
 
@@ -75,7 +76,7 @@ func TestContainerCheck(t *testing.T) {
 	// Make sure the container and process check are mutually exclusive
 	t.Run("mutual exclusion", func(t *testing.T) {
 		deps := createDeps(t)
-		cfg := config.Mock(t)
+		cfg := configmock.New(t)
 		cfg.SetWithoutSource("process_config.process_collection.enabled", true)
 		cfg.SetWithoutSource("process_config.container_collection.enabled", true)
 		config.SetFeatures(t, config.Docker)
@@ -90,7 +91,7 @@ func TestContainerCheck(t *testing.T) {
 	// when run in core agent mode is enabled
 	t.Run("run in core agent", func(t *testing.T) {
 		deps := createDeps(t)
-		cfg, scfg := config.Mock(t), config.MockSystemProbe(t)
+		cfg, scfg := configmock.New(t), config.MockSystemProbe(t)
 		cfg.SetWithoutSource("process_config.process_collection.enabled", false)
 		cfg.SetWithoutSource("process_config.container_collection.enabled", true)
 		cfg.SetWithoutSource("process_config.run_in_core_agent.enabled", true)
@@ -130,7 +131,7 @@ func TestDisableRealTime(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			assert := assert.New(t)
 
-			mockConfig := config.Mock(t)
+			mockConfig := configmock.New(t)
 			mockConfig.SetWithoutSource("process_config.disable_realtime_checks", tc.disableRealtime)
 			mockConfig.SetWithoutSource("process_config.process_discovery.enabled", false) // Not an RT check so we don't care
 			config.SetFeatures(t, config.Docker)
