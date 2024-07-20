@@ -126,6 +126,7 @@ kmt_run_secagent_tests_x64:
   parallel:
     matrix:
       - TAG:
+          - "ubuntu_16.04"
           - "ubuntu_18.04"
           - "ubuntu_20.04"
           - "ubuntu_22.04"
