@@ -90,7 +90,14 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 		"*": {
 			// Exec probes
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
-				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "sched_process_fork"}},
+				&manager.BestEffort{Selectors: []manager.ProbesSelector{
+					&manager.ProbeSelector{
+						ProbeIdentificationPair: manager.ProbeIdentificationPair{
+							UID:          SecurityAgentUID,
+							EBPFFuncName: "sched_process_fork",
+						},
+					},
+				}},
 				kprobeOrFentry("do_exit"),
 				&manager.BestEffort{Selectors: []manager.ProbesSelector{
 					kprobeOrFentry("prepare_binprm"),
