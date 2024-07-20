@@ -25,10 +25,18 @@ RUN apt-get update && \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Go
-RUN curl -OL https://golang.org/dl/go${GO_VERSION}.linux-amd64.tar.gz && \
-    tar -C /usr/local -xzf go${GO_VERSION}.linux-amd64.tar.gz && \
-    rm go${GO_VERSION}.linux-amd64.tar.gz
+# Install Go based on architecture
+RUN ARCH=$(dpkg --print-architecture) && \
+    if [ "$ARCH" = "amd64" ]; then \
+    GO_ARCH="linux-amd64"; \
+    elif [ "$ARCH" = "arm64" ]; then \
+    GO_ARCH="linux-arm64"; \
+    else \
+    echo "Unsupported architecture: $ARCH" && exit 1; \
+    fi && \
+    curl -OL https://golang.org/dl/go${GO_VERSION}.$GO_ARCH.tar.gz && \
+    tar -C /usr/local -xzf go${GO_VERSION}.$GO_ARCH.tar.gz && \
+    rm go${GO_VERSION}.$GO_ARCH.tar.gz
 
 # Set up Go environment
 ENV PATH="/usr/local/go/bin:${PATH}"
