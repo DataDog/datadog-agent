@@ -1,0 +1,69 @@
+# Use the Ubuntu Slim AMD64 base image
+FROM ubuntu:24.04 AS builder
+
+# Set environment variables
+ENV DEBIAN_FRONTEND=noninteractive
+ENV GO_VERSION=1.22.0
+ENV AGENT_VERSION=7.56.0-rc.6
+
+# Set the working directory
+WORKDIR /workspace
+
+# Update and install necessary packages
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    curl \
+    ca-certificates \
+    software-properties-common \
+    build-essential \
+    git \
+    python3 \
+    python3-pip \
+    python3-venv \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Go
+RUN curl -OL https://golang.org/dl/go${GO_VERSION}.linux-amd64.tar.gz && \
+    tar -C /usr/local -xzf go${GO_VERSION}.linux-amd64.tar.gz && \
+    rm go${GO_VERSION}.linux-amd64.tar.gz
+
+# Set up Go environment
+ENV PATH="/usr/local/go/bin:${PATH}"
+RUN mkdir /go
+ENV GOPATH=/go
+
+# Verify installations
+RUN go version && \
+    python3 --version && \
+    curl --version
+
+# Download and unpack source code
+RUN curl -L https://github.com/DataDog/datadog-agent/archive/refs/tags/${AGENT_VERSION}.tar.gz -o datadog-agent-${AGENT_VERSION}.tar.gz && \
+    tar -xzvf datadog-agent-${AGENT_VERSION}.tar.gz && \
+    rm datadog-agent-${AGENT_VERSION}.tar.gz
+
+# Set the working directory to the source code
+WORKDIR /workspace/datadog-agent-${AGENT_VERSION}
+
+# Create and activate virtual environment, then install requirements
+RUN python3 -m venv venv && \
+    . venv/bin/activate && \
+    pip install --upgrade pip && \
+    pip install -r tasks/requirements.txt
+
+# Copy the manifest file
+COPY manifest.yaml /workspace/datadog-agent-${AGENT_VERSION}/comp/otelcol/collector-contrib/impl/manifest.yaml
+
+# Generate the files
+RUN . venv/bin/activate && invoke collector.generate || true
+
+# Build the OTel agent
+RUN . venv/bin/activate && invoke otel-agent.build
+
+# Use the final Datadog agent image
+FROM datadog/agent:7-ot-beta
+
+ENV AGENT_VERSION=7.56.0-rc.6
+# Copy the built OTel agent from the builder stage
+COPY --from=builder /workspace/datadog-agent-${AGENT_VERSION}/bin/otel-agent/otel-agent /opt/datadog-agent/embedded/bin/otel-agent
+
