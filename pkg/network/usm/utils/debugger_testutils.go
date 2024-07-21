@@ -15,6 +15,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const (
+	// ManualTracingFallbackEnabled is used to enable manual tracing fallback
+	ManualTracingFallbackEnabled = true
+	// ManualTracingFallbackDisabled is used to disable manual tracing fallback
+	ManualTracingFallbackDisabled = false
+)
+
 // GetTracedPrograms returns a list of traced programs by the specific program type
 func GetTracedPrograms(programType string) []TracedProgram {
 	res := debugger.GetTracedPrograms()
@@ -50,7 +57,30 @@ func IsProgramTraced(programType string, pid int) bool {
 }
 
 // WaitForProgramsToBeTraced waits for the program to be traced by the debugger
-func WaitForProgramsToBeTraced(t *testing.T, programType string, pid int) {
+func WaitForProgramsToBeTraced(t *testing.T, programType string, pid int, traceManually bool) {
+	// Wait for the program to be traced
+	end := time.Now().Add(time.Second * 5)
+	for time.Now().Before(end) {
+		if IsProgramTraced(programType, pid) {
+			return
+		}
+		time.Sleep(time.Millisecond * 100)
+	}
+
+	// Reaching here means the program is not traced
+	if !traceManually {
+		// We should not apply manual tracing, thus we should fail.
+		t.Fatalf("process %v is not traced by %v", pid, programType)
+	}
+	t.Logf("process %v is not traced by %v, trying to attach manually", pid, programType)
+
+	// Get attacher for the program type
+	attacher, ok := debugger.attachers[programType]
+	require.True(t, ok, "attacher for %v not found", programType)
+	// Try to attach the PID. Any error other than ErrPathIsAlreadyRegistered is a failure.
+	if err := attacher.AttachPID(uint32(pid)); err != ErrPathIsAlreadyRegistered {
+		require.NoError(t, err)
+	}
 	require.Eventuallyf(t, func() bool {
 		return IsProgramTraced(programType, pid)
 	}, time.Second*5, time.Millisecond*100, "process %v is not traced by %v", pid, programType)
