@@ -164,7 +164,7 @@ type closedConnections struct {
 func (cc *closedConnections) insert(c ConnectionStats, maxClosedConns uint32) {
 	// If we have reached the limit, drop an empty connection
 	if uint32(len(cc.conns)) >= maxClosedConns {
-		stateTelemetry.closedConnDropped.Inc(c.Type.String())
+		stateTelemetry.closedConnDropped.IncWithTags(c.Type.Tags())
 		cc.dropEmpty(c)
 		return
 	}
