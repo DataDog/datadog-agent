@@ -15,11 +15,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TraceMethod represents the method to trace a program.
+type TraceMethod bool
+
 const (
 	// ManualTracingFallbackEnabled is used to enable manual tracing fallback
-	ManualTracingFallbackEnabled = true
+	ManualTracingFallbackEnabled TraceMethod = true
 	// ManualTracingFallbackDisabled is used to disable manual tracing fallback
-	ManualTracingFallbackDisabled = false
+	ManualTracingFallbackDisabled TraceMethod = false
 )
 
 // GetTracedPrograms returns a list of traced programs by the specific program type
@@ -57,7 +60,7 @@ func IsProgramTraced(programType string, pid int) bool {
 }
 
 // WaitForProgramsToBeTraced waits for the program to be traced by the debugger
-func WaitForProgramsToBeTraced(t *testing.T, programType string, pid int, traceManually bool) {
+func WaitForProgramsToBeTraced(t *testing.T, programType string, pid int, traceManually TraceMethod) {
 	// Wait for the program to be traced
 	end := time.Now().Add(time.Second * 5)
 	for time.Now().Before(end) {
