@@ -110,7 +110,7 @@ func TestProcessKafkaTransactions(t *testing.T) {
 			s := stats.ErrorCodeToStat[int32(i)]
 			require.NotNil(t, s)
 			assert.Equal(t, 20, s.Count)
-			assert.Equal(t, 2.0, s.Latencies.GetCount())
+			assert.Equal(t, 20.0, s.Latencies.GetCount())
 
 			p50, err := s.Latencies.GetValueAtQuantile(0.5)
 			assert.Nil(t, err)
