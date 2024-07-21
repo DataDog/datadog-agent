@@ -35,7 +35,7 @@ import (
 
 const (
 	postgresPort           = "5432"
-	repeatCount            = 32
+	repeatCount            = postgres.BufferSize / len("table_")
 	createTableQuery       = "CREATE TABLE dummy (id SERIAL PRIMARY KEY, foo TEXT)"
 	updateSingleValueQuery = "UPDATE dummy SET foo = 'updated' WHERE id = 1"
 	selectAllQuery         = "SELECT * FROM dummy"
@@ -43,6 +43,11 @@ const (
 	deleteTableQuery       = "DELETE FROM dummy WHERE id = 1"
 	alterTableQuery        = "ALTER TABLE dummy ADD test VARCHAR(255);"
 	truncateTableQuery     = "TRUNCATE TABLE dummy"
+)
+
+var (
+	longCreateQuery = fmt.Sprintf("CREATE TABLE %s (id SERIAL PRIMARY KEY, foo TEXT)", strings.Repeat("table_", repeatCount))
+	longDropeQuery  = fmt.Sprintf("DROP TABLE IF EXISTS %s", strings.Repeat("table_", repeatCount))
 )
 
 func createInsertQuery(values ...string) string {
@@ -417,34 +422,33 @@ func testDecoding(t *testing.T, isTLS bool) {
 				}, isTLS)
 			},
 		},
-		//{
-		//	name: "query is truncated",
-		//	preMonitorSetup: func(t *testing.T, ctx pgTestContext) {
-		//		pg, err := postgres.NewPGXClient(postgres.ConnectionOptions{
-		//			ServerAddress: ctx.serverAddress,
-		//			EnableTLS:     isTLS,
-		//		})
-		//		require.NoError(t, err)
-		//		require.NoError(t, pg.Ping())
-		//		ctx.extras["pg"] = pg
-		//	},
-		//	postMonitorSetup: func(t *testing.T, ctx pgTestContext) {
-		//		pg := ctx.extras["pg"].(*postgres.PGXClient)
-		//		longTableName := strings.Repeat("table_", repeatCount)
-		//		require.NoError(t, pg.RunQuery(fmt.Sprintf("CREATE TABLE %s (id SERIAL PRIMARY KEY, foo TEXT)", longTableName)))
-		//		require.NoError(t, pg.RunQuery(fmt.Sprintf("DROP TABLE IF EXISTS %s", longTableName)))
-		//	},
-		//	validation: func(t *testing.T, ctx pgTestContext, monitor *Monitor) {
-		//		validatePostgres(t, monitor, map[string]map[postgres.Operation]int{
-		//			strings.Repeat("table_", repeatCount-1) + "t": {
-		//				postgres.CreateTableOP: adjustCount(1),
-		//			},
-		//			strings.Repeat("table_", repeatCount-3) + "table": {
-		//				postgres.DropTableOP: adjustCount(1),
-		//			},
-		//		}, isTLS)
-		//	},
-		//},
+		{
+			name: "query is truncated",
+			preMonitorSetup: func(t *testing.T, ctx pgTestContext) {
+				pg, err := postgres.NewPGXClient(postgres.ConnectionOptions{
+					ServerAddress: ctx.serverAddress,
+					EnableTLS:     isTLS,
+				})
+				require.NoError(t, err)
+				require.NoError(t, pg.Ping())
+				ctx.extras["pg"] = pg
+			},
+			postMonitorSetup: func(t *testing.T, ctx pgTestContext) {
+				pg := ctx.extras["pg"].(*postgres.PGXClient)
+				require.NoError(t, pg.RunQuery(longCreateQuery))
+				require.NoError(t, pg.RunQuery(longDropeQuery))
+			},
+			validation: func(t *testing.T, ctx pgTestContext, monitor *Monitor) {
+				validatePostgres(t, monitor, map[string]map[postgres.Operation]int{
+					getTruncatedTableName(longCreateQuery, 13): {
+						postgres.CreateTableOP: adjustCount(1),
+					},
+					getTruncatedTableName(longDropeQuery, 21): {
+						postgres.DropTableOP: adjustCount(1),
+					},
+				}, isTLS)
+			},
+		},
 		{
 			name: "too many messages in a single packet",
 			preMonitorSetup: func(t *testing.T, ctx pgTestContext) {
@@ -512,6 +516,12 @@ func testDecoding(t *testing.T, isTLS bool) {
 			tt.validation(t, tt.context, monitor)
 		})
 	}
+}
+
+// getTruncatedTableName returns the truncated table name by reducing the operation and extracting the remaining
+// table name by the current max buffer size.
+func getTruncatedTableName(query string, tableNameIndex int) string {
+	return query[tableNameIndex:postgres.BufferSize]
 }
 
 // getPostgresInFlightEntries returns the entries in the in-flight map.
