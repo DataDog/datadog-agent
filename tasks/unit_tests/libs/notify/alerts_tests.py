@@ -86,6 +86,7 @@ class TestAlertsRetrieveJobExecutions(unittest.TestCase):
 
 class TestAlertsUpdateStatistics(unittest.TestCase):
     @patch("tasks.libs.notify.alerts.get_failed_jobs")
+    @patch("tasks.libs.notify.alerts.get_pipeline", new=MagicMock())
     def test_nominal(self, mock_get_failed):
         failed_jobs = mock_get_failed.return_value
         failed_jobs.all_failures.return_value = [
@@ -141,6 +142,7 @@ class TestAlertsUpdateStatistics(unittest.TestCase):
         mock_get_failed.assert_called()
 
     @patch("tasks.libs.notify.alerts.get_failed_jobs")
+    @patch("tasks.libs.notify.alerts.get_pipeline", new=MagicMock())
     def test_multiple_failures(self, mock_get_failed):
         failed_jobs = mock_get_failed.return_value
         fail = {"id": 42, "failing": True, 'commit': 'abcdef42'}

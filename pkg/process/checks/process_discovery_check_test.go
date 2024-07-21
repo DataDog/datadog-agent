@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 )
 
@@ -32,7 +33,7 @@ func TestProcessDiscoveryCheck(t *testing.T) {
 	maxBatchSize := 10
 	getMaxBatchSize = func(config.Reader) int { return maxBatchSize }
 
-	check := NewProcessDiscoveryCheck(config.Mock(t))
+	check := NewProcessDiscoveryCheck(configmock.New(t))
 	check.Init(
 		&SysProbeConfig{},
 		&HostInfo{

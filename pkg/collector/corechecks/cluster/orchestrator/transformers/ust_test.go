@@ -11,12 +11,12 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 )
 
 func TestRetrieveUST(t *testing.T) {
-	cfg := config.Mock(t)
+	cfg := configmock.New(t)
 	cfg.SetWithoutSource("env", "staging")
 	cfg.SetWithoutSource(tagKeyService, "not-applied")
 	cfg.SetWithoutSource(tagKeyVersion, "not-applied")

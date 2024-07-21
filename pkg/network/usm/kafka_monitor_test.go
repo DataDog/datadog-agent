@@ -782,6 +782,9 @@ func (can *CannedClientServer) runClient(msgs []Message) {
 	require.NoError(can.t, err)
 	can.t.Cleanup(func() { _ = conn.Close() })
 
+	// Safety measure to avoid blocking forever in the case of bugs.
+	conn.SetDeadline(time.Now().Add(30 * time.Second))
+
 	reader := bufio.NewReader(conn)
 	for _, msg := range msgs {
 		buf := make([]byte, 0)

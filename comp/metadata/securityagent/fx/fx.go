@@ -7,7 +7,8 @@
 package fx
 
 import (
-	saimpl "github.com/DataDog/datadog-agent/comp/metadata/securityagent/impl"
+	securityagent "github.com/DataDog/datadog-agent/comp/metadata/securityagent/def"
+	securityagentimpl "github.com/DataDog/datadog-agent/comp/metadata/securityagent/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -15,7 +16,8 @@ import (
 func Module() fxutil.Module {
 	return fxutil.Component(
 		fxutil.ProvideComponentConstructor(
-			saimpl.NewComponent,
+			securityagentimpl.NewComponent,
 		),
+		fxutil.ProvideOptional[securityagent.Component](),
 	)
 }

@@ -19,7 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/telemetry"
 	coretelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -253,7 +253,7 @@ func Test_getEventSource(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		mockConfig := config.Mock(t)
+		mockConfig := configmock.New(t)
 		mockConfig.SetWithoutSource("kubernetes_events_source_detection.enabled", tt.kubernetesEventSourceDetectionEnabled)
 		t.Run(tt.name, func(t *testing.T) {
 			if got := getEventSource(tt.controllerName, tt.sourceComponent); !reflect.DeepEqual(got, tt.want) {
