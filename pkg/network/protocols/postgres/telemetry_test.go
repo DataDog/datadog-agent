@@ -56,56 +56,16 @@ func TestTelemetry_Count(t *testing.T) {
 		{
 			name: "exceeded query length bucket for each bucket ones",
 			tx: []*EbpfEvent{
-				{
-					Tx: EbpfTx{
-						Original_query_size: 100,
-					},
-				},
-				{
-					Tx: EbpfTx{
-						Original_query_size: 131,
-					},
-				},
-				{
-					Tx: EbpfTx{
-						Original_query_size: 146,
-					},
-				},
-				{
-					Tx: EbpfTx{
-						Original_query_size: 161,
-					},
-				},
-				{
-					Tx: EbpfTx{
-						Original_query_size: 176,
-					},
-				},
-				{
-					Tx: EbpfTx{
-						Original_query_size: 191,
-					},
-				},
-				{
-					Tx: EbpfTx{
-						Original_query_size: 206,
-					},
-				},
-				{
-					Tx: EbpfTx{
-						Original_query_size: 221,
-					},
-				},
-				{
-					Tx: EbpfTx{
-						Original_query_size: 236,
-					},
-				},
-				{
-					Tx: EbpfTx{
-						Original_query_size: 251,
-					},
-				},
+				createEbpfEvent(BufferSize - 2*bucketLength),
+				createEbpfEvent(BufferSize - bucketLength),
+				createEbpfEvent(BufferSize),
+				createEbpfEvent(BufferSize + 1),
+				createEbpfEvent(BufferSize + bucketLength + 1),
+				createEbpfEvent(BufferSize + 2*bucketLength + 1),
+				createEbpfEvent(BufferSize + 3*bucketLength + 1),
+				createEbpfEvent(BufferSize + 4*bucketLength + 1),
+				createEbpfEvent(BufferSize + 5*bucketLength + 1),
+				createEbpfEvent(BufferSize + 6*bucketLength + 1),
 			},
 
 			expectedTelemetry: telemetryResults{
@@ -157,6 +117,14 @@ func TestTelemetry_Count(t *testing.T) {
 			}
 			verifyTelemetry(t, tel, tt.expectedTelemetry)
 		})
+	}
+}
+
+func createEbpfEvent(querySize int) *EbpfEvent {
+	return &EbpfEvent{
+		Tx: EbpfTx{
+			Original_query_size: uint32(querySize),
+		},
 	}
 }
 
