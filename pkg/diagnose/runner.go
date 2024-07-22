@@ -398,7 +398,8 @@ func runStdOutJSON(w io.Writer, diagnoses []diagnosis.Diagnoses) error {
 	for _, diag := range diagnoses {
 		diagJSON, err := json.MarshalIndent(diag, "", "  ")
 		if err != nil {
-			fmt.Fprintf(w, (fmt.Sprintf("{error: marshalling diagnose results to JSON: %s}\n", err)))
+			body, _ := json.Marshal(map[string]string{"error": fmt.Sprintf("marshalling diagnose results to JSON: %s", err)})
+			fmt.Fprintln(w, string(body))
 			return err
 		}
 		fmt.Fprintln(w, string(diagJSON))
