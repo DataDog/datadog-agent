@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"runtime"
 	"strconv"
 	"testing"
 	"time"
@@ -1697,6 +1698,24 @@ system_probe_config:
   process_service_inference:
     enabled: true`)
 		require.False(t, cfg.GetBool("system_probe_config.process_service_inference.enabled"))
+	})
+
+	t.Run("test platform specific defaults", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		// usm or npm must be enabled for the process_service_inference to be enabled
+		cfg := modelCfgFromYAML(t, `
+service_monitoring_config:
+  enabled: true`)
+		sysconfig.Adjust(cfg)
+
+		var expected bool
+		if runtime.GOOS == "windows" {
+			expected = true
+		} else {
+			expected = false
+		}
+
+		require.Equal(t, expected, cfg.GetBool("system_probe_config.process_service_inference.enabled"))
 	})
 }
 

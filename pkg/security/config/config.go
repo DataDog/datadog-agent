@@ -204,6 +204,8 @@ type RuntimeSecurityConfig struct {
 	// SBOMResolverWorkloadsCacheSize defines the count of SBOMs to keep in memory in order to prevent re-computing
 	// the SBOMs of short-lived and periodical workloads
 	SBOMResolverWorkloadsCacheSize int
+	// SBOMResolverHostEnabled defines if the SBOM resolver should compute the host's SBOM
+	SBOMResolverHostEnabled bool
 
 	// HashResolverEnabled defines if the hash resolver should be enabled
 	HashResolverEnabled bool
@@ -371,6 +373,7 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		// SBOM resolver
 		SBOMResolverEnabled:            coreconfig.SystemProbe.GetBool("runtime_security_config.sbom.enabled"),
 		SBOMResolverWorkloadsCacheSize: coreconfig.SystemProbe.GetInt("runtime_security_config.sbom.workloads_cache_size"),
+		SBOMResolverHostEnabled:        coreconfig.SystemProbe.GetBool("runtime_security_config.sbom.host.enabled"),
 
 		// Hash resolver
 		HashResolverEnabled:        coreconfig.SystemProbe.GetBool("runtime_security_config.hash_resolver.enabled"),

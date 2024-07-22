@@ -114,6 +114,8 @@ runtime_security_config:
   socket: /tmp/test-runtime-security.sock
   sbom:
     enabled: {{ .SBOMEnabled }}
+    host:
+      enabled: {{ .HostSBOMEnabled }}
   activity_dump:
     enabled: {{ .EnableActivityDump }}
 {{if .EnableActivityDump}}
@@ -632,6 +634,12 @@ func newTestModuleWithOnDemandProbes(t testing.TB, onDemandHooks []rules.OnDeman
 		opt(&opts)
 	}
 
+	prevEbpfLessEnabled := ebpfLessEnabled
+	defer func() {
+		ebpfLessEnabled = prevEbpfLessEnabled
+	}()
+	ebpfLessEnabled = ebpfLessEnabled || opts.staticOpts.ebpfLessEnabled
+
 	if commonCfgDir == "" {
 		cd, err := os.MkdirTemp("", "test-cfgdir")
 		if err != nil {
@@ -858,7 +866,7 @@ func newTestModuleWithOnDemandProbes(t testing.TB, onDemandHooks []rules.OnDeman
 		t.Logf("%s entry stats: %s", t.Name(), GetEBPFStatusMetrics(testMod.probe))
 	}
 
-	if ebpfLessEnabled {
+	if ebpfLessEnabled && !opts.staticOpts.dontWaitEBPFLessClient {
 		t.Logf("EBPFLess mode, waiting for a client to connect")
 		err := retry.Do(func() error {
 			if testMod.probe.PlatformProbe.(*sprobe.EBPFLessProbe).GetClientsCount() > 0 {

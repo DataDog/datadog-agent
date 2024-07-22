@@ -20,13 +20,14 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	pbmocks "github.com/DataDog/datadog-agent/pkg/proto/pbgo/mocks/core"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
 
 func TestGetHostname(t *testing.T) {
-	cfg := config.Mock(t)
+	cfg := configmock.New(t)
 	ctx := context.Background()
 	h, err := getHostname(ctx, cfg.GetString("process_config.dd_agent_bin"), 0)
 	assert.Nil(t, err)
@@ -134,7 +135,7 @@ func TestResolveHostname(t *testing.T) {
 			defer flavor.SetFlavor(oldFlavor)
 			flavor.SetFlavor(tc.agentFlavor)
 
-			cfg := config.Mock(t)
+			cfg := configmock.New(t)
 			// Lower the GRPC timeout, otherwise the test will time out in CI
 			cfg.SetWithoutSource("process_config.grpc_connection_timeout_secs", 1)
 

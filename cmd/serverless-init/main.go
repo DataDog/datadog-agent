@@ -9,7 +9,9 @@ package main
 
 import (
 	"context"
+	"errors"
 	"os"
+	"os/exec"
 	"sync"
 	"time"
 
@@ -87,18 +89,22 @@ func main() {
 
 	if err != nil {
 		log.Error(err)
-		os.Exit(-1)
+		exitCode := errorExitCode(err)
+		log.Flush()
+		os.Exit(exitCode)
 	}
 }
 
 // removing these unused dependencies will cause silent crash due to fx framework
-func run(_ secrets.Component, _ autodiscovery.Component, _ healthprobeDef.Component) {
+func run(_ secrets.Component, _ autodiscovery.Component, _ healthprobeDef.Component) error {
 	cloudService, logConfig, traceAgent, metricAgent, logsAgent := setup(modeConf)
 
-	modeConf.Runner(logConfig)
+	err := modeConf.Runner(logConfig)
 
 	metric.AddShutdownMetric(cloudService.GetPrefix(), metricAgent.GetExtraTags(), time.Now(), metricAgent.Demux)
 	lastFlush(logConfig.FlushTimeout, metricAgent, traceAgent, logsAgent)
+
+	return err
 }
 
 func setup(mode.Conf) (cloudservice.CloudService, *serverlessInitLog.Config, trace.ServerlessTraceAgent, *metrics.ServerlessMetricAgent, logsAgent.ServerlessLogsAgent) {
@@ -234,4 +240,18 @@ func setEnvWithoutOverride(envToSet map[string]string) {
 			log.Debugf("%s already set with %s, skipping setting it", envName, val)
 		}
 	}
+}
+
+func errorExitCode(err error) int {
+	// if error is of type exec.ExitError then propagate the exit code
+	var exitError *exec.ExitError
+	if errors.As(err, &exitError) {
+		exitCode := exitError.ExitCode()
+		log.Debugf("propagating exit code %v", exitCode)
+		return exitCode
+	}
+
+	// use exit code 1 if there is no exit code in the error to propagate
+	log.Debug("using default exit code 1")
+	return 1
 }
