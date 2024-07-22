@@ -1914,7 +1914,7 @@ def save_test_dockers(ctx, output_dir, arch, use_crane=False):
         arch = "amd64"
 
     # only download images not present in preprepared vm disk
-    resp = requests.get('https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/docker.ls')
+    resp = requests.get('https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/master/docker.ls')
     docker_ls = {line for line in resp.text.split('\n') if line.strip()}
 
     images = _test_docker_image_list()
