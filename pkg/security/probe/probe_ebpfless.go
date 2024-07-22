@@ -75,9 +75,14 @@ type EBPFLessProbe struct {
 	ctx           context.Context
 	cancelFnc     context.CancelFunc
 	fieldHandlers *EBPFLessFieldHandlers
-	buf           []byte
 	clients       map[net.Conn]*client
 	processKiller *ProcessKiller
+	wg            sync.WaitGroup
+}
+
+// GetProfileManager returns the Profile Managers
+func (p *EBPFLessProbe) GetProfileManager() interface{} {
+	return nil
 }
 
 func (p *EBPFLessProbe) handleClientMsg(cl *client, msg *ebpfless.Message) {
@@ -353,7 +358,16 @@ func (p *EBPFLessProbe) Init() error {
 // Stop the probe
 func (p *EBPFLessProbe) Stop() {
 	p.server.GracefulStop()
+
+	p.Lock()
+	for conn := range p.clients {
+		conn.Close()
+	}
+	p.Unlock()
+
 	p.cancelFnc()
+
+	p.wg.Wait()
 }
 
 // Close the probe
@@ -387,20 +401,18 @@ func (p *EBPFLessProbe) readMsg(conn net.Conn, msg *ebpfless.Message) error {
 		return fmt.Errorf("data overflow the max size: %d", size)
 	}
 
-	if cap(p.buf) < int(size) {
-		p.buf = make([]byte, size)
-	}
+	buf := make([]byte, size)
 
 	var read uint32
 	for read < size {
-		n, err = conn.Read(p.buf[read:size])
+		n, err = conn.Read(buf[read:size])
 		if err != nil {
 			return err
 		}
 		read += uint32(n)
 	}
 
-	return msgpack.Unmarshal(p.buf[0:size], msg)
+	return msgpack.Unmarshal(buf[0:size], msg)
 }
 
 // GetClientsCount returns the number of connected clients
@@ -422,15 +434,19 @@ func (p *EBPFLessProbe) handleNewClient(conn net.Conn, ch chan clientMsg) {
 
 	seclog.Debugf("new connection from: %v", conn.RemoteAddr())
 
+	p.wg.Add(1)
 	go func() {
+		defer p.wg.Done()
+
 		msg := clientMsg{
 			client: client,
 		}
 		for {
+
 			msg.Reset()
 			if err := p.readMsg(conn, &msg.Message); err != nil {
 				if errors.Is(err, io.EOF) {
-					seclog.Debugf("connection closed by client: %v", conn.RemoteAddr())
+					seclog.Warnf("connection closed by client: %v", conn.RemoteAddr())
 				} else {
 					seclog.Warnf("error while reading message: %v", err)
 				}
@@ -447,7 +463,6 @@ func (p *EBPFLessProbe) handleNewClient(conn net.Conn, ch chan clientMsg) {
 			}
 
 			ch <- msg
-
 		}
 	}()
 }
@@ -470,28 +485,45 @@ func (p *EBPFLessProbe) Start() error {
 
 	ch := make(chan clientMsg, 100)
 
+	p.wg.Add(1)
 	go func() {
+		defer p.wg.Done()
+
 		for {
 			conn, err := listener.Accept()
 			if err != nil {
-				seclog.Errorf("unable to accept new connection")
-				continue
+				select {
+				case <-p.ctx.Done():
+					return
+				default:
+					seclog.Errorf("unable to accept new connection: %s", err)
+					continue
+				}
 			}
-
 			p.handleNewClient(conn, ch)
 		}
 	}()
 
+	p.wg.Add(1)
 	go func() {
-		for msg := range ch {
-			if msg.Type == ebpfless.MessageTypeGoodbye {
-				if msg.client.containerID != "" {
-					delete(p.containerContexts, msg.client.containerID)
-					seclog.Infof("tracing stopped for container ID [%s] (Name: [%s])", msg.client.containerID, msg.client.containerName)
+		defer p.wg.Done()
+
+		for {
+			select {
+			case <-p.ctx.Done():
+				listener.Close()
+
+				return
+			case msg := <-ch:
+				if msg.Type == ebpfless.MessageTypeGoodbye {
+					if msg.client.containerID != "" {
+						delete(p.containerContexts, msg.client.containerID)
+						seclog.Infof("tracing stopped for container ID [%s] (Name: [%s])", msg.client.containerID, msg.client.containerName)
+					}
+					continue
 				}
-				continue
+				p.handleClientMsg(msg.client, &msg.Message)
 			}
-			p.handleClientMsg(msg.client, &msg.Message)
 		}
 	}()
 
@@ -610,7 +642,6 @@ func NewEBPFLessProbe(probe *Probe, config *config.Config, opts Opts, telemetry 
 		server:            grpc.NewServer(grpcOpts...),
 		ctx:               ctx,
 		cancelFnc:         cancelFnc,
-		buf:               make([]byte, 4096),
 		clients:           make(map[net.Conn]*client),
 		processKiller:     NewProcessKiller(),
 		containerContexts: make(map[string]*ebpfless.ContainerContext),

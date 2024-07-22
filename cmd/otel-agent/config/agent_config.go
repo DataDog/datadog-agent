@@ -84,7 +84,7 @@ func NewConfigComponent(ctx context.Context, uris []string) (config.Component, e
 	pkgconfig.Set("apm_config.apm_non_local_traffic", true, pkgconfigmodel.SourceLocalConfigProcess)
 	pkgconfig.Set("otlp_config.traces.span_name_as_resource_name", ddc.Traces.SpanNameAsResourceName, pkgconfigmodel.SourceLocalConfigProcess)
 	pkgconfig.Set("otlp_config.traces.span_name_remappings", ddc.Traces.SpanNameRemappings, pkgconfigmodel.SourceLocalConfigProcess)
-	pkgconfig.Set("apm_config.receiver_port", 0, pkgconfigmodel.SourceLocalConfigProcess) // disable HTTP receiver
+	pkgconfig.Set("apm_config.receiver_enabled", false, pkgconfigmodel.SourceLocalConfigProcess) // disable HTTP receiver
 	pkgconfig.Set("apm_config.ignore_resources", ddc.Traces.IgnoreResources, pkgconfigmodel.SourceLocalConfigProcess)
 	pkgconfig.Set("apm_config.skip_ssl_validation", ddc.ClientConfig.TLSSetting.InsecureSkipVerify, pkgconfigmodel.SourceLocalConfigProcess)
 	if v := ddc.Traces.TraceBuffer; v > 0 {

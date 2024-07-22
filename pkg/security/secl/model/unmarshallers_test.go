@@ -33,7 +33,7 @@ mainLoop:
 func allSyscallsTest() syscallsEventTest {
 	all := syscallsEventTest{
 		name: "all_syscalls",
-		args: make([]byte, syscallsEventByteCount),
+		args: make([]byte, syscallsEventByteCount+8),
 	}
 
 	for i := 0; i < syscallsEventByteCount*8; i++ {
@@ -42,7 +42,7 @@ func allSyscallsTest() syscallsEventTest {
 		// should be tested in eBPF...
 		index := i / 8
 		bit := byte(1 << (i % 8))
-		all.args[index] |= bit
+		all.args[index+8] |= bit
 	}
 
 	return all
@@ -51,13 +51,13 @@ func allSyscallsTest() syscallsEventTest {
 func oneSyscallTest(s Syscall) syscallsEventTest {
 	one := syscallsEventTest{
 		name: s.String(),
-		args: make([]byte, syscallsEventByteCount),
+		args: make([]byte, syscallsEventByteCount+8),
 	}
 
 	// should be tested in eBPF ...
 	index := s / 8
 	bit := byte(1 << (s % 8))
-	one.args[index] |= bit
+	one.args[index+8] |= bit
 
 	one.want = []Syscall{s}
 	return one
@@ -78,7 +78,7 @@ func TestSyscallsEvent_UnmarshalBinary(t *testing.T) {
 		},
 		{
 			name: "no_syscall",
-			args: make([]byte, 64),
+			args: make([]byte, 72),
 		},
 		allSyscallsTest(),
 	}

@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/mock"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	k "github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 )
@@ -34,7 +35,7 @@ func TestHostnameProvider(t *testing.T) {
 	config.SetFeatures(t, config.Kubernetes)
 
 	ctx := context.Background()
-	mockConfig := config.Mock(t)
+	mockConfig := configmock.New(t)
 
 	ku := &kubeUtilMock{}
 
@@ -67,7 +68,7 @@ func TestHostnameProviderInvalid(t *testing.T) {
 	config.SetFeatures(t, config.Kubernetes)
 
 	ctx := context.Background()
-	mockConfig := config.Mock(t)
+	mockConfig := configmock.New(t)
 
 	ku := &kubeUtilMock{}
 

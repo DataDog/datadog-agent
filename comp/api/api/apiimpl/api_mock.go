@@ -42,6 +42,11 @@ func (mock *mockAPIServer) StopServer() {
 }
 
 // ServerAddress returns the server address.
-func (mock *mockAPIServer) ServerAddress() *net.TCPAddr {
+func (mock *mockAPIServer) CMDServerAddress() *net.TCPAddr {
+	return nil
+}
+
+// ServerAddress returns the server address.
+func (mock *mockAPIServer) IPCServerAddress() *net.TCPAddr {
 	return nil
 }

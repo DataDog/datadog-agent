@@ -1,18 +1,17 @@
 import re
 from collections import defaultdict
 
-from gitlab.v4.objects import ProjectJob
+from gitlab.v4.objects import ProjectJob, ProjectPipeline
 
 from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
 from tasks.libs.types.types import FailedJobReason, FailedJobs, FailedJobType
 
 
-def get_failed_jobs(project_name: str, pipeline_id: str) -> FailedJobs:
+def get_failed_jobs(pipeline: ProjectPipeline) -> FailedJobs:
     """
     Retrieves the list of failed jobs for a given pipeline id in a given project.
     """
-    repo = get_gitlab_repo(project_name)
-    pipeline = repo.pipelines.get(pipeline_id)
+    repo = get_gitlab_repo(pipeline.project_id)
     jobs = pipeline.jobs.list(per_page=100, all=True)
 
     # Get instances of failed jobs grouped by name

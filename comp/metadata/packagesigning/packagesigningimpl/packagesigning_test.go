@@ -11,14 +11,16 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	pkgUtils "github.com/DataDog/datadog-agent/comp/metadata/packagesigning/utils"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
+	serializermock "github.com/DataDog/datadog-agent/pkg/serializer/mocks"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/fx"
 )
 
 func TestGetAPTPayload(t *testing.T) {
@@ -90,7 +92,7 @@ func getTestPackageSigning(t *testing.T) *pkgSigning {
 			t,
 			logimpl.MockModule(),
 			config.MockModule(),
-			fx.Provide(func() serializer.MetricSerializer { return &serializer.MockSerializer{} }),
+			fx.Provide(func() serializer.MetricSerializer { return serializermock.NewMetricSerializer(t) }),
 		),
 	)
 	return p.Comp.(*pkgSigning)
