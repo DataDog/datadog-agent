@@ -9,8 +9,9 @@ package diagnosis
 import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	"github.com/fatih/color"
 	"encoding/json"
+
+	"github.com/fatih/color"
 )
 
 // --------------------------------
