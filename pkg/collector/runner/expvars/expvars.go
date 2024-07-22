@@ -11,6 +11,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/mohae/deepcopy"
+
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	checkstats "github.com/DataDog/datadog-agent/pkg/collector/check/stats"
@@ -104,7 +106,7 @@ func GetCheckStats() map[string]map[checkid.ID]*checkstats.Stats {
 	for k, v := range checkStats.stats {
 		innerCloned := make(map[checkid.ID]*checkstats.Stats)
 		for innerK, innerV := range v {
-			innerCloned[innerK] = innerV.Clone()
+			innerCloned[innerK] = deepcopy.Copy(innerV).(*checkstats.Stats)
 		}
 		cloned[k] = innerCloned
 	}

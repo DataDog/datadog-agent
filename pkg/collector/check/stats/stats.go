@@ -7,8 +7,6 @@
 package stats
 
 import (
-	"maps"
-	"slices"
 	"sync"
 	"time"
 
@@ -258,41 +256,6 @@ func (cs *Stats) SetStateCancelling() {
 	cs.m.Lock()
 	defer cs.m.Unlock()
 	cs.Cancelling = true
-}
-
-func (cs *Stats) Clone() *Stats {
-	cloned := &Stats{
-		CheckName:                cs.CheckName,
-		CheckVersion:             cs.CheckVersion,
-		CheckConfigSource:        cs.CheckConfigSource,
-		CheckID:                  cs.CheckID,
-		Interval:                 cs.Interval,
-		LongRunning:              cs.LongRunning,
-		Cancelling:               cs.Cancelling,
-		TotalRuns:                cs.TotalRuns,
-		TotalErrors:              cs.TotalErrors,
-		TotalWarnings:            cs.TotalWarnings,
-		MetricSamples:            cs.MetricSamples,
-		Events:                   cs.Events,
-		ServiceChecks:            cs.ServiceChecks,
-		HistogramBuckets:         cs.HistogramBuckets,
-		TotalMetricSamples:       cs.TotalMetricSamples,
-		TotalEvents:              cs.TotalEvents,
-		TotalServiceChecks:       cs.TotalServiceChecks,
-		TotalHistogramBuckets:    cs.TotalHistogramBuckets,
-		EventPlatformEvents:      maps.Clone(cs.EventPlatformEvents),
-		TotalEventPlatformEvents: maps.Clone(cs.TotalEventPlatformEvents),
-		AverageExecutionTime:     cs.AverageExecutionTime,
-		LastExecutionTime:        cs.LastExecutionTime,
-		LastSuccessDate:          cs.LastSuccessDate,
-		LastError:                cs.LastError,
-		LastDelay:                cs.LastDelay,
-		LastWarnings:             slices.Clone(cs.LastWarnings),
-		UpdateTimestamp:          cs.UpdateTimestamp,
-		telemetry:                cs.telemetry,
-	}
-	copy(cs.ExecutionTimes[:], cloned.ExecutionTimes[:])
-	return cloned
 }
 
 type aggStats struct {
