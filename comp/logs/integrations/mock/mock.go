@@ -19,7 +19,7 @@ func (l *mockIntegrations) Subscribe() chan integrations.IntegrationLog {
 	return l.logChan
 }
 
-// SendLog does nothing
+// SendLog sends a log to the log channel
 func (l *mockIntegrations) SendLog(log, integrationID string) {
 	integrationLog := integrations.IntegrationLog{
 		Log:           log,

@@ -13,7 +13,7 @@ import (
 	"path"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/stretchr/testify/assert"
 
@@ -76,7 +76,7 @@ func TestBinaryAnalysisClient(t *testing.T) {
 		procs = append(procs, makeProcess(command, command[0]))
 	}
 
-	cfg := config.Mock(t)
+	cfg := configmock.New(t)
 	cfg.SetWithoutSource("system_probe_config.language_detection.enabled", true)
 	cfg.SetWithoutSource("system_probe_config.sysprobe_socket", socketPath)
 

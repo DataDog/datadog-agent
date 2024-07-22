@@ -117,6 +117,7 @@ func TestRetryLogic_Error(t *testing.T) {
 			mockCollector.On("Scan", mock.Anything, mock.Anything).Return(expectedResult).Once()
 			mockCollector.On("Channel").Return(resultCh)
 			shutdown := mockCollector.On("Shutdown")
+			shutdown.After(5 * time.Second)
 			mockCollector.On("Type").Return(tt.st)
 
 			// Set up the configuration as the default one is too slow
@@ -150,7 +151,6 @@ func TestRetryLogic_Error(t *testing.T) {
 			case <-time.After(time.Second):
 			}
 			cancel()
-			shutdown.WaitUntil(time.After(5 * time.Second))
 		})
 	}
 }

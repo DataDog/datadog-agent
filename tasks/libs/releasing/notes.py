@@ -83,13 +83,6 @@ def update_changelog_generic(ctx, new_version, changelog_dir, changelog_file):
         sed_i_arg = "-i"
     except Failure:
         sed_i_arg = "-i ''"
-    # check whether there is a v6 tag on the same v7 tag, if so add the v6 tag to the release title
-    v6_tag = ""
-    if new_version_int[0] == 7:
-        v6_tag = _find_v6_tag(ctx, new_version)
-        if v6_tag:
-            ctx.run(f"sed {sed_i_arg} -E 's#^{new_version}#{new_version} / {v6_tag}#' /tmp/new_changelog.rst")
-            ctx.run(f"sed {sed_i_arg} -E 's#^======$#================#' /tmp/new_changelog.rst")
     # remove the old header from the existing changelog
     ctx.run(f"sed {sed_i_arg} -e '1,4d' {changelog_file}")
 
@@ -101,27 +94,3 @@ def update_changelog_generic(ctx, new_version, changelog_dir, changelog_file):
 
     print("\nCommit this with:")
     print(f"git commit -m \"Update {changelog_file} for {new_version}\"")
-
-
-def _find_v6_tag(ctx, v7_tag):
-    """
-    Returns one of the v6 tags that point at the same commit as the passed v7 tag.
-    If none are found, returns the empty string.
-    """
-    v6_tag = ""
-
-    print(f"Looking for a v6 tag pointing to same commit as tag '{v7_tag}'...")
-    # Find commit at which the v7_tag points
-    commit = ctx.run(f"git rev-list --max-count=1 {v7_tag}", hide='out').stdout.strip()
-    try:
-        v6_tags = ctx.run(f"git tag --points-at {commit} | grep -E '^6\\.'", hide='out').stdout.strip().split("\n")
-    except Failure:
-        print(f"Found no v6 tag pointing at same commit as '{v7_tag}'.")
-    else:
-        v6_tag = v6_tags[0]
-        if len(v6_tags) > 1:
-            print(f"Found v6 tags '{v6_tags}', picking {v6_tag}'")
-        else:
-            print(f"Found v6 tag '{v6_tag}'")
-
-    return v6_tag

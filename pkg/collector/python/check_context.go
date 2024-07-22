@@ -48,7 +48,7 @@ func initializeCheckContext(senderManager sender.SenderManager, logReceiver opti
 		}
 
 		if _, ok := logReceiver.Get(); !ok {
-			log.Warn("Log receiver not provided.")
+			log.Warn("Log receiver not provided. Logs from integrations will not be collected.")
 		}
 	}
 

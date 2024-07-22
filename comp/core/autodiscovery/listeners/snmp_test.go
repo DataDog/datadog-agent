@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/snmp"
 	"github.com/DataDog/datadog-agent/pkg/snmp/snmpintegration"
 
@@ -32,7 +33,7 @@ func TestSNMPListener(t *testing.T) {
 		Workers: 1,
 	}
 
-	mockConfig := config.Mock(t)
+	mockConfig := configmock.New(t)
 	mockConfig.SetWithoutSource("network_devices.autodiscovery", listenerConfig)
 
 	worker = func(l *SNMPListener, jobs <-chan snmpJob) {
@@ -80,7 +81,7 @@ func TestSNMPListenerSubnets(t *testing.T) {
 		listenerConfig.Configs = append(listenerConfig.Configs, snmpConfig)
 	}
 
-	mockConfig := config.Mock(t)
+	mockConfig := configmock.New(t)
 	mockConfig.SetWithoutSource("network_devices.autodiscovery", listenerConfig)
 
 	worker = func(l *SNMPListener, jobs <-chan snmpJob) {
@@ -131,7 +132,7 @@ func TestSNMPListenerIgnoredAdresses(t *testing.T) {
 		Workers: 1,
 	}
 
-	mockConfig := config.Mock(t)
+	mockConfig := configmock.New(t)
 	mockConfig.SetWithoutSource("network_devices.autodiscovery", listenerConfig)
 
 	worker = func(l *SNMPListener, jobs <-chan snmpJob) {
