@@ -177,6 +177,10 @@
         "id": {
           "type": "string",
           "description": "CGroup ID"
+        },
+        "manager": {
+          "type": "string",
+          "description": "CGroup manager"
         }
       },
       "additionalProperties": false,
