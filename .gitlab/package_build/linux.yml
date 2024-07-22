@@ -4,7 +4,6 @@
     - when: on_success
   stage: package_build
   script:
-    - source /root/.bashrc
     - echo "About to build for $RELEASE_VERSION"
     - !reference [.retrieve_linux_go_deps]
     - !reference [.cache_omnibus_ruby_deps, setup]
@@ -110,7 +109,6 @@ datadog-ot-agent-7-arm64:
   extends: .agent_build_common
   needs: ["go_mod_tidy_check", "go_deps"]
   script:
-    - source /root/.bashrc
     - echo "About to build for $RELEASE_VERSION"
     - !reference [.retrieve_linux_go_deps]
     - !reference [.cache_omnibus_ruby_deps, setup]
@@ -149,7 +147,6 @@ iot-agent-armhf:
     - when: on_success
   stage: package_build
   script:
-    - source /root/.bashrc
     - echo "About to build for $RELEASE_VERSION"
     - !reference [.retrieve_linux_go_deps]
     - !reference [.cache_omnibus_ruby_deps, setup]

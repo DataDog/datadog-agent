@@ -34,5 +34,4 @@ agent_dmg-x64-a7:
     PYTHON_RUNTIMES: "3"
   timeout: 6h
   before_script:
-    - source /root/.bashrc
     - export RELEASE_VERSION=$RELEASE_VERSION_7

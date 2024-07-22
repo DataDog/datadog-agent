@@ -2,7 +2,6 @@
 .package_deb_common:
   stage: packaging
   script:
-    - source /root/.bashrc
     - !reference [.cache_omnibus_ruby_deps, setup]
     - echo "About to package for $RELEASE_VERSION"
     - !reference [.setup_deb_signing_key]
@@ -88,7 +87,6 @@ agent_deb-arm64-a7:
 .package_ot_deb_common:
   extends: [.package_deb_common]
   script:
-    - source /root/.bashrc
     - !reference [.cache_omnibus_ruby_deps, setup]
     - echo "About to package for $RELEASE_VERSION"
     - !reference [.setup_deb_signing_key]
@@ -143,7 +141,6 @@ installer_deb-arm64:
     - when: on_success
   stage: packaging
   script:
-    - source /root/.bashrc
     - !reference [.cache_omnibus_ruby_deps, setup]
     - echo "About to package for $RELEASE_VERSION"
     - !reference [.setup_deb_signing_key]
