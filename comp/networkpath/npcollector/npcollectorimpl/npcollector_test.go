@@ -129,7 +129,7 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
     "timestamp": 0,
     "namespace": "my-ns1",
     "path_id": "",
-    "protocol": "UDP",
+    "protocol": "udp",
     "source": {
         "hostname": "abc",
         "container_id": "testId1"
@@ -161,7 +161,7 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
     "timestamp": 0,
     "namespace": "my-ns1",
     "path_id": "",
-    "protocol": "UDP",
+    "protocol": "udp",
     "source": {
         "hostname": "abc",
         "container_id": "testId2"
@@ -648,13 +648,14 @@ func Test_npCollectorImpl_sendTelemetry(t *testing.T) {
 	path := payload.NetworkPath{
 		Source:      payload.NetworkPathSource{Hostname: "abc"},
 		Destination: payload.NetworkPathDestination{Hostname: "abc", IPAddress: "10.0.0.2", Port: 80},
+		Protocol:    "udp",
 		Hops: []payload.NetworkPathHop{
 			{Hostname: "hop_1", IPAddress: "1.1.1.1"},
 			{Hostname: "hop_2", IPAddress: "1.1.1.2"},
 		},
 	}
 	ptestCtx := &pathteststore.PathtestContext{
-		Pathtest: &common.Pathtest{Hostname: "10.0.0.2", Port: 80},
+		Pathtest: &common.Pathtest{Hostname: "10.0.0.2", Port: 80, Protocol: "udp"},
 	}
 	ptestCtx.SetLastFlushInterval(2 * time.Minute)
 	npCollector.TimeNowFn = MockTimeNow
