@@ -10,10 +10,12 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	model "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
-func setupConfig(tags []string) (*config.MockConfig, time.Time) {
-	mockConfig := config.Mock(nil)
+func setupConfig(t testing.TB, tags []string) (model.Config, time.Time) {
+	mockConfig := configmock.New(t)
 
 	startTime := config.StartTime
 	config.StartTime = time.Now()
@@ -26,7 +28,7 @@ func setupConfig(tags []string) (*config.MockConfig, time.Time) {
 func BenchmarkProviderExpectedTags(b *testing.B) {
 	b.ReportAllocs()
 
-	m, start := setupConfig([]string{"tag1:value1", "tag2", "tag3"})
+	m, start := setupConfig(b, []string{"tag1:value1", "tag2", "tag3"})
 	defer func() {
 		config.StartTime = start
 	}()
@@ -47,13 +49,13 @@ func BenchmarkProviderExpectedTags(b *testing.B) {
 func BenchmarkProviderExpectedTagsEmptySlice(b *testing.B) {
 	b.ReportAllocs()
 
-	m, start := setupConfig([]string{})
+	m, start := setupConfig(b, []string{})
 	defer func() {
 		config.StartTime = start
 	}()
 
-	if len(m.Config.GetStringSlice("tags")) > 0 {
-		b.Errorf("Expected tags: %v", m.Config.GetStringSlice("tags"))
+	if len(m.GetStringSlice("tags")) > 0 {
+		b.Errorf("Expected tags: %v", m.GetStringSlice("tags"))
 	}
 
 	// Setting a test-friendly value for the deadline (test should not take 1m)
@@ -70,13 +72,13 @@ func BenchmarkProviderExpectedTagsEmptySlice(b *testing.B) {
 func BenchmarkProviderExpectedTagsNil(b *testing.B) {
 	b.ReportAllocs()
 
-	m, start := setupConfig(nil)
+	m, start := setupConfig(b, nil)
 	defer func() {
 		config.StartTime = start
 	}()
 
-	if len(m.Config.GetStringSlice("tags")) > 0 {
-		b.Errorf("Expected tags: %v", m.Config.GetStringSlice("tags"))
+	if len(m.GetStringSlice("tags")) > 0 {
+		b.Errorf("Expected tags: %v", m.GetStringSlice("tags"))
 	}
 
 	// Setting a test-friendly value for the deadline (test should not take 1m)
@@ -93,7 +95,7 @@ func BenchmarkProviderExpectedTagsNil(b *testing.B) {
 func BenchmarkProviderNoExpectedTags(b *testing.B) {
 	b.ReportAllocs()
 
-	m, start := setupConfig([]string{"tag1:value1", "tag2", "tag3"})
+	m, start := setupConfig(b, []string{"tag1:value1", "tag2", "tag3"})
 	defer func() {
 		config.StartTime = start
 	}()
@@ -113,7 +115,7 @@ func BenchmarkProviderNoExpectedTags(b *testing.B) {
 func BenchmarkProviderNoExpectedTagsNil(b *testing.B) {
 	b.ReportAllocs()
 
-	m, start := setupConfig(nil)
+	m, start := setupConfig(b, nil)
 	defer func() {
 		config.StartTime = start
 	}()

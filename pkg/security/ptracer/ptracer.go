@@ -14,6 +14,8 @@ import (
 	"fmt"
 	"os"
 	"runtime"
+	"slices"
+	"sync"
 	"syscall"
 	"time"
 
@@ -54,9 +56,10 @@ const (
 // Tracer represents a tracer
 type Tracer struct {
 	// PID represents a PID
-	PID  int
-	Args []string
-	Envs []string
+	pidLock sync.RWMutex
+	PIDs    []int
+	Args    []string
+	Envs    []string
 
 	// internals
 	info *arch.Info
@@ -256,12 +259,27 @@ func isExited(waitStatus syscall.WaitStatus) bool {
 	return waitStatus.Exited() || waitStatus.CoreDump() || waitStatus.Signaled()
 }
 
+func (t *Tracer) pidExited(pid int) int {
+	t.pidLock.Lock()
+	defer t.pidLock.Unlock()
+
+	t.PIDs = slices.DeleteFunc(t.PIDs, func(p int) bool {
+		return p == pid
+	})
+	return len(t.PIDs)
+}
+
 func (t *Tracer) trace(cb func(cbType CallbackType, nr int, pid int, ppid int, regs syscall.PtraceRegs, waitStatus *syscall.WaitStatus)) error {
 	var waitStatus syscall.WaitStatus
 
-	if err := syscall.PtraceSyscall(t.PID, 0); err != nil {
-		return err
+	t.pidLock.RLock()
+	for _, pid := range t.PIDs {
+		if err := syscall.PtraceSyscall(pid, 0); err != nil {
+			t.pidLock.RUnlock()
+			return err
+		}
 	}
+	t.pidLock.RUnlock()
 
 	var (
 		tracker = NewSyscallStateTracker()
@@ -278,9 +296,10 @@ func (t *Tracer) trace(cb func(cbType CallbackType, nr int, pid int, ppid int, r
 		if isExited(waitStatus) {
 			tracker.Exit(pid)
 
-			if pid == t.PID {
+			if t.pidExited(pid) == 0 {
 				break
 			}
+
 			cb(CallbackExitType, ExitNr, pid, 0, regs, &waitStatus)
 			continue
 		}
@@ -301,9 +320,10 @@ func (t *Tracer) trace(cb func(cbType CallbackType, nr int, pid int, ppid int, r
 				// it got probably killed
 				cb(CallbackExitType, ExitNr, pid, 0, regs, &waitStatus)
 
-				if pid == t.PID {
+				if t.pidExited(pid) == 0 {
 					break
 				}
+
 				continue
 			}
 
@@ -353,9 +373,14 @@ func (t *Tracer) trace(cb func(cbType CallbackType, nr int, pid int, ppid int, r
 func (t *Tracer) traceWithSeccomp(cb func(cbType CallbackType, nr int, pid int, ppid int, regs syscall.PtraceRegs, waitStatus *syscall.WaitStatus)) error {
 	var waitStatus syscall.WaitStatus
 
-	if err := syscall.PtraceCont(t.PID, 0); err != nil {
-		return err
+	t.pidLock.RLock()
+	for _, pid := range t.PIDs {
+		if err := syscall.PtraceCont(pid, 0); err != nil {
+			t.pidLock.RUnlock()
+			return err
+		}
 	}
+	t.pidLock.RUnlock()
 
 	var (
 		regs syscall.PtraceRegs
@@ -369,9 +394,10 @@ func (t *Tracer) traceWithSeccomp(cb func(cbType CallbackType, nr int, pid int, 
 		}
 
 		if isExited(waitStatus) {
-			if pid == t.PID {
+			if t.pidExited(pid) == 0 {
 				break
 			}
+
 			cb(CallbackExitType, ExitNr, pid, 0, regs, &waitStatus)
 			continue
 		}
@@ -392,9 +418,10 @@ func (t *Tracer) traceWithSeccomp(cb func(cbType CallbackType, nr int, pid int, 
 				// it got probably killed
 				cb(CallbackExitType, ExitNr, pid, 0, regs, &waitStatus)
 
-				if pid == t.PID {
+				if t.pidExited(pid) == 0 {
 					break
 				}
+
 				continue
 			}
 
@@ -489,7 +516,7 @@ func traceFilterProg(opts TracerOpts) (*syscall.SockFprog, error) {
 }
 
 // AttachTracer attach the tracer to the given pid
-func AttachTracer(pid int, opts TracerOpts) (*Tracer, error) {
+func AttachTracer(pids []int, opts TracerOpts) (*Tracer, error) {
 	info, err := arch.GetInfo("")
 	if err != nil {
 		return nil, err
@@ -497,22 +524,24 @@ func AttachTracer(pid int, opts TracerOpts) (*Tracer, error) {
 
 	runtime.LockOSThread()
 
-	if err := syscall.PtraceAttach(pid); err != nil {
-		return nil, fmt.Errorf("unable to attach to pid `%d`: %w", pid, err)
-	}
+	for _, pid := range pids {
+		if err := syscall.PtraceAttach(pid); err != nil {
+			return nil, fmt.Errorf("unable to attach to pid `%d`: %w", pid, err)
+		}
 
-	var wstatus syscall.WaitStatus
-	if _, err := syscall.Wait4(pid, &wstatus, 0, nil); err != nil {
-		return nil, fmt.Errorf("unable to call wait4 on `%d`: %w", pid, err)
-	}
+		var wstatus syscall.WaitStatus
+		if _, err := syscall.Wait4(pid, &wstatus, 0, nil); err != nil {
+			return nil, fmt.Errorf("unable to call wait4 on `%d`: %w", pid, err)
+		}
 
-	err = syscall.PtraceSetOptions(pid, ptraceFlags)
-	if err != nil {
-		return nil, fmt.Errorf("unable to ptrace `%d`, please verify the capabilities: %w", pid, err)
+		err = syscall.PtraceSetOptions(pid, ptraceFlags)
+		if err != nil {
+			return nil, fmt.Errorf("unable to ptrace `%d`, please verify the capabilities: %w", pid, err)
+		}
 	}
 
 	return &Tracer{
-		PID:                      pid,
+		PIDs:                     pids,
 		info:                     info,
 		opts:                     opts,
 		userCacheRefreshLimiter:  rate.NewLimiter(rate.Every(defaultUserGroupRateLimit), 1),
@@ -555,7 +584,7 @@ func NewTracer(path string, args []string, envs []string, opts TracerOpts) (*Tra
 	}
 
 	return &Tracer{
-		PID:                      pid,
+		PIDs:                     []int{pid},
 		Args:                     args,
 		Envs:                     envs,
 		info:                     info,

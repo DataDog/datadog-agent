@@ -13,17 +13,18 @@ import (
 
 	"github.com/stretchr/testify/suite"
 
-	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	model "github.com/DataDog/datadog-agent/pkg/config/model"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
 )
 
 type YamlConfigTestSuite struct {
 	suite.Suite
-	config *coreConfig.MockConfig
+	config model.Config
 }
 
 func (suite *YamlConfigTestSuite) SetupTest() {
-	suite.config = coreConfig.Mock(nil)
+	suite.config = configmock.New(suite.T())
 }
 
 func (suite *YamlConfigTestSuite) TestExtractOrchestratorDDOrchestratorUrl() {

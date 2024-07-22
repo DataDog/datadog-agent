@@ -18,6 +18,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"slices"
 	"sync"
 	"syscall"
 	"time"
@@ -157,10 +158,10 @@ func registerSyscallHandlers() (map[int]syscallHandler, []string) {
 }
 
 // Attach attach the ptracer
-func Attach(pid int, probeAddr string, opts Opts) error {
+func Attach(pids []int, probeAddr string, opts Opts) error {
 	logger := Logger{opts.Verbose}
 
-	logger.Debugf("Attach %d [%s] using `standard` mode", pid, os.Getenv("DD_CONTAINER_ID"))
+	logger.Debugf("Attach to pid %+v [%s] using `standard` mode", pids, os.Getenv("DD_CONTAINER_ID"))
 
 	if path := os.Getenv(EnvPasswdPathOverride); path != "" {
 		passwdPath = path
@@ -177,7 +178,7 @@ func Attach(pid int, probeAddr string, opts Opts) error {
 		SeccompDisabled: true, // force to true, can't use seccomp with the attach mode
 	}
 
-	tracer, err := AttachTracer(pid, tracerOpts)
+	tracer, err := AttachTracer(pids, tracerOpts)
 	if err != nil {
 		return err
 	}
@@ -320,19 +321,23 @@ func ptrace(tracer *Tracer, probeAddr string, syscallHandlers map[int]syscallHan
 
 	pc := NewProcessCache()
 
-	// first process
-	process := NewProcess(tracer.PID)
-	pc.Add(tracer.PID, process)
+	// first processes
+	for _, pid := range tracer.PIDs {
+		process := NewProcess(pid)
+		pc.Add(pid, process)
+	}
 
-	// collect tracer via proc
+	// collect tracees via proc
 	if opts.capturePtracerProc {
-		proc, err := collectProcess(int32(tracer.PID))
-		if err != nil {
-			return err
-		}
+		for _, pid := range tracer.PIDs {
+			proc, err := collectProcess(int32(pid))
+			if err != nil {
+				return err
+			}
 
-		if msg, err := procToMsg(proc); err == nil {
-			send(msg)
+			if msg, err := procToMsg(proc); err == nil {
+				send(msg)
+			}
 		}
 	}
 
@@ -435,11 +440,16 @@ func ptrace(tracer *Tracer, probeAddr string, syscallHandlers map[int]syscallHan
 			// introduce a delay before starting to scan procfs to let the tracer event first
 			time.Sleep(2 * time.Second)
 
-			scanProcfs(ctx, tracer.PID, send, every, logger)
+			scanProcfs(ctx, tracer, send, every, logger)
 		}()
 	}
 
 	cb := func(cbType CallbackType, nr int, pid int, ppid int, regs syscall.PtraceRegs, waitStatus *syscall.WaitStatus) {
+		handler, found := syscallHandlers[nr]
+		if !found && !slices.Contains([]int{ExecveNr, ExecveatNr, IoctlNr, CloneNr, Clone3Nr, ForkNr, VforkNr, ExitNr}, nr) {
+			return
+		}
+
 		process := pc.Get(pid)
 		if process == nil {
 			process = NewProcess(pid)
@@ -470,8 +480,7 @@ func ptrace(tracer *Tracer, probeAddr string, syscallHandlers map[int]syscallHan
 				process.Nr[nr] = syscallMsg
 			}
 
-			handler, found := syscallHandlers[nr]
-			if found && handler.Func != nil {
+			if handler.Func != nil {
 				err := handler.Func(tracer, process, syscallMsg, regs, opts.StatsDisabled)
 				if err != nil {
 					return
@@ -484,33 +493,35 @@ func ptrace(tracer *Tracer, probeAddr string, syscallHandlers map[int]syscallHan
 			/* internal special cases */
 			switch nr {
 			case ExecveNr:
-				// Top level pid, add opts.Creds. For the other PIDs the creds will be propagated at the probe side
-				if process.Pid == tracer.PID {
-					var uid, gid uint32
+				// Top level pids, add opts.Creds. For the other PIDs the creds will be propagated at the probe side
+				for _, pid := range tracer.PIDs {
+					if process.Pid == pid {
+						var uid, gid uint32
 
-					if opts.Creds.UID != nil {
-						uid = *opts.Creds.UID
-					} else {
-						uid = uint32(os.Getuid())
-					}
+						if opts.Creds.UID != nil {
+							uid = *opts.Creds.UID
+						} else {
+							uid = uint32(os.Getuid())
+						}
 
-					if opts.Creds.GID != nil {
-						gid = *opts.Creds.GID
-					} else {
-						gid = uint32(os.Getgid())
-					}
+						if opts.Creds.GID != nil {
+							gid = *opts.Creds.GID
+						} else {
+							gid = uint32(os.Getgid())
+						}
 
-					syscallMsg.Exec.Credentials = &ebpfless.Credentials{
-						UID:  uid,
-						EUID: uid,
-						GID:  gid,
-						EGID: gid,
-					}
-					if !opts.StatsDisabled {
-						syscallMsg.Exec.Credentials.User = getUserFromUID(tracer, int32(syscallMsg.Exec.Credentials.UID))
-						syscallMsg.Exec.Credentials.EUser = getUserFromUID(tracer, int32(syscallMsg.Exec.Credentials.EUID))
-						syscallMsg.Exec.Credentials.Group = getGroupFromGID(tracer, int32(syscallMsg.Exec.Credentials.GID))
-						syscallMsg.Exec.Credentials.EGroup = getGroupFromGID(tracer, int32(syscallMsg.Exec.Credentials.EGID))
+						syscallMsg.Exec.Credentials = &ebpfless.Credentials{
+							UID:  uid,
+							EUID: uid,
+							GID:  gid,
+							EGID: gid,
+						}
+						if !opts.StatsDisabled {
+							syscallMsg.Exec.Credentials.User = getUserFromUID(tracer, int32(syscallMsg.Exec.Credentials.UID))
+							syscallMsg.Exec.Credentials.EUser = getUserFromUID(tracer, int32(syscallMsg.Exec.Credentials.EUID))
+							syscallMsg.Exec.Credentials.Group = getGroupFromGID(tracer, int32(syscallMsg.Exec.Credentials.GID))
+							syscallMsg.Exec.Credentials.EGroup = getGroupFromGID(tracer, int32(syscallMsg.Exec.Credentials.EGID))
+						}
 					}
 				}
 
@@ -533,8 +544,7 @@ func ptrace(tracer *Tracer, probeAddr string, syscallHandlers map[int]syscallHan
 			}
 		case CallbackPostType:
 			syscallMsg, msgExists := process.Nr[nr]
-			handler, handlerFound := syscallHandlers[nr]
-			if handlerFound && msgExists && (handler.ShouldSend != nil || handler.RetFunc != nil) {
+			if msgExists {
 				if handler.RetFunc != nil {
 					err := handler.RetFunc(tracer, process, syscallMsg, regs, opts.StatsDisabled)
 					if err != nil {

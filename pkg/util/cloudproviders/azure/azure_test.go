@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
 func TestGetAlias(t *testing.T) {
@@ -168,7 +169,7 @@ func TestGetHostname(t *testing.T) {
 		{"invalid", "", true},
 	}
 
-	mockConfig := config.Mock(t)
+	mockConfig := configmock.New(t)
 
 	for _, tt := range cases {
 		mockConfig.SetWithoutSource(hostnameStyleSetting, tt.style)
@@ -206,7 +207,7 @@ func TestGetHostnameKubernetesTag(t *testing.T) {
 		{"invalid", "", true},
 	}
 
-	mockConfig := config.Mock(t)
+	mockConfig := configmock.New(t)
 
 	for _, tt := range cases {
 		mockConfig.SetWithoutSource(hostnameStyleSetting, tt.style)
@@ -218,7 +219,7 @@ func TestGetHostnameKubernetesTag(t *testing.T) {
 
 func TestGetHostnameWithInvalidMetadata(t *testing.T) {
 	ctx := context.Background()
-	mockConfig := config.Mock(t)
+	mockConfig := configmock.New(t)
 
 	styles := []string{"vmid", "name", "name_and_resource_group", "full"}
 

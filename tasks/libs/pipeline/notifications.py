@@ -9,7 +9,7 @@ from collections import defaultdict
 
 import gitlab
 import yaml
-from gitlab.v4.objects import ProjectJob
+from gitlab.v4.objects import ProjectCommit, ProjectJob, ProjectPipeline
 from invoke.context import Context
 
 from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
@@ -34,7 +34,7 @@ def load_and_validate(
     return result
 
 
-DATADOG_AGENT_GITHUB_ORG_URL = "https://github.com/DataDog"
+GITHUB_BASE_URL = "https://github.com"
 DEFAULT_SLACK_CHANNEL = "#agent-devx-ops"
 DEFAULT_JIRA_PROJECT = "AGNTR"
 # Map keys in lowercase
@@ -118,23 +118,21 @@ def get_pr_from_commit(commit_title, project_title) -> tuple[str, str] | None:
 
     parsed_pr_id = parsed_pr_id_found.group(1)
 
-    return parsed_pr_id, f"{DATADOG_AGENT_GITHUB_ORG_URL}/{project_title}/pull/{parsed_pr_id}"
+    return parsed_pr_id, f"{GITHUB_BASE_URL}/{project_title}/pull/{parsed_pr_id}"
 
 
-def base_message(header, state):
-    project_title = os.getenv("CI_PROJECT_TITLE")
-    # commit_title needs a default string value, otherwise the re.search line below crashes
-    commit_title = os.getenv("CI_COMMIT_TITLE", "")
-    pipeline_url = os.getenv("CI_PIPELINE_URL")
-    pipeline_id = os.getenv("CI_PIPELINE_ID")
-    commit_ref_name = os.getenv("CI_COMMIT_REF_NAME")
-    commit_url_gitlab = f"{os.getenv('CI_PROJECT_URL')}/commit/{os.getenv('CI_COMMIT_SHA')}"
-    commit_url_github = f"{DATADOG_AGENT_GITHUB_ORG_URL}/{project_title}/commit/{os.getenv('CI_COMMIT_SHA')}"
-    commit_short_sha = os.getenv("CI_COMMIT_SHORT_SHA")
-    author = get_git_author()
+def base_message(project_name: str, pipeline: ProjectPipeline, commit: ProjectCommit, header: str, state: str):
+    commit_title = commit.title
+    pipeline_url = pipeline.web_url
+    pipeline_id = pipeline.id
+    commit_ref_name = pipeline.ref
+    commit_url_gitlab = commit.web_url
+    commit_url_github = f"{GITHUB_BASE_URL}/{project_name}/commit/{commit.id}"
+    commit_short_sha = commit.id[-8:]
+    author = commit.author_name
 
     # Try to find a PR id (e.g #12345) in the commit title and add a link to it in the message if found.
-    pr_info = get_pr_from_commit(commit_title, project_title)
+    pr_info = get_pr_from_commit(commit_title, project_name)
     enhanced_commit_title = commit_title
     if pr_info:
         parsed_pr_id, pr_url_github = pr_info
@@ -142,17 +140,6 @@ def base_message(header, state):
 
     return f"""{header} pipeline <{pipeline_url}|{pipeline_id}> for {commit_ref_name} {state}.
 {enhanced_commit_title} (<{commit_url_gitlab}|{commit_short_sha}>)(:github: <{commit_url_github}|link>) by {author}"""
-
-
-def get_git_author(email=False):
-    format = 'ae' if email else 'an'
-
-    return (
-        subprocess.check_output(["git", "show", "-s", f"--format='%{format}'", "HEAD"])
-        .decode('utf-8')
-        .strip()
-        .replace("'", "")
-    )
 
 
 def send_slack_message(recipient, message):
