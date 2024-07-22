@@ -81,7 +81,7 @@ static __attribute__((always_inline)) int trace__cgroup_write(ctx_t *ctx) {
 
     int check_validity = 0;
     u32 container_flags = 0;
-    char prefix[15];
+    char prefix[63];
 
     switch (cgroup_write_type) {
     case CGROUP_DEFAULT: {
@@ -153,6 +153,16 @@ static __attribute__((always_inline)) int trace__cgroup_write(ctx_t *ctx) {
 #endif
 
     bpf_probe_read(&new_entry.container.container_id, sizeof(new_entry.container.container_id), container_id);
+
+    int length = bpf_probe_read_str(&prefix, sizeof(prefix), container_id) & 0x3f;
+    if (length >= 9 && prefix[length-9] == '.' && prefix[length-8] == 's' && prefix[length-7] == 'e'
+            && prefix[length-6] == 'r' && prefix[length-5] == 'v' && prefix[length-4] == 'i'
+            && prefix[length-3] == 'c' && prefix[length-2] == 'e') {
+        new_entry.container.container_id[length-9] = '\0';
+        check_validity = 0;
+        container_flags |= CGROUP_MANAGER_SYSTEMD;
+    }
+
     new_entry.container.cgroup_context.cgroup_flags = container_flags;
 
     if (check_validity && !is_container_id_valid(new_entry.container.container_id)) {
