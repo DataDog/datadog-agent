@@ -7,6 +7,7 @@ package networkpath
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -80,7 +81,7 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	c.DestinationService = instance.DestinationService
 	c.MaxTTL = instance.MaxTTL
 	c.TimeoutMs = instance.TimeoutMs
-	c.Protocol = payload.Protocol(instance.Protocol)
+	c.Protocol = payload.Protocol(strings.ToUpper(instance.Protocol))
 
 	c.MinCollectionInterval = firstNonZero(
 		time.Duration(instance.MinCollectionInterval)*time.Second,
