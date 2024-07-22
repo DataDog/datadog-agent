@@ -23,8 +23,7 @@ def debug(_, wait=True, host='localhost', port=5678):
 
     if not (Path(VSCODE_DIR) / VSCODE_LAUNCH_FILE).exists():
         print(
-            color_message('warning:', Color.ORANGE),
-            'No launch.json file found, you should run `inv vscode.setup-launch` to have a debug configuration.',
+            f"{color_message('warning:', Color.ORANGE)} {color_message('(For VS Code users)', Color.BLUE)} No launch.json file found, you should run `inv vscode.setup-launch` to have a debug configuration.",
         )
 
     debugpy.listen((host, port))
