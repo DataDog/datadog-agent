@@ -101,17 +101,7 @@ func GetCheckStats() map[string]map[checkid.ID]*checkstats.Stats {
 
 	// Because the returned maps will be used after the lock is released, and
 	// thus when they might be further modified, we must clone them here.
-
-	cloned := make(map[string]map[checkid.ID]*checkstats.Stats)
-	for k, v := range checkStats.stats {
-		innerCloned := make(map[checkid.ID]*checkstats.Stats)
-		for innerK, innerV := range v {
-			innerCloned[innerK] = deepcopy.Copy(innerV).(*checkstats.Stats)
-		}
-		cloned[k] = innerCloned
-	}
-
-	return cloned
+	return deepcopy.Copy(checkStats.stats).(map[string]map[checkid.ID]*checkstats.Stats)
 }
 
 // AddCheckStats adds runtime stats to the check's expvars

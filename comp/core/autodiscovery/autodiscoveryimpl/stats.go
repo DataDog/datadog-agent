@@ -7,8 +7,9 @@ package autodiscoveryimpl
 
 import (
 	"expvar"
-	"slices"
 	"sync"
+
+	"github.com/mohae/deepcopy"
 )
 
 var (
@@ -90,13 +91,7 @@ func (es *acErrorStats) getResolveWarnings() map[string][]string {
 	es.m.RLock()
 	defer es.m.RUnlock()
 
-	resolveCopy := make(map[string][]string)
-	for k, v := range es.resolve {
-		// the slice can be modified so it has to be cloned too
-		resolveCopy[k] = slices.Clone(v)
-	}
-
-	return resolveCopy
+	return deepcopy.Copy(es.resolve).(map[string][]string)
 }
 
 // GetConfigErrors gets the config errors

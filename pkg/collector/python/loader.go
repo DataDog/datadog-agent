@@ -11,24 +11,22 @@ import (
 	"errors"
 	"expvar"
 	"fmt"
-	"slices"
 	"strings"
 	"sync"
 	"unsafe"
+
+	"github.com/mohae/deepcopy"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
-
-	//nolint:revive // TODO(AML) Fix revive linter
 	agentConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
-	"github.com/DataDog/datadog-agent/pkg/version"
-
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 /*
@@ -236,12 +234,7 @@ func expvarConfigureErrors() interface{} {
 	statsLock.RLock()
 	defer statsLock.RUnlock()
 
-	configureErrorsCopy := map[string][]string{}
-	for k, v := range configureErrors {
-		configureErrorsCopy[k] = slices.Clone(v)
-	}
-
-	return configureErrorsCopy
+	return deepcopy.Copy(configureErrors)
 }
 
 func addExpvarConfigureError(check string, errMsg string) {
@@ -261,12 +254,7 @@ func expvarPy3Warnings() interface{} {
 	statsLock.RLock()
 	defer statsLock.RUnlock()
 
-	py3WarningsCopy := map[string][]string{}
-	for k, v := range py3Warnings {
-		py3WarningsCopy[k] = slices.Clone(v)
-	}
-
-	return py3WarningsCopy
+	return deepcopy.Copy(py3Warnings)
 }
 
 // reportPy3Warnings runs the a7 linter and exports the result in both expvar
