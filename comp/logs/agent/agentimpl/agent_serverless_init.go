@@ -36,7 +36,7 @@ import (
 func (a *logAgent) SetupPipeline(
 	processingRules []*config.ProcessingRule,
 	wmeta optional.Option[workloadmeta.Component],
-  _ integrations.Component
+	_ integrations.Component,
 ) {
 	health := health.RegisterLiveness("logs-agent")
 
