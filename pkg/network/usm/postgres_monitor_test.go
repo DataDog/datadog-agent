@@ -30,7 +30,6 @@ import (
 	protocolsUtils "github.com/DataDog/datadog-agent/pkg/network/protocols/testutil"
 	gotlstestutil "github.com/DataDog/datadog-agent/pkg/network/protocols/tls/gotls/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 )
 
 const (
@@ -113,8 +112,6 @@ func (s *postgresProtocolParsingSuite) TestLoadPostgresBinary() {
 
 func (s *postgresProtocolParsingSuite) TestDecoding() {
 	t := s.T()
-	// USMON-1080
-	flake.Mark(t)
 
 	tests := []struct {
 		name  string
