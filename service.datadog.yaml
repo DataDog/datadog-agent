@@ -1,6 +1,7 @@
 ---
 schema-version: v2.1
 dd-service: datadog-agent-nightly
+team: "agent-delivery"
 contacts:
   - type: slack
     # #agent-delivery-help
