@@ -15,31 +15,31 @@ func TestPathtest_GetHash(t *testing.T) {
 	p1 := Pathtest{
 		Hostname:          "aaa1",
 		Port:              80,
-		Protocol:          "tcp",
+		Protocol:          "TCP",
 		SourceContainerID: "containerID1",
 	}
 	p2 := Pathtest{
 		Hostname:          "aaa2",
 		Port:              80,
-		Protocol:          "tcp",
+		Protocol:          "TCP",
 		SourceContainerID: "containerID1",
 	}
 	p3 := Pathtest{
 		Hostname:          "aaa1",
 		Port:              81,
-		Protocol:          "tcp",
+		Protocol:          "TCP",
 		SourceContainerID: "containerID1",
 	}
 	p4 := Pathtest{
 		Hostname:          "aaa1",
 		Port:              80,
-		Protocol:          "udp",
+		Protocol:          "UDP",
 		SourceContainerID: "containerID1",
 	}
 	p5 := Pathtest{
 		Hostname:          "aaa1",
 		Port:              80,
-		Protocol:          "tcp",
+		Protocol:          "TCP",
 		SourceContainerID: "containerID2",
 	}
 

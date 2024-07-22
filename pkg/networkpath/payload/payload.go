@@ -13,9 +13,9 @@ type Protocol string
 
 const (
 	// ProtocolTCP is the TCP protocol.
-	ProtocolTCP Protocol = "tcp"
+	ProtocolTCP Protocol = "TCP"
 	// ProtocolUDP is the UDP protocol.
-	ProtocolUDP Protocol = "udp"
+	ProtocolUDP Protocol = "UDP"
 )
 
 // NetworkPathHop encapsulates the data for a single
