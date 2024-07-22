@@ -199,7 +199,7 @@ func TestInjectAutoInstruConfig(t *testing.T) {
 			pod:  common.FakePodWithEnvFieldRefValue("dotnet-pod", "CORECLR_PROFILER", "path"),
 			libsToInject: []libInfo{
 				{
-					lang:  "dotnet",
+					lang:  dotnet,
 					image: "gcr.io/datadoghq/dd-lib-dotnet-init:v1",
 				},
 			},
@@ -210,7 +210,7 @@ func TestInjectAutoInstruConfig(t *testing.T) {
 			pod:  common.FakePod("ruby-pod"),
 			libsToInject: []libInfo{
 				{
-					lang:  "ruby",
+					lang:  ruby,
 					image: "gcr.io/datadoghq/dd-lib-ruby-init:v1",
 				},
 			},
