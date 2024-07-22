@@ -7,6 +7,7 @@ package autodiscoveryimpl
 
 import (
 	"expvar"
+	"slices"
 	"sync"
 )
 
@@ -91,7 +92,8 @@ func (es *acErrorStats) getResolveWarnings() map[string][]string {
 
 	resolveCopy := make(map[string][]string)
 	for k, v := range es.resolve {
-		resolveCopy[k] = v
+		// the slice can be modified so it has to be cloned too
+		resolveCopy[k] = slices.Clone(v)
 	}
 
 	return resolveCopy

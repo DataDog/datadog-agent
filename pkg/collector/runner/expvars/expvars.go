@@ -98,14 +98,13 @@ func GetCheckStats() map[string]map[checkid.ID]*checkstats.Stats {
 	defer checkStats.statsLock.RUnlock()
 
 	// Because the returned maps will be used after the lock is released, and
-	// thus when they might be further modified, we must clone them here.  The
-	// map values (`stats.Stats`) are threadsafe and need not be cloned.
+	// thus when they might be further modified, we must clone them here.
 
 	cloned := make(map[string]map[checkid.ID]*checkstats.Stats)
 	for k, v := range checkStats.stats {
 		innerCloned := make(map[checkid.ID]*checkstats.Stats)
 		for innerK, innerV := range v {
-			innerCloned[innerK] = innerV
+			innerCloned[innerK] = innerV.Clone()
 		}
 		cloned[k] = innerCloned
 	}

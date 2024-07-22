@@ -11,6 +11,7 @@ import (
 	"errors"
 	"expvar"
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 	"unsafe"
@@ -237,9 +238,7 @@ func expvarConfigureErrors() interface{} {
 
 	configureErrorsCopy := map[string][]string{}
 	for k, v := range configureErrors {
-		errors := []string{}
-		errors = append(errors, v...)
-		configureErrorsCopy[k] = errors
+		configureErrorsCopy[k] = slices.Clone(v)
 	}
 
 	return configureErrorsCopy
@@ -264,9 +263,7 @@ func expvarPy3Warnings() interface{} {
 
 	py3WarningsCopy := map[string][]string{}
 	for k, v := range py3Warnings {
-		warnings := []string{}
-		warnings = append(warnings, v...)
-		py3WarningsCopy[k] = warnings
+		py3WarningsCopy[k] = slices.Clone(v)
 	}
 
 	return py3WarningsCopy
