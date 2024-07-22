@@ -1971,7 +1971,7 @@ def tag_ci_job(ctx: Context):
 
         e2e_retry_count = ci_project_dir / "e2e-retry-count"
         if e2e_retry_count.is_file():
-            metrics["e2e_retry_count"] = e2e_retry_count.read_text().strip()
+            metrics["pulumi_retry_count"] = e2e_retry_count.read_text().strip()
 
     tag_prefix = "kmt."
     tags_str = " ".join(f"--tags '{tag_prefix}{k}:{v}'" for k, v in tags.items())
