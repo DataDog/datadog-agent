@@ -27,6 +27,8 @@ from tasks.libs.json import JSONWithCommentsDecoder
 
 VSCODE_DIR = ".vscode"
 VSCODE_FILE = "settings.json"
+VSCODE_LAUNCH_FILE = "launch.json"
+VSCODE_LAUNCH_TEMPLATE = "launch.json.template"
 VSCODE_EXTENSIONS_FILE = "extensions.json"
 
 
@@ -131,3 +133,21 @@ def setup_extensions(ctx: Context):
     for extension in content.get("recommendations", []):
         print(color_message(f"Installing extension {extension}", Color.BLUE))
         ctx.run(f"code --install-extension {extension} --force")
+
+
+@task
+def setup_launch(_: Context, force=False):
+    """
+    This creates the `.vscode/launch.json` file based on the `.vscode/launch.json.template` file
+
+    - force: Force file override
+    """
+    file = Path(VSCODE_DIR) / VSCODE_LAUNCH_FILE
+    template = Path(VSCODE_DIR) / VSCODE_LAUNCH_TEMPLATE
+
+    if file.exists() and not force:
+        raise Exit(color_message(f'File {file} already exists, use --force to override it', Color.RED), 1)
+
+    shutil.copy(template, file)
+
+    print(color_message('Launch config created, open Run and Debug tab in VSCode to start debugging', Color.GREEN))
