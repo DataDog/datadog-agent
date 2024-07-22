@@ -7,6 +7,7 @@
 package converterfx
 
 import (
+	converter "github.com/DataDog/datadog-agent/comp/otelcol/converter/def"
 	converterimpl "github.com/DataDog/datadog-agent/comp/otelcol/converter/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -15,5 +16,6 @@ import (
 func Module() fxutil.Module {
 	return fxutil.Component(
 		fxutil.ProvideComponentConstructor(converterimpl.NewConverter),
+		fxutil.ProvideOptional[converter.Component](),
 	)
 }

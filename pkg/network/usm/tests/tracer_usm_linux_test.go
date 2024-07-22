@@ -2290,7 +2290,7 @@ func goTLSAttachPID(t *testing.T, pid int) {
 		return
 	}
 	require.NoError(t, usm.GoTLSAttachPID(uint32(pid)))
-	utils.WaitForProgramsToBeTraced(t, "go-tls", pid)
+	utils.WaitForProgramsToBeTraced(t, "go-tls", pid, utils.ManualTracingFallbackEnabled)
 }
 
 // goTLSDetachPID detaches the Go-TLS monitoring from the given PID.

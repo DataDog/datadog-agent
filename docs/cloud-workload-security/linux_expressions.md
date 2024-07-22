@@ -128,6 +128,15 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`event.os`](#event-os-doc) | Operating system of the event |
 | [`event.service`](#event-service-doc) | Service associated with the event |
 | [`event.timestamp`](#event-timestamp-doc) | Timestamp of the event |
+| [`network.destination.ip`](#common-ipportcontext-ip-doc) | IP address |
+| [`network.destination.port`](#common-ipportcontext-port-doc) | Port number |
+| [`network.device.ifindex`](#network-device-ifindex-doc) | Interface ifindex |
+| [`network.device.ifname`](#network-device-ifname-doc) | Interface ifname |
+| [`network.l3_protocol`](#network-l3_protocol-doc) | L3 protocol of the network packet |
+| [`network.l4_protocol`](#network-l4_protocol-doc) | L4 protocol of the network packet |
+| [`network.size`](#network-size-doc) | Size in bytes of the network packet |
+| [`network.source.ip`](#common-ipportcontext-ip-doc) | IP address |
+| [`network.source.port`](#common-ipportcontext-port-doc) | Port number |
 | [`process.ancestors.args`](#common-process-args-doc) | Arguments of the process (as a string, excluding argv0) |
 | [`process.ancestors.args_flags`](#common-process-args_flags-doc) | Flags in the process arguments |
 | [`process.ancestors.args_options`](#common-process-args_options-doc) | Argument of the process as options |
@@ -504,15 +513,6 @@ A DNS request was sent
 | [`dns.question.name`](#dns-question-name-doc) | the queried domain name |
 | [`dns.question.name.length`](#common-string-length-doc) | Length of the corresponding string |
 | [`dns.question.type`](#dns-question-type-doc) | a two octet code which specifies the DNS question type |
-| [`network.destination.ip`](#common-ipportcontext-ip-doc) | IP address |
-| [`network.destination.port`](#common-ipportcontext-port-doc) | Port number |
-| [`network.device.ifindex`](#network-device-ifindex-doc) | interface ifindex |
-| [`network.device.ifname`](#network-device-ifname-doc) | interface ifname |
-| [`network.l3_protocol`](#network-l3_protocol-doc) | l3 protocol of the network packet |
-| [`network.l4_protocol`](#network-l4_protocol-doc) | l4 protocol of the network packet |
-| [`network.size`](#network-size-doc) | size in bytes of the network packet |
-| [`network.source.ip`](#common-ipportcontext-ip-doc) | IP address |
-| [`network.source.port`](#common-ipportcontext-port-doc) | Port number |
 
 ### Event `exec`
 
@@ -2833,21 +2833,21 @@ Constants: [Virtual Memory flags](#virtual-memory-flags)
 ### `network.device.ifindex` {#network-device-ifindex-doc}
 Type: int
 
-Definition: interface ifindex
+Definition: Interface ifindex
 
 
 
 ### `network.device.ifname` {#network-device-ifname-doc}
 Type: string
 
-Definition: interface ifname
+Definition: Interface ifname
 
 
 
 ### `network.l3_protocol` {#network-l3_protocol-doc}
 Type: int
 
-Definition: l3 protocol of the network packet
+Definition: L3 protocol of the network packet
 
 
 Constants: [L3 protocols](#l3-protocols)
@@ -2857,7 +2857,7 @@ Constants: [L3 protocols](#l3-protocols)
 ### `network.l4_protocol` {#network-l4_protocol-doc}
 Type: int
 
-Definition: l4 protocol of the network packet
+Definition: L4 protocol of the network packet
 
 
 Constants: [L4 protocols](#l4-protocols)
@@ -2867,7 +2867,7 @@ Constants: [L4 protocols](#l4-protocols)
 ### `network.size` {#network-size-doc}
 Type: int
 
-Definition: size in bytes of the network packet
+Definition: Size in bytes of the network packet
 
 
 

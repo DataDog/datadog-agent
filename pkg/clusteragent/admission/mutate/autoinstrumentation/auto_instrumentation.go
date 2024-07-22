@@ -255,9 +255,12 @@ func (w *Webhook) isEnabledInNamespace(namespace string) bool {
 	return w.injectionFilter.NSFilter.IsNamespaceEligible(namespace)
 }
 
-func (w *Webhook) inject(pod *corev1.Pod, _ string, _ dynamic.Interface) (bool, error) {
+func (w *Webhook) inject(pod *corev1.Pod, ns string, _ dynamic.Interface) (bool, error) {
 	if pod == nil {
 		return false, errors.New(metrics.InvalidInput)
+	}
+	if pod.Namespace == "" {
+		pod.Namespace = ns
 	}
 	injectApmTelemetryConfig(pod)
 

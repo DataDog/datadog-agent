@@ -52,7 +52,7 @@ var (
 	kubeEvents = telemetry.NewCounterWithOpts(
 		CheckName,
 		"kube_events",
-		[]string{"kind", "component", "type", "reason"},
+		[]string{"kind", "component", "type", "reason", "source"},
 		"Number of Kubernetes events received by the check.",
 		telemetry.Options{NoDoubleUnderscoreSep: true},
 	)
@@ -60,7 +60,7 @@ var (
 	emittedEvents = telemetry.NewCounterWithOpts(
 		CheckName,
 		"emitted_events",
-		[]string{"kind", "type"},
+		[]string{"kind", "type", "source"},
 		"Number of events emitted by the check.",
 		telemetry.Options{NoDoubleUnderscoreSep: true},
 	)

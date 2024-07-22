@@ -27,6 +27,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
@@ -57,6 +58,7 @@ type Host struct {
 	osFamily             oscomp.Family
 	// as per the documentation of http.Transport: "Transports should be reused instead of created as needed."
 	httpTransport *http.Transport
+	scrubber      *scrubber.Scrubber
 }
 
 // NewHost creates a new ssh client to connect to a remote host with
@@ -89,6 +91,7 @@ func NewHost(context e2e.Context, hostOutput remote.HostOutput) (*Host, error) {
 		buildCommand:         buildCommandFactory(hostOutput.OSFamily),
 		convertPathSeparator: convertPathSeparatorFactory(hostOutput.OSFamily),
 		osFamily:             hostOutput.OSFamily,
+		scrubber:             scrubber.NewWithDefaults(),
 	}
 
 	host.httpTransport = host.newHTTPTransport()
@@ -124,7 +127,8 @@ func (h *Host) Execute(command string, options ...ExecuteOption) (string, error)
 }
 
 func (h *Host) executeAndReconnectOnError(command string) (string, error) {
-	h.context.T().Logf("Executing command...") // don't print the command in case it contains secrets
+	scrubbedCommand := h.scrubber.ScrubLine(command) // scrub the command in case it contains secrets
+	h.context.T().Logf("Executing command `%s`", scrubbedCommand)
 	stdout, err := execute(h.client, command)
 	if err != nil && strings.Contains(err.Error(), "failed to create session:") {
 		err = h.Reconnect()

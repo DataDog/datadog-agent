@@ -97,6 +97,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs"
 	"github.com/DataDog/datadog-agent/comp/logs/adscheduler/adschedulerimpl"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
+	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/comp/metadata"
 	"github.com/DataDog/datadog-agent/comp/metadata/host"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
@@ -235,6 +236,7 @@ func run(log log.Component,
 	_ inventoryotel.Component,
 	_ secrets.Component,
 	invChecks inventorychecks.Component,
+	logReceiver optional.Option[integrations.Component],
 	_ netflowServer.Component,
 	_ snmptrapsServer.Component,
 	_ langDetectionCl.Component,
@@ -255,7 +257,7 @@ func run(log log.Component,
 	_ agenttelemetry.Component,
 ) error {
 	defer func() {
-		stopAgent(agentAPI)
+		stopAgent()
 	}()
 
 	// Setup a channel to catch OS signals
@@ -310,6 +312,7 @@ func run(log log.Component,
 		demultiplexer,
 		agentAPI,
 		invChecks,
+		logReceiver,
 		statusComponent,
 		collector,
 		cfg,
@@ -444,6 +447,9 @@ func getSharedFxOption() fx.Option {
 		fx.Provide(func(ms serializer.MetricSerializer) optional.Option[serializer.MetricSerializer] {
 			return optional.NewOption[serializer.MetricSerializer](ms)
 		}),
+		fx.Provide(func(logReceiver integrations.Component) optional.Option[integrations.Component] {
+			return optional.NewOption[integrations.Component](logReceiver)
+		}),
 		ndmtmp.Bundle(),
 		netflow.Bundle(),
 		rdnsquerierfx.Module(),
@@ -502,8 +508,9 @@ func startAgent(
 	_ serializer.MetricSerializer,
 	_ otelcollector.Component,
 	demultiplexer demultiplexer.Component,
-	agentAPI internalAPI.Component,
+	_ internalAPI.Component,
 	invChecks inventorychecks.Component,
+	logReceiver optional.Option[integrations.Component],
 	_ status.Component,
 	collector collector.Component,
 	cfg config.Component,
@@ -561,11 +568,6 @@ func startAgent(
 		}
 	}
 
-	// start the cmd HTTP server
-	if err = agentAPI.StartServer(); err != nil {
-		return log.Errorf("Error while starting api server, exiting: %v", err)
-	}
-
 	// start clc runner server
 	// only start when the cluster agent is enabled and a cluster check runner host is enabled
 	if pkgconfig.Datadog().GetBool("cluster_agent.enabled") && pkgconfig.Datadog().GetBool("clc_runner_enabled") {
@@ -599,7 +601,7 @@ func startAgent(
 
 	// Set up check collector
 	commonchecks.RegisterChecks(wmeta, cfg, telemetry)
-	ac.AddScheduler("check", pkgcollector.InitCheckScheduler(optional.NewOption(collector), demultiplexer), true)
+	ac.AddScheduler("check", pkgcollector.InitCheckScheduler(optional.NewOption(collector), demultiplexer, logReceiver), true)
 
 	demultiplexer.AddAgentStartupTelemetry(version.AgentVersion)
 
@@ -616,12 +618,12 @@ func startAgent(
 }
 
 // StopAgentWithDefaults is a temporary way for other packages to use stopAgent.
-func StopAgentWithDefaults(agentAPI internalAPI.Component) {
-	stopAgent(agentAPI)
+func StopAgentWithDefaults() {
+	stopAgent()
 }
 
 // stopAgent Tears down the agent process
-func stopAgent(agentAPI internalAPI.Component) {
+func stopAgent() {
 	// retrieve the agent health before stopping the components
 	// GetReadyNonBlocking has a 100ms timeout to avoid blocking
 	health, err := health.GetReadyNonBlocking()
@@ -631,7 +633,6 @@ func stopAgent(agentAPI internalAPI.Component) {
 		pkglog.Warnf("Some components were unhealthy: %v", health.Unhealthy)
 	}
 
-	agentAPI.StopServer()
 	clcrunnerapi.StopCLCRunnerServer()
 	jmxfetch.StopJmxfetch()
 
