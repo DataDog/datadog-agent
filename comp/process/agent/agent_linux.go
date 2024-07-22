@@ -21,8 +21,11 @@ import (
 // List of check names for process checks
 
 var (
-	enabled           bool
-	once              sync.Once
+	// enabled variable to ensure value returned by Enabled() persists when Enabled() is called multiple times
+	// during agent start up, instead of resorting to default value
+	enabled bool
+	// Once module variable, exported for testing
+	Once              sync.Once
 	processCheckNames = []string{
 		checks.ProcessCheckName,
 		checks.ContainerCheckName,
@@ -74,6 +77,7 @@ func enabledHelper(config config.Component, checkComponents []types.CheckCompone
 }
 
 // Enabled determines whether the process agent is enabled based on the configuration.
+// Enabled will only be run once, to prevent duplicate logging.
 // The process-agent component on linux can be run in the core agent or as a standalone process-agent
 // depending on the configuration.
 // It will run as a standalone Process-agent if 'run_in_core_agent' is not enabled or the connections/NPM check is
@@ -81,7 +85,7 @@ func enabledHelper(config config.Component, checkComponents []types.CheckCompone
 // If 'run_in_core_agent' flag is enabled and the connections/NPM check is not enabled, the process-agent will run in
 // the core agent.
 func Enabled(config config.Component, checkComponents []types.CheckComponent, log logComponent.Component) bool {
-	once.Do(func() {
+	Once.Do(func() {
 		enabled = enabledHelper(config, checkComponents, log)
 	})
 	return enabled

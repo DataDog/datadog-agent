@@ -9,6 +9,7 @@ package agentimpl
 
 import (
 	"net/http"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -148,6 +149,9 @@ func TestProcessAgentComponentOnLinux(t *testing.T) {
 					}
 				}))
 			}
+
+			// reset agent module global variable "Once" to ensure Enabled() function runs for each unit test
+			agent.Once = sync.Once{}
 
 			agentComponent := fxutil.Test[agent.Component](t, fx.Options(opts...))
 			assert.Equal(t, tc.expected, agentComponent.Enabled())
