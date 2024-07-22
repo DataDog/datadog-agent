@@ -821,7 +821,7 @@ func TestInjectLibInitContainer(t *testing.T) {
 					Add:  []corev1.Capability{"NET_ADMIN", "SYS_TIME"},
 					Drop: []corev1.Capability{"ALL"},
 				},
-				Privileged: pointerOf(false),
+				Privileged: pointer.Ptr(false),
 				SELinuxOptions: &corev1.SELinuxOptions{
 					User:  "test",
 					Role:  "root",
@@ -829,20 +829,20 @@ func TestInjectLibInitContainer(t *testing.T) {
 					Level: "s0:c123,c456",
 				},
 				WindowsOptions: &corev1.WindowsSecurityContextOptions{
-					GMSACredentialSpecName: pointerOf("Developer"),
-					GMSACredentialSpec:     pointerOf("http://localhost:8081"),
-					RunAsUserName:          pointerOf("Developer"),
-					HostProcess:            pointerOf(false),
+					GMSACredentialSpecName: pointer.Ptr("Developer"),
+					GMSACredentialSpec:     pointer.Ptr("http://localhost:8081"),
+					RunAsUserName:          pointer.Ptr("Developer"),
+					HostProcess:            pointer.Ptr(false),
 				},
-				RunAsUser:                pointerOf(int64(1001)),
-				RunAsGroup:               pointerOf(int64(5)),
-				RunAsNonRoot:             pointerOf(true),
-				ReadOnlyRootFilesystem:   pointerOf(true),
-				AllowPrivilegeEscalation: pointerOf(false),
-				ProcMount:                pointerOf(corev1.DefaultProcMount),
+				RunAsUser:                pointer.Ptr(int64(1001)),
+				RunAsGroup:               pointer.Ptr(int64(5)),
+				RunAsNonRoot:             pointer.Ptr(true),
+				ReadOnlyRootFilesystem:   pointer.Ptr(true),
+				AllowPrivilegeEscalation: pointer.Ptr(false),
+				ProcMount:                pointer.Ptr(corev1.DefaultProcMount),
 				SeccompProfile: &corev1.SeccompProfile{
 					Type:             "LocalHost",
-					LocalhostProfile: pointerOf("my-profiles/profile-allow.json"),
+					LocalhostProfile: pointer.Ptr("my-profiles/profile-allow.json"),
 				},
 			},
 		},
@@ -858,9 +858,9 @@ func TestInjectLibInitContainer(t *testing.T) {
 				Capabilities: &corev1.Capabilities{
 					Drop: []corev1.Capability{"ALL"},
 				},
-				RunAsNonRoot:             pointerOf(true),
-				ReadOnlyRootFilesystem:   pointerOf(true),
-				AllowPrivilegeEscalation: pointerOf(false),
+				RunAsNonRoot:             pointer.Ptr(true),
+				ReadOnlyRootFilesystem:   pointer.Ptr(true),
+				AllowPrivilegeEscalation: pointer.Ptr(false),
 				SeccompProfile: &corev1.SeccompProfile{
 					Type: "RuntimeDefault",
 				},
@@ -901,10 +901,6 @@ func TestInjectLibInitContainer(t *testing.T) {
 			require.Equal(t, tt.secCtx, expSecCtx)
 		})
 	}
-}
-
-func pointerOf[E any](e E) *E {
-	return &e
 }
 
 func expBasicConfig() []corev1.EnvVar {
@@ -2352,7 +2348,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 					Add:  []corev1.Capability{"NET_ADMIN", "SYS_TIME"},
 					Drop: []corev1.Capability{"ALL"},
 				},
-				Privileged: pointerOf(false),
+				Privileged: pointer.Ptr(false),
 				SELinuxOptions: &corev1.SELinuxOptions{
 					User:  "test",
 					Role:  "root",
@@ -2360,20 +2356,20 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 					Level: "s0:c123,c456",
 				},
 				WindowsOptions: &corev1.WindowsSecurityContextOptions{
-					GMSACredentialSpecName: pointerOf("Developer"),
-					GMSACredentialSpec:     pointerOf("http://localhost:8081"),
-					RunAsUserName:          pointerOf("Developer"),
-					HostProcess:            pointerOf(false),
+					GMSACredentialSpecName: pointer.Ptr("Developer"),
+					GMSACredentialSpec:     pointer.Ptr("http://localhost:8081"),
+					RunAsUserName:          pointer.Ptr("Developer"),
+					HostProcess:            pointer.Ptr(false),
 				},
-				RunAsUser:                pointerOf(int64(1001)),
-				RunAsGroup:               pointerOf(int64(5)),
-				RunAsNonRoot:             pointerOf(true),
-				ReadOnlyRootFilesystem:   pointerOf(true),
-				AllowPrivilegeEscalation: pointerOf(false),
-				ProcMount:                pointerOf(corev1.DefaultProcMount),
+				RunAsUser:                pointer.Ptr(int64(1001)),
+				RunAsGroup:               pointer.Ptr(int64(5)),
+				RunAsNonRoot:             pointer.Ptr(true),
+				ReadOnlyRootFilesystem:   pointer.Ptr(true),
+				AllowPrivilegeEscalation: pointer.Ptr(false),
+				ProcMount:                pointer.Ptr(corev1.DefaultProcMount),
 				SeccompProfile: &corev1.SeccompProfile{
 					Type:             "LocalHost",
-					LocalhostProfile: pointerOf("my-profiles/profile-allow.json"),
+					LocalhostProfile: pointer.Ptr("my-profiles/profile-allow.json"),
 				},
 			},
 			wantErr:            false,
@@ -2464,9 +2460,9 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 				Capabilities: &corev1.Capabilities{
 					Drop: []corev1.Capability{"ALL"},
 				},
-				RunAsNonRoot:             pointerOf(true),
-				ReadOnlyRootFilesystem:   pointerOf(true),
-				AllowPrivilegeEscalation: pointerOf(false),
+				RunAsNonRoot:             pointer.Ptr(true),
+				ReadOnlyRootFilesystem:   pointer.Ptr(true),
+				AllowPrivilegeEscalation: pointer.Ptr(false),
 				SeccompProfile: &corev1.SeccompProfile{
 					Type: "RuntimeDefault",
 				},
