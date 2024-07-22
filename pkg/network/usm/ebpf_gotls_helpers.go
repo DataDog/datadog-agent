@@ -61,9 +61,14 @@ func (p *GoTLSBinaryInspector) Inspect(fpath utils.FilePath, requests []uprobes.
 
 	functionsConfig := make(map[string]bininspect.FunctionConfiguration, len(requests))
 	for _, req := range requests {
+		lookupFunc, ok := p.paramLookupFunctions[req.Name]
+		if !ok {
+			return nil, false, fmt.Errorf("no parameter lookup function found for function %s", req.Name)
+		}
+
 		functionsConfig[req.Name] = bininspect.FunctionConfiguration{
 			IncludeReturnLocations: req.IncludeReturnLocations,
-			ParamLookupFunction:    p.paramLookupFunctions[req.Name],
+			ParamLookupFunction:    lookupFunc,
 		}
 	}
 
