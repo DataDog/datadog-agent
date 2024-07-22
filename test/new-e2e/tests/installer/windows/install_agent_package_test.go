@@ -15,6 +15,7 @@ type testAgentInstallSuite struct {
 	baseSuite
 }
 
+// TestAgentInstalls tests the usage of the Datadog Installer to install the Datadog Agent package.
 func TestAgentInstalls(t *testing.T) {
 	e2e.Run(t, &testAgentInstallSuite{},
 		e2e.WithProvisioner(
@@ -24,16 +25,17 @@ func TestAgentInstalls(t *testing.T) {
 		e2e.WithStackName("datadog-windows-installer-test"))
 }
 
+// TestInstallAgentPackage tests installing and uninstalling the Datadog Agent using the Datadog Installer.
 func (suite *testAgentInstallSuite) TestInstallAgentPackage() {
 	suite.Run("install the Agent package", func() {
 		output, err := suite.installer.InstallPackage(AgentPackage)
 		suite.Require().NoErrorf(err, "failed to install the Datadog Agent package: %s", output)
-		suite.Require().Host().HasARunningDatadogAgentService()
+		suite.Require().Host(suite.Env().RemoteHost).HasARunningDatadogAgentService()
 	})
 
 	suite.Run("uninstall the Agent package", func() {
 		output, err := suite.installer.RemovePackage(AgentPackage)
 		suite.Require().NoErrorf(err, "failed to purge the Datadog Agent package: %s", output)
-		suite.Require().Host().HasNoDatadogAgentService()
+		suite.Require().Host(suite.Env().RemoteHost).HasNoDatadogAgentService()
 	})
 }

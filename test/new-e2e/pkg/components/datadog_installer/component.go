@@ -6,7 +6,6 @@
 package datadog_installer
 
 import (
-	"fmt"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/pipeline"
 	"github.com/DataDog/test-infra-definitions/common"
 	"github.com/DataDog/test-infra-definitions/common/namer"
@@ -65,10 +64,8 @@ func NewConfig(env aws.Environment, options ...Option) (*Configuration, error) {
 			return nil, err
 		}
 		options = append([]Option{WithInstallUrl(artifactUrl)}, options...)
-		return common.ApplyOption(&Configuration{}, options)
-	} else {
-		return nil, fmt.Errorf("E2E_PIPELINE_ID env var is not set, this test requires this variable to be set to work")
 	}
+	return common.ApplyOption(&Configuration{}, options)
 }
 
 // NewInstaller creates a new instance of an on-host Agent Installer

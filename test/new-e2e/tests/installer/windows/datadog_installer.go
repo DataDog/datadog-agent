@@ -17,27 +17,37 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent/installers/v2"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/pipeline"
 	e2eos "github.com/DataDog/test-infra-definitions/components/os"
+	"os"
 	"path"
+	"path/filepath"
 	"strings"
 )
 
 const (
-	AgentPackage        string = "agent-package"
-	InstallerPath       string = "C:\\Program Files\\Datadog\\Datadog Installer"
-	InstallerBinaryName string = "datadog-installer.exe"
+	AgentPackage                string = "agent-package"
+	InstallerPath               string = "C:\\Program Files\\Datadog\\Datadog Installer"
+	InstallerBinaryName         string = "datadog-installer.exe"
+	DatadogInstallerServiceName string = "Datadog Installer"
+	DatadogInstallerVersion     string = "7.56.0-installer-0.4.5"
+)
+
+var (
+	DatadogInstallerBinaryPath = path.Join(InstallerPath, InstallerBinaryName)
 )
 
 type datadogInstaller struct {
 	binaryPath string
 	env        *environments.WindowsHost
+	logPath    string
 }
 
 // NewDatadogInstaller instantiates a new instance of the Datadog Installer running
 // on a remote Windows host.
-func NewDatadogInstaller(env *environments.WindowsHost) *datadogInstaller {
+func NewDatadogInstaller(env *environments.WindowsHost, logPath string) *datadogInstaller {
 	return &datadogInstaller{
 		binaryPath: path.Join(InstallerPath, InstallerBinaryName),
 		env:        env,
+		logPath:    logPath,
 	}
 }
 
@@ -138,5 +148,23 @@ func (d *datadogInstaller) Install(opts ...installerOption) error {
 		}
 		params.installerUrl = artifactUrl
 	}
-	return windowsCommon.InstallMSI(d.env.RemoteHost, params.installerUrl, "", "")
+	logPath := d.logPath
+	if logPath == "" {
+		logPath = filepath.Join(os.TempDir(), "install.log")
+	}
+	return windowsCommon.InstallMSI(d.env.RemoteHost, params.installerUrl, "", logPath)
+}
+
+// Uninstall will attempt to uninstall the Datadog Installer on the remote host.
+func (d *datadogInstaller) Uninstall() error {
+	productCode, err := windowsCommon.GetProductCodeByName(d.env.RemoteHost, "Datadog Installer")
+	if err != nil {
+		return err
+	}
+
+	logPath := d.logPath
+	if logPath == "" {
+		logPath = filepath.Join(os.TempDir(), "uninstall.log")
+	}
+	return windowsCommon.UninstallMSI(d.env.RemoteHost, productCode, logPath)
 }
