@@ -181,10 +181,6 @@ variables:
   RPM_GPG_KEY_NAME: "Datadog, Inc. RPM key"
   DOCKER_REGISTRY_URL: docker.io
   KITCHEN_INFRASTRUCTURE_FLAKES_RETRY: 2
-  ARTIFACTORY_USERNAME: datadog-agent
-  ARTIFACTORY_URL: datadog.jfrog.io
-  ARTIFACTORY_GEMS_PATH: artifactory/api/gems/agent-gems
-  ARTIFACTORY_PYPI_PATH: artifactory/api/pypi/agent-pypi/simple
   CLANG_LLVM_VER: 12.0.1
   KERNEL_MATRIX_TESTING_X86_AMI_ID: "ami-0c54d42f8f4180b0c"
   KERNEL_MATRIX_TESTING_ARM_AMI_ID: "ami-021f04c00ecfa8590"
@@ -200,8 +196,6 @@ variables:
   API_KEY_ORG2_SSM_NAME: ci.datadog-agent.datadog_api_key_org2  # agent-devx-infra
   API_KEY_DDDEV_SSM_NAME: ci.datadog-agent.datadog_api_key  # agent-devx-infra
   APP_KEY_ORG2_SSM_NAME: ci.datadog-agent.datadog_app_key_org2  # agent-devx-infra
-  ARTIFACTORY_TOKEN_SSM_NAME: ci.datadog-agent.artifactory_token  # agent-devx-infra
-  ARTIFACTORY_BYPASS_SSM_NAME: ci.datadog-agent.artifactory_bypass  # agent-devx-infra
   CHANGELOG_COMMIT_SHA_SSM_NAME: ci.datadog-agent.gitlab_changelog_commit_sha  # agent-devx-infra
   CHOCOLATEY_API_KEY_SSM_NAME: ci.datadog-agent.chocolatey_api_key  # windows-agent
   CODECOV_TOKEN_SSM_NAME: ci.datadog-agent.codecov_token  # agent-devx-infra
@@ -217,10 +211,13 @@ variables:
   KITCHEN_AZURE_CLIENT_SECRET_SSM_NAME: ci.datadog-agent.azure_kitchen_client_secret  # agent-devx-loops
   KITCHEN_AZURE_SUBSCRIPTION_ID_SSM_NAME: ci.datadog-agent.azure_kitchen_subscription_id  # agent-devx-loops
   KITCHEN_AZURE_TENANT_ID_SSM_NAME: ci.datadog-agent.azure_kitchen_tenant_id  # agent-devx-loops
+  GITHUB_PR_COMMENTER_APP_KEY_SSM_NAME: pr-commenter.github_app_key  # agent-devx-infra
+  GITHUB_PR_COMMENTER_INTEGRATION_ID_SSM_NAME: pr-commenter.github_integration_id  # agent-devx-infra
+  GITHUB_PR_COMMENTER_INSTALLATION_ID_SSM_NAME: pr-commenter.github_installation_id  # agent-devx-infra
   GITLAB_SCHEDULER_TOKEN_SSM_NAME: ci.datadog-agent.gitlab_pipelines_scheduler_token  # ci-cd
   GITLAB_READ_API_TOKEN_SSM_NAME: ci.datadog-agent.gitlab_read_api_token  # ci-cd
   GITLAB_FULL_API_TOKEN_SSM_NAME: ci.datadog-agent.gitlab_full_api_token  # ci-cd
-  INSTALL_SCRIPT_API_KEY_SSM_NAME: ci.agent-linux-install-script.datadog_api_key  # agent-delivery
+  INSTALL_SCRIPT_API_KEY_SSM_NAME: ci.agent-linux-install-script.datadog_api_key_2  # agent-delivery
   JIRA_READ_API_TOKEN_SSM_NAME: ci.datadog-agent.jira_read_api_token  # agent-devx-infra
   MACOS_GITHUB_APP_ID_SSM_NAME: ci.datadog-agent.macos_github_app_id  # agent-devx-infra
   MACOS_GITHUB_INSTALLATION_ID_SSM_NAME: ci.datadog-agent.macos_github_installation_id  # agent-devx-infra
@@ -375,32 +372,15 @@ variables:
 # Workflow rules
 # Rules used to define whether a pipeline should run, and with which variables
 #
-
-# WARNING: Do not change below if you want to globally disable the caching proxy (all branches would need to be rebased for it to be effectively disabled).
-# Instead use the break-glass mechanism by looking for the "Remotely disable Artifactory" doc in Confluence.
 workflow:
   rules:
     - <<: *if_triggered_pipeline
-      variables:
-        USE_CACHING_PROXY_PYTHON: "false"
-        USE_CACHING_PROXY_RUBY: "false"
     - <<: *if_main_branch
       variables:
-        USE_CACHING_PROXY_PYTHON: "true"
-        USE_CACHING_PROXY_RUBY: "true"
         GO_TEST_SKIP_FLAKE: "false"
     - <<: *if_release_branch
-      variables:
-        USE_CACHING_PROXY_PYTHON: "true"
-        USE_CACHING_PROXY_RUBY: "true"
     - <<: *if_deploy
-      variables:
-        USE_CACHING_PROXY_PYTHON: "true"
-        USE_CACHING_PROXY_RUBY: "true"
     - if: $CI_COMMIT_TAG == null
-      variables:
-        USE_CACHING_PROXY_PYTHON: "false"
-        USE_CACHING_PROXY_RUBY: "false"
 
 #
 # List of rule blocks used in the pipeline

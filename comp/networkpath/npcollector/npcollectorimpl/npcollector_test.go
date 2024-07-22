@@ -79,6 +79,7 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
 	agentConfigs := map[string]any{
 		"network_path.connections_monitoring.enabled": true,
 		"network_path.collector.flush_interval":       "1s",
+		"network_devices.namespace":                   "my-ns1",
 	}
 	app, npCollector := newTestNpCollector(t, agentConfigs)
 
@@ -126,11 +127,12 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
 	event1 := []byte(`
 {
     "timestamp": 0,
-    "namespace": "",
+    "namespace": "my-ns1",
     "path_id": "",
     "protocol": "UDP",
     "source": {
-        "hostname": "abc"
+        "hostname": "abc",
+        "container_id": "testId1"
     },
     "destination": {
         "hostname": "abc",
@@ -157,11 +159,12 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
 	event2 := []byte(`
 {
     "timestamp": 0,
-    "namespace": "",
+    "namespace": "my-ns1",
     "path_id": "",
     "protocol": "UDP",
     "source": {
-        "hostname": "abc"
+        "hostname": "abc",
+        "container_id": "testId2"
     },
     "destination": {
         "hostname": "abc",
@@ -286,6 +289,7 @@ func Test_newNpCollectorImpl_defaultConfigs(t *testing.T) {
 	assert.Equal(t, 4, npCollector.workers)
 	assert.Equal(t, 1000, cap(npCollector.pathtestInputChan))
 	assert.Equal(t, 1000, cap(npCollector.pathtestProcessingChan))
+	assert.Equal(t, "default", npCollector.networkDevicesNamespace)
 }
 
 func Test_newNpCollectorImpl_overrideConfigs(t *testing.T) {
@@ -294,6 +298,7 @@ func Test_newNpCollectorImpl_overrideConfigs(t *testing.T) {
 		"network_path.collector.workers":              2,
 		"network_path.collector.input_chan_size":      300,
 		"network_path.collector.processing_chan_size": 400,
+		"network_devices.namespace":                   "ns1",
 	}
 
 	_, npCollector := newTestNpCollector(t, agentConfigs)
@@ -302,6 +307,7 @@ func Test_newNpCollectorImpl_overrideConfigs(t *testing.T) {
 	assert.Equal(t, 2, npCollector.workers)
 	assert.Equal(t, 300, cap(npCollector.pathtestInputChan))
 	assert.Equal(t, 400, cap(npCollector.pathtestProcessingChan))
+	assert.Equal(t, "ns1", npCollector.networkDevicesNamespace)
 }
 
 func Test_npCollectorImpl_ScheduleConns(t *testing.T) {
