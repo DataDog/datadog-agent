@@ -17,7 +17,7 @@ TEST_ENV = {
 }
 
 
-@task
+@task(default=True)
 def run(ctx, tests: str = '', flags: str = '-b'):
     """
     Run the unit tests on the invoke tasks
@@ -38,11 +38,15 @@ def run(ctx, tests: str = '', flags: str = '-b'):
                 error = True
 
         # Throw error if more than one module fails
-        if error and len(tests) > 1:
-            raise Exit(color_message('Some tests are failing', Color.RED))
+        if error:
+            if len(tests) > 1:
+                raise Exit(color_message('Some tests are failing', Color.RED), code=1)
+            else:
+                raise Exit(code=1)
     else:
         command = f"'{sys.executable}' -m unittest discover {flags} -s tasks -p '*_tests.py'"
-        run_unit_tests_command(ctx, command)
+        if not run_unit_tests_command(ctx, command):
+            raise Exit(code=1)
 
 
 def run_unit_tests_command(ctx, command):

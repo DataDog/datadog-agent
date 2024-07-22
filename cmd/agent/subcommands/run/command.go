@@ -255,7 +255,7 @@ func run(log log.Component,
 	_ agenttelemetry.Component,
 ) error {
 	defer func() {
-		stopAgent(agentAPI)
+		stopAgent()
 	}()
 
 	// Setup a channel to catch OS signals
@@ -502,7 +502,7 @@ func startAgent(
 	_ serializer.MetricSerializer,
 	_ otelcollector.Component,
 	demultiplexer demultiplexer.Component,
-	agentAPI internalAPI.Component,
+	_ internalAPI.Component,
 	invChecks inventorychecks.Component,
 	_ status.Component,
 	collector collector.Component,
@@ -561,11 +561,6 @@ func startAgent(
 		}
 	}
 
-	// start the cmd HTTP server
-	if err = agentAPI.StartServer(); err != nil {
-		return log.Errorf("Error while starting api server, exiting: %v", err)
-	}
-
 	// start clc runner server
 	// only start when the cluster agent is enabled and a cluster check runner host is enabled
 	if pkgconfig.Datadog().GetBool("cluster_agent.enabled") && pkgconfig.Datadog().GetBool("clc_runner_enabled") {
@@ -616,12 +611,12 @@ func startAgent(
 }
 
 // StopAgentWithDefaults is a temporary way for other packages to use stopAgent.
-func StopAgentWithDefaults(agentAPI internalAPI.Component) {
-	stopAgent(agentAPI)
+func StopAgentWithDefaults() {
+	stopAgent()
 }
 
 // stopAgent Tears down the agent process
-func stopAgent(agentAPI internalAPI.Component) {
+func stopAgent() {
 	// retrieve the agent health before stopping the components
 	// GetReadyNonBlocking has a 100ms timeout to avoid blocking
 	health, err := health.GetReadyNonBlocking()
@@ -631,7 +626,6 @@ func stopAgent(agentAPI internalAPI.Component) {
 		pkglog.Warnf("Some components were unhealthy: %v", health.Unhealthy)
 	}
 
-	agentAPI.StopServer()
 	clcrunnerapi.StopCLCRunnerServer()
 	jmxfetch.StopJmxfetch()
 

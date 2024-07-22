@@ -7,6 +7,7 @@ import re
 import subprocess
 import sys
 from collections import UserList
+from difflib import Differ
 
 import gitlab
 import yaml
@@ -87,6 +88,209 @@ def refresh_pipeline(pipeline: ProjectPipeline):
     pipeline.refresh()
 
 
+class GitlabCIDiff:
+    def __init__(self, before: dict, after: dict) -> None:
+        """
+        Used to display job diffs between two gitlab ci configurations
+        """
+        self.before = before
+        self.after = after
+        self.added_contents = {}
+        self.modified_diffs = {}
+
+        self.make_diff()
+
+    def __bool__(self) -> bool:
+        return bool(self.added or self.removed or self.modified or self.renamed)
+
+    def make_diff(self):
+        """
+        Compute the diff between the two gitlab ci configurations
+        """
+        # Find added / removed jobs by names
+        unmoved = self.before.keys() & self.after.keys()
+        self.removed = self.before.keys() - unmoved
+        self.added = self.after.keys() - unmoved
+        self.renamed = set()
+
+        # Find jobs that have been renamed
+        for before_job in self.removed:
+            for after_job in self.added:
+                if self.before[before_job] == self.after[after_job]:
+                    self.renamed.add((before_job, after_job))
+
+        for before_job, after_job in self.renamed:
+            self.removed.remove(before_job)
+            self.added.remove(after_job)
+
+        # Added jobs contents
+        for job in self.added:
+            self.added_contents[job] = yaml.safe_dump({job: self.after[job]})
+
+        # Find modified jobs
+        self.modified = set()
+        for job in unmoved:
+            if self.before[job] != self.after[job]:
+                self.modified.add(job)
+
+        # Modified jobs
+        if self.modified:
+            differcli = Differ()
+            for job in self.modified:
+                if self.before[job] == self.after[job]:
+                    continue
+
+                # Make diff
+                before_content = yaml.safe_dump({job: self.before[job]}, default_flow_style=False, sort_keys=True)
+                after_content = yaml.safe_dump({job: self.after[job]}, default_flow_style=False, sort_keys=True)
+                before_content = before_content.splitlines()
+                after_content = after_content.splitlines()
+
+                diff = [line.rstrip('\n') for line in differcli.compare(before_content, after_content)]
+                self.modified_diffs[job] = diff
+
+    def display(self, cli: bool = True, max_detailed_jobs=6, job_url=None, only_summary=False) -> str:
+        """
+        Display in cli or markdown
+        """
+
+        def str_section(title, wrap=False) -> list[str]:
+            if cli:
+                return [f'--- {color_message(title, Color.BOLD)} ---']
+            elif wrap:
+                return ['<details>', f'<summary><h3>{title}</h3></summary>']
+            else:
+                return [f'### {title}']
+
+        def str_end_section(wrap: bool) -> list[str]:
+            if cli:
+                return []
+            elif wrap:
+                return ['</details>']
+            else:
+                return []
+
+        def str_job(title, color):
+            if cli:
+                return f'* {color_message(title, getattr(Color, color))}'
+            else:
+                return f'- **{title}**'
+
+        def str_rename(job_before, job_after):
+            if cli:
+                return f'* {color_message(job_before, Color.GREY)} -> {color_message(job_after, Color.BLUE)}'
+            else:
+                return f'- {job_before} -> **{job_after}**'
+
+        def str_add_job(name: str, content: str) -> list[str]:
+            if cli:
+                content = [color_message(line, Color.GREY) for line in content.splitlines()]
+
+                return [str_job(name, 'GREEN'), '', *content, '']
+            else:
+                header = f'<summary><b>{name}</b></summary>'
+
+                return ['<details>', header, '', '```yaml', *content.splitlines(), '```', '', '</details>']
+
+        def str_modified_job(name: str, diff: list[str]) -> list[str]:
+            if cli:
+                res = [str_job(name, 'ORANGE')]
+                for line in diff:
+                    if line.startswith('+'):
+                        res.append(color_message(line, Color.GREEN))
+                    elif line.startswith('-'):
+                        res.append(color_message(line, Color.RED))
+                    else:
+                        res.append(line)
+
+                return res
+            else:
+                # Wrap diff in markdown code block and in details html tags
+                return [
+                    '<details>',
+                    f'<summary><b>{name}</b></summary>',
+                    '',
+                    '```diff',
+                    *diff,
+                    '```',
+                    '',
+                    '</details>',
+                ]
+
+        def str_color(text: str, color: str) -> str:
+            if cli:
+                return color_message(text, getattr(Color, color))
+            else:
+                return text
+
+        def str_summary() -> str:
+            if cli:
+                res = ''
+                res += f'{len(self.removed)} {str_color("removed", "RED")}'
+                res += f' | {len(self.modified)} {str_color("modified", "ORANGE")}'
+                res += f' | {len(self.added)} {str_color("added", "GREEN")}'
+                res += f' | {len(self.renamed)} {str_color("renamed", "BLUE")}'
+
+                return res
+            else:
+                res = '| Removed | Modified | Added | Renamed |\n'
+                res += '| ------- | -------- | ----- | ------- |\n'
+                res += f'| {" | ".join(str(len(changes)) for changes in [self.removed, self.modified, self.added, self.renamed])} |'
+
+                return res
+
+        def str_note() -> list[str]:
+            if not job_url or cli:
+                return []
+
+            return ['', f':information_source: *Diff available in the [job log]({job_url}).*']
+
+        res = []
+
+        if only_summary:
+            if not cli:
+                res.append(':warning: Diff too large to display on Github')
+        else:
+            if self.modified:
+                wrap = len(self.modified) > max_detailed_jobs
+                res.extend(str_section('Modified Jobs', wrap=wrap))
+                for job, diff in sorted(self.modified_diffs.items()):
+                    res.extend(str_modified_job(job, diff))
+                res.extend(str_end_section(wrap=wrap))
+
+            if self.added:
+                if res:
+                    res.append('')
+                wrap = len(self.added) > max_detailed_jobs
+                res.extend(str_section('Added Jobs', wrap=wrap))
+                for job, content in sorted(self.added_contents.items()):
+                    res.extend(str_add_job(job, content))
+                res.extend(str_end_section(wrap=wrap))
+
+            if self.removed:
+                if res:
+                    res.append('')
+                res.extend(str_section('Removed Jobs'))
+                for job in sorted(self.removed):
+                    res.append(str_job(job, 'RED'))
+
+            if self.renamed:
+                if res:
+                    res.append('')
+                res.extend(str_section('Renamed Jobs'))
+                for job_before, job_after in sorted(self.renamed):
+                    res.append(str_rename(job_before, job_after))
+
+        if self.added or self.renamed or self.modified or self.removed:
+            if res:
+                res.append('')
+            res.extend(str_section('Changes Summary'))
+            res.append(str_summary())
+            res.extend(str_note())
+
+        return '\n'.join(res)
+
+
 class ReferenceTag(yaml.YAMLObject):
     """
     Custom yaml tag to handle references in gitlab-ci configuration
@@ -158,7 +362,7 @@ def filter_gitlab_ci_configuration(yml: dict, job: str | None = None) -> dict:
 
     def filter_yaml(key, value):
         # Not a job
-        if key.startswith('.') or 'script' not in value:
+        if key.startswith('.') or 'script' not in value and 'trigger' not in value:
             return None
 
         if job is not None:
