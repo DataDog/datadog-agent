@@ -308,14 +308,6 @@ func logRequests(client string, count uint64, connectionsCount int, start time.T
 	}
 }
 
-func getClientID(req *http.Request) string {
-	var clientID = network.DEBUGCLIENT
-	if rawCID := req.URL.Query().Get("client_id"); rawCID != "" {
-		clientID = rawCID
-	}
-	return clientID
-}
-
 func writeConnections(w http.ResponseWriter, marshaler marshal.Marshaler, cs *network.Connections) {
 	defer network.Reclaim(cs)
 
