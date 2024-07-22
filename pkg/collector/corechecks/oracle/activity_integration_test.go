@@ -92,3 +92,20 @@ func TestCurrentTime(t *testing.T) {
 		assert.WithinDuration(t, time.Now(), fetchedNowTime, 10*time.Second)
 	}
 }
+
+func TestIdleWaits(t *testing.T) {
+	c, _ := newDefaultCheck(t, "", "")
+	defer c.Teardown()
+
+	c.dbmEnabled = true
+
+	err := c.Run()
+	assert.NoError(t, err, "check run")
+
+	err = c.SampleSession()
+	require.NoError(t, err, "activity sample failed")
+
+	for _, r := range c.lastOracleActivityRows {
+		assert.NotEqual(t, r.WaitEventClass, "Idle", "Idle wait class not sampled")
+	}
+}
