@@ -280,10 +280,34 @@ notify_ebpf_complexity_changes:
     - !reference [.except_main_or_release_branch]
     - !reference [.except_no_tests_no_deploy]
   needs:
+    # We need to specify the jobs that generate complexity explicitly, else we hit the limit of "needs"
+    # Important: the list of platforms should match the one in .define_if_collect_complexity
     - job: "kmt_run_sysprobe_tests_x64"
       optional: true
+      parallel:
+        matrix:
+          - TAG:
+              - amazon_5.4
+              - debian_10
+              - ubuntu_18.04
+              - centos_8
+              - opensuse_15.3
+              - suse_12.5
+              - fedora_38
+            TEST_SET: no_usm
     - job: "kmt_run_sysprobe_tests_arm64"
       optional: true
+      parallel:
+        matrix:
+          - TAG:
+              - amazon_5.4
+              - debian_10
+              - ubuntu_18.04
+              - centos_8
+              - opensuse_15.3
+              - suse_12.5
+              - fedora_38
+            TEST_SET: no_usm
   allow_failure: true
   script:
     - inv -e ebpf.generate-complexity-summary-for-pr
