@@ -11,11 +11,13 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+import vscode
 from invoke import task
 from invoke.exceptions import Exit
 
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.status import Status
+from tasks.libs.common.user_interactions import yes_no_question
 from tasks.libs.common.utils import running_in_pyapp
 
 if TYPE_CHECKING:
@@ -44,6 +46,7 @@ def setup(ctx):
         download_go_tools,
         install_go_tools,
         enable_pre_commit,
+        setup_vscode,
     ]
 
     results = []
@@ -200,6 +203,21 @@ def enable_pre_commit(ctx) -> SetupResult:
         ctx.run(f"git config --global core.hooksPath {hooks_path}", hide=True)
 
     return SetupResult("Enable pre-commit", status, message)
+
+
+def setup_vscode(ctx) -> SetupResult:
+    print(color_message("Setting up VS Code...", Color.BLUE))
+
+    status = Status.OK
+    message = ""
+
+    if yes_no_question("Do you want to set up VS Code?", default=True):
+        vscode.setup(ctx)
+        message = "VS Code setup completed."
+    else:
+        message = "Skipping VS Code setup."
+
+    return SetupResult("Setup vscode", status, message)
 
 
 def install_go_tools(ctx) -> SetupResult:
