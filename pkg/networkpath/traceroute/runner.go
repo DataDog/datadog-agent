@@ -131,7 +131,7 @@ func (r *Runner) RunTraceroute(ctx context.Context, cfg Config) (payload.Network
 	}
 
 	var pathResult payload.NetworkPath
-	protocol := strings.ToUpper(cfg.Protocol)
+	protocol := strings.ToUpper(string(cfg.Protocol))
 
 	// default to UDP if protocol
 	// is not set

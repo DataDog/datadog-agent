@@ -40,7 +40,7 @@ type (
 		TimeoutMs uint
 		// Protocol is the protocol to use
 		// for traceroute, default is UDP
-		Protocol string
+		Protocol payload.Protocol
 	}
 
 	// Traceroute defines an interface for running
