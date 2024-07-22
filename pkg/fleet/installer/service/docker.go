@@ -186,7 +186,12 @@ func reloadDockerConfig(ctx context.Context) (err error) {
 		return fmt.Errorf("failed to get docker daemon pid (%s): %s", err.Error(), bufErr.String())
 	}
 
-	cmd := exec.CommandContext(ctx, "kill", "-1", strings.TrimSpace(buf.String())) // Send SIGHUP to the docker daemon
+	// There may be multiple dockerd running, we need to send SIGHUP to all of them
+	pids := strings.Split(strings.TrimSpace(buf.String()), " ")
+	args := []string{"-1"} // SIGHUP
+	args = append(args, pids...)
+
+	cmd := exec.CommandContext(ctx, "kill", args...) // Send SIGHUP to the docker daemons
 	bufErr = new(bytes.Buffer)
 	cmd.Stderr = bufErr
 	err = cmd.Run()
