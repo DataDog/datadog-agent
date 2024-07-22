@@ -1882,6 +1882,7 @@ def show_last_test_results(ctx: Context, stack: str | None = None):
 def tag_ci_job(ctx: Context):
     """Add extra tags to the CI job"""
     tags: dict[str, str] = {}
+    metrics: dict[str, str] = {}
 
     # Retrieve tags from environment variables, with a renaming for convenience
     environment_vars_to_tags = {
@@ -1970,12 +1971,16 @@ def tag_ci_job(ctx: Context):
 
         e2e_retry_count = ci_project_dir / "e2e-retry-count"
         if e2e_retry_count.is_file():
-            tags["e2e_retry_count"] = e2e_retry_count.read_text().strip()
+            metrics["pulumi_retry_count"] = e2e_retry_count.read_text().strip()
 
     tag_prefix = "kmt."
     tags_str = " ".join(f"--tags '{tag_prefix}{k}:{v}'" for k, v in tags.items())
 
     ctx.run(f"datadog-ci tag --level job {tags_str}")
+
+    if len(metrics) > 0:
+        metrics_str = " ".join(f"--metrics '{tag_prefix}{k}:{v}'" for k, v in metrics.items())
+        ctx.run(f"datadog-ci metric --level job {metrics_str}")
 
 
 @task

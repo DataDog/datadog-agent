@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	flareController "github.com/DataDog/datadog-agent/comp/logs/agent/flare"
+	logsIntegrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	rctypes "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
 	pkgConfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -78,6 +79,7 @@ type dependencies struct {
 	Hostname           hostname.Component
 	WMeta              optional.Option[workloadmeta.Component]
 	SchedulerProviders []schedulers.Scheduler `group:"log-agent-scheduler"`
+	LogsIntegrations   logsIntegrations.Component
 }
 
 type provides struct {

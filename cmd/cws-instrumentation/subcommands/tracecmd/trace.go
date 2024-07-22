@@ -65,7 +65,7 @@ type traceCliParams struct {
 	ProcScanDisabled bool
 	ScanProcEvery    string
 	SeccompDisabled  bool
-	PID              int
+	PIDs             []int
 }
 
 func envToBool(name string) bool {
@@ -107,8 +107,8 @@ func Command() []*cobra.Command {
 				opts.ScanProcEvery = every
 			}
 
-			if params.PID > 0 {
-				return ptracer.Attach(params.PID, params.ProbeAddr, opts)
+			if len(params.PIDs) > 0 {
+				return ptracer.Attach(params.PIDs, params.ProbeAddr, opts)
 			}
 			return ptracer.Wrap(args, os.Environ(), params.ProbeAddr, opts)
 		},
@@ -123,7 +123,7 @@ func Command() []*cobra.Command {
 	traceCmd.Flags().BoolVar(&params.ProcScanDisabled, disableProcScanOpt, envToBool(envProcScanDisabled), "disable proc scan")
 	traceCmd.Flags().StringVar(&params.ScanProcEvery, scanProcEveryOpt, os.Getenv(envProcScanRate), "proc scan rate")
 	traceCmd.Flags().BoolVar(&params.SeccompDisabled, disableSeccompOpt, envToBool(envSeccompDisabled), "disable seccomp")
-	traceCmd.Flags().IntVar(&params.PID, pidOpt, -1, "attach tracer to pid")
+	traceCmd.Flags().IntSliceVar(&params.PIDs, pidOpt, nil, "attach tracer to pid")
 
 	traceCmd.AddCommand(selftestscmd.Command()...)
 

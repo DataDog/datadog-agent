@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
+	serializermock "github.com/DataDog/datadog-agent/pkg/serializer/mocks"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -84,7 +85,7 @@ func TestCollect(t *testing.T) {
 
 	expectedPayload := "{\"resources\":{\"meta\":{\"host\":\"resources-test-hostname\"},\"processes\":{\"snaps\":[[\"proc1\",\"proc2\",\"proc3\"]]}}}"
 
-	s := &serializer.MockSerializer{}
+	s := serializermock.NewMetricSerializer(t)
 	s.On("SendProcessesMetadata",
 		testifyMock.MatchedBy(func(payload map[string]interface{}) bool {
 			jsonPayload, err := json.Marshal(payload)
@@ -117,7 +118,7 @@ func TestCollectError(t *testing.T) {
 		return nil, fmt.Errorf("some error from gohai")
 	}
 
-	s := &serializer.MockSerializer{}
+	s := serializermock.NewMetricSerializer(t)
 	ret := newResourcesProvider(
 		fxutil.Test[dependencies](
 			t,

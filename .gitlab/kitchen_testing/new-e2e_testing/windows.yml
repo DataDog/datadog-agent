@@ -127,6 +127,7 @@ new-e2e-windows-agent-msi-windows-server-a7-x86_64:
   rules:
     - !reference [.on_deploy]
     - !reference [.on_windows_installer_changes_or_manual]
+  timeout: 1h15m
 
 new-e2e-windows-agent-domain-tests-a7-x86_64:
   stage: kitchen_testing
@@ -140,6 +141,7 @@ new-e2e-windows-agent-domain-tests-a7-x86_64:
   rules:
     - !reference [.on_deploy]
     - !reference [.on_windows_installer_changes_or_manual]
+  timeout: 1h15
 
 ## single test for PRs
 ## skipped if the full tests are running

@@ -44,7 +44,7 @@ func (c *Collector) Init(cfg config.Component, wmeta optional.Option[workloadmet
 	}
 	c.trivyCollector = trivyCollector
 	if flavor.GetFlavor() == flavor.SecurityAgent {
-		c.opts = sbom.ScanOptions{Analyzers: []string{trivy.OSAnalyzers}, Fast: true, CollectFiles: true}
+		c.opts = sbom.ScanOptions{Analyzers: []string{trivy.OSAnalyzers}, Fast: false, CollectFiles: true}
 	} else {
 		c.opts = sbom.ScanOptionsFromConfig(cfg, false)
 	}

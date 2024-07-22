@@ -89,6 +89,8 @@ var (
 	}
 )
 
+var _ PlatformProbe = (*EBPFProbe)(nil)
+
 // EBPFProbe defines a platform probe
 type EBPFProbe struct {
 	Resolvers *resolvers.EBPFResolvers
@@ -147,6 +149,11 @@ type EBPFProbe struct {
 	// On demand
 	onDemandManager     *OnDemandProbesManager
 	onDemandRateLimiter *rate.Limiter
+}
+
+// GetProfileManager returns the Profile Managers
+func (p *EBPFProbe) GetProfileManager() interface{} {
+	return p.profileManagers
 }
 
 func (p *EBPFProbe) detectKernelVersion() error {
@@ -1219,6 +1226,15 @@ func (p *EBPFProbe) updateProbes(ruleEventTypes []eval.EventType, needRawSyscall
 				}
 			}
 		}
+		// SecurityProfiles
+		if p.config.RuntimeSecurity.AnomalyDetectionEnabled {
+			for _, e := range p.profileManagers.GetAnomalyDetectionEventTypes() {
+				if e == model.SyscallsEventType {
+					activatedProbes = append(activatedProbes, probes.SyscallMonitorSelectors...)
+					break
+				}
+			}
+		}
 	}
 
 	// Print the list of unique probe identification IDs that are registered
@@ -1659,6 +1675,15 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, wmeta optional
 
 	if config.RuntimeSecurity.ActivityDumpEnabled {
 		for _, e := range config.RuntimeSecurity.ActivityDumpTracedEventTypes {
+			if e == model.SyscallsEventType {
+				// Add syscall monitor probes
+				p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SyscallMonitorSelectors...)
+				break
+			}
+		}
+	}
+	if config.RuntimeSecurity.AnomalyDetectionEnabled {
+		for _, e := range config.RuntimeSecurity.AnomalyDetectionEventTypes {
 			if e == model.SyscallsEventType {
 				// Add syscall monitor probes
 				p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SyscallMonitorSelectors...)

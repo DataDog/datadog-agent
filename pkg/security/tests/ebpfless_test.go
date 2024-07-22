@@ -90,7 +90,7 @@ func TestEBPFLessAttach(t *testing.T) {
 
 			// syscall tester to be reading to be tested
 			_ = <-sigCh
-			if err = ptracer.Attach(pid, constants.DefaultEBPFLessProbeAddr, opts); err != nil {
+			if err = ptracer.Attach([]int{pid}, constants.DefaultEBPFLessProbeAddr, opts); err != nil {
 				fmt.Printf("unable to attach: %v", err)
 			}
 			doneCh <- true
