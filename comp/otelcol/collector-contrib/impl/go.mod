@@ -7,7 +7,7 @@ go 1.21.0
 toolchain go1.22.5
 
 require (
-	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def v0.55.0
+	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def v0.0.0-00010101000000-000000000000
 	github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector v0.104.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/sapmexporter v0.104.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension v0.104.0
@@ -307,3 +307,5 @@ replace github.com/docker/go-connections v0.4.1-0.20210727194412-58542c764a11 =>
 replace github.com/mattn/go-ieproxy => github.com/mattn/go-ieproxy v0.0.1
 
 replace github.com/openshift/api => github.com/openshift/api v0.0.0-20230726162818-81f778f3b3ec
+
+replace github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def => ../def

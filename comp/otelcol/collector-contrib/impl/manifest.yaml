@@ -63,3 +63,4 @@ replaces:
   - github.com/mattn/go-ieproxy => github.com/mattn/go-ieproxy v0.0.1
   # see https://github.com/openshift/api/pull/1515
   - github.com/openshift/api => github.com/openshift/api v0.0.0-20230726162818-81f778f3b3ec
+  - github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def => ../def
