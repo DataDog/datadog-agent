@@ -685,8 +685,8 @@ workflow:
   - .gitlab/kernel_matrix_testing/common.yml
   - test/new-e2e/system-probe/**/*
   - test/new-e2e/scenarios/system-probe/**/*
-  - test/new-e2e/runner/**/*
-  - test/new-e2e-utils/**/*
+  - test/new-e2e/pkg/runner/**/*
+  - test/new-e2e/pkg/utils/**/*
   - test/new-e2e/go.mod
   - tasks/security_agent.py
   - tasks/kmt.py
@@ -707,7 +707,7 @@ workflow:
   changes:
       paths:
         - tools/windows/DatadogAgentInstaller/**/*
-        - .gitlab/new-e2e_testing/windows.yml
+        - .gitlab/kitchen_testing/new-e2e_testing/windows.yml
         - test/new-e2e/tests/windows/install-test/**/*
         - test/new-e2e/tests/windows/domain-test/**/*
         - tasks/msi.py
@@ -740,8 +740,8 @@ workflow:
   - .gitlab/kernel_matrix_testing/common.yml
   - test/new-e2e/system-probe/**/*
   - test/new-e2e/scenarios/system-probe/**/*
-  - test/new-e2e/runner/**/*
-  - test/new-e2e-utils/**/*
+  - test/new-e2e/pkg/runner/**/*
+  - test/new-e2e/pkg/utils/**/*
   - test/new-e2e/go.mod
   - tasks/system_probe.py
   - tasks/kmt.py
@@ -815,7 +815,6 @@ workflow:
         - pkg/collector/corechecks/containers/**/*
         - pkg/collector/corechecks/containerimage/**/*
         - pkg/collector/corechecks/containerlifecycle/**/*
-        - pkg/collector/corechecks/kubernetes/**/*
         - pkg/collector/corechecks/sbom/**/*
         - pkg/sbom/**/*
         - pkg/util/clusteragent/**/*
@@ -888,13 +887,13 @@ workflow:
         - comp/core/agenttelemetry/**/*
         - comp/core/autodiscovery/providers/config_reader*.go
         - comp/core/autodiscovery/providers/file*.go
+        - comp/dogstatsd/**/*
         - comp/forwarder/**/*
         - comp/logs/**/*
         - comp/serializer/compression/**/*
         - pkg/aggregator/**/*
         - pkg/collector/**/*
         - pkg/commonchecks/**/*
-        - pkg/dogstatsd/**/*
         - pkg/jmxfetch/**/*
         - pkg/logs/**/*
         - pkg/metrics/**/*
@@ -1040,7 +1039,6 @@ workflow:
       paths:
         - omnibus/**/*
         - .gitlab-ci.yml
-        - .gitlab/package_build.yml
         - release.json
         - .gitlab/package_build/**/*
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916

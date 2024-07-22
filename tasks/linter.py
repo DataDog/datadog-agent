@@ -19,9 +19,10 @@ from tasks.libs.ciproviders.gitlab_api import (
     get_preset_contexts,
     load_context,
     read_includes,
+    retrieve_all_paths,
 )
 from tasks.libs.common.check_tools_version import check_tools_version
-from tasks.libs.common.color import color_message
+from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.constants import DEFAULT_BRANCH, GITHUB_REPO_NAME
 from tasks.libs.common.git import get_staged_files
 from tasks.libs.common.utils import (
@@ -463,3 +464,19 @@ def test_change_path(ctx, job_files=None):
         )
     else:
         print(color_message("success: All tests contain a change paths rule", "green"))
+
+
+@task
+def gitlab_change_paths(ctx):
+    # Read gitlab config
+    config = generate_gitlab_full_configuration(ctx, ".gitlab-ci.yml", {}, return_dump=False, apply_postprocessing=True)
+    error_paths = []
+    for path in set(retrieve_all_paths(config)):
+        files = glob(path, recursive=True)
+        if len(files) == 0:
+            error_paths.append(path)
+    if error_paths:
+        raise Exit(
+            f"{color_message('No files found for paths', Color.RED)}:\n{chr(10).join(' - ' + path for path in error_paths)}"
+        )
+    print(f"All rule:changes:paths from gitlab-ci are {color_message('valid', Color.GREEN)}.")
