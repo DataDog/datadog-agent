@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    Fix wrong durations for cloud databases.
+    [oracle] Fix wrong durations for cloud databases.
