@@ -35,6 +35,7 @@ type InitConfig struct {
 type QuerySamplesConfig struct {
 	Enabled            bool `yaml:"enabled"`
 	IncludeAllSessions bool `yaml:"include_all_sessions"`
+	ForceDirectQuery   bool `yaml:"force_direct_query"`
 }
 
 type queryMetricsTrackerConfig struct {
