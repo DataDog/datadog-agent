@@ -111,6 +111,30 @@ func TestFromEnv(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "deprecated apm lang",
+			envVars: map[string]string{
+				envAPIKey:                    "123456",
+				envApmLanguages:              "java dotnet ruby",
+				envApmInstrumentationEnabled: "all",
+			},
+			expected: &Env{
+				APIKey: "123456",
+				Site:   "datadoghq.com",
+				ApmLibraries: map[ApmLibLanguage]ApmLibVersion{
+					"java":   "",
+					"dotnet": "",
+					"ruby":   "",
+				},
+				InstallScript: InstallScriptEnv{
+					APMInstrumentationEnabled: APMInstrumentationEnabledAll,
+				},
+				RegistryOverrideByImage:        map[string]string{},
+				RegistryAuthOverrideByImage:    map[string]string{},
+				DefaultPackagesInstallOverride: map[string]bool{},
+				DefaultPackagesVersionOverride: map[string]string{},
+			},
+		},
 	}
 
 	for _, tt := range tests {

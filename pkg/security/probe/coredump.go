@@ -75,8 +75,12 @@ func (cd *CoreDump) ToJSON() ([]byte, error) {
 
 	buf := &bytes.Buffer{}
 	gzWriter := gzip.NewWriter(buf)
-	defer gzWriter.Close()
 	if _, err = gzWriter.Write(data); err != nil {
+		gzWriter.Close()
+		return nil, err
+	}
+
+	if err := gzWriter.Close(); err != nil {
 		return nil, err
 	}
 

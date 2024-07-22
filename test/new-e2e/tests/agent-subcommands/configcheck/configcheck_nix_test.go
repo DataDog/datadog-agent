@@ -21,6 +21,7 @@ type linuxConfigCheckSuite struct {
 }
 
 func TestLinuxConfigCheckSuite(t *testing.T) {
+	t.Parallel()
 	e2e.Run(t, &linuxConfigCheckSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake()))
 }
 

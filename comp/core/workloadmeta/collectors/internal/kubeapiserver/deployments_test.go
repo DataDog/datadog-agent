@@ -9,49 +9,97 @@ package kubeapiserver
 
 import (
 	"context"
-	langUtil "github.com/DataDog/datadog-agent/pkg/languagedetection/util"
 	"testing"
+
+	langUtil "github.com/DataDog/datadog-agent/pkg/languagedetection/util"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/kubernetes/fake"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 )
 
 func TestDeploymentParser_Parse(t *testing.T) {
+	excludeAnnotations := []string{"ignore-annotation"}
+
 	tests := []struct {
 		name       string
-		expected   *workloadmeta.KubernetesDeployment
+		expected   []workloadmeta.Entity
 		deployment *appsv1.Deployment
 	}{
 		{
 			name: "everything",
-			expected: &workloadmeta.KubernetesDeployment{
-				EntityID: workloadmeta.EntityID{
-					Kind: workloadmeta.KindKubernetesDeployment,
-					ID:   "test-namespace/test-deployment",
+			expected: []workloadmeta.Entity{
+				&workloadmeta.KubernetesDeployment{
+					EntityID: workloadmeta.EntityID{
+						Kind: workloadmeta.KindKubernetesDeployment,
+						ID:   "test-namespace/test-deployment",
+					},
+					Env:     "env",
+					Service: "service",
+					Version: "version",
+					EntityMeta: workloadmeta.EntityMeta{
+						Name:      "test-deployment",
+						Namespace: "test-namespace",
+						Labels: map[string]string{
+							"test-label":                 "test-value",
+							"tags.datadoghq.com/env":     "env",
+							"tags.datadoghq.com/service": "service",
+							"tags.datadoghq.com/version": "version",
+						},
+						Annotations: map[string]string{
+							"internal.dd.datadoghq.com/nginx-cont.detected_langs":      "go,java,  python  ",
+							"internal.dd.datadoghq.com/init.nginx-cont.detected_langs": "go,java,  python  ",
+						},
+					},
+					InjectableLanguages: langUtil.ContainersLanguages{
+						*langUtil.NewInitContainer("nginx-cont"): {
+							langUtil.Language(languagemodels.Go):     {},
+							langUtil.Language(languagemodels.Java):   {},
+							langUtil.Language(languagemodels.Python): {},
+						},
+						*langUtil.NewContainer("nginx-cont"): {
+							langUtil.Language(languagemodels.Go):     {},
+							langUtil.Language(languagemodels.Java):   {},
+							langUtil.Language(languagemodels.Python): {},
+						},
+					},
 				},
-				Env:     "env",
-				Service: "service",
-				Version: "version",
-				InjectableLanguages: langUtil.ContainersLanguages{
-					*langUtil.NewInitContainer("nginx-cont"): {
-						langUtil.Language(languagemodels.Go):     {},
-						langUtil.Language(languagemodels.Java):   {},
-						langUtil.Language(languagemodels.Python): {},
+
+				&workloadmeta.KubernetesMetadata{
+					EntityID: workloadmeta.EntityID{
+						Kind: workloadmeta.KindKubernetesMetadata,
+						ID:   string(util.GenerateKubeMetadataEntityID("apps", "deployments", "test-namespace", "test-deployment")),
 					},
-					*langUtil.NewContainer("nginx-cont"): {
-						langUtil.Language(languagemodels.Go):     {},
-						langUtil.Language(languagemodels.Java):   {},
-						langUtil.Language(languagemodels.Python): {},
+					EntityMeta: workloadmeta.EntityMeta{
+						Name:      "test-deployment",
+						Namespace: "test-namespace",
+						Labels: map[string]string{
+							"test-label":                 "test-value",
+							"tags.datadoghq.com/env":     "env",
+							"tags.datadoghq.com/service": "service",
+							"tags.datadoghq.com/version": "version",
+						},
+						Annotations: map[string]string{
+							"internal.dd.datadoghq.com/nginx-cont.detected_langs":      "go,java,  python  ",
+							"internal.dd.datadoghq.com/init.nginx-cont.detected_langs": "go,java,  python  ",
+						},
 					},
+					GVR: &schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "deployments"},
 				},
 			},
+
 			deployment: &appsv1.Deployment{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "Deployment",
+					APIVersion: "apps/v1",
+				},
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test-deployment",
 					Namespace: "test-namespace",
@@ -64,23 +112,59 @@ func TestDeploymentParser_Parse(t *testing.T) {
 					Annotations: map[string]string{
 						"internal.dd.datadoghq.com/nginx-cont.detected_langs":      "go,java,  python  ",
 						"internal.dd.datadoghq.com/init.nginx-cont.detected_langs": "go,java,  python  ",
+						"ignore-annotation": "ignore",
 					},
 				},
 			},
 		},
 		{
 			name: "only usm",
-			expected: &workloadmeta.KubernetesDeployment{
-				EntityID: workloadmeta.EntityID{
-					Kind: workloadmeta.KindKubernetesDeployment,
-					ID:   "test-namespace/test-deployment",
+			expected: []workloadmeta.Entity{
+				&workloadmeta.KubernetesDeployment{
+					EntityID: workloadmeta.EntityID{
+						Kind: workloadmeta.KindKubernetesDeployment,
+						ID:   "test-namespace/test-deployment",
+					},
+					EntityMeta: workloadmeta.EntityMeta{
+						Name:      "test-deployment",
+						Namespace: "test-namespace",
+						Labels: map[string]string{
+							"test-label":                 "test-value",
+							"tags.datadoghq.com/env":     "env",
+							"tags.datadoghq.com/service": "service",
+							"tags.datadoghq.com/version": "version",
+						},
+						Annotations: map[string]string{},
+					},
+					Env:                 "env",
+					Service:             "service",
+					Version:             "version",
+					InjectableLanguages: make(langUtil.ContainersLanguages),
 				},
-				Env:                 "env",
-				Service:             "service",
-				Version:             "version",
-				InjectableLanguages: make(langUtil.ContainersLanguages),
+				&workloadmeta.KubernetesMetadata{
+					EntityID: workloadmeta.EntityID{
+						Kind: workloadmeta.KindKubernetesMetadata,
+						ID:   string(util.GenerateKubeMetadataEntityID("apps", "deployments", "test-namespace", "test-deployment")),
+					},
+					EntityMeta: workloadmeta.EntityMeta{
+						Name:      "test-deployment",
+						Namespace: "test-namespace",
+						Labels: map[string]string{
+							"test-label":                 "test-value",
+							"tags.datadoghq.com/env":     "env",
+							"tags.datadoghq.com/service": "service",
+							"tags.datadoghq.com/version": "version",
+						},
+						Annotations: map[string]string{},
+					},
+					GVR: &schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "deployments"},
+				},
 			},
 			deployment: &appsv1.Deployment{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "Deployment",
+					APIVersion: "apps/v1",
+				},
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test-deployment",
 					Namespace: "test-namespace",
@@ -90,30 +174,69 @@ func TestDeploymentParser_Parse(t *testing.T) {
 						"tags.datadoghq.com/service": "service",
 						"tags.datadoghq.com/version": "version",
 					},
+					Annotations: map[string]string{
+						"ignore-annotation": "ignore",
+					},
 				},
 			},
 		},
+
 		{
 			name: "only languages",
-			expected: &workloadmeta.KubernetesDeployment{
-				EntityID: workloadmeta.EntityID{
-					Kind: workloadmeta.KindKubernetesDeployment,
-					ID:   "test-namespace/test-deployment",
+			expected: []workloadmeta.Entity{
+				&workloadmeta.KubernetesDeployment{
+					EntityID: workloadmeta.EntityID{
+						Kind: workloadmeta.KindKubernetesDeployment,
+						ID:   "test-namespace/test-deployment",
+					},
+					EntityMeta: workloadmeta.EntityMeta{
+						Name:      "test-deployment",
+						Namespace: "test-namespace",
+						Labels: map[string]string{
+							"test-label": "test-value",
+						},
+						Annotations: map[string]string{
+							"internal.dd.datadoghq.com/nginx-cont.detected_langs":      "go,java,  python  ",
+							"internal.dd.datadoghq.com/init.nginx-cont.detected_langs": "go,java,  python  ",
+						},
+					},
+					InjectableLanguages: langUtil.ContainersLanguages{
+						*langUtil.NewInitContainer("nginx-cont"): {
+							langUtil.Language(languagemodels.Go):     {},
+							langUtil.Language(languagemodels.Java):   {},
+							langUtil.Language(languagemodels.Python): {},
+						},
+						*langUtil.NewContainer("nginx-cont"): {
+							langUtil.Language(languagemodels.Go):     {},
+							langUtil.Language(languagemodels.Java):   {},
+							langUtil.Language(languagemodels.Python): {},
+						},
+					},
 				},
-				InjectableLanguages: langUtil.ContainersLanguages{
-					*langUtil.NewInitContainer("nginx-cont"): {
-						langUtil.Language(languagemodels.Go):     {},
-						langUtil.Language(languagemodels.Java):   {},
-						langUtil.Language(languagemodels.Python): {},
+				&workloadmeta.KubernetesMetadata{
+					EntityID: workloadmeta.EntityID{
+						Kind: workloadmeta.KindKubernetesMetadata,
+						ID:   string(util.GenerateKubeMetadataEntityID("apps", "deployments", "test-namespace", "test-deployment")),
 					},
-					*langUtil.NewContainer("nginx-cont"): {
-						langUtil.Language(languagemodels.Go):     {},
-						langUtil.Language(languagemodels.Java):   {},
-						langUtil.Language(languagemodels.Python): {},
+					EntityMeta: workloadmeta.EntityMeta{
+						Name:      "test-deployment",
+						Namespace: "test-namespace",
+						Labels: map[string]string{
+							"test-label": "test-value",
+						},
+						Annotations: map[string]string{
+							"internal.dd.datadoghq.com/nginx-cont.detected_langs":      "go,java,  python  ",
+							"internal.dd.datadoghq.com/init.nginx-cont.detected_langs": "go,java,  python  ",
+						},
 					},
+					GVR: &schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "deployments"},
 				},
 			},
 			deployment: &appsv1.Deployment{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "Deployment",
+					APIVersion: "apps/v1",
+				},
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test-deployment",
 					Namespace: "test-namespace",
@@ -121,6 +244,7 @@ func TestDeploymentParser_Parse(t *testing.T) {
 						"test-label": "test-value",
 					},
 					Annotations: map[string]string{
+						"ignore-annotation": "ignore",
 						"internal.dd.datadoghq.com/nginx-cont.detected_langs":      "go,java,  python  ",
 						"internal.dd.datadoghq.com/init.nginx-cont.detected_langs": "go,java,  python  ",
 					},
@@ -131,11 +255,22 @@ func TestDeploymentParser_Parse(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			parser := newdeploymentParser()
-			entity := parser.Parse(tt.deployment)
-			storedDeployment, ok := entity.(*workloadmeta.KubernetesDeployment)
+			parser, err := newdeploymentParser(excludeAnnotations)
+			require.NoError(t, err)
+			parsedEntities := parser.Parse(tt.deployment)
+
+			// Assert that entities are correctly generated
+			assert.ElementsMatch(t, tt.expected, parsedEntities)
+
+			// Assert that Annotations and Labels of all entities refer to the same address in memory
+			deploymentEntity, ok := parsedEntities[0].(*workloadmeta.KubernetesDeployment)
 			require.True(t, ok)
-			assert.Equal(t, tt.expected, storedDeployment)
+
+			metadataEntity, ok := parsedEntities[1].(*workloadmeta.KubernetesMetadata)
+			require.True(t, ok)
+
+			assert.Truef(t, sameInMemory(deploymentEntity.Annotations, metadataEntity.Annotations), "parsed annotations are duplicated in memory")
+			assert.True(t, sameInMemory(deploymentEntity.Labels, metadataEntity.Labels), "parsed labels are duplicated in memory")
 		})
 	}
 }
@@ -152,11 +287,16 @@ func Test_DeploymentsFakeKubernetesClient(t *testing.T) {
 			createResource: func(cl *fake.Clientset) error {
 				_, err := cl.AppsV1().Deployments("test-namespace").Create(
 					context.TODO(),
-					&appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{
-						Name:      "test-deployment",
-						Namespace: "test-namespace",
-						Labels:    map[string]string{"test-label": "test-value", "tags.datadoghq.com/env": "env"},
-					}},
+					&appsv1.Deployment{
+						TypeMeta: metav1.TypeMeta{
+							APIVersion: "apps/v1",
+							Kind:       "Deployment",
+						},
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      "test-deployment",
+							Namespace: "test-namespace",
+							Labels:    map[string]string{"test-label": "test-value", "tags.datadoghq.com/env": "env"},
+						}},
 					metav1.CreateOptions{},
 				)
 				return err
@@ -170,8 +310,28 @@ func Test_DeploymentsFakeKubernetesClient(t *testing.T) {
 								ID:   "test-namespace/test-deployment",
 								Kind: workloadmeta.KindKubernetesDeployment,
 							},
+							EntityMeta: workloadmeta.EntityMeta{
+								Name:      "test-deployment",
+								Namespace: "test-namespace",
+								Labels:    map[string]string{"test-label": "test-value", "tags.datadoghq.com/env": "env"},
+							},
 							Env:                 "env",
 							InjectableLanguages: make(langUtil.ContainersLanguages),
+						},
+					},
+					{
+						Type: workloadmeta.EventTypeSet,
+						Entity: &workloadmeta.KubernetesMetadata{
+							EntityID: workloadmeta.EntityID{
+								ID:   string(util.GenerateKubeMetadataEntityID("apps", "deployments", "test-namespace", "test-deployment")),
+								Kind: workloadmeta.KindKubernetesMetadata,
+							},
+							EntityMeta: workloadmeta.EntityMeta{
+								Name:      "test-deployment",
+								Namespace: "test-namespace",
+								Labels:    map[string]string{"test-label": "test-value", "tags.datadoghq.com/env": "env"},
+							},
+							GVR: &schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "deployments"},
 						},
 					},
 				},
@@ -183,13 +343,18 @@ func Test_DeploymentsFakeKubernetesClient(t *testing.T) {
 			createResource: func(cl *fake.Clientset) error {
 				_, err := cl.AppsV1().Deployments("test-namespace").Create(
 					context.TODO(),
-					&appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{
-						Name:      "test-deployment",
-						Namespace: "test-namespace",
-						Annotations: map[string]string{"test-label": "test-value",
-							"internal.dd.datadoghq.com/nginx.detected_langs":      "go,java",
-							"internal.dd.datadoghq.com/init.redis.detected_langs": "go,python"},
-					}},
+					&appsv1.Deployment{
+						TypeMeta: metav1.TypeMeta{
+							APIVersion: "apps/v1",
+							Kind:       "Deployment",
+						},
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      "test-deployment",
+							Namespace: "test-namespace",
+							Annotations: map[string]string{"test-label": "test-value",
+								"internal.dd.datadoghq.com/nginx.detected_langs":      "go,java",
+								"internal.dd.datadoghq.com/init.redis.detected_langs": "go,python"},
+						}},
 					metav1.CreateOptions{},
 				)
 				return err
@@ -202,6 +367,14 @@ func Test_DeploymentsFakeKubernetesClient(t *testing.T) {
 							EntityID: workloadmeta.EntityID{
 								ID:   "test-namespace/test-deployment",
 								Kind: workloadmeta.KindKubernetesDeployment,
+							},
+							EntityMeta: workloadmeta.EntityMeta{
+								Name:      "test-deployment",
+								Namespace: "test-namespace",
+								Annotations: map[string]string{"test-label": "test-value",
+									"internal.dd.datadoghq.com/nginx.detected_langs":      "go,java",
+									"internal.dd.datadoghq.com/init.redis.detected_langs": "go,python",
+								},
 							},
 							InjectableLanguages: langUtil.ContainersLanguages{
 								*langUtil.NewContainer("nginx"): {
@@ -215,6 +388,24 @@ func Test_DeploymentsFakeKubernetesClient(t *testing.T) {
 							},
 						},
 					},
+					{
+						Type: workloadmeta.EventTypeSet,
+						Entity: &workloadmeta.KubernetesMetadata{
+							EntityID: workloadmeta.EntityID{
+								ID:   string(util.GenerateKubeMetadataEntityID("apps", "deployments", "test-namespace", "test-deployment")),
+								Kind: workloadmeta.KindKubernetesMetadata,
+							},
+							EntityMeta: workloadmeta.EntityMeta{
+								Name:      "test-deployment",
+								Namespace: "test-namespace",
+								Annotations: map[string]string{"test-label": "test-value",
+									"internal.dd.datadoghq.com/nginx.detected_langs":      "go,java",
+									"internal.dd.datadoghq.com/init.redis.detected_langs": "go,python",
+								},
+							},
+							GVR: &schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "deployments"},
+						},
+					},
 				},
 			},
 		},
@@ -222,75 +413,6 @@ func Test_DeploymentsFakeKubernetesClient(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			testCollectEvent(t, tt.createResource, newDeploymentStore, tt.expected)
-		})
-	}
-}
-
-func Test_Deployment_FilteredOut(t *testing.T) {
-	tests := []struct {
-		name       string
-		deployment *workloadmeta.KubernetesDeployment
-		expected   bool
-	}{
-		{
-			name: "env only",
-			deployment: &workloadmeta.KubernetesDeployment{
-				EntityID: workloadmeta.EntityID{
-					ID:   "object-id",
-					Kind: workloadmeta.KindKubernetesDeployment,
-				},
-				Env:                 "env",
-				InjectableLanguages: make(langUtil.ContainersLanguages),
-			},
-			expected: false,
-		},
-		{
-			name: "language only",
-			deployment: &workloadmeta.KubernetesDeployment{
-				EntityID: workloadmeta.EntityID{
-					ID:   "object-id",
-					Kind: workloadmeta.KindKubernetesDeployment,
-				},
-				InjectableLanguages: langUtil.ContainersLanguages{
-					*langUtil.NewContainer("nginx"): {
-						langUtil.Language(languagemodels.Go): {},
-					},
-				},
-			},
-			expected: false,
-		},
-
-		{
-			name: "nothing",
-			deployment: &workloadmeta.KubernetesDeployment{
-				EntityID: workloadmeta.EntityID{
-					ID:   "object-id",
-					Kind: workloadmeta.KindKubernetesDeployment,
-				},
-				Env: "",
-			},
-			expected: false,
-		},
-		{
-			name: "nil maps",
-			deployment: &workloadmeta.KubernetesDeployment{
-				EntityID: workloadmeta.EntityID{
-					ID:   "object-id",
-					Kind: workloadmeta.KindKubernetesDeployment,
-				},
-			},
-			expected: false,
-		},
-		{
-			name:       "nil",
-			deployment: nil,
-			expected:   true,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			deploymentFilter := deploymentFilter{}
-			assert.Equal(t, tt.expected, deploymentFilter.filteredOut(tt.deployment))
 		})
 	}
 }

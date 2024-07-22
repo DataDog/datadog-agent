@@ -10,7 +10,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 )
 
@@ -53,7 +53,7 @@ func TestFilterFunctionTags(t *testing.T) {
 		"aws_account":               "test",
 	}
 
-	mockConfig := config.Mock(t)
+	mockConfig := configmock.New(t)
 	mockConfig.SetWithoutSource("tags", []string{"tag1:value1"})
 	mockConfig.SetWithoutSource("extra_tags", []string{"extra:tag"})
 

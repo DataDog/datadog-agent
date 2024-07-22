@@ -55,7 +55,7 @@ func (msa *mockStatsWriter) Write(payload *pb.StatsPayload) {
 // newAgentWithConfig creates a new traceagent with the given config cfg. Used in tests; use newAgent instead.
 func newAgentWithConfig(ctx context.Context, cfg *traceconfig.AgentConfig, out *mockStatsWriter, now time.Time) *traceAgent {
 	// disable the HTTP receiver
-	cfg.ReceiverPort = 0
+	cfg.ReceiverEnabled = false
 	// set the API key to succeed startup; it is never used nor needed
 	cfg.Endpoints[0].APIKey = "skip_check"
 	// set the default hostname to the translator's placeholder; in the case where no hostname

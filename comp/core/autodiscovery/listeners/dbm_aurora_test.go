@@ -11,14 +11,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"testing"
+	"time"
+
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/databasemonitoring/aws"
 	dbmconfig "github.com/DataDog/datadog-agent/pkg/databasemonitoring/config"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"testing"
-	"time"
 )
 
 type mockRDSClientConfigurer func(k *aws.MockRDSClient)
@@ -234,7 +235,7 @@ func TestDBMAuroraListener(t *testing.T) {
 			delSvc := make(chan Service, 10)
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
-			mockConfig := config.Mock(t)
+			mockConfig := configmock.New(t)
 			mockConfig.SetWithoutSource("autodiscover_aurora_clusters", tc.config)
 			mockAWSClient := aws.NewMockRDSClient(ctrl)
 			tc.rdsClientConfigurer(mockAWSClient)
