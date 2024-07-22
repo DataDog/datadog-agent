@@ -36,8 +36,7 @@ type Launcher struct {
 	stop                 chan struct{}
 	done                 chan struct{}
 	runPath              string
-	integrationsLogs     chan integrations.IntegrationLog
-	integrationsLogsComp integrations.Component
+	integrationsLogsChan chan integrations.IntegrationLog
 	integrationToFile    map[string]string
 	// writeLogToFile is used as a function pointer so it can be overridden in
 	// testing to make deterministic tests
@@ -51,8 +50,7 @@ func NewLauncher(sources *sources.LogSources, runPath string, integrationsLogsCo
 		runPath:              runPath,
 		stop:                 make(chan struct{}),
 		done:                 make(chan struct{}),
-		integrationsLogsComp: integrationsLogsComp,
-		integrationsLogs:     integrationsLogsComp.Subscribe(),
+		integrationsLogsChan: integrationsLogsComp.Subscribe(),
 		integrationToFile:    make(map[string]string),
 		writeFunction:        writeLogToFile,
 	}
@@ -67,7 +65,7 @@ func (s *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvid
 	go s.run()
 }
 
-// Stop stops the scanner tailers
+// Stop stops the scanner
 func (s *Launcher) Stop() {
 	s.stop <- struct{}{}
 	<-s.done
@@ -90,9 +88,9 @@ func (s *Launcher) run() {
 			filetypeSource := s.makeFileSource(source, filepath)
 			s.sources.AddSource(filetypeSource)
 
-			// file to write the incoming logs to and maximum size it can be
+			// file to write the incoming logs to
 			s.integrationToFile[source.Name] = filepath
-		case log := <-s.integrationsLogs:
+		case log := <-s.integrationsLogsChan:
 			integrationSplit := strings.Split(log.IntegrationID, ":")
 			integrationName := integrationSplit[0]
 			filepath := s.integrationToFile[integrationName]
@@ -100,7 +98,6 @@ func (s *Launcher) run() {
 			s.ensureFileSize(filepath)
 
 			s.writeFunction(filepath, log.Log)
-
 		case <-scanTicker.C:
 		case <-s.stop:
 			return
