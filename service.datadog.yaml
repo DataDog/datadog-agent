@@ -58,6 +58,7 @@ extensions:
           ci_pipeline: "//fake_placeholder:fake_placeholder"
           branch: "main"
           schedule: "10 3 * * SUN-THU"
+          parent_environments: ["prod", "staging"]
           workflows:
             - "k8s-datadog-agent-ops/workflows/beta_builds.agents_nightly.staging-deploy"
             - "k8s-datadog-agent-ops/workflows/beta_builds.agents_nightly.staging-validate"
@@ -73,6 +74,7 @@ extensions:
           ci_pipeline: "//fake_placeholder:fake_placeholder"
           branch: "main"
           schedule: "10 3 * * FRI-SAT"
+          parent_environments: ["staging"]
           workflows:
             - "k8s-datadog-agent-ops/workflows/beta_builds.agents_nightly.staging-deploy"
             - "k8s-datadog-agent-ops/workflows/beta_builds.agents_nightly.staging-validate"
@@ -81,11 +83,13 @@ extensions:
           branch: "main"
           build_only: true
           slack: "agent-nightly-deployment-expansion"
+          parent_environments: ["staging"]
           options:
             disable_failure_notifications: true
         - name: "conductor-sandbox"
           ci_pipeline: "//fake_placeholder:fake_placeholder"
           branch: "chouquette/conductor"
+          parent_environments: ["staging"]
   datadoghq.com/change-detection:
     source_patterns:
       - service.datadog.yaml
