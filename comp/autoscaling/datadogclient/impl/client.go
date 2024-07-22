@@ -1,9 +1,9 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2021-present Datadog, Inc.
+// Copyright 2024-present Datadog, Inc.
 
-// Package datadogclientimpl implements datadog client component for querying external metrics.
+// Package datadogclientimpl implements the datadogclient component interface
 package datadogclientimpl
 
 import (
@@ -11,11 +11,26 @@ import (
 
 	datadogclient "github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient/def"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
+	logComp "github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/status"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"go.uber.org/fx"
 	"gopkg.in/zorkian/go-datadog-api.v2"
 )
+
+// Requires defines the dependencies for the datadogclient component
+type Requires struct {
+	Config configComponent.Component
+	Log    logComp.Component
+}
+
+// Provides defines the output of the datadogclient component
+type Provides struct {
+	compdef.Out
+	Comp           datadogclient.Component
+	StatusProvider status.InformationProvider
+}
 
 const (
 	metricsEndpointPrefix          = "https://api."
@@ -31,17 +46,38 @@ type endpoint struct {
 	APPKey string `mapstructure:"app_key" json:"app_key" yaml:"app_key"`
 }
 
-type dependencies struct {
-	fx.In
-	Config configComponent.Component
+// NewComponent creates a new datadogclient component
+func NewComponent(reqs Requires) (Provides, error) {
+	provides := Provides{}
+	client, err := createDatadogClient(reqs.Config)
+	if err != nil {
+		return provides, err
+	}
+	dc := &datadogClient{
+		datadogConfig:     reqs.Config,
+		client:            client,
+		numberOfRefreshes: 0,
+	}
+	// Register a callback to refresh the client when the api_key or app_key changes
+	reqs.Config.OnUpdate(func(setting string, _, _ any) {
+		if setting == "api_key" || setting == "app_key" {
+			dc.refreshClient()
+		}
+	})
+	provides.Comp = dc
+	provides.StatusProvider = status.NewInformationProvider(statusProvider{
+		dc: dc.client,
+	})
+	return provides, nil
 }
 
 // datadogClient is a wrapper around the datadog.Client, which allows for
 // refresh of the client pointer in case of app/api key changes
 type datadogClient struct {
-	client        datadogclient.Component
-	mux           sync.RWMutex
-	datadogConfig configComponent.Component
+	client            datadogclient.Component
+	mux               sync.RWMutex
+	datadogConfig     configComponent.Component
+	numberOfRefreshes int
 }
 
 var _ datadogclient.Component = (*datadog.Client)(nil) // client implemented by zorkian/go-datadog-api.v2
@@ -70,8 +106,9 @@ func (d *datadogClient) refreshClient() {
 		log.Errorf("error refreshing datadog client: %v", err)
 		return
 	}
-	log.Infof("refreshed datadog client")
 	d.client = newClient
+	d.numberOfRefreshes++
+	log.Infof("refreshed datadog client, number of refreshes: %d", d.numberOfRefreshes)
 }
 
 func createDatadogClient(cfg configComponent.Component) (datadogclient.Component, error) {
@@ -84,74 +121,4 @@ func createDatadogClient(cfg configComponent.Component) (datadogclient.Component
 		return newDatadogFallbackClient(cfg, endpoints)
 	}
 	return newDatadogSingleClient(cfg)
-}
-
-// NewDatadogClient configures and returns a new DatadogClient
-func NewDatadogClient(deps dependencies) (datadogclient.Component, error) {
-	client, err := createDatadogClient(deps.Config)
-	if err != nil {
-		return nil, err
-	}
-	dc := &datadogClient{
-		datadogConfig: deps.Config,
-		client:        client,
-	}
-	// Register a callback to refresh the client when the api_key or app_key changes
-	deps.Config.OnUpdate(func(setting string, _, _ any) {
-		if setting == "api_key" || setting == "app_key" {
-			dc.refreshClient()
-		}
-	})
-	return dc, nil
-}
-
-// GetStatus returns the status of the DatadogClient
-func GetStatus(client datadogclient.Component) map[string]interface{} {
-	status := make(map[string]interface{})
-
-	switch ddCl := client.(type) {
-	case *datadog.Client:
-		// Can be nil if there's an error in NewDatadogClient()
-		if ddCl == nil {
-			return status
-		}
-
-		clientStatus := make(map[string]interface{})
-		clientStatus["url"] = ddCl.GetBaseUrl()
-		status["client"] = clientStatus
-	case *datadogFallbackClient:
-		if ddCl == nil {
-			return status
-		}
-
-		status["lastUsedClient"] = ddCl.lastUsedClient
-		clientsStatus := make([]map[string]interface{}, len(ddCl.clients))
-		for i, individualClient := range ddCl.clients {
-			clientsStatus[i] = make(map[string]interface{})
-			clientsStatus[i]["url"] = individualClient.client.GetBaseUrl()
-			clientsStatus[i]["lastQuerySucceeded"] = individualClient.lastQuerySucceeded
-			if individualClient.lastFailure.IsZero() {
-				clientsStatus[i]["lastFailure"] = "Never"
-			} else {
-				clientsStatus[i]["lastFailure"] = individualClient.lastFailure
-			}
-			if individualClient.lastSuccess.IsZero() {
-				clientsStatus[i]["lastSuccess"] = "Never"
-			} else {
-				clientsStatus[i]["lastSuccess"] = individualClient.lastSuccess
-			}
-			if individualClient.lastFailure.IsZero() &&
-				individualClient.lastSuccess.IsZero() {
-				clientsStatus[i]["status"] = "Unknown"
-			} else if individualClient.lastQuerySucceeded {
-				clientsStatus[i]["status"] = "OK"
-			} else {
-				clientsStatus[i]["status"] = "Failed"
-			}
-			clientsStatus[i]["retryInterval"] = individualClient.retryInterval
-		}
-		status["clients"] = clientsStatus
-	}
-
-	return status
 }

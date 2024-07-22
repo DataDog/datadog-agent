@@ -1,28 +1,39 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-present Datadog, Inc.
+// Copyright 2024-present Datadog, Inc.
 
 //go:build test
 
-// Package mock provides mock methods
 package mock
 
 import (
 	"sync"
-	"testing"
+
+	"gopkg.in/zorkian/go-datadog-api.v2"
 
 	datadogclient "github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient/def"
-	"gopkg.in/zorkian/go-datadog-api.v2"
 )
+
+var _ datadogclient.Component = (*mockDatadogClient)(nil)
+
+// Provides is a mock for component output
+type Provides struct {
+	Comp Component
+}
+
+// NewMock returns a mock for datadogclient component.
+func NewMock() Provides {
+	return Provides{
+		Comp: &mockDatadogClient{},
+	}
+}
 
 type mockDatadogClient struct {
 	mux               sync.RWMutex
 	queryMetricsFunc  func(from, to int64, query string) ([]datadog.Series, error)
 	getRateLimitsFunc func() map[string]datadog.RateLimit
 }
-
-var _ datadogclient.Component = (*mockDatadogClient)(nil)
 
 func (d *mockDatadogClient) QueryMetrics(from, to int64, query string) ([]datadog.Series, error) {
 	d.mux.RLock()
@@ -52,10 +63,4 @@ func (d *mockDatadogClient) SetGetRateLimitsFunc(getRateLimitsFunc func() map[st
 	d.mux.Lock()
 	defer d.mux.Unlock()
 	d.getRateLimitsFunc = getRateLimitsFunc
-}
-
-// NewMock returns a new mock datadogclient component
-func NewMock(*testing.T) datadogclient.MockComponent {
-	m := &mockDatadogClient{}
-	return m
 }

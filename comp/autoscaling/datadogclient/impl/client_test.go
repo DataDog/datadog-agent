@@ -11,16 +11,19 @@ import (
 	"net/http/httptest"
 	"net/http/httputil"
 	"testing"
+	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	logComp "github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/stretchr/testify/assert"
 	"gopkg.in/zorkian/go-datadog-api.v2"
 )
 
 func TestNewSingleClient(t *testing.T) {
-	cfg := config.Mock(t)
+	cfg := fxutil.Test[config.Component](t, config.MockModule())
 	cfg.Set("api_key", "apikey123", pkgconfigmodel.SourceLocalConfigProcess)
 	cfg.Set("app_key", "appkey456", pkgconfigmodel.SourceLocalConfigProcess)
 	datadogClient, err := createDatadogClient(cfg)
@@ -31,7 +34,7 @@ func TestNewSingleClient(t *testing.T) {
 }
 
 func TestNewFallbackClient(t *testing.T) {
-	cfg := config.Mock(t)
+	cfg := fxutil.Test[config.Component](t, config.MockModule())
 	cfg.Set("api_key", "apikey123", pkgconfigmodel.SourceLocalConfigProcess)
 	cfg.Set("app_key", "appkey456", pkgconfigmodel.SourceLocalConfigProcess)
 	cfg.SetWithoutSource(metricsRedundantEndpointConfig,
@@ -51,7 +54,7 @@ func TestNewFallbackClient(t *testing.T) {
 	assert.False(t, fallbackCl == (*datadogFallbackClient)(nil))
 }
 
-func TestExternalMetricsProviderEndpoint(t *testing.T) {
+func TestExternalMetricsProviderEndpointAndRefresh(t *testing.T) {
 	reqs := make(chan string, 1)
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		buf := new(bytes.Buffer)
@@ -62,11 +65,14 @@ func TestExternalMetricsProviderEndpoint(t *testing.T) {
 		w.Write([]byte("{\"status\": \"ok\"}"))
 	}))
 	defer ts.Close()
-	cfg := config.Mock(t)
+	cfg := fxutil.Test[config.Component](t, config.MockModule())
+	log := fxutil.Test[logComp.Component](t, logimpl.MockModule())
 	cfg.Set("api_key", "apikey123", pkgconfigmodel.SourceLocalConfigProcess)
 	cfg.Set("app_key", "appkey456", pkgconfigmodel.SourceLocalConfigProcess)
 	cfg.SetWithoutSource(metricsEndpointConfig, ts.URL)
-	datadogClientComp, err := NewDatadogClient(dependencies{Config: cfg})
+	datadogClientProvids, err := NewComponent(Requires{Config: cfg, Log: log})
+	// test component creation
+	datadogClientComp := datadogClientProvids.Comp
 	assert.NoError(t, err)
 	datadogClientWithRefresh, ok := datadogClientComp.(*datadogClient)
 	assert.True(t, ok)
@@ -75,8 +81,10 @@ func TestExternalMetricsProviderEndpoint(t *testing.T) {
 	assert.True(t, ok)
 	assert.False(t, dogCl == (*datadog.Client)(nil))
 	assert.Equal(t, dogCl.GetBaseUrl(), ts.URL) // "http://127.0.0.1:52118"
+
+	// test query with component
 	query := "This_is_a_test_query"
-	dogCl.QueryMetrics(0, 1, query)
+	datadogClientWithRefresh.QueryMetrics(0, 1, query)
 	payload := <-reqs
 	assert.Contains(t, payload, query)
 
@@ -85,11 +93,10 @@ func TestExternalMetricsProviderEndpoint(t *testing.T) {
 	newAPPKey := "fake_app_key"
 	cfg.Set("api_key", newAPIKey, pkgconfigmodel.SourceLocalConfigProcess)
 	cfg.Set("app_key", newAPPKey, pkgconfigmodel.SourceLocalConfigProcess)
-	refreshedDogCl, ok := datadogClientWithRefresh.client.(*datadog.Client)
-	assert.True(t, ok)
-	assert.False(t, refreshedDogCl == (*datadog.Client)(nil))
-	assert.NotEqual(t, dogCl, refreshedDogCl)
-	refreshedDogCl.QueryMetrics(0, 1, query)
+	assert.Eventually(t, func() bool {
+		return datadogClientWithRefresh.numberOfRefreshes > 0
+	}, 5*time.Second, 200*time.Millisecond)
+	datadogClientWithRefresh.QueryMetrics(0, 1, query)
 	payload2 := <-reqs
 	assert.Contains(t, payload2, newAPIKey)
 	assert.Contains(t, payload2, newAPPKey)

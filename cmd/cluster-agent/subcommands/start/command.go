@@ -70,7 +70,6 @@ import (
 	apidca "github.com/DataDog/datadog-agent/pkg/clusteragent/api"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
-	clusteragentMetricsStatus "github.com/DataDog/datadog-agent/pkg/clusteragent/metricsstatus"
 	orchestratorStatus "github.com/DataDog/datadog-agent/pkg/clusteragent/orchestrator"
 	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -168,9 +167,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					status.NewInformationProvider(clusterchecks.Provider{}),
 					status.NewInformationProvider(orchestratorStatus.Provider{}),
 				),
-				fx.Provide(func(dogCl datadogclient.Component) status.InformationProvider {
-					return status.NewInformationProvider(clusteragentMetricsStatus.GetProvider(dogCl))
-				}),
 				fx.Provide(func(config config.Component) status.HeaderInformationProvider {
 					return status.NewHeaderInformationProvider(hostnameStatus.NewProvider(config))
 				}),
