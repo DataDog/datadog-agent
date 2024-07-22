@@ -103,6 +103,8 @@ func (p *EBPFLessProbe) handleClientMsg(cl *client, msg *ebpfless.Message) {
 		}
 	case ebpfless.MessageTypeSyscall:
 		p.handleSyscallMsg(cl, msg.Syscall)
+	default:
+		seclog.Errorf("unknown message type: %d", msg.Type)
 	}
 }
 
