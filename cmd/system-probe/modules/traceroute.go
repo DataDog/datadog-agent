@@ -23,6 +23,7 @@ import (
 	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	tracerouteutil "github.com/DataDog/datadog-agent/pkg/networkpath/traceroute"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
@@ -133,7 +134,7 @@ func parseParams(req *http.Request) (tracerouteutil.Config, error) {
 		DestPort:     uint16(port),
 		MaxTTL:       uint8(maxTTL),
 		TimeoutMs:    uint(timeout),
-		Protocol:     protocol,
+		Protocol:     payload.Protocol(protocol),
 	}, nil
 }
 
