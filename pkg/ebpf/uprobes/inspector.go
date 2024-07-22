@@ -36,8 +36,12 @@ type BinaryInspector interface {
 
 // SymbolRequest represents a request for symbols and associated data from a binary
 type SymbolRequest struct {
-	Name                   string
-	BestEffort             bool
+	// Name of the symbol to request
+	Name string
+	// BestEffort indicates that the symbol is not mandatory, and the inspector should not return an error if it is not found
+	BestEffort bool
+	// IncludeReturnLocations indicates that the inspector should also include the return locations of the function, for manual
+	// attachment into those return points instead of using uretprobes.
 	IncludeReturnLocations bool
 }
 
