@@ -44,7 +44,7 @@ var RuntimePrefixes = map[string]CGroupManager{
 	"libpod-":         CGroupManagerPodman,
 }
 
-// GetCCGroupManager extracts the cgroup manager from a cgroup name
+// GetCGroupManager extracts the cgroup manager from a cgroup name
 func GetCGroupManager(cgroup string) (string, CGroupFlags) {
 	for runtimePrefix, runtimeFlag := range RuntimePrefixes {
 		if strings.HasPrefix(cgroup, runtimePrefix) {
